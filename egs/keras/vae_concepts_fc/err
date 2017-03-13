@@ -1,0 +1,81 @@
+Using Theano backend.
+WARNING (theano.sandbox.cuda): The cuda backend is deprecated and will be removed in the next release (v0.10).  Please switch to the gpuarray backend. You can get more information about how to switch at this URL:
+ https://github.com/Theano/Theano/wiki/Converting-to-the-new-gpu-back-end%28gpuarray%29
+
+Using gpu device 2: Tesla K10.G2.8GB (CNMeM is disabled, cuDNN 5005)
+Using Theano backend addons.
+Traceback (most recent call last):
+  File "/home/janto/usr/local/anaconda3/lib/python3.5/site-packages/theano/compile/function_module.py", line 884, in __call__
+    self.fn() if output_subset is None else\
+ValueError: GpuElemwise. Input dimension mis-match. Input 3 (indices start at 0) has shape[1] == 10000, but the output's size on that axis is 1000.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "./tied_vae_qyqz.py", line 134, in <module>
+    vae(args.exp)
+  File "./tied_vae_qyqz.py", line 108, in vae
+    x_val_dec = vae.decode_yz(y_val, z_val, batch_size=batch_size)
+  File "/home/janto/usr/src/hyperion/hyperion/hyperion/keras/vae/tied_vae_qyqz.py", line 185, in decode_yz
+    return generator.predict([y, z],batch_size=batch_size)
+  File "/home/janto/usr/src/keras/keras/keras/engine/training.py", line 1272, in predict
+    batch_size=batch_size, verbose=verbose)
+  File "/home/janto/usr/src/keras/keras/keras/engine/training.py", line 945, in _predict_loop
+    batch_outs = f(ins_batch)
+  File "/home/janto/usr/src/keras/keras/keras/backend/theano_backend.py", line 959, in __call__
+    return self.function(*inputs)
+  File "/home/janto/usr/local/anaconda3/lib/python3.5/site-packages/theano/compile/function_module.py", line 898, in __call__
+    storage_map=getattr(self.fn, 'storage_map', None))
+  File "/home/janto/usr/local/anaconda3/lib/python3.5/site-packages/theano/gof/link.py", line 325, in raise_with_op
+    reraise(exc_type, exc_value, exc_trace)
+  File "/home/janto/usr/local/anaconda3/lib/python3.5/site-packages/six.py", line 685, in reraise
+    raise value.with_traceback(tb)
+  File "/home/janto/usr/local/anaconda3/lib/python3.5/site-packages/theano/compile/function_module.py", line 884, in __call__
+    self.fn() if output_subset is None else\
+ValueError: GpuElemwise. Input dimension mis-match. Input 3 (indices start at 0) has shape[1] == 10000, but the output's size on that axis is 1000.
+Apply node that caused the error: GpuElemwise{Composite{(i0 + (exp((i1 * i2)) * i3))}}[(0, 0)](GpuReshape{3}.0, CudaNdarrayConstant{[[[ 0.5]]]}, GpuReshape{3}.0, GpuDimShuffle{x,0,1}.0)
+Toposort index: 62
+Inputs types: [CudaNdarrayType(float32, 3D), CudaNdarrayType(float32, (True, True, True)), CudaNdarrayType(float32, 3D), CudaNdarrayType(float32, (True, False, False))]
+Inputs shapes: [(10, 1000, 2), (1, 1, 1), (10, 1000, 2), (1, 10000, 2)]
+Inputs strides: [(2000, 2, 1), (0, 0, 0), (2000, 2, 1), (0, 2, 1)]
+Inputs values: ['not shown', b'CudaNdarray([[[ 0.5]]])', 'not shown', 'not shown']
+Outputs clients: [[HostFromGpu(GpuElemwise{Composite{(i0 + (exp((i1 * i2)) * i3))}}[(0, 0)].0)]]
+
+HINT: Re-running with most Theano optimization disabled could give you a back-trace of when this node was created. This can be done with by setting the Theano flag 'optimizer=fast_compile'. If that does not work, Theano optimizations can be disabled with 'optimizer=None'.
+HINT: Use the Theano flag 'exception_verbosity=high' for a debugprint and storage map footprint of this apply node.
+Using Theano backend.
+WARNING (theano.sandbox.cuda): The cuda backend is deprecated and will be removed in the next release (v0.10).  Please switch to the gpuarray backend. You can get more information about how to switch at this URL:
+ https://github.com/Theano/Theano/wiki/Converting-to-the-new-gpu-back-end%28gpuarray%29
+
+Using gpu device 2: Tesla K10.G2.8GB (CNMeM is disabled, cuDNN 5005)
+Using Theano backend addons.
+Traceback (most recent call last):
+  File "./tied_vae_qyqzgy.py", line 145, in <module>
+    vae(args.exp)
+  File "./tied_vae_qyqzgy.py", line 107, in vae
+    batch_size=batch_size, callbacks=my_callbacks())
+  File "/home/janto/usr/src/hyperion/hyperion/hyperion/keras/vae/vae.py", line 124, in fit
+    validation_data=x_val, **kwargs)
+  File "/home/janto/usr/src/keras/keras/keras/engine/training.py", line 1196, in fit
+    initial_epoch=initial_epoch)
+  File "/home/janto/usr/src/keras/keras/keras/engine/training.py", line 891, in _fit_loop
+    outs = f(ins_batch)
+  File "/home/janto/usr/src/keras/keras/keras/backend/theano_backend.py", line 959, in __call__
+    return self.function(*inputs)
+  File "/home/janto/usr/local/anaconda3/lib/python3.5/site-packages/theano/compile/function_module.py", line 884, in __call__
+    self.fn() if output_subset is None else\
+  File "/home/janto/usr/local/anaconda3/lib/python3.5/site-packages/theano/scan_module/scan_op.py", line 989, in rval
+    r = p(n, [x[0] for x in i], o)
+  File "/home/janto/usr/local/anaconda3/lib/python3.5/site-packages/theano/scan_module/scan_op.py", line 978, in p
+    self, node)
+  File "theano/scan_module/scan_perform.pyx", line 397, in theano.scan_module.scan_perform.perform (/home/janto/.theano/compiledir_Linux-3.16--amd64-x86_64-with-debian-8.6--3.5.2-64/scan_perform/mod.cpp:4490)
+  File "/home/janto/usr/local/anaconda3/lib/python3.5/site-packages/theano/gof/op.py", line 860, in rval
+    def rval(p=p, i=node_input_storage, o=node_output_storage, n=node):
+KeyboardInterrupt
+Error in atexit._run_exitfuncs:
+Traceback (most recent call last):
+  File "/home/janto/usr/local/anaconda3/lib/python3.5/site-packages/theano/gof/cmodule.py", line 939, in refresh
+    open(entry).close()
+  File "/home/janto/usr/local/anaconda3/lib/python3.5/_bootlocale.py", line 23, in getpreferredencoding
+    def getpreferredencoding(do_setlocale=True):
+KeyboardInterrupt
