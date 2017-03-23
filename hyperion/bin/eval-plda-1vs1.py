@@ -20,8 +20,7 @@ from hyperion.transforms import TransformList
 from hyperion.utils.scp_list import SCPList
 from hyperion.utils.trial_ndx import TrialNdx
 from hyperion.utils.trial_scores import TrialScores
-from hyperion.keras.keras_utils import *
-from hyperion.distributions.plda import FRPLDA
+from hyperion.pdfs.plda import FRPLDA
 
 
 def load_data(hyp_reader, ndx_file, enroll_file, test_file,

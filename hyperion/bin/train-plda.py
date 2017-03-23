@@ -18,7 +18,7 @@ import numpy as np
 from hyperion.io import HypDataReader
 from hyperion.utils.scp_list import SCPList
 from hyperion.transforms import TransformList
-from hyperion.distributions.plda import *
+from hyperion.pdfs.plda import *
 
 
 def load_data(iv_file, train_file, preproc):
