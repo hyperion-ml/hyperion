@@ -20,7 +20,7 @@ from keras.models import Model, load_model, model_from_json
 
 from .. import objectives as hyp_obj
 from ..keras_utils import *
-from ...distributions.core import PDF
+from ...pdfs.core import PDF
 from ..layers.sampling import BernoulliSampler, DiagNormalSampler, NormalSampler
 
 
