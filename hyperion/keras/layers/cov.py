@@ -14,7 +14,7 @@ from ...hyp_defs import float_keras
 #from .. import backend_addons as K2
 from .. import constraints as hyp_constraints
 
-class MultConstDiagVar(Layer):
+class MultConstDiagCov(Layer):
     
     def __init__(self, output_dim,
                  weights=None,
@@ -32,7 +32,7 @@ class MultConstDiagVar(Layer):
 
         if self.input_dim:
             kwargs['input_shape'] = (self.input_dim,)
-        super(MultConstDiagVar, self).__init__(**kwargs)
+        super(MultConstDiagCov, self).__init__(**kwargs)
         self.supports_masking = True
 
         
@@ -77,7 +77,7 @@ class MultConstDiagVar(Layer):
                   'constraint': self.constraint.get_config()
                   if self.constraint else None}
         
-        base_config = super(MultConstDiagVar, self).get_config()
+        base_config = super(MultConstDiagCov, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
     def compute_mask(self, inputs, mask=None):
@@ -86,7 +86,7 @@ class MultConstDiagVar(Layer):
 
 
     
-class MultConstDiagVarStdPrior(Layer):
+class MultConstDiagCovStdPrior(Layer):
     
     def __init__(self, output_dim,
                  weights=None,
@@ -103,7 +103,7 @@ class MultConstDiagVarStdPrior(Layer):
 
         if self.input_dim:
             kwargs['input_shape'] = (self.input_dim,)
-        super(MultConstDiagVarStdPrior, self).__init__(**kwargs)
+        super(MultConstDiagCovStdPrior, self).__init__(**kwargs)
         self.supports_masking = True
 
         
@@ -148,7 +148,7 @@ class MultConstDiagVarStdPrior(Layer):
                   'regularizer': self.regularizer.get_config()
                   if self.regularizer else None}
         
-        base_config = super(MultConstDiagVarStdPrior, self).get_config()
+        base_config = super(MultConstDiagCovStdPrior, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
     

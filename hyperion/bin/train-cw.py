@@ -35,7 +35,7 @@ def load_data(iv_file, train_file, preproc):
 
 
 def train_cw(iv_file, train_list, preproc_file, with_lnorm, batch_size,
-             tname, save_tlist, append_tlist, out_path, **kwargs):
+             name, save_tlist, append_tlist, out_path, **kwargs):
     
     if preproc_file is not None:
         preproc = TransformList.load(preproc_file)
@@ -50,9 +50,9 @@ def train_cw(iv_file, train_list, preproc_file, with_lnorm, batch_size,
     gauss.fit(x_train=x)
 
     if with_lnorm:
-        model = LNorm(name=tname)
+        model = LNorm(name=name)
     else:
-        model = CentWhiten(name=tname)
+        model = CentWhiten(name=name)
 
     model.fit(mu=gauss.mu, C=gauss.Sigma)
 
@@ -93,7 +93,7 @@ if __name__ == "__main__":
                         default=True)
     parser.add_argument('--batch-size',dest='batch_size',default=1024,type=int,
                         help=('Batch size (default: %(default)s)'))
-    parser.add_argument('--tname', dest='tname', default='lnorm')
+    parser.add_argument('--name', dest='name', default='lnorm')
     
     args=parser.parse_args()
     

@@ -18,7 +18,7 @@ import numpy as np
 from hyperion.io import HypDataReader
 from hyperion.utils.scp_list import SCPList
 from hyperion.transforms import TransformList
-from hyperion.distributions.plda import FRPLDA
+from hyperion.distributions.plda import *
 
 
 def load_data(iv_file, train_file, preproc):
@@ -55,6 +55,8 @@ def train_plda(iv_file, train_list, val_list, preproc_file, y_dim, z_dim,
 
     if plda_type == 'frplda':
         model = FRPLDA()
+    elif plda_type == 'splda':
+        model = SPLDA(y_dim = y_dim)
     elbos = model.fit(x, class_ids, x_val=x_val, class_ids_val=class_ids_val,
                       epochs=epochs, md_epochs=md_epochs)
 
@@ -63,8 +65,10 @@ def train_plda(iv_file, train_list, val_list, preproc_file, y_dim, z_dim,
     model.save(out_path)
 
     if len(elbos)==2:
-        elbo = np.vstack(elbos).T
-    elbo_path=os.path.splitext(out+path)[0] + '.csv'
+        elbo = np.vstack(elbos)
+    num = np.arange(epochs)
+    elbo = np.vstack((num, elbo)).T
+    elbo_path=os.path.splitext(out_path)[0] + '.csv'
     np.savetxt(elbo_path, elbo, delimiter=',')
     
     
@@ -83,9 +87,9 @@ if __name__ == "__main__":
                         default=150)
     parser.add_argument('--z-dim', dest='z_dim', type=int,
                         default=None)
-    parser.add_arguments('--plda-type', dest='plda_type', default='splda')
-    parser.add_arguments('--epochs', dest='epo', default=20)
-    parser.add_arguments('--md-epochs', dest=md_epochs, default=[2, 10],
+    parser.add_argument('--plda-type', dest='plda_type', default='splda')
+    parser.add_argument('--epochs', dest='epochs', default=20, type=int)
+    parser.add_argument('--md-epochs', dest='md_epochs', default=[1, 9],
                          type=int, nargs = '+')
     parser.add_argument('--name', dest='name', default='plda')
     

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-Trains Centering and whitening
+Trains LDA
 """
 from __future__ import absolute_import
 from __future__ import print_function
@@ -37,7 +37,7 @@ def load_data(iv_file, train_file, preproc):
 
 
 def train_lda(iv_file, train_list, preproc_file, lda_dim,
-              tname, save_tlist, append_tlist, out_path, **kwargs):
+              name, save_tlist, append_tlist, out_path, **kwargs):
     
     if preproc_file is not None:
         preproc = TransformList.load(preproc_file)
@@ -51,7 +51,7 @@ def train_lda(iv_file, train_list, preproc_file, lda_dim,
     s_mat = SbSw()
     s_mat.fit(x, class_ids)
 
-    model = LDA(name=tname)
+    model = LDA(name=name)
     model.fit(mu=s_mat.mu, Sb=s_mat.Sb, Sw=s_mat.Sw, lda_dim=lda_dim)
 
     print('Elapsed time: %.2f s.' % (time.time()-t1))
@@ -90,7 +90,7 @@ if __name__ == "__main__":
                         default=True)
     parser.add_argument('--append-tlist', dest='append_tlist', type=bool,
                         default=True)
-    parser.add_argument('--tname', dest='tname', default='lda')
+    parser.add_argument('--name', dest='name', default='lda')
     
     args=parser.parse_args()
     

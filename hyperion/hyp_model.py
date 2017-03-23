@@ -6,6 +6,7 @@ from six.moves import xrange
 
 
 from abc import ABCMeta, abstractmethod
+import os
 import json
 
 import numpy as np
@@ -31,6 +32,9 @@ class HypModel(object):
     
     @abstractmethod
     def save(self, file_path):
+        file_dir = os.path.dirname(file_path)
+        if not(os.path.isdir(file_dir)):
+            os.makedirs(file_dir, exist_ok=True)
         with h5py.File(file_path,'w') as f:
             config=self.to_json()
             f.create_dataset('config', data=np.array(config, dtype='S'))

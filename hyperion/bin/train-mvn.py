@@ -39,7 +39,7 @@ def load_data(iv_file, train_file, preproc):
 
 
 def train_mvn(iv_file, train_list, preproc_file,
-              tname, save_tlist, append_tlist, out_path, **kwargs):
+              name, save_tlist, append_tlist, out_path, **kwargs):
     
     if preproc_file is not None:
         preproc = TransformList.load(preproc_file)
@@ -50,7 +50,7 @@ def train_mvn(iv_file, train_list, preproc_file,
 
     t1 = time.time()
 
-    model = MVN(name=tname)
+    model = MVN(name=name)
 
     model.fit(x)
 
@@ -89,7 +89,7 @@ if __name__ == "__main__":
                         default=True)
     parser.add_argument('--append-tlist', dest='append_tlist', type=bool,
                         default=True)
-    parser.add_argument('--tname', dest='tname', default='mvn')
+    parser.add_argument('--name', dest='name', default='mvn')
     
     args=parser.parse_args()
     

@@ -21,7 +21,7 @@ class FRPLDA(PLDABase):
         y_dim=None
         if mu is not None:
             y_dim = mu.shape[0]
-        super(FRPLDA, self).__init__(mu=mu, y_dim=ydim, update_mu=update_mu, **kwargs)
+        super(FRPLDA, self).__init__(mu=mu, y_dim=y_dim, update_mu=update_mu, **kwargs)
         self.B = B
         self.W = W
         self.fullcov_W = fullcov_W
@@ -32,6 +32,7 @@ class FRPLDA(PLDABase):
     def initialize(self, D):
         N, F, S = D
         self.x_dim = F.shape[1]
+        self.y_dim = F.shape[1]
         M = F.shape[0]
         N_tot = np.sum(N)
 
@@ -45,7 +46,7 @@ class FRPLDA(PLDABase):
         C = (C+C.T)/2
         mu = np.mean(y, axis=0)
         iB = np.dot(y.T, y)/M - np.outer(mu, mu)
-        iW = C/N
+        iW = C/N_tot
 
         B = invert_pdmat(iB, compute_inv=True)[3]
         W = invert_pdmat(iW, compute_inv=True)[3]
@@ -84,13 +85,13 @@ class FRPLDA(PLDABase):
         if return_logpy_0:
             logpy = - 0.5*y_dim*np.log(2*np.pi) * np.ones((M,), dtype=float_cpu())
 
-        if return_accs:
+        if return_acc:
+            Py = np.zeros((y_dim, y_dim), dtype=float_cpu())
             Ry = np.zeros((y_dim, y_dim), dtype=float_cpu())
-            A = np.zeros((y_dim, y_dim), dtype=float_cpu())
 
         for k in iterator:
             if N_is_int:
-                i = np.where(N == k)
+                i = (N == k).nonzero()[0]
                 N_i = k
                 M_i = len(i)
             else:
@@ -99,9 +100,9 @@ class FRPLDA(PLDABase):
                 M_i = 1
                 
             L_i = self.B + N_i*self.W
-            mult_iL, _, logL, iL = compute_pdmat(L_i, right_inv=True,
-                                                 compute_logdet=return_logpy_0,
-                                                 compute_inv=compute_inv)
+            mult_iL, _, logL, iL = invert_pdmat(L_i, right_inv=True,
+                                                compute_logdet=return_logpy_0,
+                                                compute_inv=compute_inv)
             
             y[i,:]=mult_iL(gamma[i,:])
             
@@ -109,11 +110,10 @@ class FRPLDA(PLDABase):
                 Sigma_y[i,:,:]=iL
 
             if return_logpy_0:
-                logpy[i] += 0.5*(logL - np.sum(y[i,:]*gamma[i,:], axis=1))
+                logpy[i] += 0.5*(logL - np.sum(y[i,:]*gamma[i,:], axis=-1))
                 
             if return_acc:
-                Ry += M_i*iL
-                C += M_i*N_i*iL
+                Py += M_i*iL
 
             r = [y]
             if return_cov:
@@ -121,30 +121,31 @@ class FRPLDA(PLDABase):
             if return_logpy_0:
                 r += [logpy]
             if return_acc:
-                r += [Ay, Ry]
+                r += [Ry, Py]
         return r
 
 
     def Estep(self, D):
         N, F, S = D
-        y, logpy, Ay, Ry = self.compute_py_g_x(
+        y, logpy, Ry, Py = self.compute_py_g_x(
             D, return_logpy_0=True, return_acc=True)
 
-        M=F.shpae[0]
+        M=F.shape[0]
         N_tot=np.sum(N)
 
         y_acc = np.sum(y, axis=0)
         Cy = np.dot(F.T, y)
         
         Niy = y * N[:,None]
-        Ay += np.dot(Niy.T, y)
-        Ry += np.dot(y.T, y)
+        Ry += np.dot(Niy.T, y)
+        Py += np.dot(y.T, y)
 
-        logpy_acc 
+        logpy_acc = np.sum(logpy)
         
-        stats = [N_tot, M, S, logpy_acc, y_acc, Ay, Cy, Ry]
+        stats = [N_tot, M, S, logpy_acc, y_acc, Ry, Cy, Py]
+        return stats
 
-
+    
     def elbo(self, stats):
         N, M, S, logpy_x  = stats[:4]
 
@@ -172,34 +173,34 @@ class FRPLDA(PLDABase):
         
 
     def MstepML(self, stats):
-        N, M, S, _, y_acc, Ay, Cy, Ry = stats
+        N, M, S, _, y_acc, Ry, Cy, Py = stats
         ybar = y_acc/M
         if self.update_mu:
             self.mu = ybar
         if self.update_B:
             if self.update_mu:
-                iB = Ry/M - np.outer(self.mu, self.mu)
+                iB = Py/M - np.outer(self.mu, self.mu)
             else:
                 muybar = np.outer(self.mu, ybar)
-                iB = Ry/M - muybar - muybar + np.outer(self.mu, self.mu)
+                iB = Py/M - muybar - muybar + np.outer(self.mu, self.mu)
             self.B = invert_pdmat(iB, compute_inv=True)[-1]
         if self.update_W:
-            iW = (S - Cy - Cy.T + Ay)/N
+            iW = (S - Cy - Cy.T + Ry)/N
             if self.fullcov_W:
                 self.W = invert_pdmat(iW, compute_inv=True)[-1]
             else:
                 self.W=np.diag(1/np.diag(iW))
 
-        # N, M, sumy, _, Ry, C, _, logL = stats
+        # N, M, sumy, _, Py, C, _, logL = stats
         # ybar = sumy/M
         # if self.update_mu:
         #     self.mu = ybar
         # if self.update_B:
         #     if self.update_mu:
-        #         iB = Ry/M - np.outer(self.mu, self.mu)
+        #         iB = Py/M - np.outer(self.mu, self.mu)
         #     else:
         #         muybar = np.outer(self.mu, ybar)
-        #         iB = Ry/M - muybar - muybar + np.outer(self.mu, self.mu)
+        #         iB = Py/M - muybar - muybar + np.outer(self.mu, self.mu)
         #     self.B = invert_pdmat(iB, compute_inv=True)[-1]
         # if self.update_W:
         #     iW = C/N
@@ -214,9 +215,9 @@ class FRPLDA(PLDABase):
 
 
     def get_config(self):
-        config = { 'update_W': self.update_W
+        config = { 'update_W': self.update_W,
                    'update_B': self.update_B,
-                   'fullcov_W': fullcov_W}
+                   'fullcov_W': self.fullcov_W}
         base_config = super(FRPLDA, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
@@ -231,7 +232,7 @@ class FRPLDA(PLDABase):
     @classmethod
     def load_params(cls, f, config):
         param_list = ['mu', 'B', 'W']
-        params = self._load_params_to_dict(f, config['name'], param_list)
+        params = cls._load_params_to_dict(f, config['name'], param_list)
         kwargs = dict(list(config.items()) + list(params.items()))
         return cls(**kwargs)
 
@@ -268,7 +269,9 @@ class FRPLDA(PLDABase):
 
         scores = 2*np.dot(gamma_tar_1, gamma_tar_2.T)
         scores += (Qtar_1-Qnon_1+Qtar_2-Qnon_2)
-        scores += (2*logLnon-logLtar-logdet_pdmat(self.B)+np.inner(np.dot(self.mu, self.B), self.mu))
+        scores += (2*logLnon-logLtar
+                   -logdet_pdmat(self.B)
+                   +np.inner(np.dot(self.mu, self.B), self.mu))
         scores *= 0.5
         return scores
                 

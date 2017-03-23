@@ -15,7 +15,7 @@ from ...transforms import LNorm
 class PLDABase(PDF):
     __metaclass__ = ABCMeta
 
-    def __init__(self, mu=None, y_dim=None, update_mu=True, **kwargs):
+    def __init__(self, y_dim=None, mu=None, update_mu=True, **kwargs):
         super(PLDABase, self).__init__(None, **kwargs)
         self.mu = mu
         self.y_dim = y_dim
@@ -32,27 +32,40 @@ class PLDABase(PDF):
         pass
 
             
-    def fit(self, x_train, sample_weights_train=None,
-            x_val=None, sample_weights_val=None, batch_size=None,
-            n_iters=20, md_iters=[2, 10]):
+    def fit(self, x, class_ids=None, ptheta=None, sample_weight=None,
+            x_val=None, class_ids_val=None, ptheta_val=None, sample_weight_val=None,
+            epochs=20, md_epochs=[1, 9]):
 
-        elbo = np.zeros((n_iters), dtype=float_cpu())
+
+        assert(not(class_ids is  None and ptheta is None))
+        if class_ids is None:
+            D = self.compute_stats_soft(x, ptheta)
+        else:
+            D = self.compute_stats_hard(x, class_ids)
+
         if x_val is not None:
-            elbo_val = np.zeros((n_iters), dtype=float_cpu())
-            
-        for it in xrange(n_iters):
-            
-            stats=self.Estep(x=x_train, sample_weights=sample_weights_train,
-                             batch_size=batch_size)
-            elbo[it]=self.elbo(stats)
-            self.MstepML(stats)
-            if it in md_iters: 
-                self.MstepMD(stats)
+            assert(not(class_ids_val is  None and ptheta_val is None))        
+            if class_ids_val is None:
+                D_val = self.compute_stats_soft(x_val, ptheta_val)
+            else:
+                D_val = self.compute_stats_hard(x_val, class_ids_val)
+
+        if self.mu is None:
+            self.initialize(D)
                 
+        elbo = np.zeros((epochs,), dtype=float_cpu())
+        elbo_val = np.zeros((epochs,), dtype=float_cpu())
+        for epoch in xrange(epochs):
+            
+            stats=self.Estep(D)
+            elbo[epoch]=self.elbo(stats)
             if x_val is not None:
-                stats=self.Estep(x=x_val, sample_weights=sample_weights_val,
-                                 batch_size=batch_size)
-                elbo_val[it]=self.elbo(stats)
+                stats_val=self.Estep(D_val)
+                elbo_val[epoch]=self.elbo(stats_val)
+
+            self.MstepML(stats)
+            if epoch in md_epochs: 
+                self.MstepMD(stats)
 
         if x_val is None:
             return elbo
@@ -86,25 +99,25 @@ class PLDABase(PDF):
 
     
     @staticmethod
-    def compute_stats_ptheta(x, p_theta, sample_weights=None, scal_factor=None):
-        if sample_weights is not None:
-            p_theta = sample_weights*p_theta
+    def compute_stats_soft(x, p_theta, sample_weight=None, scal_factor=None):
+        if sample_weight is not None:
+            p_theta = sample_weight[:, None]*p_theta
         if scal_factor is not None:
             p_theta *= scal_factor
         N = np.sum(p_theta, axis=0)
         F = np.dot(p_theta.T, x)
-        wx = np.sum(p_theta, axis=1)*x
-        S = x.T*wx
+        wx = np.sum(p_theta, axis=1, keepdims=True)*x
+        S = np.dot(x.T, wx)
         return N, F, S
 
     
     @staticmethod
-    def compute_stats(x, class_ids, sample_weights=None, scal_factor=None):
+    def compute_stats_hard(x, class_ids, sample_weight=None, scal_factor=None):
         x_dim=x.shape[1]
-        max_i = np.max(class_ids)
-        p_theta = np.zeros((x.shape[0], max_i), dtype=float_cpu())
-        p_theta[class_ids, np.arange(x.shape[0])]=1
-        return PLDABase.compute_stats_ptheta(x, p_theta, sample_weights, scal_factor)
+        num_classes = np.max(class_ids)+1
+        p_theta = np.zeros((x.shape[0], num_classes), dtype=float_cpu())
+        p_theta[np.arange(x.shape[0]), class_ids]=1
+        return PLDABase.compute_stats_soft(x, p_theta, sample_weight, scal_factor)
 
 
     @staticmethod
@@ -175,3 +188,14 @@ class PLDABase(PDF):
         scores = F/N[:, None]
         return scores
         
+    @abstractmethod
+    def generate(self, nb_samples, rng=None, seed=1024):
+        pass
+
+
+    def get_config(self):
+        config = { 'y_dim': self.y_dim,
+                   'update_mu': self.update_mu}
+        base_config = super(PLDABase, self).get_config()
+        return dict(list(base_config.items()) + list(config.items()))
+

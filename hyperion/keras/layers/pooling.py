@@ -91,10 +91,10 @@ class GlobalSumWeights(_GlobalPooling1D):
         return None
 
 
-class GlobalProdRenormDiagNormalCommonVarStdPrior(_GlobalPooling1D):
+class GlobalProdRenormDiagNormalCommonCovStdPrior(_GlobalPooling1D):
 
     def __init__(self,**kwargs):
-        super(GlobalProdRenormDiagNormalCommonVarStdPrior, self).__init__(**kwargs)
+        super(GlobalProdRenormDiagNormalCommonCovStdPrior, self).__init__(**kwargs)
         self.supports_masking = True
 
     def get_output_shape_for(self, input_shape):
@@ -119,7 +119,7 @@ class GlobalProdRenormDiagNormalCommonVarStdPrior(_GlobalPooling1D):
 
     
     
-# class MultConstDiagVar(Layer):
+# class MultConstDiagCov(Layer):
     
 #     def __init__(self, output_dim,
 #                  weights=None,
@@ -137,7 +137,7 @@ class GlobalProdRenormDiagNormalCommonVarStdPrior(_GlobalPooling1D):
 
 #         if self.input_dim:
 #             kwargs['input_shape'] = (self.input_dim,)
-#         super(MultConstDiagVar, self).__init__(**kwargs)
+#         super(MultConstDiagCov, self).__init__(**kwargs)
 #         self.supports_masking = True
 
         
@@ -179,7 +179,7 @@ class GlobalProdRenormDiagNormalCommonVarStdPrior(_GlobalPooling1D):
 #         config = {'output_dim': self.output_dim,
 #                   'regularizer': self.regularizer.get_config() if self.regularizer else None,
 #                   'constraint': self.constraint.get_config() if self.constraint else None}
-#         base_config = super(MultConstDiagVar, self).get_config()
+#         base_config = super(MultConstDiagCov, self).get_config()
 #         return dict(list(base_config.items()) + list(config.items()))
 
 #     def compute_mask(self, inputs, mask=None):
@@ -188,7 +188,7 @@ class GlobalProdRenormDiagNormalCommonVarStdPrior(_GlobalPooling1D):
 
 
     
-# class MultConstDiagVarStdPrior(Layer):
+# class MultConstDiagCovStdPrior(Layer):
     
 #     def __init__(self, output_dim,
 #                  weights=None,
@@ -205,7 +205,7 @@ class GlobalProdRenormDiagNormalCommonVarStdPrior(_GlobalPooling1D):
 
 #         if self.input_dim:
 #             kwargs['input_shape'] = (self.input_dim,)
-#         super(MultConstDiagVarStdPrior, self).__init__(**kwargs)
+#         super(MultConstDiagCovStdPrior, self).__init__(**kwargs)
 #         self.supports_masking = True
 
         
@@ -248,7 +248,7 @@ class GlobalProdRenormDiagNormalCommonVarStdPrior(_GlobalPooling1D):
 #     def get_config(self):
 #         config = {'output_dim': self.output_dim,
 #                   'regularizer': self.regularizer.get_config() if self.regularizer else None}
-#         base_config = super(MultConstDiagVarStdPrior, self).get_config()
+#         base_config = super(MultConstDiagCovStdPrior, self).get_config()
 #         return dict(list(base_config.items()) + list(config.items()))
 
     
@@ -258,7 +258,7 @@ class GlobalProdRenormDiagNormalCommonVarStdPrior(_GlobalPooling1D):
 
     
     
-class GlobalProdRenormDiagNormalConstVarStdPrior(Layer):
+class GlobalProdRenormDiagNormalConstCovStdPrior(Layer):
     
     def __init__(self, output_dim,
                  weights=None,
@@ -276,7 +276,7 @@ class GlobalProdRenormDiagNormalConstVarStdPrior(Layer):
 
         if self.input_dim:
             kwargs['input_shape'] = (self.input_dim,)
-        super(GlobalProdRenormDiagNormalConstVarStdPrior, self).__init__(**kwargs)
+        super(GlobalProdRenormDiagNormalConstCovStdPrior, self).__init__(**kwargs)
         self.supports_masking = True
 
         
@@ -321,7 +321,7 @@ class GlobalProdRenormDiagNormalConstVarStdPrior(Layer):
         config = {'output_dim': self.output_dim,
                   'regularizer': self.regularizer.get_config() if self.regularizer else None,
                   'constraint': self.constraint.get_config() if self.constraint else None}
-        base_config = super(GlobalProdRenormDiagNormalConstVarStdPrior, self).get_config()
+        base_config = super(GlobalProdRenormDiagNormalConstCovStdPrior, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
     
@@ -331,7 +331,7 @@ class GlobalProdRenormDiagNormalConstVarStdPrior(Layer):
 
 
 
-class GlobalProdRenormDiagNormalConstVarStdPrior2(Layer):
+class GlobalProdRenormDiagNormalConstCovStdPrior2(Layer):
     
     def __init__(self, output_dim,
                  weights=None,
@@ -349,7 +349,7 @@ class GlobalProdRenormDiagNormalConstVarStdPrior2(Layer):
 
         if self.input_dim:
             kwargs['input_shape'] = (self.input_dim,)
-        super(GlobalProdRenormDiagNormalConstVarStdPrior2, self).__init__(**kwargs)
+        super(GlobalProdRenormDiagNormalConstCovStdPrior2, self).__init__(**kwargs)
         self.supports_masking = True
 
         
@@ -394,7 +394,7 @@ class GlobalProdRenormDiagNormalConstVarStdPrior2(Layer):
         config = {'output_dim': self.output_dim,
                   'regularizer': self.regularizer.get_config() if self.regularizer else None,
                   'constraint': self.constraint.get_config() if self.constraint else None}
-        base_config = super(GlobalProdRenormDiagNormalConstVarStdPrior2, self).get_config()
+        base_config = super(GlobalProdRenormDiagNormalConstCovStdPrior2, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
     
@@ -405,7 +405,7 @@ class GlobalProdRenormDiagNormalConstVarStdPrior2(Layer):
 
     
 
-class GlobalProdRenormDiagNormalConstVarStdPrior3(Layer):
+class GlobalProdRenormDiagNormalConstCovStdPrior3(Layer):
     
     def __init__(self, output_dim,
                  weights=None,
@@ -423,7 +423,7 @@ class GlobalProdRenormDiagNormalConstVarStdPrior3(Layer):
 
         if self.input_dim:
             kwargs['input_shape'] = (self.input_dim,)
-        super(GlobalProdRenormDiagNormalConstVarStdPrior3, self).__init__(**kwargs)
+        super(GlobalProdRenormDiagNormalConstCovStdPrior3, self).__init__(**kwargs)
         self.supports_masking = True
 
         
@@ -471,7 +471,7 @@ class GlobalProdRenormDiagNormalConstVarStdPrior3(Layer):
         config = {'output_dim': self.output_dim,
                   'regularizer': self.regularizer.get_config() if self.regularizer else None,
                   'constraint': self.constraint.get_config() if self.constraint else None}
-        base_config = super(GlobalProdRenormDiagNormalConstVarStdPrior3, self).get_config()
+        base_config = super(GlobalProdRenormDiagNormalConstCovStdPrior3, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
     
@@ -480,7 +480,7 @@ class GlobalProdRenormDiagNormalConstVarStdPrior3(Layer):
 
 
 
-class GlobalProdRenormDiagNormalConstVarStdPrior4(Layer):
+class GlobalProdRenormDiagNormalConstCovStdPrior4(Layer):
     
     def __init__(self, output_dim,
                  weights=None,
@@ -499,7 +499,7 @@ class GlobalProdRenormDiagNormalConstVarStdPrior4(Layer):
 
         if self.input_dim:
             kwargs['input_shape'] = (self.input_dim,)
-        super(GlobalProdRenormDiagNormalConstVarStdPrior4, self).__init__(**kwargs)
+        super(GlobalProdRenormDiagNormalConstCovStdPrior4, self).__init__(**kwargs)
         self.supports_masking = True
 
         
@@ -550,7 +550,7 @@ class GlobalProdRenormDiagNormalConstVarStdPrior4(Layer):
         config = {'output_dim': self.output_dim,
                   'regularizer': self.regularizer.get_config() if self.regularizer else None,
                   'constraint': self.constraint.get_config() if self.constraint else None}
-        base_config = super(GlobalProdRenormDiagNormalConstVarStdPrior4, self).get_config()
+        base_config = super(GlobalProdRenormDiagNormalConstCovStdPrior4, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
     
@@ -563,7 +563,7 @@ class GlobalProdRenormDiagNormalConstVarStdPrior4(Layer):
 class GlobalProdRenormNormalCommonCovStdPrior(_GlobalPooling1D):
 
     def __init__(self,**kwargs):
-        super(GlobalProdRenormDiagNormalCommonVarStdPrior, self).__init__(**kwargs)
+        super(GlobalProdRenormDiagNormalCommonCovStdPrior, self).__init__(**kwargs)
         self.supports_masking = True
 
     def get_output_shape_for(self, input_shape):

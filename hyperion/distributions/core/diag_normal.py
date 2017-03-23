@@ -27,6 +27,7 @@ class DiagNormal(ExpFamily):
         self.cholLambda = None
         self._Sigma = None
 
+        
     @property
     def Sigma(self):
         if self.Lambda is None:
@@ -55,6 +56,7 @@ class DiagNormal(ExpFamily):
         S=stats[self.x_dim+1:]
         return N, F, S
 
+    
     def accum_norm_suff_stats(self, x, u_x=None, sample_weights=None, compute_order2=False):
         stats=self.compute_suff_stats(x, u_x, sample_weights)
         N, F, S = self.unstack_suff_stats(stats)
@@ -78,6 +80,7 @@ class DiagNormal(ExpFamily):
         self._compute_nat_params()
         self._Sigma = None
 
+        
     def ElnPx_g_muL(self, N, F, S):
         u_x=np.hstack((F, S, N))
         return self.eval_llk_nat([], u_x)

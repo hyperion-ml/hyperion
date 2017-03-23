@@ -70,7 +70,6 @@ def resample_x(x, sw, max_l):
     x_out=x_out[:k,:,:]
     sw_out=sw_out[:k,:]
     return x_out, sw_out
-                
     
 
 def filter_x(x, sw, min_spc, max_spc, max_seq_length):
@@ -194,7 +193,6 @@ def train_pdda(iv_file, train_utt2spk, val_utt2spk,
     
     cb = create_basic_callbacks(vae, out_path, **cb_args)
     opt = create_optimizer(**opt_args)
-
 
     h = vae.fit(x_train, x_val=x_val,
                 sample_weight_train=sw_train, sample_weight_val=sw_val,
