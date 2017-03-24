@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 '''
-Run VAE
+Plot validation loss
 '''
 
 from __future__ import absolute_import

@@ -26,7 +26,7 @@ from keras.regularizers import l2
 
 import h5py
 
-from hyperion.keras.vae import TiedCVAE_qYqZ as TVAE
+from hyperion.keras1.vae import TiedCVAE_qYqZ as TVAE
 
 from utils import *
 

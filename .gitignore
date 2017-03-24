@@ -1,5 +1,6 @@
 *.pyc
 *.h5
+*.pdf
 *.DS_Store
 #examples/data/output/wav/*
 #examples/data/output/features/*

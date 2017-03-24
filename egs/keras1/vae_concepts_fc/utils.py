@@ -14,7 +14,7 @@ import h5py
 from keras import initializations
 from keras.callbacks import *
 
-from hyperion.keras.callbacks import *
+from hyperion.keras1.callbacks import *
 
 def my_init(shape,name=None):
     return initializations.normal(shape, scale=0.1, name=name)

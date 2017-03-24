@@ -23,7 +23,7 @@ from keras.regularizers import l2
 
 import h5py
 
-from hyperion.keras.vae import CVAE
+from hyperion.keras1.vae import CVAE
 
 from utils import *
 
