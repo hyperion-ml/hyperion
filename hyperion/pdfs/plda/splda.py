@@ -18,9 +18,9 @@ class SPLDA(PLDABase):
 
     def __init__(self, y_dim=None, mu=None, V=None, W=None, fullcov_W=True,
                  update_mu=True, update_V=True, update_W=True, **kwargs):
-        if V is not None:
-            y_dim = V.shape[1]
         super(SPLDA, self).__init__(y_dim=y_dim, mu=mu, update_mu=update_mu, **kwargs)
+        if V is not None:
+            self.y_dim = V.shape[0]
         self.V = V
         self.W = W
         self.fullcov_W = fullcov_W
@@ -39,9 +39,9 @@ class SPLDA(PLDABase):
 
         Vy = Vytilde - mu
         U, s, Vt = sla.svd(Vy, full_matrices=False, overwrite_a=True)
-        V = s[:self.ydim,None]*Vt[:self.y_dim,:]
+        V = s[:self.y_dim,None]*Vt[:self.y_dim,:]
         NVytilde = N[:, None]*Vytilde
-        C = (S - np.dot(NVyilde.T, Vytilde))/N_tot
+        C = (S - np.dot(NVytilde.T, Vytilde))/N_tot
         if self.fullcov_W:
             W = invert_pdmat(C, compute_inv=True)[-1]
         else:
@@ -169,7 +169,7 @@ class SPLDA(PLDABase):
         b = np.hstack((Ry1, N))
         Rytilde = np.vstack((a,b))
 
-        Cytilde = np.hstack((Cy, F))
+        Cytilde = np.hstack((Cy, F[:, None]))
         
         if self.update_mu and not self.update_V:
             self.mu = (F - np.dot(Ry1, self.V))/N
@@ -179,8 +179,8 @@ class SPLDA(PLDABase):
             self.V = iRy_mult(Cy.T - np.outer(Ry1, self.mu))
 
         if self.update_mu and self.update_V:
-            iRytilde_mult = invert_pdmat(Rytilde, right_inv=False)
-            Vtilde = iRytilde_mult(Cytilde)
+            iRytilde_mult = invert_pdmat(Rytilde, right_inv=False)[0]
+            Vtilde = iRytilde_mult(Cytilde.T)
             self.V = Vtilde[:-1,:]
             self.mu = Vtilde[-1,:]
 
@@ -207,7 +207,7 @@ class SPLDA(PLDABase):
 
         if self.update_V:
             Cov_y = Py/M - np.outer(mu_y, mu_y)
-            chol_Coy_y = sla.cholesqy(Cov_y, lower=False, overwrite_a=True)
+            chol_Cov_y = sla.cholesky(Cov_y, lower=False, overwrite_a=True)
             self.V = np.dot(chol_Cov_y, self.V)
 
 
@@ -242,14 +242,14 @@ class SPLDA(PLDABase):
         
         Lnon = I + VV
         mult_icholLnon, logcholLnon = invert_trimat(
-            sla.cholesqy(Lnon, lower=False, overwrite_a=True),
-            right_inv=True, compute_logdet=True)[:1]
+            sla.cholesky(Lnon, lower=False, overwrite_a=True),
+            right_inv=True, compute_logdet=True)[:2]
         logLnon = 2*logcholLnon
 
         Ltar = I + 2*VV
         mult_icholLtar, logcholLtar = invert_trimat(
-            sla.cholesqy(Ltar, lower=False, overwrite_a=True),
-            right_inv=True, compute_logdet=True)[:1]
+            sla.cholesky(Ltar, lower=False, overwrite_a=True),
+            right_inv=True, compute_logdet=True)[:2]
         logLtar = 2*logcholLtar
 
         VWF1 = np.dot(x1-self.mu, WV)
@@ -293,20 +293,20 @@ class SPLDA(PLDABase):
 
                 L1 = I + N1_i*VV
                 mult_icholL1, logcholL1 = invert_trimat(
-                    sla.cholesqy(L1, lower=False, overwrite_a=True),
-                    right_inv=True, compute_logdet=True)[:1]
+                    sla.cholesky(L1, lower=False, overwrite_a=True),
+                    right_inv=True, compute_logdet=True)[:2]
                 logL1 = 2*logcholL1
 
                 L2 = I + N2_j*VV
                 mult_icholL2, logcholL2 = invert_trimat(
-                    sla.cholesqy(L2, lower=False, overwrite_a=True),
-                    right_inv=True, compute_logdet=True)[:1]
+                    sla.cholesky(L2, lower=False, overwrite_a=True),
+                    right_inv=True, compute_logdet=True)[:2]
                 logL2 = 2*logcholL2
 
                 Ltar = I + (N1_i + N2_j)*VV
                 mult_icholLtar, logcholLtar = invert_trimat(
-                    sla.cholesqy(Ltar, lower=False, overwrite_a=True),
-                    right_inv=True, compute_logdet=True)[:1]
+                    sla.cholesky(Ltar, lower=False, overwrite_a=True),
+                    right_inv=True, compute_logdet=True)[:2]
                 logLtar = 2*logcholLtar
                 
                 VWF1 = np.dot(F1[i,:], WV)

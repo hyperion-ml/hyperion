@@ -20,7 +20,7 @@ from hyperion.transforms import TransformList
 from hyperion.utils.scp_list import SCPList
 from hyperion.utils.trial_ndx import TrialNdx
 from hyperion.utils.trial_scores import TrialScores
-from hyperion.pdfs.plda import FRPLDA
+from hyperion.pdfs.plda import *
 
 
 def load_data(hyp_reader, ndx_file, enroll_file, test_file,
@@ -64,6 +64,8 @@ def eval_plda(iv_file, ndx_file, enroll_file, test_file,
 
     if plda_type == 'frplda':
         model = FRPLDA.load(model_file)
+    elif plda_type == 'splda':
+        model = SPLDA.load(model_file)
     
     t1 = time.time()
     scores = model.eval_llr_1vs1(x_e, x_t)

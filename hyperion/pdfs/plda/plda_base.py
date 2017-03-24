@@ -16,7 +16,7 @@ class PLDABase(PDF):
     __metaclass__ = ABCMeta
 
     def __init__(self, y_dim=None, mu=None, update_mu=True, **kwargs):
-        super(PLDABase, self).__init__(None, **kwargs)
+        super(PLDABase, self).__init__(**kwargs)
         self.mu = mu
         self.y_dim = y_dim
         self.update_mu = update_mu
@@ -34,7 +34,7 @@ class PLDABase(PDF):
             
     def fit(self, x, class_ids=None, ptheta=None, sample_weight=None,
             x_val=None, class_ids_val=None, ptheta_val=None, sample_weight_val=None,
-            epochs=20, md_epochs=[1, 9]):
+            epochs=20, md_epochs=None):
 
 
         assert(not(class_ids is  None and ptheta is None))
@@ -64,7 +64,7 @@ class PLDABase(PDF):
                 elbo_val[epoch]=self.elbo(stats_val)
 
             self.MstepML(stats)
-            if epoch in md_epochs: 
+            if md_epochs is None or epoch in md_epochs:
                 self.MstepMD(stats)
 
         if x_val is None:
@@ -125,7 +125,7 @@ class PLDABase(PDF):
         N, F, S = D
         Fc = F - np.outer(N, mu)
         Fmu = np.outer(np.sum(F, axis=0), mu)
-        Sc = S - Fmu - Fmu.T - np.sum(N)*np.outer(mu, mu)
+        Sc = S - Fmu - Fmu.T + np.sum(N)*np.outer(mu, mu)
         return N, Fc, Sc
 
         

@@ -89,7 +89,7 @@ if __name__ == "__main__":
                         default=None)
     parser.add_argument('--plda-type', dest='plda_type', default='splda')
     parser.add_argument('--epochs', dest='epochs', default=20, type=int)
-    parser.add_argument('--md-epochs', dest='md_epochs', default=[1, 9],
+    parser.add_argument('--md-epochs', dest='md_epochs', default=None,
                          type=int, nargs = '+')
     parser.add_argument('--name', dest='name', default='plda')
     

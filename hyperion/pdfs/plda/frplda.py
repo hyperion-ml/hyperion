@@ -18,10 +18,9 @@ class FRPLDA(PLDABase):
 
     def __init__(self, mu=None, B=None, W=None, fullcov_W=True,
                  update_mu=True, update_B=True, update_W=True, **kwargs):
-        y_dim=None
+        super(FRPLDA, self).__init__(mu=mu, update_mu=update_mu, **kwargs)
         if mu is not None:
-            y_dim = mu.shape[0]
-        super(FRPLDA, self).__init__(mu=mu, y_dim=y_dim, update_mu=update_mu, **kwargs)
+            self.y_dim = mu.shape[0]
         self.B = B
         self.W = W
         self.fullcov_W = fullcov_W
@@ -241,14 +240,14 @@ class FRPLDA(PLDABase):
 
         Lnon = self.B + self.W
         mult_icholLnon, logcholLnon = invert_trimat(
-            sla.cholesqy(Lnon, lower=False, overwrite_a=True),
-            right_inv=True, compute_logdet=True)[:1]
+            sla.cholesky(Lnon, lower=False, overwrite_a=True),
+            right_inv=True, compute_logdet=True)[:2]
         logLnon = 2*logcholLnon
 
         Ltar = self.B + 2*self.W
         mult_icholLtar, logcholLtar = invert_trimat(
-            sla.cholesqy(Ltar, lower=False, overwrite_a=True),
-            right_inv=True, compute_logdet=True)[:1]
+            sla.cholesky(Ltar, lower=False, overwrite_a=True),
+            right_inv=True, compute_logdet=True)[:2]
         logLtar = 2*logcholLtar
 
         WF1 = np.dot(x1, self.W)
@@ -290,20 +289,20 @@ class FRPLDA(PLDABase):
 
                 L1 = self.B + N1_i*self.W
                 mult_icholL1, logcholL1 = invert_trimat(
-                    sla.cholesqy(L1, lower=False, overwrite_a=True),
-                    right_inv=True, compute_logdet=True)[:1]
+                    sla.cholesky(L1, lower=False, overwrite_a=True),
+                    right_inv=True, compute_logdet=True)[:2]
                 logL1 = 2*logcholL1
 
                 L2 = self.B + N2_j*self.W
                 mult_icholL2, logcholL2 = invert_trimat(
-                    sla.cholesqy(L2, lower=False, overwrite_a=True),
-                    right_inv=True, compute_logdet=True)[:1]
+                    sla.cholesky(L2, lower=False, overwrite_a=True),
+                    right_inv=True, compute_logdet=True)[:2]
                 logL2 = 2*logcholL2
 
                 Ltar = self.B + (N1_i + N2_j)*self.W
                 mult_icholLtar, logcholLtar = invert_trimat(
-                    sla.cholesqy(Ltar, lower=False, overwrite_a=True),
-                    right_inv=True, compute_logdet=True)[:1]
+                    sla.cholesky(Ltar, lower=False, overwrite_a=True),
+                    right_inv=True, compute_logdet=True)[:2]
                 logLtar = 2*logcholLtar
                 
                 WF1 = np.dot(F1[i,:], self.W)

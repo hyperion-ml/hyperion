@@ -17,7 +17,7 @@ from .hyp_defs import float_save, float_cpu
 class HypModel(object):
     __metaclass__ = ABCMeta
 
-    def __init__(self, name=None):
+    def __init__(self, name=None, **kwargs):
         self.name = name
 
         
