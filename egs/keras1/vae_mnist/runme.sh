@@ -2,7 +2,7 @@
 
 export KERAS_BACKEND=theano
 
-KERAS_PATH=$HOME/usr/src/keras/keras
+KERAS_PATH=$HOME/usr/src/keras/keras1
 HYP_PATH=$(readlink -f ../../../)
 
 export PATH=/usr/local/cuda/bin:$PATH

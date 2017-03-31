@@ -16,7 +16,7 @@ import time
 import numpy as np
 
 from hyperion.io import HypDataReader
-from hyperion.distributions.core import Normal
+from hyperion.pdfs.core import Normal
 from hyperion.transforms import TransformList, CentWhiten, LNorm
 from hyperion.utils.scp_list import SCPList
 

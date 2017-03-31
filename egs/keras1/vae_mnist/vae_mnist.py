@@ -16,7 +16,7 @@ from keras.regularizers import l2
 
 from scipy.stats import norm
 
-from hyperion.keras.vae.vae import VAE
+from hyperion.keras1.vae.vae import VAE
 
 batch_size = 100
 original_dim = 784

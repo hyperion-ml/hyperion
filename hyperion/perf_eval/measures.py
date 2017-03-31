@@ -4,3 +4,12 @@ from __future__ import division
 from six.moves import xrange
 
 import numpy as np
+
+from .roc import compute_rocch, rocch2eer
+
+
+def eer(tar, non):
+
+    p_miss, p_fa = rocch(tar, non)
+    return rocch2eer(p_miss, p_fa)
+
