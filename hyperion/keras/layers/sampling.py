@@ -11,20 +11,20 @@ from keras.engine import InputSpec, Layer, Merge
 
 class Sampler(Layer):
     
-    def __init__(self, nb_samples=1, **kwargs):
-        self.nb_samples = nb_samples
+    def __init__(self, num_samples=1, **kwargs):
+        self.num_samples = num_samples
         super(Sampler, self).__init__(**kwargs)
 
         
     def get_output_shape_for(self, input_shape):
         output_shape = list(input_shape)
         if output_shape[0] is not None:
-            output_shape[0] *= self.nb_samples
+            output_shape[0] *= self.num_samples
         return tuple(output_shape)
 
     
     def get_config(self):
-        config = {'nb_samples': self.nb_samples}
+        config = {'num_samples': self.num_samples}
         base_config = super(Sampler, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
@@ -32,18 +32,18 @@ class Sampler(Layer):
 class BernoulliSampler(Sampler):
 
     def call(self, p, mask=None):
-        if self.nb_samples > 0:
-            p = K.repeat_elements(p, self.nb_samples, axis=0)
+        if self.num_samples > 0:
+            p = K.repeat_elements(p, self.num_samples, axis=0)
         r = K.random_uniform(shape=K.shape(p))
         return r < p
         
 
 class DiagNormalSampler(Sampler):
 
-    def __init__(self, var_spec = 'logvar', nb_samples=1, **kwargs):
+    def __init__(self, var_spec = 'logvar', num_samples=1, **kwargs):
         self.var_spec = var_spec
         self._g = None
-        super(DiagNormalSampler, self).__init__(nb_samples, **kwargs)
+        super(DiagNormalSampler, self).__init__(num_samples, **kwargs)
 
     def build(self, input_shape):
         g_dict = {
@@ -56,13 +56,13 @@ class DiagNormalSampler(Sampler):
     def get_output_shape_for(self, input_shape):
         output_shape = list(input_shape[0])
         if output_shape[0] is not None:
-            output_shape[0] *= self.nb_samples
+            output_shape[0] *= self.num_samples
         return tuple(output_shape)
 
     def call(self, p, mask=None):
-        if self.nb_samples > 1:
-            mu_rep = K.repeat_elements(p[0], self.nb_samples, axis=0)
-            v_rep = K.repeat_elements(p[1], self.nb_samples, axis=0)
+        if self.num_samples > 1:
+            mu_rep = K.repeat_elements(p[0], self.num_samples, axis=0)
+            v_rep = K.repeat_elements(p[1], self.num_samples, axis=0)
             p = [mu_rep, v_rep]
         epsilon = K.random_normal(shape=K.shape(p[0]), mean=0., std=1.)
         return self._g(p, epsilon)
@@ -90,10 +90,10 @@ class DiagNormalSampler(Sampler):
     
 class DiagNormalSamplerFromSeqLevel(DiagNormalSampler):
 
-    def __init__(self, seq_length, var_spec = 'logvar', nb_samples=1,
+    def __init__(self, seq_length, var_spec = 'logvar', num_samples=1,
                  one_sample_per_seq=True, **kwargs):
         super(DiagNormalSamplerFromSeqLevel, self).__init__(
-            var_spec, nb_samples, **kwargs)
+            var_spec, num_samples, **kwargs)
         self.seq_length = seq_length
         self.one_sample = one_sample_per_seq
 
@@ -109,9 +109,9 @@ class DiagNormalSamplerFromSeqLevel(DiagNormalSampler):
 
     
     def call(self, p, mask=None):
-        if self.nb_samples > 1:
-            mu_rep = K.repeat_elements(p[0], self.nb_samples, axis=0)
-            v_rep = K.repeat_elements(p[1], self.nb_samples, axis=0)
+        if self.num_samples > 1:
+            mu_rep = K.repeat_elements(p[0], self.num_samples, axis=0)
+            v_rep = K.repeat_elements(p[1], self.num_samples, axis=0)
             p = [mu_rep, v_rep]
         
         p_exp=[K.expand_dims(p[0], dim=1), K.expand_dims(p[1], dim=1)]
@@ -136,10 +136,10 @@ class DiagNormalSamplerFromSeqLevel(DiagNormalSampler):
 
 class NormalSampler(Sampler):
 
-    def __init__(self, var_spec = 'logvar+chol', nb_samples=1, **kwargs):
+    def __init__(self, var_spec = 'logvar+chol', num_samples=1, **kwargs):
         self.var_spec = var_spec
         self._g = None
-        super(NormalSampler, self).__init__(nb_samples, **kwargs)
+        super(NormalSampler, self).__init__(num_samples, **kwargs)
 
     def build(self, input_shape):
         g_dict = {
@@ -152,15 +152,15 @@ class NormalSampler(Sampler):
     def get_output_shape_for(self, input_shape):
         output_shape = list(input_shape[0])
         if output_shape[0] is not None:
-            output_shape[0] *= self.nb_samples
+            output_shape[0] *= self.num_samples
         return tuple(output_shape)
 
     
     def call(self, p, mask=None):
-        if self.nb_samples > 1:
-            mu_rep = K.repeat_elements(p[0], self.nb_samples, axis=0)
-            v_rep = K.repeat_elements(p[1], self.nb_samples, axis=0)
-            chol_rep = K.repeat_elements(p[2], self.nb_samples, axis=0)
+        if self.num_samples > 1:
+            mu_rep = K.repeat_elements(p[0], self.num_samples, axis=0)
+            v_rep = K.repeat_elements(p[1], self.num_samples, axis=0)
+            chol_rep = K.repeat_elements(p[2], self.num_samples, axis=0)
             p = [mu_rep, v_rep, chol_rep]
         epsilon = K.random_normal(shape=K.shape(p[0]), mean=0., std=1.)
         return self._g(p, epsilon)
@@ -216,10 +216,10 @@ class NormalSampler(Sampler):
 
 class NormalSamplerFromSeqLevel(NormalSampler):
 
-    def __init__(self, seq_length, var_spec = 'logvar+chol', nb_samples=1,
+    def __init__(self, seq_length, var_spec = 'logvar+chol', num_samples=1,
                  one_sample_per_seq=True, **kwargs):
         super(NormalSamplerFromSeqLevel, self).__init__(
-            var_spec, nb_samples, **kwargs)
+            var_spec, num_samples, **kwargs)
         self.seq_length = seq_length
         self.one_sample = one_sample_per_seq
 
@@ -235,10 +235,10 @@ class NormalSamplerFromSeqLevel(NormalSampler):
 
     
     def call(self, p, mask=None):
-        if self.nb_samples > 1:
-            mu_rep = K.repeat_elements(p[0], self.nb_samples, axis=0)
-            v_rep = K.repeat_elements(p[1], self.nb_samples, axis=0)
-            chol_rep = K.repeat_elements(p[2], self.nb_samples, axis=0)
+        if self.num_samples > 1:
+            mu_rep = K.repeat_elements(p[0], self.num_samples, axis=0)
+            v_rep = K.repeat_elements(p[1], self.num_samples, axis=0)
+            chol_rep = K.repeat_elements(p[2], self.num_samples, axis=0)
             p = [mu_rep, v_rep, chol_rep]
 
         shape = K.shape(p[0])

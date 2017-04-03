@@ -20,17 +20,27 @@ class HypDataReader(object):
         self.f = h5py.File(file_path, 'r')
 
 
-    def read(self, keys, field):
+    def read(self, keys, field="", return_tensor=False):
         if isinstance(keys, list):
-            datasets=[ key+field for key in keys]
+            datasets = [key+field for key in keys]
         else:
             datasets = keys.astype(np.object)+field
-        dim = self.f[datasets[0]].shape[0]
-
-        X=np.zeros((len(keys), dim), dtype=float_cpu())
+            
+        if return_tensor:
+            # we assume that all datasets have a common shape
+            shape_0 = self.f[datasets[0]].shape
+            shape = tuple([len(keys)] + list(shape_0))
+            X = np.zeros(shape, dtype=float_cpu())
+        else:
+            X = []
+            
         for i in xrange(len(keys)):
             if datasets[i] in self.f:
-                X[i,:] = self.f[datasets[i]]
+                X_i = self.f[datasets[i]]
+                if return_tensor:
+                    X[i] = X_i
+                else:
+                    X.append(X_i)
             else:
                 print('%s not found' % datasets[i])
 

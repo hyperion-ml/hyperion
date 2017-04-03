@@ -16,12 +16,12 @@ from ..hyp_model import HypModel
 
 class SbSw(HypModel):
 
-    def __init__(self, Sb=None, Sw=None, mu=None, nb_classes=0, **kwargs):
+    def __init__(self, Sb=None, Sw=None, mu=None, num_classes=0, **kwargs):
         super(SbSw, self).__init__(**kwargs)
         self.Sb = None
         self.Sw = None
         self.mu = None
-        self.nb_classes = nb_classes
+        self.num_classes = num_classes
 
     def fit(self, x, class_ids, normalize=True):
         dim = x.shape[1]
@@ -30,7 +30,7 @@ class SbSw(HypModel):
         self.mu = np.zeros((dim,))
 
         u_ids = np.unique(class_ids)
-        self.nb_classes = len(u_ids)
+        self.num_classes = len(u_ids)
 
         for i in u_ids:
             idx = (class_ids==i)
@@ -46,9 +46,9 @@ class SbSw(HypModel):
 
 
     def normalize(self):
-        self.mu /= self.nb_classes
-        self.Sb = self.Sb/self.nb_classes - np.outer(self.mu, self.mu)
-        self.Sw /= self.nb_classes
+        self.mu /= self.num_classes
+        self.Sb = self.Sb/self.num_classes - np.outer(self.mu, self.mu)
+        self.Sw /= self.num_classes
 
         
     @classmethod
@@ -56,19 +56,19 @@ class SbSw(HypModel):
         mu = np.zeros_like(stats[0].mu)
         Sb = np.zeros_like(stats[0].Sb)
         Sw = np.zeros_like(stats[0].Sw)
-        nb_classes = 0
+        num_classes = 0
         for s in stats:
             mu += s.mu
             Sb += s.Sb
             Sw += s.Sw
-            nb_classes += s.nb_classes
+            num_classes += s.num_classes
 
             
     def save_params(self, f):
         params = {'mu': self.mu,
                   'Sb': self.Sb,
                   'Sw': self.Sw,
-                  'nb_classes': self.nb_classes}
+                  'num_classes': self.num_classes}
         self._save_params_from_dict(f, params)
 
     
@@ -76,11 +76,11 @@ class SbSw(HypModel):
     def load(cls, file_path):
         with h5py.File(file_path,'r') as f:
             config = self.load_config_from_json(f['config'])
-            param_list = ['mu', 'Sb', 'Sw', 'nb_classes']
+            param_list = ['mu', 'Sb', 'Sw', 'num_classes']
             params = cls._load_params_to_dict(f, config['name'], param_list)
-            nb_classes = int(params['nb_classes'])
+            num_classes = int(params['num_classes'])
             return cls(Sb=params['Sb'], Sw=params['Sw'], mu=params['mu'],
-                       nb_classes=nb_classes, name=config['name'])
+                       num_classes=num_classes, name=config['name'])
         
         
             

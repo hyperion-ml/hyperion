@@ -28,6 +28,6 @@ class PDF(HypModel):
 
     
     @abstractmethod
-    def generate(self, nb_samples):
+    def generate(self, num_samples):
         pass
 

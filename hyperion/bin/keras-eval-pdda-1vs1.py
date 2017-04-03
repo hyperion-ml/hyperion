@@ -28,7 +28,7 @@ from hyperion.keras.vae import TiedVAE_qY as TVAEY
 
 def load_data(hyp_reader, ndx_file, enroll_file, test_file,
               preproc,
-              model_idx, nb_model_parts, seg_idx, nb_seg_parts,
+              model_idx, num_model_parts, seg_idx, num_seg_parts,
               eval_set):
 
     set_float_cpu('float32')
@@ -42,12 +42,12 @@ def load_data(hyp_reader, ndx_file, enroll_file, test_file,
         ndx = TrialNdx.load(ndx_file)
 
     ndx, enroll = TrialNdx.parse_eval_set(ndx, enroll, test, eval_set)
-    if nb_model_parts > 1 or nb_seg_parts > 1:
-        ndx = TrialNdx.split(model_idx, nb_model_parts, seg_idx, nb_seg_parts)
+    if num_model_parts > 1 or num_seg_parts > 1:
+        ndx = TrialNdx.split(model_idx, num_model_parts, seg_idx, num_seg_parts)
         enroll = enroll.filter(ndx.key)
         
-    x_e = hyp_reader.read(enroll.file_path, '.ivec')
-    x_t = hyp_reader.read(ndx.seg_set, '.ivec')
+    x_e = hyp_reader.read(enroll.file_path, '.ivec', return_tensor=True)
+    x_t = hyp_reader.read(ndx.seg_set, '.ivec', return_tensor=True)
     
     if preproc is not None:
         x_e = preproc.predict(x_e)
@@ -58,7 +58,7 @@ def load_data(hyp_reader, ndx_file, enroll_file, test_file,
 
 def eval_pdda(iv_file, ndx_file, enroll_file, test_file,
               preproc_file, model_file, score_file, eval_method,
-              nb_samples_y, nb_samples_z, nb_samples_elbo, qy_only, **kwargs):
+              num_samples_y, num_samples_z, num_samples_elbo, qy_only, **kwargs):
     
     if preproc_file is not None:
         preproc = TransformList.load(preproc_file)
@@ -70,18 +70,18 @@ def eval_pdda(iv_file, ndx_file, enroll_file, test_file,
 
     if qy_only:
         model = TVAEY.load(model_file)
-        model.build(max_seq_length=2, nb_samples=nb_samples_y)
+        model.build(max_seq_length=2, num_samples=num_samples_y)
     else:
         model = TVAEYZ.load(model_file)
         model.build(max_seq_length=2,
-                    nb_samples_y=nb_samples_y, nb_samples_z=nb_samples_z)
+                    num_samples_y=num_samples_y, num_samples_z=num_samples_z)
 
     t1 = time.time()
     scores = model.eval_llr_1vs1(x_e, x_t, method=eval_method,
-                                 nb_samples=nb_samples_elbo)
+                                 num_samples=num_samples_elbo)
     dt = time.time() - t1
-    nb_trials = x_e.shape[0] * x_t.shape[0]
-    print('Elapsed time: %.2f s. Elapsed time per trial: %.2f ms.' % (dt, dt/nb_trials*1000))
+    num_trials = x_e.shape[0] * x_t.shape[0]
+    print('Elapsed time: %.2f s. Elapsed time per trial: %.2f ms.' % (dt, dt/num_trials*1000))
 
     s = TrialScores(ndx.model_set, ndx.seg_set, scores)
     s.save(score_file)
@@ -107,9 +107,9 @@ if __name__ == "__main__":
     #                     help=('Batch size (default: %(default)s)'))
 
     parser.add_argument('--model-part-idx', dest='model_idx', default=1, type=int)
-    parser.add_argument('--nb-model-parts', dest='nb_model_parts', default=1, type=int)
+    parser.add_argument('--nb-model-parts', dest='num_model_parts', default=1, type=int)
     parser.add_argument('--seg-part-idx', dest='seg_idx', default=1, type=int)
-    parser.add_argument('--nb-seg-parts', dest='nb_seg_parts', default=1, type=int)
+    parser.add_argument('--nb-seg-parts', dest='num_seg_parts', default=1, type=int)
 
     parser.add_argument('--eval-set', dest='eval_set', type=str.lower,
                         default='enroll-test',
@@ -121,9 +121,9 @@ if __name__ == "__main__":
                         choices=['elbo','cand','qscr'],
                         help=('(default: %(default)s)'))
 
-    parser.add_argument('--nb-samples-elbo', dest='nb_samples_elbo', default=1, type=int)
-    parser.add_argument('--nb-samples-y', dest='nb_samples_y', default=1, type=int)
-    parser.add_argument('--nb-samples-z', dest='nb_samples_z', default=1, type=int)
+    parser.add_argument('--nb-samples-elbo', dest='num_samples_elbo', default=1, type=int)
+    parser.add_argument('--nb-samples-y', dest='num_samples_y', default=1, type=int)
+    parser.add_argument('--nb-samples-z', dest='num_samples_z', default=1, type=int)
     
     # parser.add_argument('--optimizer', dest='opt_type', type=str.lower,
     #                     default='adam',
@@ -156,7 +156,7 @@ if __name__ == "__main__":
     #                     help=('Schedule decay in Nadam optimizer '
     #                           '(default: %(default)s)'))
 
-    # parser.add_argument('--nb-epoch', dest='nb_epoch', default=1000, type=int)
+    # parser.add_argument('--nb-epoch', dest='num_epoch', default=1000, type=int)
 
     # parser.add_argument('--rng-seed', dest='rng_seed', default=1024, type=int,
     #                     help=('Seed for the random number generator '

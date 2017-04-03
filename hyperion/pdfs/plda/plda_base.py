@@ -189,7 +189,7 @@ class PLDABase(PDF):
         return scores
         
     @abstractmethod
-    def generate(self, nb_samples, rng=None, seed=1024):
+    def generate(self, num_samples, rng=None, seed=1024):
         pass
 
 

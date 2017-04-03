@@ -87,41 +87,41 @@ class Normal(DiagNormal):
         return np.sum(np.log(lk), axis=1)
 
     
-    def generate(self, nb_samples, rng=None, seed=1024):
+    def generate(self, num_samples, rng=None, seed=1024):
         if rng is None:
             rng=np.random.RandomState(seed)
-        x=rng.normal(size=(nb_samples, self.x_dim))
+        x=rng.normal(size=(num_samples, self.x_dim))
         cholS=la.cholesky(invert_pdmat(self.Lambda, compute_inv=True)[3],
                           lower=True, overwrite_a=True)
         return self.mu+np.dot(x, cholS)
 
     
-    def plot1D(self, feat_idx=0, nb_sigmas=2, nb_pts=100, **kwargs):
+    def plot1D(self, feat_idx=0, num_sigmas=2, num_pts=100, **kwargs):
         mu=self.mu[feat_idx]
         j, i = np.meshgrid(feat_idx, feat_idx)
         C=invert_pdmat(self.Lambda, compute_inv=True)[3][i, j]
-        plot_gaussian_1D(mu, C, nb_sigmas, nb_pts, **kwargs)
+        plot_gaussian_1D(mu, C, num_sigmas, num_pts, **kwargs)
 
     
-    def plot2D(self, feat_idx=[0, 1], nb_sigmas=2, nb_pts=100, **kwargs):
+    def plot2D(self, feat_idx=[0, 1], num_sigmas=2, num_pts=100, **kwargs):
         mu=self.mu[feat_idx]
         j, i = np.meshgrid(feat_idx, feat_idx)
         C=invert_pdmat(self.Lambda, compute_inv=True)[3][i, j]
-        plot_gaussian_ellipsoid_2D(mu, C, nb_sigmas, nb_pts, **kwargs)
+        plot_gaussian_ellipsoid_2D(mu, C, num_sigmas, num_pts, **kwargs)
 
         
-    def plot3D(self, feat_idx=[0, 1, 2], nb_sigmas=2, nb_pts=100, **kwargs):
+    def plot3D(self, feat_idx=[0, 1, 2], num_sigmas=2, num_pts=100, **kwargs):
         mu=self.mu[feat_idx]
         j, i = np.meshgrid(feat_idx, feat_idx)
         C=invert_pdmat(self.Lambda, compute_inv=True)[3][i, j]
-        plot_gaussian_3D(mu, L, nb_sigmas, nb_pts, **kwargs)
+        plot_gaussian_3D(mu, L, num_sigmas, num_pts, **kwargs)
     
         
-    def plot3D_ellipsoid(self, feat_idx=[0, 1, 2], nb_sigmas=2, nb_pts=100, **kwargs):
+    def plot3D_ellipsoid(self, feat_idx=[0, 1, 2], num_sigmas=2, num_pts=100, **kwargs):
         mu=self.mu[feat_idx]
         j, i = np.meshgrid(feat_idx, feat_idx)
         C=invert_pdmat(self.Lambda, compute_inv=True)[3][i, j]
-        plot_gaussian_ellipsoid_3D(mu, C, nb_sigmas, nb_pts, **kwargs)
+        plot_gaussian_ellipsoid_3D(mu, C, num_sigmas, num_pts, **kwargs)
 
     
     def validate(self):

@@ -167,7 +167,7 @@ class TrialKey(object):
     
     @classmethod
     def merge(cls, key_list):
-        nb_key = len(key_list)
+        num_key = len(key_list)
         model_set = key_list[0].model_set
         seg_set = key_list[0].seg_set
         tar = key_list[0].tar
@@ -177,13 +177,13 @@ class TrialKey(object):
         trial_cond = key_list[0].trial_cond
 
         if model_cond is not None:
-            nb_model_cond = model_cond.shape[0]
+            num_model_cond = model_cond.shape[0]
         if seg_cond is not None:
-            nb_seg_cond = seg_cond.shape[0]
+            num_seg_cond = seg_cond.shape[0]
         if trial_cond is not None:
-            nb_trial_cond = trial_cond.shape[0]
+            num_trial_cond = trial_cond.shape[0]
         
-        for i in xrange(1, nb_key):
+        for i in xrange(1, num_key):
             key_i = key_list[i]
             new_model_set = np.union1d(model_set, key_i.model_set)
             new_seg_set = np.union1d(seg_set, key_i.seg_set)
@@ -200,13 +200,13 @@ class TrialKey(object):
             non_1 = np.zeros(shape, dtype='bool')
             non_1[ix_a] = non[ix_b]
             if model_cond is not None:
-                model_cond_1 = np.zeros((nb_model_cond, shape[0]), dtype ='bool')
+                model_cond_1 = np.zeros((num_model_cond, shape[0]), dtype ='bool')
                 model_cond_1[:, mi_a] = model_cond[:, mi_b]
             if seg_cond is not None:
-                seg_cond_1 = np.zeros((nb_seg_cond, shape[0]), dtype ='bool')
+                seg_cond_1 = np.zeros((num_seg_cond, shape[0]), dtype ='bool')
                 seg_cond_1[:, mi_a] = seg_cond[:, mi_b]
             if trial_cond is not None:
-                trial_cond_1 = np.zeros((nb_trial_cond, shape), dtype ='bool')
+                trial_cond_1 = np.zeros((num_trial_cond, shape), dtype ='bool')
                 trial_cond_1[:, ix_a] = trial_cond[:, ix_b]
 
                 
@@ -221,13 +221,13 @@ class TrialKey(object):
             non_2 = np.zeros(shape, dtype='bool')
             non_2[ix_a] = key_i.non[ix_b]
             if model_cond is not None:
-                model_cond_2 = np.zeros((nb_model_cond, shape[0]), dtype ='bool')
+                model_cond_2 = np.zeros((num_model_cond, shape[0]), dtype ='bool')
                 model_cond_2[:, mi_a] = key_i.model_cond[:, mi_b]
             if seg_cond is not None:
-                seg_cond_2 = np.zeros((nb_seg_cond, shape[0]), dtype ='bool')
+                seg_cond_2 = np.zeros((num_seg_cond, shape[0]), dtype ='bool')
                 seg_cond_2[:, mi_a] = key_i.seg_cond[:, mi_b]
             if trial_cond is not None:
-                trial_cond_2 = np.zeros((nb_trial_cond, shape), dtype ='bool')
+                trial_cond_2 = np.zeros((num_trial_cond, shape), dtype ='bool')
                 trial_cond_2[:, ix_a] = key_i.trial_cond[:, ix_b]
 
             model_set = new_model_set
@@ -281,11 +281,11 @@ class TrialKey(object):
                         self.trial_cond_name)
 
     
-    def split(self, model_idx, nb_model_parts, seg_idx, nb_seg_parts):
+    def split(self, model_idx, num_model_parts, seg_idx, num_seg_parts):
         model_set, model_idx1 = split_list(self.model_set,
-                                           model_idx, nb_model_parts)
+                                           model_idx, num_model_parts)
         seg_set, seg_idx1 = split_list(self.seg_set,
-                                       seg_idx, nb_seg_parts)
+                                       seg_idx, num_seg_parts)
         ix = np.ix_(model_idx1, seg_idx1)
         tar = self.tar[ix]
         non = self.non[ix]
@@ -413,11 +413,11 @@ class TrialKey(object):
         key3 = key1.filter(key2.model_set, key2.seg_set, keep=True)
         assert(key2 == key3)
 
-        nb_parts=3
+        num_parts=3
         key_list = []
-        for i in xrange(nb_parts):
-            for j in xrange(nb_parts):
-                key_ij = key1.split(i+1, nb_parts, j+1, nb_parts)
+        for i in xrange(num_parts):
+            for j in xrange(num_parts):
+                key_ij = key1.split(i+1, num_parts, j+1, num_parts)
                 key_list.append(key_ij)
         key2 = TrialKey.merge(key_list)
         assert(key1 == key2)

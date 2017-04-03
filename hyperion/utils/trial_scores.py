@@ -111,12 +111,12 @@ class TrialScores(object):
     
     @classmethod
     def merge(cls, scr_list):
-        nb_scr = len(scr_list)
+        num_scr = len(scr_list)
         model_set = scr_list[0].model_set
         seg_set = scr_list[0].seg_set
         scores = scr_list[0].scores
         score_mask = scr_list[0].score_mask
-        for i in xrange(1, nb_scr):
+        for i in xrange(1, num_scr):
             scr_i = scr_list[i]
             new_model_set = np.union1d(model_set, scr_i.model_set)
             new_seg_set = np.union1d(seg_set, scr_i.seg_set)
@@ -172,11 +172,11 @@ class TrialScores(object):
         return TrialScores(model_set, seg_set, scores, score_mask)
 
     
-    def split(self, model_idx, nb_model_parts, seg_idx, nb_seg_parts):
+    def split(self, model_idx, num_model_parts, seg_idx, num_seg_parts):
         model_set, model_idx1 = split_list(self.model_set,
-                                           model_idx, nb_model_parts)
+                                           model_idx, num_model_parts)
         seg_set, seg_idx1 = split_list(self.seg_set,
-                                       seg_idx, nb_seg_parts)
+                                       seg_idx, num_seg_parts)
         ix = np.ix_(model_idx1, seg_idx1)
         scores = self.scores[ix]
         score_mask=self.score_mask[ix]
@@ -307,11 +307,11 @@ class TrialScores(object):
         scr3 = scr1.filter(scr2.model_set, scr2.seg_set, keep=True)
         assert(scr2 == scr3)
 
-        nb_parts=3
+        num_parts=3
         scr_list = []
-        for i in xrange(nb_parts):
-            for j in xrange(nb_parts):
-                scr_ij = scr1.split(i+1, nb_parts, j+1, nb_parts)
+        for i in xrange(num_parts):
+            for j in xrange(num_parts):
+                scr_ij = scr1.split(i+1, num_parts, j+1, num_parts)
                 scr_list.append(scr_ij)
         scr2 = TrialScores.merge(scr_list)
         assert(scr1 == scr2)

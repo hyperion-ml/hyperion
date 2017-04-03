@@ -41,7 +41,7 @@ class TiedCVAE_qYqZ(TiedVAE_qYqZ):
         self.r_dim=0
 
         
-    def build(self, nb_samples=1, max_seq_length=None):
+    def build(self, num_samples=1, max_seq_length=None):
         self.x_dim=self.encoder_net.internal_input_shapes[0][-1]
         self.r_dim=self.encoder_net.internal_input_shapes[1][-1]
         self.y_dim=self.decoder_net.internal_input_shapes[0][-1]
@@ -51,7 +51,7 @@ class TiedCVAE_qYqZ(TiedVAE_qYqZ):
         else:
             self.max_seq_length = max_seq_length
         assert(self.r_dim==self.decoder_net.internal_input_shapes[2][-1])
-        self.nb_samples = nb_samples
+        self.num_samples = num_samples
         self._build_model()
         self._build_loss()
         self.is_compile = False
@@ -65,21 +65,21 @@ class TiedCVAE_qYqZ(TiedVAE_qYqZ):
         if self.qz_form == 'diag_normal':
             self.qy_param=qyz_param[:2]
             self.qz_param=qyz_param[2:]
-            z = DiagNormalSampler(nb_samples=self.nb_samples)(self.qz_param)
+            z = DiagNormalSampler(num_samples=self.num_samples)(self.qz_param)
         else:
             self.qy_param=qyz_param[:3]
             self.qz_param=qyz_param[3:]
-            z = NormalSampler(nb_samples=self.nb_samples)(self.qz_param)
+            z = NormalSampler(num_samples=self.num_samples)(self.qz_param)
 
         if self.qy_form == 'diag_normal':
             y = DiagNormalSamplerFromSeqLevel(seq_length=self.max_seq_length,
-                                              nb_samples=self.nb_samples)(self.qy_param)
+                                              num_samples=self.num_samples)(self.qy_param)
         else:
             y = NormalSamplerFromSeqLevel(seq_length=self.max_seq_length,
-                                          nb_samples=self.nb_samples)(self.qy_param)
+                                          num_samples=self.num_samples)(self.qy_param)
         
-        if self.nb_samples > 1:
-            r_rep = Repeat(self.nb_samples, axis=0)(r)
+        if self.num_samples > 1:
+            r_rep = Repeat(self.num_samples, axis=0)(r)
         else:
             r_rep = r
 
@@ -152,16 +152,16 @@ class TiedCVAE_qYqZ(TiedVAE_qYqZ):
 
 
     def generate(self, r, batch_size,sample_x=True):
-        nb_seqs=r.shape[0]
-        nb_samples=r.shape[1]
-        y=np.random.normal(loc=0.,scale=1.,size=(nb_seqs, 1, self.y_dim))
-        z=np.random.normal(loc=0.,scale=1.,size=(nb_seqs, nb_samples,self.z_dim))
+        num_seqs=r.shape[0]
+        num_samples=r.shape[1]
+        y=np.random.normal(loc=0.,scale=1.,size=(num_seqs, 1, self.y_dim))
+        z=np.random.normal(loc=0.,scale=1.,size=(num_seqs, num_samples,self.z_dim))
         return self.decode_yz(y, z, r, batch_size,sample_x)
 
 
     def generate_x_g_y(self, y, r, batch_size,sample_x=True):
-        nb_seqs=r.shape[0]
-        nb_samples=r.shape[1]
-        z=np.random.normal(loc=0.,scale=1.,size=(nb_seqs, nb_samples, self.z_dim))
+        num_seqs=r.shape[0]
+        num_samples=r.shape[1]
+        z=np.random.normal(loc=0.,scale=1.,size=(num_seqs, num_samples, self.z_dim))
         return self.decode_yz(y, z, r, batch_size, sample_x)
 

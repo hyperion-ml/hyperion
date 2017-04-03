@@ -14,13 +14,14 @@ from six.moves import xrange
 
 from hyperion.io import HypDataWriter, KaldiDataReader
 
-def ark2hyp(input_file, input_dir, output_file, field):
+def ark2hyp(input_file, input_dir, output_file, field, chunk_size, squeeze):
 
     ark_r = KaldiDataReader(input_file, input_dir)
-    X, keys = ark_r.read()
-
     h_w = HypDataWriter(output_file)
-    h_w.write(keys, field, X)
+    
+    while not(ark_r.eof()):
+        X, keys = ark_r.read(num_records=chunk_size, squeeze=squeeze)
+        h_w.write(keys, field, X)
 
 
 if __name__ == "__main__":
@@ -33,6 +34,8 @@ if __name__ == "__main__":
     parser.add_argument('--input-dir', dest='input_dir', default=None)
     parser.add_argument('--output-file', dest='output_file', required=True)
     parser.add_argument('--field', dest='field', default='')
+    parser.add_argument('--chunk-size', dest='chunk_size', type=int, default=None)
+    parser.add_argument('--squeeze', dest='squeeze', default=False, action='store_true')
 
     args=parser.parse_args()
 

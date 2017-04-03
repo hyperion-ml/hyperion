@@ -64,9 +64,9 @@ def plot_cov_ellipse(cov, pos, volume=.5, ax=None, fc='none', ec=[0,0,0], a=1, l
 D=100
 batch_size = 25
 intermediate_dim = 200
-nb_epoch = 2000
+epochs = 2000
 l2_reg=0.0001
-nb_samples=1000
+num_samples=1000
 N_i=8
 
 # load data
@@ -152,7 +152,7 @@ vae.build()
 opt = optimizers.Adam(lr=0.001)
 vae.train(x_train,x_val=x_val,optimizer=opt,
           shuffle=True,
-          nb_epoch=nb_epoch,
+          epochs=epochs,
           batch_size=batch_size)
 
 

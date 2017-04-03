@@ -41,8 +41,8 @@ def load_data(hyp_reader, ndx_file, enroll_file, test_file,
         ndx = TrialNdx.split(model_idx, num_model_parts, seg_idx, num_seg_parts)
         enroll = enroll.filter(ndx.key)
         
-    x_e = hyp_reader.read(enroll.file_path, '.ivec')
-    x_t = hyp_reader.read(ndx.seg_set, '.ivec')
+    x_e = hyp_reader.read(enroll.file_path, '.ivec', return_tensor=True)
+    x_t = hyp_reader.read(ndx.seg_set, '.ivec', return_tensor=True)
     
     if preproc is not None:
         x_e = preproc.predict(x_e)

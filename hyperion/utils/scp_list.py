@@ -47,8 +47,8 @@ class SCPList(object):
         file_path = [i[1] for i in fields]
         return cls(key, file_path)
 
-    def split(self, idx, nb_parts):
-        key, idx1 = split_list(self.key, idx, nb_parts)
+    def split(self, idx, num_parts):
+        key, idx1 = split_list(self.key, idx, num_parts)
         file_path = self.file_path[idx1]
         return SCPList(key, file_path)
 
@@ -99,10 +99,10 @@ class SCPList(object):
         scp2 = SCPList.load(file_txt)
         assert(scp1 == scp2)
 
-        nb_parts=3
+        num_parts=3
         scp_list = []
-        for i in xrange(nb_parts):
-            scp_i = scp1.split(i+1, nb_parts)
+        for i in xrange(num_parts):
+            scp_i = scp1.split(i+1, num_parts)
             scp_list.append(scp_i)
 
         assert(scp_list[0].len() == 1)

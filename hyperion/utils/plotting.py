@@ -16,24 +16,24 @@ from mpl_toolkits.mplot3d import Axes3D as plt3d
 from .math import invert_pdmat
 
 
-def plot_gaussian_1D(mu, C, nb_sigmas=3, nb_pts=100, **kwargs):
+def plot_gaussian_1D(mu, C, num_sigmas=3, num_pts=100, **kwargs):
     sigma = np.sqrt(C)
-    delta = nb_sigmas*sigma
-    x = np.linspace(mu-delta, mu+delta, nb_pts)
+    delta = num_sigmas*sigma
+    x = np.linspace(mu-delta, mu+delta, num_pts)
     plt.plot(x, mlab.normpdf(x, mu, sigma), **kwargs)
 
     
-def plot_gaussian_3D(mu, C, nb_sigmas=3, nb_pts=100, ax=None, **kwargs):
+def plot_gaussian_3D(mu, C, num_sigmas=3, num_pts=100, ax=None, **kwargs):
     assert(mu.shape[0] == 2)
     assert(C.shape[0] == 2 and C.shape[1] == 2)
-    nb_pts *= 1j
+    num_pts *= 1j
     invC, _, logC, _ = invert_pdmat(C, compute_logdet=True)
     dim = mu.shape[0]
     d, v = la.eigh(C)
-    delta = nb_sigmas*np.sum(v*np.sqrt(d), axis=1)
+    delta = num_sigmas*np.sum(v*np.sqrt(d), axis=1)
     low_lim = mu-delta
     high_lim = mu+delta
-    X, Y = np.mgrid[low_lim[0]:high_lim[0]:nb_pts, low_lim[1]:high_lim[1]:nb_pts]
+    X, Y = np.mgrid[low_lim[0]:high_lim[0]:num_pts, low_lim[1]:high_lim[1]:num_pts]
     xy = np.vstack((X.ravel(), Y.ravel()))-mu[:, None]
     z = np.exp(-0.5*dim*np.log(2*np.pi)-0.5*logC-0.5*np.sum(xy*invC(xy), axis=0))
 
@@ -41,26 +41,26 @@ def plot_gaussian_3D(mu, C, nb_sigmas=3, nb_pts=100, ax=None, **kwargs):
     ax.plot_surface(X, Y, Z, **kwargs)
     
 
-def plot_gaussian_ellipsoid_2D(mu, C, nb_sigmas=1, nb_pts=100, **kwargs):
+def plot_gaussian_ellipsoid_2D(mu, C, num_sigmas=1, num_pts=100, **kwargs):
     assert(mu.shape[0] == 2)
     assert(C.shape[0] == 2 and C.shape[1] == 2)
 
-    t = np.linspace(0,2*np.pi,nb_pts)
+    t = np.linspace(0,2*np.pi,num_pts)
     x = np.cos(t)
     y = np.sin(t)
     xy = np.vstack((x,y))
     d, v  =  la.eigh(C)
-    d *= nb_sigmas
+    d *= num_sigmas
     r = np.dot(v*d, xy)+mu[:, None]
     plt.plot(r[0,:], r[1,:], **kwargs)
 
     
-def plot_gaussian_ellipsoid_3D(mu, C, nb_sigmas=1, nb_pts=100, ax=None, **kwargs):
+def plot_gaussian_ellipsoid_3D(mu, C, num_sigmas=1, num_pts=100, ax=None, **kwargs):
     assert(mu.shape[0] == 3)
     assert(C.shape[0] == 3 and C.shape[1] == 3)
 
-    nb_pts *= 1j
-    u, v = np.mgrid[0:2*np.pi:nb_pts, 0:np.pi:nb_pts/2]
+    num_pts *= 1j
+    u, v = np.mgrid[0:2*np.pi:num_pts, 0:np.pi:num_pts/2]
     x = np.cos(u)*np.sin(v)
     y = np.sin(u)*np.sin(v)
     z = np.cos(v)

@@ -45,14 +45,14 @@ class VAE(PDF):
         self.model = None
         self.is_compiled = False        
         self.elbo_function = None
-        self.nb_samples = 1
+        self.num_samples = 1
         self.x_chol = None
 
         
-    def build(self, nb_samples=1):
+    def build(self, num_samples=1):
         self.x_dim = self.encoder_net.internal_input_shapes[0][-1]
         self.z_dim = self.decoder_net.internal_input_shapes[0][-1]
-        self.nb_samples = nb_samples
+        self.num_samples = num_samples
         self._build_model()
         self._build_loss()
         self.is_compiled = False
@@ -62,9 +62,9 @@ class VAE(PDF):
         x = Input(shape=(self.x_dim,))
         self.qz_param = self.encoder_net(x)
         if self.qz_form == 'diag_normal':
-            z = DiagNormalSampler(nb_samples=self.nb_samples)(self.qz_param)
+            z = DiagNormalSampler(num_samples=self.num_samples)(self.qz_param)
         else:
-            z = NormalSampler(nb_samples=self.nb_samples)(self.qz_param)
+            z = NormalSampler(num_samples=self.num_samples)(self.qz_param)
             
         x_dec_param = self.decoder_net(z)
         # hack for keras to work
@@ -97,7 +97,7 @@ class VAE(PDF):
         else:
             kl_f = hyp_obj.kl_normal_vs_diag_normal
 
-        self.loss=(lambda x, y: logPx_f(x, y, self.nb_samples) +
+        self.loss=(lambda x, y: logPx_f(x, y, self.num_samples) +
                    K.clip(kl_f(self.qz_param), self.min_kl, None))
         
             
@@ -132,7 +132,7 @@ class VAE(PDF):
                                         **kwargs)
 
         
-    def elbo(self, x, nb_samples=1, batch_size=None):
+    def elbo(self, x, num_samples=1, batch_size=None):
         if not self.is_compiled:
             self.compile()
 
@@ -144,10 +144,10 @@ class VAE(PDF):
             
         elbo = - eval_loss(self.model, self.elbo_function, x, x,
                            batch_size=batch_size)
-        for i in xrange(1, nb_samples):
+        for i in xrange(1, num_samples):
             elbo -= eval_loss(self.model, self.elbo_function, x, x,
                               batch_size=batch_size)
-        return elbo/nb_samples
+        return elbo/num_samples
 
     
     def compute_qz_x(self, x, batch_size):
@@ -182,9 +182,9 @@ class VAE(PDF):
         return generator.predict(z,batch_size=batch_size)
 
 
-    def generate(self, nb_samples, batch_size, sample_x=True):
+    def generate(self, num_samples, batch_size, sample_x=True):
         z = np.random.normal(loc=0., scale=1.,
-                             size=(nb_samples, self.z_dim))
+                             size=(num_samples, self.z_dim))
         return self.decode_z(z, batch_size, sample_x)
 
     
@@ -230,57 +230,57 @@ class VAE(PDF):
 
 
     @staticmethod
-    def _get_loss_bernoulli(x, x_dec_param, nb_samples=1):
-        if nb_samples > 1:
-            x = K.repeat_elements(x, nb_samples, axis=0)
+    def _get_loss_bernoulli(x, x_dec_param, num_samples=1):
+        if num_samples > 1:
+            x = K.repeat_elements(x, num_samples, axis=0)
             
         logPx_g_z = hyp_obj.bernoulli(x, x_dec_param)
-        if nb_samples > 1:
-            r = K.reshape(logPx_g_z, (-1, nb_samples))
+        if num_samples > 1:
+            r = K.reshape(logPx_g_z, (-1, num_samples))
             logPx_g_z = K.mean(r, axis=1)
             
         return logPx_g_z
 
     
     @staticmethod
-    def _get_loss_diag_normal(x, x_dec_param, nb_samples=1):
-        if nb_samples > 1:
-            x = K.repeat_elements(x, nb_samples, axis=0)
+    def _get_loss_diag_normal(x, x_dec_param, num_samples=1):
+        if num_samples > 1:
+            x = K.repeat_elements(x, num_samples, axis=0)
             
         x_dim=K.cast(K.shape(x)[-1], 'int32')
         x_dec_param = [x_dec_param[:,:x_dim], x_dec_param[:,x_dim:]]
         logPx_g_z = hyp_obj.diag_normal(x, x_dec_param)
-        if nb_samples > 1:
-            r = K.reshape(logPx_g_z, (-1, nb_samples))
+        if num_samples > 1:
+            r = K.reshape(logPx_g_z, (-1, num_samples))
             logPx_g_z = K.mean(r, axis=1)
             
         return logPx_g_z
 
     
     @staticmethod
-    def _get_loss_normal(x, x_dec_param, nb_samples=1):
-        if nb_samples > 1:
-            x = K.repeat_elements(x, nb_samples, axis=0)
+    def _get_loss_normal(x, x_dec_param, num_samples=1):
+        if num_samples > 1:
+            x = K.repeat_elements(x, num_samples, axis=0)
         x_dim=K.cast(K.shape(x)[-1], 'int32')
         x_dec_param = [x_dec_param[:,:x_dim], x_dec_param[:,x_dim:2*x_dim],
                        K.reshape(x_dec_param[:,2*x_dim:], (-1, x_dim, x_dim))]
         logPx_g_z = hyp_obj.normal(x, x_dec_param)
-        if nb_samples > 1:
-            r = K.reshape(logPx_g_z, (-1, nb_samples))
+        if num_samples > 1:
+            r = K.reshape(logPx_g_z, (-1, num_samples))
             logPx_g_z = K.mean(r, axis=1)
             
         return logPx_g_z
             
     
     @staticmethod
-    def _get_loss_normal_1chol(x, x_dec_param, x_chol, nb_samples=1):
-        if nb_samples > 1:
-            x = K.repeat_elements(x, nb_samples, axis=0)
+    def _get_loss_normal_1chol(x, x_dec_param, x_chol, num_samples=1):
+        if num_samples > 1:
+            x = K.repeat_elements(x, num_samples, axis=0)
         x_dim=K.cast(K.shape(x)[-1], 'int32')
         x_dec_param = [x_dec_param[:,:x_dim], x_dec_param[:,x_dim:], x_chol]
         logPx_g_z = hyp_obj.normal_1chol(x, x_dec_param)
-        if nb_samples > 1:
-            r = K.reshape(logPx_g_z, (-1, nb_samples))
+        if num_samples > 1:
+            r = K.reshape(logPx_g_z, (-1, num_samples))
             logPx_g_z = K.mean(r, axis=1)
             
         return logPx_g_z

@@ -54,15 +54,15 @@ def intersect(a, b, assume_unique=False, return_index = False):
 
 
 
-def split_list(a, idx, nb_parts, key = None):
+def split_list(a, idx, num_parts, key = None):
     if not(isinstance(a, np.ndarray)):
         a = np.asarray(a)
     if key is None:
         key = a
     _, _, ids=np.unique(key, return_index=True, return_inverse=True)
     n = float(ids.max()+1)
-    idx_1 = int(np.floor((idx-1)*n/nb_parts))
-    idx_2 = int(np.floor(idx*n/nb_parts))
+    idx_1 = int(np.floor((idx-1)*n/num_parts))
+    idx_2 = int(np.floor(idx*n/num_parts))
     loc=np.empty(len(a), dtype='int64')
     k=0
     for i in range(idx_1, idx_2):
@@ -172,14 +172,14 @@ def test_list_utils():
 #     return np.union1d(a, b).tolist()
 
 
-# def split_list(a, idx, nb_parts, key = None):
+# def split_list(a, idx, num_parts, key = None):
 
 #     if key is None:
 #         key = a
 #     _, _, ids=unique(key, return_index=True, return_inverse=True)
 #     n = float(ids.max()+1)
-#     idx_1 = int(np.floor((idx-1)*n/nb_parts))
-#     idx_2 = int(np.floor(idx*n/nb_parts))
+#     idx_1 = int(np.floor((idx-1)*n/num_parts))
+#     idx_2 = int(np.floor(idx*n/num_parts))
 #     loc=np.empty(len(a), dtype='int32')
 #     k=0
 #     for i in range(idx_1, idx_2):

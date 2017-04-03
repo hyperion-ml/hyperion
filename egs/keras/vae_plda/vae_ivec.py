@@ -25,9 +25,9 @@ batch_size = 100
 original_dim = 2
 latent_dim = 1
 intermediate_dim = 200
-nb_epoch = 100
+epochs = 100
 l2_reg=0.0001
-nb_samples=10000
+num_samples=10000
 
 def my_init(shape,name=None):
     return initializations.normal(shape, scale=0.1, name=name)
@@ -74,7 +74,7 @@ vae.build()
 opt = optimizers.Adam(lr=0.001)
 vae.train(x_train,x_val=x_val,optimizer=opt,
           shuffle=True,
-          nb_epoch=nb_epoch,
+          epochs=epochs,
           batch_size=batch_size)
 
 
@@ -171,7 +171,7 @@ plt.savefig('vae_x_val_dec.pdf')
 
 
 # Sample x from VAE
-x_sample = vae.sample_x(nb_samples, batch_size=batch_size)
+x_sample = vae.sample_x(num_samples, batch_size=batch_size)
 plt.figure(figsize=(12, 6))
 plt.subplot(1,2,1)
 plt.scatter(x_val[:, 0], x_val[:, 1], c=y_val)

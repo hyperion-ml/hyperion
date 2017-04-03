@@ -26,7 +26,7 @@ def load_data(iv_file, train_file, preproc):
     train_utt2spk= SCPList.load(train_file, sep='=')
     
     hr = HypDataReader(iv_file)
-    x = hr.read(train_utt2spk.file_path, '.ivec')
+    x = hr.read(train_utt2spk.file_path, '.ivec', return_tensor=True)
     if preproc is not None:
         x = preproc.predict(x)
 

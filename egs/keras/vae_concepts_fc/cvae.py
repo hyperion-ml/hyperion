@@ -40,14 +40,14 @@ def vae(file_path):
     r1h_train = to_onehot(r_train, K)
     r1h_val = to_onehot(r_val, K)
     
-    nb_samples=x_train.shape[0]
+    num_samples=x_train.shape[0]
     elbo_samples = 3
     
     batch_size = 100
     x_dim = 2
     z_dim = 1
     h_dim = 200
-    nb_epoch = 200
+    epochs = 200
     l2_reg=0.0001
     
     # define encoder architecture
@@ -74,11 +74,11 @@ def vae(file_path):
 
     # train VAE
     vae=CVAE(encoder,decoder, px_cond_form='normal')
-    vae.build(nb_samples=elbo_samples)
+    vae.build(num_samples=elbo_samples)
     opt = optimizers.Adam(lr=0.001)
     h = vae.fit(x_train, r_train=r1h_train, x_val=x_val, r_val=r1h_val,
                 optimizer=opt, shuffle=True,
-                nb_epoch=nb_epoch,
+                epochs=epochs,
                 batch_size=batch_size, callbacks=my_callbacks())
     save_hist(file_path + '/cvae_hist.h5', h.history, 'CVAE')
 

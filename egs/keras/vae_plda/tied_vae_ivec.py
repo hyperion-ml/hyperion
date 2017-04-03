@@ -64,9 +64,9 @@ def plot_cov_ellipse(cov, pos, volume=.5, ax=None, fc='none', ec=[0,0,0], a=1, l
 D=100
 batch_size = 25
 intermediate_dim = 200
-nb_epoch = 1000
+epochs = 1000
 l2_reg=0.0001
-nb_samples=1000
+num_samples=1000
 N_i=8
 
 # load data
@@ -140,7 +140,7 @@ vae.build()
 opt = optimizers.Adam(lr=0.001)
 vae.train(x_train,x_val=x_val,optimizer=opt,
           shuffle=True,
-          nb_epoch=nb_epoch,
+          epochs=epochs,
           batch_size=batch_size)
 
 
@@ -200,135 +200,3 @@ print(muy_gt_val[:6,:])
 print(y_var_val2[:6,:])
 print(Cy_gt_val[:6,:])
 
-
-# plt.figure(figsize=(18, 12))
-# plt.subplot(2,3,1)
-# plt.scatter(x_val2[:, 0], x_val2[:, 1], c=k_val, cmap=c_m,norm=cm_norm_k)
-# plt.title('X val clusters')
-# plt.subplot(2,3,4)
-# plt.scatter(x_val2[:, 0], x_val2[:, 1], c=t_val, cmap=c_m,norm=cm_norm_t)
-# plt.xlim(-3,3)
-# plt.ylim(-3,3)
-# plt.title('X val segments')
-
-# #plt.colorbar()
-# if latent_dim==2:
-#     # 2D scatter plot
-#     plt.subplot(1,2,2)
-#     plt.scatter(z_val2[:, 0], z_val2[:, 1], c=k_val)
-#     plt.colorbar()
-# else:
-#     nbins=int(x_val2.shape[0]/50)
-#     plt.subplot(2,3,2)
-#     plt.hist(z_val2.ravel(),nbins,normed=True,color='k',histtype='step')
-#     plt.xlim(-3,3)
-#     plt.title('Z val distribution')
-#     plt.subplot(2,3,3)
-#     plt.hold(True)
-#     nbins_i=int(nbins/NG)
-#     for i in xrange(NG):
-#         plt.hist(z_val2[k_val==i,:].ravel(),nbins_i,
-#                  normed=True,color=s_m_k.to_rgba(i),histtype='step')
-#     plt.xlim(-3,3)
-#     plt.colorbar(s_m_k)
-#     plt.title('Z val distribution per cluster')
-#     plt.subplot(2,3,6)
-#     plt.hold(True)
-#     nbins_i=int(nbins_i/M_val)
-#     for i in xrange(M_val):
-#         plt.hist(z_val2[t_val==i,:].ravel(),nbins_i,
-#                  normed=True,color=s_m_t.to_rgba(i),histtype='step')
-#     plt.xlim(-3,3)
-#     plt.colorbar(s_m_t)
-#     plt.title('Z val distribution per segment')
-
-# plt.show()
-# plt.savefig('tied_vae_z_val.pdf')
-
-
-# plt.figure(figsize=(12, 6))
-# plt.subplot(1,2,1)
-# plt.scatter(x_val2[:, 0], x_val2[:, 1], c=t_val,cmap=c_m,norm=cm_norm_t)
-# plt.xlim(-3,3)
-# plt.ylim(-3,3)
-# plt.title('X val segments')
-
-# nbins=5
-# plt.subplot(1,2,2)
-# plt.hist(y_val2.ravel(),nbins,normed=True,color='k',histtype='step')
-# plt.xlim(-3,3)
-# plt.title('Y val distribution')
-# plt.show()
-# plt.savefig('tied_vae_y_val.pdf')
-
-
-# # decode z_val
-# x_val_dec = vae.decode_yz(y_val, z_val, batch_size=batch_size)
-# x_val_dec2=np.reshape(x_val_dec, (-1, D))
-# plt.figure(figsize=(12, 12))
-# plt.subplot(2,2,1)
-# plt.scatter(x_val2[:, 0], x_val2[:, 1], c=k_val)
-# plt.xlim(-3,3)
-# plt.ylim(-3,3)
-# plt.title('X val clusters')
-# plt.subplot(2,2,3)
-# plt.scatter(x_val2[:, 0], x_val2[:, 1], c=t_val)
-# plt.xlim(-3,3)
-# plt.ylim(-3,3)
-# plt.title('X val segments')
-
-# plt.subplot(2,2,2)
-# plt.scatter(x_val_dec2[:, 0], x_val_dec2[:, 1], c=k_val)
-# plt.xlim(-3,3)
-# plt.ylim(-3,3)
-# plt.title('X val enc-dec clusters')
-# plt.colorbar()
-# plt.subplot(2,2,4)
-# plt.scatter(x_val_dec2[:, 0], x_val_dec2[:, 1], c=t_val)
-# plt.xlim(-3,3)
-# plt.ylim(-3,3)
-# plt.title('X val enc-dec segments')
-# plt.colorbar()
-# plt.show()
-# plt.savefig('tied_vae_x_val_dec.pdf')
-
-
-# # Sample x from VAE
-
-# x_sample = vae.sample_x(M_val, nb_samples, batch_size=batch_size)
-# x_sample2 = np.reshape(x_sample, (-1,D))
-# plt.figure(figsize=(12, 6))
-# plt.subplot(1,2,1)
-# plt.scatter(x_val2[:, 0], x_val2[:, 1], c=k_val)
-# plt.xlim(-3,3)
-# plt.ylim(-3,3)
-# plt.title('X val')
-# plt.colorbar()
-# plt.subplot(1,2,2)
-# plt.scatter(x_sample2[:, 0], x_sample2[:, 1], c='b')
-# plt.xlim(-3,3)
-# plt.ylim(-3,3)
-# plt.title('X sample')
-# plt.show()
-# plt.savefig('tied_vae_sample.pdf')
-
-
-# y_sample=np.expand_dims(np.expand_dims([-2,0,2], axis=1), axis=1)
-# x_sample = vae.sample_x_g_y(y_sample, nb_samples, batch_size=batch_size)
-# plt.figure(figsize=(12, 6))
-# plt.subplot(1,2,1)
-# plt.scatter(x_val[0,:, 0], x_val[0, :, 1], c='b')
-# plt.scatter(x_val[1,:, 0], x_val[1, :, 1], c='r')
-# plt.scatter(x_val[4,:, 0], x_val[4, :, 1], c='g')
-# plt.xlim(-3,3)
-# plt.ylim(-3,3)
-# plt.title('X val')
-# plt.subplot(1,2,2)
-# plt.scatter(x_sample[0, :, 0], x_sample[0, :, 1], c='b')
-# plt.scatter(x_sample[1, :, 0], x_sample[1, :, 1], c='r')
-# plt.scatter(x_sample[2, :, 0], x_sample[2, :, 1], c='g')
-# plt.xlim(-3,3)
-# plt.ylim(-3,3)
-# plt.title('X sample')
-# plt.show()
-# plt.savefig('tied_vae_sample_t3.pdf')

@@ -51,7 +51,7 @@ def vae(file_path):
     z_dim = 1
     y_dim = 1
     h_dim = 200
-    nb_epoch = 1000
+    epochs = 1000
     l2_reg=0.0001
     
     # define encoder architecture
@@ -82,18 +82,20 @@ def vae(file_path):
                                    init=my_init, W_regularizer=l2(l2_reg)))(yz)
     h2_dec = TimeDistributed(Dense(h_dim, activation='relu',
                                    init=my_init, W_regularizer=l2(l2_reg)))(h1_dec)
-    x_dec_mean = TimeDistributed(Dense(x_dim, init=my_init, W_regularizer=l2(l2_reg)))(h2_dec)
-    x_dec_logvar = TimeDistributed(Dense(x_dim, init=my_init, W_regularizer=l2(l2_reg)))(h2_dec)
+    x_dec_mean = TimeDistributed(Dense(x_dim, init=my_init,
+                                       W_regularizer=l2(l2_reg)))(h2_dec)
+    x_dec_logvar = TimeDistributed(Dense(x_dim, init=my_init,
+                                         W_regularizer=l2(l2_reg)))(h2_dec)
     x_dec_chol = TiledConstTriu(x_dim, diag_val=1)(h2_dec)
     
     decoder=Model([y, z], [x_dec_mean, x_dec_logvar, x_dec_chol])
 
     # train VAE
     vae=TVAE(encoder, decoder, px_cond_form='normal')
-    vae.build(nb_samples=elbo_samples)
+    vae.build(num_samples=elbo_samples)
     opt = optimizers.Adam(lr=0.001)
     h = vae.fit(x_train, x_val=x_val, optimizer=opt,
-                shuffle=True, nb_epoch=nb_epoch,
+                shuffle=True, epochs=epochs,
                 batch_size=batch_size, callbacks=my_callbacks())
     save_hist(file_path2 + '_hist.h5', h.history, 'TiedVAE Q(y)Q(Z)')
 

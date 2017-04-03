@@ -50,7 +50,7 @@ def vae(file_path):
     z_dim = 1
     y_dim = 1
     h_dim = 200
-    nb_epoch = 1000
+    epochs = 1000
     l2_reg=0.0001
 
     # define encoder architecture
@@ -98,15 +98,15 @@ def vae(file_path):
     
     # train VAE
     vae=TVAE(qy, qz, decoder, 'diag_normal')
-    vae.build(nb_samples_y=elbo_samples, nb_samples_z=elbo_samples)
+    vae.build(num_samples_y=elbo_samples, num_samples_z=elbo_samples)
     opt = optimizers.Adam(lr=0.001)
     h = vae.fit(x_train, x_val=x_val, optimizer=opt,
-                shuffle=True, nb_epoch=nb_epoch,
+                shuffle=True, epochs=epochs,
                 batch_size=batch_size, callbacks=my_callbacks())
     save_hist(file_path2 + '_hist.h5', h.history, 'TiedVAE Q(y)Q(Z|y)')
 
     # plot the latent space
-    vae.build(nb_samples_y=1, nb_samples_z=1)
+    vae.build(num_samples_y=1, num_samples_z=1)
     y_val, _, z_val, _ = vae.compute_qyz_x(x_val, batch_size=batch_size)
     y_val2d = x_3dto2d(y_val)
     z_val2d = x_3dto2d(z_val)

@@ -29,7 +29,7 @@ from hyperion.keras1.vae import TiedVAE_qY as TVAEY
 
 
 def load_input_vectors(hyp_reader, file_path, class_ids, preproc, max_length):
-    x = hyp_reader.read(file_path, '.ivec')
+    x = hyp_reader.read(file_path, '.ivec', return_tensor=True)
     if preproc is not None:
         x = preproc.predict(x)
     

@@ -439,7 +439,7 @@ class Repeat(Layer):
 
     
     def get_config(self):
-        config = {'n': self.nb_samples,
+        config = {'n': self.n,
                   'axis': self.axis }
         base_config = super(Repeat, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))

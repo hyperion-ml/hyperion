@@ -35,12 +35,12 @@ class CVAE(VAE):
         self.r_dim=0
 
         
-    def build(self, nb_samples=1):
+    def build(self, num_samples=1):
         self.x_dim=self.encoder_net.internal_input_shapes[0][-1]
         self.r_dim=self.encoder_net.internal_input_shapes[1][-1]
         self.z_dim=self.decoder_net.internal_input_shapes[0][-1]
         assert(self.r_dim==self.decoder_net.internal_input_shapes[1][-1])
-        self.nb_samples = nb_samples
+        self.num_samples = num_samples
         self._build_model()
         self._build_loss()
         self.is_compiled=False
@@ -51,12 +51,12 @@ class CVAE(VAE):
         r = Input(shape=(self.r_dim,))
         self.qz_param = self.encoder_net([x, r])
         if self.qz_form == 'diag_normal':
-            z = DiagNormalSampler(nb_samples=self.nb_samples)(self.qz_param)
+            z = DiagNormalSampler(num_samples=self.num_samples)(self.qz_param)
         else:
-            z = NormalSampler(nb_samples=self.nb_samples)(self.qz_param)
+            z = NormalSampler(num_samples=self.num_samples)(self.qz_param)
 
-        if self.nb_samples > 1:
-            r_rep = Repeat(self.nb_samples, axis=0)(r)
+        if self.num_samples > 1:
+            r_rep = Repeat(self.num_samples, axis=0)(r)
         else:
             r_rep = r
         x_dec_param=self.decoder_net([z, r_rep])
@@ -89,7 +89,7 @@ class CVAE(VAE):
                               validation_data=x_val, **kwargs)
         
 
-    def elbo(self, x, r, nb_samples=1, batch_size=None):
+    def elbo(self, x, r, num_samples=1, batch_size=None):
         if not self.is_compiled:
             self.compile()
 
@@ -101,10 +101,10 @@ class CVAE(VAE):
             
         elbo = - eval_loss(self.model, self.elbo_function, [x, r], x,
                            batch_size=batch_size)
-        for i in xrange(1, nb_samples):
+        for i in xrange(1, num_samples):
             elbo -= eval_loss(self.model, self.elbo_function, [x, r], x,
                               batch_size=batch_size)
-        return elbo/nb_samples
+        return elbo/num_samples
 
     
     def compute_qz_x(self, x, r, batch_size):

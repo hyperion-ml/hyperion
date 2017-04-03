@@ -24,5 +24,5 @@ class HypDataWriter(object):
         #datasets = keys.astype(np.object)+field
         datasets = [ key+field for key in keys]
         for i, ds in enumerate(datasets):
-            self.f.create_dataset(ds, data=X[i,:].astype(float_save()))
+            self.f.create_dataset(ds, data=X[i].astype(float_save()))
 

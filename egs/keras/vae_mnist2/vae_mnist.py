@@ -22,7 +22,7 @@ batch_size = 100
 original_dim = 784
 latent_dim = 2
 intermediate_dim = 500
-nb_epoch = 200
+epochs = 200
 l2_reg=0.001
 
 def my_init(shape,name=None):
@@ -63,7 +63,7 @@ vae.build()
 opt = optimizers.Adam(lr=0.001)
 vae.fit(x_train,x_val=x_test,optimizer=opt,
         shuffle=True,
-        nb_epoch=nb_epoch,
+        epochs=epochs,
         batch_size=batch_size)
 
 x_test_encoded = vae.compute_qz_x(x_test, batch_size=batch_size)[0]

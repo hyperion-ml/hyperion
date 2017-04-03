@@ -38,14 +38,14 @@ def vae(file_path):
     x_train, r_train, t_train, x_val, r_val, t_val, K, M = load_xrt(
         file_path + '/data.h5')
     
-    nb_samples = x_train.shape[0]
+    num_samples = x_train.shape[0]
     elbo_samples = 3
     
     batch_size = 100
     x_dim = 2
     z_dim = 1
     h_dim = 200
-    nb_epoch = 200
+    epochs = 200
     l2_reg=0.0001
     
 
@@ -70,10 +70,10 @@ def vae(file_path):
 
     # train VAE
     vae=VAE(encoder, decoder, px_cond_form='normal')
-    vae.build(nb_samples=elbo_samples)
+    vae.build(num_samples=elbo_samples)
     opt = optimizers.Adam(lr=0.001)
     h = vae.fit(x_train,x_val=x_val,optimizer=opt,
-                shuffle=True, nb_epoch=nb_epoch,
+                shuffle=True, epochs=epochs,
                 batch_size=batch_size, callbacks=my_callbacks())
     save_hist(file_path + '/vae_hist.h5', h.history, 'VAE')
 
@@ -90,7 +90,7 @@ def vae(file_path):
     plot_xdecr(x_val, x_val_dec, r_val, file_path + '/vae_x_val_dec.pdf')
 
     # Sample x from VAE
-    x_sample = vae.generate(nb_samples, batch_size=batch_size)
+    x_sample = vae.generate(num_samples, batch_size=batch_size)
     plot_xsample(x_val, x_sample, r_val, file_path + '/vae_sample.pdf')
 
 

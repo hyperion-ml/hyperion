@@ -255,9 +255,9 @@ def make_eval_function(model, loss, loss_weights=None, **kwargs):
 def make_batches(size, batch_size):
     '''Returns a list of batch indices (tuples of indices).
     '''
-    nb_batch = int(np.ceil(size / float(batch_size)))
+    num_batch = int(np.ceil(size / float(batch_size)))
     return [(i * batch_size, min(size, (i + 1) * batch_size))
-            for i in range(0, nb_batch)]
+            for i in range(0, num_batch)]
 
 
 
@@ -276,11 +276,11 @@ def _eval_loop(f, ins, batch_size=32):
     and/or metrics). The attribute `model.metrics_names` will give you
     the display labels for the scalar outputs.
     '''
-    nb_sample = ins[0].shape[0]
+    num_sample = ins[0].shape[0]
     outs = []
 
-    batches = make_batches(nb_sample, batch_size)
-    index_array = np.arange(nb_sample)
+    batches = make_batches(num_sample, batch_size)
+    index_array = np.arange(num_sample)
     for batch_index, (batch_start, batch_end) in enumerate(batches):
         batch_ids = index_array[batch_start:batch_end]
         if isinstance(ins[-1], float):
@@ -293,12 +293,12 @@ def _eval_loop(f, ins, batch_size=32):
         if isinstance(batch_outs, list):
             if batch_index == 0:
                 for batch_out in enumerate(batch_outs):
-                    outs.append(np.zeros((nb_sample,)))
+                    outs.append(np.zeros((num_sample,)))
             for i, batch_out in enumerate(batch_outs):
                 outs[i][batch_ids] = batch_out
         else:
             if batch_index == 0:
-                outs.append(np.zeros((nb_sample,)))
+                outs.append(np.zeros((num_sample,)))
             outs[i][batch_ids] = batch_out
 
     if len(outs) == 1:

@@ -51,11 +51,11 @@ class TiedVAE_qYqZgY(TiedVAE_qYqZ):
 
         self.qy_net = qy_net
         self.qz_net = qz_net
-        self.nb_samples_y = 1
-        self.nb_samples_z = 1
+        self.num_samples_y = 1
+        self.num_samples_z = 1
 
         
-    def build(self, nb_samples_y=1, nb_samples_z=1, max_seq_length=None):
+    def build(self, num_samples_y=1, num_samples_z=1, max_seq_length=None):
         self.x_dim = self.qy_net.internal_input_shapes[0][-1]
         self.y_dim = self.decoder_net.internal_input_shapes[0][-1]
         self.z_dim = self.decoder_net.internal_input_shapes[1][-1]
@@ -63,9 +63,9 @@ class TiedVAE_qYqZgY(TiedVAE_qYqZ):
             self.max_seq_length = self.qy_net.internal_input_shapes[0][-2]
         else:
             self.max_seq_length = max_seq_length
-        self.nb_samples_y = nb_samples_y
-        self.nb_samples_z = nb_samples_z
-        self.nb_samples = nb_samples_y*nb_samples_z
+        self.num_samples_y = num_samples_y
+        self.num_samples_z = num_samples_z
+        self.num_samples = num_samples_y*num_samples_z
         self._build_model()
         self._build_loss()
         self.is_compiled = False
@@ -78,15 +78,15 @@ class TiedVAE_qYqZgY(TiedVAE_qYqZ):
 
         if self.qy_form == 'diag_normal':
             y = DiagNormalSamplerFromSeqLevel(seq_length=self.max_seq_length,
-                                              nb_samples=self.nb_samples_y,
+                                              num_samples=self.num_samples_y,
                                               one_sample_per_seq=False)(self.qy_param)
         else:
             y = NormalSamplerFromSeqLevel(seq_length=self.max_seq_length,
-                                          nb_samples=self.nb_samples_y,
+                                          num_samples=self.num_samples_y,
                                           one_sample_per_seq=False)(self.qy_param)
 
-        if self.nb_samples_y > 1:
-            x_rep = Repeat(self.nb_samples_y, axis=0)(x)
+        if self.num_samples_y > 1:
+            x_rep = Repeat(self.num_samples_y, axis=0)(x)
         else:
             x_rep = x
         
@@ -95,12 +95,12 @@ class TiedVAE_qYqZgY(TiedVAE_qYqZ):
         self.encoder_net = Model(x, self.qy_param+self.qz_param)
 
         if self.qz_form == 'diag_normal':
-            z = DiagNormalSampler(nb_samples = self.nb_samples_z)(self.qz_param)
+            z = DiagNormalSampler(num_samples = self.num_samples_z)(self.qz_param)
         else:
-            z = NormalSampler(nb_samples = self.nb_samples_z)(self.qz_param)
+            z = NormalSampler(num_samples = self.num_samples_z)(self.qz_param)
 
-        if self.nb_samples_z > 1:
-            y_rep = Repeat(self.nb_samples_z, axis=0)(y)
+        if self.num_samples_z > 1:
+            y_rep = Repeat(self.num_samples_z, axis=0)(y)
         else:
             y_rep = y
         # print('dims', self.qy_param[0].ndim,
@@ -141,8 +141,8 @@ class TiedVAE_qYqZgY(TiedVAE_qYqZ):
         else:
             kl_z_f = hyp_obj.kl_normal_vs_diag_normal
         kl_z = K.clip(kl_z_f(self.qz_param), self.min_kl, None)
-        if self.nb_samples_y > 1:
-            r = K.reshape(kl_z, (-1, self.nb_samples_y, self.max_seq_length))
+        if self.num_samples_y > 1:
+            r = K.reshape(kl_z, (-1, self.num_samples_y, self.max_seq_length))
             kl_z = K.mean(r, axis=1)
 
         
@@ -153,7 +153,7 @@ class TiedVAE_qYqZgY(TiedVAE_qYqZ):
         kl_y = lambda x: K.expand_dims(
             K.clip(kl_y_f(self.qy_param), self.min_kl, None)/seq_length(x), dim=1)
 
-        self.loss=(lambda x, y: logPx_f(x, y, self.nb_samples) +
+        self.loss=(lambda x, y: logPx_f(x, y, self.num_samples) +
                    kl_z + kl_y(x))
 
 

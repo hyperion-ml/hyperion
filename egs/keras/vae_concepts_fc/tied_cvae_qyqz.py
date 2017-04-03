@@ -55,7 +55,7 @@ def vae(file_path):
     z_dim = 1
     y_dim = 1
     h_dim = 200
-    nb_epoch = 1000
+    epochs = 1000
     l2_reg=0.0001
 
 
@@ -103,11 +103,11 @@ def vae(file_path):
     
     # train VAE
     vae=TVAE(encoder, decoder, px_cond_form='normal')
-    vae.build(nb_samples=elbo_samples)
+    vae.build(num_samples=elbo_samples)
     opt = optimizers.Adam(lr=0.001)
     h = vae.fit(x_train, r_train=r_train,
                 x_val=x_val, r_val=r_val,
-                optimizer=opt, shuffle=True, nb_epoch=nb_epoch,
+                optimizer=opt, shuffle=True, epochs=epochs,
                 batch_size=batch_size, callbacks=my_callbacks())
     save_hist(file_path2 + '_hist.h5', h.history, 'TiedCVAE Q(y)Q(Z)')
 

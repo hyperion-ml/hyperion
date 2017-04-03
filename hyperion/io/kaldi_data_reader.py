@@ -18,7 +18,8 @@ class KaldiDataReader(object):
 
       def __init__(self, file_path, input_dir=None, sep=' '):
             self.file_path = file_path
-
+            self.cur_record=0
+            
             scp = SCPList.load(file_path, sep=sep)
             if input_dir is None:
                   self.scp = OrderedDict((k, v) for (k, v) in zip(scp.key, scp.file_path))
@@ -27,18 +28,36 @@ class KaldiDataReader(object):
                   self.scp = OrderedDict((k, input_dir+v) for (k, v) in zip(scp.key, scp.file_path))
 
                   
-      def read(self, keys=None):
+      def read(self, keys=None, num_records=None, first_record=None, squeeze=False):
             if keys is None:
                   keys=list(self.scp.keys())
+                  if first_record is not None:
+                        self.cur_record = first_record
+                        
+                  if num_records is None:
+                        keys = keys[self.cur_record:]
+                        self.cur_record = len(keys)
+                  else:
+                        final_record = min(self.cur_record+num_records, len(keys))
+                        keys = keys[self.cur_record:final_record]
+                        self.cur_record = final_record
+
+            X = []
             for i, key in enumerate(keys):
                   file_path = self.scp[key]
-                  v = self._read_matrix(file_path).ravel()
-                  if i==0:
-                        dim = v.shape[0]
-                        X=np.zeros((len(keys), dim), dtype=float_cpu())
-                  X[i,:] = v
+                  m = self._read_matrix(file_path)
+                  if squeeze:
+                        m = np.squeeze(m)
+                  X.append(m)
+                  
             return X, keys
 
+      
+      def reset(self):
+            self.cur_record=0
+
+      def eof(self):
+            return self.cur_record == len(self.scp.keys())
       
       @staticmethod
       def _open(file_path, mode='rb'):

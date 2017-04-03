@@ -57,7 +57,7 @@ class TiedVAE_qYqZ(VAE):
         self.max_seq_length = 0
 
         
-    def build(self, nb_samples=1, max_seq_length=None):
+    def build(self, num_samples=1, max_seq_length=None):
         self.x_dim = self.encoder_net.internal_input_shapes[0][-1]
         self.y_dim = self.decoder_net.internal_input_shapes[0][-1]
         self.z_dim = self.decoder_net.internal_input_shapes[1][-1]
@@ -65,7 +65,7 @@ class TiedVAE_qYqZ(VAE):
             self.max_seq_length = self.encoder_net.internal_input_shapes[0][-2]
         else:
             self.max_seq_length = max_seq_length
-        self.nb_samples = nb_samples
+        self.num_samples = num_samples
         self._build_model()
         self._build_loss()
         self.is_compiled = False
@@ -79,18 +79,18 @@ class TiedVAE_qYqZ(VAE):
         if self.qz_form == 'diag_normal':
             self.qy_param=qyz_param[:2]
             self.qz_param=qyz_param[2:]
-            z = DiagNormalSampler(nb_samples=self.nb_samples)(self.qz_param)
+            z = DiagNormalSampler(num_samples=self.num_samples)(self.qz_param)
         else:
             self.qy_param=qyz_param[:3]
             self.qz_param=qyz_param[3:]
-            z = NormalSampler(nb_samples=self.nb_samples)(self.qz_param)
+            z = NormalSampler(num_samples=self.num_samples)(self.qz_param)
 
         if self.qy_form == 'diag_normal':
             y = DiagNormalSamplerFromSeqLevel(seq_length=self.max_seq_length,
-                                              nb_samples=self.nb_samples)(self.qy_param)
+                                              num_samples=self.num_samples)(self.qy_param)
         else:
             y = NormalSamplerFromSeqLevel(seq_length=self.max_seq_length,
-                                          nb_samples=self.nb_samples)(self.qy_param)
+                                          num_samples=self.num_samples)(self.qy_param)
 
         x_dec_param=self.decoder_net([y, z])
         # hack for keras to work
@@ -135,7 +135,7 @@ class TiedVAE_qYqZ(VAE):
         kl_y = lambda x: K.expand_dims(
             K.clip(kl_y_f(self.qy_param), self.min_kl, None)/seq_length(x), dim=1)
 
-        self.loss=(lambda x, y: logPx_f(x, y, self.nb_samples) +
+        self.loss=(lambda x, y: logPx_f(x, y, self.num_samples) +
                    kl_z + kl_y(x))
                    
 
@@ -187,19 +187,19 @@ class TiedVAE_qYqZ(VAE):
         return generator.predict([y, z],batch_size=batch_size)
 
 
-    def generate(self, nb_seqs, nb_samples, batch_size,sample_x=True):
-        y=np.random.normal(loc=0., scale=1., size=(nb_seqs, 1, self.y_dim))
-        z=np.random.normal(loc=0., scale=1., size=(nb_seqs, nb_samples,self.z_dim))
+    def generate(self, num_seqs, num_samples, batch_size,sample_x=True):
+        y=np.random.normal(loc=0., scale=1., size=(num_seqs, 1, self.y_dim))
+        z=np.random.normal(loc=0., scale=1., size=(num_seqs, num_samples,self.z_dim))
         return self.decode_yz(y, z, batch_size, sample_x)
 
 
-    def generate_x_g_y(self, y, nb_samples, batch_size, sample_x=True):
-        nb_seqs=y.shape[0]
-        z=np.random.normal(loc=0., scale=1., size=(nb_seqs, nb_samples, self.z_dim))
+    def generate_x_g_y(self, y, num_samples, batch_size, sample_x=True):
+        num_seqs=y.shape[0]
+        z=np.random.normal(loc=0., scale=1., size=(num_seqs, num_samples, self.z_dim))
         return self.decode_yz(y, z, batch_size, sample_x)
 
             
-    def elbo(self, x, nb_samples=1, batch_size=None, mask_value=0):
+    def elbo(self, x, num_samples=1, batch_size=None, mask_value=0):
         if not self.is_compiled:
             self.compile()
 
@@ -214,40 +214,40 @@ class TiedVAE_qYqZ(VAE):
 
         elbo = - eval_loss(self.model, self.elbo_function, x, x,
                            batch_size=batch_size, sample_weight=sw)
-        for i in xrange(1, nb_samples):
+        for i in xrange(1, num_samples):
             elbo -= eval_loss(self.model, self.elbo_function, x, x,
                               batch_size=batch_size, sample_weight=sw)
 
-        return elbo/nb_samples
+        return elbo/num_samples
 
     
-    def eval_llr_1vs1(self, x1, x2, score_mask=None, method='elbo', nb_samples=1):
+    def eval_llr_1vs1(self, x1, x2, score_mask=None, method='elbo', num_samples=1):
         if method == 'elbo':
-            return self.eval_llr_1vs1_elbo(x1, x2, score_mask, nb_samples)
+            return self.eval_llr_1vs1_elbo(x1, x2, score_mask, num_samples)
         if method == 'cand':
             return self.eval_llr_1vs1_cand(x1, x2, score_mask)
         if method == 'qscr':
             return self.eval_llr_1vs1_qscr(x1, x2, score_mask)
 
         
-    def eval_llr_1vs1_elbo(self, x1, x2, score_mask=None, nb_samples=1):
+    def eval_llr_1vs1_elbo(self, x1, x2, score_mask=None, num_samples=1):
         
         xx_shape = (x1.shape[0], self.max_seq_length, x1.shape[1])
         xx = np.zeros(xx_shape, float_keras())
         xx[:,0,:] = x1
-        elbo_1 = self.elbo(xx, nb_samples)
+        elbo_1 = self.elbo(xx, num_samples)
 
         xx_shape = (x2.shape[0], self.max_seq_length, x2.shape[1])
         xx = np.zeros(xx_shape, float_keras())
         xx[:,0,:] = x2
-        elbo_2 = self.elbo(xx, nb_samples)
+        elbo_2 = self.elbo(xx, num_samples)
         
         scores = - (np.expand_dims(elbo_1, axis=-1) +
                     np.expand_dims(elbo_2, axis=-1).T)
 
         for i in xrange(x1.shape[0]):
             xx[:,1,:] = x1[i,:]
-            elbo_3 = self.elbo(xx, nb_samples)
+            elbo_3 = self.elbo(xx, num_samples)
             scores[i,:] += elbo_3
         return scores
 
@@ -398,14 +398,14 @@ class TiedVAE_qYqZ(VAE):
 
     
     @staticmethod
-    def _get_loss_bernoulli(x, x_dec_param, nb_samples=1):
-        if nb_samples > 1:
-            x = K.repeat_elements(x, nb_samples, axis=0)
+    def _get_loss_bernoulli(x, x_dec_param, num_samples=1):
+        if num_samples > 1:
+            x = K.repeat_elements(x, num_samples, axis=0)
             
         logPx_g_z = hyp_obj.bernoulli(x, x_dec_param)
-        if nb_samples > 1:
+        if num_samples > 1:
             max_seq_length = K.cast(K.shape(x)[1], 'int32')
-            r = K.reshape(logPx_g_z, (-1, nb_samples, max_seq_length))
+            r = K.reshape(logPx_g_z, (-1, num_samples, max_seq_length))
             logPx_g_z = K.mean(r, axis=1)
             
         return logPx_g_z
@@ -413,48 +413,48 @@ class TiedVAE_qYqZ(VAE):
 
     
     @staticmethod
-    def _get_loss_diag_normal(x, x_dec_param, nb_samples=1):
-        if nb_samples > 1:
-            x = K.repeat_elements(x, nb_samples, axis=0)
+    def _get_loss_diag_normal(x, x_dec_param, num_samples=1):
+        if num_samples > 1:
+            x = K.repeat_elements(x, num_samples, axis=0)
             
         x_dim=K.cast(K.shape(x)[-1], 'int32')
         x_dec_param = [x_dec_param[:,:,:x_dim], x_dec_param[:,:,x_dim:]]
         logPx_g_z = hyp_obj.diag_normal(x, x_dec_param)
-        if nb_samples > 1:
+        if num_samples > 1:
             max_seq_length = K.cast(K.shape(x)[1], 'int32')
-            r = K.reshape(logPx_g_z, (-1, nb_samples, max_seq_length))
+            r = K.reshape(logPx_g_z, (-1, num_samples, max_seq_length))
             logPx_g_z = K.mean(r, axis=1)
             
         return logPx_g_z
 
     
     @staticmethod
-    def _get_loss_normal(x, x_dec_param, nb_samples=1):
-        if nb_samples > 1:
-            x = K.repeat_elements(x, nb_samples, axis=0)
+    def _get_loss_normal(x, x_dec_param, num_samples=1):
+        if num_samples > 1:
+            x = K.repeat_elements(x, num_samples, axis=0)
         x_dim=K.cast(K.shape(x)[-1], 'int32')
         seq_length=K.cast(K.shape(x)[-2], 'int32')
         x_dec_param = [x_dec_param[:,:,:x_dim], x_dec_param[:,:,x_dim:2*x_dim],
                        K.reshape(x_dec_param[:,:,2*x_dim:], (-1, seq_length, x_dim, x_dim))]
         logPx_g_z = hyp_obj.normal_3d(x, x_dec_param)
-        if nb_samples > 1:
+        if num_samples > 1:
             max_seq_length = K.cast(K.shape(x)[1], 'int32')
-            r = K.reshape(logPx_g_z, (-1, nb_samples, max_seq_length))
+            r = K.reshape(logPx_g_z, (-1, num_samples, max_seq_length))
             logPx_g_z = K.mean(r, axis=1)
             
         return logPx_g_z
 
     
     @staticmethod
-    def _get_loss_normal_1chol(x, x_dec_param, x_chol, nb_samples=1):
-        if nb_samples > 1:
-            x = K.repeat_elements(x, nb_samples, axis=0)
+    def _get_loss_normal_1chol(x, x_dec_param, x_chol, num_samples=1):
+        if num_samples > 1:
+            x = K.repeat_elements(x, num_samples, axis=0)
         x_dim=K.cast(K.shape(x)[-1], 'int32')
         x_dec_param = [x_dec_param[:,:,:x_dim], x_dec_param[:,:,x_dim:], x_chol]
         logPx_g_z = hyp_obj.normal_1chol_3d(x, x_dec_param)
-        if nb_samples > 1:
+        if num_samples > 1:
             max_seq_length = K.cast(K.shape(x)[1], 'int32')
-            r = K.reshape(logPx_g_z, (-1, nb_samples, max_seq_length))
+            r = K.reshape(logPx_g_z, (-1, num_samples, max_seq_length))
             logPx_g_z = K.mean(r, axis=1)
             
         return logPx_g_z
@@ -462,17 +462,17 @@ class TiedVAE_qYqZ(VAE):
 
         
     # @staticmethod
-    # def _get_loss_bernoulli(x, x_dec_param, y_param, z_param, nb_samples):
+    # def _get_loss_bernoulli(x, x_dec_param, y_param, z_param, num_samples):
 
     #     seq_length=K.sum(K.cast(K.any(K.not_equal(x, 0), axis=-1),
     #                             K.floatx()), axis=-1)
-    #     if nb_samples > 1:
-    #         x = K.repeat_elements(x, nb_samples, axis=0)
+    #     if num_samples > 1:
+    #         x = K.repeat_elements(x, num_samples, axis=0)
 
     #     logPx_g_z = hyp_obj.bernoulli(x, x_dec_param)
-    #     if nb_samples > 1:
+    #     if num_samples > 1:
     #         max_seq_length = K.cast(K.shape(x)[1], 'int32')
-    #         r = K.reshape(logPx_g_z, (-1, nb_samples, max_seq_length))
+    #         r = K.reshape(logPx_g_z, (-1, num_samples, max_seq_length))
     #         logPx_g_z = K.mean(r, axis=1)
 
     #     kl_y = K.expand_dims(
@@ -484,23 +484,23 @@ class TiedVAE_qYqZ(VAE):
     
 
     # @staticmethod
-    # def _get_loss_normal(x, x_dec_param, y_param, z_param, nb_samples):
-    #     nb_seq_samples=K.sum(K.cast(K.any(K.not_equal(x, 0), axis=-1),
+    # def _get_loss_normal(x, x_dec_param, y_param, z_param, num_samples):
+    #     num_seq_samples=K.sum(K.cast(K.any(K.not_equal(x, 0), axis=-1),
     #                                K.floatx()), axis=-1)
     #     x_dim=K.cast(K.shape(x)[-1], 'int32')
 
-    #     if nb_samples > 1:
-    #         x = K.repeat_elements(x, nb_samples, axis=0)
+    #     if num_samples > 1:
+    #         x = K.repeat_elements(x, num_samples, axis=0)
 
     #     x_dec_param = [x_dec_param[:,:,:x_dim], x_dec_param[:,:,x_dim:]]
     #     logPx_g_z = hyp_obj.diag_normal(x, x_dec_param)
-    #     if nb_samples > 1:
+    #     if num_samples > 1:
     #         max_seq_length = K.cast(K.shape(x)[1], 'int32')
-    #         r = K.reshape(logPx_g_z, (-1, nb_samples, max_seq_length))
+    #         r = K.reshape(logPx_g_z, (-1, num_samples, max_seq_length))
     #         logPx_g_z = K.mean(r, axis=1)
 
     #     kl_y = K.expand_dims(
-    #         hyp_obj.kl_normal_vs_std_normal(y_param)/nb_seq_samples, dim=1)
+    #         hyp_obj.kl_normal_vs_std_normal(y_param)/num_seq_samples, dim=1)
     #     kl_z = hyp_obj.kl_normal_vs_std_normal(z_param)
         
     #     return logPx_g_z + kl_y + kl_z

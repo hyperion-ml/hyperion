@@ -49,19 +49,19 @@ def max_samples_per_class(class_ids):
 def resample_x(x, sw, max_l):
     l = x.shape[1]
     n = np.ceil(2*l/max_l)
-    nb_spc = np.sum(sw, axis=1)
+    num_spc = np.sum(sw, axis=1)
 
     x_out = np.zeros((x.shape[0]*n, max_l, x.shape[2]), dtype=x.dtype)
     sw_out = np.zeros((x.shape[0]*n, max_l), dtype=sw.dtype)
     k=0
     for i in xrange(x.shape[0]):
-        if nb_spc[i] <= max_l:
+        if num_spc[i] <= max_l:
             x_out[k,:,:] = x[i,:max_l,:]
             sw_out[k,:] = sw[i,:max_l]
             k+=1
         else:
-            n = int(np.ceil(2*nb_spc[i]/max_l))
-            x_i=x[i,:nb_spc[i],:]
+            n = int(np.ceil(2*num_spc[i]/max_l))
+            x_i=x[i,:num_spc[i],:]
             for j in xrange(n):
                 x_j = np.random.permutation(x_i)[:max_l,:]
                 x_out[k,:,:] = x_j
@@ -75,14 +75,14 @@ def resample_x(x, sw, max_l):
 def filter_x(x, sw, min_spc, max_spc, max_seq_length):
     
     max_length = x.shape[1]
-    nb_spc = np.sum(sw, axis=1)
+    num_spc = np.sum(sw, axis=1)
     print('SPC avg: %.2f min: %.2f max: %.2f median: %.2f mode: %.2f' %
-          (np.mean(nb_spc), np.min(nb_spc), np.max(nb_spc),
-           np.median(nb_spc), scps.mode(nb_spc)[0]))
+          (np.mean(num_spc), np.min(num_spc), np.max(num_spc),
+           np.median(num_spc), scps.mode(num_spc)[0]))
     
     if min_spc > 1:
-        x=x[nb_spc>min_spc,:,:]
-        sw=sw[nb_spc>min_spc,:]
+        x=x[num_spc>min_spc,:,:]
+        sw=sw[num_spc>min_spc,:]
 
     if max_spc is not None and max_spc < max_length:
         x=x[:,:max_spc,:]
@@ -127,9 +127,9 @@ def load_data(iv_file, train_utt2spk_file, val_utt2spk_file, preproc,
 
 def train_pdda(iv_file, train_utt2spk, val_utt2spk,
                decoder_file, qy_file, qz_file,
-               nb_epoch, batch_size,
+               epochs, batch_size,
                preproc_file, out_path,
-               nb_samples_y, nb_samples_z,
+               num_samples_y, num_samples_z,
                min_spc, max_spc, max_seq_length,
                px_form, qy_form, qz_form,
                min_kl, **kwargs):
@@ -154,27 +154,27 @@ def train_pdda(iv_file, train_utt2spk, val_utt2spk,
     if qz_file is None:
         vae = TVAEY(qy, decoder, px_cond_form=px_form,
                     qy_form=qy_form, min_kl=min_kl)
-        vae.build(nb_samples=nb_samples_y, 
+        vae.build(num_samples=num_samples_y, 
                   max_seq_length = x_train.shape[1])
     else:
         qz = load_model_arch(qz_file)
         vae = TVAEYZ(qy, qz, decoder, px_cond_form=px_form,
                    qy_form=qy_form, qz_form=qz_form, min_kl=min_kl)
-        vae.build(nb_samples_y=nb_samples_y, nb_samples_z=nb_samples_z,
+        vae.build(num_samples_y=num_samples_y, num_samples_z=num_samples_z,
                   max_seq_length = x_train.shape[1])
     print(time.time()-t1)
     # opt = create_optimizer(**opt_args)
     # cb = create_basic_callbacks(vae, out_path, **cb_args)
     # h = vae.fit(x_train, x_val=x_val,
     #             sample_weight_train=sw_train, sample_weight_val=sw_val,
-    #             optimizer=opt, shuffle=True, nb_epoch=100,
+    #             optimizer=opt, shuffle=True, epochs=100,
     #             batch_size=batch_size, callbacks=cb)
 
     # opt = create_optimizer(**opt_args)
     # cb = create_basic_callbacks(vae, out_path, **cb_args)
     # h = vae.fit_mdy(x_train, x_val=x_val,
     #                 sample_weight_train=sw_train, sample_weight_val=sw_val,
-    #                 optimizer=opt, shuffle=True, nb_epoch=200,
+    #                 optimizer=opt, shuffle=True, epochs=200,
     #                 batch_size=batch_size, callbacks=cb)
     
     # y_mean, y_logvar, z_mean, z_logvar = vae.compute_qyz_x(
@@ -196,7 +196,7 @@ def train_pdda(iv_file, train_utt2spk, val_utt2spk,
 
     h = vae.fit(x_train, x_val=x_val,
                 sample_weight_train=sw_train, sample_weight_val=sw_val,
-                optimizer=opt, shuffle=True, nb_epoch=nb_epoch,
+                optimizer=opt, shuffle=True, epochs=epochs,
                 batch_size=batch_size, callbacks=cb)
 
     if vae.x_chol is not None:
@@ -209,13 +209,13 @@ def train_pdda(iv_file, train_utt2spk, val_utt2spk,
     vae.save(out_path + '/model')
 
     t1 = time.time()
-    elbo = np.mean(vae.elbo(x_train, nb_samples=1, batch_size=batch_size))
+    elbo = np.mean(vae.elbo(x_train, num_samples=1, batch_size=batch_size))
     print('elbo: %.2f' % elbo)
 
     print('Elbo elapsed  time: %.2f' % (time.time() - t1))
 
     t1 = time.time()
-    vae.build(nb_samples_y=1, nb_samples_z=1, max_seq_length = x_train.shape[1])
+    vae.build(num_samples_y=1, num_samples_z=1, max_seq_length = x_train.shape[1])
     vae.compile()
 
 
@@ -245,12 +245,12 @@ def train_pdda(iv_file, train_utt2spk, val_utt2spk,
     print('Trace elapsed time: %.2f' % (time.time() - t1))
 
     t1 = time.time()
-    vae.build(nb_samples_y=1, nb_samples_z=1, max_seq_length = 2)
+    vae.build(num_samples_y=1, num_samples_z=1, max_seq_length = 2)
     vae.compile()
     
     x1 = x_train[:,0,:]
     x2 = x_train[:,1,:]
-    # scores = vae.eval_llr_1vs1_elbo(x1, x2, nb_samples=10)
+    # scores = vae.eval_llr_1vs1_elbo(x1, x2, num_samples=10)
     # tar = scores[np.eye(scores.shape[0], dtype=bool)]
     # non = scores[np.logical_not(np.eye(scores.shape[0], dtype=bool))]
     # print('m_tar: %.2f s_tar: %.2f' % (np.mean(tar), np.std(tar)))
@@ -321,7 +321,7 @@ if __name__ == "__main__":
                         help=('Schedule decay in Nadam optimizer '
                               '(default: %(default)s)'))
 
-    parser.add_argument('--nb-epoch', dest='nb_epoch', default=1000, type=int)
+    parser.add_argument('--epochs', dest='epochs', default=1000, type=int)
 
     parser.add_argument('--rng-seed', dest='rng_seed', default=1024, type=int,
                         help=('Seed for the random number generator '
@@ -349,9 +349,9 @@ if __name__ == "__main__":
     parser.add_argument('--save-all-epochs', dest='save_best_only',
                         default=True, action='store_false')
 
-    parser.add_argument('--nb-samples-y', dest='nb_samples_y', type=int,
+    parser.add_argument('--num-samples-y', dest='num_samples_y', type=int,
                         default=1)
-    parser.add_argument('--nb-samples-z', dest='nb_samples_z', type=int,
+    parser.add_argument('--num-samples-z', dest='num_samples_z', type=int,
                         default=1)
     parser.add_argument('--min-spc', dest='min_spc', type=int,
                         default=1)
