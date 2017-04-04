@@ -68,9 +68,9 @@ class KaldiDataReader(object):
                         (file_path, offset) = file_path.rsplit(':',1)
 
                   if file_path.split('.')[-1] == 'gz':
-                        f = gzip.open(file_path, 'r')
+                        f = gzip.open(file_path, mode)
                   else:
-                        f = open(file_path, 'r')
+                        f = open(file_path, mode)
                   if offset is not None:
                         f.seek(int(offset))
                   return f
@@ -80,12 +80,19 @@ class KaldiDataReader(object):
             
       @staticmethod
       def _read_matrix(f):
-            f = KaldiDataReader._open(f)
+            # try:
+            #       f = KaldiDataReader._open(f, 'r')
+            #       binary = f.read(2)
+            # except:
+            f = KaldiDataReader._open(f, 'rb')
             binary = f.read(2)
+            print('except')
+            print(binary)
+                  
             if binary == b'\0B' :
                   mat = KaldiDataReader._read_bin_matrix(f)
             else:
-                  assert(binary == ' [')
+                  assert(binary == b' [')
                   mat = KaldiDataReader._read_ascii_matrix(f)
             return mat
 
@@ -103,7 +110,7 @@ class KaldiDataReader(object):
             f.read(1)
             cols = struct.unpack('<i', f.read(4))[0]
             # Read whole matrix
-            buf = fd.read(rows * cols * np.dtype(dtype).itemsize)
+            buf = f.read(rows * cols * np.dtype(dtype).itemsize)
             vec = np.frombuffer(buf, dtype=dtype) 
             mat = np.reshape(vec,(rows,cols))
             return mat
@@ -117,7 +124,7 @@ class KaldiDataReader(object):
                   if (len(line) == 0) : raise BadInputFormat # eof, should not happen!
                   if len(line.strip()) == 0 : continue # skip empty line
                   arr = line.strip().split()
-                  if arr[-1] != ']':
+                  if arr[-1] != b']':
                         rows.append(np.array(arr,dtype='float32')) # not last line
                   else: 
                         rows.append(np.array(arr[:-1],dtype='float32')) # last line
