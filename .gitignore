@@ -2,6 +2,8 @@
 *.h5
 *.pdf
 *.DS_Store
+*.cache
+tests/data_out/*
 #examples/data/output/wav/*
 #examples/data/output/features/*
 #examples/data/output/vad/*

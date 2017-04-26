@@ -20,9 +20,9 @@ class HypDataWriter(object):
         self.f = h5py.File(file_path, 'w')
 
 
-    def write(self, keys, field, X):
+    def write(self, keys, field, x):
         #datasets = keys.astype(np.object)+field
         datasets = [ key+field for key in keys]
         for i, ds in enumerate(datasets):
-            self.f.create_dataset(ds, data=X[i].astype(float_save()))
+            self.f.create_dataset(ds, data=x[i].astype(float_save()))
 

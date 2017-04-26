@@ -73,6 +73,8 @@ class SCPList(object):
         
 
     def __eq__(self, other):
+        if self.key.size == 0 and other.key.size == 0:
+            return True
         eq = self.key.shape == other.key.shape
         eq = eq and np.all(self.key == other.key)
         eq = eq and (self.file_path.shape == other.file_path.shape)

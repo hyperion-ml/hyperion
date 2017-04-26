@@ -254,7 +254,7 @@ class TrialScores(object):
         eq = eq and np.all(self.model_set == other.model_set)
         eq = eq and (self.seg_set.shape == other.seg_set.shape)
         eq = eq and np.all(self.seg_set == other.seg_set)
-        eq = eq and np.all(np.isclose(self.scores, other.scores))
+        eq = eq and np.all(np.isclose(self.scores, other.scores, atol=1e-5))
         eq = eq and np.all(self.score_mask == other.score_mask)
         return eq
 
