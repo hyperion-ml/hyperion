@@ -31,7 +31,7 @@ def load_data(hyp_reader, ndx_file, enroll_file, test_file,
               model_idx, num_model_parts, seg_idx, num_seg_parts,
               eval_set):
 
-    set_float_cpu('float32')
+
 
     enroll = SCPList.load(enroll_file, sep='=')
     test = None
@@ -59,6 +59,8 @@ def load_data(hyp_reader, ndx_file, enroll_file, test_file,
 def eval_pdda(iv_file, ndx_file, enroll_file, test_file,
               preproc_file, model_file, score_file, eval_method,
               num_samples_y, num_samples_z, num_samples_elbo, qy_only, **kwargs):
+
+    set_float_cpu('float32')
     
     if preproc_file is not None:
         preproc = TransformList.load(preproc_file)
@@ -90,6 +92,7 @@ def eval_pdda(iv_file, ndx_file, enroll_file, test_file,
 if __name__ == "__main__":
 
     parser=argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         fromfile_prefix_chars='@',
         description='Eval PDDA')
 

@@ -16,6 +16,7 @@ import time
 import numpy as np
 
 from hyperion.io import HypDataReader
+from hyperion.helpers import VectorReader as VR
 from hyperion.pdfs.core import Normal
 from hyperion.transforms import TransformList, MVN, SbSw
 from hyperion.utils.scp_list import SCPList
@@ -39,6 +40,7 @@ def load_data(iv_file, train_file, preproc):
 
 
 def train_mvn(iv_file, train_list, preproc_file,
+              scp_sep, v_field,
               name, save_tlist, append_tlist, out_path, **kwargs):
     
     if preproc_file is not None:
@@ -46,7 +48,9 @@ def train_mvn(iv_file, train_list, preproc_file,
     else:
         preproc = None
 
-    x = load_data(iv_file, train_list, preproc)
+    vr = VR(iv_file, train_list, preproc, scp_sep=scp_sep, v_field=v_field)
+    x = vr.read()
+    # x = load_data(iv_file, train_list, preproc)
 
     t1 = time.time()
 
@@ -78,12 +82,15 @@ def train_mvn(iv_file, train_list, preproc_file,
 if __name__ == "__main__":
 
     parser=argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         fromfile_prefix_chars='@',
-        description='Train Centering+Whitening')
+        description='Train Global Mean and Variance Normalization')
 
     parser.add_argument('--iv-file', dest='iv_file', required=True)
     parser.add_argument('--train-list', dest='train_list', required=True)
     parser.add_argument('--preproc-file', dest='preproc_file', default=None)
+    VR.add_argparse_args(parser)
+
     parser.add_argument('--out-path', dest='out_path', required=True)
     parser.add_argument('--save-tlist', dest='save_tlist', type=bool,
                         default=True)

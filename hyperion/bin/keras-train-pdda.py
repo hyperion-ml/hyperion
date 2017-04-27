@@ -275,6 +275,7 @@ def train_pdda(iv_file, train_utt2spk, val_utt2spk,
 if __name__ == "__main__":
 
     parser=argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         fromfile_prefix_chars='@',
         description='Train PDDA')
 

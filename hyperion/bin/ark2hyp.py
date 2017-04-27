@@ -27,6 +27,7 @@ def ark2hyp(input_file, input_dir, output_file, field, chunk_size, squeeze):
 if __name__ == "__main__":
     
     parser=argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         fromfile_prefix_chars='@',
         description='Compacts .arr files into a hdf5 file.')
 

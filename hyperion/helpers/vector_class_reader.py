@@ -22,15 +22,15 @@ from ..transforms import TransformList
 
 class VectorClassReader(object):
 
-    def __init__(self, v_file, key_file, preproc=None, key_sep='=', field='',
+    def __init__(self, v_file, key_file, preproc=None, scp_sep='=', v_field='',
                  min_spc=1, max_spc=None, spc_pruning_mode='random',
                  csplit_min_spc=1, csplit_max_spc=None, csplit_mode='random',
                  csplit_overlap=0, seed=1024, csplit_once=True):
 
         self.r = HypDataReader(v_file)
-        self.scp = SCPList.load(key_file, sep=key_sep)
+        self.scp = SCPList.load(key_file, sep=scp_sep)
         self.preproc = preproc
-        self.field = field
+        self.field = v_field
         self.rng = np.random.RandomState(seed)
         self.csplit_max_spc = csplit_max_spc
         self.csplit_min_spc = csplit_min_spc
@@ -41,6 +41,7 @@ class VectorClassReader(object):
         if csplit_once:
             self.scp = self._split_classes(self.scp, self.csplit_min_spc, self.csplit_max_spc,
                                          self.csplit_mode, self.csplit_overlap, self.rng)
+
 
             
     def read(self, return_3d=False, max_length=0):
@@ -60,6 +61,7 @@ class VectorClassReader(object):
             return x, sample_weights
         return x, class_ids
 
+
     
     @property
     def samples_per_class(self):
@@ -73,11 +75,13 @@ class VectorClassReader(object):
 
         return self._samples_per_class
 
+
     
     @property
     def max_samples_per_class(self):
         num_spc = self.samples_per_class()
         return np.max(num_spc)
+
 
     
     @staticmethod
@@ -114,7 +118,8 @@ class VectorClassReader(object):
             
         return scp
 
-                                    
+
+    
     @staticmethod
     def _split_classes(scp, min_spc, max_spc, mode='sequential', overlap=0, rng=None):
         if max_spc is None:
@@ -172,6 +177,7 @@ class VectorClassReader(object):
         
         return VectorClassReader._filter_by_spc(scp, min_spc)
                      
+
     
     @staticmethod
     def add_argparse_args(parser, prefix=None):
@@ -181,26 +187,39 @@ class VectorClassReader(object):
         else:
             p1 = '--' + prefix + '-'
             p2 = prefix + '_'
+        parser.add_argument(p1+'scp-sep', dest=(p2+'scp_sep'), default='=',
+                            help=('scp file field separator'))
+        parser.add_argument(p1+'v-field', dest=(p2+'v_field'), default='',
+                            help=('dataset field in input vector file'))
+        
         parser.add_argument(p1+'min-spc', dest=(p2+'min_spc'), type=int,
-                            default=1)
+                            default=1,
+                            help=('minimum samples per class'))
         parser.add_argument(p1+'max-spc', dest=(p2+'max_spc'), type=int,
-                            default=None)
+                            default=None,
+                            help=('maximum samples per class'))
         parser.add_argument(p1+'spc-pruning-mode', dest=(p2+'spc_pruning_mode'), 
                             default='random',
-                            choices=['random', 'first', 'last'])
-        parser.add_argument(p1+'csplit-max-spc', dest=(p2+'csplit_max_spc'), type=int,
-                            default=None)
+                            choices=['random', 'first', 'last'],
+                            help=('vector pruning method when spc > max-spc'))
         parser.add_argument(p1+'csplit-min-spc', dest=(p2+'csplit_min_spc'), type=int,
-                            default=None)
-        parser.add_argument(p1+'csplit-mode', dest=(p2+'csplit_mode'), 
-                            default='random',
-                            choices = ['sequential', 'random', 'random_1part'])
-        parser.add_argument(p1+'csplit-overlap', dest=(p2+'csplit_overlap'), type=float,
-                            default=0)
-        parser.add_argument(p1+'csplit-once', dest=(p2+'csplit_once'), 
-                            default=True, type=bool)
+                            default=None,
+                            help=('minimum samples per class when doing class spliting'))
+        parser.add_argument(p1+'csplit-max-spc', dest=(p2+'csplit_max_spc'), type=int,
+                            default=None,
+                            help=('split one class into subclasses with spc <= csplit-max-spc'))
 
-        return parser
+        parser.add_argument(p1+'csplit-mode', dest=(p2+'csplit_mode'), 
+                            default='random', type=str.lower,
+                            choices = ['sequential', 'random', 'random_1subclass'],
+                            help=('class splitting mode'))
+        parser.add_argument(p1+'csplit-overlap', dest=(p2+'csplit_overlap'), type=float,
+                            default=0, help=('overlap between subclasses'))
+        parser.add_argument(p1+'csplit-once', dest=(p2+'csplit_once'), 
+                            default=True, type=bool,
+                            help=('class spliting done only once at the begining'))
+        parser.add_argument(p1+'vcr-seed', dest=(p2+'vcr_seed'), type=int,
+                            default=1024, help=('seed for rng'))
 
 
                             

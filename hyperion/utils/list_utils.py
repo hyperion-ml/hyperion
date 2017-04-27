@@ -59,12 +59,12 @@ def split_list(a, idx, num_parts, key = None):
         a = np.asarray(a)
     if key is None:
         key = a
-    _, _, ids=np.unique(key, return_index=True, return_inverse=True)
+    _, ids=np.unique(key, return_inverse=True)
     n = float(ids.max()+1)
     idx_1 = int(np.floor((idx-1)*n/num_parts))
     idx_2 = int(np.floor(idx*n/num_parts))
-    loc=np.empty(len(a), dtype='int64')
-    k=0
+    loc = np.empty(len(a), dtype='int64')
+    k = 0
     for i in range(idx_1, idx_2):
         loc_i = (ids==i).nonzero()[0]
         loc[k:k+len(loc_i)] = loc_i

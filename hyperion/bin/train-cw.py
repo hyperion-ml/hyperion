@@ -16,25 +16,27 @@ import time
 import numpy as np
 
 from hyperion.io import HypDataReader
+from hyperion.helpers import VectorReader as VR
 from hyperion.pdfs.core import Normal
 from hyperion.transforms import TransformList, CentWhiten, LNorm
 from hyperion.utils.scp_list import SCPList
 
 
 
-def load_data(iv_file, train_file, preproc):
+def load_data(iv_file, train_file, preproc, scp_sep, v_field):
 
     train_utt= SCPList.load(train_file, sep='=')
     
     hr = HypDataReader(iv_file)
-    x = hr.read(train_utt.file_path, '.ivec', return_tensor=True)
+    x = hr.read(train_utt.file_path, '', return_tensor=True)
     if preproc is not None:
         x = preproc.predict(x)
 
     return x
 
 
-def train_cw(iv_file, train_list, preproc_file, with_lnorm, batch_size,
+def train_cw(iv_file, train_list, preproc_file, with_lnorm,
+             scp_sep, v_field,
              name, save_tlist, append_tlist, out_path, **kwargs):
     
     if preproc_file is not None:
@@ -42,7 +44,9 @@ def train_cw(iv_file, train_list, preproc_file, with_lnorm, batch_size,
     else:
         preproc = None
 
-    x = load_data(iv_file, train_list, preproc)
+    vr = VR(iv_file, train_list, preproc, scp_sep=scp_sep, v_field=v_field)
+    x = vr.read()
+    # x = load_data(iv_file, train_list, preproc, scp_sep=scp_sep, v_field=v_filed)
 
     t1 = time.time()
 
@@ -78,12 +82,16 @@ def train_cw(iv_file, train_list, preproc_file, with_lnorm, batch_size,
 if __name__ == "__main__":
 
     parser=argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         fromfile_prefix_chars='@',
         description='Train Centering+Whitening')
 
     parser.add_argument('--iv-file', dest='iv_file', required=True)
     parser.add_argument('--train-list', dest='train_list', required=True)
     parser.add_argument('--preproc-file', dest='preproc_file', default=None)
+    
+    VR.add_argparse_args(parser)
+
     parser.add_argument('--out-path', dest='out_path', required=True)
     parser.add_argument('--with-lnorm', dest='with_lnorm', type=bool,
                         default=True)
@@ -91,8 +99,6 @@ if __name__ == "__main__":
                         default=True)
     parser.add_argument('--append-tlist', dest='append_tlist', type=bool,
                         default=True)
-    parser.add_argument('--batch-size',dest='batch_size',default=1024,type=int,
-                        help=('Batch size (default: %(default)s)'))
     parser.add_argument('--name', dest='name', default='lnorm')
     
     args=parser.parse_args()

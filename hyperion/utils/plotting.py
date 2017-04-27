@@ -8,7 +8,7 @@ import numpy as np
 import scipy.linalg as la
 
 import matplotlib
-matplotlib.use('Agg')
+# matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.mlab as mlab
 from mpl_toolkits.mplot3d import Axes3D as plt3d

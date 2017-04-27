@@ -16,6 +16,7 @@ import time
 import numpy as np
 
 from hyperion.io import HypDataReader
+from hyperion.helpers import VectorClassReader as VCR
 from hyperion.transforms import TransformList, LDA, SbSw
 from hyperion.utils.scp_list import SCPList
 
@@ -36,15 +37,28 @@ def load_data(iv_file, train_file, preproc):
     return x, class_ids
 
 
-def train_lda(iv_file, train_list, preproc_file, lda_dim,
+def train_lda(iv_file, train_list, preproc_file,
+              scp_sep, v_field,
+              min_spc, max_spc, spc_pruning_mode,
+              csplit_min_spc, csplit_max_spc, csplit_mode,
+              csplit_overlap, vcr_seed, 
+              lda_dim,
               name, save_tlist, append_tlist, out_path, **kwargs):
+
     
     if preproc_file is not None:
         preproc = TransformList.load(preproc_file)
     else:
         preproc = None
 
-    x, class_ids = load_data(iv_file, train_list, preproc)
+    vcr  = VCR(iv_file, train_list, preproc,
+               scp_sep=scp_sep, v_field=v_field,
+               min_spc=min_spc, max_spc=max_spc, spc_pruning_mode=spc_pruning_mode,
+               csplit_min_spc=csplit_min_spc, csplit_max_spc=csplit_max_spc,
+               csplit_mode=csplit_mode,
+               csplit_overlap=csplit_overlap, seed=vcr_seed)
+    x, class_ids = vcr.read()
+    # x, class_ids = load_data(iv_file, train_list, preproc)
 
     t1 = time.time()
 
@@ -77,12 +91,16 @@ def train_lda(iv_file, train_list, preproc_file, lda_dim,
 if __name__ == "__main__":
 
     parser=argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         fromfile_prefix_chars='@',
         description='Train LDA')
 
     parser.add_argument('--iv-file', dest='iv_file', required=True)
     parser.add_argument('--train-list', dest='train_list', required=True)
     parser.add_argument('--preproc-file', dest='preproc_file', default=None)
+
+    VCR.add_argparse_args(parser)
+
     parser.add_argument('--out-path', dest='out_path', required=True)
     parser.add_argument('--lda-dim', dest='lda_dim', type=int,
                         default=None)

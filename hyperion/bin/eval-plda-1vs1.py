@@ -15,12 +15,13 @@ import time
 import numpy as np
 
 from hyperion.hyp_defs import set_float_cpu, float_cpu
-from hyperion.io import HypDataReader
-from hyperion.transforms import TransformList
 from hyperion.utils.scp_list import SCPList
 from hyperion.utils.trial_ndx import TrialNdx
 from hyperion.utils.trial_scores import TrialScores
-from hyperion.pdfs.plda import *
+from hyperion.io import HypDataReader
+from hyperion.helpers import TrialDataReader as TDR
+from hyperion.helpers import PLDAFactory as F
+from hyperion.transforms import TransformList
 
 
 def load_data(hyp_reader, ndx_file, enroll_file, test_file,
@@ -52,20 +53,28 @@ def load_data(hyp_reader, ndx_file, enroll_file, test_file,
 
 
 def eval_plda(iv_file, ndx_file, enroll_file, test_file,
-              preproc_file, model_file, score_file, plda_type, **kwargs):
+              preproc_file,
+              scp_sep, v_field, eval_set,
+              model_file, score_file, plda_type, **kwargs):
     
     if preproc_file is not None:
         preproc = TransformList.load(preproc_file)
     else:
         preproc = None
 
-    hr = HypDataReader(iv_file)
-    x_e, x_t, ndx = load_data(hr, ndx_file, enroll_file, test_file, preproc, **kwargs)
+    # hr = HypDataReader(iv_file)
+    # x_e, x_t, ndx = load_data(hr, ndx_file, enroll_file, test_file, preproc, **kwargs)
 
-    if plda_type == 'frplda':
-        model = FRPLDA.load(model_file)
-    elif plda_type == 'splda':
-        model = SPLDA.load(model_file)
+    # if plda_type == 'frplda':
+    #     model = FRPLDA.load(model_file)
+    # elif plda_type == 'splda':
+    #     model = SPLDA.load(model_file)
+
+    tdr = TDR(iv_file, ndx_file, enroll_file, test_file, preproc,
+              scp_sep=scp_sep, v_field=v_field, eval_set=eval_set)
+    x_e, x_t, ndx = tdr.read()
+
+    model = F.load_plda(plda_type, model_file)
     
     t1 = time.time()
     scores = model.eval_llr_1vs1(x_e, x_t)
@@ -81,6 +90,7 @@ def eval_plda(iv_file, ndx_file, enroll_file, test_file,
 if __name__ == "__main__":
 
     parser=argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,                
         fromfile_prefix_chars='@',
         description='Eval PLDA')
 
@@ -89,22 +99,26 @@ if __name__ == "__main__":
     parser.add_argument('--enroll-file', dest='enroll_file', required=True)
     parser.add_argument('--test-file', dest='test_file', default=None)
     parser.add_argument('--preproc-file', dest='preproc_file', default=None)
-    parser.add_argument('--model-file', dest='model_file', required=True)
-    parser.add_argument('--score-file', dest='score_file', required=True)
-    parser.add_argument('--plda-type', dest='plda_type', default='splda',
-                        type=str.lower,
-                        choices=['plda','splda','frplda'],
-                        help=('(default: %(default)s)'))
-    
-    parser.add_argument('--model-part-idx', dest='model_idx', default=1, type=int)
-    parser.add_argument('--num-model-parts', dest='num_model_parts', default=1, type=int)
-    parser.add_argument('--seg-part-idx', dest='seg_idx', default=1, type=int)
-    parser.add_argument('--num-seg-parts', dest='num_seg_parts', default=1, type=int)
+    # parser.add_argument('--model-file', dest='model_file', required=True)
 
-    parser.add_argument('--eval-set', dest='eval_set', type=str.lower,
-                        default='enroll-test',
-                        choices=['enroll-test','enroll-coh','coh-test','coh-coh'],
-                        help=('(default: %(default)s)'))
+    # parser.add_argument('--plda-type', dest='plda_type', default='splda',
+    #                     type=str.lower,
+    #                     choices=['plda','splda','frplda'],
+    #                     help=('(default: %(default)s)'))
+    
+    # parser.add_argument('--model-part-idx', dest='model_idx', default=1, type=int)
+    # parser.add_argument('--num-model-parts', dest='num_model_parts', default=1, type=int)
+    # parser.add_argument('--seg-part-idx', dest='seg_idx', default=1, type=int)
+    # parser.add_argument('--num-seg-parts', dest='num_seg_parts', default=1, type=int)
+
+    # parser.add_argument('--eval-set', dest='eval_set', type=str.lower,
+    #                     default='enroll-test',
+    #                     choices=['enroll-test','enroll-coh','coh-test','coh-coh'],
+    #                     help=('(default: %(default)s)'))
+
+    TDR.add_argparse_args(parser)
+    F.add_argparse_eval_args(parser)
+    parser.add_argument('--score-file', dest='score_file', required=True)
     
     args=parser.parse_args()
 

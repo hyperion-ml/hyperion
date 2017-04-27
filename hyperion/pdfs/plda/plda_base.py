@@ -34,9 +34,11 @@ class PLDABase(PDF):
             
     def fit(self, x, class_ids=None, ptheta=None, sample_weight=None,
             x_val=None, class_ids_val=None, ptheta_val=None, sample_weight_val=None,
-            epochs=20, md_epochs=None):
+            epochs=20, ml_md='ml+md', md_epochs=None):
 
-
+        use_ml = False if ml_md == 'md' else True
+        use_md = False if ml_md == 'ml' else True
+        
         assert(not(class_ids is  None and ptheta is None))
         if class_ids is None:
             D = self.compute_stats_soft(x, ptheta)
@@ -63,14 +65,17 @@ class PLDABase(PDF):
                 stats_val=self.Estep(D_val)
                 elbo_val[epoch]=self.elbo(stats_val)
 
-            self.MstepML(stats)
-            if md_epochs is None or epoch in md_epochs:
+            if use_ml:
+                self.MstepML(stats)
+            if use_md and (md_epochs is None or epoch in md_epochs):
                 self.MstepMD(stats)
 
+        elbo_norm= elbo/np.sum(D[0])
         if x_val is None:
-            return elbo
+            return elbo, elbo_norm
         else:
-            return elbo, elbo_val
+            elbo_val_norm = elbo_val/np.sum(D_val[0])
+            return elbo, elbo_norm, elbo_val, elbo_val_norm
 
         
     @abstractmethod
