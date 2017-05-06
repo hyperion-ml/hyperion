@@ -6,15 +6,15 @@ from __future__ import division
 import numpy as np
 
 import keras.backend as K
-from keras.engine import InputSpec, Layer, Merge
+from keras.engine import InputSpec, Layer
 
 class CreateMask(Layer):
     def __init__(self, mask_value=0., **kwargs):
-        self.mask_value = mask_value
         super(CreateMask, self).__init__(**kwargs)
+        self.mask_value = mask_value
 
-    def call(self, x, mask=None):
-        boolean_mask = K.any(K.not_equal(x, self.mask_value),
+    def call(self, inputs, mask=None):
+        boolean_mask = K.any(K.not_equal(inputs, self.mask_value),
                              axis=-1, keepdims=True)
         if mask is not None:
             boolean_mask*=mask

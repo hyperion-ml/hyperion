@@ -12,13 +12,12 @@ import numpy as np
 from keras import backend as K
 from keras import optimizers
 from keras import objectives
-from keras.layers import Input, Lambda, Merge, Reshape
+from keras.layers import Input, Lambda, Concatenate, Reshape
 from keras.models import Model
 
 
 from .. import objectives as hyp_obj
-from ..layers.core import *
-from ..layers.sampling import *
+from ..layers import *
 from .tied_vae_qyqz import TiedVAE_qYqZ
 
 
@@ -89,7 +88,7 @@ class TiedCVAE_qYqZ(TiedVAE_qYqZ):
             if self.px_cond_form == 'normal':
                 x_chol = Reshape((self.max_seq_length, self.x_dim**2))(x_dec_param[2])
                 x_dec_param = [x_dec_param[0], x_dec_param[1], x_chol]
-            x_dec_param=Merge(mode='concat', concat_axis=-1)(x_dec_param)
+            x_dec_param=Concatenate(axis=-1)(x_dec_param)
 
         self.model=Model([x, r], x_dec_param)
 

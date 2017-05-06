@@ -15,7 +15,7 @@ import numpy as np
 from keras import backend as K
 from keras import optimizers
 from keras import objectives
-from keras.layers import Input, Lambda, Merge, Reshape
+from keras.layers import Input, Lambda, Concatenate, Reshape
 from keras.models import Model, load_model, model_from_json
 
 from .. import objectives as hyp_obj
@@ -75,7 +75,7 @@ class VAE(PDF):
             if self.px_cond_form == 'normal_1chol':
                 self.x_chol = x_dec_param[2]
                 x_dec_param = [x_dec_param[0], x_dec_param[1]]
-            x_dec_param=Merge(mode='concat', concat_axis=-1)(x_dec_param)
+            x_dec_param=Concatenate(axis=-1)(x_dec_param)
 
         self.model=Model(x, x_dec_param)
 

@@ -24,10 +24,9 @@ if [ ! -f data.h5 ];then
 fi
 cd -
 
-#vae.py --exp $EXP
-#cvae.py --exp $EXP
+vae.py --exp $EXP
+cvae.py --exp $EXP
 tied_vae_qyqz.py --exp $EXP
-exit
 tied_vae_qyqzgy.py --exp $EXP
 tied_cvae_qyqz.py --exp $EXP
 tied_cvae_qyqzgy.py --exp $EXP

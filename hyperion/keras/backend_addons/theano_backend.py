@@ -12,3 +12,6 @@ def matrix_inverse(x):
 def cholesky(x, lower=False):
     return sla.Cholesky(lower)(x)
 
+def tile(x, n):
+    y = T.tile(x, n)
+    return y

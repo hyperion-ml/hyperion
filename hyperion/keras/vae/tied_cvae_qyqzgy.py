@@ -21,12 +21,11 @@ import numpy as np
 from keras import backend as K
 from keras import optimizers
 from keras import objectives
-from keras.layers import Input, Lambda, Merge, Reshape
+from keras.layers import Input, Lambda, Concatenate, Reshape
 from keras.models import Model
 
 from .. import objectives as hyp_obj
-from ..layers.core import *
-from ..layers.sampling import *
+from ..layers import *
 
 from .tied_cvae_qyqz import TiedCVAE_qYqZ
 from .tied_vae_qyqzgy import TiedVAE_qYqZgY
@@ -114,7 +113,7 @@ class TiedCVAE_qYqZgY(TiedCVAE_qYqZ):
             if self.px_cond_form == 'normal':
                 x_chol = Reshape((self.max_seq_length, self.x_dim**2))(x_dec_param[2])
                 x_dec_param = [x_dec_param[0], x_dec_param[1], x_chol]
-            x_dec_param=Merge(mode='concat', concat_axis=-1)(x_dec_param)
+            x_dec_param=Concatenate(axis=-1)(x_dec_param)
 
         self.model=Model([x, r], x_dec_param)
 
@@ -148,7 +147,7 @@ class TiedCVAE_qYqZgY(TiedCVAE_qYqZ):
         else:
             kl_y_f = hyp_obj.kl_normal_vs_diag_normal
         kl_y = lambda x : K.expand_dims(K.clip(kl_y_f(self.qy_param), self.min_kl, None)
-                             /seq_length(x), dim=1)
+                             /seq_length(x), axis=1)
 
         self.loss=(lambda x, y: logPx_f(x, y, self.num_samples) +
                    kl_z + kl_y(x))

@@ -23,15 +23,14 @@ import scipy.linalg as sla
 from keras import backend as K
 from keras import optimizers
 from keras import objectives
-from keras.layers import Input, Lambda, Merge, Reshape
+from keras.layers import Input, Lambda, Concatenate, Reshape
 from keras.models import Model, load_model, model_from_json
 
 from ...hyp_defs import float_keras
 from ...utils.math import invert_pdmat
 from .. import objectives as hyp_obj
 from ..keras_utils import *
-from ..layers.core import *
-from ..layers.sampling import *
+from ..layers import *
 
 from .vae import VAE
 from .tied_vae_qyqz import TiedVAE_qYqZ as TVAE
@@ -91,7 +90,7 @@ class TiedVAE_qY(TVAE):
             if self.px_cond_form == 'normal_1chol':
                 self.x_chol = x_dec_param[2]
                 x_dec_param = [x_dec_param[0], x_dec_param[1]]
-            x_dec_param=Merge(mode='concat', concat_axis=-1)(x_dec_param)
+            x_dec_param=Concatenate(axis=-1)(x_dec_param)
 
         self.model=Model(x, x_dec_param)
 
@@ -117,7 +116,7 @@ class TiedVAE_qY(TVAE):
         else:
             kl_y_f = hyp_obj.kl_normal_vs_diag_normal
         kl_y = lambda x: K.expand_dims(
-            K.clip(kl_y_f(self.qy_param), self.min_kl, None)/seq_length(x), dim=1)
+            K.clip(kl_y_f(self.qy_param), self.min_kl, None)/seq_length(x), axis=1)
 
         self.loss=(lambda x, y: logPx_f(x, y, self.num_samples) + kl_y(x))
 

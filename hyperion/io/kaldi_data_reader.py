@@ -99,20 +99,31 @@ class KaldiDataReader(object):
       
       @staticmethod
       def _read_bin_matrix(f):
-            stype = f.read(3)
-            dtype=None
-            if stype == b'FM ': dtype = 'float32'
-            if stype == b'DM ': dtype = 'float64'
+            stype = f.read(3).decode('ascii')
+            dtype = None
+            ndim = 0
+            if stype[0] == 'F': dtype = 'float32'
+            if stype[0] == 'D': dtype = 'float64'
+            if stype[1] == 'V': ndim = 1
+            if stype[1] == 'M': ndim = 2
             assert(dtype is not None)
+            assert(ndim == 1 or ndim==2)
+            
             # Dimensions
-            f.read(1)
-            rows = struct.unpack('<i', f.read(4))[0]
-            f.read(1)
+            if ndim == 2:
+                  f.read(1)
+                  rows = struct.unpack('<i', f.read(4))[0]
+            else:
+                  rows = 1
+            f.read(1)            
             cols = struct.unpack('<i', f.read(4))[0]
             # Read whole matrix
             buf = f.read(rows * cols * np.dtype(dtype).itemsize)
-            vec = np.frombuffer(buf, dtype=dtype) 
-            mat = np.reshape(vec,(rows,cols))
+            vec = np.frombuffer(buf, dtype=dtype)
+            if ndim == 2:
+                  mat = np.reshape(vec,(rows,cols))
+            else:
+                  mat = vec
             return mat
 
       

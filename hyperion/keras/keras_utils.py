@@ -5,13 +5,8 @@ from keras import objectives
 from keras.models import model_from_json
 from keras.optimizers import SGD, RMSprop, Adam, Adamax , Nadam
 from keras.callbacks import *
-from keras.engine.training import slice_X
+from keras.engine.training import _slice_arrays
 
-# from hyperion.keras.callbacks import *
-# from hyperion.keras.layers.masking import *
-# from hyperion.keras.layers.sampling import *
-# from hyperion.keras.layers.pooling import *
-# from hyperion.keras.layers.tensor_manipulation import *
 
 from .callbacks import *
 from .layers.core import *
@@ -285,9 +280,9 @@ def _eval_loop(f, ins, batch_size=32):
         batch_ids = index_array[batch_start:batch_end]
         if isinstance(ins[-1], float):
             # do not slice the training phase flag
-            ins_batch = slice_X(ins[:-1], batch_ids) + [ins[-1]]
+            ins_batch = _slice_arrays(ins[:-1], batch_ids) + [ins[-1]]
         else:
-            ins_batch = slice_X(ins, batch_ids)
+            ins_batch = _slice_arrays(ins, batch_ids)
 
         batch_outs = f(ins_batch)
         if isinstance(batch_outs, list):

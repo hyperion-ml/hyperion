@@ -11,13 +11,14 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import h5py
 
-from keras import initializations
+from keras import initializers
 from keras.callbacks import *
 
 from hyperion.keras.callbacks import *
 
-def my_init(shape,name=None):
-    return initializations.normal(shape, scale=0.1, name=name)
+def my_init(shape, dtype=None):
+    return K.random_normal(shape, stddev=0.1, dtype=dtype)
+    
 
 def my_callbacks():
     lr_dict = { 100: 0.0001 }

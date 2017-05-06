@@ -12,12 +12,11 @@ import numpy as np
 from keras import backend as K
 from keras import optimizers
 from keras import objectives
-from keras.layers import Input, Lambda, Merge, Reshape
+from keras.layers import Input, Lambda, Concatenate, Reshape
 from keras.models import Model
 
 from .. import objectives as hyp_obj
-from ..layers.core import Repeat
-from ..layers.sampling import BernoulliSampler, DiagNormalSampler, NormalSampler
+from ..layers import Repeat, BernoulliSampler, DiagNormalSampler, NormalSampler
 from .vae import VAE
 
 
@@ -65,7 +64,7 @@ class CVAE(VAE):
             if self.px_cond_form == 'normal':
                 x_chol = Reshape((self.x_dim**2,))(x_dec_param[2])
                 x_dec_param = [x_dec_param[0], x_dec_param[1], x_chol]
-            x_dec_param=Merge(mode='concat', concat_axis=-1)(x_dec_param)
+            x_dec_param=Concatenate(axis=-1)(x_dec_param)
 
         self.model=Model([x, r], x_dec_param)
 

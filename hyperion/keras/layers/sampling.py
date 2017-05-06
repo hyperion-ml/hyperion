@@ -6,7 +6,7 @@ from __future__ import division
 import numpy as np
 
 import keras.backend as K
-from keras.engine import InputSpec, Layer, Merge
+from keras.engine import InputSpec, Layer
 
 
 class Sampler(Layer):
@@ -16,7 +16,7 @@ class Sampler(Layer):
         super(Sampler, self).__init__(**kwargs)
 
         
-    def get_output_shape_for(self, input_shape):
+    def compute_output_shape(self, input_shape):
         output_shape = list(input_shape)
         if output_shape[0] is not None:
             output_shape[0] *= self.num_samples
@@ -28,6 +28,7 @@ class Sampler(Layer):
         base_config = super(Sampler, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
+
     
 class BernoulliSampler(Sampler):
 
@@ -38,6 +39,7 @@ class BernoulliSampler(Sampler):
         return r < p
         
 
+    
 class DiagNormalSampler(Sampler):
 
     def __init__(self, var_spec = 'logvar', num_samples=1, **kwargs):
@@ -53,7 +55,7 @@ class DiagNormalSampler(Sampler):
         self._g=g_dict[self.var_spec]
         super(DiagNormalSampler, self).build(input_shape)
         
-    def get_output_shape_for(self, input_shape):
+    def compute_output_shape(self, input_shape):
         output_shape = list(input_shape[0])
         if output_shape[0] is not None:
             output_shape[0] *= self.num_samples
@@ -64,7 +66,7 @@ class DiagNormalSampler(Sampler):
             mu_rep = K.repeat_elements(p[0], self.num_samples, axis=0)
             v_rep = K.repeat_elements(p[1], self.num_samples, axis=0)
             p = [mu_rep, v_rep]
-        epsilon = K.random_normal(shape=K.shape(p[0]), mean=0., std=1.)
+        epsilon = K.random_normal(shape=K.shape(p[0]), mean=0., stddev=1.)
         return self._g(p, epsilon)
         
     def get_config(self):
@@ -87,6 +89,7 @@ class DiagNormalSampler(Sampler):
         mu, s = p
         return mu + K.abs(s) * epsilon
 
+
     
 class DiagNormalSamplerFromSeqLevel(DiagNormalSampler):
 
@@ -102,7 +105,7 @@ class DiagNormalSamplerFromSeqLevel(DiagNormalSampler):
         super(DiagNormalSamplerFromSeqLevel, self).build(input_shape)
 
         
-    def get_output_shape_for(self, input_shape):
+    def compute_output_shape(self, input_shape):
         output_shape = list(input_shape[0])
         output_shape.insert(1, self.seq_length)
         return tuple(output_shape)
@@ -114,11 +117,11 @@ class DiagNormalSamplerFromSeqLevel(DiagNormalSampler):
             v_rep = K.repeat_elements(p[1], self.num_samples, axis=0)
             p = [mu_rep, v_rep]
         
-        p_exp=[K.expand_dims(p[0], dim=1), K.expand_dims(p[1], dim=1)]
+        p_exp=[K.expand_dims(p[0], axis=1), K.expand_dims(p[1], axis=1)]
         shape = K.shape(p_exp[0])
         if not self.one_sample:
             shape=(shape[0], self.seq_length, shape[2])
-        epsilon = K.random_normal(shape=shape, mean=0., std=1.)
+        epsilon = K.random_normal(shape=shape, mean=0., stddev=1.)
         if self.one_sample:
             y = self._g(p_exp, epsilon)
             return K.tile(y, (1, self.seq_length, 1))
@@ -148,8 +151,9 @@ class NormalSampler(Sampler):
             'std+chol': self._g_std_chol }
         self._g=g_dict[self.var_spec]
         super(NormalSampler, self).build(input_shape)
+
         
-    def get_output_shape_for(self, input_shape):
+    def compute_output_shape(self, input_shape):
         output_shape = list(input_shape[0])
         if output_shape[0] is not None:
             output_shape[0] *= self.num_samples
@@ -162,7 +166,7 @@ class NormalSampler(Sampler):
             v_rep = K.repeat_elements(p[1], self.num_samples, axis=0)
             chol_rep = K.repeat_elements(p[2], self.num_samples, axis=0)
             p = [mu_rep, v_rep, chol_rep]
-        epsilon = K.random_normal(shape=K.shape(p[0]), mean=0., std=1.)
+        epsilon = K.random_normal(shape=K.shape(p[0]), mean=0., stddev=1.)
         return self._g(p, epsilon)
 
     
@@ -214,6 +218,8 @@ class NormalSampler(Sampler):
         return mu + K.abs(s) * epsilon
 
 
+
+    
 class NormalSamplerFromSeqLevel(NormalSampler):
 
     def __init__(self, seq_length, var_spec = 'logvar+chol', num_samples=1,
@@ -228,7 +234,7 @@ class NormalSamplerFromSeqLevel(NormalSampler):
         super(NormalSamplerFromSeqLevel, self).build(input_shape)
 
         
-    def get_output_shape_for(self, input_shape):
+    def compute_output_shape(self, input_shape):
         output_shape = list(input_shape[0])
         output_shape.insert(1, self.seq_length)
         return tuple(output_shape)
@@ -243,14 +249,14 @@ class NormalSamplerFromSeqLevel(NormalSampler):
 
         shape = K.shape(p[0])
         if self.one_sample:
-            epsilon = K.random_normal(shape=shape, mean=0., std=1.)
+            epsilon = K.random_normal(shape=shape, mean=0., stddev=1.)
             y = self._g_logvar_chol_2D(p, epsilon)
-            y = K.expand_dims(y, dim=1)
+            y = K.expand_dims(y, axis=1)
             return K.tile(y, (1, self.seq_length, 1))
 
-        p_exp=[K.expand_dims(p[0], dim=1), K.expand_dims(p[1], dim=1), p[2]]
+        p_exp=[K.expand_dims(p[0], axis=1), K.expand_dims(p[1], axis=1), p[2]]
         shape=(shape[0], self.seq_length, shape[1])
-        epsilon = K.random_normal(shape=shape, mean=0., std=1.)
+        epsilon = K.random_normal(shape=shape, mean=0., stddev=1.)
         return self._g_logvar_chol_3D(p_exp, epsilon)
 
     

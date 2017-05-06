@@ -16,11 +16,10 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-from keras.layers import Input, Dense, Lambda, Merge
+from keras.layers import Input, Dense, Lambda, Concatenate
 from keras.layers.pooling import GlobalAveragePooling1D
 from keras.layers.wrappers import TimeDistributed
 from keras.models import Model
-from keras import initializations
 from keras import optimizers
 from keras.regularizers import l2
 
@@ -56,33 +55,33 @@ def vae(file_path):
     # define encoder architecture
     x = Input(shape=(N_i, x_dim,))
     h1 = TimeDistributed(Dense(h_dim, activation='relu',
-                               init=my_init, W_regularizer=l2(l2_reg)))(x)
+                               kernel_initializer=my_init, kernel_regularizer=l2(l2_reg)))(x)
     h2 = TimeDistributed(Dense(int(h_dim/2), activation='relu',
-                           init=my_init, W_regularizer=l2(l2_reg)))(h1)
-    z_mean = TimeDistributed(Dense(z_dim, init=my_init, W_regularizer=l2(l2_reg)))(h2)
-    z_logvar = TimeDistributed(Dense(z_dim, init=my_init, W_regularizer=l2(l2_reg)))(h2)
+                           kernel_initializer=my_init, kernel_regularizer=l2(l2_reg)))(h1)
+    z_mean = TimeDistributed(Dense(z_dim, kernel_initializer=my_init, kernel_regularizer=l2(l2_reg)))(h2)
+    z_logvar = TimeDistributed(Dense(z_dim, kernel_initializer=my_init, kernel_regularizer=l2(l2_reg)))(h2)
 
     h3 = TimeDistributed(Dense(int(h_dim/2), activation='relu',
-                               init=my_init, W_regularizer=l2(l2_reg)))(h1)
+                               kernel_initializer=my_init, kernel_regularizer=l2(l2_reg)))(h1)
 
     h3pool = GlobalAveragePooling1D()(h3)
     y_mean = Dense(y_dim, activation='relu',
-                   init=my_init, W_regularizer=l2(l2_reg))(h3pool)
+                   kernel_initializer=my_init, kernel_regularizer=l2(l2_reg))(h3pool)
     y_logvar = Dense(y_dim, activation='relu',
-                     init=my_init, W_regularizer=l2(l2_reg))(h3pool)
+                     kernel_initializer=my_init, kernel_regularizer=l2(l2_reg))(h3pool)
 
     encoder=Model(x,[y_mean, y_logvar, z_mean, z_logvar])
 
     # define decoder architecture
     y=Input(shape=(N_i, y_dim,))
     z=Input(shape=(N_i, z_dim,))
-    yz = Merge(mode='concat', concat_axis=-1)([y, z])
+    yz = Concatenate(axis=-1)([y, z])
     h1_dec = TimeDistributed(Dense(h_dim, activation='relu',
-                                   init=my_init, W_regularizer=l2(l2_reg)))(yz)
+                                   kernel_initializer=my_init, kernel_regularizer=l2(l2_reg)))(yz)
     h2_dec = TimeDistributed(Dense(h_dim, activation='relu',
-                                   init=my_init, W_regularizer=l2(l2_reg)))(h1_dec)
-    x_dec_mean = TimeDistributed(Dense(x_dim, init=my_init, W_regularizer=l2(l2_reg)))(h2_dec)
-    x_dec_logvar = TimeDistributed(Dense(x_dim, init=my_init, W_regularizer=l2(l2_reg)))(h2_dec)
+                                   kernel_initializer=my_init, kernel_regularizer=l2(l2_reg)))(h1_dec)
+    x_dec_mean = TimeDistributed(Dense(x_dim, kernel_initializer=my_init, kernel_regularizer=l2(l2_reg)))(h2_dec)
+    x_dec_logvar = TimeDistributed(Dense(x_dim, kernel_initializer=my_init, kernel_regularizer=l2(l2_reg)))(h2_dec)
 
     decoder=Model([y, z], [x_dec_mean, x_dec_logvar])
 
