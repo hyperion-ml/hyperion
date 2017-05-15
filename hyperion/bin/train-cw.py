@@ -47,7 +47,7 @@ def train_cw(iv_file, train_list, preproc_file, with_lnorm,
     vr = VR(iv_file, train_list, preproc, scp_sep=scp_sep, v_field=v_field)
     x = vr.read()
     # x = load_data(iv_file, train_list, preproc, scp_sep=scp_sep, v_field=v_filed)
-
+    print(x.shape)
     t1 = time.time()
 
     gauss = Normal(x_dim=x.shape[1])

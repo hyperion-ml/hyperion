@@ -31,8 +31,23 @@ class PLDAFactory(object):
             return FRPLDA.load(model_file)
         elif plda_type == 'splda':
             return SPLDA.load(model_file)
-        
 
+
+
+    @staticmethod
+    def filter_train_args(prefix=None, **kwargs):
+        if prefix is None:
+            p = ''
+        else:
+            p = prefix + '_'
+        valid_args = ('plda_type', 'y_dim', 'z_dim',
+                      'fullcov_W', 'update_mu', 'update_V', 'update_B', 'update_W',
+                      'epochs', 'ml_md', 'md_epochs', 'name')
+        return dict((k, kwargs[p+k])
+                    for k in valid if p+k in kwargs)
+
+
+    
         
     @staticmethod
     def add_argparse_train_args(parser, prefix=None):
@@ -88,6 +103,17 @@ class PLDAFactory(object):
                             help='model name')
 
         
+
+    @staticmethod
+    def filter_eval_args(prefix, **kwargs):
+        if prefix is None:
+            p = ''
+        else:
+            p = prefix + '_'
+        valid_args = ('plda_type', 'model_file')
+        return dict((k, kwargs[p+k])
+                    for k in valid_args if p+k in kwargs)
+
         
     @staticmethod
     def add_argparse_eval_args(parser, prefix=None):

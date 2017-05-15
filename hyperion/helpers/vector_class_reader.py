@@ -25,22 +25,23 @@ class VectorClassReader(object):
     def __init__(self, v_file, key_file, preproc=None, scp_sep='=', v_field='',
                  min_spc=1, max_spc=None, spc_pruning_mode='random',
                  csplit_min_spc=1, csplit_max_spc=None, csplit_mode='random',
-                 csplit_overlap=0, seed=1024, csplit_once=True):
+                 csplit_overlap=0, vcr_seed=1024, csplit_once=True):
 
         self.r = HypDataReader(v_file)
         self.scp = SCPList.load(key_file, sep=scp_sep)
         self.preproc = preproc
         self.field = v_field
-        self.rng = np.random.RandomState(seed)
+        self.rng = np.random.RandomState(vcr_seed)
         self.csplit_max_spc = csplit_max_spc
         self.csplit_min_spc = csplit_min_spc
         self.csplit_mode = csplit_mode
         self.csplit_overlap = csplit_overlap
         self.csplit_once = csplit_once
+        self._samples_per_class = None
         self.scp = self._filter_by_spc(self.scp, min_spc, max_spc, spc_pruning_mode, self.rng)
         if csplit_once:
             self.scp = self._split_classes(self.scp, self.csplit_min_spc, self.csplit_max_spc,
-                                         self.csplit_mode, self.csplit_overlap, self.rng)
+                                           self.csplit_mode, self.csplit_overlap, self.rng)
 
 
             
@@ -66,7 +67,7 @@ class VectorClassReader(object):
     @property
     def samples_per_class(self):
         if self._samples_per_class is None:
-            if self.split_once:
+            if self.csplit_once:
                 scp = self.scp
             else:
                 scp = self._split_classes(self.spc, self.csplit_min_spc, self.csplit_max_spc,
@@ -79,7 +80,7 @@ class VectorClassReader(object):
     
     @property
     def max_samples_per_class(self):
-        num_spc = self.samples_per_class()
+        num_spc = self.samples_per_class
         return np.max(num_spc)
 
 
@@ -95,7 +96,9 @@ class VectorClassReader(object):
             scp = scp.filter(filter_key)
 
         if max_spc is not None:
-            classes, class_ids, num_spc=np.unique(scp.key, return_inverse=True, return_counts=True)
+            classes, class_ids, num_spc=np.unique(
+                scp.key, return_inverse=True, return_counts=True)
+            
             if np.all(num_spc <= max_spc):
                 return scp
             f = np.ones_like(class_ids, dtype=bool)
@@ -159,7 +162,8 @@ class VectorClassReader(object):
                 if mode == 'random':
                     for k in xrange(num_subclass):
                         #indx[j:j+max_spc] = rng.permutation(indx_i)[:max_spc]
-                        new_indx[j:j+max_spc] = rng.choice(indx_i, size=max_spc, replace=False)
+                        new_indx[j:j+max_spc] = rng.choice(
+                            indx_i, size=max_spc, replace=False)
                         new_class_ids[j:j+max_spc] = new_i
                         j += max_spc
                         new_i += 1
@@ -177,6 +181,20 @@ class VectorClassReader(object):
         
         return VectorClassReader._filter_by_spc(scp, min_spc)
                      
+
+    @staticmethod
+    def filter_args(prefix=None, **kwargs):
+        if prefix is None:
+            p = ''
+        else:
+            p = prefix + '_'
+        valid_args = ('scp_sep', 'v_field', 
+                      'min_spc', 'max_spc', 'spc_pruning_mode',
+                      'csplit_min_spc', 'csplit_max_spc',
+                      'csplit_mode', 'csplit_overlap',
+                      'csplit_once','vcr_seed')
+        return dict((k, kwargs[p+k])
+                    for k in valid_args if p+k in kwargs)
 
     
     @staticmethod
@@ -207,7 +225,8 @@ class VectorClassReader(object):
                             help=('minimum samples per class when doing class spliting'))
         parser.add_argument(p1+'csplit-max-spc', dest=(p2+'csplit_max_spc'), type=int,
                             default=None,
-                            help=('split one class into subclasses with spc <= csplit-max-spc'))
+                            help=('split one class into subclasses with '
+                                  'spc <= csplit-max-spc'))
 
         parser.add_argument(p1+'csplit-mode', dest=(p2+'csplit_mode'), 
                             default='random', type=str.lower,

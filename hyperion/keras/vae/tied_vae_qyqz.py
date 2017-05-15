@@ -158,19 +158,19 @@ class TiedVAE_qYqZ(VAE):
     
     def decode_yz(self, y, z, batch_size, sample_x=True):
         if y.ndim == 2:
-            y=np.expand_dims(y,axis=1)
+            y=np.expand_dims(y, axis=1)
         if y.shape[1]==1:
             y=np.tile(y, (1, z.shape[1], 1))
 
         if not sample_x:
-            x_param=self.decoder_net.predict([y, z], batch_size=batch_size)
+            x_param = self.decoder_net.predict([y, z], batch_size=batch_size)
             if self.px_cond_form=='bernoulli':
                 return x_param
             return x_param[:,:,:self.x_dim]
 
-        y_input=Input(shape=(self.max_seq_length, self.y_dim,))
-        z_input=Input(shape=(self.max_seq_length, self.z_dim,))
-        x_param=self.decoder_net([y_input, z_input])
+        y_input = Input(shape=(self.max_seq_length, self.y_dim,))
+        z_input = Input(shape=(self.max_seq_length, self.z_dim,))
+        x_param = self.decoder_net([y_input, z_input])
 
         if self.px_cond_form == 'bernoulli' :
             x_sampled = BernoulliSampler()(x_param)
@@ -184,7 +184,7 @@ class TiedVAE_qYqZ(VAE):
             raise ValueError()
 
         generator = Model([y_input, z_input], x_sampled)
-        return generator.predict([y, z],batch_size=batch_size)
+        return generator.predict([y, z], batch_size=batch_size)
 
 
     def generate(self, num_seqs, num_samples, batch_size,sample_x=True):

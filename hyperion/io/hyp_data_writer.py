@@ -5,6 +5,7 @@ from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import division
 from six.moves import xrange
+from six import string_types
 
 import sys
 import numpy as np
@@ -22,6 +23,10 @@ class HypDataWriter(object):
 
     def write(self, keys, field, x):
         #datasets = keys.astype(np.object)+field
+        if isinstance(keys, string_types):
+            keys = [keys]
+            x = [x]
+            
         datasets = [ key+field for key in keys]
         for i, ds in enumerate(datasets):
             self.f.create_dataset(ds, data=x[i].astype(float_save()))

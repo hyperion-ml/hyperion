@@ -22,3 +22,22 @@ def to3D_by_class(x, class_ids, max_length=0):
         sample_weights[i,:num_i] = 1.
 
     return x3d, sample_weights
+
+
+def to3D_by_seq(x, max_length=0):
+    dim = x[0].shape[1]
+    num_seqs = len(x)
+    if max_length == 0 :
+        for i in xrange(num_seqs):
+            num_i = x[i].shape[0]
+            max_length = np.maximum(max_length, num_i)
+
+    x3d = np.zeros((num_seqs, max_length, dim), dtype=x.dtype)
+    sample_weights = np.zeros((num_seqs, max_length), dtype=x.dtype)
+    for i in xrange(num_seqs):
+        num_i = x[i].shape[0]
+        x3d[i,:num_i,:] = x[i]
+        sample_weights[i,:num_i] = 1.
+
+    return x3d, sample_weights
+    

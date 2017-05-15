@@ -20,6 +20,7 @@ class SCPList(object):
         self.file_path = file_path
         self.validate()
 
+        
     def validate(self):
         self.key = list2ndarray(self.key)
         self.file_path = list2ndarray(self.file_path)
@@ -29,6 +30,7 @@ class SCPList(object):
     def len(self):
         return len(self.key)
 
+    
     def sort(self):
         self.key, idx =  sort(self.key, return_index=True)
         self.file_path = self.file_path[idx]
@@ -47,11 +49,13 @@ class SCPList(object):
         file_path = [i[1] for i in fields]
         return cls(key, file_path)
 
+    
     def split(self, idx, num_parts):
         key, idx1 = split_list(self.key, idx, num_parts)
         file_path = self.file_path[idx1]
         return SCPList(key, file_path)
 
+    
     @classmethod
     def merge(cls, scp_lists):
         key_list = [item.key for item in scp_lists]
@@ -60,6 +64,7 @@ class SCPList(object):
         file_path = np.concatenate(tuple(file_list))
         return cls(key, file_path)
 
+    
     def filter(self, filter_key, keep=True):
         if not(keep):
             filter_key = np.setdiff1d(self.key, filter_key)
@@ -70,8 +75,18 @@ class SCPList(object):
         key = self.key[f]
         file_path = self.file_path[f]
         return SCPList(key, file_path)
-        
 
+
+    def shuffle(self, seed=1024, rng=None):
+        if rng is None:
+            rng = np.random.RandomState(seed=seed)
+        index = np.arange(len(self.key))
+        rng.shuffle(index)
+        self.key = self.key[index]
+        self.file_path = self.file_path[index]
+        return index
+    
+        
     def __eq__(self, other):
         if self.key.size == 0 and other.key.size == 0:
             return True
@@ -83,7 +98,7 @@ class SCPList(object):
 
     
     def __cmp__(self, other):
-        if self.__eq__(oher):
+        if self.__eq__(other):
             return 0
         return 1
 

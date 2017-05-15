@@ -18,7 +18,6 @@ import matplotlib.pyplot as plt
 
 from keras.layers import Input, Dense, Lambda
 from keras.models import Model
-from keras import initializations
 from keras import optimizers
 from keras.regularizers import l2
 
@@ -51,22 +50,32 @@ def vae(file_path):
 
     # define encoder architecture
     x = Input(shape=(x_dim,))
-    h1 = Dense(h_dim, activation='relu', init=my_init, W_regularizer=l2(l2_reg))(x)
-    h2 = Dense(h_dim, activation='relu', init=my_init, W_regularizer=l2(l2_reg))(h1)
-    z_mean = Dense(z_dim, init=my_init, W_regularizer=l2(l2_reg))(h2)
-    z_logvar = Dense(z_dim, init=my_init, W_regularizer=l2(l2_reg))(h2)
+    h1 = Dense(h_dim, activation='relu',
+               kernel_initializer=my_init, kernel_regularizer=l2(l2_reg))(x)
+    h2 = Dense(h_dim, activation='relu',
+               kernel_initializer=my_init, kernel_regularizer=l2(l2_reg))(h1)
+    z_mean = Dense(z_dim,
+                   kernel_initializer=my_init, kernel_regularizer=l2(l2_reg))(h2)
+    z_logvar = Dense(z_dim,
+                     kernel_initializer=my_init, kernel_regularizer=l2(l2_reg))(h2)
     
-    encoder=Model(x,[z_mean, z_logvar])
+    encoder=Model(x, [z_mean, z_logvar])
     
     # define decoder architecture
     z=Input(shape=(z_dim,))
-    h1_dec = Dense(h_dim, activation='relu', init=my_init, W_regularizer=l2(l2_reg))(z)
-    h2_dec = Dense(h_dim, activation='relu', init=my_init, W_regularizer=l2(l2_reg))(h1_dec)
-    x_dec_mean = Dense(x_dim, init=my_init, W_regularizer=l2(l2_reg))(h2_dec)
-    x_dec_logvar = Dense(x_dim, init=my_init, W_regularizer=l2(l2_reg))(h2_dec)
+    h1_dec = Dense(h_dim, activation='relu',
+                   kernel_initializer=my_init,
+                   kernel_regularizer=l2(l2_reg))(z)
+    h2_dec = Dense(h_dim, activation='relu',
+                   kernel_initializer=my_init,
+                   kernel_regularizer=l2(l2_reg))(h1_dec)
+    x_dec_mean = Dense(x_dim,
+                       kernel_initializer=my_init, kernel_regularizer=l2(l2_reg))(h2_dec)
+    x_dec_logvar = Dense(x_dim,
+                         kernel_initializer=my_init, kernel_regularizer=l2(l2_reg))(h2_dec)
     x_dec_chol = TiledConstTriu(x_dim, diag_val=1)(h2_dec)
     
-    decoder=Model(z,[x_dec_mean, x_dec_logvar, x_dec_chol])
+    decoder=Model(z, [x_dec_mean, x_dec_logvar, x_dec_chol])
 
     # train VAE
     vae=VAE(encoder, decoder, px_cond_form='normal')

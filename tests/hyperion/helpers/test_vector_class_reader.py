@@ -12,12 +12,14 @@ from hyperion.utils.scp_list import SCPList
 from hyperion.io import HypDataWriter
 from hyperion.helpers import VectorClassReader
 
+
 def create_scp():
     file_path = [str(k) for k in xrange(10)]
     key = [ 'c1' ] + ['c3']*6 + [ 'c2' ]*3 
     scp = SCPList(key, file_path)
     return scp
-    
+
+
 def test__filter_by_spc_min_scp():
     scp_in = create_scp()
     
@@ -253,13 +255,13 @@ def test_vector_class_reader():
     key_file = './tests/data_out/vcr.scp'
 
     scp = create_scp()
-    x=np.random.randn(len(scp.key),2).astype('float32')
+    x = np.random.randn(len(scp.key),2).astype('float32')
     
-    h=HypDataWriter(v_file)
+    h = HypDataWriter(v_file)
     h.write(scp.file_path, '', x)
     scp.save(key_file)
 
-    vcr = VectorClassReader(v_file, key_file, key_sep=' ',
+    vcr = VectorClassReader(v_file, key_file, scp_sep=' ',
                             csplit_min_spc=1, csplit_max_spc=3,
                             csplit_overlap=2, csplit_mode='random', seed=1024)
     

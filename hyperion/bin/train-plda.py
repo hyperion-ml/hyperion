@@ -22,22 +22,6 @@ from hyperion.helpers import PLDAFactory as F
 from hyperion.transforms import TransformList
 
 
-
-def load_data(iv_file, train_file, preproc):
-
-    utt2spk= SCPList.load(train_file, sep='=')
-    
-    hr = HypDataReader(iv_file)
-    x = hr.read(utt2spk.file_path, '.ivec', return_tensor=True)
-    if preproc is not None:
-        x = preproc.predict(x)
-
-    _, _, class_ids=np.unique(utt2spk.key,
-                              return_index=True, return_inverse=True)
-
-    return x, class_ids
-
-
 def train_plda(iv_file, train_list, val_list, preproc_file,
                scp_sep, v_field,
                min_spc, max_spc, spc_pruning_mode,
@@ -53,10 +37,6 @@ def train_plda(iv_file, train_list, val_list, preproc_file,
         preproc = TransformList.load(preproc_file)
     else:
         preproc = None
-
-    # x, class_ids = load_data(iv_file, train_list, preproc)
-    # if val_list is not None:
-    #     x_val, class_ids_val = load_data(iv_file, val_list, preproc)
 
     vcr_train = VCR(iv_file, train_list, preproc,
                     scp_sep=scp_sep, v_field=v_field,
@@ -79,10 +59,6 @@ def train_plda(iv_file, train_list, val_list, preproc_file,
         
     t1 = time.time()
 
-    # if plda_type == 'frplda':
-    #     model = FRPLDA()
-    # elif plda_type == 'splda':
-    #     model = SPLDA(y_dim = y_dim)
     model = F.create_plda(plda_type, y_dim=y_dim, z_dim=z_dim, fullcov_W=fullcov_W,
                           update_mu=update_mu, update_V=update_V,
                           update_B=update_B, update_W=update_W,

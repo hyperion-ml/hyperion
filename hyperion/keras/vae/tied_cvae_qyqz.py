@@ -53,7 +53,7 @@ class TiedCVAE_qYqZ(TiedVAE_qYqZ):
         self.num_samples = num_samples
         self._build_model()
         self._build_loss()
-        self.is_compile = False
+        self.is_compiled = False
 
         
     def _build_model(self):
@@ -122,7 +122,7 @@ class TiedCVAE_qYqZ(TiedVAE_qYqZ):
     
     def decode_yz(self, y, z, r, batch_size, sample_x=True):
         if y.ndim == 2:
-            y=np.expand_dims(y,axis=1)
+            y=np.expand_dims(y, axis=1)
         if y.shape[1]==1:
             y=np.tile(y, (1, z.shape[1],1))
 
@@ -132,10 +132,10 @@ class TiedCVAE_qYqZ(TiedVAE_qYqZ):
                 return x_param
             return x_param[:,:,:self.x_dim]
 
-        y_input=Input(shape=(self.max_seq_length, self.y_dim,))
-        z_input=Input(shape=(self.max_seq_length, self.z_dim,))
-        r_input=Input(shape=(self.max_seq_length, self.r_dim,))
-        x_param=self.decoder_net([y_input, z_input, r_input])
+        y_input = Input(shape=(self.max_seq_length, self.y_dim,))
+        z_input = Input(shape=(self.max_seq_length, self.z_dim,))
+        r_input = Input(shape=(self.max_seq_length, self.r_dim,))
+        x_param = self.decoder_net([y_input, z_input, r_input])
 
         if self.px_cond_form == 'bernoulli' :
             x_sampled = BernoulliSampler()(x_param)

@@ -19,22 +19,25 @@ import scipy.stats as scps
 from keras import backend as K
 
 from hyperion.hyp_defs import set_float_cpu, float_cpu
-from hyperion.io import HypDataReader
 from hyperion.transforms import TransformList
 from hyperion.utils.scp_list import SCPList
 from hyperion.utils.tensors import to3D_by_class
+from hyperion.helpers import VectorClassReader as VCR
+from hyperion.keras.helpers import OptimizerFactory as KOF
+from hyperion.keras.helpers import CallbacksFactory as KCF
 from hyperion.keras.keras_utils import *
 from hyperion.keras.vae import TiedVAE_qYqZgY as TVAEYZ
 from hyperion.keras.vae import TiedVAE_qY as TVAEY
 
 
 def load_input_vectors(hyp_reader, file_path, class_ids, preproc, max_length):
-    x = hyp_reader.read(file_path, '.ivec')
+    x = hyp_reader.read(file_path, '')
     if preproc is not None:
         x = preproc.predict(x)
     
     [x, sample_weights] = to3D_by_class(x, class_ids, max_length)
     return x, sample_weights
+
 
 def max_samples_per_class(class_ids):
     n = 0
@@ -125,43 +128,51 @@ def load_data(iv_file, train_utt2spk_file, val_utt2spk_file, preproc,
     return x_train, sw_train, x_val, sw_val
 
 
-def train_pdda(iv_file, train_utt2spk, val_utt2spk,
+def train_pdda(iv_file, train_list, val_list,
                decoder_file, qy_file, qz_file,
                epochs, batch_size,
                preproc_file, out_path,
                num_samples_y, num_samples_z,
-               min_spc, max_spc, max_seq_length,
                px_form, qy_form, qz_form,
                min_kl, **kwargs):
 
-    cb_args = filter_callbacks_args(**kwargs)
-    opt_args = filter_optimizer_args(**kwargs)
-    
+    vcr_args = VCR.filter_args(**kwargs)
+    opt_args = KOF.filter_args(**kwargs)
+    cb_args = KCF.filter_args(**kwargs)
+
     if preproc_file is not None:
         preproc = TransformList.load(preproc_file)
     else:
         preproc = None
 
-    x_train, sw_train, x_val, sw_val = load_data(
-        iv_file, train_utt2spk, val_utt2spk, preproc,
-        min_spc, max_spc, max_seq_length)
-
+        
+    vcr_train = VCR(iv_file, train_list, preproc, **vcr_args)
+    max_length = vcr_train.max_samples_per_class
+    
+    x_val = None
+    sw_val = None
+    if val_list is not None:
+        vcr_val = VCR(iv_file, val_list, preproc, **vcr_args)
+        max_length = max(max_length, vcr_val.max_samples_per_class)
+        x_val, sw_val = vcr_val.read(return_3d=True, max_length=max_length)
+        
+    x, sw = vcr_train.read(return_3d=True, max_length=max_length)
+        
     t1 = time.time()
     decoder = load_model_arch(decoder_file)
     qy = load_model_arch(qy_file)
-
 
     if qz_file is None:
         vae = TVAEY(qy, decoder, px_cond_form=px_form,
                     qy_form=qy_form, min_kl=min_kl)
         vae.build(num_samples=num_samples_y, 
-                  max_seq_length = x_train.shape[1])
+                  max_seq_length = x.shape[1])
     else:
         qz = load_model_arch(qz_file)
         vae = TVAEYZ(qy, qz, decoder, px_cond_form=px_form,
                    qy_form=qy_form, qz_form=qz_form, min_kl=min_kl)
         vae.build(num_samples_y=num_samples_y, num_samples_z=num_samples_z,
-                  max_seq_length = x_train.shape[1])
+                  max_seq_length = x.shape[1])
     print(time.time()-t1)
     # opt = create_optimizer(**opt_args)
     # cb = create_basic_callbacks(vae, out_path, **cb_args)
@@ -191,11 +202,11 @@ def train_pdda(iv_file, train_utt2spk, val_utt2spk,
     #       (m_y, s2_y, m_z, s2_z))
 
     
-    cb = create_basic_callbacks(vae, out_path, **cb_args)
-    opt = create_optimizer(**opt_args)
+    cb = KCF.create_callbacks(vae, out_path, **cb_args)
+    opt = KOF.create_optimizer(**opt_args)
 
-    h = vae.fit(x_train, x_val=x_val,
-                sample_weight_train=sw_train, sample_weight_val=sw_val,
+    h = vae.fit(x, x_val=x_val,
+                sample_weight_train=sw, sample_weight_val=sw_val,
                 optimizer=opt, shuffle=True, epochs=epochs,
                 batch_size=batch_size, callbacks=cb)
 
@@ -209,17 +220,17 @@ def train_pdda(iv_file, train_utt2spk, val_utt2spk,
     vae.save(out_path + '/model')
 
     t1 = time.time()
-    elbo = np.mean(vae.elbo(x_train, num_samples=1, batch_size=batch_size))
+    elbo = np.mean(vae.elbo(x, num_samples=1, batch_size=batch_size))
     print('elbo: %.2f' % elbo)
 
     print('Elbo elapsed  time: %.2f' % (time.time() - t1))
 
     t1 = time.time()
-    vae.build(num_samples_y=1, num_samples_z=1, max_seq_length = x_train.shape[1])
+    vae.build(num_samples_y=1, num_samples_z=1, max_seq_length = x.shape[1])
     vae.compile()
 
 
-    qyz = vae.compute_qyz_x(x_train, batch_size=batch_size)
+    qyz = vae.compute_qyz_x(x, batch_size=batch_size)
     if vae.qy_form == 'diag_normal':
         y_mean, y_logvar = qyz[:2]
         qz = qyz[2:]
@@ -248,8 +259,8 @@ def train_pdda(iv_file, train_utt2spk, val_utt2spk,
     vae.build(num_samples_y=1, num_samples_z=1, max_seq_length = 2)
     vae.compile()
     
-    x1 = x_train[:,0,:]
-    x2 = x_train[:,1,:]
+    x1 = x[:,0,:]
+    x2 = x[:,1,:]
     # scores = vae.eval_llr_1vs1_elbo(x1, x2, num_samples=10)
     # tar = scores[np.eye(scores.shape[0], dtype=bool)]
     # non = scores[np.logical_not(np.eye(scores.shape[0], dtype=bool))]
@@ -280,8 +291,8 @@ if __name__ == "__main__":
         description='Train PDDA')
 
     parser.add_argument('--iv-file', dest='iv_file', required=True)
-    parser.add_argument('--train-utt2spk', dest='train_utt2spk', required=True)
-    parser.add_argument('--val-utt2spk', dest='val_utt2spk', default=None)
+    parser.add_argument('--train-list', dest='train_list', required=True)
+    parser.add_argument('--val-list', dest='val_list', default=None)
     parser.add_argument('--decoder-file', dest='decoder_file', required=True)
     parser.add_argument('--qy-file', dest='qy_file', required=True)
     parser.add_argument('--qz-file', dest='qz_file', default=None)
@@ -291,36 +302,41 @@ if __name__ == "__main__":
     parser.add_argument('--batch-size',dest='batch_size',default=512,type=int,
                         help=('Batch size (default: %(default)s)'))
 
-    parser.add_argument('--optimizer', dest='opt_type', type=str.lower,
-                        default='adam',
-                        choices=['sgd','nsgd','rmsprop','adam','nadam','adamax'],
-                        help=('Optimizers: SGD, '
-                              'NSGD (SGD with Nesterov momentum), '
-                              'RMSprop, Adam, Adamax, '
-                              'Nadam (Adam with Nesterov momentum), '
-                              '(default: %(default)s)'))
+    VCR.add_argparse_args(parser)
+    KOF.add_argparse_args(parser)
+    KCF.add_argparse_args(parser)
 
-    parser.add_argument('--lr' , dest='lr',
-                        default=0.002, type=float,
-                        help=('Initial learning rate (default: %(default)s)'))
-    parser.add_argument('--momentum', dest='momentum', default=0.6, type=float,
-                        help=('Momentum (default: %(default)s)'))
-    parser.add_argument('--lr-decay', dest='lr_decay', default=1e-6, type=float,
-                        help=('Learning rate decay in SGD optimizer '
-                              '(default: %(default)s)'))
-    parser.add_argument('--rho', dest='rho', default=0.9, type=float,
-                        help=('Rho in RMSprop optimizer (default: %(default)s)'))
-    parser.add_argument('--epsilon', dest='epsilon', default=1e-8, type=float,
-                        help=('Epsilon in RMSprop and Adam optimizers '
-                              '(default: %(default)s)'))
-    parser.add_argument('--beta1', dest='beta_1', default=0.9, type=float,
-                        help=('Beta_1 in Adam optimizers (default: %(default)s)'))
-    parser.add_argument('--beta2', dest='beta_2', default=0.999, type=float,
-                        help=('Beta_2 in Adam optimizers (default: %(default)s)'))
-    parser.add_argument('--schedule-decay', dest='schedule_decay',
-                        default=0.004,type=float,
-                        help=('Schedule decay in Nadam optimizer '
-                              '(default: %(default)s)'))
+    
+    # parser.add_argument('--optimizer', dest='opt_type', type=str.lower,
+    #                     default='adam',
+    #                     choices=['sgd','nsgd','rmsprop','adam','nadam','adamax'],
+    #                     help=('Optimizers: SGD, '
+    #                           'NSGD (SGD with Nesterov momentum), '
+    #                           'RMSprop, Adam, Adamax, '
+    #                           'Nadam (Adam with Nesterov momentum), '
+    #                           '(default: %(default)s)'))
+
+    # parser.add_argument('--lr' , dest='lr',
+    #                     default=0.002, type=float,
+    #                     help=('Initial learning rate (default: %(default)s)'))
+    # parser.add_argument('--momentum', dest='momentum', default=0.6, type=float,
+    #                     help=('Momentum (default: %(default)s)'))
+    # parser.add_argument('--lr-decay', dest='lr_decay', default=1e-6, type=float,
+    #                     help=('Learning rate decay in SGD optimizer '
+    #                           '(default: %(default)s)'))
+    # parser.add_argument('--rho', dest='rho', default=0.9, type=float,
+    #                     help=('Rho in RMSprop optimizer (default: %(default)s)'))
+    # parser.add_argument('--epsilon', dest='epsilon', default=1e-8, type=float,
+    #                     help=('Epsilon in RMSprop and Adam optimizers '
+    #                           '(default: %(default)s)'))
+    # parser.add_argument('--beta1', dest='beta_1', default=0.9, type=float,
+    #                     help=('Beta_1 in Adam optimizers (default: %(default)s)'))
+    # parser.add_argument('--beta2', dest='beta_2', default=0.999, type=float,
+    #                     help=('Beta_2 in Adam optimizers (default: %(default)s)'))
+    # parser.add_argument('--schedule-decay', dest='schedule_decay',
+    #                     default=0.004,type=float,
+    #                     help=('Schedule decay in Nadam optimizer '
+    #                           '(default: %(default)s)'))
 
     parser.add_argument('--epochs', dest='epochs', default=1000, type=int)
 
@@ -328,39 +344,39 @@ if __name__ == "__main__":
                         help=('Seed for the random number generator '
                               '(default: %(default)s)'))
 
-    parser.add_argument('--patience', dest='patience', default=100, type=int,
-                        help=('Training stops after PATIENCE epochs without '
-                              'improvement of the validation loss '
-                              '(default: %(default)s)'))
-    parser.add_argument('--lr-patience', dest='lr_patience', default=10, type=int,
-                        help=('Multiply the learning rate by LR_FACTOR '
-                              'after LR_PATIENCE epochs without '
-                              'improvement of the validation loss '
-                              '(default: %(default)s)'))
-    parser.add_argument('--lr-factor', dest='lr_factor', default=0.1, type=float,
-                        help=('Learning rate scaling factor '
-                              '(default: %(default)s)'))
-    parser.add_argument('--min-delta', dest='min_delta', default=1e-4, type=float,
-                        help=('Minimum improvement'
-                              '(default: %(default)s)'))
-    parser.add_argument('--min-lr', dest='min_lr', default=1e-5, type=float,
-                        help=('Minimum learning rate'
-                              '(default: %(default)s)'))
-    parser.add_argument('--lr-steps', dest='lr_steps', nargs='+', default=None)
-    parser.add_argument('--save-all-epochs', dest='save_best_only',
-                        default=True, action='store_false')
+    # parser.add_argument('--patience', dest='patience', default=100, type=int,
+    #                     help=('Training stops after PATIENCE epochs without '
+    #                           'improvement of the validation loss '
+    #                           '(default: %(default)s)'))
+    # parser.add_argument('--lr-patience', dest='lr_patience', default=10, type=int,
+    #                     help=('Multiply the learning rate by LR_FACTOR '
+    #                           'after LR_PATIENCE epochs without '
+    #                           'improvement of the validation loss '
+    #                           '(default: %(default)s)'))
+    # parser.add_argument('--lr-factor', dest='lr_factor', default=0.1, type=float,
+    #                     help=('Learning rate scaling factor '
+    #                           '(default: %(default)s)'))
+    # parser.add_argument('--min-delta', dest='min_delta', default=1e-4, type=float,
+    #                     help=('Minimum improvement'
+    #                           '(default: %(default)s)'))
+    # parser.add_argument('--min-lr', dest='min_lr', default=1e-5, type=float,
+    #                     help=('Minimum learning rate'
+    #                           '(default: %(default)s)'))
+    # parser.add_argument('--lr-steps', dest='lr_steps', nargs='+', default=None)
+    # parser.add_argument('--save-all-epochs', dest='save_best_only',
+    #                     default=True, action='store_false')
 
     parser.add_argument('--num-samples-y', dest='num_samples_y', type=int,
                         default=1)
     parser.add_argument('--num-samples-z', dest='num_samples_z', type=int,
                         default=1)
-    parser.add_argument('--min-spc', dest='min_spc', type=int,
-                        default=1)
-    parser.add_argument('--max-spc', dest='max_spc', type=int,
-                        default=None)
+    # parser.add_argument('--min-spc', dest='min_spc', type=int,
+    #                     default=1)
+    # parser.add_argument('--max-spc', dest='max_spc', type=int,
+    #                     default=None)
 
-    parser.add_argument('--max-seq-length', dest='max_seq_length', type=int,
-                        default=None)
+    # parser.add_argument('--max-seq-length', dest='max_seq_length', type=int,
+    #                     default=None)
 
     parser.add_argument('--px-form', dest='px_form', default='diag_normal')
     parser.add_argument('--qy-form', dest='qy_form', default='diag_normal')

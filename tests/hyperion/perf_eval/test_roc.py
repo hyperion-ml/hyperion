@@ -17,13 +17,6 @@ from hyperion.perf_eval.roc import *
 
 def test_roc():
 
-
-        
-
-
-
-
-
     plt.figure()
 
     plt.subplot(2,3,1)
@@ -132,7 +125,7 @@ def test_roc():
     assert_allclose(pm[:10], [0.,0.01,0.02,0.03,0.04,0.05,0.05,0.05,0.05,0.05])
     assert_allclose(pf[:10], [1.,1.,1.,1.,1.,1.,0.99,0.98,0.97, 0.96])
 
-    plt.show()
+    # plt.show()
     plt.savefig('./tests/data_out/roc.pdf')
-
+    plt.close()
 

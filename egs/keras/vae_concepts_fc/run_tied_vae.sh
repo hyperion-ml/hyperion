@@ -14,7 +14,7 @@ export LIBRARY_PATH=$HOME/usr/local/cudnn-v5.0/lib64:/usr/local/cuda/lib64:/usr/
 export PYTHONPATH=$PWD:$HYP_PATH:$KERAS_PATH:$PYTHONPATH
 export THEANO_FLAGS="floatX=float32,device=gpu,nvcc.fastmath=True,optimizer=fast_run,dnn.enabled=True,allow_gc=False,warn_float64=raise"
 #export THEANO_FLAGS="floatX=float32,device=gpu,nvcc.fastmath=True,optimizer=fast_run,dnn.enabled=False,allow_gc=False,warn_float64=raise"
-#export THEANO_FLAGS="floatX=float32,device=gpu,nvcc.fastmath=True,optimizer=None,exception_verbosity=high,warn_float64=raise"
+export THEANO_FLAGS="floatX=float32,device=gpu,nvcc.fastmath=True,optimizer=None,exception_verbosity=high,warn_float64=raise"
 export MPLBACKEND="agg"
 
 
@@ -24,8 +24,8 @@ if [ ! -f data.h5 ];then
 fi
 cd -
 
-#vae.py --exp $EXP
-#cvae.py --exp $EXP
+vae.py --exp $EXP
+cvae.py --exp $EXP
 tied_vae_qyqz.py --exp $EXP
 tied_vae_qyqzgy.py --exp $EXP
 tied_cvae_qyqz.py --exp $EXP

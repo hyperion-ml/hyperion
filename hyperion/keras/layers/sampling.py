@@ -184,7 +184,7 @@ class NormalSampler(Sampler):
             seq_length = K.cast(K.shape(epsilon)[-2], 'int32')
             epsilon = K.reshape(epsilon, (-1, x_dim))
             chol = K.reshape(chol, (-1, x_dim, x_dim))
-        epsilon = K.batch_dot(epsilon, chol, axes=(1, 2))
+        epsilon = K.batch_dot(epsilon, chol, axes=(2, 1))
         if mu.ndim == 3:
             epsilon = K.reshape(epsilon, (-1, seq_length, x_dim))
         return mu + K.exp(logvar/2) * epsilon
@@ -194,13 +194,13 @@ class NormalSampler(Sampler):
     def _g_logvar_chol(p, epsilon):
         mu, logvar, chol = p
         epsilon = epsilon * K.exp(logvar/2)
-        if epsilon.ndim == 3:
+        if mu.ndim == 3:
             x_dim = K.cast(K.shape(epsilon)[-1], 'int32')
             seq_length = K.cast(K.shape(epsilon)[-2], 'int32')
             epsilon = K.reshape(epsilon, (-1, x_dim))
             chol = K.reshape(chol, (-1, x_dim, x_dim))
-        epsilon = K.batch_dot(epsilon, chol, axes=(1, 2))
-        if epsilon.ndim == 3:
+        epsilon = K.batch_dot(epsilon, chol, axes=(1, 1))
+        if mu.ndim == 3:
             epsilon = K.reshape(epsilon, (-1, seq_length, x_dim))
         return mu + epsilon
 

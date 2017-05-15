@@ -22,10 +22,12 @@ class KaldiDataReader(object):
             
             scp = SCPList.load(file_path, sep=sep)
             if input_dir is None:
-                  self.scp = OrderedDict((k, v) for (k, v) in zip(scp.key, scp.file_path))
+                  self.scp = OrderedDict((k, v) for (k, v) in
+                                         zip(scp.key, scp.file_path))
             else:
                   input_dir+='/'
-                  self.scp = OrderedDict((k, input_dir+v) for (k, v) in zip(scp.key, scp.file_path))
+                  self.scp = OrderedDict((k, input_dir+v) for (k, v) in
+                                         zip(scp.key, scp.file_path))
 
                   
       def read(self, keys=None, num_records=None, first_record=None, squeeze=False):
