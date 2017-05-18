@@ -53,8 +53,9 @@ class HypDataReader(object):
 
         num_ds = len(datasets)
         num_rows = np.zeros((num_ds,), dtype=int)
+        
         for i,ds in enumerate(datasets):
-            assert(ds in self.f)
+            assert(ds in self.f, 'Dataset %s does not exist' % ds)
             num_rows[i] = self.f[ds].shape[0]
 
         return num_rows
@@ -71,7 +72,9 @@ class HypDataReader(object):
         dataset = key + field
         assert(dataset in self.f)
         num_rows = self.f[dataset].shape[0]
-        index = rng.random_integers(low=0, high=num_rows-num_samples, size=1)
+        # print('hola',num_rows,num_samples,num_rows-num_samples)
+        # index = rng.random_integers(low=0, high=num_rows-num_samples, size=1)[0]
+        index = rng.randint(low=0, high=num_rows-num_samples+1)
         X = self.f[dataset][index:index+num_samples]
         return X
 

@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 """
 Loads data to train UBM, i-vector
 """
@@ -30,7 +28,7 @@ class SequenceReader(object):
                  shuffle_seqs=True, subsample=100,
                  min_seq_length=1, max_seq_length=None,
                  seq_split_mode='random_slice', seq_split_overlap=0,
-                 seed=1024):
+                 seqr_seed=1024, reset_rng=False):
         self.r = HypDataReader(data_file)
         self.scp = SCPList.load(key_file, sep=scp_sep)
         self.feat_norm = feat_norm
@@ -44,7 +42,9 @@ class SequenceReader(object):
         self.max_seq_length = max_seq_length
         self.seq_split_mode = seq_split_mode
         self.seq_split_overlap = seq_split_overlap
-        self.rng = np.random.RandomState(seed)
+        self.seed = seqr_seed
+        self.reset_rng = reset_rng
+        self.rng = np.random.RandomState(seqr_seed)
         
         self._seq_length = None
         self._num_subseqs = None
@@ -91,8 +91,9 @@ class SequenceReader(object):
                 num_subseqs = (seq_length >= self.min_seq_length).astype(int)
             else:
                 shift = self.max_seq_length - self.seq_split_overlap
-                num_subseqs = (np.floor(seq_length/shift)).astype(int)
-                num_subseqs += (seq_length%shift >= self.min_seq_length).astype(int)
+                num_subseqs = (np.floor((seq_length-self.seq_split_overlap)/shift)).astype(int)
+                remainder = seq_length - num_subseqs*shift
+                num_subseqs += (remainder >= self.min_seq_length).astype(int)
             self._num_subseqs = num_subseqs
         return self._num_subseqs
 
@@ -137,6 +138,9 @@ class SequenceReader(object):
                 self._seq_length = self._seq_length[index]
             if self._num_subseqs is not None:
                 self._num_subseqs = self._num_subseqs[index]
+
+        if self.reset_rng:
+            self.rng = np.random.RandomState(seed=self.seed)
 
 
     
@@ -231,7 +235,6 @@ class SequenceReader(object):
                 x_i = read_f(self.scp.file_path[i], seq_length_i)
                 x.append(x_i)
             self.cur_seq +=1
-            print(len(x))
             
             if len(x) == self.batch_size:
                 break
@@ -256,7 +259,7 @@ class SequenceReader(object):
         for i in xrange(np.sum(num_subseqs)):
             if self.cur_subseq[self.cur_seq] < num_subseqs[self.cur_seq]:
                 if num_subseqs[self.cur_seq] == 1:
-                    seq_length_i = min(self.max_seq_length, seq_length[i])
+                    seq_length_i = min(self.max_seq_length, seq_length[self.cur_seq])
                     x_i = read_f(self.scp.file_path[self.cur_seq], seq_length_i)
                 else:
                     x_i = read_f(self.scp.file_path[self.cur_seq], self.max_seq_length)
@@ -282,7 +285,20 @@ class SequenceReader(object):
                       'seq_split_mode', 'seq_split_overlap',
                       'seqr_seed')
         return dict((k, kwargs[p+k])
-                    for k in valid if p+k in kwargs)
+                    for k in valid_args if p+k in kwargs)
+
+
+    @staticmethod
+    def filter_val_args(prefix=None, **kwargs):
+        if prefix is None:
+            p = ''
+        else:
+            p = prefix + '_'
+        valid_args = ('scp_sep', 'seq_field', 'subsample',
+                      'min_seq_length', 'max_seq_length',
+                      'seqr_seed')
+        return dict((k, kwargs[p+k])
+                    for k in valid_args if p+k in kwargs)
 
 
     @staticmethod
@@ -327,6 +343,5 @@ class SequenceReader(object):
         parser.add_argument(p1+'seqr-seed', dest=(p2+'seqr_seed'), type=int,
                             default=1024, help=('seed for rng in sequence reader'))
 
-    
 
     

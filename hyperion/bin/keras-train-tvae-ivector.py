@@ -19,27 +19,33 @@ import scipy.stats as scps
 from keras import backend as K
 
 from hyperion.hyp_defs import set_float_cpu, float_cpu
+from hyperion.utils.multithreading import threadsafe_generator
 from hyperion.helpers import SequenceReader as SR
 from hyperion.transforms import TransformList
-# from hyperion.keras.keras_utils import *
+from hyperion.keras.keras_utils import *
 from hyperion.keras.helpers import OptimizerFactory as KOF
 from hyperion.keras.helpers import CallbacksFactory as KCF
 from hyperion.keras.vae import TiedVAE_qYqZgY as TVAEYZ
 from hyperion.keras.vae import TiedVAE_qY as TVAEY
 
 
+@threadsafe_generator
 def data_generator(sr, max_length):
-    x, sample_weights = sr.read(return_3d=True, max_length=max_length)
-    return_sw = True
-    if sr.max_batch_seq_length==max_length and (
-            sr.min_length==sr.max_length or
-            np.min(sr.seq_length)==sr.max_length):
-        return_sw = False
+    kk=0
+    while 1:
+        kk+=1
+        print('dg %d.' % kk)
+        x, sample_weights = sr.read(return_3d=True, max_seq_length=max_length)
+        return_sw = True
+        if sr.max_batch_seq_length==max_length and (
+                sr.min_seq_length==sr.max_seq_length or
+                np.min(sr.seq_length)==sr.max_seq_length):
+            return_sw = False
                                       
-    if return_sw:
-        yield (x, x, sample_weights)
-    else:
-        yield (x, x)
+        if return_sw:
+            yield (x, x, sample_weights)
+        else:
+            yield (x, x)
 
     
 def train_tvae(seq_file, train_list, val_list,
@@ -52,6 +58,7 @@ def train_tvae(seq_file, train_list, val_list,
 
     
     sr_args = SR.filter_args(**kwargs)
+    sr_val_args = SR.filter_val_args(**kwargs)
     opt_args = KOF.filter_args(**kwargs)
     cb_args = KCF.filter_args(**kwargs)
     
@@ -60,17 +67,21 @@ def train_tvae(seq_file, train_list, val_list,
     else:
         preproc = None
 
-    sr_train = SR(seq_file, train_list, batch_size=batch_size,
+    sr = SR(seq_file, train_list, batch_size=batch_size,
                   preproc=preproc, **sr_args)
     max_length = sr.max_batch_seq_length
     gen_val = None
     if val_list is not None:
         sr_val = SR(seq_file, val_list, batch_size=batch_size,
-                    preproc=preproc, **sr_args)
+                    preproc=preproc,
+                    shuffle_seqs=False,
+                    seq_split_mode='sequential', seq_split_overlap=0,
+                    reset_rng=True,
+                    **sr_val_args)
         max_length = max(max_length, sr_val.max_batch_seq_length)
-        gen_val = lambda: data_generator(sr_val, max_length)
+        gen_val = data_generator(sr_val, max_length)
 
-    gen_train = lambda: data_generator(sr_train, max_length)
+    gen_train = data_generator(sr, max_length)
     
             
     t1 = time.time()
@@ -91,12 +102,14 @@ def train_tvae(seq_file, train_list, val_list,
                   max_seq_length = max_length)
     print(time.time()-t1)
     
-    cb = KCF.create_basic_callbacks(vae, out_path, **cb_args)
+    cb = KCF.create_callbacks(vae, out_path, **cb_args)
     opt = KOF.create_optimizer(**opt_args)
 
     h = vae.fit_generator(gen_train, x_val=gen_val,
+                          steps_per_epoch=sr.num_batches,
+                          validation_steps=sr_val.num_batches,
                           optimizer=opt, epochs=epochs,
-                          batch_size=batch_size, callbacks=cb)
+                          callbacks=cb, max_q_size=10)
 
     # if vae.x_chol is not None:
     #     x_chol = np.array(K.eval(vae.x_chol))
@@ -189,6 +202,6 @@ if __name__ == "__main__":
     
     args=parser.parse_args()
     
-    train_pdda(**vars(args))
+    train_tvae(**vars(args))
 
             

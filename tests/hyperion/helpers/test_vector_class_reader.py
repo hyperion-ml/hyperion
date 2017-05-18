@@ -263,7 +263,8 @@ def test_vector_class_reader():
 
     vcr = VectorClassReader(v_file, key_file, scp_sep=' ',
                             csplit_min_spc=1, csplit_max_spc=3,
-                            csplit_overlap=2, csplit_mode='random', seed=1024)
+                            csplit_overlap=2, csplit_mode='random',
+                            vcr_seed=1024)
     
     x_test, class_ids_test = vcr.read()
     print(x_test)

@@ -32,8 +32,8 @@ def to3D_by_seq(x, max_length=0):
             num_i = x[i].shape[0]
             max_length = np.maximum(max_length, num_i)
 
-    x3d = np.zeros((num_seqs, max_length, dim), dtype=x.dtype)
-    sample_weights = np.zeros((num_seqs, max_length), dtype=x.dtype)
+    x3d = np.zeros((num_seqs, max_length, dim), dtype=x[0].dtype)
+    sample_weights = np.zeros((num_seqs, max_length), dtype=x[0].dtype)
     for i in xrange(num_seqs):
         num_i = x[i].shape[0]
         x3d[i,:num_i,:] = x[i]

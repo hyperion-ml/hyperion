@@ -54,7 +54,7 @@ def vae(file_path):
     z_dim = 1
     y_dim = 1
     h_dim = 200
-    epochs = 1000
+    epochs = 300
     l2_reg=0.0001
 
 
