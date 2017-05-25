@@ -7,32 +7,43 @@ from six.moves import xrange
 import numpy as np
 
 from abc import ABCMeta, abstractmethod
-from .pdf import PDF
 
-class ExpFamily(PDF):
+from ...hyp_defs import float_cpu
+from ..core import PDF
+
+class ExpFamilyMixture(PDF):
     __metaclass__ = ABCMeta
     
-    def __init__(self, eta=None, **kwargs):
-        super(ExpFamily, self).__init__(**kwargs)
+    def __init__(self, weights=None, eta=None, min_N=1, **kwargs):
+        super(ExpFamilyMixture, self).__init__(**kwargs)
+        self.weights = weights
         self.eta = eta
+        self.min_N = min_N
         self.A = None
             
 
     def fit(self, x, sample_weights=None,
-            x_val=None, sample_weights_val=None, batch_size=None):
+            x_val=None, sample_weights_val=None,
+            epochs=10, batch_size=None):
 
-        N, u_x =self.Estep(x=x, sample_weights=sample_weights,
-                           batch_size=batch_size)
-        self.Mstep(N, u_x)
-        elbo=self.elbo(x, N=N, u_x=u_x)
-        elbo = [elbo, elbo/N]
+        elbo = np.zeros((epochs,), dtype=float_cpu())
+        elbo_val = np.zeros((epochs,), dtype=float_cpu())
+        for epoch in xrange(epochs):
+            N, u_x =self.Estep(x=x, sample_weights=sample_weights,
+                               batch_size=batch_size)
+            self.Mstep(N, u_x)
+            elbo[epoch]=self.elbo(x, N=N, u_x=u_x)
+
         
-        if x_val is not None:
-            N, u_x = self.Estep(x=x_val, sample_weights=sample_weights_val,
-                                batch_size=batch_size)
-            elbo_val = self.elbo(x_val, N=N, u_x=u_x)
-            elbo += [elbo_val, elbo_val/N]
-        return elbo
+            if x_val is not None:
+                N, u_x = self.Estep(x=x_val, sample_weights=sample_weights_val,
+                                    batch_size=batch_size)
+                elbo_val[epoch] = self.elbo(x_val, N=N, u_x=u_x)
+
+        if x_val is None:
+            return elbo, elbo/x.shape[0]
+        else:
+            return elbo, elbo/x.shape[0], elbo_val, elbo_val/x.shape[0]
 
     
     def logh(self, x):

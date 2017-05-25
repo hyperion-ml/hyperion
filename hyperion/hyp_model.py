@@ -20,13 +20,19 @@ class HypModel(object):
     def __init__(self, name=None, **kwargs):
         self.name = name
 
-        
+    
+    @abstractmethod
     def initialize(self):
         pass
 
     
     @abstractmethod
-    def fit(self, x, sample_weights=None):
+    def fit(self, x, sample_weights=None, x_val=None, sample_weights_val=None):
+        pass
+
+
+    @abstractmethod
+    def fit_generator(self, x, x_val=None):
         pass
 
     
@@ -43,7 +49,7 @@ class HypModel(object):
         
     @abstractmethod
     def save_params(self, f):
-        pass
+        assert(True, 'save_params method not defined for %s' % self.__class__.__name__)
 
     
     def _save_params_from_dict(self, f, params, dtypes=None):
@@ -88,6 +94,7 @@ class HypModel(object):
             p_name = prefix + k
             param_dict[k] = np.asarray(f[p_name], dtype=dtypes[k])
         return param_dict
+
     
     @abstractmethod
     def get_config(self):

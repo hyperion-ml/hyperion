@@ -15,7 +15,7 @@ def logdet_pdmat(A):
     return 2*np.sum(np.log(np.diag(R)))
 
 
-def invert_pdmat(A, right_inv=False, compute_logdet=False, compute_inv=False):
+def invert_pdmat(A, right_inv=False, return_logdet=False, return_inv=False):
     assert(A.shape[0] == A.shape[1])
     R=la.cholesky(A, lower=False)
 
@@ -25,28 +25,34 @@ def invert_pdmat(A, right_inv=False, compute_logdet=False, compute_inv=False):
         fh=lambda x: la.cho_solve((R, False), x)
         #fh=lambda x: la.solve_triangular(R, la.solve_triangular(R.T, x, lower=True), lower=False)
 
+    r = [fh, R]
+        
     logdet = None
     invA = None
-    if compute_logdet:
+
+    if return_logdet:
         logdet=2*np.sum(np.log(np.diag(R)))
+        r.append(logdet)
 
-    if compute_inv:
+    if return_inv:
         invA=fh(np.eye(A.shape[0]))
+        r.append(invA)
 
-    return fh, R, logdet, invA
+    return r
+    #return fh, R, logdet, invA
 
 
-def invert_trimat(A, lower=False, right_inv=False, compute_logdet=False, compute_inv=False):
+def invert_trimat(A, lower=False, right_inv=False, return_logdet=False, return_inv=False):
     if right_inv:
         fh=lambda x: la.solve_triangular(A.T, x.T, lower=not(lower)).T
     else:
         fh=lambda x: la.solve_triangular(A, x, lower=lower)
     logdet = None
     invA = None
-    if compute_logdet:
+    if return_logdet:
         logdet=np.sum(np.log(np.diag(A)))
 
-    if compute_inv:
+    if return_inv:
         invA=fh(np.eye(A.shape[0]))
 
     return fh, logdet, invA
@@ -67,18 +73,21 @@ def fisher_ratio(mu1, Sigma1, mu2, Sigma2):
 
 
 def fisher_ratio_with_precs(mu1, Lambda1, mu2, Lambda2):
-    Sigma1 = invert_pdmat(Lambda1,compute_inv=True)[3]
-    Sigma2 = invert_pdmat(Lambda2,compute_inv=True)[3]
+    Sigma1 = invert_pdmat(Lambda1, return_inv=True)[-1]
+    Sigma2 = invert_pdmat(Lambda2, return_inv=True)[-1]
     return fisher_ratio(mu1, Sigma1, mu2, Sigma2)
 
 
-def symmat2vec(A, lower=False):
+def symmat2vec(A, lower=False, diag_factor=None):
+    if diag_factor is not None:
+        A = np.copy(A)
+        A[np.diag_indices(A.shape[0])] *= diag_factor
     if lower:
          return A[np.tril_indices(A.shape[0])]
     return A[np.triu_indices(A.shape[0])]
 
 
-def vec2symmat(v, lower=False):
+def vec2symmat(v, lower=False, diag_factor=None):
     dim=int((-1+np.sqrt(1+8*v.shape[0]))/2)
     idx_u=np.triu_indices(dim)
     idx_l=np.tril_indices(dim)
@@ -89,6 +98,8 @@ def vec2symmat(v, lower=False):
         return A
     A[idx_u]=v
     A[idx_l]=A.T[idx_l]
+    if diag_factor is not None:
+        A[np.diag_indices(A.shape[0])] *= diag_factor
     return A
 
 
@@ -111,7 +122,7 @@ def fullcov_varfloor(cholS, cholF, lower=False):
         if lower:
             cholS = cholS.T
             cholF = cholF.T
-        T = np.dot(cholS, invert_trimat(cholF, compute_inv=True)[2])
+        T = np.dot(cholS, invert_trimat(cholF, return_inv=True)[2])
     else:
         if lower:
             cholS=cholS.T
@@ -143,7 +154,7 @@ def fullcov_varfloor(cholS, cholF, lower=False):
 
 #     # test invert_pdmat
 #     invA_f, RA, logA, invA = invert_pdmat(
-#         A, right_inv=False, compute_logdet=True, compute_inv=True)
+#         A, right_inv=False, return_logdet=True, return_inv=True)
 
 #     invAx2 = invA_f(x2.T)
     
@@ -153,7 +164,7 @@ def fullcov_varfloor(cholS, cholF, lower=False):
 
 
 #     invA_f, RA, logA, invA = invert_pdmat(
-#         A, right_inv=True, compute_logdet=True, compute_inv=True)
+#         A, right_inv=True, return_logdet=True, return_inv=True)
 
 #     x2invA = invA_f(x2)
     
@@ -170,7 +181,7 @@ def fullcov_varfloor(cholS, cholF, lower=False):
 #     x2invB_t = np.dot(x2, invB_t)
     
 #     invB_f, logB, invB = invert_trimat(
-#         B, lower=False, right_inv=False, compute_logdet=True, compute_inv=True)
+#         B, lower=False, right_inv=False, return_logdet=True, return_inv=True)
 
 #     invBx2 = invB_f(x2.T)
     
@@ -180,7 +191,7 @@ def fullcov_varfloor(cholS, cholF, lower=False):
 
 
 #     invB_f, logB, invB = invert_trimat(
-#         B, lower=False, right_inv=True, compute_logdet=True, compute_inv=True) 
+#         B, lower=False, right_inv=True, return_logdet=True, return_inv=True) 
 
 #     x2invB = invB_f(x2)
     
@@ -197,7 +208,7 @@ def fullcov_varfloor(cholS, cholF, lower=False):
 #     x2invC_t = np.dot(x2, invC_t)
     
 #     invC_f, logC, invC = invert_trimat(
-#         C, lower=True, right_inv=False, compute_logdet=True, compute_inv=True)
+#         C, lower=True, right_inv=False, return_logdet=True, return_inv=True)
 
 #     invCx2 = invC_f(x2.T)
     
@@ -207,7 +218,7 @@ def fullcov_varfloor(cholS, cholF, lower=False):
 
 
 #     invC_f, logC, invC = invert_trimat(
-#         C, lower=True, right_inv=True, compute_logdet=True, compute_inv=True) 
+#         C, lower=True, right_inv=True, return_logdet=True, return_inv=True) 
 
 #     x2invC = invC_f(x2)
     

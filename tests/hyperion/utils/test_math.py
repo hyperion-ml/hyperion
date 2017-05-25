@@ -35,7 +35,7 @@ def test_invert_pdmat_leftinv(dim=10):
 
     # test invert_pdmat
     invA_f, RA, logA, invA = invert_pdmat(
-        A, right_inv=False, compute_logdet=True, compute_inv=True)
+        A, right_inv=False, return_logdet=True, return_inv=True)
     
     invAx2 = invA_f(x2.T)
     
@@ -52,7 +52,7 @@ def test_invert_pdmat_rightinv(dim=10):
     x2invA_t = np.dot(x2, invA_t)
 
     invA_f, RA, logA, invA = invert_pdmat(
-        A, right_inv=True, compute_logdet=True, compute_inv=True)
+        A, right_inv=True, return_logdet=True, return_inv=True)
 
     x2invA = invA_f(x2)
     
@@ -74,7 +74,7 @@ def test_invert_uppertrimat_leftinv(dim=10):
     invBx2_t = np.dot(invB_t, x2.T)
     
     invB_f, logB, invB = invert_trimat(
-        B, lower=False, right_inv=False, compute_logdet=True, compute_inv=True)
+        B, lower=False, right_inv=False, return_logdet=True, return_inv=True)
 
     invBx2 = invB_f(x2.T)
     
@@ -95,7 +95,7 @@ def test_invert_uppertrimat_rightinv(dim=10):
     
     x2invB_t = np.dot(x2, invB_t)
     invB_f, logB, invB = invert_trimat(
-        B, lower=False, right_inv=True, compute_logdet=True, compute_inv=True) 
+        B, lower=False, right_inv=True, return_logdet=True, return_inv=True) 
 
     x2invB = invB_f(x2)
     
@@ -118,7 +118,7 @@ def test_invert_lowertrimat_leftinv(dim=10):
 
     
     invC_f, logC, invC = invert_trimat(
-        C, lower=True, right_inv=False, compute_logdet=True, compute_inv=True)
+        C, lower=True, right_inv=False, return_logdet=True, return_inv=True)
 
     invCx2 = invC_f(x2.T)
     
@@ -140,7 +140,7 @@ def test_invert_lowertrimat_rightinv(dim=10):
 
     x2invC_t = np.dot(x2, invC_t)
     invC_f, logC, invC = invert_trimat(
-        C, lower=True, right_inv=True, compute_logdet=True, compute_inv=True) 
+        C, lower=True, right_inv=True, return_logdet=True, return_inv=True) 
 
     x2invC = invC_f(x2)
     
@@ -164,7 +164,7 @@ def test_fisher_ratio(dim=10):
 
     A = create_matrices(dim)[0]
     invA = invert_pdmat(
-        A, right_inv=False, compute_logdet=False, compute_inv=True)[-1]
+        A, right_inv=False, return_logdet=False, return_inv=True)[-1]
     
     mu1 = np.random.randn(dim)
     mu2 = np.random.randn(dim)

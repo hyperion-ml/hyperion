@@ -77,7 +77,9 @@ def test_num_subseqs():
     sr = SequenceReader(h5_file, key_file,
                         max_seq_length=delta*2, min_seq_length=delta*2,
                         seq_split_overlap=delta/2)
-    num_subseqs_gt = np.array([6, 7, 8, 8, 9, 10, 10, 11, 12, 12], dtype=int)
+
+    num_subseqs_gt = np.array([6, 7, 7, 8, 9, 9, 10, 11, 11, 12], dtype=int)
+    print(sr.num_subseqs)
     assert(np.all(sr.num_subseqs==num_subseqs_gt))
     
     

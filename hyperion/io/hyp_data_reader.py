@@ -20,6 +20,13 @@ class HypDataReader(object):
         self.f = h5py.File(file_path, 'r')
 
 
+    def get_datasets(self):
+        keys = []
+        for ds in self.f:
+            keys.append(ds)
+        return keys
+    
+
     def read(self, keys, field='', return_tensor=False):
         if isinstance(keys, list):
             datasets = [key+field for key in keys]

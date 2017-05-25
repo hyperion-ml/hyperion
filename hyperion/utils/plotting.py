@@ -27,7 +27,7 @@ def plot_gaussian_3D(mu, C, num_sigmas=3, num_pts=100, ax=None, **kwargs):
     assert(mu.shape[0] == 2)
     assert(C.shape[0] == 2 and C.shape[1] == 2)
     num_pts *= 1j
-    invC, _, logC, _ = invert_pdmat(C, compute_logdet=True)
+    invC, _, logC = invert_pdmat(C, return_logdet=True)
     dim = mu.shape[0]
     d, v = la.eigh(C)
     delta = num_sigmas*np.sum(v*np.sqrt(d), axis=1)
@@ -38,6 +38,10 @@ def plot_gaussian_3D(mu, C, num_sigmas=3, num_pts=100, ax=None, **kwargs):
     z = np.exp(-0.5*dim*np.log(2*np.pi)-0.5*logC-0.5*np.sum(xy*invC(xy), axis=0))
 
     Z = np.reshape(z, X.shape)
+    if ax is None:
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+    
     ax.plot_surface(X, Y, Z, **kwargs)
     
 
@@ -71,6 +75,10 @@ def plot_gaussian_ellipsoid_3D(mu, C, num_sigmas=1, num_pts=100, ax=None, **kwar
     X = np.reshape(r[0,:], u.shape)
     Y = np.reshape(r[1,:], u.shape)
     Z = np.reshape(r[2,:], u.shape)
+    if ax is None:
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+
     ax.plot_wireframe(X, Y, Z, **kwargs)
 
 
