@@ -307,7 +307,7 @@ class TiedVAE_qY(TVAE):
     #     scores = np.expand_dims(logq_1, axis=-1) + np.expand_dims(logq_2, axis=-1).T
 
     #     P3 = P1+P2-np.eye(P1.shape[0])
-    #     iP3, _, ldP3, _ = invert_pdmat(P3, right_inv=True, compute_logdet=True)
+    #     iP3, _, ldP3 = invert_pdmat(P3, right_inv=True, return_logdet=True)
     #     for i in xrange(x1.shape[0]):
     #         r3 = r1[i,:] + r2
     #         r3iP3 = iP3(r3)

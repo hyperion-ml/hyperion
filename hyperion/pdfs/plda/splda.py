@@ -43,7 +43,7 @@ class SPLDA(PLDABase):
         NVytilde = N[:, None]*Vytilde
         C = (S - np.dot(NVytilde.T, Vytilde))/N_tot
         if self.fullcov_W:
-            W = invert_pdmat(C, compute_inv=True)[-1]
+            W = invert_pdmat(C, return_inv=True)[-1]
         else:
             W = 1/np.diag(C)
         
@@ -99,9 +99,15 @@ class SPLDA(PLDABase):
                 M_i = 1
                 
             L_i = I + N_i*VV
-            mult_iL, _, logL, iL = invert_pdmat(L_i, right_inv=True,
-                                                compute_logdet=return_logpy_0,
-                                                compute_inv=compute_inv)
+            r = invert_pdmat(L_i, right_inv=True,
+                             return_logdet=return_logpy_0,
+                             return_inv=compute_inv)
+
+            mult_iL = r[0]
+            if return_logpy_0:
+                logL = r[2]
+            if compute_inv:
+                iL = r[-1]
             
             y[i,:]=mult_iL(gamma[i,:])
             
@@ -175,7 +181,7 @@ class SPLDA(PLDABase):
             self.mu = (F - np.dot(Ry1, self.V))/N
 
         if not self.update_mu and self.update_V:
-            iRy_mult = invert_pdmat(Ry, right_inv=False)
+            iRy_mult = invert_pdmat(Ry, right_inv=False)[0]
             self.V = iRy_mult(Cy.T - np.outer(Ry1, self.mu))
 
         if self.update_mu and self.update_V:
@@ -193,7 +199,7 @@ class SPLDA(PLDABase):
                 iW = (S - CVt - CVt.T + np.dot(
                     np.dot(Vtilde.T, Rytilde), Vtilde))/N
             if self.fullcov_W:
-                self.W = invert_pdmat(iW, compute_inv=True)[-1]
+                self.W = invert_pdmat(iW, return_inv=True)[-1]
             else:
                 self.W=np.diag(1/np.diag(iW))
 
@@ -243,13 +249,13 @@ class SPLDA(PLDABase):
         Lnon = I + VV
         mult_icholLnon, logcholLnon = invert_trimat(
             sla.cholesky(Lnon, lower=False, overwrite_a=True),
-            right_inv=True, compute_logdet=True)[:2]
+            right_inv=True, return_logdet=True)[:2]
         logLnon = 2*logcholLnon
 
         Ltar = I + 2*VV
         mult_icholLtar, logcholLtar = invert_trimat(
             sla.cholesky(Ltar, lower=False, overwrite_a=True),
-            right_inv=True, compute_logdet=True)[:2]
+            right_inv=True, return_logdet=True)[:2]
         logLtar = 2*logcholLtar
 
         VWF1 = np.dot(x1-self.mu, WV)
@@ -294,19 +300,19 @@ class SPLDA(PLDABase):
                 L1 = I + N1_i*VV
                 mult_icholL1, logcholL1 = invert_trimat(
                     sla.cholesky(L1, lower=False, overwrite_a=True),
-                    right_inv=True, compute_logdet=True)[:2]
+                    right_inv=True, return_logdet=True)[:2]
                 logL1 = 2*logcholL1
 
                 L2 = I + N2_j*VV
                 mult_icholL2, logcholL2 = invert_trimat(
                     sla.cholesky(L2, lower=False, overwrite_a=True),
-                    right_inv=True, compute_logdet=True)[:2]
+                    right_inv=True, return_logdet=True)[:2]
                 logL2 = 2*logcholL2
 
                 Ltar = I + (N1_i + N2_j)*VV
                 mult_icholLtar, logcholLtar = invert_trimat(
                     sla.cholesky(Ltar, lower=False, overwrite_a=True),
-                    right_inv=True, compute_logdet=True)[:2]
+                    right_inv=True, return_logdet=True)[:2]
                 logLtar = 2*logcholLtar
                 
                 VWF1 = np.dot(F1[i,:], WV)

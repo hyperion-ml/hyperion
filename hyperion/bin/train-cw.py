@@ -51,7 +51,7 @@ def train_cw(iv_file, train_list, preproc_file, with_lnorm,
     t1 = time.time()
 
     gauss = Normal(x_dim=x.shape[1])
-    gauss.fit(x_train=x)
+    gauss.fit(x=x)
 
     if with_lnorm:
         model = LNorm(name=name)
@@ -64,7 +64,7 @@ def train_cw(iv_file, train_list, preproc_file, with_lnorm,
     
     x = model.predict(x)
     
-    gauss.fit(x_train=x)
+    gauss.fit(x=x)
     print(gauss.mu[:4])
     print(gauss.Sigma[:4,:4])
 

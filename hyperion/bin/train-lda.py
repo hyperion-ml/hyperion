@@ -56,7 +56,7 @@ def train_lda(iv_file, train_list, preproc_file,
                min_spc=min_spc, max_spc=max_spc, spc_pruning_mode=spc_pruning_mode,
                csplit_min_spc=csplit_min_spc, csplit_max_spc=csplit_max_spc,
                csplit_mode=csplit_mode,
-               csplit_overlap=csplit_overlap, seed=vcr_seed)
+               csplit_overlap=csplit_overlap, vcr_seed=vcr_seed)
     x, class_ids = vcr.read()
     # x, class_ids = load_data(iv_file, train_list, preproc)
 

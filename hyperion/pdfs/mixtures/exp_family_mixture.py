@@ -9,6 +9,7 @@ import numpy as np
 from abc import ABCMeta, abstractmethod
 
 from ...hyp_defs import float_cpu
+from ...utils.math import softmax
 from ..core import PDF
 
 class ExpFamilyMixture(PDF):
@@ -54,6 +55,20 @@ class ExpFamilyMixture(PDF):
         if sample_weights is None:
             return np.sum(self.logh(x))
         return np.sum(sample_weights * self.logh(x))
+
+
+    def compute_z(self, x, u_x=None, mode='nat'):
+        if mode == 'nat':
+            return self.compute_z_nat(x, u_x)
+        else:
+            return self.compute_z_std(x)
+
+
+    def compute_z_nat(self, x, u_x=None):
+        if u_x is None:
+            u_x = self.compute_suff_stats(x)
+        logr = np.dot(u_x, self.eta) - self.A + self.logw
+        return softmax(logr)
     
     
     def compute_suff_stats(self, x):

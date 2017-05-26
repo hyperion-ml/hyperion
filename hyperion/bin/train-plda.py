@@ -43,7 +43,7 @@ def train_plda(iv_file, train_list, val_list, preproc_file,
                     min_spc=min_spc, max_spc=max_spc, spc_pruning_mode=spc_pruning_mode,
                     csplit_min_spc=csplit_min_spc, csplit_max_spc=csplit_max_spc,
                     csplit_mode=csplit_mode,
-                    csplit_overlap=csplit_overlap, seed=vcr_seed)
+                    csplit_overlap=csplit_overlap, vcr_seed=vcr_seed)
     x, class_ids = vcr_train.read()
 
     x_val = None
@@ -54,7 +54,7 @@ def train_plda(iv_file, train_list, val_list, preproc_file,
                       min_spc=min_spc, max_spc=max_spc, spc_pruning_mode=spc_pruning_mode,
                       csplit_min_spc=csplit_min_spc, csplit_max_spc=csplit_max_spc,
                       csplit_mode=csplit_mode,
-                      csplit_overlap=csplit_overlap, seed=vcr_seed)
+                      csplit_overlap=csplit_overlap, vcr_seed=vcr_seed)
         x_val, class_ids_val = vcr_val.read()
         
     t1 = time.time()
