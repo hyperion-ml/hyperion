@@ -30,10 +30,10 @@ class TrialDataReader(object):
         self.preproc = preproc
         self.field = v_field
 
-        enroll = SCPList.load(enroll_file, sep='=')
+        enroll = SCPList.load(enroll_file, sep=scp_sep)
         test = None
         if test_file is not None:
-            test = SCPList.load(test_file, sep='=')
+            test = SCPList.load(test_file, sep=scp_sep)
         ndx = None
         if ndx_file is not None:
             ndx = TrialNdx.load(ndx_file)
@@ -56,7 +56,7 @@ class TrialDataReader(object):
             x_e = self.preproc.predict(x_e)
             x_t = self.preproc.predict(x_t)
 
-        return x_e, x_t, self.ndx
+        return x_e, x_t, self.enroll.key, self.ndx
 
 
     

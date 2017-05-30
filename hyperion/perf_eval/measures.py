@@ -8,8 +8,8 @@ import numpy as np
 from .roc import compute_rocch, rocch2eer
 
 
-def eer(tar, non):
+def compute_eer(tar, non):
 
-    p_miss, p_fa = rocch(tar, non)
+    p_miss, p_fa = compute_rocch(tar, non)
     return rocch2eer(p_miss, p_fa)
 

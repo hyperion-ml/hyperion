@@ -42,7 +42,7 @@ def eval_pdda(iv_file, ndx_file, enroll_file, test_file,
 
     tdr = TDR(iv_file, ndx_file, enroll_file, test_file, preproc,
               scp_sep=scp_sep, v_field=v_field, eval_set=eval_set)
-    x_e, x_t, ndx = tdr.read()
+    x_e, x_t, enroll, ndx = tdr.read()
 
     if qy_only:
         model = TVAEY.load(model_file)
@@ -59,7 +59,7 @@ def eval_pdda(iv_file, ndx_file, enroll_file, test_file,
     num_trials = x_e.shape[0] * x_t.shape[0]
     print('Elapsed time: %.2f s. Elapsed time per trial: %.2f ms.' % (dt, dt/num_trials*1000))
 
-    s = TrialScores(ndx.model_set, ndx.seg_set, scores)
+    s = TrialScores(enroll, ndx.seg_set, scores)
     s.save(score_file)
 
 

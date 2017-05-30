@@ -36,7 +36,7 @@ def eval_plda(iv_file, ndx_file, enroll_file, test_file,
 
     tdr = TDR(iv_file, ndx_file, enroll_file, test_file, preproc,
               scp_sep=scp_sep, v_field=v_field, eval_set=eval_set)
-    x_e, x_t, ndx = tdr.read()
+    x_e, x_t, enroll, ndx = tdr.read()
 
     model = F.load_plda(plda_type, model_file)
     
@@ -48,7 +48,7 @@ def eval_plda(iv_file, ndx_file, enroll_file, test_file,
     print('Elapsed time: %.2f s. Elapsed time per trial: %.2f ms.'
           % (dt, dt/num_trials*1000))
 
-    s = TrialScores(ndx.model_set, ndx.seg_set, scores)
+    s = TrialScores(enroll, ndx.seg_set, scores)
     s.save(score_file)
 
     
