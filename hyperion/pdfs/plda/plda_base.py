@@ -153,7 +153,7 @@ class PLDABase(PDF):
         x1=D1[1]/np.expand_dims(D1[0], axis=-1)
         x2=D2[1]/np.expand_dims(D2[0], axis=-1)
         if do_lnorm:
-            lnorm=Lnorm()
+            lnorm=LNorm()
             x1=lnorm.predict(x1)
             x2=lnorm.predict(x2)
 
@@ -187,7 +187,7 @@ class PLDABase(PDF):
     def eval_llr_Nvs1_vavg(self, D1, x2, do_lnorm=True):
         x1=D1[1]/np.expand_dims(D1[0], axis=-1)
         if do_lnorm:
-            lnorm=Lnorm()
+            lnorm=LNorm()
             x1=lnorm.predict(x1)
             x2=lnorm.predict(x2)
 
