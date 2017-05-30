@@ -150,8 +150,8 @@ class PLDABase(PDF):
 
         
     def eval_llr_NvsM_vavg(self, D1, D2, do_lnorm=True):
-        x1=D1[1]/D1[0]
-        x2=D2[1]/D2[0]
+        x1=D1[1]/np.expand_dims(D1[0], axis=-1)
+        x2=D2[1]/np.expand_dims(D2[0], axis=-1)
         if do_lnorm:
             lnorm=Lnorm()
             x1=lnorm.predict(x1)
@@ -185,7 +185,7 @@ class PLDABase(PDF):
         
         
     def eval_llr_Nvs1_vavg(self, D1, x2, do_lnorm=True):
-        x1=D1[1]/D1[0]
+        x1=D1[1]/np.expand_dims(D1[0], axis=-1)
         if do_lnorm:
             lnorm=Lnorm()
             x1=lnorm.predict(x1)
@@ -199,7 +199,8 @@ class PLDABase(PDF):
         N, F, _ = self.compute_stats(scores_1vs1, ids1)
         scores = F/N[:, None]
         return scores
-        
+
+    
     @abstractmethod
     def generate(self, num_samples, rng=None, seed=1024):
         pass
