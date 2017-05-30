@@ -77,6 +77,18 @@ class SCPList(object):
         return SCPList(key, file_path)
 
 
+    def filter_paths(self, filter_key, keep=True):
+        if not(keep):
+            filter_key = np.setdiff1d(self.file_path, filter_key)
+
+        f, _ = ismember(filter_key, self.file_path)
+        assert(np.all(f))
+        f, _ = ismember(self.file_path, filter_key)
+        key = self.key[f]
+        file_path = self.file_path[f]
+        return SCPList(key, file_path)
+
+
     def shuffle(self, seed=1024, rng=None):
         if rng is None:
             rng = np.random.RandomState(seed=seed)
