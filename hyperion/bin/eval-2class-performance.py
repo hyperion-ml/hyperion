@@ -15,7 +15,7 @@ import numpy as np
 
 from hyperion.utils.trial_scores import TrialScores
 from hyperion.utils.trial_key import TrialKey
-from hyperion.perf_eval import eer
+from hyperion.perf_eval import compute_eer
 
 def eval_2class_performance(score_file, key_file, output_path):
 
@@ -32,7 +32,8 @@ def eval_2class_performance(score_file, key_file, output_path):
 
     output_file=output_path + '.res'
     with open(output_file, 'w') as f:
-        f.write('EER %.4f\n' % eer)
+        f.write('EER %.4f\nNTAR %d\nNNON %d\n'
+                % (eer, len(tar), len(non)))
     
     
 if __name__ == "__main__":
