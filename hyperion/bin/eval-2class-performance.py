@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 Evals EER, DCF, DET
 """
