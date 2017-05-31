@@ -28,10 +28,6 @@ def eval_2class_performance(score_file, key_file, output_path):
         os.makedirs(output_dir, exist_ok=True)
     
     tar, non = scr.get_tar_non(key)
-
-    print(tar)
-    print(non)
-    
     eer = compute_eer(tar, non)
 
     output_file=output_path + '.res'

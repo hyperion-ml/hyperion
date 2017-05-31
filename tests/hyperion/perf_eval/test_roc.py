@@ -103,8 +103,8 @@ def test_roc():
     plt.title('DET')
     print(pmiss, pfa)
     print(pm[:10], pf[:10])
-    assert_allclose(pmiss,[0.,0.,0.01,0.16,0.22,0.29,0.45,0.5,0.89,0.92,1.])
-    assert_allclose(pfa,[1.,0.91,0.77,0.48,0.4,0.33,0.19,0.15,0.01,0.,0.])
+    assert_allclose(pmiss, [0.,0.,0.01,0.16,0.22,0.29,0.45,0.5,0.89,0.92,1.])
+    assert_allclose(pfa, [1.,0.91,0.77,0.48,0.4,0.33,0.19,0.15,0.01,0.,0.])
     assert_allclose(pm[:10], [0.,0.,0.,0.,0.,0.,0.,0.,0.,0.])
     assert_allclose(pf[:10], [1.,0.99,0.98,0.97,0.96,0.95,0.94,0.93,0.92,0.91])
 
@@ -129,3 +129,12 @@ def test_roc():
     plt.savefig('./tests/data_out/roc.pdf')
     plt.close()
 
+
+
+def test_rocch2eer():
+
+    rng = np.random.RandomState(100)
+    tar = rng.randn(100)+1
+    non = rng.randn(100)
+    pmiss, pfa = compute_rocch(tar,non)
+    eer = rocch2eer(pmiss, pfa)

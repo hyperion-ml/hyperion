@@ -106,7 +106,7 @@ def compute_rocch(tar_scores, non_scores):
     return p_miss, p_fa
 
 
-def rocch2eer(p_miss,p_fa):
+def rocch2eer(p_miss, p_fa):
 # Calculates the equal error rate (eer) from pmiss and pfa
 # vectors.  
 # Note: pmiss and pfa contain the coordinates of the vertices of the
@@ -117,16 +117,16 @@ def rocch2eer(p_miss,p_fa):
     eer = 0
 
     #p_miss and p_fa should be sorted
-    x = np.sort(p_miss)[::-1]
+    x = np.sort(p_miss)
     assert(np.all(x == p_miss))
-    x = np.sort(p_fa)
+    x = np.sort(p_fa)[::-1]
     assert(np.all(x == p_fa))
 
     _1_1 = np.array([1, -1])
     _11 = np.array([[1], [1]])
-    for i in xrange(len(pfa)-1):
-        xx = p_fa[i:i+1]
-        yy = p_miss[i:i+1]
+    for i in xrange(len(p_fa)-1):
+        xx = p_fa[i:i+2]
+        yy = p_miss[i:i+2]
     
         XY = np.vstack((xx, yy)).T
         dd = np.dot(_1_1, XY)
@@ -139,7 +139,7 @@ def rocch2eer(p_miss,p_fa):
             #candidate for EER, eer is highest candidate
             eerseg = 1/(np.sum(seg)) 
     
-        eer = np.maximum(eer,eerseg)
+        eer = np.maximum(eer, eerseg)
         
     return eer
 
