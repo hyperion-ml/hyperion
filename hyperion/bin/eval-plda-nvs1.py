@@ -28,7 +28,7 @@ def eval_plda(iv_file, ndx_file, enroll_file, test_file,
               preproc_file,
               scp_sep, v_field, eval_set,
               model_file, score_file, plda_type,
-              scoring_mode,
+              pool_method,
               **kwargs):
     
     if preproc_file is not None:
@@ -45,7 +45,7 @@ def eval_plda(iv_file, ndx_file, enroll_file, test_file,
     
     t1 = time.time()
 
-    scores = model.eval_llr_Nvs1(x_e, x_t, mode=scoring_mode, ids1=ids_e)
+    scores = model.eval_llr_Nvs1(x_e, x_t, mode=pool_method, ids1=ids_e)
     
     dt = time.time() - t1
     num_trials = len(enroll) * x_t.shape[0]
@@ -87,7 +87,7 @@ if __name__ == "__main__":
 
     TDR.add_argparse_args(parser)
     F.add_argparse_eval_args(parser)
-    parser.add_argument('--scoring-mode', dest='scoring_mode', type=str.lower,
+    parser.add_argument('--pool-method', dest='pool_method', type=str.lower,
                          default='vavg-lnorm',
                          choices=['book','vavg','vavg-lnorm','savg'],
                          help=('(default: %(default)s)'))

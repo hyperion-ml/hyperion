@@ -134,18 +134,18 @@ class PLDABase(PDF):
         return N, Fc, Sc
 
         
-    def eval_llr_NvsM(self, x1, x2, mode='avg-lnorm', ids1=None, ids2=None):
-        if mode == 'savg':
+    def eval_llr_NvsM(self, x1, x2, method='vavg-lnorm', ids1=None, ids2=None):
+        if method == 'savg':
             return self.eval_llr_NvsM_savg(x1, ids1, x2, ids2)
 
         D1 = x1 if ids1 is None else self.compute_stats_hard(x1, class_ids=ids1)
         D2 = x2 if ids2 is None else self.compute_stats_hard(x2, class_ids=ids2)
 
-        if mode == 'book':
+        if method == 'book':
             return self.eval_llr_NvsM_book(D1, D2)
-        if mode == 'vavg':
+        if method == 'vavg':
             return self.eval_llr_NvsM_vavg(D1, D2, do_lnorm=False)
-        if mode == 'vavg-lnorm':
+        if method == 'vavg-lnorm':
             return self.eval_llr_NvsM_vavg(D1, D2, do_lnorm=True)
 
         
@@ -169,18 +169,18 @@ class PLDABase(PDF):
         return scores
 
     
-    def eval_llr_Nvs1(self, x1, x2, mode='avg-lnorm', ids1=None):
-        if mode == 'savg':
+    def eval_llr_Nvs1(self, x1, x2, method='vavg-lnorm', ids1=None):
+        if method == 'savg':
             return self.eval_llr_Nvs1_savg(x1, ids1, x2)
 
         D1 = x1 if ids1 is None else self.compute_stats_hard(x1, class_ids=ids1)
             
-        if mode == 'book':
+        if method == 'book':
             D2 = self.compute_stats_hard(x2, np.arange(x.shape[0]))
             return self.eval_llr_NvsM_book(D1, D2)
-        if mode == 'vavg':
+        if method == 'vavg':
             return self.eval_llr_Nvs1_vavg(D1, x2, do_lnorm=False)
-        if mode == 'vavg-lnorm':
+        if method == 'vavg-lnorm':
             return self.eval_llr_Nvs1_vavg(D1, x2, do_lnorm=True)
         
         

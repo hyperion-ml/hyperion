@@ -28,6 +28,7 @@ from keras.models import Model, load_model, model_from_json
 
 from ...hyp_defs import float_keras
 from ...utils.math import invert_pdmat
+from ...pdf.plda import PLDABase
 from .. import objectives as hyp_obj
 from ..keras_utils import *
 from ..layers import *
@@ -220,6 +221,7 @@ class TiedVAE_qYqZ(VAE):
 
         return elbo/num_samples
 
+
     
     def eval_llr_1vs1(self, x1, x2, score_mask=None, method='elbo', num_samples=1):
         if method == 'elbo':
@@ -228,6 +230,7 @@ class TiedVAE_qYqZ(VAE):
             return self.eval_llr_1vs1_cand(x1, x2, score_mask)
         if method == 'qscr':
             return self.eval_llr_1vs1_qscr(x1, x2, score_mask)
+
 
         
     def eval_llr_1vs1_elbo(self, x1, x2, score_mask=None, num_samples=1):
@@ -241,7 +244,7 @@ class TiedVAE_qYqZ(VAE):
         xx = np.zeros(xx_shape, float_keras())
         xx[:,0,:] = x2
         elbo_2 = self.elbo(xx, num_samples)
-        
+        p
         scores = - (np.expand_dims(elbo_1, axis=-1) +
                     np.expand_dims(elbo_2, axis=-1).T)
 
@@ -250,6 +253,7 @@ class TiedVAE_qYqZ(VAE):
             elbo_3 = self.elbo(xx, num_samples)
             scores[i,:] += elbo_3
         return scores
+
 
     
     def eval_llr_1vs1_cand(self, x1, x2, score_mask=None):
@@ -278,12 +282,15 @@ class TiedVAE_qYqZ(VAE):
             scores[i,:] -= logqy(y_mean, y_logvar, y_chol)
         return scores
 
+
     
     @staticmethod
     def _eval_logqy_eq_0_diagcov(mu, logvar):
         var = np.exp(logvar)
         return -0.5*np.sum(logvar + mu**2/var, axis=-1)
 
+
+    
     @staticmethod
     def _eval_logqy_eq_0_fullcov(mu, logvar, choly):
         #assume all have the same cov
@@ -321,6 +328,7 @@ class TiedVAE_qYqZ(VAE):
         return scores
 
 
+    
     def _eval_llr_1vs1_qscr_fullcov(self, x1, x2, score_mask=None):
         xx_shape = (x1.shape[0], self.max_seq_length, x1.shape[1])
         xx = np.zeros(xx_shape, float_keras())
@@ -354,6 +362,7 @@ class TiedVAE_qYqZ(VAE):
             scores[i,:] += -0.5*ldP3 + 0.5*np.sum(r3iP3*r3, axis=-1)
         return scores
 
+
     
     def eval_llr_1vs1_qscr(self, x1, x2, score_mask=None):
         if self.qy_form == 'diag_normal':
@@ -361,12 +370,52 @@ class TiedVAE_qYqZ(VAE):
         return self._eval_llr_1vs1_qscr_fullcov(x1, x2)
     
 
+
+    def eval_llr_Nvs1(self, x1, ids1, x2, score_mask=None, pool_method='vavg-lnorm', eval_method='elbo', num_samples=1):
+        if  pool_method == 'savg':
+            return eval_llr_Nvs1_savg(self, x1, ids1, x2, score_mask=score_mask, method=eval_method, num_samples=num_samples)
+        if pool_method == 'vavg':
+            return eval_llr_Nvs1_vavg(self, x1, ids1, x2, score_mask=score_mask, do_lnorm=False, method=eval_method, num_samples=num_samples)
+        if pool_method == 'vavg-lnorm':
+            return eval_llr_Nvs1_vavg(self, x1, ids1, x2, score_mask=score_mask, do_lnorm=True, method=eval_method, num_samples=num_samples)
+        if pool_method == 'book':
+            return eval_llr_Nvs1_book(self, x1, ids1, x2, score_mask=score_mask, method=eval_method, num_samples=num_samples)
+
+        
+
+    def eval_llr_Nvs1_savg(self, x1, ids1, x2, score_mask=None, method='elbo', num_samples=1):
+        scores_1vs1 = self.eval_llr_1vs1(x1, x2, score_mask=score_mask, method=method, num_samples=num_samples)
+        N, F, _ = self.compute_stats(scores_1vs1, ids1)
+        scores = F/N[:, None]
+        return scores
+
+            
+
+    def eval_llr_Nvs1_vavg(self, x1, ids1, x2, score_mask=None, method='elbo', num_samples=1):
+        N, F, _ = PLDABase.compute_stats_hard(x1, class_ids=ids1)
+        x1=F/np.expand_dims(N, axis=-1)
+        if do_lnorm:
+            lnorm=LNorm()
+            x1=lnorm.predict(x1)
+            x2=lnorm.predict(x2)
+            
+        return self.eval_llr_1vs1(x1, x2, score_mask=score_mask, method=method, num_samples=num_samples):
+
+    
+        
+    def eval_llr_Nvs1_book(self, x1, ids1, x2, score_mask=None, method='elbo', num_samples=1):
+        pass
+    
+    
+
+        
     def get_config(self):
         config = {
             'qy_form': self.qy_form,
             'py_prior_form': self.py_prior_form }
         base_config = super(TiedVAE_qYqZ, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
+
 
     
     def save(self, file_path):
@@ -379,7 +428,8 @@ class TiedVAE_qYqZ(VAE):
         file_model = '%s.dec.h5' % (file_path)
         self.decoder_net.save(file_model)
 
-                        
+
+        
     @classmethod
     def load(cls, file_path):
         file_config = '%s.json' % (file_path)
