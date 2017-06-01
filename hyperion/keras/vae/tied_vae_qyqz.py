@@ -28,7 +28,7 @@ from keras.models import Model, load_model, model_from_json
 
 from ...hyp_defs import float_keras
 from ...utils.math import invert_pdmat
-from ...pdf.plda import PLDABase
+from ...pdfs.plda import PLDABase
 from ...transforms import LNorm
 from .. import objectives as hyp_obj
 from ..keras_utils import *
