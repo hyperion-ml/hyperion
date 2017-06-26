@@ -9,10 +9,12 @@ from six.moves import xrange
 import numpy as np
 import scipy.linalg as la
 
+
 def logdet_pdmat(A):
     assert(A.shape[0] == A.shape[1])
     R=la.cholesky(A)
     return 2*np.sum(np.log(np.diag(R)))
+
 
 
 def invert_pdmat(A, right_inv=False, return_logdet=False, return_inv=False):
@@ -58,11 +60,18 @@ def invert_trimat(A, lower=False, right_inv=False, return_logdet=False, return_i
     return fh, logdet, invA
 
 
-def softmax(r):
-    max_r=np.max(r, axis=1, keepdims=True)
+def softmax(r, axis=-1):
+    max_r=np.max(r, axis=axis, keepdims=True)
     r=np.exp(r-max_r)
-    r/=np.sum(r, axis=1, keepdims=True)
+    r/=np.sum(r, axis=axis, keepdims=True)
     return r
+
+
+def logsumexp(r, axis=-1):
+   max_r=np.max(r, axis=axis, keepdims=True)
+   r=np.exp(r-max_r)
+   return np.log(np.sum(r, axis=axis)+1e-20) + max_r.ravel()
+    
 
 
 def fisher_ratio(mu1, Sigma1, mu2, Sigma2):
@@ -117,12 +126,35 @@ def vec2trimat(v, lower=False):
     return A
 
 
-def fullcov_varfloor(cholS, cholF, lower=False):
+
+def fullcov_varfloor(S, cholF, lower=False):
+
+    cholS = la.cholesky(S, lower, overwrite_a=True)
+            
+    if isinstance(cholF, np.ndarray):
+        if lower:
+            cholF = cholF.T
+        T = np.dot(cholS, invert_trimat(cholF, return_inv=True)[-1])
+    else:
+        T = cholS/cholF
+    T = np.dot(T.T,T)
+    u, d, _ = la.svd(T, full_matrices=False, overwrite_a=True)
+    d[d<1.]=1
+    T = np.dot(u*d, u.T)
+    if isinstance(cholF, np.ndarray):
+        S = np.dot(cholF.T, np.dot(T, cholF))
+    else:
+        S = (cholF**2)*T
+    return S
+
+
+
+def fullcov_varfloor_from_cholS(cholS, cholF, lower=False):
     if isinstance(cholF, np.ndarray):
         if lower:
             cholS = cholS.T
             cholF = cholF.T
-        T = np.dot(cholS, invert_trimat(cholF, return_inv=True)[2])
+        T = np.dot(cholS, invert_trimat(cholF, return_inv=True)[-1])
     else:
         if lower:
             cholS=cholS.T

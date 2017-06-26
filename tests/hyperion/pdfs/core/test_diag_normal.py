@@ -36,7 +36,7 @@ def test_properties():
     model = create_pdf()
     assert(np.all(model.Sigma == 1/model.Lambda))
     assert(np.all(model.cholLambda == np.sqrt(model.Lambda)))
-    assert(np.all(model.lnLambda == np.sum(np.log(model.Lambda))))
+    assert(np.all(model.logLambda == np.sum(np.log(model.Lambda))))
 
 
     
@@ -75,21 +75,19 @@ def test_initialize():
 
 def test_logh():
     model1 = create_pdf()
-    model1.initialize()
 
-    sample_weights = np.arange(1,num_samples+1, dtype=float)/num_samples
+    sample_weight = np.arange(1,num_samples+1, dtype=float)/num_samples
     
     assert(model1.logh(None) == 0)
-    assert(model1.accum_logh(None, sample_weights=sample_weights) == 0)
+    assert(model1.accum_logh(None, sample_weight=sample_weight) == 0)
 
 
 def test_suff_stats():
 
     model1 = create_pdf()
-    model1.initialize()
 
     x = model1.generate(num_samples)
-    sample_weights = 0.5*np.ones((num_samples,))
+    sample_weight = 0.5*np.ones((num_samples,))
     
     u_x = np.hstack((x, x*x))
     assert_allclose(model1.compute_suff_stats(x), u_x)
@@ -98,15 +96,14 @@ def test_suff_stats():
     N2, u_x2 = model1.accum_suff_stats(x, batch_size=batch_size)
 
     assert_allclose(model1.accum_suff_stats(x, batch_size=batch_size)[1], u_x)
-    assert_allclose(model1.accum_suff_stats(x, sample_weights=sample_weights)[1], 0.5*u_x)
-    assert_allclose(model1.accum_suff_stats(x, sample_weights=sample_weights, batch_size=batch_size)[1], 0.5*u_x)
+    assert_allclose(model1.accum_suff_stats(x, sample_weight=sample_weight)[1], 0.5*u_x)
+    assert_allclose(model1.accum_suff_stats(x, sample_weight=sample_weight, batch_size=batch_size)[1], 0.5*u_x)
                     
 
 
 def test_eval_llk():
 
     model1 = create_pdf()
-    model1.initialize()
 
     x = model1.generate(num_samples)
     
@@ -121,21 +118,19 @@ def test_eval_llk():
 def test_elbo():
 
     model1 = create_pdf()
-    model1.initialize()
 
     x = model1.generate(num_samples)
-    sample_weights = 0.5*np.ones((num_samples,))
+    sample_weight = 0.5*np.ones((num_samples,))
     
     assert_allclose(model1.elbo(x),
                     np.sum(model1.eval_llk(x, mode='std')))
-    assert_allclose(model1.elbo(x, sample_weights=sample_weights),
+    assert_allclose(model1.elbo(x, sample_weight=sample_weight),
                     0.5*np.sum(model1.eval_llk(x, mode='std')))
     
 
 def test_eval_logcdf():
 
     model1 = create_pdf()
-    model1.initialize()
 
     assert(model1.eval_logcdf(model1.mu) == x_dim*np.log(0.5))
     assert(model1.eval_logcdf(1e10*np.ones((x_dim,))) > np.log(0.99))
@@ -146,7 +141,6 @@ def test_eval_logcdf():
 def test_fit():
 
     model1 = create_pdf()
-    model1.initialize()
 
     x = model1.generate(num_samples_train)
     x_val = model1.generate(num_samples)
@@ -185,7 +179,6 @@ def test_plot():
     model1.plot3D_ellipsoid()
     plt.savefig('./tests/data_out/plot_diag_normal_3De.pdf')
     plt.close()
-
 
 
 

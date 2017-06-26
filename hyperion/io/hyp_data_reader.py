@@ -13,6 +13,7 @@ import h5py
 from ..hyp_defs import float_cpu
 from ..utils.list_utils import list2ndarray, ismember
 
+
 class HypDataReader(object):
 
     def __init__(self, file_path):
@@ -42,12 +43,12 @@ class HypDataReader(object):
             X = []
             
         for i in xrange(len(keys)):
-            assert(datasets[i] in self.f)
+            assert datasets[i] in self.f, 'Dataset %s not found' % datasets[i]
             X_i = self.f[datasets[i]]
             if return_tensor:
                 X[i] = X_i
             else:
-                X.append(X_i)
+                X.append(np.asarray(X_i, dtype=float_cpu()))
 
         return X
 
@@ -62,7 +63,7 @@ class HypDataReader(object):
         num_rows = np.zeros((num_ds,), dtype=int)
         
         for i,ds in enumerate(datasets):
-            assert(ds in self.f, 'Dataset %s does not exist' % ds)
+            assert ds in self.f, 'Dataset %s not found' % ds
             num_rows[i] = self.f[ds].shape[0]
 
         return num_rows

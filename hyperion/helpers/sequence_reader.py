@@ -28,9 +28,13 @@ class SequenceReader(object):
                  shuffle_seqs=True, subsample=100,
                  min_seq_length=1, max_seq_length=None,
                  seq_split_mode='random_slice', seq_split_overlap=0,
-                 seqr_seed=1024, reset_rng=False):
+                 seqr_seed=1024, reset_rng=False,
+                 part_idx=1, num_parts=1):
+        
         self.r = HypDataReader(data_file)
         self.scp = SCPList.load(key_file, sep=scp_sep)
+        if num_parts > 1:
+            self.scp = self.scp.split(part_idx, num_parts)
         self.feat_norm = feat_norm
         self.preproc = preproc
         self.splicing = splicing
@@ -145,13 +149,13 @@ class SequenceReader(object):
 
     
     def read(self, return_3d=False,
-             max_seq_length=0, return_sample_weights=True):
+             max_seq_length=0, return_sample_weight=True):
         
         if self.cur_batch == self.num_batches or self.cur_batch==-1:
             self.reset()
         
         if self.max_seq_length is None:
-            x = self._read_full_seqs()
+            x, _ = self.read_full_seqs()
         elif self.seq_split_mode == 'sequential':
             x = self._read_subseqs_sequential()
         elif (self.seq_split_mode == 'random_slice' or
@@ -163,14 +167,19 @@ class SequenceReader(object):
         self.cur_batch +=1
 
         if return_3d:
-            x, sample_weights = to3D_by_seq(x, max_length=max_seq_length)
-            return x, sample_weights
+            x, sample_weight = to3D_by_seq(x, max_length=max_seq_length)
+            return x, sample_weight
 
         return x
 
 
+    def read_next_seq(self):
+        key = self.scp.file_path[self.cur_seq]
+        self.cur_seq += 1
+        return self.r.read([key], field=self.field, return_tensor=False)[0], key
     
-    def _read_full_seqs(self):
+    
+    def read_full_seqs(self):
         if self.min_seq_length == 0:
             keys = self.scp.file_path[self.cur_seq:self.cur_seq+self.batch_size]
             self.cur_seq += self.batch_size
@@ -187,7 +196,7 @@ class SequenceReader(object):
                         break
             assert(len(keys)==self.batch_size)
                 
-        return self.r.read(keys, field=self.field, return_tensor=False)        
+        return self.r.read(keys, field=self.field, return_tensor=False), keys 
             
 
     
@@ -283,7 +292,7 @@ class SequenceReader(object):
         valid_args = ('scp_sep', 'seq_field', 'shuffle_seqs', 'subsample',
                       'min_seq_length', 'max_seq_length',
                       'seq_split_mode', 'seq_split_overlap',
-                      'seqr_seed')
+                      'seqr_seed', 'part_idx', 'num_parts')
         return dict((k, kwargs[p+k])
                     for k in valid_args if p+k in kwargs)
 
@@ -296,7 +305,7 @@ class SequenceReader(object):
             p = prefix + '_'
         valid_args = ('scp_sep', 'seq_field', 'subsample',
                       'min_seq_length', 'max_seq_length',
-                      'seqr_seed')
+                      'seqr_seed', 'part_idx', 'num_parts')
         return dict((k, kwargs[p+k])
                     for k in valid_args if p+k in kwargs)
 
@@ -342,6 +351,43 @@ class SequenceReader(object):
                             default=0, help=('overlap between subsequences'))
         parser.add_argument(p1+'seqr-seed', dest=(p2+'seqr_seed'), type=int,
                             default=1024, help=('seed for rng in sequence reader'))
+        parser.add_argument(p1+'part-idx', dest=(p2+'part_idx'), type=int, default=1,
+                            help=('splits the list of files in num-parts and process part_idx'))
+        parser.add_argument(p1+'num-parts', dest=(p2+'num_parts'), type=int, default=1,
+                            help=('splits the list of files in num-parts and process part_idx'))
 
+
+
+    @staticmethod
+    def filter_eval_args(prefix=None, **kwargs):
+        if prefix is None:
+            p = ''
+        else:
+            p = prefix + '_'
+        valid_args = ('scp_sep', 'seq_field', 'part_idx', 'num_parts')
+        return dict((k, kwargs[p+k])
+                    for k in valid_args if p+k in kwargs)
+
+        
+        
+    @staticmethod
+    def add_argparse_eval_args(parser, prefix=None):
+        if prefix is None:
+            p1 = '--'
+            p2 = ''
+        else:
+            p1 = '--' + prefix + '-'
+            p2 = prefix + '_'
+            
+        parser.add_argument(p1+'scp-sep', dest=(p2+'scp_sep'), default='=',
+                            help=('scp file field separator'))
+        parser.add_argument(p1+'seq-field', dest=(p2+'seq_field'), default='',
+                            help=('dataset field in hdf5 file'))
+        parser.add_argument(p1+'part-idx', dest=(p2+'part_idx'), type=int, default=1,
+                            help=('splits the list of files in num-parts and process part_idx'))
+        parser.add_argument(p1+'num-parts', dest=(p2+'num_parts'), type=int, default=1,
+                            help=('splits the list of files in num-parts and process part_idx'))
+
+        
 
     

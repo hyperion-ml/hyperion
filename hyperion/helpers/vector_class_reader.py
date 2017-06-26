@@ -58,8 +58,8 @@ class VectorClassReader(object):
 
         _, class_ids=np.unique(scp.key, return_inverse=True)
         if return_3d:
-            x, sample_weights = to3D_by_class(x, class_ids, max_length)
-            return x, sample_weights
+            x, sample_weight = to3D_by_class(x, class_ids, max_length)
+            return x, sample_weight
         return x, class_ids
 
 

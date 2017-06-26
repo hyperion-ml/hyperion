@@ -30,103 +30,6 @@ from hyperion.keras.vae import TiedVAE_qYqZgY as TVAEYZ
 from hyperion.keras.vae import TiedVAE_qY as TVAEY
 
 
-# def load_input_vectors(hyp_reader, file_path, class_ids, preproc, max_length):
-#     x = hyp_reader.read(file_path, '')
-#     if preproc is not None:
-#         x = preproc.predict(x)
-    
-#     [x, sample_weights] = to3D_by_class(x, class_ids, max_length)
-#     return x, sample_weights
-
-
-# def max_samples_per_class(class_ids):
-#     n = 0
-#     for i in np.unique(class_ids):
-#         n_i = np.sum(class_ids == i)
-#         if n_i > n:
-#             n = n_i
-#     print(n)
-#     return n
-
-
-# def resample_x(x, sw, max_l):
-#     l = x.shape[1]
-#     n = np.ceil(2*l/max_l)
-#     num_spc = np.sum(sw, axis=1)
-
-#     x_out = np.zeros((x.shape[0]*n, max_l, x.shape[2]), dtype=x.dtype)
-#     sw_out = np.zeros((x.shape[0]*n, max_l), dtype=sw.dtype)
-#     k=0
-#     for i in xrange(x.shape[0]):
-#         if num_spc[i] <= max_l:
-#             x_out[k,:,:] = x[i,:max_l,:]
-#             sw_out[k,:] = sw[i,:max_l]
-#             k+=1
-#         else:
-#             n = int(np.ceil(2*num_spc[i]/max_l))
-#             x_i=x[i,:num_spc[i],:]
-#             for j in xrange(n):
-#                 x_j = np.random.permutation(x_i)[:max_l,:]
-#                 x_out[k,:,:] = x_j
-#                 sw_out[k,:] = 1
-#                 k+=1
-#     x_out=x_out[:k,:,:]
-#     sw_out=sw_out[:k,:]
-#     return x_out, sw_out
-    
-
-# def filter_x(x, sw, min_spc, max_spc, max_seq_length):
-    
-#     max_length = x.shape[1]
-#     num_spc = np.sum(sw, axis=1)
-#     print('SPC avg: %.2f min: %.2f max: %.2f median: %.2f mode: %.2f' %
-#           (np.mean(num_spc), np.min(num_spc), np.max(num_spc),
-#            np.median(num_spc), scps.mode(num_spc)[0]))
-    
-#     if min_spc > 1:
-#         x=x[num_spc>min_spc,:,:]
-#         sw=sw[num_spc>min_spc,:]
-
-#     if max_spc is not None and max_spc < max_length:
-#         x=x[:,:max_spc,:]
-#         sw=sw[:,:max_spc,:]
-#         max_length = max_spc
-
-#     if max_seq_length is not None and max_seq_length < max_length:
-#         x, sw = resample_x(x, sw, max_seq_length)
-
-#     return x, sw
-
-    
-# def load_data(iv_file, train_utt2spk_file, val_utt2spk_file, preproc,
-#               min_spc, max_spc, max_seq_length):
-
-#     set_float_cpu('float32')
-    
-#     train_utt2spk = SCPList.load(train_utt2spk_file, sep='=')
-#     val_utt2spk = SCPList.load(val_utt2spk_file, sep='=')
-
-#     _, _, train_class_ids=np.unique(train_utt2spk.key,
-#                                     return_index=True, return_inverse=True)
-#     _, _, val_class_ids=np.unique(val_utt2spk.key,
-#                                   return_index=True, return_inverse=True)
-
-#     max_length = np.maximum(max_samples_per_class(train_class_ids),
-#                             max_samples_per_class(val_class_ids))
-    
-#     hr = HypDataReader(iv_file)
-
-#     [x, sw] = load_input_vectors(
-#         hr, train_utt2spk.file_path, train_class_ids, preproc, max_length)
-#     [x_val, sw_val] = load_input_vectors(
-#         hr, val_utt2spk.file_path, val_class_ids, preproc, max_length)
-
-
-#     x, sw = filter_x(x, sw, min_spc, max_spc, max_seq_length)
-#     x_val, sw_val = filter_x(x_val, sw_val, min_spc, max_spc, max_seq_length)
-        
-#     return x, sw, x_val, sw_val
-
 
 def train_pdda(iv_file, train_list, val_list,
                decoder_file, qy_file, qz_file,
@@ -136,6 +39,8 @@ def train_pdda(iv_file, train_list, val_list,
                px_form, qy_form, qz_form,
                min_kl, **kwargs):
 
+    set_float_cpu('float32')
+    
     vcr_args = VCR.filter_args(**kwargs)
     opt_args = KOF.filter_args(**kwargs)
     cb_args = KCF.filter_args(**kwargs)

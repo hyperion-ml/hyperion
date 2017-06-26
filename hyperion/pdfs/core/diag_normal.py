@@ -19,30 +19,51 @@ from .exp_family import ExpFamily
 
 class DiagNormal(ExpFamily):
     
-    def __init__(self, mu=None, Lambda=None, var_floor=1e-5, **kwargs):
+    def __init__(self, mu=None, Lambda=None, var_floor=1e-5,
+                 update_mu=True, update_Lambda=True, **kwargs):
         super(DiagNormal, self).__init__(**kwargs)
         self.mu = mu
         self.Lambda = Lambda
         self.var_floor = var_floor
-        self._lnLambda = None
+        self.update_mu = update_mu
+        self.update_Lambda = update_Lambda
+
+        self._compute_normal_nat_std()
+
+        self._logLambda = None
         self._cholLambda = None
         self._Sigma = None
 
 
+
+    def _compute_normal_nat_std(self):
+        if self.mu is not None and self.Lambda is not None:
+            self._validate_mu()
+            self._validate_Lambda()
+            self._compute_nat_params()
+        elif self.eta is not None:
+            self._validate_eta()
+            self.A = self.compute_A_nat(self.eta)
+            self._compute_std_params()
+
+
+            
     @property
-    def lnLambda(self):
-        if self._lnLambda is None:
-            self._lnLambda = np.sum(np.log(self.Lambda))
-        return self._lnLambda
+    def logLambda(self):
+        if self._logLambda is None:
+            self._logLambda = np.sum(np.log(self.Lambda))
+        return self._logLambda
 
 
+    
     @property
     def cholLambda(self):
         if self._cholLambda is None:
             self._cholLambda = np.sqrt(self.Lambda)
         return self._cholLambda
             
-            
+
+    
     @property
     def Sigma(self):
         if self._Sigma is None:
@@ -50,14 +71,12 @@ class DiagNormal(ExpFamily):
         return self._Sigma
     
 
+    
     def initialize(self):
         self.validate()
-        if (self.mu is not None) and (self.Lambda is not None):
-            self._compute_nat_params()
-        elif self.eta is not None:
-            self.A = self.compute_A_nat(self.eta)
-            self._compute_std_params()
+        self._compute_normal_nat_std()
 
+        
     
     def stack_suff_stats(self, F, S=None):
         if S is None:
@@ -71,36 +90,37 @@ class DiagNormal(ExpFamily):
         return F, S
 
     
-    def accum_norm_suff_stats(self, x, u_x=None, sample_weights=None,
-                              return_order2=False):
-        N, acc_u_x = self.accum_suff_stats(x, u_x, sample_weights)
-        F, S = self.unstack_suff_stats(acc_u_x)
+    def norm_suff_stats(self, N, u_x=None, return_order2=False):
+        F, S = self.unstack_suff_stats(u_x)
+        F_norm = self.cholLambda*(F-N*self.mu)
         if return_order2:
-            S=S-2*self.mu*F+N*self.mu**2
-        else:
-            S=None
-        F=self.cholLambda*(F-N*self.mu)
-        return N, self.stack_suff_stats(F, S)
+            S = S-2*self.mu*F+N*self.mu**2
+            S *= self.Lambda 
+            return N, self.stack_suff_stats(F_norm, S)
+        return N, F_norm
     
 
     def Mstep(self, N, u_x):
 
         F, S = self.unstack_suff_stats(u_x)
-        mu = F/N
-        S = S/N-mu**2
-        S[S<self.var_floor] = self.var_floor
 
-        self.mu=mu
-        self.Lambda=1/S
-        self._Sigma = S
-        self._cholLambda = None
-        self._lnLambda = None
+        if self.update_mu:
+            self.mu = F/N
+
+        if self.update_Lambda:
+            S = S/N-self.mu**2
+            S[S<self.var_floor] = self.var_floor
+            self.Lambda=1/S
+            self._Sigma = S
+            self._cholLambda = None
+            self._logLambda = None
+            
         self._compute_nat_params()
         
 
     def eval_llk_std(self, x):
         mah_dist2=np.sum(((x-self.mu)*self.cholLambda)**2, axis=1)
-        return 0.5*self.lnLambda-0.5*self.x_dim*np.log(2*np.pi)-0.5*mah_dist2
+        return 0.5*self.logLambda-0.5*self.x_dim*np.log(2*np.pi)-0.5*mah_dist2
 
 
     
@@ -120,7 +140,9 @@ class DiagNormal(ExpFamily):
 
     
     def get_config(self):
-        config = {'var_floor': self.var_floor }
+        config = {'var_floor': self.var_floor,
+                  'update_mu': self.update_mu,
+                  'update_lambda': self.update_Lambda }
         base_config = super(DiagNormal, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
@@ -139,19 +161,37 @@ class DiagNormal(ExpFamily):
         params = self._load_params_to_dict(f, config['name'], param_list)
         return cls(x_dim=config['x_dim'],
                    mu=params['mu'], Lambda=params['Lambda'],
-                   var_floor=config['var_floor'], name=config['name'])
+                   var_floor=config['var_floor'],
+                   update_mu=config['update_mu'],
+                   update_Lambda=config['update_lambda'], name=config['name'])
 
 
     
-    def validate(self):
-        if (self.mu is not None) and (self.Lambda is not None):
-            assert(self.mu.shape[0] == self.x_dim)
-            assert(self.Lambda.shape[0] == self.x_dim)
-            assert(np.all(self.Lambda > 0))
-        if self.eta is not None:
-            assert(self.eta.shape[0] == self.x_dim*2)
-            
+    def _validate_mu(self):
+        assert(self.mu.shape[0] == self.x_dim)
 
+
+        
+    def _validate_Lambda(self):
+        assert(self.Lambda.shape[0] == self.x_dim)
+        assert(np.all(self.Lambda > 0))
+
+
+        
+    def _validate_eta(self):
+        assert(self.eta.shape[0] == self.x_dim*2)
+
+
+
+    def validate(self):
+        if self.mu is not None and self.Lambda is not None:
+            self._validate_mu()
+            self._validate_Lambda()
+            
+        if self.eta is not None:
+            self._validate_eta()
+
+               
             
     @staticmethod
     def compute_eta(mu, Lambda):
@@ -205,7 +245,7 @@ class DiagNormal(ExpFamily):
     def _compute_std_params(self):
         self.mu, self.Lambda = self.compute_std(self.eta)
         self._cholLambda = None
-        self._lnLambda = None
+        self._logLambda = None
         self._Sigma = None
         
         

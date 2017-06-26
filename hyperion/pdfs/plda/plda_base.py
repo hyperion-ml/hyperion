@@ -28,7 +28,7 @@ class PLDABase(PDF):
         pass
 
     @abstractmethod
-    def compute_py(self, D):
+    def compute_py_g_x(self, D):
         pass
 
             

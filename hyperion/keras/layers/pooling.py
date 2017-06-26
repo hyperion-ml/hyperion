@@ -15,6 +15,30 @@ from .. import backend_addons as K2
 from .. import constraints as hyp_constraints
 
 
+
+class GlobalMaskedMaxPooling1D(Layer):
+
+    def __init__(self, **kwargs):
+        super(GlobalMaskedMaxPooling1D, self).__init__(**kwargs)
+        self.input_spec = [InputSpec(ndim=3), InputSpec(min_ndim=2)]
+        self.supports_masking = True
+
+        
+    def compute_output_shape(self, input_shape):
+        return (input_shape[0][0], input_shape[0][2])
+
+    
+    def call(self, xw, mask=None):
+        x, weights = xw
+        return K2.max_with_mask(x, weights, axis=1)
+
+    
+    def compute_mask(self, inputs, mask=None):
+        return None
+
+
+    
+
 class GlobalMaskedAveragePooling1D(_GlobalPooling1D):
 
     def __init__(self, **kwargs):
@@ -31,7 +55,7 @@ class GlobalWeightedAveragePooling1D(Layer):
 
     def __init__(self, **kwargs):
         super(GlobalWeightedAveragePooling1D, self).__init__(**kwargs)
-        self.input_spec = [InputSpec(ndim=3), InputSpec(ndim=2)]
+        self.input_spec = [InputSpec(ndim=3), InputSpec(min_ndim=2)]
         self.supports_masking = True
 
         
@@ -54,7 +78,7 @@ class GlobalWeightedSumPooling1D(Layer):
 
     def __init__(self, **kwargs):
         super(GlobalWeightedSumPooling1D, self).__init__(**kwargs)
-        self.input_spec = [InputSpec(ndim=3), InputSpec(ndim=2)]
+        self.input_spec = [InputSpec(ndim=3), InputSpec(min_ndim=2)]
         self.supports_masking = True
 
         
@@ -115,11 +139,42 @@ class GlobalSumWeights(_GlobalPooling1D):
 
 
     
+class GlobalProdRenormDiagNormalStdPrior(Layer):
+
+    def __init__(self, **kwargs):
+        super(GlobalProdRenormDiagNormalStdPrior, self).__init__(**kwargs)
+        self.input_spec = [InputSpec(ndim=3), InputSpec(ndim=3), InputSpec(min_ndim=2)]
+        self.supports_masking = True
+
+        
+    def compute_output_shape(self, input_shape):
+        output_shape=(input_shape[0][0], input_shape[0][2])
+        return [output_shape, output_shape]
+
+    
+    def call(self, xvw, mask=None):
+        # input: mu_i/sigma2_i, log sigma2_i
+        x, logvar_i, weights = xvw
+        gamma = K.sum(x*weights, axis=1) 
+        N = K.sum(weights, axis=1)
+        sum_prec_i = K.sum(K.exp(-logvar_i)*weights, axis=1)
+        #prec = 1 + K.relu(sum_prec_i - N)
+        prec = 1 + K.relu(sum_prec_i)
+        mu  = gamma/prec
+        logvar = - K.log(prec)
+        return [mu, logvar]
+
+    
+    def compute_mask(self, inputs, mask=None):
+        return [None, None]
+
+    
+    
 class GlobalProdRenormDiagNormalCommonCovStdPrior(Layer):
 
     def __init__(self, **kwargs):
         super(GlobalProdRenormDiagNormalCommonCovStdPrior, self).__init__(**kwargs)
-        self.input_spec = [InputSpec(ndim=3), InputSpec(ndim=3), InputSpec(ndim=2)]
+        self.input_spec = [InputSpec(ndim=3), InputSpec(ndim=2), InputSpec(ndim=2)]
         self.supports_masking = True
 
         

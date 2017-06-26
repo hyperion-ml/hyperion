@@ -15,3 +15,8 @@ def cholesky(x, lower=False):
 def tile(x, n):
     y = T.tile(x, n)
     return y
+
+
+def max_with_mask(x, mask, axis=None, keepdims=False):
+    y = x - 1e10 * (1-mask)
+    return T.max(y*mask, axis=axis, keepdims=keepdims)

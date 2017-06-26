@@ -6,7 +6,6 @@ from six.moves import xrange
 
 import numpy as np
 import h5py
-
 import scipy.linalg as la
 from scipy.special import erf
 
@@ -19,30 +18,48 @@ from .diag_normal import ExpFamily
 
 class Normal(ExpFamily):
 
-    def __init__(self, mu=None, Lambda=None, var_floor=1e-5, **kwargs):
+    def __init__(self, mu=None, Lambda=None, var_floor=1e-5,
+                 update_mu=True, update_Lambda=True, **kwargs):
         super(Normal, self).__init__(**kwargs)
         self.mu = mu
         self.Lambda = Lambda
         self.var_floor = var_floor
-        self._lnLambda = None
+        self.update_mu = update_mu
+        self.update_Lambda = update_Lambda
+
+        self._compute_normal_nat_std()
+        
+        self._logLambda = None
         self._cholLambda = None
         self._Sigma = None
 
 
+        
+    def _compute_normal_nat_std(self):
+        if self.mu is not None and self.Lambda is not None:
+            self._validate_mu()
+            self._validate_Lambda()
+            self._compute_nat_params()
+        elif self.eta is not None:
+            self._validate_eta()
+            self.A = self.compute_A_nat(self.eta)
+            self._compute_std_params()
+
+        
     @property
-    def lnLambda(self):
-        if self._lnLambda is None:
+    def logLambda(self):
+        if self._logLambda is None:
             f, L, logL = invert_pdmat(self.Lambda, return_logdet=True)
-            self._lnLambda = logL
+            self._logLambda = logL
             self._cholLambda = L.T
-        return self._lnLambda
+        return self._logLambda
 
 
     @property
     def cholLambda(self):
         if self._cholLambda is None:
             f, L, logL = invert_pdmat(self.Lambda, return_logdet=True)
-            self._lnLambda = logL
+            self._logLambda = logL
             self._cholLambda = L.T
         return self._cholLambda
 
@@ -55,12 +72,7 @@ class Normal(ExpFamily):
     
     def initialize(self):
         self.validate()
-        if (self.mu is not None) and (self.Lambda is not None):
-            self._compute_nat_params()
-        elif self.eta is not None:
-            # self.A = self.compute_A_nat(self.eta)
-            self._compute_std_params()
-            self.A = self.compute_A_std(self.mu, self.Lambda)
+        self._compute_normal_nat_std()
 
 
     def stack_suff_stats(self, F, S=None):
@@ -68,60 +80,62 @@ class Normal(ExpFamily):
             return F
         return np.hstack((F,S))
     
+
     
     def unstack_suff_stats(self, stats):
         F=stats[:self.x_dim]
         S=stats[self.x_dim:]
         return F, S
 
+    
 
-    def accum_suff_stats(self, x, u_x=None, sample_weights=None, batch_size=None):
+    def accum_suff_stats(self, x, u_x=None, sample_weight=None, batch_size=None):
         if u_x is None:
-            if sample_weights is None:
+            if sample_weight is None:
                 N = x.shape[0]
                 F = np.sum(x, axis=0)
                 S = symmat2vec(np.dot(x.T, x))
             else:
-                N = np.sum(sample_weights)
-                wx = sample_weights[:, None]*x
+                N = np.sum(sample_weight)
+                wx = sample_weight[:, None]*x
                 F = np.sum(wx, axis=0)
                 S = symmat2vec(np.dot(wx.T, x))
             return N, self.stack_suff_stats(F, S)
         else:
-            return self._accum_suff_stats_1batch(x, u_x, sample_weights)
+            return self._accum_suff_stats_1batch(x, u_x, sample_weight)
 
 
         
-    def accum_norm_suff_stats(self, x, u_x=None, sample_weights=None, return_order2=False):
-        N, acc_u_x = self.accum_suff_stats(x, u_x, sample_weights)
-        F, S = self.unstack_suff_stats(acc_u_x)
+    def norm_suff_stats(self, N, u_x, return_order2=False):
+        F, S = self.unstack_suff_stats(u_x)
+        F_norm = np.dot(F-N*self.mu, self.cholLambda.T)
         if return_order2:
             SS = vec2symat(S)
             Fmu = np.outer(self.F, self.mu)
             SS = SS-Fmu-Fmu.T+N*np.outer(self.mu,self.mu)
             SS = np.dot(self.cholLambda, np.dot(SS, self.cholLambda.T))
             S = symmat2vec(SS)
-        else:
-            S = None
-        F = np.dot(F-N*self.mu, self.cholLambda.T)
-        return N, self.stack_suff_stats(F, S)
+            return N, self.stack_suff_stats(F_norm, S)
+        return N, F_norm
+
     
 
     def Mstep(self, N, u_x):
 
-        self._Sigma = None
-        self._lnLambda = None
-        self._cholLambda = None
-        
         F, S = self.unstack_suff_stats(u_x)
-        self.mu = F/N
 
-        S = vec2symmat(S/N)
-        S -= np.outer(self.mu,self.mu)
-        cholS = la.cholesky(S, overwrite_a=True)
-        cholS = fullcov_varfloor(cholS, np.sqrt(self.var_floor))
-        icholS = invert_trimat(cholS, return_inv=True)[2]
-        self.Lambda=np.dot(icholS, icholS.T)
+        if self.update_mu:
+            self.mu = F/N
+
+        if self.update_Lambda:
+            S = vec2symmat(S/N)
+            S -= np.outer(self.mu,self.mu)
+            S = fullcov_varfloor(S, np.sqrt(self.var_floor))
+            self.Lambda = invert_pdmat(S, return_inv=True)[-1]
+            self._Sigma = None
+            self._logLambda = None
+            self._cholLambda = None
+
 
         self._compute_nat_params()
 
@@ -129,7 +143,7 @@ class Normal(ExpFamily):
         
     def eval_llk_std(self, x):
         mah_dist2 = np.sum(np.dot(x-self.mu,self.cholLambda)**2, axis=1)
-        return 0.5*self.lnLambda-0.5*self.x_dim*np.log(2*np.pi)-0.5*mah_dist2
+        return 0.5*self.logLambda-0.5*self.x_dim*np.log(2*np.pi)-0.5*mah_dist2
 
 
     
@@ -147,7 +161,7 @@ class Normal(ExpFamily):
     
     def generate(self, num_samples, rng=None, seed=1024):
         if rng is None:
-            rng=np.random.RandomState(seed)
+            rng = np.random.RandomState(seed)
         return rng.multivariate_normal(self.mu, self.Sigma,size=(num_samples,)).astype(float_cpu())
         # x=rng.normal(size=(num_samples, self.x_dim))
         # cholS=la.cholesky(self.Sigma, lower=False, overwrite_a=True)
@@ -156,7 +170,9 @@ class Normal(ExpFamily):
 
     
     def get_config(self):
-        config = {'var_floor': self.var_floor }
+        config = {'var_floor': self.var_floor,
+                  'update_mu': self.update_mu,
+                  'update_lambda': self.update_Lambda }
         base_config = super(Normal, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
@@ -175,16 +191,34 @@ class Normal(ExpFamily):
         params = self._load_params_to_dict(f, config['name'], param_list)
         return cls(x_dim=config['x_dim'],
                    mu=params['mu'], Lambda=params['Lambda'],
-                   var_floor=config['var_floor'], name=config['name'])
+                   var_floor=config['var_floor'],
+                   update_mu=config['update_mu'],
+                   update_Lambda=config['update_lambda'],
+                   name=config['name'])
 
 
-    
+    def _validate_mu(self):
+        assert(self.mu.shape[0] == self.x_dim)
+
+
+
+    def _validate_Lambda(self):
+        assert(self.Lambda.shape == (self.x_dim, self.x_dim))
+
+
+
+    def _validate_eta(self):
+        assert(self.eta.shape[0] == (self.x_dim**2+3*self.x_dim)/2)
+
+
+        
     def validate(self):
-        if (self.mu is not None) and (self.Lambda is not None):
-            assert(self.mu.shape[0] == self.x_dim)
-            assert(self.Lambda.shape == (self.x_dim, self.x_dim))
+        if self.mu is not None and self.Lambda is not None:
+            self._validate_mu()
+            self._validate_Lambda()
+            
         if self.eta is not None:
-            assert(self.eta.shape[0] == (self.x_dim**2+3*self.x_dim)/2)
+            self._validate_eta()
 
 
             
@@ -255,7 +289,7 @@ class Normal(ExpFamily):
     def _compute_std_params(self):
         self.mu, self.Lambda = self.compute_std(self.eta)
         self._cholLambda = None
-        self._lnLambda = None
+        self._logLambda = None
         self._Sigma = None
 
 

@@ -149,9 +149,12 @@ class TiedVAE_qYqZ(VAE):
                            sample_weight_mode='temporal')
         self.is_compiled=True
 
-            
+
     def compute_qyz_x(self, x, batch_size):
         return self.encoder_net.predict(x, batch_size=batch_size)
+        
+    def compute_qy_x(self, x, batch_size):
+        return self.encoder_net.predict(x, batch_size=batch_size)[:2]
 
     
     def compute_px_yz(self, y, z, batch_size):
@@ -372,27 +375,41 @@ class TiedVAE_qYqZ(VAE):
     
 
 
-    def eval_llr_Nvs1(self, x1, ids1, x2, score_mask=None, pool_method='vavg-lnorm', eval_method='elbo', num_samples=1):
+    def eval_llr_Nvs1(self, x1, ids1, x2, score_mask=None,
+                      pool_method='vavg-lnorm', eval_method='qscr',
+                      num_samples=1):
+        
         if  pool_method == 'savg':
-            return eval_llr_Nvs1_savg(self, x1, ids1, x2, score_mask=score_mask, method=eval_method, num_samples=num_samples)
+            return self.eval_llr_Nvs1_savg(x1, ids1, x2, score_mask=score_mask,
+                                           method=eval_method,
+                                           num_samples=num_samples)
         if pool_method == 'vavg':
-            return eval_llr_Nvs1_vavg(self, x1, ids1, x2, score_mask=score_mask, do_lnorm=False, method=eval_method, num_samples=num_samples)
+            return self.eval_llr_Nvs1_vavg(x1, ids1, x2, score_mask=score_mask,
+                                           do_lnorm=False, method=eval_method,
+                                           num_samples=num_samples)
         if pool_method == 'vavg-lnorm':
-            return eval_llr_Nvs1_vavg(self, x1, ids1, x2, score_mask=score_mask, do_lnorm=True, method=eval_method, num_samples=num_samples)
+            return self.eval_llr_Nvs1_vavg(x1, ids1, x2, score_mask=score_mask,
+                                           do_lnorm=True, method=eval_method,
+                                           num_samples=num_samples)
         if pool_method == 'book':
-            return eval_llr_Nvs1_book(self, x1, ids1, x2, score_mask=score_mask, method=eval_method, num_samples=num_samples)
+            return self.eval_llr_Nvs1_book(x1, ids1, x2, score_mask=score_mask,
+                                           method=eval_method,
+                                           num_samples=num_samples)
 
         
 
-    def eval_llr_Nvs1_savg(self, x1, ids1, x2, score_mask=None, method='elbo', num_samples=1):
-        scores_1vs1 = self.eval_llr_1vs1(x1, x2, score_mask=score_mask, method=method, num_samples=num_samples)
+    def eval_llr_Nvs1_savg(self, x1, ids1, x2, score_mask=None, method='qscr',
+                           num_samples=1):
+        scores_1vs1 = self.eval_llr_1vs1(x1, x2, score_mask=score_mask,
+                                         method=method, num_samples=num_samples)
         N, F, _ = self.compute_stats(scores_1vs1, ids1)
         scores = F/N[:, None]
         return scores
 
             
 
-    def eval_llr_Nvs1_vavg(self, x1, ids1, x2, score_mask=None, method='elbo', num_samples=1):
+    def eval_llr_Nvs1_vavg(self, x1, ids1, x2, score_mask=None, do_lnorm=True, method='qscr',
+                           num_samples=1):
         N, F, _ = PLDABase.compute_stats_hard(x1, class_ids=ids1)
         x1=F/np.expand_dims(N, axis=-1)
         if do_lnorm:
@@ -400,14 +417,15 @@ class TiedVAE_qYqZ(VAE):
             x1=lnorm.predict(x1)
             x2=lnorm.predict(x2)
             
-        return self.eval_llr_1vs1(x1, x2, score_mask=score_mask, method=method, num_samples=num_samples)
+        return self.eval_llr_1vs1(x1, x2, score_mask=score_mask, method=method,
+                                  num_samples=num_samples)
 
     
         
-    def eval_llr_Nvs1_book(self, x1, ids1, x2, score_mask=None, method='elbo', num_samples=1):
+    def eval_llr_Nvs1_book(self, x1, ids1, x2, score_mask=None, method='qscr',
+                           num_samples=1):
         pass
-    
-    
+        
 
         
     def get_config(self):

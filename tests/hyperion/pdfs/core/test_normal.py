@@ -16,6 +16,7 @@ from numpy.testing import assert_allclose
 from hyperion.utils.math import symmat2vec
 from hyperion.pdfs import DiagNormal, Normal
 
+
 x_dim = 10
 num_samples = 1000
 batch_size = 250
@@ -32,6 +33,7 @@ def create_diag_pdf():
     model_diag = DiagNormal(mu=mu, Lambda=Lambda, x_dim=x_dim)
     model = Normal(mu=mu, Lambda=np.diag(Lambda), x_dim=x_dim)
     return model, model_diag
+
 
 
 def create_pdf():
@@ -51,7 +53,7 @@ def test_diag_properties():
     model, model_diag = create_diag_pdf()
     assert_allclose(model.Sigma, np.diag(model_diag.Sigma))
     assert_allclose(model.cholLambda, np.diag(np.sqrt(model_diag.Lambda)))
-    assert_allclose(model.lnLambda, np.sum(np.log(model_diag.Lambda)))
+    assert_allclose(model.logLambda, np.sum(np.log(model_diag.Lambda)))
 
 
     
@@ -60,18 +62,18 @@ def test_properties():
     model = create_pdf()
     assert_allclose(model.Sigma, la.inv(model.Lambda))
     assert_allclose(model.cholLambda, la.cholesky(model.Lambda, lower=True))
-    assert_allclose(model.lnLambda, 2*np.sum(np.log(np.diag(la.cholesky(model.Lambda)))))
+    assert_allclose(model.logLambda, 2*np.sum(np.log(np.diag(la.cholesky(model.Lambda)))))
                     
 
+    
 def test_diag_initialize():
-
+    
     model1, model1_diag = create_diag_pdf()
     model1.initialize()
     model1_diag.initialize()
 
     model2 = Normal(eta=model1.eta, x_dim=model1.x_dim)
     model2.initialize()
-
 
     assert_allclose(model1.compute_A_std(model1.mu, model1.Lambda), model1_diag.A)
     assert_allclose(model1.compute_A_nat(model1.eta), model1_diag.A)
@@ -94,9 +96,8 @@ def test_initialize():
     model2 = Normal(eta=model1.eta, x_dim=model1.x_dim)
     model2.initialize()
 
-    model3 = Normal(mu=model2.mu,
-                        Lambda=model2.Lambda,
-                        x_dim=model1.x_dim)
+    model3 = Normal(mu=model2.mu, Lambda=model2.Lambda,
+                    x_dim=model1.x_dim)
     model3.initialize()
 
     assert_allclose(model1.eta, model2.eta)
@@ -115,22 +116,20 @@ def test_initialize():
     
 def test_logh():
     model1 = create_pdf()
-    model1.initialize()
 
-    sample_weights = np.arange(1,num_samples+1, dtype=float)/num_samples
+    sample_weight = np.arange(1,num_samples+1, dtype=float)/num_samples
     
     assert(model1.logh(None) == 0)
-    assert(model1.accum_logh(None, sample_weights=sample_weights) == 0)
+    assert(model1.accum_logh(None, sample_weight=sample_weight) == 0)
 
 
     
 def test_suff_stats():
 
     model1 = create_pdf()
-    model1.initialize()
 
     x = model1.generate(num_samples)
-    sample_weights = 0.5*np.ones((num_samples,))
+    sample_weight = 0.5*np.ones((num_samples,))
 
     xx = []
     for i in xrange(x.shape[0]):
@@ -143,8 +142,8 @@ def test_suff_stats():
     N2, u_x2 = model1.accum_suff_stats(x, batch_size=batch_size)
 
     assert_allclose(model1.accum_suff_stats(x, batch_size=batch_size)[1], u_x)
-    assert_allclose(model1.accum_suff_stats(x, sample_weights=sample_weights)[1], 0.5*u_x)
-    assert_allclose(model1.accum_suff_stats(x, sample_weights=sample_weights,
+    assert_allclose(model1.accum_suff_stats(x, sample_weight=sample_weight)[1], 0.5*u_x)
+    assert_allclose(model1.accum_suff_stats(x, sample_weight=sample_weight,
                                             batch_size=batch_size)[1], 0.5*u_x)
                     
 
@@ -152,8 +151,6 @@ def test_suff_stats():
 def test_diag_eval_llk():
 
     model1, model1_diag = create_diag_pdf()
-    model1_diag.initialize()
-    model1.initialize()
 
     x = model1.generate(num_samples)
     
@@ -167,7 +164,6 @@ def test_diag_eval_llk():
 def test_eval_llk():
 
     model1 = create_pdf()
-    model1.initialize()
 
     x = model1.generate(num_samples)
     
@@ -183,14 +179,12 @@ def test_eval_llk():
 def test_diag_elbo():
 
     model1, model1_diag = create_diag_pdf()
-    model1_diag.initialize()
-    model1.initialize()
 
     x = model1.generate(num_samples)
-    sample_weights = 0.5*np.ones((num_samples,))
+    sample_weight = 0.5*np.ones((num_samples,))
     
     assert_allclose(model1.elbo(x), model1_diag.elbo(x))
-    assert_allclose(model1.elbo(x, sample_weights=sample_weights),
+    assert_allclose(model1.elbo(x, sample_weight=sample_weight),
                     0.5*model1_diag.elbo(x))
 
     
@@ -198,14 +192,13 @@ def test_diag_elbo():
 def test_elbo():
 
     model1 = create_pdf()
-    model1.initialize()
 
     x = model1.generate(num_samples)
-    sample_weights = 0.5*np.ones((num_samples,))
+    sample_weight = 0.5*np.ones((num_samples,))
     
     assert_allclose(model1.elbo(x),
                     np.sum(model1.eval_llk(x, mode='std')))
-    assert_allclose(model1.elbo(x, sample_weights=sample_weights),
+    assert_allclose(model1.elbo(x, sample_weight=sample_weight),
                     0.5*np.sum(model1.eval_llk(x, mode='std')))
     
 
@@ -224,7 +217,6 @@ def test_elbo():
 def test_diag_fit():
 
     model1, model1_diag = create_diag_pdf()
-    model1.initialize()
 
     x = model1.generate(num_samples_train)
     x_val = model1.generate(num_samples)
@@ -246,7 +238,6 @@ def test_diag_fit():
 def test_fit():
 
     model1 = create_pdf()
-    model1.initialize()
 
     x = model1.generate(num_samples_train)
     x_val = model1.generate(num_samples)
@@ -267,6 +258,7 @@ def test_fit():
     assert_allclose(elbo[3], np.mean(model2.eval_llk(x_val)), rtol=1e-4)
 
 
+    
 def test_plot():
     
     model1 = create_pdf()
@@ -288,8 +280,7 @@ def test_plot():
     plt.close()
 
 
-
-
+    
 if __name__ == '__main__':
     pytest.main([__file__])
 

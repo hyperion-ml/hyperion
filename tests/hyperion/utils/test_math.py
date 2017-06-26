@@ -151,12 +151,25 @@ def test_invert_lowertrimat_rightinv(dim=10):
 
 def test_softmax(dim=10):
     # test softmax
-    y_t = np.random.uniform(low=0., high=1.0, size=(dim*10, dim))
-    y_t/=np.sum(y_t, axis=-1, keepdims=True)
+    rng = np.random.RandomState(seed=0)
+    y_t = rng.uniform(low=0., high=1.0, size=(dim*10, dim))
+    y_t /= np.sum(y_t, axis=-1, keepdims=True)
 
     z = np.log(y_t)+10
     y = softmax(z)
     assert(np.allclose(y_t, y))
+
+
+
+def test_logsumexp(dim=10):
+    # test softmax
+    rng = np.random.RandomState(seed=0)
+    y_t = rng.uniform(low=0., high=1.0, size=(dim*10, dim))
+    z = np.log(y_t)
+    y_t = np.log(np.sum(y_t, axis=-1)+1e-20)
+
+    y = logsumexp(z)
+    assert(np.allclose(y_t, y, rtol=1e-5))
 
     
 # test fisher ratio
@@ -213,13 +226,34 @@ def test_fullcov_varfloor(dim=10):
     D1=np.dot(u*d1, u.T)
 
     F=A
+    RF=la.cholesky(F)
+    DF_1=fullcov_varfloor(D1, RF, lower=False)
+
+    RF=la.cholesky(F).T
+    DF_2=fullcov_varfloor(D1, RF, lower=True)
+    assert(np.allclose(DF_1, F))
+    assert(np.allclose(DF_1, F))
+
+
+
+
+def test_fullcov_varfloor_from_cholS(dim=10):
+
+    A = create_matrices(dim)[0]
+    u, d, _= la.svd(A, full_matrices=False)
+    assert(np.allclose(A, np.dot(u*d, u.T)))
+    d1=d
+    d1[int(dim/2):]=0.0001
+    D1=np.dot(u*d1, u.T)
+
+    F=A
     RD1=la.cholesky(D1)
     RF=la.cholesky(F)
-    RF_1=fullcov_varfloor(RD1, RF, lower=False)
+    RF_1=fullcov_varfloor_from_cholS(RD1, RF, lower=False)
 
     RD1=la.cholesky(D1).T
     RF=la.cholesky(F).T
-    RF_2=fullcov_varfloor(RD1, RF, lower=True)
+    RF_2=fullcov_varfloor_from_cholS(RD1, RF, lower=True)
     assert(np.allclose(RF, RF_2))
     assert(np.allclose(RF_1, RF_2.T))
     

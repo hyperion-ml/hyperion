@@ -35,15 +35,15 @@ def data_generator(sr, max_length):
     while 1:
         kk+=1
         print('dg %d.' % kk)
-        x, sample_weights = sr.read(return_3d=True, max_seq_length=max_length)
+        x, sample_weight = sr.read(return_3d=True, max_seq_length=max_length)
         return_sw = True
-        if sr.max_batch_seq_length==max_length and (
-                sr.min_seq_length==sr.max_seq_length or
-                np.min(sr.seq_length)==sr.max_seq_length):
+        if sr.max_batch_seq_length == max_length and (
+                sr.min_seq_length == sr.max_seq_length or
+                np.min(sr.seq_length) == sr.max_seq_length):
             return_sw = False
                                       
         if return_sw:
-            yield (x, x, sample_weights)
+            yield (x, x, sample_weight)
         else:
             yield (x, x)
 
@@ -56,6 +56,7 @@ def train_tvae(seq_file, train_list, val_list,
                px_form, qy_form, qz_form,
                min_kl, **kwargs):
 
+    set_float_cpu(float_keras())
     
     sr_args = SR.filter_args(**kwargs)
     sr_val_args = SR.filter_val_args(**kwargs)
