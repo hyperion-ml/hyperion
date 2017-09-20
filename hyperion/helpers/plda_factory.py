@@ -44,7 +44,7 @@ class PLDAFactory(object):
                       'fullcov_W', 'update_mu', 'update_V', 'update_B', 'update_W',
                       'epochs', 'ml_md', 'md_epochs', 'name')
         return dict((k, kwargs[p+k])
-                    for k in valid if p+k in kwargs)
+                    for k in valid_args if p+k in kwargs)
 
 
     
@@ -70,21 +70,21 @@ class PLDAFactory(object):
                             default=400,
                             help='num. of eigenchannels')
 
-        parser.add_argument(p1+'fullcov-W', dest=(p2+'fullcov_W'), type=bool,
-                            default=True,
-                            help='use full covariance W')
-        parser.add_argument(p1+'update-mu', dest=(p2+'update_mu'), type=bool,
-                            default=True,
-                            help='update mu')
-        parser.add_argument(p1+'update-V', dest=(p2+'update_V'), type=bool,
-                            default=True,
-                            help='update V')
-        parser.add_argument(p1+'update-B', dest=(p2+'update_B'), type=bool,
-                            default=True,
-                            help='update B')
-        parser.add_argument(p1+'update-W', dest=(p2+'update_W'), type=bool,
-                            default=True,
-                            help='update W')
+        parser.add_argument(p1+'diag-W', dest=(p2+'fullcov_W'),
+                            default=True, action='store_false',
+                            help='use diagonal covariance W')
+        parser.add_argument(p1+'no-update-mu', dest=(p2+'update_mu'),
+                            default=True, action='store_false',
+                            help='not update mu')
+        parser.add_argument(p1+'no-update-V', dest=(p2+'update_V'),
+                            default=True, action='store_false',
+                            help='not update V')
+        parser.add_argument(p1+'no-update-B', dest=(p2+'update_B'),
+                            default=True, action='store_false',
+                            help='not update B')
+        parser.add_argument(p1+'no-update-W', dest=(p2+'update_W'),
+                            default=True, action='store_false',
+                            help='not update W')
 
         parser.add_argument(p1+'epochs', dest=(p2+'epochs'), type=int,
                             default=40,

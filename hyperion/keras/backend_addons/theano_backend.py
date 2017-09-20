@@ -13,8 +13,7 @@ def cholesky(x, lower=False):
     return sla.Cholesky(lower)(x)
 
 def tile(x, n):
-    y = T.tile(x, n)
-    return y
+    return T.tile(x, n)
 
 
 def max_with_mask(x, mask, axis=None, keepdims=False):

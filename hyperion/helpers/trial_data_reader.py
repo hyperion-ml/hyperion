@@ -59,6 +59,20 @@ class TrialDataReader(object):
         return x_e, x_t, self.enroll.key, self.ndx
 
 
+
+    @staticmethod
+    def filter_args(prefix=None, **kwargs):
+        if prefix is None:
+            p = ''
+        else:
+            p = prefix + '_'
+        valid_args = ('scp_sep', 'v_field',
+                      'model_idx','num_model_parts',
+                      'seg_idx', 'num_seg_parts',
+                      'eval_set')
+        return dict((k, kwargs[p+k])
+                    for k in valid_args if p+k in kwargs)
+
     
     @staticmethod
     def add_argparse_args(parser, prefix=None):

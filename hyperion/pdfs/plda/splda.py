@@ -218,17 +218,17 @@ class SPLDA(PLDABase):
 
 
     def get_config(self):
-        config = { 'update_W': self.update_W,
-                   'update_V': self.update_V,
-                   'fullcov_W': self.fullcov_W}
+        config = {'update_W': self.update_W,
+                  'update_V': self.update_V,
+                  'fullcov_W': self.fullcov_W}
         base_config = super(SPLDA, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
 
     def save_params(self, f):
-        params = { 'mu': self.mu,
-                   'V': self.V,
-                   'W': self.W}
+        params = {'mu': self.mu,
+                  'V': self.V,
+                  'W': self.W}
         self._save_params_from_dict(f, params)
 
 

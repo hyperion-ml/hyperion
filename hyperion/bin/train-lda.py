@@ -43,7 +43,7 @@ def train_lda(iv_file, train_list, preproc_file,
               csplit_min_spc, csplit_max_spc, csplit_mode,
               csplit_overlap, vcr_seed, 
               lda_dim,
-              name, save_tlist, append_tlist, out_path, **kwargs):
+              name, save_tlist, append_tlist, output_path, **kwargs):
 
     
     if preproc_file is not None:
@@ -84,7 +84,7 @@ def train_lda(iv_file, train_list, preproc_file,
         else:
             model = TransformList(model)
 
-    model.save(out_path)
+    model.save(output_path)
         
     
     
@@ -101,13 +101,13 @@ if __name__ == "__main__":
 
     VCR.add_argparse_args(parser)
 
-    parser.add_argument('--out-path', dest='out_path', required=True)
+    parser.add_argument('--output-path', dest='output_path', required=True)
     parser.add_argument('--lda-dim', dest='lda_dim', type=int,
                         default=None)
-    parser.add_argument('--save-tlist', dest='save_tlist', type=bool,
-                        default=True)
-    parser.add_argument('--append-tlist', dest='append_tlist', type=bool,
-                        default=True)
+    parser.add_argument('--no-save-tlist', dest='save_tlist',
+                        default=True, action='store_false')
+    parser.add_argument('--no-append-tlist', dest='append_tlist', 
+                        default=True, action='store_false')
     parser.add_argument('--name', dest='name', default='lda')
     
     args=parser.parse_args()

@@ -22,9 +22,10 @@ from keras import backend as K
 from keras import optimizers
 from keras import objectives
 from keras.layers import Input, Lambda, Concatenate, Reshape
-from keras.models import Model
+from keras.models import Model, load_model, model_from_json
 
 from .. import objectives as hyp_obj
+from ..keras_utils import *
 from ..layers import *
 
 from .tied_cvae_qyqz import TiedCVAE_qYqZ
@@ -153,12 +154,32 @@ class TiedCVAE_qYqZgY(TiedCVAE_qYqZ):
                    kl_z + kl_y(x))
 
 
+        
+    def compute_qy_x2(self, x, batch_size):
+        return self.qy_net.predict(x, batch_size=batch_size)
+
+
+    
+    def save(self, file_path):
+        file_model = '%s.json' % (file_path)
+        with open(file_model, 'w') as f:
+            f.write(self.to_json())
+        
+        file_model = '%s.qy.h5' % (file_path)
+        self.qy_net.save(file_model)
+        file_model = '%s.qz.h5' % (file_path)
+        self.qz_net.save(file_model)
+        file_model = '%s.dec.h5' % (file_path)
+        self.decoder_net.save(file_model)
+
+
+        
 
     @classmethod
     def load(cls, file_path):
         file_config = '%s.json' % (file_path)
         with open(file_config,'r') as f:
-            config=VAE.load_config_from_json(f.read())
+            config=TiedCVAE_qYqZgY.load_config_from_json(f.read())
 
         file_model = '%s.qy.h5' % (file_path)
         qy_net = load_model(file_model, custom_objects=get_keras_custom_obj())

@@ -41,7 +41,7 @@ def load_data(iv_file, train_file, preproc):
 
 def train_mvn(iv_file, train_list, preproc_file,
               scp_sep, v_field,
-              name, save_tlist, append_tlist, out_path, **kwargs):
+              name, save_tlist, append_tlist, output_path, **kwargs):
     
     if preproc_file is not None:
         preproc = TransformList.load(preproc_file)
@@ -75,7 +75,7 @@ def train_mvn(iv_file, train_list, preproc_file,
         else:
             model = TransformList(model)
 
-    model.save(out_path)
+    model.save(output_path)
         
     
     
@@ -91,11 +91,11 @@ if __name__ == "__main__":
     parser.add_argument('--preproc-file', dest='preproc_file', default=None)
     VR.add_argparse_args(parser)
 
-    parser.add_argument('--out-path', dest='out_path', required=True)
-    parser.add_argument('--save-tlist', dest='save_tlist', type=bool,
-                        default=True)
-    parser.add_argument('--append-tlist', dest='append_tlist', type=bool,
-                        default=True)
+    parser.add_argument('--output-path', dest='output_path', required=True)
+    parser.add_argument('--no-save-tlist', dest='save_tlist',
+                        default=True, action='store_false')
+    parser.add_argument('--no-append-tlist', dest='append_tlist', 
+                        default=True, action='store_false')
     parser.add_argument('--name', dest='name', default='mvn')
     
     args=parser.parse_args()

@@ -182,7 +182,7 @@ class TrialNdx(object):
         assert(len(np.unique(self.model_set)) == len(self.model_set))
         assert(len(np.unique(self.seg_set)) == len(self.seg_set))
         if self.trial_mask is None:
-            self.trial_mask = np.ones((len(model_set), len(seg_set)),
+            self.trial_mask = np.ones((len(self.model_set), len(self.seg_set)),
                                       dtype='bool')
         else:
             assert(self.trial_mask.shape ==

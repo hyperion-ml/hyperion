@@ -247,18 +247,36 @@ class ExpTaylor(Layer):
         return dict(list(base_config.items()) + list(config.items()))
 
 
+class Log(Layer):
+    def call(self, inputs, mask=None):
+        return K.log(inputs)
+
     
 class Log1(Layer):
     def call(self, inputs, mask=None):
         return K.log(inputs+1)
 
-
+class NegLog(Layer):
+    def call(self, inputs, mask=None):
+        return -K.log(inputs)
     
 class NegLog1(Layer):
     def call(self, inputs, mask=None):
         return -K.log(inputs+1)
+    
 
+class NegSoftplus(Layer):
+    def call(self, inputs, mask=None):
+        return -K.log(1+K.exp(-inputs))
 
     
+class Add1(Layer):
+    def call(self, inputs, mask=None):
+        return inputs+1
+
+
+class Add01(Layer):
+    def call(self, inputs, mask=None):
+        return inputs+0.1
 
     

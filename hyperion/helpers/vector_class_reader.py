@@ -23,6 +23,7 @@ from ..transforms import TransformList
 class VectorClassReader(object):
 
     def __init__(self, v_file, key_file, preproc=None, scp_sep='=', v_field='',
+                 class2int_file=None,
                  min_spc=1, max_spc=None, spc_pruning_mode='random',
                  csplit_min_spc=1, csplit_max_spc=None, csplit_mode='random',
                  csplit_overlap=0, vcr_seed=1024, csplit_once=True):
@@ -31,6 +32,12 @@ class VectorClassReader(object):
         self.scp = SCPList.load(key_file, sep=scp_sep)
         self.preproc = preproc
         self.field = v_field
+
+        self.map_class2int = None
+        if class2int_file is not None:
+            with open(class2int_file, 'r') as f:
+                self.map_class2int = {v[0]:int(v[1]) for v in [ line.rstrip().split() for line in f ]}
+        
         self.rng = np.random.RandomState(vcr_seed)
         self.csplit_max_spc = csplit_max_spc
         self.csplit_min_spc = csplit_min_spc
@@ -56,7 +63,10 @@ class VectorClassReader(object):
         if self.preproc is not None:
             x = self.preproc.predict(x)
 
-        _, class_ids=np.unique(scp.key, return_inverse=True)
+        if self.map_class2int is None:
+            _, class_ids=np.unique(scp.key, return_inverse=True)
+        else:
+            class_ids = np.array([ self.map_class2int[k] for k in scp.key ], dtype=int)
         if return_3d:
             x, sample_weight = to3D_by_class(x, class_ids, max_length)
             return x, sample_weight
@@ -188,7 +198,7 @@ class VectorClassReader(object):
             p = ''
         else:
             p = prefix + '_'
-        valid_args = ('scp_sep', 'v_field', 
+        valid_args = ('scp_sep', 'v_field', 'class2int_file',
                       'min_spc', 'max_spc', 'spc_pruning_mode',
                       'csplit_min_spc', 'csplit_max_spc',
                       'csplit_mode', 'csplit_overlap',
@@ -209,7 +219,10 @@ class VectorClassReader(object):
                             help=('scp file field separator'))
         parser.add_argument(p1+'v-field', dest=(p2+'v_field'), default='',
                             help=('dataset field in input vector file'))
-        
+
+        parser.add_argument(p1+'class2int-file', dest=(p2+'class2int_file'), default=None,
+                            help=('file that maps class string to integer'))
+
         parser.add_argument(p1+'min-spc', dest=(p2+'min_spc'), type=int,
                             default=1,
                             help=('minimum samples per class'))
@@ -234,9 +247,9 @@ class VectorClassReader(object):
                             help=('class splitting mode'))
         parser.add_argument(p1+'csplit-overlap', dest=(p2+'csplit_overlap'), type=float,
                             default=0, help=('overlap between subclasses'))
-        parser.add_argument(p1+'csplit-once', dest=(p2+'csplit_once'), 
-                            default=True, type=bool,
-                            help=('class spliting done only once at the begining'))
+        parser.add_argument(p1+'no-csplit-once', dest=(p2+'csplit_once'), 
+                            default=True, action='store_false',
+                            help=('class spliting done in each iteration'))
         parser.add_argument(p1+'vcr-seed', dest=(p2+'vcr_seed'), type=int,
                             default=1024, help=('seed for rng'))
 

@@ -31,7 +31,7 @@ def train_plda(iv_file, train_list, val_list, preproc_file,
                fullcov_W,
                update_mu, update_V, update_B, update_W,
                name, epochs, ml_md, md_epochs,
-               out_path, **kwargs):
+               output_path, **kwargs):
     
     if preproc_file is not None:
         preproc = TransformList.load(preproc_file)
@@ -68,12 +68,12 @@ def train_plda(iv_file, train_list, val_list, preproc_file,
 
     print('Elapsed time: %.2f s.' % (time.time()-t1))
     
-    model.save(out_path)
+    model.save(output_path)
 
     elbo = np.vstack(elbos)
     num = np.arange(epochs)
     elbo = np.vstack((num, elbo)).T
-    elbo_path=os.path.splitext(out_path)[0] + '.csv'
+    elbo_path=os.path.splitext(output_path)[0] + '.csv'
     np.savetxt(elbo_path, elbo, delimiter=',')
     
     
@@ -92,7 +92,7 @@ if __name__ == "__main__":
     VCR.add_argparse_args(parser)
     F.add_argparse_train_args(parser)
 
-    parser.add_argument('--out-path', dest='out_path', required=True)
+    parser.add_argument('--output-path', dest='output_path', required=True)
     
     args=parser.parse_args()
     

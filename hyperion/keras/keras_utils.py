@@ -28,6 +28,11 @@ def get_keras_custom_obj():
         'Invert': Invert,
         'Exp': Exp,
         'ExpTaylor': ExpTaylor,
+        'Log': Log,
+        'NegLog': NegLog,
+        'NegSoftplus': NegSoftplus,
+        'Add1': Add1,
+        'Add01': Add01,
         'Log1': Log1,
         'NegLog1': NegLog1,
         'Repeat': Repeat,
@@ -36,9 +41,13 @@ def get_keras_custom_obj():
         'GlobalMaskedAveragePooling1D':  GlobalMaskedAveragePooling1D,
         'GlobalWeightedAveragePooling1D': GlobalWeightedAveragePooling1D,
         'GlobalWeightedSumPooling1D': GlobalWeightedSumPooling1D,
+        'GlobalWeightedMeanStdPooling1D': GlobalWeightedMeanStdPooling1D,
+        'GlobalWeightedMeanLogVarPooling1D': GlobalWeightedMeanLogVarPooling1D,
         'GlobalSumPooling1D': GlobalSumPooling1D,
         'GlobalSumWeights': GlobalSumWeights,
         'GlobalProdRenormDiagNormalStdPrior': GlobalProdRenormDiagNormalStdPrior,
+        'GlobalProdRenormDiagNormalStdPrior2': GlobalProdRenormDiagNormalStdPrior2,
+        'GlobalProdRenormDiagNormalStdPrior3': GlobalProdRenormDiagNormalStdPrior3,
         'GlobalProdRenormDiagNormalCommonCovStdPrior': GlobalProdRenormDiagNormalCommonCovStdPrior,
         'GlobalProdRenormDiagNormalConstCovStdPrior': GlobalProdRenormDiagNormalConstCovStdPrior,
         'GlobalProdRenormDiagNormalConstCovStdPrior2': GlobalProdRenormDiagNormalConstCovStdPrior2,
@@ -56,21 +65,25 @@ def get_keras_custom_obj():
     return custom_obj
 
 
+
 def load_model_arch(file_path):
     return model_from_json(open(file_path,'r').read(), get_keras_custom_obj())
+
 
 
 def save_model_arch(file_path, model):
     open(file_path,'w').write(model.to_json())
 
 
+    
 def filter_optimizer_args(**kwargs):
     return dict((k, kwargs[k])
                 for k in ('opt_type', 'lr', 'momentum', 'decay',
                           'rho', 'epsilon', 'beta_1', 'beta_2', 
                           'clipnorm', 'clipvalue') if k in kwargs)
     
-    
+
+
 def create_optimizer(opt_type, lr, momentum=0, decay=0.,
                      rho=0.9, epsilon=0., beta_1=0.9, beta_2=0.999, 
                      clipnorm=10, clipvalue=100):
@@ -95,6 +108,7 @@ def create_optimizer(opt_type, lr, momentum=0, decay=0.,
         return Adamax(lr=lr, beta_1=beta_1, beta_2=beta_2, epsilon=epsilon,
                       clipnorm=clipnorm, clipvalue=clipvalue)
 
+
     
 def filter_callbacks_args(**kwargs):
     return dict((k, kwargs[k])
@@ -103,6 +117,7 @@ def filter_callbacks_args(**kwargs):
                           'lr_steps', 'lr_patience', 'lr_factor',
                           'min_lr', 'log_append') if k in kwargs)
     
+
 
 def create_basic_callbacks(model, file_path, save_best_only=True, mode='min',
                            monitor = 'val_loss', patience=None, min_delta=1e-4,
@@ -140,6 +155,7 @@ def create_basic_callbacks(model, file_path, save_best_only=True, mode='min',
         cbs.append(cb)    
         
     return cbs
+
 
 
 def weighted_objective_per_sample(fn):
@@ -249,6 +265,7 @@ def make_eval_function(model, loss, loss_weights=None, **kwargs):
     return eval_function
 
 
+
 def make_batches(size, batch_size):
     '''Returns a list of batch indices (tuples of indices).
     '''
@@ -301,6 +318,7 @@ def _eval_loop(f, ins, batch_size=32):
     if len(outs) == 1:
         return outs[0]
     return outs
+
 
 
 def eval_loss(model, loss_function, x, y, batch_size=32, sample_weight=None):

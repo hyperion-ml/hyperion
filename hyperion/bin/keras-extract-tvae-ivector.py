@@ -19,6 +19,7 @@ import scipy.stats as scps
 from keras import backend as K
 
 from hyperion.hyp_defs import set_float_cpu, float_cpu
+from hyperion.io import HypDataWriter
 from hyperion.helpers import SequenceReader as SR
 from hyperion.transforms import TransformList
 from hyperion.keras.keras_utils import *
@@ -27,8 +28,8 @@ from hyperion.keras.vae import TiedVAE_qY as TVAEY
 
 
     
-def extract_ivector(seq_file, file_list, model_file, preproc_file, output_file,
-                    **kwargs):
+def extract_ivector(seq_file, file_list, model_file, preproc_file, output_path,
+                    qy_only, **kwargs):
 
     set_float_cpu('float32')
     
@@ -49,20 +50,25 @@ def extract_ivector(seq_file, file_list, model_file, preproc_file, output_file,
         model = TVAEY.load(model_file)
     else:
         model = TVAEYZ.load(model_file)
-
+        
+    model.build(max_seq_length=sr.max_batch_seq_length)
+            
     print(time.time()-t1)
-
-    y = np.zeros((sr.num_seqs,vae.y_dim), dtype=float_keras())
+    print(model.y_dim)
+    y = np.zeros((sr.num_seqs, model.y_dim), dtype=float_keras())
+    xx = np.zeros((1, sr.max_batch_seq_length, model.x_dim), dtype=float_keras())
     keys = []
     for i in xrange(sr.num_seqs):
-        x, key = sr.read_nex_seq()
+        x, key = sr.read_next_seq()
+        print('Extracting i-vector %d/%d for %s\n' % (i, sr.num_seqs, key))
         keys.append(key)
-        model.build(max_seq_length=2)
-        y[i] = vae.compute_qy_x()[0]
+        xx[:,:,:] = 0
+        xx[0,:x.shape[0]] = x
+        y[i] = model.compute_qy_x(xx, batch_size=1)[0]
             
     print('Extract elapsed time: %.2f' % (time.time() - t1))
     
-    hw = HypDataWriter(output_file)
+    hw = HypDataWriter(output_path)
     hw.write(keys, '', y)
 
     
@@ -78,7 +84,7 @@ if __name__ == "__main__":
     parser.add_argument('--file-list', dest='file_list', required=True)
     parser.add_argument('--preproc-file', dest='preproc_file', default=None)
     parser.add_argument('--model-file', dest='model_file', required=True)
-    parser.add_argument('--output-file', dest='out_file', required=True)
+    parser.add_argument('--output-path', dest='output_path', required=True)
 
     SR.add_argparse_eval_args(parser)
 

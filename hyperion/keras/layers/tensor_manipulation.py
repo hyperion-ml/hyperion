@@ -64,7 +64,32 @@ class ExpandAndTile(Layer):
 
     
     def get_config(self):
-        config = {'n': self.n}
+        config = {'n': self.n,
+                  'axis': self.axis}
+        base_config = super(ExpandAndTile, self).get_config()
+        return dict(list(base_config.items()) + list(config.items()))
+
+
+    
+class ExpandDim(Layer):
+    '''Expand 1 dimension
+    '''
+    def __init__(self, axis=-1, **kwargs):
+        super(Expand, self).__init__(**kwargs)
+        self.axis = axis
+    
+
+    def compute_output_shape(self, input_shape):
+        output_shape=list(input_shape)
+        output_shape.insert(self.axis,1)
+        return tuple(output_shape)
+
+    
+    def call(self, inputs, mask=None):
+        return K.expand_dims(inputs, axis=self.axis)
+
+    
+    def get_config(self):
         config = {'axis': self.axis}
         base_config = super(ExpandAndTile, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))

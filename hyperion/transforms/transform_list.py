@@ -18,6 +18,8 @@ from .pca import PCA
 from .lda import LDA
 from .nap import NAP
 from .mvn import MVN
+from .gaussianizer import Gaussianizer
+
 
 
 class TransformList(HypModel):

@@ -71,25 +71,25 @@ class HypDataReader(object):
     
     def read_slice(self, key, index, num_samples, field=''):
         dataset = key + field
-        assert(dataset in self.f)
+        assert dataset in self.f, 'Dataset %s not found' % dataset
         X = self.f[dataset][index:index+num_samples]
         return X
 
     
     def read_random_slice(self, key, num_samples, rng, field=''):
         dataset = key + field
-        assert(dataset in self.f)
+        assert dataset in self.f, 'Dataset %s not found' % dataset
         num_rows = self.f[dataset].shape[0]
         # print('hola',num_rows,num_samples,num_rows-num_samples)
         # index = rng.random_integers(low=0, high=num_rows-num_samples, size=1)[0]
         index = rng.randint(low=0, high=num_rows-num_samples+1)
         X = self.f[dataset][index:index+num_samples]
-        return X
+        return X, index
 
         
     def read_random_samples(self, key, num_samples, rng, field='', replace=True):
         dataset = key + field
-        assert(dataset in self.f)
+        assert dataset in self.f, 'Dataset %s not found' % dataset
         num_rows = self.f[dataset].shape[0]
         index = np.sort(rng.choice(np.arange(num_rows), size=num_samples, replace=replace))
         min_index = index[0]
@@ -97,7 +97,7 @@ class HypDataReader(object):
         index -= min_index
         X = self.f[dataset][min_index:max_index]
         X = X[index]
-        return X
+        return X, index
         
 
         

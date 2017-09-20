@@ -9,6 +9,8 @@ from six.moves import xrange
 import numpy as np
 import scipy.linalg as la
 
+from ..hyp_defs import float_cpu
+
 
 def logdet_pdmat(A):
     assert(A.shape[0] == A.shape[1])
@@ -44,6 +46,7 @@ def invert_pdmat(A, right_inv=False, return_logdet=False, return_inv=False):
     #return fh, R, logdet, invA
 
 
+    
 def invert_trimat(A, lower=False, right_inv=False, return_logdet=False, return_inv=False):
     if right_inv:
         fh=lambda x: la.solve_triangular(A.T, x.T, lower=not(lower)).T
@@ -58,6 +61,7 @@ def invert_trimat(A, lower=False, right_inv=False, return_logdet=False, return_i
         invA=fh(np.eye(A.shape[0]))
 
     return fh, logdet, invA
+
 
 
 def softmax(r, axis=-1):
@@ -100,7 +104,7 @@ def vec2symmat(v, lower=False, diag_factor=None):
     dim=int((-1+np.sqrt(1+8*v.shape[0]))/2)
     idx_u=np.triu_indices(dim)
     idx_l=np.tril_indices(dim)
-    A=np.zeros((dim,dim))
+    A=np.zeros((dim,dim), dtype=float_cpu())
     if lower:
         A[idx_l]=v
         A[idx_u]=A.T[idx_u]
@@ -118,7 +122,7 @@ def trimat2vec(A, lower=False):
 
 def vec2trimat(v, lower=False):
     dim=int((-1+np.sqrt(1+8*v.shape[0]))/2)
-    A=np.zeros((dim,dim))
+    A=np.zeros((dim,dim), dtype=float_cpu())
     if lower:
         A[np.tril_indices(dim)]=v
         return A
@@ -169,6 +173,15 @@ def fullcov_varfloor_from_cholS(cholS, cholF, lower=False):
         S = (cholF**2)*T
     return la.cholesky(S, lower)
 
+
+
+def int2onehot(class_ids, num_classes=None):
+    if num_classes is None:
+        num_classes = np.max(class_ids)+1
+        
+    p = np.zeros((len(class_ids), num_classes), dtype=float_cpu())
+    p[np.arange(len(class_ids)), class_ids]=1
+    return p
 
 # def test_math(dim):
     

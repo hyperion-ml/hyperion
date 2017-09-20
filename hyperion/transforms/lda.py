@@ -35,7 +35,7 @@ class LDA(HypModel):
         d, V = la.eigh(Sb, Sw)
         V = np.fliplr(V)
 
-        p = V[1,:] < 0
+        p = V[0,:] < 0
         V[:,p] *= -1
 
         

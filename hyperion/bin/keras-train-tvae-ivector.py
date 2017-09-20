@@ -34,8 +34,8 @@ def data_generator(sr, max_length):
     kk=0
     while 1:
         kk+=1
-        print('dg %d.' % kk)
-        x, sample_weight = sr.read(return_3d=True, max_seq_length=max_length)
+        #print('dg %d.' % kk)
+        x, sample_weight, _ = sr.read(return_3d=True, max_seq_length=max_length)
         return_sw = True
         if sr.max_batch_seq_length == max_length and (
                 sr.min_seq_length == sr.max_seq_length or
@@ -51,7 +51,7 @@ def data_generator(sr, max_length):
 def train_tvae(seq_file, train_list, val_list,
                decoder_file, qy_file, qz_file,
                epochs, batch_size,
-               preproc_file, out_path,
+               preproc_file, output_path,
                num_samples_y, num_samples_z,
                px_form, qy_form, qz_form,
                min_kl, **kwargs):
@@ -103,7 +103,7 @@ def train_tvae(seq_file, train_list, val_list,
                   max_seq_length = max_length)
     print(time.time()-t1)
     
-    cb = KCF.create_callbacks(vae, out_path, **cb_args)
+    cb = KCF.create_callbacks(vae, output_path, **cb_args)
     opt = KOF.create_optimizer(**opt_args)
 
     h = vae.fit_generator(gen_train, x_val=gen_val,
@@ -119,7 +119,7 @@ def train_tvae(seq_file, train_list, val_list,
     
     print('Train elapsed time: %.2f' % (time.time() - t1))
     
-    vae.save(out_path + '/model')
+    vae.save(output_path + '/model')
 
     # t1 = time.time()
     # elbo = np.mean(vae.elbo(x_train, num_samples=1, batch_size=batch_size))
@@ -174,7 +174,7 @@ if __name__ == "__main__":
     parser.add_argument('--qy-file', dest='qy_file', required=True)
     parser.add_argument('--qz-file', dest='qz_file', default=None)
     parser.add_argument('--preproc-file', dest='preproc_file', default=None)
-    parser.add_argument('--out-path', dest='out_path', required=True)
+    parser.add_argument('--output-path', dest='output_path', required=True)
 
     parser.add_argument('--batch-size',dest='batch_size',default=512,type=int,
                         help=('Batch size (default: %(default)s)'))

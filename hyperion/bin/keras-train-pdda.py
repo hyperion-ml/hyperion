@@ -34,7 +34,7 @@ from hyperion.keras.vae import TiedVAE_qY as TVAEY
 def train_pdda(iv_file, train_list, val_list,
                decoder_file, qy_file, qz_file,
                epochs, batch_size,
-               preproc_file, out_path,
+               preproc_file, output_path,
                num_samples_y, num_samples_z,
                px_form, qy_form, qz_form,
                min_kl, **kwargs):
@@ -80,14 +80,14 @@ def train_pdda(iv_file, train_list, val_list,
                   max_seq_length = x.shape[1])
     print(time.time()-t1)
     # opt = create_optimizer(**opt_args)
-    # cb = create_basic_callbacks(vae, out_path, **cb_args)
+    # cb = create_basic_callbacks(vae, output_path, **cb_args)
     # h = vae.fit(x, x_val=x_val,
     #             sample_weight_train=sw, sample_weight_val=sw_val,
     #             optimizer=opt, shuffle=True, epochs=100,
     #             batch_size=batch_size, callbacks=cb)
 
     # opt = create_optimizer(**opt_args)
-    # cb = create_basic_callbacks(vae, out_path, **cb_args)
+    # cb = create_basic_callbacks(vae, output_path, **cb_args)
     # h = vae.fit_mdy(x, x_val=x_val,
     #                 sample_weight_train=sw, sample_weight_val=sw_val,
     #                 optimizer=opt, shuffle=True, epochs=200,
@@ -107,7 +107,7 @@ def train_pdda(iv_file, train_list, val_list,
     #       (m_y, s2_y, m_z, s2_z))
 
     
-    cb = KCF.create_callbacks(vae, out_path, **cb_args)
+    cb = KCF.create_callbacks(vae, output_path, **cb_args)
     opt = KOF.create_optimizer(**opt_args)
 
     h = vae.fit(x, x_val=x_val,
@@ -122,7 +122,7 @@ def train_pdda(iv_file, train_list, val_list,
     
     print('Train elapsed time: %.2f' % (time.time() - t1))
     
-    vae.save(out_path + '/model')
+    vae.save(output_path + '/model')
 
     t1 = time.time()
     elbo = np.mean(vae.elbo(x, num_samples=1, batch_size=batch_size))
@@ -202,9 +202,9 @@ if __name__ == "__main__":
     parser.add_argument('--qy-file', dest='qy_file', required=True)
     parser.add_argument('--qz-file', dest='qz_file', default=None)
     parser.add_argument('--preproc-file', dest='preproc_file', default=None)
-    parser.add_argument('--out-path', dest='out_path', required=True)
+    parser.add_argument('--output-path', dest='output_path', required=True)
 
-    parser.add_argument('--batch-size',dest='batch_size',default=512,type=int,
+    parser.add_argument('--batch-size',dest='batch_size', default=512,type=int,
                         help=('Batch size (default: %(default)s)'))
 
     VCR.add_argparse_args(parser)

@@ -155,20 +155,35 @@ class TrialScores(object):
         return cls(model_set, seg_set, scores, score_mask)
                                   
 
-    def filter(self, model_set, seg_set, keep=True):
+    def filter(self, model_set, seg_set, keep=True, raise_missing=True):
         if not(keep):
             model_set=np.setdiff1d(self.model_set, model_set)
             seg_set=np.setdiff1d(self.model_set, seg_set)
 
-        f, mod_idx = ismember(model_set, self.model_set)
-        assert(np.all(f))
-        f, seg_idx = ismember(seg_set, self.seg_set)
-        assert(np.all(f))
-        model_set = self.model_set[mod_idx]
-        set_set = self.seg_set[seg_idx]
-        ix = np.ix_(mod_idx, seg_idx)
-        scores = self.scores[ix]
-        score_mask = self.score_mask[ix]
+        f_mod, mod_idx = ismember(model_set, self.model_set)
+        f_seg, seg_idx = ismember(seg_set, self.seg_set)
+
+        if np.all(f_mod) and np.all(f_seg):
+            model_set = self.model_set[mod_idx]
+            set_set = self.seg_set[seg_idx]
+            ix = np.ix_(mod_idx, seg_idx)
+            scores = self.scores[ix]
+            score_mask = self.score_mask[ix]
+        else:
+            for i in (f_mod==0).nonzero()[0]:
+                print('model %s not found' % model_set[i])
+            for i in (f_seg==0).nonzero()[0]:
+                print('segment %s not found' % seg_set[i])
+            if raise_missing:
+                raise Exception('some scores were not computed')
+
+            scores = np.zeros((len(model_set), len(seg_set)), dtype=float_cpu())
+            score_mask = np.zeros(scores.shape, dtype=bool)
+            ix1 = np.ix_(f_mod, f_seg)
+            ix2 = np.ix_(mod_idx[f_mod], seg_idx[f_seg])
+            scores[ix1] = self.scores[ix2]
+            score_mask[ix1] = self.score_mask[ix2]
+            
         return TrialScores(model_set, seg_set, scores, score_mask)
 
     
@@ -204,22 +219,24 @@ class TrialScores(object):
                    (len(self.model_set), len(self.seg_set)))
 
 
-    def align_with_ndx(self, ndx, missing_raise=True):
-        scr = self.filter(ndx.model_set, ndx.seg_set, keep=True)
+    def align_with_ndx(self, ndx, raise_missing=True):
+        scr = self.filter(ndx.model_set, ndx.seg_set, keep=True, raise_missing=raise_missing)
         if isinstance(ndx, TrialNdx):
             mask = ndx.trial_mask
         else:
             mask = np.logical_or(ndx.tar, ndx.non)
         scr.score_mask = np.logical_and(mask, scr.score_mask)
-        if missing_raise:
-            missing_trials = np.logical_and(mask, np.logical_not(scr.score_mask))
-            missing = np.any(missing_trials)
-            if missing:
-                idx=(missing_trials == True).nonzero()
-                for item in idx:
-                    print('missing-scores %s %s' %
-                          (scr.model_set[item[0]], scr.seg_set[item[1]]))
-                assert(not(missing))
+
+        missing_trials = np.logical_and(mask, np.logical_not(scr.score_mask))
+        missing = np.any(missing_trials)
+        if missing:
+            idx=(missing_trials == True).nonzero()
+            for i,j in zip(idx[0], idx[1]):
+                print('missing-scores for %s %s' %
+                      (scr.model_set[i], scr.seg_set[j]))
+
+            if raise_missing:
+                raise Exception('some scores were not computed')
         return scr
             
 
@@ -233,7 +250,7 @@ class TrialScores(object):
 
     
     def set_missing_to_value(self, ndx, val):
-        scr = self.align_with_ndx(ndx, missing_raise=False)
+        scr = self.align_with_ndx(ndx, raise_missing=False)
         if isinstance(ndx, TrialNdx):
             mask = ndx.trial_mask
         else:

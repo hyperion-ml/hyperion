@@ -155,29 +155,31 @@ class SequenceReader(object):
             self.reset()
         
         if self.max_seq_length is None:
-            x, _ = self.read_full_seqs()
+            x, keys = self.read_full_seqs()
         elif self.seq_split_mode == 'sequential':
-            x = self._read_subseqs_sequential()
+            x, keys = self._read_subseqs_sequential()
         elif (self.seq_split_mode == 'random_slice' or
         self.seq_split_mode == 'random_samples'):
-            x = self._read_subseqs_random()
+            x, keys = self._read_subseqs_random()
         else:
-            x = self._read_subseqs_random_1seq()
+            x, keys = self._read_subseqs_random_1seq()
             
         self.cur_batch +=1
 
         if return_3d:
             x, sample_weight = to3D_by_seq(x, max_length=max_seq_length)
-            return x, sample_weight
+            return x, sample_weight, keys
 
-        return x
+        return x, keys
 
 
+    
     def read_next_seq(self):
         key = self.scp.file_path[self.cur_seq]
         self.cur_seq += 1
         return self.r.read([key], field=self.field, return_tensor=False)[0], key
     
+
     
     def read_full_seqs(self):
         if self.min_seq_length == 0:
@@ -205,6 +207,7 @@ class SequenceReader(object):
         num_subseqs = self.num_subseqs
         seq_length = self.seq_length
         x = []
+        keys = []
         for i in xrange(np.sum(num_subseqs)):
             if self.cur_subseq[self.cur_seq] < num_subseqs[self.cur_seq]:
                 key = self.scp.file_path[self.cur_seq]
@@ -214,6 +217,7 @@ class SequenceReader(object):
                 x_i = self.r.read_slice(key, self.cur_frame[self.cur_seq],
                                         seq_length_i, field=self.field)
                 x.append(x_i)
+                keys.append(key)
                 self.cur_frame[self.cur_seq] += shift
                 self.cur_subseq[self.cur_seq] += 1
 
@@ -222,49 +226,52 @@ class SequenceReader(object):
             if len(x) == self.batch_size:
                 break
         assert(len(x) == self.batch_size)
-        return x
+        return x, keys
 
 
     
     def _read_subseqs_random_1seq(self):
         if self.seq_split_mode == 'random_slice_1seq':
             read_f = lambda x, y: self.r.read_random_slice(
-                x, y, rng=self.rng, field=self.field)
+                x, y, rng=self.rng, field=self.field)[0]
         else:
             read_f = lambda x, y: self.r.read_random_samples(
-                x, y, rng=self.rng, field=self.field)
+                x, y, rng=self.rng, field=self.field)[0]
             
         num_subseqs = self.num_subseqs
         seq_length = self.seq_length
         
         x = []
+        keys = []
         for i in xrange(self.cur_seq, self.num_seqs):
             if num_subseqs[i] > 0:
                 seq_length_i = min(self.max_seq_length, seq_length[i])
                 x_i = read_f(self.scp.file_path[i], seq_length_i)
                 x.append(x_i)
+                keys.append(self.scp.file_path[i])
             self.cur_seq +=1
             
             if len(x) == self.batch_size:
                 break
             
         assert(len(x) == self.batch_size)
-        return x
+        return x, keys
 
 
     
     def _read_subseqs_random(self):
         if self.seq_split_mode == 'random_slice':
             read_f = lambda x, y: self.r.read_random_slice(
-                x, y, rng=self.rng, field=self.field)
+                x, y, rng=self.rng, field=self.field)[0]
         else:
             read_f = lambda x, y: self.r.read_random_samples(
-                x, y, rng=self.rng, field=self.field)
+                x, y, rng=self.rng, field=self.field)[0]
             
         num_subseqs = self.num_subseqs
         seq_length = self.seq_length
         
         x = []
+        keys = []
         for i in xrange(np.sum(num_subseqs)):
             if self.cur_subseq[self.cur_seq] < num_subseqs[self.cur_seq]:
                 if num_subseqs[self.cur_seq] == 1:
@@ -273,6 +280,7 @@ class SequenceReader(object):
                 else:
                     x_i = read_f(self.scp.file_path[self.cur_seq], self.max_seq_length)
                 x.append(x_i)
+                keys.append(self.scp.file_path[self.cur_seq])
                 self.cur_subseq[self.cur_seq] += 1
 
             self.cur_seq = (self.cur_seq + 1) % self.num_seqs
@@ -280,7 +288,7 @@ class SequenceReader(object):
                 break
             
         assert(len(x) == self.batch_size)
-        return x
+        return x, keys
     
 
     @staticmethod
@@ -324,8 +332,8 @@ class SequenceReader(object):
         parser.add_argument(p1+'seq-field', dest=(p2+'seq_field'), default='',
                             help=('dataset field in hdf5 file'))
 
-        parser.add_argument(p1+'shuffle-seqs', dest=(p2+'shuffle_seqs'), default=True,
-                            type=bool,
+        parser.add_argument(p1+'no-shuffle-seqs', dest=(p2+'shuffle_seqs'), default=True,
+                            action='store_false',
                             help=('shuffles the list of sequences in each epoch'))
 
         parser.add_argument(p1+'subsample', dest=(p2+'subsample'), default=100,

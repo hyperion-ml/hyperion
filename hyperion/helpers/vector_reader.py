@@ -38,7 +38,19 @@ class VectorReader(object):
         return x
 
 
+    @staticmethod
+    def filter_args(prefix=None, **kwargs):
+        if prefix is None:
+            p = ''
+        else:
+            p = prefix + '_'
+            
+        valid_args = ('scp_sep', 'v_field')
+        return dict((k, kwargs[p+k])
+                    for k in valid_args if p+k in kwargs)
 
+
+    
     @staticmethod
     def add_argparse_args(parser, prefix=None):
         if prefix is None:

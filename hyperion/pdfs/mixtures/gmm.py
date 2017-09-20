@@ -263,7 +263,7 @@ class GMM(ExpFamilyMixture):
     @classmethod
     def load_params(cls, f, config):
         param_list = ['pi', 'mu', 'Lambda']
-        params = self._load_params_to_dict(f, config['name'], param_list)
+        params = cls._load_params_to_dict(f, config['name'], param_list)
         return cls(x_dim=config['x_dim'], pi=params['pi'],
                    mu=params['mu'], Lambda=params['Lambda'],
                    var_floor=config['var_floor'],
@@ -290,23 +290,30 @@ class GMM(ExpFamilyMixture):
                 if fields[0] == "<WEIGHTS>":
                     pi = np.array([float(v) for v in fields[2:-1]], dtype=float_cpu())
                     num_comp = len(pi)
-                elif fields[0]=="<MEANS_INVVARS>":
+                elif fields[0]=="<MEANS_INVCOVARS>":
                     for k in xrange(num_comp):
                         line = f.readline()
                         fields = line.split()
                         if x_dim == 0:
                             x_dim = len(fields)
                             eta1 = np.zeros((num_comp, x_dim), dtype=float_cpu())
-                            eta2 = np.zeros((num_comp, x_dim), dtype=float_cpu())
+                            eta2 = np.zeros((num_comp, int((x_dim**2+3*x_dim)/2)), dtype=float_cpu())
                         
                         assert(len(fields) == x_dim or len(fields) == x_dim+1)
                         eta1[k] = [ float(v) for v in fields[:x_dim] ]
-                elif fields[0]=="<INV_VARS>":
+                elif fields[0]=="<INV_COVARS>":
+                    L = np.zeros((x_dim, x_dim), dtype=float_cpu())
                     for k in xrange(num_comp):
-                        line = f.readline()
-                        fields = line.split()
-                        assert(len(fields) == x_dim or len(fields) == x_dim+1)
-                        eta2[k] = [ -0.5*float(v) for v in fields[:x_dim] ]
+                        L[:,:] = 0
+                        for j in xrange(x_dim):
+                            line = f.readline()
+                            fields = line.split()
+                            if j < x_dim -1:
+                                assert(len(fields) == j+1)
+                            else:
+                                assert(len(fields) == x_dim+1)
+                            L[j,:j+1] = [ float(v) for v in fields[:j+1] ]
+                        eta2[k] = - symmat2vec(L.T, diag_factor=0.5)
                         if k == num_comp-1:
                             success = True
         assert(success)

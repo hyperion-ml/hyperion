@@ -95,6 +95,64 @@ class GlobalWeightedSumPooling1D(Layer):
         return None
 
 
+    
+
+class GlobalWeightedMeanStdPooling1D(Layer):
+
+    def __init__(self, **kwargs):
+        super(GlobalWeightedMeanStdPooling1D, self).__init__(**kwargs)
+        self.input_spec = [InputSpec(ndim=3), InputSpec(min_ndim=2)]
+        self.supports_masking = True
+
+        
+    def compute_output_shape(self, input_shape):
+        output_shape = (input_shape[0][0], input_shape[0][2])
+        return [output_shape, output_shape]
+
+    
+    def call(self, xw, mask=None):
+        x, weights = xw
+        N = K.mean(weights, axis=1, keepdims=True)
+        mu = K.mean(x*weights, axis=1)/N
+        s = K.sqrt(K.mean(((x-mu)**2)*weights, axis=1)/N)
+        return [mu, s]
+
+    
+    def compute_mask(self, inputs, mask=None):
+        return [None, None]
+
+
+
+
+class GlobalWeightedMeanLogVarPooling1D(Layer):
+
+    def __init__(self, **kwargs):
+        super(GlobalWeightedMeanLogVarPooling1D, self).__init__(**kwargs)
+        self.input_spec = [InputSpec(ndim=3), InputSpec(min_ndim=2)]
+        self.supports_masking = True
+
+        
+    def compute_output_shape(self, input_shape):
+        output_shape = (input_shape[0][0], input_shape[0][2])
+        return [output_shape, output_shape]
+
+    
+    def call(self, xw, mask=None):
+        x, weights = xw
+        N = K.mean(weights, axis=1, keepdims=True)
+        mu1 = K.mean(x*weights, axis=1, keepdims=True)/N
+        logvar1 = K.log(K.mean(((x-mu1)**2)*weights, axis=1, keepdims=True)/N+1e-10)
+        
+        mu = mu1[:,0,:]
+        logvar = logvar1[:,0,:]
+        
+        return [mu, logvar]
+
+    
+    def compute_mask(self, inputs, mask=None):
+        return [None, None]
+
+
 
     
 class GlobalSumPooling1D(_GlobalPooling1D):
@@ -156,7 +214,7 @@ class GlobalProdRenormDiagNormalStdPrior(Layer):
         # input: mu_i/sigma2_i, log sigma2_i
         x, logvar_i, weights = xvw
         gamma = K.sum(x*weights, axis=1) 
-        N = K.sum(weights, axis=1)
+        # N = K.sum(weights, axis=1)
         sum_prec_i = K.sum(K.exp(-logvar_i)*weights, axis=1)
         #prec = 1 + K.relu(sum_prec_i - N)
         prec = 1 + K.relu(sum_prec_i)
@@ -168,7 +226,89 @@ class GlobalProdRenormDiagNormalStdPrior(Layer):
     def compute_mask(self, inputs, mask=None):
         return [None, None]
 
+
+
+class GlobalProdRenormDiagNormalStdPrior2(Layer):
+
+    def __init__(self, min_var=0.95, **kwargs):
+        super(GlobalProdRenormDiagNormalStdPrior2, self).__init__(**kwargs)
+        self.input_spec = [InputSpec(ndim=3), InputSpec(ndim=3), InputSpec(min_ndim=2)]
+        self.supports_masking = True
+        self.min_var = min_var
+
+        
+    def compute_output_shape(self, input_shape):
+        output_shape=(input_shape[0][0], input_shape[0][2])
+        return [output_shape, output_shape]
+
     
+    def call(self, xvw, mask=None):
+        # input: mu_i/sigma2_i, log sigma2_i
+        x, y, weights = xvw
+        gamma = K.sum(x*weights, axis=1)
+        # p = (1+exp(y))/(1+b exp(y))
+        # p-1 = (1-b)exp(y)/(1+b exp(y)) = (1-b)/(b+exp(-y))
+        
+        pm1 = (1-self.min_var)/(self.min_var+K.exp(-y))
+        sum_pm1 = K.sum(pm1*weights, axis=1)
+        p_total = 1 + sum_pm1
+        mu  = gamma/p_total
+        logvar = - K.log(p_total)
+        return [mu, logvar]
+
+    
+    def compute_mask(self, inputs, mask=None):
+        return [None, None]
+
+    
+    def get_config(self):
+        config = {'min_var': self.min_var }
+        base_config = super(GlobalProdRenormDiagNormalStdPrior2, self).get_config()
+        return dict(list(base_config.items()) + list(config.items()))
+
+
+
+
+
+class GlobalProdRenormDiagNormalStdPrior3(Layer):
+
+    def __init__(self, min_var=0.95, **kwargs):
+        super(GlobalProdRenormDiagNormalStdPrior3, self).__init__(**kwargs)
+        self.input_spec = [InputSpec(ndim=3), InputSpec(ndim=3), InputSpec(min_ndim=2)]
+        self.supports_masking = True
+        self.min_var = min_var
+
+        
+    def compute_output_shape(self, input_shape):
+        output_shape=(input_shape[0][0], input_shape[0][2])
+        return [output_shape, output_shape]
+
+    
+    def call(self, xvw, mask=None):
+        # input: mu_i/sigma2_i, log sigma2_i
+        x, y, weights = xvw
+        mu = K.mean(x*weights, axis=1)
+        # p = (1+exp(y))/(1+b exp(y))
+        # p-1 = (1-b)exp(y)/(1+b exp(y)) = (1-b)/(b+exp(-y))
+        
+        pm1 = (1-self.min_var)/(self.min_var+K.exp(-y))
+        sum_pm1 = K.sum(pm1*weights, axis=1)
+        p_total = 1 + sum_pm1
+        logvar = - K.log(p_total)
+        return [mu, logvar]
+
+    
+    def compute_mask(self, inputs, mask=None):
+        return [None, None]
+
+    
+    def get_config(self):
+        config = {'min_var': self.min_var }
+        base_config = super(GlobalProdRenormDiagNormalStdPrior3, self).get_config()
+        return dict(list(base_config.items()) + list(config.items()))
+
+    
+
     
 class GlobalProdRenormDiagNormalCommonCovStdPrior(Layer):
 
