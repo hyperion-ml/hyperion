@@ -6,3 +6,6 @@ from .sampling import *
 from .cov import *
 from .pooling import *
 from .masking import *
+from .scoring import *
+from .losses import *
+

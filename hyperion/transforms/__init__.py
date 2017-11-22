@@ -6,6 +6,7 @@ from .lnorm import *
 from .sb_sw import *
 from .pca import *
 from .lda import *
+from .nda import *
 from .nap import *
 from .mvn import *
 from .transform_list import *

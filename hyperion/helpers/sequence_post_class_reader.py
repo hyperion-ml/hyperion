@@ -29,7 +29,7 @@ class SequencePostClassReader(SequencePostReader):
         self.key_class=None
         self.num_classes=0
         with open(classes_file) as f:
-            class_dict={line.rstrip(): i for i, line in enumerate(f)}
+            class_dict={line.rstrip().split()[0]: i for i, line in enumerate(f)}
             self.num_classes=len(class_dict)
             self.key_class={p: class_dict[k] for k, p in zip(self.scp.key, self.scp.file_path)}
             

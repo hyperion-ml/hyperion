@@ -113,8 +113,12 @@ class GlobalWeightedMeanStdPooling1D(Layer):
     def call(self, xw, mask=None):
         x, weights = xw
         N = K.mean(weights, axis=1, keepdims=True)
-        mu = K.mean(x*weights, axis=1)/N
-        s = K.sqrt(K.mean(((x-mu)**2)*weights, axis=1)/N)
+        mu1 = K.mean(x*weights, axis=1, keepdims=True)/N
+        s1 = K.sqrt(K.mean(((x-mu1)**2)*weights, axis=1, keepdims=True)/N)
+
+        mu = mu1[:,0,:]
+        s = s1[:,0,:]
+
         return [mu, s]
 
     
@@ -195,6 +199,127 @@ class GlobalSumWeights(_GlobalPooling1D):
         return None
 
 
+    
+class GlobalDiagNormalPostStdPriorPooling1D(Layer):
+
+    def __init__(self, input_format='nat+logitvar', output_format='nat+var', min_var=0.001, **kwargs):
+        super(GlobalDiagNormalPostStdPriorPooling1D, self).__init__(**kwargs)
+        self.input_format=input_format.split(sep='+', maxsplit=1)
+        self.output_format=output_format.split(sep='+', maxsplit=1)
+        self.min_var = min_var
+        self.input_spec = [InputSpec(ndim=3), InputSpec(ndim=3), InputSpec(min_ndim=2)]
+        self.supports_masking = True
+
+        
+    def compute_output_shape(self, input_shape):
+        output_shape=(input_shape[0][0], input_shape[0][2])
+        return [output_shape, output_shape]
+
+
+    def _logitvar_to_prec_minus_1(self, logitvar):
+        # p = (1+exp(-y))/(a+b exp(-y))
+        # p-1 = (1-b)exp(-y)/(1+b exp(-y)) = (1-b)/(b+exp(y))
+        
+        return (1-self.min_var)/(self.min_var+K.exp(logitvar))
+
+
+    def _logprec_minus_1_to_prec_minus_1(self, logprec):
+        # p = (1+exp(y))/(1+b exp(y))
+        # p-1 = (1-b)exp(-y)/(1+b exp(-y)) = (1-b)/(b+exp(-y))         
+        
+        return (1-self.min_var)/(self.min_var+K.exp(-logprec))
+
+
+    def _logitvar_to_prec(self, logitvar):
+        # p = (1+exp(-y))/(1+b exp(-y))
+        logitvar = K.clip(logitvar, -7, 7)
+        e = K.exp(-logitvar)
+        return (1+e)/(1+self.min_var*e)
+
+    
+    def _logprec_minus_1_to_prec(self, logprec):
+        # p = (1+exp(y))/(1+b exp(y))
+        logprec = K.clip(logprec, -7, 7)
+        e = K.exp(logprec)
+        return (1+e)/(1+self.min_var*e)
+
+
+    def _logvar_to_prec(self, logvar):
+        return K.clip(K.exp(-logvar), 1, 1/self.min_var)
+
+
+    def _logprec_to_prec(self, logprec):
+        return K.clip(K.exp(logprec), 1, 1/self.min_var)
+
+
+    def _var_to_prec(self, var):
+        return K.clip(1/var, 1, 1/self.min_var)
+
+    
+    def _prec_to_prec(self, prec):
+        return K.clip(prec, 1, 1/self.min_var)
+
+    
+    def _prec_minus_1_to_prec(self, prec):
+        return K.clip(prec+1, 1, 1/self.min_var)
+
+
+    def _compute_input_prec(self, p):
+        if self.input_format[1] == 'logitvar':
+            return self._logitvar_to_prec(p)
+        if self.input_format[1] == 'logprec-1':
+            return self._logprec_minus_1_to_prec(p)
+        if self.input_format[1] == 'logvar':
+            return self._logvar_to_prec(p)
+        if self.input_format[1] == 'logprec':
+            return self._logprec_to_prec(p)
+        if self.input_format[1] == 'var':
+            return self._var_to_prec(p)
+        if self.input_format[1] == 'prec':
+            return self._prec_to_prec(p)
+        if self.input_format[1] == 'prec-1':
+            return self._prec_minus_1_to_prec(p)
+        
+    
+    def call(self, x, mask=None):
+        p1, p2, weights = x
+        input_prec = self._compute_input_prec(p2)
+        if self.input_format[0] == 'mean' :
+            p1 = p1*input_prec
+            
+        eta = K.sum(p1*weights, axis=1)
+        prec = 1+K.sum((input_prec-1)*weights, axis=1) 
+
+        prec = K.clip(prec, 1, 1e5)
+        
+        if self.output_format[0] == 'mean':
+            r1 = eta/prec
+        else:
+            r1 = eta
+
+        if self.output_format[1] == 'logvar':
+            r2 = - K.log(prec)
+        elif self.output_format[1] == 'var':
+            r2 = 1/prec
+        if self.output_format[1] == 'logprec':
+            r2 = K.log(prec)
+        elif self.output_format[1] == 'prec':
+            r2 = prec
+
+        return [r1, r2]
+            
+
+    def compute_mask(self, inputs, mask=None):
+        return [None, None]
+
+    
+    def get_config(self):
+        config = { 'input_format': '+'.join(self.input_format),
+                   'output_format': '+'.join(self.output_format),
+                   'min_var': self.min_var}
+        base_config = super(GlobalDiagNormalPostStdPriorPooling1D, self).get_config()
+        return dict(list(base_config.items()) + list(config.items()))
+
 
     
 class GlobalProdRenormDiagNormalStdPrior(Layer):
@@ -246,7 +371,7 @@ class GlobalProdRenormDiagNormalStdPrior2(Layer):
         # input: mu_i/sigma2_i, log sigma2_i
         x, y, weights = xvw
         gamma = K.sum(x*weights, axis=1)
-        # p = (1+exp(y))/(1+b exp(y))
+        # p = (1+exp(y))/(1+b exp(y))                                                                                                                                                                 
         # p-1 = (1-b)exp(y)/(1+b exp(y)) = (1-b)/(b+exp(-y))
         
         pm1 = (1-self.min_var)/(self.min_var+K.exp(-y))

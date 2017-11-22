@@ -5,7 +5,7 @@ from six.moves import xrange
 
 from ..hyp_model import HypModel
 from .vae import *
-
+from .embed import *
 
 class KerasModelLoader(object):
 
@@ -14,7 +14,9 @@ class KerasModelLoader(object):
         obj_dict={ 'VAE': VAE,
                    'CVAE': CVAE,
                    'TiedVAE_qYqZgY': TiedVAE_qYqZgY,
-                   'TiedCVAE_qYqZgY': TiedCVAE_qYqZgY}
+                   'TiedCVAE_qYqZgY': TiedCVAE_qYqZgY,
+                   'SeqEmbed': SeqEmbed,
+                   'SeqEmbedAtt': SeqEmbedAtt }
         return obj_dict
         
     

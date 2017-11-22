@@ -14,10 +14,10 @@ from ..utils.math import softmax
 
 class LogisticRegression(HypModel):
 
-    def __init__(self, A=None, b=None, penalty=’l2’, C=1.0,
+    def __init__(self, A=None, b=None, penalty='l2', C=1.0,
                  use_bias=True, bias_scaling=1,
-                 class_weight=None, random_state=None, solver=’liblinear’, max_iter=100,
-                 dual=False, tol=0.0001, multi_class=’ovr’, verbose=0, warm_start=True, num_jobs=1,
+                 class_weight=None, random_state=None, solver='liblinear', max_iter=100,
+                 dual=False, tol=0.0001, multi_class='ovr', verbose=0, warm_start=True, num_jobs=1,
                  balance_class_weight=True, lr_seed=1024, **kwargs):
 
         # penalty : str, ‘l1’ or ‘l2’, default: ‘l2’
@@ -76,13 +76,13 @@ class LogisticRegression(HypModel):
         self.use_bias = use_bias
         self.bias_scaling = bias_scaling
         self.balance_class_weight = balance_class_weight
-            
+        print(class_weight)
         self.lr = LR(penalty=penalty, C=C,
                      dual=dual, tol=tol,
                      fit_intercept=use_bias, intercept_scaling=bias_scaling,
-                     class_weight=class_weigth,
+                     class_weight=class_weight,
                      random_state=random_state,
-                     solver=solver, max_iter=100,
+                     solver=solver, max_iter=max_iter,
                      multi_class=multi_class,
                      verbose=verbose, warm_start=warm_start, n_jobs=num_jobs)
 
@@ -93,20 +93,20 @@ class LogisticRegression(HypModel):
             self.lr.intercept_ = b
 
 
-        @property
-        def A(self):
-            return self.lr.coef_.T
+    @property
+    def A(self):
+        return self.lr.coef_.T
 
-        @property
-        def b(self):
-            return self.lr.intercept_*self.bias_scaling
+    @property
+    def b(self):
+        return self.lr.intercept_*self.bias_scaling
 
 
-        def get_config(self):
+    def get_config(self):
         config = { 'use_bias': self.use_bias,
                    'bias_scaling': self.bias_scaling,
                    'balance_class_weight': self.balance_class_weight }
-        base_config = super(LinearGBE, self).get_config()
+        base_config = super(LogisticRegression, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
 
@@ -172,7 +172,7 @@ class LogisticRegression(HypModel):
             p2 = prefix + '_'
 
         parser.add_argument(p1+'penalty', dest=(p2+'penalty'), 
-                            default='l2', choices=['l2', 'l1']
+                            default='l2', choices=['l2', 'l1'],
                             help='used to specify the norm used in the penalization')
         parser.add_argument(p1+'c', dest=(p2+'C'), 
                             default=1.0, type=float,
@@ -187,11 +187,8 @@ class LogisticRegression(HypModel):
                             default=1024, type=int,
                             help='random number generator seed')
         parser.add_argument(p1+'solver', dest=(p2+'solver'), 
-                            default='lbfgs', choices=['newton-cg', 'lbfgs', 'liblinear', 'sag', 'saga']
+                            default='lbfgs', choices=['newton-cg', 'lbfgs', 'liblinear', 'sag', 'saga'],
                             help='type of solver')
-        parser.add_argument(p1+'lr-seed', dest=(p2+'lr_seed'), 
-                            default=1024, type=int,
-                            help='random number generator seed')
         parser.add_argument(p1+'max-iter', dest=(p2+'max_iter'), 
                             default=100, type=int,
                             help='only for the newton-cg, sag and lbfgs solvers')
@@ -199,11 +196,10 @@ class LogisticRegression(HypModel):
                             default=False, action='store_true',
                             help=('dual or primal formulation. '
                                   'Dual formulation is only implemented for l2 penalty with liblinear solver'))
-        parser.add_argument(p1+'tol', dest=(p2+'tol'), 
-                            default=1e-4, type=float,
+        parser.add_argument(p1+'tol', dest=(p2+'tol'), default=1e-4, type=float,
                             help='tolerance for stopping criteria')
         parser.add_argument(p1+'multi-class', dest=(p2+'multi_class'), 
-                            default='ovr', choices=['ovr', 'multinomial']
+                            default='ovr', choices=['ovr', 'multinomial'],
                             help=('ovr fits a binary problem for each class else it minimizes the multinomial loss.'
                                   'Does not work for liblinear solver'))
         parser.add_argument(p1+'verbose', dest=(p2+'verbose'), 
@@ -249,7 +245,7 @@ class LogisticRegression(HypModel):
 
         parser.add_argument(p1+'model-file', dest=(p2+'model_file'), required=True,
                             help=('model file'))
-        parser.add_argument(p1+'eval_type', dest=(p2+'eval_type'), default='logit',
+        parser.add_argument(p1+'eval-type', dest=(p2+'eval_type'), default='logit',
                             choices=['logit','bin-logpost','bin-post','cat-logpost','cat-post'],
                             help=('type of evaluation'))
                             

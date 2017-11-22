@@ -16,6 +16,10 @@ from hyperion.io import HypDataWriter, KaldiDataReader
 
 def ark2hyp(input_file, input_dir, output_file, field, chunk_size, squeeze):
 
+    output_dir = os.path.dirname(output_file)
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    
     ark_r = KaldiDataReader(input_file, input_dir)
     h_w = HypDataWriter(output_file)
     

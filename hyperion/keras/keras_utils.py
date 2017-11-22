@@ -9,11 +9,13 @@ from keras.engine.training import _slice_arrays
 
 
 from .callbacks import *
+from .constraints import Clip
 from .layers.core import *
 from .layers.masking import *
 from .layers.sampling import *
 from .layers.cov import *
 from .layers.pooling import *
+from .layers.scoring import *
 from .layers.tensor_manipulation import *
 
 
@@ -45,6 +47,7 @@ def get_keras_custom_obj():
         'GlobalWeightedMeanLogVarPooling1D': GlobalWeightedMeanLogVarPooling1D,
         'GlobalSumPooling1D': GlobalSumPooling1D,
         'GlobalSumWeights': GlobalSumWeights,
+        'GlobalDiagNormalPostStdPriorPooling1D': GlobalDiagNormalPostStdPriorPooling1D,
         'GlobalProdRenormDiagNormalStdPrior': GlobalProdRenormDiagNormalStdPrior,
         'GlobalProdRenormDiagNormalStdPrior2': GlobalProdRenormDiagNormalStdPrior2,
         'GlobalProdRenormDiagNormalStdPrior3': GlobalProdRenormDiagNormalStdPrior3,
@@ -60,8 +63,11 @@ def get_keras_custom_obj():
         'BernoulliSampler': BernoulliSampler,
         'DiagNormalSampler': DiagNormalSampler,
         'DiagNormalSamplerFromSeqLevel': DiagNormalSamplerFromSeqLevel,
+        'CatQScoringDiagNormalPostStdPrior': CatQScoringDiagNormalPostStdPrior,
+        'CatQScoringDiagNormalHomoPostStdPrior': CatQScoringDiagNormalHomoPostStdPrior,
         'Repeat': Repeat,
-        'ExpandAndTile': ExpandAndTile}
+        'ExpandAndTile': ExpandAndTile,
+        'Clip': Clip }
     return custom_obj
 
 
@@ -335,4 +341,6 @@ def eval_loss(model, loss_function, x, y, batch_size=32, sample_weight=None):
         ins = x + y + sample_weights
         
     return _eval_loop(loss_function, ins, batch_size=batch_size)
+
+
 

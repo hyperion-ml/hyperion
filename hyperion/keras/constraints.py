@@ -22,6 +22,7 @@ class ConstraintList(Constraint):
         return p
 
 
+    
 class Triu(Constraint):
 
     def __init__(self, dim, diag_val=None):
@@ -52,3 +53,22 @@ class Triu(Constraint):
         
         base_config = super(Triu, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
+
+
+
+class Clip(Constraint):
+    def __init__(self, min_val=-np.inf, max_val=np.inf):
+        self.min_val = min_val
+        self.max_val = max_val
+
+    def __call__(self, p):
+        return K.clip(p, self.min_val, self.max_val)
+
+    
+    def get_config(self):
+        config = {'min_val': self.min_val,
+                  'max_val': self.max_val}
+        
+        base_config = super(Clip, self).get_config()
+        return dict(list(base_config.items()) + list(config.items()))
+

@@ -16,6 +16,7 @@ from .cent_whiten import CentWhiten
 from .lnorm import LNorm
 from .pca import PCA
 from .lda import LDA
+from .nda import NDA
 from .nap import NAP
 from .mvn import MVN
 from .gaussianizer import Gaussianizer

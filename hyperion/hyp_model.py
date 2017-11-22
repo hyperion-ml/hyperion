@@ -49,7 +49,7 @@ class HypModel(object):
         
     @abstractmethod
     def save_params(self, f):
-        assert(True, 'save_params method not defined for %s' % self.__class__.__name__)
+        assert True, 'save_params method not defined for %s' % (self.__class__.__name__)
 
     
     def _save_params_from_dict(self, f, params, dtypes=None):
@@ -64,9 +64,16 @@ class HypModel(object):
             if v is None:
                 continue
             p_name = prefix + k
-            f.create_dataset(p_name, data=v.astype(dtypes[k]))
+            f.create_dataset(p_name, data=v.astype(dtypes[k], copy=False))
                          
-    
+
+    @classmethod
+    def load_config(cls, file_path):
+        with h5py.File(file_path,'r') as f:
+            json_str = str(np.asarray(f['config']).astype('U'))
+            return  cls.load_config_from_json(json_str)
+
+            
     @classmethod
     def load(cls, file_path):
         with h5py.File(file_path,'r') as f:

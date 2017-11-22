@@ -15,7 +15,9 @@ class LinearGBE(HypModel):
 
     def __init__(self, mu=None, W=None, 
                  update_mu=True, update_W=True,
-                 x_dim=1, num_classes=None, balance_class_weight=True, **kwargs):
+                 x_dim=1, num_classes=None, balance_class_weight=True,
+                 do_map=False, r_mu=16, r_W=16,
+                 **kwargs):
         super(LinearGBE, self).__init__(**kwargs)
         if mu is not None:
             num_classes = mu.shape[0]
@@ -30,6 +32,9 @@ class LinearGBE(HypModel):
         self.balance_class_weight = balance_class_weight
         self.A = None
         self.b = None
+        self.do_map = do_map
+        self.r_mu = r_mu
+        self.r_W = r_W
 
         self._compute_Ab()
         
@@ -40,7 +45,10 @@ class LinearGBE(HypModel):
                    'update_W': self.update_W,
                    'x_dim': self.x_dim,
                    'num_classes': self.num_classes,
-                   'balance_class_weight': self.balance_class_weight }
+                   'balance_class_weight': self.balance_class_weight,
+                   'do_map': self.do_map,
+                   'r_mu': self.r_mu,
+                   'r_W': self.r_W}
         base_config = super(LinearGBE, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
@@ -82,21 +90,45 @@ class LinearGBE(HypModel):
 
         F = np.dot(p_theta.T, x)
 
+        mu0 = self.mu
+        xbar = mu0
         if self.update_mu:
-            self.mu = F/N[:,None]
+            xbar = F/N[:,None]
+            if self.do_map:
+                alpha = (N/(N+self.r_mu))[:, None]
+                self.mu = (1-alpha)*mu0 + alpha*xbar
+            else:
+                self.mu = xbar
             
         if self.update_W:
-            S = np.zeros((x.shape[1], x.shape[1]), dtype=float_cpu())
-            for k in xrange(self.num_classes):
-                delta = x - self.mu[k]
-                S_k = np.dot(p_theta[:, k]*delta.T, delta)
+            if self.do_map:
+                r_W = self.r_W
+                alpha = (N/(N+r_W))[:, None]
+                S0 = invert_pdmat(self.W, return_inv=True)[-1]
                 if self.balance_class_weight:
-                    S_k /= N[k]
+                    S = (self.num_classes - np.sum(alpha))*S0
+                else:
+                    S = self.num_classes*self.r_W*S0
+            else:
+                r_W = 0
+                S = np.zeros((x.shape[1], x.shape[1]), dtype=float_cpu())
+                
+            for k in xrange(self.num_classes):
+                delta = x - xbar[k]
+                S_k = np.dot(p_theta[:, k]*delta.T, delta)
+                if self.do_map:
+                    mu_delta = xbar[k] - mu0[k]
+                    S_k += self.r_W*alpha[k]*np.outer(mu_delta, mu_delta)
+
+                if self.balance_class_weight:
+                    S_k /= (N[k]+r_W)
+
                 S += S_k
+                
             if self.balance_class_weight:
                 S /= self.num_classes
             else:
-                S /= np.sum(N)
+                S /= (self.num_classes*r_w+np.sum(N))
             
             self.W = invert_pdmat(S, return_inv=True)[-1]
 
@@ -131,7 +163,9 @@ class LinearGBE(HypModel):
             p = prefix + '_'
             
         valid_args = ('update_mu', 'update_W',
-                      'balance_class_weight', 'name')
+                      'balance_class_weight',
+                      'do_map', 'r_mu', 'r_W',
+                      'name')
         return dict((k, kwargs[p+k])
                     for k in valid_args if p+k in kwargs)
 
@@ -155,6 +189,15 @@ class LinearGBE(HypModel):
         parser.add_argument(p1+'balance-class-weight', dest=(p2+'balance_class_weight'),
                             default=False, action='store_true',
                             help='Balances the weight of each class when computing W')
+        parser.add_argument(p1+'do-map', dest=(p2+'do_map'),
+                            default=False, action='store_true',
+                            help='does MAP adaptation')
+        parser.add_argument(p1+'r-mu', dest=(p2+'r_mu'),
+                            default=16, type=float,
+                            help='relevance factor for the means')
+        parser.add_argument(p1+'r-w', dest=(p2+'r_W'),
+                            default=16, type=float,
+                            help='relevance factor for the variances')
 
         parser.add_argument(p1+'name', dest=(p2+'name'), 
                             default='lgbe',

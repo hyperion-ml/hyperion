@@ -18,4 +18,5 @@ def tile(x, n):
 
 def max_with_mask(x, mask, axis=None, keepdims=False):
     y = x - 1e10 * (1-mask)
-    return T.max(y*mask, axis=axis, keepdims=keepdims)
+    return T.max(y, axis=axis, keepdims=keepdims)
+

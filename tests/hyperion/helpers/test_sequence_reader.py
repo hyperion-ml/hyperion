@@ -132,14 +132,14 @@ def test_read_full_seq():
     #read epoch 1
     x1=[]
     for i in xrange(sr.num_batches):
-        x1_i = sr.read()
+        x1_i = sr.read()[0]
         assert(len(x1_i)==5)
         x1 += x1_i
 
     #read epoch 2
     x2=[]
     for i in xrange(sr.num_batches):
-        x2_i = sr.read()
+        x2_i = sr.read()[0]
         assert(len(x2_i)==5)
         x2 += x2_i
 
@@ -160,14 +160,14 @@ def test_read_sequential():
     #read epoch 1
     x1=[]
     for i in xrange(sr.num_batches):
-        x1_i = sr.read()
+        x1_i = sr.read()[0]
         assert(len(x1_i)==5)
         x1 += x1_i
 
     #read epoch 2
     x2=[]
     for i in xrange(sr.num_batches):
-        x2_i = sr.read()
+        x2_i = sr.read()[0]
         assert(len(x2_i)==5)
         x2 += x2_i
 
@@ -189,14 +189,14 @@ def test_read_random_slice_1seq():
     #read epoch 1
     x1=[]
     for i in xrange(sr.num_batches):
-        x1_i = sr.read()
+        x1_i = sr.read()[0]
         assert(len(x1_i)==5)
         x1 += x1_i
 
     #read epoch 2
     x2=[]
     for i in xrange(sr.num_batches):
-        x2_i = sr.read()
+        x2_i = sr.read()[0]
         assert(len(x2_i)==5)
         x2 += x2_i
 
@@ -222,14 +222,14 @@ def test_read_random_samples_1seq():
     #read epoch 1
     x1=[]
     for i in xrange(sr.num_batches):
-        x1_i = sr.read()
+        x1_i = sr.read()[0]
         assert(len(x1_i)==5)
         x1 += x1_i
 
     #read epoch 2
     x2=[]
     for i in xrange(sr.num_batches):
-        x2_i = sr.read()
+        x2_i = sr.read()[0]
         assert(len(x2_i)==5)
         x2 += x2_i
 
@@ -253,14 +253,14 @@ def test_read_random_slice():
     #read epoch 1
     x1=[]
     for i in xrange(sr.num_batches):
-        x1_i = sr.read()
+        x1_i = sr.read()[0]
         assert(len(x1_i)==5)
         x1 += x1_i
 
     #read epoch 2
     x2=[]
     for i in xrange(sr.num_batches):
-        x2_i = sr.read()
+        x2_i = sr.read()[0]
         assert(len(x2_i)==5)
         x2 += x2_i
 
@@ -283,14 +283,14 @@ def test_read_random_samples():
     #read epoch 1
     x1=[]
     for i in xrange(sr.num_batches):
-        x1_i = sr.read()
+        x1_i = sr.read()[0]
         assert(len(x1_i)==5)
         x1 += x1_i
 
     #read epoch 2
     x2=[]
     for i in xrange(sr.num_batches):
-        x2_i = sr.read()
+        x2_i = sr.read()[0]
         assert(len(x2_i)==5)
         x2 += x2_i
 

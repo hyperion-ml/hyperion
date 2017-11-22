@@ -87,10 +87,10 @@ def normal_1chol_3d(y_true, y_pred):
     return 0.5*K.sum(log2pi+y_logvar+dist2, axis=-1)
 
 
-def kl_normal_vs_std_normal(qy, beta=one):
+def kl_normal_vs_std_normal(qy, beta=1):
     y_mean, y_logvar = qy[:2]
-    T = one/beta
-    return -0.5*K.sum((T-one) * log2pi + T + T * y_logvar
+    T = 1/K.cast(beta, float_keras())
+    return -0.5*K.sum((T-1) * log2pi + T + T * y_logvar
                       - K.square(y_mean) - K.exp(y_logvar), axis=-1)
 
 
