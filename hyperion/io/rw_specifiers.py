@@ -125,7 +125,9 @@ class WSpecifier(object):
                     assert len(archives) > cur_archive
                     script = archives[cur_archive]
                     cur_archive += 1
-                elif option in ['b', 't', 'f', 'nf', 'p']:
+                elif option == 'f':
+                        flush = True
+                elif option in ['b', 't', 'nf', 'p']:
                     pass
                 else:
                     raise ValueError('Wrong wspecifier options %s'
@@ -146,8 +148,6 @@ class WSpecifier(object):
                 for option in options:
                     if option == 't':
                         binary = False
-                    elif option == 'f':
-                        flush = True
                     elif option == 'p':
                         permissive = True
                 
@@ -280,7 +280,9 @@ class RSpecifier(object):
                 elif option == 'scp':
                     assert spec_type is None
                     spec_type = RSpecType.SCRIPT
-                elif option in ['o', 's', 'cs', 'bg', 'p']:
+                elif option == 'p':
+                    permissive = True
+                elif option in ['o', 's', 'cs', 'bg']:
                     pass
                 else:
                     raise ValueError('Wrong wspecifier options %s'
@@ -291,7 +293,7 @@ class RSpecifier(object):
             
             if spec_type == RSpecType.SCRIPT:
                 with open(archive, 'r') as f:
-                    scp = f.readline().strip().split(' ')[1].split(':')
+                    scp = f.readline().strip().split(' ')[1].split('[')[0].split(':')
                     if len(scp) == 1:
                         archive_type = ArchiveType.H5
                     else:
@@ -305,8 +307,6 @@ class RSpecifier(object):
                         is_sorted = True
                     elif option == 'cs':
                         called_sorted = True
-                    elif option == 'p':
-                        permissive = True
                     elif option == 'bg':
                         background = True
                 

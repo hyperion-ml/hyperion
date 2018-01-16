@@ -3,6 +3,8 @@ from __future__ import print_function
 from __future__ import division
 from six.moves import xrange
 
+import os
+
 from ..hyp_model import HypModel
 from .vae import *
 from .embed import *
@@ -16,15 +18,41 @@ class KerasModelLoader(object):
                    'TiedVAE_qYqZgY': TiedVAE_qYqZgY,
                    'TiedCVAE_qYqZgY': TiedCVAE_qYqZgY,
                    'SeqEmbed': SeqEmbed,
-                   'SeqEmbedAtt': SeqEmbedAtt }
+                   'SeqQEmbed': SeqQEmbed }
+                   #'SeqEmbedAtt': SeqEmbedAtt }
         return obj_dict
         
-    
-    @staticmethod
-    def load(file_path):
-        class_name = HypModel.load_config(file_path).class_name
-        class_obj = KerasModelLoader.get_object()[class_name]
-        return class_obj.load(file_path)
 
     
+    @staticmethod
+    def load(model_path):
+        json_file = model_path + '.json'
+        class_name = HypModel.load_config(json_file)['class_name']
+        class_obj = KerasModelLoader.get_object()[class_name]
+        print('Load model %s:%s' % (class_name, model_path))
+        return class_obj.load(model_path)
+
+
+    
+    @staticmethod
+    def load_checkpoint(model_path, epochs):
+        found = False
+        init_epoch = 0
+        for epoch in xrange(epochs,-1,-1):
+            json_file = '%s/model.%04d.json' % (model_path, epoch)
+            if os.path.isfile(json_file):
+                found = True
+                init_epoch = epoch
+                break
+            
+        if not found:
+            json_file = '%s/model.best.json' % (model_path)
+            if os.path.isfile(json_file):
+                found = True
+                
+        model = None
+        if found:
+            file_path = json_file.rstrip('.json')
+            model = KerasModelLoader.load(file_path)
         
+        return model, init_epoch 

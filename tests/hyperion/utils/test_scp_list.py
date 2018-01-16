@@ -180,13 +180,12 @@ def test_shuffle():
 def test_getitem():
 
     scp1 = create_scp()
-    print(scp1.__dict__)
     assert scp1[1][1] == '6'
 
     assert scp1['spk1'][0] == '0'
     assert scp1['spk10'][0] == '15'
 
-    assert 'spk1' in scp
+    assert 'spk1' in scp1
 
     
 if __name__ == '__main__':

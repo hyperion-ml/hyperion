@@ -74,19 +74,29 @@ class SeqQEmbed(HypModel):
     
     @property
     def in_length(self):
-        return self.prepool_net.get_input_shape_at(0)[-2]
+        if self.max_seq_length is None:
+            return self.prepool_net.get_input_shape_at(0)[-2]
+        return self.max_seq_length
 
 
     
     @property
     def pool_in_length(self):
-        return self.prepool_net.get_output_shape_at(0)[0][-2]
+        pool_length = self.prepool_net.get_output_shape_at(0)[0][-2]
+        if pool_length is None:
+            in_length = self.in_length
+            if in_length is None:
+                return None
+            x = Input(shape=(in_length, self.x_dim))
+            net = Model(x, self.prepool_net(x))
+            pool_length = net.get_output_shape_at(0)[0][-2]
+        return pool_length
 
 
     
     @property
     def prepool_downsampling(self):
-        if self.prepool_downsampling is None:
+        if self._prepool_downsampling is None:
             assert self.in_length is not None
             assert self.pool_in_length is not None
             r = self.in_length/self.pool_in_length
@@ -150,8 +160,8 @@ class SeqQEmbed(HypModel):
     def build_embed(self, pooling_output=None):
         if pooling_output is None:
             pooling_output = self.pooling_output
-        p1_frame_embed = Input(shape=(None, self.pool_in_dim,))
-        p2_frame_embed = Input(shape=(None, self.pool_in_dim,))
+        p1_frame_embed = Input(shape=(None, self.embed_dim,))
+        p2_frame_embed = Input(shape=(None, self.embed_dim,))
         mask = Input(shape=(None,))
         q_embed = GlobalDiagNormalPostStdPriorPooling1D(
             input_format=self.pooling_input,
@@ -166,41 +176,52 @@ class SeqQEmbed(HypModel):
     
     def predict_embed(self, x, **kwargs):
         in_seq_length = self.in_length
-        pool_seq_length = self.in_pool_length
+        pool_seq_length = self.pool_in_length
         r = self.prepool_downsampling
         
         assert np.ceil(self.left_context/r) == np.floor(self.left_context/r)
         assert np.ceil(self.right_context/r) == np.floor(self.right_context/r)
         assert np.ceil(self.begin_context/r) == np.floor(self.begin_context/r)
         assert np.ceil(self.end_context/r) == np.floor(self.end_context/r) 
-        pool_begin_context = self.begin_context/r
-        pool_end_context = self.end_context/r
-        pool_left_context = self.left_context/r
-        pool_right_context = self.right_context/r
+        pool_begin_context = int(self.begin_context/r)
+        pool_end_context = int(self.end_context/r)
+        pool_left_context = int(self.left_context/r)
+        pool_right_context = int(self.right_context/r)
 
         in_length = x.shape[-2]
         pool_length = int(in_length/r)
         in_shift = in_seq_length - self.left_context - self.right_context
         pool_shift = int(in_shift/r)
         
-        y = np.zeros((pool_length, self.pool_in_dim), dtype=float_keras())
+        p1 = np.zeros((pool_length, self.embed_dim), dtype=float_keras())
+        p2 = np.zeros((pool_length, self.embed_dim), dtype=float_keras())
         mask = np.ones((1, pool_length), dtype=float_keras())
         mask[0,:pool_begin_context] = 0
         mask[0,pool_length - pool_end_context:] = 0
 
-        num_batches = int((in_length-in_seq_length)/in_shift+1)
+        num_batches = int(np.ceil((in_length-in_seq_length)/in_shift+1))
+        x_i = np.zeros((1,in_seq_length, x.shape[-1]), dtype=float_keras())
         j_in = 0
         j_out = 0
         for i in xrange(num_batches):
-            x_i = x[None,j_in:j_in+in_seq_length,:]
-            y_i = self.prepool_net.predict(x_i, batch_size=1, **kwargs)[0][0]
-            y[j_out:min(j_out+pool_net_length, pool_length)] = y_i
+            k_in = min(j_in+in_seq_length, in_length)
+            k_out = min(j_out+pool_seq_length, pool_length)
+            l_in = k_in - j_in
+            l_out = k_out - j_out
+
+            x_i[0,:l_in] = x[j_in:k_in]
+            p1_i, p2_i = self.prepool_net.predict(x_i, batch_size=1, **kwargs)
+            p1[j_out:k_out] = p1_i[0,:l_out]
+            p2[j_out:k_out] = p2_i[0,:l_out]
             
             j_in += in_shift
             j_out += pool_shift
+            if i==0:
+                j_out += pool_left_context
 
-        y = np.expand_dims(y, axis=0)
-        q_embed = self.pool_net.predict([y, mask], batch_size=1, **kwargs)
+        p1 = np.expand_dims(p1, axis=0)
+        p2 = np.expand_dims(p2, axis=0)
+        q_embed = self.pool_net.predict([p1, p2, mask], batch_size=1, **kwargs)
         return q_embed
 
     

@@ -59,18 +59,39 @@ def test_setdiff():
     assert(np.all(list2_d == ['0', '20']))
 
 
+
 def test_split():
 
     list1, list2 = create_lists()
     list_s, loc = split_list(list1, 1, 3)
+    print(list1)
+    print(list_s)
+    # ['2', '2', '1', '2', '3', '3', '4', '4', '4', '4']
+    assert(np.all(list_s == ['2', '2', '1']))
+    assert(np.all(loc == [0, 1, 2]))
+    
+    list_s, loc = split_list(list1, 2, 3)
+    assert(np.all(list_s == ['2', '3', '3']))
+    assert(np.all(loc == [3, 4, 5]))
+
+    list_s, loc = split_list(list1, 3, 3)
+    assert(np.all(list_s == ['4', '4', '4', '4']))
+    assert(np.all(loc == [i for i in xrange(6, 10)]))
+
+
+    
+def test_split_by_key():
+
+    list1, list2 = create_lists()
+    list_s, loc = split_list_group_by_key(list1, 1, 3)
     assert(np.all(list_s == ['1']))
     assert(np.all(loc == [2]))
     
-    list_s, loc = split_list(list1, 2, 3)
+    list_s, loc = split_list_group_by_key(list1, 2, 3)
     assert(np.all(list_s == ['2', '2', '2']))
     assert(np.all(loc == [0, 1, 3]))
 
-    list_s, loc = split_list(list1, 3, 3)
+    list_s, loc = split_list_group_by_key(list1, 3, 3)
     assert(np.all(list_s == ['3', '3', '4', '4', '4', '4']))
     assert(np.all(loc == [i for i in xrange(4, 10)]))
 

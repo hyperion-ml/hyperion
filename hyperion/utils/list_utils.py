@@ -54,7 +54,18 @@ def intersect(a, b, assume_unique=False, return_index = False):
 
 
 
-def split_list(a, idx, num_parts, key = None):
+def split_list(a, idx, num_parts):
+    if not(isinstance(a, np.ndarray)):
+        a = np.asarray(a)
+    n = float(len(a))
+    idx_1 = int(np.floor((idx-1)*n/num_parts))
+    idx_2 = int(np.floor(idx*n/num_parts))
+    loc = np.arange(idx_1, idx_2, dtype='int64')
+    return a[loc], loc
+
+
+
+def split_list_group_by_key(a, idx, num_parts, key = None):
     if not(isinstance(a, np.ndarray)):
         a = np.asarray(a)
     if key is None:

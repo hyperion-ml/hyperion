@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-Extracts TCVAE i-vectors
+Extracts sequence embeddings
 """
 from __future__ import absolute_import
 from __future__ import print_function

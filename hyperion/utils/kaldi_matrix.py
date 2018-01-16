@@ -67,7 +67,7 @@ class KaldiMatrix(object):
                     assert num_rows <= total_rows, (
                         'requested rows (%d) > available rows (%d)' %
                         (num_rows, total_rows))
-                    left_row = total_rows - num_rows
+                    rows_left = total_rows - num_rows
                     
             else:
                 num_rows = 1
@@ -86,7 +86,9 @@ class KaldiMatrix(object):
             return cls(vec)
         
         else:
-            assert row_offset == 0, 'row offset not supported in text mode because it is inefficient'
+            if row_offset>0 or num_rows > 0:
+                raise NotImplementedError('Reading slices supported in text mode because it is inefficient')
+
             first_line = True
             rows = []
             is_vector = False
@@ -185,20 +187,20 @@ class KaldiMatrix(object):
 
         
         
-compression_methods = {'auto': 1,
-                       'speech-feat': 2,
-                       '2byte-auto': 3,
-                       '2byte-signed-integer': 4,
-                       '1byte-auto': 5,
-                       '1byte-unsigned-integer': 6,
-                       '1byte-0-1': 7}
+compression_methods = ['auto',
+                       'speech-feat',
+                       '2byte-auto',
+                       '2byte-signed-integer',
+                       '1byte-auto',
+                       '1byte-unsigned-integer',
+                       '1byte-0-1']
 
 compression_method2format = {'speech-feat': 1,
                              '2byte-auto': 2,
                              '2byte-signed-integer': 2,
-                             '1byte-auto': 1,
-                             '1byte-unsigned-integer': 1,
-                             '1byte-0-1': 1}
+                             '1byte-auto': 3,
+                             '1byte-unsigned-integer': 3,
+                             '1byte-0-1': 3}
 
     
 class KaldiCompressedMatrix(object):
@@ -215,6 +217,49 @@ class KaldiCompressedMatrix(object):
         # self.col_headers = col_headers
 
 
+    def get_data_attrs(self):
+        
+        attrs = {'data_format': self.data_format,
+                 'min_value': self.min_value,
+                 'data_range': self.data_range}
+
+        header_offset = 20
+        if self.data_format == 1:
+            data_offset = header_offset+self.num_cols*8
+            p = np.fromstring(self.data[header_offset:data_offset], dtype=np.uint16)
+            attrs['perc'] = p
+            data = np.reshape(np.fromstring(self.data[data_offset:], dtype=np.uint8),
+                              (self.num_cols, self.num_rows)).transpose().copy()
+        elif self.data_format == 2:
+            data = np.reshape(np.fromstring(self.data[header_offset:], dtype=np.uint16),
+                              (self.num_rows, self.num_cols))
+        else:
+            data = np.reshape(np.fromstring(self.data[header_offset:], dtype=np.uint8),
+                              (self.num_rows, self.num_cols))
+
+        return data, attrs
+
+
+    
+    @classmethod
+    def build_from_data_attrs(cls, data, attrs):
+        num_rows = data.shape[0]
+        num_cols = data.shape[1]
+        h = struct.pack('<iffii',
+                        attrs['data_format'],
+                        attrs['min_value'], attrs['data_range'],
+                        num_rows, num_cols)
+        if attrs['data_format'] == 1:
+            col_header = attrs['perc'].tobytes()
+            h = h + col_header
+            data_bytes = data.transpose().flatten().tobytes()
+        else:
+            data_bytes = data.ravel().tobytes()
+
+        return cls(h + data_bytes)
+
+    
+        
     def _unpack_header(self):
         h = struct.unpack('<iffii', self.data[:20])
         self.data_format = h[0]
@@ -273,50 +318,9 @@ class KaldiCompressedMatrix(object):
 
         header = self._pack_header()
         return header
-
+    
 
     
-    @staticmethod
-    def _get_read_info2(header, row_offset=0, num_rows=0):
-        data_format, min_value, data_range, total_rows, num_cols = struct.unpack('<iffii', header)
-        make_header = True if row_offset !=0 or num_rows != 0 else False
-            
-        rows_left = 0
-        assert row_offset <= total_rows, (
-            'row_offset (%d) > num_rows (%d)' %
-            (row_offset, total_rows))
-        total_rows -= row_offset
-        if num_rows == 0:
-            num_rows = total_rows
-        else:
-            assert num_rows <= total_rows, (
-                'requested rows (%d) > available rows (%d)' %
-                (num_rows, total_rows))
-            rows_left = total_rows - num_rows
-            
-        bytes_col_header = 0
-        if data_format == 1:
-            bytes_col_header = num_cols*8
-            bytes_offset = row_offset*num_cols
-            bytes_data = num_rows*num_cols
-            bytes_left = rows_left*num_cols
-        elif data_format == 2:
-            bytes_offset = 2*row_offset*num_cols
-            bytes_data = 2*num_rows*num_cols
-            bytes_left = 2*rows_left*num_cols
-        else:
-            bytes_offset = row_offset*num_cols
-            bytes_data = num_rows*num_cols
-            bytes_left = rows_left*num_cols
-
-        if make_header:
-            header = struct.pack(
-                '<iffii', data_format, min_value, data_range,
-                num_rows, num_cols)
-            
-        return header, bytes_col_header, bytes_offset, bytes_data, bytes_left
-
-
     @staticmethod
     def _get_read_info(header, row_offset=0, num_rows=0):
         data_format, min_value, data_range, total_rows, num_cols = struct.unpack('<iffii', header)
@@ -415,13 +419,13 @@ class KaldiCompressedMatrix(object):
     
     def _uint16_to_float(self, byte_data):
         return self.min_value + self.data_range * 1.52590218966964e-05 * np.fromstring(
-            byte_data, dtype=np.uint16)
+            byte_data, dtype=np.uint16).astype(float_cpu())
         
 
 
     def _uint8_to_float(self, byte_data):
         return self.min_value + self.data_range/255.0 * np.fromstring(
-            byte_data, dtype=np.uint8)
+            byte_data, dtype=np.uint8).astype(float_cpu())
 
 
     
@@ -440,7 +444,7 @@ class KaldiCompressedMatrix(object):
             if self.num_rows > 1:
                 perc_25 = min(max(self._float_to_uint16(v_sort[1])[0], perc_0 + one), np.uint16(65533))
             else:
-                perc_25 = perc_0 +1
+                perc_25 = perc_0 + one
             if self.num_rows > 2:
                 perc_75 = min(max(self._float_to_uint16(v_sort[2])[0], perc_25 + one), np.uint16(65534))
             else:
@@ -482,7 +486,7 @@ class KaldiCompressedMatrix(object):
         c[c<64] = 64
         c[c>192] = 192
         v_out[idx] = c
-        idx =v >= p75
+        idx = v >= p75
         f = (v[idx] - p75)/(p100-p75)
         c = 192 + (f*63+0.5).astype(np.int32)
         c[c<192] = 192
@@ -494,7 +498,7 @@ class KaldiCompressedMatrix(object):
 
     @staticmethod
     def _char_to_float(v, p0, p25, p75, p100):
-        v_in = np.fromstring(v, dtype=np.uint8)
+        v_in = np.fromstring(v, dtype=np.uint8).astype(float_cpu())
         v_out = np.zeros(v_in.shape, dtype=float_cpu())
         idx = v_in <= 64
         v_out[idx] = p0 + (p25-p0)*v_in[idx]/64.0
@@ -518,13 +522,9 @@ class KaldiCompressedMatrix(object):
                 header_offset += 8
                 data_offset += self.num_rows
         elif self.data_format == 2:
-            #data = np.fromstring(self.data[20:], dtype=np.uint16)
-            # mat = np.reshape(self.min_value + self.data_range/65535.0 * data, (self.num_rows, self.num_cols)).astype(float_cpu())
             mat = np.reshape(self._uint16_to_float(self.data[20:]),
                              (self.num_rows, self.num_cols)).astype(float_cpu(), copy=False)
         else:
-            # data = np.fromstring(self.data[20:], dtype=np.uint8)
-            # mat = np.reshape(self.min_value + self.data_range/255.0 * data, (self.num_rows, self.num_cols)).astype(float_cpu())
             mat = np.reshape(self._uint8_to_float(self.data[20:]),
                              (self.num_rows, self.num_cols)).astype(float_cpu(), copy=False)
 
@@ -560,43 +560,31 @@ class KaldiCompressedMatrix(object):
                 if bytes_offset == 0 and bytes_left == 0:
                     data = header + f.read(bytes_col_header+num_cols*bytes_col)
                 else:
-                    col_header = f.read(bytes_col_header)
-                    data = bytes()
-                    for c in xrange(num_cols):
-                        if bytes_offset > 0:
-                            f.seek(bytes_offset, 1)
-                        data += f.read(bytes_col)
-                        if bytes_left > 0:
-                            f.seek(bytes_left, 1)
-                            
-                    if bytes_col_header > 0:
+                    if data_format == 1:
+                        col_header = f.read(bytes_col_header)
+                        data = bytes()
+                        for c in xrange(num_cols):
+                            if bytes_offset > 0:
+                                f.seek(bytes_offset, 1)
+                            data += f.read(bytes_col)
+                            if bytes_left > 0:
+                                f.seek(bytes_left, 1)
                         data = header + col_header + data
                     else:
+                        if bytes_offset > 0:
+                            f.seek(bytes_offset*num_cols, 1)
+                        data = f.read(bytes_col*num_cols)
+                        if bytes_left > 0:
+                            f.seek(bytes_left*num_cols, 1)
                         data = header + data
                     
-                # header, bytes_col_header, bytes_offset, bytes_data, bytes_left = cls._get_read_info(
-                #     header, row_offset, num_rows)
-                
-                # if bytes_offset == 0:
-                #     data = header + f.read(bytes_col_header+bytes_data)
-                # else:
-                #     if bytes_col_header > 0:
-                #         col_header = f.read(bytes_col_header)
-                #         f.seek(bytes_offset, 1)
-                #         data = header + col_header + f.read(bytes_data)
-                #     else:
-                #         f.seek(bytes_offset, 1)
-                #         data = header + f.read(bytes_data)
-                        
-                # if bytes_left> 0 and sequential_mode:
-                #     f.seek(bytes_left, 1)
-
                 return cls(data)
             else:
                 matrix = KaldiMatrix.read(f, binary, row_offset, num_rows)
                 return cls.compress(matrix)
-            
-        assert row_offset == 0, 'row offset not supported in text mode because it is inefficient'
+
+        if row_offset>0 or num_rows > 0:
+            raise NotImplementedError('Reading slices supported in text mode because it is inefficient')
         matrix = KaldiMatrix.read(f, binary)
         return cls.compress(matrix)
 

@@ -8,29 +8,30 @@ class OptimizerFactory(object):
 
 
     @staticmethod
-    def create_optimizer(opt_type, lr, momentum=0, decay=0.,
-                         schedule_decay=0.,
+    def create_optimizer(opt_type, lr, momentum=0, lr_decay=0.,
                          rho=0.9, epsilon=0., beta_1=0.9, beta_2=0.999, 
                          clipnorm=10, clipvalue=100):
 
         if opt_type == 'sgd':
-            return SGD(lr=lr, momentum=momentum, decay=decay, nesterov=False,
+            return SGD(lr=lr, momentum=momentum, decay=lr_decay, nesterov=False,
                    clipnorm=clipnorm, clipvalue=clipvalue)
         if opt_type == 'nsgd':
-            return SGD(lr=lr, momentum=momentum, decay=decay, nesterov=True,
+            return SGD(lr=lr, momentum=momentum, decay=lr_decay, nesterov=True,
                        clipnorm=clipnorm, clipvalue=clipvalue)
         if opt_type == 'rmsprop':
-            return RMSprop(lr=lr, rho=rho, epsilon=epsilon,
+            return RMSprop(lr=lr, rho=rho, epsilon=epsilon, decay=lr_decay,
                            clipnorm=clipnorm, clipvalue=clipvalue)
         if opt_type == 'adam':
             return Adam(lr=lr, beta_1=beta_1, beta_2=beta_2, epsilon=epsilon,
+                        decay=lr_decay,
                         clipnorm=clipnorm, clipvalue=clipvalue)
         if opt_type == 'nadam':
             return Nadam(lr=lr, beta_1=beta_1, beta_2=beta_2, 
-                         epsilon=epsilon, schedule_decay=decay,
+                         epsilon=epsilon, schedule_decay=lr_decay,
                          clipnorm=clipnorm, clipvalue=clipvalue)
         if opt_type == 'adamax':
             return Adamax(lr=lr, beta_1=beta_1, beta_2=beta_2, epsilon=epsilon,
+                          decay=lr_decay,
                           clipnorm=clipnorm, clipvalue=clipvalue)
 
 
@@ -40,9 +41,8 @@ class OptimizerFactory(object):
             p = ''
         else:
             p = prefix + '_'
-        valid_args = ('opt_type', 'lr', 'momentum', 'decay',
+        valid_args = ('opt_type', 'lr', 'momentum', 'lr_decay',
                       'rho', 'epsilon', 'beta_1', 'beta_2',
-                      'schedule_decay', 
                       'clipnorm', 'clipvalue')
         return dict((k, kwargs[p+k])
                     for k in valid_args if p+k in kwargs)
@@ -84,10 +84,10 @@ class OptimizerFactory(object):
                             help=('Beta_1 in Adam optimizers (default: %(default)s)'))
         parser.add_argument(p1+'beta2', dest=(p2+'beta_2'), default=0.999, type=float,
                             help=('Beta_2 in Adam optimizers (default: %(default)s)'))
-        parser.add_argument(p1+'schedule-decay', dest=(p2+'schedule_decay'),
-                            default=0.004, type=float,
-                            help=('Schedule decay in Nadam optimizer '
-                                  '(default: %(default)s)'))
+        # parser.add_argument(p1+'schedule-decay', dest=(p2+'schedule_decay'),
+        #                     default=0.004, type=float,
+        #                     help=('Schedule decay in Nadam optimizer '
+        #                           '(default: %(default)s)'))
         parser.add_argument(p1+'clipnorm', dest=(p2+'clipnorm'),
                             default=10,type=float,
                             help=('Clips the norm of the gradient '

@@ -341,7 +341,7 @@ class LinearGBE(HypModel):
         parser.add_argument(p1+'normalize', dest=(p2+'normalize'), default=False,
                             action='store_true',
                             help=('normalizes the ouput probabilities to sum to one'))
-        parser.add_argument(p1+'eval_method', dest=(p2+'eval_method'), default='linear',
+        parser.add_argument(p1+'eval-method', dest=(p2+'eval_method'), default='linear',
                             choices=['linear','llk','predictive'],
                             help=('evaluates full gaussian likelihood, linear function'
                                   'or predictive distribution'))

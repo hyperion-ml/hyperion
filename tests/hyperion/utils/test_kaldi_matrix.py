@@ -229,7 +229,7 @@ def test_kcm_read_write():
         mat2 = KCM.read(f, binary=False)
 
     assert_allclose(np.fromstring(mat1.data, dtype=np.uint8),
-                    np.fromstring(mat2.data, dtype=np.uint8), atol=4)
+                    np.fromstring(mat2.data, dtype=np.uint8), atol=5)
 
     with open(file_path, 'wb') as f:
         mat1.write(f, binary=True)
@@ -268,6 +268,68 @@ def test_kcm_read_shape():
     with open(file_path, 'rb') as f:
         assert KCM.read_shape(f, binary=True) == (10, 4)
 
+
+
+def test_kcm_getbuild_data_attrs():
+
+    mat1 = KM(create_matrix().astype('float32'))
+    cmat2 = KCM.compress(mat1, 'auto')
+    mat2 = cmat2.to_matrix()
+    data, attrs = cmat2.get_data_attrs()
+    cmat3 = KCM.build_from_data_attrs(data, attrs)
+    mat3 = cmat3.to_matrix()
+
+    assert_allclose(mat2.data, mat3.data)
+
+
+    cmat2 = KCM.compress(mat1, '2byte-auto')
+    mat2 = cmat2.to_matrix()
+    data, attrs = cmat2.get_data_attrs()
+    cmat3 = KCM.build_from_data_attrs(data, attrs)
+    mat3 = cmat3.to_matrix()
+
+    assert_allclose(mat2.data, mat3.data)
+
+
+    cmat2 = KCM.compress(mat1, '1byte-auto')
+    mat2 = cmat2.to_matrix()
+    data, attrs = cmat2.get_data_attrs()
+    cmat3 = KCM.build_from_data_attrs(data, attrs)
+    mat3 = cmat3.to_matrix()
+
+    assert_allclose(mat2.data, mat3.data)
+
+
+def test_kcm_getbuild_data_attrs_slice():
+
+    mat1 = KM(create_matrix().astype('float32'))
+    cmat2 = KCM.compress(mat1, 'auto')
+    mat2 = cmat2.to_matrix()
+    data, attrs = cmat2.get_data_attrs()
+    cmat3 = KCM.build_from_data_attrs(data[2:7], attrs)
+    mat3 = cmat3.to_matrix()
+
+    assert_allclose(mat2.data[2:7], mat3.data)
+
+
+    cmat2 = KCM.compress(mat1, '2byte-auto')
+    mat2 = cmat2.to_matrix()
+    data, attrs = cmat2.get_data_attrs()
+    cmat3 = KCM.build_from_data_attrs(data[2:7], attrs)
+    mat3 = cmat3.to_matrix()
+
+    assert_allclose(mat2.data[2:7], mat3.data)
+
+
+    cmat2 = KCM.compress(mat1, '1byte-auto')
+    mat2 = cmat2.to_matrix()
+    data, attrs = cmat2.get_data_attrs()
+    cmat3 = KCM.build_from_data_attrs(data[2:7], attrs)
+    mat3 = cmat3.to_matrix()
+
+    assert_allclose(mat2.data[2:7], mat3.data)
+
+    
 
 
 if __name__ == '__main__':

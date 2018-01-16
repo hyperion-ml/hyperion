@@ -26,7 +26,7 @@ from hyperion.classifiers import LinearGBE as GBE
 def eval_linear_gbe(iv_file, class2int_file, test_file,
                     preproc_file,
                     model_file, score_file, vector_score_file,
-                    normalize, return_full_llk, **kwargs):
+                    normalize, eval_method, **kwargs):
     
     if preproc_file is not None:
         preproc = TransformList.load(preproc_file)
@@ -40,7 +40,7 @@ def eval_linear_gbe(iv_file, class2int_file, test_file,
     model = GBE.load(model_file)
     
     t1 = time.time()
-    scores = model.predict(x, normalize, return_full_llk)
+    scores = model.predict(x, eval_method, normalize)
     
     dt = time.time() - t1
     num_trials = scores.shape[0]*scores.shape[1]

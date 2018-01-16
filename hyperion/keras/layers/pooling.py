@@ -65,6 +65,9 @@ class GlobalWeightedAveragePooling1D(Layer):
     
     def call(self, xw, mask=None):
         x, weights = xw
+        if K.ndim(weights) == 2:
+            weights = K.expand_dims(weights, axis=-1)
+
         return K.mean(x*weights, axis=1)/K.mean(weights, axis=1)
 
     
@@ -88,6 +91,9 @@ class GlobalWeightedSumPooling1D(Layer):
     
     def call(self, xw, mask=None):
         x, weights = xw
+        if K.ndim(weights) == 2:
+            weights = K.expand_dims(weights, axis=-1)
+
         return K.sum(x*weights, axis=1)
 
     
@@ -112,6 +118,8 @@ class GlobalWeightedMeanStdPooling1D(Layer):
     
     def call(self, xw, mask=None):
         x, weights = xw
+        if K.ndim(weights) == 2:
+            weights = K.expand_dims(weights, axis=-1)
         N = K.mean(weights, axis=1, keepdims=True)
         mu1 = K.mean(x*weights, axis=1, keepdims=True)/N
         s1 = K.sqrt(K.mean(((x-mu1)**2)*weights, axis=1, keepdims=True)/N)
@@ -143,6 +151,9 @@ class GlobalWeightedMeanLogVarPooling1D(Layer):
     
     def call(self, xw, mask=None):
         x, weights = xw
+        if K.ndim(weights) == 2:
+            weights = K.expand_dims(weights, axis=-1)
+
         N = K.mean(weights, axis=1, keepdims=True)
         mu1 = K.mean(x*weights, axis=1, keepdims=True)/N
         logvar1 = K.log(K.mean(((x-mu1)**2)*weights, axis=1, keepdims=True)/N+1e-10)
@@ -283,15 +294,19 @@ class GlobalDiagNormalPostStdPriorPooling1D(Layer):
     
     def call(self, x, mask=None):
         p1, p2, weights = x
+        if K.ndim(weights) == 2:
+            weights = K.expand_dims(weights, axis=-1)
+
         input_prec = self._compute_input_prec(p2)
         if self.input_format[0] == 'mean' :
             p1 = p1*input_prec
             
         eta = K.sum(p1*weights, axis=1)
-        prec = 1+K.sum((input_prec-1)*weights, axis=1) 
-
+        prec = 1+K.sum((input_prec-1)*weights, axis=1)
+        print(prec)
+        print(self.output_format)
         prec = K.clip(prec, 1, 1e5)
-        
+
         if self.output_format[0] == 'mean':
             r1 = eta/prec
         else:
@@ -338,6 +353,9 @@ class GlobalProdRenormDiagNormalStdPrior(Layer):
     def call(self, xvw, mask=None):
         # input: mu_i/sigma2_i, log sigma2_i
         x, logvar_i, weights = xvw
+        if K.ndim(weights) == 2:
+            weights = K.expand_dims(weights, axis=-1)
+
         gamma = K.sum(x*weights, axis=1) 
         # N = K.sum(weights, axis=1)
         sum_prec_i = K.sum(K.exp(-logvar_i)*weights, axis=1)

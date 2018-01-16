@@ -15,7 +15,7 @@ def init_kaldi_output_stream(f, binary):
 
         
 def init_kaldi_input_stream(f):
-    if f.peek(2)[:2] == b'\0B':
+    if peek(f, True, 2) == b'\0B':
         f.read(2)
         return True
     return False
@@ -44,7 +44,7 @@ def read_token(f, binary):
         token = b''
     while 1:
         c = f.read(1)
-        if c == b' ' 
+        if c == b' ' or c == b'':
             break
         token += c
     
@@ -63,9 +63,16 @@ def write_token(f, binary, token):
     
 def peek(f, binary, num_bytes=1):
     if not binary:
-        while f.peek(1) == ' ':
+        while f.peek(1)[0] == ' ':
             f.read(1)
-    return f.peek(num_bytes)[:num_bytes]
+    p = f.peek(num_bytes)[:num_bytes]
+    peek_bytes = len(p)
+    if peek_bytes < num_bytes:
+        f.read(peek_bytes)
+        delta_bytes = num_bytes-peek_bytes
+        p = p + f.peek(delta_bytes)[:delta_bytes]
+        f.seek(-peek_bytes, 1)
+    return p
 
 
 

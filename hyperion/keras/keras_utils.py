@@ -82,85 +82,87 @@ def save_model_arch(file_path, model):
 
 
     
-def filter_optimizer_args(**kwargs):
-    return dict((k, kwargs[k])
-                for k in ('opt_type', 'lr', 'momentum', 'decay',
-                          'rho', 'epsilon', 'beta_1', 'beta_2', 
-                          'clipnorm', 'clipvalue') if k in kwargs)
+# def filter_optimizer_args(**kwargs):
+#     return dict((k, kwargs[k])
+#                 for k in ('opt_type', 'lr', 'momentum', 'decay',
+#                           'rho', 'epsilon', 'beta_1', 'beta_2', 
+#                           'clipnorm', 'clipvalue') if k in kwargs)
     
 
 
-def create_optimizer(opt_type, lr, momentum=0, decay=0.,
-                     rho=0.9, epsilon=0., beta_1=0.9, beta_2=0.999, 
-                     clipnorm=10, clipvalue=100):
+# def create_optimizer(opt_type, lr, momentum=0, decay=0.,
+#                      rho=0.9, epsilon=0., beta_1=0.9, beta_2=0.999, 
+#                      clipnorm=10, clipvalue=100):
 
-    if opt_type == 'sgd':
-        return SGD(lr=lr, momentum=momentum, decay=decay, nesterov=False,
-                   clipnorm=clipnorm, clipvalue=clipvalue)
-    if opt_type == 'nsgd':
-        return SGD(lr=lr, momentum=momentum, decay=decay, nesterov=True,
-                   clipnorm=clipnorm, clipvalue=clipvalue)
-    if opt_type == 'rmsprop':
-        return RMSprop(lr=lr, rho=rho, epsilon=epsilon,
-                       clipnorm=clipnorm, clipvalue=clipvalue)
-    if opt_type == 'adam':
-        return Adam(lr=lr, beta_1=beta_1, beta_2=beta_2, epsilon=epsilon,
-                    clipnorm=clipnorm, clipvalue=clipvalue)
-    if opt_type == 'nadam':
-        return Nadam(lr=lr, beta_1=beta_1, beta_2=beta_2, 
-                     epsilon=epsilon, schedule_decay=decay,
-                     clipnorm=clipnorm, clipvalue=clipvalue)
-    if opt_type == 'adamax':
-        return Adamax(lr=lr, beta_1=beta_1, beta_2=beta_2, epsilon=epsilon,
-                      clipnorm=clipnorm, clipvalue=clipvalue)
+#     if opt_type == 'sgd':
+#         return SGD(lr=lr, momentum=momentum, decay=decay, nesterov=False,
+#                    clipnorm=clipnorm, clipvalue=clipvalue)
+#     if opt_type == 'nsgd':
+#         return SGD(lr=lr, momentum=momentum, decay=decay, nesterov=True,
+#                    clipnorm=clipnorm, clipvalue=clipvalue)
+#     if opt_type == 'rmsprop':
+#         return RMSprop(lr=lr, rho=rho, epsilon=epsilon, decay=decay,
+#                        clipnorm=clipnorm, clipvalue=clipvalue)
+#     if opt_type == 'adam':
+#         return Adam(lr=lr, beta_1=beta_1, beta_2=beta_2, epsilon=epsilon,
+#                     decay=decay,
+#                     clipnorm=clipnorm, clipvalue=clipvalue)
+#     if opt_type == 'nadam':
+#         return Nadam(lr=lr, beta_1=beta_1, beta_2=beta_2, 
+#                      epsilon=epsilon, schedule_decay=decay,
+#                      clipnorm=clipnorm, clipvalue=clipvalue)
+#     if opt_type == 'adamax':
+#         return Adamax(lr=lr, beta_1=beta_1, beta_2=beta_2, epsilon=epsilon,
+#                       decay=decay,
+#                       clipnorm=clipnorm, clipvalue=clipvalue)
 
 
     
-def filter_callbacks_args(**kwargs):
-    return dict((k, kwargs[k])
-                for k in ('save_best_only', 'mode',
-                          'monitor', 'patience', 'min_delta',
-                          'lr_steps', 'lr_patience', 'lr_factor',
-                          'min_lr', 'log_append') if k in kwargs)
+# def filter_callbacks_args(**kwargs):
+#     return dict((k, kwargs[k])
+#                 for k in ('save_best_only', 'mode',
+#                           'monitor', 'patience', 'min_delta',
+#                           'lr_steps', 'lr_patience', 'lr_factor',
+#                           'min_lr', 'log_append') if k in kwargs)
     
 
 
-def create_basic_callbacks(model, file_path, save_best_only=True, mode='min',
-                           monitor = 'val_loss', patience=None, min_delta=1e-4,
-                           lr_steps = None,
-                           lr_patience = None, lr_factor=0.1, min_lr=1e-5,
-                           log_append=False):
+# def create_basic_callbacks(model, file_path, save_best_only=True, mode='min',
+#                            monitor = 'val_loss', patience=None, min_delta=1e-4,
+#                            lr_steps = None,
+#                            lr_patience = None, lr_factor=0.1, min_lr=1e-5,
+#                            log_append=False):
 
-    if save_best_only == True:
-        file_path_model = file_path + '/model.best'
-    else:
-        file_path_model = file_path + '/model.{epoch:04d}'
-    cb = HypModelCheckpoint(model, file_path_model, monitor=monitor, verbose=1,
-                            save_best_only=save_best_only,
-                            save_weights_only=False, mode=mode)
-    cbs = [cb]
+#     if save_best_only == True:
+#         file_path_model = file_path + '/model.best'
+#     else:
+#         file_path_model = file_path + '/model.{epoch:04d}'
+#     cb = HypModelCheckpoint(model, file_path_model, monitor=monitor, verbose=1,
+#                             save_best_only=save_best_only,
+#                             save_weights_only=False, mode=mode)
+#     cbs = [cb]
 
-    file_path_csv = file_path + '/train.log'
-    cb = CSVLogger(file_path_csv, separator=',', append=log_append)
-    cbs.append(cb)
+#     file_path_csv = file_path + '/train.log'
+#     cb = CSVLogger(file_path_csv, separator=',', append=log_append)
+#     cbs.append(cb)
     
-    if patience is not None:
-        cb = EarlyStopping(monitor=monitor, patience=patience,
-                           min_delta=min_delta, verbose=1, mode=mode)
-        cbs.append(cb)
+#     if patience is not None:
+#         cb = EarlyStopping(monitor=monitor, patience=patience,
+#                            min_delta=min_delta, verbose=1, mode=mode)
+#         cbs.append(cb)
         
-    if lr_steps is not None:
-        cb = LearningRateSteps(lr_steps)
-        cbs.append(cb)    
+#     if lr_steps is not None:
+#         cb = LearningRateSteps(lr_steps)
+#         cbs.append(cb)    
 
-    if lr_patience is not None:
-        cb = ReduceLROnPlateau(monitor=monitor,
-                               factor=lr_factor, patience=lr_patience,
-                               verbose=1, mode=mode, epsilon=min_delta,
-                               cooldown=0, min_lr=min_lr)
-        cbs.append(cb)    
+#     if lr_patience is not None:
+#         cb = ReduceLROnPlateau(monitor=monitor,
+#                                factor=lr_factor, patience=lr_patience,
+#                                verbose=1, mode=mode, epsilon=min_delta,
+#                                cooldown=0, min_lr=min_lr)
+#         cbs.append(cb)    
         
-    return cbs
+#     return cbs
 
 
 

@@ -63,15 +63,22 @@ class HypModel(object):
         for k, v in params.items():
             if v is None:
                 continue
+            if not isinstance(v, np.ndarray):
+                v = np.asarray(v)
             p_name = prefix + k
             f.create_dataset(p_name, data=v.astype(dtypes[k], copy=False))
                          
 
     @classmethod
     def load_config(cls, file_path):
-        with h5py.File(file_path,'r') as f:
-            json_str = str(np.asarray(f['config']).astype('U'))
-            return  cls.load_config_from_json(json_str)
+        try:
+            with h5py.File(file_path,'r') as f:
+                json_str = str(np.asarray(f['config']).astype('U'))
+                return  cls.load_config_from_json(json_str)
+        except:
+            with open(file_path,'r') as f:
+                return cls.load_config_from_json(f.read())
+
 
             
     @classmethod

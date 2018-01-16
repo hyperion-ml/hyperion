@@ -8,18 +8,22 @@ from ..callbacks import *
 class CallbacksFactory(object):
 
     @staticmethod
-    def create_callbacks(model, file_path, save_best_only=True, mode='min',
+    def create_callbacks(model, file_path, save_all_epochs=False, mode='min',
                          monitor = 'val_loss', patience=None, min_delta=1e-4,
                          lr_steps = None,
+                         lr_monitor = None,
                          lr_patience = None, lr_factor=0.1, min_lr=1e-5,
                          log_append=False):
 
-        if save_best_only == True:
-            file_path_model = file_path + '/model.best'
+        if lr_monitor is None:
+            lr_monitor = monitor
+        
+        if save_all_epochs:
+            file_path_model = file_path + '/model.{epoch:04d}'        
         else:
-            file_path_model = file_path + '/model.{epoch:04d}'
+            file_path_model = file_path + '/model.best'
         cb = HypModelCheckpoint(model, file_path_model, monitor=monitor, verbose=1,
-                                save_best_only=save_best_only,
+                                save_best_only=not(save_all_epochs),
                                 save_weights_only=False, mode=mode)
         cbs = [cb]
 
@@ -37,7 +41,7 @@ class CallbacksFactory(object):
             cbs.append(cb)    
 
         if lr_patience is not None:
-            cb = ReduceLROnPlateau(monitor=monitor,
+            cb = ReduceLROnPlateau(monitor=lr_monitor,
                                    factor=lr_factor, patience=lr_patience,
                                    verbose=1, mode=mode, epsilon=min_delta,
                                    cooldown=0, min_lr=min_lr)
@@ -53,8 +57,9 @@ class CallbacksFactory(object):
             p = ''
         else:
             p = prefix + '_'
-        valid_args = ('save_best_only', 'mode',
+        valid_args = ('save_all_epochs', 'mode',
                       'monitor', 'patience', 'min_delta',
+                      'lr_monitor',
                       'lr_steps', 'lr_patience', 'lr_factor',
                       'min_lr', 'log_append')
         return dict((k, kwargs[p+k])
@@ -70,6 +75,12 @@ class CallbacksFactory(object):
             p1 = '--' + prefix + '-'
             p2 = prefix + '_'
 
+        
+        parser.add_argument(p1+'monitor', dest=(p2+'monitor'), 
+                            default='val_loss')
+        parser.add_argument(p1+'lr-monitor', dest=(p2+'lr_monitor'), 
+                            default=None)
+            
         parser.add_argument(p1+'patience', dest=(p2+'patience'), default=100,
                             type=int,
                             help=('Training stops after PATIENCE epochs without '
@@ -95,6 +106,6 @@ class CallbacksFactory(object):
                                   '(default: %(default)s)'))
         parser.add_argument(p1+'lr-steps', dest=(p2+'lr_steps'), nargs='+',
                             default=None)
-        parser.add_argument(p1+'save-all-epochs', dest=(p2+'save_best_only'),
-                            default=True, action='store_false')
+        parser.add_argument(p1+'save-all-epochs', dest=(p2+'save_all_epochs'),
+                            default=False, action='store_true')
         

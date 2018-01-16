@@ -12,7 +12,6 @@ from collections import OrderedDict
 from copy import deepcopy
 
 import numpy as np
-import pandas as pd
 
 from .list_utils import *
 
@@ -33,14 +32,14 @@ class SCPList(object):
         assert len(self.key) == len(self.file_path)
         if self.offset is not None:
             if isinstance(self.offset, list):
-                self.offset = np.array(self.offset, dtype=np.int32)
+                self.offset = np.array(self.offset, dtype=np.int64)
             assert len(self.key) == len(self.offset)
         if self.range_spec is not None:
             if len(self.range_spec) == 0:
                 self.range_spec = None
             else:
                 if isinstance(self.range_spec, list):
-                    self.range_spec = np.array(self.offset, dtype=np.int32)
+                    self.range_spec = np.array(self.offset, dtype=np.int64)
                 assert len(self.key) == self.range_spec.shape[0]
                 assert self.range_spec.shape[1] == 2
 
@@ -161,11 +160,12 @@ class SCPList(object):
                             else None for f in range_spec1]
             range_spec = [[a, b-a] if b is not None else [a, 0]
                           for a,b in zip(range_spec21, range_spec22)]
-            range_spec = np.array(range_spec, dtype=np.int32)
+            range_spec = np.array(range_spec, dtype=np.int64)
             
         return file_path, offset, range_spec
                     
-                
+
+    
     @classmethod
     def load(cls, file_path, sep=' ', offset_sep=':'):
         with open(file_path, 'r') as f:
@@ -173,15 +173,16 @@ class SCPList(object):
         key = [f[0] for f in fields]
         script = [f[1] for f in fields]
         file_path, offset, range_spec = SCPList.parse_script(script, offset_sep)
-        print(file_path)
-        print(offset)
-        print(range_spec)
         return cls(key, file_path, offset, range_spec)
 
 
     
-    def split(self, idx, num_parts):
-        key, idx1 = split_list(self.key, idx, num_parts)
+    def split(self, idx, num_parts, group_by_key=True):
+
+        if group_by_key:
+            key, idx1 = split_list_group_by_key(self.key, idx, num_parts)
+        else:
+            key, idx1 = split_list(self.key, idx, num_parts)
         file_path = self.file_path[idx1]
         offset = None
         range_spec = None
@@ -263,7 +264,7 @@ class SCPList(object):
     def filter_index(self, index, keep=True):
         if not(keep):
             index = np.setdiff1d(np.arange(
-                len(self.key), dtype=np.int32), index)
+                len(self.key), dtype=np.int64), index)
 
         key = self.key[index]
         file_path = self.file_path[index]
@@ -279,6 +280,7 @@ class SCPList(object):
     
     
     def shuffle(self, seed=1024, rng=None):
+        
         if rng is None:
             rng = np.random.RandomState(seed=seed)
         index = np.arange(len(self.key))

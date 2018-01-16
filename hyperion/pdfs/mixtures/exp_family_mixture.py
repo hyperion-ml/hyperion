@@ -10,7 +10,7 @@ from abc import ABCMeta, abstractmethod
 
 from ...hyp_defs import float_cpu
 from ...utils.math import softmax, logsumexp
-from ...io import GeneratorQueue
+from ...utils.queues import GeneratorQueue
 from ..core import PDF
 
 
@@ -361,8 +361,8 @@ class ExpFamilyMixture(PDF):
         logh = 0
         try:
             queue = GeneratorQueue(generator,
-                                      use_multiprocessing=use_multiprocessing,
-                                      wait_time=wait_time)
+                                   use_multiprocessing=use_multiprocessing,
+                                   wait_time=wait_time)
             queue.start(workers=workers, max_queue_size=max_queue_size)
             queue_generator = queue.get()
             

@@ -106,7 +106,8 @@ def TDNNV1(num_td_layers, num_fc_layers,
              y.append(y_i)
 
     else:
-        output_activation=Activation(output_activation)
+        if output_activation is not None:
+            output_activation=Activation(output_activation)
         y = TimeDistributed(Dense(output_units, name=('fc-%d' % (num_fc_layers-1)),
                                   activation = output_activation,
                                   kernel_initializer=kernel_initializer,

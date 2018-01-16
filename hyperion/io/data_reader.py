@@ -5,17 +5,26 @@ from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import division
 from six.moves import xrange
+from six import string_types
 
 from abc import ABCMeta, abstractmethod
+import numpy as np
 
+from ..hyp_defs import float_cpu
 from ..utils.scp_list import SCPList
+from ..transforms import TransformList
 
 
 class DataReader(object):
     __metaclass__ = ABCMeta
-    def __init__(self, file_path, permissive=False):
+    def __init__(self, file_path, transform=None, permissive=False):
         self.file_path = file_path
         self.permissive = permissive
+        if isinstance(transform, string_types):
+            self.transform = TransformList.load(transform)
+        else:
+            self.transform = transform
+        
 
     def __enter__(self):
         return self
@@ -31,19 +40,19 @@ class DataReader(object):
 
 
     @staticmethod
-    def _squeeze(data):
+    def _squeeze(data, permissive=False):
 
         ndim = data[0].ndim
         shape = data[0].shape
-        for i, data_i in xrange(len(data)):
-            if len(data_i) == 0:
-                if self.permissive:
-                    data[i] = np.zeros((1, shape[0]), dtype=float_cpu())
+        for i in xrange(len(data)):
+            if len(data[i]) == 0:
+                if permissive:
+                    data[i] = np.zeros((1,)+shape, dtype=float_cpu())
                 continue
             assert ndim == data[i].ndim
             assert shape[-1] == data[i].shape[-1]
             data[i] = np.expand_dims(data[i], axis=0)
-            
+        
         return np.concatenate(tuple(data), axis=0)
             
             
@@ -67,12 +76,12 @@ class DataReader(object):
     
     @staticmethod
     def _apply_range_to_shape(shape, row_offset, num_rows):
-        if row_offset_i > 0 or num_rows_i > 0:
+        if row_offset > 0 or num_rows > 0:
             shape = list(shape)
-            shape[0] -= row_offset_i
-            if num_rows_i > 0:
-                assert shape[0] >= num_rows_i
-                shape[0] = num_rows_i
+            shape[0] -= row_offset
+            if num_rows > 0:
+                assert shape[0] >= num_rows
+                shape[0] = num_rows
             shape = tuple(shape)
         return shape
 
@@ -82,10 +91,31 @@ class DataReader(object):
 class SequentialDataReader(DataReader):
     __metaclass__ = ABCMeta
 
-    def __init__(self, file_path, permissive=False):
-        super(SequentialDataReader, self).__init__(file_path, permissive)
+    def __init__(self, file_path, transform=None, permissive=False,
+                 part_idx=1, num_parts=1, split_by_key=False):
+        super(SequentialDataReader, self).__init__(
+            file_path, transform, permissive)
+        self.part_idx = part_idx
+        self.num_parts = num_parts
+        self.split_by_key = split_by_key
         
 
+        
+    def __iter__(self):
+        return self
+
+
+    def __next__(self):
+        key, data = self.read(1)
+        if len(key)==0:
+            raise StopIteration
+        return key[0], data[0]
+    
+
+    def next(self):
+        return self.__next__()
+
+    
     @abstractmethod
     def reset(self):
         pass
@@ -119,8 +149,9 @@ class SequentialDataReader(DataReader):
 class RandomAccessDataReader(DataReader):
     __metaclass__ = ABCMeta
 
-    def __init__(self, rspecifier):
-        super(RandomAccessDataReader, self).__init__(rspecifier)
+    def __init__(self, file_path, transform=None, permissive=False):
+        super(RandomAccessDataReader, self).__init__(
+            file_path, transform, permissive)
 
         
     @abstractmethod

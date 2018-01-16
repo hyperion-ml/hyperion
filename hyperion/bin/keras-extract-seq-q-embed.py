@@ -28,7 +28,7 @@ from hyperion.io import SequentialDataReaderFactory as SDRF
 from hyperion.transforms import TransformList
 from hyperion.pdfs import DiagGMM
 from hyperion.keras.keras_utils import *
-from hyperion.keras.embed.seq_q_embed2 import SeqQEmbed
+from hyperion.keras.embed import SeqQEmbed
 
 
     
@@ -48,7 +48,7 @@ def extract_embed(seq_file, model_file, preproc_file, output_path,
     
     t1 = time.time()
 
-    model = SeqEmbed.load(model_file)
+    model = SeqQEmbed.load(model_file)
     model.build(max_seq_length)
     model.build_embed(pooling_output)
     y_dim = model.embed_dim
@@ -94,8 +94,8 @@ if __name__ == "__main__":
     parser.add_argument('--output-path', dest='output_path', required=True)
     parser.add_argument('--max-seq-length', dest='max_seq_length', default=None, type=int)
     parser.add_argument('--pooling-output', dest='pooling_output',
-                        default=None,
-                        choices=['nat+logar', 'nat+logprec',
+                        default='mean+var',
+                        choices=['nat+logvar', 'nat+logprec',
                                  'nat+var', 'nat+prec',
                                  'mean+logar', 'mean+logprec',
                                  'mean+var', 'mean+prec'])

@@ -23,7 +23,7 @@ from hyperion.keras.keras_utils import *
 from hyperion.keras.keras_model_loader import KerasModelLoader as KML
 from hyperion.keras.helpers import OptimizerFactory as KOF
 from hyperion.keras.helpers import CallbacksFactory as KCF
-from hyperion.keras.embed.seq_embed2 import SeqEmbed
+from hyperion.keras.embed import SeqEmbed
 
 
 

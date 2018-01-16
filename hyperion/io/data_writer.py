@@ -13,12 +13,13 @@ class DataWriter(object):
     __metaclass__ = ABCMeta
 
     def __init__(self, archive_path, script_path=None,
-                 flush=False, compress=False, compression_method='auto'):
+                 flush=False, compress=False, compression_method='auto', scp_sep=' '):
         self.archive_path = archive_path
         self.script_path = script_path
-        self.flush = flush
+        self._flush = flush
         self.compress = compress
         self.compression_method = compression_method
+        self.scp_sep = scp_sep
         
 
     def __enter__(self):

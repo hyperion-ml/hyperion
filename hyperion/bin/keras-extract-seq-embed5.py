@@ -28,12 +28,12 @@ from hyperion.io import SequentialDataReaderFactory as SDRF
 from hyperion.transforms import TransformList
 from hyperion.pdfs import DiagGMM
 from hyperion.keras.keras_utils import *
-from hyperion.keras.embed.seq_embed2 import SeqEmbed
+from hyperion.keras.embed import SeqEmbed
 
 
     
 def extract_embed(seq_file, model_file, preproc_file, output_path,
-                  max_seq_length, **kwargs):
+                  layer_names, max_seq_length, **kwargs):
 
     set_float_cpu('float32')
     

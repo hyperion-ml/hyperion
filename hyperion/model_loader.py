@@ -31,7 +31,7 @@ class ModelLoader(object):
     
     @staticmethod
     def load(file_path):
-        class_name = HypModel.load_config(file_path).class_name
+        class_name = HypModel.load_config(file_path)['class_name']
         class_obj = ModelLoader.get_object()[class_name]
         return class_obj.load(file_path)
 

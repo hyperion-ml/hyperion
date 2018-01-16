@@ -12,7 +12,7 @@ import numpy as np
 
 from ..hyp_defs import float_save
 from ..utils.scp_list import SCPList
-from ..utils.kaldi_io_funcs import is_token, write_token
+from ..utils.kaldi_io_funcs import is_token, write_token, init_kaldi_output_stream
 from ..utils.kaldi_matrix import KaldiMatrix, KaldiCompressedMatrix
 from .data_writer import DataWriter
 
@@ -21,10 +21,9 @@ from .data_writer import DataWriter
 class ArkDataWriter(DataWriter):
 
     def __init__(self, archive_path, script_path=None,
-                 binary=True, flush=False,
-                 compress=False, compression_method='auto'):
+                 binary=True, **kwargs):
         super(ArkDataWriter, self).__init__(
-            archive_path, script_path, flush, compress, compression_method):
+            archive_path, script_path, **kwargs)
         self.binary = binary
 
         if binary:
@@ -91,15 +90,15 @@ class ArkDataWriter(DataWriter):
             assert is_token(key_i), 'Token %s not valid' % key_i
             write_token(self.f, self.binary, key_i)
 
-            pos = f.tell()
+            pos = self.f.tell()
             data_i = self._convert_data(data[i])
         
             init_kaldi_output_stream(self.f, self.binary)
-            data_i.write(f, self.binary)
+            data_i.write(self.f, self.binary)
 
             if self.f_script is not None:
-                self.f_script.write('%s %s:%d\n' % (
-                    key_i, self.wspecifier.archive, pos))
+                self.f_script.write('%s%s%s:%d\n' % (
+                    key_i, self.scp_sep, self.archive_path, pos))
             
-            if self.flush:
+            if self._flush:
                 self.flush()
