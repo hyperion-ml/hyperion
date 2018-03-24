@@ -121,13 +121,19 @@ class LogisticRegression(HypModel):
         if eval_type == 'cat-logpost':
             return np.log(softmax(self.lr.predict_proba(x), axis=1)+1e-10)
         
+        if x.ndim == 1:
+            x = x[:, None]
+        
         return np.dot(x, self.A) + self.b
         
 
     
     def fit(self, x, class_ids, sample_weight=None):
+        if x.ndim == 1:
+            x = x[:, None]
         self.lr.fit(x, class_ids, sample_weight=sample_weight)
 
+        
     def save_params(self, f):
         params = { 'A': self.A,
                    'b': self.b}

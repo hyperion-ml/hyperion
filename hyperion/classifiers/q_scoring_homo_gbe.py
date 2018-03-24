@@ -21,7 +21,7 @@ class QScoringHomoGBE(HypModel):
                  post_N=None,
                  **kwargs):
 
-        super(QScoringHomeGBE).__init__(**kwargs)
+        super(QScoringHomoGBE, self).__init__(**kwargs)
 
         self.mu = mu
         self.W = W
@@ -66,8 +66,12 @@ class QScoringHomoGBE(HypModel):
             
     def _change_post_N(self):
         if self.post_N is not None:
+            print(self.N)
+            print(self.W)
             self.W = 1 + self.post_N/np.mean(self.N)*(self.W-1)
             self.N = self.post_N*np.ones((self.num_classes,), dtype=float_cpu())
+            print(self.N)
+            print(self.W)
 
     
 
@@ -78,7 +82,7 @@ class QScoringHomoGBE(HypModel):
         if do_map:
             self._load_prior()
 
-            x_dim = x.shape[-1]/2
+        x_dim = int(x.shape[-1]/2)
         if self.num_classes is None:
             if class_ids is not None:
                 num_classes = np.max(class_ids)+1
@@ -110,12 +114,13 @@ class QScoringHomoGBE(HypModel):
         self.mu = C*eta
         self.N = N
 
-        if self.balance_class_weigth:
+        if self.balance_class_weight:
             prec = 1 + np.mean(prec-1, axis=0)
         else:
             prec = 1 + np.sum(prec_x-1, axis=0)/num_classes
         self.W = prec
-
+        
+        self._change_post_N()
 
 
     def predict(self, x, normalize=False):
@@ -217,10 +222,10 @@ class QScoringHomoGBE(HypModel):
                             default=None, 
                             help='prior file for MAP adaptation')
         parser.add_argument(p1+'prior-n', dest=(p2+'prior_N'),
-                            default=1, type=float,
+                            default=None, type=float,
                             help='relevance factor for prior')
         parser.add_argument(p1+'post-n', dest=(p2+'post_N'),
-                            default=1, type=float,
+                            default=None, type=float,
                             help='relevance factor for posterior')
 
         # parser.add_argument(p1+'prior-beta', dest=(p2+'prior_beta'),

@@ -181,7 +181,7 @@ class GMM(ExpFamilyMixture):
             Sfloor = self.var_floor*np.mean(C, axis=0)
             cholfloor = la.cholesky(Sfloor, overwrite_a=True)
             for k in xrange(self.num_comp):
-                C[k] = fullcov_varfloor(C[k], cholfloor)
+                C[k] = fullcov_varfloor(C[k], cholfloor, F_is_chol=True)
                 self.Lambda[k] = invert_pdmat(C[k], return_inv=True)[-1]
             self._Sigma = None
             self._logLambda = None

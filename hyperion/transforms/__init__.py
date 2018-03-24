@@ -10,4 +10,6 @@ from .nap import *
 from .mvn import *
 from .transform_list import *
 
+from .cent_whiten_up import *
+from .lnorm_up import *
 

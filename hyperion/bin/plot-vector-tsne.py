@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-Trains LDA
+Plots TSNE embeddings
 """
 from __future__ import absolute_import
 from __future__ import print_function
@@ -21,12 +21,13 @@ from mpl_toolkits.mplot3d import Axes3D as plt3d
 
 from sklearn.manifold import TSNE
 
-from hyperion.io import HypDataWriter 
+from hyperion.io import DataWriterFactory as DWF
 from hyperion.helpers import VectorClassReader as VCR
 from hyperion.transforms import TransformList, PCA
 from hyperion.utils.scp_list import SCPList
 
-
+colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
+markers = ['x', 'o', '+', '*', 's', 'h', 'D', '^', 'v', 'p', '8']
 
 def plot_vector_tsne(iv_file, v_list, preproc_file,
                      output_path, save_embed, output_dim,
@@ -54,10 +55,11 @@ def plot_vector_tsne(iv_file, v_list, preproc_file,
     if not os.path.exists(output_path):
         os.makedirs(ouput_path)
 
-    tsne_obj = lambda n: TSNE(n_components=n,
-                            perplexity=perplexity, early_exaggeration=exag,
-                            learning_rate=lr, n_iter=num_iter, init=init_method,
-                            random_state=rng_seed, verbose=verbose)
+    tsne_obj = lambda n: TSNE(
+        n_components=n,
+        perplexity=perplexity, early_exaggeration=exag,
+        learning_rate=lr, n_iter=num_iter, init=init_method,
+        random_state=rng_seed, verbose=verbose)
     
 
     if max_classes > 0:
@@ -71,18 +73,27 @@ def plot_vector_tsne(iv_file, v_list, preproc_file,
 
         if save_embed:
             h5_file = '%s/embed_%dd.h5' % (output_path, ouput_dim)
-            hw = HypDataWriter(h5_file)
-            hw.write(vcr.scp.file_path, '', y)
+            hw = DWF.create(h5_file)
+            hw.write(vcr.scp.file_path, y)
 
     tsne = tsne_obj(2)
     y = tsne.fit_transform(x)
     if save_embed:
         h5_file = '%s/embed_2d.h5' % output_path
-        hw = HypDataWriter(h5_file)
-        hw.write(vcr.scp.file_path, '', y)
+        hw = DWF.create(h5_file)
+        hw.write(vcr.scp.file_path, y)
             
     fig_file = '%s/tsne_2d.pdf' % (output_path)
-    plt.scatter(y[:,0], y[:,1], c=class_ids, marker='x')
+    # plt.scatter(y[:,0], y[:,1], c=class_ids, marker='x')
+
+    color_marker = [(c,m) for m in markers for c in colors] 
+    for c in np.unique(class_ids):
+        idx = class_ids == c
+        plt.scatter(y[idx,0], y[idx,1],
+                    c=color_marker[c][0], marker=color_marker[c][1],
+                    label=vcr.class_names[c])
+        
+    plt.legend()
     plt.grid(True)
     plt.show()
     plt.savefig(fig_file)
@@ -102,14 +113,20 @@ def plot_vector_tsne(iv_file, v_list, preproc_file,
     y = tsne.fit_transform(x)
     if save_embed:
         h5_file = '%s/embed_3d.h5' % output_path
-        hw = HypDataWriter(h5_file)
-        hw.write(vcr.scp.file_path, '', y)
+        hw = DWF.create(h5_file)
+        hw.write(vcr.scp.file_path, y)
 
     
     fig_file = '%s/tsne_3d.pdf' % (output_path)
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
-    ax.scatter(y[:,0], y[:,1], y[:,2], c=class_ids, marker='x')
+    #ax.scatter(y[:,0], y[:,1], y[:,2], c=class_ids, marker='x')
+    for c in np.unique(class_ids):
+        idx = class_ids == c
+        ax.scatter(y[idx,0], y[idx,1], y[idx,2],
+                   c=color_marker[c][0], marker=color_marker[c][1],
+                   label=vcr.class_names[c])
+
     plt.grid(True)
     plt.show()
     plt.savefig(fig_file)
@@ -134,7 +151,7 @@ if __name__ == "__main__":
     parser=argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         fromfile_prefix_chars='@',
-        description='Plots TSNE')
+        description='Plots TSNE embeddings')
 
     parser.add_argument('--iv-file', dest='iv_file', required=True)
     parser.add_argument('--v-list', dest='v_list', required=True)

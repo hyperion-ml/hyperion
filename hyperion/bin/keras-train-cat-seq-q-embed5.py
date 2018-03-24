@@ -19,6 +19,7 @@ from hyperion.hyp_defs import set_float_cpu, float_cpu
 from hyperion.utils.multithreading import threadsafe_generator
 from hyperion.helpers import SequenceBatchGenerator as G
 from hyperion.transforms import TransformList
+from hyperion.keras.backend_addons import reserve_gpu
 from hyperion.keras.keras_utils import *
 from hyperion.keras.keras_model_loader import KerasModelLoader as KML
 from hyperion.keras.helpers import OptimizerFactory as KOF
@@ -42,8 +43,10 @@ def train_embed(data_path, train_list, val_list,
                 init_path,
                 epochs,
                 preproc_file, output_path,
+                freeze_embed,
                 **kwargs):
 
+    g = reserve_gpu()
     set_float_cpu(float_keras())
 
     if preproc_file is not None:
@@ -84,7 +87,6 @@ def train_embed(data_path, train_list, val_list,
         print('loading init model: %s' % init_path)
         model = KML.load(init_path)
 
-
     opt_args = KOF.filter_args(**kwargs)
     cb_args = KCF.filter_args(**kwargs)
     print(sg_args)
@@ -93,7 +95,11 @@ def train_embed(data_path, train_list, val_list,
     
     print('max length: %d' % max_length)
 
-    t1 = time.time()    
+    t1 = time.time()
+    
+    if freeze_embed:
+        model.prepool_net.trainable = False
+        
     model.build(max_length)
     print(time.time()-t1)
     
@@ -133,7 +139,9 @@ if __name__ == "__main__":
     G.add_argparse_args(parser)
     KOF.add_argparse_args(parser)
     KCF.add_argparse_args(parser)
-    
+
+    parser.add_argument('--freeze-embed', dest='freeze_embed',
+                        default=False, action='store_true')
     parser.add_argument('--epochs', dest='epochs', default=1000, type=int)
     
     args=parser.parse_args()

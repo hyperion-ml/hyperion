@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-Trains LDA
+Trains NDA
 """
 from __future__ import absolute_import
 from __future__ import print_function
@@ -22,23 +22,9 @@ from hyperion.utils.scp_list import SCPList
 
 
 
-def load_data(iv_file, train_file, preproc):
-
-    train_utt2spk= SCPList.load(train_file, sep='=')
-    
-    hr = HypDataReader(iv_file)
-    x = hr.read(train_utt2spk.file_path, '.ivec', return_tensor=True)
-    if preproc is not None:
-        x = preproc.predict(x)
-
-    _, _, class_ids=np.unique(train_utt2spk.key,
-                              return_index=True, return_inverse=True)
-
-    return x, class_ids
-
 
 def train_nda(iv_file, train_list, preproc_file,
-              scp_sep, v_field,
+              scp_sep,
               min_spc, max_spc, spc_pruning_mode,
               csplit_min_spc, csplit_max_spc, csplit_mode,
               csplit_overlap, vcr_seed, 
@@ -51,14 +37,10 @@ def train_nda(iv_file, train_list, preproc_file,
     else:
         preproc = None
 
-    vcr  = VCR(iv_file, train_list, preproc,
-               scp_sep=scp_sep, v_field=v_field,
-               min_spc=min_spc, max_spc=max_spc, spc_pruning_mode=spc_pruning_mode,
-               csplit_min_spc=csplit_min_spc, csplit_max_spc=csplit_max_spc,
-               csplit_mode=csplit_mode,
-               csplit_overlap=csplit_overlap, vcr_seed=vcr_seed)
+    vr_args = VCR.filter_args(**kwargs)
+    vcr  = VCR(iv_file, train_list, preproc, **vr_args)
     x, class_ids = vcr.read()
-    # x, class_ids = load_data(iv_file, train_list, preproc)
+
 
     t1 = time.time()
 

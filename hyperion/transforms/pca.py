@@ -37,10 +37,13 @@ class PCA(HypModel):
     def fit(self, x=None, sample_weight=None, mu=None, C=None):
         
         if x is not None:
-            gauss = Normal(x_dim=x.shape[1])
-            gauss.fit(x=x, sample_weight=sample_weight)
-            mu = gauss.mu
-            C = gauss.Sigma
+            mu = np.mean(x, axis=0)
+            delta = x - mu
+            C = np.dot(delta.T, delta)/x.shape[0]
+            # gauss = Normal(x_dim=x.shape[1])
+            # gauss.fit(x=x, sample_weight=sample_weight)
+            # mu = gauss.mu
+            # C = gauss.Sigma
 
         if self.update_mu:
             self.mu = mu

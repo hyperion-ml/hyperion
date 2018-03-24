@@ -14,7 +14,7 @@ def generate_data(g):
         yield g.get_next_batch()
 
 def str2bool(s):
-    '''Convert string to bool for argparse '''
+    """Convert string to bool for argparse """
 
     values={'true': True, 't': True, 'yes': True, 'y': True,
             'false': False, 'f': False, 'no': False, 'n': False}
@@ -23,15 +23,19 @@ def str2bool(s):
     return values[s.lower()]
 
 def apply_gain_logx(x, AdB):
+    """Applies A dB gain to log(x) """
     return x+AdB/(20.*np.log10(np.exp(1)))
 
 def apply_gain_logx2(x, AdB):
+    """Applies A dB gain to log(x^2) """
     return x+AdB/(10.*np.log10(np.exp(1)))
 
 def apply_gain_x(x, AdB):
+    """Applies A dB gain to x """
     return x*10**(AdB/20)
 
 def apply_gain_x2(x, AdB):
+    """Applies A dB gain to x^2 """
     return x*10**(AdB/10)
 
 def apply_gain(x, feat_type, AdB):

@@ -38,6 +38,11 @@ def TDNNV1(num_td_layers, num_fc_layers,
     else:
         dilation_rate = [dilation_rate_factor*i+dilation_rate for i in xrange(num_td_layers)]
 
+    if isinstance(hidden_fc_units, list):
+        assert num_fc_layers == len(hidden_fc_units)
+    else:
+        hidden_fc_units = [hidden_fc_units for i in xrange(num_fc_layers)]
+
     
     x = Input(shape=(None, input_units,))
 
@@ -67,7 +72,7 @@ def TDNNV1(num_td_layers, num_fc_layers,
         if use_batchnorm:
             h_i = BatchNormalization()(h_i)
 
-        h_i = TimeDistributed(Dense(hidden_fc_units, name=('fc-%d' % i), 
+        h_i = TimeDistributed(Dense(hidden_fc_units[i], name=('fc-%d' % i), 
                                     kernel_initializer=kernel_initializer,
                                     bias_initializer=bias_initializer,
                                     kernel_regularizer=kernel_regularizer,

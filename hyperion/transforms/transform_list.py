@@ -13,7 +13,9 @@ import h5py
 from ..hyp_model import HypModel
 
 from .cent_whiten import CentWhiten
+from .cent_whiten_up import CentWhitenUP
 from .lnorm import LNorm
+from .lnorm_up import LNormUP
 from .pca import PCA
 from .lda import LDA
 from .nda import NDA

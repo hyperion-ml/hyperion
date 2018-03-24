@@ -28,5 +28,5 @@ class SNorm(ScoreNorm):
         scores_z_norm = self.z_norm.predict(scores, scores_enr_coh, mask_enr_coh)
         scores_t_norm = self.t_norm.predict(scores, scores_coh_test, mask_coh_test)
         
-        return scores_z_norm + scores_t_norm
+        return (scores_z_norm + scores_t_norm)/np.sqrt(2)
         

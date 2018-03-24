@@ -16,14 +16,38 @@ from mpl_toolkits.mplot3d import Axes3D as plt3d
 from .math import invert_pdmat
 
 
-def plot_gaussian_1D(mu, C, num_sigmas=3, num_pts=100, **kwargs):
+def plot_gaussian_1D(mu, C, num_sigmas=3, num_pts=100, weight=1, **kwargs):
+    """ Plots a 1D Gaussian.
+    
+    Args:
+      mu: mean
+      C: variance
+      num_sigmas: plots the Gaussian in the interval 
+                  (mu-num_sigmas*sigma,mu+num_sigmas*sigma), 
+                  where sigma is the standard deviation.
+      num_pts: number of points to plot in the interval.
+      kwargs: extra arguments for matplotlib
+    """
     sigma = np.sqrt(C)
     delta = num_sigmas*sigma
     x = np.linspace(mu-delta, mu+delta, num_pts)
-    plt.plot(x, mlab.normpdf(x, mu, sigma), **kwargs)
+    plt.plot(x, weight*mlab.normpdf(x, mu, sigma), **kwargs)
 
     
 def plot_gaussian_3D(mu, C, num_sigmas=3, num_pts=100, ax=None, **kwargs):
+    """ Plots a 2D Gaussian in a 3D space
+    
+    Args:
+      mu: mean
+      C: covariance
+      num_sigmas: plots the Gaussian in the interval 
+                  (mu-num_sigmas*sigma,mu+num_sigmas*sigma), 
+                  where sigma is the standard deviation.
+      num_pts: number of points to plot in the interval.
+      ax: image axes where to plot it
+      kwargs: extra arguments for matplotlib
+    """
+
     assert(mu.shape[0] == 2)
     assert(C.shape[0] == 2 and C.shape[1] == 2)
     num_pts *= 1j
@@ -46,6 +70,18 @@ def plot_gaussian_3D(mu, C, num_sigmas=3, num_pts=100, ax=None, **kwargs):
     
 
 def plot_gaussian_ellipsoid_2D(mu, C, num_sigmas=1, num_pts=100, **kwargs):
+    """ Plots a 2D Gaussian in a 2D space
+    
+    Args:
+      mu: mean
+      C: covariance
+      num_sigmas: plots the Gaussian in the interval 
+                  (mu-num_sigmas*sigma,mu+num_sigmas*sigma), 
+                  where sigma is the standard deviation.
+      num_pts: number of points to plot in the interval.
+      kwargs: extra arguments for matplotlib
+    """
+
     assert(mu.shape[0] == 2)
     assert(C.shape[0] == 2 and C.shape[1] == 2)
 
@@ -60,6 +96,19 @@ def plot_gaussian_ellipsoid_2D(mu, C, num_sigmas=1, num_pts=100, **kwargs):
 
     
 def plot_gaussian_ellipsoid_3D(mu, C, num_sigmas=1, num_pts=100, ax=None, **kwargs):
+    """ Plots a 3D Gaussian in a 3D space
+    
+    Args:
+      mu: mean
+      C: covariance
+      num_sigmas: plots the Gaussian in the interval 
+                  (mu-num_sigmas*sigma,mu+num_sigmas*sigma), 
+                  where sigma is the standard deviation.
+      num_pts: number of points to plot in the interval.
+      ax: image axes where to plot it
+      kwargs: extra arguments for matplotlib
+    """
+
     assert(mu.shape[0] == 3)
     assert(C.shape[0] == 3 and C.shape[1] == 3)
 

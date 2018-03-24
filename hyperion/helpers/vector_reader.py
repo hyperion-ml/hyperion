@@ -14,25 +14,23 @@ import copy
 
 import numpy as np
 
-from ..io import HypDataReader
+from ..io import RandomAccessDataReaderFactory as DRF
 from ..utils.scp_list import SCPList
 from ..transforms import TransformList
 
 
 class VectorReader(object):
 
-    def __init__(self, v_file, key_file, preproc=None, scp_sep='=', v_field=''):
+    def __init__(self, v_file, key_file, preproc=None, scp_sep='='):
 
-        self.r = HypDataReader(v_file)
+        self.r = DRF.create(v_file)
         self.scp = SCPList.load(key_file, sep=scp_sep)
         self.preproc = preproc
-        self.field = v_field
 
         
             
     def read(self):
-        
-        x = self.r.read(self.scp.file_path, self.field, return_tensor=True)
+        x = self.r.read(self.scp.file_path, squeeze=True)
         if self.preproc is not None:
             x = self.preproc.predict(x)
         return x
@@ -61,8 +59,8 @@ class VectorReader(object):
             p2 = prefix + '_'
         parser.add_argument(p1+'scp-sep', dest=(p2+'scp_sep'), default='=',
                             help=('scp file field separator'))
-        parser.add_argument(p1+'v-field', dest=(p2+'v_field'), default='',
-                            help=('dataset field in input vector file'))
+        # parser.add_argument(p1+'v-field', dest=(p2+'v_field'), default='',
+        #                     help=('dataset field in input vector file'))
         
     
 

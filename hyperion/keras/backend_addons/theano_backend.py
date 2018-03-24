@@ -20,3 +20,5 @@ def max_with_mask(x, mask, axis=None, keepdims=False):
     y = x - 1e10 * (1-mask)
     return T.max(y, axis=axis, keepdims=keepdims)
 
+def reserve_gpu():
+    return 0

@@ -130,7 +130,7 @@ class Normal(ExpFamily):
         if self.update_Lambda:
             S = vec2symmat(S/N)
             S -= np.outer(self.mu,self.mu)
-            S = fullcov_varfloor(S, np.sqrt(self.var_floor))
+            # S = fullcov_varfloor(S, self.var_floor)
             self.Lambda = invert_pdmat(S, return_inv=True)[-1]
             self._Sigma = None
             self._logLambda = None

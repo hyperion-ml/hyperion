@@ -14,7 +14,7 @@ import copy
 
 import numpy as np
 
-from ..io import HypDataReader
+from ..io import RandomAccessDataReaderFactory as DRF
 from ..utils.scp_list import SCPList
 from ..utils.tensors import to3D_by_class
 from ..transforms import TransformList
@@ -22,16 +22,15 @@ from ..transforms import TransformList
 
 class VectorClassReader(object):
 
-    def __init__(self, v_file, key_file, preproc=None, scp_sep='=', v_field='',
+    def __init__(self, v_file, key_file, preproc=None, scp_sep='=', 
                  class2int_file=None,
                  min_spc=1, max_spc=None, spc_pruning_mode='random',
                  csplit_min_spc=1, csplit_max_spc=None, csplit_mode='random',
                  csplit_overlap=0, vcr_seed=1024, csplit_once=True):
 
-        self.r = HypDataReader(v_file)
+        self.r = DRF.create(v_file)
         self.scp = SCPList.load(key_file, sep=scp_sep)
         self.preproc = preproc
-        self.field = v_field
 
         self.map_class2int = None
         if class2int_file is not None:
@@ -59,7 +58,7 @@ class VectorClassReader(object):
             scp = self._split_classes(self.spc, self.csplit_min_spc, self.csplit_max_spc,
                                       self.csplit_mode, self.csplit_overlap, self.rng)
         
-        x = self.r.read(scp.file_path, self.field, return_tensor=True)
+        x = self.r.read(scp.file_path, squeeze=True)
         if self.preproc is not None:
             x = self.preproc.predict(x)
 
@@ -73,6 +72,16 @@ class VectorClassReader(object):
         return x, class_ids
 
 
+    
+    @property
+    def class_names(self):
+        if self.map_class2int is None:
+            return np.unique(self.scp.key)
+        else:
+            map_int2class = {k:v for v,k in self.map_class2int.items()}
+            classes = [ map_int2class[i] for i in xrange(len(map_int2class))]
+            return np.asarray(classes)
+    
     
     @property
     def samples_per_class(self):
@@ -217,8 +226,8 @@ class VectorClassReader(object):
             p2 = prefix + '_'
         parser.add_argument(p1+'scp-sep', dest=(p2+'scp_sep'), default='=',
                             help=('scp file field separator'))
-        parser.add_argument(p1+'v-field', dest=(p2+'v_field'), default='',
-                            help=('dataset field in input vector file'))
+        # parser.add_argument(p1+'v-field', dest=(p2+'v_field'), default='',
+        #                     help=('dataset field in input vector file'))
 
         parser.add_argument(p1+'class2int-file', dest=(p2+'class2int_file'), default=None,
                             help=('file that maps class string to integer'))

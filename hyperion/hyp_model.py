@@ -8,6 +8,7 @@ from six.moves import xrange
 from abc import ABCMeta, abstractmethod
 import os
 import json
+from copy import deepcopy
 
 import numpy as np
 import h5py
@@ -19,6 +20,11 @@ class HypModel(object):
 
     def __init__(self, name=None, **kwargs):
         self.name = name
+
+        
+    def copy(self):
+        return deepcopy(self)
+
 
     
     @abstractmethod

@@ -17,11 +17,11 @@ from ...utils.plotting import plot_gaussian_1D, plot_gaussian_ellipsoid_2D, plot
 from .exp_family import ExpFamily
 
 
-class DiagNormal(ExpFamily):
+class NormalDiagCov(ExpFamily):
     
     def __init__(self, mu=None, Lambda=None, var_floor=1e-5,
                  update_mu=True, update_Lambda=True, **kwargs):
-        super(DiagNormal, self).__init__(**kwargs)
+        super(NormalDiagCov, self).__init__(**kwargs)
         self.mu = mu
         self.Lambda = Lambda
         self.var_floor = var_floor
@@ -143,7 +143,7 @@ class DiagNormal(ExpFamily):
         config = {'var_floor': self.var_floor,
                   'update_mu': self.update_mu,
                   'update_lambda': self.update_Lambda }
-        base_config = super(DiagNormal, self).get_config()
+        base_config = super(NormalDiagCov, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
 
@@ -281,3 +281,8 @@ class DiagNormal(ExpFamily):
         mu=self.mu[feat_idx]
         C=np.diag(1./self.Lambda[feat_idx])
         plot_gaussian_ellipsoid_3D(mu, C, num_sigmas, num_pts, **kwargs)
+
+
+
+
+DiagNormal = NormalDiagCov

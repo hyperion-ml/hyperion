@@ -19,6 +19,18 @@ from .data_reader import SequentialDataReader, RandomAccessDataReader
 
 
 class SequentialArkDataReader(SequentialDataReader):
+    """Abstract base class to read Ark feature files in
+       sequential order.
+    
+        Attributes:
+           file_path: ark or scp file to read.
+           transform: TransformList object, applies a transformation to the 
+                      features after reading them from disk.
+           part_idx: It splits the input into num_parts and writes only 
+                     part part_idx, where part_idx=1,...,num_parts.
+           num_parts: Number of parts to split the input data.
+           split_by_key: If True, all the elements with the same key go to the same part.
+    """
 
     def __init__(self, file_path, **kwargs):
         super(SequentialArkDataReader, self).__init__(file_path, **kwargs)
@@ -27,6 +39,7 @@ class SequentialArkDataReader(SequentialDataReader):
 
     
     def close(self):
+        """Closes input file."""
         if self.f is not None:
             self.f.close()
             self.f = None
@@ -34,6 +47,11 @@ class SequentialArkDataReader(SequentialDataReader):
 
 
     def _seek(self, offset):
+        """Moves the pointer of the input file.
+        
+        Args:
+          offset: Byte where we want to put the pointer.
+        """
         cur_pos = self.f.tell()
         delta = offset - cur_pos
         self.f.seek(delta, 1)
@@ -41,6 +59,14 @@ class SequentialArkDataReader(SequentialDataReader):
 
         
     def _open_archive(self, file_path, offset=0):
+        """Opens the current file if it is not open and moves the 
+           file pointer to a given position.
+           Closes previous open Ark files.
+
+        Args:
+          file_path: File from which we want to read the next feature matrix.
+          offset: Byte position where feature matrix is in the file.
+        """
         if self.f is None or file_path != self.cur_file:
             self.close()
             self.cur_file = file_path
@@ -52,6 +78,18 @@ class SequentialArkDataReader(SequentialDataReader):
 
             
     def read_num_rows(self, num_records=0, assert_same_dim=True):
+        """Reads the number of rows in the feature matrices of the dataset.
+        
+        Args:
+          num_records: How many matrices shapes to read, if num_records=0 it 
+                       reads al the matrices in the dataset.
+          assert_same_dim: If True, it raise exception in not all the matrices have
+                           the same number of columns.
+
+        Returns:
+          List of num_records recording names.
+          Integer numpy array with num_records number of rows.
+        """
         keys, shapes = self.read_shapes(num_records, assert_same_dim)
         num_rows = np.array([s[0] if len(s)==2 else 1 for s in shapes],
                             dtype=int)
@@ -60,6 +98,18 @@ class SequentialArkDataReader(SequentialDataReader):
 
     
     def read_dims(self, num_records=0, assert_same_dim=True):
+        """Reads the number of columns in the feature matrices of the dataset.
+        
+        Args:
+          num_records: How many matrices shapes to read, if num_records=0 it 
+                       reads al the matrices in the dataset.
+          assert_same_dim: If True, it raise exception in not all the matrices have
+                           the same number of columns.
+
+        Returns:
+          List of num_records recording names.
+          Integer numpy array with num_records number of columns.
+        """
         keys, shapes = self.read_shapes(num_records, False)
         dims = np.array([s[-1] for s in shapes], dtype=int)
         if assert_same_dim and len(dims)>0:
@@ -71,6 +121,18 @@ class SequentialArkDataReader(SequentialDataReader):
 
     
 class SequentialArkFileDataReader(SequentialArkDataReader):
+    """Class to read feature matrices/vectors in
+       sequential order from a single Ark file.
+    
+        Attributes:
+           file_path: Ark file to read.
+           transform: TransformList object, applies a transformation to the 
+                      features after reading them from disk.
+           part_idx: It splits the input into num_parts and writes only 
+                     part part_idx, where part_idx=1,...,num_parts.
+           num_parts: Number of parts to split the input data.
+           split_by_key: If True, all the elements with the same key go to the same part.
+    """
 
     def __init__(self, file_path, **kwargs):
         super(SequentialArkFileDataReader, self).__init__(
@@ -82,19 +144,35 @@ class SequentialArkFileDataReader(SequentialArkDataReader):
                 'Dataset splitting not available for %s' %
                 self.__class__.__name__)
 
+
         
     def reset(self):
+        """Puts the file pointer back to the begining of the file"""
         if self.f is not None:
             self.f.seek(0, 0)
             self._eof = False
             
-        
+
+            
     def eof(self):
+        """Returns True when it reaches the end of the ark file."""
         return self._eof or self.f is None
 
     
 
     def read_shapes(self, num_records=0, assert_same_dim=True):
+        """Reads the shapes in the feature matrices of the dataset.
+        
+        Args:
+          num_records: How many matrices shapes to read, if num_records=0 it 
+                       reads al the matrices in the dataset.
+          assert_same_dim: If True, it raise exception in not all the matrices have
+                           the same number of columns.
+
+        Returns:
+          List of num_records recording names.
+          List of tuples with num_records shapes.
+        """
         keys = []
         shapes = []
         count = 0
@@ -123,7 +201,23 @@ class SequentialArkFileDataReader(SequentialArkDataReader):
 
     
     def read(self, num_records=0, squeeze=False, row_offset=0, num_rows=0):
+        """Reads next num_records feature matrices/vectors.
+        
+        Args:
+          num_records: Number of feature matrices to read.
+          squeeze: If True, it converts the list of 
+                   matrices/vectors to 3D/2D numpy array.
+                   All matrices need to have same number of rows.
+          offset: List of integers or numpy array of with the first row to 
+                  read from each feature matrix.
+          num_rows: List of integers or numpy array of with the 
+                    number of rows to read from each feature matrix.
+                    If 0 it reads all the rows.
 
+        Returns:
+          key: List of recording names.
+          data: List of feature matrices/vectors or 3D/2D numpy array.
+        """
         row_offset_is_list = (isinstance(row_offset, list) or
                               isinstance(row_offset, np.ndarray))
         num_rows_is_list = (isinstance(num_rows, list) or
@@ -166,7 +260,25 @@ class SequentialArkFileDataReader(SequentialArkDataReader):
 
 
 class SequentialArkScriptDataReader(SequentialArkDataReader):
-
+    """Class to read Ark feature files indexed by a scp file in
+       sequential order.
+    
+        Attributes:
+           file_path: scp file to read.
+           path_prefix: If input_spec is a scp file, it pre-appends 
+                        path_prefix string to the second column of 
+                        the scp file. This is useful when data 
+                        is read from a different directory of that 
+                        it was created.
+           scp_sep: Separator for scp files (default ' ').
+           transform: TransformList object, applies a transformation to the 
+                      features after reading them from disk.
+           part_idx: It splits the input into num_parts and writes only 
+                     part part_idx, where part_idx=1,...,num_parts.
+           num_parts: Number of parts to split the input data.
+           split_by_key: If True, all the elements with the same key go to the same part.
+    """
+    
     def __init__(self, file_path, path_prefix=None, scp_sep=' ', **kwargs):
         super(SequentialArkScriptDataReader, self).__init__(
             file_path, permissive=False, **kwargs)
@@ -184,17 +296,32 @@ class SequentialArkScriptDataReader(SequentialArkDataReader):
 
         
     def reset(self):
+        """Closes all the open Ark files and puts the read pointer pointing
+        to the first element in the scp file."""
         self.close()
         self.cur_item = 0
 
 
         
     def eof(self):
+        """Returns True when all the elements in the scp have been read."""
         return self.cur_item == len(self.scp)
 
 
     
     def read_shapes(self, num_records=0, assert_same_dim=True):
+        """Reads the shapes in the feature matrices of the dataset.
+        
+        Args:
+          num_records: How many matrices shapes to read, if num_records=0 it 
+                       reads al the matrices in the dataset.
+          assert_same_dim: If True, it raise exception in not all the matrices have
+                           the same number of columns.
+
+        Returns:
+          List of num_records recording names.
+          List of tuples with num_records shapes.
+        """
         if num_records == 0:
             num_records = len(self.scp) - self.cur_item
         
@@ -229,7 +356,23 @@ class SequentialArkScriptDataReader(SequentialArkDataReader):
 
     
     def read(self, num_records=0, squeeze=False, row_offset=0, num_rows=0):
+        """Reads next num_records feature matrices/vectors.
+        
+        Args:
+          num_records: Number of feature matrices to read.
+          squeeze: If True, it converts the list of 
+                   matrices/vectors to 3D/2D numpy array.
+                   All matrices need to have same number of rows.
+          offset: List of integers or numpy array of with the first row to 
+                  read from each feature matrix.
+          num_rows: List of integers or numpy array of with the 
+                    number of rows to read from each feature matrix.
+                    If 0 it reads all the rows.
 
+        Returns:
+          key: List of recording names.
+          data: List of feature matrices/vectors or 3D/2D numpy array.
+        """
         if num_records == 0:
             num_records = len(self.scp) - self.cur_item
 
@@ -274,7 +417,23 @@ class SequentialArkScriptDataReader(SequentialArkDataReader):
 
 
 class RandomAccessArkDataReader(RandomAccessDataReader):
-
+    """Class to read Ark files in random order, using scp file to 
+       index the Ark files.
+    
+        Attributes:
+           file_path: scp file to read.
+           path_prefix: If input_spec is a scp file, it pre-appends 
+                        path_prefix string to the second column of 
+                        the scp file. This is useful when data 
+                        is read from a different directory of that 
+                        it was created.
+           transform: TransformList object, applies a transformation to the 
+                      features after reading them from disk.
+           permissive: If True, if the data that we want to read is not in the file 
+                       it returns an empty matrix, if False it raises an exception.
+           scp_sep: Separator for scp files (default ' ').
+    """
+        
     def __init__(self, file_path, path_prefix=None,
                  transform=None, permissive=False, scp_sep=' '):
         super(RandomAccessArkDataReader, self).__init__(
@@ -293,6 +452,7 @@ class RandomAccessArkDataReader(RandomAccessDataReader):
 
         
     def close(self):
+        """Closes all the open Ark files."""
         for f in self.f:
             if f is not None:
                 f.close()
@@ -301,6 +461,19 @@ class RandomAccessArkDataReader(RandomAccessDataReader):
 
 
     def _open_archive(self, key_idx, offset=0):
+        """Opens the Ark file correspoding to a given feature/matrix 
+           if it is not already open and moves the file pointer to the 
+           point where we can read that feature matrix.
+
+           If the file was already open, it only moves the file pointer.
+        
+        Args:
+          key_idx: Integer position of the feature matrix in the scp file.
+          offset: Byte where we can find the feature matrix in the Ark file.
+
+        Returns:
+          Python file object.
+        """
         archive_idx = self.archive_idx[key_idx]
         if self.f[archive_idx] is None:
             self.f[archive_idx] = open(self.archives[archive_idx], 'rb')
@@ -312,6 +485,17 @@ class RandomAccessArkDataReader(RandomAccessDataReader):
 
     
     def read_num_rows(self, keys, assert_same_dim=True):
+        """Reads the number of rows in the feature matrices of the dataset.
+        
+        Args:
+          keys: List of recording names from which we want to retrieve the 
+                number of rows.
+          assert_same_dim: If True, it raise exception in not all the matrices have
+                           the same number of columns.
+
+        Returns:
+          Integer numpy array with the number of rows for the recordings in keys.
+        """
         shapes = self.read_shapes(keys, assert_same_dim)
         num_rows = np.array([s[0] if len(s)==2 else 1 for s in shapes],
                             dtype=np.int)
@@ -320,6 +504,17 @@ class RandomAccessArkDataReader(RandomAccessDataReader):
 
     
     def read_dims(self, keys, assert_same_dim=True):
+        """Reads the number of columns in the feature matrices of the dataset.
+        
+        Args:
+          keys: List of recording names from which we want to retrieve the 
+                number of columns.
+          assert_same_dim: If True, it raise exception in not all the matrices have
+                           the same number of columns.
+
+        Returns:
+          Integer numpy array with the number of columns for the recordings in keys
+        """
         shapes = self.read_shapes(keys, False)
         dims = np.array([s[-1] for s in shapes], dtype=np.int)
         if assert_same_dim:
@@ -329,7 +524,17 @@ class RandomAccessArkDataReader(RandomAccessDataReader):
 
     
     def read_shapes(self, keys, assert_same_dim=True):
+        """Reads the shapes in the feature matrices of the dataset.
         
+        Args:
+          keys: List of recording names from which we want to retrieve the 
+                shapes.
+          assert_same_dim: If True, it raise exception in not all the matrices have
+                           the same number of columns.
+
+        Returns:
+          List of tuples with the shapes for the recordings in keys.
+        """
         if isinstance(keys, string_types):
             keys = [keys]
 
@@ -368,9 +573,25 @@ class RandomAccessArkDataReader(RandomAccessDataReader):
     
 
     def read(self, keys, squeeze=False, row_offset=0, num_rows=0):
+        """Reads the feature matrices/vectors for the recordings in keys.
+        
+        Args:
+          keys: List of recording names from which we want to retrieve the 
+                feature matrices/vectors.
+          squeeze: If True, it converts the list of 
+                   matrices/vectors to 3D/2D numpy array.
+                   All matrices need to have same number of rows.
+          offset: List of integers or numpy array of with the first row to 
+                  read from each feature matrix.
+          num_rows: List of integers or numpy array of with the 
+                    number of rows to read from each feature matrix.
+                    If 0 it reads all the rows.
+
+        Returns:
+          data: List of feature matrices/vectors or 3D/2D numpy array.
+        """
         if isinstance(keys, string_types):
             keys = [keys]
-
 
         row_offset_is_list = (isinstance(row_offset, list) or
                               isinstance(row_offset, np.ndarray))
@@ -380,8 +601,6 @@ class RandomAccessArkDataReader(RandomAccessDataReader):
             assert len(row_offset) == len(keys)
         if num_rows_is_list:
             assert len(num_rows) == len(keys)
-
-            
 
         data = []
         for i,key in enumerate(keys):

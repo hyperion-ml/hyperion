@@ -63,6 +63,7 @@ class SPLDA(PLDABase):
         VV = np.dot(self.V, WV)
 
         compute_inv = return_cov or return_acc
+        return_tuple = compute_inv or return_logpy_0
 
         N_is_int = False
         if np.all(np.ceil(N) == N):
@@ -120,14 +121,17 @@ class SPLDA(PLDABase):
             if return_acc:
                 Py += M_i*iL
 
-            r = [y]
-            if return_cov:
-                r += [Sigma_y]
-            if return_logpy_0:
-                r += [logpy]
-            if return_acc:
-                r += [Ry, Py]
-        return r
+        if not return_tuple:
+            return y
+        
+        r = [y]
+        if return_cov:
+            r += [Sigma_y]
+        if return_logpy_0:
+            r += [logpy]
+        if return_acc:
+            r += [Ry, Py]
+        return tuple(r)
 
 
     def Estep(self, D):
@@ -240,6 +244,17 @@ class SPLDA(PLDABase):
         return cls(**kwargs)
 
 
+    
+    def eval_logpx_g_y(self, x, y):
+        logW = logdet_pdmat(self.W)
+        delta = x - self.mu - np.dot(y, self.V)
+        logp = - x.shape[-1]*np.log(2*np.pi) + logW - np.sum(
+            np.dot(delta, self.W)*delta, axis=-1)
+        logp /= 2
+        return logp
+    
+
+    
     def eval_llr_1vs1(self, x1, x2):
 
         WV = np.dot(self.W, self.V.T)

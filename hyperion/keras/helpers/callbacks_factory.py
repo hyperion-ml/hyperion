@@ -12,7 +12,7 @@ class CallbacksFactory(object):
                          monitor = 'val_loss', patience=None, min_delta=1e-4,
                          lr_steps = None,
                          lr_monitor = None,
-                         lr_patience = None, lr_factor=0.1, min_lr=1e-5,
+                         lr_patience = None, lr_factor=0.1, min_lr=1e-7,
                          log_append=False):
 
         if lr_monitor is None:

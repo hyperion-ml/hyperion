@@ -15,7 +15,6 @@ import time
 
 import numpy as np
 
-from hyperion.io import HypDataReader
 from hyperion.helpers import VectorReader as VR
 from hyperion.pdfs.core import Normal
 from hyperion.transforms import TransformList, CentWhiten, LNorm

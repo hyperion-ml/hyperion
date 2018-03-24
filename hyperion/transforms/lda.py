@@ -13,12 +13,14 @@ import h5py
 import scipy.linalg as la
 
 from ..hyp_model import HypModel
+from .sb_sw import SbSw
 
 class LDA(HypModel):
-    def __init__(self, mu=None, T=None, **kwargs):
+    def __init__(self, mu=None, T=None, lda_dim=None, **kwargs):
         super(LDA, self).__init__(**kwargs)
         self.mu = mu
         self.T = T
+        self.lda_dim = lda_dim
 
         
     def predict(self, x):
@@ -27,7 +29,15 @@ class LDA(HypModel):
         return np.dot(x, self.T)
 
     
-    def fit(self, mu, Sb, Sw, lda_dim=None):
+    def fit(self, x, y, mu=None, Sb=None, Sw=None):
+
+        if mu is None or Sb is None or Sw is None:
+            sbsw = SbSw()
+            sbsw.fit(x,y)
+            mu = sbsw.mu
+            Sb = sbsw.Sb
+            Sw = sbsw.Sw
+
         self.mu = mu
 
         assert(Sb.shape == Sw.shape)
@@ -39,9 +49,9 @@ class LDA(HypModel):
         V[:,p] *= -1
 
         
-        if lda_dim is not None:
-            assert(lda_dim <= V.shape[1])
-            V = V[:,:lda_dim]
+        if self.lda_dim is not None:
+            assert self.lda_dim <= V.shape[1]
+            V = V[:,:self.lda_dim]
 
         self.T = V
         

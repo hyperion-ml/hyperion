@@ -10,6 +10,19 @@ from abc import ABCMeta, abstractmethod
 
 
 class DataWriter(object):
+    """Abstract base class to write Ark or hdf5 feature files.
+    
+    Attributes:
+      archive_path: output data file path.
+      script_path: optional output scp file.
+      flush: If True, it flushes the output after writing each feature matrix.
+      compress: It True, it uses Kaldi compression.
+      compression_method: Kaldi compression method:
+                          {auto (default), speech_feat, 
+                           2byte-auto, 2byte-signed-integer,
+                           1byte-auto, 1byte-unsigned-integer, 1byte-0-1}.
+      scp_sep: Separator for scp files (default ' ').
+    """
     __metaclass__ = ABCMeta
 
     def __init__(self, archive_path, script_path=None,
@@ -22,21 +35,51 @@ class DataWriter(object):
         self.scp_sep = scp_sep
         
 
+        
     def __enter__(self):
+        """Function required when entering contructions of type
+           
+           with DataWriter('file.h5') as f:
+              f.write(key, data)
+        """
         return self
 
+
+    
     @abstractmethod
     def __exit__(self, exc_type, exc_value, traceback):
+        """Function required when exiting from contructions of type
+           
+           with DataWriter('file.h5') as f:
+              f.write(key, data)
+        """
         pass
 
+
+    
     @abstractmethod
     def close(self):
+        """Closes the output file"""
         pass
 
+
+    
     @abstractmethod
     def flush(self):
+        """Flushes the file"""
         pass
+
+
     
     @abstractmethod
     def write(self, key, data):
+        """Writes data to file.
+        
+        Args:
+          key: List of recodings names.
+          data: List of Feature matrices or vectors. 
+                If all the matrices have the same dimension 
+                it can be a 3D numpy array.
+                If they are vectors, it can be a 2D numpy array.
+        """
         pass

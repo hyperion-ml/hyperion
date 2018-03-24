@@ -33,7 +33,7 @@ from hyperion.keras.embed import SeqQEmbed
 
     
 def extract_embed(seq_file, model_file, preproc_file, output_path,
-                  max_seq_length, pooling_output, **kwargs):
+                  max_seq_length, pooling_output, write_format, **kwargs):
 
     set_float_cpu('float32')
     
@@ -57,7 +57,8 @@ def extract_embed(seq_file, model_file, preproc_file, output_path,
     sr.reset()
     num_seqs = len(seq_lengths)
 
-    y = np.zeros((num_seqs, y_dim), dtype=float_keras())
+    p1_y = np.zeros((num_seqs, y_dim), dtype=float_keras())
+    p2_y = np.zeros((num_seqs, y_dim), dtype=float_keras())
     keys = []
 
     for i in xrange(num_seqs):
@@ -68,13 +69,20 @@ def extract_embed(seq_file, model_file, preproc_file, output_path,
         print('Extracting embeddings %d/%d for %s, num_frames: %d' %
               (i, num_seqs, key[0], data[0].shape[0]))
         keys.append(key[0])
-        y[i], _ = model.predict_embed(data[0])
+        p1_y[i], p2_y[i] = model.predict_embed(data[0])
                 
         ti4 = time.time()
         print('Elapsed time embeddings %d/%d for %s, total: %.2f read: %.2f, vae: %.2f' %
               (i, num_seqs, key, ti4-ti1, ti2-ti1, ti4-ti2))
             
     print('Extract elapsed time: %.2f' % (time.time() - t1))
+
+    if write_format == 'p1':
+        y = p1_y
+    elif write_format == 'p1+p2':
+        y = np.hstack((p1_y, p2_y))
+    else:
+        y = p2_y
     
     hw = DWF.create(output_path)
     hw.write(keys, y)
@@ -99,6 +107,9 @@ if __name__ == "__main__":
                                  'nat+var', 'nat+prec',
                                  'mean+logar', 'mean+logprec',
                                  'mean+var', 'mean+prec'])
+    parser.add_argument('--write-format', dest='write_format',
+                        default='p1',
+                        choices=['p1', 'p2', 'p1+p2'])
 
     SDRF.add_argparse_args(parser)
 

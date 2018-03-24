@@ -20,25 +20,21 @@ from .data_reader import SequentialDataReader, RandomAccessDataReader
 
 
 
-# def _read_h5_shape(dset, row_offset=0, num_rows=0):
-    
-#     if row_offset == 0 and num_rows == 0:
-#         shape = dset.shape
-#     else:
-#         shape = list(dset.shape)
-#         if num_rows == 0:
-#             shape[0] -= row_offset_i
-#             assert shape[0] > 0
-#         else:
-#             assert num_rows <= shape[0]
-#             shape[0] = num_rows
-#         shape = tuple(shape)
-        
-#     return shape
-
-
-
 def _read_h5_data(dset, row_offset=0, num_rows=0, transform=None):
+    """Auxiliary function to read the feature matrix from hdf5 dataset.
+       It decompresses the data if it was compressed.
+
+    Args:
+      dset: hdf5 dataset correspoding to a feature matrix/vector.
+      row_offset: First row to read from each feature matrix.
+      num_rows: Number of rows to read from the feature matrix.
+                If 0 it reads all the rows.
+      transform: TransformList object, applies a transformation to the 
+                 features after reading them from disk.
+
+    Returns:
+      Numpy array with feature matrix/vector.
+    """
     if row_offset > 0:
         if num_rows == 0:
             data = dset[row_offset:]
@@ -67,6 +63,18 @@ def _read_h5_data(dset, row_offset=0, num_rows=0, transform=None):
 
 
 class SequentialH5DataReader(SequentialDataReader):
+    """Abstract base class to read hdf5 feature files in
+       sequential order.
+    
+        Attributes:
+           file_path: ark or scp file to read.
+           transform: TransformList object, applies a transformation to the 
+                      features after reading them from disk.
+           part_idx: It splits the input into num_parts and writes only 
+                     part part_idx, where part_idx=1,...,num_parts.
+           num_parts: Number of parts to split the input data.
+           split_by_key: If True, all the elements with the same key go to the same part.
+    """
 
     def __init__(self, file_path, **kwargs):
         super(SequentialH5DataReader, self).__init__(file_path, **kwargs)
@@ -74,8 +82,10 @@ class SequentialH5DataReader(SequentialDataReader):
         self.cur_file = None
         self.cur_item = 0
 
+
         
     def close(self):
+        """Closes current hdf5 file."""
         if self.f is not None:
             self.f.close()
             self.f = None
@@ -83,6 +93,10 @@ class SequentialH5DataReader(SequentialDataReader):
 
         
     def _open_archive(self, file_path):
+        """Opens the hdf5 file where the next matrix/vector is
+           if it is not open.
+           If there was another hdf5 file open, it closes it.
+        """
         if self.f is None or file_path != self.cur_file:
             self.close()
             self.cur_file = file_path
@@ -91,6 +105,18 @@ class SequentialH5DataReader(SequentialDataReader):
 
             
     def read_num_rows(self, num_records=0, assert_same_dim=True):
+        """Reads the number of rows in the feature matrices of the dataset.
+        
+        Args:
+          num_records: How many matrices shapes to read, if num_records=0 it 
+                       reads al the matrices in the dataset.
+          assert_same_dim: If True, it raise exception in not all the matrices have
+                           the same number of columns.
+
+        Returns:
+          List of num_records recording names.
+          Integer numpy array with num_records number of rows.
+        """
         keys, shapes = self.read_shapes(num_records, assert_same_dim)
         num_rows = np.array([s[0] if len(s)==2 else 1 for s in shapes], dtype=int)
         return keys, num_rows
@@ -98,6 +124,18 @@ class SequentialH5DataReader(SequentialDataReader):
 
     
     def read_dims(self, num_records=0, assert_same_dim=True):
+        """Reads the number of columns in the feature matrices of the dataset.
+        
+        Args:
+          num_records: How many matrices shapes to read, if num_records=0 it 
+                       reads al the matrices in the dataset.
+          assert_same_dim: If True, it raise exception in not all the matrices have
+                           the same number of columns.
+
+        Returns:
+          List of num_records recording names.
+          Integer numpy array with num_records number of columns.
+        """
         keys, shapes = self.read_shapes(num_records, False)
         dims = np.array([s[-1] for s in shapes], dtype=np.int32)
         if assert_same_dim and len(dims)>0:
@@ -108,6 +146,18 @@ class SequentialH5DataReader(SequentialDataReader):
 
     
 class SequentialH5FileDataReader(SequentialH5DataReader):
+    """Class to read feature matrices/vectors in
+       sequential order from a single hdf5 file.
+    
+        Attributes:
+           file_path: Ark file to read.
+           transform: TransformList object, applies a transformation to the 
+                      features after reading them from disk.
+           part_idx: It splits the input into num_parts and writes only 
+                     part part_idx, where part_idx=1,...,num_parts.
+           num_parts: Number of parts to split the input data.
+           split_by_key: If True, all the elements with the same key go to the same part.
+    """
 
     def __init__(self, file_path, **kwargs):
         super(SequentialH5FileDataReader, self).__init__(
@@ -124,17 +174,31 @@ class SequentialH5FileDataReader(SequentialH5DataReader):
 
         
     def reset(self):
+        """Puts the file pointer back to the begining of the file"""
         if self.f is not None:
             self.cur_item = 0
             
 
             
     def eof(self):
+        """Returns True when it reaches the end of the ark file."""
         return self.cur_item == len(self._keys)
 
     
 
     def read_shapes(self, num_records=0, assert_same_dim=True):
+        """Reads the shapes in the feature matrices of the dataset.
+        
+        Args:
+          num_records: How many matrices shapes to read, if num_records=0 it 
+                       reads al the matrices in the dataset.
+          assert_same_dim: If True, it raise exception in not all the matrices have
+                           the same number of columns.
+
+        Returns:
+          List of num_records recording names.
+          List of tuples with num_records shapes.
+        """
         if num_records == 0:
             num_records = len(self._keys) - self.cur_item
 
@@ -156,9 +220,24 @@ class SequentialH5FileDataReader(SequentialH5DataReader):
 
 
 
-    
     def read(self, num_records=0, squeeze=False, row_offset=0, num_rows=0):
+        """Reads next num_records feature matrices/vectors.
+        
+        Args:
+          num_records: Number of feature matrices to read.
+          squeeze: If True, it converts the list of 
+                   matrices/vectors to 3D/2D numpy array.
+                   All matrices need to have same number of rows.
+          offset: List of integers or numpy array of with the first row to 
+                  read from each feature matrix.
+          num_rows: List of integers or numpy array of with the 
+                    number of rows to read from each feature matrix.
+                    If 0 it reads all the rows.
 
+        Returns:
+          key: List of recording names.
+          data: List of feature matrices/vectors or 3D/2D numpy array.
+        """
         if num_records == 0:
             num_records = len(self._keys) - self.cur_item
 
@@ -192,6 +271,24 @@ class SequentialH5FileDataReader(SequentialH5DataReader):
 
 
 class SequentialH5ScriptDataReader(SequentialH5DataReader):
+    """Class to read features from multiple hdf5 files where a scp file
+       indicates which hdf5 file contains each feature matrix.
+    
+        Attributes:
+           file_path: scp file to read.
+           path_prefix: If input_spec is a scp file, it pre-appends 
+                        path_prefix string to the second column of 
+                        the scp file. This is useful when data 
+                        is read from a different directory of that 
+                        it was created.
+           scp_sep: Separator for scp files (default ' ').
+           transform: TransformList object, applies a transformation to the 
+                      features after reading them from disk.
+           part_idx: It splits the input into num_parts and writes only 
+                     part part_idx, where part_idx=1,...,num_parts.
+           num_parts: Number of parts to split the input data.
+           split_by_key: If True, all the elements with the same key go to the same part.
+    """
 
     def __init__(self, file_path, path_prefix=None, scp_sep=' ', **kwargs):
         super(SequentialH5ScriptDataReader, self).__init__(
@@ -207,17 +304,32 @@ class SequentialH5ScriptDataReader(SequentialH5DataReader):
 
         
     def reset(self):
+        """Closes all the open hdf5 files and puts the read pointer pointing
+        to the first element in the scp file."""
         self.close()
         self.cur_item = 0
 
 
         
     def eof(self):
+        """Returns True when all the elements in the scp have been read."""
         return self.cur_item == len(self.scp)
 
 
     
     def read_shapes(self, num_records=0, assert_same_dim=True):
+        """Reads the shapes in the feature matrices of the dataset.
+        
+        Args:
+          num_records: How many matrices shapes to read, if num_records=0 it 
+                       reads al the matrices in the dataset.
+          assert_same_dim: If True, it raise exception in not all the matrices have
+                           the same number of columns.
+
+        Returns:
+          List of num_records recording names.
+          List of tuples with num_records shapes.
+        """
         if num_records == 0:
             num_records = len(self.scp) - self.cur_item
         
@@ -251,7 +363,23 @@ class SequentialH5ScriptDataReader(SequentialH5DataReader):
 
     
     def read(self, num_records=0, squeeze=False, row_offset=0, num_rows=0):
+        """Reads next num_records feature matrices/vectors.
+        
+        Args:
+          num_records: Number of feature matrices to read.
+          squeeze: If True, it converts the list of 
+                   matrices/vectors to 3D/2D numpy array.
+                   All matrices need to have same number of rows.
+          offset: List of integers or numpy array of with the first row to 
+                  read from each feature matrix.
+          num_rows: List of integers or numpy array of with the 
+                    number of rows to read from each feature matrix.
+                    If 0 it reads all the rows.
 
+        Returns:
+          key: List of recording names.
+          data: List of feature matrices/vectors or 3D/2D numpy array.
+        """
         if num_records == 0:
             num_records = len(self.scp) - self.cur_item
 
@@ -290,6 +418,16 @@ class SequentialH5ScriptDataReader(SequentialH5DataReader):
 
 
 class RandomAccessH5DataReader(RandomAccessDataReader):
+    """Abstract base class to read hdf5 feature files in
+       random order.
+    
+        Attributes:
+           file_path: hdf5 or scp file to read.
+           transform: TransformList object, applies a transformation to the 
+                      features after reading them from disk.
+           permissive: If True, if the data that we want to read is not in the file 
+                       it returns an empty matrix, if False it raises an exception.
+    """
 
     def __init__(self, file_path, transform=None, permissive = False):
         super(RandomAccessH5DataReader, self).__init__(file_path, transform, permissive)
@@ -298,6 +436,17 @@ class RandomAccessH5DataReader(RandomAccessDataReader):
 
         
     def read_num_rows(self, keys, assert_same_dim=True):
+        """Reads the number of rows in the feature matrices of the dataset.
+        
+        Args:
+          keys: List of recording names from which we want to retrieve the 
+                number of rows.
+          assert_same_dim: If True, it raise exception in not all the matrices have
+                           the same number of columns.
+
+        Returns:
+          Integer numpy array with the number of rows for the recordings in keys.
+        """
         shapes = self.read_shapes(keys, assert_same_dim)
         num_rows = np.array([s[0] if len(s)==2 else 1 for s in shapes],
                             dtype=int)
@@ -306,6 +455,17 @@ class RandomAccessH5DataReader(RandomAccessDataReader):
 
     
     def read_dims(self, keys, assert_same_dim=True):
+        """Reads the number of columns in the feature matrices of the dataset.
+        
+        Args:
+          keys: List of recording names from which we want to retrieve the 
+                number of columns.
+          assert_same_dim: If True, it raise exception in not all the matrices have
+                           the same number of columns.
+
+        Returns:
+          Integer numpy array with the number of columns for the recordings in keys
+        """
         shapes = self.read_shapes(keys, False)
         dims = np.array([s[-1] for s in shapes], dtype=np.int32)
         if assert_same_dim:
@@ -316,7 +476,16 @@ class RandomAccessH5DataReader(RandomAccessDataReader):
 
     
 class RandomAccessH5FileDataReader(RandomAccessH5DataReader):
-
+    """Class to read from a single hdf5 file in random order
+    
+        Attributes:
+           file_path: scp file to read.
+           transform: TransformList object, applies a transformation to the 
+                      features after reading them from disk.
+           permissive: If True, if the data that we want to read is not in the file 
+                       it returns an empty matrix, if False it raises an exception.
+    """
+    
     def __init__(self, file_path, **kwargs):
         super(RandomAccessH5FileDataReader, self).__init__(file_path, **kwargs)
         self._open_archive(file_path)
@@ -324,6 +493,7 @@ class RandomAccessH5FileDataReader(RandomAccessH5DataReader):
 
 
     def close(self):
+        """Closes the hdf5 files."""
         if self.f is not None:
             self.f.close()
             self.f = None
@@ -331,6 +501,7 @@ class RandomAccessH5FileDataReader(RandomAccessH5DataReader):
             
         
     def _open_archive(self, file_path):
+        """Open the hdf5 file it it is not open."""
         if self.f is None:
             self.close()
             self.f = h5py.File(file_path, 'r')
@@ -338,7 +509,17 @@ class RandomAccessH5FileDataReader(RandomAccessH5DataReader):
 
             
     def read_shapes(self, keys, assert_same_dim=True):
+        """Reads the shapes in the feature matrices of the dataset.
         
+        Args:
+          keys: List of recording names from which we want to retrieve the 
+                shapes.
+          assert_same_dim: If True, it raise exception in not all the matrices have
+                           the same number of columns.
+
+        Returns:
+          List of tuples with the shapes for the recordings in keys.
+        """
         if isinstance(keys, string_types):
             keys = [keys]
 
@@ -364,9 +545,25 @@ class RandomAccessH5FileDataReader(RandomAccessH5DataReader):
     
 
     def read(self, keys, squeeze=False, row_offset=0, num_rows=0):
+        """Reads the feature matrices/vectors for the recordings in keys.
+        
+        Args:
+          keys: List of recording names from which we want to retrieve the 
+                feature matrices/vectors.
+          squeeze: If True, it converts the list of 
+                   matrices/vectors to 3D/2D numpy array.
+                   All matrices need to have same number of rows.
+          offset: List of integers or numpy array of with the first row to 
+                  read from each feature matrix.
+          num_rows: List of integers or numpy array of with the 
+                    number of rows to read from each feature matrix.
+                    If 0 it reads all the rows.
+
+        Returns:
+          data: List of feature matrices/vectors or 3D/2D numpy array.
+        """
         if isinstance(keys, string_types):
             keys = [keys]
-
 
         row_offset_is_list = (isinstance(row_offset, list) or
                               isinstance(row_offset, np.ndarray))
@@ -403,7 +600,23 @@ class RandomAccessH5FileDataReader(RandomAccessH5DataReader):
 
 
 class RandomAccessH5ScriptDataReader(RandomAccessH5DataReader):
-
+    """Class to read multiple hdf5 files in random order, where a scp file
+       indicates which hdf5 file contains each feature matrix.
+    
+       Attributes:
+           file_path: scp file to read.
+           path_prefix: If input_spec is a scp file, it pre-appends 
+                        path_prefix string to the second column of 
+                        the scp file. This is useful when data 
+                        is read from a different directory of that 
+                        it was created.
+           transform: TransformList object, applies a transformation to the 
+                      features after reading them from disk.
+           permissive: If True, if the data that we want to read is not in the file 
+                       it returns an empty matrix, if False it raises an exception.
+           scp_sep: Separator for scp files (default ' ').
+    """
+    
     def __init__(self, file_path, path_prefix=None, scp_sep=' ', **kwargs):
         super(RandomAccessH5DataReader, self).__init__(
             file_path, **kwargs)
@@ -421,6 +634,7 @@ class RandomAccessH5ScriptDataReader(RandomAccessH5DataReader):
 
         
     def close(self):
+        """Closes all the open hdf5 files."""
         for f in self.f:
             if f is not None:
                 f.close()
@@ -429,6 +643,15 @@ class RandomAccessH5ScriptDataReader(RandomAccessH5DataReader):
 
 
     def _open_archive(self, key_idx):
+        """Opens the hdf5 file correspoding to a given feature/matrix 
+           if it is not already open.
+        
+        Args:
+          key_idx: Integer position of the feature matrix in the scp file.
+
+        Returns:
+          Python file object.
+        """
         archive_idx = self.archive_idx[key_idx]
         if self.f[archive_idx] is None:
             self.f[archive_idx] = h5py.File(self.archives[archive_idx], 'r')
@@ -438,7 +661,17 @@ class RandomAccessH5ScriptDataReader(RandomAccessH5DataReader):
 
     
     def read_shapes(self, keys, assert_same_dim=True):
+        """Reads the shapes in the feature matrices of the dataset.
         
+        Args:
+          keys: List of recording names from which we want to retrieve the 
+                shapes.
+          assert_same_dim: If True, it raise exception in not all the matrices have
+                           the same number of columns.
+
+        Returns:
+          List of tuples with the shapes for the recordings in keys.
+        """
         if isinstance(keys, string_types):
             keys = [keys]
 
@@ -481,9 +714,25 @@ class RandomAccessH5ScriptDataReader(RandomAccessH5DataReader):
     
 
     def read(self, keys, squeeze=False, row_offset=0, num_rows=0):
+        """Reads the feature matrices/vectors for the recordings in keys.
+        
+        Args:
+          keys: List of recording names from which we want to retrieve the 
+                feature matrices/vectors.
+          squeeze: If True, it converts the list of 
+                   matrices/vectors to 3D/2D numpy array.
+                   All matrices need to have same number of rows.
+          offset: List of integers or numpy array of with the first row to 
+                  read from each feature matrix.
+          num_rows: List of integers or numpy array of with the 
+                    number of rows to read from each feature matrix.
+                    If 0 it reads all the rows.
+
+        Returns:
+          data: List of feature matrices/vectors or 3D/2D numpy array.
+        """
         if isinstance(keys, string_types):
             keys = [keys]
-
 
         row_offset_is_list = (isinstance(row_offset, list) or
                               isinstance(row_offset, np.ndarray))

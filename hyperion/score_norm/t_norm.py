@@ -22,7 +22,7 @@ class TNorm(ScoreNorm):
             s_t = np.std(scores_coh_test, axis=0, keepdims=True)
         else:
             scores_coh_test[mask==False] = 0
-            n_t= np.mean(mask)
+            n_t = np.mean(mask, axis=0, keepdims=True)
             mu_t = np.mean(scores_coh_test, axis=0, keepdims=True)/n_t
             s_t = np.sqrt(np.mean(scores_coh_test**2, axis=0, keepdims=True)/n_t - mu_t**2)
             

@@ -16,6 +16,13 @@ from .list_utils import *
 
 
 class TrialNdx(object):
+    """ Contains the trial index to run speaker recognition trials.
+    
+    Attributes:
+      model_set: List of model names.
+      seg_set: List of test segment names.
+      trial_mask: Boolean matrix with the trials to execute to True (num_models x num_segments).
+    """
 
     def __init__(self, model_set=None, seg_set=None, trial_mask=None):
         self.model_set = model_set
@@ -26,16 +33,23 @@ class TrialNdx(object):
         
         
     def copy(self):
+        """Makes a copy of the object"""
         return copy.deepcopy(self)
 
     
     def sort(self):
+        """Sorts the object by model and test segment names."""
         self.model_set, m_idx = sort(self.model_set, return_index=True)
         self.seg_set, s_idx = sort(self.seg_set, return_index=True)
         self.trial_mask = self.trial_mask[np.ix_(m_idx, s_idx)]
         
         
     def save(self, file_path):
+        """Saves object to txt/h5 file.
+
+        Args:
+          file_path: File to write the list.
+        """
         file_base, file_ext = path.splitext(file_path)
         if file_ext == '.txt' :
             self.save_txt(file_path)
@@ -44,6 +58,11 @@ class TrialNdx(object):
 
             
     def save_h5(self, file_path):
+        """Saves object to h5 file.
+
+        Args:
+          file_path: File to write the list.
+        """
         with h5py.File(file_path, 'w') as f:
             model_set = self.model_set.astype('S')
             seg_set = self.seg_set.astype('S')
@@ -63,6 +82,11 @@ class TrialNdx(object):
 
             
     def save_txt(self, file_path):
+        """Saves object to txt file.
+
+        Args:
+          file_path: File to write the list.
+        """
         idx=(self.trial_mask.T == True).nonzero()
         with open(file_path, 'w') as f:
             for item in zip(idx[0], idx[1]):
@@ -71,6 +95,14 @@ class TrialNdx(object):
 
     @classmethod
     def load(cls, file_path):
+        """Loads object from txt/h5 file
+
+        Args:
+          file_path: File to read the list.
+
+        Returns:
+          TrialNdx object.
+        """
         file_base, file_ext = path.splitext(file_path)
         if file_ext == '.txt' :
             return TrialNdx.load_txt(file_path)
@@ -80,6 +112,14 @@ class TrialNdx(object):
 
     @classmethod
     def load_h5(cls, file_path):
+        """Loads object from h5 file
+
+        Args:
+          file_path: File to read the list.
+
+        Returns:
+          TrialNdx object.
+        """
         with h5py.File(file_path, 'r') as f:
             model_set = [t.decode('utf-8') for t in f['ID/row_ids']]
             seg_set = [t.decode('utf-8') for t in f['ID/column_ids']]
@@ -89,6 +129,14 @@ class TrialNdx(object):
 
     @classmethod
     def load_txt(cls, file_path):
+        """Loads object from txt file
+
+        Args:
+          file_path: File to read the list.
+
+        Returns:
+          TrialNdx object.
+        """
         with open(file_path, 'r') as f:
             fields = [line.split() for line in f]
         models = [i[0] for i in fields]
@@ -102,9 +150,18 @@ class TrialNdx(object):
             trial_mask[item[0], item[1]] = True
         return cls(model_set, seg_set, trial_mask)
 
+
     
     @classmethod
     def merge(cls, ndx_list):
+        """Merges several index objects.
+
+        Args:
+          key_list: List of TrialNdx objects.
+
+        Returns:
+          Merged TrialNdx object.
+        """
         num_ndx = len(ndx_list)
         model_set = ndx_list[0].model_set
         seg_set = ndx_list[0].seg_set
@@ -137,8 +194,26 @@ class TrialNdx(object):
         return cls(model_set, seg_set, trial_mask)
 
 
+    
     @staticmethod
     def parse_eval_set(ndx, enroll, test, eval_set):
+        """Prepares the data structures required for evaluation.
+        
+        Args:
+          ndx: TrialNdx object cotaining the trials for the main evaluation.
+          enroll: SCPList where key are model names and file_path are segment names
+          test: SCPList of where file_path are test segments names. 
+                Needed in the cases enroll-coh and coh-coh.
+          eval_test: Type of of evaluation
+            enroll-test: main evaluation of enrollment vs test segments.
+            enroll-coh: enrollment vs cohort segments.
+            coh-test: cohort vs test segments.
+            coh-coh: cohort vs cohort segments.
+        
+        Return:
+          ndx: TrialNdx object
+          enroll: SCPList 
+        """
         if eval_set == 'enroll-test':
             enroll = enroll.filter(ndx.model_set)
         if eval_set == 'enroll-coh':
@@ -152,6 +227,17 @@ class TrialNdx(object):
 
     
     def filter(self, model_set, seg_set, keep=True):
+        """Removes elements from TrialNdx object.
+        
+        Args:
+          model_set: List of models to keep or remove.
+          seg_set: List of test segments to keep or remove.
+          keep: If True, we keep the elements in model_set/seg_set,
+                if False, we remove the elements in model_set/seg_set.
+
+        Returns:
+          Filtered TrialNdx object.
+        """
         if not(keep):
             model_set = np.setdiff1d(self.model_set, model_set)
             seg_set = np.setdiff1d(self.seg_set, seg_set)
@@ -165,8 +251,21 @@ class TrialNdx(object):
         trial_mask = self.trial_mask[np.ix_(mod_idx, seg_idx)]
         return TrialNdx(model_set, seg_set, trial_mask)
 
+
     
     def split(self, model_idx, num_model_parts, seg_idx, num_seg_parts):
+        """Splits the TrialNdx into num_model_parts x num_seg_parts and returns part 
+           (model_idx, seg_idx).
+ 
+        Args:
+          model_idx: Model index of the part to return from 1 to num_model_parts.
+          num_model_parts: Number of parts to split the model list.
+          seg_idx: Segment index of the part to return from 1 to num_model_parts.
+          num_seg_parts: Number of parts to split the test segment list.
+
+        Returns:
+          Subpart of the TrialNdx
+        """
         model_set, model_idx1 = split_list(self.model_set,
                                            model_idx, num_model_parts)
         seg_set, seg_idx1 = split_list(self.seg_set,
@@ -174,8 +273,11 @@ class TrialNdx(object):
         trial_mask=self.trial_mask[np.ix_(model_idx1, seg_idx1)]
         return TrialNdx(model_set, seg_set, trial_mask)
 
+
     
     def validate(self):
+        """Validates the attributes of the TrialKey object.
+        """
         self.model_set = list2ndarray(self.model_set)
         self.seg_set = list2ndarray(self.seg_set)
 
@@ -189,7 +291,9 @@ class TrialNdx(object):
                    (len(self.model_set), len(self.seg_set)))
 
 
+            
     def __eq__(self, other):
+        """Equal operator"""
         eq = self.model_set.shape == other.model_set.shape
         eq = eq and np.all(self.model_set == other.model_set)
         eq = eq and (self.seg_set.shape == other.seg_set.shape)
@@ -197,8 +301,16 @@ class TrialNdx(object):
         eq = eq and np.all(self.trial_mask == other.trial_mask)
         return eq
 
+
+    
+    def __ne__(self, other):
+        """Non-equal operator"""
+        return not self.__eq__(other)
+
+
     
     def __cmp__(self, other):
+        """Comparison operator"""
         if self.__eq__(oher):
             return 0
         return 1

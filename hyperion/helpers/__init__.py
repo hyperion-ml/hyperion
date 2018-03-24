@@ -7,6 +7,7 @@ from .trial_data_reader import TrialDataReader
 from .classif_trial_data_reader import ClassifTrialDataReader
 
 from .sequence_batch_generator import SequenceBatchGenerator
+from .adapt_sequence_batch_generator import AdaptSequenceBatchGenerator
 
 from .sequence_reader import SequenceReader
 from .sequence_class_reader import SequenceClassReader

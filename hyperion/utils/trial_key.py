@@ -16,7 +16,21 @@ from .list_utils import *
 from .trial_ndx import TrialNdx
 
 class TrialKey(object):
-
+    """ Contains the trial key for speaker recognition trials.
+    
+    Attributes:
+      model_set: List of model names.
+      seg_set: List of test segment names.
+      tar: Boolean matrix with target trials to True (num_models x num_segments).
+      non: Boolean matrix with non-target trials to True (num_models x num_segments).
+      model_cond: Conditions related to the model.
+      seg_cond: Conditions related to the test segment.
+      trial_cond: Conditions related to the combination of model and test segment.
+      model_cond_name: String list with the names of the model conditions.
+      seg_cond_name: String list with the names of the segment conditions.
+      trial_cond_name: String list with the names of the trial conditions.
+    """
+    
     def __init__(self, model_set=None, seg_set=None, tar=None, non=None,
                  model_cond=None, seg_cond = None, trial_cond=None,
                  model_cond_name=None, seg_cond_name=None, trial_cond_name=None):
@@ -35,10 +49,12 @@ class TrialKey(object):
         
         
     def copy(self):
+        """Makes a copy of the object"""
         return copy.deepcopy(self)
 
     
     def sort(self):
+        """Sorts the object by model and test segment names."""
         self.model_set, m_idx = sort(self.model_set, return_index=True)
         self.seg_set, s_idx = sort(self.seg_set, return_index=True)
         ix = np.ix_(m_idx, s_idx)
@@ -53,6 +69,12 @@ class TrialKey(object):
         
         
     def save(self, file_path):
+        """Saves object to txt/h5 file.
+
+        Args:
+          file_path: File to write the list.
+        """
+
         file_base, file_ext = path.splitext(file_path)
         if file_ext == '.txt' :
             self.save_txt(file_path)
@@ -61,6 +83,12 @@ class TrialKey(object):
 
             
     def save_h5(self, file_path):
+        """Saves object to h5 file.
+
+        Args:
+          file_path: File to write the list.
+        """
+
         with h5py.File(file_path, 'w') as f:
             model_set = self.model_set.astype('S')
             seg_set = self.seg_set.astype('S')
@@ -90,6 +118,11 @@ class TrialKey(object):
 
             
     def save_txt(self, file_path):
+        """Saves object to txt file.
+
+        Args:
+          file_path: File to write the list.
+        """
         with open(file_path, 'w') as f:
             idx=(self.tar.T == True).nonzero()
             for item in zip(idx[0], idx[1]):
@@ -103,6 +136,14 @@ class TrialKey(object):
 
     @classmethod
     def load(cls, file_path):
+        """Loads object from txt/h5 file
+
+        Args:
+          file_path: File to read the list.
+
+        Returns:
+          TrialKey object.
+        """
         file_base, file_ext = path.splitext(file_path)
         if file_ext == '.txt' :
             return TrialKey.load_txt(file_path)
@@ -112,6 +153,14 @@ class TrialKey(object):
 
     @classmethod
     def load_h5(cls, file_path):
+        """Loads object from h5 file
+
+        Args:
+          file_path: File to read the list.
+
+        Returns:
+          TrialKey object.
+        """
         with h5py.File(file_path, 'r') as f:
             model_set = [t.decode('utf-8') for t in f['ID/row_ids']]
             seg_set = [t.decode('utf-8') for t in f['ID/column_ids']]
@@ -146,6 +195,14 @@ class TrialKey(object):
 
     @classmethod
     def load_txt(cls, file_path):
+        """Loads object from txt file
+
+        Args:
+          file_path: File to read the list.
+
+        Returns:
+          TrialKey object.
+        """
         with open(file_path, 'r') as f:
             fields = [line.split() for line in f]
         models = [i[0] for i in fields]
@@ -164,9 +221,18 @@ class TrialKey(object):
                 non[item[0], item[1]] = True
         return cls(model_set, seg_set, tar, non)
 
+
     
     @classmethod
     def merge(cls, key_list):
+        """Merges several key objects.
+
+        Args:
+          key_list: List of TrialKey objects.
+
+        Returns:
+          Merged TrialKey object.
+        """
         num_key = len(key_list)
         model_set = key_list[0].model_set
         seg_set = key_list[0].seg_set
@@ -248,7 +314,20 @@ class TrialKey(object):
                    key_list[0].trial_cond_name)
                                   
 
+    
     def filter(self, model_set, seg_set, keep=True):
+        """Removes elements from TrialKey object.
+        
+        Args:
+          model_set: List of models to keep or remove.
+          seg_set: List of test segments to keep or remove.
+          keep: If True, we keep the elements in model_set/seg_set,
+                if False, we remove the elements in model_set/seg_set.
+
+        Returns:
+          Filtered TrialKey object.
+        """
+
         if not(keep):
             model_set=np.setdiff1d(self.model_set, model_set)
             seg_set=np.setdiff1d(self.seg_set, seg_set)
@@ -280,8 +359,22 @@ class TrialKey(object):
                         self.seg_cond_name,
                         self.trial_cond_name)
 
+
     
     def split(self, model_idx, num_model_parts, seg_idx, num_seg_parts):
+        """Splits the TrialKey into num_model_parts x num_seg_parts and returns part 
+           (model_idx, seg_idx).
+ 
+        Args:
+          model_idx: Model index of the part to return from 1 to num_model_parts.
+          num_model_parts: Number of parts to split the model list.
+          seg_idx: Segment index of the part to return from 1 to num_model_parts.
+          num_seg_parts: Number of parts to split the test segment list.
+
+        Returns:
+          Subpart of the TrialKey
+        """
+
         model_set, model_idx1 = split_list(self.model_set,
                                            model_idx, num_model_parts)
         seg_set, seg_idx1 = split_list(self.seg_set,
@@ -304,13 +397,21 @@ class TrialKey(object):
                         model_cond, seg_cond, trial_cond,
                         self.model_cond_name, self.seg_cond_name, self.trial_cond_name)
 
+
     
     def to_ndx(self):
+        """Converts TrialKey object into TrialNdx object.
+
+        Returns:
+          TrialNdx object.
+        """
         mask = np.logical_or(self.tar, self.non)
         return TrialNdx(self.model_set, self.seg_set, mask)
 
     
     def validate(self):
+        """Validates the attributes of the TrialKey object.
+        """
         self.model_set = list2ndarray(self.model_set)
         self.seg_set = list2ndarray(self.seg_set)
 
@@ -339,9 +440,12 @@ class TrialKey(object):
             self.seg_cond_name = list2ndarray(self.seg_cond_name)
         if self.trial_cond_name is not None:
             self.trial_cond_name = list2ndarray(self.trial_cond_name)
+
             
 
     def __eq__(self, other):
+        """Equal operator"""
+
         eq = self.model_set.shape == other.model_set.shape
         eq = eq and np.all(self.model_set == other.model_set)
         eq = eq and (self.seg_set.shape == other.seg_set.shape)
@@ -376,11 +480,20 @@ class TrialKey(object):
 
         return eq
 
+
+
+    def __ne__(self, other):
+        """Non-equal operator"""
+        return not self.__eq__(other)
+
+
     
     def __cmp__(self, other):
+        """Comparison operator"""
         if self.__eq__(oher):
             return 0
         return 1
+
 
     
     def test(key_file='core-core_det5_key.h5'):

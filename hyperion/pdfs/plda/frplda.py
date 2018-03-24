@@ -64,6 +64,7 @@ class FRPLDA(PLDABase):
         assert(y_dim == F.shape[1])
 
         compute_inv = return_cov or return_acc
+        return_tuple = compute_inv or return_logpy_0
 
         N_is_int = False
         if np.all(np.ceil(N) == N):
@@ -120,13 +121,16 @@ class FRPLDA(PLDABase):
             if return_acc:
                 Py += M_i*iL
 
-            r = [y]
-            if return_cov:
-                r += [Sigma_y]
-            if return_logpy_0:
-                r += [logpy]
-            if return_acc:
-                r += [Ry, Py]
+        if not return_tuple:
+            return y
+        
+        r = [y]
+        if return_cov:
+            r += [Sigma_y]
+        if return_logpy_0:
+            r += [logpy]
+        if return_acc:
+            r += [Ry, Py]
         return r
 
 

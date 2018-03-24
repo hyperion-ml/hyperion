@@ -105,6 +105,17 @@ class SeqQEmbed(HypModel):
         return self._prepool_downsampling
 
 
+
+    def freeze_embed(self):
+        self.prepool_net.trainable = False
+
+
+        
+    def freeze_embed_layers(self, layers):
+        for layer_name in layers:
+            self.prepool_net.get_layer(layer_name).trainable = False
+
+            
         
     def build(self, max_seq_length=None):
 
@@ -224,7 +235,28 @@ class SeqQEmbed(HypModel):
         q_embed = self.pool_net.predict([p1, p2, mask], batch_size=1, **kwargs)
         return q_embed
 
-    
+
+
+    def build_eval(self):
+        p1_frame_embed = Input(shape=(None, self.embed_dim,))
+        p2_frame_embed = Input(shape=(None, self.embed_dim,))
+        mask = Input(shape=(None,))
+        q_embed = GlobalDiagNormalPostStdPriorPooling1D(
+            input_format=self.pooling_input,
+            output_format=self.pooling_output,
+            min_var=self.min_var, name='pooling')(
+                [p1_frame_embed, p2_frame_embed, mask])
+
+        score = self.score_net(q_embed)
+        self.pool_net = Model([p1_frame_embed, p2_frame_embed, mask], score)
+        self.pool_net.summary()
+
+
+
+    def predict_eval(self, x, **kwargs):
+        return self.predict_embed(x, **kwargs)
+
+
     
     def fit(**kwargs):
         self.model.fit(**kwargs)

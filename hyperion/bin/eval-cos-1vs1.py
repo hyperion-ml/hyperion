@@ -55,7 +55,7 @@ def eval_cos(iv_file, ndx_file, enroll_file, test_file,
 if __name__ == "__main__":
 
     parser=argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,                
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         fromfile_prefix_chars='@',
         description='Eval Cos')
 

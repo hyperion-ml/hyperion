@@ -59,7 +59,7 @@ class KLDivNormalVsStdNormal(Layer):
 
         beta = K.cast(self.beta, float_keras())
         keepdims = False
-        if mu.ndim == 2:
+        if K.ndim(mu) == 2:
             keepdims = True
         kl_div = 1/(2*beta)*K.sum((beta-1)*log2pi - logvar - 1 + beta*(K.square(mu) + var), axis=-1, keepdims=keepdims)
         return K.clip(kl_div, self.min_kl, None) 

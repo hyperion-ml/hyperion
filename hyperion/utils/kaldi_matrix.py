@@ -1,5 +1,5 @@
 """
-Function to write and read kaldi matrices
+Classes to to write and read kaldi matrices
 """
 from __future__ import absolute_import
 from __future__ import print_function
@@ -14,11 +14,24 @@ from ..utils.kaldi_io_funcs import *
 
 
 class KaldiMatrix(object):
+    """Class to read/write uncompressed kaldi matrices/vectors.
+        
+     When compressed matrix is found in file, it calls 
+     KaldiCompressedMatrix class automatically to uncompress.
+
+     Attributes:
+       data: numpy array with the matrix/vector values.
+           
+    """
     def __init__(self, data):
         self.data=data
 
 
     def to_ndarray(self):
+        """
+        Returns: 
+          numpy array containing the matrix/vector
+        """
         return self.data
     
 
@@ -38,6 +51,19 @@ class KaldiMatrix(object):
     
     @classmethod
     def read(cls, f, binary, row_offset=0, num_rows=0, sequential_mode=True):
+        """Reads kaldi matrix/vector from file.
+
+        Args:
+          f: Python file object
+          binary: True if we read from binary file and False if we read from text file.
+          row_offset: Reads matrix starting from a given row instead of row 0.
+          num_rows: Num. of rows to read, if 0 if read all the rows.
+          sequential_mode: True if we are reading the ark file sequentially and False if
+            we are using random access.
+
+        Returns:
+          KaldiMatrix object.
+        """
         if binary:
             peekval = peek(f, binary)
             if peekval == b'C':
@@ -127,6 +153,12 @@ class KaldiMatrix(object):
 
         
     def write(self, f, binary):
+        """ Writes matrix/vector to ark file.
+
+        Args:
+          f: Python file object.
+          binary: True if we write in binary file and False if we write to text file.
+        """
         if binary:
             t1 = 'F' if self.data.dtype == np.float32 else 'D'
             t2 = 'M' if self.data.ndim == 2 else 'V'
@@ -153,8 +185,21 @@ class KaldiMatrix(object):
                 f.write(']\n')
 
 
+                
     @staticmethod
     def read_shape(f, binary, sequential_mode=True):
+        """Reads the shape of the current matrix/vector in the ark file.
+
+        Args:
+          f: Python file object
+          binary: True if we read from binary file and False if we read from text file.
+          sequential_mode: True if we are reading the ark file sequentially and False if
+            we are using random access. In sequential_mode=True it moves the file pointer 
+            to the next matrix. 
+
+        Returns:
+          Tuple object with shape.
+        """
         if binary:
             peekval = peek(f, binary)
             if peekval == b'C':
@@ -204,6 +249,20 @@ compression_method2format = {'speech-feat': 1,
 
     
 class KaldiCompressedMatrix(object):
+    """Class to read/write compressed kaldi matrices.
+        
+     When compressed matrix is found in file, it calls 
+     KaldiCompressedMatrix class automatically to uncompress.
+
+     Attributes:
+       data: numpy byte array with the compressed coded matrix.
+       data_format: {1, 2, 3}
+       min_value: Minimum value in the matrix.
+       data_range: max_value - min_value
+       num_rows: Number of rows in the matrix
+       num_columns: Number of columns in the matrix
+    """
+
     def __init__(self, data=None):
         self.data = data
         self.data_format = 1
@@ -217,8 +276,13 @@ class KaldiCompressedMatrix(object):
         # self.col_headers = col_headers
 
 
-    def get_data_attrs(self):
         
+    def get_data_attrs(self):
+        """
+        Returns:
+           Coded matrix values in 2D format.
+           Dictionary object with data attributes: data_format, min_value, data_range, percentiles.
+        """
         attrs = {'data_format': self.data_format,
                  'min_value': self.min_value,
                  'data_range': self.data_range}
@@ -243,6 +307,15 @@ class KaldiCompressedMatrix(object):
     
     @classmethod
     def build_from_data_attrs(cls, data, attrs):
+        """ Builds object from coded values and attributes
+
+        Args:
+          data: Coded matrix values in 2D format.
+          attrs: Dictionary object with data attributes: data_format, min_value, data_range, percentiles.
+        
+        Returns:
+          KaldiCompressedMatrix object.
+        """
         num_rows = data.shape[0]
         num_cols = data.shape[1]
         h = struct.pack('<iffii',
@@ -261,6 +334,7 @@ class KaldiCompressedMatrix(object):
     
         
     def _unpack_header(self):
+        """Unpacks attributes from header"""
         h = struct.unpack('<iffii', self.data[:20])
         self.data_format = h[0]
         self.min_value = h[1]
@@ -270,6 +344,7 @@ class KaldiCompressedMatrix(object):
 
         
     def _pack_header(self):
+        """Creates header from the object attributes"""
         return struct.pack('<iffii',
                            self.data_format,
                            self.min_value, self.data_range,
@@ -277,6 +352,7 @@ class KaldiCompressedMatrix(object):
         
         
     def scale(self, alpha):
+        """Multiplies matrix by alpha"""
         self.min_value *= alpha
         self.data_range *= alpha
         header = self._pack_header()
@@ -285,6 +361,15 @@ class KaldiCompressedMatrix(object):
 
         
     def _compute_global_header(self, mat, method):
+        """Computes the header
+ 
+        Args:
+          mat: numpy array with the uncompressed matrix.
+          method: Compression method.
+
+        Returns:
+          Byte array with header.
+        """
         if method == 'auto':
             if mat.shape[0] > 8:
                 method = 'speech-feat'
@@ -323,6 +408,7 @@ class KaldiCompressedMatrix(object):
     
     @staticmethod
     def _get_read_info(header, row_offset=0, num_rows=0):
+        """Gets info needed to read the matrix from file"""
         data_format, min_value, data_range, total_rows, num_cols = struct.unpack('<iffii', header)
         make_header = True if row_offset !=0 or num_rows != 0 else False
             
@@ -365,6 +451,10 @@ class KaldiCompressedMatrix(object):
 
     @staticmethod
     def _data_size(header):
+        """
+        Returns:
+          Number of bytes of the coded matrix.
+        """
         data_format, _, _, num_rows, num_cols = struct.unpack('<iffii', header)
         if data_format == 1:
             return len(header) + num_cols*(8+num_rows)
@@ -377,7 +467,14 @@ class KaldiCompressedMatrix(object):
         
     @classmethod
     def compress(cls, mat, method='auto'):
+        """Creates compressed matrix from uncompressed numpy matrix
+        Args:
+          mat: numpy array with the uncompressed matrix.
+          method: Compression method.
 
+        Returns:
+          KaldiCompressedMatrix object.
+        """
         if isinstance(mat, KaldiMatrix):
             mat = mat.data
 
@@ -430,6 +527,14 @@ class KaldiCompressedMatrix(object):
 
     
     def _compute_column_header(self, v):
+        """ Creates the column headers for the speech-feat compression.
+
+        Args:
+          v: numpy array with the column to compress.
+
+        Returns:
+          Byte array with the header of the column containg the 0, 25, 75 and 100 percentile values.
+        """
         one = np.uint16(1)
         if self.num_rows >= 5:
             quarter_nr = int(self.num_rows/4)
@@ -459,6 +564,16 @@ class KaldiCompressedMatrix(object):
 
     
     def _compress_column(self, v):
+        """ Compress column for the speech-feat compression.
+
+        Args:
+          v: numpy array with the column to compress.
+
+        Returns:
+          Byte array with the header of the column containg the 0, 25, 75 and 100 percentile values.
+          Byte array with the coded column.
+        """
+
         col_header = self._compute_column_header(v)
         p0, p25, p75, p100 = self._uint16_to_float(col_header)
         return col_header, self._float_to_char(v, p0, p25, p75, p100).tobytes()
@@ -466,6 +581,15 @@ class KaldiCompressedMatrix(object):
 
     
     def _uncompress_column(self, col_header, col_data):
+        """ Compress column for the speech-feat compression.
+
+        Args:
+          col_header: Byte array with the header of the column containg the 0, 25, 75 and 100 percentile values.
+          col_data: Byte array with the coded column.
+
+        Returns:
+          numpy array with the uncompressed column 
+        """
         p0, p25, p75, p100 = self._uint16_to_float(col_header)
         return self._char_to_float(col_data, p0, p25, p75, p100)
         
@@ -473,6 +597,7 @@ class KaldiCompressedMatrix(object):
 
     @staticmethod
     def _float_to_char(v, p0, p25, p75, p100):
+        """Codes the column from float to bytes using the given percentiles"""
         v_out = np.zeros(v.shape, dtype=np.int32)
         idx = v < p25
         f = (v[idx] - p0)/(p25-p0)
@@ -498,6 +623,7 @@ class KaldiCompressedMatrix(object):
 
     @staticmethod
     def _char_to_float(v, p0, p25, p75, p100):
+        """Decodes the column from bytes to float using the given percentiles"""
         v_in = np.fromstring(v, dtype=np.uint8).astype(float_cpu())
         v_out = np.zeros(v_in.shape, dtype=float_cpu())
         idx = v_in <= 64
@@ -511,6 +637,10 @@ class KaldiCompressedMatrix(object):
 
     
     def to_ndarray(self):
+        """Uncompresses matrix to numpy array.
+        Returns:
+          numpy array with uncompressed matrix.
+        """
         if self.data_format == 1:
             mat = np.zeros((self.num_rows, self.num_cols), dtype=float_cpu())
             header_offset = 20
@@ -533,6 +663,11 @@ class KaldiCompressedMatrix(object):
 
     
     def to_matrix(self):
+        """Uncompresses matrix to KaldiMatrix object.
+        Returns:
+          KaldiMatrix with uncompressed matrix.
+        """
+
         mat = self.to_ndarray()
         return KaldiMatrix(mat)
     
@@ -540,6 +675,20 @@ class KaldiCompressedMatrix(object):
     
     @classmethod
     def read(cls, f, binary, row_offset=0, num_rows=0, sequential_mode=True):
+        """Reads kaldi compressed matrix/vector from file.
+
+        Args:
+          f: Python file object
+          binary: True if we read from binary file and False if we read from text file.
+          row_offset: Reads matrix starting from a given row instead of row 0.
+          num_rows: Num. of rows to read, if 0 if read all the rows.
+          sequential_mode: True if we are reading the ark file sequentially and False if
+            we are using random access.
+
+        Returns:
+          KaldiCompressedMatrix object.
+        """
+
         if binary:
             peekval = peek(f, binary)
             if peekval == b'C':
@@ -591,6 +740,13 @@ class KaldiCompressedMatrix(object):
 
     
     def write(self, f, binary):
+        """ Writes matrix/vector to ark file.
+
+        Args:
+          f: Python file object.
+          binary: True if we write in binary file and False if we write to text file.
+        """
+
         if binary:
             if self.data is not None:
                 if self.data_format == 1:
@@ -611,6 +767,19 @@ class KaldiCompressedMatrix(object):
         
     @staticmethod
     def read_shape(f, binary, sequential_mode=True):
+        """Reads the shape of the current matrix/vector in the ark file.
+
+        Args:
+          f: Python file object
+          binary: True if we read from binary file and False if we read from text file.
+          sequential_mode: True if we are reading the ark file sequentially and False if
+            we are using random access. In sequential_mode=True it moves the file pointer 
+            to the next matrix. 
+        
+        Returns:
+          Tuple object with shape.
+        """
+
         if binary:
             peekval = peek(f, binary)
             if peekval == b'C':

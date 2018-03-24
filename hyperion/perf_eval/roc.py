@@ -11,17 +11,18 @@ from .utils import pavx
 
 
 def  compute_roc(true_scores, false_scores):
-#  compute_roc computes the (observed) miss/false_alarm probabilities
-#  for a set of detection output scores.
-#
-#  true_scores (false_scores) are detection output scores for a set of
-#  detection trials, given that the target hypothesis is true (false).
-#          (By convention, the more positive the score,
-#          the more likely is the target hypothesis.)
-#
-#-------------------------
-#Compute the miss/false_alarm error probabilities
+    """ Computes the (observed) miss/false_alarm probabilities
+        for a set of detection output scores.
 
+    Args:
+      true_scores (false_scores) are detection output scores for a set of
+      detection trials, given that the target hypothesis is true (false).
+         (By convention, the more positive the score,
+         the more likely is the target hypothesis.)
+
+    Returns:
+      The miss/false_alarm error probabilities
+    """
     num_true = len(true_scores);
     num_false = len(false_scores);
     assert(num_true>0)
@@ -50,22 +51,18 @@ def  compute_roc(true_scores, false_scores):
     return p_miss, p_fa
 
 
+
 def compute_rocch(tar_scores, non_scores):
-# ROCCH: ROC Convex Hull.
-# Usage: [pmiss,pfa] = rocch(tar_scores,nontar_scores)
-# (This function has the same interface as compute_roc.)
-#
-# Note: pmiss and pfa contain the coordinates of the vertices of the
-#       ROC Convex Hull.
-#
-# For a demonstration that plots ROCCH against ROC for a few cases, just
-# type 'rocch' at the MATLAB command line.
-#
-# Inputs:
-#   tar_scores: scores for target trials
-#   nontar_scores: scores for non-target trials
+    """ Computes ROCCH: ROC Convex Hull.
 
+    Args:
+      tar_scores: scores for target trials
+      nontar_scores: scores for non-target trials
 
+    Returns:
+       pmiss and pfa contain the coordinates of the vertices of the
+       ROC Convex Hull.
+    """
     assert(isinstance(tar_scores, np.ndarray))
     assert(isinstance(non_scores, np.ndarray))
     
@@ -107,13 +104,13 @@ def compute_rocch(tar_scores, non_scores):
 
 
 def rocch2eer(p_miss, p_fa):
-# Calculates the equal error rate (eer) from pmiss and pfa
-# vectors.  
-# Note: pmiss and pfa contain the coordinates of the vertices of the
-#       ROC Convex Hull.  
-# Use rocch.m to convert target and non-target scores to pmiss and
-# pfa values.
-
+    """Calculates the equal error rate (eer) from pmiss and pfa
+       vectors.  
+       Note: pmiss and pfa contain the coordinates of the vertices of the
+       ROC Convex Hull.  
+       Use compute_rocch to convert target and non-target scores to pmiss and
+       pfa values.
+    """
     eer = 0
 
     #p_miss and p_fa should be sorted
@@ -144,22 +141,24 @@ def rocch2eer(p_miss, p_fa):
     return eer
 
 
-def filter_roc(p_miss,p_fa):
-# Removes redundant points from the sequence of points (p_fa,p_miss) so
-# that plotting an ROC or DET curve will be faster.  The output ROC
-# curve will be identical to the one plotted from the input
-# vectors.  All points internal to straight (horizontal or
-# vertical) sections on the ROC curve are removed i.e. only the
-# points at the start and end of line segments in the curve are
-# retained.  Since the plotting code draws straight lines between
-# points, the resulting plot will be the same as the original.
-# Inputs:
-#   p_miss, p_fa: The coordinates of the vertices of the ROC Convex
-#     Hull.  m for misses and fa for false alarms.
-# Outputs:
-#   new_p_miss, new_p_fa: Vectors containing selected values from the
-#     input vectors.  
 
+def filter_roc(p_miss,p_fa):
+    """Removes redundant points from the sequence of points (p_fa,p_miss) so
+       that plotting an ROC or DET curve will be faster.  The output ROC
+       curve will be identical to the one plotted from the input
+       vectors.  All points internal to straight (horizontal or
+       vertical) sections on the ROC curve are removed i.e. only the
+       points at the start and end of line segments in the curve are
+       retained.  Since the plotting code draws straight lines between
+       points, the resulting plot will be the same as the original.
+
+    Args:
+      p_miss, p_fa: The coordinates of the vertices of the ROC Convex
+                    Hull.  m for misses and fa for false alarms.
+    Returns:
+      new_p_miss, new_p_fa: Vectors containing selected values from the
+                            input vectors.  
+    """
     out = 0
     new_p_miss = np.copy(p_miss)
     new_p_fa = np.copy(p_fa)

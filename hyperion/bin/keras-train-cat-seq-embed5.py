@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-
 """
 Trains categorical embeddings
 """
@@ -38,9 +37,9 @@ def data_generator(sg, max_length):
     
 def train_embed(data_path, train_list, val_list,
                 prepool_net_path, postpool_net_path,
-                init_path,
-                epochs, 
+                init_path, epochs, 
                 preproc_file, output_path,
+                freeze_prepool, freeze_prepool_layers, freeze_postpool_layers,
                 **kwargs):
 
     set_float_cpu(float_keras())
@@ -91,13 +90,20 @@ def train_embed(data_path, train_list, val_list,
     
     print('max length: %d' % max_length)
     
-    t1 = time.time()    
+    t1 = time.time()
+    if freeze_prepool:
+        model.freeze_prepool_net()
+    if freeze_prepool_layers is not None:
+        model.freeze_prepool_layers(freeze_prepool_layers)
+    if freeze_postpool_layers is not None:
+        model.freeze_postpool_layers(freeze_postpool_layers)
+    
     model.build(max_length)
     print(time.time()-t1)
     
     cb = KCF.create_callbacks(model, output_path, **cb_args)
     opt = KOF.create_optimizer(**opt_args)
-    model.compile(optimizer=opt)
+    model.compile(metrics=['accuracy'], optimizer=opt)
     
     h = model.fit_generator(gen_train, validation_data=gen_val,
                             steps_per_epoch=sg.steps_per_epoch,
@@ -132,7 +138,14 @@ if __name__ == "__main__":
     G.add_argparse_args(parser)
     KOF.add_argparse_args(parser)
     KCF.add_argparse_args(parser)
-    
+
+    parser.add_argument('--freeze-prepool', dest='freeze_prepool',
+                        default=False, action='store_true')
+    parser.add_argument('--freeze-prepool-layers', dest='freeze_prepool_layers',
+                        default=None, nargs='+')
+    parser.add_argument('--freeze-postpool-layers', dest='freeze_postpool_layers',
+                        default=None, nargs='+')
+
     parser.add_argument('--epochs', dest='epochs', default=1000, type=int)
     
     args=parser.parse_args()

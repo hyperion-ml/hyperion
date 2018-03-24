@@ -91,6 +91,7 @@ class SequenceBatchGenerator(object):
             self._compute_iters_auto()
         else:
             self.iters_per_epoch = iters_per_epoch
+
         self.reset()
 
                 
@@ -171,28 +172,36 @@ class SequenceBatchGenerator(object):
         self.key2class = {p: class_dict[k] for k, p in zip(self.scp.key, self.scp.file_path)}
 
 
-        
+
+    @staticmethod
+    def _balance_class_weight_helper(class_ids):
+        num_samples = np.bincount(class_ids)
+        max_class_inbalance = 2
+        max_samples = int(np.ceil(np.max(num_samples)/max_class_inbalance))
+        idx = []
+        for i, num_samples_i in enumerate(num_samples):
+            idx_i = (class_ids == i).nonzero()[0]
+            r = float(max_samples)/num_samples_i
+            if r > 1:
+                idx_i = np.tile(idx_i, np.ceil(r))
+                idx_i = idx_i[:max_samples]
+            idx.append(idx_i)
+        idx = np.hstack(tuple(idx))
+        print(idx.shape)
+        assert idx.shape[0] >= len(num_samples)*max_samples
+        return idx
+    
+
+    
     def _balance_class_weight(self):
         classes, class_ids = np.unique(self.scp.key, return_inverse=True)
         #class_weights = compute_class_weights('balanced', classes, class_ids)
         #num_samples = class_weights/np.min(class_weights)
 
-        num_samples = np.bincount(class_ids)
-        max_samples = np.max(num_samples)
-        idx = []
-        for i, num_samples_i in enumerate(num_samples):
-            idx_i = (class_ids == i).nonzero()[0]
-            if num_samples_i < max_samples:
-                idx_i = np.tile(idx_i, np.ceil(float(max_samples)/num_samples_i))
-                idx_i = idx_i[:max_samples]
-            idx.append(idx_i)
-        idx = np.hstack(tuple(idx))
-        
-        assert idx.shape[0] == len(num_samples)*max_samples
-        
+        idx = self._balance_class_weight_helper(class_ids)
         self.scp = self.scp.filter_index(idx)
-        assert len(self.scp) == len(num_samples)*max_samples
-                   
+        # self.scp.save('tmp.scp')
+        # self.scp.save('/tmp.scp')
         if self._init_seq_lengths is not None:
             self._init_seq_legths = self._init_seq_lengths[idx]
             self._seq_lengths = self._init_seq_legths
@@ -248,6 +257,7 @@ class SequenceBatchGenerator(object):
         if self.reset_rng:
             self.rng = np.random.RandomState(seed=self.seed)
         else:
+            print('\nreset rng %d' % (self.seed+self.cur_epoch))
             self.rng = np.random.RandomState(seed=self.seed+self.cur_epoch)
 
 

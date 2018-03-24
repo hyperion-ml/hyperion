@@ -56,7 +56,12 @@ class SeqEmbed(HypModel):
     def x_dim(self):
         return self.prepool_net.get_input_shape_at(0)[-1]
 
-    
+
+    @property
+    def num_classes(self):
+        return self.postpool_net.get_output_shape_at(0)[-1]
+
+
     
     @property
     def pool_in_dim(self):
@@ -121,9 +126,29 @@ class SeqEmbed(HypModel):
 
 
     
-    def compile(self, **kwargs):
-        self.model.compile(loss=self.loss, **kwargs)
+    def compile(self, metrics=None, **kwargs):
+        if metrics is None:
+            self.model.compile(loss=self.loss, **kwargs)
+        else:
+            self.model.compile(loss=self.loss,
+                               metrics=metrics,
+                               weighted_metrics=metrics, **kwargs)
 
+
+        
+    def freeze_prepool_net(self):
+        self.prepool_net.trainable = False
+
+        
+    def freeze_prepool_net_layers(self, layers):
+        for layer_name in layers:
+            self.prepool_net.get_layer(layer_name).trainable = False
+
+
+            
+    def freeze_postpool_net_layers(self, layers):
+        for layer_name in layers:
+            self.postpool_net.get_layer(layer_name).trainable = False
 
         
     def build(self, max_seq_length=None):
@@ -156,9 +181,9 @@ class SeqEmbed(HypModel):
 
         self.pool_net = Model([frame_embed, mask], outputs)
         self.pool_net.summary()
-        
-        
 
+
+        
     def predict_embed(self, x, **kwargs):
 
         in_seq_length = self.in_length
@@ -184,7 +209,7 @@ class SeqEmbed(HypModel):
         mask[0,:pool_begin_context] = 0
         mask[0,pool_length - pool_end_context:] = 0
 
-        num_batches = int(np.ceil((in_length-in_seq_length)/in_shift+1))
+        num_batches = max(int(np.ceil((in_length-in_seq_length)/in_shift+1)), 1)
         x_i = np.zeros((1,in_seq_length, x.shape[-1]), dtype=float_keras())
         j_in = 0
         j_out = 0
@@ -219,7 +244,7 @@ class SeqEmbed(HypModel):
         if self.pool_net is None:
             return None
         embed_dim=0
-        for node in xrange(len(self.pool_net.inbound_nodes)):
+        for node in xrange(len(self.pool_net._inbound_nodes)):
             output_shape = self.pool_net.get_output_shape_at(node)
             if isinstance(output_shape, list):
                 for shape in output_shape:
@@ -228,6 +253,23 @@ class SeqEmbed(HypModel):
                 embed_dim += output_shape[-1]
 
         return embed_dim
+
+
+    
+    def build_eval(self):
+
+        frame_embed = Input(shape=(None, self.pool_in_dim,))
+        mask = Input(shape=(None,))
+        pool = self._apply_pooling(frame_embed, mask)
+        
+        score = self.postpool_net(pool)
+        self.pool_net = Model([frame_embed, mask], score)
+        self.pool_net.summary()
+
+
+        
+    def predict_eval(self, x, **kwargs):
+        return np.log(self.predict_embed(x, **kwargs)+1e-10)
 
     
     

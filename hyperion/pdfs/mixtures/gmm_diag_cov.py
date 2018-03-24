@@ -19,12 +19,12 @@ from ...clustering import KMeans
 from .exp_family_mixture import ExpFamilyMixture
 
 
-class DiagGMM(ExpFamilyMixture):
+class GMMDiagCov(ExpFamilyMixture):
 
     def __init__(self, mu=None, Lambda=None, var_floor=1e-3,
                  update_mu=True, update_Lambda=True,
                  **kwargs):
-        super(DiagGMM, self).__init__(**kwargs)
+        super(GMMDiagCov, self).__init__(**kwargs)
         self.mu = mu
         self.Lambda = Lambda
         self.var_floor = var_floor
@@ -186,7 +186,7 @@ class DiagGMM(ExpFamilyMixture):
                 mu[k::K] += factor*std_dev
 
         config = self.get_config()
-        return DiagGMM(pi=pi, mu=mu, Lambda=Lambda, **config)
+        return GMMDiagCov(pi=pi, mu=mu, Lambda=Lambda, **config)
         
 
     
@@ -235,7 +235,7 @@ class DiagGMM(ExpFamilyMixture):
         config = {'var_floor': self.var_floor,
                   'update_mu': self.update_mu,
                   'update_lambda': self.update_Lambda }
-        base_config = super(DiagGMM, self).get_config()
+        base_config = super(GMMDiagCov, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
 
@@ -434,3 +434,7 @@ class DiagGMM(ExpFamilyMixture):
             C_k=np.diag(C[k])
             plot_gaussian_ellipsoid_3D(mu[k], C_k, num_sigmas, num_pts,
                                        **kwargs)
+
+
+
+DiagGMM = GMMDiagCov

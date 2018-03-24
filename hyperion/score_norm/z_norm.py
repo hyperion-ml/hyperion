@@ -22,7 +22,7 @@ class ZNorm(ScoreNorm):
             s_z = np.std(scores_enr_coh, axis=1, keepdims=True)
         else:
             scores_enr_coh[mask==False] = 0
-            n_z= np.mean(mask)
+            n_z = np.mean(mask, axis=1, keepdims=True)
             mu_z = np.mean(scores_enr_coh, axis=1, keepdims=True)/n_z
             s_z = np.sqrt(np.mean(scores_enr_coh**2, axis=1, keepdims=True)/n_z - mu_z**2)
 

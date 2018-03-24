@@ -9,7 +9,7 @@ from scipy.special import gammaln
 
 from ..hyp_defs import float_cpu
 from ..hyp_model import HypModel
-from ..utils.math import int2onehot, logdet_pdmat, invert_pdmat, softmax
+from ..utils.math import int2onehot, logdet_pdmat, invert_pdmat, softmax, fullcov_varfloor
 from .linear_gbe import LinearGBE
 
 
@@ -39,11 +39,16 @@ class LinearGBEUP(LinearGBE):
     def eval_linear(self, x):
         x_m = x[:,:x.shape[-1]/2]
         x_s = x[:,x.shape[-1]/2:]
-        S = invert_pdmat(self.W, return_inv=True)[-1]
+        try:
+            S = invert_pdmat(self.W, return_inv=True)[-1]
+        except:
+#            self.W += np.mean(np.diag(self.W))/1000*np.eye(x.shape[-1]/2)
+            S = invert_pdmat(self.W, return_inv=True)[-1]
+            
         logp = np.zeros((len(x), self.num_classes), dtype=float_cpu())
         for i in xrange(x.shape[0]):
             W_i = invert_pdmat(S+np.diag(x_s[i]), return_inv=True)[-1]
-            A, b = self._compute_Ab_i(mu, W_i)
+            A, b = self._compute_Ab_i(self.mu, W_i)
             logp[i] = np.dot(x_m[i], A) + b
         return logp
 
@@ -162,6 +167,10 @@ class LinearGBEUP(LinearGBE):
             else:
                 S /= (nu0+np.sum(N))
 
+            x_s_mean=np.diag(np.mean(x_s, axis=0))
+            S = fullcov_varfloor(S, np.sqrt(x_s_mean)*1.1)
+            S -= x_s_mean
+            
             self.W = invert_pdmat(S, return_inv=True)[-1]
             self.nu = np.sum(N)+nu0
             
@@ -171,7 +180,7 @@ class LinearGBEUP(LinearGBE):
 
 
     @staticmethod
-    def _compute_Ab_i(self, mu, W):
+    def _compute_Ab_i(mu, W):
         A = np.dot(W, mu.T)
         b = -0.5 * np.sum(mu.T*A, axis=0)
         return A, b

@@ -19,6 +19,19 @@ from .data_writer import DataWriter
 
 
 class H5DataWriter(DataWriter):
+    """Class to write hdf5 feature files.
+    
+    Attributes:
+      archive_path: output data file path.
+      script_path: optional output scp file.
+      flush: If True, it flushes the output after writing each feature file.
+      compress: It True, it uses Kaldi compression.
+      compression_method: Kaldi compression method:
+                          {auto (default), speech_feat, 
+                           2byte-auto, 2byte-signed-integer,
+                           1byte-auto, 1byte-unsigned-integer, 1byte-0-1}.
+      scp_sep: Separator for scp files (default ' ').
+    """
 
     def __init__(self, archive_path, script_path=None, **kwargs):
         
@@ -34,11 +47,19 @@ class H5DataWriter(DataWriter):
 
             
     def __exit__(self, exc_type, exc_value, traceback):
+        """Function required when exiting from contructions of type
+           
+           with H5DataWriter('file.h5') as f:
+              f.write(key, data)
+
+        It closes the output file.
+        """
         self.close()
 
 
         
     def close(self):
+        """Closes the output file"""
         if self.f is not None:
             self.f.close()
             self.f = None
@@ -48,6 +69,7 @@ class H5DataWriter(DataWriter):
 
             
     def flush(self):
+        """Flushes the file"""
         self.f.flush()
         if self.f_script is not None:
             self.f_script.flush()
@@ -55,7 +77,16 @@ class H5DataWriter(DataWriter):
 
 
     def _convert_data(self, data):
-        
+        """Converts data to the format for saving.
+        Compresses the data it needed.
+        Args:
+          Numpy array feature matrix/vector.
+
+        Returns:
+          Numpy array to save in h5 file.
+          Atrributes for the hdf5 dataset with information about the
+          compression.
+        """
         if isinstance(data, np.ndarray):
             if self.compress:
                 mat = KaldiCompressedMatrix.compress(
@@ -70,7 +101,15 @@ class H5DataWriter(DataWriter):
 
         
     def write(self, keys, data):
+        """Writes data to file.
         
+        Args:
+          key: List of recodings names.
+          data: List of Feature matrices or vectors. 
+                If all the matrices have the same dimension 
+                it can be a 3D numpy array.
+                If they are vectors, it can be a 2D numpy array.
+        """
         if isinstance(keys, string_types):
             keys = [keys]
             data = [data]

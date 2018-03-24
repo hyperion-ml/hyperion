@@ -19,6 +19,14 @@ from .trial_key import TrialKey
 
 
 class TrialScores(object):
+    """ Contains the scores for the speaker recognition trials.
+    
+    Attributes:
+      model_set: List of model names.
+      seg_set: List of test segment names.
+      scores: Matrix with the scores (num_models x num_segments).
+      score_mask: Boolean matrix with the trials with valid scores to True (num_models x num_segments).
+    """
 
     def __init__(self, model_set=None, seg_set=None, scores=None, score_mask=None):
         self.model_set = model_set
@@ -28,20 +36,30 @@ class TrialScores(object):
         if (model_set is not None) and (seg_set is not None):
             self.validate()
         
-        
+
+            
     def copy(self):
+        """Makes a copy of the object"""
         return copy.deepcopy(self)
+
 
     
     def sort(self):
+        """Sorts the object by model and test segment names."""
         self.model_set, m_idx = sort(self.model_set, return_index=True)
         self.seg_set, s_idx = sort(self.seg_set, return_index=True)
         ix = np.ix_(m_idx, s_idx)
         self.scores = self.scores[ix]
         self.score_mask = self.score_mask[ix]
         
+
         
     def save(self, file_path):
+        """Saves object to txt/h5 file.
+
+        Args:
+          file_path: File to write the list.
+        """
         file_base, file_ext = path.splitext(file_path)
         if file_ext == '.txt' :
             self.save_txt(file_path)
@@ -50,6 +68,11 @@ class TrialScores(object):
 
             
     def save_h5(self, file_path):
+        """Saves object to h5 file.
+
+        Args:
+          file_path: File to write the list.
+        """
         with h5py.File(file_path, 'w') as f:
             model_set = self.model_set.astype('S')
             seg_set = self.seg_set.astype('S')
@@ -60,17 +83,32 @@ class TrialScores(object):
                              data=self.score_mask.astype('uint8'))
 
             
+            
     def save_txt(self, file_path):
+        """Saves object to txt file.
+
+        Args:
+          file_path: File to write the list.
+        """
         idx=(self.score_mask.T == True).nonzero()
         with open(file_path, 'w') as f:
             for item in zip(idx[0], idx[1]):
                 f.write('%s %s %f\n' %
                         (self.model_set[item[1]], self.seg_set[item[0]],
                          self.scores[item[1], item[0]]))
-                    
+
+                
 
     @classmethod
     def load(cls, file_path):
+        """Loads object from txt/h5 file
+
+        Args:
+          file_path: File to read the list.
+
+        Returns:
+          TrialScores object.
+        """
         file_base, file_ext = path.splitext(file_path)
         if file_ext == '.txt' :
             return TrialScores.load_txt(file_path)
@@ -78,8 +116,17 @@ class TrialScores(object):
             return TrialScores.load_h5(file_path)
 
 
+        
     @classmethod
     def load_h5(cls, file_path):
+        """Loads object from h5 file
+
+        Args:
+          file_path: File to read the list.
+
+        Returns:
+          TrialScores object.
+        """
         with h5py.File(file_path, 'r') as f:
             model_set = [t.decode('utf-8') for t in f['ID/row_ids']]
             seg_set = [t.decode('utf-8') for t in f['ID/column_ids']]
@@ -90,6 +137,14 @@ class TrialScores(object):
 
     @classmethod
     def load_txt(cls, file_path):
+        """Loads object from h5 file
+
+        Args:
+          file_path: File to read the list.
+
+        Returns:
+          TrialScores object.
+        """
         with open(file_path, 'r') as f:
             fields = [line.split() for line in f]
         models = [i[0] for i in fields]
@@ -111,6 +166,14 @@ class TrialScores(object):
     
     @classmethod
     def merge(cls, scr_list):
+        """Merges several score objects.
+
+        Args:
+          scr_list: List of TrialNdx objects.
+
+        Returns:
+          Merged TrialScores object.
+        """
         num_scr = len(scr_list)
         model_set = scr_list[0].model_set
         seg_set = scr_list[0].seg_set
@@ -155,7 +218,21 @@ class TrialScores(object):
         return cls(model_set, seg_set, scores, score_mask)
                                   
 
+    
     def filter(self, model_set, seg_set, keep=True, raise_missing=True):
+        """Removes elements from TrialScores object.
+        
+        Args:
+          model_set: List of models to keep or remove.
+          seg_set: List of test segments to keep or remove.
+          keep: If True, we keep the elements in model_set/seg_set,
+                if False, we remove the elements in model_set/seg_set.
+          raise_missing: Raises exception if there are elements in model_set or
+                         seg_set that are not in the object.
+        Returns:
+          Filtered TrialScores object.
+        """
+
         if not(keep):
             model_set=np.setdiff1d(self.model_set, model_set)
             seg_set=np.setdiff1d(self.model_set, seg_set)
@@ -186,8 +263,22 @@ class TrialScores(object):
             
         return TrialScores(model_set, seg_set, scores, score_mask)
 
+
     
     def split(self, model_idx, num_model_parts, seg_idx, num_seg_parts):
+        """Splits the TrialScores into num_model_parts x num_seg_parts and returns part 
+           (model_idx, seg_idx).
+ 
+        Args:
+          model_idx: Model index of the part to return from 1 to num_model_parts.
+          num_model_parts: Number of parts to split the model list.
+          seg_idx: Segment index of the part to return from 1 to num_model_parts.
+          num_seg_parts: Number of parts to split the test segment list.
+
+        Returns:
+          Subpart of the TrialScores
+        """
+
         model_set, model_idx1 = split_list(self.model_set,
                                            model_idx, num_model_parts)
         seg_set, seg_idx1 = split_list(self.seg_set,
@@ -197,8 +288,11 @@ class TrialScores(object):
         score_mask=self.score_mask[ix]
         return TrialScores(model_set, seg_set, scores, score_mask)
 
+
     
     def validate(self):
+        """Validates the attributes of the TrialKey object.
+        """
         self.model_set = list2ndarray(self.model_set)
         self.seg_set = list2ndarray(self.seg_set)
 
@@ -219,7 +313,18 @@ class TrialScores(object):
                    (len(self.model_set), len(self.seg_set)))
 
 
+            
     def align_with_ndx(self, ndx, raise_missing=True):
+        """Aligns scores, model_set and seg_set with TrialNdx or TrialKey.
+
+        Args:
+          ndx: TrialNdx or TrialKey object.
+          raise_missing: Raises exception if there are trials in ndx that are not 
+                         in the score object.
+
+        Returns:
+          Aligned TrialScores object.
+        """
         scr = self.filter(ndx.model_set, ndx.seg_set, keep=True, raise_missing=raise_missing)
         if isinstance(ndx, TrialNdx):
             mask = ndx.trial_mask
@@ -241,6 +346,15 @@ class TrialScores(object):
             
 
     def get_tar_non(self, key):
+        """Returns target and non target scores.
+        
+        Args:
+          key: TrialKey object.
+        
+        Returns:
+          Numpy array with target scores.
+          Numpy array with non-target scores.
+        """
         scr = self.align_with_ndx(key)
         tar_mask = np.logical_and(scr.score_mask, key.tar)
         tar = scr.scores[tar_mask]
@@ -249,7 +363,18 @@ class TrialScores(object):
         return tar, non
 
     
+    
     def set_missing_to_value(self, ndx, val):
+        """Aligns the scores with a TrialNdx and sets the trials with missing
+        scores to the same value.
+
+        Args:
+          ndx: TrialNdx or TrialKey object.
+          val: Value for the missing scores.
+
+        Returns:
+          Aligned TrialScores object.
+        """
         scr = self.align_with_ndx(ndx, raise_missing=False)
         if isinstance(ndx, TrialNdx):
             mask = ndx.trial_mask
@@ -260,13 +385,21 @@ class TrialScores(object):
         scr.score_mask[mask] = True
         return scr
 
-                   
+
+    
     def transform(self, f):
+        """Applies a function to the valid scores of the object.
+
+        Args:
+          f: function handle.
+        """
         mask = self.score_mask
         self.scores[mask] = f(self.scores[mask])
         
-            
+
+        
     def __eq__(self, other):
+        """Equal operator"""
         eq = self.model_set.shape == other.model_set.shape
         eq = eq and np.all(self.model_set == other.model_set)
         eq = eq and (self.seg_set.shape == other.seg_set.shape)
@@ -275,8 +408,16 @@ class TrialScores(object):
         eq = eq and np.all(self.score_mask == other.score_mask)
         return eq
 
+
+    
+    def __ne__(self, other):
+        """Non-equal operator"""
+        return not self.__eq__(other)
+
+
     
     def __cmp__(self, other):
+        """Comparison operator"""
         if self.__eq__(oher):
             return 0
         return 1

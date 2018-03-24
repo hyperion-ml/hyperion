@@ -137,7 +137,8 @@ class SequentialDataReaderFactory(object):
                             help=('splits the list of files in num-parts and process part_idx'))
 
 
-            
+
+        
 class RandomAccessDataReaderFactory(object):
 
     @staticmethod
