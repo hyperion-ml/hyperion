@@ -8,4 +8,5 @@ from .pooling import *
 from .masking import *
 from .scoring import *
 from .losses import *
+from .feats import *
 

@@ -5,14 +5,13 @@ from __future__ import division
 from six.moves import xrange
 
 import numpy as np
-from numpy import linalg as nla
 from scipy import linalg as sla
-
-from abc import ABCMeta, abstractmethod
 
 from ...hyp_defs import float_cpu
 from ...utils.math import invert_pdmat, invert_trimat, logdet_pdmat
 from .plda_base import PLDABase
+
+
 
 class FRPLDA(PLDABase):
 
@@ -27,7 +26,27 @@ class FRPLDA(PLDABase):
         self.update_B = update_B
         self.update_W = update_W
 
+
         
+    def validate(self):
+        assert self.mu.shape[0] == self.B.shape[0]
+        assert self.mu.shape[0] == self.B.shape[1]
+        assert self.mu.shape[0] == self.W.shape[0]
+        assert self.mu.shape[0] == self.W.shape[1]
+
+
+    @property
+    def is_init(self):
+        if self._is_init:
+            return True
+        if (self.mu is not None and self.B is not None and
+            self.W is not None):
+            self.validate()
+            self._is_init = True
+        return self._is_init
+
+
+    
     def initialize(self, D):
         N, F, S = D
         self.x_dim = F.shape[1]
@@ -53,10 +72,15 @@ class FRPLDA(PLDABase):
         self.mu = mu
         self.B = B
         self.W = W
+        self._is_init = True
+
 
         
     def compute_py_g_x(self, D, return_cov=False, return_logpy_0=False,
                        return_acc=False):
+        
+        assert self.is_init
+        
         N, F, S = D
 
         M=F.shape[0]
@@ -134,6 +158,7 @@ class FRPLDA(PLDABase):
         return r
 
 
+    
     def Estep(self, D):
         N, F, S = D
         y, logpy, Ry, Py = self.compute_py_g_x(
@@ -151,8 +176,9 @@ class FRPLDA(PLDABase):
 
         logpy_acc = np.sum(logpy)
         
-        stats = [N_tot, M, S, logpy_acc, y_acc, Ry, Cy, Py]
+        stats = (N_tot, M, S, logpy_acc, y_acc, Ry, Cy, Py)
         return stats
+
 
     
     def elbo(self, stats):
@@ -181,6 +207,7 @@ class FRPLDA(PLDABase):
         # return elbo
         
 
+        
     def MstepML(self, stats):
         N, M, S, _, y_acc, Ry, Cy, Py = stats
         ybar = y_acc/M
@@ -232,8 +259,11 @@ class FRPLDA(PLDABase):
         return cls(**kwargs)
 
 
-    def eval_llr_1vs1(self, x1, x2):
 
+    def llr_1vs1(self, x1, x2):
+
+        assert self.is_init
+        
         Lnon = self.B + self.W
         mult_icholLnon, logcholLnon = invert_trimat(
             sla.cholesky(Lnon, lower=False, overwrite_a=True),
@@ -270,8 +300,12 @@ class FRPLDA(PLDABase):
         scores *= 0.5
         return scores
                 
-            
-    def eval_llr_NvsM_book(self, D1, D2):
+
+    
+    def llr_NvsM_book(self, D1, D2):
+
+        assert self.is_init
+        
         N1, F1, _ = D1
         N2, F2, _ = D2
         
@@ -280,8 +314,8 @@ class FRPLDA(PLDABase):
         scores = np.zeros((len(N1), len(N2)), dtype=float_cpu())
         for N1_i in np.unique(N1):
             for N2_j in np.unique(N2):
-                i = np.where(N1 == N1_i)
-                j = np.where(N2 == N2_j)
+                i = np.where(N1 == N1_i)[0]
+                j = np.where(N2 == N2_j)[0]
 
                 L1 = self.B + N1_i*self.W
                 mult_icholL1, logcholL1 = invert_trimat(
@@ -319,10 +353,38 @@ class FRPLDA(PLDABase):
                 scores_ij = 2*np.dot(gamma_tar_1, gamma_tar_2.T)
                 scores_ij += (Qtar_1 - Qnon_1 + Qtar_2 - Qnon_2)
                 scores_ij += (logL1 + logL2 - logLtar)
-                scores[i,j] = scores_ij
+                scores[np.ix_(i,j)] = scores_ij
                 
         scores += (-logdet_pdmat(self.B) + np.inner(np.dot(self.mu, self.B), self.mu))
         scores *= 0.5
+        return scores
 
-                
+    
 
+    def sample(self, num_classes, num_samples_per_class, rng=None, seed=1024, return_y=False):
+        
+        assert self.is_init
+        
+        if rng is None:
+            rng = np.random.RandomState(seed=seed)
+
+        Sb = invert_pdmat(self.B, return_inv=True)[-1]
+        chol_Sb = sla.cholesky(Sb, lower=False)
+        Sw = invert_pdmat(self.W, return_inv=True)[-1]
+        chol_Sw = sla.cholesky(Sw, lower=False)
+
+        x_dim = self.mu.shape[0]
+        z = rng.normal(size=(num_classes*num_samples_per_class, x_dim)).astype(
+            dtype=float_cpu(), copy=False)
+        z = np.dot(z, chol_Sw)
+        y = rng.normal(size=(num_classes, x_dim)).astype(
+            dtype=float_cpu(), copy=False)
+        y = np.dot(y, chol_Sb) + self.mu
+        y = np.repeat(y, num_samples_per_class, axis=0)
+
+        if return_y:
+            return y + z, y
+        
+        return y + z
+    
+        

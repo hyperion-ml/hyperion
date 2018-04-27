@@ -5,6 +5,7 @@ from __future__ import division
 from six.moves import xrange
 
 import pytest
+import os
 import numpy as np
 from numpy.testing import assert_allclose
 
@@ -14,6 +15,9 @@ import matplotlib.pyplot as plt
 
 from hyperion.perf_eval.roc import *
 
+output_dir = './tests/data_out/perf_eval'
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
 
 def test_roc():
 
@@ -126,7 +130,7 @@ def test_roc():
     assert_allclose(pf[:10], [1.,1.,1.,1.,1.,1.,0.99,0.98,0.97, 0.96])
 
     # plt.show()
-    plt.savefig('./tests/data_out/roc.pdf')
+    plt.savefig(output_dir + '/roc.pdf')
     plt.close()
 
 

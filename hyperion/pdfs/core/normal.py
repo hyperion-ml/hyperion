@@ -13,7 +13,7 @@ from ...hyp_defs import float_cpu
 from ...utils.plotting import plot_gaussian_1D, plot_gaussian_ellipsoid_2D, plot_gaussian_ellipsoid_3D, plot_gaussian_3D
 from ...utils.math import invert_pdmat, invert_trimat, symmat2vec, vec2symmat, fullcov_varfloor, logdet_pdmat
 
-from .diag_normal import ExpFamily
+from .exp_family import ExpFamily
 
 
 class Normal(ExpFamily):
@@ -27,7 +27,7 @@ class Normal(ExpFamily):
         self.update_mu = update_mu
         self.update_Lambda = update_Lambda
 
-        self._compute_normal_nat_std()
+        self._compute_nat_std()
         
         self._logLambda = None
         self._cholLambda = None
@@ -35,7 +35,7 @@ class Normal(ExpFamily):
 
 
         
-    def _compute_normal_nat_std(self):
+    def _compute_nat_std(self):
         if self.mu is not None and self.Lambda is not None:
             self._validate_mu()
             self._validate_Lambda()
@@ -49,32 +49,40 @@ class Normal(ExpFamily):
     @property
     def logLambda(self):
         if self._logLambda is None:
+            assert self.is_init
             f, L, logL = invert_pdmat(self.Lambda, return_logdet=True)
             self._logLambda = logL
             self._cholLambda = L.T
         return self._logLambda
 
 
+    
     @property
     def cholLambda(self):
         if self._cholLambda is None:
+            assert self.is_init
             f, L, logL = invert_pdmat(self.Lambda, return_logdet=True)
             self._logLambda = logL
             self._cholLambda = L.T
         return self._cholLambda
 
+
+    
     @property
     def Sigma(self):
         if self._Sigma is None:
+            assert self.is_init
             self._Sigma = invert_pdmat(self.Lambda, return_inv=True)[-1]
         return self._Sigma
+
 
     
     def initialize(self):
         self.validate()
-        self._compute_normal_nat_std()
+        self._compute_nat_std()
 
 
+        
     def stack_suff_stats(self, F, S=None):
         if S is None:
             return F
@@ -107,6 +115,8 @@ class Normal(ExpFamily):
 
         
     def norm_suff_stats(self, N, u_x, return_order2=False):
+        assert self.is_init
+        
         F, S = self.unstack_suff_stats(u_x)
         F_norm = np.dot(F-N*self.mu, self.cholLambda.T)
         if return_order2:
@@ -141,7 +151,8 @@ class Normal(ExpFamily):
 
 
         
-    def eval_llk_std(self, x):
+    def log_prob_std(self, x):
+        assert self._is_init
         mah_dist2 = np.sum(np.dot(x-self.mu,self.cholLambda)**2, axis=1)
         return 0.5*self.logLambda-0.5*self.x_dim*np.log(2*np.pi)-0.5*mah_dist2
 
@@ -159,7 +170,9 @@ class Normal(ExpFamily):
 
 
     
-    def generate(self, num_samples, rng=None, seed=1024):
+    def sample(self, num_samples, rng=None, seed=1024):
+        assert self._is_init
+        
         if rng is None:
             rng = np.random.RandomState(seed)
         return rng.multivariate_normal(self.mu, self.Sigma,size=(num_samples,)).astype(float_cpu())
@@ -179,6 +192,9 @@ class Normal(ExpFamily):
 
     
     def save_params(self, f):
+        
+        assert self.is_init
+        
         params = {'mu': self.mu,
                   'Lambda': self.Lambda}
         self._save_params_from_dict(f, params)
@@ -275,8 +291,8 @@ class Normal(ExpFamily):
     
     def _compute_nat_params(self):
         self.eta = self.compute_eta(self.mu, self.Lambda)
-        # self.A = self.compute_A_nat(self.eta)
         self.A = self.compute_A_std(self.mu, self.Lambda)
+        # self.A = self.compute_A_nat(self.eta)
         # Lmu = np.dot(self.Lambda, self.mu[:, None])
         # muLmu = np.dot(self.mu, Lmu)
         # lnr = 0.5*self.lnLambda - 0.5*self.x_dim*np.log(2*np.pi)-0.5*muLmu
@@ -309,6 +325,7 @@ class Normal(ExpFamily):
     
     
     def plot1D(self, feat_idx=0, num_sigmas=2, num_pts=100, **kwargs):
+        assert self.is_init
         mu=self.mu[feat_idx]
         j, i = np.meshgrid(feat_idx, feat_idx)
         C=invert_pdmat(self.Lambda, return_inv=True)[-1][i, j]
@@ -317,6 +334,7 @@ class Normal(ExpFamily):
 
         
     def plot2D(self, feat_idx=[0, 1], num_sigmas=2, num_pts=100, **kwargs):
+        assert self.is_init
         mu=self.mu[feat_idx]
         j, i = np.meshgrid(feat_idx, feat_idx)
         C=invert_pdmat(self.Lambda, return_inv=True)[-1][i, j]
@@ -325,6 +343,7 @@ class Normal(ExpFamily):
 
         
     def plot3D(self, feat_idx=[0, 1], num_sigmas=2, num_pts=100, **kwargs):
+        assert self.is_init
         mu=self.mu[feat_idx]
         j, i = np.meshgrid(feat_idx, feat_idx)
         C=invert_pdmat(self.Lambda, return_inv=True)[-1][i, j]
@@ -333,6 +352,7 @@ class Normal(ExpFamily):
 
         
     def plot3D_ellipsoid(self, feat_idx=[0, 1, 2], num_sigmas=2, num_pts=100, **kwargs):
+        assert self.is_init
         mu=self.mu[feat_idx]
         j, i = np.meshgrid(feat_idx, feat_idx)
         C=invert_pdmat(self.Lambda, return_inv=True)[-1][i, j]

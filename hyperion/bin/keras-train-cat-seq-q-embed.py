@@ -19,11 +19,12 @@ from hyperion.hyp_defs import set_float_cpu, float_cpu
 from hyperion.utils.multithreading import threadsafe_generator
 from hyperion.helpers import SequenceBatchGenerator as G
 from hyperion.transforms import TransformList
+from hyperion.keras.backend_addons import reserve_gpu
 from hyperion.keras.keras_utils import *
 from hyperion.keras.keras_model_loader import KerasModelLoader as KML
 from hyperion.keras.helpers import OptimizerFactory as KOF
 from hyperion.keras.helpers import CallbacksFactory as KCF
-from hyperion.keras.embed.seq_q_embed import SeqQEmbed
+from hyperion.keras.embed import SeqQEmbed
 
 
 
@@ -38,13 +39,14 @@ def data_generator(sg, max_length):
 
     
 def train_embed(data_path, train_list, val_list,
-                embed_file, 
+                embed_net_path, 
                 init_path,
                 epochs,
                 preproc_file, output_path,
-                post_pdf, pooling_input, pooling_output,
-                min_var, kl_weight, **kwargs):
+                freeze_embed,
+                **kwargs):
 
+    g = reserve_gpu()
     set_float_cpu(float_keras())
 
     if preproc_file is not None:
@@ -72,13 +74,12 @@ def train_embed(data_path, train_list, val_list,
     if init_path is None:
         model, init_epoch = KML.load_checkpoint(output_path, epochs)
         if model is None:
-            embed_net = load_model_arch(embed_file)
+            embed_args = SeqQEmbed.filter_args(**kwargs)
+            print(embed_args)
+            embed_net = load_model_arch(embed_net_path)
 
             model = SeqQEmbed(embed_net, num_classes=sg.num_classes,
-                              post_pdf=post_pdf,
-                              pooling_input=pooling_input,
-                              pooling_output=pooling_output,
-                              min_var=min_var, kl_weight=kl_weight)
+                              **embed_args)
         else:
             sg.cur_epoch = init_epoch
             sg.reset()
@@ -87,16 +88,21 @@ def train_embed(data_path, train_list, val_list,
         model = KML.load(init_path)
 
 
+    model.kl_weight = kwargs['kl_weight']
+        
     opt_args = KOF.filter_args(**kwargs)
     cb_args = KCF.filter_args(**kwargs)
     print(sg_args)
     print(opt_args)
     print(cb_args)
     
-
     print('max length: %d' % max_length)
 
-    t1 = time.time()    
+    t1 = time.time()
+    
+    if freeze_embed:
+        model.prepool_net.trainable = False
+        
     model.build(max_length)
     print(time.time()-t1)
     
@@ -121,43 +127,24 @@ if __name__ == "__main__":
     parser=argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         fromfile_prefix_chars='@',
-        description='Train sequence meta embeddings')
+        description='Train sequence q embeddings')
 
     parser.add_argument('--data-path', dest='data_path', required=True)
     parser.add_argument('--train-list', dest='train_list', required=True)
     parser.add_argument('--val-list', dest='val_list', default=None)
-    parser.add_argument('--embed-file', dest='embed_file', required=True)
+    parser.add_argument('--embed-net', dest='embed_net_path', required=True)
 
     parser.add_argument('--init-path', dest='init_path', default=None)
     parser.add_argument('--preproc-file', dest='preproc_file', default=None)
     parser.add_argument('--output-path', dest='output_path', required=True)
 
-    parser.add_argument('--post-pdf', dest='post_pdf', default='diag_normal',
-                        choices=['diag_normal'])
-    parser.add_argument('--pooling-input', dest='pooling_input',
-                        default='nat+logitvar',
-                        choices=['nat+logitvar', 'nat+logprec-1',
-                                 'nat+logvar', 'nat+logprec',
-                                 'nat+var', 'nat+prec', 'nat+prec-1',
-                                 'mean+logitvar', 'mean+logprec-1',
-                                 'mean+logvar', 'mean+logprec',
-                                 'mean+var', 'mean+prec', 'mean+prec-1'])
-    parser.add_argument('--pooling-output', dest='pooling_output',
-                        default='nat+prec',
-                        choices=['nat+logar', 'nat+logprec',
-                                 'nat+var', 'nat+prec',
-                                 'mean+logar', 'mean+logprec',
-                                 'mean+var', 'mean+prec'])
-    
-    parser.add_argument('--min-var', dest='min_var', default=0.9, type=float,
-                        help=('Minimum frame variance (default: %(default)s)'))
-    parser.add_argument('--kl-weight', dest='kl_weight', default=0, type=float,
-                        help=('Weight of the KL divergence (default: %(default)s)'))
-
+    SeqQEmbed.add_argparse_args(parser)
     G.add_argparse_args(parser)
     KOF.add_argparse_args(parser)
     KCF.add_argparse_args(parser)
-    
+
+    parser.add_argument('--freeze-embed', dest='freeze_embed',
+                        default=False, action='store_true')
     parser.add_argument('--epochs', dest='epochs', default=1000, type=int)
     
     args=parser.parse_args()

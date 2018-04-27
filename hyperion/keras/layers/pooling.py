@@ -213,11 +213,14 @@ class GlobalSumWeights(_GlobalPooling1D):
     
 class GlobalDiagNormalPostStdPriorPooling1D(Layer):
 
-    def __init__(self, input_format='nat+logitvar', output_format='nat+var', min_var=0.001, **kwargs):
+    def __init__(self, input_format='nat+logitvar', output_format='nat+var',
+                 min_var=0.001, frame_corr_penalty=1, **kwargs):
+        
         super(GlobalDiagNormalPostStdPriorPooling1D, self).__init__(**kwargs)
         self.input_format=input_format.split(sep='+', maxsplit=1)
         self.output_format=output_format.split(sep='+', maxsplit=1)
         self.min_var = min_var
+        self.frame_corr_penalty = frame_corr_penalty
         self.input_spec = [InputSpec(ndim=3), InputSpec(ndim=3), InputSpec(min_ndim=2)]
         self.supports_masking = True
 
@@ -301,8 +304,8 @@ class GlobalDiagNormalPostStdPriorPooling1D(Layer):
         if self.input_format[0] == 'mean' :
             p1 = p1*input_prec
             
-        eta = K.sum(p1*weights, axis=1)
-        prec = 1+K.sum((input_prec-1)*weights, axis=1)
+        eta = self.frame_corr_penalty * K.sum(p1*weights, axis=1)
+        prec = 1 + self.frame_corr_penalty * K.sum((input_prec-1)*weights, axis=1)
         print(prec)
         print(self.output_format)
         prec = K.clip(prec, 1, 1e5)
@@ -331,7 +334,8 @@ class GlobalDiagNormalPostStdPriorPooling1D(Layer):
     def get_config(self):
         config = { 'input_format': '+'.join(self.input_format),
                    'output_format': '+'.join(self.output_format),
-                   'min_var': self.min_var}
+                   'min_var': self.min_var,
+                   'frame_corr_penalty': self.frame_corr_penalty}
         base_config = super(GlobalDiagNormalPostStdPriorPooling1D, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 

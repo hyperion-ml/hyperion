@@ -27,16 +27,25 @@ class ExpFamilyMixture(PDF):
         self.eta = eta
         self.min_N = min_N
         self.A = None
-        self._logpi = None
+        self._log_pi = None
         self.update_pi = update_pi
 
 
-        
     @property
-    def logpi(self):
-        if self._logpi is None:
-            self._logpi = np.log(self.pi+1e-15)
-        return self._logpi
+    def is_init(self):
+        if not self._is_init:
+            if (self.eta is not None and self.A is not None and
+                self.pi is not None):
+                self.validate()
+                self._is_init = True
+        return self._is_init
+
+    
+    @property
+    def log_pi(self):
+        if self._log_pi is None:
+            self._log_pi = np.log(self.pi+1e-15)
+        return self._log_pi
         
 
     
@@ -49,23 +58,25 @@ class ExpFamilyMixture(PDF):
             x_val=None, sample_weight_val=None,
             epochs=10, batch_size=None):
 
-        logh = self.accum_logh(x, sample_weight)
+        if not self.is_init:
+            self.initialize(x)
+        
+        log_h = self.accum_log_h(x, sample_weight)
         if x_val is not None:
-            logh_val = self.accum_logh(x_val, sample_weight_val)
+            log_h_val = self.accum_log_h(x_val, sample_weight_val)
             
         elbo = np.zeros((epochs,), dtype=float_cpu())
         elbo_val = np.zeros((epochs,), dtype=float_cpu())
         for epoch in xrange(epochs):
             N, u_x =self.Estep(x=x, sample_weight=sample_weight,
                                batch_size=batch_size)
+            elbo[epoch]=self.elbo(None, N=N, u_x=u_x, log_h=log_h)
             self.Mstep(N, u_x)
-            elbo[epoch]=self.elbo(None, N=N, u_x=u_x, logh=logh)
-
         
             if x_val is not None:
                 N, u_x = self.Estep(x=x_val, sample_weight=sample_weight_val,
                                     batch_size=batch_size)
-                elbo_val[epoch] = self.elbo(None, N=N, u_x=u_x, logh=logh_val)
+                elbo_val[epoch] = self.elbo(None, N=N, u_x=u_x, log_h=log_h_val)
 
         if x_val is None:
             return elbo, elbo/x.shape[0]
@@ -89,28 +100,28 @@ class ExpFamilyMixture(PDF):
 
         if do_validation and not val_gen:
             x, u_x_val, sample_weight_val = self.tuple2data(val_data)
-            logh_val = self.accum_logh(x, sample_weight_val)
+            log_h_val = self.accum_log_h(x, sample_weight_val)
         
         elbo = np.zeros((epochs,), dtype=float_cpu())
         elbo_val = np.zeros((epochs,), dtype=float_cpu())
         for epoch in xrange(epochs):
-            N, u_x, logh =self.Estep_generator(
-                generator, train_steps, return_logh=True,
+            N, u_x, log_h =self.Estep_generator(
+                generator, train_steps, return_log_h=True,
                 max_queue_size=max_queue_size, workers=workers,
                 use_multiprocessing=use_multiprocessing)
             
             self.Mstep(N, u_x)
-            elbo[epoch]=self.elbo(None, N=N, u_x=u_x, logh=logh)
+            elbo[epoch]=self.elbo(None, N=N, u_x=u_x, log_h=log_h)
         
             if val_data is not None:
                 if val_gen:
-                    N, u_x, logh_val = self.Estep_generator(
-                        generator, train_steps, return_logh = True,
+                    N, u_x, log_h_val = self.Estep_generator(
+                        generator, train_steps, return_log_h = True,
                         max_queue_size=max_queue_size, workers=workers,
                         use_multiprocessing=use_multiprocessing)
                 else:
                     N, u_x = self.Estep(x_val, u_x_val, sample_weight_val)
-                elbo_val[epoch] = self.elbo(None, N=N, u_x=u_x, logh=logh_val)
+                elbo_val[epoch] = self.elbo(None, N=N, u_x=u_x, log_h=log_h_val)
 
         if x_val is None:
             return elbo, elbo/x.shape[0]
@@ -119,34 +130,34 @@ class ExpFamilyMixture(PDF):
 
         
     
-    def logh(self, x):
+    def log_h(self, x):
         return 0
 
 
-    def accum_logh(self, x, sample_weight=None):
+    def accum_log_h(self, x, sample_weight=None):
         if sample_weight is None:
-            return np.sum(self.logh(x))
-        return np.sum(sample_weight * self.logh(x))
+            return np.sum(self.log_h(x))
+        return np.sum(sample_weight * self.log_h(x))
 
 
-    def compute_z(self, x, u_x=None, mode='nat'):
+    def compute_pz(self, x, u_x=None, mode='nat'):
         if mode == 'nat':
-            return self.compute_z_nat(x, u_x)
+            return self.compute_pz_nat(x, u_x)
         else:
-            return self.compute_z_std(x)
+            return self.compute_pz_std(x)
 
 
         
-    def compute_z_nat(self, x, u_x=None):
+    def compute_pz_nat(self, x, u_x=None):
         if u_x is None:
             u_x = self.compute_suff_stats(x)
-        logr = np.dot(u_x, self.eta.T) - self.A + self.logpi
+        logr = np.dot(u_x, self.eta.T) - self.A + self.log_pi
         return softmax(logr)
 
 
     
-    def compute_z_std(self, x):
-        return self.compute_z_nat(x)
+    def compute_pz_std(self, x):
+        return self.compute_pz_nat(x)
 
 
     
@@ -166,7 +177,7 @@ class ExpFamilyMixture(PDF):
     def _accum_suff_stats_1batch(self, x, u_x=None, sample_weight=None):
         if u_x is None:
             u_x = self.compute_suff_stats(x)
-        z = self.compute_z_nat(x, u_x)
+        z = self.compute_pz_nat(x, u_x)
         if sample_weight is not None:
             z *= sample_weight[:, None]
 
@@ -232,7 +243,7 @@ class ExpFamilyMixture(PDF):
     def _accum_suff_stats_segments_prob_1batch(self, x, prob, u_x=None, sample_weight=None):
         if u_x is None:
             u_x = self.compute_suff_stats(x)
-        z = self.compute_z_nat(x, u_x)
+        z = self.compute_pz_nat(x, u_x)
         if sample_weight is not None:
             z *= sample_weight[:, None]
 
@@ -290,7 +301,7 @@ class ExpFamilyMixture(PDF):
 
         if u_x is None:
             u_x = self.compute_suff_stats(x)
-        z = self.compute_z_nat(x, u_x)
+        z = self.compute_pz_nat(x, u_x)
         if sample_weight is not None:
             z *= sample_weight[:, None]
 
@@ -352,13 +363,13 @@ class ExpFamilyMixture(PDF):
 
 
     
-    def Estep_generator(self, generator, num_steps, return_logh,
+    def Estep_generator(self, generator, num_steps, return_log_h,
                         max_queue_size=10, workers=1, use_multiprocessin=False):
         wait_time = 0.01 # in secs
         queue = None
         N = None
         acc_u_x = None
-        logh = 0
+        log_h = 0
         try:
             queue = GeneratorQueue(generator,
                                    use_multiprocessing=use_multiprocessing,
@@ -371,8 +382,8 @@ class ExpFamilyMixture(PDF):
                 data = next(queue_generator)
                 x, u_x, sample_weight = self.tuple2data(data)
                 N_i, u_x_i = self.Estep(x, u_x, sample_weight)
-                if return_logh:
-                    logh += self.accum_logh(x)
+                if return_log_h:
+                    log_h += self.accum_log_h(x)
                 if cur_step == 0:
                     N = N_i
                     acc_u_x = u_x_i
@@ -383,8 +394,8 @@ class ExpFamilyMixture(PDF):
             if enqueuer is not None:
                 enqueuer.stop()
                 
-        if return_logh:
-            return N, acc_u_x, logh
+        if return_log_h:
+            return N, acc_u_x, log_h
         else:
             return N, acc_u_x
 
@@ -407,65 +418,65 @@ class ExpFamilyMixture(PDF):
         pass
 
     
-    def elbo(self, x, u_x=None, N=1, logh=None, sample_weight=None, batch_size=None):
+    def elbo(self, x, u_x=None, N=1, log_h=None, sample_weight=None, batch_size=None):
         if u_x is None:
             N, u_x = self.accum_suff_stats(x, sample_weight=sample_weight,
                                            batch_size=batch_size)
-        if logh is None:
-            logh = self.accum_logh(x, sample_weight=sample_weight)
-        return logh + np.sum(u_x * self.eta) + np.inner(N, self.logpi - self.A)
+        if log_h is None:
+            log_h = self.accum_log_h(x, sample_weight=sample_weight)
+        return log_h + np.sum(u_x * self.eta) + np.inner(N, self.log_pi - self.A)
 
     
-    def eval_llk(self, x, u_x=None, mode='nat'):
+    def log_prob(self, x, u_x=None, mode='nat'):
         if mode == 'nat':
-            return self.eval_llk_nat(x, u_x)
+            return self.log_prob_nat(x, u_x)
         else:
-            return self.eval_llk_std(x)
+            return self.log_prob_std(x)
 
         
-    def eval_llk_nat(self, x, u_x = None):
+    def log_prob_nat(self, x, u_x = None):
         if u_x is None:
             u_x = self.compute_suff_stats(x)
-        llk_k = np.dot(u_x, self.eta.T) - self.A + self.logpi
+        llk_k = np.dot(u_x, self.eta.T) - self.A + self.log_pi
         llk = logsumexp(llk_k)
-        return self.logh(x) + llk
+        return self.log_h(x) + llk
 
 
     @abstractmethod
-    def eval_llk_std(self, x):
+    def log_prob_std(self, x):
         pass
     
 
     
-    def eval_llk_nbest(self, x, u_x=None, mode='nat',
+    def log_prob_nbest(self, x, u_x=None, mode='nat',
                        nbest_mode='master', nbest=1):
         if mode == 'nat':
-            return self.eval_llk_nbest_nat(
+            return self.log_prob_nbest_nat(
                 x, u_x, nbest_mode=nbest_mode, nbest=nbest)
         else:
-            return self.eval_llk_std(
+            return self.log_prob_std(
                 x, nbest_mode=nbest_mode, nbest=nbest)
 
 
         
-    def eval_llk_nbest_nat(self, x, u_x=None,
+    def log_prob_nbest_nat(self, x, u_x=None,
                            nbest_mode='master', nbest=1):
         
         if u_x is None:
             u_x = self.compute_suff_stats(x)
         if nbest_mode == 'master':
             assert(isinstance(nbest, int))
-            llk_k = np.dot(u_x, self.eta.T) - self.A + self.logpi
+            llk_k = np.dot(u_x, self.eta.T) - self.A + self.log_pi
             nbest = np.argsort(llk_k)[:-(nbest+1):-1]
             llk_k = llk_k[nbest]
         else:
-            llk_k = np.dot(u_x, self.eta[nbest,:].T) - self.A + self.logpi
+            llk_k = np.dot(u_x, self.eta[nbest,:].T) - self.A + self.log_pi
         llk = logsumexp(llk_k)
-        return self.logh(x) + llk
+        return self.log_h(x) + llk
         
 
     @abstractmethod
-    def eval_llk_nbest_std(self, x,
+    def log_prob_nbest_std(self, x,
                            nbest_mode='master', nbest=1):
         pass
 
@@ -478,6 +489,7 @@ class ExpFamilyMixture(PDF):
         return dict(list(base_config.items()) + list(config.items()))
 
 
+    
     @staticmethod
     def tuple2data(data):
         if isinstance(data, tuple):

@@ -20,7 +20,7 @@ def TDNNV1(num_td_layers, num_fc_layers,
            name='tdnn-v1',
            kernel_initializer='glorot_uniform', bias_initializer='zeros',
            kernel_regularizer=None, bias_regularizer=None,
-           kernel_constraint=None, bias_constraint=None):
+           kernel_constraint=None, bias_constraint=None, return_context=False):
     
     assert num_td_layers >= 1, 'num_td_layers (%d < 1)' % num_td_layers
     assert num_fc_layers >= 1, 'num_fc_layers (%d < 1)' % num_fc_layers
@@ -43,7 +43,7 @@ def TDNNV1(num_td_layers, num_fc_layers,
     else:
         hidden_fc_units = [hidden_fc_units for i in xrange(num_fc_layers)]
 
-    
+
     x = Input(shape=(None, input_units,))
 
     h_i = x
@@ -122,9 +122,11 @@ def TDNNV1(num_td_layers, num_fc_layers,
                                   kernel_constraint=kernel_constraint,
                                   bias_constraint=bias_constraint))(h_i)
         
-            
-            
-    return Model(x, y, name=name)
+    model = Model(x, y, name=name)
+    if return_context:
+        context = int(np.sum(np.array(dilation_rate)*(np.array(kernel_size)-1)/2))
+        return model, context
+    return model
     
     
 

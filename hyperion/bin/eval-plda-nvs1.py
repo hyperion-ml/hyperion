@@ -45,7 +45,7 @@ def eval_plda(iv_file, ndx_file, enroll_file, test_file,
     
     t1 = time.time()
 
-    scores = model.eval_llr_Nvs1(x_e, x_t, method=pool_method, ids1=ids_e)
+    scores = model.llr_Nvs1(x_e, x_t, method=pool_method, ids1=ids_e)
     
     dt = time.time() - t1
     num_trials = len(enroll) * x_t.shape[0]

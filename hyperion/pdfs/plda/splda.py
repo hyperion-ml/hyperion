@@ -5,14 +5,13 @@ from __future__ import division
 from six.moves import xrange
 
 import numpy as np
-from numpy import linalg as nla
 from scipy import linalg as sla
-
-from abc import ABCMeta, abstractmethod
 
 from ...hyp_defs import float_cpu
 from ...utils.math import invert_pdmat, invert_trimat, logdet_pdmat
 from .plda_base import PLDABase
+
+
 
 class SPLDA(PLDABase):
 
@@ -27,7 +26,28 @@ class SPLDA(PLDABase):
         self.update_V = update_V
         self.update_W = update_W
 
+
         
+    def validate(self):
+        assert self.mu.shape[0] >= self.V.shape[0]
+        assert self.mu.shape[0] == self.V.shape[1]
+        assert self.mu.shape[0] == self.W.shape[0]
+        assert self.mu.shape[0] == self.W.shape[1]
+
+
+        
+    @property
+    def is_init(self):
+        if self._is_init:
+            return True
+        if (self.mu is not None and self.V is not None and
+            self.W is not None):
+            self.validate()
+            self._is_init = True
+        return self._is_init
+
+
+    
     def initialize(self, D):
         N, F, S = D
         self.x_dim = F.shape[1]
@@ -55,8 +75,9 @@ class SPLDA(PLDABase):
     def compute_py_g_x(self, D, return_cov=False, return_logpy_0=False,
                        return_acc=False):
         N, F, S = D
-
-        M=F.shape[0]
+        Fc = F - self.mu
+        
+        M = F.shape[0]
         y_dim = self.y_dim
 
         WV = np.dot(self.W, self.V.T)
@@ -70,7 +91,7 @@ class SPLDA(PLDABase):
             N_is_int = True
 
         I = np.eye(y_dim, dtype=float_cpu())
-        gamma = np.dot(F, WV)
+        gamma = np.dot(Fc, WV)
         if N_is_int:
             iterator = np.unique(N)
         else:
@@ -120,6 +141,7 @@ class SPLDA(PLDABase):
                 
             if return_acc:
                 Py += M_i*iL
+                Ry += N_i*M_i*iL
 
         if not return_tuple:
             return y
@@ -153,7 +175,7 @@ class SPLDA(PLDABase):
 
         logpy_acc = np.sum(logpy)
         
-        stats = [N_tot, M, F_tot, S, logpy_acc, y_acc, Ry1, Ry, Cy, Py]
+        stats = (N_tot, M, F_tot, S, logpy_acc, y_acc, Ry1, Ry, Cy, Py)
         return stats
 
     
@@ -245,7 +267,7 @@ class SPLDA(PLDABase):
 
 
     
-    def eval_logpx_g_y(self, x, y):
+    def log_probx_g_y(self, x, y):
         logW = logdet_pdmat(self.W)
         delta = x - self.mu - np.dot(y, self.V)
         logp = - x.shape[-1]*np.log(2*np.pi) + logW - np.sum(
@@ -255,7 +277,7 @@ class SPLDA(PLDABase):
     
 
     
-    def eval_llr_1vs1(self, x1, x2):
+    def llr_1vs1(self, x1, x2):
 
         WV = np.dot(self.W, self.V.T)
         VV = np.dot(self.V, WV)
@@ -295,7 +317,7 @@ class SPLDA(PLDABase):
         return scores
                 
             
-    def eval_llr_NvsM_book(self, D1, D2):
+    def llr_NvsM_book(self, D1, D2):
         N1, F1, _ = D1
         N2, F2, _ = D2
 
@@ -354,3 +376,19 @@ class SPLDA(PLDABase):
 
                 
 
+
+    def sample(self, num_classes, num_samples_per_class, rng=None, seed=1024):
+        if rng is None:
+            rng = np.random.RandomState(seed=seed)
+
+        Sw = invert_pdmat(self.W, return_inv=True)[-1]
+        chol_Sw = sla.cholesky(Sw, lower=False)
+
+        x_dim = self.mu.shape[0]
+        z = rng.normal(size=(num_classes*num_samples_per_class, x_dim)).astype(dtype=float_cpu(), copy=False)
+        z = np.dot(z, chol_Sw)
+        y = rng.normal(size=(num_classes, self.y_dim)).astype(dtype=float_cpu(), copy=False)
+        y = np.dot(y, self.V) + self.mu
+        y = np.repeat(y, num_samples_per_class, axis=0)
+
+        return y + z

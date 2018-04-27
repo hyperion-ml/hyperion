@@ -17,7 +17,7 @@ from .layers.cov import *
 from .layers.pooling import *
 from .layers.scoring import *
 from .layers.tensor_manipulation import *
-
+from .layers.feats import *
 
 
 def get_keras_custom_obj():
@@ -67,7 +67,10 @@ def get_keras_custom_obj():
         'CatQScoringDiagNormalHomoPostStdPrior': CatQScoringDiagNormalHomoPostStdPrior,
         'Repeat': Repeat,
         'ExpandAndTile': ExpandAndTile,
-        'Clip': Clip }
+        'Clip': Clip,
+        'DCT': DCT,
+        'MelFB': MelFB,
+        'Liftering': Liftering}
     return custom_obj
 
 

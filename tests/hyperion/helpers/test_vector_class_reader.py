@@ -5,12 +5,17 @@ from __future__ import division
 from six.moves import xrange
 
 import pytest
+import os
 import numpy as np
 from numpy.testing import assert_allclose
 
 from hyperion.utils.scp_list import SCPList
 from hyperion.io import HypDataWriter
 from hyperion.helpers import VectorClassReader
+
+output_dir = './tests/data_out/helpers'
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
 
 
 def create_scp():
@@ -248,11 +253,12 @@ def test__split_classes_random_nonoverlap():
                      ['0','7','8','9','3','6','1','5','3','4','5','1'])
     assert(scp_out==scp_gt)
 
+
     
 def test_vector_class_reader():
 
-    v_file = './tests/data_out/vcr.h5'
-    key_file = './tests/data_out/vcr.scp'
+    v_file = output_dir + '/vcr.h5'
+    key_file = output_dir + '/vcr.scp'
 
     scp = create_scp()
     x = np.random.randn(len(scp.key),2).astype('float32')

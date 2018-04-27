@@ -5,9 +5,14 @@ from __future__ import division
 from six.moves import xrange
 
 import pytest
+import os
 import numpy as np
 
 from hyperion.utils.scp_list import SCPList
+
+output_dir = './tests/data_out/utils/scp_list'
+if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
 
 
 def create_scp():

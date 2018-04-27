@@ -41,7 +41,7 @@ def eval_plda(iv_file, ndx_file, enroll_file, test_file,
     model = F.load_plda(plda_type, model_file)
     
     t1 = time.time()
-    scores = model.eval_llr_1vs1(x_e, x_t)
+    scores = model.llr_1vs1(x_e, x_t)
     
     dt = time.time() - t1
     num_trials = x_e.shape[0] * x_t.shape[0]

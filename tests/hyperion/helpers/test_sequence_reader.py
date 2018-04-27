@@ -14,8 +14,12 @@ from hyperion.utils.scp_list import SCPList
 from hyperion.io import HypDataWriter
 from hyperion.helpers import SequenceReader
 
-h5_file = './tests/data_out/seqr.h5'
-key_file = './tests/data_out/seqr.scp'
+output_dir = './tests/data_out/helpers'
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
+
+h5_file = output_dir + '/seqr.h5'
+key_file = output_dir + '/seqr.scp'
 
 num_seqs = 10
 dim = 2

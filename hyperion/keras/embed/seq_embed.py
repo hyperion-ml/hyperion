@@ -12,7 +12,7 @@ import numpy as np
 from keras import backend as K
 from keras import optimizers
 from keras import objectives
-from keras.layers import Input, Concatenate
+from keras.layers import Input, Concatenate, MaxPooling1D
 from keras.models import Model, load_model, model_from_json
 
 from .. import objectives as hyp_obj
@@ -113,10 +113,10 @@ class SeqEmbed(HypModel):
         
         if self.pooling == 'mean+std':
             pool = Concatenate(axis=-1, name='pooling')(
-                GlobalWeightedMeanStdPooling1D(name='mean+std')([x, mask]))
+                GlobalWeightedMeanStdPooling1D(name='mean--std')([x, mask]))
         elif self.pooling == 'mean+logvar':
             pool = Concatenate(axis=-1, name='pooling')(
-                GlobalWeightedMeanLogVarPooling1D(name='mean+logvar')([x, mask]))
+                GlobalWeightedMeanLogVarPooling1D(name='mean--logvar')([x, mask]))
         elif self.pooling == 'mean':
             pool = GlobalWeightedAveragePooling1D(name='pooling')([x, mask])
         else:
@@ -160,6 +160,11 @@ class SeqEmbed(HypModel):
         x = Input(shape=(max_seq_length, self.x_dim,))
         mask = CreateMask(0)(x)
         frame_embed = self.prepool_net(x)
+
+        dec_ratio = int(max_seq_length/frame_embed._keras_shape[1])
+        if dec_ratio > 1:
+            mask = MaxPooling1D(dec_ratio, padding='same')(mask)
+        
         pool = self._apply_pooling(frame_embed, mask)
         y = self.postpool_net(pool)
         self.model = Model(x, y)

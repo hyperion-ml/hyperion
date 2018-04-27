@@ -78,6 +78,10 @@ class CatQScoringDiagNormalPostStdPrior(Layer):
         return tuple(output_shape)
 
 
+    def compute_mask(self, inputs, mask=None):
+        return None
+    
+
     def get_config(self):
         config = {'units': self.units,
                   'input_format': '+'.join(self.input_format),

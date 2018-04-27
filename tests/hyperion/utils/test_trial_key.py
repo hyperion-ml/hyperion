@@ -5,12 +5,17 @@ from __future__ import division
 from six.moves import xrange
 
 import pytest
+import os
 import numpy as np
 
 from hyperion.utils.trial_key import TrialKey
 from hyperion.utils.trial_ndx import TrialNdx
 
+output_dir = './tests/data_out/utils/trial'
+if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
 
+        
 def create_key(key_file='./tests/data_in/core-core_det5_key.h5'):
 
     key = TrialKey.load(key_file)
@@ -79,12 +84,12 @@ def test_to_ndx():
 def test_load_save():
 
     key1 = create_key()
-    file_h5 = './tests/data_out/test.h5'
+    file_h5 = output_dir + '/test.h5'
     key1.save(file_h5)
     key3 = TrialKey.load(file_h5)
     assert(key1 == key3)
 
-    file_txt = './tests/data_out/test.txt'
+    file_txt = output_dir + '/test.txt'
     key3.tar[0, :] = True
     key3.non[:, 0] = True
     key3.save(file_txt)

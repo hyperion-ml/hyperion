@@ -18,6 +18,18 @@ class ExpFamily(PDF):
         self.A = None
             
 
+        
+    @property
+    def is_init(self):
+        if not self._is_init:
+            self._compute_nat_std()
+            if self.eta is not None and self.A is not None:
+                self.validate()
+                self._is_init = True
+        return self._is_init
+
+    
+        
     def fit(self, x, sample_weight=None,
             x_val=None, sample_weight_val=None, batch_size=None):
 
@@ -26,6 +38,7 @@ class ExpFamily(PDF):
         self.Mstep(N, u_x)
         elbo=self.elbo(x, N=N, u_x=u_x)
         elbo = [elbo, elbo/N]
+
         
         if x_val is not None:
             N, u_x = self.Estep(x=x_val, sample_weight=sample_weight_val,
@@ -34,27 +47,32 @@ class ExpFamily(PDF):
             elbo += [elbo_val, elbo_val/N]
         return elbo
 
-    
-    def logh(self, x):
+
+
+    def log_h(self, x):
         return 0
 
 
-    def accum_logh(self, x, sample_weight=None):
+    
+    def accum_log_h(self, x, sample_weight=None):
         if sample_weight is None:
-            return np.sum(self.logh(x))
-        return np.sum(sample_weight * self.logh(x))
+            return np.sum(self.log_h(x))
+        return np.sum(sample_weight * self.log_h(x))
     
-    
+
+
     def compute_suff_stats(self, x):
         return x
 
     
+
     
     def accum_suff_stats(self, x, u_x=None, sample_weight=None, batch_size=None):
         if u_x is not None or batch_size is None:
             return self._accum_suff_stats_1batch(x, u_x, sample_weight)
         else:
             return self._accum_suff_stats_nbatches(x, sample_weight, batch_size)
+
 
         
     def _accum_suff_stats_1batch(self, x, u_x=None, sample_weight=None):
@@ -65,8 +83,9 @@ class ExpFamily(PDF):
         else:
             u_x *= sample_weight[:, None]
             N = np.sum(sample_weight)
-        acc_u_x=np.sum(u_x, axis=0)
+        acc_u_x = np.sum(u_x, axis=0)
         return N, acc_u_x
+
 
     
     def _accum_suff_stats_nbatches(self, x, sample_weight, batch_size):
@@ -86,6 +105,7 @@ class ExpFamily(PDF):
         return N, u_x
 
 
+    
     def add_suff_stats(self, N, u_x):
         assert(len(N)==len(u_x))
         acc_N = N[1]
@@ -100,32 +120,37 @@ class ExpFamily(PDF):
     def Estep(self, x, u_x=None, sample_weight=None, batch_size=None):
         return self.accum_suff_stats(x, u_x, sample_weight, batch_size)
 
+
     
     @abstractmethod
     def Mstep(self, stats):
         pass
 
+
     
-    def elbo(self, x, u_x=None, N=1, logh=None, sample_weight=None, batch_size=None):
+    def elbo(self, x, u_x=None, N=1, log_h=None, sample_weight=None, batch_size=None):
+        assert self.is_init
         if u_x is None:
             N, u_x = self.accum_suff_stats(x, sample_weight=sample_weight,
-                                        batch_size=batch_size)
-        if logh is None:
-            logh = self.accum_logh(x, sample_weight=sample_weight)
-        return logh + np.inner(u_x, self.eta) - N*self.A
+                                           batch_size=batch_size)
+        if log_h is None:
+            log_h = self.accum_log_h(x, sample_weight=sample_weight)
+        return log_h + np.inner(u_x, self.eta) - N*self.A
+
 
     
-    def eval_llk(self, x, u_x=None, mode='nat'):
-        if mode == 'nat':
-            return self.eval_llk_nat(x, u_x)
+    def log_prob(self, x, u_x=None, method='nat'):
+        if method == 'nat':
+            return self.log_prob_nat(x, u_x)
         else:
-            return self.eval_llk_std(x)
+            return self.log_prob_std(x)
 
         
-    def eval_llk_nat(self, x, u_x = None):
+    def log_prob_nat(self, x, u_x = None):
+        assert self.is_init
         if u_x is None:
             u_x = self.compute_suff_stats(x)
-        return self.logh(x) + np.inner(u_x, self.eta) - self.A
+        return self.log_h(x) + np.inner(u_x, self.eta) - self.A
 
     
     
@@ -157,5 +182,13 @@ class ExpFamily(PDF):
     @abstractmethod
     def _compute_std_params(self):
         pass
+
+
+    def _compute_nat_std(self):
+        pass
     
+    @abstractmethod
+    def validate(self):
+        pass
+
     

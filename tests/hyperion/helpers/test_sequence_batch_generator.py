@@ -14,8 +14,12 @@ from hyperion.utils.scp_list import SCPList
 from hyperion.io import H5DataWriter
 from hyperion.helpers.sequence_batch_generator import SequenceBatchGenerator as SBG
 
-h5_file = './tests/data_out/seqbg.h5'
-key_file = './tests/data_out/seqbg.scp'
+output_dir = './tests/data_out/helpers'
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
+
+h5_file = output_dir + '/seqbg.h5'
+key_file = output_dir + '/seqbg.scp'
 
 num_seqs = 10
 dim = 2
@@ -117,7 +121,7 @@ def test_balance_class_weight():
     sr = SBG(h5_file, key_file, batch_size=5, class_weight='unbalanced', shuffle_seqs=False)
     scp0 = sr.scp
     
-    sr = SBG(h5_file, key_file, batch_size=5, class_weight='balanced', shuffle_seqs=False)
+    sr = SBG(h5_file, key_file, batch_size=5, class_weight='balanced', shuffle_seqs=False, max_class_imbalance=1)
 
     key = [0]*4 + [1]*4 + [2]*4 + [3]*4
     key = [ str(i) for i in key]
@@ -337,68 +341,6 @@ def test_read_sequential_unbalanced():
 
         scp_e = SCPList(c_e, key_e)
         assert scp == scp_e
-
-
-
-# def test_read_sequential():
-    
-
-#     sr = SBG(h5_file, key_file, shuffle_seqs=False, batch_size=5,
-#                         max_seq_length=20,
-#                         seq_split_mode='sequential', seq_split_overlap=5)
-
-#     #read epoch 1
-#     x1=[]
-#     for i in xrange(sr.num_batches):
-#         x1_i = sr.read()[0]
-#         assert(len(x1_i)==5)
-#         x1 += x1_i
-
-#     #read epoch 2
-#     x2=[]
-#     for i in xrange(sr.num_batches):
-#         x2_i = sr.read()[0]
-#         assert(len(x2_i)==5)
-#         x2 += x2_i
-
-#     assert(len(x1)==sr.num_total_subseqs)
-#     assert(len(x1)==len(x2))
-#     for i in xrange(len(x1)):
-#         assert(x1[i].shape[0]<=sr.max_batch_seq_length)
-#         assert(np.all(x1[i]==x2[i]))
-
-
-
-# def test_read_random():
-    
-
-#     sr = SBG(h5_file, key_file, shuffle_seqs=False, batch_size=5,
-#              max_seq_length=20, min_seq_length=20,
-#              seq_split_mode='random_slice_1seq')
-#     print(sr.num_batches)
-#     #read epoch 1
-#     x1=[]
-#     for i in xrange(sr.num_batches):
-#         x1_i = sr.read()[0]
-#         assert(len(x1_i)==5)
-#         x1 += x1_i
-
-#     #read epoch 2
-#     x2=[]
-#     for i in xrange(sr.num_batches):
-#         x2_i = sr.read()[0]
-#         assert(len(x2_i)==5)
-#         x2 += x2_i
-
-#     assert(int(len(x1)/5)==sr.num_batches)
-#     assert(len(x1)==sr.num_seqs)
-#     assert(len(x1)==sr.num_total_subseqs)
-#     assert(len(x1)==len(x2))
-#     for i in xrange(len(x1)):
-#         assert(x1[i].shape[0]==sr.max_batch_seq_length)
-#         assert(x2[i].shape[0]==sr.max_batch_seq_length)
-#         assert(np.all(x1[i]!=x2[i]))
-
 
         
     

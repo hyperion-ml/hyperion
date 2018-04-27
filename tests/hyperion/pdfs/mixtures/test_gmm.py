@@ -5,6 +5,7 @@ from __future__ import division
 from six.moves import xrange
 
 import pytest
+import os
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
@@ -14,7 +15,11 @@ from numpy.testing import assert_allclose
 from scipy import linalg as la
 
 from hyperion.utils.math import symmat2vec
-from hyperion.pdfs import DiagGMM, GMM
+from hyperion.pdfs import GMMDiagCov, GMM
+
+output_dir = './tests/data_out/pdfs/core/mixtures/gmm'
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
 
 
 x_dim = 3
@@ -40,43 +45,44 @@ for k in xrange(len(pi1)):
     S1fc[k] = (SS+SS.T)/2
     L1fc[k] = la.inv(S1fc[k])
     L1dc[k] = np.diag(1/S1[k])
-
+    
 num_samples = 1000
 batch_size = 250
 num_samples_init = 100
 num_samples_train = 10000
-model_file = './tests/data_out/model.h5'
+model_file = output_dir + '/model.h5'
 
 
 def create_diag_pdf():
 
-    model_diag = DiagGMM(num_comp=len(pi1), pi=pi1, mu=mu1, Lambda=1/S1, x_dim=x_dim)
+    model_diag = GMMDiagCov(num_comp=len(pi1), pi=pi1, mu=mu1, Lambda=1/S1, x_dim=x_dim)
     model = GMM(num_comp=len(pi1), pi=pi1, mu=mu1, Lambda=L1dc, x_dim=x_dim)
     return model, model_diag
 
 
 
 def create_pdf():
-
+    
     model = GMM(num_comp=len(pi1), pi=pi1, mu=mu1, Lambda=L1fc, x_dim=x_dim)
     return model
+
 
 
 def test_diag_properties():
 
     model, model_diag = create_diag_pdf()
-    assert_allclose(model.logpi, model_diag.logpi)
+    assert_allclose(model.log_pi, model_diag.log_pi)
     assert_allclose(model.logLambda, model_diag.logLambda)
     for k in xrange(model.num_comp):
         assert_allclose(model.Sigma[k], np.diag(model_diag.Sigma[k]))
         assert_allclose(model.cholLambda[k], np.diag(np.sqrt(model_diag.Lambda[k])))
-
-
+        
+        
 
 def test_properties():
 
     model = create_pdf()
-    assert_allclose(model.logpi, np.log(model.pi))
+    assert_allclose(model.log_pi, np.log(model.pi))
 
     for k in xrange(model.num_comp):
         assert_allclose(model.Sigma[k], la.inv(model.Lambda[k]))
@@ -158,23 +164,23 @@ def test_initialize_stdnormal():
 def test_initialize_kmeans():
 
     model1 = create_pdf()
-    x = model1.generate(num_samples=num_samples_init)
+    x = model1.sample(num_samples=num_samples_init)
     
     model2 = GMM(num_comp=4, x_dim=x_dim)
     model2.initialize(x)
 
-    #print(model1.mu)
-    #print(model2.mu[[2,3,1,0]])
+    print(model1.mu)
+    print(model2.mu[[2,3,1,0]])
 
 
     
-def test_logh():
+def test_log_h():
      model1 = create_pdf()
 
      sample_weight = np.arange(1,num_samples+1, dtype=float)/num_samples
     
-     assert(model1.logh(None) == 0)
-     assert(model1.accum_logh(None, sample_weight=sample_weight) == 0)
+     assert(model1.log_h(None) == 0)
+     assert(model1.accum_log_h(None, sample_weight=sample_weight) == 0)
 
 
      
@@ -182,7 +188,7 @@ def test_suff_stats():
 
     model1 = create_pdf()
 
-    x = model1.generate(num_samples)
+    x = model1.sample(num_samples)
     sample_weight = 0.5*np.ones((num_samples,))
 
     xx = []
@@ -215,7 +221,7 @@ def test_suff_stats_segments():
 
     model1 = create_pdf()
 
-    x = model1.generate(num_samples)
+    x = model1.sample(num_samples)
     sample_weight = 0.5*np.ones((num_samples,))
     
     N, u_x = model1.accum_suff_stats(x)
@@ -250,16 +256,16 @@ def test_suff_stats_segments_prob():
 
     model1 = create_pdf()
 
-    x = model1.generate(num_samples)
+    x = model1.sample(num_samples)
     sample_weight = 0.5*np.ones((num_samples,))
     
     N, u_x = model1.accum_suff_stats(x)
 
     prob = np.zeros((num_samples, 4))
-    prob[:num_samples/2, 0]=1
-    prob[num_samples/2:3*num_samples/4, 1]=1
-    prob[3*num_samples/4:4*num_samples/5, 2]=1
-    prob[4*num_samples/5:, 3]=1
+    prob[:int(num_samples/2), 0]=1
+    prob[int(num_samples/2):int(3*num_samples/4), 1]=1
+    prob[int(3*num_samples/4):int(4*num_samples/5), 2]=1
+    prob[int(4*num_samples/5):, 3]=1
     
     N1, u_x1 = model1.accum_suff_stats_segments_prob(
         x, prob, batch_size=batch_size)
@@ -283,7 +289,7 @@ def test_suff_stats_sorttime():
 
     model1 = create_pdf()
 
-    x = model1.generate(num_samples)
+    x = model1.sample(num_samples)
     sample_weight = 0.5*np.ones((num_samples,))
     
     N, u_x = model1.accum_suff_stats(x)
@@ -308,31 +314,31 @@ def test_suff_stats_sorttime():
 
 
 
-def test_diag_eval_llk():
+def test_diag_log_prob():
 
     model1, model1_diag = create_diag_pdf()
 
-    x = model1.generate(num_samples)
+    x = model1.sample(num_samples)
     
-    assert_allclose(model1.eval_llk(x, mode='nat'),
-                    model1_diag.eval_llk(x, mode='std'))
-    assert_allclose(model1.eval_llk(x, mode='std'),
-                    model1_diag.eval_llk(x, mode='std'))
+    assert_allclose(model1.log_prob(x, mode='nat'),
+                    model1_diag.log_prob(x, mode='std'))
+    assert_allclose(model1.log_prob(x, mode='std'),
+                    model1_diag.log_prob(x, mode='std'))
 
 
     
-def test_eval_llk():
+def test_log_prob():
 
     model1 = create_pdf()
 
-    x = model1.generate(num_samples)
+    x = model1.sample(num_samples)
     
-    assert_allclose(model1.eval_llk(x, mode='nat'),
-                    model1.eval_llk(x, mode='std'))
+    assert_allclose(model1.log_prob(x, mode='nat'),
+                    model1.log_prob(x, mode='std'))
 
     u_x = model1.compute_suff_stats(x)
-    assert_allclose(model1.eval_llk(x, u_x, mode='nat'),
-                    model1.eval_llk(x, mode='std'))
+    assert_allclose(model1.log_prob(x, u_x, mode='nat'),
+                    model1.log_prob(x, mode='std'))
     
 
 
@@ -341,7 +347,7 @@ def test_diag_elbo():
 
     model1, model1_diag = create_diag_pdf()
 
-    x = model1.generate(num_samples)
+    x = model1.sample(num_samples)
     sample_weight = 0.5*np.ones((num_samples,))
     
     assert_allclose(model1.elbo(x), model1_diag.elbo(x))
@@ -354,12 +360,12 @@ def test_elbo():
 
     model1 = create_pdf()
 
-    x = model1.generate(num_samples)
+    x = model1.sample(num_samples)
     sample_weight = 0.5*np.ones((num_samples,))
     
-    assert(model1.elbo(x)/num_samples + 0.4> np.mean(model1.eval_llk(x, mode='std')))
+    assert(model1.elbo(x)/num_samples + 0.4> np.mean(model1.log_prob(x, mode='std')))
     assert(model1.elbo(x, sample_weight=sample_weight)/num_samples + 0.2> 
-           0.5*np.sum(model1.eval_llk(x, mode='std')))
+           0.5*np.sum(model1.log_prob(x, mode='std')))
     
 
     
@@ -368,23 +374,23 @@ def test_diag_fit_kmeans():
     model1, _ = create_diag_pdf()
     model1.initialize()
 
-    x = model1.generate(num_samples_train)
-    x_val = model1.generate(num_samples)
+    x = model1.sample(num_samples_train)
+    x_val = model1.sample(num_samples)
 
     model2 = GMM(num_comp=4, x_dim=x_dim)
     model2.initialize(x)
     elbo = model2.fit(x, x_val=x_val)
 
-    model2_diag = DiagGMM(num_comp=4, x_dim=x_dim)
+    model2_diag = GMMDiagCov(num_comp=4, x_dim=x_dim)
     model2_diag.initialize(x)
     elbo_diag = model2_diag.fit(x, x_val=x_val)
 
 
     model2.plot2D(feat_idx=[0,1], num_sigmas=1)
-    plt.savefig('./tests/data_out/plot_gmm_diag_fit_kmeans_init_D01.pdf')
+    plt.savefig(output_dir + '/plot_fit_kmeans_init_D01.pdf')
     plt.close()
     model2.plot2D(feat_idx=[0,2], num_sigmas=1)
-    plt.savefig('./tests/data_out/plot_gmm_diag_fit_kmeans_init_D02.pdf')
+    plt.savefig(output_dir + '/plot_fit_kmeans_init_D02.pdf')
     plt.close()
 
     plt.figure()
@@ -394,7 +400,7 @@ def test_diag_fit_kmeans():
     plt.plot(elbo[3], 'r--')
     plt.plot(elbo_diag[1], 'g')
     plt.plot(elbo_diag[3], 'g--')
-    plt.savefig('./tests/data_out/gmm_diag_fit_kmeans_init_elbo.pdf')
+    plt.savefig(output_dir + '/fit_kmeans_init_elbo.pdf')
     plt.close()
 
 
@@ -404,8 +410,8 @@ def test_fit_kmeans():
     model1 = create_pdf()
     model1.initialize()
 
-    x = model1.generate(num_samples_train)
-    x_val = model1.generate(num_samples)
+    x = model1.sample(num_samples_train)
+    x_val = model1.sample(num_samples)
 
     model2 = GMM(num_comp=4, x_dim=x_dim)
     model2.initialize(x)
@@ -413,10 +419,10 @@ def test_fit_kmeans():
 
 
     model2.plot2D(feat_idx=[0,1], num_sigmas=1)
-    plt.savefig('./tests/data_out/plot_diag_gmm_fit_kmeans_init_D01.pdf')
+    plt.savefig(output_dir + '/plot_fit_kmeans_init_D01.pdf')
     plt.close()
     model2.plot2D(feat_idx=[0,2], num_sigmas=1)
-    plt.savefig('./tests/data_out/plot_diag_gmm_fit_kmeans_init_D02.pdf')
+    plt.savefig(output_dir + '/plot_fit_kmeans_init_D02.pdf')
     plt.close()
 
     plt.figure()
@@ -435,10 +441,10 @@ def test_fit_kmeans_split2():
     model1 = create_pdf()
     model1.initialize()
 
-    x = model1.generate(num_samples_train)
-    x_val = model1.generate(num_samples)
+    x = model1.sample(num_samples_train)
+    x_val = model1.sample(num_samples)
 
-    model2 = DiagGMM(num_comp=1, x_dim=x_dim)
+    model2 = GMMDiagCov(num_comp=1, x_dim=x_dim)
     model2.initialize()
     elbo = model2.fit(x, x_val=x_val, epochs=1)
     model2 = model2.split_comp(2)
@@ -448,10 +454,10 @@ def test_fit_kmeans_split2():
 
 
     model2.plot2D(feat_idx=[0,1], num_sigmas=1)
-    plt.savefig('./tests/data_out/plot_diag_gmm_fit_split2_init_D01.pdf')
+    plt.savefig(output_dir + '/plot_fit_split2_init_D01.pdf')
     plt.close()
     model2.plot2D(feat_idx=[0,2], num_sigmas=1)
-    plt.savefig('./tests/data_out/plot_diag_gmm_fit_split2_init_D02.pdf')
+    plt.savefig(output_dir + '/plot_fit_split2_init_D02.pdf')
     plt.close()
 
     plt.figure()
@@ -470,20 +476,20 @@ def test_fit_kmeans_split4():
     model1 = create_pdf()
     model1.initialize()
 
-    x = model1.generate(num_samples_train)
-    x_val = model1.generate(num_samples)
+    x = model1.sample(num_samples_train)
+    x_val = model1.sample(num_samples)
 
-    model2 = DiagGMM(num_comp=1, x_dim=x_dim)
+    model2 = GMMDiagCov(num_comp=1, x_dim=x_dim)
     model2.initialize()
     elbo = model2.fit(x, x_val=x_val, epochs=1)
     model2 = model2.split_comp(4)
     elbo = model2.fit(x, x_val=x_val)
 
     model1.plot2D(feat_idx=[0,1], num_sigmas=1)
-    plt.savefig('./tests/data_out/plot_diag_gmm_fit_split4_init_D01.pdf')
+    plt.savefig(output_dir + '/plot_fit_split4_init_D01.pdf')
     plt.close()
     model1.plot2D(feat_idx=[0,2], num_sigmas=1)
-    plt.savefig('./tests/data_out/plot_diag_gmm_fit_split4_init_D02.pdf')
+    plt.savefig(output_dir + '/plot_fit_split4_init_D02.pdf')
     plt.close()
 
     plt.figure()
@@ -491,7 +497,7 @@ def test_fit_kmeans_split4():
     plt.plot(np.repeat(model1.elbo(x_val)/x.shape[0], len(elbo[1])), 'b--')
     plt.plot(elbo[1], 'r')
     plt.plot(elbo[3], 'r--')
-    plt.savefig('./tests/data_out/diag_gmm_fit_split4_init_elbo.pdf')
+    plt.savefig(output_dir + '/fit_split4_init_elbo.pdf')
     plt.close()
 
 
@@ -507,23 +513,23 @@ def test_fit_kmeans_split4():
 
 def test_plot():
     
-     model1 = create_pdf()
+    model1 = create_pdf()
 
-     model1.plot1D()
-     plt.savefig('./tests/data_out/plot_gmm_1D.pdf')
-     plt.close()
-
-     model1.plot2D()
-     plt.savefig('./tests/data_out/plot_gmm_2D.pdf')
-     plt.close()
-
-     model1.plot3D()
-     plt.savefig('./tests/data_out/plot_gmm_3D.pdf')
-     plt.close()
-
-     model1.plot3D_ellipsoid()
-     plt.savefig('./tests/data_out/plot_gmm_3De.pdf')
-     plt.close()
+    model1.plot1D()
+    plt.savefig(output_dir + '/plot_1D.pdf')
+    plt.close()
+    
+    model1.plot2D()
+    plt.savefig(output_dir + '/plot_2D.pdf')
+    plt.close()
+    
+    model1.plot3D()
+    plt.savefig(output_dir + '/plot_3D.pdf')
+    plt.close()
+    
+    model1.plot3D_ellipsoid()
+    plt.savefig(output_dir + '/plot_3De.pdf')
+    plt.close()
 
 
 if __name__ == '__main__':

@@ -9,8 +9,6 @@ import h5py
 import scipy.linalg as la
 from scipy.special import erf
 
-# import matplotlib.pyplot as plt
-# import matplotlib.mlab as mlab
 
 from ...hyp_defs import float_cpu
 from ...utils.math import softmax, logsumexp, invert_pdmat, invert_trimat, symmat2vec, vec2symmat, fullcov_varfloor, logdet_pdmat
@@ -216,8 +214,8 @@ class GMM(ExpFamilyMixture):
     
 
         
-    def eval_llk_std(self, x):
-        r0 = self.logpi + 0.5*self.logLambda - 0.5*self.x_dim*np.log(2*np.pi)
+    def log_prob_std(self, x):
+        r0 = self.log_pi + 0.5*self.logLambda - 0.5*self.x_dim*np.log(2*np.pi)
         llk_k = np.zeros((x.shape[0], self.num_comp), dtype=float_cpu())
         for k in xrange(self.num_comp):                 
             mah_dist2 = np.sum(np.dot(x-self.mu[k], self.cholLambda[k])**2, axis=1)
@@ -227,7 +225,7 @@ class GMM(ExpFamilyMixture):
 
 
         
-    def generate(self, num_samples, rng=None, seed=1024):
+    def sample(self, num_samples, rng=None, seed=1024):
         if rng is None:
             rng = np.random.RandomState(seed)
 
@@ -236,6 +234,8 @@ class GMM(ExpFamilyMixture):
         for k in xrange(self.num_comp):
             index = r[:, k]==1
             n_k = np.sum(index)
+            if n_k == 0:
+                continue
             x[index] = rng.multivariate_normal(
                 self.mu[k], self.Sigma[k], size=(n_k,)).astype(float_cpu())
         
@@ -253,9 +253,9 @@ class GMM(ExpFamilyMixture):
 
     
     def save_params(self, f):
-        params = { 'pi': self.pi,
-                   'mu': self.mu,
-                   'Lambda': self.Lambda}
+        params = {'pi': self.pi,
+                  'mu': self.mu,
+                  'Lambda': self.Lambda}
         self._save_params_from_dict(f, params)
 
 
@@ -429,7 +429,7 @@ class GMM(ExpFamilyMixture):
         mu=self.mu[:,feat_idx]
         j, i = np.meshgrid(feat_idx, feat_idx)
         for k in xrange(mu.shape[0]):
-            C=invert_pdmat(self.Lambda[k], return_inv=True)[-1][i, j]
+            C = invert_pdmat(self.Lambda[k], return_inv=True)[-1][i, j]
             plot_gaussian_1D(mu[k], C, num_sigmas, num_pts, **kwargs)
 
 
@@ -438,7 +438,7 @@ class GMM(ExpFamilyMixture):
         mu=self.mu[:,feat_idx]
         j, i = np.meshgrid(feat_idx, feat_idx)
         for k in xrange(mu.shape[0]):
-            C_k=invert_pdmat(self.Lambda[k], return_inv=True)[-1][i, j]
+            C_k = invert_pdmat(self.Lambda[k], return_inv=True)[-1][i, j]
             plot_gaussian_ellipsoid_2D(
                 mu[k], C_k, num_sigmas, num_pts, **kwargs)
 
@@ -448,7 +448,7 @@ class GMM(ExpFamilyMixture):
         mu=self.mu[:,feat_idx]
         j, i = np.meshgrid(feat_idx, feat_idx)
         for k in xrange(mu.shape[0]):
-            C_k=invert_pdmat(self.Lambda[k], return_inv=True)[-1][i, j]
+            C_k = invert_pdmat(self.Lambda[k], return_inv=True)[-1][i, j]
             plot_gaussian_3D(mu[k], C_k, num_sigmas, num_pts, **kwargs)
     
 
@@ -458,6 +458,6 @@ class GMM(ExpFamilyMixture):
         mu=self.mu[:,feat_idx]
         j, i = np.meshgrid(feat_idx, feat_idx)
         for k in xrange(mu.shape[0]):
-            C_k =invert_pdmat(self.Lambda[k], return_inv=True)[-1][i, j]
+            C_k = invert_pdmat(self.Lambda[k], return_inv=True)[-1][i, j]
             plot_gaussian_ellipsoid_3D(mu[k], C_k, num_sigmas, num_pts,
                                        **kwargs)

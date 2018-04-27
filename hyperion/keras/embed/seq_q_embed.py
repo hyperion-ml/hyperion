@@ -34,6 +34,7 @@ class SeqQEmbed(HypModel):
                  right_context=0,
                  begin_context=None,
                  end_context=None,
+                 frame_corr_penalty=1,
                  prepool_downsampling=None,
                  min_var=0.1, kl_weight=0, **kwargs):
 
@@ -47,6 +48,7 @@ class SeqQEmbed(HypModel):
         self.pooling_output = pooling_output
         self.min_var = min_var
         self.kl_weight = kl_weight
+        self.frame_corr_penalty = frame_corr_penalty
         
         self.model = None
         self.pool_net = None
@@ -127,10 +129,15 @@ class SeqQEmbed(HypModel):
         mask = CreateMask(0)(x)
         frame_embed = self.prepool_net(x)
 
+        dec_ratio = int(max_seq_length/frame_embed[0]._keras_shape[1])
+        if dec_ratio > 1:
+            mask = MaxPooling1D(dec_ratio, padding='same')(mask)
+        
         q_embed = GlobalDiagNormalPostStdPriorPooling1D(
             input_format=self.pooling_input,
             output_format=self.pooling_output,
-            min_var=self.min_var, name='pooling')(frame_embed+[mask])
+            min_var=self.min_var, frame_corr_penalty=self.frame_corr_penalty,
+            name='pooling')(frame_embed+[mask])
 
         if self.score_net is None:
             p1_input = Input(shape=(self.embed_dim,))
@@ -275,6 +282,7 @@ class SeqQEmbed(HypModel):
                    'pooling_output': self.pooling_output,
                    'min_var': self.min_var,
                    'kl_weight': self.kl_weight,
+                   'frame_corr_penalty': self.frame_corr_penalty,
                    'left_context': self.left_context,
                    'right_context': self.right_context,
                    'begin_context': self.begin_context,
@@ -311,7 +319,7 @@ class SeqQEmbed(HypModel):
         filter_args = ('post_pdf', 'pooling_input', 'pooling_output',
                        'left_context', 'right_context',
                        'begin_context', 'end_context',
-                       'min_var', 'kl_weight', 'name')
+                       'min_var', 'kl_weight', 'frame_corr_penalty', 'name')
         kwargs = {k: config[k] for k in filter_args if k in config }
         return cls(prepool_net, config['num_classes'], score_net, **kwargs)
 
@@ -324,7 +332,7 @@ class SeqQEmbed(HypModel):
         else:
             p = prefix + '_'
         valid_args = ('post_pdf', 'pooling_input', 'pooling_output',
-                      'min_var', 'kl_weight',
+                      'min_var', 'kl_weight', 'frame_corr_penalty',
                       'left_context', 'right_context',
                       'begin_context', 'end_context')
         return dict((k, kwargs[p+k])
@@ -363,7 +371,8 @@ class SeqQEmbed(HypModel):
                             help=('Minimum frame variance (default: %(default)s)'))
         parser.add_argument(p1+'kl-weight', dest=p2+'kl_weight', default=0, type=float,
                             help=('Weight of the KL divergence (default: %(default)s)'))
-
+        parser.add_argument(p1+'frame-corr-penalty', dest=p2+'frame_corr_penalty', default=1, type=float,
+                            help=('Scale to account for inter-frame dependency (default: %(default)s)'))
 
         parser.add_argument(p1+'left-context', dest=(p2+'left_context'),
                             default=0, type=int)

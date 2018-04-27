@@ -120,7 +120,7 @@ def logsumexp(r, axis=-1):
     """
     max_r=np.max(r, axis=axis, keepdims=True)
     r=np.exp(r-max_r)
-    return np.log(np.sum(r, axis=axis)+1e-20) + max_r.ravel()
+    return np.log(np.sum(r, axis=axis)+1e-20) + np.squeeze(max_r, axis=axis)
     
 
 
@@ -166,6 +166,7 @@ def symmat2vec(A, lower=False, diag_factor=None):
     return A[np.triu_indices(A.shape[0])]
 
 
+
 def vec2symmat(v, lower=False, diag_factor=None):
     """Puts a vector back into a symmetric matrix.
     
@@ -186,9 +187,9 @@ def vec2symmat(v, lower=False, diag_factor=None):
     if lower:
         A[idx_l]=v
         A[idx_u]=A.T[idx_u]
-        return A
-    A[idx_u]=v
-    A[idx_l]=A.T[idx_l]
+    else:
+        A[idx_u]=v
+        A[idx_l]=A.T[idx_l]
     if diag_factor is not None:
         A[np.diag_indices(A.shape[0])] *= diag_factor
     return A

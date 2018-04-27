@@ -20,12 +20,21 @@ class HypModel(object):
 
     def __init__(self, name=None, **kwargs):
         self.name = name
+        self._is_init = False
 
         
     def copy(self):
         return deepcopy(self)
 
 
+    @property
+    def is_init(self):
+        return self._is_init
+
+
+    def init_to_false(self):
+        self._is_init = False
+        
     
     @abstractmethod
     def initialize(self):

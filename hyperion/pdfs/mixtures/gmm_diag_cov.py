@@ -190,8 +190,8 @@ class GMMDiagCov(ExpFamilyMixture):
         
 
     
-    def eval_llk_std(self, x):
-        r0 = self.logpi + 0.5*self.logLambda-0.5*self.x_dim*np.log(2*np.pi)
+    def log_prob_std(self, x):
+        r0 = self.log_pi + 0.5*self.logLambda-0.5*self.x_dim*np.log(2*np.pi)
         llk_k = np.zeros((x.shape[0], self.num_comp), dtype=float_cpu())
         for k in xrange(self.num_comp):
             mah_dist2 = np.sum(((x-self.mu[k])*self.cholLambda[k])**2, axis=-1)
@@ -200,23 +200,18 @@ class GMMDiagCov(ExpFamilyMixture):
 
 
     
-    def eval_logcdf(self, x):
+    def log_cdf(self, x):
         llk_k = np.zeros((x.shape[0], self.num_comp), dtype=float_cpu())
         for k in xrange(self.num_comp):
             delta = (x-self.mu[k])*self.cholLambda[k]
             lk = 0.5*(1+erf(delta/np.sqrt(2)))
-            llk_k[:,k] = self.logpi[k] + np.sum(np.log(lk+1e-20), axis=-1)
+            llk_k[:,k] = self.log_pi[k] + np.sum(np.log(lk+1e-20), axis=-1)
 
-        #print(np.sum(self.pi))
-        #print(self.logpi)
-        #print(logsumexp(self.logpi))
-        print(llk_k)
-        print(logsumexp(llk_k))
         return logsumexp(llk_k)
 
 
     
-    def generate(self, num_samples, rng=None, seed=1024):
+    def sample(self, num_samples, rng=None, seed=1024):
         if rng is None:
             rng=np.random.RandomState(seed)
 

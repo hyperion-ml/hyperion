@@ -227,10 +227,10 @@ def test_fullcov_varfloor(dim=10):
 
     F=A
     RF=la.cholesky(F)
-    DF_1=fullcov_varfloor(D1, RF, lower=False)
+    DF_1=fullcov_varfloor(D1, RF, F_is_chol=True, lower=False)
 
     RF=la.cholesky(F).T
-    DF_2=fullcov_varfloor(D1, RF, lower=True)
+    DF_2=fullcov_varfloor(D1, RF, F_is_chol=True, lower=True)
     assert(np.allclose(DF_1, F))
     assert(np.allclose(DF_1, F))
 

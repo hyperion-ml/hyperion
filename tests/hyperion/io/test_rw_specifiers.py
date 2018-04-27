@@ -5,9 +5,13 @@ from __future__ import division
 from six.moves import xrange
 
 import pytest
+import os
 
 from hyperion.io.rw_specifiers import *
 
+output_dir = './tests/data_out/io'
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
 
 def test_rspecifier():
 
@@ -27,7 +31,7 @@ def test_rspecifier():
     rs2 = RSpecifier.create('ark,o,s,cs,p,bg:file.ark')
     assert rs1 == rs2
 
-    file_path = './tests/data_out/file.scp'
+    file_path = output_dir + '/file.scp'
     with open(file_path, 'w') as f:
         f.write('key file1:0\n')
     rs1 = RSpecifier(RSpecType.SCRIPT, file_path, ArchiveType.ARK)

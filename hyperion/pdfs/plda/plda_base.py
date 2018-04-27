@@ -23,15 +23,19 @@ class PLDABase(PDF):
         if mu is not None:
             self.x_dim = mu.shape[0]
 
+
+            
     @abstractmethod
     def initialize(self, D):
         pass
 
+    
     @abstractmethod
     def compute_py_g_x(self, D):
         pass
 
-            
+
+    
     def fit(self, x, class_ids=None, ptheta=None, sample_weight=None,
             x_val=None, class_ids_val=None, ptheta_val=None, sample_weight_val=None,
             epochs=20, ml_md='ml+md', md_epochs=None):
@@ -45,6 +49,7 @@ class PLDABase(PDF):
         else:
             D = self.compute_stats_hard(x, class_ids)
 
+            
         if x_val is not None:
             assert(not(class_ids_val is  None and ptheta_val is None))        
             if class_ids_val is None:
@@ -52,8 +57,10 @@ class PLDABase(PDF):
             else:
                 D_val = self.compute_stats_hard(x_val, class_ids_val)
 
-        if self.mu is None:
+
+        if not self.is_init:
             self.initialize(D)
+
                 
         elbo = np.zeros((epochs,), dtype=float_cpu())
         elbo_val = np.zeros((epochs,), dtype=float_cpu())
@@ -94,12 +101,12 @@ class PLDABase(PDF):
 
     
     @abstractmethod
-    def eval_llr_1vs1(self, x1, x2):
+    def llr_1vs1(self, x1, x2):
         pass
 
     
     @abstractmethod
-    def eval_llr_NvsM_book(self, D1, D2):
+    def llr_NvsM_book(self, D1, D2):
         pass
 
     
@@ -134,22 +141,23 @@ class PLDABase(PDF):
         return N, Fc, Sc
 
         
-    def eval_llr_NvsM(self, x1, x2, method='vavg-lnorm', ids1=None, ids2=None):
+    def llr_NvsM(self, x1, x2, ids1=None, ids2=None, method='vavg-lnorm'):
         if method == 'savg':
-            return self.eval_llr_NvsM_savg(x1, ids1, x2, ids2)
+            return self.llr_NvsM_savg(x1, ids1, x2, ids2)
 
         D1 = x1 if ids1 is None else self.compute_stats_hard(x1, class_ids=ids1)
         D2 = x2 if ids2 is None else self.compute_stats_hard(x2, class_ids=ids2)
 
         if method == 'book':
-            return self.eval_llr_NvsM_book(D1, D2)
+            return self.llr_NvsM_book(D1, D2)
         if method == 'vavg':
-            return self.eval_llr_NvsM_vavg(D1, D2, do_lnorm=False)
+            return self.llr_NvsM_vavg(D1, D2, do_lnorm=False)
         if method == 'vavg-lnorm':
-            return self.eval_llr_NvsM_vavg(D1, D2, do_lnorm=True)
+            return self.llr_NvsM_vavg(D1, D2, do_lnorm=True)
+
 
         
-    def eval_llr_NvsM_vavg(self, D1, D2, do_lnorm=True):
+    def llr_NvsM_vavg(self, D1, D2, do_lnorm=True):
         x1=D1[1]/np.expand_dims(D1[0], axis=-1)
         x2=D2[1]/np.expand_dims(D2[0], axis=-1)
         if do_lnorm:
@@ -157,55 +165,61 @@ class PLDABase(PDF):
             x1=lnorm.predict(x1)
             x2=lnorm.predict(x2)
 
-        return self.eval_llr_1vs1(x1, x2)
+        return self.llr_1vs1(x1, x2)
 
-    
-    def eval_llr_NvsM_savg(self, x1, ids1, x2, ids2):
-        scores_1vs1 = self.eval_llr_1vs1(x1, x2)
+
+
+    def llr_NvsM_savg(self, x1, ids1, x2, ids2):
+        scores_1vs1 = self.llr_1vs1(x1, x2)
         N, F, _ = self.compute_stats_hard(scores_1vs1, ids1)
         scores_Nvs1 = F/N[:, None]
         N, F, _ = self.compute_stats_hard(scores_Nvs1.T, ids2)
         scores = F.T/N
         return scores
 
+
     
-    def eval_llr_Nvs1(self, x1, x2, method='vavg-lnorm', ids1=None):
+    def llr_Nvs1(self, x1, x2, ids1=None, method='vavg-lnorm'):
         if method == 'savg':
-            return self.eval_llr_Nvs1_savg(x1, ids1, x2)
+            return self.llr_Nvs1_savg(x1, ids1, x2)
 
         D1 = x1 if ids1 is None else self.compute_stats_hard(x1, class_ids=ids1)
             
         if method == 'book':
-            D2 = self.compute_stats_hard(x2, np.arange(x.shape[0]))
-            return self.eval_llr_NvsM_book(D1, D2)
+            D2 = self.compute_stats_hard(x2, np.arange(x2.shape[0]))
+            return self.llr_NvsM_book(D1, D2)
         if method == 'vavg':
-            return self.eval_llr_Nvs1_vavg(D1, x2, do_lnorm=False)
+            return self.llr_Nvs1_vavg(D1, x2, do_lnorm=False)
         if method == 'vavg-lnorm':
-            return self.eval_llr_Nvs1_vavg(D1, x2, do_lnorm=True)
+            return self.llr_Nvs1_vavg(D1, x2, do_lnorm=True)
         
+
         
-    def eval_llr_Nvs1_vavg(self, D1, x2, do_lnorm=True):
+    def llr_Nvs1_vavg(self, D1, x2, do_lnorm=True):
         x1=D1[1]/np.expand_dims(D1[0], axis=-1)
         if do_lnorm:
             lnorm=LNorm()
             x1=lnorm.predict(x1)
             x2=lnorm.predict(x2)
 
-        return self.eval_llr_1vs1(x1, x2)
+        return self.llr_1vs1(x1, x2)
+
 
     
-    def eval_llr_Nvs1_savg(self, x1, ids1, x2):
-        scores_1vs1 = self.eval_llr_1vs1(x1, x2)
-        N, F, _ = self.compute_stats(scores_1vs1, ids1)
+    def llr_Nvs1_savg(self, x1, ids1, x2):
+        scores_1vs1 = self.llr_1vs1(x1, x2)
+        N, F, _ = self.compute_stats_hard(scores_1vs1, ids1)
         scores = F/N[:, None]
         return scores
 
+
     
     @abstractmethod
-    def generate(self, num_samples, rng=None, seed=1024):
+    def sample(self, num_classes, num_samples_per_class, rng=None, seed=1024):
         pass
 
 
+    
     def get_config(self):
         config = { 'y_dim': self.y_dim,
                    'update_mu': self.update_mu}

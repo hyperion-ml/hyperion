@@ -5,11 +5,16 @@ from __future__ import division
 from six.moves import xrange
 
 import pytest
+import os
 import numpy as np
 from numpy.testing import assert_allclose
 
 from hyperion.utils.kaldi_matrix import KaldiMatrix as KM
 from hyperion.utils.kaldi_matrix import KaldiCompressedMatrix as KCM
+
+output_dir = './tests/data_out/utils/kaldi_matrix'
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
 
 
 def create_matrix(r=10, c=4):
@@ -30,7 +35,7 @@ def create_vector(d=10):
 
 def test_km_read_write():
 
-    file_path = './tests/data_out/km.mat'
+    file_path = output_dir + '/km.mat'
 
     # Test Matrix
     mat1 = KM(create_matrix().astype('float32'))
@@ -110,7 +115,7 @@ def test_km_read_write():
 
 def test_km_read_shape():
 
-    file_path = './tests/data_out/km.mat'
+    file_path = output_dir + '/km.mat'
 
     # Test Matrix
     mat1 = KM(create_matrix(10,4).astype('float32'))
@@ -220,7 +225,7 @@ def test_kcm_compress():
     
 def test_kcm_read_write():
     
-    file_path = './tests/data_out/kcm.mat'
+    file_path = output_dir + '/kcm.mat'
 
     mat1 = KCM.compress(create_matrix().astype('float32'))
     with open(file_path, 'w') as f:
@@ -254,7 +259,7 @@ def test_kcm_read_write():
 
 def test_kcm_read_shape():
     
-    file_path = './tests/data_out/kcm.mat'
+    file_path = output_dir + '/kcm.mat'
 
     mat1 = KCM.compress(create_matrix(10, 4).astype('float32'))
     with open(file_path, 'w') as f:

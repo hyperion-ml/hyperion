@@ -1,15 +1,16 @@
 from __future__ import absolute_import
 
-from .cent_whiten import *
-from .lnorm import *
-from .sb_sw import *
-from .pca import *
-from .lda import *
-from .nda import *
-from .nap import *
-from .mvn import *
-from .transform_list import *
+from .cent_whiten import CentWhiten
+from .lnorm import LNorm
+from .sb_sw import SbSw
+from .pca import PCA
+from .lda import LDA
+from .nda import NDA
+from .nap import NAP
+from .mvn import MVN
+from .gaussianizer import Gaussianizer
+from .transform_list import TransformList
 
-from .cent_whiten_up import *
-from .lnorm_up import *
+from .cent_whiten_up import CentWhitenUP
+from .lnorm_up import LNormUP
 

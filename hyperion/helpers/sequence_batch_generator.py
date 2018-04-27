@@ -12,7 +12,6 @@ import argparse
 import time
 import copy
 
-
 import numpy as np
 from sklearn.utils.class_weight import compute_class_weight
 
@@ -21,6 +20,7 @@ from ..io import RandomAccessDataReaderFactory as RF
 from ..utils.scp_list import SCPList
 from ..utils.tensors import to3D_by_seq
 from ..transforms import TransformList
+
 
 class SequenceBatchGenerator(object):
 
@@ -35,6 +35,7 @@ class SequenceBatchGenerator(object):
                  prune_min_length=0,
                  return_class = True,
                  class_weight = None,
+                 max_class_imbalance=2,
                  seq_weight = 'balanced',
                  shuffle_seqs=True,
                  transform=None,
@@ -68,7 +69,7 @@ class SequenceBatchGenerator(object):
         self.return_class = return_class
         self._prepare_class_info(class_list)
         if class_weight == 'balanced':
-            self._balance_class_weight()
+            self._balance_class_weight(max_class_imbalance)
         
         self.seed = sg_seed
         self.reset_rng = reset_rng
@@ -174,31 +175,30 @@ class SequenceBatchGenerator(object):
 
 
     @staticmethod
-    def _balance_class_weight_helper(class_ids):
+    def _balance_class_weight_helper(class_ids, max_class_imbalance):
         num_samples = np.bincount(class_ids)
-        max_class_inbalance = 2
-        max_samples = int(np.ceil(np.max(num_samples)/max_class_inbalance))
+        max_samples = int(np.ceil(np.max(num_samples)/max_class_imbalance))
         idx = []
         for i, num_samples_i in enumerate(num_samples):
             idx_i = (class_ids == i).nonzero()[0]
             r = float(max_samples)/num_samples_i
             if r > 1:
-                idx_i = np.tile(idx_i, np.ceil(r))
+                idx_i = np.tile(idx_i, int(np.ceil(r)))
                 idx_i = idx_i[:max_samples]
             idx.append(idx_i)
+            
         idx = np.hstack(tuple(idx))
-        print(idx.shape)
         assert idx.shape[0] >= len(num_samples)*max_samples
         return idx
     
 
     
-    def _balance_class_weight(self):
+    def _balance_class_weight(self, max_class_imbalance):
         classes, class_ids = np.unique(self.scp.key, return_inverse=True)
         #class_weights = compute_class_weights('balanced', classes, class_ids)
         #num_samples = class_weights/np.min(class_weights)
 
-        idx = self._balance_class_weight_helper(class_ids)
+        idx = self._balance_class_weight_helper(class_ids, max_class_imbalance)
         self.scp = self.scp.filter_index(idx)
         # self.scp.save('tmp.scp')
         # self.scp.save('/tmp.scp')

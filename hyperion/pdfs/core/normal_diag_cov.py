@@ -28,15 +28,15 @@ class NormalDiagCov(ExpFamily):
         self.update_mu = update_mu
         self.update_Lambda = update_Lambda
 
-        self._compute_normal_nat_std()
+        self._compute_nat_std()
 
         self._logLambda = None
         self._cholLambda = None
         self._Sigma = None
 
 
-
-    def _compute_normal_nat_std(self):
+        
+    def _compute_nat_std(self):
         if self.mu is not None and self.Lambda is not None:
             self._validate_mu()
             self._validate_Lambda()
@@ -51,6 +51,7 @@ class NormalDiagCov(ExpFamily):
     @property
     def logLambda(self):
         if self._logLambda is None:
+            assert self.is_init
             self._logLambda = np.sum(np.log(self.Lambda))
         return self._logLambda
 
@@ -59,6 +60,7 @@ class NormalDiagCov(ExpFamily):
     @property
     def cholLambda(self):
         if self._cholLambda is None:
+            assert self.is_init
             self._cholLambda = np.sqrt(self.Lambda)
         return self._cholLambda
             
@@ -67,6 +69,7 @@ class NormalDiagCov(ExpFamily):
     @property
     def Sigma(self):
         if self._Sigma is None:
+            assert self.is_init
             self._Sigma = 1./self.Lambda
         return self._Sigma
     
@@ -74,23 +77,27 @@ class NormalDiagCov(ExpFamily):
     
     def initialize(self):
         self.validate()
-        self._compute_normal_nat_std()
+        self._compute_nat_std()
+        assert self.is_init
+        
 
         
-    
     def stack_suff_stats(self, F, S=None):
         if S is None:
             return F
         return np.hstack((F,S))
     
+
     
     def unstack_suff_stats(self, stats):
         F=stats[:self.x_dim]
         S=stats[self.x_dim:]
         return F, S
 
+
     
     def norm_suff_stats(self, N, u_x=None, return_order2=False):
+        assert self.is_init
         F, S = self.unstack_suff_stats(u_x)
         F_norm = self.cholLambda*(F-N*self.mu)
         if return_order2:
@@ -100,6 +107,7 @@ class NormalDiagCov(ExpFamily):
         return N, F_norm
     
 
+    
     def Mstep(self, N, u_x):
 
         F, S = self.unstack_suff_stats(u_x)
@@ -118,20 +126,23 @@ class NormalDiagCov(ExpFamily):
         self._compute_nat_params()
         
 
-    def eval_llk_std(self, x):
+    def log_prob_std(self, x):
+        assert self.is_init
         mah_dist2=np.sum(((x-self.mu)*self.cholLambda)**2, axis=1)
         return 0.5*self.logLambda-0.5*self.x_dim*np.log(2*np.pi)-0.5*mah_dist2
 
 
     
-    def eval_logcdf(self, x):
+    def log_cdf(self, x):
+        assert self.is_init
         delta=(x-self.mu)*self.cholLambda
         lk=0.5*(1+erf(delta/np.sqrt(2)))
-        return np.sum(np.log(lk), axis=-1)
+        return np.sum(np.log(lk+1e-10), axis=-1)
 
 
     
-    def generate(self, num_samples, rng=None, seed=1024):
+    def sample(self, num_samples, rng=None, seed=1024):
+        assert self.is_init
         if rng is None:
             rng=np.random.RandomState(seed)
         x=rng.normal(size=(num_samples, self.x_dim)).astype(float_cpu())
@@ -149,6 +160,7 @@ class NormalDiagCov(ExpFamily):
 
     
     def save_params(self, f):
+        assert self.is_init
         params = {'mu': self.mu,
                   'Lambda': self.Lambda}
         self._save_params_from_dict(f, params)
