@@ -9,8 +9,8 @@ class OptimizerFactory(object):
 
     @staticmethod
     def create_optimizer(opt_type, lr, momentum=0, lr_decay=0.,
-                         rho=0.9, epsilon=0., beta_1=0.9, beta_2=0.999, 
-                         clipnorm=10, clipvalue=100):
+                         rho=0.9, epsilon=None, beta_1=0.9, beta_2=0.999, 
+                         clipnorm=10, clipvalue=100, amsgrad=False):
 
         if opt_type == 'sgd':
             return SGD(lr=lr, momentum=momentum, decay=lr_decay, nesterov=False,
@@ -23,7 +23,7 @@ class OptimizerFactory(object):
                            clipnorm=clipnorm, clipvalue=clipvalue)
         if opt_type == 'adam':
             return Adam(lr=lr, beta_1=beta_1, beta_2=beta_2, epsilon=epsilon,
-                        decay=lr_decay,
+                        decay=lr_decay, amsgrad=amsgrad,
                         clipnorm=clipnorm, clipvalue=clipvalue)
         if opt_type == 'nadam':
             return Nadam(lr=lr, beta_1=beta_1, beta_2=beta_2, 
@@ -80,6 +80,10 @@ class OptimizerFactory(object):
         parser.add_argument(p1+'epsilon', dest=(p2+'epsilon'), default=1e-8, type=float,
                             help=('Epsilon in RMSprop and Adam optimizers '
                                   '(default: %(default)s)'))
+        parser.add_argument(p1+'amsgrad', dest=(p2+'amsgrad'), default=False,
+                            action='store_true',
+                            help=('AMSGrad variant of Adam'))
+
         parser.add_argument(p1+'beta1', dest=(p2+'beta_1'), default=0.9, type=float,
                             help=('Beta_1 in Adam optimizers (default: %(default)s)'))
         parser.add_argument(p1+'beta2', dest=(p2+'beta_2'), default=0.999, type=float,

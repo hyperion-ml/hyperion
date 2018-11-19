@@ -2,6 +2,7 @@
 from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import division
+from six.moves import xrange
 
 import numpy as np
 
@@ -211,14 +212,14 @@ class GlobalSumWeights(_GlobalPooling1D):
 
 
     
-class GlobalDiagNormalPostStdPriorPooling1D(Layer):
+class GlobalNormalDiagCovPostStdPriorPooling1D(Layer):
 
-    def __init__(self, input_format='nat+logitvar', output_format='nat+var',
+    def __init__(self, in_fmt='nat+logitvar', out_fmt='nat+var',
                  min_var=0.001, frame_corr_penalty=1, **kwargs):
         
-        super(GlobalDiagNormalPostStdPriorPooling1D, self).__init__(**kwargs)
-        self.input_format=input_format.split(sep='+', maxsplit=1)
-        self.output_format=output_format.split(sep='+', maxsplit=1)
+        super(GlobalNormalDiagCovPostStdPriorPooling1D, self).__init__(**kwargs)
+        self.in_fmt=in_fmt.split(sep='+', maxsplit=1)
+        self.out_fmt=out_fmt.split(sep='+', maxsplit=1)
         self.min_var = min_var
         self.frame_corr_penalty = frame_corr_penalty
         self.input_spec = [InputSpec(ndim=3), InputSpec(ndim=3), InputSpec(min_ndim=2)]
@@ -279,19 +280,19 @@ class GlobalDiagNormalPostStdPriorPooling1D(Layer):
 
 
     def _compute_input_prec(self, p):
-        if self.input_format[1] == 'logitvar':
+        if self.in_fmt[1] == 'logitvar':
             return self._logitvar_to_prec(p)
-        if self.input_format[1] == 'logprec-1':
+        if self.in_fmt[1] == 'logprec-1':
             return self._logprec_minus_1_to_prec(p)
-        if self.input_format[1] == 'logvar':
+        if self.in_fmt[1] == 'logvar':
             return self._logvar_to_prec(p)
-        if self.input_format[1] == 'logprec':
+        if self.in_fmt[1] == 'logprec':
             return self._logprec_to_prec(p)
-        if self.input_format[1] == 'var':
+        if self.in_fmt[1] == 'var':
             return self._var_to_prec(p)
-        if self.input_format[1] == 'prec':
+        if self.in_fmt[1] == 'prec':
             return self._prec_to_prec(p)
-        if self.input_format[1] == 'prec-1':
+        if self.in_fmt[1] == 'prec-1':
             return self._prec_minus_1_to_prec(p)
         
     
@@ -301,27 +302,27 @@ class GlobalDiagNormalPostStdPriorPooling1D(Layer):
             weights = K.expand_dims(weights, axis=-1)
 
         input_prec = self._compute_input_prec(p2)
-        if self.input_format[0] == 'mean' :
+        if self.in_fmt[0] == 'mean' :
             p1 = p1*input_prec
             
         eta = self.frame_corr_penalty * K.sum(p1*weights, axis=1)
         prec = 1 + self.frame_corr_penalty * K.sum((input_prec-1)*weights, axis=1)
         print(prec)
-        print(self.output_format)
+        print(self.out_fmt)
         prec = K.clip(prec, 1, 1e5)
 
-        if self.output_format[0] == 'mean':
+        if self.out_fmt[0] == 'mean':
             r1 = eta/prec
         else:
             r1 = eta
 
-        if self.output_format[1] == 'logvar':
+        if self.out_fmt[1] == 'logvar':
             r2 = - K.log(prec)
-        elif self.output_format[1] == 'var':
+        elif self.out_fmt[1] == 'var':
             r2 = 1/prec
-        if self.output_format[1] == 'logprec':
+        if self.out_fmt[1] == 'logprec':
             r2 = K.log(prec)
-        elif self.output_format[1] == 'prec':
+        elif self.out_fmt[1] == 'prec':
             r2 = prec
 
         return [r1, r2]
@@ -332,15 +333,93 @@ class GlobalDiagNormalPostStdPriorPooling1D(Layer):
 
     
     def get_config(self):
-        config = { 'input_format': '+'.join(self.input_format),
-                   'output_format': '+'.join(self.output_format),
+        config = { 'in_fmt': '+'.join(self.in_fmt),
+                   'out_fmt': '+'.join(self.out_fmt),
                    'min_var': self.min_var,
                    'frame_corr_penalty': self.frame_corr_penalty}
-        base_config = super(GlobalDiagNormalPostStdPriorPooling1D, self).get_config()
+        base_config = super(GlobalNormalDiagCovPostStdPriorPooling1D, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
 
+
+GlobalDiagNormalPostStdPriorPooling1D = GlobalNormalDiagCovPostStdPriorPooling1D
+
+
+class LDE1D(Layer):
+
+    def __init__(self, num_comp=64, order=2, **kwargs):
+        super(LDE1D, self).__init__(**kwargs)
+        self.num_comp = num_comp
+        self.order = order
+        self.input_spec = [InputSpec(ndim=3), InputSpec(min_ndim=2)]
+        self.supports_masking = True
+        self.s = None
+        self.mu = None
+
+        
+    def compute_output_shape(self, input_shape):
+        output_shape = (input_shape[0][0], self.num_comp*input_shape[0][2])
+        return output_shape
+
+
+    def build(self, input_shape):
+        assert len(input_shape[0]) >= 2
+        input_dim = input_shape[0][-1]
+
+        self.mu = self.add_weight(shape=(self.num_comp, input_dim),
+                                  initializer=initializers.TruncatedNormal(mean=0.0, stddev=0.1),
+                                  name='mu')
+        
+        self.s = self.add_weight(shape=(self.num_comp,),
+                                 initializer='ones',
+                                 name='s',
+                                 constraint=constraints.non_neg())
+
     
+    def call(self, xw, mask=None):
+        x, weights = xw
+        if K.ndim(weights) == 2:
+            weights = K.expand_dims(weights, axis=-1)
+
+        total_weights = []
+        for k in xrange(self.num_comp):
+            delta = K.bias_add(x, -self.mu[k])
+            if self.order == 1:
+                delta = K.sum(K.abs(delta), axis=-1, keepdims=True)
+            else:
+                delta = K.sum(delta*delta, axis=-1, keepdims=True)
+            total_weights.append(-self.s[k] * delta)
+        total_weights = K.concatenate(total_weights, axis=-1)
+        total_weights = K.softmax(total_weights, axis=-1) * weights
+
+        e = []
+        for k in xrange(self.num_comp):
+            w_k = K.expand_dims(total_weights[:,:,k], axis=-1)
+            N_k = K.mean(w_k, axis=1, keepdims=True)
+            e_k = K.mean(x*w_k, axis=1, keepdims=True)/N_k
+            e_k = K.squeeze(e_k, axis=1)
+            e_k = K.bias_add(e_k, -self.mu[k])
+            e.append(e_k)
+        e = K.concatenate(e, axis=-1)
+        return e
+
+
+    def get_config(self):
+        config = {
+            'num_comp': self.num_comp,
+            'order': self.order,
+        }
+        base_config = super(LDE1D, self).get_config()
+        return dict(list(base_config.items()) + list(config.items()))
+    
+    
+    def compute_mask(self, inputs, mask=None):
+        return None
+
+####################################################################################
+######### DEPRECATED FROM HERE #####################################################
+####################################################################################
+
 class GlobalProdRenormDiagNormalStdPrior(Layer):
 
     def __init__(self, **kwargs):

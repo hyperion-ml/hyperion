@@ -1,6 +1,8 @@
 from __future__ import absolute_import
 from __future__ import print_function
 
+import os
+
 from keras.callbacks import *
 from ..callbacks import *
 
@@ -12,9 +14,14 @@ class CallbacksFactory(object):
                          monitor = 'val_loss', patience=None, min_delta=1e-4,
                          lr_steps = None,
                          lr_monitor = None,
-                         lr_patience = None, lr_factor=0.1, min_lr=1e-7,
+                         lr_patience = None, lr_factor=0.1,
+                         lr_red_factor=None, lr_inc_factor=None,
+                         min_lr=1e-7,
                          log_append=False):
 
+        if not os.path.exists(file_path):
+            os.makedirs(file_path, exist_ok=True)
+        
         if lr_monitor is None:
             lr_monitor = monitor
         
@@ -41,10 +48,21 @@ class CallbacksFactory(object):
             cbs.append(cb)    
 
         if lr_patience is not None:
-            cb = ReduceLROnPlateau(monitor=lr_monitor,
-                                   factor=lr_factor, patience=lr_patience,
-                                   verbose=1, mode=mode, epsilon=min_delta,
-                                   cooldown=0, min_lr=min_lr)
+            if lr_inc_factor is None:
+                if lr_red_factor is not None:
+                    lr_factor = lr_red_factor
+                cb = ReduceLROnPlateau(monitor=lr_monitor,
+                                       factor=lr_factor, patience=lr_patience,
+                                       verbose=1, mode=mode, min_delta=min_delta,
+                                       cooldown=0, min_lr=min_lr)
+            else:
+                cb = ReduceLROnPlateauIncreaseOnImprovement(
+                    monitor=lr_monitor,
+                    red_factor=lr_red_factor, inc_factor=lr_inc_factor,
+                    patience=lr_patience,
+                    verbose=1, mode=mode, min_delta=min_delta,
+                    cooldown=0, min_lr=min_lr)
+                
             cbs.append(cb)    
         
         return cbs
@@ -61,6 +79,7 @@ class CallbacksFactory(object):
                       'monitor', 'patience', 'min_delta',
                       'lr_monitor',
                       'lr_steps', 'lr_patience', 'lr_factor',
+                      'lr_red_factor', 'lr_inc_factor',
                       'min_lr', 'log_append')
         return dict((k, kwargs[p+k])
                     for k in valid_args if p+k in kwargs)
@@ -96,6 +115,17 @@ class CallbacksFactory(object):
                             type=float,
                             help=('Learning rate scaling factor '
                                   '(default: %(default)s)'))
+        
+        parser.add_argument(p1+'lr-red-factor', dest=(p2+'lr_red_factor'), default=None,
+                            type=float,
+                            help=('Scaling factor to reduce learning rate'
+                                  '(default: %(default)s)'))
+        
+        parser.add_argument(p1+'lr-inc-factor', dest=(p2+'lr_inc_factor'), default=None,
+                            type=float,
+                            help=('Scaling factor to increase learning rate'
+                                  '(default: %(default)s)'))
+
         parser.add_argument(p1+'min-delta', dest=(p2+'min_delta'), default=1e-4,
                             type=float,
                             help=('Minimum improvement'
@@ -107,5 +137,7 @@ class CallbacksFactory(object):
         parser.add_argument(p1+'lr-steps', dest=(p2+'lr_steps'), nargs='+',
                             default=None)
         parser.add_argument(p1+'save-all-epochs', dest=(p2+'save_all_epochs'),
+                            default=False, action='store_true')
+        parser.add_argument(p1+'log-append', dest=(p2+'log_append'),
                             default=False, action='store_true')
         

@@ -16,7 +16,7 @@ import numpy as np
 
 from hyperion.hyp_defs import set_float_cpu, float_cpu
 from hyperion.utils.multithreading import threadsafe_generator
-from hyperion.helpers import SequenceBatchGenerator as G
+from hyperion.helpers import SequenceBatchGeneratorV2 as G
 from hyperion.transforms import TransformList
 from hyperion.keras.backend_addons import reserve_gpu
 from hyperion.keras.keras_utils import *
@@ -74,11 +74,17 @@ def train_embed(data_path, train_list, val_list,
         preproc = TransformList.load(preproc_file)
     else:
         preproc = None
-        
+
+    print('hola0')
+    sys.stdout.flush()
     sg = G(data_path, train_list,
            shuffle_seqs=True, reset_rng=False,
            transform=preproc, **sg_args)
+    print('hola1')
+    sys.stdout.flush()
     max_length = sg.max_seq_length
+    print('hola2')
+    sys.stdout.flush()
     gen_val = None
     if val_list is not None:
         sg_val = G(data_path, val_list,
@@ -87,6 +93,9 @@ def train_embed(data_path, train_list, val_list,
                     **sg_args)
         max_length = max(max_length, sg_val.max_seq_length)
         gen_val = data_generator(sg_val, max_length)
+
+    print('hola3')
+    sys.stdout.flush()
 
     gen_train = data_generator(sg, max_length)
     

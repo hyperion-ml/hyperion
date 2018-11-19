@@ -17,6 +17,7 @@ class PLDA(PLDABase):
     def __init__(self, y_dim=None, z_dim=None, mu=None, V=None, U=None, D=None, floor_iD=1e-5,
                  update_mu=True, update_V=True, update_U=True, update_D=True, **kwargs):
         super(PLDA, self).__init__(y_dim=y_dim, mu=mu, update_mu=update_mu, **kwargs)
+        self.z_dim = z_dim
         if V is not None:
             self.y_dim = V.shape[0]
         if U is not None:
@@ -31,7 +32,7 @@ class PLDA(PLDABase):
 
         # aux. vars
         self._DU = None
-        self._J = None
+        self._Jt = None
         self._Lz = None
         self._mult_iLz = None
         self._log_Lz = None
@@ -72,9 +73,9 @@ class PLDA(PLDABase):
         self._Lz = np.eye(self.z_dim, dtype=float_cpu()) + np.dot(DU, self.U.T)
         self._mult_iLz, _, self._log_Lz = invert_pdmat(
             self._Lz, right_inv=True, return_logdet=True)
-        iLzUD = self._mult_iLz(DU.T)
-        self._W = np.diag(self.D) - np.dot(iLzDU, DU)
-        self._VW = DV.T - np.dot(iLzUD, self._J)
+        DUiLz = self._mult_iLz(DU.T)
+        self._W = np.diag(self.D) - np.dot(DUiLz, DU)
+        self._VW = DV.T - np.dot(DUiLz, self._J.T)
         self._VWV = np.dot(self.V, self._VW)
 
         
@@ -95,9 +96,9 @@ class PLDA(PLDABase):
         NVytilde = N[:, None]*Vytilde
         C = (S - np.dot(NVytilde.T, Vytilde))/N_tot
         w, U = sla.eigh(C)
-        U = np.fliplr(U*sqrt(w))[:,:self.z_dim].T
+        U = np.fliplr(U*np.sqrt(w))[:,:self.z_dim].T
 
-        D = np.diag(C - np.dot(U.T, U))
+        iD = np.diag(C - np.dot(U.T, U)).copy()
         iD[iD<self.floor_iD] = self.floor_iD
         
         self.mu = mu
@@ -207,8 +208,8 @@ class PLDA(PLDABase):
         Cy = np.dot(F.T, y)
         
         #Cz
-        A = np.dot(S - np.det(F.T,self.mu), self._DU.T)-np.dot(Cy, self.J)
-        Cz = self.mult_iLz(A)
+        A = np.dot(S - np.dot(F_tot.T,self.mu), self._DU.T)-np.dot(Cy, self._J)
+        Cz = self._mult_iLz(A)
         
         #Ry Ry1, Py
         Niy = y * N[:,None]
@@ -220,16 +221,18 @@ class PLDA(PLDABase):
         logpy_acc = np.sum(logpy)
 
         #Rz, Pz
-        _, Fc, Sc = self.center_stats(D)
-        acc_Fc = np.sum(Fc, axis=0)
-        Rz1 = self._mult_iLz(np.dot(acc_Fc, self._DU.T) -
-                              np.dot(Ry1, self._J))
+        _, Fc, Sc = self.center_stats(D, self.mu)
+        Fc_acc = np.sum(Fc, axis=0)
+        Rz1 = self._mult_iLz(np.dot(Fc_acc, self._DU.T) -
+                             np.dot(Ry1, self._J))
         Cbary = Cy - np.outer(self.mu,Ry1)
         Ryz = self._mult_iLz(np.dot(Cbary.T,self._DU.T) -
                               np.dot(Ry, self._J))
-        A = np.dot(np.dot(self._DU, Cbary.T), self._J)
-        B = self._mult_iLz(np.dot(np.dot(self._DU, Sc), self._DU.T) +
-                            np.dot(self._J.T, Ry, self._J))
+        A = np.dot(np.dot(self._DU, Cbary), self._J)
+        B = (np.dot(np.dot(self._DU, Sc), self._DU.T)
+             - A - A.T +
+             np.dot(np.dot(self._J.T, Ry), self._J))
+        B = self._mult_iLz(B)
         Rz = self._mult_iLz(B.T).T + N_tot*self._mult_iLz(
             np.eye(self.z_dim, dtype=float_cpu()))
         
@@ -246,7 +249,7 @@ class PLDA(PLDABase):
         Shat = S - Fmu - Fmu.T + N*np.outer(self.mu, self.mu)
 
         logpx_y = 0.5*(-N*self.x_dim*np.log(2*np.pi) +
-                        N*(logD - self._log_Lx) -
+                        N*(logD - self._log_Lz) -
                         np.inner(self._W.ravel(), Shat.ravel()))
         logpy = - 0.5*M*self.y_dim*np.log(2*np.pi)
         
@@ -312,14 +315,13 @@ class PLDA(PLDABase):
             self.V = Vtilde[:-1]
             self.U = Vtilde[-1]
 
-
         a = np.hstack((Ry, Ryz, Ry1[:, None]))
         b = np.hstack((Ryz.T, Rz, Rz1[:, None]))
         c = np.hstack((Ry1, Rz1, N))
         Rytilde = np.vstack((a,b,c))
-        Cytilde = np.hstack((Cy, Cx, F[:, None]))
+        Cytilde = np.hstack((Cy, Cz, F[:, None]))
             
-        if self.update_mu and self.update_V:
+        if self.update_mu and self.update_V and self.update_U:
             iRytilde_mult = invert_pdmat(Rytilde, right_inv=False)[0]
             Vtilde = iRytilde_mult(Cytilde.T)
             self.V = Vtilde[:self.y_dim,:]
@@ -330,11 +332,12 @@ class PLDA(PLDABase):
             Vtilde = np.vstack((self.V, self.U, self.mu))
             CVt = np.dot(Cytilde, Vtilde)
             iD = np.diag((S - CVt - CVt.T + np.dot(
-                np.dot(Vtilde.T, Rytilde), Vtilde))/N)
+                np.dot(Vtilde.T, Rytilde), Vtilde))/N).copy()
             iD[iD<self.floor_iD] = self.floor_iD
             self.D = 1/iD
 
         self.compute_aux()
+
         
             
     def MstepMD(self, stats):
@@ -344,23 +347,23 @@ class PLDA(PLDABase):
         chol_Cov_y = sla.cholesky(Cov_y, lower=False, overwrite_a=True)
 
         R = Ry - np.outer(Ry1,Ry1)/N
-        mult_iR = invert_pdmat(R, rigth_inv=True)[0]
+        mult_iR = invert_pdmat(R, right_inv=True)[0]
         H = mult_iR(Ryz.T-np.outer(Rz1, Ry1)/N)
-        mu_x = (Rx1 - np.dot(Ry1, H.T))/N
-        RzyH = np.dot(Ryz.T, H)
-        Cov_x = ((Rz - RzyH - RzyH.T + np.dot(np.dot(H,Ry), H.T))/N -
-                 np.outer(mu_x, mu_x))
-        chol_Cov_x = sla.cholesky(Cov_x, lower=False, overwrite_a=True)
+        mu_z = (Rz1 - np.dot(Ry1, H.T))/N
+        RzyH = np.dot(Ryz.T, H.T)
+        Cov_z = ((Rz - RzyH - RzyH.T + np.dot(np.dot(H,Ry), H.T))/N -
+                 np.outer(mu_z, mu_z))
+        chol_Cov_z = sla.cholesky(Cov_z, lower=False, overwrite_a=True)
         
         if self.update_mu:
             self.mu += (np.dot(mu_y, self.V + np.dot(H.T, self.U)) +
-                        np.dot(mu_x, self.U))
+                        np.dot(mu_z, self.U))
 
         if self.update_V:
             self.V = np.dot(chol_Cov_y, self.V + np.dot(H.T, self.U))
 
         if self.update_U:
-            self.U = np.dot(chol_Cov_x, self.U)
+            self.U = np.dot(chol_Cov_z, self.U)
 
         self.compute_aux()
         
@@ -537,3 +540,51 @@ class PLDA(PLDABase):
 
         return y + z1 + z2
     
+
+
+    def weighted_avg_params(self, mu, V, U, D, w_mu, w_B, w_W):
+            
+        super(PLDA, self).weigthed_avg_params(mu, w_mu)
+        if w_B > 0:
+            Sb0 = np.dot(self.V.T, self.V)
+            Sb = np.dot(V.T, V)
+            Sb = w_B*Sb + (1-w_B)*Sb0
+            w, V = sla.eigh(Sb, overwrite_a=True)
+            V = np.sqrt(w)*V
+            V = V[:,-self.y_dim:]
+            self.V = V.T
+
+        if w_W > 0:
+            Sw0 = np.dot(self.U.T, self.U) + np.diag(1/self.D)
+            Sw = np.dot(U.T, U) + np.diag(1/D)
+            Sw = w_W*Sw + (1-w_W)*Sw0
+            w, U = sla.eigh(Sw, overwrite_a=False)
+            U = np.sqrt(w)*U
+            U = U[:,-self.z_dim:]
+            self.U = U.T
+            iD = np.diag(Sw - np.dot(self.U.T, self.U)).copy()
+            # print(Sw[:10,:10])
+            # print(np.dot(self.U.T, self.U))
+            # print(iD[:10])
+            iD[iD<self.floor_iD] = self.floor_iD
+            self.D = 1/iD
+
+        # if w_W > 0:
+        #     Sw0 = np.dot(self.U.T, self.U)
+        #     Sw = np.dot(U.T, U)
+        #     Sw = w_W*Sw + (1-w_W)*Sw0
+        #     w, U = sla.eigh(Sw, overwrite_a=True)
+        #     U = np.sqrt(w)*U
+        #     U = U[:,-self.z_dim:]
+        #     self.U = U.T
+
+        # if w_D > 0:
+        #     Sd0 = 1/self.D
+        #     Sd = 1/D
+        #     Sd = w_D*Sd + (1-w_D)*Sd0
+        #     self.D = 1/Sd
+
+
+    def weighted_avg_model(self, plda, w_mu, w_B, w_W):
+        self.weighted_avg_params(plda.mu, plda.V, plda.U, plda.D, w_mu, w_B, w_W)
+        

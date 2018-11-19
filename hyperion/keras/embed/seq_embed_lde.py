@@ -7,6 +7,7 @@ from __future__ import print_function
 from __future__ import division
 from six.moves import xrange
 
+import os
 import numpy as np
 
 from keras import backend as K
@@ -22,11 +23,14 @@ from ..losses import categorical_mbr
 from ...hyp_model import HypModel
 
 
-class SeqEmbed(HypModel):
+class SeqEmbedLDE(HypModel):
 
     def __init__(self, prepool_net, postpool_net,
                  loss='categorical_crossentropy',
                  pooling='mean+std',
+                 lde_net=None,
+                 num_comp=64,
+                 lde_order=2,
                  left_context=0,
                  right_context=0,
                  begin_context=None,
@@ -34,15 +38,19 @@ class SeqEmbed(HypModel):
                  prepool_downsampling=None,
                  **kwargs):
 
-        super(SeqEmbed, self).__init__(**kwargs)
+        super(SeqEmbedLDE, self).__init__(**kwargs)
 
         self.prepool_net = prepool_net
         self.postpool_net = postpool_net
         self.pooling = pooling
         self.loss = loss
-
+        self.num_comp = num_comp
+        self.lde_order = lde_order
+        
         self.model = None
         self.pool_net = None
+        self.lde_net = lde_net
+
         
         self.left_context = left_context
         self.right_context = right_context
@@ -119,6 +127,13 @@ class SeqEmbed(HypModel):
                 GlobalWeightedMeanLogVarPooling1D(name='mean--logvar')([x, mask]))
         elif self.pooling == 'mean':
             pool = GlobalWeightedAveragePooling1D(name='pooling')([x, mask])
+        elif self.pooling == 'lde':
+            if self.lde_net is None:
+                xx = Input(shape=(None, self.pool_in_dim))
+                zz = Input(shape=(None,1))
+                yy = LDE1D(num_comp=self.num_comp, order=self.lde_order, name='lde')([xx, zz])
+                self.lde_net = Model(input=[xx, zz], output=yy, name='pooling')
+            pool = self.lde_net([x, mask])
         else:
             raise ValueError('Invalid pooling %s' % self.pooling)
 
@@ -297,11 +312,12 @@ class SeqEmbed(HypModel):
     def get_config(self):
         config = { 'pooling': self.pooling,
                    'loss': self.loss,
+                   'num_comp': self.num_comp,
                    'left_context': self.left_context,
                    'right_context': self.right_context,
                    'begin_context': self.begin_context,
                    'end_context': self.end_context}
-        base_config = super(SeqEmbed, self).get_config()
+        base_config = super(SeqEmbedLDE, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
 
@@ -316,23 +332,32 @@ class SeqEmbed(HypModel):
         file_model = '%s.net2.h5' % (file_path)
         self.postpool_net.save(file_model)
 
+        if self.pooling == 'lde':
+            file_model = '%s.lde.h5' % (file_path)
+            self.lde_net.save(file_model)
 
             
     @classmethod
     def load(cls, file_path):
         file_config = '%s.json' % (file_path)        
-        config = SeqEmbed.load_config(file_config)
+        config = SeqEmbedLDE.load_config(file_config)
         
         file_model = '%s.net1.h5' % (file_path)
         prepool_net = load_model(file_model, custom_objects=get_keras_custom_obj())
         file_model = '%s.net2.h5' % (file_path)
         postpool_net = load_model(file_model, custom_objects=get_keras_custom_obj())
 
-        filter_args = ('loss', 'pooling',
+        file_model = '%s.lde.h5' % (file_path)
+        lde_net = None
+        if os.path.exists(file_model):
+            lde_net = load_model(file_model, custom_objects=get_keras_custom_obj())
+        
+        
+        filter_args = ('loss', 'pooling', 'num_comp', 'lde_order',
                        'left_context', 'right_context',
                        'begin_context', 'end_context', 'name')
         kwargs = {k: config[k] for k in filter_args if k in config }
-        return cls(prepool_net, postpool_net, **kwargs)
+        return cls(prepool_net, postpool_net, lde_net=lde_net, **kwargs)
     
     
     
@@ -342,7 +367,7 @@ class SeqEmbed(HypModel):
             p = ''
         else:
             p = prefix + '_'
-        valid_args = ('pooling', 'left_context', 'right_context',
+        valid_args = ('pooling', 'num_comp', 'lde_order', 'left_context', 'right_context',
                       'begin_context', 'end_context')
         return dict((k, kwargs[p+k])
                     for k in valid_args if p+k in kwargs)
@@ -358,8 +383,12 @@ class SeqEmbed(HypModel):
             p1 = '--' + prefix + '-'
             p2 = prefix + '_'
 
-        parser.add_argument(p1+'pooling', dest=p2+'pooling', default='mean+std',
-                            choices=['mean+std', 'mean+logvar', 'mean'])
+        parser.add_argument(p1+'pooling', dest=p2+'pooling', default='lde',
+                            choices=['mean+std', 'mean+logvar', 'mean', 'lde'])
+        parser.add_argument(p1+'lde-num-comp', dest=(p2+'num_comp'),
+                            default=64, type=int)
+        parser.add_argument(p1+'lde-order', dest=(p2+'lde_order'),
+                            default=2, type=int)
         parser.add_argument(p1+'left-context', dest=(p2+'left_context'),
                             default=0, type=int)
         parser.add_argument(p1+'right-context', dest=(p2+'right_context'),

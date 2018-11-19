@@ -13,12 +13,14 @@ class KerasModelLoader(object):
 
     @staticmethod
     def get_object():
-        obj_dict={ 'VAE': VAE,
-                   'CVAE': CVAE,
-                   'TiedVAE_qYqZgY': TiedVAE_qYqZgY,
-                   'TiedCVAE_qYqZgY': TiedCVAE_qYqZgY,
+        obj_dict={ 'VAE': None,
+                   'CVAE': None,
+                   'TiedDVAE_QY' : TiedDVAE_QY,
+                   'TiedSupVAE_QYQZgY': TiedSupVAE_QYQZgY,
+                   'TiedCVAE_qYqZgY': None,
                    'SeqEmbed': SeqEmbed,
-                   'SeqQEmbed': SeqQEmbed }
+                   'SeqEmbedLDE': SeqEmbedLDE,
+                   'SeqQEmbed': SeqQEmbed}
                    #'SeqEmbedAtt': SeqEmbedAtt }
         return obj_dict
         

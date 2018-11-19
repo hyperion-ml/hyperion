@@ -14,17 +14,19 @@ from .score_norm import ScoreNorm
 
 class AdaptSNorm(ScoreNorm):
 
-    def __init__(self, nbest=100, **kwargs):
+    def __init__(self, nbest=100, nbest_discard=0, **kwargs):
         super(AdaptSNorm, self).__init__(*kwargs)
         self.nbest = nbest
+        self.nbest_discard = nbest_discard
 
         
 
     def predict(self, scores, scores_coh_test, scores_enr_coh, mask_coh_test=None, mask_enr_coh=None):
 
         assert scores_enr_coh.shape[1] == scores_coh_test.shape[0]
-        if self.nbest > scores_enr_coh.shape[1]:
-            nbest = scores_enr_coh.shape[1]
+        assert self.nbest_discard < scores_enr_coh.shape[1]
+        if self.nbest > scores_enr_coh.shape[1] - self.nbest_discard:
+            nbest = scores_enr_coh.shape[1] - self.nbest_discard
         else:
             nbest = self.nbest
 
@@ -33,7 +35,7 @@ class AdaptSNorm(ScoreNorm):
         if mask_enr_coh is not None:
             scores_enr_coh[mask_enr_coh == False] = 0
             
-        best_idx = np.flipud(np.argsort(scores_coh_test, axis=0))[:nbest]
+        best_idx = np.flipud(np.argsort(scores_coh_test, axis=0))[self.nbest_discard:self.nbest_discard+nbest]
         scores_z_norm = np.zeros_like(scores)
         for i in xrange(scores.shape[1]):
             best_idx_i = best_idx[:,i]
@@ -54,7 +56,7 @@ class AdaptSNorm(ScoreNorm):
             scores_z_norm[:,i] = (scores[:,i] - mu_z.T)/s_z.T
 
 
-        best_idx = np.fliplr(np.argsort(scores_coh_test, axis=1))[:,:nbest]
+        best_idx = np.fliplr(np.argsort(scores_enr_coh, axis=1))[:,self.nbest_discard:self.nbest_discard+nbest]
         scores_t_norm = np.zeros_like(scores)
         for i in xrange(scores.shape[0]):
             best_idx_i = best_idx[i]

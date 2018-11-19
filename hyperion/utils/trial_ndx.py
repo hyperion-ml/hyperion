@@ -104,10 +104,10 @@ class TrialNdx(object):
           TrialNdx object.
         """
         file_base, file_ext = path.splitext(file_path)
-        if file_ext == '.txt' :
-            return TrialNdx.load_txt(file_path)
-        else:
+        if file_ext == '.h5' or file_ext == '.hdf5' :
             return TrialNdx.load_h5(file_path)
+        else:
+            return TrialNdx.load_txt(file_path)
 
 
     @classmethod

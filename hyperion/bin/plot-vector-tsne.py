@@ -164,8 +164,8 @@ if __name__ == "__main__":
 
     parser.add_argument('--output-dim', dest='output_dim', type=int, default=3)
     parser.add_argument('--perplexity', dest='perplexity', type=float, default=30)
-    parser.add_argument('--exag', dest='exag', type=float, default=4)
-    parser.add_argument('--lr', dest='lr', type=float, default=1000)
+    parser.add_argument('--exag', dest='exag', type=float, default=12)
+    parser.add_argument('--lr', dest='lr', type=float, default=200)
     parser.add_argument('--num-iter', dest='num_iter', type=int, default=1000)
     parser.add_argument('--init-method', dest='init_method', default='pca',
                         choices=['random', 'pca'])

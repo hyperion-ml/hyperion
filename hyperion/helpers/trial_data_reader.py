@@ -14,7 +14,7 @@ import copy
 
 import numpy as np
 
-from ..io import HypDataReader
+from ..io import RandomAccessDataReaderFactory as DRF
 from ..utils.scp_list import SCPList
 from ..utils.trial_ndx import TrialNdx
 from ..transforms import TransformList
@@ -26,7 +26,7 @@ class TrialDataReader(object):
                  model_idx=1, num_model_parts=1, seg_idx=1, num_seg_parts=1,
                  eval_set='enroll-test'):
 
-        self.r = HypDataReader(v_file)
+        self.r = DRF.create(v_file)
         self.preproc = preproc
         self.field = v_field
 
@@ -49,8 +49,8 @@ class TrialDataReader(object):
 
         
     def read(self):
-        x_e = self.r.read(self.enroll.file_path, self.field, return_tensor=True)
-        x_t = self.r.read(self.ndx.seg_set, self.field, return_tensor=True)
+        x_e = self.r.read(self.enroll.file_path, squeeze=True)
+        x_t = self.r.read(self.ndx.seg_set, squeeze=True)
     
         if self.preproc is not None:
             x_e = self.preproc.predict(x_e)

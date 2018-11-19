@@ -3,7 +3,7 @@
 ###########################################################################
 # Install Anaconda default packages
 
-TARGET=$HOME/usr/local/anaconda3
+TARGET=$HOME/usr/local/anaconda3.5
 bash Anaconda3-4.2.0-Linux-x86_64.sh -p $TARGET
 
 # Set env vars
@@ -25,6 +25,9 @@ conda install protobuf
 #update pip
 conda update pip
 
+#this is needed by theano
+conda install pygpu
+
 ###########################################################################
 ###########################################################################
 #Only need it in 2.7
@@ -37,6 +40,7 @@ conda update pip
 ###########################################################################
 # Install extra packages not included in Anaconda
 # but that can be installed using pip package manager
+
 
 # Install theano
 cd $TARGET/bin

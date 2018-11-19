@@ -15,6 +15,7 @@ import numpy as np
 
 from .list_utils import *
 
+
 class SCPList(object):
     """Class to manipulate script lists.
 
@@ -143,6 +144,7 @@ class SCPList(object):
             self.range_spec = self.range_spec[idx]
         self.key_to_index = None
 
+        
             
     def save(self, file_path, sep=' ', offset_sep=':'):
         """Saves script list to text file.
@@ -316,7 +318,7 @@ class SCPList(object):
             filter_key = np.setdiff1d(self.key, filter_key)
 
         f, _ = ismember(filter_key, self.key)
-        assert(np.all(f))
+        assert np.all(f)
         f, _ = ismember(self.key, filter_key)
         key = self.key[f]
         file_path = self.file_path[f]

@@ -41,10 +41,14 @@ class CentWhiten(HypModel):
     def fit(self, x=None, sample_weight=None, mu=None, C=None):
         
         if x is not None:
-            gauss = Normal(x_dim=x.shape[1])
-            gauss.fit(x=x, sample_weight=sample_weight)
-            mu = gauss.mu
-            C = gauss.Sigma
+            if x.shape[0]>x.shape[1]:
+                gauss = Normal(x_dim=x.shape[1])
+                gauss.fit(x=x, sample_weight=sample_weight)
+                mu = gauss.mu
+                C = gauss.Sigma
+            else:
+                mu = np.mean(x, axis=0)
+                C = np.eye(x.shape[1])
 
         if self.update_mu:
             self.mu = mu

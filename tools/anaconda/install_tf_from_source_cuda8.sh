@@ -39,11 +39,17 @@ if [ ! -f $WHL ];then
     export GCC_HOST_COMPILER_PATH=/usr/bin/gcc
 
 
-    if [ "$DEV" == "cpu" ];then
+    if [ "$DEV" == "cpu_mkl" ];then
 	export TF_NEED_CUDA=0
 	export TF_NEED_MKL=1
 	export TF_DOWNLOAD_MKL=1
 	OPT="--config=mkl --copt=-DEIGEN_USE_VML -c opt --config=opt"
+	export LD_LIBRARY_PATH=""
+    elif [ "$DEV" == "cpu_nomkl" ];then
+	export TF_NEED_CUDA=0
+	export TF_NEED_MKL=0
+	export TF_DOWNLOAD_MKL=0
+	OPT="-c opt --config=opt"
 	export LD_LIBRARY_PATH=""
     else
 	#I dont know if we need this to find cudnn but just in case
@@ -60,6 +66,11 @@ if [ ! -f $WHL ];then
 	export TF_DOWNLOAD_MKL=0
 	if [ "$VERS" == "1.7" ];then
 	    export CUDA_TOOLKIT_PATH=$HOME/usr/local/cuda
+	    fdev=$CUDA_TOOLKIT_PATH/nvvm/libdevice/libdevice.10.bc
+	    if [ ! -f $fdev ];then
+		fdev0=$CUDA_TOOLKIT_PATH/nvvm/libdevice/libdevice.compute_20.10.bc
+		cp $fdev0 $fdev
+	    fi
 	else
 	    export CUDA_TOOLKIT_PATH=/usr/local/cuda
 	fi

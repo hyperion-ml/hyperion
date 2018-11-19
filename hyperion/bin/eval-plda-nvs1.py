@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Evals PDDA LLR
+Evals PLDA LLR
 """
 from __future__ import absolute_import
 from __future__ import print_function

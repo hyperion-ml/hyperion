@@ -1,6 +1,7 @@
 #!/usr/bin/env python
+
 """
-Trains categorical embeddings
+Trains q-embeddings
 """
 from __future__ import absolute_import
 from __future__ import print_function
@@ -23,7 +24,7 @@ from hyperion.keras.keras_utils import *
 from hyperion.keras.keras_model_loader import KerasModelLoader as KML
 from hyperion.keras.helpers import OptimizerFactory as KOF
 from hyperion.keras.helpers import CallbacksFactory as KCF
-from hyperion.keras.embed import SeqEmbed
+from hyperion.keras.vae.tied_sup_vae_qyqzgy import TiedSupVAE_QYQZgY as VAE
 
 
 
@@ -31,50 +32,31 @@ from hyperion.keras.embed import SeqEmbed
 def data_generator(sg, max_length):
 
     while 1:
-        key, x, sample_weight, y = sg.read(max_seq_length=max_length)
-        yield (x, y)
-        
+        key, x, sample_weight, t = sg.read(max_seq_length=max_length)
+        y_kl = np.zeros((t.shape[0], 1), dtype=float_keras())
+        z_kl = np.zeros((x.shape[0], x.shape[1], 1), dtype=float_keras())
+        yield (x, [x, t, y_kl, z_kl], [sample_weight, None, None, sample_weight])
+
 
     
 def train_embed(data_path, train_list, val_list,
-                prepool_net_path, postpool_net_path, loss,
-                init_path, epochs, 
+                px_net_path, pt_net_path,
+                qy_net_path, qz_net_path,
+                init_path,
+                epochs,
                 preproc_file, output_path,
-                freeze_prepool, freeze_prepool_layers, freeze_postpool_layers,
+                freeze_embed,
                 **kwargs):
-    
+
     g = reserve_gpu()
     set_float_cpu(float_keras())
-        
-    if init_path is None:
-        model, init_epoch = KML.load_checkpoint(output_path, epochs)
-        if model is None:
-            emb_args = SeqEmbed.filter_args(**kwargs)
-            prepool_net = load_model_arch(prepool_net_path)
-            postpool_net = load_model_arch(postpool_net_path)
 
-            model = SeqEmbed(prepool_net, postpool_net,
-                             loss=loss,
-                             **emb_args)
-        else:
-            kwargs['init_epoch'] = init_epoch
-    else:
-        print('loading init model: %s' % init_path)
-        model = KML.load(init_path)
-
-    
-    sg_args = G.filter_args(**kwargs)
-    opt_args = KOF.filter_args(**kwargs)
-    cb_args = KCF.filter_args(**kwargs)
-    print(sg_args)
-    print(opt_args)
-    print(cb_args)
-    
     if preproc_file is not None:
         preproc = TransformList.load(preproc_file)
     else:
         preproc = None
         
+    sg_args = G.filter_args(**kwargs)
     sg = G(data_path, train_list,
            shuffle_seqs=True, reset_rng=False,
            transform=preproc, **sg_args)
@@ -89,30 +71,58 @@ def train_embed(data_path, train_list, val_list,
         gen_val = data_generator(sg_val, max_length)
 
     gen_train = data_generator(sg, max_length)
+
+    
+    if init_path is None:
+        model, init_epoch = KML.load_checkpoint(output_path, epochs)
+        if model is None:
+            embed_args = VAE.filter_args(**kwargs)
+            print(embed_args)
+            px_net = load_model_arch(px_net_path)
+            qy_net = load_model_arch(qy_net_path)
+            qz_net = load_model_arch(qz_net_path)
+            pt_net = load_model_arch(pt_net_path)
+
+            model = VAE(px_net, qy_net, qz_net, pt_net,
+                        **embed_args)
+        else:
+            sg.cur_epoch = init_epoch
+            sg.reset()
+    else:
+        print('loading init model: %s' % init_path)
+        model = KML.load(init_path)
+
+    model.px_weight = kwargs['px_weight']
+    model.pt_weight = kwargs['pt_weight']
+    model.kl_qy_weight = kwargs['kl_qy_weight']
+    model.kl_qz_weight = kwargs['kl_qz_weight']
+        
+    opt_args = KOF.filter_args(**kwargs)
+    cb_args = KCF.filter_args(**kwargs)
+    print(sg_args)
+    print(opt_args)
+    print(cb_args)
     
     print('max length: %d' % max_length)
-    
+
     t1 = time.time()
-    if freeze_prepool:
-        model.freeze_prepool_net()
-    if freeze_prepool_layers is not None:
-        model.freeze_prepool_layers(freeze_prepool_layers)
-    if freeze_postpool_layers is not None:
-        model.freeze_postpool_layers(freeze_postpool_layers)
     
+    if freeze_embed:
+        model.prepool_net.trainable = False
+        
     model.build(max_length)
     print(time.time()-t1)
     
     cb = KCF.create_callbacks(model, output_path, **cb_args)
     opt = KOF.create_optimizer(**opt_args)
-    model.compile(metrics=['accuracy'], optimizer=opt)
-    
+    model.compile(optimizer=opt)
+
     h = model.fit_generator(gen_train, validation_data=gen_val,
                             steps_per_epoch=sg.steps_per_epoch,
                             validation_steps=sg_val.steps_per_epoch,
                             initial_epoch=sg.cur_epoch,
                             epochs=epochs, callbacks=cb, max_queue_size=10)
-                          
+
     print('Train elapsed time: %.2f' % (time.time() - t1))
     
     model.save(output_path + '/model')
@@ -124,33 +134,27 @@ if __name__ == "__main__":
     parser=argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         fromfile_prefix_chars='@',
-        description='Train sequence embeddings')
+        description='Train sequence q embeddings')
 
     parser.add_argument('--data-path', dest='data_path', required=True)
     parser.add_argument('--train-list', dest='train_list', required=True)
     parser.add_argument('--val-list', dest='val_list', default=None)
-    parser.add_argument('--prepool-net', dest='prepool_net_path', required=True)
-    parser.add_argument('--postpool-net', dest='postpool_net_path', required=True)
+    parser.add_argument('--px-net', dest='px_net_path', required=True)
+    parser.add_argument('--qy-net', dest='qy_net_path', required=True)
+    parser.add_argument('--qz-net', dest='qz_net_path', required=True)
+    parser.add_argument('--pt-net', dest='pt_net_path', required=True)
 
     parser.add_argument('--init-path', dest='init_path', default=None)
     parser.add_argument('--preproc-file', dest='preproc_file', default=None)
     parser.add_argument('--output-path', dest='output_path', required=True)
 
-    SeqEmbed.add_argparse_args(parser)
+    VAE.add_argparse_args(parser)
     G.add_argparse_args(parser)
     KOF.add_argparse_args(parser)
     KCF.add_argparse_args(parser)
 
-
-    parser.add_argument('--loss', dest='loss', default='categorical_crossentropy',
-                        choices=['categorical_crossentropy', 'categorical_hinge', 'categorical_mbr'])
-    parser.add_argument('--freeze-prepool', dest='freeze_prepool',
+    parser.add_argument('--freeze-embed', dest='freeze_embed',
                         default=False, action='store_true')
-    parser.add_argument('--freeze-prepool-layers', dest='freeze_prepool_layers',
-                        default=None, nargs='+')
-    parser.add_argument('--freeze-postpool-layers', dest='freeze_postpool_layers',
-                        default=None, nargs='+')
-
     parser.add_argument('--epochs', dest='epochs', default=1000, type=int)
     
     args=parser.parse_args()

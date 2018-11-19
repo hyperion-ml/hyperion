@@ -11,7 +11,3 @@ from keras import activations, initializers, regularizers, constraints
 
 from .. import backend_addons as K2
 
-class BroadcastMultipy(Layer):
-
-
-    def __init__(self

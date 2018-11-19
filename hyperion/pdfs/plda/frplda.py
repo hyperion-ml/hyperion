@@ -388,3 +388,21 @@ class FRPLDA(PLDABase):
         return y + z
     
         
+    def weighted_avg_params(self, mu, B, W, w_mu, w_B, w_W):
+        super(FRPLDA, self).weigthed_avg_params(mu, w_mu)
+        if w_B > 0:
+            Sb0 = invert_pdmat(self.B, return_inv=True)[-1]
+            Sb = invert_pdmat(B, return_inv=True)[-1]
+            Sb = w_B*Sb + (1-w_B)*Sb0
+            self.B = invert_pdmat(Sb, return_inv=True)[-1]
+        if w_W > 0:
+            Sw0 = invert_pdmat(self.W, return_inv=True)[-1]
+            Sw = invert_pdmat(W, return_inv=True)[-1]
+            Sw = w_W*Sw + (1-w_W)*Sw0
+            self.W = invert_pdmat(Sw, return_inv=True)[-1]
+
+
+    def weighted_avg_model(self, plda, w_mu, w_B, w_W):
+        self.weighted_avg_params(plda.mu, plda.B, plda.W, w_mu, w_B, w_W)
+        
+        

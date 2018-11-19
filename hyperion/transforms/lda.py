@@ -16,11 +16,17 @@ from ..hyp_model import HypModel
 from .sb_sw import SbSw
 
 class LDA(HypModel):
-    def __init__(self, mu=None, T=None, lda_dim=None, **kwargs):
+    def __init__(self, mu=None, T=None, lda_dim=None, update_mu=True, update_T=True, **kwargs):
         super(LDA, self).__init__(**kwargs)
         self.mu = mu
         self.T = T
-        self.lda_dim = lda_dim
+        if T is None:
+            self.lda_dim = lda_dim
+        else:
+            self.lda_dim = T.shape[1]
+        self.update_mu = update_mu
+        self.update_T = update_T
+
 
         
     def predict(self, x):
@@ -38,8 +44,12 @@ class LDA(HypModel):
             Sb = sbsw.Sb
             Sw = sbsw.Sw
 
-        self.mu = mu
+        if self.update_mu:
+            self.mu = mu
 
+        if not self.update_T:
+            return
+        
         assert(Sb.shape == Sw.shape)
 
         d, V = la.eigh(Sb, Sw)
@@ -54,7 +64,15 @@ class LDA(HypModel):
             V = V[:,:self.lda_dim]
 
         self.T = V
-        
+
+
+    def get_config(self):
+        config = { 'lda_dim': self.lda_dim,
+                   'update_mu': self.update_mu,
+                   'update_t': self.update_T }
+        base_config = super(LDA, self).get_config()
+        return dict(list(base_config.items()) + list(config.items()))
+
     
     def save_params(self, f):
         params = {'mu': self.mu,

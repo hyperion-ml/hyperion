@@ -392,3 +392,27 @@ class SPLDA(PLDABase):
         y = np.repeat(y, num_samples_per_class, axis=0)
 
         return y + z
+
+
+    
+    def weighted_avg_params(self, mu, V, W, w_mu, w_B, w_W):
+        super(SPLDA, self).weigthed_avg_params(mu, w_mu)
+        if w_B > 0:
+            Sb0 = np.dot(self.V.T, self.V)
+            Sb = np.dot(V.T, V)
+            Sb = w_B*Sb + (1-w_B)*Sb0
+            w, V = sla.eigh(Sb, overwrite_a=True)
+            V = np.sqrt(w)*V
+            V = V[:,-self.y_dim:]
+            self.V = V.T
+        if w_W > 0:
+            Sw0 = invert_pdmat(self.W, return_inv=True)[-1]
+            Sw = invert_pdmat(W, return_inv=True)[-1]
+            Sw = w_W*Sw + (1-w_W)*Sw0
+            self.W = invert_pdmat(Sw, return_inv=True)[-1]
+
+
+    def weighted_avg_model(self, plda, w_mu, w_B, w_W):
+        self.weighted_avg_params(plda.mu, plda.V, plda.W, w_mu, w_B, w_W)
+        
+        

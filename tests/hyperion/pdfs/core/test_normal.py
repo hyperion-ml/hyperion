@@ -158,10 +158,10 @@ def test_diag_log_prob():
 
     x = model1.sample(num_samples)
     
-    assert_allclose(model1.log_prob(x, mode='nat'),
-                    model1_diag.log_prob(x, mode='std'))
-    assert_allclose(model1.log_prob(x, mode='std'),
-                    model1_diag.log_prob(x, mode='std'))
+    assert_allclose(model1.log_prob(x, method='nat'),
+                    model1_diag.log_prob(x, method='std'))
+    assert_allclose(model1.log_prob(x, method='std'),
+                    model1_diag.log_prob(x, method='std'))
 
 
 
@@ -171,12 +171,12 @@ def test_log_prob():
 
     x = model1.sample(num_samples)
     
-    assert_allclose(model1.log_prob(x, mode='nat'),
-                    model1.log_prob(x, mode='std'))
+    assert_allclose(model1.log_prob(x, method='nat'),
+                    model1.log_prob(x, method='std'))
 
     u_x = model1.compute_suff_stats(x)
-    assert_allclose(model1.log_prob(x, u_x, mode='nat'),
-                    model1.log_prob(x, mode='std'))
+    assert_allclose(model1.log_prob(x, u_x, method='nat'),
+                    model1.log_prob(x, method='std'))
     
 
 
@@ -201,9 +201,9 @@ def test_elbo():
     sample_weight = 0.5*np.ones((num_samples,))
     
     assert_allclose(model1.elbo(x),
-                    np.sum(model1.log_prob(x, mode='std')))
+                    np.sum(model1.log_prob(x, method='std')))
     assert_allclose(model1.elbo(x, sample_weight=sample_weight),
-                    0.5*np.sum(model1.log_prob(x, mode='std')))
+                    0.5*np.sum(model1.log_prob(x, method='std')))
     
 
     

@@ -110,6 +110,112 @@ class PLDABase(PDF):
         pass
 
     
+
+    def fit_adapt_weighted_avg_model(
+            self, x, class_ids=None, ptheta=None, sample_weight=None,
+            x_val=None, class_ids_val=None, ptheta_val=None, sample_weight_val=None,
+            epochs=20, ml_md='ml+md', md_epochs=None, plda0=None, w_mu=1, w_B=0.5, w_W=0.5):
+
+        assert self.is_init
+        use_ml = False if ml_md == 'md' else True
+        use_md = False if ml_md == 'ml' else True
+        
+        assert  not(class_ids is  None and ptheta is None)
+        if class_ids is None:
+            D = self.compute_stats_soft(x, ptheta)
+        else:
+            D = self.compute_stats_hard(x, class_ids)
+
+            
+        if x_val is not None:
+            assert not(class_ids_val is  None and ptheta_val is None)
+            if class_ids_val is None:
+                D_val = self.compute_stats_soft(x_val, ptheta_val)
+            else:
+                D_val = self.compute_stats_hard(x_val, class_ids_val)
+
+                
+        elbo = np.zeros((epochs,), dtype=float_cpu())
+        elbo_val = np.zeros((epochs,), dtype=float_cpu())
+        for epoch in xrange(epochs):
+            
+            stats=self.Estep(D)
+            elbo[epoch]=self.elbo(stats)
+            if x_val is not None:
+                stats_val=self.Estep(D_val)
+                elbo_val[epoch]=self.elbo(stats_val)
+
+            if use_ml:
+                self.MstepML(stats)
+            if use_md and (md_epochs is None or epoch in md_epochs):
+                self.MstepMD(stats)
+
+            self.weighted_avg_model(plda0, w_mu, w_B, w_W)
+
+        elbo_norm= elbo/np.sum(D[0])
+        if x_val is None:
+            return elbo, elbo_norm
+        else:
+            elbo_val_norm = elbo_val/np.sum(D_val[0])
+            return elbo, elbo_norm, elbo_val, elbo_val_norm
+
+    
+    def fit_adapt(self, x, class_ids=None, ptheta=None, sample_weight=None,
+                  x0=None, class_ids0=None, ptheta0=None, sample_weight0=None,
+                  x_val=None, class_ids_val=None, ptheta_val=None, sample_weight_val=None,
+                  epochs=20, ml_md='ml+md', md_epochs=None):
+
+        assert self.is_init
+        use_ml = False if ml_md == 'md' else True
+        use_md = False if ml_md == 'ml' else True
+        
+        assert  not(class_ids is  None and ptheta is None)
+        if class_ids is None:
+            D = self.compute_stats_soft(x, ptheta)
+        else:
+            D = self.compute_stats_hard(x, class_ids)
+
+        if x0 is not None:
+            assert not(class_ids0 is  None and ptheta0 is None)
+            if class_ids0 is None:
+                D0 = self.compute_stats_soft(x0, ptheta0)
+            else:
+                D0 = self.compute_stats_hard(x0, class_ids0)
+
+            
+        if x_val is not None:
+            assert not(class_ids_val is  None and ptheta_val is None)
+            if class_ids_val is None:
+                D_val = self.compute_stats_soft(x_val, ptheta_val)
+            else:
+                D_val = self.compute_stats_hard(x_val, class_ids_val)
+
+                
+        elbo = np.zeros((epochs,), dtype=float_cpu())
+        elbo_val = np.zeros((epochs,), dtype=float_cpu())
+        for epoch in xrange(epochs):
+            
+            stats = self.Estep(D)
+            stats0 = self.Estep(D0)
+            elbo[epoch]=self.elbo(stats)
+            if x_val is not None:
+                stats_val=self.Estep(D_val)
+                elbo_val[epoch]=self.elbo(stats_val)
+
+            if use_ml:
+                self.MstepML(stats)
+            if use_md and (md_epochs is None or epoch in md_epochs):
+                self.MstepMD(stats)
+
+        elbo_norm= elbo/np.sum(D[0])
+        if x_val is None:
+            return elbo, elbo_norm
+        else:
+            elbo_val_norm = elbo_val/np.sum(D_val[0])
+            return elbo, elbo_norm, elbo_val, elbo_val_norm
+
+
+    
     @staticmethod
     def compute_stats_soft(x, p_theta, sample_weight=None, scal_factor=None):
         if sample_weight is not None:
@@ -226,3 +332,12 @@ class PLDABase(PDF):
         base_config = super(PLDABase, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
+
+    def weigthed_avg_params(self, mu, w_mu):
+        self.mu = w_mu * mu + (1-w_mu)*self.mu
+
+        
+    @abstractmethod
+    def weigthed_avg_model(self, plda):
+        pass
+    

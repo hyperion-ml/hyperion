@@ -152,7 +152,7 @@ class Normal(ExpFamily):
 
         
     def log_prob_std(self, x):
-        assert self._is_init
+        assert self.is_init
         mah_dist2 = np.sum(np.dot(x-self.mu,self.cholLambda)**2, axis=1)
         return 0.5*self.logLambda-0.5*self.x_dim*np.log(2*np.pi)-0.5*mah_dist2
 
@@ -171,7 +171,7 @@ class Normal(ExpFamily):
 
     
     def sample(self, num_samples, rng=None, seed=1024):
-        assert self._is_init
+        assert self.is_init
         
         if rng is None:
             rng = np.random.RandomState(seed)

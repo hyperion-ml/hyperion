@@ -1,5 +1,6 @@
 """
-x-vector categorical embeddings
+Discriminative trained variational autoencoder 
+Optimize E[logP(T|Y)|Q(Y|X)]
 """
 
 from __future__ import absolute_import
@@ -22,14 +23,15 @@ from ..layers import *
 from ...hyp_model import HypModel
 
 
-class SeqQEmbed(HypModel):
 
-    def __init__(self, prepool_net,
-                 num_classes,
-                 score_net=None,
+class TiedDVAE_QY(HypModel):
+
+    def __init__(self, qy_net,
+                 pt_net=None,
+                 loss='categorical_crossentropy',
                  post_pdf='diag_normal',
                  pooling_input='mean+logvar',
-                 pooling_output='nat+prec',
+                 pooling_output='mean+var',
                  left_context=0,
                  right_context=0,
                  begin_context=None,
@@ -38,12 +40,12 @@ class SeqQEmbed(HypModel):
                  prepool_downsampling=None,
                  min_var=0.1, kl_weight=0, **kwargs):
 
-        super(SeqQEmbed, self).__init__(**kwargs)
+        super(TiedDVAE_QY, self).__init__(**kwargs)
 
-        self.prepool_net = prepool_net
-        self.score_net = score_net
+        self.qy_net = qy_net
+        self.pt_net = pt_net
         self.post_pdf = post_pdf
-        self.num_classes = num_classes
+        self.loss = loss
         self.pooling_input = pooling_input
         self.pooling_output = pooling_output
         self.min_var = min_var
@@ -64,33 +66,33 @@ class SeqQEmbed(HypModel):
         
     @property
     def x_dim(self):
-        return self.prepool_net.get_input_shape_at(0)[-1]
+        return self.qy_net.get_input_shape_at(0)[-1]
 
     
     
     @property
     def embed_dim(self):
-        return self.prepool_net.get_output_shape_at(0)[0][-1]
+        return self.qy_net.get_output_shape_at(0)[0][-1]
 
 
     
     @property
     def in_length(self):
         if self.max_seq_length is None:
-            return self.prepool_net.get_input_shape_at(0)[-2]
+            return self.qy_net.get_input_shape_at(0)[-2]
         return self.max_seq_length
 
 
     
     @property
     def pool_in_length(self):
-        pool_length = self.prepool_net.get_output_shape_at(0)[0][-2]
+        pool_length = self.qy_net.get_output_shape_at(0)[0][-2]
         if pool_length is None:
             in_length = self.in_length
             if in_length is None:
                 return None
             x = Input(shape=(in_length, self.x_dim))
-            net = Model(x, self.prepool_net(x))
+            net = Model(x, self.qy_net(x))
             pool_length = net.get_output_shape_at(0)[0][-2]
         return pool_length
 
@@ -109,25 +111,25 @@ class SeqQEmbed(HypModel):
 
 
     def freeze_embed(self):
-        self.prepool_net.trainable = False
+        self.qy_net.trainable = False
 
 
         
     def freeze_embed_layers(self, layers):
         for layer_name in layers:
-            self.prepool_net.get_layer(layer_name).trainable = False
+            self.qy_net.get_layer(layer_name).trainable = False
 
             
         
     def build(self, max_seq_length=None):
 
         if max_seq_length is None:
-            max_seq_length = self.prepool_net.get_input_shape_at(0)[-2]
+            max_seq_length = self.qy_net.get_input_shape_at(0)[-2]
         self.max_seq_length = max_seq_length
 
         x = Input(shape=(max_seq_length, self.x_dim,))
         mask = CreateMask(0)(x)
-        frame_embed = self.prepool_net(x)
+        frame_embed = self.qy_net(x)
 
         dec_ratio = int(max_seq_length/frame_embed[0]._keras_shape[1])
         if dec_ratio > 1:
@@ -139,23 +141,13 @@ class SeqQEmbed(HypModel):
             min_var=self.min_var, frame_corr_penalty=self.frame_corr_penalty,
             name='pooling')(frame_embed+[mask])
 
-        if self.score_net is None:
-            p1_input = Input(shape=(self.embed_dim,))
-            p2_input = Input(shape=(self.embed_dim,))
-            score_input = [p1_input, p2_input]
-            score_layer = CatQScoringDiagNormalHomoPostStdPrior(
-                self.num_classes,
-                input_format=self.pooling_output,
-                q_class_format='mean+prec', name='scoring')
-            self.score_net = Model(score_input, score_layer(score_input))
-            
-            
-        score = self.score_net(q_embed)
-        y = Activation('softmax', name='pclass_x')(score)
+        y = NormalDiagCovSampler(in_fmt=self.pooling_output, name='sampling')(q_embed)
+        
+        pt = self.pt_net(y)
 
         kl_loss = KLDivNormalVsStdNormal(in_fmt=self.pooling_output, name='kl_loss')(q_embed)
         
-        self.model = Model(x, [y, kl_loss])
+        self.model = Model(x, [pt, kl_loss])
         self.model.summary()
 
 
@@ -163,10 +155,10 @@ class SeqQEmbed(HypModel):
     def compile(self, **kwargs):
 
         kl_loss=(lambda y_true, y_pred: y_pred)
-        self.model.compile(loss=['categorical_crossentropy', kl_loss],
+        self.model.compile(loss=[self.loss, kl_loss],
                            loss_weights = [1, self.kl_weight],
-                           metrics={'pclass_x': 'accuracy'},
-                           weighted_metrics={'pclass_x': 'accuracy'}, **kwargs)
+                           metrics={'pt_x': 'accuracy'},
+                           weighted_metrics={'pt_x': 'accuracy'}, **kwargs)
 
         
         
@@ -228,7 +220,7 @@ class SeqQEmbed(HypModel):
             l_out = k_out - j_out
 
             x_i[0,:l_in] = x[j_in:k_in]
-            p1_i, p2_i = self.prepool_net.predict(x_i, batch_size=1, **kwargs)
+            p1_i, p2_i = self.qy_net.predict(x_i, batch_size=1, **kwargs)
             p1[j_out:k_out] = p1_i[0,:l_out]
             p2[j_out:k_out] = p2_i[0,:l_out]
             
@@ -248,13 +240,13 @@ class SeqQEmbed(HypModel):
         p1_frame_embed = Input(shape=(None, self.embed_dim,))
         p2_frame_embed = Input(shape=(None, self.embed_dim,))
         mask = Input(shape=(None,))
-        q_embed = GlobalDiagNormalPostStdPriorPooling1D(
+        q_embed = GlobalNormalDiagCovPostStdPriorPooling1D(
             in_fmt=self.pooling_input,
             out_fmt=self.pooling_output,
             min_var=self.min_var, name='pooling')(
                 [p1_frame_embed, p2_frame_embed, mask])
 
-        score = self.score_net(q_embed)
+        score = self.pt_net(q_embed)
         self.pool_net = Model([p1_frame_embed, p2_frame_embed, mask], score)
         self.pool_net.summary()
 
@@ -276,7 +268,7 @@ class SeqQEmbed(HypModel):
 
         
     def get_config(self):
-        config = { 'num_classes': self.num_classes,
+        config = { 'loss': self.loss,
                    'post_pdf': self.post_pdf,
                    'pooling_input' : self.pooling_input,
                    'pooling_output': self.pooling_output,
@@ -288,7 +280,7 @@ class SeqQEmbed(HypModel):
                    'begin_context': self.begin_context,
                    'end_context': self.end_context}
 
-        base_config = super(SeqQEmbed, self).get_config()
+        base_config = super(TiedDVAE_QY, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
 
@@ -298,10 +290,10 @@ class SeqQEmbed(HypModel):
         with open(file_model, 'w') as f:
             f.write(self.to_json())
         
-        file_model = '%s.net1.h5' % (file_path)
-        self.prepool_net.save(file_model)
-        file_model = '%s.score.h5' % (file_path)
-        self.score_net.save(file_model)
+        file_model = '%s.qy.h5' % (file_path)
+        self.qy_net.save(file_model)
+        file_model = '%s.pt.h5' % (file_path)
+        self.pt_net.save(file_model)
 
         
 
@@ -309,19 +301,19 @@ class SeqQEmbed(HypModel):
     def load(cls, file_path):
         file_config = '%s.json' % (file_path)
         with open(file_config,'r') as f:
-            config=SeqQEmbed.load_config_from_json(f.read())
+            config=TiedDVAE_QY.load_config_from_json(f.read())
 
-        file_model = '%s.net1.h5' % (file_path)
-        prepool_net = load_model(file_model, custom_objects=get_keras_custom_obj())
-        file_model = '%s.score.h5' % (file_path)
-        score_net = load_model(file_model, custom_objects=get_keras_custom_obj())
+        file_model = '%s.qy.h5' % (file_path)
+        qy_net = load_model(file_model, custom_objects=get_keras_custom_obj())
+        file_model = '%s.pt.h5' % (file_path)
+        pt_net = load_model(file_model, custom_objects=get_keras_custom_obj())
 
         filter_args = ('post_pdf', 'pooling_input', 'pooling_output',
                        'left_context', 'right_context',
                        'begin_context', 'end_context',
                        'min_var', 'kl_weight', 'frame_corr_penalty', 'name')
         kwargs = {k: config[k] for k in filter_args if k in config }
-        return cls(prepool_net, config['num_classes'], score_net, **kwargs)
+        return cls(qy_net, config['num_classes'], pt_net, **kwargs)
 
     
     
@@ -361,7 +353,7 @@ class SeqQEmbed(HypModel):
                                      'mean+logvar', 'mean+logprec',
                                      'mean+var', 'mean+prec', 'mean+prec-1'])
         parser.add_argument(p1+'pooling-output', dest=p2+'pooling_output',
-                            default='nat+prec',
+                            default='mean+var',
                             choices=['nat+logar', 'nat+logprec',
                                      'nat+var', 'nat+prec',
                                      'mean+logar', 'mean+logprec',
