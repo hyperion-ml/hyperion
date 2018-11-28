@@ -12,6 +12,7 @@ import sys
 import os
 import argparse
 import time
+import logging
 
 import numpy as np
 import matplotlib
@@ -21,6 +22,7 @@ from mpl_toolkits.mplot3d import Axes3D as plt3d
 
 from sklearn.manifold import TSNE
 
+from hyperion.hyp_defs import config_logger
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.helpers import VectorClassReader as VCR
 from hyperion.transforms import TransformList, PCA
@@ -142,7 +144,7 @@ def plot_vector_tsne(iv_file, v_list, preproc_file,
     #     plt.savefig(fig_file)
     #     plt.clf()
 
-    print('Elapsed time: %.2f s.' % (time.time()-t1))
+    logging.info('Elapsed time: %.2f s.' % (time.time()-t1))
 
     
     
@@ -170,11 +172,13 @@ if __name__ == "__main__":
     parser.add_argument('--init-method', dest='init_method', default='pca',
                         choices=['random', 'pca'])
     parser.add_argument('--rng-seed', dest='rng_seed', type=int, default=1024)
-    parser.add_argument('--verbose', dest='verbose', type=int, default=1)
     parser.add_argument('--pca-dim', dest='pca_dim', type=int, default=50)
     parser.add_argument('--max-classes', dest='max_classes', type=int, default=10)
+    parser.add_argument('-v', '--verbose', dest='verbose', default=1, choices=[0, 1, 2, 3], type=int)
     
     args=parser.parse_args()
+    config_logger(args.verbose)
+    logging.debug(args)
     
     plot_vector_tsne(**vars(args))
 

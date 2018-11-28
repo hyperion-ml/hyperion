@@ -10,6 +10,8 @@ import sys
 import os
 import argparse
 import time
+import logging
+
 import numpy as np
 
 
@@ -64,8 +66,8 @@ def arkvad2nist(input_file, input_dir, output_dir):
 
     while not(ark_r.eof()):
         X, keys = ark_r.read(num_records=1)
-        print(X)
-        print(keys)
+        #print(X)
+        #print(keys)
         file_vad = output_dir + '/' + keys[0] + '.txt'
         write_opensat(file_vad, keys[0], X[0])
 
@@ -80,8 +82,11 @@ if __name__ == "__main__":
     parser.add_argument('--input-file',dest='input_file', required=True)
     parser.add_argument('--input-dir', dest='input_dir', default=None)
     parser.add_argument('--output-dir', dest='output_dir', required=True)
+    parser.add_argument('-v', '--verbose', dest='verbose', default=1, choices=[0, 1, 2, 3], type=int)
 
     args=parser.parse_args()
+    config_logger(args.verbose)
+    del args.verbose
 
     arkvad2nist(**vars(args))
     

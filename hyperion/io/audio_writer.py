@@ -1,0 +1,115 @@
+"""
+Class to write audio files
+"""
+
+from __future__ import absolute_import
+from __future__ import print_function
+from __future__ import division
+from six.moves import xrange
+from six import string_types
+
+import os
+import soundfile as sf
+
+import numpy as np
+
+from ..hyp_defs import float_cpu
+from ..utils.scp_list import SCPList
+from ..utils.kaldi_io_funcs import is_token
+from .audio_reader import valid_ext
+
+subtype_to_npdtype = {'PCM_32': 'int32', 'ALAW': 'int16',
+                      'IMA_ADPCM': 'int16', 'FLOAT': 'float32',
+                      'PCM_16': 'int16', 'DOUBLE': 'float64',
+                      'MS_ADPCM': 'int16', 'ULAW': 'int16',
+                      'PCM_U8': 'uint8', 'PCM_S8': 'int8', 'VORBIS': 'float32', 
+                      'GSM610': 'int16', 'G721_32': 'int16', 'PCM_24': 'int24'}
+
+class AudioWriter(object):
+    """Abstract base class to write Ark or hdf5 feature files.
+    
+    Attributes:
+      output_path: output data file path.
+      script_path: optional output scp file.
+      audio_format:   audio file format 
+      scp_sep: Separator for scp files (default ' ').
+    """
+
+    def __init__(self, output_path, script_path=None,
+                 audio_format='wav', subtype=None, scp_sep=' '):
+        self.output_path = output_path
+        self.script_path = script_path
+        self.audio_format = audio_format
+        self.scp_sep = scp_sep
+
+        assert '.' + self.audio_format in valid_ext
+        if subtype is None:
+            self.subtype = sf.default_subtype(self.audio_format)
+        else:
+            self.subtype = subtype
+            assert sf.check_format(self.audio_format, self.subtype)
+
+        if not os.path.exists(output_path):
+            os.makedirs(output_path)
+
+
+        if script_path is not None:
+            self.f_script = open(script_path, 'w')
+        else:
+            self.f_script = None
+
+        
+    def __enter__(self):
+        """Function required when entering contructions of type
+           
+           with AudioWriter('./path') as f:
+              f.write(key, data)
+        """
+        return self
+
+
+    
+    def __exit__(self, exc_type, exc_value, traceback):
+        """Function required when exiting from contructions of type
+           
+           with AudioWriter('./path') as f:
+              f.write(key, data)
+        """
+        self.close()
+
+
+    
+    def close(self):
+        """Closes the script file if open"""
+        if self.f_script is not None:
+            self.f_script.close()
+
+    
+    def write(self, keys, data, fs):
+        """Writes waveform to audio file.
+        
+        Args:
+          key: List of recodings names.
+          data: List of waveforms
+          fs: 
+        """
+        if isinstance(keys, string_types):
+            keys = [keys]
+            data = [data]
+
+        fs_is_list = (isinstance(fs, list) or
+                      isinstance(fs, np.ndarray))
+
+        assert self.subtype in subtype_to_npdtype
+        dtype = subtype_to_npdtype[self.subtype]
+        for i, key_i in enumerate(keys):
+            assert is_token(key_i), 'Token %s not valid' % key_i
+            output_file = '%s/%s.%s' % (self.output_path, key_i, self.audio_format)
+            fs_i = fs[i] if fs_is_list else fs
+            data_i = data[i].astype(dtype)
+            sf.write(output_file, data_i, fs_i, subtype=self.subtype)
+            
+            if self.f_script is not None:
+                self.f_script.write('%s%s%s\n' % (
+                    key_i, self.scp_sep, output_file))
+                self.f_script.flush()

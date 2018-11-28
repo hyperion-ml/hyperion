@@ -3,6 +3,7 @@ from __future__ import print_function
 from __future__ import division
 from six.moves import xrange
 
+import logging
 import numpy as np
 
 from  sklearn.linear_model import LogisticRegression as LR
@@ -76,7 +77,7 @@ class LogisticRegression(HypModel):
         self.use_bias = use_bias
         self.bias_scaling = bias_scaling
         self.balance_class_weight = balance_class_weight
-        print(class_weight)
+        logging.debug(class_weight)
         self.lr = LR(penalty=penalty, C=C,
                      dual=dual, tol=tol,
                      fit_intercept=use_bias, intercept_scaling=bias_scaling,

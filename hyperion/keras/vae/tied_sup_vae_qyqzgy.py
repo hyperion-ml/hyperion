@@ -9,6 +9,7 @@ from __future__ import division
 from six.moves import xrange
 
 import os
+import logging
 
 import numpy as np
 
@@ -198,19 +199,19 @@ class TiedSupVAE_QYQZgY(HypModel):
         kl_qy = KLDivNormalVsStdNormal(in_fmt=self.qy_pool_out_fmt, name='kl_qy')(qy)
         kl_qz = KLDivNormalVsStdNormal(in_fmt='mean+logvar', name='kl_qz',
                                        time_norm=False)(qz)
-        print(K.ndim(kl_qz))
-        print(K.int_shape(px))
+        logging.debug(K.ndim(kl_qz))
+        logging.debug(K.int_shape(px))
 
-        print(K.int_shape(kl_qy))
-        print(K.int_shape(kl_qz))
+        logging.debug(K.int_shape(kl_qy))
+        logging.debug(K.int_shape(kl_qz))
         if self.pt_net is None:
             self.model = Model(x, [px, kl_qy, kl_qz])
         else:
             y = NormalDiagCovSampler(in_fmt=self.qy_pool_out_fmt, name='qy_sampling_2')(qy)
             pt = self.pt_net(y)
             self.model = Model(x, [px, pt, kl_qy, kl_qz])
-        print(K.int_shape(self.model.outputs[-1]))
-        print(K.int_shape(pt))
+        logging.debug(K.int_shape(self.model.outputs[-1]))
+        logging.debug(K.int_shape(pt))
         self.model.summary()
 
 

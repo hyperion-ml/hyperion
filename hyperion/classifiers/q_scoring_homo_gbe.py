@@ -4,6 +4,7 @@ from __future__ import division
 from six.moves import xrange
 from six import string_types
 
+import logging
 import numpy as np
 from scipy.special import gammaln
 
@@ -66,12 +67,12 @@ class QScoringHomoGBE(HypModel):
             
     def _change_post_N(self):
         if self.post_N is not None:
-            print(self.N)
-            print(self.W)
+            logging.debug(self.N)
+            logging.debug(self.W)
             self.W = 1 + self.post_N/np.mean(self.N)*(self.W-1)
             self.N = self.post_N*np.ones((self.num_classes,), dtype=float_cpu())
-            print(self.N)
-            print(self.W)
+            logging.debug(self.N)
+            logging.debug(self.W)
 
     
 

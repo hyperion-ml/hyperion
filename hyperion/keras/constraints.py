@@ -4,6 +4,7 @@ from __future__ import print_function
 from __future__ import division
 from six.moves import xrange
 
+import logging
 import numpy as np
 
 from keras import backend as K
@@ -38,7 +39,7 @@ class Triu(Constraint):
                 diag = diag_val*np.eye(dim, dtype=float_keras())
                 self.diag = K.variable(diag, dtype=float_keras())
         self.mask = K.variable(mask, dtype=float_keras())
-        #print('triu', self.diag, diag_val)
+        #logging.debug('triu', self.diag, diag_val)
         
     def __call__(self, p):
         p = self.mask*p

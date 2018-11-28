@@ -12,11 +12,11 @@ import sys
 import os
 import argparse
 import time
+import logging
 
 import numpy as np
 
-from hyperion.io import HypDataReader
-from hyperion.utils.scp_list import SCPList
+from hyperion.hyp_defs import config_logger
 from hyperion.helpers import VectorClassReader as VCR
 from hyperion.helpers import PLDAFactory as F
 from hyperion.transforms import TransformList
@@ -66,7 +66,7 @@ def train_plda(iv_file, train_list, val_list, preproc_file,
     elbos = model.fit(x, class_ids, x_val=x_val, class_ids_val=class_ids_val,
                       epochs=epochs, ml_md=ml_md, md_epochs=md_epochs)
 
-    print('Elapsed time: %.2f s.' % (time.time()-t1))
+    logging.info('Elapsed time: %.2f s.' % (time.time()-t1))
     
     model.save(output_path)
 
@@ -93,8 +93,12 @@ if __name__ == "__main__":
     F.add_argparse_train_args(parser)
 
     parser.add_argument('--output-path', dest='output_path', required=True)
+    parser.add_argument('-v', '--verbose', dest='verbose', default=1, choices=[0, 1, 2, 3], type=int)
     
     args=parser.parse_args()
+    config_logger(args.verbose)
+    del args.verbose
+    logging.debug(args)
     
     train_plda(**vars(args))
 

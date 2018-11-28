@@ -10,9 +10,11 @@ import sys
 import os
 import argparse
 import time
+import logging
+
 import numpy as np
 
-
+from hyperion.hyp_defs import config_logger
 from hyperion.io import HypDataReader
 
 def bin2intervals(vad):
@@ -65,7 +67,6 @@ def h5vad2nist(input_file, output_dir):
     
     for key in keys:
         X = r.read([key])
-        print(X[0].shape)
         file_vad = output_dir + '/' + key + '.txt'
         write_opensat(file_vad, key, X[0])
 
@@ -79,8 +80,12 @@ if __name__ == "__main__":
 
     parser.add_argument('--input-file',dest='input_file', required=True)
     parser.add_argument('--output-dir', dest='output_dir', required=True)
-
+    parser.add_argument('-v', '--verbose', dest='verbose', default=1, choices=[0, 1, 2, 3], type=int)
+    
     args=parser.parse_args()
-
+    config_logger(args.verbose)
+    del args.verbose
+    logging.debug(args)
+    
     h5vad2nist(**vars(args))
     

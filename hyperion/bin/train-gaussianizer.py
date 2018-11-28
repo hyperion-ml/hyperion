@@ -12,15 +12,15 @@ import sys
 import os
 import argparse
 import time
+import logging
 
 import numpy as np
 
-from hyperion.io import HypDataReader
+from hyperion.hyp_defs import config_logger
 from hyperion.helpers import VectorReader as VR
 from hyperion.pdfs.core import Normal
 from hyperion.transforms import TransformList, Gaussianizer
 from hyperion.utils.scp_list import SCPList
-
 
 
 def load_model(input_path, **kwargs):
@@ -57,16 +57,6 @@ def train_gauss(iv_file, train_list, preproc_file,
     
     model.fit(x)
 
-    # print('Elapsed time: %.2f s.' % (time.time()-t1))
-
-    # t1 = time.time()
-    # y = model.predict(x[:3])
-    # print('Elapsed time: %.2f s.' % (time.time()-t1))
-    # y2 = model.predict2(x[:3])
-
-    # print('Elapsed time: %.2f s.' % (time.time()-t1))
-
-    
     if save_tlist:
         if append_tlist and preproc is not None:
             preproc.append(model)
@@ -121,10 +111,13 @@ if __name__ == "__main__":
                         default=True, action='store_false')
     parser.add_argument('--no-append-tlist', dest='append_tlist', 
                         default=True, action='store_false')
-
+    parser.add_argument('-v', '--verbose', dest='verbose', default=1, choices=[0, 1, 2, 3], type=int)
     
     args=parser.parse_args()
-    
+    config_logger(args.verbose)
+    del args.verbose
+    logging.debug(args)
+        
     train_gauss(**vars(args))
 
             

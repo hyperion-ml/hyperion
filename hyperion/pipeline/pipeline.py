@@ -7,6 +7,7 @@ from __future__ import print_function
 from __future__ import division
 from six.moves import xrange
 
+import logging
 import numpy as np
 import h5py
 
@@ -63,7 +64,7 @@ class Pipeline(HypModel):
         transforms = []
         for i in xrange(len(config_ts)):
             config_t = config_ts[str(i)]
-            print(i, config_t)
+            logging.debug(config_t)
             class_t = globals()[config_t['class_name']]
             t = class_t.load_params(f, config_t)
             transforms.append(t)

@@ -12,17 +12,15 @@ import sys
 import os
 import argparse
 import time
+import logging
 
 import numpy as np
-import scipy.stats as scps
-
-import gc
 
 from keras import backend as K
 from keras.layers import Input
 from keras.models import Model
 
-from hyperion.hyp_defs import set_float_cpu, float_cpu
+from hyperion.hyp_defs import set_float_cpu, float_cpu, config_logger
 from hyperion.io import HypDataWriter
 from hyperion.helpers import SequenceReader as SR
 from hyperion.transforms import TransformList
@@ -61,9 +59,6 @@ def extract_ivector(seq_file, file_list, gmm_file, model_file, preproc_file, out
     #model.build(max_seq_length=sr.max_batch_seq_length)
     model.build(max_seq_length=1)
             
-    print(time.time()-t1)
-    print(model.y_dim)
-    
     max_length = np.minimum(sr.max_batch_seq_length, max_length)
     
     y = np.zeros((sr.num_seqs, model.y_dim), dtype=float_keras())
@@ -82,7 +77,7 @@ def extract_ivector(seq_file, file_list, gmm_file, model_file, preproc_file, out
         ti2 = time.time()
         r = gmm.compute_z(x)
         ti3 = time.time()
-        print('Extracting i-vector %d/%d for %s, num_frames: %d' % (i, sr.num_seqs, key, x.shape[0]))
+        logging.info('Extracting i-vector %d/%d for %s, num_frames: %d' % (i, sr.num_seqs, key, x.shape[0]))
         keys.append(key)
         xx[:,:,:] = 0
         rr[:,:,:] = 0
@@ -104,11 +99,11 @@ def extract_ivector(seq_file, file_list, gmm_file, model_file, preproc_file, out
             y[i] /= num_batches
                 
         ti4 = time.time()
-        print('Elapsed time i-vector %d/%d for %s, total: %.2f read: %.2f, gmm: %.2f, vae: %.2f' %
-              (i, sr.num_seqs, key, ti4-ti1, ti2-ti1, ti3-ti2, ti4-ti3))
+        logging.info('Elapsed time i-vector %d/%d for %s, total: %.2f read: %.2f, gmm: %.2f, vae: %.2f' %
+                     (i, sr.num_seqs, key, ti4-ti1, ti2-ti1, ti3-ti2, ti4-ti3))
 
         
-    print('Extract elapsed time: %.2f' % (time.time() - t1))
+    logging.info('Extract elapsed time: %.2f' % (time.time() - t1))
     
     hw = HypDataWriter(output_path)
     hw.write(keys, '', y)
@@ -141,7 +136,13 @@ if __name__ == "__main__":
     parser.add_argument('--rng-seed', dest='rng_seed', default=1024, type=int,
                         help=('Seed for the random number generator '
                               '(default: %(default)s)'))
-
+    parser.add_argument('-v', '--verbose', dest='verbose', default=1, choices=[0, 1, 2, 3], type=int)
+    
+    args=parser.parse_args()
+    config_logger(args.verbose)
+    del args.verbose
+    logging.debug(args)
+    
     args=parser.parse_args()
     
     extract_ivector(**vars(args))

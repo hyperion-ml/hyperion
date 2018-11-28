@@ -12,13 +12,13 @@ import sys
 import os
 import argparse
 import time
+import logging
 
 import numpy as np
-import scipy.stats as scps
 
 from keras import backend as K
 
-from hyperion.hyp_defs import set_float_cpu, float_cpu
+from hyperion.hyp_defs import set_float_cpu, float_cpu, config_logger
 from hyperion.utils.multithreading import threadsafe_generator
 from hyperion.helpers.sequence_post_reader import SequencePostReader as SR
 from hyperion.transforms import TransformList
@@ -110,7 +110,7 @@ def train_tvae(seq_file, train_list, val_list, post_file,
         
     vae.build(num_samples_y=num_samples_y, num_samples_z=num_samples_z,
               max_seq_length = max_length)
-    print(time.time()-t1)
+    logging.info(time.time()-t1)
     
     cb = KCF.create_callbacks(vae, output_path, **cb_args)
     opt = KOF.create_optimizer(**opt_args)
@@ -123,9 +123,9 @@ def train_tvae(seq_file, train_list, val_list, post_file,
 
     # if vae.x_chol is not None:
     #     x_chol = np.array(K.eval(vae.x_chol))
-    #     print(x_chol[:4,:4])
+    #     logging.info(x_chol[:4,:4])
     
-    print('Train elapsed time: %.2f' % (time.time() - t1))
+    logging.info('Train elapsed time: %.2f' % (time.time() - t1))
     
     vae.save(output_path + '/model')
     sr_val.reset()
@@ -144,7 +144,7 @@ def train_tvae(seq_file, train_list, val_list, post_file,
     l,v = la.eigh(cy)
     np.savetxt(output_path + '/l2.txt', l)
 
-    print(y_val-y_val2)
+    logging.info(y_val-y_val2)
     
 
 
@@ -191,9 +191,13 @@ if __name__ == "__main__":
     parser.add_argument('--qz-form', dest='qz_form', default='diag_normal')
     
     parser.add_argument('--min-kl', dest='min_kl', default=0.2, type=float)
+    parser.add_argument('-v', '--verbose', dest='verbose', default=1, choices=[0, 1, 2, 3], type=int)
     
     args=parser.parse_args()
-    
+    config_logger(args.verbose)
+    del args.verbose
+    logging.debug(args)
+        
     train_tvae(**vars(args))
 
             

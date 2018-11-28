@@ -7,6 +7,8 @@ from __future__ import print_function
 from __future__ import division
 from six.moves import xrange
 
+import logging
+
 import numpy as np
 
 from keras import backend as K
@@ -238,12 +240,12 @@ class SeqEmbed(HypModel):
             j_out += pool_shift
             if i==0:
                 j_out += pool_left_context
-        print(pool_seq_length)
-        print(pool_left_context)
-        print(pool_right_context)
-        print(pool_begin_context)
-        print(pool_end_context)
-        print('debug embed2 %d %d %d' % (pool_length, j_out-pool_shift, j_out-pool_shift+l_out))
+        logging.debug(pool_seq_length)
+        logging.debug(pool_left_context)
+        logging.debug(pool_right_context)
+        logging.debug(pool_begin_context)
+        logging.debug(pool_end_context)
+        logging.debug('embed2 %d %d %d' % (pool_length, j_out-pool_shift, j_out-pool_shift+l_out))
         y = np.expand_dims(y, axis=0)
         embeds = self.pool_net.predict([y, mask], batch_size=1, **kwargs)
         return np.hstack(tuple(embeds))

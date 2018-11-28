@@ -11,9 +11,11 @@ import sys
 import os
 import argparse
 import time
+import logging
 
 import numpy as np
 
+from hyperion.hyp_defs import config_logger
 from hyperion.utils.trial_scores import TrialScores
 from hyperion.utils.trial_key import TrialKey
 from hyperion.perf_eval import compute_eer
@@ -46,7 +48,11 @@ if __name__ == "__main__":
     parser.add_argument('--score-file', dest='score_file', required=True)
     parser.add_argument('--key-file', dest='key_file', required=True)
     parser.add_argument('--output-path', dest='output_path', required=True)
+    parser.add_argument('-v', '--verbose', dest='verbose', default=1, choices=[0, 1, 2, 3], type=int)
 
     args = parser.parse_args()
-
+    config_logger(args.verbose)
+    del args.verbose
+    logging.debug(args)
+    
     eval_2class_performance(**vars(args))

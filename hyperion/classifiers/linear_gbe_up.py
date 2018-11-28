@@ -4,6 +4,7 @@ from __future__ import division
 from six.moves import xrange
 from six import string_types
 
+import logging
 import numpy as np
 from scipy.special import gammaln
 
@@ -86,12 +87,12 @@ class LinearGBEUP(LinearGBE):
         delta2_div_c = r*delta2_0/self.nu
 
         D = -0.5*(c+self.x_dim)*np.log(1+delta2_div_c)
-        print(self.nu)
-        print(c)
-        print(self.x_dim)
-        print(logg)
-        print(logL_div_2.shape)
-        print(D.shape)
+        logging.debug(self.nu)
+        logging.debug(c)
+        logging.debug(self.x_dim)
+        logging.debug(logg)
+        logging.debug(logL_div_2.shape)
+        logging.debug(D.shape)
         
         logp = logg + logL_div_2 + D
         return logp

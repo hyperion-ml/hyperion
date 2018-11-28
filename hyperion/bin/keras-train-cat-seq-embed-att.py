@@ -12,17 +12,16 @@ import sys
 import os
 import argparse
 import time
+import logging
 
 import numpy as np
-import scipy.stats as scps
 
 from keras import backend as K
 
-from hyperion.hyp_defs import set_float_cpu, float_cpu
+from hyperion.hyp_defs import set_float_cpu, float_cpu, config_logger
 from hyperion.utils.multithreading import threadsafe_generator
 from hyperion.helpers import SequenceClassReader as SR
 from hyperion.transforms import TransformList
-from hyperion.pdfs import DiagGMM
 from hyperion.keras.keras_utils import *
 from hyperion.keras.helpers import OptimizerFactory as KOF
 from hyperion.keras.helpers import CallbacksFactory as KCF
@@ -96,12 +95,12 @@ def train_embed(seq_file, train_list, val_list,
         model = SeqEmbed(embed_net1, embed_net2, att_net,
                          pooling=pooling, loss='categorical_crossentropy')
     else:
-        print('loading init model: %s' % init_path)
+        logging.info('loading init model: %s' % init_path)
         model = SeqEmbed.load(init_path)
 
-    print('max length: %d' % max_length)
+    logging.info('max length: %d' % max_length)
     model.build(max_length)
-    print(time.time()-t1)
+    logging.info(time.time()-t1)
     
     cb = KCF.create_callbacks(model, output_path, **cb_args)
     opt = KOF.create_optimizer(**opt_args)
@@ -112,7 +111,7 @@ def train_embed(seq_file, train_list, val_list,
                             validation_steps=sr_val.num_batches,
                             epochs=epochs, callbacks=cb, max_queue_size=10)
                           
-    print('Train elapsed time: %.2f' % (time.time() - t1))
+    logging.info('Train elapsed time: %.2f' % (time.time() - t1))
     
     model.save(output_path + '/model')
 
@@ -148,9 +147,13 @@ if __name__ == "__main__":
     KCF.add_argparse_args(parser)
     
     parser.add_argument('--epochs', dest='epochs', default=1000, type=int)
+    parser.add_argument('-v', '--verbose', dest='verbose', default=1, choices=[0, 1, 2, 3], type=int)
     
     args=parser.parse_args()
-    
+    config_logger(args.verbose)
+    del args.verbose
+    logging.debug(args)
+        
     train_embed(**vars(args))
 
             

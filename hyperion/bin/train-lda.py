@@ -12,29 +12,14 @@ import sys
 import os
 import argparse
 import time
+import logging
 
 import numpy as np
 
-from hyperion.io import HypDataReader
+from hyperion.hyp_defs import config_logger
 from hyperion.helpers import VectorClassReader as VCR
 from hyperion.transforms import TransformList, LDA, SbSw
 from hyperion.utils.scp_list import SCPList
-
-
-
-def load_data(iv_file, train_file, preproc):
-
-    train_utt2spk= SCPList.load(train_file, sep='=')
-    
-    hr = HypDataReader(iv_file)
-    x = hr.read(train_utt2spk.file_path, '.ivec', return_tensor=True)
-    if preproc is not None:
-        x = preproc.predict(x)
-
-    _, _, class_ids=np.unique(train_utt2spk.key,
-                              return_index=True, return_inverse=True)
-
-    return x, class_ids
 
 
 def train_lda(iv_file, train_list, preproc_file,
@@ -58,7 +43,6 @@ def train_lda(iv_file, train_list, preproc_file,
                csplit_mode=csplit_mode,
                csplit_overlap=csplit_overlap, vcr_seed=vcr_seed)
     x, class_ids = vcr.read()
-    # x, class_ids = load_data(iv_file, train_list, preproc)
 
     t1 = time.time()
 
@@ -68,14 +52,14 @@ def train_lda(iv_file, train_list, preproc_file,
     model = LDA(name=name)
     model.fit(mu=s_mat.mu, Sb=s_mat.Sb, Sw=s_mat.Sw, lda_dim=lda_dim)
 
-    print('Elapsed time: %.2f s.' % (time.time()-t1))
+    logging.info('Elapsed time: %.2f s.' % (time.time()-t1))
     
     x = model.predict(x)
 
     s_mat = SbSw()
     s_mat.fit(x, class_ids)
-    print(s_mat.Sb[:4,:4])
-    print(s_mat.Sw[:4,:4])
+    logging.debug(s_mat.Sb[:4,:4])
+    logging.debug(s_mat.Sw[:4,:4])
     
     if save_tlist:
         if append_tlist and preproc is not None:
@@ -109,9 +93,11 @@ if __name__ == "__main__":
     parser.add_argument('--no-append-tlist', dest='append_tlist', 
                         default=True, action='store_false')
     parser.add_argument('--name', dest='name', default='lda')
-    
     args=parser.parse_args()
-    
+    config_logger(args.verbose)
+    del args.verbose
+    logging.debug(args)
+
     train_lda(**vars(args))
 
             

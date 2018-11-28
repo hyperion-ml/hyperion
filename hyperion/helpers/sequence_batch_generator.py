@@ -10,6 +10,7 @@ import sys
 import os
 import argparse
 import time
+import logging
 import copy
 
 import numpy as np
@@ -215,7 +216,7 @@ class SequenceBatchGenerator(object):
             self.iters_per_epoch = np.ceil(avg_total_length/avg_seq_length)
         else:
             self.iters_per_epoch = 1
-        print('num iters per epoch: %d' % self.iters_per_epoch)
+        logging.debug('num iters per epoch: %d' % self.iters_per_epoch)
 
 
         
@@ -257,7 +258,7 @@ class SequenceBatchGenerator(object):
         if self.reset_rng:
             self.rng = np.random.RandomState(seed=self.seed)
         else:
-            print('\nreset rng %d' % (self.seed+self.cur_epoch))
+            logging.debug('\nreset rng %d' % (self.seed+self.cur_epoch))
             self.rng = np.random.RandomState(seed=self.seed+self.cur_epoch)
 
 

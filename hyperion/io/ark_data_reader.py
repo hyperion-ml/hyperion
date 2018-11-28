@@ -342,7 +342,7 @@ class SequentialArkScriptDataReader(SequentialArkDataReader):
             shape_i = self._apply_range_to_shape(
                 shape_i, row_offset_i, num_rows_i)
             
-            key = keys.append(key)
+            keys.append(key)
             shapes.append(shape_i)
             self.cur_item += 1
 
@@ -404,7 +404,7 @@ class SequentialArkScriptDataReader(SequentialArkDataReader):
             if self.transform is not None:
                 data_i = self.transform.predict(data_i)
 
-            key = keys.append(key)
+            keys.append(key)
             data.append(data_i)
             self.cur_item += 1
 

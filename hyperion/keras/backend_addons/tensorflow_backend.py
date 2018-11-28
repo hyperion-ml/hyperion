@@ -1,4 +1,5 @@
 import os
+import logging
 import subprocess
 import tensorflow as tf
 
@@ -29,5 +30,5 @@ def reserve_gpu():
     result = subprocess.run('free-gpu', stdout=subprocess.PIPE)
     os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
     os.environ['CUDA_VISIBLE_DEVICES'] = result.stdout.decode('utf-8')
-    print(os.environ['CUDA_VISIBLE_DEVICES'])
+    logging.debug(os.environ['CUDA_VISIBLE_DEVICES'])
     return K.get_session()

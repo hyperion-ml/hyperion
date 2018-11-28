@@ -11,10 +11,11 @@ import sys
 import os
 import argparse
 import time
+import logging
 
 import numpy as np
 
-from hyperion.hyp_defs import set_float_cpu, float_cpu
+from hyperion.hyp_defs import set_float_cpu, float_cpu, config_logger
 from hyperion.transforms import TransformList
 from hyperion.utils.scp_list import SCPList
 from hyperion.utils.trial_ndx import TrialNdx
@@ -32,7 +33,8 @@ def eval_pdda(iv_file, ndx_file, enroll_file, test_file,
               scp_sep, v_field, eval_set,
               model_file, score_file,
               pool_method, eval_method,
-              num_samples_y, num_samples_z, num_samples_elbo, qy_only, **kwargs):
+              num_samples_y, num_samples_z, num_samples_elbo, qy_only,
+              **kwargs):
 
     set_float_cpu('float32')
     
@@ -61,8 +63,8 @@ def eval_pdda(iv_file, ndx_file, enroll_file, test_file,
                                  num_samples=num_samples_elbo)
     dt = time.time() - t1
     num_trials = len(enroll) * x_t.shape[0]
-    print('Elapsed time: %.2f s. Elapsed time per trial: %.2f ms.' %
-          (dt, dt/num_trials*1000))
+    logging.info('Elapsed time: %.2f s. Elapsed time per trial: %.2f ms.' %
+                 (dt, dt/num_trials*1000))
 
     s = TrialScores(enroll, ndx.seg_set, scores)
     s.save(score_file)
@@ -102,11 +104,14 @@ if __name__ == "__main__":
     parser.add_argument('--nb-samples-elbo', dest='num_samples_elbo', default=1, type=int)
     parser.add_argument('--nb-samples-y', dest='num_samples_y', default=1, type=int)
     parser.add_argument('--nb-samples-z', dest='num_samples_z', default=1, type=int)
-    
-    
+parser.add_argument('-v', '--verbose', dest='verbose', default=1, choices=[0, 1, 2, 3], type=int)
+        
     args=parser.parse_args()
-
-    assert(args.test_file is not None or args.ndx_file is not None)
+    config_logger(args.verbose)
+    del args.verbose
+    logging.debug(args)
+    
+    assert args.test_file is not None or args.ndx_file is not None
     eval_pdda(**vars(args))
 
             

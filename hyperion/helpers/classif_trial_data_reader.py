@@ -8,6 +8,7 @@ from six.moves import xrange
 
 import sys
 import os
+import logging
 import argparse
 import time
 import copy
@@ -35,7 +36,7 @@ class ClassifTrialDataReader(object):
             seg_set = [line.rstrip().split()[0] for line in f]
 
         ndx = TrialNdx(model_set, seg_set)
-        print(num_seg_parts)
+        logging.debug(num_seg_parts)
         if num_seg_parts > 1:
             ndx = TrialNdx.split(1, 1, seg_idx, num_seg_parts)
 

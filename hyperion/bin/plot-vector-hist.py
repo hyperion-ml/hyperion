@@ -12,12 +12,14 @@ import sys
 import os
 import argparse
 import time
+import logging
 
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
+from hyperion.hyp_defs import config_logger
 from hyperion.io import HypDataReader
 from hyperion.helpers import VectorReader as VR
 from hyperion.transforms import TransformList
@@ -52,7 +54,7 @@ def plot_vector_hist(iv_file, v_list, preproc_file, output_path, num_bins, norme
         plt.clf()
         
 
-    print('Elapsed time: %.2f s.' % (time.time()-t1))
+    logging.info('Elapsed time: %.2f s.' % (time.time()-t1))
 
         
     
@@ -74,8 +76,12 @@ if __name__ == "__main__":
     parser.add_argument('--no-normed', dest='normed', default=True,
                         action='store_false')
     parser.add_argument('--num-bins', dest='num_bins', type=int, default=100)
-                    
+    parser.add_argument('-v', '--verbose', dest='verbose', default=1, choices=[0, 1, 2, 3], type=int)
+    
     args=parser.parse_args()
+    config_logger(args.verbose)
+    del args.verbose
+    logging.debug(args)
     
     plot_vector_hist(**vars(args))
 

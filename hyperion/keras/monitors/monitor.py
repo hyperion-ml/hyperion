@@ -22,10 +22,9 @@ except ImportError:
     import pickle as pickle
 
 class Monitor(Callback):
-    def __init__(self, file_path, verbose):
+    def __init__(self, file_path):
         super(Monitor, self).__init__()
         self.file_path = file_path
-        self.verbose = verbose
         self.init_epoch = 0
         self.t_start = 0
         self.rng = None
@@ -70,66 +69,4 @@ class Monitor(Callback):
         self.rng=rng
     
     
-
-
-# class DPTMonitor(Monitor):
-
-#     def __init__(self, file_path, n_layers, verbose=1):
-#         super(DPTMonitor, self).__init__(file_path,verbose)
-#         self.n_layers=n_layers
-
-#     def on_epoch_begin(self, epoch, logs={}):
-#         self.t_start=time.time()
-
-#     def on_epoch_end(self, epoch, logs={}):
-#         epoch+=self.init_epoch
-#         info_str=self.get_info_str(epoch,logs)
-#         if self.verbose>0:
-#             print(info_str)
-#             sys.stdout.flush()
-#         self.save_last(epoch,info_str)
-
-#     def get_info_str(self,epoch,logs):
-#         loss=logs.get('loss')
-#         acc=-1.0
-#         if 'acc' in logs:
-#             acc=logs.get('acc')
-#         elif 'masked_binary_accuracy' in logs:
-#             acc=logs.get('masked_binary_accuracy')
-
-#         if acc>-1.0:
-#             info=('layers: %02d epoch: %05d loss: %f acc: %f '
-#                   'elapsed_time: %.2f secs.') % (
-#                       self.n_layers,epoch,loss,acc,
-#                       time.time()-self.t_start)
-#         else:
-#             info=('layers: %02d epoch: %05d loss: %f '
-#                   'elapsed_time: %.2f secs.') % (
-#                       self.n_layers,epoch,loss,time.time()-self.t_start)
-#         return info
-
-#     def save_state(self,name,epoch):
-#         file_state='%s/nn_state.%s.pickle' % (self.file_path,name)
-#         rng_state=self.rng.get_state()
-#         iteration=0
-#         if hasattr(self.model.optimizer,'iteration'):
-#             iteration=K.get_value(self.model.optimizer.iteration)
-#             print('Save Iteration %d' % iteration)
-
-#         f=open(file_state,'wb')
-#         pickle.dump([epoch,rng_state,iteration],f)
-#         f.close()
-
-#     def load_state(self,name):
-#         file_state='%s/nn_state.%s.pickle' % (self.file_path,name)
-#         f=open(file_state,'rb')
-#         try:
-#             [epoch,rng_state,iteration]=pickle.load(f,encoding='latin1')
-#         except TypeError:
-#             [epoch,rng_state,iteration]=pickle.load(f)
-#         f.close()
-#         self.rng.set_state(rng_state)
-#         self.init_epoch=epoch+1
-#         self.iteration=iteration
-#         return 
 

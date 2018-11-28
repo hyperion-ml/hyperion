@@ -14,7 +14,6 @@ import argparse
 import time
 
 import numpy as np
-import scipy.stats as scps
 
 import gc
 
@@ -22,7 +21,7 @@ from keras import backend as K
 from keras.layers import Input
 from keras.models import Model
 
-from hyperion.hyp_defs import set_float_cpu, float_cpu
+from hyperion.hyp_defs import set_float_cpu, float_cpu, config_logger
 from hyperion.io import HypDataWriter
 from hyperion.helpers import SequenceReader as SR
 from hyperion.transforms import TransformList

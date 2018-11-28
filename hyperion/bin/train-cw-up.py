@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-Trains Centering and whitening
+Trains Centering and whitening with uncertainty prop.
 """
 from __future__ import absolute_import
 from __future__ import print_function
@@ -12,9 +12,11 @@ import sys
 import os
 import argparse
 import time
+import logging
 
 import numpy as np
 
+from hyperion.hyp_defs import config_logger
 from hyperion.io import HypDataReader
 from hyperion.helpers import VectorReader as VR
 from hyperion.pdfs.core import Normal
@@ -63,14 +65,14 @@ def train_cw(iv_file, train_list, preproc_file, with_lnorm,
     
     model.fit(x)
 
-    print('Elapsed time: %.2f s.' % (time.time()-t1))
+    logging.info('Elapsed time: %.2f s.' % (time.time()-t1))
     
     x = model.predict(x)
     x = x[:,:int(x.shape[-1]/2)]
     gauss=Normal(x_dim=x.shape[1])
     gauss.fit(x=x)
-    print(gauss.mu[:4])
-    print(gauss.Sigma[:4,:4])
+    logging.debug(gauss.mu[:4])
+    logging.debug(gauss.Sigma[:4,:4])
 
     if save_tlist:
         if append_tlist and preproc is not None:
@@ -106,9 +108,13 @@ if __name__ == "__main__":
                         default=True, action='store_false')
     parser.add_argument('--no-append-tlist', dest='append_tlist', 
                         default=True, action='store_false')
-
-    args=parser.parse_args()
+    parser.add_argument('-v', '--verbose', dest='verbose', default=1, choices=[0, 1, 2, 3], type=int)
     
+    args=parser.parse_args()
+    config_logger(args.verbose)
+    del args.verbose
+    logging.debug(args)
+        
     train_cw(**vars(args))
 
             

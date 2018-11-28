@@ -11,10 +11,11 @@ import sys
 import os
 import argparse
 import time
+import logging
 
 import numpy as np
 
-from hyperion.hyp_defs import set_float_cpu, float_cpu
+from hyperion.hyp_defs import set_float_cpu, float_cpu, config_logger
 from hyperion.utils.scp_list import SCPList
 from hyperion.utils.trial_ndx import TrialNdx
 from hyperion.utils.trial_scores import TrialScores
@@ -45,7 +46,7 @@ def eval_plda(iv_file, ndx_file, enroll_file, test_file,
     
     dt = time.time() - t1
     num_trials = x_e.shape[0] * x_t.shape[0]
-    print('Elapsed time: %.2f s. Elapsed time per trial: %.2f ms.'
+    logging.info('Elapsed time: %.2f s. Elapsed time per trial: %.2f ms.'
           % (dt, dt/num_trials*1000))
 
     s = TrialScores(enroll, ndx.seg_set, scores)
@@ -84,10 +85,14 @@ if __name__ == "__main__":
     TDR.add_argparse_args(parser)
     F.add_argparse_eval_args(parser)
     parser.add_argument('--score-file', dest='score_file', required=True)
-    
+    parser.add_argument('-v', '--verbose', dest='verbose', default=1, choices=[0, 1, 2, 3], type=int)
+        
     args=parser.parse_args()
-
-    assert(args.test_file is not None or args.ndx_file is not None)
+    config_logger(args.verbose)
+    del args.verbose
+    logging.debug(args)
+    
+    assert args.test_file is not None or args.ndx_file is not None
     eval_plda(**vars(args))
 
             

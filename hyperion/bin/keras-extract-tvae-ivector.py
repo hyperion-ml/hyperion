@@ -12,13 +12,13 @@ import sys
 import os
 import argparse
 import time
+import logging
 
 import numpy as np
-import scipy.stats as scps
 
 from keras import backend as K
 
-from hyperion.hyp_defs import set_float_cpu, float_cpu
+from hyperion.hyp_defs import set_float_cpu, float_cpu, config_logger
 from hyperion.io import HypDataWriter
 from hyperion.helpers import SequenceReader as SR
 from hyperion.transforms import TransformList
@@ -53,20 +53,20 @@ def extract_ivector(seq_file, file_list, model_file, preproc_file, output_path,
         
     model.build(max_seq_length=sr.max_batch_seq_length)
             
-    print(time.time()-t1)
-    print(model.y_dim)
+    logging.info(time.time()-t1)
+    logging.info(model.y_dim)
     y = np.zeros((sr.num_seqs, model.y_dim), dtype=float_keras())
     xx = np.zeros((1, sr.max_batch_seq_length, model.x_dim), dtype=float_keras())
     keys = []
     for i in xrange(sr.num_seqs):
         x, key = sr.read_next_seq()
-        print('Extracting i-vector %d/%d for %s\n' % (i, sr.num_seqs, key))
+        logging.info('Extracting i-vector %d/%d for %s\n' % (i, sr.num_seqs, key))
         keys.append(key)
         xx[:,:,:] = 0
         xx[0,:x.shape[0]] = x
         y[i] = model.compute_qy_x(xx, batch_size=1)[0]
             
-    print('Extract elapsed time: %.2f' % (time.time() - t1))
+    logging.info('Extract elapsed time: %.2f' % (time.time() - t1))
     
     hw = HypDataWriter(output_path)
     hw.write(keys, '', y)
@@ -97,8 +97,12 @@ if __name__ == "__main__":
     parser.add_argument('--rng-seed', dest='rng_seed', default=1024, type=int,
                         help=('Seed for the random number generator '
                               '(default: %(default)s)'))
-
+    parser.add_argument('-v', '--verbose', dest='verbose', default=1, choices=[0, 1, 2, 3], type=int)
+    
     args=parser.parse_args()
+    config_logger(args.verbose)
+    del args.verbose
+    logging.debug(args)
     
     extract_ivector(**vars(args))
 

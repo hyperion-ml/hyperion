@@ -25,6 +25,8 @@ conda install protobuf
 #update pip
 conda update pip
 
+pip install pysoundfile
+
 #this is needed by theano
 conda install pygpu
 

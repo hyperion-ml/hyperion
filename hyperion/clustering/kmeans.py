@@ -5,6 +5,7 @@ from __future__ import division
 from six.moves import xrange
 
 import sys
+import logging
 import numpy as np
 import h5py
 
@@ -23,14 +24,8 @@ class KMeans(HypModel):
 
     def fit(self, x, epochs=100):
         loss = np.zeros((epochs,), dtype=float_cpu())
-        print('holak1')
-        sys.stdout.flush()
         self.mu = self._choose_seeds(x)
-        print('holak2')
-        sys.stdout.flush()
         cluster_index, err2 = self.predict(x)
-        sys.stdout.flush()
-        print('holak3')
         for epoch in xrange(epochs):
             self.mu = self._compute_centroids(x, cluster_index)
             cluster_index, err2 = self.predict(x)
@@ -40,8 +35,6 @@ class KMeans(HypModel):
                 if delta < self.rtol:
                     loss = loss[:epoch+1]
                     break
-        print('holak4')
-        sys.stdout.flush()
 
         return loss, cluster_index
 

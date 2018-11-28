@@ -9,6 +9,7 @@ from six.moves import xrange
 from six import string_types
 
 import os.path as path
+import logging
 from collections import OrderedDict
 from copy import deepcopy
 
@@ -92,7 +93,7 @@ class TrainValEvalList(object):
                 self.mask = self.mask[idx]
         else:
             for i in (f==0).nonzero()[0]:
-                print('segment %s not found' % key[i])
+                logging.warning('segment %s not found' % key[i])
             if raise_missing:
                 raise Exception('some scores were not computed')
 

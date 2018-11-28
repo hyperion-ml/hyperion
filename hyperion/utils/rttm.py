@@ -8,6 +8,7 @@ from six.moves import xrange
 #from six import string_types
 
 #import os.path as path
+import logging
 from copy import deepcopy
 
 import numpy as np
@@ -313,17 +314,17 @@ class RTTM(object):
                  (segm.segment_type == segm_1.segment_type) &
                  (segm.name == segm_1.name) & (delta <= t_margin))
         # ix=self.segments['name'] == 'DH_0006_1'
-        # print(self.segments[ix])
-        # print(index[ix])
-        # print(segm[ix].tbeg)
-        # print(segm[ix].tbeg+segm[ix].tdur)
+        # logging.debug(self.segments[ix])
+        # logging.debug(index[ix])
+        # logging.debug(segm[ix].tbeg)
+        # logging.debug(segm[ix].tbeg+segm[ix].tdur)
         for i in xrange(len(self.segments)-1, 0, -1):
             if index.iloc[i]:
                 tbeg = segm.iloc[i-1].tbeg
                 tend = segm.iloc[i].tbeg + segm.iloc[i].tdur
                 self.segments.iloc[i-1, self.segments.columns.get_loc('tdur')] = tend - tbeg
                 self.segments.iloc[i, self.segments.columns.get_loc('segment_type')] = 'DROP'
-        #print(self.segments[ix])
+        #logging.debug(self.segments[ix])
         self.segments = self.segments[self.segments.segment_type != 'DROP']
 
         # for i in xrange(len(self.segments)-1, 0, -1):
@@ -444,16 +445,16 @@ class RTTM(object):
         index = ((segm.file_id == segm_1.file_id) &
                  (segm.segment_type == segm_1.segment_type) &
                  (tbeg < tend_1))
-        # print(index)
-        # print(self.segments.loc[index])
-        # print(self.segments.loc[index])
+        # logging.debug(index)
+        # logging.debug(self.segments.loc[index])
+        # logging.debug(self.segments.loc[index])
         self.segments.loc[index, 'tbeg'] = tavg[index]
-        # print(self.segments.loc[index])
+        # logging.debug(self.segments.loc[index])
         index_1 = index.shift(-1)
         index_1[index_1.isnull()] = False
-        # print(self.segments.loc[index_1])
+        # logging.debug(self.segments.loc[index_1])
         self.segments.loc[index_1, 'tdur'] = tavg[index] - tbeg[index_1]
-        # print(self.segments.loc[index_1])
+        # logging.debug(self.segments.loc[index_1])
         self.segments.loc[index, 'tdur'] = tend[index] - tavg[index]
 
 

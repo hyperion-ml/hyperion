@@ -7,6 +7,7 @@ from __future__ import division
 from six.moves import xrange
 
 import os.path as path
+import logging
 import copy
 
 import numpy as np
@@ -248,9 +249,9 @@ class TrialScores(object):
             score_mask = self.score_mask[ix]
         else:
             for i in (f_mod==0).nonzero()[0]:
-                print('model %s not found' % model_set[i])
+                logging.info('model %s not found' % model_set[i])
             for i in (f_seg==0).nonzero()[0]:
-                print('segment %s not found' % seg_set[i])
+                logging.info('segment %s not found' % seg_set[i])
             if raise_missing:
                 raise Exception('some scores were not computed')
 
@@ -337,8 +338,8 @@ class TrialScores(object):
         if missing:
             idx=(missing_trials == True).nonzero()
             for i,j in zip(idx[0], idx[1]):
-                print('missing-scores for %s %s' %
-                      (scr.model_set[i], scr.seg_set[j]))
+                logging.info('missing-scores for %s %s' %
+                             (scr.model_set[i], scr.seg_set[j]))
 
             if raise_missing:
                 raise Exception('some scores were not computed')

@@ -4,6 +4,8 @@ from __future__ import print_function
 from __future__ import division
 from six.moves import xrange
 
+import logging
+
 import keras.backend as K
 from keras.callbacks import Callback
 
@@ -51,7 +53,6 @@ class ReduceLROnPlateauIncreaseOnImprovement(Callback):
             be reduced. new_lr = lr * factor
         patience: number of epochs with no improvement
             after which learning rate will be reduced.
-        verbose: int. 0: quiet, 1: update messages.
         mode: one of {auto, min, max}. In `min` mode,
             lr will be reduced when the quantity
             monitored has stopped decreasing; in `max`
@@ -67,7 +68,7 @@ class ReduceLROnPlateauIncreaseOnImprovement(Callback):
     """
 
     def __init__(self, monitor='val_loss', red_factor=0.1, inc_factor=1.1, patience=10,
-                 verbose=0, mode='auto', min_delta=1e-4, cooldown=0, min_lr=0,
+                 mode='auto', min_delta=1e-4, cooldown=0, min_lr=0,
                  **kwargs):
         super(ReduceLROnPlateau, self).__init__()
 
@@ -84,7 +85,6 @@ class ReduceLROnPlateauIncreaseOnImprovement(Callback):
         self.min_lr = min_lr
         self.min_delta = min_delta
         self.patience = patience
-        self.verbose = verbose
         self.cooldown = cooldown
         self.cooldown_counter = 0  # Cooldown counter.
         self.wait_plateau = 0
@@ -94,6 +94,7 @@ class ReduceLROnPlateauIncreaseOnImprovement(Callback):
         self.monitor_op = None
         self._reset()
 
+        
     def _reset(self):
         """Resets wait counter and cooldown counter.
         """
@@ -143,9 +144,8 @@ class ReduceLROnPlateauIncreaseOnImprovement(Callback):
                         old_lr = float(K.get_value(self.model.optimizer.lr))
                         new_lr = old_lr * self.inc_factor
                         K.set_value(self.model.optimizer.lr, new_lr)
-                        if self.verbose > 0:
-                            print('\nEpoch %05d: IncreaseLROnImprov increasing learning '
-                                  'rate to %s.' % (epoch + 1, new_lr))
+                        logging.info('\nEpoch %05d: IncreaseLROnImprov increasing learning '
+                                     'rate to %s.' % (epoch + 1, new_lr))
                         self.cooldown_counter = self.cooldown
                         self.wait_improv = 0
             elif not self.in_cooldown():
@@ -156,9 +156,8 @@ class ReduceLROnPlateauIncreaseOnImprovement(Callback):
                         new_lr = old_lr * self.red_factor
                         new_lr = max(new_lr, self.min_lr)
                         K.set_value(self.model.optimizer.lr, new_lr)
-                        if self.verbose > 0:
-                            print('\nEpoch %05d: ReduceLROnPlateau reducing learning '
-                                  'rate to %s.' % (epoch + 1, new_lr))
+                        logging.info('\nEpoch %05d: ReduceLROnPlateau reducing learning '
+                                     'rate to %s.' % (epoch + 1, new_lr))
                         self.cooldown_counter = self.cooldown
                         self.wait_plateau = 0
 

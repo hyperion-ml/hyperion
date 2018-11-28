@@ -1,5 +1,5 @@
 """
-Class to read/write segment files
+Class to read/write extended segment files
 """
 from __future__ import absolute_import
 from __future__ import print_function
@@ -8,6 +8,7 @@ from six.moves import xrange
 from six import string_types
 
 #import os.path as path
+import logging
 from copy import deepcopy
 from collections import OrderedDict
 
@@ -18,7 +19,7 @@ from .list_utils import *
 
 
 class ExtSegmentList(object):
-    """Class to manipulate segment files
+    """Class to manipulate extended segment files
 
     Attributes:
       segments: segments dataframe.
@@ -444,9 +445,9 @@ class ExtSegmentList(object):
             if (not index.iloc[i] or i==len(self.segments)-1
                 or count==max_segments) and merging:
                 if count==max_segments and i < len(self.segments)-1:
-                    # print(index)
+                    # logging.debug(index)
                     index.iloc[i+1] = False
-                    # print(index)
+                    # logging.debug(index)
                 r = self.copy()
                 count = 1
                 merging = False
@@ -463,9 +464,9 @@ class ExtSegmentList(object):
                     
                 kkk = self.ext_segments.ext_segment_id == new_ext_segment_id
                 if np.sum(kkk)>0:
-                    print(first_segment)
-                    print(last_segment)
-                    print(new_ext_segment_id)
+                    logging.debug(first_segment)
+                    logging.debug(last_segment)
+                    logging.debug(new_ext_segment_id)
                     r.save('rrrr')
                     self.save('pppp')
 
@@ -473,28 +474,28 @@ class ExtSegmentList(object):
                 self.segments.iloc[first_idx:last_idx+1,
                                    self.segments.columns.get_loc(
                                        'ext_segment_id')] = new_ext_segment_id
-                #print(old_ext_segment_ids)
-                #print('A',self.ext_segments.ext_segment_id)
-                #print(old_ext_segment_ids.iloc[0])
-                #print(new_ext_segment_id)
+                #logging.debug(old_ext_segment_ids)
+                #logging.debug('A',self.ext_segments.ext_segment_id)
+                #logging.debug(old_ext_segment_ids.iloc[0])
+                #logging.debug(new_ext_segment_id)
                 d[old_ext_segment_ids[0]] = new_ext_segment_id
-                #print(old_ext_segment_ids[1:])
-                #print(old_ext_segment_ids[1:])
-                #print(self.ext_segments)
+                #logging.debug(old_ext_segment_ids[1:])
+                #logging.debug(old_ext_segment_ids[1:])
+                #logging.debug(self.ext_segments)
                 # self.ext_segments.drop(old_ext_segment_ids[1:], inplace=True)
                 # for osid in old_ext_segment_ids[1:]:
                 #     kk = self.segments.ext_segment_id == osid
                 #     if np.sum(kk) > 0:
-                #         print(first_segment)
-                #         print(last_segment)
-                #         print(self.segments[kk])
-                #         print(new_ext_segment_id)
+                #         logging.debug(first_segment)
+                #         logging.debug(last_segment)
+                #         logging.debug(self.segments[kk])
+                #         logging.debug(new_ext_segment_id)
                 #         raise Exception()
-                #print('C',self.ext_segments)
+                #logging.debug('C',self.ext_segments)
                 if len(self.ext_segments.ext_segment_id.unique()) != len(self.ext_segments.ext_segment_id):
-                    print(first_segment)
-                    print(last_segment)
-                    print(new_ext_segment_id)
+                    logging.debug(first_segment)
+                    logging.debug(last_segment)
+                    logging.debug(new_ext_segment_id)
                     r.save('rrrr')
                     self.save('pppp')
 
@@ -506,7 +507,7 @@ class ExtSegmentList(object):
         self.ext_segments.drop(drop_index, inplace=True)
         self.ext_segments = self.ext_segments.set_index(self.ext_segments.ext_segment_id, drop=False)
         assert len(self.ext_segments.ext_segment_id.unique()) == len(self.ext_segments.ext_segment_id)
-        #print('E',self.ext_segments)
+        #logging.debug('E',self.ext_segments)
 
 
 
@@ -526,12 +527,12 @@ class ExtSegmentList(object):
         first_idx = 0
         last_idx = 0
         d = OrderedDict()
-        # print('MERGE')
-        # print(self.ext_segments)
+        # logging.debug('MERGE')
+        # logging.debug(self.ext_segments)
         for i in xrange(1, len(self.segments)+1):
             if (i==len(self.segments) or not index.iloc[i] or 
                 count==max_segments):
-                #print(i,first_idx, last_idx)
+                #logging.debug(i,first_idx, last_idx)
                 new_ext_segment_id = self.segments[
                     first_idx:last_idx+1].segment_id.str.cat(sep='@')
                 old_ext_segment_ids = np.array(self.segments[
@@ -540,33 +541,33 @@ class ExtSegmentList(object):
                 self.segments.iloc[first_idx:last_idx+1,
                                    self.segments.columns.get_loc(
                                        'ext_segment_id')] = new_ext_segment_id
-                #print(old_ext_segment_ids)
-                #print('A',self.ext_segments.ext_segment_id)
-                # print('OLD SEGMENTS')
-                # print(old_ext_segment_ids)
-                # print('NEW SEGMENTS')
-                # print(new_ext_segment_id)
-                # print('NEW SEGMENTS FULL')
-                # print(self.segments[:last_idx+1])
+                #logging.debug(old_ext_segment_ids)
+                #logging.debug('A',self.ext_segments.ext_segment_id)
+                # logging.debug('OLD SEGMENTS')
+                # logging.debug(old_ext_segment_ids)
+                # logging.debug('NEW SEGMENTS')
+                # logging.debug(new_ext_segment_id)
+                # logging.debug('NEW SEGMENTS FULL')
+                # logging.debug(self.segments[:last_idx+1])
                 d[new_ext_segment_id] = self.ext_segments.loc[old_ext_segment_ids[0], 'name']
                 
-                #print(old_ext_segment_ids[1:])
-                #print(old_ext_segment_ids[1:])
-                #print(self.ext_segments)
+                #logging.debug(old_ext_segment_ids[1:])
+                #logging.debug(old_ext_segment_ids[1:])
+                #logging.debug(self.ext_segments)
                 # self.ext_segments.drop(old_ext_segment_ids[1:], inplace=True)
                 # for osid in old_ext_segment_ids[1:]:
                 #     kk = self.segments.ext_segment_id == osid
                 #     if np.sum(kk) > 0:
-                #         print(first_segment)
-                #         print(last_segment)
-                #         print(self.segments[kk])
-                #         print(new_ext_segment_id)
+                #         logging.debug(first_segment)
+                #         logging.debug(last_segment)
+                #         logging.debug(self.segments[kk])
+                #         logging.debug(new_ext_segment_id)
                 #         raise Exception()
-                #print('C',self.ext_segments)
+                #logging.debug('C',self.ext_segments)
                 # if len(self.ext_segments.ext_segment_id.unique()) != len(self.ext_segments.ext_segment_id):
-                #     print(first_segment)
-                #     print(last_segment)
-                #     print(new_ext_segment_id)
+                #     logging.debug(first_segment)
+                #     logging.debug(last_segment)
+                #     logging.debug(new_ext_segment_id)
                 #     r.save('rrrr')
                 #     self.save('pppp')
 
@@ -583,20 +584,20 @@ class ExtSegmentList(object):
         self.ext_segments = pd.DataFrame(
             {'ext_segment_id': ext_segment_id,
              'name': name})
-        #print('DICT', d)
+        #logging.debug('DICT', d)
         # for k,v in d.items():
-        #     print(k)
-        #     print(v)
-        #     print(self.ext_segments[k])
+        #     logging.debug(k)
+        #     logging.debug(v)
+        #     logging.debug(self.ext_segments[k])
         #     self.ext_segments.loc[k,'ext_segment_id'] = v
         # self.ext_segments.reset_index(drop=True, inplace=True)
         # drop_index = (~self.ext_segments.ext_segment_id.isin(self.segments.ext_segment_id))
         # drop_index = self.ext_segments.index[drop_index]
         # self.ext_segments.drop(drop_index, inplace=True)
         self.ext_segments = self.ext_segments.set_index(self.ext_segments.ext_segment_id, drop=False)
-        #print(self.ext_segments)
+        #logging.debug(self.ext_segments)
         # assert len(self.ext_segments.ext_segment_id.unique()) == len(self.ext_segments.ext_segment_id)
-        # #print('E',self.ext_segments)
+        # #logging.debug('E',self.ext_segments)
 
 
         

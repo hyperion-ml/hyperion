@@ -9,9 +9,11 @@ import sys
 import os
 import argparse
 import time
-import numpy as np
 from six.moves import xrange
 
+import numpy as np
+
+from hyperion.hyp_defs import config_logger
 from hyperion.io import HypDataWriter, KaldiDataReader
 
 def ark2hyp(input_file, input_dir, output_file, field, chunk_size, squeeze):
@@ -41,8 +43,11 @@ if __name__ == "__main__":
     parser.add_argument('--field', dest='field', default='')
     parser.add_argument('--chunk-size', dest='chunk_size', type=int, default=None)
     parser.add_argument('--squeeze', dest='squeeze', default=False, action='store_true')
+    parser.add_argument('-v', '--verbose', dest='verbose', default=1, choices=[0, 1, 2, 3], type=int)
 
     args=parser.parse_args()
-
+    config_logger(args.verbose)
+    del args.verbose
+    
     ark2hyp(**vars(args))
     

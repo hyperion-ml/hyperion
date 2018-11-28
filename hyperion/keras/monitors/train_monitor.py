@@ -3,14 +3,17 @@ from __future__ import print_function
 from __future__ import division
 from six.moves import xrange
 
+import logging
+import warnings
+
 from monitor import Monitor
 
 
 class TrainMonitor(Monitor):
 
     def __init__(self, file_path, monitor='val_loss', stop_patience=20, 
-                 lr_scaling_factor=0.9, lr_patience=5, verbose=1, mode='auto'):
-        super(TrainMonitor, self).__init__(file_path,verbose)
+                 lr_scaling_factor=0.9, lr_patience=5, mode='auto'):
+        super(TrainMonitor, self).__init__(file_path)
         self.monitor = monitor
         self.patience  =  stop_patience
         self.lr_scaling_factor = lr_scaling_factor
@@ -51,9 +54,7 @@ class TrainMonitor(Monitor):
         improve=self.monitor_op(current, self.best)
         lr=K.get_value(self.model.optimizer.lr)
         info_str=self.get_info_str(epoch,logs,improve,lr)
-        if self.verbose>0:
-            print(info_str)
-            sys.stdout.flush()
+        logging.info(info_str)
 
         if improve:
             self.best = current
@@ -62,8 +63,7 @@ class TrainMonitor(Monitor):
             self.save_best(info_str)
         else:
             if self.wait >= self.patience:
-                if self.verbose > 0:
-                    print('epoch %05d: early stopping' % (epoch))
+                logging.info('epoch %05d: early stopping' % (epoch))
                 self.model.stop_training = True
             self.wait += 1
 
@@ -71,8 +71,7 @@ class TrainMonitor(Monitor):
                 new_lr=self.lr_scaling_factor*lr
                 K.set_value(self.model.optimizer.lr, new_lr)
                 self.lr_wait=0
-                if self.verbose > 0:
-                    print('epoch %05d: reducing learning rate %f -> %f' % (epoch,lr,new_lr))
+                logging.info('epoch %05d: reducing learning rate %f -> %f' % (epoch,lr,new_lr))
             else:
                 self.lr_wait+=1
         self.save_last(epoch,info_str)
@@ -118,7 +117,7 @@ class TrainMonitor(Monitor):
         iteration=0
         if hasattr(self.model.optimizer,'iteration'):
             iteration=K.get_value(self.model.optimizer.iteration)
-            print('Save %d' % iteration)
+            logging.info('Save %d' % iteration)
 
         f=open(file_state,'wb')
         pickle.dump([epoch,rng_state,self.best,self.wait,self.lr_wait,iteration],f)

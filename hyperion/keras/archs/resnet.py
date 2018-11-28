@@ -3,6 +3,7 @@ from __future__ import print_function
 from __future__ import division
 from six.moves import xrange
 
+import logging
 import numpy as np
 
 from keras.layers import Conv2D, Activation, Input, Dense, Dropout, BatchNormalization, MaxPooling2D, Flatten, GlobalAveragePooling2D, Reshape, Add, TimeDistributed
@@ -197,7 +198,7 @@ def ResNetV1(output_units, input_shape=(224,224,3),
 
     context = int((input_kernel_size - 1)/2)
 
-    print('Making ResNetV1 %s' % name)
+    logging.debug('Making ResNetV1 %s' % name)
     x = Input(shape=input_shape)
     if len(input_shape) == 2 and is_sequence:
         new_shape = tuple(list(input_shape)+[1])
@@ -205,7 +206,7 @@ def ResNetV1(output_units, input_shape=(224,224,3),
     else:
         h_i = x
 
-    print('ResNetV1 %s input_shape =' % (name), h_i._keras_shape)
+    logging.debug('ResNetV1 %s input_shape =' % (name), h_i._keras_shape)
     
     if use_batchnorm:
         h_i = BatchNormalization()(h_i)
@@ -225,7 +226,7 @@ def ResNetV1(output_units, input_shape=(224,224,3),
     if conv_dropout_rate > 0:
         h_i = Dropout(conv_dropout_rate)(h_i)
 
-    print('ResNetV1 %s conv2d shape =' % (name), h_i._keras_shape,
+    logging.debug('ResNetV1 %s conv2d shape =' % (name), h_i._keras_shape,
           'kernel =', input_kernel_size, 'stride =', input_strides,
           'context =', context)
 
@@ -234,7 +235,7 @@ def ResNetV1(output_units, input_shape=(224,224,3),
     
     h_i = MaxPooling2D(pool_size=input_pool_size, strides=input_pool_strides, padding=padding)(h_i)
 
-    print('ResNetV1 %s maxpool2d shape =' % (name), h_i._keras_shape,
+    logging.debug('ResNetV1 %s maxpool2d shape =' % (name), h_i._keras_shape,
           'kernel =', input_pool_size, 'stride =', input_pool_strides,
           'context =', context)
 
@@ -285,7 +286,7 @@ def ResNetV1(output_units, input_shape=(224,224,3),
                     kernel_constraint=kernel_constraint,
                     bias_constraint=bias_constraint)
 
-            print('ResNetV1 %s conv_block %d-%d shape =' % (name,block,i), h_i._keras_shape,
+            logging.debug('ResNetV1 %s conv_block %d-%d shape =' % (name,block,i), h_i._keras_shape,
                   'kernel =', kernel_size, 'stride =', strides,
                   'context =', context)
 
@@ -299,7 +300,7 @@ def ResNetV1(output_units, input_shape=(224,224,3),
     else:
         h_i = Flatten()(h_i)
 
-    print('ResNetV1 %s reshape shape =' % (name), h_i._keras_shape,
+    logging.debug('ResNetV1 %s reshape shape =' % (name), h_i._keras_shape,
           'context =', context)
         
     for i in xrange(num_fc_layers-1):
@@ -325,7 +326,7 @@ def ResNetV1(output_units, input_shape=(224,224,3),
 
         if fc_dropout_rate > 0:
             h_i = Dropout(fc_dropout_rate)(h_i)
-        print('ResNetV1 %s fc shape =' % (name), h_i._keras_shape,
+        logging.debug('ResNetV1 %s fc shape =' % (name), h_i._keras_shape,
               'context =', context)
 
 
@@ -349,7 +350,7 @@ def ResNetV1(output_units, input_shape=(224,224,3),
     if output_activation is not None:
         y = output_activation(y)
 
-    print('ResNetV1 %s output shape =' % (name), y._keras_shape,
+    logging.debug('ResNetV1 %s output shape =' % (name), y._keras_shape,
           'context =', context)
 
     model = Model(x, y, name=name)

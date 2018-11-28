@@ -115,9 +115,7 @@ class SCPList(object):
         return_key = True
         if isinstance(key, string_types):
             return_key = False
-            if self.key_to_index is None:
-                self._create_dict()
-            index = self.key_to_index[key]
+            index = self.get_index(key)
         else:
             index = key
         offset = None if self.offset is None else self.offset[index]

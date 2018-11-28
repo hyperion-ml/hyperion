@@ -4,6 +4,9 @@ from __future__ import print_function
 from __future__ import division
 from six.moves import xrange
 
+import warnings
+import logging
+
 import keras.backend as K
 from keras.callbacks import Callback, ModelCheckpoint
 
@@ -29,18 +32,15 @@ class HypModelCheckpoint(ModelCheckpoint):
                                   'skipping.' % (self.monitor), RuntimeWarning)
                 else:
                     if self.monitor_op(current, self.best):
-                        if self.verbose > 0:
-                            print('Epoch %05d: %s improved from %0.5f to %0.5f,'
-                                  ' saving model to %s'
+                        logging.info('Epoch %05d: %s improved from %0.5f to %0.5f,'
+                                     ' saving model to %s'
                                   % (epoch, self.monitor, self.best,
                                      current, filepath))
                         self.best = current
                         self.hyp_model.save(filepath)
                     else:
-                        if self.verbose > 0:
-                            print('Epoch %05d: %s did not improve' %
-                                  (epoch, self.monitor))
+                        logging.info('Epoch %05d: %s did not improve' %
+                                     (epoch, self.monitor))
             else:
-                if self.verbose > 0:
-                    print('Epoch %05d: saving model to %s' % (epoch, filepath))
+                logging.info('Epoch %05d: saving model to %s' % (epoch, filepath))
                 self.hyp_model.save(filepath)

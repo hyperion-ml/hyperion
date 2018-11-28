@@ -12,10 +12,11 @@ import sys
 import os
 import argparse
 import time
+import logging
 
 import numpy as np
 
-from hyperion.hyp_defs import set_float_cpu, float_cpu
+from hyperion.hyp_defs import set_float_cpu, float_cpu, config_logger
 from hyperion.utils.multithreading import threadsafe_generator
 from hyperion.helpers import AdaptSequenceBatchGenerator as G
 from hyperion.transforms import TransformList
@@ -60,16 +61,16 @@ def train_embed(data_path, train_list, val_list,
         else:
             kwargs['init_epoch'] = init_epoch
     else:
-        print('loading init model: %s' % init_path)
+        logging.info('loading init model: %s' % init_path)
         model = KML.load(init_path)
 
     
     sg_args = G.filter_args(**kwargs)
     opt_args = KOF.filter_args(**kwargs)
     cb_args = KCF.filter_args(**kwargs)
-    print(sg_args)
-    print(opt_args)
-    print(cb_args)
+    logging.debug(sg_args)
+    logging.debug(opt_args)
+    logging.debug(cb_args)
     
     if preproc_file is not None:
         preproc = TransformList.load(preproc_file)
@@ -91,7 +92,7 @@ def train_embed(data_path, train_list, val_list,
 
     gen_train = data_generator(sg, max_length)
     
-    print('max length: %d' % max_length)
+    logging.info('max length: %d' % max_length)
     
     t1 = time.time()
     if freeze_prepool:
@@ -101,7 +102,6 @@ def train_embed(data_path, train_list, val_list,
         model.freeze_postpool_net_layers(freeze_postpool_layers)
     
     model.build(max_length)
-    print(time.time()-t1)
     
     cb = KCF.create_callbacks(model, output_path, **cb_args)
     opt = KOF.create_optimizer(**opt_args)
@@ -113,7 +113,7 @@ def train_embed(data_path, train_list, val_list,
                             initial_epoch=sg.cur_epoch,
                             epochs=epochs, callbacks=cb, max_queue_size=10)
                           
-    print('Train elapsed time: %.2f' % (time.time() - t1))
+    logging.info('Train elapsed time: %.2f' % (time.time() - t1))
     
     model.save(output_path + '/model')
 
@@ -148,8 +148,12 @@ if __name__ == "__main__":
     parser.add_argument('--freeze-postpool-layers', dest='freeze_postpool_layers', nargs='+',
                         default=None)
     parser.add_argument('--epochs', dest='epochs', default=1000, type=int)
-    
+    parser.add_argument('-v', '--verbose', dest='verbose', default=1, choices=[0, 1, 2, 3], type=int)
+        
     args=parser.parse_args()
+    config_logger(args.verbose)
+    del args.verbose
+    logging.debug(args)
     
     train_embed(**vars(args))
 

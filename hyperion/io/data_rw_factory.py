@@ -8,11 +8,11 @@ from six.moves import xrange
 from six import string_types
 
 import sys
+import logging
+
 import numpy as np
 import h5py
 
-# from ..hyp_defs import float_save
-# from ..utils.kaldi_io_funcs import is_token
 
 from ..utils.kaldi_matrix import compression_methods
 from .rw_specifiers import ArchiveType, WSpecifier, RSpecifier, WSpecType, RSpecType
@@ -145,7 +145,7 @@ class RandomAccessDataReaderFactory(object):
     def create(rspecifier, path_prefix=None, transform=None, scp_sep=' '):
         if isinstance(rspecifier, string_types):
             rspecifier = RSpecifier.create(rspecifier)
-        print(rspecifier.__dict__)
+        logging.debug(rspecifier.__dict__)
         if rspecifier.spec_type ==  RSpecType.ARCHIVE:
             if rspecifier.archive_type == ArchiveType.H5:
                 return RH5FDR(rspecifier.archive,

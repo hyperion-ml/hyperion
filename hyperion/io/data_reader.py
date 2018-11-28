@@ -7,6 +7,7 @@ from __future__ import division
 from six.moves import xrange
 from six import string_types
 
+import logging
 from abc import ABCMeta, abstractmethod
 import numpy as np
 

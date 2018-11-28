@@ -4,6 +4,8 @@ from __future__ import print_function
 from __future__ import division
 from six.moves import xrange
 
+import logging
+
 import numpy as np
 
 import keras.backend as K
@@ -307,8 +309,8 @@ class GlobalNormalDiagCovPostStdPriorPooling1D(Layer):
             
         eta = self.frame_corr_penalty * K.sum(p1*weights, axis=1)
         prec = 1 + self.frame_corr_penalty * K.sum((input_prec-1)*weights, axis=1)
-        print(prec)
-        print(self.out_fmt)
+        logging.debug(prec)
+        logging.debug(self.out_fmt)
         prec = K.clip(prec, 1, 1e5)
 
         if self.out_fmt[0] == 'mean':

@@ -12,10 +12,11 @@ import sys
 import os
 import argparse
 import time
+import logging
 
 import numpy as np
 
-from hyperion.io import HypDataReader
+from hyperion.hyp_defs import config_logger
 from hyperion.helpers import VectorReader as VR
 from hyperion.transforms import TransformList, PCA
 from hyperion.utils.scp_list import SCPList
@@ -34,7 +35,6 @@ def load_model(input_path, name, **kwargs):
         for tf in tfl.transforms:
             if tf.name == name:
                 return tf
-            
 
 
 def train_pca(iv_file, train_list, preproc_file,
@@ -56,7 +56,7 @@ def train_pca(iv_file, train_list, preproc_file,
     
     model.fit(x)
 
-    print('Elapsed time: %.2f s.' % (time.time()-t1))
+    logging.info('Elapsed time: %.2f s.' % (time.time()-t1))
     
     if save_tlist:
         if append_tlist and preproc is not None:
@@ -90,9 +90,12 @@ if __name__ == "__main__":
                         default=True, action='store_false')
     parser.add_argument('--no-append-tlist', dest='append_tlist', 
                         default=True, action='store_false')
-
+    parser.add_argument('-v', '--verbose', dest='verbose', default=1, choices=[0, 1, 2, 3], type=int)
     
     args=parser.parse_args()
+    config_logger(args.verbose)
+    del args.verbose
+    logging.debug(args)
     
     train_pca(**vars(args))
 

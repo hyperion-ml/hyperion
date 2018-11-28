@@ -13,9 +13,11 @@ import sys
 import os
 import argparse
 import time
+import logging
 
 import numpy as np
 
+from hyperion.hyp_defs import config_logger
 from hyperion.score_norm import *
 from hyperion.utils.trial_scroes import TrialScores
 from hyperion.utils.trial_ndx import TrialNdx
@@ -104,8 +106,13 @@ if __name__ == "__main__":
     parser.add_argument('--norm-type', dest='norm_type', default='s-norm',
                         choices=['t-norm', 'z-norm', 'zt-norm', 's-norm'])
     parser.add_argument('--adapt-coh', dest='adapt_coh', default=None, type=int)
-
+    parser.add_argument('-v', '--verbose', dest='verbose', default=1, choices=[0, 1, 2, 3], type=int)
+    
     args=parser.parse_args()
+    config_logger(args.verbose)
+    del args.verbose
+    logging.debug(args)
+    
     eval_score_norm(**vars(args))
 
     

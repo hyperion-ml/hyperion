@@ -4,6 +4,7 @@ from __future__ import division
 from six.moves import xrange
 
 import os
+import logging
 
 from ..hyp_model import HypModel
 from .vae import *
@@ -31,7 +32,7 @@ class KerasModelLoader(object):
         json_file = model_path + '.json'
         class_name = HypModel.load_config(json_file)['class_name']
         class_obj = KerasModelLoader.get_object()[class_name]
-        print('Load model %s:%s' % (class_name, model_path))
+        logging.info('Load model %s:%s' % (class_name, model_path))
         return class_obj.load(model_path)
 
 

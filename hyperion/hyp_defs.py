@@ -1,4 +1,6 @@
 
+import logging
+
 import numpy as np
 
 _FLOAT_CPU = 'float64'
@@ -31,3 +33,13 @@ def float_save():
 def set_float_save(float_save):
     global _FLOAT_SAVE
     _FLOAT_SAVE = float_save
+
+
+logging_levels = { 0: logging.WARN, 1: logging.INFO, 2: logging.WARN, 3: 5}
+    
+def config_logger(verbose_level):
+
+    logging_level = logging_levels[verbose_level]
+    logging.basicConfig(
+        level=logging_level,
+        format="%(asctime)s (%(module)s:%(lineno)d) %(levelname)s: %(message)s")

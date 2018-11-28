@@ -12,15 +12,14 @@ import sys
 import os
 import argparse
 import time
+import logging
 
 import numpy as np
 
-from hyperion.io import HypDataReader
+from hyperion.hyp_defs import config_logger
 from hyperion.helpers import VectorClassReader as VCR
 from hyperion.transforms import TransformList, NDA, NSbSw
 from hyperion.utils.scp_list import SCPList
-
-
 
 
 def train_nda(iv_file, train_list, preproc_file,
@@ -50,14 +49,14 @@ def train_nda(iv_file, train_list, preproc_file,
     model = NDA(name=name)
     model.fit(mu=s_mat.mu, Sb=s_mat.Sb, Sw=s_mat.Sw, nda_dim=nda_dim)
 
-    print('Elapsed time: %.2f s.' % (time.time()-t1))
+    logging.info('Elapsed time: %.2f s.' % (time.time()-t1))
     
     x = model.predict(x)
 
     s_mat = NSbSw()
     s_mat.fit(x, class_ids)
-    print(s_mat.Sb[:4,:4])
-    print(s_mat.Sw[:4,:4])
+    logging.debug(s_mat.Sb[:4,:4])
+    logging.debug(s_mat.Sw[:4,:4])
     
     if save_tlist:
         if append_tlist and preproc is not None:
@@ -96,9 +95,14 @@ if __name__ == "__main__":
     parser.add_argument('--no-append-tlist', dest='append_tlist', 
                         default=True, action='store_false')
     parser.add_argument('--name', dest='name', default='nda')
+    parser.add_argument('--vector-score-file', dest='vector_score_file', default=None)
+    parser.add_argument('-v', '--verbose', dest='verbose', default=1, choices=[0, 1, 2, 3], type=int)
     
     args=parser.parse_args()
-    
+    config_logger(args.verbose)
+    del args.verbose
+    logging.debug(args)
+        
     train_nda(**vars(args))
 
             

@@ -116,9 +116,10 @@ def test_class_info():
                      1: np.array([1,2], dtype=int),
                      2: np.array([3,4,5], dtype=int),
                      3: np.array([6,7,8,9], dtype=int)}
-    class2num_utt = {0: 1, 1: 2, 2: 3, 3: 4}
+    #class2num_utt = {0: 1, 1: 2, 2: 3, 3: 4}
+    class2num_utt = np.array([1,2,3,4], dtype=int)
     assert sr.class2utt == class2utt
-    assert sr.class2num_utt == class2num_utt
+    assert np.all(sr.class2num_utt == class2num_utt)
     for k in sr.class2utt.keys():
         assert_allclose(sr.class2utt_idx[k], class2utt_idx[k])
 

@@ -12,13 +12,13 @@ import sys
 import os
 import argparse
 import time
+import logging
 
 import numpy as np
-import scipy.stats as scps
 
 from keras import backend as K
 
-from hyperion.hyp_defs import set_float_cpu, float_cpu
+from hyperion.hyp_defs import set_float_cpu, float_cpu, config_logger
 from hyperion.transforms import TransformList
 from hyperion.utils.scp_list import SCPList
 from hyperion.utils.tensors import to3D_by_class
@@ -78,7 +78,7 @@ def train_pdda(iv_file, train_list, val_list,
                    qy_form=qy_form, qz_form=qz_form, min_kl=min_kl)
         vae.build(num_samples_y=num_samples_y, num_samples_z=num_samples_z,
                   max_seq_length = x.shape[1])
-    print(time.time()-t1)
+    logging.info(time.time()-t1)
     # opt = create_optimizer(**opt_args)
     # cb = create_basic_callbacks(vae, output_path, **cb_args)
     # h = vae.fit(x, x_val=x_val,
@@ -103,7 +103,7 @@ def train_pdda(iv_file, train_list, val_list,
     #               /np.sum(sw))
     # s2_z = np.sum(np.sum(np.sum((np.exp(z_logvar)+z_mean**2)*sw, axis=1), axis=0)
     #               /np.sum(sw)-m_z**2)
-    # print('m_y: %.2f, trace_y: %.2f, m_z: %.2f, trace_z: %.2f' %
+    # logging.info('m_y: %.2f, trace_y: %.2f, m_z: %.2f, trace_z: %.2f' %
     #       (m_y, s2_y, m_z, s2_z))
 
     
@@ -117,18 +117,18 @@ def train_pdda(iv_file, train_list, val_list,
 
     if vae.x_chol is not None:
         x_chol = np.array(K.eval(vae.x_chol))
-        print(x_chol[:4,:4])
+        logging.info(x_chol[:4,:4])
         
     
-    print('Train elapsed time: %.2f' % (time.time() - t1))
+    logging.info('Train elapsed time: %.2f' % (time.time() - t1))
     
     vae.save(output_path + '/model')
 
     t1 = time.time()
     elbo = np.mean(vae.elbo(x, num_samples=1, batch_size=batch_size))
-    print('elbo: %.2f' % elbo)
+    logging.info('elbo: %.2f' % elbo)
 
-    print('Elbo elapsed  time: %.2f' % (time.time() - t1))
+    logging.info('Elbo elapsed  time: %.2f' % (time.time() - t1))
 
     t1 = time.time()
     vae.build(num_samples_y=1, num_samples_z=1, max_seq_length = x.shape[1])
@@ -155,10 +155,10 @@ def train_pdda(iv_file, train_list, val_list,
                   /np.sum(sw))
     s2_z = np.sum(np.sum(np.sum((np.exp(z_logvar)+z_mean**2)*sw, axis=1), axis=0)
                   /np.sum(sw)-m_z**2)
-    print('m_y: %.2f, trace_y: %.2f, m_z: %.2f, trace_z: %.2f' %
+    logging.info('m_y: %.2f, trace_y: %.2f, m_z: %.2f, trace_z: %.2f' %
           (m_y, s2_y, m_z, s2_z))
 
-    print('Trace elapsed time: %.2f' % (time.time() - t1))
+    logging.info('Trace elapsed time: %.2f' % (time.time() - t1))
 
     t1 = time.time()
     vae.build(num_samples_y=1, num_samples_z=1, max_seq_length = 2)
@@ -169,22 +169,22 @@ def train_pdda(iv_file, train_list, val_list,
     # scores = vae.eval_llr_1vs1_elbo(x1, x2, num_samples=10)
     # tar = scores[np.eye(scores.shape[0], dtype=bool)]
     # non = scores[np.logical_not(np.eye(scores.shape[0], dtype=bool))]
-    # print('m_tar: %.2f s_tar: %.2f' % (np.mean(tar), np.std(tar)))
-    # print('m_non: %.2f s_non: %.2f' % (np.mean(non), np.std(non)))
+    # logging.info('m_tar: %.2f s_tar: %.2f' % (np.mean(tar), np.std(tar)))
+    # logging.info('m_non: %.2f s_non: %.2f' % (np.mean(non), np.std(non)))
 
     # scores = vae.eval_llr_1vs1_cand(x1, x2)
     # tar = scores[np.eye(scores.shape[0], dtype=bool)]
     # non = scores[np.logical_not(np.eye(scores.shape[0], dtype=bool))]
-    # print('m_tar: %.2f s_tar: %.2f' % (np.mean(tar), np.std(tar)))
-    # print('m_non: %.2f s_non: %.2f' % (np.mean(non), np.std(non)))
+    # logging.info('m_tar: %.2f s_tar: %.2f' % (np.mean(tar), np.std(tar)))
+    # logging.info('m_non: %.2f s_non: %.2f' % (np.mean(non), np.std(non)))
 
     scores = vae.eval_llr_1vs1_qscr(x1, x2)
     tar = scores[np.eye(scores.shape[0], dtype=bool)]
     non = scores[np.logical_not(np.eye(scores.shape[0], dtype=bool))]
-    print('m_tar: %.2f s_tar: %.2f' % (np.mean(tar), np.std(tar)))
-    print('m_non: %.2f s_non: %.2f' % (np.mean(non), np.std(non)))
+    logging.info('m_tar: %.2f s_tar: %.2f' % (np.mean(tar), np.std(tar)))
+    logging.info('m_non: %.2f s_non: %.2f' % (np.mean(non), np.std(non)))
     
-    print('Eval elapsed time: %.2f' % (time.time() - t1))
+    logging.info('Eval elapsed time: %.2f' % (time.time() - t1))
 
 
     
@@ -288,8 +288,12 @@ if __name__ == "__main__":
     parser.add_argument('--qz-form', dest='qz_form', default='diag_normal')
     
     parser.add_argument('--min-kl', dest='min_kl', default=0.2, type=float)
+    parser.add_argument('-v', '--verbose', dest='verbose', default=1, choices=[0, 1, 2, 3], type=int)
     
     args=parser.parse_args()
+    config_logger(args.verbose)
+    del args.verbose
+    logging.debug(args)
     
     train_pdda(**vars(args))
 

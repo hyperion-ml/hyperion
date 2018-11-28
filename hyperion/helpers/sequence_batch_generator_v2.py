@@ -8,6 +8,7 @@ from six.moves import xrange
 
 import sys
 import os
+import logging
 import argparse
 import time
 import copy
@@ -67,10 +68,10 @@ class SequenceBatchGeneratorV2(object):
 
         self.return_class = return_class
         self.return_utt1hot = return_utt1hot
-        # print('prep_class_info')
+        # logging.debug('prep_class_info')
         # sys.stdout.flush()
         self._prepare_class_info(class_list)
-        # print('prep_class_info')
+        # logging.debug('prep_class_info')
         # sys.stdout.flush()
         
         self.seed = sg_seed
@@ -90,10 +91,10 @@ class SequenceBatchGeneratorV2(object):
 
         #self._prepare_subseqs()
         if iters_per_epoch == 'auto':
-            print('iters_auto')
+            logging.debug('iters_auto')
             sys.stdout.flush()
             self._compute_iters_auto()
-            print('iters_auto')
+            logging.debug('iters_auto')
             sys.stdout.flush()
         else:
             self.iters_per_epoch = iters_per_epoch
@@ -227,20 +228,20 @@ class SequenceBatchGeneratorV2(object):
         avg_seq_length = int((self.max_seq_length + self.min_seq_length)/2)
         seqs_per_iter = self.num_classes * self.num_egs_per_class * self.num_egs_per_utt
         self.iters_per_epoch = int(np.ceil(total_length/avg_seq_length/seqs_per_iter))
-        print('num iters per epoch: %d' % self.iters_per_epoch)
+        logging.debug('num iters per epoch: %d' % self.iters_per_epoch)
 
         
     def _compute_iters_auto_1(self):
         seqs_per_iter = self.num_classes * self.num_egs_per_class * self.num_egs_per_utt
         self.iters_per_epoch = int(np.ceil(self.num_seqs/seqs_per_iter))
-        print('num iters per epoch: %d' % self.iters_per_epoch)
+        logging.debug('num iters per epoch: %d' % self.iters_per_epoch)
 
 
     def _compute_iters_auto(self):
         avg_total_length = np.mean(self.seq_lengths)
         avg_seq_length = int((self.max_seq_length + self.min_seq_length)/2)
         self.iters_per_epoch = np.ceil(avg_total_length/avg_seq_length)
-        print('num iters per epoch: %d' % self.iters_per_epoch)
+        logging.debug('num iters per epoch: %d' % self.iters_per_epoch)
 
         
     # def _prepare_subseqs(self):
@@ -281,7 +282,7 @@ class SequenceBatchGeneratorV2(object):
         if self.reset_rng:
             self.rng = np.random.RandomState(seed=self.seed)
         else:
-            print('\nreset rng %d' % (self.seed+self.cur_epoch))
+            logging.debug('\nreset rng %d' % (self.seed+self.cur_epoch))
             self.rng = np.random.RandomState(seed=self.seed+self.cur_epoch)
 
 

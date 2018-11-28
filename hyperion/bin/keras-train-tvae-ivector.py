@@ -12,13 +12,13 @@ import sys
 import os
 import argparse
 import time
+import logging
 
 import numpy as np
-import scipy.stats as scps
 
 from keras import backend as K
 
-from hyperion.hyp_defs import set_float_cpu, float_cpu
+from hyperion.hyp_defs import set_float_cpu, float_cpu, config_logger
 from hyperion.utils.multithreading import threadsafe_generator
 from hyperion.helpers import SequenceReader as SR
 from hyperion.transforms import TransformList
@@ -34,7 +34,7 @@ def data_generator(sr, max_length):
     kk=0
     while 1:
         kk+=1
-        #print('dg %d.' % kk)
+        #logging.info('dg %d.' % kk)
         x, sample_weight, _ = sr.read(return_3d=True, max_seq_length=max_length)
         return_sw = True
         if sr.max_batch_seq_length == max_length and (
@@ -101,7 +101,7 @@ def train_tvae(seq_file, train_list, val_list,
                    qy_form=qy_form, qz_form=qz_form, min_kl=min_kl)
         vae.build(num_samples_y=num_samples_y, num_samples_z=num_samples_z,
                   max_seq_length = max_length)
-    print(time.time()-t1)
+    logging.info(time.time()-t1)
     
     cb = KCF.create_callbacks(vae, output_path, **cb_args)
     opt = KOF.create_optimizer(**opt_args)
@@ -114,18 +114,18 @@ def train_tvae(seq_file, train_list, val_list,
 
     # if vae.x_chol is not None:
     #     x_chol = np.array(K.eval(vae.x_chol))
-    #     print(x_chol[:4,:4])
+    #     logging.info(x_chol[:4,:4])
         
     
-    print('Train elapsed time: %.2f' % (time.time() - t1))
+    logging.info('Train elapsed time: %.2f' % (time.time() - t1))
     
     vae.save(output_path + '/model')
 
     # t1 = time.time()
     # elbo = np.mean(vae.elbo(x_train, num_samples=1, batch_size=batch_size))
-    # print('elbo: %.2f' % elbo)
+    # logging.info('elbo: %.2f' % elbo)
 
-    # print('Elbo elapsed  time: %.2f' % (time.time() - t1))
+    # logging.info('Elbo elapsed  time: %.2f' % (time.time() - t1))
 
     # t1 = time.time()
     # vae.build(num_samples_y=1, num_samples_z=1, max_seq_length = x_train.shape[1])
@@ -152,10 +152,10 @@ def train_tvae(seq_file, train_list, val_list,
     #               /np.sum(sw))
     # s2_z = np.sum(np.sum(np.sum((np.exp(z_logvar)+z_mean**2)*sw, axis=1), axis=0)
     #               /np.sum(sw)-m_z**2)
-    # print('m_y: %.2f, trace_y: %.2f, m_z: %.2f, trace_z: %.2f' %
+    # logging.info('m_y: %.2f, trace_y: %.2f, m_z: %.2f, trace_z: %.2f' %
     #       (m_y, s2_y, m_z, s2_z))
 
-    # print('Trace elapsed time: %.2f' % (time.time() - t1))
+    # logging.info('Trace elapsed time: %.2f' % (time.time() - t1))
 
 
 
@@ -198,10 +198,13 @@ if __name__ == "__main__":
     parser.add_argument('--px-form', dest='px_form', default='diag_normal')
     parser.add_argument('--qy-form', dest='qy_form', default='diag_normal')
     parser.add_argument('--qz-form', dest='qz_form', default='diag_normal')
-    
-    parser.add_argument('--min-kl', dest='min_kl', default=0.2, type=float)
+    parser.add_argument('-v', '--verbose', dest='verbose', default=1, choices=[0, 1, 2, 3], type=int)
     
     args=parser.parse_args()
+    config_logger(args.verbose)
+    del args.verbose
+    logging.debug(args)
+        parser.add_argument('--min-kl', dest='min_kl', default=0.2, type=float)
     
     train_tvae(**vars(args))
 

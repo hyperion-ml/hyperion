@@ -7,6 +7,7 @@ from __future__ import print_function
 from __future__ import division
 from six.moves import xrange
 
+import logging
 import numpy as np
 import h5py
 
@@ -34,7 +35,7 @@ class Gaussianizer(HypModel):
         y = np.zeros_like(x)
         for i in xrange(x.shape[1]):
             y_index = np.searchsorted(r[:,i], x[:,i])
-            print(y_index)
+            logging.debug(y_index)
             y[:,i] = y_map[y_index]
             
         return y

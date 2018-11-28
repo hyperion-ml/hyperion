@@ -12,21 +12,18 @@ import sys
 import os
 import argparse
 import time
+import logging
 
 import numpy as np
-import scipy.stats as scps
-
-import gc
 
 from keras import backend as K
 from keras.layers import Input
 from keras.models import Model
 
-from hyperion.hyp_defs import set_float_cpu, float_cpu
+from hyperion.hyp_defs import set_float_cpu, float_cpu, config_logger
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialDataReaderFactory as SDRF
 from hyperion.transforms import TransformList
-from hyperion.pdfs import DiagGMM
 from hyperion.keras.keras_utils import *
 from hyperion.keras.embed import SeqEmbed
 
@@ -65,16 +62,16 @@ def extract_embed(seq_file, model_file, preproc_file, output_path,
         key, data = sr.read(1)
         
         ti2 = time.time()
-        print('Extracting embeddings %d/%d for %s, num_frames: %d' %
+        logging.info('Extracting embeddings %d/%d for %s, num_frames: %d' %
               (i, num_seqs, key[0], data[0].shape[0]))
         keys.append(key[0])
         y[i] = model.predict_embed(data[0])
                 
         ti4 = time.time()
-        print('Elapsed time embeddings %d/%d for %s, total: %.2f read: %.2f, vae: %.2f' %
+        logging.info('Elapsed time embeddings %d/%d for %s, total: %.2f read: %.2f, vae: %.2f' %
               (i, num_seqs, key, ti4-ti1, ti2-ti1, ti4-ti2))
             
-    print('Extract elapsed time: %.2f' % (time.time() - t1))
+    logging.info('Extract elapsed time: %.2f' % (time.time() - t1))
     
     hw = DWF.create(output_path)
     hw.write(keys, y)
@@ -96,8 +93,12 @@ if __name__ == "__main__":
     parser.add_argument('--max-seq-length', dest='max_seq_length', default=None, type=int)
 
     SDRF.add_argparse_args(parser)
-
+    parser.add_argument('-v', '--verbose', dest='verbose', default=1, choices=[0, 1, 2, 3], type=int)
+    
     args=parser.parse_args()
+    config_logger(args.verbose)
+    del args.verbose
+    logging.debug(args)
     
     extract_embed(**vars(args))
 
