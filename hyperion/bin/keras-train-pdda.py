@@ -20,7 +20,6 @@ from keras import backend as K
 
 from hyperion.hyp_defs import set_float_cpu, float_cpu, config_logger
 from hyperion.transforms import TransformList
-from hyperion.utils.scp_list import SCPList
 from hyperion.utils.tensors import to3D_by_class
 from hyperion.helpers import VectorClassReader as VCR
 from hyperion.keras.helpers import OptimizerFactory as KOF

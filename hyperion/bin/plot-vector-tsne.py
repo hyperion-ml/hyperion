@@ -26,7 +26,6 @@ from hyperion.hyp_defs import config_logger
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.helpers import VectorClassReader as VCR
 from hyperion.transforms import TransformList, PCA
-from hyperion.utils.scp_list import SCPList
 
 colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
 markers = ['x', 'o', '+', '*', 's', 'h', 'D', '^', 'v', 'p', '8']
@@ -76,14 +75,14 @@ def plot_vector_tsne(iv_file, v_list, preproc_file,
         if save_embed:
             h5_file = '%s/embed_%dd.h5' % (output_path, ouput_dim)
             hw = DWF.create(h5_file)
-            hw.write(vcr.scp.file_path, y)
+            hw.write(vcr.u2c.key, y)
 
     tsne = tsne_obj(2)
     y = tsne.fit_transform(x)
     if save_embed:
         h5_file = '%s/embed_2d.h5' % output_path
         hw = DWF.create(h5_file)
-        hw.write(vcr.scp.file_path, y)
+        hw.write(vcr.u2c.key, y)
             
     fig_file = '%s/tsne_2d.pdf' % (output_path)
     # plt.scatter(y[:,0], y[:,1], c=class_ids, marker='x')
@@ -116,7 +115,7 @@ def plot_vector_tsne(iv_file, v_list, preproc_file,
     if save_embed:
         h5_file = '%s/embed_3d.h5' % output_path
         hw = DWF.create(h5_file)
-        hw.write(vcr.scp.file_path, y)
+        hw.write(vcr.u2c.key, y)
 
     
     fig_file = '%s/tsne_3d.pdf' % (output_path)

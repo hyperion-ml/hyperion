@@ -35,7 +35,7 @@ def set_float_save(float_save):
     _FLOAT_SAVE = float_save
 
 
-logging_levels = { 0: logging.WARN, 1: logging.INFO, 2: logging.WARN, 3: 5}
+logging_levels = { 0: logging.WARN, 1: logging.INFO, 2: logging.DEBUG, 3: 5}
     
 def config_logger(verbose_level):
 

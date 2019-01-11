@@ -20,8 +20,6 @@ from hyperion.hyp_defs import config_logger
 from hyperion.helpers import VectorReader as VR
 from hyperion.pdfs.core import Normal
 from hyperion.transforms import TransformList, CentWhiten, LNorm
-from hyperion.utils.scp_list import SCPList
-
 
 
 def load_model(input_path, with_lnorm, name, **kwargs):

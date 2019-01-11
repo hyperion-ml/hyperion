@@ -19,8 +19,6 @@ import numpy as np
 from hyperion.hyp_defs import config_logger
 from hyperion.helpers import VectorReader as VR
 from hyperion.transforms import TransformList, PCA
-from hyperion.utils.scp_list import SCPList
-
 
 
 def load_model(input_path, name, **kwargs):

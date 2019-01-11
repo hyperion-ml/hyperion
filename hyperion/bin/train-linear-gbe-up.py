@@ -17,15 +17,13 @@ import logging
 import numpy as np
 
 from hyperion.hyp_defs import config_logger
-from hyperion.utils.scp_list import SCPList
 from hyperion.helpers import VectorClassReader as VCR
 from hyperion.transforms import TransformList
 from hyperion.classifiers import LinearGBEUP as GBE
 
 
 def train_linear_gbe(iv_file, train_list, preproc_file,
-                     output_path,
-                     **kwargs):
+                     output_path, **kwargs):
     
     if preproc_file is not None:
         preproc = TransformList.load(preproc_file)
@@ -62,7 +60,8 @@ if __name__ == "__main__":
     GBE.add_argparse_train_args(parser)
 
     parser.add_argument('--output-path', dest='output_path', required=True)
-    parser.add_argument('-v', '--verbose', dest='verbose', default=1, choices=[0, 1, 2, 3], type=int)
+    parser.add_argument('-v', '--verbose', dest='verbose', default=1,
+                        choices=[0, 1, 2, 3], type=int)
     
     args=parser.parse_args()
     config_logger(args.verbose)

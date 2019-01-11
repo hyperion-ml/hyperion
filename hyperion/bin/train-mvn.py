@@ -20,28 +20,9 @@ from hyperion.hyp_defs import config_logger
 from hyperion.helpers import VectorReader as VR
 from hyperion.pdfs.core import Normal
 from hyperion.transforms import TransformList, MVN, SbSw
-from hyperion.utils.scp_list import SCPList
-
-class_ids=[]
-
-def load_data(iv_file, train_file, preproc):
-
-    train_utt= SCPList.load(train_file, sep='=')
-    
-    hr = HypDataReader(iv_file)
-    x = hr.read(train_utt.file_path, '.ivec', return_tensor=True)
-    if preproc is not None:
-        x = preproc.predict(x)
-
-    global class_ids
-    _, _, class_ids=np.unique(train_utt.key,
-                              return_index=True, return_inverse=True)
-        
-    return x
 
 
 def train_mvn(iv_file, train_list, preproc_file,
-              scp_sep, v_field,
               name, save_tlist, append_tlist, output_path, **kwargs):
     
     if preproc_file is not None:
@@ -49,25 +30,16 @@ def train_mvn(iv_file, train_list, preproc_file,
     else:
         preproc = None
 
-    vr = VR(iv_file, train_list, preproc, scp_sep=scp_sep, v_field=v_field)
+    vr_args = VR.filter_args(**kwargs)
+    vr = VR(iv_file, train_list, preproc, **vr_args)
     x = vr.read()
-    # x = load_data(iv_file, train_list, preproc)
 
     t1 = time.time()
 
     model = MVN(name=name)
-
     model.fit(x)
 
     logging.info('Elapsed time: %.2f s.' % (time.time()-t1))
-    
-    x = model.predict(x)
-
-    s_mat = SbSw()
-    s_mat.fit(x, class_ids)
-    logging.debug(s_mat.Sb[:4,:4])
-    logging.debug(s_mat.Sw[:4,:4])
-
     
     if save_tlist:
         if append_tlist and preproc is not None:

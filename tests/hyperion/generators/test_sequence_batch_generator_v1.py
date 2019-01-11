@@ -12,7 +12,7 @@ from numpy.testing import assert_allclose
 
 from hyperion.utils.scp_list import SCPList
 from hyperion.io import H5DataWriter
-from hyperion.helpers.sequence_batch_generator import SequenceBatchGenerator as SBG
+from hyperion.generators.sequence_batch_generator_v1 import SequenceBatchGeneratorV1 as SBG
 
 output_dir = './tests/data_out/helpers'
 if not os.path.exists(output_dir):

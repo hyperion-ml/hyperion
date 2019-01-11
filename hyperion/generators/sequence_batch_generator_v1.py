@@ -23,7 +23,7 @@ from ..utils.tensors import to3D_by_seq
 from ..transforms import TransformList
 
 
-class SequenceBatchGenerator(object):
+class SequenceBatchGeneratorV1(object):
 
     def __init__(self, rspecifier, key_file,
                  class_list = None,

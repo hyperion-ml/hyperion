@@ -21,7 +21,7 @@ class SegmentList(object):
     """Class to manipulate segment files
 
     Attributes:
-      df: Pandas dataframe.
+      segments: Pandas dataframe.
       _index_by_file: if True the df is index by file name, if False by segment id.
       iter_idx: index of the current element for the iterator.
       uniq_file_id: unique file names.

@@ -74,9 +74,9 @@ def test_read_sar_pipe():
 
     with open(pipe_scp_file,'w') as f:
         for i, k in enumerate(keys):
-            f.write('sox %s/%s.flac -t wav - |\n')
+            f.write('%s sox %s/%s.flac -t wav - |\n' %(k, audio_path, k))
 
-    with SAR(wav_scp_file) as r:
+    with SAR(pipe_scp_file) as r:
         keys1, s1, fs1 = r.read()
 
     for k_i, k1_i in zip(keys,keys1):

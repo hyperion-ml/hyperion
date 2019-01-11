@@ -7,6 +7,9 @@ mkdir ./tests/data_out/ark
 mkdir ./tests/data_out/h5
 
 #py.test ./tests/hyperion/io
-py.test ./tests
+#py.test ./tests/hyperion/feats
+#py.test ./tests/hyperion/utils
+py.test ./tests/hyperion/helpers
+#py.test ./tests
 
 

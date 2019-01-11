@@ -17,7 +17,6 @@ import numpy as np
 
 from hyperion.hyp_defs import set_float_cpu, float_cpu, config_logger
 from hyperion.transforms import TransformList
-from hyperion.utils.scp_list import SCPList
 from hyperion.utils.trial_ndx import TrialNdx
 from hyperion.utils.trial_scores import TrialScores
 from hyperion.utils.tensors import to3D_by_class
@@ -30,7 +29,6 @@ from hyperion.keras.vae import TiedVAE_qY as TVAEY
 
 def eval_pdda(iv_file, ndx_file, enroll_file, test_file,
               preproc_file,
-              scp_sep, v_field, eval_set,
               model_file, score_file,
               pool_method, eval_method,
               num_samples_y, num_samples_z, num_samples_elbo, qy_only,
@@ -43,8 +41,8 @@ def eval_pdda(iv_file, ndx_file, enroll_file, test_file,
     else:
         preproc = None
 
-    tdr = TDR(iv_file, ndx_file, enroll_file, test_file, preproc,
-              scp_sep=scp_sep, v_field=v_field, eval_set=eval_set)
+    tdr_args = TDR.filter_args(**kwargs)
+    tdr = TDR(iv_file, ndx_file, enroll_file, test_file, preproc, **tdt_args)
     x_e, x_t, enroll, ndx = tdr.read()
     enroll, ids_e = np.unique(enroll, return_inverse=True)
 

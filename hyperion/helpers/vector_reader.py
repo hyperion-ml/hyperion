@@ -21,16 +21,16 @@ from ..transforms import TransformList
 
 class VectorReader(object):
 
-    def __init__(self, v_file, key_file, preproc=None, scp_sep='='):
+    def __init__(self, v_file, key_file, preproc=None, vlist_sep=' '):
 
         self.r = DRF.create(v_file)
-        self.scp = SCPList.load(key_file, sep=scp_sep)
+        self.scp = SCPList.load(key_file, sep=vlist_sep)
         self.preproc = preproc
 
         
             
     def read(self):
-        x = self.r.read(self.scp.file_path, squeeze=True)
+        x = self.r.read(self.scp.key, squeeze=True)
         if self.preproc is not None:
             x = self.preproc.predict(x)
         return x
@@ -43,7 +43,7 @@ class VectorReader(object):
         else:
             p = prefix + '_'
             
-        valid_args = ('scp_sep', 'v_field')
+        valid_args = ('vlist_sep')
         return dict((k, kwargs[p+k])
                     for k in valid_args if p+k in kwargs)
 
@@ -57,8 +57,8 @@ class VectorReader(object):
         else:
             p1 = '--' + prefix + '-'
             p2 = prefix + '_'
-        parser.add_argument(p1+'scp-sep', dest=(p2+'scp_sep'), default='=',
-                            help=('scp file field separator'))
+        parser.add_argument(p1+'vlist-sep', dest=(p2+'vlist_sep'), default=' ',
+                            help=('utterance file field separator'))
         # parser.add_argument(p1+'v-field', dest=(p2+'v_field'), default='',
         #                     help=('dataset field in input vector file'))
         

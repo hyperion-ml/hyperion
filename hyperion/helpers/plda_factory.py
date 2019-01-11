@@ -57,7 +57,7 @@ class PLDAFactory(object):
                  for k in valid_args if p+k in kwargs)
         neg_args1 = ('diag_W', 'no_update_mu', 'no_update_V', 'no_update_U',
                       'no_update_B', 'no_update_W', 'no_update_D')
-        neg_args_2 = ('fullcov_W', 'update_mu', 'update_V', 'update_U',
+        neg_args2 = ('fullcov_W', 'update_mu', 'update_V', 'update_U',
                       'update_B', 'update_W', 'update_D')
 
         for a,b in zip(ne_args1, neg_args2):

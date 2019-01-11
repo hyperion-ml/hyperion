@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Evals PDDA LLR
+Evals cosine scoring
 """
 from __future__ import absolute_import
 from __future__ import print_function
@@ -16,25 +16,22 @@ import logging
 import numpy as np
 
 from hyperion.hyp_defs import set_float_cpu, float_cpu, config_logger
-from hyperion.utils.scp_list import SCPList
 from hyperion.utils.trial_ndx import TrialNdx
 from hyperion.utils.trial_scores import TrialScores
 from hyperion.helpers import TrialDataReader as TDR
 from hyperion.transforms import TransformList, LNorm
 
 
-
 def eval_cos(iv_file, ndx_file, enroll_file, test_file,
-             preproc_file,
-             scp_sep, v_field, eval_set, score_file, **kwargs):
+             preproc_file, score_file, **kwargs):
     
     if preproc_file is not None:
         preproc = TransformList.load(preproc_file)
     else:
         preproc = None
 
-    tdr = TDR(iv_file, ndx_file, enroll_file, test_file, preproc,
-              scp_sep=scp_sep, v_field=v_field, eval_set=eval_set)
+    tdr_args = TDR.filter_args(**kwargs)
+    tdr = TDR(iv_file, ndx_file, enroll_file, test_file, preproc, **tdr_args)
     x_e, x_t, enroll, ndx = tdr.read()
 
     lnorm = LNorm()
@@ -58,7 +55,7 @@ if __name__ == "__main__":
     parser=argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         fromfile_prefix_chars='@',
-        description='Eval Cos')
+        description='Eval Trials by cosine scoring')
 
     parser.add_argument('--iv-file', dest='iv_file', required=True)
     parser.add_argument('--ndx-file', dest='ndx_file', default=None)

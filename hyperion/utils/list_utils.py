@@ -13,9 +13,9 @@ from itertools import groupby
 def list2ndarray(a):
     """Converts python string list to string numpy array.
     """
-    if(isinstance(a, list)):
+    if isinstance(a, list):
         return np.asarray(a)
-    assert(isinstance(a, np.ndarray))
+    assert isinstance(a, np.ndarray)
     return a
 
 

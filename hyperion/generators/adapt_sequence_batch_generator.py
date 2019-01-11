@@ -1,5 +1,6 @@
 """
-Loads data to train UBM, i-vector
+ Copyright 2018 Jesus Villalba (Johns Hopkins University)
+ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 from __future__ import absolute_import
 from __future__ import print_function
@@ -21,7 +22,7 @@ from ..io import RandomAccessDataReaderFactory as RF
 from ..utils.scp_list import SCPList
 from ..utils.tensors import to3D_by_seq
 from ..transforms import TransformList
-from .sequence_batch_generator import SequenceBatchGenerator as SBG
+from .sequence_batch_generator_v1 import SequenceBatchGeneratorV1 as SBG
 
 
 class AdaptSequenceBatchGenerator(SBG):

@@ -10,6 +10,7 @@ from six import string_types
 
 import os
 import logging
+import io
 import subprocess
 import soundfile as sf
 
@@ -70,7 +71,8 @@ class AudioReader(object):
         """
         wavspecifier = wavspecifier.strip()
         if wavspecifier[-1] == '|':
-            return read_pipe(wavspecifier, scale)
+            wavspecifier = wavspecifier[:-1]
+            return AudioReader.read_pipe(wavspecifier, scale)
         else:
             ext = os.path.splitext(wavspecifier)[1]
             if ext in valid_ext:
@@ -89,8 +91,10 @@ class AudioReader(object):
           wavspecifier: Shell command with pipe output
           scale:        Multiplies signal by scale factor
         """
-        proc = subprocess.Popen(wavspecifier, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDERR)
+        proc = subprocess.Popen(wavspecifier, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         pipe = proc.communicate()[0]
+        if proc.returncode !=0:
+            raise Exception('Wave read pipe command %s returned code %d' % (wavspecifier, proc.returncode))
         x, fs = sf.read(io.BytesIO(pipe), dtype=float_cpu())
         x *= scale
         return x, fs
@@ -187,6 +191,33 @@ class SequentialAudioReader(AudioReader):
 
         return keys, data, fs
 
+    
+    @staticmethod
+    def filter_args(prefix=None, **kwargs):
+        if prefix is None:
+            p = ''
+        else:
+            p = prefix + '_'
+        valid_args = ('part_idx', 'num_parts')
+        return dict((k, kwargs[p+k])
+                    for k in valid_args if p+k in kwargs)
+
+    
+    @staticmethod
+    def add_argparse_args(parser, prefix=None):
+        if prefix is None:
+            p1 = '--'
+            p2 = ''
+        else:
+            p1 = '--' + prefix + '-'
+            p2 = prefix + '_'
+            
+        # parser.add_argument(p1+'scp-sep', dest=(p2+'scp_sep'), default=' ',
+        #                     help=('scp file field separator'))
+        parser.add_argument(p1+'part-idx', dest=(p2+'part_idx'), type=int, default=1,
+                            help=('splits the list of files in num-parts and process part_idx'))
+        parser.add_argument(p1+'num-parts', dest=(p2+'num_parts'), type=int, default=1,
+                            help=('splits the list of files in num-parts and process part_idx'))
 
     
 

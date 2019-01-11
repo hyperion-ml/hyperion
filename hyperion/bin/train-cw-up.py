@@ -17,12 +17,9 @@ import logging
 import numpy as np
 
 from hyperion.hyp_defs import config_logger
-from hyperion.io import HypDataReader
 from hyperion.helpers import VectorReader as VR
 from hyperion.pdfs.core import Normal
 from hyperion.transforms import TransformList, CentWhitenUP, LNormUP
-from hyperion.utils.scp_list import SCPList
-
 
 
 def load_model(input_path, with_lnorm, name, **kwargs):

@@ -16,7 +16,6 @@ import logging
 import numpy as np
 
 from hyperion.hyp_defs import set_float_cpu, float_cpu, config_logger
-from hyperion.utils.scp_list import SCPList
 from hyperion.utils.trial_ndx import TrialNdx
 from hyperion.utils.trial_scores import TrialScores
 from hyperion.helpers import TrialDataReader as TDR
@@ -27,7 +26,6 @@ from hyperion.transforms import TransformList
 
 def eval_plda(iv_file, ndx_file, enroll_file, test_file,
               preproc_file,
-              scp_sep, v_field, eval_set,
               model_file, score_file, plda_type, **kwargs):
     
     if preproc_file is not None:
@@ -35,8 +33,8 @@ def eval_plda(iv_file, ndx_file, enroll_file, test_file,
     else:
         preproc = None
 
-    tdr = TDR(iv_file, ndx_file, enroll_file, test_file, preproc,
-              scp_sep=scp_sep, v_field=v_field, eval_set=eval_set)
+    tdr_args = TDR.filter_args(**kwargs)
+    tdr = TDR(iv_file, ndx_file, enroll_file, test_file, preproc, **tdr_args)
     x_e, x_t, enroll, ndx = tdr.read()
 
     model = F.load_plda(plda_type, model_file)
@@ -65,27 +63,12 @@ if __name__ == "__main__":
     parser.add_argument('--enroll-file', dest='enroll_file', required=True)
     parser.add_argument('--test-file', dest='test_file', default=None)
     parser.add_argument('--preproc-file', dest='preproc_file', default=None)
-    # parser.add_argument('--model-file', dest='model_file', required=True)
-
-    # parser.add_argument('--plda-type', dest='plda_type', default='splda',
-    #                     type=str.lower,
-    #                     choices=['plda','splda','frplda'],
-    #                     help=('(default: %(default)s)'))
-    
-    # parser.add_argument('--model-part-idx', dest='model_idx', default=1, type=int)
-    # parser.add_argument('--num-model-parts', dest='num_model_parts', default=1, type=int)
-    # parser.add_argument('--seg-part-idx', dest='seg_idx', default=1, type=int)
-    # parser.add_argument('--num-seg-parts', dest='num_seg_parts', default=1, type=int)
-
-    # parser.add_argument('--eval-set', dest='eval_set', type=str.lower,
-    #                     default='enroll-test',
-    #                     choices=['enroll-test','enroll-coh','coh-test','coh-coh'],
-    #                     help=('(default: %(default)s)'))
 
     TDR.add_argparse_args(parser)
     F.add_argparse_eval_args(parser)
     parser.add_argument('--score-file', dest='score_file', required=True)
-    parser.add_argument('-v', '--verbose', dest='verbose', default=1, choices=[0, 1, 2, 3], type=int)
+    parser.add_argument('-v', '--verbose', dest='verbose', default=1,
+                        choices=[0, 1, 2, 3], type=int)
         
     args=parser.parse_args()
     config_logger(args.verbose)

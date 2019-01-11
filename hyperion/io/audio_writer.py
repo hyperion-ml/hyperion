@@ -106,7 +106,7 @@ class AudioWriter(object):
             assert is_token(key_i), 'Token %s not valid' % key_i
             output_file = '%s/%s.%s' % (self.output_path, key_i, self.audio_format)
             fs_i = fs[i] if fs_is_list else fs
-            data_i = data[i].astype(dtype)
+            data_i = data[i].astype(dtype, copy=False)
             sf.write(output_file, data_i, fs_i, subtype=self.subtype)
             
             if self.f_script is not None:

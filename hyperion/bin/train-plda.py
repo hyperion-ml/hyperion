@@ -23,14 +23,7 @@ from hyperion.transforms import TransformList
 
 
 def train_plda(iv_file, train_list, val_list, preproc_file,
-               scp_sep, v_field,
-               min_spc, max_spc, spc_pruning_mode,
-               csplit_min_spc, csplit_max_spc, csplit_mode,
-               csplit_overlap, vcr_seed, 
-               plda_type, y_dim, z_dim,
-               fullcov_W,
-               update_mu, update_V, update_B, update_W,
-               name, epochs, ml_md, md_epochs,
+               epochs, ml_md, md_epochs,
                output_path, **kwargs):
     
     if preproc_file is not None:
@@ -38,31 +31,20 @@ def train_plda(iv_file, train_list, val_list, preproc_file,
     else:
         preproc = None
 
-    vcr_train = VCR(iv_file, train_list, preproc,
-                    scp_sep=scp_sep, v_field=v_field,
-                    min_spc=min_spc, max_spc=max_spc, spc_pruning_mode=spc_pruning_mode,
-                    csplit_min_spc=csplit_min_spc, csplit_max_spc=csplit_max_spc,
-                    csplit_mode=csplit_mode,
-                    csplit_overlap=csplit_overlap, vcr_seed=vcr_seed)
+    vcr_args = VCR.filter_args(**kwargs)
+    vcr_train = VCR(iv_file, train_list, preproc, **vcr_args)
     x, class_ids = vcr_train.read()
 
     x_val = None
     class_ids_val = None
     if val_list is not None:
-        vcr_val = VCR(iv_file, val_list, preproc,
-                      scp_sep=scp_sep, v_field=v_field,
-                      min_spc=min_spc, max_spc=max_spc, spc_pruning_mode=spc_pruning_mode,
-                      csplit_min_spc=csplit_min_spc, csplit_max_spc=csplit_max_spc,
-                      csplit_mode=csplit_mode,
-                      csplit_overlap=csplit_overlap, vcr_seed=vcr_seed)
+        vcr_val = VCR(iv_file, val_list, preproc, **vcr_args)
         x_val, class_ids_val = vcr_val.read()
         
     t1 = time.time()
 
-    model = F.create_plda(plda_type, y_dim=y_dim, z_dim=z_dim, fullcov_W=fullcov_W,
-                          update_mu=update_mu, update_V=update_V,
-                          update_B=update_B, update_W=update_W,
-                          name=name)
+    plda_args = F.filter_train_args(**kwargs)
+    model = F.create_plda(**plda_args)
     elbos = model.fit(x, class_ids, x_val=x_val, class_ids_val=class_ids_val,
                       epochs=epochs, ml_md=ml_md, md_epochs=md_epochs)
 

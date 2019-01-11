@@ -6,6 +6,7 @@ from __future__ import print_function
 from __future__ import division
 from six.moves import xrange
 
+import os
 from abc import ABCMeta, abstractmethod
 
 
@@ -34,6 +35,15 @@ class DataWriter(object):
         self.compression_method = compression_method
         self.scp_sep = scp_sep
         
+        archive_dir = os.path.dirname(archive_path)
+        if not os.path.exists(archive_dir):
+            os.makedirs(archive_dir)
+
+        if script_path is not None:
+            script_dir = os.path.dirname(script_path)
+            if not os.path.exists(script_dir):
+                os.makedirs(script_dir)
+            
 
         
     def __enter__(self):

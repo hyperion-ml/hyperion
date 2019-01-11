@@ -17,14 +17,14 @@ import numpy as np
 
 from hyperion.hyp_defs import set_float_cpu, float_cpu, config_logger
 from hyperion.utils.multithreading import threadsafe_generator
-from hyperion.helpers import SequenceBatchGenerator as G
+from hyperion.generators import SequenceBatchGeneratorV1 as G
 from hyperion.transforms import TransformList
 from hyperion.keras.backend_addons import reserve_gpu
 from hyperion.keras.keras_utils import *
 from hyperion.keras.keras_model_loader import KerasModelLoader as KML
 from hyperion.keras.helpers import OptimizerFactory as KOF
 from hyperion.keras.helpers import CallbacksFactory as KCF
-from hyperion.keras.embed import SeqEmbed
+from hyperion.keras.embed import SeqEmbedLDE as SeqEmbed
 
 
 
@@ -102,7 +102,6 @@ def train_embed(data_path, train_list, val_list,
         model.freeze_postpool_layers(freeze_postpool_layers)
     
     model.build(max_length)
-    logging.info(time.time()-t1)
     
     cb = KCF.create_callbacks(model, output_path, **cb_args)
     opt = KOF.create_optimizer(**opt_args)

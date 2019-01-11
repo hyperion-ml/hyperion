@@ -19,15 +19,9 @@ import numpy as np
 from hyperion.hyp_defs import config_logger
 from hyperion.helpers import VectorClassReader as VCR
 from hyperion.transforms import TransformList, LDA, SbSw
-from hyperion.utils.scp_list import SCPList
 
 
-def train_lda(iv_file, train_list, preproc_file,
-              scp_sep, v_field,
-              min_spc, max_spc, spc_pruning_mode,
-              csplit_min_spc, csplit_max_spc, csplit_mode,
-              csplit_overlap, vcr_seed, 
-              lda_dim,
+def train_lda(iv_file, train_list, preproc_file, lda_dim,
               name, save_tlist, append_tlist, output_path, **kwargs):
 
     
@@ -36,21 +30,14 @@ def train_lda(iv_file, train_list, preproc_file,
     else:
         preproc = None
 
-    vcr  = VCR(iv_file, train_list, preproc,
-               scp_sep=scp_sep, v_field=v_field,
-               min_spc=min_spc, max_spc=max_spc, spc_pruning_mode=spc_pruning_mode,
-               csplit_min_spc=csplit_min_spc, csplit_max_spc=csplit_max_spc,
-               csplit_mode=csplit_mode,
-               csplit_overlap=csplit_overlap, vcr_seed=vcr_seed)
+    vcr_args = VCR.filter_args(**kwargs)
+    vcr  = VCR(iv_file, train_list, preproc, **vcr_args)
     x, class_ids = vcr.read()
 
     t1 = time.time()
 
-    s_mat = SbSw()
-    s_mat.fit(x, class_ids)
-
-    model = LDA(name=name)
-    model.fit(mu=s_mat.mu, Sb=s_mat.Sb, Sw=s_mat.Sw, lda_dim=lda_dim)
+    model = LDA(lda_dim=lda_dim, name=name)
+    model.fit(x, class_ids)
 
     logging.info('Elapsed time: %.2f s.' % (time.time()-t1))
     

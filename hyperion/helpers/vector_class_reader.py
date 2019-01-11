@@ -15,21 +15,21 @@ import copy
 import numpy as np
 
 from ..io import RandomAccessDataReaderFactory as DRF
-from ..utils.scp_list import SCPList
+from ..utils.utt2info import Utt2Info
 from ..utils.tensors import to3D_by_class
 from ..transforms import TransformList
 
 
 class VectorClassReader(object):
 
-    def __init__(self, v_file, key_file, preproc=None, scp_sep='=', 
+    def __init__(self, v_file, key_file, preproc=None, vlist_sep=' ', 
                  class2int_file=None,
                  min_spc=1, max_spc=None, spc_pruning_mode='random',
                  csplit_min_spc=1, csplit_max_spc=None, csplit_mode='random',
                  csplit_overlap=0, vcr_seed=1024, csplit_once=True):
 
         self.r = DRF.create(v_file)
-        self.scp = SCPList.load(key_file, sep=scp_sep)
+        self.u2c = Utt2Info.load(key_file, sep=vlist_sep)
         self.preproc = preproc
 
         self.map_class2int = None
@@ -44,28 +44,28 @@ class VectorClassReader(object):
         self.csplit_overlap = csplit_overlap
         self.csplit_once = csplit_once
         self._samples_per_class = None
-        self.scp = self._filter_by_spc(self.scp, min_spc, max_spc, spc_pruning_mode, self.rng)
+        self.u2c = self._filter_by_spc(self.u2c, min_spc, max_spc, spc_pruning_mode, self.rng)
         if csplit_once:
-            self.scp = self._split_classes(self.scp, self.csplit_min_spc, self.csplit_max_spc,
+            self.u2c = self._split_classes(self.u2c, self.csplit_min_spc, self.csplit_max_spc,
                                            self.csplit_mode, self.csplit_overlap, self.rng)
 
 
             
     def read(self, return_3d=False, max_length=0):
         if self.csplit_once:
-            scp = self.scp
+            u2c = self.u2c
         else:
-            scp = self._split_classes(self.spc, self.csplit_min_spc, self.csplit_max_spc,
+            u2c = self._split_classes(self.u2c, self.csplit_min_spc, self.csplit_max_spc,
                                       self.csplit_mode, self.csplit_overlap, self.rng)
         
-        x = self.r.read(scp.file_path, squeeze=True)
+        x = self.r.read(u2c.key, squeeze=True)
         if self.preproc is not None:
             x = self.preproc.predict(x)
 
         if self.map_class2int is None:
-            _, class_ids=np.unique(scp.key, return_inverse=True)
+            _, class_ids=np.unique(u2c.info, return_inverse=True)
         else:
-            class_ids = np.array([ self.map_class2int[k] for k in scp.key ], dtype=int)
+            class_ids = np.array([ self.map_class2int[k] for k in u2c.info ], dtype=int)
         if return_3d:
             x, sample_weight = to3D_by_class(x, class_ids, max_length)
             return x, sample_weight
@@ -76,7 +76,7 @@ class VectorClassReader(object):
     @property
     def class_names(self):
         if self.map_class2int is None:
-            return np.unique(self.scp.key)
+            return np.unique(self.u2c.info)
         else:
             map_int2class = {k:v for v,k in self.map_class2int.items()}
             classes = [ map_int2class[i] for i in xrange(len(map_int2class))]
@@ -87,11 +87,11 @@ class VectorClassReader(object):
     def samples_per_class(self):
         if self._samples_per_class is None:
             if self.csplit_once:
-                scp = self.scp
+                u2c = self.u2c
             else:
-                scp = self._split_classes(self.spc, self.csplit_min_spc, self.csplit_max_spc,
+                u2c = self._split_classes(self.u2c, self.csplit_min_spc, self.csplit_max_spc,
                                         self.csplit_mode, self.csplit_overlap, self.rng)
-            _, self._samples_per_class=np.unique(scp.key, return_counts=True)
+            _, self._samples_per_class=np.unique(u2c.info, return_counts=True)
 
         return self._samples_per_class
 
@@ -105,21 +105,21 @@ class VectorClassReader(object):
 
     
     @staticmethod
-    def _filter_by_spc(scp, min_spc=1, max_spc=None, spc_pruning_mode='last', rng=None):
+    def _filter_by_spc(u2c, min_spc=1, max_spc=None, spc_pruning_mode='last', rng=None):
         if min_spc <= 1 and max_spc==None:
-            return scp
+            return u2c
 
         if min_spc > 1:
-            classes, num_spc = np.unique(scp.key, return_counts=True)
+            classes, num_spc = np.unique(u2c.info, return_counts=True)
             filter_key = classes[num_spc >= min_spc]
-            scp = scp.filter(filter_key)
+            u2c = u2c.filter_info(filter_key)
 
         if max_spc is not None:
             classes, class_ids, num_spc=np.unique(
-                scp.key, return_inverse=True, return_counts=True)
+                u2c.info, return_inverse=True, return_counts=True)
             
             if np.all(num_spc <= max_spc):
-                return scp
+                return u2c
             f = np.ones_like(class_ids, dtype=bool)
             for i in xrange(np.max(class_ids)+1):
                 if num_spc[i] > max_spc:
@@ -136,22 +136,22 @@ class VectorClassReader(object):
                     f[indx] = False
 
             if np.any(f==False):
-                scp = SCPList(scp.key[f], scp.file_path[f])
+                u2c = Utt2Info.create(u2c.key[f], u2c.info[f])
             
-        return scp
+        return u2c
 
 
     
     @staticmethod
-    def _split_classes(scp, min_spc, max_spc, mode='sequential', overlap=0, rng=None):
+    def _split_classes(u2c, min_spc, max_spc, mode='sequential', overlap=0, rng=None):
         if max_spc is None:
-            return scp
+            return u2c
         if mode == 'random_1part':
-            return VectorClassReader._filter_by_scp(scp, min_scp, max_scp, 'random', rng)
+            return VectorClassReader._filter_by_spc(u2c, min_scp, max_scp, 'random', rng)
 
-        _, class_ids, num_spc = np.unique(scp.key, return_inverse=True, return_counts=True)
+        _, class_ids, num_spc = np.unique(u2c.info, return_inverse=True, return_counts=True)
         if np.all(num_spc <= max_spc):
-            return VectorClassReader._filter_by_spc(scp, min_spc)
+            return VectorClassReader._filter_by_spc(u2c, min_spc)
 
         num_classes = np.max(class_ids)+1
 
@@ -193,12 +193,11 @@ class VectorClassReader(object):
                 j += num_spc[i]
 
         new_indx = new_indx[:j]
-        new_class_ids = new_class_ids[:j]
-        key = new_class_ids.astype('U')
-        file_path = scp.file_path[new_indx]
-        scp = SCPList(key, file_path)
+        new_class_ids = new_class_ids[:j].astype('U')
+        key = u2c.key[new_indx]
+        u2c = Utt2Info.create(key, new_class_ids)
         
-        return VectorClassReader._filter_by_spc(scp, min_spc)
+        return VectorClassReader._filter_by_spc(u2c, min_spc)
                      
 
     @staticmethod
@@ -207,7 +206,7 @@ class VectorClassReader(object):
             p = ''
         else:
             p = prefix + '_'
-        valid_args = ('scp_sep', 'v_field', 'class2int_file',
+        valid_args = ('vlist_sep', 'class2int_file',
                       'min_spc', 'max_spc', 'spc_pruning_mode',
                       'csplit_min_spc', 'csplit_max_spc',
                       'csplit_mode', 'csplit_overlap',
@@ -224,8 +223,8 @@ class VectorClassReader(object):
         else:
             p1 = '--' + prefix + '-'
             p2 = prefix + '_'
-        parser.add_argument(p1+'scp-sep', dest=(p2+'scp_sep'), default='=',
-                            help=('scp file field separator'))
+        parser.add_argument(p1+'vlist-sep', dest=(p2+'vlist_sep'), default=' ',
+                            help=('utt2class file field separator'))
         # parser.add_argument(p1+'v-field', dest=(p2+'v_field'), default='',
         #                     help=('dataset field in input vector file'))
 

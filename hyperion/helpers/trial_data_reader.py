@@ -15,25 +15,24 @@ import copy
 import numpy as np
 
 from ..io import RandomAccessDataReaderFactory as DRF
-from ..utils.scp_list import SCPList
+from ..utils.utt2info import Utt2Info
 from ..utils.trial_ndx import TrialNdx
 from ..transforms import TransformList
 
 class TrialDataReader(object):
 
     def __init__(self, v_file, ndx_file, enroll_file, test_file,
-                 preproc, scp_sep='=', v_field='',
+                 preproc, tlist_sep=' ', 
                  model_idx=1, num_model_parts=1, seg_idx=1, num_seg_parts=1,
                  eval_set='enroll-test'):
 
         self.r = DRF.create(v_file)
         self.preproc = preproc
-        self.field = v_field
 
-        enroll = SCPList.load(enroll_file, sep=scp_sep)
+        enroll = Utt2Info.load(enroll_file, sep=tlist_sep)
         test = None
         if test_file is not None:
-            test = SCPList.load(test_file, sep=scp_sep)
+            test = Utt2Info.load(test_file, sep=tlist_sep)
         ndx = None
         if ndx_file is not None:
             ndx = TrialNdx.load(ndx_file)
@@ -66,7 +65,7 @@ class TrialDataReader(object):
             p = ''
         else:
             p = prefix + '_'
-        valid_args = ('scp_sep', 'v_field',
+        valid_args = ('tlist_sep', 
                       'model_idx','num_model_parts',
                       'seg_idx', 'num_seg_parts',
                       'eval_set')
@@ -82,10 +81,10 @@ class TrialDataReader(object):
         else:
             p1 = '--' + prefix + '-'
             p2 = prefix + '_'
-        parser.add_argument(p1+'scp-sep', dest=(p2+'scp_sep'), default='=',
-                            help=('scp file field separator'))
-        parser.add_argument(p1+'v-field', dest=(p2+'v_field'), default='',
-                            help=('dataset field in the data file'))
+        parser.add_argument(p1+'tlist-sep', dest=(p2+'tlist_sep'), default=' ',
+                            help=('trial lists field separator'))
+        # parser.add_argument(p1+'v-field', dest=(p2+'v_field'), default='',
+        #                     help=('dataset field in the data file'))
 
         parser.add_argument(p1+'model-part-idx', dest=(p2+'model_idx'), default=1, type=int,
                             help=('model part index'))

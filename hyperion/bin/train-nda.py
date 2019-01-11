@@ -19,14 +19,9 @@ import numpy as np
 from hyperion.hyp_defs import config_logger
 from hyperion.helpers import VectorClassReader as VCR
 from hyperion.transforms import TransformList, NDA, NSbSw
-from hyperion.utils.scp_list import SCPList
 
 
 def train_nda(iv_file, train_list, preproc_file,
-              scp_sep,
-              min_spc, max_spc, spc_pruning_mode,
-              csplit_min_spc, csplit_max_spc, csplit_mode,
-              csplit_overlap, vcr_seed, 
               nda_dim, K, alpha, 
               name, save_tlist, append_tlist, output_path, **kwargs):
 
@@ -39,7 +34,6 @@ def train_nda(iv_file, train_list, preproc_file,
     vr_args = VCR.filter_args(**kwargs)
     vcr  = VCR(iv_file, train_list, preproc, **vr_args)
     x, class_ids = vcr.read()
-
 
     t1 = time.time()
 
