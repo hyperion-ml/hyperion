@@ -13,9 +13,9 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-from hyperion.perf_eval.roc import *
+from hyperion.metrics.roc import *
 
-output_dir = './tests/data_out/perf_eval'
+output_dir = './tests/data_out/metrics'
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)
 
