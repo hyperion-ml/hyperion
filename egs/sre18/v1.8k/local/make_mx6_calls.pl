@@ -35,11 +35,13 @@ if (system("mkdir -p $out_dir") != 0) {
 open(SUBJECTS, "<$db_base/mx6_speech/docs/mx6_subjs.csv") || die "cannot open $$db_base/mx6_speech/docs/mx6_subjs.csv";
 open(SPKR, ">$out_dir/utt2spk") || die "Could not open the output file $out_dir/utt2spk";
 open(U2C, ">$out_dir/utt2clean") || die "Could not open the output file $out_dir/utt2clean";
+open(U2L, ">$out_dir/utt2lang") || die "Could not open the output file $out_dir/utt2lang";
 open(GNDR, ">$out_dir/spk2gender") || die "Could not open the output file $out_dir/spk2gender";
 open(WAV, ">$out_dir/wav.scp") || die "Could not open the output file $out_dir/wav.scp";
+open(U2I, ">$out_dir/utt2info") || die "Could not open the output file $out_dir/utt2info.scp";
 open(META, "<$db_base/mx6_speech/docs/mx6_calls.csv") || die "cannot open $db_base/mx6_speech/docs/mx6_calls.csv";
 
-if (system("find $db_base/mx6_speech/data/ulaw_sphere/ -name '*.sph' > $tmp_dir/sph.list") != 0) {
+if (system("find -L $db_base/mx6_speech/data/ulaw_sphere/ -name '*.sph' > $tmp_dir/sph.list") != 0) {
   die "Error getting list of sph files";
 }
 open(SPHLIST, "<$tmp_dir/sph.list") or die "cannot open wav list";
@@ -53,12 +55,14 @@ while(<SPHLIST>) {
   $call2sph[$call_id] = $sph;
 }
 
+%genders;
 while (<SUBJECTS>) {
   chomp;
   $line = $_;
   @toks = split(",", $line);
   $spk = $toks[0];
   $gender = lc $toks[1];
+  $genders{$spk}=$gender;
   if ($gender eq "f" or $gender eq "m") {
     print GNDR "$spk $gender\n";
   }
@@ -74,9 +78,13 @@ while (<META>) {
   ($call_date, $call_time) = split(/_/, $toks[1]);
   $sid_A = $toks[4];
   $sid_B = $toks[12];
+  $lang = $toks[2];
+  $eng = $toks[3];
+  $gender_A = $genders{$sid_A};
+  $gender_B = $genders{$sid_B};
   if (-f $call2sph[$call_id]) {
-    $utt_A = "${sid_A}_MX6_${call_id}_A";
-    $utt_B = "${sid_B}_MX6_${call_id}_B";
+    $utt_A = "${sid_A}-MX6-${call_id}-A";
+    $utt_B = "${sid_B}-MX6-${call_id}-B";
     print SPKR "${utt_A} $sid_A\n";
     print SPKR "${utt_B} $sid_B\n";
     if ($fs == 8) {
@@ -88,6 +96,10 @@ while (<META>) {
     }
     print U2C "${utt_A} ${utt_A}\n";
     print U2C "${utt_B} ${utt_B}\n";
+    print U2L "${utt_A} ${lang}\n";
+    print U2L "${utt_B} ${lang}\n";
+    print U2I "${utt_A} a ${sid_A} ${gender_A} MX6-${call_id}-A ${lang} ${eng} tel phonecall N/A N/A no_alteration not_reported\n";
+    print U2I "${utt_B} a ${sid_B} ${gender_B} MX6-${call_id}-B ${lang} ${eng} tel phonecall N/A N/A no_alteration not_reported\n";
     $num_good_files++;
   } else {
     print STDERR "Sphere file for $call_id doesn't exist\n";
@@ -101,6 +113,9 @@ close(SPHLIST) || die;
 close(SUBJECTS) || die;
 close(GNDR) || die;
 close(SPKR) || die;
+close(U2C) || die;
+close(U2L) || die;
+close(U2I) || die;
 close(WAV) || die;
 close(META) || die;
 

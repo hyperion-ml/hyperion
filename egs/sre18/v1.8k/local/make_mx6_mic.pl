@@ -38,16 +38,20 @@ if (system("mkdir -p $out_dir") != 0) {
 open(SUBJECTS, "<$db_base/mx6_speech/docs/mx6_subjs.csv") || die "cannot open $$db_base/mx6_speech/docs/mx6_subjs.csv";
 open(SPKR, ">$out_dir/utt2spk") || die "Could not open the output file $out_dir/utt2spk";
 open(U2C, ">$out_dir/utt2clean") || die "Could not open the output file $out_dir/utt2clean";
+open(U2L, ">$out_dir/utt2lang") || die "Could not open the output file $out_dir/utt2lang";
+open(U2I, ">$out_dir/utt2info") || die "Could not open the output file $out_dir/utt2info";
 open(GNDR, ">$out_dir/spk2gender") || die "Could not open the output file $out_dir/spk2gender";
 open(WAV, ">$out_dir/wav.scp") || die "Could not open the output file $out_dir/wav.scp";
 open(META, "<$db_base/mx6_speech/docs/mx6_ivcomponents.csv") || die "cannot open $db_base/mx6_speech/docs/mx6_ivcomponents.csv";
 
+%genders;
 while (<SUBJECTS>) {
   chomp;
   $line = $_;
   @toks = split(",", $line);
   $spk = $toks[0];
   $gender = lc $toks[1];
+  $genders{$spk}=$gender;
   if ($gender eq "f" or $gender eq "m") {
     print GNDR "$spk $gender\n";
   }
@@ -63,18 +67,23 @@ while (<META>) {
   $t1 = $toks[7];
   $t2 = $toks[8];
   @toks2 = split(/_/, $toks[0]);
+  $ldc_id=$toks[0];
   $spk = $toks2[3];
-  $utt = "${spk}_MX6_$toks2[0]_$toks2[1]_$ch";
-  $utt_clean = "${spk}_MX6_$toks2[0]_$toks2[1]_02";
+  $room = $toks2[2];
+  $gender = $genders{$spk};
+  $utt = "${spk}-MX6-$toks2[0]-$toks2[1]-$ch";
+  $utt_clean = "${spk}-MX6-$toks2[0]-$toks2[1]-02";
   if (-f $flac) {
       print SPKR "${utt} $spk\n";
       print U2C "${utt} ${utt_clean}\n";
+      print U2L "${utt} ENG\n";
       if ($fs == 8) {
 	  print WAV "${utt} sox -t flac $flac -r 8k -t wav - trim $t1 =$t2 |\n";
       }
       else {
 	  print WAV "${utt} sox -t flac $flac -r 16k -t wav - trim $t1 =$t2 |\n";
       }
+      print U2I "${utt} a ${spk} ${gender} ${ldc_id} ENG All_ENG mic phonecall ${ch} ${room} no_alteration not_reported\n";
       $num_good_files++;
   } else {
       print STDERR "File $flac doesn't exist\n";
@@ -87,6 +96,9 @@ print STDERR "Processed $num_good_files utterances; $num_bad_files had missing f
 close(SUBJECTS) || die;
 close(GNDR) || die;
 close(SPKR) || die;
+close(U2C) || die;
+close(U2L) || die;
+close(U2I) || die;
 close(WAV) || die;
 close(META) || die;
 
