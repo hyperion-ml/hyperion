@@ -5,7 +5,7 @@
 set -e
 
 feats_diar=`pwd -P`/exp/feats_diar
-storage_name=sre18-v1.8k-diar-$(date +'%m_%d_%H_%M')
+storage_name=sre18-v1.16k-diar-$(date +'%m_%d_%H_%M')
 stage=1
 
 . parse_options.sh || exit 1;

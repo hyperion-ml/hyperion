@@ -4,43 +4,11 @@ from __future__ import division
 from six.moves import xrange
 
 import numpy as np
-from sklearn.metrics import accuracy_score, confusion_matrix
+import matplotlib.pyplot as plt
+from sklearn.metrics import confusion_matrix
 
 from ..utils.list_utils import list2ndarray
-from .roc import compute_rocch, rocch2eer
 
-
-def compute_eer(tar, non):
-    """Computes equal error rate.
-
-    Args:
-      tar: Scores of target trials.
-      non: Scores of non-target trials.
-    
-    Returns:
-      EER
-    """
-    p_miss, p_fa = compute_rocch(tar, non)
-    return rocch2eer(p_miss, p_fa)
-
-
-
-def compute_accuracy(y_true, y_pred, normalize=True, sample_weight=None):
-    """Computes accuracy
-
-    Args:
-      y_true: 1d array-like, or label indicator array / sparse matrix.
-              Ground truth (correct) labels.
-      y_pred: 1d array-like, or label indicator array / sparse matrix.
-              Predicted labels, as returned by a classifier.
-      normalize: If False, return the number of correctly classified samples. 
-                 Otherwise, return the fraction of correctly classified samples.
-      sample_weight: Sample weights.
-
-    Returns:
-      Accuracy or number of correctly classified samples.
-    """
-    return accuracy_score(y_true, y_pred, normalize, sample_weight)
 
 
 
@@ -128,3 +96,93 @@ def compute_xlabel_confusion_matrix(y_true, y_pred, labels_train=None, labels_te
     if normalize:
         C = C/np.sum(C, axis=1, keepdims=True)
     return C
+
+
+
+
+def plot_confusion_matrix(C, labels_true, labels_pred=None,
+                          title='Confusion matrix', cmap=plt.cm.Blues):
+    """Plots a confusion matrix in a figure.
+
+    Args:
+      C: 2D numpy array with confusion matrix.
+      labels_true: Labels of the true classes (rows).
+      labels_cols: Labels of the predicted classes. If None, it is equal to labels_true.
+      title: Title for the figure.
+      cmp: Color MAP.
+    """
+    if labels_pred is None:
+        labels_pred = labels_true
+
+    assert C.shape[0] == len(labels_true)
+    assert C.shape[1] == len(labels_pred)
+
+    plt.imshow(C, interpolation='nearest', cmap=cmap)
+    plt.title(title)
+    plt.colorbar()
+    tick_marks_y = np.arange(len(labels_true))
+    tick_marks_x = np.arange(len(labels_pred))
+    plt.xticks(tick_marks_x, labels_pred, rotation=45)
+    plt.yticks(tick_marks_y, labels_true)
+
+    normalized = np.all(C<=1)
+    fmt = '.2f' if normalized else 'd'
+    thresh = np.max(C) / 2.
+    for i in xrange(C.shape[0]):
+        for j in xrange(C.shape[1]):
+            plt.text(j, i, format(C[i, j], fmt),
+                     horizontalalignment="center",
+                     color="white" if C[i, j] > thresh else "black")
+        
+    plt.tight_layout()
+    plt.ylabel('True label')
+    plt.xlabel('Predicted label')
+
+
+
+def write_confusion_matrix(f, C, labels_true, labels_pred=None):
+    """Writes confusion matrix to file.
+
+    Args:
+      f: Python file hangle.
+      C: 2D numpy array with confusion matrix.
+      labels_true: Labels of the true classes (rows).
+      labels_cols: Labels of the predicted classes. If None, it is equal to labels_true.
+    """
+    
+    if labels_pred is None:
+        labels_pred = labels_true
+
+    assert C.shape[0] == len(labels_true)
+    assert C.shape[1] == len(labels_pred)
+    
+    normalized = np.all(C<=1)
+    fmt = '.2f' if normalized else 'd'
+
+    column_width = np.max([len(label) for label in labels_pred] + [6]) + 3
+    empty_cell = ' ' * column_width
+    f.write(empty_cell)
+    for label in labels_pred:
+        f.write('%{0}s'.format(column_width) % label)
+    f.write('\n')
+    
+    for i, label_y in enumerate(labels_true):
+        f.write('%{0}s'.format(column_width) % label_y)
+        for j in xrange(C.shape[1]):
+            f.write('%{0}{1}'.format(column_width, fmt) % C[i, j])
+        f.write('\n')
+        
+
+        
+def print_confusion_matrix(C, labels_true, labels_pred=None):
+    """Prints confusion matrix to std output.
+
+    Args:
+      C: 2D numpy array with confusion matrix.
+      labels_true: Labels of the true classes (rows).
+      labels_cols: Labels of the predicted classes. If None, it is equal to labels_true.
+    """
+    write_confusion_matrix(sys.stdout, C, labels_true, labels_pred)
+
+    
+    

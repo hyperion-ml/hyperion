@@ -89,7 +89,7 @@ fi
 
 if [ $stage -le 2 ]; then
   echo "$0: computing RTTM"
-  diarization/make_rttm.py --rttm-channel $rttm_channel $srcdir/segments $dir/labels $dir/rttm || exit 1;
+  steps_kaldi_diar/make_rttm.py --rttm-channel $rttm_channel $srcdir/segments $dir/labels $dir/rttm || exit 1;
 fi
 
 if $cleanup ; then

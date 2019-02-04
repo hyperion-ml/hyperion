@@ -22,6 +22,7 @@ tel_up=""
 vid_down=""
 if [ $fs -eq 16 ];then
     tel_up=" sox -t wav - -t wav -r 16k - |"
+    vid_down=" -r 16k "
 elif [ $fs -eq 8 ];then
     vid_down=" -r 8k "
 fi

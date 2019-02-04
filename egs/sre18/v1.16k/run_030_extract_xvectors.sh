@@ -33,8 +33,8 @@ fi
 
 if [ $stage -le 2 ]; then
     # Extracts x-vectors for evaluation
-    #for name in sre16_eval_enroll sre16_eval_test sre16_major sre16_minor \
-   for name in				  sitw_train_dev sitw_dev_enroll sitw_dev_test sitw_eval_enroll sitw_eval_test \
+    for name in sre16_eval_enroll sre16_eval_test sre16_dev_enroll sre16_dev_test sre16_major sre16_minor \
+  				  sitw_dev_train sitw_dev_enroll sitw_dev_test sitw_eval_enroll sitw_eval_test \
   				  sre18_dev_unlabeled sre18_dev_enroll_cmn2 sre18_dev_test_cmn2 \
 				  sre18_eval_enroll_cmn2 sre18_eval_test_cmn2 \
 				  sre18_eval_enroll_vast sre18_eval_test_vast
@@ -45,7 +45,7 @@ if [ $stage -le 2 ]; then
 					      $xvector_dir/$name
     done
 
-    for name in sre16_dev_enroll sre16_dev_test sre18_dev_enroll_vast sre18_dev_test_vast
+    for name in sre18_dev_enroll_vast sre18_dev_test_vast
     do
 	steps_kaldi_xvec/extract_xvectors.sh --cmd "$train_cmd --mem 6G" --nj 1 \
 					     $nnet_dir data/$name \

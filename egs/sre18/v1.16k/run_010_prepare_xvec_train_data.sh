@@ -17,7 +17,7 @@ stage=1
 
 if [ $stage -le 1 ];then
   # Combine data to train x-vector nnet
-  utils/combine_data.sh data/train_combined data/swbd_sre_tel_combined data/sre_phnmic_combined data/voxceleb_combined 
+  utils/combine_data.sh data/train_combined data/sre_phnmic_combined data/voxceleb_combined 
 
 fi
 
@@ -27,7 +27,7 @@ if [ $stage -le 2 ]; then
     # This script applies CMVN and removes nonspeech frames.  Note that this is somewhat
     # wasteful, as it roughly doubles the amount of training data on disk.  After
     # creating training examples, this can be removed.
-    steps_kaldi_xvec/prepare_feats_for_egs.sh --nj 40 --cmd "$train_cmd -l \"hostname=b[01]*\" -V" --storage_name sre18-v1.8k-$(date +'%m_%d_%H_%M') \
+    steps_kaldi_xvec/prepare_feats_for_egs.sh --nj 40 --cmd "$train_cmd -l \"hostname=b[01]*\" -V" --storage_name sre18-v1.16k-$(date +'%m_%d_%H_%M') \
 						 data/train_combined data/train_combined_no_sil exp/train_combined_no_sil
     utils/fix_data_dir.sh data/train_combined_no_sil
 

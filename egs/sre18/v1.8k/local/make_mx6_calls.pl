@@ -55,7 +55,7 @@ while(<SPHLIST>) {
   $call2sph[$call_id] = $sph;
 }
 
-%genders;
+%genders = ();
 while (<SUBJECTS>) {
   chomp;
   $line = $_;
@@ -82,7 +82,7 @@ while (<META>) {
   $eng = $toks[3];
   $gender_A = $genders{$sid_A};
   $gender_B = $genders{$sid_B};
-  if (-f $call2sph[$call_id]) {
+  if (($call_id != "call_id") & (-f $call2sph[$call_id])) {
     $utt_A = "${sid_A}-MX6-${call_id}-A";
     $utt_B = "${sid_B}-MX6-${call_id}-B";
     print SPKR "${utt_A} $sid_A\n";

@@ -9,26 +9,49 @@ from six.moves import xrange
 import numpy as np
 
 
+def effective_prior(p_tar, c_miss, c_fa):
+    """This function adjusts a given prior probability of target p_targ, 
+    to incorporate the effects of a cost of miss, cmiss, and a cost of false-alarm, cfa.
+
+    Args:
+       p_tar: target prior
+       c_miss: cost of miss
+       c_fa: cost of false alarm
+    Returns:
+       Effective prior
+
+    """
+    beta = p_tar*c_miss/(1-p_tar)/c_fa
+    p_eff = beta/(1+beta)
+    return p_eff
+
+
+
 
 def pavx(y):
+    """PAV: Pool Adjacent Violators algorithm. Non-paramtetric optimization subject to mon       otonicity.
 
-#PAV: Pool Adjacent Violators algorithm. Non-paramtetric optimization subject to monotonicity.
-#
-# ghat = pav(y)
-# fits a vector ghat with nondecreasing components to the 
-# data vector y such that sum((y - ghat).^2) is minimal. 
-# (Pool-adjacent-violators algorithm).
-#
-# optional outputs:
-#   width: width of pav bins, from left to right 
-#          (the number of bins is data dependent)
-#   height: corresponding heights of bins (in increasing order)
-# 
-# Author: This code is a simplified version of the 'IsoMeans.m' code made available 
-# by Lutz Duembgen at:
-# http://www.imsv.unibe.ch/~duembgen/software
+        ghat = pav(y)
+        fits a vector ghat with nondecreasing components to the 
+        data vector y such that sum((y - ghat).^2) is minimal. 
+        (Pool-adjacent-violators algorithm).
 
-    assert(isinstance(y, np.ndarray))
+       Author: This code is and adaptation from Bosaris Toolkit and 
+               it is a simplified version of the 'IsoMeans.m' code made available 
+               by Lutz Duembgen at:
+                 http://www.imsv.unibe.ch/~duembgen/software
+
+       Args:
+        y: uncalibrated scores
+
+       Returns:
+         Calibrated scores
+         Width of pav bins, from left to right 
+            (the number of bins is data dependent)
+         Height: corresponding heights of bins (in increasing order)
+ 
+     """
+    assert isinstance(y, np.ndarray)
 
     n = len(y)
     assert(n>0)

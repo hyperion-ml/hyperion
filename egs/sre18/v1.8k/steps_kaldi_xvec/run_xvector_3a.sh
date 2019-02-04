@@ -60,7 +60,6 @@ if [ $stage -le 6 ]; then
       dir_name=$USER/hyp-data/kaldi-xvector/$storage_name/egs/storage
       if [ "$nodes" == "b0" ];then
 	  utils/create_split_dir.pl \
-	      utils/create_split_dir.pl \
 	      /export/b{04,05,06,07,08,09}/$dir_name $egs_dir/storage
       elif [ "$nodes" == "b1" ];then
 	  utils/create_split_dir.pl \

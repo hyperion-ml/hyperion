@@ -27,8 +27,8 @@ frame_shift=0.01
 if [ $stage -le 1 ]; then
 
     if [ ! -d "RIRS_NOISES" ]; then
-	if [ -d ../v1.16k/RIRS_NOISES ];then
-	    ln -s ../v1.16k/RIRS_NOISES
+	if [ -d ../v1.8k/RIRS_NOISES ];then
+	    ln -s ../v1.8k/RIRS_NOISES
 	else
 	    # Download the package that includes the real RIRs, simulated RIRs, isotropic noises and point-source noises
 	    wget --no-check-certificate http://www.openslr.org/resources/28/rirs_noises.zip
@@ -38,7 +38,7 @@ if [ $stage -le 1 ]; then
 
     # Prepare the MUSAN corpus, which consists of music, speech, and noise
     # suitable for augmentation.
-    local/make_musan.sh /export/corpora/JHU/musan 8 data
+    local/make_musan.sh /export/corpora/JHU/musan 16 data
     
     # Get the duration of the MUSAN recordings.  This will be used by the
     # script augment_data_dir.py.
@@ -52,7 +52,7 @@ fi
 
 if [ $stage -le 2 ]; then
     
-  for name in swbd_sre_tel sre_phnmic voxceleb
+  for name in sre_tel sre_phnmic voxceleb
   do
       awk -v frame_shift=$frame_shift '{print $1, $2*frame_shift;}' data/$name/utt2num_frames > data/$name/reco2dur
       
@@ -71,7 +71,7 @@ if [ $stage -le 2 ]; then
 	      --pointsource-noise-addition-probability 0 \
 	      --isotropic-noise-addition-probability 0 \
 	      --num-replications 1 \
-	      --source-sampling-rate 8000 \
+	      --source-sampling-rate 16000 \
 	      data/${name} data/${name}_reverb
       cp data/${name}/vad.scp data/${name}_reverb/
       utils/copy_data_dir.sh --utt-suffix "-reverb" data/${name}_reverb data/${name}_reverb.new
@@ -119,8 +119,8 @@ fi
 if [ $stage -le 3 ];then
     
   # Take a random subset of the augmentations 
-  utils/subset_data_dir.sh data/swbd_sre_tel_aug 180000 data/swbd_sre_tel_aug_180k
-  utils/fix_data_dir.sh data/swbd_sre_tel_aug_180k
+  utils/subset_data_dir.sh data/sre_tel_aug 140000 data/sre_tel_aug_140k
+  utils/fix_data_dir.sh data/sre_tel_aug_140k
 
   utils/subset_data_dir.sh data/sre_phnmic_aug 20000 data/sre_phnmic_aug_20k
   utils/fix_data_dir.sh data/sre_phnmic_aug_20k

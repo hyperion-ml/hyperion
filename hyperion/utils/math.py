@@ -124,6 +124,44 @@ def logsumexp(r, axis=-1):
     
 
 
+def logsigmoid(x):
+    """
+      Returns:
+        y = \log(sigmoid(x))
+    """
+    e = np.exp(-x)
+    f = x < -100
+    log_p = -np.log(1+np.exp(-x))
+    log_p[f] = x
+    return log_p
+
+
+
+def neglogsigmoid(x):
+    """
+      Returns:
+        y = -\log(sigmoid(x))
+    """
+    e = np.exp(-x)
+    f = x < -100
+    log_p = np.log(1+np.exp(-x))
+    log_p[f] = - x
+    return log_p
+
+
+def sigmoid(x):
+    """
+      Returns:
+        y = sigmoid(x)
+    """
+    e = np.exp(-x)
+    f = x < -100
+    p = 1/(1+np.exp(-x))
+    p[f] = 0
+    return p
+
+
+
 def fisher_ratio(mu1, Sigma1, mu2, Sigma2):
     """Computes the Fisher ratio between two classes
        from the class means and covariances.

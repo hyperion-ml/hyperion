@@ -1,0 +1,30 @@
+from __future__ import absolute_import
+from __future__ import print_function
+from __future__ import division
+from six.moves import xrange
+
+import numpy as np
+from sklearn.metrics import accuracy_score
+
+
+
+def compute_accuracy(y_true, y_pred, normalize=True, sample_weight=None):
+    """Computes accuracy
+
+    Args:
+      y_true: 1d array-like, or label indicator array / sparse matrix.
+              Ground truth (correct) labels.
+      y_pred: 1d array-like, or label indicator array / sparse matrix.
+              Predicted labels, as returned by a classifier.
+      normalize: If False, return the number of correctly classified samples. 
+                 Otherwise, return the fraction of correctly classified samples.
+      sample_weight: Sample weights.
+
+    Returns:
+      Accuracy or number of correctly classified samples.
+    """
+    return accuracy_score(y_true, y_pred, normalize, sample_weight)
+
+
+
+
