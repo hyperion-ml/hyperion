@@ -19,7 +19,7 @@ from hyperion.helpers import VectorReader as VR
 from hyperion.transforms import TransformList, LDA, LNorm
 from hyperion.helpers import PLDAFactory as F
 from hyperion.clustering import AHC
-from hyperion.utils.scp_list import SCPList
+from hyperion.utils.utt2info import Utt2Info
 
 
 def train_be(iv_file, train_list,
@@ -119,8 +119,8 @@ def train_be(iv_file, train_list,
     elbo = np.vstack((num, elbo)).T
     np.savetxt(output_path + '/elbo_adapt2.csv', elbo, delimiter=',')
 
-    scp_out = SCPList(class_ids2.astype('U'), vcr.scp.file_path)
-    scp_out.save(output_path + '/output_adapt_spk2utt.scp', sep='=')
+    u2c_out = Utt2Info.create(vcr.u2c.key, class_ids2.astype('U'))
+    u2c_out.save(output_path + '/output_adapt_spk2utt.scp', sep=' ')
     
     
 if __name__ == "__main__":

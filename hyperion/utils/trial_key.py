@@ -1,6 +1,8 @@
 """
-Bosaris compatible Key
+ Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import division
@@ -17,7 +19,8 @@ from .trial_ndx import TrialNdx
 
 class TrialKey(object):
     """ Contains the trial key for speaker recognition trials.
-    
+        Bosaris compatible Key.
+
     Attributes:
       model_set: List of model names.
       seg_set: List of test segment names.

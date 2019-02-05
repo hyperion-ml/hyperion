@@ -8,7 +8,7 @@
 . ./path.sh
 set -e
 
-diar_name=diar1b
+diar_name=diar1a
 
 net_name=1a
 
@@ -80,6 +80,18 @@ sre18_dev_trials_vast=data/sre18_dev_test_vast/trials
 sre18_eval_trials_cmn2=data/sre18_eval_test_cmn2/trials
 sre18_eval_trials_vast=data/sre18_eval_test_vast/trials
 
+ldc_root=/export/corpora/LDC
+sre18_dev_root=$ldc_root/LDC2018E46
+sre18_eval_root=$ldc_root/LDC2018E51
+
+
+# if [ ! -d scoring_software/sre16 ];then
+#     local/dowload_sre16_scoring_tool.sh 
+# fi
+# if [ ! -d scoring_software/sre18 ];then
+#     local/dowload_sre18_scoring_tool.sh 
+# fi
+
 
 if [ $stage -le 1 ];then
 
@@ -95,7 +107,7 @@ if [ $stage -le 1 ];then
 				   $be_vid_dir/lda_lnorm_adapt.h5 \
 				   $be_vid_dir/plda.h5 \
 				   $score_plda_dir/sitw_dev_${cond_i}_scores &
-    fi
+    done
 
 
     echo "SITW eval no-diarization"
@@ -109,12 +121,11 @@ if [ $stage -le 1 ];then
 				   $be_vid_dir/lda_lnorm_adapt.h5 \
 				   $be_vid_dir/plda.h5 \
 				   $score_plda_dir/sitw_eval_${cond_i}_scores &
-    fi
+    done
 
     wait
-
-    local_old/score_sitw_eval_c.sh $score_plda_dir
-    
+    local/score_sitw.sh data/sitw_eval_test eval $score_plda_dir 
+    #local_old/score_sitw_eval_c.sh $score_plda_dir
 fi
 
 if [ $stage -le 2 ]; then
@@ -164,7 +175,7 @@ if [ $stage -le 2 ]; then
 
 fi
 
-if [ $stage -le 24 ];then
+if [ $stage -le 3 ];then
     local_old/calibration_sre18_v1.sh $score_plda_dir $score_plda_dir
     local_old/score_sitw_eval.sh ${score_plda_dir}_cal_v1
     local_old/score_sre18.sh $sre18_dev_root dev ${score_plda_dir}_cal_v1/sre18_dev_cmn2_scores ${score_plda_dir}_cal_v1/sre18_dev_vast_scores $score_dir/sre18_plda_cal_v1

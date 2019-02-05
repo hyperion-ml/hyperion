@@ -1,7 +1,7 @@
 """
-Centering and Whitening
+ Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-
 from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import division
@@ -17,7 +17,8 @@ from ..pdfs import Normal
 from .cent_whiten import CentWhiten
 
 class CentWhitenUP(CentWhiten):
-
+    """Class to do centering and whitening with uncertainty propagation.
+    """
     def __init__(self, mu=None, T=None, update_mu=True, update_T=True, **kwargs):
         super(CentWhitenUP, self).__init__(
             mu, T, update_mu, update_T, **kwargs)

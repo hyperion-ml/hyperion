@@ -1,7 +1,7 @@
 """
-Estimate between and within class matrices
+ Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-
 from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import division
@@ -17,7 +17,8 @@ from ..hyp_model import HypModel
 from ..hyp_defs import float_cpu
 
 class SbSw(HypModel):
-
+    """Class to compute between and within class matrices
+    """
     def __init__(self, Sb=None, Sw=None, mu=None, num_classes=0, **kwargs):
         super(SbSw, self).__init__(**kwargs)
         self.Sb = None

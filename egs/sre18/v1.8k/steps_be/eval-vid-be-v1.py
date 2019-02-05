@@ -26,7 +26,6 @@ from hyperion.transforms import TransformList
 
 def eval_plda(iv_file, ndx_file, enroll_file, test_file,
               preproc_file,
-              scp_sep, v_field, eval_set,
               model_file, score_file, plda_type,
               pool_method,
               **kwargs):
@@ -36,8 +35,7 @@ def eval_plda(iv_file, ndx_file, enroll_file, test_file,
     else:
         preproc = None
 
-    tdr = TDR(iv_file, ndx_file, enroll_file, test_file, preproc,
-              scp_sep=scp_sep, v_field=v_field, eval_set=eval_set)
+    tdr = TDR(iv_file, ndx_file, enroll_file, test_file, preproc)
     x_e, x_t, enroll, ndx = tdr.read()
 
     model = F.load_plda(plda_type, model_file)

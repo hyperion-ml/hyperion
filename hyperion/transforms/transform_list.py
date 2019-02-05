@@ -1,7 +1,7 @@
 """
-List of transformations
+ Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-
 from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import division
@@ -28,6 +28,8 @@ from .gaussianizer import Gaussianizer
 
 
 class TransformList(HypModel):
+    """Class to perform a list of transformations
+    """
     
     def __init__(self, transforms, **kwargs):
         super(TransformList, self).__init__(**kwargs)

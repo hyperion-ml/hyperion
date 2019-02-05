@@ -1,6 +1,8 @@
 """
-Loads data to train LDA, PLDA, PDDA
+ Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import division
@@ -21,6 +23,8 @@ from ..transforms import TransformList
 
 
 class VectorClassReader(object):
+    """Class to load data to train LDA, PLDA, PDDA.
+    """
 
     def __init__(self, v_file, key_file, preproc=None, vlist_sep=' ', 
                  class2int_file=None,
@@ -147,7 +151,7 @@ class VectorClassReader(object):
         if max_spc is None:
             return u2c
         if mode == 'random_1part':
-            return VectorClassReader._filter_by_spc(u2c, min_scp, max_scp, 'random', rng)
+            return VectorClassReader._filter_by_spc(u2c, min_spc, max_spc, 'random', rng)
 
         _, class_ids, num_spc = np.unique(u2c.info, return_inverse=True, return_counts=True)
         if np.all(num_spc <= max_spc):
@@ -225,8 +229,6 @@ class VectorClassReader(object):
             p2 = prefix + '_'
         parser.add_argument(p1+'vlist-sep', dest=(p2+'vlist_sep'), default=' ',
                             help=('utt2class file field separator'))
-        # parser.add_argument(p1+'v-field', dest=(p2+'v_field'), default='',
-        #                     help=('dataset field in input vector file'))
 
         parser.add_argument(p1+'class2int-file', dest=(p2+'class2int_file'), default=None,
                             help=('file that maps class string to integer'))

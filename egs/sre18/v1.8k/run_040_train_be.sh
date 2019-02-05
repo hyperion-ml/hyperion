@@ -8,7 +8,7 @@
 . ./path.sh
 set -e
 
-diar_name=diar1b
+diar_name=diar1a
 
 net_name=1a
 
@@ -35,6 +35,10 @@ stage=1
 
 . parse_options.sh || exit 1;
 
+ldc_root=/export/corpora/LDC
+sre18_dev_root=$ldc_root/LDC2018E46
+sre18_dev_meta=${sre18_dev_root}/docs/sre18_dev_segment_key.tsv
+
 xvector_dir=exp/xvectors/$net_name
 
 coh_vid_data=sitw_sre18_dev_vast_${diar_name}
@@ -56,6 +60,19 @@ be_vid_dir=exp/be/$net_name/$be_vid_name
 
 if [ $stage -le 1 ]; then
 
+
+    steps_be/train_tel_be_v1.sh --cmd "$train_cmd" \
+    				--lda_dim $tel_lda_dim \
+    				--plda_type $plda_tel_type \
+    				--y_dim $plda_tel_y_dim --z_dim $plda_tel_z_dim \
+    				--w_mu1 $w_mu1 --w_B1 $w_B1 --w_W1 $w_W1 \
+    				--w_mu2 $w_mu2 --w_B2 $w_B2 --w_W2 $w_W2 --num_spks $num_spks \
+    				$xvector_dir/$plda_tel_data/xvector.scp \
+    				data/$plda_tel_data \
+    				$xvector_dir/sre18_dev_unlabeled/xvector.scp \
+    				$sre18_dev_meta $be_tel_dir &
+
+    
     steps_be/train_vid_be_v1.sh --cmd "$train_cmd" \
 				--lda_dim $vid_lda_dim \
 				--plda_type $plda_vid_type \
@@ -68,16 +85,6 @@ if [ $stage -le 1 ]; then
 				data/sre18_dev_vast_${diar_name} \
 				$be_vid_dir &
 
-    steps_be/train_tel_be_v1.sh --cmd "$train_cmd" \
-    				--lda_dim $tel_lda_dim \
-    				--plda_type $plda_tel_type \
-    				--y_dim $plda_tel_y_dim --z_dim $plda_tel_z_dim \
-    				--w_mu1 $w_mu1 --w_B1 $w_B1 --w_W1 $w_W1 \
-    				--w_mu2 $w_mu2 --w_B2 $w_B2 --w_W2 $w_W2 --num_spks $num_spks \
-    				$xvector_dir/$plda_tel_data/xvector.scp \
-    				data/$plda_tel_data \
-    				$xvector_dir/sre18_dev_unlabeled/xvector.scp \
-    				$sre18_dev_meta $be_tel_dir &
 
     wait
 

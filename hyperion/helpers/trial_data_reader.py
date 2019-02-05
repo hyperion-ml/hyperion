@@ -1,6 +1,8 @@
 """
-Loads data to eval plda
+ Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import division
@@ -20,6 +22,9 @@ from ..utils.trial_ndx import TrialNdx
 from ..transforms import TransformList
 
 class TrialDataReader(object):
+    """
+    Loads Ndx, enroll file and x-vectors to evaluate PLDA.
+    """
 
     def __init__(self, v_file, ndx_file, enroll_file, test_file,
                  preproc, tlist_sep=' ', 
@@ -40,7 +45,7 @@ class TrialDataReader(object):
         ndx, enroll = TrialNdx.parse_eval_set(ndx, enroll, test, eval_set)
         if num_model_parts > 1 or num_seg_parts > 1:
             ndx = TrialNdx.split(model_idx, num_model_parts, seg_idx, num_seg_parts)
-            enroll = enroll.filter(ndx.model_set)
+            enroll = enroll.filter_info(ndx.model_set)
 
         self.enroll = enroll
         self.ndx = ndx
@@ -48,14 +53,14 @@ class TrialDataReader(object):
 
         
     def read(self):
-        x_e = self.r.read(self.enroll.file_path, squeeze=True)
+        x_e = self.r.read(self.enroll.key, squeeze=True)
         x_t = self.r.read(self.ndx.seg_set, squeeze=True)
     
         if self.preproc is not None:
             x_e = self.preproc.predict(x_e)
             x_t = self.preproc.predict(x_t)
 
-        return x_e, x_t, self.enroll.key, self.ndx
+        return x_e, x_t, self.enroll.info, self.ndx
 
 
 

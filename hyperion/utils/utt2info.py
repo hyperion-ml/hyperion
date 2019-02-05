@@ -1,6 +1,8 @@
 """
-Class to read .scp files
+ Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import division
@@ -163,18 +165,17 @@ class Utt2Info(object):
       
     
     @classmethod
-    def load(cls, file_path, sep=' '):
+    def load(cls, file_path, sep=' ', dtype={0:np.str, 1:np.str}):
         """Loads utt2info list from text file.
 
         Args:
           file_path: File to read the list.
           sep: Separator between the key and file_path in the text file.
-
+          dtype: Dictionary with the dtypes of each column.
         Returns:
           Utt2Info object
         """
-
-        df = pd.read_csv(file_path, sep=sep, header=None, dtype={0:np.str})
+        df = pd.read_csv(file_path, sep=sep, header=None, dtype=dtype)
         df = df.rename(index=str, columns={0:'key'})
         return cls(df)
 
@@ -251,7 +252,6 @@ class Utt2Info(object):
 
         if not keep:
             filter_key = np.setdiff1d(self.utt_info[field], filter_key)
-        
         f, _ = ismember(filter_key, self.utt_info[field])
         assert np.all(f)
         f, _ = ismember(self.utt_info[field], filter_key)

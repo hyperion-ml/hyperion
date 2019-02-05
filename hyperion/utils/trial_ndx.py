@@ -1,5 +1,6 @@
 """
-Bosaris compatible Ndx
+ Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 from __future__ import absolute_import
 from __future__ import print_function
@@ -17,7 +18,7 @@ from .list_utils import *
 
 class TrialNdx(object):
     """ Contains the trial index to run speaker recognition trials.
-    
+        Bosaris compatible Ndx.    
     Attributes:
       model_set: List of model names.
       seg_set: List of test segment names.
@@ -201,8 +202,8 @@ class TrialNdx(object):
         
         Args:
           ndx: TrialNdx object cotaining the trials for the main evaluation.
-          enroll: SCPList where key are model names and file_path are segment names
-          test: SCPList of where file_path are test segments names. 
+          enroll: Utt2Info where key are file_ids and second column are model names
+          test: Utt2Info of where key are test segments names. 
                 Needed in the cases enroll-coh and coh-coh.
           eval_test: Type of of evaluation
             enroll-test: main evaluation of enrollment vs test segments.
@@ -215,10 +216,10 @@ class TrialNdx(object):
           enroll: SCPList 
         """
         if eval_set == 'enroll-test':
-            enroll = enroll.filter(ndx.model_set)
+            enroll = enroll.filter_info(ndx.model_set)
         if eval_set == 'enroll-coh':
             ndx = TrialNdx(ndx.model_set, test.file_path)
-            enroll = enroll.filter(ndx.model_set)
+            enroll = enroll.filter_info(ndx.model_set)
         if eval_set == 'coh-test':
             ndx = TrialNdx(enroll.key, ndx.seg_set)
         if eval_set == 'coh-coh':

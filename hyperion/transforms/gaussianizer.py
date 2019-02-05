@@ -1,5 +1,6 @@
 """
-Centering and Whitening
+ Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 from __future__ import absolute_import
@@ -19,7 +20,8 @@ from ..hyp_model import HypModel
 
 
 class Gaussianizer(HypModel):
-
+    """Class to make i-vector distribution standard Normal.
+    """
     def __init__(self, max_vectors=None, r=None, **kwargs):
         super(Gaussianizer, self).__init__(**kwargs)
         self.max_vectors = max_vectors

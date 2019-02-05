@@ -1,5 +1,6 @@
 """
-Bosaris compatible Scores
+ Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 from __future__ import absolute_import
 from __future__ import print_function
@@ -21,6 +22,7 @@ from .trial_key import TrialKey
 
 class TrialScores(object):
     """ Contains the scores for the speaker recognition trials.
+        Bosaris compatible Scores.
     
     Attributes:
       model_set: List of model names.

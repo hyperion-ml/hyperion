@@ -1,5 +1,6 @@
 """
-Lenght Normalization
+ Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 from __future__ import absolute_import
@@ -13,6 +14,8 @@ import h5py
 from .cent_whiten_up import CentWhitenUP
 
 class LNormUP(CentWhitenUP):
+    """Class to do Lenght Normalization with uncertainty propagation
+    """
 
     def predict(self, x):
         x = super(LNormUP, self).predict(x)

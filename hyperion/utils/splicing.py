@@ -1,8 +1,7 @@
 """
-Functions to do splicing for DNN input
+ Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-
-
 from __future__ import absolute_import
 from __future__ import print_function
 from six.moves import xrange
@@ -13,7 +12,9 @@ from ..hyp_defs import float_cpu
 
 
 class Splicing(object):
-
+    """
+    Class to do splicing for DNN input
+    """
     def __init__(self, left_context=0, right_context=0,
                  frame_shift=1
                  splice_pattern=None,

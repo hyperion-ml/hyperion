@@ -1,7 +1,7 @@
 """
-Computes PCA
+ Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-
 from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import division
@@ -15,6 +15,8 @@ import scipy.linalg as la
 from ..hyp_model import HypModel
 
 class MVN(HypModel):
+    """Class to do global mean and variance normalization.
+    """
     def __init__(self, mu=None, s=None, **kwargs):
         super(MVN, self).__init__(**kwargs)
         self.mu = mu

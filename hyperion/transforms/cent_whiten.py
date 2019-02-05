@@ -1,7 +1,7 @@
 """
-Centering and Whitening
+ Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-
 from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import division
@@ -16,7 +16,8 @@ from ..hyp_model import HypModel
 from ..pdfs import Normal
 
 class CentWhiten(HypModel):
-
+    """Class to do centering and whitening of i-vectors.
+    """
     def __init__(self, mu=None, T=None, update_mu=True, update_T=True, **kwargs):
         super(CentWhiten, self).__init__(**kwargs)
         self.mu = mu

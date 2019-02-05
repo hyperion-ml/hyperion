@@ -1,7 +1,7 @@
 """
-Computes NDA
+ Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-
 from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import division
@@ -16,6 +16,9 @@ from ..hyp_model import HypModel
 from ..hyp_defs import float_cpu
 
 class NDA(HypModel):
+    """Class to do nearest-neighbors discriminant analysis
+    """
+    
     def __init__(self, mu=None, T=None, **kwargs):
         super(NDA, self).__init__(**kwargs)
         self.mu = mu

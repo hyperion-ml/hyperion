@@ -18,10 +18,7 @@ output_dir=$(dirname $output_file)
 mkdir -p $output_dir/log
 name=$(basename $output_file)
 
-hyp_enroll_file=$output_file.enroll
-if [ ! -f $hyp_enroll_file ];then
-    awk '{ print $2"="$1}' $enroll_file > $hyp_enroll_file
-fi
+hyp_enroll_file=$enroll_file
 
 NF=$(awk '{ c=NF } END{ print c}' $ndx_file)
 if [ $NF -eq 3 ];then

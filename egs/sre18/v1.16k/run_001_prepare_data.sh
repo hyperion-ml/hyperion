@@ -32,7 +32,7 @@ sre16_dev_root=$ldc_root/LDC2016E46
 sre16_eval_root=$ldc_root/LDC2018E30/data/eval/R149_0_1
 sre18_dev_root=$ldc_root/LDC2018E46
 sre18_eval_root=$ldc_root/LDC2018E51
-sre18_dev_meta=${sre18_dev_root}/docs/sre18_dev_segment_key.v2.tsv
+sre18_dev_meta=${sre18_dev_root}/docs/sre18_dev_segment_key.tsv
 
 
 if [ $stage -le 1 ]; then

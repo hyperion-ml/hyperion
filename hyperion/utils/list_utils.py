@@ -1,4 +1,9 @@
 """
+ Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+"""
+
+"""
 Utilities for lists.
 """
 from __future__ import absolute_import
@@ -42,6 +47,7 @@ def ismember(a, b):
     return f, loc
 
 
+
 def sort(a, reverse=False, return_index=False):
     """Sorts a list or numpy array
     
@@ -66,6 +72,7 @@ def sort(a, reverse=False, return_index=False):
         if reverse:
             return np.sort(a)[::-1]
         return np.sort(a)
+
 
     
 def intersect(a, b, assume_unique=False, return_index = False):

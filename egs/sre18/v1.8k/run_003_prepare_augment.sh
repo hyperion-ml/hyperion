@@ -119,8 +119,8 @@ fi
 if [ $stage -le 3 ];then
     
   # Take a random subset of the augmentations 
-  utils/subset_data_dir.sh data/swbd_sre_tel_aug 180000 data/swbd_sre_tel_aug_180k
-  utils/fix_data_dir.sh data/swbd_sre_tel_aug_180k
+  utils/subset_data_dir.sh data/swbd_sre_tel_aug 170000 data/swbd_sre_tel_aug_170k
+  utils/fix_data_dir.sh data/swbd_sre_tel_aug_170k
 
   utils/subset_data_dir.sh data/sre_phnmic_aug 20000 data/sre_phnmic_aug_20k
   utils/fix_data_dir.sh data/sre_phnmic_aug_20k

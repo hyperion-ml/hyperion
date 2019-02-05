@@ -44,7 +44,7 @@ awk -v year=$year -v wl=$data_dir/wav_list '
      }
      FS=",";
    }
-   $34==year && $14=="'$channel'" && $15=="'$style'" && $25=="'$dur'" && $41=="N" && $5!="N/A" && $0 !~ /unacceptable/ { 
+   $34==year && $14=="'$channel'" && $15=="'$style'" && $25=="'$dur'" && $41=="N" && $5!="N/A" && $10 != "N/A" && $0 !~ /unacceptable/ { 
      bn=$1;
      sub(/.*\//,"",bn);
      if($3=="x"){ $3="a"}; 
