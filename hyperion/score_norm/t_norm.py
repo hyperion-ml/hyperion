@@ -1,7 +1,7 @@
 """
-Class for T-Norm
+ Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-
 from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import division
@@ -12,9 +12,9 @@ import h5py
 
 from .score_norm import ScoreNorm
 
-
 class TNorm(ScoreNorm):
-
+    """Class for T-Norm score normalization.
+    """
     def predict(self, scores, scores_coh_test, mask=None):
 
         if mask is None:

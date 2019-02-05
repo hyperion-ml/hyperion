@@ -1,20 +1,21 @@
 """
-Class for Z-Norm
+ Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-
 from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import division
 from six.moves import xrange
 
 import numpy as np
-import h5py
 
 from .score_norm import ScoreNorm
 
 
 class ZNorm(ScoreNorm):
-
+    """
+    Class for Z-Norm score normalization.
+    """
     def predict(self, scores, scores_enr_coh, mask=None):
 
         if mask is None:

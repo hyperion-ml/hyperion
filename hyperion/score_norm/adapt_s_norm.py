@@ -1,6 +1,8 @@
 """
-Class for AS-Norm
+ Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import division
@@ -13,7 +15,8 @@ from .score_norm import ScoreNorm
 
 
 class AdaptSNorm(ScoreNorm):
-
+    """Class for adaptive S-Norm
+    """
     def __init__(self, nbest=100, nbest_discard=0, **kwargs):
         super(AdaptSNorm, self).__init__(*kwargs)
         self.nbest = nbest
