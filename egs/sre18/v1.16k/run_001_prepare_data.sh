@@ -77,7 +77,7 @@ if [ $stage -le 1 ]; then
     
     # Combine all SRE+MX6 mic phonecalls into one dataset
     utils/combine_data.sh --extra-files utt2info data/sre_phnmic \
-    			  data/sre08_phnmic data/sre10_phnmic data/sre12_phnmic data/mx6_mic
+    			  data/sre10_phnmic data/sre12_phnmic data/mx6_mic
     utils/validate_data_dir.sh --no-text --no-feats data/sre_phnmic
 
 fi

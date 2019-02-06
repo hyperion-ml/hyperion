@@ -113,17 +113,17 @@ if [ $stage -le 2 ]; then
       utils/combine_data.sh data/${name}_aug data/${name}_reverb_all_half data/${name}_noise_all
 
   done
-  exit
+
 fi
 
 if [ $stage -le 3 ];then
     
   # Take a random subset of the augmentations 
-  utils/subset_data_dir.sh data/sre_tel_aug 140000 data/sre_tel_aug_140k
-  utils/fix_data_dir.sh data/sre_tel_aug_140k
+  utils/subset_data_dir.sh data/sre_tel_aug 130000 data/sre_tel_aug_130k
+  utils/fix_data_dir.sh data/sre_tel_aug_130k
 
-  utils/subset_data_dir.sh data/sre_phnmic_aug 20000 data/sre_phnmic_aug_20k
-  utils/fix_data_dir.sh data/sre_phnmic_aug_20k
+  utils/subset_data_dir.sh data/sre_phnmic_aug 18400 data/sre_phnmic_aug_18k
+  utils/fix_data_dir.sh data/sre_phnmic_aug_18k
 
   utils/subset_data_dir.sh data/voxceleb_aug 250000 data/voxceleb_aug_250k
   utils/fix_data_dir.sh data/voxceleb_aug_250k
