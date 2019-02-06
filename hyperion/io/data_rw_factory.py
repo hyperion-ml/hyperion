@@ -1,5 +1,6 @@
 """
-Class to write data to hdf5 files.
+ Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 from __future__ import absolute_import
 from __future__ import print_function
@@ -30,6 +31,9 @@ from .h5_data_reader import RandomAccessH5ScriptDataReader as RH5SDR
 
 
 class DataWriterFactory(object):
+    """
+    Class to create object that write data to hdf5/ark files.
+    """
 
     @staticmethod
     def create(wspecifier, compress=False, compression_method='auto', scp_sep=' '):

@@ -1,5 +1,6 @@
 """
-Loads data to eval plda
+ Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 from __future__ import absolute_import
 from __future__ import print_function
@@ -21,7 +22,9 @@ from ..utils.trial_ndx import TrialNdx
 from ..transforms import TransformList
 
 class ClassifTrialDataReader(object):
-
+    """
+    Loads data to eval classification problems (deprecated)
+    """
     def __init__(self, v_file, class2int_file, test_file,
                  preproc, v_field='', seg_idx=1, num_seg_parts=1):
 

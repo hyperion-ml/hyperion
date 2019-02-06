@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 """
-Converts from Ark format to h5 format.
+ Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+"""
+"""
+Converts from Ark format to h5 format (deprecated, use copy-feats.py)
 """
 from __future__ import absolute_import
 from __future__ import print_function

@@ -1,5 +1,6 @@
 """
-Merges several hdf5 files into one
+ Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 from __future__ import absolute_import
 from __future__ import print_function
@@ -14,6 +15,8 @@ from .hyp_data_writer import HypDataWriter as HW
 
 
 class H5Merger(object):
+    """Merges several hdf5 files into one.
+    """
 
     def __init__(self, input_files, output_file, chunk_size=None):
         self.input_files = input_files

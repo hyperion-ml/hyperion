@@ -1,7 +1,7 @@
 """
-List of transformations
+ Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-
 from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import division
@@ -16,7 +16,8 @@ from ..hyp_model import HypModel
 from ..transforms import *
 
 class Pipeline(HypModel):
-    
+    """Class to process a series of models.
+    """
     def __init__(self, transforms, **kwargs):
         super(Pipeline, self).__init__(**kwargs)
         if not isinstance(transforms, list):

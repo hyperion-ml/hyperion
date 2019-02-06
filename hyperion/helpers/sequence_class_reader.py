@@ -1,5 +1,6 @@
 """
-Loads data to train UBM, i-vector
+ Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 from __future__ import absolute_import
 from __future__ import print_function
@@ -22,7 +23,8 @@ from ..hyp_defs import float_cpu
 from .sequence_reader import SequenceReader
 
 class SequenceClassReader(SequenceReader):
-
+    """Class to read sequences and sequence_class_id (deprecated)
+    """
     def __init__(self, data_file, key_file, classes_file, **kwargs):
         super(SequenceClassReader, self).__init__(data_file, key_file, **kwargs)
 

@@ -1,7 +1,7 @@
 """
-Class to write audio files
+ Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-
 from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import division
@@ -26,7 +26,7 @@ subtype_to_npdtype = {'PCM_32': 'int32', 'ALAW': 'int16',
                       'GSM610': 'int16', 'G721_32': 'int16', 'PCM_24': 'int24'}
 
 class AudioWriter(object):
-    """Abstract base class to write Ark or hdf5 feature files.
+    """Abstract base class to write audio files.
     
     Attributes:
       output_path: output data file path.

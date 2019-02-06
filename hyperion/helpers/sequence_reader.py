@@ -1,5 +1,6 @@
 """
-Loads data to train UBM, i-vector
+ Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 from __future__ import absolute_import
 from __future__ import print_function
@@ -20,7 +21,8 @@ from ..utils.tensors import to3D_by_seq
 from ..transforms import TransformList
 
 class SequenceReader(object):
-
+    """Class to read sequences (deprecated).
+    """
     def __init__(self, data_file, key_file,
                  feat_norm=None, preproc=None, splicing=None,
                  scp_sep='=', seq_field='',

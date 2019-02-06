@@ -1,7 +1,7 @@
 """
-Unsupervised Gaussian calibration
+ Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-
 from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import division
@@ -13,6 +13,9 @@ from ..pdfs.mixtures.diag_gmm_tiedcovs import DiagGMMTiedCovs as GMM
 from .gauss_calibration import GaussCalibration
 
 class UnsupGaussCalibration(GaussCalibration):
+    """Class for unsupervised Gaussian calibration.
+    """
+
     def __init__(self, mu1=None, mu2=None, sigma2=None, prior=0.5, init_prior=0.5, **kwargs):
         super(UnsupGaussCalibration, self).__init__(mu1, mu2, sigma2, prior, **kwargs)
         self.init_prior = init_prior

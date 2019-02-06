@@ -1,5 +1,8 @@
 #!/usr/bin/env python
-
+"""
+ Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+"""
 from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import division
@@ -62,7 +65,7 @@ if __name__ == "__main__":
     parser=argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,                
         fromfile_prefix_chars='@',
-        description='Eval linear Gaussian back-end')
+        description='Convert scores to LRE format')
 
     parser.add_argument('--input-file', dest='input_file', required=True)
     parser.add_argument('--output-file', dest='output_file', required=True)

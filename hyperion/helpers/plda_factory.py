@@ -1,3 +1,7 @@
+"""
+ Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+"""
 from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import division
@@ -8,7 +12,8 @@ import numpy as np
 from ..pdfs.plda import FRPLDA, SPLDA, PLDA
 
 class PLDAFactory(object):
-
+    """Class to  create PLDA objects."""
+    
     @staticmethod
     def create_plda(plda_type, y_dim=None, z_dim=None, fullcov_W=True,
                     update_mu=True, update_V=True, update_U=True,

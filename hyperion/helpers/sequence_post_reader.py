@@ -1,5 +1,6 @@
 """
-Loads data to train UBM, i-vector
+ Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 from __future__ import absolute_import
 from __future__ import print_function
@@ -23,7 +24,8 @@ from .sequence_reader import SequenceReader
 
 
 class SequencePostReader(SequenceReader):
-
+    """Class to read sequences and GMM posteriors (deprecated)
+    """
     def __init__(self, data_file, key_file, post_file, num_comp=2048, **kwargs):
         super(SequencePostReader, self).__init__(data_file, key_file, **kwargs)
 

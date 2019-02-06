@@ -1,5 +1,6 @@
 """
-Supervised Gaussian calibration
+ Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 from __future__ import absolute_import
@@ -12,7 +13,8 @@ import numpy as np
 from ..hyp_model import HypModel
 
 class GaussCalibration(HypModel):
-
+    """Class for supervised Gaussian calibration
+    """
     def __init__(self, mu1=None, mu2=None, sigma2=None, prior=0.5, **kwargs):
         super(GaussCalibration, self).__init__(**kwargs)
         self.mu1 = mu1

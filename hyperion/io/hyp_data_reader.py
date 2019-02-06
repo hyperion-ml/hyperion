@@ -1,5 +1,6 @@
 """
-Class to read data from hdf5 files.
+ Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 from __future__ import absolute_import
 from __future__ import print_function
@@ -15,7 +16,9 @@ from ..utils.list_utils import list2ndarray, ismember
 
 
 class HypDataReader(object):
-
+    """
+    Class to read data from hdf5 files (deprecated).
+    """
     def __init__(self, file_path):
         self.file_path = file_path
         self.f = h5py.File(file_path, 'r')
