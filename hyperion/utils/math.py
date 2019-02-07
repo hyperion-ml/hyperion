@@ -1,10 +1,8 @@
 """
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
-"""
 
-"""
-Some math functions.
+ Some math functions.
 """
 from __future__ import absolute_import
 from __future__ import print_function
@@ -137,7 +135,7 @@ def logsigmoid(x):
     e = np.exp(-x)
     f = x < -100
     log_p = -np.log(1+np.exp(-x))
-    log_p[f] = x
+    log_p[f] = x[f]
     return log_p
 
 
@@ -150,7 +148,7 @@ def neglogsigmoid(x):
     e = np.exp(-x)
     f = x < -100
     log_p = np.log(1+np.exp(-x))
-    log_p[f] = - x
+    log_p[f] = - x[f]
     return log_p
 
 

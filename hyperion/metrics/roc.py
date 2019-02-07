@@ -2,7 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-
 from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import division
@@ -42,7 +41,7 @@ def  compute_roc(true_scores, false_scores):
     labels = np.zeros_like(scores)
     labels[:num_true] = 1
 
-    indx = np.argsort(scores)
+    indx = np.argsort(scores, kind='mergesort')
     labels = labels[indx]
         
     sumtrue=np.cumsum(labels);
@@ -80,7 +79,7 @@ def compute_rocch(tar_scores, non_scores):
                     
     #It is important here that scores that are the same (i.e. already in order) should NOT be swapped.
     #MATLAB's sort algorithm has this property.
-    perturb = np.argsort(scores)
+    perturb = np.argsort(scores, kind='mergesort')
                     
     Pideal = Pideal[perturb]
     Popt, width, _ = pavx(Pideal) 
@@ -119,9 +118,9 @@ def rocch2eer(p_miss, p_fa):
     eer = 0
 
     #p_miss and p_fa should be sorted
-    x = np.sort(p_miss)
+    x = np.sort(p_miss, kind='mergesort')
     assert(np.all(x == p_miss))
-    x = np.sort(p_fa)[::-1]
+    x = np.sort(p_fa, kind='mergesort')[::-1]
     assert(np.all(x == p_fa))
 
     _1_1 = np.array([1, -1])
@@ -185,6 +184,30 @@ def filter_roc(p_miss,p_fa):
     new_p_fa = new_fa[:out]
 
     return new_p_miss, new_p_fa
+
+
+
+def compute_area_under_rocch(p_miss, p_fa):
+    """Calculates area under the ROC convex hull given p_miss, p_fa.
+    
+    Args:
+      p_miss: Miss probabilities vector obtained from compute_rocch
+      p_fa: False alarm probabilities vector
+
+    Returns:
+      AUC
+    """
+
+    assert np.all(p_miss == np.sort(p_miss, kind='mergesort'))
+    assert np.all(p_fa[::-1] == np.sort(p_fa, kind='mergesort'))
+    assert p_miss.shape == p_fa.shape
+    
+    auc = 0
+    for i in xrange(1, len(p_miss)):
+        auc += 0.5 * (p_miss[i] - p_miss[i-1]) * (p_fa[i] + p_fa[i+1])
+
+    return auc
+
 
 
 

@@ -1,10 +1,8 @@
 """
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
-"""
 
-"""
-Utility functions to evaluate performance
+ Utility functions to evaluate performance
 """
 from __future__ import absolute_import
 from __future__ import print_function
@@ -12,6 +10,8 @@ from __future__ import division
 from six.moves import xrange
 
 import numpy as np
+
+from ..hyp_defs import float_cpu
 
 
 def effective_prior(p_tar, c_miss, c_fa):
@@ -34,7 +34,7 @@ def effective_prior(p_tar, c_miss, c_fa):
 
 
 def pavx(y):
-    """PAV: Pool Adjacent Violators algorithm. Non-paramtetric optimization subject to mon       otonicity.
+    """PAV: Pool Adjacent Violators algorithm. Non-paramtetric optimization subject to monotonicity.
 
         ghat = pav(y)
         fits a vector ghat with nondecreasing components to the 
@@ -59,7 +59,7 @@ def pavx(y):
     assert isinstance(y, np.ndarray)
 
     n = len(y)
-    assert(n>0)
+    assert n>0
     index = np.zeros(y.shape, dtype=int)
     l = np.zeros(y.shape, dtype=int)
     # An interval of indices is represented by its left endpoint 
@@ -102,3 +102,57 @@ def pavx(y):
     return ghat, width, height
 
 
+
+def opt_loglr(tar, non, method='laplace'):
+    """Non-parametric optimization of score to log-likelihood-ratio mapping. 
+    
+    Taken from Bosaris toolkit.
+          Niko Brummer and Johan du Preez, Application-Independent Evaluation of Speaker Detection, Computer Speech and Language, 2005
+
+    Args:
+      tar: target scores.
+      non: non-target scores.
+      method: laplace(default, avoids inf log-LR)/raw
+    
+    Returns:
+       Calibrated tar and non-tar log-LR
+    """
+    ntar = len(tar)
+    nnon = len(non)
+    n = ntar+nnon
+
+    scores = np.concatenate((tar, non))
+    p_ideal = np.zeros((n,), dtype=float_cpu())
+    p_ideal[:ntar] = 1
+
+    sort_idx = np.argsort(scores, kind='mergesort')
+    # print(scores)
+    # print(sort_idx)
+    p_ideal = p_ideal[sort_idx]
+
+    if method == 'laplace':
+        # The extra targets and non-targets at scores of -inf and +inf effectively 
+        # implement Laplace's rule of succession to avoid log LRs of infinite magnitudes. 
+        p_ideal = np.concatenate(([1,0], p_ideal, [1,0]))
+
+    p_opt,_,_ = pavx(p_ideal)
+
+    if method == 'laplace':
+        p_opt = p_opt[2:-2]
+
+    # Posterior to loglr
+    # This LR is prior-independent in the sense that if we weight the data with a synthetic prior, 
+    # it makes no difference to the optimizing LR mapping. 
+    # (A synthetic prior DOES change Popt: The posterior log-odds changes by an additive term. But this 
+    # this cancels again when converting to log LR. )
+    # print(p_opt)
+    post_log_odds = np.log(p_opt) - np.log(1-p_opt)
+    prior_log_odds = np.log(ntar/nnon)
+    llr = post_log_odds - prior_log_odds
+    llr += 1e-6 * np.arange(n)/n
+
+    llr[sort_idx] = llr
+    tar_llr = llr[:ntar]
+    non_llr = llr[ntar:]
+    
+    return tar_llr, non_llr
