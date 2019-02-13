@@ -79,8 +79,8 @@ if [ $stage -le 1 ]; then
 				--y_dim $plda_vid_y_dim --z_dim $plda_vid_z_dim \
 				$xvector_dir/$plda_vid_data/xvector.scp \
 				data/$plda_vid_data \
-				$xvector_dir/sitw_dev_${diar_name}/xvector.scp \
-				data/sitw_dev_${diar_name} \
+				$xvector_dir/sitw_dev1s_${diar_name}/xvector.scp \
+				data/sitw_dev1s_${diar_name} \
 				$xvector_dir/sre18_dev_vast_${diar_name}/xvector.scp \
 				data/sre18_dev_vast_${diar_name} \
 				$be_vid_dir &

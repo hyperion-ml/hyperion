@@ -1,4 +1,7 @@
 #!/bin/bash
+# Copyright 2018 Johns Hopkins University (Jesus Villalba)  
+# Apache 2.0.
+#
 
 cmd=run.pl
 plda_type=frplda
@@ -7,6 +10,14 @@ ncoh_discard=0
 
 if [ -f path.sh ]; then . ./path.sh; fi
 . parse_options.sh || exit 1;
+
+set -e
+
+if [ $# -ne 10 ]; then
+  echo "Usage: $0 <ndx> <diar-ndx> <enroll-file> <vector-file> <diar-segments-to-orig-utt> <cohort-list> <cohort-vector-file> <preproc-file> <plda-file> <output-scores>"
+  exit 1;
+fi
+
 
 ndx_file=$1
 diar_ndx_file=$2
@@ -24,10 +35,8 @@ output_dir=$(dirname $output_file)
 mkdir -p $output_dir/log
 name=$(basename $output_file)
 
-hyp_enroll_file=$output_file.enroll
-if [ ! -f $hyp_enroll_file ];then
-    awk '{ print $2"="$1}' $enroll_file > $hyp_enroll_file
-fi
+
+hyp_enroll_file=$enroll_file
 
 hyp_coh_list=$output_file.cohort
 awk -v fv=$coh_vector_file 'BEGIN{
@@ -36,7 +45,8 @@ while(getline < fv)
    files[$1]=1
 }
 }
-{ if ($1 in files) {print $2"="$1}}' $coh_list > $hyp_coh_list
+{ if ($1 in files) {print $1,$2}}' $coh_list > $hyp_coh_list
+
 
 NF=$(awk '{ c=NF } END{ print c}' $ndx_file)
 if [ $NF -eq 3 ];then
@@ -59,6 +69,8 @@ if [ $NF -eq 3 ];then
 else
     hyp_diar_ndx_file=$diar_ndx_file
 fi
+
+echo "$0 score $ndx_file"
 
 $cmd $output_dir/log/${name}.log \
      python steps_be/eval-vid-be-diar-snorm-v1.py \

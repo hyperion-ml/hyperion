@@ -14,12 +14,12 @@ from .logistic_regression import LogisticRegression
 class BinaryLogisticRegression(LogisticRegression):
 
     def __init__(self, A=None, b=None, penalty='l2', lambda_reg=1e-6,
-                 use_bias=True, bias_scaling, prior=0.5,
+                 use_bias=True, bias_scaling=1, prior=0.5,
                  random_state=None, solver='liblinear', max_iter=100,
                  dual=False, tol=0.0001, verbose=0, warm_start=True,
                  lr_seed=1024, **kwargs):
         
-        priors = [1-prior, prior]
+        priors = {0:1-prior, 1:prior}
         super(BinaryLogisticRegression, self).__init__(
             A=A, b=b, penalty=penalty, labmda_reg=lambda_reg,
             use_bias=use_bias, bias_scaling=bias_scaling, priors=priors,
@@ -31,7 +31,15 @@ class BinaryLogisticRegression(LogisticRegression):
 
     @property
     def prior(self):
-        return self.prior[1]
+        return self.priors[1]
+
+
+    
+    def get_config(self):
+        config = {'prior': self.prior }
+        base_config = super(BinaryLogisticRegression, self).get_config()
+        del base_config['priors']
+        return dict(list(base_config.items()) + list(config.items()))
 
     
 
@@ -39,12 +47,12 @@ class BinaryLogisticRegression(LogisticRegression):
         if x.ndim == 1:
             x = x[:, None]
         
-        y = np.dot(x, self.A) + self.b
+        y = np.dot(x, self.A).ravel() + self.b
 
         if eval_type == 'log-post':
-            y = - np.log(1+np.exp(-(y+np.log(self.prior/(1-self.prior))))
+            y = - np.log(1+np.exp(-(y+np.log(self.prior/(1-self.prior)))))
         if eval_type == 'post':
-            y = 1/(1+np.exp(-(y+np.log(self.prior/(1-self.prior))))
+            y = 1/(1+np.exp(-(y+np.log(self.prior/(1-self.prior)))))
         
         return y
 
@@ -63,7 +71,7 @@ class BinaryLogisticRegression(LogisticRegression):
                       'solver', 'max_iter',
                       'dual', 'tol', 'verbose',
                       'warm_start', 'no_warm_start', 'name')
-        d dict((k, kwargs[p+k])
+        d = dict((k, kwargs[p+k])
                for k in valid_args if p+k in kwargs)
         if 'no_use_bias' in d:
             d['use_bias'] = not d['no_use_bias']

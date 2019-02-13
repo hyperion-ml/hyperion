@@ -84,8 +84,9 @@ class LogisticRegression(HypModel):
 
         self.use_bias = use_bias
         self.bias_scaling = bias_scaling
-        self.priors = np.asarray(priors)
+        self.priors = priors
         self.lambda_reg = lambda_reg
+        self.multi_class = multi_class
         self.lr = LR(penalty=penalty, C=1/lambda_reg,
                      dual=dual, tol=tol,
                      fit_intercept=use_bias, intercept_scaling=bias_scaling,
@@ -137,22 +138,34 @@ class LogisticRegression(HypModel):
     def fit(self, x, class_ids, sample_weight=None):
         if x.ndim == 1:
             x = x[:, None]
-        num_classes = np.max(class_ids)
+        num_classes = np.max(class_ids)+1
         counts = np.bincount(class_ids)
         assert num_classes == len(counts)
+        
         if self.priors is None:
-            self.priors = 1/num_classes
-        class_weights = self.priors/counts
+            priors = 1/num_classes * np.ones((num_classes,), dtype=float_cpu())
+        else:
+            priors = [self.priors[i] for i in xrange(num_classes)]
+        class_weights = priors/counts
+        
         if sample_weight is None:
             sample_weight = class_weights[class_ids]
         else:
             sample_weight *= class_weights[class_ids]
+            
         self.lr.fit(x, class_ids, sample_weight=sample_weight)
+
         if self.multi_class == 'ovr':
-            self.lr.intercept_ -= np.log(self.priors/(1-self.priors))/self.bias_scaling
+            #adjust bias to produce log-llk ratios
+            if len(self.lr.intercept_) == 1:
+                priors = self.priors[1]
+            self.lr.intercept_ -= np.log(priors/(1-priors))/self.bias_scaling
         else:
+            #adjust bias to produce log-llk
             self.lr.intercept_ -= np.log(self.priors)/self.bias_scaling
-        
+
+
+            
     def save_params(self, f):
         params = { 'A': self.A,
                    'b': self.b}
@@ -181,7 +194,7 @@ class LogisticRegression(HypModel):
                       'solver', 'max_iter',
                       'dual', 'tol', 'multi_class', 'verbose',
                       'warm_start', 'no_warm_start', 'num_jobs', 'name')
-        d dict((k, kwargs[p+k])
+        d = dict((k, kwargs[p+k])
                for k in valid_args if p+k in kwargs)
         if 'no_use_bias' in d:
             d['use_bias'] = not d['no_use_bias']

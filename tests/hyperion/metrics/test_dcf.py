@@ -40,11 +40,11 @@ def test_min_dcf():
     non = np.linspace(-10,2,1000)+3
 
     p=0.5
-    dcf = compute_min_dcf(tar, non, p)
+    dcf, _, _ = compute_min_dcf(tar, non, p)
     assert dcf > 0.332 and dcf < 0.334
 
     p = [0.1, 0.5, 0.9]
-    dcf = compute_min_dcf(tar, non, p)
+    dcf, _, _ = compute_min_dcf(tar, non, p)
     assert dcf[1] > 0.332 and dcf[1] < 0.334
     
 
@@ -55,11 +55,11 @@ def test_act_dcf():
     non = np.linspace(-10,2,1000)
 
     p=0.5
-    dcf = compute_act_dcf(tar, non, p)
+    dcf, _, _ = compute_act_dcf(tar, non, p)
     assert dcf == 2*167/1000
 
     p = [0.1, 0.5, 0.9]
-    dcf = compute_act_dcf(tar, non, p)
+    dcf, _, _ = compute_act_dcf(tar, non, p)
     print(dcf)
     assert dcf[1] == 2*167/1000
 

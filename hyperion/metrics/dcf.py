@@ -50,12 +50,17 @@ def compute_min_dcf(tar, non, prior, normalize=True):
 
     Returns:
       Vector Minimum DCF for each prior.
+      Vector of P_miss corresponding to each min DCF.
+      Vector of P_fa corresponding to each min DCF.
     """
 
     p_miss, p_fa = compute_rocch(tar, non)
     dcf = compute_dcf(p_miss, p_fa, prior, normalize)
-    min_dcf = np.min(dcf, axis=-1)
-    return min_dcf
+    idx_min_dcf = np.argmin(dcf, axis=-1)
+    min_dcf = dcf[idx_min_dcf]
+    p_miss = p_miss[idx_min_dcf]
+    p_fa = p_fa[idx_min_dcf]
+    return min_dcf, p_miss, p_fa
 
 
 
@@ -70,8 +75,9 @@ def compute_act_dcf(tar, non, prior, normalize=True):
       normalize: if true, return normalized DCF, else unnormalized.
 
     Returns:
-      Vector Minimum DCF for each prior.
-
+      Vector actual DCF for each prior.
+      Vector of P_miss corresponding to each act DCF.
+      Vector of P_fa corresponding to each act DCF.
     """
     prior = np.asarray(prior)
 
@@ -123,9 +129,9 @@ def compute_act_dcf(tar, non, prior, normalize=True):
         act_dcf /= np.minimum(prior, 1-prior)
 
     if len(act_dcf) == 1:
-        return act_dcf[0]
-    
-    return act_dcf
+        act_dcf = act_dcf[0]
+
+    return act_dcf, p_miss, p_fa
 
 
 
@@ -155,7 +161,7 @@ def fast_eval_dcf_eer(tar, non, prior, normalize_dcf=True):
     dcf = compute_dcf(p_miss, p_fa, prior, normalize_dcf)
     min_dcf = np.min(dcf, axis=-1)
 
-    act_dcf = compute_act_dcf(tar, non, prior, normalize_dcf)
+    act_dcf, _, _ = compute_act_dcf(tar, non, prior, normalize_dcf)
 
     return min_dcf, act_dcf, eer, prbep
 

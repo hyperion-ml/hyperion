@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 """
-Evals PLDA LLR
+  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)  
+
+  Evals PLDA LLR
 """
 from __future__ import absolute_import
 from __future__ import print_function
@@ -11,11 +14,11 @@ import sys
 import os
 import argparse
 import time
+import logging
 
 import numpy as np
 
-from hyperion.hyp_defs import set_float_cpu, float_cpu
-from hyperion.utils.scp_list import SCPList
+from hyperion.hyp_defs import float_cpu
 from hyperion.utils.trial_ndx import TrialNdx
 from hyperion.utils.trial_scores import TrialScores
 from hyperion.helpers import TrialDataReader as TDR
@@ -30,6 +33,7 @@ def eval_plda(iv_file, ndx_file, enroll_file, test_file,
               pool_method,
               **kwargs):
     
+    logging.info('loading data')
     if preproc_file is not None:
         preproc = TransformList.load(preproc_file)
     else:
@@ -39,18 +43,22 @@ def eval_plda(iv_file, ndx_file, enroll_file, test_file,
     x_e, x_t, enroll, ndx = tdr.read()
     enroll, ids_e = np.unique(enroll, return_inverse=True)
 
+    logging.info('loading plda model: %s' % (model_file))
     model = F.load_plda(plda_type, model_file)
     
     t1 = time.time()
+    logging.info('computing llr')
     scores = model.llr_Nvs1(x_e, x_t, method=pool_method, ids1=ids_e)
     
     dt = time.time() - t1
     num_trials = len(enroll) * x_t.shape[0]
-    print('Elapsed time: %.2f s. Elapsed time per trial: %.2f ms.'
-          % (dt, dt/num_trials*1000))
+    logging.info('scoring elapsed time: %.2f s. elapsed time per trial: %.2f ms.'
+                 % (dt, dt/num_trials*1000))
 
+    logging.info('saving scores to %s' % (score_file))
     s = TrialScores(enroll, ndx.seg_set, scores)
     s.save_txt(score_file)
+
 
     
 if __name__ == "__main__":
@@ -58,7 +66,7 @@ if __name__ == "__main__":
     parser=argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,                
         fromfile_prefix_chars='@',
-        description='Eval PLDA for SR18 Video condition')
+        description='Eval PLDA for SR18 telephone condition')
 
     parser.add_argument('--iv-file', dest='iv_file', required=True)
     parser.add_argument('--ndx-file', dest='ndx_file', default=None)
@@ -74,10 +82,15 @@ if __name__ == "__main__":
                          help=('(default: %(default)s)'))
 
     parser.add_argument('--score-file', dest='score_file', required=True)
-    
-    args=parser.parse_args()
+    parser.add_argument('-v', '--verbose', dest='verbose', default=1,
+                        choices=[0, 1, 2, 3], type=int)
 
-    assert(args.test_file is not None or args.ndx_file is not None)
+    args=parser.parse_args()
+    config_logger(args.verbose)
+    del args.verbose
+    logging.debug(args)
+
+    assert args.test_file is not None or args.ndx_file is not None
     eval_plda(**vars(args))
 
             

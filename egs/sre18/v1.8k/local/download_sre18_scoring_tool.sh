@@ -12,6 +12,8 @@ s_dir=scoring_software/sre18
 # shareable link:
 # https://drive.google.com/file/d/1VqXEt8OyNSEBo0QxhPtH1TQkNVO15urQ/view?usp=sharing
 
+mkdir -p scoring_software
+
 wget --no-check-certificate "https://drive.google.com/uc?export=download&id=1VqXEt8OyNSEBo0QxhPtH1TQkNVO15urQ" -O $tool.tgz
 tar xzvf $tool.tgz -C scoring_software
 mv scoring_software/scoring_software $s_dir

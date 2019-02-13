@@ -9,7 +9,6 @@
 set -e
 
 diar_name=diar1a
-
 net_name=1a
 
 tel_lda_dim=150
@@ -55,7 +54,7 @@ be_vid_dir=exp/be/$net_name/$be_vid_name
 
 score_dir=exp/scores/$net_name/tel_${be_tel_name}_vid_${be_vid_name}
 score_plda_dir=$score_dir/plda
-
+score_sre18_dir=$score_dir/sre18_plda
 
 # SITW Trials
 sitw_dev_trials=data/sitw_dev_test/trials
@@ -72,10 +71,6 @@ sre16_trials_yue=${sitw_eval_trials}_yue
 
 # SRE18 trials
 sre18_dev_trials_cmn2=data/sre18_dev_test_cmn2/trials
-# sre18_dev_trials_cmn2_pstn=data/sre18_dev_test_cmn2/trials_pstn
-# sre18_dev_trials_cmn2_pstn_samephn=data/sre18_dev_test_cmn2/trials_pstn_samephn
-# sre18_dev_trials_cmn2_pstn_diffphn=data/sre18_dev_test_cmn2/trials_pstn_diffphn
-# sre18_dev_trials_cmn2_voip=data/sre18_dev_test_cmn2/trials_voip
 sre18_dev_trials_vast=data/sre18_dev_test_vast/trials
 sre18_eval_trials_cmn2=data/sre18_eval_test_cmn2/trials
 sre18_eval_trials_vast=data/sre18_eval_test_vast/trials
@@ -86,11 +81,11 @@ sre18_eval_root=$ldc_root/LDC2018E51
 
 
 # if [ ! -d scoring_software/sre16 ];then
-#     local/dowload_sre16_scoring_tool.sh 
+#     local/download_sre16_scoring_tool.sh 
 # fi
-# if [ ! -d scoring_software/sre18 ];then
-#     local/dowload_sre18_scoring_tool.sh 
-# fi
+if [ ! -d scoring_software/sre18 ];then
+    local/download_sre18_scoring_tool.sh 
+fi
 
 
 if [ $stage -le 1 ];then
@@ -124,8 +119,8 @@ if [ $stage -le 1 ];then
     done
 
     wait
+    local/score_sitw.sh data/sitw_dev_test dev $score_plda_dir 
     local/score_sitw.sh data/sitw_eval_test eval $score_plda_dir 
-    #local_old/score_sitw_eval_c.sh $score_plda_dir
 fi
 
 if [ $stage -le 2 ]; then
@@ -170,16 +165,18 @@ if [ $stage -le 2 ]; then
 
     wait
 
-    local_old/score_sre18.sh $sre18_dev_root dev $score_plda_dir/sre18_dev_cmn2_scores $score_plda_dir/sre18_dev_vast_scores $score_dir/sre18_plda
-    local_old/score_sre18.sh $sre18_eval_root eval $score_plda_dir/sre18_eval_cmn2_scores $score_plda_dir/sre18_eval_vast_scores $score_dir/sre18_plda
+    local/score_sre18.sh $sre18_dev_root dev $score_plda_dir/sre18_dev_cmn2_scores $score_plda_dir/sre18_dev_vast_scores ${score_sre18_dir}
+    local/score_sre18.sh $sre18_eval_root eval $score_plda_dir/sre18_eval_cmn2_scores $score_plda_dir/sre18_eval_vast_scores ${score_sre18_dir}
 
 fi
 
 if [ $stage -le 3 ];then
-    local_old/calibration_sre18_v1.sh $score_plda_dir $score_plda_dir
-    local_old/score_sitw_eval.sh ${score_plda_dir}_cal_v1
-    local_old/score_sre18.sh $sre18_dev_root dev ${score_plda_dir}_cal_v1/sre18_dev_cmn2_scores ${score_plda_dir}_cal_v1/sre18_dev_vast_scores $score_dir/sre18_plda_cal_v1
-    local_old/score_sre18.sh $sre18_eval_root eval ${score_plda_dir}_cal_v1/sre18_eval_cmn2_scores ${score_plda_dir}_cal_v1/sre18_eval_vast_scores $score_dir/sre18_plda_cal_v1
+    local/calibrate_sitw_v1.sh --cmd "$train_cmd" $score_plda_dir
+    local/calibrate_sre18_v1.sh --cmd "$train_cmd" $score_plda_dir $score_plda_dir
+    local/score_sitw.sh data/sitw_dev_test dev ${score_plda_dir}_cal_v1
+    local/score_sitw.sh data/sitw_eval_test eval ${score_plda_dir}_cal_v1
+    local/score_sre18.sh $sre18_dev_root dev ${score_plda_dir}_cal_v1/sre18_dev_cmn2_scores ${score_plda_dir}_cal_v1/sre18_dev_vast_scores ${score_sre18_dir}_cal_v1
+    local/score_sre18.sh $sre18_eval_root eval ${score_plda_dir}_cal_v1/sre18_eval_cmn2_scores ${score_plda_dir}_cal_v1/sre18_eval_vast_scores ${score_sre18_dir}_cal_v1
     exit
 fi
 

@@ -1,10 +1,19 @@
 #!/bin/bash
+# Copyright 2018 Johns Hopkins University (Jesus Villalba)  
+# Apache 2.0.
+#
 
 cmd=run.pl
 plda_type=frplda
 
 if [ -f path.sh ]; then . ./path.sh; fi
 . parse_options.sh || exit 1;
+set -e
+
+if [ $# -ne 6 ]; then
+  echo "Usage: $0 <ndx> <enroll-file> <vector-file> <preproc-file> <plda-file> <output-scores>"
+  exit 1;
+fi
 
 ndx_file=$1
 enroll_file=$2
@@ -30,6 +39,8 @@ if [ $NF -eq 3 ];then
 else
     hyp_ndx_file=$ndx_file
 fi
+
+echo "$0 score $ndx_file"
 
 $cmd $output_dir/log/${name}.log \
      python steps_be/eval-vid-be-v1.py \

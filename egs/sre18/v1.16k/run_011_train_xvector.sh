@@ -15,19 +15,19 @@ net_name=1a
 num_epochs=3
 nnet_dir=exp/xvector_nnet_$net_name
 
-stage=8
+stage=1
 
 . parse_options.sh || exit 1;
 
 if [ $stage -le 8 ]; then
-    # steps_kaldi_xvec/run_xvector_1a.sh --stage $stage --train-stage -1 --num_epochs $num_epochs \
-    # 				       --storage_name sre18-v1.16k-$(date +'%m_%d_%H_%M') \
-    # 				       --data data/train_combined_no_sil --nnet-dir $nnet_dir \
-    # 				       --egs-dir $nnet_dir/egs
-    steps_kaldi_xvec/run_xvector_1a.sh --stage $stage --train-stage 1 --num_epochs $num_epochs \
+    steps_kaldi_xvec/run_xvector_1a.sh --stage $stage --train-stage -1 --num_epochs $num_epochs \
     				       --storage_name sre18-v1.16k-$(date +'%m_%d_%H_%M') \
     				       --data data/train_combined_no_sil --nnet-dir $nnet_dir \
     				       --egs-dir $nnet_dir/egs
+    # steps_kaldi_xvec/run_xvector_1a.sh --stage $stage --train-stage 1 --num_epochs $num_epochs \
+    # 				       --storage_name sre18-v1.16k-$(date +'%m_%d_%H_%M') \
+    # 				       --data data/train_combined_no_sil --nnet-dir $nnet_dir \
+    # 				       --egs-dir $nnet_dir/egs
 
 
 fi
