@@ -29,9 +29,15 @@ if [ $stage -le 1 ]; then
     mkdir -p $xvector_dir/sitw_eval
     cat $xvector_dir/sitw_eval_{enroll,test}/xvector.scp > $xvector_dir/sitw_eval/xvector.scp
 
-    utils/combine_data.sh data/sitw_dev_${diar_name} data/sitw_train_dev data/sitw_dev_test_${diar_name}
     mkdir -p $xvector_dir/sitw_dev_${diar_name}
-    cat $xvector_dir/sitw_{train_dev,dev_test_${diar_name}}/xvector.scp > $xvector_dir/sitw_dev_${diar_name}/xvector.scp
+    cat $xvector_dir/sitw_dev_{enroll,test_${diar_name}}/xvector.scp > $xvector_dir/sitw_dev_${diar_name}/xvector.scp
+
+    mkdir -p $xvector_dir/sitw_eval_${diar_name}
+    cat $xvector_dir/sitw_eval_{enroll,test_${diar_name}}/xvector.scp > $xvector_dir/sitw_eval_${diar_name}/xvector.scp
+    
+    utils/combine_data.sh data/sitw_dev1s_${diar_name} data/sitw_train_dev data/sitw_dev_test_${diar_name}
+    mkdir -p $xvector_dir/sitw_dev1s_${diar_name}
+    cat $xvector_dir/sitw_{train_dev,dev_test_${diar_name}}/xvector.scp > $xvector_dir/sitw_dev1s_${diar_name}/xvector.scp
 
     utils/combine_data.sh data/sre18_dev_vast data/sre18_dev_enroll_vast data/sre18_dev_test_vast 
     mkdir -p $xvector_dir/sre18_dev_vast
@@ -44,9 +50,12 @@ if [ $stage -le 2 ]; then
     mkdir -p $xvector_dir/sre18_dev_vast_${diar_name}
     cat $xvector_dir/sre18_dev_{enroll_vast,test_vast_${diar_name}}/xvector.scp > $xvector_dir/sre18_dev_vast_${diar_name}/xvector.scp
     
-    utils/combine_data.sh data/sitw_sre18_dev_vast_${diar_name} data/sitw_dev_${diar_name} data/sre18_dev_vast_${diar_name} 
+    utils/combine_data.sh data/sitw_sre18_dev_vast_${diar_name} data/sitw_dev1s_${diar_name} data/sre18_dev_vast_${diar_name} 
     mkdir -p $xvector_dir/sitw_sre18_dev_vast_${diar_name}
-    cat $xvector_dir/sitw_dev_${diar_name}/xvector.scp $xvector_dir/sre18_dev_vast_${diar_name}/xvector.scp > $xvector_dir/sitw_sre18_dev_vast_${diar_name}/xvector.scp
+    cat $xvector_dir/sitw_dev1s_${diar_name}/xvector.scp $xvector_dir/sre18_dev_vast_${diar_name}/xvector.scp > $xvector_dir/sitw_sre18_dev_vast_${diar_name}/xvector.scp
+
+    mkdir -p $xvector_dir/sre18_eval_vast_${diar_name}
+    cat $xvector_dir/sre18_eval_{enroll_vast,test_vast_${diar_name}}/xvector.scp > $xvector_dir/sre18_eval_vast_${diar_name}/xvector.scp
 
 fi
 

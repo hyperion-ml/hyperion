@@ -9,3 +9,6 @@ from .feature_windows import FeatureWindowFactory
 from .stft import *
 from .mfcc import MFCC
 from .energy_vad import EnergyVAD
+from .frame_selector import FrameSelector
+from .feature_normalization import MeanVarianceNorm
+

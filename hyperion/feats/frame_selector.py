@@ -50,7 +50,8 @@ class FrameSelector(object):
                                 % (num_frames_vad, num_frames, self.tol_num_frames))                
                             
 
-       @staticmethod
+            
+    @staticmethod
     def filter_args(prefix=None, **kwargs):
         """Filters frame selector args from arguments dictionary.
            

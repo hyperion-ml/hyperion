@@ -9,10 +9,12 @@ from six.moves import xrange
 
 
 import numpy as np
+from scipy.signal import convolve2d
+
 from ..hyp_defs import float_cpu
 
 
-def MeanVarianceNorm(object):
+class MeanVarianceNorm(object):
     """Class to perform mean and variance normalization
     
     Attributes:
@@ -30,17 +32,12 @@ def MeanVarianceNorm(object):
         self.right_context = right_context
 
 
+
     def normalize(self, x):
-        """Normalize featurex in x
-        
-        Args:
-          x: Input feature matrix.
-
-        Returns:
-          Normalized feature matrix.
-        """
+        return self.normalize_cumsum(x)
 
 
+    def normalize_global(self, x):
         # Global mean/var norm.
         if self.norm_mean:
             m_x = np.mean(x, axis=0, keepdims=True)
@@ -49,6 +46,78 @@ def MeanVarianceNorm(object):
         if self.norm_var:
             s_x = np.std(x, axis=0, keepdims=True)
             x = x/s_x
+
+        return x
+    
+        
+
+    def normalize_conv(self, x):
+        """Normalize featurex in x
+           Uses convolution operator
+        Args:
+          x: Input feature matrix.
+
+        Returns:
+          Normalized feature matrix.
+        """
+
+        x = self.normalize_global(x)
+        
+        if self.right_context is None and self.left_context is None:
+            return x
+
+        if self.left_context is None:
+            left_context = x.shape[0]
+        else:
+            left_context = self.left_context
+
+        if self.right_context is None:
+            right_context = x.shape[0]
+        else:
+            right_context = self.right_context
+
+        total_context = left_context + right_context + 1
+
+        if x.shape[0] <= min(right_context, left_context)+1:
+            # if context is larger than the signal we still return global normalization
+            return x
+
+        v1 = np.ones((x.shape[0],1), dtype=float_cpu())
+        h = np.ones((total_context,1), dtype=float_cpu())
+        
+        counts = convolve2d(v1, h)[right_context:right_context+x.shape[0]]
+        m_x = convolve2d(x, h)[right_context:right_context+x.shape[0]]
+        m_x /= counts
+
+        if self.norm_var:
+            m2_x = convolve2d(x*x, h)[right_context:right_context+x.shape[0]]
+            m2_x /= counts
+            s2_x = m2_x - m_x**2
+            s2_x[s2_x<1e-5] = 1e-5
+            s_x = np.sqrt(s2_x)
+
+
+        if self.norm_mean:
+            x -= m_x
+
+        if self.norm_var:
+            x /= s_x
+
+        return x
+
+    
+
+    def normalize_cumsum(self, x):
+        """Normalize featurex in x
+           Uses cumsum
+        Args:
+          x: Input feature matrix.
+
+        Returns:
+          Normalized feature matrix.
+        """
+
+        x = self.normalize_global(x)
 
         if self.right_context is None and self.left_context is None:
             return x
@@ -60,27 +129,29 @@ def MeanVarianceNorm(object):
 
         if self.right_context is None:
             right_context = x.shape[0]
-        else
+        else:
             right_context = self.right_context
 
-        total_context = left_context + right_contest + 1
+        total_context = left_context + right_context + 1
 
         if x.shape[0] <= min(right_context, left_context)+1:
             # if context is larger than the signal we still return global normalization
             return x
 
-        c_x = np.zeros((x.shape[0]+total_context+1, x.shape[1],), dtype=float_cpu())
-        counts = np.zeros((x.shape[0]+total_context+1, 1,), dtype=float_cpu())
+        c_x = np.zeros((x.shape[0]+total_context, x.shape[1],), dtype=float_cpu())
+        counts = np.zeros((x.shape[0]+total_context, 1,), dtype=float_cpu())
         
-        c_x[left_context:left_context+x.shape[0]] = np.cumsum(x, axis=0)
-        c_x[left_context+x.shape[0]:] = c_x[left_context+x.shape[0]-1]
-        counts[left_context:left_context+x.shape[0]] = np.arange(1, x.shape[0]+1, dtype=float_cpu())
-        counts[left_context+x.shape[0]:] = x.shape[0]
+        c_x[left_context+1:left_context+x.shape[0]+1] = np.cumsum(x, axis=0)
+        c_x[left_context+x.shape[0]+1:] = c_x[left_context+x.shape[0]]
+        counts[left_context+1:left_context+x.shape[0]+1] = np.arange(1, x.shape[0]+1, dtype=float_cpu())[:,None]
+        counts[left_context+x.shape[0]+1:] = x.shape[0]
 
-        if self.norm_var == True:
-            c2_x[left_context:left_context+x.shape[0]] = np.cumsum(x*x, axis=0)
-            c2_x[left_context+x.shape[0]:] = c2_x[left_context+x.shape[0]-1]
-        
+        if self.norm_var:
+            c2_x = np.zeros((x.shape[0]+total_context, x.shape[1],), dtype=float_cpu())
+            c2_x[left_context+1:left_context+x.shape[0]+1] = np.cumsum(x*x, axis=0)
+            c2_x[left_context+x.shape[0]+1:] = c2_x[left_context+x.shape[0]]
+
+        counts = counts[total_context:] - counts[:-total_context]
         m_x = (c_x[total_context:] - c_x[:-total_context])/counts
 
         if self.norm_mean:
@@ -88,54 +159,31 @@ def MeanVarianceNorm(object):
 
         if self.norm_var:
             m2_x = (c2_x[total_context:] - c2_x[:-total_context])/counts
-            s_x = np.sqrt(m2_x - m_x**2)
-            s_x[s_x<1e-5] = 1e-5
+            s2_x=m2_x - m_x**2
+            s2_x[s2_x<1e-5]=1e-5
+            s_x = np.sqrt(s2_x)
             x /= s_x
 
         return x
-        # m_x = np.zeros_like(x)
-        # if self.norm_var:
-        #     c2_x = np.cumsum(x*x, axis=0)
-        #     m2_x = np.zeros_like(x)
 
-            
-            
-        # # short-time mean/var norm.
-        # if x.shape[0] > total_context - 1:
-        #     # When signal is larger than context
-
-        #     # For frames 0 to left_context
-        #     denom = np.arange(1, left_context+2, dtype=float_cpu())[:,None] + self.right_context
-        #     m_x[:left_context+1] = c_x[right_context:total_context]/denom
-        #     if self.norm_var:
-        #         m2_x = c2_x[rigth_context:total_context]/denom
-
-        #     # For frames left_context + 1 to total_frames - right_context - 1
-        #     if x.shape[0] > total_context:
-        #         denom = total_context
-        #         m_x[left_context+1:-right_context] = (c_x[total_context:] - c_x[:-total_context])/denom
-        #         if self.norm_var:
-        #             m2_x[left_context+1:-right_context] = (c_x[total_context:] - c2_x[:-total_context])/denom
-
-        #     # For frames total_frames - right_context to the end
-        #     denom = np.arange(right_context, 0, -1,  dtype=float_cpu())[:,None] + self.left_context
-        #     m_x[-right_context:] = - c_x[-total_context:-left_context] + c_x[/denom
-        #     if self
-
+    
 
     def normalize_slow(self, x):
 
-        # Global mean/var norm.
-        if self.norm_mean:
-            m_x = np.mean(x, axis=0, keepdims=True)
-            x = x - m_x
-
-        if self.norm_var:
-            s_x = np.std(x, axis=0, keepdims=True)
-            x = x/s_x
+        x = self.normalize_global(x)
 
         if self.right_context is None and self.left_context is None:
             return x
+
+        if self.left_context is None:
+            left_context = x.shape[0]
+        else:
+            left_context = self.left_context
+
+        if self.right_context is None:
+            right_context = x.shape[0]
+        else:
+            right_context = self.right_context
         
         m_x = np.zeros_like(x)
         s_x = np.zeros_like(x)
@@ -151,7 +199,7 @@ def MeanVarianceNorm(object):
         if self.norm_mean:
             x -= m_x
         if self.norm_var:
-            s_x[s_x<1e-5] = 1e-5
+            s_x[s_x<np.sqrt(1e-5)] = np.sqrt(1e-5)
             x /= s_x
 
         return x

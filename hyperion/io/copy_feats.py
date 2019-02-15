@@ -63,17 +63,20 @@ class CopyFeats(object):
         assert not(num_parts>1 and len(input_spec)>1), (
             'Merging and splitting at the same time is not supported')
 
+        logging.info('opening output stream: %s' % (output_spec))
         with DWF.create(output_spec,
                         compress=compress, compression_method=compression_method,
                         scp_sep=scp_sep) as writer:
         
             for rspec in input_spec:
+                logging.info('opening input stream: %s' % (rspec))
                 with DRF.create(rspec, path_prefix=path_prefix, scp_sep=scp_sep,
                          part_idx=part_idx, num_parts=num_parts) as reader:
                     while not reader.eof():
                         key, data = reader.read(chunk_size)
                         if len(key) == 0:
                             break
+                        logging.info('copying %d feat matrices' % (len(key)))
                         writer.write(key, data)
             
 

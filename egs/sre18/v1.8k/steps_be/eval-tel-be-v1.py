@@ -18,7 +18,7 @@ import logging
 
 import numpy as np
 
-from hyperion.hyp_defs import float_cpu
+from hyperion.hyp_defs import float_cpu, config_logger
 from hyperion.utils.trial_ndx import TrialNdx
 from hyperion.utils.trial_scores import TrialScores
 from hyperion.helpers import TrialDataReader as TDR
