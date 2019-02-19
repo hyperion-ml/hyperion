@@ -18,6 +18,7 @@ from six.moves import xrange
 
 from hyperion.hyp_defs import config_logger
 from hyperion.utils.kaldi_matrix import compression_methods
+from hyperion.utils import Utt2Info
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialDataReaderFactory as DRF
 from hyperion.io import RandomAccessDataReaderFactory as RDRF
@@ -25,7 +26,7 @@ from hyperion.feats import MeanVarianceNorm as MVN
 from hyperion.feats import FrameSelector as FSel
 
 
-def process_feats(input_spec, output_spec, vad_spec,
+def process_feats(input_spec, output_spec, vad_spec, write_num_frames_spec,
                   scp_sep, path_prefix, vad_path_prefix, part_idx, num_parts,
                   compress, compression_method, **kwargs):
 
@@ -36,6 +37,10 @@ def process_feats(input_spec, output_spec, vad_spec,
         fs_args = FSel.filter_args(**kwargs)
         fs = FSel(**fs_args)
 
+    if write_num_frames_spec is not None:
+        keys = []
+        info = []
+        
     logging.info('opening output stream: %s' % (output_spec))
     with DWF.create(output_spec,
                     compress=compress, compression_method=compression_method,
@@ -55,14 +60,21 @@ def process_feats(input_spec, output_spec, vad_spec,
                 logging.info('processing feats at %s' % (key[0]))
                 x = mvn.normalize(data[0])
                 if vad_spec is not None:
-                    vad = v_reader.read(key)[0]
+                    vad = v_reader.read(key)[0].astype('bool')
                     tot_frames = x.shape[0]
                     x = fs.select(x, vad)
-                    logging.info('detected %d/%d (%.2f \%) speech frames' % (x.shape[0], tot_frames, x.shape[0]/total_frames*100))
+                    logging.info('detected %d/%d (%.2f %%) speech frames' % (x.shape[0], tot_frames, x.shape[0]/tot_frames*100))
                 if x.shape[0]>0:
                     writer.write(key, [x])
+                    if write_num_frames_spec is not None:
+                        keys += key
+                        info.append(x.shape[0])
 
-
+    if write_num_frames_spec is not None:
+        logging.info('writing num-frames to %s' % (write_num_frames_spec))
+        u2nf = Utt2Info.create(keys, info)
+        u2nf.save(write_num_frames_spec)
+    
     
 if __name__ == "__main__":
     
@@ -73,16 +85,17 @@ if __name__ == "__main__":
 
     parser.add_argument('--input', dest='input_spec', required=True)
     parser.add_argument('--output', dest='output_spec', required=True)
-    parser.add_argument('--vad', dest='vad_spec', default=False)
-    parser.add_argument(p1+'scp-sep', dest=(p2+'scp_sep'), default=' ',
+    parser.add_argument('--vad', dest='vad_spec', default=None)
+    parser.add_argument('--write-num-frames', dest='write_num_frames_spec', default=None)
+    parser.add_argument('--scp-sep', dest='scp_sep', default=' ',
                         help=('scp file field separator'))
-    parser.add_argument(p1+'path-prefix', dest=(p2+'path_prefix'), default=None,
+    parser.add_argument('--path-prefix', dest='path_prefix', default=None,
                         help=('scp file_path prefix'))
-    parser.add_argument(p1+'vad-path-prefix', dest=(p2+'vad_path_prefix'), default=None,
+    parser.add_argument('--vad-path-prefix', dest='vad_path_prefix', default=None,
                         help=('scp file_path prefix for vad'))
-    parser.add_argument(p1+'part-idx', dest=(p2+'part_idx'), type=int, default=1,
+    parser.add_argument('--part-idx', dest='part_idx', type=int, default=1,
                         help=('splits the list of files in num-parts and process part_idx'))
-    parser.add_argument(p1+'num-parts', dest=(p2+'num_parts'), type=int, default=1,
+    parser.add_argument('--num-parts', dest='num_parts', type=int, default=1,
                         help=('splits the list of files in num-parts and process part_idx'))
     
     parser.add_argument('--compress', dest='compress', default=False, action='store_true', help='Lossy compress the features')

@@ -1,5 +1,4 @@
 #!/bin/bash
-
 # Copyright 2018   Johns Hopkins University (Jesus Villalba) 
 # Apache 2.0
 

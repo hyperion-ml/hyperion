@@ -226,10 +226,10 @@ class MeanVarianceNorm(object):
         d = dict((k, kwargs[p+k])
                  for k in valid_args if p+k in kwargs)
 
-        neg_args1 = ('no_norm_mean')
-        neg_args2 = ('norm_mean')
+        neg_args1 = ('no_norm_mean',)
+        neg_args2 = ('norm_mean',)
 
-        for a,b in zip(ne_args1, neg_args2):
+        for a,b in zip(neg_args1, neg_args2):
             d[b] = not d[a]
             del d[a]
 

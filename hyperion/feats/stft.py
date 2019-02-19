@@ -42,6 +42,7 @@ def istft(X, frame_length, frame_shift, window=None):
     for i in xrange(X.shape[0]):
         x_overlap[j:j+frame_length] += xx[i]
         w_overlap[j:j+frame_length] += window
+        j += frame_shift
 
     iw = 1/w_overlap
     iw[w_overlap==0] = 0
@@ -66,6 +67,7 @@ def strft(x, frame_length, frame_shift, fft_length, window=None):
     return X
 
 
+
 def istrft(X, frame_length, frame_shift, window=None):
 
     if window is None:
@@ -80,6 +82,7 @@ def istrft(X, frame_length, frame_shift, window=None):
     for i in xrange(X.shape[0]):
         x_overlap[j:j+frame_length] += xx[i]
         w_overlap[j:j+frame_length] += window
+        j += frame_shift
 
     iw = 1/w_overlap
     iw[w_overlap==0] = 0

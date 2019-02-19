@@ -63,7 +63,7 @@ if [ $stage -le 6 ]; then
 	      /export/b{04,05,06,07,08,09}/$dir_name $egs_dir/storage
       elif [ "$nodes" == "b1" ];then
 	  utils/create_split_dir.pl \
-	      /export/b{14,15,16,17}/$dir_name $egs_dir/storage
+	      /export/b{13,14,15,16,17,18}/$dir_name $egs_dir/storage
       else
 	  utils/create_split_dir.pl \
 	      /export/c{06,07,08,09}/$dir_name $egs_dir/storage
