@@ -44,8 +44,9 @@ def istft(X, frame_length, frame_shift, window=None):
         w_overlap[j:j+frame_length] += window
         j += frame_shift
 
+    w_overlap[w_overlap==0] = 1
     iw = 1/w_overlap
-    iw[w_overlap==0] = 0
+    # iw[w_overlap==0] = 0
     x = x_overlap * iw
     return x
 
@@ -84,8 +85,9 @@ def istrft(X, frame_length, frame_shift, window=None):
         w_overlap[j:j+frame_length] += window
         j += frame_shift
 
+    w_overlap[w_overlap==0] = 1
     iw = 1/w_overlap
-    iw[w_overlap==0] = 0
+    # iw[w_overlap==0] = 0
     x = x_overlap * iw
     return x
 
