@@ -22,6 +22,7 @@ voxceleb1_root=/export/corpora/VoxCeleb1
 voxceleb2_root=/export/corpora/VoxCeleb2
 voices_root=/export/corpora/SRI/VOiCES_2019_challenge
 voices_dev_listdir=$voices_root/Development_Data/Speaker_Recognition/sid_dev_lists_and_keys
+voices_eval_listdir=$voices_root/Evaluation_Data/Speaker_Recognition/sid_eval_lists
 
 if [ $stage -le 1 ]; then
     # Prepare telephone and microphone speech from Mixer6.
@@ -53,6 +54,7 @@ fi
 if [ $stage -le 4 ];then
     # Prepare voices
     local/make_voices19_challenge_dev.sh $voices_root $voices_dev_listdir ./data
+    local/make_voices19_challenge_eval.sh $voices_root $voices_eval_listdir ./data
 fi
 
 exit

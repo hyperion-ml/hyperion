@@ -34,10 +34,6 @@ awk '{ split($2,f,"/"); spk=f[2];
 
 utils/utt2spk_to_spk2utt.pl $data_out/utt2model > $data_out/model2utt
 
-awk '{ split($2,f,"/"); spk=f[2]; 
-       print spk"-"$2,$1}' \
-    $enroll_list | sort -k1,1 > $data_out/utt2model
-
 awk '{ utt=$2;
        sub(/.*VOiCES-/,"",$2); 
        sub(/\.wav$/,"",$2); 
@@ -48,10 +44,9 @@ awk '{ utt=$2;
        printf "\n" }' \
     $enroll_list | sort -k1,1 > $data_out/utt2info
 
-
-
-
 utils/fix_data_dir.sh --utt_extra_files utt2info $data_out
+
+######
 
 echo "$0 making voices challenge dev test"
 data_out=$output_path/voices19_challenge_dev_test

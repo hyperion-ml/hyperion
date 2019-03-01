@@ -41,8 +41,8 @@ fi
 
 #Train datasets
 if [ $stage -le 2 ];then 
-    #for name in voxceleb1cat voxceleb2cat_train sitw_train
-    for name in voices19_challenge_dev_enroll voices19_challenge_dev_test
+    #for name in voxceleb1cat voxceleb2cat_train sitw_train voices19_challenge_dev_enroll voices19_challenge_dev_test
+    for name in voices19_challenge_eval_enroll voices19_challenge_eval_test
     do
 	steps/make_mfcc.sh --write-utt2num-frames true --mfcc-config conf/mfcc_16k.conf --nj 40 --cmd "$train_cmd" \
 			   data/${name} exp/make_mfcc $mfccdir

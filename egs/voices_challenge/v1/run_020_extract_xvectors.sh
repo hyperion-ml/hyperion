@@ -11,7 +11,7 @@
 . ./path.sh
 set -e
 
-net_name=3b.0
+net_name=3b
 
 stage=1
 
@@ -33,13 +33,12 @@ fi
 
 if [ $stage -le 2 ]; then
     # Extracts x-vectors for evaluation
-    for name in voices19_challenge_dev_enroll voices19_challenge_dev_test
+    for name in voices19_challenge_dev_enroll voices19_challenge_dev_test voices19_challenge_eval_enroll voices19_challenge_eval_test
     do
 	steps_kaldi_xvec/extract_xvectors.sh --cmd "$train_cmd --mem 6G" --nj 40 \
 					      $nnet_dir data/$name \
 					      $xvector_dir/$name
     done
-
 
 fi
 

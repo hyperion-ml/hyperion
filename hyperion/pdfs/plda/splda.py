@@ -405,9 +405,10 @@ class SPLDA(PLDABase):
             Sb = np.dot(V.T, V)
             Sb = w_B*Sb + (1-w_B)*Sb0
             w, V = sla.eigh(Sb, overwrite_a=True)
-            V = np.sqrt(w)*V
-            V = V[:,-self.y_dim:]
+            w = w[-self.y_dim:]
+            V = np.sqrt(w)*V[:,-self.y_dim:]
             self.V = V.T
+            
         if w_W > 0:
             Sw0 = invert_pdmat(self.W, return_inv=True)[-1]
             Sw = invert_pdmat(W, return_inv=True)[-1]

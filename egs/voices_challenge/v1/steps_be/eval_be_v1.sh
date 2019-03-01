@@ -2,7 +2,7 @@
 # Copyright 2018 Johns Hopkins University (Jesus Villalba)  
 # Apache 2.0.
 #
-
+set -e 
 cmd=run.pl
 plda_type=frplda
 

@@ -58,7 +58,8 @@ fi
 
 if [ $stage -le 4 ];then 
 
-    for name in voices19_challenge_dev_enroll voices19_challenge_dev_test
+    #for name in voices19_challenge_dev_enroll voices19_challenge_dev_test
+    for name in voices19_challenge_eval_enroll voices19_challenge_eval_test
     do
 	steps_fe/detect_speech_activity.sh --nj 40 --cmd "$train_cmd"  \
 					   --extra-left-context 79 --extra-right-context 21 \
@@ -73,5 +74,30 @@ if [ $stage -le 4 ];then
 	steps_fe/segments2vad.sh data/$name data/${name}_seg $nnet_vaddir
 	utils/fix_data_dir.sh data/${name}
     done
+fi
+
+if [ $stage -le 5 ];then
+    
+    #fix vimals vad in eval
+    for name in voices19_challenge_eval_test
+    do
+	if [ ! -f data/$name/vad.nn.scp ];then
+	    mv data/$name/vad.scp data/$name/vad.nn.scp
+	fi
+	# compute energy VAD
+    	steps_fe/compute_vad_decision.sh --nj 40 --cmd "$train_cmd" \
+					 data/${name} exp/make_vad vad_e
+	mv data/$name/vad.scp data/$name/vad.e.scp
+	#Put energy VAD for utts where NN vad is missing.
+	awk -v fvv=data/$name/vad.nn.scp 'BEGIN{
+            while(getline < fvv)
+            {
+                 vv[$1]=$0
+            }
+        } 
+        { if($1 in vv){ print vv[$1]} else { print $0 }}' data/$name/vad.e.scp > data/$name/vad.scp
+	utils/fix_data_dir.sh data/${name}
+    done
+
 fi
 
