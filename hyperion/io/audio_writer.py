@@ -9,6 +9,7 @@ from six.moves import xrange
 from six import string_types
 
 import os
+import re
 import soundfile as sf
 
 import numpy as np
@@ -51,7 +52,6 @@ class AudioWriter(object):
 
         if not os.path.exists(output_path):
             os.makedirs(output_path)
-
 
         if script_path is not None:
             self.f_script = open(script_path, 'w')
@@ -104,7 +104,8 @@ class AudioWriter(object):
         dtype = subtype_to_npdtype[self.subtype]
         for i, key_i in enumerate(keys):
             assert is_token(key_i), 'Token %s not valid' % key_i
-            output_file = '%s/%s.%s' % (self.output_path, key_i, self.audio_format)
+            file_basename = re.sub('/', '-', key_i)
+            output_file = '%s/%s.%s' % (self.output_path, file_basename, self.audio_format)
             fs_i = fs[i] if fs_is_list else fs
             data_i = data[i].astype(dtype, copy=False)
             sf.write(output_file, data_i, fs_i, subtype=self.subtype)
