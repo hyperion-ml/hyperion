@@ -58,8 +58,7 @@ fi
 
 if [ $stage -le 4 ];then 
 
-    #for name in voices19_challenge_dev_enroll voices19_challenge_dev_test
-    for name in voices19_challenge_eval_enroll voices19_challenge_eval_test
+    for name in voices19_challenge_dev_enroll voices19_challenge_dev_test voices19_challenge_eval_enroll voices19_challenge_eval_test
     do
 	steps_fe/detect_speech_activity.sh --nj 40 --cmd "$train_cmd"  \
 					   --extra-left-context 79 --extra-right-context 21 \
