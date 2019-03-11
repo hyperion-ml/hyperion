@@ -217,8 +217,42 @@ class SegmentList(object):
             dfs.append(sl.segments)
         df = pd.concat(dfs)
         return cls(df, index_by_file=index_by_file)
-        
 
+
+    def to_bin_vad(self, key, frame_shift=10 , num_frames=None):
+        """Converts segments to binary VAD
+
+        Args:
+          key: Segment or file key
+          frame_shift: frame_shift in milliseconds
+          num_frames: number of frames of file corresponding to key, 
+                      if None it takes the maximum tend for file
+        Returns:
+          if index_by_file is True if returns VAD joining all segments of one file
+          else if returns VAD for one given segment
+
+        """
+        tbeg = np.round(np.array(self.segments.loc[key]['tbeg'], dtype=float, ndmin=1)
+                        * 1000/frame_shift).astype(dtype=int)
+        tend = np.round(np.array(self.segments.loc[key]['tend'], dtype=float, ndmin=1)
+                        * 1000/frame_shift).astype(dtype=int)
+
+        if num_frames is None:
+            if self.index_by_file:
+                num_frames=tend[-1]
+            else:
+                file_id = self.segments.loc[key]['file_id']
+                sel_idx = self.segments['file_id'] == file_id
+                num_frames = int(np.round(self.segments[sel_idx]['tend'].max() * 1000/self.frame_shift))
+                
+        tend = np.minimum(num_frames-1, tend)                
+        vad = np.zeros((num_frames,), dtype=int)
+        for j in xrange(len(tbeg)):
+            vad[tbeg[j]:tend[j]+1] = 1
+
+        return vad
+
+        
         
     def __eq__(self, other):
         """Equal operator"""

@@ -40,12 +40,12 @@ class KerasModelLoader(object):
     @staticmethod
     def load_checkpoint(model_path, epochs):
         found = False
-        init_epoch = 0
+        cur_epoch = 0
         for epoch in xrange(epochs,-1,-1):
             json_file = '%s/model.%04d.json' % (model_path, epoch)
             if os.path.isfile(json_file):
                 found = True
-                init_epoch = epoch
+                cur_epoch = epoch
                 break
             
         if not found:
@@ -58,4 +58,4 @@ class KerasModelLoader(object):
             file_path = json_file.rstrip('.json')
             model = KerasModelLoader.load(file_path)
         
-        return model, init_epoch 
+        return model, cur_epoch 

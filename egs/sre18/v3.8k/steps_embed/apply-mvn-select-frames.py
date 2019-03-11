@@ -63,7 +63,8 @@ def process_feats(input_spec, output_spec, vad_spec, write_num_frames_spec,
                     vad = v_reader.read(key)[0].astype('bool')
                     tot_frames = x.shape[0]
                     x = fs.select(x, vad)
-                    logging.info('detected %d/%d (%.2f %%) speech frames' % (x.shape[0], tot_frames, x.shape[0]/tot_frames*100))
+                    logging.info('for %s detected %d/%d (%.2f %%) speech frames'
+                                 % (key[0], x.shape[0], tot_frames, x.shape[0]/tot_frames*100))
                 if x.shape[0]>0:
                     writer.write(key, [x])
                     if write_num_frames_spec is not None:

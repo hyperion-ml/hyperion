@@ -25,6 +25,7 @@ conda install protobuf
 #update pip
 conda update pip
 
+#install soundfile
 pip install pysoundfile
 
 #this is needed by theano

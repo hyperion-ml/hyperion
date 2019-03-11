@@ -19,7 +19,7 @@ from sklearn.utils.class_weight import compute_class_weight
 
 from ..hyp_defs import float_cpu
 from ..io import RandomAccessDataReaderFactory as RF
-from ..utils.scp_list import SCPList
+from ..utils.utt2info import Utt2Info
 from ..utils.tensors import to3D_by_seq
 from ..transforms import TransformList
 
@@ -47,9 +47,9 @@ class SequenceBatchGeneratorV1(object):
                  part_idx=1, num_parts=1):
         
         self.r = RF.create(rspecifier, path_prefix=path_prefix, transform=transform, scp_sep=scp_sep)
-        self.scp = SCPList.load(key_file, sep=scp_sep)
+        self.u2c = SCPList.load(key_file, sep=scp_sep)
         if num_parts > 1:
-            self.scp = self.scp.split(part_idx, num_parts, group_by_key=False)
+            self.u2c = self.u2c.split(part_idx, num_parts, group_by_key=False)
         self.batch_size = batch_size
 
         self.cur_epoch = init_epoch
@@ -77,7 +77,7 @@ class SequenceBatchGeneratorV1(object):
         self.reset_rng = reset_rng
         self.rng = None
 
-        self.init_scp = self.scp
+        self.init_scp = self.u2c
         
         self.cur_seq = 0
         self.cur_step = 0
@@ -100,14 +100,14 @@ class SequenceBatchGeneratorV1(object):
                 
     @property
     def num_seqs(self):
-        return len(self.scp)
+        return len(self.u2c)
 
 
     
     @property
     def seq_lengths(self):
         if self._seq_lengths is None:
-            self._init_seq_lengths = self.r.read_num_rows(self.scp.file_path)
+            self._init_seq_lengths = self.r.read_num_rows(self.u2c.key)
             self._seq_lengths = self._init_seq_lengths
         return self._seq_lengths
 
@@ -159,20 +159,20 @@ class SequenceBatchGeneratorV1(object):
     
     def _prune_min_length(self, min_length):
         keep_idx = self.seq_lengths >= min_length
-        self.scp = self.scp.filter_index(keep_idx)
+        self.u2c = self.u2c.filter_index(keep_idx)
         self._seq_lengths = None
 
 
         
     def _prepare_class_info(self, class_list):
         if class_list is None:
-            class_dict = {k:i for i, k in enumerate(np.unique(self.scp.key))}
+            class_dict = {k:i for i, k in enumerate(np.unique(self.u2c.info))}
         else:
             with open(class_list) as f:
                 class_dict={line.rstrip().split()[0]: i for i, line in enumerate(f)}
 
         self.num_classes = len(class_dict)
-        self.key2class = {p: class_dict[k] for k, p in zip(self.scp.key, self.scp.file_path)}
+        self.key2class = {p: class_dict[k] for k, p in zip(self.u2c.info, self.u2c.key)}
 
 
 
@@ -196,14 +196,14 @@ class SequenceBatchGeneratorV1(object):
 
     
     def _balance_class_weight(self, max_class_imbalance):
-        classes, class_ids = np.unique(self.scp.key, return_inverse=True)
+        classes, class_ids = np.unique(self.u2c.info, return_inverse=True)
         #class_weights = compute_class_weights('balanced', classes, class_ids)
         #num_samples = class_weights/np.min(class_weights)
 
         idx = self._balance_class_weight_helper(class_ids, max_class_imbalance)
-        self.scp = self.scp.filter_index(idx)
-        # self.scp.save('tmp.scp')
-        # self.scp.save('/tmp.scp')
+        self.u2c = self.u2c.filter_index(idx)
+        # self.u2c.save('tmp.u2c')
+        # self.u2c.save('/tmp.u2c')
         if self._init_seq_lengths is not None:
             self._init_seq_legths = self._init_seq_lengths[idx]
             self._seq_lengths = self._init_seq_legths
@@ -267,8 +267,8 @@ class SequenceBatchGeneratorV1(object):
             if self._init_seq_lengths is None:
                 self.seq_lengths
                 
-            self.scp = self.init_scp.copy()
-            index = self.scp.shuffle(rng=self.rng)
+            self.u2c = self.init_scp.copy()
+            index = self.u2c.shuffle(rng=self.rng)
             self._seq_lengths = self._init_seq_lengths[index]
             if self._init_num_subseqs is not None:
                 self.num_subseqs = self._init_num_subseqs[index]
@@ -316,12 +316,12 @@ class SequenceBatchGeneratorV1(object):
 
     
     def _read_full_seqs(self):
-        keys = list(self.scp.file_path[self.cur_seq:self.cur_seq+self.batch_size])
+        keys = list(self.u2c.key[self.cur_seq:self.cur_seq+self.batch_size])
         self.cur_seq += self.batch_size
         
         if len(keys) < self.batch_size:
             delta = self.batch_size - len(keys)
-            keys += self.scp.file_path[:delta]
+            keys += self.u2c.key[:delta]
             self.cur_seq = delta
             assert len(keys) == self.batch_size
 
@@ -335,7 +335,7 @@ class SequenceBatchGeneratorV1(object):
         seq_lengths =[]
         first_frames = []
         for i in xrange(self.batch_size):
-            key = self.scp.file_path[self.cur_seq]
+            key = self.u2c.key[self.cur_seq]
             full_seq_length = self.seq_lengths[self.cur_seq]
             max_seq_length = min(full_seq_length, self.max_seq_length)
             min_seq_length = min(full_seq_length, self.min_seq_length)
@@ -362,7 +362,7 @@ class SequenceBatchGeneratorV1(object):
         first_frames = []
         count = 0
         while count < self.batch_size:
-            key = self.scp.file_path[self.cur_seq]
+            key = self.u2c.key[self.cur_seq]
             first_frame = self.cur_frame[self.cur_seq]
             full_seq_length = self.seq_lengths[self.cur_seq]
             remainder_seq_length =  full_seq_length - first_frame

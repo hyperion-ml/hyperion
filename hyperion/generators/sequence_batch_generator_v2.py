@@ -19,7 +19,7 @@ from sklearn.utils.class_weight import compute_class_weight
 
 from ..hyp_defs import float_cpu
 from ..io import RandomAccessDataReaderFactory as RF
-from ..utils.scp_list import SCPList
+from ..utils.utt2info import Utt2Info
 from ..utils.tensors import to3D_by_seq
 from ..transforms import TransformList
 
@@ -44,11 +44,13 @@ class SequenceBatchGeneratorV2(object):
                  sg_seed=1024, reset_rng=False,
                  scp_sep=' ', 
                  part_idx=1, num_parts=1):
-        
+
+        logging.info('opening reader %s' % rspecifier)
         self.r = RF.create(rspecifier, path_prefix=path_prefix, transform=transform, scp_sep=scp_sep)
-        self.scp = SCPList.load(key_file, sep=scp_sep)
+        logging.info('loading utt2info file %s' % key_file)
+        self.u2c = Utt2Info.load(key_file, sep=scp_sep)
         if num_parts > 1:
-            self.scp = self.scp.split(part_idx, num_parts, group_by_key=False)
+            self.u2c = self.u2c.split(part_idx, num_parts)
         self.batch_size = batch_size
 
         self.cur_epoch = init_epoch
@@ -69,28 +71,15 @@ class SequenceBatchGeneratorV2(object):
 
         self.return_class = return_class
         self.return_utt1hot = return_utt1hot
-        # logging.debug('prep_class_info')
-        # sys.stdout.flush()
         self._prepare_class_info(class_list)
-        # logging.debug('prep_class_info')
-        # sys.stdout.flush()
         
         self.seed = sg_seed
         self.reset_rng = reset_rng
         self.rng = None
 
-        #self.init_scp = self.scp
-        
         self.cur_step = 0
-        
-        #self.cur_frame = None
-        #self.cur_subseq = None
-        #self._init_num_subseqs = None
-        #self.num_subseqs = None
-
         self._steps_per_epoch = None
 
-        #self._prepare_subseqs()
         if iters_per_epoch == 'auto':
             logging.debug('iters_auto')
             sys.stdout.flush()
@@ -105,14 +94,14 @@ class SequenceBatchGeneratorV2(object):
                 
     @property
     def num_seqs(self):
-        return len(self.scp)
+        return len(self.u2c)
 
 
     
     @property
     def seq_lengths(self):
         if self._seq_lengths is None:
-            self._init_seq_lengths = self.r.read_num_rows(self.scp.file_path)
+            self._init_seq_lengths = self.r.read_num_rows(self.u2c.key)
             self._seq_lengths = self._init_seq_lengths
         return self._seq_lengths
 
@@ -161,7 +150,7 @@ class SequenceBatchGeneratorV2(object):
     
     def _prune_min_length(self, min_length):
         keep_idx = self.seq_lengths >= min_length
-        self.scp = self.scp.filter_index(keep_idx)
+        self.u2c = self.u2c.filter_index(keep_idx)
         self._seq_lengths = self.seq_lengths[keep_idx]
         self._init_seq_lengths = self._seq_lengths
 
@@ -169,73 +158,40 @@ class SequenceBatchGeneratorV2(object):
         
     def _prepare_class_info(self, class_list):
         if class_list is None:
-            classes, class_idx = np.unique(self.scp.key, return_inverse=True)
+            classes, class_idx = np.unique(self.u2c.info, return_inverse=True)
             class_dict = {k:i for i, k in enumerate(classes)}
         else:
             with open(class_list) as f:
                 class_dict={line.rstrip().split()[0]: i for i, line in enumerate(f)}
-                class_idx = np.array([class_dict[k] for k in self.scp.key], dtype=int)
+                class_idx = np.array([class_dict[k] for k in self.u2c.info], dtype=int)
 
         self.num_classes = len(class_dict)
-        #self.utt2class = {p: class_dict[k] for k, p in zip(self.scp.key, self.scp.file_path)}
 
         self.class2utt = {}
         self.class2utt_idx = {}
         self.class2num_utt = np.zeros((self.num_classes,), dtype=int)
         for k in xrange(self.num_classes):
             idx = (class_idx == k).nonzero()[0]
-            self.class2utt[k] = [f for f in self.scp.file_path[idx]]
+            self.class2utt[k] = [f for f in self.u2c.key[idx]]
             self.class2utt_idx[k] = idx
             self.class2num_utt[k] = len(idx)
 
         self.num_class_zero_utt = np.sum(self.class2num_utt==0)
 
-    # @staticmethod
-    # def _balance_class_weight_helper(class_ids, max_class_imbalance):
-    #     num_samples = np.bincount(class_ids)
-    #     max_samples = int(np.ceil(np.max(num_samples)/max_class_imbalance))
-    #     idx = []
-    #     for i, num_samples_i in enumerate(num_samples):
-    #         idx_i = (class_ids == i).nonzero()[0]
-    #         r = float(max_samples)/num_samples_i
-    #         if r > 1:
-    #             idx_i = np.tile(idx_i, int(np.ceil(r)))
-    #             idx_i = idx_i[:max_samples]
-    #         idx.append(idx_i)
-            
-    #     idx = np.hstack(tuple(idx))
-    #     assert idx.shape[0] >= len(num_samples)*max_samples
-    #     return idx
-    
-
-    
-    # def _balance_class_weight(self, max_class_imbalance):
-    #     classes, class_ids = np.unique(self.scp.key, return_inverse=True)
-    #     #class_weights = compute_class_weights('balanced', classes, class_ids)
-    #     #num_samples = class_weights/np.min(class_weights)
-
-    #     idx = self._balance_class_weight_helper(class_ids, max_class_imbalance)
-    #     self.scp = self.scp.filter_index(idx)
-    #     # self.scp.save('tmp.scp')
-    #     # self.scp.save('/tmp.scp')
-    #     if self._init_seq_lengths is not None:
-    #         self._init_seq_legths = self._init_seq_lengths[idx]
-    #         self._seq_lengths = self._init_seq_legths
-        
 
             
-    def _compute_iters_auto_0(self):
-        total_length = np.sum(self.seq_lengths)
-        avg_seq_length = int((self.max_seq_length + self.min_seq_length)/2)
-        seqs_per_iter = self.num_classes * self.num_egs_per_class * self.num_egs_per_utt
-        self.iters_per_epoch = int(np.ceil(total_length/avg_seq_length/seqs_per_iter))
-        logging.debug('num iters per epoch: %d' % self.iters_per_epoch)
+    # def _compute_iters_auto_0(self):
+    #     total_length = np.sum(self.seq_lengths)
+    #     avg_seq_length = int((self.max_seq_length + self.min_seq_length)/2)
+    #     seqs_per_iter = self.num_classes * self.num_egs_per_class * self.num_egs_per_utt
+    #     self.iters_per_epoch = int(np.ceil(total_length/avg_seq_length/seqs_per_iter))
+    #     logging.debug('num iters per epoch: %d' % self.iters_per_epoch)
 
         
-    def _compute_iters_auto_1(self):
-        seqs_per_iter = self.num_classes * self.num_egs_per_class * self.num_egs_per_utt
-        self.iters_per_epoch = int(np.ceil(self.num_seqs/seqs_per_iter))
-        logging.debug('num iters per epoch: %d' % self.iters_per_epoch)
+    # def _compute_iters_auto_1(self):
+    #     seqs_per_iter = self.num_classes * self.num_egs_per_class * self.num_egs_per_utt
+    #     self.iters_per_epoch = int(np.ceil(self.num_seqs/seqs_per_iter))
+    #     logging.debug('num iters per epoch: %d' % self.iters_per_epoch)
 
 
     def _compute_iters_auto(self):
@@ -243,36 +199,6 @@ class SequenceBatchGeneratorV2(object):
         avg_seq_length = int((self.max_seq_length + self.min_seq_length)/2)
         self.iters_per_epoch = np.ceil(avg_total_length/avg_seq_length)
         logging.debug('num iters per epoch: %d' % self.iters_per_epoch)
-
-        
-    # def _prepare_subseqs(self):
-    #     if self.gen_method == 'full_seqs':
-    #         self._prepare_full_seqs()
-    #     elif self.gen_method == 'random':
-    #         self._prepare_random_subseqs()
-    #     elif self.gen_method == 'sequential':
-    #         self._prepare_sequential_subseqs()
-            
-            
-
-    # def _prepare_full_seqs(self):
-    #     pass
-
-
-    # def _prepare_random_subseqs(self):
-    #     pass
-
-
-    
-    # def _prepare_sequential_subseqs(self):
-    #     seq_lengths = self.seq_lengths
-    #     avg_length = int((self.max_seq_length + self.min_seq_length)/2)
-    #     shift = avg_length - self.seq_overlap
-    #     self._init_num_subseqs = np.ceil(seq_lengths/shift).astype(int)
-    #     self.num_subseqs = self._init_num_subseqs
-    #     self.cur_frame = np.zeros((self.num_seqs,), dtype=int)
-    #     self.cur_subseq = np.zeros((self.num_seqs,), dtype=int)
-
     
             
     def reset(self):
@@ -286,18 +212,6 @@ class SequenceBatchGeneratorV2(object):
             logging.debug('\nreset rng %d' % (self.seed+self.cur_epoch))
             self.rng = np.random.RandomState(seed=self.seed+self.cur_epoch)
 
-
-        # if self.shuffle_seqs:
-        #     if self._init_seq_lengths is None:
-        #         self.seq_lengths
-                
-        #     self.scp = self.init_scp.copy()
-        #     index = self.scp.shuffle(rng=self.rng)
-        #     self._seq_lengths = self._init_seq_lengths[index]
-        #     if self._init_num_subseqs is not None:
-        #         self.num_subseqs = self._init_num_subseqs[index]
-
-                
 
     
     def read(self, squeeze=True, max_seq_length=None):
@@ -361,7 +275,7 @@ class SequenceBatchGeneratorV2(object):
         classes = np.repeat(classes, self.num_egs_per_utt)
 
         for i in xrange(self.batch_size):
-            key = self.scp.file_path[utt_idx[i]]
+            key = self.u2c.key[utt_idx[i]]
             full_seq_length = self.seq_lengths[utt_idx[i]]
             max_seq_length = min(full_seq_length, self.max_seq_length)
             min_seq_length = min(full_seq_length, self.min_seq_length)

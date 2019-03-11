@@ -27,7 +27,7 @@ from ...hyp_model import HypModel
 
 class SeqEmbedLDE(HypModel):
 
-    def __init__(self, prepool_net, postpool_net,
+    def __init__(self, enc_net, pt_net,
                  loss='categorical_crossentropy',
                  pooling='mean+std',
                  lde_net=None,
@@ -37,13 +37,13 @@ class SeqEmbedLDE(HypModel):
                  right_context=0,
                  begin_context=None,
                  end_context=None,
-                 prepool_downsampling=None,
+                 enc_downsampling=None,
                  **kwargs):
 
         super(SeqEmbedLDE, self).__init__(**kwargs)
 
-        self.prepool_net = prepool_net
-        self.postpool_net = postpool_net
+        self.enc_net = enc_net
+        self.pt_net = pt_net
         self.pooling = pooling
         self.loss = loss
         self.num_comp = num_comp
@@ -58,64 +58,64 @@ class SeqEmbedLDE(HypModel):
         self.right_context = right_context
         self.begin_context = left_context if begin_context is None else begin_context
         self.end_context = right_context if end_context is None else end_context
-        self._prepool_downsampling = prepool_downsampling
+        self._enc_downsampling = enc_downsampling
         self.max_seq_length = None
 
         
     @property
     def x_dim(self):
-        return self.prepool_net.get_input_shape_at(0)[-1]
+        return self.enc_net.get_input_shape_at(0)[-1]
 
 
     @property
     def num_classes(self):
-        return self.postpool_net.get_output_shape_at(0)[-1]
+        return self.pt_net.get_output_shape_at(0)[-1]
 
 
     
     @property
     def pool_in_dim(self):
-        return self.prepool_net.get_output_shape_at(0)[-1]
+        return self.enc_net.get_output_shape_at(0)[-1]
 
 
     
     @property
     def pool_out_dim(self):
-        return self.postpool_net.get_input_shape_at(0)[-1]
+        return self.pt_net.get_input_shape_at(0)[-1]
 
 
     
     @property
     def in_length(self):
         if self.max_seq_length is None:
-            return self.prepool_net.get_input_shape_at(0)[-2]
+            return self.enc_net.get_input_shape_at(0)[-2]
         return self.max_seq_length
 
 
     
     @property
     def pool_in_length(self):
-        pool_length = self.prepool_net.get_output_shape_at(0)[-2]
+        pool_length = self.enc_net.get_output_shape_at(0)[-2]
         if pool_length is None:
             in_length = self.in_length
             if in_length is None:
                 return None
             x = Input(shape=(in_length, self.x_dim))
-            net = Model(x, self.prepool_net(x))
+            net = Model(x, self.enc_net(x))
             pool_length = net.get_output_shape_at(0)[-2]
         return pool_length
 
 
     
     @property
-    def prepool_downsampling(self):
-        if self._prepool_downsampling is None:
+    def enc_downsampling(self):
+        if self._enc_downsampling is None:
             assert self.in_length is not None
             assert self.pool_in_length is not None
             r = self.in_length/self.pool_in_length
             assert np.ceil(r) == np.floor(r)
-            self._prepool_downsampling = int(r)
-        return self._prepool_downsampling
+            self._enc_downsampling = int(r)
+        return self._enc_downsampling
 
 
     
@@ -159,37 +159,37 @@ class SeqEmbedLDE(HypModel):
 
 
         
-    def freeze_prepool_net(self):
-        self.prepool_net.trainable = False
+    def freeze_enc_net(self):
+        self.enc_net.trainable = False
 
         
-    def freeze_prepool_net_layers(self, layers):
+    def freeze_enc_net_layers(self, layers):
         for layer_name in layers:
-            self.prepool_net.get_layer(layer_name).trainable = False
+            self.enc_net.get_layer(layer_name).trainable = False
 
 
             
-    def freeze_postpool_net_layers(self, layers):
+    def freeze_pt_net_layers(self, layers):
         for layer_name in layers:
-            self.postpool_net.get_layer(layer_name).trainable = False
+            self.pt_net.get_layer(layer_name).trainable = False
 
         
     def build(self, max_seq_length=None):
 
         if max_seq_length is None:
-            max_seq_length = self.prepool_net.get_input_shape_at(0)[-2]
+            max_seq_length = self.enc_net.get_input_shape_at(0)[-2]
         self.max_seq_length = max_seq_length
 
         x = Input(shape=(max_seq_length, self.x_dim,))
         mask = CreateMask(0)(x)
-        frame_embed = self.prepool_net(x)
+        frame_embed = self.enc_net(x)
 
         dec_ratio = int(max_seq_length/frame_embed._keras_shape[1])
         if dec_ratio > 1:
             mask = MaxPooling1D(dec_ratio, padding='same')(mask)
         
         pool = self._apply_pooling(frame_embed, mask)
-        y = self.postpool_net(pool)
+        y = self.pt_net(pool)
         self.model = Model(x, y)
         self.model.summary()
         
@@ -203,8 +203,8 @@ class SeqEmbedLDE(HypModel):
         
         outputs = []
         for layer_name in layers:
-            embed_i = Model(self.postpool_net.get_input_at(0),
-                            self.postpool_net.get_layer(layer_name).get_output_at(0))(pool)
+            embed_i = Model(self.pt_net.get_input_at(0),
+                            self.pt_net.get_layer(layer_name).get_output_at(0))(pool)
             outputs.append(embed_i)
 
         self.pool_net = Model([frame_embed, mask], outputs)
@@ -216,7 +216,7 @@ class SeqEmbedLDE(HypModel):
 
         in_seq_length = self.in_length
         pool_seq_length = self.pool_in_length
-        r = self.prepool_downsampling
+        r = self.enc_downsampling
         
         assert np.ceil(self.left_context/r) == np.floor(self.left_context/r)
         assert np.ceil(self.right_context/r) == np.floor(self.right_context/r)
@@ -248,7 +248,7 @@ class SeqEmbedLDE(HypModel):
             l_out = k_out - j_out
 
             x_i[0,:l_in] = x[j_in:k_in]
-            y_i = self.prepool_net.predict(x_i, batch_size=1, **kwargs)[0]
+            y_i = self.enc_net.predict(x_i, batch_size=1, **kwargs)[0]
             y[j_out:k_out] = y_i[:l_out]
 
             j_in += in_shift
@@ -290,7 +290,7 @@ class SeqEmbedLDE(HypModel):
         mask = Input(shape=(None,))
         pool = self._apply_pooling(frame_embed, mask)
         
-        score = self.postpool_net(pool)
+        score = self.pt_net(pool)
         self.pool_net = Model([frame_embed, mask], score)
         self.pool_net.summary()
 
@@ -329,10 +329,10 @@ class SeqEmbedLDE(HypModel):
         with open(file_model, 'w') as f:
             f.write(self.to_json())
         
-        file_model = '%s.net1.h5' % (file_path)
-        self.prepool_net.save(file_model)
-        file_model = '%s.net2.h5' % (file_path)
-        self.postpool_net.save(file_model)
+        file_model = '%s.enc.h5' % (file_path)
+        self.enc_net.save(file_model)
+        file_model = '%s.pt.h5' % (file_path)
+        self.pt_net.save(file_model)
 
         if self.pooling == 'lde':
             file_model = '%s.lde.h5' % (file_path)
@@ -344,10 +344,10 @@ class SeqEmbedLDE(HypModel):
         file_config = '%s.json' % (file_path)        
         config = SeqEmbedLDE.load_config(file_config)
         
-        file_model = '%s.net1.h5' % (file_path)
-        prepool_net = load_model(file_model, custom_objects=get_keras_custom_obj())
-        file_model = '%s.net2.h5' % (file_path)
-        postpool_net = load_model(file_model, custom_objects=get_keras_custom_obj())
+        file_model = '%s.enc.h5' % (file_path)
+        enc_net = load_model(file_model, custom_objects=get_keras_custom_obj())
+        file_model = '%s.pt.h5' % (file_path)
+        pt_net = load_model(file_model, custom_objects=get_keras_custom_obj())
 
         file_model = '%s.lde.h5' % (file_path)
         lde_net = None
@@ -359,7 +359,7 @@ class SeqEmbedLDE(HypModel):
                        'left_context', 'right_context',
                        'begin_context', 'end_context', 'name')
         kwargs = {k: config[k] for k in filter_args if k in config }
-        return cls(prepool_net, postpool_net, lde_net=lde_net, **kwargs)
+        return cls(enc_net, pt_net, lde_net=lde_net, **kwargs)
     
     
     

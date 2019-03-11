@@ -19,7 +19,6 @@ name=$1
 sitw_dir=$2
 sre18_dir=$3
 
-
 if [ "$print_header" == "true" ];then
 
     dbs1=("SRE18 DEV" "SRE18 EVAL")

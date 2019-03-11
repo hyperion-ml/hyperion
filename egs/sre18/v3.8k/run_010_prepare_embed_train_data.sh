@@ -60,5 +60,10 @@ if [ $stage -le 3 ]; then
 
 fi
 
+if [ $stage -le 4 ]; then
+    # Prepare train and validation lists for x-vectors
+    local/make_train_lists_sup_embed_with_augm.sh data/train_combined_no_sil data/lists_embed/train_combined
+fi
+
 
 exit

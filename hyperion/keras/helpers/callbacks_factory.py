@@ -10,10 +10,10 @@ from ..callbacks import *
 class CallbacksFactory(object):
 
     @staticmethod
-    def create_callbacks(model, file_path, save_all_epochs=False, mode='min',
-                         monitor = 'val_loss', patience=None, min_delta=1e-4,
+    def create_callbacks(model, file_path, save_all_epochs=False, 
+                         monitor = 'val_loss', mode='min', patience=None, min_delta=1e-4,
                          lr_steps = None,
-                         lr_monitor = None,
+                         lr_monitor = None, lr_mode='auto',
                          lr_patience = None, lr_factor=0.1,
                          lr_red_factor=None, lr_inc_factor=None,
                          min_lr=1e-7,
@@ -53,14 +53,14 @@ class CallbacksFactory(object):
                     lr_factor = lr_red_factor
                 cb = ReduceLROnPlateau(monitor=lr_monitor,
                                        factor=lr_factor, patience=lr_patience,
-                                       verbose=1, mode=mode, min_delta=min_delta,
+                                       verbose=1, mode=lr_mode, min_delta=min_delta,
                                        cooldown=0, min_lr=min_lr)
             else:
                 cb = ReduceLROnPlateauIncreaseOnImprovement(
                     monitor=lr_monitor,
                     red_factor=lr_red_factor, inc_factor=lr_inc_factor,
                     patience=lr_patience,
-                    verbose=1, mode=mode, min_delta=min_delta,
+                    verbose=1, mode=lr_mode, min_delta=min_delta,
                     cooldown=0, min_lr=min_lr)
                 
             cbs.append(cb)    

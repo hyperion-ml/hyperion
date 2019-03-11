@@ -59,7 +59,7 @@ if [[ $(hostname -f) == *.clsp.jhu.edu ]] && [ ! -d $featdir/storage ]; then
 	    /export/b{04,05,06,07}/$dir_name $featdir/storage
     elif [ "$nodes" == "b1" ];then
 	utils/create_split_dir.pl \
-	    /export/b{14,15,16,17}/$dir_name $featdir/storage
+	    /export/b{14,15,16,17,18}/$dir_name $featdir/storage
     else
 	utils/create_split_dir.pl \
 	    /export/c{06,07,08,09}/$dir_name $featdir/storage
@@ -69,7 +69,7 @@ fi
 for n in $(seq $nj); do
   # the next command does nothing unless $featdir/storage/ exists, see
   # utils/create_data_link.pl for more info.
-  utils/create_data_link.pl $featdir/xvector_feats_${name}.${n}.ark
+  utils/create_data_link.pl $featdir/feats_${name}.${n}.h5
 done
 
 for f in utt2spk spk2utt wav.scp utt2lang spk2gender
