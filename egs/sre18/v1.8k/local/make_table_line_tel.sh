@@ -39,6 +39,7 @@ if [ "$print_header" == "true" ];then
 	    printf ",${dbs1[$i]} ${conds1[$j]},,"
 	done
     done
+    printf "\n"
     nc=$(echo $n_dbs1*$n_c1 | bc)
     for((c=0;c<$nc;c++))
     do
