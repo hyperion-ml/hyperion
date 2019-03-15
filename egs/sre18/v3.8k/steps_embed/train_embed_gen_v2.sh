@@ -27,6 +27,7 @@ batch_size=256
 epochs=200
 lr_patience=3
 lr_monitor=acc
+monitor=val_acc
 patience=10
 pooling="mean+std"
 lr_decay=0
@@ -135,6 +136,7 @@ $cmd $modeldir/train_embed.log \
      --lr-patience $lr_patience \
      --lr-factor $lr_factor \
      --lr-monitor $lr_monitor \
+     --monitor $monitor \
      --min-lr $min_lr \
      --save-all-epochs --log-append \
      $train_args
