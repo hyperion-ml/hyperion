@@ -13,7 +13,7 @@ import numpy as np
 import torch.nn as nn
 from torch.nn import Linear, BatchNorm1d, Dropout
 
-from ..hyperion.helpers import ActivationFactory as AF
+from ..helpers import ActivationFactory as AF
 
 class FFNetV1(nn.Module):
 
@@ -73,7 +73,14 @@ class FFNetV1(nn.Module):
             layers.append(BatchNorm1d(output_units))
 
         self.layers = nn.ModuleList(layers)
-        
+
+
+    def forward(self, x):
+
+        for l in xrange(len(self.layers)):
+            x = self.layers[l](x)
+
+        return x
 
 
     def get_config(self):
@@ -89,8 +96,8 @@ class FFNetV1(nn.Module):
                   'dropout_rate': self.dropout_rate,
                   'output_batchnorm': self.output_batchnorm,
                   'output_dropout': self.output_dropout,
-                  'output_activation', output_activation,
-                  'hidden_activation', hidden_activation }
+                  'output_activation': output_activation,
+                  'hidden_activation': hidden_activation }
         base_config = super(FFNetV1, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 

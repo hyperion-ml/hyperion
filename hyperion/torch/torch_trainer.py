@@ -30,7 +30,7 @@ class TorchTrainer(object):
         
     def fit(self, train_data, val_data=None):
 
-        for epoch in xrange(cur_epoch, epochs):
+        for epoch in xrange(self.cur_epoch, self.epochs):
             self.train_epoch(train_data)
             if val_data is not None:
                 self.validation_epoch(val_data)
@@ -43,7 +43,8 @@ class TorchTrainer(object):
         epoch_steps = len(data_loader.dataset)
         total_steps = self.cur_epoch * epoch_steps
 
-        loss_acc = 0
+        loss_accum = 0
+        num_steps=0
         self.model.train()
         for step, (data, target) in enumerate(data_loader):
             data, target = data.to(self.device), target.to(self.device)
@@ -52,12 +53,15 @@ class TorchTrainer(object):
             output = self.model(data)
             loss = self.loss(output, target)
             loss.backward()
-            optimizer.step()
-            loss_acc += loss.item()
+            self.optimizer.step()
+            loss_accum += loss.item()
             #print something
+            num_steps += 1
             total_steps +=1
+            print(loss_accum/num_steps)
 
-        loss = loss_acc/num_steps
+        loss = loss_accum/num_steps
+        print(loss)
         return loss
 
 
@@ -65,15 +69,16 @@ class TorchTrainer(object):
             
         with torch.no_grad():
             self.model.eval()
-            val_loss = 0
+            num_steps = 0
+            loss_accum = 0
             for step, (data, target) in enumerate(data_loader):
                 data, target = data.to(self.device), target.to(self.device)
 
                 output = self.model(data)
                 loss = self.loss(output, target)
-                loss_acc += loss.item()
-                #print something
-                total_steps +=1
+                loss_accum += loss.item()
+                num_steps +=1
 
-        loss = loss_acc/num_steps
+        loss = loss_accum/num_steps
+        print(loss)
         return loss

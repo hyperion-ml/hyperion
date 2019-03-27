@@ -22,7 +22,7 @@ act_dict = {
     'sigmoid': nn.Sigmoid,
     'softplus': nn.Softplus,
     'softshrink': nn.Softshrink,
-    'softsing': nn.Softsing,
+    'softsign': nn.Softsign,
     'tanh': nn.Tanh,
     'tanhshrink': nn.Tanhshrink,
     'threshold': nn.Threshold,
@@ -39,8 +39,15 @@ class ActivationFactory(object):
     @staticmethod
     def create(activation, **kwargs):
         if isinstance(activation, six.string_types):
-            return create_from_str(activation, **kwargs)
-
+            return ActivationFactory.create_from_str(activation, **kwargs)
+        
+        if isinstance(activation, dict):
+            name = activation['name']
+            kwargs = activation.copy()
+            del kwargs.name
+            return ActivationFactory.create_from_str(name, **kwargs)
+            
+        
         return activation
 
     
@@ -64,7 +71,7 @@ class ActivationFactory(object):
                     'max_val': activation.max_val,
                     'inplace': activation.inplace}
         if isinstance(activation, nn.LeakyReLU):
-            return {'name': 'leakyrelu'
+            return {'name': 'leakyrelu',
                     'negative_slope': activation.negative_slope,
                     'inplace': activation.inplace}
         if isinstance(activation, nn.LogSigmoid):
@@ -99,8 +106,8 @@ class ActivationFactory(object):
                     'threshold': activation.threshold}
         if isinstance(activation, nn.Softshrink):
             return {'name': 'softshrink'}
-        if isinstance(activation, nn.Softsing):
-            return {'name': 'softsing',
+        if isinstance(activation, nn.Softsign):
+            return {'name': 'softsign',
                     'lambd': activation.lambd}
         if isinstance(activation, nn.Tanh):
             return {'name': 'tanh'}

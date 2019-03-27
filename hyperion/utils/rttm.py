@@ -82,7 +82,7 @@ class RTTM(object):
 
     @classmethod
     def create_spkdiar(cls, file_id, tbeg, tdur, spk_id, conf=None, chnl=None,
-                       index_by_file=True, prepend_file_id=True):
+                       index_by_file=True, prepend_file_id=False):
         segment_type = ['SPEAKER'] * len(file_id)
         spk_id = cls._make_spk_ids(spk_id, file_id, prepend_file_id)
         return cls.create(segment_type, file_id, chnl, tbeg, tdur,
@@ -92,11 +92,11 @@ class RTTM(object):
 
     @classmethod
     def create_spkdiar_from_segments(cls, segments, spk_id, conf=None, chnl=None,
-                                     index_by_file=True, prepend_file_id=True):
+                                     index_by_file=True, prepend_file_id=False):
         assert len(segments) == len(spk_id)
         file_id = segments.file_id
         tbeg = segments.tbeg
-        tdur = segments.tend - tbeg
+        tdur = segments.tend - segments.tbeg
         segment_type = ['SPEAKER'] * len(file_id)
         spk_id = cls._make_spk_ids(spk_id, file_id, prepend_file_id)
         return cls.create(segment_type, file_id, chnl, tbeg, tdur,
@@ -104,13 +104,33 @@ class RTTM(object):
                           index_by_file=index_by_file)
 
 
+    @classmethod
+    def create_spkdiar_from_ext_segments(cls, ext_segments, chnl=None, index_by_file=True, prepend_file_id=False):
+        file_id = ext_segments.file_id
+        tbeg = ext_segments.tbeg
+        tdur = ext_segments.tend - ext_segments.tbeg
+        segment_type = ['SPEAKER'] * len(file_id)
+        name = ext_segments.segment_names
+        conf = ext_segments.segment_score
+        if prepend_file_id:
+            name = cls._prepend_file_id(name, file_id)
+            
+        return cls.create(segment_type, file_id, chnl, tbeg, tdur,
+                          name=name, conf=conf,
+                          index_by_file=index_by_file)
+        
+
     
     @staticmethod
     def _make_spk_ids(spk_ids, file_id, prepend_file_id):
         if prepend_file_id:
             return [ f + '_' + str(s) for f,s in zip(file_id,spk_ids)]
-        return [str(s) for f,s in zip(file_id,spk_ids)]
+        return spk_ids #[str(s) for f,s in zip(file_id,spk_ids)]
 
+
+    @staticmethod
+    def _prepend_file_id(spk_ids, file_id):
+        return [ f + '_' + str(s) for f,s in zip(file_id,spk_ids)]
 
     
     def validate(self):

@@ -58,32 +58,35 @@ fi
 if [ $stage -le 2 ];then
 
     echo "Voices19 dev"
+
     steps_be/eval_be_v1.sh --cmd "$train_cmd" --plda_type $plda_type \
-			   data/voices19_challenge_dev_test/trials \
-			   data/voices19_challenge_dev_enroll/utt2model \
-			   $xvector_dir/voices19_challenge_dev/xvector.scp \
-			   $be_dir/lda_lnorm_adapt.h5 \
-			   $be_dir/plda.h5 \
-			   $score_plda_dir/voices19_challenge_dev_scores &
+    			   data/voices19_challenge_dev_test/trials \
+    			   data/voices19_challenge_dev_enroll/utt2model \
+    			   $xvector_dir/voices19_challenge_dev/xvector.scp \
+    			   $be_dir/lda_lnorm_adapt.h5 \
+    			   $be_dir/plda.h5 \
+    			   $score_plda_dir/voices19_challenge_dev_scores &
 
 
     echo "Voices19 eval"
     steps_be/eval_be_v1.sh --cmd "$train_cmd" --plda_type $plda_type \
-			   data/voices19_challenge_eval_test/trials \
-			   data/voices19_challenge_eval_enroll/utt2model \
-			   $xvector_dir/voices19_challenge_eval/xvector.scp \
-			   $be_dir/lda_lnorm_adapt.h5 \
-			   $be_dir/plda.h5 \
-			   $score_plda_dir/voices19_challenge_eval_scores &
+    			   data/voices19_challenge_eval_test/trials \
+    			   data/voices19_challenge_eval_enroll/utt2model \
+    			   $xvector_dir/voices19_challenge_eval/xvector.scp \
+    			   $be_dir/lda_lnorm_adapt.h5 \
+    			   $be_dir/plda.h5 \
+    			   $score_plda_dir/voices19_challenge_eval_scores &
     wait
 
     local/score_voices19_challenge.sh $voices_scorer data/voices19_challenge_dev_test dev $score_plda_dir
+    local/score_voices19_challenge.sh $voices_scorer data/voices19_challenge_eval_test eval $score_plda_dir
 
 fi
 
 if [ $stage -le 3 ];then
     local/calibrate_voices19_challenge_v1.sh --cmd "$train_cmd" $score_plda_dir
     local/score_voices19_challenge.sh $voices_scorer data/voices19_challenge_dev_test dev ${score_plda_dir}_cal_v1
+    local/score_voices19_challenge.sh $voices_scorer data/voices19_challenge_eval_test eval ${score_plda_dir}_cal_v1
     exit
 fi
 
@@ -118,11 +121,13 @@ if [ $stage -le 4 ];then
 
     wait
     local/score_voices19_challenge.sh $voices_scorer data/voices19_challenge_dev_test dev $score_plda_dir
+    local/score_voices19_challenge.sh $voices_scorer data/voices19_challenge_eval_test eval $score_plda_dir
 
 fi
 
 if [ $stage -le 5 ];then
     local/calibrate_voices19_challenge_v1.sh --cmd "$train_cmd" $score_plda_dir
     local/score_voices19_challenge.sh $voices_scorer data/voices19_challenge_dev_test dev ${score_plda_dir}_cal_v1
+    local/score_voices19_challenge.sh $voices_scorer data/voices19_challenge_eval_test eval ${score_plda_dir}_cal_v1
     exit
 fi

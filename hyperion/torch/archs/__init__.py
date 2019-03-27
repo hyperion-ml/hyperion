@@ -4,4 +4,4 @@
 """
 from __future__ import absolute_import
 
-from .fftnet import FFNetV1
+from .ffnet import FFNetV1

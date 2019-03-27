@@ -48,7 +48,17 @@ class TrialKey(object):
         self.trial_cond_name = trial_cond_name
         if (model_set is not None) and (seg_set is not None):
             self.validate()
-        
+
+
+    @property
+    def num_models(self):
+        return len(self.model_set)
+
+
+    @property
+    def num_tests(self):
+        return len(self.seg_set)
+    
         
     def copy(self):
         """Makes a copy of the object"""

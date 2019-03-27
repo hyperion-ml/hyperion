@@ -11,9 +11,10 @@ class CallbacksFactory(object):
 
     @staticmethod
     def create_callbacks(model, file_path, save_all_epochs=False, 
-                         monitor = 'val_loss', mode='min', patience=None, min_delta=1e-4,
+                         monitor = 'val_loss',
+                         monitor_mode='auto', patience=None, min_delta=1e-4,
                          lr_steps = None,
-                         lr_monitor = None, lr_mode='auto',
+                         lr_monitor = None, lr_monitor_mode='auto',
                          lr_patience = None, lr_factor=0.1,
                          lr_red_factor=None, lr_inc_factor=None,
                          min_lr=1e-7,
@@ -31,7 +32,7 @@ class CallbacksFactory(object):
             file_path_model = file_path + '/model.best'
         cb = HypModelCheckpoint(model, file_path_model, monitor=monitor, verbose=1,
                                 save_best_only=not(save_all_epochs),
-                                save_weights_only=False, mode=mode)
+                                save_weights_only=False, mode=monitor_mode)
         cbs = [cb]
 
         file_path_csv = file_path + '/train.log'
@@ -40,7 +41,7 @@ class CallbacksFactory(object):
     
         if patience is not None:
             cb = EarlyStopping(monitor=monitor, patience=patience,
-                               min_delta=min_delta, verbose=1, mode=mode)
+                               min_delta=min_delta, verbose=1, mode=monitor_mode)
             cbs.append(cb)
         
         if lr_steps is not None:
@@ -53,14 +54,14 @@ class CallbacksFactory(object):
                     lr_factor = lr_red_factor
                 cb = ReduceLROnPlateau(monitor=lr_monitor,
                                        factor=lr_factor, patience=lr_patience,
-                                       verbose=1, mode=lr_mode, min_delta=min_delta,
+                                       verbose=1, mode=lr_monitor_mode, min_delta=min_delta,
                                        cooldown=0, min_lr=min_lr)
             else:
                 cb = ReduceLROnPlateauIncreaseOnImprovement(
                     monitor=lr_monitor,
                     red_factor=lr_red_factor, inc_factor=lr_inc_factor,
                     patience=lr_patience,
-                    verbose=1, mode=lr_mode, min_delta=min_delta,
+                    verbose=1, mode=lr_monitor_mode, min_delta=min_delta,
                     cooldown=0, min_lr=min_lr)
                 
             cbs.append(cb)    
@@ -75,7 +76,7 @@ class CallbacksFactory(object):
             p = ''
         else:
             p = prefix + '_'
-        valid_args = ('save_all_epochs', 'mode',
+        valid_args = ('save_all_epochs', 'monitor_mode', 'lr_monitor_mode',
                       'monitor', 'patience', 'min_delta',
                       'lr_monitor',
                       'lr_steps', 'lr_patience', 'lr_factor',
@@ -99,7 +100,12 @@ class CallbacksFactory(object):
                             default='val_loss')
         parser.add_argument(p1+'lr-monitor', dest=(p2+'lr_monitor'), 
                             default=None)
-            
+
+        parser.add_argument(p1+'monitor-mode', dest=(p2+'monitor_mode'), 
+                            default='auto',choices=['min','max','auto'])
+        parser.add_argument(p1+'lr-monitor-mode', dest=(p2+'lr_monitor_mode'), 
+                            default='auto',choices=['min','max','auto'])
+        
         parser.add_argument(p1+'patience', dest=(p2+'patience'), default=100,
                             type=int,
                             help=('Training stops after PATIENCE epochs without '

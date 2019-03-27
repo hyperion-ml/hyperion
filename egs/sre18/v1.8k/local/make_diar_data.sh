@@ -38,10 +38,8 @@ utils/split_data.sh $data_dir $nj || exit 1;
 sdata_dir=$data_dir/split$nj;
 
 if [ $stage -le 1 ]; then
-    echo hola
     rm -rf $data_out_dir/* 2>/dev/null
     mkdir -p $data_out_dir/log
-    echo hola
     $cmd JOB=1:$nj $data_out_dir/log/rttm2vad.JOB.log \
 	 python local/rttm2vad.py --rttm $rttm_file \
 	 --num-frames $sdata_dir/JOB/utt2num_frames \
@@ -87,3 +85,4 @@ if [ $stage -le 3 ];then
     utils/utt2spk_to_spk2utt.pl $data_out_dir/utt2spk > $data_out_dir/spk2utt
     utils/utt2spk_to_spk2utt.pl $data_out_dir/utt2orig > $data_out_dir/orig2utt
 fi
+

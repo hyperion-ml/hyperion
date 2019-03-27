@@ -100,6 +100,7 @@ fi
 if [ $stage -le 4 ];then
     local/calibrate_voices19_challenge_2folds_v1.sh --cmd "$train_cmd" $score_plda_dir
     local/score_voices19_challenge.sh $voices_scorer data/voices19_challenge_dev_test_2folds dev ${score_plda_dir}_2folds_cal_v1
+    local/score_voices19_challenge.sh $voices_scorer data/voices19_challenge_eval_test eval ${score_plda_dir}_2folds_cal_v1
 
 fi
 
@@ -138,6 +139,7 @@ fi
 if [ $stage -le 6 ];then
     local/calibrate_voices19_challenge_2folds_v1.sh --cmd "$train_cmd" $score_plda_dir
     local/score_voices19_challenge.sh $voices_scorer data/voices19_challenge_dev_test_2folds dev ${score_plda_dir}_2folds_cal_v1
+    local/score_voices19_challenge.sh $voices_scorer data/voices19_challenge_eval_test eval ${score_plda_dir}_2folds_cal_v1
     exit
 fi
 exit

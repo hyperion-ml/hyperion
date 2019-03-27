@@ -24,6 +24,7 @@ awk '{ print $1,"'$audio_dir'/"$1".wav" }' \
     $data_out/utt2spk > $data_out/wav.scp
 
 awk '{ print $0 }' $enroll_segm > $data_out/diarization_segments
+awk '{ split($2,f,"_"); spk=f[1]; print "SPEAKER",$2,"1",$3,$4-$3,"<NA> <NA>",spk,"<NA> <NA>"}' $data_out/diarization_segments > $data_out/rttm
 
 utils/fix_data_dir.sh $data_out
 

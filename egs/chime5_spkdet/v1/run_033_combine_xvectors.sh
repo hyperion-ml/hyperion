@@ -10,6 +10,7 @@ set -e
 
 net_name=3b
 diar_name=diar3b_t-0.9
+track_name=track3b_t-0.9
 stage=1
 
 . parse_options.sh || exit 1;
@@ -33,6 +34,14 @@ if [ $stage -le 2 ]; then
     utils/combine_data.sh data/chime5_spkdet_${diar_name} data/chime5_spkdet_enroll data/chime5_spkdet_test_${diar_name}
     mkdir -p $xvector_dir/chime5_spkdet_${diar_name}
     cat $xvector_dir/chime5_spkdet_{enroll,test_${diar_name}}/xvector.scp > $xvector_dir/chime5_spkdet_${diar_name}/xvector.scp
+
+fi
+
+if [ $stage -le 3 ]; then
+
+    utils/combine_data.sh data/chime5_spkdet_${track_name} data/chime5_spkdet_enroll data/chime5_spkdet_test_${track_name}
+    mkdir -p $xvector_dir/chime5_spkdet_${track_name}
+    cat $xvector_dir/chime5_spkdet_{enroll,test_${track_name}}/xvector.scp > $xvector_dir/chime5_spkdet_${track_name}/xvector.scp
 
 fi
 

@@ -96,5 +96,6 @@ done
 #merge trials files from both folds
 echo "$0 merge trials from fold 1 and 2"
 mkdir $data_dir/voices19_challenge_dev_test_2folds
+cat $data_dir/voices19_challenge_dev_test_f{1,2}/utt2info | sort -k1 > $data_dir/voices19_challenge_dev_test_2folds/utt2info
 cat $data_dir/voices19_challenge_dev_test_f{1,2}/trials | sort -k1,2 > $data_dir/voices19_challenge_dev_test_2folds/trials
 

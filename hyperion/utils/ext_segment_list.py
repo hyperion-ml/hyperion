@@ -8,7 +8,7 @@ from __future__ import division
 from six.moves import xrange
 from six import string_types
 
-#import os.path as path
+import os.path as path
 import logging
 from copy import deepcopy
 from collections import OrderedDict
@@ -45,7 +45,7 @@ class ExtSegmentList(object):
             ext_segment_id = self.segments.ext_segment_id.unique()
             ext_segments = pd.DataFrame(
                 {'ext_segment_id': ext_segment_id,
-                 'name': np.nan})
+                 'name': np.nan, 'score': np.nan})
 
         self.files = files
         self.ext_segments = ext_segments
@@ -58,7 +58,7 @@ class ExtSegmentList(object):
         
     @classmethod
     def create(cls, segment_id, file_id, tbeg, tend,
-               ext_segment_id=None, series_id=None, name=np.nan,
+               ext_segment_id=None, series_id=None, name=np.nan, score=np.nan,
                index_column='file_id'):
 
         if ext_segment_id is None:
@@ -80,19 +80,22 @@ class ExtSegmentList(object):
 
         if isinstance(name, string_types):
             ext_segment_id = segments['ext_segment_id'].unique()
-        else:
+        elif isinstance(name, dict):
             ext_segment_id = [k for k,v in name.items()]
             name = [v for k,v in name.items()]
 
+        if isinstance(score, dict):
+            score = [score[k] for k in ext_segment_id]
+
         ext_segments = pd.DataFrame({'ext_segment_id': ext_segment_id,
-                                     'name': name})
+                                     'name': name, 'score': score})
             
         return cls(segments, ext_segments, files, index_column)
 
 
     
     @classmethod
-    def create_from_segment_list(cls, segment_list, series_id=None, name=np.nan,
+    def create_from_segment_list(cls, segment_list, series_id=None, name=np.nan, score=np.nan,
                                  index_column='file_id'):
 
         segments = deepcopy(segment_list.segments)
@@ -100,11 +103,11 @@ class ExtSegmentList(object):
             ext_segment_id = segments['segment_id'])
         ext_segment_id = segments.ext_segment_id.unique()
 
-        if not np.isnan(np.nan):
+        if not np.isnan(name):
             name = [name[k] for k in segments['ext_segment_id'].values]
         ext_segments = pd.DataFrame(
                 {'ext_segment_id': segments['ext_segment_id'].values,
-                 'name': name})
+                 'name': name, 'score': score})
 
         if series_id is None:
             u_file_id = segments['file_id'].unique()
@@ -121,9 +124,15 @@ class ExtSegmentList(object):
     def validate(self):
         """Validates the attributes of the SegmentList object.
         """
+        
         assert np.all(self.segments['tend']-self.segments['tbeg']>=0)
-        assert np.all(np.logical_or(self.tbeg[1:]-self.tbeg[:-1]>=0,
-                                    self.file_id[1:] != self.file_id[:-1]))
+        ok_tbeg = np.logical_or(self.tbeg[1:]-self.tbeg[:-1]>=0,
+                                 self.file_id[1:] != self.file_id[:-1])
+        if not np.all(ok_tbeg):
+            bad_tbeg = np.logical_not(ok_tbeg)
+            logging.critical({'file_id': self.file_id[1:][bad_tbeg],
+                              'tbeg':self.tbeg[1:][bad_tbeg]})
+            raise Exception('tbeg is not in the right order')
                       
 
 
@@ -175,12 +184,19 @@ class ExtSegmentList(object):
     def segment_names(self):
         return np.asarray(pd.merge(self.segments, self.ext_segments,
                                    on='ext_segment_id', how='inner')['name'])
-    
 
+    
     @property
     def segment_names_index(self):
         _, index = np.unique(self.segment_names, return_inverse=True)
         return index
+
+
+    
+    @property
+    def segment_score(self):
+        return np.asarray(pd.merge(self.segments, self.ext_segments,
+                                   on='ext_segment_id', how='inner')['score'])
 
     
     
@@ -234,6 +250,24 @@ class ExtSegmentList(object):
     def copy(self):
         """Makes a copy of the object."""
         return deepcopy(self)
+
+    
+    def segment_ids_from_file(self, file_id):
+        """Returns segments_ids corresponding to a given file_id
+        """
+        if self.index_column == 'file_id':
+            return np.asarray(self.segments.loc[file_id]['segment_id'])
+        index = self.segments['file_id']==file_id
+        return np.asarray(self.segments.loc[index]['segment_id'])
+
+
+    def ext_segment_ids_from_file(self, file_id):
+        """Returns ext_segments_ids corresponding to a given file_id
+        """
+        if self.index_column == 'file_id':
+            return np.unique(np.asarray(self.segments.loc[file_id]['ext_segment_id']))
+        index = self.segments['file_id']==file_id
+        return np.unique(np.asarray(self.segments.loc[index]['ext_segment_id']))
 
 
     
@@ -312,7 +346,7 @@ class ExtSegmentList(object):
         """
         self.segments[['segment_id', 'file_id', 'tbeg', 'tend', 'ext_segment_id']].to_csv(
             file_path + '.segments', sep=sep, float_format='%.3f', index=False, header=False)
-        self.ext_segments[['ext_segment_id', 'name']].to_csv(
+        self.ext_segments[['ext_segment_id', 'name', 'score']].to_csv(
             file_path + '.ext_segments', sep=sep, float_format='%.3f',
             index=False, header=False, na_rep='NA')
         self.files[['file_id', 'series_id']].to_csv(
@@ -321,7 +355,7 @@ class ExtSegmentList(object):
 
         
     @classmethod
-    def load(cls, file_path, sep=' ', index_column=True):
+    def load(cls, file_path, sep=' ', index_column='file_id'):
         """Loads script list from text file.
 
         Args:
@@ -333,11 +367,18 @@ class ExtSegmentList(object):
         """
         segments = pd.read_csv(file_path + '.segments', sep=sep, header=None,
                                names=['segment_id','file_id','tbeg','tend', 'ext_segment_id'])
-        ext_segments = pd.read_csv(file_path + '.ext_segments', sep=sep, header=None,
-                                   names=['ext_segment_id', 'name'], na_values='NA')
-        files = pd.read_csv(file_path + '.files', sep=sep, header=None,
-                            names=['file_id', 'series_id'])
-                
+        if path.isfile(file_path + '.ext_segments'):
+            ext_segments = pd.read_csv(file_path + '.ext_segments', sep=sep, header=None,
+                                       names=['ext_segment_id', 'name', 'score'], na_values='NA')
+        else:
+            ext_segments = None
+            
+        if path.isfile(file_path + '.files'):
+            files = pd.read_csv(file_path + '.files', sep=sep, header=None,
+                                names=['file_id', 'series_id'])
+        else:
+            files = None
+            
         return cls(segments, ext_segments, files, index_column)
 
 
@@ -364,7 +405,7 @@ class ExtSegmentList(object):
                                     ['ext_segment_id','name']]
 
         return ExtSegmentList(segments, ext_segments, files, self.index_column)
-    
+
 
     
     def split(self, idx, num_parts):
@@ -602,9 +643,12 @@ class ExtSegmentList(object):
 
 
         
-    def assign_names(self, names):
-        assert len(names) == len(self.ext_segments)
-        self.ext_segments.loc[:,'name'] = names
+    def assign_names(self, ext_segments_ids, names, scores=None):
+        assert len(names) == len(ext_segments_ids)
+        if scores is not None:
+            assert len(scores) == len(ext_segments_ids)
+        self.ext_segments.loc[ext_segments_ids, 'name'] = names
+        self.ext_segments.loc[ext_segments_ids, 'score'] = scores
             
 
             

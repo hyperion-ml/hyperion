@@ -32,7 +32,16 @@ class TrialNdx(object):
         if (model_set is not None) and (seg_set is not None):
             self.validate()
         
-        
+    @property
+    def num_models(self):
+        return len(self.model_set)
+
+
+    @property
+    def num_tests(self):
+        return len(self.seg_set)
+    
+            
     def copy(self):
         """Makes a copy of the object"""
         return copy.deepcopy(self)
@@ -197,7 +206,7 @@ class TrialNdx(object):
 
     
     @staticmethod
-    def parse_eval_set(ndx, enroll, test, eval_set):
+    def parse_eval_set(ndx, enroll, test=None, eval_set='enroll-test'):
         """Prepares the data structures required for evaluation.
         
         Args:
@@ -244,9 +253,9 @@ class TrialNdx(object):
             seg_set = np.setdiff1d(self.seg_set, seg_set)
 
         f, mod_idx = ismember(model_set, self.model_set)
-        assert(np.all(f))
+        assert np.all(f)
         f, seg_idx = ismember(seg_set, self.seg_set)
-        assert(np.all(f))
+        assert np.all(f)
         model_set = self.model_set[mod_idx]
         set_set = self.seg_set[seg_idx]
         trial_mask = self.trial_mask[np.ix_(mod_idx, seg_idx)]
@@ -292,6 +301,30 @@ class TrialNdx(object):
                    (len(self.model_set), len(self.seg_set)))
 
 
+
+    def apply_segmentation_to_test(self, segment_list):
+        """Splits test segment into multiple sub-segments
+           Useful to create ndx for spk diarization or tracking.
+
+           Args:
+             segment_list: ExtSegmentList object with mapping of 
+                           file_id to ext_segment_id
+           Returns:
+             New TrialNdx object with segment_ids in test instead of file_id.
+        """
+        new_segset = []
+        new_mask = []
+        for i in xrange(self.num_tests):
+            file_id = self.seg_set[i]
+            segment_ids = segment_list.ext_segment_ids_from_file(file_id)
+            new_segset.append(segment_ids)
+            new_mask.append(np.repeat(self.trial_mask[:,i,None],len(segment_ids), axis=1))
+
+        new_segset = np.concatenate(tuple(new_segset))
+        new_mask = np.concatenate(tuple(new_mask), axis=-1)
+        return TrialNdx(self.model_set, new_segset, new_mask)
+    
+        
             
     def __eq__(self, other):
         """Equal operator"""

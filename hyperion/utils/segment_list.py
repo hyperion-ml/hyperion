@@ -106,6 +106,14 @@ class SegmentList(object):
         return deepcopy(self)
 
 
+    def segments_ids_from_file(self, file_id):
+        """Returns segments_ids corresponding to a given file_id
+        """
+        if self.index_by_file:
+            return np.asarray(self.segments.loc[file_id]['segment_id'])
+        index = self.segments['file_id']==file_id
+        return np.asarray(self.segments.loc[index]['segment_id'])
+        
     
     def __iter__(self):
         self.iter_idx=0
