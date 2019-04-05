@@ -106,7 +106,7 @@ if __name__ == '__main__':
     del args.verbose
     logging.debug(args)
 
-    args.use_cuda = not args.no_cuda and torch.cuda.is_available()
+    args.use_cuda = not args.no_cuda
     del args.no_cuda
     
     torch.manual_seed(args.seed)

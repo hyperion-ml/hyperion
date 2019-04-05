@@ -23,14 +23,11 @@ mkdir -p $exp_dir
 if [ $stage -le 1 ]; then
     source activate $TORCH
     MYTORCH=$(which python)
-    #$cuda_cmd $exp_dir/main.log \
-    qsub -e err.log -o o.log -cwd -l 'hostname=[bc][1]*,gpu=1' \
-	      CUDA_VISIBLE_DEVICES=`free-gpu` \
-	      $MYTORCH local/main.py \
-	      --batch-size $batch_size \
-	      --lr $lr --momentum $momentum
-
-    
+    #echo qsub -e err.log -o o.log -cwd -l 'hostname=[bc][1]*,gpu=1' \
+    $cuda_cmd $exp_dir/main.log \
+	 $MYTORCH local/main.py \
+	 --batch-size $batch_size \
+	 --lr $lr --momentum $momentum
     
     source deactivate $TORCH
 fi
