@@ -165,8 +165,8 @@ def test_llr_1vs1():
     assert np.mean(scores_tar) > np.mean(scores_non)
 
     plt.figure()
-    plt.hist(scores_tar, int(num_classes/10), normed=True, label='tar', color='b')
-    plt.hist(scores_non, int(num_classes**2/20), normed=True, label='non', color='r')
+    plt.hist(scores_tar, int(num_classes/10), density=True, label='tar', color='b')
+    plt.hist(scores_non, int(num_classes**2/20), density=True, label='non', color='r')
     plt.grid()
     plt.savefig(output_dir + '/llr_1vs1.pdf')
     plt.close()
@@ -191,8 +191,8 @@ def test_llrNvsM():
 
     assert np.mean(scores_tar) > np.mean(scores_non)
 
-    plt.hist(scores_tar, int(num_classes/10), normed=True, label='book', color='b')
-    plt.hist(scores_non, int(num_classes**2/20), normed=True, color='b')
+    plt.hist(scores_tar, int(num_classes/10), density=True, label='book', color='b')
+    plt.hist(scores_non, int(num_classes**2/20), density=True, color='b')
 
     ## score averaging
     scores = plda.llr_NvsM(x_e, x_t, ids1=class_ids, ids2=class_ids, method='savg')
@@ -201,8 +201,8 @@ def test_llrNvsM():
 
     assert np.mean(scores_tar) > np.mean(scores_non)
 
-    plt.hist(scores_tar, int(num_classes/10), normed=True, label='s-avg', color='r')
-    plt.hist(scores_non, int(num_classes**2/20), normed=True, color='r')
+    plt.hist(scores_tar, int(num_classes/10), density=True, label='s-avg', color='r')
+    plt.hist(scores_non, int(num_classes**2/20), density=True, color='r')
 
 
     ## i-vector averaging
@@ -212,8 +212,8 @@ def test_llrNvsM():
 
     assert np.mean(scores_tar) > np.mean(scores_non)
 
-    plt.hist(scores_tar, int(num_classes/10), normed=True, label='iv-avg', color='g')
-    plt.hist(scores_non, int(num_classes**2/20), normed=True, color='g')
+    plt.hist(scores_tar, int(num_classes/10), density=True, label='iv-avg', color='g')
+    plt.hist(scores_non, int(num_classes**2/20), density=True, color='g')
 
 
     ## i-vector averaging
@@ -223,8 +223,8 @@ def test_llrNvsM():
 
     assert np.mean(scores_tar) > np.mean(scores_non)
 
-    plt.hist(scores_tar, int(num_classes/10), normed=True, label='iv-avg+lnorm', color='m')
-    plt.hist(scores_non, int(num_classes**2/20), normed=True, color='m')
+    plt.hist(scores_tar, int(num_classes/10), density=True, label='iv-avg+lnorm', color='m')
+    plt.hist(scores_non, int(num_classes**2/20), density=True, color='m')
 
     
     plt.grid()
@@ -254,8 +254,8 @@ def test_llrNvs1():
 
     assert np.mean(scores_tar) > np.mean(scores_non)
 
-    plt.hist(scores_tar, int(num_classes/10), normed=True, label='book', color='b')
-    plt.hist(scores_non, int(num_classes**2/20), normed=True, color='b')
+    plt.hist(scores_tar, int(num_classes/10), density=True, label='book', color='b')
+    plt.hist(scores_non, int(num_classes**2/20), density=True, color='b')
 
     ## score averaging
     scores = plda.llr_Nvs1(x_e, x_t, ids1=class_ids, method='savg')
@@ -264,8 +264,8 @@ def test_llrNvs1():
 
     assert np.mean(scores_tar) > np.mean(scores_non)
 
-    plt.hist(scores_tar, int(num_classes/10), normed=True, label='s-avg', color='r')
-    plt.hist(scores_non, int(num_classes**2/20), normed=True, color='r')
+    plt.hist(scores_tar, int(num_classes/10), density=True, label='s-avg', color='r')
+    plt.hist(scores_non, int(num_classes**2/20), density=True, color='r')
 
 
     ## i-vector averaging
@@ -275,8 +275,8 @@ def test_llrNvs1():
 
     assert np.mean(scores_tar) > np.mean(scores_non)
 
-    plt.hist(scores_tar, int(num_classes/10), normed=True, label='iv-avg', color='g')
-    plt.hist(scores_non, int(num_classes**2/20), normed=True, color='g')
+    plt.hist(scores_tar, int(num_classes/10), density=True, label='iv-avg', color='g')
+    plt.hist(scores_non, int(num_classes**2/20), density=True, color='g')
 
 
     ## i-vector averaging
@@ -286,8 +286,8 @@ def test_llrNvs1():
 
     assert np.mean(scores_tar) > np.mean(scores_non)
 
-    plt.hist(scores_tar, int(num_classes/10), normed=True, label='iv-avg+lnorm', color='m')
-    plt.hist(scores_non, int(num_classes**2/20), normed=True, color='m')
+    plt.hist(scores_tar, int(num_classes/10), density=True, label='iv-avg+lnorm', color='m')
+    plt.hist(scores_non, int(num_classes**2/20), density=True, color='m')
 
     
     plt.grid()

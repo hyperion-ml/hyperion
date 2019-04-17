@@ -330,8 +330,7 @@ class Normal(ExpFamily):
     def plot1D(self, feat_idx=0, num_sigmas=2, num_pts=100, **kwargs):
         assert self.is_init
         mu=self.mu[feat_idx]
-        j, i = np.meshgrid(feat_idx, feat_idx)
-        C=invert_pdmat(self.Lambda, return_inv=True)[-1][i, j]
+        C=invert_pdmat(self.Lambda, return_inv=True)[-1][feat_idx, feat_idx]
         plot_gaussian_1D(mu, C, num_sigmas, num_pts, **kwargs)
 
 

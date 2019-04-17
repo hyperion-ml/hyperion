@@ -430,9 +430,8 @@ class GMM(ExpFamilyMixture):
     
     def plot1D(self, feat_idx=0, num_sigmas=2, num_pts=100, **kwargs):
         mu=self.mu[:,feat_idx]
-        j, i = np.meshgrid(feat_idx, feat_idx)
         for k in xrange(mu.shape[0]):
-            C = invert_pdmat(self.Lambda[k], return_inv=True)[-1][i, j]
+            C = invert_pdmat(self.Lambda[k], return_inv=True)[-1][feat_idx, feat_idx]
             plot_gaussian_1D(mu[k], C, num_sigmas, num_pts, **kwargs)
 
 

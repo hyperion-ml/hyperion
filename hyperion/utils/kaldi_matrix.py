@@ -293,15 +293,15 @@ class KaldiCompressedMatrix(object):
         header_offset = 20
         if self.data_format == 1:
             data_offset = header_offset+self.num_cols*8
-            p = np.fromstring(self.data[header_offset:data_offset], dtype=np.uint16)
+            p = np.frombuffer(self.data[header_offset:data_offset], dtype=np.uint16)
             attrs['perc'] = p
-            data = np.reshape(np.fromstring(self.data[data_offset:], dtype=np.uint8),
+            data = np.reshape(np.frombuffer(self.data[data_offset:], dtype=np.uint8),
                               (self.num_cols, self.num_rows)).transpose().copy()
         elif self.data_format == 2:
-            data = np.reshape(np.fromstring(self.data[header_offset:], dtype=np.uint16),
+            data = np.reshape(np.frombuffer(self.data[header_offset:], dtype=np.uint16),
                               (self.num_rows, self.num_cols))
         else:
-            data = np.reshape(np.fromstring(self.data[header_offset:], dtype=np.uint8),
+            data = np.reshape(np.frombuffer(self.data[header_offset:], dtype=np.uint8),
                               (self.num_rows, self.num_cols))
 
         return data, attrs
@@ -518,13 +518,13 @@ class KaldiCompressedMatrix(object):
 
     
     def _uint16_to_float(self, byte_data):
-        return self.min_value + self.data_range * 1.52590218966964e-05 * np.fromstring(
+        return self.min_value + self.data_range * 1.52590218966964e-05 * np.frombuffer(
             byte_data, dtype=np.uint16).astype(float_cpu())
         
 
 
     def _uint8_to_float(self, byte_data):
-        return self.min_value + self.data_range/255.0 * np.fromstring(
+        return self.min_value + self.data_range/255.0 * np.frombuffer(
             byte_data, dtype=np.uint8).astype(float_cpu())
 
 
@@ -627,7 +627,7 @@ class KaldiCompressedMatrix(object):
     @staticmethod
     def _char_to_float(v, p0, p25, p75, p100):
         """Decodes the column from bytes to float using the given percentiles"""
-        v_in = np.fromstring(v, dtype=np.uint8).astype(float_cpu())
+        v_in = np.frombuffer(v, dtype=np.uint8).astype(float_cpu())
         v_out = np.zeros(v_in.shape, dtype=float_cpu())
         idx = v_in <= 64
         v_out[idx] = p0 + (p25-p0)*v_in[idx]/64.0

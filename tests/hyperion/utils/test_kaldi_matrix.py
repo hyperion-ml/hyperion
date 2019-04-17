@@ -236,16 +236,16 @@ def test_kcm_read_write():
     with open(file_path, 'rb') as f:
         mat2 = KCM.read(f, binary=False)
 
-    assert_allclose(np.fromstring(mat1.data, dtype=np.uint8),
-                    np.fromstring(mat2.data, dtype=np.uint8), atol=5)
+    assert_allclose(np.frombuffer(mat1.data, dtype=np.uint8),
+                    np.frombuffer(mat2.data, dtype=np.uint8), atol=5)
 
     with open(file_path, 'wb') as f:
         mat1.write(f, binary=True)
     with open(file_path, 'rb') as f:
         mat2 = KCM.read(f, binary=True)
 
-    assert_allclose(np.fromstring(mat1.data, dtype=np.uint8),
-                    np.fromstring(mat2.data, dtype=np.uint8))
+    assert_allclose(np.frombuffer(mat1.data, dtype=np.uint8),
+                    np.frombuffer(mat2.data, dtype=np.uint8))
 
     with open(file_path, 'rb') as f:
         mat2 = KCM.read(f, binary=True, row_offset=5)
