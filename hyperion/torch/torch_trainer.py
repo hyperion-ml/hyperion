@@ -15,7 +15,7 @@ import torch.nn as nn
 
 class TorchTrainer(object):
 
-    def __init__(self, model, optimizer, loss, epochs, cur_epoch=0, device=None, callbacks=None, metrics=None):
+    def __init__(self, model, optimizer, loss, epochs, cur_epoch=0, device=None, metrics=None, lr_scheduler=None, loggers=None):
         self.model = model
         self.optimizer = optimizer
         self.loss = loss

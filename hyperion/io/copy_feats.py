@@ -7,6 +7,8 @@ from __future__ import print_function
 from six.moves import xrange
 from six import string_types
 
+import logging
+
 from ..utils.kaldi_matrix import compression_methods
 from .data_rw_factory import DataWriterFactory as DWF
 from .data_rw_factory import SequentialDataReaderFactory as DRF

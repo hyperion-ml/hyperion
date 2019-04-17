@@ -195,8 +195,10 @@ class SequenceBatchGeneratorV2(object):
 
 
     def _compute_iters_auto(self):
+        print(self.seq_lengths)
         avg_total_length = np.mean(self.seq_lengths)
         avg_seq_length = int((self.max_seq_length + self.min_seq_length)/2)
+        print(avg_total_length,avg_seq_length)
         self.iters_per_epoch = np.ceil(avg_total_length/avg_seq_length)
         logging.debug('num iters per epoch: %d' % self.iters_per_epoch)
     

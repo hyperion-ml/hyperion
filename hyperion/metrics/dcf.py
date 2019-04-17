@@ -57,9 +57,15 @@ def compute_min_dcf(tar, non, prior, normalize=True):
     p_miss, p_fa = compute_rocch(tar, non)
     dcf = compute_dcf(p_miss, p_fa, prior, normalize)
     idx_min_dcf = np.argmin(dcf, axis=-1)
-    min_dcf = dcf[idx_min_dcf]
-    p_miss = p_miss[idx_min_dcf]
-    p_fa = p_fa[idx_min_dcf]
+    if dcf.ndim==1:
+        min_dcf = dcf[idx_min_dcf]
+        p_miss = p_miss[idx_min_dcf]
+        p_fa = p_fa[idx_min_dcf]
+    else:
+        i1 = np.arange(dcf.shape[0])
+        min_dcf = dcf[i1,idx_min_dcf]
+        p_miss = p_miss[idx_min_dcf]
+        p_fa = p_fa[idx_min_dcf]
     return min_dcf, p_miss, p_fa
 
 

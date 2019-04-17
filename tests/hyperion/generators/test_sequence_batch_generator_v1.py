@@ -13,11 +13,11 @@ import copy
 import numpy as np
 from numpy.testing import assert_allclose
 
-from hyperion.utils.scp_list import SCPList
+from hyperion.utils import Utt2Info
 from hyperion.io import H5DataWriter
 from hyperion.generators.sequence_batch_generator_v1 import SequenceBatchGeneratorV1 as SBG
 
-output_dir = './tests/data_out/helpers'
+output_dir = './tests/data_out/generators'
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)
 
@@ -45,12 +45,12 @@ def create_dataset():
         key += key_i
     key = key[:num_seqs]
 
-    scp = SCPList(key, file_path)
+    u2c = Utt2Info.create(file_path, key)
 
     if os.path.exists(h5_file):
-        return scp
+        return u2c
     
-    scp.save(key_file, sep=' ')
+    u2c.save(key_file, sep=' ')
 
     h = H5DataWriter(h5_file)
     rng = np.random.RandomState(seed=0)
@@ -59,7 +59,7 @@ def create_dataset():
         x_i = rng.randn(seq_lengths[i], dim)
         h.write(file_path[i], x_i)
     
-    return scp
+    return u2c
 
 
 
@@ -67,7 +67,7 @@ def test_num_seqs():
 
     create_dataset()
     sr = SBG(h5_file, key_file)
-    assert sr.num_seqs==num_seqs
+    assert sr.num_seqs == num_seqs
 
 
     
@@ -76,7 +76,7 @@ def test_seq_lengths():
      create_dataset()
      sr = SBG(h5_file, key_file, shuffle_seqs=False)
      
-     assert np.all(sr.seq_lengths==seq_lengths)
+     assert np.all(sr.seq_lengths == seq_lengths)
      assert sr.total_length==np.sum(seq_lengths)
      assert sr.min_seq_length == min_seq_length
      assert sr.max_seq_length == max_seq_length
@@ -110,10 +110,10 @@ def test_class_info():
     sr = SBG(h5_file, key_file, batch_size=5, shuffle_seqs=False)
     assert sr.num_classes == 4
 
-    print(sr.scp.key)
-    print(sr.scp.file_path)
+    print(sr.u2c.key)
+    print(sr.u2c.info)
     class_ids = [0, 1, 1, 2, 2, 2, 3, 3, 3, 3]
-    key2class = { p:k for p,k in zip(sr.scp.file_path, class_ids)}
+    key2class = { p:k for p,k in zip(sr.u2c.key, class_ids)}
     assert sr.key2class == key2class
 
 
@@ -122,20 +122,20 @@ def test_balance_class_weight():
 
     create_dataset()
     sr = SBG(h5_file, key_file, batch_size=5, class_weight='unbalanced', shuffle_seqs=False)
-    scp0 = sr.scp
+    u2c0 = sr.u2c
     
     sr = SBG(h5_file, key_file, batch_size=5, class_weight='balanced', shuffle_seqs=False, max_class_imbalance=1)
 
-    key = [0]*4 + [1]*4 + [2]*4 + [3]*4
-    key = [ str(i) for i in key]
-    file_path = [scp0.file_path[0]]*4 + list(scp0.file_path[1:3])*2 + list(
-        scp0.file_path[3:6]) + [scp0.file_path[3]] + list(scp0.file_path[6:])
+    class_ids = [0]*4 + [1]*4 + [2]*4 + [3]*4
+    class_ids = [ str(i) for i in class_ids]
+    key = [u2c0.key[0]]*4 + list(u2c0.key[1:3])*2 + list(
+        u2c0.key[3:6]) + [u2c0.key[3]] + list(u2c0.key[6:])
     print(key)
-    print(file_path)
-    print(sr.scp.key)
-    print(sr.scp.file_path)
-    scp = SCPList(key, file_path)
-    assert scp == sr.scp
+    print(class_ids)
+    print(sr.u2c.key)
+    print(sr.u2c.info)
+    u2c = Utt2Info.create(key, class_ids)
+    assert u2c == sr.u2c
     
 
 
@@ -169,24 +169,24 @@ def test_reset():
              shuffle_seqs=False,
              min_seq_length=5, max_seq_length=17, seq_overlap=1)
 
-    scp = sr.init_scp
+    u2c = sr.init_u2c
     seq_lengths = sr.seq_lengths
     num_subseqs = sr._init_num_subseqs
     
     sr.shuffle_seqs = True
     sr.reset()
 
-    assert scp == sr.init_scp
+    assert u2c == sr.init_u2c
     assert_allclose(seq_lengths, sr._init_seq_lengths)
     assert_allclose(num_subseqs, sr._init_num_subseqs)
     
-    idx1 = np.argsort(scp.file_path)
-    idx2 = np.argsort(sr.scp.file_path)
+    idx1 = np.argsort(u2c.key)
+    idx2 = np.argsort(sr.u2c.key)
 
-    scp1 = scp.filter_index(idx1)
-    scp2 = sr.scp.filter_index(idx2)
+    u2c1 = u2c.filter_index(idx1)
+    u2c2 = sr.u2c.filter_index(idx2)
 
-    assert scp1 == scp2
+    assert u2c1 == u2c2
     assert_allclose(seq_lengths[idx1], sr.seq_lengths[idx2])
     assert_allclose(num_subseqs[idx1], sr.num_subseqs[idx2])
     assert np.all(sr.cur_subseq == 0)
@@ -196,7 +196,7 @@ def test_reset():
     
 def test_read_full_seq():
 
-    scp = create_dataset()
+    u2c = create_dataset()
     sr = SBG(h5_file, key_file, shuffle_seqs=False,
              gen_method='full_seqs', batch_size=5)
 
@@ -221,15 +221,15 @@ def test_read_full_seq():
         if epoch > 0:
             assert_allclose(x0, x_e)
         assert_allclose(seq_lengths, sl_e)
-        scp_e = SCPList(c_e, key_e)
-        assert scp == scp_e
+        u2c_e = Utt2Info.create(key_e, c_e)
+        assert u2c == u2c_e
 
 
         
 def test_read_random():
 
-    scp = create_dataset()
-    scp = SCPList.merge([scp]*2)
+    u2c = create_dataset()
+    u2c = Utt2Info.merge([u2c]*2)
     sr = SBG(h5_file, key_file, shuffle_seqs=False,
              reset_rng=True, iters_per_epoch=2,
              min_seq_length=10, max_seq_length=20,
@@ -256,15 +256,15 @@ def test_read_random():
         if epoch > 0:
             assert_allclose(x0, x_e)
         assert np.all(np.logical_and(sl_e>=10, sl_e<=20))
-        scp_e = SCPList(c_e, key_e)
-        assert scp == scp_e
+        u2c_e = Utt2Info.create(key_e, c_e)
+        assert u2c == u2c_e
 
 
 
 def test_read_sequential_balanced():
 
-    scp = create_dataset()
-    scp = SCPList.merge([scp]*int(np.max(seq_lengths)/10))
+    u2c = create_dataset()
+    u2c = Utt2Info.merge([u2c]*int(np.max(seq_lengths)/10))
     sr = SBG(h5_file, key_file, shuffle_seqs=False,
              reset_rng=True, 
              min_seq_length=5, max_seq_length=17, seq_overlap=1,
@@ -292,24 +292,24 @@ def test_read_sequential_balanced():
         if epoch > 0:
             assert_allclose(x0, x_e)
         assert np.all(np.logical_and(sl_e>=5, sl_e<=17))
-        # print(scp.key)
-        # print(scp.file_path)
-        # print(np.array(c_e))
+        # print(u2c.key)
+        # print(u2c.info)
         # print(np.array(key_e))
+        # print(np.array(c_e))
 
-        scp_e = SCPList(c_e, key_e)
-        assert scp == scp_e
+        u2c_e = Utt2Info.create(key_e, c_e)
+        assert u2c == u2c_e
 
 
 
 def test_read_sequential_unbalanced():
 
-    scp = create_dataset()
-    scp_list = [scp]*int(np.min(seq_lengths)/10)
+    u2c = create_dataset()
+    u2c_list = [u2c]*int(np.min(seq_lengths)/10)
     for i in xrange(1,num_seqs):
-        scp_list.append(scp.filter_index(
+        u2c_list.append(u2c.filter_index(
             np.arange(i,num_seqs)))
-    scp = SCPList.merge(scp_list)
+    u2c = Utt2Info.merge(u2c_list)
     sr = SBG(h5_file, key_file, shuffle_seqs=False,
              reset_rng=True, 
              min_seq_length=5, max_seq_length=17, seq_overlap=1,
@@ -337,13 +337,13 @@ def test_read_sequential_unbalanced():
         if epoch > 0:
             assert_allclose(x0, x_e)
         assert np.all(np.logical_and(sl_e>=5, sl_e<=17))
-        print(scp.key)
-        print(scp.file_path)
-        print(np.array(c_e))
+        print(u2c.key)
+        print(u2c.info)
         print(np.array(key_e))
+        print(np.array(c_e))
 
-        scp_e = SCPList(c_e, key_e)
-        assert scp == scp_e
+        u2c_e = Utt2Info.create(key_e, c_e)
+        assert u2c == u2c_e
 
         
     

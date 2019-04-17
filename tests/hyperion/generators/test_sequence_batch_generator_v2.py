@@ -13,11 +13,11 @@ import copy
 import numpy as np
 from numpy.testing import assert_allclose
 
-from hyperion.utils.scp_list import SCPList
+from hyperion.utils import Utt2Info
 from hyperion.io import H5DataWriter
 from hyperion.generators.sequence_batch_generator_v2 import SequenceBatchGeneratorV2 as SBG
 
-output_dir = './tests/data_out/helpers'
+output_dir = './tests/data_out/generators'
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)
 
@@ -45,12 +45,12 @@ def create_dataset():
         key += key_i
     key = key[:num_seqs]
 
-    scp = SCPList(key, file_path)
+    u2c = Utt2Info.create(file_path, key)
 
     if os.path.exists(h5_file):
-        return scp
+        return u2c
     
-    scp.save(key_file, sep=' ')
+    u2c.save(key_file, sep=' ')
 
     h = H5DataWriter(h5_file)
     rng = np.random.RandomState(seed=0)
@@ -59,7 +59,7 @@ def create_dataset():
         x_i = rng.randn(seq_lengths[i], dim)
         h.write(file_path[i], x_i)
     
-    return scp
+    return u2c
 
 
 
@@ -110,8 +110,8 @@ def test_class_info():
     sr = SBG(h5_file, key_file, batch_size=5, shuffle_seqs=False)
     assert sr.num_classes == 4
 
-    print(sr.scp.key)
-    print(sr.scp.file_path)
+    print(sr.u2c.info)
+    print(sr.u2c.key)
     print(sr.class2utt)
     print(sr.class2num_utt)
     class2utt = {0: ['0'], 1: ['1','2'], 2: ['3','4','5'], 3: ['6','7','8','9']}
@@ -163,7 +163,7 @@ def test_reset():
         
 def read_func(batch_size, nepc, nepu):
 
-    scp = create_dataset()
+    u2c = create_dataset()
     sr = SBG(h5_file, key_file, 
              reset_rng=True, iters_per_epoch=2,
              num_egs_per_class=nepc,
