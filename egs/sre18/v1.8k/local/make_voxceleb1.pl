@@ -4,12 +4,10 @@
 #           2018  David Snyder
 #           2018  Jesus Villalba
 #
-# Apache 2.0
-# Usage: make_voxceleb1cat.pl /export/voxceleb1 data/
+# Usage: make_voxceleb1.pl /export/voxceleb1 data/
 # Note that this script also downloads a list of speakers that overlap
 # with our evaluation set, SITW.  These speakers are removed from VoxCeleb1
 # prior to preparing the dataset.
-# Files from the same video are concatenated into 1 segment
 
 if (@ARGV != 3) {
   print STDERR "Usage: $0 <path-to-voxceleb1> fs <path-to-data-dir>\n";
@@ -18,7 +16,7 @@ if (@ARGV != 3) {
 }
 
 ($data_base, $fs, $out_dir) = @ARGV;
-my $out_dir = "$out_dir/voxceleb1cat";
+my $out_dir = "$out_dir/voxceleb1";
 
 if (system("mkdir -p $out_dir") != 0) {
   die "Error making directory $out_dir";
@@ -42,9 +40,9 @@ opendir my $dh, "$data_base/voxceleb1_wav" or die "Cannot open directory: $!";
 my @spkr_dirs = grep {-d "$data_base/voxceleb1_wav/$_" && ! /^\.{1,2}$/} readdir($dh);
 closedir $dh;
 
+open(SPKR, ">", "$out_dir/utt2spk") or die "Could not open the output file $out_dir/utt2spk";
+open(WAV, ">", "$out_dir/wav.scp") or die "Could not open the output file $out_dir/wav.scp";
 
-my %rec2utt = ();
-my %rec2spk = ();
 foreach (@spkr_dirs) {
   my $spkr_id = $_;
   # Only keep the speaker if it isn't in the overlap list.
@@ -56,33 +54,18 @@ foreach (@spkr_dirs) {
       my $filename = $_;
       my $rec_id = substr($filename, 0, 11);
       my $segment = substr($filename, 12, 7);
-      my $wav = "$data_base/voxceleb1_wav/$spkr_id/$filename.wav";
-      my $utt_id = "$spkr_id-$rec_id";
-      if (not exists $rec2utt{$utt_id}) {
-	  $rec2spk{$utt_id} = $spkr_id;
-	  $rec2utt{$utt_id} = $wav
+      my $utt_id = "$spkr_id-$rec_id-$segment";
+      my $wav = "";
+      if(fs==8){
+	  $wav = "sox $data_base/voxceleb1_wav/$spkr_id/$filename.wav -r 8000 -t wav - |";
       }
-      else {
-	  $rec2utt{$utt_id} = $rec2utt{$utt_id} . " " . $wav
+      else{
+	  $wav = "$data_base/voxceleb1_wav/$spkr_id/$filename.wav"
       }
+      print WAV "$utt_id", " $wav", "\n";
+      print SPKR "$utt_id", " $spkr_id", "\n";
     }
   }
-}
-
-open(SPKR, ">", "$out_dir/utt2spk") or die "Could not open the output file $out_dir/utt2spk";
-open(WAV, ">", "$out_dir/wav.scp") or die "Could not open the output file $out_dir/wav.scp";
-
-foreach my $utt_id (keys %rec2spk) {
-    my $wav = "";
-    if($fs == 8){
-	$wav = "sox " . $rec2utt{$utt_id} . " -t wav -r 8k - |";
-    }
-    else{
-	$wav = "sox " . $rec2utt{$utt_id} . " -t wav - |";
-    }
-    my $spkr_id = $rec2spk{$utt_id};
-    print WAV "$utt_id", " $wav", "\n";
-    print SPKR "$utt_id", " $spkr_id", "\n";
 }
 
 close(SPKR) or die;
