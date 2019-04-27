@@ -24,10 +24,26 @@ if [ $stage -le 1 ]; then
     source activate $TORCH
     MYTORCH=$(which python)
     #echo qsub -e err.log -o o.log -cwd -l 'hostname=[bc][1]*,gpu=1' \
-    $cuda_cmd $exp_dir/main.log \
-	 $MYTORCH local/main.py \
-	 --batch-size $batch_size \
-	 --lr $lr --momentum $momentum
+    #$cuda_cmd $exp_dir/main.log \
+	 $MYTORCH local/main.py --no-cuda \
+		  --batch-size $batch_size \
+		  --opt-optimizer sgd \
+		  --opt-lr $lr --opt-momentum $momentum \
+		  --lrsch-lrsch-type exp_lr \
+		  --lrsch-decay-rate 0.1 \
+		  --lrsch-decay-steps 5 \
+	 	  --lrsch-hold-steps 3 \
+		  --lrsch-min-lr 0.001 \
+		  --lrsch-warmup-steps 100 \
+		  --lrsch-t 500 \
+		  --lrsch-t-mul 2 \
+		  --lrsch-gamma 0.9 \
+		  --lrsch-warm-restarts \
+		  --lrsch-update-lr-on-batch \
+		  --lrsch-patience 1 \
+		  --lrsch-threshold 1e-1 \
+		  --resume \
+		  --exp-path $exp_dir
     
     source deactivate $TORCH
 fi

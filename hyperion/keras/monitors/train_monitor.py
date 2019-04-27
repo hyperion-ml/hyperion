@@ -76,6 +76,7 @@ class TrainMonitor(Monitor):
                 self.lr_wait+=1
         self.save_last(epoch,info_str)
 
+        
     def get_info_str(self,epoch,logs,improve,lr):
         n_epochs_no_best=0 if improve else self.wait+1
         loss=logs.get('loss')

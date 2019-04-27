@@ -8,7 +8,7 @@ import logging
 
 import torch
 
-def open_gpu(gpu_ids=None, num_gpus=1):
+def open_device(num_gpus=1, gpu_ids=None):
     os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
     if gpu_ids is None:
         try:
@@ -28,3 +28,5 @@ def open_gpu(gpu_ids=None, num_gpus=1):
     else:
         device = torch.device('cpu')
     return device
+
+

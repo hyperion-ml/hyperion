@@ -25,10 +25,13 @@ import torch.optim as optim
 from torchvision import datasets, transforms
 
 from hyperion.hyp_defs import config_logger
-from hyperion.torch.torch_utils import open_gpu
+from hyperion.torch.utils import open_device
 from hyperion.torch.archs import FFNetV1
 from hyperion.torch.transforms import Reshape
+from hyperion.torch.helpers import OptimizerFactory as OF
+from hyperion.torch.lr_schedulers import LRSchedulerFactory as LRSF
 from hyperion.torch.torch_trainer import TorchTrainer
+from hyperion.torch.metrics import CategoricalAccuracy
 
 input_width=28
 input_height=28
@@ -39,11 +42,14 @@ def create_net(net_type):
 
 
     
-def main(net_type, batch_size, test_batch_size,
-         lr, momentum, epochs, use_cuda, log_interval):
+def main(net_type, batch_size, test_batch_size, exp_path,
+         epochs, use_cuda, log_interval, resume, **kwargs):
+
+    opt_args = OF.filter_args(prefix='opt', **kwargs)
+    lrsch_args = LRSF.filter_args(prefix='lrsch', **kwargs)
 
     if use_cuda:
-        device = open_gpu()
+        device = open_device(num_gpus=1)
     else:
         device = torch.device('cpu')
 
@@ -53,23 +59,30 @@ def main(net_type, batch_size, test_batch_size,
         transform_list.append(Reshape((-1,)))
     transform = transforms.Compose(transform_list)
     
-    kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
+    largs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
     train_loader = torch.utils.data.DataLoader(
         datasets.MNIST('./exp/data', train=True, download=True,
                        transform=transform), 
-                       batch_size=args.batch_size, shuffle=True, **kwargs)
+                       batch_size=args.batch_size, shuffle=True, **largs)
 
     test_loader = torch.utils.data.DataLoader(
         datasets.MNIST('./exp/data', train=False, transform=transform),
-                       batch_size=args.test_batch_size, shuffle=False, **kwargs)
+                       batch_size=args.test_batch_size, shuffle=False, **largs)
 
     model = create_net(net_type)
     model.to(device)
 
-    optimizer = optim.SGD(model.parameters(), lr=lr, momentum=momentum)
+    print(opt_args)
+    print(lrsch_args)
+    optimizer = OF.create(model.parameters(), **opt_args)
+    lr_sch = LRSF.create(optimizer, **lrsch_args)
+    #optimizer = optim.SGD(model.parameters(), lr=lr, momentum=momentum)
     loss = nn.CrossEntropyLoss()
+    metrics = { 'acc': CategoricalAccuracy() }
     
-    trainer = TorchTrainer(model, optimizer, loss, epochs, device=device)
+    trainer = TorchTrainer(model, optimizer, loss, epochs, exp_path, device=device, metrics=metrics, lr_scheduler=lr_sch)
+    if resume:
+        trainer.load_last_checkpoint()
     trainer.fit(train_loader, test_loader)
 
 
@@ -88,16 +101,19 @@ if __name__ == '__main__':
                         help='input batch size for testing (default: 1000)')
     parser.add_argument('--epochs', type=int, default=10, 
                         help='number of epochs to train (default: 10)')
-    parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
-                        help='learning rate (default: 0.01)')
-    parser.add_argument('--momentum', type=float, default=0.5, 
-                        help='SGD momentum (default: 0.5)')
+    OF.add_argparse_args(parser, prefix='opt')
+    LRSF.add_argparse_args(parser, prefix='lrsch')
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='disables CUDA training')
     parser.add_argument('--seed', type=int, default=1, 
                         help='random seed (default: 1)')
     parser.add_argument('--log-interval', type=int, default=10, 
                         help='how many batches to wait before logging training status')
+
+    parser.add_argument('--resume', action='store_true', default=False,
+                        help='resume training from checkpoint')
+
+    parser.add_argument('--exp-path', help='experiment path')
 
     parser.add_argument('-v', '--verbose', dest='verbose', default=1, choices=[0, 1, 2, 3], type=int)
 

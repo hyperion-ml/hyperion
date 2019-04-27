@@ -5,6 +5,6 @@
 
 from __future__ import absolute_import
 
-from .activation_factory import ActivationFactory
-from .optimizer_factory import OptimizerFactory
-
+from .loggers import LoggerList, Logger
+from .csv_logger import CSVLogger
+from .prog_logger import ProgLogger

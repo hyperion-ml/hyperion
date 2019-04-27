@@ -5,6 +5,5 @@
 
 from __future__ import absolute_import
 
-from .activation_factory import ActivationFactory
-from .optimizer_factory import OptimizerFactory
-
+from .devices import open_device
+from .metric_acc import MetricAcc

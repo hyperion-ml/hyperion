@@ -13,3 +13,4 @@
 export train_cmd="queue.pl --mem 4G -l hostname=\"[bc][01]*\""
 export cuda_cmd="queue.pl --mem 4G --gpu 1 --config conf/gpu.conf"
 
+
