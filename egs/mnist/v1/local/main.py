@@ -26,7 +26,7 @@ from torchvision import datasets, transforms
 
 from hyperion.hyp_defs import config_logger
 from hyperion.torch.utils import open_device
-from hyperion.torch.archs import FFNetV1
+from hyperion.torch.archs import FCNetV1
 from hyperion.torch.transforms import Reshape
 from hyperion.torch.helpers import OptimizerFactory as OF
 from hyperion.torch.lr_schedulers import LRSchedulerFactory as LRSF
@@ -36,9 +36,11 @@ from hyperion.torch.metrics import CategoricalAccuracy
 input_width=28
 input_height=28
 
+
+
 def create_net(net_type):
-    if net_type=='ffnet':
-        return FFNetV1(3, 10, 1000, input_width*input_height, dropout_rate=0.5)
+    if net_type=='fcnet':
+        return FCNetV1(2, input_width*input_height, 1000, 10 , dropout_rate=0.5)
 
 
     
@@ -55,7 +57,7 @@ def main(net_type, batch_size, test_batch_size, exp_path,
 
     transform_list = [transforms.ToTensor(),
                       transforms.Normalize((0.1307,), (0.3081,))]
-    if net_type == 'ffnet':
+    if net_type == 'fcnet':
         transform_list.append(Reshape((-1,)))
     transform = transforms.Compose(transform_list)
     
@@ -92,8 +94,8 @@ if __name__ == '__main__':
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         fromfile_prefix_chars='@',
         description='PyTorch MNIST')
-    parser.add_argument('--net-type', default='ffnet', metavar='N',
-                        help='input batch size for training (def')
+    parser.add_argument('--net-type', default='fcnet', metavar='N',
+                        help='Type of network architecture')
 
     parser.add_argument('--batch-size', type=int, default=64,
                         help='input batch size for training (default: 64)')
