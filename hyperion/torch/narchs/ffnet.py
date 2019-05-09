@@ -13,7 +13,7 @@ import numpy as np
 import torch.nn as nn
 from torch.nn import Linear, BatchNorm1d, Dropout
 
-from ..helpers import ActivationFactory as AF
+from ..layers import ActivationFactory as AF
 
 class FFNetV1(nn.Module):
 

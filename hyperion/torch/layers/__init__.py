@@ -5,3 +5,7 @@
 from __future__ import absolute_import
 
 from .dropout import Dropout1d
+from .global_pool import *
+
+from .activation_factory import ActivationFactory
+from .pool_factory import GlobalPool1dFactory

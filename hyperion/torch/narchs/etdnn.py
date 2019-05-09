@@ -12,7 +12,7 @@ import numpy as np
 import torch.nn as nn
 from torch.nn import Conv1d, Linear, BatchNorm1d
 
-from ..helpers import ActivationFactory as AF
+from ..layers import ActivationFactory as AF
 from ..layers import Dropout1d
 from .net_arch import NetArch
 
@@ -79,16 +79,16 @@ class ETDNNV1(NetArch):
         td_layers = []
         fc_layers = []
         for i in xrange(1, num_hid_layers+1):
-            td_layers.append(Conv1D(etd_units[i-1], etd_units[i],
+            td_layers.append(Conv1d(etd_units[i-1], etd_units[i],
                                     kernel_size=kernel_size[i],
                                     dilation=dilation[i]))
-            fc_layers.append(Linear(etd_units[i], etd_units[i]))
+            fc_layers.append(Conv1d(etd_units[i], etd_units[i], 1))
             
         self.td_layers = nn.ModuleList(td_layers)
         
         # fully connected layers
         for i in xrange(1, num_fc_layers+1):
-            fc_layers.append(Linear(fc_units[i-1], fc_units[i]))
+            fc_layers.append(Conv1d(fc_units[i-1], fc_units[i], 1))
 
         self.fc_layers = nn.ModuleList(fc_layers)
 
@@ -147,7 +147,7 @@ class ETDNNV1(NetArch):
             if use_batchnorm:
                 self.batchnorm_layers.append(BatchNorm1d(units[-1]))
 
-            self.fc_layers.append(Linear(units[-1], output_units))
+            self.fc_layers.append(Conv1d(units[-1], output_units, 1))
             if use_output_dropout and dropout_rate > 0:
                 self.output_dropout = Dropout1d(dropout_rate)
         
@@ -156,7 +156,7 @@ class ETDNNV1(NetArch):
 
 
     @property
-    def context(self):
+    def input_context(self):
         return (self._context, self._context)
 
     

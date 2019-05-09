@@ -7,43 +7,38 @@ from __future__ import print_function
 from __future__ import division
 from six.moves import xrange
 
+import numpy as np
+
 import torch.nn as nn
 from torch.nn import Linear, BatchNorm1d, Dropout
 
-from ..helpers import ActivationFactory as AF
+from ..layers import ActivationFactory as AF
 from .net_arch import NetArch
 
-class FCNetV1(NetArch):
+class XVectorClassifV1(NetArch):
 
-    def __init__(self, num_hid_layers, 
-                 input_units, hid_units, output_units,
-                 hid_act='relu', output_act=None, 
-                 use_batchnorm=True, dropout_rate=0,
-                 without_output_layer=False,
-                 use_output_batchnorm=False,
-                 use_output_dropout=False):
+    def __init__(self, input_units, num_classes, embed_dim=512,
+                 num_hid_layers=2, 
+                 hid_act='relu', outputs='logits'
+                 use_batchnorm=True, dropout_rate=0):
 
-        super(FCNetV1, self).__init__()
+        super(XVectorClassifV1, self).__init__()
         assert num_hid_layers >= 1, 'num_hid_layers (%d < 1)' % num_hid_layers
 
         self.num_hid_layers = num_hid_layers
-        self.output_units = output_units
         self.input_units = input_units
-        self.hid_units = hid_units
+        self.embed_dim = embed_dim
+        self.num_classes = num_classes
         self.use_batchnorm = use_batchnorm
         self.dropout_rate = dropout_rate
-        self.without_output_layer = without_output_layer
-        self.use_output_batchnorm = use_output_batchnorm
-        self.use_output_dropout = use_output_dropout
-        
-        self.output_act = AF.create(output_act)
+        self.outputs = outputs
         
         if isinstance(hid_units, list):
-            assert num_hid_layers == len(hid_units)
+            assert num_hid_layers == len(embed_dim)
         else:
-            hid_units = [hid_units for i in xrange(num_hid_layers)]
+            embed_dim = [embed_dim for i in xrange(num_hid_layers)]
 
-        units = [input_units] + hid_units
+        units = [input_units] + embed_dim
 
         #fully connected layers
         fc_layers = []
@@ -78,22 +73,7 @@ class FCNetV1(NetArch):
             self.dropout_layers = nn.ModuleList(dropout_layers)
 
         # output layers
-        self.output_dropout = None
-        self.output_batchnorm = None
-
-        if without_output_layer:
-            if use_output_batchnorm:
-                self.output_batchnorm = BatchNorm1d(units[-1])
-        else:
-            if use_batchnorm:
-                self.batchnorm_layers.append(BatchNorm1d(units[-1]))
-
-            self.fc_layers.append(Linear(units[-1], output_units))
-            if use_output_dropout and dropout_rate > 0:
-                self.output_dropout = Dropout(dropout_rate)
-        
-            if use_output_batchnorm:
-                self.output_batchnorm = BatchNorm1d(output_units)
+        self.logits_layer = Linear(units[-1], num_classes)
 
 
                 
@@ -110,44 +90,61 @@ class FCNetV1(NetArch):
             if self.dropout_rate > 0:
                 x = self.dropout_layers[l](x)
 
-        if not self.without_output_layer:
-            if self.batchnorm_layers is not None:
-                x = self.batchnorm_layers[self.num_hid_layers](x)
+
+        y = self.logits_layer(x)
+
+        return y
+
+
+
+    def extract_embed(self, x, embed_layers=0):
+
+        if isinstance(embed_layers, int):
+            embed_layers = [embed_layers]
+
+        last_embed_layer = np.max(embed_layers)
+        embed_layers = set(embed_layers)
+
+        embed_list = []
+        for l in xrange(self.num_hid_layers):
+            if self.use_batchnorm:
+                x = self.batchnorm_layers[l](x)
+
+            x = self.fc_layers[l](x)
+            if l is in embed_layers:
+                embed_list.append(x)
+
+            if l == last_embed_layer:
+                break
             
-            x = self.fc_layers[self.num_hid_layers](x)
-            if self.output_act is not None:
-                x = self.output_act(x)
+            if self.hid_acts is not None:
+                x = self.hid_acts[l](x)
 
-            if self.output_dropout is not None:
-                x = self.droput_layers[self.num_hid_layers](x)
-
-        if self.use_output_batchnorm:
-            x = self.output_dropout(x)
-
-        return x
+            if self.dropout_rate > 0:
+                x = self.dropout_layers[l](x)
 
 
+        y = torch.cat((embed_list), dim=-1)
+        return y
+                    
+        
     
     def get_config(self):
         
-        output_act = AF.get_config(self.output_act)
         if self.hid_acts is None:
             hid_act = None
         else:
             hid_act = AF.get_config(self.hid_acts[0])
 
         config = {'num_hid_layers': self.num_hid_layers,
-                  'output_units': self.output_units,
-                  'hid_units': self.hidden_units,
+                  'num_classes': self.num_classes,
+                  'embed_dim': self.embed_dim,
                   'input_units': self.input_units,
                   'use_batchnorm': self.use_batchnorm,
                   'dropout_rate': self.dropout_rate,
-                  'use_output_batchnorm': self.output_batchnorm,
-                  'use_output_dropout': self.output_dropout,
-                  'output_act': output_act,
                   'hid_act': hid_act }
         
-        base_config = super(FCNetV1, self).get_config()
+        base_config = super(XVectorClassifV1, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
     

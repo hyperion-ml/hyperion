@@ -3,7 +3,10 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from __future__ import absolute_import
+from ..torch_trainer import TorchTrainer
 
-from .optimizer_factory import OptimizerFactory
+
+class XVectorTrainer(TorchTrainer):
+    pass
+
 

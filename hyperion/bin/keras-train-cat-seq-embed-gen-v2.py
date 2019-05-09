@@ -16,7 +16,7 @@ import logging
 
 import numpy as np
 
-from hyperion.hyp_defs import set_float_cpu, float_cpu, config_logger
+from hyperion.hyp_defs import set_float_cpu, float_cpu, float_keras, config_logger
 from hyperion.utils.multithreading import threadsafe_generator
 from hyperion.generators import SequenceBatchGeneratorV2 as G
 from hyperion.transforms import TransformList

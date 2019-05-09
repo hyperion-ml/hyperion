@@ -94,7 +94,8 @@ class Utt2Info(object):
         """Creates dictionary that returns the position of 
            a segment in the list.
         """
-        self.key_to_index = OrderedDict((k,i) for i, k in enumerate(self.utt_info.index))
+        self.key_to_index = OrderedDict(
+            (k,i) for i, k in enumerate(self.utt_info.index))
         
 
     def get_index(self, key):

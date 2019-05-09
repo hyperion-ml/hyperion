@@ -10,7 +10,7 @@ from six.moves import xrange
 import os
 from collections import OrderedDict as ODict
 
-import numpy as np
+#import numpy as np
 
 import torch
 import torch.nn as nn
@@ -148,6 +148,8 @@ class TorchTrainer(object):
     def checkpoint(self, logs=None):
         checkpoint = {
             'epoch': self.cur_epoch,
+            'rng_state': torch.get_rng_state(),
+            'model_cfg': self.model.get_config(),
             'model_state_dict': self.model.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
             'loss_state_dict': self.loss.state_dict()
@@ -172,6 +174,8 @@ class TorchTrainer(object):
     def load_checkpoint(self, file_path):
 
         checkpoint = torch.load(file_path)
+        rng_state = checkpoint['rng_state']
+        torch.set_rng_state(rng_state)
         self.cur_epoch = checkpoint['epoch']
         self.model.load_state_dict(checkpoint['model_state_dict'])
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])

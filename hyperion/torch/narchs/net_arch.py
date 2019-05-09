@@ -12,14 +12,11 @@ import numpy as np
 
 import torch.nn as nn
 
-class NetArch(nn.Module):
+from ..torch_model import TorchModel
+
+class NetArch(TorchModel):
 
     @property
-    def context(self):
+    def input_context(self):
         return 0
 
-    def get_config(self):
-        config = {
-            'class_name': self.__class__.__name__}
-
-        return config

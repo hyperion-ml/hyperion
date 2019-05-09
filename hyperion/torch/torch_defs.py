@@ -5,17 +5,19 @@
 
 import torch
 
-_FLOAT_TORCH=torch.float32
+
+str2torch_dtype = { 'float32': torch.float32,
+                    'float64': torch.float64,
+                    'float16': torch.float16}
+
+torch_dtype2str = { torch.float32: 'float32',
+                    torch.float64: 'float64',
+                    torch.float16: 'float16'}
 
 def float_torch():
-    return _FLOAT_TORCH
+    return torch_dtype2str[torch.get_default_dtype()]
 
 
 def set_float_cpu(float_torch):
-    global _FLOAT_TORCH
-    _FLOAT_TORCH = float_torch
-
+    torch.set_default_dtype(str2torch_dtype[float_torch])
     
-def float_torch_str():
-    #TODO
-    return 'float32'
