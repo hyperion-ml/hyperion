@@ -138,7 +138,7 @@ class FCNetV1(NetArch):
 
         config = {'num_hid_layers': self.num_hid_layers,
                   'output_units': self.output_units,
-                  'hid_units': self.hidden_units,
+                  'hid_units': self.hid_units,
                   'input_units': self.input_units,
                   'use_batchnorm': self.use_batchnorm,
                   'dropout_rate': self.dropout_rate,

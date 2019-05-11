@@ -22,7 +22,7 @@ from .loggers import LoggerList, CSVLogger, ProgLogger
 class TorchTrainer(object):
 
     def __init__(self, model, optimizer, loss, epochs, exp_path, cur_epoch=0, 
-                 device=None, metrics=None, lr_scheduler=None, loggers=None):
+                 device=None, metrics=None, lr_scheduler=None, loggers=None, data_parallel=False):
         self.model = model
         self.optimizer = optimizer
         self.loss = loss
@@ -41,9 +41,14 @@ class TorchTrainer(object):
         self.lr_scheduler = lr_scheduler
         
         self.metrics = metrics
-        if device is None:
-            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.device = device
+
+        if data_parallel:
+            self.model = torch.nn.DataParallel(self.model)
+
+        if device is not None:
+            self.model.to(device)
+            self.loss.to(device)
 
         
     def fit(self, train_data, val_data=None):

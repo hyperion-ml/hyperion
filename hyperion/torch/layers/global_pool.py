@@ -14,7 +14,7 @@ import torch.functional as F
 
 class _GlobalPool1d(nn.Module):
     def __init__(self, dim=2, keepdim=False, batch_dim=0):
-        super(GlobalAvgPool1D, self)__init__()
+        super(GlobalAvgPool1D, self).__init__()
         self.dim = dim
         self.keepdim = keepdim
         self.batch_dim = batch_dim
@@ -24,7 +24,7 @@ class _GlobalPool1d(nn.Module):
         if weights.dims() == ndims:
             return weights
 
-        assert weights.dims() == 2:
+        assert weights.dims() == 2
         shape = ndims * [1]
         shape[self.batch_dim] = weights.shape[0]
         shape[self.dim] = weights.shape[1]
@@ -35,7 +35,7 @@ class _GlobalPool1d(nn.Module):
 class GlobalAvgPool1d(_GlobalPool1d):
 
     def __init__(self, dim=2, keepdim=False, batch_dim=0):
-        super(GlobalAvgPool1D, self)__init__(dim, keepdim, batch_dim)
+        super(GlobalAvgPool1D, self).__init__(dim, keepdim, batch_dim)
         
 
     def forward(self, x, weights=None):
@@ -54,7 +54,7 @@ class GlobalAvgPool1d(_GlobalPool1d):
 class GlobalMeanStdPool1d(_GlobalPool1d):
 
     def __init__(self, dim=2, keepdim=False, batch_dim=0):
-        super(GlobalMeanStdPool1D, self)__init__(dim, keepdim, batch_dim)
+        super(GlobalMeanStdPool1D, self).__init__(dim, keepdim, batch_dim)
         
 
     def forward(self, x, weights=None):
@@ -79,7 +79,7 @@ class GlobalMeanStdPool1d(_GlobalPool1d):
 class GlobalMeanLogVarPool1d(_GlobalPool1d):
 
     def __init__(self, dim=2, keepdim=False, batch_dim=0):
-        super(GlobalMeanLogVarPool1D, self)__init__(dim, keepdim, batch_dim)
+        super(GlobalMeanLogVarPool1D, self).__init__(dim, keepdim, batch_dim)
         
 
     def forward(self, x, weights=None):
@@ -104,7 +104,7 @@ class LDEPool1d(_GlobalPool1d):
 
     def __init__(self, input_units, num_comp=64, dist_pow=2, wo_bias=False,
                  dim=1, keepdim=False, batch_dim=0):
-        super(LDEPool1D, self)__init__(dim, keepdim, batch_dim)
+        super(LDEPool1D, self).__init__(dim, keepdim, batch_dim)
         self.mu = nn.Parameter(torch.randn(num_comp,input_units))
         self.prec = nn.Parameter(torch.ones(num_comp))
         if wo_bias:

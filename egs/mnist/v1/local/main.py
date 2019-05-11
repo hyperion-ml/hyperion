@@ -26,7 +26,7 @@ from torchvision import datasets, transforms
 
 from hyperion.hyp_defs import config_logger
 from hyperion.torch.utils import open_device
-from hyperion.torch.archs import FCNetV1
+from hyperion.torch.narchs import FCNetV1
 from hyperion.torch.transforms import Reshape
 from hyperion.torch.helpers import OptimizerFactory as OF
 from hyperion.torch.lr_schedulers import LRSchedulerFactory as LRSF
@@ -45,15 +45,12 @@ def create_net(net_type):
 
     
 def main(net_type, batch_size, test_batch_size, exp_path,
-         epochs, use_cuda, log_interval, resume, **kwargs):
+         epochs, num_gpus, log_interval, resume, **kwargs):
 
     opt_args = OF.filter_args(prefix='opt', **kwargs)
     lrsch_args = LRSF.filter_args(prefix='lrsch', **kwargs)
 
-    if use_cuda:
-        device = open_device(num_gpus=1)
-    else:
-        device = torch.device('cpu')
+    device = open_device(num_gpus=num_gpus)
 
     transform_list = [transforms.ToTensor(),
                       transforms.Normalize((0.1307,), (0.3081,))]
@@ -61,7 +58,7 @@ def main(net_type, batch_size, test_batch_size, exp_path,
         transform_list.append(Reshape((-1,)))
     transform = transforms.Compose(transform_list)
     
-    largs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
+    largs = {'num_workers': 1, 'pin_memory': True} if num_gpus>0 else {}
     train_loader = torch.utils.data.DataLoader(
         datasets.MNIST('./exp/data', train=True, download=True,
                        transform=transform), 
@@ -72,17 +69,17 @@ def main(net_type, batch_size, test_batch_size, exp_path,
                        batch_size=args.test_batch_size, shuffle=False, **largs)
 
     model = create_net(net_type)
-    model.to(device)
+    #model.to(device)
 
     print(opt_args)
     print(lrsch_args)
     optimizer = OF.create(model.parameters(), **opt_args)
     lr_sch = LRSF.create(optimizer, **lrsch_args)
-    #optimizer = optim.SGD(model.parameters(), lr=lr, momentum=momentum)
     loss = nn.CrossEntropyLoss()
     metrics = { 'acc': CategoricalAccuracy() }
     
-    trainer = TorchTrainer(model, optimizer, loss, epochs, exp_path, device=device, metrics=metrics, lr_scheduler=lr_sch)
+    trainer = TorchTrainer(model, optimizer, loss, epochs, exp_path, device=device, metrics=metrics, lr_scheduler=lr_sch,
+                           data_parallel=(num_gpus>1))
     if resume:
         trainer.load_last_checkpoint()
     trainer.fit(train_loader, test_loader)
@@ -105,8 +102,8 @@ if __name__ == '__main__':
                         help='number of epochs to train (default: 10)')
     OF.add_argparse_args(parser, prefix='opt')
     LRSF.add_argparse_args(parser, prefix='lrsch')
-    parser.add_argument('--no-cuda', action='store_true', default=False,
-                        help='disables CUDA training')
+    parser.add_argument('--num-gpus', type=int, default=1,
+                        help='number of gpus, if 0 it uses cpu')
     parser.add_argument('--seed', type=int, default=1, 
                         help='random seed (default: 1)')
     parser.add_argument('--log-interval', type=int, default=10, 
@@ -124,9 +121,6 @@ if __name__ == '__main__':
     del args.verbose
     logging.debug(args)
 
-    args.use_cuda = not args.no_cuda
-    del args.no_cuda
-    
     torch.manual_seed(args.seed)
     del args.seed
 

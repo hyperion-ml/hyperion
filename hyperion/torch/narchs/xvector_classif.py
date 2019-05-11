@@ -19,7 +19,7 @@ class XVectorClassifV1(NetArch):
 
     def __init__(self, input_units, num_classes, embed_dim=512,
                  num_hid_layers=2, 
-                 hid_act='relu', outputs='logits'
+                 hid_act='relu', outputs='logits',
                  use_batchnorm=True, dropout_rate=0):
 
         super(XVectorClassifV1, self).__init__()
@@ -111,7 +111,7 @@ class XVectorClassifV1(NetArch):
                 x = self.batchnorm_layers[l](x)
 
             x = self.fc_layers[l](x)
-            if l is in embed_layers:
+            if l in embed_layers:
                 embed_list.append(x)
 
             if l == last_embed_layer:

@@ -15,19 +15,19 @@ class GlobalPool1dFactory(object):
     def create(pool_type,
                num_comp=64, dist_exp=2, use_bias=False,
                dim=1, keepdim=False, batch_dim=0):
-        if pool_type = 'avg':
+        if pool_type == 'avg':
             return GlobalAvgPool1d(
                 dim=dim, keepdim=keepdim, batch_dim=batch_dim)
 
-        if pool_type = 'mean+std':
+        if pool_type == 'mean+std':
             return GlobalMeanStdPool1d(
                 dim=dim, keepdim=keepdim, batch_dim=batch_dim)
 
-        if pool_type = 'mean+logvar':
+        if pool_type == 'mean+logvar':
             return GlobalMeanLogVarPool1d(
                 dim=dim, keepdim=keepdim, batch_dim=batch_dim)
 
-        if pool_type = 'lde':
+        if pool_type == 'lde':
             return LDEPool1d(
                 num_comp=num_comp, dist_exp=dist_exp, use_bias=use_bias,
                 dim=dim, keepdim=keepdim, batch_dim=batch_dim)
