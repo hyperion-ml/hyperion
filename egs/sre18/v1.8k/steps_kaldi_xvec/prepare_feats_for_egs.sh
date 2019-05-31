@@ -1,6 +1,4 @@
 #!/bin/bash
-#
-#
 # Copyright 2017 Johns Hopkins University (David Snyder)
 #           2019 Johns Hopkins University (Jesus Villalba)
 # Apache 2.0.

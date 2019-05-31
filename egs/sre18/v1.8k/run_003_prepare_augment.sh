@@ -6,7 +6,6 @@
 #                2017   Johns Hopkins University (Author: Daniel Povey)
 # Apache 2.0.
 #
-
 . ./cmd.sh
 . ./path.sh
 set -e
@@ -17,7 +16,7 @@ vaddiardir=`pwd`/vad_diar
 stage=1
 
 . parse_options.sh || exit 1;
-
+. datapath.sh
 # In this script, we augment the SWBD,SRE,MX6 and Voxceleb data with reverberation,
 # noise, music, and babble, and combined it with the clean data.
 # The combined list will be used to train the xvector DNN.
@@ -38,7 +37,7 @@ if [ $stage -le 1 ]; then
 
     # Prepare the MUSAN corpus, which consists of music, speech, and noise
     # suitable for augmentation.
-    local/make_musan.sh /export/corpora/JHU/musan 8 data
+    local/make_musan.sh $musan_root 8 data
     
     # Get the duration of the MUSAN recordings.  This will be used by the
     # script augment_data_dir.py.
@@ -113,7 +112,7 @@ if [ $stage -le 2 ]; then
       utils/combine_data.sh data/${name}_aug data/${name}_reverb_all_half data/${name}_noise_all
 
   done
-  exit
+
 fi
 
 if [ $stage -le 3 ];then

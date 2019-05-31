@@ -6,14 +6,13 @@
 #                2017   Johns Hopkins University (Author: Daniel Povey)
 # Apache 2.0.
 #
-
 . ./cmd.sh
 . ./path.sh
 set -e
 mfccdir=`pwd`/mfcc
 
-
 stage=1
+config_file=default_config.sh
 
 . parse_options.sh || exit 1;
 

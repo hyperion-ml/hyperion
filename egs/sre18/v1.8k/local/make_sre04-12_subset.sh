@@ -61,7 +61,7 @@ if [[ "$orig_fs" == "8" ]] && [[ "$fs" == "16" ]];then
 elif [[ "$orig_fs" == "16" ]] && [[ "$fs" == "8" ]];then
      updownsample_str=" sox -t wav - -t wav -r 8k - |"
 fi
-awk '{ if( $3=="a" || $3 ){c=1}else{c=2}; 
+awk '{ if( $3=="a" || $3=="x" ){c=1}else{c=2}; 
        print $2" sph2pipe -f wav -p -c "c,$1" |'"$updownsample_str"'" }' \
     $data_dir/key | sort -k1,1 -u > $data_dir/wav.scp
 

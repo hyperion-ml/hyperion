@@ -6,17 +6,16 @@ set -e
 
 stage=1
 
-lda_dim=120
-net_name=1a
+config_file=default_config.sh
 
 . parse_options.sh || exit 1;
 
+. $config_file
+
 xvector_dir=exp/xvectors_diar/$net_name
 
-plda_data=voxceleb
-be_name=lda${lda_dim}_plda_${plda_data}
-be_dir=exp/be_diar/$net_name/$be_name
-score_dir=exp/diarization/$net_name/$be_name
+be_dir=exp/be_diar/$nnet_name/$be_diar_name
+score_dir=exp/diarization/$nnet_name/$be_diar_name
 
 
 # Cluster the PLDA scores using a stopping threshold.

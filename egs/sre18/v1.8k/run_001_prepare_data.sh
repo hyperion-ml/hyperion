@@ -6,34 +6,15 @@
 #                2017   Johns Hopkins University (Author: Daniel Povey)
 # Apache 2.0.
 #
-
 . ./cmd.sh
 . ./path.sh
 set -e
 
-
 stage=1
+config_file=default_config.sh
 
 . parse_options.sh || exit 1;
-
-master_key_dir=master_key_sre04-12
-master_key=$master_key_dir/NIST_SRE_segments_key.v2.csv
-
-ldc_root=/export/corpora/LDC
-sitw_root=/export/corpora/SRI/sitw
-sre08sup_root=$ldc_root/LDC2011S11
-sre10_root=/export/corpora5/SRE/SRE2010/eval
-sre10_root=$ldc_root/LDC2012E09/SRE10/eval
-sre10_16k_root=$ldc_root/LDC2012E09/SRE10_16K
-sre12_root=$ldc_root/LDC2016E45
-voxceleb1_root=/export/corpora/VoxCeleb1
-voxceleb2_root=/export/corpora/VoxCeleb2
-sre16_dev_root=$ldc_root/LDC2016E46
-sre16_eval_root=$ldc_root/LDC2018E30/data/eval/R149_0_1
-sre18_dev_root=$ldc_root/LDC2018E46
-sre18_eval_root=$ldc_root/LDC2018E51
-sre18_dev_meta=${sre18_dev_root}/docs/sre18_dev_segment_key.tsv
-
+. datapath.sh 
 
 if [ $stage -le 1 ]; then
     # Path to some, but not all of the training corpora

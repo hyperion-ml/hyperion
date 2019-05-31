@@ -11,15 +11,14 @@
 . ./path.sh
 set -e
 
-net_name=1a
-
 stage=1
-diar_name=diar1a
+config_file=default_config.sh
 
 . parse_options.sh || exit 1;
+. $config_file
 
-nnet_dir=exp/xvector_nnet_$net_name
-xvector_dir=exp/xvectors/$net_name
+#nnet_dir=exp/xvector_nnet_$nnet_name
+xvector_dir=exp/xvectors/$nnet_name
 
 
 if [ $stage -le 1 ]; then

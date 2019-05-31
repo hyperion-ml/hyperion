@@ -6,19 +6,17 @@
 #                2017   Johns Hopkins University (Author: Daniel Povey)
 # Apache 2.0.
 #
-
 . ./cmd.sh
 . ./path.sh
 set -e
 
-net_name=1a
-
 stage=1
+config_file=default_config.sh
 
 . parse_options.sh || exit 1;
+. $config_file
 
-nnet_dir=exp/xvector_nnet_$net_name
-xvector_dir=exp/xvectors/$net_name
+xvector_dir=exp/xvectors/$nnet_name
 
 if [ $stage -le 1 ]; then
     # Extract xvectors for training LDA/PLDA

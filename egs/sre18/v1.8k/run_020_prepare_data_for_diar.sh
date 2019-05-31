@@ -1,5 +1,8 @@
 #!/bin/bash
-
+# Copyright      2018   Johns Hopkins University (Author: Jesus Villalba)
+#
+# Apache 2.0.
+#
 . ./cmd.sh
 . ./path.sh
 set -e
@@ -7,6 +10,7 @@ set -e
 feats_diar=`pwd -P`/exp/feats_diar
 storage_name=sre18-v1.8k-diar-$(date +'%m_%d_%H_%M')
 stage=1
+config_file=default_config.sh
 
 . parse_options.sh || exit 1;
 
