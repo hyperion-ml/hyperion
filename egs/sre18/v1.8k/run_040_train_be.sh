@@ -3,7 +3,6 @@
 #                
 # Apache 2.0.
 #
-
 . ./cmd.sh
 . ./path.sh
 set -e
@@ -13,7 +12,6 @@ config_file=default_config.sh
 
 . parse_options.sh || exit 1;
 . $config_file
-
 . datapath.sh 
 
 xvector_dir=exp/xvectors/$nnet_name

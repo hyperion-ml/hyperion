@@ -6,14 +6,13 @@
 #                2017   Johns Hopkins University (Author: Daniel Povey)
 # Apache 2.0.
 #
-
 . ./cmd.sh
 . ./path.sh
 set -e
 mfccdir=`pwd`/mfcc
 
-
 stage=1
+config_file=default_config.sh
 
 . parse_options.sh || exit 1;
 
@@ -33,12 +32,10 @@ fi
 
 
 if [ $stage -le 2 ];then
-    
     # Combine the clean and augmented lists.  
     utils/combine_data.sh data/sre_tel_combined data/sre_tel_aug_130k data/sre_tel
     utils/combine_data.sh data/sre_phnmic_combined data/sre_phnmic_aug_18k data/sre_phnmic
     utils/combine_data.sh data/voxceleb_combined data/voxceleb_aug_250k data/voxceleb
-  
 fi
     
 exit

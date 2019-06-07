@@ -56,6 +56,5 @@ if [ $stage -le 2 ];then
 					    data_diar/${name}_cmn data_diar/${name}_cmn_segmented
     done
 
-    exit
 fi
 

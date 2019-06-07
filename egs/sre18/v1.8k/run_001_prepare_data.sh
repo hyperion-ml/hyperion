@@ -110,18 +110,17 @@ if [ $stage -le 4 ];then
 fi
 
 if [ $stage -le 5 ];then
-  # Prepare SITW dev to train x-vector
-  local/make_sitw_train.sh $sitw_root dev 8 data/sitw_train_dev
-  
-  # Make SITW dev and eval sets
-  local/make_sitw.sh $sitw_root 8 data/sitw
+    # Prepare SITW dev to train x-vector
+    local/make_sitw_train.sh $sitw_root dev 8 data/sitw_train_dev
+    
+    # Make SITW dev and eval sets
+    local/make_sitw.sh $sitw_root 8 data/sitw
 fi
 
 if [ $stage -le 6 ];then
-  # Prepare sre18
-  local/make_sre18_dev.sh $sre18_dev_root 8 data
-  local/make_sre18_eval.sh $sre18_eval_root 8 data
-
+    # Prepare sre18
+    local/make_sre18_dev.sh $sre18_dev_root 8 data
+    local/make_sre18_eval.sh $sre18_eval_root 8 data
 fi
 
 exit

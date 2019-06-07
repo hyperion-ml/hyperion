@@ -15,8 +15,9 @@ vaddir=`pwd`/mfcc
 vaddiardir=`pwd`/vad_diar
 
 stage=1
-
+config_file=default_config.sh
 . parse_options.sh || exit 1;
+. datapath.sh
 
 # In this script, we augment the SWBD,SRE,MX6 and Voxceleb data with reverberation,
 # noise, music, and babble, and combined it with the clean data.
@@ -38,7 +39,7 @@ if [ $stage -le 1 ]; then
 
     # Prepare the MUSAN corpus, which consists of music, speech, and noise
     # suitable for augmentation.
-    local/make_musan.sh /export/corpora/JHU/musan 16 data
+    local/make_musan.sh $musan_root 16 data
     
     # Get the duration of the MUSAN recordings.  This will be used by the
     # script augment_data_dir.py.

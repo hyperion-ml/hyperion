@@ -6,19 +6,17 @@
 #                2017   Johns Hopkins University (Author: Daniel Povey)
 # Apache 2.0.
 #
-
 . ./cmd.sh
 . ./path.sh
 set -e
 
-diar_name=diar1a
-net_name=1a
-
+config_file=default_config.sh
 stage=1
 
 . parse_options.sh || exit 1;
+. $config_file
 
-xvector_dir=exp/xvectors/$net_name
+xvector_dir=exp/xvectors/$nnet_name
 
 if [ $stage -le 1 ]; then
     

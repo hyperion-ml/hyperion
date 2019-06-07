@@ -20,13 +20,13 @@ fi
 
 data_dir=$1
 
-awk '{print $1, NF-1}' data/$data_dir/spk2utt > data/$data_dir/spk2num
-awk -v min_num_utts=${min_num_utts} '$2 >= min_num_utts {print $1, $2}' data/$data_dir/spk2num | utils/filter_scp.pl - data/$data_dir/spk2utt > data/$data_dir/spk2utt.new
-mv data/$data_dir/spk2utt.new data/$data_dir/spk2utt
-utils/spk2utt_to_utt2spk.pl data/$data_dir/spk2utt > data/$data_dir/utt2spk
+awk '{print $1, NF-1}' $data_dir/spk2utt > $data_dir/spk2num
+awk -v min_num_utts=${min_num_utts} '$2 >= min_num_utts {print $1, $2}' $data_dir/spk2num | utils/filter_scp.pl - $data_dir/spk2utt > $data_dir/spk2utt.new
+mv $data_dir/spk2utt.new $data_dir/spk2utt
+utils/spk2utt_to_utt2spk.pl $data_dir/spk2utt > $data_dir/utt2spk
 
-utils/filter_scp.pl data/$data_dir/utt2spk data/$data_dir/utt2num_frames > data/$data_dir/utt2num_frames.new
-mv data/$data_dir/utt2num_frames.new data/$data_dir/utt2num_frames
+utils/filter_scp.pl $data_dir/utt2spk $data_dir/utt2num_frames > $data_dir/utt2num_frames.new
+mv $data_dir/utt2num_frames.new $data_dir/utt2num_frames
 
 # Now we're ready to create training examples.
-utils/fix_data_dir.sh data/$data_dir
+utils/fix_data_dir.sh $data_dir

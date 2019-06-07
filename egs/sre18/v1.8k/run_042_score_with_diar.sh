@@ -7,7 +7,6 @@
 . ./path.sh
 set -e
 
-
 stage=1
 config_file=default_config.sh
 

@@ -3,7 +3,6 @@
 #
 # Apache 2.0.
 #
-
 . ./cmd.sh
 . ./path.sh
 set -e

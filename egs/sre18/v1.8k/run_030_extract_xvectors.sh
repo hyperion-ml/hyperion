@@ -55,7 +55,6 @@ fi
 if [ $stage -le 3 ]; then
     mkdir -p $xvector_dir/train_combined
     cat $xvector_dir/{sre_tel,sre_phnmic,voxceleb}_combined/xvector.scp > $xvector_dir/train_combined/xvector.scp
-
 fi
 
 exit

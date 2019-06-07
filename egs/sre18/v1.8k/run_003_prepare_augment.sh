@@ -14,7 +14,7 @@ vaddir=`pwd`/mfcc
 vaddiardir=`pwd`/vad_diar
 
 stage=1
-
+config_file=default_config.sh
 . parse_options.sh || exit 1;
 . datapath.sh
 # In this script, we augment the SWBD,SRE,MX6 and Voxceleb data with reverberation,

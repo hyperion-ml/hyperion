@@ -1,3 +1,4 @@
+#!/bin/bash
 # Copyright      2018   Johns Hopkins University (Author: Jesus Villalba)
 #
 # Apache 2.0.
@@ -6,13 +7,11 @@
 . ./path.sh
 set -e
 
-
 stage=1
 config_file=default_config.sh
 
 . parse_options.sh || exit 1;
 . $config_file
-
 . datapath.sh 
 
 # SITW Trials
@@ -31,7 +30,6 @@ score_dir=exp/scores/$nnet_name/tel_${be_tel_name}_vid_${be_vid_name}
 score_plda_dir=$score_dir/plda_snorm
 score_plda_diar_dir=$score_dir/plda_${diar_name}_snorm
 score_sre18_dir=$score_dir/sre18_plda_${diar_name}_snorm
-
 
 
 if [ $stage -le 1 ];then

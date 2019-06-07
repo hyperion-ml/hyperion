@@ -14,7 +14,6 @@ stage=1
 config_file=default_config.sh
 
 . parse_options.sh || exit 1;
-
 . $config_file
 
 if [ $stage -le 1 ];then
@@ -39,8 +38,8 @@ fi
 if [ $stage -le 3 ]; then
     # Now, we need to remove features that are too short after removing silence
     # frames.  We want atleast 4s (400 frames) per utterance.
-
     hyp_utils/remove_short_utts.sh --min-len 400 data/${nnet_data}_no_sil
+
     # min_len=400
     # mv data/train_combined_no_sil/utt2num_frames data/train_combined_no_sil/utt2num_frames.bak
     # awk -v min_len=${min_len} '$2 > min_len {print $1, $2}' data/train_combined_no_sil/utt2num_frames.bak > data/train_combined_no_sil/utt2num_frames

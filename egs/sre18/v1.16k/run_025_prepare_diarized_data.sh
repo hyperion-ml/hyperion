@@ -3,20 +3,16 @@
 #                
 # Apache 2.0.
 #
-
 . ./cmd.sh
 . ./path.sh
 set -e
 vaddiardir=`pwd`/vad_diar
 
-diar_thr=-0.9
-min_dur=10
-rttm_dir=./exp/diarization/1a/lda120_plda_voxceleb
-diar_name=diar1a
-
 stage=1
+config_file=default_config.sh
 
 . parse_options.sh || exit 1;
+. $config_file
 
 if [ $stage -le 1 ]; then
     # Create datasets with diarization

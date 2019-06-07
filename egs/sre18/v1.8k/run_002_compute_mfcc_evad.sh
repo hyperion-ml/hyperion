@@ -6,7 +6,6 @@
 #                2017   Johns Hopkins University (Author: Daniel Povey)
 # Apache 2.0.
 #
-
 . ./cmd.sh
 . ./path.sh
 set -e
@@ -42,7 +41,6 @@ if [ $stage -le 1 ]; then
 	else
 	    echo "we don't distribute data between multiple machines"
 	fi
-	
     fi
 fi
 

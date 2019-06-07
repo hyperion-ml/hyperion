@@ -1,17 +1,19 @@
 #!/bin/bash
-
+# Copyright      2018   Johns Hopkins University (Author: Jesus Villalba)
+#
+# Apache 2.0.
+#
 . ./cmd.sh
 . ./path.sh
 set -e
 
 stage=1
-net_name=1a
+config_file=default_config.sh
 
 . parse_options.sh || exit 1;
+. $config_file
 
-xvector_dir=exp/xvectors_diar/$net_name
-nnet_dir=exp/xvector_nnet_$net_name
-
+xvector_dir=exp/xvectors_diar/$nnet_name
 
 # Extract x-vectors
 if [ $stage -le 1 ]; then

@@ -10,8 +10,15 @@ export PATH=$PWD/utils/:$KALDI_ROOT/tools/openfst/bin:$KALDI_ROOT/tools/sph2pipe
 export LC_ALL=C
 
 #Anaconda env
-PYTHON_ROOT=$TOOLS_ROOT/anaconda/anaconda3.5
-PATH=$PYTHON_ROOT/bin:$PATH
+CONDA_ROOT=$TOOLS_ROOT/anaconda/anaconda3.5
+if [ -f "CONDA_ROOT/etc/profile.d/conda.sh" ]; then
+    #for conda version >=4.4 do    
+    . $CONDA_ROOT/etc/profile.d/conda.sh
+    conda activate
+else
+    #for conda version <4.4 do 
+    PATH=$CONDA_ROOT/bin:$PATH
+fi
 
 #CUDA env
 export CUDA_ROOT=/usr/local/cuda

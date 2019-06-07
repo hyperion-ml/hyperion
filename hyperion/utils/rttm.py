@@ -518,3 +518,17 @@ class RTTM(object):
         total_spks = len(self.segments['name'].unique())
 
         # overlaps
+        return dur_info, hist_dur, total_spks
+    
+        
+    def to_segment_list(self):
+
+        segments = self.segments[['file_id','tbeg']].copy()
+        segments['tend'] = self.segments['tbeg'] + self.segments['tdur']
+        segments['segment_id'] = ['%s-%07d-%07d' % (file_id, tbeg, tdur)
+                                  for file_id, tbeg, tdur in zip(
+                                          segments['file_id'],
+                                          segments['tbeg'],
+                                          segments['tend'])]
+
+        return SegmentList(segments)

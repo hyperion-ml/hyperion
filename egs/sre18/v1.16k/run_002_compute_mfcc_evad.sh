@@ -6,7 +6,6 @@
 #                2017   Johns Hopkins University (Author: Daniel Povey)
 # Apache 2.0.
 #
-
 . ./cmd.sh
 . ./path.sh
 set -e
@@ -16,6 +15,7 @@ mfccdir=`pwd`/mfcc
 vaddir=`pwd`/mfcc
 
 stage=1
+config_file=default_config.sh
 
 . parse_options.sh || exit 1;
 
@@ -32,9 +32,14 @@ if [ $stage -le 1 ]; then
 	elif [ "$nodes" == "b1" ];then
 	    utils/create_split_dir.pl \
 		/export/b{14,15,16,17}/$dir_name $mfccdir/storage
-	else
+	elif [ "$nodes" == "c0" ];then
 	    utils/create_split_dir.pl \
 		/export/c{06,07,08,09}/$dir_name $mfccdir/storage
+	elif [ "$nodes" == "fs01" ];then
+	    utils/create_split_dir.pl \
+		/export/fs01/$dir_name $mfccdir/storage
+	else
+	    echo "we don't distribute data between multiple machines"
 	fi
     fi
 fi
@@ -87,6 +92,5 @@ fi
 if [ $stage -le 3 ];then 
   utils/combine_data.sh --extra-files "utt2num_frames" data/voxceleb data/voxceleb1cat data/voxceleb2cat_train
   utils/fix_data_dir.sh data/voxceleb
-  exit
 fi
 

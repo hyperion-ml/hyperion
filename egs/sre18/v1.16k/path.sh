@@ -10,6 +10,16 @@ export LC_ALL=C
 
 KERAS_PATH=$TOOLS_ROOT/keras
 
+#Anaconda env
+CONDA_ROOT=$TOOLS_ROOT/anaconda/anaconda3.5
+if [ -f "CONDA_ROOT/etc/profile.d/conda.sh" ]; then
+    #for conda version >=4.4 do    
+    . $CONDA_ROOT/etc/profile.d/conda.sh
+    conda activate
+else
+    #for conda version <4.4 do 
+    PATH=$CONDA_ROOT/bin:$PATH
+fi
 
 LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
 LD_LIBRARY_PATH=/usr/local/cuda/lib:$LD_LIBRARY_PATH

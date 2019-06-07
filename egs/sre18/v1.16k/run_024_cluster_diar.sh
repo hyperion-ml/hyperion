@@ -1,23 +1,19 @@
 #!/bin/bash
-
+# Copyright      2018   Johns Hopkins University (Author: Jesus Villalba)
+#
+# Apache 2.0.
+#
 . ./cmd.sh
 . ./path.sh
 set -e
 
 stage=1
-
-lda_dim=120
-net_name=1a
+config_file=default_config.sh
 
 . parse_options.sh || exit 1;
+. $config_file
 
-xvector_dir=exp/xvectors_diar/$net_name
-
-plda_data=voxceleb
-be_name=lda${lda_dim}_plda_${plda_data}
-be_dir=exp/be_diar/$net_name/$be_name
-score_dir=exp/diarization/$net_name/$be_name
-
+score_dir=exp/diarization/$nnet_name/$be_diar_name
 
 # Cluster the PLDA scores using a stopping threshold.
 if [ $stage -le 1 ]; then
@@ -32,8 +28,6 @@ if [ $stage -le 1 ]; then
 	    steps_kaldi_diar/cluster.sh --cmd "$train_cmd --mem 4G" --nj 20 \
 					--threshold $threshold $score_dir/$dataset/plda_scores \
 					$score_dir/$dataset/plda_scores_t$threshold
-
 	done
     done
-  exit
 fi

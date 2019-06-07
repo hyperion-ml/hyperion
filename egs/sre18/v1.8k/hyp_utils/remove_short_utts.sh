@@ -20,10 +20,10 @@ fi
 
 data_dir=$1
 
-mv data/$data_dir/utt2num_frames data/$data_dir/utt2num_frames.bak
-awk -v min_len=${min_len} '$2 > min_len {print $1, $2}' data/$data_dir/utt2num_frames.bak > data/$data_dir/utt2num_frames
-utils/filter_scp.pl data/$data_dir/utt2num_frames data/$data_dir/utt2spk > data/$data_dir/utt2spk.new
-mv data/$data_dir/utt2spk.new data/$data_dir/utt2spk
-utils/fix_data_dir.sh data/$data_dir
+mv $data_dir/utt2num_frames $data_dir/utt2num_frames.bak
+awk -v min_len=${min_len} '$2 > min_len {print $1, $2}' $data_dir/utt2num_frames.bak > $data_dir/utt2num_frames
+utils/filter_scp.pl $data_dir/utt2num_frames $data_dir/utt2spk > $data_dir/utt2spk.new
+mv $data_dir/utt2spk.new $data_dir/utt2spk
+utils/fix_data_dir.sh $data_dir
 
 

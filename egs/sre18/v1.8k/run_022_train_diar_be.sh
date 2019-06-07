@@ -8,11 +8,9 @@
 set -e
 
 stage=1
-
 config_file=default_config.sh
 
 . parse_options.sh || exit 1;
-
 . $config_file
 
 xvector_dir=exp/xvectors_diar/$nnet_name
