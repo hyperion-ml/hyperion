@@ -83,7 +83,7 @@ if [ $stage -le 2 ]; then
       # Augment with musan_music
       python steps/data/augment_data_dir.py --utt-suffix "music" --bg-snrs "15:10:8:5" --num-bg-noises "1" --bg-noise-dir "data/musan_music" data/${name} data/${name}_music
       # Augment with musan_speech
-      python steps/data/augment_data_dir.py --utt-suffix "babble" --bg-snrs "20:17:15:13:10" --num-bg-noises "5:10:20:40" --bg-noise-dir "data/musan_speech" data/${name} data/${name}_babble
+      python steps/data/augment_data_dir.py --utt-suffix "babble" --bg-snrs "20:17:15:13:10" --num-bg-noises "3:4:5:6:7" --bg-noise-dir "data/musan_speech" data/${name} data/${name}_babble
 
       
       awk '{ $1=$1"-reverb"; print $0}' data/${name}/reco2dur > data/${name}_reverb/reco2dur
@@ -93,7 +93,7 @@ if [ $stage -le 2 ]; then
       # Augment with musan_music
       python steps/data/augment_data_dir.py --utt-suffix "music" --bg-snrs "15:10:8:5" --num-bg-noises "1" --bg-noise-dir "data/musan_music" data/${name}_reverb data/${name}_reverb_music
       # Augment with musan_speech
-      python steps/data/augment_data_dir.py --utt-suffix "babble" --bg-snrs "20:17:15:13:10" --num-bg-noises "5:10:20:40" --bg-noise-dir "data/musan_speech" data/${name}_reverb data/${name}_reverb_babble
+      python steps/data/augment_data_dir.py --utt-suffix "babble" --bg-snrs "20:17:15:13:10" --num-bg-noises "3:4:5:6:7" --bg-noise-dir "data/musan_speech" data/${name}_reverb data/${name}_reverb_babble
 
 
       # Combine noise only
