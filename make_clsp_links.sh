@@ -15,7 +15,7 @@ cd -
 
 # anaconda 3.5
 cd tools/anaconda
-if [ ! -f anaconda3 ];then
+if [ ! -f anaconda3.5 ];then
     ln -s /home/janto/usr/local/anaconda3.5 anaconda3.5
 fi
 cd -
