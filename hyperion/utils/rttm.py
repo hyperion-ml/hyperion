@@ -136,8 +136,8 @@ class RTTM(object):
     def validate(self):
         """Validates the attributes of the RTTM object.
         """
-        assert np.all(np.logical_or(self.tbeg[1:]-self.tbeg[:-1]>=0,
-                                    self.file_id[1:] != self.file_id[:-1]))
+        if not self.tbeg_is_sorted():
+            self.sort()
 
 
         
@@ -532,3 +532,12 @@ class RTTM(object):
                                           segments['tend'])]
 
         return SegmentList(segments)
+
+
+    def sort(self):
+        self.segments.sort_values(by=['file_id', 'tbeg'], inplace=True)
+
+
+    def tbeg_is_sorted(self):
+        return np.all(np.logical_or(self.tbeg[1:]-self.tbeg[:-1]>=0,
+                                    self.file_id[1:] != self.file_id[:-1]))
