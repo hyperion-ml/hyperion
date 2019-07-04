@@ -57,7 +57,7 @@ def compute_mfcc_feats(input_path, output_path,
         writer.write([key], [y])
         
         if write_num_frames is not None:
-            f_num_frames.write('%s %d\n', key, y.shape[0])
+            f_num_frames.write('%s %d\n' % (key, y.shape[0]))
 
         mfcc.reset()
             
