@@ -19,8 +19,12 @@ if (/$ch/i ~~ @bad_channels) {
   exit(1);
 }
 
-if (! -d "$db_base/mx6_speech/data/pcm_flac/CH$ch/") {
-  print STDERR "Directory $db_base/mx6_speech/data/pcm_flac/CH$ch/ doesn't exist\n";
+if (-d "$db_base/mx6_speech") {
+    $db_base=$db_base/mx6_speech
+}
+
+if (! -d "$db_base/data/pcm_flac/CH$ch/") {
+  print STDERR "Directory $db_base/data/pcm_flac/CH$ch/ doesn't exist\n";
   exit(1);
 }
 
@@ -35,14 +39,14 @@ if (system("mkdir -p $out_dir") != 0) {
   exit(1);
 }
 
-open(SUBJECTS, "<$db_base/mx6_speech/docs/mx6_subjs.csv") || die "cannot open $$db_base/mx6_speech/docs/mx6_subjs.csv";
+open(SUBJECTS, "<$db_base/docs/mx6_subjs.csv") || die "cannot open $$db_base/docs/mx6_subjs.csv";
 open(SPKR, ">$out_dir/utt2spk") || die "Could not open the output file $out_dir/utt2spk";
 open(U2C, ">$out_dir/utt2clean") || die "Could not open the output file $out_dir/utt2clean";
 open(U2L, ">$out_dir/utt2lang") || die "Could not open the output file $out_dir/utt2lang";
 open(U2I, ">$out_dir/utt2info") || die "Could not open the output file $out_dir/utt2info";
 open(GNDR, ">$out_dir/spk2gender") || die "Could not open the output file $out_dir/spk2gender";
 open(WAV, ">$out_dir/wav.scp") || die "Could not open the output file $out_dir/wav.scp";
-open(META, "<$db_base/mx6_speech/docs/mx6_ivcomponents.csv") || die "cannot open $db_base/mx6_speech/docs/mx6_ivcomponents.csv";
+open(META, "<$db_base/docs/mx6_ivcomponents.csv") || die "cannot open $db_base/docs/mx6_ivcomponents.csv";
 
 %genders;
 while (<SUBJECTS>) {
@@ -63,7 +67,7 @@ while (<META>) {
   chomp;
   $line = $_;
   @toks = split(",", $line);
-  $flac = "$db_base/mx6_speech/data/pcm_flac/CH$ch/$toks[0]_CH$ch.flac";
+  $flac = "$db_base/data/pcm_flac/CH$ch/$toks[0]_CH$ch.flac";
   $t1 = $toks[7];
   $t2 = $toks[8];
   @toks2 = split(/_/, $toks[0]);

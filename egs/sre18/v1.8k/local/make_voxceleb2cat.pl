@@ -25,8 +25,16 @@ if ("$dataset" ne "dev" && "$dataset" ne "test") {
   die "dataset parameter must be 'dev' or 'test'!";
 }
 
-opendir my $dh, "$data_base/$dataset/aac" or die "Cannot open directory: $!";
-my @spkr_dirs = grep {-d "$data_base/$dataset/aac/$_" && ! /^\.{1,2}$/} readdir($dh);
+my $dataset_path = "" ;
+if ( -d "$data_base/$dataset/aac" ){
+    $dataset_path = "$data_base/$dataset/aac"
+}
+else {
+    $dataset_path = "$data_base/$dataset"
+}
+
+opendir my $dh, "$dataset_path" or die "Cannot open directory: $!";
+my @spkr_dirs = grep {-d "$dataset_path/$_" && ! /^\.{1,2}$/} readdir($dh);
 closedir $dh;
 
 if (system("mkdir -p $out_dir") != 0) {
@@ -44,14 +52,14 @@ open(WAV, ">", "$out_dir/wav.scp") or die "Could not open the output file $out_d
 foreach (@spkr_dirs) {
   my $spkr_id = $_;
 
-  opendir my $dh, "$data_base/$dataset/aac/$spkr_id/" or die "Cannot open directory: $!";
-  my @rec_dirs = grep {-d "$data_base/$dataset/aac/$spkr_id/$_" && ! /^\.{1,2}$/} readdir($dh);
+  opendir my $dh, "$dataset_path/$spkr_id/" or die "Cannot open directory: $!";
+  my @rec_dirs = grep {-d "$dataset_path/$spkr_id/$_" && ! /^\.{1,2}$/} readdir($dh);
   closedir $dh;
 
   foreach (@rec_dirs) {
       my $rec_id = $_;
       my $file_list = "$out_dir/lists_cat/$rec_id.txt";
-      if (system("find $data_base/$dataset/aac/$spkr_id/$rec_id -name \"*.m4a\" -printf \"file %p\\n\" > $file_list") != 0){
+      if (system("find $dataset_path/$spkr_id/$rec_id -name \"*.m4a\" -printf \"file %p\\n\" > $file_list") != 0){
 	  die "Error creating $file_list";
       }
       my $wav = "ffmpeg -v 8 -f concat -safe 0 -i $file_list -f wav -acodec pcm_s16le -|";
