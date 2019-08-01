@@ -110,7 +110,7 @@ class SequentialAudioReader(AudioReader):
     def __init__(self, file_path, scp=None, part_idx=1, num_parts=1):
         super(SequentialAudioReader, self).__init__(file_path, scp)
         self.cur_item = 0
-        self.part_idx = 1
+        self.part_idx = part_idx
         self.num_parts = num_parts
         if self.num_parts > 1:
             self.scp = self.scp.split(self.part_idx, self.num_parts)
