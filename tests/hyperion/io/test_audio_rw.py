@@ -5,8 +5,8 @@
 from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import division
-from six.moves import xrange
 
+import os
 import pytest
 import numpy as np
 from numpy.testing import assert_allclose
@@ -18,14 +18,15 @@ audio_path = './tests/data_out/io/audio'
 wav_scp_file = audio_path + '/wav.scp'
 flac_scp_file = audio_path + '/flac.scp'
 pipe_scp_file = audio_path + '/pipe.scp'
+segments_file = audio_path + '/segments'
 fs = 16000
 
 def gen_signals(num_signals=3):
     rng = np.random.RandomState(seed=1)
     s = []
     keys = []
-    for i in xrange(num_signals):
-        s_i = rng.randn(16000)
+    for i in range(num_signals):
+        s_i = rng.randn(fs)
         s_i = ((2**15-1)/np.max(np.abs(s_i))*s_i).astype('int32').astype(float_cpu())
         s.append(s_i)
         keys.append('s%d' % i)
@@ -34,6 +35,29 @@ def gen_signals(num_signals=3):
 
 
 keys, s = gen_signals()
+
+def gen_segments(num_signals=3, num_segs=2):
+
+    if not os.path.exists(audio_path):
+        os.makedirs(audio_path)
+        
+    keys_seg = []
+    s_seg = []
+    with open(segments_file, 'w') as f:
+        for i in range(num_signals):
+            file_i = 's%d' % (i)
+            for j in range(num_segs):
+                seg_ij = '%s-%d' % (file_i, j)
+                tbeg = j*0.1
+                tend = (j+1)*0.1
+                f.write('%s %s %.2f %.2f\n' % (seg_ij, file_i, tbeg, tend))
+                keys_seg.append(seg_ij)
+                s_seg.append(s[i][int(tbeg*fs):int(tend*fs)])
+
+    return keys_seg, s_seg
+
+keys_seg, s_seg = gen_segments()
+
 
 
 def test_write_audio_files_wav():
@@ -106,3 +130,23 @@ def test_read_rar():
     for s_i, s1_i in zip(s, s1):
         assert_allclose(s_i, s1_i, atol=1)
 
+
+def test_read_sar_wav_with_segments():
+
+    with SAR(wav_scp_file, segments_file) as r:
+        keys1, s1, fs1 = r.read()
+
+    for k_i, k1_i in zip(keys_seg,keys1):
+        assert k_i == k1_i
+        
+    for s_i, s1_i in zip(s_seg, s1):
+        assert_allclose(s_i, s1_i, atol=1)
+
+
+def test_read_rar_with_segments():
+
+    with RAR(wav_scp_file, segments_file) as r:
+        s1, fs1 = r.read(keys_seg)
+
+    for s_i, s1_i in zip(s_seg, s1):
+        assert_allclose(s_i, s1_i, atol=1)

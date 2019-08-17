@@ -5,10 +5,8 @@
 from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import division
-#from six.moves import xrange
-#from six import string_types
 
-#import os.path as path
+import os.path as path
 import logging
 from copy import deepcopy
 
@@ -61,8 +59,8 @@ class SegmentList(object):
         # logging.debug(len(self.segments['tbeg'][1:]-self.segments['tbeg'][:-1]>=0))
         # logging.debug(len(self.file_id[1:] != self.file_id[:-1]))
         assert np.all(self.segments['tend']-self.segments['tbeg']>=0)
-        assert np.all(np.logical_or(self.tbeg[1:]-self.tbeg[:-1]>=0,
-                                    self.file_id[1:] != self.file_id[:-1]))
+        # assert np.all(np.logical_or(self.tbeg[1:]-self.tbeg[:-1]>=0,
+        #                            self.file_id[1:] != self.file_id[:-1]))
                       
 
 
@@ -124,12 +122,13 @@ class SegmentList(object):
     def __next__(self):
         if self.index_by_file:
             if self.iter_idx < len(self.uniq_file_id):
-                r = self.__getitem__(self.uniq_file_id[self.iter_idx])
+                r = self.getitem_by_key(self.uniq_file_id[self.iter_idx])
             else:
                 raise StopIteration()
         else:
             if self.iter_idx < len(self.segments):
-                r = self.__getitem__(self.segments['segment_id'].iloc(self.iter_idx))
+                #r = self.__getitem__(self.segments['segment_id'].iloc[self.iter_idx])
+                r = self.segments.iloc[self.iter_idx]
             else:
                 raise StopIteration()
 
@@ -148,14 +147,12 @@ class SegmentList(object):
         return key in self.segments.segment_id
 
 
-    
-
-    def __getitem__(self, key):
-        """It allows to acces the de segments by file_id or segment
+    def getitem_by_key(self, key):
+        """It acceses the segments by file_id or segment_id
            like in a ditionary, e.g.:
            If input is a string key:
                segmetns = SegmentList(...)
-               segment, tbeg, tend = segments['file']
+               segment, tbeg, tend = segments.getiem_by_key('file')
         Args:
           key: Segment or file key
         Returns:
@@ -167,6 +164,52 @@ class SegmentList(object):
             return SegmentList(df, index_by_file=False)
         else:
             return self.segments.loc[key]
+
+
+        
+    def getitem_by_index(self, index):
+        """It accesses the segments by index
+           like in a ditionary, e.g.:
+           If input is a string key:
+               segmetns = SegmentList(...)
+               segment, tbeg, tend = segments.getitem_by_index(0)
+        Args:
+          key: Segment or file key
+        Returns:
+          if index_by_file is True if returns segments of a given file_id 
+          in SegmentsList format, else it returns DataFrame
+        """
+        if self.index_by_file:
+            if index < len(self.uniq_file_id):
+                return self.getitem_by_key(self.uniq_file_id[self.iter_idx])
+            else:
+                raise Exception('SegmentList error index>=num_files (%d,%d)' % (index,len(self.uniq_file_id)))
+        else:
+            if index < len(self.segments):
+                return self.segments.iloc[index]
+            else:
+                raise Exception('SegmentList error index>=num_segments (%d,%d)' % (index,len(self)))
+
+
+
+    
+
+    def __getitem__(self, key):
+        """It accesses the de segments by file_id or segment_id
+           like in a ditionary, e.g.:
+           If input is a string key:
+               segmetns = SegmentList(...)
+               segment, tbeg, tend = segments['file']
+        Args:
+          key: Segment or file key
+        Returns:
+          if index_by_file is True if returns segments of a given file_id 
+          in SegmentsList format, else it returns DataFrame
+        """
+        if isinstance(key, str):
+            return self.getitem_by_key(key)
+        else:
+            return self.getitem_by_index(key)
 
 
     

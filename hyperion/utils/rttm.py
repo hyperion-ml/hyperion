@@ -5,8 +5,6 @@
 from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import division
-from six.moves import xrange
-#from six import string_types
 
 #import os.path as path
 import logging
@@ -34,7 +32,7 @@ class RTTM(object):
         if index_by_file:
             self.segments.index = self.segments.file_id
         else:
-            self.segments.index = [i for i in xrange(len(segments))]
+            self.segments.index = [i for i in range(len(segments))]
         self.validate()
         self.unique_file_id = self.segments.file_id.unique()
         self.iter_idx = 0
@@ -46,9 +44,9 @@ class RTTM(object):
                ortho=None, stype=None, name=None, conf=None, slat=None,
                index_by_file=True):
         num_segments = len(segment_type)
-        nans = ['<NA>' for i in xrange(num_segments)]
+        nans = ['<NA>' for i in range(num_segments)]
         if chnl is None:
-            chnl = [1 for i in xrange(num_segments)]
+            chnl = [1 for i in range(num_segments)]
         if tbeg is None:
             tbeg = nans
         if tdur is None:
@@ -339,7 +337,7 @@ class RTTM(object):
         # logging.debug(index[ix])
         # logging.debug(segm[ix].tbeg)
         # logging.debug(segm[ix].tbeg+segm[ix].tdur)
-        for i in xrange(len(self.segments)-1, 0, -1):
+        for i in range(len(self.segments)-1, 0, -1):
             if index.iloc[i]:
                 tbeg = segm.iloc[i-1].tbeg
                 tend = segm.iloc[i].tbeg + segm.iloc[i].tdur
@@ -348,7 +346,7 @@ class RTTM(object):
         #logging.debug(self.segments[ix])
         self.segments = self.segments[self.segments.segment_type != 'DROP']
 
-        # for i in xrange(len(self.segments)-1, 0, -1):
+        # for i in range(len(self.segments)-1, 0, -1):
         #     row_i = self.segments.iloc[i]
         #     row_i_1 = self.segments.iloc[i-1]
         #     if (row_i.segment_type == row_i_1.segment_type and
@@ -389,7 +387,7 @@ class RTTM(object):
         num_segm = len(segment_list)
         names = []
         num_names = np.zeros((num_segm,), dtype=int)
-        for i in xrange(num_segm):
+        for i in range(num_segm):
             file_id = segment_list.file_id[i]
             tbeg = segment_list.tbeg[i]
             tend = segment_list.tend[i]
@@ -417,7 +415,7 @@ class RTTM(object):
         num_names = np.zeros((num_segm,), dtype=int)
         segments = self.segments[self.segments['segment_type'] == segment_type]
         prev_file_id = ''
-        for i in xrange(num_segm):
+        for i in range(num_segm):
             file_id = segment_list.file_id[i]
             tbeg = segment_list.tbeg[i]
             tend = segment_list.tend[i]
@@ -492,7 +490,7 @@ class RTTM(object):
         tend = np.round((segments['tbeg']+segments['tdur'])/frame_shift).astype(dtype=int)
 
         M = np.zeros((tend[-1], len(u_names)), dtype=int)
-        for i in xrange(len(u_names)):
+        for i in range(len(u_names)):
             M[tbeg[i]:tend[i], name_ids[i]] = 1
 
 
