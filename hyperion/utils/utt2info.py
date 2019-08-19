@@ -9,6 +9,7 @@ from six.moves import xrange
 from six import string_types
 
 import os.path as path
+import logging
 from collections import OrderedDict
 from copy import deepcopy
 
@@ -249,11 +250,14 @@ class Utt2Info(object):
         Returns:
           Utt2Info object.
         """
-
         if not keep:
             filter_key = np.setdiff1d(self.utt_info[field], filter_key)
         f, _ = ismember(filter_key, self.utt_info[field])
-        assert np.all(f)
+        if not np.all(f):
+            for k in filter_key[f==False]:
+                logging.error('info %s not found in field %d' % (k,field))
+            raise Exception('not all keys were found in field %d' % (field))
+
         f, _ = ismember(self.utt_info[field], filter_key)
         utt_info = self.utt_info.iloc[f]
         return Utt2Info(utt_info)
