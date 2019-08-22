@@ -124,7 +124,8 @@ class HypModel(object):
         param_dict = {}
         for k in params:
             p_name = prefix + k
-            param_dict[k] = np.asarray(f[p_name], dtype=dtypes[k])
+            #print(p_name, f[p_name], np.asarray(f[p_name]), np.asarray(f[p_name]).astype(dtype=dtypes[k], copy=False))
+            param_dict[k] = np.asarray(f[p_name]).astype(dtype=dtypes[k], copy=False)
         return param_dict
 
     

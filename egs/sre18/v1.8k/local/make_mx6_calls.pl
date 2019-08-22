@@ -15,7 +15,7 @@ if (@ARGV != 3) {
 ($db_base, $fs, $out_dir) = @ARGV;
 
 if(-d "$db_base/mx6_speech") {
-    $db_base=$db_base/mx6_speech
+    $db_base="$db_base/mx6_speech"
 }
 
 if (! -d "$db_base/data/ulaw_sphere/") {

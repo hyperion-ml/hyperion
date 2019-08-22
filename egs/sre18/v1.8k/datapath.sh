@@ -12,6 +12,7 @@ master_key=$master_key_dir/NIST_SRE_segments_key.v2.csv
 if [ "$(hostname --domain)" == "clsp.jhu.edu" ];then
     ldc_root=/export/corpora/LDC
     sitw_root=/export/corpora/SRI/sitw
+    swbd_cell2_root=/export/corpora5/LDC/LDC2004S07
     sre08sup_root=$ldc_root/LDC2011S11
     sre10_root=/export/corpora5/SRE/SRE2010/eval
     sre10_root=$ldc_root/LDC2012E09/SRE10/eval
@@ -29,6 +30,7 @@ elif [ "$(hostname --domain)" == "cm.gemini" ];then
     ldc_root=/export/common/data/corpora/LDC
     sre_root=/export/common/data/corpora/NIST/SRE
     sitw_root=$sre_root/sitw_database.v4
+    swbd_cell2_root=$ldc_root/LDC2004S07
     sre08sup_root=/exp/jvillalba/corpora/LDC2011S11
     sre10_root=$ldc_root/LDC2012E09/SRE10/eval
     sre10_16k_root=$ldc_root/LDC2012E09/SRE10_16K

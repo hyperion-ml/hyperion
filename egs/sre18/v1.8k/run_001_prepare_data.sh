@@ -68,14 +68,14 @@ if [ $stage -le 2 ];then
 
     # Prepare SWBD corpora.
     local/make_swbd_cellular1.pl $ldc_root/LDC2001S13 \
-				 data/swbd_cellular1_train
-    local/make_swbd_cellular2.pl /export/corpora5/LDC/LDC2004S07 \
-				 data/swbd_cellular2_train
+    				 data/swbd_cellular1_train
+    local/make_swbd_cellular2.pl $swbd_cell2_root \
+    				 data/swbd_cellular2_train
     local/make_swbd2_phase1.pl $ldc_root/LDC98S75 \
 			       data/swbd2_phase1_train
-    local/make_swbd2_phase2.pl /export/corpora5/LDC/LDC99S79 \
+    local/make_swbd2_phase2.pl $ldc_root/LDC99S79 \
 			       data/swbd2_phase2_train
-    local/make_swbd2_phase3.pl /export/corpora5/LDC/LDC2002S06 \
+    local/make_swbd2_phase3.pl $ldc_root/LDC2002S06 \
 			       data/swbd2_phase3_train
     
     # Combine all SWB corpora into one dataset.

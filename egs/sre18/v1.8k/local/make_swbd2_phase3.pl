@@ -27,7 +27,7 @@ if (system("mkdir -p $tmp_dir") != 0) {
   die "Error making directory $tmp_dir";
 }
 
-if (system("find $db_base -name '*.sph' > $tmp_dir/sph.list") != 0) {
+if (system("find -L $db_base -name '*.sph' > $tmp_dir/sph.list") != 0) {
   die "Error getting list of sph files";
 }
 

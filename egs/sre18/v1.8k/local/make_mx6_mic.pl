@@ -20,7 +20,7 @@ if (/$ch/i ~~ @bad_channels) {
 }
 
 if (-d "$db_base/mx6_speech") {
-    $db_base=$db_base/mx6_speech
+    $db_base="$db_base/mx6_speech"
 }
 
 if (! -d "$db_base/data/pcm_flac/CH$ch/") {
