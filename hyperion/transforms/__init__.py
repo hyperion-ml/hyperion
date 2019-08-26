@@ -12,6 +12,7 @@ from .lda import LDA
 from .nda import NDA
 from .nap import NAP
 from .mvn import MVN
+from .coral import CORAL
 from .gaussianizer import Gaussianizer
 from .transform_list import TransformList
 
