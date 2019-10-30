@@ -131,7 +131,7 @@ class GreedyFusionBinaryLR(HypModel):
             
             dcf_best = 100
             if self.prioritize_positive:
-                allpos_cand_act_dcf = cand_act_dcf
+                allpos_cand_act_dcf = np.copy(cand_act_dcf)
                 allpos_cand_act_dcf[all_pos==False] = 100
                 j_best = np.argmin(allpos_cand_act_dcf)
                 dcf_best = allpos_cand_act_dcf[j_best]
@@ -157,10 +157,10 @@ class GreedyFusionBinaryLR(HypModel):
         # print report
         for i in range(self.max_systems):
             fus_name = self._make_fus_name(self.system_idx[i])
-            weigths_str = np.array2string(self.weights[i].ravel(), separator=',')
+            weights_str = np.array2string(self.weights[i].ravel(), separator=',').replace('\r', '').replace('\n', '')
             bias_str = np.array2string(self.bias[i], separator=',')
             logging.info('Best-%d=%s min_dcf=%.3f act_dcf=%.3f weights=%s bias=%s' % (
-                    i+1,fus_name,fus_min_dcf[i],fus_act_dcf[i], weigths_str, bias_str))
+                    i+1,fus_name,fus_min_dcf[i],fus_act_dcf[i], weights_str, bias_str))
         
         return fus_min_dcf, fus_act_dcf
 
@@ -185,8 +185,8 @@ class GreedyFusionBinaryLR(HypModel):
         bias = np.concatenate(tuple(self.bias))
         system_idx = np.concatenate(tuple(self.system_idx), axis=0)
         system_names = np.asarray(self.system_names, dtype='S')
-        print(system_names)
-        print(system_names.astype('S'))
+        #print(system_names)
+        #print(system_names.astype('S'))
         params = { 'weights': weights,
                    'bias': bias, 
                    'system_idx': system_idx,
@@ -201,7 +201,7 @@ class GreedyFusionBinaryLR(HypModel):
         param_list = ['weights', 'bias', 'system_idx', 'system_names']
         dtypes = { 'weights': float_cpu(), 'bias': float_cpu(), 'system_idx': 'int32', 'system_names': 'S'}
         params = cls._load_params_to_dict(f, config['name'], param_list, dtypes)
-        print(params)
+        #print(params)
         weights = []
         system_idx = []
         i = 1
@@ -217,6 +217,6 @@ class GreedyFusionBinaryLR(HypModel):
         params['system_idx'] = system_idx
         params['system_names'] = [
             t.decode('utf-8') for t in params['system_names']]
-        print(params)
+        #print(params)
         kwargs = dict(list(config.items()) + list(params.items()))
         return cls(**kwargs)

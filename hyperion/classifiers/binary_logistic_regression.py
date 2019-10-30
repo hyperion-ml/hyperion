@@ -21,7 +21,7 @@ class BinaryLogisticRegression(LogisticRegression):
         
         priors = {0:1-prior, 1:prior}
         super(BinaryLogisticRegression, self).__init__(
-            A=A, b=b, penalty=penalty, labmda_reg=lambda_reg,
+            A=A, b=b, penalty=penalty, lambda_reg=lambda_reg,
             use_bias=use_bias, bias_scaling=bias_scaling, priors=priors,
             random_state=random_state, solver=solver, max_iter=max_iter,
             dual=dual, tol=tol, verbose=verbose, warm_start=warm_start,

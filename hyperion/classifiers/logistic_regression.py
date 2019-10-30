@@ -87,6 +87,7 @@ class LogisticRegression(HypModel):
         self.priors = priors
         self.lambda_reg = lambda_reg
         self.multi_class = multi_class
+        print(locals())
         self.lr = LR(penalty=penalty, C=1/lambda_reg,
                      dual=dual, tol=tol,
                      fit_intercept=use_bias, intercept_scaling=bias_scaling,

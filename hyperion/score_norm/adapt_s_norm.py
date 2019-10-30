@@ -56,6 +56,7 @@ class AdaptSNorm(ScoreNorm):
                 s_z = np.sqrt(np.mean(scores_enr_coh[:, best_idx_i]**2,
                                       axis=1, keepdims=True)/norm - mu_z**2)
 
+            s_z = np.clip(s_z, a_min=1e-5, a_max=None)
             scores_z_norm[:,i] = (scores[:,i] - mu_z.T)/s_z.T
 
 
@@ -77,6 +78,7 @@ class AdaptSNorm(ScoreNorm):
                 s_z = np.sqrt(np.mean(scores_coh_test[best_idx_i,:]**2,
                                       axis=0, keepdims=True)/norm - mu_z**2)
 
+            s_z = np.clip(s_z, a_min=1e-5, a_max=None)
             scores_t_norm[i,:] = (scores[i,:] - mu_z)/s_z
 
         
