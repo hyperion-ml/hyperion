@@ -3,9 +3,6 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import os
 from collections import OrderedDict as ODict
@@ -19,15 +16,25 @@ from .utils import MetricAcc
 from .loggers import LoggerList, CSVLogger, ProgLogger
 
 
+class TorchDataParallel(nn.DataParallel):
+    def __getattr__(self, name):
+        try:
+            return super(TorchDataParallel, self).__getattr__(name)
+        except AttributeError:
+            return getattr(self.module, name)
+
+
+
 class TorchTrainer(object):
 
-    def __init__(self, model, optimizer, loss, epochs, exp_path, cur_epoch=0, 
+    def __init__(self, model, optimizer, loss, epochs, exp_path, cur_epoch=0, grad_acc_steps=1,
                  device=None, metrics=None, lr_scheduler=None, loggers=None, data_parallel=False):
         self.model = model
         self.optimizer = optimizer
         self.loss = loss
         self.epochs = epochs
         self.cur_epoch = cur_epoch
+        self.grad_acc_steps = grad_acc_steps
 
         self.exp_path = exp_path
         
@@ -44,7 +51,8 @@ class TorchTrainer(object):
         self.device = device
 
         if data_parallel:
-            self.model = torch.nn.DataParallel(self.model)
+            self.model = TorchDataParallel(self.model)
+            self.loss = TorchDataParallel(self.loss)
 
         if device is not None:
             self.model.to(device)
@@ -58,7 +66,7 @@ class TorchTrainer(object):
         
         val_logs = {}
         self.loggers.on_train_begin(epochs=self.epochs)
-        for epoch in xrange(self.cur_epoch, self.epochs):
+        for epoch in range(self.cur_epoch, self.epochs):
             
             self.loggers.on_epoch_begin(epoch, samples=len(train_data.dataset))
             if self.lr_scheduler is not None:
@@ -90,18 +98,24 @@ class TorchTrainer(object):
         for batch, (data, target) in enumerate(data_loader):
             
             self.loggers.on_batch_begin(batch)
-            if self.lr_scheduler is not None:
-                self.lr_scheduler.batch_step()
+
+            if batch % self.acc_grad_steps == 0:
+                self.optimizer.zero_grad()
+                if self.lr_scheduler is not None:
+                    self.lr_scheduler.batch_step()
                 
             data, target = data.to(self.device), target.to(self.device)
             batch_size = data.shape[0]
             
-            self.optimizer.zero_grad()
+
             output = self.model(data)
-            loss = self.loss(output, target)
+            loss = self.loss(output, target)/self.acc_grad_steps
             loss.backward()
-            self.optimizer.step()
-            batch_metrics['loss'] = loss.item()
+
+            if batch % self.acc_grad_steps == 0:
+                self.optimizer.step()
+
+            batch_metrics['loss'] = loss.item() * self.acc_grad_steps
             for k, metric in self.metrics.items():
                 batch_metrics[k] = metric(output, target)
             
@@ -195,7 +209,7 @@ class TorchTrainer(object):
     
     def load_last_checkpoint(self):
 
-        for epoch in xrange(self.epochs, 0, -1):
+        for epoch in range(self.epochs, 0, -1):
             file_path = '%s/model_ep%04d.pth' % (self.exp_path, epoch)
             if os.path.isfile(file_path):
                 return self.load_checkpoint(file_path)

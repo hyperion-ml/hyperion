@@ -7,11 +7,13 @@ import torch
 import torch.nn as nn
 
 from ..layers import GlobalPool1dFactory as PF
+from ..narchs import ClassifHead
 from ..torch_model import TorchModel
+from ..helpers import TorchNALoader
 
 class XVector(TorchModel):
 
-    def __init__(encoder_net, pool_cfg, classif_net, preproc_net=None, embed_layers=0):
+    def __init__(encoder_net, pool_net, classif_net, preproc_net=None, embed_layer=0):
 
         self.encoder_net = encoder_net
         self.pool_cfg = pool_cfg
@@ -22,7 +24,7 @@ class XVector(TorchModel):
 
         self.classif_net = classif_net
         self.preproc_net = preproc_net
-        self.embed_layers = embed_layers
+        self.embed_layer = embed_layer
 
 
     def forward(self, x):

@@ -42,40 +42,29 @@ fi
 
 #we activate conda env if TORCH var is not empty
 if [ ! -z "$TORCH" ];then
-    
-    [ "$CONDA_VERS44" = true ] && conda activate $TORCH || source activate $TORCH
-    # if[ "$CONDA_VERS44" = true ];then
-    # 	# for conda version >= 4.4
-    # 	conda activate $TORCH
-    # else
-    # 	# for conda version < 4.4
-    # 	source activate $TORCH
-
-    # fi
+    [ "$CONDA_VERS44" == true ] && conda activate $TORCH || source activate $TORCH
 fi
 
 if [ $num_gpus -gt 0 ];then
-    # seach location of free-gpu program in the PATH or hyp_utils directory
-    free_gpu=$(which free-gpu)
-    if [ -z "$free_gpu" ];then
-	free_gpu=$(which hyp_utils/free-gpu)
-    fi
+    # set CUDA_VISIBLE_DEVICES
+    if [ ! -z "$SGE_HGR_gpu" ]; then
+	export CUDA_VISIBLE_DEVICES=$SGE_HGR_gpu
+    else
+	# seach location of free-gpu program in the PATH or hyp_utils directory
+	free_gpu=$(which free-gpu)
+	if [ -z "$free_gpu" ];then
+	    free_gpu=$(which hyp_utils/free-gpu)
+	fi
     
-    if [ ! -z "$free_gpu" ];then
-	# if free-gpu found set env var, otherwise we assume that you can use any gpu
-	export CUDA_VISIBLE_DEVICES=$($free_gpu -n $num_gpus)
+	if [ ! -z "$free_gpu" ];then
+	    # if free-gpu found set env var, otherwise we assume that you can use any gpu
+	    export CUDA_VISIBLE_DEVICES=$($free_gpu -n $num_gpus)
+	fi
     fi
+    echo "CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES"
 fi
-
-echo $CUDA_VISIBLE_DEVICES
 python "$@"
 
 if [ ! -z "$TORCH" ];then
-    [ "$CONDA_VERS44" = true ] && conda deactivate || source deactivate
-    # if [ "$CONDA_VERS44" == true ];then
-    # 	conda deactivate
-
-    # else
-    # 	source deactivate
-    # fi
+    [ "$CONDA_VERS44" == true ] && conda deactivate || source deactivate
 fi

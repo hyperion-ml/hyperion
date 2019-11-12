@@ -9,3 +9,6 @@ from .global_pool import *
 
 from .activation_factory import ActivationFactory
 from .pool_factory import GlobalPool1dFactory
+
+from .margin_losses import CosLossOutput, ArcLossOutput
+

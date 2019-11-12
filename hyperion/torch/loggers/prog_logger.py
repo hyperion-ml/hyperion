@@ -21,7 +21,7 @@ class ProgLogger(Logger):
     Attributes:
       
     """
-    def __init__(self, metrics=None, interval=1):
+    def __init__(self, metrics=None, interval=10):
         super(ProgLogger, self).__init__()
 
         self.metrics = None if metrics is None else set(metrics)

@@ -3,234 +3,137 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import numpy as np
 
+import torch
 import torch.nn as nn
 from torch.nn import Conv1d, Linear, BatchNorm1d
 
 from ..layers import ActivationFactory as AF
-from ..layers import Dropout1d
+from ..layer_blocks import ETDNNBlock
 from .net_arch import NetArch
+
 
 class ETDNNV1(NetArch):
 
-    def __init__(self, num_etd_layers, num_fc_layers, 
-                 input_units, etd_units, fc_units, output_units,
-                 kernel_size, dilation=1, dilation_factor=1,
-                 hid_act='relu', output_act=None, 
-                 use_batchnorm=True, dropout_rate=0,
-                 without_output_layer=False,
-                 use_output_batchnorm=False,
-                 use_output_dropout=False):
+    def __init__(self, num_blocks, 
+                 in_units, hid_units, out_units=0,
+                 kernel_size=3, dilation=1, dilation_factor=1,
+                 hid_act={'name':'relu', 'inplace':True}, out_act=None, 
+                 dropout_rate=0,
+                 use_batchnorm=True, 
+                 batchnorm_before=False,
+                 in_batchnorm=True, pooling=None):
 
         super(ETDNNV1, self).__init__()
-        assert num_etd_layers >= 1, 'num_etd_layers (%d < 1)' % num_etd_layers
 
-        self.num_etd_layers = num_etd_layers
-        self.num_fc_layers = num_fc_layers
-        self.output_units = output_units
-        self.input_units = input_units
-        self.etd_units = etd_units
-        self.fc_units = fc_units
+        self.num_blocks = num_blocks
+        self.out_units = out_units
+        self.in_units = in_units
+        self.hid_units = hid_units
         self.kernel_size = kernel_size
         self.dilation = dilation
         self.dilation_factor = dilation_factor
-        self.use_batchnorm = use_batchnorm
         self.dropout_rate = dropout_rate
-        self.without_output_layer = without_output_layer
-        self.use_output_batchnorm = use_output_batchnorm
-        self.use_output_dropout = use_output_dropout
-        
-        self.output_act = AF.create(output_act)
-        
-        if isinstance(etd_units, list):
-            assert num_etd_layers == len(etd_units)
+        self.use_batchnorm = use_batchnorm
+        self.batchnorm_before = batchnorm_before
+        self.in_batchnorm = in_batchnorm
+        self.pooling = pooling
+
+
+        if isinstance(hid_units, list):
+            assert num_blocks == len(hid_units)
         else:
-            etd_units = [etd_units for i in xrange(num_etd_layers)]
+            hid_units = [hid_units for i in range(num_blocks)]
 
-        etd_units = [input_units] + etd_units
-
-        if isinstance(fc_units, list):
-            assert num_fc_layers == len(fc_units)
-        else:
-            fc_units = [fc_units for i in xrange(num_fc_layers)]
-
-        fc_units = [etd_units[-1]] + fc_units
+        units = [in_units] + hid_units
 
         if isinstance(kernel_size, list):
-            assert num_etd_layers == len(kernel_size)
+            assert num_blocks == len(kernel_size)
         else:
-            kernel_size = [kernel_size for i in xrange(num_etd_layers)]
+            kernel_size = [kernel_size for i in range(num_blocks)]
 
-        if isinstance(dilation_rate, list):
-            assert num_etd_layers == len(dilation_rate)
+        if isinstance(dilation, list):
+            assert num_blocks == len(dilation)
         else:
-            dilation = [dilation_factor*i+dilation for i in xrange(num_etd_layers)]
+            dilation = [dilation_factor*i+dilation for i in range(num_blocks)]
 
         # past and future context
         self._context = int(np.sum(np.array(dilation)*(
             np.array(kernel_size)-1)/2))
 
-        # extended time delay layers
-        td_layers = []
-        fc_layers = []
-        for i in xrange(1, num_hid_layers+1):
-            td_layers.append(Conv1d(etd_units[i-1], etd_units[i],
-                                    kernel_size=kernel_size[i],
-                                    dilation=dilation[i]))
-            fc_layers.append(Conv1d(etd_units[i], etd_units[i], 1))
-            
-        self.td_layers = nn.ModuleList(td_layers)
-        
-        # fully connected layers
-        for i in xrange(1, num_fc_layers+1):
-            fc_layers.append(Conv1d(fc_units[i-1], fc_units[i], 1))
+        blocks = []
+        for i in range(num_blocks):
+            blocks.append(
+                ETDNNBlock(units[i], units[i+1], 
+                          kernel_size=kernel_size[i], dilation=dilation[i], 
+                          activation=hid_act, dropout_rate=dropout_rate, 
+                          use_batchnorm=use_batchnorm, batchnorm_before=batchnorm_before))
 
-        self.fc_layers = nn.ModuleList(fc_layers)
+        self.blocks = nn.ModuleList(blocks)
 
-        # hidden activations
-        self.td_hid_acts = None
-        self.fc_hid_acts = None
-        if hid_act is not None:
-            td_hid_acts = []
-            fc_hid_acts = []
-            for i in xrange(num_etd_layers+num_num_fc_layers):
-                hid_act = AF.create(hid_act)
-                fc_hid_acts.append(hid_act)
-                if i < num_etd_layers:
-                    hid_act = AF.create(hid_act)
-                    td_hid_acts.append(hid_act)
+        self.with_output = False
+        if out_units == 0:
+            return 
 
-            self.td_hid_acts = nn.ModuleList(td_hid_acts)
-            self.fc_hid_acts = nn.ModuleList(fc_hid_acts)
-            
-        
-        self.td_batchnorm_layers = None
-        self.fc_batchnorm_layers = None
-        if use_batchnorm:
-            batchnorm_layers = []
-            for i in xrange(num_etd_layers+num_fc_layers):
-                td_batchnorm_layers.append(BatchNorm1d(etd_units[i]))
-                fc_batchnorm_layers.append(BatchNorm1d(etd_units[i]))
+        self.with_output = True
+        self.out_act = AF.create(out_act)
 
-            for i in xrange(num_fc_layers):
-                fc_batchnorm_layers.append(BatchNorm1d(fc_units[i]))
-
-            self.td_batchnorm_layers = nn.ModuleList(td_batchnorm_layers)
-            self.fc_batchnorm_layers = nn.ModuleList(fc_batchnorm_layers)
-
-        self.td_dropout_layers = None
-        self.fc_dropout_layers = None
-        if dropout_rate > 0:
-            fc_dropout_layers = []
-            td_dropout_layers = []
-            for i in xrange(num_etd_layers+num_fc_layers):
-                fc_dropout_layers.append(Dropout1d(dropout_rate))
-                if i < num_etd_layers:
-                    td_dropout_layers.append(Dropout1d(dropout_rate))
-                    
-            self.td_dropout_layers = nn.ModuleList(td_dropout_layers)
-            self.fc_dropout_layers = nn.ModuleList(fc_dropout_layers)
-
-
-        self.output_dropout = None
-        self.output_batchnorm = None
-
-        if without_output_layer:
-            if use_output_batchnorm:
-                self.output_batchnorm = BatchNorm1d(units[-1])
-        else:
-            if use_batchnorm:
-                self.batchnorm_layers.append(BatchNorm1d(units[-1]))
-
-            self.fc_layers.append(Conv1d(units[-1], output_units, 1))
-            if use_output_dropout and dropout_rate > 0:
-                self.output_dropout = Dropout1d(dropout_rate)
-        
-            if use_output_batchnorm:
-                self.output_batchnorm = BatchNorm1d(output_units)
+        self.output = Linear(units[-1], out_units)
 
 
     @property
-    def input_context(self):
+    def in_context(self):
         return (self._context, self._context)
-
     
+                
     def forward(self, x):
 
-        for l in xrange(self.num_etd_layers+self.num_fc_layers):
+        for i in range(self.num_blocks):
+            x = self.blocks[i](x)
 
-            if i < self.num_etd_layers:
-                if self.use_batchnorm:
-                    x = self.td_batchnorm_layers[l](x)
+        if self.with_output:
+            if self.pooling is not None:
+                if self.pooling == 'mean':
+                    x = torch.mean(x, dim=2)
+                elif self.pooling == 'max':
+                    x = torch.max(x, dim=2)
+                else:
+                    raise Exception('pooling=%s not implemented' % (self.pooling))
+            else:
+                x = torch.transpose(x, 1, 2)
 
-                x = self.td_layers[l](x)
-
-                if self.td_hid_acts is not None:
-                    x = self.td_hid_acts[l](x)
-
-                if self.dropout_rate > 0:
-                    x = self.td_dropout_layers[l](x)
-
-
-            if self.use_batchnorm:
-                x = self.fc_batchnorm_layers[l](x)
-
-            x = self.fc_layers[l](x)
-            
-            if self.fc_hid_acts is not None:
-                x = self.fc_hid_acts[l](x)
-
-            if self.dropout_rate > 0:
-                x = self.fc_dropout_layers[l](x)
-
-        if not self.without_output_layer:
-            if self.batchnorm_layers is not None:
-                x = self.batchnorm_layers[self.num_hid_layers](x)
-            
-            x = self.fc_layers[self.num_hid_layers](x)
-            if self.output_act is not None:
-                x = self.output_act(x)
-
-            if self.output_dropout is not None:
-                x = self.droput_layers[self.num_hid_layers](x)
-
-        if self.use_output_batchnorm:
-            x = self.output_dropout(x)
+            x = self.output(x)
+            if self.out_act is not None:
+                x = self.out_act(x)
 
         return x
-
 
     
     def get_config(self):
         
-        output_act = AF.get_config(self.output_act)
-        if self.hid_acts is None:
-            hid_act = None
-        else:
-            hid_act = AF.get_config(self.hid_acts[0])
+        out_act = AF.get_config(self.out_act)
+        hid_act =  AF.get_config(self.blocks[0].activation1)
 
-        config = {'num_etd_layers': self.num_etd_layers,
-                  'num_fc_layers': self.num_fc_layers,
-                  'output_units': self.output_units,
-                  'etd_units': self.etd_units,
-                  'fc_units': self.fc_units,
-                  'input_units': self.input_units,
+        config = {'num_blocks': self.num_blocks,
+                  'in_units': self.in_units,
+                  'hid_units': self.hid_units,
+                  'out_units': self.out_units,
                   'kernel_size': self.kernel_size,
                   'dilation': self.dilation,
                   'dilation_factor': self.dilation_factor,
-                  'use_batchnorm': self.use_batchnorm,
                   'dropout_rate': self.dropout_rate,
-                  'use_output_batchnorm': self.output_batchnorm,
-                  'use_output_dropout': self.output_dropout,
-                  'output_act': output_act,
-                  'hid_act': hid_act }
+                  'use_batchnorm': self.use_batchnorm,
+                  'batchnorm_before': self.batchnorm_before,
+                  'in_batchnorm' : self.in_batchnorm,
+                  'out_act': out_act,
+                  'hid_act': hid_act,
+                  'pooling': self.pooling }
         
-        base_config = super(TDNNV1, self).get_config()
+        base_config = super(ETDNNV1, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
     
+
+

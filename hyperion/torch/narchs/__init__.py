@@ -4,9 +4,11 @@
 """
 from __future__ import absolute_import
 
-#from .ffnet import FFNetV1
 from .fcnet import FCNetV1
 from .tdnn import TDNNV1
 from .etdnn import ETDNNV1
-from .xvector_classif import XVectorClassifV1
+from .resetdnn import ResETDNNV1
+from .resnet import *
+from .classif_head import ClassifHead
+
 

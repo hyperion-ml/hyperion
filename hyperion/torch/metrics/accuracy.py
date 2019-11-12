@@ -36,7 +36,7 @@ class BinaryAccuracy(TorchMetric):
 
 class BinaryAccuracyWithLogits(TorchMetric):
 
-    def __init__(self, weight=None, reduction='mean', thr=0.5):
+    def __init__(self, weight=None, reduction='mean', thr=0.0):
         super(BinaryAccuracyWithLogits, self).__init__(
             weight=weight, reduction=reduction)
         self.thr = thr

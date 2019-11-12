@@ -9,7 +9,7 @@ export LC_ALL=C
 
 #Anaconda env
 CONDA_ROOT=$TOOLS_ROOT/anaconda/anaconda3.5
-if [ -f "CONDA_ROOT/etc/profile.d/conda.sh" ]; then
+if [ -f "$CONDA_ROOT/etc/profile.d/conda.sh" ]; then
     #for conda version >=4.4 do    
     . $CONDA_ROOT/etc/profile.d/conda.sh
     conda activate
@@ -18,23 +18,37 @@ else
     PATH=$CONDA_ROOT/bin:$PATH
 fi
 
-#CUDA env
-export CUDA_ROOT=/usr/local/cuda
-LD_LIBRARY_PATH=$CUDA_ROOT/lib64:$CUDA_ROOT/extras/CUPTI/lib64:$LD_LIBRARY_PATH
-LIBRARY_PATH=$CUDA_ROOT/lib64:$LIBRARY_PATH
-CPATH=$CUDA_ROOT/include:$CPATH
-PATH=$CUDA_ROOT/bin:$PATH
 
+if [ "$(hostname --domain)" == "cm.gemini" ];then
+    #CUDA env
+    module load cuda10.0/toolkit
 
-#CuDNN env
-CUDNN_ROOT=$TOOLS_ROOT/cudnn
-export CUDNN9V7=$CUDNN_ROOT/cudnn-9.0-v7.4
+    #CuDNN env
+    CUDNN_ROOT=$TOOLS_ROOT/cudnn/cudnn-10.0-v7.4
 
-LD_LIBRARY_PATH=$CUDNN9V7/lib64:$LD_LIBRARY_PATH
-LIBRARY_PATH=$CUDNN9V7/lib64:$LIBRARY_PATH
-CPATH=$CUDNN9V7/include:$CPATH
+    #torch env
+    export TORCH=pytorch1.0_cuda10.0
 
-export TORCH=pytorch1.0_cuda9.0
+else
+    #CUDA env
+    export CUDA_ROOT=/usr/local/cuda
+    LD_LIBRARY_PATH=$CUDA_ROOT/lib64:$CUDA_ROOT/extras/CUPTI/lib64:$LD_LIBRARY_PATH
+    LIBRARY_PATH=$CUDA_ROOT/lib64:$LIBRARY_PATH
+    CPATH=$CUDA_ROOT/include:$CPATH
+    PATH=$CUDA_ROOT/bin:$PATH
+
+    #CuDNN env
+    CUDNN_ROOT=$TOOLS_ROOT/cudnn/cudnn-9.0-v7.4
+
+    #torch env
+    export TORCH=pytorch1.0_cuda9.0
+fi
+
+#CuDNN
+LD_LIBRARY_PATH=$CUDNN_ROOT/lib64:$LD_LIBRARY_PATH
+LIBRARY_PATH=$CUDNN_ROOT/lib64:$LIBRARY_PATH
+CPATH=$CUDNN_ROOT/include:$CPATH
+
 
 # Matplotlib back-end
 export MPLBACKEND="agg"
