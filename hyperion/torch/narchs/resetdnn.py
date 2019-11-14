@@ -22,9 +22,9 @@ class ResETDNNV1(NetArch):
                  kernel_size=3, dilation=1, dilation_factor=1,
                  hid_act={'name':'relu', 'inplace':True}, out_act=None, 
                  dropout_rate=0,
-                 use_batchnorm=True, 
-                 batchnorm_before=False,
-                 in_batchnorm=True, pooling=None):
+                 use_norm=True, 
+                 norm_before=False,
+                 in_norm=True, pooling=None):
 
         super(ResETDNNV1, self).__init__()
 
@@ -37,9 +37,9 @@ class ResETDNNV1(NetArch):
         self.dilation = dilation
         self.dilation_factor = dilation_factor
         self.dropout_rate = dropout_rate
-        self.use_batchnorm = use_batchnorm
-        self.batchnorm_before = batchnorm_before
-        self.in_batchnorm = in_batchnorm
+        self.use_norm = use_norm
+        self.norm_before = norm_before
+        self.in_norm = in_norm
         self.pooling = pooling
 
         assert num_blocks > 2, 'ResETDNN requires at least 3 layer blocks'
@@ -66,19 +66,19 @@ class ResETDNNV1(NetArch):
                     ETDNNBlock(in_units, hid_units, 
                                kernel_size=kernel_size[i], dilation=dilation[i], 
                                activation=hid_act, dropout_rate=dropout_rate, 
-                               use_batchnorm=use_batchnorm, batchnorm_before=batchnorm_before))
+                               use_norm=use_norm, norm_before=norm_before))
             elif i==num_blocks-1:
                 blocks.append(
                     ETDNNBlock(hid_units, expand_units, 
                                kernel_size=kernel_size[i], dilation=dilation[i], 
                                activation=hid_act, dropout_rate=dropout_rate, 
-                               use_batchnorm=use_batchnorm, batchnorm_before=batchnorm_before))
+                               use_norm=use_norm, norm_before=norm_before))
             else:
                 blocks.append(
                     ResETDNNBlock(hid_units, 
                                   kernel_size=kernel_size[i], dilation=dilation[i], 
                                   activation=hid_act, dropout_rate=dropout_rate, 
-                                  use_batchnorm=use_batchnorm, batchnorm_before=batchnorm_before))
+                                  use_norm=use_norm, norm_before=norm_before))
 
         self.blocks = nn.ModuleList(blocks)
 
@@ -134,9 +134,9 @@ class ResETDNNV1(NetArch):
                   'dilation': self.dilation,
                   'dilation_factor': self.dilation_factor,
                   'dropout_rate': self.dropout_rate,
-                  'use_batchnorm': self.use_batchnorm,
-                  'batchnorm_before': self.batchnorm_before,
-                  'in_batchnorm' : self.in_batchnorm,
+                  'use_norm': self.use_norm,
+                  'norm_before': self.norm_before,
+                  'in_norm' : self.in_norm,
                   'out_act': out_act,
                   'hid_act': hid_act,
                   'pooling': self.pooling }

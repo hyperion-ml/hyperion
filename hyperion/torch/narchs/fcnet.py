@@ -17,9 +17,9 @@ class FCNetV1(NetArch):
                  in_units, hid_units, out_units=0,
                  hid_act={'name':'relu', 'inplace':True}, out_act=None, 
                  dropout_rate=0,
-                 use_batchnorm=True, 
-                 batchnorm_before=False,
-                 in_batchnorm=True):
+                 use_norm=True, 
+                 norm_before=False,
+                 in_norm=True):
 
         super(FCNetV1, self).__init__()
 
@@ -28,9 +28,9 @@ class FCNetV1(NetArch):
         self.in_units = in_units
         self.hid_units = hid_units
         self.dropout_rate = dropout_rate
-        self.use_batchnorm = use_batchnorm
-        self.batchnorm_before = batchnorm_before
-        self.in_batchnorm = in_batchnorm
+        self.use_norm = use_norm
+        self.norm_before = norm_before
+        self.in_norm = in_norm
 
 
         if isinstance(hid_units, list):
@@ -46,7 +46,7 @@ class FCNetV1(NetArch):
             blocks.append(
                 FCBlock(units[i-1], units[i],
                         activation=hid_act, dropout_rate=dropout_rate, 
-                        use_batchnorm=use_batchnorm, batchnorm_before=batchnorm_before))
+                        use_norm=use_norm, norm_before=norm_before))
 
         self.blocks = nn.ModuleList(blocks)
 
@@ -83,9 +83,9 @@ class FCNetV1(NetArch):
                   'hid_units': self.hid_units,
                   'out_units': self.out_units,
                   'dropout_rate': self.dropout_rate,
-                  'use_batchnorm': self.use_batchnorm,
-                  'batchnorm_before': self.batchnorm_before,
-                  'in_batchnorm' : self.in_batchnorm,
+                  'use_norm': self.use_norm,
+                  'norm_before': self.norm_before,
+                  'in_norm' : self.in_norm,
                   'out_act': out_act,
                   'hid_act': hid_act}
         

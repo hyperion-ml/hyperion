@@ -18,7 +18,7 @@ class ETDNNBlock(nn.Module):
                  kernel_size, dilation=1, 
                  activation={'name':'relu', 'inplace': True},
                  dropout_rate=0,
-                 use_batchnorm=True, batchnorm_before=False):
+                 use_norm=True, norm_before=False):
 
         super(ETDNNBlock, self).__init__()
 
@@ -37,17 +37,17 @@ class ETDNNBlock(nn.Module):
             self.dropout1 = Dropout1d(dropout_rate)
             self.dropout2 = Dropout1d(dropout_rate)
 
-        self.batchnorm_before = False
-        self.batchnorm_after = False
-        if use_batchnorm:
+        self.norm_before = False
+        self.norm_after = False
+        if use_norm:
             self.bn1 = BatchNorm1d(out_channels)
             self.bn2 = BatchNorm1d(out_channels)
-            if batchnorm_before:
-                self.batchnorm_before = True
+            if norm_before:
+                self.norm_before = True
             else:
-                self.batchnorm_after = True
+                self.norm_after = True
 
-        bias = not self.batchnorm_before
+        bias = not self.norm_before
         self.conv1 = Conv1d(in_channels, out_channels, bias=bias,
                             kernel_size=kernel_size, dilation=dilation, 
                             padding=padding) # padding_mode='reflection') pytorch > 1.0
@@ -58,12 +58,12 @@ class ETDNNBlock(nn.Module):
 
         x = self.conv1(x)
 
-        if self.batchnorm_before:
+        if self.norm_before:
             x = self.bn1(x)
 
         x = self.activation1(x)
         
-        if self.batchnorm_after:
+        if self.norm_after:
             x = self.bn1(x)
 
         if self.dropout_rate > 0:
@@ -71,12 +71,12 @@ class ETDNNBlock(nn.Module):
 
         x = self.conv2(x)
 
-        if self.batchnorm_before:
+        if self.norm_before:
             x = self.bn2(x)
 
         x = self.activation2(x)
         
-        if self.batchnorm_after:
+        if self.norm_after:
             x = self.bn2(x)
 
         if self.dropout_rate > 0:

@@ -5,14 +5,12 @@
  Classes to read data from hdf5 files.
 """
 from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 from six import string_types
 
 import sys
 import numpy as np
 import h5py
+import threading
 
 from ..hyp_defs import float_cpu
 from ..utils.list_utils import split_list, split_list_group_by_key
@@ -207,7 +205,7 @@ class SequentialH5FileDataReader(SequentialH5DataReader):
 
         keys = []
         shapes = []
-        for i in xrange(num_records):
+        for i in range(num_records):
             if self.eof():
                 break
             key = self._keys[self.cur_item]
@@ -250,20 +248,24 @@ class SequentialH5FileDataReader(SequentialH5DataReader):
                             isinstance(num_rows, np.ndarray))
         keys = []
         data = []
-        for i in xrange(num_records):
+        for i in range(num_records):
             if self.eof():
                 break
-            key_i = self._keys[self.cur_item]
 
-            row_offset_i = row_offset[i] if row_offset_is_list else row_offset
-            num_rows_i = num_rows[i] if num_rows_is_list else num_rows
+            with self.lock:
+                key_i = self._keys[self.cur_item]
+                
+                row_offset_i = row_offset[i] if row_offset_is_list else row_offset
+                num_rows_i = num_rows[i] if num_rows_is_list else num_rows
+                
+                dset_i = self.f[key_i]
+                data_i = _read_h5_data(dset_i, row_offset_i, num_rows_i, self.transform)
 
-            dset_i = self.f[key_i]
-            data_i = _read_h5_data(dset_i, row_offset_i, num_rows_i, self.transform)
-            
+                self.cur_item += 1
+
             keys.append(key_i)
             data.append(data_i)
-            self.cur_item += 1
+
             
         if squeeze:
             data = self._squeeze(data)
@@ -338,7 +340,7 @@ class SequentialH5ScriptDataReader(SequentialH5DataReader):
         
         keys = []
         shapes = []
-        for i in xrange(num_records):
+        for i in range(num_records):
             if self.eof():
                 break
 
@@ -393,24 +395,27 @@ class SequentialH5ScriptDataReader(SequentialH5DataReader):
 
         keys = []
         data = []
-        for i in xrange(num_records):
+        for i in range(num_records):
             if self.eof():
                 break
-            key, file_path, offset, range_spec = self.scp[self.cur_item]
 
-            row_offset_i = row_offset[i] if row_offset_is_list else row_offset
-            num_rows_i = num_rows[i] if num_rows_is_list else num_rows
-            row_offset_i, num_rows_i = self._combine_ranges(
-                range_spec, row_offset_i, num_rows_i)
+            with self.lock:
+                key, file_path, offset, range_spec = self.scp[self.cur_item]
+
+                row_offset_i = row_offset[i] if row_offset_is_list else row_offset
+                num_rows_i = num_rows[i] if num_rows_is_list else num_rows
+                row_offset_i, num_rows_i = self._combine_ranges(
+                    range_spec, row_offset_i, num_rows_i)
             
-            self._open_archive(file_path)
+                self._open_archive(file_path)
             
-            dset_i = self.f[key]
-            data_i = _read_h5_data(dset_i, row_offset_i, num_rows_i, self.transform)
-            
+                dset_i = self.f[key]
+                data_i = _read_h5_data(dset_i, row_offset_i, num_rows_i, self.transform)
+                self.cur_item += 1            
+
             key = keys.append(key)
             data.append(data_i)
-            self.cur_item += 1
+            
 
         if squeeze:
             data = self._squeeze(data)
@@ -491,6 +496,7 @@ class RandomAccessH5FileDataReader(RandomAccessH5DataReader):
     
     def __init__(self, file_path, **kwargs):
         super(RandomAccessH5FileDataReader, self).__init__(file_path, **kwargs)
+        self.lock = threading.Lock()
         self._open_archive(file_path)
 
 
@@ -590,8 +596,9 @@ class RandomAccessH5FileDataReader(RandomAccessH5DataReader):
             row_offset_i = row_offset[i] if row_offset_is_list else row_offset
             num_rows_i = num_rows[i] if num_rows_is_list else num_rows
 
-            dset_i = self.f[key]
-            data_i = _read_h5_data(dset_i, row_offset_i, num_rows_i, self.transform)
+            with self.lock:
+                dset_i = self.f[key]
+                data_i = _read_h5_data(dset_i, row_offset_i, num_rows_i, self.transform)
             data.append(data_i)
 
         if squeeze:
@@ -633,6 +640,7 @@ class RandomAccessH5ScriptDataReader(RandomAccessH5DataReader):
         self.archives = archives
         self.archive_idx = archive_idx
         self.f = [None] * len(self.archives)
+        self.locks = [ threading.Lock() for i in range(len(self.archives)) ]
         
 
         
@@ -656,10 +664,11 @@ class RandomAccessH5ScriptDataReader(RandomAccessH5DataReader):
           Python file object.
         """
         archive_idx = self.archive_idx[key_idx]
-        if self.f[archive_idx] is None:
-            self.f[archive_idx] = h5py.File(self.archives[archive_idx], 'r')
+        with self.locks[archive_idx]:
+            if self.f[archive_idx] is None:
+                self.f[archive_idx] = h5py.File(self.archives[archive_idx], 'r')
 
-        return self.f[archive_idx]
+        return self.f[archive_idx], self.locks[archive_idx]
 
 
     
@@ -694,15 +703,16 @@ class RandomAccessH5ScriptDataReader(RandomAccessH5DataReader):
             row_offset_i, num_rows_i = self._combine_ranges(
                 range_spec, 0, 0)
             
-            f = self._open_archive(index)
+            f, lock = self._open_archive(index)
             if not (key in f):
                 if self.permissive:
                     shapes.append((0,))
                     continue
                 else:
                     raise Exception('Key %s not found' % key)
-
-            shape_i = f[key].shape
+            
+            with lock:
+                shape_i = f[key].shape
             shape_i = self._apply_range_to_shape(
                 shape_i, row_offset_i, num_rows_i)
             
@@ -764,16 +774,18 @@ class RandomAccessH5ScriptDataReader(RandomAccessH5DataReader):
             row_offset_i, num_rows_i = self._combine_ranges(
                 range_spec, row_offset_i, num_rows_i)
             
-            f = self._open_archive(index)
-            if not (key in f):
-                if self.permissive:
-                    data.append(np.array([], dtype=float_cpu()))
-                    continue
-                else:
-                    raise Exception('Key %s not found' % key)
+            f, lock = self._open_archive(index)
+            with lock:
+                if not (key in f):
+                    if self.permissive:
+                        data.append(np.array([], dtype=float_cpu()))
+                        continue
+                    else:
+                        raise Exception('Key %s not found' % key)
 
-            dset_i = f[key]
-            data_i = _read_h5_data(dset_i, row_offset_i, num_rows_i, self.transform)
+                dset_i = f[key]
+                data_i = _read_h5_data(dset_i, row_offset_i, num_rows_i, self.transform)
+
             data.append(data_i)
 
         if squeeze:

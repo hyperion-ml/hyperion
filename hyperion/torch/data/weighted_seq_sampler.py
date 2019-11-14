@@ -65,11 +65,13 @@ class ClassWeightedSeqSampler(Sampler):
 
         if self.num_egs_per_class > 1:
             class_idx = class_idx.repeat(self.num_egs_per_class)
-        utt_idx = torch.as_tensor([self.class2utt_idx[c][torch.randint(low=0, high=self.class2num_utt[c], size=(1,))] for c in class_idx.tolist()])
+        utt_idx = torch.as_tensor([self.dataset.class2utt_idx[c][torch.randint(low=0, high=self.class2num_utt[c], size=(1,))] for c in class_idx.tolist()])
 
         if self.num_egs_per_utt > 1:
             utt_idx = utt_idx.repeat(self.num_egs_per_utt)
-            
+  
+        self.dataset.set_random_chunk_length()
+
         return utt_idx.tolist()[:self.batch_size]
 
     

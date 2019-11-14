@@ -19,11 +19,11 @@ class ResETDNNBlock(ETDNNBlock):
                  kernel_size, dilation=1, 
                  activation={'name':'relu', 'inplace': True},
                  dropout_rate=0,
-                 use_batchnorm=True, batchnorm_before=False):
+                 use_norm=True, norm_before=False):
 
         super(ResETDNNBlock, self).__init__(num_channels, num_channels, 
                  kernel_size, dilation, activation, dropout_rate,
-                 use_batchnorm, batchnorm_before)
+                 use_norm, norm_before)
 
 
     def forward(self, x):
@@ -31,12 +31,12 @@ class ResETDNNBlock(ETDNNBlock):
         residual = x
         x = self.conv1(x)
 
-        if self.batchnorm_before:
+        if self.norm_before:
             x = self.bn1(x)
 
         x = self.activation1(x)
         
-        if self.batchnorm_after:
+        if self.norm_after:
             x = self.bn1(x)
 
         if self.dropout_rate > 0:
@@ -44,13 +44,13 @@ class ResETDNNBlock(ETDNNBlock):
 
         x = self.conv2(x)
 
-        if self.batchnorm_before:
+        if self.norm_before:
             x = self.bn2(x)
 
         x += residual
         x = self.activation2(x)
         
-        if self.batchnorm_after:
+        if self.norm_after:
             x = self.bn2(x)
 
         if self.dropout_rate > 0:

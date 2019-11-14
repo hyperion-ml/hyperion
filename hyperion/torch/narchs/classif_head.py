@@ -19,8 +19,8 @@ class ClassifHead(NetArch):
                  num_embed_layers=1, 
                  hid_act={'name':'relu', 'inplace': True}, 
                  loss_type='arc-softmax',
-                 s=64, margin=0.3, margin_inc_steps=0,
-                 use_batchnorm=True, batchnorm_before=True, 
+                 s=64, margin=0.3, margin_inc_epochs=0,
+                 use_norm=True, norm_before=True, 
                  dropout_rate=0):
 
         super(ClassifHead, self).__init__()
@@ -30,8 +30,8 @@ class ClassifHead(NetArch):
         self.in_feats = in_feats
         self.embed_dim = embed_dim
         self.num_classes = num_classes
-        self.use_batchnorm = use_batchnorm
-        self.batchnorm_before = batchnorm_before
+        self.use_norm = use_norm
+        self.norm_before = norm_before
         
         self.dropout_rate = dropout_rate
         self.loss_type = loss_type
@@ -43,8 +43,8 @@ class ClassifHead(NetArch):
                 FCBlock(prev_feats, embed_dim, 
                         activation=hid_act,
                         dropout_rate=dropout_rate,
-                        use_batchnorm=use_batchnorm, 
-                        batchnorm_before=batchnorm_before))
+                        use_norm=use_norm, 
+                        norm_before=norm_before))
             prev_feats = embed_dim
                 
         if loss_type != 'softmax':
@@ -55,8 +55,8 @@ class ClassifHead(NetArch):
         fc_blocks.append(
             FCBlock(prev_feats, embed_dim, 
                     activation=act,
-                    use_batchnorm=use_batchnorm, 
-                    batchnorm_before=batchnorm_before))
+                    use_norm=use_norm, 
+                    norm_before=norm_before))
 
         self.fc_blocks = nn.ModuleList(fc_blocks)
 
@@ -66,11 +66,11 @@ class ClassifHead(NetArch):
         elif loss_type == 'cos-softmax':
             self.output = CosLossOutput(
                 embed_dim, num_classes, 
-                s=s, margin=margin, margin_inc_steps=margin_inc_steps)
+                s=s, margin=margin, margin_inc_steps=margin_inc_epochs)
         elif loss_type == 'arc-softmax':
             self.output = ArcLossOutput(
                 embed_dim, num_classes, 
-                s=s, margin=margin, margin_inc_steps=margin_inc_steps)
+                s=s, margin=margin, margin_inc_steps=margin_inc_epochs)
                 
 
     def update_margin(self, steps):
@@ -113,8 +113,8 @@ class ClassifHead(NetArch):
             's': self.s,
             'margin': self.margin,
             'margin_inc_step': self.margin_inc_step,
-            'use_batchnorm': self.use_batchnorm,
-            'batchnorm_before': self.batchnorm_before,
+            'use_norm': self.use_norm,
+            'norm_before': self.norm_before,
             'dropout_rate': self.dropout_rate
         }
         
