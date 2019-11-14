@@ -8,17 +8,17 @@ import numpy as np
 
 import torch
 import torch.nn as nn
-from torch.nn import Conv1d, Linear
+from torch.nn import Conv1d, Linear, BatchNorm1d
 
 from ..layers import ActivationFactory as AF
-from ..layer_blocks import ETDNNBlock
+from ..layer_blocks import ResETDNNBlock, ETDNNBlock
 from .net_arch import NetArch
 
 
-class ETDNNV1(NetArch):
+class ResETDNNV1(NetArch):
 
     def __init__(self, num_blocks, 
-                 in_units, hid_units, out_units=0,
+                 in_units, hid_units, expand_units, out_units=0,
                  kernel_size=3, dilation=1, dilation_factor=1,
                  hid_act={'name':'relu', 'inplace':True}, out_act=None, 
                  dropout_rate=0,
@@ -26,12 +26,13 @@ class ETDNNV1(NetArch):
                  norm_before=False,
                  in_norm=True, pooling=None):
 
-        super(ETDNNV1, self).__init__()
+        super(ResETDNNV1, self).__init__()
 
         self.num_blocks = num_blocks
         self.out_units = out_units
         self.in_units = in_units
         self.hid_units = hid_units
+        self.expand_units = expand_units
         self.kernel_size = kernel_size
         self.dilation = dilation
         self.dilation_factor = dilation_factor
@@ -41,13 +42,7 @@ class ETDNNV1(NetArch):
         self.in_norm = in_norm
         self.pooling = pooling
 
-
-        if isinstance(hid_units, list):
-            assert num_blocks == len(hid_units)
-        else:
-            hid_units = [hid_units for i in range(num_blocks)]
-
-        units = [in_units] + hid_units
+        assert num_blocks > 2, 'ResETDNN requires at least 3 layer blocks'
 
         if isinstance(kernel_size, list):
             assert num_blocks == len(kernel_size)
@@ -63,13 +58,27 @@ class ETDNNV1(NetArch):
         self._context = int(np.sum(np.array(dilation)*(
             np.array(kernel_size)-1)/2))
 
+
         blocks = []
         for i in range(num_blocks):
-            blocks.append(
-                ETDNNBlock(units[i], units[i+1], 
-                          kernel_size=kernel_size[i], dilation=dilation[i], 
-                          activation=hid_act, dropout_rate=dropout_rate, 
-                          use_norm=use_norm, norm_before=norm_before))
+            if i==0:
+                blocks.append(
+                    ETDNNBlock(in_units, hid_units, 
+                               kernel_size=kernel_size[i], dilation=dilation[i], 
+                               activation=hid_act, dropout_rate=dropout_rate, 
+                               use_norm=use_norm, norm_before=norm_before))
+            elif i==num_blocks-1:
+                blocks.append(
+                    ETDNNBlock(hid_units, expand_units, 
+                               kernel_size=kernel_size[i], dilation=dilation[i], 
+                               activation=hid_act, dropout_rate=dropout_rate, 
+                               use_norm=use_norm, norm_before=norm_before))
+            else:
+                blocks.append(
+                    ResETDNNBlock(hid_units, 
+                                  kernel_size=kernel_size[i], dilation=dilation[i], 
+                                  activation=hid_act, dropout_rate=dropout_rate, 
+                                  use_norm=use_norm, norm_before=norm_before))
 
         self.blocks = nn.ModuleList(blocks)
 
@@ -80,7 +89,7 @@ class ETDNNV1(NetArch):
         self.with_output = True
         self.out_act = AF.create(out_act)
 
-        self.output = Linear(units[-1], out_units)
+        self.output = Linear(expand_units, out_units)
 
 
     @property
@@ -119,6 +128,7 @@ class ETDNNV1(NetArch):
         config = {'num_blocks': self.num_blocks,
                   'in_units': self.in_units,
                   'hid_units': self.hid_units,
+                  'expand_units': self.expand_units,
                   'out_units': self.out_units,
                   'kernel_size': self.kernel_size,
                   'dilation': self.dilation,
@@ -131,7 +141,7 @@ class ETDNNV1(NetArch):
                   'hid_act': hid_act,
                   'pooling': self.pooling }
         
-        base_config = super(ETDNNV1, self).get_config()
+        base_config = super(ResETDNNV1, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
     

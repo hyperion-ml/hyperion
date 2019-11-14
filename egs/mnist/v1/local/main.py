@@ -26,22 +26,32 @@ from torchvision import datasets, transforms
 
 from hyperion.hyp_defs import config_logger
 from hyperion.torch.utils import open_device
-from hyperion.torch.narchs import FCNetV1
+from hyperion.torch.narchs import FCNetV1, TDNNV1, ETDNNV1, ResETDNNV1, LResNet18, LResNet50, LResNext50_4x4d
 from hyperion.torch.transforms import Reshape
 from hyperion.torch.helpers import OptimizerFactory as OF
 from hyperion.torch.lr_schedulers import LRSchedulerFactory as LRSF
-from hyperion.torch.torch_trainer import TorchTrainer
+from hyperion.torch.trainers import TorchTrainer
 from hyperion.torch.metrics import CategoricalAccuracy
 
 input_width=28
 input_height=28
 
 
-
 def create_net(net_type):
-    if net_type=='fcnet':
-        return FCNetV1(2, input_width*input_height, 1000, 10 , dropout_rate=0.5)
-
+    if net_type == 'fcnet':
+        return FCNetV1(2, input_width*input_height, 1000, 10, dropout_rate=0.5)
+    if net_type == 'tdnn':
+        return TDNNV1(2, input_height, 1000, 10, dropout_rate=0.5, pooling='mean')
+    if net_type == 'etdnn':
+        return ETDNNV1(2, input_height, 1000, 10, dropout_rate=0.5, pooling='mean')
+    if net_type == 'resetdnn':
+        return ResETDNNV1(3, input_height, 1000, 1000, 10, dropout_rate=0.5, pooling='mean')
+    if net_type == 'lresnet18':
+        return LResNet18(1, out_units=10, dropout_rate=0.5)
+    if net_type == 'lresnet50':
+        return LResNet50(1, out_units=10, dropout_rate=0.5)
+    if net_type == 'lresnext50':
+        return LResNext50_4x4d(1, out_units=10, dropout_rate=0.5)
 
     
 def main(net_type, batch_size, test_batch_size, exp_path,
@@ -56,6 +66,8 @@ def main(net_type, batch_size, test_batch_size, exp_path,
                       transforms.Normalize((0.1307,), (0.3081,))]
     if net_type == 'fcnet':
         transform_list.append(Reshape((-1,)))
+    elif net_type == 'tdnn' or net_type == 'etdnn' or net_type == 'resetdnn':
+        transform_list.append(Reshape((input_height,input_width)))
     transform = transforms.Compose(transform_list)
     
     largs = {'num_workers': 1, 'pin_memory': True} if num_gpus>0 else {}

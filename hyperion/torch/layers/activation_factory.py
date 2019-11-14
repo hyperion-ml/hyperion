@@ -38,16 +38,20 @@ class ActivationFactory(object):
 
     @staticmethod
     def create(activation, **kwargs):
+        if activation is None:
+            return None
+
         if isinstance(activation, six.string_types):
             return ActivationFactory.create_from_str(activation, **kwargs)
         
         if isinstance(activation, dict):
             name = activation['name']
             kwargs = activation.copy()
-            del kwargs.name
+            del kwargs['name']
             return ActivationFactory.create_from_str(name, **kwargs)
             
-        
+        activation = activation()
+
         return activation
 
     

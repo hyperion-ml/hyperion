@@ -3,14 +3,12 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 from six import string_types
 
 import logging
 from abc import ABCMeta, abstractmethod
 import numpy as np
+import threading
 
 from ..hyp_defs import float_cpu
 from ..utils.scp_list import SCPList
@@ -83,7 +81,7 @@ class DataReader(object):
 
         ndim = data[0].ndim
         shape = data[0].shape
-        for i in xrange(len(data)):
+        for i in range(len(data)):
             if len(data[i]) == 0:
                 if permissive:
                     data[i] = np.zeros((1,)+shape, dtype=float_cpu())
@@ -185,6 +183,7 @@ class SequentialDataReader(DataReader):
                  part_idx=1, num_parts=1, split_by_key=False):
         super(SequentialDataReader, self).__init__(
             file_path, transform, permissive)
+        self.lock = threading.Lock()
         self.part_idx = part_idx
         self.num_parts = num_parts
         self.split_by_key = split_by_key

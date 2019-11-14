@@ -23,10 +23,10 @@ class SeqDataset(Dataset):
     def __init__(self, rspecifier, key_file,
                  class_file = None,
                  path_prefix=None,
-                 min_chunk_length=0,
+                 min_chunk_length=1,
                  max_chunk_length=None,
                  return_fullseqs=False,
-                 return_class=True):
+                 return_class=True, transpose_input=True):
 
         logging.info('opening dataset %s' % rspecifier)
         self.r = RF.create(
@@ -37,6 +37,8 @@ class SeqDataset(Dataset):
 
         self._prepare_class_info(class_file)
         
+        if max_chunk_length is None:
+            max_chunk_length = min_chunk_length
         self._min_chunk_length = min_chunk_length
         self._max_chunk_length = max_chunk_length
 
@@ -44,13 +46,11 @@ class SeqDataset(Dataset):
         self.return_class = return_class
         self._seq_lengths = None
 
-        if min_chunk_length > 0:
-            self._prune_short_seqs(min_chunk_length)
+        #self._prune_short_seqs(min_chunk_length)
+        self._prune_short_seqs(max_chunk_length)
 
-        if max_chunk_length is not None:
-            self._prune_short_seqs(max_chunk_length)
-            
-        self.cur_batch_params = None
+        self.batch_chunk_length = max_chunk_length
+        self.transpose_input = transpose_input
 
 
     @property
@@ -82,7 +82,7 @@ class SeqDataset(Dataset):
 
 
     @property
-    def max_seq_length(self):
+    def max_chunk_length(self):
         if self._max_chunk_length is None:
             self._max_chunk_length = np.max(self.seq_lengths)
         return self._max_chunk_length
@@ -143,6 +143,12 @@ class SeqDataset(Dataset):
 
 
 
+    def set_random_chunk_length(self):
+
+        if self.min_chunk_length < self.max_chunk_length:
+            self.batch_chunk_length = torch.randint(
+                low=self.min_chunk_length, high=self.max_chunk_length+1, size=(1,)).item()
+
 
     def __getitem__(self, index):
 
@@ -156,6 +162,8 @@ class SeqDataset(Dataset):
     def _get_fullseq(self, index):
         key = self.u2c.key[index]
         x = self.r.read([key])
+        if self.transpose_input:
+            x = x.T
         if not self.return_class:
             return x
         
@@ -163,16 +171,18 @@ class SeqDataset(Dataset):
         return x, class_idx
 
 
-    def _get_fullseq(self, index):
+    def _get_random_chunk(self, index):
         
         key = self.u2c.key[index]
         full_seq_length = self.seq_lengths[index]
-        seq_length = self.cur_batch_params['seq_length']
+        chunk_length = self.batch_chunk_length
         assert seq_lenght <= full_seq_length
         first_frame = torch.randint(
-            low=0, high=full_seq_length-seq_length+1, size=(1,)).item()
+            low=0, high=full_seq_length-chunk_length+1, size=(1,)).item()
         x = self.r.read([key], row_offset=first_frame,
-                        num_rows=seq_length)
+                        num_rows=chunk_length)
+        if self.transpose_input:
+            x = x.T
 
         if not self.return_class:
             return x

@@ -8,6 +8,11 @@
 set -e
 
 net_type=fcnet
+net_type=resetdnn
+net_type=lresnet18
+net_type=lresnet50
+net_type=lresnext50
+num_gpus=0
 lr=0.01
 batch_size=64
 momentum=0.5
@@ -21,13 +26,14 @@ mkdir -p $exp_dir
 #Train embeddings
 if [ $stage -le 1 ]; then
     #$cuda_cmd $exp_dir/main.log \
-    qsub -e err.log -o o.log -cwd -l 'hostname=[bc][1][123456789]*,gpu=1' \
-         hyp_utils/torch.sh --num-gpus 1 \
+    #qsub -e err.log -o o.log -cwd -l 'hostname=[bc][1][123456789]*,gpu=1' \
+    $cuda_cmd --gpu $num_gpus o.log \
+         hyp_utils/torch.sh --num-gpus $num_gpus \
 	 local/main.py \
 	     --net-type $net_type \
 	     --batch-size $batch_size \
 	     --opt-optimizer sgd \
-	     --num-gpus 1 \
+	     --num-gpus $num_gpus \
 	     --opt-lr $lr --opt-momentum $momentum \
 	     --lrsch-lrsch-type exp_lr \
 	     --lrsch-decay-rate 0.1 \
@@ -42,8 +48,7 @@ if [ $stage -le 1 ]; then
 	     --lrsch-update-lr-on-batch \
 	     --lrsch-patience 1 \
 	     --lrsch-threshold 1e-1 \
-	     --resume \
-	     --epochs 1 \
+	     --epochs 3 \
 	     --exp-path $exp_dir
     
 fi
