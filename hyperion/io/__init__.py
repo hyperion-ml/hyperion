@@ -11,6 +11,10 @@ from .h5_data_writer import *
 from .data_rw_factory import *
 from .copy_feats import CopyFeats
 
+
+from .bin_vad_reader import BinVADReader
+from .vad_rw_factory import VADReaderFactory
+
 from .audio_reader import *
 from .audio_writer import *
 
@@ -18,6 +22,8 @@ from .hyp_data_reader import *
 from .hyp_data_writer import *
 from .h5_merger import *
 from .kaldi_data_reader import *
+
+
 
 #from .queues import *
 

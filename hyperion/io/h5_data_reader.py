@@ -248,11 +248,12 @@ class SequentialH5FileDataReader(SequentialH5DataReader):
                             isinstance(num_rows, np.ndarray))
         keys = []
         data = []
-        for i in range(num_records):
-            if self.eof():
-                break
+        with self.lock:
+            for i in range(num_records):
+                if self.eof():
+                    break
 
-            with self.lock:
+
                 key_i = self._keys[self.cur_item]
                 
                 row_offset_i = row_offset[i] if row_offset_is_list else row_offset
@@ -263,8 +264,8 @@ class SequentialH5FileDataReader(SequentialH5DataReader):
 
                 self.cur_item += 1
 
-            keys.append(key_i)
-            data.append(data_i)
+                keys.append(key_i)
+                data.append(data_i)
 
             
         if squeeze:
@@ -395,11 +396,11 @@ class SequentialH5ScriptDataReader(SequentialH5DataReader):
 
         keys = []
         data = []
-        for i in range(num_records):
-            if self.eof():
-                break
+        with self.lock:
+            for i in range(num_records):
+                if self.eof():
+                    break
 
-            with self.lock:
                 key, file_path, offset, range_spec = self.scp[self.cur_item]
 
                 row_offset_i = row_offset[i] if row_offset_is_list else row_offset
@@ -413,8 +414,8 @@ class SequentialH5ScriptDataReader(SequentialH5DataReader):
                 data_i = _read_h5_data(dset_i, row_offset_i, num_rows_i, self.transform)
                 self.cur_item += 1            
 
-            key = keys.append(key)
-            data.append(data_i)
+                key = keys.append(key)
+                data.append(data_i)
             
 
         if squeeze:

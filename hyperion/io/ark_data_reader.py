@@ -5,12 +5,12 @@
 from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import division
-from six.moves import xrange
 from six import string_types
 
 import sys
 import numpy as np
 import h5py
+import threading
 
 from ..hyp_defs import float_cpu
 from ..utils.scp_list import SCPList
@@ -36,6 +36,7 @@ class SequentialArkDataReader(SequentialDataReader):
     def __init__(self, file_path, **kwargs):
         super(SequentialArkDataReader, self).__init__(file_path, **kwargs)
         self.f = None
+        self.lock = threading.Lock()
         self.cur_file = None
 
     
@@ -227,29 +228,31 @@ class SequentialArkFileDataReader(SequentialArkDataReader):
         data = []
         count = 0
         binary = False
-        while num_records==0 or count < num_records:
+        with self.lock:
+            while num_records==0 or count < num_records:
 
-            key_i = read_token(self.f, binary)
-            if key_i == '':
-                self._eof = True
-                break
-            
-            row_offset_i = row_offset[i] if row_offset_is_list else row_offset
-            num_rows_i = num_rows[i] if num_rows_is_list else num_rows
-            
-            binary = init_kaldi_input_stream(self.f)
-            data_i = KaldiMatrix.read(
-                self.f, binary, row_offset_i, num_rows_i,
-                sequential_mode=True).to_ndarray()
 
-            assert num_rows_i == 0 or data_i.shape[0] == num_rows_i
-
-            if self.transform is not None:
-                data_i = self.transform.predict(data_i)
+                key_i = read_token(self.f, binary)
+                if key_i == '':
+                    self._eof = True
+                    break
             
-            keys.append(key_i)
-            data.append(data_i)
-            count += 1
+                row_offset_i = row_offset[i] if row_offset_is_list else row_offset
+                num_rows_i = num_rows[i] if num_rows_is_list else num_rows
+                
+                binary = init_kaldi_input_stream(self.f)
+                data_i = KaldiMatrix.read(
+                    self.f, binary, row_offset_i, num_rows_i,
+                    sequential_mode=True).to_ndarray()
+
+                assert num_rows_i == 0 or data_i.shape[0] == num_rows_i
+
+                if self.transform is not None:
+                    data_i = self.transform.predict(data_i)
+            
+                keys.append(key_i)
+                data.append(data_i)
+                count += 1
 
         if squeeze:
             data = self._squeeze(data)
@@ -328,7 +331,7 @@ class SequentialArkScriptDataReader(SequentialArkDataReader):
         
         keys = []
         shapes = []
-        for i in xrange(num_records):
+        for i in range(num_records):
             if self.eof():
                 break
             key, file_path, offset, range_spec = self.scp[self.cur_item]
@@ -384,30 +387,32 @@ class SequentialArkScriptDataReader(SequentialArkDataReader):
 
         keys = []
         data = []
-        for i in xrange(num_records):
-            if self.eof():
-                break
-            key, file_path, offset, range_spec = self.scp[self.cur_item]
+        with self.lock:
+            for i in range(num_records):
+                if self.eof():
+                    break
 
-            row_offset_i = row_offset[i] if row_offset_is_list else row_offset
-            num_rows_i = num_rows[i] if num_rows_is_list else num_rows
-            row_offset_i, num_rows_i = self._combine_ranges(
-                range_spec, row_offset_i, num_rows_i)
+                key, file_path, offset, range_spec = self.scp[self.cur_item]
 
-            self._open_archive(file_path, offset)
-            binary = init_kaldi_input_stream(self.f)
-            data_i = KaldiMatrix.read(
-                self.f, binary, row_offset_i, num_rows_i,
-                sequential_mode=True).to_ndarray()
+                row_offset_i = row_offset[i] if row_offset_is_list else row_offset
+                num_rows_i = num_rows[i] if num_rows_is_list else num_rows
+                row_offset_i, num_rows_i = self._combine_ranges(
+                    range_spec, row_offset_i, num_rows_i)
 
-            assert num_rows_i == 0 or data_i.shape[0] == num_rows_i
+                self._open_archive(file_path, offset)
+                binary = init_kaldi_input_stream(self.f)
+                data_i = KaldiMatrix.read(
+                    self.f, binary, row_offset_i, num_rows_i,
+                    sequential_mode=True).to_ndarray()
 
-            if self.transform is not None:
-                data_i = self.transform.predict(data_i)
+                assert num_rows_i == 0 or data_i.shape[0] == num_rows_i
 
-            keys.append(key)
-            data.append(data_i)
-            self.cur_item += 1
+                if self.transform is not None:
+                    data_i = self.transform.predict(data_i)
+
+                keys.append(key)
+                data.append(data_i)
+                self.cur_item += 1
 
         if squeeze:
             data = self._squeeze(data)
@@ -449,7 +454,7 @@ class RandomAccessArkDataReader(RandomAccessDataReader):
         self.archives = archives
         self.archive_idx = archive_idx
         self.f = [None] * len(self.archives)
-        
+        self.locks = [ threading.Lock() for i in range(len(self.archives)) ]
 
         
     def close(self):
@@ -476,12 +481,14 @@ class RandomAccessArkDataReader(RandomAccessDataReader):
           Python file object.
         """
         archive_idx = self.archive_idx[key_idx]
-        if self.f[archive_idx] is None:
-            self.f[archive_idx] = open(self.archives[archive_idx], 'rb')
+        with self.locks[archive_idx]:
+            if self.f[archive_idx] is None:
+                self.f[archive_idx] = open(self.archives[archive_idx], 'rb')
 
-        f = self.f[archive_idx]
-        f.seek(offset, 0)
-        return f
+            f = self.f[archive_idx]
+            f.seek(offset, 0)
+
+        return f, self.locks[archive_idx]
 
 
     
@@ -555,10 +562,11 @@ class RandomAccessArkDataReader(RandomAccessDataReader):
             row_offset_i, num_rows_i = self._combine_ranges(
                 range_spec, 0, 0)
             
-            f = self._open_archive(index, offset)
-            binary = init_kaldi_input_stream(f)
-            shape_i = KaldiMatrix.read_shape(
-                f, binary, sequential_mode=False)
+            f, lock = self._open_archive(index, offset)
+            with lock:
+                binary = init_kaldi_input_stream(f)
+                shape_i = KaldiMatrix.read_shape(
+                    f, binary, sequential_mode=False)
 
             shape_i = self._apply_range_to_shape(
                 shape_i, row_offset_i, num_rows_i)
@@ -621,11 +629,12 @@ class RandomAccessArkDataReader(RandomAccessDataReader):
             row_offset_i, num_rows_i = self._combine_ranges(
                 range_spec, row_offset_i, num_rows_i)
             
-            f = self._open_archive(index, offset)
-            binary = init_kaldi_input_stream(f)
-            data_i = KaldiMatrix.read(
-                f, binary, row_offset_i, num_rows_i,
-                sequential_mode=False).to_ndarray()
+            f, lock = self._open_archive(index, offset)
+            with lock:
+                binary = init_kaldi_input_stream(f)
+                data_i = KaldiMatrix.read(
+                    f, binary, row_offset_i, num_rows_i,
+                    sequential_mode=False).to_ndarray()
 
             assert num_rows_i == 0 or data_i.shape[0] == num_rows_i
 
