@@ -6,4 +6,5 @@
 from __future__ import absolute_import
 
 from .optimizer_factory import OptimizerFactory
-
+from .torch_na_loader import TorchNALoader
+from .torch_model_loader import TorchModelLoader

@@ -57,6 +57,15 @@ class ActivationFactory(object):
     
     @staticmethod
     def create_from_str(activation_name, **kwargs):
+        if 'inplace' not in kwargs:
+            #try to make it inplace anyway
+            kwargs['inplace'] = True
+            try: 
+                return act_dict[activation_name](**kwargs)
+            except:
+                # activation didn't have inplace option
+                pass
+
         return act_dict[activation_name](**kwargs)
 
     

@@ -19,7 +19,7 @@ class CopyFeats(object):
     """
     
     def __init__(self, input_spec, output_spec, path_prefix=None,
-                 compress=False, compression_method='auto',
+                 compress=False, compression_method='auto', write_num_frames=None,
                  scp_sep=' ', part_idx=1, num_parts=1, chunk_size=1):
         """CopyFeats constructor, it executes the conversion.
 
@@ -65,6 +65,9 @@ class CopyFeats(object):
         assert not(num_parts>1 and len(input_spec)>1), (
             'Merging and splitting at the same time is not supported')
 
+        if write_num_frames is not None:
+            f_nf = open(write_num_frames, 'w')
+
         logging.info('opening output stream: %s' % (output_spec))
         with DWF.create(output_spec,
                         compress=compress, compression_method=compression_method,
@@ -80,7 +83,14 @@ class CopyFeats(object):
                             break
                         logging.info('copying %d feat matrices' % (len(key)))
                         writer.write(key, data)
+                        if write_num_frames is not None:
+                            for k,v in zip(key, data):
+                                f_nf.write('%s %d\n' % (k, v.shape[0]))
             
+        if write_num_frames is not None:
+            f_nf.close()
+
+
 
     @staticmethod
     def filter_args(prefix=None, **kwargs):

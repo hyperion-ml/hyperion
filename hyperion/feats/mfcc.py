@@ -25,10 +25,10 @@ class MFCCSteps(Enum):
     """Steps in the MFCC pipeline"""
     WAVE = 0
     FFT = 1
-    FFT_MAG = 2
+    SPEC = 2
     LOG_SPEC = 3
     LOGFB = 4
-    CEPSTRUM = 5
+    MFCC= 5
 
     def __lt__(self, other):
         if self.__class__ is other.__class__:
@@ -91,8 +91,8 @@ class MFCC(object):
           raw_energy:        If true, compute energy before preemphasis and windowing (default = True)
           use_energy:        Use energy (not C0) in MFCC computation (default = True)
           cepstral_lifter:   Constant that controls scaling of MFCCs (default = 22)
-          input_step:        It can continue computation from any step: wav, fft, fft_mag, logfb (default = 'wav')
-          output_step:       It can return intermediate result: fft, fft_mag, logfb, cepstrum (default = 'cepstrum') 
+          input_step:        It can continue computation from any step: wav, fft, spec, logfb (default = 'wav')
+          output_step:       It can return intermediate result: fft, spec, logfb, mfcc (default = 'mfcc') 
     """
     def __init__(self, fs=16000, frame_length=25, frame_shift=10, fft_length=512,
                  remove_dc_offset=True, preemph_coeff=0.97, window_type='povey', 
@@ -100,7 +100,7 @@ class MFCC(object):
                  low_freq=20, high_freq=0, num_filters=23, norm_filters=False,
                  num_ceps=13, snip_edges=True,
                  energy_floor=0, raw_energy=True, use_energy=True, cepstral_lifter=22,
-                 input_step='wave', output_step='cepstrum'):
+                 input_step='wave', output_step='mfcc'):
         
         self.fs = fs
         self.frame_length = frame_length
@@ -203,13 +203,13 @@ class MFCC(object):
 
 
     
-    def compute(self, x, return_fft=False, return_fft_mag=False, return_logfb=False):
+    def compute(self, x, return_fft=False, return_spec=False, return_logfb=False):
         """ Evaluates the MFCC pipeline.
 
             Args:
               x:               Wave, stft, spectrogram or log-filter-bank depending on input_step.
               return_fft:      If true, it also returns short-time fft.
-              return_fft_mag:  If true, it also returns short-time magnitude spectrogram.
+              return_spec:  If true, it also returns short-time magnitude spectrogram.
               return_logfb:    If true, it also returns log-filter-bank.
 
             Returns:
@@ -217,7 +217,7 @@ class MFCC(object):
         """
 
         assert not(return_fft and self._input_step > MFCCSteps.FFT)
-        assert not(return_fft_mag and (self._input_step > MFCCSteps.FFT_MAG or self._output_step < MFCCSteps.FFT_MAG))
+        assert not(return_spec and (self._input_step > MFCCSteps.SPEC or self._output_step < MFCCSteps.SPEC))
         assert not(return_logfb and self._output_step < MFCCSteps.LOGFB)
 
         # Prepare input
@@ -226,7 +226,7 @@ class MFCC(object):
             F = np.abs(X)
             if self.use_energy:
                 logE = F[:,0]
-        elif self._input_step == MFCCSteps.FFT_MAG:
+        elif self._input_step == MFCCSteps.SPEC:
             F = x
             if self.use_energy:
                 logE = F[:,0]
@@ -286,7 +286,7 @@ class MFCC(object):
 
                 
         # Compute |X(f)|^2
-        if self._input_step <= MFCCSteps.FFT and self._output_step >= MFCCSteps.FFT_MAG:
+        if self._input_step <= MFCCSteps.FFT and self._output_step >= MFCCSteps.SPEC:
             if self.use_fft2:
                 F = F**2
 
@@ -296,7 +296,7 @@ class MFCC(object):
             #B = np.maximum(B, np.log(self.energy_floor+1e-15))
 
         # Compute MFCC
-        if self._input_step <= MFCCSteps.LOGFB and self._output_step == MFCCSteps.CEPSTRUM:
+        if self._input_step <= MFCCSteps.LOGFB and self._output_step == MFCCSteps.MFCC:
             P = dct(B, type=2, norm='ortho')[:,:self.num_ceps]
 
             if self.cepstral_lifter > 0:
@@ -305,7 +305,7 @@ class MFCC(object):
         #Select the right output type
         if self._output_step == MFCCSteps.FFT:
             R = X
-        elif self._output_step == MFCCSteps.FFT_MAG:
+        elif self._output_step == MFCCSteps.SPEC:
             R = F
         elif self._output_step == MFCCSteps.LOG_SPEC:
             R = np.log(F+1e-10)
@@ -322,14 +322,14 @@ class MFCC(object):
             else:
                 R[:,0] = logE
 
-        if not(return_fft or return_fft_mag or return_logfb):
+        if not(return_fft or return_spec or return_logfb):
             return R
 
         # Append fft, fft magnitude, log-filter-bank
         R = [R]
         if return_fft:
             R = R + [X]
-        if return_fft_mag:
+        if return_spec:
             R = R + [F]
         if return_logfb:
             R = R + [B]
@@ -448,14 +448,14 @@ class MFCC(object):
         parser.add_argument(
             p1+'input-step', dest=(p2+'input_step'), 
             default='wave',
-            choices=['wave', 'fft', 'fft_mag', 'log_spec', 'logfb' ],
-            help='It can continue computation from any step: wav, fft, fft_mag, logfb')
+            choices=['wave', 'fft', 'spec', 'log_spec', 'logfb' ],
+            help='It can continue computation from any step: wav, fft, spec, logfb')
             
         parser.add_argument(
             p1+'output-step', dest=(p2+'output_step'), 
-            default='cepstrum',
-            choices=['fft', 'fft_mag', 'log_spec', 'logfb', 'cepstrum' ],
-            help='It can return intermediate result: fft, fft_mag, logfb, cepstrum')
+            default='mfcc',
+            choices=['fft', 'spec', 'log_spec', 'logfb', 'mfcc' ],
+            help='It can return intermediate result: fft, spec, log_spec, logfb, mfcc')
 
         
 

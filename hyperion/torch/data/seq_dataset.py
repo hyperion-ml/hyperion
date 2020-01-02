@@ -13,15 +13,18 @@ import copy
 import numpy as np
 import pandas as pd
 
-from ..hyp_defs import float_cpu
-from ..io import RandomAccessDataReaderFactory as RF
-from ..utils.utt2info import Utt2Info
+import torch
+
+from ..torch_defs import floatstr_torch
+from ...io import RandomAccessDataReaderFactory as RF
+from ...utils.utt2info import Utt2Info
 
 from torch.utils.data import Dataset
 
 class SeqDataset(Dataset):
     def __init__(self, rspecifier, key_file,
                  class_file = None,
+                 num_frames_file = None,
                  path_prefix=None,
                  min_chunk_length=1,
                  max_chunk_length=None,
@@ -35,6 +38,11 @@ class SeqDataset(Dataset):
         self.u2c = Utt2Info.load(key_file, sep=' ')
         logging.info('dataset contains %d seqs' % self.num_seqs)
 
+        self._seq_lengths = None
+        if num_frames_file is not None:
+            self._read_num_frames_file(num_frames_file)
+        self._prune_short_seqs(max_chunk_length)
+
         self._prepare_class_info(class_file)
         
         if max_chunk_length is None:
@@ -44,14 +52,17 @@ class SeqDataset(Dataset):
 
         self.return_fullseqs = return_fullseqs
         self.return_class = return_class
-        self._seq_lengths = None
-
-        #self._prune_short_seqs(min_chunk_length)
-        self._prune_short_seqs(max_chunk_length)
 
         self.batch_chunk_length = max_chunk_length
         self.transpose_input = transpose_input
 
+
+    def _read_num_frames_file(self, file_path):
+        logging.info('reading num_frames file %s' % file_path)
+        nf_df = pd.read_csv(file_path, header=None, sep=' ')
+        nf_df.index = nf_df[0]
+        self._seq_lengths = nf_df.loc[self.u2c.key, 1].values
+        
 
     @property
     def num_seqs(self):
@@ -99,11 +110,12 @@ class SeqDataset(Dataset):
 
 
     def _prune_short_seqs(self, min_length):
+        logging.info('pruning short seqs')
         keep_idx = self.seq_lengths >= min_length
         self.u2c = self.u2c.filter_index(keep_idx)
         self._seq_lengths = self.seq_lengths[keep_idx]
-        logger.info('pruned seqs with min_length < %d,'
-                    'keep %d/%d seqs' % (
+        logging.info('pruned seqs with min_length < %d,'
+                     'keep %d/%d seqs' % (
                         min_length, self.num_seqs, len(keep_idx)))
 
         
@@ -113,33 +125,39 @@ class SeqDataset(Dataset):
             classes, class_idx = np.unique(self.u2c.info, return_inverse=True)
             class2idx = {k:i for i, k in enumerate(classes)}
         else:
-            logger.info('reading class-file %s' % (class_file))
+            logging.info('reading class-file %s' % (class_file))
             class_info = pd.read_csv(class_file, header=None, sep=' ')
             class2idx = {k:i for i,k in enumerate(class_info[0])}
             class_idx = np.array([class2idx[k] for k in self.u2c.info], dtype=int)
             if class_info.shape[1]==2:
-                class_weights = np.array(class_info[1])
+                class_weights = np.array(class_info[1]).astype(floatstr_torch(), copy=False)
            
         self.num_classes = len(class2idx)
 
         class2utt_idx = {}
         class2num_utt = np.zeros((self.num_classes,), dtype=int)
-        for k in xrange(self.num_classes):
+
+        for k in range(self.num_classes):
             idx = (class_idx == k).nonzero()[0]
             class2utt_idx[k] = idx
             class2num_utt[k] = len(idx)
             if class2num_utt[k] == 0:
-                logging.warning('class doesn\'t have any samples')
+                logging.warning('class %d doesn\'t have any samples' % (k))
                 if class_weights is None:
-                    class_weights = np.ones((self.num_classes,), dtype=float_cpu())
+                    class_weights = np.ones((self.num_classes,), dtype=floatstr_torch())
                 class_weights[k] = 0
+
+        count_empty = np.sum(class2num_utt==0)
+        if count_empty > 0:
+            logging.warning('%d classes have 0 samples' % (count_empty))
 
         self.utt_idx2class = class_idx
         self.class2utt_idx = class2utt_idx
         self.class2num_utt = class2num_utt
         if class_weights is not None:
             class_weights /= np.sum(class_weights)
-        self.class_weights = class_weights
+            class_weights = torch.Tensor(class_weights)
+        self.class_weights = class_weights 
 
 
 
@@ -152,7 +170,7 @@ class SeqDataset(Dataset):
 
     def __getitem__(self, index):
 
-        if return_fullseqs:
+        if self.return_fullseqs:
             return self._get_fullseq(index)
         else:
             return self._get_random_chunk(index)
@@ -161,7 +179,7 @@ class SeqDataset(Dataset):
             
     def _get_fullseq(self, index):
         key = self.u2c.key[index]
-        x = self.r.read([key])
+        x = self.r.read([key])[0].astype(floatstr_torch(), copy=False)
         if self.transpose_input:
             x = x.T
         if not self.return_class:
@@ -172,15 +190,16 @@ class SeqDataset(Dataset):
 
 
     def _get_random_chunk(self, index):
-        
         key = self.u2c.key[index]
-        full_seq_length = self.seq_lengths[index]
+        full_seq_length = int(self.seq_lengths[index])
         chunk_length = self.batch_chunk_length
-        assert seq_lenght <= full_seq_length
+        assert chunk_length <= full_seq_length
         first_frame = torch.randint(
             low=0, high=full_seq_length-chunk_length+1, size=(1,)).item()
+
         x = self.r.read([key], row_offset=first_frame,
-                        num_rows=chunk_length)
+                        num_rows=chunk_length)[0]
+
         if self.transpose_input:
             x = x.T
 
@@ -192,7 +211,6 @@ class SeqDataset(Dataset):
 
 
 
-
     @staticmethod
     def filter_args(prefix=None, **kwargs):
         if prefix is None:
@@ -200,7 +218,7 @@ class SeqDataset(Dataset):
         else:
             p = prefix + '_'
 
-        valid_args = ('path_prefix', 'class_file',
+        valid_args = ('path_prefix', 'class_file', 'num_frames_file',
                       'min_chunk_length', 'max_chunk_length',
                       'return_fullseqs',
                       'part_idx', 'num_parts')
@@ -227,10 +245,14 @@ class SeqDataset(Dataset):
                             default=None,
                             help=('ordered list of classes keys, it can contain class weights'))
 
+        parser.add_argument(p1+'num-frames-file', dest=(p2+'num_frames_file'), 
+                            default=None,
+                            help=('utt to num_frames file, if None it reads from the dataset but it is slow'))
+
         parser.add_argument(p1+'min-chunk-length', dest=(p2+'min_chunk_length'),
                             type=int, default=None,
                             help=('minimum length of sequence chunks'))
-        parser.add_argument(p1+'max-seq-length', dest=(p2+'max_seq_length'),
+        parser.add_argument(p1+'max-chunk-length', dest=(p2+'max_chunk_length'),
                             type=int, default=None,
                             help=('maximum length of sequence chunks'))
 

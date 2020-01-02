@@ -43,13 +43,12 @@ class FCBlock(nn.Module):
     def forward(self, x):
 
         x = self.linear(x)
-
         if self.norm_before:
             x = self.bn1(x)
 
         if self.activation is not None:
             x = self.activation(x)
-        
+
         if self.norm_after:
             x = self.bn1(x)
 

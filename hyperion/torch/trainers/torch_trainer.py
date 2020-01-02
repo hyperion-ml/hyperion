@@ -12,8 +12,8 @@ from collections import OrderedDict as ODict
 import torch
 import torch.nn as nn
 
-from .utils import MetricAcc
-from .loggers import LoggerList, CSVLogger, ProgLogger
+from ..utils import MetricAcc
+from ..loggers import LoggerList, CSVLogger, ProgLogger
 
 
 class TorchDataParallel(nn.DataParallel):
@@ -70,7 +70,9 @@ class TorchTrainer(object):
             
             self.loggers.on_epoch_begin(epoch, samples=len(train_data.dataset))
             if self.lr_scheduler is not None:
-                self.lr_scheduler.epoch_begin_step(epoch)
+                # this is needed by cosine scheduler
+                epoch_updates = int(len(train_data)/self.grad_acc_steps)
+                self.lr_scheduler.on_epoch_begin(epoch, epoch_updates=epoch_updates)
             
             logs = self.train_epoch(train_data)
             if val_data is not None:
@@ -81,7 +83,7 @@ class TorchTrainer(object):
             
             self.loggers.on_epoch_end(logs)
             if self.lr_scheduler is not None:
-                self.lr_scheduler.epoch_end_step(logs)
+                self.lr_scheduler.on_epoch_end(logs)
 
             self.save_checkpoint(logs)
 
@@ -89,9 +91,9 @@ class TorchTrainer(object):
             
     def train_epoch(self, data_loader):
 
-        epoch_batches = len(data_loader.dataset)
-        total_batches = self.cur_epoch * epoch_batches
-        
+        #epoch_batches = len(data_loader.dataset)
+        #total_batches = self.cur_epoch * epoch_batches
+
         metric_acc = MetricAcc()
         batch_metrics = ODict()
         self.model.train()
@@ -99,23 +101,22 @@ class TorchTrainer(object):
             
             self.loggers.on_batch_begin(batch)
 
-            if batch % self.acc_grad_steps == 0:
+            if batch % self.grad_acc_steps == 0:
                 self.optimizer.zero_grad()
-                if self.lr_scheduler is not None:
-                    self.lr_scheduler.batch_step()
                 
             data, target = data.to(self.device), target.to(self.device)
             batch_size = data.shape[0]
             
-
             output = self.model(data)
-            loss = self.loss(output, target)/self.acc_grad_steps
+            loss = self.loss(output, target).mean()/self.grad_acc_steps
             loss.backward()
 
-            if batch % self.acc_grad_steps == 0:
+            if (batch+1) % self.grad_acc_steps == 0:
+                if self.lr_scheduler is not None:
+                    self.lr_scheduler.on_opt_step()
                 self.optimizer.step()
 
-            batch_metrics['loss'] = loss.item() * self.acc_grad_steps
+            batch_metrics['loss'] = loss.item() * self.grad_acc_steps
             for k, metric in self.metrics.items():
                 batch_metrics[k] = metric(output, target)
             
@@ -123,7 +124,7 @@ class TorchTrainer(object):
             logs = metric_acc.metrics
             logs['lr'] = self._get_lr()
             self.loggers.on_batch_end(logs=logs, batch_size=batch_size)
-            total_batches +=1
+            #total_batches += 1
 
         logs = metric_acc.metrics
         logs['lr'] = self._get_lr()
@@ -142,7 +143,7 @@ class TorchTrainer(object):
 
                 output = self.model(data)
                 loss = self.loss(output, target)
-                batch_metrics['loss'] = loss.item()
+                batch_metrics['loss'] = loss.mean().item()
                 for k, metric in self.metrics.items():
                     batch_metrics[k] = metric(output, target)
             
@@ -155,7 +156,7 @@ class TorchTrainer(object):
 
     def _default_loggers(self):
         prog_log = ProgLogger(interval=10)
-        csv_log = CSVLogger(self.exp_path + '/train.log', append=self.cur_epoch>0)
+        csv_log = CSVLogger(self.exp_path + '/train.log', append=True)
         return LoggerList([prog_log, csv_log])
     
     
@@ -192,7 +193,8 @@ class TorchTrainer(object):
 
     def load_checkpoint(self, file_path):
 
-        checkpoint = torch.load(file_path)
+        #checkpoint = torch.load(file_path, map_location=lambda storage, loc: storage)
+        checkpoint = torch.load(file_path, map_location=torch.device("cpu"))
         rng_state = checkpoint['rng_state']
         torch.set_rng_state(rng_state)
         self.cur_epoch = checkpoint['epoch']
@@ -202,9 +204,15 @@ class TorchTrainer(object):
         if self.lr_scheduler is not None:
             self.lr_scheduler.load_state_dict(checkpoint['lr_scheduler_state_dict'])
 
+        logs = None
         if 'logs' in checkpoint:
-            return checkpoint['logs']
-        return None
+            logs = checkpoint['logs']
+
+        del checkpoint 
+        if self.device is not None:
+            torch.cuda.empty_cache()
+
+        return logs
 
     
     def load_last_checkpoint(self):

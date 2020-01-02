@@ -29,7 +29,7 @@ if __name__ == "__main__":
 
     parser.add_argument('--input', dest='input_spec', nargs='+', required=True)
     parser.add_argument('--output', dest='output_spec', required=True)
-    #parser.add_argument('--write-num-frames', dest='write_num_frames', default=None)
+    parser.add_argument('--write-num-frames', dest='write_num_frames', default=None)
     parser.add_argument('-v', '--verbose', dest='verbose', default=1, choices=[0, 1, 2, 3], type=int)
 
     CF.add_argparse_args(parser)

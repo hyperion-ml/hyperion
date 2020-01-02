@@ -4,6 +4,8 @@
 """
 
 import math
+import logging
+
 import numpy as np
 
 import torch
@@ -12,13 +14,15 @@ from torch.utils.data import Sampler
 
 class ClassWeightedSeqSampler(Sampler):
 
-    def __init__(dataset, batch_size=1, iters_per_epoch='auto',
+    def __init__(self, dataset, batch_size=1, iters_per_epoch='auto',
                  num_egs_per_class=1, num_egs_per_utt=1):
         
+        super(ClassWeightedSeqSampler, self).__init__(None)
         self.dataset = dataset
         self.batch_size = batch_size
         self.num_egs_per_class = num_egs_per_class
         self.num_egs_per_utt = num_egs_per_utt
+        self.batch = 0
         
         if iters_per_epoch == 'auto':
             self._compute_iters_auto()
@@ -34,7 +38,7 @@ class ClassWeightedSeqSampler(Sampler):
             batch_size/num_egs_per_class/num_egs_per_utt))
         logging.info('num classes per batch: %d' % self._num_classes_per_batch)
 
-        self.weights = torch.as_tensor(dataset.class_weights, dtype=torch.double)
+        #self.weights = torch.as_tensor(dataset.class_weights, dtype=torch.double)
         
 
         
@@ -52,26 +56,42 @@ class ClassWeightedSeqSampler(Sampler):
 
         
     def __iter__(self):
+        self.batch = 0
         return self
 
 
     def __next__(self):
+
+        if self.batch == self._len:
+            raise StopIteration
         
         dataset = self.dataset
-        if dataset.class_weight is None:
-            class_idx = torch.randint(low=0, high=dataset.num_classes, size=(self._num_classes_per_batch,))
+        if dataset.class_weights is None:
+            class_idx = torch.randint(low=0, high=dataset.num_classes, 
+                                      size=(self._num_classes_per_batch,))
         else:
-            class_idx = torch.multinomial(dataset.class_weight, num_samples=self._num_classes_per_batch, replacement=True)
+            class_idx = torch.multinomial(
+                dataset.class_weights, 
+                num_samples=self._num_classes_per_batch, replacement=True)
 
         if self.num_egs_per_class > 1:
             class_idx = class_idx.repeat(self.num_egs_per_class)
-        utt_idx = torch.as_tensor([self.dataset.class2utt_idx[c][torch.randint(low=0, high=self.class2num_utt[c], size=(1,))] for c in class_idx.tolist()])
+
+        utt_idx = torch.as_tensor([
+            self.dataset.class2utt_idx[c][
+                torch.randint(low=0, high=int(self.dataset.class2num_utt[c]), size=(1,))] 
+            for c in class_idx.tolist()])
 
         if self.num_egs_per_utt > 1:
             utt_idx = utt_idx.repeat(self.num_egs_per_utt)
+
+        if self.batch == 0:
+            logging.info('batch 0 classidx=%s', str(class_idx[:10]))
+            logging.info('batch 0 uttidx=%s', str(utt_idx[:10]))
+
+        self.batch += 1
   
         self.dataset.set_random_chunk_length()
-
         return utt_idx.tolist()[:self.batch_size]
 
     

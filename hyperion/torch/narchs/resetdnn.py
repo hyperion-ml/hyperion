@@ -11,7 +11,7 @@ import torch.nn as nn
 from torch.nn import Conv1d, Linear, BatchNorm1d
 
 from ..layers import ActivationFactory as AF
-from ..layer_blocks import ResETDNNBlock, ETDNNBlock
+from ..layer_blocks import ResETDNNBlock, ETDNNBlock, TDNNBlock
 from .net_arch import NetArch
 
 
@@ -58,21 +58,21 @@ class ResETDNNV1(NetArch):
         self._context = int(np.sum(np.array(dilation)*(
             np.array(kernel_size)-1)/2))
 
-
+        print(in_units, hid_units, expand_units)
         blocks = []
         for i in range(num_blocks):
             if i==0:
                 blocks.append(
-                    ETDNNBlock(in_units, hid_units, 
-                               kernel_size=kernel_size[i], dilation=dilation[i], 
-                               activation=hid_act, dropout_rate=dropout_rate, 
-                               use_norm=use_norm, norm_before=norm_before))
+                    TDNNBlock(in_units, hid_units, 
+                              kernel_size=kernel_size[i], dilation=dilation[i], 
+                              activation=hid_act, dropout_rate=dropout_rate, 
+                              use_norm=use_norm, norm_before=norm_before))
             elif i==num_blocks-1:
                 blocks.append(
-                    ETDNNBlock(hid_units, expand_units, 
-                               kernel_size=kernel_size[i], dilation=dilation[i], 
-                               activation=hid_act, dropout_rate=dropout_rate, 
-                               use_norm=use_norm, norm_before=norm_before))
+                    TDNNBlock(hid_units, expand_units, 
+                              kernel_size=kernel_size[i], dilation=dilation[i], 
+                              activation=hid_act, dropout_rate=dropout_rate, 
+                              use_norm=use_norm, norm_before=norm_before))
             else:
                 blocks.append(
                     ResETDNNBlock(hid_units, 
@@ -84,6 +84,8 @@ class ResETDNNV1(NetArch):
 
         self.with_output = False
         if out_units == 0:
+            self.out_act = None
+            self.output = None
             return 
 
         self.with_output = True
@@ -145,5 +147,19 @@ class ResETDNNV1(NetArch):
         return dict(list(base_config.items()) + list(config.items()))
 
     
+
+    def in_shape(self):
+        return (None, self.in_units, None)
+
+
+    def out_shape(self, in_shape=None):
+        if self.with_output:
+            return (None, self.out_units)
+
+        if in_shape is None:
+            return (None, self.expand_units, None)
+
+        assert len(in_shape) == 3
+        return (in_shape[0], self.expand_units, in_shape[2])
 
 

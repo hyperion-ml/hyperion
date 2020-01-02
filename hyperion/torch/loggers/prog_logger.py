@@ -59,7 +59,7 @@ class ProgLogger(Logger):
         
 
     def on_batch_begin(self, batch, logs=None, **kwargs):
-        self.cur_batch = batch
+        self.cur_batch = batch 
 
 
 
@@ -68,6 +68,8 @@ class ProgLogger(Logger):
         if 'batch_size' in kwargs:
             batch_size = kwargs['batch_size']
             self.cur_sample += batch_size
+
+        self.cur_batch += 1
 
         if (self.cur_batch % self.interval) == 0:
             info = 'epoch: %d/%d ' % (self.cur_epoch+1, self.epochs)
@@ -130,11 +132,11 @@ class ProgLogger(Logger):
     def sec2str(t):
         t = time.gmtime(t)
         if t.tm_mday > 1:
-            st = '%d:%d:%d:%d' % (t.tm_mday-1, t.tm_hour, t.tm_min, t.tm_sec)
+            st = '%d:%02d:%02d:%02d' % (t.tm_mday-1, t.tm_hour, t.tm_min, t.tm_sec)
         elif t.tm_hour > 0:
-            st = '%d:%d:%d' % (t.tm_hour, t.tm_min, t.tm_sec)
+            st = '%d:%02d:%02d' % (t.tm_hour, t.tm_min, t.tm_sec)
         elif t.tm_min > 0:
-            st = '%d:%d' % (t.tm_min, t.tm_sec)
+            st = '%d:%02d' % (t.tm_min, t.tm_sec)
         else: 
             st = '%ds' % (t.tm_sec)
             

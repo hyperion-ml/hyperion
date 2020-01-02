@@ -4,9 +4,13 @@
 """
 from __future__ import absolute_import
 
+import sys
+import logging
+import math
+
 import torch
 import torch.nn as nn
-
+from apex import amp
 
 @amp.float_function
 def _l2_norm(x, axis=-1):
@@ -17,14 +21,14 @@ def _l2_norm(x, axis=-1):
 
 class ArcLossOutput(nn.Module):
 
-    def __init__(self, in_feats, num_classes, s=64, margin=0.3, margin_inc_epochs=0):
+    def __init__(self, in_feats, num_classes, s=64, margin=0.3, margin_warmup_epochs=0):
         super(ArcLossOutput, self).__init__()
         self.in_feats = in_feats
         self.num_classes = num_classes
         self.s = s
         self.margin = margin
-        self.margin_inc_epochs = margin_inc_epochs
-        if margin_inc_epochs == 0:
+        self.margin_warmup_epochs = margin_warmup_epochs
+        if margin_warmup_epochs == 0:
             self.cur_margin = margin
         else:
             self.cur_margin = 0
@@ -34,23 +38,34 @@ class ArcLossOutput(nn.Module):
         self.kernel = nn.Parameter(torch.Tensor(in_feats, num_classes))
         self.kernel.data.uniform_(-1, 1).renorm_(2,1,1e-5).mul_(1e5)
 
+
+    def __repr__(self):
+        return self.__str__()
+
+    def __str__(self):
+        s = '%s(in_feats=%d, num_classes=%d, s=%.2f, margin=%.2f, margin_warmup_epochs=%d)' % (
+            self.__class__.__name__,
+            self.in_feats, self.num_classes, 
+            self.s, self.margin, self.margin_warmup_epochs)
+        return s
+
         
     def _compute_aux(self):
-
+        logging.info('updating arc-softmax margin=%.2f' % (self.cur_margin))
         self.cos_m = math.cos(self.cur_margin)
         self.sin_m = math.sin(self.cur_margin)
 
 
     def update_margin(self, epoch):
         
-        if self.margin_inc_epochs == 0:
+        if self.margin_warmup_epochs == 0:
             return
 
-        if epoch < self.margin_inc_epochs:
-            self.cur_margin = self.margin*epoch/self.margin_inc_epochs
+        if epoch < self.margin_warmup_epochs:
+            self.cur_margin = self.margin*epoch/self.margin_warmup_epochs
         else:
             if self.cur_margin != self.margin:
-                self.cur_margin = margin
+                self.cur_margin = self.margin
             else:
                 return
 
@@ -61,13 +76,14 @@ class ArcLossOutput(nn.Module):
     def forward(self, x, y=None):
 
         s = self.s
+        #print(x)
         x = _l2_norm(x)
         batch_size = len(x)
-        kernel_norm = _l2_norm(self.kernel,axis=0)
+        kernel_norm = _l2_norm(self.kernel, axis=0)
         # cos(theta+m)                                      
         cos_theta = torch.mm(x, kernel_norm).float()
         cos_theta = cos_theta.clamp(-1,1) # for numerical stability
-
+        #print(cos_theta)
         output = cos_theta * 1.0 # a little bit hacky way to prevent in_place operation on cos_theta
 
         if y is not None and self.training:
@@ -78,7 +94,9 @@ class ArcLossOutput(nn.Module):
 
             idx_ = torch.arange(0, batch_size, dtype=torch.long)
             output[idx_, y] = cos_theta_m[idx_, y]
-
+        #print(output)
+        #sys.flush.stdout()
+        #print(ss)
         output *= s # scale up in order to make softmax work
         return output
 
@@ -86,14 +104,14 @@ class ArcLossOutput(nn.Module):
 
 class CosLossOutput(nn.Module):
 
-    def __init__(self, in_feats, num_classes, s=64, margin=0.3, margin_inc_epochs=0):
+    def __init__(self, in_feats, num_classes, s=64, margin=0.3, margin_warmup_epochs=0):
         super(ArcLossOutput, self).__init__()
         self.in_feats = in_feats
         self.num_classes = num_classes
         self.s = s
         self.margin = margin
-        self.margin_inc_epochs = margin_inc_epochs
-        if margin_inc_epochs == 0:
+        self.margin_warmup_epochs = margin_warmup_epochs
+        if margin_warmup_epochs == 0:
             self.cur_margin = margin
         else:
             self.cur_margin = 0
@@ -104,14 +122,16 @@ class CosLossOutput(nn.Module):
 
     def update_margin(self, epoch):
         
-        if self.margin_inc_epochs == 0:
+        if self.margin_warmup_epochs == 0:
             return
 
-        if epoch < self.margin_inc_epochs:
-            self.cur_margin = self.margin*epoch/self.margin_inc_epochs
+        if epoch < self.margin_warmup_epochs:
+            self.cur_margin = self.margin*epoch/self.margin_warmup_epochs
+            logging.info('updating cos-softmax margin=%.2f' % (self.cur_margin))
         else:
             if self.cur_margin != self.margin:
                 self.cur_margin = margin
+                logging.info('updating cos-softmax margin=%.2f' % (self.cur_margin))
             else:
                 return
 

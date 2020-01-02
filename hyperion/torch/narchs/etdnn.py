@@ -75,6 +75,8 @@ class ETDNNV1(NetArch):
 
         self.with_output = False
         if out_units == 0:
+            self.out_act = None
+            self.output = None
             return 
 
         self.with_output = True
@@ -135,5 +137,25 @@ class ETDNNV1(NetArch):
         return dict(list(base_config.items()) + list(config.items()))
 
     
+    def in_shape(self):
+        return (None, self.in_units, None)
+
+
+    def out_shape(self, in_shape=None):
+        if self.with_output:
+            return (None, self.out_units)
+
+        if isinstance(self.hid_units, list):
+            out_units = self.hid_units[-1]
+        else:
+            out_units = self.hid_units
+
+        if in_shape is None:
+            return (None, out_units, None)
+
+        assert len(in_shape) == 3
+        return (in_shape[0], out_units, in_shape[2])
+
+
 
 

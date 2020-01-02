@@ -14,10 +14,18 @@ torch_dtype2str = { torch.float32: 'float32',
                     torch.float64: 'float64',
                     torch.float16: 'float16'}
 
-def float_torch():
+def floatstr_torch():
     return torch_dtype2str[torch.get_default_dtype()]
 
+def float_torch():
+    return torch.get_default_dtype()
 
-def set_float_cpu(float_torch):
-    torch.set_default_dtype(str2torch_dtype[float_torch])
+
+def set_float_torch(float_torch):
+    if isinstance(float_torch, str):
+        float_torch = str2torch_dtype[float_torch]
+        
+    torch.set_default_dtype(float_torch)
+
+        
     

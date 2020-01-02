@@ -22,7 +22,7 @@ class LRSchedulerFactory(object):
                factor=0.1, patience=10,
                threshold=1e-4, threshold_mode='rel',
                cooldown=0, eps=1e-8,
-               min_lr=0, warmup_steps=0, update_lr_on_batch=False):
+               min_lr=0, warmup_steps=0, update_lr_on_opt_step=False):
 
         if lrsch_type == 'none':
             return None
@@ -31,18 +31,18 @@ class LRSchedulerFactory(object):
             return ExponentialLR(
                 optimizer, decay_rate, decay_steps, hold_steps,
                 min_lr=min_lr, warmup_steps=warmup_steps, 
-                update_lr_on_batch=False)
+                update_lr_on_opt_step=update_lr_on_opt_step)
 
         if lrsch_type == 'cos_lr':
             return CosineLR(optimizer, T, T_mul, min_lr=min_lr,
                             warmup_steps=warmup_steps,
                             warm_restarts=warm_restarts, gamma=gamma,
-                            update_lr_on_batch=update_lr_on_batch)
+                            update_lr_on_opt_step=update_lr_on_opt_step)
 
         if lrsch_type == 'adamcos_lr':
             return AdamCosineLR(optimizer, T, T_mul, warmup_steps=warmup_steps,
                             warm_restarts=warm_restarts, gamma=gamma,
-                            update_lr_on_batch=update_lr_on_batch)
+                            update_lr_on_opt_step=update_lr_on_opt_step)
 
         if lrsch_type == 'red_lr_on_plateau':
             return ReduceLROnPlateau(
@@ -63,7 +63,7 @@ class LRSchedulerFactory(object):
         valid_args = ('lrsch_type', 'decay_rate', 'decay_steps', 'hold_steps',
                       'T', 'T_mul', 'warm_restarts', 'gamma', 'monitor', 
                       'mode','factor','patience','threshold',
-                      'threshold_mode','cooldown','eps','min_lr', 'warmup_steps', 'update_lr_on_batch')
+                      'threshold_mode','cooldown','eps','min_lr', 'warmup_steps', 'update_lr_on_opt_step')
 
         return dict((k, kwargs[p+k])
                     for k in valid_args if p+k in kwargs)
@@ -147,6 +147,6 @@ class LRSchedulerFactory(object):
                             default=0, type=int,
                             help=('Number of batches to warmup lr'))
 
-        parser.add_argument(p1+'update-lr-on-batch', dest=(p2+'update_lr_on_batch'), default=False,
+        parser.add_argument(p1+'update-lr-on-opt-step', dest=(p2+'update_lr_on_opt_step'), default=False,
                             action='store_true',
                             help=('Update lr based on batch number instead of epoch number'))

@@ -42,7 +42,7 @@ class CSVLogger(Logger):
             os.makedirs(file_dir)
         
         if self.append:
-            if os.path.exist(self.file_path):
+            if os.path.exists(self.file_path):
                 with open(self.file_path, 'r') as f:
                     self.append_header = len(f.readline())==0
 

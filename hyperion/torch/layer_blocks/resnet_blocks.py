@@ -89,6 +89,9 @@ class ResNetBasicBlock(nn.Module):
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
 
+        self.in_channels = in_channels
+        self.channels = channels
+
         bias = not norm_before
         self.conv1 = _conv3x3(in_channels, channels, stride, groups, dilation, bias=bias)
         self.bn1 = norm_layer(channels)
@@ -112,6 +115,10 @@ class ResNetBasicBlock(nn.Module):
         self.context = dilation + 1
         self.downsample_factor = stride
 
+
+    @property
+    def out_channels(self):
+        return self.channels
 
 
     def forward(self, x):
@@ -158,6 +165,10 @@ class ResNetBNBlock(nn.Module):
                  dilation=1, norm_layer=None, norm_before=True):
 
         super(ResNetBNBlock, self).__init__()
+
+        self.in_channels = in_channels
+        self.channels = channels
+
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
         bias = not norm_before
@@ -188,6 +199,11 @@ class ResNetBNBlock(nn.Module):
 
         self.context = dilation
         self.downsample_factor = stride
+
+
+    @property
+    def out_channels(self):
+        return self.channels * self.expansion
 
 
     def forward(self, x):

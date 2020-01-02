@@ -6,4 +6,5 @@ from __future__ import absolute_import
 
 # xvectors
 from .xvector import XVector
-from .xvector_trainer import XVectorTrainer
+from .tdnn_xvector import TDNNXVector
+from .resnet_xvector import ResNetXVector

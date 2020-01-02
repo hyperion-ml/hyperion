@@ -8,6 +8,7 @@ from __future__ import absolute_import
 from six import string_types
 
 import sys
+import time
 import numpy as np
 import h5py
 import threading
@@ -687,7 +688,7 @@ class RandomAccessH5ScriptDataReader(RandomAccessH5DataReader):
         """
         if isinstance(keys, string_types):
             keys = [keys]
-
+        #t1 = time.time()
         shapes = []
         for key in keys:
             
@@ -703,7 +704,7 @@ class RandomAccessH5ScriptDataReader(RandomAccessH5DataReader):
 
             row_offset_i, num_rows_i = self._combine_ranges(
                 range_spec, 0, 0)
-            
+
             f, lock = self._open_archive(index)
             if not (key in f):
                 if self.permissive:
@@ -711,12 +712,12 @@ class RandomAccessH5ScriptDataReader(RandomAccessH5DataReader):
                     continue
                 else:
                     raise Exception('Key %s not found' % key)
-            
+
             with lock:
                 shape_i = f[key].shape
             shape_i = self._apply_range_to_shape(
                 shape_i, row_offset_i, num_rows_i)
-            
+            #print('%s %d %.2f' % (key,time.time()-t1, len(shapes)/len(keys)*100.))
             shapes.append(shape_i)
 
         if assert_same_dim:
@@ -774,7 +775,7 @@ class RandomAccessH5ScriptDataReader(RandomAccessH5DataReader):
             num_rows_i = num_rows[i] if num_rows_is_list else num_rows
             row_offset_i, num_rows_i = self._combine_ranges(
                 range_spec, row_offset_i, num_rows_i)
-            
+
             f, lock = self._open_archive(index)
             with lock:
                 if not (key in f):

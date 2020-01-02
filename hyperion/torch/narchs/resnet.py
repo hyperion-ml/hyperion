@@ -18,14 +18,13 @@ class ResNet(NetArch):
 
 
     def __init__(self, block, num_layers, in_channels, conv_channels=64, base_channels=64, out_units=0,
-                 hid_act={'name':'relu', 'inplace': True}, out_act=None,
+                 hid_act={'name':'relu6', 'inplace': True}, out_act=None,
                  in_kernel_size=7, in_stride=2,
                  zero_init_residual=False,
                  groups=1, replace_stride_with_dilation=None, dropout_rate=0,
                  norm_layer=None, norm_before=True, do_maxpool=True, in_norm=True):
 
         super(ResNet, self).__init__()
-
 
         self.block = block
         if isinstance(block, str):
@@ -90,6 +89,7 @@ class ResNet(NetArch):
                                        dilate=replace_stride_with_dilation[2])
 
         self.with_output = False
+        self.out_act = None
         if out_units > 0:
             self.with_output = True
             self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
@@ -149,12 +149,47 @@ class ResNet(NetArch):
         return nn.Sequential(*layers)
 
 
-    def context(self):
+    def _compute_out_size(self, in_size):
+        out_size = int((in_size - 1)//self.in_stride+1)
+        if self.do_maxpool:
+            out_size = int((out_size - 1)//2+1)
+
+        for i in range(3):
+            if not self.replace_stride_with_dilation[i]:
+                out_size = int((out_size - 1)//2+1)
+
+        return out_size
+
+
+    def in_context(self):
         return (self._context, self._context)
 
 
-    def downsample_factor(self):
-        self._downsample_factor
+    def in_shape(self):
+        return (None, self.in_channels, None, None)
+
+            
+
+    def out_shape(self, in_shape=None):
+        if self.with_output:
+            return (None, self.out_units)
+
+        if in_shape is None:
+            return (None, self.layer4[-1].out_channels, None, None)
+
+        assert len(in_shape) == 4
+        if in_shape[2] is None:
+            H = None
+        else:
+            H = self._compute_out_size(in_shape[2])
+
+        if in_shape[3] is None:
+            W = None
+        else:
+            W = self._compute_out_size(in_shape[3])
+            
+        return (in_shape[0], self.layer4[-1].out_channels, H, W)
+
 
 
     def forward(self, x):

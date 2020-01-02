@@ -7,7 +7,7 @@ from __future__ import absolute_import
 import numpy as np
 
 import torch.nn as nn
-from torch.nn import Linear, 
+from torch.nn import Linear
 
 from ..layers import CosLossOutput, ArcLossOutput
 from ..layer_blocks import FCBlock
@@ -19,7 +19,7 @@ class ClassifHead(NetArch):
                  num_embed_layers=1, 
                  hid_act={'name':'relu', 'inplace': True}, 
                  loss_type='arc-softmax',
-                 s=64, margin=0.3, margin_inc_epochs=0,
+                 s=64, margin=0.3, margin_warmup_epochs=0,
                  use_norm=True, norm_before=True, 
                  dropout_rate=0):
 
@@ -35,6 +35,9 @@ class ClassifHead(NetArch):
         
         self.dropout_rate = dropout_rate
         self.loss_type = loss_type
+        self.s = s
+        self.margin = margin
+        self.margin_warmup_epochs = margin_warmup_epochs
         
         prev_feats = in_feats
         fc_blocks = []
@@ -66,28 +69,29 @@ class ClassifHead(NetArch):
         elif loss_type == 'cos-softmax':
             self.output = CosLossOutput(
                 embed_dim, num_classes, 
-                s=s, margin=margin, margin_inc_steps=margin_inc_epochs)
+                s=s, margin=margin, margin_warmup_epochs=margin_warmup_epochs)
         elif loss_type == 'arc-softmax':
             self.output = ArcLossOutput(
                 embed_dim, num_classes, 
-                s=s, margin=margin, margin_inc_steps=margin_inc_epochs)
+                s=s, margin=margin, margin_warmup_epochs=margin_warmup_epochs)
                 
 
-    def update_margin(self, steps):
-        if hasattr(self.ouput, 'update_margin_steps'):
-            self.output.update_margin_steps(steps)
+    def update_margin(self, epoch):
+        if hasattr(self.output, 'update_margin'):
+            self.output.update_margin(epoch)
 
                 
-
     def forward(self, x, y=None):
 
         for l in range(self.num_embed_layers):
             x = self.fc_blocks[l](x)
-
-        y = self.output(x, y)
+        
+        if self.loss_type == 'softmax':
+            y = self.output(x)
+        else:
+            y = self.output(x, y)
 
         return y
-
 
 
     def extract_embed(self, x, embed_layer=0):
@@ -110,9 +114,10 @@ class ClassifHead(NetArch):
             'embed_dim': self.embed_dim,
             'num_embed_layers': self.num_embed_layers,
             'hid_act': hid_act,
+            'lost_type': self.lost_type,
             's': self.s,
             'margin': self.margin,
-            'margin_inc_step': self.margin_inc_step,
+            'margin_warmpu_epocs': self.margin_warmup_epochs,
             'use_norm': self.use_norm,
             'norm_before': self.norm_before,
             'dropout_rate': self.dropout_rate

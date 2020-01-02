@@ -13,7 +13,7 @@ class LRScheduler(object):
     """Base class for learning rate schedulers
     """
     def __init__(self, optimizer, min_lr=0, warmup_steps=0,
-                 last_epoch=-1, last_batch=-1, update_lr_on_batch=False):
+                 epoch=0, step=0, update_lr_on_opt_step=False):
         if not isinstance(optimizer, optim.Optimizer):
             raise TypeError('%s is not an Optimizer' % 
                             (type(optimizer).__name__))
@@ -27,25 +27,25 @@ class LRScheduler(object):
         else:
             self.min_lrs = [min_lr] * len(optimizer.param_groups)
 
-        if last_epoch == -1:
+        if epoch == 0:
             for group in optimizer.param_groups:
                 group.setdefault('initial_lr', group['lr'])
-            else:
-                for i, group in enumerate(optimizer.param_groups):
-                    if 'initial_lr' not in group:
-                        raise KeyError("param 'initial_lr' is not specified "
-                                       "in param_groups[{}] when resuming an optimizer".format(i))
+        else:
+            for i, group in enumerate(optimizer.param_groups):
+                if 'initial_lr' not in group:
+                    raise KeyError("param 'initial_lr' is not specified "
+                                   "in param_groups[{}] when resuming an optimizer".format(i))
 
         self.base_lrs = list(map(lambda group: group['initial_lr'], optimizer.param_groups))
         self.warmup_steps = warmup_steps
-        self.last_epoch = last_epoch
-        self.last_batch = last_batch
-        self.update_lr_on_batch = update_lr_on_batch
+        self.epoch = epoch
+        self.step = step
+        self.update_lr_on_opt_step = update_lr_on_opt_step
 
 
     @property
     def in_warmup(self):
-        return self.last_batch <= self.warmup_steps
+        return self.step <= self.warmup_steps
     
 
     def state_dict(self):
@@ -68,7 +68,7 @@ class LRScheduler(object):
 
 
     def get_warmup_lr(self):
-        x = self.last_batch
+        x = self.step
         return [(base_lr - min_lr)/self.warmup_steps*x + min_lr
                 for base_lr, min_lr in zip(self.base_lrs, self.min_lrs)]
 
@@ -77,32 +77,36 @@ class LRScheduler(object):
         raise NotImplementedError
 
     
-    def epoch_begin_step(self, epoch=None):
-        if epoch is None:
-            epoch = self.last_epoch + 1
-        self.last_epoch = epoch
-        if self.update_lr_on_batch:
+    def on_epoch_begin(self, epoch=None, **kwargs):
+        if epoch is not None:
+            self.epoch = epoch
+
+        if self.update_lr_on_opt_step:
             return
-        for param_group, lr in zip(self.optimizer.param_groups, self.get_lr(self.last_epoch)):
+
+        for param_group, lr in zip(self.optimizer.param_groups, self.get_lr(self.epoch)):
             param_group['lr'] = lr
 
             
-    def epoch_end_step(self, metrics=None):
-        pass
+    def on_epoch_end(self, metrics=None):
+        self.epoch += 1
 
 
-    def batch_step(self):
-        self.last_batch = self.last_batch + 1
+    def on_opt_step(self):
+
+        #self.update_lr_on_opt_step=True
+        #print('exp-lr', self.last_step, self.hold_steps, self.decay_rate, self.decay_steps)
+
         if self.in_warmup:
             for param_group, lr in zip(self.optimizer.param_groups, self.get_warmup_lr()):
                 param_group['lr'] = lr
+            self.step += 1
             return
         
-        if not self.update_lr_on_batch:
-            return
-        
-        for param_group, lr in zip(self.optimizer.param_groups, self.get_lr(self.last_batch)):
-            param_group['lr'] = lr
+        if self.update_lr_on_opt_step:
+            for param_group, lr in zip(self.optimizer.param_groups, self.get_lr(self.step)):
+                param_group['lr'] = lr
 
+        self.step += 1
 
             

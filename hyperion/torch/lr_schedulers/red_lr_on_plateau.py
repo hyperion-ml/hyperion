@@ -57,7 +57,7 @@ class ReduceLROnPlateau(LRScheduler):
                  cooldown=0, min_lr=0, warmup_steps=0, eps=1e-8):
         super(ReduceLROnPlateau, self).__init__(
             optimizer, min_lr, warmup_steps,
-            last_epoch=-1, last_batch=-1, update_lr_on_batch=False)
+            epoch=0, step=0, update_lr_on_opt_step=False)
 
         if factor >= 1.0:
             raise ValueError('Factor should be < 1.0.')
@@ -87,21 +87,20 @@ class ReduceLROnPlateau(LRScheduler):
         self.num_bad_epochs = 0
 
 
-    def batch_step(self):
-        self.last_batch = self.last_batch + 1
+    def on_opt_step(self):
+        self.step = self.step + 1
         if self.in_warmup:
             for param_group, lr in zip(self.optimizer.param_groups, self.get_warmup_lr()):
                 param_group['lr'] = lr
             return
 
         
-    def epoch_begin_step(self, epoch=None):
-        if epoch is None:
-            epoch = self.last_epoch + 1
-        self.last_epoch = epoch
+    def on_epoch_begin(self, epoch=None):
+        if epoch is not None:
+            self.epoch = epoch
     
         
-    def epoch_end_step(self, metrics=None):
+    def on_epoch_end(self, metrics=None):
         current = metrics[self.monitor]
         if self.is_better(current, self.best):
             self.best = current
@@ -114,9 +113,11 @@ class ReduceLROnPlateau(LRScheduler):
             self.num_bad_epochs = 0  # ignore any bad epochs in cooldown
 
         if self.num_bad_epochs > self.patience:
-            self._reduce_lr(self.last_epoch)
+            self._reduce_lr(self.epoch)
             self.cooldown_counter = self.cooldown
             self.num_bad_epochs = 0
+
+        self.epoch += 1
 
             
     def _reduce_lr(self, epoch):

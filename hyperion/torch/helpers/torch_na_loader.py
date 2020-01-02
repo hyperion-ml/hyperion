@@ -5,7 +5,7 @@
 
 import torch
 
-from narchs import *
+from ..narchs import *
 
 class TorchNALoader(object):
 
@@ -16,9 +16,9 @@ class TorchNALoader(object):
         cfg = model_data['model_cfg']
         class_name = cfg['class_name']
         del cfg['class_name']
-        if class_name is in globals():
+        if class_name in globals():
             class_obj = globals()[class_name]
-        elif class_name is in extra_objs:
+        elif class_name in extra_objs:
             class_obs = extra_objs[class_name]
         else:
             raise Exception('unknown neural architecture object with class_name=%s'

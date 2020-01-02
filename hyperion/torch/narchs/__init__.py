@@ -12,3 +12,5 @@ from .resnet import *
 from .classif_head import ClassifHead
 
 
+from .tdnn_factory import TDNNFactory
+from .resnet_factory import ResNetFactory

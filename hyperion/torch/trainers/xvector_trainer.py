@@ -5,11 +5,13 @@
 import os
 from collections import OrderedDict as ODict
 
+import logging
 #import numpy as np
 
 import torch
 import torch.nn as nn
 
+from ..utils import MetricAcc
 from .torch_trainer import TorchTrainer
 
 
@@ -21,7 +23,7 @@ class XVectorTrainer(TorchTrainer):
                  data_parallel=False, loss=None):
 
         if loss is None:
-            loss = nn.n.CrossEntropyLoss()
+            loss = nn.CrossEntropyLoss()
         super(XVectorTrainer, self).__init__(
             model, optimizer, loss, epochs, exp_path, cur_epoch=cur_epoch,
             grad_acc_steps=grad_acc_steps, device=device, metrics=metrics,
@@ -30,34 +32,33 @@ class XVectorTrainer(TorchTrainer):
 
         
     def train_epoch(self, data_loader):
-
-        epoch_batches = len(data_loader.dataset)
-        total_batches = self.cur_epoch * epoch_batches
+        #epoch_batches = len(data_loader.dataset)
+        #total_batches = self.cur_epoch * epoch_batches
         
+        self.model.update_loss_margin(self.cur_epoch)
+
         metric_acc = MetricAcc()
         batch_metrics = ODict()
         self.model.train()
         for batch, (data, target) in enumerate(data_loader):
-            
             self.loggers.on_batch_begin(batch)
 
-            if batch % self.acc_grad_steps == 0:
+            if batch % self.grad_acc_steps == 0:
                 self.optimizer.zero_grad()
-                if self.lr_scheduler is not None:
-                    self.lr_scheduler.batch_step()
                 
             data, target = data.to(self.device), target.to(self.device)
             batch_size = data.shape[0]
-            
 
             output = self.model(data, target)
-            loss = self.loss(output, target)/self.acc_grad_steps
+            loss = self.loss(output, target).mean()/self.grad_acc_steps
             loss.backward()
 
-            if batch % self.acc_grad_steps == 0:
+            if (batch+1) % self.grad_acc_steps == 0:
+                if self.lr_scheduler is not None:
+                    self.lr_scheduler.on_opt_step()
                 self.optimizer.step()
 
-            batch_metrics['loss'] = loss.item() * self.acc_grad_steps
+            batch_metrics['loss'] = loss.item() * self.grad_acc_steps
             for k, metric in self.metrics.items():
                 batch_metrics[k] = metric(output, target)
             
@@ -65,7 +66,7 @@ class XVectorTrainer(TorchTrainer):
             logs = metric_acc.metrics
             logs['lr'] = self._get_lr()
             self.loggers.on_batch_end(logs=logs, batch_size=batch_size)
-            total_batches +=1
+            #total_batches +=1
 
         logs = metric_acc.metrics
         logs['lr'] = self._get_lr()
