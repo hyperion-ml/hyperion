@@ -7,12 +7,13 @@ import math
 import torch
 
 def eval_nnet_by_chunks(x, nnet, chunk_length=0, device=None, time_dim=-1):
-
+    # model_device = next(nnet.parameters()).device
+    # print(device, model_device, x.device)
     #assume time is the last dimension
     T = x.shape[time_dim]
     if T <= chunk_length or chunk_length == 0:
         if device is not None:
-            x.to(device)
+            x = x.to(device)
         return nnet(x).detach()
 
     try:
@@ -91,7 +92,7 @@ def eval_nnet_overlap_add(x, nnet, chunk_length=0, chunk_overlap=None, device=No
     T = x.shape[time_dim]
     if T <= chunk_length or chunk_length == 0:
         if device is not None:
-            x.to(device)
+            x = x.to(device)
         return nnet(x).detach()
 
     if chunk_overlap is None:

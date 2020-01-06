@@ -12,3 +12,6 @@ from .pool_factory import GlobalPool1dFactory
 
 from .margin_losses import CosLossOutput, ArcLossOutput
 
+from .audio_feats import *
+from .audio_feats_factory import AudioFeatsFactory
+

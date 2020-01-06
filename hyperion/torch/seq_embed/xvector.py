@@ -171,6 +171,9 @@ class XVector(TorchModel):
         # else:
         #     raise NotImplementedError()
 
+        if device is not None:
+            x = x.to(device)
+
         if self.encoder_net.out_dim() == 4:
             x = x.view(x.size(0), -1, x.size(-1))
 

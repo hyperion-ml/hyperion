@@ -7,7 +7,7 @@ if [ -f "path.sh" ];then
     # We run path.sh to be sure we have the right PATH
     . path.sh
 fi
-
+set -e
 num_gpus=0
 
 if [ "$1" == "--num-gpus" ];then
@@ -63,7 +63,11 @@ if [ $num_gpus -gt 0 ];then
     fi
     echo "CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES"
 fi
-python "$@"
+
+py_exec=$(which $1)
+shift
+
+python $py_exec "$@"
 
 if [ ! -z "$TORCH" ];then
     [ "$CONDA_VERS44" == true ] && conda deactivate || source deactivate

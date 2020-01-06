@@ -273,6 +273,15 @@ class MFCC(object):
             #_, _, X = stft(x, window=self._window, nperseg=self._nperseg, noverlap=self._overlap, nfft=self.fft_length, boundary=None)
             # Fix scale of FFT
             #X = self._fft_scale * X[:, :num_frames].T
+            # xx = []
+            # j = 0
+            # for i in range(len(x)//160-2):
+            #     #print(x[j:j+400].shape)
+            #     #print(self._window.shape)
+            #     xx.append(x[j:j+400]*self._window)
+            #     j += 160
+
+            # return np.vstack(tuple(xx))
 
             X = strft(x, self._length, self._shift, self.fft_length, self._window)
             
