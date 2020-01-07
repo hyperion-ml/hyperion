@@ -22,6 +22,7 @@ from ...utils.utt2info import Utt2Info
 from torch.utils.data import Dataset
 
 class SeqDataset(Dataset):
+
     def __init__(self, rspecifier, key_file,
                  class_file = None,
                  num_frames_file = None,
@@ -42,6 +43,8 @@ class SeqDataset(Dataset):
         if num_frames_file is not None:
             self._read_num_frames_file(num_frames_file)
         self._prune_short_seqs(max_chunk_length)
+
+        self.short_seq_exits = _seq_shorter_than_max_lenght_exists(self, max_length):
 
         self._prepare_class_info(class_file)
         
@@ -160,12 +163,21 @@ class SeqDataset(Dataset):
         self.class_weights = class_weights 
 
 
+    def _seq_shorter_than_max_lenght_exists(self, max_length):
+        return np.any(self.seq_lengths < max_length)
+        
 
-    def set_random_chunk_length(self):
+    def set_random_chunk_length(self, index):
 
         if self.min_chunk_length < self.max_chunk_length:
+            if self.short_seq_exist:
+                max_chunk_length = min(np.min(self.seq_length[index]),
+                                       self.max_chunk_length)
+            else:
+                max_chunk_length = self.max_chunk_length
+
             self.batch_chunk_length = torch.randint(
-                low=self.min_chunk_length, high=self.max_chunk_length+1, size=(1,)).item()
+                low=self.min_chunk_length, high=max_chunk_length+1, size=(1,)).item()
 
 
     def __getitem__(self, index):

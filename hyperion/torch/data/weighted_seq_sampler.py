@@ -91,7 +91,8 @@ class ClassWeightedSeqSampler(Sampler):
 
         self.batch += 1
   
-        self.dataset.set_random_chunk_length()
+        max_length = None
+        self.dataset.set_random_chunk_length(utt_idx)
         return utt_idx.tolist()[:self.batch_size]
 
     
