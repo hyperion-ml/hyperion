@@ -11,7 +11,7 @@
 set -e
 
 # I will just use voxceleb so I start from stage 2
-stage=7
+stage=2
 
 config_file=default_config.sh
 
@@ -19,36 +19,36 @@ config_file=default_config.sh
 . datapath.sh 
 
 
-if [ $stage -le 1 ]; then
-    # Path to some, but not all of the training corpora
+# if [ $stage -le 1 ]; then
+#     # Path to some, but not all of the training corpora
 
 
-    if [ ! -f $master_key ];then
-	# Get the sre04-12 master key
-	# Try link to telephone part
-	if [ -d ../../sre19-cmn2/v1/$master_key_dir ];then
-	    ln -s ../../sre19-cmn2/v1/$master_key_dir
-	else
-	    # Download from google drive.
-	    local/download_sre04-12_master_key.sh
-	fi
-    fi
+#     if [ ! -f $master_key ];then
+# 	# Get the sre04-12 master key
+# 	# Try link to telephone part
+# 	if [ -d ../../sre19-cmn2/v1/$master_key_dir ];then
+# 	    ln -s ../../sre19-cmn2/v1/$master_key_dir
+# 	else
+# 	    # Download from google drive.
+# 	    local/download_sre04-12_master_key.sh
+# 	fi
+#     fi
     
-    # Prepare telephone and microphone speech from Mixer6.
-    local/make_mx6.sh $ldc_root/LDC2013S03 16 data/
+#     # Prepare telephone and microphone speech from Mixer6.
+#     local/make_mx6.sh $ldc_root/LDC2013S03 16 data/
    
-    # Prepare sre10 interview and mic phonecalls 
-    local/make_sre10mic.sh $sre10_16k_root $master_key 16 data
+#     # Prepare sre10 interview and mic phonecalls 
+#     local/make_sre10mic.sh $sre10_16k_root $master_key 16 data
 
-    # Prepare sre12
-    local/make_sre12.sh $sre12_root $master_key 16 data/
+#     # Prepare sre12
+#     local/make_sre12.sh $sre12_root $master_key 16 data/
 
-    # Combine all SRE+MX6 mic phonecalls into one dataset
-    utils/combine_data.sh --extra-files utt2info data/sre_phnmic \
-    			  data/sre10_phnmic data/sre12_phnmic data/mx6_mic
-    utils/validate_data_dir.sh --no-text --no-feats data/sre_phnmic
+#     # Combine all SRE+MX6 mic phonecalls into one dataset
+#     utils/combine_data.sh --extra-files utt2info data/sre_phnmic \
+#     			  data/sre10_phnmic data/sre12_phnmic data/mx6_mic
+#     utils/validate_data_dir.sh --no-text --no-feats data/sre_phnmic
 
-fi
+# fi
 
 
 if [ $stage -le 2 ];then

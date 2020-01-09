@@ -22,14 +22,14 @@ if [ $stage -le 1 ]; then
     # Extract xvectors for training LDA/PLDA
     for name in voxceleb #sre_tel sre_phnmic
     do
-    	steps_xvec/extract_xvectors.sh --cmd "$train_cmd --mem 12G" --nj 1000 \
+    	steps_xvec/extract_xvectors.sh --cmd "$xvec_cmd --mem 12G" --nj 1000 ${xvec_args} \
     					     $nnet data/${name}_combined \
     					     $xvector_dir/${name}_combined
     done
 
     for name in dihard2_train
     do
-	steps_xvec/extract_xvectors.sh --cmd "$train_cmd --mem 12G" --nj 200 \
+	steps_xvec/extract_xvectors.sh --cmd "$xvec_cmd --mem 12G" --nj 200 ${xvec_args} \
 					     $nnet data/${name} \
 					     $xvector_dir/${name}
     done

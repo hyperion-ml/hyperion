@@ -10,7 +10,7 @@ eff_batch_size=512 # effective batch size
 min_chunk=400
 max_chunk=400
 ipe=1
-lr=0.1
+lr=0.05
 dropout=0
 embed_dim=256
 s=30
@@ -18,7 +18,7 @@ margin_warmup=20
 margin=0.3
 resnet_opt="--in-channels 1 --in-kernel-size 3 --in-stride 1 --no-maxpool --zero-init-residual"
 opt_opt="--opt-optimizer adam --opt-lr $lr --opt-beta1 0.9 --opt-beta2 0.95 --opt-weight-decay 1e-5 --opt-amsgrad"
-lrs_opt="--lrsch-lrsch-type exp_lr --lrsch-decay-rate 0.5 --lrsch-decay-steps 8000 --lrsch-hold-steps 40000 --lrsch-min-lr 1e-2 --lrsch-warmup-steps 1000 --lrsch-update-lr-on-opt-step"
+lrs_opt="--lrsch-lrsch-type exp_lr --lrsch-decay-rate 0.5 --lrsch-decay-steps 8000 --lrsch-hold-steps 40000 --lrsch-min-lr 1e-4 --lrsch-warmup-steps 1000 --lrsch-update-lr-on-opt-step"
 nnet_name=resnet34_zir_e${embed_dim}_arc${margin}_do${dropout}_adam_lr${lr}_b${eff_batch_size}.v2
 nnet_num_epochs=200
 num_augs=5
@@ -43,11 +43,11 @@ ncoh_vast=120
 plda_vid_y_dim=150
 plda_vid_z_dim=200
 
-coh_vid_data=sitw_sre18_dev_vast_${diar_name}
-coh_vast_data=sitw_sre18_dev_vast_${diar_name}
+#coh_vid_data=sitw_sre18_dev_vast_${diar_name}
+#coh_vast_data=sitw_sre18_dev_vast_${diar_name}
 
 plda_vid_data=voxceleb_combined
 plda_vid_type=splda
-plda_vid_label=${plda_vid_type}y${plda_vid_y_dim}_v1
+#plda_vid_label=${plda_vid_type}y${plda_vid_y_dim}_v1
 
-be_vid_name=lda${lda_vid_dim}_${plda_vid_label}_${plda_vid_data}
+#be_vid_name=lda${lda_vid_dim}_${plda_vid_label}_${plda_vid_data}

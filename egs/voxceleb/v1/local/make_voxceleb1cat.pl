@@ -6,9 +6,7 @@
 #
 # Apache 2.0
 # Usage: make_voxceleb1cat.pl /export/voxceleb1 data/
-# Note that this script also downloads a list of speakers that overlap
-# with our evaluation set, SITW.  These speakers are removed from VoxCeleb1
-# prior to preparing the dataset.
+# This version of the script does NOT remove SITW overlap speakers
 # Files from the same video are concatenated into 1 segment
 
 if (@ARGV != 3) {
@@ -18,55 +16,65 @@ if (@ARGV != 3) {
 }
 
 ($data_base, $fs, $out_dir) = @ARGV;
-my $out_dir = "$out_dir/voxceleb1cat";
+my $out_dir = "$out_dir/voxceleb1cat_train";
 
 if (system("mkdir -p $out_dir") != 0) {
-  die "Error making directory $out_dir";
-}
-
-# This file provides the list of speakers that overlap between SITW and VoxCeleb1.
-if (! -e "$out_dir/voxceleb1_sitw_overlap.txt") {
-  system("wget -O $out_dir/voxceleb1_sitw_overlap.txt http://www.openslr.org/resources/49/voxceleb1_sitw_overlap.txt");
-}
-
-# sitw_overlap contains the list of speakers that also exist in our evaluation set, SITW.
-my %sitw_overlap = ();
-open(OVERLAP, "<", "$out_dir/voxceleb1_sitw_overlap.txt") or die "Could not open the overlap file $out_dir/voxceleb1_sitw_overlap.txt";
-while (<OVERLAP>) {
-  chomp;
-  my $spkr_id = $_;
-  $sitw_overlap{$spkr_id} = ();
+  die "Error making directory $out_train_dir";
 }
 
 opendir my $dh, "$data_base/voxceleb1_wav" or die "Cannot open directory: $!";
 my @spkr_dirs = grep {-d "$data_base/voxceleb1_wav/$_" && ! /^\.{1,2}$/} readdir($dh);
 closedir $dh;
 
+if (! -e "$data_base/voxceleb1_test.txt") {
+  system("wget -O $data_base/voxceleb1_test.txt http://www.openslr.org/resources/49/voxceleb1_test.txt");
+}
+
+if (! -e "$data_base/vox1_meta.csv") {
+  system("wget -O $data_base/vox1_meta.csv http://www.openslr.org/resources/49/vox1_meta.csv");
+}
+
+open(META_IN, "<", "$data_base/vox1_meta.csv") or die "Could not open the meta data file $data_base/vox1_meta.csv";
+
+my %id2spkr = ();
+my $test_spkrs = ();
+while (<META_IN>) {
+  chomp;
+  my ($vox_id, $spkr_id, $gender, $nation, $set) = split;
+  $id2spkr{$vox_id} = $spkr_id;
+  if ( $set == "test"){
+      $test_spkrs{$spkr_id} = ();
+  }
+}
+
 
 my %rec2utt = ();
 my %rec2spk = ();
 foreach (@spkr_dirs) {
-  my $spkr_id = $_;
-  # Only keep the speaker if it isn't in the overlap list.
-  if (not exists $sitw_overlap{$spkr_id}) {
+    my $spkr_id = $_;
+    my $new_spkr_id = $spkr_id;
+    if (exists $id2spkr{$spkr_id}) {
+	$new_spkr_id = $id2spkr{$spkr_id};
+    }
     opendir my $dh, "$data_base/voxceleb1_wav/$spkr_id/" or die "Cannot open directory: $!";
     my @files = map{s/\.[^.]+$//;$_}grep {/\.wav$/} readdir($dh);
     closedir $dh;
     foreach (@files) {
-      my $filename = $_;
-      my $rec_id = substr($filename, 0, 11);
-      my $segment = substr($filename, 12, 7);
-      my $wav = "$data_base/voxceleb1_wav/$spkr_id/$filename.wav";
-      my $utt_id = "$spkr_id-$rec_id";
-      if (not exists $rec2utt{$utt_id}) {
-	  $rec2spk{$utt_id} = $spkr_id;
-	  $rec2utt{$utt_id} = $wav
-      }
-      else {
-	  $rec2utt{$utt_id} = $rec2utt{$utt_id} . " " . $wav
-      }
+	my $filename = $_;
+	my $rec_id = substr($filename, 0, 11);
+	my $segment = substr($filename, 12, 7);
+	my $wav = "$data_base/voxceleb1_wav/$spkr_id/$filename.wav";
+	my $utt_id = "$spkr_id-$rec_id";
+	if (not exists $test_spkrs{$new_spkr_id}) {
+	    if (not exists $rec2utt{$utt_id}) {
+		$rec2spk{$utt_id} = $spkr_id;
+		$rec2utt{$utt_id} = $wav
+	    }
+	    else {
+		$rec2utt{$utt_id} = $rec2utt{$utt_id} . " " . $wav
+	    }
+	}
     }
-  }
 }
 
 open(SPKR, ">", "$out_dir/utt2spk") or die "Could not open the output file $out_dir/utt2spk";

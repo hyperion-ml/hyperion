@@ -44,7 +44,7 @@ if [ $stage -le 2 ]; then
 	name=${name0}_${diar_name}
 	num_spk=$(wc -l data/$name/spk2utt | awk '{ print $1}')
 	nj=$(($num_spk < 100 ? $num_spk:100))
-	steps_xvec/extract_xvectors.sh --cmd "$train_cmd --mem 6G" --nj $nj \
+	steps_xvec/extract_xvectors.sh --cmd "$xvec_cmd --mem 6G" --nj $nj ${xvec_args} \
 					      $nnet data/$name \
 					      $xvector_dir/$name
     done

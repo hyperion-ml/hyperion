@@ -11,7 +11,7 @@
 set -e
 
 # I will just use voxceleb so I start from stage 2
-stage=7
+stage=1
 
 config_file=default_config.sh
 
