@@ -16,20 +16,13 @@ config_file=default_config.sh
 . parse_options.sh || exit 1;
 . $config_file
 
-if [ $stage -le 1 ];then
-  # Combine data to train x-vector nnet
-  utils/combine_data.sh data/train_combined data/swbd_sre_tel_combined data/sre_phnmic_combined data/voxceleb_combined 
-
-fi
-
-
 # Now we prepare the features to generate examples for xvector training.
 if [ $stage -le 2 ]; then
     # This script applies CMVN and removes nonspeech frames.  Note that this is somewhat
     # wasteful, as it roughly doubles the amount of training data on disk.  After
     # creating training examples, this can be removed.
-    steps_embed/prepare_feats_for_nnet_train.sh --nj 40 --cmd "$train_cmd" \
-	--storage_name sre19-av-v2-$(date +'%m_%d_%H_%M') \
+    steps_xvec/prepare_feats_for_nnet_train.sh --nj 40 --cmd "$train_cmd" \
+	--storage_name voxceleb-$(date +'%m_%d_%H_%M') \
 	data/${nnet_data} data/${nnet_data}_no_sil exp/${nnet_data}_no_sil
     utils/fix_data_dir.sh data/${nnet_data}_no_sil
 
@@ -49,7 +42,7 @@ fi
 
 if [ $stage -le 4 ]; then
     # Prepare train and validation lists for x-vectors
-    local/make_train_lists_sup_embed_with_augm.sh data/${nnet_data}_h5 data/${nnet_data}_h5/lists_xvec
+    local/make_train_lists_sup_embed_with_augm.sh data/${nnet_data}_no_sil data/${nnet_data}_no_sil/lists_xvec
 fi
 
 exit

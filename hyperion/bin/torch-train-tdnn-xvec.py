@@ -45,7 +45,7 @@ def train_xvec(data_rspec, train_list, val_list, exp_path,
 
     logging.info('init datasets')
     train_data = SD(data_rspec, train_list, **sd_args)
-    val_data = SD(data_rspec, val_list, **sd_args)
+    val_data = SD(data_rspec, val_list, is_val=True, **sd_args)
 
     logging.info('init samplers')
     train_sampler = Sampler(train_data, **sampler_args)

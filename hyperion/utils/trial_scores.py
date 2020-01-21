@@ -123,9 +123,9 @@ class TrialScores(object):
         """
         file_base, file_ext = path.splitext(file_path)
         if file_ext == '.txt' :
-            return TrialScores.load_txt(file_path)
+            return cls.load_txt(file_path)
         else:
-            return TrialScores.load_h5(file_path)
+            return cls.load_h5(file_path)
 
 
         
@@ -308,21 +308,21 @@ class TrialScores(object):
         self.model_set = list2ndarray(self.model_set)
         self.seg_set = list2ndarray(self.seg_set)
 
-        assert(len(np.unique(self.model_set)) == len(self.model_set))
-        assert(len(np.unique(self.seg_set)) == len(self.seg_set))
+        assert len(np.unique(self.model_set)) == len(self.model_set)
+        assert len(np.unique(self.seg_set)) == len(self.seg_set) 
         if self.scores is None:
             self.scores = np.zeros((len(model_set), len(seg_set)))
         else:
-            assert(self.scores.shape ==
+            assert (self.scores.shape ==
                    (len(self.model_set), len(self.seg_set)))
-            assert(np.all(np.isfinite(self.scores)))
+            assert np.all(np.isfinite(self.scores))
 
         if self.score_mask is None:
             self.score_mask = np.ones((len(self.model_set), len(self.seg_set)),
                                       dtype='bool')
         else:
-            assert(self.score_mask.shape ==
-                   (len(self.model_set), len(self.seg_set)))
+            assert (self.score_mask.shape ==
+                    (len(self.model_set), len(self.seg_set)))
 
 
             

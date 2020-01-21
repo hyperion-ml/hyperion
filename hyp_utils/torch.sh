@@ -48,7 +48,7 @@ fi
 if [ $num_gpus -gt 0 ];then
     # set CUDA_VISIBLE_DEVICES
     if [ ! -z "$SGE_HGR_gpu" ]; then
-	export CUDA_VISIBLE_DEVICES=$SGE_HGR_gpu
+	export CUDA_VISIBLE_DEVICES=$(echo $SGE_HGR_gpu | sed 's@ @,@g')
     else
 	# seach location of free-gpu program in the PATH or hyp_utils directory
 	free_gpu=$(which free-gpu)

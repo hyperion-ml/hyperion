@@ -19,10 +19,8 @@ from hyperion.hyp_defs import config_logger
 from hyperion.utils import Utt2Info
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialDataReaderFactory as DRF
-#from hyperion.io import RandomAccessDataReaderFactory as RDRF
 from hyperion.io import VADReaderFactory as VRF
 from hyperion.feats import MeanVarianceNorm as MVN
-#from hyperion.feats import FrameSelector as FSel
 
 from hyperion.torch.utils import open_device
 from hyperion.torch.helpers import TorchModelLoader as TML
@@ -30,7 +28,9 @@ from hyperion.torch.helpers import TorchModelLoader as TML
 
 def extract_xvectors(input_spec, output_spec, vad_spec, write_num_frames_spec,
                      scp_sep, path_prefix, vad_path_prefix, 
-                     model_path, chunk_length, embed_layer, use_gpu, part_idx, num_parts, **kwargs):
+                     model_path, chunk_length, embed_layer, 
+                     random_utt_length, min_utt_length, max_utt_length,
+                     use_gpu, part_idx, num_parts, **kwargs):
     
     logging.info('initializing')
     mvn_args = MVN.filter_args(**kwargs)
@@ -42,6 +42,9 @@ def extract_xvectors(input_spec, output_spec, vad_spec, write_num_frames_spec,
     if write_num_frames_spec is not None:
         keys = []
         info = []
+
+    if random_utt_length:
+        rng = np.random.RandomState(seed=1123581321+part_idx)
     
     num_gpus = 1 if use_gpu else 0
     logging.info('initializing devices num_gpus={}'.format(num_gpus))
@@ -81,6 +84,15 @@ def extract_xvectors(input_spec, output_spec, vad_spec, write_num_frames_spec,
 
                 logging.info('utt %s detected %d/%d (%.2f %%) speech frames' % (
                         key[0], x.shape[0], tot_frames, x.shape[0]/tot_frames*100))
+                
+                if random_utt_length:
+                    utt_length = rng.randint(low=min_utt_length, high=max_utt_length+1)
+                    if utt_length < x.shape[0]:
+                        first_frame = rng.randint(low=0, high=x.shape[0]-utt_length)
+                        x = x[first_frame:first_frame+utt_length]
+                        logging.info('extract-random-utt %s of length=%d first-frame=%d' % (
+                            key[0], x.shape[0], first_frame))
+
                 t4 = time.time()
                 if x.shape[0] == 0:
                     y = np.zeros((model.embed_dim,), dtype=float_cpu())
@@ -136,6 +148,13 @@ if __name__ == "__main__":
     parser.add_argument('--embed-layer', type=int, default=None, 
                         help=('classifier layer to get the embedding from,' 
                               'if None the layer set in training phase is used'))
+
+    parser.add_argument('--random-utt-length', default=False, action='store_true',
+                        help='calculates x-vector from a random chunk of the utterance')
+    parser.add_argument('--min-utt-length', type=int, default=500, 
+                        help=('minimum utterance length when using random utt length'))
+    parser.add_argument('--max-utt-length', type=int, default=12000, 
+                        help=('maximum utterance length when using random utt length'))
 
     parser.add_argument('--output', dest='output_spec', required=True)
     parser.add_argument('--use-gpu', default=False, action='store_true',

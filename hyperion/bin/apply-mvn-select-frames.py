@@ -14,7 +14,6 @@ import time
 import logging
 
 import numpy as np
-from six.moves import xrange
 
 from hyperion.hyp_defs import config_logger
 from hyperion.utils.kaldi_matrix import compression_methods

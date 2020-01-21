@@ -10,6 +10,7 @@ import logging
 
 import torch
 import torch.nn as nn
+from apex import amp
 
 from ..utils import MetricAcc
 from .torch_trainer import TorchTrainer
@@ -20,14 +21,15 @@ class XVectorTrainer(TorchTrainer):
     def __init__(self, model, optimizer, epochs, exp_path, cur_epoch=0, 
                  grad_acc_steps=1, 
                  device=None, metrics=None, lr_scheduler=None, loggers=None, 
-                 data_parallel=False, loss=None):
+                 data_parallel=False, loss=None, train_mode='train', use_amp=False):
 
         if loss is None:
             loss = nn.CrossEntropyLoss()
         super(XVectorTrainer, self).__init__(
             model, optimizer, loss, epochs, exp_path, cur_epoch=cur_epoch,
             grad_acc_steps=grad_acc_steps, device=device, metrics=metrics,
-            lr_scheduler=lr_scheduler, loggers=loggers, data_parallel=data_parallel)
+            lr_scheduler=lr_scheduler, loggers=loggers, data_parallel=data_parallel, 
+            train_mode=train_mode, use_amp=use_amp)
 
 
         
@@ -39,7 +41,11 @@ class XVectorTrainer(TorchTrainer):
 
         metric_acc = MetricAcc()
         batch_metrics = ODict()
-        self.model.train()
+        if self.train_mode == 'train':
+            self.model.train()
+        else:
+            self.model.train_mode(self.train_mode)
+
         for batch, (data, target) in enumerate(data_loader):
             self.loggers.on_batch_begin(batch)
 
@@ -51,7 +57,12 @@ class XVectorTrainer(TorchTrainer):
 
             output = self.model(data, target)
             loss = self.loss(output, target).mean()/self.grad_acc_steps
-            loss.backward()
+
+            if self.use_amp:
+                with amp.scale_loss(loss, self.optimizer) as scaled_loss:
+                    scaled_loss.backward()
+            else:
+                loss.backward()
 
             if (batch+1) % self.grad_acc_steps == 0:
                 if self.lr_scheduler is not None:

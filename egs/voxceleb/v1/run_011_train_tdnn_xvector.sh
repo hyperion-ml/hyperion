@@ -17,7 +17,7 @@ config_file=default_config.sh
 batch_size=$(($batch_size_1gpu*$ngpu))
 grad_acc_steps=$(echo $batch_size $eff_batch_size | awk '{ print int($2/$1)}')
 
-list_dir=data/${nnet_data}_h5
+list_dir=data/${nnet_data}_no_sil
 
 #export cuda_cmd=run.pl
 # Network Training
@@ -25,7 +25,7 @@ if [ $stage -le 1 ]; then
   mkdir -p $nnet_dir/log
   $cuda_cmd --gpu $ngpu $nnet_dir/log/train.log \
       hyp_utils/torch.sh --num-gpus $ngpu \
-      steps_xvec/pytorch-train-tdnn-xvec.py \
+      torch-train-tdnn-xvec.py \
       --data-rspec scp:$list_dir/feats.scp \
       --train-list $list_dir/lists_xvec/train.scp \
       --val-list $list_dir/lists_xvec/val.scp \

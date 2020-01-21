@@ -21,12 +21,12 @@ feat_vers="numpy"
 
 . parse_options.sh || exit 1;
 
-if [ "feat_vers" == "kaldi" ];then
+if [ "$feat_vers" == "kaldi" ];then
     make_fbank=steps/make_fbank.sh
     fbank_cfg=conf/fbank80_16k.conf
 else
     fbank_cfg=conf/fbank80_16k.pyconf
-    if [ "feat_vers" == "numpy" ];then
+    if [ "$feat_vers" == "numpy" ];then
 	make_fbank=steps_pyfe/make_fbank.sh
     else
 	make_fbank=steps_pyfe/make_torch_fbank.sh
@@ -37,7 +37,7 @@ fi
 if [ $stage -le 1 ]; then
     # Prepare to distribute data over multiple machines
     if [[ $(hostname -f) == *.clsp.jhu.edu ]] && [ ! -d $fbankdir/storage ]; then
-	dir_name=$USER/hyp-data/sre19-av/v1/$storage_name/fbank/storage
+	dir_name=$USER/hyp-data/voxceleb/v1/$storage_name/fbank/storage
 	if [ "$nodes" == "b0" ];then
 	    utils/create_split_dir.pl \
 			    utils/create_split_dir.pl \
@@ -59,11 +59,7 @@ fi
 
 #Train datasets
 if [ $stage -le 2 ];then 
-    for name in voxceleb1cat voxceleb2cat_train \
-    	sitw_dev_enroll sitw_dev_test sitw_eval_enroll sitw_eval_test \
-        sre18_dev_test_vast sre18_eval_test_vast \
-	sre19_av_a_dev_test sre19_av_a_eval_test \
-	janus_dev_enroll janus_dev_test_core janus_eval_enroll janus_eval_test_core 
+    for name in voxceleb2cat voxceleb1_test
     do
 	num_spk=$(wc -l data/$name/spk2utt | awk '{ print $1}')
 	nj=$(($num_spk < 40 ? $num_spk:40))
@@ -72,41 +68,6 @@ if [ $stage -le 2 ];then
 	utils/fix_data_dir.sh data/${name}
     done
 
-    for name in sre18_dev_enroll_vast sre18_eval_enroll_vast sre19_av_a_dev_enroll sre19_av_a_eval_enroll
-    do
-	num_spk=$(wc -l data/$name/spk2utt | awk '{ print $1}')
-	nj=$(($num_spk < 40 ? $num_spk:40))
-	$make_fbank --write-utt2num-frames true --fbank-config $fbank_cfg --nj $nj --cmd "$train_cmd" \
-    	    data/${name} exp/make_fbank $fbankdir
-	utils/fix_data_dir.sh data/${name}
-	local/sre18_diar_to_vad.sh data/${name} exp/make_vad $vaddir
-	utils/fix_data_dir.sh data/${name}
-    done
-
 fi
 
-
-if [ $stage -le 3 ];then 
-  utils/combine_data.sh --extra-files "utt2num_frames" data/voxceleb data/voxceleb1cat data/voxceleb2cat_train
-  utils/fix_data_dir.sh data/voxceleb
-fi
-
-if [ $stage -le 4 ];then
-    for name in dihard2_train_dev dihard2_train_eval
-    do
-	num_spk=$(wc -l data/$name/spk2utt | awk '{ print $1}')
-	nj=$(($num_spk < 40 ? $num_spk:40))
-	$make_fbank --write-utt2num-frames true --fbank-config $fbank_cfg --nj $nj --cmd "$train_cmd" \
-    			   data/${name} exp/make_fbank $fbankdir
-	utils/fix_data_dir.sh data/${name}
-	hyp_utils/rttm_to_bin_vad.sh --nj 5 data/$name/vad.rttm data/$name $vaddir_gt
-	utils/fix_data_dir.sh data/${name}
-    done
-
-fi
-
-if [ $stage -le 5 ];then 
-  utils/combine_data.sh --extra-files "utt2num_frames" data/dihard2_train data/dihard2_train_dev data/dihard2_train_eval
-  utils/fix_data_dir.sh data/dihard2_train
-fi
 

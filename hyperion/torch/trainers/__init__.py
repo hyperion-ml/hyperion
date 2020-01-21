@@ -6,3 +6,4 @@ from __future__ import absolute_import
 
 from .torch_trainer import TorchTrainer
 from .xvector_trainer import XVectorTrainer
+from .xvector_finetuner import XVectorFinetuner

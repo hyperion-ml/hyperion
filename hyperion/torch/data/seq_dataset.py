@@ -9,6 +9,7 @@ import logging
 import argparse
 import time
 import copy
+import threading
 
 import numpy as np
 import pandas as pd
@@ -30,7 +31,7 @@ class SeqDataset(Dataset):
                  min_chunk_length=1,
                  max_chunk_length=None,
                  return_fullseqs=False,
-                 return_class=True, transpose_input=True):
+                 return_class=True, transpose_input=True, is_val=False):
 
         logging.info('opening dataset %s' % rspecifier)
         self.r = RF.create(
@@ -39,12 +40,13 @@ class SeqDataset(Dataset):
         self.u2c = Utt2Info.load(key_file, sep=' ')
         logging.info('dataset contains %d seqs' % self.num_seqs)
 
+        self.is_val = is_val
         self._seq_lengths = None
         if num_frames_file is not None:
             self._read_num_frames_file(num_frames_file)
-        self._prune_short_seqs(max_chunk_length)
+        self._prune_short_seqs(min_chunk_length)
 
-        self.short_seq_exits = _seq_shorter_than_max_lenght_exists(self, max_length):
+        self.short_seq_exist = self._seq_shorter_than_max_length_exists(max_chunk_length)
 
         self._prepare_class_info(class_file)
         
@@ -56,8 +58,8 @@ class SeqDataset(Dataset):
         self.return_fullseqs = return_fullseqs
         self.return_class = return_class
 
-        self.batch_chunk_length = max_chunk_length
         self.transpose_input = transpose_input
+
 
 
     def _read_num_frames_file(self, file_path):
@@ -145,7 +147,8 @@ class SeqDataset(Dataset):
             class2utt_idx[k] = idx
             class2num_utt[k] = len(idx)
             if class2num_utt[k] == 0:
-                logging.warning('class %d doesn\'t have any samples' % (k))
+                if not self.is_val:
+                    logging.warning('class %d doesn\'t have any samples' % (k))
                 if class_weights is None:
                     class_weights = np.ones((self.num_classes,), dtype=floatstr_torch())
                 class_weights[k] = 0
@@ -162,26 +165,63 @@ class SeqDataset(Dataset):
             class_weights = torch.Tensor(class_weights)
         self.class_weights = class_weights 
 
+        if self.short_seq_exist:
+            #if there are seq shorter than max_chunk_lenght we need some extra variables
+            # we will need class_weights to put to 0 classes that have all utts shorter than the batch chunk length
+            if self.class_weights is None:
+                self.class_weights = torch.ones((self.num_classes,))
 
-    def _seq_shorter_than_max_lenght_exists(self, max_length):
+            # we need the max length of the utterances of each class
+            class2max_length = torch.zeros((self.num_classes,), dtype=torch.int)
+            for c in range(self.num_classes):
+                if class2num_utt[c] > 0:
+                    class2max_length[c] = int(np.max(self.seq_lengths[self.class2utt_idx[c]]))
+
+            self.class2max_length = class2max_length
+
+
+    def _seq_shorter_than_max_length_exists(self, max_length):
         return np.any(self.seq_lengths < max_length)
         
 
-    def set_random_chunk_length(self, index):
+    @property
+    def var_chunk_length(self):
+        return self.min_chunk_length < self.max_chunk_length
 
-        if self.min_chunk_length < self.max_chunk_length:
-            if self.short_seq_exist:
-                max_chunk_length = min(np.min(self.seq_length[index]),
-                                       self.max_chunk_length)
-            else:
-                max_chunk_length = self.max_chunk_length
 
-            self.batch_chunk_length = torch.randint(
-                low=self.min_chunk_length, high=max_chunk_length+1, size=(1,)).item()
+    def get_random_chunk_length(self):
+
+        if self.var_chunk_length:
+            return torch.randint(
+                low=self.min_chunk_length, high=self.max_chunk_length+1, size=(1,)).item()
+
+        return self.max_chunk_length
+
+
+
+    # def get_random_chunk_length(self, index):
+
+    #     if self.min_chunk_length < self.max_chunk_length:
+    #         if self.short_seq_exist:
+    #             max_chunk_length = min(int(np.min(self.seq_lengths[index])),
+    #                                    self.max_chunk_length)
+    #         else:
+    #             max_chunk_length = self.max_chunk_length
+
+    #         chunk_length = torch.randint(
+    #             low=self.min_chunk_length, high=max_chunk_length+1, size=(1,)).item()
+
+    #         # logging.info('{} {} {} set_random_chunk_length={}'.format(
+    #         #     self,os.getpid(), threading.get_ident(), chunk_length))
+    #         return chunk_length
+
+    #     return self.max_chunk_length
+
 
 
     def __getitem__(self, index):
-
+        # logging.info('{} {} {} get item {}'.format(
+        #     self, os.getpid(), threading.get_ident(), index))
         if self.return_fullseqs:
             return self._get_fullseq(index)
         else:
@@ -202,10 +242,16 @@ class SeqDataset(Dataset):
 
 
     def _get_random_chunk(self, index):
+
+        if len(index) == 2:
+            index, chunk_length = index
+        else:
+            chunk_length = self.max_chunk_length
+
         key = self.u2c.key[index]
         full_seq_length = int(self.seq_lengths[index])
-        chunk_length = self.batch_chunk_length
-        assert chunk_length <= full_seq_length
+        assert chunk_length <= full_seq_length, 'chunk_length(%d) <= full_seq_length(%d)' % (
+            chunk_length, full_seq_length)
         first_frame = torch.randint(
             low=0, high=full_seq_length-chunk_length+1, size=(1,)).item()
 

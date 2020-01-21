@@ -1,15 +1,12 @@
 
-export SRE19_ROOT=$(readlink -f `pwd -P`/../../..)
-export TOOLS_ROOT=$SRE19_ROOT/tools
+export HYP_ROOT=$(readlink -f `pwd -P`/../../..)
+export TOOLS_ROOT=$HYP_ROOT/tools
 
 export KALDI_ROOT=$TOOLS_ROOT/kaldi/kaldi
 export PATH=$PWD/utils/:$KALDI_ROOT/tools/openfst/bin:$KALDI_ROOT/tools/sph2pipe_v2.5:$PWD:$PATH
 [ ! -f $KALDI_ROOT/tools/config/common_path.sh ] && echo >&2 "The standard file $KALDI_ROOT/tools/config/common_path.sh is not present -> Exit!" && exit 1
 . $KALDI_ROOT/tools/config/common_path.sh
 export LC_ALL=C
-
-KERAS_PATH=$TOOLS_ROOT/keras
-HYP_ROOT=$TOOLS_ROOT/hyperion/hyperion
 
 #Anaconda env
 CONDA_ROOT=$TOOLS_ROOT/anaconda/anaconda3.5

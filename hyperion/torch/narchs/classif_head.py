@@ -74,12 +74,66 @@ class ClassifHead(NetArch):
             self.output = ArcLossOutput(
                 embed_dim, num_classes, 
                 s=s, margin=margin, margin_warmup_epochs=margin_warmup_epochs)
-                
 
+
+    def rebuild_output_layer(self, num_classes, loss_type, s, margin, margin_warmup_epochs):
+        embed_dim = self.embed_dim
+        self.num_classes = num_classes
+        self.loss_type = loss_type
+        self.s = s
+        self.margin = margin
+        self.margin_warmup_epochs = margin_warmup_epochs
+
+        if loss_type == 'softmax':
+            self.output = Linear(embed_dim, num_classes)
+        elif loss_type == 'cos-softmax':
+            self.output = CosLossOutput(
+                embed_dim, num_classes, 
+                s=s, margin=margin, margin_warmup_epochs=margin_warmup_epochs)
+        elif loss_type == 'arc-softmax':
+            self.output = ArcLossOutput(
+                embed_dim, num_classes, 
+                s=s, margin=margin, margin_warmup_epochs=margin_warmup_epochs)
+
+
+    def set_margin(self, margin):
+        if self.loss_type == 'softmax':
+            return
+
+        self.margin = margin
+        self.output.margin = margin
+
+
+    def set_margin_warmup_epochs(self, margin_warmup_epochs):
+        if self.loss_type == 'softmax':
+            return
+
+        self.margin_warmup_epochs = margin_warmup_epochs
+        self.output.margin_warmup_epochs = margin_warmup_epochs
+
+
+    def set_s(self, s):
+        if self.loss_type == 'softmax':
+            return
+
+        self.s = s
+        self.output.s = s
+
+    
     def update_margin(self, epoch):
         if hasattr(self.output, 'update_margin'):
             self.output.update_margin(epoch)
 
+
+    def freeze_layers(self, layer_list):
+        for l in layer_list:
+            for param in self.fc_blocks[l].parameters():
+                param.requires_grad = False
+
+    def put_layers_in_eval_mode(self, layer_list):
+        for l in layer_list:
+            self.fc_blocks[l].eval()
+    
                 
     def forward(self, x, y=None):
 
@@ -117,7 +171,7 @@ class ClassifHead(NetArch):
             'lost_type': self.lost_type,
             's': self.s,
             'margin': self.margin,
-            'margin_warmpu_epocs': self.margin_warmup_epochs,
+            'margin_warmup_epochs': self.margin_warmup_epochs,
             'use_norm': self.use_norm,
             'norm_before': self.norm_before,
             'dropout_rate': self.dropout_rate

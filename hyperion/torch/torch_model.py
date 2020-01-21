@@ -30,6 +30,16 @@ class TorchModel(nn.Module):
                     'model_state_dict': self.state_dict()})
 
 
+    def freeze(self):
+        for param in self.parameters():
+            param.requires_grad = False
+
+
+    def unfreeze(self):
+        for param in self.parameters():
+            param.requires_grad = True
+
+
     @staticmethod
     def _load_cfg_state_dict(file_path=None, cfg=None, state_dict=None):
         model_data = None

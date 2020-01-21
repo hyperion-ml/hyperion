@@ -7,6 +7,8 @@ from __future__ import absolute_import
 from .trial_ndx import TrialNdx
 from .trial_key import TrialKey
 from .trial_scores import TrialScores
+from .sparse_trial_key import SparseTrialKey
+from .sparse_trial_scores import SparseTrialScores
 from .scp_list import SCPList
 from .utt2info import Utt2Info
 from .ext_segment_list import ExtSegmentList

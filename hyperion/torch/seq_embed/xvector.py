@@ -156,6 +156,42 @@ class XVector(TorchModel):
         return y
 
 
+    # def forward(self, x, y=None):
+
+    #     if self.encoder_net.in_dim() == 4 and x.dim() == 3:
+    #         x = x.view(x.size(0), 1, x.size(1), x.size(2))
+
+    #     x = self.encoder_net(x)
+
+    #     if self.encoder_net.out_dim() == 4:
+    #         x = x.view(x.size(0), -1, x.size(-1))
+
+    #     if len(x)==24:
+    #         mm = x.mean(dim=-1)
+    #         mx = torch.max(x, dim=-1)[0]
+    #         mn = torch.min(x, dim=-1)[0]
+    #         na = torch.isnan(x).any(dim=-1)
+    #         logging.info('resnet-mean={}'.format(str(mm[9])))
+    #         logging.info('resnet-max={}'.format(str(mx[9])))
+    #         logging.info('resnet-max2={}'.format(str(mx[9].max())))
+    #         logging.info('resnet-min={}'.format(str(mn[9])))
+    #         logging.info('resnet-min2={}'.format(str(mn[9].min())))
+    #         logging.info('resnet-na={}'.format(str(na[9])))
+    #         logging.info('resnet-na2={}'.format(str(na[9].any())))
+
+    #     if self.proj is not None:
+    #         x = self.proj(x)
+            
+    #     p = self.pool_net(x)
+    #     if len(x)==24:
+    #         logging.info('pool-max={}'.format(str(p[9].max())))
+    #         logging.info('pool-min={}'.format(str(p[9].min())))
+    #         logging.info('pool-na={}'.format(str(torch.isnan(p[9]).any())))
+
+    #     y = self.classif_net(p, y)
+    #     return y
+
+
     def extract_embed(self, x, chunk_length=0, embed_layer=None, device=None):
         if embed_layer is None:
             embed_layer = self.embed_layer
@@ -232,6 +268,51 @@ class XVector(TorchModel):
 
         return model
 
+
+    def rebuild_output_layer(self, num_classes=None, loss_type='arc-softmax', 
+                             s=64, margin=0.3, margin_warmup_epochs=10):
+        if (self.num_classes is not None and self.num_classes != num_classes) or (
+                self.loss_type != loss_type):
+            # if we change the number of classes or the loss-type
+            # we need to reinitiate the last layer
+            self.classif_net.rebuild_output_layer(
+                num_classes, loss_type, s, margin, margin_warmup_epochs)
+            return
+
+        #otherwise we just change the values of s, margin and margin_warmup
+        self.classif_net.set_margin(margin)
+        self.classif_net.set_margin_warmup_epochs(margin_warmup_epochs)
+        self.classif_net.set_s(s)
+
+
+    def freeze_preembed_layers(self):
+        self.encoder_net.freeze()
+        if self.proj is not None:
+            self.proj.freeze()
+
+        for param in self.pool_net.parameters():
+            param.requires_grad = False
+
+        layer_list = [l for l in range(self.embed_layer)]
+        self.classif_net.freeze_layers(layer_list)
+
+
+
+    def train_mode(self, mode='ft_embed_affine'):
+        if mode == 'ft_full' or mode == 'train':
+            self.train()
+            return 
+
+        self.encoder_net.eval()
+        if self.proj is not None:
+            self.proj.eval()
+        
+        self.pool_net.eval()
+        self.classif_net.train()
+        layer_list = [l for l in range(self.embed_layer)]
+        self.classif_net.put_layers_in_eval_mode(layer_list)
+
+            
 
     @staticmethod
     def filter_args(prefix=None, **kwargs):
@@ -347,3 +428,44 @@ class XVector(TorchModel):
                             help=('dimension of linear projection after encoder network, '
                                   'if None, there is not projection'))
         
+
+
+    @staticmethod
+    def filter_finetune_args(prefix=None, **kwargs):
+        if prefix is None:
+            p = ''
+        else:
+            p = prefix + '_'
+
+        valid_args = ('loss_type', 's', 'margin', 'margin_warmup_epochs')
+        args = dict((k, kwargs[p+k])
+                    for k in valid_args if p+k in kwargs)
+
+        return args
+
+
+    @staticmethod
+    def add_argparse_finetune_args(parser, prefix=None):
+        if prefix is None:
+            p1 = '--'
+        else:
+            p1 = '--' + prefix + '-'
+        
+        parser.add_argument(p1+'loss-type', default='arc-softmax', 
+                            choices = ['softmax', 'arc-softmax', 'cos-softmax'],
+                            help='loss type: softmax, arc-softmax, cos-softmax')
+        
+        parser.add_argument(p1+'s', default=64, type=float,
+                            help='scale for arcface')
+        
+        parser.add_argument(p1+'margin', default=0.3, type=float,
+                            help='margin for arcface, cosface,...')
+        
+        parser.add_argument(p1+'margin-warmup-epochs', default=10, type=float,
+                            help='number of epoch until we set the final margin')
+       
+    
+
+
+
+            

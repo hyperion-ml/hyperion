@@ -4,6 +4,8 @@
 """
 from __future__ import absolute_import
 
+import logging
+
 import torch
 import torch.nn as nn
 import torch.functional as F
@@ -62,20 +64,104 @@ class GlobalMeanStdPool1d(_GlobalPool1d):
         super(GlobalMeanStdPool1d, self).__init__(dim, keepdim, batch_dim)
         self.size_multiplier = 2
 
+    # def forward(self, x, weights=None):
+    #     if weights is None:
+    #         mu = torch.mean(x, dim=self.dim, keepdim=True)
+    #         delta = x - mu
+    #         if not self.keepdim:
+    #             mu = mu.squeeze(dim=self.dim)
+
+    #         #s = torch.sqrt(x2bar - mu*mu+1e-3) #for stability in case var=0
+    #         s = torch.sqrt(
+    #             torch.mean(delta**2, dim=self.dim, keepdim=self.keepdim)+1e-5)
+
+    #         if len(x)==24:
+    #             z = x
+    #             x = mu
+    #             mm = x.mean(dim=-1)
+    #             mx = torch.max(x, dim=-1)[0]
+    #             mn = torch.min(x, dim=-1)[0]
+    #             na = torch.isnan(x).any(dim=-1)
+    #             logging.info('pool-mean-mu-std-mean={}'.format(str(mm[9])))
+    #             logging.info('pool-mean-mu-std-max={}'.format(str(mx[9])))
+    #             logging.info('pool-mean-mu-std-min={}'.format(str(mn[9])))
+    #             logging.info('pool-mean-mu-std-na={}'.format(str(na[9])))
+
+    #             # x = x2bar
+    #             # mm = x.mean(dim=-1)
+    #             # mx = torch.max(x, dim=-1)[0]
+    #             # mn = torch.min(x, dim=-1)[0]
+    #             # na = torch.isnan(x).any(dim=-1)
+    #             # logging.info('pool-mean-x2bar-std-mean={}'.format(str(mm[9])))
+    #             # logging.info('pool-mean-x2bar-std-max={}'.format(str(mx[9])))
+    #             # logging.info('pool-mean-x2bar-std-min={}'.format(str(mn[9])))
+    #             # logging.info('pool-mean-x2bar-std-na={}'.format(str(na[9])))
+
+    #             x = s
+    #             mm = x.mean(dim=-1)
+    #             mx = torch.max(x, dim=-1)[0]
+    #             mn = torch.min(x, dim=-1)[0]
+    #             na1 = torch.isnan(x)
+    #             na = na1.any(dim=-1)
+    #             logging.info('pool-mean-s-std-mean={}'.format(str(mm[9])))
+    #             logging.info('pool-mean-s-std-max={}'.format(str(mx[9])))
+    #             logging.info('pool-mean-s-std-min={}'.format(str(mn[9])))
+    #             logging.info('pool-mean-s-std-na={}'.format(str(na[9])))
+                
+    #             logging.info('pool-mean-std-xnan={}'.format(str(z[9][na1[9]])))
+    #             logging.info('pool-mean-std-munan={}'.format(str(mu[9][na1[9]])))
+    #             #logging.info('pool-mean-std-x2barnan={}'.format(str(x2bar[9][na1[9]])))
+
+
+    #         return torch.cat((mu,s), dim=-1)
+
+    #     weights = self._standarize_weights(weights, x.dim())
+
+    #     xbar = torch.mean(weights*x, dim=self.dim, keepdim=self.keepdim)
+    #     wbar = torch.mean(weights, dim=self.dim, keepdim=self.keepdim)
+    #     mu = xbar/wbar
+    #     x2bar = torch.mean(weights*x**2, dim=self.dim, keepdim=self.keepdim)/wbar
+    #     s = torch.sqrt(x2bar - mu*mu+1e-3)
+
+    #     return torch.cat((mu,s), dim=-1)
+
+
     def forward(self, x, weights=None):
         if weights is None:
-            mu = torch.mean(x, dim=self.dim, keepdim=self.keepdim)
-            x2bar = torch.mean(x**2, dim=self.dim, keepdim=self.keepdim)
-            s = torch.sqrt(x2bar - mu*mu+1e-5) #for stability in case var=0
+            # # this can produce slightly negative variance when relu6 saturates in all time steps
+            # mu = torch.mean(x, dim=self.dim, keepdim=self.keepdim)
+            # x2bar = torch.mean(x**2, dim=self.dim, keepdim=self.keepdim)
+            # s = torch.sqrt(x2bar - mu*mu+1e-5) #for stability in case var=0
+
+            # this version should be more stable
+            mu = torch.mean(x, dim=self.dim, keepdim=True)
+            delta = x - mu
+            if not self.keepdim:
+                mu.squeeze_(dim=self.dim)
+
+            s = torch.sqrt(
+                torch.mean(delta**2, dim=self.dim, keepdim=self.keepdim)+1e-5)
+
             return torch.cat((mu,s), dim=-1)
 
         weights = self._standarize_weights(weights, x.dim())
 
-        xbar = torch.mean(weights*x, dim=self.dim, keepdim=self.keepdim)
-        wbar = torch.mean(weights, dim=self.dim, keepdim=self.keepdim)
+        # xbar = torch.mean(weights*x, dim=self.dim, keepdim=self.keepdim)
+        # wbar = torch.mean(weights, dim=self.dim, keepdim=self.keepdim)
+        # mu = xbar/wbar
+        # x2bar = torch.mean(weights*x**2, dim=self.dim, keepdim=self.keepdim)/wbar
+        # s = torch.sqrt(x2bar - mu*mu+1e-5)
+
+        # this version should be more stable
+        xbar = torch.mean(weights*x, dim=self.dim, keepdim=True)
+        wbar = torch.mean(weights, dim=self.dim, keepdim=True)
         mu = xbar/wbar
-        x2bar = torch.mean(weights*x**2, dim=self.dim, keepdim=self.keepdim)/wbar
-        s = torch.sqrt(x2bar - mu*mu+1e-5)
+        delta = x - mu
+        var = torch.mean(weights*delta**2, dim=self.dim, keepdim=True)/wbar
+        s = torch.sqrt(var+1e-5)
+        if not self.keepdim:
+            mu.squeeze_(self.dim)
+            s.squeeze_(self.dim)
 
         return torch.cat((mu,s), dim=-1)
 

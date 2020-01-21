@@ -7,10 +7,12 @@ from __future__ import absolute_import
 import os
 from collections import OrderedDict as ODict
 
+import logging
 #import numpy as np
 
 import torch
 import torch.nn as nn
+from apex import amp
 
 from ..utils import MetricAcc
 from ..loggers import LoggerList, CSVLogger, ProgLogger
@@ -28,7 +30,8 @@ class TorchDataParallel(nn.DataParallel):
 class TorchTrainer(object):
 
     def __init__(self, model, optimizer, loss, epochs, exp_path, cur_epoch=0, grad_acc_steps=1,
-                 device=None, metrics=None, lr_scheduler=None, loggers=None, data_parallel=False):
+                 device=None, metrics=None, lr_scheduler=None, loggers=None, data_parallel=False, 
+                 train_mode='train', use_amp=False):
         self.model = model
         self.optimizer = optimizer
         self.loss = loss
@@ -49,14 +52,24 @@ class TorchTrainer(object):
         
         self.metrics = metrics
         self.device = device
-
-        if data_parallel:
-            self.model = TorchDataParallel(self.model)
-            self.loss = TorchDataParallel(self.loss)
+        self.train_mode = train_mode
+        self.use_amp = use_amp
 
         if device is not None:
             self.model.to(device)
             self.loss.to(device)
+
+        if self.use_amp:
+            logging.info('using automatic mixed precision training')
+            self.model, self.optimizer = amp.initialize(
+                self.model, self.optimizer, opt_level="O1")
+
+        if data_parallel:
+            logging.info('training in multiple gpus with data-parallel')
+            self.model = TorchDataParallel(self.model)
+            self.loss = TorchDataParallel(self.loss)
+
+
 
         
     def fit(self, train_data, val_data=None):
@@ -68,7 +81,7 @@ class TorchTrainer(object):
         self.loggers.on_train_begin(epochs=self.epochs)
         for epoch in range(self.cur_epoch, self.epochs):
             
-            self.loggers.on_epoch_begin(epoch, samples=len(train_data.dataset))
+            self.loggers.on_epoch_begin(epoch, batches=len(train_data))
             if self.lr_scheduler is not None:
                 # this is needed by cosine scheduler
                 epoch_updates = int(len(train_data)/self.grad_acc_steps)
@@ -96,7 +109,11 @@ class TorchTrainer(object):
 
         metric_acc = MetricAcc()
         batch_metrics = ODict()
-        self.model.train()
+        if self.train_mode == 'train':
+            self.model.train()
+        else:
+            self.model.train_mode(self.train_mode)
+
         for batch, (data, target) in enumerate(data_loader):
             
             self.loggers.on_batch_begin(batch)
@@ -109,7 +126,12 @@ class TorchTrainer(object):
             
             output = self.model(data)
             loss = self.loss(output, target).mean()/self.grad_acc_steps
-            loss.backward()
+
+            if self.use_amp:
+                with amp.scale_loss(loss, self.optimizer) as scaled_loss:
+                    scaled_loss.backward()
+            else:
+                loss.backward()
 
             if (batch+1) % self.grad_acc_steps == 0:
                 if self.lr_scheduler is not None:
@@ -177,6 +199,9 @@ class TorchTrainer(object):
         if self.lr_scheduler is not None:
             checkpoint['lr_scheduler_state_dict'] = self.lr_scheduler.state_dict()
 
+        if self.use_amp:
+            checkpoint['amp'] = amp.state_dict()
+
         if logs is not None:
             checkpoint['logs'] = logs
             
@@ -203,6 +228,8 @@ class TorchTrainer(object):
         self.loss.load_state_dict(checkpoint['loss_state_dict'])
         if self.lr_scheduler is not None:
             self.lr_scheduler.load_state_dict(checkpoint['lr_scheduler_state_dict'])
+        if self.use_amp:
+            amp.load_state_dict(checkpoint['amp'])
 
         logs = None
         if 'logs' in checkpoint:

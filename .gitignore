@@ -3,6 +3,7 @@
 *.pdf
 *.DS_Store
 *.cache
+*__pycache__
 tests/data_out/*
 #examples/data/output/wav/*
 #examples/data/output/features/*
@@ -28,3 +29,13 @@ tests/data_out/*
 
 # developer environments
 #.idea
+tools/anaconda/anaconda3.5
+tools/cudnn/cudnn-*
+tools/kaldi/kaldi
+tools/nccl/nccl_*
+
+rirs_noises.zip
+RIRS_NOISES
+egs/*/*/exp
+egs/*/*/data
+kk

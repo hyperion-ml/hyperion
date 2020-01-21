@@ -17,7 +17,7 @@ import numpy as np
 
 from ..io import RandomAccessDataReaderFactory as DRF
 from ..utils.utt2info import Utt2Info
-from ..utils.trial_ndx import TrialNdx
+from ..utils import TrialNdx, TrialKey
 from ..transforms import TransformList
 
 class TrialDataReader(object):
@@ -25,10 +25,9 @@ class TrialDataReader(object):
     Loads Ndx, enroll file and x-vectors to evaluate PLDA.
     """
 
-    def __init__(self, v_file, ndx_file, enroll_file, test_file,
-                 preproc, tlist_sep=' ', 
-                 model_idx=1, num_model_parts=1, seg_idx=1, num_seg_parts=1,
-                 eval_set='enroll-test'):
+    def __init__(self, v_file, ndx_file, enroll_file, test_file, preproc, 
+                 model_part_idx=1, num_model_parts=1, seg_part_idx=1, num_seg_parts=1,
+                 eval_set='enroll-test', tlist_sep=' '):
 
         self.r = DRF.create(v_file)
         self.preproc = preproc
@@ -39,11 +38,14 @@ class TrialDataReader(object):
             test = Utt2Info.load(test_file, sep=tlist_sep)
         ndx = None
         if ndx_file is not None:
-            ndx = TrialNdx.load(ndx_file)
+            try:
+                ndx = TrialNdx.load(ndx_file)
+            except:
+                ndx = TrialKey.load(ndx_file).to_ndx()
                 
         ndx, enroll = TrialNdx.parse_eval_set(ndx, enroll, test, eval_set)
         if num_model_parts > 1 or num_seg_parts > 1:
-            ndx = TrialNdx.split(model_idx, num_model_parts, seg_idx, num_seg_parts)
+            ndx = ndx.split(model_part_idx, num_model_parts, seg_part_idx, num_seg_parts)
             enroll = enroll.filter_info(ndx.model_set)
 
         self.enroll = enroll
@@ -90,12 +92,12 @@ class TrialDataReader(object):
         # parser.add_argument(p1+'v-field', dest=(p2+'v_field'), default='',
         #                     help=('dataset field in the data file'))
 
-        parser.add_argument(p1+'model-part-idx', dest=(p2+'model_idx'), default=1, type=int,
+        parser.add_argument(p1+'model-part-idx', dest=(p2+'model_part_idx'), default=1, type=int,
                             help=('model part index'))
         parser.add_argument(p1+'num-model-parts', dest=(p2+'num_model_parts'), default=1, type=int,
                             help=('number of parts in which we divide the model'
                                   'list to run evaluation in parallel'))
-        parser.add_argument(p1+'seg-part-idx', dest=(p2+'seg_idx'), default=1, type=int,
+        parser.add_argument(p1+'seg-part-idx', dest=(p2+'seg_part_idx'), default=1, type=int,
                             help=('test part index'))
         parser.add_argument(p1+'num-seg-parts', dest=(p2+'num_seg_parts'), default=1, type=int,
                             help=('number of parts in which we divide the test list '

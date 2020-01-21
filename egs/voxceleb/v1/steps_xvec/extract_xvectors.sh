@@ -13,6 +13,10 @@ norm_var=false
 left_context=150
 right_context=150
 stage=0
+min_utt_length=500
+max_utt_length=12000
+random_utt_length=false
+
 
 echo "$0 $@"  # Print the command line for logging
 
@@ -35,6 +39,10 @@ if [ $# != 3 ]; then
   echo "  --norm-var <true|false>                          # If true, normalize variances in the sliding window cmvn (default:false)"
   echo "  --left-context <int>                             # Left context for short-time cmvn (default: 150)"
   echo "  --right-context <int>                            # Right context for short-time cmvn (default: 150)"
+  echo "  --random-utt-length                              # If true, extracts a random chunk from the utterance between min_utt_length and max_utt_length"
+  echo "  --min-utt-length <n|0>                           # "
+  echo "  --max-utt-length <n|0>                           # "
+  
 
 fi
 
@@ -64,6 +72,10 @@ if [ "$norm_var" == "true" ];then
     args="${args} --norm-var"
 fi
 
+if [ "$random_utt_length" == "true" ];then
+    args="${args} --random-utt-length --min-utt-length $min_utt_length --max-utt-length $max_utt_length"
+fi
+
 if [ "$write_utt2num_frames" == "true" ];then
     write_num_frames_opt="--write-num-frames $output_dir/utt2num_frames.JOB"
 fi
@@ -71,7 +83,7 @@ fi
 if [ $stage -le 0 ];then
     $cmd JOB=1:$nj $output_dir/log/extract_xvectors.JOB.log \
 	hyp_utils/torch.sh --num-gpus $num_gpus \
-	steps_xvec/torch-extract-xvectors.py ${args} $write_num_frames_opt \
+	torch-extract-xvectors.py ${args} $write_num_frames_opt \
 	--left-context $left_context --right-context $right_context \
 	--part-idx JOB --num-parts $nj \
 	--input scp:$data_dir/feats.scp --vad scp:$data_dir/vad.scp \

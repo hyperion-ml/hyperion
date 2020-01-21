@@ -5,7 +5,6 @@
 from __future__ import absolute_import
 from __future__ import print_function
 from __future__ import division
-from six.moves import xrange
 
 import os.path as path
 import copy
@@ -158,9 +157,9 @@ class TrialKey(object):
         """
         file_base, file_ext = path.splitext(file_path)
         if file_ext == '.txt' :
-            return TrialKey.load_txt(file_path)
+            return cls.load_txt(file_path)
         else:
-            return TrialKey.load_h5(file_path)
+            return cls.load_h5(file_path)
 
 
     @classmethod
@@ -261,7 +260,7 @@ class TrialKey(object):
         if trial_cond is not None:
             num_trial_cond = trial_cond.shape[0]
         
-        for i in xrange(1, num_key):
+        for i in range(1, num_key):
             key_i = key_list[i]
             new_model_set = np.union1d(model_set, key_i.model_set)
             new_seg_set = np.union1d(seg_set, key_i.seg_set)
@@ -516,15 +515,15 @@ class TrialKey(object):
 
         key2.model_set[0] = 'm1'
         key2.tar[:] = 0
-        assert(np.any(key1.model_set != key2.model_set))
-        assert(np.any(key1.tar != key2.tar))
+        assert np.any(key1.model_set != key2.model_set)
+        assert np.any(key1.tar != key2.tar)
 
         key2 = TrialKey(key1.model_set[:10], key1.seg_set,
                         key1.tar[:10,:], key1.non[:10,:])
         key3 = TrialKey(key1.model_set[5:], key1.seg_set,
                         key1.tar[5:,:], key1.non[5:,:])
         key4 = TrialKey.merge([key2, key3])
-        assert(key1 == key4)
+        assert key1 == key4
 
         key2 = TrialKey(key1.model_set, key1.seg_set[:10],
                         key1.tar[:,:10], key1.non[:,:10])
@@ -536,16 +535,16 @@ class TrialKey(object):
         key2 = TrialKey(key1.model_set[:5], key1.seg_set[:10],
                         key1.tar[:5,:10], key1.non[:5,:10])
         key3 = key1.filter(key2.model_set, key2.seg_set, keep=True)
-        assert(key2 == key3)
+        assert key2 == key3
 
         num_parts=3
         key_list = []
-        for i in xrange(num_parts):
-            for j in xrange(num_parts):
+        for i in range(num_parts):
+            for j in range(num_parts):
                 key_ij = key1.split(i+1, num_parts, j+1, num_parts)
                 key_list.append(key_ij)
         key2 = TrialKey.merge(key_list)
-        assert(key1 == key2)
+        assert key1 == key2
 
         ndx1 = key1.to_ndx()
         ndx1.validate()
@@ -553,14 +552,14 @@ class TrialKey(object):
         file_h5 = 'test.h5'
         key1.save(file_h5)
         key3 = TrialKey.load(file_h5)
-        assert(key1 == key2)
+        assert key1 == key2
 
         file_txt = 'test.txt'
         key3.tar[0, :] = True
         key3.non[:, 0] = True
         key3.save(file_txt)
         key2 = TrialKey.load(file_txt)
-        assert(key3 == key2)
+        assert key3 == key2
 
 
 

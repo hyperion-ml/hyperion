@@ -92,7 +92,7 @@ fi
 write_num_frames_opt="--write-num-frames $featdir/log/utt2num_frames.JOB"
 
 $cmd JOB=1:$nj $dir/log/create_embed_feats_${name}.JOB.log \
-     steps_xvec/apply-mvn-select-frames.py ${args} $write_num_frames_opt \
+    apply-mvn-select-frames.py ${args} $write_num_frames_opt \
      --left-context $left_context --right-context $right_context \
      --part-idx JOB --num-parts $nj \
      --input scp:$data_in/feats.scp --vad scp:$data_in/vad.scp \

@@ -28,7 +28,7 @@ class ResNetFactory(object):
 
     @staticmethod
     def create(resnet_type, in_channels, conv_channels=64, base_channels=64, out_units=0,
-               hid_act={'name':'relu', 'inplace': True}, out_act=None,
+               hid_act={'name':'relu6', 'inplace': True}, out_act=None,
                in_kernel_size=7, in_stride=2,
                zero_init_residual=False,
                groups=1, replace_stride_with_dilation=None, dropout_rate=0,

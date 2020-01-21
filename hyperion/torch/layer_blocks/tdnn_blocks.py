@@ -45,6 +45,17 @@ class TDNNBlock(nn.Module):
                             padding=padding) # padding_mode='reflection') pytorch > 1.0
 
 
+    def freeze(self):
+        for param in self.parameters():
+            param.requires_grad = False
+
+
+    def unfreeze(self):
+        for param in self.parameters():
+            param.requires_grad = True
+
+
+ 
     def forward(self, x):
 
         x = self.conv1(x)

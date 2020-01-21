@@ -18,15 +18,14 @@ config_file=default_config.sh
 
 
 if [ $stage -le 1 ];then
-    # Prepare the VoxCeleb1 dataset.  The script also downloads a list from
-    # http://www.openslr.org/resources/49/voxceleb1_sitw_overlap.txt that
-    # contains the speakers that overlap between VoxCeleb1 and our evaluation
-    # set SITW.  The script removes these overlapping speakers from VoxCeleb1.
-    local/make_voxceleb1cat.pl $voxceleb1_root 16 data
 
-    # Prepare the dev portion of the VoxCeleb2 dataset.
+    # Prepare the VoxCeleb2 dataset for training.
     local/make_voxceleb2cat.pl $voxceleb2_root dev 16 data/voxceleb2cat_train
-
+    local/make_voxceleb2cat.pl $voxceleb2_root test 16 data/voxceleb2cat_test
+    utils/combine_data.sh data/voxceleb2cat data/voxceleb2cat_train data/voxceleb2cat_test 
 fi
 
-
+if [ $stage -le 2 ];then
+    # prepare voxceleb1 for test
+    local/make_voxceleb1_oeh.pl $voxceleb1_root data
+fi

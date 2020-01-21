@@ -359,3 +359,13 @@ def int2onehot(class_ids, num_classes=None):
     p = np.zeros((len(class_ids), num_classes), dtype=float_cpu())
     p[np.arange(len(class_ids)), class_ids]=1
     return p
+
+
+def cosine_scoring(x1, x2):
+
+    l2_1 = np.sqrt(np.sum(x1**2, axis=-1, keepdims=True))
+    l2_2 = np.sqrt(np.sum(x2**2, axis=-1, keepdims=True))
+    x1 = x1/l2_1
+    x2 = x2/l2_2
+
+    return np.dot(x1, x2.T)
