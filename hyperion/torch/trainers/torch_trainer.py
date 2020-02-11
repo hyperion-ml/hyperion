@@ -223,7 +223,10 @@ class TorchTrainer(object):
         rng_state = checkpoint['rng_state']
         torch.set_rng_state(rng_state)
         self.cur_epoch = checkpoint['epoch']
-        self.model.load_state_dict(checkpoint['model_state_dict'])
+        try:
+            self.model.load_state_dict(checkpoint['model_state_dict'])
+        except:
+            self.model.module.load_state_dict(checkpoint['model_state_dict'])
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         self.loss.load_state_dict(checkpoint['loss_state_dict'])
         if self.lr_scheduler is not None:

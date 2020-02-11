@@ -13,11 +13,11 @@ from operator import itemgetter
 from itertools import groupby
 
 
-def list2ndarray(a):
+def list2ndarray(a, dtype=None):
     """Converts python string list to string numpy array.
     """
     if isinstance(a, list):
-        return np.asarray(a)
+        return np.asarray(a, dtype=dtype)
     assert isinstance(a, np.ndarray)
     return a
 

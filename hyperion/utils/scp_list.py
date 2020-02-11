@@ -8,9 +8,11 @@ from __future__ import division
 from six.moves import xrange
 from six import string_types
 
+import os
 import os.path as path
 from collections import OrderedDict
 from copy import deepcopy
+import logging
 
 import numpy as np
 
@@ -41,7 +43,7 @@ class SCPList(object):
         """Validates the attributes of the SCPList object.
         """
         self.key = list2ndarray(self.key)
-        self.file_path = list2ndarray(self.file_path)
+        self.file_path = list2ndarray(self.file_path, dtype=np.object)
         assert len(self.key) == len(self.file_path)
         if self.offset is not None:
             if isinstance(self.offset, list):
@@ -221,7 +223,7 @@ class SCPList(object):
 
     
     @classmethod
-    def load(cls, file_path, sep=' ', offset_sep=':'):
+    def load(cls, file_path, sep=' ', offset_sep=':', is_wav=False):
         """Loads script list from text file.
 
         Args:
@@ -232,12 +234,18 @@ class SCPList(object):
         Returns:
           SCPList object.
         """
-
         with open(file_path, 'r') as f:
             fields = [line.rstrip().split(sep=sep, maxsplit=1) for line in f]
+
         key = [f[0] for f in fields]
         script = [f[1] for f in fields]
-        file_path, offset, range_spec = SCPList.parse_script(script, offset_sep)
+        del fields
+        if is_wav:
+            file_path = script
+            offset = None
+            range_spec = None
+        else:
+            file_path, offset, range_spec = SCPList.parse_script(script, offset_sep)
         return cls(key, file_path, offset, range_spec)
 
 
@@ -258,6 +266,7 @@ class SCPList(object):
             key, idx1 = split_list_group_by_key(self.key, idx, num_parts)
         else:
             key, idx1 = split_list(self.key, idx, num_parts)
+
         file_path = self.file_path[idx1]
         offset = None
         range_spec = None

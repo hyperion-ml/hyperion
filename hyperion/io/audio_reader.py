@@ -35,7 +35,7 @@ class AudioReader(object):
         if isinstance(file_path, SCPList):
             self.scp = file_path
         else:
-            self.scp = SCPList.load(file_path, sep=' ')
+            self.scp = SCPList.load(file_path, sep=' ', is_wav=True)
 
         self.segments_path = segments_path
         if segments_path is None:
@@ -157,7 +157,7 @@ class SequentialAudioReader(AudioReader):
             if self.with_segments:
                 self.segments = self.segments.split(self.part_idx, self.num_parts)
             else:
-                self.scp = self.scp.split(self.part_idx, self.num_parts)
+                self.scp = self.scp.split(self.part_idx, self.num_parts, group_by_key=False)
 
 
         
