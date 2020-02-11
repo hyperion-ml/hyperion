@@ -141,7 +141,7 @@ class ArcLossOutput(nn.Module):
 class CosLossOutput(nn.Module):
 
     def __init__(self, in_feats, num_classes, s=64, margin=0.3, margin_warmup_epochs=0):
-        super(ArcLossOutput, self).__init__()
+        super(CosLossOutput, self).__init__()
         self.in_feats = in_feats
         self.num_classes = num_classes
         self.s = s
