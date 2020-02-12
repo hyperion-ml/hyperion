@@ -91,7 +91,7 @@ if __name__ == "__main__":
     parser.add_argument('--output', dest='output_path', required=True)
     parser.add_argument('--write-num-frames', dest='write_num_frames', default=None)
 
-    DRF.add_argparse_args(parser)
+    AR.add_argparse_args(parser)
     AFF.add_argparse_args(parser)
     parser.add_argument('--compress', dest='compress', default=False, action='store_true', help='Compress the features')
     parser.add_argument('--compression-method', dest='compression_method', default='auto',

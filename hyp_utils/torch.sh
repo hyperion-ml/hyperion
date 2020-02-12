@@ -47,6 +47,7 @@ fi
 
 if [ $num_gpus -gt 0 ];then
     # set CUDA_VISIBLE_DEVICES
+    echo "SGE_HGR_gpu=$SGE_HGR_gpu"
     if [ ! -z "$SGE_HGR_gpu" ]; then
 	export CUDA_VISIBLE_DEVICES=$(echo $SGE_HGR_gpu | sed 's@ @,@g')
     else

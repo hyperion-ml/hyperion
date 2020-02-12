@@ -125,7 +125,9 @@ class Wav2Win(nn.Module):
         self._length = N
         self._shift = int(math.floor(frame_shift * fs/1000))
 
-        self._window = _get_feature_window_function(window_type, N)
+        self._window = nn.Parameter(
+            _get_feature_window_function(window_type, N), 
+            requires_grad=False)
         self.pad_length = N if pad_length is None else pad_length
         assert self.pad_length >= N
 
@@ -341,7 +343,9 @@ class Wav2LogFilterBank(Wav2FFT):
 
         fb = FBF.create(fb_type, num_filters, self.fft_length,
                         self.fs, low_freq, high_freq, norm_filters)
-        self._fb = torch.tensor(fb, dtype=torch.get_default_dtype())
+        self._fb = nn.Parameter(
+            torch.tensor(fb, dtype=torch.get_default_dtype()),
+            requires_grad=False)
         
         
 
@@ -394,9 +398,15 @@ class Wav2MFCC(Wav2FFT):
 
         fb = FBF.create(fb_type, num_filters, self.fft_length,
                         self.fs, low_freq, high_freq, norm_filters)
-        self._fb = torch.tensor(fb, dtype=torch.get_default_dtype())
-        self._dct = self.make_dct_matrix(self.num_ceps, self.num_filters)
-        self._lifter = self.make_lifter(self.num_ceps, self.cepstral_lifter)
+        self._fb = nn.Parameter(
+            torch.tensor(fb, dtype=torch.get_default_dtype()),
+            requires_grad=False)
+        self._dct = nn.Parameter(
+            self.make_dct_matrix(self.num_ceps, self.num_filters),
+            requires_grad=False)
+        self._lifter = nn.Parameter(
+            self.make_lifter(self.num_ceps, self.cepstral_lifter),
+            requires_grad=False)
         
         
     @staticmethod

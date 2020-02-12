@@ -35,7 +35,7 @@ if [ $# != 3 ]; then
   echo "  --write-utt2num-frames <true|false>              # If true, write utt2num_frames file."
   echo "  --chunk-length <n|0>                             # If provided, applies encoder with specified chunk-length and "
   echo "                                                   # concatenates the chunks outputs before pooling"
-  echo "  --norm-mean <true|false>                         # If true, normalize means in the sliding window cmvn (default:true)"
+  echo "  --center <true|false>                            # If true, normalize means in the sliding window cmvn (default:true)"
   echo "  --norm-var <true|false>                          # If true, normalize variances in the sliding window cmvn (default:false)"
   echo "  --left-context <int>                             # Left context for short-time cmvn (default: 150)"
   echo "  --right-context <int>                            # Right context for short-time cmvn (default: 150)"

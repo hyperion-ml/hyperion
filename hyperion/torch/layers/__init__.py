@@ -15,3 +15,4 @@ from .margin_losses import CosLossOutput, ArcLossOutput
 from .audio_feats import *
 from .audio_feats_factory import AudioFeatsFactory
 
+from .mvn import MeanVarianceNorm

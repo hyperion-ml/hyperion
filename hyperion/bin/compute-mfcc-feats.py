@@ -75,6 +75,7 @@ if __name__ == "__main__":
     parser.add_argument('--output', dest='output_path', required=True)
     parser.add_argument('--write-num-frames', dest='write_num_frames', default=None)
 
+    AR.add_argparse_args(parser)
     DRF.add_argparse_args(parser)
     MFCC.add_argparse_args(parser)
     parser.add_argument('--compress', dest='compress', default=False, action='store_true', help='Compress the features')

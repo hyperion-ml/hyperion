@@ -75,11 +75,11 @@ def extract_xvectors(input_spec, output_spec, vad_spec, write_num_frames_spec,
                 if do_mvn:
                     x = mvn.normalize(x)
                 t3 = time.time()
+                tot_frames = x.shape[0]
                 if vad_spec is not None:
                     vad = v_reader.read(
                         key, num_frames=x.shape[0])[0].astype(
                             'bool', copy=False)
-                    tot_frames = x.shape[0]
                     x = x[vad]
 
                 logging.info('utt %s detected %d/%d (%.2f %%) speech frames' % (

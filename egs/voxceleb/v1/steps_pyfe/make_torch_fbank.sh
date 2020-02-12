@@ -16,6 +16,7 @@ echo "$0 $@"  # Print the command line for logging
 
 if [ -f path.sh ]; then . ./path.sh; fi
 . parse_options.sh || exit 1;
+set -e
 
 if [ $# -lt 1 ] || [ $# -gt 3 ]; then
    echo "Usage: $0 [options] <data-dir> [<log-dir> [<fbank-dir>] ]";
@@ -63,7 +64,7 @@ required="$scp $fbank_config"
 
 for f in $required; do
   if [ ! -f $f ]; then
-    echo "make_fbank.sh: no such file $f"
+    echo "$0: no such file $f"
     exit 1;
   fi
 done

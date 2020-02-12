@@ -42,7 +42,7 @@ ft_opt_opt="--opt-optimizer adam --opt-lr $ft_lr --opt-beta1 0.9 --opt-beta2 0.9
 ft_lrs_opt="--lrsch-lrsch-type exp_lr --lrsch-decay-rate 0.5 --lrsch-decay-steps 8000 --lrsch-hold-steps 40000 --lrsch-min-lr 1e-5 --lrsch-warmup-steps 1000 --lrsch-update-lr-on-opt-step"
 ft_nnet_name=${nnet_name}.ft_${ft_min_chunk}_${ft_max_chunk}_adam_lr${ft_lr}_b${ft_eff_batch_size}.v2
 ft_nnet_dir=exp/xvector_nnets/$ft_nnet_name
-ft_nnet=$ft_nnet_dir/model_ep0017.pth
+ft_nnet=$ft_nnet_dir/model_ep0007.pth
 
 
 #back-end
