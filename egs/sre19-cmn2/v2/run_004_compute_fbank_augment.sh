@@ -59,6 +59,13 @@ if [ $stage -le 2 ];then
     utils/combine_data.sh --extra-files "utt2num_frames" data/sre18_cmn2_adapt_lab_combined data/sre18_cmn2_adapt_lab_augx${num_augs} data/sre18_cmn2_adapt_lab
 
 fi
-    
+
+if [ $stage -le 3 ];then
+    # Filter out the clean + augmented portion of the SRE list.
+    utils/copy_data_dir.sh data/swbd_sre_tel_combined data/sre_tel_combined
+    utils/filter_scp.pl data/sre_tel/spk2utt data/swbd_sre_tel_combined/spk2utt | utils/spk2utt_to_utt2spk.pl > data/sre_tel_combined/utt2spk
+    utils/fix_data_dir.sh data/sre_tel_combined
+fi
+
 exit
 

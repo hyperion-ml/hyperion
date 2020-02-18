@@ -15,7 +15,7 @@ import numpy as np
 
 import torch
 
-from hyperion.hyp_defs import config_logger
+from hyperion.hyp_defs import config_logger, float_cpu
 from hyperion.utils import Utt2Info
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialDataReaderFactory as DRF

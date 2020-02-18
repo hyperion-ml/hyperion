@@ -23,7 +23,7 @@ nnet_name=resnet34_zir_e${embed_dim}_arc${margin}_do${dropout}_adam_lr${lr}_b${e
 nnet_num_epochs=200
 num_augs=4
 nnet_dir=exp/xvector_nnets/$nnet_name
-nnet=$nnet_dir/model_ep0070.pth
+nnet=$nnet_dir/model_ep0032.pth
 
 # #xvector finetuning
 # # ft_batch_size_1gpu=4
