@@ -43,7 +43,7 @@ class TDNNFactory(object):
             if enc_expand_units is None:
                 enc_expand_units = enc_hid_units
 
-            nnnet = ResETDNNV1(
+            nnet = ResETDNNV1(
                 num_enc_blocks, in_feats, enc_hid_units, enc_expand_units,
                 out_units=out_units, kernel_size=kernel_size, 
                 dilation=dilation, dilation_factor=dilation_factor,

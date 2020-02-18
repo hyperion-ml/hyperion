@@ -71,7 +71,7 @@ class ResNetFactory(object):
 
         valid_args = ('resnet_type', 'in_channels',
                       'conv_channels', 'base_channels', 'out_units',
-                      'hid_act', 'out_act', 'in_kernel_size', 'in_stride'
+                      'hid_act', 'out_act', 'in_kernel_size', 'in_stride',
                       'zero_init_residual', 'groups', 
                       'replace_stride_with_dilation', 'dropout_rate',
                       'in_norm', 'norm_before', 'do_maxpool')
