@@ -14,7 +14,7 @@ def eval_nnet_by_chunks(x, nnet, chunk_length=0, device=None, time_dim=-1):
     if T <= chunk_length or chunk_length == 0:
         if device is not None:
             x = x.to(device)
-        return nnet(x).detach()
+        return nnet(x) #.detach()
 
     try:
         left_context, right_context = nnet.in_context()

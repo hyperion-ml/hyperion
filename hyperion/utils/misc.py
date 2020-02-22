@@ -56,3 +56,8 @@ def energy_vad(P):
     return P>thr
 
 
+def compute_snr(x, n, axis=-1):
+
+    P_x = 10*np.log10(np.mean(x**2, axis=axis))
+    P_n = 10*np.log10(np.mean(n**2, axis=axis))
+    return P_x - P_n

@@ -87,10 +87,10 @@ class TrialKey(object):
         """
 
         file_base, file_ext = path.splitext(file_path)
-        if file_ext == '.txt' :
-            self.save_txt(file_path)
-        else:
+        if file_ext == '.h5' or file_ext == '.hdf5' :
             self.save_h5(file_path)
+        else:
+            self.save_txt(file_path)
 
             
     def save_h5(self, file_path):
@@ -156,10 +156,11 @@ class TrialKey(object):
           TrialKey object.
         """
         file_base, file_ext = path.splitext(file_path)
-        if file_ext == '.txt' :
-            return cls.load_txt(file_path)
-        else:
+        if file_ext == '.h5' or file_ext == '.hdf5' :
             return cls.load_h5(file_path)
+        else:
+            return cls.load_txt(file_path)
+
 
 
     @classmethod

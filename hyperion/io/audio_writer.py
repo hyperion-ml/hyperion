@@ -51,7 +51,10 @@ class AudioWriter(object):
             assert sf.check_format(self.audio_format, self.subtype)
 
         if not os.path.exists(output_path):
-            os.makedirs(output_path)
+            try:
+                os.makedirs(output_path)
+            except FileExistsError:
+                pass
 
         if script_path is not None:
             self.f_script = open(script_path, 'w')

@@ -13,3 +13,8 @@ def l2_norm(x, axis=-1):
     y = torch.div(x, norm)
     return y
 
+
+def compute_snr(x, n, axis=-1):
+    P_x = 10*torch.log10(torch.mean(x**2, dim=axis))
+    P_n = 10*torch.log10(torch.mean(n**2, dim=axis))
+    return P_x - P_n

@@ -9,13 +9,14 @@ import torch.nn as nn
 
 class AdvAttack(object):
 
-    def __init__(self, model, loss=None, range_min=None, range_max=None):
+    def __init__(self, model, loss=None, targeted=True, range_min=None, range_max=None):
         self.model = model
         if loss is None:
             loss = nn.CrossEntropyLoss()
         self.loss = loss
         self.range_min = range_min
         self.range_max = range_max
+        self.targeted = targeted
 
 
     def generate(self, input, target):

@@ -125,7 +125,7 @@ class ResETDNNV1(NetArch):
     def get_config(self):
         
         out_act = AF.get_config(self.out_act)
-        hid_act =  AF.get_config(self.blocks[0].activation1)
+        hid_act =  AF.get_config(self.blocks[0].activation)
 
         config = {'num_blocks': self.num_blocks,
                   'in_units': self.in_units,

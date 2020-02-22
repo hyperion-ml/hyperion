@@ -10,21 +10,25 @@ from .adv_attack import AdvAttack
 
 class FGSMAttack(AdvAttack):
 
-    def __init__(self, model, epsilon, loss=None, range_min=None, range_max=None):
-        super(FGSMAttack, self).__init__(model, loss, range_min, range_max)
-        self.epsilon = epsilon
+    def __init__(self, model, eps, loss=None, targeted=False, range_min=None, range_max=None):
+        super(FGSMAttack, self).__init__(
+            model, loss, targeted, range_min, range_max)
+        self.eps = eps
 
     def generate(self, input, target):
 
         input.requires_grad = True
         output = self.model(input)
         loss = self.loss(output, target)
-
         self.model.zero_grad()
         loss.backward()
         dL_x = input.grad.data
         
-        adv_ex = input + self.epsilon * dL_x.sign()
+        f = 1
+        if self.targeted:
+            f = -1
+
+        adv_ex = input + f * self.eps * dL_x.sign()
         return self._clamp(adv_ex)
 
         
