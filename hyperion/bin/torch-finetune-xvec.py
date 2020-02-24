@@ -28,7 +28,7 @@ from hyperion.torch.helpers import TorchModelLoader as TML
 
 def train_xvec(data_rspec, train_list, val_list, exp_path, in_model_path,
                epochs, num_gpus, log_interval, resume, num_workers, 
-               grad_acc_steps, train_mode, **kwargs):
+               grad_acc_steps, train_mode, use_amp, **kwargs):
 
     set_float_cpu('float32')
     logging.info('initializing devices num_gpus={}'.format(num_gpus))
@@ -75,7 +75,8 @@ def train_xvec(data_rspec, train_list, val_list, exp_path, in_model_path,
     trainer = Trainer(model, optimizer, epochs, exp_path, 
                       grad_acc_steps=grad_acc_steps,
                       device=device, metrics=metrics, lr_scheduler=lr_sch,
-                      data_parallel=(num_gpus>1), train_mode=train_mode)
+                      data_parallel=(num_gpus>1), train_mode=train_mode,
+                      use_amp=use_amp)
     if resume:
         trainer.load_last_checkpoint()
     trainer.fit(train_loader, test_loader)
@@ -120,6 +121,9 @@ if __name__ == '__main__':
 
     parser.add_argument('--resume', action='store_true', default=False,
                         help='resume training from checkpoint')
+
+    parser.add_argument('--use-amp', action='store_true', default=False,
+                        help='use mixed precision training')
 
     parser.add_argument('--exp-path', help='experiment path')
     parser.add_argument('--train-mode', default='ft-embed-affine',

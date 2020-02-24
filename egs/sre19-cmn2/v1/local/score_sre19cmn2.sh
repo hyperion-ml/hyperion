@@ -29,7 +29,7 @@ python3 $soft_dir/sre18_submission_validator.py -o $scores.tmp \
 condup=$(echo $cond | tr "a-z" "A-Z")
 
 echo "SRE19 $condup TOTAL"
-python3 $soft_dir/sre18_submission_scorer.py -o $scores.tmp \
+python3 $soft_dir/sre19_submission_scorer.py -o $scores.tmp \
 	-l $trials -r $key | tee $results
 rm $scores.tmp
 exit
@@ -40,7 +40,7 @@ for((i=0;i<$n_p;i++))
 do
     name=${p_names[$i]}
     #echo "SRE18 $condup "${name^^}
-    python3 $soft_dir/sre18_submission_scorer.py -o $scores.tmp \
+    python3 $soft_dir/sre19_submission_scorer.py -o $scores.tmp \
 	    -l $trials -r $key -p ${p[$i]} | awk '!/VAST/ && !/Both/' > ${results}_$name &
     #| tee ${results}_$name
 done

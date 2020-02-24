@@ -30,10 +30,6 @@ output_dir=$(dirname $output_file)
 mkdir -p $output_dir/log
 name=$(basename $output_file)
 
-
-hyp_enroll_file=$enroll_file
-
-
 hyp_coh_list=$output_file.cohort
 awk -v fv=$coh_vector_file 'BEGIN{
 while(getline < fv)
@@ -44,24 +40,13 @@ while(getline < fv)
 { if ($1 in files) {print $1,$2}}' $coh_list > $hyp_coh_list
 
 
-NF=$(awk '{ c=NF } END{ print c}' $ndx_file)
-if [ $NF -eq 3 ];then
-    # ndx file is is actuall key file, creates ndx
-    hyp_ndx_file=$output_file.ndx
-    if [ ! -f $hyp_ndx_file ]; then
-	awk '{ print $1,$2}' $ndx_file > $hyp_ndx_file
-    fi
-else
-    hyp_ndx_file=$ndx_file
-fi
-
 echo "$0 score $ndx_file"
 
 $cmd $output_dir/log/${name}.log \
      python steps_be/eval-tel-be-snorm-v1.py \
      --iv-file scp:$vector_file \
-     --ndx-file $hyp_ndx_file \
-     --enroll-file $hyp_enroll_file \
+     --ndx-file $ndx_file \
+     --enroll-file $enroll_file \
      --coh-list $hyp_coh_list \
      --coh-iv-file scp:$coh_vector_file \
      --preproc-file $preproc_file \
@@ -70,4 +55,4 @@ $cmd $output_dir/log/${name}.log \
      --coh-nbest $ncoh \
      --score-file $output_file
 
-
+rm $hyp_coh_list
