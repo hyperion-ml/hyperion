@@ -45,7 +45,7 @@ if [ $stage -le 2 ]; then
     for name in sre_tel
     do
     	steps_xvec/extract_xvectors.sh --cmd "$xvec_cmd --mem 12G" --nj 300 ${xvec_args} \
-	    --random-utt-length true --min-utt-length 100 --max-utt-length 6000 \
+	    --random-utt-length true --min-utt-length 1000 --max-utt-length 6000 \
     	    $nnet data/${name}_combined_noreverb \
     	    $xvector_dir/${name}_combined_noreverb
 	mkdir -p $xvector_dir/${name}
@@ -63,7 +63,7 @@ if [ $stage -le 2 ]; then
     
 fi
 
-if [ $stage -le 2 ]; then
+if [ $stage -le 3 ]; then
     # Extracts x-vectors for evaluation
     for name in sre18_dev_unlabeled \
 		    sre18_eval40_enroll_cmn2 sre18_eval40_test_cmn2 \

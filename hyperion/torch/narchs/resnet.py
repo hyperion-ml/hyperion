@@ -213,6 +213,54 @@ class ResNet(NetArch):
         return x
 
 
+    def forward_hid_feats(self, x, layers=None, return_output=False):
+
+        assert layers is not None or return_output
+        if layers is None:
+            layers = []
+        
+        if return_output:
+            last_layer = 4
+        else:
+            last_layer = max(layers)
+            
+        h = []
+        if self.in_norm:
+            x = self.in_bn(x)
+
+        x = self.in_block(x)
+        if 0 in layers:
+            h.append(x)
+        if last_layer == 0:
+            return h
+        
+        x = self.layer1(x)
+        if 1 in layers:
+            h.append(x)
+        if last_layer == 1:
+            return h
+
+        x = self.layer2(x)
+        if 2 in layers:
+            h.append(x)
+        if last_layer == 2:
+            return h
+
+        x = self.layer3(x)
+        if 3 in layers:
+            h.append(x)
+        if last_layer == 3:
+            return h
+
+        x = self.layer4(x)
+        if 3 in layers:
+            h.append(x)
+        
+        if return_output:
+            return h, x
+        
+        return h
+        
 
     def get_config(self):
         

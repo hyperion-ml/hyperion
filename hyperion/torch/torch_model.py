@@ -3,9 +3,8 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
+
+from copy import deepcopy
 
 import torch
 import torch.nn as nn
@@ -19,7 +18,11 @@ class TorchModel(nn.Module):
         
         return config
 
+    
+    def copy(self):
+        return deepcopy(self)
 
+    
     def save(self, file_path):
         file_dir = os.path.dirname(file_path)
         if not(os.path.isdir(file_dir)):

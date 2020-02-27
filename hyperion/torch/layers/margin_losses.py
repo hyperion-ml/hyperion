@@ -166,7 +166,7 @@ class CosLossOutput(nn.Module):
             logging.info('updating cos-softmax margin=%.2f' % (self.cur_margin))
         else:
             if self.cur_margin != self.margin:
-                self.cur_margin = margin
+                self.cur_margin = self.margin
                 logging.info('updating cos-softmax margin=%.2f' % (self.cur_margin))
             else:
                 return

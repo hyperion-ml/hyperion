@@ -148,6 +148,28 @@ class ClassifHead(NetArch):
         return y
 
 
+    def forward_hid_feats(self, x, y=None, layers=None, return_output=False):
+
+        assert layers is not None or return_output
+        if layers is None:
+            layers = []
+
+        h = []
+        for l in range(self.num_embed_layers):
+            x = self.fc_blocks[l](x)
+            if l in layers:
+                h.append(x)
+        
+        if self.loss_type == 'softmax':
+            y = self.output(x)
+        else:
+            y = self.output(x, y)
+
+        if return_output:
+            return h, y
+        return h
+
+
     def extract_embed(self, x, embed_layer=0):
 
         for l in range(embed_layer):

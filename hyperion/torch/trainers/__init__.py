@@ -4,6 +4,7 @@
 """
 from __future__ import absolute_import
 
-from .torch_trainer import TorchTrainer
+from .torch_trainer import TorchTrainer, TorchDataParallel
 from .xvector_trainer import XVectorTrainer
-from .xvector_finetuner import XVectorFinetuner
+from .xvector_trainer_deep_feat_reg import XVectorTrainerDeepFeatReg
+#from .xvector_finetuner import XVectorFinetuner

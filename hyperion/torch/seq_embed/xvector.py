@@ -156,6 +156,31 @@ class XVector(TorchModel):
         return y
 
 
+    def forward_hid_feats(self, x, y=None, enc_layers=None, classif_layers=None, return_output=False):
+
+        if self.encoder_net.in_dim() == 4 and x.dim() == 3:
+            x = x.view(x.size(0), 1, x.size(1), x.size(2))
+
+        h_enc, x = self.encoder_net.forward_hid_feats(x, enc_layers, return_output=True)
+
+        if not return_output and classif_layers is None:
+            return h_enc
+        
+        if self.encoder_net.out_dim() == 4:
+            x = x.view(x.size(0), -1, x.size(-1))
+
+        if self.proj is not None:
+            x = self.proj(x)
+            
+        p = self.pool_net(x)
+        h_classif = self.classif_net.forward_hid_feats(p, y, classif_layers, return_output=return_output)
+        if return_output:
+            h_classif, y = h_classif
+            return h_enc, h_classif, y
+
+        return h_enc, h_classif
+
+
     # def forward(self, x, y=None):
 
     #     if self.encoder_net.in_dim() == 4 and x.dim() == 3:

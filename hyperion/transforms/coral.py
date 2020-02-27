@@ -75,6 +75,7 @@ class CORAL(HypModel):
                 S_in = self.alpha_T * S_in + (1 - self.alpha_T) * S_out
             # zero-phase component analysis (ZCA)
             d, V = la.eigh(S_in)
+            d[d<0] = 0
             self.T_col = np.dot(V * np.sqrt(d), V.T)
 
         if self.update_mu:

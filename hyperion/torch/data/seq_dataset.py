@@ -132,7 +132,7 @@ class SeqDataset(Dataset):
         else:
             logging.info('reading class-file %s' % (class_file))
             class_info = pd.read_csv(class_file, header=None, sep=' ')
-            class2idx = {k:i for i,k in enumerate(class_info[0])}
+            class2idx = {str(k):i for i,k in enumerate(class_info[0])}
             class_idx = np.array([class2idx[k] for k in self.u2c.info], dtype=int)
             if class_info.shape[1]==2:
                 class_weights = np.array(class_info[1]).astype(floatstr_torch(), copy=False)
