@@ -107,7 +107,7 @@ class TDNNXVector(XVector):
 
     @classmethod
     def load(cls, file_path=None, cfg=None, state_dict=None):
-        cfg, state_dict = TorchModel._load_cfg_state_dict(
+        cfg, state_dict = cls._load_cfg_state_dict(
             file_path, cfg, state_dict)
 
         model = cls(**cfg) 

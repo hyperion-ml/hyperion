@@ -11,7 +11,7 @@ from .global_pool import *
 class GlobalPool1dFactory(object):
 
     @staticmethod
-    def create(pool_type,
+    def create(pool_type, in_units=None,
                num_comp=64, dist_pow=2, use_bias=False,
                dim=-1, keepdim=False, batch_dim=0):
         if pool_type == 'avg':
@@ -28,8 +28,9 @@ class GlobalPool1dFactory(object):
 
         if pool_type == 'lde':
             return LDEPool1d(
-                num_comp=num_comp, dist_pow=dist_pow, use_bias=use_bias,
-                dim=dim, keepdim=keepdim, batch_dim=batch_dim)
+                in_units, num_comp=num_comp, 
+                dist_pow=dist_pow, use_bias=use_bias,
+                dim=dim, keepdim=keepdim)
 
 
 
@@ -45,7 +46,7 @@ class GlobalPool1dFactory(object):
             del kwargs['wo_bias']
 
         valid_args = ('pool_type', 'batch_dim', 'dim', 'keepdim', 
-                      'input_units', 'num_comp', 'use_bias', 'dist_pow')
+                      'in_units', 'num_comp', 'use_bias', 'dist_pow')
 
         return dict((k, kwargs[p+k])
                     for k in valid_args if p+k in kwargs)
@@ -78,7 +79,7 @@ class GlobalPool1dFactory(object):
                             default=False, action='store_true',
                             help=('keeps the pooling dimension as singletone'))
 
-        parser.add_argument(p1+'input-units' , dest=(p2+'input_units'),
+        parser.add_argument(p1+'in-units' , dest=(p2+'in_units'),
                             default=0, type=int,
                             help=('feature size for LDE pooling'))
 

@@ -63,11 +63,13 @@ class XVector(TorchModel):
 
         
         # create pooling network
-        self.pool_net = self._make_pool_net(pool_net) 
+
         #infer output dimension of pooling which is input dim for classification head
         if proj_feats is None:
+            self.pool_net = self._make_pool_net(pool_net, enc_feats) 
             pool_feats = enc_feats * self.pool_net.size_multiplier
         else:
+            self.pool_net = self._make_pool_net(pool_net, proj_feats) 
             pool_feats = proj_feats * self.pool_net.size_multiplier
         
         logging.info('infer pooling dimension %d' % (pool_feats))
@@ -123,10 +125,13 @@ class XVector(TorchModel):
         return self.classif_net.loss_type
 
     
-    def _make_pool_net(self, pool_net):
+    def _make_pool_net(self, pool_net, enc_feats=None):
         if isinstance(pool_net, str):
-            return PF.create(pool_net)
-        elif isinstance(pool_net, dict):
+            pool_net = { 'pool_type': pool_net }
+
+        if isinstance(pool_net, dict):
+            if enc_feats is not None:
+                pool_net['in_units'] = enc_feats
             return PF.create(**pool_net)
         elif isinstance(pool_net, nn.Module):
             return pool_net

@@ -6,12 +6,13 @@ from __future__ import absolute_import
 
 from .fgsm_attack import FGSMAttack
 from .snr_fgsm_attack import SNRFGSMAttack
+from .rand_fgsm_attack import RandFGSMAttack
 
 
 class AttackFactory(object):
 
     @staticmethod
-    def create(attack_type, model, attack_eps=0, attack_snr=100, loss=None, 
+    def create(attack_type, model, attack_eps=0, attack_snr=100, attack_alpha=0, loss=None, 
                targeted=False, range_min=None, range_max=None):
 
         if attack_type == 'fgsm':
@@ -22,6 +23,11 @@ class AttackFactory(object):
         if attack_type == 'snr-fgsm':
             return SNRFGSMAttack(
                 model, attack_snr, loss=loss, targeted=targeted,
+                range_min=range_min, range_max=range_max)
+
+        if attack_type == 'rand-fgsm':
+            return RandFGSMAttack(
+                model, attack_eps, attack_alpha, loss=loss, targeted=targeted,
                 range_min=range_min, range_max=range_max)
 
         raise Exception('%s is not a valid attack type' % (attack_type))
@@ -53,7 +59,7 @@ class AttackFactory(object):
 
         parser.add_argument(
             p1+'attack-type', type=str.lower, default='fgsm',
-            choices=['fgsm', 'snr-fgsm'], help=('Attack type'))
+            choices=['fgsm', 'snr-fgsm', 'rand-fgsm'], help=('Attack type'))
 
         parser.add_argument(
             p1+'attack-eps', default=0, type=float,

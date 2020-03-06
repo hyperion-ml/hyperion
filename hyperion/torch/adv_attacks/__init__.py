@@ -6,5 +6,7 @@ from __future__ import absolute_import
 
 from .fgsm_attack import FGSMAttack
 from .snr_fgsm_attack import SNRFGSMAttack
+from .rand_fgsm_attack import RandFGSMAttack
+from .iter_fgsm_attack import IterFGSMAttack
 
 from .attack_factory import AttackFactory

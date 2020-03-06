@@ -8,7 +8,7 @@ import logging
 
 import torch
 import torch.nn as nn
-import torch.functional as F
+import torch.nn.functional as F
 
 
 class _GlobalPool1d(nn.Module):
@@ -34,8 +34,8 @@ class _GlobalPool1d(nn.Module):
     def get_config(self):
         
         config = { 'dim': self.dim,
-                   'keepdim': self.keepdim,
-                   'batch_dim': self.batch_dim}
+                   'keepdim': self.keepdim }
+
         return config
 
 
@@ -195,51 +195,76 @@ class GlobalMeanLogVarPool1d(_GlobalPool1d):
 #this is wrong            
 class LDEPool1d(_GlobalPool1d):
 
-    def __init__(self, input_units, num_comp=64, dist_pow=2, use_bias=False,
-                 dim=-1, keepdim=False, batch_dim=0):
-        super(LDEPool1d, self).__init__(dim, keepdim, batch_dim)
-        self.mu = nn.Parameter(torch.randn(num_comp,input_units))
-        self.prec = nn.Parameter(torch.ones(num_comp))
+    def __init__(self, in_units, num_comp=64, dist_pow=2, use_bias=False,
+                 dim=-1, keepdim=False):
+        super(LDEPool1d, self).__init__(dim, keepdim, batch_dim=0)
+        self.mu = nn.Parameter(torch.randn((num_comp,in_units)))
+        self.prec = nn.Parameter(torch.ones((num_comp,)))
         self.use_bias = use_bias
         if use_bias:
-            self.bias = nn.Parameter(torch.zeros(num_comp))
+            self.bias = nn.Parameter(torch.zeros((num_comp,)))
         else:
             self.bias = 0            
 
         self.dist_pow = dist_pow
         if dist_pow == 1:
-            self.dist_f = lambda x: torch.norm(x, p=2, dim=1)
+            self.dist_f = lambda x: torch.norm(x, p=2, dim=-1)
         else:
-            self.dist_f = lambda x: torch.sum(x**2, dim=1)
+            self.dist_f = lambda x: torch.sum(x**2, dim=-1)
 
         self.size_multiplier = num_comp
 
+
+    @property
+    def num_comp(self):
+        return self.mu.shape[0]
+
+    @property
+    def in_units(self):
+        return self.mu.shape[1]
+
+    def __repr__(self):
+        return self.__str__()
+
+    def __str__(self):
+        s = '{}(in_units={}, num_comp={}, dist_pow={}, use_bias={}, dim={}, keepdim={}, batch_dim={})'.format(
+            self.__class__.__name__, self.mu.shape[1], self.mu.shape[0], self.dist_pow,
+            self.use_bias, self.dim, self.keepdim, self.batch_dim)
+        return s
+
         
     def forward(self, x, weights=None):
-        x = torch.unsqueeze(x, dim=-2)
+        if self.dim != 1 or self.dim != -2:
+            x = x.transpose(1, self.dim)
+
+        x = torch.unsqueeze(x, dim=2)
         delta = x - self.mu
         dist = self.dist_f(delta)
 
         llk = - self.prec**2 * dist + self.bias
         r = F.softmax(llk, dim=-1)
         if weights is not None:
-            if weights.dim()==2:
-                weights = torch.unsqueze(weights, dim=-1)
             r *= weights
+            r = r/(torch.sum(r, dim=-1, keepdims=True)+1e-9)
 
-        r = r/(torch.sum(r, dim=-1, keepdims=True)+1e-9)
-        pool = torch.sum(r*delta, dim=-2)
+        #r.unsqueeze_(dim=-1)
+        r = torch.unsqueeze(r, dim=-1)
+        pool = torch.sum(r*delta, dim=1)
+        pool = pool.contiguous().view(-1, self.num_comp*self.in_units)
         if self.keepdim:
-            return pool.view(x.shape[0], 1, -1)
+            if self.dim == 1 or self.dim == -2:
+                pool.unsqueeze_(1)
+            else:
+                pool.unsqueeze_(-1)
 
-        return pool.view(x.shape[0], -1)
+        return pool
         
 
         
     def get_config(self):
 
-        config = { 'input_units': self.mu.shape[1],
-                   'num_comp': self.mu.shape[0],
+        config = { 'in_units': self.in_units,
+                   'num_comp': self.num_comp,
                    'dist_pow': self.dist_pow,
                    'use_bias': self.use_bias }
 
