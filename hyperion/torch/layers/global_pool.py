@@ -8,7 +8,7 @@ import logging
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+import torch.nn.functional as nnf
 
 
 class _GlobalPool1d(nn.Module):
@@ -192,7 +192,6 @@ class GlobalMeanLogVarPool1d(_GlobalPool1d):
         return torch.cat((mu,logvar), dim=-1)
 
 
-#this is wrong            
 class LDEPool1d(_GlobalPool1d):
 
     def __init__(self, in_units, num_comp=64, dist_pow=2, use_bias=False,
@@ -242,14 +241,14 @@ class LDEPool1d(_GlobalPool1d):
         dist = self.dist_f(delta)
 
         llk = - self.prec**2 * dist + self.bias
-        r = F.softmax(llk, dim=-1)
+        r = nnf.softmax(llk, dim=-1)
         if weights is not None:
             r *= weights
-            r = r/(torch.sum(r, dim=-1, keepdims=True)+1e-9)
 
-        #r.unsqueeze_(dim=-1)
         r = torch.unsqueeze(r, dim=-1)
-        pool = torch.sum(r*delta, dim=1)
+        N = torch.sum(r, dim=1) + 1e-9
+        F = torch.sum(r*delta, dim=1)
+        pool = F/N
         pool = pool.contiguous().view(-1, self.num_comp*self.in_units)
         if self.keepdim:
             if self.dim == 1 or self.dim == -2:

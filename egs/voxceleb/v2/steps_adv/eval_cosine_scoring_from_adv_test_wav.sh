@@ -12,7 +12,11 @@ norm_var=false
 context=150
 attack_type=fgsm
 eps=0
+alpha=0
 snr=100
+confidence=0
+lr=1e-2
+max_iter=10
 save_wav_tar_thr=0.4
 save_wav_non_thr=0.25
 save_wav_path=""
@@ -34,9 +38,13 @@ if [ $# -ne 7 ]; then
   echo "  --context <int|150>                              # Left context for short-time cmvn (default: 150)"
   echo "  --attack-type <str|fgsm>                         # Attack type"
   echo "  --eps <float|0>                                  # Attack epsilon"
+  echo "  --alpha <float|0>                                # Attack alpha"
   echo "  --snr <float|100>                                # Attack SNR"
-  echo "  --save-wav-thr <float|0.75>                     # threshold to decide to save adversarial wav to disk"
-  echo "  --save-wav-path <str|>                          # path to save adv wavs"
+  echo "  --confidence <float|0>                           # confidence in Carlini-Wagner attack"
+  echo "  --lr <float|1e-2>                                # learning rate for attack optimizer"
+  echo "  --max-iter <int|10>                              # max number of iters for attack optimizer"
+  echo "  --save-wav-thr <float|0.75>                      # threshold to decide to save adversarial wav to disk"
+  echo "  --save-wav-path <str|>                           # path to save adv wavs"
   exit 1;
 fi
 
@@ -102,6 +110,10 @@ $cmd JOB=1:$nj $log_dir/${name}.JOB.log \
     --attack-type $attack_type \
     --attack-snr $snr \
     --attack-eps $eps \
+    --attack-alpha $alpha \
+    --attack-confidence $confidence \
+    --attack-lr $lr \
+    --attack-max-iter $max_iter \
     --score-file $output_file \
     --snr-file $snr_file \
     --seg-part-idx JOB --num-seg-parts $nj || exit 1

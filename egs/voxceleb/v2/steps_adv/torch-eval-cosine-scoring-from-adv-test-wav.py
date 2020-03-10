@@ -143,6 +143,7 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
     attack_type = attack_args['attack_type']
     del attack_args['attack_type']
     attack_args['attack_eps'] *= wav_scale
+    attack_args['attack_alpha'] *= wav_scale
     attack = AttackFactory.create(
         attack_type, model, loss=nn.functional.binary_cross_entropy_with_logits, 
         range_min=-wav_scale, range_max=wav_scale, **attack_args)
