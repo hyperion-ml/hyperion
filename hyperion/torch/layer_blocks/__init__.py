@@ -9,3 +9,4 @@ from .tdnn_blocks import TDNNBlock
 from .etdnn_blocks import ETDNNBlock
 from .resetdnn_blocks import ResETDNNBlock
 from .resnet_blocks import ResNetInputBlock, ResNetBasicBlock, ResNetBNBlock
+from .seresnet_blocks import SEResNetBasicBlock, SEResNetBNBlock

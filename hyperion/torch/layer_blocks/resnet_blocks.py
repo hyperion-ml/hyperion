@@ -112,7 +112,7 @@ class ResNetBasicBlock(nn.Module):
         if dropout_rate > 0:
             self.dropout = Dropout2d(dropout_rate)
 
-        self.context = dilation + 1
+        self.context = dilation + stride
         self.downsample_factor = stride
 
 
