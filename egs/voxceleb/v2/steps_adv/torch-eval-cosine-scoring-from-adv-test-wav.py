@@ -24,6 +24,7 @@ from hyperion.io import AudioWriter as AW
 from hyperion.utils import Utt2Info, TrialNdx, TrialKey, TrialScores
 from hyperion.utils.list_utils import ismember
 from hyperion.io import VADReaderFactory as VRF
+from hyperion.classifiers import BinaryLogisticRegression as LR
 
 from hyperion.torch.utils import open_device
 from hyperion.torch.helpers import TorchModelLoader as TML
@@ -52,10 +53,20 @@ def read_data(v_file, key_file, enroll_file, seg_part_idx, num_seg_parts):
     return key, x_e
 
 
+class Calibrator(nn.Module):
+
+    def __init__(self, a, b):
+        super(Calibrator, self).__init__()
+        self.a = a
+        self.b = b
+
+    def forward(self, x):
+        return self.a*x+self.b
+
 
 class MyModel(nn.Module):
 
-    def __init__(self, feat_extractor, xvector_model, mvn=None, embed_layer=None):
+    def __init__(self, feat_extractor, xvector_model, mvn=None, embed_layer=None, calibrator=None):
         super(MyModel, self).__init__()
         self.feat_extractor = feat_extractor
         self.xvector_model = xvector_model
@@ -63,6 +74,7 @@ class MyModel(nn.Module):
         self.x_e = None
         self.vad_t = None
         self.embed_layer = embed_layer
+        self.calibrator = calibrator
 
 
     def forward(self, s_t):
@@ -86,13 +98,16 @@ class MyModel(nn.Module):
         x_t = l2_norm(x_t)
         x_e = l2_norm(self.x_e)
         score = torch.sum(x_e * x_t, dim=-1)
+        if self.calibrator is not None:
+            score = self.calibrator(score)
+
         return score
 
 
 def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
                         mvn_no_norm_mean, mvn_norm_var, mvn_context,
                         vad_spec, vad_path_prefix, model_path, embed_layer,
-                        score_file, snr_file,
+                        score_file, snr_file, cal_file,
                         save_adv_wav, save_adv_wav_tar_thr, save_adv_wav_non_thr, save_adv_wav_path,
                         use_gpu, seg_part_idx, num_seg_parts, 
                         **kwargs):
@@ -120,7 +135,14 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
     xvector_model = TML.load(model_path)
     xvector_model.freeze()
 
-    model = MyModel(feat_extractor, xvector_model, mvn, embed_layer)
+    calibrator = None
+    if cal_file is not None:
+        logging.info('loading calibration params {}'.format(cal_file))
+        lr = LR.load(cal_file)
+        calibrator = Calibrator(lr.A[0,0], lr.b[0])
+        calibrator.to(device)
+
+    model = MyModel(feat_extractor, xvector_model, mvn, embed_layer, calibrator)
     model.to(device)
     model.eval()
 
@@ -301,6 +323,8 @@ if __name__ == "__main__":
 
     parser.add_argument('--snr-file', default=None, 
                         help='output path of to save snr of signals')
+
+    parser.add_argument('--cal-file', dest='cal_file', default=None)
     
     args=parser.parse_args()
     config_logger(args.verbose)

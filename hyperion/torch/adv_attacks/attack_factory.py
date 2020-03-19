@@ -9,6 +9,8 @@ from .snr_fgsm_attack import SNRFGSMAttack
 from .rand_fgsm_attack import RandFGSMAttack
 from .iter_fgsm_attack import IterFGSMAttack
 from .carlini_wagner_l2 import CarliniWagnerL2
+from .carlini_wagner_l0 import CarliniWagnerL0
+from .carlini_wagner_linf import CarliniWagnerLInf
 
 class AttackFactory(object):
 
@@ -17,6 +19,9 @@ class AttackFactory(object):
                attack_confidence=0.0, attack_lr=1e-2, 
                attack_binary_search_steps=9, attack_max_iter=10,
                attack_abort_early=True, attack_c=1e-3,
+               attack_reduce_c=False, attack_c_incr_factor=2,
+               attack_tau_decr_factor=0.9,
+               attack_indep_channels=False,
                loss=None, 
                targeted=False, range_min=None, range_max=None):
 
@@ -46,6 +51,21 @@ class AttackFactory(object):
                 attack_binary_search_steps, attack_max_iter, 
                 attack_abort_early, attack_c, 
                 targeted=targeted, range_min=range_min, range_max=range_max)
+
+        if attack_type == 'cw-l0':
+            return CarliniWagnerL0(
+                model, attack_confidence, attack_lr, attack_max_iter, 
+                attack_abort_early, attack_c,
+                attack_reduce_c, attack_c_incr_factor, attack_indep_channels,
+                targeted=targeted, range_min=range_min, range_max=range_max)
+
+        if attack_type == 'cw-linf':
+            return CarliniWagnerLInf(
+                model, attack_confidence, attack_lr, attack_max_iter, 
+                attack_abort_early, attack_c,
+                attack_reduce_c, attack_c_incr_factor, attack_tau_decr_factor,
+                targeted=targeted, range_min=range_min, range_max=range_max)
+
                 
         raise Exception('%s is not a valid attack type' % (attack_type))
 
@@ -64,7 +84,10 @@ class AttackFactory(object):
                       'attack_alpha', 'attack_confidence',
                       'attack_lr', 'attack_binary_search_steps',
                       'attack_max_iter', 'attack_abort_early',
-                      'attack_c', 'targeted')
+                      'attack_c', 'attack_reduce_c', 
+                      'attack_c_incr_factor', 'attack_tau_decr_factor',
+                      'attack_indep_channels',
+                      'targeted')
 
         args = dict((k, kwargs[p+k])
                     for k in valid_args if p+k in kwargs)
@@ -83,7 +106,8 @@ class AttackFactory(object):
 
         parser.add_argument(
             p1+'attack-type', type=str.lower, default='fgsm',
-            choices=['fgsm', 'snr-fgsm', 'rand-fgsm', 'iter-fgsm', 'cw-l2'], help=('Attack type'))
+            choices=['fgsm', 'snr-fgsm', 'rand-fgsm', 'iter-fgsm', 'cw-l0', 'cw-l2', 'cw-linf'], 
+            help=('Attack type'))
 
         parser.add_argument(
             p1+'attack-eps', default=0, type=float,
@@ -107,7 +131,7 @@ class AttackFactory(object):
 
         parser.add_argument(
             p1+'attack-binary-search-steps', default=9, type=int,
-            help=('num bin. search steps in carlini-wagner attack'))
+            help=('num bin. search steps in carlini-wagner-l2 attack'))
 
         parser.add_argument(
             p1+'attack-max-iter', default=10, type=int,
@@ -116,6 +140,22 @@ class AttackFactory(object):
         parser.add_argument(
             p1+'attack-c', default=1e-2, type=float,
             help=('initial weight of constraint function f in carlini-wagner attack'))
+
+        parser.add_argument(
+            p1+'attack-reduce-c', default=False, action='store_true',
+            help=('allow to reduce c in carline-wagner-l0/inf attack'))
+
+        parser.add_argument(
+            p1+'attack-c-incr-factor', default=2, type=float,
+            help=('factor to increment c in carline-wagner-l0/inf attack'))
+
+        parser.add_argument(
+            p1+'attack-tau-decr-factor', default=0.75, type=float,
+            help=('factor to reduce tau in carline-wagner-linf attack'))
+
+        parser.add_argument(
+            p1+'attack-indep-channels', default=False, action='store_true',
+            help=('consider independent input channels in carline-wagner-l0 attack'))
 
         parser.add_argument(
             p1+'attack-no-abort', default=False, action='store_true',

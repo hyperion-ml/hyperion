@@ -67,10 +67,10 @@ class XVector(TorchModel):
         #infer output dimension of pooling which is input dim for classification head
         if proj_feats is None:
             self.pool_net = self._make_pool_net(pool_net, enc_feats) 
-            pool_feats = enc_feats * self.pool_net.size_multiplier
+            pool_feats = int(enc_feats * self.pool_net.size_multiplier)
         else:
             self.pool_net = self._make_pool_net(pool_net, proj_feats) 
-            pool_feats = proj_feats * self.pool_net.size_multiplier
+            pool_feats = int(proj_feats * self.pool_net.size_multiplier)
         
         logging.info('infer pooling dimension %d' % (pool_feats))
 
@@ -131,7 +131,7 @@ class XVector(TorchModel):
 
         if isinstance(pool_net, dict):
             if enc_feats is not None:
-                pool_net['in_units'] = enc_feats
+                pool_net['in_feats'] = enc_feats
             return PF.create(**pool_net)
         elif isinstance(pool_net, nn.Module):
             return pool_net
@@ -365,7 +365,9 @@ class XVector(TorchModel):
             del kwargs['norm_after']
 
         # get arguments for pooling
-        pool_valid_args = ('pool_type', 'pool_num_comp', 'pool_use_bias', 'pool_dist_pow')
+        pool_valid_args = (
+            'pool_type', 'pool_num_comp', 'pool_use_bias', 
+            'pool_dist_pow', 'pool_d_k', 'pool_d_v', 'pool_num_heads')
         pool_args = dict((k, kwargs[p+k])
                          for k in pool_valid_args if p+k in kwargs)
 
@@ -398,8 +400,10 @@ class XVector(TorchModel):
         
         parser.add_argument(p1+'pool-type', type=str.lower,
                             default='mean+stddev',
-                            choices=['avg','mean+stddev', 'mean+logvar', 'lde'],
-                            help=('Pooling methods: Avg, Mean+Std, Mean+logVar, LDE'))
+                            choices=['avg','mean+stddev', 'mean+logvar', 
+                                     'lde', 'scaled-dot-prod-att-v1'],
+                            help=('Pooling methods: Avg, Mean+Std, Mean+logVar, LDE, '
+                                  'scaled-dot-product-attention-v1'))
         
         parser.add_argument(p1+'pool-num-comp',
                             default=64, type=int,
@@ -412,6 +416,18 @@ class XVector(TorchModel):
         parser.add_argument(p1+'pool-wo-bias', 
                             default=False, action='store_true',
                             help=('Don\' use bias in LDE'))
+
+        parser.add_argument(
+            p1+'pool-num-heads', default=8, type=int,
+            help=('number of attention heads'))
+
+        parser.add_argument(
+            p1+'pool-d-k', default=256, type=int,
+            help=('key dimension for attention'))
+
+        parser.add_argument(
+            p1+'pool-d-v', default=256, type=int,
+            help=('value dimension for attention'))
 
         # parser.add_argument(p1+'num-classes',
         #                     required=True, type=int,

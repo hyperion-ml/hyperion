@@ -13,7 +13,7 @@ from . import io
 from . import feats
 from . import calibration
 from . import score_norm
-from . import keras
+#from . import keras
 from . import helpers
 from . import generators
 

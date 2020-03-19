@@ -28,15 +28,18 @@ be_name=lda${lda_dim}_${plda_label}_${plda_data}
 xvector_dir=exp/xvectors/$nnet_name
 score_dir=exp/scores/$nnet_name
 
+cal_file=$score_dir/cosine_cal_v1/cal_tel.h5
+
 if [ $stage -le 1 ];then
 
-    for eps in 0.00001 #0.0001 0.001 0.01 0.1
+    for eps in 0 #0.00001 #0.0001 0.001 0.01 0.1
     do
 	score_plda_dir=$score_dir/cosine_fgsm_e${eps}
 	echo "Eval Voxceleb 1 with Cosine scoring with FGSM attack eps=$eps"
 	steps_adv/eval_cosine_scoring_from_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 20 \
 	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
 	    --attack-type fgsm --eps $eps --save-wav-path $score_plda_dir/wav \
+	    --cal-file $cal_file \
 	    data/voxceleb1_test/trials_o_clean \
     	    data/voxceleb1_test/utt2model \
             data/voxceleb1_test \
@@ -55,7 +58,7 @@ if [ $stage -le 1 ];then
     done
 
 fi
-
+exit
 
 if [ $stage -le 2 ];then
 
@@ -152,10 +155,71 @@ if [ $stage -le 5 ];then
     do
 	alpha=$(echo $eps | awk '{ print $0/5.}')
 	score_plda_dir=$score_dir/cosine_cwl2_conf${confidence}
-	echo "Eval Voxceleb 1 with Cosine scoring with Carlini-Wagner attack confidence=$confidence"
+	echo "Eval Voxceleb 1 with Cosine scoring with Carlini-Wagner L2 attack confidence=$confidence"
 	steps_adv/eval_cosine_scoring_from_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 20 \
 	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
 	    --attack-type cw-l2 --confidence $confidence --save-wav-path $score_plda_dir/wav \
+	    data/voxceleb1_test/trials_o_clean \
+    	    data/voxceleb1_test/utt2model \
+            data/voxceleb1_test \
+    	    $xvector_dir/voxceleb1_test/xvector.scp \
+	    $nnet $score_plda_dir/voxceleb1_scores $score_plda_dir/voxceleb1_snr
+    	
+	$train_cmd --mem 10G $score_plda_dir/log/score_voxceleb1.log \
+	    local/score_voxceleb1_o_clean.sh data/voxceleb1_test $score_plda_dir 
+	
+	for f in $(ls $score_plda_dir/*_results);
+	do
+	    echo $f
+	    cat $f
+	    echo ""
+	done
+    done
+
+fi
+
+
+if [ $stage -le 6 ];then
+
+    for confidence in 0
+    do
+	alpha=$(echo $eps | awk '{ print $0/5.}')
+	score_plda_dir=$score_dir/cosine_cwl0_conf${confidence}
+	echo "Eval Voxceleb 1 with Cosine scoring with Carlini-Wagner L0 attack confidence=$confidence"
+	steps_adv/eval_cosine_scoring_from_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 1000 \
+	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
+	    --attack-type cw-l0 --confidence $confidence --c-factor 10 --save-wav-path $score_plda_dir/wav \
+	    data/voxceleb1_test/trials_o_clean \
+    	    data/voxceleb1_test/utt2model \
+            data/voxceleb1_test \
+    	    $xvector_dir/voxceleb1_test/xvector.scp \
+	    $nnet $score_plda_dir/voxceleb1_scores $score_plda_dir/voxceleb1_snr
+    	
+	$train_cmd --mem 10G $score_plda_dir/log/score_voxceleb1.log \
+	    local/score_voxceleb1_o_clean.sh data/voxceleb1_test $score_plda_dir 
+	
+	for f in $(ls $score_plda_dir/*_results);
+	do
+	    echo $f
+	    cat $f
+	    echo ""
+	done
+    done
+
+fi
+
+exit
+
+if [ $stage -le 7 ];then
+
+    for confidence in 0
+    do
+	alpha=$(echo $eps | awk '{ print $0/5.}')
+	score_plda_dir=$score_dir/cosine_cwlinf_conf${confidence}
+	echo "Eval Voxceleb 1 with Cosine scoring with Carlini-Wagner LInf attack confidence=$confidence"
+	steps_adv/eval_cosine_scoring_from_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 40 \
+	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
+	    --attack-type cw-linf --confidence $confidence --c-factor 2 --save-wav-path $score_plda_dir/wav \
 	    data/voxceleb1_test/trials_o_clean \
     	    data/voxceleb1_test/utt2model \
             data/voxceleb1_test \

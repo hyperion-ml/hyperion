@@ -72,7 +72,7 @@ class Framing(object):
         if self.pad_mode is not None:
             self.pad_width = self.create_pad_width(
                 pad_side, frame_length, frame_shift)
-        self.pad_kwargs = **kwargs
+        self.pad_kwargs = kwargs
 
 
         

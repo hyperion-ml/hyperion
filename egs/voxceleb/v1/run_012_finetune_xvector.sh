@@ -22,7 +22,7 @@ list_dir=data/${nnet_data}_no_sil
 #export cuda_cmd=run.pl
 # Network Training
 if [ $stage -le 1 ]; then
-  mkdir -p $nnet_dir/log
+  mkdir -p $ft_nnet_dir/log
   $cuda_cmd --gpu $ngpu $ft_nnet_dir/log/train.log \
       hyp_utils/torch.sh --num-gpus $ngpu \
       torch-finetune-xvec.py \
@@ -39,6 +39,7 @@ if [ $stage -le 1 ]; then
       --epochs $ft_nnet_num_epochs \
       --s $s --margin $margin --margin-warmup-epochs $ft_margin_warmup \
       --num-gpus $ngpu \
+      --train-mode ft-full \
       --log-interval 100 \
       --in-model-path $nnet \
       --exp-path $ft_nnet_dir #--resume

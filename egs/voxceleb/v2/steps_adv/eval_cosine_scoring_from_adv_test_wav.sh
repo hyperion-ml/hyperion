@@ -20,6 +20,8 @@ max_iter=10
 save_wav_tar_thr=0.4
 save_wav_non_thr=0.25
 save_wav_path=""
+c_factor=2
+cal_file=""
 
 if [ -f path.sh ]; then . ./path.sh; fi
 . parse_options.sh || exit 1;
@@ -43,8 +45,10 @@ if [ $# -ne 7 ]; then
   echo "  --confidence <float|0>                           # confidence in Carlini-Wagner attack"
   echo "  --lr <float|1e-2>                                # learning rate for attack optimizer"
   echo "  --max-iter <int|10>                              # max number of iters for attack optimizer"
+  echo "  --c-factor <int|2>                               # c increment factor"
   echo "  --save-wav-thr <float|0.75>                      # threshold to decide to save adversarial wav to disk"
   echo "  --save-wav-path <str|>                           # path to save adv wavs"
+  echo "  --cal-file <str|>                                # calibration params file"
   exit 1;
 fi
 
@@ -95,6 +99,10 @@ if [ -n "${save_wav_path}" ];then
     args="${args} --save-adv-wav-path $save_wav_path --save-adv-wav --save-adv-wav-tar-thr $save_wav_tar_thr --save-adv-wav-non-thr -$save_wav_non_thr"
 fi
 
+if [ -n "$cal_file" ];then
+    args="${args} --cal-file $cal_file"
+fi
+
 echo "$0: score $key_file to $output_dir"
 
 $cmd JOB=1:$nj $log_dir/${name}.JOB.log \
@@ -114,6 +122,7 @@ $cmd JOB=1:$nj $log_dir/${name}.JOB.log \
     --attack-confidence $confidence \
     --attack-lr $lr \
     --attack-max-iter $max_iter \
+    --attack-c-incr-factor $c_factor \
     --score-file $output_file \
     --snr-file $snr_file \
     --seg-part-idx JOB --num-seg-parts $nj || exit 1
