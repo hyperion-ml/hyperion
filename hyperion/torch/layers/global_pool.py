@@ -273,14 +273,18 @@ class LDEPool1d(_GlobalPool1d):
     
 class ScaledDotProdAttV1Pool1d(_GlobalPool1d):
 
-    def __init__(self, in_feats, num_heads, d_k, d_v, dim=-1, keepdim=False):
+    def __init__(self, in_feats, num_heads, d_k, d_v, bin_attn=False, dim=-1, keepdim=False):
         super(ScaledDotProdAttV1Pool1d, self).__init__(dim, keepdim)
 
         self.d_v = d_v
         self.d_k = d_k
         self.num_heads = num_heads
+        self.bin_attn = bin_attn
         self.q = nn.Parameter(torch.Tensor(1, num_heads, 1, d_k))
         nn.init.orthogonal_(self.q)
+        if self.bin_attn:
+            self.bias = nn.Parameter(torch.zeros((1, num_heads, 1, 1)))
+
         self.linear_k = nn.Linear(in_feats, num_heads*d_k)
         self.linear_v = nn.Linear(in_feats, num_heads*d_v)
         self.attn = None
@@ -295,9 +299,9 @@ class ScaledDotProdAttV1Pool1d(_GlobalPool1d):
         return self.__str__()
         
     def __str__(self):
-        s = '{}(in_feats={}, num_heads={}, d_k={}, d_v={}, dim={}, keepdim={})'.format(
+        s = '{}(in_feats={}, num_heads={}, d_k={}, d_v={}, bin_attn={}, dim={}, keepdim={})'.format(
             self.__class__.__name__, self.in_feats, self.num_heads,
-            self.d_k, self.d_v, self.dim, self.keepdim)
+            self.d_k, self.d_v, self.bin_attn, self.dim, self.keepdim)
         return s
 
 
@@ -312,14 +316,24 @@ class ScaledDotProdAttV1Pool1d(_GlobalPool1d):
         v = v.transpose(1, 2)  # (batch, head, time, d_v)
 
         scores = torch.matmul(self.q, k.transpose(-2,-1)) / math.sqrt(self.d_k)  # (batch, head, 1, time)
+        if self.bin_attn:
+            scores = nnf.sigmoid(scores+self.bias)
+            #print(torch.mean(scores, dim=(0,2,3)))
         scores = scores.squeeze(dim=-1)                    # (batch, head, time)
         if weights is not None:
             mask = weights.view(batch_size, 1, 1, -1).eq(0)  # (batch, 1, 1,time)
-            min_value = -1e200
-            scores = scores.masked_fill(mask, min_value)
-            self.attn = torch.softmax(scores, dim=-1).masked_fill(mask, 0.0)  # (batch, head, 1, time)
+            if self.bin_attn:
+                scores = scores.masked_fill(mask, 0.0)
+                self.attn = scores/(torch.sum(scores, dim=-1, keepdim=True) + 1e-9)
+            else:
+                min_value = -1e200
+                scores = scores.masked_fill(mask, min_value)
+                self.attn = torch.softmax(scores, dim=-1).masked_fill(mask, 0.0)  # (batch, head, 1, time)
         else:
-            self.attn = torch.softmax(scores, dim=-1)  # (batch, head, 1, time)
+            if self.bin_attn:
+                self.attn = scores/(torch.sum(scores, dim=-1, keepdim=True) + 1e-9)
+            else:
+                self.attn = torch.softmax(scores, dim=-1)  # (batch, head, 1, time)
         #print(self.q.shape, k.shape, v.shape, scores.shape, self.attn.shape)
         x = torch.matmul(self.attn, v)  # (batch, head, 1, d_v)
         if self.keepdim:
@@ -333,7 +347,8 @@ class ScaledDotProdAttV1Pool1d(_GlobalPool1d):
         config = {'in_feats': self.in_feats,
                   'num_heads': self.num_heads,
                   'd_k': self.d_k,
-                  'd_v': self.d_v }
+                  'd_v': self.d_v,
+                  'bin_attn': self.bin_attn}
 
         base_config = super(ScaledDotProdAttV1Pool1d, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))

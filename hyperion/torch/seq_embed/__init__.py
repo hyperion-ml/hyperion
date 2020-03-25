@@ -8,3 +8,4 @@ from __future__ import absolute_import
 from .xvector import XVector
 from .tdnn_xvector import TDNNXVector
 from .resnet_xvector import ResNetXVector
+from .transformer_xvector_v1 import TransformerXVectorV1

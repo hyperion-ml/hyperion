@@ -22,6 +22,8 @@ class PositionwiseFeedForward(nn.Module):
         super(PositionwiseFeedForward, self).__init__()
         self.w_1 = torch.nn.Linear(num_feats, hid_feats)
         self.w_2 = torch.nn.Linear(hid_feats, num_feats)
+        self.dropout_rate = dropout_rate
+        self.time_dim = time_dim
         if self.dropout_rate > 0:
             self.dropout = torch.nn.Dropout(dropout_rate)
 
@@ -30,7 +32,7 @@ class PositionwiseFeedForward(nn.Module):
         if self.time_dim != 1:
             x = x.transpose(1, time_dim)
 
-        x = F.relu6(self.w_1(x))))
+        x = F.relu6(self.w_1(x))
         if self.dropout_rate > 0:
             x = self.dropout(x)
 
@@ -64,6 +66,7 @@ class Conv1dx2(torch.nn.Module):
         self.w_2 = torch.nn.Conv1d(hid_channels, num_channels, kernel_size,
                                    stride=1, padding=(kernel_size - 1) // 2)
         self.dropout_rate = dropout_rate
+        self.time_dim = time_dim
         if self.dropout_rate > 0:
             self.dropout = Dropout1d(dropout_rate)
 
@@ -106,6 +109,7 @@ class Conv1dLinear(torch.nn.Module):
                                    stride=1, padding=(kernel_size - 1) // 2)
         self.w_2 = torch.nn.Conv1d(hid_channels, num_channels, 1 )
         self.dropout_rate = dropout_rate
+        self.time_dim = time_dim
         if self.dropout_rate > 0:
             self.dropout = Dropout1d(dropout_rate)
 

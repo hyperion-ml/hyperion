@@ -37,7 +37,7 @@ class TransformerEncoderV1(NetArch):
                  d_model=256,
                  num_heads=4,
                  num_blocks=6,
-                 att_type = 'scaled-dot-v1',
+                 att_type = 'scaled-dot-prod-v1',
                  att_context = 25,
                  ff_type='linear',
                  d_ff=2048,
@@ -62,7 +62,7 @@ class TransformerEncoderV1(NetArch):
 
         self.ff_type = ff_type
         self.d_ff = d_ff
-        self.ff_kennel_size = ff_kernel_size
+        self.ff_kernel_size = ff_kernel_size
         self.ff_dropout_rate = ff_dropout_rate
         self.att_dropout_rate = att_dropout_rate
         self.pos_dropout_rate = pos_dropout_rate
@@ -73,8 +73,8 @@ class TransformerEncoderV1(NetArch):
         self.in_time_dim = in_time_dim
         self.out_time_dim = out_time_dim
 
-        self._make_input_layer(in_layer_type, in_feats, d_model, 
-                               ff_dropout_rate, pos_dropout_rate, padding_idx, in_time_dim)
+        self._make_in_layer(in_layer_type, in_feats, d_model, 
+                            ff_dropout_rate, pos_dropout_rate, padding_idx, in_time_dim)
 
         blocks = []
         for i in range(num_blocks):
@@ -87,7 +87,7 @@ class TransformerEncoderV1(NetArch):
         self.blocks = nn.ModuleList(blocks)
         
         if self.norm_before:
-            self.norm = LayerNorm(d_model)
+            self.norm = nn.LayerNorm(d_model)
 
 
     def _make_in_layer(self, in_layer_type, in_feats, d_model, dropout_rate, pos_dropout_rate, padding_idx, time_dim):
@@ -120,7 +120,7 @@ class TransformerEncoderV1(NetArch):
             raise ValueError("unknown in_layer_type: " + in_layer_type)
 
 
-    def forward(self, x, mask):
+    def forward(self, x, mask=None):
         """Embed positions in tensor.
         :param torch.Tensor xs: input tensor
         :param torch.Tensor masks: input mask
@@ -143,6 +143,8 @@ class TransformerEncoderV1(NetArch):
         if self.out_time_dim != 1:
             x = x.transpose(1, self.out_time_dim)
 
+        if mask is None:
+            return x
         return x, mask
 
 
@@ -150,11 +152,11 @@ class TransformerEncoderV1(NetArch):
         
         #hid_act =  AF.get_config(self.blocks[0].activation)
 
-        config = {'in_feats': self.in_feats
-                  'd_model':self.d_model,
-                  'num_heads': self.num_heads
-                  'num_blocks': self.num_blocks
-                  'att_type': self.att_type
+        config = {'in_feats': self.in_feats,
+                  'd_model': self.d_model,
+                  'num_heads': self.num_heads,
+                  'num_blocks': self.num_blocks,
+                  'att_type': self.att_type,
                   'att_context': self.att_context,
                   'ff_type': self.ff_type,
                   'd_ff': self.d_ff,
@@ -166,7 +168,8 @@ class TransformerEncoderV1(NetArch):
                   'norm_before': self.norm_before,
                   'concat_after': self.concat_after,
                   'padding_idx': self.padding_idx,
-                  'in_time_dim': self.in_time_dim }
+                  'in_time_dim': self.in_time_dim,
+                  'out_time_dim': self.out_time_dim }
         
         base_config = super(TransformerEncoderV1, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
@@ -188,7 +191,7 @@ class TransformerEncoderV1(NetArch):
             assert len(in_shape) == 3
             in_t = in_shape[self.in_time_dim]
             if in_t is None:
-                out_t = None:
+                out_t = None
             else:
                 if isinstance(self.in_layer, Conv2dSubsampler):
                     out_t = in_t//4

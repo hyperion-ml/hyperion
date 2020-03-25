@@ -16,3 +16,7 @@ from .audio_feats import *
 from .audio_feats_factory import AudioFeatsFactory
 
 from .mvn import MeanVarianceNorm
+
+from .attention import ScaledDotProdAttV1, LocalScaledDotProdAttV1
+from .pos_encoder import PosEncoder
+from .transformer_feedforward import PositionwiseFeedForward, Conv1dx2, Conv1dLinear

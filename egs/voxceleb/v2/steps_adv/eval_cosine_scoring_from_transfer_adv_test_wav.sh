@@ -4,9 +4,11 @@
 #
 nj=20
 cmd=run.pl
-feat_config=conf/fbank.conf
+feat_config=conf/fbank.pyconf
+transfer_feat_config=conf/fbank.pyconf
 use_gpu=false
 audio_feat=logfb
+transfer_audio_feat=logfb
 center=true
 norm_var=false
 context=150
@@ -22,16 +24,19 @@ save_wav_non_thr=0.25
 save_wav_path=""
 c_factor=2
 cal_file=""
+transfer_cal_file=""
 
 if [ -f path.sh ]; then . ./path.sh; fi
 . parse_options.sh || exit 1;
 set -e
 
-if [ $# -ne 7 ]; then
-  echo "Usage: $0 [options] <key> <enroll-file> <test-data-dir> <vector-file> <nnet-model> <output-scores> <output-snr>"
+if [ $# -ne 9 ]; then
+  echo "Usage: $0 [options] <key> <enroll-file> <test-data-dir> <vector-file> <nnet-model> <transfer-vector-file> <transfer-nnet-model> <output-scores> <output-snr>"
   echo "Options: "
   echo "  --feat-config <config-file>                      # feature extractor config"
   echo "  --audio-feat <logfb|mfcc>                        # feature type"
+  echo "  --transfer-feat-config <config-file>             # feature extractor config for white-box model"
+  echo "  --transfer-audio-feat <logfb|mfcc>               # feature type for white-box model"
   echo "  --nj <nj>                                        # number of parallel jobs"
   echo "  --cmd (utils/run.pl|utils/queue.pl <queue opts>) # how to run jobs."
   echo "  --center <true|false>                            # If true, normalize means in the sliding window cmvn (default:true)"
@@ -57,8 +62,10 @@ enroll_file=$2
 test_data=$3
 vector_file=$4
 nnet_file=$5
-output_file=$6
-stats_file=$7
+transfer_vector_file=$6
+transfer_nnet_file=$7
+output_file=$8
+stats_file=$9
 
 output_dir=$(dirname $output_file)
 log_dir=$output_dir/log
@@ -103,18 +110,31 @@ if [ -n "$cal_file" ];then
     args="${args} --cal-file $cal_file"
 fi
 
+if [ -n "$transfer_cal_file" ];then
+    args="${args} --transfer-cal-file $transfer_cal_file"
+fi
+
+#add prefix ''transfer'' to the transfer network feature configuration file
+transfer_feat_config2=$output_dir/transfer.conf
+sed 's@--@--transfer-@' $transfer_feat_config > $transfer_feat_config2
+
+
 echo "$0: score $key_file to $output_dir"
 
 $cmd JOB=1:$nj $log_dir/${name}.JOB.log \
     hyp_utils/torch.sh --num-gpus $num_gpus \
-    steps_adv/torch-eval-cosine-scoring-from-adv-test-wav.py \
-    @$feat_config --audio-feat $audio_feat ${args} \
+    steps_adv/torch-eval-cosine-scoring-from-transfer-adv-test-wav.py \
+    @$feat_config --audio-feat $audio_feat \
+    @$transfer_feat_config2 --transfer-audio-feat $transfer_audio_feat \
+    ${args} \
     --v-file scp:$vector_file \
     --key-file $key_file \
     --enroll-file $enroll_file \
     --test-wav-file $wav \
     --vad scp:$vad \
     --model-path $nnet_file \
+    --transfer-v-file scp:$transfer_vector_file \
+    --transfer-model-path $transfer_nnet_file \
     --attack-type $attack_type \
     --attack-snr $snr \
     --attack-eps $eps \

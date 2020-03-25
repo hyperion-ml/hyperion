@@ -20,12 +20,12 @@ class ScaledDotProdAttV1(nn.Module):
 
     def __init__(self, in_feats, out_feats, num_heads, d_k, d_v, dropout_rate=0, time_dim=1):
         """Construct an MultiHeadedAttention object."""
-        super(ScaledDotProdAtt, self).__init__()
+        super(ScaledDotProdAttV1, self).__init__()
         # We assume d_v always equals d_k
         self.d_v = d_v
         self.d_k = d_k
         self.num_heads = num_heads
-        self.droput_rate = droput_rate
+        self.dropout_rate = dropout_rate
         self.time_dim = time_dim
         self.linear_q = nn.Linear(in_feats, num_heads*d_k)
         self.linear_k = nn.Linear(in_feats, num_heads*d_k)
@@ -90,7 +90,7 @@ class ScaledDotProdAttV1(nn.Module):
         if self.dropout_rate > 0:
             p_attn = self.dropout(self.attn)
         else:
-            p_att = self.attn
+            p_attn = self.attn
 
         x = torch.matmul(p_attn, v)  # (batch, head, time1, d_k)
         x = x.transpose(1, 2).contiguous().view(batch_size, -1, self.num_heads * self.d_v)  # (batch, time1, d_model)
@@ -107,7 +107,7 @@ class LocalScaledDotProdAttV1(nn.Module):
 
     def __init__(self, in_feats, out_feats, num_heads, d_k, d_v, context=25, dropout_rate=0, time_dim=1):
         """Construct an MultiHeadedAttention object."""
-        super(LocalScaledDotProdAtt, self).__init__()
+        super(LocalScaledDotProdAttV1, self).__init__()
         self.d_v = d_v
         self.d_k = d_k
         self.num_heads = num_heads

@@ -21,10 +21,19 @@ class PosEncoder(nn.Module):
         """Construct an PositionalEncoding object."""
         super(PosEncoder, self).__init__()
         self.num_feats = num_feats
+        self.dropout_rate = dropout_rate
         self.xscale = math.sqrt(self.num_feats)
         if self.dropout_rate > 0:
             self.dropout = torch.nn.Dropout(p=dropout_rate)
         self.pe = None
+
+    def __repr__(self):
+        return self.__str__()
+        
+    def __str__(self):
+        s = '{}(num_feats={}, dropout_rate={})'.format(
+            self.__class__.__name__, self.num_feats, self.dropout_rate)
+        return s
 
 
     def _pe(self, x):
@@ -55,4 +64,6 @@ class PosEncoder(nn.Module):
         """
         pe = self._pe(x)
         x = x * self.xscale + pe[:, :x.size(1)]
-        return self.dropout(x)
+        if self.dropout_rate > 0:
+            return self.dropout(x)
+        return x

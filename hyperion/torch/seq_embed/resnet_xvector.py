@@ -30,7 +30,7 @@ class ResNetXVector(XVector):
                  dropout_rate=0,
                  use_norm=True, 
                  norm_before=True,
-                 in_norm=True, embed_layer=0, proj_feats=None,
+                 in_norm=False, embed_layer=0, proj_feats=None,
                  se_r=16):
         
         logging.info('making %s encoder network' % (resnet_type))

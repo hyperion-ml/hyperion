@@ -1,4 +1,4 @@
-"""
+f"""
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
@@ -11,20 +11,18 @@ import torch.nn as nn
 from .xvector import XVector
 from ..narchs import TransformerEncoderV1 as TE
 
-class TransfomerXVectorV1(XVector):
+class TransformerXVectorV1(XVector):
 
-    def __init__(self, in_feats,
-                 d_enc_model=512,
+    def __init__(self, in_feats, num_classes,
+                 enc_d_model=512,
                  num_enc_heads=4,
                  num_enc_blocks=6,
-                 enc_att_type = 'scaled-dot-v1',
+                 enc_att_type='scaled-dot-prod-v1',
                  enc_att_context = 25,
                  enc_ff_type='linear',
-                 d_enc_ff=2048,
+                 enc_d_ff=2048,
                  enc_ff_kernel_size=1,
-                 dropout_rate=0.1,
                  in_layer_type='conv2d-sub',
-                 norm_before=True,
                  enc_concat_after=False,
                  pool_net='mean+stddev', 
                  embed_dim=256,
@@ -32,19 +30,19 @@ class TransfomerXVectorV1(XVector):
                  hid_act={'name':'relu6', 'inplace':True}, 
                  loss_type='arc-softmax',
                  s=64, margin=0.3, margin_warmup_epochs=0,
-                 dropout_rate=0,
+                 dropout_rate=0.1,
                  pos_dropout_rate=0.1,
                  att_dropout_rate=0.0,
                  use_norm=True, 
                  norm_before=False,
-                 in_norm=True, embed_layer=0, proj_feats=None):
+                 in_norm=False, embed_layer=0, proj_feats=None):
 
         # if enc_expand_units is not None and isinstance(enc_hid_units, int):
         #     if tdnn_type != 'resetdnn' :
         #         enc_hid_units = (num_enc_blocks - 1)*[enc_hid_units] + [enc_expand_units]
         
-        logging.info('making %s encoder network' % (tdnn_type))
-        encoder_net = TransformerEncoderV1(
+        logging.info('making transformer-v1 encoder network')
+        encoder_net = TE(
             in_feats,
             enc_d_model,
             num_enc_heads,
@@ -52,7 +50,7 @@ class TransfomerXVectorV1(XVector):
             att_type = enc_att_type,
             att_context = enc_att_context,
             ff_type=enc_ff_type,
-            d_ff=d_enc_ff,
+            d_ff=enc_d_ff,
             ff_kernel_size=enc_ff_kernel_size,
             ff_dropout_rate=dropout_rate,
             pos_dropout_rate=pos_dropout_rate,
@@ -79,7 +77,7 @@ class TransfomerXVectorV1(XVector):
 
     @property
     def num_enc_heads(self):
-        retunr self.encoder_net.num_heads
+        return self.encoder_net.num_heads
 
     @property
     def num_enc_blocks(self):
@@ -98,7 +96,7 @@ class TransfomerXVectorV1(XVector):
         return self.encoder_net.ff_type 
 
     @property
-    def d_enc_ff(self):
+    def enc_d_ff(self):
         return self.encoder_net.d_ff
 
     @property
@@ -111,7 +109,7 @@ class TransfomerXVectorV1(XVector):
 
 
     @property
-    def enc_att_dropout_rate(self):
+    def att_dropout_rate(self):
         return self.encoder_net.att_dropout_rate
 
     @property
@@ -138,23 +136,18 @@ class TransfomerXVectorV1(XVector):
 
         pool_cfg = self.pool_net.get_config()
 
-            pos_dropout_rate=pos_dropout_rate,
-            att_dropout_rate=att_dropout_rate,
-            in_layer_type=in_layer_type,
-            concat_after=enc_concat_after
-
         config = {'num_enc_blocks': self.num_enc_blocks, 
                   'in_feats': self.in_feats, 
                   'enc_d_model': self.enc_d_model, 
                   'num_enc_heads': self.num_enc_heads,
                   'enc_att_type': self.enc_att_type,
                   'enc_att_context': self.enc_att_context,
-                  'enc_ff_type': self.self.enc_ff_type,
-                  'd_enc_ff': self.d_enc_ff,
+                  'enc_ff_type': self.enc_ff_type,
+                  'd_enc_ff': self.enc_d_ff,
                   'enc_ff_kernel_size': self.enc_ff_kernel_size,
                   'pos_dropout_rate': self.pos_dropout_rate,
                   'att_dropout_rate': self.att_dropout_rate,
-                  'in_layer_type': self.att_in_layer_type,
+                  'in_layer_type': self.in_layer_type,
                   'enc_concat_after': self.enc_concat_after}
                   #'in_norm': self.in_norm }
 
@@ -181,7 +174,6 @@ class TransfomerXVectorV1(XVector):
             p = prefix + '_'
 
         base_args = XVector.filter_args(prefix, **kwargs)
-        child_args = TF.filter_args(prefix, **kwargs)
 
         valid_args = ('num_enc_blocks',
                       'in_feats',
@@ -190,7 +182,7 @@ class TransfomerXVectorV1(XVector):
                       'enc_att_type',
                       'enc_att_context',
                       'enc_ff_type',
-                      'd_enc_ff',
+                      'enc_d_ff',
                       'enc_ff_kernel_size',
                       'pos_dropout_rate',
                       'att_dropout_rate',
@@ -199,8 +191,7 @@ class TransfomerXVectorV1(XVector):
 
         child_args = dict((k, kwargs[p+k])
                           for k in valid_args if p+k in kwargs)
-
-
+        base_args.update(child_args)
         return base_args
 
 
@@ -227,7 +218,8 @@ class TransfomerXVectorV1(XVector):
                             help=('number of heads in self-attention layers'))
 
         parser.add_argument(p1+'enc-att-type', 
-                            default='scaled-dot-v1', choices=['scaled-dot-v1', 'local-scaled-dot-v1']
+                            default='scaled-dot-prod-v1', 
+                            choices=['scaled-dot-prod-v1', 'local-scaled-dot-prod-v1'],
                             help=('type of self-attention'))
 
         parser.add_argument(p1+'enc-att-context', 
@@ -238,7 +230,7 @@ class TransfomerXVectorV1(XVector):
                             default='linear', choices=['linear', 'conv1dx2', 'conv1dlinear'],
                             help=('type of feed forward layers in transformer block'))
         
-        parser.add_argument(p1+'d-enc-ff',
+        parser.add_argument(p1+'enc-d-ff',
                             default=2048, type=int,
                             help=('size middle layer in feed forward block')) 
 
@@ -246,13 +238,13 @@ class TransfomerXVectorV1(XVector):
                             default=3, type=int,
                             help=('kernel size in convolutional feed forward block')) 
 
-        parser.add_argument(p1+'pos-dropout-rate', default=0, type=float,
+        parser.add_argument(p1+'pos-dropout-rate', default=0.1, type=float,
                                 help='positional encoder dropout')
         parser.add_argument(p1+'att-dropout-rate', default=0, type=float,
                                 help='self-att dropout')
         
         parser.add_argument(p1+'in-layer-type', 
-                            default='linear', choices=['linear', 'conv2d-sub']
+                            default='linear', choices=['linear', 'conv2d-sub'],
                             help=('type of input layer'))
 
         parser.add_argument(p1+'enc-concat-after', default=False, action='store_true',

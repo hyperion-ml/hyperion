@@ -13,7 +13,7 @@ class GlobalPool1dFactory(object):
     @staticmethod
     def create(pool_type, in_feats=None,
                num_comp=64, dist_pow=2, use_bias=False,
-               num_heads=8, d_k=256, d_v=256,
+               num_heads=8, d_k=256, d_v=256, bin_attn=False,
                dim=-1, keepdim=False, **kwargs):
 
         if pool_type == 'avg':
@@ -33,7 +33,7 @@ class GlobalPool1dFactory(object):
         if pool_type == 'scaled-dot-prod-att-v1':
             return ScaledDotProdAttV1Pool1d(
                 in_feats, num_heads=num_heads, d_k=d_k, d_v=d_v,
-                dim=dim, keepdim=keepdim)
+                bin_attn=bin_attn, dim=dim, keepdim=keepdim)
 
 
     @staticmethod
@@ -49,7 +49,7 @@ class GlobalPool1dFactory(object):
 
         valid_args = ('pool_type', 'dim', 'keepdim', 
                       'in_feats', 'num_comp', 'use_bias', 'dist_pow', 
-                      'num_heads', 'd_k', 'd_v')
+                      'num_heads', 'd_k', 'd_v', 'bin_attn')
 
         return dict((k, kwargs[p+k])
                     for k in valid_args if p+k in kwargs)
@@ -110,6 +110,9 @@ class GlobalPool1dFactory(object):
             p1+'d-v', default=256, type=int,
             help=('value dimension for attention'))
         
+        parser.add_argument(
+            p1+'bin-attn', default=False, action='store_true',
+            help=('Use binary attention, i.e. sigmoid instead of softmax'))
 
 
     @staticmethod

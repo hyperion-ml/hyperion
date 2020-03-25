@@ -367,7 +367,7 @@ class XVector(TorchModel):
         # get arguments for pooling
         pool_valid_args = (
             'pool_type', 'pool_num_comp', 'pool_use_bias', 
-            'pool_dist_pow', 'pool_d_k', 'pool_d_v', 'pool_num_heads')
+            'pool_dist_pow', 'pool_d_k', 'pool_d_v', 'pool_num_heads', 'pool_bin_attn')
         pool_args = dict((k, kwargs[p+k])
                          for k in pool_valid_args if p+k in kwargs)
 
@@ -428,6 +428,10 @@ class XVector(TorchModel):
         parser.add_argument(
             p1+'pool-d-v', default=256, type=int,
             help=('value dimension for attention'))
+
+        parser.add_argument(
+            p1+'pool-bin-attn', default=False, action='store_true',
+            help=('Use binary attention, i.e. sigmoid instead of softmax'))
 
         # parser.add_argument(p1+'num-classes',
         #                     required=True, type=int,
