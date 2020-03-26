@@ -1,5 +1,5 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba, Nanxin Chen)
+ Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 from __future__ import absolute_import
@@ -44,7 +44,7 @@ class TransformerConv2dSubsampler(nn.Module):
         x = x.unsqueeze(1)  # (b, c, f, t)
         x = self.conv(x)
         b, c, f, t = x.size()
-        x = self.out(x.contiguous().view(b, c * f, t)).transpose(1,2)
+        x = self.out(x.contiguous().view(b, c * f, t).transpose(1,2))
         if mask is None:
             return x, None
         return x, mask[:, :, :-2:2][:, :, :-2:2]

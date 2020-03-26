@@ -30,20 +30,20 @@ class ResNetXVector(XVector):
                  dropout_rate=0,
                  use_norm=True, 
                  norm_before=True,
-                 in_norm=True, embed_layer=0, proj_feats=None):
-
+                 in_norm=False, embed_layer=0, proj_feats=None,
+                 se_r=16):
         
         logging.info('making %s encoder network' % (resnet_type))
-        encoder_net = RNF.create(resnet_type,
-            in_channels, conv_channels=conv_channels, 
+        encoder_net = RNF.create(
+            resnet_type, in_channels, conv_channels=conv_channels, 
             base_channels=base_channels, hid_act=hid_act, 
             in_kernel_size=in_kernel_size, in_stride=in_stride,
             zero_init_residual=zero_init_residual, groups=groups, 
             replace_stride_with_dilation=replace_stride_with_dilation, 
             dropout_rate=dropout_rate,
             norm_before=norm_before, 
-            do_maxpool=do_maxpool, in_norm=in_norm)
-
+            do_maxpool=do_maxpool, in_norm=in_norm, 
+            se_r=se_r, in_feats=in_feats)
         
         super(ResNetXVector, self).__init__(
             encoder_net, num_classes, pool_net=pool_net, 
@@ -98,6 +98,9 @@ class ResNetXVector(XVector):
     def in_norm(self):
         return self.encoder_net.in_norm
 
+    @property
+    def se_r(self):
+        return self.encoder_net.se_r
 
     def get_config(self):
 
@@ -116,7 +119,8 @@ class ResNetXVector(XVector):
                   'groups': self.groups,
                   'replace_stride_with_dilation': self.replace_stride_with_dilation,
                   'do_maxpool': self.do_maxpool,
-                  'in_norm': self.in_norm }
+                  'in_norm': self.in_norm,
+                  'se_r': self.se_r }
 
         config.update(base_config)
         return config

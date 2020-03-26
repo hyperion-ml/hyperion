@@ -11,7 +11,7 @@ import torch.nn as nn
 from torch.nn import Conv1d, Linear, BatchNorm1d
 
 from ..layers import ActivationFactory as AF
-from ..layer_blocks import ResNetInputBlock, ResNetBasicBlock, ResNetBNBlock
+from ..layer_blocks import ResNetInputBlock, ResNetBasicBlock, ResNetBNBlock, SEResNetBasicBlock, SEResNetBNBlock
 from .net_arch import NetArch
 
 class ResNet(NetArch):
@@ -22,7 +22,8 @@ class ResNet(NetArch):
                  in_kernel_size=7, in_stride=2,
                  zero_init_residual=False,
                  groups=1, replace_stride_with_dilation=None, dropout_rate=0,
-                 norm_layer=None, norm_before=True, do_maxpool=True, in_norm=True):
+                 norm_layer=None, norm_before=True, do_maxpool=True, in_norm=True,
+                 se_r=16, time_se=False, in_feats=None):
 
         super(ResNet, self).__init__()
 
@@ -32,8 +33,16 @@ class ResNet(NetArch):
                 self._block = ResNetBasicBlock
             elif block == 'bn':
                 self._block = ResNetBNBlock
+            elif block == 'sebasic': 
+                self._block = SEResNetBasicBlock
+            elif block == 'sebn':
+                self._block = SEResNetBNBlock
         else:
             self._block = block
+
+        self.has_se = False
+        if self._block == SEResNetBasicBlock or self._block == SEResNetBNBlock:
+            self.has_se = True
 
         self.num_layers = num_layers
         self.in_channels = in_channels
@@ -49,12 +58,15 @@ class ResNet(NetArch):
         self.in_norm = in_norm
         self.dropout_rate = dropout_rate
         #self.width_per_group = width_per_group
-        
+        self.se_r = se_r
+        self.time_se = time_se
+        self.in_feats = in_feats
+
         self.norm_layer = norm_layer
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
         self._norm_layer = norm_layer
-
+        #print('hola',self._block, self.has_se, self.se_r)
         self.dilation = 1
         if replace_stride_with_dilation is None:
             # each element in the tuple indicates if we should replace
@@ -70,7 +82,6 @@ class ResNet(NetArch):
 
         if in_norm:
             self.in_bn = norm_layer(in_channels)
-
 
         self.in_block = ResNetInputBlock(
             in_channels, conv_channels, kernel_size=in_kernel_size, stride=in_stride,
@@ -95,7 +106,6 @@ class ResNet(NetArch):
             self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
             self.output = nn.Linear(self.cur_in_channels, out_units)
             self.out_act = AF.create(out_act)
-
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -128,23 +138,37 @@ class ResNet(NetArch):
             self.dilation *= stride
             stride = 1
 
+        kwargs = {}
+        if self.has_se:
+            if self.time_se:
+                num_feats = int(self.in_feats/(self._downsample_factor*stride))
+                kwargs = {'r': self.se_r, 'time_se': True, 'num_feats': num_feats}
+            else:
+                kwargs = {'r': self.se_r}
+
         layers = []
         layers.append(block(
             self.cur_in_channels, channels, activation=self.hid_act,
-            stride=stride, dropout_rate=self.dropout_rate, groups=self.groups, dilation=previous_dilation, 
-            norm_layer=self._norm_layer, norm_before=self.norm_before))
+            stride=stride, dropout_rate=self.dropout_rate, groups=self.groups, 
+            dilation=previous_dilation, 
+            norm_layer=self._norm_layer, norm_before=self.norm_before, **kwargs))
 
-        self._context = layers[0].context * self._downsample_factor
+        self._context += layers[0].context * self._downsample_factor
         self._downsample_factor *= layers[0].downsample_factor
 
         self.cur_in_channels = channels * block.expansion
         for _ in range(1, num_blocks):
+            # if self.has_se and self.time_se:
+            #     kwargs['num_feats'] = int(self.in_feats/self._downsample_factor)
+            # print('hola', self.in_feats, self._downsample_factor, self._context)
             layers.append(block(
                 self.cur_in_channels, channels, activation=self.hid_act,
                 dropout_rate=self.dropout_rate,
                 groups=self.groups, dilation=self.dilation, 
-                norm_layer=self._norm_layer, norm_before=self.norm_before))
-            self._context = layers[-1].context * self._downsample_factor
+                norm_layer=self._norm_layer, norm_before=self.norm_before, **kwargs))
+
+            self._context += layers[-1].context * self._downsample_factor
+            # self._downsample_factor *= layers[-1].downsample_factor #not needed, for these layers downsample_factor=1
 
         return nn.Sequential(*layers)
 
@@ -285,24 +309,24 @@ class ResNet(NetArch):
                   'do_maxpool' : self.do_maxpool,
                   'out_act': out_act,
                   'hid_act': hid_act,
+                  'se_r' : self.se_r,
+                  'in_feats': self.in_feats
               }
         
         base_config = super(ResNet, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
 
-
+# Standard ResNets
 class ResNet18(ResNet):
     def __init__(self, in_channels, **kwargs):
         super(ResNet18, self).__init__(
             'basic', [2, 2, 2, 2], in_channels, **kwargs)
 
-
 class ResNet34(ResNet):
     def __init__(self, in_channels, **kwargs):
         super(ResNet34, self).__init__(
             'basic', [3, 4, 6, 3], in_channels, **kwargs)
-
 
 class ResNet50(ResNet):
     def __init__(self, in_channels, **kwargs):
@@ -326,14 +350,12 @@ class ResNext50_32x4d(ResNet):
         super(ResNext50_32x4d, self).__init__(
             'bn', [3, 4, 6, 3], in_channels, **kwargs)
 
-
 class ResNext101_32x8d(ResNet):
     def __init__(self, in_channels, **kwargs):
         kwargs['groups'] = 32
         kwargs['base_channels'] = 256
         super(ResNext101_32x8d, self).__init__(
             'bn', [3, 4, 23, 3], in_channels, **kwargs)
-
 
 class WideResNet50(ResNet):
     def __init__(self, in_channels, **kwargs):
@@ -347,14 +369,12 @@ class WideResNet101(ResNet):
         super(WideResNet101, self).__init__(
             'bn', [3, 4, 23, 3], in_channels, **kwargs)
 
-
 class LResNet18(ResNet):
     def __init__(self, in_channels, **kwargs):
         kwargs['conv_channels'] = 16
         kwargs['base_channels'] = 16
         super(LResNet18, self).__init__(
             'basic', [2, 2, 2, 2], in_channels, **kwargs)
-
 
 class LResNet34(ResNet):
     def __init__(self, in_channels, **kwargs):
@@ -376,4 +396,181 @@ class LResNext50_4x4d(ResNet):
         kwargs['base_channels'] = 16
         super(LResNext50_4x4d, self).__init__(
             'bn', [3, 4, 6, 3], in_channels, **kwargs)
+
+
+# Squezee-Excitation ResNets
+
+class SEResNet18(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        super(SEResNet18, self).__init__(
+            'sebasic', [2, 2, 2, 2], in_channels, **kwargs)
+
+class SEResNet34(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        super(SEResNet34, self).__init__(
+            'sebasic', [3, 4, 6, 3], in_channels, **kwargs)
+
+class SEResNet50(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        super(SEResNet50, self).__init__(
+            'sebn', [3, 4, 6, 3], in_channels, **kwargs)
+
+class SEResNet101(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        super(SEResNet101, self).__init__(
+            'sebn', [3, 4, 23, 3], in_channels, **kwargs)
+
+class SEResNet152(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        super(SEResNet152, self).__init__(
+            'sebn', [3, 8, 36, 3], in_channels, **kwargs)
+
+class SEResNext50_32x4d(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs['groups'] = 32
+        kwargs['base_channels'] = 128
+        super(SEResNext50_32x4d, self).__init__(
+            'sebn', [3, 4, 6, 3], in_channels, **kwargs)
+
+class SEResNext101_32x8d(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs['groups'] = 32
+        kwargs['base_channels'] = 256
+        super(SEResNext101_32x8d, self).__init__(
+            'sebn', [3, 4, 23, 3], in_channels, **kwargs)
+
+class SEWideResNet50(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs['base_channels'] = 128
+        super(SEWideResNet50, self).__init__(
+            'sebn', [3, 4, 6, 3], in_channels, **kwargs)
+
+class SEWideResNet101(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs['base_channels'] = 128
+        super(SEWideResNet101, self).__init__(
+            'sebn', [3, 4, 23, 3], in_channels, **kwargs)
+
+class SELResNet18(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs['conv_channels'] = 16
+        kwargs['base_channels'] = 16
+        super(SELResNet18, self).__init__(
+            'sebasic', [2, 2, 2, 2], in_channels, **kwargs)
+
+class SELResNet34(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs['conv_channels'] = 16
+        kwargs['base_channels'] = 16
+        super(SELResNet34, self).__init__(
+            'sebasic', [3, 4, 6, 3], in_channels, **kwargs)
+
+class SELResNet50(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs['conv_channels'] = 16
+        kwargs['base_channels'] = 16
+        super(SELResNet50, self).__init__(
+            'sebn', [3, 4, 6, 3], in_channels, **kwargs)
+
+class SELResNext50_4x4d(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs['groups'] = 4
+        kwargs['base_channels'] = 16
+        super(SELResNext50_4x4d, self).__init__(
+            'sebn', [3, 4, 6, 3], in_channels, **kwargs)
+
+
+# Time dimension Squezee-Excitation ResNets
+
+class TSEResNet18(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs['time_se'] = True
+        super(TSEResNet18, self).__init__(
+            'sebasic', [2, 2, 2, 2], in_channels, **kwargs)
+
+class TSEResNet34(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs['time_se'] = True
+        super(TSEResNet34, self).__init__(
+            'sebasic', [3, 4, 6, 3], in_channels, **kwargs)
+
+class TSEResNet50(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs['time_se'] = True
+        super(TSEResNet50, self).__init__(
+            'sebn', [3, 4, 6, 3], in_channels, **kwargs)
+
+class TSEResNet101(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs['time_se'] = True
+        super(TSEResNet101, self).__init__(
+            'sebn', [3, 4, 23, 3], in_channels, **kwargs)
+
+class TSEResNet152(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs['time_se'] = True
+        super(TSEResNet152, self).__init__(
+            'sebn', [3, 8, 36, 3], in_channels, **kwargs)
+
+class TSEResNext50_32x4d(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs['groups'] = 32
+        kwargs['base_channels'] = 128
+        kwargs['time_se'] = True
+        super(TSEResNext50_32x4d, self).__init__(
+            'sebn', [3, 4, 6, 3], in_channels, **kwargs)
+
+class TSEResNext101_32x8d(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs['groups'] = 32
+        kwargs['base_channels'] = 256
+        kwargs['time_se'] = True
+        super(TSEResNext101_32x8d, self).__init__(
+            'sebn', [3, 4, 23, 3], in_channels, **kwargs)
+
+class TSEWideResNet50(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs['base_channels'] = 128
+        kwargs['time_se'] = True
+        super(TSEWideResNet50, self).__init__(
+            'sebn', [3, 4, 6, 3], in_channels, **kwargs)
+
+class TSEWideResNet101(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs['base_channels'] = 128
+        kwargs['time_se'] = True
+        super(TSEWideResNet101, self).__init__(
+            'sebn', [3, 4, 23, 3], in_channels, **kwargs)
+
+class TSELResNet18(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs['conv_channels'] = 16
+        kwargs['base_channels'] = 16
+        kwargs['time_se'] = True
+        super(TSELResNet18, self).__init__(
+            'sebasic', [2, 2, 2, 2], in_channels, **kwargs)
+
+class TSELResNet34(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs['conv_channels'] = 16
+        kwargs['base_channels'] = 16
+        kwargs['time_se'] = True
+        super(TSELResNet34, self).__init__(
+            'sebasic', [3, 4, 6, 3], in_channels, **kwargs)
+
+class TSELResNet50(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs['conv_channels'] = 16
+        kwargs['base_channels'] = 16
+        kwargs['time_se'] = True
+        super(TSELResNet50, self).__init__(
+            'sebn', [3, 4, 6, 3], in_channels, **kwargs)
+
+class TSELResNext50_4x4d(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs['groups'] = 4
+        kwargs['base_channels'] = 16
+        kwargs['time_se'] = True
+        super(TSELResNext50_4x4d, self).__init__(
+            'sebn', [3, 4, 6, 3], in_channels, **kwargs)
 

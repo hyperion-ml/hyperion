@@ -11,27 +11,64 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 
-from .carlini_wagner import CarliniWagner
+from .adv_attack import AdvAttack
 
-class CarliniWagnerL2(CarliniWagner):
+class CarliniWagner(AdvAttack):
 
     def __init__(self, model, confidence=0.0, lr=1e-2, 
-                 binary_search_steps=9, max_iter=10000,
+                 max_iter=10000,
                  abort_early=True, initial_c=1e-3, 
                  targeted=False, range_min=None, range_max=None):
 
-        super(CarliniWagnerL2, self).__init__(
-            model, confidence=confidence, lr=lr, 
-            max_iter=max_iter,
-            abort_early=abort_early, initial_c=initial_c, 
-            targeted=targeted, range_min=range_min, range_max=range_max)
+        super(CarliniWagner, self).__init__(model, None, targeted, range_min, range_max)
+        self.confidence = confidence
+        self.lr = lr
+        self.max_iter = max_iter
+        self.abort_early = abort_early
+        self.initial_c = initial_c
+        self.is_binary = None
+        self.box_scale = (self.range_max - self.range_min)/2
+        self.box_bias = (self.range_max + self.range_min)/2
+        
 
-        self.binary_search_steps = binary_search_steps
-        self.repeat = binary_search_steps >= 10
+
+    @staticmethod
+    def atanh(x, eps=1e-6):
+        x = (1-eps) * x
+        return 0.5 * torch.log((1+x)/(1-x))
+    
+
+    def x_w(self, w):
+        return self.box_scale * torch.tanh(w) + self.box_bias
+
+    def w_x(self, x):
+        return self.atanh((x-self.box_bias)/self.box_scale)
+
+
+    def f(self, z, target):
+        if self.is_binary:
+            z_t = z.clone()
+            z_t[target==0] *= -1
+            z_other = 0
+        else:
+            z_other = torch.max(z)
+            idx = torch.arange(0, z.shape[0], device=z.device)
+            z_t = z[idx, target]
+            z_clone = z.clone()
+            z_clone[idx, target] = -1e10
+            z_other = torch.max(z, dim=-1)[0]
+
+        if self.targeted:
+            f = F.relu(z_other-z_t+self.confidence) #max(0, z_other-z_target+k)
+        else:
+            f = F.relu(z_t-z_other+self.confidence) #max(0, z_target-z_other+k)
+        return f
         
 
     def generate(self, input, target):
         
+        raise NotImplementedError()
+
         if self.is_binary is None:
             # run the model to know weather is binary classification problem or multiclass
             z = self.model(input)
@@ -60,21 +97,21 @@ class CarliniWagnerL2(CarliniWagner):
                 # The last iteration (if we run many steps) repeat the search once.
                 c = c_upper_bound
 
-            modifier = 1e-3 * torch.randn_like(w0).detach()
-            modifier.requires_grad = True
-            opt = optim.Adam([modifier], lr=self.lr)
+            delta = 1e-3 * torch.randn_like(w0).detach()
+            delta.requires_grad = True
+            opt = optim.Adam([delta], lr=self.lr)
             loss_prev = 1e10
             best_norm = 1e10*torch.ones(batch_size, device=w0.device)
             success = torch.zeros(batch_size, dtype=torch.uint8, device=w0.device)
             for opt_step in range(self.max_iter):
 
                 opt.zero_grad()
-                w = w0 + modifier
+
+                d_norm = torch.norm(delta, dim=norm_dim)
+                w = w0 + delta
                 x_adv = self.x_w(w)
                 z = self.model(x_adv)
                 f = self.f(z, target)
-                delta = x_adv-input
-                d_norm = torch.norm(delta, dim=norm_dim)
                 loss1 = d_norm.mean()
                 loss2 = (c * f).mean()
                 loss = loss1 + loss2
@@ -83,10 +120,10 @@ class CarliniWagnerL2(CarliniWagner):
                 opt.step()
 
                 #if the attack is successful f(x+delta)==0
-                step_success = (f < 0.0001)
+                step_success = (f == 0)
 
                 if opt_step % (self.max_iter//10) == 0:
-                    logging.info('----carlini-wagner bin-search-step={0:d}, opt-step={1:d} '
+                    logging.info('carlini-wagner bin-search-step={0:d}, opt-step={1:d} '
                                  'loss={2:.2f} d_norm={3:.2f} cf={4:.2f}'.format(
                                      bs_step, opt_step,
                                      loss.item(), loss1.item(), loss2.item()))

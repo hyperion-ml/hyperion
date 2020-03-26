@@ -25,25 +25,12 @@ num_augs=5
 nnet_dir=exp/xvector_nnets/$nnet_name
 nnet=$nnet_dir/model_ep0070.pth
 
-#xvector finetuning
-# ft_batch_size_1gpu=4
-# ft_eff_batch_size=64 # effective batch size
-# ft_min_chunk=400
-# ft_max_chunk=6000
-ft_batch_size_1gpu=16
-ft_eff_batch_size=256 # effective batch size
-ft_min_chunk=400
-ft_max_chunk=800
-ft_ipe=0.25
-ft_lr=0.005
-ft_nnet_num_epochs=40
-ft_margin_warmup=3
-ft_opt_opt="--opt-optimizer adam --opt-lr $ft_lr --opt-beta1 0.9 --opt-beta2 0.95 --opt-weight-decay 1e-5 --opt-amsgrad"
-ft_lrs_opt="--lrsch-lrsch-type exp_lr --lrsch-decay-rate 0.5 --lrsch-decay-steps 8000 --lrsch-hold-steps 40000 --lrsch-min-lr 1e-5 --lrsch-warmup-steps 1000 --lrsch-update-lr-on-opt-step"
-ft_nnet_name=${nnet_name}.ft_${ft_min_chunk}_${ft_max_chunk}_adam_lr${ft_lr}_b${ft_eff_batch_size}.v2
-ft_nnet_dir=exp/xvector_nnets/$ft_nnet_name
-ft_nnet=$ft_nnet_dir/model_ep0007.pth
-
+#tranfer nnets params
+transfer_nnet_name=lresnet34_zir_e256_arc0.3_do0_adam_lr0.05_b512.v2
+transfer_nnet_dir=exp/xvector_nnets/$transfer_nnet_name
+transfer_nnet=$transfer_nnet_dir/model_ep0062.pth
+transfer_feat_conf=conf/fbank80_16k.pyconf
+transfer_feat=logfb
 
 #back-end
 lda_dim=200

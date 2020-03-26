@@ -20,10 +20,15 @@ else
 fi
 
 if [ "$(hostname --domain)" == "cm.gemini" ];then
-    module load cuda10.0/toolkit
     module load ffmpeg
-    TORCH="pytorch1.0_cuda10.0"
-    CUDNN_ROOT=$TOOLS_ROOT/cudnn/cudnn-10.0-v7.4
+    #TORCH="pytorch1.0_cuda10.0"
+    #module load cuda10.0/toolkit
+    #module load cudnn/7.5.0_cuda10.0
+
+    TORCH="pytorch1.4_cuda10.1"
+    module load cuda10.1/toolkit/10.1.105
+    module load cudnn/7.6.3_cuda10.1
+    #CUDNN_ROOT=$TOOLS_ROOT/cudnn/cudnn-10.0-v7.4
 else
     CUDA_ROOT=/opt/NVIDIA/cuda-9.0
     LD_LIBRARY_PATH=$CUDA_ROOT/lib64:$LD_LIBRARY_PATH
@@ -34,11 +39,10 @@ else
     TORCH="pytorch1.0_cuda9.0"
     #CuDNN env
     CUDNN_ROOT=$TOOLS_ROOT/cudnn/cudnn-9.0-v7.4
+    LD_LIBRARY_PATH=$CUDNN_ROOT/lib64:$LD_LIBRARY_PATH
+    LIBRARY_PATH=$CUDNN_ROOT/lib64:$LIBRARY_PATH
+    CPATH=$CUDNN_ROOT/include:$CPATH
 fi
-#CuDNN
-LD_LIBRARY_PATH=$CUDNN_ROOT/lib64:$LD_LIBRARY_PATH
-LIBRARY_PATH=$CUDNN_ROOT/lib64:$LIBRARY_PATH
-CPATH=$CUDNN_ROOT/include:$CPATH
 
 export MPLBACKEND="agg"
 export PATH=$HYP_ROOT/hyperion/bin:/usr/local/cuda/bin:$PATH

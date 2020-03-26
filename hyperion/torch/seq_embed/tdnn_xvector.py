@@ -27,7 +27,7 @@ class TDNNXVector(XVector):
                  dropout_rate=0,
                  use_norm=True, 
                  norm_before=False,
-                 in_norm=True, embed_layer=0, proj_feats=None):
+                 in_norm=False, embed_layer=0, proj_feats=None):
 
         logging.info('making %s encoder network' % (tdnn_type))
         encoder_net = TF.create(

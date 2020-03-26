@@ -27,21 +27,21 @@ class TransformerEncoderBlockV1(nn.Module):
                  att_context=25, att_dropout_rate=0, norm_before=True, concat_after=False):
 
         """Construct an EncoderLayer object."""
-        super(TransformerEncoderBlock, self).__init__()
-        if isinstance(self_att, str):
-            self.self_attn = _make_att(self_att, num_feats, num_heads, att_context, att_dropout_rate)
+        super(TransformerEncoderBlockV1, self).__init__()
+        if isinstance(self_attn, str):
+            self.self_attn = self._make_att(self_attn, num_feats, num_heads, att_context, att_dropout_rate)
         else:
             self.self_attn = self_attn
 
         if isinstance(feed_forward, str):
-            self.feed_forward = _make_ff(feed_forward, d_model, d_ff, ff_kernel_size, dropout_rate)
+            self.feed_forward = self._make_ff(feed_forward, num_feats, d_ff, ff_kernel_size, ff_dropout_rate)
         else:
             self.feed_forward = feed_forward
 
         self.norm1 = nn.LayerNorm(num_feats)
         self.norm2 = nn.LayerNorm(num_feats)
-        self.dropout_rate = dropout_rate
-        if dropout_rate > 0:
+        self.dropout_rate = ff_dropout_rate
+        if self.dropout_rate > 0:
             self.dropout = nn.Dropout(dropout_rate)
 
         self.norm_before = norm_before
@@ -56,11 +56,11 @@ class TransformerEncoderBlockV1(nn.Module):
         assert num_feats % num_heads == 0
         d_k = num_feats // num_heads
 
-        if att_type == 'scaled-dot-v1':
-            return ScaledDotProdAtt(num_feats, num_feats, num_heads, d_k, d_k, dropout_rate, time_dim=1)
+        if att_type == 'scaled-dot-prod-v1':
+            return ScaledDotProdAttV1(num_feats, num_feats, num_heads, d_k, d_k, dropout_rate, time_dim=1)
 
-        if att_type == 'local-scaled-dot-v1':
-            return LocalScaledDotProdAtt(num_feats, num_feats, num_heads, d_k, d_k, context, dropout_rate, time_dim=1)
+        if att_type == 'local-scaled-dot-prod-v1':
+            return LocalScaledDotProdAttV1(num_feats, num_feats, num_heads, d_k, d_k, context, dropout_rate, time_dim=1)
 
         
     @staticmethod
@@ -80,7 +80,7 @@ class TransformerEncoderBlockV1(nn.Module):
 
 
 
-    def forward(self, x, mask):
+    def forward(self, x, mask=None):
         """Compute encoded features.
         :param torch.Tensor x: encoded source features (batch, max_time_in, num_feats)
         :param torch.Tensor mask: mask for x (batch, max_time_in)

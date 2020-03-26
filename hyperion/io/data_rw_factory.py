@@ -132,11 +132,13 @@ class SequentialDataReaderFactory(object):
                             help=('scp file field separator'))
         parser.add_argument(p1+'path-prefix', dest=(p2+'path_prefix'), default=None,
                             help=('scp file_path prefix'))
-        parser.add_argument(p1+'part-idx', dest=(p2+'part_idx'), type=int, default=1,
-                            help=('splits the list of files in num-parts and process part_idx'))
-        parser.add_argument(p1+'num-parts', dest=(p2+'num_parts'), type=int, default=1,
-                            help=('splits the list of files in num-parts and process part_idx'))
-
+        try:
+            parser.add_argument(p1+'part-idx', dest=(p2+'part_idx'), type=int, default=1,
+                                help=('splits the list of files in num-parts and process part_idx'))
+            parser.add_argument(p1+'num-parts', dest=(p2+'num_parts'), type=int, default=1,
+                                help=('splits the list of files in num-parts and process part_idx'))
+        except:
+            pass
 
 
         

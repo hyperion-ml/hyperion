@@ -15,6 +15,7 @@ import logging
 import numpy as np
 
 import torch
+import torch.nn as nn
 
 from hyperion.hyp_defs import config_logger
 from hyperion.io import RandomAccessDataReaderFactory as DRF
@@ -23,6 +24,7 @@ from hyperion.utils import Utt2Info, TrialNdx, TrialKey, TrialScores
 from hyperion.utils.list_utils import ismember
 from hyperion.io import VADReaderFactory as VRF
 #from hyperion.feats import MeanVarianceNorm as MVN2
+from hyperion.classifiers import BinaryLogisticRegression as LR
 
 from hyperion.torch.utils import open_device
 from hyperion.torch.helpers import TorchModelLoader as TML
@@ -51,12 +53,21 @@ def read_data(v_file, ndx_file, enroll_file, seg_part_idx, num_seg_parts):
 
     return ndx, x_e
 
+class Calibrator(nn.Module):
+
+    def __init__(self, a, b):
+        super(Calibrator, self).__init__()
+        self.a = a
+        self.b = b
+
+    def forward(self, x):
+        return self.a*x+self.b
 
 
 def eval_cosine_scoring(v_file, ndx_file, enroll_file, test_wav_file,
                         mvn_no_norm_mean, mvn_norm_var, mvn_context,
                         vad_spec, vad_path_prefix, model_path, embed_layer,
-                        score_file,
+                        score_file, cal_file,
                         use_gpu, seg_part_idx, num_seg_parts, **kwargs):
 
     num_gpus = 1 if use_gpu else 0
@@ -88,6 +99,14 @@ def eval_cosine_scoring(v_file, ndx_file, enroll_file, test_wav_file,
     model = TML.load(model_path)
     model.to(device)
     model.eval()
+
+    calibrator = None
+    if cal_file is not None:
+        logging.info('loading calibration params {}'.format(cal_file))
+        lr = LR.load(cal_file)
+        calibrator = Calibrator(lr.A[0,0], lr.b[0])
+        calibrator.to(device)
+        
 
     logging.info('loading ndx and enrollment x-vectors')
     ndx, y_e = read_data(v_file, ndx_file, enroll_file, seg_part_idx, num_seg_parts)
@@ -137,7 +156,11 @@ def eval_cosine_scoring(v_file, ndx_file, enroll_file, test_wav_file,
                 if ndx.trial_mask[i,j]:
                     y_e_i = torch.as_tensor(y_e[i], dtype=torch.get_default_dtype()).to(device)
                     y_e_i = l2_norm(y_e_i)
-                    scores[i,j] = torch.sum(y_e_i * y_t, dim=-1)
+                    scores_ij = torch.sum(y_e_i * y_t, dim=-1)
+                    if calibrator is None:
+                        scores[i,j] = scores_ij
+                    else:
+                        scores[i,j] = calibrator(scores_ij)
 
             t7 = time.time()
             logging.info((
@@ -148,13 +171,12 @@ def eval_cosine_scoring(v_file, ndx_file, enroll_file, test_wav_file,
                         t5-t4, t6-t5, t7-t6, np.sum(ndx.trial_mask[:,j]), 
                         x_t.shape[-1]*1e-2/(t7-t1)))
 
+
     if num_seg_parts > 1:
         score_file = '%s-%03d-%03d' % (score_file, 1, seg_part_idx)
     logging.info('saving scores to %s' % (score_file))
     s = TrialScores(ndx.model_set, ndx.seg_set, scores, score_mask=ndx.trial_mask)
     s.save_txt(score_file)
-
-
 
 
 
@@ -202,7 +224,8 @@ if __name__ == "__main__":
                         help=('number of parts in which we divide the test list '
                               'to run evaluation in parallel'))
 
-    parser.add_argument('--score-file', dest='score_file', required=True)
+    parser.add_argument('--score-file', required=True)
+    parser.add_argument('--cal-file', dest='cal_file', default=None)
     parser.add_argument('-v', '--verbose', dest='verbose', default=1,
                         choices=[0, 1, 2, 3], type=int)
     

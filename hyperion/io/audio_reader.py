@@ -268,10 +268,13 @@ class SequentialAudioReader(AudioReader):
         #                     help=('scp file field separator'))
         parser.add_argument(p1+'wav-scale', dest=(p2+'wav_scale'), default=2**15, type=float,
                              help=('multiplicative factor for waveform'))
-        parser.add_argument(p1+'part-idx', dest=(p2+'part_idx'), type=int, default=1,
-                            help=('splits the list of files in num-parts and process part_idx'))
-        parser.add_argument(p1+'num-parts', dest=(p2+'num_parts'), type=int, default=1,
-                            help=('splits the list of files in num-parts and process part_idx'))
+        try:
+            parser.add_argument(p1+'part-idx', dest=(p2+'part_idx'), type=int, default=1,
+                                help=('splits the list of files in num-parts and process part_idx'))
+            parser.add_argument(p1+'num-parts', dest=(p2+'num_parts'), type=int, default=1,
+                                help=('splits the list of files in num-parts and process part_idx'))
+        except:
+            pass
 
     
 

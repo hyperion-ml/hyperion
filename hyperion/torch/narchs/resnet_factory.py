@@ -19,7 +19,33 @@ resnet_dict = {
     'lresnet18': LResNet18,
     'lresnet34': LResNet34,
     'lresnet50': LResNet50,
-    'lresnext50_4x4d': LResNext50_4x4d
+    'lresnext50_4x4d': LResNext50_4x4d,
+    'seresnet18': SEResNet18,
+    'seresnet34': SEResNet34,
+    'seresnet50': SEResNet50,
+    'seresnet101': SEResNet101,
+    'seresnet152': SEResNet152,
+    'seresnext50_32x4d': SEResNext50_32x4d,
+    'seresnext101_32x8d': SEResNext101_32x8d,
+    'sewideresnet50': SEWideResNet50,
+    'sewideresnet101': SEWideResNet101,
+    'selresnet18': SELResNet18,
+    'selresnet34': SELResNet34,
+    'selresnet50': SELResNet50,
+    'selresnext50_4x4d': SELResNext50_4x4d,
+    'tseresnet18': TSEResNet18,
+    'tseresnet34': TSEResNet34,
+    'tseresnet50': TSEResNet50,
+    'tseresnet101': TSEResNet101,
+    'tseresnet152': TSEResNet152,
+    'tseresnext50_32x4d': TSEResNext50_32x4d,
+    'tseresnext101_32x8d': TSEResNext101_32x8d,
+    'tsewideresnet50': TSEWideResNet50,
+    'tsewideresnet101': TSEWideResNet101,
+    'tselresnet18': TSELResNet18,
+    'tselresnet34': TSELResNet34,
+    'tselresnet50': TSELResNet50,
+    'tselresnext50_4x4d': TSELResNext50_4x4d
 }
 
 
@@ -32,7 +58,8 @@ class ResNetFactory(object):
                in_kernel_size=7, in_stride=2,
                zero_init_residual=False,
                groups=1, replace_stride_with_dilation=None, dropout_rate=0,
-               norm_layer=None, norm_before=True, do_maxpool=True, in_norm=True):
+               norm_layer=None, norm_before=True, do_maxpool=True, in_norm=True, 
+               se_r=16, in_feats=None):
 
         try:
             resnet_class = resnet_dict[resnet_type]
@@ -48,7 +75,8 @@ class ResNetFactory(object):
             groups=groups, replace_stride_with_dilation=replace_stride_with_dilation, 
             dropout_rate=dropout_rate,
             norm_layer=norm_layer, norm_before=norm_before, 
-            do_maxpool=do_maxpool, in_norm=in_norm)
+            do_maxpool=do_maxpool, in_norm=in_norm,
+            se_r=se_r, in_feats=in_feats)
 
         return resnet
 
@@ -74,7 +102,8 @@ class ResNetFactory(object):
                       'hid_act', 'out_act', 'in_kernel_size', 'in_stride',
                       'zero_init_residual', 'groups', 
                       'replace_stride_with_dilation', 'dropout_rate',
-                      'in_norm', 'norm_before', 'do_maxpool')
+                      'in_norm', 'norm_before', 'do_maxpool', 
+                      'se_r')
 
         args = dict((k, kwargs[p+k])
                     for k in valid_args if p+k in kwargs)
@@ -132,7 +161,11 @@ class ResNetFactory(object):
 
         #parser.add_argument(p1+'replace-stride-with-dilation', default=None, nargs='+', type=bool,
          #                   help='replaces strides with dilations to increase context without downsampling')
-        
+
+        parser.add_argument(
+            p1+'se-r', default=16, type=int,
+            help=('squeeze ratio in squeeze-excitation blocks'))
+
         try:
             parser.add_argument(p1+'hid_act', default='relu6', 
                                 help='hidden activation')

@@ -16,7 +16,7 @@ class Splicing(object):
     Class to do splicing for DNN input
     """
     def __init__(self, left_context=0, right_context=0,
-                 frame_shift=1
+                 frame_shift=1,
                  splice_pattern=None,
                  pad_mode=None, **kwargs):
 
@@ -30,7 +30,7 @@ class Splicing(object):
             self.splice_pattern = splice_pattern + self.left_context
         self.pad_mode = pad_mode
         self.pad_width = ((self.left_context, self.right_context), (0,0))
-        self.pad_kwargs = **kwargs
+        self.pad_kwargs = kwargs
 
         
     def splice(self, x):
