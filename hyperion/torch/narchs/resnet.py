@@ -253,7 +253,7 @@ class ResNet(NetArch):
             return h
 
         x = self.layer4(x)
-        if 3 in layers:
+        if 4 in layers:
             h.append(x)
         
         if return_output:
