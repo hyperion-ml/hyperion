@@ -175,6 +175,8 @@ class TransformerEncoderV1(NetArch):
         return dict(list(base_config.items()) + list(config.items()))
 
     
+    def in_context(self):
+        return (self.att_context, self.att_context)
 
     def in_shape(self):
         if self.in_time_dim == 1:
@@ -194,7 +196,8 @@ class TransformerEncoderV1(NetArch):
                 out_t = None
             else:
                 if isinstance(self.in_layer, Conv2dSubsampler):
-                    out_t = in_t//4
+                    #out_t = in_t//4
+                    out_t = ((in_t - 1)//2 - 1)//2
                 else:
                     out_t = in_t
 

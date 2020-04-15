@@ -31,6 +31,8 @@ tests/data_out/*
 #.idea
 tools/anaconda/anaconda3.5
 tools/anaconda/anaconda3
+tools/anaconda/apex
+tools/ibm_art/adversarial-robustness-toolbox/
 tools/cudnn/cudnn-*
 tools/kaldi/kaldi
 tools/nccl/nccl_*

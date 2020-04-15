@@ -37,7 +37,7 @@ if [ $stage -le 1 ]; then
   mkdir -p $nnet_dir/log
   $cuda_cmd --gpu $ngpu $nnet_dir/log/train.log \
       hyp_utils/torch.sh --num-gpus $ngpu \
-      torch-train-transformer-xvec-v1.py \
+      torch-train-efficientnet-xvec.py \
       --data-rspec scp:$list_dir/feats.scp \
       --train-list $list_dir/lists_xvec/train.scp \
       --val-list $list_dir/lists_xvec/val.scp \
@@ -49,7 +49,8 @@ if [ $stage -le 1 ]; then
       --num-workers $num_workers $opt_opt $lrs_opt \
       --grad-acc-steps $grad_acc_steps \
       --embed-dim $embed_dim \
-      --epochs $nnet_num_epochs $trans_opt \
+      --epochs $nnet_num_epochs \
+      --effnet-type $nnet_type $effnet_opt \
       --in-feat 80 \
       --s $s --margin $margin --margin-warmup-epochs $margin_warmup \
       --dropout-rate $dropout \

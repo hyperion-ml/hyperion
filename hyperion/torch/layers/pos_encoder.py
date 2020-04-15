@@ -42,7 +42,7 @@ class PosEncoder(nn.Module):
             if self.pe.size(1) >= x.size(1):
                 if self.pe.dtype != x.dtype or self.pe.device != x.device:
                     self.pe = self.pe.to(dtype=x.dtype, device=x.device)
-                return
+                return self.pe
 
         pe = torch.zeros(x.size(1), self.num_feats)
         position = torch.arange(0, x.size(1), dtype=torch.float32).unsqueeze(1)

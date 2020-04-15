@@ -19,8 +19,9 @@ snr=100
 confidence=0
 lr=1e-2
 max_iter=10
-save_wav_tar_thr=0.4
-save_wav_non_thr=0.25
+#save_wav_tar_thr=0.4
+#save_wav_non_thr=0.25
+threshold=0
 save_wav_path=""
 c_factor=2
 cal_file=""
@@ -51,7 +52,7 @@ if [ $# -ne 9 ]; then
   echo "  --lr <float|1e-2>                                # learning rate for attack optimizer"
   echo "  --max-iter <int|10>                              # max number of iters for attack optimizer"
   echo "  --c-factor <int|2>                               # c increment factor"
-  echo "  --save-wav-thr <float|0.75>                      # threshold to decide to save adversarial wav to disk"
+  echo "  --threshold <float|0>                            # decision threshold"
   echo "  --save-wav-path <str|>                           # path to save adv wavs"
   echo "  --cal-file <str|>                                # calibration params file"
   exit 1;
@@ -103,7 +104,8 @@ fi
 args="${args} --mvn-context $context"
 
 if [ -n "${save_wav_path}" ];then
-    args="${args} --save-adv-wav-path $save_wav_path --save-adv-wav --save-adv-wav-tar-thr $save_wav_tar_thr --save-adv-wav-non-thr $save_wav_non_thr"
+    args="${args} --save-adv-wav-path $save_wav_path --save-adv-wav"
+    #args="${args} --save-adv-wav-path $save_wav_path --save-adv-wav --save-adv-wav-tar-thr $save_wav_tar_thr --save-adv-wav-non-thr $save_wav_non_thr"
 fi
 
 if [ -n "$cal_file" ];then
@@ -135,6 +137,7 @@ $cmd JOB=1:$nj $log_dir/${name}.JOB.log \
     --model-path $nnet_file \
     --transfer-v-file scp:$transfer_vector_file \
     --transfer-model-path $transfer_nnet_file \
+    --threshold $threshold \
     --attack-type $attack_type \
     --attack-snr $snr \
     --attack-eps $eps \

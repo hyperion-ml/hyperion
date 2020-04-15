@@ -81,7 +81,6 @@ class ResNetFactory(object):
         return resnet
 
 
-
     def filter_args(prefix=None, **kwargs):
         if prefix is None:
             p = ''

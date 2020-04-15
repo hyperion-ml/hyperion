@@ -109,7 +109,7 @@ echo "$0: score $key_file to $output_dir"
 
 $cmd JOB=1:$nj $log_dir/${name}.JOB.log \
     hyp_utils/torch.sh --num-gpus $num_gpus \
-    steps_adv/torch-eval-cosine-scoring-from-adv-test-wav.py \
+    steps_adv/torch-eval-cosine-scoring-from-art-test-wav.py \
     @$feat_config --audio-feat $audio_feat ${args} \
     --v-file scp:$vector_file \
     --key-file $key_file \

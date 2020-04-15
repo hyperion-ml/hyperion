@@ -3,9 +3,9 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 from __future__ import absolute_import
-import six
 
 import torch.nn as nn
+from .swish import Swish
 
 act_dict = {
     'elu': nn.ELU,
@@ -30,7 +30,8 @@ act_dict = {
     'softmax': nn.Softmax,
     'softmax2d': nn.Softmax2d,
     'logsoftmax': nn.LogSoftmax,
-    'alogsoftmax': nn.AdaptiveLogSoftmaxWithLoss
+    'alogsoftmax': nn.AdaptiveLogSoftmaxWithLoss,
+    'swish': Swish
     }
 
 
@@ -41,7 +42,7 @@ class ActivationFactory(object):
         if activation is None:
             return None
 
-        if isinstance(activation, six.string_types):
+        if isinstance(activation, str):
             return ActivationFactory.create_from_str(activation, **kwargs)
         
         if isinstance(activation, dict):
@@ -64,6 +65,7 @@ class ActivationFactory(object):
                 return act_dict[activation_name](**kwargs)
             except:
                 # activation didn't have inplace option
+                del kwargs['inplace']
                 pass
 
         return act_dict[activation_name](**kwargs)
@@ -149,5 +151,6 @@ class ActivationFactory(object):
                     'cutoffs': activation.cutoffs,
                     'div_value': activation.div_value,
                     'head_bias': activation.head_bias}
-        
+        if isinstance(activation, Swish):
+            return {'name': 'swish'}
         

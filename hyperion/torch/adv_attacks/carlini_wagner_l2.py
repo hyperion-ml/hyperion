@@ -47,7 +47,7 @@ class CarliniWagnerL2(CarliniWagner):
         
         batch_size = input.shape[0]
         global_best_norm = 1e10*torch.ones(batch_size, device=input.device)
-        global_success = torch.zeros(batch_size, dtype=torch.uint8, device=input.device)
+        global_success = torch.zeros(batch_size, dtype=torch.bool, device=input.device)
         best_adv = input.clone()
 
         c_lower_bound = torch.zeros(batch_size, device=w0.device)
@@ -65,7 +65,7 @@ class CarliniWagnerL2(CarliniWagner):
             opt = optim.Adam([modifier], lr=self.lr)
             loss_prev = 1e10
             best_norm = 1e10*torch.ones(batch_size, device=w0.device)
-            success = torch.zeros(batch_size, dtype=torch.uint8, device=w0.device)
+            success = torch.zeros(batch_size, dtype=torch.bool, device=w0.device)
             for opt_step in range(self.max_iter):
 
                 opt.zero_grad()

@@ -110,8 +110,8 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
                         vad_spec, vad_path_prefix, transfer_v_file, 
                         model_path, transfer_model_path,
                         embed_layer,
-                        score_file, stats_file, cal_file, transfer_cal_file,
-                        save_adv_wav, save_adv_wav_tar_thr, save_adv_wav_non_thr, save_adv_wav_path,
+                        score_file, stats_file, cal_file, transfer_cal_file, threshold,
+                        save_adv_wav, save_adv_wav_path,
                         use_gpu, seg_part_idx, num_seg_parts, 
                         **kwargs):
 
@@ -160,7 +160,10 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
     if transfer_cal_file is not None:
         logging.info('loading calibration params for transfer model {}'.format(transfer_cal_file))
         lr = LR.load(transfer_cal_file)
-        tcalibrator = Calibrator(lr.A[0,0], lr.b[0])
+        #subting the threshold here will put the decision threshold in 0
+        #some attacks use thr=0 to decide if the attack is succesful
+        #no need to subtract in the black-box model since we don't use it for attacks
+        tcalibrator = Calibrator(lr.A[0,0], lr.b[0]-threshold)
         tcalibrator.to(device)
 
     tmodel = MyModel(tfeat_extractor, xvector_tmodel, mvn, embed_layer, tcalibrator)
@@ -217,8 +220,8 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
             vad = v_reader.read([key.seg_set[j]])[0]
             tot_frames = len(vad)
             speech_frames = np.sum(vad)
-            vad = torch.as_tensor(vad.astype(np.uint8, copy=False), 
-                                  dtype=torch.uint8).to(device)
+            vad = torch.as_tensor(vad.astype(np.bool, copy=False), 
+                                  dtype=torch.bool).to(device)
             model.vad_t = vad
             logging.info('utt %s detected %d/%d (%.2f %%) speech frames' % (
                 key.seg_set[j], speech_frames, tot_frames, 
@@ -266,9 +269,9 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
                 if save_adv_wav:
                     s_adv = s_adv.cpu().numpy()[0]
                     trial_name = '%s-%s' % (key.model_set[i], key.seg_set[j])
-                    if key.tar[i,j] and scores[i,j] < save_adv_wav_non_thr:
+                    if key.tar[i,j] and scores[i,j] < threshold:
                         tar_audio_writer.write(trial_name, s_adv, fs)
-                    elif key.non[i,j] and scores[i,j] > save_adv_wav_tar_thr:
+                    elif key.non[i,j] and scores[i,j] > threshold:
                         non_audio_writer.write(trial_name, s_adv, fs)
 
         trial_time /= num_trials
@@ -355,19 +358,23 @@ if __name__ == "__main__":
     parser.add_argument('--save-adv-wav-path', default=None, 
                         help='output path of adv signals')
 
-    parser.add_argument('--save-adv-wav-tar-thr', 
-                        default=0.75, type=float,
-                        help='min score to save signal from attack that makes non-tar into tar')
+    # parser.add_argument('--save-adv-wav-tar-thr', 
+    #                     default=0.75, type=float,
+    #                     help='min score to save signal from attack that makes non-tar into tar')
 
-    parser.add_argument('--save-adv-wav-non-thr', 
-                        default=-0.75, type=float,
-                        help='max score to save signal from attack that makes tar into non-tar')
+    # parser.add_argument('--save-adv-wav-non-thr', 
+    #                     default=-0.75, type=float,
+    #                     help='max score to save signal from attack that makes tar into non-tar')
 
     parser.add_argument('--stats-file', default=None, 
                         help='output path of to save stats of adv signals')
 
-    parser.add_argument('--cal-file', default=None)
-    parser.add_argument('--transfer-cal-file', default=None)
+    parser.add_argument('--cal-file', default=None, 
+                        help='score calibration file')
+    parser.add_argument('--transfer-cal-file', default=None, 
+                        help='score calibration file for transfer model')
+    parser.add_argument('--threshold', default=0, type=float, help='decision threshold')
+
     
     args=parser.parse_args()
     config_logger(args.verbose)

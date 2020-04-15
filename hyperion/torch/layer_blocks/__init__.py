@@ -10,5 +10,6 @@ from .etdnn_blocks import ETDNNBlock
 from .resetdnn_blocks import ResETDNNBlock
 from .resnet_blocks import ResNetInputBlock, ResNetBasicBlock, ResNetBNBlock
 from .seresnet_blocks import SEResNetBasicBlock, SEResNetBNBlock
+from .mbconv_blocks import MBConvBlock, MBConvInOutBlock
 from .transformer_encoder_v1 import TransformerEncoderBlockV1
 from .transformer_conv2d_subsampler import TransformerConv2dSubsampler

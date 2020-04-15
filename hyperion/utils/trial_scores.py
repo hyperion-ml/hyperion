@@ -3,9 +3,6 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import os.path as path
 import logging
@@ -191,7 +188,7 @@ class TrialScores(object):
         seg_set = scr_list[0].seg_set
         scores = scr_list[0].scores
         score_mask = scr_list[0].score_mask
-        for i in xrange(1, num_scr):
+        for i in range(1, num_scr):
             scr_i = scr_list[i]
             new_model_set = np.union1d(model_set, scr_i.model_set)
             new_seg_set = np.union1d(seg_set, scr_i.seg_set)
@@ -479,8 +476,8 @@ class TrialScores(object):
 
         num_parts=3
         scr_list = []
-        for i in xrange(num_parts):
-            for j in xrange(num_parts):
+        for i in range(num_parts):
+            for j in range(num_parts):
                 scr_ij = scr1.split(i+1, num_parts, j+1, num_parts)
                 scr_list.append(scr_ij)
         scr2 = TrialScores.merge(scr_list)

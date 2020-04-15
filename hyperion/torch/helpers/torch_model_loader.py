@@ -9,7 +9,7 @@ import re
 import torch
 
 from ..narchs import *
-from ..seq_embed import XVector, TDNNXVector, ResNetXVector
+from ..seq_embed import XVector, TDNNXVector, ResNetXVector, TransformerXVectorV1, EfficientNetXVector
 
 class TorchModelLoader(object):
 
