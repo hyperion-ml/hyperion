@@ -32,10 +32,20 @@ plda_tel_type=splda
 plda_tel_data=sre_tel_combined_noreverb
 plda_adapt_data=sre18_cmn2_adapt_lab_combined_noreverb
 coh_tel_data=sre18_dev_unlabeled
+ft=0
 
 . parse_options.sh || exit 1;
 . $config_file
 . datapath.sh 
+
+if [ $ft -eq 1 ];then
+    nnet_name=$ft_nnet_name
+elif [ $ft -eq 2 ];then
+    nnet_name=$ft2_nnet_name
+elif [ $ft -eq 3 ];then
+    nnet_name=$ft3_nnet_name
+fi
+
 
 plda_tel_label=${plda_tel_type}y${plda_tel_y_dim}_adapt_v3aug_coral_mu${coral_mu}T${coral_T}_a1_mu${w_mu1}B${w_B1}W${w_W1}_a2_M${num_spks}_mu${w_mu2}B${w_B2}W${w_W2}
 be_tel_name=lda${lda_tel_dim}_${plda_tel_label}_${plda_tel_data}_${plda_adapt_data}

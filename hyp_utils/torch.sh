@@ -28,7 +28,10 @@ if [ $# -lt 1 ];then
     echo "queue.pl --gpu 1 -V log_file torch.sh --num-gpus 1 train-dnn.py --lr 0.1"
     exit 0
 fi
-echo $PATH
+echo "PATH=$PATH"
+echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
+#export LRU_CACHE_CAPACITY=1
+echo "LRU_CACHE_CAPACITY=$LRU_CACHE_CAPACITY"
 
 # get conda version
 #CONDA_VERS=$(conda -V | awk '{ split($2,f,"."); v=f[1]f[2]; print v}')

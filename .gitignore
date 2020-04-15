@@ -30,6 +30,7 @@ tests/data_out/*
 # developer environments
 #.idea
 tools/anaconda/anaconda3.5
+tools/anaconda/anaconda3
 tools/cudnn/cudnn-*
 tools/kaldi/kaldi
 tools/nccl/nccl_*

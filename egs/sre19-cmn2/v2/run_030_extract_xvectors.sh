@@ -1,9 +1,6 @@
 #!/bin/bash
 # Copyright
 #                2018   Johns Hopkins University (Author: Jesus Villalba)
-#                2017   David Snyder
-#                2017   Johns Hopkins University (Author: Daniel Garcia-Romero)
-#                2017   Johns Hopkins University (Author: Daniel Povey)
 # Apache 2.0.
 #
 . ./cmd.sh
@@ -13,6 +10,7 @@ set -e
 stage=1
 config_file=default_config.sh
 use_gpu=false
+ft=0
 
 . parse_options.sh || exit 1;
 . $config_file
@@ -22,6 +20,17 @@ if [ "$use_gpu" == "true" ];then
     xvec_cmd="$cuda_eval_cmd"
 else
     xvec_cmd="$train_cmd"
+fi
+
+if [ $ft -eq 1 ];then
+    nnet_name=$ft_nnet_name
+    nnet=$ft_nnet
+elif [ $ft -eq 2 ];then
+    nnet_name=$ft2_nnet_name
+    nnet=$ft2_nnet
+elif [ $ft -eq 3 ];then
+    nnet_name=$ft3_nnet_name
+    nnet=$ft3_nnet
 fi
 
 xvector_dir=exp/xvectors/$nnet_name
