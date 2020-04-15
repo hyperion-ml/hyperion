@@ -22,6 +22,7 @@ max_iter=10
 #save_wav_tar_thr=0.4
 #save_wav_non_thr=0.25
 threshold=0
+save_wav=false
 save_wav_path=""
 c_factor=2
 cal_file=""
@@ -103,9 +104,8 @@ if [ "$norm_var" == "true" ];then
 fi
 args="${args} --mvn-context $context"
 
-if [ -n "${save_wav_path}" ];then
+if [ "${save_wav}" == "true" ];then
     args="${args} --save-adv-wav-path $save_wav_path --save-adv-wav"
-    #args="${args} --save-adv-wav-path $save_wav_path --save-adv-wav --save-adv-wav-tar-thr $save_wav_tar_thr --save-adv-wav-non-thr $save_wav_non_thr"
 fi
 
 if [ -n "$cal_file" ];then

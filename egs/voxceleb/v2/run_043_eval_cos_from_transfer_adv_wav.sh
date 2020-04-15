@@ -11,6 +11,7 @@ stage=1
 config_file=default_config.sh
 use_gpu=false
 do_analysis=false
+save_wav=false
 
 . parse_options.sh || exit 1;
 . $config_file
@@ -55,7 +56,8 @@ if [ $stage -le 1 ];then
 	steps_adv/eval_cosine_scoring_from_transfer_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 20 \
 	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
 	    --transfer-feat-config $transfer_feat_conf --transfer-audio-feat $transfer_feat \
-	    --attack-type fgsm --eps $eps --save-wav-path $score_plda_dir/wav \
+	    --attack-type fgsm --eps $eps \
+	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --transfer-cal-file $transfer_cal_file \
 	    --threshold $thr005 \
 	    data/voxceleb1_test/trials_o_clean \
@@ -103,7 +105,8 @@ if [ $stage -le 2 ];then
 	steps_adv/eval_cosine_scoring_from_transfer_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 20 \
 	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
 	    --transfer-feat-config $transfer_feat_conf --transfer-audio-feat $transfer_feat \
-	    --attack-type snr-fgsm --snr $snr --save-wav-path $score_plda_dir/wav \
+	    --attack-type snr-fgsm --snr $snr \
+	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --transfer-cal-file $transfer_cal_file \
 	    --threshold $thr005 \
 	    data/voxceleb1_test/trials_o_clean \
@@ -150,7 +153,8 @@ if [ $stage -le 3 ];then
 	steps_adv/eval_cosine_scoring_from_transfer_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 20 \
 	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
 	    --transfer-feat-config $transfer_feat_conf --transfer-audio-feat $transfer_feat \
-	    --attack-type rand-fgsm --eps $eps --alpha $alpha --save-wav-path $score_plda_dir/wav \
+	    --attack-type rand-fgsm --eps $eps --alpha $alpha \
+	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --transfer-cal-file $transfer_cal_file \
 	    --threshold $thr005 \
 	    data/voxceleb1_test/trials_o_clean \
@@ -197,7 +201,8 @@ if [ $stage -le 4 ];then
 	steps_adv/eval_cosine_scoring_from_transfer_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 20 \
 	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
 	    --transfer-feat-config $transfer_feat_conf --transfer-audio-feat $transfer_feat \
-	    --attack-type iter-fgsm --eps $eps --alpha $alpha --save-wav-path $score_plda_dir/wav \
+	    --attack-type iter-fgsm --eps $eps --alpha $alpha \
+	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --transfer-cal-file $transfer_cal_file \
 	    --threshold $thr005 \
 	    data/voxceleb1_test/trials_o_clean \
@@ -242,7 +247,8 @@ if [ $stage -le 5 ];then
 	steps_adv/eval_cosine_scoring_from_transfer_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 20 \
 	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
 	    --transfer-feat-config $transfer_feat_conf --transfer-audio-feat $transfer_feat \
-	    --attack-type cw-l2 --confidence $confidence --save-wav-path $score_plda_dir/wav \
+	    --attack-type cw-l2 --confidence $confidence \
+	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --transfer-cal-file $transfer_cal_file \
 	    --threshold $thr005 \
 	    data/voxceleb1_test/trials_o_clean \
@@ -286,7 +292,8 @@ if [ $stage -le -6 ];then
 	steps_adv/eval_cosine_scoring_from_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 1000 \
 	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
 	    --transfer-feat-config $transfer_feat_conf --transfer-audio-feat $transfer_feat \
-	    --attack-type cw-l0 --confidence $confidence --c-factor 10 --save-wav-path $score_plda_dir/wav \
+	    --attack-type cw-l0 --confidence $confidence --c-factor 10 \
+	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --transfer-cal-file $transfer_cal_file \
 	    --threshold $thr005 \
 	    data/voxceleb1_test/trials_o_clean \
@@ -329,7 +336,8 @@ if [ $stage -le 7 ];then
 	steps_adv/eval_cosine_scoring_from_transfer_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 40 \
 	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
 	    --transfer-feat-config $transfer_feat_conf --transfer-audio-feat $transfer_feat \
-	    --attack-type cw-linf --confidence $confidence --c-factor 2 --save-wav-path $score_plda_dir/wav \
+	    --attack-type cw-linf --confidence $confidence --c-factor 2 \
+	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --transfer-cal-file $transfer_cal_file \
 	    --threshold $thr005 \
 	    data/voxceleb1_test/trials_o_clean \

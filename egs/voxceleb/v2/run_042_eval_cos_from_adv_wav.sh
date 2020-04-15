@@ -11,6 +11,7 @@ stage=1
 config_file=default_config.sh
 use_gpu=false
 do_analysis=false
+save_wav=false
 
 . parse_options.sh || exit 1;
 . $config_file
@@ -49,7 +50,8 @@ if [ $stage -le 1 ];then
 	echo "Eval Voxceleb 1 with Cosine scoring with FGSM attack eps=$eps"
 	steps_adv/eval_cosine_scoring_from_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 20 \
 	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
-	    --attack-type fgsm --eps $eps --save-wav-path $score_plda_dir/wav \
+	    --attack-type fgsm --eps $eps \
+	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --threshold $thr005 \
 	    data/voxceleb1_test/trials_o_clean \
     	    data/voxceleb1_test/utt2model \
@@ -89,7 +91,8 @@ if [ $stage -le 2 ];then
 	echo "Eval Voxceleb 1 with Cosine scoring with FGSM attack snr=$snr"
 	steps_adv/eval_cosine_scoring_from_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 20 \
 	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
-	    --attack-type snr-fgsm --snr $snr --save-wav-path $score_plda_dir/wav \
+	    --attack-type snr-fgsm --snr $snr \
+	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --threshold $thr005 \
 	    data/voxceleb1_test/trials_o_clean \
     	    data/voxceleb1_test/utt2model \
@@ -131,7 +134,8 @@ if [ $stage -le 3 ];then
 	echo "Eval Voxceleb 1 with Cosine scoring with Rand-FGSM attack eps=$eps"
 	steps_adv/eval_cosine_scoring_from_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 20 \
 	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
-	    --attack-type rand-fgsm --eps $eps --alpha $alpha --save-wav-path $score_plda_dir/wav \
+	    --attack-type rand-fgsm --eps $eps --alpha $alpha \
+	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --threshold $thr005 \
 	    data/voxceleb1_test/trials_o_clean \
     	    data/voxceleb1_test/utt2model \
@@ -173,7 +177,8 @@ if [ $stage -le 4 ];then
 	echo "Eval Voxceleb 1 with Cosine scoring with Iterative FGSM attack eps=$eps"
 	steps_adv/eval_cosine_scoring_from_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 20 \
 	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
-	    --attack-type iter-fgsm --eps $eps --alpha $alpha --save-wav-path $score_plda_dir/wav \
+	    --attack-type iter-fgsm --eps $eps --alpha $alpha \
+	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --threshold $thr005 \
 	    data/voxceleb1_test/trials_o_clean \
     	    data/voxceleb1_test/utt2model \
@@ -214,7 +219,8 @@ if [ $stage -le 5 ];then
 	echo "Eval Voxceleb 1 with Cosine scoring with Carlini-Wagner L2 attack confidence=$confidence"
 	steps_adv/eval_cosine_scoring_from_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 20 \
 	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
-	    --attack-type cw-l2 --confidence $confidence --save-wav-path $score_plda_dir/wav \
+	    --attack-type cw-l2 --confidence $confidence \
+	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --threshold $thr005 \
 	    data/voxceleb1_test/trials_o_clean \
     	    data/voxceleb1_test/utt2model \
@@ -253,7 +259,8 @@ if [ $stage -le -6 ];then
 	echo "Eval Voxceleb 1 with Cosine scoring with Carlini-Wagner L0 attack confidence=$confidence"
 	steps_adv/eval_cosine_scoring_from_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 1000 \
 	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
-	    --attack-type cw-l0 --confidence $confidence --c-factor 10 --save-wav-path $score_plda_dir/wav \
+	    --attack-type cw-l0 --confidence $confidence --c-factor 10 \
+	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --threshold $thr005 \
 	    data/voxceleb1_test/trials_o_clean \
     	    data/voxceleb1_test/utt2model \
@@ -293,7 +300,8 @@ if [ $stage -le 7 ];then
 	echo "Eval Voxceleb 1 with Cosine scoring with Carlini-Wagner LInf attack confidence=$confidence"
 	steps_adv/eval_cosine_scoring_from_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 40 \
 	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
-	    --attack-type cw-linf --confidence $confidence --c-factor 2 --save-wav-path $score_plda_dir/wav \
+	    --attack-type cw-linf --confidence $confidence --c-factor 2 \
+	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --threshold $thr005 \
 	    data/voxceleb1_test/trials_o_clean \
     	    data/voxceleb1_test/utt2model \
