@@ -48,6 +48,7 @@ def read_data(v_file, key_file, enroll_file, seg_part_idx, num_seg_parts):
     x_e = r.read(enroll.key, squeeze=True)
 
     f, idx = ismember(key.model_set, enroll.info)
+    
     assert np.all(f)
     x_e = x_e[idx]
 
@@ -63,7 +64,6 @@ class Calibrator(nn.Module):
 
     def forward(self, x):
         return self.a*x+self.b
-
 
 class MyModel(nn.Module):
 
@@ -108,10 +108,13 @@ class MyModel(nn.Module):
         return score
 
 
+
 def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
                         mvn_no_norm_mean, mvn_norm_var, mvn_context,
-                        vad_spec, vad_path_prefix, model_path, embed_layer,
-                        score_file, stats_file, cal_file, threshold,
+                        vad_spec, vad_path_prefix, transfer_v_file, 
+                        model_path, transfer_model_path,
+                        embed_layer,
+                        score_file, stats_file, cal_file, transfer_cal_file, threshold,
                         save_adv_wav, save_adv_wav_path,
                         use_gpu, seg_part_idx, num_seg_parts, 
                         **kwargs):
@@ -129,6 +132,10 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
     logging.info('initializing feature extractor args={}'.format(feat_args))
     feat_extractor = AFF.create(**feat_args)
 
+    tfeat_args = AFF.filter_args(**kwargs, prefix='transfer')
+    logging.info('initializing feature extractor for transfer model args={}'.format(tfeat_args))
+    tfeat_extractor = AFF.create(**tfeat_args)
+    print(tfeat_extractor)
     do_mvn = False
     if not mvn_no_norm_mean or mvn_norm_var:
         do_mvn = True
@@ -139,7 +146,6 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
             norm_mean=(not mvn_no_norm_mean), norm_var=mvn_norm_var,
             left_context=mvn_context, right_context=mvn_context)
 
-
     logging.info('loading model {}'.format(model_path))
     xvector_model = TML.load(model_path)
     xvector_model.freeze()
@@ -148,24 +154,42 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
     if cal_file is not None:
         logging.info('loading calibration params {}'.format(cal_file))
         lr = LR.load(cal_file)
-        #subting the threshold here will put the decision threshold in 0
-        #some attacks use thr=0 to decide if the attack is succesful
-        calibrator = Calibrator(lr.A[0,0], lr.b[0]) 
-        calibrator #.to(device)
+        calibrator = Calibrator(lr.A[0,0], lr.b[0])
+        calibrator.to(device)
 
     model = MyModel(feat_extractor, xvector_model, mvn, embed_layer, calibrator, 
                     threshold=threshold)
     model.to(device)
     model.eval()
 
-    #tar = torch.as_tensor([1], dtype=torch.float).to(device)
-    #non = torch.as_tensor([0], dtype=torch.float).to(device)
-    tar = np.asarray([1], dtype=np.int)
-    non = np.asarray([0], dtype=np.int)
+    logging.info('loading transfer model {}'.format(transfer_model_path))
+    xvector_tmodel = TML.load(transfer_model_path)
+    xvector_tmodel.freeze()
+
+    tcalibrator = None
+    if transfer_cal_file is not None:
+        logging.info('loading calibration params for transfer model {}'.format(transfer_cal_file))
+        lr = LR.load(transfer_cal_file)
+        #subting the threshold here will put the decision threshold in 0
+        #some attacks use thr=0 to decide if the attack is succesful
+        #no need to subtract in the black-box model since we don't use it for attacks
+        tcalibrator = Calibrator(lr.A[0,0], lr.b[0])
+        tcalibrator.to(device)
+
+    tmodel = MyModel(tfeat_extractor, xvector_tmodel, mvn, embed_layer, tcalibrator, 
+                     threshold=threshold)
+    tmodel.to(device)
+    tmodel.eval()
+
+    tar = torch.as_tensor([1], dtype=torch.float).to(device)
+    non = torch.as_tensor([0], dtype=torch.float).to(device)
 
     logging.info('loading key and enrollment x-vectors')
     key, x_e = read_data(v_file, key_file, enroll_file, seg_part_idx, num_seg_parts)
     x_e = torch.as_tensor(x_e, dtype=torch.get_default_dtype())
+
+    _, t_x_e = read_data(transfer_v_file, key_file, enroll_file, seg_part_idx, num_seg_parts)
+    t_x_e = torch.as_tensor(t_x_e, dtype=torch.get_default_dtype())
 
     audio_args = AR.filter_args(**kwargs)
     audio_reader = AR(test_wav_file)
@@ -179,7 +203,7 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
     attack_type = attack_args['attack_type']
     del attack_args['attack_type']
     attack_args['attack_eps'] *= wav_scale
-    attack_args['attack_eps_step'] *= wav_scale
+    attack_args['attack_alpha'] *= wav_scale
     logging.info('attack-args={}'.format(attack_args))
 
     if vad_spec is not None:
@@ -199,10 +223,8 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
         s = s[0]
         fs = fs[0]
 
-        #s = torch.as_tensor(s[None,:], dtype=torch.get_default_dtype()).to(device)
-        s = s[None,:].astype('float32', copy=False)
-        s_tensor = torch.as_tensor(s, dtype=torch.get_default_dtype()).to(device)
-
+        s = torch.as_tensor(s[None,:], dtype=torch.get_default_dtype()).to(device)
+        
         if vad_spec is not None:
             vad = v_reader.read([key.seg_set[j]])[0]
             tot_frames = len(vad)
@@ -234,6 +256,7 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
             if key.tar[i,j] or key.non[i,j]:
                 t3 = time.time()
                 model.x_e = x_e[i].to(device)
+                tmodel.x_e = t_x_e[i].to(device)
                 if key.tar[i,j]:
                     if attack.targeted:
                         t = non
@@ -255,7 +278,7 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
                 num_trials += 1
 
                 s_adv = s_adv.detach()
-                stats_ij = compute_stats_adv_attack(s_tensor, s_adv)
+                stats_ij = compute_stats_adv_attack(s, s_adv)
                 stats_ij = [stat.detach().cpu().numpy()[0] for stat in stats_ij]
                 attack_stats = attack_stats.append({
                     'modelid': key.model_set[i], 'segmentid': key.seg_set[j],
@@ -279,9 +302,9 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
         t7 = time.time()
         logging.info((
             'utt %s total-time=%.3f read-time=%.3f trial-time=%.3f n_trials=%d '
-            'rt-factor=%.5f') % (
+            'rt-factor=%.2f') % (
                 key.seg_set[j], t7-t1, t2-t1, trial_time, num_trials,
-                num_trials*s.shape[-1]/fs/(t7-t1)))
+                num_trials*len(s)/fs/(t7-t1)))
         
     if num_seg_parts > 1:
         score_file = '%s-%03d-%03d' % (score_file, 1, seg_part_idx)
@@ -302,15 +325,19 @@ if __name__ == "__main__":
     parser=argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,                
         fromfile_prefix_chars='@',
-        description='Eval cosine-scoring given enroll x-vector and adversarial test wave from ART')
+        description=('Eval cosine-scoring given enroll x-vector and adversarial test wave '
+                     'obtained from a different model with ART')
 
     parser.add_argument('--v-file', dest='v_file', required=True)
     parser.add_argument('--key-file', dest='key_file', default=None)
     parser.add_argument('--enroll-file', dest='enroll_file', required=True)
     parser.add_argument('--test-wav-file', required=True)
 
+    parser.add_argument('--transfer-v-file', dest='transfer_v_file', required=True)
+
     AR.add_argparse_args(parser)
     AFF.add_argparse_args(parser)
+    AFF.add_argparse_args(parser, prefix='transfer')
 
     parser.add_argument('--mvn-no-norm-mean', 
                         default=False, action='store_true',
@@ -329,6 +356,7 @@ if __name__ == "__main__":
                         help=('scp file_path prefix for vad'))
 
     parser.add_argument('--model-path', required=True)
+    parser.add_argument('--transfer-model-path', required=True)
     parser.add_argument('--embed-layer', type=int, default=None, 
                         help=('classifier layer to get the embedding from,' 
                               'if None the layer set in training phase is used'))
@@ -366,8 +394,12 @@ if __name__ == "__main__":
     parser.add_argument('--stats-file', default=None, 
                         help='output path of to save stats of adv signals')
 
-    parser.add_argument('--cal-file', default=None, help='score calibration file')
+    parser.add_argument('--cal-file', default=None, 
+                        help='score calibration file')
+    parser.add_argument('--transfer-cal-file', default=None, 
+                        help='score calibration file for transfer model')
     parser.add_argument('--threshold', default=0, type=float, help='decision threshold')
+
     
     args=parser.parse_args()
     config_logger(args.verbose)
