@@ -30,6 +30,7 @@ be_name=lda${lda_dim}_${plda_label}_${plda_data}
 xvector_dir=exp/xvectors/$nnet_name
 score_dir=exp/scores/$nnet_name
 
+score_clean=$score_dir/cosine_cal_v1/voxceleb1_scores
 cal_file=$score_dir/cosine_cal_v1/cal_tel.h5
 
 #thresholds for p=(0.05,0.01,0.001) -> thr=(2.94, 4.60, 6.90)
@@ -42,7 +43,9 @@ declare -a stats_array
 
 if [ $stage -le 1 ];then
 
-    for eps in 0.00001 #0.0001 0.001 0.01 0.1
+    score_array=()
+    stats_array=()
+    for eps in 0.00001 0.0001 0.001 0.01 0.1
     do
 	score_plda_dir=$score_dir/cosine_art_fgsm_e${eps}
 	echo "Eval Voxceleb 1 with Cosine scoring with FGSM attack eps=$eps"
@@ -77,19 +80,21 @@ if [ $stage -le 1 ];then
 	    data/voxceleb1_test/trials_o_clean $score_clean "${score_array[*]}" "${stats_array[*]}" \
 	    $score_analysis_dir/voxceleb1 &
     fi
-
 fi
-exit
 
 if [ $stage -le 2 ];then
+    score_array=()
+    stats_array=()
 
-    for snr in 30 20 10 0
+    for eps in 0.00001 0.0001 0.001 0.01 0.1
     do
-	score_plda_dir=$score_dir/cosine_fgsm_snr${snr}
-	echo "Eval Voxceleb 1 with Cosine scoring with FGSM attack snr=$snr"
-	steps_adv/eval_cosine_scoring_from_art_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 20 \
+	alpha=$(echo $eps | awk '{ print $0/5.}')
+	score_plda_dir=$score_dir/cosine_art_fgsm_minimal_e${eps}
+	echo "Eval Voxceleb 1 with Cosine scoring with FGSM minimal attack eps=$eps"
+	steps_adv/eval_cosine_scoring_from_art_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 80 \
 	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
-	    --attack-type snr-fgsm --snr $snr --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
+	    --attack-type fgm --attack-opt "--attack-eps $eps --attack-eps-step $alpha --attack-minimal" \
+	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --threshold $thr005 \
 	    data/voxceleb1_test/trials_o_clean \
     	    data/voxceleb1_test/utt2model \
@@ -106,21 +111,31 @@ if [ $stage -le 2 ];then
 	    cat $f
 	    echo ""
 	done
+
+	score_array+=($score_plda_dir/voxceleb1_scores)
+	stats_array+=($score_plda_dir/voxceleb1_stats)
+
     done
+    if [ "${do_analysis}" == "true" ];then
+	score_analysis_dir=$score_dir/cosine_art_fgsm_minimal_eall
+	local/attack_analysis.sh --cmd "$train_cmd --mem 10G" \
+	    data/voxceleb1_test/trials_o_clean $score_clean "${score_array[*]}" "${stats_array[*]}" \
+	    $score_analysis_dir/voxceleb1 &
+    fi
 
 fi
-
 
 if [ $stage -le 3 ];then
-
+    score_array=()
+    stats_array=()
     for eps in 0.00001 0.0001 0.001 0.01 0.1
     do
-	alpha=$(echo $eps | awk '{ print $0/5.}')
-	score_plda_dir=$score_dir/cosine_randfgsm_e${eps}_a${alpha}
-	echo "Eval Voxceleb 1 with Cosine scoring with Rand-FGSM attack eps=$eps"
-	steps_adv/eval_cosine_scoring_from_art_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 20 \
+	score_plda_dir=$score_dir/cosine_art_fgml1_e${eps}
+	echo "Eval Voxceleb 1 with Cosine scoring with FGM-L1 attack eps=$eps"
+	steps_adv/eval_cosine_scoring_from_art_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 80 \
 	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
-	    --attack-type rand-fgsm --eps $eps --alpha $alpha --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
+	    --attack-type fgm --attack-opt "--attack-eps $eps --attack-norm 1" \
+	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --threshold $thr005 \
 	    data/voxceleb1_test/trials_o_clean \
     	    data/voxceleb1_test/utt2model \
@@ -137,21 +152,32 @@ if [ $stage -le 3 ];then
 	    cat $f
 	    echo ""
 	done
-    done
 
+	score_array+=($score_plda_dir/voxceleb1_scores)
+	stats_array+=($score_plda_dir/voxceleb1_stats)
+
+    done
+    if [ "${do_analysis}" == "true" ];then
+	score_analysis_dir=$score_dir/cosine_art_fgml1_eall
+	local/attack_analysis.sh --cmd "$train_cmd --mem 10G" \
+	    data/voxceleb1_test/trials_o_clean $score_clean "${score_array[*]}" "${stats_array[*]}" \
+	    $score_analysis_dir/voxceleb1 &
+    fi
 fi
 
-
 if [ $stage -le 4 ];then
+    score_array=()
+    stats_array=()
 
     for eps in 0.00001 0.0001 0.001 0.01 0.1
     do
 	alpha=$(echo $eps | awk '{ print $0/5.}')
-	score_plda_dir=$score_dir/cosine_iterfgsm_e${eps}_a${alpha}
-	echo "Eval Voxceleb 1 with Cosine scoring with Iterative FGSM attack eps=$eps"
-	steps_adv/eval_cosine_scoring_from_art_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 20 \
+	score_plda_dir=$score_dir/cosine_art_fgml1_minimal_e${eps}
+	echo "Eval Voxceleb 1 with Cosine scoring with FGM-L1 minimal attack eps=$eps"
+	steps_adv/eval_cosine_scoring_from_art_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 80 \
 	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
-	    --attack-type iter-fgsm --eps $eps --alpha $alpha --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
+	    --attack-type fgm --attack-opt "--attack-eps $eps --attack-eps-step $alpha --attack-minimal --attack-norm 1" \
+	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --threshold $thr005 \
 	    data/voxceleb1_test/trials_o_clean \
     	    data/voxceleb1_test/utt2model \
@@ -168,21 +194,32 @@ if [ $stage -le 4 ];then
 	    cat $f
 	    echo ""
 	done
+
+	score_array+=($score_plda_dir/voxceleb1_scores)
+	stats_array+=($score_plda_dir/voxceleb1_stats)
+
     done
+    if [ "${do_analysis}" == "true" ];then
+	score_analysis_dir=$score_dir/cosine_art_fgml1_minimal_eall
+	local/attack_analysis.sh --cmd "$train_cmd --mem 10G" \
+	    data/voxceleb1_test/trials_o_clean $score_clean "${score_array[*]}" "${stats_array[*]}" \
+	    $score_analysis_dir/voxceleb1 &
+    fi
 
 fi
 
 
 if [ $stage -le 5 ];then
-
-    for confidence in 0 1
+    score_array=()
+    stats_array=()
+    for eps in 0.00001 0.0001 0.001 0.01 0.1
     do
-	alpha=$(echo $eps | awk '{ print $0/5.}')
-	score_plda_dir=$score_dir/cosine_cwl2_conf${confidence}
-	echo "Eval Voxceleb 1 with Cosine scoring with Carlini-Wagner L2 attack confidence=$confidence"
-	steps_adv/eval_cosine_scoring_from_art_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 20 \
+	score_plda_dir=$score_dir/cosine_art_fgml2_e${eps}
+	echo "Eval Voxceleb 1 with Cosine scoring with FGM-L2 attack eps=$eps"
+	steps_adv/eval_cosine_scoring_from_art_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 80 \
 	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
-	    --attack-type cw-l2 --confidence $confidence --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
+	    --attack-type fgm --attack-opt "--attack-eps $eps --attack-norm 2" \
+	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --threshold $thr005 \
 	    data/voxceleb1_test/trials_o_clean \
     	    data/voxceleb1_test/utt2model \
@@ -199,21 +236,32 @@ if [ $stage -le 5 ];then
 	    cat $f
 	    echo ""
 	done
-    done
 
+	score_array+=($score_plda_dir/voxceleb1_scores)
+	stats_array+=($score_plda_dir/voxceleb1_stats)
+
+    done
+    if [ "${do_analysis}" == "true" ];then
+	score_analysis_dir=$score_dir/cosine_art_fgml2_eall
+	local/attack_analysis.sh --cmd "$train_cmd --mem 10G" \
+	    data/voxceleb1_test/trials_o_clean $score_clean "${score_array[*]}" "${stats_array[*]}" \
+	    $score_analysis_dir/voxceleb1 &
+    fi
 fi
 
+if [ $stage -le 6 ];then
+    score_array=()
+    stats_array=()
 
-if [ $stage -le -6 ];then
-
-    for confidence in 0 1
+    for eps in 0.00001 0.0001 0.001 0.01 0.1
     do
 	alpha=$(echo $eps | awk '{ print $0/5.}')
-	score_plda_dir=$score_dir/cosine_cwl0_conf${confidence}
-	echo "Eval Voxceleb 1 with Cosine scoring with Carlini-Wagner L0 attack confidence=$confidence"
-	steps_adv/eval_cosine_scoring_from_art_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 1000 \
+	score_plda_dir=$score_dir/cosine_art_fgml2_minimal_e${eps}
+	echo "Eval Voxceleb 1 with Cosine scoring with FGM-L2 minimal attack eps=$eps"
+	steps_adv/eval_cosine_scoring_from_art_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 80 \
 	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
-	    --attack-type cw-l0 --confidence $confidence --c-factor 10 --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
+	    --attack-type fgm --attack-opt "--attack-eps $eps --attack-eps-step $alpha --attack-minimal --attack-norm 2" \
+	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --threshold $thr005 \
 	    data/voxceleb1_test/trials_o_clean \
     	    data/voxceleb1_test/utt2model \
@@ -230,22 +278,33 @@ if [ $stage -le -6 ];then
 	    cat $f
 	    echo ""
 	done
+
+	score_array+=($score_plda_dir/voxceleb1_scores)
+	stats_array+=($score_plda_dir/voxceleb1_stats)
+
     done
+    if [ "${do_analysis}" == "true" ];then
+	score_analysis_dir=$score_dir/cosine_art_fgml2_minimal_eall
+	local/attack_analysis.sh --cmd "$train_cmd --mem 10G" \
+	    data/voxceleb1_test/trials_o_clean $score_clean "${score_array[*]}" "${stats_array[*]}" \
+	    $score_analysis_dir/voxceleb1 &
+    fi
 
 fi
-
 
 
 if [ $stage -le 7 ];then
-
-    for confidence in 0 1
+    score_array=()
+    stats_array=()
+    for eps in 0.00001 0.0001 0.001 0.01 0.1
     do
 	alpha=$(echo $eps | awk '{ print $0/5.}')
-	score_plda_dir=$score_dir/cosine_cwlinf_conf${confidence}
-	echo "Eval Voxceleb 1 with Cosine scoring with Carlini-Wagner LInf attack confidence=$confidence"
-	steps_adv/eval_cosine_scoring_from_art_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 40 \
+	score_plda_dir=$score_dir/cosine_art_iterfgsm_e${eps}
+	echo "Eval Voxceleb 1 with Cosine scoring with IterFGM attack eps=$eps"
+	steps_adv/eval_cosine_scoring_from_art_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 80 \
 	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
-	    --attack-type cw-linf --confidence $confidence --c-factor 2 --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
+	    --attack-type bim --attack-opt "--attack-eps $eps --attack-eps-step $alpha --attack-max-iter 10" \
+	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --threshold $thr005 \
 	    data/voxceleb1_test/trials_o_clean \
     	    data/voxceleb1_test/utt2model \
@@ -262,6 +321,216 @@ if [ $stage -le 7 ];then
 	    cat $f
 	    echo ""
 	done
+
+	score_array+=($score_plda_dir/voxceleb1_scores)
+	stats_array+=($score_plda_dir/voxceleb1_stats)
+
+    done
+    if [ "${do_analysis}" == "true" ];then
+	score_analysis_dir=$score_dir/cosine_art_iterfgsm_eall
+	local/attack_analysis.sh --cmd "$train_cmd --mem 10G" \
+	    data/voxceleb1_test/trials_o_clean $score_clean "${score_array[*]}" "${stats_array[*]}" \
+	    $score_analysis_dir/voxceleb1 &
+    fi
+fi
+
+if [ $stage -le 8 ];then
+    score_array=()
+    stats_array=()
+    for eps in 0.00001 0.0001 0.001 0.01 0.1
+    do
+	alpha=$(echo $eps | awk '{ print $0/5.}')
+	score_plda_dir=$score_dir/cosine_art_pgdlinf_e${eps}
+	echo "Eval Voxceleb 1 with Cosine scoring with PGD Linf attack eps=$eps"
+	steps_adv/eval_cosine_scoring_from_art_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 80 \
+	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
+	    --attack-type pgd --attack-opt "--attack-eps $eps --attack-eps-step $alpha --attack-max-iter 10" \
+	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
+	    --cal-file $cal_file --threshold $thr005 \
+	    data/voxceleb1_test/trials_o_clean \
+    	    data/voxceleb1_test/utt2model \
+            data/voxceleb1_test \
+    	    $xvector_dir/voxceleb1_test/xvector.scp \
+	    $nnet $score_plda_dir/voxceleb1_scores $score_plda_dir/voxceleb1_stats
+    	
+	$train_cmd --mem 10G $score_plda_dir/log/score_voxceleb1.log \
+	    local/score_voxceleb1_o_clean.sh data/voxceleb1_test $score_plda_dir 
+	
+	for f in $(ls $score_plda_dir/*_results);
+	do
+	    echo $f
+	    cat $f
+	    echo ""
+	done
+
+	score_array+=($score_plda_dir/voxceleb1_scores)
+	stats_array+=($score_plda_dir/voxceleb1_stats)
+
+    done
+    if [ "${do_analysis}" == "true" ];then
+	score_analysis_dir=$score_dir/cosine_art_pgdlinf_eall
+	local/attack_analysis.sh --cmd "$train_cmd --mem 10G" \
+	    data/voxceleb1_test/trials_o_clean $score_clean "${score_array[*]}" "${stats_array[*]}" \
+	    $score_analysis_dir/voxceleb1 &
+    fi
+fi
+
+
+if [ $stage -le 9 ];then
+    score_array=()
+    stats_array=()
+    for eps in 0.00001 0.0001 0.001 0.01 0.1
+    do
+	alpha=$(echo $eps | awk '{ print $0/5.}')
+	score_plda_dir=$score_dir/cosine_art_pgdl1_e${eps}
+	echo "Eval Voxceleb 1 with Cosine scoring with PGD Linf attack eps=$eps"
+	steps_adv/eval_cosine_scoring_from_art_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 80 \
+	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
+	    --attack-type pgd --attack-opt "--attack-eps $eps --attack-eps-step $alpha --attack-max-iter 10 --attack-norm 1" \
+	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
+	    --cal-file $cal_file --threshold $thr005 \
+	    data/voxceleb1_test/trials_o_clean \
+    	    data/voxceleb1_test/utt2model \
+            data/voxceleb1_test \
+    	    $xvector_dir/voxceleb1_test/xvector.scp \
+	    $nnet $score_plda_dir/voxceleb1_scores $score_plda_dir/voxceleb1_stats
+    	
+	$train_cmd --mem 10G $score_plda_dir/log/score_voxceleb1.log \
+	    local/score_voxceleb1_o_clean.sh data/voxceleb1_test $score_plda_dir 
+	
+	for f in $(ls $score_plda_dir/*_results);
+	do
+	    echo $f
+	    cat $f
+	    echo ""
+	done
+
+	score_array+=($score_plda_dir/voxceleb1_scores)
+	stats_array+=($score_plda_dir/voxceleb1_stats)
+
+    done
+    if [ "${do_analysis}" == "true" ];then
+	score_analysis_dir=$score_dir/cosine_art_pgdl1_eall
+	local/attack_analysis.sh --cmd "$train_cmd --mem 10G" \
+	    data/voxceleb1_test/trials_o_clean $score_clean "${score_array[*]}" "${stats_array[*]}" \
+	    $score_analysis_dir/voxceleb1 &
+    fi
+fi
+
+if [ $stage -le 10 ];then
+    score_array=()
+    stats_array=()
+    for eps in 0.00001 0.0001 0.001 0.01 0.1
+    do
+	alpha=$(echo $eps | awk '{ print $0/5.}')
+	score_plda_dir=$score_dir/cosine_art_pgdl2_e${eps}
+	echo "Eval Voxceleb 1 with Cosine scoring with PGD Linf attack eps=$eps"
+	steps_adv/eval_cosine_scoring_from_art_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 80 \
+	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
+	    --attack-type pgd --attack-opt "--attack-eps $eps --attack-eps-step $alpha --attack-max-iter 10 --attack-norm 2" \
+	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
+	    --cal-file $cal_file --threshold $thr005 \
+	    data/voxceleb1_test/trials_o_clean \
+    	    data/voxceleb1_test/utt2model \
+            data/voxceleb1_test \
+    	    $xvector_dir/voxceleb1_test/xvector.scp \
+	    $nnet $score_plda_dir/voxceleb1_scores $score_plda_dir/voxceleb1_stats
+    	
+	$train_cmd --mem 10G $score_plda_dir/log/score_voxceleb1.log \
+	    local/score_voxceleb1_o_clean.sh data/voxceleb1_test $score_plda_dir 
+	
+	for f in $(ls $score_plda_dir/*_results);
+	do
+	    echo $f
+	    cat $f
+	    echo ""
+	done
+
+	score_array+=($score_plda_dir/voxceleb1_scores)
+	stats_array+=($score_plda_dir/voxceleb1_stats)
+
+    done
+    if [ "${do_analysis}" == "true" ];then
+	score_analysis_dir=$score_dir/cosine_art_pgdl2_eall
+	local/attack_analysis.sh --cmd "$train_cmd --mem 10G" \
+	    data/voxceleb1_test/trials_o_clean $score_clean "${score_array[*]}" "${stats_array[*]}" \
+	    $score_analysis_dir/voxceleb1 &
+    fi
+fi
+
+if [ $stage -le 11 ];then
+
+    for confidence in 0 #1
+    do
+	score_plda_dir=$score_dir/cosine_art_cwl2_conf${confidence}
+	echo "Eval Voxceleb 1 with Cosine scoring with Carlini-Wagner L2 attack confidence=$confidence"
+	steps_adv/eval_cosine_scoring_from_art_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 400 \
+	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
+	    --attack-type cw-l2 --attack-opt "--attack-confidence $confidence" \
+	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
+	    --cal-file $cal_file --threshold $thr005 \
+	    data/voxceleb1_test/trials_o_clean \
+    	    data/voxceleb1_test/utt2model \
+            data/voxceleb1_test \
+    	    $xvector_dir/voxceleb1_test/xvector.scp \
+	    $nnet $score_plda_dir/voxceleb1_scores $score_plda_dir/voxceleb1_stats
+    	
+	$train_cmd --mem 10G $score_plda_dir/log/score_voxceleb1.log \
+	    local/score_voxceleb1_o_clean.sh data/voxceleb1_test $score_plda_dir 
+	
+	for f in $(ls $score_plda_dir/*_results);
+	do
+	    echo $f
+	    cat $f
+	    echo ""
+	done
+	if [ "${do_analysis}" == "true" ];then
+	    score_analysis_dir=$score_plda_dir
+	    local/attack_analysis.sh --cmd "$train_cmd --mem 10G" \
+		data/voxceleb1_test/trials_o_clean $score_clean \
+		$score_plda_dir/voxceleb1_scores $score_plda_dir/voxceleb1_stats \
+		$score_analysis_dir/voxceleb1 &
+	fi
+
+    done
+
+fi
+
+
+if [ $stage -le 12 ];then
+
+    for confidence in 0 #1
+    do
+	score_plda_dir=$score_dir/cosine_art_cwlinf_conf${confidence}
+	echo "Eval Voxceleb 1 with Cosine scoring with Carlini-Wagner Linf attack confidence=$confidence"
+	steps_adv/eval_cosine_scoring_from_art_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 400 \
+	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
+	    --attack-type cw-linf --attack-opt "--attack-confidence $confidence --attack-eps 0.3" \
+	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
+	    --cal-file $cal_file --threshold $thr005 \
+	    data/voxceleb1_test/trials_o_clean \
+    	    data/voxceleb1_test/utt2model \
+            data/voxceleb1_test \
+    	    $xvector_dir/voxceleb1_test/xvector.scp \
+	    $nnet $score_plda_dir/voxceleb1_scores $score_plda_dir/voxceleb1_stats
+    	
+	$train_cmd --mem 10G $score_plda_dir/log/score_voxceleb1.log \
+	    local/score_voxceleb1_o_clean.sh data/voxceleb1_test $score_plda_dir 
+	
+	for f in $(ls $score_plda_dir/*_results);
+	do
+	    echo $f
+	    cat $f
+	    echo ""
+	done
+	if [ "${do_analysis}" == "true" ];then
+	    score_analysis_dir=$score_plda_dir
+	    local/attack_analysis.sh --cmd "$train_cmd --mem 10G" \
+		data/voxceleb1_test/trials_o_clean $score_clean \
+		$score_plda_dir/voxceleb1_scores $score_plda_dir/voxceleb1_stats \
+		$score_analysis_dir/voxceleb1 &
+	fi
+
     done
 
 fi

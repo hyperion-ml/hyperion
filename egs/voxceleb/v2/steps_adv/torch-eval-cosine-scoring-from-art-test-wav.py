@@ -179,6 +179,7 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
     del attack_args['attack_type']
     attack_args['attack_eps'] *= wav_scale
     attack_args['attack_eps_step'] *= wav_scale
+    logging.info('attack-args={}'.format(attack_args))
 
     if vad_spec is not None:
         logging.info('opening VAD stream: %s' % (vad_spec))
@@ -225,7 +226,7 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
             device_type=device_type)
 
         attack = AttackFactory.create(
-            attack_type, model_art, **attack_args)
+            attack_type, model_art, num_samples=s.shape[-1], **attack_args)
 
         for i in range(key.num_models):
             if key.tar[i,j] or key.non[i,j]:

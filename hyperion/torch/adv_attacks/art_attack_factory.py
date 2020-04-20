@@ -14,7 +14,7 @@ class ARTAttackFactory(object):
 
     @staticmethod
     def create(attack_type, model, attack_eps=0, attack_delta=0.01,
-               attack_step_adapt=0.667, attack_max_iter=10,
+               attack_step_adapt=0.667, 
                attack_num_trial=25, attack_sample_size=20,
                attack_init_size=100,
                attack_norm=np.inf, attack_eps_step=0.1,
@@ -25,7 +25,16 @@ class ARTAttackFactory(object):
                attack_confidence=0.0, attack_lr=1e-2, 
                attack_binary_search_steps=9, attack_max_iter=10,
                attack_c=1e-3, attack_max_halving=5, attack_max_doubling=5,
-               targeted=False):
+               targeted=False, num_samples=1):
+
+        if attack_type == 'fgm' or attack_type == 'pgd':
+            if attack_norm == 1:
+                attack_eps = attack_eps * num_samples
+                attack_eps_step = attack_eps_step * num_samples
+            elif attack_norm == 2:
+                attack_eps = attack_eps * np.sqrt(num_samples)
+                attack_eps_step = attack_eps_step * np.sqrt(num_samples)
+
 
         if attack_type == 'boundary':
             return attacks.BoundaryAttack(
@@ -35,35 +44,35 @@ class ARTAttackFactory(object):
                 sample_size=attack_sample_size, init_size=attack_init_size)
                                           
         if attack_type == 'fgm':
-            return attack.FastGradientMethod(
+            return attacks.FastGradientMethod(
                 model, norm=attack_norm, eps=attack_eps, 
                 eps_step=attack_eps_step,
                 targeted=targeted,
                 num_random_init=attack_num_random_init, minimal=attack_minimal)
 
         if attack_type == 'bim':
-            return attack.BasicIterativeMethod(
+            return attacks.BasicIterativeMethod(
                 model, eps=attack_eps, eps_step=attack_eps_step,
                 max_iter=attack_max_iter,targeted=targeted)
 
         if attack_type == 'pgd':
-            return attack.ProjectedGradientDescent(
+            return attacks.ProjectedGradientDescent(
                 model, norm=attack_norm, eps=attack_eps, 
                 eps_step=attack_eps_step, max_iter=attack_max_iter,
                 targeted=targeted, 
-                num_random_init=attack_num_random_init, random_eps=random_eps)
+                num_random_init=attack_num_random_init, random_eps=attack_random_eps)
 
         if attack_type == 'jsma':
-            return attack.SaliencyMapMethod(
+            return attacks.SaliencyMapMethod(
                 model, theta=attack_theta, gamma=attack_gamma)
 
         if attack_type == 'newtonfool':
-            return attack.NewtonFool(
+            return attacks.NewtonFool(
                 model, theta=attack_eta, max_iter=attack_max_iter)
 
 
         if attack_type == 'cw-l2':
-            return attack.CarliniL2Method(
+            return attacks.CarliniL2Method(
                 model, attack_confidence, learning_rate=attack_lr, 
                 binary_search_steps=attack_binary_search_steps, 
                 max_iter=attack_max_iter, initial_const=attack_c,
@@ -72,15 +81,12 @@ class ARTAttackFactory(object):
 
 
         if attack_type == 'cw-linf':
-            return attack.CarliniLInfMethod(
+            return attacks.CarliniLInfMethod(
                 model, attack_confidence, learning_rate=attack_lr, 
-                binary_search_steps=attack_binary_search_steps, 
-                max_iter=attack_max_iter, initial_const=attack_c,
-                targeted=targeted,
+                max_iter=attack_max_iter, targeted=targeted,
                 max_halving=attack_max_halving, max_doubling=attack_max_doubling,
                 eps=attack_eps)
 
-                
         raise Exception('%s is not a valid attack type' % (attack_type))
 
 
@@ -109,7 +115,7 @@ class ARTAttackFactory(object):
                       'attack_confidence',
                       'attack_lr', 'attack_binary_search_steps',
                       'attack_max_iter', 
-                      'attack_c', 'attack_max_halving', 'attack_max_doubling'
+                      'attack_c', 'attack_max_halving', 'attack_max_doubling',
                       'targeted')
 
         args = dict((k, kwargs[p+k])

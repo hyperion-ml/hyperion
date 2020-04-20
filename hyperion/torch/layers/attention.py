@@ -12,10 +12,17 @@ from torch import nn
 
 
 class ScaledDotProdAttV1(nn.Module):
-    """Inner product Multi-Head Attention layer.
-    :param int n_head: the number of head s
-    :param int n_feat: the number of features
-    :param float dropout_rate: dropout rate
+    """Scaled dot product multihead attention layer
+
+    Attributes:
+       in_feats: input feature dimension
+       out_feats: output feature dimension
+       num_heads: number of heads
+       d_k: key/query projection dimension
+       d_v: value projection dimension
+       dropout_rate: dropout rate
+       time_dim: time dimension in the input, default=1 meaning input 
+                 dimensions are (batch, time, in_feats)
     """
 
     def __init__(self, in_feats, out_feats, num_heads, d_k, d_v, dropout_rate=0, time_dim=1):
@@ -55,14 +62,19 @@ class ScaledDotProdAttV1(nn.Module):
 
 
     def forward(self, query, key, value, mask=None):
-        """Compute 'Scaled Dot Product Attention'.
-        :param torch.Tensor query: (batch, time1, size)
-        :param torch.Tensor key: (batch, time2, size)
-        :param torch.Tensor value: (batch, time2, size)
-        :param torch.Tensor mask: (batch, time1, time2)
-        :param torch.nn.Dropout dropout:
-        :return torch.Tensor: attentined and transformed `value` (batch, time1, d_model)
-             weighted by the query dot key attention (batch, head, time1, time2)
+        """Computes 'Scaled Dot Product Attention'.
+
+        Args:
+           query: query with size=(batch, time1, in_feats), 
+                  where time1 is the output time dimension
+           key: key with size=(batch, time2, in_feats)
+                  where time1 is the input time dimension
+           value: value with size=(batch, time2, in_feats)
+           mask: optional mask with size=(batch, time1, time2), 
+                  to zero attention between some time steps.
+
+        Returns:
+           Attention weigthed average of the value with size=(batch, time1, out_feats)
         """
         batch_size = value.size(0)
         if self.time_dim != 1:
@@ -99,10 +111,20 @@ class ScaledDotProdAttV1(nn.Module):
 
 
 class LocalScaledDotProdAttV1(ScaledDotProdAttV1):
-    """Inner product Multi-Head Attention layer.
-    :param int n_head: the number of head s
-    :param int n_feat: the number of features
-    :param float dropout_rate: dropout rate
+    """Local Scaled dot product multihead attention layer 
+       I calculates self-attention between time steps within
+       a window of 'context' frames.
+
+    Attributes:
+       in_feats: input feature dimension
+       out_feats: output feature dimension
+       num_heads: number of heads
+       d_k: key/query projection dimension
+       d_v: value projection dimension
+       context: maximum attention temporal context.
+       dropout_rate: dropout rate
+       time_dim: time dimension in the input, default=1 meaning input 
+                 dimensions are (batch, time, in_feats)
     """
 
     def __init__(self, in_feats, out_feats, num_heads, d_k, d_v, 
@@ -125,9 +147,32 @@ class LocalScaledDotProdAttV1(ScaledDotProdAttV1):
 
     @staticmethod
     def _softmax(scores1, scores2, shift1, shift2, t1, t2):
-        
-        # scores1 = (batch, heads, blocks, t1, t2)
-        # scores2 = (batch, heads, blocks-1 , t1, t2)
+        """Computes softmax for block diagonal attention maps
+
+        Args:
+          scores1: attention scores from block-diagonal score matrix
+                   with size=(batch, heads, blocks, t1, t2)
+          scores2: attention scores from a shifted block-diagonal score matrix
+                   with size=(batch, heads, blocks-1, t1, t2)
+          shift1: shift of diagonal blocks of scores2 wrt scores1 in time steps in the 
+                  time dimension 1
+          shift2: shift of diagonal blocks of scores2 wrt scores1 in time steps in the 
+                  time dimension 2, with self-attention shift1=shift2
+          t1: length of time dimension 1 (output time dimension)
+          t2: length of time dimension 2 (input time dimension), with self-att t1=t2.
+
+        Returns
+          probs1: posterior attention scores for block-diagonal att. matrix
+                   with size=(batch, heads, blocks, t1, t2)
+          probs2: posterior attention scores for a shifted block-diagonal att. matrix
+                   with size=(batch, heads, blocks-1, t1, t2)
+           
+        """
+        if scores2.dtype == torch.half:
+            min_val = -65504
+        else:
+            min_val = -1e20
+
         batch_size = scores1.size(0)
         num_heads = scores1.size(1)
         num_blocks = scores1.size(2)
@@ -135,21 +180,21 @@ class LocalScaledDotProdAttV1(ScaledDotProdAttV1):
         context2 = scores1.size(4)
 
         # set elements in scores2 that overlap with elements in scores1 to -inf
-        scores2[:,:,:,:context1-shift1,:context2-shift2] = -1e20
-        scores2[:,:,:,shift1:,shift2:] = -1e20
+        scores2[:,:,:,:context1-shift1,:context2-shift2] = min_val
+        scores2[:,:,:,shift1:,shift2:] = min_val
 
         #set the padding time steps that we had to add to make integer block-number to -inf
         # in scores1
         dt1 = max(0, scores1.size(2)*scores1.size(3) - t1)
         dt2 = max(0, scores1.size(2)*scores1.size(4) - t2)
         if dt1 > 0  or dt2 > 0:
-            scores1[:,:,-1,-dt1:,-dt2:] = -1e20
+            scores1[:,:,-1,-dt1:,-dt2:] = min_val
 
             # in scores2
             dt1 = max(0, dt1 - shift1)
             dt2 = max(0, dt2 - shift2)
             if dt1 > 0  or dt2 > 0:
-                scores2[:,:,-1,-dt1:,-dt2:] = -1e20
+                scores2[:,:,-1,-dt1:,-dt2:] = min_val
                 
         #flatten blocks and time1 dimensions
         scores1 = scores1.view(batch_size, num_heads, -1, context2)
@@ -157,7 +202,7 @@ class LocalScaledDotProdAttV1(ScaledDotProdAttV1):
         #print('aa', scores1.shape, scores2.shape)
         #pad scores2  to have the same size as scores1
         scores2 = nn.functional.pad(scores2, (0, 0, shift1, context1-shift1),
-                                    mode='constant', value=-1e20)
+                                    mode='constant', value=min_val)
         #print('bb', scores1.shape, scores2.shape)
         #concat scores1, scores2 and do softmax in time2 dimension
         # (batch, heads, blocks*time1, 2*time2)
@@ -176,13 +221,19 @@ class LocalScaledDotProdAttV1(ScaledDotProdAttV1):
 
 
     def forward(self, query, key, value, mask):
-        """Compute 'Scaled Dot Product Attention'.
-        :param torch.Tensor query: (batch, time1, size)
-        :param torch.Tensor key: (batch, time2, size)
-        :param torch.Tensor value: (batch, time2, size)
-        :param torch.Tensor mask: (batch, time1, time2)
-        :return torch.Tensor: attentined and transformed `value` (batch, time1, d_model)
-             weighted by the query dot key attention (batch, head, time1, time2)
+        """Computes 'Local Scaled Dot Product Attention'.
+
+        Args:
+           query: query with size=(batch, time1, in_feats), 
+                  where time1 is the output time dimension
+           key: key with size=(batch, time2, in_feats)
+                  where time1 is the input time dimension
+           value: value with size=(batch, time2, in_feats)
+           mask: optional mask with size=(batch, time1, time2), 
+                  to zero attention between some time steps.
+
+        Returns:
+           Attention weigthed average of the values with size=(batch, time1, out_feats)
         """
         batch_size = query.size(0)
         t1 = query.size(self.time_dim)
