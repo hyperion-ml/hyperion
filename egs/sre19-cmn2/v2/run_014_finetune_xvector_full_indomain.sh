@@ -44,15 +44,15 @@ if [ $stage -le 1 ]; then
       --val-list $list_dir/lists_xvec/val.scp \
       --class-file $list_dir/lists_xvec/class2int \
       --num-frames-file $list_dir/utt2num_frames \
-      --min-chunk-length $ft_min_chunk --max-chunk-length $ft_max_chunk \
+      --min-chunk-length $ft3_min_chunk --max-chunk-length $ft3_max_chunk \
       --iters-per-epoch $ft3_ipe \
       --batch-size $batch_size \
       --num-workers $num_workers $ft3_opt_opt $ft3_lrs_opt \
       --grad-acc-steps $grad_acc_steps \
       --reg-layers-classif 0 \
-      --reg-weight-classif $reg_weight_embed \
+      --reg-weight-classif $ft3_reg_weight_embed \
       --reg-layers-enc 0 1 2 3 4 \
-      --reg-weight-enc $reg_weight_enc \
+      --reg-weight-enc $ft3_reg_weight_enc \
       --epochs $ft3_nnet_num_epochs \
       --s $s --margin $margin --margin-warmup-epochs $ft3_margin_warmup \
       --num-gpus $ngpu \

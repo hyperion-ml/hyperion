@@ -70,4 +70,4 @@ do
 
 done
 
-local/make_some_figs.py
+local/make_some_figs1.py
