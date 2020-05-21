@@ -143,7 +143,7 @@ class TransformerXVectorV1(XVector):
                   'enc_att_type': self.enc_att_type,
                   'enc_att_context': self.enc_att_context,
                   'enc_ff_type': self.enc_ff_type,
-                  'd_enc_ff': self.enc_d_ff,
+                  'enc_d_ff': self.enc_d_ff,
                   'enc_ff_kernel_size': self.enc_ff_kernel_size,
                   'pos_dropout_rate': self.pos_dropout_rate,
                   'att_dropout_rate': self.att_dropout_rate,
@@ -157,9 +157,12 @@ class TransformerXVectorV1(XVector):
 
     @classmethod
     def load(cls, file_path=None, cfg=None, state_dict=None):
-        cfg, state_dict = TorchModel._load_cfg_state_dict(
+        cfg, state_dict = cls._load_cfg_state_dict(
             file_path, cfg, state_dict)
 
+        if 'd_enc_ff' in cfg:
+            cfg['enc_d_ff'] = cfg['d_enc_ff']
+            del cfg['d_enc_ff']
         model = cls(**cfg) 
         if state_dict is not None:
             model.load_state_dict(state_dict)

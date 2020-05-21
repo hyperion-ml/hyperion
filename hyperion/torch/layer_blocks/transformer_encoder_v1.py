@@ -1,5 +1,5 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba, Nanxin Chen)
+ Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 from __future__ import absolute_import
@@ -57,10 +57,14 @@ class TransformerEncoderBlockV1(nn.Module):
         d_k = num_feats // num_heads
 
         if att_type == 'scaled-dot-prod-v1':
-            return ScaledDotProdAttV1(num_feats, num_feats, num_heads, d_k, d_k, dropout_rate, time_dim=1)
+            return ScaledDotProdAttV1(
+                num_feats, num_feats, num_heads, d_k, d_k, 
+                dropout_rate, time_dim=1)
 
         if att_type == 'local-scaled-dot-prod-v1':
-            return LocalScaledDotProdAttV1(num_feats, num_feats, num_heads, d_k, d_k, context, dropout_rate, time_dim=1)
+            return LocalScaledDotProdAttV1(
+                num_feats, num_feats, num_heads, d_k, d_k, 
+                context, dropout_rate, time_dim=1)
 
         
     @staticmethod

@@ -13,12 +13,12 @@ set -e
 stage=1
 config_file=default_config.sh
 use_gpu=false
-
+xvec_chunk_length=12800
 . parse_options.sh || exit 1;
 . $config_file
 
 if [ "$use_gpu" == "true" ];then
-    xvec_args="--use-gpu true --chunk-length 12800"
+    xvec_args="--use-gpu true --chunk-length $xvec_chunk_length"
     xvec_cmd="$cuda_eval_cmd"
 else
     xvec_cmd="$train_cmd"

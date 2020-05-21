@@ -186,41 +186,6 @@ class XVector(TorchModel):
         return h_enc, h_classif
 
 
-    # def forward(self, x, y=None):
-
-    #     if self.encoder_net.in_dim() == 4 and x.dim() == 3:
-    #         x = x.view(x.size(0), 1, x.size(1), x.size(2))
-
-    #     x = self.encoder_net(x)
-
-    #     if self.encoder_net.out_dim() == 4:
-    #         x = x.view(x.size(0), -1, x.size(-1))
-
-    #     if len(x)==24:
-    #         mm = x.mean(dim=-1)
-    #         mx = torch.max(x, dim=-1)[0]
-    #         mn = torch.min(x, dim=-1)[0]
-    #         na = torch.isnan(x).any(dim=-1)
-    #         logging.info('resnet-mean={}'.format(str(mm[9])))
-    #         logging.info('resnet-max={}'.format(str(mx[9])))
-    #         logging.info('resnet-max2={}'.format(str(mx[9].max())))
-    #         logging.info('resnet-min={}'.format(str(mn[9])))
-    #         logging.info('resnet-min2={}'.format(str(mn[9].min())))
-    #         logging.info('resnet-na={}'.format(str(na[9])))
-    #         logging.info('resnet-na2={}'.format(str(na[9].any())))
-
-    #     if self.proj is not None:
-    #         x = self.proj(x)
-            
-    #     p = self.pool_net(x)
-    #     if len(x)==24:
-    #         logging.info('pool-max={}'.format(str(p[9].max())))
-    #         logging.info('pool-min={}'.format(str(p[9].min())))
-    #         logging.info('pool-na={}'.format(str(torch.isnan(p[9]).any())))
-
-    #     y = self.classif_net(p, y)
-    #     return y
-
 
     def extract_embed(self, x, chunk_length=0, embed_layer=None, device=None):
         if embed_layer is None:
@@ -445,8 +410,11 @@ class XVector(TorchModel):
                             default=1, type=int,
                             help=('number of layers in the classif head'))
         
-        parser.add_argument(p1+'hid_act', default='relu6', 
-                            help='hidden activation')
+        try:
+            parser.add_argument(p1+'hid_act', default='relu6', 
+                                help='hidden activation')
+        except:
+            pass
 
         parser.add_argument(p1+'loss-type', default='arc-softmax', 
                             choices = ['softmax', 'arc-softmax', 'cos-softmax'],
@@ -467,8 +435,11 @@ class XVector(TorchModel):
         parser.add_argument(p1+'norm-after', default=False, action='store_true',
                             help='batch normalizaton after activation')
         
-        parser.add_argument(p1+'dropout-rate', default=0, type=float,
-                            help='dropout')
+        try:
+            parser.add_argument(p1+'dropout-rate', default=0, type=float,
+                                help='dropout')
+        except:
+            pass
         
         parser.add_argument(p1+'in-feats', default=None, type=int,
                             help=('input feature dimension, '

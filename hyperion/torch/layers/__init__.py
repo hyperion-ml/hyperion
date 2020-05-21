@@ -4,7 +4,7 @@
 """
 from __future__ import absolute_import
 
-from .dropout import Dropout1d
+from .dropout import Dropout1d, DropConnect2d
 from .global_pool import *
 
 from .activation_factory import ActivationFactory

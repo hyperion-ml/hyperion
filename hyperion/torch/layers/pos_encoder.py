@@ -12,12 +12,13 @@ from torch import nn
 
 class PosEncoder(nn.Module):
     """Positional encoding.
-    :param int d_model: embedding dim
-    :param float dropout_rate: dropout rate
-    :param int max_len: maximum input length
+
+    Attributes:
+      num_feats: embedding dim
+      dropout_rate: dropout rate
     """
 
-    def __init__(self, num_feats, dropout_rate=0, max_len=5000):
+    def __init__(self, num_feats, dropout_rate=0):
         """Construct an PositionalEncoding object."""
         super(PosEncoder, self).__init__()
         self.num_feats = num_feats
@@ -27,8 +28,10 @@ class PosEncoder(nn.Module):
             self.dropout = torch.nn.Dropout(p=dropout_rate)
         self.pe = None
 
+
     def __repr__(self):
         return self.__str__()
+
         
     def __str__(self):
         s = '{}(num_feats={}, dropout_rate={})'.format(
@@ -42,7 +45,7 @@ class PosEncoder(nn.Module):
             if self.pe.size(1) >= x.size(1):
                 if self.pe.dtype != x.dtype or self.pe.device != x.device:
                     self.pe = self.pe.to(dtype=x.dtype, device=x.device)
-                return
+                return self.pe
 
         pe = torch.zeros(x.size(1), self.num_feats)
         position = torch.arange(0, x.size(1), dtype=torch.float32).unsqueeze(1)
@@ -57,10 +60,12 @@ class PosEncoder(nn.Module):
 
     def forward(self, x):
         """Add positional encoding.
+
         Args:
-            x (torch.Tensor): Input. Its shape is (batch, time, ...)
+            x: Input with shape=(batch, time, C)
+
         Returns:
-            torch.Tensor: Encoded tensor. Its shape is (batch, time, ...)
+            x + pos-encoder
         """
         pe = self._pe(x)
         x = x * self.xscale + pe[:, :x.size(1)]
