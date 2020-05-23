@@ -65,7 +65,6 @@ def _get_strided_batch(waveform, window_length, window_shift, snip_edges):
     assert waveform.dim() == 2
     batch_size = waveform.size(0)
     num_samples = waveform.size(-1)
-    strides = (waveform.stride(0), window_shift * waveform.stride(1), waveform.stride(1))
 
     if snip_edges:
         if num_samples < window_size:
@@ -83,6 +82,7 @@ def _get_strided_batch(waveform, window_length, window_shift, snip_edges):
         pad_right = torch.flip(waveform[:, -npad_right-1:-1], (1,))
         waveform = torch.cat((pad_left, waveform, pad_right), dim=1)
 
+    strides = (waveform.stride(0), window_shift * waveform.stride(1), waveform.stride(1))
     sizes = (batch_size, num_frames, window_length)
     return waveform.as_strided(sizes, strides)
 
@@ -369,7 +369,8 @@ class Wav2LogFilterBank(Wav2FFT):
 
         return pow_spec
     
-        
+
+    
 class Wav2MFCC(Wav2FFT):
 
     def __init__(self, fs=16000, frame_length=25, frame_shift=10, 
