@@ -18,6 +18,7 @@ class CarliniWagner(AdvAttack):
     def __init__(self, model, confidence=0.0, lr=1e-2, 
                  max_iter=10000,
                  abort_early=True, initial_c=1e-3, 
+                 norm_time=False, time_dim=None, use_snr=False,
                  targeted=False, range_min=None, range_max=None):
 
         super(CarliniWagner, self).__init__(model, None, targeted, range_min, range_max)
@@ -29,6 +30,9 @@ class CarliniWagner(AdvAttack):
         self.is_binary = None
         self.box_scale = (self.range_max - self.range_min)/2
         self.box_bias = (self.range_max + self.range_min)/2
+        self.norm_time = norm_time
+        self.time_dim = time_dim
+        self.use_snr = use_snr
         
 
 

@@ -67,7 +67,8 @@ class Calibrator(nn.Module):
 
 class MyModel(nn.Module):
 
-    def __init__(self, feat_extractor, xvector_model, mvn=None, embed_layer=None, calibrator=None):
+    def __init__(self, feat_extractor, xvector_model, mvn=None, embed_layer=None, 
+                 calibrator=None, sigma=0):
         super(MyModel, self).__init__()
         self.feat_extractor = feat_extractor
         self.xvector_model = xvector_model
@@ -76,10 +77,14 @@ class MyModel(nn.Module):
         self.vad_t = None
         self.embed_layer = embed_layer
         self.calibrator = calibrator
+        self.sigma = sigma
 
 
     def forward(self, s_t):
-        f_t = s_t
+        print('sigma0=', self.sigma)
+        if self.sigma > 0:
+            s_t = s_t + self.sigma*torch.randn_like(s_t)
+            print('sigma1=', self.sigma)
         f_t = self.feat_extractor(s_t)
         if self.mvn is not None:
             f_t = self.mvn(f_t)
@@ -108,7 +113,7 @@ class MyModel(nn.Module):
 def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
                         mvn_no_norm_mean, mvn_norm_var, mvn_context,
                         vad_spec, vad_path_prefix, model_path, embed_layer,
-                        score_file, stats_file, cal_file, threshold,
+                        score_file, stats_file, cal_file, threshold, smooth_sigma,
                         save_adv_wav, save_adv_wav_path,
                         use_gpu, seg_part_idx, num_seg_parts, 
                         **kwargs):
@@ -145,9 +150,6 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
         calibrator = Calibrator(lr.A[0,0], lr.b[0]-threshold) 
         calibrator.to(device)
 
-    model = MyModel(feat_extractor, xvector_model, mvn, embed_layer, calibrator)
-    model.to(device)
-    model.eval()
 
     tar = torch.as_tensor([1], dtype=torch.float).to(device)
     non = torch.as_tensor([0], dtype=torch.float).to(device)
@@ -164,13 +166,20 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
         tar_audio_writer = AW(save_adv_wav_path + '/tar2non')
         non_audio_writer = AW(save_adv_wav_path + '/non2tar')
 
+    smooth_sigma *= wav_scale
+    model = MyModel(feat_extractor, xvector_model, mvn, embed_layer, 
+                    calibrator, smooth_sigma)
+    model.to(device)
+    model.eval()
+
     attack_args = AttackFactory.filter_args(**kwargs)
     attack_type = attack_args['attack_type']
     del attack_args['attack_type']
     attack_args['attack_eps'] *= wav_scale
     attack_args['attack_alpha'] *= wav_scale
+    logging.info('attack-args={}'.format(attack_args))
     attack = AttackFactory.create(
-        attack_type, model, 
+        attack_type, model, time_dim=1,
         loss=nn.functional.binary_cross_entropy_with_logits, 
         range_min=-wav_scale, range_max=wav_scale, **attack_args)
 
@@ -254,7 +263,7 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
         t7 = time.time()
         logging.info((
             'utt %s total-time=%.3f read-time=%.3f trial-time=%.3f n_trials=%d '
-            'rt-factor=%.2f') % (
+            'rt-factor=%.4f') % (
                 key.seg_set[j], t7-t1, t2-t1, trial_time, num_trials,
                 num_trials*len(s)/fs/(t7-t1)))
         
@@ -343,6 +352,7 @@ if __name__ == "__main__":
 
     parser.add_argument('--cal-file', default=None, help='score calibration file')
     parser.add_argument('--threshold', default=0, type=float, help='decision threshold')
+    parser.add_argument('--smooth-sigma', default=0, type=float, help='sigma for smoothing')
     
     args=parser.parse_args()
     config_logger(args.verbose)

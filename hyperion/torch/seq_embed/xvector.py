@@ -16,6 +16,8 @@ from ..helpers import TorchNALoader
 from ..utils import eval_nnet_by_chunks
 
 class XVector(TorchModel):
+    """x-Vector base class
+    """
 
     def __init__(self, encoder_net, num_classes, pool_net='mean+stddev', 
                  embed_dim=256,
@@ -126,6 +128,15 @@ class XVector(TorchModel):
 
     
     def _make_pool_net(self, pool_net, enc_feats=None):
+        """ Makes the pooling block
+        
+        Args:
+         pool_net: str or dict to pass to the pooling factory create function
+         enc_feats: dimension of the features coming from the encoder
+
+        Returns:
+         GlobalPool1d object
+        """
         if isinstance(pool_net, str):
             pool_net = { 'pool_type': pool_net }
 
@@ -140,11 +151,25 @@ class XVector(TorchModel):
 
     
     def update_loss_margin(self, epoch):
+        """Updates the value of the margin in AAM/AM-softmax losses
+           given the epoch number
+
+        Args:
+          epoch: epoch which is about to start
+        """
         self.classif_net.update_margin(epoch)
 
 
     def forward(self, x, y=None):
+        """Forward function
 
+        Args:
+          x: input features tensor with shape=(batch, in_feats, time)
+          y: target classes torch.long tensor with shape=(batch,)
+        
+        Returns:
+          class posteriors tensor with shape=(batch, num_classes)
+        """
         if self.encoder_net.in_dim() == 4 and x.dim() == 3:
             x = x.view(x.size(0), 1, x.size(1), x.size(2))
 
@@ -162,6 +187,9 @@ class XVector(TorchModel):
 
 
     def forward_hid_feats(self, x, y=None, enc_layers=None, classif_layers=None, return_output=False):
+        """forwards hidden representations in the x-vector network
+        
+        """
 
         if self.encoder_net.in_dim() == 4 and x.dim() == 3:
             x = x.view(x.size(0), 1, x.size(1), x.size(2))

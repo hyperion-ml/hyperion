@@ -11,22 +11,27 @@ from ..layers.transformer_feedforward import *
 from ..layers.attention import *
 
 class TransformerEncoderBlockV1(nn.Module):
-    """Encoder layer module.
-    :param int size: input dim
-    :param espnet.nets.pytorch_backend.transformer.attention.MultiHeadedAttention self_attn: self attention module
-    :param espnet.nets.pytorch_backend.transformer.positionwise_feed_forward.PositionwiseFeedForward feed_forward:
-        feed forward module
-    :param float dropout_rate: dropout rate
-    :param bool normalize_before: whether to use layer_norm before the first block
-    :param bool concat_after: whether to concat attention layer's input and output
-        if True, additional linear will be applied. i.e. x -> x + linear(concat(x, att(x)))
-        if False, no additional linear will be applied. i.e. x -> x + att(x)
+    """Building block for transformer encoder.
+
+    Attributes:
+      num_feats: input/output feat. dimension (aka d_model)
+      self_attn: attention nn.Module or string in ['scaled-dot-prod-att-v1', 'local-scaled-dot-prod-att-v1']
+      num_heads: number of heads
+      feed_forward: position-wise feed-forward nn.Module or string in ['linear', 'conv1dx2', 'conv1d-linear']
+      d_ff: dimension of middle layer in feed_forward block
+      ff_kernel_size: kernel size for convolutional versions of ff block
+      ff_dropout_rate: dropout rate for ff block
+      att_context: maximum context range for local attention
+      att_dropout_rate: dropout rate for attention block
+      norm_before: if True, use layer norm before layers, otherwise after
+      concat_after: if True, if concats attention input and output and apply linear transform, i.e.,
+                             y = x + linear(concat(x, att(x)))
+                    if False, y = x + att(x)
     """
 
     def __init__(self, num_feats, self_attn, num_heads, feed_forward, d_ff, ff_kernel_size, ff_dropout_rate=0,
                  att_context=25, att_dropout_rate=0, norm_before=True, concat_after=False):
 
-        """Construct an EncoderLayer object."""
         super(TransformerEncoderBlockV1, self).__init__()
         if isinstance(self_attn, str):
             self.self_attn = self._make_att(self_attn, num_feats, num_heads, att_context, att_dropout_rate)
@@ -42,7 +47,7 @@ class TransformerEncoderBlockV1(nn.Module):
         self.norm2 = nn.LayerNorm(num_feats)
         self.dropout_rate = ff_dropout_rate
         if self.dropout_rate > 0:
-            self.dropout = nn.Dropout(dropout_rate)
+            self.dropout = nn.Dropout(self.dropout_rate)
 
         self.norm_before = norm_before
         self.concat_after = concat_after
@@ -52,6 +57,17 @@ class TransformerEncoderBlockV1(nn.Module):
 
     @staticmethod
     def _make_att(att_type, num_feats, num_heads, context, dropout_rate):
+        """Creates multihead attention block from att_type string
+
+        Args:
+           att_type: string in ['scaled-dot-prod-att-v1', 'local-scaled-dot-prod-att-v1']
+           num_feats: input/output feat. dimension (aka d_model)
+           num_heads: number of heads
+           dropout_rate: dropout rate for attention block
+
+        Returns:
+           Attention nn.Module
+        """
         
         assert num_feats % num_heads == 0
         d_k = num_feats // num_heads
@@ -69,7 +85,19 @@ class TransformerEncoderBlockV1(nn.Module):
         
     @staticmethod
     def _make_ff(ff_type, num_feats, hid_feats, kernel_size, dropout_rate):
+        """Creates position-wise feed forward block from ff_type string
 
+        Args:
+          ff_type: string in ['linear', 'conv1dx2', 'conv1d-linear']
+          num_feats: input/output feat. dimension (aka d_model)
+          hid_feats: dimension of middle layer in feed_forward block
+          kernel_size: kernel size for convolutional versions of ff block
+          dropout_rate: dropout rate for ff block
+        
+        Returns:
+          Position-wise feed-forward nn.Module 
+
+        """
         if ff_type == 'linear':
             return PositionwiseFeedForward(
                 num_feats, hid_feats, dropout_rate, time_dim=1)
@@ -85,10 +113,15 @@ class TransformerEncoderBlockV1(nn.Module):
 
 
     def forward(self, x, mask=None):
-        """Compute encoded features.
-        :param torch.Tensor x: encoded source features (batch, max_time_in, num_feats)
-        :param torch.Tensor mask: mask for x (batch, max_time_in)
-        :rtype: Tuple[torch.Tensor, torch.Tensor]
+        """Forward pass function
+
+        Args:
+          x: input tensor with size=(batch, time, num_feats)
+          mask: mask to indicate valid time steps for x (batch, time)
+
+        Returns:
+           Tensor with output features
+           Tensor with mask
         """
         residual = x
         if self.norm_before:

@@ -11,14 +11,16 @@ import torch.nn.functional as F
 from .dropout import Dropout1d
 
 class PositionwiseFeedForward(nn.Module):
-    """Positionwise feed forward layer.
-    :param int idim: input dimenstion
-    :param int hidden_units: number of hidden units
-    :param float dropout_rate: dropout rate
+    """Positionwise feed forward layer for transfomer.
+
+    Attributes:
+       num_feats: input/output dimenstion
+       hid_feats: number of hidden units
+       dropout_rate: dropout rate
+       time_dim: time dimension in the input tensor
     """
 
     def __init__(self, num_feats, hid_feats, dropout_rate=0, time_dim=1):
-        """Construct an PositionwiseFeedForward object."""
         super(PositionwiseFeedForward, self).__init__()
         self.w_1 = torch.nn.Linear(num_feats, hid_feats)
         self.w_2 = torch.nn.Linear(hid_feats, num_feats)
@@ -27,8 +29,16 @@ class PositionwiseFeedForward(nn.Module):
         if self.dropout_rate > 0:
             self.dropout = torch.nn.Dropout(dropout_rate)
 
+
     def forward(self, x):
-        """Forward funciton."""
+        """Forward function.
+
+        Args:
+          x: input size=(batch, time, num_feats)
+
+        Returns:
+          tensor size=(batch, time, num_feats)
+        """
         if self.time_dim != 1:
             x = x.transpose(1, time_dim)
 
@@ -45,21 +55,22 @@ class PositionwiseFeedForward(nn.Module):
 
 
 class Conv1dx2(torch.nn.Module):
-    """Multi-layered conv1d for Transformer block.
-    This is a module of multi-leyered conv1d designed to replace positionwise feed-forward network
-    in Transforner block, which is introduced in `FastSpeech: Fast, Robust and Controllable Text to Speech`_.
+    """Two layer Conv1d for transformer feed-forward block
+    
+    Introduced in `FastSpeech: Fast, Robust and Controllable Text to Speech`_.
     .. _`FastSpeech: Fast, Robust and Controllable Text to Speech`:
         https://arxiv.org/pdf/1905.09263.pdf
+
+    Attributes:
+      num_channels: input/output channels.
+      hid_channels: hidden channels
+      kernel_size: conv kernel size
+      dropout_rate: dropout rate
+      time_dim: indicates what is the time dimension in the input tensor.
     """
 
     def __init__(self, num_channels, hid_channels, kernel_size, dropout_rate=0, time_dim=-1):
-        """Initialize MultiLayeredConv1d module.
-        Args:
-            in_chans (int): Number of input channels.
-            hid_channels (int): Number of hidden channels.
-            kernel_size (int): Kernel size of conv1d.
-            dropout_rate (float): Dropout rate.
-        """
+
         super(Conv1dx2, self).__init__()
         self.w_1 = torch.nn.Conv1d(num_channels, hid_channels, kernel_size,
                                    stride=1, padding=(kernel_size - 1) // 2)
@@ -72,11 +83,12 @@ class Conv1dx2(torch.nn.Module):
 
 
     def forward(self, x):
-        """Calculate forward propagation.
+        """Calculates forward propagation.
         Args:
-            x (Tensor): Batch of input tensors (B, ..., num_channels).
+            x: input tensors with size=(batch, time, num_channels) or
+               size=(batch, num_channels, time).
         Returns:
-            Tensor: Batch of output tensors (B, ..., hid_channels).
+            output tensor same size as input
         """
         if self.time_dim != -1:
             x.transpose(-1, self.time_dim)
@@ -94,16 +106,16 @@ class Conv1dx2(torch.nn.Module):
 
 class Conv1dLinear(torch.nn.Module):
     """Conv1D + Linear for Transformer block.
-    A variant of MultiLayeredConv1d, which replaces second conv-layer to linear.
+
+    Attributes:
+      num_channels: input/output channels.
+      hid_channels: hidden channels
+      kernel_size: conv kernel size
+      dropout_rate: dropout rate
+      time_dim: indicates what is the time dimension in the input tensor.
+    
     """
     def __init__(self, num_channels, hid_channels, kernel_size, dropout_rate=0, time_dim=-1):
-        """Initialize MultiLayeredConv1d module.
-        Args:
-            in_chans (int): Number of input channels.
-            hid_channels (int): Number of hidden channels.
-            kernel_size (int): Kernel size of conv1d.
-            dropout_rate (float): Dropout rate.
-        """
         super(Conv1dLinear, self).__init__()
         self.w_1 = torch.nn.Conv1d(num_channels, hid_channels, kernel_size,
                                    stride=1, padding=(kernel_size - 1) // 2)
@@ -114,11 +126,12 @@ class Conv1dLinear(torch.nn.Module):
             self.dropout = Dropout1d(dropout_rate)
 
     def forward(self, x):
-        """Calculate forward propagation.
+        """Calculates forward propagation.
         Args:
-            x (Tensor): Batch of input tensors (B, ..., num_channels).
+            x: input tensors with size=(batch, time, num_channels) or
+               size=(batch, num_channels, time).
         Returns:
-            Tensor: Batch of output tensors (B, ..., hid_channels).
+            output tensor same size as input
         """
         if self.time_dim != -1:
             x.transpose(-1, self.time_dim)

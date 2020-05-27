@@ -14,16 +14,8 @@ import torch
 import torch.nn as nn
 from apex import amp
 
-from ..utils import MetricAcc
+from ..utils import MetricAcc, TorchDataParallel
 from ..loggers import LoggerList, CSVLogger, ProgLogger
-
-
-class TorchDataParallel(nn.DataParallel):
-    def __getattr__(self, name):
-        try:
-            return super(TorchDataParallel, self).__getattr__(name)
-        except AttributeError:
-            return getattr(self.module, name)
 
 
 

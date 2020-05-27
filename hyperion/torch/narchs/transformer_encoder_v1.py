@@ -14,23 +14,29 @@ from .net_arch import NetArch
 
 class TransformerEncoderV1(NetArch):
     """Transformer encoder module.
-    :param int in_feats: input dim
-    :param int attention_dim: dimention of attention
-    :param int num_heads: the number of heads of multi head attention
-    :param int linear_units: the number of units of position-wise feed forward
-    :param int num_blocks: the number of decoder blocks
-    :param float dropout_rate: dropout rate
-    :param float att_dropout_rate: dropout rate in attention
-    :param float pos_dropout_rate: dropout rate after adding positional encoding
-    :param str or nn.Module in_layer: input layer type
-    :param class PosEncoder: PositionalEncoding or ScaledPositionalEncoding
-    :param bool normalize_before: whether to use layer_norm before the first block
-    :param bool concat_after: whether to concat attention layer's input and output
-        if True, additional linear will be applied. i.e. x -> x + linear(concat(x, att(x)))
-        if False, no additional linear will be applied. i.e. x -> x + att(x)
-    :param str positionwise_layer_type: linear of conv1d
-    :param int positionwise_conv_kernel_size: kernel size of positionwise conv1d layer
-    :param int padding_idx: padding_idx for in_layer=embed
+
+    Attributes:
+      in_feats: input features dimension
+      d_model: encoder blocks feature dimension
+      num_heads: number of heads
+      num_blocks: number of self attn blocks
+      att_type: string in ['scaled-dot-prod-att-v1', 'local-scaled-dot-prod-att-v1']
+      att_context: maximum context range for local attention
+      ff_type: string in ['linear', 'conv1dx2', 'conv1d-linear']
+      d_ff: dimension of middle layer in feed_forward block
+      ff_kernel_size: kernel size for convolutional versions of ff block
+      ff_dropout_rate: dropout rate for ff block
+      pos_dropout_rate: dropout rate for positional encoder
+      att_dropout_rate: dropout rate for attention block
+      in_layer_type: input layer block type in ['linear','conv2d-sub', 'embed', None]
+      norm_before: if True, use layer norm before layers, otherwise after
+      concat_after: if True, if concats attention input and output and apply linear transform, i.e.,
+                             y = x + linear(concat(x, att(x)))
+                    if False, y = x + att(x)
+      padding_idx: padding idx for embed layer
+      in_time_dim: time dimension in the input Tensor
+      out_time_dim: dimension that we want to be time in the output tensor
+
     """
 
     def __init__(self, in_feats,
@@ -49,7 +55,6 @@ class TransformerEncoderV1(NetArch):
                  norm_before=True,
                  concat_after=False,
                  padding_idx=-1, in_time_dim=-1, out_time_dim=1):
-        """Construct an Encoder object."""
 
         super(TransformerEncoderV1, self).__init__()
         self.in_feats = in_feats
@@ -74,7 +79,8 @@ class TransformerEncoderV1(NetArch):
         self.out_time_dim = out_time_dim
 
         self._make_in_layer(in_layer_type, in_feats, d_model, 
-                            ff_dropout_rate, pos_dropout_rate, padding_idx, in_time_dim)
+                            ff_dropout_rate, pos_dropout_rate, 
+                            padding_idx, in_time_dim)
 
         blocks = []
         for i in range(num_blocks):
@@ -90,7 +96,8 @@ class TransformerEncoderV1(NetArch):
             self.norm = nn.LayerNorm(d_model)
 
 
-    def _make_in_layer(self, in_layer_type, in_feats, d_model, dropout_rate, pos_dropout_rate, padding_idx, time_dim):
+    def _make_in_layer(self, in_layer_type, in_feats, d_model, 
+                       dropout_rate, pos_dropout_rate, padding_idx, time_dim):
 
         if in_layer_type == "linear":
             self.in_layer = nn.Sequential(
@@ -101,7 +108,8 @@ class TransformerEncoderV1(NetArch):
                 PosEncoder(d_model, pos_dropout_rate)
             )
         elif in_layer_type == "conv2d-sub":
-            self.in_layer = Conv2dSubsampler(in_feats, d_model, pos_dropout_rate, time_dim=time_dim)
+            self.in_layer = Conv2dSubsampler(
+                in_feats, d_model, pos_dropout_rate, time_dim=time_dim)
         elif in_layer_type == "embed":
             self.in_layer = nn.Sequential(
                 nn.Embedding(in_feats, d_model, padding_idx=padding_idx),
@@ -121,11 +129,15 @@ class TransformerEncoderV1(NetArch):
 
 
     def forward(self, x, mask=None):
-        """Embed positions in tensor.
-        :param torch.Tensor xs: input tensor
-        :param torch.Tensor masks: input mask
-        :return: position embedded tensor and mask
-        :rtype Tuple[torch.Tensor, torch.Tensor]:
+        """Forward pass function
+
+        Args:
+          x: input tensor with size=(batch, time, num_feats)
+          mask: mask to indicate valid time steps for x (batch, time)
+
+        Returns:
+           Tensor with output features
+           Tensor with mask
         """
         if isinstance(self.in_layer, Conv2dSubsampler):
             x, mask = self.in_layer(x, mask)
@@ -149,9 +161,10 @@ class TransformerEncoderV1(NetArch):
 
 
     def get_config(self):
-        
-        #hid_act =  AF.get_config(self.blocks[0].activation)
-
+        """ Gets network config
+        Returns:
+           dictionary with config params
+        """
         config = {'in_feats': self.in_feats,
                   'd_model': self.d_model,
                   'num_heads': self.num_heads,
@@ -179,6 +192,11 @@ class TransformerEncoderV1(NetArch):
         return (self.att_context, self.att_context)
 
     def in_shape(self):
+        """Input shape for network
+        
+        Returns:
+           Tuple describing input shape
+        """
         if self.in_time_dim == 1:
             return (None, None, self.in_feats)
         else:
@@ -186,7 +204,14 @@ class TransformerEncoderV1(NetArch):
 
 
     def out_shape(self, in_shape=None):
+        """Infers the network output shape given the input shape
 
+        Args:
+          in_shape: input shape tuple
+
+        Returns:
+          Tuple with the output shape
+        """
         if in_shape is None:
             out_t = None
         else:

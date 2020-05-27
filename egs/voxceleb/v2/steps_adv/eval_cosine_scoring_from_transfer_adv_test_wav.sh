@@ -27,6 +27,7 @@ save_wav_path=""
 c_factor=2
 cal_file=""
 transfer_cal_file=""
+attack_opt=""
 
 if [ -f path.sh ]; then . ./path.sh; fi
 . parse_options.sh || exit 1;
@@ -56,6 +57,7 @@ if [ $# -ne 9 ]; then
   echo "  --threshold <float|0>                            # decision threshold"
   echo "  --save-wav-path <str|>                           # path to save adv wavs"
   echo "  --cal-file <str|>                                # calibration params file"
+  echo "  --attack-opt <str>                               # other options for the attack"
   exit 1;
 fi
 
@@ -147,7 +149,7 @@ $cmd JOB=1:$nj $log_dir/${name}.JOB.log \
     --attack-max-iter $max_iter \
     --attack-c-incr-factor $c_factor \
     --score-file $output_file \
-    --stats-file $stats_file \
+    --stats-file $stats_file ${attack_opt}\
     --seg-part-idx JOB --num-seg-parts $nj || exit 1
 
 

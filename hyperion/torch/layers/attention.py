@@ -71,7 +71,7 @@ class ScaledDotProdAttV1(nn.Module):
                   where time1 is the input time dimension
            value: value with size=(batch, time2, in_feats)
            mask: optional mask with size=(batch, time1, time2), 
-                  to zero attention between some time steps.
+                  to zero attention between some time steps
 
         Returns:
            Attention weigthed average of the value with size=(batch, time1, out_feats)

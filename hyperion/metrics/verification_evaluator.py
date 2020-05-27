@@ -23,7 +23,17 @@ from .utils import effective_prior
 from .dcf import fast_eval_dcf_eer
 
 class VerificationEvaluator(object):
+    """Class computes performance metrics for verification problems.
+       Same metrics can be obtained from fast_eval_dcf_eer functions
 
+    Attributes:
+       key: TrialKey object or file_name.
+       scores: TrialScores object or file_name
+       p_tar: target prior float or list/nparray sorted in ascending order
+       c_miss: cost of miss
+       c_fa: cost of false alarm
+       
+    """
     def __init__(self, key, scores, p_tar, c_miss=None, c_fa=None):
 
         if isinstance(key, str):
@@ -51,6 +61,15 @@ class VerificationEvaluator(object):
 
 
     def compute_dcf_eer(self, return_df=False):
+        """
+        Computes DCF/EER
+        
+        Args:
+           return_df: if True, it returns the result in a pandas DataFrame object.
+
+        Returns:
+           min_dcf, act_dcf, eer tuple or pandas DataFrame
+        """
         logging.info('separating tar/non')
         tar, non = self.scores.get_tar_non(self.key)
         logging.info('computing EER/DCF')
@@ -77,7 +96,22 @@ class VerificationEvaluator(object):
 
 
 class VerificationAdvAttackEvaluator(VerificationEvaluator):
-    
+    """Class computes performance metrics for verification problems 
+       under adversarial attacks
+
+    Attributes:
+       key: TrialKey object or file_name.
+       scores: TrialScores object or file_name for the system without attack
+       attack_scores: TrialScores list or file_name list for the system under attack, 
+                      each element of the list are the scores for a different attack for the same
+                      trial list. For example, FGSM attacks for several eps values.
+       attack_stats: Pandas DataFrame or file_name list, one for each element in attack scores. 
+                     The dataframe contain statistics about the adversarial signals like snr, linf, etc.
+       p_tar: target prior float or list/nparray sorted in ascending order
+       c_miss: cost of miss
+       c_fa: cost of false alarm
+       
+    """
     def __init__(self, key, scores, attack_scores, attack_stats, 
                  p_tar, c_miss=None, c_fa=None):
         super(VerificationAdvAttackEvaluator, self).__init__(
@@ -130,6 +164,17 @@ class VerificationAdvAttackEvaluator(VerificationEvaluator):
 
     @staticmethod
     def _sort_stats_bins(stat_bins, higher_better):
+        """Sorts the statistics from best to worst, 
+           e.g., for snr higher is better, 
+                 for perturbation linf, lower is better
+
+        Args:
+           stats_bins: statistics bins
+           higher_better: True for snr, False for Linf, L2, ...
+
+        Returns:
+           Sorted bins
+        """
         stat_bins = np.sort(stat_bins)
         if higher_better:
             stat_bins = stat_bins[::-1]
@@ -137,6 +182,15 @@ class VerificationAdvAttackEvaluator(VerificationEvaluator):
 
 
     def _get_stats_mat(self, stat_name):
+        """Gets the statistics (SNR, Linf) in matrix format aligned with 
+           the score matrix.
+
+        Args:
+           stat_name: name of the statistic matching the column name in pandas DataFrame.
+        
+        Returns:
+           Stats matrix aligned with TrialKey
+        """
         if self._last_stat_name == stat_name:
             return self._last_stats_mat
 
@@ -156,6 +210,21 @@ class VerificationAdvAttackEvaluator(VerificationEvaluator):
     def compute_dcf_eer_vs_stats(self, stat_name, stat_bins, 
                                  attacked_trials='all', higher_better=False, 
                                  return_df=False):
+        """
+        Computes DCF/EER versus SNR/Linf/etc curves
+        
+        Args:
+           stat_name: stat name for x-axis matching pandas DataFrame column name.
+           stat_bins: bins to sweep to generate the curve
+           attacked_trials: str in ['all', 'tar', 'non'] indicating if we want curves where
+                            we attack all trials, only targets or only nontargets
+           higher_better: Indicates if the stat_name (x-axis) is better if is high. 
+                          True for SNR, false for Linf,L2,...
+           return_df: if True, it returns the result in a pandas DataFrame object.
+
+        Returns:
+           stat_bins, min_dcf, act_dcf, eer arrays or pandas DataFrame
+        """
 
         # sort stats bins from best to worse
         stat_bins = self._sort_stats_bins(stat_bins, higher_better)
@@ -227,6 +296,27 @@ class VerificationAdvAttackEvaluator(VerificationEvaluator):
                           num_best=10, min_delta=1, attack_idx=0, 
                           threshold=None, prior_idx=0, higher_better=False,
                           return_df=False):
+        """
+        Find the best attacks from the point of view of some of the stats. E.g.,
+        Attacks with best SNR or with lowest Linf.
+        
+        Args:
+           stat_name: stat name for x-axis matching pandas DataFrame column name.
+           attacked_trials: str in ['all', 'tar', 'non'] indicating if we want curves where
+                            we attack all trials, only targets or only nontargets
+           num_best: number of best trials
+           min_delta: adv. trials need to have score<threshold-min_delta for targets or
+                      score>threshold+min_delta for non-targets
+           threshold: decision threshold, if None, it uses -logit(p_tar)
+           prior_idx: indicates whichi of the priors in the p_tar array to use to compute threshold.
+           higher_better: Indicates if the stat_name (x-axis) is better if is high. 
+                          True for SNR, false for Linf,L2,...
+           return_df: if True, it returns the result in a pandas DataFrame object.
+
+        Returns:
+             modelid, test_segmentid, original_scores, adversarial_scores, stat_values arrays
+             or pandas DataFrame
+        """
         
         if threshold is None:
             prior = self.p_tar[prior_idx]
@@ -279,7 +369,6 @@ class VerificationAdvAttackEvaluator(VerificationEvaluator):
             if k == num_best:
                 break 
 
-
         if not return_df:
             return rmodelid, rsegmentid, rscores, rascores, rstat
 
@@ -295,6 +384,23 @@ class VerificationAdvAttackEvaluator(VerificationEvaluator):
     def save_best_attacks(self, file_path, stat_name, attacked_trials, 
                           num_best=10, min_delta=1, attack_idx=0, 
                           threshold=None, prior_idx=0, higher_better=False):
+        """
+        Find the best attacks from the point of view of some of the stats. E.g.,
+        Attacks with best SNR or with lowest Linf and saves to csv file
+        
+        Args:
+           stat_name: stat name for x-axis matching pandas DataFrame column name.
+           attacked_trials: str in ['all', 'tar', 'non'] indicating if we want curves where
+                            we attack all trials, only targets or only nontargets
+           num_best: number of best trials
+           min_delta: adv. trials need to have score<threshold-min_delta for targets or
+                      score>threshold+min_delta for non-targets
+           threshold: decision threshold, if None, it uses -logit(p_tar)
+           prior_idx: indicates whichi of the priors in the p_tar array to use to compute threshold.
+           higher_better: Indicates if the stat_name (x-axis) is better if is high. 
+                          True for SNR, false for Linf,L2,...
+        """
+
         df = self.find_best_attacks(
             stat_name, attacked_trials, num_best, min_delta, attack_idx, 
             threshold, prior_idx, higher_better, return_df=True)
@@ -330,15 +436,38 @@ class VerificationAdvAttackEvaluator(VerificationEvaluator):
                 return 2, 'ActDCF(p=%.3f)' % (p)
             
 
+
     @staticmethod
-    def plot_dcf_eer_vs_stat(
+    def plot_dcf_eer_vs_stat_v1(
             df, stat_name, output_path, 
             eer_max=50., min_dcf_max=1., act_dcf_max=1., log_x=False,
             clean_ref=None, file_format='pdf', xlabel='', higher_better=False,
             legends=None, title=None, fmt=['b','r','g','m','c','y'],
             legend_loc='upper left',
-            legend_font='medium', font_size=10):
+            legend_font='medium', font_size=10, colors=None):
+        """Plot EER/MinDCF/ActDCF versus stat (SNR, Linf) with matplotlib and save figs to file.
 
+        Args:
+           df: DataFrame from compute_dcf_eer_vs_stats method
+           stat_name: stat name as in dataframe column
+           output_path: output file path without extension
+           eer_max: y axis maximum value for EER
+           min_dcf: y axis maximum value for MinDCF
+           act_dcf: y axis maximum value for ActDCF
+           log_x: if True x-axis is plot in log scale
+           clean_ref: row number containing the values for non-attack result, 
+                      if None, if won't plot the non-attack result
+           file_format: format of the mage file default: pdf
+           xlabel: label for x-axis
+           higher_better: True for SNR, False for LInf, Lx
+           legends: legend strings
+           title: figure title
+           fmt: format strings to indicate colors for each line.
+           legend_loc: legend location
+           legend_font: font size for legend
+           font_size: global font size
+           colors: colors in string format
+        """
         matplotlib.rc('font', size=font_size)
         matplotlib.rc('legend', fontsize=legend_font)
         matplotlib.rc('legend', loc=legend_loc)
@@ -375,7 +504,7 @@ class VerificationAdvAttackEvaluator(VerificationEvaluator):
                     y *= 100
 
                 label = None if legends is None else legends[i]
-                plt.plot(x, y, fmt[i], linestyle='solid', linewidth=1.5, label=label)
+                plt.plot(x, y, fmt[i], linewidth=1.5, label=label)
 
 
             if log_x:
@@ -398,6 +527,134 @@ class VerificationAdvAttackEvaluator(VerificationEvaluator):
             plt.grid(True)
             if title is not None:
                 plt.title(title)
+            #plt.show()
+            plt.tight_layout()
+            plt.savefig(file_path)
+            plt.clf()
+            plt.close()
+
+
+    @staticmethod
+    def plot_dcf_eer_vs_stat_v2(
+            df, stat_name, output_path, 
+            eer_max=50., dcf_max=1., log_x=False,
+            clean_ref=None, file_format='pdf', xlabel='', higher_better=False,
+            legends=None, title=None, fmt=['b','r','g','m','c','y'],
+            legend_loc='upper left',
+            legend_font='medium', font_size=10, colors=None):
+        """Plot EER/MinDCF/ActDCF versus stat (SNR, Linf) with matplotlib and save figs to file.
+           In this version minimum and actual DCF are plotted in the same figure.
+
+        Args:
+           df: DataFrame from compute_dcf_eer_vs_stats method
+           stat_name: stat name as in dataframe column
+           output_path: output file path without extension
+           eer_max: y axis maximum value for EER
+           min_dcf: y axis maximum value for DCF
+           log_x: if True x-axis is plot in log scale
+           clean_ref: row number containing the values for non-attack result, 
+                      if None, if won't plot the non-attack result
+           file_format: format of the mage file default: pdf
+           xlabel: label for x-axis
+           higher_better: True for SNR, False for LInf, Lx
+           legends: legend strings
+           title: figure title
+           fmt: format strings to indicate colors for each line.
+           legend_loc: legend location
+           legend_font: font size for legend
+           font_size: global font size
+           colors: colors in string format
+        """
+
+        matplotlib.rc('font', size=font_size)
+        matplotlib.rc('legend', fontsize=legend_font)
+        matplotlib.rc('legend', loc=legend_loc)
+
+        if not isinstance(df, list):
+            df = [df]
+
+        columns = [c for c in df[0].columns if (
+            c != stat_name and 
+            VerificationAdvAttackEvaluator._process_perf_name(c)[0]!=2)]
+
+        ylim = [eer_max, dcf_max, dcf_max]
+        x = df[0][stat_name].values
+        #remove infs
+        noinf = (x != np.inf)
+        x = x[noinf]
+        if log_x:
+            x[x==0] = 0.01
+
+        for c in columns:
+
+            t, ylabel = VerificationAdvAttackEvaluator._process_perf_name(c)
+            plt.figure()
+            if t == 0:
+                columns2 = [c]
+                file_path = '%s_%s.%s' % (output_path, c, file_format)
+            else:
+                columns2 = [re.sub('min-dcf', 'act-dcf', c), c]
+                ylabel = re.sub('Min', '', ylabel)
+                file_path = '%s_%s.%s' % (
+                    output_path, re.sub('min-dcf', 'dcf', c), file_format)
+
+            for k in range(len(columns2)):
+                cc = columns2[k]
+                for i in range(len(df)):
+                    y = df[i][cc].values
+                    if clean_ref is not None and i==0:
+                        y_clean = y[clean_ref]
+                        if t==0:
+                            y_clean *= 100
+
+                        if k==0:
+                            label = None if legends is None else 'original'
+                            plt.hlines(y_clean, np.min(x), np.max(x), 
+                                       color='k', linestyles='solid', 
+                                       linewidth=1.5, label=label)
+                        else:
+                            plt.hlines(y_clean, np.min(x), np.max(x), 
+                                       color='k', linestyles='dashed', 
+                                       linewidth=1.5)
+
+                    y = y[noinf]
+                    if t==0:
+                        y *= 100
+
+                    if k==0:
+                        label = None if legends is None else legends[i]
+                        if colors is None:
+                            plt.plot(x, y, fmt[i], linestyle='solid', linewidth=1.5, label=label)
+                        else:
+                            plt.plot(x, y, fmt[i], linestyle='solid', linewidth=1.5, label=label, color=colors[i])
+                    else:
+                        if colors is None:
+                            plt.plot(x, y, fmt[i], linestyle='dashed', linewidth=1.5)
+                        else:
+                            plt.plot(x, y, fmt[i], linestyle='dashed', linewidth=1.5, color=colors[i])
+
+            if log_x:
+                plt.xscale('log')
+                if higher_better:
+                    plt.xlim(np.max(x), max(0.1,np.min(x)))
+                else:
+                    plt.xlim(max(0.1,np.min(x)), np.max(x))
+            else:
+                if higher_better:
+                    plt.xlim(np.max(x), np.min(x))
+                else:
+                    plt.xlim(np.min(x), np.max(x))
+
+            plt.ylim(0, ylim[t])
+            plt.ylabel(ylabel)
+            if legends is not None:
+                plt.legend()
+            plt.xlabel('%s perturb. budget.' % (xlabel))
+            #plt.xlabel('$L_{\infty}$ perturb. budget.')
+            plt.grid(True)
+            if title is not None:
+                plt.title(title)
+            plt.tight_layout()
             #plt.show()
             plt.savefig(file_path)
             plt.clf()

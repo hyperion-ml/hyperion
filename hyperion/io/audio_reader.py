@@ -30,7 +30,7 @@ class AudioReader(object):
             wav_scale:         multiplies signal by scale factor
     """
     
-    def __init__(self, file_path, segments_path=None, wav_scale=2**15):
+    def __init__(self, file_path, segments_path=None, wav_scale=2**15-1):
         self.file_path = file_path
         if isinstance(file_path, SCPList):
             self.scp = file_path
@@ -148,7 +148,7 @@ class AudioReader(object):
 
 class SequentialAudioReader(AudioReader):
 
-    def __init__(self, file_path, segments_path=None, wav_scale=2**15, part_idx=1, num_parts=1):
+    def __init__(self, file_path, segments_path=None, wav_scale=2**15-1, part_idx=1, num_parts=1):
         super(SequentialAudioReader, self).__init__(file_path, segments_path, wav_scale=wav_scale)
         self.cur_item = 0
         self.part_idx = part_idx
@@ -266,7 +266,7 @@ class SequentialAudioReader(AudioReader):
             
         # parser.add_argument(p1+'scp-sep', dest=(p2+'scp_sep'), default=' ',
         #                     help=('scp file field separator'))
-        parser.add_argument(p1+'wav-scale', dest=(p2+'wav_scale'), default=2**15, type=float,
+        parser.add_argument(p1+'wav-scale', dest=(p2+'wav_scale'), default=2**15-1, type=float,
                              help=('multiplicative factor for waveform'))
         try:
             parser.add_argument(p1+'part-idx', dest=(p2+'part_idx'), type=int, default=1,
@@ -280,7 +280,7 @@ class SequentialAudioReader(AudioReader):
 
 class RandomAccessAudioReader(AudioReader):
 
-    def __init__(self, file_path, segments_path=None, wav_scale=2**15):
+    def __init__(self, file_path, segments_path=None, wav_scale=2**15-1):
         super(RandomAccessAudioReader, self).__init__(file_path, segments_path, wav_scale)
 
 

@@ -12,13 +12,47 @@ from .xvector import XVector
 from ..narchs import TransformerEncoderV1 as TE
 
 class TransformerXVectorV1(XVector):
+    """x-Vector with Transformer encoder.
+
+    Attributes:
+      in_feats: input features dimension
+      num_classes: number of training classes
+      enc_d_model: encoder blocks feature dimension
+      num_enc_heads: number of heads
+      num_enc_blocks: number of self attn blocks
+      enc_att_type: string in ['scaled-dot-prod-att-v1', 'local-scaled-dot-prod-att-v1']
+      enc_att_context: maximum context range for local attention
+      enc_ff_type: string in ['linear', 'conv1dx2', 'conv1d-linear']
+      enc_d_ff: dimension of middle layer in feed_forward block
+      enc_ff_kernel_size: kernel size for convolutional versions of ff block
+      in_layer_type: input layer block type in ['linear','conv2d-sub', 'embed', None]
+      enc_concat_after: if True, if concats attention input and output and apply linear transform, i.e.,
+                             y = x + linear(concat(x, att(x)))
+                    if False, y = x + att(x)
+      pool_net: pooling block configuration string or dictionary of params
+      embed_dim: x-vector  dimension
+      num_embed_layers: number of hidden layers in classification head
+      hid_act: hidden activation configuration string or dictionary
+      loss_type: sofmax losss type string in ['softmax', 'arc-softmax', 'cos-softmax']
+      s: s parameter in arc/cos-softmax losses
+      margin: margin in arc/cos-sofmtax losses
+      margin_warmup_epochs: number of epochs until we reach the maximum value for margin
+      dropout_rate: dropout rate for ff block and classification head
+      pos_dropout_rate: dropout rate for positional encoder
+      att_dropout_rate: dropout rate for attention block
+      use_norm: if True use batch/layer norm
+      norm_before: if True, use layer norm before layers, otherwise after
+      in_norm: add batchnorm at the input
+      embed_layer: which layer to use to extract x-vectors
+      proj_feats: add linear projection layer after the encoder to project feature dimension to proj_feats
+    """
 
     def __init__(self, in_feats, num_classes,
                  enc_d_model=512,
                  num_enc_heads=4,
                  num_enc_blocks=6,
                  enc_att_type='scaled-dot-prod-v1',
-                 enc_att_context = 25,
+                 enc_att_context=25,
                  enc_ff_type='linear',
                  enc_d_ff=2048,
                  enc_ff_kernel_size=1,
@@ -37,10 +71,6 @@ class TransformerXVectorV1(XVector):
                  norm_before=False,
                  in_norm=False, embed_layer=0, proj_feats=None):
 
-        # if enc_expand_units is not None and isinstance(enc_hid_units, int):
-        #     if tdnn_type != 'resetdnn' :
-        #         enc_hid_units = (num_enc_blocks - 1)*[enc_hid_units] + [enc_expand_units]
-        
         logging.info('making transformer-v1 encoder network')
         encoder_net = TE(
             in_feats,
@@ -130,7 +160,10 @@ class TransformerXVectorV1(XVector):
 
 
     def get_config(self):
-
+        """ Gets network config
+        Returns:
+           dictionary with config params
+        """
         base_config = super(TransformerXVectorV1, self).get_config()
         del base_config['encoder_cfg']
 
@@ -157,9 +190,13 @@ class TransformerXVectorV1(XVector):
 
     @classmethod
     def load(cls, file_path=None, cfg=None, state_dict=None):
+        """Loads model from file
+        
+        """
         cfg, state_dict = cls._load_cfg_state_dict(
             file_path, cfg, state_dict)
 
+        #fix to load old model
         if 'd_enc_ff' in cfg:
             cfg['enc_d_ff'] = cfg['d_enc_ff']
             del cfg['d_enc_ff']
@@ -170,7 +207,19 @@ class TransformerXVectorV1(XVector):
         return model
 
 
+    @staticmethod
     def filter_args(prefix=None, **kwargs):
+        """ Filters arguments correspondin to TransformerXVector
+            from args dictionary
+
+        Args:
+          prefix: prefix string
+          kwargs: args dictionary
+
+        Returns:
+          args dictionary
+        """
+        
         if prefix is None:
             p = ''
         else:
@@ -200,7 +249,12 @@ class TransformerXVectorV1(XVector):
 
     @staticmethod
     def add_argparse_args(parser, prefix=None):
+        """Adds TransformerXVector config parameters to argparser
         
+        Args:
+           parser: argparse object
+           prefix: prefix string to add to the argument names
+        """
         XVector.add_argparse_args(parser, prefix)
         if prefix is None:
             p1 = '--'

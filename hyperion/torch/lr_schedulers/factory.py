@@ -9,13 +9,16 @@ import torch
 
 from .red_lr_on_plateau import ReduceLROnPlateau
 from .exp_lr import ExponentialLR
+from .invpow_lr import InvPowLR
 from .cos_lr import CosineLR, AdamCosineLR
 
 
 class LRSchedulerFactory(object):
 
     def create(optimizer, lrsch_type,
-               decay_rate=1/100, decay_steps=100, hold_steps=10,
+               decay_rate=1/100, decay_steps=100, 
+               power=0.5,
+               hold_steps=10,
                T=10, T_mul=1, 
                warm_restarts=False, gamma=1,
                monitor='val_loss', mode='min',
@@ -32,6 +35,13 @@ class LRSchedulerFactory(object):
                 optimizer, decay_rate, decay_steps, hold_steps,
                 min_lr=min_lr, warmup_steps=warmup_steps, 
                 update_lr_on_opt_step=update_lr_on_opt_step)
+
+        if lrsch_type == 'invpow_lr':
+            return InvPowLR(
+                optimizer, power, hold_steps,
+                min_lr=min_lr, warmup_steps=warmup_steps, 
+                update_lr_on_opt_step=update_lr_on_opt_step)
+
 
         if lrsch_type == 'cos_lr':
             return CosineLR(optimizer, T, T_mul, min_lr=min_lr,
@@ -60,7 +70,7 @@ class LRSchedulerFactory(object):
             p = prefix + '_'
 
 
-        valid_args = ('lrsch_type', 'decay_rate', 'decay_steps', 'hold_steps',
+        valid_args = ('lrsch_type', 'decay_rate', 'decay_steps', 'hold_steps', 'power',
                       'T', 'T_mul', 'warm_restarts', 'gamma', 'monitor', 
                       'mode','factor','patience','threshold',
                       'threshold_mode','cooldown','eps','min_lr', 'warmup_steps', 'update_lr_on_opt_step')
@@ -81,7 +91,7 @@ class LRSchedulerFactory(object):
 
         parser.add_argument(p1+'lrsch-type', dest=(p2+'lrsch_type'), type=str.lower,
                             default='none',
-                            choices=['none','exp_lr', 'cos_lr', 'adamcos_lr', 'red_lr_on_plateau'],
+                            choices=['none','exp_lr', 'invpow_lr', 'cos_lr', 'adamcos_lr', 'red_lr_on_plateau'],
                             help=('Learning rate schedulers: None, Exponential,'
                                   'Cosine Annealing, Cosine Annealing for Adam,' 
                                   'Reduce on Plateau'))
@@ -92,6 +102,10 @@ class LRSchedulerFactory(object):
         parser.add_argument(p1+'decay-steps' , dest=(p2+'decay_steps'),
                             default=100, type=int,
                             help=('LR decay steps in exp lr'))
+        parser.add_argument(p1+'power' , dest=(p2+'power'),
+                            default=0.5, type=float,
+                            help=('power in inverse power lr'))
+
         parser.add_argument(p1+'hold-steps' , dest=(p2+'hold_steps'),
                             default=10, type=int,
                             help=('LR hold steps in exp lr'))

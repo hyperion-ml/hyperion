@@ -10,14 +10,16 @@ import torch.nn as nn
 from ..layers import PosEncoder
 
 class TransformerConv2dSubsampler(nn.Module):
-    """Convolutional 2D subsampling (to 1/4 length).
-    :param int in_feats: input dim
-    :param int out_feats: output dim
-    :param flaot dropout_rate: dropout rate
+    """Convolutional 2D subsampling (to 1/4 length) Tor transformer
+
+    Attributes:
+      in_feats: input feature dimension
+      out_feats: Transformer d_model
+      dropout_rate: dropout rate
+      time_dim: indicates which is the time dimension in the input tensor
     """
 
     def __init__(self, in_feats, out_feats, dropout_rate, time_dim=1):
-        """Construct an Conv2dSubsampling object."""
         super(TransformerConv2dSubsampler, self).__init__()
         self.time_dim = time_dim
         self.conv = nn.Sequential(
@@ -31,12 +33,17 @@ class TransformerConv2dSubsampler(nn.Module):
             PosEncoder(out_feats, dropout_rate)
         )
 
+
     def forward(self, x, mask):
-        """Subsample x.
-        :param torch.Tensor x: input tensor
-        :param torch.Tensor x_mask: input mask
-        :return: subsampled x and mask
-        :rtype Tuple[torch.Tensor, torch.Tensor]
+        """Forward function.
+
+        Args:
+          x: input tensor with size=(batch, time, num_feats)
+          mask: mask to indicate valid time steps for x (batch, time1, time2)
+
+        Returns:
+           Tensor with output features
+           Tensor with subsampled mask
         """
         if self.time_dim == 1:
             x = x.transpose(1,2)

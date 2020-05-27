@@ -7,6 +7,8 @@ from __future__ import absolute_import
 import torch
 import torch.nn as nn
 
+from ..utils import TorchDataParallel
+
 class AdvAttack(object):
 
     def __init__(self, model, loss=None, targeted=True, range_min=None, range_max=None):
@@ -17,6 +19,11 @@ class AdvAttack(object):
         self.range_min = range_min
         self.range_max = range_max
         self.targeted = targeted
+
+            
+    def make_data_parallel(self):
+        if self.loss is not None:
+            self.loss = TorchDataParallel(self.loss)
 
 
     def generate(self, input, target):

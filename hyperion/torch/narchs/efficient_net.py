@@ -418,7 +418,7 @@ class EfficientNet(NetArch):
             help=('squeeze ratio in squeeze-excitation blocks'))
 
         parser.add_argument(
-            p1+'time_se', default=False, action='store_true',
+            p1+'time-se', default=False, action='store_true',
             help=('squeeze-excitation pooling operation in time-dimension only'))
 
         try:

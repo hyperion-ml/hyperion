@@ -8,3 +8,4 @@ from __future__ import absolute_import
 from .devices import open_device
 from .metric_acc import MetricAcc
 from .eval_utils import eval_nnet_by_chunks, eval_nnet_overlap_add
+from .data_parallel import TorchDataParallel

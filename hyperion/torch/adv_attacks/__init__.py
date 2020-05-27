@@ -9,5 +9,8 @@ from .snr_fgsm_attack import SNRFGSMAttack
 from .rand_fgsm_attack import RandFGSMAttack
 from .iter_fgsm_attack import IterFGSMAttack
 from .carlini_wagner_l2 import CarliniWagnerL2
+from .carlini_wagner_linf import CarliniWagnerLInf
+from .carlini_wagner_l0 import CarliniWagnerL0
+from .pgd_attack import PGDAttack
 
 from .attack_factory import AttackFactory

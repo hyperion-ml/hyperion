@@ -9,17 +9,16 @@ import torch
 
 from .lr_scheduler import LRScheduler
 
-class ExponentialLR(LRScheduler):
-    """Exponential learning rate scheduler.
+class InvPowLR(LRScheduler):
+    """inverse power learning rate scheduler.
     """
-    def __init__(self, optimizer, decay_rate, decay_steps, hold_steps,
+    def __init__(self, optimizer, power=0.5, hold_steps=0,
                  min_lr=0, warmup_steps=0,
                  epoch=0, step=0, update_lr_on_opt_step=False):
-        super(ExponentialLR, self).__init__(
+        super(InvPowLR, self).__init__(
             optimizer, min_lr, warmup_steps,
             epoch, step, update_lr_on_opt_step)
-        self.decay_rate = decay_rate 
-        self.decay_steps = decay_steps
+        self.power = power
         self.hold_steps = max(hold_steps, self.warmup_steps)
 
 
@@ -27,10 +26,10 @@ class ExponentialLR(LRScheduler):
         if step < self.hold_steps:
             return self.base_lrs
 
-        x = step - self.hold_steps
+        x = step/self.hold_steps
         return [max(
             min_lr,
-            base_lr * self.decay_rate ** (x/self.decay_steps))
+            base_lr * x ** (-self.power))
                 for base_lr, min_lr in zip(self.base_lrs, self.min_lrs)]
 
 

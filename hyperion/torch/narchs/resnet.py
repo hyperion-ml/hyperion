@@ -15,7 +15,39 @@ from ..layer_blocks import ResNetInputBlock, ResNetBasicBlock, ResNetBNBlock, SE
 from .net_arch import NetArch
 
 class ResNet(NetArch):
+    """ResNet2D base class
 
+    Attributes:
+      block: resnet basic block type in ['basic', 'bn', 'sebasic', 'sebn'], meaning 
+             basic resnet block, bottleneck resnet block, basic block with squeeze-excitation,
+             and bottleneck block with squeeze-excitation
+
+      num_layers: list with the number of layers in each of the 4 layer blocks that we find in 
+                  resnets, after each layer block feature maps are downsmapled times 2 in each dimension
+                  and channels are upsampled times 2.
+      in_channels: number of input channels
+      conv_channels: number of output channels in first conv layer (stem)
+      base_channels: number of channels in the first layer block
+      out_units: number of logits in the output layer, if 0 there is no output layer and resnet is used just
+                 as feature extractor, for example for x-vector encoder.
+      in_kernel_size: kernels size of first conv layer
+      hid_act: str or dictionary describing hidden activations.
+      out_act: output activation
+      zero_init_residual: initializes batchnorm weights to zero so each residual block behaves as identitiy at 
+                          the beggining. We observed worse results when using this option in x-vectors
+      groups: number of groups in convolutions
+      replace_stride_with_dilation: use dialted conv nets instead of downsammpling, we never tested this.
+      dropout_rate: dropout rate
+      norm_layer: norm_layer object, if None it uses BatchNorm2d
+      do_maxpool: if False, removes the maxpooling layer at the stem of the network.
+      in_norm: if True, adds another batch norm layer in the input
+      se_r: squeeze dimension
+      time_se: if True squeeze-excitation embdding is obtaining by averagin only in the time dimension, 
+               instead of time-freq dimension or HxW dimensions
+      in_feats: input feature size (number of components in dimension of 2 of input tensor), this is only
+                required when time_se=True to calculcate the size of the squeeze excitation matrices.
+
+    """
 
     def __init__(self, block, num_layers, in_channels, conv_channels=64, base_channels=64, out_units=0,
                  hid_act={'name':'relu6', 'inplace': True}, out_act=None,
@@ -66,7 +98,7 @@ class ResNet(NetArch):
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
         self._norm_layer = norm_layer
-        #print('hola',self._block, self.has_se, self.se_r)
+
         self.dilation = 1
         if replace_stride_with_dilation is None:
             # each element in the tuple indicates if we should replace
@@ -174,6 +206,16 @@ class ResNet(NetArch):
 
 
     def _compute_out_size(self, in_size):
+        """Computes output size given input size.
+           Output size is not the same as input size because of 
+           downsampling steps.
+
+        Args:
+           in_size: input size of the H or W dimensions
+        
+        Returns:
+           output_size
+        """
         out_size = int((in_size - 1)//self.in_stride+1)
         if self.do_maxpool:
             out_size = int((out_size - 1)//2+1)
@@ -186,15 +228,31 @@ class ResNet(NetArch):
 
 
     def in_context(self):
+        """
+        Returns:
+          Tuple (past, future) context required to predict one frame.
+        """
         return (self._context, self._context)
 
 
     def in_shape(self):
+        """
+        Returns:
+          Tuple describing input shape for the network
+        """
         return (None, self.in_channels, None, None)
 
             
 
     def out_shape(self, in_shape=None):
+        """Computes the output shape given the input shape
+
+        Args:
+          in_shape: input shape
+        Returns:
+          Tuple describing output shape for the network
+        """
+
         if self.with_output:
             return (None, self.out_units)
 
@@ -217,6 +275,17 @@ class ResNet(NetArch):
 
 
     def forward(self, x):
+        """forward function
+
+        Args:
+           x: input tensor of size=(batch, Cin, Hin, Win) for image or 
+              size=(batch, C, freq, time) for audio
+
+        Returns:
+           Tensor with output logits of size=(batch, out_units) if out_units>0, 
+           otherwise, it returns tensor of represeantions of size=(batch, Cout, Hout, Wout)
+        
+        """
 
         if self.in_norm:
             x = self.in_bn(x)
@@ -238,6 +307,19 @@ class ResNet(NetArch):
 
 
     def forward_hid_feats(self, x, layers=None, return_output=False):
+        """forward function which also returns intermediate hidden representations
+        
+        Args:
+           x: input tensor of size=(batch, Cin, Hin, Win) for image or 
+              size=(batch, C, freq, time) for audio
+           layers: list of hidden layers to return hidden representations
+           return_output: if True if returns the output representations in a separate 
+                          tensor.
+        Returns:
+            List of hidden representation tensors
+            Tensor with output representations if return_output is True
+        
+        """
 
         assert layers is not None or return_output
         if layers is None:
@@ -287,6 +369,10 @@ class ResNet(NetArch):
         
 
     def get_config(self):
+        """ Gets network config
+        Returns:
+           dictionary with config params
+        """
         
         out_act = AF.get_config(self.out_act)
         hid_act = self.hid_act

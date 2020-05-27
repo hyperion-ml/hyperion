@@ -11,6 +11,7 @@ center=true
 norm_var=false
 context=150
 attack_type=fgsm
+smooth_sigma=0
 eps=0
 alpha=0
 snr=100
@@ -22,6 +23,7 @@ save_wav=false
 save_wav_path=""
 c_factor=2
 cal_file=""
+attack_opt=""
 
 if [ -f path.sh ]; then . ./path.sh; fi
 . parse_options.sh || exit 1;
@@ -49,6 +51,8 @@ if [ $# -ne 7 ]; then
   echo "  --threshold <float|0>                            # decision threshold"
   echo "  --save-wav-path <str|>                           # path to save adv wavs"
   echo "  --cal-file <str|>                                # calibration params file"
+  echo "  --smooth-sigma <float|0>                         # smoothing std"
+  echo "  --attack-opt <str>                               # other options for the attack"
   exit 1;
 fi
 
@@ -126,6 +130,7 @@ $cmd JOB=1:$nj $log_dir/${name}.JOB.log \
     --attack-c-incr-factor $c_factor \
     --score-file $output_file \
     --stats-file $stats_file \
+    --smooth-sigma $smooth_sigma ${attack_opt} \
     --seg-part-idx JOB --num-seg-parts $nj || exit 1
 
 

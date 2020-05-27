@@ -21,7 +21,7 @@ class XVectorFinetuner(XVectorTrainer):
     def __init__(self, model, optimizer, epochs, exp_path, cur_epoch=0, 
                  grad_acc_steps=1, 
                  device=None, metrics=None, lr_scheduler=None, loggers=None, 
-                 data_parallel=False, loss=None, finetune_mode='embed_affine'):
+                 data_parallel=False, loss=None, finetune_mode='ft-embed-affine'):
 
         super(XVectorFinetuner, self).__init__(
             model, optimizer, epochs, exp_path, cur_epoch=cur_epoch,
@@ -39,7 +39,7 @@ class XVectorFinetuner(XVectorTrainer):
 
         metric_acc = MetricAcc()
         batch_metrics = ODict()
-        #self.model.finetune_mode(self.finetune_mode)
+        #self.model.train_mode(self.finetune_mode)
         self.model.eval()
         for batch, (data, target) in enumerate(data_loader):
             self.loggers.on_batch_begin(batch)

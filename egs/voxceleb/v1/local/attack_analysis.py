@@ -40,7 +40,7 @@ def evaluate_attacks(key_file, clean_score_file, attack_score_files, attack_stat
     df = pd.concat([df_clean, df], ignore_index=True)
     df.to_csv(file_path)
     file_path = '%s_attack_all_snr' % (output_path)
-    evaluator.plot_dcf_eer_vs_stat(
+    evaluator.plot_dcf_eer_vs_stat_v1(
         df, 'snr', file_path, clean_ref=0, xlabel='SNR(dB)', higher_better=True)
 
     logging.info('compute perf vs snr for tar trials')
@@ -51,7 +51,7 @@ def evaluate_attacks(key_file, clean_score_file, attack_score_files, attack_stat
     df = pd.concat([df_clean, df], ignore_index=True)
     df.to_csv(file_path)
     file_path = '%s_attack_tar_snr' % (output_path)
-    evaluator.plot_dcf_eer_vs_stat(
+    evaluator.plot_dcf_eer_vs_stat_v1(
         df, 'snr', file_path, clean_ref=0, xlabel='SNR(dB)', higher_better=True)
 
     logging.info('compute perf vs snr for non trials')
@@ -62,7 +62,7 @@ def evaluate_attacks(key_file, clean_score_file, attack_score_files, attack_stat
     df = pd.concat([df_clean, df], ignore_index=True)
     df.to_csv(file_path)
     file_path = '%s_attack_non_snr' % (output_path)
-    evaluator.plot_dcf_eer_vs_stat(
+    evaluator.plot_dcf_eer_vs_stat_v1(
         df, 'snr', file_path, clean_ref=0, xlabel='SNR(dB)', higher_better=True)
 
     logging.info('find best attacks from snr point of view')
@@ -86,7 +86,7 @@ def evaluate_attacks(key_file, clean_score_file, attack_score_files, attack_stat
     file_path = '%s_attack_all_linf_results.csv' % (output_path)
     df.to_csv(file_path)
     file_path = '%s_attack_all_linf' % (output_path)
-    evaluator.plot_dcf_eer_vs_stat(
+    evaluator.plot_dcf_eer_vs_stat_v1(
         df, 'n_linf', file_path, clean_ref=0, xlabel=r'$L_{\infty}$', log_x=True)
 
     logging.info('compute perf vs linf for tar trials')
@@ -95,7 +95,7 @@ def evaluate_attacks(key_file, clean_score_file, attack_score_files, attack_stat
     file_path = '%s_attack_tar_linf_results.csv' % (output_path)
     df.to_csv(file_path)
     file_path = '%s_attack_tar_linf' % (output_path)
-    evaluator.plot_dcf_eer_vs_stat(
+    evaluator.plot_dcf_eer_vs_stat_v1(
         df, 'n_linf', file_path, clean_ref=0, xlabel=r'$L_{\infty}$', log_x=True)
 
     logging.info('compute perf vs linf for non trials')
@@ -104,7 +104,7 @@ def evaluate_attacks(key_file, clean_score_file, attack_score_files, attack_stat
     file_path = '%s_attack_non_linf_results.csv' % (output_path)
     df.to_csv(file_path)
     file_path = '%s_attack_non_linf' % (output_path)
-    evaluator.plot_dcf_eer_vs_stat(
+    evaluator.plot_dcf_eer_vs_stat_v1(
         df, 'n_linf', file_path, clean_ref=0, xlabel=r'$L_{\infty}$', log_x=True)
 
     #find the best attacks in terms of linf
