@@ -280,7 +280,7 @@ class XVector(TorchModel):
         #     preproc_net = TorchNALoader.load(cfg=cfg['preproc_cfg'])
         #     del cfg['preproc_cfg']
 
-        encoder_net = TorchNALoader.load(cfg=cfg['encoder_cfg'])
+        encoder_net = TorchNALoader.load_from_cfg(cfg=cfg['encoder_cfg'])
 
         for k in ('encoder_cfg'):
             del cfg[k]
@@ -439,7 +439,7 @@ class XVector(TorchModel):
                             help=('number of layers in the classif head'))
         
         try:
-            parser.add_argument(p1+'hid_act', default='relu6', 
+            parser.add_argument(p1+'hid-act', default='relu6', 
                                 help='hidden activation')
         except:
             pass

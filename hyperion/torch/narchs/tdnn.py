@@ -8,7 +8,7 @@ import numpy as np
 
 import torch
 import torch.nn as nn
-from torch.nn import Conv1d, Linear
+from torch.nn import Linear
 
 from ..layers import ActivationFactory as AF
 from ..layer_blocks import TDNNBlock
@@ -23,7 +23,7 @@ class TDNNV1(NetArch):
                  hid_act={'name':'relu', 'inplace':True}, out_act=None, 
                  dropout_rate=0,
                  use_norm=True, 
-                 norm_before=False,
+                 norm_before=True,
                  in_norm=True, pooling=None):
 
         super(TDNNV1, self).__init__()

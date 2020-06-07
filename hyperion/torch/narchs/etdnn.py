@@ -23,7 +23,7 @@ class ETDNNV1(NetArch):
                  hid_act={'name':'relu', 'inplace':True}, out_act=None, 
                  dropout_rate=0,
                  use_norm=True, 
-                 norm_before=False,
+                 norm_before=True,
                  in_norm=True, pooling=None):
 
         super(ETDNNV1, self).__init__()

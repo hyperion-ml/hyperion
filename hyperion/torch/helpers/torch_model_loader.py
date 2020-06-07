@@ -10,6 +10,7 @@ import torch
 
 from ..narchs import *
 from ..seq_embed import XVector, TDNNXVector, ResNetXVector, TransformerXVectorV1, EfficientNetXVector
+from ..models import VAE
 
 class TorchModelLoader(object):
 

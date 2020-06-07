@@ -49,7 +49,8 @@ class TorchTrainer(object):
 
         if device is not None:
             self.model.to(device)
-            self.loss.to(device)
+            if loss is not None:
+                self.loss.to(device)
 
         if self.use_amp:
             logging.info('using automatic mixed precision training')
@@ -59,7 +60,8 @@ class TorchTrainer(object):
         if data_parallel:
             logging.info('training in multiple gpus with data-parallel')
             self.model = TorchDataParallel(self.model)
-            self.loss = TorchDataParallel(self.loss)
+            if loss is not None:
+                self.loss = TorchDataParallel(self.loss)
 
 
 
@@ -186,7 +188,7 @@ class TorchTrainer(object):
             'model_cfg': self.model.get_config(),
             'model_state_dict': self.model.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
-            'loss_state_dict': self.loss.state_dict()
+            'loss_state_dict': self.loss.state_dict() if self.loss is not None else None
             }
         if self.lr_scheduler is not None:
             checkpoint['lr_scheduler_state_dict'] = self.lr_scheduler.state_dict()
@@ -220,7 +222,8 @@ class TorchTrainer(object):
         except:
             self.model.module.load_state_dict(checkpoint['model_state_dict'])
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        self.loss.load_state_dict(checkpoint['loss_state_dict'])
+        if self.loss is not None:
+            self.loss.load_state_dict(checkpoint['loss_state_dict'])
         if self.lr_scheduler is not None:
             self.lr_scheduler.load_state_dict(checkpoint['lr_scheduler_state_dict'])
         if self.use_amp:

@@ -86,7 +86,8 @@ class EfficientNet(NetArch):
         
         self.in_conv_channels = self._round_channels(in_conv_channels, fix_stem_head)
         self.in_block = MBConvInOutBlock(
-            in_channels, self.in_conv_channels, kernel_size=in_kernel_size, stride=in_stride)
+            in_channels, self.in_conv_channels, kernel_size=in_kernel_size, 
+            stride=in_stride, activation=hid_act)
 
         self._context = self.in_block.context
         self._downsample_factor = self.in_block.downsample_factor
@@ -144,7 +145,8 @@ class EfficientNet(NetArch):
         #head feature block
         self.head_channels = self._round_channels(head_channels, fix_stem_head) 
         self.head_block = MBConvInOutBlock(
-            cur_in_channels, self.head_channels, kernel_size=1, stride=1)
+            cur_in_channels, self.head_channels, kernel_size=1, stride=1, 
+            activation=hid_act)
 
         self.with_output = False
         self.out_act = None
@@ -377,7 +379,7 @@ class EfficientNet(NetArch):
 
 
         parser.add_argument(
-            p1+'mbconv-repeasts', default=[1, 2, 2, 3, 3, 4, 1], type=int,
+            p1+'mbconv-repeats', default=[1, 2, 2, 3, 3, 4, 1], type=int,
             nargs='+', help=('mbconv-mbconvs repeats for efficientnet-b0'))
 
         parser.add_argument(
@@ -422,7 +424,7 @@ class EfficientNet(NetArch):
             help=('squeeze-excitation pooling operation in time-dimension only'))
 
         try:
-            parser.add_argument(p1+'hid_act', default='swish', 
+            parser.add_argument(p1+'hid-act', default='swish', 
                                 help='hidden activation')
         except:
             pass
