@@ -148,7 +148,10 @@ class ResNet(NetArch):
                     act_name = hid_act['name']
                 if act_name == 'swish':
                     act_name = 'relu'
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity=act_name)
+                try:
+                    nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity=act_name)
+                except:
+                    nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
             elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
