@@ -13,3 +13,4 @@ from .seresnet_blocks import SEResNetBasicBlock, SEResNetBNBlock
 from .mbconv_blocks import MBConvBlock, MBConvInOutBlock
 from .transformer_encoder_v1 import TransformerEncoderBlockV1
 from .transformer_conv2d_subsampler import TransformerConv2dSubsampler
+from .dc1d_blocks import DC1dEncBlock, DC1dDecBlock

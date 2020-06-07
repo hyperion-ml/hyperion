@@ -18,7 +18,7 @@ class TDNNFactory(object):
                out_units=0, out_act=None,
                dropout_rate=0,
                use_norm=True, 
-               norm_before=False,
+               norm_before=True,
                in_norm=True):
 
         if enc_expand_units is not None and isinstance(enc_hid_units, int):
@@ -130,7 +130,7 @@ class TDNNFactory(object):
 
 
         try:
-            parser.add_argument(p1+'hid_act', default='relu6', 
+            parser.add_argument(p1+'hid-act', default='relu6', 
                                 help='hidden activation')
         except:
             pass

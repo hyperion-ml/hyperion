@@ -142,8 +142,12 @@ class ResNet(NetArch):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 act_name = 'relu'
+                if isinstance(hid_act, str):
+                    act_name = hid_act
                 if isinstance(hid_act, dict):
                     act_name = hid_act['name']
+                if act_name == 'swish':
+                    act_name = 'relu'
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity=act_name)
             elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)):
                 nn.init.constant_(m.weight, 1)

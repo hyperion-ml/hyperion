@@ -19,7 +19,7 @@ class TorchNALoader(object):
         if class_name in globals():
             class_obj = globals()[class_name]
         elif class_name in extra_objs:
-            class_obs = extra_objs[class_name]
+            class_obj = extra_objs[class_name]
         else:
             raise Exception('unknown neural architecture object with class_name=%s'
                             % (class_name))
@@ -28,3 +28,16 @@ class TorchNALoader(object):
         return class_obj.load(cfg=cfg, state_dict=state_dict)
 
     
+    @staticmethod
+    def load_from_cfg(cfg, state_dict=None, extra_objs={}):
+        class_name = cfg['class_name']
+        del cfg['class_name']
+        if class_name in globals():
+            class_obj = globals()[class_name]
+        elif class_name in extra_objs:
+            class_obj = extra_objs[class_name]
+        else:
+            raise Exception('unknown neural architecture object with class_name=%s'
+                            % (class_name))
+
+        return class_obj.load(cfg=cfg, state_dict=state_dict)

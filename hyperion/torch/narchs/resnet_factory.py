@@ -166,7 +166,7 @@ class ResNetFactory(object):
             help=('squeeze ratio in squeeze-excitation blocks'))
 
         try:
-            parser.add_argument(p1+'hid_act', default='relu6', 
+            parser.add_argument(p1+'hid-act', default='relu6', 
                                 help='hidden activation')
         except:
             pass
