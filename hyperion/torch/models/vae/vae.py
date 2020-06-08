@@ -215,11 +215,35 @@ class VAE(TorchModel):
 
         log_px /= num_samples
         kldiv_qzpz /= num_samples
-        elbo = log_px - kldiv_qzpz
+        elbo = log_px - self.beta*kldiv_qzpz
 
         return elbo, log_px, kldiv_qzpz, px, qz 
         
-        
+
+
+    def compute_qz(self, x):
+        xx = self.encoder_net(x)
+        if self.flatten_spatial:
+            xx = self._flatten(xx)
+
+        xx = self.pre_qz(xx)
+        qz = self.t2qz(xx, self.pz)
+        return qz
+
+
+    def compute_px_given_z(self, z, x_shape=None):
+        zz = z
+        if self.flatten_spatial:
+            zz = self._unflatten(self.z2dec(zz))
+
+        zz = self.decoder_net(zz)
+        zz = self.pre_px(zz)
+
+        if x_shape is not None:
+            zz = self._match_sizes(zz, x.shape)
+        px = self.t2px(zz)
+        return px
+
 
     def get_config(self):
         enc_cfg = self.encoder_net.get_config()
