@@ -6,6 +6,7 @@ from __future__ import absolute_import
 
 # datasets
 from .seq_dataset import SeqDataset
+from .paired_seq_dataset import PairedSeqDataset
 
 
 #samplers

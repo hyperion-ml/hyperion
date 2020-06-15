@@ -176,13 +176,17 @@ class VAE(TorchModel):
         return y.contiguous()
 
         
-    def forward(self, x):
+    def forward(self, x, x_target=None):
+        
+        if x_target is None:
+            x_target = x
+        
         xx = self.encoder_net(x)
         if self.flatten_spatial:
             xx = self._flatten(xx)
 
         xx = self.pre_qz(xx)
-        qz = self.t2qz(xx, self.pz)
+        qz = self.t2qz(xx, self._pz())
         # print(qz)
         # print(self.pz)
         # print(qz.loc)
@@ -190,7 +194,7 @@ class VAE(TorchModel):
         # print(self.pz.loc)
         # print(self.pz.scale)
 
-        kldiv_qzpz = pdf.kl.kl_divergence(qz, self.pz).sum(
+        kldiv_qzpz = pdf.kl.kl_divergence(qz, self._pz()).sum(
             dim=self._reduce_dims)
         z = qz.rsample()
 
@@ -204,10 +208,10 @@ class VAE(TorchModel):
         zz = self._match_sizes(zz, x.shape)
         px = self.t2px(zz)
 
-        log_px = px.log_prob(x).sum(
+        log_px = px.log_prob(x_target).sum(
             dim=self._reduce_dims)
 
-        print(z.shape, kldiv_qzpz.shape, x.shape, log_px.shape)
+        # print(z.shape, kldiv_qzpz.shape, x.shape, log_px.shape)
         #we normalize the elbo by the number of spatial/time samples
         num_samples = 1
         for d in x.shape[2:]:

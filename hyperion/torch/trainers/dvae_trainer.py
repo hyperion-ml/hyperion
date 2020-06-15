@@ -17,7 +17,7 @@ from apex import amp
 from ..utils import MetricAcc
 from .torch_trainer import TorchTrainer
 
-class VAETrainer(TorchTrainer):
+class DVAETrainer(TorchTrainer):
 
     def __init__(self, model, optimizer, epochs, exp_path, cur_epoch=0, grad_acc_steps=1,
                  device=None, metrics=None, lr_scheduler=None, loggers=None, data_parallel=False, 
@@ -43,18 +43,20 @@ class VAETrainer(TorchTrainer):
 
         for batch, data in enumerate(data_loader):
 
-            if isinstance(data, (tuple, list)):
-                data, _ = data
+            assert isinstance(data, (tuple, list))
+            x = data[0]
+            x_target = data[1]
 
             self.loggers.on_batch_begin(batch)
 
             if batch % self.grad_acc_steps == 0:
                 self.optimizer.zero_grad()
                 
-            data = data.to(self.device)
-            batch_size = data.shape[0]
+            x = x.to(self.device)
+            x_target = x_target.to(self.device)
+            batch_size = x.shape[0]
             
-            elbo, log_px, kldiv_z, px, qz = self.model(data)
+            elbo, log_px, kldiv_z, px, qz = self.model(x, x_target=x_target)
             loss = - elbo.mean()/self.grad_acc_steps
             x_hat = px.mean
             if self.use_amp:
@@ -72,7 +74,7 @@ class VAETrainer(TorchTrainer):
             batch_metrics['log_px'] = log_px.mean().item()
             batch_metrics['kldiv_z'] = kldiv_z.mean().item()
             for k, metric in self.metrics.items():
-                batch_metrics[k] = metric(x_hat, data)
+                batch_metrics[k] = metric(x_hat, x_target)
             
             metric_acc.update(batch_metrics, batch_size)
             logs = metric_acc.metrics
@@ -92,19 +94,23 @@ class VAETrainer(TorchTrainer):
         with torch.no_grad():
             self.model.eval()
             for batch, data in enumerate(data_loader):
-                if isinstance(data, (tuple, list)):
-                    data, _ = data
 
-                data = data.to(self.device)
-                batch_size = data.shape[0]
+                assert isinstance(data, (tuple, list))
+                x = data[0]
+                x_target = data[1]
 
-                elbo, log_px, kldiv_z, px, _ = self.model(data)
+                x = x.to(self.device)
+                x_target = x_target.to(self.device)
+                batch_size = x.shape[0]
+
+                elbo, log_px, kldiv_z, px, _ = self.model(
+                    x, x_target=x_target)
                 x_hat = px.mean
                 batch_metrics['elbo'] = elbo.mean().item() 
                 batch_metrics['log_px'] = log_px.mean().item()
                 batch_metrics['kldiv_z'] = kldiv_z.mean().item()
                 for k, metric in self.metrics.items():
-                    batch_metrics[k] = metric(x_hat, data)
+                    batch_metrics[k] = metric(x_hat, x_target)
             
                 metric_acc.update(batch_metrics, batch_size)
         
