@@ -19,8 +19,10 @@ from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch.utils import open_device
 from hyperion.torch.helpers import OptimizerFactory as OF
 from hyperion.torch.lr_schedulers import LRSchedulerFactory as LRSF
-from hyperion.torch.narchs.dc1d_encoder import DC1dEncoder as Encoder
-from hyperion.torch.narchs.dc1d_decoder import DC1dDecoder as Decoder
+from hyperion.torch.narchs import ResNet1dEncoder as Encoder
+from hyperion.torch.narchs import ResNet1dDecoder as Decoder
+#from hyperion.torch.narchs import DC1dEncoder as Encoder
+#from hyperion.torch.narchs import DC1dDecoder as Decoder
 from hyperion.torch.models.vae.vae import VAE
 from hyperion.torch.trainers.vae_trainer import VAETrainer as Trainer
 from hyperion.torch.data import SeqDataset as SD

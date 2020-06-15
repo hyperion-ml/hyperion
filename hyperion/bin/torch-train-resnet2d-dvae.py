@@ -19,17 +19,21 @@ from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch.utils import open_device
 from hyperion.torch.helpers import OptimizerFactory as OF
 from hyperion.torch.lr_schedulers import LRSchedulerFactory as LRSF
-from hyperion.torch.narchs.dc1d_encoder import DC1dEncoder as Encoder
-from hyperion.torch.narchs.dc1d_decoder import DC1dDecoder as Decoder
+from hyperion.torch.narchs import ResNet1dEncoder as Encoder
+from hyperion.torch.narchs import ResNet1dDecoder as Decoder
+#from hyperion.torch.narchs import DC1dEncoder as Encoder
+#from hyperion.torch.narchs import DC1dDecoder as Decoder
 from hyperion.torch.models.vae.vae import VAE
-from hyperion.torch.trainers.vae_trainer import VAETrainer as Trainer
-from hyperion.torch.data import SeqDataset as SD
+from hyperion.torch.trainers.dvae_trainer import DVAETrainer as Trainer
+from hyperion.torch.data import PairedSeqDataset as SD
 from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
 #from hyperion.torch.metrics import CategoricalAccuracy
 
-def train_vae(data_rspec, train_list, val_list, exp_path, in_feats, z_dim,
-             epochs, num_gpus, log_interval, resume, num_workers, 
-             grad_acc_steps, use_amp, **kwargs):
+def train_vae(data_rspec, train_list, val_list, 
+              train_pair_list, val_pair_list,
+              exp_path, in_feats, z_dim,
+              epochs, num_gpus, log_interval, resume, num_workers, 
+              grad_acc_steps, use_amp, **kwargs):
 
     set_float_cpu('float32')
     logging.info('initializing devices num_gpus={}'.format(num_gpus))
@@ -49,8 +53,10 @@ def train_vae(data_rspec, train_list, val_list, exp_path, in_feats, z_dim,
     logging.info('lr scheduler args={}'.format(lrsch_args))
 
     logging.info('init datasets')
-    train_data = SD(data_rspec, train_list, **sd_args)
-    val_data = SD(data_rspec, val_list, is_val=True, **sd_args)
+    train_data = SD(data_rspec, train_list, train_pair_list, 
+                    return_class=False, **sd_args)
+    val_data = SD(data_rspec, val_list, val_pair_list, 
+                  return_class=False, is_val=True, **sd_args)
 
     logging.info('init samplers')
     train_sampler = Sampler(train_data, **sampler_args)
@@ -91,9 +97,11 @@ if __name__ == '__main__':
         fromfile_prefix_chars='@',
         description='Train VAE')
 
-    parser.add_argument('--data-rspec', dest='data_rspec', required=True)
-    parser.add_argument('--train-list', dest='train_list', required=True)
-    parser.add_argument('--val-list', dest='val_list', required=True)
+    parser.add_argument('--data-rspec', required=True)
+    parser.add_argument('--train-list', required=True)
+    parser.add_argument('--val-list', required=True)
+    parser.add_argument('--train-pair-list', required=True)
+    parser.add_argument('--val-pair-list', required=True)
 
     SD.add_argparse_args(parser)
     Sampler.add_argparse_args(parser)

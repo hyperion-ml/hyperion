@@ -17,7 +17,7 @@ def _conv1x1(in_channels, out_channels, stride=1, bias=False):
     return nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, bias=bias)
 
 def _dwconvkxk(channels, kernel_size=3, stride=1, bias=False):
-    """3x3 convolution with padding"""
+    """kxk depth-wise convolution with padding"""
     return nn.Conv2d(channels, channels, kernel_size=kernel_size, stride=stride,
                      padding=(kernel_size-1)//2, groups=channels, bias=bias, 
                      padding_mode='same')

@@ -10,18 +10,18 @@ import torch
 import torch.nn as nn
 
 from ..layers import ActivationFactory as AF
-from ..layer_blocks.dc1d_blocks import DC1dDecBlock
+from ..layer_blocks import DC2dEncBlock
 from .net_arch import NetArch
 
 
-class DC1dDecoder(NetArch):
+class DC2dEncoder(NetArch):
 
-    def __init__(self, in_channels=32, 
-                 in_conv_channels=32,
+    def __init__(self, in_channels=1, 
+                 in_conv_channels=128,
                  in_kernel_size=3,
                  in_stride=1,
                  conv_repeats=[1, 1, 1], 
-                 conv_channels=[64, 128, 128],
+                 conv_channels=[128, 64, 32],
                  conv_kernel_sizes=3,
                  conv_strides=2,
                  conv_dilations=1,
@@ -32,7 +32,7 @@ class DC1dDecoder(NetArch):
                  use_norm=True, 
                  norm_before=True):
 
-        super(DC1dDecoder, self).__init__()
+        super().__init__()
         self.in_channels = in_channels
         self.in_conv_channels = in_conv_channels
         self.in_kernel_size = in_kernel_size
@@ -55,13 +55,13 @@ class DC1dDecoder(NetArch):
         self.norm_before = norm_before
 
         # stem block
-        self.in_block = DC1dDecBlock(
+        self.in_block = DC2dEncBlock(
             in_channels, in_conv_channels, in_kernel_size, 
             stride=in_stride, 
             activation=hid_act, dropout_rate=dropout_rate,
             use_norm=use_norm, norm_before=norm_before)
         self._context = self.in_block.context
-        self._upsample_factor = self.in_block.stride
+        self._downsample_factor = self.in_block.stride
 
         cur_in_channels = in_conv_channels
         
@@ -73,34 +73,34 @@ class DC1dDecoder(NetArch):
             stride_i = self.conv_strides[i]
             kernel_size_i = self.conv_kernel_sizes[i]
             dilation_i = self.conv_dilations[i]
-            block_i = DC1dDecBlock(
+            block_i = DC2dEncBlock(
                 cur_in_channels, channels_i, kernel_size_i, 
                 stride=stride_i, dilation=1, 
                 activation=hid_act, dropout_rate=dropout_rate,
                 use_norm=use_norm, norm_before=norm_before)
                                    
             self.blocks.append(block_i)
-            self._context += block_i.context * self._upsample_factor
-            self._upsample_factor *= block_i.stride
+            self._context += block_i.context * self._downsample_factor
+            self._downsample_factor *= block_i.stride
 
             for j in range(repeats_i-1):
-                block_i = DC1dDecBlock(
+                block_i = DC2dEncBlock(
                     channels_i, channels_i, kernel_size_i, 
                     stride=1, dilation=dilation_i, 
                     activation=hid_act, dropout_rate=dropout_rate,
-                    use_norm=False, norm_before=norm_before)
+                    use_norm=use_norm, norm_before=norm_before)
                 
                 self.blocks.append(block_i)
-                self._context += block_i.context * self._upsample_factor
+                self._context += block_i.context * self._downsample_factor
 
             cur_in_channels = channels_i
 
         #head feature block
         if self.head_channels > 0:
-            self.head_block = DC1dDecBlock(
+            self.head_block = DC2dEncBlock(
                 cur_in_channels, head_channels, kernel_size=1, 
                 stride=1, activation=head_act,
-                use_norm=use_norm, norm_before=norm_before)
+                use_norm=False, norm_before=norm_before)
 
         self._init_weights(hid_act)
 
@@ -108,16 +108,18 @@ class DC1dDecoder(NetArch):
 
     def _init_weights(self, hid_act):
         for m in self.modules():
-            if isinstance(m, nn.Conv1d):
+            if isinstance(m, nn.Conv2d):
                 if isinstance(hid_act, str):
                     act_name = hid_act
                 if isinstance(hid_act, dict):
                     act_name = hid_act['name']
+                if act_name == 'swish':
+                    act_name = 'relu'
                 try:
                     nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity=act_name)
                 except:
                     nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-            elif isinstance(m, nn.BatchNorm1d):
+            elif isinstance(m, nn.BatchNorm2d):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
 
@@ -139,17 +141,16 @@ class DC1dDecoder(NetArch):
 
 
     def _compute_out_size(self, in_size):
-        out_size = in_size * in_stride
+        out_size = int((in_size - 1)//self.in_stride+1)
 
         for stride in self.conv_strides:
-            out_size *= stride 
+            out_size = int((out_size - 1)//stride+1)
 
         return out_size
 
 
     def in_context(self):
-        in_context = int(math.ceil(self._context/self._upsample_factor))
-        return (in_context, in_context)
+        return (self._context, self._context)
 
 
     def in_shape(self):
@@ -158,7 +159,7 @@ class DC1dDecoder(NetArch):
 
     def out_shape(self, in_shape=None):
 
-        out_channels = self.head_channels if self.head_channels>0 else self.conv_channels[-1]        
+        out_channels = self.head_channels if self.head_channels>0 else self.conv_channels[-1]
         if in_shape is None:
             return (None, out_channels, None, None)
 
@@ -168,7 +169,7 @@ class DC1dDecoder(NetArch):
         else:
             T = self._compute_out_size(in_shape[2])
 
-        return (in_shape[0], out_channels, T)
+        return (in_shape[0], out_chanels, T)
 
 
 
@@ -206,7 +207,7 @@ class DC1dDecoder(NetArch):
                   'norm_before': self.norm_before,
               }
         
-        base_config = super(DC1dDecoder, self).get_config()
+        base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
 
@@ -227,7 +228,7 @@ class DC1dDecoder(NetArch):
             del kwargs['norm_after']
 
 
-        valid_args = ('in_channels', 
+        valid_args = ('in_channels',
                       'in_conv_channels', 'in_kernel_size', 'in_stride',
                       'conv_repeats', 'conv_channels', 'conv_kernel_sizes', 
                       'conv_strides', 'conv_dilations', 
@@ -252,8 +253,8 @@ class DC1dDecoder(NetArch):
             p1 = '--' + prefix + '-'
 
         parser.add_argument(
-            p1+'in-channels', type=int, required=True,
-            help=('input channels of decoder'))
+            p1+'in-channels', type=int, default=1,
+            help=('input channel dimension'))
 
         parser.add_argument(
             p1+'in-conv-channels', default=128, type=int,
@@ -266,32 +267,31 @@ class DC1dDecoder(NetArch):
         parser.add_argument(p1+'in-stride', default=1, type=int,
                             help=('stride of input convolution'))
 
-
         parser.add_argument(
             p1+'conv-repeats', default=[1, 1, 1], type=int,
-            nargs='+', help=('conv-blocks repeats in each decoder stage'))
+            nargs='+', help=('conv-blocks repeats in each encoder stage'))
 
         parser.add_argument(
-            p1+'conv-channels', default=[64, 128, 128], 
+            p1+'conv-channels', default=[128, 64, 32], 
             type=int, nargs='+',
-            help=('conv-blocks channels for each decoder stage'))
+            help=('conv-blocks channels for each stage'))
 
         parser.add_argument(
             p1+'conv-kernel-sizes', default=3, 
-            nargs='+', type=int, help=('conv-blocks kernels for each decoder stage'))
+            nargs='+', type=int, help=('conv-blocks kernels for each encoder stage'))
 
         parser.add_argument(
             p1+'conv-strides', default=2, 
-            nargs='+', type=int, help=('conv-blocks strides for each decoder stage'))
+            nargs='+', type=int, help=('conv-blocks strides for each encoder stage'))
 
         parser.add_argument(
             p1+'conv-dilations', default=1,
-            nargs='+', type=int, help=('conv-blocks dilations for each decoder stage'))
+            nargs='+', type=int, help=('conv-blocks dilations for each encoder stage'))
 
         if head_channels:
             parser.add_argument(
-                p1+'head-channels', type=int, required=True,
-                help=('channels in the last conv block of decoder'))
+                p1+'head-channels', default=16, type=int,
+                help=('channels in the last conv block of encoder'))
 
         try:
             parser.add_argument(p1+'hid-act', default='relu6', 

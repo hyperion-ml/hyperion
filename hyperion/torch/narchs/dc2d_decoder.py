@@ -10,11 +10,11 @@ import torch
 import torch.nn as nn
 
 from ..layers import ActivationFactory as AF
-from ..layer_blocks.dc1d_blocks import DC1dDecBlock
+from ..layer_blocks import DC2dDecBlock
 from .net_arch import NetArch
 
 
-class DC1dDecoder(NetArch):
+class DC2dDecoder(NetArch):
 
     def __init__(self, in_channels=32, 
                  in_conv_channels=32,
@@ -32,7 +32,7 @@ class DC1dDecoder(NetArch):
                  use_norm=True, 
                  norm_before=True):
 
-        super(DC1dDecoder, self).__init__()
+        super().__init__()
         self.in_channels = in_channels
         self.in_conv_channels = in_conv_channels
         self.in_kernel_size = in_kernel_size
@@ -55,7 +55,7 @@ class DC1dDecoder(NetArch):
         self.norm_before = norm_before
 
         # stem block
-        self.in_block = DC1dDecBlock(
+        self.in_block = DC2dDecBlock(
             in_channels, in_conv_channels, in_kernel_size, 
             stride=in_stride, 
             activation=hid_act, dropout_rate=dropout_rate,
@@ -73,7 +73,7 @@ class DC1dDecoder(NetArch):
             stride_i = self.conv_strides[i]
             kernel_size_i = self.conv_kernel_sizes[i]
             dilation_i = self.conv_dilations[i]
-            block_i = DC1dDecBlock(
+            block_i = DC2dDecBlock(
                 cur_in_channels, channels_i, kernel_size_i, 
                 stride=stride_i, dilation=1, 
                 activation=hid_act, dropout_rate=dropout_rate,
@@ -84,7 +84,7 @@ class DC1dDecoder(NetArch):
             self._upsample_factor *= block_i.stride
 
             for j in range(repeats_i-1):
-                block_i = DC1dDecBlock(
+                block_i = DC2dDecBlock(
                     channels_i, channels_i, kernel_size_i, 
                     stride=1, dilation=dilation_i, 
                     activation=hid_act, dropout_rate=dropout_rate,
@@ -97,7 +97,7 @@ class DC1dDecoder(NetArch):
 
         #head feature block
         if self.head_channels > 0:
-            self.head_block = DC1dDecBlock(
+            self.head_block = DC2dDecBlock(
                 cur_in_channels, head_channels, kernel_size=1, 
                 stride=1, activation=head_act,
                 use_norm=use_norm, norm_before=norm_before)
@@ -108,7 +108,7 @@ class DC1dDecoder(NetArch):
 
     def _init_weights(self, hid_act):
         for m in self.modules():
-            if isinstance(m, nn.Conv1d):
+            if isinstance(m, nn.Conv2d):
                 if isinstance(hid_act, str):
                     act_name = hid_act
                 if isinstance(hid_act, dict):
@@ -117,7 +117,7 @@ class DC1dDecoder(NetArch):
                     nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity=act_name)
                 except:
                     nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-            elif isinstance(m, nn.BatchNorm1d):
+            elif isinstance(m, nn.BatchNorm2d):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
 
@@ -206,7 +206,7 @@ class DC1dDecoder(NetArch):
                   'norm_before': self.norm_before,
               }
         
-        base_config = super(DC1dDecoder, self).get_config()
+        base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
 

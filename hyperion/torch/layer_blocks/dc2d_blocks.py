@@ -7,14 +7,13 @@
 #import numpy as np
 
 import torch.nn as nn
-from torch.nn import Conv1d, Linear, BatchNorm1d
+from torch.nn import Conv2d, BatchNorm2d, Dropout2d
 
 from ..layers import ActivationFactory as AF
-from ..layers import Dropout1d
-from ..layers.subpixel_convs import SubPixelConv1d
+from ..layers.subpixel_convs import SubPixelConv2d
 
 
-class DC1dEncBlock(nn.Module):
+class DC2dEncBlock(nn.Module):
 
     def __init__(self, in_channels, out_channels, 
                  kernel_size, stride=1, dilation=1, 
@@ -22,7 +21,7 @@ class DC1dEncBlock(nn.Module):
                  dropout_rate=0,
                  use_norm=True, norm_before=True):
 
-        super(DC1dEncBlock, self).__init__()
+        super().__init__()
 
         self.activation = AF.create(activation)
         padding = int(dilation * (kernel_size -1)/2)
@@ -30,18 +29,18 @@ class DC1dEncBlock(nn.Module):
         self.dropout_rate =dropout_rate
         self.dropout = None
         if dropout_rate > 0:
-            self.dropout = Dropout1d(dropout_rate)
+            self.dropout = Dropout2d(dropout_rate)
 
         self.norm_before = False
         self.norm_after = False
         if use_norm:
-            self.bn1 = BatchNorm1d(out_channels)        
+            self.bn1 = BatchNorm2d(out_channels)        
             if norm_before:
                 self.norm_before = True
             else:
                 self.norm_after = True
 
-        self.conv1 = Conv1d(
+        self.conv1 = Conv2d(
             in_channels, out_channels, 
             bias=(not self.norm_before),
             kernel_size=kernel_size, 
@@ -83,7 +82,7 @@ class DC1dEncBlock(nn.Module):
 
 
 
-class DC1dDecBlock(nn.Module):
+class DC2dDecBlock(nn.Module):
 
     def __init__(self, in_channels, out_channels, 
                  kernel_size, stride=1, dilation=1, 
@@ -91,7 +90,7 @@ class DC1dDecBlock(nn.Module):
                  dropout_rate=0,
                  use_norm=True, norm_before=True):
 
-        super(DC1dDecBlock, self).__init__()
+        super().__init__()
 
         self.activation = AF.create(activation)
         padding = int(dilation * (kernel_size -1)/2)
@@ -99,19 +98,19 @@ class DC1dDecBlock(nn.Module):
         self.dropout_rate =dropout_rate
         self.dropout = None
         if dropout_rate > 0:
-            self.dropout = Dropout1d(dropout_rate)
+            self.dropout = Dropout2d(dropout_rate)
 
         self.norm_before = False
         self.norm_after = False
         if use_norm:
-            self.bn1 = BatchNorm1d(out_channels)        
+            self.bn1 = BatchNorm2d(out_channels)        
             if norm_before:
                 self.norm_before = True
             else:
                 self.norm_after = True
 
         if stride == 1:
-            self.conv1 = Conv1d(
+            self.conv1 = Conv2d(
             in_channels, out_channels, 
             kernel_size=kernel_size, 
             stride=1,
@@ -119,7 +118,7 @@ class DC1dDecBlock(nn.Module):
             bias=(not self.norm_before),
             padding=padding, padding_mode='reflection') #pytorch > 1.0
         else:
-            self.conv1 = SubPixelConv1d(
+            self.conv1 = SubPixelConv2d(
                 in_channels, out_channels, 
                 kernel_size=kernel_size, 
                 stride=stride,

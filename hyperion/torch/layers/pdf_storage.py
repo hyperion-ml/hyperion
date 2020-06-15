@@ -16,8 +16,9 @@ class StdNormal(nn.Module):
         super().__init__()
         self.loc = nn.Parameter(torch.zeros(shape), requires_grad=False)
         self.scale = nn.Parameter(torch.ones(shape), requires_grad=False)
-        self.pdf = pdf.normal.Normal(self.loc, self.scale)
+        #self.pdf = pdf.normal.Normal(self.loc, self.scale)
 
 
     def forward(self):
-        return self.pdf
+        return pdf.normal.Normal(self.loc, self.scale)
+        #return self.pdf
