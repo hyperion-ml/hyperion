@@ -244,7 +244,7 @@ class VAE(TorchModel):
         zz = self.pre_px(zz)
 
         if x_shape is not None:
-            zz = self._match_sizes(zz, x.shape)
+            zz = self._match_sizes(zz, x_shape)
         px = self.t2px(zz)
         return px
 
