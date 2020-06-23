@@ -21,7 +21,7 @@ class StdNormal(nn.Module):
 
 
     @property
-    self pdf(self):
+    def pdf(self):
         return pdf.normal.Normal(self.loc, self.scale)
 
     def forward(self):
