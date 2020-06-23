@@ -7,6 +7,22 @@ import re
 import torch
 import torch.distributions as dists
 
+def squeeze_pdf(pdf, dim):
+
+    if isinstance(pdf, dists.normal.Normal):
+        loc = pdf.loc.squeeze(dim=dim)
+        scale = pdf.scale.squeeze(dim=dim)
+        return dists.normal.Normal(loc=loc, scale=scale)
+
+
+def squeeze_pdf_(pdf, dim):
+
+    if isinstance(pdf, dists.normal.Normal):
+        pdf.loc.squeeze_(dim=dim)
+        pdf.scale.squeeze_(dim=dim)
+
+
+
 def serialize_pdf_to_dict(pdf):
     """Serializes pdfs to a dictionary
     
