@@ -2,7 +2,7 @@
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba, Nanxin Chen)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
+#from __future__ import absolute_import
 
 import torch
 import torch.nn as nn
@@ -11,7 +11,7 @@ class SubPixelConv1d(nn.Module):
 
     def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, 
                  dilation=1, groups=1, bias=True, padding_mode='zeros'):
-        super(SubPixelConv1d, self).__init__()
+        super().__init__()
         self.conv = nn.Conv1d(in_channels, stride*out_channels, kernel_size, stride=1, 
                               padding=padding, dilation=dilation, 
                               groups=groups, bias=bias, padding_mode=padding_mode)
@@ -34,7 +34,7 @@ class SubPixelConv2d(nn.Module):
 
     def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, 
                  dilation=1, groups=1, bias=True, padding_mode='zeros'):
-        super(SubPixelConv1d, self).__init__()
+        super().__init__()
         self.conv = nn.Conv2d(in_channels, (stride**2)*out_channels, kernel_size, stride=1, 
                               padding=padding, dilation=dilation, 
                               groups=groups, bias=bias, padding_mode=padding_mode)

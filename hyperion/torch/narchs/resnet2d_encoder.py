@@ -179,7 +179,7 @@ class ResNet2dEncoder(NetArch):
         if in_shape is None:
             return (None, out_channels, None, None)
 
-        assert len(in_shape) == 3
+        assert len(in_shape) == 4
         if in_shape[2] is None:
             H = None
         else:

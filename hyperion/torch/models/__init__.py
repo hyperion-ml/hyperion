@@ -4,3 +4,4 @@
 """
 
 from .vae.vae import VAE
+from .vae.vq_vae import VQVAE

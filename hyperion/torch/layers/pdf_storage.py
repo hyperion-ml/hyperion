@@ -14,11 +14,16 @@ class StdNormal(nn.Module):
     """
     def __init__(self, shape):
         super().__init__()
-        self.loc = nn.Parameter(torch.zeros(shape), requires_grad=False)
-        self.scale = nn.Parameter(torch.ones(shape), requires_grad=False)
-        #self.pdf = pdf.normal.Normal(self.loc, self.scale)
+        self.register_buffer('loc', torch.zeros(shape))
+        self.register_buffer('scale', torch.ones(shape))
+        #self.loc = nn.Parameter(torch.zeros(shape), requires_grad=False)
+        #self.scale = nn.Parameter(torch.ones(shape), requires_grad=False)
 
+
+    @property
+    self pdf(self):
+        return pdf.normal.Normal(self.loc, self.scale)
 
     def forward(self):
-        return pdf.normal.Normal(self.loc, self.scale)
-        #return self.pdf
+        return self.pdf
+
