@@ -268,15 +268,16 @@ class VQVAE(TorchModel):
         
 
 
-    def compute_qz(self, x):
+    def compute_z(self, x):
         x = self._pre_enc(x)
         xx = self.encoder_net(x)
         if self.flatten_spatial:
             xx = self._flatten(xx)
 
         xx = self.pre_vq(xx)
-        qz = self.t2qz(xx, self.pz)
-        return qz
+
+        z, vq_loss, kldiv_qzpz, perplexity = self.vq_layer(xx)
+        return z
 
 
     def compute_px_given_z(self, z, x_shape=None):
