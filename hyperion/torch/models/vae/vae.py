@@ -273,7 +273,7 @@ class VAE(TorchModel):
             xx = self._flatten(xx)
 
         xx = self.pre_qz(xx)
-        qz = self.t2qz(xx, self.pz)
+        qz = self.t2qz(xx, self._pz())
         return qz
 
 
