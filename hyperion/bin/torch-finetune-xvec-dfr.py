@@ -28,6 +28,7 @@ from hyperion.torch.helpers import TorchModelLoader as TML
 
 
 def train_xvec(data_rspec, train_list, val_list, exp_path, in_model_path,
+               prior_model_path,
                reg_layers_enc, reg_layers_classif,
                reg_weight_enc, reg_weight_classif, reg_loss,
                epochs, num_gpus, log_interval, resume, num_workers, 
@@ -67,7 +68,10 @@ def train_xvec(data_rspec, train_list, val_list, exp_path, in_model_path,
     xvec_args['num_classes'] = train_data.num_classes
     model = TML.load(in_model_path)
     model.rebuild_output_layer(**xvec_args)
-    prior_model = model.copy()
+    if prior_model_path:
+        prior_model = TML.load(prior_model_path)
+    else:
+        prior_model = model.copy()
     prior_model.freeze()
     prior_model.eval()
     if train_mode == 'ft-embed-affine':
@@ -136,6 +140,7 @@ if __name__ == '__main__':
                         help='number of epochs')
 
     parser.add_argument('--in-model-path', required=True)
+    parser.add_argument('--prior-model-path')
     XVec.add_argparse_finetune_args(parser)
     OF.add_argparse_args(parser, prefix='opt')
     LRSF.add_argparse_args(parser, prefix='lrsch')

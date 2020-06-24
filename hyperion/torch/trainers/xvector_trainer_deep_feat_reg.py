@@ -15,6 +15,21 @@ from apex import amp
 from ..utils import MetricAcc
 from .torch_trainer import TorchTrainer, TorchDataParallel
 
+class DFRModelWrapper(nn.Module):
+    """Wrapper class for the xvector model, which 
+    replace the forward method by the forward_hid_feats method
+
+    This is need because nn.DataParallel only support multi-gpu when colling the
+    forward method, but not the other methods in the nn.Module classes.
+    """
+    def __init__(self, model):
+        super().__init__()
+        self.model = model
+
+    def forward(self, x, y=None, enc_layers=None, classif_layers=None, return_output=False):
+        return self.model.forward_hid_feats(x, y, enc_layers, classif_layers, return_output)
+
+    
 
 class XVectorTrainerDeepFeatReg(TorchTrainer):
 
@@ -41,13 +56,18 @@ class XVectorTrainerDeepFeatReg(TorchTrainer):
         self.reg_layers_classif = reg_layers_classif
         self.reg_weight_enc = reg_weight_enc
         self.reg_weight_classif = reg_weight_classif
+
+        self.model_wrapper = DFRModelWrapper(self.model)
+        self.prior_model_wrapper = DFRModelWrapper(self.prior_model)
         
         if device is not None:
-            self.prior_model.to(device)
+            self.model_wrapper.to(device)
+            self.prior_model_wrapper.to(device)
             self.reg_loss.to(device)
         
         if data_parallel:
-            self.prior_model = TorchDataParallel(self.prior_model)
+            self.model_wrapper = TorchDataParallel(self.model_wrapper)
+            self.prior_model_wrapper = TorchDataParallel(self.prior_model_wrapper)
             self.reg_loss = TorchDataParallel(self.reg_loss)
 
 
@@ -74,12 +94,12 @@ class XVectorTrainerDeepFeatReg(TorchTrainer):
             data, target = data.to(self.device), target.to(self.device)
             batch_size = data.shape[0]
 
-            h_enc, h_classif, output = self.model.forward_hid_feats(
+            h_enc, h_classif, output = self.model_wrapper(
                 data, target, self.reg_layers_enc, self.reg_layers_classif, return_output=True)
             loss = self.loss(output, target).mean() # you need to take the mean here because of the multi-gpu training
             batch_metrics['loss-classif'] = loss.item()
             
-            prior_h_enc, prior_h_classif = self.prior_model.forward_hid_feats(
+            prior_h_enc, prior_h_classif = self.prior_model_wrapper(
                 data, target, self.reg_layers_enc, self.reg_layers_classif, return_output=False)
 
             n_enc = len(h_enc)

@@ -52,6 +52,8 @@ export PYTHONPATH=$HYP_ROOT:$KERAS_PATH:$PYTHONPATH
 export LD_LIBRARY_PATH
 export LC_ALL=C
 
+export HDF5_USE_FILE_LOCKING=FALSE
+
 wait_file() {
     local file="$1"; shift
     local wait_seconds="${2:-30}"; shift # 10 seconds as default timeout
