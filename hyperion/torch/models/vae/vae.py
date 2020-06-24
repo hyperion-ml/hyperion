@@ -175,7 +175,7 @@ class VAE(TorchModel):
         for i in range(2, y_dim):
             surplus = y.shape[i] - target_shape[i-d]
             if surplus > 0:
-                y = torch.narrow(y, i, surplus//2, target_shape[i])
+                y = torch.narrow(y, i, surplus//2, target_shape[i-d])
 
         return y.contiguous()
 
