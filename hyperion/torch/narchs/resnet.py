@@ -96,7 +96,11 @@ class ResNet(NetArch):
 
         self.norm_layer = norm_layer
         if norm_layer is None:
-            norm_layer = nn.BatchNorm2d
+            # norm_layer = nn.BatchNorm2d
+            norm_groups = min(base_channels, 32)
+            norm_groups = max(norm_groups, groups)
+            norm_layer = lambda x : nn.GroupNorm(norm_groups, x)
+            
         self._norm_layer = norm_layer
 
         self.dilation = 1
