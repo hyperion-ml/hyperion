@@ -30,6 +30,6 @@ fi
 
 if [ $stage -le 2 ];then
     # prepare Dihard2019
-    local/make_dihard_2019_dev.sh $dihard2019_dev data/dihard2019_dev
-    local/make_dihard_2019_dev.sh $dihard2019_eval data/dihard2019_eval
+    local/make_dihard2019.sh $dihard2019_dev data/dihard2019_dev
+    local/make_dihard2019.sh $dihard2019_eval data/dihard2019_eval
 fi
