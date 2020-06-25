@@ -244,6 +244,46 @@ class XVector(TorchModel):
         return y
 
 
+    def extract_embed_slidwin(self, x, win_length, win_shift, 
+                              chunk_length=0, embed_layer=None, 
+                              return_time_marks=False,
+                              device=None):
+
+        if embed_layer is None:
+            embed_layer = self.embed_layer
+
+        in_time = x.size(-1)
+        if self.encoder_net.in_dim() == 4 and x.dim() == 3:
+            x = x.view(x.size(0), 1, x.size(1), x.size(2))
+
+        x = eval_nnet_by_chunks(x, self.encoder_net, chunk_length, device=device)
+
+        if device is not None:
+            x = x.to(device)
+
+        if self.encoder_net.out_dim() == 4:
+            x = x.view(x.size(0), -1, x.size(-1))
+
+        if self.proj is not None:
+            x = self.proj(x)
+
+        pin_time = x.size(-1) #time dim before pooling
+        dowsample_factor = float(pin_time)/in_time
+        p = self.pool_net.forward_slidwin(
+            x, downsample_factor*win_length, downsample_factor*win_shift) 
+        # (batch, pool_dim, time)
+        
+        p = p.transpose(1,2).contiguous().view(-1, p.size(1))
+        y = self.classif_net.extract_embed(p, embed_layer).view(
+            x.size(0), -1, self.embed_dim).transpose(1,2).contiguous()
+
+        if not return_time_marks:
+            return y
+
+        time_marks = [[i*win_shift, i*win_shift+win_length] for i in range(y.size(-1))]
+        return y, time_marks
+
+
     def get_config(self):
 
         enc_cfg = self.encoder_net.get_config()

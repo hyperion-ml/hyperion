@@ -74,10 +74,6 @@ class GlobalPool1dFactory(object):
                             default=1, type=int,
                             help=('Pooling dimension, usually time dimension'))
         
-        # parser.add_argument(p1+'batch-dim',
-        #                     default=0, type=int,
-        #                     help=('Batch-size dimension'))
-
         parser.add_argument(
             p1+'keepdim', default=False, action='store_true',
             help=('keeps the pooling dimension as singletone'))
