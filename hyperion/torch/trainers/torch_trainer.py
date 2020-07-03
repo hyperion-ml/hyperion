@@ -20,7 +20,24 @@ from ..loggers import LoggerList, CSVLogger, ProgLogger
 
 
 class TorchTrainer(object):
+    """Base Trainer class to train basic neural network models
 
+       Attributes:
+         model: x-Vector model object.
+         optimizer: pytorch optimizer object
+         loss: nn.Module loss class
+         epochs: max. number of epochs
+         exp_path: experiment output path
+         cur_epoch: current epoch
+         grad_acc_steps: gradient accumulation steps to simulate larger batch size.
+         device: cpu/gpu device
+         metrics: extra metrics to compute besides cxe.
+         lr_scheduler: learning rate scheduler object
+         loggers: LoggerList object, loggers write training progress to std. output and file.
+         data_parallel: if True use nn.DataParallel
+         train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
+         use_amp: uses mixed precision training.
+    """
     def __init__(self, model, optimizer, loss, epochs, exp_path, cur_epoch=0, grad_acc_steps=1,
                  device=None, metrics=None, lr_scheduler=None, loggers=None, data_parallel=False, 
                  train_mode='train', use_amp=False):
@@ -67,7 +84,12 @@ class TorchTrainer(object):
 
         
     def fit(self, train_data, val_data=None):
-
+        """Training function, it performs the training and validation epochs
+         
+        Args:
+          train_data: PyTorch data loader for the training loop
+          val_data: PyTorch data loader for the validation loop
+        """
         if not os.path.exists(self.exp_path):
             os.makedirs(self.exp_path)
         
@@ -97,10 +119,11 @@ class TorchTrainer(object):
             
             
     def train_epoch(self, data_loader):
+        """Training epoch loop
 
-        #epoch_batches = len(data_loader.dataset)
-        #total_batches = self.cur_epoch * epoch_batches
-
+        Args:
+          data_loader: PyTorch data loader return input/output pairs
+        """
         metric_acc = MetricAcc()
         batch_metrics = ODict()
         if self.train_mode == 'train':
@@ -148,6 +171,11 @@ class TorchTrainer(object):
 
 
     def validation_epoch(self, data_loader):
+        """Validation epoch loop
+
+        Args:
+          data_loader: PyTorch data loader return input/output pairs
+        """
 
         metric_acc = MetricAcc()
         batch_metrics = ODict()
@@ -171,17 +199,26 @@ class TorchTrainer(object):
 
 
     def _default_loggers(self):
+        """Creates the default data loaders
+        """
         prog_log = ProgLogger(interval=10)
         csv_log = CSVLogger(self.exp_path + '/train.log', append=True)
         return LoggerList([prog_log, csv_log])
     
     
     def _get_lr(self):
+        """Returns the current learning rate to show in the loggers
+        """
         for param_group in self.optimizer.param_groups:
             return param_group['lr']
 
 
     def checkpoint(self, logs=None):
+        """Creates a checkpoint of the training, to save and posterior recovery
+
+        Args:
+          logs: logs containing the current value of the metrics.
+        """
         checkpoint = {
             'epoch': self.cur_epoch,
             'rng_state': torch.get_rng_state(),
@@ -203,6 +240,11 @@ class TorchTrainer(object):
     
         
     def save_checkpoint(self, logs=None):
+        """Saves a checkpoint of the training status
+
+        Args:
+          logs: logs containing the current value of the metrics.
+        """
 
         checkpoint = self.checkpoint(logs)
         file_path = '%s/model_ep%04d.pth' % (self.exp_path, self.cur_epoch)
@@ -211,8 +253,11 @@ class TorchTrainer(object):
 
 
     def load_checkpoint(self, file_path):
+        """Loads a training checkpoint from file.
 
-        #checkpoint = torch.load(file_path, map_location=lambda storage, loc: storage)
+        Args:
+           file_path: checkpoint file path
+        """
         checkpoint = torch.load(file_path, map_location=torch.device("cpu"))
         rng_state = checkpoint['rng_state']
         torch.set_rng_state(rng_state)
@@ -241,7 +286,8 @@ class TorchTrainer(object):
 
     
     def load_last_checkpoint(self):
-
+        """Loads the last training checkpoint in the experiment dir.
+        """
         for epoch in range(self.epochs, 0, -1):
             file_path = '%s/model_ep%04d.pth' % (self.exp_path, epoch)
             if os.path.isfile(file_path):

@@ -17,7 +17,24 @@ from .torch_trainer import TorchTrainer
 
 
 class XVectorTrainer(TorchTrainer):
+    """Trainer to train x-vector style models.
 
+       Attributes:
+         model: x-Vector model object.
+         optimizer: pytorch optimizer object
+         epochs: max. number of epochs
+         exp_path: experiment output path
+         cur_epoch: current epoch
+         grad_acc_steps: gradient accumulation steps to simulate larger batch size.
+         device: cpu/gpu device
+         metrics: extra metrics to compute besides cxe.
+         lr_scheduler: learning rate scheduler object
+         loggers: LoggerList object, loggers write training progress to std. output and file.
+         data_parallel: if True use nn.DataParallel
+         loss: if None, it uses cross-entropy
+         train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
+         use_amp: uses mixed precision training.
+    """
     def __init__(self, model, optimizer, epochs, exp_path, cur_epoch=0, 
                  grad_acc_steps=1, 
                  device=None, metrics=None, lr_scheduler=None, loggers=None, 
@@ -34,9 +51,12 @@ class XVectorTrainer(TorchTrainer):
 
         
     def train_epoch(self, data_loader):
-        #epoch_batches = len(data_loader.dataset)
-        #total_batches = self.cur_epoch * epoch_batches
-        
+        """Training epoch loop
+
+           Args:
+             data_loader: pytorch data loader returning features and class labels.
+        """
+
         self.model.update_loss_margin(self.cur_epoch)
 
         metric_acc = MetricAcc()

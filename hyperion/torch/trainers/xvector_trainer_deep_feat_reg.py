@@ -32,6 +32,30 @@ class DFRModelWrapper(nn.Module):
     
 
 class XVectorTrainerDeepFeatReg(TorchTrainer):
+    """Trainer to train x-vector style models.
+
+       Attributes:
+         model: x-Vector model object that we want to fine-tune
+         prior_model: x-Vector model object that we use as regularizer
+         optimizer: pytorch optimizer object
+         epochs: max. number of epochs
+         exp_path: experiment output path
+         cur_epoch: current epoch
+         grad_acc_steps: gradient accumulation steps to simulate larger batch size.
+         reg_layers_enc: list of encoder layer indexes that we use for regularization
+         reg_layers_classif: list of classification head layer indexes that we use for regularization
+         reg_weight_enc: weight of the regularization loss for encoder hidden activations
+         reg_weight_classif: weight of the regularization loss for classification head hidden activations
+         device: cpu/gpu device
+         metrics: extra metrics to compute besides cxe.
+         lr_scheduler: learning rate scheduler object
+         loggers: LoggerList object, loggers write training progress to std. output and file.
+         data_parallel: if True use nn.DataParallel
+         loss: if None, it uses cross-entropy
+         reg_loss: nn.Module loss used for regularization, if None it uses L1 loss.
+         train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
+         use_amp: uses mixed precision training.
+    """
 
     def __init__(self, model, prior_model, optimizer, epochs, exp_path, cur_epoch=0, 
                  grad_acc_steps=1, reg_layers_enc=None, reg_layers_classif=None,
@@ -73,9 +97,11 @@ class XVectorTrainerDeepFeatReg(TorchTrainer):
 
         
     def train_epoch(self, data_loader):
-        #epoch_batches = len(data_loader.dataset)
-        #total_batches = self.cur_epoch * epoch_batches
-        
+        """Training epoch loop
+
+        Args:
+          data_loader: PyTorch data loader return input/output pairs
+        """
         self.model.update_loss_margin(self.cur_epoch)
 
         metric_acc = MetricAcc()
