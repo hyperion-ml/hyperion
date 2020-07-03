@@ -2,7 +2,7 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
+#from __future__ import absolute_import
 
 import logging
 import math
@@ -19,6 +19,7 @@ class _GlobalPool1d(nn.Module):
         self.keepdim = keepdim
         self.size_multiplier = 1
 
+
     def _standarize_weights(self, weigths, ndims):
 
         if weights.dims() == ndims:
@@ -32,16 +33,32 @@ class _GlobalPool1d(nn.Module):
 
 
     def get_config(self):
-        
         config = { 'dim': self.dim,
                    'keepdim': self.keepdim }
-
         return config
 
 
     def forward_slidwin(self, x, win_length, win_shift):
         raise NotImplementedError()
 
+
+    def _slidwin_pad(self, x, win_length, win_shift, snip_edges):
+        
+        if snip_edges:
+            num_frames = int(math.floor((x.size(-1) - win_length + win_shift)/win_shift))
+            return nnf.pad(x, (1, 0), mode='constant'), num_frames
+
+        assert win_length >= win_shift, (
+            'if win_length < win_shift snip-edges should be false')
+
+        num_frames = int(round(x.size(-1)/win_shift))
+        len_x = (num_frames-1)*win_shift + win_length
+        dlen_x = round(len_x - x.size(-1))
+        pad_left = int(math.floor((win_length - win_shift)/2))
+        pad_right = int(dlen_x - pad_left)
+
+        return nnf.pad(x, (pad_left+1, pad_right), mode='reflect'), num_frames
+        
 
 
 class GlobalAvgPool1d(_GlobalPool1d):
@@ -68,51 +85,60 @@ class GlobalAvgPool1d(_GlobalPool1d):
         return xbar/wbar
 
 
-    def forward_slidwin(self, x, win_length, win_shift):
+
+    def forward_slidwin(self, x, win_length, win_shift, snip_edges=False):
         if isinstance(win_shift, int) and isinstance(win_lenght, int):
-            return self._forward_slidwin_int(x, win_length, win_shift):
+            return self._forward_slidwin_int(
+                x, win_length, win_shift, snip_edges=snip_edges)
 
         # the window length and/or shift are floats
-        return self._forward_slidwin_float(x, win_length, win_shift):
+        return self._forward_slidwin_float(
+            x, win_length, win_shift, snip_edges=snip_edges)
 
 
-    def _forward_slidwin_int(self, x, win_shift, win_length):
-        num_frames = int((x.shape[self.dim] - win_length + 2*window_shift -1)/win_shift)
-        pad_right = win_shift * (num_frames - 1) + win_length
+
+    def _pre_slidwin(self, x, win_length, win_shift, snip_edges):
         if self.dim != -1:
             x = x.transpose(self.dim, -1)
 
-        xx = nn.functional.pad(x, (1, pad_right), mode='reflect')
-        c_x = torch.cumsum(xx, dim=-1).view(-1, xx.shape[-1])
-        m_x = (c_x[:,win_shift:] - c_x[:,:-win_shift])/win_length
-        m_x = m_x.view(*x.shape[:-1], num_frames)
+        x, num_frames = self._slidwin_pad(x, win_length, win_shift, snip_edges)
+        out_shape = *x.shape[:-1], num_frames
+        c_x = torch.cumsum(x, dim=-1).view(-1, x.shape[-1])
+        return cx, out_shape
+
+
+    def _post_slidwin(self, m_x, x_shape):
+        m_x = m_x.view(x_shape)
+
         if self.dim != -1:
             m_x = x.transpose(self.dim, -1).contiguous()
 
         return m_x
+
+
+    def _forward_slidwin_int(self, x, win_length, win_shift, snip_edges):
+
+        c_x, out_shape = self._pre_slidwin(x, win_length, win_shift, snip_edges)
+
+        m_x = (c_x[:,win_shift:] - c_x[:,:-win_shift])/win_length
+
+        m_x = self._post_slid_win(m_x, out_shape)
+        return m_x
         
 
-    def _forward_slidwin_float(self, x, win_shift, win_length):
-        num_frames = int((x.shape[self.dim] - win_length + 2*window_shift -1)/win_shift)
-        pad_right = win_shift * (num_frames - 1) + win_length
-        if self.dim != -1:
-            # we move the pool dim to the end, it simplifies things
-            x = x.transpose(self.dim, -1)
-            
-        xx = nn.functional.pad(x, (1, pad_right), mode='reflect')
-        c_x = torch.cumsum(xx, dim=-1).view(-1, xx.shape[-1])
+    def _forward_slidwin_float(self, x, win_length, win_shift, snip_edges):
+        c_x, out_shape = self._pre_slidwin(x, win_length, win_shift, snip_edges)
+
+        num_frames = out_shape[-1]
         m_x = torch.zeros((c_x.shape[0], num_frames), dtype=c_x.dtype, device=c_x.device)
         k = 0
         for i in range(num_frames):
-            k1 = int(math.round(k))
-            k2 = int(math.round(k+win_length))
+            k1 = int(round(k))
+            k2 = int(round(k+win_length))
             m_x[:,i] = (c_x[:,k2]-c_x[:,k1])/(k2-k1)
             k += win_shift
 
-        m_x = m_x.view(*x.shape[:-1], num_frames)
-        if self.dim != -1:
-            m_x = x.transpose(self.dim, -1).contiguous()
-
+        m_x = self._post_slid_win(m_x, out_shape)
         return m_x
 
 
@@ -166,118 +192,122 @@ class GlobalMeanStdPool1d(_GlobalPool1d):
 
 
 
-    def forward_slidwin(self, x, win_length,  win_shift):
+    def forward_slidwin(self, x, win_length,  win_shift, snip_edges=False):
         if isinstance(win_shift, int) and isinstance(win_lenght, int):
-            return self._forward_slidwin_int(x, win_length, win_shift):
+            return self._forward_slidwin_int(
+                x, win_length, win_shift, snip_edges)
 
         # the window length and/or shift are floats
-        return self._forward_slidwin_float(x, win_length, win_shift):
+        return self._forward_slidwin_float(
+            x, win_length, win_shift, snip_edges)
 
 
 
-    def _forward_slidwin_int(self, x, win_shift, win_length):
-        num_frames = int((x.shape[self.dim] - win_length + 2*window_shift -1)/win_shift)
-        pad_right = win_shift * (num_frames - 1) + win_length
+    def _pre_slidwin(self, x, win_length, win_shift, snip_edges):
         if self.dim != -1:
             x = x.transpose(self.dim, -1)
 
-        xx = nn.functional.pad(x, (1, pad_right), mode='reflect')
-        c_x = torch.cumsum(xx, dim=-1).view(-1, xx.shape[-1])
-        m_x = (c_x[:,win_shift:] - c_x[:,:-win_shift])/win_length
+        x, num_frames = self._slidwin_pad(x, win_length, win_shift, snip_edges)
+        out_shape = *x.shape[:-1], num_frames
+        return x, out_shape
 
-        c_x = torch.cumsum(xx**2, dim=-1).view(-1, xx.shape[-1])
-        m_x2 = (c_x[:,win_shift:] - c_x[:,:-win_shift])/win_length
-        s_x = torch.sqrt(m_x2 - m_x**2).clamp(min=1e-5)
 
-        m_x = m_x.view(*x.shape[:-1], num_frames)
-        s_x = s_x.view(*x.shape[:-1], num_frames)
+    def _post_slidwin(self, m_x, s_x, out_shape):
+        m_x = m_x.view(out_shape)
+        s_x = s_x.view(out_shape)
         mus = torch.cat((m_x, s_x), dim=1)
         if self.dim != -1:
             mus = mus.transpose(self.dim, -1).contiguous()
 
         return mus
+
+
+    def _forward_slidwin_int(self, x, win_length, win_shift, snip_edges):
+        x, out_shape = self._pre_slidwin(x, win_length, win_shift, snip_edges)
+
+        c_x = torch.cumsum(x, dim=-1).view(-1, x.shape[-1])
+        m_x = (c_x[:,win_shift:] - c_x[:,:-win_shift])/win_length
+
+        c_x = torch.cumsum(x**2, dim=-1).view(-1, x.shape[-1])
+        m_x2 = (c_x[:,win_shift:] - c_x[:,:-win_shift])/win_length
+        s_x = torch.sqrt(m_x2 - m_x**2).clamp(min=1e-5)
+
+        mus = self._post_slidwin(m_x, s_x, out_shape)
+        return mus
         
 
-    def _forward_slidwin_float(self, x, win_shift, win_length):
-        num_frames = int((x.shape[self.dim] - win_length + 2*window_shift -1)/win_shift)
-        pad_right = win_shift * (num_frames - 1) + win_length
-        if self.dim != -1:
-            # we move the pool dim to the end, it simplifies things
-            x = x.transpose(self.dim, -1)
-            
-        xx = nn.functional.pad(x, (1, pad_right), mode='reflect')
-        c_x = torch.cumsum(xx, dim=-1).view(-1, xx.shape[-1])
-        c_x2 = torch.cumsum(xx**2, dim=-1).view(-1, xx.shape[-1])
+    def _forward_slidwin_float(self, x, win_length, win_shift, snip_edges):
+
+        x, out_shape = self._pre_slidwin(x, win_length, win_shift, snip_edges)
+
+        num_frames = out_shape[-1]
+        c_x = torch.cumsum(x, dim=-1).view(-1, x.shape[-1])
+        c_x2 = torch.cumsum(x**2, dim=-1).view(-1, x.shape[-1])
         m_x = torch.zeros((c_x.shape[0], num_frames), dtype=c_x.dtype, device=c_x.device)
         m_x2 = torch.zeros_like(m_x)
         k = 0
         for i in range(num_frames):
-            k1 = int(math.round(k))
-            k2 = int(math.round(k+win_length))
+            k1 = int(round(k))
+            k2 = int(round(k+win_length))
             m_x[:,i] = (c_x[:,k2]-c_x[:,k1])/(k2-k1)
             m_x2[:,i] = (c_x2[:,k2]-c_x2[:,k1])/(k2-k1)
             k += win_shift
 
         s_x = torch.sqrt(m_x2 - m_x**2).clamp(min=1e-5)
 
-        m_x = m_x.view(*x.shape[:-1], num_frames)
-        s_x = s_x.view(*x.shape[:-1], num_frames)
-        mus = torch.cat((m_x, s_x), dim=1)
-        if self.dim != -1:
-            mus = mus.transpose(self.dim, -1).contiguous()
-
+        mus = self._post_slidwin(m_x, s_x, out_shape)
         return mus
 
 
-    def _forward_slidwin_int(self, x, win_length,  win_shift):
-        num_frames = int((x.shape[self.dim] - win_length + 2*window_shift -1)/win_shift)
-        pad_right = win_shift * (num_frames - 1) + win_length
+    # def _forward_slidwin_int(self, x, win_length,  win_shift):
+    #     num_frames = int((x.shape[self.dim] - win_length + 2*window_shift -1)/win_shift)
+    #     pad_right = win_shift * (num_frames - 1) + win_length
 
-        if self.dim != -1:
-            # put pool dim at the end to do the padding
-            x = x.transpose(self.dim, -1)
+    #     if self.dim != -1:
+    #         # put pool dim at the end to do the padding
+    #         x = x.transpose(self.dim, -1)
 
-        xx = nn.functional.pad(x, (1, pad_right), mode='reflect')
-        c_x = torch.cumsum(xx, dim=self.dim).transpose(0, -1)
+    #     xx = nnf.pad(x, (1, pad_right), mode='reflect')
+    #     c_x = torch.cumsum(xx, dim=self.dim).transpose(0, -1)
         
-        m_x = (c_x[win_shift:] - c_x[:-win_shift]).transpose(0, self.dim)/win_length
+    #     m_x = (c_x[win_shift:] - c_x[:-win_shift]).transpose(0, self.dim)/win_length
         
-        c_x = torch.cumsum(xx**2, dim=-1).transpose(0, -1)
-        m_x2 = (c_x[win_shift:] - c_x[:-win_shift]).transpose(0, self.dim)/win_length
-        s_x = torch.sqrt(m_x2 - m_x**2).clamp(min=1e-5)
-        if self.dim == -1:
-            return torch.cat((m_x, s_x), dim=-2)
+    #     c_x = torch.cumsum(xx**2, dim=-1).transpose(0, -1)
+    #     m_x2 = (c_x[win_shift:] - c_x[:-win_shift]).transpose(0, self.dim)/win_length
+    #     s_x = torch.sqrt(m_x2 - m_x**2).clamp(min=1e-5)
+    #     if self.dim == -1:
+    #         return torch.cat((m_x, s_x), dim=-2)
 
-        return torch.cat((m_x, s_x), dim=-1)
+    #     return torch.cat((m_x, s_x), dim=-1)
 
 
-    def _forward_slidwin_float(self, x, win_shift, win_length):
-        num_frames = int((x.shape[self.dim] - win_length + 2*window_shift -1)/win_shift)
-        pad_right = win_shift * (num_frames - 1) + win_length
-        if self.dim != -1:
-            x = x.transpose(self.dim, -1)
+    # def _forward_slidwin_float(self, x, win_shift, win_length):
+    #     num_frames = int((x.shape[self.dim] - win_length + 2*window_shift -1)/win_shift)
+    #     pad_right = win_shift * (num_frames - 1) + win_length
+    #     if self.dim != -1:
+    #         x = x.transpose(self.dim, -1)
             
-        xx = nn.functional.pad(x, (1, pad_right), mode='reflect')
-        c_x = torch.cumsum(xx, dim=-1).transpose(0, -1)
-        c_x2 = torch.cumsum(xx**2, dim=-1).transpose(0, -1)
-        m_x = []
-        m_x2 = []
-        k = 0
-        for i in range(num_frames):
-            k1 = int(math.round(k))
-            k2 = int(math.round(k+win_length))
-            w = (k2-k1)
-            m_x.append((c_x[k2]-c_x[k1])/w)
-            m_x2.append((c_x2[k2]-c_x2[k1])/w)
-            k += win_shift
+    #     xx = nnf.pad(x, (1, pad_right), mode='reflect')
+    #     c_x = torch.cumsum(xx, dim=-1).transpose(0, -1)
+    #     c_x2 = torch.cumsum(xx**2, dim=-1).transpose(0, -1)
+    #     m_x = []
+    #     m_x2 = []
+    #     k = 0
+    #     for i in range(num_frames):
+    #         k1 = int(math.round(k))
+    #         k2 = int(math.round(k+win_length))
+    #         w = (k2-k1)
+    #         m_x.append((c_x[k2]-c_x[k1])/w)
+    #         m_x2.append((c_x2[k2]-c_x2[k1])/w)
+    #         k += win_shift
 
-        m_x = m_x.cat(tuple(y), dim=0).transpose(0, self.dim).contiguous()
-        m_x2 = m_x2.cat(tuple(y), dim=0).transpose(0, self.dim).contiguous()
-        s_x = torch.sqrt(m_x2 - m_x**2).clamp(min=1e-5)
-        if self.dim == -1:
-            return torch.cat((m_x, s_x), dim=-2)
+    #     m_x = m_x.cat(tuple(y), dim=0).transpose(0, self.dim).contiguous()
+    #     m_x2 = m_x2.cat(tuple(y), dim=0).transpose(0, self.dim).contiguous()
+    #     s_x = torch.sqrt(m_x2 - m_x**2).clamp(min=1e-5)
+    #     if self.dim == -1:
+    #         return torch.cat((m_x, s_x), dim=-2)
 
-        return torch.cat((m_x, s_x), dim=-1)
+    #     return torch.cat((m_x, s_x), dim=-1)
 
                 
 

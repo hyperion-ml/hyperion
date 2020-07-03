@@ -78,3 +78,14 @@ class TorchModel(nn.Module):
     def get_loss(self):
         return 0
 
+
+    @property
+    def device(self):
+        devices = ({param.device for param in self.parameters()} |
+                   {buf.device for buf in self.buffers()})
+        if len(devices) != 1:
+            raise RuntimeError(
+                'Cannot determine device: {} different devices found'.format(
+                    len(devices)))
+
+        return next(iter(devices))

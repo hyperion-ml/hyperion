@@ -6,15 +6,22 @@
 import math
 import torch
 
-def eval_nnet_by_chunks(x, nnet, chunk_length=0, device=None, time_dim=-1):
+def eval_nnet_by_chunks(x, nnet, chunk_length=0, detach_chunks=True, time_dim=-1):
     # model_device = next(nnet.parameters()).device
     # print(device, model_device, x.device)
     #assume time is the last dimension
+
+    device = None if nnet.device == x.device else nnet.device
+    
     T = x.shape[time_dim]
     if T <= chunk_length or chunk_length == 0:
         if device is not None:
             x = x.to(device)
-        return nnet(x) #.detach()
+
+        y = nnet(x)
+        if detach_chunks:
+            y = y.detach()
+        return y
 
     try:
         left_context, right_context = nnet.in_context()
@@ -45,7 +52,10 @@ def eval_nnet_by_chunks(x, nnet, chunk_length=0, device=None, time_dim=-1):
         if device is not None:
             x_i = x_i.to(device)
 
-        y_i = nnet(x_i).detach()
+        y_i = nnet(x_i)
+        if detach_chunks:
+            y_i = y_i.detach()
+
         chunk_length_out = y_i.shape[time_dim]
         if out_shape is None:
             # infer chunk_shift in the output
@@ -79,14 +89,14 @@ def eval_nnet_by_chunks(x, nnet, chunk_length=0, device=None, time_dim=-1):
 
         tbeg_in += chunk_shift_in
 
-    # put time dimension back in his place
+    # put time dimension back in its place
     y = y.transpose(0, time_dim)
 
     return y
     
 
 
-def eval_nnet_overlap_add(x, nnet, chunk_length=0, chunk_overlap=None, device=None, time_dim=-1):
+def eval_nnet_overlap_add(x, nnet, chunk_length=0, chunk_overlap=None, detach_chunks=True, time_dim=-1):
 
     #assume time is the last dimension
     T = x.shape[time_dim]

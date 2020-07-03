@@ -2,10 +2,10 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
+# from __future__ import absolute_import
+# from __future__ import print_function
+# from __future__ import division
+# from six.moves import range
 
 import pytest
 import numpy as np
@@ -79,7 +79,7 @@ def test_split():
 
     list_s, loc = split_list(list1, 3, 3)
     assert(np.all(list_s == ['4', '4', '4', '4']))
-    assert(np.all(loc == [i for i in xrange(6, 10)]))
+    assert(np.all(loc == [i for i in range(6, 10)]))
 
 
     
@@ -96,7 +96,7 @@ def test_split_by_key():
 
     list_s, loc = split_list_group_by_key(list1, 3, 3)
     assert(np.all(list_s == ['3', '3', '4', '4', '4', '4']))
-    assert(np.all(loc == [i for i in xrange(4, 10)]))
+    assert(np.all(loc == [i for i in range(4, 10)]))
 
 
 if __name__ == '__main__':

@@ -2,11 +2,11 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
-from six import string_types
+# from __future__ import absolute_import
+# from __future__ import print_function
+# from __future__ import division
+# from six.moves import xrange
+# from six import string_types
 
 import os.path as path
 import logging
@@ -109,7 +109,7 @@ class TrainValEvalList(object):
           train_idx: Indices of the elements used for training
           test_idx: Indices of the elements used for test
         """
-        if isinstance(part, string_types):
+        if isinstance(part, str):
              self._make_part2num()
              part = self._part2num[part]
              
@@ -243,7 +243,7 @@ class TrainValEvalList(object):
         parts = - np.ones((len(segment_key),), dtype=int)
             
         num_classes = np.max(balance_by_key) + 1
-        for i in xrange(num_classes):
+        for i in range(num_classes):
             
             idx_i = (balance_by_key == i).nonzero()[0]
             group_key_i = group_by_key[idx_i]
@@ -254,11 +254,11 @@ class TrainValEvalList(object):
                 shuffle_idx = np.arange(num_groups_i)
                 rng.shuffle(shuffle_idx)
                 group_key_tmp = np.zeros_like(group_key_i)
-                for j in xrange(num_groups_i):
+                for j in range(num_groups_i):
                     group_key_tmp[group_key_i==j] = shuffle_idx[j]
                 group_key_i = group_key_tmp
                     
-            for j in xrange(num_parts):
+            for j in range(num_parts):
                 k1 = int(np.round(cum_prop[j]*num_groups_i))
                 k2 = int(np.round(cum_prop[j+1]*num_groups_i))
                 idx_ij = np.logical_and(group_key_i>=k1, group_key_i<k2)

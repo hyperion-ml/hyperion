@@ -26,10 +26,11 @@ from hyperion.torch.utils import open_device
 from hyperion.torch.helpers import TorchModelLoader as TML
 
 
-def extract_xvectors(input_spec, output_spec, vad_spec, write_num_frames_spec,
+def extract_xvectors(input_spec, output_spec, vad_spec, write_timestamps_spec,
                      scp_sep, path_prefix, vad_path_prefix, 
                      model_path, chunk_length, embed_layer, 
-                     random_utt_length, min_utt_length, max_utt_length,
+                     win_length, win_shift, snip_edges,
+                     feat_frame_length, feat_frame_shift, feat_snip_edges,
                      use_gpu, part_idx, num_parts, **kwargs):
     
     logging.info('initializing')
@@ -39,12 +40,9 @@ def extract_xvectors(input_spec, output_spec, vad_spec, write_num_frames_spec,
     if mvn.norm_mean or mvn.norm_var:
         do_mvn = True
 
-    if write_num_frames_spec is not None:
-        keys = []
-        info = []
+    if write_timestamps_spec is not None:
+        time_writer = DWF.create(write_timestamps_spec, scp_sep=scp_sep)
 
-    if random_utt_length:
-        rng = np.random.RandomState(seed=1123581321+part_idx)
     
     num_gpus = 1 if use_gpu else 0
     logging.info('initializing devices num_gpus={}'.format(num_gpus))
@@ -85,29 +83,108 @@ def extract_xvectors(input_spec, output_spec, vad_spec, write_num_frames_spec,
                 logging.info('utt %s detected %d/%d (%.2f %%) speech frames' % (
                         key[0], x.shape[0], tot_frames, x.shape[0]/tot_frames*100))
                 
-                if random_utt_length:
-                    utt_length = rng.randint(low=min_utt_length, high=max_utt_length+1)
-                    if utt_length < x.shape[0]:
-                        first_frame = rng.randint(low=0, high=x.shape[0]-utt_length)
-                        x = x[first_frame:first_frame+utt_length]
-                        logging.info('extract-random-utt %s of length=%d first-frame=%d' % (
-                            key[0], x.shape[0], first_frame))
-
                 t4 = time.time()
                 if x.shape[0] == 0:
-                    y = np.zeros((model.embed_dim,), dtype=float_cpu())
+                    y = np.zeros((1, model.embed_dim,), dtype=float_cpu())
                 else:
                     xx = torch.tensor(x.T[None,:], dtype=torch.get_default_dtype())
                     with torch.no_grad():
-                        y = model.extract_embed(
-                            xx, chunk_length=chunk_length, 
-                            embed_layer=embed_layer, device=device).detach().cpu().numpy()[0]
+                        y = model.extract_embed_slidwin(
+                            xx, win_length, win_shift, snip_edges=snip_edges,
+                            feat_frame_length=feat_frame_length, feat_frame_shift=feat_frame_shift,
+                            chunk_length=chunk_length, 
+                            embed_layer=embed_layer, detach_chunks=True).detach().cpu().numpy()[0]
 
+                        # y1 = model.extract_embed(
+                        #     xx[:,:,:148],
+                        #     chunk_length=chunk_length, 
+                        #     embed_layer=embed_layer, detach_chunks=True).detach().cpu().numpy()[0]
+                        # logging.info('{} {}'.format(y.shape, y1.shape))
+                        # logging.info('{} {}'.format(y[:20, 0], y1[:20]))
+                        # y2 = model.extract_embed(
+                        #     xx[:,:,25:173],  
+                        #     chunk_length=chunk_length, 
+                        #     embed_layer=embed_layer, detach_chunks=True).detach().cpu().numpy()[0]
+                        # logging.info('{} {}'.format(y[:20, 1], y2[:20]))
+                        # y3 = model.extract_embed(
+                        #      xx[:,:,250:398],  
+                        #      chunk_length=chunk_length, 
+                        #     embed_layer=embed_layer, detach_chunks=True).detach().cpu().numpy()[0]
+                        # logging.info('{} {}'.format(y[:20, 10], y3[:20]))
+
+                        
+                        # win_length = 20
+                        # y = model.extract_embed_slidwin(
+                        #     xx, win_length, win_shift, snip_edges=True,
+                        #     feat_frame_length=feat_frame_length, feat_frame_shift=feat_frame_shift,
+                        #     chunk_length=chunk_length, 
+                        #     embed_layer=embed_layer, detach_chunks=True).detach().cpu().numpy()[0]
+
+                        # y1 = model.extract_embed(
+                        #     xx[:,:,:1999], 
+                        #     chunk_length=chunk_length, 
+                        #     embed_layer=embed_layer, detach_chunks=True).detach().cpu().numpy()[0]
+                        # logging.info('{} {}'.format(y.shape, y1.shape))
+                        # logging.info('{} {}'.format(y[:20, 0], y1[:20]))
+                        # y2 = model.extract_embed(
+                        #     xx[:,:,25:2024],  
+                        #     chunk_length=chunk_length, 
+                        #     embed_layer=embed_layer, detach_chunks=True).detach().cpu().numpy()[0]
+                        # logging.info('{} {}'.format(y[:20, 1], y2[:20]))
+                        # y3 = model.extract_embed(
+                        #      xx[:,:,250:2249],  
+                        #      chunk_length=chunk_length,
+                        #     embed_layer=embed_layer, detach_chunks=True).detach().cpu().numpy()[0]
+                        # logging.info('{} {}'.format(y[:20, 10], y3[:20]))
+
+                        # win_length = 20
+                        # y = model.extract_embed_slidwin(
+                        #     xx, win_length, win_shift, snip_edges=False,
+                        #     feat_frame_length=feat_frame_length, feat_frame_shift=feat_frame_shift,
+                        #     chunk_length=chunk_length, 
+                        #     embed_layer=embed_layer, detach_chunks=True).detach().cpu().numpy()[0]
+
+                        # y1 = model.extract_embed(
+                        #     xx[:,:,:1112], 
+                        #     chunk_length=chunk_length, 
+                        #     embed_layer=embed_layer, detach_chunks=True).detach().cpu().numpy()[0]
+                        # logging.info('{} {}'.format(y.shape, y1.shape))
+                        # logging.info('{} {}'.format(y[:20, 0], y1[:20]))
+                        # y2 = model.extract_embed(
+                        #     xx[:,:,25:1037],  
+                        #     chunk_length=chunk_length, 
+                        #     embed_layer=embed_layer, detach_chunks=True).detach().cpu().numpy()[0]
+                        # logging.info('{} {}'.format(y[:20, 1], y2[:20]))
+                        # y3 = model.extract_embed(
+                        #      xx[:,:,250:1262],  
+                        #      chunk_length=chunk_length,
+                        #     embed_layer=embed_layer, detach_chunks=True).detach().cpu().numpy()[0]
+                        # logging.info('{} {}'.format(y[:20, 10], y3[:20]))
+
+                        # y3 = model.extract_embed(
+                        #      xx[:,:,250:1262],  
+                        #      chunk_length=chunk_length,
+                        #     embed_layer=embed_layer, detach_chunks=True).detach().cpu().numpy()[0]
+                        # logging.info('{} {}'.format(y[:20, 10], y3[:20]))
+
+                        # y3 = model.extract_embed(
+                        #      xx[:,:,2500:3512],  
+                        #      chunk_length=chunk_length,
+                        #     embed_layer=embed_layer, detach_chunks=True).detach().cpu().numpy()[0]
+                        # logging.info('{} {}'.format(y[:20, 100], y3[:20]))
+
+                        
                 t5 = time.time()
+                y = y.T
                 writer.write(key, [y])
-                if write_num_frames_spec is not None:
-                    keys.append(key[0])
-                    info.append(str(x.shape[0]))
+
+                if write_timestamps_spec is not None:
+                    num_wins = y.shape[0]
+                    timestamps = model.compute_slidwin_timestamps(
+                        num_wins, win_length, win_shift, snip_edges,
+                        feat_frame_length, feat_frame_length, feat_snip_edges).numpy()
+                    logging.info('{}'.format(timestamps))
+                    time_writer.write(key, [timestamps])
                 t6 = time.time()
                 logging.info((
                     'utt %s total-time=%.3f read-time=%.3f mvn-time=%.3f '
@@ -116,22 +193,21 @@ def extract_xvectors(input_spec, output_spec, vad_spec, write_num_frames_spec,
                         key[0], t6-t1, t2-t1, t3-t2, t4-t3, 
                         t5-t4, t6-t5, x.shape[0]*1e-2/(t6-t1)))
 
-    if write_num_frames_spec is not None:
-        logging.info('writing num-frames to %s' % (write_num_frames_spec))
-        u2nf = Utt2Info.create(keys, info)
-        u2nf.save(write_num_frames_spec)
-    
+    if write_timestamps_spec is not None:
+        time_writer.close()
+
+        
     
 if __name__ == "__main__":
     
     parser=argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         fromfile_prefix_chars='@',
-        description='Extract x-vectors with pytorch model')
+        description='Extract x-vectors over a sliding window')
 
     parser.add_argument('--input', dest='input_spec', required=True)
     parser.add_argument('--vad', dest='vad_spec', default=None)
-    parser.add_argument('--write-num-frames', dest='write_num_frames_spec', default=None)
+    parser.add_argument('--write-timestamps', dest='write_timestamps_spec', default=None)
     parser.add_argument('--scp-sep', dest='scp_sep', default=' ',
                         help=('scp file field separator'))
     parser.add_argument('--path-prefix', dest='path_prefix', default=None,
@@ -142,19 +218,35 @@ if __name__ == "__main__":
     MVN.add_argparse_args(parser)
 
     parser.add_argument('--model-path', required=True)
+    parser.add_argument('--win-length', type=float, default=1.5, 
+                        help=('window length for x-vector extraction in seconds'))
+    parser.add_argument('--win-shift', type=float, default=0.25, 
+                        help=('window shift for x-vector extraction in seconds'))
+    parser.add_argument('--snip-edges', default=False, action='store_true', 
+                        help=('If true, end effects will be handled by outputting '
+                              'only windows that completely fit in the file, '
+                              'and the number of windows depends on the window-length. '
+                              'If false, the number of windows depends only on '
+                              'the window-shift, and we reflect the data at the ends.'))
+
+    parser.add_argument('--feat-frame-length', type=float, default=25, 
+                        help=('frame-length used to compute the acoustic features in msecs'))
+    parser.add_argument('--feat-frame-shift', type=float, default=10, 
+                        help=('frame-shift used to compute the acoustic features in msecs'))
+    parser.add_argument('--feat-snip-edges', default=False, action='store_true', 
+                        help=('If true, end effects will be handled by outputting only windows '
+                              'that completely fit in the file, and the number of windows '
+                              'depends on the feat-frame-length. ' 
+                              'If false, the number of feature frames depends only on the '
+                              'feat-frame-shift, and we reflect the waveform at the ends.'))
+
     parser.add_argument('--chunk-length', type=int, default=0, 
                         help=('number of frames used in each forward pass of the x-vector encoder,'
                               'if 0 the full utterance is used'))
+
     parser.add_argument('--embed-layer', type=int, default=None, 
                         help=('classifier layer to get the embedding from,' 
                               'if None the layer set in training phase is used'))
-
-    parser.add_argument('--random-utt-length', default=False, action='store_true',
-                        help='calculates x-vector from a random chunk of the utterance')
-    parser.add_argument('--min-utt-length', type=int, default=500, 
-                        help=('minimum utterance length when using random utt length'))
-    parser.add_argument('--max-utt-length', type=int, default=12000, 
-                        help=('maximum utterance length when using random utt length'))
 
     parser.add_argument('--output', dest='output_spec', required=True)
     parser.add_argument('--use-gpu', default=False, action='store_true',

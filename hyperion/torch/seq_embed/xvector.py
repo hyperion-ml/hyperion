@@ -30,7 +30,7 @@ class XVector(TorchModel):
                  embed_layer=0, 
                  in_feats=None, proj_feats=None):
 
-        super(XVector, self).__init__()
+        super().__init__()
 
         # encoder network
         self.encoder_net = encoder_net
@@ -160,6 +160,22 @@ class XVector(TorchModel):
         self.classif_net.update_margin(epoch)
 
 
+    def _pre_enc(self, x):
+        if self.encoder_net.in_dim() == 4 and x.dim() == 3:
+            x = x.view(x.size(0), 1, x.size(1), x.size(2))
+        return x
+
+
+    def _post_enc(self, x):
+        if self.encoder_net.out_dim() == 4:
+            x = x.view(x.size(0), -1, x.size(-1))
+
+        if self.proj is not None:
+            x = self.proj(x)
+        
+        return x
+
+
     def forward(self, x, y=None):
         """Forward function
 
@@ -215,73 +231,109 @@ class XVector(TorchModel):
 
 
 
-    def extract_embed(self, x, chunk_length=0, embed_layer=None, device=None):
+    def extract_embed(self, x, chunk_length=0, embed_layer=None, detach_chunks=False):
         if embed_layer is None:
             embed_layer = self.embed_layer
 
-        if self.encoder_net.in_dim() == 4 and x.dim() == 3:
-            x = x.view(x.size(0), 1, x.size(1), x.size(2))
+        x = self._pre_enc(x)
+        # if self.encoder_net.in_dim() == 4 and x.dim() == 3:
+        #     x = x.view(x.size(0), 1, x.size(1), x.size(2))
 
-        x = eval_nnet_by_chunks(x, self.encoder_net, chunk_length, device=device)
-        # if chunk_length == 0:
-        #     if device is not None:
-        #         x.to(device)
-        #     x = self.encoder_net(x)
-        # else:
-        #     raise NotImplementedError()
+        x = eval_nnet_by_chunks(x, self.encoder_net, 
+                                chunk_length, detach_chunks=detach_chunks)
 
-        if device is not None:
-            x = x.to(device)
+        if x.device != self.device:
+            x = x.to(self.device)
 
-        if self.encoder_net.out_dim() == 4:
-            x = x.view(x.size(0), -1, x.size(-1))
+        x = self._post_enc(x)
+        # if self.encoder_net.out_dim() == 4:
+        #     x = x.view(x.size(0), -1, x.size(-1))
 
-        if self.proj is not None:
-            x = self.proj(x)
-
+        # if self.proj is not None:
+        #     x = self.proj(x)
         p = self.pool_net(x)
         y = self.classif_net.extract_embed(p, embed_layer)
         return y
 
 
-    def extract_embed_slidwin(self, x, win_length, win_shift, 
-                              chunk_length=0, embed_layer=None, 
-                              return_time_marks=False,
-                              device=None):
 
+    def extract_embed_slidwin(self, x, win_length, win_shift, snip_edges=False,
+                              feat_frame_length=None, feat_frame_shift=None,
+                              chunk_length=0, embed_layer=None, 
+                              detach_chunks=False):
+
+        if feat_frame_shift is not None:
+            #assume win_length/shift are in secs, transform to frames
+            # pass feat times from msecs to secs
+            feat_frame_shift = feat_frame_shift / 1000
+            feat_frame_length = feat_frame_length / 1000
+
+            # get length and shift in number of feature frames
+            win_shift = win_shift / feat_frame_shift # this can be a float
+            win_length = (win_length - feat_frame_length + feat_frame_shift) / feat_frame_shift
+            assert win_shift > 0.5, 'win-length should be longer than feat-frame-length'
+            
         if embed_layer is None:
             embed_layer = self.embed_layer
 
         in_time = x.size(-1)
-        if self.encoder_net.in_dim() == 4 and x.dim() == 3:
-            x = x.view(x.size(0), 1, x.size(1), x.size(2))
+        # if self.encoder_net.in_dim() == 4 and x.dim() == 3:
+        #     x = x.view(x.size(0), 1, x.size(1), x.size(2))
+        x = self._pre_enc(x)
+        x = eval_nnet_by_chunks(
+            x, self.encoder_net, 
+            chunk_length, detach_chunks=detach_chunks)
 
-        x = eval_nnet_by_chunks(x, self.encoder_net, chunk_length, device=device)
+        if x.device != self.device:
+            x = x.to(self.device)
 
-        if device is not None:
-            x = x.to(device)
-
-        if self.encoder_net.out_dim() == 4:
-            x = x.view(x.size(0), -1, x.size(-1))
-
-        if self.proj is not None:
-            x = self.proj(x)
-
-        pin_time = x.size(-1) #time dim before pooling
-        dowsample_factor = float(pin_time)/in_time
+        x = self._post_enc(x)
+        pin_time = x.size(-1)                # time dim before pooling
+        downsample_factor = float(pin_time) / in_time
         p = self.pool_net.forward_slidwin(
-            x, downsample_factor*win_length, downsample_factor*win_shift) 
+            x, downsample_factor*win_length, downsample_factor*win_shift,
+            snip_edges=snip_edges) 
         # (batch, pool_dim, time)
         
         p = p.transpose(1,2).contiguous().view(-1, p.size(1))
         y = self.classif_net.extract_embed(p, embed_layer).view(
             x.size(0), -1, self.embed_dim).transpose(1,2).contiguous()
 
-        if not return_time_marks:
-            return y
+        return y
 
-        time_marks = [[i*win_shift, i*win_shift+win_length] for i in range(y.size(-1))]
-        return y, time_marks
+
+    def compute_slidwin_timestamps(self, num_windows, win_length, win_shift, snip_edges=False, 
+                                   feat_frame_length=25, feat_frame_shift=10, feat_snip_edges=False):
+
+        # pass feat times from msecs to secs
+        feat_frame_shift = feat_frame_shift / 1000
+        feat_frame_length = feat_frame_length / 1000
+
+        # get length and shift in number of feature frames
+        H = win_shift / feat_frame_shift
+        L = (win_length - feat_frame_length + feat_frame_shift) / feat_frame_shift
+        assert L > 0.5, 'win-length should be longer than feat-frame-length'
+        
+        # compute left padding in case of snip_edges is False
+        if snip_edges:
+            P1 = 0
+        else:
+            Q = (L - H) / 2 # left padding in frames introduced by x-vector sliding window
+            P1 = Q * feat_frame_shift # left padding in secs introduced by x-vector sliding window
+
+
+        if feat_snip_edges:
+            # left padding introduced when computing acoustic feats
+            P2 = 0
+        else:
+            P2 = (feat_frame_length - feat_frame_shift) / 2
+
+        # total left padding
+        P = P1 + P2
+
+        tstamps = torch.as_tensor([[i*win_shift, i*win_shift+win_length] for i in range(num_windows)]) - P
+        tstamps[tstamps < 0] = 0
+        return tstamps
 
 
     def get_config(self):
@@ -306,7 +358,7 @@ class XVector(TorchModel):
                   'in_feats': self.in_feats,
                   'proj_feats': self.proj_feats }
         
-        base_config = super(XVector, self).get_config()
+        base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
 
@@ -315,13 +367,7 @@ class XVector(TorchModel):
         cfg, state_dict = cls._load_cfg_state_dict(
             file_path, cfg, state_dict)
 
-        # preproc_net = None
-        # if 'preproc_cfg' in cfg:
-        #     preproc_net = TorchNALoader.load(cfg=cfg['preproc_cfg'])
-        #     del cfg['preproc_cfg']
-
         encoder_net = TorchNALoader.load(cfg=cfg['encoder_cfg'])
-
         for k in ('encoder_cfg'):
             del cfg[k]
         
