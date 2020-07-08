@@ -50,7 +50,7 @@ fi
 
 if [ $stage -le 2 ]; then
     
-  for name in voxceleb1cat voxceleb2cat 
+  for name in voxceleb1cat_train voxceleb2cat 
   do
       export TMPDIR=data/tmp
       mkdir -p $TMPDIR
@@ -117,7 +117,7 @@ fi
 if [ $stage -le 3 ];then
     
   # Take a random subset of the augmentations 
-    for data in voxceleb1cat voxceleb2cat
+    for data in voxceleb1cat_train voxceleb2cat
     do
 	utils/subset_data_dir.sh data/${data}_aug \
 	    $(wc -l data/$data/utt2spk | awk '{ print int('$num_augs'*$1)}') \

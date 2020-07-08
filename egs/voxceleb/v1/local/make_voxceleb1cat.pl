@@ -42,7 +42,7 @@ while (<META_IN>) {
   chomp;
   my ($vox_id, $spkr_id, $gender, $nation, $set) = split;
   $id2spkr{$vox_id} = $spkr_id;
-  if ( $set == "test"){
+  if ( $set eq "test"){
       $test_spkrs{$spkr_id} = ();
   }
 }
@@ -64,10 +64,10 @@ foreach (@spkr_dirs) {
 	my $rec_id = substr($filename, 0, 11);
 	my $segment = substr($filename, 12, 7);
 	my $wav = "$data_base/voxceleb1_wav/$spkr_id/$filename.wav";
-	my $utt_id = "$spkr_id-$rec_id";
+	my $utt_id = "$new_spkr_id-$rec_id";
 	if (not exists $test_spkrs{$new_spkr_id}) {
 	    if (not exists $rec2utt{$utt_id}) {
-		$rec2spk{$utt_id} = $spkr_id;
+		$rec2spk{$utt_id} = $new_spkr_id;
 		$rec2utt{$utt_id} = $wav
 	    }
 	    else {

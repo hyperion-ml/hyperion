@@ -46,7 +46,7 @@ fi
 
 #Train datasets
 if [ $stage -le 2 ];then 
-    for name in voxceleb1cat voxceleb2cat 
+    for name in voxceleb1cat_train voxceleb2cat 
     do
 	num_spk=$(wc -l data/$name/spk2utt | awk '{ print $1}')
 	nj=$(($num_spk < 40 ? $num_spk:40))
