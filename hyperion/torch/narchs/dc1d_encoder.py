@@ -161,7 +161,7 @@ class DC1dEncoder(NetArch):
 
         out_channels = self.head_channels if self.head_channels>0 else self.conv_channels[-1]
         if in_shape is None:
-            return (None, out_channels, None, None)
+            return (None, out_channels, None)
 
         assert len(in_shape) == 3
         if in_shape[2] is None:

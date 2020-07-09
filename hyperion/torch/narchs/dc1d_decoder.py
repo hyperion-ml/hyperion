@@ -3,14 +3,15 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 #from __future__ import absolute_import
-
+import logging
 import math 
 
 import torch
 import torch.nn as nn
 
 from ..layers import ActivationFactory as AF
-from ..layer_blocks.dc1d_blocks import DC1dDecBlock
+from ..layer_blocks import DC1dDecBlock
+from ..layers import SubPixelConv1d, ICNR1d
 from .net_arch import NetArch
 
 
@@ -107,19 +108,34 @@ class DC1dDecoder(NetArch):
 
 
     def _init_weights(self, hid_act):
+        if isinstance(hid_act, str):
+            act_name = hid_act
+        if isinstance(hid_act, dict):
+            act_name = hid_act['name']
+        if act_name in ['relu6', 'swish']:
+            act_name = 'relu'
+
+        init_f1 = lambda x: nn.init.kaiming_normal_(x, mode='fan_out', nonlinearity=act_name)
+        init_f2 = lambda x: nn.init.kaiming_normal_(x, mode='fan_out', nonlinearity='relu')
+
         for m in self.modules():
             if isinstance(m, nn.Conv1d):
-                if isinstance(hid_act, str):
-                    act_name = hid_act
-                if isinstance(hid_act, dict):
-                    act_name = hid_act['name']
                 try:
-                    nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity=act_name)
+                    init_f1(m.weight)
                 except:
-                    nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                    init_f2(m.weight)
             elif isinstance(m, nn.BatchNorm1d):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
+
+        #re-init subpixelconvs
+        for m in self.modules():
+            if isinstance(m, SubPixelConv1d):
+                try:
+                    ICNR1d(m.conv.weight, stride=m.stride, initializer=init_f1)
+                except:
+                    ICNR1d(m.conv.weight, stride=m.stride, initializer=init_f2)
+                
 
 
     @staticmethod
@@ -160,7 +176,7 @@ class DC1dDecoder(NetArch):
 
         out_channels = self.head_channels if self.head_channels>0 else self.conv_channels[-1]        
         if in_shape is None:
-            return (None, out_channels, None, None)
+            return (None, out_channels, None)
 
         assert len(in_shape) == 3
         if in_shape[2] is None:
@@ -172,7 +188,19 @@ class DC1dDecoder(NetArch):
 
 
 
-    def forward(self, x):
+    def _match_shape(self, x, target_shape):
+        t = x.size(-1)
+        target_t = target_shape[-1]
+        surplus = t - target_t
+        assert surplus >= 0
+        if surplus > 0:
+            x = torch.narrow(x, -1, surplus//2, target_t).contiguous()
+
+        return x
+
+
+
+    def forward(self, x, target_shape=None):
 
         x = self.in_block(x)
         for idx, block in enumerate(self.blocks):
@@ -180,6 +208,9 @@ class DC1dDecoder(NetArch):
 
         if self.head_channels > 0:
             x = self.head_block(x)
+
+        if target_shape is not None:
+            x = self._match_shape(x, target_shape)
 
         return x
 

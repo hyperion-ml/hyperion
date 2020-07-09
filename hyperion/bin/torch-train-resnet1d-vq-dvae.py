@@ -3,7 +3,6 @@
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-#from __future__ import absolute_import
 import sys
 import os
 import argparse
@@ -25,7 +24,7 @@ from hyperion.torch.models import VQVAE as VAE
 from hyperion.torch.trainers import VQDVAETrainer as Trainer
 from hyperion.torch.data import PairedSeqDataset as SD
 from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
-#from hyperion.torch.metrics import CategoricalAccuracy
+
 
 def train_vae(data_rspec, train_list, val_list, 
               train_pair_list, val_pair_list,
@@ -48,6 +47,7 @@ def train_vae(data_rspec, train_list, val_list,
     logging.info('sampler args={}'.format(sampler_args))
     logging.info('encoder args={}'.format(enc_args))
     logging.info('decoder args={}'.format(dec_args))
+    logging.info('vae args={}'.format(vae_args))
     logging.info('optimizer args={}'.format(opt_args))
     logging.info('lr scheduler args={}'.format(lrsch_args))
 
@@ -94,7 +94,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         fromfile_prefix_chars='@',
-        description='Train VQ-VAE')
+        description='Train Denoising VQ-VAE with ResNet1d Encoder-Decoder')
 
     parser.add_argument('--data-rspec', required=True)
     parser.add_argument('--train-list', required=True)

@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+ Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
 import sys
 import os
 import argparse
@@ -19,20 +18,17 @@ from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch.utils import open_device
 from hyperion.torch.helpers import OptimizerFactory as OF
 from hyperion.torch.lr_schedulers import LRSchedulerFactory as LRSF
-from hyperion.torch.narchs import ResNet1dEncoder as Encoder
-from hyperion.torch.narchs import ResNet1dDecoder as Decoder
-#from hyperion.torch.narchs import DC1dEncoder as Encoder
-#from hyperion.torch.narchs import DC1dDecoder as Decoder
-from hyperion.torch.models.vae.vae import VAE
-from hyperion.torch.trainers.dvae_trainer import DVAETrainer as Trainer
+from hyperion.torch.narchs import DC2dEncoder as Encoder
+from hyperion.torch.narchs import DC2dDecoder as Decoder
+from hyperion.torch.models import VAE
+from hyperion.torch.trainers import DVAETrainer as Trainer
 from hyperion.torch.data import PairedSeqDataset as SD
 from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
-#from hyperion.torch.metrics import CategoricalAccuracy
+
 
 def train_vae(data_rspec, train_list, val_list, 
               train_pair_list, val_pair_list,
-              exp_path, in_feats, z_dim,
-              epochs, num_gpus, log_interval, resume, num_workers, 
+              exp_path, epochs, num_gpus, log_interval, resume, num_workers, 
               grad_acc_steps, use_amp, **kwargs):
 
     set_float_cpu('float32')
@@ -43,12 +39,14 @@ def train_vae(data_rspec, train_list, val_list,
     sampler_args = Sampler.filter_args(**kwargs)
     enc_args = Encoder.filter_args(prefix='enc', **kwargs)
     dec_args = Decoder.filter_args(prefix='dec', **kwargs)
+    vae_args = VAE.filter_args(**kwargs)
     opt_args = OF.filter_args(prefix='opt', **kwargs)
     lrsch_args = LRSF.filter_args(prefix='lrsch', **kwargs)
     logging.info('seq dataset args={}'.format(sd_args))
     logging.info('sampler args={}'.format(sampler_args))
     logging.info('encoder args={}'.format(enc_args))
     logging.info('decoder args={}'.format(dec_args))
+    logging.info('vae args={}'.format(vae_args))
     logging.info('optimizer args={}'.format(opt_args))
     logging.info('lr scheduler args={}'.format(lrsch_args))
 
@@ -70,9 +68,9 @@ def train_vae(data_rspec, train_list, val_list,
     test_loader = torch.utils.data.DataLoader(
         val_data, batch_sampler = val_sampler, **largs)
 
-    encoder = Encoder(in_feats, **enc_args)
+    encoder = Encoder(**enc_args)
     decoder = Decoder(**dec_args)
-    model = VAE(encoder, decoder, z_dim)
+    model = VAE(encoder, decoder, **vae_args)
     logging.info(str(model))
 
     optimizer = OF.create(model.parameters(), **opt_args)
@@ -95,7 +93,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         fromfile_prefix_chars='@',
-        description='Train VAE')
+        description='Train Denoising VAE with Deep Convolutional 2d Encoder-Decoder')
 
     parser.add_argument('--data-rspec', required=True)
     parser.add_argument('--train-list', required=True)
@@ -115,13 +113,9 @@ if __name__ == '__main__':
     parser.add_argument('--epochs', type=int, default=200, 
                         help='number of epochs')
 
-    parser.add_argument('--in-feats', type=int, required=True,
-                        help='input features dimension')
-    parser.add_argument('--z-dim', type=int, required=True,
-                        help='latent representation dimension')
-
     Encoder.add_argparse_args(parser, prefix='enc')
     Decoder.add_argparse_args(parser, prefix='dec')
+    VAE.add_argparse_args(parser)
 
     OF.add_argparse_args(parser, prefix='opt')
     LRSF.add_argparse_args(parser, prefix='lrsch')
@@ -129,7 +123,7 @@ if __name__ == '__main__':
     parser.add_argument('--num-gpus', type=int, default=1,
                         help='number of gpus, if 0 it uses cpu')
     parser.add_argument('--seed', type=int, default=1123581321, 
-                        help='random seed (default: 1)')
+                        help='random seed')
     parser.add_argument('--log-interval', type=int, default=10, 
                         help='how many batches to wait before logging training status')
 

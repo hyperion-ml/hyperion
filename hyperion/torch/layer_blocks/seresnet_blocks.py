@@ -18,7 +18,7 @@ class SEBlock2D(nn.Module):
     """ From https://arxiv.org/abs/1709.01507
     """
     def __init__(self, num_channels, r=16, activation={'name':'relu', 'inplace': True}):
-        super(SEBlock2D, self).__init__()
+        super().__init__()
         self.conv1 = nn.Conv2d(num_channels, int(num_channels/r), kernel_size=1, bias=False)
         self.act = AF.create(activation)
         self.conv2 = nn.Conv2d(int(num_channels/r), num_channels, kernel_size=1, bias=False)
@@ -37,7 +37,7 @@ class TSEBlock2D(nn.Module):
         Modified to do pooling only in time dimension
     """
     def __init__(self, num_channels, num_feats, r=16, activation={'name':'relu', 'inplace': True}):
-        super(TSEBlock2D, self).__init__()
+        super().__init__()
         self.num_channels_1d = num_channels*num_feats
         self.conv1 = nn.Conv2d(self.num_channels_1d, int(self.num_channels_1d/r), kernel_size=1, bias=False)
         self.act = AF.create(activation)
@@ -119,7 +119,7 @@ class SEResNetBNBlock(ResNetBNBlock):
                  dilation=1, norm_layer=None, norm_before=True, 
                  r=16, time_se=False, num_feats=None):
 
-        super(SEResNetBNBlock, self).__init__(
+        super().__init__(
             in_channels, channels, activation=activation,
             stride=stride, dropout_rate=dropout_rate,groups=groups,
             dilation=dilation, norm_layer=norm_layer, norm_before=norm_before)

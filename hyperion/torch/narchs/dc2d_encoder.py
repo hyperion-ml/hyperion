@@ -163,13 +163,18 @@ class DC2dEncoder(NetArch):
         if in_shape is None:
             return (None, out_channels, None, None)
 
-        assert len(in_shape) == 3
+        assert len(in_shape) == 4
         if in_shape[2] is None:
-            T = None
+            H = None
         else:
-            T = self._compute_out_size(in_shape[2])
+            H = self._compute_out_size(in_shape[2])
 
-        return (in_shape[0], out_chanels, T)
+        if in_shape[3] is None:
+            W = None
+        else:
+            W = self._compute_out_size(in_shape[3])
+
+        return (in_shape[0], out_chanels, H, W)
 
 
 

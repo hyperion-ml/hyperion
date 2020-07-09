@@ -54,9 +54,17 @@ class VAETrainer(TorchTrainer):
             data = data.to(self.device)
             batch_size = data.shape[0]
             
-            elbo, log_px, kldiv_z, px, qz = self.model(data)
-            loss = - elbo.mean()/self.grad_acc_steps
-            x_hat = px.mean
+            # elbo, log_px, kldiv_z, x_hat = self.model(
+            #     data, return_x_mean=True)
+            # elbo = elbo.mean()
+            # loss = - elbo/self.grad_acc_steps
+
+            output = self.model(
+                data, return_x_mean=True)
+            elbo = output['elbo'].mean()
+            loss = - elbo/self.grad_acc_steps
+            x_hat = output['x_mean']
+
             if self.use_amp:
                 with amp.scale_loss(loss, self.optimizer) as scaled_loss:
                     scaled_loss.backward()
@@ -68,9 +76,9 @@ class VAETrainer(TorchTrainer):
                     self.lr_scheduler.on_opt_step()
                 self.optimizer.step()
 
-            batch_metrics['elbo'] = - loss.item() * self.grad_acc_steps
-            batch_metrics['log_px'] = log_px.mean().item()
-            batch_metrics['kldiv_z'] = kldiv_z.mean().item()
+            batch_metrics['elbo'] = elbo.item()
+            for metric in ['log_px', 'kldiv_z']:
+                batch_metrics[metric] = output[metric].mean().item()
             for k, metric in self.metrics.items():
                 batch_metrics[k] = metric(x_hat, data)
             
@@ -98,11 +106,14 @@ class VAETrainer(TorchTrainer):
                 data = data.to(self.device)
                 batch_size = data.shape[0]
 
-                elbo, log_px, kldiv_z, px, _ = self.model(data)
-                x_hat = px.mean
-                batch_metrics['elbo'] = elbo.mean().item() 
-                batch_metrics['log_px'] = log_px.mean().item()
-                batch_metrics['kldiv_z'] = kldiv_z.mean().item()
+                #elbo, log_px, kldiv_z, x_hat = self.model(
+                #    data, return_x_mean=True)
+                output = self.model(
+                    data, return_x_mean=True)
+                x_hat = output['x_mean']
+                for metric in ['elbo', 'log_px', 'kldiv_z']:
+                    batch_metrics[metric] = output[metric].mean().item()
+
                 for k, metric in self.metrics.items():
                     batch_metrics[k] = metric(x_hat, data)
             

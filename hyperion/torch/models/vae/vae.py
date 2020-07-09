@@ -13,17 +13,32 @@ from ...torch_model import TorchModel
 from ...helpers import TorchNALoader
 from ...layers import tensor2pdf as t2pdf
 from ...layers import pdf_storage
-#import ...layers.tensor2pdf as t2pdf
-from ...utils.distributions import squeeze_pdf_, squeeze_pdf
+#from ...utils.distributions import squeeze_pdf_, squeeze_pdf
 
 class VAE(TorchModel):
     """Variational Autoencoder class
+         From: https://arxiv.org/abs/1312.6114
+
+    Attributes:
+      encoder_net: NArch encoder network object
+      decoder_net: NArch decoder network object
+      z_dim: latent variable dimension
+      kldiv_weight: weight KL divergene when computing ELBO
+      qz_pdf: type of prob distribution of the approx. latent posterior
+      pz_pdf: type of prob distribution of the latent prior
+      px_pdf: type of prob distribution for the data likelihood
+      flatten_spatial: if True all time/spatial dimensions are generated from a single latent vector,
+                       if False, we have multiple latents depending on the data size.
+      spatial_shape: shape of the data, only needed if flatten_spatial=True
+      scale_invariant: for future use
+      data_scale = for future use
     """
 
-    def __init__(self, encoder_net, decoder_net, z_dim, beta=1,
+    def __init__(self, encoder_net, decoder_net, z_dim, kldiv_weight=1,
                  qz_pdf='normal-glob-diag-cov', pz_pdf='std-normal',
                  px_pdf='normal-glob-diag-cov',
-                 flatten_spatial=False, spatial_shape=None):
+                 flatten_spatial=False, spatial_shape=None,
+                 scale_invariant=False, data_scale=None):
         super().__init__()
         self.encoder_net = encoder_net
         self.decoder_net = decoder_net
@@ -31,13 +46,15 @@ class VAE(TorchModel):
         self.qz_pdf = qz_pdf
         self.pz_pdf = pz_pdf
         self.px_pdf = px_pdf
-        self.beta = beta
+        self.kldiv_weight = kldiv_weight
         self.flatten_spatial = flatten_spatial
         self.spatial_shape = spatial_shape
+        self.scale_invariant = scale_invariant
+        self.data_scale = data_scale
 
         # infer input feat dimension from encoder network
         in_shape = encoder_net.in_shape()
-        # number of dimension of input/output enc/dec tensors, 
+        # number of dimensions of input/output enc/dec tensors, 
         # needed to connect the blocks
         self._enc_in_dim = len(in_shape) 
         self._enc_out_dim = self.encoder_net.out_dim()
@@ -46,19 +63,32 @@ class VAE(TorchModel):
 
         # we assume conv nnets with channel in dimension 1
         self.in_channels = in_shape[1]
+        self._enc_out_channels = self.encoder_net.out_shape()[1]
+        self._dec_out_channels = self.decoder_net.out_shape()[1]
 
         if self.flatten_spatial:
             self._compute_flatten_unflatten_shapes()
-            self.z2dec = Linear(self.z_dim, self._dec_in_tot_dim)
+            qz_in_channels = self._enc_out_tot_feats
+            qz_in_dim = 2
+        else:
+            qz_in_channels = self._enc_out_channels
+            qz_in_dim = self._enc_out_dim
 
-        self.t2qz = self._make_t2pdf_layer(qz_pdf, self.z_dim, self._enc_out_dim)
-        self.t2px = self._make_t2pdf_layer(px_pdf, self.in_channels, self._dec_out_dim)
+        self._make_post_enc_layer()
+        self._make_pre_dec_layer()
+        self._make_post_dec_layer()
 
-        self.pz = self._make_prior()
+        self.t2qz = self._make_t2pdf_layer(
+            qz_pdf, qz_in_channels, self.z_dim, qz_in_dim)
+        self.t2px = self._make_t2pdf_layer(
+            px_pdf, self._dec_out_channels, self.in_channels, self._dec_out_dim)
 
-        self.pre_qz = self._make_pre_qz_layer()
-        self.pre_px = self._make_pre_px_layer()
+        self._make_prior()
 
+
+    @property
+    def pz(self):
+        return self._pz()
             
         
     def _compute_flatten_unflatten_shapes(self):
@@ -99,7 +129,6 @@ class VAE(TorchModel):
 
 
     def _unflatten(sef, x):
-        x = self.z2dec(x) #linear projection
         return x.view(-1, *self._dec_in_shape)
         
 
@@ -113,71 +142,82 @@ class VAE(TorchModel):
 
         if self.pz_pdf == 'std-normal':
             self._pz = pdf_storage.StdNormal(shape)
-            # self._loc = nn.Parameter(torch.zeros(shape), requires_grad=False)
-            # self._scale = nn.Parameter(torch.ones(shape), requires_grad=False)
-            # pz = pdf.normal.Normal(self._loc, self._scale)
         else:
             raise ValueError('pz=%s not supported' % self.pz_pdf)
 
-        return self._pz()
 
 
+    def _make_t2pdf_layer(self, pdf_name, in_channels, channels, ndims):
 
-    def _make_t2pdf_layer(self, pdf_name, channels, ndims):
-        shape = channels, *(1,)*(ndims - 2)
         pdf_dict = { 
-            'normal-glob-diag-cov': lambda : t2pdf.Tensor2NormalGlobDiagCov(shape),
-            'normal-diag-cov': t2pdf.Tensor2NormalGlobDiagCov,
-            'normal-i-cov': t2pdf.Tensor2NormalICov }
+            'normal-i-cov': t2pdf.Tensor2NormalICov,
+            'normal-glob-diag-cov': t2pdf.Tensor2NormalGlobDiagCov,
+            'normal-diag-cov': t2pdf.Tensor2NormalDiagCov,
+            'bay-normal-i-cov': t2pdf.Tensor2BayNormalICovGivenNormalPrior,
+            'bay-normal-glob-diag-cov': t2pdf.Tensor2BayNormalGlobDiagCovGivenNormalPrior,
+            'bay-normal-diag-cov': t2pdf.Tensor2BayNormalDiagCovGivenNormalPrior }
 
-        t2pdf_layer = pdf_dict[pdf_name]()
+        t2pdf_layer = pdf_dict[pdf_name](channels, in_feats=in_channels, in_dim=ndims)
         return t2pdf_layer
 
 
 
-    def _make_conv1x1(self, in_channels, out_channels, ndims):
-        if ndims == 2:
-            return nn.Linear(in_channels, out_channels)
-        elif ndims == 3:
-            return nn.Conv1d(in_channels, out_channels, kernel_size=1)
-        elif ndims == 4:
-            return nn.Conv2d(in_channels, out_channels, kernel_size=1)
-        elif ndims == 5:
-            return nn.Conv3d(in_channels, out_channels, kernel_size=1)
-        else:
-            raise ValueError('ndim=%d is not supported' % ndims)
+    # def _make_conv1x1(self, in_channels, out_channels, ndims):
+    #     if ndims == 2:
+    #         return nn.Linear(in_channels, out_channels)
+    #     elif ndims == 3:
+    #         return nn.Conv1d(in_channels, out_channels, kernel_size=1)
+    #     elif ndims == 4:
+    #         return nn.Conv2d(in_channels, out_channels, kernel_size=1)
+    #     elif ndims == 5:
+    #         return nn.Conv3d(in_channels, out_channels, kernel_size=1)
+    #     else:
+    #         raise ValueError('ndim=%d is not supported' % ndims)
         
 
-
-    def _make_pre_qz_layer(self):
+    # def _make_pre_qz_layer(self):
         
-        enc_channels = self.encoder_net.out_shape()[1]
-        f = self.t2qz.tensor2pdfparam_factor
-        if self.flatten_spatial:
-            # we will need to pass channel dim to end dim and flatten
-            pre_qz = Linear(self._enc_out_tot_feats, self.z_dim*f)
-            return pre_qz
+    #     enc_channels = self.encoder_net.out_shape()[1]
+    #     f = self.t2qz.tensor2pdfparam_factor
+    #     if self.flatten_spatial:
+    #         # we will need to pass channel dim to end dim and flatten
+    #         pre_qz = Linear(self._enc_out_tot_feats, self.z_dim*f)
+    #         return pre_qz
 
-        return self._make_conv1x1(enc_channels, self.z_dim*f, self._enc_out_dim)
+    #     return self._make_conv1x1(enc_channels, self.z_dim*f, self._enc_out_dim)
 
         
             
-    def _make_pre_px_layer(self):
-        dec_channels = self.decoder_net.out_shape()[1]
-        f = self.t2px.tensor2pdfparam_factor
-        print('dec-out-dim', self._dec_out_dim)
-        return self._make_conv1x1(dec_channels, self.in_channels*f, self._dec_out_dim)
+    # def _make_pre_px_layer(self):
+    #     dec_channels = self.decoder_net.out_shape()[1]
+    #     f = self.t2px.tensor2pdfparam_factor
+    #     print('dec-out-dim', self._dec_out_dim)
+    #     return self._make_conv1x1(dec_channels, self.in_channels*f, self._dec_out_dim)
         
     
-    def _match_sizes(self, y, target_shape):
-        y_dim = len(y.shape)
-        d = y_dim - len(target_shape)
-        for i in range(2, y_dim):
-            surplus = y.shape[i] - target_shape[i-d]
-            if surplus > 0:
-                y = torch.narrow(y, i, surplus//2, target_shape[i-d])
+    # def _match_sizes(self, y, target_shape):
+    #     y_dim = len(y.shape)
+    #     d = y_dim - len(target_shape)
+    #     for i in range(2, y_dim):
+    #         surplus = y.shape[i] - target_shape[i-d]
+    #         if surplus > 0:
+    #             y = torch.narrow(y, i, surplus//2, target_shape[i-d])
 
-        return y.contiguous()
+    #     return y.contiguous()
+
+
+
+    def _make_post_enc_layer(self):
+        pass
+
+        
+    def _make_pre_dec_layer(self):
+        if self.flatten_spatial:
+            self._pre_dec_linear = Linear(self.z_dim, self._dec_in_tot_dim) 
+
+            
+    def _make_post_dec_layer(self):
+        pass
 
 
     def _pre_enc(self, x):
@@ -185,7 +225,30 @@ class VAE(TorchModel):
             return x.unsqueeze(1)
 
         return x
+
+
+    def _post_enc(self, x):
+        if self.flatten_spatial:
+            x = self._flatten(x)
         
+        return x
+
+
+    def _pre_dec(self, x):
+        if self.flatten_spatial:
+            x = self._prec_dec_linear(x) #linear projection
+            x = self._unflatten(x)
+            return x
+
+        if self._enc_out_dim == 3 and self._dec_in_dim == 4:
+            return x.unsqueeze(dim=1)
+
+        if self._enc_out_dim == 4 and self._dec_in_dim == 3:
+            return x.view(x.size(0), -1, x.size(-1))
+
+        return x
+
+
 
     def _post_px(self, px, x_shape):
         px_shape = px.batch_shape
@@ -210,11 +273,8 @@ class VAE(TorchModel):
         
         x = self._pre_enc(x)
         xx = self.encoder_net(x)
-        if self.flatten_spatial:
-            xx = self._flatten(xx)
-
-        xx = self.pre_qz(xx)
-        qz = self.t2qz(xx, self._pz())
+        xx = self._post_enc(xx)
+        qz = self.t2qz(xx, prior=self._pz())
         # print(qz)
         # print(self.pz)
         # print(qz.loc)
@@ -226,15 +286,17 @@ class VAE(TorchModel):
             x.size(0), -1).sum(dim=-1)
         z = qz.rsample()
 
-        zz = z
-        if self.flatten_spatial:
-            zz = self._unflatten(zz)
+        zz = self._pre_dec(z)
+        zz = self.decoder_net(zz, target_shape=x_target.shape)
+        #zz = self._post_dec(zz)
+        #zz = self.pre_px(zz)
+        #zz = self._match_sizes(zz, x_target.shape)
 
-        zz = self.decoder_net(zz)
-        zz = self.pre_px(zz)
-        zz = self._match_sizes(zz, x_target.shape)
-        px = self.t2px(zz)
-        px = self._post_px(px, x_target.shape)
+        squeeze_dim = None
+        if x_target.dim() == 3 and zz.dim() == 4:
+            squeeze_dim = 1
+        px = self.t2px(zz, squeeze_dim=squeeze_dim)
+        #px = self._post_px(px, x_target.shap)
 
         # we normalize the elbo by spatial/time samples and feature dimension
         log_px = px.log_prob(x_target).view(
@@ -244,52 +306,48 @@ class VAE(TorchModel):
         log_px = log_px.mean(dim=-1)
         # kldiv must be normalized by number of elements in x, not in z!!
         kldiv_qzpz /= num_samples 
-        elbo = log_px - self.beta*kldiv_qzpz
+        elbo = log_px - self.kldiv_weight*kldiv_qzpz
 
-        # we build the return tuple
-        r = [elbo, log_px, kldiv_qzpz]
+        # we build the return dict
+        r = {'elbo': elbo,
+             'log_px': log_px,
+             'kldiv_z': kldiv_qzpz}
+
         if return_x_mean:
-            r.append(px.mean)
-
+            r['x_mean'] = px.mean
+        
         if return_x_sample:
             if px.has_rsample:
-                x_tilde = px.rsample()
+                x_sample = px.rsample()
             else:
-                x_tilde = px.sample()
-            
-            r.append(x_tilde)
+                x_sample = px.sample()
+            r['x_sample'] = x_sample
 
         if return_z_sample:
-            r.append(z)
+            r['z'] = z
 
-        return tuple(r)
+        return r
         
 
 
     def compute_qz(self, x):
-        x = self._pre_enc(x)
-        xx = self.encoder_net(x)
-        if self.flatten_spatial:
-            xx = self._flatten(xx)
-
-        xx = self.pre_qz(xx)
-        qz = self.t2qz(xx, self._pz())
+        xx = self._pre_enc(x)
+        xx = self.encoder_net(xx)
+        xx = self._post_enc(xx)
+        qz = self.t2qz(xx, self.pz)
         return qz
 
 
     def compute_px_given_z(self, z, x_shape=None):
-        zz = z
-        if self.flatten_spatial:
-            zz = self._unflatten(self.z2dec(zz))
+        zz = self._pre_dec(z)
 
-        zz = self.decoder_net(zz)
+        zz = self.decoder_net(zz, target_shape=x_shape)
         zz = self.pre_px(zz)
 
-        if x_shape is not None:
-            zz = self._match_sizes(zz, x_shape)
-        px = self.t2px(zz)
-        if x_shape is not None:
-            px = self._post_px(px, x_shape)
+        squeeze_dim = None
+        if x_target.dim() == 3 and zz.dim() == 4:
+            squeeze_dim = 1
+        px = self.t2px(zz, squeeze_dim=squeeze_dim)
         return px
 
 
@@ -302,10 +360,13 @@ class VAE(TorchModel):
                   'qz_pdf': self.qz_pdf,
                   'pz_pdf': self.pz_pdf,
                   'px_pdf': self.px_pdf,
-                  'beta': self.beta,
+                  'kldiv_weight': self.kldiv_weight,
                   'flatten_spatial': self.flatten_spatial,
-                  'spatial_shape': self.spatial_shape }
-        base_config = super(VAE, self).get_config()
+                  'spatial_shape': self.spatial_shape,
+                  'scale_invariant': self.scale_invariant,
+                  'data_scale': self.data_scale }
+
+        base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
 
@@ -326,3 +387,44 @@ class VAE(TorchModel):
         return model
 
         
+
+    @staticmethod
+    def filter_args(prefix=None, **kwargs):
+        if prefix is None:
+            p = ''
+        else:
+            p = prefix + '_'
+
+        valid_args = ('z_dim', 'kldiv_weight', 'qz_pdf', 'px_pdf')
+        args = dict((k, kwargs[p+k])
+                    for k in valid_args if p+k in kwargs)
+
+        return args
+
+
+
+    @staticmethod
+    def add_argparse_args(parser, prefix=None):
+        
+        if prefix is None:
+            p1 = '--'
+        else:
+            p1 = '--' + prefix + '-'
+
+        parser.add_argument(
+                p1+'z-dim', type=int, required=True,
+                help=('latent factor dimension'))
+
+        parser.add_argument(p1+'kldiv-weight', default=1, type=float,
+                            help=('weight of the KL divergance in the ELBO'))
+
+        parser.add_argument(
+            p1+'qz-pdf', default='normal-glob-diag-cov', 
+            choices = ['normal-i-cov', 'normal-glob-diag-cov', 'normal-diag-cov',
+                       'bay-normal-i-cov', 'bay-normal-glob-diag-cov', 'bay-normal-diag-cov'],
+            help=('pdf for approx posterior q(z)'))
+
+        parser.add_argument(
+            p1+'px-pdf', default='normal-glob-diag-cov', 
+            choices = ['normal-i-cov', 'normal-glob-diag-cov', 'normal-diag-cov'],
+            help=('pdf for data likelihood p(x|z)'))

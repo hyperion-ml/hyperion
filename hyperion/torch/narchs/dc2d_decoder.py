@@ -11,6 +11,7 @@ import torch.nn as nn
 
 from ..layers import ActivationFactory as AF
 from ..layer_blocks import DC2dDecBlock
+from ..layers import SubPixelConv2d, ICNR2d
 from .net_arch import NetArch
 
 
@@ -107,19 +108,47 @@ class DC2dDecoder(NetArch):
 
 
     def _init_weights(self, hid_act):
+        if isinstance(hid_act, str):
+            act_name = hid_act
+        if isinstance(hid_act, dict):
+            act_name = hid_act['name']
+        if act_name in ['relu6', 'swish']:
+            act_name = 'relu'
+
+        init_f1 = lambda x: nn.init.kaiming_normal_(x, mode='fan_out', nonlinearity=act_name)
+        init_f2 = lambda x: nn.init.kaiming_normal_(x, mode='fan_out', nonlinearity='relu')
+
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
-                if isinstance(hid_act, str):
-                    act_name = hid_act
-                if isinstance(hid_act, dict):
-                    act_name = hid_act['name']
                 try:
-                    nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity=act_name)
+                    init_f1(m.weight)
                 except:
-                    nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                    init_f2(m.weight)
             elif isinstance(m, nn.BatchNorm2d):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
+
+        #re-init subpixelconvs
+        for m in self.modules():
+            if isinstance(m, SubPixelConv2d):
+                try:
+                    ICNR2d(m.conv.weight, stride=m.stride, initializer=init_f1)
+                except:
+                    ICNR2d(m.conv.weight, stride=m.stride, initializer=init_f2)
+
+        # for m in self.modules():
+        #     if isinstance(m, nn.Conv2d):
+        #         if isinstance(hid_act, str):
+        #             act_name = hid_act
+        #         if isinstance(hid_act, dict):
+        #             act_name = hid_act['name']
+        #         try:
+        #             nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity=act_name)
+        #         except:
+        #             nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+        #     elif isinstance(m, nn.BatchNorm2d):
+        #         nn.init.constant_(m.weight, 1)
+        #         nn.init.constant_(m.bias, 0)
 
 
     @staticmethod
@@ -158,21 +187,39 @@ class DC2dDecoder(NetArch):
 
     def out_shape(self, in_shape=None):
 
-        out_channels = self.head_channels if self.head_channels>0 else self.conv_channels[-1]        
+        out_channels = self.head_channels if self.head_channels>0 else self.conv_channels[-1]
         if in_shape is None:
             return (None, out_channels, None, None)
 
-        assert len(in_shape) == 3
+        assert len(in_shape) == 4
         if in_shape[2] is None:
-            T = None
+            H = None
         else:
-            T = self._compute_out_size(in_shape[2])
+            H = self._compute_out_size(in_shape[2])
 
-        return (in_shape[0], out_channels, T)
+        if in_shape[3] is None:
+            W = None
+        else:
+            W = self._compute_out_size(in_shape[3])
+
+        return (in_shape[0], out_chanels, H, W)
 
 
 
-    def forward(self, x):
+    def _match_shape(self, x, target_shape):
+        x_dim = x.dim()
+        ddim = x_dim - len(target_shape)
+        for i in range(2, x_dim):
+            surplus = x.size(i) - target_shape[i-ddim]
+            assert surplus >= 0
+            if surplus > 0:
+                x = torch.narrow(x, i, surplus//2, target_shape[i-ddim])
+
+        return x.contiguous()
+
+
+
+    def forward(self, x, target_shape=None):
 
         x = self.in_block(x)
         for idx, block in enumerate(self.blocks):
@@ -180,6 +227,9 @@ class DC2dDecoder(NetArch):
 
         if self.head_channels > 0:
             x = self.head_block(x)
+
+        if target_shape is not None:
+            x = self._match_shape(x, target_shape)
 
         return x
 
