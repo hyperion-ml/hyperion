@@ -54,7 +54,7 @@ if [ $stage -le 2 ];then
 	    --mfcc-config conf/mfcc2_16k.conf --nj $nj --cmd "$train_cmd" \
 	    data/${name} exp/make_mfcc/$name $mfccdir
 	utils/fix_data_dir.sh data/${name}
-	steps_fe/compute_vad_decision.sh --nj $nj --cmd "$train_cmd" \
+	hyp_utils/kaldi/vad/compute_vad_decision.sh --nj $nj --cmd "$train_cmd" \
 	    data/${name} exp/make_vad/$name $vaddir
 	utils/fix_data_dir.sh data/${name}
     done
