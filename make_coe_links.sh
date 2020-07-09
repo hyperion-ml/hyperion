@@ -16,7 +16,7 @@ cd -
 # anaconda 3.5
 cd tools/anaconda
 if [ ! -f anaconda3 ];then
-    ln -s /exp/jvillalba/anaconda/anaconda3 anaconda3.5
+    ln -s /exp/jvillalba/anaconda/anaconda3 anaconda3
 fi
 cd -
 
