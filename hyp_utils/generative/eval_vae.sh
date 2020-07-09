@@ -126,17 +126,17 @@ fi
 
 if [ $stage -le 1 ]; then
   echo "$0: combining scores across jobs"
-  cat $output_dir/scores.1.csv
+  cat $output_dir/scores.1.csv > $output_dir/scores.csv
   for j in $(seq 2 $nj);
   do
-      tail -n +2 $output_dir/scores.$i.csv
-  done > tail -n +2 $output_dir/scores.csv
-  python -c "import pandas as pd; x = pd.read_csv('$output_dir/scores.csv'); x_mean = x.mean(axis=0); x_mean.to_csv('$output_dir/scores_avg.csv')"
+      tail -n +2 $output_dir/scores.$j.csv
+  done >> $output_dir/scores.csv
+  python -c "import pandas as pd; x = pd.read_csv('$output_dir/scores.csv'); x_mean = x.mean(axis=0); x_std=x.std(axis=0); x_stats=pd.DataFrame([x_mean, x_std], index=['mean','std']); x_stats.to_csv('$output_dir/scores_stats.csv')"
 
   for d in xmean xsample zsample
   do
-      echo "$0: combining $d across jobs"
       if [ -f $output_dir/$d/$d.1.scp ];then
+	  echo "$0: combining $d across jobs"
 	  for j in $(seq $nj); do cat $output_dir/$d/$d.$j.scp; done > $output_dir/$d/$d.scp || exit 1;
       fi
   done

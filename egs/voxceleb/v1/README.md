@@ -1,6 +1,6 @@
-# VoxCeleb 
+# VoxCeleb Version 1
 
-Recipe for the VoxCeleb Task
+Recipe for the VoxCeleb Speaker Verification Task using several flavors of x-Vectors
 
 ## Training Data
 
@@ -8,7 +8,7 @@ Recipe for the VoxCeleb Task
      - MUSAN noise
      - RIR reverberation
 
-## Test data
+## Test Data
 
    - Test data is VoxCeleb 1
    - We evaluate 6 conditions:

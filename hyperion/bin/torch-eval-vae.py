@@ -59,7 +59,7 @@ def write_img(output_dir, key, x, x_mean, x_sample, num_frames):
     
     
 
-def eval_vae(input_spec, output_spec, vad_spec, write_num_frames_spec,
+def eval_vae(input_spec, vad_spec, write_num_frames_spec,
              scp_sep, path_prefix, vad_path_prefix, 
              model_path, score_path,
              write_x_mean_spec, write_x_sample_spec, write_z_sample_spec,
@@ -114,7 +114,7 @@ def eval_vae(input_spec, output_spec, vad_spec, write_num_frames_spec,
     extra_metrics = { 'mse': nn.MSELoss(), 'L1': nn.L1Loss() }
     scores_df = []
 
-    logging.info('opening input stream: %s' % (output_spec))
+    logging.info('opening input stream: %s' % (input_spec))
     with DRF.create(input_spec, path_prefix=path_prefix, scp_sep=scp_sep,
                     part_idx=part_idx, num_parts=num_parts) as reader:
         if vad_spec is not None:
@@ -153,13 +153,13 @@ def eval_vae(input_spec, output_spec, vad_spec, write_num_frames_spec,
                     xx = xx.to(device)
                     output = model(xx, **fargs)
 
+                    x_mean = output['x_mean']
                     for metric in metrics:
                         if metric in output:
                             scores[metric] = output[metric].mean().item()
                     
                     for metric in extra_metrics.keys():
                         scores[metric] = extra_metrics[metric](x_mean, xx).item()
-
 
                     # elbo = elbo.mean().item()
                     # log_px = log_px.mean().item()
@@ -172,10 +172,9 @@ def eval_vae(input_spec, output_spec, vad_spec, write_num_frames_spec,
                     #logging.info('utt %s elbo=%.2f E[logP(x|z)]=%.2f KL(q(z)||p(z))=%.2f mse=%.2f l1=%.2f' % (
                     #    key[0], elbo, log_px, kldiv_z, mse, l1))
                     
-                    if 'x_mean' in output:
-                        x_mean = output['x_mean'].cpu().numpy()[0]
+                    x_mean = x_mean.cpu().numpy()[0]
                     if 'x_sample' in output:
-                        x_sample = output['x_mean'].cpu().numpy()[0]
+                        x_sample = output['x_sample'].cpu().numpy()[0]
                     if 'z_sample' in output:
                         z_sample = output['z_mean'].cpu().numpy()[0]
 
@@ -198,13 +197,13 @@ def eval_vae(input_spec, output_spec, vad_spec, write_num_frames_spec,
             t6 = time.time()
             logging.info((
                     'utt %s total-time=%.3f read-time=%.3f mvn-time=%.3f '
-                    'vad-time=%.3f embed-time=%.3f write-time=%.3f '
+                    'vad-time=%.3f vae-time=%.3f write-time=%.3f '
                     'rt-factor=%.2f') % (
                         key[0], t6-t1, t2-t1, t3-t2, t4-t3, 
                         t5-t4, t6-t5, x.shape[0]*1e-2/(t6-t1)))
 
     scores_df = pd.concat(scores_df, ignore_index=True)
-    scores_df.to_csv(index=False, na_rep='n/a')
+    scores_df.to_csv(score_path, index=False, na_rep='n/a')
 
     if write_num_frames_spec is not None:
         logging.info('writing num-frames to %s' % (write_num_frames_spec))
@@ -258,10 +257,10 @@ if __name__ == "__main__":
     parser.add_argument('--write-img-path', default=None,
                         help='output directory to save spectrogram images in pdf format')
 
-    parser.add_argument('--img-frames', default=400, type=int
+    parser.add_argument('--img-frames', default=400, type=int,
                         help='number of frames to plot in the images')
 
-    parser.add_argument('--scores', required=True,
+    parser.add_argument('--scores', dest='score_path', required=True,
                         help='output file to write ELBO and other metrics')
 
     parser.add_argument('--use-gpu', default=False, action='store_true',
