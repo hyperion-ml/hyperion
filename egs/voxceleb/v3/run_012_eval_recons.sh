@@ -21,16 +21,22 @@ else
     eval_cmd="$train_cmd"
 fi
 
-vae_dir=exp/vae_output/$nnet_name
+output_dir=exp/recons_output/$nnet_name
+if [[ "$model_type" =~ "vae" ]];then
+    eval_script=hyp_utils/generative/eval_vae.sh
+elif
+    echo "unknown model type $model_type"
+    exit 1
+fi
 
 if [ $stage -le 1 ]; then
     for name in voxceleb1_test 
     do
 	num_utt=$(wc -l data/$name/utt2spk | awk '{ print $1}')
 	nj=$(($num_utt < 100 ? $num_utt:100))
-	hyp_utils/generative/eval_vae.sh --cmd "$eval_cmd --mem 6G" --nj $nj ${eval_args} \
-	    $nnet data/$name $vae_dir/$name
+	$eval_script --cmd "$eval_cmd --mem 6G" --nj $nj ${eval_args} \
+	    $nnet data/$name $output_dir/$name
     done
 fi
 
-exit
+

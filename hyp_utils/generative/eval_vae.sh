@@ -131,7 +131,7 @@ if [ $stage -le 1 ]; then
   do
       tail -n +2 $output_dir/scores.$j.csv
   done >> $output_dir/scores.csv
-  python -c "import pandas as pd; x = pd.read_csv('$output_dir/scores.csv'); x_mean = x.mean(axis=0); x_std=x.std(axis=0); x_stats=pd.DataFrame([x_mean, x_std], index=['mean','std']); x_stats.to_csv('$output_dir/scores_stats.csv')"
+  python -c "import pandas as pd; x = pd.read_csv('$output_dir/scores.csv'); x_mean = x.mean(axis=0); x_std=x.std(axis=0); x_stats=pd.DataFrame([x_mean, x_std], index=['mean','std']); x_stats.to_csv('$output_dir/scores_stats.csv'); print(x_stats)"
 
   for d in xmean xsample zsample
   do
