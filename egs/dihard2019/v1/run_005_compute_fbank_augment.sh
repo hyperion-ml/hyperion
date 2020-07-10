@@ -20,9 +20,9 @@ feat_vers="numpy"
 
 fbank_cfg=conf/fbank80_16k.pyconf
 if [ "$feat_vers" == "numpy" ];then
-    make_fbank=steps_pyfe/make_fbank.sh
+    make_fbank=hyp_utils/feats/make_fbank.sh
 else
-    make_fbank=steps_pyfe/make_torch_fbank.sh
+    make_fbank=hyp_utils/feats/make_torch_fbank.sh
 fi
 
 
