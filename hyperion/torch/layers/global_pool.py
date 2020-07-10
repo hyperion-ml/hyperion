@@ -224,6 +224,7 @@ class GlobalMeanStdPool1d(_GlobalPool1d):
 
     def _forward_slidwin_int(self, x, win_length, win_shift, snip_edges):
         x, out_shape = self._pre_slidwin(x, win_length, win_shift, snip_edges)
+        
 
         c_x = torch.cumsum(x, dim=-1).view(-1, x.shape[-1])
         m_x = (c_x[:,win_shift:] - c_x[:,:-win_shift])/win_length
@@ -239,21 +240,60 @@ class GlobalMeanStdPool1d(_GlobalPool1d):
     def _forward_slidwin_float(self, x, win_length, win_shift, snip_edges):
 
         x, out_shape = self._pre_slidwin(x, win_length, win_shift, snip_edges)
-
         num_frames = out_shape[-1]
         c_x = torch.cumsum(x, dim=-1).view(-1, x.shape[-1])
         c_x2 = torch.cumsum(x**2, dim=-1).view(-1, x.shape[-1])
+
+        # xx = x.view(-1, x.shape[-1])
+        # print(xx.shape[1])
+        # print(torch.max(torch.sum(xx==0, dim=1)))
+
         m_x = torch.zeros((c_x.shape[0], num_frames), dtype=c_x.dtype, device=c_x.device)
         m_x2 = torch.zeros_like(m_x)
+
         k = 0
+        # max_delta = 0
+        # max_delta2 = 0
         for i in range(num_frames):
             k1 = int(round(k))
             k2 = int(round(k+win_length))
             m_x[:,i] = (c_x[:,k2]-c_x[:,k1])/(k2-k1)
             m_x2[:,i] = (c_x2[:,k2]-c_x2[:,k1])/(k2-k1)
+            # for j in range(m_x.shape[0]):
+            #     m_x_2 = torch.mean(xx[j,k1+1:k2+1])
+            #     m_x2_2 = torch.mean(xx[j,k1+1:k2+1]**2)
+            #     delta = torch.abs(m_x_2 - m_x[j,i]).item()
+            #     delta2 = torch.abs(m_x2_2 - m_x2[j,i]).item()
+            #     if (delta > max_delta or delta2 > max_delta2) and (delta>1e-3 or delta2>1e-3):
+            #         max_delta = delta
+            #         max_delta2 = delta2
+            #         print('mx', delta, m_x[j,i], m_x_2)
+            #         print('mx2', delta2, m_x2[j,i], m_x2_2) 
+            #         import sys
+            #         sys.stdout.flush()
+            #     # if m_x[j,i]**2 > m_x2[j,i]:
+            #     #     print('nan')
+            #     #     print('mx', m_x[j,i], m_x_2)
+            #     #     print('mx2', m_x2[j,i], m_x2_2) 
+            #     #     print(c_x[j,k2])
+            #     #     print(c_x[j,k1])
+            #     #     print(c_x2[j,k2])
+            #     #     print(c_x2[j,k1])
+            #     #     print(xx[j,k1+1:k2+1])
+            #     #     raise Exception()
+
             k += win_shift
 
-        s_x = torch.sqrt(m_x2 - m_x**2).clamp(min=1e-5)
+        var_x = (m_x2 - m_x**2).clamp(min=1e-5)
+        s_x = torch.sqrt(var_x)
+        # idx = torch.isnan(s_x) #.any(dim=1)
+        # if torch.sum(idx) > 0:
+        #     print('sx-nan', s_x[idx])
+        #     print('mx-nan', m_x[idx])
+        #     print('mx2-nan', m_x2[idx])
+        #     print('var-nan', m_x2[idx]-m_x[idx]**2)
+        #     #print('cx2-nan', c_x2[idx])
+        #     raise Exception()
 
         mus = self._post_slidwin(m_x, s_x, out_shape)
         return mus
@@ -338,7 +378,8 @@ class GlobalMeanLogVarPool1d(_GlobalPool1d):
         wbar = torch.mean(weights, dim=self.dim, keepdim=self.keepdim)
         mu = xbar/wbar
         x2bar = torch.mean(weights*x**2, dim=self.dim, keepdim=self.keepdim)/wbar
-        logvar = torch.log(x2bar - mu*mu)
+        var = (x2bar - mu*mu).clamp(min=1e-5)
+        logvar = torch.log(var)
 
         return torch.cat((mu,logvar), dim=-1)
 

@@ -294,10 +294,24 @@ class XVector(TorchModel):
             x, downsample_factor*win_length, downsample_factor*win_shift,
             snip_edges=snip_edges) 
         # (batch, pool_dim, time)
+
+        idx = torch.isnan(p[0]).any(dim=0)
+        if torch.sum(idx) > 0:
+            print('p-nan', p[0,:,idx])
+            print('p-idx', torch.nonzero(idx))
+            raise Exception()
+
         
         p = p.transpose(1,2).contiguous().view(-1, p.size(1))
         y = self.classif_net.extract_embed(p, embed_layer).view(
             x.size(0), -1, self.embed_dim).transpose(1,2).contiguous()
+
+        idx = torch.isnan(y[0]).any(dim=0)
+        if torch.sum(idx) > 0:
+            print('p-nan', y[0,:,idx])
+            print('p-idx', torch.nonzero(idx))
+            raise Exception()
+
 
         return y
 

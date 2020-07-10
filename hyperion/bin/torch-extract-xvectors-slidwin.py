@@ -95,6 +95,12 @@ def extract_xvectors(input_spec, output_spec, vad_spec, write_timestamps_spec,
                             chunk_length=chunk_length, 
                             embed_layer=embed_layer, detach_chunks=True).detach().cpu().numpy()[0]
 
+                        # if np.any(np.isnan(y)):
+                        #     y = y.T
+                        #     idx = np.any(np.isnan(y), axis=1)
+                        #     print(y[idx])
+                        #     print(np.where(idx))
+                        #     raise Exception()
                         # y1 = model.extract_embed(
                         #     xx[:,:,:148],
                         #     chunk_length=chunk_length, 
