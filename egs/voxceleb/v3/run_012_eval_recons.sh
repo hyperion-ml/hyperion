@@ -24,7 +24,7 @@ fi
 output_dir=exp/recons_output/$nnet_name
 if [[ "$model_type" =~ "vae" ]];then
     eval_script=hyp_utils/generative/eval_vae.sh
-elif
+else
     echo "unknown model type $model_type"
     exit 1
 fi

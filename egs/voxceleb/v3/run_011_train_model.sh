@@ -84,7 +84,7 @@ if [ $stage -le 1 ]; then
 	  --log-interval $log_interval \
 	  --exp-path $nnet_dir $args
       
-  elif
+  else
     echo "unknown model type $model_type"
     exit 1
   
