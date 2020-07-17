@@ -23,7 +23,7 @@ from hyperion.torch.narchs import DC2dEncoder as Encoder
 from hyperion.torch.narchs import DC2dDecoder as Decoder
 from hyperion.torch.models import VAE
 from hyperion.torch.trainers import VAETrainer as Trainer
-from hyperion.torch.data import PairedSeqDataset as SD
+from hyperion.torch.data import SeqDataset as SD
 from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
 
 
@@ -51,9 +51,9 @@ def train_vae(data_rspec, train_list, val_list, exp_path,
     logging.info('lr scheduler args={}'.format(lrsch_args))
 
     logging.info('init datasets')
-    train_data = SD(data_rspec, train_list, train_pair_list, 
+    train_data = SD(data_rspec, train_list, 
                     return_class=False, **sd_args)
-    val_data = SD(data_rspec, val_list, val_pair_list, 
+    val_data = SD(data_rspec, val_list, 
                   return_class=False, is_val=True, **sd_args)
 
     logging.info('init samplers')

@@ -22,7 +22,7 @@ from hyperion.torch.narchs import ResNet1dEncoder as Encoder
 from hyperion.torch.narchs import ResNet1dDecoder as Decoder
 from hyperion.torch.models import VQVAE as VAE
 from hyperion.torch.trainers import VQVAETrainer as Trainer
-from hyperion.torch.data import PairedSeqDataset as SD
+from hyperion.torch.data import SeqDataset as SD
 from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
 
 

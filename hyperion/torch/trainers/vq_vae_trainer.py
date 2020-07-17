@@ -106,7 +106,6 @@ class VQVAETrainer(VAETrainer):
                     x = data
 
                 x = x.to(self.device)
-                x_target = x_target.to(self.device)
                 batch_size = x.shape[0]
 
                 # loss, elbo, log_px, kldiv_z, vq_loss, perplexity, x_hat = self.model(

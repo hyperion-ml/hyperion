@@ -40,6 +40,7 @@ class ResNet2dEncoder(NetArch):
         super().__init__()
 
         self.resb_type = resb_type
+        bargs = {}
         if resb_type == 'basic':
             self._block = ResNet2dBasicBlock
         elif block == 'bn':

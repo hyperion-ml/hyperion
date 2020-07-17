@@ -69,19 +69,20 @@ def ICNR2d(tensor, stride=2, initializer=nn.init.kaiming_normal):
         >>> ICNR2d(conv_shuffle.weight, stride=upscale)
 
     """
-    new_shape = [int(tensor.shape[0] / (stride ** 2))] + list(tensor.shape[1:])
-    subkernel = torch.zeros(new_shape)
-    subkernel = initializer(subkernel)
-    subkernel = subkernel.transpose(0, 1).contiguous()
-    subkernel = subkernel.view(
-        subkernel.shape[0], subkernel.shape[1], -1)
-
-    kernel = subkernel.repeat(1, 1, stride ** 2)
-
-    transposed_shape = [tensor.shape[1], tensor.shape[0]] + list(tensor.shape[2:])
-    kernel = kernel.contiguous().view(transposed_shape).transpose(
-        0, 1).contiguous()
-    tensor.copy_(kernel)
+    with torch.no_grad():
+        new_shape = [int(tensor.shape[0] / (stride ** 2))] + list(tensor.shape[1:])
+        subkernel = torch.zeros(new_shape)
+        subkernel = initializer(subkernel)
+        subkernel = subkernel.transpose(0, 1).contiguous()
+        subkernel = subkernel.view(
+            subkernel.shape[0], subkernel.shape[1], -1)
+        
+        kernel = subkernel.repeat(1, 1, stride ** 2)
+        
+        transposed_shape = [tensor.shape[1], tensor.shape[0]] + list(tensor.shape[2:])
+        kernel = kernel.contiguous().view(transposed_shape).transpose(
+            0, 1).contiguous()
+        tensor.copy_(kernel)
 
 
 def ICNR1d(tensor, stride=2, initializer=nn.init.kaiming_normal):

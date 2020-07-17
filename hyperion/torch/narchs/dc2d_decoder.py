@@ -182,7 +182,7 @@ class DC2dDecoder(NetArch):
 
 
     def in_shape(self):
-        return (None, self.in_channels, None)
+        return (None, self.in_channels, None, None)
             
 
     def out_shape(self, in_shape=None):
