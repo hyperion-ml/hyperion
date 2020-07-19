@@ -10,7 +10,9 @@ import torch
 import torch.nn as nn
 
 from ..layers import ActivationFactory as AF
-from ..layer_blocks import ResNet2dBasicDecBlock, DC2dDecBlock
+from ..layer_blocks import ResNet2dBasicDecBlock, ResNet2dBNDecBlock, DC2dDecBlock
+from ..layer_blocks import SEResNet2dBasicDecBlock, SEResNet2dBNDecBlock
+from ..layers import SubPixelConv2d, ICNR2d
 from .net_arch import NetArch
 
 
@@ -31,6 +33,7 @@ class ResNet2dDecoder(NetArch):
                  hid_act='relu6',
                  head_act=None,
                  dropout_rate=0,
+                 se_r=16,
                  use_norm=True, 
                  norm_layer=None,
                  norm_before=True):
@@ -38,14 +41,17 @@ class ResNet2dDecoder(NetArch):
         super().__init__()
 
         self.resb_type = resb_type
+        bargs = {}
         if resb_type == 'basic':
             self._block = ResNet2dBasicDecBlock
-            # elif block == 'bn':
-            #     self._block = ResNet2dBNDecBlock
-            # elif block == 'sebasic': 
-            #     self._block = SEResNet2dBasicDecBlock
-            # elif block == 'sebn':
-            #     self._block = SEResNet2dBNDecBlock
+        elif block == 'bn':
+            self._block = ResNet2dBNDecBlock
+        elif block == 'sebasic': 
+            self._block = SEResNet2dBasicDecBlock
+            bargs['se_r'] = se_r
+        elif block == 'sebn':
+            self._block = SEResNet2dBNDecBlock
+            bargs['se_r'] = se_r
 
         self.in_channels = in_channels
         self.in_conv_channels = in_conv_channels
@@ -69,6 +75,7 @@ class ResNet2dDecoder(NetArch):
         self.norm_layer = norm_layer
         self.use_norm = use_norm
         self.norm_before = norm_before
+        self.se_r = se_r
 
         # stem block
         self.in_block = DC2dDecBlock(
@@ -93,7 +100,8 @@ class ResNet2dDecoder(NetArch):
                 cur_in_channels, channels_i, kernel_size_i, 
                 stride=stride_i, dilation=1, groups=self.resb_groups,
                 activation=hid_act, dropout_rate=dropout_rate,
-                use_norm=use_norm, norm_layer=norm_layer, norm_before=norm_before)
+                use_norm=use_norm, norm_layer=norm_layer, 
+                norm_before=norm_before, **bargs)
                                    
             self.blocks.append(block_i)
             self._context += block_i.context * self._upsample_factor
@@ -104,7 +112,8 @@ class ResNet2dDecoder(NetArch):
                     channels_i, channels_i, kernel_size_i, 
                     stride=1, dilation=dilation_i, groups=self.resb_groups,
                     activation=hid_act, dropout_rate=dropout_rate,
-                    use_norm=use_norm, norm_layer=norm_layer, norm_before=norm_before)
+                    use_norm=use_norm, norm_layer=norm_layer, 
+                    norm_before=norm_before, **bargs)
                 
                 self.blocks.append(block_i)
                 self._context += block_i.context * self._upsample_factor
@@ -123,21 +132,49 @@ class ResNet2dDecoder(NetArch):
 
 
     def _init_weights(self, hid_act):
+        if isinstance(hid_act, str):
+            act_name = hid_act
+        if isinstance(hid_act, dict):
+            act_name = hid_act['name']
+        if act_name in ['relu6', 'swish']:
+            act_name = 'relu'
+
+        init_f1 = lambda x: nn.init.kaiming_normal_(x, mode='fan_out', nonlinearity=act_name)
+        init_f2 = lambda x: nn.init.kaiming_normal_(x, mode='fan_out', nonlinearity='relu')
+
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
-                if isinstance(hid_act, str):
-                    act_name = hid_act
-                if isinstance(hid_act, dict):
-                    act_name = hid_act['name']
-                if act_name == 'swish':
-                    act_name = 'relu'
                 try:
-                    nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity=act_name)
+                    init_f1(m.weight)
                 except:
-                    nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                    init_f2(m.weight)
             elif isinstance(m, nn.BatchNorm2d):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
+
+        #re-init subpixelconvs
+        for m in self.modules():
+            if isinstance(m, SubPixelConv2d):
+                try:
+                    ICNR2d(m.conv.weight, stride=m.stride, initializer=init_f1)
+                except:
+                    ICNR2d(m.conv.weight, stride=m.stride, initializer=init_f2)
+
+        # for m in self.modules():
+        #     if isinstance(m, nn.Conv2d):
+        #         if isinstance(hid_act, str):
+        #             act_name = hid_act
+        #         if isinstance(hid_act, dict):
+        #             act_name = hid_act['name']
+        #         if act_name == 'swish':
+        #             act_name = 'relu'
+        #         try:
+        #             nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity=act_name)
+        #         except:
+        #             nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+        #     elif isinstance(m, nn.BatchNorm2d):
+        #         nn.init.constant_(m.weight, 1)
+        #         nn.init.constant_(m.bias, 0)
 
 
     @staticmethod
@@ -193,8 +230,19 @@ class ResNet2dDecoder(NetArch):
         return (in_shape[0], out_chanels, H, W)
 
 
+    def _match_shape(self, x, target_shape):
+        x_dim = x.dim()
+        ddim = x_dim - len(target_shape)
+        for i in range(2, x_dim):
+            surplus = x.size(i) - target_shape[i-ddim]
+            assert surplus >= 0
+            if surplus > 0:
+                x = torch.narrow(x, i, surplus//2, target_shape[i-ddim])
 
-    def forward(self, x):
+        return x.contiguous()
+
+
+    def forward(self, x, target_shape=None):
 
         x = self.in_block(x)
         for idx, block in enumerate(self.blocks):
@@ -202,6 +250,9 @@ class ResNet2dDecoder(NetArch):
 
         if self.head_channels > 0:
             x = self.head_block(x)
+
+        if target_shape is not None:
+            x = self._match_shape(x, target_shape)
 
         return x
 
@@ -226,6 +277,7 @@ class ResNet2dDecoder(NetArch):
                   'dropout_rate': self.dropout_rate,
                   'hid_act': hid_act,
                   'head_act': head_act,
+                  'se_r': self.se_r,
                   'use_norm': self.use_norm,
                   'norm_before': self.norm_before,
               }
@@ -256,7 +308,7 @@ class ResNet2dDecoder(NetArch):
                       'resb_type',
                       'resb_repeats', 'resb_channels', 'resb_kernel_sizes', 
                       'resb_strides', 'resb_dilations', 'resb_groups', 
-                      'head_channels', 
+                      'head_channels', 'se_r',
                       'hid_act', 'had_act', 
                       'dropout_rate',
                       'use_norm', 'norm_before')
@@ -293,7 +345,7 @@ class ResNet2dDecoder(NetArch):
 
         parser.add_argument(
             p1+'resb-type', default='basic',
-            choices=['basic'], help=('residual blocks type'))
+            choices=['basic', 'bn', 'sebasic', 'sebn'], help=('residual blocks type'))
 
         parser.add_argument(
             p1+'resb-repeats', default=[1, 1, 1], type=int,
@@ -345,3 +397,7 @@ class ResNet2dDecoder(NetArch):
         
         parser.add_argument(p1+'norm-after', default=False, action='store_true',
                             help='batch normalizaton after activation')
+
+        parser.add_argument(
+            p1+'se-r', default=16, type=int,
+            help=('squeeze-excitation compression ratio'))

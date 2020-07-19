@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+ Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
 import sys
 import os
 import argparse
@@ -21,13 +20,13 @@ from hyperion.torch.helpers import OptimizerFactory as OF
 from hyperion.torch.lr_schedulers import LRSchedulerFactory as LRSF
 from hyperion.torch.narchs.dc1d_encoder import DC1dEncoder as Encoder
 from hyperion.torch.narchs.dc1d_decoder import DC1dDecoder as Decoder
-from hyperion.torch.models.ae.ae import AE
-from hyperion.torch.trainers.ae_trainer import AETrainer as Trainer
+from hyperion.torch.models import AE
+from hyperion.torch.trainers import AETrainer as Trainer
 from hyperion.torch.data import SeqDataset as SD
 from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
-#from hyperion.torch.metrics import CategoricalAccuracy
 
-def train_ae(data_rspec, train_list, val_list, exp_path, in_feats, latent_dim,
+
+def train_ae(data_rspec, train_list, val_list, exp_path, in_feats, latent_dim, loss,
              epochs, num_gpus, log_interval, resume, num_workers, 
              grad_acc_steps, use_amp, **kwargs):
 
@@ -71,9 +70,9 @@ def train_ae(data_rspec, train_list, val_list, exp_path, in_feats, latent_dim,
 
     optimizer = OF.create(model.parameters(), **opt_args)
     lr_sch = LRSF.create(optimizer, **lrsch_args)
-    #metrics = { 'acc': CategoricalAccuracy() }
-    metrics = {}
-    loss = nn.MSELoss()
+    losses = { 'mse': nn.MSELoss, 'l1': nn.L1Loss, 'smooth-l1': nn.SmoothL1Loss }
+    metrics = { 'mse': nn.MSELoss(), 'L1': nn.L1Loss() }
+    loss = losses[loss]()
     trainer = Trainer(model, optimizer, loss, epochs, exp_path, 
                       grad_acc_steps=grad_acc_steps,
                       device=device, metrics=metrics, lr_scheduler=lr_sch,
@@ -90,7 +89,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         fromfile_prefix_chars='@',
-        description='Train AE')
+        description='Train AE with Deep Conv1d Encoder-Decoder')
 
     parser.add_argument('--data-rspec', dest='data_rspec', required=True)
     parser.add_argument('--train-list', dest='train_list', required=True)
@@ -122,7 +121,7 @@ if __name__ == '__main__':
     parser.add_argument('--num-gpus', type=int, default=1,
                         help='number of gpus, if 0 it uses cpu')
     parser.add_argument('--seed', type=int, default=1123581321, 
-                        help='random seed (default: 1)')
+                        help='random seed')
     parser.add_argument('--log-interval', type=int, default=10, 
                         help='how many batches to wait before logging training status')
 
@@ -134,6 +133,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--exp-path', help='experiment path')
 
+    parser.add_argument('--loss', default='mse', choices=['mse', 'l1', 'smooth-l1'])
     parser.add_argument('-v', '--verbose', dest='verbose', default=1, choices=[0, 1, 2, 3], type=int)
 
     args = parser.parse_args()

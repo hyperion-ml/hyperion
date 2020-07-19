@@ -56,11 +56,13 @@ class DVAETrainer(TorchTrainer):
             x_target = x_target.to(self.device)
             batch_size = x.shape[0]
             
-            elbo, log_px, kldiv_z, x_hat = self.model(
-                x, x_target=x_target, return_x_mean=True)
+            # elbo, log_px, kldiv_z, x_hat = self.model(
+            #     x, x_target=x_target, return_x_mean=True)
+            output = self.model(x, x_target=x_target, return_x_mean=True)
 
-            elbo = elbo.mean()
+            elbo = output['elbo'].mean()
             loss = - elbo/self.grad_acc_steps
+            x_hat = output['x_mean']
 
             if self.use_amp:
                 with amp.scale_loss(loss, self.optimizer) as scaled_loss:
@@ -74,8 +76,8 @@ class DVAETrainer(TorchTrainer):
                 self.optimizer.step()
 
             batch_metrics['elbo'] = elbo.item()
-            batch_metrics['log_px'] = log_px.mean().item()
-            batch_metrics['kldiv_z'] = kldiv_z.mean().item()
+            for metric in ['log_px', 'kldiv_z']:
+                batch_metrics[metric] = output[metric].mean().item()
             for k, metric in self.metrics.items():
                 batch_metrics[k] = metric(x_hat, x_target)
             
@@ -106,11 +108,14 @@ class DVAETrainer(TorchTrainer):
                 x_target = x_target.to(self.device)
                 batch_size = x.shape[0]
 
-                elbo, log_px, kldiv_z, x_hat = self.model(
+                # elbo, log_px, kldiv_z, x_hat = self.model(
+                #    x, x_target=x_target, return_x_mean=True)
+                output = self.model(
                     x, x_target=x_target, return_x_mean=True)
-                batch_metrics['elbo'] = elbo.mean().item() 
-                batch_metrics['log_px'] = log_px.mean().item()
-                batch_metrics['kldiv_z'] = kldiv_z.mean().item()
+
+                x_hat = output['x_mean']
+                for metric in ['elbo', 'log_px', 'kldiv_z']:
+                    batch_metrics[metric] = output[metric].mean().item()
                 for k, metric in self.metrics.items():
                     batch_metrics[k] = metric(x_hat, x_target)
             

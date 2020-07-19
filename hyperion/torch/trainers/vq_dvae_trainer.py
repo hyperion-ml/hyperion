@@ -2,13 +2,11 @@
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-#from __future__ import absolute_import
-
 import os
 from collections import OrderedDict as ODict
 
 import logging
-#import numpy as np
+import math
 
 import torch
 import torch.nn as nn
@@ -56,8 +54,12 @@ class VQDVAETrainer(DVAETrainer):
             x_target = x_target.to(self.device)
             batch_size = x.shape[0]
             
-            loss, elbo, log_px, kldiv_z, vq_loss, perplexity, x_hat = self.model(
-                x, x_target=x_target, return_x_mean=True)
+            # loss, elbo, log_px, kldiv_z, vq_loss, perplexity, x_hat = self.model(
+            #     x, x_target=x_target, return_x_mean=True)
+            output = self.model(x, x_target=x_target, return_x_mean=True)
+
+            loss = output['loss']
+            x_hat = output['x_mean']
 
             loss = loss.mean()/self.grad_acc_steps
 
@@ -73,11 +75,9 @@ class VQDVAETrainer(DVAETrainer):
                 self.optimizer.step()
 
             batch_metrics['loss'] = loss.item() * self.grad_acc_steps
-            batch_metrics['elbo'] = elbo.mean().item()
-            batch_metrics['log_px'] = log_px.mean().item()
-            batch_metrics['kldiv_z'] = kldiv_z.mean().item()
-            batch_metrics['vq_loss'] = vq_loss.mean().item()
-            batch_metrics['perplexity'] = perplexity.mean().item()
+            for metric in ['elbo', 'log_px', 'kldiv_z', 'vq_loss']:
+                batch_metrics[metric] = output[metric].mean().item()
+            batch_metrics['perplexity'] = math.exp(output['log_perplexity'].mean().item())
             for k, metric in self.metrics.items():
                 batch_metrics[k] = metric(x_hat, x_target)
             
@@ -108,15 +108,22 @@ class VQDVAETrainer(DVAETrainer):
                 x_target = x_target.to(self.device)
                 batch_size = x.shape[0]
 
-                loss, elbo, log_px, kldiv_z, vq_loss, perplexity, x_hat = self.model(
+                # loss, elbo, log_px, kldiv_z, vq_loss, perplexity, x_hat = self.model(
+                #     x, x_target=x_target, return_x_mean=True)
+                output = self.model(
                     x, x_target=x_target, return_x_mean=True)
 
-                batch_metrics['loss'] = loss.mean().item()
-                batch_metrics['elbo'] = elbo.mean().item()
-                batch_metrics['log_px'] = log_px.mean().item()
-                batch_metrics['kldiv_z'] = kldiv_z.mean().item()
-                batch_metrics['vq_loss'] = vq_loss.mean().item()
-                batch_metrics['perplexity'] = perplexity.mean().item()
+                x_hat = output['x_mean']
+                for metric in ['loss', 'elbo', 'log_px', 'kldiv_z', 'vq_loss']:
+                    batch_metrics[metric] = output[metric].mean().item()
+                batch_metrics['perplexity'] = math.exp(output['log_perplexity'].mean().item())
+        
+                # batch_metrics['loss'] = loss.mean().item()
+                # batch_metrics['elbo'] = elbo.mean().item()
+                # batch_metrics['log_px'] = log_px.mean().item()
+                # batch_metrics['kldiv_z'] = kldiv_z.mean().item()
+                # batch_metrics['vq_loss'] = vq_loss.mean().item()
+                # batch_metrics['perplexity'] = perplexity.mean().item()
                 for k, metric in self.metrics.items():
                     batch_metrics[k] = metric(x_hat, x_target)
             

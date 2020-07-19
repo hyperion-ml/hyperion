@@ -10,7 +10,7 @@ import torch
 import torch.nn as nn
 
 from ..layers import ActivationFactory as AF
-from ..layer_blocks import ResNet1dBasicBlock, DC1dEncBlock
+from ..layer_blocks import ResNet1dBasicBlock, ResNet1dBNBlock, DC1dEncBlock
 from .net_arch import NetArch
 
 
@@ -31,6 +31,7 @@ class ResNet1dEncoder(NetArch):
                  hid_act='relu6',
                  head_act=None,
                  dropout_rate=0,
+                 se_r=16,
                  use_norm=True, 
                  norm_layer=None,
                  norm_before=True):
@@ -40,8 +41,8 @@ class ResNet1dEncoder(NetArch):
         self.resb_type = resb_type
         if resb_type == 'basic':
             self._block = ResNet1dBasicBlock
-            # elif block == 'bn':
-            #     self._block = ResNet1dBNBlock
+        elif block == 'bn':
+            self._block = ResNet1dBNBlock
             # elif block == 'sebasic': 
             #     self._block = SEResNet1dBasicBlock
             # elif block == 'sebn':
@@ -69,6 +70,7 @@ class ResNet1dEncoder(NetArch):
         self.norm_layer = norm_layer
         self.use_norm = use_norm
         self.norm_before = norm_before
+        self.se_r = se_r
 
         # stem block
         self.in_block = DC1dEncBlock(
@@ -221,6 +223,7 @@ class ResNet1dEncoder(NetArch):
                   'dropout_rate': self.dropout_rate,
                   'hid_act': hid_act,
                   'head_act': head_act,
+                  'se_r': self.se_r,
                   'use_norm': self.use_norm,
                   'norm_before': self.norm_before,
               }
@@ -251,8 +254,8 @@ class ResNet1dEncoder(NetArch):
                       'resb_type',
                       'resb_repeats', 'resb_channels', 'resb_kernel_sizes', 
                       'resb_strides', 'resb_dilations', 'resb_groups', 
-                      'head_channels', 
-                      'hid_act', 'had_act', 
+                      'head_channels', 'se_r',
+                      'hid_act', 'head_act', 
                       'dropout_rate',
                       'use_norm', 'norm_before')
 
@@ -290,7 +293,7 @@ class ResNet1dEncoder(NetArch):
 
         parser.add_argument(
             p1+'resb-type', default='basic',
-            choices=['basic'], help=('residual blocks type'))
+            choices=['basic', 'bn'], help=('residual blocks type'))
 
         parser.add_argument(
             p1+'resb-repeats', default=[1, 1, 1], type=int,
@@ -342,3 +345,7 @@ class ResNet1dEncoder(NetArch):
         
         parser.add_argument(p1+'norm-after', default=False, action='store_true',
                             help='batch normalizaton after activation')
+
+        parser.add_argument(
+            p1+'se-r', default=16, type=int,
+            help=('squeeze-excitation compression ratio'))

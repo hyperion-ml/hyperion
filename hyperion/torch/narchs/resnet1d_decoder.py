@@ -2,7 +2,7 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
+#from __future__ import absolute_import
 
 import math 
 
@@ -11,6 +11,7 @@ import torch.nn as nn
 
 from ..layers import ActivationFactory as AF
 from ..layer_blocks import ResNet1dBasicDecBlock, DC1dDecBlock
+from ..layers import SubPixelConv1d, ICNR1d
 from .net_arch import NetArch
 
 
@@ -31,6 +32,7 @@ class ResNet1dDecoder(NetArch):
                  hid_act='relu6',
                  head_act=None,
                  dropout_rate=0,
+                 se_r=16,
                  use_norm=True, 
                  norm_layer=None,
                  norm_before=True):
@@ -40,8 +42,8 @@ class ResNet1dDecoder(NetArch):
         self.resb_type = resb_type
         if resb_type == 'basic':
             self._block = ResNet1dBasicDecBlock
-            # elif block == 'bn':
-            #     self._block = ResNet1dBNDecBlock
+        elif block == 'bn':
+            self._block = ResNet1dBNDecBlock
             # elif block == 'sebasic': 
             #     self._block = SEResNet1dBasicDecBlock
             # elif block == 'sebn':
@@ -69,6 +71,7 @@ class ResNet1dDecoder(NetArch):
         self.norm_layer = norm_layer
         self.use_norm = use_norm
         self.norm_before = norm_before
+        self.se_r = se_r
 
         # stem block
         self.in_block = DC1dDecBlock(
@@ -123,21 +126,49 @@ class ResNet1dDecoder(NetArch):
 
 
     def _init_weights(self, hid_act):
+        if isinstance(hid_act, str):
+            act_name = hid_act
+        if isinstance(hid_act, dict):
+            act_name = hid_act['name']
+        if act_name in ['relu6', 'swish']:
+            act_name = 'relu'
+
+        init_f1 = lambda x: nn.init.kaiming_normal_(x, mode='fan_out', nonlinearity=act_name)
+        init_f2 = lambda x: nn.init.kaiming_normal_(x, mode='fan_out', nonlinearity='relu')
+
         for m in self.modules():
             if isinstance(m, nn.Conv1d):
-                if isinstance(hid_act, str):
-                    act_name = hid_act
-                if isinstance(hid_act, dict):
-                    act_name = hid_act['name']
-                if act_name == 'swish':
-                    act_name = 'relu'
                 try:
-                    nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity=act_name)
+                    init_f1(m.weight)
                 except:
-                    nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                    init_f2(m.weight)
             elif isinstance(m, nn.BatchNorm1d):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
+
+        #re-init subpixelconvs
+        for m in self.modules():
+            if isinstance(m, SubPixelConv1d):
+                try:
+                    ICNR1d(m.conv.weight, stride=m.stride, initializer=init_f1)
+                except:
+                    ICNR1d(m.conv.weight, stride=m.stride, initializer=init_f2)
+
+        # for m in self.modules():
+        #     if isinstance(m, nn.Conv1d):
+        #         if isinstance(hid_act, str):
+        #             act_name = hid_act
+        #         if isinstance(hid_act, dict):
+        #             act_name = hid_act['name']
+        #         if act_name == 'swish':
+        #             act_name = 'relu'
+        #         try:
+        #             nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity=act_name)
+        #         except:
+        #             nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+        #     elif isinstance(m, nn.BatchNorm1d):
+        #         nn.init.constant_(m.weight, 1)
+        #         nn.init.constant_(m.bias, 0)
 
 
     @staticmethod
@@ -189,7 +220,19 @@ class ResNet1dDecoder(NetArch):
 
 
 
-    def forward(self, x):
+    def _match_shape(self, x, target_shape):
+        t = x.size(-1)
+        target_t = target_shape[-1]
+        surplus = t - target_t
+        assert surplus >= 0
+        if surplus > 0:
+            x = torch.narrow(x, -1, surplus//2, target_t).contiguous()
+
+        return x
+
+
+
+    def forward(self, x, target_shape=None):
 
         x = self.in_block(x)
         for idx, block in enumerate(self.blocks):
@@ -198,7 +241,11 @@ class ResNet1dDecoder(NetArch):
         if self.head_channels > 0:
             x = self.head_block(x)
 
+        if target_shape is not None:
+            x = self._match_shape(x, target_shape)
+
         return x
+
 
 
     def get_config(self):
@@ -221,6 +268,7 @@ class ResNet1dDecoder(NetArch):
                   'dropout_rate': self.dropout_rate,
                   'hid_act': hid_act,
                   'head_act': head_act,
+                  'se_r': self.se_r,
                   'use_norm': self.use_norm,
                   'norm_before': self.norm_before,
               }
@@ -251,8 +299,8 @@ class ResNet1dDecoder(NetArch):
                       'resb_type',
                       'resb_repeats', 'resb_channels', 'resb_kernel_sizes', 
                       'resb_strides', 'resb_dilations', 'resb_groups', 
-                      'head_channels', 
-                      'hid_act', 'had_act', 
+                      'head_channels', 'se_r',
+                      'hid_act', 'head_act', 
                       'dropout_rate',
                       'use_norm', 'norm_before')
 
@@ -288,7 +336,7 @@ class ResNet1dDecoder(NetArch):
 
         parser.add_argument(
             p1+'resb-type', default='basic',
-            choices=['basic'], help=('residual blocks type'))
+            choices=['basic', 'bn'], help=('residual blocks type'))
 
         parser.add_argument(
             p1+'resb-repeats', default=[1, 1, 1], type=int,
@@ -340,3 +388,7 @@ class ResNet1dDecoder(NetArch):
         
         parser.add_argument(p1+'norm-after', default=False, action='store_true',
                             help='batch normalizaton after activation')
+
+        parser.add_argument(
+            p1+'se-r', default=16, type=int,
+            help=('squeeze-excitation compression ratio'))

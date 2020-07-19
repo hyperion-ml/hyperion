@@ -10,7 +10,8 @@ import torch
 import torch.nn as nn
 
 from ..layers import ActivationFactory as AF
-from ..layer_blocks import ResNet2dBasicBlock, DC2dEncBlock
+from ..layer_blocks import ResNet2dBasicBlock, ResNet2dBNBlock, DC2dEncBlock
+from ..layer_blocks import SEResNet2dBasicBlock, SEResNet2dBNBlock
 from .net_arch import NetArch
 
 
@@ -31,6 +32,7 @@ class ResNet2dEncoder(NetArch):
                  hid_act='relu6',
                  head_act=None,
                  dropout_rate=0,
+                 se_r=16,
                  use_norm=True, 
                  norm_layer=None,
                  norm_before=True):
@@ -38,14 +40,17 @@ class ResNet2dEncoder(NetArch):
         super().__init__()
 
         self.resb_type = resb_type
+        bargs = {}
         if resb_type == 'basic':
             self._block = ResNet2dBasicBlock
-            # elif block == 'bn':
-            #     self._block = ResNet2dBNBlock
-            # elif block == 'sebasic': 
-            #     self._block = SEResNet2dBasicBlock
-            # elif block == 'sebn':
-            #     self._block = SEResNet2dBNBlock
+        elif block == 'bn':
+            self._block = ResNet2dBNBlock
+        elif block == 'sebasic': 
+            self._block = SEResNet2dBasicBlock
+            bargs['se_r'] = se_r
+        elif block == 'sebn':
+            self._block = SEResNet2dBNBlock
+            bargs['se_r'] = se_r
 
         self.in_channels = in_channels
         self.in_conv_channels = in_conv_channels
@@ -69,6 +74,7 @@ class ResNet2dEncoder(NetArch):
         self.norm_layer = norm_layer
         self.use_norm = use_norm
         self.norm_before = norm_before
+        self.se_r = se_r
 
         # stem block
         self.in_block = DC2dEncBlock(
@@ -93,7 +99,8 @@ class ResNet2dEncoder(NetArch):
                 cur_in_channels, channels_i, kernel_size_i, 
                 stride=stride_i, dilation=1, groups=self.resb_groups,
                 activation=hid_act, dropout_rate=dropout_rate,
-                use_norm=use_norm, norm_layer=norm_layer, norm_before=norm_before)
+                use_norm=use_norm, norm_layer=norm_layer, 
+                norm_before=norm_before, **bargs)
                                    
             self.blocks.append(block_i)
             self._context += block_i.context * self._downsample_factor
@@ -104,7 +111,8 @@ class ResNet2dEncoder(NetArch):
                     channels_i, channels_i, kernel_size_i, 
                     stride=1, dilation=dilation_i, groups=self.resb_groups,
                     activation=hid_act, dropout_rate=dropout_rate,
-                    use_norm=use_norm, norm_layer=norm_layer, norm_before=norm_before)
+                    use_norm=use_norm, norm_layer=norm_layer, 
+                    norm_before=norm_before, **bargs)
                 
                 self.blocks.append(block_i)
                 self._context += block_i.context * self._downsample_factor
@@ -123,14 +131,15 @@ class ResNet2dEncoder(NetArch):
 
 
     def _init_weights(self, hid_act):
+        if isinstance(hid_act, str):
+            act_name = hid_act
+        if isinstance(hid_act, dict):
+            act_name = hid_act['name']
+        if act_name in ['relu6', 'swish']:
+            act_name = 'relu'
+
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
-                if isinstance(hid_act, str):
-                    act_name = hid_act
-                if isinstance(hid_act, dict):
-                    act_name = hid_act['name']
-                if act_name == 'swish':
-                    act_name = 'relu'
                 try:
                     nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity=act_name)
                 except:
@@ -256,7 +265,7 @@ class ResNet2dEncoder(NetArch):
                       'resb_type',
                       'resb_repeats', 'resb_channels', 'resb_kernel_sizes', 
                       'resb_strides', 'resb_dilations', 'resb_groups', 
-                      'head_channels', 
+                      'head_channels', 'se_r',
                       'hid_act', 'had_act', 
                       'dropout_rate',
                       'use_norm', 'norm_before')
@@ -294,7 +303,7 @@ class ResNet2dEncoder(NetArch):
 
         parser.add_argument(
             p1+'resb-type', default='basic',
-            choices=['basic'], help=('residual blocks type'))
+            choices=['basic', 'bn', 'sebasic', 'sebn'], help=('residual blocks type'))
 
         parser.add_argument(
             p1+'resb-repeats', default=[1, 1, 1], type=int,
@@ -346,3 +355,7 @@ class ResNet2dEncoder(NetArch):
         
         parser.add_argument(p1+'norm-after', default=False, action='store_true',
                             help='batch normalizaton after activation')
+
+        parser.add_argument(
+            p1+'se-r', default=16, type=int,
+            help=('squeeze-excitation compression ratio'))

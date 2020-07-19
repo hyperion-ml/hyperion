@@ -13,34 +13,63 @@ from ...torch_model import TorchModel
 from ...helpers import TorchNALoader
 from ...layers import tensor2pdf as t2pdf
 from ...layers import vq 
-from ...layers import pdf_storage
-from ...utils.distributions import squeeze_pdf
+#from ...layers import pdf_storage
+#from ...utils.distributions import squeeze_pdf
 
 class VQVAE(TorchModel):
-    """Variational Autoencoder class
+    """Vector Quantized Variational Autoencoder class
+          From: https://arxiv.org/abs/1711.00937
+
+    Attributes:
+      encoder_net: NArch encoder network object
+      decoder_net: NArch decoder network object
+      z_dim: latent variable dimension
+      kldiv_weight: weight KL divergene when computing ELBO
+      diversity_weight: weigth for log-perplexity of the codebook, 
+                        it inteds to maximize the number of codewords used.
+      vq_type: type of vector quantizer
+      vq_gropus: number of vector quantization groups.
+      vq_clusters: number of codewords in each vq group
+      vq_commitment_cost: weigth of the commitmenet loss
+      vq_ema_gamma: exponential moving average decay coeff.
+      vq_ema_eps: Laplace smoothing parameter
+      px_pdf: type of prob distribution for the data likelihood
+      flatten_spatial: if True all time/spatial dimensions are generated from a single latent vector,
+                       if False, we have multiple latents depending on the data size.
+      spatial_shape: shape of the data, only needed if flatten_spatial=True
+      scale_invariant: for future use
+      data_scale = for future use
     """
 
     def __init__(self, encoder_net, decoder_net, z_dim, kldiv_weight=1,
+                 diversity_weight=0.1,
                  vq_type='multi-ema-k-means-vq', vq_groups=1, vq_clusters=64, 
                  vq_commitment_cost=0.25, vq_ema_gamma=0.99, vq_ema_eps=1e-5,
                  px_pdf='normal-glob-diag-cov',
-                 flatten_spatial=False, spatial_shape=None):
+                 flatten_spatial=False, spatial_shape=None,
+                 scale_invariant=False, data_scale=None):
 
         super().__init__()
         self.encoder_net = encoder_net
         self.decoder_net = decoder_net
         self.z_dim = z_dim
         self.px_pdf = px_pdf
+
         self.kldiv_weight = kldiv_weight
+        self.diversity_weight = diversity_weight
+
         self.vq_type = vq_type
         self.vq_groups = vq_groups
         self.vq_clusters = vq_clusters
         self.vq_commitment_cost = vq_commitment_cost
         self.vq_ema_gamma = vq_ema_gamma
         self.vq_ema_eps = vq_ema_eps
-        
+
         self.flatten_spatial = flatten_spatial
         self.spatial_shape = spatial_shape
+
+        self.scale_invariant = scale_invariant
+        self.data_scale = data_scale
 
         # infer input feat dimension from encoder network
         in_shape = encoder_net.in_shape()
@@ -53,16 +82,24 @@ class VQVAE(TorchModel):
 
         # we assume conv nnets with channel in dimension 1
         self.in_channels = in_shape[1]
+        self._enc_out_channels = self.encoder_net.out_shape()[1]
+        self._dec_out_channels = self.decoder_net.out_shape()[1]
 
         if self.flatten_spatial:
             self._compute_flatten_unflatten_shapes()
-            self.z2dec = Linear(self.z_dim, self._dec_in_tot_dim)
+            qz_in_channels = self._enc_out_tot_feats
+            qz_in_dim = 2
+        else:
+            qz_in_channels = self._enc_out_channels
+            qz_in_dim = self._enc_out_dim
 
-        self.vq_layer = self._make_vq_layer()
-        self.t2px = self._make_t2pdf_layer(px_pdf, self.in_channels, self._dec_out_dim)
+        self._make_post_enc_layer()
+        self._make_pre_dec_layer()
+        self._make_post_dec_layer()
 
-        self.pre_vq = self._make_pre_vq_layer()
-        self.pre_px = self._make_pre_px_layer()
+        self._make_vq_layer(qz_in_channels, qz_in_dim)
+        self.t2px = self._make_t2pdf_layer(
+            px_pdf, self._dec_out_channels, self.in_channels, self._dec_out_dim)
 
             
         
@@ -104,66 +141,51 @@ class VQVAE(TorchModel):
 
 
     def _unflatten(sef, x):
-        x = self.z2dec(x) #linear projection
         return x.view(-1, *self._dec_in_shape)
         
 
 
-    def _make_t2pdf_layer(self, pdf_name, channels, ndims):
-        shape = channels, *(1,)*(ndims - 2)
-        pdf_dict = { 
-            'normal-glob-diag-cov': lambda : t2pdf.Tensor2NormalGlobDiagCov(shape),
-            'normal-diag-cov': t2pdf.Tensor2NormalGlobDiagCov,
-            'normal-i-cov': t2pdf.Tensor2NormalICov }
+    def _make_t2pdf_layer(self, pdf_name, in_channels, channels, ndims):
 
-        t2pdf_layer = pdf_dict[pdf_name]()
+        pdf_dict = { 
+            'normal-i-cov': t2pdf.Tensor2NormalICov,
+            'normal-glob-diag-cov': t2pdf.Tensor2NormalGlobDiagCov,
+            'normal-diag-cov': t2pdf.Tensor2NormalDiagCov }
+
+        t2pdf_layer = pdf_dict[pdf_name](channels, in_feats=in_channels, in_dim=ndims)
         return t2pdf_layer
 
 
 
-    def _make_conv1x1(self, in_channels, out_channels, ndims):
-        if ndims == 2:
-            return nn.Linear(in_channels, out_channels)
-        elif ndims == 3:
-            return nn.Conv1d(in_channels, out_channels, kernel_size=1)
-        elif ndims == 4:
-            return nn.Conv2d(in_channels, out_channels, kernel_size=1)
-        elif ndims == 5:
-            return nn.Conv3d(in_channels, out_channels, kernel_size=1)
-        else:
-            raise ValueError('ndim=%d is not supported' % ndims)
-        
+    def _make_post_enc_layer(self):
+        pass
 
 
-    def _make_pre_vq_layer(self):
-        
-        enc_channels = self.encoder_net.out_shape()[1]
+    def _make_pre_dec_layer(self):
         if self.flatten_spatial:
-            # we will need to pass channel dim to end dim and flatten
-            pre_vq = Linear(self._enc_out_tot_feats, self.z_dim)
-            return pre_vq
+            self._pre_dec_linear = Linear(self.z_dim, self._dec_in_tot_dim) 
 
-        return self._make_conv1x1(enc_channels, self.z_dim, self._enc_out_dim)
-
+            
+    def _make_post_dec_layer(self):
+        pass
         
             
-    def _make_pre_px_layer(self):
-        dec_channels = self.decoder_net.out_shape()[1]
-        f = self.t2px.tensor2pdfparam_factor
-        return self._make_conv1x1(dec_channels, self.in_channels*f, self._dec_out_dim)
+    # def _make_pre_px_layer(self):
+    #     dec_channels = self.decoder_net.out_shape()[1]
+    #     f = self.t2px.tensor2pdfparam_factor
+    #     return self._make_conv1x1(dec_channels, self.in_channels*f, self._dec_out_dim)
         
 
     
-    def _match_sizes(self, y, target_shape):
-        y_dim = len(y.shape)
-        d = y_dim - len(target_shape)
-        for i in range(2, y_dim):
-            surplus = y.shape[i] - target_shape[i-d]
-            if surplus > 0:
-                y = torch.narrow(y, i, surplus//2, target_shape[i])
+    # def _match_sizes(self, y, target_shape):
+    #     y_dim = len(y.shape)
+    #     d = y_dim - len(target_shape)
+    #     for i in range(2, y_dim):
+    #         surplus = y.shape[i] - target_shape[i-d]
+    #         if surplus > 0:
+    #             y = torch.narrow(y, i, surplus//2, target_shape[i])
 
-        return y.contiguous()
-
+    #     return y.contiguous()
 
 
     def _pre_enc(self, x):
@@ -171,70 +193,96 @@ class VQVAE(TorchModel):
             return x.unsqueeze(1)
 
         return x
+
+    def _post_enc(self, x):
+        if self.flatten_spatial:
+            x = self._flatten(x)
         
+        return x
+
+        
+    def _pre_dec(self, x):
+        if self.flatten_spatial:
+            x = self._prec_dec_linear(x) #linear projection
+            x = self._unflatten(x)
+            return x
+
+        if self._enc_out_dim == 3 and self._dec_in_dim == 4:
+            return x.unsqueeze(dim=1)
+
+        if self._enc_out_dim == 4 and self._dec_in_dim == 3:
+            return x.view(x.size(0), -1, x.size(-1))
+
+        return x
 
 
-    def _post_px(self, px, x_shape):
-        px_shape = px.batch_shape
+    # def _post_px(self, px, x_shape):
+    #     px_shape = px.batch_shape
         
-        if len(px_shape) == 4 and len(x_shape)==3:
-            if px_shape[1]==1:
-                px = squeeze_pdf(px, dim=1)
-            else:
-                raise ValueError('P(x|z)-shape != x-shape')
+    #     if len(px_shape) == 4 and len(x_shape)==3:
+    #         if px_shape[1]==1:
+    #             px = squeeze_pdf(px, dim=1)
+    #         else:
+    #             raise ValueError('P(x|z)-shape != x-shape')
             
-        return px
+    #     return px
 
 
 
-    def _make_vq_layer(self):
+    def _make_vq_layer(self, in_feats, in_dim):
+
         if self.vq_type == 'multi-k-means-vq':
-            return vq.MultiKMeansVectorQuantizer(
+            vq_layer = vq.MultiKMeansVectorQuantizer(
                 self.vq_groups, self.vq_clusters, self.z_dim, 
-                self.vq_commitment_cost)
+                self.vq_commitment_cost, 
+                in_feats=in_feats, in_dim=in_dim)
         elif self.vq_type == 'multi-ema-k-means-vq':
-            return vq.MultiEMAKMeansVectorQuantizer(
+            vq_layer = vq.MultiEMAKMeansVectorQuantizer(
                 self.vq_groups, self.vq_clusters, self.z_dim, 
-                self.vq_commitment_cost, self.vq_ema_gamma, self.vq_ema_eps)
+                self.vq_commitment_cost, self.vq_ema_gamma, self.vq_ema_eps,
+                in_feats=in_feats, in_dim=in_dim)
         elif self.vq_type == 'k-means-vq':
-            return vq.KMeansVectorQuantizer(
+            vq_layer = vq.KMeansVectorQuantizer(
                 self.vq_clusters, self.z_dim, 
-                self.vq_commitment_cost)
+                self.vq_commitment_cost,
+                in_feats=in_feats, in_dim=in_dim)
         elif self.vq_type == 'ema-k-means-vq':
-            return vq.EMAKMeansVectorQuantizer(
+            vq_layer = vq.EMAKMeansVectorQuantizer(
                 self.vq_clusters, self.z_dim, 
-                self.vq_commitment_cost, self.vq_ema_gamma, self.vq_ema_eps)
+                self.vq_commitment_cost, self.vq_ema_gamma, self.vq_ema_eps,
+                in_feats=in_feats, in_dim=in_dim)
         else:
             raise ValueError('vq_type=%s not supported' % (self.vq_type))
             
+        self.vq_layer = vq_layer
+
 
         
     def forward(self, x, x_target=None, 
                 return_x_mean=False,
                 return_x_sample=False, return_z_sample=False,
-                return_px=False, return_qz=False, serialize_pdfs=True):
+                return_px=False, serialize_pdfs=True):
         
         if x_target is None:
             x_target = x
         
-        x = self._pre_enc(x)
-        xx = self.encoder_net(x)
-        if self.flatten_spatial:
-            xx = self._flatten(xx)
+        xx = self._pre_enc(x)
+        xx = self.encoder_net(xx)
+        xx = self._post_enc(xx)
 
-        xx = self.pre_vq(xx)
+        vq_output = self.vq_layer(xx)
+        # extract the variables from the dict.
+        z, vq_loss, kldiv_z, log_perplexity = (
+            vq_output[i] for i in [
+                'z_q', 'loss', 'kldiv_qrpr', 'log_perplexity'])
+        zz = self._pre_dec(z)
+        zz = self.decoder_net(zz, target_shape=x_target.shape)
 
-        z, vq_loss, kldiv_qzpz, perplexity = self.vq_layer(xx)
-
-        zz = z
-        if self.flatten_spatial:
-            zz = self._unflatten(zz)
-
-        zz = self.decoder_net(zz)
-        zz = self.pre_px(zz)
-        zz = self._match_sizes(zz, x_target.shape)
-        px = self.t2px(zz)
-        px = self._post_px(px, x_target.shape)
+        squeeze_dim = None
+        if x_target.dim() == 3 and zz.dim() == 4:
+            squeeze_dim = 1
+        px = self.t2px(zz, squeeze_dim=squeeze_dim)
+        # px = self._post_px(px, x_target.shape)
 
         # we normalize the elbo by spatial/time samples and feature dimension
         log_px = px.log_prob(x_target).view(
@@ -243,56 +291,70 @@ class VQVAE(TorchModel):
         num_samples = log_px.size(-1)
         log_px = log_px.mean(dim=-1)
         # kldiv must be normalized by number of elements in x, not in z!!
-        kldiv_qzpz /= num_samples 
-        elbo = log_px - self.kldiv_weight*kldiv_qzpz
+        kldiv_z /= num_samples 
+        elbo = log_px - self.kldiv_weight*kldiv_z
 
-        loss = - elbo + vq_loss
+        loss = - elbo + vq_loss - self.diversity_weight * log_perplexity
 
-        # we build the return tuple
-        r = [loss, elbo, log_px, kldiv_qzpz, vq_loss, perplexity]
+        # we build the return dict
+        r = {'loss': loss,
+             'elbo': elbo,
+             'log_px': log_px,
+             'kldiv_z': kldiv_z,
+             'vq_loss': vq_loss,
+             'log_perplexity': log_perplexity}
+
         if return_x_mean:
-            r.append(px.mean)
-
+            r['x_mean'] = px.mean
+        
         if return_x_sample:
             if px.has_rsample:
-                x_tilde = px.rsample()
+                x_sample = px.rsample()
             else:
-                x_tilde = px.sample()
-            
-            r.append(x_tilde)
+                x_sample = px.sample()
+            r['x_sample'] = x_sample
 
         if return_z_sample:
-            r.append(z)
+            r['z'] = z
 
-        return tuple(r)
+        return r
+
+        # we build the return tuple
+        # r = [loss, elbo, log_px, kldiv_qzpz, vq_loss, perplexity]
+        # if return_x_mean:
+        #     r.append(px.mean)
+
+        # if return_x_sample:
+        #     if px.has_rsample:
+        #         x_tilde = px.rsample()
+        #     else:
+        #         x_tilde = px.sample()
+            
+        #     r.append(x_tilde)
+
+        # if return_z_sample:
+        #     r.append(z)
+
+        # return tuple(r)
         
 
 
     def compute_z(self, x):
         x = self._pre_enc(x)
-        xx = self.encoder_net(x)
-        if self.flatten_spatial:
-            xx = self._flatten(xx)
+        xx = self.encoder_net(xx)
+        xx = self._post_enc(xx)
 
-        xx = self.pre_vq(xx)
-
-        z, vq_loss, kldiv_qzpz, perplexity = self.vq_layer(xx)
-        return z
+        vq_output = self.vq_layer(xx)
+        return vq_output['z']
 
 
     def compute_px_given_z(self, z, x_shape=None):
-        zz = z
-        if self.flatten_spatial:
-            zz = self._unflatten(self.z2dec(zz))
-
-        zz = self.decoder_net(zz)
-        zz = self.pre_px(zz)
-
-        if x_shape is not None:
-            zz = self._match_sizes(zz, x_shape)
-        px = self.t2px(zz)
-        if x_shape is not None:
-            px = self._post_px(px, x_shape)
+        zz = self._pre_dec(z)
+        zz = self.decoder_net(zz, target_shape = x_shape)
+        squeeze_dim = None
+        if x_target.dim() == 3 and zz.dim() == 4:
+            squeeze_dim = 1
+        px = self.t2px(zz, squeeze_dim=squeeze_dim)
         return px
 
 
@@ -310,8 +372,11 @@ class VQVAE(TorchModel):
                   'vq_ema_eps': self.vq_ema_eps,
                   'px_pdf': self.px_pdf,
                   'kldiv_weight': self.kldiv_weight,
+                  'diversity_weight': self.diversity_weight,
                   'flatten_spatial': self.flatten_spatial,
-                  'spatial_shape': self.spatial_shape }
+                  'spatial_shape': self.spatial_shape,
+                  'scale_invariant': self.scale_invariant,
+                  'data_scale': self.data_scale }
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
@@ -342,8 +407,9 @@ class VQVAE(TorchModel):
         else:
             p = prefix + '_'
 
-        valid_args = ('z_dim', 'kldiv_weight', 'vq_type', 'vq_groups', 'vq_clusters',
-                      'vq_commitment_cost', 'vq_ema_gamma', 'vq_ema_eps')
+        valid_args = ('z_dim', 'kldiv_weight', 'diversity_weight', 
+                      'vq_type', 'vq_groups', 'vq_clusters',
+                      'vq_commitment_cost', 'vq_ema_gamma', 'vq_ema_eps', 'px_pdf')
 
         args = dict((k, kwargs[p+k])
                     for k in valid_args if p+k in kwargs)
@@ -366,6 +432,9 @@ class VQVAE(TorchModel):
 
         parser.add_argument(p1+'kldiv-weight', default=1, type=float,
                             help=('weight of the KL divergance in the ELBO'))
+
+        parser.add_argument(p1+'diversity-weight', default=0.1, type=float,
+                            help=('weight of the log-perplexity in the loss'))
 
         parser.add_argument(
             p1+'vq-type', default='ema-k-means-vq', 
@@ -392,3 +461,7 @@ class VQVAE(TorchModel):
                                   'of cluster counts for exponential moving '
                                   'avarage calculation of the embeddings'))
 
+        parser.add_argument(
+            p1+'px-pdf', default='normal-glob-diag-cov', 
+            choices = ['normal-i-cov', 'normal-glob-diag-cov', 'normal-diag-cov'],
+            help=('pdf for data likelihood p(x|z)'))

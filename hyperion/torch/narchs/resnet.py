@@ -197,9 +197,6 @@ class ResNet(NetArch):
 
         self.cur_in_channels = channels * block.expansion
         for _ in range(1, num_blocks):
-            # if self.has_se and self.time_se:
-            #     kwargs['num_feats'] = int(self.in_feats/self._downsample_factor)
-            # print('hola', self.in_feats, self._downsample_factor, self._context)
             layers.append(block(
                 self.cur_in_channels, channels, activation=self.hid_act,
                 dropout_rate=self.dropout_rate,
