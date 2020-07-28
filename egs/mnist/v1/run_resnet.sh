@@ -7,8 +7,8 @@
 . ./path.sh
 set -e
 
+
 net_type=resnet34
-cifar_vers=10
 resnet_args="--in-stride 1 --no-maxpool"
 num_gpus=2
 lr=0.1
@@ -18,7 +18,7 @@ stage=1
 . parse_options.sh || exit 1;
 
 net_name=$net_type
-exp_dir=./exp/cifar${cifar_vers}_${net_name}
+exp_dir=./exp/mnist_${net_name}
 mkdir -p $exp_dir
 
 #Train network
@@ -26,7 +26,7 @@ if [ $stage -le 1 ]; then
     mkdir -p $exp_dir/log
     $cuda_cmd --gpu $num_gpus $exp_dir/log/train.log \
         hyp_utils/torch.sh --num-gpus $num_gpus \
-	local/resnet-cifar.py \
+	local/resnet-mnist.py \
 	--resnet-type $net_type $resnet_args \
 	--batch-size $batch_size \
 	--opt-optimizer sgd \
@@ -39,9 +39,9 @@ if [ $stage -le 1 ]; then
 	--lrsch-min-lr 0.001 \
 	--lrsch-warmup-steps 5000 \
 	--lrsch-update-lr-on-opt-step \
-	--cifar-vers $cifar_vers \
-	--epochs 350 \
+	--epochs 300 \
 	--exp-path $exp_dir
     
 fi
+
 

@@ -10,7 +10,13 @@
 # conf/queue.conf in http://kaldi-asr.org/doc/queue.html for more information,
 # or search for the string 'default_config' in utils/queue.pl or utils/slurm.pl.
 
-export train_cmd="queue.pl --mem 4G -l hostname=\"[bc][01]*\""
-export cuda_cmd="queue.pl --mem 4G --gpu 1 --config conf/gpu.conf"
-export cuda_cmd="queue.pl --mem 4G --config conf/coe_gpu_long.conf"
+if [ "$(hostname -d)" == "cm.gemini" ];then
+    export train_cmd="queue.pl --config conf/coe_gpu_long.conf --mem 4G"
+    export cuda_cmd="queue.pl --config conf/coe_gpu_long.conf --mem 20G"
+    export cuda_eval_cmd="queue.pl --config conf/coe_gpu_short.conf --mem 4G"
+else
+    export train_cmd="queue.pl --mem 4G -l hostname=\"[bc][01]*\" -V" 
+    export cuda_cmd="queue.pl --mem 20G --config  conf/clsp_gpu.conf"
+    export cuda_eval_cmd="$cuda_cmd"
+fi
 
