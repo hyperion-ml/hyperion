@@ -3,7 +3,7 @@
  Copyright 2019 Jesus Villalba (Johns Hopkins University)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0) 
 """
-from __future__ import absolute_import
+# from __future__ import absolute_import
 
 import sys
 import os
@@ -132,11 +132,11 @@ if __name__ == "__main__":
     parser.add_argument('--input', dest='input_spec', required=True)
     parser.add_argument('--vad', dest='vad_spec', default=None)
     parser.add_argument('--write-num-frames', dest='write_num_frames_spec', default=None)
-    parser.add_argument('--scp-sep', dest='scp_sep', default=' ',
+    parser.add_argument('--scp-sep', default=' ',
                         help=('scp file field separator'))
-    parser.add_argument('--path-prefix', dest='path_prefix', default=None,
+    parser.add_argument('--path-prefix', default=None,
                         help=('scp file_path prefix'))
-    parser.add_argument('--vad-path-prefix', dest='vad_path_prefix', default=None,
+    parser.add_argument('--vad-path-prefix', default=None,
                         help=('scp file_path prefix for vad'))
 
     MVN.add_argparse_args(parser)

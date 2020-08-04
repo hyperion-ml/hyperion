@@ -221,7 +221,7 @@ class MeanVarianceNorm(object):
             p = ''
         else:
             p = prefix + '_'
-        valid_args = ('no_norm_mean', 'norm_mean', 'norm_var', 'left_context', 'right_context')
+        valid_args = ('no_norm_mean', 'norm_mean', 'norm_var', 'left_context', 'right_context', 'context')
 
         d = dict((k, kwargs[p+k])
                  for k in valid_args if p+k in kwargs)
@@ -232,6 +232,11 @@ class MeanVarianceNorm(object):
         for a,b in zip(neg_args1, neg_args2):
             d[b] = not d[a]
             del d[a]
+
+        if 'context' in d and d['context'] is not None:
+            d['left_context'] = d['context']
+            d['right_context'] = d['context']
+            del d['context']
 
         return d
 
@@ -253,19 +258,21 @@ class MeanVarianceNorm(object):
             p1 = '--' + prefix + '-'
             p2 = prefix + '_'
 
-        parser.add_argument(p1+'no-norm-mean', dest=(p2+'no_norm_mean'), 
+        parser.add_argument(p1+'no-norm-mean', 
                             default=False, action='store_true',
                             help='don\'t center the features')
 
-        parser.add_argument(p1+'norm-var', dest=(p2+'norm_var'), 
+        parser.add_argument(p1+'norm-var', 
                             default=False, action='store_true',
                             help='normalize the variance of the features')
 
-        
-        parser.add_argument(p1+'left-context', dest=(p2+'left_context'), type=int,
-                            default=300,
+        parser.add_argument(p1+'left-context', type=int, default=150,
                             help='past context in number of frames')
 
-        parser.add_argument(p1+'right-context', dest=(p2+'right_context'), type=int,
-                            default=300,
+        parser.add_argument(p1+'right-context', type=int, default=150,
                             help='future context in number of frames')
+
+        parser.add_argument(
+            p1+'context', type=int, default=None,
+            help=('past/future context in number of frames, '
+                  'overwrites left-context and right-context options'))

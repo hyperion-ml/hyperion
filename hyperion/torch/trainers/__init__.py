@@ -11,6 +11,8 @@ from .xvector_trainer_deep_feat_reg import XVectorTrainerDeepFeatReg
 from .xvector_adv_trainer import XVectorAdvTrainer
 #from .xvector_finetuner import XVectorFinetuner
 
+from .xvector_trainer_from_wav import XVectorTrainerFromWav
+
 from .vae_trainer import VAETrainer
 from .dvae_trainer import DVAETrainer
 from .vq_dvae_trainer import VQDVAETrainer

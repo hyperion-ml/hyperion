@@ -2,10 +2,10 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
+# from __future__ import absolute_import
+# from __future__ import print_function
+# from __future__ import division
+# from six.moves import xrange
 
 import pytest
 import numpy as np
@@ -21,15 +21,15 @@ from hyperion.io.data_rw_factory import RandomAccessDataReaderFactory as RDRF
 input_prefix = './tests/data_in/ark/'
 feat_scp_b = 'scp:./tests/data_in/ark/feat_b.scp'
 feat_scp_t = 'scp:./tests/data_in/ark/feat_t.scp'
-feat_scp_c = ['scp:./tests/data_in/ark/feat_c%d.scp' % i for i in xrange(1,8)]
-feat_scp_uc = ['scp:./tests/data_in/ark/feat_uc%d.scp' % i for i in xrange(1,8)]
+feat_scp_c = ['scp:./tests/data_in/ark/feat_c%d.scp' % i for i in range(1,8)]
+feat_scp_uc = ['scp:./tests/data_in/ark/feat_uc%d.scp' % i for i in range(1,8)]
 feat_ark_b = 'ark:./tests/data_in/ark/feat1_b.ark'
 feat_ark_t = 'ark:./tests/data_in/ark/feat1_t.ark'
-feat_ark_c = ['ark:./tests/data_in/ark/feat1_c%d.ark' % i for i in xrange(1,8)]
-feat_ark_uc = ['ark:./tests/data_in/ark/feat1_uc%d.ark' % i for i in xrange(1,8)]
+feat_ark_c = ['ark:./tests/data_in/ark/feat1_c%d.ark' % i for i in range(1,8)]
+feat_ark_uc = ['ark:./tests/data_in/ark/feat1_uc%d.ark' % i for i in range(1,8)]
 
 feat_range_b = 'scp:./tests/data_in/ark/feat_range_b.scp'
-feat_range_c = ['scp:./tests/data_in/ark/feat_range_c%d.scp' % i for i in xrange(1,8)]
+feat_range_c = ['scp:./tests/data_in/ark/feat_range_c%d.scp' % i for i in range(1,8)]
 
 vec_scp_b = 'scp:./tests/data_in/ark/vec_b.scp'
 vec_scp_t = 'scp:./tests/data_in/ark/vec_t.scp'
@@ -39,12 +39,12 @@ vec_ark_t = 'ark:./tests/data_in/ark/vec1_t.ark'
 feat_ark_bo = 'ark:./tests/data_out/ark/feat.ark'
 feat_scp_bo = 'scp:./tests/data_out/ark/feat.scp'
 feat_ark_to = 'ark,t:./tests/data_out/ark/feat.ark'
-feat_scp_co = ['scp:./tests/data_out/ark/feat_c%d.scp' % i for i in xrange(1,8)]
+feat_scp_co = ['scp:./tests/data_out/ark/feat_c%d.scp' % i for i in range(1,8)]
 feat_both_bo = 'ark,scp:./tests/data_out/ark/feat.ark,./tests/data_out/ark/feat.scp'
 feat_both_to = 'ark,scp,t:./tests/data_out/ark/feat.ark,./tests/data_out/ark/feat.scp'
 feat_both_bfo = 'ark,scp,f:./tests/data_out/ark/feat.ark,./tests/data_out/ark/feat.scp'
 feat_both_tfo = 'ark,scp,t,f:./tests/data_out/ark/feat.ark,./tests/data_out/ark/feat.scp'
-feat_both_co = ['ark,scp:./tests/data_out/ark/feat_%d.ark,./tests/data_out/ark/feat_c%d.scp' % (i,i) for i in xrange(1,8)]
+feat_both_co = ['ark,scp:./tests/data_out/ark/feat_%d.ark,./tests/data_out/ark/feat_c%d.scp' % (i,i) for i in range(1,8)]
 
 vec_ark_bo = 'ark:./tests/data_out/ark/feat.ark'
 vec_scp_bo = 'scp:./tests/data_out/ark/feat.scp'
@@ -52,7 +52,7 @@ vec_ark_to = 'ark,t:./tests/data_out/ark/feat.ark'
 vec_both_bo = 'ark,scp:./tests/data_out/ark/feat.ark,./tests/data_out/ark/feat.scp'
 vec_both_to = 'ark,scp,t:./tests/data_out/ark/feat.ark,./tests/data_out/ark/feat.scp'
 
-
+compression_methods = compression_methods[:7]
 
 # Uncompressed feature files
 
@@ -179,7 +179,7 @@ def test_read_seq_scp_split_feat():
 
     key2 = []
     data2 = []
-    for i in xrange(4):
+    for i in range(4):
         r = SDRF.create(feat_scp_b, path_prefix=input_prefix,
                         part_idx=i+1, num_parts=4)
         key_i, data_i = r.read(0)
@@ -766,7 +766,7 @@ def test_read_range_seq_scp_feat():
     while not r.eof():
         key_i, data_i = r.read(1)
         key1.append(key_i[0])
-        data1.append(data_i[0][i:i+50])
+        data1.append(data_i[0][i:i+51])
         i += 1
 
     r = SDRF.create(feat_range_b, path_prefix=input_prefix)
@@ -792,7 +792,7 @@ def test_read_range_random_feat():
     while not r.eof():
         key_i, data_i = r.read(1)
         key1.append(key_i[0])
-        data1.append(data_i[0][i:i+50])
+        data1.append(data_i[0][i:i+51])
         i += 1
         
     # binary
@@ -813,7 +813,7 @@ def test_read_range_shapes_seq_scp_feat():
     while not r.eof():
         key_i, data_i = r.read(1)
         key1.append(key_i[0])
-        data1.append(data_i[0][i:i+50].shape)
+        data1.append(data_i[0][i:i+51].shape)
         i += 1
 
     r = SDRF.create(feat_range_b, path_prefix=input_prefix)
@@ -834,7 +834,7 @@ def test_read_range_shapes_random_feat():
     while not r.eof():
         key_i, data_i = r.read(1)
         key1.append(key_i[0])
-        data1.append(data_i[0][i:i+50].shape)
+        data1.append(data_i[0][i:i+51].shape)
         i += 1
         
     # binary
@@ -922,7 +922,7 @@ def test_read_range2_random_feat():
         
     # binary
     r = RDRF.create(feat_scp_b, path_prefix=input_prefix)
-    row_offset = [i for i in xrange(len(key1))]
+    row_offset = [i for i in range(len(key1))]
     data2 = r.read(key1, row_offset=row_offset, num_rows=10)
 
     for d1,d2 in zip(data1, data2):
@@ -972,7 +972,7 @@ def test_read_rangex2_random_feat():
         
     # binary
     r = RDRF.create(feat_range_b, path_prefix=input_prefix)
-    row_offset = [i for i in xrange(len(key1))]
+    row_offset = [i for i in range(len(key1))]
     data2 = r.read(key1, row_offset=row_offset, num_rows=10)
 
     for d1,d2 in zip(data1, data2):
@@ -994,7 +994,7 @@ def test_read_squeeze_random_feat():
         
     # binary
     r = RDRF.create(feat_scp_b, path_prefix=input_prefix)
-    row_offset = [i for i in xrange(len(key1))]
+    row_offset = [i for i in range(len(key1))]
     data2 = r.read(key1, squeeze=True, row_offset=row_offset, num_rows=10)
 
     assert isinstance(data2, np.ndarray)
@@ -1018,7 +1018,7 @@ def test_read_squeeze_random_feat_permissive():
     # binary
     key1.append('unk')
     r = RDRF.create('p,'+feat_scp_b, path_prefix=input_prefix)
-    row_offset = [i for i in xrange(len(key1))]
+    row_offset = [i for i in range(len(key1))]
     data2 = r.read(key1, squeeze=True, row_offset=row_offset, num_rows=10)
 
     assert isinstance(data2, np.ndarray)
@@ -1257,7 +1257,7 @@ def test_read_range_compress_seq_scp_feat():
         while not r.eof():
             key_i, data_i = r.read(1)
             key1.append(key_i[0])
-            data1.append(data_i[0][i:i+50])
+            data1.append(data_i[0][i:i+51])
             i += 1
 
         # scp compressed
@@ -1283,7 +1283,7 @@ def test_read_range_compress_random_feat():
         while not r.eof():
             key_i, data_i = r.read(1)
             key1.append(key_i[0])
-            data1.append(data_i[0][i:i+50])
+            data1.append(data_i[0][i:i+51])
             i += 1
         
         # scp compressed binary
@@ -1306,7 +1306,7 @@ def test_read_range_shapes_compress_seq_scp_feat():
     while not r.eof():
         key_i, data_i = r.read(1)
         key1.append(key_i[0])
-        data1.append(data_i[0][i:i+50].shape)
+        data1.append(data_i[0][i:i+51].shape)
         i += 1
 
     for k, cm in enumerate(compression_methods):
@@ -1328,7 +1328,7 @@ def test_read_range_shapes_compress_random_feat():
     while not r.eof():
         key_i, data_i = r.read(1)
         key1.append(key_i[0])
-        data1.append(data_i[0][i:i+50].shape)
+        data1.append(data_i[0][i:i+51].shape)
         i += 1
 
     for k, cm in enumerate(compression_methods):
@@ -1420,7 +1420,7 @@ def test_read_range2_compress_random_feat():
             i += 1
         
         r = RDRF.create(feat_scp_c[k], path_prefix=input_prefix)
-        row_offset = [i for i in xrange(len(key1))]
+        row_offset = [i for i in range(len(key1))]
         data2 = r.read(key1, row_offset=row_offset, num_rows=10)
 
         for d1,d2 in zip(data1, data2):
@@ -1474,7 +1474,7 @@ def test_read_compress_rangex2_random_feat():
         
         # binary
         r = RDRF.create(feat_range_c[k], path_prefix=input_prefix)
-        row_offset = [i for i in xrange(len(key1))]
+        row_offset = [i for i in range(len(key1))]
         data2 = r.read(key1, row_offset=row_offset, num_rows=10)
 
         for d1,d2 in zip(data1, data2):
@@ -1712,7 +1712,7 @@ def test_read_squeeze_random_vec():
         
     # binary
     r = RDRF.create(vec_scp_b, path_prefix=input_prefix)
-    row_offset = [i for i in xrange(len(key1))]
+    row_offset = [i for i in range(len(key1))]
     data2 = r.read(key1, squeeze=True)
 
     assert isinstance(data2, np.ndarray)

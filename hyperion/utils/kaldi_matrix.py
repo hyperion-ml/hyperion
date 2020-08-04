@@ -4,10 +4,10 @@
 
  Classes to to write and read kaldi matrices
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
+#from __future__ import absolute_import
+#from __future__ import print_function
+#from __future__ import division
+#from six.moves import xrange
 
 import struct
 import numpy as np
@@ -178,12 +178,12 @@ class KaldiMatrix(object):
                 f.write(' [')
                 if self.data.ndim == 1:
                     f.write(' ')
-                    for j in xrange(self.num_cols):
+                    for j in range(self.num_cols):
                         f.write('%f ' % self.data[j])
                 else:
-                    for i in xrange(self.num_rows):
+                    for i in range(self.num_rows):
                         f.write('\n ')
-                        for j in xrange(self.num_cols):
+                        for j in range(self.num_cols):
                             f.write('%f ' % self.data[i,j])
                 f.write(']\n')
 
@@ -241,14 +241,16 @@ compression_methods = ['auto',
                        '2byte-signed-integer',
                        '1byte-auto',
                        '1byte-unsigned-integer',
-                       '1byte-0-1']
+                       '1byte-0-1',
+                       'speech-feat-t']
 
 compression_method2format = {'speech-feat': 1,
                              '2byte-auto': 2,
                              '2byte-signed-integer': 2,
                              '1byte-auto': 3,
                              '1byte-unsigned-integer': 3,
-                             '1byte-0-1': 3}
+                             '1byte-0-1': 3, 
+                             'speech-feat-t': 4}
 
     
 class KaldiCompressedMatrix(object):
@@ -291,7 +293,7 @@ class KaldiCompressedMatrix(object):
                  'data_range': self.data_range}
 
         header_offset = 20
-        if self.data_format == 1:
+        if self.data_format == 1 or self.data_format == 4:
             data_offset = header_offset+self.num_cols*8
             p = np.frombuffer(self.data[header_offset:data_offset], dtype=np.uint16)
             attrs['perc'] = p
@@ -325,7 +327,7 @@ class KaldiCompressedMatrix(object):
                         attrs['data_format'],
                         attrs['min_value'], attrs['data_range'],
                         num_rows, num_cols)
-        if attrs['data_format'] == 1:
+        if attrs['data_format'] == 1 or attrs['data_format'] == 4:
             col_header = attrs['perc'].tobytes()
             h = h + col_header
             data_bytes = data.transpose().flatten().tobytes()
@@ -383,7 +385,8 @@ class KaldiCompressedMatrix(object):
         self.num_cols = mat.shape[1]
 
         #now compute min_val and range
-        if method == 'speech-feat' or method == '2byte-auto' or method == '1byte-auto':
+        if (method == 'speech-feat' or method == '2byte-auto' or 
+            method == '1byte-auto' or method == 'speech-feat-t'):
             min_value = np.min(mat)
             max_value = np.max(mat)
             if max_value == min_value :
@@ -429,7 +432,7 @@ class KaldiCompressedMatrix(object):
             rows_left = total_rows - num_rows
             
         bytes_col_header = 0
-        if data_format == 1:
+        if data_format == 1 or data_format==4:
             bytes_col_header = num_cols*8
             bytes_offset = row_offset
             bytes_data = num_rows
@@ -459,7 +462,7 @@ class KaldiCompressedMatrix(object):
           Number of bytes of the coded matrix.
         """
         data_format, _, _, num_rows, num_cols = struct.unpack('<iffii', header)
-        if data_format == 1:
+        if data_format == 1 or data_format == 4:
             return len(header) + num_cols*(8+num_rows)
         elif data_format == 2:
             return len(header) + 2*num_rows*num_cols
@@ -485,8 +488,8 @@ class KaldiCompressedMatrix(object):
         header = M._compute_global_header(mat, method)
         cols_header = bytes()
         data = bytes()
-        if M.data_format == 1:
-            for col in xrange(M.num_cols):
+        if M.data_format == 1 or M.data_format == 4:
+            for col in range(M.num_cols):
                 col_header, col_data = M._compress_column(mat[:,col])
                 cols_header += col_header
                 data += col_data
@@ -644,11 +647,11 @@ class KaldiCompressedMatrix(object):
         Returns:
           numpy array with uncompressed matrix.
         """
-        if self.data_format == 1:
+        if self.data_format == 1 or self.data_format == 4:
             mat = np.zeros((self.num_rows, self.num_cols), dtype=float_cpu())
             header_offset = 20
             data_offset = header_offset+self.num_cols*8
-            for i in xrange(self.num_cols):
+            for i in range(self.num_cols):
                 mat[:,i] = self._uncompress_column(
                     self.data[header_offset:header_offset+8],
                     self.data[data_offset:data_offset+self.num_rows])
@@ -702,6 +705,8 @@ class KaldiCompressedMatrix(object):
                     data_format = 2
                 elif token == 'CM3':
                     data_format = 3
+                elif token == 'CM4':
+                    data_format = 4
                 else:
                     raise ValueError('Unexpected token %s' % token)
                 
@@ -710,17 +715,34 @@ class KaldiCompressedMatrix(object):
                     header, row_offset, num_rows)
                 
                 if bytes_offset == 0 and bytes_left == 0:
-                    data = header + f.read(bytes_col_header+num_cols*bytes_col)
+                    if data_format == 4:
+                        col_header = f.read(bytes_col_header)
+                        data = f.read(num_cols*bytes_col)
+                        data = np.frombuffer(data, dtype=np.uint8).reshape(
+                            -1, num_cols).transpose().tobytes()
+                        data = header + col_header + data
+                    else:
+                        data = header + f.read(bytes_col_header+num_cols*bytes_col)
                 else:
                     if data_format == 1:
                         col_header = f.read(bytes_col_header)
                         data = bytes()
-                        for c in xrange(num_cols):
+                        for c in range(num_cols):
                             if bytes_offset > 0:
                                 f.seek(bytes_offset, 1)
                             data += f.read(bytes_col)
                             if bytes_left > 0:
                                 f.seek(bytes_left, 1)
+                        data = header + col_header + data
+                    elif data_format == 4:
+                        col_header = f.read(bytes_col_header)
+                        if bytes_offset > 0:
+                            f.seek(bytes_offset*num_cols, 1)
+                        data = f.read(bytes_col*num_cols)
+                        data = np.frombuffer(data, dtype=np.uint8).reshape(
+                            -1, num_cols).transpose().tobytes()
+                        if bytes_left > 0:
+                            f.seek(bytes_left*num_cols, 1)
                         data = header + col_header + data
                     else:
                         if bytes_offset > 0:
@@ -758,7 +780,18 @@ class KaldiCompressedMatrix(object):
                     write_token(f, binary, 'CM2')
                 elif self.data_format == 3:
                     write_token(f, binary, 'CM3')
-                f.write(self.data[4:])
+                elif self.data_format == 4:
+                    write_token(f, binary, 'CM4')
+                
+                if self.data_format == 4:
+                    header_offset = 20
+                    data_offset = header_offset+self.num_cols*8
+                    data = np.frombuffer(self.data[data_offset:], dtype=np.uint8).reshape(
+                        self.num_cols, self.num_rows).transpose().tobytes()
+                    f.write(self.data[4:data_offset])
+                    f.write(data)
+                else:
+                    f.write(self.data[4:])
             else:
                 write_token(f, binary, 'CM')
                 header = struct.pack('<ffii',0,0,0,0)
@@ -793,6 +826,8 @@ class KaldiCompressedMatrix(object):
                     data_format = 2
                 elif token == 'CM3':
                     data_format = 3
+                elif token == 'CM4':
+                    data_format = 4
                 else:
                     raise ValueError('Unexpected token %s' % token)
                 
