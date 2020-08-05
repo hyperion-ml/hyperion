@@ -7,7 +7,7 @@
 #xvector training 
 nnet_data=voxceleb2cat_combined
 nnet_type=transformer
-batch_size_1gpu=120
+batch_size_1gpu=64
 eff_batch_size=512 # effective batch size
 min_chunk=400
 max_chunk=400

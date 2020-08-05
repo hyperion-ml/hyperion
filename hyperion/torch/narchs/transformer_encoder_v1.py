@@ -227,9 +227,9 @@ class TransformerEncoderV1(NetArch):
                     out_t = in_t
 
         if self.out_time_dim == 1:
-            return (in_shape[0], out_t, self.d_model)
+            return (out_t, out_t, self.d_model)
         else:
-            return (in_shape[0], self.d_model, out_t)
+            return (out_t, self.d_model, out_t)
 
 
         
