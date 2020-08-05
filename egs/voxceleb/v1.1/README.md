@@ -40,11 +40,11 @@ In this recipe:
 
    - Run the run_0*.sh scripts in sequence
    - By default it will use Light ResNet (16 base channels)
-   - For better performance use full ResNet (64 base channels) using `config_fbank80_mvn_lresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh` file as
+   - For better performance use full ResNet (64 base channels) using `config_fbank80_mvn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh` file as
 ```bash
-run_010_train_resnet_xvector.sh --config-file config_resnet34_adam.v2.sh
-run_030_extract_xvectors.sh --config-file config_resnet34_adam.v2.sh
-run_040_eval_be.sh --config-file config_resnet34_adam.v2.sh
+run_011_train_xvector.sh --config-file config_fbank80_mvn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh
+run_030_extract_xvectors.sh --config-file config_fbank80_mvn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh --use-gpu true
+run_040_eval_be.sh --config-file config_fbank80_mvn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh
 ```
 
    - To train with mixed precision training use config file `config_fbank80_mvn_lresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh`

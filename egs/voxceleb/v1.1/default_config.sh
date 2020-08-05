@@ -7,9 +7,9 @@ feat_type=fbank80_mvn
 
 
 # x-vector training 
-nnet_data=voxceleb2cat_combined
+nnet_data=voxceleb2cat
 nnet_num_augs=6
-aug_opt="--train-aug-cfg conf/noise_aug.yml --val-aug-cfg conf/noise_aug.yml"
+aug_opt="--train-aug-cfg conf/reverb_noise_aug.yml --val-aug-cfg conf/reverb_noise_aug.yml"
 
 batch_size_1gpu=128
 eff_batch_size=512 # effective batch size
@@ -26,7 +26,7 @@ s=30
 margin_warmup=20
 margin=0.3
 
-nnet_opt="--resnet-type $nnet_type --in-channels 1 --in-kernel-size 3 --in-stride 1 --no-maxpool"
+nnet_opt="--resnet-type $nnet_type --in-feats 80 --in-channels 1 --in-kernel-size 3 --in-stride 1 --no-maxpool"
 
 opt_opt="--opt-optimizer adam --opt-lr $lr --opt-beta1 0.9 --opt-beta2 0.95 --opt-weight-decay 1e-5 --opt-amsgrad"
 lrs_opt="--lrsch-lrsch-type exp_lr --lrsch-decay-rate 0.5 --lrsch-decay-steps 8000 --lrsch-hold-steps 40000 --lrsch-min-lr 1e-5 --lrsch-warmup-steps 1000 --lrsch-update-lr-on-opt-step"

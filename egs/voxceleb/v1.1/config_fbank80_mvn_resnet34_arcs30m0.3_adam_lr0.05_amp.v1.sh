@@ -10,14 +10,14 @@ nnet_data=voxceleb2cat
 nnet_num_augs=6
 aug_opt="--train-aug-cfg conf/reverb_noise_aug.yml --val-aug-cfg conf/reverb_noise_aug.yml"
 
-batch_size_1gpu=128
+batch_size_1gpu=32
 eff_batch_size=512 # effective batch size
 ipe=$nnet_num_augs
 min_chunk=4
 max_chunk=4
 lr=0.05
 
-nnet_type=lresnet34 #light resnet
+nnet_type=resnet34 
 dropout=0
 embed_dim=256
 
