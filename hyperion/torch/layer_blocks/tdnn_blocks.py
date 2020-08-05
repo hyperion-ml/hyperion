@@ -2,7 +2,7 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
+# from __future__ import absolute_import
 
 import numpy as np
 
@@ -18,9 +18,9 @@ class TDNNBlock(nn.Module):
                  kernel_size, dilation=1, 
                  activation={'name':'relu', 'inplace': True},
                  dropout_rate=0,
-                 use_norm=True, norm_before=False):
+                 norm_layer=None, use_norm=True, norm_before=False):
 
-        super(TDNNBlock, self).__init__()
+        super().__init__()
 
         self.activation = AF.create(activation)
         padding = int(dilation * (kernel_size -1)/2)
@@ -33,7 +33,10 @@ class TDNNBlock(nn.Module):
         self.norm_before = False
         self.norm_after = False
         if use_norm:
-            self.bn1 = BatchNorm1d(out_channels)        
+            if norm_layer is None:
+                norm_layer = BatchNorm1d
+
+            self.bn1 = norm_layer(out_channels)        
             if norm_before:
                 self.norm_before = True
             else:
@@ -42,7 +45,7 @@ class TDNNBlock(nn.Module):
         self.conv1 = Conv1d(in_channels, out_channels, 
                             bias=(not self.norm_before),
                             kernel_size=kernel_size, dilation=dilation, 
-                            padding=padding) # padding_mode='reflection') pytorch > 1.0
+                            padding=padding, padding_mode='reflection') # pytorch > 1.0
 
 
     def freeze(self):

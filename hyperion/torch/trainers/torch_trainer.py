@@ -37,10 +37,11 @@ class TorchTrainer(object):
          data_parallel: if True use nn.DataParallel
          train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
          use_amp: uses mixed precision training.
+         log_interval: number of optim. steps between log outputs
     """
     def __init__(self, model, optimizer, loss, epochs, exp_path, cur_epoch=0, grad_acc_steps=1,
                  device=None, metrics=None, lr_scheduler=None, loggers=None, data_parallel=False, 
-                 train_mode='train', use_amp=False):
+                 train_mode='train', use_amp=False, log_interval=10):
         self.model = model
         self.optimizer = optimizer
         self.loss = loss
@@ -51,7 +52,7 @@ class TorchTrainer(object):
         self.exp_path = exp_path
         
         if loggers is None:
-            self.loggers = self._default_loggers()
+            self.loggers = self._default_loggers(log_interval)
         elif isinstance(loggers, list):
             self.loggers = LoggerList(loggers)
         else:
@@ -198,10 +199,10 @@ class TorchTrainer(object):
         return logs
 
 
-    def _default_loggers(self):
+    def _default_loggers(self, log_interval):
         """Creates the default data loaders
         """
-        prog_log = ProgLogger(interval=10)
+        prog_log = ProgLogger(interval=log_interval)
         csv_log = CSVLogger(self.exp_path + '/train.log', append=True)
         return LoggerList([prog_log, csv_log])
     

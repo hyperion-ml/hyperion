@@ -55,22 +55,24 @@ class XVectorTrainerDeepFeatReg(TorchTrainer):
          reg_loss: nn.Module loss used for regularization, if None it uses L1 loss.
          train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
          use_amp: uses mixed precision training.
+         log_interval: number of optim. steps between log outputs
     """
 
     def __init__(self, model, prior_model, optimizer, epochs, exp_path, cur_epoch=0, 
                  grad_acc_steps=1, reg_layers_enc=None, reg_layers_classif=None,
                  reg_weight_enc=0.1, reg_weight_classif=0.1,
                  device=None, metrics=None, lr_scheduler=None, loggers=None, 
-                 data_parallel=False, loss=None, reg_loss=None, train_mode='train', use_amp=False):
+                 data_parallel=False, loss=None, reg_loss=None, train_mode='train', use_amp=False,
+                 log_interval=10):
 
         if loss is None:
             loss = nn.CrossEntropyLoss()
 
-        super(XVectorTrainerDeepFeatReg, self).__init__(
+        super().__init__(
             model, optimizer, loss, epochs, exp_path, cur_epoch=cur_epoch,
             grad_acc_steps=grad_acc_steps, device=device, metrics=metrics,
             lr_scheduler=lr_scheduler, loggers=loggers, data_parallel=data_parallel, 
-            train_mode=train_mode, use_amp=use_amp)
+            train_mode=train_mode, use_amp=use_amp, log_interval=log_interval)
 
         self.prior_model = prior_model
         if reg_loss is None:

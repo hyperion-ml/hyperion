@@ -3,7 +3,7 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
+#from __future__ import absolute_import
 import sys
 import os
 import argparse
@@ -70,7 +70,8 @@ def train_xvec(data_rspec, train_list, val_list, exp_path,
     trainer = Trainer(model, optimizer, epochs, exp_path, 
                       grad_acc_steps=grad_acc_steps,
                       device=device, metrics=metrics, lr_scheduler=lr_sch,
-                      data_parallel=(num_gpus>1), use_amp=use_amp)
+                      data_parallel=(num_gpus>1), use_amp=use_amp, 
+                      log_interval=log_interval)
     if resume:
         trainer.load_last_checkpoint()
     trainer.fit(train_loader, test_loader)

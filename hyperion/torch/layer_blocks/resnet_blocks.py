@@ -34,14 +34,31 @@ def _make_downsample(in_channels, out_channels, stride, norm_layer, norm_before)
 
 
 class ResNetInputBlock(nn.Module):
+    """ Input block for ResNet architecture
+
+    Args:
+      in_channels: input channels
+      out_channels: output channels
+      kernel_size: kernel size for conv
+      stride: stride for conv
+      activation: str/dict indicationg activation type and arguments
+      norm_layer: norm_layer object constructor, if None it uses BatchNorm2d
+      norm_before: if True it applies the norm_layer before the activation, 
+                   if False, after the activation
+      do_maxpool: apply maxpooling 2x2 at the output
+
+    """
     
     def __init__(self, in_channels, out_channels, kernel_size=7, stride=2, 
                  activation={'name':'relu', 'inplace': True},
                  norm_layer=None, norm_before=True, do_maxpool=True):
 
-        super(ResNetInputBlock, self).__init__()
+        super().__init__()
 
         padding = int((kernel_size - 1)/2)
+        if norm_layer is None:
+            norm_layer = nn.BatchNorm2d
+
         bias = not norm_before
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, 
                               stride=stride, padding=padding, bias=bias)
@@ -85,7 +102,7 @@ class ResNetBasicBlock(nn.Module):
                  stride=1, dropout_rate=0, groups=1, dilation=1, 
                  norm_layer=None, norm_before=True):
 
-        super(ResNetBasicBlock, self).__init__()
+        super().__init__()
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
 
@@ -164,7 +181,7 @@ class ResNetBNBlock(nn.Module):
                  stride=1, dropout_rate=0,groups=1,
                  dilation=1, norm_layer=None, norm_before=True):
 
-        super(ResNetBNBlock, self).__init__()
+        super().__init__()
 
         self.in_channels = in_channels
         self.channels = channels

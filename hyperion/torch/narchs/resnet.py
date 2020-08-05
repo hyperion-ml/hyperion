@@ -2,7 +2,7 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
+# from __future__ import absolute_import
 
 import numpy as np
 
@@ -11,6 +11,7 @@ import torch.nn as nn
 from torch.nn import Conv1d, Linear, BatchNorm1d
 
 from ..layers import ActivationFactory as AF
+from ..layers import NormLayer2dFactory as NLF
 from ..layer_blocks import ResNetInputBlock, ResNetBasicBlock, ResNetBNBlock, SEResNetBasicBlock, SEResNetBNBlock
 from .net_arch import NetArch
 
@@ -38,11 +39,11 @@ class ResNet(NetArch):
       groups: number of groups in convolutions
       replace_stride_with_dilation: use dialted conv nets instead of downsammpling, we never tested this.
       dropout_rate: dropout rate
-      norm_layer: norm_layer object, if None it uses BatchNorm2d
+      norm_layer: norm_layer object or str indicating type layer-norm object, if None it uses BatchNorm2d
       do_maxpool: if False, removes the maxpooling layer at the stem of the network.
       in_norm: if True, adds another batch norm layer in the input
-      se_r: squeeze dimension
-      time_se: if True squeeze-excitation embdding is obtaining by averagin only in the time dimension, 
+      se_r: squeeze-excitation dimension compression
+      time_se: if True squeeze-excitation embedding is obtaining by averagin only in the time dimension, 
                instead of time-freq dimension or HxW dimensions
       in_feats: input feature size (number of components in dimension of 2 of input tensor), this is only
                 required when time_se=True to calculcate the size of the squeeze excitation matrices.
@@ -95,9 +96,11 @@ class ResNet(NetArch):
         self.in_feats = in_feats
 
         self.norm_layer = norm_layer
-        if norm_layer is None:
-            norm_layer = nn.BatchNorm2d
-        self._norm_layer = norm_layer
+        norm_groups = None
+        if norm_layer == 'group-norm':
+            norm_groups = min(base_channels//2, 32)
+            norm_groups = max(norm_groups, groups)
+        self._norm_layer = NLF.create(norm_layer, norm_groups)
 
         self.dilation = 1
         if replace_stride_with_dilation is None:
@@ -117,7 +120,7 @@ class ResNet(NetArch):
 
         self.in_block = ResNetInputBlock(
             in_channels, conv_channels, kernel_size=in_kernel_size, stride=in_stride,
-            activation=hid_act, norm_layer=norm_layer, norm_before=norm_before, do_maxpool=do_maxpool)
+            activation=hid_act, norm_layer=self._norm_layer, norm_before=norm_before, do_maxpool=do_maxpool)
 
         self._context = self.in_block.context
         self._downsample_factor = self.in_block.downsample_factor
@@ -197,9 +200,6 @@ class ResNet(NetArch):
 
         self.cur_in_channels = channels * block.expansion
         for _ in range(1, num_blocks):
-            # if self.has_se and self.time_se:
-            #     kwargs['num_feats'] = int(self.in_feats/self._downsample_factor)
-            # print('hola', self.in_feats, self._downsample_factor, self._context)
             layers.append(block(
                 self.cur_in_channels, channels, activation=self.hid_act,
                 dropout_rate=self.dropout_rate,
@@ -207,7 +207,6 @@ class ResNet(NetArch):
                 norm_layer=self._norm_layer, norm_before=self.norm_before, **kwargs))
 
             self._context += layers[-1].context * self._downsample_factor
-            # self._downsample_factor *= layers[-1].downsample_factor #not needed, for these layers downsample_factor=1
 
         return nn.Sequential(*layers)
 
@@ -327,7 +326,6 @@ class ResNet(NetArch):
             Tensor with output representations if return_output is True
         
         """
-
         assert layers is not None or return_output
         if layers is None:
             layers = []

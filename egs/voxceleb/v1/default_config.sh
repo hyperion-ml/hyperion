@@ -1,8 +1,7 @@
-#Default configuration parameters for the experiment
+# Default configuration parameters for the experiment
 
-#xvector training 
-
-#xvector training 
+# xvector training 
+# x-Vector with Light ResNet34 encoder, additive angular softmax objective
 nnet_data=voxceleb2cat_combined
 nnet_type=lresnet34 #light resnet
 batch_size_1gpu=128
