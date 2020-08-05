@@ -1,9 +1,6 @@
 #!/bin/bash
 # Copyright
-#                2018   Johns Hopkins University (Author: Jesus Villalba)
-#                2017   David Snyder
-#                2017   Johns Hopkins University (Author: Daniel Garcia-Romero)
-#                2017   Johns Hopkins University (Author: Daniel Povey)
+#                2020   Johns Hopkins University (Author: Jesus Villalba)
 # Apache 2.0.
 #
 . ./cmd.sh
@@ -25,29 +22,6 @@ else
 fi
 
 xvector_dir=exp/xvectors/$nnet_name
-
-# if [ $stage -le 1 ]; then
-#     # Extract xvectors for training LDA/PLDA
-#     for name in voxceleb2cat
-#     do
-#     	steps_xvec/extract_xvectors.sh --cmd "$xvec_cmd --mem 12G" --nj 300 ${xvec_args} \
-# 	    --random-utt-length true --min-utt-length 400 --max-utt-length 14000 \
-#     	    $nnet data/${name}_combined \
-#     	    $xvector_dir/${name}_combined
-#     done
-# fi
-
-# if [ $stage -le 2 ]; then
-#     # Extracts x-vectors for evaluation
-#     for name in voxceleb1_test 
-#     do
-# 	num_spk=$(wc -l data/$name/spk2utt | awk '{ print $1}')
-# 	nj=$(($num_spk < 100 ? $num_spk:100))
-# 	steps_xvec/extract_xvectors.sh --cmd "$xvec_cmd --mem 6G" --nj $nj ${xvec_args} \
-# 					      $nnet data/$name \
-# 					      $xvector_dir/$name
-#     done
-# fi
 
 if [ $stage -le 1 ]; then
     # Extract xvectors for training LDA/PLDA
