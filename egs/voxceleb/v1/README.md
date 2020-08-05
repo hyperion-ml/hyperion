@@ -79,7 +79,7 @@ run_040_eval_be.sh --config-file config_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.s
 
 ### VoxCeleb 1 Original-Clean trial list
 
-| Config | Model Type | Model Details | Back-end | EER(%) ! MinDCF(p=0.05) | MinDCF(p=0.01) |
+| Config | Model Type | Model Details | Back-end | EER(%) | MinDCF(p=0.05) | MinDCF(p=0.01) |
 | ------ | ---------- | ------------- | -------- | :----: | :------------: | :------------: |
 | config_resetdnn_narrow_arcs30s0.3_adam_lr0.05_amp.v1.sh | ResETDNN | num-blocks=5 / hid-channels=512 <br> ArcFace s=30/m=0.3 | PLDA | 2.80 | 0.178 | 0.283 |
 
@@ -109,7 +109,7 @@ run_040_eval_be.sh --config-file config_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.s
 
 ### VoxCeleb 1 Entire-Clean trial list
 
-| Config | Model Type | Model Details | EER(%) ! MinDCF(p=0.05) | MinDCF(p=0.01) |
+| Config | Model Type | Model Details | EER(%) | MinDCF(p=0.05) | MinDCF(p=0.01) |
 | ------ | ---------- | -------------------- | :----: | :------------: | :------------: |
 | config_resetdnn_narrow_arcs30s0.3_adam_lr0.05_amp.v1.sh | ResETDNN | num-blocks=5 / hid-channels=512 <br> ArcFace s=30/m=0.3 | PLDA |2.77 | 0.183 | 0.298 |
 | | | | cosine | 3.23 | 0.206 | 0.336 |
@@ -137,7 +137,7 @@ run_040_eval_be.sh --config-file config_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.s
 
 ### VoxCeleb 1 Hard-Clean trial list
 
-| Config | Model Type | Model Details | EER(%) ! MinDCF(p=0.05) | MinDCF(p=0.01) |
+| Config | Model Type | Model Details | EER(%) | MinDCF(p=0.05) | MinDCF(p=0.01) |
 | ------ | ---------- | -------------------- | :----: | :------------: | :------------: |
 | config_resetdnn_narrow_arcs30s0.3_adam_lr0.05_amp.v1.sh | ResETDNN | num-blocks=5 / hid-channels=512 <br> ArcFace s=30/m=0.3 | PLDA | 4.86 | 0.290 | 0.441 |
 | | | | cosine |5.47 | 0.310 | 0.458 |
