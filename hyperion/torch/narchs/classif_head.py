@@ -2,34 +2,64 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
+#from __future__ import absolute_import
 
-import numpy as np
+#import numpy as np
 
 import torch.nn as nn
 from torch.nn import Linear
 
 from ..layers import CosLossOutput, ArcLossOutput
+from ..layers import NormLayer1dFactory as NLF
 from ..layer_blocks import FCBlock
 from .net_arch import NetArch
 
 class ClassifHead(NetArch):
+    """Classification Head for x-vector style networks
+
+    Attributes:
+       in_feats: input features
+       num_classes: number of output classes
+       embed_dim: dimension of embedding layer
+       num_embed_layers: number of hidden layers
+       hid_act: str or dict hidden activation type in ['relu', 'relu6', 'swish', ... ]
+       loss_type: type of loss function that will be used with the x-vector in ['softmax', 'cos-softmax', 'arc-softmax'],
+                  corresponding to standard cross-entorpy, additive margin softmax or additive angular margin softmax.
+       s: scale parameter for cos-softmax and arc-softmax
+       margin: margin parameter for cos-softmax and arc-softmax
+       margin_warmup_epochs: number of epochs to anneal the margin from 0 to margin
+       norm_layer: norm_layer object or str indicating type norm layer, if None it uses BatchNorm1d
+       use_norm: it True it uses layer/batch-normalization
+       norm_before: if True, layer-norm is before the activation function
+
+    """
 
     def __init__(self, in_feats, num_classes, embed_dim=256,
                  num_embed_layers=1, 
                  hid_act={'name':'relu', 'inplace': True}, 
                  loss_type='arc-softmax',
                  s=64, margin=0.3, margin_warmup_epochs=0,
+                 norm_layer=None,
                  use_norm=True, norm_before=True, 
                  dropout_rate=0):
 
-        super(ClassifHead, self).__init__()
+        super().__init__()
         assert num_embed_layers >= 1, 'num_embed_layers (%d < 1)' % num_embed_layers
 
         self.num_embed_layers = num_embed_layers
         self.in_feats = in_feats
         self.embed_dim = embed_dim
         self.num_classes = num_classes
+        self.norm_layer = norm_layer
+        
+        if use_norm:
+            norm_groups = None
+            if norm_layer == 'group-norm':
+                norm_groups = min(embed_dim//8, 32)
+            self._norm_layer = NLF.create(norm_layer, norm_groups)
+        else:
+            self._norm_layer = None
+            
         self.use_norm = use_norm
         self.norm_before = norm_before
         
@@ -46,6 +76,7 @@ class ClassifHead(NetArch):
                 FCBlock(prev_feats, embed_dim, 
                         activation=hid_act,
                         dropout_rate=dropout_rate,
+                        norm_layer=self._norm_layer,
                         use_norm=use_norm, 
                         norm_before=norm_before))
             prev_feats = embed_dim
@@ -58,6 +89,7 @@ class ClassifHead(NetArch):
         fc_blocks.append(
             FCBlock(prev_feats, embed_dim, 
                     activation=act,
+                    norm_layer=self._norm_layer,
                     use_norm=use_norm, 
                     norm_before=norm_before))
 
@@ -194,12 +226,13 @@ class ClassifHead(NetArch):
             's': self.s,
             'margin': self.margin,
             'margin_warmup_epochs': self.margin_warmup_epochs,
+            'norm_layer': self.norm_layer,
             'use_norm': self.use_norm,
             'norm_before': self.norm_before,
             'dropout_rate': self.dropout_rate
         }
         
-        base_config = super(ClassifHead, self).get_config()
+        base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
     

@@ -101,7 +101,7 @@ class ResNetFactory(object):
                       'hid_act', 'out_act', 'in_kernel_size', 'in_stride',
                       'zero_init_residual', 'groups', 
                       'replace_stride_with_dilation', 'dropout_rate',
-                      'in_norm', 'norm_before', 'do_maxpool', 
+                      'in_norm', 'norm_layer', 'norm_before', 'do_maxpool', 
                       'se_r')
 
         args = dict((k, kwargs[p+k])
@@ -149,6 +149,14 @@ class ResNetFactory(object):
                             default=1, type=int,
                             help=('number of groups in residual blocks convolutions'))
 
+        try:
+            parser.add_argument(
+                p1+'norm-layer', default=None, 
+                choices=['batch-norm', 'group-norm', 'instance-norm', 'instance-norm-affine', 'layer-norm'],
+                help='type of normalization layer')
+        except:
+            pass
+
         parser.add_argument(p1+'in-norm', default=False, action='store_true',
                             help='batch normalization at the input')
 
@@ -158,8 +166,8 @@ class ResNetFactory(object):
         parser.add_argument(p1+'zero-init-residual', default=False, action='store_true',
                             help='Zero-initialize the last BN in each residual branch')
 
-        #parser.add_argument(p1+'replace-stride-with-dilation', default=None, nargs='+', type=bool,
-         #                   help='replaces strides with dilations to increase context without downsampling')
+        # parser.add_argument(p1+'replace-stride-with-dilation', default=None, nargs='+', type=bool,
+        #  help='replaces strides with dilations to increase context without downsampling')
 
         parser.add_argument(
             p1+'se-r', default=16, type=int,

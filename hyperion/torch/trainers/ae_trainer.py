@@ -21,15 +21,15 @@ class AETrainer(TorchTrainer):
 
     def __init__(self, model, optimizer, loss, epochs, exp_path, cur_epoch=0, grad_acc_steps=1,
                  device=None, metrics=None, lr_scheduler=None, loggers=None, data_parallel=False, 
-                 train_mode='train', use_amp=False):
+                 train_mode='train', use_amp=False, log_interval=10):
         if loss is None:
             loss = nn.MSELoss()
             
-        super(AETrainer, self).__init__(
+        super().__init__(
             model, optimizer, loss, epochs, exp_path, cur_epoch=cur_epoch,
             grad_acc_steps=grad_acc_steps, device=device, metrics=metrics,
             lr_scheduler=lr_scheduler, loggers=loggers, data_parallel=data_parallel, 
-            train_mode=train_mode, use_amp=use_amp)
+            train_mode=train_mode, use_amp=use_amp, log_interval=log_interval)
 
 
             

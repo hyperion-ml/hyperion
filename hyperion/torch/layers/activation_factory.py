@@ -2,7 +2,7 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
+#from __future__ import absolute_import
 
 import torch.nn as nn
 from .swish import Swish
@@ -39,6 +39,20 @@ class ActivationFactory(object):
 
     @staticmethod
     def create(activation, **kwargs):
+        """ Creates a non-linear activation object
+
+        Args:
+           activation: str with activation type,
+                       dictionary with name field indicating the activation type, and extra activation arguments
+                       None, then it returns None,
+                       Activation constructor
+
+           **kwargs: extra arguments for activation constructor
+
+        Return:
+           Non-linear activation object
+        """
+        
         if activation is None:
             return None
 
@@ -58,6 +72,16 @@ class ActivationFactory(object):
     
     @staticmethod
     def create_from_str(activation_name, **kwargs):
+        """ Creates a non-linear activation object from string
+
+        Args:
+           activation: str with activation type,
+           **kwargs: extra arguments for activation constructor
+
+        Return:
+           Non-linear activation object
+        """
+
         if 'inplace' not in kwargs:
             #try to make it inplace anyway
             kwargs['inplace'] = True

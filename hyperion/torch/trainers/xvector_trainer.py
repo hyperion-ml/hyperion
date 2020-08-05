@@ -30,23 +30,26 @@ class XVectorTrainer(TorchTrainer):
          metrics: extra metrics to compute besides cxe.
          lr_scheduler: learning rate scheduler object
          loggers: LoggerList object, loggers write training progress to std. output and file.
+                  If None, it uses default loggers.
          data_parallel: if True use nn.DataParallel
          loss: if None, it uses cross-entropy
          train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
          use_amp: uses mixed precision training.
+         log_interval: number of optim. steps between log outputs
     """
     def __init__(self, model, optimizer, epochs, exp_path, cur_epoch=0, 
                  grad_acc_steps=1, 
                  device=None, metrics=None, lr_scheduler=None, loggers=None, 
-                 data_parallel=False, loss=None, train_mode='train', use_amp=False):
+                 data_parallel=False, loss=None, train_mode='train', use_amp=False,
+                 log_interval=10):
 
         if loss is None:
             loss = nn.CrossEntropyLoss()
-        super(XVectorTrainer, self).__init__(
+        super().__init__(
             model, optimizer, loss, epochs, exp_path, cur_epoch=cur_epoch,
             grad_acc_steps=grad_acc_steps, device=device, metrics=metrics,
             lr_scheduler=lr_scheduler, loggers=loggers, data_parallel=data_parallel, 
-            train_mode=train_mode, use_amp=use_amp)
+            train_mode=train_mode, use_amp=use_amp, log_interval=log_interval)
 
 
         
