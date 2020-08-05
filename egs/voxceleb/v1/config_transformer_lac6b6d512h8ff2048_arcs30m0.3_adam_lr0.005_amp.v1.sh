@@ -1,8 +1,12 @@
-#Default configuration parameters for the experiment
+# x-Vector using Transformer Encoder as x-Vector Encoder
+# Transformer Encoder uses 6 Transformer blocks with 
+# model_d=512 ff_d=2048, heads=8
+# Self attention context is limited to 6 frames around the current frame
+# input is downsampled x4 by conv network
 
 #xvector training 
 nnet_data=voxceleb2cat_combined
-nnet_type=resnet34
+nnet_type=transformer
 batch_size_1gpu=120
 eff_batch_size=512 # effective batch size
 min_chunk=400
@@ -19,11 +23,11 @@ d_model=512
 heads=8
 d_ff=2048
 att_context=6 # 250 ms
-trans_opt="--num-enc-blocks $blocks --enc-d-model $d_model --num-enc-heads $heads --enc-ff-type linear --enc-d-ff $d_ff --in-layer-type conv2d-sub --enc-att-type local-scaled-dot-prod-v1 --enc-att-context $att_context"
+nnet_opt="--in-feats 80 --num-enc-blocks $blocks --enc-d-model $d_model --num-enc-heads $heads --enc-ff-type linear --enc-d-ff $d_ff --in-layer-type conv2d-sub --enc-att-type local-scaled-dot-prod-v1 --enc-att-context $att_context"
 opt_opt="--opt-optimizer adam --opt-lr $lr --opt-beta1 0.9 --opt-beta2 0.95 --opt-weight-decay 1e-5 --opt-amsgrad --use-amp"
 lrs_opt="--lrsch-lrsch-type exp_lr --lrsch-decay-rate 0.5 --lrsch-decay-steps 12000 --lrsch-hold-steps 40000 --lrsch-min-lr 1e-5 --lrsch-warmup-steps 1000 --lrsch-update-lr-on-opt-step"
 nnet_name=transformer_csub_lac${att_context}b${blocks}d${d_model}h${heads}linff${d_ff}_e${embed_dim}_arcs${s}m${margin}_do${dropout}_adam_lr${lr}_b${eff_batch_size}_amp.v1
-nnet_num_epochs=200
+nnet_num_epochs=80
 num_augs=5
 nnet_dir=exp/xvector_nnets/$nnet_name
 nnet=$nnet_dir/model_ep0080.pth
