@@ -21,24 +21,20 @@ fi
 
 if [ "$(hostname --domain)" == "cm.gemini" ];then
     module load ffmpeg
-    #TORCH="pytorch1.0_cuda10.0"
-    #module load cuda10.0/toolkit
-    #module load cudnn/7.5.0_cuda10.0
-
     TORCH="pytorch1.4_cuda10.1"
     module load cuda10.1/toolkit/10.1.105
     module load cudnn/7.6.3_cuda10.1
-    #CUDNN_ROOT=$TOOLS_ROOT/cudnn/cudnn-10.0-v7.4
 else
-    CUDA_ROOT=/opt/NVIDIA/cuda-9.0
+    CUDA_ROOT=/home/janto/usr/local/cuda-10.1
     LD_LIBRARY_PATH=$CUDA_ROOT/lib64:$LD_LIBRARY_PATH
     LD_LIBRARY_PATH=$CUDA_ROOT/lib:$LD_LIBRARY_PATH
     if [ ! -d $CUDA_ROOT/lib64 ]; then
 	LD_LIBRARY_PATH=$HOME/cuda/lib64:$LD_LIBRARY_PATH
     fi
-    TORCH="pytorch1.0_cuda9.0"
+
+    TORCH="pytorch1.4_cuda10.1"
     #CuDNN env
-    CUDNN_ROOT=$TOOLS_ROOT/cudnn/cudnn-9.0-v7.4
+    CUDNN_ROOT=$TOOLS_ROOT/cudnn/cudnn-10.1-v7.6
     LD_LIBRARY_PATH=$CUDNN_ROOT/lib64:$LD_LIBRARY_PATH
     LIBRARY_PATH=$CUDNN_ROOT/lib64:$LIBRARY_PATH
     CPATH=$CUDNN_ROOT/include:$CPATH
