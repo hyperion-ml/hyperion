@@ -1,5 +1,4 @@
 #!/bin/bash
-
 #               2019  Johns Hopkins University (Author: Jesus Villalba)
 # Apache 2.0.
 nj=30

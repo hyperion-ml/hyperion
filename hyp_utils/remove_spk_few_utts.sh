@@ -25,8 +25,20 @@ awk -v min_num_utts=${min_num_utts} '$2 >= min_num_utts {print $1, $2}' $data_di
 mv $data_dir/spk2utt.new $data_dir/spk2utt
 utils/spk2utt_to_utt2spk.pl $data_dir/spk2utt > $data_dir/utt2spk
 
-utils/filter_scp.pl $data_dir/utt2spk $data_dir/utt2num_frames > $data_dir/utt2num_frames.new
-mv $data_dir/utt2num_frames.new $data_dir/utt2num_frames
+utt_extra=""
+if [ -f $data_dir/utt2num_frames ];then
+    utt_extra=utt2num_frames
+fi
+if [ -f $data_dir/packed_audio.scp ];then
+    utt_extra="${utt_extra} packed_audio.scp"
+fi
+
+#utils/filter_scp.pl $data_dir/utt2spk $data_dir/utt2num_frames > $data_dir/utt2num_frames.new
+#mv $data_dir/utt2num_frames.new $data_dir/utt2num_frames
 
 # Now we're ready to create training examples.
-utils/fix_data_dir.sh $data_dir
+if [ -n "${utt_extra}" ];then
+    utils/fix_data_dir.sh --utt-extra-files "$utt_extra" $data_dir
+else
+    utils/fix_data_dir.sh $data_dir
+fi

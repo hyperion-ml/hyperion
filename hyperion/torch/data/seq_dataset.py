@@ -316,7 +316,7 @@ class SeqDataset(Dataset):
 
         parser.add_argument(p1+'return-fullseqs', dest=(p2+'return_fullseqs'),
                             default=False, action='store_true',
-                            help=('returns full sequences instead of chuncks'))
+                            help=('returns full sequences instead of chunks'))
         
         
         # parser.add_argument(p1+'part-idx', dest=(p2+'part_idx'),

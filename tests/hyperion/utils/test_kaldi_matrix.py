@@ -183,6 +183,12 @@ def test_kcm_compress():
     print(np.max(np.abs(mat1.data-mat2.data)))
     assert_allclose(mat1.data, mat2.data, atol=0.025)
 
+    cmat2 = KCM.compress(mat1, 'speech-feat-t')
+    mat2 = cmat2.to_matrix()
+
+    print(np.max(np.abs(mat1.data-mat2.data)))
+    assert_allclose(mat1.data, mat2.data, atol=0.025)
+
     cmat2 = KCM.compress(mat1, '2byte-auto')
     mat2 = cmat2.to_matrix()
 
@@ -198,6 +204,11 @@ def test_kcm_compress():
     
     mat1 = KM(create_matrix(3,4).astype('float32'))
     cmat2 = KCM.compress(mat1, 'auto')
+    mat2 = cmat2.to_matrix()
+    
+    assert_allclose(mat1.data, mat2.data, atol=0.025)
+
+    cmat2 = KCM.compress(mat1, 'speech-feat-t')
     mat2 = cmat2.to_matrix()
     
     assert_allclose(mat1.data, mat2.data, atol=0.025)
@@ -231,6 +242,39 @@ def test_kcm_read_write():
     file_path = output_dir + '/kcm.mat'
 
     mat1 = KCM.compress(create_matrix().astype('float32'))
+    with open(file_path, 'w') as f:
+        mat1.write(f, binary=False)
+    with open(file_path, 'rb') as f:
+        mat2 = KCM.read(f, binary=False)
+
+    assert_allclose(np.frombuffer(mat1.data, dtype=np.uint8),
+                    np.frombuffer(mat2.data, dtype=np.uint8), atol=5)
+
+    with open(file_path, 'wb') as f:
+        mat1.write(f, binary=True)
+    with open(file_path, 'rb') as f:
+        mat2 = KCM.read(f, binary=True)
+
+    assert_allclose(np.frombuffer(mat1.data, dtype=np.uint8),
+                    np.frombuffer(mat2.data, dtype=np.uint8))
+
+    with open(file_path, 'rb') as f:
+        mat2 = KCM.read(f, binary=True, row_offset=5)
+    print(mat1.to_ndarray())
+    print(mat2.to_ndarray())
+    assert_allclose(mat1.to_ndarray()[5:], mat2.to_ndarray())
+
+    with open(file_path, 'rb') as f:
+        mat2 = KCM.read(f, binary=True, row_offset=4, num_rows=4)
+
+    assert_allclose(mat1.to_ndarray()[4:8], mat2.to_ndarray())
+
+
+def test_kcm_read_write_fomat4():
+    
+    file_path = output_dir + '/kcm.mat'
+
+    mat1 = KCM.compress(create_matrix().astype('float32'), method='speech-feat-t')
     with open(file_path, 'w') as f:
         mat1.write(f, binary=False)
     with open(file_path, 'rb') as f:
