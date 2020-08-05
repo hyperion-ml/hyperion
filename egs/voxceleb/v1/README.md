@@ -82,8 +82,6 @@ run_040_eval_be.sh --config-file config_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.s
 | Config | Model Type | Model Details | Back-end | EER(%) | MinDCF(p=0.05) | MinDCF(p=0.01) |
 | ------ | ---------- | ------------- | -------- | :----: | :------------: | :------------: |
 | config_resetdnn_narrow_arcs30s0.3_adam_lr0.05_amp.v1.sh | ResETDNN | num-blocks=5 / hid-channels=512 <br> ArcFace s=30/m=0.3 | PLDA | 2.80 | 0.178 | 0.283 |
-
-
 | | | | cosine | 3.03 | 0.201 | 0.301 |
 | config_lresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | Light ResNet34 | ArcFace s=30/m=0.3 | PLDA | 2.01 | 0.149 | 0.213 |
 | | | | cosine | 2.23 | 0.153 | 0.231 |
