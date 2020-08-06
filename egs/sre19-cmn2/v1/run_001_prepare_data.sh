@@ -40,13 +40,13 @@ if [ $stage -le 1 ]; then
     local/make_sre08.sh $ldc_root $master_key 8 data
     
     # Prepare sre08 supplemental
-    local/make_sre08sup.sh $sre08sup_root $master_key 8 data
+    # local/make_sre08sup.sh $sre08sup_root $master_key 8 data
 
     # Prepare sre10 tel 
     local/make_sre10tel.sh $sre10_root $master_key 8 data
 
     # Prepare sre10 interview and mic phonecalls 
-    local/make_sre10mic.sh $sre10_16k_root $master_key 8 data
+    # local/make_sre10mic.sh $sre10_16k_root $master_key 8 data
 
     # Prepare sre12
     local/make_sre12.sh $sre12_root $master_key 8 data/
@@ -57,9 +57,9 @@ if [ $stage -le 1 ]; then
     utils/validate_data_dir.sh --no-text --no-feats data/sre_tel
     
     # Combine all SRE+MX6 mic phonecalls into one dataset
-    utils/combine_data.sh --extra-files utt2info data/sre_phnmic \
-    			  data/sre08_phnmic data/sre10_phnmic data/sre12_phnmic data/mx6_mic
-    utils/validate_data_dir.sh --no-text --no-feats data/sre_phnmic
+    # utils/combine_data.sh --extra-files utt2info data/sre_phnmic \
+    # 			  data/sre08_phnmic data/sre10_phnmic data/sre12_phnmic data/mx6_mic
+    # utils/validate_data_dir.sh --no-text --no-feats data/sre_phnmic
 
 fi
 
@@ -71,7 +71,7 @@ if [ $stage -le 2 ];then
     				 data/swbd_cellular1_train
     local/make_swbd_cellular2.pl $swbd_cell2_root \
     				 data/swbd_cellular2_train
-    local/make_swbd2_phase1.pl $ldc_root/LDC98S75 \
+    local/make_swbd2_phase1.pl $swbd2_ph1_root \
 			       data/swbd2_phase1_train
     local/make_swbd2_phase2.pl $ldc_root/LDC99S79 \
 			       data/swbd2_phase2_train
@@ -95,20 +95,25 @@ if [ $stage -le 3 ];then
 
     # Prepare the dev portion of the VoxCeleb2 dataset.
     local/make_voxceleb2cat.pl $voxceleb2_root dev 8 data/voxceleb2cat_train
+    local/make_voxceleb2cat.pl $voxceleb2_root test 8 data/voxceleb2cat_test
+
+    utils/combine_data.sh data/voxcelebcat data/voxceleb1cat data/voxceleb2cat_train
+    local/apply_sox_tel_codec.sh data/voxcelebcat data/voxcelebcat_tel
+
 fi
 
 
 if [ $stage -le 4 ];then
-    # Prepare sre18 for train
+    # Prepare sre18 for train and eval labeled
     local/make_sre18_train_dev.sh $sre18_dev_root 8 data
-    local/make_sre18_train_eval.sh $sre18_eval_root 8 data
+    local/make_sre18_eval_tr60_ev40.sh $sre18_eval_root 8 data
+    utils/combine_data.sh data/sre18_cmn2_adapt_lab data/sre18_train_dev_cmn2 data/sre18_eval_cmn2_tr60
 fi
 
 
 if [ $stage -le 5 ];then
-    # Prepare sre18 for eval
+    # Prepare sre18 unlabeled
     local/make_sre18_dev.sh $sre18_dev_root 8 data
-    local/make_sre18_eval.sh $sre18_eval_root 8 data
 fi
 
 if [ $stage -le 6 ];then
@@ -117,9 +122,4 @@ if [ $stage -le 6 ];then
 fi
 
 
-exit
-
-if [ $stage -le 7 ];then
-    local/mgb_data_prep.sh /exp/jvillalba/corpora/MGB-2 80
-fi
 

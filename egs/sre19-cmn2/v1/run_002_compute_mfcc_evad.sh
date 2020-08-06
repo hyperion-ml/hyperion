@@ -47,10 +47,9 @@ fi
 #Train datasets
 if [ $stage -le 2 ];then
     
-    for name in sre_tel swbd voxceleb1cat voxceleb2cat_train \
-                        sre18_train_dev_cmn2 sre18_train_eval_cmn2 \
-    			sre18_dev_unlabeled sre18_dev_enroll_cmn2 sre18_dev_test_cmn2 \
-    			sre18_eval_enroll_cmn2 sre18_eval_test_cmn2 \
+    for name in sre_tel swbd voxcelebcat_tel \
+			sre18_cmn2_adapt_lab sre18_dev_unlabeled \
+    			sre18_eval40_enroll_cmn2 sre18_eval40_test_cmn2 \
     			sre19_eval_enroll_cmn2 sre19_eval_test_cmn2
     do
 	num_spk=$(wc -l data/$name/spk2utt | awk '{ print $1}')
@@ -70,7 +69,5 @@ fi
 if [ $stage -le 3 ];then 
   utils/combine_data.sh --extra-files "utt2num_frames" data/swbd_sre_tel data/swbd data/sre_tel
   utils/fix_data_dir.sh data/swbd_sre_tel
-  utils/combine_data.sh --extra-files "utt2num_frames" data/voxceleb data/voxceleb1cat data/voxceleb2cat_train
-  utils/fix_data_dir.sh data/voxceleb
 fi
 
