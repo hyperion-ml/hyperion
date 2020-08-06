@@ -24,9 +24,6 @@ else
     eval_cmd="$train_cmd"
 fi
 
-plda_label=${plda_type}y${plda_y_dim}_v1
-be_name=lda${lda_dim}_${plda_label}_${plda_data}
-
 xvector_dir=exp/xvectors/$nnet_name
 score_dir=exp/scores/$nnet_name
 

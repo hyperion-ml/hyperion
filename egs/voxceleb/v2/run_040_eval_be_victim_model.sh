@@ -14,15 +14,8 @@ config_file=default_config.sh
 . $config_file
 . datapath.sh 
 
-
-nnet_name=$transfer_nnet_name
-plda_label=${plda_type}y${plda_y_dim}_v1
-be_name=lda${lda_dim}_${plda_label}_${plda_data}
-
 xvector_dir=exp/xvectors/$nnet_name
 score_dir=exp/scores/$nnet_name
-
-
 score_plda_dir=$score_dir/cosine
 
 if [ $stage -le 1 ];then
