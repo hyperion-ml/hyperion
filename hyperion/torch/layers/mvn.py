@@ -118,9 +118,10 @@ class MeanVarianceNorm(nn.Module):
             d[b] = not d[a]
             del d[a]
 
-        if 'context' in d and d['context'] is not None:
-            d['left_context'] = d['context']
-            d['right_context'] = d['context']
+        if 'context' in d:
+            if d['context'] is not None:
+                d['left_context'] = d['context']
+                d['right_context'] = d['context']
             del d['context']
 
         return d
