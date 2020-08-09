@@ -80,3 +80,36 @@ run_040_eval_be.sh --config-file config_fbank80_mvn_resnet34_arcs30m0.3_adam_lr0
    - `run_040_eval_be.sh`
       - Trains PLDA and evals PLDA and cosine scoring back-ends
 
+
+## Results
+
+### VoxCeleb 1 Original-Clean trial list
+
+| Config | Model Type | Model Details | Back-end | EER(%) | MinDCF(p=0.05) | MinDCF(p=0.01) |
+| ------ | ---------- | ------------- | -------- | :----: | :------------: | :------------: |
+| config_fbank80_mvn_lresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | LResNet34 | ArcFace s=30/m=0.3 | PLDA | 1.88 | 0.135 | 0.189 |
+| | | | Cosine | 1.94 | 0.137 | 0.207 |
+| config_fbank80_mvn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | LResNet34 | ArcFace s=30/m=0.3 | PLDA |  1.43 | 0.097 | 0.188 |
+| | | | Cosine |  1.35 | 0.088 | 0.146 |
+
+
+### VoxCeleb 1 Entire-Clean trial list
+
+| Config | Model Type | Model Details | EER(%) | MinDCF(p=0.05) | MinDCF(p=0.01) |
+| ------ | ---------- | -------------------- | :----: | :------------: | :------------: |
+| config_fbank80_mvn_lresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | LResNet34 | ArcFace s=30/m=0.3 | PLDA | 1.86 | 0.124 | 0.210 |
+| | | | Cosine | 1.91 | 0.120 | 0.208 |
+| config_fbank80_mvn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | LResNet34 | ArcFace s=30/m=0.3 | PLDA | 1.41 | 0.089 | 0.159 |
+| | | | Cosine | 1.19 | 0.078 | 0.140 |
+
+
+### VoxCeleb 1 Hard-Clean trial list
+
+| Config | Model Type | Model Details | EER(%) | MinDCF(p=0.05) | MinDCF(p=0.01) |
+| ------ | ---------- | -------------------- | :----: | :------------: | :------------: |
+| config_fbank80_mvn_lresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | LResNet34 | ArcFace s=30/m=0.3 | PLDA | 3.24 | 0.197 | 0.320 |
+| | | | Cosine | 3.21 | 0.190 | 0.302 |
+| config_fbank80_mvn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | LResNet34 | ArcFace s=30/m=0.3 | PLDA | 2.65 | 0.155 | 0.254 |
+| | | | Cosine | 2.27 | 0.137 | 0.219 |
+
+
