@@ -19,12 +19,12 @@ config_file=default_config.sh
 
 . parse_options.sh || exit 1;
 
-# Make MFCC and compute the energy-based VAD for each dataset
+  # Make filterbanks and compute the energy-based VAD for each dataset
 
 if [ $stage -le 1 ]; then
     # Prepare to distribute data over multiple machines
     if [[ $(hostname -f) == *.clsp.jhu.edu ]] && [ ! -d $mfccdir/storage ]; then
-	dir_name=$USER/hyp-data/sre19-cmn2/v1/$storage_name/mfcc/storage
+	dir_name=$USER/hyp-data/voxceleb/v1/$storage_name/mfcc/storage
 	if [ "$nodes" == "b0" ];then
 	    utils/create_split_dir.pl \
 			    utils/create_split_dir.pl \
@@ -45,17 +45,16 @@ if [ $stage -le 1 ]; then
 fi
 
 #Train datasets
-if [ $stage -le 2 ];then
-    
+if [ $stage -le 2 ];then 
     for name in sre_tel swbd voxcelebcat_tel \
-			sre18_cmn2_adapt_lab sre18_dev_unlabeled \
+    		        sre18_cmn2_adapt_lab sre18_dev_unlabeled \
     			sre18_eval40_enroll_cmn2 sre18_eval40_test_cmn2 \
     			sre19_eval_enroll_cmn2 sre19_eval_test_cmn2
     do
 	num_spk=$(wc -l data/$name/spk2utt | awk '{ print $1}')
 	nj=$(($num_spk < 40 ? $num_spk:40))
 	steps/make_mfcc.sh --write-utt2num-frames true \
-	    --mfcc-config conf/mfcc_8k.conf --nj $nj --cmd "$train_cmd" \
+	    --mfcc-config conf/mfcc2_8k.conf --nj $nj --cmd "$train_cmd" \
 	    data/${name} exp/make_mfcc/$name $mfccdir
 	utils/fix_data_dir.sh data/${name}
 	steps_fe/compute_vad_decision.sh --nj $nj --cmd "$train_cmd" \
@@ -63,11 +62,5 @@ if [ $stage -le 2 ];then
 	utils/fix_data_dir.sh data/${name}
     done
 
-fi
-
-
-if [ $stage -le 3 ];then 
-  utils/combine_data.sh --extra-files "utt2num_frames" data/swbd_sre_tel data/swbd data/sre_tel
-  utils/fix_data_dir.sh data/swbd_sre_tel
 fi
 

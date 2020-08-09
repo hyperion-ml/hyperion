@@ -50,7 +50,7 @@ fi
 
 if [ $stage -le 2 ]; then
     
-  for name in swbd_sre_tel voxceleb sre18_train_eval_cmn2 #mgb2_train_mer80
+  for name in swbd_sre_tel voxcelebcat_tel sre18_cmn2_adapt_lab 
   do
       export TMPDIR=data/tmp
       mkdir -p $TMPDIR
@@ -115,21 +115,12 @@ fi
 
 
 if [ $stage -le 3 ];then
-    
-  # Take a random subset of the augmentations 
-  utils/subset_data_dir.sh data/swbd_sre_tel_aug $(wc -l data/swbd_sre_tel/utt2spk | awk '{ print int('$num_augs'*$1)}') data/swbd_sre_tel_augx${num_augs}
-  utils/fix_data_dir.sh data/swbd_sre_tel_augx${num_augs}
-
-  utils/subset_data_dir.sh data/voxceleb_aug $(wc -l data/voxceleb/utt2spk | awk '{ print int('$num_augs'*$1)}') data/voxceleb_augx${num_augs}
-  utils/fix_data_dir.sh data/voxceleb_augx${num_augs}
-
-  utils/subset_data_dir.sh data/sre18_train_eval_cmn2_aug $(wc -l data/sre18_train_eval_cmn2/utt2spk | awk '{ print int('$num_augs'*$1)}') data/sre18_train_eval_cmn2_augx${num_augs}
-  utils/fix_data_dir.sh data/sre18_train_eval_cmn2_augx${num_augs}
-
-  # utils/subset_data_dir.sh data/mgb2_train_mer80_aug $(wc -l data/mgb2_train_mer80/utt2spk | awk '{ print int('$num_augs'*$1)}') data/mgb2_train_mer80_augx${num_augs}
-  # utils/fix_data_dir.sh data/mgb2_train_mer80_augx${num_augs}
-
-
+    # Take a random subset of the augmentations
+    for name in swbd_sre_tel voxcelebcat_tel sre18_cmn2_adapt_lab 
+    do
+	utils/subset_data_dir.sh data/${name}_aug $(wc -l data/${name}/utt2spk | awk '{ print int('$num_augs'*$1)}') data/${name}_augx${num_augs}
+	utils/fix_data_dir.sh data/${name}_augx${num_augs}
+    done
 fi
   
       

@@ -71,7 +71,7 @@ if [ $stage -le 2 ];then
     				 data/swbd_cellular1_train
     local/make_swbd_cellular2.pl $swbd_cell2_root \
     				 data/swbd_cellular2_train
-    local/make_swbd2_phase1.pl $ldc_root/LDC98S75 \
+    local/make_swbd2_phase1.pl $swbd2_ph1_root \
 			       data/swbd2_phase1_train
     local/make_swbd2_phase2.pl $ldc_root/LDC99S79 \
 			       data/swbd2_phase2_train

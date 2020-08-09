@@ -22,10 +22,10 @@ mkdir -p $TMPDIR
 
 if [ $stage -le 1 ];then
     
-  # Make filterbanks for the augmented data.  Note that we do not compute a new
+  # Make MFCC for the augmented data.  Note that we do not compute a new
   # vad.scp file here.  Instead, we use the vad.scp from the clean version of
   # the list.
-  for name in swbd_sre_tel_augx${num_augs} voxceleb_augx${num_augs} sre18_train_eval_cmn2_augx${num_augs} #mgb2_train_mer80_augx${num_augs} #sre_phnmic_augx5 
+  for name in swbd_sre_tel_augx${num_augs} voxcelebcat_tel_augx${num_augs}  sre18_cmn2_adapt_lab_augx${num_augs}
   do
       steps/make_mfcc.sh --write-utt2num-frames true \
 	  --mfcc-config conf/mfcc_8k.conf --nj 120 --cmd "$train_cmd" \
@@ -35,6 +35,24 @@ if [ $stage -le 1 ];then
 
 fi
 
+
+if [ $stage -le 2 ];then
+
+    # Combine the clean and augmented lists.
+
+    utils/combine_data.sh --extra-files "utt2num_frames" data/swbd_sre_tel_combined data/swbd_sre_tel_augx${num_augs} data/swbd_sre_tel
+    utils/combine_data.sh --extra-files "utt2num_frames" data/voxcelebcat_tel_combined data/voxcelebcat_tel_augx${num_augs} data/voxcelebcat_tel
+    utils/combine_data.sh --extra-files "utt2num_frames" data/sre18_cmn2_adapt_lab_combined data/sre18_cmn2_adapt_lab_augx${num_augs} data/sre18_cmn2_adapt_lab
+
+fi
+
+if [ $stage -le 3 ];then
+    # Filter out the clean + augmented portion of the SRE list.
+    utils/copy_data_dir.sh data/swbd_sre_tel_combined data/sre_tel_combined
+    utils/filter_scp.pl data/sre_tel/spk2utt data/swbd_sre_tel_combined/spk2utt | utils/spk2utt_to_utt2spk.pl > data/sre_tel_combined/utt2spk
+    utils/fix_data_dir.sh data/sre_tel_combined
+fi
+exit
 
 if [ $stage -le 2 ];then
     
