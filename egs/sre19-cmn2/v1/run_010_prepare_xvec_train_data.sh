@@ -23,7 +23,7 @@ if [ $stage -le 1 ];then
   # Combine data to train x-vector nnet
   utils/combine_data.sh --extra-files "utt2num_frames" \
       data/train_combined \
-      data/swbd_sre_tel_combined data/voxceleb_combined #data/sre_phnmic_combined
+      data/swbd_sre_tel_combined data/voxcelebcat_tel_combined
 fi
 
 
