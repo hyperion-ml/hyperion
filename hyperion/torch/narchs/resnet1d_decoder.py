@@ -10,7 +10,7 @@ import torch
 import torch.nn as nn
 
 from ..layers import ActivationFactory as AF
-from ..layer_blocks import ResNet1dBasicDecBlock, DC1dDecBlock
+from ..layer_blocks import ResNet1dBasicDecBlock, ResNet1dBNDecBlock, DC1dDecBlock
 from ..layers import SubPixelConv1d, ICNR1d
 from .net_arch import NetArch
 
@@ -42,11 +42,11 @@ class ResNet1dDecoder(NetArch):
         self.resb_type = resb_type
         if resb_type == 'basic':
             self._block = ResNet1dBasicDecBlock
-        elif block == 'bn':
+        elif resb_type == 'bn':
             self._block = ResNet1dBNDecBlock
-            # elif block == 'sebasic': 
+            # elif resb_type == 'sebasic': 
             #     self._block = SEResNet1dBasicDecBlock
-            # elif block == 'sebn':
+            # elif resb_type == 'sebn':
             #     self._block = SEResNet1dBNDecBlock
 
         self.in_channels = in_channels

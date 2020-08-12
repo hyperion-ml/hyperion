@@ -43,12 +43,12 @@ class ResNet2dEncoder(NetArch):
         bargs = {}
         if resb_type == 'basic':
             self._block = ResNet2dBasicBlock
-        elif block == 'bn':
+        elif resb_type == 'bn':
             self._block = ResNet2dBNBlock
-        elif block == 'sebasic': 
+        elif resb_type == 'sebasic': 
             self._block = SEResNet2dBasicBlock
             bargs['se_r'] = se_r
-        elif block == 'sebn':
+        elif resb_type == 'sebn':
             self._block = SEResNet2dBNBlock
             bargs['se_r'] = se_r
 

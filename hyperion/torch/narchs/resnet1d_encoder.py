@@ -41,11 +41,11 @@ class ResNet1dEncoder(NetArch):
         self.resb_type = resb_type
         if resb_type == 'basic':
             self._block = ResNet1dBasicBlock
-        elif block == 'bn':
+        elif resb_type == 'bn':
             self._block = ResNet1dBNBlock
-            # elif block == 'sebasic': 
+            # elif resb_type == 'sebasic': 
             #     self._block = SEResNet1dBasicBlock
-            # elif block == 'sebn':
+            # elif resb_type == 'sebn':
             #     self._block = SEResNet1dBNBlock
 
         self.in_feats = in_feats

@@ -43,7 +43,7 @@ We compute average of the metrics across VoxCeleb1, values in parenthesis are st
 
 ### Models trained without augmentation
 
-| Config | Model Type | Architecture |  Latent-channels | Compression (bits x/bits z) | ELBO/dim (std) | MSE (std) | L1 (std) | codebook-size | PPL |
+| Config | Model Type | Architecture |  Latent-channels | Compression (bits x/bits z) | ELBO/dim (std) | MSE (std) | L1 (std) | codebook-size | 
 | ------ | ---------- | ------------ | :--------: | :-------: | :----:   | :----:   | :----:   | :----: | :----: | 
 | config_vae_dc1d_b4d256_z80_c8.opt.lr0.01.v1.sh | VAE | DC1d Enc-Dec <br> dc-blocks=4 / hid-channels=256 | 80 | 8 | -1.96 (0.62) | 1.57 (0.91) | 0.90 (0.24) |
 | config_vae_dc1d_b9d256_z80_c8.opt.lr0.01.v1.sh | VAE | DC1d Enc-Dec <br> dc-blocks=9 / hid-channels=256 | 80 | 8 | -1.95 (0.62) | 1.56 (0.91) | 0.89 (0.24) |
@@ -52,20 +52,26 @@ We compute average of the metrics across VoxCeleb1, values in parenthesis are st
 | config_vae_resnet1d_b16d256_z80_c8.opt.lr0.01.v1.sh | VAE | ResNet1d Enc-Dec <br> res-blocks=16/ hid-channels=256 | 80 | 8 | -1.98 (0.69) | 1.54 (0.94) | 0.88 (0.25) | 
 | config_vae_dc2d_b4c64_z80_c0.8.opt.lr0.01.v1.sh | VAE | DC2d Enc-Dec <br> dc-blocks=4 / hid-channels=64 | 80 | 0.8 | -2.25 (1.00) | 1.49 (1.06) | 0.84 (0.29) |
 | config_vae_dc2d_b8c64_z80_c0.8.opt.lr0.01.v1.sh | VAE | DC2d Enc-Dec <br> dc-blocks=8 / hid-channels=64 | 80 | 0.8 | -2.23 (1.00) | 1.49 (1.06) | 0.84 (0.29) |
-| config_vqvae_resnet1d_b8d256_emakmeansvq_z256cb512_c2275.opt.lr0.01.v1.sh | VQ-VAE | ResNet1d Enc-Dec <br> res-blocks=8 / hid-channels=256 | 256 | 2275 | -1.84 (0.21) | 2.20 (0.71) | 1.12 (0.16) | 512 | 71 |
-| config_vqvae_resnet1d_b8d256_emakmeansvq_z256cb512x2_c1138.opt.lr0.01.v1.sh | VQ-VAE | ResNet1d Enc-Dec <br> res-blocks=8 / hid-channels=256 | 256 | 1138  | -1.79 (0.32) | 1.86 (0.78) | 1.01 (0.19) | 512x2 | 73 |
-| config_vqvae_resnet1d_b8d256_emakmeansvq_z256cb512x4_c569.opt.lr0.01.v1.sh | VQ-VAE | ResNet1d Enc-Dec <br> res-blocks=8 / hid-channels=256 | 256 | 569  | -1.40 (0.43) | 1.69 (0.83) | 0.95 (0.21) | 512x4 | 73 |
-| config_vqvae_resnet1d_b8d256_emakmeansvq_z256cb512x4_c569_predvar.opt.lr0.01.v1.sh | VQ-VAE | ResNet1d Enc-Dec <br> res-blocks=8 / hid-channels=256 | 256 | 569  | -1.78 (0.42) | 1.70 (0.83) | 0.95 (0.21) | 512x4 | 73 |
-| config_vqvae_resnet1d_b8d256_emakmeansvq_z256cb512x8_c284.opt.lr0.01.v1.sh | VQ-VAE | ResNet1d Enc-Dec <br> res-blocks=8 / hid-channels=256 | 256 | 284  | -1.87 (0.59) | 1.56 (0.89) | 0.89 (0.23) | 512x8 | 65 |
-| config_vqvae_resnet1d_b8d256_emakmeansvq_z256cb512x16_c142.opt.lr0.01.v1.sh | VQ-VAE | ResNet1d Enc-Dec <br> res-blocks=8 / hid-channels=256 | 256 | 142  | -2.04 (0.83) | 1.46 (0.96) | 0.84 (0.27) | 512x16 | 73 |
-| config_vqvae_resnet1d_b8d256_emakmeansvq_z256cb512x32_c71.opt.lr0.01.v1.sh | VQ-VAE | ResNet1d Enc-Dec <br> res-blocks=8 / hid-channels=256 | 256 | 71  | -2.15 (1.4) | 1.43 (1.08) | 0.80 (0.32) | 512x32 | 73 |
-| config_vqvae_resnet1d_b8d256_emakmeansvq_z256cb512x64_c36.opt.lr0.01.v1.sh | VQ-VAE | ResNet1d Enc-Dec <br> res-blocks=8 / hid-channels=256 | 256 | 36  | -9.27 (8.31) | 1.49 (1.22) | 0.79 (0.36) | 512x64 | 73 |
-| config_vqvae_resnet1d_b8d256_emakmeansvq_z256cb512x128_c18.opt.lr0.01.v1.sh | VQ-VAE | ResNet1d Enc-Dec <br> res-blocks=8 / hid-channels=256 | 256 | 18  | -20.97 (20.62) | 1.46 (1.24) | 0.77 (0.38) | 512x128 | 73 |
-| config_vqvae_resnet1d_b8d256_emakmeansvq_z256cb512x256_c9.opt.lr0.01.v1.sh | VQ-VAE | ResNet1d Enc-Dec <br> res-blocks=8 / hid-channels=256 | 256 | 9  | -27.91 (26.00) | 1.49 (1.27) | 0.78 (0.39) | 512x256 | 67 |
+| config_vqvae_resnet1d_b8d256_emakmeansvq_z256cb512_c2275.opt.lr0.01.v1.sh | VQ-VAE | ResNet1d Enc-Dec <br> res-blocks=8 / hid-channels=256 | 256 | 2275 | -1.84 (0.21) | 2.20 (0.71) | 1.12 (0.16) | 512 | 
+| config_vqvae_resnet1d_b8d256_emakmeansvq_z256cb512x2_c1138.opt.lr0.01.v1.sh | VQ-VAE | ResNet1d Enc-Dec <br> res-blocks=8 / hid-channels=256 | 256 | 1138  | -1.79 (0.32) | 1.86 (0.78) | 1.01 (0.19) | 512x2 | 
+| config_vqvae_resnet1d_b8d256_emakmeansvq_z256cb512x4_c569.opt.lr0.01.v1.sh | VQ-VAE | ResNet1d Enc-Dec <br> res-blocks=8 / hid-channels=256 | 256 | 569  | -1.40 (0.43) | 1.69 (0.83) | 0.95 (0.21) | 512x4 | 
+| config_vqvae_resnet1d_b8d256_emakmeansvq_z256cb512x4_c569_predvar.opt.lr0.01.v1.sh | VQ-VAE | ResNet1d Enc-Dec <br> res-blocks=8 / hid-channels=256 | 256 | 569  | -1.78 (0.42) | 1.70 (0.83) | 0.95 (0.21) | 512x4 | 
+| config_vqvae_resnet1d_b8d256_emakmeansvq_z256cb512x8_c284.opt.lr0.01.v1.sh | VQ-VAE | ResNet1d Enc-Dec <br> res-blocks=8 / hid-channels=256 | 256 | 284  | -1.87 (0.59) | 1.56 (0.89) | 0.89 (0.23) | 512x8 | 
+| config_vqvae_resnet1d_b8d256_emakmeansvq_z256cb512x16_c142.opt.lr0.01.v1.sh | VQ-VAE | ResNet1d Enc-Dec <br> res-blocks=8 / hid-channels=256 | 256 | 142  | -2.04 (0.83) | 1.46 (0.96) | 0.84 (0.27) | 512x16 | 
+| config_vqvae_resnet1d_b8d256_emakmeansvq_z256cb512x32_c71.opt.lr0.01.v1.sh | VQ-VAE | ResNet1d Enc-Dec <br> res-blocks=8 / hid-channels=256 | 256 | 71  | -2.15 (1.4) | 1.43 (1.08) | 0.80 (0.32) | 512x32 | 
+| config_vqvae_resnet1d_b8d256_emakmeansvq_z256cb512x64_c36.opt.lr0.01.v1.sh | VQ-VAE | ResNet1d Enc-Dec <br> res-blocks=8 / hid-channels=256 | 256 | 36  | -9.27 (8.31) | 1.49 (1.22) | 0.79 (0.36) | 512x64 | 
+| config_vqvae_resnet1d_b8d256_emakmeansvq_z256cb512x128_c18.opt.lr0.01.v1.sh | VQ-VAE | ResNet1d Enc-Dec <br> res-blocks=8 / hid-channels=256 | 256 | 18  | -20.97 (20.62) | 1.46 (1.24) | 0.77 (0.38) | 512x128 | 
+| config_vqvae_resnet1d_b8d256_emakmeansvq_z256cb512x256_c9.opt.lr0.01.v1.sh | VQ-VAE | ResNet1d Enc-Dec <br> res-blocks=8 / hid-channels=256 | 256 | 9  | -27.91 (26.00) | 1.49 (1.27) | 0.78 (0.39) | 512x256 | 
+| config_vqvae_transformer_b6d512h8ff2048_emakmeansvq_z512cb512x8_c36.opt.lr0.01.v4.sh | VQ-VAE | Xformer Enc <br> blocks=6/ d_model=512 / heads=8 / d_ff=2048 | 512 | 36 |  -1.74(0.31) | 0.48 (0.15) | 0.52 (0.08) | 512x8 |
+| config_vqvae_transformer_lac25b6d512h8ff2048_emakmeansvq_z512cb512x8_c36.opt.lr0.01.v4.sh | VQ-VAE | Xformer Enc <br> blocks=6/ d_model=512 / heads=8 / d_ff=2048 | 512 | 36 |  -1.61(0.15) | 0.42 (0.08) | 0.49 (0.05) | 512x8 |
 
 ### Models trained with augmentation (Denoising versions)
 
-| Config | Model Type | Architecture |  Latent-channels | Compression (bits x/bits z) | ELBO/dim (std) | MSE (std) | L1 (std) |
-| ------ | ---------- | ------------ | :--------: | :-------: | :----:   | :----:   | :----:   |
+| Config | Model Type | Architecture |  Latent-channels | Compression (bits x/bits z) | ELBO/dim (std) | MSE (std) | L1 (std) | codebook-size | 
+| ------ | ---------- | ------------ | :--------: | :-------: | :----:   | :----:   | :----:   | :----:   | :----:   |
 | config_dvae_resnet1d_b16d256_z80_c8.opt.lr0.01.v1.sh | VAE | ResNet1d Enc-Dec <br> res-blocks=16 / hid-channels=256 | 80 | 8 | -1.77 (0.33) | 1.67 (0.87) | 0.94 (0.22) |
 | config_dvae_resnet2d_b16c64_z80_c0.8.opt.lr0.01.v1.sh | VAE | ResNet2d Enc-Dec <br> res-blocks=16 / base-channels=64 | 80 | 0.8 | -1.77 (0.39) | 1.57 (0.92) | 0.89 (0.25) |
+| config_vqdvae_resnet1d_b8d256_emakmeansvq_z256cb512x4_c569.opt.lr0.01.v1.sh | VQ-VAE | ResNet1d Enc-Dec <br> res-blocks=8 / hid-channels=256 | 256 | 569  | -1.75 (0.29) | 1.78 (0.84) | 0.98 (0.21) | 512x4 | 
+| config_vqdvae_resnet1d_b8d256_emakmeansvq_z256cb512x8_c284.opt.lr0.01.v1.sh | VQ-VAE | ResNet1d Enc-Dec <br> res-blocks=8 / hid-channels=256 | 256 | 284  | -1.80 (0.42) | 1.69 (0.83) | 0.95 (0.21) | 512x8 | 
+| config_vqdvae_resnet1d_b8d256_emakmeansvq_z256cb512x16_c142.opt.lr0.01.v1.sh | VQ-VAE | ResNet1d Enc-Dec <br> res-blocks=8 / hid-channels=256 | 256 | 142  | -1.81 (0.42) | 1.55 (0.97) | 0.87 (0.26) | 512x16 |
+| config_vqdvae_resnet1d_b8d256_emakmeansvq_z256cb512x32_c71.opt.lr0.01.v1.sh | VQ-VAE | ResNet1d Enc-Dec <br> res-blocks=8 / hid-channels=256 | 256 | 71  | -1.95 (0.49) | 1.47 (1.03) | 0.83 (0.30) | 512x32 | 

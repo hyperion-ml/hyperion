@@ -258,7 +258,7 @@ class ResNet1dBNBlock(nn.Module):
 
         bias = not norm_before
         self.conv1 = _conv1(in_channels, bn_channels, stride=1, bias=bias)
-        self.conv2 = _convk(bn_channels, bn_channels, kernel_size, groups=groups, bias=bias)
+        self.conv2 = _convk(bn_channels, bn_channels, kernel_size, stride, groups=groups, bias=bias)
         self.conv3 = _conv1(bn_channels, channels, stride=1, bias=bias)
 
         self.act1 = AF.create(activation)
@@ -341,7 +341,7 @@ class ResNet1dBNDecBlock(nn.Module):
                 norm_layer = BatchNorm1d
             self.bn1 = norm_layer(bn_channels)
             self.bn2 = norm_layer(bn_channels)
-            self.bn2 = norm_layer(channels)
+            self.bn3 = norm_layer(channels)
             if norm_before:
                 self.norm_before = True
             else:

@@ -128,7 +128,7 @@ class TransformerEncoderV1(NetArch):
             raise ValueError("unknown in_layer_type: " + in_layer_type)
 
 
-    def forward(self, x, mask=None):
+    def forward(self, x, mask=None, target_shape=None):
         """Forward pass function
 
         Args:
@@ -214,8 +214,10 @@ class TransformerEncoderV1(NetArch):
         """
         if in_shape is None:
             out_t = None
+            batch_size = None
         else:
             assert len(in_shape) == 3
+            batch_size = in_shape[0]
             in_t = in_shape[self.in_time_dim]
             if in_t is None:
                 out_t = None
@@ -227,9 +229,117 @@ class TransformerEncoderV1(NetArch):
                     out_t = in_t
 
         if self.out_time_dim == 1:
-            return (in_shape[0], out_t, self.d_model)
+            return (batch_size, out_t, self.d_model)
         else:
-            return (in_shape[0], self.d_model, out_t)
+            return (batch_size, self.d_model, out_t)
 
 
         
+    @staticmethod
+    def filter_args(prefix=None, **kwargs):
+        """ Filters arguments correspondin to TransformerXVector
+            from args dictionary
+
+        Args:
+          prefix: prefix string
+          kwargs: args dictionary
+
+        Returns:
+          args dictionary
+        """
+        
+        if prefix is None:
+            p = ''
+        else:
+            p = prefix + '_'
+
+        valid_args = ('num_blocks',
+                      'in_feats',
+                      'd_model',
+                      'num_heads',
+                      'att_type',
+                      'att_context',
+                      'ff_type',
+                      'd_ff',
+                      'ff_kernel_size',
+                      'ff_dropout_rate',
+                      'pos_dropout_rate',
+                      'att_dropout_rate',
+                      'in_layer_type',
+                      'concat_after')
+
+        return dict((k, kwargs[p+k])
+                    for k in valid_args if p+k in kwargs)
+
+
+
+    @staticmethod
+    def add_argparse_args(parser, prefix=None, in_feats=False):
+        """Adds TransformerXVector config parameters to argparser
+        
+        Args:
+           parser: argparse object
+           prefix: prefix string to add to the argument names
+        """
+        if prefix is None:
+            p1 = '--'
+        else:
+            p1 = '--' + prefix + '-'
+
+
+        if in_feats:
+            parser.add_argument(
+                p1+'in-feats', type=int, required=True,
+                help=('input feature dimension'))
+
+
+        parser.add_argument(p1+'num-blocks',
+                            default=6, type=int,
+                            help=('number of tranformer blocks'))
+
+        parser.add_argument(p1+'d-model', 
+                            default=512, type=int,
+                            help=('encoder layer sizes'))
+
+        parser.add_argument(p1+'num-heads',
+                            default=4, type=int,
+                            help=('number of heads in self-attention layers'))
+
+        parser.add_argument(p1+'att-type', 
+                            default='scaled-dot-prod-v1', 
+                            choices=['scaled-dot-prod-v1', 'local-scaled-dot-prod-v1'],
+                            help=('type of self-attention'))
+
+        parser.add_argument(p1+'att-context', 
+                            default=25, type=int,
+                            help=('context size when using local attention'))
+
+        parser.add_argument(p1+'ff-type', 
+                            default='linear', choices=['linear', 'conv1dx2', 'conv1dlinear'],
+                            help=('type of feed forward layers in transformer block'))
+        
+        parser.add_argument(p1+'d-ff',
+                            default=2048, type=int,
+                            help=('size middle layer in feed forward block')) 
+
+        parser.add_argument(p1+'ff-kernel-size',
+                            default=3, type=int,
+                            help=('kernel size in convolutional feed forward block')) 
+
+        parser.add_argument(p1+'pos-dropout-rate', default=0.1, type=float,
+                                help='positional encoder dropout')
+        parser.add_argument(p1+'att-dropout-rate', default=0, type=float,
+                                help='self-att dropout')
+        parser.add_argument(p1+'ff-dropout-rate', default=0.1, type=float,
+                                help='feed-forward layer dropout')
+
+        
+        parser.add_argument(p1+'in-layer-type', 
+                            default='linear', choices=['linear', 'conv2d-sub'],
+                            help=('type of input layer'))
+
+        parser.add_argument(p1+'concat-after', default=False, action='store_true',
+                            help='concatenate attention input and output instead of adding')
+
+        # parser.add_argument(p1+'in-norm', default=False, action='store_true',
+        #                     help='batch normalization at the input')
