@@ -2,7 +2,7 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
+# from __future__ import absolute_import
 
 import math
 
@@ -27,7 +27,7 @@ class ScaledDotProdAttV1(nn.Module):
 
     def __init__(self, in_feats, out_feats, num_heads, d_k, d_v, dropout_rate=0, time_dim=1):
         """Construct an MultiHeadedAttention object."""
-        super(ScaledDotProdAttV1, self).__init__()
+        super().__init__()
         # We assume d_v always equals d_k
         self.d_v = d_v
         self.d_k = d_k
@@ -72,7 +72,7 @@ class ScaledDotProdAttV1(nn.Module):
            value: value with size=(batch, time2, in_feats)
            mask: optional mask with size=(batch, time1, time2), 
                   to zero attention between some time steps
-
+                  or size=(batch, time) to make time1=time2
         Returns:
            Attention weigthed average of the value with size=(batch, time1, out_feats)
         """
@@ -91,11 +91,18 @@ class ScaledDotProdAttV1(nn.Module):
 
         scores = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(self.d_k)  # (batch, head, time1, time2)
         if mask is not None:
-            mask = mask.unsqueeze(1).eq(0)  # (batch, 1, time1, time2)
+            mask = mask.unsqueeze(1).eq(0)  # (batch, 1, time1, time2) or (batch, 1, time)
             #min_value = float(numpy.finfo(torch.tensor(0, dtype=scores.dtype).numpy().dtype).min)
             min_value = -1e20
-            scores = scores.masked_fill(mask, min_value)
-            self.attn = torch.softmax(scores, dim=-1).masked_fill(mask, 0.0)  # (batch, head, time1, time2)
+            if mask.dim() == 4:
+                scores = scores.masked_fill(mask, min_value)
+                self.attn = torch.softmax(scores, dim=-1).masked_fill(mask, 0.0)  # (batch, head, time1, time2)
+            else:
+                mask1 = mask.unsqueze(2)
+                mask2 = mask.unsqueeze(-1)
+                scores = scores.masked_fill(mask1, min_value)
+                scores = scores.masked_fill(mask2, min_value)
+                self.attn = torch.softmax(scores, dim=-1) # (batch, head, time1, time2)
         else:
             self.attn = torch.softmax(scores, dim=-1)  # (batch, head, time1, time2)
 
@@ -130,13 +137,15 @@ class LocalScaledDotProdAttV1(ScaledDotProdAttV1):
     def __init__(self, in_feats, out_feats, num_heads, d_k, d_v, 
                  context=25, dropout_rate=0, time_dim=1):
         """Construct an MultiHeadedAttention object."""
-        super(LocalScaledDotProdAttV1, self).__init__(
+        super().__init__(
             in_feats, out_feats, num_heads, d_k, d_v, 
             dropout_rate, time_dim)
         self.context = context
 
+
     def __repr__(self):
         return self.__str__()
+
 
     def __str__(self):
         s = ('{}(in_feats={}, out_feats={}, num_heads={}, d_k={}, d_v={}, '
@@ -144,6 +153,7 @@ class LocalScaledDotProdAttV1(ScaledDotProdAttV1):
             self.__class__.__name__, self.in_feats, self.out_feats, self.num_heads,
             self.d_k, self.d_v, self.context, self.dropout_rate, self.time_dim))
         return s
+
 
     @staticmethod
     def _softmax(scores1, scores2, shift1, shift2, t1, t2):
@@ -220,6 +230,60 @@ class LocalScaledDotProdAttV1(ScaledDotProdAttV1):
             
 
 
+    def _mask_scores_1d(self, scores, mask, shift1, shift2):
+        if scores.dtype == torch.half:
+            min_value = -65504
+        else:
+            min_value = -1e20
+
+        batch_size = scores.size(0)
+        num_blocks = scores.size(2)
+        context1 = scores.size(3)
+        context2 = scores.size(4)
+        mask_blocks = torch.ones_like(scores dtype=mask.dtype)
+        mask_single_block = torch.zeros(
+            (batch_size, context1, context2), dtype=mask.dtype)
+
+        t1_start = shift1
+        t2_start = shift2
+        for block in range(num_blocks):
+            t1_end = t1_start + context1
+            t2_end = t2_start + context2
+            mask_single_block.fill_(False)
+            mask_single_block.masked_fill_(mask[:,0,t1_start:t1_end], True)
+            mask_single_block.masked_fill_(mask[:,:,t2_start:t2_end], True)
+            mask_blocks[:,block] = mask_single_block
+            t1_start += context1
+            t2_start += context2
+
+        return scores.masked_fill(mask_blocks, min_value)
+        
+
+    def _mask_scores_2d(self, scores, mask, shift1, shift2):
+        if scores.dtype == torch.half:
+            min_value = -65504
+        else:
+            min_value = -1e20
+
+        batch_size = scores.size(0)
+        num_blocks = scores.size(2)
+        context1 = scores.size(3)
+        context2 = scores.size(4)
+        mask_blocks = torch.ones_like(scores, dtype=mask.dtype)
+        t1_start = shift1
+        t2_start = shift2
+        for block in range(num_blocks):
+            t1_end = min(t1_start + context1, mask.size(1))
+            t2_end = min(t2_start + context2, mask.size(2))
+            mask_blocks[:,block,:(t1_end-t1_start),:(t2_end-t2_start)] = mask[
+                :,t1_start:t1_end,t2_start:t2_end]
+            t1_start += context1
+            t2_start += context2
+
+        return scores.masked_fill(mask_blocks, min_value)
+
+
+
     def forward(self, query, key, value, mask):
         """Computes 'Local Scaled Dot Product Attention'.
 
@@ -231,7 +295,7 @@ class LocalScaledDotProdAttV1(ScaledDotProdAttV1):
            value: value with size=(batch, time2, in_feats)
            mask: optional mask with size=(batch, time1, time2), 
                   to zero attention between some time steps.
-
+                 or (batch, time) if time1=time2
         Returns:
            Attention weigthed average of the values with size=(batch, time1, out_feats)
         """
@@ -239,7 +303,7 @@ class LocalScaledDotProdAttV1(ScaledDotProdAttV1):
         t1 = query.size(self.time_dim)
         t2 = key.size(self.time_dim)
         if t2 <= self.context:
-            return super(LocalScaledDotProdAttV1, self).forward(
+            return super().forward(
                 query, key, value, mask)
 
         if self.time_dim != 1:
@@ -248,9 +312,9 @@ class LocalScaledDotProdAttV1(ScaledDotProdAttV1):
             value = value.transpose(1, self.time_dim)
 
         context_k = self.context
-        num_blocks = math.ceil(t2/context_k)    #(t2 + context_k//2)//context_k
-        context_q = math.ceil(t1/num_blocks)
-        num_blocks_q = math.ceil(t1/context_q) #(t1 + context_q//2)//context_q
+        num_blocks = math.ceil(t2 / context_k)    #(t2 + context_k//2)//context_k
+        context_q = math.ceil(t1 / num_blocks)
+        num_blocks_q = math.ceil(t1 / context_q) #(t1 + context_q//2)//context_q
         assert num_blocks == num_blocks_q, (
             'num_blocks_k({})!=num_blocks_q({}), context_k={}, context_q={}, t1={}, t2={}'.format(
                 num_blocks, num_blocks_q, context_k, context_q, t1, t2))
@@ -310,10 +374,31 @@ class LocalScaledDotProdAttV1(ScaledDotProdAttV1):
 
         #combine both block diagonal affinity matrix to do the softmax
         if mask is not None:
-            raise NotImplementedError()
-        else:
-            self.attn1, self.attn2 = self._softmax(
-                scores1, scores2, q_left_shift, k_left_shift, t1, t2)
+            # put to -inf scores in points where mask==0
+            if mask.dim() == 4:
+                # case when mask is 2d matrix per batch element
+                mask = mask.eq(0)  # (batch, time1, time2) 
+
+                # first, we mask block diagonal blocks
+                scores1 = self._mask_scores_2d(scores1, mask, 0, 0)
+
+                # second, we mask shifted block diagonal blocks
+                scores2 = self._mask_scores_2d(scores2, mask, q_left_shift, k_left_shift)
+
+            else:
+                # case when mask is 1d vector per batch element,
+                # meaning that time1 and time2 are the same, so mask is symmetric
+                mask = nn.functional.pad(mask, (0, pad2))
+                mask = mask.squeeze(1).eq(0)  # (batch, 1, time) 
+
+                # first, we mask block diagonal blocks
+                scores1 = self._mask_scores_1d(scores1, mask, 0, 0)
+
+                # second, we mask shifted block diagonal blocks
+                scores2 = self._mask_scores_1d(scores2, mask, q_left_shift, k_left_shift)
+
+        self.attn1, self.attn2 = self._softmax(
+            scores1, scores2, q_left_shift, k_left_shift, t1, t2)
 
         if self.dropout_rate > 0:
             p_attn1 = self.dropout(self.attn1)

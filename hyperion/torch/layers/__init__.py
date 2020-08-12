@@ -20,6 +20,5 @@ from .mvn import MeanVarianceNorm
 
 from .attention import ScaledDotProdAttV1, LocalScaledDotProdAttV1
 from .pos_encoder import PosEncoder
-from .transformer_feedforward import PositionwiseFeedForward, Conv1dx2, Conv1dLinear
 
 from .subpixel_convs import SubPixelConv1d, SubPixelConv2d, ICNR1d, ICNR2d
