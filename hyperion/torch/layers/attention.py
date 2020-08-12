@@ -240,7 +240,7 @@ class LocalScaledDotProdAttV1(ScaledDotProdAttV1):
         num_blocks = scores.size(2)
         context1 = scores.size(3)
         context2 = scores.size(4)
-        mask_blocks = torch.ones_like(scores dtype=mask.dtype)
+        mask_blocks = torch.ones_like(scores, dtype=mask.dtype)
         mask_single_block = torch.zeros(
             (batch_size, context1, context2), dtype=mask.dtype)
 
