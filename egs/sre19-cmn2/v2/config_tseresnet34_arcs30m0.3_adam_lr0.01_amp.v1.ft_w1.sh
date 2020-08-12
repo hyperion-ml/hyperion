@@ -55,7 +55,7 @@ ft2_max_chunk=6000
 
 ft2_opt_opt="--opt-optimizer sgd --opt-lr $ft2_lr --opt-momentum 0.9 --opt-weight-decay 1e-5 --use-amp --var-batch-size"
 ft2_lrs_opt="--lrsch-lrsch-type cos_lr --lrsch-t 2500 --lrsch-t-mul 2 --lrsch-warm-restarts --lrsch-gamma 0.75 --lrsch-min-lr 1e-4 --lrsch-warmup-steps 100 --lrsch-update-lr-on-opt-step"
-ft2_nnet_name=${ft_nnet_name}.ft_eaffine_rege_w${f2_reg_weight_embed}_${ft2_min_chunk}_${ft2_max_chunk}_sgdcos_lr${ft2_lr}_b${ft2_eff_batch_size}_amp.v2
+ft2_nnet_name=${ft_nnet_name}.ft_eaffine_rege_w${ft2_reg_weight_embed}_${ft2_min_chunk}_${ft2_max_chunk}_sgdcos_lr${ft2_lr}_b${ft2_eff_batch_size}_amp.v2
 ft2_nnet_dir=exp/xvector_nnets/$ft2_nnet_name
 ft2_nnet=$ft2_nnet_dir/model_ep0010.pth
 

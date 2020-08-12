@@ -2,7 +2,8 @@
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
+# from __future__ import absolute_import
+# import logging
 
 import torch
 import torch.nn as nn
@@ -18,6 +19,16 @@ class MeanVarianceNorm(nn.Module):
         self.left_context = left_context
         self.right_context = right_context
         self.dim = dim
+
+
+    def __repr__(self):
+        return self.__str__()
+
+    def __str__(self):
+        s = '{}(norm_mean={}, norm_var={}, left_context={}, right_context={}, dim={})'.format(
+            self.__class__.__name__, self.norm_mean, self.norm_var, 
+            self.left_context, self.right_context, self.dim)
+        return s
 
 
     def forward(self, x):
@@ -70,7 +81,7 @@ class MeanVarianceNorm(nn.Module):
             x = x - m_x
 
         if self.norm_var:
-            s_x = torch.sqrt(m_x2 - m_x**2).clamp(min=1e-5)
+            s_x = torch.sqrt((m_x2 - m_x**2).clamp(min=1e-5))
             x = x/s_x
 
         if self.dim != 1:
@@ -80,3 +91,74 @@ class MeanVarianceNorm(nn.Module):
 
         
         
+    @staticmethod
+    def filter_args(prefix=None, **kwargs):
+        """Filters ST-CMVN args from arguments dictionary.
+           
+           Args:
+             prefix: Options prefix.
+             kwargs: Arguments dictionary.
+           
+           Returns:
+             Dictionary with ST-CMVN options.
+        """
+        if prefix is None:
+            p = ''
+        else:
+            p = prefix + '_'
+        valid_args = ('no_norm_mean', 'norm_mean', 'norm_var', 'left_context', 'right_context', 'context')
+
+        d = dict((k, kwargs[p+k])
+                 for k in valid_args if p+k in kwargs)
+
+        neg_args1 = ('no_norm_mean',)
+        neg_args2 = ('norm_mean',)
+
+        for a,b in zip(neg_args1, neg_args2):
+            d[b] = not d[a]
+            del d[a]
+
+        if 'context' in d:
+            if d['context'] is not None:
+                d['left_context'] = d['context']
+                d['right_context'] = d['context']
+            del d['context']
+
+        return d
+
+    
+        
+    @staticmethod
+    def add_argparse_args(parser, prefix=None):
+        """Adds ST-CMVN options to parser.
+           
+           Args:
+             parser: Arguments parser
+             prefix: Options prefix.
+        """
+
+        if prefix is None:
+            p1 = '--'
+            p2 = ''
+        else:
+            p1 = '--' + prefix + '-'
+            p2 = prefix + '_'
+
+        parser.add_argument(p1+'no-norm-mean', 
+                            default=False, action='store_true',
+                            help='don\'t center the features')
+
+        parser.add_argument(p1+'norm-var', 
+                            default=False, action='store_true',
+                            help='normalize the variance of the features')
+
+        parser.add_argument(p1+'left-context', type=int, default=150,
+                            help='past context in number of frames')
+
+        parser.add_argument(p1+'right-context', type=int, default=150,
+                            help='future context in number of frames')
+
+        parser.add_argument(
+            p1+'context', type=int, default=None,
+            help=('past/future context in number of frames, '
+                  'overwrites left-context and right-context options'))

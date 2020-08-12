@@ -2,11 +2,11 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
-from six import string_types
+#from __future__ import absolute_import
+#from __future__ import print_function
+#from __future__ import division
+#from six.moves import xrange
+#from six import string_types
 
 import os
 import os.path as path
@@ -116,7 +116,7 @@ class SCPList(object):
               key, file_path, offset and range_spec given the index.
         """
         return_key = True
-        if isinstance(key, string_types):
+        if isinstance(key, str):
             return_key = False
             index = self.get_index(key)
         else:
@@ -165,7 +165,7 @@ class SCPList(object):
                 elif r[1] == 0:
                     range_spec.append('[%d:]' % r[0])
                 else:
-                    range_spec.append('[%d:%d]' % (r[0], r[0]+r[1]))
+                    range_spec.append('[%d:%d]' % (r[0], r[0]+r[1]-1))
                                     
                                       
         with open(file_path, 'w') as f:
@@ -214,7 +214,7 @@ class SCPList(object):
                             else 0 for f in range_spec1]
             range_spec22 = [int(f[1]) if f is not None and f[1].isdecimal()
                             else None for f in range_spec1]
-            range_spec = [[a, b-a] if b is not None else [a, 0]
+            range_spec = [[a, b-a+1] if b is not None else [a, 0]
                           for a,b in zip(range_spec21, range_spec22)]
             range_spec = np.array(range_spec, dtype=np.int64)
             
@@ -485,7 +485,7 @@ class SCPList(object):
 
     #     num_parts=3
     #     scp_list = []
-    #     for i in xrange(num_parts):
+    #     for i in range(num_parts):
     #         scp_i = scp1.split(i+1, num_parts)
     #         scp_list.append(scp_i)
 

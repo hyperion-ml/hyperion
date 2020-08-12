@@ -2,7 +2,7 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
+# from __future__ import absolute_import
 
 import numpy as np
 
@@ -19,11 +19,11 @@ class ResETDNNBlock(ETDNNBlock):
                  kernel_size, dilation=1, 
                  activation={'name':'relu', 'inplace': True},
                  dropout_rate=0,
-                 use_norm=True, norm_before=False):
+                 norm_layer=None, use_norm=True, norm_before=False):
 
-        super(ResETDNNBlock, self).__init__(num_channels, num_channels, 
+        super().__init__(num_channels, num_channels, 
                  kernel_size, dilation, activation, dropout_rate,
-                 use_norm, norm_before)
+                 norm_layer, use_norm, norm_before)
 
 
     def forward(self, x):

@@ -2,7 +2,7 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
+# from __future__ import absolute_import
 
 import logging
 import numpy as np
@@ -24,6 +24,9 @@ class BinVADReader(VADReader):
 
 
     def read(self, keys, squeeze=False, offset=0, num_frames=0):
+        if isinstance(keys, str):
+            keys = [keys]
+
         vad = self.r.read(keys)
 
         offset_is_list = (isinstance(offset, list) or

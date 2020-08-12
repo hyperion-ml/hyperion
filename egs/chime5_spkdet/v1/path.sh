@@ -8,21 +8,15 @@ export PATH=$PWD/utils/:$KALDI_ROOT/tools/openfst/bin:$KALDI_ROOT/tools/sph2pipe
 . $KALDI_ROOT/tools/config/common_path.sh
 export LC_ALL=C
 
-KERAS_PATH=$TOOLS_ROOT/keras
-
-
 LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
 LD_LIBRARY_PATH=/usr/local/cuda/lib:$LD_LIBRARY_PATH
 if [ ! -d /usr/local/cuda/lib64 ]; then
     LD_LIBRARY_PATH=$HOME/usr/local/cuda/lib64:$LD_LIBRARY_PATH
 fi
 
-# export CPATH=$HOME/usr/local/cudnn-v5.1/include:/usr/local/cuda/include:$CPATH
-# export LIBRARY_PATH=$HOME/usr/local/cudnn-v5.1/lib64:/usr/local/cuda/lib64:/usr/local/cuda/lib:$LIBRARY_PATH
-
 export MPLBACKEND="agg"
 export PATH=$HYP_ROOT/hyperion/bin:/usr/local/cuda/bin:$PATH
-export PYTHONPATH=$HYP_ROOT:$KERAS_PATH:$PYTHONPATH
+export PYTHONPATH=$HYP_ROOT:$PYTHONPATH
 export LD_LIBRARY_PATH
 export LC_ALL=C
 

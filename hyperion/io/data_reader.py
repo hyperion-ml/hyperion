@@ -2,8 +2,8 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from six import string_types
+# from __future__ import absolute_import
+# from six import string_types
 
 import logging
 from abc import ABCMeta, abstractmethod
@@ -30,7 +30,7 @@ class DataReader(object):
         """
         self.file_path = file_path
         self.permissive = permissive
-        if isinstance(transform, string_types):
+        if isinstance(transform, str):
             self.transform = TransformList.load(transform)
         else:
             self.transform = transform
@@ -122,14 +122,13 @@ class DataReader(object):
         if read_range is None:
             return row_offset, num_rows
 
-        row_offset = row_offset + read_range[0]
-            
         if num_rows == 0:
             num_rows = read_range[1]
         else:
             if read_range[1] > 0:
-                assert read_range[1] >= num_rows
+                assert read_range[1] - row_offset >= num_rows
 
+        row_offset = row_offset + read_range[0]
         return row_offset, num_rows
 
 
@@ -181,8 +180,7 @@ class SequentialDataReader(DataReader):
 
     def __init__(self, file_path, transform=None, permissive=False,
                  part_idx=1, num_parts=1, split_by_key=False):
-        super(SequentialDataReader, self).__init__(
-            file_path, transform, permissive)
+        super().__init__(file_path, transform, permissive)
         self.lock = threading.Lock()
         self.part_idx = part_idx
         self.num_parts = num_parts
@@ -332,8 +330,7 @@ class RandomAccessDataReader(DataReader):
                        it returns an empty matrix, if False it raises an exception.
         """
         
-        super(RandomAccessDataReader, self).__init__(
-            file_path, transform, permissive)
+        super().__init__(file_path, transform, permissive)
 
 
         

@@ -2,13 +2,14 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
+# from __future__ import absolute_import
 
 import torch
 import torch.nn as nn
 
-from ..layers.transformer_feedforward import *
+
 from ..layers.attention import *
+from .transformer_feedforward import *
 
 class TransformerEncoderBlockV1(nn.Module):
     """Building block for transformer encoder.

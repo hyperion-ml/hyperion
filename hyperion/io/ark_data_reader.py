@@ -2,15 +2,16 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six import string_types
+#from __future__ import absolute_import
+#from __future__ import print_function
+#from __future__ import division
+#from six import string_types
 
 import sys
 import numpy as np
-import h5py
-import threading
+# import h5py
+#import threading
+import multiprocessing as threading
 
 from ..hyp_defs import float_cpu
 from ..utils.scp_list import SCPList
@@ -34,7 +35,7 @@ class SequentialArkDataReader(SequentialDataReader):
     """
 
     def __init__(self, file_path, **kwargs):
-        super(SequentialArkDataReader, self).__init__(file_path, **kwargs)
+        super().__init__(file_path, **kwargs)
         self.f = None
         self.lock = threading.Lock()
         self.cur_file = None
@@ -84,7 +85,7 @@ class SequentialArkDataReader(SequentialDataReader):
         
         Args:
           num_records: How many matrices shapes to read, if num_records=0 it 
-                       reads al the matrices in the dataset.
+                       reads all the matrices in the dataset.
           assert_same_dim: If True, it raise exception in not all the matrices have
                            the same number of columns.
 
@@ -141,6 +142,7 @@ class SequentialArkFileDataReader(SequentialArkDataReader):
             file_path, permissive=False, **kwargs)
         self._open_archive(self.file_path)
         self._eof = False
+        self._keys = None
         if self.num_parts > 1:
             raise NotImplementedError(
                 'Dataset splitting not available for %s' %
@@ -160,6 +162,16 @@ class SequentialArkFileDataReader(SequentialArkDataReader):
         """Returns True when it reaches the end of the ark file."""
         return self._eof or self.f is None
 
+
+    @property
+    def keys(self):
+        if self._keys is None:
+            self.reset()
+            self._keys, _ = self.read_shapes()
+            self.reset()
+        
+        return self._keys
+        
     
 
     def read_shapes(self, num_records=0, assert_same_dim=True):
@@ -231,7 +243,6 @@ class SequentialArkFileDataReader(SequentialArkDataReader):
         with self.lock:
             while num_records==0 or count < num_records:
 
-
                 key_i = read_token(self.f, binary)
                 if key_i == '':
                     self._eof = True
@@ -297,6 +308,10 @@ class SequentialArkScriptDataReader(SequentialArkDataReader):
             
         self.cur_item = 0
         
+
+    @property
+    def keys(self):
+        return self.scp.key
 
         
     def reset(self):
@@ -456,6 +471,11 @@ class RandomAccessArkDataReader(RandomAccessDataReader):
         self.f = [None] * len(self.archives)
         self.locks = [ threading.Lock() for i in range(len(self.archives)) ]
 
+
+    @property
+    def keys(self):
+        return self.scp.key
+
         
     def close(self):
         """Closes all the open Ark files."""
@@ -479,6 +499,7 @@ class RandomAccessArkDataReader(RandomAccessDataReader):
 
         Returns:
           Python file object.
+          threading.Lock object corresponding to the file
         """
         archive_idx = self.archive_idx[key_idx]
         with self.locks[archive_idx]:
@@ -543,7 +564,7 @@ class RandomAccessArkDataReader(RandomAccessDataReader):
         Returns:
           List of tuples with the shapes for the recordings in keys.
         """
-        if isinstance(keys, string_types):
+        if isinstance(keys, str):
             keys = [keys]
 
         shapes = []
@@ -562,8 +583,9 @@ class RandomAccessArkDataReader(RandomAccessDataReader):
             row_offset_i, num_rows_i = self._combine_ranges(
                 range_spec, 0, 0)
             
-            f, lock = self._open_archive(index, offset)
+            f, lock = self._open_archive(index)
             with lock:
+                f.seek(offset, 0)
                 binary = init_kaldi_input_stream(f)
                 shape_i = KaldiMatrix.read_shape(
                     f, binary, sequential_mode=False)
@@ -599,7 +621,7 @@ class RandomAccessArkDataReader(RandomAccessDataReader):
         Returns:
           data: List of feature matrices/vectors or 3D/2D numpy array.
         """
-        if isinstance(keys, string_types):
+        if isinstance(keys, str):
             keys = [keys]
 
         row_offset_is_list = (isinstance(row_offset, list) or
@@ -629,8 +651,9 @@ class RandomAccessArkDataReader(RandomAccessDataReader):
             row_offset_i, num_rows_i = self._combine_ranges(
                 range_spec, row_offset_i, num_rows_i)
             
-            f, lock = self._open_archive(index, offset)
+            f, lock = self._open_archive(index)
             with lock:
+                f.seek(offset, 0)
                 binary = init_kaldi_input_stream(f)
                 data_i = KaldiMatrix.read(
                     f, binary, row_offset_i, num_rows_i,

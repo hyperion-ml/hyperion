@@ -17,26 +17,49 @@ from .torch_trainer import TorchTrainer
 
 
 class XVectorTrainer(TorchTrainer):
+    """Trainer to train x-vector style models.
 
+       Attributes:
+         model: x-Vector model object.
+         optimizer: pytorch optimizer object
+         epochs: max. number of epochs
+         exp_path: experiment output path
+         cur_epoch: current epoch
+         grad_acc_steps: gradient accumulation steps to simulate larger batch size.
+         device: cpu/gpu device
+         metrics: extra metrics to compute besides cxe.
+         lr_scheduler: learning rate scheduler object
+         loggers: LoggerList object, loggers write training progress to std. output and file.
+                  If None, it uses default loggers.
+         data_parallel: if True use nn.DataParallel
+         loss: if None, it uses cross-entropy
+         train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
+         use_amp: uses mixed precision training.
+         log_interval: number of optim. steps between log outputs
+    """
     def __init__(self, model, optimizer, epochs, exp_path, cur_epoch=0, 
                  grad_acc_steps=1, 
                  device=None, metrics=None, lr_scheduler=None, loggers=None, 
-                 data_parallel=False, loss=None, train_mode='train', use_amp=False):
+                 data_parallel=False, loss=None, train_mode='train', use_amp=False,
+                 log_interval=10):
 
         if loss is None:
             loss = nn.CrossEntropyLoss()
-        super(XVectorTrainer, self).__init__(
+        super().__init__(
             model, optimizer, loss, epochs, exp_path, cur_epoch=cur_epoch,
             grad_acc_steps=grad_acc_steps, device=device, metrics=metrics,
             lr_scheduler=lr_scheduler, loggers=loggers, data_parallel=data_parallel, 
-            train_mode=train_mode, use_amp=use_amp)
+            train_mode=train_mode, use_amp=use_amp, log_interval=log_interval)
 
 
         
     def train_epoch(self, data_loader):
-        #epoch_batches = len(data_loader.dataset)
-        #total_batches = self.cur_epoch * epoch_batches
-        
+        """Training epoch loop
+
+           Args:
+             data_loader: pytorch data loader returning features and class labels.
+        """
+
         self.model.update_loss_margin(self.cur_epoch)
 
         metric_acc = MetricAcc()

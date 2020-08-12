@@ -36,14 +36,21 @@ def test_rspecifier():
 
     file_path = output_dir + '/file.scp'
     with open(file_path, 'w') as f:
-        f.write('key file1:0\n')
+        f.write('key file1.ark:0\n')
     rs1 = RSpecifier(RSpecType.SCRIPT, file_path, ArchiveType.ARK)
     rs2 = RSpecifier.create('scp:' + file_path)
     assert rs1 == rs2
 
     with open(file_path, 'w') as f:
-        f.write('key file1\n')
+        f.write('key file1.h5\n')
     rs1 = RSpecifier(RSpecType.SCRIPT, file_path, ArchiveType.H5)
+    rs2 = RSpecifier.create('scp:' + file_path)
+    assert rs1 == rs2
+
+
+    with open(file_path, 'w') as f:
+        f.write('key file1.flac:0[0:10]\n')
+    rs1 = RSpecifier(RSpecType.SCRIPT, file_path, ArchiveType.AUDIO)
     rs2 = RSpecifier.create('scp:' + file_path)
     assert rs1 == rs2
 
@@ -87,6 +94,11 @@ def test_wspecifier():
     rs1 = WSpecifier(WSpecType.BOTH, 'file.h5', 'file.scp',
                      ArchiveType.H5)
     rs2 = WSpecifier.create('h5,scp:file.h5,file.scp')
+    assert rs1 == rs2
+
+    rs1 = WSpecifier(WSpecType.BOTH, 'file.flac', 'file.scp',
+                     ArchiveType.AUDIO)
+    rs2 = WSpecifier.create('audio,scp:file.flac,file.scp')
     assert rs1 == rs2
 
 
