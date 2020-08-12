@@ -2,7 +2,7 @@
 #
 #           2020 Johns Hopkins University (Jesus Villalba)
 # Apache 2.0.
-
+set -e
 
 nj=1
 cmd="run.pl"
@@ -71,7 +71,7 @@ output_dir=$(utils/make_absolute.sh $dir)
 
 args=""
 $cmd $dir/log/make_babble_noise_${name}.log \
-    make-babble-noise-audio-files.py ${args} --output-audio-file_format $file_format $args $proc_opts \
+    make-babble-noise-audio-files.py ${args} --output-audio-format $file_format $args $proc_opts \
     --min-spks $min_spks --max-spks $max_spks --num-reuses $num_reuses \
     --write-time-durs $data_out/utt2dur \
     --input $data_in/wav.scp \

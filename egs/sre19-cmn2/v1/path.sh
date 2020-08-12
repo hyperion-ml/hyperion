@@ -25,7 +25,8 @@ if [ "$(hostname --domain)" == "cm.gemini" ];then
     module load cudnn/7.6.3_cuda10.1
 else
     #CUDA_ROOT=/usr/local/cuda
-    CUDA_ROOT=/home/janto/usr/local/cuda-10.1
+    #CUDA_ROOT=/home/janto/usr/local/cuda-10.1
+    CUDA_ROOT=/opt/NVIDIA/cuda-9.1
     LD_LIBRARY_PATH=$CUDA_ROOT/lib64:$LD_LIBRARY_PATH
     LD_LIBRARY_PATH=$CUDA_ROOT/lib:$LD_LIBRARY_PATH
     if [ ! -d $CUDA_ROOT/lib64 ]; then
