@@ -89,8 +89,11 @@ run_040_eval_be.sh --config-file config_fbank80_mvn_resnet34_arcs30m0.3_adam_lr0
 | ------ | ---------- | ------------- | -------- | :----: | :------------: | :------------: |
 | config_fbank80_mvn_lresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | LResNet34 | ArcFace s=30/m=0.3 | PLDA | 1.88 | 0.135 | 0.189 |
 | | | | Cosine | 1.94 | 0.137 | 0.207 |
-| config_fbank80_mvn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | LResNet34 | ArcFace s=30/m=0.3 | PLDA |  1.43 | 0.097 | 0.188 |
+| config_fbank80_mvn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | ResNet34 | ArcFace s=30/m=0.3 | PLDA |  1.43 | 0.097 | 0.188 |
 | | | | Cosine |  1.35 | 0.088 | 0.146 |
+| config_fbank80_mvn_tseresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | Time-SE-ResNet34 | ArcFace s=30/m=0.3 | PLDA | 1.23 | 0.091 | 0.143 |
+| | | | Cosine |  1.17 | 0.081 | 0.110 |
+
 
 
 ### VoxCeleb 1 Entire-Clean trial list
@@ -99,8 +102,10 @@ run_040_eval_be.sh --config-file config_fbank80_mvn_resnet34_arcs30m0.3_adam_lr0
 | ------ | ---------- | -------------------- | :----: | :------------: | :------------: |
 | config_fbank80_mvn_lresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | LResNet34 | ArcFace s=30/m=0.3 | PLDA | 1.86 | 0.124 | 0.210 |
 | | | | Cosine | 1.91 | 0.120 | 0.208 |
-| config_fbank80_mvn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | LResNet34 | ArcFace s=30/m=0.3 | PLDA | 1.41 | 0.089 | 0.159 |
+| config_fbank80_mvn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | ResNet34 | ArcFace s=30/m=0.3 | PLDA | 1.41 | 0.089 | 0.159 |
 | | | | Cosine | 1.19 | 0.078 | 0.140 |
+| config_fbank80_mvn_tseresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | Time-SE-ResNet34 | ArcFace s=30/m=0.3 | PLDA | 1.30 | 0.083 | 0.146 |
+| | | | Cosine | 1.09 | 0.071 | 0.124 |
 
 
 ### VoxCeleb 1 Hard-Clean trial list
@@ -109,7 +114,8 @@ run_040_eval_be.sh --config-file config_fbank80_mvn_resnet34_arcs30m0.3_adam_lr0
 | ------ | ---------- | -------------------- | :----: | :------------: | :------------: |
 | config_fbank80_mvn_lresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | LResNet34 | ArcFace s=30/m=0.3 | PLDA | 3.24 | 0.197 | 0.320 |
 | | | | Cosine | 3.21 | 0.190 | 0.302 |
-| config_fbank80_mvn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | LResNet34 | ArcFace s=30/m=0.3 | PLDA | 2.65 | 0.155 | 0.254 |
+| config_fbank80_mvn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | ResNet34 | ArcFace s=30/m=0.3 | PLDA | 2.65 | 0.155 | 0.254 |
 | | | | Cosine | 2.27 | 0.137 | 0.219 |
-
+| config_fbank80_mvn_tseresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | Time-SE-ResNet34 | ArcFace s=30/m=0.3 | PLDA | 2.46 | 0.142 | 0.237 |
+| | | | Cosine |  2.14 | 0.126 | 0.203 |
 
