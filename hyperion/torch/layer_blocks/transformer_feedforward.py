@@ -2,13 +2,14 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba, Nanxin Chen)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
+# from __future__ import absolute_import
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .dropout import Dropout1d
+from ..layers import Dropout1d
+
 
 class PositionwiseFeedForward(nn.Module):
     """Positionwise feed forward layer for transfomer.
