@@ -43,7 +43,6 @@ if [ $stage -le 3 ]; then
     # We also want several utterances per speaker. Now we'll throw out speakers
     # with fewer than 8 utterances.
     hyp_utils/remove_spk_few_utts.sh --min-num-utts 8 data/${nnet_data}_no_sil
-
 fi
 
 if [ $stage -le 4 ]; then
