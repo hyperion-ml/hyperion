@@ -73,7 +73,7 @@ year = {2019}
    - `run_003_prepare_augment.sh`
       - Prepares Kaldi style data directories for augmented training data with MUSAN noise and RIR reverberation.
 
-   - `run_004_compute_fbank_augment.sh
+   - `run_004_compute_fbank_augment.sh`
       - Computes log-filter-banks for augmented datasets
 
    - `run_010_prepare_xvec_train_data.sh`
@@ -104,11 +104,11 @@ year = {2019}
            - V1: LDA + LNorm + PLDA adapted with SRE18 unlabeled
 	   - V2: LDA + LNorm + PLDA adapted with SRE18 labeled
 	   - V3: CORAL + LDA + LNorm + PLDA adapted with SRE18 labeled+unlabeled
-      - Results are left in `exp/scores/4a.1.tc/*/plda_snorm300_cal_v1eval40/*_results
+      - Results are left in `exp/scores/4a.1.tc/*/plda_snorm300_cal_v1eval40/*_results`
 
    - `run_050a_eval_be_v1_adaptxvec.sh, run_051a_eval_be_v2_adaptxvec.sh,  run_052a_eval_be_v3_adaptxvec.sh`
       - Some as previous but on adapted x-vectors
-      - Results are left in `exp/scores/4a.1.tc_adapt_cmn2/*/plda_snorm300_cal_v1eval40/*_results
+      - Results are left in `exp/scores/4a.1.tc_adapt_cmn2/*/plda_snorm300_cal_v1eval40/*_results`
 
 
 ## Results

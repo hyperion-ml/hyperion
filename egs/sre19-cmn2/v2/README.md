@@ -86,7 +86,7 @@ run_042a_eval_be_v3.sh --config-file config_resnext50_arcs30m0.3_adam_lr0.01_amp
    - `run_003_prepare_augment.sh`
       - Prepares Kaldi style data directories for augmented training data with MUSAN noise and RIR reverberation.
 
-   - `run_004_compute_fbank_augment.sh
+   - `run_004_compute_fbank_augment.sh`
       - Computes log-filter-banks for augmented datasets
 
    - `run_010_prepare_xvec_train_data.sh`
@@ -132,19 +132,19 @@ run_042a_eval_be_v3.sh --config-file config_resnext50_arcs30m0.3_adam_lr0.01_amp
 	   - V2: LDA + LNorm + PLDA adapted with SRE18 labeled
 	   - V3: CORAL + LDA + LNorm + PLDA adapted with SRE18 labeled+unlabeled
 	   - V3-Aug: CORAL + LDA + LNorm + PLDA adapted with SRE18 labeled+unlabeled + Noise Augmentation
-      - Results are left in `exp/scores/exp/scores/resnet34_e256_arcs30m0.3_do0_adam_lr0.01_b512_amp.v1/*/plda_snorm300_cal_v1eval40/*_results
+      - Results are left in `exp/scores/exp/scores/resnet34_e256_arcs30m0.3_do0_adam_lr0.01_b512_amp.v1/*/plda_snorm300_cal_v1eval40/*_results`
 
    - `run_050a_eval_be_v1_ftxvec1.sh, run_051a_eval_be_v2_ftxvec1.sh,  run_052a_eval_be_v3_ftxvec1.sh, run_053a_eval_be_v3_with_aug_ftxvec1.sh`
       - Some as previous but on adapted x-vectors from step 12
-      - Results are left in `exp/scores/resnet34_e256_arcs30m0.3_do0_adam_lr0.01_b512_amp.v1.ft_1000_6000_sgdcos_lr0.05_b128_amp.v2/*/plda_snorm300_cal_v1eval40/*_results
+      - Results are left in `exp/scores/resnet34_e256_arcs30m0.3_do0_adam_lr0.01_b512_amp.v1.ft_1000_6000_sgdcos_lr0.05_b128_amp.v2/*/plda_snorm300_cal_v1eval40/*_results`
 
    - `run_060a_eval_be_v1_ftxvec2.sh, run_061a_eval_be_v2_ftxvec2.sh,  run_062a_eval_be_v3_ftxvec2.sh, run_063a_eval_be_v3_with_aug_ftxvec2.sh`
       - Some as previous but on adapted x-vectors from step 14
-      - Results are left in `exp/scores/resnet34_e256_arcs30m0.3_do0_adam_lr0.01_b512_amp.v1.ft_1000_6000_sgdcos_lr0.05_b128_amp.v2.ft_eaffine_rege_w0.1_1000_6000_sgdcos_lr0.01_b128_amp.v2/*/plda_snorm300_cal_v1eval40/*_results
+      - Results are left in `exp/scores/resnet34_e256_arcs30m0.3_do0_adam_lr0.01_b512_amp.v1.ft_1000_6000_sgdcos_lr0.05_b128_amp.v2.ft_eaffine_rege_w0.1_1000_6000_sgdcos_lr0.01_b128_amp.v2/*/plda_snorm300_cal_v1eval40/*_results`
 
    - `run_070a_eval_be_v1_ftxvec3.sh, run_071a_eval_be_v2_ftxvec3.sh,  run_072a_eval_be_v3_ftxvec3.sh, run_073a_eval_be_v3_with_aug_ftxvec3.sh`
       - Some as previous but on adapted x-vectors from step 15
-      - Results are left in `exp/scores/resnet34_e256_arcs30m0.3_do0_adam_lr0.01_b512_amp.v1.ft_1000_6000_sgdcos_lr0.05_b128_amp.v2.ft_eaffine_rege_w0.1_1000_6000_sgdcos_lr0.01_b128_amp.v2.ft_reg_wenc0.1_we0.1_1000_6000_sgdcos_lr0.01_b128_amp.v2/*/plda_snorm300_cal_v1eval40/*_results
+      - Results are left in `exp/scores/resnet34_e256_arcs30m0.3_do0_adam_lr0.01_b512_amp.v1.ft_1000_6000_sgdcos_lr0.05_b128_amp.v2.ft_eaffine_rege_w0.1_1000_6000_sgdcos_lr0.01_b128_amp.v2.ft_reg_wenc0.1_we0.1_1000_6000_sgdcos_lr0.01_b128_amp.v2/*/plda_snorm300_cal_v1eval40/*_results`
 
 
 ## Results
