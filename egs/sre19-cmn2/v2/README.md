@@ -69,8 +69,6 @@ run_042a_eval_be_v3.sh --config-file config_resnext50_arcs30m0.3_adam_lr0.01_amp
 ...
 ```
 
-   - To use model 4a.1 run as `run_0*sh --config-file config_4a.1.sh`
-
 ## Recipe Steps
 
    - `run_001_prepare_data.sh`
