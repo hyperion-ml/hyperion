@@ -117,6 +117,6 @@ year = {2019}
 
 | Config | Model Type | Model Details | Adapted | Back-end | SRE18 Eval 40% | | | SRE19 Progress | | | SRE19 Eval  | | |
 | ------ | ---------- | ------------- | ------- | -------- | :------------: | :-: | :-: | :------------: | :-: | :-: | :------------: | :-: | :-: |
-| |  |  |  | EER(%) | MinDCF | ActDCF |  EER(%) | MinDCF | ActDCF |  EER(%) | MinDCF | ActDCF |
+| |  |  |  | | EER(%) | MinDCF | ActDCF |  EER(%) | MinDCF | ActDCF |  EER(%) | MinDCF | ActDCF |
 | config_4a.1.sh | F-TDNN | num_layers=14 / hid-dim=600 | N | V3(S-Norm) | 4.04 |  0.298 |  0.317 | 4.29 | 0.298 | 0.312 | 4.17 | 0.321 | 0.322 |
 | | | | Y | V3 (S-Norm) | 2.59 | 0.214 | 0.228 | 3.87 | 0.290 | 0.309 | 3.85 | 0.314 | 0.322 |
