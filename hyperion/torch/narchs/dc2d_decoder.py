@@ -10,6 +10,7 @@ import torch
 import torch.nn as nn
 
 from ..layers import ActivationFactory as AF
+from ..layers import NormLayer2dFactory as NLF
 from ..layer_blocks import DC2dDecBlock
 from ..layers import SubPixelConv2d, ICNR2d
 from .net_arch import NetArch
@@ -31,6 +32,7 @@ class DC2dDecoder(NetArch):
                  head_act=None,
                  dropout_rate=0,
                  use_norm=True, 
+                 norm_layer=None,
                  norm_before=True):
 
         super().__init__()
@@ -55,12 +57,19 @@ class DC2dDecoder(NetArch):
         self.use_norm = use_norm
         self.norm_before = norm_before
 
+        self.norm_layer = norm_layer
+        norm_groups = None
+        if norm_layer == 'group-norm':
+            norm_groups = min(np.min(self.conv_channels)//2, 32)
+        self._norm_layer = NLF.create(norm_layer, norm_groups)
+
         # stem block
         self.in_block = DC2dDecBlock(
             in_channels, in_conv_channels, in_kernel_size, 
             stride=in_stride, 
             activation=hid_act, dropout_rate=dropout_rate,
-            use_norm=use_norm, norm_before=norm_before)
+            use_norm=use_norm, norm_layer=self._norm_layer, 
+            norm_before=norm_before)
         self._context = self.in_block.context
         self._upsample_factor = self.in_block.stride
 
@@ -78,7 +87,8 @@ class DC2dDecoder(NetArch):
                 cur_in_channels, channels_i, kernel_size_i, 
                 stride=stride_i, dilation=1, 
                 activation=hid_act, dropout_rate=dropout_rate,
-                use_norm=use_norm, norm_before=norm_before)
+                use_norm=use_norm, norm_layer=self._norm_layer, 
+                norm_before=norm_before)
                                    
             self.blocks.append(block_i)
             self._context += block_i.context * self._upsample_factor
@@ -89,7 +99,8 @@ class DC2dDecoder(NetArch):
                     channels_i, channels_i, kernel_size_i, 
                     stride=1, dilation=dilation_i, 
                     activation=hid_act, dropout_rate=dropout_rate,
-                    use_norm=False, norm_before=norm_before)
+                    use_norm=use_norm, norm_layer=self._norm_layer, 
+                    norm_before=norm_before)
                 
                 self.blocks.append(block_i)
                 self._context += block_i.context * self._upsample_factor
@@ -101,7 +112,7 @@ class DC2dDecoder(NetArch):
             self.head_block = DC2dDecBlock(
                 cur_in_channels, head_channels, kernel_size=1, 
                 stride=1, activation=head_act,
-                use_norm=use_norm, norm_before=norm_before)
+                use_norm=False, norm_before=norm_before)
 
         self._init_weights(hid_act)
 
@@ -253,6 +264,7 @@ class DC2dDecoder(NetArch):
                   'hid_act': hid_act,
                   'head_act': head_act,
                   'use_norm': self.use_norm,
+                  'norm_layer': self.norm_layer,
                   'norm_before': self.norm_before,
               }
         
@@ -284,7 +296,7 @@ class DC2dDecoder(NetArch):
                       'head_channels', 
                       'hid_act', 'had_act', 
                       'dropout_rate',
-                      'use_norm', 'norm_before')
+                      'use_norm', 'norm_layer', 'norm_before')
 
         args = dict((k, kwargs[p+k])
                     for k in valid_args if p+k in kwargs)
@@ -358,6 +370,13 @@ class DC2dDecoder(NetArch):
         except:
             pass
 
+        try:
+            parser.add_argument(
+                p1+'norm-layer', default=None, 
+                choices=['batch-norm', 'group-norm', 'instance-norm', 'instance-norm-affine', 'layer-norm'],
+                help='type of normalization layer')
+        except:
+            pass
 
         parser.add_argument(p1+'wo-norm', default=False, action='store_true',
                             help='without batch normalization')

@@ -2,11 +2,11 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
+# from __future__ import absolute_import
 
 import torch
 import torch.optim as optim
-
+from ..optim import RAdam
 
 class OptimizerFactory(object):
 
@@ -26,6 +26,11 @@ class OptimizerFactory(object):
             return optim.Adam(
                 params, lr, betas=(beta1, beta2), eps=eps,
                 weight_decay=weight_decay, amsgrad=amsgrad)
+
+        if opt_type == 'radam':
+            return RAdam(
+                params, lr, betas=(beta1, beta2), eps=eps,
+                weight_decay=weight_decay)
 
 
         if opt_type == 'adadelta':
@@ -61,6 +66,7 @@ class OptimizerFactory(object):
         if opt_type == 'rprop':
             return optim.Rprop(params, lr, etas=(0.5, 1.2), step_sizes=(1e-06, 50))
 
+        raise Exception('unknown optimizer %s' % opt_type)
 
 
     @staticmethod
@@ -90,7 +96,7 @@ class OptimizerFactory(object):
 
         parser.add_argument(p1+'optimizer', dest=(p2+'opt_type'), type=str.lower,
                         default='adam',
-                        choices=['sgd','adam', 'adadelta', 'adagrad', 'sparse_adam',
+                        choices=['sgd','adam', 'radam', 'adadelta', 'adagrad', 'sparse_adam',
                                  'adamax', 'asgd', 'lbfgs', 'rmsprop','rprop'],
                         help=('Optimizers: SGD, Adam, AdaDelta, AdaGrad, SparseAdam '
                               'AdaMax, ASGD, LFGS, RMSprop, Rprop'))

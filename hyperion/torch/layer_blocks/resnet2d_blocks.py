@@ -7,7 +7,7 @@ from torch.nn import Conv2d, BatchNorm2d, Dropout2d
 
 from ..layers import ActivationFactory as AF
 from ..layers.subpixel_convs import SubPixelConv2d
-from .seresnet_blocks import SEBlock2D
+from .se_blocks import SEBlock2D
 
 
 def _convkxk(in_channels, out_channels, kernel_size=3, stride=1, groups=1, dilation=1, bias=False):

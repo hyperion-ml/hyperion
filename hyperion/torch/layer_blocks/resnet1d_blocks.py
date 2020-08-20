@@ -8,6 +8,8 @@ from torch.nn import Conv1d, BatchNorm1d
 from ..layers import ActivationFactory as AF
 from ..layers import Dropout1d
 from ..layers.subpixel_convs import SubPixelConv1d
+from .se_blocks import SEBlock1d
+
 
 def _convk(in_channels, out_channels, kernel_size=3, stride=1, groups=1, dilation=1, bias=False):
     """kernel k convolution with padding"""
@@ -410,6 +412,228 @@ class ResNet1dBNDecBlock(nn.Module):
 
         if self.norm_after:
             x = self.bn2(x)
+        
+        if self.dropout_rate > 0:
+            x = self.dropout(x)
+
+        return x
+
+
+class SEResNet1dBasicBlock(ResNet1dBasicBlock):
+    expansion = 1
+
+    def __init__(self, in_channels, channels, kernel_size=3,
+                 activation='relu6',
+                 stride=1, dropout_rate=0, groups=1, dilation=1, se_r=16,
+                 use_norm=True, norm_layer=None, norm_before=True):
+
+        super().__init__(
+            in_channels, channels, kernel_size=kernel_size,
+            activation=activation,
+            stride=stride, dropout_rate=dropout_rate, groups=groups, dilation=dilation,
+            use_norm=use_norm, norm_layer=norm_layer, norm_before=norm_before)
+
+        self.se_layer = SEBlock1d(channels, se_r, activation)
+
+
+    def forward(self, x):
+        residual = x
+
+        x = self.conv1(x)
+        if self.norm_before:
+            x = self.bn1(x)
+
+        x = self.act1(x)
+
+        if self.norm_after:
+            x = self.bn1(x)
+
+        x = self.conv2(x)
+
+        if self.norm_before:
+            x = self.bn2(x)
+
+        if self.downsample is not None:
+            residual = self.downsample(residual)
+
+        x = self.se_layer(x)
+        x += residual
+        x = self.act2(x)
+
+        if self.norm_after:
+            x = self.bn2(x)
+        
+        if self.dropout_rate > 0:
+            x = self.dropout(x)
+
+        return x
+
+
+class SEResNet1dBasicDecBlock(ResNet1dBasicDecBlock):
+    expansion = 1
+
+    def __init__(self, in_channels, channels, kernel_size=3,
+                 activation='relu6',
+                 stride=1, dropout_rate=0, groups=1, dilation=1, se_r=16,
+                 use_norm=True, norm_layer=None, norm_before=True):
+
+        super().__init__(
+            in_channels, channels, kernel_size=kernel_size,
+            activation=activation,
+            stride=stride, dropout_rate=dropout_rate, groups=groups, dilation=dilation,
+            use_norm=use_norm, norm_layer=norm_layer, norm_before=norm_before)
+
+        self.se_layer = SEBlock1d(channels, se_r, activation)
+
+
+    @property
+    def out_channels(self):
+        return self.channels
+
+
+    def forward(self, x):
+        residual = x
+
+        x = self.conv1(x)
+        if self.norm_before:
+            x = self.bn1(x)
+
+        x = self.act1(x)
+
+        if self.norm_after:
+            x = self.bn1(x)
+
+        x = self.conv2(x)
+
+        if self.norm_before:
+            x = self.bn2(x)
+
+        if self.upsample is not None:
+            residual = self.upsample(residual)
+
+        x = self.se_layer(x)
+        x += residual
+        x = self.act2(x)
+
+        if self.norm_after:
+            x = self.bn2(x)
+        
+        if self.dropout_rate > 0:
+            x = self.dropout(x)
+
+        return x
+
+
+
+class SEResNet1dBNBlock(ResNet1dBNBlock):
+
+    def __init__(self, in_channels, channels, kernel_size=3,
+                 activation='relu6',
+                 stride=1, dropout_rate=0, groups=1, dilation=1, 
+                 expansion=4, se_r=16,
+                 use_norm=True, norm_layer=None, norm_before=True):
+
+        super().__init__(
+            in_channels, channels, kernel_size=kernel_size,
+            activation=activation,
+            stride=stride, dropout_rate=dropout_rate, groups=groups, dilation=dilation,
+            expansion=expansion,
+            use_norm=use_norm, norm_layer=norm_layer, norm_before=norm_before)
+
+        self.se_layer = SEBlock1d(channels, se_r, activation)
+
+
+
+    def forward(self, x):
+        residual = x
+
+        x = self.conv1(x)
+        if self.norm_before:
+            x = self.bn1(x)
+
+        x = self.act1(x)
+        if self.norm_after:
+            x = self.bn1(x)
+
+        x = self.conv2(x)
+        if self.norm_before:
+            x = self.bn2(x)
+
+        x = self.act2(x)
+        if self.norm_after:
+            x = self.bn2(x)
+
+        x = self.conv3(x)
+        if self.norm_before:
+            x = self.bn3(x)
+
+        if self.downsample is not None:
+            residual = self.downsample(residual)
+
+        x = self.se_layer(x)
+        x += residual
+        x = self.act3(x)
+
+        if self.norm_after:
+            x = self.bn3(x)
+        
+        if self.dropout_rate > 0:
+            x = self.dropout(x)
+
+        return x
+
+
+
+class SEResNet1dBNDecBlock(ResNet1dBNDecBlock):
+
+    def __init__(self, in_channels, channels, kernel_size=3,
+                 activation='relu6',
+                 stride=1, dropout_rate=0, groups=1, dilation=1, 
+                 expansion=4, se_r=16,
+                 use_norm=True, norm_layer=None, norm_before=True):
+
+        super().__init__(
+            in_channels, channels, kernel_size=kernel_size,
+            activation=activation,
+            stride=stride, dropout_rate=dropout_rate, groups=groups, dilation=dilation,
+            expansion=expansion,
+            use_norm=use_norm, norm_layer=norm_layer, norm_before=norm_before)
+
+        self.se_layer = SEBlock1d(channels, se_r, activation)
+
+
+    def forward(self, x):
+        residual = x
+
+        x = self.conv1(x)
+        if self.norm_before:
+            x = self.bn1(x)
+
+        x = self.act1(x)
+        if self.norm_after:
+            x = self.bn1(x)
+
+        x = self.conv2(x)
+        if self.norm_before:
+            x = self.bn2(x)
+
+        x = self.act2(x)
+        if self.norm_after:
+            x = self.bn2(x)
+
+        x = self.conv3(x)
+        if self.norm_before:
+            x = self.bn3(x)
+
+        if self.upsample is not None:
+            residual = self.upsample(residual)
+
+        x = self.se_layer(x)
+        x += residual
+        x = self.act3(x)
+
+        if self.norm_after:
+            x = self.bn3(x)
         
         if self.dropout_rate > 0:
             x = self.dropout(x)
