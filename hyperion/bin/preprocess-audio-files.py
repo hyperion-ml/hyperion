@@ -76,14 +76,21 @@ def process_audio_files(input_path, output_path, output_script,
                 logging.info('utt %s detected %f/%f secs (%.2f %%) speech ' % (
                         key[0], x.shape[0]/fs, tot_samples/fs, x.shape[0]/tot_samples*100))
 
-                if remove_dc_offset:
-                    x -= np.mean(x)
                 
                 if x.shape[0] > 0:
+                    if remove_dc_offset:
+                        x -= np.mean(x)
+
                     writer.write([key], [x], [fs])
                     if write_time_durs_spec is not None:
                         keys.append(key)
                         info.append(x.shape[0]/fs)
+
+                    xmax = np.max(x)
+                    xmin = np.min(x)
+                else:
+                    xmax = 0
+                    xmin = 0
 
                 t3 = time.time()
                 dt2 = (t2 - t1)*1000
@@ -96,7 +103,7 @@ def process_audio_files(input_path, output_path, output_script,
                               'real-time-factor=%.2f'
                               'x-range=[%f-%f]') % (
                                   key, time_dur, dt3, dt2, dt3-dt2, rtf,
-                                  np.min(x), np.max(x)))
+                                  xmin, xmax))
                 t1 = time.time()
 
 

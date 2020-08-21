@@ -259,11 +259,23 @@ class AudioDataset(Dataset):
             x, fs = self.r.read([key], time_offset=time_offset,
                             time_durs=read_chunk_length)
         except:
-            logging.info('error reading at key={} totol_dur={} offset={} read_chunk_length={}, retrying...'.format(
-                key, full_seq_length, time_offset, read_chunk_length))
-            time_offset = math.floor(time_offset)
-            x, fs = self.r.read([key], time_offset=time_offset,
-                                time_durs=read_chunk_length)
+            # some files produce error in the fseek after reading the data,
+            # this seems an issue from pysoundfile or soundfile lib itself
+            # reading from a sligthly different starting position seems to solve the problem in most cases
+            try:
+                logging.info('error-1 reading at key={} totol_dur={} offset={} read_chunk_length={}, retrying...'.format(
+                    key, full_seq_length, time_offset, read_chunk_length))
+                time_offset = math.floor(time_offset)
+                x, fs = self.r.read([key], time_offset=time_offset,
+                                    time_durs=read_chunk_length)
+            except:
+                # if changing the value of time-offset doesn't solve the issue, we try to read from
+                # from time-offset to the end of the file, and remove the extra frames later
+                logging.info('error-2 reading at key={} totol_dur={} offset={} retrying reading until end-of-file ...'.format(
+                    key, full_seq_length, time_offset))
+                x, fs = self.r.read([key], time_offset=time_offset)
+                x = [x[0][:int(read_chunk_length * fs[0])]]
+
             
         x = x[0]
         fs = fs[0]
@@ -281,11 +293,11 @@ class AudioDataset(Dataset):
             #x_clean = x_clean[reverb_context_samples:]
             #logging.info('augmentation x-clean={}, x={}, aug_info={}'.format(
             #    x_clean.shape, x.shape, aug_info))
-            if len(x) != 64000:
-                logging.info('x!=4s, {} {} {} {} {} {} {} {}'.format(len(x),reverb_context, reverb_context_samples, chunk_length, chunk_length_samples, end_idx, fs, read_chunk_length))
+        #     if len(x) != 64000:
+        #         logging.info('x!=4s, {} {} {} {} {} {} {} {}'.format(len(x),reverb_context, reverb_context_samples, chunk_length, chunk_length_samples, end_idx, fs, read_chunk_length))
 
-        if len(x) != 64000:
-                logging.info('x!=4s-2, {} {} {} {}'.format(len(x), chunk_length, fs, read_chunk_length))
+        # if len(x) != 64000:
+        #         logging.info('x!=4s-2, {} {} {} {}'.format(len(x), chunk_length, fs, read_chunk_length))
                 
         if self.transpose_input:
             x = x[None,:]

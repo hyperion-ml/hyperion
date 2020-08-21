@@ -1,7 +1,7 @@
 # ResNet34 x-vector
-# Adapted to CMN2 with deep-feat-prior regularization with regularization weight=1
+# Adapted to CMN2 with deep-feat-prior regularization with regularization weight=0.1
 
-#xvector training
+#xvector training 
 nnet_data=train_combined
 
 batch_size_1gpu=64
@@ -28,7 +28,7 @@ num_augs=4
 nnet_dir=exp/xvector_nnets/$nnet_name
 nnet=$nnet_dir/model_ep0032.pth
 
-#xvector full net finetuning with out-of-domain
+# xvector full net finetuning with out-of-domain
 ft_batch_size_1gpu=4
 ft_eff_batch_size=128 # effective batch size
 ft_min_chunk=1000
@@ -45,15 +45,15 @@ ft_nnet_name=${nnet_name}.ft_${ft_min_chunk}_${ft_max_chunk}_sgdcos_lr${ft_lr}_b
 ft_nnet_dir=exp/xvector_nnets/$ft_nnet_name
 ft_nnet=$ft_nnet_dir/model_ep0020.pth
 
-#xvector last-layer finetuning in-domain
+# xvector last-layer finetuning in-domain
 nnet_adapt_data=sre18_cmn2_adapt_lab_combined
 ft2_batch_size_1gpu=4
 ft2_eff_batch_size=128 # effective batch size
 ft2_ipe=1
 ft2_lr=0.01
-ft2_nnet_num_epochs=10
+ft2_nnet_num_epochs=12
 ft2_margin_warmup=3
-ft2_reg_weight_embed=1
+ft2_reg_weight_embed=0.1
 ft2_min_chunk=1000
 ft2_max_chunk=6000
 
@@ -64,15 +64,15 @@ ft2_nnet_dir=exp/xvector_nnets/$ft2_nnet_name
 ft2_nnet=$ft2_nnet_dir/model_ep0010.pth
 
 
-#xvector full nnet finetuning
+# xvector full nnet finetuning
 ft3_batch_size_1gpu=1
 ft3_eff_batch_size=128 # effective batch size
 ft3_ipe=1
 ft3_lr=0.01
-ft3_nnet_num_epochs=33
+ft3_nnet_num_epochs=10
 ft3_margin_warmup=3
-ft3_reg_weight_embed=1
-ft3_reg_weight_enc=1
+ft3_reg_weight_embed=0.1
+ft3_reg_weight_enc=0.1
 ft3_min_chunk=1000
 ft3_max_chunk=6000
 
@@ -84,5 +84,5 @@ ft3_nnet=$ft3_nnet_dir/model_ep0010.pth
 #ft3_nnet=$ft3_nnet_dir/model_ep0022.pth
 #ft3_nnet=$ft3_nnet_dir/model_ep0033.pth
 
-#back-end
+# back-end
 plda_type=splda

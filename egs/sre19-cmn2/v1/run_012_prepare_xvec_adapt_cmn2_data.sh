@@ -1,9 +1,6 @@
 #!/bin/bash
 # Copyright
 #                2018   Johns Hopkins University (Author: Jesus Villalba)
-#                2017   David Snyder
-#                2017   Johns Hopkins University (Author: Daniel Garcia-Romero)
-#                2017   Johns Hopkins University (Author: Daniel Povey)
 # Apache 2.0.
 #
 . ./cmd.sh
@@ -16,7 +13,7 @@ config_file=default_config.sh
 . parse_options.sh || exit 1;
 . $config_file
 
-nnet_adapt_data=sre18_train_eval_cmn2_combined
+nnet_adapt_data=sre18_cmn2_adapt_lab_combined
 
 export TMPDIR=data/tmp
 mkdir -p $TMPDIR

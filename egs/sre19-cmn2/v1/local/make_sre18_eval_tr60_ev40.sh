@@ -138,7 +138,7 @@ while(getline < fenr)
 { if(($1 in enr) && ($2 in files)) { print $0 }}' $key_file > $test_dir/trial_key.tsv
 
 key_file=$test_dir/trial_key.tsv
-awk '{ print $1,$2,$3}' $key_file > $test_dir/trials.tsv
+awk 'BEGIN{ OFS="\t"} { print $1,$2,$3}' $key_file > $test_dir/trials.tsv
 
 awk '/\.sph/ { print $2,"sph2pipe -f wav -p -c 1 '$input_path'/data/test/"$2" |'"$tel_up"'"}' $key_file | \
     sort -u -k1,1 > $test_dir/wav.scp

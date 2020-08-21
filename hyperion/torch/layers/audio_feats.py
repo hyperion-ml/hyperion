@@ -82,7 +82,7 @@ def _get_strided_batch(waveform, window_length, window_shift, snip_edges):
     num_samples = waveform.size(-1)
 
     if snip_edges:
-        if num_samples < window_size:
+        if num_samples < window_length:
             return torch.empty((0, 0, 0))
         else:
             num_frames = 1 + (num_samples - window_length) // window_shift
@@ -145,6 +145,20 @@ class Wav2Win(nn.Module):
             requires_grad=False)
         self.pad_length = N if pad_length is None else pad_length
         assert self.pad_length >= N
+
+
+    def __repr__(self):
+        return self.__str__()
+
+    def __str__(self):
+        s = ('{}(fs={}, frame_length={}, frame_shift={}, pad_length={}, '
+             'remove_dc_offset={}, preemph_coeff={}, window_type={} '
+             'dither={}, snip_edges={}, energy_floor={}, raw_energy={}, return_log_energy={})').format(
+                 self.__class__.__name__, self.fs, self.frame_length, self.frame_shift,
+                 self.pad_length, self.remove_dc_offset, self.preemph_coeff,
+                 self.window_type, self.dither, self.snip_edges,
+                 self.energy_floor, self.raw_energy, self.return_log_energy)
+        return s
 
 
     def forward(self, x):

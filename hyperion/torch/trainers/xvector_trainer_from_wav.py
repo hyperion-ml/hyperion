@@ -34,7 +34,7 @@ class XVectorTrainerFromWav(XVectorTrainer):
          loss: if None, it uses cross-entropy
          train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
          use_amp: uses mixed precision training.
-         log_interval: 
+         log_interval: number of optim. steps between log outputs
     """
     def __init__(self, model, feat_extractor, optimizer, epochs, exp_path, cur_epoch=0, 
                  grad_acc_steps=1, 
@@ -102,13 +102,12 @@ class XVectorTrainerFromWav(XVectorTrainer):
 
         for batch, (data, target) in enumerate(data_loader):
             self.loggers.on_batch_begin(batch)
-
+            
             if batch % self.grad_acc_steps == 0:
                 self.optimizer.zero_grad()
                 
             data, target = data.to(self.device), target.to(self.device)
             batch_size = data.shape[0]
-
             with torch.no_grad():
                 feats = self.feat_extractor(data)
             #logging.info('feats={}'.format(feats))
