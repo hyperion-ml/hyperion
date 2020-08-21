@@ -1,8 +1,25 @@
-# VoxCeleb Version 2
+# VoxCeleb Version 2.1
 
-Last update 2020/08/06
+Last update 2020/08/21
 
 Recipe to evaluate Adversarial Attacks to x-Vector Speaker Verification Systems
+
+## Differences w.r.t VoxCeleb V1 recipe
+
+In recipe version V1: 
+   - We compute speech augmentations and acoustic features offline and dump them to disk. 
+   - Augmentation is performed using Kaldi scripts and wav-reverbate tool
+   - Babble noise is created on-the-fly when computing features by mixing 3-7 single speaker files.
+
+In this recipe:
+   - We compute speech augmentations and acoustic features are computed always on-the-fly,
+     we don't dump any features to disk. 
+   - Augmentation is performed using Hyperin SpeechAugment class.
+   - The behavior of this class is controlled 
+     by the the configuration file `conf/reverb_noise_aug.yml`, 
+     which mimics the proportions of noise and RIR types, and SNRs used in the V1 or the recipe.
+   - Babble noise is created offline by mixing 3-10 single speaker files.
+
 
 ## Threat Model
 
@@ -19,10 +36,6 @@ As attacks happen in waveform domain, test x-vectors cannot be precomputed and
 need to be recomputed for each trial.
 Also, the speaker verification pipeline needs to be fully differentiable from wave to score,
 so the attack algorithm can optimize the perturbation noise.
-
-However, to train the x-vector network, this recipe computes acoustic features and speech augmentations off-line.
-Look version V2.1, for a newer recipe which computes features 
-and augmentations on the fly.
 
 Two broad types of attacks:
     - White-box: the attacker has access to the x-vector model under attack
@@ -62,21 +75,21 @@ run_0*.sh --config-file config_victim_resnet34_transfer_lresnet.v1.sh
           - VoxCeleb2 train+test
           - VoxCeleb1 Original eval sets
 
-   - `run_002a_compute_evad.sh`
+   - `run_002_compute_evad.sh`
       - Computes Energy VAD for all datasets
 
    - `run_002b_compute_fbank.sh`
       - Computes log-filter-banks acoustic features for all datasets
 
-   - `run_003_prepare_augment.sh`
-      - Prepares Kaldi style data directories for augmented training data with MUSAN noise and RIR reverberation.
+   - `run_003_prepare_noises_rirs.sh`
+      - Prepares MUSAN noises, music to be used by SpeechAugment class.
+      - Creates Babble noise from MUSAN speech to be used by SpeechAugment class.
+      - Prepares RIRs by compacting then into HDF5 files, to be used by SpeechAugment class.
 
-   - `run_004_compute_fbank_augment.sh
-      - Computes log-filter-banks for augmented datasets
-
-   - `run_010_prepare_victim_xvec_train_data.sh`
-      - Prepares features train the victim x-vector model
-      - Applies sort-time mean normalization and remove silence frames
+   - `run_010_prepare_xvec_train_data.sh`
+      - Prepares audios train the victim x-vector model
+      - Transforms all the audios that we are going to use to train the x-vector into a common format, e.g., .flac.
+      - Removes silence from the audios
       - Removes utterances shorter than 4secs and speakers with less than 8 utterances.
       - Creates training and validation lists for x-vector training
 
@@ -84,7 +97,7 @@ run_0*.sh --config-file config_victim_resnet34_transfer_lresnet.v1.sh
       - Trains the victim x-vector network
 
    - `run_012_prepare_transfer_xvec_train_data.sh`
-      - Prepares features train the transfer white-box x-vector model
+      - Prepares audios train the transfer white-box x-vector model
       - If training data for victim and tranfer models is the same, it does nothing
 
    - `run_013_train_transfer_xvector.sh`
@@ -106,13 +119,6 @@ run_0*.sh --config-file config_victim_resnet34_transfer_lresnet.v1.sh
       - Trains calibration for the tranfer model scores
       - Results are left in `exp/scores/$transfer_nnet_name/cosine/voxceleb1_o_clean_results`
    
-   - `run_042_eval_victim_from_wav.sh`
-      - Eval cosine scoring back-end without attack on victim model x-vectors 
-        from the test wave, computing features and x-vectors on the fly.
-      - This script is just to check that we get the same result as in step 40.
-      - You don't need to run it.
-      - Results are left in `exp/scores/$nnet_name/cosine_from_wav/voxceleb1_o_clean_results`
-
    - `run_043_eval_whitebox_attacks.sh`
       - Eval white box attacks implemented in Hyperion toolkit: FGSM, Iter-FGSM, PGD, Carlini-Wagner
       - Results are left in `exp/scores/$nnet_name/cosine_${attack_related_label}/voxceleb1_o_clean_results`
