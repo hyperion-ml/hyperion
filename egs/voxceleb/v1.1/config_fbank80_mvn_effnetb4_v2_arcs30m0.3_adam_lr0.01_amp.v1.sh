@@ -34,7 +34,7 @@ lrs_opt="--lrsch-lrsch-type exp_lr --lrsch-decay-rate 0.5 --lrsch-decay-steps 80
 nnet_name=${feat_type}_${nnet_type}_is1_mbs1122121_ser${se_r}_fixsh_e${embed_dim}_arcs${s}m${margin}_do${dropout}_adam_lr${lr}_b${eff_batch_size}_amp.v1
 nnet_num_epochs=70
 nnet_dir=exp/xvector_nnets/$nnet_name
-nnet=$nnet_dir/model_ep0060.pth
+nnet=$nnet_dir/model_ep0070.pth
 
 
 # back-end

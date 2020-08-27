@@ -20,7 +20,7 @@ def _dwconvkxk(channels, kernel_size=3, stride=1, bias=False):
     """kxk depth-wise convolution with padding"""
     return nn.Conv2d(channels, channels, kernel_size=kernel_size, stride=stride,
                      padding=(kernel_size-1)//2, groups=channels, bias=bias, 
-                     padding_mode='same')
+                     padding_mode='zeros')
 
 
 def _make_downsample(in_channels, out_channels, stride, norm_layer):
@@ -123,7 +123,7 @@ class MBConvInOutBlock(nn.Module):
         padding = int((kernel_size - 1)/2)
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, 
                               stride=stride, padding=padding, bias=False, 
-                              padding_mode='same')
+                              padding_mode='zeros')
         self.bn = norm_layer(out_channels, momentum=0.01, eps=1e-3)
         self.act = AF.create(activation)
         self.context = padding
