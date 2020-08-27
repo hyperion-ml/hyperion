@@ -1218,8 +1218,9 @@ class LocalScaledDotProdAttRelPosEncV1(LocalScaledDotProdAttV1):
             BD_noncausal2 = self._right_shift(BDtilde, context_q, q_left_shift) # (batch, head, blocks-1, context_q, context_k-dt)
             #print(BD_noncausal1[0,0,0,:10,:10])
             #print(BD_noncausal2[0,0,0,:10,:10])
-            BD1[:,:,:,dt:] += BD_noncausal1
-            BD2[:,:,:,dt:] += BD_noncausal2
+            #print('BDshapes', BD1.shape, BD_noncausal1.shape, BD2.shape, BD_noncausal2.shape, BDtilde.shape, dt, context_k, context_q)
+            BD1[:,:,:,:,dt:] += BD_noncausal1
+            BD2[:,:,:,:,dt:] += BD_noncausal2
 
         #print(BD1[0,0,0,:10,:10])
         #print(BD2[0,0,0,:10,:10])

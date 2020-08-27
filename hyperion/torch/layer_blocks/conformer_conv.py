@@ -6,6 +6,7 @@
 import torch
 import torch.nn as nn
 
+from ..layers import ActivationFactory as AF
 from .se_blocks import SEBlock1d
 
 def _conv1(in_channels, out_channels, bias=False):

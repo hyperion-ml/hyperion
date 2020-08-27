@@ -47,6 +47,8 @@ class ConformerEncoderBlockV1(nn.Module):
       se_r:         Squeeze-Excitation compression ratio,
                     if None it doesn't use Squeeze-Excitation
       ff_macaron: if True, it uses macaron-net style ff layers, otherwise transformer style.
+      out_lnorm: if True, use LNorm layer at the output as in the conformer paper, 
+                 we think that this layer is redundant and put it to False by default
       concat_after: if True, if concats attention input and output and apply linear transform, i.e.,
                              y = x + linear(concat(x, att(x)))
                     if False, y = x + att(x)
@@ -55,12 +57,12 @@ class ConformerEncoderBlockV1(nn.Module):
 
     def __init__(self, num_feats, self_attn, num_heads, 
                  conv_repeats=1, conv_kernel_size=31, conv_stride=1,
-                 feed_forward, d_ff, ff_kernel_size, 
-                 hid_act='swish', ff_dropout_rate=0,
+                 feed_forward='linear', d_ff=2048, ff_kernel_size=3, 
+                 hid_act='swish', dropout_rate=0,
                  att_context=25, att_dropout_rate=0, 
                  rel_pos_enc=False, causal_pos_enc=False,
                  conv_norm_layer=None, se_r=None,
-                 ff_macaron=True, concat_after=False):
+                 ff_macaron=True, out_lnorm=False, concat_after=False):
 
         super().__init__()
         self.self_attn = self._make_att(
@@ -73,28 +75,30 @@ class ConformerEncoderBlockV1(nn.Module):
             self.ff_scale = 0.5
             self.feed_forward_macaron = self._make_ff(
                 feed_forward, num_feats, d_ff, ff_kernel_size, 
-                hid_act, ff_dropout_rate)
+                hid_act, dropout_rate)
             self.norm_ff_macaron = nn.LayerNorm(num_feats)
 
         self.feed_forward = self._make_ff(
             feed_forward, num_feats, d_ff, ff_kernel_size, 
-            hid_act, ff_dropout_rate)
+            hid_act, dropout_rate)
 
         conv_blocks = []
         for i in range(conv_repeats):
             block_i = ConformerConvBlock(
-                num_feats, conv_kernel, conv_kernel_size, conv_stride,
+                num_feats, conv_kernel_size, conv_stride,
                 activation=hid_act, norm_layer=conv_norm_layer,
-                dropout_rate=ff_dropout_rate, se_r=se_r)
+                dropout_rate=dropout_rate, se_r=se_r)
             conv_stride = 1
-            conv_blocks.append(conv_blocks)
+            conv_blocks.append(block_i)
 
         self.conv_blocks = nn.ModuleList(conv_blocks)
 
         self.norm_att = nn.LayerNorm(num_feats)
         self.norm_ff = nn.LayerNorm(num_feats)
-        self.norm_out = nn.LayerNorm(num_feats)
-        self.dropout_rate = ff_dropout_rate
+        self.out_lnorm = out_lnorm
+        if out_lnorm:
+            self.norm_out = nn.LayerNorm(num_feats)
+        self.dropout_rate = dropout_rate
         if self.dropout_rate > 0:
             self.dropout = nn.Dropout(self.dropout_rate)
 
@@ -194,7 +198,7 @@ class ConformerEncoderBlockV1(nn.Module):
             residual = x
             x = self.norm_ff_macaron(x)
             x = self.feed_forward_macaron(x)
-            if self.dropout > 0:
+            if self.dropout_rate > 0:
                 x = self.dropout(x)
             x = residual + self.ff_scale * x
 
@@ -233,6 +237,7 @@ class ConformerEncoderBlockV1(nn.Module):
         x = residual + self.ff_scale * x
 
         # output norm
-        x = self.norm_out(x)
+        if self.out_lnorm:
+            x = self.norm_out(x)
         
         return x, mask

@@ -13,7 +13,7 @@ from ..layer_blocks import ConformerEncoderBlockV1 as EBlock
 from ..layer_blocks import TransformerConv2dSubsampler as Conv2dSubsampler
 from .net_arch import NetArch
 
-class TransformerEncoderV1(NetArch):
+class ConformerEncoderV1(NetArch):
     """Conformer encoder introduced in
        https://arxiv.org/pdf/2005.08100.pdf
 
@@ -54,6 +54,8 @@ class TransformerEncoderV1(NetArch):
       se_r:         Squeeze-Excitation compression ratio,
                     if None it doesn't use Squeeze-Excitation
       ff_macaron: if True, it uses macaron-net style ff layers, otherwise transformer style.
+      red_lnorms:  it True, use redundant LNorm layers at the output of the conformer blocks as 
+                  in the paper
       concat_after: if True, if concats attention input and output and apply linear transform, i.e.,
                              y = x + linear(concat(x, att(x)))
                     if False, y = x + att(x)
@@ -69,10 +71,10 @@ class TransformerEncoderV1(NetArch):
                  ff_type='linear', d_ff=2048, ff_kernel_size=1,
                  dropout_rate=0.1, pos_dropout_rate=0.1, att_dropout_rate=0.0,
                  in_layer_type='conv2d-sub',
-                 rel_pos_enc=False, causal_pos_enc=False,
+                 rel_pos_enc=True, causal_pos_enc=False,
                  hid_act='swish',
                  conv_norm_layer=None, se_r=None,
-                 ff_macaron=True, concat_after=False,
+                 ff_macaron=True, red_lnorms=False, concat_after=False,
                  padding_idx=-1, in_time_dim=-1, out_time_dim=1):
 
         super().__init__()
@@ -102,6 +104,7 @@ class TransformerEncoderV1(NetArch):
         self.in_layer_type = in_layer_type
         self.se_r = se_r
         self.ff_macaron = ff_macaron
+        self.red_lnorms = red_lnorms
         self.concat_after = concat_after
         self.padding_idx = padding_idx
         self.in_time_dim = in_time_dim
@@ -120,17 +123,19 @@ class TransformerEncoderV1(NetArch):
         for i in range(num_blocks):
             blocks.append(EBlock(
                 d_model, att_type, num_heads, 
-                self.conv_repeats[i], self.conv_kernel_sizes[i], conv_strides[i],
+                self.conv_repeats[i], 
+                self.conv_kernel_sizes[i], self.conv_strides[i],
                 ff_type, d_ff, ff_kernel_size, 
                 hid_act=hid_act, dropout_rate=dropout_rate,
                 att_context=att_context, att_dropout_rate=att_dropout_rate, 
                 rel_pos_enc=rel_pos_enc, causal_pos_enc=causal_pos_enc,
                 conv_norm_layer=self._conv_norm_layer, se_r = se_r,
-                ff_macaron=ff_macaron, concat_after=concat_after))
+                ff_macaron=ff_macaron, out_lnorm=self.red_lnorms, 
+                concat_after=concat_after))
 
         self.blocks = nn.ModuleList(blocks)
-        
-        # self.norm_out = nn.LayerNorm(d_model)
+        if not self.red_lnorms:
+            self.norm_out = nn.LayerNorm(d_model)
 
 
     @staticmethod
@@ -212,8 +217,8 @@ class TransformerEncoderV1(NetArch):
         for i in range(len(self.blocks)):
             x, mask = self.blocks[i](x, mask=mask, **b_args)
 
-        # LayerNorm is already at the block output
-        # x = self.norm_out(x)
+        if not self.red_lnorms:
+            x = self.norm_out(x)
 
         if self.out_time_dim != 1:
             x = x.transpose(1, self.out_time_dim)
@@ -250,7 +255,8 @@ class TransformerEncoderV1(NetArch):
                   'hid_act': self.hid_act,
                   'se_r': self.se_r,
                   'ff_macaron': self.ff_macaron,
-                  'conv_norm_layer', self.conv_norm_layer,
+                  'red_lnorm': self.red_lnorms,
+                  'conv_norm_layer': self.conv_norm_layer,
                   'concat_after': self.concat_after,
                   'padding_idx': self.padding_idx,
                   'in_time_dim': self.in_time_dim,
@@ -325,8 +331,11 @@ class TransformerEncoderV1(NetArch):
         else:
             p = prefix + '_'
 
-        if 'no_ff_macaron' in kwargs:
-            kwargs['ff_macaron'] = not kwargs['no_ff_macaron']
+        if p + 'no_ff_macaron' in kwargs:
+            kwargs[p + 'ff_macaron'] = not kwargs[p + 'no_ff_macaron']
+
+        if p + 'abs_pos_enc' in kwargs:
+            kwargs[p + 'rel_pos_enc'] = not kwargs[p + 'abs_pos_enc']
 
         valid_args = ('num_blocks',
                       'in_feats',
@@ -350,6 +359,7 @@ class TransformerEncoderV1(NetArch):
                       'conv_norm_layer',
                       'se_r',
                       'ff_macaron',
+                      'red_lnorms',
                       'concat_after')
 
         return dict((k, kwargs[p+k])
@@ -440,8 +450,8 @@ class TransformerEncoderV1(NetArch):
                             default='linear', choices=['linear', 'conv2d-sub'],
                             help=('type of input layer'))
 
-        parser.add_argument(p1+'rel-pos-enc', default=False, action='store_true',
-                            help='use relative positional encoder')
+        parser.add_argument(p1+'abs-pos-enc', default=False, action='store_true',
+                            help='use absolute positional encoder')
 
         parser.add_argument(p1+'causal-pos-enc', default=False, action='store_true',
                             help='relative positional encodings are zero when attending to the future')
@@ -460,6 +470,9 @@ class TransformerEncoderV1(NetArch):
 
         parser.add_argument(p1+'no-ff-macaron', default=False, action='store_true',
                             help='do not use macaron style ff layers ')
+
+        parser.add_argument(p1+'red-lnorms', default=False, action='store_true',
+                            help='use redundant Lnorm at conformer blocks\' outputs')
 
         parser.add_argument(p1+'concat-after', default=False, action='store_true',
                             help='concatenate attention input and output instead of adding')

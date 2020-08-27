@@ -178,7 +178,7 @@ class TransformerEncoderBlockV1(nn.Module):
         if self.norm_before:
             x = self.norm2(x)
 
-        x =self.feed_forward(x)
+        x = self.feed_forward(x)
         if self.dropout_rate > 0:
             x = self.dropout(x)
 

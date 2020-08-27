@@ -15,7 +15,7 @@ from .mbconv_blocks import MBConvBlock, MBConvInOutBlock
 from .transformer_feedforward import PositionwiseFeedForward, Conv1dx2, Conv1dLinear
 from .transformer_encoder_v1 import TransformerEncoderBlockV1
 from .transformer_conv2d_subsampler import TransformerConv2dSubsampler
-from .conformer_conv import ConformerConvBloc
+from .conformer_conv import ConformerConvBlock
 from .conformer_encoder_v1 import ConformerEncoderBlockV1
 from .dc1d_blocks import DC1dEncBlock, DC1dDecBlock
 from .dc2d_blocks import DC2dEncBlock, DC2dDecBlock
