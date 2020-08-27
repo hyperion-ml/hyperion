@@ -2,9 +2,6 @@
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-#from __future__ import absolute_import
-
-#import numpy as np
 
 import torch.nn as nn
 from torch.nn import Conv1d, Linear, BatchNorm1d
@@ -20,9 +17,9 @@ class DC1dEncBlock(nn.Module):
                  kernel_size, stride=1, dilation=1, 
                  activation='relu',
                  dropout_rate=0,
-                 use_norm=True, norm_before=True):
+                 use_norm=True, norm_layer=None, norm_before=True):
 
-        super(DC1dEncBlock, self).__init__()
+        super().__init__()
 
         self.activation = AF.create(activation)
         padding = int(dilation * (kernel_size -1)/2)
@@ -35,7 +32,10 @@ class DC1dEncBlock(nn.Module):
         self.norm_before = False
         self.norm_after = False
         if use_norm:
-            self.bn1 = BatchNorm1d(out_channels)        
+            if norm_layer is None:
+                norm_layer = BatchNorm1d
+
+            self.bn1 = norm_layer(out_channels)        
             if norm_before:
                 self.norm_before = True
             else:
@@ -89,9 +89,9 @@ class DC1dDecBlock(nn.Module):
                  kernel_size, stride=1, dilation=1, 
                  activation='relu',
                  dropout_rate=0,
-                 use_norm=True, norm_before=True):
+                 use_norm=True, norm_layer=None, norm_before=True):
 
-        super(DC1dDecBlock, self).__init__()
+        super().__init__()
 
         self.activation = AF.create(activation)
         padding = int(dilation * (kernel_size -1)/2)
@@ -104,7 +104,10 @@ class DC1dDecBlock(nn.Module):
         self.norm_before = False
         self.norm_after = False
         if use_norm:
-            self.bn1 = BatchNorm1d(out_channels)        
+            if norm_layer is None:
+                norm_layer = BatchNorm1d
+
+            self.bn1 = norm_layer(out_channels)        
             if norm_before:
                 self.norm_before = True
             else:

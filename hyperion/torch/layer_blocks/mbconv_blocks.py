@@ -10,7 +10,7 @@ import torch.nn as nn
 
 from ..layers import ActivationFactory as AF
 from ..layers import DropConnect2d
-from .seresnet_blocks import SEBlock2D, TSEBlock2D
+from .se_blocks import SEBlock2D, TSEBlock2D
 
 def _conv1x1(in_channels, out_channels, stride=1, bias=False):
     """1x1 convolution"""
@@ -20,7 +20,7 @@ def _dwconvkxk(channels, kernel_size=3, stride=1, bias=False):
     """kxk depth-wise convolution with padding"""
     return nn.Conv2d(channels, channels, kernel_size=kernel_size, stride=stride,
                      padding=(kernel_size-1)//2, groups=channels, bias=bias, 
-                     padding_mode='same')
+                     padding_mode='zeros')
 
 
 def _make_downsample(in_channels, out_channels, stride, norm_layer):
@@ -69,6 +69,7 @@ class MBConvBlock(nn.Module):
             else:
                 self.se_layer = SEBlock2D(self.inner_channels, se_r, activation)
 
+        # projection phase
         self.conv_proj = _conv1x1(self.inner_channels, out_channels)
         self.bn_proj = norm_layer(out_channels, momentum=0.01, eps=1e-3)
         self.drop_connect_rate = drop_connect_rate
@@ -123,7 +124,7 @@ class MBConvInOutBlock(nn.Module):
         padding = int((kernel_size - 1)/2)
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, 
                               stride=stride, padding=padding, bias=False, 
-                              padding_mode='same')
+                              padding_mode='zeros')
         self.bn = norm_layer(out_channels, momentum=0.01, eps=1e-3)
         self.act = AF.create(activation)
         self.context = padding
