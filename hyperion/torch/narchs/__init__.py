@@ -15,6 +15,7 @@ from .resnet import *
 from .resnet_factory import ResNetFactory
 
 from .transformer_encoder_v1 import TransformerEncoderV1
+from .conformer_encoder_v1 import ConformerEncoderV1
 
 from .dc1d_encoder import DC1dEncoder
 from .dc1d_decoder import DC1dDecoder
