@@ -65,7 +65,7 @@ We compute average of the metrics across VoxCeleb1, values in parenthesis are st
 | config_vqvae_transformer_b6d512h8ff2048_emakmeansvq_z512cb512x8_c36.opt.lr0.01.v4.sh | VQ-VAE | Xformer Enc <br> blocks=6/ d_model=512 / heads=8 / d_ff=2048 | 512 | 36 |  -1.74(0.31) | 0.48 (0.15) | 0.52 (0.08) | 512x8 |
 | config_vqvae_transformer_lac25b6d512h8ff2048_emakmeansvq_z512cb512x8_c36.opt.lr0.01.v4.sh | VQ-VAE | Xformer Enc <br> blocks=6 / d_model=512 / heads=8 / att-context=25 / d_ff=2048 | 512 | 36 |  -1.61(0.15) | 0.42 (0.08) | 0.49 (0.05) | 512x8 |
 | config_vqvae_transformer_lac25b6d512h8ff2048_emakmeansvq_z512cb512x8_c36_radam.opt.lr0.01.v4.sh | VQ-VAE | Xformer Enc <br> blocks=6 / d_model=512 / heads=8 / att-context=25 / d_ff=2048 <br> RAdam Opt. | 512 | 36 |  -1.33(0.15) | 0.28 (0.05) | 0.40 (0.03) | 512x8 |
-
+| config_vqvae_transformer_lac25b6d512h8ff2048rpe_emakmeansvq_z512cb512x8_c36_radam.opt.lr0.01.v4.sh | VQ-VAE | Xformer Enc <br> blocks=6 / d_model=512 / heads=8 / att-context=25 / d_ff=2048 <br> Rel. Pos Enc. <br> RAdam Opt. | 512 | 36 |  -1.30(0.09) | 0.27 (0.04) | 0.39 (0.03) | 512x8 |
 
 ### Models trained with augmentation (Denoising versions)
 
