@@ -104,21 +104,33 @@ fi
 
 
 if [ $stage -le 4 ];then
-    # Prepare sre18 for train and eval labeled
-    local/make_sre18_train_dev.sh $sre18_dev_root 8 data
-    local/make_sre18_eval_tr60_ev40.sh $sre18_eval_root 8 data
-    utils/combine_data.sh data/sre18_cmn2_adapt_lab data/sre18_train_dev_cmn2 data/sre18_eval_cmn2_tr60
+    # Prepare sre16 for train labeled
+    local/make_sre16_train_dev.sh $sre16_dev_root 8 data
+    local/make_sre16_eval_tr60_ev40.sh $sre16_eval_root 8 data
 fi
 
 
 if [ $stage -le 5 ];then
+    # Prepare sre18 for train labeled
+    local/make_sre18_train_dev.sh $sre18_dev_root 8 data
+    local/make_sre18_train_eval.sh $sre18_eval_root 8 data
+    utils/combine_data.sh data/sre18_cmn2_train_lab data/sre18_train_dev_cmn2 data/sre18_train_eval_cmn2
+fi
+
+
+if [ $stage -le 6 ];then
     # Prepare sre18 unlabeled
     local/make_sre18_dev.sh $sre18_dev_root 8 data
 fi
 
-if [ $stage -le 6 ];then
+if [ $stage -le 7 ];then
     # Prepare sre19
     local/make_sre19cmn2_eval.sh $sre19cmn2_eval_root 8 data
+fi
+
+if [ $stage -le 8 ];then
+    # Prepare sre20
+    local/make_sre20cts_eval.sh $sre20cts_eval_root 8 data
 fi
 
 

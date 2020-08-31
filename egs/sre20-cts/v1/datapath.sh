@@ -28,6 +28,7 @@ if [ "$(hostname --domain)" == "clsp.jhu.edu" ];then
     sre18_eval_root=$ldc_root3/LDC2018E51
     sre18_dev_meta=${sre18_dev_root}/docs/sre18_dev_segment_key.tsv
     sre19cmn2_eval_root=$ldc_root3/LDC2019E58
+    sre20cts_eval_root=$ldc_root/LDC2020E28
     musan_root=/export/corpora5/JHU/musan
 elif [ "$(hostname --domain)" == "cm.gemini" ];then
     ldc_root=/export/common/data/corpora/LDC
