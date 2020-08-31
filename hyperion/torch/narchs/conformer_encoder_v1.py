@@ -2,19 +2,31 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba, Nanxin Chen)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-# from __future__ import absolute_import
 
 import torch
 import torch.nn as nn
 
 from ..layers import ActivationFactory as AF
+from ..layers import NormLayer1dFactory as NLF
 from ..layers import PosEncoder, RelPosEncoder
-from ..layer_blocks import TransformerEncoderBlockV1 as EBlock
+from ..layer_blocks import ConformerEncoderBlockV1 as EBlock
 from ..layer_blocks import TransformerConv2dSubsampler as Conv2dSubsampler
 from .net_arch import NetArch
 
-class TransformerEncoderV1(NetArch):
-    """Transformer encoder module.
+class ConformerEncoderV1(NetArch):
+    """Conformer encoder introduced in
+       https://arxiv.org/pdf/2005.08100.pdf
+
+        This includes some optional extra features 
+        not included in the original paper:
+           - Choose local-attention (attending only to close frames 
+             instead of all the frames in the sequence)
+           - Choose number of conv blocks in each conformer layer
+           - Squeeze-Excitation after depthwise-conv
+           - Allows downsampling in time dimension
+           - Allows choosing activation and layer normalization type
+        We call this Conformer+
+
 
     Attributes:
       in_feats: input features dimension
@@ -23,11 +35,13 @@ class TransformerEncoderV1(NetArch):
       num_blocks: number of self attn blocks
       att_type: string in ['scaled-dot-prod-att-v1', 'local-scaled-dot-prod-att-v1']
       att_context: maximum context range for local attention
+      conv_repeats: number of conv blocks in each conformer block
+      conv_kernel_sizes: kernel size for conv blocks
+      conv_strides: stride for depth-wise conv in the first conv block of each conformer block
       ff_type: string in ['linear', 'conv1dx2', 'conv1d-linear']
       d_ff: dimension of middle layer in feed_forward block
       ff_kernel_size: kernel size for convolutional versions of ff block
-
-      ff_dropout_rate: dropout rate for ff block
+      dropout_rate: dropout rate for ff and conv blocks
       pos_dropout_rate: dropout rate for positional encoder
       att_dropout_rate: dropout rate for attention block
       in_layer_type: input layer block type in ['linear','conv2d-sub', 'embed', None]
@@ -35,7 +49,13 @@ class TransformerEncoderV1(NetArch):
       causal_pos_enc: if True, use causal positional encodings (when rel_pos_enc=True), it assumes
                       that query q_i only attents to key k_j when j<=i
       hid_act:  hidden activations in ff and input blocks
-      norm_before: if True, use layer norm before layers, otherwise after
+      conv_norm_layer: norm layer constructor or str for conv block, 
+                       if None it uses BatchNorm1d
+      se_r:         Squeeze-Excitation compression ratio,
+                    if None it doesn't use Squeeze-Excitation
+      ff_macaron: if True, it uses macaron-net style ff layers, otherwise transformer style.
+      red_lnorms:  it True, use redundant LNorm layers at the output of the conformer blocks as 
+                  in the paper
       concat_after: if True, if concats attention input and output and apply linear transform, i.e.,
                              y = x + linear(concat(x, att(x)))
                     if False, y = x + att(x)
@@ -45,24 +65,16 @@ class TransformerEncoderV1(NetArch):
 
     """
 
-    def __init__(self, in_feats,
-                 d_model=256,
-                 num_heads=4,
-                 num_blocks=6,
-                 att_type = 'scaled-dot-prod-v1',
-                 att_context = 25,
-                 ff_type='linear',
-                 d_ff=2048,
-                 ff_kernel_size=1,
-                 ff_dropout_rate=0.1,
-                 pos_dropout_rate=0.1,
-                 att_dropout_rate=0.0,
+    def __init__(self, in_feats, d_model=256, num_heads=4, num_blocks=6,
+                 att_type='scaled-dot-prod-v1', att_context=25,
+                 conv_repeats=1, conv_kernel_sizes=31, conv_strides=1,
+                 ff_type='linear', d_ff=2048, ff_kernel_size=1,
+                 dropout_rate=0.1, pos_dropout_rate=0.1, att_dropout_rate=0.0,
                  in_layer_type='conv2d-sub',
-                 rel_pos_enc=False,
-                 causal_pos_enc=False,
-                 hid_act='relu6',
-                 norm_before=True,
-                 concat_after=False,
+                 rel_pos_enc=True, causal_pos_enc=False,
+                 hid_act='swish',
+                 conv_norm_layer=None, se_r=None,
+                 ff_macaron=True, red_lnorms=False, concat_after=False,
                  padding_idx=-1, in_time_dim=-1, out_time_dim=1):
 
         super().__init__()
@@ -70,25 +82,40 @@ class TransformerEncoderV1(NetArch):
         self.d_model = d_model
         self.num_heads = num_heads
         self.num_blocks = num_blocks
-
+        
         self.att_type = att_type
         self.att_context = att_context
+
+        self.conv_repeats = self._standarize_cblocks_param(
+            conv_repeats, num_blocks, 'conv_repeats')
+        self.conv_kernel_sizes = self._standarize_cblocks_param(
+            conv_kernel_sizes, num_blocks, 'conv_kernel_sizes')
+        self.conv_strides = self._standarize_cblocks_param(
+            conv_strides, num_blocks, 'conv_strides')
 
         self.ff_type = ff_type
         self.d_ff = d_ff
         self.ff_kernel_size = ff_kernel_size
-        self.ff_dropout_rate = ff_dropout_rate
+        self.dropout_rate = dropout_rate
         self.rel_pos_enc = rel_pos_enc
         self.causal_pos_enc = causal_pos_enc
         self.att_dropout_rate = att_dropout_rate
         self.pos_dropout_rate = pos_dropout_rate
         self.in_layer_type = in_layer_type
-        self.norm_before = norm_before
+        self.se_r = se_r
+        self.ff_macaron = ff_macaron
+        self.red_lnorms = red_lnorms
         self.concat_after = concat_after
         self.padding_idx = padding_idx
         self.in_time_dim = in_time_dim
         self.out_time_dim = out_time_dim
         self.hid_act = hid_act
+
+        self.conv_norm_layer = conv_norm_layer
+        norm_groups = None
+        if conv_norm_layer == 'group-norm':
+            norm_groups = min(d_model//2, 32)
+        self._conv_norm_layer = NLF.create(conv_norm_layer, norm_groups)
 
         self._make_in_layer()
 
@@ -96,26 +123,42 @@ class TransformerEncoderV1(NetArch):
         for i in range(num_blocks):
             blocks.append(EBlock(
                 d_model, att_type, num_heads, 
+                self.conv_repeats[i], 
+                self.conv_kernel_sizes[i], self.conv_strides[i],
                 ff_type, d_ff, ff_kernel_size, 
-                ff_act=hid_act, ff_dropout_rate=ff_dropout_rate,
+                hid_act=hid_act, dropout_rate=dropout_rate,
                 att_context=att_context, att_dropout_rate=att_dropout_rate, 
                 rel_pos_enc=rel_pos_enc, causal_pos_enc=causal_pos_enc,
-                norm_before=norm_before, concat_after=concat_after))
+                conv_norm_layer=self._conv_norm_layer, se_r = se_r,
+                ff_macaron=ff_macaron, out_lnorm=self.red_lnorms, 
+                concat_after=concat_after))
 
         self.blocks = nn.ModuleList(blocks)
-        
-        if self.norm_before:
-            self.norm = nn.LayerNorm(d_model)
+        if not self.red_lnorms:
+            self.norm_out = nn.LayerNorm(d_model)
 
 
-    # def _make_in_layer(self, in_layer_type, in_feats, d_model, 
-    #                    dropout_rate, pos_dropout_rate, 
-    #                    padding_idx, time_dim):
+    @staticmethod
+    def _standarize_cblocks_param(p, num_blocks, p_name):
+        if isinstance(p, int):
+            p = [p] * num_blocks
+        elif isinstance(p, list):
+            if len(p) == 1:
+                p = p * num_blocks
+            
+            assert len(p) == num_blocks, (
+                'len(%s)(%d)!=%d' % (p_name, len(p), num_blocks))
+        else:
+            raise TypeError('wrong type for param {}={}'.format(p_name, p))
+
+        return p
+
+
     def _make_in_layer(self):
 
         in_feats = self.in_feats
         d_model = self.d_model
-        dropout_rate = self.ff_dropout_rate
+        dropout_rate = self.dropout_rate
         if self.rel_pos_enc:
             pos_enc = RelPosEncoder(d_model, self.pos_dropout_rate)
         else:
@@ -174,8 +217,8 @@ class TransformerEncoderV1(NetArch):
         for i in range(len(self.blocks)):
             x, mask = self.blocks[i](x, mask=mask, **b_args)
 
-        if self.norm_before:
-            x = self.norm(x)
+        if not self.red_lnorms:
+            x = self.norm_out(x)
 
         if self.out_time_dim != 1:
             x = x.transpose(1, self.out_time_dim)
@@ -197,17 +240,23 @@ class TransformerEncoderV1(NetArch):
                   'num_blocks': self.num_blocks,
                   'att_type': self.att_type,
                   'att_context': self.att_context,
+                  'conv_repeats': self.conv_repeats,
+                  'conv_kernel_sizes': self.conv_kernel_sizes,
+                  'conv_strides': self.conv_strides,
                   'ff_type': self.ff_type,
                   'd_ff': self.d_ff,
                   'ff_kernel_size': self.ff_kernel_size,
-                  'ff_dropout_rate': self.ff_dropout_rate,
+                  'dropout_rate': self.dropout_rate,
                   'att_dropout_rate': self.att_dropout_rate,
                   'pos_dropout_rate': self.pos_dropout_rate,
                   'in_layer_type': self.in_layer_type,
                   'rel_pos_enc': self.rel_pos_enc,
                   'causal_pos_enc': self.causal_pos_enc,
                   'hid_act': self.hid_act,
-                  'norm_before': self.norm_before,
+                  'se_r': self.se_r,
+                  'ff_macaron': self.ff_macaron,
+                  'red_lnorm': self.red_lnorms,
+                  'conv_norm_layer': self.conv_norm_layer,
                   'concat_after': self.concat_after,
                   'padding_idx': self.padding_idx,
                   'in_time_dim': self.in_time_dim,
@@ -282,22 +331,35 @@ class TransformerEncoderV1(NetArch):
         else:
             p = prefix + '_'
 
+        if p + 'no_ff_macaron' in kwargs:
+            kwargs[p + 'ff_macaron'] = not kwargs[p + 'no_ff_macaron']
+
+        if p + 'abs_pos_enc' in kwargs:
+            kwargs[p + 'rel_pos_enc'] = not kwargs[p + 'abs_pos_enc']
+
         valid_args = ('num_blocks',
                       'in_feats',
                       'd_model',
                       'num_heads',
                       'att_type',
                       'att_context',
+                      'conv_repeats',
+                      'conv_kernel_sizes',
+                      'conv_strides',
                       'ff_type',
                       'd_ff',
                       'ff_kernel_size',
-                      'ff_dropout_rate',
+                      'dropout_rate',
                       'pos_dropout_rate',
                       'att_dropout_rate',
                       'in_layer_type',
                       'hid_act',
                       'rel_pos_enc',
                       'causal_pos_enc',
+                      'conv_norm_layer',
+                      'se_r',
+                      'ff_macaron',
+                      'red_lnorms',
                       'concat_after')
 
         return dict((k, kwargs[p+k])
@@ -307,7 +369,7 @@ class TransformerEncoderV1(NetArch):
 
     @staticmethod
     def add_argparse_args(parser, prefix=None, in_feats=False):
-        """Adds Transformer config parameters to argparser
+        """Adds Conformer config parameters to argparser
         
         Args:
            parser: argparse object
@@ -346,6 +408,19 @@ class TransformerEncoderV1(NetArch):
                             default=25, type=int,
                             help=('context size when using local attention'))
 
+        parser.add_argument(
+            p1+'conv-repeats', default=1, type=int,
+            nargs='+', help=('number of conv blocks in each conformer block'))
+
+        parser.add_argument(
+            p1+'conv-kernel-sizes', default=31, 
+            nargs='+', type=int, 
+            help=('kernels sizes for the depth-wise convs of each conformer block'))
+
+        parser.add_argument(
+            p1+'conv-strides', default=1, 
+            nargs='+', type=int, help=('resb-blocks strides for each encoder stage'))
+
         parser.add_argument(p1+'ff-type', 
                             default='linear', choices=['linear', 'conv1dx2', 'conv1dlinear'],
                             help=('type of feed forward layers in transformer block'))
@@ -359,7 +434,7 @@ class TransformerEncoderV1(NetArch):
                             help=('kernel size in convolutional feed forward block')) 
 
         try:
-            parser.add_argument(p1+'hid-act', default='relu6', 
+            parser.add_argument(p1+'hid-act', default='swish', 
                                 help='hidden activation')
         except:
             pass
@@ -368,20 +443,36 @@ class TransformerEncoderV1(NetArch):
                                 help='positional encoder dropout')
         parser.add_argument(p1+'att-dropout-rate', default=0, type=float,
                                 help='self-att dropout')
-        parser.add_argument(p1+'ff-dropout-rate', default=0.1, type=float,
+        parser.add_argument(p1+'dropout-rate', default=0.1, type=float,
                                 help='feed-forward layer dropout')
-
         
         parser.add_argument(p1+'in-layer-type', 
                             default='linear', choices=['linear', 'conv2d-sub'],
                             help=('type of input layer'))
 
-        parser.add_argument(p1+'rel-pos-enc', default=False, action='store_true',
-                            help='use relative positional encoder')
+        parser.add_argument(p1+'abs-pos-enc', default=False, action='store_true',
+                            help='use absolute positional encoder')
 
         parser.add_argument(p1+'causal-pos-enc', default=False, action='store_true',
                             help='relative positional encodings are zero when attending to the future')
 
+        try:
+            parser.add_argument(
+                p1+'conv-norm-layer', default=None, 
+                choices=['batch-norm', 'group-norm', 'instance-norm', 'instance-norm-affine', 'layer-norm'],
+                help='type of normalization layer for conv block in conformer')
+        except:
+            pass
+
+        parser.add_argument(
+            p1+'se-r', default=None, type=int,
+            help=('squeeze-excitation compression ratio'))
+
+        parser.add_argument(p1+'no-ff-macaron', default=False, action='store_true',
+                            help='do not use macaron style ff layers ')
+
+        parser.add_argument(p1+'red-lnorms', default=False, action='store_true',
+                            help='use redundant Lnorm at conformer blocks\' outputs')
 
         parser.add_argument(p1+'concat-after', default=False, action='store_true',
                             help='concatenate attention input and output instead of adding')

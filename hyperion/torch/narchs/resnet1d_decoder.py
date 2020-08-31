@@ -2,7 +2,6 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-#from __future__ import absolute_import
 
 import math 
 
@@ -10,7 +9,9 @@ import torch
 import torch.nn as nn
 
 from ..layers import ActivationFactory as AF
-from ..layer_blocks import ResNet1dBasicDecBlock, DC1dDecBlock
+from ..layers import NormLayer1dFactory as NLF
+from ..layer_blocks import ResNet1dBasicDecBlock, ResNet1dBNDecBlock, DC1dDecBlock
+from ..layer_blocks import SEResNet1dBasicDecBlock, SEResNet1dBNDecBlock
 from ..layers import SubPixelConv1d, ICNR1d
 from .net_arch import NetArch
 
@@ -40,14 +41,17 @@ class ResNet1dDecoder(NetArch):
         super().__init__()
 
         self.resb_type = resb_type
+        bargs = {} # block's extra arguments
         if resb_type == 'basic':
             self._block = ResNet1dBasicDecBlock
-        elif block == 'bn':
+        elif resb_type == 'bn':
             self._block = ResNet1dBNDecBlock
-            # elif block == 'sebasic': 
-            #     self._block = SEResNet1dBasicDecBlock
-            # elif block == 'sebn':
-            #     self._block = SEResNet1dBNDecBlock
+        elif resb_type == 'sebasic': 
+            self._block = SEResNet1dBasicDecBlock
+            bargs['se_r'] = se_r
+        elif resb_type == 'sebn':
+            self._block = SEResNet1dBNDecBlock
+            bargs['se_r'] = se_r
 
         self.in_channels = in_channels
         self.in_conv_channels = in_conv_channels
@@ -68,17 +72,24 @@ class ResNet1dDecoder(NetArch):
         self.hid_act = hid_act
         self.head_act = head_act
         self.dropout_rate = dropout_rate
-        self.norm_layer = norm_layer
         self.use_norm = use_norm
         self.norm_before = norm_before
         self.se_r = se_r
+
+        self.norm_layer = norm_layer
+        norm_groups = None
+        if norm_layer == 'group-norm':
+            norm_groups = min(np.min(resb_channels)//2, 32)
+            norm_groups = max(norm_groups, resb_groups)
+        self._norm_layer = NLF.create(norm_layer, norm_groups)
 
         # stem block
         self.in_block = DC1dDecBlock(
             in_channels, in_conv_channels, in_kernel_size, 
             stride=in_stride, 
             activation=hid_act, dropout_rate=dropout_rate,
-            use_norm=use_norm, norm_before=norm_before)
+            use_norm=use_norm, norm_layer=self._norm_layer, 
+            norm_before=norm_before)
         self._context = self.in_block.context
         self._upsample_factor = self.in_block.stride
 
@@ -96,7 +107,8 @@ class ResNet1dDecoder(NetArch):
                 cur_in_channels, channels_i, kernel_size_i, 
                 stride=stride_i, dilation=1, groups=self.resb_groups,
                 activation=hid_act, dropout_rate=dropout_rate,
-                use_norm=use_norm, norm_layer=norm_layer, norm_before=norm_before)
+                use_norm=use_norm, norm_layer=self._norm_layer, 
+                norm_before=norm_before, **bargs)
                                    
             self.blocks.append(block_i)
             self._context += block_i.context * self._upsample_factor
@@ -107,7 +119,8 @@ class ResNet1dDecoder(NetArch):
                     channels_i, channels_i, kernel_size_i, 
                     stride=1, dilation=dilation_i, groups=self.resb_groups,
                     activation=hid_act, dropout_rate=dropout_rate,
-                    use_norm=use_norm, norm_layer=norm_layer, norm_before=norm_before)
+                    use_norm=use_norm, norm_layer=self._norm_layer, 
+                    norm_before=norm_before, **bargs)
                 
                 self.blocks.append(block_i)
                 self._context += block_i.context * self._upsample_factor
@@ -270,6 +283,7 @@ class ResNet1dDecoder(NetArch):
                   'head_act': head_act,
                   'se_r': self.se_r,
                   'use_norm': self.use_norm,
+                  'norm_layer': self.norm_layer,
                   'norm_before': self.norm_before,
               }
         
@@ -302,7 +316,7 @@ class ResNet1dDecoder(NetArch):
                       'head_channels', 'se_r',
                       'hid_act', 'head_act', 
                       'dropout_rate',
-                      'use_norm', 'norm_before')
+                      'use_norm', 'norm-layer', 'norm_before')
 
         args = dict((k, kwargs[p+k])
                     for k in valid_args if p+k in kwargs)
@@ -382,6 +396,13 @@ class ResNet1dDecoder(NetArch):
         except:
             pass
 
+        try:
+            parser.add_argument(
+                p1+'norm-layer', default=None, 
+                choices=['batch-norm', 'group-norm', 'instance-norm', 'instance-norm-affine', 'layer-norm'],
+                help='type of normalization layer')
+        except:
+            pass
 
         parser.add_argument(p1+'wo-norm', default=False, action='store_true',
                             help='without batch normalization')

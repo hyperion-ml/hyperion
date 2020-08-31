@@ -22,4 +22,4 @@ nnet_name=${model_type}_${narch}_b9d256_z${latent_dim}_c8_do${dropout}_optv1_ada
 nnet_num_epochs=600
 num_augs=5
 nnet_dir=exp/vae_nnets/$nnet_name
-nnet=$nnet_dir/model_ep0548.pth
+nnet=$nnet_dir/model_ep0550.pth

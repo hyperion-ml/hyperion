@@ -2,9 +2,6 @@
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-#from __future__ import absolute_import
-
-#import numpy as np
 
 import torch.nn as nn
 from torch.nn import Conv2d, BatchNorm2d, Dropout2d
@@ -19,7 +16,7 @@ class DC2dEncBlock(nn.Module):
                  kernel_size, stride=1, dilation=1, 
                  activation='relu',
                  dropout_rate=0,
-                 use_norm=True, norm_before=True):
+                 use_norm=True, norm_layer=None, norm_before=True):
 
         super().__init__()
 
@@ -34,7 +31,10 @@ class DC2dEncBlock(nn.Module):
         self.norm_before = False
         self.norm_after = False
         if use_norm:
-            self.bn1 = BatchNorm2d(out_channels)        
+            if norm_layer is None:
+                norm_layer = BatchNorm2d
+
+            self.bn1 = norm_layer(out_channels)
             if norm_before:
                 self.norm_before = True
             else:
@@ -88,7 +88,7 @@ class DC2dDecBlock(nn.Module):
                  kernel_size, stride=1, dilation=1, 
                  activation='relu',
                  dropout_rate=0,
-                 use_norm=True, norm_before=True):
+                 use_norm=True, norm_layer=None, norm_before=True):
 
         super().__init__()
 
@@ -103,7 +103,10 @@ class DC2dDecBlock(nn.Module):
         self.norm_before = False
         self.norm_after = False
         if use_norm:
-            self.bn1 = BatchNorm2d(out_channels)        
+            if norm_layer is None:
+                norm_layer = BatchNorm2d
+
+            self.bn1 = norm_layer(out_channels)
             if norm_before:
                 self.norm_before = True
             else:

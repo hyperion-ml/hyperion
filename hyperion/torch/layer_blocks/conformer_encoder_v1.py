@@ -9,25 +9,46 @@ import torch.nn as nn
 
 from ..layers.attention import *
 from .transformer_feedforward import *
+from .conformer_conv import ConformerConvBlock
 
-class TransformerEncoderBlockV1(nn.Module):
-    """Building block for transformer encoder.
+class ConformerEncoderBlockV1(nn.Module):
+    """Building block for conformer encoder introduced in
+       https://arxiv.org/pdf/2005.08100.pdf
+
+        This includes some optional extra features 
+        not included in the original paper:
+           - Choose local-attention (attending only to close frames 
+             instead of all the frames in the sequence)
+           - Choose number of conv blocks
+           - Squeeze-Excitation after depthwise-conv
+           - Allows downsampling in time dimension
+           - Allows choosing activation and layer normalization type
+        We call this Conformer+
 
     Attributes:
       num_feats: input/output feat. dimension (aka d_model)
-      self_attn: attention nn.Module or string in ['scaled-dot-prod-att-v1', 'local-scaled-dot-prod-att-v1']
+      self_attn: attention module in ['scaled-dot-prod-att-v1', 'local-scaled-dot-prod-att-v1']
       num_heads: number of heads
-      feed_forward: position-wise feed-forward nn.Module or string in ['linear', 'conv1dx2', 'conv1d-linear']
+      conv_repeats: number of conv blocks
+      conv_kernel_size: kernel size for conv blocks
+      conv_stride: stride for depth-wise conv in first conv block
+      feed_forward: position-wise feed-forward string in ['linear', 'conv1dx2', 'conv1d-linear']
       d_ff: dimension of middle layer in feed_forward block
       ff_kernel_size: kernel size for convolutional versions of ff block
-      ff_act: ff block hidden activation 
-      ff_dropout_rate: dropout rate for ff block
+      hid_act: ff and conv block hidden activation 
+      dropout_rate: dropout rate for ff and conv blocks
       att_context: maximum context range for local attention
       att_dropout_rate: dropout rate for attention block
       rel_pos_enc: if True, use relative postional encodings, absolute encodings otherwise.
       causal_pos_enc: if True, use causal positional encodings (when rel_pos_enc=True), it assumes
                       that query q_i only attents to key k_j when j<=i
-      norm_before: if True, use layer norm before layers, otherwise after
+      conv_norm_layer: norm layer constructor for conv block, 
+                       if None it uses BatchNorm
+      se_r:         Squeeze-Excitation compression ratio,
+                    if None it doesn't use Squeeze-Excitation
+      ff_macaron: if True, it uses macaron-net style ff layers, otherwise transformer style.
+      out_lnorm: if True, use LNorm layer at the output as in the conformer paper, 
+                 we think that this layer is redundant and put it to False by default
       concat_after: if True, if concats attention input and output and apply linear transform, i.e.,
                              y = x + linear(concat(x, att(x)))
                     if False, y = x + att(x)
@@ -35,34 +56,52 @@ class TransformerEncoderBlockV1(nn.Module):
     """
 
     def __init__(self, num_feats, self_attn, num_heads, 
-                 feed_forward, d_ff, ff_kernel_size, 
-                 ff_act='relu6', ff_dropout_rate=0,
+                 conv_repeats=1, conv_kernel_size=31, conv_stride=1,
+                 feed_forward='linear', d_ff=2048, ff_kernel_size=3, 
+                 hid_act='swish', dropout_rate=0,
                  att_context=25, att_dropout_rate=0, 
                  rel_pos_enc=False, causal_pos_enc=False,
-                 norm_before=True, concat_after=False):
+                 conv_norm_layer=None, se_r=None,
+                 ff_macaron=True, out_lnorm=False, concat_after=False):
 
         super().__init__()
-        if isinstance(self_attn, str):
-            self.self_attn = self._make_att(
-                self_attn, num_feats, num_heads, att_context, att_dropout_rate,
-                rel_pos_enc, causal_pos_enc)
-        else:
-            self.self_attn = self_attn
-
-        if isinstance(feed_forward, str):
-            self.feed_forward = self._make_ff(
+        self.self_attn = self._make_att(
+            self_attn, num_feats, num_heads, att_context, att_dropout_rate,
+            rel_pos_enc, causal_pos_enc)
+        
+        self.ff_scale = 1
+        self.ff_macaron = ff_macaron
+        if ff_macaron:
+            self.ff_scale = 0.5
+            self.feed_forward_macaron = self._make_ff(
                 feed_forward, num_feats, d_ff, ff_kernel_size, 
-                ff_act, ff_dropout_rate)
-        else:
-            self.feed_forward = feed_forward
+                hid_act, dropout_rate)
+            self.norm_ff_macaron = nn.LayerNorm(num_feats)
 
-        self.norm1 = nn.LayerNorm(num_feats)
-        self.norm2 = nn.LayerNorm(num_feats)
-        self.dropout_rate = ff_dropout_rate
+        self.feed_forward = self._make_ff(
+            feed_forward, num_feats, d_ff, ff_kernel_size, 
+            hid_act, dropout_rate)
+
+        conv_blocks = []
+        for i in range(conv_repeats):
+            block_i = ConformerConvBlock(
+                num_feats, conv_kernel_size, conv_stride,
+                activation=hid_act, norm_layer=conv_norm_layer,
+                dropout_rate=dropout_rate, se_r=se_r)
+            conv_stride = 1
+            conv_blocks.append(block_i)
+
+        self.conv_blocks = nn.ModuleList(conv_blocks)
+
+        self.norm_att = nn.LayerNorm(num_feats)
+        self.norm_ff = nn.LayerNorm(num_feats)
+        self.out_lnorm = out_lnorm
+        if out_lnorm:
+            self.norm_out = nn.LayerNorm(num_feats)
+        self.dropout_rate = dropout_rate
         if self.dropout_rate > 0:
             self.dropout = nn.Dropout(self.dropout_rate)
 
-        self.norm_before = norm_before
         self.concat_after = concat_after
         if self.concat_after:
             self.concat_linear = nn.Linear(num_feats + num_feats, num_feats)
@@ -153,10 +192,19 @@ class TransformerEncoderBlockV1(nn.Module):
            Tensor with output features
            Tensor with mask
         """
-        residual = x
-        if self.norm_before:
-            x = self.norm1(x)
 
+        # macaron feed forward
+        if self.ff_macaron:
+            residual = x
+            x = self.norm_ff_macaron(x)
+            x = self.feed_forward_macaron(x)
+            if self.dropout_rate > 0:
+                x = self.dropout(x)
+            x = residual + self.ff_scale * x
+
+        # multihead attention
+        residual = x
+        x = self.norm_att(x)
         if pos_emb is None:
             x_att = self.self_attn(x, x, x, mask=mask)
         else:
@@ -171,19 +219,25 @@ class TransformerEncoderBlockV1(nn.Module):
             x = self.dropout(x)
 
         x = residual + x
-        if not self.norm_before:
-            x = self.norm1(x)
 
+        # convolutional blocks
+        x = x.transpose(1,2)
+        for block in range(len(self.conv_blocks)):
+            x = self.conv_blocks[block](x)
+
+        x = x.transpose(1,2)
+
+        # feed-forward block
         residual = x
-        if self.norm_before:
-            x = self.norm2(x)
-
+        x = self.norm_ff(x)
         x = self.feed_forward(x)
         if self.dropout_rate > 0:
             x = self.dropout(x)
 
-        x = residual + x
-        if not self.norm_before:
-            x = self.norm2(x)
+        x = residual + self.ff_scale * x
 
+        # output norm
+        if self.out_lnorm:
+            x = self.norm_out(x)
+        
         return x, mask

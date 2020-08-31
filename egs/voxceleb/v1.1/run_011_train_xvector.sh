@@ -39,6 +39,8 @@ if [ $stage -le 1 ]; then
 	train_exec=torch-train-resnet-xvec-from-wav.py
     elif [[ ${nnet_type} =~ efficientnet ]]; then
 	train_exec=torch-train-efficientnet-xvec-from-wav.py
+    elif [[ ${nnet_type} =~ transformer ]]; then
+	train_exec=torch-train-transformer-xvec-v1-from-wav.py
     else
 	echo "$nnet_type not supported"
 	exit 1

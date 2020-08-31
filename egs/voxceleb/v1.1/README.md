@@ -93,8 +93,8 @@ run_040_eval_be.sh --config-file config_fbank80_mvn_resnet34_arcs30m0.3_adam_lr0
 | | | | Cosine |  1.35 | 0.088 | 0.146 |
 | config_fbank80_mvn_tseresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | Time-SE-ResNet34 | ArcFace s=30/m=0.3 | PLDA | 1.23 | 0.091 | 0.143 |
 | | | | Cosine |  1.17 | 0.081 | 0.110 |
-
-
+| config_fbank80_mvn_effnetb4_v2_arcs30m0.3_adam_lr0.01_amp.v1.sh | EfficientNet-b4 v2 | EfficientNet-b4 with strides=1122121 <br> ArcFace s=30/m=0.3 | 1.37 | 0.104 | 0.179 |
+| | | | Cosine | 1.31 | 0.080 | 0.139 |
 
 ### VoxCeleb 1 Entire-Clean trial list
 
@@ -106,6 +106,8 @@ run_040_eval_be.sh --config-file config_fbank80_mvn_resnet34_arcs30m0.3_adam_lr0
 | | | | Cosine | 1.19 | 0.078 | 0.140 |
 | config_fbank80_mvn_tseresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | Time-SE-ResNet34 | ArcFace s=30/m=0.3 | PLDA | 1.30 | 0.083 | 0.146 |
 | | | | Cosine | 1.09 | 0.071 | 0.124 |
+| config_fbank80_mvn_effnetb4_v2_arcs30m0.3_adam_lr0.01_amp.v1.sh | EfficientNet-b4 v2 | EfficientNet-b4 with strides=1122121 <br> ArcFace s=30/m=0.3 | 1.45 | 0.097 | 0.165 |
+| | | | Cosine | 1.15 | 0.076 | 0.132 |
 
 
 ### VoxCeleb 1 Hard-Clean trial list
@@ -118,4 +120,7 @@ run_040_eval_be.sh --config-file config_fbank80_mvn_resnet34_arcs30m0.3_adam_lr0
 | | | | Cosine | 2.27 | 0.137 | 0.219 |
 | config_fbank80_mvn_tseresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | Time-SE-ResNet34 | ArcFace s=30/m=0.3 | PLDA | 2.46 | 0.142 | 0.237 |
 | | | | Cosine |  2.14 | 0.126 | 0.203 |
+| config_fbank80_mvn_effnetb4_v2_arcs30m0.3_adam_lr0.01_amp.v1.sh | EfficientNet-b4 v2 | EfficientNet-b4 with strides=1122121 <br> ArcFace s=30/m=0.3 | 2.57 | 0.153 | 0.255 |
+| | | | Cosine | 2.11 | 0.127 | 0.205 |
+
 

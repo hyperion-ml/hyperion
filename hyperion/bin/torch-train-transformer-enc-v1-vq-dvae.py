@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+ Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import sys
@@ -12,20 +12,25 @@ import logging
 import numpy as np
 
 import torch
+import torch.nn as nn
 
 from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch.utils import open_device
 from hyperion.torch.helpers import OptimizerFactory as OF
 from hyperion.torch.lr_schedulers import LRSchedulerFactory as LRSF
-from hyperion.torch.seq_embed import TransformerXVectorV1 as XVec
-from hyperion.torch.trainers import XVectorTrainer as Trainer
-from hyperion.torch.data import SeqDataset as SD
+from hyperion.torch.narchs import TransformerEncoderV1 as Encoder
+from hyperion.torch.narchs import TransformerEncoderV1 as Decoder
+from hyperion.torch.models import VQVAE as VAE
+from hyperion.torch.trainers import VQDVAETrainer as Trainer
+from hyperion.torch.data import PairedSeqDataset as SD
 from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
-from hyperion.torch.metrics import CategoricalAccuracy
 
-def train_xvec(data_rspec, train_list, val_list, exp_path,
-               epochs, num_gpus, log_interval, resume, num_workers, 
-               grad_acc_steps, use_amp, **kwargs):
+
+def train_vae(data_rspec, train_list, val_list, 
+              train_pair_list, val_pair_list,
+              exp_path, in_feats, 
+              epochs, num_gpus, log_interval, resume, num_workers, 
+              grad_acc_steps, use_amp, **kwargs):
 
     set_float_cpu('float32')
     logging.info('initializing devices num_gpus={}'.format(num_gpus))
@@ -33,18 +38,24 @@ def train_xvec(data_rspec, train_list, val_list, exp_path,
 
     sd_args = SD.filter_args(**kwargs)
     sampler_args = Sampler.filter_args(**kwargs)
-    xvec_args = XVec.filter_args(**kwargs)
+    enc_args = Encoder.filter_args(prefix='enc', **kwargs)
+    dec_args = Decoder.filter_args(prefix='dec', **kwargs)
+    vae_args = VAE.filter_args(**kwargs)
     opt_args = OF.filter_args(prefix='opt', **kwargs)
     lrsch_args = LRSF.filter_args(prefix='lrsch', **kwargs)
     logging.info('seq dataset args={}'.format(sd_args))
     logging.info('sampler args={}'.format(sampler_args))
-    logging.info('xvector network args={}'.format(xvec_args))
+    logging.info('encoder args={}'.format(enc_args))
+    logging.info('decoder args={}'.format(dec_args))
+    logging.info('vae args={}'.format(vae_args))
     logging.info('optimizer args={}'.format(opt_args))
     logging.info('lr scheduler args={}'.format(lrsch_args))
 
     logging.info('init datasets')
-    train_data = SD(data_rspec, train_list, **sd_args)
-    val_data = SD(data_rspec, val_list, is_val=True, **sd_args)
+    train_data = SD(data_rspec, train_list, train_pair_list, 
+                    return_class=False, **sd_args)
+    val_data = SD(data_rspec, val_list, val_pair_list, 
+                  return_class=False, is_val=True, **sd_args)
 
     logging.info('init samplers')
     train_sampler = Sampler(train_data, **sampler_args)
@@ -58,22 +69,25 @@ def train_xvec(data_rspec, train_list, val_list, exp_path,
     test_loader = torch.utils.data.DataLoader(
         val_data, batch_sampler = val_sampler, **largs)
 
-    xvec_args['num_classes'] = train_data.num_classes
-    model = XVec(**xvec_args)
+    enc_args['out_time_dim'] = -1
+    dec_args['out_time_dim'] = -1
+    encoder = Encoder(in_feats, **enc_args)
+    decoder = Decoder(**dec_args)
+    model = VAE(encoder, decoder, **vae_args)
     logging.info(str(model))
 
     optimizer = OF.create(model.parameters(), **opt_args)
     lr_sch = LRSF.create(optimizer, **lrsch_args)
-    metrics = { 'acc': CategoricalAccuracy() }
-    
+    metrics = { 'mse': nn.MSELoss(), 'L1': nn.L1Loss() }
+
     trainer = Trainer(model, optimizer, epochs, exp_path, 
                       grad_acc_steps=grad_acc_steps,
                       device=device, metrics=metrics, lr_scheduler=lr_sch,
-                      data_parallel=(num_gpus>1), use_amp=use_amp,
-                      log_interval=log_interval)
+                      data_parallel=(num_gpus>1), use_amp=use_amp)
     if resume:
         trainer.load_last_checkpoint()
     trainer.fit(train_loader, test_loader)
+
 
 
 
@@ -82,11 +96,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         fromfile_prefix_chars='@',
-        description='Train XVector with Transformer-V1 encoder')
+        description='Train Denoising VQ-VAE with Transformer Enconder as Encoder-Decoder')
 
-    parser.add_argument('--data-rspec', dest='data_rspec', required=True)
-    parser.add_argument('--train-list', dest='train_list', required=True)
-    parser.add_argument('--val-list', dest='val_list', required=True)
+    parser.add_argument('--data-rspec', required=True)
+    parser.add_argument('--train-list', required=True)
+    parser.add_argument('--val-list', required=True)
+    parser.add_argument('--train-pair-list', required=True)
+    parser.add_argument('--val-pair-list', required=True)
 
     SD.add_argparse_args(parser)
     Sampler.add_argparse_args(parser)
@@ -100,7 +116,13 @@ if __name__ == '__main__':
     parser.add_argument('--epochs', type=int, default=200, 
                         help='number of epochs')
 
-    XVec.add_argparse_args(parser)
+    parser.add_argument('--in-feats', type=int, required=True,
+                        help='input features dimension')
+
+    Encoder.add_argparse_args(parser, prefix='enc')
+    Decoder.add_argparse_args(parser, prefix='dec', in_feats=True)
+    VAE.add_argparse_args(parser)
+
     OF.add_argparse_args(parser, prefix='opt')
     LRSF.add_argparse_args(parser, prefix='lrsch')
 
@@ -129,5 +151,5 @@ if __name__ == '__main__':
     torch.manual_seed(args.seed)
     del args.seed
 
-    train_xvec(**vars(args))
+    train_vae(**vars(args))
 

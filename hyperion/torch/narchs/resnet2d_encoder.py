@@ -10,6 +10,7 @@ import torch
 import torch.nn as nn
 
 from ..layers import ActivationFactory as AF
+from ..layers import NormLayer2dFactory as NLF
 from ..layer_blocks import ResNet2dBasicBlock, ResNet2dBNBlock, DC2dEncBlock
 from ..layer_blocks import SEResNet2dBasicBlock, SEResNet2dBNBlock
 from .net_arch import NetArch
@@ -40,15 +41,15 @@ class ResNet2dEncoder(NetArch):
         super().__init__()
 
         self.resb_type = resb_type
-        bargs = {}
+        bargs = {} # block's extra arguments
         if resb_type == 'basic':
             self._block = ResNet2dBasicBlock
-        elif block == 'bn':
+        elif resb_type == 'bn':
             self._block = ResNet2dBNBlock
-        elif block == 'sebasic': 
+        elif resb_type == 'sebasic': 
             self._block = SEResNet2dBasicBlock
             bargs['se_r'] = se_r
-        elif block == 'sebn':
+        elif resb_type == 'sebn':
             self._block = SEResNet2dBNBlock
             bargs['se_r'] = se_r
 
@@ -71,17 +72,24 @@ class ResNet2dEncoder(NetArch):
         self.hid_act = hid_act
         self.head_act = head_act
         self.dropout_rate = dropout_rate
-        self.norm_layer = norm_layer
         self.use_norm = use_norm
         self.norm_before = norm_before
         self.se_r = se_r
+
+        self.norm_layer = norm_layer
+        norm_groups = None
+        if norm_layer == 'group-norm':
+            norm_groups = min(np.min(resb_channels)//2, 32)
+            norm_groups = max(norm_groups, resb_groups)
+        self._norm_layer = NLF.create(norm_layer, norm_groups)
 
         # stem block
         self.in_block = DC2dEncBlock(
             in_channels, in_conv_channels, in_kernel_size, 
             stride=in_stride, 
             activation=hid_act, dropout_rate=dropout_rate,
-            use_norm=use_norm, norm_before=norm_before)
+            use_norm=use_norm, norm_layer=self._norm_layer, 
+            norm_before=norm_before)
         self._context = self.in_block.context
         self._downsample_factor = self.in_block.stride
 
@@ -99,7 +107,7 @@ class ResNet2dEncoder(NetArch):
                 cur_in_channels, channels_i, kernel_size_i, 
                 stride=stride_i, dilation=1, groups=self.resb_groups,
                 activation=hid_act, dropout_rate=dropout_rate,
-                use_norm=use_norm, norm_layer=norm_layer, 
+                use_norm=use_norm, norm_layer=self._norm_layer, 
                 norm_before=norm_before, **bargs)
                                    
             self.blocks.append(block_i)
@@ -111,7 +119,7 @@ class ResNet2dEncoder(NetArch):
                     channels_i, channels_i, kernel_size_i, 
                     stride=1, dilation=dilation_i, groups=self.resb_groups,
                     activation=hid_act, dropout_rate=dropout_rate,
-                    use_norm=use_norm, norm_layer=norm_layer, 
+                    use_norm=use_norm, norm_layer=self._norm_layer, 
                     norm_before=norm_before, **bargs)
                 
                 self.blocks.append(block_i)
@@ -236,6 +244,7 @@ class ResNet2dEncoder(NetArch):
                   'hid_act': hid_act,
                   'head_act': head_act,
                   'use_norm': self.use_norm,
+                  'norm_layer': self.norm_layer,
                   'norm_before': self.norm_before,
               }
         
@@ -268,7 +277,7 @@ class ResNet2dEncoder(NetArch):
                       'head_channels', 'se_r',
                       'hid_act', 'had_act', 
                       'dropout_rate',
-                      'use_norm', 'norm_before')
+                      'use_norm', 'norm_layer', 'norm_before')
 
         args = dict((k, kwargs[p+k])
                     for k in valid_args if p+k in kwargs)
@@ -299,7 +308,6 @@ class ResNet2dEncoder(NetArch):
 
         parser.add_argument(p1+'in-stride', default=1, type=int,
                             help=('stride of input convolution'))
-
 
         parser.add_argument(
             p1+'resb-type', default='basic',
@@ -349,6 +357,13 @@ class ResNet2dEncoder(NetArch):
         except:
             pass
 
+        try:
+            parser.add_argument(
+                p1+'norm-layer', default=None, 
+                choices=['batch-norm', 'group-norm', 'instance-norm', 'instance-norm-affine', 'layer-norm'],
+                help='type of normalization layer')
+        except:
+            pass
 
         parser.add_argument(p1+'wo-norm', default=False, action='store_true',
                             help='without batch normalization')

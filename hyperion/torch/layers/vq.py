@@ -142,7 +142,7 @@ class KMeansVectorQuantizer(VectorQuantizer):
 
 
 
-class KMeansMultiVectorQuantizer(VectorQuantizer):
+class MultiKMeansVectorQuantizer(VectorQuantizer):
     def __init__(self, num_groups, num_embed, embed_feats, commitment_cost=0.25, 
                  project=True, in_feats=None, in_dim=None):
         super().__init__(
