@@ -44,7 +44,7 @@ We compute average of the metrics across VoxCeleb1, values in parenthesis are st
 ### Models trained without augmentation
 
 | Config | Model Type | Architecture |  Latent-channels | Compression (bits x/bits z) | ELBO/dim (std) | MSE (std) | L1 (std) | codebook-size | 
-| ------ | ---------- | ------------ | :--------: | :-------: | :----:   | :----:   | :----:   | :----: | :----: | 
+| ------ | ---------- | ------------ | :--------: | :-------: | :----:   | :----:   | :----:   | :----: | 
 | config_vae_dc1d_b4d256_z80_c8.opt.lr0.01.v1.sh | VAE | DC1d Enc-Dec <br> dc-blocks=4 / hid-channels=256 | 80 | 8 | -1.96 (0.62) | 1.57 (0.91) | 0.90 (0.24) |
 | config_vae_dc1d_b9d256_z80_c8.opt.lr0.01.v1.sh | VAE | DC1d Enc-Dec <br> dc-blocks=9 / hid-channels=256 | 80 | 8 | -1.95 (0.62) | 1.56 (0.91) | 0.89 (0.24) |
 | config_vae_resnet1d_b4d256_z80_c8.opt.lr0.01.v1.sh | VAE | ResNet1d Enc-Dec <br> res-blocks=4/ hid-channels=256 | 80 | 8 | -1.97 (0.65) | 1.55 (0.93) | 0.89 (0.25) |
@@ -65,12 +65,14 @@ We compute average of the metrics across VoxCeleb1, values in parenthesis are st
 | config_vqvae_transformer_b6d512h8ff2048_emakmeansvq_z512cb512x8_c36.opt.lr0.01.v4.sh | VQ-VAE | Xformer Enc <br> blocks=6/ d_model=512 / heads=8 / d_ff=2048 | 512 | 36 |  -1.74(0.31) | 0.48 (0.15) | 0.52 (0.08) | 512x8 |
 | config_vqvae_transformer_lac25b6d512h8ff2048_emakmeansvq_z512cb512x8_c36.opt.lr0.01.v4.sh | VQ-VAE | Xformer Enc <br> blocks=6 / d_model=512 / heads=8 / att-context=25 / d_ff=2048 | 512 | 36 |  -1.61(0.15) | 0.42 (0.08) | 0.49 (0.05) | 512x8 |
 | config_vqvae_transformer_lac25b6d512h8ff2048_emakmeansvq_z512cb512x8_c36_radam.opt.lr0.01.v4.sh | VQ-VAE | Xformer Enc <br> blocks=6 / d_model=512 / heads=8 / att-context=25 / d_ff=2048 <br> RAdam Opt. | 512 | 36 |  -1.33(0.15) | 0.28 (0.05) | 0.40 (0.03) | 512x8 |
+| config_vqvae_transformer_b6d512h8ff2048rpe_emakmeansvq_z512cb512x8_c36_radam.opt.lr0.01.v4.sh | VQ-VAE | Xformer Enc <br> blocks=6 / d_model=512 / heads=8 / d_ff=2048 <br> Rel. Pos Enc. <br> RAdam Opt. | 512 | 36 |  -1.29(0.10) | 0.27 (0.05) | 0.39 (0.03) | 512x8 |
 | config_vqvae_transformer_lac25b6d512h8ff2048rpe_emakmeansvq_z512cb512x8_c36_radam.opt.lr0.01.v4.sh | VQ-VAE | Xformer Enc <br> blocks=6 / d_model=512 / heads=8 / att-context=25 / d_ff=2048 <br> Rel. Pos Enc. <br> RAdam Opt. | 512 | 36 |  -1.30(0.09) | 0.27 (0.04) | 0.39 (0.03) | 512x8 |
+| config_vqvae_conformer_lac25b6d512h8cbk31ff2048_emakmeansvq_z512cb512x8_c36_radam.opt.lr0.01.v4.sh  | VQ-VAE | Conformer Enc <br> blocks=6 / d_model=512 / heads=8 / att-context=25 / d_ff=2048 <br> RAdam Opt. | 512 | 36 |  -1.26(0.10) | 0.28 (0.04) | 0.39 (0.03) | 512x8 |
 
 ### Models trained with augmentation (Denoising versions)
 
 | Config | Model Type | Architecture |  Latent-channels | Compression (bits x/bits z) | ELBO/dim (std) | MSE (std) | L1 (std) | codebook-size | 
-| ------ | ---------- | ------------ | :--------: | :-------: | :----:   | :----:   | :----:   | :----:   | :----:   |
+| ------ | ---------- | ------------ | :--------: | :-------: | :----:   | :----:   | :----:   | :----:   | 
 | config_dvae_resnet1d_b16d256_z80_c8.opt.lr0.01.v1.sh | VAE | ResNet1d Enc-Dec <br> res-blocks=16 / hid-channels=256 | 80 | 8 | -1.77 (0.33) | 1.67 (0.87) | 0.94 (0.22) |
 | config_dvae_resnet2d_b16c64_z80_c0.8.opt.lr0.01.v1.sh | VAE | ResNet2d Enc-Dec <br> res-blocks=16 / base-channels=64 | 80 | 0.8 | -1.77 (0.39) | 1.57 (0.92) | 0.89 (0.25) |
 | config_vqdvae_resnet1d_b8d256_emakmeansvq_z256cb512x4_c569.opt.lr0.01.v1.sh | VQ-VAE | ResNet1d Enc-Dec <br> res-blocks=8 / hid-channels=256 | 256 | 569  | -1.75 (0.29) | 1.78 (0.84) | 0.98 (0.21) | 512x4 | 
