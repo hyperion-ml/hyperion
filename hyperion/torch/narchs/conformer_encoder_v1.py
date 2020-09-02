@@ -75,7 +75,7 @@ class ConformerEncoderV1(NetArch):
                  hid_act='swish',
                  conv_norm_layer=None, se_r=None,
                  ff_macaron=True, red_lnorms=False, concat_after=False,
-                 padding_idx=-1, in_time_dim=-1, out_time_dim=1):
+                 padding_idx=-1, in_time_dim=-1, out_time_dim=1, red_lnorm=False):
 
         super().__init__()
         self.in_feats = in_feats
@@ -255,7 +255,7 @@ class ConformerEncoderV1(NetArch):
                   'hid_act': self.hid_act,
                   'se_r': self.se_r,
                   'ff_macaron': self.ff_macaron,
-                  'red_lnorm': self.red_lnorms,
+                  'red_lnorms': self.red_lnorms,
                   'conv_norm_layer': self.conv_norm_layer,
                   'concat_after': self.concat_after,
                   'padding_idx': self.padding_idx,
