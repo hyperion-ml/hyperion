@@ -97,7 +97,7 @@ if [ $stage -le 3 ];then
     local/make_voxceleb2cat.pl $voxceleb2_root dev 8 data/voxceleb2cat_train
     local/make_voxceleb2cat.pl $voxceleb2_root test 8 data/voxceleb2cat_test
 
-    utils/combine_data.sh data/voxcelebcat data/voxceleb1cat data/voxceleb2cat_train
+    utils/combine_data.sh data/voxcelebcat data/voxceleb1cat data/voxceleb2cat_train data/voxceleb2cat_test
     local/apply_sox_tel_codec.sh data/voxcelebcat data/voxcelebcat_tel
 
 fi
@@ -133,5 +133,37 @@ if [ $stage -le 8 ];then
     local/make_sre20cts_eval.sh $sre20cts_eval_root 8 data
 fi
 
+if [ $stage -le 9 ];then
+    # Prepare CN Celeb
+    local/make_cncelebcat.sh $cnceleb_root dev 8 data/cncelebcat_dev
+    local/make_cncelebcat.sh $cnceleb_root eval 8 data/cncelebcat_eval
+    utils/combine_data.sh data/cncelebcat data/cncelebcat_dev data/cncelebcat_eval
+    local/apply_sox_tel_codec.sh data/cncelebcat data/cncelebcat_tel
+fi
 
+if [ $stage -le 10 ];then
+    # Prepare CommonVoice
+    for lang in en de fr rw ca es kab fa it eu pl ru eo zh-TW zh-CN zh-HK pt nl cs \
+    		   tt et fy-NL uk tr ta ky ar mn br id mt el dv sv-SE ja rm-sursilv \
+    		   sl cv ro lv ia sah or cnh ga-IE ka rm-vallader as vi
+    do
+	local/make_commonvoicecat.sh $cv_root $lang 30 8 8 data/cvcat_${lang}
+	local/apply_sox_tel_codec.sh data/cvcat_${lang} data/cvcat_${lang}_tel
+    done
+
+fi
+
+if [ $stage -le 11 ];then
+    # Prepare Fisher Spanish
+    local/make_fisher_spanish.sh $fisher_spa_root 8 data/fisher_spa
+fi
+
+
+if [ $stage -le 12 ];then
+    # Prepare Babel data
+    for lang in $babel_langs
+    do
+	local/make_babel.sh ${babel_root[$lang]} $lang 8 data/babel_${lang}
+    done
+fi
 

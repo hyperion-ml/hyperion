@@ -18,7 +18,7 @@ stage=1
 config_file=default_config.sh
 
 . parse_options.sh || exit 1;
-
+. datapath.sh
   # Make filterbanks and compute the energy-based VAD for each dataset
 
 if [ $stage -le 1 ]; then
@@ -45,11 +45,18 @@ if [ $stage -le 1 ]; then
 fi
 
 #Train datasets
-if [ $stage -le 2 ];then 
+if [ $stage -le 2 ];then
+
     for name in sre_tel swbd voxcelebcat_tel \
-    		        sre18_cmn2_adapt_lab sre18_dev_unlabeled \
-    			sre18_eval40_enroll_cmn2 sre18_eval40_test_cmn2 \
-    			sre19_eval_enroll_cmn2 sre19_eval_test_cmn2
+    			sre16_train_dev_cmn sre16_train_dev_ceb \
+    			sre16_eval_tr60_yue sre16_eval_tr60_tgl \
+    			sre16_eval40_yue_enroll sre16_eval40_yue_test \
+    			sre16_eval40_tgl_enroll sre16_eval40_tgl_test \
+    		        sre18_cmn2_train_lab sre18_dev_unlabeled \
+    			sre19_eval_enroll_cmn2 sre19_eval_test_cmn2 \
+    			sre20cts_eval_enroll sre20cts_eval_test \
+    			cncelebcat_tel fisher_spa \
+			$cv_datasets $babel_datasets
     do
 	num_spk=$(wc -l data/$name/spk2utt | awk '{ print $1}')
 	nj=$(($num_spk < 40 ? $num_spk:40))
