@@ -1,11 +1,21 @@
 #!/bin/bash
-
+# Copyright 2018 Johns Hopkins University (Jesus Villalba)  
+# Apache 2.0.
+#
 cmd=run.pl
 lda_dim=150
 plda_type=frplda
+y_dim=125
+z_dim=150
+set -e
 
 if [ -f path.sh ]; then . ./path.sh; fi
 . parse_options.sh || exit 1;
+
+if [ $# -ne 3 ]; then
+  echo "Usage: $0 <vector-file> <data-dir> <output-dir>"
+  exit 1;
+fi
 
 vector_file=$1
 data_dir=$2

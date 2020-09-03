@@ -17,12 +17,9 @@ from hyperion.utils.utt2info import Utt2Info
 
 
 def train_be(iv_file, train_list,
-             adapt_iv_file, adapt_list,
              lda_dim,
              plda_type, y_dim, z_dim,
              epochs, ml_md, md_epochs,
-             w_mu1, w_B1, w_W1,
-             w_mu2, w_B2, w_W2, num_spks, do_ahc,
              output_path, **kwargs):
 
     # Read data

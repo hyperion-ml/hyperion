@@ -18,7 +18,7 @@ key=$data_dir/trials
 echo "SRE16 ${dev_eval}"
 
 #Compute performance
-python local/score_dcf.py --key-file $key --score-file $score_dir/sre16_${subset}_core_scores --output-path $score_dir/sre16_${subset}
+python local/score_dcf.py --key-file $key --score-file $score_dir/sre16_${subset}_scores --output-path $score_dir/sre16_${subset}
 
 
 

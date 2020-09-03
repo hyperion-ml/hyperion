@@ -2,14 +2,12 @@
 # Copyright 2018 Johns Hopkins University (Jesus Villalba)  
 # Apache 2.0.
 #
-
 cmd=run.pl
 plda_type=frplda
+set -e
 
 if [ -f path.sh ]; then . ./path.sh; fi
 . parse_options.sh || exit 1;
-
-set -e
 
 if [ $# -ne 6 ]; then
   echo "Usage: $0 <ndx> <enroll-file> <vector-file> <preproc-file> <plda-file> <output-scores>"

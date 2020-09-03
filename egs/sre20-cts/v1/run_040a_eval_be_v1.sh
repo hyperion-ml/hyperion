@@ -90,21 +90,21 @@ if [ $stage -le 2 ]; then
 			       $be_dir/plda.h5 \
 			       $score_plda_dir/sre19_eval_cmn2_scores &
 
-    echo "eval SRE20 without S-Norm"
-    steps_be/eval_tel_be_v1.sh --cmd "$train_cmd" --plda_type $plda_type \
-			       data/sre20cts_eval_test/trials \
-			       data/sre20cts_eval_enroll/utt2spk \
-			       $xvector_dir/sre19cts_eval/xvector.scp \
-			       $be_dir/lda_lnorm.h5 \
-			       $be_dir/plda.h5 \
-			       $score_plda_dir/sre19cts_eval_scores &
+    # echo "eval SRE20 without S-Norm"
+    # steps_be/eval_tel_be_v1.sh --cmd "$train_cmd" --plda_type $plda_type \
+    # 			       data/sre20cts_eval_test/trials \
+    # 			       data/sre20cts_eval_enroll/utt2spk \
+    # 			       $xvector_dir/sre20cts_eval/xvector.scp \
+    # 			       $be_dir/lda_lnorm.h5 \
+    # 			       $be_dir/plda.h5 \
+    # 			       $score_plda_dir/sre20cts_eval_scores &
 
     
     wait
     local/score_sre16.sh data/sre16_eval40_yue_test eval40_yue $score_plda_dir
     local/score_sre16.sh data/sre16_eval40_tgl_test eval40_tgl $score_plda_dir
     local/score_sre19cmn2.sh data/sre19_eval_test_cmn2 $score_plda_dir
-    local/make_sre20cts_sub.sh $sre20cts_eval_root ${score_plda_dir}/sre20cts_eval_scores
+    #local/make_sre20cts_sub.sh $sre20cts_eval_root ${score_plda_dir}/sre20cts_eval_scores
 fi
 exit
 
