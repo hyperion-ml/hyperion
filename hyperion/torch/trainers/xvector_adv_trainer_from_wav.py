@@ -11,15 +11,16 @@ import logging
 import torch
 import torch.nn as nn
 
-from ..utils import MetricAcc
-from .xvector_trainer import XVectorTrainer
+from ..utils import MetricAcc, TorchDataParallel
+from .xvector_trainer_from_wav import XVectorTrainerFromWav
 
 
-class XVectorAdvTrainer(XVectorTrainer):
+class XVectorAdvTrainerFromWav(XVectorTrainerFromWav):
     """Adversarial Training of x-vectors with attack in feature domain
 
        Attributes:
          model: x-Vector model object.
+         feat_extractor: feature extractor nn.Module
          optimizer: pytorch optimizer object
          attack: adv. attack generator object
          epochs: max. number of epochs
@@ -39,14 +40,14 @@ class XVectorAdvTrainer(XVectorTrainer):
          log_interval: number of optim. steps between log outputs
     """
 
-    def __init__(self, model, optimizer, attack, epochs, exp_path, cur_epoch=0, 
+    def __init__(self, model, feat_extractor, optimizer, attack, epochs, exp_path, cur_epoch=0, 
                  grad_acc_steps=1, p_attack=0.8,
                  device=None, metrics=None, lr_scheduler=None, loggers=None, 
                  data_parallel=False, loss=None, train_mode='train', use_amp=False,
                  log_interval=10):
 
         super().__init__(
-            model, optimizer, epochs, exp_path, cur_epoch=cur_epoch,
+            model, feat_extractor, optimizer, epochs, exp_path, cur_epoch=cur_epoch,
             grad_acc_steps=grad_acc_steps, device=device, metrics=metrics,
             lr_scheduler=lr_scheduler, loggers=loggers, data_parallel=data_parallel, 
             loss=loss, train_mode=train_mode, use_amp=use_amp,
@@ -64,7 +65,7 @@ class XVectorAdvTrainer(XVectorTrainer):
 
         if data_parallel:
             # change model in attack by the data parallel version
-            self.attack.model = self.model
+            self.attack.model = TorchDataParallel(self.attack.model)
             # make loss function in attack data parallel
             self.attack.make_data_parallel()
 
@@ -102,8 +103,11 @@ class XVectorAdvTrainer(XVectorTrainer):
 
                 self.optimizer.zero_grad()
 
-            output = self.model(data, target)
-            loss = self.loss(output, target).mean() / self.grad_acc_steps
+            with torch.no_grad():
+                feats = self.feat_extractor(data)
+
+            output = self.model(feats, target)
+            loss = self.loss(output, target).mean()/self.grad_acc_steps
             loss.backward()
 
             if (batch+1) % self.grad_acc_steps == 0:
@@ -143,7 +147,8 @@ class XVectorAdvTrainer(XVectorTrainer):
                 data = self.attack.generate(data, target)
 
             with torch.no_grad():
-                output = self.model(data)
+                feats = self.feat_extractor(data)
+                output = self.model(feats)
                 loss = self.loss(output, target)
 
             batch_metrics['loss'] = loss.mean().item()

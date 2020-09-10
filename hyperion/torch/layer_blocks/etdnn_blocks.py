@@ -2,7 +2,6 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-# from __future__ import absolute_import
 
 import numpy as np
 
@@ -50,7 +49,7 @@ class ETDNNBlock(nn.Module):
         bias = not self.norm_before
         self.conv1 = Conv1d(in_channels, out_channels, bias=bias,
                             kernel_size=kernel_size, dilation=dilation, 
-                            padding=padding, padding_mode='reflection') # pytorch > 1.0
+                            padding=padding) 
         self.conv2 = Conv1d(out_channels, out_channels, bias=bias, kernel_size=1)
         
 

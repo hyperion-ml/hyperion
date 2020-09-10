@@ -4,17 +4,19 @@
 # Both models uses the same training data.
 
 # victim acoustic features
-feat_config=conf/fbank80_mvn_16k.pyconf
-feat_type=fbank80_mvn
+feat_config=conf/fbank80_stmn_16k.pyconf
+feat_type=fbank80_stmn
 
 # victim x-vector training 
-nnet_data=voxceleb2cat_combined
+nnet_data=voxceleb2cat
+nnet_num_augs=6
+aug_opt="--train-aug-cfg conf/reverb_noise_aug.yml --val-aug-cfg conf/reverb_noise_aug.yml"
 
 batch_size_1gpu=32
 eff_batch_size=512 # effective batch size
-min_chunk=400
-max_chunk=400
-ipe=1
+min_chunk=4
+max_chunk=4
+ipe=$nnet_num_augs
 lr=0.05
 
 nnet_type=resnet34
@@ -40,13 +42,15 @@ transfer_feat_config=$feat_config
 transfer_feat_type=$feat_type
 
 # transfer model training
-transfer_nnet_data=voxceleb2cat_combined #this can be voxceleb2cat or voxceleb2cat_combined
+transfer_nnet_data=voxceleb2cat #this can be voxceleb2cat or voxceleb1cat
+transfer_nnet_num_augs=6
+transfer_aug_opt="--train-aug-cfg conf/reverb_noise_aug.yml --val-aug-cfg conf/reverb_noise_aug.yml"
 
 transfer_batch_size_1gpu=128
 transfer_eff_batch_size=512 # effective batch size
-transfer_min_chunk=400
-tranfer_max_chunk=400
-transfer_ipe=1
+transfer_min_chunk=4
+transfer_max_chunk=4
+transfer_ipe=$transfer_nnet_num_augs
 transfer_lr=0.05
 
 transfer_nnet_type=lresnet34
