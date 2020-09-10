@@ -11,6 +11,7 @@ stage=1
 config_file=default_config.sh
 use_gpu=false
 ft=0
+with_aug=true
 
 . parse_options.sh || exit 1;
 . $config_file
@@ -53,21 +54,34 @@ if [ $stage -le 2 ]; then
     # Extract xvectors for training LDA/PLDA
     for name in sre_tel
     do
-    	steps_xvec/extract_xvectors.sh --cmd "$xvec_cmd --mem 12G" --nj 300 ${xvec_args} \
-	    --random-utt-length true --min-utt-length 1000 --max-utt-length 6000 \
-    	    $nnet data/${name}_combined_noreverb \
-    	    $xvector_dir/${name}_combined_noreverb
-	mkdir -p $xvector_dir/${name}
-	cp $xvector_dir/${name}_combined_noreverb/xvector.scp $xvector_dir/${name}
+	if [ "$with_aug" == "true" ];then
+    	    steps_xvec/extract_xvectors.sh --cmd "$xvec_cmd --mem 12G" --nj 300 ${xvec_args} \
+					   --random-utt-length true --min-utt-length 1000 --max-utt-length 6000 \
+    					   $nnet data/${name}_combined_noreverb \
+    					   $xvector_dir/${name}_combined_noreverb
+	    mkdir -p $xvector_dir/${name}
+	    cp $xvector_dir/${name}_combined_noreverb/xvector.scp $xvector_dir/${name}
+	else
+	    steps_xvec/extract_xvectors.sh --cmd "$xvec_cmd --mem 12G" --nj 100 ${xvec_args} \
+					   --random-utt-length true --min-utt-length 1000 --max-utt-length 6000 \
+    					   $nnet data/${name} \
+    					   $xvector_dir/${name}
+	fi
     done
 
     for name in sre18_cmn2_adapt_lab
     do
-    	steps_xvec/extract_xvectors.sh --cmd "$xvec_cmd --mem 12G" --nj 100 ${xvec_args} \
-    	    $nnet data/${name}_combined_noreverb \
-    	    $xvector_dir/${name}_combined_noreverb
-	mkdir -p $xvector_dir/${name}
-	cp $xvector_dir/${name}_combined_noreverb/xvector.scp $xvector_dir/${name}
+	if [ "$with_aug" == "true" ];then
+    	    steps_xvec/extract_xvectors.sh --cmd "$xvec_cmd --mem 12G" --nj 100 ${xvec_args} \
+    					   $nnet data/${name}_combined_noreverb \
+    					   $xvector_dir/${name}_combined_noreverb
+	    mkdir -p $xvector_dir/${name}
+	    cp $xvector_dir/${name}_combined_noreverb/xvector.scp $xvector_dir/${name}
+	else
+	    steps_xvec/extract_xvectors.sh --cmd "$xvec_cmd --mem 12G" --nj 40 ${xvec_args} \
+    					   $nnet data/${name} \
+    					   $xvector_dir/${name}
+	fi
     done
     
 fi

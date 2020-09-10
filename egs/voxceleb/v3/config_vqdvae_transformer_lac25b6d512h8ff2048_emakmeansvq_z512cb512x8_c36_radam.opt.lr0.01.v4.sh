@@ -1,5 +1,5 @@
 # VQ-VAE with Transformer Encoder for Enc and Dec with 
-# 6 transformer blocks, d_model=512, heads=8, d_ff=2048, latent_dim=512, codebook=8x8, compression factor=36
+# 6 transformer blocks, d_model=512, heads=8, d_ff=2048, latent_dim=512, codebook=512x8, compression factor=36
 
 nnet_data=voxceleb2cat_combined
 batch_size_1gpu=32

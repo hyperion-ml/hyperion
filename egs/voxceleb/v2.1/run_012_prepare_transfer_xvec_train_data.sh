@@ -33,8 +33,8 @@ if [ $stage -le 3 ]; then
     hyp_utils/remove_short_audios.sh --min-len 4 data/${transfer_nnet_data}_proc_audio_no_sil
 
     # We also want several utterances per speaker. Now we'll throw out speakers
-    # with fewer than 8 utterances.
-    hyp_utils/remove_spk_few_utts.sh --min-num-utts 8 data/${transfer_nnet_data}_proc_audio_no_sil
+    # with fewer than 4 utterances.
+    hyp_utils/remove_spk_few_utts.sh --min-num-utts 4 data/${transfer_nnet_data}_proc_audio_no_sil
 
 fi
 
