@@ -127,27 +127,24 @@ class FilterBankFactory(object):
 
 
         parser.add_argument(
-            p1+'fb-type', dest=(p2+'fb_type'), 
-            default='mel_kaldi',
+            p1+'fb-type', default='mel_kaldi',
             choices=['mel_kaldi', 'mel_etsi', 'linear'],
             help='Filter-bank type: mel_kaldi, mel_etsi, linear')
 
-        parser.add_argument(p1+'num-filters', dest=(p2+'num_filters'), type=int,
-                            default=23,
-                            help='Number of triangular mel-frequency bins')
+        parser.add_argument(
+            p1+'num-filters', type=int, default=23,
+            help='Number of triangular mel-frequency bins')
 
         parser.add_argument(
-            p1+'low-freq', dest=(p2+'low_freq'), type=float,
-            default=20,
+            p1+'low-freq', type=float, default=20,
             help='Low cutoff frequency for mel bins')
 
         parser.add_argument(
-            p1+'high-freq', dest=(p2+'high_freq'), type=float,
-            default=0,
+            p1+'high-freq', type=float, default=0,
             help='High cutoff frequency for mel bins (if < 0, offset from Nyquist)')
 
-        parser.add_argument(p1+'norm-filters', dest=(p2+'norm_filters'),
-                            default=False, type=str2bool,
-                            help='Normalize filters coeff to sum up to 1')
+        parser.add_argument(
+            p1+'norm-filters', default=False, action='store_true',
+            help='Normalize filters coeff to sum up to 1')
 
         
