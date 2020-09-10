@@ -17,7 +17,7 @@ def _dwconvk(channels, kernel_size, stride=1, bias=False):
     """kxk depth-wise convolution with padding"""
     return nn.Conv1d(channels, channels, kernel_size=kernel_size, stride=stride,
                      padding=(kernel_size-1)//2, groups=channels, bias=bias, 
-                     padding_mode='same')
+                     padding_mode='zeros')
 
 
 def _make_downsample(in_channels, out_channels, stride):
