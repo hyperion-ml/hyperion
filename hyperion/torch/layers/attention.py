@@ -171,7 +171,7 @@ class LocalScaledDotProdAttV1(ScaledDotProdAttV1):
 
 
     
-    def _compute_qkv0(self, query, key, value):
+    def _compute_qkv00(self, query, key, value):
         batch_size = query.size(0)
         t1 = query.size(self.time_dim)
         t2 = key.size(self.time_dim)
@@ -187,6 +187,37 @@ class LocalScaledDotProdAttV1(ScaledDotProdAttV1):
         assert num_blocks == num_blocks_q, (
             'num_blocks_k({})!=num_blocks_q({}), context_k={}, context_q={}, t1={}, t2={}'.format(
                 num_blocks, num_blocks_q, context_k, context_q, t1, t2))
+        pad1 = context_q * num_blocks - t1
+        pad2 = context_k * num_blocks - t2
+        # print('1',query.shape,key.shape,value.shape,pad1,pad2, context_q, context_k)
+        if pad1 > 0:
+            query = nn.functional.pad(query, (0, 0, 0, pad1))
+
+        if pad2 > 0:
+            key = nn.functional.pad(key, (0, 0, 0, pad2))
+            value = nn.functional.pad(value, (0, 0, 0, pad2))
+
+        # print('2',query.shape,key.shape,value.shape)
+        q0 = self.linear_q(query) # (batch, time1, head*d_k)
+        k0 = self.linear_k(key)   # (batch, time2, head*d_k)
+        v0 = self.linear_v(value) # (batch, time2, head*d_v)
+
+        return q0, k0, v0, context_q, context_k, num_blocks
+
+
+
+    def _compute_qkv0(self, query, key, value):
+        batch_size = query.size(0)
+        t1 = query.size(self.time_dim)
+        t2 = key.size(self.time_dim)
+        if self.time_dim != 1:
+            query = query.transpose(1, self.time_dim)
+            key = key.transpose(1, self.time_dim)
+            value = value.transpose(1, self.time_dim)
+
+        num_blocks = round(t2 / self.context)
+        context_k = math.ceil(t2 / num_blocks)
+        context_q = math.ceil(t1 / num_blocks)
         pad1 = context_q * num_blocks - t1
         pad2 = context_k * num_blocks - t2
         # print('1',query.shape,key.shape,value.shape,pad1,pad2, context_q, context_k)
@@ -271,16 +302,35 @@ class LocalScaledDotProdAttV1(ScaledDotProdAttV1):
 
         #set the padding time steps that we had to add to make integer block-number to -inf
         # in scores1
-        dt1 = max(0, scores1.size(2)*scores1.size(3) - t1)
-        dt2 = max(0, scores1.size(2)*scores1.size(4) - t2)
-        if dt1 > 0  or dt2 > 0:
-            scores1[:,:,-1,-dt1:,-dt2:] = min_val
+        # print('softmax', scores1.shape, scores2.shape, shift1, shift2, t1, t2,
+        #       scores1.size(2)*scores1.size(3) - t1, scores2.size(2)*scores2.size(3) + shift1 - t1,
+        #       scores1.size(2)*scores1.size(4) - t2, scores2.size(2)*scores2.size(4) + shift2 - t2)
 
+        dt1 = max(0, scores1.size(2)*scores1.size(3) - t1)
+        if dt1 > 0:
+            scores1[:,:,-1,-dt1:,:] = min_val
+            dt1 = max(0, scores2.size(2)*scores2.size(3) + shift1 - t1)
             # in scores2
-            dt1 = max(0, dt1 - shift1)
-            dt2 = max(0, dt2 - shift2)
-            if dt1 > 0  or dt2 > 0:
-                scores2[:,:,-1,-dt1:,-dt2:] = min_val
+            if dt1 > 0:
+                scores2[:,:,-1,-dt1:,:] = min_val
+
+        dt2 = max(0, scores1.size(2)*scores1.size(4) - t2)
+        if dt2 > 0:
+            scores1[:,:,-1,:,-dt2:] = min_val
+            dt2 = max(0, scores2.size(2)*scores2.size(4) + shift2 - t2)
+            # in scores2
+            if dt2 > 0:
+                scores2[:,:,-1,:,-dt2:] = min_val
+
+        # dt1 = max(0, scores1.size(2)*scores1.size(3) - t1)
+        # dt2 = max(0, scores1.size(2)*scores1.size(4) - t2)
+        # if dt1 > 0  or dt2 > 0:
+        #     scores1[:,:,-1,-dt1:,-dt2:] = min_val
+        #     # in scores2
+        #     dt1 = max(0, dt1 - shift1)
+        #     dt2 = max(0, dt2 - shift2)
+        #     if dt1 > 0  or dt2 > 0:
+        #         scores2[:,:,-1,-dt1:,-dt2:] = min_val
                 
         #flatten blocks and time1 dimensions
         scores1 = scores1.view(batch_size, num_heads, -1, context2)
