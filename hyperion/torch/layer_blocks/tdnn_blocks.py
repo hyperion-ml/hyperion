@@ -2,9 +2,6 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-# from __future__ import absolute_import
-
-import numpy as np
 
 import torch.nn as nn
 from torch.nn import Conv1d, Linear, BatchNorm1d
@@ -45,7 +42,7 @@ class TDNNBlock(nn.Module):
         self.conv1 = Conv1d(in_channels, out_channels, 
                             bias=(not self.norm_before),
                             kernel_size=kernel_size, dilation=dilation, 
-                            padding=padding, padding_mode='reflection') # pytorch > 1.0
+                            padding=padding) 
 
 
     def freeze(self):

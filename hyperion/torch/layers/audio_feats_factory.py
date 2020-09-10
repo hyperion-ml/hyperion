@@ -191,12 +191,6 @@ class AudioFeatsFactory(object):
             default=22,
             help='Constant that controls scaling of MFCCs')
         
-        # parser.add_argument(
-        #     p1+'input-step', dest=(p2+'input_step'), 
-        #     default='wave',
-        #     choices=['wave', 'fft', 'fft_mag', 'log_spec', 'logfb' ],
-        #     help='It can continue computation from any step: wav, fft, fft_mag, logfb')
-            
         parser.add_argument(
             p1+'audio-feat', dest=(p2+'audio_feat'), 
             default='cepstrum',
