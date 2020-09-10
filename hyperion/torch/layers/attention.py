@@ -109,6 +109,9 @@ class ScaledDotProdAttV1(nn.Module):
         return self.linear_out(x)  # (batch, time1, d_model)
         
 
+    ___compute_softmax = _compute_softmax
+    ___apply_attn = _apply_attn
+
     def forward(self, query, key, value, mask=None):
         """Computes 'Scaled Dot Product Attention'.
 
@@ -126,8 +129,8 @@ class ScaledDotProdAttV1(nn.Module):
         """
         q, k, v = self._compute_qkv(query, key, value)
         scores = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(self.d_k)  # (batch, head, time1, time2)
-        self.attn = self._compute_softmax(scores, mask)
-        return self._apply_attn(v)
+        self.attn = self.___compute_softmax(scores, mask)
+        return self.___apply_attn(v)
 
 
 
