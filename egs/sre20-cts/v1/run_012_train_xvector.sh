@@ -46,7 +46,7 @@ if [ $stage -le 1 ]; then
 
     mkdir -p $nnet_dir/log
     $cuda_cmd --gpu $ngpu $nnet_dir/log/train.log \
-	./torch.sh --num-gpus $ngpu \
+	hyp_utils/torch.sh --num-gpus $ngpu \
 	$train_exec  @$feat_config $aug_opt \
 	--audio-path $list_dir/wav.scp \
 	--time-durs-file $list_dir/utt2dur \

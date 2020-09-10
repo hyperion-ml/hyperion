@@ -38,9 +38,8 @@ xvector_dir=exp/xvectors/$nnet_name
 
 if [ $stage -le 1 ]; then
     # Extract xvectors for training LDA/PLDA
-    # for name in sre_tel cncelebcat_tel fisher_spa \
-    # 			$cv_noeng_datasets $babel_datasets
-    for name in 		$cv_noeng_datasets $babel_datasets
+    for name in sre_tel cncelebcat_tel fisher_spa \
+    			$cv_noeng_datasets $babel_datasets
     do
 	num_spk=$(wc -l data/$name/spk2utt | awk '{ print $1}')
 	if [ $plda_num_augs -eq 0 ];then
@@ -63,7 +62,7 @@ if [ $stage -le 1 ]; then
 	fi
     done
 fi
-exit
+
 if [ $stage -le 2 ]; then
     # Extract xvectors for adapting LDA/PLDA
     for name in sre16_train_dev_cmn \
@@ -123,33 +122,43 @@ if [ $stage -le 4 ]; then
 fi
 
 if [ $stage -le 5 ];then
+    # this is to avoid "Too many open files error" when reading the x-vectors in the back-end
+    # we need to combine the ark files into a single ark file
+    for name in $cv_noeng_datasets
+    do
+	mv $xvector_dir/$name/xvector.scp $xvector_dir/$name/xvector.tmp.scp 
+	copy-vector scp:$xvector_dir/$name/xvector.tmp.scp ark,scp:$xvector_dir/$name/xvector.ark,$xvector_dir/$name/xvector.scp
+    done
+fi
+
+if [ $stage -le 6 ];then
     # merge datasets and x-vector list for plda training
     # utils/combine_data.sh --extra-files "utt2dur utt2num_frames utt2lang" \
     # 			  data/alleng \
     # 			  data/sre_tel data/voxcelebcat_tel data/cvcat_en_tel
 
-    # utils/combine_data.sh --extra-files "utt2num_frames utt2lang" \
-    # 			  data/sre16-8 \
-    # 			  data/sre16_train_dev_cmn data/sre16_train_dev_ceb \
-    # 			  data/sre16_eval_tr60_yue data/sre16_eval_tr60_tgl \
-    # 			  data/sre18_cmn2_train_lab
-    # mkdir -p $xvector_dir/sre16-8
-    # cat $xvector_dir/{sre16_train_dev_cmn,sre16_train_dev_ceb,sre16_eval_tr60_yue,sre16_eval_tr60_tgl,sre18_cmn2_train_lab}/xvector.scp \
-    # 	> $xvector_dir/sre16-8/xvector.scp
+    utils/combine_data.sh --extra-files "utt2num_frames utt2lang" \
+    			  data/sre16-8 \
+    			  data/sre16_train_dev_cmn data/sre16_train_dev_ceb \
+    			  data/sre16_eval_tr60_yue data/sre16_eval_tr60_tgl \
+    			  data/sre18_cmn2_train_lab
+    mkdir -p $xvector_dir/sre16-8
+    cat $xvector_dir/{sre16_train_dev_cmn,sre16_train_dev_ceb,sre16_eval_tr60_yue,sre16_eval_tr60_tgl,sre18_cmn2_train_lab}/xvector.scp \
+    	> $xvector_dir/sre16-8/xvector.scp
     
 
-    # utils/combine_data.sh --extra-files "utt2num_frames utt2lang" \
-    # 			  data/realtel_noeng \
-    # 			  data/sre16-8 data/fisher_spa
-    # mkdir -p $xvector_dir/realtel_noeng
-    # cat $xvector_dir/{sre16-8,fisher_spa}/xvector.scp > $xvector_dir/realtel_noeng/xvector.scp
+    utils/combine_data.sh --extra-files "utt2num_frames utt2lang" \
+    			  data/realtel_noeng \
+    			  data/sre16-8 data/fisher_spa
+    mkdir -p $xvector_dir/realtel_noeng
+    cat $xvector_dir/{sre16-8,fisher_spa}/xvector.scp > $xvector_dir/realtel_noeng/xvector.scp
     
 
-    echo utils/combine_data.sh --extra-files "utt2num_frames utt2lang" \
+    utils/combine_data.sh --extra-files "utt2num_frames utt2lang" \
 			  data/cvcat_noeng_tel \
 			  $(echo $cv_noeng_datasets | sed 's@cvcat_@data/cvcat_@g')
     mkdir -p $xvector_dir/cvcat_noeng_tel
-    cat $(echo $cv_noeng_datasets | sed 's@cvcat_@'$xvector_dir'/cvcat_@g') > $xvector_dir/cvcat_noeng_tel/xvector.scp
+    cat $(echo $cv_noeng_datasets | sed -e 's@cvcat_@'$xvector_dir'/cvcat_@g' -e 's@_tel@_tel/xvector.scp@g' ) > $xvector_dir/cvcat_noeng_tel/xvector.scp
   
     utils/combine_data.sh --extra-files "utt2num_frames utt2lang" \
 			  data/allnoeng \
@@ -166,8 +175,38 @@ if [ $stage -le 5 ];then
     mkdir -p $xvector_dir/alllangs
     cat $xvector_dir/{sre_tel,allnoeng}/xvector.scp > $xvector_dir/alllangs/xvector.scp
   
+    utils/combine_data.sh --extra-files "utt2num_frames utt2lang" \
+    			  data/realtel_alllangs data/sre_tel data/realtel_noeng
+    mkdir -p $xvector_dir/realtel_alllangs
+    cat $xvector_dir/{sre_tel,realtel_noeng}/xvector.scp > $xvector_dir/realtel_alllangs/xvector.scp
+
+    utils/combine_data.sh --extra-files "utt2num_frames utt2lang" \
+    			  data/sre16-8_cncelebcat_tel data/sre16-8 data/cncelebcat_tel
+    mkdir -p $xvector_dir/sre16-8_cncelebcat_tel
+    cat $xvector_dir/{sre16-8,cncelebcat_tel}/xvector.scp > $xvector_dir/sre16-8_cncelebcat_tel/xvector.scp
+
+    utils/combine_data.sh --extra-files "utt2num_frames utt2lang" \
+    			  data/sre16-8_cvcat_zh-HK data/sre16-8 data/cvcat_zh-HK_tel
+    mkdir -p $xvector_dir/sre16-8_cvcat_zh-HK
+    cat $xvector_dir/{sre16-8,cvcat_zh-HK_tel}/xvector.scp > $xvector_dir/sre16-8_cvcat_zh-HK/xvector.scp
+    
+    utils/combine_data.sh --extra-files "utt2num_frames utt2lang" \
+    			  data/sre16-8_cvcat_zh data/sre16-8 data/cvcat_zh-HK_tel data/cvcat_zh-CN_tel data/cvcat_zh-TW_tel
+    mkdir -p $xvector_dir/sre16-8_cvcat_zh
+    cat $xvector_dir/{sre16-8,cvcat_zh-HK_tel,cvcat_zh-CN_tel,cvcat_zh-TW_tel}/xvector.scp > $xvector_dir/sre16-8_cvcat_zh/xvector.scp
+
+    utils/combine_data.sh --extra-files "utt2num_frames utt2lang" \
+    		      data/sre16-8_cvcat_ar data/sre16-8 data/cvcat_ar_tel
+    mkdir -p $xvector_dir/sre16-8_cvcat_ar
+    cat $xvector_dir/{sre16-8,cvcat_ar_tel}/xvector.scp > $xvector_dir/sre16-8_cvcat_ar/xvector.scp
+
+    utils/combine_data.sh --extra-files "utt2num_frames utt2lang" \
+    			  data/cvcat_zh data/cvcat_zh-HK_tel data/cvcat_zh-CN_tel data/cvcat_zh-TW_tel
+    mkdir -p $xvector_dir/cvcat_zh
+    cat $xvector_dir/{cvcat_zh-HK_tel,cvcat_zh-CN_tel,cvcat_zh-TW_tel}/xvector.scp > $xvector_dir/cvcat_zh/xvector.scp
     
 fi
+
 
 
 exit

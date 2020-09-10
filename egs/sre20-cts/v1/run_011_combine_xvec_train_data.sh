@@ -29,7 +29,7 @@ if [ $stage -le 1 ];then
     utils/combine_data.sh --extra-files "utt2dur utt2lang" \
 			  data/cvcat_noeng_tel_proc_audio_no_sil \
 			  $(echo $cv_noeng_datasets | sed -e 's@cvcat_@data/cvcat_@g' -e 's@_tel@_tel_proc_audio_no_sil@g')
-    
+
     utils/combine_data.sh --extra-files "utt2dur utt2lang" \
 			  data/alleng_proc_audio_no_sil \
 			  data/swbd_sre_voxcelebcat_tel_proc_audio_no_sil \
