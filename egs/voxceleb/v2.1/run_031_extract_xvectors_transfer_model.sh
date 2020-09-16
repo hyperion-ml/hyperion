@@ -21,6 +21,7 @@ else
     xvec_cmd="$train_cmd"
 fi
 
+feat_config=$transfer_feat_config
 nnet_name=$transfer_nnet_name
 nnet=$transfer_nnet
 

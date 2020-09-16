@@ -14,5 +14,4 @@ logfb
 false
 --feats-use-energy
 false
---mvn-no-mean-norm
-
+--mvn-no-norm-mean
