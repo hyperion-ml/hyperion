@@ -2,17 +2,16 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-#from __future__ import absolute_import
 
 import os
+import contextlib
 from collections import OrderedDict as ODict
 
 import logging
-#import numpy as np
 
 import torch
 import torch.nn as nn
-from apex import amp
+import torch.cuda.amp as amp
 
 from ..utils import MetricAcc, TorchDataParallel
 from ..loggers import LoggerList, CSVLogger, ProgLogger
@@ -38,10 +37,12 @@ class TorchTrainer(object):
          train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
          use_amp: uses mixed precision training.
          log_interval: number of optim. steps between log outputs
+         grad_clip: norm to clip gradients, if 0 there is no clipping
     """
     def __init__(self, model, optimizer, loss, epochs, exp_path, cur_epoch=0, grad_acc_steps=1,
                  device=None, metrics=None, lr_scheduler=None, loggers=None, data_parallel=False, 
-                 train_mode='train', use_amp=False, log_interval=10):
+                 train_mode='train', use_amp=False, log_interval=10, 
+                 grad_clip=0):
         self.model = model
         self.optimizer = optimizer
         self.loss = loss
@@ -64,6 +65,8 @@ class TorchTrainer(object):
         self.device = device
         self.train_mode = train_mode
         self.use_amp = use_amp
+        self.grad_clip = grad_clip
+        self.amp_args = {}
 
         if device is not None:
             self.model.to(device)
@@ -72,8 +75,10 @@ class TorchTrainer(object):
 
         if self.use_amp:
             logging.info('using automatic mixed precision training')
-            self.model, self.optimizer = amp.initialize(
-                self.model, self.optimizer, opt_level="O1")
+            self.grad_scaler = amp.GradScaler()
+            self.amp_autocast = amp.autocast
+        else:
+            self.amp_autocast = contextlib.nullcontext
 
         if data_parallel:
             logging.info('training in multiple gpus with data-parallel')
@@ -81,7 +86,22 @@ class TorchTrainer(object):
             if loss is not None:
                 self.loss = TorchDataParallel(self.loss)
 
+            if self.use_amp:
+                self.amp_args = {'use_amp': self.use_amp }
 
+
+    def update_model(self):
+        if self.use_amp:
+            if self.grad_clip > 0:
+                self.grad_scaler.unscale_(self.optimizer)
+                nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip)
+
+            self.grad_scaler.step(self.optimizer)
+            self.grad_scaler.update()
+        else:
+            if self.grad_clip > 0:
+                nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip)
+            self.optimizer.step()
 
         
     def fit(self, train_data, val_data=None):
@@ -142,19 +162,19 @@ class TorchTrainer(object):
             data, target = data.to(self.device), target.to(self.device)
             batch_size = data.shape[0]
             
-            output = self.model(data)
-            loss = self.loss(output, target).mean()/self.grad_acc_steps
+            with self.amp_autocast():
+                output = self.model(data, **self.amp_args)
+                loss = self.loss(output, target).mean()/self.grad_acc_steps
 
             if self.use_amp:
-                with amp.scale_loss(loss, self.optimizer) as scaled_loss:
-                    scaled_loss.backward()
+                self.grad_scaler.scale(loss).backward()
             else:
                 loss.backward()
 
             if (batch+1) % self.grad_acc_steps == 0:
                 if self.lr_scheduler is not None:
                     self.lr_scheduler.on_opt_step()
-                self.optimizer.step()
+                self.update_model()
 
             batch_metrics['loss'] = loss.item() * self.grad_acc_steps
             for k, metric in self.metrics.items():
@@ -186,8 +206,9 @@ class TorchTrainer(object):
                 data, target = data.to(self.device), target.to(self.device)
                 batch_size = data.shape[0]
 
-                output = self.model(data)
-                loss = self.loss(output, target)
+                with self.amp_autocast():
+                    output = self.model(data, **self.amp_args)
+                    loss = self.loss(output, target)
                 batch_metrics['loss'] = loss.mean().item()
                 for k, metric in self.metrics.items():
                     batch_metrics[k] = metric(output, target)
@@ -231,9 +252,6 @@ class TorchTrainer(object):
         if self.lr_scheduler is not None:
             checkpoint['lr_scheduler_state_dict'] = self.lr_scheduler.state_dict()
 
-        if self.use_amp:
-            checkpoint['amp'] = amp.state_dict()
-
         if logs is not None:
             checkpoint['logs'] = logs
             
@@ -272,8 +290,9 @@ class TorchTrainer(object):
             self.loss.load_state_dict(checkpoint['loss_state_dict'])
         if self.lr_scheduler is not None:
             self.lr_scheduler.load_state_dict(checkpoint['lr_scheduler_state_dict'])
-        if self.use_amp:
-            amp.load_state_dict(checkpoint['amp'])
+
+        #if self.use_amp:
+        #    amp.load_state_dict(checkpoint['amp'])
 
         logs = None
         if 'logs' in checkpoint:

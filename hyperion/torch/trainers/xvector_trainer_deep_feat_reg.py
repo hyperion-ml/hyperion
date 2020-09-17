@@ -6,11 +6,9 @@ import os
 from collections import OrderedDict as ODict
 
 import logging
-#import numpy as np
 
 import torch
 import torch.nn as nn
-from apex import amp
 
 from ..utils import MetricAcc
 from .torch_trainer import TorchTrainer, TorchDataParallel

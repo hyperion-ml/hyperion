@@ -2,17 +2,14 @@
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-#from __future__ import absolute_import
 
 import os
 from collections import OrderedDict as ODict
 
 import logging
-#import numpy as np
 
 import torch
 import torch.nn as nn
-from apex import amp
 
 from ..utils import MetricAcc
 from .torch_trainer import TorchTrainer
@@ -29,8 +26,6 @@ class VAETrainer(TorchTrainer):
             lr_scheduler=lr_scheduler, loggers=loggers, data_parallel=data_parallel, 
             train_mode=train_mode, use_amp=use_amp, log_interval=log_interval)
 
-
-            
             
     def train_epoch(self, data_loader):
 

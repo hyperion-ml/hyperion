@@ -9,7 +9,6 @@ import logging
 
 import torch
 import torch.nn as nn
-from apex import amp
 
 from ..utils import MetricAcc, TorchDataParallel
 from .xvector_trainer import XVectorTrainer
@@ -35,18 +34,20 @@ class XVectorTrainerFromWav(XVectorTrainer):
          train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
          use_amp: uses mixed precision training.
          log_interval: number of optim. steps between log outputs
+         grad_clip: norm to clip gradients, if 0 there is no clipping
     """
     def __init__(self, model, feat_extractor, optimizer, epochs, exp_path, cur_epoch=0, 
                  grad_acc_steps=1, 
                  device=None, metrics=None, lr_scheduler=None, loggers=None, 
                  data_parallel=False, loss=None, train_mode='train', use_amp=False,
-                 log_interval=10):
+                 log_interval=10, grad_clip=0):
 
         super().__init__(
             model, optimizer, epochs, exp_path, cur_epoch=cur_epoch,
             grad_acc_steps=grad_acc_steps, device=device, metrics=metrics,
             lr_scheduler=lr_scheduler, loggers=loggers, data_parallel=data_parallel, loss=loss,
-            train_mode=train_mode, use_amp=use_amp, log_interval=log_interval)
+            train_mode=train_mode, use_amp=use_amp, log_interval=log_interval, 
+            grad_clip=grad_clip)
 
         self.feat_extractor = feat_extractor
         if device is not None:
@@ -54,33 +55,6 @@ class XVectorTrainerFromWav(XVectorTrainer):
 
         if data_parallel:
             self.feat_extractor = TorchDataParallel(self.feat_extractor)
-
-        # super().__init__(
-        #     model, optimizer, epochs, exp_path, cur_epoch=cur_epoch,
-        #     grad_acc_steps=grad_acc_steps, device=device, metrics=metrics,
-        #     lr_scheduler=lr_scheduler, loggers=loggers, data_parallel=False, loss=loss,
-        #     train_mode=train_mode, use_amp=False)
-
-        # self.use_amp = use_amp
-
-        # self.feat_extractor = feat_extractor
-        # if device is not None:
-        #     self.feat_extractor.to(device)
-
-        # if data_parallel:
-        #     self.feat_extractor = TorchDataParallel(self.feat_extractor)
-
-
-        # if self.use_amp:
-        #     logging.info('using automatic mixed precision training')
-        #     [self.model, self.feat_extractor], self.optimizer  = amp.initialize(
-        #         [self.model, self.feat_extractor], self.optimizer, opt_level="O1")
-
-        # if data_parallel:
-        #     logging.info('training in multiple gpus with data-parallel')
-        #     self.model = TorchDataParallel(self.model)
-        #     self.feat_extractor = TorchDataParallel(self.feat_extractor)
-        #     self.loss = TorchDataParallel(self.loss)
 
 
         
@@ -110,21 +84,20 @@ class XVectorTrainerFromWav(XVectorTrainer):
             batch_size = data.shape[0]
             with torch.no_grad():
                 feats = self.feat_extractor(data)
-            #logging.info('feats={}'.format(feats))
 
-            output = self.model(feats, target)
-            loss = self.loss(output, target).mean()/self.grad_acc_steps
-            # logging.info('loss={} output={}'.format(loss.item(), output))
+            with self.amp_autocast():
+                output = self.model(feats, target, **self.amp_args)
+                loss = self.loss(output, target).mean()/self.grad_acc_steps
+
             if self.use_amp:
-                with amp.scale_loss(loss, self.optimizer) as scaled_loss:
-                    scaled_loss.backward()
+                self.grad_scaler.scale(loss).backward()
             else:
                 loss.backward()
 
             if (batch+1) % self.grad_acc_steps == 0:
                 if self.lr_scheduler is not None:
                     self.lr_scheduler.on_opt_step()
-                self.optimizer.step()
+                self.update_model()
 
             batch_metrics['loss'] = loss.item() * self.grad_acc_steps
             for k, metric in self.metrics.items():
@@ -156,8 +129,10 @@ class XVectorTrainerFromWav(XVectorTrainer):
                 batch_size = data.shape[0]
 
                 feats = self.feat_extractor(data)
-                output = self.model(feats)
-                loss = self.loss(output, target)
+                with self.amp_autocast():
+                    output = self.model(feats, **self.amp_args)
+                    loss = self.loss(output, target)
+
                 batch_metrics['loss'] = loss.mean().item()
                 for k, metric in self.metrics.items():
                     batch_metrics[k] = metric(output, target)

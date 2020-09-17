@@ -26,7 +26,7 @@ from hyperion.torch.metrics import CategoricalAccuracy
 
 def train_xvec(data_rspec, train_list, val_list, exp_path,
                epochs, num_gpus, log_interval, resume, num_workers, 
-               grad_acc_steps, use_amp, **kwargs):
+               grad_acc_steps, use_amp, grad_clip, **kwargs):
 
     set_float_cpu('float32')
     logging.info('initializing devices num_gpus={}'.format(num_gpus))
@@ -71,7 +71,7 @@ def train_xvec(data_rspec, train_list, val_list, exp_path,
                       grad_acc_steps=grad_acc_steps,
                       device=device, metrics=metrics, lr_scheduler=lr_sch,
                       data_parallel=(num_gpus>1), use_amp=use_amp, 
-                      log_interval=log_interval)
+                      log_interval=log_interval, grad_clip=grad_clip)
     if resume:
         trainer.load_last_checkpoint()
     trainer.fit(train_loader, test_loader)
@@ -93,17 +93,10 @@ if __name__ == '__main__':
     SD.add_argparse_args(parser)
     Sampler.add_argparse_args(parser)
 
-
-    # parser.add_argument('--batch-size', type=int, default=64,
-    #                     help='input batch size for training')
-    # parser.add_argument('--test-batch-size', type=int, default=64,
-    #                    help='input batch size for testing')
     parser.add_argument('--num-workers', type=int, default=5, 
                         help='num_workers of data loader')
-
     parser.add_argument('--grad-acc-steps', type=int, default=1, 
                         help='gradient accumulation batches before weigth update')
-
     parser.add_argument('--epochs', type=int, default=200, 
                         help='number of epochs')
 
@@ -117,15 +110,13 @@ if __name__ == '__main__':
                         help='random seed (default: 1)')
     parser.add_argument('--log-interval', type=int, default=10, 
                         help='how many batches to wait before logging training status')
-
     parser.add_argument('--resume', action='store_true', default=False,
                         help='resume training from checkpoint')
-
     parser.add_argument('--use-amp', action='store_true', default=False,
                         help='use mixed precision training')
-
+    parser.add_argument('--grad-clip', type=float, default=0, 
+                        help='gradient clipping norm')
     parser.add_argument('--exp-path', help='experiment path')
-
     parser.add_argument('-v', '--verbose', dest='verbose', default=1, choices=[0, 1, 2, 3], type=int)
 
     args = parser.parse_args()

@@ -10,10 +10,10 @@ import math
 
 import torch
 import torch.nn as nn
-from apex import amp
 
 from ..utils import MetricAcc
 from .vae_trainer import VAETrainer
+
 
 class VQVAETrainer(VAETrainer):
 
@@ -27,8 +27,6 @@ class VQVAETrainer(VAETrainer):
             lr_scheduler=lr_scheduler, loggers=loggers, data_parallel=data_parallel, 
             train_mode=train_mode, use_amp=use_amp)
 
-
-            
             
     def train_epoch(self, data_loader):
 

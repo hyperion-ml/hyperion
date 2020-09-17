@@ -10,7 +10,6 @@ import math
 
 import torch
 import torch.nn as nn
-from apex import amp
 
 from ..utils import MetricAcc
 from .dvae_trainer import DVAETrainer
@@ -28,7 +27,6 @@ class VQDVAETrainer(DVAETrainer):
             train_mode=train_mode, use_amp=use_amp, log_interval=log_interval)
 
 
-            
             
     def train_epoch(self, data_loader):
 

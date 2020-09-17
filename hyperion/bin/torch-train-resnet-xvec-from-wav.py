@@ -54,7 +54,7 @@ def train_xvec(audio_path, train_list, val_list,
                exp_path,
                epochs, num_gpus, log_interval, resume, num_workers, 
                mvn_no_norm_mean, mvn_norm_var, mvn_context,
-               grad_acc_steps, use_amp, **kwargs):
+               grad_acc_steps, use_amp, grad_clip, **kwargs):
 
     set_float_cpu('float32')
     logging.info('initializing devices num_gpus={}'.format(num_gpus))
@@ -119,7 +119,7 @@ def train_xvec(audio_path, train_list, val_list,
                       grad_acc_steps=grad_acc_steps,
                       device=device, metrics=metrics, lr_scheduler=lr_sch,
                       data_parallel=(num_gpus>1), use_amp=use_amp, 
-                      log_interval=log_interval)
+                      log_interval=log_interval, grad_clip=grad_clip)
     if resume:
         trainer.load_last_checkpoint()
     trainer.fit(train_loader, test_loader)
@@ -175,6 +175,8 @@ if __name__ == '__main__':
                         help='resume training from checkpoint')
     parser.add_argument('--use-amp', action='store_true', default=False,
                         help='use mixed precision training')
+    parser.add_argument('--grad-clip', type=float, default=0, 
+                        help='gradient clipping norm')
     parser.add_argument('--exp-path', help='experiment path')
     parser.add_argument('-v', '--verbose', dest='verbose', default=1, choices=[0, 1, 2, 3], type=int)
 
