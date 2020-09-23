@@ -24,8 +24,15 @@ class DFRModelWrapper(nn.Module):
         super().__init__()
         self.model = model
 
-    def forward(self, x, y=None, enc_layers=None, classif_layers=None, return_output=False):
-        return self.model.forward_hid_feats(x, y, enc_layers, classif_layers, return_output)
+    def forward(self, x, y=None, enc_layers=None, classif_layers=None, 
+                return_output=False, use_amp=False):
+        if use_amp:
+            with torch.cuda.amp.autocast():
+                return self.model.forward_hid_feats(
+                    x, y, enc_layers, classif_layers, return_output)
+
+        return self.model.forward_hid_feats(
+            x, y, enc_layers, classif_layers, return_output)
 
     
 
@@ -54,6 +61,10 @@ class XVectorTrainerDeepFeatReg(TorchTrainer):
          train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
          use_amp: uses mixed precision training.
          log_interval: number of optim. steps between log outputs
+         grad_clip: norm to clip gradients, if 0 there is no clipping
+         swa_start: epoch to start doing swa
+         swa_lr: SWA learning rate
+         swa_anneal_epochs: SWA learning rate anneal epochs
     """
 
     def __init__(self, model, prior_model, optimizer, epochs, exp_path, cur_epoch=0, 
@@ -61,7 +72,8 @@ class XVectorTrainerDeepFeatReg(TorchTrainer):
                  reg_weight_enc=0.1, reg_weight_classif=0.1,
                  device=None, metrics=None, lr_scheduler=None, loggers=None, 
                  data_parallel=False, loss=None, reg_loss=None, train_mode='train', use_amp=False,
-                 log_interval=10):
+                 log_interval=10, grad_clip=0,
+                 swa_start=0, swa_lr=1e-3, swa_anneal_epochs=10):
 
         if loss is None:
             loss = nn.CrossEntropyLoss()
@@ -70,7 +82,10 @@ class XVectorTrainerDeepFeatReg(TorchTrainer):
             model, optimizer, loss, epochs, exp_path, cur_epoch=cur_epoch,
             grad_acc_steps=grad_acc_steps, device=device, metrics=metrics,
             lr_scheduler=lr_scheduler, loggers=loggers, data_parallel=data_parallel, 
-            train_mode=train_mode, use_amp=use_amp, log_interval=log_interval)
+            train_mode=train_mode, use_amp=use_amp, log_interval=log_interval,
+            grad_clip=grad_clip,                  
+            swa_start=swa_start, swa_lr=swa_lr, 
+            swa_anneal_epochs=swa_anneal_epochs)
 
         self.prior_model = prior_model
         if reg_loss is None:
@@ -106,10 +121,7 @@ class XVectorTrainerDeepFeatReg(TorchTrainer):
 
         metric_acc = MetricAcc()
         batch_metrics = ODict()
-        if self.train_mode == 'train':
-            self.model.train()
-        else:
-            self.model.train_mode(self.train_mode)
+        self.set_train_mode()
 
         for batch, (data, target) in enumerate(data_loader):
             self.loggers.on_batch_begin(batch)
@@ -120,46 +132,49 @@ class XVectorTrainerDeepFeatReg(TorchTrainer):
             data, target = data.to(self.device), target.to(self.device)
             batch_size = data.shape[0]
 
-            h_enc, h_classif, output = self.model_wrapper(
-                data, target, self.reg_layers_enc, self.reg_layers_classif, return_output=True)
-            loss = self.loss(output, target).mean() # you need to take the mean here because of the multi-gpu training
-            batch_metrics['loss-classif'] = loss.item()
+            with self.amp_autocast():
+                h_enc, h_classif, output = self.model_wrapper(
+                    data, target, self.reg_layers_enc, self.reg_layers_classif, 
+                    return_output=True, **self.amp_args)
+                loss = self.loss(output, target).mean() # you need to take the mean here because of the multi-gpu training
+                batch_metrics['loss-classif'] = loss.item()
             
-            prior_h_enc, prior_h_classif = self.prior_model_wrapper(
-                data, target, self.reg_layers_enc, self.reg_layers_classif, return_output=False)
+                prior_h_enc, prior_h_classif = self.prior_model_wrapper(
+                    data, target, self.reg_layers_enc, self.reg_layers_classif, 
+                    return_output=False, **self.amp_args)
 
-            n_enc = len(h_enc)
-            if n_enc > 0:
-                loss_scale = self.reg_weight_enc/n_enc
-            for i in range(n_enc):
-                l = self.reg_layers_enc[i]
-                loss_i = self.reg_loss(h_enc[i], prior_h_enc[i]).mean()
-                loss_name = 'reg-h-enc-%d' % l
-                batch_metrics[loss_name] = loss_i.item()
-                loss += loss_scale * loss_i
+                n_enc = len(h_enc)
+                if n_enc > 0:
+                    loss_scale = self.reg_weight_enc/n_enc
+                for i in range(n_enc):
+                    l = self.reg_layers_enc[i]
+                    loss_i = self.reg_loss(h_enc[i], prior_h_enc[i]).mean()
+                    loss_name = 'reg-h-enc-%d' % l
+                    batch_metrics[loss_name] = loss_i.item()
+                    loss += loss_scale * loss_i
 
-            n_classif = len(h_classif)
-            if n_classif > 0:
-                loss_scale = self.reg_weight_classif/n_classif
-            for i in range(n_classif):
-                l = self.reg_layers_classif[i]
-                loss_i = self.reg_loss(h_classif[i], prior_h_classif[i]).mean()
-                loss_name = 'reg-h-classif-%d' % l
-                batch_metrics[loss_name] = loss_i.item()
-                loss += loss_scale * loss_i
+                n_classif = len(h_classif)
+                if n_classif > 0:
+                    loss_scale = self.reg_weight_classif/n_classif
+                for i in range(n_classif):
+                    l = self.reg_layers_classif[i]
+                    loss_i = self.reg_loss(h_classif[i], prior_h_classif[i]).mean()
+                    loss_name = 'reg-h-classif-%d' % l
+                    batch_metrics[loss_name] = loss_i.item()
+                    loss += loss_scale * loss_i
 
-            batch_metrics['loss'] = loss.item()  
-            loss = loss/self.grad_acc_steps
+                batch_metrics['loss'] = loss.item()  
+                loss = loss/self.grad_acc_steps
+
             if self.use_amp:
-                with amp.scale_loss(loss, self.optimizer) as scaled_loss:
-                    scaled_loss.backward()
+                self.grad_scaler.scale(loss).backward()
             else:
                 loss.backward()
 
             if (batch+1) % self.grad_acc_steps == 0:
-                if self.lr_scheduler is not None:
+                if self.lr_scheduler is not None and not self.in_swa:
                     self.lr_scheduler.on_opt_step()
-                self.optimizer.step()
+                self.update_model()
 
             for k, metric in self.metrics.items():
                 batch_metrics[k] = metric(output, target)

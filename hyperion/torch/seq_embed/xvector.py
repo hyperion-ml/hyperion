@@ -342,7 +342,7 @@ class XVector(TorchModel):
 
 
 
-    def train_mode(self, mode='ft_embed_affine'):
+    def train_mode(self, mode='ft-embed-affine'):
         if mode == 'ft-full' or mode == 'train':
             self.train()
             return 

@@ -15,27 +15,49 @@ from ..utils import MetricAcc
 from .dvae_trainer import DVAETrainer
 
 class VQDVAETrainer(DVAETrainer):
+    """Vector Quantized Variational Auto-encoder trainer class
 
-    def __init__(self, model, optimizer, epochs, exp_path, cur_epoch=0, grad_acc_steps=1,
+       Attributes:
+         model: x-Vector model object.
+         optimizer: pytorch optimizer object
+         epochs: max. number of epochs
+         exp_path: experiment output path
+         cur_epoch: current epoch
+         grad_acc_steps: gradient accumulation steps to simulate larger batch size.
+         device: cpu/gpu device
+         metrics: extra metrics to compute besides cxe.
+         lr_scheduler: learning rate scheduler object
+         loggers: LoggerList object, loggers write training progress to std. output and file.
+         data_parallel: if True use nn.DataParallel
+         train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
+         use_amp: uses mixed precision training.
+         log_interval: number of optim. steps between log outputs
+         grad_clip: norm to clip gradients, if 0 there is no clipping
+         swa_start: epoch to start doing swa
+         swa_lr: SWA learning rate
+         swa_anneal_epochs: SWA learning rate anneal epochs
+    """
+
+    def __init__(self, model, optimizer, epochs=100, exp_path='./train', cur_epoch=0, grad_acc_steps=1,
                  device=None, metrics=None, lr_scheduler=None, loggers=None, data_parallel=False, 
-                 train_mode='train', use_amp=False, log_interval=10):
+                 train_mode='train', use_amp=False, log_interval=10,
+                 grad_clip=0, swa_start=0, swa_lr=1e-3, swa_anneal_epochs=10):
             
         super().__init__(
             model, optimizer, epochs, exp_path, cur_epoch=cur_epoch,
             grad_acc_steps=grad_acc_steps, device=device, metrics=metrics,
             lr_scheduler=lr_scheduler, loggers=loggers, data_parallel=data_parallel, 
-            train_mode=train_mode, use_amp=use_amp, log_interval=log_interval)
+            train_mode=train_mode, use_amp=use_amp, log_interval=log_interval,
+            grad_clip=grad_clip,                  
+            swa_start=swa_start, swa_lr=swa_lr, 
+            swa_anneal_epochs=swa_anneal_epochs)
 
 
-            
     def train_epoch(self, data_loader):
 
         metric_acc = MetricAcc()
         batch_metrics = ODict()
-        if self.train_mode == 'train':
-            self.model.train()
-        else:
-            self.model.train_mode(self.train_mode)
+        self.set_train_mode()
 
         for batch, data in enumerate(data_loader):
 
@@ -51,26 +73,23 @@ class VQDVAETrainer(DVAETrainer):
             x = x.to(self.device)
             x_target = x_target.to(self.device)
             batch_size = x.shape[0]
-            
-            # loss, elbo, log_px, kldiv_z, vq_loss, perplexity, x_hat = self.model(
-            #     x, x_target=x_target, return_x_mean=True)
-            output = self.model(x, x_target=x_target, return_x_mean=True)
 
-            loss = output['loss']
-            x_hat = output['x_mean']
-
-            loss = loss.mean()/self.grad_acc_steps
+            with self.amp_autocast():
+                output = self.model(x, x_target=x_target, return_x_mean=True, 
+                                    **self.amp_args)
+                loss = output['loss']
+                x_hat = output['x_mean']
+                loss = loss.mean()/self.grad_acc_steps
 
             if self.use_amp:
-                with amp.scale_loss(loss, self.optimizer) as scaled_loss:
-                    scaled_loss.backward()
+                self.grad_scaler.scale(loss).backward()
             else:
                 loss.backward()
 
             if (batch+1) % self.grad_acc_steps == 0:
-                if self.lr_scheduler is not None:
+                if self.lr_scheduler is not None and not self.in_swa:
                     self.lr_scheduler.on_opt_step()
-                self.optimizer.step()
+                self.update_model()
 
             batch_metrics['loss'] = loss.item() * self.grad_acc_steps
             for metric in ['elbo', 'log_px', 'kldiv_z', 'vq_loss']:
@@ -95,7 +114,13 @@ class VQDVAETrainer(DVAETrainer):
         metric_acc = MetricAcc()
         batch_metrics = ODict()
         with torch.no_grad():
-            self.model.eval()
+            if swa_update_bn:
+                log_tag = ''
+                self.set_train_mode()
+            else:
+                log_tag = 'val_'
+                self.model.eval()
+
             for batch, data in enumerate(data_loader):
 
                 assert isinstance(data, (tuple, list))
@@ -106,29 +131,22 @@ class VQDVAETrainer(DVAETrainer):
                 x_target = x_target.to(self.device)
                 batch_size = x.shape[0]
 
-                # loss, elbo, log_px, kldiv_z, vq_loss, perplexity, x_hat = self.model(
-                #     x, x_target=x_target, return_x_mean=True)
-                output = self.model(
-                    x, x_target=x_target, return_x_mean=True)
+                with self.amp_autocast():
+                    output = self.model(x, x_target=x_target, 
+                                        return_x_mean=True, **self.amp_args)
 
                 x_hat = output['x_mean']
                 for metric in ['loss', 'elbo', 'log_px', 'kldiv_z', 'vq_loss']:
                     batch_metrics[metric] = output[metric].mean().item()
                 batch_metrics['perplexity'] = math.exp(output['log_perplexity'].mean().item())
         
-                # batch_metrics['loss'] = loss.mean().item()
-                # batch_metrics['elbo'] = elbo.mean().item()
-                # batch_metrics['log_px'] = log_px.mean().item()
-                # batch_metrics['kldiv_z'] = kldiv_z.mean().item()
-                # batch_metrics['vq_loss'] = vq_loss.mean().item()
-                # batch_metrics['perplexity'] = perplexity.mean().item()
                 for k, metric in self.metrics.items():
                     batch_metrics[k] = metric(x_hat, x_target)
             
                 metric_acc.update(batch_metrics, batch_size)
         
         logs = metric_acc.metrics
-        logs = ODict(('val_' + k, v) for k,v in logs.items())
+        logs = ODict((log_tag + k, v) for k,v in logs.items())
         return logs
 
 

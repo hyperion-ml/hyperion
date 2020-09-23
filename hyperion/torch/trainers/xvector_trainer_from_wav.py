@@ -35,19 +35,25 @@ class XVectorTrainerFromWav(XVectorTrainer):
          use_amp: uses mixed precision training.
          log_interval: number of optim. steps between log outputs
          grad_clip: norm to clip gradients, if 0 there is no clipping
+         swa_start: epoch to start doing swa
+         swa_lr: SWA learning rate
+         swa_anneal_epochs: SWA learning rate anneal epochs
     """
-    def __init__(self, model, feat_extractor, optimizer, epochs, exp_path, cur_epoch=0, 
+    def __init__(self, model, feat_extractor, optimizer, epochs=100, exp_path='./train', cur_epoch=0, 
                  grad_acc_steps=1, 
                  device=None, metrics=None, lr_scheduler=None, loggers=None, 
                  data_parallel=False, loss=None, train_mode='train', use_amp=False,
-                 log_interval=10, grad_clip=0):
+                 log_interval=10, grad_clip=0,
+                 swa_start=0, swa_lr=1e-3, swa_anneal_epochs=10):
 
         super().__init__(
             model, optimizer, epochs, exp_path, cur_epoch=cur_epoch,
             grad_acc_steps=grad_acc_steps, device=device, metrics=metrics,
             lr_scheduler=lr_scheduler, loggers=loggers, data_parallel=data_parallel, loss=loss,
             train_mode=train_mode, use_amp=use_amp, log_interval=log_interval, 
-            grad_clip=grad_clip)
+            grad_clip=grad_clip,
+            swa_start=swa_start, swa_lr=swa_lr, 
+            swa_anneal_epochs=swa_anneal_epochs)
 
         self.feat_extractor = feat_extractor
         if device is not None:
@@ -55,7 +61,6 @@ class XVectorTrainerFromWav(XVectorTrainer):
 
         if data_parallel:
             self.feat_extractor = TorchDataParallel(self.feat_extractor)
-
 
         
     def train_epoch(self, data_loader):
@@ -69,10 +74,7 @@ class XVectorTrainerFromWav(XVectorTrainer):
 
         metric_acc = MetricAcc()
         batch_metrics = ODict()
-        if self.train_mode == 'train':
-            self.model.train()
-        else:
-            self.model.train_mode(self.train_mode)
+        self.set_train_mode()
 
         for batch, (data, target) in enumerate(data_loader):
             self.loggers.on_batch_begin(batch)
@@ -95,7 +97,7 @@ class XVectorTrainerFromWav(XVectorTrainer):
                 loss.backward()
 
             if (batch+1) % self.grad_acc_steps == 0:
-                if self.lr_scheduler is not None:
+                if self.lr_scheduler is not None and not self.in_swa:
                     self.lr_scheduler.on_opt_step()
                 self.update_model()
 
@@ -113,17 +115,22 @@ class XVectorTrainerFromWav(XVectorTrainer):
         return logs
 
     
-    def validation_epoch(self, data_loader):
+    def validation_epoch(self, data_loader, swa_update_bn=False):
         """Validation epoch loop
 
         Args:
           data_loader: PyTorch data loader return input/output pairs
         """
-
         metric_acc = MetricAcc()
         batch_metrics = ODict()
         with torch.no_grad():
-            self.model.eval()
+            if swa_update_bn:
+                log_tag = ''
+                self.set_train_mode()
+            else:
+                log_tag = 'val_'
+                self.model.eval()
+
             for batch, (data, target) in enumerate(data_loader):
                 data, target = data.to(self.device), target.to(self.device)
                 batch_size = data.shape[0]
@@ -140,6 +147,6 @@ class XVectorTrainerFromWav(XVectorTrainer):
                 metric_acc.update(batch_metrics, batch_size)
 
         logs = metric_acc.metrics
-        logs = ODict(('val_' + k, v) for k,v in logs.items())
+        logs = ODict((log_tag + k, v) for k,v in logs.items())
         return logs
 
