@@ -2,8 +2,8 @@
 # LResNet34 x-vector without mixed precision training
 
 # acoustic features
-feat_config=conf/fbank80_mvn_16k.pyconf
-feat_type=fbank80_mvn
+feat_config=conf/fbank80_stmn_16k.pyconf
+feat_type=fbank80_stmn
 
 
 # x-vector training 

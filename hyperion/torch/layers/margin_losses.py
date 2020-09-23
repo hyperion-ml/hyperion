@@ -2,7 +2,6 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba, Nanxin Chen)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
 
 import sys
 import logging
@@ -10,12 +9,12 @@ import math
 
 import torch
 import torch.nn as nn
-from apex import amp
+import torch.cuda.amp as amp
 
-@amp.float_function
 def _l2_norm(x, axis=-1):
-    norm = torch.norm(x, 2, axis, True) + 1e-10
-    y = torch.div(x, norm)
+    with amp.autocast(enabled=False):
+        norm = torch.norm(x.float(), 2, axis, True) + 1e-10
+        y = torch.div(x, norm)
     return y
 
 
@@ -72,30 +71,29 @@ class ArcLossOutput(nn.Module):
         self._compute_aux()
 
 
-    @amp.float_function
     def forward(self, x, y=None):
+        with amp.autocast(enabled=False):
+            s = self.s
+            batch_size = len(x)
+            x = _l2_norm(x.float())
+            kernel_norm = _l2_norm(self.kernel, axis=0)
+            # cos(theta+m)                                      
+            cos_theta = torch.mm(x, kernel_norm).float()
+            cos_theta = cos_theta.clamp(-1,1) # for numerical stability
+            #print(cos_theta)
+            output = cos_theta * 1.0 # a little bit hacky way to prevent in_place operation on cos_theta
 
-        s = self.s
-        batch_size = len(x)
-        x = _l2_norm(x)
-        kernel_norm = _l2_norm(self.kernel, axis=0)
-        # cos(theta+m)                                      
-        cos_theta = torch.mm(x, kernel_norm).float()
-        cos_theta = cos_theta.clamp(-1,1) # for numerical stability
-        #print(cos_theta)
-        output = cos_theta * 1.0 # a little bit hacky way to prevent in_place operation on cos_theta
+            if y is not None and self.training:
+                cos_theta_2 = torch.pow(cos_theta, 2)
+                sin_theta_2 = (1 + 1e-10) - cos_theta_2
+                sin_theta = torch.sqrt(sin_theta_2)
+                cos_theta_m = (cos_theta * self.cos_m - sin_theta * self.sin_m)
+                
+                idx_ = torch.arange(0, batch_size, dtype=torch.long)
+                output[idx_, y] = cos_theta_m[idx_, y]
 
-        if y is not None and self.training:
-            cos_theta_2 = torch.pow(cos_theta, 2)
-            sin_theta_2 = (1 + 1e-10) - cos_theta_2
-            sin_theta = torch.sqrt(sin_theta_2)
-            cos_theta_m = (cos_theta * self.cos_m - sin_theta * self.sin_m)
-
-            idx_ = torch.arange(0, batch_size, dtype=torch.long)
-            output[idx_, y] = cos_theta_m[idx_, y]
-
-        output *= s # scale up in order to make softmax work
-        return output
+            output *= s # scale up in order to make softmax work
+            return output
 
 
 
@@ -172,22 +170,21 @@ class CosLossOutput(nn.Module):
                 return
 
 
-    @amp.float_function
     def forward(self, x, y=None):
+        with amp.autocast(enabled=False):
+            s = self.s
+            x = _l2_norm(x.float())
+            batch_size = len(x)
+            kernel_norm = _l2_norm(self.kernel,axis=0)
+            # cos(theta+m)                                      
+            cos_theta = torch.mm(x, kernel_norm).float()
+            cos_theta = cos_theta.clamp(-1,1) # for numerical stability
 
-        s = self.s
-        x = _l2_norm(x)
-        batch_size = len(x)
-        kernel_norm = _l2_norm(self.kernel,axis=0)
-        # cos(theta+m)                                      
-        cos_theta = torch.mm(x, kernel_norm).float()
-        cos_theta = cos_theta.clamp(-1,1) # for numerical stability
+            output = cos_theta * 1.0 # a little bit hacky way to prevent in_place operation on cos_theta
+            if y is not None and self.training:
+                cos_theta_m = cos_theta - self.cur_margin
+                idx_ = torch.arange(0, batch_size, dtype=torch.long)
+                output[idx_, y] = cos_theta_m[idx_, y]
 
-        output = cos_theta * 1.0 # a little bit hacky way to prevent in_place operation on cos_theta
-        if y is not None and self.training:
-            cos_theta_m = cos_theta - self.cur_margin
-            idx_ = torch.arange(0, batch_size, dtype=torch.long)
-            output[idx_, y] = cos_theta_m[idx_, y]
-
-        output *= s # scale up in order to make softmax work
-        return output
+            output *= s # scale up in order to make softmax work
+            return output

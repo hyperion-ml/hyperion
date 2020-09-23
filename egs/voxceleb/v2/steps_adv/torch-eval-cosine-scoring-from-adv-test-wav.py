@@ -2,10 +2,7 @@
 """
   Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
   Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)  
-
 """
-from __future__ import absolute_import
-
 import sys
 import os
 import argparse
@@ -122,7 +119,7 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
     logging.info('initializing devices num_gpus={}'.format(num_gpus))
     device = open_device(num_gpus=num_gpus)
 
-    feat_args = AFF.filter_args(**kwargs)
+    feat_args = AFF.filter_args(prefix='feats', **kwargs)
     logging.info('initializing feature extractor args={}'.format(feat_args))
     feat_extractor = AFF.create(**feat_args)
 
@@ -294,7 +291,7 @@ if __name__ == "__main__":
     parser.add_argument('--test-wav-file', required=True)
 
     AR.add_argparse_args(parser)
-    AFF.add_argparse_args(parser)
+    AFF.add_argparse_args(parser, prefix='feats')
 
     parser.add_argument('--mvn-no-norm-mean', 
                         default=False, action='store_true',

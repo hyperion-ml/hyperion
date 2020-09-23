@@ -95,8 +95,16 @@ class TDNNV1(NetArch):
     def in_context(self):
         return (self._context, self._context)
     
-                
-    def forward(self, x):
+             
+    def forward(self, x, y=None, use_amp=False):
+        if use_amp:
+            with torch.cuda.amp.autocast():
+                return self._forward(x)
+
+        return self._forward(x)
+
+   
+    def _forward(self, x):
 
         for i in range(self.num_blocks):
             x = self.blocks[i](x)

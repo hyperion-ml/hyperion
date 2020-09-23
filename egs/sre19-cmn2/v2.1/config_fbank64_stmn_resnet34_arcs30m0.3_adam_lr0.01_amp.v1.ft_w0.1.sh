@@ -1,8 +1,8 @@
 # ResNet34 x-vector with mixed precision training
 
 # acoustic features
-feat_config=conf/fbank64_mvn_8k.pyconf
-feat_type=fbank64_mvn
+feat_config=conf/fbank64_stmn_8k.pyconf
+feat_type=fbank64_stmn
 
 
 # x-vector training 

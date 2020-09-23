@@ -2,9 +2,7 @@
 """
   Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
   Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)  
-
 """
-from __future__ import absolute_import
 
 import sys
 import os
@@ -108,6 +106,7 @@ class MyModel(nn.Module):
 def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
                         mvn_no_norm_mean, mvn_norm_var, mvn_context,
                         vad_spec, vad_path_prefix, transfer_v_file, 
+                        transfer_mvn_no_norm_mean, transfer_mvn_norm_var, transfer_mvn_context,
                         model_path, transfer_model_path,
                         embed_layer,
                         score_file, stats_file, cal_file, transfer_cal_file, threshold,
@@ -119,23 +118,28 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
     logging.info('initializing devices num_gpus={}'.format(num_gpus))
     device = open_device(num_gpus=num_gpus)
 
-    feat_args = AFF.filter_args(**kwargs)
+    feat_args = AFF.filter_args(**kwargs, prefix='feats')
     logging.info('initializing feature extractor args={}'.format(feat_args))
     feat_extractor = AFF.create(**feat_args)
-
-    tfeat_args = AFF.filter_args(**kwargs, prefix='transfer')
+    logging.info('kwargs={}'.format(kwargs))
+    tfeat_args = AFF.filter_args(**kwargs, prefix='transfer-feats')
     logging.info('initializing feature extractor for transfer model args={}'.format(tfeat_args))
     tfeat_extractor = AFF.create(**tfeat_args)
-    print(tfeat_extractor)
-    do_mvn = False
+    mvn = False
     if not mvn_no_norm_mean or mvn_norm_var:
-        do_mvn = True
-
-    if do_mvn:
         logging.info('initializing short-time mvn')
         mvn = MVN(
             norm_mean=(not mvn_no_norm_mean), norm_var=mvn_norm_var,
             left_context=mvn_context, right_context=mvn_context)
+
+    transfer_mvn = False
+    if not transfer_mvn_no_norm_mean or transfer_mvn_norm_var:
+        logging.info('initializing short-time transfer_mvn for transfer model')
+        transfer_mvn = MVN(
+            norm_mean=(not transfer_mvn_no_norm_mean), norm_var=transfer_mvn_norm_var,
+            left_context=transfer_mvn_context, right_context=transfer_mvn_context)
+
+
 
     logging.info('loading model {}'.format(model_path))
     xvector_model = TML.load(model_path)
@@ -166,7 +170,7 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
         tcalibrator = Calibrator(lr.A[0,0], lr.b[0]-threshold)
         tcalibrator.to(device)
 
-    tmodel = MyModel(tfeat_extractor, xvector_tmodel, mvn, embed_layer, tcalibrator)
+    tmodel = MyModel(tfeat_extractor, xvector_tmodel, transfer_mvn, embed_layer, tcalibrator)
     tmodel.to(device)
     tmodel.eval()
 
@@ -312,8 +316,8 @@ if __name__ == "__main__":
     parser.add_argument('--transfer-v-file', dest='transfer_v_file', required=True)
 
     AR.add_argparse_args(parser)
-    AFF.add_argparse_args(parser)
-    AFF.add_argparse_args(parser, prefix='transfer')
+    AFF.add_argparse_args(parser, prefix='feats')
+    AFF.add_argparse_args(parser, prefix='transfer-feats')
 
     parser.add_argument('--mvn-no-norm-mean', 
                         default=False, action='store_true',
@@ -324,8 +328,21 @@ if __name__ == "__main__":
                         help='normalize the variance of the features')
         
     parser.add_argument('--mvn-context', type=int,
-                        default=300,
+                        default=150,
                         help='short-time mvn context in number of frames')
+
+    parser.add_argument('--transfer-mvn-no-norm-mean', 
+                        default=False, action='store_true',
+                        help='don\'t center the features')
+
+    parser.add_argument('--transfer-mvn-norm-var', 
+                        default=False, action='store_true',
+                        help='normalize the variance of the features')
+        
+    parser.add_argument('--transfer-mvn-context', type=int,
+                        default=150,
+                        help='short-time mvn context in number of frames')
+
 
     parser.add_argument('--vad', dest='vad_spec', default=None)
     parser.add_argument('--vad-path-prefix', dest='vad_path_prefix', default=None,

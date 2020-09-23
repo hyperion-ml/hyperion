@@ -46,7 +46,7 @@ if [ $stage -le 1 ];then
 	score_plda_dir=$score_dir/cosine_fgsm_e${eps}
 	echo "Eval Voxceleb 1 with Cosine scoring with FGSM attack eps=$eps"
 	steps_adv/eval_cosine_scoring_from_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 20 \
-	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
+	    --feat-config $feat_config  \
 	    --attack-type fgsm --eps $eps \
 	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --threshold $thr005 \
@@ -87,7 +87,7 @@ if [ $stage -le 2 ];then
 	score_plda_dir=$score_dir/cosine_fgsm_snr${snr}
 	echo "Eval Voxceleb 1 with Cosine scoring with FGSM attack snr=$snr"
 	steps_adv/eval_cosine_scoring_from_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 20 \
-	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
+	    --feat-config $feat_config  \
 	    --attack-type snr-fgsm --snr $snr \
 	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --threshold $thr005 \
@@ -130,7 +130,7 @@ if [ $stage -le 3 ];then
 	score_plda_dir=$score_dir/cosine_randfgsm_e${eps}_a${alpha}
 	echo "Eval Voxceleb 1 with Cosine scoring with Rand-FGSM attack eps=$eps"
 	steps_adv/eval_cosine_scoring_from_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 20 \
-	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
+	    --feat-config $feat_config  \
 	    --attack-type rand-fgsm --eps $eps --alpha $alpha \
 	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --threshold $thr005 \
@@ -173,7 +173,7 @@ if [ $stage -le 4 ];then
 	score_plda_dir=$score_dir/cosine_iterfgsm_e${eps}_a${alpha}
 	echo "Eval Voxceleb 1 with Cosine scoring with Iterative FGSM attack eps=$eps"
 	steps_adv/eval_cosine_scoring_from_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 20 \
-	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
+	    --feat-config $feat_config  \
 	    --attack-type iter-fgsm --eps $eps --alpha $alpha \
 	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --threshold $thr005 \
@@ -219,7 +219,7 @@ if [ $stage -le 5 ];then
 		score_plda_dir=$score_dir/cosine_cwl2_conf${confidence}_lr${lr}_noabort_it$it
 		echo "Eval Voxceleb 1 with Cosine scoring with Carlini-Wagner L2 attack confidence=$confidence lr=$lr num-its=$it"
 		steps_adv/eval_cosine_scoring_from_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 100 \
-		    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
+		    --feat-config $feat_config  \
 		    --attack-type cw-l2 --confidence $confidence \
 		    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 		    --cal-file $cal_file --threshold $thr005 --lr $lr --attack-opt "--attack-no-abort" --max-iter $it \
@@ -263,7 +263,7 @@ if [ $stage -le 6 ];then
 		score_plda_dir=$score_dir/cosine_cwrms_conf${confidence}_lr${lr}_noabort_it$it
 		echo "Eval Voxceleb 1 with Cosine scoring with Carlini-Wagner RMS attack confidence=$confidence lr=$lr num_its=$it"
 		steps_adv/eval_cosine_scoring_from_adv_test_wav.sh --cmd "$eval_cmd -tc 15" $eval_args --nj 100 \
-		    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
+		    --feat-config $feat_config  \
 		    --attack-type cw-l2 --confidence $confidence \
 		    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 		    --cal-file $cal_file --threshold $thr005 --lr $lr --attack-opt "--attack-no-abort --attack-norm-time" \
@@ -309,7 +309,7 @@ if [ $stage -le 7 ];then
 		score_plda_dir=$score_dir/cosine_cwsnr_conf${confidence}_lr${lr}_noabort_it$it
 		echo "Eval Voxceleb 1 with Cosine scoring with Carlini-Wagner SNR attack confidence=$confidence lr=$lr num_its=$it"
 		steps_adv/eval_cosine_scoring_from_adv_test_wav.sh --cmd "$eval_cmd -tc 15" $eval_args --nj 100 \
-		    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
+		    --feat-config $feat_config  \
 		    --attack-type cw-l2 --confidence $confidence \
 		    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 		    --cal-file $cal_file --threshold $thr005 --lr $lr --attack-opt "--attack-no-abort --attack-use-snr" \
@@ -352,7 +352,7 @@ if [ $stage -le -8 ];then
 	score_plda_dir=$score_dir/cosine_cwl0_conf${confidence}
 	echo "Eval Voxceleb 1 with Cosine scoring with Carlini-Wagner L0 attack confidence=$confidence"
 	steps_adv/eval_cosine_scoring_from_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 1000 \
-	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
+	    --feat-config $feat_config  \
 	    --attack-type cw-l0 --confidence $confidence --c-factor 10 \
 	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --threshold $thr005 \
@@ -393,7 +393,7 @@ if [ $stage -le 9 ];then
 	score_plda_dir=$score_dir/cosine_cwlinf_conf${confidence}
 	echo "Eval Voxceleb 1 with Cosine scoring with Carlini-Wagner LInf attack confidence=$confidence"
 	steps_adv/eval_cosine_scoring_from_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 40 \
-	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
+	    --feat-config $feat_config  \
 	    --attack-type cw-linf --confidence $confidence --c-factor 2 \
 	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --threshold $thr005 \
@@ -435,7 +435,7 @@ if [ $stage -le 10 ];then
 	score_plda_dir=$score_dir/cosine_pgdlinf_e${eps}_a${alpha}
 	echo "Eval Voxceleb 1 with Cosine scoring with PGD Linf attack eps=$eps"
 	steps_adv/eval_cosine_scoring_from_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 20 \
-	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
+	    --feat-config $feat_config  \
 	    --attack-type pgd --eps $eps --alpha $alpha --attack-opt "" \
 	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --threshold $thr005 \
@@ -477,7 +477,7 @@ if [ $stage -le 11 ];then
 	score_plda_dir=$score_dir/cosine_pgdlinf_randinit5_e${eps}_a${alpha}
 	echo "Eval Voxceleb 1 with Cosine scoring with PGD Linf attack eps=$eps"
 	steps_adv/eval_cosine_scoring_from_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 100 \
-	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
+	    --feat-config $feat_config  \
 	    --attack-type pgd --eps $eps --alpha $alpha --attack-opt "--attack-num-random-init 5" \
 	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --threshold $thr005 \
