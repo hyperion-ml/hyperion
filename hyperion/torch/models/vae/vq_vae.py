@@ -228,7 +228,7 @@ class VQVAE(TorchModel):
     def forward(self, x, x_target=None, 
                 return_x_mean=False,
                 return_x_sample=False, return_z_sample=False,
-                return_px=False, serialize_pdfs=True):
+                return_px=False, serialize_pdfs=True, use_amp=False):
         if use_amp:
             with torch.cuda.amp.autocast():
                 return self._forward(
