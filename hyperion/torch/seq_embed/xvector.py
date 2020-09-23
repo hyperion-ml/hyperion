@@ -171,7 +171,15 @@ class XVector(TorchModel):
         self.classif_net.update_margin(epoch)
 
 
-    def forward(self, x, y=None):
+    def forward(self, x, y=None, use_amp=False):
+        if use_amp:
+            with torch.cuda.amp.autocast():
+                return self._forward(x, y)
+
+        return self._forward(x, y)
+
+
+    def _forward(self, x, y=None):
         """Forward function
 
         Args:
@@ -334,7 +342,7 @@ class XVector(TorchModel):
 
 
 
-    def train_mode(self, mode='ft_embed_affine'):
+    def train_mode(self, mode='ft-embed-affine'):
         if mode == 'ft-full' or mode == 'train':
             self.train()
             return 

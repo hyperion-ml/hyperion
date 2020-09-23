@@ -147,7 +147,15 @@ class TransformerEncoderV1(NetArch):
             raise ValueError("unknown in_layer_type: " + self.in_layer_type)
 
 
-    def forward(self, x, mask=None, target_shape=None):
+    def forward(self, x, mask=None, target_shape=None, use_amp=False):
+        if use_amp:
+            with torch.cuda.amp.autocast():
+                return self._forward(x, mask, target_shape)
+
+        return self._forward(x, mask, target_shape)
+
+
+    def _forward(self, x, mask=None, target_shape=None):
         """Forward pass function
 
         Args:

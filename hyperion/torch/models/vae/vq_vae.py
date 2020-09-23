@@ -13,8 +13,7 @@ from ...torch_model import TorchModel
 from ...helpers import TorchNALoader
 from ...layers import tensor2pdf as t2pdf
 from ...layers import vq 
-#from ...layers import pdf_storage
-#from ...utils.distributions import squeeze_pdf
+
 
 class VQVAE(TorchModel):
     """Vector Quantized Variational Autoencoder class
@@ -170,24 +169,6 @@ class VQVAE(TorchModel):
         pass
         
             
-    # def _make_pre_px_layer(self):
-    #     dec_channels = self.decoder_net.out_shape()[1]
-    #     f = self.t2px.tensor2pdfparam_factor
-    #     return self._make_conv1x1(dec_channels, self.in_channels*f, self._dec_out_dim)
-        
-
-    
-    # def _match_sizes(self, y, target_shape):
-    #     y_dim = len(y.shape)
-    #     d = y_dim - len(target_shape)
-    #     for i in range(2, y_dim):
-    #         surplus = y.shape[i] - target_shape[i-d]
-    #         if surplus > 0:
-    #             y = torch.narrow(y, i, surplus//2, target_shape[i])
-
-    #     return y.contiguous()
-
-
     def _pre_enc(self, x):
         if x.dim() == 3 and self._enc_in_dim == 4:
             return x.unsqueeze(1)
@@ -214,19 +195,6 @@ class VQVAE(TorchModel):
             return x.view(x.size(0), -1, x.size(-1))
 
         return x
-
-
-    # def _post_px(self, px, x_shape):
-    #     px_shape = px.batch_shape
-        
-    #     if len(px_shape) == 4 and len(x_shape)==3:
-    #         if px_shape[1]==1:
-    #             px = squeeze_pdf(px, dim=1)
-    #         else:
-    #             raise ValueError('P(x|z)-shape != x-shape')
-            
-    #     return px
-
 
 
     def _make_vq_layer(self, in_feats, in_dim):
@@ -257,8 +225,24 @@ class VQVAE(TorchModel):
         self.vq_layer = vq_layer
 
 
-        
     def forward(self, x, x_target=None, 
+                return_x_mean=False,
+                return_x_sample=False, return_z_sample=False,
+                return_px=False, serialize_pdfs=True):
+        if use_amp:
+            with torch.cuda.amp.autocast():
+                return self._forward(
+                    x, x_target, 
+                    return_x_mean, return_x_sample, return_z_sample,
+                    return_px, serialize_pdfs)
+
+        return self._forward(
+            x, x_target, 
+            return_x_mean, return_x_sample, return_z_sample,
+            return_px, serialize_pdfs)
+        
+        
+    def _forward(self, x, x_target=None, 
                 return_x_mean=False,
                 return_x_sample=False, return_z_sample=False,
                 return_px=False, serialize_pdfs=True):
@@ -282,7 +266,6 @@ class VQVAE(TorchModel):
         if x_target.dim() == 3 and zz.dim() == 4:
             squeeze_dim = 1
         px = self.t2px(zz, squeeze_dim=squeeze_dim)
-        # px = self._post_px(px, x_target.shape)
 
         # we normalize the elbo by spatial/time samples and feature dimension
         log_px = px.log_prob(x_target).view(
@@ -318,25 +301,6 @@ class VQVAE(TorchModel):
             r['z'] = z
 
         return r
-
-        # we build the return tuple
-        # r = [loss, elbo, log_px, kldiv_qzpz, vq_loss, perplexity]
-        # if return_x_mean:
-        #     r.append(px.mean)
-
-        # if return_x_sample:
-        #     if px.has_rsample:
-        #         x_tilde = px.rsample()
-        #     else:
-        #         x_tilde = px.sample()
-            
-        #     r.append(x_tilde)
-
-        # if return_z_sample:
-        #     r.append(z)
-
-        # return tuple(r)
-        
 
 
     def compute_z(self, x):
