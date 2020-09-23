@@ -104,7 +104,6 @@ class MeanVarianceNorm(nn.Module):
             p = ''
         else:
             p = prefix + '_'
-        print(p, kwargs)
 
         valid_args = ('no_norm_mean', 'norm_mean', 'norm_var', 'left_context', 'right_context', 'context')
         d = dict((k, kwargs[p+k])
