@@ -96,7 +96,7 @@ class TDNNV1(NetArch):
         return (self._context, self._context)
     
              
-    def forward(self, x, y=None, use_amp=False):
+    def forward(self, x, use_amp=False):
         if use_amp:
             with torch.cuda.amp.autocast():
                 return self._forward(x)
