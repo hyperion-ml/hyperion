@@ -1,12 +1,12 @@
 # ResNet34 x-vector with mixed precision training
 
 # acoustic features
-feat_config=conf/fbank64_stmn_8k.pyconf
-feat_type=fbank64_mvn
+feat_config=conf/fbank64_mvn_8k.pyconf
+feat_type=fbank64_stmn
 
 
 # x-vector training 
-nnet_data=swbd_sre_voxcelebcat_tel
+nnet_data=alllangs_nocv_nocnceleb
 nnet_num_augs=4
 aug_opt="--train-aug-cfg conf/reverb_noise_aug.yml --val-aug-cfg conf/reverb_noise_aug.yml"
 
@@ -28,12 +28,12 @@ margin=0.3
 nnet_opt="--resnet-type $nnet_type --in-feats 64 --in-channels 1 --in-kernel-size 3 --in-stride 1 --no-maxpool"
 
 opt_opt="--opt-optimizer adam --opt-lr $lr --opt-beta1 0.9 --opt-beta2 0.95 --opt-weight-decay 1e-5 --opt-amsgrad" # --use-amp"
-lrs_opt="--lrsch-lrsch-type exp_lr --lrsch-decay-rate 0.5 --lrsch-decay-steps 8000 --lrsch-hold-steps 40000 --lrsch-min-lr 1e-5 --lrsch-warmup-steps 1000 --lrsch-update-lr-on-opt-step"
+lrs_opt="--lrsch-lrsch-type exp_lr --lrsch-decay-rate 0.5 --lrsch-decay-steps 10000 --lrsch-hold-steps 40000 --lrsch-min-lr 1e-5 --lrsch-warmup-steps 1000 --lrsch-update-lr-on-opt-step"
 
-nnet_name=${feat_type}_${nnet_type}_e${embed_dim}_arcs${s}m${margin}_do${dropout}_adam_lr${lr}_b${eff_batch_size}_amp.v1
-nnet_num_epochs=60
+nnet_name=${feat_type}_${nnet_type}_e${embed_dim}_arcs${s}m${margin}_do${dropout}_adam_lr${lr}_b${eff_batch_size}_amp.v1.$nnet_data
+nnet_num_epochs=100
 nnet_dir=exp/xvector_nnets/$nnet_name
-nnet=$nnet_dir/model_ep0060.pth
+nnet=$nnet_dir/model_ep0052.pth
 
 
 # xvector full net finetuning with out-of-domain
@@ -56,7 +56,7 @@ ft_nnet=$ft_nnet_dir/model_ep0027.pth
 # xvector last-layer finetuning alllangs
 reg_layers_classif=0
 reg_layers_enc="0 1 2 3 4"
-nnet_adapt_data=alllangs
+nnet_adapt_data=alllangs_nocv
 ft2_batch_size_1gpu=128
 ft2_eff_batch_size=512 # effective batch size
 ft2_ipe=1
@@ -98,13 +98,13 @@ ft3_nnet=$ft3_nnet_dir/model_ep0014.pth
 # back-end
 plda_aug_config=conf/noise_aug.yml
 plda_num_augs=0
-# if [ $plda_num_augs -eq 0 ]; then
-#     plda_data=sre_tel
-#     plda_adapt_data=sre18_cmn2_adapt_lab
-# else
-#     plda_data=sre_tel_augx${plda_num_augs}
-#     plda_adapt_data=sre18_cmn2_adapt_lab_augx${plda_num_augs}
-# fi
+if [ $plda_num_augs -eq 0 ]; then
+    plda_data=sre_tel
+    plda_adapt_data=sre18_cmn2_adapt_lab
+else
+    plda_data=sre_tel_augx${plda_num_augs}
+    plda_adapt_data=sre18_cmn2_adapt_lab_augx${plda_num_augs}
+fi
 plda_type=splda
 # lda_dim=200
 # plda_y_dim=150

@@ -12,26 +12,27 @@ config_file=default_config.sh
 
 #spk det back-end
 lda_dim=150
-ncoh=400
+ncoh=500
 plda_y_dim=125
 plda_z_dim=150
 
 plda_type=splda
-#plda_data=sre_tel
-coh_data=sre18_dev_unlabeled
-
+plda_data=realtel_alllangs
+#coh_data=sre18_dev_unlabeled
+coh_data=realtel_alllangs
+cal_set=sre16-9
 ft=0
 
 . parse_options.sh || exit 1;
 . $config_file
 . datapath.sh
-plda_data=sre16-8
-plda_data=realtel_noeng
+# plda_data=sre16-8
+#plda_data=realtel_noeng
 # plda_data=cvcat_noeng_tel
 # plda_data=allnoeng
 # plda_data=alllangs
 # plda_data=cncelebcat_tel
-plda_data=realtel_alllangs
+# plda_data=realtel_alllangs
 # plda_data=sre16-8_cncelebcat_tel
 # plda_data=sre16-8_cvcat_zh-HKs
 # plda_data=sre16-8_cvcat_zh
@@ -102,14 +103,14 @@ if [ $stage -le 2 ]; then
 			       $be_dir/plda.h5 \
 			       $score_plda_dir/sre19_eval_cmn2_scores &
 
-    # echo "eval SRE20 without S-Norm"
-    # steps_be/eval_tel_be_v1.sh --cmd "$train_cmd" --plda_type $plda_type \
-    # 			       data/sre20cts_eval_test/trials \
-    # 			       data/sre20cts_eval_enroll/utt2spk \
-    # 			       $xvector_dir/sre20cts_eval/xvector.scp \
-    # 			       $be_dir/lda_lnorm.h5 \
-    # 			       $be_dir/plda.h5 \
-    # 			       $score_plda_dir/sre20cts_eval_scores &
+    echo "eval SRE20 without S-Norm"
+    steps_be/eval_tel_be_v1.sh --cmd "$train_cmd" --plda_type $plda_type \
+    			       data/sre20cts_eval_test/trials \
+    			       data/sre20cts_eval_enroll/utt2spk \
+    			       $xvector_dir/sre20cts_eval/xvector.scp \
+    			       $be_dir/lda_lnorm.h5 \
+    			       $be_dir/plda.h5 \
+    			       $score_plda_dir/sre20cts_eval_scores &
 
     
     wait
@@ -118,52 +119,74 @@ if [ $stage -le 2 ]; then
     local/score_sre19cmn2.sh data/sre19_eval_test_cmn2 $score_plda_dir
     #local/make_sre20cts_sub.sh $sre20cts_eval_root ${score_plda_dir}/sre20cts_eval_scores
 fi
-exit
+
 
 if [ $stage -le 3 ];then
-    local/calibrate_sre19cmn2_v1.sh --cmd "$train_cmd" eval40 $score_plda_dir
-    local/score_sre18cmn2.sh data/sre18_eval40_test_cmn2 eval40 ${score_plda_dir}_cal_v1eval40
-    local/score_sre19cmn2.sh data/sre19_eval_test_cmn2 ${score_plda_dir}_cal_v1eval40
-
-    #local/make_sre19cmn2_sub.sh $sre19cmn2_eval_root ${score_plda_dir}_cal_v1dev/sre19_eval_cmn2_scores
+    local/calibrate_sre20cts_v1.sh --cmd "$train_cmd" $cal_set $score_plda_dir
+    local/score_sre16.sh data/sre16_eval40_yue_test eval40_yue ${score_plda_dir}_cal_v1${cal_set}
+    local/score_sre16.sh data/sre16_eval40_tgl_test eval40_tgl ${score_plda_dir}_cal_v1${cal_set}
+    local/score_sre19cmn2.sh data/sre19_eval_test_cmn2 ${score_plda_dir}_cal_v1${cal_set}
 fi
 
-score_plda_dir=$score_dir/plda_snorm
+score_plda_dir=$score_dir/plda_snorm_${coh_data}${ncoh}
 
 if [ $stage -le 4 ]; then
 
-    #SRE18
-    echo "SRE18 S-Norm"
+    echo "eval SRE16 with S-Norm"
     steps_be/eval_tel_be_snorm_v1.sh --cmd "$train_cmd" --plda_type $plda_type --ncoh $ncoh \
-				     data/sre18_eval40_test_cmn2/trials \
-				     data/sre18_eval40_enroll_cmn2/utt2spk \
-				     $xvector_dir/sre18_eval40_cmn2/xvector.scp \
+				     data/sre16_eval40_yue_test/trials \
+				     data/sre16_eval40_yue_enroll/utt2spk \
+				     $xvector_dir/sre16_eval40_yue/xvector.scp \
 				     data/${coh_data}/utt2spk \
 				     $xvector_dir/${coh_data}/xvector.scp \
-				     $be_dir/lda_lnorm_adapt.h5 \
-				     $be_dir/plda_adapt2.h5 \
-				     $score_plda_dir/sre18_eval40_cmn2_scores &
+				     $be_dir/lda_lnorm.h5 \
+				     $be_dir/plda.h5 \
+				     $score_plda_dir/sre16_eval40_yue_scores &
+    
+    steps_be/eval_tel_be_snorm_v1.sh --cmd "$train_cmd" --plda_type $plda_type  --ncoh $ncoh \
+				     data/sre16_eval40_tgl_test/trials \
+				     data/sre16_eval40_tgl_enroll/utt2spk \
+				     $xvector_dir/sre16_eval40_tgl/xvector.scp \
+				     data/${coh_data}/utt2spk \
+				     $xvector_dir/${coh_data}/xvector.scp \
+				     $be_dir/lda_lnorm.h5 \
+				     $be_dir/plda.h5 \
+				     $score_plda_dir/sre16_eval40_tgl_scores &
 
-    echo "SRE19 S-Norm"
-    steps_be/eval_tel_be_snorm_v1.sh --cmd "$train_cmd" --plda_type $plda_type --ncoh $ncoh \
+    echo "eval SRE19 with S-Norm"
+    steps_be/eval_tel_be_snorm_v1.sh --cmd "$train_cmd" --plda_type $plda_type  --ncoh $ncoh \
 				     data/sre19_eval_test_cmn2/trials \
 				     data/sre19_eval_enroll_cmn2/utt2spk \
 				     $xvector_dir/sre19_eval_cmn2/xvector.scp \
 				     data/${coh_data}/utt2spk \
 				     $xvector_dir/${coh_data}/xvector.scp \
-				     $be_dir/lda_lnorm_adapt.h5 \
-				     $be_dir/plda_adapt2.h5 \
+				     $be_dir/lda_lnorm.h5 \
+				     $be_dir/plda.h5 \
 				     $score_plda_dir/sre19_eval_cmn2_scores &
 
+    echo "eval SRE20 with S-Norm"
+    steps_be/eval_tel_be_snorm_v1.sh --cmd "$train_cmd" --plda_type $plda_type  --ncoh $ncoh \
+    				     data/sre20cts_eval_test/trials \
+    				     data/sre20cts_eval_enroll/utt2spk \
+    				     $xvector_dir/sre20cts_eval/xvector.scp \
+				     data/${coh_data}/utt2spk \
+				     $xvector_dir/${coh_data}/xvector.scp \
+    				     $be_dir/lda_lnorm.h5 \
+    				     $be_dir/plda.h5 \
+    				     $score_plda_dir/sre20cts_eval_scores &
+    
     wait
-    local/score_sre18cmn2.sh data/sre18_eval40_test_cmn2 eval40 $score_plda_dir
+    local/score_sre16.sh data/sre16_eval40_yue_test eval40_yue $score_plda_dir
+    local/score_sre16.sh data/sre16_eval40_tgl_test eval40_tgl $score_plda_dir
     local/score_sre19cmn2.sh data/sre19_eval_test_cmn2 $score_plda_dir
+    
 fi
 
 if [ $stage -le 5 ];then
-    local/calibrate_sre19cmn2_v1.sh --cmd "$train_cmd" eval40 $score_plda_dir
-    local/score_sre18cmn2.sh data/sre18_eval40_test_cmn2 eval40 ${score_plda_dir}_cal_v1eval40
-    local/score_sre19cmn2.sh data/sre19_eval_test_cmn2 ${score_plda_dir}_cal_v1eval40
+    local/calibrate_sre20cts_v1.sh --cmd "$train_cmd" $cal_set $score_plda_dir
+    local/score_sre16.sh data/sre16_eval40_yue_test eval40_yue ${score_plda_dir}_cal_v1${cal_set}
+    local/score_sre16.sh data/sre16_eval40_tgl_test eval40_tgl ${score_plda_dir}_cal_v1${cal_set}
+    local/score_sre19cmn2.sh data/sre19_eval_test_cmn2 ${score_plda_dir}_cal_v1${cal_set}
 fi
 
     

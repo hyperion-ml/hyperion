@@ -155,11 +155,11 @@ if [ $stage -le 6 ];then
     
 
     utils/combine_data.sh --extra-files "utt2num_frames utt2lang" \
-			  data/cvcat_noeng_tel \
-			  $(echo $cv_noeng_datasets | sed 's@cvcat_@data/cvcat_@g')
+    			  data/cvcat_noeng_tel \
+    			  $(echo $cv_noeng_datasets | sed 's@cvcat_@data/cvcat_@g')
     mkdir -p $xvector_dir/cvcat_noeng_tel
-    cat $(echo $cv_noeng_datasets | sed -e 's@cvcat_@'$xvector_dir'/cvcat_@g' -e 's@_tel@_tel/xvector.scp@g' ) > $xvector_dir/cvcat_noeng_tel/xvector.scp
-  
+    cat $(echo $cv_noeng_datasets | sed -e 's@cvcat_\([^_]*\)_tel@'$xvector_dir'/cvcat_\1_tel/xvector.scp@g' ) > $xvector_dir/cvcat_noeng_tel/xvector.scp  
+
     utils/combine_data.sh --extra-files "utt2num_frames utt2lang" \
 			  data/allnoeng \
 			  data/sre16-8 \
@@ -208,5 +208,5 @@ if [ $stage -le 6 ];then
 fi
 
 
-
+#echo $cv_noeng_datasets | sed -e 's@cvcat_\([^_]*\)_tel@'$xvector_dir'/cvcat_\1_tel/xvector.scp@g' 
 exit
