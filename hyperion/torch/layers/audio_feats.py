@@ -11,7 +11,7 @@ from ...utils.misc import str2bool
 
 import torch
 import torch.nn as nn
-from apex import amp
+import torch.cuda.amp as amp
 
 #from ...feats.feature_windows import FeatureWindowFactory as FWF
 from ...feats.filter_banks import FilterBankFactory as FBF
@@ -24,12 +24,7 @@ RECTANGULAR = 'rectangular'
 BLACKMAN = 'blackman'
 WINDOWS = [HAMMING, HANNING, POVEY, RECTANGULAR, BLACKMAN]
 
-def _use_amp():
-    if hasattr(amp._amp_state,'opt_properties'):
-        return amp._amp_state.opt_properties.options['enabled']
-    return False
 
-@amp.float_function
 def _amp_safe_matmul(a, b):
     if _use_amp():
         mx = torch.max(a, dim=-1, keepdim=True)[0]
@@ -392,7 +387,8 @@ class Wav2LogFilterBank(Wav2FFT):
         if self.use_fft_mag:
             pow_spec = pow_spec.sqrt()
 
-        pow_spec = _amp_safe_matmul(pow_spec, self._fb)
+        with amp.autocast(enabled=False):
+            pow_spec = torch.matmul(pow_spec.float(), self._fb.float())
         #logging.info('fb={} {}'.format(pow_spec, pow_spec.type()))
         #logging.info('fb={}'.format(pow_spec.type()))
         pow_spec = (pow_spec + 1e-10).log() 
@@ -484,8 +480,10 @@ class Wav2MFCC(Wav2FFT):
         if self.use_fft_mag:
             pow_spec = pow_spec.sqrt()
 
-        pow_spec = torch.matmul(pow_spec, self._fb)
-        pow_spec = (pow_spec + 1e-15).log()
+        with amp.autocast(enabled=False):
+            pow_spec = torch.matmul(pow_spec.float(), self._fb.float())
+
+        pow_spec = (pow_spec + 1e-10).log()
 
         mfcc = torch.matmul(pow_spec, self._dct)
         if self.cepstral_lifter > 0:

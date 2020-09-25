@@ -7,7 +7,6 @@ from collections import OrderedDict as ODict
 
 import time
 import logging
-#import numpy as np
 
 import torch
 import torch.nn as nn

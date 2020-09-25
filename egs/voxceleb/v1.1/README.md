@@ -40,14 +40,14 @@ In this recipe:
 
    - Run the run_0*.sh scripts in sequence
    - By default it will use Light ResNet (16 base channels)
-   - For better performance use full ResNet (64 base channels) using `config_fbank80_mvn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh` file as
+   - For better performance use full ResNet (64 base channels) using `config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh` file as
 ```bash
-run_011_train_xvector.sh --config-file config_fbank80_mvn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh
-run_030_extract_xvectors.sh --config-file config_fbank80_mvn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh --use-gpu true
-run_040_eval_be.sh --config-file config_fbank80_mvn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh
+run_011_train_xvector.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh
+run_030_extract_xvectors.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh --use-gpu true
+run_040_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh
 ```
 
-   - To train with mixed precision training use config file `config_fbank80_mvn_lresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh`
+   - To train with mixed precision training use config file `config_fbank80_stmn_lresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh`
 
 ## Recipe Steps:
 
@@ -87,26 +87,26 @@ run_040_eval_be.sh --config-file config_fbank80_mvn_resnet34_arcs30m0.3_adam_lr0
 
 | Config | Model Type | Model Details | Back-end | EER(%) | MinDCF(p=0.05) | MinDCF(p=0.01) |
 | ------ | ---------- | ------------- | -------- | :----: | :------------: | :------------: |
-| config_fbank80_mvn_lresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | LResNet34 | ArcFace s=30/m=0.3 | PLDA | 1.88 | 0.135 | 0.189 |
+| config_fbank80_stmn_lresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | LResNet34 | ArcFace s=30/m=0.3 | PLDA | 1.88 | 0.135 | 0.189 |
 | | | | Cosine | 1.94 | 0.137 | 0.207 |
-| config_fbank80_mvn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | ResNet34 | ArcFace s=30/m=0.3 | PLDA |  1.43 | 0.097 | 0.188 |
+| config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | ResNet34 | ArcFace s=30/m=0.3 | PLDA |  1.43 | 0.097 | 0.188 |
 | | | | Cosine |  1.35 | 0.088 | 0.146 |
-| config_fbank80_mvn_tseresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | Time-SE-ResNet34 | ArcFace s=30/m=0.3 | PLDA | 1.23 | 0.091 | 0.143 |
+| config_fbank80_stmn_tseresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | Time-SE-ResNet34 | ArcFace s=30/m=0.3 | PLDA | 1.23 | 0.091 | 0.143 |
 | | | | Cosine |  1.17 | 0.081 | 0.110 |
-| config_fbank80_mvn_effnetb4_v2_arcs30m0.3_adam_lr0.01_amp.v1.sh | EfficientNet-b4 v2 | EfficientNet-b4 with strides=1122121 <br> ArcFace s=30/m=0.3 | 1.37 | 0.104 | 0.179 |
+| config_fbank80_stmn_effnetb4_v2_arcs30m0.3_adam_lr0.01_amp.v1.sh | EfficientNet-b4 v2 | EfficientNet-b4 with strides=1122121 <br> ArcFace s=30/m=0.3 | 1.37 | 0.104 | 0.179 |
 | | | | Cosine | 1.31 | 0.080 | 0.139 |
 
 ### VoxCeleb 1 Entire-Clean trial list
 
 | Config | Model Type | Model Details | Back-end | EER(%) | MinDCF(p=0.05) | MinDCF(p=0.01) |
 | ------ | ---------- | ------------- | -------- | :----: | :------------: | :------------: |
-| config_fbank80_mvn_lresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | LResNet34 | ArcFace s=30/m=0.3 | PLDA | 1.86 | 0.124 | 0.210 |
+| config_fbank80_stmn_lresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | LResNet34 | ArcFace s=30/m=0.3 | PLDA | 1.86 | 0.124 | 0.210 |
 | | | | Cosine | 1.91 | 0.120 | 0.208 |
-| config_fbank80_mvn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | ResNet34 | ArcFace s=30/m=0.3 | PLDA | 1.41 | 0.089 | 0.159 |
+| config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | ResNet34 | ArcFace s=30/m=0.3 | PLDA | 1.41 | 0.089 | 0.159 |
 | | | | Cosine | 1.19 | 0.078 | 0.140 |
-| config_fbank80_mvn_tseresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | Time-SE-ResNet34 | ArcFace s=30/m=0.3 | PLDA | 1.30 | 0.083 | 0.146 |
+| config_fbank80_stmn_tseresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | Time-SE-ResNet34 | ArcFace s=30/m=0.3 | PLDA | 1.30 | 0.083 | 0.146 |
 | | | | Cosine | 1.09 | 0.071 | 0.124 |
-| config_fbank80_mvn_effnetb4_v2_arcs30m0.3_adam_lr0.01_amp.v1.sh | EfficientNet-b4 v2 | EfficientNet-b4 with strides=1122121 <br> ArcFace s=30/m=0.3 | 1.45 | 0.097 | 0.165 |
+| config_fbank80_stmn_effnetb4_v2_arcs30m0.3_adam_lr0.01_amp.v1.sh | EfficientNet-b4 v2 | EfficientNet-b4 with strides=1122121 <br> ArcFace s=30/m=0.3 | 1.45 | 0.097 | 0.165 |
 | | | | Cosine | 1.15 | 0.076 | 0.132 |
 
 
@@ -114,13 +114,13 @@ run_040_eval_be.sh --config-file config_fbank80_mvn_resnet34_arcs30m0.3_adam_lr0
 
 | Config | Model Type | Model Details | Back-end | EER(%) | MinDCF(p=0.05) | MinDCF(p=0.01) |
 | ------ | ---------- | ------------- | -------- | :----: | :------------: | :------------: |
-| config_fbank80_mvn_lresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | LResNet34 | ArcFace s=30/m=0.3 | PLDA | 3.24 | 0.197 | 0.320 |
+| config_fbank80_stmn_lresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | LResNet34 | ArcFace s=30/m=0.3 | PLDA | 3.24 | 0.197 | 0.320 |
 | | | | Cosine | 3.21 | 0.190 | 0.302 |
-| config_fbank80_mvn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | ResNet34 | ArcFace s=30/m=0.3 | PLDA | 2.65 | 0.155 | 0.254 |
+| config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | ResNet34 | ArcFace s=30/m=0.3 | PLDA | 2.65 | 0.155 | 0.254 |
 | | | | Cosine | 2.27 | 0.137 | 0.219 |
-| config_fbank80_mvn_tseresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | Time-SE-ResNet34 | ArcFace s=30/m=0.3 | PLDA | 2.46 | 0.142 | 0.237 |
+| config_fbank80_stmn_tseresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | Time-SE-ResNet34 | ArcFace s=30/m=0.3 | PLDA | 2.46 | 0.142 | 0.237 |
 | | | | Cosine |  2.14 | 0.126 | 0.203 |
-| config_fbank80_mvn_effnetb4_v2_arcs30m0.3_adam_lr0.01_amp.v1.sh | EfficientNet-b4 v2 | EfficientNet-b4 with strides=1122121 <br> ArcFace s=30/m=0.3 | 2.57 | 0.153 | 0.255 |
+| config_fbank80_stmn_effnetb4_v2_arcs30m0.3_adam_lr0.01_amp.v1.sh | EfficientNet-b4 v2 | EfficientNet-b4 with strides=1122121 <br> ArcFace s=30/m=0.3 | 2.57 | 0.153 | 0.255 |
 | | | | Cosine | 2.11 | 0.127 | 0.205 |
 
 

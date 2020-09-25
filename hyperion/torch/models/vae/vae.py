@@ -161,52 +161,6 @@ class VAE(TorchModel):
         return t2pdf_layer
 
 
-
-    # def _make_conv1x1(self, in_channels, out_channels, ndims):
-    #     if ndims == 2:
-    #         return nn.Linear(in_channels, out_channels)
-    #     elif ndims == 3:
-    #         return nn.Conv1d(in_channels, out_channels, kernel_size=1)
-    #     elif ndims == 4:
-    #         return nn.Conv2d(in_channels, out_channels, kernel_size=1)
-    #     elif ndims == 5:
-    #         return nn.Conv3d(in_channels, out_channels, kernel_size=1)
-    #     else:
-    #         raise ValueError('ndim=%d is not supported' % ndims)
-        
-
-    # def _make_pre_qz_layer(self):
-        
-    #     enc_channels = self.encoder_net.out_shape()[1]
-    #     f = self.t2qz.tensor2pdfparam_factor
-    #     if self.flatten_spatial:
-    #         # we will need to pass channel dim to end dim and flatten
-    #         pre_qz = Linear(self._enc_out_tot_feats, self.z_dim*f)
-    #         return pre_qz
-
-    #     return self._make_conv1x1(enc_channels, self.z_dim*f, self._enc_out_dim)
-
-        
-            
-    # def _make_pre_px_layer(self):
-    #     dec_channels = self.decoder_net.out_shape()[1]
-    #     f = self.t2px.tensor2pdfparam_factor
-    #     print('dec-out-dim', self._dec_out_dim)
-    #     return self._make_conv1x1(dec_channels, self.in_channels*f, self._dec_out_dim)
-        
-    
-    # def _match_sizes(self, y, target_shape):
-    #     y_dim = len(y.shape)
-    #     d = y_dim - len(target_shape)
-    #     for i in range(2, y_dim):
-    #         surplus = y.shape[i] - target_shape[i-d]
-    #         if surplus > 0:
-    #             y = torch.narrow(y, i, surplus//2, target_shape[i-d])
-
-    #     return y.contiguous()
-
-
-
     def _make_post_enc_layer(self):
         pass
 
@@ -249,7 +203,6 @@ class VAE(TorchModel):
         return x
 
 
-
     def _post_px(self, px, x_shape):
         px_shape = px.batch_shape
         
@@ -262,8 +215,25 @@ class VAE(TorchModel):
         return px
 
 
-        
     def forward(self, x, x_target=None, 
+                return_x_mean=False,
+                return_x_sample=False, return_z_sample=False,
+                return_px=False, return_qz=False, serialize_pdfs=True, 
+                use_amp=False):
+        if use_amp:
+            with torch.cuda.amp.autocast():
+                return self._forward(
+                    x, x_target, 
+                    return_x_mean, return_x_sample, return_z_sample,
+                    return_px, return_qz, serialize_pdfs) 
+                    
+        return self._forward(
+            x, x_target, 
+            return_x_mean, return_x_sample, return_z_sample,
+            return_px, return_qz, serialize_pdfs) 
+
+        
+    def _forward(self, x, x_target=None, 
                 return_x_mean=False,
                 return_x_sample=False, return_z_sample=False,
                 return_px=False, return_qz=False, serialize_pdfs=True):
@@ -288,15 +258,11 @@ class VAE(TorchModel):
 
         zz = self._pre_dec(z)
         zz = self.decoder_net(zz, target_shape=x_target.shape)
-        #zz = self._post_dec(zz)
-        #zz = self.pre_px(zz)
-        #zz = self._match_sizes(zz, x_target.shape)
 
         squeeze_dim = None
         if x_target.dim() == 3 and zz.dim() == 4:
             squeeze_dim = 1
         px = self.t2px(zz, squeeze_dim=squeeze_dim)
-        #px = self._post_px(px, x_target.shap)
 
         # we normalize the elbo by spatial/time samples and feature dimension
         log_px = px.log_prob(x_target).view(
