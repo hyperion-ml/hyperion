@@ -124,7 +124,7 @@ fi
 if [ $stage -le 5 ];then
     # this is to avoid "Too many open files error" when reading the x-vectors in the back-end
     # we need to combine the ark files into a single ark file
-    for name in $cv_noeng_datasets
+    for name in $cv_noeng_datasets $babel_datasets
     do
 	mv $xvector_dir/$name/xvector.scp $xvector_dir/$name/xvector.tmp.scp 
 	copy-vector scp:$xvector_dir/$name/xvector.tmp.scp ark,scp:$xvector_dir/$name/xvector.ark,$xvector_dir/$name/xvector.scp
@@ -204,9 +204,21 @@ if [ $stage -le 6 ];then
     			  data/cvcat_zh data/cvcat_zh-HK_tel data/cvcat_zh-CN_tel data/cvcat_zh-TW_tel
     mkdir -p $xvector_dir/cvcat_zh
     cat $xvector_dir/{cvcat_zh-HK_tel,cvcat_zh-CN_tel,cvcat_zh-TW_tel}/xvector.scp > $xvector_dir/cvcat_zh/xvector.scp
+
     
+    utils/combine_data.sh --extra-files "utt2num_frames utt2lang" \
+    			  data/babel_alllangs \
+    			  $(echo $babel_datasets | sed 's@babel@data/babel@g')
+    mkdir -p $xvector_dir/babel_alllangs
+    cat $(echo $babel_datasets | sed -e 's@\([^ ]*\)@'$xvector_dir'/\1/xvector.scp@g' ) > $xvector_dir/babel_alllangs/xvector.scp  
+    
+    utils/combine_data.sh --extra-files "utt2num_frames utt2lang" \
+    			  data/realtel_alllangs_labunlab \
+			  data/realtel_alllangs data/babel_alllangs data/sre18_dev_unlabeled
+    mkdir -p $xvector_dir/realtel_alllangs_labunlab
+    cat $xvector_dir/{realtel_alllangs,babel_alllangs,sre18_dev_unlabeled}/xvector.scp \
+	> $xvector_dir/realtel_alllangs_labunlab/xvector.scp
+
 fi
 
-
-#echo $cv_noeng_datasets | sed -e 's@cvcat_\([^_]*\)_tel@'$xvector_dir'/cvcat_\1_tel/xvector.scp@g' 
 exit
