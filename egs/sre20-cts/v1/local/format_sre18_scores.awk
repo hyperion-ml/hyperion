@@ -1,6 +1,6 @@
 BEGIN{
   while (getline <fscores){
-    scores[$1" "$2]=$1"\t"$2"\ta\t"$3;
+    scores[$1" "$2]=$1"\t"$2"\ta\t"$3+bias;
   }
   getline;
   print "modelid\tsegmentid\tside\tLLR"
