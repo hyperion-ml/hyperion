@@ -6,11 +6,9 @@ import os
 from collections import OrderedDict as ODict
 
 import logging
-#import numpy as np
 
 import torch
 import torch.nn as nn
-from apex import amp
 
 from ..utils import MetricAcc
 from .torch_trainer import TorchTrainer, TorchDataParallel
@@ -43,15 +41,21 @@ class XVectorTrainerDeepFeatRegFromWav(XVectorTrainerDeepFeatReg):
          train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
          use_amp: uses mixed precision training.
          log_interval: number of optim. steps between log outputs
+         grad_clip: norm to clip gradients, if 0 there is no clipping
+         swa_start: epoch to start doing swa
+         swa_lr: SWA learning rate
+         swa_anneal_epochs: SWA learning rate anneal epochs
     """
 
-    def __init__(self, model, feat_extractor, prior_model, optimizer, epochs, exp_path, cur_epoch=0, 
+    def __init__(self, model, feat_extractor, prior_model, optimizer, 
+                 epochs=100, exp_path='./train', cur_epoch=0, 
                  grad_acc_steps=1, reg_layers_enc=None, reg_layers_classif=None,
                  reg_weight_enc=0.1, reg_weight_classif=0.1,
                  device=None, metrics=None, lr_scheduler=None, loggers=None, 
-                 data_parallel=False, loss=None, reg_loss=None, train_mode='train', use_amp=False,
-                 log_interval=10):
-
+                 data_parallel=False, loss=None, reg_loss=None, 
+                 train_mode='train', use_amp=False,
+                 log_interval=10, grad_clip=0,
+                 swa_start=0, swa_lr=1e-3, swa_anneal_epochs=10):
 
         super().__init__(
             model, prior_model, optimizer, epochs, exp_path, cur_epoch=cur_epoch,
@@ -70,7 +74,6 @@ class XVectorTrainerDeepFeatRegFromWav(XVectorTrainerDeepFeatReg):
         if data_parallel:
             self.feat_extractor = TorchDataParallel(self.feat_extractor)
 
-
         
     def train_epoch(self, data_loader):
         """Training epoch loop
@@ -82,10 +85,7 @@ class XVectorTrainerDeepFeatRegFromWav(XVectorTrainerDeepFeatReg):
 
         metric_acc = MetricAcc()
         batch_metrics = ODict()
-        if self.train_mode == 'train':
-            self.model.train()
-        else:
-            self.model.train_mode(self.train_mode)
+        self.set_train_mode()
 
         for batch, (data, target) in enumerate(data_loader):
             self.loggers.on_batch_begin(batch)
@@ -99,46 +99,49 @@ class XVectorTrainerDeepFeatRegFromWav(XVectorTrainerDeepFeatReg):
             with torch.no_grad():
                 feats = self.feat_extractor(data)
 
-            h_enc, h_classif, output = self.model_wrapper(
-                feats, target, self.reg_layers_enc, self.reg_layers_classif, return_output=True)
-            loss = self.loss(output, target).mean() # you need to take the mean here because of the multi-gpu training
-            batch_metrics['loss-classif'] = loss.item()
+            with self.amp_autocast():
+                h_enc, h_classif, output = self.model_wrapper(
+                    feats, target, self.reg_layers_enc, self.reg_layers_classif,
+                    return_output=True, **self.amp_args)
+                loss = self.loss(output, target).mean() # you need to take the mean here because of the multi-gpu training
+                batch_metrics['loss-classif'] = loss.item()
             
-            prior_h_enc, prior_h_classif = self.prior_model_wrapper(
-                feats, target, self.reg_layers_enc, self.reg_layers_classif, return_output=False)
+                prior_h_enc, prior_h_classif = self.prior_model_wrapper(
+                    feats, target, self.reg_layers_enc, self.reg_layers_classif,
+                    return_output=False, **self.amp_args)
 
-            n_enc = len(h_enc)
-            if n_enc > 0:
-                loss_scale = self.reg_weight_enc/n_enc
-            for i in range(n_enc):
-                l = self.reg_layers_enc[i]
-                loss_i = self.reg_loss(h_enc[i], prior_h_enc[i]).mean()
-                loss_name = 'reg-h-enc-%d' % l
-                batch_metrics[loss_name] = loss_i.item()
-                loss += loss_scale * loss_i
+                n_enc = len(h_enc)
+                if n_enc > 0:
+                    loss_scale = self.reg_weight_enc/n_enc
+                for i in range(n_enc):
+                    l = self.reg_layers_enc[i]
+                    loss_i = self.reg_loss(h_enc[i], prior_h_enc[i]).mean()
+                    loss_name = 'reg-h-enc-%d' % l
+                    batch_metrics[loss_name] = loss_i.item()
+                    loss += loss_scale * loss_i
 
-            n_classif = len(h_classif)
-            if n_classif > 0:
-                loss_scale = self.reg_weight_classif/n_classif
-            for i in range(n_classif):
-                l = self.reg_layers_classif[i]
-                loss_i = self.reg_loss(h_classif[i], prior_h_classif[i]).mean()
-                loss_name = 'reg-h-classif-%d' % l
-                batch_metrics[loss_name] = loss_i.item()
-                loss += loss_scale * loss_i
+                n_classif = len(h_classif)
+                if n_classif > 0:
+                    loss_scale = self.reg_weight_classif/n_classif
+                for i in range(n_classif):
+                    l = self.reg_layers_classif[i]
+                    loss_i = self.reg_loss(h_classif[i], prior_h_classif[i]).mean()
+                    loss_name = 'reg-h-classif-%d' % l
+                    batch_metrics[loss_name] = loss_i.item()
+                    loss += loss_scale * loss_i
 
-            batch_metrics['loss'] = loss.item()  
-            loss = loss/self.grad_acc_steps
+                batch_metrics['loss'] = loss.item()  
+                loss = loss/self.grad_acc_steps
+                
             if self.use_amp:
-                with amp.scale_loss(loss, self.optimizer) as scaled_loss:
-                    scaled_loss.backward()
+                self.grad_scaler.scale(loss).backward()
             else:
                 loss.backward()
 
             if (batch+1) % self.grad_acc_steps == 0:
-                if self.lr_scheduler is not None:
+                if self.lr_scheduler is not None and not self.in_swa:
                     self.lr_scheduler.on_opt_step()
-                self.optimizer.step()
+                self.update_model()
 
             for k, metric in self.metrics.items():
                 batch_metrics[k] = metric(output, target)
@@ -147,31 +150,37 @@ class XVectorTrainerDeepFeatRegFromWav(XVectorTrainerDeepFeatReg):
             logs = metric_acc.metrics
             logs['lr'] = self._get_lr()
             self.loggers.on_batch_end(logs=logs, batch_size=batch_size)
-            #total_batches +=1
 
         logs = metric_acc.metrics
         logs['lr'] = self._get_lr()
         return logs
 
-                                             
-    def validation_epoch(self, data_loader):
+
+    def validation_epoch(self, data_loader, swa_update_bn=False):
         """Validation epoch loop
 
         Args:
           data_loader: PyTorch data loader return input/output pairs
         """
-
         metric_acc = MetricAcc()
         batch_metrics = ODict()
         with torch.no_grad():
-            self.model.eval()
+            if swa_update_bn:
+                log_tag = ''
+                self.set_train_mode()
+            else:
+                log_tag = 'val_'
+                self.model.eval()
+
             for batch, (data, target) in enumerate(data_loader):
                 data, target = data.to(self.device), target.to(self.device)
                 batch_size = data.shape[0]
 
                 feats = self.feat_extractor(data)
-                output = self.model(feats)
-                loss = self.loss(output, target)
+                with self.amp_autocast():
+                    output = self.model(feats, **self.amp_args)
+                    loss = self.loss(output, target)
+
                 batch_metrics['loss'] = loss.mean().item()
                 for k, metric in self.metrics.items():
                     batch_metrics[k] = metric(output, target)
@@ -179,8 +188,7 @@ class XVectorTrainerDeepFeatRegFromWav(XVectorTrainerDeepFeatReg):
                 metric_acc.update(batch_metrics, batch_size)
 
         logs = metric_acc.metrics
-        logs = ODict(('val_' + k, v) for k,v in logs.items())
+        logs = ODict((log_tag + k, v) for k,v in logs.items())
         return logs
-
 
 

@@ -64,7 +64,15 @@ class AE(TorchModel):
         return x
 
 
-    def forward(self, x, x_target=None):
+    def forward(self, x, x_target=None, use_amp=False):
+        if use_amp:
+            with torch.cuda.amp.autocast():
+                return self._forward(x, x_target)
+
+        return self._forward(x, x_target)
+
+
+    def _forward(self, x, x_target=None):
         if x_target is None:
             x_target = x
 

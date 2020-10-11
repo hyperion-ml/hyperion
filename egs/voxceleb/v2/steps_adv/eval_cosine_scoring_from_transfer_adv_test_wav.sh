@@ -4,14 +4,14 @@
 #
 nj=20
 cmd=run.pl
-feat_config=conf/fbank.pyconf
-transfer_feat_config=conf/fbank.pyconf
+feat_config=conf/fbank80_stmn_16k.conf
+transfer_feat_config=conf/fbank80_stmn_16k.conf
 use_gpu=false
-audio_feat=logfb
-transfer_audio_feat=logfb
-center=true
-norm_var=false
-context=150
+#audio_feat=logfb
+#transfer_audio_feat=logfb
+#center=true
+#norm_var=false
+#context=150
 attack_type=fgsm
 eps=0
 alpha=0
@@ -37,13 +37,13 @@ if [ $# -ne 9 ]; then
   echo "Usage: $0 [options] <key> <enroll-file> <test-data-dir> <vector-file> <nnet-model> <transfer-vector-file> <transfer-nnet-model> <output-scores> <output-snr>"
   echo "Options: "
   echo "  --feat-config <config-file>                      # feature extractor config"
-  echo "  --audio-feat <logfb|mfcc>                        # feature type"
+  #echo "  --audio-feat <logfb|mfcc>                        # feature type"
   echo "  --transfer-feat-config <config-file>             # feature extractor config for white-box model"
-  echo "  --transfer-audio-feat <logfb|mfcc>               # feature type for white-box model"
+  #echo "  --transfer-audio-feat <logfb|mfcc>               # feature type for white-box model"
   echo "  --nj <nj>                                        # number of parallel jobs"
   echo "  --cmd (utils/run.pl|utils/queue.pl <queue opts>) # how to run jobs."
-  echo "  --center <true|false>                            # If true, normalize means in the sliding window cmvn (default:true)"
-  echo "  --norm-var <true|false>                          # If true, normalize variances in the sliding window cmvn (default:false)"
+  #echo "  --center <true|false>                            # If true, normalize means in the sliding window cmvn (default:true)"
+  #echo "  --norm-var <true|false>                          # If true, normalize variances in the sliding window cmvn (default:false)"
   echo "  --use-gpu <bool|false>                           # If true, use GPU."
   echo "  --context <int|150>                              # Left context for short-time cmvn (default: 150)"
   echo "  --attack-type <str|fgsm>                         # Attack type"
@@ -98,13 +98,13 @@ if [ "$use_gpu" == "true" ];then
     args="--use-gpu"
 fi
 
-if [ "$center" == "false" ];then
-    args="${args} --mnv-no-norm-mean"
-fi
-if [ "$norm_var" == "true" ];then
-    args="${args} --mvn-norm-var"
-fi
-args="${args} --mvn-context $context"
+# if [ "$center" == "false" ];then
+#     args="${args} --mnv-no-norm-mean"
+# fi
+# if [ "$norm_var" == "true" ];then
+#     args="${args} --mvn-norm-var"
+# fi
+# args="${args} --mvn-context $context"
 
 if [ "${save_wav}" == "true" ];then
     args="${args} --save-adv-wav-path $save_wav_path --save-adv-wav"
@@ -128,9 +128,7 @@ echo "$0: score $key_file to $output_dir"
 $cmd JOB=1:$nj $log_dir/${name}.JOB.log \
     hyp_utils/torch.sh --num-gpus $num_gpus \
     steps_adv/torch-eval-cosine-scoring-from-transfer-adv-test-wav.py \
-    @$feat_config --audio-feat $audio_feat \
-    @$transfer_feat_config2 --transfer-audio-feat $transfer_audio_feat \
-    ${args} \
+    @$feat_config @$transfer_feat_config2 ${args} \
     --v-file scp:$vector_file \
     --key-file $key_file \
     --enroll-file $enroll_file \
