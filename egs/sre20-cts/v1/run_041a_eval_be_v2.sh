@@ -11,33 +11,16 @@ stage=1
 config_file=default_config.sh
 
 #spk det back-end
-lda_dim=150
 ncoh=500
-plda_y_dim=125
-plda_z_dim=150
 
-plda_type=splda
-plda_data=realtel_alllangs
-#coh_data=sre18_dev_unlabeled
 coh_data=realtel_alllangs
-cal_set=sre16-9
+#cal_set=sre16-9
+cal_set=sre16-yue
 ft=0
 
 . parse_options.sh || exit 1;
 . $config_file
 . datapath.sh
-# plda_data=sre16-8
-#plda_data=realtel_noeng
-# plda_data=cvcat_noeng_tel
-# plda_data=allnoeng
-# plda_data=alllangs
-# plda_data=cncelebcat_tel
-# plda_data=realtel_alllangs
-# plda_data=sre16-8_cncelebcat_tel
-# plda_data=sre16-8_cvcat_zh-HKs
-# plda_data=sre16-8_cvcat_zh
-# plda_data=sre16-8_cvcat_ar
-# plda_data=cvcat_zh
 
 if [ $ft -eq 1 ];then
     nnet_name=$ft_nnet_name
