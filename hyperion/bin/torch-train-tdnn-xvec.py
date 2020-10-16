@@ -3,7 +3,7 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
+
 import sys
 import os
 import argparse
@@ -24,9 +24,8 @@ from hyperion.torch.data import SeqDataset as SD
 from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
 from hyperion.torch.metrics import CategoricalAccuracy
 
-def train_xvec(data_rspec, train_list, val_list, exp_path,
-               epochs, num_gpus, log_interval, resume, num_workers, 
-               grad_acc_steps, use_amp, **kwargs):
+def train_xvec(data_rspec, train_list, val_list, 
+               num_gpus, resume, num_workers, **kwargs):
 
     set_float_cpu('float32')
     logging.info('initializing devices num_gpus={}'.format(num_gpus))
@@ -37,11 +36,13 @@ def train_xvec(data_rspec, train_list, val_list, exp_path,
     xvec_args = XVec.filter_args(**kwargs)
     opt_args = OF.filter_args(prefix='opt', **kwargs)
     lrsch_args = LRSF.filter_args(prefix='lrsch', **kwargs)
+    trn_args = Trainer.filter_args(**kwargs)
     logging.info('seq dataset args={}'.format(sd_args))
     logging.info('sampler args={}'.format(sampler_args))
     logging.info('xvector network args={}'.format(xvec_args))
     logging.info('optimizer args={}'.format(opt_args))
     logging.info('lr scheduler args={}'.format(lrsch_args))
+    logging.info('trainer args={}'.format(trn_args))
 
     logging.info('init datasets')
     train_data = SD(data_rspec, train_list, **sd_args)
@@ -67,15 +68,12 @@ def train_xvec(data_rspec, train_list, val_list, exp_path,
     lr_sch = LRSF.create(optimizer, **lrsch_args)
     metrics = { 'acc': CategoricalAccuracy() }
     
-    trainer = Trainer(model, optimizer, epochs, exp_path, 
-                      grad_acc_steps=grad_acc_steps,
+    trainer = Trainer(model, optimizer, 
                       device=device, metrics=metrics, lr_scheduler=lr_sch,
-                      data_parallel=(num_gpus>1), use_amp=use_amp, 
-                      log_interval=log_interval)
+                      data_parallel=(num_gpus>1), **trn_args)
     if resume:
         trainer.load_last_checkpoint()
     trainer.fit(train_loader, test_loader)
-
 
 
 
@@ -86,39 +84,25 @@ if __name__ == '__main__':
         fromfile_prefix_chars='@',
         description='Train XVector with TDNN/E-TDNN/ResE-TDNN encoder')
 
-    parser.add_argument('--data-rspec', dest='data_rspec', required=True)
-    parser.add_argument('--train-list', dest='train_list', required=True)
-    parser.add_argument('--val-list', dest='val_list', required=True)
+    parser.add_argument('--data-rspec', required=True)
+    parser.add_argument('--train-list', required=True)
+    parser.add_argument('--val-list', required=True)
 
     SD.add_argparse_args(parser)
     Sampler.add_argparse_args(parser)
-
-    parser.add_argument('--num-workers', type=int, default=5, 
-                        help='num_workers of data loader')
-    parser.add_argument('--grad-acc-steps', type=int, default=1, 
-                        help='gradient accumulation batches before weigth update')
-    parser.add_argument('--epochs', type=int, default=200, 
-                        help='number of epochs')
-
     XVec.add_argparse_args(parser)
     OF.add_argparse_args(parser, prefix='opt')
     LRSF.add_argparse_args(parser, prefix='lrsch')
+    Trainer.add_argparse_args(parser)
 
+    parser.add_argument('--num-workers', type=int, default=5, 
+                        help='num_workers of data loader')
     parser.add_argument('--num-gpus', type=int, default=1,
                         help='number of gpus, if 0 it uses cpu')
     parser.add_argument('--seed', type=int, default=1, 
                         help='random seed (default: 1)')
-    parser.add_argument('--log-interval', type=int, default=10, 
-                        help='how many batches to wait before logging training status')
-
     parser.add_argument('--resume', action='store_true', default=False,
                         help='resume training from checkpoint')
-
-    parser.add_argument('--use-amp', action='store_true', default=False,
-                        help='use mixed precision training')
-
-    parser.add_argument('--exp-path', help='experiment path')
-
     parser.add_argument('-v', '--verbose', dest='verbose', default=1, choices=[0, 1, 2, 3], type=int)
 
     args = parser.parse_args()

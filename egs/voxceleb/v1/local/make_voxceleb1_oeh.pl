@@ -21,9 +21,9 @@ if (system("mkdir -p $out_dir") != 0) {
   die "Error making directory $out_dir";
 }
 
-my $url_base="http://www.robots.ox.ac.uk/~vgg/data/voxceleb";
+my $url_base="http://www.robots.ox.ac.uk/~vgg/data/voxceleb/meta";
 my @trials_basename = ("very_test.txt", "very_test2.txt", "list_test_hard.txt", "list_test_hard2.txt", "list_test_all.txt", "list_test_all2.txt");
-my @trials_url = ("$url_base/meta/veri_test.txt", "$url_base/data3/veri_test2.txt", "$url_base/meta/list_test_hard.txt", "$url_base/data3/list_test_hard2.txt", "$url_base/meta/list_test_all.txt", "$url_base/data3/list_test_all2.txt");
+my @trials_url = ("$url_base/veri_test.txt", "$url_base/veri_test2.txt", "$url_base/list_test_hard.txt", "$url_base/list_test_hard2.txt", "$url_base/list_test_all.txt", "$url_base/list_test_all2.txt");
 my @trials = ("trials_o", "trials_o_clean", "trials_h", "trials_h_clean", "trials_e", "trials_e_clean");
 
 open(META_IN, "<", "$data_base/vox1_meta.csv") or die "Could not open the meta data file $data_base/vox1_meta.csv";

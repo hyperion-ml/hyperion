@@ -279,8 +279,15 @@ class ResNet(NetArch):
         return (in_shape[0], self.layer4[-1].out_channels, H, W)
 
 
+    def forward(self, x, use_amp=False):
+        if use_amp:
+            with torch.cuda.amp.autocast():
+                return self._forward(x)
 
-    def forward(self, x):
+        return self._forward(x)
+
+
+    def _forward(self, x):
         """forward function
 
         Args:

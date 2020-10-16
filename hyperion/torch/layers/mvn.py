@@ -2,8 +2,6 @@
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-# from __future__ import absolute_import
-# import logging
 
 import torch
 import torch.nn as nn
@@ -106,17 +104,14 @@ class MeanVarianceNorm(nn.Module):
             p = ''
         else:
             p = prefix + '_'
-        valid_args = ('no_norm_mean', 'norm_mean', 'norm_var', 'left_context', 'right_context', 'context')
 
+        valid_args = ('no_norm_mean', 'norm_mean', 'norm_var', 'left_context', 'right_context', 'context')
         d = dict((k, kwargs[p+k])
                  for k in valid_args if p+k in kwargs)
 
-        neg_args1 = ('no_norm_mean',)
-        neg_args2 = ('norm_mean',)
-
-        for a,b in zip(neg_args1, neg_args2):
-            d[b] = not d[a]
-            del d[a]
+        if 'no_norm_mean' in d:
+            d['norm_mean'] = not d['no_norm_mean']
+            del d['no_norm_mean']
 
         if 'context' in d:
             if d['context'] is not None:
@@ -139,10 +134,8 @@ class MeanVarianceNorm(nn.Module):
 
         if prefix is None:
             p1 = '--'
-            p2 = ''
         else:
             p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
 
         parser.add_argument(p1+'no-norm-mean', 
                             default=False, action='store_true',
