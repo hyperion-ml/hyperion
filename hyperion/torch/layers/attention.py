@@ -219,6 +219,7 @@ class LocalScaledDotProdAttV1(ScaledDotProdAttV1):
             value = value.transpose(1, self.time_dim)
 
         num_blocks = round(t2 / self.context)
+        print(num_blocks, t2, self.context)
         context_k = math.ceil(t2 / num_blocks)
         context_q = math.ceil(t1 / num_blocks)
         pad1 = context_q * num_blocks - t1

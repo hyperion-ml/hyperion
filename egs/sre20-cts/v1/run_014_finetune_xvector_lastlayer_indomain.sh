@@ -37,7 +37,7 @@ if [ $stage -le 1 ]; then
   mkdir -p $ft2_nnet_dir/log
   $cuda_cmd --gpu $ngpu $ft2_nnet_dir/log/train.log \
       hyp_utils/torch.sh --num-gpus $ngpu \
-      torch-finetune-xvec-from-wav.py @$feat_config $aug_opt \
+      torch-finetune-xvec-dfr-from-wav.py @$feat_config $aug_opt \
       --audio-path $list_dir/wav.scp \
       --time-durs-file $list_dir/utt2dur \
       --train-list $list_dir/lists_xvec/train.scp \
@@ -48,6 +48,8 @@ if [ $stage -le 1 ]; then
       --batch-size $batch_size \
       --num-workers $num_workers $ft2_opt_opt $ft2_lrs_opt \
       --grad-acc-steps $grad_acc_steps \
+      --reg-layers-classif $reg_layers_classif \
+      --reg-weight-classif $ft2_reg_weight_embed \
       --epochs $ft2_nnet_num_epochs \
       --s $s --margin $margin --margin-warmup-epochs $ft2_margin_warmup \
       --num-gpus $ngpu \
@@ -56,8 +58,6 @@ if [ $stage -le 1 ]; then
       --train-mode ft-embed-affine \
       --exp-path $ft2_nnet_dir $args
 
-      #   --reg-layers-classif $reg_layers_classif \
-      # --reg-weight-classif $ft2_reg_weight_embed \
 
 fi
 #
