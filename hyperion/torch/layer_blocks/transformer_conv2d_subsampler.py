@@ -21,9 +21,9 @@ class TransformerConv2dSubsampler(nn.Module):
         super().__init__()
         self.time_dim = time_dim
         self.conv = nn.Sequential(
-            nn.Conv2d(1, out_feats, 3, 2),
+            nn.Conv2d(1, out_feats, 3, 2, padding=(0,1)),
             hid_act,
-            nn.Conv2d(out_feats, out_feats, 3, 2),
+            nn.Conv2d(out_feats, out_feats, 3, 2, padding=(0,1)),
             hid_act
         )
         self.out = nn.Sequential(
