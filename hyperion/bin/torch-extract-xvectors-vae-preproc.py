@@ -27,7 +27,8 @@ from hyperion.torch.helpers import TorchModelLoader as TML
 
 def extract_xvectors(input_spec, output_spec, vad_spec, write_num_frames_spec,
                      scp_sep, path_prefix, vad_path_prefix, 
-                     model_path, chunk_length, embed_layer, 
+                     xvec_model_path, chunk_length, embed_layer, 
+                     vae_model_path,
                      random_utt_length, min_utt_length, max_utt_length,
                      use_gpu, part_idx, num_parts, **kwargs):
     
@@ -48,10 +49,19 @@ def extract_xvectors(input_spec, output_spec, vad_spec, write_num_frames_spec,
     num_gpus = 1 if use_gpu else 0
     logging.info('initializing devices num_gpus={}'.format(num_gpus))
     device = open_device(num_gpus=num_gpus)
-    logging.info('loading model {}'.format(model_path))
-    model = TML.load(model_path)
-    model.to(device)
-    model.eval()
+    logging.info('loading x-vector model {}'.format(xvec_model_path))
+    xvec_model = TML.load(xvec_model_path)
+    xvec_model.to(device)
+    xvec_model.eval()
+    logging.info('x-vector={}'.format(xvec_model))
+
+    logging.info('loading vae model {}'.format(vae_model_path))
+    vae_model = TML.load(vae_model_path)
+    vae_model.to(device)
+    vae_model.eval()
+    logging.info('vae={}'.format(vae_model))
+
+    mse_loss = torch.nn.MSELoss()
         
     logging.info('opening output stream: %s' % (output_spec))
     with DWF.create(output_spec, scp_sep=scp_sep) as writer:
@@ -98,8 +108,12 @@ def extract_xvectors(input_spec, output_spec, vad_spec, write_num_frames_spec,
                 else:
                     xx = torch.tensor(x.T[None,:], dtype=torch.get_default_dtype())
                     with torch.no_grad():
-                        y = model.extract_embed(
-                            xx, chunk_length=chunk_length, 
+                        xx = xx.to(device)
+                        vae_output = vae_model(xx, return_x_mean=True)
+                        x_clean = vae_output['x_mean']
+                        mse = mse_loss(x_clean, xx).item()
+                        y = xvec_model.extract_embed(
+                            x_clean, chunk_length=chunk_length, 
                             embed_layer=embed_layer, device=device).detach().cpu().numpy()[0]
 
                 t5 = time.time()
@@ -109,10 +123,10 @@ def extract_xvectors(input_spec, output_spec, vad_spec, write_num_frames_spec,
                     info.append(str(x.shape[0]))
                 t6 = time.time()
                 logging.info((
-                    'utt %s total-time=%.3f read-time=%.3f mvn-time=%.3f '
+                    'utt %s mse=%.3f total-time=%.3f read-time=%.3f mvn-time=%.3f '
                     'vad-time=%.3f embed-time=%.3f write-time=%.3f '
                     'rt-factor=%.2f') % (
-                        key[0], t6-t1, t2-t1, t3-t2, t4-t3, 
+                        key[0], mse, t6-t1, t2-t1, t3-t2, t4-t3, 
                         t5-t4, t6-t5, x.shape[0]*1e-2/(t6-t1)))
 
     if write_num_frames_spec is not None:
@@ -140,7 +154,8 @@ if __name__ == "__main__":
 
     MVN.add_argparse_args(parser)
 
-    parser.add_argument('--model-path', required=True)
+    parser.add_argument('--xvec-model-path', required=True)
+    parser.add_argument('--vae-model-path', required=True)
     parser.add_argument('--chunk-length', type=int, default=0, 
                         help=('number of frames used in each forward pass of the x-vector encoder,'
                               'if 0 the full utterance is used'))

@@ -32,8 +32,15 @@ dec_opt="--dec-in-feats $latent_dim --dec-num-blocks $blocks --dec-d-model $d_mo
 #lrs_opt="--lrsch-lrsch-type exp_lr --lrsch-decay-rate 0.5 --lrsch-decay-steps 12000 --lrsch-hold-steps 40000 --lrsch-min-lr 1e-5 --lrsch-warmup-steps 1000 --lrsch-update-lr-on-opt-step"
 opt_opt="--opt-optimizer adam --opt-lr $lr --opt-beta1 0.9 --opt-beta2 0.95 --opt-weight-decay 1e-5 --opt-amsgrad"
 lrs_opt="--lrsch-lrsch-type exp_lr --lrsch-decay-rate 0.5 --lrsch-decay-steps 8000 --lrsch-hold-steps 2000 --lrsch-min-lr 1e-5 --lrsch-warmup-steps 1000 --lrsch-update-lr-on-opt-step"
-nnet_name=${model_type}_${narch}_${vq_type}_z${latent_dim}c${vq_clusters}x${num_groups}_do${dropout}_optv4_adam_lr${lr}_b${eff_batch_size}.$nnet_data
+nnet_name=${model_type}_${narch}_b${blocks}d${d_model}h${heads}linff${d_ff}_${vq_type}_z${latent_dim}c${vq_clusters}x${num_groups}_do${dropout}_optv4_adam_lr${lr}_b${eff_batch_size}.$nnet_data
 nnet_num_epochs=160
 num_augs=5
 nnet_dir=exp/vae_nnets/$nnet_name
 nnet=$nnet_dir/model_ep0160.pth
+
+# xvector network trained with recipe v1.1
+xvec_nnet_name=fbank80_stmn_lresnet34_e256_arcs30m0.3_do0_adam_lr0.05_b512_amp.v1
+xvec_nnet_dir=../v1.1/exp/xvector_nnets/$xvec_nnet_name
+xvec_nnet=$xvec_nnet_dir/model_ep0070.pth
+
+

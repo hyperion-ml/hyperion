@@ -26,4 +26,9 @@ nnet_name=${model_type}_${narch}_b8d256_${vq_type}_z${latent_dim}c${vq_clusters}
 nnet_num_epochs=400
 num_augs=5
 nnet_dir=exp/vae_nnets/$nnet_name
-nnet=$nnet_dir/model_ep0395.pth
+nnet=$nnet_dir/model_ep0400.pth
+
+# xvector network trained with recipe v1.1
+xvec_nnet_name=fbank80_stmn_lresnet34_e256_arcs30m0.3_do0_adam_lr0.05_b512_amp.v1
+xvec_nnet_dir=../v1.1/exp/xvector_nnets/$xvec_nnet_name
+xvec_nnet=$xvec_nnet_dir/model_ep0070.pth
