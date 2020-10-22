@@ -46,7 +46,7 @@ Baseline EER=1.94% when using original log-filter-banks.
 ### Models trained without augmentation
 
 | Config | Model Type | Architecture |  Latent-channels | Compression (bits x/bits z) | ELBO/dim (std) | MSE (std) | L1 (std) | codebook size | EER(%) | 
-| ------ | ---------- | ------------ | :--------: | :-------: | :----:   | :----:   | :----:   | :----: | | :----: | 
+| ------ | ---------- | ------------ | :--------: | :-------: | :----:   | :----:   | :----:   | :----: | :----: | 
 | config_vae_dc1d_b4d256_z80_c8.opt.lr0.01.v1.sh | VAE | DC1d Enc-Dec <br> dc-blocks=4 / hid-channels=256 | 80 | 8 | -1.96 (0.62) | 1.57 (0.91) | 0.90 (0.24) | | 16.36 |
 | config_vae_dc1d_b9d256_z80_c8.opt.lr0.01.v1.sh | VAE | DC1d Enc-Dec <br> dc-blocks=9 / hid-channels=256 | 80 | 8 | -1.95 (0.62) | 1.56 (0.91) | 0.89 (0.24) |
 | config_vae_resnet1d_b4d256_z80_c8.opt.lr0.01.v1.sh | VAE | ResNet1d Enc-Dec <br> res-blocks=4/ hid-channels=256 | 80 | 8 | -1.97 (0.65) | 1.55 (0.93) | 0.89 (0.25) | | 15.05 |
