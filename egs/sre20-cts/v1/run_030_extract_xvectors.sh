@@ -152,7 +152,23 @@ if [ $stage -le 6 ];then
     			  data/sre16-8 data/fisher_spa
     mkdir -p $xvector_dir/realtel_noeng
     cat $xvector_dir/{sre16-8,fisher_spa}/xvector.scp > $xvector_dir/realtel_noeng/xvector.scp
+
+    utils/combine_data.sh --extra-files "utt2num_frames utt2lang" \
+    			  data/sre16zh-8 \
+    			  data/sre16_train_dev_cmn \
+    			  data/sre16_eval_tr60_yue \
+    			  data/sre18_cmn2_train_lab
+    mkdir -p $xvector_dir/sre16zh-8
+    cat $xvector_dir/{sre16_train_dev_cmn,sre16_eval_tr60_yue,sre18_cmn2_train_lab}/xvector.scp \
+	> $xvector_dir/sre16zh-8/xvector.scp
     
+
+    utils/combine_data.sh --extra-files "utt2num_frames utt2lang" \
+    			  data/sre16zh-8_fisher_spa \
+    			  data/sre16zh-8 data/fisher_spa
+    mkdir -p $xvector_dir/sre16zh-8_fisher_spa
+    cat $xvector_dir/{sre16zh-8,fisher_spa}/xvector.scp > $xvector_dir/sre16zh-8_fisher_spa/xvector.scp
+
 
     utils/combine_data.sh --extra-files "utt2num_frames utt2lang" \
     			  data/cvcat_noeng_tel \
@@ -220,5 +236,22 @@ if [ $stage -le 6 ];then
 	> $xvector_dir/realtel_alllangs_labunlab/xvector.scp
 
 fi
+
+# utils/combine_data.sh --extra-files "utt2num_frames utt2lang" \
+#     		      data/sre16zh-8 \
+#     		      data/sre16_train_dev_cmn \
+#     		      data/sre16_eval_tr60_yue \
+#     		      data/sre18_cmn2_train_lab
+# mkdir -p $xvector_dir/sre16zh-8
+# cat $xvector_dir/{sre16_train_dev_cmn,sre16_eval_tr60_yue,sre18_cmn2_train_lab}/xvector.scp \
+#     > $xvector_dir/sre16zh-8/xvector.scp
+    
+
+# utils/combine_data.sh --extra-files "utt2num_frames utt2lang" \
+#     		      data/sre16zh-8_fisher_spa \
+#     		      data/sre16zh-8 data/fisher_spa
+# mkdir -p $xvector_dir/sre16zh-8_fisher_spa
+# cat $xvector_dir/{sre16zh-8,fisher_spa}/xvector.scp > $xvector_dir/sre16zh-8_fisher_spa/xvector.scp
+
 
 exit

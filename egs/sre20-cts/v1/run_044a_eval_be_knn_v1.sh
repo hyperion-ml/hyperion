@@ -15,6 +15,7 @@ lda_dim=150
 ncoh=500
 plda_y_dim=125
 plda_z_dim=150
+knn=500
 
 plda_type=splda
 plda_data=realtel_alllangs
@@ -48,7 +49,7 @@ elif [ $ft -eq 3 ];then
 fi
 
 plda_label=${plda_type}y${plda_y_dim}
-be_name=lda${lda_dim}_${plda_label}_${plda_data}
+be_name=knn${knn}_lda${lda_dim}_${plda_label}_${plda_data}
 
 xvector_dir=exp/xvectors/$nnet_name
 be_dir=exp/be/$nnet_name/$be_name
@@ -61,16 +62,21 @@ fi
 
 if [ $stage -le 1 ]; then
 
-    steps_be/train_tel_be_v1.sh --cmd "$train_cmd" \
-    				--lda_dim $lda_dim \
-    				--plda_type $plda_type \
-    				--y_dim $plda_y_dim --z_dim $plda_z_dim \
-    				$xvector_dir/$plda_data/xvector.scp \
-    				data/$plda_data \
-    				$be_dir 
-
-    
-
+    for name in sre16_eval40_tgl_enroll sre16_eval40_yue_enroll \
+					sre19_eval_enroll_cmn2 sre20cts_eval_enroll
+    do
+	echo "Train BE for $name"
+	steps_be/train_tel_be_knn_v1.sh --cmd "$train_cmd" --nj 40 \
+    					--lda-dim $lda_dim \
+    					--plda-type $plda_type \
+    					--y-dim $plda_y_dim --z-dim $plda_z_dim \
+    					$xvector_dir/$plda_data/xvector.scp \
+    					data/$plda_data \
+					$xvector_dir/$name/xvector.scp \
+					data/$name \
+    					$be_dir/$name &
+    done
+    wait
 fi
 
 if [ $stage -le 2 ]; then
@@ -78,38 +84,34 @@ if [ $stage -le 2 ]; then
     #SRE16
     echo "eval SRE16 without S-Norm"
 
-    steps_be/eval_tel_be_v1.sh --cmd "$train_cmd" --plda_type $plda_type \
+    steps_be/eval_tel_be_knn_v1.sh --cmd "$train_cmd" --plda_type $plda_type \
 			       data/sre16_eval40_yue_test/trials \
 			       data/sre16_eval40_yue_enroll/utt2spk \
 			       $xvector_dir/sre16_eval40_yue/xvector.scp \
-			       $be_dir/lda_lnorm.h5 \
-			       $be_dir/plda.h5 \
+			       $be_dir/sre16_eval40_yue_enroll \
 			       $score_plda_dir/sre16_eval40_yue_scores &
 
-    steps_be/eval_tel_be_v1.sh --cmd "$train_cmd" --plda_type $plda_type \
-			       data/sre16_eval40_tgl_test/trials \
-			       data/sre16_eval40_tgl_enroll/utt2spk \
-			       $xvector_dir/sre16_eval40_tgl/xvector.scp \
-			       $be_dir/lda_lnorm.h5 \
-			       $be_dir/plda.h5 \
-			       $score_plda_dir/sre16_eval40_tgl_scores &
+    steps_be/eval_tel_be_knn_v1.sh --cmd "$train_cmd" --plda_type $plda_type \
+				   data/sre16_eval40_tgl_test/trials \
+				   data/sre16_eval40_tgl_enroll/utt2spk \
+				   $xvector_dir/sre16_eval40_tgl/xvector.scp \
+				   $be_dir/sre16_eval40_tgl_enroll \
+				   $score_plda_dir/sre16_eval40_tgl_scores &
 
     echo "eval SRE19 without S-Norm"
-    steps_be/eval_tel_be_v1.sh --cmd "$train_cmd" --plda_type $plda_type \
+    steps_be/eval_tel_be_knn_v1.sh --cmd "$train_cmd" --plda_type $plda_type \
 			       data/sre19_eval_test_cmn2/trials \
 			       data/sre19_eval_enroll_cmn2/utt2spk \
 			       $xvector_dir/sre19_eval_cmn2/xvector.scp \
-			       $be_dir/lda_lnorm.h5 \
-			       $be_dir/plda.h5 \
+			       $be_dir/sre19_eval_enroll_cmn2 \
 			       $score_plda_dir/sre19_eval_cmn2_scores &
 
     echo "eval SRE20 without S-Norm"
-    steps_be/eval_tel_be_v1.sh --cmd "$train_cmd" --plda_type $plda_type \
+    steps_be/eval_tel_be_knn_v1.sh --cmd "$train_cmd" --plda_type $plda_type \
     			       data/sre20cts_eval_test/trials \
     			       data/sre20cts_eval_enroll/utt2spk \
     			       $xvector_dir/sre20cts_eval/xvector.scp \
-    			       $be_dir/lda_lnorm.h5 \
-    			       $be_dir/plda.h5 \
+    			       $be_dir/sre20cts_eval_enroll \
     			       $score_plda_dir/sre20cts_eval_scores &
 
     
@@ -127,7 +129,7 @@ if [ $stage -le 3 ];then
     local/score_sre16.sh data/sre16_eval40_tgl_test eval40_tgl ${score_plda_dir}_cal_v1${cal_set}
     local/score_sre19cmn2.sh data/sre19_eval_test_cmn2 ${score_plda_dir}_cal_v1${cal_set}
 fi
-
+exit
 score_plda_dir=$score_dir/plda_snorm_${coh_data}${ncoh}
 
 if [ $stage -le 4 ]; then
@@ -154,7 +156,7 @@ if [ $stage -le 4 ]; then
 				     $score_plda_dir/sre16_eval40_tgl_scores &
 
     echo "eval SRE19 with S-Norm"
-    steps_be/eval_tel_be_snorm_v1.sh --cmd "$train_cmd --mem 20G" --plda_type $plda_type  --ncoh $ncoh \
+    steps_be/eval_tel_be_snorm_v1.sh --cmd "$train_cmd" --mem 20G --plda_type $plda_type  --ncoh $ncoh \
 				     data/sre19_eval_test_cmn2/trials \
 				     data/sre19_eval_enroll_cmn2/utt2spk \
 				     $xvector_dir/sre19_eval_cmn2/xvector.scp \
@@ -165,7 +167,7 @@ if [ $stage -le 4 ]; then
 				     $score_plda_dir/sre19_eval_cmn2_scores &
 
     echo "eval SRE20 with S-Norm"
-    steps_be/eval_tel_be_snorm_v1.sh --cmd "$train_cmd --mem 20G" --plda_type $plda_type  --ncoh $ncoh \
+    steps_be/eval_tel_be_snorm_v1.sh --cmd "$train_cmd" --mem 20G --plda_type $plda_type  --ncoh $ncoh \
     				     data/sre20cts_eval_test/trials \
     				     data/sre20cts_eval_enroll/utt2spk \
     				     $xvector_dir/sre20cts_eval/xvector.scp \

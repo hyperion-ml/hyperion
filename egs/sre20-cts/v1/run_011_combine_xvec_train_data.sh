@@ -62,7 +62,13 @@ if [ $stage -le 1 ];then
 			  data/swbd_proc_audio_no_sil data/sre_tel_proc_audio_no_sil \
     			  data/sre16-8_proc_audio_no_sil \
 			  data/fisher_spa_proc_audio_no_sil
-			  
+
+    utils/combine_data.sh --extra-files "utt2dur utt2lang" \
+			  data/realtelnoswbd_proc_audio_no_sil \
+			  data/sre_tel_proc_audio_no_sil \
+    			  data/sre16-8_proc_audio_no_sil \
+			  data/fisher_spa_proc_audio_no_sil
+
 fi
 
 if [ $stage -le 2 ]; then
