@@ -10,6 +10,7 @@ import time
 
 import numpy as np
 
+from hyperion.hyp_defs import float_cpu, config_logger
 from hyperion.io import RandomAccessDataReaderFactory as DRF
 from hyperion.helpers import VectorClassReader as VCR
 from hyperion.pdfs import PLDA
@@ -49,6 +50,7 @@ def train_be(x_et, x_trn, class_ids_trn, u2c_trn,
     t1 = time.time()
     rank = matrix_rank(x)
     pca = None
+    logging.info('x rank=%d' % (rank))
     if rank < x.shape[1]:
         # do PCA if rank of x is smaller than its dimension
         pca = PCA(pca_dim=rank, name='pca')
@@ -77,7 +79,6 @@ def train_be(x_et, x_trn, class_ids_trn, u2c_trn,
     
     # Train PLDA
     t1 = time.time()
-
     plda = F.create_plda(plda_type, y_dim=y_dim, z_dim=z_dim,
                          name='plda')
     elbo = plda.fit(x_ln, class_ids, epochs=epochs,
@@ -153,8 +154,13 @@ if __name__ == "__main__":
     parser.add_argument('--k-nn', type=int, default=500)
     parser.add_argument('--part-idx', type=int, default=1)
     parser.add_argument('--num-parts', type=int, default=1)
+    parser.add_argument('-v', '--verbose', dest='verbose', default=1,
+                        choices=[0, 1, 2, 3], type=int)
 
     args=parser.parse_args()
+    config_logger(args.verbose)
+    del args.verbose
+    logging.debug(args)
     
     train_bes(**vars(args))
 
