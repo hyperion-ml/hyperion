@@ -14,7 +14,6 @@ spinenet_dict = {
     'spinenet190': SpineNet190,
     'lspinenet49': LSpineNet49,
     'lspinenet49_128': LSpineNet49_128,
-    'lspinenet49_c': LSpineNet49_c,
     'lspinenet49_3': LSpineNet49_3,
     'lspinenet49_5': LSpineNet49_5,
     'lspinenet49_7': LSpineNet49_7,
