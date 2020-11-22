@@ -18,13 +18,15 @@ spinenet_dict = {
     'lspinenet49_3': LSpineNet49_3,
     'lspinenet49_5': LSpineNet49_5,
     'lspinenet49_7': LSpineNet49_7,
-    'lspinenet49_c_nonup': LSpineNet49_c_nonup,
-    'lspinenet49_128_c': LSpineNet49_128_c,
-    'lspinenet49_128_c_nonup': LSpineNet49_128_c_nonup,
-    'lspinenet49_128_c_axf': LSpineNet49_128_C_axF,
+    'lspinenet49_concat_time': LSpineNet49_concat_time,
+    'lspinenet49_concat_channel': LSpineNet49_concat_channel,
+    'lspinenet49_128_concat_time': LSpineNet49_128_concat_time,
+    'lspinenet49_128_concat_channel': LSpineNet49_128_concat_channel,
+    'lspinenet49_128_concat_freq': LSpineNet49_128_concat_freq,
     'lspinenet49_256': LSpineNet49_256,
     'lspinenet49_128_avgto5': LSpineNet49_128_avgto5,
-    'spinenet49ss': SpineNet49SS,
+    'spinenet49_concat_time': SpineNet49_concat_time,
+    'spinenet49_concat_channel': SpineNet49_concat_channel,
 }
 
 
