@@ -6,10 +6,9 @@
 . ./cmd.sh
 . ./path.sh
 set -e
-
 stage=1
-ngpu=4
-config_file=default_config.sh
+ngpu=1
+config_file=config_fbank80_stmn_lresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh
 resume=false
 interactive=false
 num_workers=8
@@ -43,11 +42,15 @@ if [ $stage -le 1 ]; then
 	train_exec=torch-train-tdnn-xvec-from-wav.py
     elif [[ ${nnet_type} =~ transformer ]]; then
 	train_exec=torch-train-transformer-xvec-v1-from-wav.py
+    elif [[ ${nnet_type} =~ spinenet ]]; then
+	train_exec=torch-train-spinenet-xvec-from-wav.py
     else
 	echo "$nnet_type not supported"
 	exit 1
     fi
 
+    echo $config_file
+    echo $ngpu
     mkdir -p $nnet_dir/log
     $cuda_cmd --gpu $ngpu $nnet_dir/log/train.log \
 	hyp_utils/torch.sh --num-gpus $ngpu \
@@ -64,13 +67,11 @@ if [ $stage -le 1 ]; then
 	--grad-acc-steps $grad_acc_steps \
 	--embed-dim $embed_dim $nnet_opt $opt_opt $lrs_opt \
 	--epochs $nnet_num_epochs \
-	--s $s --margin $margin --margin-warmup-epochs $margin_warmup \
+	--loss-type $loss_type --s $s --margin $margin --margin-warmup-epochs $margin_warmup \
 	--dropout-rate $dropout \
 	--num-gpus $ngpu \
 	--log-interval $log_interval \
 	--exp-path $nnet_dir $args
 
 fi
-
-
 exit
