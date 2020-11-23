@@ -1,4 +1,4 @@
-# SpineNet49 x-vector with output concatenation along time axis, with mixed precision training
+# SpineNet49 x-vector with 512 endpoint channels and concatenation along time axis, with mixed precision training
 
 # acoustic features
 feat_config=conf/fbank80_stmn_16k.pyconf
@@ -17,7 +17,7 @@ min_chunk=4
 max_chunk=4
 lr=0.05
 
-nnet_type=spinenet49_concat_time
+nnet_type=spinenet49_512_concat_time
 dropout=0
 embed_dim=256
 

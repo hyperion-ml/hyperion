@@ -1,4 +1,4 @@
-# LResNet34 x-vector with mixed precision training
+# SpineNet49S x-vector with mixed precision training
 
 # acoustic features
 feat_config=conf/fbank80_stmn_16k.pyconf

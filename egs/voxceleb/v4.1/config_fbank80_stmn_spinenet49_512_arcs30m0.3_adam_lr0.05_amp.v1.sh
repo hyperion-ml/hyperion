@@ -1,4 +1,4 @@
-# SpineNet49 x-vector with output concatenation along time axis, with mixed precision training
+# SpineNet49 x-vector with 512 endpoint channels, with mixed precision training
 
 # acoustic features
 feat_config=conf/fbank80_stmn_16k.pyconf
@@ -10,14 +10,14 @@ nnet_data=voxceleb2cat
 nnet_num_augs=6
 aug_opt="--train-aug-cfg conf/reverb_noise_aug.yml --val-aug-cfg conf/reverb_noise_aug.yml"
 
-batch_size_1gpu=8
+batch_size_1gpu=16
 eff_batch_size=512 # effective batch size
 ipe=$nnet_num_augs
 min_chunk=4
 max_chunk=4
 lr=0.05
 
-nnet_type=spinenet49_concat_time
+nnet_type=spinenet49_512
 dropout=0
 embed_dim=256
 

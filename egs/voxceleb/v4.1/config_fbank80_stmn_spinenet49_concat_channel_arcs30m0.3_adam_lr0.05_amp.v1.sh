@@ -1,4 +1,4 @@
-# LResNet34 x-vector with mixed precision training
+# SpineNet49 x-vector with ouptut concatenation along channel axis with mixed precision training
 
 # acoustic features
 feat_config=conf/fbank80_stmn_16k.pyconf
@@ -10,7 +10,7 @@ nnet_data=voxceleb2cat
 nnet_num_augs=6
 aug_opt="--train-aug-cfg conf/reverb_noise_aug.yml --val-aug-cfg conf/reverb_noise_aug.yml"
 
-batch_size_1gpu=16
+batch_size_1gpu=8
 eff_batch_size=512 # effective batch size
 ipe=$nnet_num_augs
 min_chunk=4
