@@ -1,11 +1,3 @@
-"""
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
-"""
-#from __future__ import absolute_import
-
-#import numpy as np
-
 import logging
 
 import torch.nn as nn
@@ -65,6 +57,7 @@ def _make_resample(channels, scale, norm_layer, norm_before, activation):
                                               padding=new_kernel_size // 2))
     return resample_block
 
+
 class BlockSpec(object):
     """A container class that specifies the block configuration for SpineNet."""
 
@@ -79,7 +72,6 @@ class BlockSpec(object):
         """Builds the list of BlockSpec objects for SpineNet."""
         if not block_specs:
             block_specs = SPINENET_BLOCK_SPECS
-        # logging.info('Building SpineNet block specs: %s', block_specs)
         return [BlockSpec(*b) for b in block_specs]
 
 
@@ -88,6 +80,9 @@ class SpineEndpoints(nn.Module):
                  stride=1, dropout_rate=0, groups=1, dilation=1,
                  activation={'name': 'relu', 'inplace': True},
                  norm_layer=None, norm_before=True, do_endpoint_conv=True):
+        """
+        Class that connects the ouputs of the SpineNet to the rest of the network
+        """
         super().__init__()
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
@@ -98,6 +93,7 @@ class SpineEndpoints(nn.Module):
         self.do_endpoint_conv = do_endpoint_conv
         bias = not norm_before
         if self.do_endpoint_conv and in_channels != channels:
+            # in some cases this convolution is not necessary
             self.channels = channels
             self.conv1 = _conv1x1(in_channels, channels, stride, bias=bias)
             self.bn1 = norm_layer(channels)
@@ -122,6 +118,9 @@ class SpineEndpoints(nn.Module):
 class SpineResample(nn.Module):
     def __init__(self, spec, in_channels, out_channels, scale, alpha, activation={'name':'relu', 'inplace': True},
                  norm_layer=None, norm_before=True):
+        """
+        Class that build a resampling connection between single SpineNet blocks.
+        """
         super().__init__()
         self.spec = spec
 

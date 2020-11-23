@@ -1,7 +1,3 @@
-"""
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
-"""
 from __future__ import absolute_import
 
 from .spinenet import *
@@ -26,6 +22,9 @@ spinenet_dict = {
     'lspinenet49_128_avgto5': LSpineNet49_128_avgto5,
     'spinenet49_concat_time': SpineNet49_concat_time,
     'spinenet49_concat_channel': SpineNet49_concat_channel,
+    'spinenet49_512': SpineNet49_512,
+    'spinenet49_512_concat_time': SpineNet49_512_concat_time,
+    'spinenet49_512_concat_channel': SpineNet49_512_concat_channel,
 }
 
 

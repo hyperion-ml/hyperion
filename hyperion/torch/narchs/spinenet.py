@@ -14,6 +14,7 @@ from .net_arch import NetArch
 
 
 SPINENET_BLOCK_SPECS = [
+    # level, block type, tuple of inputs, is output
     (2, ResNetBNBlock, (None, None), False),
     (2, ResNetBNBlock, (None, None), False),
     (2, ResNetBNBlock, (0, 1), False),
@@ -34,6 +35,7 @@ SPINENET_BLOCK_SPECS = [
 ]
 
 FILTER_SIZE_MAP = {
+    # level: channel multiplier
     1: 0.5,
     2: 1,
     3: 2,
@@ -56,10 +58,24 @@ class SpineNet(NetArch):
                  groups=1, replace_stride_with_dilation=None, dropout_rate=0,
                  norm_layer=None, norm_before=True, do_maxpool=True, in_norm=True,
                  in_feats=None):
-
+        """
+        Base class for the SpineNet structure.
+        :param in_channels: nbr of channels of the input
+        :param block_specs: specification of the building blocks: their type, input connections and information if block
+        is an output
+        :param output_levels: the output levels of the blocks that are taken as an output of the SpineNet
+        :param endpoints_num_filters: the base number of channels out the SpineNet output
+        :param resample_alpha: parameter for resampling connections
+        :param concat: bool that decides wheter the outputs are concatenated or averaged
+        :param do_endpoint_conv: bool that decides whether to do the projection of the output blocks to the common
+        number of channels (the value of the number is the endpoints_num_filters)
+        :param concat_ax: the axis along which perform the concatenation (if the concatenation is chosen)
+        :param feature_output_level: the level that the output feature map sizes are resampled to (by default the target
+        size is the biggest feature map)
+        :param filter_size_scale: SpineNet parameter, that additionally rescales the number of channels of the SpineNet
+        blocks(needed for bigger structures like SpineNet96 and higher or for SpineNet49S)
+        """
         super(SpineNet, self).__init__()
-        self.register_buffer('step', torch.tensor(0.))
-
         self.in_channels = in_channels
         self.conv_channels = conv_channels
         self.base_channels = base_channels
@@ -101,6 +117,7 @@ class SpineNet(NetArch):
             in_channels, conv_channels, kernel_size=in_kernel_size, stride=in_stride,
             activation=hid_act, norm_layer=self._norm_layer, norm_before=norm_before, do_maxpool=do_maxpool)
 
+        # TO DO make these useful
         # self._context = self.in_block.context
         # self._downsample_factor = self.in_block.downsample_factor
         self.cur_in_channels = conv_channels
@@ -108,7 +125,7 @@ class SpineNet(NetArch):
         self.stem0 = self._make_layer(ResNetBNBlock, 2, self.block_repeats, in_channels=conv_channels)
         self.stem1 = self._make_layer(ResNetBNBlock, 2, self.block_repeats)
 
-        self.stem_nbr = 2
+        self.stem_nbr = 2  # the number of the stem layers
         self.blocks = self._make_permuted_blocks(self._block_specs[self.stem_nbr:])
         self.connections = self._make_permuted_connections(self._block_specs[self.stem_nbr:])
 
@@ -151,6 +168,9 @@ class SpineNet(NetArch):
                     nn.init.constant_(m.bn2.weight, 0)
 
     def _make_permuted_blocks(self, block_specs):
+        """
+        Builds the blocks of the SpineNet structure.
+        """
         blocks = nn.ModuleList([])
         for block in block_specs:
             layer_i = self._make_layer(block.block_fn, block.level, self.block_repeats)
@@ -158,6 +178,9 @@ class SpineNet(NetArch):
         return blocks
 
     def _make_permuted_connections(self, block_specs):
+        """
+        Builds the cross-scale connections between the blocks.
+        """
         connections = nn.ModuleList([])
         for block in block_specs:
             expansion = block.block_fn.expansion
@@ -176,6 +199,11 @@ class SpineNet(NetArch):
         return connections
 
     def _make_endpoints(self):
+        """
+        Builds the output endpoint blocks. In this part, the block outputs are forwarded through the 1x1 convs
+        to the common number of channels (endpoints_num_filters) and feature maps are resized to the size of the
+        feature_output_level.
+        """
         endpoints = nn.ModuleDict()
         for block_spec in self._block_specs:
             if block_spec.is_output and block_spec.level in self.output_levels:
@@ -243,6 +271,11 @@ class SpineNet(NetArch):
         return out_size
 
     def _compute_channel_size(self):
+        """
+        Returns:
+          If the 1x1 conv is not conducted in the endpoint blocks, the number of channels is equal to the sum of the
+          nbr of channels of the output blocks.
+        """
         if not self.do_endpoint_conv:
             C = 0
             for output_level in self.output_levels:
@@ -257,7 +290,6 @@ class SpineNet(NetArch):
     #       Tuple (past, future) context required to predict one frame.
     #     """
     #     return (self._context, self._context)
-
 
     def in_shape(self):
         """
@@ -287,6 +319,8 @@ class SpineNet(NetArch):
             H = None
         else:
             H = self._compute_out_size(in_shape[2])
+
+            # in case of concatenation along feature dimension
             if self.concat_ax == 2 and self.concat:
                 H = H*len(self.output_levels)
 
@@ -312,7 +346,9 @@ class SpineNet(NetArch):
         return x.contiguous()
 
     def _match_feat_shape(self, feat0, feat1):
-        # match shape function for feats inside permuted network
+        """
+        Match shape between feats of the input connections.
+        """
         surplus = feat1.size(2) - feat1.size(2)
         if surplus >= 0:
             feat1 = self._match_shape(feat1, list(feat0.size())[2:])
@@ -369,7 +405,7 @@ class SpineNet(NetArch):
                         target_feat += j_feat
                         num_outgoing_connections[j] += 1
 
-            target_feat = self.connections[idx][2](target_feat)
+            target_feat = self.connections[idx][2](target_feat)  # pass input through the activation function
             x = self.blocks[idx](target_feat)
 
             feats.append(x)
@@ -381,7 +417,7 @@ class SpineNet(NetArch):
                 output_feats[str(block.level)] = x
 
         output_endpoints = []
-        output_shape = list(output_feats[str(self.feature_output_level)].size())
+        output_shape = list(output_feats[str(self.feature_output_level)].size())  # get the target output size
         for endpoint in self.endpoints:
             if self.endpoints[endpoint] is not None:
                 endpoint_i = self.endpoints[endpoint](output_feats[endpoint])
@@ -449,31 +485,6 @@ class SpineNet49(SpineNet):
         super(SpineNet49, self).__init__(
             in_channels, **kwargs)
 
-
-class SpineNet49_concat_time(SpineNet):
-    def __init__(self, in_channels, **kwargs):
-        kwargs['endpoints_num_filters'] = 256
-        kwargs['filter_size_scale'] = 1.0
-        kwargs['resample_alpha'] = 0.5
-        kwargs['block_repeats'] = 1
-        kwargs['concat'] = True
-        super(SpineNet49_concat_time, self).__init__(
-            in_channels, **kwargs)
-
-
-class SpineNet49_concat_channel(SpineNet):
-    def __init__(self, in_channels, **kwargs):
-        kwargs['endpoints_num_filters'] = 256
-        kwargs['filter_size_scale'] = 1.0
-        kwargs['resample_alpha'] = 0.5
-        kwargs['block_repeats'] = 1
-        kwargs['concat'] = True
-        kwargs['do_endpoint_conv'] = False
-        kwargs['concat_ax'] = 1
-        super(SpineNet49_concat_channel, self).__init__(
-            in_channels, **kwargs)
-
-
 class SpineNet49S(SpineNet):
     def __init__(self, in_channels, **kwargs):
         kwargs['endpoints_num_filters'] = 128
@@ -521,6 +532,65 @@ class SpineNet190(SpineNet):
         kwargs['resample_alpha'] = 1.0
         kwargs['block_repeats'] = 4
         super(SpineNet190, self).__init__(
+            in_channels, **kwargs)
+
+
+# Our modification to the SpineNets
+class SpineNet49_concat_time(SpineNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs['endpoints_num_filters'] = 256
+        kwargs['filter_size_scale'] = 1.0
+        kwargs['resample_alpha'] = 0.5
+        kwargs['block_repeats'] = 1
+        kwargs['concat'] = True
+        super(SpineNet49_concat_time, self).__init__(
+            in_channels, **kwargs)
+
+
+class SpineNet49_concat_channel(SpineNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs['endpoints_num_filters'] = 256
+        kwargs['filter_size_scale'] = 1.0
+        kwargs['resample_alpha'] = 0.5
+        kwargs['block_repeats'] = 1
+        kwargs['concat'] = True
+        kwargs['do_endpoint_conv'] = False
+        kwargs['concat_ax'] = 1
+        super(SpineNet49_concat_channel, self).__init__(
+            in_channels, **kwargs)
+
+
+class SpineNet49_512(SpineNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs['endpoints_num_filters'] = 512
+        kwargs['filter_size_scale'] = 1.0
+        kwargs['resample_alpha'] = 0.5
+        kwargs['block_repeats'] = 1
+        super(SpineNet49_512, self).__init__(
+            in_channels, **kwargs)
+
+
+class SpineNet49_512_concat_time(SpineNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs['endpoints_num_filters'] = 512
+        kwargs['filter_size_scale'] = 1.0
+        kwargs['resample_alpha'] = 0.5
+        kwargs['block_repeats'] = 1
+        kwargs['concat'] = True
+        super(SpineNet49_512_concat_time, self).__init__(
+            in_channels, **kwargs)
+
+
+class SpineNet49_512_concat_channel(SpineNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs['endpoints_num_filters'] = 512
+        kwargs['filter_size_scale'] = 1.0
+        kwargs['resample_alpha'] = 0.5
+        kwargs['block_repeats'] = 1
+        kwargs['concat'] = True
+        kwargs['do_endpoint_conv'] = False
+        kwargs['concat_ax'] = 1
+        super(SpineNet49_512_concat_channel, self).__init__(
             in_channels, **kwargs)
 
 
