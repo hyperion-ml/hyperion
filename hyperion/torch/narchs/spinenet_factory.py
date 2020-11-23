@@ -74,7 +74,6 @@ class SpineNetFactory(object):
             kwargs['do_maxpool'] = not kwargs['no_maxpool']
             del kwargs['no_maxpool']
 
-
         valid_args = ('spinenet_type', 'in_channels',
                       'conv_channels', 'base_channels', 'out_units',
                       'hid_act', 'out_act', 'in_kernel_size', 'in_stride',
