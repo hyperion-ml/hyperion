@@ -92,6 +92,15 @@ class SpineNet(NetArch):
             if block_specs is None else BlockSpec.build_block_specs(block_specs)
         self.output_levels = output_levels
         self.dilation = 1
+        # this also need testing
+        if replace_stride_with_dilation is None:
+            # each element in the tuple indicates if we should replace
+            # the 2x2 stride with a dilated convolution instead
+            replace_stride_with_dilation = [False, False, False]
+        if len(replace_stride_with_dilation) != 3:
+            raise ValueError("replace_stride_with_dilation should be None "
+                             "or a 3-element tuple, got {}".format(replace_stride_with_dilation))
+        self.replace_stride_with_dilation = replace_stride_with_dilation
 
         self.hid_act = hid_act
         self.in_kernel_size = in_kernel_size
