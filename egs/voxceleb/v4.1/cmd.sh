@@ -18,7 +18,7 @@ if [ "$(hostname -d)" == "cm.gemini" ];then
     export cuda_eval_cmd="queue.pl --config conf/coe_gpu_short.conf --mem 4G"
 else
     export train_cmd="queue.pl --mem 10G -l h_rt=24:00:00 -l hostname=\"[bc][01]*\" -V"
-    export cuda_cmd="queue.pl --mem 35G -l h_rt=120:00:00 -l hostname=\"c[01]*|c2[012]*\" -V"
+    export cuda_cmd="queue.pl --mem 35G -l h_rt=320:00:00 -l hostname=\"c0[12345679]|c1*|c2[012]*\" -V"
     export cuda_eval_cmd="$train_cmd"
 fi
 #export cuda_cmd="queue.pl --mem 20G -l hostname=\"c[01]*\" -V"
