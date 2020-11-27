@@ -358,7 +358,7 @@ class SpineNet(NetArch):
         """
         Match shape between feats of the input connections.
         """
-        surplus = feat1.size(2) - feat1.size(2)
+        surplus = feat1.size(3) - feat0.size(3)
         if surplus >= 0:
             feat1 = self._match_shape(feat1, list(feat0.size())[2:])
         else:
@@ -752,4 +752,75 @@ class LSpineNet49_256(SpineNet):
         kwargs['conv_channels'] = 16
         kwargs['base_channels'] = 16
         super(LSpineNet49_256, self).__init__(
+            in_channels, **kwargs)
+
+
+R0_SP53_BLOCK_SPECS = [
+    # level, block type, tuple of inputs, is output
+    (2, ResNetBNBlock, (None, None), False),  # 0
+    (2, ResNetBNBlock, (None, None), False),  # 1
+    (2, ResNetBNBlock, (0, 1), False),  # 2
+    (3, ResNetBNBlock, (0, 1), False),  # 3
+    (3, ResNetBNBlock, (2, 3), False),  # 4
+    (4, ResNetBNBlock, (2, 4), False),  # 5
+    (4, ResNetBNBlock, (3, 5), False),  # 6
+    (3, ResNetBNBlock, (5, 6), False),  # 7
+    (5, ResNetBNBlock, (4, 7), False),  # 8
+    (4, ResNetBNBlock, (4, 8), False),  # 9
+    (4, ResNetBNBlock, (8, 9), False),  # 10
+    (4, ResNetBNBlock, (8, 10), False), # 11
+    (3, ResNetBNBlock, (4, 10), True),  # 12
+    (4, ResNetBNBlock, (6, 7), True),   # 13
+    (5, ResNetBNBlock, (8, 13), True),  # 14
+    (7, ResNetBNBlock, (6, 9), True),   # 15
+    (6, ResNetBNBlock, (7, 9), True),   # 16
+
+]
+
+R0_SP53_BASIC_BLOCK_SPECS = [
+    # level, block type, tuple of inputs, is output
+    (2, ResNetBasicBlock, (None, None), False),  # 0
+    (2, ResNetBasicBlock, (None, None), False),  # 1
+    (2, ResNetBasicBlock, (0, 1), False),  # 2
+    (3, ResNetBasicBlock, (0, 1), False),  # 3
+    (3, ResNetBasicBlock, (2, 3), False),  # 4
+    (4, ResNetBasicBlock, (2, 4), False),  # 5
+    (4, ResNetBasicBlock, (3, 5), False),  # 6
+    (3, ResNetBasicBlock, (5, 6), False),  # 7
+    (5, ResNetBasicBlock, (4, 7), False),  # 8
+    (4, ResNetBasicBlock, (4, 8), False),  # 9
+    (4, ResNetBasicBlock, (8, 9), False),  # 10
+    (4, ResNetBasicBlock, (8, 10), False), # 11
+    (3, ResNetBasicBlock, (4, 10), True),  # 12
+    (4, ResNetBasicBlock, (6, 7), True),   # 13
+    (5, ResNetBasicBlock, (8, 13), True),  # 14
+    (7, ResNetBasicBlock, (6, 9), True),   # 15
+    (6, ResNetBasicBlock, (7, 9), True),   # 16
+
+]
+
+
+class LSP53_Basic(SpineNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs['endpoints_num_filters'] = 64
+        kwargs['filter_size_scale'] = 1.0
+        kwargs['resample_alpha'] = 0.5
+        kwargs['block_repeats'] = 1
+        kwargs['conv_channels'] = 16
+        kwargs['base_channels'] = 16
+        kwargs['block_specs'] = R0_SP53_BASIC_BLOCK_SPECS
+        super(LSP53_Basic, self).__init__(
+            in_channels, **kwargs)
+
+
+class LSP53(SpineNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs['endpoints_num_filters'] = 64
+        kwargs['filter_size_scale'] = 1.0
+        kwargs['resample_alpha'] = 0.5
+        kwargs['block_repeats'] = 1
+        kwargs['conv_channels'] = 16
+        kwargs['base_channels'] = 16
+        kwargs['block_specs'] = R0_SP53_BLOCK_SPECS
+        super(LSP53, self).__init__(
             in_channels, **kwargs)
