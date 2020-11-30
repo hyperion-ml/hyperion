@@ -2,7 +2,6 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-# from __future__ import absolute_import
 
 import math
 
@@ -825,7 +824,8 @@ class LocalScaledDotProdAttV1(ScaledDotProdAttV1):
         batch_size = query.size(0)
         t1 = query.size(self.time_dim)
         t2 = key.size(self.time_dim)
-        if t2 <= self.context*2:
+
+        if t2 <= 2 * self.context:
             return super().forward(
                 query, key, value, mask)
 

@@ -18,7 +18,7 @@ class SEResNetBasicBlock(ResNetBasicBlock):
                  activation={'name':'relu', 'inplace': True},
                  stride=1, dropout_rate=0, groups=1, dilation=1,
                  norm_layer=None, norm_before=True, 
-                 r=16, time_se=False, num_feats=None):
+                 se_r=16, time_se=False, num_feats=None):
 
         super(SEResNetBasicBlock, self).__init__(
             in_channels, channels, activation=activation,
@@ -27,9 +27,9 @@ class SEResNetBasicBlock(ResNetBasicBlock):
             norm_layer=norm_layer, norm_before=norm_before)
 
         if time_se:
-            self.se_layer = TSEBlock2D(channels, num_feats, r, activation)
+            self.se_layer = TSEBlock2D(channels, num_feats, se_r, activation)
         else:
-            self.se_layer = SEBlock2D(channels, r, activation)
+            self.se_layer = SEBlock2D(channels, se_r, activation)
 
 
     def forward(self, x):
@@ -73,7 +73,7 @@ class SEResNetBNBlock(ResNetBNBlock):
                  activation={'name':'relu', 'inplace': True},
                  stride=1, dropout_rate=0, groups=1,
                  dilation=1, norm_layer=None, norm_before=True, 
-                 r=16, time_se=False, num_feats=None):
+                 se_r=16, time_se=False, num_feats=None):
 
         super().__init__(
             in_channels, channels, activation=activation,
@@ -81,9 +81,11 @@ class SEResNetBNBlock(ResNetBNBlock):
             dilation=dilation, norm_layer=norm_layer, norm_before=norm_before)
 
         if time_se:
-            self.se_layer = TSEBlock2D(channels, num_feats, r, activation)
+            self.se_layer = TSEBlock2D(
+                channels * self.expansion, num_feats, se_r, activation)
         else:
-            self.se_layer = SEBlock2D(channels, r, activation)
+            self.se_layer = SEBlock2D(
+                channels * self.expansion, se_r, activation)
 
 
     def forward(self, x):

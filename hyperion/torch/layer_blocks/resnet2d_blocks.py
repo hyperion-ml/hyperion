@@ -14,8 +14,7 @@ def _convkxk(in_channels, out_channels, kernel_size=3, stride=1, groups=1, dilat
     """kernel k convolution with padding"""
     padding = dilation*(kernel_size-1)//2
     return Conv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride,
-                  padding=padding, groups=groups, bias=bias, dilation=dilation, 
-                  padding_mode='reflection')
+                  padding=padding, groups=groups, bias=bias, dilation=dilation)
 
 
 def _conv1x1(in_channels, out_channels, stride=1, bias=False):
@@ -32,8 +31,7 @@ def _subpixel_convkxk(in_channels, out_channels, kernel_size=3, stride=1, groups
     """kernel k subpixel convolution with padding"""
     padding = dilation*(kernel_size-1)//2
     return SubPixelConv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride,
-                  padding=padding, groups=groups, bias=bias, dilation=dilation, 
-                  padding_mode='reflection')
+                  padding=padding, groups=groups, bias=bias, dilation=dilation)
 
 
 def _make_downsample(in_channels, out_channels, stride, norm_layer, norm_before):
