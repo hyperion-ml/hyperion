@@ -23,3 +23,4 @@ from .resnet1d_blocks import ResNet1dBasicBlock, ResNet1dBasicDecBlock, ResNet1d
 from .resnet1d_blocks import SEResNet1dBasicBlock, SEResNet1dBasicDecBlock, SEResNet1dBNBlock, SEResNet1dBNDecBlock
 from .resnet2d_blocks import ResNet2dBasicBlock, ResNet2dBasicDecBlock, ResNet2dBNBlock, ResNet2dBNDecBlock
 from .resnet2d_blocks import SEResNet2dBasicBlock, SEResNet2dBasicDecBlock, SEResNet2dBNBlock, SEResNet2dBNDecBlock
+from .spine_blocks import BlockSpec, SpineResample, SpineEndpoints
