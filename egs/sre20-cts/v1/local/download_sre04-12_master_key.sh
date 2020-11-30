@@ -1,0 +1,1 @@
+../../../sre19-cmn2/v1/local/download_sre04-12_master_key.sh
