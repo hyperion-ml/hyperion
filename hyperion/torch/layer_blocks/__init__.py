@@ -2,7 +2,6 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-#from __future__ import absolute_import
 
 from .fc_blocks import FCBlock
 from .se_blocks import SEBlock2D, TSEBlock2D, SEBlock2d, TSEBlock2d, SEBlock1d
@@ -11,6 +10,7 @@ from .etdnn_blocks import ETDNNBlock
 from .resetdnn_blocks import ResETDNNBlock
 from .resnet_blocks import ResNetInputBlock, ResNetBasicBlock, ResNetBNBlock
 from .seresnet_blocks import SEResNetBasicBlock, SEResNetBNBlock
+from .res2net_blocks import Res2NetBNBlock
 from .mbconv_blocks import MBConvBlock, MBConvInOutBlock
 from .transformer_feedforward import PositionwiseFeedForward, Conv1dx2, Conv1dLinear
 from .transformer_encoder_v1 import TransformerEncoderBlockV1
