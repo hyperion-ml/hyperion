@@ -24,26 +24,18 @@ pca_var_r=0.975
 
 plda_type=splda
 plda_data=realtel_alllangs
+plda_unlab_data=babel_alllangs
+plda_unlab_data=babel_lre17_alllangs
+min_sps=4
+cluster_label=ahc_v1_thr3
 coh_data=realtel_alllangs
 # cal_set=sre16-9
 cal_set=sre16-yue
-ft=0
+ft=1
 
 . parse_options.sh || exit 1;
 . $config_file
 . datapath.sh
-# plda_data=sre16-8
-#plda_data=realtel_noeng
-# plda_data=cvcat_noeng_tel
-# plda_data=allnoeng
-# plda_data=alllangs
-# plda_data=cncelebcat_tel
-# plda_data=realtel_alllangs
-# plda_data=sre16-8_cncelebcat_tel
-# plda_data=sre16-8_cvcat_zh-HKs
-# plda_data=sre16-8_cvcat_zh
-# plda_data=sre16-8_cvcat_ar
-# plda_data=cvcat_zh
 
 if [ $ft -eq 1 ];then
     nnet_name=$ft_nnet_name
@@ -53,8 +45,11 @@ elif [ $ft -eq 3 ];then
     nnet_name=$ft3_nnet_name
 fi
 
+plda_unlab_cluster_data=${plda_unlab_data}_${cluster_label}
+plda_total_data=${plda_data}_${plda_unlab_cluster_data}_minsps${min_sps}
+
 plda_label=${plda_type}y${plda_y_dim}
-be_name=pca${pca_var_r}_knn${knn1}-${knn2}_lda${lda_dim}_${plda_label}_${plda_data}_v3_adapt_mu${w_mu}B${w_B}W${w_W}
+be_name=pca${pca_var_r}_knn${knn1}-${knn2}_lda${lda_dim}_${plda_label}_${plda_total_data}_v3_adapt_mu${w_mu}B${w_B}W${w_W}
 
 xvector_dir=exp/xvectors/$nnet_name
 be_dir=exp/be/$nnet_name/$be_name
@@ -65,7 +60,23 @@ if [ ! -d scoring_software/sre19-cmn2 ];then
     local/download_sre19cmn2_scoring_tool.sh 
 fi
 
-if [ $stage -le 1 ]; then
+if [ $stage -le 1 ];then
+    train_data=data/$plda_total_data
+    mkdir -p $train_data
+    cat data/${plda_data}/utt2spk \
+	data/${plda_unlab_cluster_data}/utt2spk_minsps${min_sps} \
+	> $train_data/utt2spk
+    utils/utt2spk_to_spk2utt.pl $train_data/utt2spk > $train_data/spk2utt
+    if [ ! -f $xvector_dir/$plda_total_data ];then
+	mkdir -p $xvector_dir/$plda_total_data
+	cat $xvector_dir/$plda_data/xvector.scp $xvector_dir/$plda_unlab_data/xvector.scp \
+	    > $xvector_dir/$plda_total_data/xvector.scp
+    fi
+fi
+
+plda_data=$plda_total_data
+
+if [ $stage -le 2 ]; then
 
     for name in sre16_eval40_tgl_enroll sre16_eval40_yue_enroll \
 					sre19_eval_enroll_cmn2 sre20cts_eval_enroll
@@ -85,7 +96,7 @@ if [ $stage -le 1 ]; then
     wait
 fi
 
-if [ $stage -le 2 ]; then
+if [ $stage -le 3 ]; then
 
     #SRE16
     echo "eval SRE16 without S-Norm"
@@ -130,10 +141,10 @@ fi
 
 
 if [ $stage -le 3 ];then
-    local/calibrate_sre20cts_v2.sh --cmd "$train_cmd" $cal_set $score_plda_dir
-    local/score_sre16.sh data/sre16_eval40_yue_test eval40_yue ${score_plda_dir}_cal_v2${cal_set}
-    local/score_sre16.sh data/sre16_eval40_tgl_test eval40_tgl ${score_plda_dir}_cal_v2${cal_set}
-    local/score_sre19cmn2.sh data/sre19_eval_test_cmn2 ${score_plda_dir}_cal_v2${cal_set}
+    local/calibrate_sre20cts_v1.sh --cmd "$train_cmd" $cal_set $score_plda_dir
+    local/score_sre16.sh data/sre16_eval40_yue_test eval40_yue ${score_plda_dir}_cal_v1${cal_set}
+    local/score_sre16.sh data/sre16_eval40_tgl_test eval40_tgl ${score_plda_dir}_cal_v1${cal_set}
+    local/score_sre19cmn2.sh data/sre19_eval_test_cmn2 ${score_plda_dir}_cal_v1${cal_set}
     exit
 fi
 
