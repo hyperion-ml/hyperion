@@ -19,7 +19,13 @@ dec_opt="--dec-in-channels 80 --dec-in-conv-channels 512 --dec-in-kernel-size 3 
 opt_opt="--opt-optimizer adam --opt-lr $lr --opt-beta1 0.9 --opt-beta2 0.95 --opt-weight-decay 1e-5 --opt-amsgrad"
 lrs_opt="--lrsch-lrsch-type exp_lr --lrsch-decay-rate 0.5 --lrsch-decay-steps 16000 --lrsch-hold-steps 16000 --lrsch-min-lr 1e-5 --lrsch-warmup-steps 8000 --lrsch-update-lr-on-opt-step"
 nnet_name=${model_type}_${narch}_b8c64_z${latent_dim}_c0.8_do${dropout}_optv1_adam_lr${lr}_b${eff_batch_size}.$nnet_data
-nnet_num_epochs=600
+nnet_num_epochs=205
 num_augs=5
 nnet_dir=exp/vae_nnets/$nnet_name
 nnet=$nnet_dir/model_ep0205.pth
+
+# xvector network trained with recipe v1.1
+xvec_nnet_name=fbank80_stmn_lresnet34_e256_arcs30m0.3_do0_adam_lr0.05_b512_amp.v1
+xvec_nnet_dir=../v1.1/exp/xvector_nnets/$xvec_nnet_name
+xvec_nnet=$xvec_nnet_dir/model_ep0070.pth
+

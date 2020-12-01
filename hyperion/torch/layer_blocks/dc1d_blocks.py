@@ -47,7 +47,7 @@ class DC1dEncBlock(nn.Module):
             kernel_size=kernel_size, 
             stride=stride,
             dilation=dilation, 
-            padding=padding, padding_mode='reflection') #pytorch > 1.0
+            padding=padding) 
 
         self.stride = stride
         self.context = dilation*(kernel_size-1)//2
@@ -120,7 +120,7 @@ class DC1dDecBlock(nn.Module):
             stride=1,
             dilation=dilation, 
             bias=(not self.norm_before),
-            padding=padding, padding_mode='reflection') #pytorch > 1.0
+            padding=padding) 
         else:
             self.conv1 = SubPixelConv1d(
                 in_channels, out_channels, 
@@ -128,7 +128,7 @@ class DC1dDecBlock(nn.Module):
                 stride=stride,
                 dilation=dilation, 
                 bias=(not self.norm_before),
-                padding=padding, padding_mode='reflection')
+                padding=padding)
 
         self.stride = stride
         self.context = dilation*(kernel_size-1)//2
