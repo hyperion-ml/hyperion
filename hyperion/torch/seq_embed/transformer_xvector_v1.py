@@ -40,6 +40,8 @@ class TransformerXVectorV1(XVector):
       dropout_rate: dropout rate for ff block and classification head
       pos_dropout_rate: dropout rate for positional encoder
       att_dropout_rate: dropout rate for attention block
+                 
+
       use_norm: if True use batch/layer norm
       norm_before: if True, use layer norm before layers, otherwise after
       in_norm: add batchnorm at the input
@@ -67,6 +69,7 @@ class TransformerXVectorV1(XVector):
                  dropout_rate=0.1,
                  pos_dropout_rate=0.1,
                  att_dropout_rate=0.0,
+                 norm_layer=None, head_norm_layer=None,
                  use_norm=True, 
                  norm_before=False,
                  in_norm=False, embed_layer=0, proj_feats=None):
@@ -95,6 +98,7 @@ class TransformerXVectorV1(XVector):
             embed_dim=embed_dim, num_embed_layers=num_embed_layers, 
             hid_act=hid_act, loss_type=loss_type, 
             s=s, margin=margin, margin_warmup_epochs=margin_warmup_epochs,
+            norm_layer=norm_layer, head_norm_layer=head_norm_layer,
             use_norm=use_norm, norm_before=norm_before, 
             dropout_rate=dropout_rate,
             embed_layer=embed_layer, 

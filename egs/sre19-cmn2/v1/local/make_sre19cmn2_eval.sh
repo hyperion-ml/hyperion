@@ -42,7 +42,7 @@ awk '/\.sph/ { print $2,"sph2pipe -f wav -p -c 1 '$input_path'/data/test/"$2" |'
 awk '{ print $1,$1}' $test_dir/wav.scp | sort -k1,1 > $test_dir/utt2spk
 cp $test_dir/utt2spk $test_dir/spk2utt
 
-awk '!/modelid/  { print $1,$2,$4 }' $trial_file > $test_dir/trials
+awk '!/modelid/  { print $1,$2,$4 }' $key_file > $test_dir/trials
 
 cp $trial_file $test_dir/trials.tsv
 cp $key_file $test_dir/trial_key.tsv

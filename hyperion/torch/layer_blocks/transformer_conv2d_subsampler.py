@@ -2,12 +2,9 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
 
 import torch
 import torch.nn as nn
-
-from ..layers import PosEncoder
 
 class TransformerConv2dSubsampler(nn.Module):
     """Convolutional 2D subsampling (to 1/4 length) Tor transformer
@@ -15,23 +12,23 @@ class TransformerConv2dSubsampler(nn.Module):
     Attributes:
       in_feats: input feature dimension
       out_feats: Transformer d_model
-      dropout_rate: dropout rate
+      hid_act: activation layer object
+      pos_enc: positional encoder layer
       time_dim: indicates which is the time dimension in the input tensor
     """
 
-    def __init__(self, in_feats, out_feats, dropout_rate, time_dim=1):
-        super(TransformerConv2dSubsampler, self).__init__()
+    def __init__(self, in_feats, out_feats, hid_act, pos_enc, time_dim=1):
+        super().__init__()
         self.time_dim = time_dim
         self.conv = nn.Sequential(
-            nn.Conv2d(1, out_feats, 3, 2),
-            nn.ReLU6(),
-            nn.Conv2d(out_feats, out_feats, 3, 2),
-            nn.ReLU6()
+            nn.Conv2d(1, out_feats, 3, 2, padding=(0,1)),
+            hid_act,
+            nn.Conv2d(out_feats, out_feats, 3, 2, padding=(0,1)),
+            hid_act
         )
         self.out = nn.Sequential(
             nn.Linear(out_feats * (((in_feats - 1) // 2 - 1) // 2), out_feats),
-            PosEncoder(out_feats, dropout_rate)
-        )
+            pos_enc)
 
 
     def forward(self, x, mask):

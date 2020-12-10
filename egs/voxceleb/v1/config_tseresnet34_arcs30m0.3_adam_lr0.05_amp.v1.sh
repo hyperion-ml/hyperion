@@ -1,24 +1,29 @@
-#Configuration parameters for the experiment
+# Squeeze-Excitation ResNet34 where Squeeze-Excitation Embeddings are computed 
+# by averating only in the time dimension instead of Freq-Time dimension
 
 #xvector training 
 nnet_data=voxceleb2cat_combined
-nnet_type=tseresnet34
+
 batch_size_1gpu=32
 eff_batch_size=512 # effective batch size
 min_chunk=400
 max_chunk=400
 ipe=1
 lr=0.05
+
+nnet_type=tseresnet34
 dropout=0
 embed_dim=256
+se_r=16
+
 s=30
 margin_warmup=20
 margin=0.3
-se_r=16
-resnet_opt="--in-channels 1 --in-kernel-size 3 --in-stride 1 --no-maxpool --se-r $se_r"
+
+nnet_opt="--resnet-type $nnet_type --in-feats 80 --in-channels 1 --in-kernel-size 3 --in-stride 1 --no-maxpool --se-r $se_r"
 opt_opt="--opt-optimizer adam --opt-lr $lr --opt-beta1 0.9 --opt-beta2 0.95 --opt-weight-decay 1e-5 --opt-amsgrad --use-amp"
 lrs_opt="--lrsch-lrsch-type exp_lr --lrsch-decay-rate 0.5 --lrsch-decay-steps 8000 --lrsch-hold-steps 40000 --lrsch-min-lr 1e-5 --lrsch-warmup-steps 1000 --lrsch-update-lr-on-opt-step"
-nnet_name=tseresnet34_r${se_r}_e${embed_dim}_arcs${s}m${margin}_do${dropout}_adam_lr${lr}_b${eff_batch_size}_amp.v1
+nnet_name=${nnet_type}_r${se_r}_e${embed_dim}_arcs${s}m${margin}_do${dropout}_adam_lr${lr}_b${eff_batch_size}_amp.v1
 nnet_num_epochs=100
 num_augs=5
 nnet_dir=exp/xvector_nnets/$nnet_name
@@ -26,11 +31,6 @@ nnet=$nnet_dir/model_ep0070.pth
 
 
 #xvector finetuning
-# ft_batch_size_1gpu=4
-# ft_eff_batch_size=64 # effective batch size
-# ft_min_chunk=400
-# ft_max_chunk=6000
-# ft_ipe=0.25
 ft_batch_size_1gpu=32
 ft_eff_batch_size=512 # effective batch size
 ft_min_chunk=400

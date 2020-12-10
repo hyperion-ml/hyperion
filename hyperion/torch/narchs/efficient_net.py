@@ -2,7 +2,7 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
+# from __future__ import absolute_import
 
 import math
 
@@ -11,10 +11,52 @@ import torch.nn as nn
 from torch.nn import Linear, Dropout
 
 from ..layers import ActivationFactory as AF
+from ..layers import NormLayer2dFactory as NLF
 from ..layer_blocks import MBConvBlock, MBConvInOutBlock
 from .net_arch import NetArch
 
+
 class EfficientNet(NetArch):
+    """EfficientNet class based on 
+       Tan, M., Le, Q. EfficientNet: Rethinking Model Scaling for Convolutional Neural Networks
+       https://arxiv.org/abs/1905.11946
+
+    Attributes:
+      effnet_type: EfficientNet types as defined in the paper in 
+                   ['efficientnet-b0', 'efficientnet-b1', ..., ], it applies the 
+                   default width and depth scales defined in the paper for those networks.
+      in_channels: number of input channels
+      in_conv_channels: output channels of the input convolution
+      in_kernel_size: kernel size of the input convolution
+      in_stride: stride of the input convolution
+      mbconv_repeats: number of MobileNet blocks in each super-block, 
+                      a super-block is group of MobileNet blocks with common parameters
+      mbconv_channels: number of channels of the bottleneck in the MobileNet blocks in each super-block
+      mbconv_kernel_sizes: kernel sizes of the MobileNet blocks in each super-block
+      mbconv_strides: strides applied at the beginning of each super-block
+      mbconv_expansions: expansion in the number channels in the inner layer of the MobileNet block
+                         w.r.t. the outer (bottleneck) layers.
+      head_channels: number of layers in head convolution.
+      width_scale: width scale to apply to the network channels w.r.t efficientnet-b0, 
+                   it overrides effnet_type argument.
+      depth_scale: width scale to apply to the network number of layers w.r.t efficientnet-b0, 
+                   it overrides effnet_type argument.
+      fix_stem_head: if True, the number of channels in the head is not affected by width/depth scale,
+                     if False, it is affected.
+      out_units: output number of classes, if equal to 0, there is no output layer and the head layer 
+                 becomes the output.
+      hid_act: hidden activation
+      out_act: output activation with out_units > 0.
+      drop_connect_rate: drop connect rate for stochastic depth
+      dropout_rate: dropout rate after pooling when out_units > 0
+      norm_layer: norm_layer object or str indicating type layer-norm object, if None it uses BatchNorm2d
+      se_r: squeeze-excitation dimension compression
+      time_se: if True squeeze-excitation embedding is obtaining by averagin only in the time dimension, 
+               instead of time-freq dimension or HxW dimensions
+      in_feats: input feature size (number of components in dimension of 2 of input tensor), this is only
+                required when time_se=True to calculcate the size of the squeeze excitation matrices.
+    """
+
     params_dict = {
         # (width_coefficient, depth_coefficient, resolution, dropout_rate)
         'efficientnet-b0': (1.0, 1.0, 224, 0.2),
@@ -42,9 +84,10 @@ class EfficientNet(NetArch):
                  out_units=0,
                  hid_act='swish', out_act=None,
                  drop_connect_rate=0.2, dropout_rate=0,
+                 norm_layer=None,
                  se_r=4, time_se=False, in_feats=None):
 
-        super(EfficientNet, self).__init__()
+        super().__init__()
 
         assert len(mbconv_repeats) == len(mbconv_channels)
         assert len(mbconv_repeats) == len(mbconv_kernel_sizes)
@@ -83,10 +126,17 @@ class EfficientNet(NetArch):
         self.width_scale = width_scale
         self.depth_scale = depth_scale
         self.fix_stem_head = fix_stem_head
+
+        self.norm_layer = norm_layer
+        norm_groups = None
+        if norm_layer == 'group-norm':
+            norm_groups = min(int(mbconv_channels[0]*width_scale)//2, 32)
+        self._norm_layer = NLF.create(norm_layer, norm_groups)
         
         self.in_conv_channels = self._round_channels(in_conv_channels, fix_stem_head)
         self.in_block = MBConvInOutBlock(
-            in_channels, self.in_conv_channels, kernel_size=in_kernel_size, stride=in_stride)
+            in_channels, self.in_conv_channels, kernel_size=in_kernel_size, 
+            stride=in_stride, activation=hid_act, norm_layer=self._norm_layer)
 
         self._context = self.in_block.context
         self._downsample_factor = self.in_block.downsample_factor
@@ -119,6 +169,7 @@ class EfficientNet(NetArch):
             block_i = MBConvBlock(cur_in_channels, channels_i, expansion_i,
                                   kernel_size_i, stride_i, hid_act,
                                   drop_connect_rate=drop_i,
+                                  norm_layer=self._norm_layer,
                                   se_r=se_r, time_se=time_se, 
                                   num_feats=cur_feats)
             self.blocks.append(block_i)
@@ -133,6 +184,7 @@ class EfficientNet(NetArch):
                 block_i = MBConvBlock(channels_i, channels_i, expansion_i,
                                       kernel_size_i, 1, hid_act,
                                       drop_connect_rate=drop_i,
+                                      norm_layer=self._norm_layer,
                                       se_r=se_r, time_se=time_se, num_feats=cur_feats)
                 self.blocks.append(block_i)
                 k += 1
@@ -144,7 +196,8 @@ class EfficientNet(NetArch):
         #head feature block
         self.head_channels = self._round_channels(head_channels, fix_stem_head) 
         self.head_block = MBConvInOutBlock(
-            cur_in_channels, self.head_channels, kernel_size=1, stride=1)
+            cur_in_channels, self.head_channels, kernel_size=1, stride=1, 
+            activation=hid_act, norm_layer=self._norm_layer)
 
         self.with_output = False
         self.out_act = None
@@ -311,12 +364,13 @@ class EfficientNet(NetArch):
                   'dropout_rate': self.dropout_rate,
                   'out_act': out_act,
                   'hid_act': hid_act,
+                  'norm_layer': self.norm_layer,
                   'se_r' : self.se_r,
                   'time_se': self.time_se,
                   'in_feats': self.in_feats
               }
         
-        base_config = super(EfficientNet, self).get_config()
+        base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
 
@@ -335,7 +389,7 @@ class EfficientNet(NetArch):
                       'mbconv_strides', 'mbconv_expansions', 
                       'head_channels', 'width_scale', 'depth_scale',
                       'fix_stem_head', 'out_units',
-                      'hid_act', 'out_act', 
+                      'hid_act', 'out_act', 'norm_layer',
                       'drop_connect_rate', 'dropout_rate',
                       'se_r', 'time_se')
 
@@ -377,7 +431,7 @@ class EfficientNet(NetArch):
 
 
         parser.add_argument(
-            p1+'mbconv-repeasts', default=[1, 2, 2, 3, 3, 4, 1], type=int,
+            p1+'mbconv-repeats', default=[1, 2, 2, 3, 3, 4, 1], type=int,
             nargs='+', help=('mbconv-mbconvs repeats for efficientnet-b0'))
 
         parser.add_argument(
@@ -422,7 +476,16 @@ class EfficientNet(NetArch):
             help=('squeeze-excitation pooling operation in time-dimension only'))
 
         try:
-            parser.add_argument(p1+'hid_act', default='swish', 
+            parser.add_argument(
+                p1+'norm-layer', default=None, 
+                choices=['batch-norm', 'group-norm', 'instance-norm', 'instance-norm-affine', 'layer-norm'],
+                help='type of normalization layer')
+        except:
+            pass
+
+
+        try:
+            parser.add_argument(p1+'hid-act', default='swish', 
                                 help='hidden activation')
         except:
             pass

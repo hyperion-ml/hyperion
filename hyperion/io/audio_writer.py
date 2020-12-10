@@ -2,11 +2,11 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
-from six import string_types
+#from __future__ import absolute_import
+#from __future__ import print_function
+#from __future__ import division
+#from six.moves import xrange
+#from six import string_types
 
 import os
 import re
@@ -33,21 +33,23 @@ class AudioWriter(object):
       output_path: output data file path.
       script_path: optional output scp file.
       audio_format:   audio file format 
+      audio_subtype: subtype of audio in [PCM_16, PCM_32, FLOAT, DOUBLE, ...], 
+               if None, it uses soundfile defaults (recommended)
       scp_sep: Separator for scp files (default ' ').
     """
 
     def __init__(self, output_path, script_path=None,
-                 audio_format='wav', subtype=None, scp_sep=' '):
+                 audio_format='wav', audio_subtype=None, scp_sep=' '):
         self.output_path = output_path
         self.script_path = script_path
         self.audio_format = audio_format
         self.scp_sep = scp_sep
 
         assert '.' + self.audio_format in valid_ext
-        if subtype is None:
+        if audio_subtype is None:
             self.subtype = sf.default_subtype(self.audio_format)
         else:
-            self.subtype = subtype
+            self.subtype = audio_subtype
             assert sf.check_format(self.audio_format, self.subtype)
 
         if not os.path.exists(output_path):
@@ -96,13 +98,11 @@ class AudioWriter(object):
           data: List of waveforms
           fs: 
         """
-        if isinstance(keys, string_types):
+        if isinstance(keys, str):
             keys = [keys]
             data = [data]
 
-        fs_is_list = (isinstance(fs, list) or
-                      isinstance(fs, np.ndarray))
-
+        fs_is_list = isinstance(fs, (list, np.ndarray))
         assert self.subtype in subtype_to_npdtype
         dtype = subtype_to_npdtype[self.subtype]
         for i, key_i in enumerate(keys):
@@ -117,3 +117,38 @@ class AudioWriter(object):
                 self.f_script.write('%s%s%s\n' % (
                     key_i, self.scp_sep, output_file))
                 self.f_script.flush()
+
+
+    @staticmethod
+    def filter_args(prefix=None, **kwargs):
+        if prefix is None:
+            p = ''
+        else:
+            p = prefix + '_'
+        valid_args = ('output_fs','output_wav_scale', 'output_audio_format', 'output_audio_subtype')
+        return dict((re.sub('output_','', k), kwargs[p+k])
+                    for k in valid_args if p+k in kwargs)
+
+    
+    @staticmethod
+    def add_argparse_args(parser, prefix=None):
+        if prefix is None:
+            p1 = '--'
+            p2 = ''
+        else:
+            p1 = '--' + prefix + '-'
+            p2 = prefix + '_'
+            
+        # parser.add_argument(p1+'output-wav-scale', default=1, type=float,
+        #                      help=('scale to divide the waveform before writing'))
+
+        parser.add_argument(p1+'output-audio-format', default='flac',
+                            choices=['flac','ogg', 'wav'],
+                             help=('ouput audio format'))
+
+        parser.add_argument(p1+'output-audio-subtype', default=None, 
+                            choices=['pcm_16','pcm_24', 'float', 'double', 'vorbis'],
+                             help=('coding format for audio file'))
+
+        # parser.add_argument(p1+'output-fs', default=16000, type=int,
+        #                      help=('output sample frequency'))

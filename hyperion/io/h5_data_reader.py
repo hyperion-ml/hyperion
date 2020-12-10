@@ -4,8 +4,8 @@
 
  Classes to read data from hdf5 files.
 """
-from __future__ import absolute_import
-from six import string_types
+#from __future__ import absolute_import
+#from six import string_types
 
 import sys
 import time
@@ -79,7 +79,7 @@ class SequentialH5DataReader(SequentialDataReader):
     """
 
     def __init__(self, file_path, **kwargs):
-        super(SequentialH5DataReader, self).__init__(file_path, **kwargs)
+        super().__init__(file_path, **kwargs)
         self.f = None
         self.cur_file = None
         self.cur_item = 0
@@ -162,7 +162,7 @@ class SequentialH5FileDataReader(SequentialH5DataReader):
     """
 
     def __init__(self, file_path, **kwargs):
-        super(SequentialH5FileDataReader, self).__init__(
+        super().__init__(
             file_path, permissive=False, **kwargs)
         self._open_archive(self.file_path)
         self._keys = list(self.f.keys())
@@ -172,6 +172,11 @@ class SequentialH5FileDataReader(SequentialH5DataReader):
                     self._keys, self.part_idx, self.num_parts)
             else:
                 self._keys, _ = split_list(self._keys, self.part_idx, self.num_parts)
+
+
+    @property
+    def keys(self):
+        return self._keys
 
 
         
@@ -298,7 +303,7 @@ class SequentialH5ScriptDataReader(SequentialH5DataReader):
     """
 
     def __init__(self, file_path, path_prefix=None, scp_sep=' ', **kwargs):
-        super(SequentialH5ScriptDataReader, self).__init__(
+        super().__init__(
             file_path, permissive=False,  **kwargs)
                       
         self.scp = SCPList.load(self.file_path, sep=scp_sep)
@@ -309,7 +314,11 @@ class SequentialH5ScriptDataReader(SequentialH5DataReader):
             self.scp.add_prefix_to_filepath(path_prefix)
             
 
+    @property
+    def keys(self):
+        return self.scp.key
         
+
     def reset(self):
         """Closes all the open hdf5 files and puts the read pointer pointing
         to the first element in the scp file."""
@@ -440,7 +449,7 @@ class RandomAccessH5DataReader(RandomAccessDataReader):
     """
 
     def __init__(self, file_path, transform=None, permissive = False):
-        super(RandomAccessH5DataReader, self).__init__(file_path, transform, permissive)
+        super().__init__(file_path, transform, permissive)
         self.f = None
 
 
@@ -497,7 +506,7 @@ class RandomAccessH5FileDataReader(RandomAccessH5DataReader):
     """
     
     def __init__(self, file_path, **kwargs):
-        super(RandomAccessH5FileDataReader, self).__init__(file_path, **kwargs)
+        super().__init__(file_path, **kwargs)
         self.lock = threading.Lock()
         self._open_archive(file_path)
 
@@ -518,6 +527,10 @@ class RandomAccessH5FileDataReader(RandomAccessH5DataReader):
             self.f = h5py.File(file_path, 'r')
         
 
+    @property
+    def keys(self):
+        return list(self.f.keys())
+
             
     def read_shapes(self, keys, assert_same_dim=True):
         """Reads the shapes in the feature matrices of the dataset.
@@ -531,7 +544,7 @@ class RandomAccessH5FileDataReader(RandomAccessH5DataReader):
         Returns:
           List of tuples with the shapes for the recordings in keys.
         """
-        if isinstance(keys, string_types):
+        if isinstance(keys, str):
             keys = [keys]
 
         shapes = []
@@ -573,7 +586,7 @@ class RandomAccessH5FileDataReader(RandomAccessH5DataReader):
         Returns:
           data: List of feature matrices/vectors or 3D/2D numpy array.
         """
-        if isinstance(keys, string_types):
+        if isinstance(keys, str):
             keys = [keys]
 
         row_offset_is_list = (isinstance(row_offset, list) or
@@ -630,7 +643,7 @@ class RandomAccessH5ScriptDataReader(RandomAccessH5DataReader):
     """
     
     def __init__(self, file_path, path_prefix=None, scp_sep=' ', **kwargs):
-        super(RandomAccessH5DataReader, self).__init__(
+        super().__init__(
             file_path, **kwargs)
         
         self.scp = SCPList.load(self.file_path, sep=scp_sep)
@@ -653,6 +666,10 @@ class RandomAccessH5ScriptDataReader(RandomAccessH5DataReader):
                 f.close()
         self.f = [None] * len(self.f)
 
+
+    @property
+    def keys(self):
+        return self.scp.key
 
 
     def _open_archive(self, key_idx):
@@ -686,7 +703,7 @@ class RandomAccessH5ScriptDataReader(RandomAccessH5DataReader):
         Returns:
           List of tuples with the shapes for the recordings in keys.
         """
-        if isinstance(keys, string_types):
+        if isinstance(keys, str):
             keys = [keys]
         #t1 = time.time()
         shapes = []
@@ -746,7 +763,7 @@ class RandomAccessH5ScriptDataReader(RandomAccessH5DataReader):
         Returns:
           data: List of feature matrices/vectors or 3D/2D numpy array.
         """
-        if isinstance(keys, string_types):
+        if isinstance(keys, str):
             keys = [keys]
 
         row_offset_is_list = (isinstance(row_offset, list) or

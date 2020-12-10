@@ -2,15 +2,16 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
-from six import string_types
+#from __future__ import absolute_import
+#from __future__ import print_function
+#from __future__ import division
+#from six.moves import xrange
+#from six import string_types
 
 import os
 import logging
 import io
+import math
 import subprocess
 import soundfile as sf
 
@@ -27,7 +28,7 @@ class AudioReader(object):
        Attributes:
             file_path:     scp file with formant file_key wavspecifier (audio_file/pipe) or SCPList object.
             segments_path: segments file with format: segment_id file_id tbeg tend
-            wav_scale:         multiplies signal by scale factor
+            wav_scale:     multiplies signal by scale factor
     """
     
     def __init__(self, file_path, segments_path=None, wav_scale=2**15-1):
@@ -46,11 +47,18 @@ class AudioReader(object):
             if isinstance(file_path, SegmentList):
                 self.segments = segments_path
             else:
-                self.segments = SegmentList.load(segments_path, sep=' ', index_by_file=False)
+                self.segments = SegmentList.load(
+                    segments_path, sep=' ', index_by_file=False)
 
         self.scale = wav_scale
 
-        
+
+    @property
+    def keys(self):
+        if self.with_segments:
+            return np.asarray(self.segments['segment_id'])
+        return self.scp.key
+
 
     def __enter__(self):
         """Function required when entering contructions of type
@@ -65,14 +73,14 @@ class AudioReader(object):
     def __exit__(self, exc_type, exc_value, traceback):
         """Function required when exiting from contructions of type
 
-           with DataReader('file.h5') as f:
+           with AudioReader('file.h5') as f:
               keys, data = f.read()
         """
         pass
 
 
     @staticmethod
-    def read_wavspecifier(wavspecifier, scale=2**15):
+    def read_wavspecifier(wavspecifier, scale=2**15, time_offset=0, time_dur=0):
         """Reads an audiospecifier (audio_file/pipe)
            It reads from pipe or from all the files that can be read 
            by `libsndfile <http://www.mega-nerd.com/libsndfile/#Features>`
@@ -80,20 +88,48 @@ class AudioReader(object):
         Args:
           wavspecifier: A pipe, wav, flac, ogg file etc.
           scale:        Multiplies signal by scale factor
+          time_offset: float indicating the start time to read in the utterance.
+          time_durs: floats indicating the number of seconds to read from the utterance,
+                     if 0 it reads untils the end
+
         """
         wavspecifier = wavspecifier.strip()
         if wavspecifier[-1] == '|':
             wavspecifier = wavspecifier[:-1]
-            return AudioReader.read_pipe(wavspecifier, scale)
-        else:
-            ext = os.path.splitext(wavspecifier)[1]
-            if ext in valid_ext:
+            x, fs = AudioReader.read_pipe(wavspecifier, scale)
+            if time_offset == 0 and time_dur==0:
+                return x, fs
+                
+            start_sample = int(math.floor(time_offset * fs))
+            num_samples = int(math.floor(time_dur * fs))
+            if num_samples == 0:
+                return x[start_sample:], fs
+
+            end_sample = start_sample + num_samples
+            assert end_sample <= len(x)
+            return x[start_sample:end_sample], fs
+
+        ext = os.path.splitext(wavspecifier)[1]
+        if ext in valid_ext:
+            if time_offset == 0 and time_dur == 0:
                 x, fs = sf.read(wavspecifier, dtype=float_cpu())
                 x *= scale
-            else:
-                raise Exception('Unknown format for %s' % (wavspecifier))
+                return x, fs
 
-        return x, fs
+            with sf.SoundFile(wavspecifier, 'r') as f:
+                fs = f.samplerate
+                start_sample = int(math.floor(time_offset * fs))
+                num_samples = int(math.floor(time_dur * fs))
+                f.seek(start_sample)
+                if num_samples > 0:
+                    x = scale * f.read(num_samples, dtype=float_cpu())
+                else:
+                    x = scale * f.read(dtype=float_cpu())
+                return x, fs
+
+        raise Exception('Unknown format for %s' % (wavspecifier))
+
+
 
 
     @staticmethod
@@ -113,7 +149,7 @@ class AudioReader(object):
         return x, fs
 
 
-    def _read_segment(self, segment):
+    def _read_segment(self, segment, time_offset=0, time_dur=0):
         """Reads a wave segment
 
         Args:
@@ -122,8 +158,13 @@ class AudioReader(object):
           Wave, sampling frequency
         """
         file_id = segment['file_id']
-        t_beg = segment['tbeg']
+        t_beg = segment['tbeg'] + time_offset
         t_end = segment['tend']
+        if time_dur > 0:
+            t_end_new = t_beg + time_dur
+            assert t_end_new <= t_end
+            t_end = t_end_new
+
         file_path, _, _ = self.scp[file_id]
         x_i, fs_i = self.read_wavspecifier(file_path, self.scale)
         num_samples_i = len(x_i)
@@ -149,7 +190,7 @@ class AudioReader(object):
 class SequentialAudioReader(AudioReader):
 
     def __init__(self, file_path, segments_path=None, wav_scale=2**15-1, part_idx=1, num_parts=1):
-        super(SequentialAudioReader, self).__init__(file_path, segments_path, wav_scale=wav_scale)
+        super().__init__(file_path, segments_path, wav_scale=wav_scale)
         self.cur_item = 0
         self.part_idx = part_idx
         self.num_parts = num_parts
@@ -209,32 +250,46 @@ class SequentialAudioReader(AudioReader):
         return self.cur_item == len(self.scp)
 
     
-    def read(self, num_records=0):
+    def read(self, num_records=0, time_offset=0, time_durs=0):
         """Reads next num_records audio files
         
         Args:
           num_records: Number of audio files to read.
+          time_offset: List of floats indicating the start time to read in the utterance.
+          time_durs: List of floats indicating the number of seconds to read from each utterance
 
         Returns:
           key: List of recording names.
           data: List of waveforms
+          fs: list of sample freqs
         """
         if num_records == 0:
-            num_records = len(self.scp) - self.cur_item
+            if self.with_segments:
+                num_records = len(self.segments) - self.cur_item
+            else:
+                num_records = len(self.scp) - self.cur_item
+
+        offset_is_list = isinstance(time_offset, (list, np.ndarray))
+        dur_is_list = isinstance(time_durs, (list, np.ndarray))
 
         keys = []
         data = []
         fs = []
-        for i in xrange(num_records):
+        for i in range(num_records):
             if self.eof():
                 break
+
+            offset_i = time_offset[i] if offset_is_list else time_offset
+            dur_i = time_durs[i] if dur_is_list else time_durs
+
             if self.with_segments:
                 segment = self.segments[self.cur_item]
                 key = segment['segment_id']
-                x_i, fs_i = self._read_segment(segment)
+                x_i, fs_i = self._read_segment(segment, offset_i, dur_i)
             else:
                 key, file_path, _, _ = self.scp[self.cur_item]
-                x_i, fs_i = self.read_wavspecifier(file_path, self.scale)
+                x_i, fs_i = self.read_wavspecifier(
+                    file_path, self.scale, offset_i, dur_i)
 
             keys.append(key)
             data.append(x_i)
@@ -259,20 +314,22 @@ class SequentialAudioReader(AudioReader):
     def add_argparse_args(parser, prefix=None):
         if prefix is None:
             p1 = '--'
-            p2 = ''
+            #p2 = ''
         else:
             p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
+            #p2 = prefix + '_'
             
         # parser.add_argument(p1+'scp-sep', dest=(p2+'scp_sep'), default=' ',
         #                     help=('scp file field separator'))
-        parser.add_argument(p1+'wav-scale', dest=(p2+'wav_scale'), default=2**15-1, type=float,
+        parser.add_argument(p1+'wav-scale', default=2**15-1, type=float,
                              help=('multiplicative factor for waveform'))
         try:
-            parser.add_argument(p1+'part-idx', dest=(p2+'part_idx'), type=int, default=1,
-                                help=('splits the list of files in num-parts and process part_idx'))
-            parser.add_argument(p1+'num-parts', dest=(p2+'num_parts'), type=int, default=1,
-                                help=('splits the list of files in num-parts and process part_idx'))
+            parser.add_argument(
+                p1+'part-idx', type=int, default=1,
+                help=('splits the list of files into num-parts and processes part-idx'))
+            parser.add_argument(
+                p1+'num-parts', type=int, default=1,
+                help=('splits the list of files into num-parts and processes part-idx'))
         except:
             pass
 
@@ -281,11 +338,11 @@ class SequentialAudioReader(AudioReader):
 class RandomAccessAudioReader(AudioReader):
 
     def __init__(self, file_path, segments_path=None, wav_scale=2**15-1):
-        super(RandomAccessAudioReader, self).__init__(file_path, segments_path, wav_scale)
+        super().__init__(file_path, segments_path, wav_scale)
 
 
 
-    def read(self, keys):
+    def read(self, keys, time_offset=0, time_durs=0):
         """Reads the waveforms  for the recordings in keys.
         
         Args:
@@ -294,24 +351,32 @@ class RandomAccessAudioReader(AudioReader):
         Returns:
           data: List of waveforms
         """
-        if isinstance(keys, string_types):
+        if isinstance(keys, str):
             keys = [keys]
+
+        offset_is_list = isinstance(time_offset, (list, np.ndarray))
+        dur_is_list = isinstance(time_durs, (list, np.ndarray))
 
         data = []
         fs = []
         for i,key in enumerate(keys):
+
+            offset_i = time_offset[i] if offset_is_list else time_offset
+            dur_i = time_durs[i] if dur_is_list else time_durs
+
             if self.with_segments:
                 if not (key in self.segments):
                     raise Exception('Key %s not found' % key)
                 
                 segment = self.segments[key]
-                x_i, fs_i = self._read_segment(segment)
+                x_i, fs_i = self._read_segment(segment, offset_i, dur_i)
             else:
                 if not (key in self.scp):
                     raise Exception('Key %s not found' % key)
 
                 file_path, _, _ = self.scp[key]
-                x_i, fs_i = self.read_wavspecifier(file_path, self.scale)
+                x_i, fs_i = self.read_wavspecifier(
+                    file_path, self.scale, offset_i, dur_i)
 
             data.append(x_i)
             fs.append(fs_i)
@@ -325,7 +390,7 @@ class RandomAccessAudioReader(AudioReader):
             p = ''
         else:
             p = prefix + '_'
-        valid_args = ('wav_scale')
+        valid_args = ('wav_scale',)
         return dict((k, kwargs[p+k])
                     for k in valid_args if p+k in kwargs)
 
@@ -333,10 +398,10 @@ class RandomAccessAudioReader(AudioReader):
     def add_argparse_args(parser, prefix=None):
         if prefix is None:
             p1 = '--'
-            p2 = ''
+            #p2 = ''
         else:
             p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
+            #p2 = prefix + '_'
             
-        parser.add_argument(p1+'wav-scale', dest=(p2+'wav_scale'), default=2**15, type=float,
+        parser.add_argument(p1+'wav-scale', default=2**15-1, type=float,
                              help=('multiplicative factor for waveform'))

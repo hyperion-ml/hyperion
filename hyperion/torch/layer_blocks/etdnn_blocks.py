@@ -2,7 +2,6 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
 
 import numpy as np
 
@@ -12,26 +11,23 @@ from torch.nn import Conv1d, Linear, BatchNorm1d
 from ..layers import ActivationFactory as AF
 from ..layers import Dropout1d
 
+
 class ETDNNBlock(nn.Module):
 
     def __init__(self, in_channels, out_channels, 
                  kernel_size, dilation=1, 
                  activation={'name':'relu', 'inplace': True},
                  dropout_rate=0,
-                 use_norm=True, norm_before=False):
+                 norm_layer=None, use_norm=True, norm_before=False):
 
-        super(ETDNNBlock, self).__init__()
+        super().__init__()
+
 
         self.activation1 = AF.create(activation)
         self.activation2 = AF.create(activation)
         padding = int(dilation * (kernel_size - 1)/2)
-        self.conv1 = Conv1d(in_channels, out_channels, 
-                            kernel_size=kernel_size, dilation=dilation, 
-                            padding=padding) # padding_mode='reflection') pytorch > 1.0
-        self.conv2 = Conv1d(out_channels, out_channels, kernel_size=1)
 
-
-        self.dropout_rate =dropout_rate
+        self.dropout_rate = dropout_rate
         self.dropout = None
         if dropout_rate > 0:
             self.dropout1 = Dropout1d(dropout_rate)
@@ -40,8 +36,11 @@ class ETDNNBlock(nn.Module):
         self.norm_before = False
         self.norm_after = False
         if use_norm:
-            self.bn1 = BatchNorm1d(out_channels)
-            self.bn2 = BatchNorm1d(out_channels)
+            if norm_layer is None:
+                norm_layer = BatchNorm1d
+
+            self.bn1 = norm_layer(out_channels)
+            self.bn2 = norm_layer(out_channels)
             if norm_before:
                 self.norm_before = True
             else:
@@ -50,7 +49,7 @@ class ETDNNBlock(nn.Module):
         bias = not self.norm_before
         self.conv1 = Conv1d(in_channels, out_channels, bias=bias,
                             kernel_size=kernel_size, dilation=dilation, 
-                            padding=padding) # padding_mode='reflection') pytorch > 1.0
+                            padding=padding) 
         self.conv2 = Conv1d(out_channels, out_channels, bias=bias, kernel_size=1)
         
 

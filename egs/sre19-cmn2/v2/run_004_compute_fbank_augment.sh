@@ -1,9 +1,6 @@
 #!/bin/bash
 # Copyright
 #                2018   Johns Hopkins University (Author: Jesus Villalba)
-#                2017   David Snyder
-#                2017   Johns Hopkins University (Author: Daniel Garcia-Romero)
-#                2017   Johns Hopkins University (Author: Daniel Povey)
 # Apache 2.0.
 #
 . ./cmd.sh

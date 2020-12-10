@@ -17,9 +17,7 @@ class TDNNFactory(object):
                hid_act={'name':'relu6', 'inplace':True}, 
                out_units=0, out_act=None,
                dropout_rate=0,
-               use_norm=True, 
-               norm_before=False,
-               in_norm=True):
+               norm_layer=None, use_norm=True, norm_before=True, in_norm=True):
 
         if enc_expand_units is not None and isinstance(enc_hid_units, int):
             if tdnn_type != 'resetdnn' :
@@ -31,14 +29,16 @@ class TDNNFactory(object):
                 kernel_size=kernel_size, 
                 dilation=dilation, dilation_factor=dilation_factor,
                 hid_act=hid_act, out_act=out_act, dropout_rate=dropout_rate,
-                use_norm=use_norm, norm_before=norm_before, in_norm=in_norm)
+                norm_layer=norm_layer, use_norm=use_norm, 
+                norm_before=norm_before, in_norm=in_norm)
         elif tdnn_type == 'etdnn':
             nnet = ETDNNV1(
                 num_enc_blocks, in_feats, enc_hid_units, out_units=out_units,
                 kernel_size=kernel_size, 
                 dilation=dilation, dilation_factor=dilation_factor,
                 hid_act=hid_act,out_act=out_act, dropout_rate=dropout_rate,
-                use_norm=use_norm, norm_before=norm_before, in_norm=in_norm)
+                norm_layer=norm_layer, use_norm=use_norm, 
+                norm_before=norm_before, in_norm=in_norm)
         elif tdnn_type == 'resetdnn':
             if enc_expand_units is None:
                 enc_expand_units = enc_hid_units
@@ -48,7 +48,8 @@ class TDNNFactory(object):
                 out_units=out_units, kernel_size=kernel_size, 
                 dilation=dilation, dilation_factor=dilation_factor,
                 hid_act=hid_act, out_act=out_act, dropout_rate=dropout_rate,
-                use_norm=use_norm, norm_before=norm_before, in_norm=in_norm)
+                norm_layer=norm_layer, use_norm=use_norm, 
+                norm_before=norm_before, in_norm=in_norm)
         else:
             raise Exception('%s is not valid TDNN network' % (tdnn_type))
 
@@ -73,7 +74,7 @@ class TDNNFactory(object):
         valid_args = ('tdnn_type', 'num_enc_blocks', 
                       'enc_hid_units', 'enc_expand_units', 'kernel_size',
                       'dilation', 'dilation_factor', 'in_norm', 'hid_act', 
-                      'use_norm', 'norm_before', 'in_feats', 'dropout_rate')
+                      'norm_layer', 'use_norm', 'norm_before', 'in_feats', 'dropout_rate')
 
         args = dict((k, kwargs[p+k])
                     for k in valid_args if p+k in kwargs)
@@ -125,15 +126,22 @@ class TDNNFactory(object):
                             default=1, type=int,
                             help=('dilation increment wrt previous conv1d layer'))
 
-        parser.add_argument(p1+'in-norm', default=False, action='store_true',
-                            help='batch normalization at the input')
-
-
         try:
-            parser.add_argument(p1+'hid_act', default='relu6', 
+            parser.add_argument(p1+'hid-act', default='relu6', 
                                 help='hidden activation')
         except:
             pass
+
+        try:
+            parser.add_argument(
+                p1+'norm-layer', default=None, 
+                choices=['batch-norm', 'group-norm', 'instance-norm', 'instance-norm-affine', 'layer-norm'],
+                help='type of normalization layer')
+        except:
+            pass
+
+        parser.add_argument(p1+'in-norm', default=False, action='store_true',
+                            help='batch normalization at the input')
 
         try:
             parser.add_argument(p1+'wo-norm', default=False, action='store_true',

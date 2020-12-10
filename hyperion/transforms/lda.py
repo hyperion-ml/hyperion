@@ -54,7 +54,11 @@ class LDA(HypModel):
         
         assert(Sb.shape == Sw.shape)
 
-        d, V = la.eigh(Sb, Sw)
+        try:
+            d, V = la.eigh(Sb, Sw)
+        except:
+            alpha = 1e-2 * np.max(np.diag(Sw))
+            d, V = la.eigh(Sb, alpha*np.eye(Sw.shape[0]) + Sw)
         V = np.fliplr(V)
 
         p = V[0,:] < 0

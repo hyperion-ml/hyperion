@@ -2,15 +2,16 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
+# from __future__ import absolute_import
 
 import numpy as np
 
 import torch
 import torch.nn as nn
-from torch.nn import Conv1d, Linear
+from torch.nn import Linear
 
 from ..layers import ActivationFactory as AF
+from ..layers import NormLayer1dFactory as NLF
 from ..layer_blocks import TDNNBlock
 from .net_arch import NetArch
 
@@ -22,11 +23,10 @@ class TDNNV1(NetArch):
                  kernel_size=3, dilation=1, dilation_factor=1,
                  hid_act={'name':'relu', 'inplace':True}, out_act=None, 
                  dropout_rate=0,
-                 use_norm=True, 
-                 norm_before=False,
-                 in_norm=True, pooling=None):
+                 norm_layer=None, use_norm=True, norm_before=True, in_norm=True,
+                 pooling=None):
 
-        super(TDNNV1, self).__init__()
+        super().__init__()
 
         self.num_blocks = num_blocks
         self.out_units = out_units
@@ -40,7 +40,6 @@ class TDNNV1(NetArch):
         self.norm_before = norm_before
         self.in_norm = in_norm
         self.pooling = pooling
-
 
         if isinstance(hid_units, list):
             assert num_blocks == len(hid_units)
@@ -63,12 +62,19 @@ class TDNNV1(NetArch):
         self._context = int(np.sum(np.array(dilation)*(
             np.array(kernel_size)-1)/2))
 
+        self.norm_layer = norm_layer
+        norm_groups = None
+        if norm_layer == 'group-norm':
+            norm_groups = min(np.min(hid_units)//2, 32)
+        self._norm_layer = NLF.create(norm_layer, norm_groups)
+
         blocks = []
         for i in range(num_blocks):
             blocks.append(
                 TDNNBlock(units[i], units[i+1], 
                           kernel_size=kernel_size[i], dilation=dilation[i], 
                           activation=hid_act, dropout_rate=dropout_rate, 
+                          norm_layer=self._norm_layer, 
                           use_norm=use_norm, norm_before=norm_before))
 
         self.blocks = nn.ModuleList(blocks)
@@ -89,8 +95,16 @@ class TDNNV1(NetArch):
     def in_context(self):
         return (self._context, self._context)
     
-                
-    def forward(self, x):
+             
+    def forward(self, x, use_amp=False):
+        if use_amp:
+            with torch.cuda.amp.autocast():
+                return self._forward(x)
+
+        return self._forward(x)
+
+   
+    def _forward(self, x):
 
         for i in range(self.num_blocks):
             x = self.blocks[i](x)
@@ -126,6 +140,7 @@ class TDNNV1(NetArch):
                   'dilation': self.dilation,
                   'dilation_factor': self.dilation_factor,
                   'dropout_rate': self.dropout_rate,
+                  'norm_layer': self.norm_layer,
                   'use_norm': self.use_norm,
                   'norm_before': self.norm_before,
                   'in_norm' : self.in_norm,
@@ -133,7 +148,7 @@ class TDNNV1(NetArch):
                   'hid_act': hid_act,
                   'pooling': self.pooling }
         
-        base_config = super(TDNNV1, self).get_config()
+        base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
     

@@ -9,7 +9,6 @@ import torch
 import torch.nn as nn
 
 from .xvector import XVector
-#from ..narchs import TDNNV1, ETDNNV1, ResETDNNV1
 from ..narchs import TDNNFactory as TF
 
 class TDNNXVector(XVector):
@@ -25,9 +24,9 @@ class TDNNXVector(XVector):
                  loss_type='arc-softmax',
                  s=64, margin=0.3, margin_warmup_epochs=0,
                  dropout_rate=0,
-                 use_norm=True, 
-                 norm_before=False,
-                 in_norm=False, embed_layer=0, proj_feats=None):
+                 norm_layer=None, head_norm_layer=None,
+                 use_norm=True, norm_before=False, in_norm=False, 
+                 embed_layer=0, proj_feats=None):
 
         logging.info('making %s encoder network' % (tdnn_type))
         encoder_net = TF.create(
@@ -36,13 +35,15 @@ class TDNNXVector(XVector):
             kernel_size=kernel_size, 
             dilation=dilation, dilation_factor=dilation_factor,
             hid_act=hid_act, dropout_rate=dropout_rate,
-            use_norm=use_norm, norm_before=norm_before, in_norm=in_norm)
+            norm_layer=norm_layer, use_norm=use_norm, 
+            norm_before=norm_before, in_norm=in_norm)
 
-        super(TDNNXVector, self).__init__(
+        super().__init__(
             encoder_net, num_classes, pool_net=pool_net, 
             embed_dim=embed_dim, num_embed_layers=num_embed_layers, 
             hid_act=hid_act, loss_type=loss_type, 
             s=s, margin=margin, margin_warmup_epochs=margin_warmup_epochs,
+            norm_layer=norm_layer, head_norm_layer=head_norm_layer,
             use_norm=use_norm, norm_before=norm_before, 
             dropout_rate=dropout_rate,
             embed_layer=embed_layer, 
@@ -86,7 +87,7 @@ class TDNNXVector(XVector):
 
     def get_config(self):
 
-        base_config = super(TDNNXVector, self).get_config()
+        base_config = super().get_config()
         del base_config['encoder_cfg']
 
         pool_cfg = self.pool_net.get_config()

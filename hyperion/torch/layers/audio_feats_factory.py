@@ -2,8 +2,9 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
+#from __future__ import absolute_import
 
+import re
 from ...feats.filter_banks import FilterBankFactory as FBF
 from .audio_feats import *
 
@@ -94,7 +95,7 @@ class AudioFeatsFactory(object):
         if prefix is None:
             p = ''
         else:
-            p = prefix + '_'
+            p = re.sub('-','_',prefix) + '_'
 
         valid_args = ('fs', 'frame_length', 'frame_shift',
                       'fft_length', 'remove_dc_offset', 'preemph_coeff',
@@ -123,7 +124,7 @@ class AudioFeatsFactory(object):
             p2 = ''
         else:
             p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
+            p2 = re.sub('-','_', prefix) + '_'
 
         parser.add_argument(p1+'sample-frequency', dest=(p2+'fs'), 
                             default=16000, type=int,
@@ -191,12 +192,6 @@ class AudioFeatsFactory(object):
             default=22,
             help='Constant that controls scaling of MFCCs')
         
-        # parser.add_argument(
-        #     p1+'input-step', dest=(p2+'input_step'), 
-        #     default='wave',
-        #     choices=['wave', 'fft', 'fft_mag', 'log_spec', 'logfb' ],
-        #     help='It can continue computation from any step: wav, fft, fft_mag, logfb')
-            
         parser.add_argument(
             p1+'audio-feat', dest=(p2+'audio_feat'), 
             default='cepstrum',
