@@ -32,6 +32,20 @@ Two broad types of attacks:
 
 Multiple attacks algorithms: FGSM, Iter-FGSM, PGD, Carlini-Wagner.
 
+## Citing
+
+  If you use this recipe, please cite:
+```
+@inproceedings{Villalba2020,
+address = {Shanghai, China},
+author = {Villalba, Jes{\'{u}}s and Zhang, Yuekai and Dehak, Najim},
+booktitle = {Interspeech 2020},
+month = {sep},
+title = {{x-Vectors Meet Adversarial Attacks : Benchmarking Adversarial Robustness in Speaker Verification}},
+year = {2020}
+}
+```
+
 ## Training Data
 
    - x-Vector network is trained on Voxceleb2 dev + test with augmentations
