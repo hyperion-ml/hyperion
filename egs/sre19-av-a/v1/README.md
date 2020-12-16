@@ -131,6 +131,7 @@ run_042_eval_be_v1_with_diar_snorm_v3.sh --config-file config_4a.1.sh
       - Centering is computed on a mix of SITW dev + SRE18 VAST Dev
       - Evals back-end on all datasets without using diarization (assuming one speaker per test file) with and without AS-Norm
       - AS-Norm cohort taken from SITW dev + SRE18 VAST Dev
+      - Calibrating is tested on SRE18 and SRE19
 
    - `run_041_eval_be_v1_with_diar.sh`
       - Same as previous step but using diarization
@@ -162,4 +163,7 @@ run_042_eval_be_v1_with_diar_snorm_v3.sh --config-file config_4a.1.sh
 | | | Y | V1 | 1.29 | 0.070 | 0.161 | 1.86 | 0.092 | 0.158 | 1.89 | 0.117 | 0.161 | 2.13 | 0.119 | 0.150 | 11.15 | 0.411 | 0.424 | 6.93 | 0.246 | 0.260 | 2.86 | 0.129 | 0.130 | 6.67 | 0.244 | 0.253 | 6.29 | 0.243 | 0.256 | 
 | | | Y | V3 | 1.24 | 0.073 | 0.130 | 1.75 | 0.094 | 0.127 | 1.99 | 0.120 | 0.140 | 2.16 | 0.118 | 0.133 | 10.80 | 0.384 | 0.388 | 6.73 | 0.224 | 0.238 | 2.77 | 0.114 | 0.119 | 6.55 | 0.244 | 0.276 | 6.27 | 0.247 | 0.255 | 
 
-Note: the first network also included SITW dev in training, that's why the results are so good for SITW dev.
+Notes: 
+ - Calibration is computed on SRE19 AV Dev
+ - The first network also included SITW dev in training, that's why the results are so good for SITW dev.
+
