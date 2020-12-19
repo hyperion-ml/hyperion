@@ -3,13 +3,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-"""
-Plot histogram of i-vectors
-"""
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import sys
 import os
@@ -23,10 +16,8 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 from hyperion.hyp_defs import config_logger
-from hyperion.io import HypDataReader
 from hyperion.helpers import VectorReader as VR
 from hyperion.transforms import TransformList
-
 
 
 def plot_vector_hist(iv_file, v_list, preproc_file, output_path, num_bins, normed, **kwargs):
@@ -45,7 +36,7 @@ def plot_vector_hist(iv_file, v_list, preproc_file, output_path, num_bins, norme
     if not os.path.exists(output_path):
         os.makedirs(ouput_path)
 
-    for i in xrange(x.shape[1]):
+    for i in range(x.shape[1]):
         
         fig_file = '%s/D%04d.pdf' % (output_path, i)
         
@@ -58,8 +49,6 @@ def plot_vector_hist(iv_file, v_list, preproc_file, output_path, num_bins, norme
         
 
     logging.info('Elapsed time: %.2f s.' % (time.time()-t1))
-
-        
     
     
 if __name__ == "__main__":

@@ -26,7 +26,7 @@ def test_logdet_pdmat(dim=10):
     logA_t = np.log(la.det(A))
     # test logdet_pdmat
     logA = logdet_pdmat(A)
-    assert(np.allclose(logA_t, logA))
+    assert np.allclose(logA_t, logA)
 
 def test_invert_pdmat_leftinv(dim=10):
 
@@ -42,9 +42,9 @@ def test_invert_pdmat_leftinv(dim=10):
     
     invAx2 = invA_f(x2.T)
     
-    assert(np.allclose(logA_t, logA))
-    assert(np.allclose(invA_t, invA))
-    assert(np.allclose(invAx2_t, invAx2))
+    assert np.allclose(logA_t, logA)
+    assert np.allclose(invA_t, invA)
+    assert np.allclose(invAx2_t, invAx2)
 
     
 def test_invert_pdmat_rightinv(dim=10):
@@ -59,9 +59,9 @@ def test_invert_pdmat_rightinv(dim=10):
 
     x2invA = invA_f(x2)
     
-    assert(np.allclose(logA_t, logA))
-    assert(np.allclose(invA_t, invA))
-    assert(np.allclose(x2invA_t, x2invA))
+    assert np.allclose(logA_t, logA)
+    assert np.allclose(invA_t, invA)
+    assert np.allclose(x2invA_t, x2invA)
 
     
 # test invert_trimat upper triangular
@@ -81,9 +81,9 @@ def test_invert_uppertrimat_leftinv(dim=10):
 
     invBx2 = invB_f(x2.T)
     
-    assert(np.allclose(logB_t, logB))
-    assert(np.allclose(invB_t, invB))
-    assert(np.allclose(invBx2_t, invBx2))
+    assert np.allclose(logB_t, logB)
+    assert np.allclose(invB_t, invB)
+    assert np.allclose(invBx2_t, invBx2)
 
     
 def test_invert_uppertrimat_rightinv(dim=10):
@@ -102,9 +102,9 @@ def test_invert_uppertrimat_rightinv(dim=10):
 
     x2invB = invB_f(x2)
     
-    assert(np.allclose(logB_t, logB))
-    assert(np.allclose(invB_t, invB))
-    assert(np.allclose(x2invB_t, x2invB))
+    assert np.allclose(logB_t, logB)
+    assert np.allclose(invB_t, invB)
+    assert np.allclose(x2invB_t, x2invB)
 
 
 # test invert_trimat lower triangular    
@@ -125,9 +125,9 @@ def test_invert_lowertrimat_leftinv(dim=10):
 
     invCx2 = invC_f(x2.T)
     
-    assert(np.allclose(logC_t, logC))
-    assert(np.allclose(invC_t, invC))
-    assert(np.allclose(invCx2_t, invCx2))
+    assert np.allclose(logC_t, logC)
+    assert np.allclose(invC_t, invC)
+    assert np.allclose(invCx2_t, invCx2)
 
     
 
@@ -147,9 +147,9 @@ def test_invert_lowertrimat_rightinv(dim=10):
 
     x2invC = invC_f(x2)
     
-    assert(np.allclose(logC_t, logC))
-    assert(np.allclose(invC_t, invC))
-    assert(np.allclose(x2invC_t, x2invC))
+    assert np.allclose(logC_t, logC)
+    assert np.allclose(invC_t, invC)
+    assert np.allclose(x2invC_t, x2invC)
 
 
 def test_softmax(dim=10):
@@ -160,7 +160,7 @@ def test_softmax(dim=10):
 
     z = np.log(y_t)+10
     y = softmax(z)
-    assert(np.allclose(y_t, y))
+    assert np.allclose(y_t, y)
 
 
 
@@ -172,7 +172,7 @@ def test_logsumexp(dim=10):
     y_t = np.log(np.sum(y_t, axis=-1)+1e-20)
 
     y = logsumexp(z)
-    assert(np.allclose(y_t, y, rtol=1e-5))
+    assert np.allclose(y_t, y, rtol=1e-5)
 
     
 # test fisher ratio
@@ -186,7 +186,7 @@ def test_fisher_ratio(dim=10):
     mu2 = np.random.randn(dim)
     r1 = fisher_ratio(mu1, A, mu2, A)
     r2 = fisher_ratio_with_precs(mu1, invA, mu2, invA)
-    assert(np.allclose(r1, r2))
+    assert np.allclose(r1, r2)
 
 
 # test mat2vec conversions
@@ -196,11 +196,11 @@ def test_symmat2vec(dim=10):
     
     v = symmat2vec(A, lower=False)
     Ac = vec2symmat(v, lower=False)
-    assert(np.allclose(A, Ac))
+    assert np.allclose(A, Ac)
 
     v = symmat2vec(A, lower=True)
     Ac = vec2symmat(v, lower=True)
-    assert(np.allclose(A, Ac))
+    assert np.allclose(A, Ac)
 
     
 def test_trimat2vec(dim=10):
@@ -211,11 +211,11 @@ def test_trimat2vec(dim=10):
     
     v = trimat2vec(B, lower=False)
     Bc = vec2trimat(v, lower=False)
-    assert(np.allclose(B, Bc))
+    assert np.allclose(B, Bc)
 
     v = trimat2vec(C, lower=True)
     Cc = vec2trimat(v, lower=True)
-    assert(np.allclose(C, Cc))
+    assert np.allclose(C, Cc)
 
     
 # test fullcov flooring
@@ -223,7 +223,7 @@ def test_fullcov_varfloor(dim=10):
 
     A = create_matrices(dim)[0]
     u, d, _= la.svd(A, full_matrices=False)
-    assert(np.allclose(A, np.dot(u*d, u.T)))
+    assert np.allclose(A, np.dot(u*d, u.T))
     d1=d
     d1[int(dim/2):]=0.0001
     D1=np.dot(u*d1, u.T)
@@ -234,8 +234,8 @@ def test_fullcov_varfloor(dim=10):
 
     RF=la.cholesky(F).T
     DF_2=fullcov_varfloor(D1, RF, F_is_chol=True, lower=True)
-    assert(np.allclose(DF_1, F))
-    assert(np.allclose(DF_1, F))
+    assert np.allclose(DF_1, F)
+    assert np.allclose(DF_1, F)
 
 
 
@@ -244,7 +244,7 @@ def test_fullcov_varfloor_from_cholS(dim=10):
 
     A = create_matrices(dim)[0]
     u, d, _= la.svd(A, full_matrices=False)
-    assert(np.allclose(A, np.dot(u*d, u.T)))
+    assert np.allclose(A, np.dot(u*d, u.T))
     d1=d
     d1[int(dim/2):]=0.0001
     D1=np.dot(u*d1, u.T)
@@ -257,8 +257,8 @@ def test_fullcov_varfloor_from_cholS(dim=10):
     RD1=la.cholesky(D1).T
     RF=la.cholesky(F).T
     RF_2=fullcov_varfloor_from_cholS(RD1, RF, lower=True)
-    assert(np.allclose(RF, RF_2))
-    assert(np.allclose(RF_1, RF_2.T))
+    assert np.allclose(RF, RF_2)
+    assert np.allclose(RF_1, RF_2.T)
     
 
 if __name__ == '__main__':

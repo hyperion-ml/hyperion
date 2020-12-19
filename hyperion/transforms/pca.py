@@ -2,31 +2,26 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
-
 import numpy as np
 import h5py
 
 import scipy.linalg as la
 
 from ..hyp_model import HypModel
-from ..pdfs import Normal
 
 
 class PCA(HypModel):
     """Class to do principal component analysis
     """
-    def __init__(self, mu=None, T=None, update_mu=True, update_T=True, pca_dim=None, **kwargs):
-        super(PCA, self).__init__(**kwargs)
+    def __init__(self, mu=None, T=None, update_mu=True, update_T=True, 
+                 pca_dim=None, pca_var_r=None, **kwargs):
+        super().__init__(**kwargs)
         self.mu = mu
         self.T = T
         self.update_mu = update_mu
         self.update_T = update_T
         self.pca_dim = pca_dim
-
+        self.pca_var_r = pca_var_r
 
         
     def predict(self, x):
@@ -42,10 +37,6 @@ class PCA(HypModel):
             mu = np.mean(x, axis=0)
             delta = x - mu
             C = np.dot(delta.T, delta)/x.shape[0]
-            # gauss = Normal(x_dim=x.shape[1])
-            # gauss.fit(x=x, sample_weight=sample_weight)
-            # mu = gauss.mu
-            # C = gauss.Sigma
 
         if self.update_mu:
             self.mu = mu
@@ -56,9 +47,15 @@ class PCA(HypModel):
 
             p = V[0,:] < 0
             V[:,p] *= -1
+
+            if self.pca_var_r is not None:
+                d = np.flip(d)
+                var_acc = np.cumsum(d)
+                var_r = var_acc/var_acc[-1]
+                self.pca_dim = np.where(var_r > self.pca_var_r)[0][0]
         
             if self.pca_dim is not None:
-                assert(self.pca_dim <= V.shape[1])
+                assert self.pca_dim <= V.shape[1]
                 V = V[:,:self.pca_dim]
 
             self.T = V
@@ -68,8 +65,9 @@ class PCA(HypModel):
     def get_config(self):
         config = {'update_mu': self.update_mu,
                   'update_t': self.update_T,
-                  'pca_dim': self.pca_dim}
-        base_config = super(PCA, self).get_config()
+                  'pca_dim': self.pca_dim,
+                  'pca_var_r': self.pca_var_r}
+        base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
     
@@ -112,7 +110,7 @@ class PCA(HypModel):
         else:
             p = prefix + '_'
             
-        valid_args = ('update_mu', 'update_T', 'name', 'pca_dim')
+        valid_args = ('update_mu', 'update_T', 'name', 'pca_dim', 'pca_var_r')
         return dict((k, kwargs[p+k])
                     for k in valid_args if p+k in kwargs)
 
@@ -126,14 +124,16 @@ class PCA(HypModel):
             p1 = '--' + prefix + '-'
             p2 = prefix + '_'
             
-        parser.add_argument(p1+'update-mu', dest=(p2+'update_mu'), default=True,
-                            type=bool,
+        parser.add_argument(p1+'update-mu', default=True, type=bool,
                             help=('updates centering parameter'))
         parser.add_argument(p1+'update-t', dest=(p2+'update_T'), default=True,
                             type=bool,
                             help=('updates whitening parameter'))
-        parser.add_argument(p1+'pca-dim', dest=(p2+'pca_dim'), default=None,
-                            type=int,
+
+        parser.add_argument(p1+'pca-dim', default=None, type=int,
                             help=('output dimension of PCA'))
+
+        parser.add_argument(p1+'pca-var-r', default=None, type=int,
+                            help=('proportion of variance to keep when choosing the PCA dimension'))
 
         parser.add_argument('--name', dest='name', default='pca')

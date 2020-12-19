@@ -23,3 +23,8 @@ nnet_num_epochs=90
 num_augs=5
 nnet_dir=exp/vae_nnets/$nnet_name
 nnet=$nnet_dir/model_ep0090.pth
+
+# xvector network trained with recipe v1.1
+xvec_nnet_name=fbank80_stmn_lresnet34_e256_arcs30m0.3_do0_adam_lr0.05_b512_amp.v1
+xvec_nnet_dir=../v1.1/exp/xvector_nnets/$xvec_nnet_name
+xvec_nnet=$xvec_nnet_dir/model_ep0070.pth

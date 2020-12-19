@@ -29,7 +29,6 @@ score_plda_dir=$score_dir/plda_${diar_name}
 
 if [ $stage -le 1 ]; then
 
-
     steps_be/train_vid_be_v1.sh --cmd "$train_cmd" \
 				--lda_dim $lda_vid_dim \
 				--plda_type $plda_vid_type \
@@ -40,11 +39,7 @@ if [ $stage -le 1 ]; then
 				data/sitw_dev_${diar_name} \
 				$xvector_dir/sre18_dev_vast_${diar_name}/xvector.scp \
 				data/sre18_dev_vast_${diar_name} \
-				$be_vid_dir &
-
-
-    wait
-
+				$be_vid_dir
 fi
 
 
@@ -204,7 +199,7 @@ if [ $stage -le 6 ];then
     local/score_sre19av.sh data/sre19_av_a_eval_test a_eval ${score_plda_dir}_cal_v1_sre19
     local/score_janus_core.sh data/janus_dev_test_core dev ${score_plda_dir}_cal_v1_sre19
     local/score_janus_core.sh data/janus_eval_test_core eval ${score_plda_dir}_cal_v1_sre19
-    exit
+
 fi
 
 score_plda_dir=$score_dir/plda_snorm_v1_${diar_name}
