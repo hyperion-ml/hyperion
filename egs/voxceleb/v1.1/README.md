@@ -97,12 +97,18 @@ run_040_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | | | | Cosine | 1.31 | 0.080 | 0.139 |
 | config_fbank80_stmn_effnetb7_v2_eina_hln_arcs30m0.3_adam_lr0.01_amp.v1.sh | EfficientNet-b7 v2 | EfficientNet-b7 with strides=1122121 <br> Instance-Norm with affine transform in Encoder <br> Layer-Norm in head <br> ArcFace s=30/m=0.3 | 1.29 | 0.088 | 0.129 |
 | | | | Cosine | 1.23 | 0.083 | 0.136 |
-| config_fbank80_stmn_res2net50w26s4_arcs30m0.3_adam_lr0.05_amp.v1.sh | Res2Net50 | ArcFace s=30/m=0.3 | PLDA |  1.14 | 0.073 | 0.134 |
+| config_fbank80_stmn_res2net34w16s4_arcs30m0.3_adam_lr0.05_amp.v1.sh | Res2Net34 width=16x4 | ArcFace s=30/m=0.3 | PLDA |  1.20 | 0.095 | 0.156 |
+| | | | Cosine | 1.29 | 0.089 | 0.146 |
+| config_fbank80_stmn_res2net34w26s4_arcs30m0.3_adam_lr0.05_amp.v1.sh | Res2Net34 width=26x4 | ArcFace s=30/m=0.3 | PLDA |  1.20 | 0.084 | 0.136 |
+| | | | Cosine | 1.18 | 0.078 | 0.115 |
+| config_fbank80_stmn_res2net50w26s4_arcs30m0.3_adam_lr0.05_amp.v1.sh | Res2Net50 width=26x4 | ArcFace s=30/m=0.3 | PLDA |  1.14 | 0.073 | 0.134 |
 | | | | Cosine | 1.14 | 0.081 | 0.116 |
 | config_fbank80_stmn_seres2net50w26s4_arcs30m0.3_adam_lr0.05_amp.v1.sh | SE-Res2Net50 | se-r=16 <br> ArcFace s=30/m=0.3 | PLDA |  1.53 | 0.104 | 0.189 |
 | | | | Cosine | 1.31 | 0.084 | 0.132 |
 | config_fbank80_stmn_tseres2net50w26s4_arcs30m0.3_adam_lr0.05_amp.v1.sh | Time-SE-Res2Net50 | se-r=256 <br> ArcFace s=30/m=0.3 | PLDA |  0.98 | 0.066 | 0.116 |
 | | | | Cosine | 1.12 | 0.071 | 0.103 |
+| config_fbank80_stmn_res2net50w13s8_arcs30m0.3_adam_lr0.05_amp.v1.sh | Res2Net50 width=13x8 | ArcFace s=30/m=0.3 | PLDA |  1.05 | 0.077 | 0.123 |
+| | | | Cosine | 0.96 | 0.065 | 0.110 |
 
 
 ### VoxCeleb 1 Entire-Clean trial list
@@ -119,12 +125,18 @@ run_040_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | | | | Cosine | 1.15 | 0.076 | 0.132 |
 | config_fbank80_stmn_effnetb7_v2_eina_hln_arcs30m0.3_adam_lr0.01_amp.v1.sh | EfficientNet-b7 v2 | EfficientNet-b7 with strides=1122121 <br> Instance-Norm with affine transform in Encoder <br> Layer-Norm in head <br> ArcFace s=30/m=0.3 | 1.47 | 0.094 | 0.165 |
 | | | | Cosine | 1.27 | 0.082 | 0.148 |
-| config_fbank80_stmn_res2net50w26s4_arcs30m0.3_adam_lr0.05_amp.v1.sh | Res2Net50 | ArcFace s=30/m=0.3 | PLDA |  1.17 | 0.075 | 0.131 |
+| config_fbank80_stmn_res2net34w16s4_arcs30m0.3_adam_lr0.05_amp.v1.sh | Res2Net34 width=16x4 | ArcFace s=30/m=0.3 | PLDA |  1.31 | 0.086 | 0.149 |
+| | | | Cosine | 1.22 | 0.079 | 0.134 |
+| config_fbank80_stmn_res2net34w26s4_arcs30m0.3_adam_lr0.05_amp.v1.sh | Res2Net34 width=26x4 | ArcFace s=30/m=0.3 | PLDA |  1.27 | 0.082 | 0.145 |
+| | | | Cosine | 1.16 | 0.074 | 0.130 |
+| config_fbank80_stmn_res2net50w26s4_arcs30m0.3_adam_lr0.05_amp.v1.sh | Res2Net50 width=26x4 | ArcFace s=30/m=0.3 | PLDA |  1.17 | 0.075 | 0.131 |
 | | | | Cosine | 1.09 | 0.068 | 0.122 |
 | config_fbank80_stmn_seres2net50w26s4_arcs30m0.3_adam_lr0.05_amp.v1.sh | SE-Res2Net50 | se-r=16 <br> ArcFace s=30/m=0.3 | PLDA |  1.46 | 0.097 | 0.173 |
 | | | | Cosine | 1.24 | 0.080 | 0.140 |
 | config_fbank80_stmn_tseres2net50w26s4_arcs30m0.3_adam_lr0.05_amp.v1.sh | Time-SE-Res2Net50 | se-r=256 <br> ArcFace s=30/m=0.3 | PLDA |  1.11 | 0.071 | 0.127 |
 | | | | Cosine | 1.05 | 0.067 | 0.117 |
+| config_fbank80_stmn_res2net50w13s8_arcs30m0.3_adam_lr0.05_amp.v1.sh | Res2Net50 width=13x8 | ArcFace s=30/m=0.3 | PLDA |  1.23 | 0.078 | 0.134 |
+| | | | Cosine | 1.05 | 0.069 | 0.121 |
 
 
 ### VoxCeleb 1 Hard-Clean trial list
@@ -141,10 +153,16 @@ run_040_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | | | | Cosine | 2.11 | 0.127 | 0.205 |
 | config_fbank80_stmn_effnetb7_v2_eina_hln_arcs30m0.3_adam_lr0.01_amp.v1.sh | EfficientNet-b7 v2 | EfficientNet-b7 with strides=1122121 <br> Instance-Norm with affine transform in Encoder <br> Layer-Norm in head <br> ArcFace s=30/m=0.3 | 2.64 | 0.157 | 0.244 |
 | | | | Cosine | 2.33 | 0.141 | 0.232 |
-| config_fbank80_stmn_res2net50w26s4_arcs30m0.3_adam_lr0.05_amp.v1.sh | Res2Net50 | ArcFace s=30/m=0.3 | PLDA |  2.16 | 0.131 | 0.218 |
+| config_fbank80_stmn_res2net34w16s4_arcs30m0.3_adam_lr0.05_amp.v1.sh | Res2Net34 width=16x4 | ArcFace s=30/m=0.3 | PLDA |  2.42 | 0.144 | 0.245 |
+| | | | Cosine | 2.26 | 0.133 | 0.224
+| config_fbank80_stmn_res2net34w26s4_arcs30m0.3_adam_lr0.05_amp.v1.sh | Res2Net34 width=26x4 | ArcFace s=30/m=0.3 | PLDA |  2.39 | 0.141 | 0.235 |
+| | | | Cosine | 2.17 | 0.128 | 0.215
+| config_fbank80_stmn_res2net50w26s4_arcs30m0.3_adam_lr0.05_amp.v1.sh | Res2Net50 width=26x4 | ArcFace s=30/m=0.3 | PLDA |  2.16 | 0.131 | 0.218 |
 | | | | Cosine | 2.00 | 0.119 | 0.195 |
 | config_fbank80_stmn_seres2net50w26s4_arcs30m0.3_adam_lr0.05_amp.v1.sh | SE-Res2Net50 | se-r=16 <br> ArcFace s=30/m=0.3 | PLDA |  2.77 | 0.172 | 0.271 |
 | | | | Cosine | 2.45 | 0.141 | 0.225 |
 | config_fbank80_stmn_tseres2net50w26s4_arcs30m0.3_adam_lr0.05_amp.v1.sh | Time-SE-Res2Net50 | se-r=256 <br> ArcFace s=30/m=0.3 | PLDA |  2.07 | 0.124 | 0.201 |
 | | | | Cosine | 1.95 | 0.113 | 0.181 |
+| config_fbank80_stmn_res2net50w13s8_arcs30m0.3_adam_lr0.05_amp.v1.sh | Res2Net50 width=13x8 | ArcFace s=30/m=0.3 | PLDA |  2.34 | 0.136 | 0.230 |
+| | | | Cosine | 1.99 | 0.119 | 0.196 |
 
