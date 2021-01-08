@@ -2,7 +2,6 @@
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
 
 import math
 import logging
@@ -22,7 +21,7 @@ class CarliniWagnerL2(CarliniWagner):
                  norm_time=False, time_dim=None, use_snr=False,
                  targeted=False, range_min=None, range_max=None):
 
-        super(CarliniWagnerL2, self).__init__(
+        super().__init__(
             model, confidence=confidence, lr=lr, 
             max_iter=max_iter,
             abort_early=abort_early, initial_c=initial_c, 
@@ -31,6 +30,20 @@ class CarliniWagnerL2(CarliniWagner):
 
         self.binary_search_steps = binary_search_steps
         self.repeat = binary_search_steps >= 10
+
+
+    @property
+    def attack_info(self):
+        info = super().attack_info
+        if self.use_snr:
+            threat = 'snr'
+        else:
+            threat = 'l2'
+        new_info = {'binary_search_steps': self.binary_search_steps,
+                    'threat_model': threat,
+                    'attack_type': 'cw-l2' }
+        info.update(new_info)
+        return info
 
 
     @staticmethod
@@ -119,22 +132,33 @@ class CarliniWagnerL2(CarliniWagner):
                 best_adv[improv_idx] = x_adv[improv_idx]
 
                 if opt_step % (self.max_iter//10) == 0:
-                    logging.info('----carlini-wagner bin-search-step={0:d}, opt-step={1:d} '
-                                 'loss={2:.2f} d_norm={3:.2f} cf={4:.4f} num-success={5:d}'.format(
-                                     bs_step, opt_step,
-                                     loss.item(), loss1.item(), loss2.item(), torch.sum(step_success)))
+                    logging.info('----carlini-wagner bin-search-step={0:d}, '
+                                 'opt-step={1:d}/{2:d} '
+                                 'loss={3:.2f} d_norm={4:.2f} cf={5:.4f} '
+                                 'num-success={6:d}'.format(
+                                     bs_step, opt_step, self.max_iter,
+                                     loss.item(), loss1.item(), loss2.item(), 
+                                     torch.sum(step_success)))
 
-                    logging.info('----carlini-wagner bin-search-step={}, opt-step={} '
-                                 'step_success={}, success={} best_norm={} global_success={} global_best_norm={} d_norm={}'.format(
-                                     bs_step, opt_step, step_success, success, best_norm, global_success, global_best_norm, d_norm))
+                    logging.info('----carlini-wagner bin-search-step={}, '
+                                 'opt-step={}/{} '
+                                 'step_success={}, success={} best_norm={} '
+                                 'global_success={} '
+                                 'global_best_norm={} d_norm={}'.format(
+                                     bs_step, opt_step, self.max_iter, 
+                                     step_success, success, best_norm, 
+                                     global_success, global_best_norm, d_norm))
 
                 loss_it = loss.item()
                 if self.abort_early:
                     if loss_it > 0.999*loss_prev:
+                        logging.info('----carlini-wagner abort-early '
+                                     'bin-search-step={}, opt-step={}/{} '
+                                     'loss={}, loss_prev={}'.format(
+                                         bs_step, opt_step, self.max_iter, 
+                                         loss_it, loss_prev))
                         break
                     loss_prev = loss_it
-
-
                 
             #readjust c
             c_upper_bound[success] = torch.min(c_upper_bound[success], c[success])
@@ -144,5 +168,4 @@ class CarliniWagnerL2(CarliniWagner):
             cx10_idx = (~success) & (~avg_c_idx)
             c[cx10_idx] *= 10
 
-            
         return best_adv

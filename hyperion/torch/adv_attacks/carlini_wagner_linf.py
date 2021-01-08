@@ -2,7 +2,6 @@
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
 
 import logging
 
@@ -21,7 +20,7 @@ class CarliniWagnerLInf(CarliniWagner):
                  c_incr_factor=2, tau_decr_factor=0.9, 
                  targeted=False, range_min=None, range_max=None):
 
-        super(CarliniWagnerLInf, self).__init__(
+        super().__init__(
             model, confidence=confidence, lr=lr, 
             max_iter=max_iter,
             abort_early=abort_early, initial_c=initial_c, 
@@ -29,6 +28,18 @@ class CarliniWagnerLInf(CarliniWagner):
         self.reduce_c = reduce_c
         self.c_incr_factor = c_incr_factor
         self.tau_decr_factor = tau_decr_factor
+
+
+    @property
+    def attack_info(self):
+        info = super().attack_info
+        new_info = {'reduce_c': self.reduce_c,
+                    'c_incr_factor': self.c_incr_factor,
+                    'tau_decr_factor': self.tau_decr_factor,
+                    'threat_model': 'linf',
+                    'attack_type': 'cw-linf'}
+        info.update(new_info)
+        return info
 
 
     def _attack(self, x, target, start_adv, tau, c):
@@ -58,8 +69,10 @@ class CarliniWagnerLInf(CarliniWagner):
                 #if the attack is successful f(x+delta)==0
                 step_success = (f < 1e-4)
                 if opt_step % (self.max_iter//10) == 0:
-                    logging.info('--------carlini-wagner-linf--l1-optim c_step={0:d} opt-step={1:d} c={2:f} '
-                                 'loss={3:.2f} d_norm={4:.2f} cf={5:.5f} success={6}'.format(
+                    logging.info('--------carlini-wagner-linf--l1-optim '
+                                 'c_step={0:d} opt-step={1:d} c={2:f} '
+                                 'loss={3:.2f} d_norm={4:.2f} cf={5:.5f} '
+                                 'success={6}'.format(
                                      c_step, opt_step, c,
                                      loss.item(), loss1.item(), loss2.item(), 
                                      bool(step_success.item())))
@@ -91,7 +104,8 @@ class CarliniWagnerLInf(CarliniWagner):
         while tau > tau_min:
             res = self._attack(x, target, best_adv, tau, c)
             if res is None:
-                logging.info('----carlini-wagner-linf--return it={} x-shape={} tau={} c={}'.format(
+                logging.info('----carlini-wagner-linf--return it={} x-shape={} '
+                             'tau={} c={}'.format(
                     cur_it, x.shape, tau, c))
                 return best_adv[0]
 
@@ -104,8 +118,9 @@ class CarliniWagnerLInf(CarliniWagner):
             if actual_tau < tau:
                 tau = actual_tau
 
-            logging.info('----carlini-wagner-lin--tau-optim it={} x-shape={} tau={}'.format(
-                cur_it, x.shape, tau))
+            logging.info('----carlini-wagner-lin--tau-optim it={} x-shape={} '
+                         'tau={}'.format(
+                             cur_it, x.shape, tau))
 
             best_adv = x_adv
             tau *= self.tau_decr_factor

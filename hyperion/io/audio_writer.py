@@ -105,6 +105,7 @@ class AudioWriter(object):
         fs_is_list = isinstance(fs, (list, np.ndarray))
         assert self.subtype in subtype_to_npdtype
         dtype = subtype_to_npdtype[self.subtype]
+        output_files = []
         for i, key_i in enumerate(keys):
             assert is_token(key_i), 'Token %s not valid' % key_i
             file_basename = re.sub('/', '-', key_i)
@@ -113,10 +114,14 @@ class AudioWriter(object):
             data_i = data[i].astype(dtype, copy=False)
             sf.write(output_file, data_i, fs_i, subtype=self.subtype)
             
+            output_files.append(output_file)
+
             if self.f_script is not None:
                 self.f_script.write('%s%s%s\n' % (
                     key_i, self.scp_sep, output_file))
                 self.f_script.flush()
+
+        return output_files
 
 
     @staticmethod

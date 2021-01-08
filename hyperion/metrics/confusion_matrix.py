@@ -7,6 +7,7 @@ from __future__ import print_function
 from __future__ import division
 from six.moves import xrange
 
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix

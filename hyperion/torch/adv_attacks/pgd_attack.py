@@ -2,10 +2,6 @@
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-
-#import logging
-
 import torch
 
 from .adv_attack import AdvAttack
@@ -15,7 +11,7 @@ class PGDAttack(AdvAttack):
     def __init__(self, model, eps, alpha, norm, max_iter=10, 
                  random_eps=False, num_random_init=0, loss=None, 
                  targeted=False, range_min=None, range_max=None):
-        super(PGDAttack, self).__init__(
+        super().__init__(
             model, loss, targeted, range_min, range_max)
         self.eps = eps
         self.alpha = alpha
@@ -23,6 +19,28 @@ class PGDAttack(AdvAttack):
         self.norm = norm
         self.random_eps = random_eps
         self.num_random_init = num_random_init
+
+
+    @property
+    def attack_info(self):
+        info = super().attack_info
+        if norm == 1:
+            threat == 'l1'
+        elif norm == 2:
+            threat == 'l2'
+        else:
+            threat == 'linf'
+
+        new_info = {'eps': self.eps,
+                    'alpha': self.alpha,
+                    'norm': self.norm,
+                    'max_iter': self.max_iter,
+                    'random_eps': self.random_eps,
+                    'num_random_init': self.num_random_init,
+                    'threat_model': threat,
+                    'attack_type': 'pgd' }
+        info.update(new_info)
+        return info
 
 
     @staticmethod

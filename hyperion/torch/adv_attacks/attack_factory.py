@@ -2,7 +2,6 @@
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
 
 from .fgsm_attack import FGSMAttack
 from .snr_fgsm_attack import SNRFGSMAttack
@@ -16,67 +15,70 @@ from .pgd_attack import PGDAttack
 class AttackFactory(object):
 
     @staticmethod
-    def create(attack_type, model, attack_eps=0, attack_snr=100, attack_alpha=0, 
-               attack_norm=float('inf'), attack_random_eps=False, attack_num_random_init=0,
-               attack_confidence=0.0, attack_lr=1e-2, 
-               attack_binary_search_steps=9, attack_max_iter=10,
-               attack_abort_early=True, attack_c=1e-3,
-               attack_reduce_c=False, attack_c_incr_factor=2,
-               attack_tau_decr_factor=0.9,
-               attack_indep_channels=False,
-               attack_norm_time=False, time_dim=None,
-               attack_use_snr=False,
+    def create(attack_type, model, eps=0, snr=100, alpha=0, 
+               norm=float('inf'), random_eps=False, num_random_init=0,
+               confidence=0.0, lr=1e-2, 
+               binary_search_steps=9, max_iter=10,
+               abort_early=True, c=1e-3,
+               reduce_c=False, c_incr_factor=2,
+               tau_decr_factor=0.9,
+               indep_channels=False,
+               norm_time=False, time_dim=None,
+               use_snr=False,
                loss=None, 
-               targeted=False, range_min=None, range_max=None):
+               targeted=False, range_min=None, range_max=None, eps_scale=1):
+
+        eps = eps * eps_scale
+        alpha = alpha * eps_scale
 
         if attack_type == 'fgsm':
             return FGSMAttack(
-                model, attack_eps, loss=loss, targeted=targeted,
+                model, eps, loss=loss, targeted=targeted,
                 range_min=range_min, range_max=range_max)
 
         if attack_type == 'snr-fgsm':
             return SNRFGSMAttack(
-                model, attack_snr, loss=loss, targeted=targeted,
+                model, snr, loss=loss, targeted=targeted,
                 range_min=range_min, range_max=range_max)
 
         if attack_type == 'rand-fgsm':
             return RandFGSMAttack(
-                model, attack_eps, attack_alpha, loss=loss, 
+                model, eps, alpha, loss=loss, 
                 targeted=targeted, range_min=range_min, range_max=range_max)
 
         if attack_type == 'iter-fgsm':
             return IterFGSMAttack(
-                model, attack_eps, attack_alpha, loss=loss, 
+                model, eps, alpha, loss=loss, 
                 targeted=targeted, range_min=range_min, range_max=range_max)
 
         if attack_type == 'cw-l2':
             return CarliniWagnerL2(
-                model, attack_confidence, attack_lr, 
-                attack_binary_search_steps, attack_max_iter, 
-                attack_abort_early, attack_c, 
-                norm_time=attack_norm_time, time_dim=time_dim, 
-                use_snr=attack_use_snr,
+                model, confidence, lr, 
+                binary_search_steps, max_iter, 
+                abort_early, c, 
+                norm_time=norm_time, time_dim=time_dim, 
+                use_snr=use_snr,
                 targeted=targeted, range_min=range_min, range_max=range_max)
 
         if attack_type == 'cw-l0':
             return CarliniWagnerL0(
-                model, attack_confidence, attack_lr, attack_max_iter, 
-                attack_abort_early, attack_c,
-                attack_reduce_c, attack_c_incr_factor, attack_indep_channels,
+                model, confidence, lr, max_iter, 
+                abort_early, c,
+                reduce_c, c_incr_factor, indep_channels,
                 targeted=targeted, range_min=range_min, range_max=range_max)
 
         if attack_type == 'cw-linf':
             return CarliniWagnerLInf(
-                model, attack_confidence, attack_lr, attack_max_iter, 
-                attack_abort_early, attack_c,
-                attack_reduce_c, attack_c_incr_factor, attack_tau_decr_factor,
+                model, confidence, lr, max_iter, 
+                abort_early, c,
+                reduce_c, c_incr_factor, tau_decr_factor,
                 targeted=targeted, range_min=range_min, range_max=range_max)
 
 
         if attack_type == 'pgd':
             return PGDAttack(
-                model, attack_eps, attack_alpha, attack_norm, attack_max_iter, 
-                attack_random_eps, attack_num_random_init, loss=loss, 
+                model, eps, alpha, norm, max_iter, 
+                random_eps, num_random_init, loss=loss, 
                 targeted=targeted, range_min=range_min, range_max=range_max)
                 
         raise Exception('%s is not a valid attack type' % (attack_type))
@@ -90,21 +92,21 @@ class AttackFactory(object):
         else:
             p = prefix + '_'
 
-        if 'attack_no_abort' in kwargs:
-            kwargs['attack_abort_early'] = not kwargs['attack_no_abort']
+        if p + 'no_abort' in kwargs:
+            kwargs[p + 'abort_early'] = not kwargs[p + 'no_abort']
 
-        if 'attack_norm' in kwargs:
-            if isinstance(kwargs['attack_norm'], str):
-                kwargs['attack_norm'] == float(kwargs['attack_norm'])
+        if p + 'norm' in kwargs:
+            if isinstance(kwargs[p + 'norm'], str):
+                kwargs[p + 'norm'] = float(kwargs[p + 'norm'])
 
-        valid_args = ('attack_type', 'attack_eps', 'attack_snr', 
-                      'attack_norm', 'attack_random_eps', 'attack_num_random_init',
-                      'attack_alpha', 'attack_confidence',
-                      'attack_lr', 'attack_binary_search_steps',
-                      'attack_max_iter', 'attack_abort_early',
-                      'attack_c', 'attack_reduce_c', 
-                      'attack_c_incr_factor', 'attack_tau_decr_factor',
-                      'attack_indep_channels', 'attack_use_snr', 'attack_norm_time',
+        valid_args = ('attack_type', 'eps', 'snr', 
+                      'norm', 'random_eps', 'num_random_init',
+                      'alpha', 'confidence',
+                      'lr', 'binary_search_steps',
+                      'max_iter', 'abort_early',
+                      'c', 'reduce_c', 
+                      'c_incr_factor', 'tau_decr_factor',
+                      'indep_channels', 'use_snr', 'norm_time',
                       'targeted')
 
         args = dict((k, kwargs[p+k])
@@ -128,68 +130,68 @@ class AttackFactory(object):
             help=('Attack type'))
 
         parser.add_argument(
-            p1+'attack-norm', type=float, default=float('inf'),
+            p1+'norm', type=float, default=float('inf'),
             choices=[float('inf'), 1, 2],  help=('Attack perturbation norm'))
 
 
         parser.add_argument(
-            p1+'attack-eps', default=0, type=float,
+            p1+'eps', default=0, type=float,
             help=('attack epsilon, upper bound for the perturbation norm'))
 
         parser.add_argument(
-            p1+'attack-snr', default=100, type=float,
+            p1+'snr', default=100, type=float,
             help=('upper bound for the signal-to-noise ratio of the perturved signal'))
 
         parser.add_argument(
-            p1+'attack-alpha', default=0, type=float,
+            p1+'alpha', default=0, type=float,
             help=('alpha for iter and rand fgsm attack'))
 
         parser.add_argument(
-            p1+'attack-random-eps', default=False, action='store_true',
+            p1+'random-eps', default=False, action='store_true',
             help=('use random epsilon in PGD attack'))
 
         parser.add_argument(
-            p1+'attack-confidence', default=0, type=float,
+            p1+'confidence', default=0, type=float,
             help=('confidence for carlini-wagner attack'))
 
         parser.add_argument(
-            p1+'attack-lr', default=1e-2, type=float,
+            p1+'lr', default=1e-2, type=float,
             help=('learning rate for attack optimizers'))
 
         parser.add_argument(
-            p1+'attack-binary-search-steps', default=9, type=int,
+            p1+'binary-search-steps', default=9, type=int,
             help=('num bin. search steps in carlini-wagner-l2 attack'))
 
         parser.add_argument(
-            p1+'attack-max-iter', default=10, type=int,
+            p1+'max-iter', default=10, type=int,
             help=('max. num. of optim iters in attack'))
 
         parser.add_argument(
-            p1+'attack-c', default=1e-2, type=float,
+            p1+'c', default=1e-2, type=float,
             help=('initial weight of constraint function f in carlini-wagner attack'))
 
         parser.add_argument(
-            p1+'attack-reduce-c', default=False, action='store_true',
+            p1+'reduce-c', default=False, action='store_true',
             help=('allow to reduce c in carline-wagner-l0/inf attack'))
 
         parser.add_argument(
-            p1+'attack-c-incr-factor', default=2, type=float,
+            p1+'c-incr-factor', default=2, type=float,
             help=('factor to increment c in carline-wagner-l0/inf attack'))
 
         parser.add_argument(
-            p1+'attack-tau-decr-factor', default=0.75, type=float,
+            p1+'tau-decr-factor', default=0.75, type=float,
             help=('factor to reduce tau in carline-wagner-linf attack'))
 
         parser.add_argument(
-            p1+'attack-indep-channels', default=False, action='store_true',
+            p1+'indep-channels', default=False, action='store_true',
             help=('consider independent input channels in carline-wagner-l0 attack'))
 
         parser.add_argument(
-            p1+'attack-no-abort', default=False, action='store_true',
+            p1+'no-abort', default=False, action='store_true',
             help=('do not abort early in optimizer iterations'))
 
         parser.add_argument(
-            p1+'attack-num-random-init', default=0, type=int,
+            p1+'num-random-init', default=0, type=int,
             help=('number of random initializations in PGD attack'))
 
         parser.add_argument(
@@ -197,9 +199,9 @@ class AttackFactory(object):
             help='use targeted attack intead of non-targeted')
 
         parser.add_argument(
-            p1+'attack-use-snr', default=False, action='store_true',
+            p1+'use-snr', default=False, action='store_true',
             help=('In carlini-wagner attack maximize SNR instead of minimize perturbation norm'))
 
         parser.add_argument(
-            p1+'attack-norm-time', default=False, action='store_true',
+            p1+'norm-time', default=False, action='store_true',
             help=('normalize norm by number of samples in time dimension'))

@@ -2,7 +2,6 @@
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
 
 import logging
 
@@ -22,7 +21,7 @@ class CarliniWagnerL0(CarliniWagner):
                  indep_channels=False,
                  targeted=False, range_min=None, range_max=None):
 
-        super(CarliniWagnerL0, self).__init__(
+        super().__init__(
             model, confidence=confidence, lr=lr, 
             max_iter=max_iter,
             abort_early=abort_early, initial_c=initial_c, 
@@ -30,6 +29,18 @@ class CarliniWagnerL0(CarliniWagner):
         self.reduce_c = reduce_c
         self.c_incr_factor = c_incr_factor
         self.indep_channels = indep_channels
+
+
+    @property
+    def attack_info(self):
+        info = super().attack_info
+        new_info = {'reduce_c': self.reduce_c,
+                    'c_incr_factor': self.c_incr_factor,
+                    'indep_channel': self.indep_channels, 
+                    'threat_model': 'l0', 
+                    'attack_type': 'cw-l0' }
+        info.update(new_info)
+        return info
 
 
     def _attack_l2(self, x, target, valid, start_adv, c):
@@ -144,27 +155,31 @@ class CarliniWagnerL0(CarliniWagner):
                     # if total_change[idx] > .01 #this is what is hard coded in carlini's code but this makes optim very slow, it just removes one sample at a time, not feasible for speech
                     if total_change[idx] > 0.5*max_change:
                         #if change is big we stop putting elements to 0
-                        logging.info('break because of large total-change {} > {}'.format(total_change[idx], 0.5*max_change))
+                        logging.info('break because of large total-change '
+                                     '{} > {}'.format(
+                                         total_change[idx], 0.5*max_change))
                         break
 
                     if change_count >= 0.5*l0:   #in carlini's code 0.3*l0**.5
                         # if we put to many elements to 0, we stop
-                        logging.info('break because large change-count {} >= {} l0={}'.format(change_count, 0.5*float(l0), l0))
+                        logging.info('break because large change-count '
+                                     '{} >= {} l0={}'.format(
+                                         change_count, 0.5*float(l0), l0))
                         break
 
-            logging.info('----carlini-wagner-l0--l0-optim it={} x-shape={} l0={} c={}' 
-                         'cur-num-valid-changes={} next-num-valid-changes={} avg-total-change={} '
+            logging.info('----carlini-wagner-l0--l0-optim it={} x-shape={} '
+                         'l0={} c={}' 
+                         'cur-num-valid-changes={} next-num-valid-changes={} '
+                         'avg-total-change={} '
                          'max-total-change={} '.format(
-                             cur_it, x.shape, l0, c, cur_num_valid, cur_num_valid-change_count,
+                             cur_it, x.shape, l0, c, 
+                             cur_num_valid, cur_num_valid-change_count,
                              avg_change, max_change))
 
             valid = valid.view_as(x)
             best_adv = x_adv
             cur_it += 1
                     
-
-
-
 
     def generate(self, input, target):
         

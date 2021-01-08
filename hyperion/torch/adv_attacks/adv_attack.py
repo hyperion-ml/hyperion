@@ -2,7 +2,6 @@
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
 
 import torch
 import torch.nn as nn
@@ -20,7 +19,11 @@ class AdvAttack(object):
         self.range_max = range_max
         self.targeted = targeted
 
+    @property
+    def attack_info(self):
+        return {'targeted': self.targeted }
             
+
     def make_data_parallel(self):
         if self.loss is not None:
             self.loss = TorchDataParallel(self.loss)
