@@ -499,7 +499,7 @@ class XVector(TorchModel):
                 del pool_args[k]
 
 
-        valid_args = ('num_classes', 'num_embed_layers', 'hid_act', 'loss_type',
+        valid_args = ('num_classes', 'embed_dim', 'num_embed_layers', 'hid_act', 'loss_type',
                       's', 'margin', 'margin_warmup_epochs', 'use_norm', 'norm_before',
                       'in_feats', 'proj_feats', 'dropout_rate', 
                       'norm_layer', 'head_norm_layer')
