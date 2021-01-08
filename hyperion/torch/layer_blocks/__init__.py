@@ -10,7 +10,7 @@ from .etdnn_blocks import ETDNNBlock
 from .resetdnn_blocks import ResETDNNBlock
 from .resnet_blocks import ResNetInputBlock, ResNetBasicBlock, ResNetBNBlock
 from .seresnet_blocks import SEResNetBasicBlock, SEResNetBNBlock
-from .res2net_blocks import Res2NetBNBlock
+from .res2net_blocks import Res2NetBasicBlock, Res2NetBNBlock
 from .mbconv_blocks import MBConvBlock, MBConvInOutBlock
 from .transformer_feedforward import PositionwiseFeedForward, Conv1dx2, Conv1dLinear
 from .transformer_encoder_v1 import TransformerEncoderBlockV1
