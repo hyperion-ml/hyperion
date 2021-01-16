@@ -38,7 +38,7 @@ if [ $stage -le 1 ];then
   # Make filterbanks for the augmented data.  Note that we do not compute a new
   # vad.scp file here.  Instead, we use the vad.scp from the clean version of
   # the list.
-  for name in voxceleb_augx${num_augs} #dihard2_train_augx${num_augs} 
+  for name in voxcelebcat_augx${num_augs} #dihard2_train_augx${num_augs} 
   do
       $make_fbank --write-utt2num-frames true \
 	  --fbank-config $fbank_cfg --nj 120 --cmd "$train_cmd" \
@@ -52,7 +52,7 @@ fi
 if [ $stage -le 2 ];then
     
     # Combine the clean and augmented lists.  
-    utils/combine_data.sh --extra-files "utt2num_frames" data/voxceleb_combined data/voxceleb_augx${num_augs} data/voxceleb
+    utils/combine_data.sh --extra-files "utt2num_frames" data/voxcelebcat_combined data/voxcelebcat_augx${num_augs} data/voxcelebcat
     # utils/combine_data.sh --extra-files "utt2num_frames" data/dihard2_train_combined data/dihard2_train_augx${num_augs} data/dihard2_train
 
 fi
