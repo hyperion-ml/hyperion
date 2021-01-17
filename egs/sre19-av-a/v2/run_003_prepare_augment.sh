@@ -50,7 +50,7 @@ fi
 
 if [ $stage -le 2 ]; then
     
-  for name in voxceleb
+  for name in voxcelebcat
   do
       export TMPDIR=data/tmp
       mkdir -p $TMPDIR
@@ -117,14 +117,8 @@ fi
 if [ $stage -le 3 ];then
     
   # Take a random subset of the augmentations 
-  #utils/subset_data_dir.sh data/swbd_sre_tel_aug $(wc -l data/swbd_sre_tel/utt2spk | awk '{ print int('$num_augs'*$1)}') data/swbd_sre_tel_augx${num_augs}
-  #utils/fix_data_dir.sh data/swbd_sre_tel_augx${num_augs}
-
-  #utils/subset_data_dir.sh data/sre_phnmic_aug 20000 data/sre_phnmic_aug_20k
-  #utils/fix_data_dir.sh data/sre_phnmic_aug_20k
-
-  utils/subset_data_dir.sh data/voxceleb_aug $(wc -l data/voxceleb/utt2spk | awk '{ print int('$num_augs'*$1)}') data/voxceleb_augx${num_augs}
-  utils/fix_data_dir.sh data/voxceleb_augx${num_augs}
+  utils/subset_data_dir.sh data/voxcelebcat_aug $(wc -l data/voxcelebcat/utt2spk | awk '{ print int('$num_augs'*$1)}') data/voxcelebcat_augx${num_augs}
+  utils/fix_data_dir.sh data/voxcelebcat_augx${num_augs}
 
 fi
   

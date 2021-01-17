@@ -1,6 +1,6 @@
 # HYPERION
 
-Speech processing toolkit focused on speaker and language recognition
+Speaker recognition toolkit
 
 ## Cloning the repo
 

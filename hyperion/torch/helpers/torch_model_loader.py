@@ -10,8 +10,10 @@ import torch
 
 from ..narchs import *
 from ..seq_embed import XVector, TDNNXVector, ResNetXVector, TransformerXVectorV1, EfficientNetXVector
+from ..models import VAE, VQVAE
 
 class TorchModelLoader(object):
+
 
     @staticmethod
     def load(file_path, extra_objs={}, map_location=None):
@@ -31,11 +33,21 @@ class TorchModelLoader(object):
             raise Exception('unknown object with class_name=%s' % (class_name))
 
         state_dict = model_data['model_state_dict']
-        
-        #remove module prefix when is trained with dataparallel
-        p = re.compile('^module\.')
-        state_dict = ODict((p.sub('',k),v) for k,v in state_dict.items())
 
-        return class_obj.load(cfg=cfg, state_dict=state_dict)
+        if 'n_averaged' in state_dict:
+            del state_dict['n_averaged']
+
+        p = re.compile('^module\.')
+        num_tries = 3
+        for tries in range(num_tries):
+            try:
+                return class_obj.load(cfg=cfg, state_dict=state_dict)
+            except RuntimeError as err:
+                # remove module prefix when is trained with dataparallel
+                if tries == num_tries - 1:
+                    #if it failed the 3 trials raise exception
+                    raise err
+                # remove module prefix when is trained with dataparallel
+                state_dict = ODict((p.sub('',k), v) for k,v in state_dict.items())
 
     

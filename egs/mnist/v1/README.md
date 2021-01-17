@@ -1,3 +1,3 @@
-# MNIST classification v1
+# MNIST V1 
 
-Example to test classification networks in MNIST
+Classification task on MNIST

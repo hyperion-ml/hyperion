@@ -40,7 +40,6 @@ fi
 
 if [ $stage -le 1 ]; then
     
-
     steps_be/train_vid_be_v1.sh --cmd "$train_cmd" \
 				--lda_dim $lda_vid_dim \
 				--plda_type $plda_vid_type \
@@ -51,11 +50,7 @@ if [ $stage -le 1 ]; then
 				data/sitw_dev_${diar_name} \
 				$xvector_dir/sre18_dev_vast_${diar_name}/xvector.scp \
 				data/sre18_dev_vast_${diar_name} \
-				$be_vid_dir &
-
-
-    wait
-
+				$be_vid_dir 
 fi
 
 score_plda_dir=$score_dir/plda_snorm_v3_ncoh${ncoh_vast}_${diar_name}

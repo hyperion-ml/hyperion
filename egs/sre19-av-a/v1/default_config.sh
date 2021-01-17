@@ -1,8 +1,6 @@
 #Default configuration parameters for the experiment
 
 #xvector training 
-
-#xvector training 
 nnet_data=voxceleb_combined
 nnet_vers=3a.1
 nnet_name=3a.1.vcc
@@ -17,7 +15,7 @@ plda_diar_data=voxceleb
 be_diar_name=lda${lda_diar_dim}_plda_${plda_diar_data}
 
 diar_thr=-0.9
-min_dur=10
+min_dur_spkdet_subsegs=10 # minimum duration for the diarization clusters used for spk detection
 rttm_dir=./exp/diarization/$nnet_name/$be_diar_name
 diar_name=diar${nnet_name}_thr${diar_thr}
 

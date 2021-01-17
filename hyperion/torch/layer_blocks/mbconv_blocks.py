@@ -2,40 +2,41 @@
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
+# from __future__ import absolute_import
 
 import torch
 import torch.nn as nn
-from torch.nn import Conv2d, BatchNorm2d
+# from torch.nn import Conv2d, BatchNorm2d
 
 from ..layers import ActivationFactory as AF
 from ..layers import DropConnect2d
-from .seresnet_blocks import SEBlock2D, TSEBlock2D
+from .se_blocks import SEBlock2D, TSEBlock2D
 
 def _conv1x1(in_channels, out_channels, stride=1, bias=False):
     """1x1 convolution"""
     return nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, bias=bias)
 
 def _dwconvkxk(channels, kernel_size=3, stride=1, bias=False):
-    """3x3 convolution with padding"""
+    """kxk depth-wise convolution with padding"""
     return nn.Conv2d(channels, channels, kernel_size=kernel_size, stride=stride,
                      padding=(kernel_size-1)//2, groups=channels, bias=bias, 
-                     padding_mode='same')
+                     padding_mode='zeros')
 
 
-def _make_downsample(in_channels, out_channels, stride):
+def _make_downsample(in_channels, out_channels, stride, norm_layer):
 
     return nn.Sequential(
         _conv1x1(in_channels, out_channels, stride, bias=False), 
-        nn.BatchNorm2d(out_channels, momentum=0.01, eps=1e-3))
+        norm_layer(out_channels, momentum=0.01, eps=1e-3))
 
 
 class MBConvBlock(nn.Module):
 
     def __init__(self, in_channels, out_channels, expansion=6, kernel_size=3, 
                  stride=1, activation='swish', drop_connect_rate=0, 
+                 norm_layer=None,
                  se_r=None, time_se=False, num_feats=None):
-        super(MBConvBlock, self).__init__()
+        super().__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.expansion = expansion
@@ -49,14 +50,17 @@ class MBConvBlock(nn.Module):
         self.time_se = time_se
         self.num_feats = num_feats
 
+        if norm_layer is None:
+            norm_layer = nn.BatchNorm2d
+
         #expansion phase
         if self.expansion > 1:
             self.conv_exp = _conv1x1(in_channels, self.inner_channels)
-            self.bn_exp = nn.BatchNorm2d(self.inner_channels, momentum=0.01, eps=1e-3)
+            self.bn_exp = norm_layer(self.inner_channels, momentum=0.01, eps=1e-3)
 
         #depthwise conv phase
         self.conv_dw = _dwconvkxk(self.inner_channels, self.kernel_size, stride)
-        self.bn_dw = nn.BatchNorm2d(self.inner_channels, momentum=0.01, eps=1e-3)
+        self.bn_dw = norm_layer(self.inner_channels, momentum=0.01, eps=1e-3)
 
         #squeeze-excitation block
         if self.has_se:
@@ -65,8 +69,9 @@ class MBConvBlock(nn.Module):
             else:
                 self.se_layer = SEBlock2D(self.inner_channels, se_r, activation)
 
+        # projection phase
         self.conv_proj = _conv1x1(self.inner_channels, out_channels)
-        self.bn_proj = nn.BatchNorm2d(out_channels, momentum=0.01, eps=1e-3)
+        self.bn_proj = norm_layer(out_channels, momentum=0.01, eps=1e-3)
         self.drop_connect_rate = drop_connect_rate
         self.drop_connect = None
         if drop_connect_rate > 0:
@@ -76,7 +81,7 @@ class MBConvBlock(nn.Module):
         # this is different from official implementation where they remove the residual connection
         self.downsample = None
         if stride != 1 or in_channels != out_channels:
-            self.downsample = _make_downsample(in_channels, out_channels, stride)
+            self.downsample = _make_downsample(in_channels, out_channels, stride, norm_layer)
 
         self.context = stride*(kernel_size-1)//2
         self.downsample_factor = stride
@@ -108,16 +113,19 @@ class MBConvBlock(nn.Module):
 class MBConvInOutBlock(nn.Module):
     
     def __init__(self, in_channels, out_channels, kernel_size=3, stride=2,
-                 activation='swish'):
-        super(MBConvInOutBlock, self).__init__()
+                 activation='swish', norm_layer=None):
+        super().__init__()
+
+        if norm_layer is None:
+            norm_layer = nn.BatchNorm2d
 
         self.in_channels = in_channels
         self.out_channels = out_channels
         padding = int((kernel_size - 1)/2)
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, 
                               stride=stride, padding=padding, bias=False, 
-                              padding_mode='same')
-        self.bn = nn.BatchNorm2d(out_channels, momentum=0.01, eps=1e-3)
+                              padding_mode='zeros')
+        self.bn = norm_layer(out_channels, momentum=0.01, eps=1e-3)
         self.act = AF.create(activation)
         self.context = padding
         self.downsample_factor = stride

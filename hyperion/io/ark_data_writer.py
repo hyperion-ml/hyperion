@@ -2,11 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
-from six import string_types
 
 import sys
 import numpy as np
@@ -117,7 +112,7 @@ class ArkDataWriter(DataWriter):
                 it can be a 3D numpy array.
                 If they are vectors, it can be a 2D numpy array.
         """
-        if isinstance(keys, string_types):
+        if isinstance(keys, str):
             keys = [keys]
             data = [data]
             

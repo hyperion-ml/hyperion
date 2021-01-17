@@ -32,6 +32,7 @@ class EfficientNetXVector(XVector):
                  loss_type='arc-softmax',
                  s=64, margin=0.3, margin_warmup_epochs=0,
                  drop_connect_rate=0.2, dropout_rate=0,
+                 norm_layer=None, head_norm_layer=None,
                  use_norm=True, 
                  norm_before=True,
                  embed_layer=0, proj_feats=None):
@@ -43,14 +44,15 @@ class EfficientNetXVector(XVector):
             mbconv_expansions, head_channels, 
             width_scale=width_scale, depth_scale=depth_scale,
             fix_stem_head=fix_stem_head, hid_act=hid_act,
-            drop_connect_rate=drop_connect_rate,
+            drop_connect_rate=drop_connect_rate, norm_layer=norm_layer,
             se_r=se_r, time_se=time_se, in_feats=in_feats)
         
-        super(EfficientNetXVector, self).__init__(
+        super().__init__(
             encoder_net, num_classes, pool_net=pool_net, 
             embed_dim=embed_dim, num_embed_layers=num_embed_layers, 
             hid_act=hid_act, loss_type=loss_type, 
             s=s, margin=margin, margin_warmup_epochs=margin_warmup_epochs,
+            norm_layer=norm_layer, head_norm_layer=head_norm_layer,
             use_norm=use_norm, norm_before=norm_before, 
             dropout_rate=dropout_rate,
             embed_layer=embed_layer, 
@@ -132,7 +134,7 @@ class EfficientNetXVector(XVector):
 
     def get_config(self):
 
-        base_config = super(EfficientNetXVector, self).get_config()
+        base_config = super().get_config()
         del base_config['encoder_cfg']
 
         pool_cfg = self.pool_net.get_config()

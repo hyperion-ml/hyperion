@@ -2,14 +2,16 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
+# from __future__ import absolute_import
 
 import math
+import logging
 
 from ...utils.misc import str2bool
 
 import torch
 import torch.nn as nn
+import torch.cuda.amp as amp
 
 #from ...feats.feature_windows import FeatureWindowFactory as FWF
 from ...feats.filter_banks import FilterBankFactory as FBF
@@ -22,6 +24,14 @@ RECTANGULAR = 'rectangular'
 BLACKMAN = 'blackman'
 WINDOWS = [HAMMING, HANNING, POVEY, RECTANGULAR, BLACKMAN]
 
+
+def _amp_safe_matmul(a, b):
+    if _use_amp():
+        mx = torch.max(a, dim=-1, keepdim=True)[0]
+        return mx*torch.matmul(a/mx, b)
+
+    return torch.matmul(a, b)
+        
 
 
 def _get_feature_window_function(window_type, window_size, blackman_coeff=0.42):
@@ -67,7 +77,7 @@ def _get_strided_batch(waveform, window_length, window_shift, snip_edges):
     num_samples = waveform.size(-1)
 
     if snip_edges:
-        if num_samples < window_size:
+        if num_samples < window_length:
             return torch.empty((0, 0, 0))
         else:
             num_frames = 1 + (num_samples - window_length) // window_shift
@@ -130,6 +140,20 @@ class Wav2Win(nn.Module):
             requires_grad=False)
         self.pad_length = N if pad_length is None else pad_length
         assert self.pad_length >= N
+
+
+    def __repr__(self):
+        return self.__str__()
+
+    def __str__(self):
+        s = ('{}(fs={}, frame_length={}, frame_shift={}, pad_length={}, '
+             'remove_dc_offset={}, preemph_coeff={}, window_type={} '
+             'dither={}, snip_edges={}, energy_floor={}, raw_energy={}, return_log_energy={})').format(
+                 self.__class__.__name__, self.fs, self.frame_length, self.frame_shift,
+                 self.pad_length, self.remove_dc_offset, self.preemph_coeff,
+                 self.window_type, self.dither, self.snip_edges,
+                 self.energy_floor, self.raw_energy, self.return_log_energy)
+        return s
 
 
     def forward(self, x):
@@ -348,22 +372,28 @@ class Wav2LogFilterBank(Wav2FFT):
             requires_grad=False)
         
         
-
     def forward(self, x):
         
         x_strided = self.wav2win(x)
         if self.use_energy:
             x_strided, log_e = x_strided
-        #return x_strided
-        X = torch.rfft(x_strided, 1, normalized=False, onesided=True)
 
+        X = torch.rfft(x_strided, 1, normalized=False, onesided=True)
+        # logging.info('X={} {}'.format(X, X.type()))
+        # logging.info('X={}'.format(X.type()))
         pow_spec = X.pow(2).sum(-1)
+        # logging.info('p={} {} nan={}'.format(pow_spec, pow_spec.type(), torch.sum(torch.isnan(pow_spec))))
+        # logging.info('p={}'.format(pow_spec.type()))
         if self.use_fft_mag:
             pow_spec = pow_spec.sqrt()
 
-        pow_spec = torch.matmul(pow_spec, self._fb)
-        pow_spec = (pow_spec + 1e-15).log()
-
+        with amp.autocast(enabled=False):
+            pow_spec = torch.matmul(pow_spec.float(), self._fb.float())
+        #logging.info('fb={} {}'.format(pow_spec, pow_spec.type()))
+        #logging.info('fb={}'.format(pow_spec.type()))
+        pow_spec = (pow_spec + 1e-10).log() 
+        #logging.info('lfb={} {}'.format(pow_spec, pow_spec.type()))
+        #logging.info('lfb={}'.format(pow_spec.type()))
         if self.use_energy:
             pow_spec = torch.cat((log_e.unsqueeze(-1), pow_spec), dim=-1)
 
@@ -450,8 +480,10 @@ class Wav2MFCC(Wav2FFT):
         if self.use_fft_mag:
             pow_spec = pow_spec.sqrt()
 
-        pow_spec = torch.matmul(pow_spec, self._fb)
-        pow_spec = (pow_spec + 1e-15).log()
+        with amp.autocast(enabled=False):
+            pow_spec = torch.matmul(pow_spec.float(), self._fb.float())
+
+        pow_spec = (pow_spec + 1e-10).log()
 
         mfcc = torch.matmul(pow_spec, self._dct)
         if self.cepstral_lifter > 0:

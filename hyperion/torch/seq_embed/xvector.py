@@ -25,6 +25,7 @@ class XVector(TorchModel):
                  hid_act={'name':'relu', 'inplace': True}, 
                  loss_type='arc-softmax',
                  s=64, margin=0.3, margin_warmup_epochs=0,
+                 norm_layer=None, head_norm_layer=None,
                  use_norm=True, norm_before=True, 
                  dropout_rate=0,
                  embed_layer=0, 
@@ -65,8 +66,7 @@ class XVector(TorchModel):
 
         
         # create pooling network
-
-        #infer output dimension of pooling which is input dim for classification head
+        # infer output dimension of pooling which is input dim for classification head
         if proj_feats is None:
             self.pool_net = self._make_pool_net(pool_net, enc_feats) 
             pool_feats = int(enc_feats * self.pool_net.size_multiplier)
@@ -76,6 +76,13 @@ class XVector(TorchModel):
         
         logging.info('infer pooling dimension %d' % (pool_feats))
 
+        # if head_norm_layer is none we use the global norm_layer
+        if head_norm_layer is None and norm_layer is not None:
+            if norm_layer == 'instance-norm' or norm_layer == 'instance-norm-affine':
+                head_norm_layer = 'batch-norm'
+            else:
+                head_norm_layer = norm_layer
+
         # create classification head
         logging.info('making classification head net')
         self.classif_net = ClassifHead(
@@ -84,14 +91,18 @@ class XVector(TorchModel):
             hid_act=hid_act,
             loss_type=loss_type,
             s=s, margin=margin, margin_warmup_epochs=margin_warmup_epochs,
+            norm_layer=head_norm_layer,
             use_norm=use_norm, norm_before=norm_before, 
             dropout_rate=dropout_rate)
 
         self.hid_act = hid_act
+        self.norm_layer = norm_layer
+        self.head_norm_layer = head_norm_layer
         self.use_norm = use_norm
         self.norm_before = norm_before
         self.dropout_rate = dropout_rate
         self.embed_layer = embed_layer
+
 
     @property
     def pool_feats(self):
@@ -175,8 +186,17 @@ class XVector(TorchModel):
         
         return x
 
+      
+    def forward(self, x, y=None, use_amp=False):
+        if use_amp:
+            with torch.cuda.amp.autocast():
+                return self._forward(x, y)
 
-    def forward(self, x, y=None):
+        return self._forward(x, y)
+
+      
+    def _forward(self, x, y=None):
+
         """Forward function
 
         Args:
@@ -351,6 +371,8 @@ class XVector(TorchModel):
                   's': self.s,
                   'margin': self.margin,
                   'margin_warmup_epochs': self.margin_warmup_epochs,
+                  'norm_layer': self.norm_layer,
+                  'head_norm_layer': self.head_norm_layer,
                   'use_norm': self.use_norm,
                   'norm_before': self.norm_before,
                   'dropout_rate': self.dropout_rate,
@@ -367,7 +389,12 @@ class XVector(TorchModel):
         cfg, state_dict = cls._load_cfg_state_dict(
             file_path, cfg, state_dict)
 
-        encoder_net = TorchNALoader.load(cfg=cfg['encoder_cfg'])
+        # preproc_net = None
+        # if 'preproc_cfg' in cfg:
+        #     preproc_net = TorchNALoader.load(cfg=cfg['preproc_cfg'])
+        #     del cfg['preproc_cfg']
+
+        encoder_net = TorchNALoader.load_from_cfg(cfg=cfg['encoder_cfg'])
         for k in ('encoder_cfg'):
             del cfg[k]
         
@@ -407,7 +434,7 @@ class XVector(TorchModel):
 
 
 
-    def train_mode(self, mode='ft_embed_affine'):
+    def train_mode(self, mode='ft-embed-affine'):
         if mode == 'ft-full' or mode == 'train':
             self.train()
             return 
@@ -458,9 +485,10 @@ class XVector(TorchModel):
                 del pool_args[k]
 
 
-        valid_args = ('num_classes', 'num_embed_layers', 'hid_act', 'loss_type',
+        valid_args = ('num_classes', 'embed_dim', 'num_embed_layers', 'hid_act', 'loss_type',
                       's', 'margin', 'margin_warmup_epochs', 'use_norm', 'norm_before',
-                      'in_feats', 'proj_feats', 'dropout_rate')
+                      'in_feats', 'proj_feats', 'dropout_rate', 
+                      'norm_layer', 'head_norm_layer')
         args = dict((k, kwargs[p+k])
                     for k in valid_args if p+k in kwargs)
 
@@ -525,7 +553,7 @@ class XVector(TorchModel):
                             help=('number of layers in the classif head'))
         
         try:
-            parser.add_argument(p1+'hid_act', default='relu6', 
+            parser.add_argument(p1+'hid-act', default='relu6', 
                                 help='hidden activation')
         except:
             pass
@@ -542,6 +570,24 @@ class XVector(TorchModel):
         
         parser.add_argument(p1+'margin-warmup-epochs', default=10, type=float,
                             help='number of epoch until we set the final margin')
+        try:
+            parser.add_argument(
+                p1+'norm-layer', default=None, 
+                choices=['batch-norm', 'group-norm', 'instance-norm', 'instance-norm-affine', 'layer-norm'],
+                help='type of normalization layer for all components of x-vector network')
+        except:
+            pass
+
+
+        try:
+            parser.add_argument(
+                p1+'head-norm-layer', default=None, 
+                choices=['batch-norm', 'group-norm', 'instance-norm', 'instance-norm-affine', 'layer-norm'],
+                help=('type of normalization layer for classification head, '
+                      'it overrides the value of the norm-layer parameter'))
+        except:
+            pass
+
         
         parser.add_argument(p1+'wo-norm', default=False, action='store_true',
                             help='without batch normalization')

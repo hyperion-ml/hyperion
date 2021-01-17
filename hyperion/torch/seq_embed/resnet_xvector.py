@@ -28,10 +28,11 @@ class ResNetXVector(XVector):
                  loss_type='arc-softmax',
                  s=64, margin=0.3, margin_warmup_epochs=0,
                  dropout_rate=0,
+                 norm_layer=None, head_norm_layer=None,
                  use_norm=True, 
                  norm_before=True,
                  in_norm=False, embed_layer=0, proj_feats=None,
-                 se_r=16):
+                 se_r=16, res2net_scale=4, res2net_width_factor=1):
         
         logging.info('making %s encoder network' % (resnet_type))
         encoder_net = RNF.create(
@@ -41,15 +42,18 @@ class ResNetXVector(XVector):
             zero_init_residual=zero_init_residual, groups=groups, 
             replace_stride_with_dilation=replace_stride_with_dilation, 
             dropout_rate=dropout_rate,
-            norm_before=norm_before, 
+            norm_layer=norm_layer, norm_before=norm_before, 
             do_maxpool=do_maxpool, in_norm=in_norm, 
-            se_r=se_r, in_feats=in_feats)
+            se_r=se_r, in_feats=in_feats, 
+            res2net_scale=res2net_scale, 
+            res2net_width_factor=res2net_width_factor)
         
-        super(ResNetXVector, self).__init__(
+        super().__init__(
             encoder_net, num_classes, pool_net=pool_net, 
             embed_dim=embed_dim, num_embed_layers=num_embed_layers, 
             hid_act=hid_act, loss_type=loss_type, 
             s=s, margin=margin, margin_warmup_epochs=margin_warmup_epochs,
+            norm_layer=norm_layer, head_norm_layer=head_norm_layer,
             use_norm=use_norm, norm_before=norm_before, 
             dropout_rate=dropout_rate,
             embed_layer=embed_layer, 
@@ -102,9 +106,17 @@ class ResNetXVector(XVector):
     def se_r(self):
         return self.encoder_net.se_r
 
+    @property
+    def res2net_scale(self):
+        return self.encoder_net.res2net_scale
+
+    @property
+    def res2net_width_factor(self):
+        return self.encoder_net.res2net_width_factor
+
     def get_config(self):
 
-        base_config = super(ResNetXVector, self).get_config()
+        base_config = super().get_config()
         del base_config['encoder_cfg']
 
         pool_cfg = self.pool_net.get_config()
@@ -120,7 +132,9 @@ class ResNetXVector(XVector):
                   'replace_stride_with_dilation': self.replace_stride_with_dilation,
                   'do_maxpool': self.do_maxpool,
                   'in_norm': self.in_norm,
-                  'se_r': self.se_r }
+                  'se_r': self.se_r, 
+                  'res2net_scale': self.res2net_scale,
+                  'res2net_width_factor': self.res2net_width_factor }
 
         config.update(base_config)
         return config

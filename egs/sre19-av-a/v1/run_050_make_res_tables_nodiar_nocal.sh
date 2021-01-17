@@ -14,7 +14,8 @@ config_file=default_config.sh
 
 be_name=lda200_splday150_v1_voxceleb_combined
 
-nnets=(ftdnn9m.sre18 ftdnn10m.sre18 ftdnn11m.sre18 ftdnn17m.sre18 2a.1.vcc0x5 3a.1.vcc0x5 3d.1.vcc 3d.1.vcc.1-2s 4a.1.vcc 4a.1.vcc.lowsnr)
+# nnets=(ftdnn9m.sre18 ftdnn10m.sre18 ftdnn11m.sre18 ftdnn17m.sre18 2a.1.vcc0x5 3a.1.vcc0x5 3d.1.vcc 3d.1.vcc.1-2s 4a.1.vcc 4a.1.vcc.lowsnr)
+nnets=(3a.1.vcc 4a.1.vcc 5a.1.vcc)
 
 
 

@@ -4,18 +4,19 @@
 
  Functions to write and read kaldi files
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
+#from __future__ import absolute_import
+#from __future__ import print_function
+#from __future__ import division
+#from six.moves import xrange
 
+import re
 from enum import Enum
 
 class ArchiveType(Enum):
-    """Types of archive: hdf5 or Kaldi Ark."""
+    """Types of archive: hdf5, Kaldi Ark or packed-audio files."""
     H5 = 0
     ARK = 1
-
+    AUDIO = 2
 
 """Documentation for "wspecifier" (taken from Kaldi).
 "wspecifier" describes how we write a set of objects indexed by keys.
@@ -98,7 +99,7 @@ class WSpecifier(object):
       permissive: when writing to an scp file only: will ignore
                   missing scp entries
     """
-    
+
     def __init__(self, spec_type, archive, script,
                  archive_type=ArchiveType.H5,
                  binary=True, flush=False, permissive=False):
@@ -158,6 +159,14 @@ class WSpecifier(object):
                         'Repeated h5, ark in wspecifier %s' % script)
                     assert len(archives) > cur_archive
                     archive_type = ArchiveType.ARK
+                    archive = archives[cur_archive]
+                    cur_archive += 1
+                elif option == 'audio':
+                    assert archive_type is None
+                    assert archive is None, (
+                        'Repeated h5, ark, audio in wspecifier %s' % script)
+                    assert len(archives) > cur_archive
+                    archive_type = ArchiveType.AUDIO
                     archive = archives[cur_archive]
                     cur_archive += 1
                 elif option == 'scp':
@@ -322,6 +331,10 @@ class RSpecifier(object):
                     assert spec_type is None
                     spec_type = RSpecType.ARCHIVE
                     archive_type = ArchiveType.ARK
+                elif option == 'audio':
+                    assert spec_type is None
+                    spec_type = RSpecType.ARCHIVE
+                    archive_type = ArchiveType.AUDIO
                 elif option == 'scp':
                     assert spec_type is None
                     spec_type = RSpecType.SCRIPT
@@ -338,11 +351,21 @@ class RSpecifier(object):
             
             if spec_type == RSpecType.SCRIPT:
                 with open(archive, 'r') as f:
-                    scp = f.readline().strip().split(' ')[1].split('[')[0].split(':')
-                    if len(scp) == 1:
+                    scp_f2 = f.readline().strip().split(' ')[1]
+                    if re.match(r'.*\.h5(?:.[0-9]+:[0-9]+.)?$', scp_f2) is not None:
                         archive_type = ArchiveType.H5
+                    elif re.match(r'.*\.ark:.*$', scp_f2) is not None:
+                        archive_type = ArchiveType.ARK
+                    elif re.match(r'.*[cvg]:[0-9]+.[0-9]+:[0-9]+.$', scp_f2) is not None:
+                        archive_type = ArchiveType.AUDIO
                     else:
                         archive_type = ArchiveType.ARK
+                         
+                    # .split('[')[0].split(':')
+                    # if len(scp) == 1:
+                    #     archive_type = ArchiveType.H5
+                    # else:
+                    #     archive_type = ArchiveType.ARK
                 
             if archive_type == ArchiveType.ARK:
                 for option in options:

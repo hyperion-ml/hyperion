@@ -2,7 +2,7 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
+# from __future__ import absolute_import
 
 import torch.nn as nn
 from torch.nn import Linear, BatchNorm1d, Dropout
@@ -27,6 +27,7 @@ class FCNetV1(NetArch):
         self.out_units = out_units
         self.in_units = in_units
         self.hid_units = hid_units
+        self.hid_act = hid_act
         self.dropout_rate = dropout_rate
         self.use_norm = use_norm
         self.norm_before = norm_before
@@ -39,10 +40,8 @@ class FCNetV1(NetArch):
             hid_units = [hid_units for i in range(num_blocks)]
         
         units = [in_units] + hid_units
-        hid_act='relu'
         blocks = []
         for i in range(1, num_blocks+1):
-            print(hid_act)
             blocks.append(
                 FCBlock(units[i-1], units[i],
                         activation=hid_act, dropout_rate=dropout_rate, 

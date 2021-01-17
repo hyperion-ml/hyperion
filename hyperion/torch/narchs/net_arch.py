@@ -24,7 +24,7 @@ class NetArch(TorchModel):
         return len(self.in_shape())
 
     def out_dim(self):
-        return len(self.in_shape())
+        return len(self.out_shape())
 
     def in_shape(self):
         raise NotImplementedError()

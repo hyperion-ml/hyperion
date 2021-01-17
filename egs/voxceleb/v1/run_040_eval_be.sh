@@ -19,9 +19,7 @@ be_name=lda${lda_dim}_${plda_label}_${plda_data}
 
 xvector_dir=exp/xvectors/$nnet_name
 be_dir=exp/be/$nnet_name/$be_name
-score_dir=exp/scores/$nnet_name/${be_name}
-score_plda_dir=$score_dir/plda
-
+score_dir=exp/scores/$nnet_name
 
 if [ $stage -le 1 ]; then
 
@@ -39,7 +37,7 @@ if [ $stage -le 1 ]; then
 
 fi
 
-
+score_be_dir=$score_dir/${be_name}/plda
 if [ $stage -le 2 ];then
 
     echo "Eval Voxceleb 1 with LDA+CentWhiten+LNorm+PLDA"
@@ -49,12 +47,12 @@ if [ $stage -le 2 ];then
     	$xvector_dir/voxceleb1_test/xvector.scp \
     	$be_dir/lda_lnorm.h5 \
     	$be_dir/plda.h5 \
-    	$score_plda_dir/voxceleb1_scores
+    	$score_be_dir/voxceleb1_scores
 
-    $train_cmd --mem 10G --num-threads 6 $score_plda_dir/log/score_voxceleb1.log \
-    	local/score_voxceleb1.sh data/voxceleb1_test $score_plda_dir 
+    $train_cmd --mem 10G --num-threads 6 $score_be_dir/log/score_voxceleb1.log \
+    	local/score_voxceleb1.sh data/voxceleb1_test $score_be_dir 
 
-    for f in $(ls $score_plda_dir/*_results);
+    for f in $(ls $score_be_dir/*_results);
     do
 	echo $f
 	cat $f
@@ -64,7 +62,7 @@ if [ $stage -le 2 ];then
 fi
 
 
-score_plda_dir=$score_dir/cosine
+score_be_dir=$score_dir/cosine
 
 if [ $stage -le 3 ];then
 
@@ -73,12 +71,12 @@ if [ $stage -le 3 ];then
     	data/voxceleb1_test/trials \
     	data/voxceleb1_test/utt2model \
     	$xvector_dir/voxceleb1_test/xvector.scp \
-    	$score_plda_dir/voxceleb1_scores
+    	$score_be_dir/voxceleb1_scores
 
-    $train_cmd --mem 10G --num-threads 6 $score_plda_dir/log/score_voxceleb1.log \
-	local/score_voxceleb1.sh data/voxceleb1_test $score_plda_dir 
+    $train_cmd --mem 10G --num-threads 6 $score_be_dir/log/score_voxceleb1.log \
+	local/score_voxceleb1.sh data/voxceleb1_test $score_be_dir 
 
-    for f in $(ls $score_plda_dir/*_results);
+    for f in $(ls $score_be_dir/*_results);
     do
 	echo $f
 	cat $f
@@ -88,7 +86,7 @@ if [ $stage -le 3 ];then
 fi
 
 be_dir=exp/be/$nnet_name/cw
-score_plda_dir=$score_dir/cw_cosine
+score_be_dir=$score_dir/cw/cw_cosine
 
 if [ $stage -le 4 ]; then
     echo "Train centering+whitening on Voxceleb2"
@@ -107,12 +105,12 @@ if [ $stage -le 5 ];then
     	data/voxceleb1_test/utt2model \
     	$xvector_dir/voxceleb1_test/xvector.scp \
 	$be_dir/cw.h5 \
-    	$score_plda_dir/voxceleb1_scores
+    	$score_be_dir/voxceleb1_scores
 
-    $train_cmd --mem 10G --num-threads 6 $score_plda_dir/log/score_voxceleb1.log \
-	local/score_voxceleb1.sh data/voxceleb1_test $score_plda_dir 
+    $train_cmd --mem 10G --num-threads 6 $score_be_dir/log/score_voxceleb1.log \
+	local/score_voxceleb1.sh data/voxceleb1_test $score_be_dir 
 
-    for f in $(ls $score_plda_dir/*_results);
+    for f in $(ls $score_be_dir/*_results);
     do
 	echo $f
 	cat $f

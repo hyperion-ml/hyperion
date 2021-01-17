@@ -13,22 +13,21 @@ if [ -f path.sh ]; then . ./path.sh; fi
 
 set -e
 
-if [ $# -ne 10 ]; then
-  echo "Usage: $0 <ndx> <diar-ndx> <enroll-file> <vector-file> <diar-segments-to-orig-utt> <cohort-list> <cohort-vector-file> <preproc-file> <plda-file> <output-scores>"
+if [ $# -ne 9 ]; then
+  echo "Usage: $0 <ndx> <enroll-file>  <diar-segments-to-orig-utt> <vector-file> <cohort-list> <cohort-vector-file> <preproc-file> <plda-file> <output-scores>"
   exit 1;
 fi
 
 
 ndx_file=$1
-diar_ndx_file=$2
-enroll_file=$3
+enroll_file=$2
+diar2orig=$3
 vector_file=$4
-diar2orig=$5
-coh_list=$6
-coh_vector_file=$7
-preproc_file=$8
-plda_file=$9
-output_file=${10}
+coh_list=$5
+coh_vector_file=$6
+preproc_file=$7
+plda_file=$8
+output_file=$9
 
 output_dir=$(dirname $output_file)
 
@@ -52,23 +51,11 @@ NF=$(awk '{ c=NF } END{ print c}' $ndx_file)
 if [ $NF -eq 3 ];then
     # ndx file is is actuall key file, creates ndx
     hyp_ndx_file=$output_file.ndx
-    if [ ! -f $hyp_ndx_file ]; then
-	awk '{ print $1,$2}' $ndx_file > $hyp_ndx_file
-    fi
+    awk '{ print $1,$2}' $ndx_file > $hyp_ndx_file
 else
     hyp_ndx_file=$ndx_file
 fi
 
-NF=$(awk '{ c=NF } END{ print c}' $diar_ndx_file)
-if [ $NF -eq 3 ];then
-    # ndx file is is actuall key file, creates ndx
-    hyp_diar_ndx_file=$output_file.diar_ndx
-    if [ ! -f $hyp_diar_ndx_file ]; then
-	awk '{ print $1,$2}' $diar_ndx_file > $hyp_diar_ndx_file
-    fi
-else
-    hyp_diar_ndx_file=$diar_ndx_file
-fi
 
 echo "$0 score $ndx_file"
 
@@ -76,9 +63,8 @@ $cmd $output_dir/log/${name}.log \
      python steps_be/eval-vid-be-diar-snorm-v1.py \
      --iv-file scp:$vector_file \
      --ndx-file $hyp_ndx_file \
-     --diar-ndx-file $hyp_diar_ndx_file \
      --enroll-file $hyp_enroll_file \
-     --diar2orig $diar2orig \
+     --test-subseg2orig-file $diar2orig \
      --coh-list $hyp_coh_list \
      --coh-iv-file scp:$coh_vector_file \
      --preproc-file $preproc_file \
@@ -88,4 +74,6 @@ $cmd $output_dir/log/${name}.log \
      --coh-nbest-discard $ncoh_discard \
      --score-file $output_file
 
+rm -f $output_file.ndx
+rm -f $hyp_coh_list
 
