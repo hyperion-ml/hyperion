@@ -23,9 +23,10 @@ if [ $stage -le 1 ];then
 
     # Prepare the dev portion of the VoxCeleb2 dataset.
     local/make_voxceleb2cat.pl $voxceleb2_root dev 16 data/voxceleb2cat_train
-    local/make_voxceleb2cat.pl $voxceleb2_root test 16 data/voxceleb2cat_test
+    #local/make_voxceleb2cat.pl $voxceleb2_root test 16 data/voxceleb2cat_test
 
-    utils/combine_data.sh data/voxcelebcat data/voxceleb1cat data/voxceleb2cat_train data/voxceleb2cat_test
+    #utils/combine_data.sh data/voxcelebcat data/voxceleb1cat data/voxceleb2cat_train data/voxceleb2cat_test
+    utils/combine_data.sh data/voxcelebcat data/voxceleb1cat data/voxceleb2cat_train 
     utils/fix_data_dir.sh data/voxcelebcat
 fi
 
