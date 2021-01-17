@@ -37,7 +37,7 @@ fi
 if [ $stage -le 1 ]; then
     # Prepare to distribute data over multiple machines
     if [[ $(hostname -f) == *.clsp.jhu.edu ]] && [ ! -d $fbankdir/storage ]; then
-	dir_name=$USER/hyp-data/sre19-av/v1/$storage_name/fbank/storage
+	dir_name=$USER/hyp-data/sre19-av-a/v2/$storage_name/fbank/storage
 	if [ "$nodes" == "b0" ];then
 	    utils/create_split_dir.pl \
 			    utils/create_split_dir.pl \
@@ -59,7 +59,7 @@ fi
 
 #Train datasets
 if [ $stage -le 2 ];then 
-    for name in voxceleb1cat voxceleb2cat_train \
+    for name in voxcelebcat \
     	sitw_dev_enroll sitw_dev_test sitw_eval_enroll sitw_eval_test \
         sre18_dev_test_vast sre18_eval_test_vast \
 	sre19_av_a_dev_test sre19_av_a_eval_test \
@@ -86,12 +86,7 @@ if [ $stage -le 2 ];then
 fi
 
 
-if [ $stage -le 3 ];then 
-  utils/combine_data.sh --extra-files "utt2num_frames" data/voxceleb data/voxceleb1cat data/voxceleb2cat_train
-  utils/fix_data_dir.sh data/voxceleb
-fi
-
-if [ $stage -le 4 ];then
+if [ $stage -le 3 ];then
     for name in dihard2_train_dev dihard2_train_eval
     do
 	num_spk=$(wc -l data/$name/spk2utt | awk '{ print $1}')
@@ -105,7 +100,7 @@ if [ $stage -le 4 ];then
 
 fi
 
-if [ $stage -le 5 ];then 
+if [ $stage -le 4 ];then 
   utils/combine_data.sh --extra-files "utt2num_frames" data/dihard2_train data/dihard2_train_dev data/dihard2_train_eval
   utils/fix_data_dir.sh data/dihard2_train
 fi
