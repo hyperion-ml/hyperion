@@ -39,6 +39,10 @@ else
     CPATH=$CUDNN_ROOT/include:$CPATH
 fi
 
+export LRU_CACHE_CAPACITY=1 #this will avoid crazy ram memory when using pytorch with cpu, it controls cache of MKLDNN
+export HDF5_USE_FILE_LOCKING=FALSE
+
+
 export MPLBACKEND="agg"
 export PATH=$HYP_ROOT/hyperion/bin:/usr/local/cuda/bin:$PATH
 export PYTHONPATH=$HYP_ROOT:$KERAS_PATH:$PYTHONPATH
