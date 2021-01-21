@@ -109,6 +109,11 @@ run_040_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | | | | Cosine | 1.12 | 0.071 | 0.103 |
 | config_fbank80_stmn_res2net50w13s8_arcs30m0.3_adam_lr0.05_amp.v1.sh | Res2Net50 width=13x8 | ArcFace s=30/m=0.3 | PLDA |  1.05 | 0.077 | 0.123 |
 | | | | Cosine | 0.96 | 0.065 | 0.110 |
+| config_fbank80_stmn_res2net50w26s8_arcs30m0.3_adam_lr0.05_amp.v1.sh | Res2Net50 width=26x8 | ArcFace s=30/m=0.3 | PLDA |  1.04 | 0.071 | 0.118 |
+| | | | Cosine | 0.93 | 0.067 | 0.108 |
+
+
+
 
 
 ### VoxCeleb 1 Entire-Clean trial list
@@ -137,6 +142,8 @@ run_040_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | | | | Cosine | 1.05 | 0.067 | 0.117 |
 | config_fbank80_stmn_res2net50w13s8_arcs30m0.3_adam_lr0.05_amp.v1.sh | Res2Net50 width=13x8 | ArcFace s=30/m=0.3 | PLDA |  1.23 | 0.078 | 0.134 |
 | | | | Cosine | 1.05 | 0.069 | 0.121 |
+| config_fbank80_stmn_res2net50w26s8_arcs30m0.3_adam_lr0.05_amp.v1.sh | Res2Net50 width=26x8 | ArcFace s=30/m=0.3 | PLDA |  1.18 | 0.075 | 0.131 |
+| | | | Cosine | 0.98 | 0.063 | 0.110 |
 
 
 ### VoxCeleb 1 Hard-Clean trial list
@@ -165,4 +172,5 @@ run_040_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | | | | Cosine | 1.95 | 0.113 | 0.181 |
 | config_fbank80_stmn_res2net50w13s8_arcs30m0.3_adam_lr0.05_amp.v1.sh | Res2Net50 width=13x8 | ArcFace s=30/m=0.3 | PLDA |  2.34 | 0.136 | 0.230 |
 | | | | Cosine | 1.99 | 0.119 | 0.196 |
-
+| config_fbank80_stmn_res2net50w13s8_arcs30m0.3_adam_lr0.05_amp.v1.sh | Res2Net50 width=26x8 | ArcFace s=30/m=0.3 | PLDA |  2.18 | 0.127 | 0.211 |
+| | | | Cosine | 1.89 | 0.112 | 0.184 |
