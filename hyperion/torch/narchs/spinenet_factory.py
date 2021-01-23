@@ -8,23 +8,49 @@ spinenet_dict = {
     'spinenet96': SpineNet96,
     'spinenet143': SpineNet143,
     'spinenet190': SpineNet190,
-    'lspinenet49': LSpineNet49,
+    'lspinenet49_subpixel': LSpineNet49_subpixel,
     'lspinenet49_128': LSpineNet49_128,
     'lspinenet49_3': LSpineNet49_3,
+    'lspinenet49_4': LSpineNet49_4,
     'lspinenet49_5': LSpineNet49_5,
+    'lspinenet49_6': LSpineNet49_6,
     'lspinenet49_7': LSpineNet49_7,
-    'lspinenet49_concat_time': LSpineNet49_concat_time,
-    'lspinenet49_concat_channel': LSpineNet49_concat_channel,
-    'lspinenet49_128_concat_time': LSpineNet49_128_concat_time,
-    'lspinenet49_128_concat_channel': LSpineNet49_128_concat_channel,
+    'lspinenet49_nearest_concat_time': LSpineNet49_nearest_concat_time,
+    'lspinenet49_nearest_concat_time_conv': LSpineNet49_nearest_concat_time_conv,
+    'lspinenet49_nearest_concat_channel': LSpineNet49_nearest_concat_channel,
+    'lspinenet49_nearest_concat_channel_endp': LSpineNet49_nearest_concat_channel_endp,
+    'lspinenet49_nearest_concat_channel_chann_conv_256': LSpineNet49_nearest_concat_channel_chann_conv_256,
     'lspinenet49_128_concat_freq': LSpineNet49_128_concat_freq,
-    'lspinenet49_256': LSpineNet49_256,
-    'lspinenet49_128_avgto5': LSpineNet49_128_avgto5,
     'spinenet49_concat_time': SpineNet49_concat_time,
     'spinenet49_concat_channel': SpineNet49_concat_channel,
     'spinenet49_512': SpineNet49_512,
     'spinenet49_512_concat_time': SpineNet49_512_concat_time,
     'spinenet49_512_concat_channel': SpineNet49_512_concat_channel,
+    'spinenet_lsp53': LSP53,
+    'spinenet_lsp53_basic': LSP53_Basic,
+    'lspinenet49_128_aggr': LSpineNet49_128_aggr,
+    'lspinenet49_nearest': LSpineNet49_nearest,
+    'lspinenet49_bilinear': LSpineNet49_bilinear,
+    'spinenet49_nearest': SpineNet49_nearest,
+    'lspinenet49_nearest_avg5': LSpineNet49_nearest_avg5,
+    'lspinenet49_avg5': LSpineNet49_avg5,
+    'lspinenet49_nearest_avg5_concat_channel': LSpineNet49_nearest_avg5_concat_channel,
+    'lspinenet49_nearest_res2net': LSpineNet49_nearest_res2net,
+    'lspinenet49_nearest_res2net_se': LSpineNet49_nearest_res2net_se,
+    'lspinenet49_nearest_res2net_tse': LSpineNet49_nearest_res2net_tse,
+    'spinenet49_nearest_res2net': SpineNet49_nearest_res2net,
+    'spinenet49_nearest_res2net_se': SpineNet49_nearest_res2net_se,
+    'spinenet49_nearest_se': SpineNet49_nearest_se,
+    'spinenet49_nearest_res2net_tse': SpineNet49_nearest_res2net_tse,
+    'lspinenet49_nearest_res2net_bn': LSpineNet49_nearest_res2net_bn,
+    'lspinenet49_nearest_weighted': LSpineNet49_nearest_weighted,
+    'lspinenet49_aggr_noup': LSpineNet49_aggr_noup,
+    'spinenet49_aggr_noup': SpineNet49_aggr_noup,
+    'spinenet49_res2net_std_se': SpineNet49_res2net_std_se,
+    'lspinenet49_aggr_upfirst': LSpineNet49_aggr_upfirst,
+    'lspinenet49_nearest_upfirst': LSpineNet49_nearest_upfirst,
+    'spinenet49_aggr_noup_noconv': SpineNet49_aggr_noup_noconv,
+    'lspinenet49_nearest_concat_channel_endp_upfirst': LSpineNet49_nearest_concat_channel_endp_upfirst,
 }
 
 
@@ -38,7 +64,8 @@ class SpineNetFactory(object):
                zero_init_residual=False,
                groups=1, replace_stride_with_dilation=None, dropout_rate=0,
                norm_layer=None, norm_before=True, do_maxpool=True, in_norm=True, 
-               in_feats=None):
+               se_r=16, in_feats=None,
+               res2net_scale=4, res2net_width_factor=1):
         try:
             spinenet_class = spinenet_dict[spinenet_type]
         except:
@@ -55,7 +82,8 @@ class SpineNetFactory(object):
             dropout_rate=dropout_rate,
             norm_layer=norm_layer, norm_before=norm_before, 
             do_maxpool=do_maxpool, in_norm=in_norm,
-            in_feats=in_feats)
+            se_r=se_r, in_feats=in_feats,
+            res2net_scale=res2net_scale, res2net_width_factor=res2net_width_factor)
 
         return spinenet
 
@@ -79,7 +107,8 @@ class SpineNetFactory(object):
                       'hid_act', 'out_act', 'in_kernel_size', 'in_stride',
                       'zero_init_residual', 'groups', 
                       'replace_stride_with_dilation', 'dropout_rate',
-                      'in_norm', 'norm_layer', 'norm_before', 'do_maxpool')
+                      'in_norm', 'norm_layer', 'norm_before', 'do_maxpool',
+                      'se_r', 'res2net_scale', 'res2net_width_factor')
 
         args = dict((k, kwargs[p+k])
                     for k in valid_args if p+k in kwargs)
@@ -146,9 +175,17 @@ class SpineNetFactory(object):
         # parser.add_argument(p1+'replace-stride-with-dilation', default=None, nargs='+', type=bool,
         #  help='replaces strides with dilations to increase context without downsampling')
 
-        # parser.add_argument(
-        #     p1+'se-r', default=16, type=int,
-        #     help=('squeeze ratio in squeeze-excitation blocks'))
+        parser.add_argument(
+            p1+'se-r', default=16, type=int,
+            help=('squeeze ratio in squeeze-excitation blocks'))
+
+        parser.add_argument(
+            p1 + 'res2net-scale', default=4, type=int,
+            help=('scale parameter for res2net'))
+
+        parser.add_argument(
+            p1 + 'res2net-width-factor', default=1, type=float,
+            help=('multiplicative factor for the internal width of res2net'))
 
         try:
             parser.add_argument(p1+'hid-act', default='relu6', 

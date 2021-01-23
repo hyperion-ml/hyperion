@@ -4,6 +4,7 @@
 """
 import logging
 import math
+import numpy as np
 
 import torch
 import torch.nn as nn
@@ -554,3 +555,209 @@ class ScaledDotProdAttV1Pool1d(_GlobalPool1d):
 
         base_config = super(ScaledDotProdAttV1Pool1d, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
+
+
+class AggrGlobalMeanStdPool1d(_GlobalPool1d):
+
+
+    def __init__(self, dim=-1, keepdim=False):
+        super(AggrGlobalMeanStdPool1d, self).__init__(dim, keepdim)
+        self.size_multiplier = 2
+
+    def forward(self, x, weights=None):
+        if weights is None:
+            # # this can produce slightly negative variance when relu6 saturates in all time steps
+            # mu = torch.mean(x, dim=self.dim, keepdim=self.keepdim)
+            # x2bar = torch.mean(x**2, dim=self.dim, keepdim=self.keepdim)
+            # s = torch.sqrt(x2bar - mu*mu+1e-5) #for stability in case var=0
+
+            # this version should be more stable
+            stats = []
+            if type(x) is dict:
+                for k, v in x.items():
+                    mu = torch.mean(v, dim=self.dim, keepdim=True)
+                    delta = v - mu
+                    if not self.keepdim:
+                        mu.squeeze_(dim=self.dim)
+
+                    s = torch.sqrt(
+                        torch.mean(delta ** 2, dim=self.dim, keepdim=self.keepdim) + 1e-5)
+                    stats.append(mu)
+                    stats.append(s)
+                    # logging.info(mu.size())
+                    # logging.info(s.size())
+            else:
+                for layer in range(x.size(0)):
+                    mu = torch.mean(x[layer], dim=self.dim, keepdim=True)
+                    delta = x[layer] - mu
+                    if not self.keepdim:
+                        mu.squeeze_(dim=self.dim)
+
+                    s = torch.sqrt(
+                        torch.mean(delta ** 2, dim=self.dim, keepdim=self.keepdim) + 1e-5)
+                    stats.append(mu)
+                    stats.append(s)
+            # logging.info(torch.cat(stats, dim=-1).size())
+            return torch.cat(stats, dim=-1)
+
+        # weights = self._standarize_weights(weights, x.dim())
+        #
+        # # xbar = torch.mean(weights*x, dim=self.dim, keepdim=self.keepdim)
+        # # wbar = torch.mean(weights, dim=self.dim, keepdim=self.keepdim)
+        # # mu = xbar/wbar
+        # # x2bar = torch.mean(weights*x**2, dim=self.dim, keepdim=self.keepdim)/wbar
+        # # s = torch.sqrt(x2bar - mu*mu+1e-5)
+        #
+        # # this version should be more stable
+        # xbar = torch.mean(weights * x, dim=self.dim, keepdim=True)
+        # wbar = torch.mean(weights, dim=self.dim, keepdim=True)
+        # mu = xbar / wbar
+        # delta = x - mu
+        # var = torch.mean(weights * delta ** 2, dim=self.dim, keepdim=True) / wbar
+        # s = torch.sqrt(var + 1e-5)
+        # if not self.keepdim:
+        #     mu.squeeze_(self.dim)
+        #     s.squeeze_(self.dim)
+
+        return torch.cat((mu, s), dim=-1)
+
+
+class GlobalMedianIqrPool1d(_GlobalPool1d):
+
+    def __init__(self, dim=-1, keepdim=False):
+        super(GlobalMedianIqrPool1d, self).__init__(dim, keepdim)
+        self.size_multiplier = 2
+
+    def forward(self, x, weights=None):
+        if weights is None:
+            mu = torch.median(x, dim=self.dim, keepdim=True)
+            s = np.percentile(x, 75, axis=-1) - np.percentile(x, 25, axis=-1)
+            # delta = x - mu
+            # mu.squeeze_(dim=self.dim)
+            #
+            # # this can produce slightly negative variance when relu6 saturates in all time steps
+            # # add 1e-5 for stability
+            # s = torch.sqrt(
+            #     torch.mean(delta ** 2, dim=self.dim, keepdim=False) + 1e-5)
+
+            mus = torch.cat((mu, s), dim=1)
+            # if self.keepdim:
+            #     mus.unsqueeze(dim=self.dim)
+
+            return mus
+        #
+        # weights = self._standarize_weights(weights, x.dim())
+        #
+        # xbar = torch.mean(weights * x, dim=self.dim, keepdim=True)
+        # wbar = torch.mean(weights, dim=self.dim, keepdim=True)
+        # mu = xbar / wbar
+        # delta = x - mu
+        # var = torch.mean(weights * delta ** 2, dim=self.dim, keepdim=True) / wbar
+        # s = torch.sqrt(var + 1e-5)
+        # mu.squeeze_(self.dim)
+        # s.squeeze_(self.dim)
+        # mus = torch.cat((mu, s), dim=1)
+        # if self.keepdim:
+        #     mus.unsqueeze(dim=self.dim)
+        #
+        # return mus
+
+    # def forward_slidwin(self, x, win_length, win_shift, snip_edges=False):
+    #     if isinstance(win_shift, int) and isinstance(win_lenght, int):
+    #         return self._forward_slidwin_int(
+    #             x, win_length, win_shift, snip_edges)
+    #
+    #     # the window length and/or shift are floats
+    #     return self._forward_slidwin_float(
+    #         x, win_length, win_shift, snip_edges)
+    #
+    # def _pre_slidwin(self, x, win_length, win_shift, snip_edges):
+    #     if self.dim != -1:
+    #         x = x.transpose(self.dim, -1)
+    #
+    #     x, num_frames = self._slidwin_pad(x, win_length, win_shift, snip_edges)
+    #     out_shape = *x.shape[:-1], num_frames
+    #     return x, out_shape
+    #
+    # def _post_slidwin(self, m_x, s_x, out_shape):
+    #     m_x = m_x.view(out_shape)
+    #     s_x = s_x.view(out_shape)
+    #     mus = torch.cat((m_x, s_x), dim=1)
+    #     if self.dim != -1:
+    #         mus = mus.transpose(self.dim, -1).contiguous()
+    #
+    #     return mus
+    #
+    # def _forward_slidwin_int(self, x, win_length, win_shift, snip_edges):
+    #     x, out_shape = self._pre_slidwin(x, win_length, win_shift, snip_edges)
+    #
+    #     c_x = torch.cumsum(x, dim=-1).view(-1, x.shape[-1])
+    #     m_x = (c_x[:, win_shift:] - c_x[:, :-win_shift]) / win_length
+    #
+    #     c_x = torch.cumsum(x ** 2, dim=-1).view(-1, x.shape[-1])
+    #     m_x2 = (c_x[:, win_shift:] - c_x[:, :-win_shift]) / win_length
+    #     s_x = torch.sqrt(m_x2 - m_x ** 2).clamp(min=1e-5)
+    #
+    #     mus = self._post_slidwin(m_x, s_x, out_shape)
+    #     return mus
+    #
+    # def _forward_slidwin_float(self, x, win_length, win_shift, snip_edges):
+    #
+    #     x, out_shape = self._pre_slidwin(x, win_length, win_shift, snip_edges)
+    #     num_frames = out_shape[-1]
+    #     c_x = torch.cumsum(x, dim=-1).view(-1, x.shape[-1])
+    #     c_x2 = torch.cumsum(x ** 2, dim=-1).view(-1, x.shape[-1])
+    #
+    #     # xx = x.view(-1, x.shape[-1])
+    #     # print(xx.shape[1])
+    #     # print(torch.max(torch.sum(xx==0, dim=1)))
+    #
+    #     m_x = torch.zeros((c_x.shape[0], num_frames), dtype=c_x.dtype, device=c_x.device)
+    #     m_x2 = torch.zeros_like(m_x)
+    #
+    #     k = 0
+    #     # max_delta = 0
+    #     # max_delta2 = 0
+    #     for i in range(num_frames):
+    #         k1 = int(round(k))
+    #         k2 = int(round(k + win_length))
+    #         m_x[:, i] = (c_x[:, k2] - c_x[:, k1]) / (k2 - k1)
+    #         m_x2[:, i] = (c_x2[:, k2] - c_x2[:, k1]) / (k2 - k1)
+    #         # for j in range(m_x.shape[0]):
+    #         #     m_x_2 = torch.mean(xx[j,k1+1:k2+1])
+    #         #     m_x2_2 = torch.mean(xx[j,k1+1:k2+1]**2)
+    #         #     delta = torch.abs(m_x_2 - m_x[j,i]).item()
+    #         #     delta2 = torch.abs(m_x2_2 - m_x2[j,i]).item()
+    #         #     if (delta > max_delta or delta2 > max_delta2) and (delta>1e-3 or delta2>1e-3):
+    #         #         max_delta = delta
+    #         #         max_delta2 = delta2
+    #         #         print('mx', delta, m_x[j,i], m_x_2)
+    #         #         print('mx2', delta2, m_x2[j,i], m_x2_2)
+    #         #         import sys
+    #         #         sys.stdout.flush()
+    #         #     # if m_x[j,i]**2 > m_x2[j,i]:
+    #         #     #     print('nan')
+    #         #     #     print('mx', m_x[j,i], m_x_2)
+    #         #     #     print('mx2', m_x2[j,i], m_x2_2)
+    #         #     #     print(c_x[j,k2])
+    #         #     #     print(c_x[j,k1])
+    #         #     #     print(c_x2[j,k2])
+    #         #     #     print(c_x2[j,k1])
+    #         #     #     print(xx[j,k1+1:k2+1])
+    #         #     #     raise Exception()
+    #
+    #         k += win_shift
+    #
+    #     var_x = (m_x2 - m_x ** 2).clamp(min=1e-5)
+    #     s_x = torch.sqrt(var_x)
+    #     # idx = torch.isnan(s_x) #.any(dim=1)
+    #     # if torch.sum(idx) > 0:
+    #     #     print('sx-nan', s_x[idx])
+    #     #     print('mx-nan', m_x[idx])
+    #     #     print('mx2-nan', m_x2[idx])
+    #     #     print('var-nan', m_x2[idx]-m_x[idx]**2)
+    #     #     #print('cx2-nan', c_x2[idx])
+    #     #     raise Exception()
+    #
+    #     mus = self._post_slidwin(m_x, s_x, out_shape)
+    #     return mus

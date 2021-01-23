@@ -100,6 +100,19 @@ def train_xvec(audio_path, train_list, val_list,
     logging.info('feat-extractor={}'.format(feat_extractor))
     logging.info('x-vector-model={}'.format(model))
 
+    total_params = 0
+    total_endpoints = 0
+    for name, parameter in model.named_parameters():
+        if not parameter.requires_grad: continue
+        param = parameter.numel()
+        # table.add_row([name, param])
+        logging.info("module {} params: {}".format(name, param))
+        if 'endpoint' in name:
+            total_endpoints += param
+        total_params += param
+    logging.info(f"Total Trainable Params: {total_params}")
+    logging.info(f"Total Trainable Endpoint Params: {total_endpoints}")
+
     optimizer = OF.create(model.parameters(), **opt_args)
     lr_sch = LRSF.create(optimizer, **lrsch_args)
     metrics = { 'acc': CategoricalAccuracy() }

@@ -35,6 +35,12 @@ class GlobalPool1dFactory(object):
                 in_feats, num_heads=num_heads, d_k=d_k, d_v=d_v,
                 bin_attn=bin_attn, dim=dim, keepdim=keepdim)
 
+        if pool_type == 'aggr-mean+stddev':
+            return AggrGlobalMeanStdPool1d(dim=dim, keepdim=keepdim)
+
+        if pool_type == 'med+iqr':
+            return GlobalMedianIqrPool1d(dim=dim, keepdim=keepdim)
+
 
     @staticmethod
     def filter_args(prefix=None, **kwargs):
@@ -66,7 +72,7 @@ class GlobalPool1dFactory(object):
         parser.add_argument(
             p1+'pool-type', type=str.lower, default='mean+stddev',
             choices=['avg','mean+stddev', 'mean+logvar', 
-                     'lde', 'scaled-dot-prod-att-v1'],
+                     'lde', 'scaled-dot-prod-att-v1', 'aggr-mean+stddev', 'med+iqr'],
             help=('Pooling methods: Avg, Mean+Std, Mean+logVar, LDE, '
                   'scaled-dot-product-attention-v1'))
         
@@ -130,5 +136,10 @@ class GlobalPool1dFactory(object):
         if isinstance(layer, ScaledDotProdAttV1Pool1d):
             config['pool_type'] = 'scaled-dot-prod-att-v1'
 
+        if isinstance(layer, AggrGlobalMeanStdPool1d):
+            config['pool_type'] = 'aggr-mean+stddev'
+
+        if isinstance(layer, GlobalMedianIqrPool1d):
+            config['pool_type'] = 'med+iqr'
+
         return config
-        

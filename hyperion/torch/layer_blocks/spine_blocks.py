@@ -1,10 +1,23 @@
-import logging
-
 import torch.nn as nn
 from torch.nn import Conv2d, BatchNorm2d, Dropout2d
+import torch.nn.functional as F
 
 from ..layers.subpixel_convs import SubPixelConv2d
 from ..layers import ActivationFactory as AF
+
+import logging
+
+
+class Interpolate(nn.Module):
+    def __init__(self, scale_factor, mode='nearest'):
+        super(Interpolate, self).__init__()
+        self.interp = F.interpolate
+        self.scale_factor = scale_factor
+        self.mode = mode
+
+    def forward(self, x):
+        x = self.interp(x, scale_factor=self.scale_factor, mode=self.mode)
+        return x
 
 
 def _conv3x3(in_channels, out_channels, stride=1, groups=1, dilation=1, bias=False):
@@ -42,11 +55,17 @@ def _make_upsample(in_channels, out_channels, stride, norm_layer, norm_before):
     return _subpixel_conv1x1(in_channels, out_channels, stride, bias=True)
 
 
-def _make_resample(channels, scale, norm_layer, norm_before, activation):
+def _make_resample(channels, scale, norm_layer, norm_before, activation, upsampling_type='nearest'):
     resample_block = nn.ModuleList([])
     if scale > 1:
-        resample_block.append(_make_upsample(channels, channels, scale, norm_layer, norm_before))
-        resample_block.append(AF.create(activation))
+        if upsampling_type == 'nearest':
+            resample_block.append(Interpolate(scale_factor=scale, mode='nearest'))
+        elif upsampling_type == 'bilinear':
+            resample_block.append(Interpolate(scale_factor=scale, mode='bilinear'))
+        else:
+            resample_block.append(_make_upsample(channels, channels, scale, norm_layer, norm_before))
+            resample_block.append(AF.create(activation))
+
     elif scale < 1:
         resample_block.append(_make_downsample(channels, channels, 2, norm_layer, norm_before))
         resample_block.append(AF.create(activation))
@@ -58,6 +77,31 @@ def _make_resample(channels, scale, norm_layer, norm_before, activation):
     return resample_block
 
 
+class SpineConv(nn.Module):
+    def __init__(self, in_channels, channels, stride=1, dropout_rate=0, groups=1, dilation=1,
+                 activation={'name': 'relu', 'inplace': True},
+                 norm_layer=None, norm_before=True):
+        """
+        Class that connects the ouputs of the SpineNet to the rest of the network
+        """
+        super().__init__()
+        if norm_layer is None:
+            norm_layer = nn.BatchNorm2d
+        self.channels = channels
+        self.norm_before = norm_before
+        bias = not norm_before
+        self.conv1 = _conv1x1(in_channels, channels, stride, bias=bias)
+        self.bn1 = norm_layer(channels)
+        self.act1 = AF.create(activation)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        if self.norm_before:
+            x = self.bn1(x)
+        x = self.act1(x)
+        return x
+
+
 class BlockSpec(object):
     """A container class that specifies the block configuration for SpineNet."""
 
@@ -67,7 +111,6 @@ class BlockSpec(object):
         self.input_offsets = input_offsets
         self.is_output = is_output
 
-
     def build_block_specs(block_specs=None):
         """Builds the list of BlockSpec objects for SpineNet."""
         if not block_specs:
@@ -76,10 +119,10 @@ class BlockSpec(object):
 
 
 class SpineEndpoints(nn.Module):
-    def __init__(self, in_channels, channels, level, target_level,
+    def __init__(self, in_channels, channels, level, target_level, upsampling_type='nearest',
                  stride=1, dropout_rate=0, groups=1, dilation=1,
                  activation={'name': 'relu', 'inplace': True},
-                 norm_layer=None, norm_before=True, do_endpoint_conv=True):
+                 norm_layer=None, norm_before=True, do_endpoint_conv=True, do_endpoint_upsampling=True, end_upsample_before=False):
         """
         Class that connects the ouputs of the SpineNet to the rest of the network
         """
@@ -91,6 +134,9 @@ class SpineEndpoints(nn.Module):
         self.norm_before = norm_before
         self.scale = 2 ** (level - target_level)
         self.do_endpoint_conv = do_endpoint_conv
+        self.upsampling_type = upsampling_type
+        self.do_endpoint_upsampling = do_endpoint_upsampling
+        self.end_upsample_before = end_upsample_before
         bias = not norm_before
         if self.do_endpoint_conv and in_channels != channels:
             # in some cases this convolution is not necessary
@@ -102,21 +148,33 @@ class SpineEndpoints(nn.Module):
         else:
             self.channels = in_channels
 
-        self.resample = _make_resample(self.channels, self.scale, norm_layer, norm_before, activation)
+        self.resample = []
+        if self.do_endpoint_upsampling:
+            resample_channels = in_channels if self.end_upsample_before else channels
+            self.resample = _make_resample(resample_channels, self.scale, norm_layer, norm_before, activation,
+                                           upsampling_type=upsampling_type)
 
     def forward(self, x):
+        if self.end_upsample_before:
+            for mod in self.resample:
+                x = mod(x)
+        # logging.info(x.shape)
         if self.do_endpoint_conv and self.in_channels != self.channels:
             x = self.conv1(x)
             if self.norm_before:
                 x = self.bn1(x)
             x = self.act1(x)
-        for mod in self.resample:
-            x = mod(x)
+        # logging.info(x.shape)
+        if not self.end_upsample_before:
+            for mod in self.resample:
+                x = mod(x)
+        # logging.info(x.shape)
         return x
 
 
 class SpineResample(nn.Module):
-    def __init__(self, spec, in_channels, out_channels, scale, alpha, activation={'name':'relu', 'inplace': True},
+    def __init__(self, spec, in_channels, out_channels, scale, alpha, upsampling_type='nearest',
+                 activation={'name':'relu', 'inplace': True},
                  norm_layer=None, norm_before=True):
         """
         Class that build a resampling connection between single SpineNet blocks.
@@ -136,7 +194,7 @@ class SpineResample(nn.Module):
         self.bn1 = norm_layer(in_channels_alpha)
         self.act1 = AF.create(activation)
 
-        self.resample = _make_resample(in_channels_alpha, self.scale, norm_layer, norm_before, activation)
+        self.resample = _make_resample(in_channels_alpha, self.scale, norm_layer, norm_before, activation, upsampling_type=upsampling_type)
 
         self.conv2 = _conv1x1(in_channels_alpha, out_channels, bias=bias)
         self.bn2 = norm_layer(out_channels)
