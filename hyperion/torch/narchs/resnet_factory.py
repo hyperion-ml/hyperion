@@ -77,7 +77,9 @@ resnet_dict = {
     'tsewideres2net50': TSEWideRes2Net50,
     'tsewideres2net101': TSEWideRes2Net101,
     'tselres2net50': TSELRes2Net50,
-    'tselres2next50_4x4d': TSELRes2Next50_4x4d
+    'tselres2next50_4x4d': TSELRes2Next50_4x4d,
+    'lresnet34_mutilevel_128': LResNet34_mutilevel_128,
+    'lresnet34_mutilevel_64': LResNet34_mutilevel_64
 }
 
 

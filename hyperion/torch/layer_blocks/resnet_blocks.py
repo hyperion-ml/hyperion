@@ -5,6 +5,7 @@
 
 import torch.nn as nn
 from torch.nn import Conv2d, BatchNorm2d, Dropout2d
+import torch.nn.functional as F
 
 from ..layers import ActivationFactory as AF
 
@@ -252,6 +253,60 @@ class ResNetBNBlock(nn.Module):
         
         if self.dropout_rate > 0:
             x = self.dropout(x)
+
+        return x
+
+
+class Interpolate(nn.Module):
+    def __init__(self, scale_factor, mode='nearest'):
+        super(Interpolate, self).__init__()
+        self.interp = F.interpolate
+        self.scale_factor = scale_factor
+        self.mode = mode
+
+    def forward(self, x):
+        x = self.interp(x, scale_factor=self.scale_factor, mode=self.mode)
+        return x
+
+
+class ResNetEndpointBlock(nn.Module):
+
+    def __init__(self, in_channels, out_channels, scale,
+                 activation={'name': 'relu', 'inplace': True},
+                 norm_layer=None, norm_before=True):
+
+        super().__init__()
+
+        if norm_layer is None:
+            norm_layer = nn.BatchNorm2d
+
+        bias = not norm_before
+        self.out_channels = out_channels
+        self.in_channels = in_channels
+
+        if self.in_channels != self.out_channels:
+            self.conv = _conv1x1(in_channels, out_channels, bias=bias)
+            self.bn = norm_layer(out_channels)
+            self.act = AF.create(activation)
+        self.norm_before = norm_before
+
+        self.scale = scale
+        if self.scale > 1:
+            self.upsample = Interpolate(scale_factor=scale, mode='nearest')
+
+    def forward(self, x):
+
+        if self.in_channels != self.out_channels:
+            x = self.conv(x)
+            if self.norm_before:
+                x = self.bn(x)
+
+            x = self.act(x)
+            if not self.norm_before:
+                x = self.bn(x)
+
+        if self.scale > 1:
+            x = self.upsample(x)
 
         return x
 
