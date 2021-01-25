@@ -13,6 +13,7 @@ from .copy_feats import CopyFeats
 
 
 from .bin_vad_reader import BinVADReader
+from .segment_vad_reader import SegmentVADReader
 from .vad_rw_factory import VADReaderFactory
 
 from .audio_reader import *

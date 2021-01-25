@@ -25,8 +25,8 @@ nnet=$nnet_dir/model_ep0070.pth
 
 
 #back-end
-lda_dim=200
-plda_y_dim=150
+#lda_dim=200
+#plda_y_dim=150
 plda_z_dim=200
 
 plda_data=voxceleb2cat_combined

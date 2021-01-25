@@ -2,7 +2,6 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
 
 import logging
 import numpy as np
@@ -45,3 +44,19 @@ class VADReader(object):
     def close(self):
         """Closes input file."""
         pass
+
+    @staticmethod
+    def _get_bin_vad_slice(vad, offset, num_frames):
+        if offset > 0:
+            vad = vad[offset:]
+
+        if num_frames > 0:
+            n = len(vad)
+            if n > num_frames:
+                vad = vad[:num_frames]
+            elif n < num_frames:
+                new_vad = np.zeros((num_frames,), dtype=np.bool)
+                new_vad[:n] = vad
+                vad = new_vad
+        
+        return vad

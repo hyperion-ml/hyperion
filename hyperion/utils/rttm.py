@@ -2,10 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-
 #import os.path as path
 import logging
 from copy import deepcopy
@@ -22,7 +18,7 @@ class RTTM(object):
 
     Attributes:
       df: Pandas dataframe.
-      _index_by_file: if True the df is index by file name, if False by segment id.
+      _index_by_file: if True the df is indexed by file name, if False by segment id.
       iter_idx: index of the current element for the iterator.
       unique_file_key: unique file names.
     """
@@ -31,6 +27,7 @@ class RTTM(object):
         self._index_by_file = index_by_file
         if index_by_file:
             self.segments.index = self.segments.file_id
+            self.segments.rename_axis(None, inplace=True)
         else:
             self.segments.index = [i for i in range(len(segments))]
         self.validate()
@@ -38,7 +35,6 @@ class RTTM(object):
         self.iter_idx = 0
 
 
-        
     @classmethod
     def create(cls, segment_type, file_id, chnl=None, tbeg=None, tdur=None,
                ortho=None, stype=None, name=None, conf=None, slat=None,
@@ -77,7 +73,6 @@ class RTTM(object):
 
 
 
-
     @classmethod
     def create_spkdiar(cls, file_id, tbeg, tdur, spk_id, conf=None, chnl=None,
                        index_by_file=True, prepend_file_id=False):
@@ -86,6 +81,18 @@ class RTTM(object):
         return cls.create(segment_type, file_id, chnl, tbeg, tdur,
                           name=spk_id, conf=conf, index_by_file=index_by_file)
 
+
+    @classmethod
+    def create_spkdiar_single_file(cls, file_id, tbeg, tdur, spk_id, 
+                                   conf=None, chnl=None,
+                                   index_by_file=True, prepend_file_id=False):
+        assert len(tbeg) == len(spk_id)
+        assert len(tbeg) == len(tdur)
+        segment_type = ['SPEAKER'] * len(tbeg)
+        file_id = [file_id] * len(tbeg)
+        spk_id = cls._make_spk_ids(spk_id, file_id, prepend_file_id)
+        return cls.create(segment_type, file_id, chnl, tbeg, tdur,
+                          name=spk_id, conf=conf, index_by_file=index_by_file)
 
 
     @classmethod
@@ -118,7 +125,6 @@ class RTTM(object):
                           index_by_file=index_by_file)
         
 
-    
     @staticmethod
     def _make_spk_ids(spk_ids, file_id, prepend_file_id):
         if prepend_file_id:
@@ -137,12 +143,10 @@ class RTTM(object):
         if not self.tbeg_is_sorted():
             self.sort()
 
-
         
     @property
     def index_by_file(self):
         return self._index_by_file
-
 
     
     @index_by_file.setter
@@ -154,11 +158,9 @@ class RTTM(object):
             self.segments.index = self.segments.segment
         
     
-            
     @property
     def file_id(self):
         return np.asarray(self.segments['file_id'])
-
 
     
     @property
@@ -170,7 +172,6 @@ class RTTM(object):
     @property
     def tdur(self):
         return np.asarray(self.segments['tdur'])
-
     
     
     @property
@@ -178,25 +179,21 @@ class RTTM(object):
         return np.asarray(self.segments['name'])
 
 
-    
     def copy(self):
         """Makes a copy of the object."""
         return deepcopy(self)
 
 
-    
     @property
     def num_files(self):
         return len(self.unique_file_id)
 
 
-    
     @property
     def total_num_spks(self):
         return len(self.segments[self.segments['segment_type']=='SPEAKER'].name.unique())
 
 
-    
     @property
     def num_spks_per_file(self):
         return {file_id: len(self.segments[(self.segments['segment_type']=='SPEAKER') &
@@ -204,17 +201,14 @@ class RTTM(object):
                 for file_id in self.unique_file_id}
     
 
-    
     @property
     def avg_num_spks_per_file(self):
         return np.mean([v for k, v in self.num_spks_per_file.items()])
 
     
-    
     def __iter__(self):
         self.iter_idx=0
         return self
-
 
     
     def __next__(self):
@@ -244,8 +238,6 @@ class RTTM(object):
         return key in self.segments.segment_id
 
 
-    
-
     def __getitem__(self, key):
         """It allows to acces the de segments by file_id or segment
            like in a ditionary, e.g.:
@@ -264,7 +256,6 @@ class RTTM(object):
         else:
             return self.segments.iloc[key]
 
-
     
     def save(self, file_path, sep=' '):
         """Saves segments to text file.
@@ -278,7 +269,6 @@ class RTTM(object):
                        'name', 'conf', 'slat']].to_csv(
                            file_path, sep=sep, float_format='%.3f',
                            index=False, header=False)
-
 
         
     @classmethod
@@ -307,12 +297,10 @@ class RTTM(object):
         return RTTM(df, index_by_file=self.index_by_file)
     
 
-    
     def split(self, idx, num_parts):
         key, _ = split_list(self.index, idx, num_parts)
         df = self.segments.loc[key]
         return RTTM(df, index_by_file=self.index_by_file)
-
 
 
     @classmethod
@@ -324,7 +312,6 @@ class RTTM(object):
         return cls(df, index_by_file=index_by_file)
 
     
-
     def merge_adjacent_segments(self, t_margin=0):
         segm = self.segments
         segm_1 = self.segments.shift(1)
@@ -359,7 +346,6 @@ class RTTM(object):
         # self.segments = self.segments[self.segments.segment_type != 'DROP']
 
 
-    
     def __eq__(self, other):
         """Equal operator"""
         eq = self.segments.equals(other.segments)
@@ -367,14 +353,12 @@ class RTTM(object):
             
         return eq
 
-
     
     def __ne__(self, other):
         """Non-equal operator"""
         return not self.__eq__(other)
 
 
-    
     def __cmp__(self, other):
         """Comparison operator"""
         if self.__eq__(other):
@@ -382,7 +366,6 @@ class RTTM(object):
         return 1
 
 
-    
     def get_segment_names_slow(self, segment_list, sep='@', segment_type='SPEAKER'):
         num_segm = len(segment_list)
         names = []
@@ -477,8 +460,6 @@ class RTTM(object):
         self.segments.loc[index, 'tdur'] = tend[index] - tavg[index]
 
 
-
-    
     def to_matrix(self, file_id, frame_shift=0.001):
         if self.index_by_file:
             segments = self.segments[file_id]
@@ -494,7 +475,6 @@ class RTTM(object):
             M[tbeg[i]:tend[i], name_ids[i]] = 1
 
 
-            
     def compute_stats(self, nbins_dur=None):
 
         # segment durations
@@ -516,6 +496,7 @@ class RTTM(object):
         total_spks = len(self.segments['name'].unique())
 
         # overlaps
+        # TODO
         return dur_info, hist_dur, total_spks
     
         
