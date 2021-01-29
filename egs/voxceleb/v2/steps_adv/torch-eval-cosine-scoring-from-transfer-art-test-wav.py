@@ -4,7 +4,6 @@
   Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)  
 
 """
-from __future__ import absolute_import
 
 import sys
 import os
@@ -199,11 +198,9 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
         tar_audio_writer = AW(save_adv_wav_path + '/tar2non')
         non_audio_writer = AW(save_adv_wav_path + '/non2tar')
 
-    attack_args = AttackFactory.filter_args(**kwargs)
-    attack_type = attack_args['attack_type']
-    del attack_args['attack_type']
-    attack_args['attack_eps'] *= wav_scale
-    attack_args['attack_alpha'] *= wav_scale
+    attack_args = AttackFactory.filter_args(prefix='attack', **kwargs)
+    extra_args = {'eps_scale': wav_scale }
+    attack_args.update(extra_args)
     logging.info('attack-args={}'.format(attack_args))
 
     if vad_spec is not None:
@@ -249,8 +246,8 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
             clip_values=(-wav_scale, wav_scale),
             device_type=device_type)
 
-        attack = AttackFactory.create(
-            attack_type, model_art, num_samples=s.shape[-1], **attack_args)
+        attack_args['num_samples'] = s.shape[-1]
+        attack = AttackFactory.create(model_art, **attack_args)
 
         for i in range(key.num_models):
             if key.tar[i,j] or key.non[i,j]:
@@ -317,16 +314,13 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
     attack_stats.to_csv(stats_file)
 
 
-
-
-
 if __name__ == "__main__":
 
     parser=argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,                
         fromfile_prefix_chars='@',
         description=('Eval cosine-scoring given enroll x-vector and adversarial test wave '
-                     'obtained from a different model with ART')
+                     'obtained from a different model with ART'))
 
     parser.add_argument('--v-file', dest='v_file', required=True)
     parser.add_argument('--key-file', dest='key_file', default=None)
@@ -342,11 +336,9 @@ if __name__ == "__main__":
     parser.add_argument('--mvn-no-norm-mean', 
                         default=False, action='store_true',
                         help='don\'t center the features')
-
     parser.add_argument('--mvn-norm-var', 
                         default=False, action='store_true',
                         help='normalize the variance of the features')
-        
     parser.add_argument('--mvn-context', type=int,
                         default=300,
                         help='short-time mvn context in number of frames')
@@ -364,7 +356,7 @@ if __name__ == "__main__":
     parser.add_argument('--use-gpu', default=False, action='store_true',
                         help='extract xvectors in gpu')
 
-    AttackFactory.add_argparse_args(parser)
+    AttackFactory.add_argparse_args(parser, prefix='attack')
 
     parser.add_argument('--seg-part-idx', default=1, type=int,
                         help=('test part index'))
@@ -379,7 +371,6 @@ if __name__ == "__main__":
     parser.add_argument('--save-adv-wav', 
                         default=False, action='store_true',
                         help='save adversarial signals to disk')
-
     parser.add_argument('--save-adv-wav-path', default=None, 
                         help='output path of adv signals')
 
@@ -400,7 +391,6 @@ if __name__ == "__main__":
                         help='score calibration file for transfer model')
     parser.add_argument('--threshold', default=0, type=float, help='decision threshold')
 
-    
     args=parser.parse_args()
     config_logger(args.verbose)
     del args.verbose

@@ -2,8 +2,6 @@
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-
 import logging
 
 import torch
@@ -21,7 +19,7 @@ class CarliniWagner(AdvAttack):
                  norm_time=False, time_dim=None, use_snr=False,
                  targeted=False, range_min=None, range_max=None):
 
-        super(CarliniWagner, self).__init__(model, None, targeted, range_min, range_max)
+        super().__init__(model, None, targeted, range_min, range_max)
         self.confidence = confidence
         self.lr = lr
         self.max_iter = max_iter
@@ -59,7 +57,7 @@ class CarliniWagner(AdvAttack):
             z_t = z[idx, target]
             z_clone = z.clone()
             z_clone[idx, target] = -1e10
-            z_other = torch.max(z, dim=-1)[0]
+            z_other = torch.max(z_clone, dim=-1)[0]
 
         if self.targeted:
             f = F.relu(z_other-z_t+self.confidence) #max(0, z_other-z_target+k)

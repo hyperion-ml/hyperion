@@ -47,6 +47,8 @@ if [ $stage -le 1 ];then
 	echo "Eval Voxceleb 1 with Cosine scoring with FGSM attack eps=$eps"
 	steps_adv/eval_cosine_scoring_from_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 20 \
 	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
+	    --attack-opts "--attack-attack-type fgsm --attack-eps $eps" \
+
 	    --attack-type fgsm --eps $eps \
 	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --threshold $thr005 \
