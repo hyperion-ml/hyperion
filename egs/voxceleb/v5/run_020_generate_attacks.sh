@@ -7,7 +7,7 @@
 . ./path.sh
 set -e
 
-stage=1
+stage=7
 config_file=default_config.sh
 use_gpu=false
 xvec_chunk_length=12800
@@ -66,33 +66,75 @@ if [ $stage -le 3 ]; then
     done
 fi
 
-# if [ $stage -le 4 ]; then
-#     # create pgd attacks
-#     for name in voxceleb2cat
-#     do
-#     	steps_attacks/generate_adv_attacks_xvector_classif.sh  --cmd "$xvec_cmd --mem 12G" --nj 250 ${xvec_args} \
-# 	    --random-utt-length true --min-utt-length 4 --max-utt-length 60 --use-bin-vad false \
-# 	    --feat-config $feat_config \
-# 	    --attacks-opts "--attacks-attack-type pgd --attacks-min-eps 3e-6 --attacks-max-eps 0.03 --attacks-min-alpha 1e-6 --attacks-max-alpha 0.005 --p-attack 0.25 --random-seed 3000" \
-#     	    $nnet data/${name}_proc_audio_no_sil \
-# 	    $class2int iter-fgsm \
-#     	    $attack_dir/iter-fgsm/${name}
-#     done
-# fi
+if [ $stage -le 4 ]; then
+    # create pgd attacks
+    for name in voxceleb2cat
+    do
+    	steps_attacks/generate_adv_attacks_xvector_classif.sh  --cmd "$xvec_cmd --mem 12G" --nj 250 ${xvec_args} \
+	    --random-utt-length true --min-utt-length 4 --max-utt-length 60 --use-bin-vad false \
+	    --feat-config $feat_config \
+	    --attacks-opts "--attacks-attack-type pgd --norms inf --attacks-min-eps 3e-6 --attacks-max-eps 0.03 --attacks-min-alpha 1e-6 --attacks-max-alpha 0.005 --p-attack 0.25 --min-num-random-init 0 --max-num-random-init 5 --random-seed 4000" \
+    	    $nnet data/${name}_proc_audio_no_sil \
+	    $class2int pgd-linf \
+    	    $attack_dir/pgd-linf/${name}
+    done
+fi
+
+if [ $stage -le 5 ]; then
+    # create pgd attacks
+    for name in voxceleb2cat
+    do
+    	steps_attacks/generate_adv_attacks_xvector_classif.sh  --cmd "$xvec_cmd --mem 12G" --nj 250 ${xvec_args} \
+	    --random-utt-length true --min-utt-length 4 --max-utt-length 60 --use-bin-vad false \
+	    --feat-config $feat_config \
+	    --attacks-opts "--attacks-attack-type pgd --norms 1 --attacks-min-eps 3e-6 --attacks-max-eps 0.03 --attacks-min-alpha 1e-6 --attacks-max-alpha 0.005 --p-attack 0.25 --min-num-random-init 0 --max-num-random-init 5 --random-seed 5000" \
+    	    $nnet data/${name}_proc_audio_no_sil \
+	    $class2int pgd-l1 \
+    	    $attack_dir/pgd-l1/${name}
+    done
+fi
+
+if [ $stage -le 6 ]; then
+    # create pgd attacks
+    for name in voxceleb2cat
+    do
+    	steps_attacks/generate_adv_attacks_xvector_classif.sh  --cmd "$xvec_cmd --mem 12G" --nj 250 ${xvec_args} \
+	    --random-utt-length true --min-utt-length 4 --max-utt-length 60 --use-bin-vad false \
+	    --feat-config $feat_config \
+	    --attacks-opts "--attacks-attack-type pgd --norms 2 --attacks-min-eps 3e-6 --attacks-max-eps 0.03 --attacks-min-alpha 1e-6 --attacks-max-alpha 0.005 --p-attack 0.25 --min-num-random-init 0 --max-num-random-init 5 --random-seed 6000" \
+    	    $nnet data/${name}_proc_audio_no_sil \
+	    $class2int pgd-l2 \
+    	    $attack_dir/pgd-l2/${name}
+    done
+fi
+
 
 if [ $stage -le 7 ]; then
     # create CW-L2 attacks
+    # for name in voxceleb2cat
+    # do
+    # 	steps_attacks/generate_adv_attacks_xvector_classif.sh  --cmd "$xvec_cmd --mem 12G" --nj 500 ${xvec_args} \
+    # 	    --random-utt-length true --min-utt-length 4 --max-utt-length 60 --use-bin-vad false \
+    # 	    --feat-config $feat_config \
+    # 	    --attacks-opts "--attacks-attack-type cw-l2 --attacks-min-confidence 0 --attacks-max-confidence 3 --attacks-min-lr 1e-3 --attacks-max-lr 1e-2 --attacks-min-iter 10 --attacks-max-iter 200 --attacks-norm-time --p-attack 0.25 --random-seed 7000" \
+    # 	    $nnet data/${name}_proc_audio_no_sil \
+    # 	    $class2int cw-l2 \
+    # 	    $attack_dir/cw-l2/${name}
+    # done
     for name in voxceleb2cat
     do
     	steps_attacks/generate_adv_attacks_xvector_classif.sh  --cmd "$xvec_cmd --mem 12G" --nj 500 ${xvec_args} \
 	    --random-utt-length true --min-utt-length 4 --max-utt-length 60 --use-bin-vad false \
 	    --feat-config $feat_config \
-	    --attacks-opts "--attacks-attack-type cw-l2 --attacks-min-confidence 0 --attacks-max-confidence 3 --attacks-min-lr 1e-3 --attacks-max-lr 1e-2 --attacks-min-iter 10 --attacks-max-iter 200 --attacks-norm-time --p-attack 0.25 --random-seed 7000" \
+	    --attacks-opts "--attacks-attack-type cw-l2 --attacks-min-confidence 0 --attacks-max-confidence 3 --attacks-min-lr 1e-5 --attacks-max-lr 1e-2 --attacks-min-iter 10 --attacks-max-iter 100 --attacks-norm-time --p-attack 0.25 --random-seed 7000" \
     	    $nnet data/${name}_proc_audio_no_sil \
 	    $class2int cw-l2 \
     	    $attack_dir/cw-l2/${name}
     done
+
 fi
+
+exit
 
 if [ $stage -le 8 ]; then
     # create CW-Linf attacks

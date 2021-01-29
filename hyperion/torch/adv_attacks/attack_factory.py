@@ -15,7 +15,7 @@ from .pgd_attack import PGDAttack
 class AttackFactory(object):
 
     @staticmethod
-    def create(attack_type, model, eps=0, snr=100, alpha=0, 
+    def create(model, attack_type, eps=0, snr=100, alpha=0, 
                norm=float('inf'), random_eps=False, num_random_init=0,
                confidence=0.0, lr=1e-2, 
                binary_search_steps=9, max_iter=10,

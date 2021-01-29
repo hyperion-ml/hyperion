@@ -70,7 +70,7 @@ class CarliniWagner(AdvAttack):
             z_t = z[idx, target]
             z_clone = z.clone()
             z_clone[idx, target] = -1e10
-            z_other = torch.max(z, dim=-1)[0]
+            z_other = torch.max(z_clone, dim=-1)[0]
 
         if self.targeted:
             f = F.relu(z_other-z_t+self.confidence) #max(0, z_other-z_target+k)
