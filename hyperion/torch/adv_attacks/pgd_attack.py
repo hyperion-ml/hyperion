@@ -27,6 +27,28 @@ class PGDAttack(AdvAttack):
         self.time_dim = time_dim
 
 
+    @property
+    def attack_info(self):
+        info = super().attack_info
+        if self.norm == 1:
+            threat = 'l1'
+        elif self.norm == 2:
+            threat = 'l2'
+        else:
+            threat = 'linf'
+
+        new_info = {'eps': self.eps,
+                    'alpha': self.alpha,
+                    'norm': self.norm,
+                    'max_iter': self.max_iter,
+                    'random_eps': self.random_eps,
+                    'num_random_init': self.num_random_init,
+                    'threat_model': threat,
+                    'attack_type': 'pgd' }
+        info.update(new_info)
+        return info
+
+
     @staticmethod
     def _project(delta, eps, norm, norm_time, time_dim):
 

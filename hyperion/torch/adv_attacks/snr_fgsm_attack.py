@@ -2,17 +2,27 @@
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-
 import torch
 
 from .adv_attack import AdvAttack
 
 class SNRFGSMAttack(AdvAttack):
 
-    def __init__(self, model, snr, loss=None, targeted=False, range_min=None, range_max=None):
-        super(SNRFGSMAttack, self).__init__(model, loss, targeted, range_min, range_max)
+    def __init__(self, model, snr, loss=None, targeted=False, 
+                 range_min=None, range_max=None):
+        super().__init__(model, loss, targeted, range_min, range_max)
         self.snr = snr
+
+
+    @property
+    def attack_info(self):
+        info = super().attack_info
+        new_info = {'snr': self.snr,
+                    'threat_model': 'snr',
+                    'attack_type': 'snr-fgsm' }
+        info.update(new_info)
+        return info
+
 
     def generate(self, input, target):
 

@@ -29,6 +29,18 @@ class CarliniWagnerLInf(CarliniWagner):
         self.tau_decr_factor = tau_decr_factor
 
 
+    @property
+    def attack_info(self):
+        info = super().attack_info
+        new_info = {'reduce_c': self.reduce_c,
+                    'c_incr_factor': self.c_incr_factor,
+                    'tau_decr_factor': self.tau_decr_factor,
+                    'threat_model': 'linf',
+                    'attack_type': 'cw-linf'}
+        info.update(new_info)
+        return info
+
+
     def _attack(self, x, target, start_adv, tau, c):
 
         w_start = self.w_x(start_adv).detach()

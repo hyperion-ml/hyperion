@@ -31,7 +31,20 @@ class CarliniWagner(AdvAttack):
         self.norm_time = norm_time
         self.time_dim = time_dim
         self.use_snr = use_snr
+
         
+    @property
+    def attack_info(self):
+        info = super().attack_info
+        new_info = {'confidence': self.confidence,
+                    'lr': self.lr,
+                    'max_iter': self.max_iter,
+                    'abort_early': self.abort_early,
+                    'initial_c': self.initial_c,
+                    'norm_time': self.norm_time,
+                    'use_snr': self.use_snr }
+        info.update(new_info)
+        return info
 
 
     @staticmethod

@@ -31,6 +31,20 @@ class CarliniWagnerL2(CarliniWagner):
         self.repeat = binary_search_steps >= 10
 
 
+    @property
+    def attack_info(self):
+        info = super().attack_info
+        if self.use_snr:
+            threat = 'snr'
+        else:
+            threat = 'l2'
+        new_info = {'binary_search_steps': self.binary_search_steps,
+                    'threat_model': threat,
+                    'attack_type': 'cw-l2' }
+        info.update(new_info)
+        return info
+
+
     @staticmethod
     def _compute_negsnr(x_norm, d_norm):
         return 20*(torch.log10(d_norm) - torch.log10(x_norm))
