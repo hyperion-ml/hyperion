@@ -74,11 +74,11 @@ class AttackFactory(object):
                 reduce_c, c_incr_factor, tau_decr_factor,
                 targeted=targeted, range_min=range_min, range_max=range_max)
 
-
         if attack_type == 'pgd':
             return PGDAttack(
                 model, eps, alpha, norm, max_iter, 
                 random_eps, num_random_init, loss=loss, 
+                norm_time=norm_time, time_dim=time_dim,
                 targeted=targeted, range_min=range_min, range_max=range_max)
                 
         raise Exception('%s is not a valid attack type' % (attack_type))
@@ -205,3 +205,5 @@ class AttackFactory(object):
         parser.add_argument(
             p1+'norm-time', default=False, action='store_true',
             help=('normalize norm by number of samples in time dimension'))
+
+

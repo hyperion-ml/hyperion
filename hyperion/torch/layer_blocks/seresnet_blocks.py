@@ -20,7 +20,7 @@ class SEResNetBasicBlock(ResNetBasicBlock):
                  norm_layer=None, norm_before=True, 
                  se_r=16, time_se=False, num_feats=None):
 
-        super(SEResNetBasicBlock, self).__init__(
+        super().__init__(
             in_channels, channels, activation=activation,
             stride=stride, dropout_rate=dropout_rate, 
             groups=groups, dilation=dilation, 

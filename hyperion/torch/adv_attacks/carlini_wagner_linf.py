@@ -2,7 +2,6 @@
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-
 import logging
 
 import torch
@@ -60,7 +59,7 @@ class CarliniWagnerLInf(CarliniWagner):
                 f = self.f(z, target)
                 delta = x_adv - x
                 r = torch.abs(delta) - tau
-                loss1 = F.relu(r).sum()
+                loss1 = F.relu(r).mean()
                 loss2 = (c * f).mean()
                 loss = loss1 + loss2
                 loss.backward()
@@ -74,11 +73,11 @@ class CarliniWagnerLInf(CarliniWagner):
                                  'loss={3:.2f} d_norm={4:.2f} cf={5:.5f} '
                                  'success={6}'.format(
                                      c_step, opt_step, c,
-                                     loss.item(), loss1.item(), loss2.item(), 
+                                     loss.item(), loss1.item()+tau, loss2.item(), 
                                      bool(step_success.item())))
                 
                 loss_it = loss.item()
-                if step_success and self.abort_early:
+                if loss_it <=0 or (step_success and self.abort_early):
                     break
 
             if step_success:
@@ -110,7 +109,6 @@ class CarliniWagnerLInf(CarliniWagner):
                 return best_adv[0]
 
             x_adv, c = res
-
             if self.reduce_c:
                 c /= 2
 

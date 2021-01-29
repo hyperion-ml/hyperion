@@ -50,7 +50,7 @@ if [ $stage -le 2 ]; then
     for dataset in $datasets
     do
 	echo "Tuning clustering threshold for $dataset"
-	for threshold in 0.5 #-1.5 -1.25 -0.9 -0.5 0 0.5
+	for threshold in -0.9 #-1.5 -1.25 -0.9 -0.5 0 0.5
 	do
 	    (
 		num_spk=$(wc -l $score_dir/$dataset/plda_scores/spk2utt  | cut -d " " -f 1)

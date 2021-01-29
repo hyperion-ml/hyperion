@@ -2,14 +2,17 @@
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-import torch
+import math
+import logging
 
+import torch
 from .adv_attack import AdvAttack
 
 class PGDAttack(AdvAttack):
 
     def __init__(self, model, eps, alpha, norm, max_iter=10, 
                  random_eps=False, num_random_init=0, loss=None, 
+                 norm_time=False, time_dim=None,
                  targeted=False, range_min=None, range_max=None):
         super().__init__(
             model, loss, targeted, range_min, range_max)
@@ -19,6 +22,8 @@ class PGDAttack(AdvAttack):
         self.norm = norm
         self.random_eps = random_eps
         self.num_random_init = num_random_init
+        self.norm_time = norm_time
+        self.time_dim = time_dim
 
 
     @property
@@ -44,13 +49,20 @@ class PGDAttack(AdvAttack):
 
 
     @staticmethod
-    def _project(delta, eps, norm):
+    def _project(delta, eps, norm, norm_time, time_dim):
 
         if norm == 'inf' or norm == float('inf'):
             return torch.clamp(delta, -eps, eps)
 
+        if norm_time:
+            num_samples = delta.shape[time_dim]
+            if norm == 2:
+                eps = eps * math.sqrt(num_samples)
+            elif norm == 1:
+                eps = eps * num_samples
+
         delta_tmp = torch.reshape(delta, (delta.shape[0], -1))
-        one = torch.ones((1,), dtype=delta.dtype)
+        one = torch.ones((1,), dtype=delta.dtype, device=delta.device)
         if norm == 2:
             delta_tmp = delta_tmp*torch.min(
                 one, eps/torch.norm(delta_tmp, dim=1, keepdim=True))
@@ -130,7 +142,8 @@ class PGDAttack(AdvAttack):
                 loss.backward()
                 dL_x = x.grad.data
                 x = x + f * alpha * dL_x.sign()
-                delta = self._project(x-input, eps, self.norm)
+                delta = self._project(x-input, eps, self.norm, 
+                                      self.norm_time, self.time_dim)
                 x = input + delta
 
             x = self._clamp(x)

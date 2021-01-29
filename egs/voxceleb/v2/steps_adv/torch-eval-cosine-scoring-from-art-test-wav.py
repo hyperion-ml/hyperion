@@ -4,7 +4,6 @@
   Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)  
 
 """
-from __future__ import absolute_import
 
 import sys
 import os
@@ -57,7 +56,7 @@ def read_data(v_file, key_file, enroll_file, seg_part_idx, num_seg_parts):
 class Calibrator(nn.Module):
 
     def __init__(self, a, b):
-        super(Calibrator, self).__init__()
+        super().__init__()
         self.a = a
         self.b = b
 
@@ -68,7 +67,7 @@ class Calibrator(nn.Module):
 class MyModel(nn.Module):
 
     def __init__(self, feat_extractor, xvector_model, mvn=None, embed_layer=None, calibrator=None, threshold=0):
-        super(MyModel, self).__init__()
+        super().__init__()
         self.feat_extractor = feat_extractor
         self.xvector_model = xvector_model
         self.mvn = mvn
@@ -77,6 +76,7 @@ class MyModel(nn.Module):
         self.embed_layer = embed_layer
         self.calibrator = calibrator
         self.threshold = threshold
+
 
     def forward(self, s_t):
         f_t = s_t
@@ -115,7 +115,6 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
                         save_adv_wav, save_adv_wav_path,
                         use_gpu, seg_part_idx, num_seg_parts, 
                         **kwargs):
-
     if use_gpu:
         device_type='gpu'
         num_gpus = 1 
@@ -138,7 +137,6 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
         mvn = MVN(
             norm_mean=(not mvn_no_norm_mean), norm_var=mvn_norm_var,
             left_context=mvn_context, right_context=mvn_context)
-
 
     logging.info('loading model {}'.format(model_path))
     xvector_model = TML.load(model_path)
@@ -175,11 +173,9 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
         tar_audio_writer = AW(save_adv_wav_path + '/tar2non')
         non_audio_writer = AW(save_adv_wav_path + '/non2tar')
 
-    attack_args = AttackFactory.filter_args(**kwargs)
-    attack_type = attack_args['attack_type']
-    del attack_args['attack_type']
-    attack_args['attack_eps'] *= wav_scale
-    attack_args['attack_eps_step'] *= wav_scale
+    attack_args = AttackFactory.filter_args(prefix='attack', **kwargs)
+    extra_args = {'eps_scale': wav_scale }
+    attack_args.update(extra_args)
     logging.info('attack-args={}'.format(attack_args))
 
     if vad_spec is not None:
@@ -227,9 +223,8 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
             clip_values=(-wav_scale, wav_scale),
             device_type=device_type)
 
-        attack = AttackFactory.create(
-            attack_type, model_art, num_samples=s.shape[-1], **attack_args)
-
+        attack_args['num_samples'] = s.shape[-1]
+        attack = AttackFactory.create(model_art, **attack_args)
         for i in range(key.num_models):
             if key.tar[i,j] or key.non[i,j]:
                 t3 = time.time()
@@ -292,9 +287,6 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
 
     logging.info('saving stats to %s' % (stats_file))
     attack_stats.to_csv(stats_file)
-
-
-
 
 
 if __name__ == "__main__":
