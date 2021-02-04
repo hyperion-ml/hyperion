@@ -8,8 +8,9 @@ from .adv_attack import AdvAttack
 
 class IterFGSMAttack(AdvAttack):
 
-    def __init__(self, model, eps, alpha, loss=None, targeted=False, range_min=None, range_max=None):
-        super(IterFGSMAttack, self).__init__(
+    def __init__(self, model, eps, alpha, loss=None, 
+                 targeted=False, range_min=None, range_max=None):
+        super().__init__(
             model, loss, targeted, range_min, range_max)
         self.eps = eps
         self.alpha = alpha

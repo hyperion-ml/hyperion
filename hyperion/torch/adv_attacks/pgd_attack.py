@@ -49,17 +49,10 @@ class PGDAttack(AdvAttack):
 
 
     @staticmethod
-    def _project(delta, eps, norm, norm_time, time_dim):
+    def _project(delta, eps, norm):
 
         if norm == 'inf' or norm == float('inf'):
             return torch.clamp(delta, -eps, eps)
-
-        if norm_time:
-            num_samples = delta.shape[time_dim]
-            if norm == 2:
-                eps = eps * math.sqrt(num_samples)
-            elif norm == 1:
-                eps = eps * num_samples
 
         delta_tmp = torch.reshape(delta, (delta.shape[0], -1))
         one = torch.ones((1,), dtype=delta.dtype, device=delta.device)
@@ -123,6 +116,15 @@ class PGDAttack(AdvAttack):
             eps = self.eps
             alpha = self.alpha
 
+        if self.norm_time:
+            num_samples = input.shape[time_dim]
+            if norm == 2:
+                eps *= math.sqrt(num_samples)
+                alpha *= math.sqrt(num_samples)
+            elif norm == 1:
+                eps *= num_samples
+                alpha *= num_samples
+
         best_loss = None
         best_x = None
 
@@ -142,8 +144,7 @@ class PGDAttack(AdvAttack):
                 loss.backward()
                 dL_x = x.grad.data
                 x = x + f * alpha * dL_x.sign()
-                delta = self._project(x-input, eps, self.norm, 
-                                      self.norm_time, self.time_dim)
+                delta = self._project(x-input, eps, self.norm)
                 x = input + delta
 
             x = self._clamp(x)
