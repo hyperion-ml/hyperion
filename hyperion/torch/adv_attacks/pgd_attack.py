@@ -29,12 +29,12 @@ class PGDAttack(AdvAttack):
     @property
     def attack_info(self):
         info = super().attack_info
-        if norm == 1:
-            threat == 'l1'
-        elif norm == 2:
-            threat == 'l2'
+        if self.norm == 1:
+            threat = 'l1'
+        elif self.norm == 2:
+            threat = 'l2'
         else:
-            threat == 'linf'
+            threat = 'linf'
 
         new_info = {'eps': self.eps,
                     'alpha': self.alpha,

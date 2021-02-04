@@ -18,12 +18,13 @@ mkdir -p $attack_dir/pool_v1
 
 if [ $stage -le 1 ];then
     # concatenate infos of all attacks types
-    for attack in fgsm rand-fgsm iter-fgsm cw-l2
+    for attack in fgsm rand-fgsm iter-fgsm cw-l2 cw-linf pgd-linf #pgd-l1 pgd-l2 
     do
 	for name in voxceleb2cat
 	do
 	    cat $attack_dir/$attack/$name/info/info.yml
-	done
+	done | awk '/attack_type:/ { sub(/pgd/,"'$attack'",$0); sub(/rand-fgsm/,"fgsm",$0) }
+                               { print $0 }'
     done | awk '!/\{\}/' > $attack_dir/pool_v1/info.yml
 fi
 

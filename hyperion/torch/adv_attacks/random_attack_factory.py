@@ -273,8 +273,12 @@ class RandomAttackFactory(object):
             help=('do not abort early in optimizer iterations'))
 
         parser.add_argument(
-            p1+'num-random-init', default=0, type=int,
-            help=('number of random initializations in PGD attack'))
+            p1+'min-num-random-init', default=1, type=int,
+            help=('min number of random initializations in PGD attack'))
+
+        parser.add_argument(
+            p1+'max-num-random-init', default=5, type=int,
+            help=('max number of random initializations in PGD attack'))
 
         parser.add_argument(
             p1+'targeted', default=False, action='store_true',

@@ -2,7 +2,6 @@
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-
 import torch
 
 from .adv_attack import AdvAttack
@@ -13,6 +12,7 @@ class FGSMAttack(AdvAttack):
         super().__init__(
             model, loss, targeted, range_min, range_max)
         self.eps = eps
+
 
     @property
     def attack_info(self):
