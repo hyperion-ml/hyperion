@@ -44,7 +44,8 @@ class PGDAttack(AdvAttack):
                     'random_eps': self.random_eps,
                     'num_random_init': self.num_random_init,
                     'threat_model': threat,
-                    'attack_type': 'pgd' }
+                    'attack_type': 'pgd',
+                    'norm_time': self.norm_time }
         info.update(new_info)
         return info
 
@@ -118,7 +119,7 @@ class PGDAttack(AdvAttack):
             alpha = self.alpha
 
         if self.norm_time:
-            num_samples = input.shape[time_dim]
+            num_samples = input.shape[self.time_dim]
             if norm == 2:
                 eps *= math.sqrt(num_samples)
                 alpha *= math.sqrt(num_samples)
