@@ -120,10 +120,10 @@ class PGDAttack(AdvAttack):
 
         if self.norm_time:
             num_samples = input.shape[self.time_dim]
-            if norm == 2:
+            if self.norm == 2:
                 eps *= math.sqrt(num_samples)
                 alpha *= math.sqrt(num_samples)
-            elif norm == 1:
+            elif self.norm == 1:
                 eps *= num_samples
                 alpha *= num_samples
 
