@@ -19,6 +19,7 @@ if [ "$use_gpu" == "true" ];then
     xvec_cmd="$cuda_eval_cmd"
 else
     xvec_cmd="$train_cmd"
+    xvec_args="--chunk-length $xvec_chunk_length"
 fi
 
 xvector_dir=exp/xvectors/$nnet_name
