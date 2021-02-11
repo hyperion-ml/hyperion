@@ -84,8 +84,10 @@ def eval_nnet_by_chunks(x, nnet, chunk_length=0, detach_chunks=True, time_dim=-1
         else:
             tend_out = min(int(round(tbeg_out)) + chunk_length_out - left_context_out, T_out)
             dt = tend_out - tbeg_out
-            y[tbeg_out:tend_out] = y_i[left_context_out:left_context_out+dt]
-            tbeg_out += chunk_shift_out
+            if dt > 0:
+                #print('eu', tbeg_out, tend_out, left_context_out,left_context_out+dt, T_out, chunk_length, chunk_length_out, tbeg_in, tend_in)
+                y[tbeg_out:tend_out] = y_i[left_context_out:left_context_out+dt]
+                tbeg_out += chunk_shift_out
 
         tbeg_in += chunk_shift_in
 
