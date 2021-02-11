@@ -25,6 +25,7 @@ class XVector(TorchModel):
                  hid_act={'name':'relu', 'inplace': True}, 
                  loss_type='arc-softmax',
                  s=64, margin=0.3, margin_warmup_epochs=0,
+                 num_subcenters=2,
                  norm_layer=None, head_norm_layer=None,
                  use_norm=True, norm_before=True, 
                  dropout_rate=0,
@@ -91,6 +92,7 @@ class XVector(TorchModel):
             hid_act=hid_act,
             loss_type=loss_type,
             s=s, margin=margin, margin_warmup_epochs=margin_warmup_epochs,
+            num_subcenters=num_subcenters,
             norm_layer=head_norm_layer,
             use_norm=use_norm, norm_before=norm_before, 
             dropout_rate=dropout_rate)
@@ -132,6 +134,10 @@ class XVector(TorchModel):
     @property
     def margin_warmup_epochs(self):
         return self.classif_net.margin_warmup_epochs
+
+    @property
+    def num_subcenters(self):
+        return self.classif_net.num_subcenters
 
     @property
     def loss_type(self):
@@ -385,6 +391,7 @@ class XVector(TorchModel):
                   's': self.s,
                   'margin': self.margin,
                   'margin_warmup_epochs': self.margin_warmup_epochs,
+                  'num_subcenters': self.num_subcenters,
                   'norm_layer': self.norm_layer,
                   'head_norm_layer': self.head_norm_layer,
                   'use_norm': self.use_norm,
@@ -498,9 +505,9 @@ class XVector(TorchModel):
                 pool_args[k2] = pool_args[k]
                 del pool_args[k]
 
-
         valid_args = ('num_classes', 'embed_dim', 'num_embed_layers', 'hid_act', 'loss_type',
-                      's', 'margin', 'margin_warmup_epochs', 'use_norm', 'norm_before',
+                      's', 'margin', 'margin_warmup_epochs', 'num_subcenters',
+                      'use_norm', 'norm_before',
                       'in_feats', 'proj_feats', 'dropout_rate', 
                       'norm_layer', 'head_norm_layer')
         args = dict((k, kwargs[p+k])
@@ -573,8 +580,8 @@ class XVector(TorchModel):
             pass
 
         parser.add_argument(p1+'loss-type', default='arc-softmax', 
-                            choices = ['softmax', 'arc-softmax', 'cos-softmax'],
-                            help='loss type: softmax, arc-softmax, cos-softmax')
+                            choices = ['softmax', 'arc-softmax', 'cos-softmax', 'subcenter-arc-softmax'],
+                            help='loss type: softmax, arc-softmax, cos-softmax, subcenter-arc-softmax')
         
         parser.add_argument(p1+'s', default=64, type=float,
                             help='scale for arcface')
@@ -584,6 +591,10 @@ class XVector(TorchModel):
         
         parser.add_argument(p1+'margin-warmup-epochs', default=10, type=float,
                             help='number of epoch until we set the final margin')
+
+        parser.add_argument(p1+'num-subcenters', default=2, type=int,
+                            help='number of subcenters in subcenter losses')
+
         try:
             parser.add_argument(
                 p1+'norm-layer', default=None, 
@@ -647,8 +658,8 @@ class XVector(TorchModel):
             p1 = '--' + prefix + '-'
         
         parser.add_argument(p1+'loss-type', default='arc-softmax', 
-                            choices = ['softmax', 'arc-softmax', 'cos-softmax'],
-                            help='loss type: softmax, arc-softmax, cos-softmax')
+                            choices = ['softmax', 'arc-softmax', 'cos-softmax', 'subcenter-arc-softmax'],
+                            help='loss type: softmax, arc-softmax, cos-softmax, subcenter-arc-softmax')
         
         parser.add_argument(p1+'s', default=64, type=float,
                             help='scale for arcface')
@@ -658,6 +669,9 @@ class XVector(TorchModel):
         
         parser.add_argument(p1+'margin-warmup-epochs', default=10, type=float,
                             help='number of epoch until we set the final margin')
+
+        parser.add_argument(p1+'num-subcenters', default=2, type=float,
+                            help='number of subcenters in subcenter losses')
        
     
 

@@ -286,12 +286,15 @@ class AudioDataset(Dataset):
             
         x = x[0]
         fs = fs[0]
-        
+
         x_clean = x
         if self.augmenter is not None:
             chunk_length_samples = int(chunk_length * fs)
             end_idx = len(x)
             reverb_context_samples = end_idx - chunk_length_samples
+            assert reverb_context_samples >= 0, (
+                'key={} read-x-samples={}, chunk_samples={}, reverb_context_samples={}'.format(
+                    key, end_idx, chunk_length_samples, reverb_context_samples))
             # end_idx = reverb_context_samples + chunk_length_samples
             x, aug_info = self.augmenter(x)
             x = x[reverb_context_samples:end_idx]
@@ -305,7 +308,7 @@ class AudioDataset(Dataset):
 
         # if len(x) != 64000:
         #         logging.info('x!=4s-2, {} {} {} {}'.format(len(x), chunk_length, fs, read_chunk_length))
-                
+
         if self.transpose_input:
             x = x[None,:]
             if self.return_clean_aug_pair:
@@ -315,10 +318,10 @@ class AudioDataset(Dataset):
             r = x, x_clean
         else:
             r = x,
-
+            
         if not self.return_class:
             return r
-        
+
         class_idx = self.utt_idx2class[index]
         r = *r, class_idx
         return r

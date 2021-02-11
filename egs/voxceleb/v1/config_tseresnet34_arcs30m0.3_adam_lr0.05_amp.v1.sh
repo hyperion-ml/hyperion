@@ -2,7 +2,7 @@
 # by averating only in the time dimension instead of Freq-Time dimension
 
 #xvector training 
-nnet_data=voxceleb2cat_combined
+nnet_data=voxceleb2cat_train_combined
 
 batch_size_1gpu=32
 eff_batch_size=512 # effective batch size
@@ -55,5 +55,5 @@ lda_dim=200
 plda_y_dim=150
 plda_z_dim=200
 
-plda_data=voxceleb2cat_combined
+plda_data=voxceleb2cat_train_combined
 plda_type=splda

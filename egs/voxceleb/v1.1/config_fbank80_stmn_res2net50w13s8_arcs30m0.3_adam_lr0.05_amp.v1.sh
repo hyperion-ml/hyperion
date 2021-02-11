@@ -1,11 +1,11 @@
-# LResNet34 x-vector with mixed precision training
+# Res2Net50 w13s8 x-vector with mixed precision training
 
 # acoustic features
 feat_config=conf/fbank80_stmn_16k.pyconf
 feat_type=fbank80_stmn
 
 # x-vector training 
-nnet_data=voxceleb2cat
+nnet_data=voxceleb2cat_train
 nnet_num_augs=6
 aug_opt="--train-aug-cfg conf/reverb_noise_aug.yml --val-aug-cfg conf/reverb_noise_aug.yml"
 
@@ -42,9 +42,9 @@ nnet=$nnet_dir/model_ep0070.pth
 plda_aug_config=conf/reverb_noise_aug.yml
 plda_num_augs=6
 if [ $plda_num_augs -eq 0 ]; then
-    plda_data=voxceleb2cat
+    plda_data=voxceleb2cat_train
 else
-    plda_data=voxceleb2cat_augx${plda_num_augs}
+    plda_data=voxceleb2cat_train_augx${plda_num_augs}
 fi
 plda_type=splda
 lda_dim=200

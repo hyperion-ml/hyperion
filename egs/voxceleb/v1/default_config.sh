@@ -2,7 +2,7 @@
 
 # xvector training 
 # x-Vector with Light ResNet34 encoder, additive angular softmax objective
-nnet_data=voxceleb2cat_combined
+nnet_data=voxceleb2cat_train_combined
 nnet_type=lresnet34 #light resnet
 batch_size_1gpu=128
 eff_batch_size=512 # effective batch size
@@ -49,5 +49,5 @@ lda_dim=200
 plda_y_dim=150
 plda_z_dim=200
 
-plda_data=voxceleb2cat_combined
+plda_data=voxceleb2cat_train_combined
 plda_type=splda
