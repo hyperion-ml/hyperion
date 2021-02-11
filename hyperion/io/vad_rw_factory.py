@@ -2,13 +2,12 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
 
 import logging
 
 from .rw_specifiers import ArchiveType, WSpecifier, RSpecifier, WSpecType, RSpecType
 from .bin_vad_reader import BinVADReader as BVR
-
+from .segment_vad_reader import SegmentVADReader as SVR
 
 
 class VADReaderFactory(object):
@@ -22,6 +21,8 @@ class VADReaderFactory(object):
             if (rspecifier.archive_type == ArchiveType.H5 or 
                 rspecifier.archive_type == ArchiveType.ARK):
                 return BVR(rspecifier, path_prefix, scp_sep)
+            if rspecifier.archive_type == ArchiveType.SEGMENT_LIST:
+                return SVR(rspecifier.archive, permissive=rspecifier.permissive)
         else:
             if (rspecifier.archive_type == ArchiveType.H5 or 
                 rspecifier.archive_type == ArchiveType.ARK):

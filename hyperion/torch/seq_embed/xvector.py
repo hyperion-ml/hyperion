@@ -321,29 +321,27 @@ class XVector(TorchModel):
             snip_edges=snip_edges) 
         # (batch, pool_dim, time)
 
-        idx = torch.isnan(p[0]).any(dim=0)
-        if torch.sum(idx) > 0:
-            print('p-nan', p[0,:,idx])
-            print('p-idx', torch.nonzero(idx))
-            raise Exception()
-
-        
         p = p.transpose(1,2).contiguous().view(-1, p.size(1))
         y = self.classif_net.extract_embed(p, embed_layer).view(
             x.size(0), -1, self.embed_dim).transpose(1,2).contiguous()
-
-        idx = torch.isnan(y[0]).any(dim=0)
-        if torch.sum(idx) > 0:
-            print('p-nan', y[0,:,idx])
-            print('p-idx', torch.nonzero(idx))
-            raise Exception()
-
 
         return y
 
 
     def compute_slidwin_timestamps(self, num_windows, win_length, win_shift, snip_edges=False, 
                                    feat_frame_length=25, feat_frame_shift=10, feat_snip_edges=False):
+
+        P = self.compute_slidwin_left_padding(
+            win_length, win_shift, snip_edges, 
+            feat_frame_length, feat_frame_shift, feat_snip_edges)
+
+        tstamps = torch.as_tensor([[i*win_shift, i*win_shift+win_length] for i in range(num_windows)]) - P
+        tstamps[tstamps < 0] = 0
+        return tstamps
+
+
+    def compute_slidwin_left_padding(self, win_length, win_shift, snip_edges=False, 
+                                     feat_frame_length=25, feat_frame_shift=10, feat_snip_edges=False):
 
         # pass feat times from msecs to secs
         feat_frame_shift = feat_frame_shift / 1000
@@ -369,11 +367,7 @@ class XVector(TorchModel):
             P2 = (feat_frame_length - feat_frame_shift) / 2
 
         # total left padding
-        P = P1 + P2
-
-        tstamps = torch.as_tensor([[i*win_shift, i*win_shift+win_length] for i in range(num_windows)]) - P
-        tstamps[tstamps < 0] = 0
-        return tstamps
+        return P1 + P2
 
 
     def get_config(self):

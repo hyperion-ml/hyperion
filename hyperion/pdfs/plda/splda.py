@@ -2,11 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
-
 import numpy as np
 from scipy import linalg as sla
 
@@ -15,12 +10,11 @@ from ...utils.math import invert_pdmat, invert_trimat, logdet_pdmat
 from .plda_base import PLDABase
 
 
-
 class SPLDA(PLDABase):
 
     def __init__(self, y_dim=None, mu=None, V=None, W=None, fullcov_W=True,
                  update_mu=True, update_V=True, update_W=True, **kwargs):
-        super(SPLDA, self).__init__(y_dim=y_dim, mu=mu, update_mu=update_mu, **kwargs)
+        super().__init__(y_dim=y_dim, mu=mu, update_mu=update_mu, **kwargs)
         if V is not None:
             self.y_dim = V.shape[0]
         self.V = V
@@ -419,4 +413,16 @@ class SPLDA(PLDABase):
     def weighted_avg_model(self, plda, w_mu, w_B, w_W):
         self.weighted_avg_params(plda.mu, plda.V, plda.W, w_mu, w_B, w_W)
         
-        
+    
+    def project(self, T, delta_mu=None):
+        mu = self.mu
+        if mu is not None:
+            mu -= delta_mu
+        mu = np.dot(mu, T)
+        V = np.dot(self.V, T)
+        Sw = invert_pdmat(self.W, return_inv=True)[-1]
+        Sw = np.dot(T.T, np.dot(Sw, T))
+        W = invert_pdmat(Sw, return_inv=True)[-1]
+
+        return SPLDA(mu=mu, V=V, W=W, fullcov_W=True)
+

@@ -189,9 +189,6 @@ class SegmentList(object):
                 return self.segments.iloc[index]
             else:
                 raise Exception('SegmentList error index>=num_segments (%d,%d)' % (index,len(self)))
-
-
-
     
 
     def __getitem__(self, key):

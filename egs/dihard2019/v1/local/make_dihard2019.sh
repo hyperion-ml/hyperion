@@ -27,7 +27,7 @@ cat $data_dir/utt2spk > $data_dir/spk2utt
 for f in $(find $dihard_dir -name "*.lab" | sort)
 do
     awk '{ bn=FILENAME; sub(/.*\//,"",bn); sub(/\.lab$/,"",bn); 
-           printf "%s-%10d-%10 %s %f %f\n", bn, bn, $1, $2}' $f
+           printf "%s-%010d-%010d %s %f %f\n", bn, $1*1000, $2*1000, bn, $1, $2}' $f
 done > $data_dir/vad.segments
 
 

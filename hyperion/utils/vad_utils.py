@@ -235,7 +235,7 @@ def intersect_segment_timestamps_with_vad(in_timestamps, vad_timestamps):
         while j < num_vad_segs and vad_end[j] <= t_start:
             j += 1
 
-        if j == num_vad_segs and vad_end[j] <= t_start:
+        if j == num_vad_segs:
             break 
 
         k = j

@@ -34,16 +34,16 @@ if [ $# != 3 ]; then
   echo "  --use-gpu <bool|false>                           # If true, use GPU."
   echo "  --nj <n|30>                                      # Number of jobs"
   echo "  --stage <stage|0>                                # To control partial reruns"
-  echo "  --write-utt2num-frames <true|false>              # If true, write utt2num_frames file."
+  #echo "  --write-utt2num-frames <true|false>              # If true, write utt2num_frames file."
   echo "  --chunk-length <n|0>                             # If provided, applies encoder with specified chunk-length and "
   echo "                                                   # concatenates the chunks outputs before pooling"
   echo "  --center <true|false>                            # If true, normalize means in the sliding window cmvn (default:true)"
   echo "  --norm-var <true|false>                          # If true, normalize variances in the sliding window cmvn (default:false)"
   echo "  --left-context <int>                             # Left context for short-time cmvn (default: 150)"
   echo "  --right-context <int>                            # Right context for short-time cmvn (default: 150)"
-  echo "  --random-utt-length                              # If true, extracts a random chunk from the utterance between min_utt_length and max_utt_length"
-  echo "  --min-utt-length <n|0>                           # "
-  echo "  --max-utt-length <n|0>                           # "
+  #echo "  --random-utt-length                              # If true, extracts a random chunk from the utterance between min_utt_length and max_utt_length"
+  #echo "  --min-utt-length <n|0>                           # "
+  #echo "  --max-utt-length <n|0>                           # "
   
 
 fi
@@ -95,6 +95,7 @@ if [ $stage -le 0 ];then
 	--input scp:$data_dir/feats.scp \
 	--model-path $nnet_file --chunk-length $chunk_length \
 	--win-length $win_length --win-shift $win_shift $feat_opts \
+	--slidwin-params-path $output_dir/slidwin.JOB.yml \
 	--output ark,scp:$output_dir/xvector.JOB.ark,$output_dir/xvector.JOB.scp || exit 1;
 fi
 
@@ -105,5 +106,6 @@ if [ $stage -le 1 ]; then
   if [ "$write_timestaps" == "true" ];then
       for j in $(seq $nj); do cat $output_dir/timestamps.$j.scp; done > $output_dir/timestamps.scp || exit 1;
   fi
+  cp $output_dir/slidwin.1.yml $output_dir/slidwin.yml
 fi
 
