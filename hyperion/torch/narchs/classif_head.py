@@ -2,14 +2,11 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-#from __future__ import absolute_import
-
-#import numpy as np
 
 import torch.nn as nn
 from torch.nn import Linear
 
-from ..layers import CosLossOutput, ArcLossOutput
+from ..layers import CosLossOutput, ArcLossOutput, SubCenterArcLossOutput
 from ..layers import NormLayer1dFactory as NLF
 from ..layer_blocks import FCBlock
 from .net_arch import NetArch
@@ -28,6 +25,7 @@ class ClassifHead(NetArch):
        s: scale parameter for cos-softmax and arc-softmax
        margin: margin parameter for cos-softmax and arc-softmax
        margin_warmup_epochs: number of epochs to anneal the margin from 0 to margin
+       num_subcenters: number of subcenters in subcenter losses
        norm_layer: norm_layer object or str indicating type norm layer, if None it uses BatchNorm1d
        use_norm: it True it uses layer/batch-normalization
        norm_before: if True, layer-norm is before the activation function
@@ -39,6 +37,7 @@ class ClassifHead(NetArch):
                  hid_act={'name':'relu', 'inplace': True}, 
                  loss_type='arc-softmax',
                  s=64, margin=0.3, margin_warmup_epochs=0,
+                 num_subcenters=2,
                  norm_layer=None,
                  use_norm=True, norm_before=True, 
                  dropout_rate=0):
@@ -68,6 +67,7 @@ class ClassifHead(NetArch):
         self.s = s
         self.margin = margin
         self.margin_warmup_epochs = margin_warmup_epochs
+        self.num_subcenters = num_subcenters
         
         prev_feats = in_feats
         fc_blocks = []
@@ -106,15 +106,23 @@ class ClassifHead(NetArch):
             self.output = ArcLossOutput(
                 embed_dim, num_classes, 
                 s=s, margin=margin, margin_warmup_epochs=margin_warmup_epochs)
+        elif loss_type == 'subcenter-arc-softmax':
+            self.output = SubCenterArcLossOutput(
+                embed_dim, num_classes, num_subcenters,
+                s=s, margin=margin, margin_warmup_epochs=margin_warmup_epochs)
 
 
-    def rebuild_output_layer(self, num_classes, loss_type, s, margin, margin_warmup_epochs):
+    def rebuild_output_layer(
+            self, num_classes, loss_type, 
+            s, margin, margin_warmup_epochs, num_subcenters=2):
+
         embed_dim = self.embed_dim
         self.num_classes = num_classes
         self.loss_type = loss_type
         self.s = s
         self.margin = margin
         self.margin_warmup_epochs = margin_warmup_epochs
+        self.num_subcenters = num_subcenters
 
         if loss_type == 'softmax':
             self.output = Linear(embed_dim, num_classes)
@@ -125,6 +133,10 @@ class ClassifHead(NetArch):
         elif loss_type == 'arc-softmax':
             self.output = ArcLossOutput(
                 embed_dim, num_classes, 
+                s=s, margin=margin, margin_warmup_epochs=margin_warmup_epochs)
+        elif loss_type == 'subcenter-arc-softmax':
+            self.output = SubCenterArcLossOutput(
+                embed_dim, num_classes, num_subcenters,
                 s=s, margin=margin, margin_warmup_epochs=margin_warmup_epochs)
 
 
@@ -226,6 +238,7 @@ class ClassifHead(NetArch):
             's': self.s,
             'margin': self.margin,
             'margin_warmup_epochs': self.margin_warmup_epochs,
+            'num_subcenters': self.num_subcenters,
             'norm_layer': self.norm_layer,
             'use_norm': self.use_norm,
             'norm_before': self.norm_before,

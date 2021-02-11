@@ -21,7 +21,7 @@ def _l2_norm(x, axis=-1):
 class ArcLossOutput(nn.Module):
 
     def __init__(self, in_feats, num_classes, s=64, margin=0.3, margin_warmup_epochs=0):
-        super(ArcLossOutput, self).__init__()
+        super().__init__()
         self.in_feats = in_feats
         self.num_classes = num_classes
         self.s = s
@@ -139,7 +139,7 @@ class ArcLossOutput(nn.Module):
 class CosLossOutput(nn.Module):
 
     def __init__(self, in_feats, num_classes, s=64, margin=0.3, margin_warmup_epochs=0):
-        super(CosLossOutput, self).__init__()
+        super().__init__()
         self.in_feats = in_feats
         self.num_classes = num_classes
         self.s = s
@@ -183,6 +183,50 @@ class CosLossOutput(nn.Module):
             output = cos_theta * 1.0 # a little bit hacky way to prevent in_place operation on cos_theta
             if y is not None and self.training:
                 cos_theta_m = cos_theta - self.cur_margin
+                idx_ = torch.arange(0, batch_size, dtype=torch.long)
+                output[idx_, y] = cos_theta_m[idx_, y]
+
+            output *= s # scale up in order to make softmax work
+            return output
+
+
+class SubCenterArcLossOutput(ArcLossOutput):
+
+    def __init__(self, in_feats, num_classes, num_subcenters=2, s=64, margin=0.3, margin_warmup_epochs=0):
+        super().__init__(in_feats, num_classes * num_subcenters, s, margin, margin_warmup_epochs)
+        self.num_classes = num_classes
+        self.num_subcenters = num_subcenters
+
+
+    def __str__(self):
+        s = '%s(in_feats=%d, num_classes=%d, num_subcenters=%d, s=%.2f, margin=%.2f, margin_warmup_epochs=%d)' % (
+            self.__class__.__name__,
+            self.in_feats, self.num_classes, self.num_subcenters,
+            self.s, self.margin, self.margin_warmup_epochs)
+        return s
+
+
+    def forward(self, x, y=None):
+        with amp.autocast(enabled=False):
+            s = self.s
+            batch_size = len(x)
+            x = _l2_norm(x.float())
+            kernel_norm = _l2_norm(self.kernel, axis=0)
+            # cos(theta+m)                                      
+            cos_theta = torch.mm(x, kernel_norm).float()
+            cos_theta = torch.max(
+                cos_theta.view(-1, self.num_classes, self.num_subcenters), dim=-1)[0]
+            
+            cos_theta = cos_theta.clamp(-1, 1) # for numerical stability
+            #print(cos_theta)
+            output = cos_theta * 1.0 # a little bit hacky way to prevent in_place operation on cos_theta
+
+            if y is not None and self.training:
+                cos_theta_2 = torch.pow(cos_theta, 2)
+                sin_theta_2 = (1 + 1e-10) - cos_theta_2
+                sin_theta = torch.sqrt(sin_theta_2)
+                cos_theta_m = (cos_theta * self.cos_m - sin_theta * self.sin_m)
+                
                 idx_ = torch.arange(0, batch_size, dtype=torch.long)
                 output[idx_, y] = cos_theta_m[idx_, y]
 
