@@ -15,7 +15,8 @@ from ..narchs import EfficientNet as EN
 class EfficientNetXVector(XVector):
 
     def __init__(self, effnet_type, in_feats, num_classes, 
-                 in_channels=1, in_conv_channels=32, in_kernel_size=3, in_stride=2,
+                 in_channels=1, in_conv_channels=32, 
+                 in_kernel_size=3, in_stride=2,
                  mbconv_repeats=[1, 2, 2, 3, 3, 4, 1], 
                  mbconv_channels=[16, 24, 40, 80, 112, 192, 320], 
                  mbconv_kernel_sizes=[3, 3, 5, 3, 5, 5, 3], 
@@ -31,6 +32,7 @@ class EfficientNetXVector(XVector):
                  hid_act='swish', 
                  loss_type='arc-softmax',
                  s=64, margin=0.3, margin_warmup_epochs=0,
+                 num_subcenters=2,
                  drop_connect_rate=0.2, dropout_rate=0,
                  norm_layer=None, head_norm_layer=None,
                  use_norm=True, 
@@ -52,6 +54,7 @@ class EfficientNetXVector(XVector):
             embed_dim=embed_dim, num_embed_layers=num_embed_layers, 
             hid_act=hid_act, loss_type=loss_type, 
             s=s, margin=margin, margin_warmup_epochs=margin_warmup_epochs,
+            num_subcenters=num_subcenters,
             norm_layer=norm_layer, head_norm_layer=head_norm_layer,
             use_norm=use_norm, norm_before=norm_before, 
             dropout_rate=dropout_rate,

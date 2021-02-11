@@ -9,20 +9,20 @@ use_gpu=false
 #center=true
 #norm_var=false
 #context=150
-attack_type=fgsm
+#attack_type=fgsm
 smooth_sigma=0
-eps=0
-alpha=0
-snr=100
-confidence=0
-lr=1e-2
-max_iter=10
+#eps=0
+#alpha=0
+#snr=100
+#confidence=0
+#lr=1e-2
+#max_iter=10
 threshold=0
 save_wav=false
 save_wav_path=""
-c_factor=2
+#c_factor=2
 cal_file=""
-attack_opt=""
+attack_opts="--attack-attack-type fgsm --attack-eps 1e-3"
 
 if [ -f path.sh ]; then . ./path.sh; fi
 . parse_options.sh || exit 1;
@@ -39,19 +39,19 @@ if [ $# -ne 7 ]; then
   #echo "  --norm-var <true|false>                          # If true, normalize variances in the sliding window cmvn (default:false)"
   echo "  --use-gpu <bool|false>                           # If true, use GPU."
   #echo "  --context <int|150>                              # Left context for short-time cmvn (default: 150)"
-  echo "  --attack-type <str|fgsm>                         # Attack type"
-  echo "  --eps <float|0>                                  # Attack epsilon"
-  echo "  --alpha <float|0>                                # Attack alpha"
-  echo "  --snr <float|100>                                # Attack SNR"
-  echo "  --confidence <float|0>                           # confidence in Carlini-Wagner attack"
-  echo "  --lr <float|1e-2>                                # learning rate for attack optimizer"
-  echo "  --max-iter <int|10>                              # max number of iters for attack optimizer"
-  echo "  --c-factor <int|2>                               # c increment factor"
+  #echo "  --attack-type <str|fgsm>                         # Attack type"
+  #echo "  --eps <float|0>                                  # Attack epsilon"
+  #echo "  --alpha <float|0>                                # Attack alpha"
+  #echo "  --snr <float|100>                                # Attack SNR"
+  #echo "  --confidence <float|0>                           # confidence in Carlini-Wagner attack"
+  #echo "  --lr <float|1e-2>                                # learning rate for attack optimizer"
+  #echo "  --max-iter <int|10>                              # max number of iters for attack optimizer"
+  #echo "  --c-factor <int|2>                               # c increment factor"
   echo "  --threshold <float|0>                            # decision threshold"
   echo "  --save-wav-path <str|>                           # path to save adv wavs"
   echo "  --cal-file <str|>                                # calibration params file"
   echo "  --smooth-sigma <float|0>                         # smoothing std"
-  echo "  --attack-opt <str>                               # other options for the attack"
+  echo "  --attack-opts <str>                              # options for the attack"
   exit 1;
 fi
 
@@ -90,14 +90,6 @@ if [ "$use_gpu" == "true" ];then
     args="--use-gpu"
 fi
 
-# if [ "$center" == "false" ];then
-#     args="${args} --mnv-no-norm-mean"
-# fi
-# if [ "$norm_var" == "true" ];then
-#     args="${args} --mvn-norm-var"
-# fi
-# args="${args} --mvn-context $context"
-
 if [ "${save_wav}" == "true" ];then
     args="${args} --save-adv-wav-path $save_wav_path --save-adv-wav"
 fi
@@ -119,18 +111,19 @@ $cmd JOB=1:$nj $log_dir/${name}.JOB.log \
     --vad scp:$vad \
     --model-path $nnet_file \
     --threshold $threshold \
-    --attack-type $attack_type \
-    --attack-snr $snr \
-    --attack-eps $eps \
-    --attack-alpha $alpha \
-    --attack-confidence $confidence \
-    --attack-lr $lr \
-    --attack-max-iter $max_iter \
-    --attack-c-incr-factor $c_factor \
     --score-file $output_file \
     --stats-file $stats_file \
-    --smooth-sigma $smooth_sigma ${attack_opt} \
+    --smooth-sigma $smooth_sigma ${attack_opts} \
     --seg-part-idx JOB --num-seg-parts $nj || exit 1
+
+    # --attack-type $attack_type \
+    # --attack-snr $snr \
+    # --attack-eps $eps \
+    # --attack-alpha $alpha \
+    # --attack-confidence $confidence \
+    # --attack-lr $lr \
+    # --attack-max-iter $max_iter \
+    # --attack-c-incr-factor $c_factor \
 
 
 for((j=1;j<=$nj;j++));

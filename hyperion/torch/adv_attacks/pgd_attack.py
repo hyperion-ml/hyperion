@@ -1,21 +1,21 @@
+
 """
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-
-#import logging
+import math
+import logging
 
 import torch
-
 from .adv_attack import AdvAttack
 
 class PGDAttack(AdvAttack):
 
     def __init__(self, model, eps, alpha, norm, max_iter=10, 
                  random_eps=False, num_random_init=0, loss=None, 
+                 norm_time=False, time_dim=None,
                  targeted=False, range_min=None, range_max=None):
-        super(PGDAttack, self).__init__(
+        super().__init__(
             model, loss, targeted, range_min, range_max)
         self.eps = eps
         self.alpha = alpha
@@ -23,6 +23,31 @@ class PGDAttack(AdvAttack):
         self.norm = norm
         self.random_eps = random_eps
         self.num_random_init = num_random_init
+        self.norm_time = norm_time
+        self.time_dim = time_dim
+
+
+    @property
+    def attack_info(self):
+        info = super().attack_info
+        if self.norm == 1:
+            threat = 'l1'
+        elif self.norm == 2:
+            threat = 'l2'
+        else:
+            threat = 'linf'
+
+        new_info = {'eps': self.eps,
+                    'alpha': self.alpha,
+                    'norm': self.norm,
+                    'max_iter': self.max_iter,
+                    'random_eps': self.random_eps,
+                    'num_random_init': self.num_random_init,
+                    'threat_model': threat,
+                    'attack_type': 'pgd',
+                    'norm_time': self.norm_time }
+        info.update(new_info)
+        return info
 
 
     @staticmethod
@@ -32,7 +57,7 @@ class PGDAttack(AdvAttack):
             return torch.clamp(delta, -eps, eps)
 
         delta_tmp = torch.reshape(delta, (delta.shape[0], -1))
-        one = torch.ones((1,), dtype=delta.dtype)
+        one = torch.ones((1,), dtype=delta.dtype, device=delta.device)
         if norm == 2:
             delta_tmp = delta_tmp*torch.min(
                 one, eps/torch.norm(delta_tmp, dim=1, keepdim=True))
@@ -92,6 +117,15 @@ class PGDAttack(AdvAttack):
         else:
             eps = self.eps
             alpha = self.alpha
+
+        if self.norm_time:
+            num_samples = input.shape[self.time_dim]
+            if self.norm == 2:
+                eps *= math.sqrt(num_samples)
+                alpha *= math.sqrt(num_samples)
+            elif self.norm == 1:
+                eps *= num_samples
+                alpha *= num_samples
 
         best_loss = None
         best_x = None
