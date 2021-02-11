@@ -25,7 +25,8 @@ from hyperion.torch.utils import open_device
 from hyperion.torch.helpers import TorchModelLoader as TML
 
 
-def extract_xvectors(input_spec, output_spec, vad_spec, write_timestamps_spec,
+def extract_xvectors(input_spec, output_spec, vad_spec, 
+                     write_timestamps_spec, slidwin_params_path,
                      scp_sep, path_prefix, vad_path_prefix, 
                      model_path, chunk_length, embed_layer, 
                      win_length, win_shift, snip_edges,
@@ -41,7 +42,6 @@ def extract_xvectors(input_spec, output_spec, vad_spec, write_timestamps_spec,
 
     if write_timestamps_spec is not None:
         time_writer = DWF.create(write_timestamps_spec, scp_sep=scp_sep)
-
     
     num_gpus = 1 if use_gpu else 0
     logging.info('initializing devices num_gpus={}'.format(num_gpus))
@@ -201,6 +201,14 @@ def extract_xvectors(input_spec, output_spec, vad_spec, write_timestamps_spec,
     if write_timestamps_spec is not None:
         time_writer.close()
 
+    if slidwin_params_path is not None:
+        params = {'padding': model.compute_slidwin_left_padding(
+            win_length, win_shift, snip_edges,
+            feat_frame_length, feat_frame_length, feat_snip_edges),
+                  'win_length': win_length,
+                  'win_shift': win_shift}
+        with open(slidwin_params_path, 'w') as f:
+            yaml.dump(params, f)
         
     
 if __name__ == "__main__":
@@ -213,6 +221,8 @@ if __name__ == "__main__":
     parser.add_argument('--input', dest='input_spec', required=True)
     parser.add_argument('--vad', dest='vad_spec', default=None)
     parser.add_argument('--write-timestamps', dest='write_timestamps_spec', default=None)
+    parser.add_argument('--slidwin-params-path', default=None)
+
     parser.add_argument('--scp-sep', dest='scp_sep', default=' ',
                         help=('scp file field separator'))
     parser.add_argument('--path-prefix', dest='path_prefix', default=None,

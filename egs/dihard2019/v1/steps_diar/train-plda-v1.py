@@ -50,15 +50,24 @@ def load_vectors(v_file, keys, class_ids, subsampling):
             x_i = reader.read(key)[0]
             if subsampling > 1:
                 x_i = x_i[::subsampling,:].copy()
+
+            if len(x_i)==0:
+                logging.info('read empty matrix from key={}'.format(
+                key, x_i.shape))
+                continue
+
             x.append(x_i)
             num_read_i = x_i.shape[0]
             out_class_ids += [class_id] * num_read_i
             num_files += 1
             num_read += num_read_i
-            logging.info('read vectors from key={} with shape={} {} {}'.format(
-                key, x_i.shape, np.sum(np.isnan(x_i)), matrix_rank(x_i)))
+            logging.info('read vectors from key={} with shape={}'.format(
+                key, x_i.shape))
+            # logging.info('read vectors from key={} with shape={} {} {}'.format(
+            #     key, x_i.shape, np.sum(np.isnan(x_i)), matrix_rank(x_i)))
             logging.info('total read files={} vectors={}'.format(
                 num_files, num_read))
+            assert not np.any(np.isnan(x_i))
             # if num_files > 60000:
             #     break
             #tracker.create_snapshot()

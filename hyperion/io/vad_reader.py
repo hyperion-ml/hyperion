@@ -45,6 +45,23 @@ class VADReader(object):
         """Closes input file."""
         pass
 
+
+    @staticmethod
+    def _assert_offsets_num_frames(keys, offset, num_frames):
+        n = len(keys)
+        offset_is_list = (isinstance(offset, list) or
+                              isinstance(offset, np.ndarray))
+        num_frames_is_list = (isinstance(num_frames, list) or
+                              isinstance(num_frames, np.ndarray))
+
+        if offset_is_list:
+            assert len(offset) == n
+        if num_frames_is_list:
+            assert len(num_frames) == n
+
+        return offset_is_list, num_frames_is_list
+
+
     @staticmethod
     def _get_bin_vad_slice(vad, offset, num_frames):
         if offset > 0:

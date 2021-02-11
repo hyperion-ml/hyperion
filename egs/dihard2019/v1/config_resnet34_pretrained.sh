@@ -1,7 +1,7 @@
 #Configuration parameters for the experiment
 
 #xvector training 
-nnet_data=voxceleb2cat_combined
+nnet_data=voxcelebcat_combined
 nnet_type=resnet34
 batch_size_1gpu=32
 eff_batch_size=512 # effective batch size
@@ -29,5 +29,5 @@ nnet=$nnet_dir/model_ep0070.pth
 #plda_y_dim=150
 plda_z_dim=200
 
-plda_data=voxceleb2cat_combined
+plda_data=voxcelebcat_combined
 plda_type=splda

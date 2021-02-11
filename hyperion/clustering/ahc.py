@@ -2,10 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import numpy as np
 import h5py
@@ -21,7 +17,7 @@ from ..hyp_model import HypModel
 class AHC(HypModel):
 
     def __init__(self,  method='average', metric='llr', **kwargs):
-        super(AHC, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         self.method = method
         self.metric = metric
         self.Z = None
@@ -67,7 +63,7 @@ class AHC(HypModel):
             return self.flat_clusters[p_idx]
 
         flat_clusters = np.arange(N, dtype=int)
-        for i in xrange(p_idx):
+        for i in range(p_idx):
             segm_idx = np.logical_or(flat_clusters==self.Z[i,0],
                                      flat_clusters==self.Z[i,1])
             flat_clusters[segm_idx] = N + i
@@ -91,13 +87,13 @@ class AHC(HypModel):
         N = self.Z.shape[0]+1
         flat_clusters = np.zeros((N,N), dtype=int)
         flat_clusters[0] = np.arange(N, dtype=int)
-        for i in xrange(N-1):
+        for i in range(N-1):
             flat_clusters[i+1] = flat_clusters[i]
             segm_idx = np.logical_or(flat_clusters[i]==self.Z[i,0],
                                      flat_clusters[i]==self.Z[i,1])
             flat_clusters[i+1][segm_idx] = N + i
 
-        for i in xrange(1,N):
+        for i in range(1,N):
             _, flat_clusters[i] = np.unique(flat_clusters, return_inverse=True)
         self.flat_clusters = flat_clusters
 
@@ -112,7 +108,7 @@ class AHC(HypModel):
         N = self.flat_clusters.shape[0]
         h = np.zeros((N,), dtype=float_cpu())
         c = np.zeros((N,), dtype=float_cpu())
-        for i in xrange(self.flat_clusters.shape[0]):
+        for i in range(self.flat_clusters.shape[0]):
             h[i] = homogeneity_score(labels_true, self.flat_clusters[i])
             c[i] = completeness_score(labels_true, self.flat_clusters[i])
 

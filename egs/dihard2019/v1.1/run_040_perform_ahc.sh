@@ -31,7 +31,7 @@ if [ $stage -le 1 ]; then
 	--lda_dim $lda_dim \
 	--plda_type $plda_type \
 	--y_dim $plda_y_dim --z_dim $plda_z_dim \
-	--plda-opts "--subsampling 1 --inter-session" \
+	--plda-opts "--subsampling 20 --inter-session" \
 	$xvector_dir/$plda_data/xvector.scp \
 	data/$plda_data \
 	$plda_dir &

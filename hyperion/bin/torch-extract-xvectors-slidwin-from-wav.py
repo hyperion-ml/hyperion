@@ -12,6 +12,7 @@ import logging
 
 import numpy as np
 import pandas as pd
+import yaml
 
 import torch
 
@@ -28,10 +29,11 @@ from hyperion.torch.layers import AudioFeatsFactory as AFF
 from hyperion.torch.layers import MeanVarianceNorm as MVN
 
 
-def extract_xvectors(input_spec, output_spec, vad_spec, write_num_frames_spec,
+def extract_xvectors(input_spec, output_spec, vad_spec, 
+                     write_timestamps_spec, slidwin_params_path,
                      scp_sep, vad_path_prefix, 
                      model_path, chunk_length, embed_layer, 
-                     random_utt_length, min_utt_length, max_utt_length,
+                     win_length, win_shift, snip_edges,
                      aug_cfg, num_augs, aug_info_path,
                      use_gpu, **kwargs):
 
@@ -43,6 +45,9 @@ def extract_xvectors(input_spec, output_spec, vad_spec, write_num_frames_spec,
 
     feat_args = AFF.filter_args(prefix='feats', **kwargs)
     mvn_args = MVN.filter_args(prefix='mvn', **kwargs)
+    feat_frame_length=feat_args['frame_length']
+    feat_frame_shift=feat_args['frame_shift']
+    feat_snip_edges=feat_args['snip_edges']
 
     logging.info('initializing feature extractor args={}'.format(feat_args))
     feat_extractor = AFF.create(**feat_args)
@@ -58,9 +63,8 @@ def extract_xvectors(input_spec, output_spec, vad_spec, write_num_frames_spec,
         mvn.eval()
         mvn.to(device)
 
-    if write_num_frames_spec is not None:
-        keys = []
-        info = []
+    if write_timestamps_spec is not None:
+        time_writer = DWF.create(write_timestamps_spec, scp_sep=scp_sep)
 
     logging.info('loading model {}'.format(model_path))
     model = TML.load(model_path)
@@ -137,32 +141,29 @@ def extract_xvectors(input_spec, output_spec, vad_spec, write_num_frames_spec,
                             'utt %s detected %d/%d (%.2f %%) speech frames' % (
                                 key, x.shape[1], tot_frames, 
                                 x.shape[1]/tot_frames*100))
-                
-                        if random_utt_length:
-                            utt_length = rng.randint(
-                                low=min_utt_length, high=max_utt_length+1)
-                            if utt_length < x.shape[1]:
-                                first_frame = rng.randint(
-                                    low=0, high=x.shape[1]-utt_length)
-                                x = x[:,first_frame:first_frame+utt_length]
-                                logging.info(
-                                    'extract-random-utt %s of length=%d first-frame=%d' % (
-                                        key, x.shape[1], first_frame))
 
                         t6 = time.time()
                         if x.shape[1] == 0:
-                            y = np.zeros((model.embed_dim,), dtype=float_cpu())
+                            y = np.zeros((1, model.embed_dim,), dtype=float_cpu())
                         else:
                             x = x.transpose(1,2).contiguous()
-                            y = model.extract_embed(
-                                x, chunk_length=chunk_length, 
-                                embed_layer=embed_layer).cpu().numpy()[0]
+                            y = model.extract_embed_slidwin(
+                                x, win_length, win_shift, snip_edges=snip_edges,
+                                feat_frame_length=feat_frame_length, feat_frame_shift=feat_frame_shift,
+                                chunk_length=chunk_length, 
+                                embed_layer=embed_layer, detach_chunks=True).detach().cpu().numpy()[0]
 
                     t7 = time.time()
+                    y = y.T
                     writer.write([key], [y])
-                    if write_num_frames_spec is not None:
-                        keys.append(key)
-                        info.append(str(x.shape[1]))
+
+                    if write_timestamps_spec is not None:
+                        num_wins = y.shape[0]
+                        timestamps = model.compute_slidwin_timestamps(
+                            num_wins, win_length, win_shift, snip_edges,
+                            feat_frame_length, feat_frame_length, feat_snip_edges).numpy()
+                        logging.info('{}'.format(timestamps))
+                        time_writer.write([key], [timestamps])
 
                     t8 = time.time()
                     read_time = t2 - t1
@@ -175,32 +176,39 @@ def extract_xvectors(input_spec, output_spec, vad_spec, write_num_frames_spec,
                             key, tot_time, read_time, t4-t3, t5-t4, 
                             t6-t5, t7-t6, t8-t7, x0.shape[0]/fs[0]/tot_time))
 
-    if write_num_frames_spec is not None:
-        logging.info('writing num-frames to %s' % (write_num_frames_spec))
-        u2nf = Utt2Info.create(keys, info)
-        u2nf.save(write_num_frames_spec)
+    if write_timestamps_spec is not None:
+        time_writer.close()
 
     if aug_info_path is not None:
         aug_df = pd.concat(aug_df, ignore_index=True)
         aug_df.to_csv(aug_info_path, index=False, na_rep='n/a')
-    
+
+    if slidwin_params_path is not None:
+        params = {'padding': model.compute_slidwin_left_padding(
+            win_length, win_shift, snip_edges,
+            feat_frame_length, feat_frame_length, feat_snip_edges),
+                  'win_length': win_length,
+                  'win_shift': win_shift}
+        with open(slidwin_params_path, 'w') as f:
+            yaml.dump(params, f)
+
 
 if __name__ == "__main__":
     
     parser=argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         fromfile_prefix_chars='@',
-        description=('Extract x-vectors from waveform computing '
+        description=('Extract x-vectors over a sliding window' 
+                     'from waveform computing '
                      'acoustic features on the fly'))
 
     parser.add_argument('--input', dest='input_spec', required=True)
     parser.add_argument('--vad', dest='vad_spec', default=None)
-    parser.add_argument('--write-num-frames', dest='write_num_frames_spec', 
-                        default=None)
+    parser.add_argument('--write-timestamps', dest='write_timestamps_spec', default=None)
+    parser.add_argument('--slidwin-params-path', default=None)
+
     parser.add_argument('--scp-sep', default=' ',
                         help=('scp file field separator'))
-    #parser.add_argument('--path-prefix', default=None,
-    #                    help=('scp file_path prefix'))
     parser.add_argument('--vad-path-prefix', default=None,
                         help=('scp file_path prefix for vad'))
 
@@ -215,6 +223,17 @@ if __name__ == "__main__":
     MVN.add_argparse_args(parser, prefix='mvn')
 
     parser.add_argument('--model-path', required=True)
+    parser.add_argument('--win-length', type=float, default=1.5, 
+                        help=('window length for x-vector extraction in seconds'))
+    parser.add_argument('--win-shift', type=float, default=0.25, 
+                        help=('window shift for x-vector extraction in seconds'))
+    parser.add_argument('--snip-edges', default=False, action='store_true', 
+                        help=('If true, end effects will be handled by outputting '
+                              'only windows that completely fit in the file, '
+                              'and the number of windows depends on the window-length. '
+                              'If false, the number of windows depends only on '
+                              'the window-shift, and we reflect the data at the ends.'))
+
     parser.add_argument('--chunk-length', type=int, default=0, 
                         help=('number of frames used in each forward pass '
                               'of the x-vector encoder,'

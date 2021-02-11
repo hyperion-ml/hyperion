@@ -24,8 +24,9 @@ from hyperion.helpers import PLDAFactory as F
 from hyperion.transforms import TransformList, PCA, LNorm
 from hyperion.clustering import AHC
 from hyperion.pdfs import GMMTiedDiagCov as GMM
-from hyperion.pdfs import GMMDiagCov as GMM2
-from hyperion.pdfs import GMM as GMM3
+from hyperion.diarization import DiarAHCPLDA as Diar
+#from hyperion.pdfs import GMMDiagCov as GMM2
+#from hyperion.pdfs import GMM as GMM3
 
 def make_timestamps(n, win_start, win_length, win_shift, win_shrink):
     
@@ -216,7 +217,6 @@ def do_clustering(x, t_preproc, plda_model, threshold, pca_var_r,
 
 def eval_ahc(test_list, v_file, timestamps_file, vad_file, 
              preproc_file, rttm_file, 
-             model_file, plda_type, threshold, pca_var_r, do_unsup_cal, use_bic,
              win_start=None, win_length=None, win_shift=None, win_shrink=0,
              score_hist_dir=None,
              part_idx=1, num_parts=1, **kwargs):
@@ -227,8 +227,11 @@ def eval_ahc(test_list, v_file, timestamps_file, vad_file,
     r_x, r_time, r_vad = init_readers(v_file, timestamps_file, vad_file)
     logging.info('loading embedding preprocessor: %s' % (preproc_file))
     t_preproc = TransformList.load(preproc_file)
-    logging.info('loading plda model: %s' % (model_file))
-    plda_model = F.load_plda(plda_type, model_file)
+    plda_args = F.filter_eval_args(**kwargs)
+    logging.info('loading plda model={}'.format(plda_args))
+    plda_model = F.load_plda(**plda_args)
+    diar_args = Diar.filter_args(**kwargs)
+    diarizer = Diar(plda_model, t_preproc, **diar_args)
 
     if score_hist_dir is not None:
         score_hist_dir = Path(score_hist_dir)
@@ -237,6 +240,7 @@ def eval_ahc(test_list, v_file, timestamps_file, vad_file,
         hist_file = None
 
     rttms = []
+    
     for key in keys:
         logging.info('loading data for utt %s' % (key))
         x, timestamps, ts2segs = load_feats(
@@ -247,8 +251,9 @@ def eval_ahc(test_list, v_file, timestamps_file, vad_file,
         if score_hist_dir is not None:
             hist_file = score_hist_dir / key
 
-        seg_class_ids = do_clustering(
-            x, t_preproc, plda_model, threshold, pca_var_r, do_unsup_cal, use_bic, hist_file)
+        seg_class_ids = diarizer.cluster(x, hist_file)
+        # seg_class_ids = do_clustering(
+        #     x, t_preproc, plda_model, threshold, pca_var_r, do_unsup_cal, use_bic, hist_file)
         ts_class_ids = seg_class_ids[ts2segs]
         logging.info('utt %s found %d spks' % (key, np.max(seg_class_ids)+1))
 
@@ -275,15 +280,16 @@ if __name__ == "__main__":
     parser.add_argument('--preproc-file', default=None)
 
     F.add_argparse_eval_args(parser)
+    Diar.add_argparse_args(parser)
 
     parser.add_argument('--win-start', default=-0.675, type=float)
     parser.add_argument('--win-length', default=1.5, type=float)
     parser.add_argument('--win-shift', default=0.25, type=float)
     parser.add_argument('--win-shrink', default=0.675, type=float)
-    parser.add_argument('--threshold', default=0, type=float)
-    parser.add_argument('--pca-var-r', default=1, type=float)
-    parser.add_argument('--do-unsup-cal', default=False, action='store_true')
-    parser.add_argument('--use-bic', default=False, action='store_true')
+    #parser.add_argument('--threshold', default=0, type=float)
+    #parser.add_argument('--pca-var-r', default=1, type=float)
+    #parser.add_argument('--do-unsup-cal', default=False, action='store_true')
+    #parser.add_argument('--use-bic', default=False, action='store_true')
 
     parser.add_argument('--part-idx', type=int, default=1,
                         help=('splits the list of files in num-parts '
@@ -297,7 +303,6 @@ if __name__ == "__main__":
     parser.add_argument('-v', '--verbose', dest='verbose', default=1,
                         choices=[0, 1, 2, 3], type=int)
 
-    
     args = parser.parse_args()
     config_logger(args.verbose)
     del args.verbose
