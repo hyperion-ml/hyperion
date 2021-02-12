@@ -49,3 +49,14 @@ lda_dim=200
 plda_y_dim=150
 plda_z_dim=200
 
+diar_plda_num_augs=0
+if [ $diar_plda_num_augs -eq 0 ]; then
+    diar_plda_data=voxcelebcat
+else
+    diar_plda_data=voxcelebcat_augx${plda_num_augs}
+fi
+diar_plda_type=splda
+diar_lda_dim=200
+diar_plda_y_dim=150
+diar_plda_z_dim=200
+
