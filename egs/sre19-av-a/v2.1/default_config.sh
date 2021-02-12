@@ -1,1 +1,1 @@
-config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh
+global_conf/config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh

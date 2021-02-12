@@ -1,1 +1,1 @@
-config_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh
+global_config/config_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh

@@ -30,11 +30,11 @@ and augmentations on the fly.
    - Run the run_0*.sh scripts in sequence
    - You can skip the x-vector finetuning scripts since they don't improve the results (steps 12, 31 and 41)
    - By default it will use Light ResNet (16 channels)
-   - For better performance use full ResNet (64 channels) using `config_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh` file as
+   - For better performance use full ResNet (64 channels) using `global_conf/config_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh` file as
 ```bash
-run_011_train_xvector.sh --config-file config_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh
-run_030_extract_xvectors.sh --config-file config_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh
-run_040_eval_be.sh --config-file config_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh
+run_011_train_xvector.sh --config-file global_conf/config_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh
+run_030_extract_xvectors.sh --config-file global_conf/config_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh
+run_040_eval_be.sh --config-file global_conf/config_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh
 ```
 
    - The `amp` suffix in the config files means that we train with mixed precission to reduce GPU memory requirements.
