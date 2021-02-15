@@ -18,7 +18,7 @@ mkdir -p $attack_dir/pool_v1
 
 if [ $stage -le 1 ];then
     # concatenate infos of all attacks types
-    for attack in fgsm rand-fgsm iter-fgsm cw-l2 cw-linf pgd-linf #pgd-l1 pgd-l2 
+    for attack in fgsm rand-fgsm iter-fgsm cw-l2 cw-linf cw-l0 pgd-linf pgd-l1 pgd-l2
     do
 	for name in voxceleb2cat
 	do

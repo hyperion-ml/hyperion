@@ -11,6 +11,7 @@ use_bin_vad=true
 min_utt_length=500
 max_utt_length=12000
 random_utt_length=false
+stage=1
 
 if [ -f path.sh ]; then . ./path.sh; fi
 . parse_options.sh || exit 1;
@@ -71,25 +72,26 @@ fi
 
 echo "$0: generate attacks for $data_dir to $output_dir"
 
+if [ $stage -le 1 ];then
+    $cmd JOB=1:$nj $log_dir/${name}.JOB.log \
+	hyp_utils/torch.sh --num-gpus $num_gpus \
+	steps_attacks/torch-generate-adv-attacks-xvector-classif.py \
+	@$feat_config ${args} $attacks_opts \
+	--wav-file $wav \
+	--list-file $list \
+	--model-path $nnet_file \
+	--class2int-file $class2int \
+	--attack-tag $attack_tag \
+	--output-wav-dir $output_dir/wav \
+	--attack-info-file $output_dir/info/info.JOB.yml \
+	--part-idx JOB --num-parts $nj || exit 1
+fi
 
-$cmd JOB=1:$nj $log_dir/${name}.JOB.log \
-    hyp_utils/torch.sh --num-gpus $num_gpus \
-    steps_attacks/torch-generate-adv-attacks-xvector-classif.py \
-    @$feat_config ${args} $attacks_opts \
-    --wav-file $wav \
-    --list-file $list \
-    --model-path $nnet_file \
-    --class2int-file $class2int \
-    --attack-tag $attack_tag \
-    --output-wav-dir $output_dir/wav \
-    --attack-info-file $output_dir/info/info.JOB.yml \
-    --part-idx JOB --num-parts $nj || exit 1
-
-
-for((j=1;j<=$nj;j++));
-do
-    cat $output_dir/info/info.$j.yml
-done > $output_dir/info/info.yml
-
+if [ $stage -le 2 ];then
+    for((j=1;j<=$nj;j++));
+    do
+	cat $output_dir/info/info.$j.yml
+    done > $output_dir/info/info.yml
+fi
 
 

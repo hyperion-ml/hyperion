@@ -7,7 +7,7 @@
 . ./path.sh
 set -e
 
-stage=5
+stage=9
 config_file=default_config.sh
 use_gpu=false
 xvec_chunk_length=12800
@@ -73,7 +73,7 @@ if [ $stage -le 4 ]; then
     	steps_attacks/generate_adv_attacks_xvector_classif.sh  --cmd "$xvec_cmd --mem 12G" --nj 250 ${xvec_args} \
 	    --random-utt-length true --min-utt-length 4 --max-utt-length 60 --use-bin-vad false \
 	    --feat-config $feat_config \
-	    --attacks-opts "--attacks-attack-type pgd --attacks-norms inf --attacks-min-eps 3e-6 --attacks-max-eps 0.03 --attacks-min-alpha 1e-6 --attacks-max-alpha 0.005 --p-attack 0.25 --attacks-min-num-random-init 0 --attacks-max-num-random-init 5 --attacks-min-iter 10 --attacks-max-iter 100 --random-seed 4000" \
+	    --attacks-opts "--attacks-attack-type pgd --attacks-norms inf --attacks-min-eps 3e-6 --attacks-max-eps 0.03 --attacks-min-alpha 1e-6 --attacks-max-alpha 0.005 --p-attack 0.25 --attacks-min-num-random-init 2 --attacks-max-num-random-init 5 --attacks-min-iter 10 --attacks-max-iter 100 --random-seed 4000" \
     	    $nnet data/${name}_proc_audio_no_sil \
 	    $class2int pgd-linf \
     	    $attack_dir/pgd-linf/${name}
@@ -87,7 +87,7 @@ if [ $stage -le 5 ]; then
     	steps_attacks/generate_adv_attacks_xvector_classif.sh  --cmd "$xvec_cmd --mem 12G" --nj 250 ${xvec_args} \
 	    --random-utt-length true --min-utt-length 4 --max-utt-length 60 --use-bin-vad false \
 	    --feat-config $feat_config \
-	    --attacks-opts "--attacks-attack-type pgd --attacks-norms 1 --attacks-min-eps 3e-6 --attacks-max-eps 0.03 --attacks-min-alpha 1e-6 --attacks-max-alpha 0.005 --p-attack 0.25 --attacks-min-num-random-init 1 --attacks-max-num-random-init 5  --attacks-min-iter 10 --attacks-max-iter 100 --random-seed 5000" \
+	    --attacks-opts "--attacks-attack-type pgd --attacks-norms 1 --attacks-min-eps 3e-6 --attacks-max-eps 0.03 --attacks-min-alpha 1e-6 --attacks-max-alpha 0.005 --p-attack 0.25 --attacks-min-num-random-init 2 --attacks-max-num-random-init 5  --attacks-min-iter 10 --attacks-max-iter 100 --attacks-norm-time --random-seed 5000" \
     	    $nnet data/${name}_proc_audio_no_sil \
 	    $class2int pgd-l1 \
     	    $attack_dir/pgd-l1/${name}
@@ -101,7 +101,7 @@ if [ $stage -le 6 ]; then
     	steps_attacks/generate_adv_attacks_xvector_classif.sh  --cmd "$xvec_cmd --mem 12G" --nj 250 ${xvec_args} \
 	    --random-utt-length true --min-utt-length 4 --max-utt-length 60 --use-bin-vad false \
 	    --feat-config $feat_config \
-	    --attacks-opts "--attacks-attack-type pgd --attacks-norms 2 --attacks-min-eps 3e-6 --attacks-max-eps 0.03 --attacks-min-alpha 1e-6 --attacks-max-alpha 0.005 --p-attack 0.25 --attacks-min-num-random-init 1 --attacks-max-num-random-init 5  --attacks-min-iter 10 --attacks-max-iter 100 --random-seed 6000" \
+	    --attacks-opts "--attacks-attack-type pgd --attacks-norms 2 --attacks-min-eps 3e-6 --attacks-max-eps 0.03 --attacks-min-alpha 1e-6 --attacks-max-alpha 0.005 --p-attack 0.25 --attacks-min-num-random-init 2 --attacks-max-num-random-init 5  --attacks-min-iter 10 --attacks-max-iter 100 --attacks-norm-time  --random-seed 6000" \
     	    $nnet data/${name}_proc_audio_no_sil \
 	    $class2int pgd-l2 \
     	    $attack_dir/pgd-l2/${name}
