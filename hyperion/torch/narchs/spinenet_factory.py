@@ -5,6 +5,7 @@ from .spinenet import *
 spinenet_dict = {
     'spinenet49': SpineNet49,
     'spinenet49s': SpineNet49S,
+    'spinenet49xs': SpineNet49XS,
     'spinenet96': SpineNet96,
     'spinenet143': SpineNet143,
     'spinenet190': SpineNet190,
@@ -13,6 +14,8 @@ spinenet_dict = {
     'lspinenet49_3': LSpineNet49_3,
     'lspinenet49_4': LSpineNet49_4,
     'lspinenet49_5': LSpineNet49_5,
+    'lspinenet49_5_64': LSpineNet49_5_64,
+    'lspinenet49_5_128': LSpineNet49_5_128,
     'lspinenet49_6': LSpineNet49_6,
     'lspinenet49_7': LSpineNet49_7,
     'lspinenet49_nearest_concat_time': LSpineNet49_nearest_concat_time,
@@ -23,6 +26,7 @@ spinenet_dict = {
     'lspinenet49_128_concat_freq': LSpineNet49_128_concat_freq,
     'spinenet49_concat_time': SpineNet49_concat_time,
     'spinenet49_concat_channel': SpineNet49_concat_channel,
+    'spinenet49_concat_channel_endp': SpineNet49_concat_channel_endp,
     'spinenet49_512': SpineNet49_512,
     'spinenet49_512_concat_time': SpineNet49_512_concat_time,
     'spinenet49_512_concat_channel': SpineNet49_512_concat_channel,
@@ -32,8 +36,12 @@ spinenet_dict = {
     'lspinenet49_nearest': LSpineNet49_nearest,
     'lspinenet49_bilinear': LSpineNet49_bilinear,
     'spinenet49_nearest': SpineNet49_nearest,
+    'lspinenet49_nearest_sum': LSpineNet49_nearest_sum,
+    'lspinenet49_nearest_sum_relu': LSpineNet49_nearest_sum_relu,
     'lspinenet49_nearest_avg5': LSpineNet49_nearest_avg5,
     'lspinenet49_avg5': LSpineNet49_avg5,
+    'lspinenet49_subpixel_345': LSpineNet49_subpixel_345,
+    'spinenet49_nearest_345': SpineNet49_nearest_345,
     'lspinenet49_nearest_avg5_concat_channel': LSpineNet49_nearest_avg5_concat_channel,
     'lspinenet49_nearest_res2net': LSpineNet49_nearest_res2net,
     'lspinenet49_nearest_res2net_se': LSpineNet49_nearest_res2net_se,
@@ -51,8 +59,13 @@ spinenet_dict = {
     'lspinenet49_nearest_upfirst': LSpineNet49_nearest_upfirst,
     'spinenet49_aggr_noup_noconv': SpineNet49_aggr_noup_noconv,
     'lspinenet49_nearest_concat_channel_endp_upfirst': LSpineNet49_nearest_concat_channel_endp_upfirst,
-}
-
+    'lspinenet49_345_128': LSpineNet49_345_128,
+    'spinenet49m': SpineNet49M,
+    'spinenet49l': SpineNet49L,
+    'spinenet49s_res2net': SpineNet49S_res2net,
+    'spinenet49s_res2net_se': SpineNet49S_res2net_se,
+    'spinenet49s_res2net_tse': SpineNet49S_res2net_tse,
+    }
 
 class SpineNetFactory(object):
 

@@ -56,6 +56,48 @@ R0_SP53_BLOCK_SPECS = [
     (6, ResNetBNBlock, (7, 9), True),   # 16
 ]
 
+SPINENET_BLOCK_SPECS_5 = [
+    # level, block type, tuple of inputs, is output
+    (2, ResNetBNBlock, (None, None), False), # 0
+    (2, ResNetBNBlock, (None, None), False), # 1
+    (2, ResNetBNBlock, (0, 1), False), # 2
+    (4, ResNetBasicBlock, (0, 1), False), # 3
+    (3, ResNetBNBlock, (2, 3), False), # 4
+    (4, ResNetBNBlock, (2, 4), False), # 5
+    (6, ResNetBasicBlock, (3, 5), False), # 6
+    (4, ResNetBNBlock, (3, 5), False), # 7
+    (5, ResNetBasicBlock, (6, 7), False), # 8
+    (7, ResNetBasicBlock, (6, 8), False), # 9
+    (5, ResNetBNBlock, (8, 9), False), # 10
+    (5, ResNetBNBlock, (8, 10), False), # 11
+    (4, ResNetBNBlock, (5, 10), True), # 12
+    # (3, ResNetBNBlock, (4, 10), True), # 13
+    (5, ResNetBNBlock, (7, 12), True), # 14
+    # (7, ResNetBNBlock, (5, 14), True), # 15
+    # (6, ResNetBNBlock, (12, 14), True), # 16
+]
+
+SPINENET_BLOCK_SPECS_345 = [
+    # level, block type, tuple of inputs, is output
+    (2, ResNetBNBlock, (None, None), False), # 0
+    (2, ResNetBNBlock, (None, None), False), # 1
+    (2, ResNetBNBlock, (0, 1), False), # 2
+    (4, ResNetBasicBlock, (0, 1), False), # 3
+    (3, ResNetBNBlock, (2, 3), False), # 4
+    (4, ResNetBNBlock, (2, 4), False), # 5
+    (6, ResNetBasicBlock, (3, 5), False), # 6
+    (4, ResNetBNBlock, (3, 5), False), # 7
+    (5, ResNetBasicBlock, (6, 7), False), # 8
+    (7, ResNetBasicBlock, (6, 8), False), # 9
+    (5, ResNetBNBlock, (8, 9), False), # 10
+    (5, ResNetBNBlock, (8, 10), False), # 11
+    (4, ResNetBNBlock, (5, 10), True), # 12
+    (3, ResNetBNBlock, (4, 10), True), # 13
+    (5, ResNetBNBlock, (7, 12), True), # 14
+    # (7, ResNetBNBlock, (5, 14), True), # 15
+    # (6, ResNetBNBlock, (12, 14), True), # 16
+]
+
 FILTER_SIZE_MAP = {
     # level: channel multiplier
     1: 0.5,
@@ -74,6 +116,7 @@ class SpineNet(NetArch):
                  resample_alpha=0.5, concat=False, do_endpoint_conv=True, concat_ax=3, upsampling_type='nearest',
                  feature_output_level=None, aggregation=False, time_conv=False, channel_conv=False, chann_conv_chann=None,
                  weighted_sum=False, do_endpoint_upsampling=True, end_upsample_before=False,
+                 endpoint_sum=False, do_endpoint_relu=False,
                  block_repeats=1, filter_size_scale=1.0, conv_channels=64, base_channels=64, out_units=0,
                  hid_act={'name':'relu6', 'inplace': True}, out_act=None,
                  in_kernel_size=7, in_stride=2,
@@ -118,6 +161,8 @@ class SpineNet(NetArch):
         self.chann_conv_chann = chann_conv_chann
         self.do_endpoint_upsampling = do_endpoint_upsampling
         self.end_upsample_before = end_upsample_before
+        self.endpoint_sum  = endpoint_sum
+        self.do_endpoint_relu = do_endpoint_relu
 
         self.res2net_scale = res2net_scale
         self.res2net_width_factor = res2net_width_factor
@@ -204,6 +249,9 @@ class SpineNet(NetArch):
 
         if self.weighted_sum:
             self.weight_endpoints = nn.Parameter(torch.ones((len(output_levels),)))
+
+        if self.do_endpoint_relu:
+            self.endpoint_relu = AF.create(self.hid_act)
 
         self.with_output = False
         self.out_act = None
@@ -443,18 +491,18 @@ class SpineNet(NetArch):
             W = self._compute_out_size(in_shape[3])
 
         C = self._compute_channel_size()
-        # if self.aggregation:
-        #     return (len(self.output_levels), in_shape[0], C, H, W)
         if self.aggregation:
-            if not self.do_endpoint_conv and not self.do_endpoint_upsampling:
-                # return (in_shape[0], 7424, 2, W)
-                return (in_shape[0], 29696, 2, W)
-            elif self.do_endpoint_conv and not self.do_endpoint_upsampling:
-                return (in_shape[0], 2496, 2, W)
-                # return (in_shape[0], 9984, 2, W)
-            else:
-                # return (in_shape[0], len(self.output_levels)*C, H, W)
-                return (len(self.output_levels), in_shape[0], C, H, W)
+            return (len(self.output_levels), in_shape[0], C, H, W)
+        # if self.aggregation:
+        #     if not self.do_endpoint_conv and not self.do_endpoint_upsampling:
+        #         # return (in_shape[0], 7424, 2, W)
+        #         return (in_shape[0], 29696, 2, W)
+        #     elif self.do_endpoint_conv and not self.do_endpoint_upsampling:
+        #         return (in_shape[0], 2496, 2, W)
+        #         # return (in_shape[0], 9984, 2, W)
+        #     else:
+        #         # return (in_shape[0], len(self.output_levels)*C, H, W)
+        #         return (len(self.output_levels), in_shape[0], C, H, W)
         return (in_shape[0], C, H, W)
 
     def _match_shape(self, x, target_shape):
@@ -531,18 +579,9 @@ class SpineNet(NetArch):
                     if j_connections == 0 and j_feat.shape == target_feat.shape:
                         target_feat += j_feat
                         num_outgoing_connections[j] += 1
-                        # logging.info('YES j_connections idx: {} j: {}'.format(idx, j))
-                    if j_connections == 0 and idx == 12 and j == 11 and j_feat.shape != target_feat.shape:
-                    #     logging.info('j_connections idx: {} j: {}'.format(idx+2, j))
-                        logging.info("EXCEPTION")
-                        logging.info(j_feat.shape)
-                        logging.info(target_feat.shape)
 
             target_feat = self.connections[idx][2](target_feat)  # pass input through the activation function
             x = self.blocks[idx](target_feat)
-            # logging.info(idx)
-            # logging.info(x.shape)
-            # logging.info(target_feat.shape)
 
             feats.append(x)
             num_outgoing_connections.append(0)
@@ -580,8 +619,20 @@ class SpineNet(NetArch):
                 x = self.endpoint_conv(x)
         else:
             if self.weighted_sum:
-                x = torch.mean(self.weight_endpoints * torch.stack(output_endpoints, dim=-1), -1)
-
+                # x = torch.mean(self.weight_endpoints * torch.stack(output_endpoints, dim=-1), -1)
+                # edge_weights = nn.functional.relu(self.weight_endpoints.to(dtype=dtype))
+                # logging.info(x.shape)
+                logging.info(self.weight_endpoints)
+                weight_endpoints = nn.functional.relu(self.weight_endpoints)
+                weights_sum = torch.sum(weight_endpoints)
+                x = torch.stack(
+                    [(output_endpoints[i] * weight_endpoints[i]) / (weights_sum + 0.0001) for i in range(len(output_endpoints))], dim=-1)
+                x = torch.sum(x, dim=-1)
+            elif self.endpoint_sum:
+                x = torch.sum(torch.stack(output_endpoints), 0)
+                if self.do_endpoint_relu:
+                    x = self.endpoint_relu(x)
+                    # logging.info(x.shape)
             else:
                 x = torch.mean(torch.stack(output_endpoints), 0)
 
@@ -699,6 +750,14 @@ class SpineNet49_concat_channel(SpineNet):
         super(SpineNet49_concat_channel, self).__init__(
             in_channels, **kwargs)
 
+class SpineNet49_concat_channel_endp(SpineNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs['concat'] = True
+        kwargs['do_endpoint_conv'] = True
+        kwargs['concat_ax'] = 1
+        super(SpineNet49_concat_channel_endp, self).__init__(
+            in_channels, **kwargs)
+
 
 class SpineNet49_512(SpineNet):
     def __init__(self, in_channels, **kwargs):
@@ -774,6 +833,34 @@ class LSpineNet49_nearest_weighted(SpineNet):
         kwargs['upsampling_type'] = 'nearest'
         kwargs['weighted_sum'] = True
         super(LSpineNet49_nearest_weighted, self).__init__(
+            in_channels, **kwargs)
+
+class LSpineNet49_nearest_sum(SpineNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs['endpoints_num_filters'] = 64
+        kwargs['filter_size_scale'] = 1.0
+        kwargs['resample_alpha'] = 0.5
+        kwargs['block_repeats'] = 1
+        kwargs['conv_channels'] = 16
+        kwargs['base_channels'] = 16
+        kwargs['upsampling_type'] = 'nearest'
+        kwargs['endpoint_sum'] = True
+        kwargs['do_endpoint_relu'] = False
+        super(LSpineNet49_nearest_sum, self).__init__(
+            in_channels, **kwargs)
+
+class LSpineNet49_nearest_sum_relu(SpineNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs['endpoints_num_filters'] = 64
+        kwargs['filter_size_scale'] = 1.0
+        kwargs['resample_alpha'] = 0.5
+        kwargs['block_repeats'] = 1
+        kwargs['conv_channels'] = 16
+        kwargs['base_channels'] = 16
+        kwargs['upsampling_type'] = 'nearest'
+        kwargs['endpoint_sum'] = True
+        kwargs['do_endpoint_relu'] = True
+        super(LSpineNet49_nearest_sum_relu, self).__init__(
             in_channels, **kwargs)
 
 
@@ -878,8 +965,68 @@ class LSpineNet49_5(SpineNet):
         kwargs['output_levels'] = [5]
         kwargs['do_endpoint_conv'] = False
         kwargs['upsampling_type'] = 'nearest'
+        kwargs['block_specs'] = SPINENET_BLOCK_SPECS_5
         super(LSpineNet49_5, self).__init__(
             in_channels, **kwargs)
+
+class LSpineNet49_subpixel_345(SpineNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs['endpoints_num_filters'] = 64
+        kwargs['filter_size_scale'] = 1.0
+        kwargs['resample_alpha'] = 0.5
+        kwargs['block_repeats'] = 1
+        kwargs['conv_channels'] = 16
+        kwargs['base_channels'] = 16
+        kwargs['output_levels'] = [3, 4, 5]
+        kwargs['upsampling_type'] = 'subpixel'
+        kwargs['block_specs'] = SPINENET_BLOCK_SPECS_345
+        super(LSpineNet49_subpixel_345, self).__init__(
+            in_channels, **kwargs)
+
+class SpineNet49_nearest_345(SpineNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs['endpoints_num_filters'] = 256
+        kwargs['filter_size_scale'] = 1.0
+        kwargs['resample_alpha'] = 0.5
+        kwargs['block_repeats'] = 1
+        kwargs['output_levels'] = [3, 4, 5]
+        kwargs['upsampling_type'] = 'nearest'
+        kwargs['block_specs'] = SPINENET_BLOCK_SPECS_345
+        super(SpineNet49_nearest_345, self).__init__(
+            in_channels, **kwargs)
+
+class LSpineNet49_5_64(SpineNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs['endpoints_num_filters'] = 64
+        kwargs['filter_size_scale'] = 1.0
+        kwargs['resample_alpha'] = 0.5
+        kwargs['block_repeats'] = 1
+        kwargs['conv_channels'] = 16
+        kwargs['base_channels'] = 16
+        kwargs['output_levels'] = [5]
+        kwargs['do_endpoint_conv'] = True
+        kwargs['upsampling_type'] = 'nearest'
+        kwargs['block_specs'] = SPINENET_BLOCK_SPECS_5
+
+        super(LSpineNet49_5_64, self).__init__(
+            in_channels, **kwargs)
+
+class LSpineNet49_5_128(SpineNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs['endpoints_num_filters'] = 128
+        kwargs['filter_size_scale'] = 1.0
+        kwargs['resample_alpha'] = 0.5
+        kwargs['block_repeats'] = 1
+        kwargs['conv_channels'] = 16
+        kwargs['base_channels'] = 16
+        kwargs['output_levels'] = [5]
+        kwargs['do_endpoint_conv'] = True
+        kwargs['upsampling_type'] = 'nearest'
+        kwargs['block_specs'] = SPINENET_BLOCK_SPECS_5
+
+        super(LSpineNet49_5_128, self).__init__(
+            in_channels, **kwargs)
+
 
 class LSpineNet49_6(SpineNet):
     def __init__(self, in_channels, **kwargs):
@@ -1013,7 +1160,6 @@ class LSpineNet49_nearest_concat_channel_endp(SpineNet):
         kwargs['conv_channels'] = 16
         kwargs['base_channels'] = 16
         kwargs['concat'] = True
-        # kwargs['do_endpoint_conv'] = False
         kwargs['concat_ax'] = 1
         kwargs['upsampling_type'] = 'nearest'
         super(LSpineNet49_nearest_concat_channel_endp, self).__init__(
@@ -1028,7 +1174,6 @@ class LSpineNet49_nearest_concat_channel_endp_upfirst(SpineNet):
         kwargs['conv_channels'] = 16
         kwargs['base_channels'] = 16
         kwargs['concat'] = True
-        # kwargs['do_endpoint_conv'] = False
         kwargs['concat_ax'] = 1
         kwargs['upsampling_type'] = 'nearest'
         kwargs['end_upsample_before'] = True
@@ -1067,7 +1212,6 @@ class LSpineNet49_128_concat_freq(SpineNet):
         kwargs['conv_channels'] = 16
         kwargs['base_channels'] = 16
         kwargs['concat'] = True
-        kwargs['do_endpoint_conv'] = True
         kwargs['concat_ax'] = 2
         super(LSpineNet49_128_concat_freq, self).__init__(
             in_channels, **kwargs)
@@ -1184,7 +1328,6 @@ class LSpineNet49_aggr_noup(SpineNet):
         kwargs['base_channels'] = 16
         kwargs['aggregation'] = True
         kwargs['upsampling_type'] = 'nearest'
-        kwargs['do_endpoint_conv'] = True
         kwargs['do_endpoint_upsampling'] = False
         super(LSpineNet49_aggr_noup, self).__init__(
             in_channels, **kwargs)
@@ -1197,7 +1340,6 @@ class LSpineNet49_aggr_upfirst(SpineNet):
         kwargs['base_channels'] = 16
         kwargs['aggregation'] = True
         kwargs['upsampling_type'] = 'nearest'
-        kwargs['do_endpoint_conv'] = True
         kwargs['end_upsample_before'] = True
         super(LSpineNet49_aggr_upfirst, self).__init__(
             in_channels, **kwargs)
@@ -1206,7 +1348,6 @@ class LSpineNet49_aggr_upfirst(SpineNet):
 class SpineNet49_aggr_noup(SpineNet):
     def __init__(self, in_channels, **kwargs):
         kwargs['aggregation'] = True
-        kwargs['do_endpoint_conv'] = True
         kwargs['do_endpoint_upsampling'] = False
         super(SpineNet49_aggr_noup, self).__init__(
             in_channels, **kwargs)
@@ -1266,3 +1407,53 @@ class SpineNet49_nearest_res2net_tse(SpineNet):
         kwargs['time_se'] = True
         super(SpineNet49_nearest_res2net_tse, self).__init__(
             in_channels, **kwargs)
+
+class LSpineNet49_345_128(SpineNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs['endpoints_num_filters'] = 128
+        kwargs['filter_size_scale'] = 1.0
+        kwargs['resample_alpha'] = 0.5
+        kwargs['block_repeats'] = 1
+        kwargs['conv_channels'] = 16
+        kwargs['base_channels'] = 16
+        kwargs['output_levels'] = [3, 4, 5]
+        kwargs['upsampling_type'] = 'nearest'
+        kwargs['block_specs'] = SPINENET_BLOCK_SPECS_345
+        super(LSpineNet49_345_128, self).__init__(
+            in_channels, **kwargs)
+
+class SpineNet49S_res2net(SpineNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs['endpoints_num_filters'] = 128
+        kwargs['filter_size_scale'] = 0.65
+        kwargs['resample_alpha'] = 0.5
+        kwargs['block_repeats'] = 1
+        kwargs['is_res2net'] = True
+        super(SpineNet49S_res2net, self).__init__(
+            in_channels, **kwargs)
+
+
+class SpineNet49S_res2net_se(SpineNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs['endpoints_num_filters'] = 128
+        kwargs['filter_size_scale'] = 0.65
+        kwargs['resample_alpha'] = 0.5
+        kwargs['block_repeats'] = 1
+        kwargs['is_res2net'] = True
+        kwargs['has_se'] = True
+        super(SpineNet49S_res2net_se, self).__init__(
+            in_channels, **kwargs)
+
+
+class SpineNet49S_res2net_tse(SpineNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs['endpoints_num_filters'] = 128
+        kwargs['filter_size_scale'] = 0.65
+        kwargs['resample_alpha'] = 0.5
+        kwargs['block_repeats'] = 1
+        kwargs['is_res2net'] = True
+        kwargs['has_se'] = True
+        kwargs['time_se'] = True
+        super(SpineNet49S_res2net_tse, self).__init__(
+            in_channels, **kwargs)
+

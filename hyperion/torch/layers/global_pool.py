@@ -630,8 +630,13 @@ class GlobalMedianIqrPool1d(_GlobalPool1d):
 
     def forward(self, x, weights=None):
         if weights is None:
-            mu = torch.median(x, dim=self.dim, keepdim=True)
-            s = np.percentile(x, 75, axis=-1) - np.percentile(x, 25, axis=-1)
+            mu = torch.quantile(x.float(), 0.5, dim=self.dim)
+            # logging.info(x.float().type())
+            # logging.info(type(0.75))
+            # logging.info(mu.shape)
+            # logging.info(x.shape)
+            s = torch.quantile(x.float(), 0.75, dim=self.dim) - torch.quantile(x.float(), 0.25, dim=self.dim)
+            # logging.info(s.shape)
             # delta = x - mu
             # mu.squeeze_(dim=self.dim)
             #
