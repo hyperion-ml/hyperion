@@ -8,6 +8,7 @@ import numpy as np
 from scipy.signal import lfilter
 
 from ..hyp_defs import float_cpu
+from ..utils.misc import str2bool
 from .stft import st_logE
 
 
@@ -27,7 +28,9 @@ class EnergyVAD(object):
     """
     def __init__(self, fs=16000, frame_length=25, frame_shift=10, 
                  dither=1, snip_edges=True,
-                 vad_energy_mean_scale=0.5, vad_energy_threshold=5, vad_frames_context=0, vad_proportion_threshold=0.6):
+                 vad_energy_mean_scale=0.5, 
+                 vad_energy_threshold=5, vad_frames_context=0, 
+                 vad_proportion_threshold=0.6):
         
         self.fs = fs
         self.frame_length = frame_length
@@ -110,9 +113,13 @@ class EnergyVAD(object):
         if context == 0:
             return vad
  
-        window = 2*context + 1
-        if len(vad0) < window:
-            context = int(len(vad0)-1/2)
+        window = 2 * context + 1
+        if len(vad) < window:
+            context = int(len(vad)-1/2)
+            window = 2 * context + 1
+
+        if window == 1:
+            return vad
 
         h = np.ones((window,), dtype='float32')
         num_count = np.convolve(vad.astype('float32'), h, 'same')
@@ -123,7 +130,6 @@ class EnergyVAD(object):
         
         vad = num_count > self.vad_proportion_threshold
         return vad
-        
     
 
     @staticmethod
@@ -149,7 +155,6 @@ class EnergyVAD(object):
         d = dict((k, kwargs[p+k])
                  for k in valid_args if p+k in kwargs)
         return d
-
     
         
     @staticmethod
