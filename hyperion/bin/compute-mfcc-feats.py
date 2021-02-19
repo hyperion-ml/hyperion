@@ -22,7 +22,8 @@ from hyperion.io import compression_methods
 from hyperion.feats import MFCC
 
 def compute_mfcc_feats(input_path, output_path,
-                       compress, compression_method, write_num_frames, **kwargs):
+                       compress, compression_method, 
+                       write_num_frames, **kwargs):
 
     mfcc_args = MFCC.filter_args(**kwargs)
     mfcc = MFCC(**mfcc_args)
@@ -73,7 +74,7 @@ if __name__ == "__main__":
 
     parser.add_argument('--input', dest='input_path', required=True)
     parser.add_argument('--output', dest='output_path', required=True)
-    parser.add_argument('--write-num-frames', dest='write_num_frames', default=None)
+    parser.add_argument('--write-num-frames', default=None)
 
     AR.add_argparse_args(parser)
     DRF.add_argparse_args(parser)
