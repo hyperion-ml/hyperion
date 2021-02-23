@@ -28,9 +28,16 @@ class BinVADReader(VADReader):
         return self.r.read_dims(keys, assert_same_dim=False)
 
 
-    def read(self, keys, squeeze=False, offset=0, num_frames=0):
+    def read(self, keys, squeeze=False, offset=0, num_frames=0,
+             frame_length=25, frame_shift=10, snip_edges=False,
+             signal_lengths=None):
+
         if isinstance(keys, str):
             keys = [keys]
+
+        assert frame_length == self.frame_length
+        assert frame_shift == self.frame_shift
+        assert snip_edges == self.snip_edges
 
         offset_is_list, num_frames_is_list = self._assert_offsets_num_frames(
             keys, offset, num_frames)
@@ -59,7 +66,7 @@ class BinVADReader(VADReader):
         for i in range(len(keys)):
             vad_i = vad[i].astype(np.bool, copy=False)
             ts_i = bin_vad_to_timestamps(
-                vad_i, self.frame_length, self.frame_shift, 
+                vad_i, self.frame_length/1000, self.frame_shift/1000, 
                 self.snip_edges, merge_tol)
             ts.append(ts_i)
 

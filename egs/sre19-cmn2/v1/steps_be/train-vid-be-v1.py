@@ -21,6 +21,12 @@ from hyperion.transforms import TransformList, LDA, LNorm
 from hyperion.helpers import PLDAFactory as F
 from hyperion.utils.scp_list import SCPList
 
+def matlist2vec(x):
+    for i in range(len(x)):
+        if x[i].ndim == 1:
+            x[i] = x[i][None,:]
+    return np.concatenate(x, axis=0)
+
 
 def train_be(iv_file, train_list,
              adapt_iv_file_1, adapt_list_1,
@@ -81,6 +87,9 @@ def train_be(iv_file, train_list,
     t1 = time.time()
     vr = VR(adapt_iv_file_1, adapt_list_1, None)
     x = vr.read()
+    if isinstance(x, list):
+        x = matlist2vec(x)
+        
     x = lda.predict(x)
     lnorm.update_T = False
     lnorm.fit(x)
@@ -96,6 +105,9 @@ def train_be(iv_file, train_list,
     
     vr = VR(adapt_iv_file_2, adapt_list_2, None)
     x = vr.read()
+    if isinstance(x, list):
+        x = matlist2vec(x)
+
     x = lda.predict(x)
     N = x.shape[0]
     alpha = N/(N+r2)

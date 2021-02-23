@@ -409,7 +409,7 @@ class RSpecifier(object):
                        permissive, background)
         else:
             raise ValueError('Two many fields (%d>2) in wspecifier %s'
-                             % (len(fields), wspecifier))
+                             % (len(fields), rspecifier))
         
         
 
