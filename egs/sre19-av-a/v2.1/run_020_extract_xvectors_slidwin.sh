@@ -16,10 +16,12 @@ xvec_chunk_length=12800
 
 if [ "$use_gpu" == "true" ];then
     xvec_args="--use-gpu true --chunk-length $xvec_chunk_length"
-    xvec_cmd="$cuda_eval_cmd"
+    xvec_cmd="$cuda_eval_cmd --mem 4G"
 else
-    xvec_cmd="$train_cmd"
+    xvec_cmd="$train_cmd --mem 6G"
 fi
+
+plda_num_augs=$diar_plda_num_augs
 
 xvector_dir=exp/xvectors_diar/$nnet_name
 
@@ -29,13 +31,13 @@ if [ $stage -le 1 ]; then
     do
 	if [ $plda_num_augs -eq 0 ]; then
     	    hyp_utils/xvectors/extract_xvectors_slidwin_from_wav.sh \
-		--cmd "$xvec_cmd --mem 12G" --nj 100 ${xvec_args} \
+		--cmd "$xvec_cmd" --nj 100 ${xvec_args} \
 		--win-length 1.5 --win-shift 5 --snip-edges true --use-bin-vad true \
 		--feat-config $feat_config \
     		$nnet data/${name} \
     		$xvector_dir/${name}
 	else
-	    hyp_utils/xvectors/extract_xvectors_slidwin_from_wav.sh --cmd "$xvec_cmd --mem 12G" --nj 300 ${xvec_args} \
+	    hyp_utils/xvectors/extract_xvectors_slidwin_from_wav.sh --cmd "$xvec_cmd" --nj 300 ${xvec_args} \
 		--win-length 1.5 --win-shift 5 --snip-edges true --use-bin-vad true \
 		--feat-config $feat_config --aug-config $plda_aug_config --num-augs $plda_num_augs \
     		$nnet data/${name} \
@@ -48,7 +50,10 @@ fi
 
 if [ $stage -le 2 ]; then
     # Extracts x-vectors for evaluation
-    for name in dihard2019_dev dihard2019_eval
+    for name in sitw_dev_test sitw_eval_test \
+	sre18_eval_test_vast sre18_dev_test_vast \
+	sre19_av_a_dev_test sre19_av_a_eval_test \
+	janus_dev_test_core janus_eval_test_core
     do
 	num_spk=$(wc -l data/$name/spk2utt | awk '{ print $1}')
 	nj=$(($num_spk < 100 ? $num_spk:100))
