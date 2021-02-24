@@ -4,6 +4,8 @@
 feat_config=conf/fbank80_stmn_16k.yml
 feat_type=fbank80_stmn
 
+#vad
+vad_config=conf/vad_16k.yml
 
 # x-vector training 
 nnet_data=voxceleb2cat_train

@@ -20,21 +20,21 @@ config_file=default_config.sh
 
 if [ $stage -le 1 ]; then
     # Prepare to distribute data over multiple machines
-    if [[ $(hostname -f) == *.clsp.jhu.edu ]] && [ ! -d $fbankdir/storage ]; then
+    if [[ $(hostname -f) == *.clsp.jhu.edu ]] && [ ! -d $vaddir/storage ]; then
 	dir_name=$USER/hyp-data/voxceleb/v1/$storage_name/vad/storage
 	if [ "$nodes" == "b0" ];then
 	    utils/create_split_dir.pl \
 			    utils/create_split_dir.pl \
-		/export/b{04,05,06,07}/$dir_name $fbankdir/storage
+		/export/b{04,05,06,07}/$dir_name $vaddir/storage
 	elif [ "$nodes" == "b1" ];then
 	    utils/create_split_dir.pl \
-		/export/b{14,15,16,17}/$dir_name $fbankdir/storage
+		/export/b{14,15,16,17}/$dir_name $vaddir/storage
 	elif [ "$nodes" == "c0" ];then
 	    utils/create_split_dir.pl \
-		/export/c{06,07,08,09}/$dir_name $fbankdir/storage
+		/export/c{06,07,08,09}/$dir_name $vaddir/storage
 	elif [ "$nodes" == "fs01" ];then
 	    utils/create_split_dir.pl \
-		/export/fs01/$dir_name $fbankdir/storage
+		/export/fs01/$dir_name $vaddir/storage
 	else
 	    echo "we don't distribute data between multiple machines"
 	fi

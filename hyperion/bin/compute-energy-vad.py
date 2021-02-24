@@ -60,8 +60,8 @@ if __name__ == "__main__":
     parser.add_argument('--output', dest='output_path', required=True)
     parser.add_argument('--write-num-frames', default=None)
 
-    AR.add_argparse_args(parser)
-    EnergyVAD.add_argparse_args(parser)
+    AR.add_class_args(parser)
+    EnergyVAD.add_class_args(parser)
     parser.add_argument('-v', '--verbose', dest='verbose', default=1, choices=[0, 1, 2, 3], type=int,
                         help='Verbose level')
     args=parser.parse_args()

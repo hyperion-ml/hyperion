@@ -322,6 +322,7 @@ class SequentialAudioReader(AudioReader):
         except:
             pass
 
+    add_argparse_args = add_class_args
     
 
 class RandomAccessAudioReader(AudioReader):

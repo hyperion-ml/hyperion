@@ -101,8 +101,8 @@ if $write_utt2num_frames; then
   rm $data/utt2num_frames.*
 fi
 
-nf=`cat $data/feats.scp | wc -l`
-nu=`cat $data/utt2spk | wc -l`
+nf=`cat $data/vad.scp | wc -l`
+nu=`cat $scp | wc -l`
 if [ $nf -ne $nu ]; then
   echo "It seems not all of the feature files were successfully ($nf != $nu);"
   echo "consider using utils/fix_data_dir.sh $data"
