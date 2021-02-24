@@ -6,9 +6,6 @@
 """
 Converts from Ark format to NIST OpenSAT
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from six.moves import xrange
 
 import sys
 import os
@@ -60,7 +57,7 @@ def write_opensat(file_vad, key, vad):
         os.makedirs(file_dir)
     with open(file_vad, 'w') as f:
         start, stop, state, conf = bin2intervals(vad)
-        for i in xrange(len(start)):
+        for i in range(len(start)):
             f.write('X\tX\tX\tSAD\t%s\t%.2f\t%.2f\t%s\t%.2f\n' % (key, start[i], stop[i], 'speech' if state[i] else 'non-speech', conf[i]))
     
 

@@ -5,7 +5,7 @@
 """
 import sys
 import os
-import argparse
+from jsonargparse import ArgumentParser, ActionConfigFile, ActionParser, namespace_to_dict
 import time
 import logging
 
@@ -95,11 +95,10 @@ def make_babble_noise_audio_files(
 
 if __name__ == "__main__":
     
-    parser=argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        fromfile_prefix_chars='@',
+    parser=ArgumentParser(
         description='Creates babble noise by adding speech files')
 
+    parser.add_argument('--cfg', action=ActionConfigFile)
     parser.add_argument('--input', dest='input_path', required=True)
     parser.add_argument('--output-path', required=True)
     parser.add_argument('--output-script',  required=True)
@@ -107,7 +106,6 @@ if __name__ == "__main__":
 
     AR.add_argparse_args(parser)
     Writer.add_argparse_args(parser)
-
 
     parser.add_argument('--min-spks', default=3, type=int)
     parser.add_argument('--max-spks', default=10, type=int)
@@ -120,5 +118,5 @@ if __name__ == "__main__":
     del args.verbose
     logging.debug(args)
     
-    make_babble_noise_audio_files(**vars(args))
+    make_babble_noise_audio_files(**namespace_to_dict(args))
     

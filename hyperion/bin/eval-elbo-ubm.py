@@ -6,10 +6,6 @@
 """
 Evaluate the likelihood of the ubm on some data
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import sys
 import os
@@ -51,7 +47,7 @@ def eval_elbo(seq_file, file_list, model_file, preproc_file,
     elbo = np.zeros((sr.num_seqs,), dtype=float_cpu())
     num_frames = np.zeros((sr.num_seqs,), dtype=int)
     keys = []
-    for i in xrange(sr.num_seqs):
+    for i in range(sr.num_seqs):
         x, key = sr.read_next_seq()
         keys.append(key)
         elbo[i] = model.elbo(x)

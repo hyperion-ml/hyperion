@@ -131,28 +131,21 @@ class SklTSNE(HypModel):
 
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
-            
+    def filter_args(**kwargs):
         valid_args = ('tsne_dim', 'perplexity', 'early_exaggeration', 'lr', 
                       'num_iter', 'num_iter_without_progress', 
                       'min_grad_norm', 'metric',
                       'init', 'rng_seed', 'method', 'angle', 'num_jobs')
-        return dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        return dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
     
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         if prefix is None:
             p1 = '--'
-            p2 = ''
         else:
-            p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
+            p1 = '--' + prefix + '.'
             
         parser.add_argument(p1+'tsne-dim', default=2, type=int,
                             help=('tsne dimension'))
@@ -188,3 +181,4 @@ class SklTSNE(HypModel):
         parser.add_argument(p1+'rnd-seed', default=1234, type=int,
                             help=('random seed'))
         
+    add_argparse_args = add_class_args

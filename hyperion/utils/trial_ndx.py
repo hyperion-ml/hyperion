@@ -2,10 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import os.path as path
 import copy
@@ -176,7 +172,7 @@ class TrialNdx(object):
         model_set = ndx_list[0].model_set
         seg_set = ndx_list[0].seg_set
         trial_mask = ndx_list[0].trial_mask
-        for i in xrange(1, num_ndx):
+        for i in range(1, num_ndx):
             ndx_i = ndx_list[i]
             new_model_set = np.union1d(model_set, ndx_i.model_set)
             new_seg_set = np.union1d(seg_set, ndx_i.seg_set)
@@ -314,7 +310,7 @@ class TrialNdx(object):
         """
         new_segset = []
         new_mask = []
-        for i in xrange(self.num_tests):
+        for i in range(self.num_tests):
             file_id = self.seg_set[i]
             segment_ids = segment_list.ext_segment_ids_from_file(file_id)
             new_segset.append(segment_ids)
@@ -382,8 +378,8 @@ class TrialNdx(object):
 
         num_parts=3
         ndx_list = []
-        for i in xrange(num_parts):
-            for j in xrange(num_parts):
+        for i in range(num_parts):
+            for j in range(num_parts):
                 ndx_ij = ndx1.split(i+1, num_parts, j+1, num_parts)
                 ndx_list.append(ndx_ij)
         ndx2 = TrialNdx.merge(ndx_list)

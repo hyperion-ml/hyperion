@@ -7,7 +7,7 @@ cmd="run.pl"
 chunk_length=0     # The chunk size over which the embedding is extracted.
 use_gpu=false
 write_utt2num_frames=true  # If true writes utt2num_frames.
-feat_config=conf/fbank80_stmn_16k.pyconf
+feat_config=conf/fbank80_stmn_16k.yml
 stage=0
 min_utt_length=500
 max_utt_length=12000
@@ -23,7 +23,7 @@ if [ -f path.sh ]; then . ./path.sh; fi
 
 if [ $# != 3 ] && [ $# != 4 ]; then
   echo "Usage: $0 [options] <nnet-model> <data> <xvector-dir> [<data-out-dir>]"
-  echo " e.g.: $0 --feat-config conf/fbank_mvn.pyconf --aug-config conf/noise_aug.yml exp/xvector_nnet/model.pt data/train exp/xvectors_train [data/train_aug]"
+  echo " e.g.: $0 --feat-config conf/fbank_mvn.yml --aug-config conf/noise_aug.yml exp/xvector_nnet/model.pt data/train exp/xvectors_train [data/train_aug]"
   echo "main options (for others, see top of script file)"
   echo "  --cmd (utils/run.pl|utils/queue.pl <queue opts>) # how to run jobs."
   echo "  --use-gpu <bool|false>                           # If true, use GPU."
@@ -84,7 +84,8 @@ fi
 if [ $stage -le 0 ];then
     $cmd JOB=1:$nj $output_dir/log/extract_xvectors.JOB.log \
 	hyp_utils/torch.sh --num-gpus $num_gpus \
-	torch-extract-xvectors-from-wav.py @$feat_config ${args} $write_num_frames_opt \
+	torch-extract-xvectors-from-wav.py \
+	--feats $feat_config ${args} $write_num_frames_opt \
 	--part-idx JOB --num-parts $nj \
 	--input $data_dir/wav.scp \
 	--model-path $nnet_file --chunk-length $chunk_length \

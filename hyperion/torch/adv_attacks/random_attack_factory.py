@@ -133,17 +133,13 @@ class RandomAttackFactory(object):
 
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
+    def filter_args(**kwargs):
 
-        if p + 'no_abort' in kwargs:
-            kwargs[p + 'abort_early'] = not kwargs[p + 'no_abort']
+        if 'no_abort' in kwargs:
+            kwargs['abort_early'] = not kwargs['no_abort']
 
-        if p + 'norms' in kwargs:
-            kwargs[p + 'norms'] = [float(a) for a in kwargs[p + 'norms']]
+        if 'norms' in kwargs:
+            kwargs['norms'] = [float(a) for a in kwargs['norms']]
 
         valid_args = ('attack_types', 
                       'min_eps', 'max_eps', 
@@ -160,24 +156,25 @@ class RandomAttackFactory(object):
                       'indep_channels', 'use_snr', 'norm_time',
                       'targeted')
 
-        args = dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        args = dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
         return args
 
 
 
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         
         if prefix is None:
             p1 = '--'
         else:
-            p1 = '--' + prefix + '-'
+            p1 = '--' + prefix + '.'
 
         parser.add_argument(
             p1+'attack-types', type=str.lower, default=['fgsm'], nargs='+',
-            choices=['fgsm', 'snr-fgsm', 'rand-fgsm', 'iter-fgsm', 'cw-l0', 'cw-l2', 'cw-linf', 'pgd'], 
+            choices=['fgsm', 'snr-fgsm', 'rand-fgsm', 'iter-fgsm', 
+                     'cw-l0', 'cw-l2', 'cw-linf', 'pgd'], 
             help=('Attack types'))
 
         parser.add_argument(
@@ -194,11 +191,13 @@ class RandomAttackFactory(object):
 
         parser.add_argument(
             p1+'min-snr', default=30, type=float,
-            help=('min upper bound for the signal-to-noise ratio of the perturbed signal'))
+            help=('min upper bound for the signal-to-noise ratio of the '
+                  'perturbed signal'))
 
         parser.add_argument(
             p1+'max-snr', default=60, type=float,
-            help=('max upper bound for the signal-to-noise ratio of the perturbed signal'))
+            help=('max upper bound for the signal-to-noise ratio of the '
+                  'perturbed signal'))
 
         parser.add_argument(
             p1+'min-alpha', default=1e-5, type=float,
@@ -246,11 +245,13 @@ class RandomAttackFactory(object):
 
         parser.add_argument(
             p1+'min-c', default=1e-3, type=float,
-            help=('min initial weight of constraint function f in carlini-wagner attack'))
+            help=('min initial weight of constraint function f '
+                  'in carlini-wagner attack'))
 
         parser.add_argument(
             p1+'max-c', default=1e-2, type=float,
-            help=('max initial weight of constraint function f in carlini-wagner attack'))
+            help=('max initial weight of constraint function f '
+                  'in carlini-wagner attack'))
 
         parser.add_argument(
             p1+'reduce-c', default=False, action='store_true',
@@ -266,7 +267,8 @@ class RandomAttackFactory(object):
 
         parser.add_argument(
             p1+'indep-channels', default=False, action='store_true',
-            help=('consider independent input channels in carline-wagner-l0 attack'))
+            help=('consider independent input channels in '
+                  'carlini-wagner-l0 attack'))
 
         parser.add_argument(
             p1+'no-abort', default=False, action='store_true',
@@ -282,8 +284,11 @@ class RandomAttackFactory(object):
 
         parser.add_argument(
             p1+'use-snr', default=False, action='store_true',
-            help=('In carlini-wagner attack maximize SNR instead of minimize perturbation norm'))
+            help=('In carlini-wagner attack maximize SNR instead of '
+                  'minimize perturbation norm'))
 
         parser.add_argument(
             p1+'norm-time', default=False, action='store_true',
             help=('normalize norm by number of samples in time dimension'))
+
+    add_argparse_args = add_class_args

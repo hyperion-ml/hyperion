@@ -2,7 +2,7 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-# from __future__ import absolute_import
+from jsonargparse import ArgumentParser, ActionParser
 
 import torch
 import torch.optim as optim
@@ -70,86 +70,113 @@ class OptimizerFactory(object):
 
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
+    def filter_args(**kwargs):
         valid_args = ('opt_type', 'lr', 'momentum', 'beta1', 'beta2',
                       'rho', 'eps', 'weight_decay', 'amsgrad', 'nesterov', 
                       'lambd','asgd_alpha','t0','rmsprop_alpha',
                       'centered','lr_decay','init_acc_val','max_iter')
 
-        return dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        return dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
     
 
         
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
-        if prefix is None:
-            p1 = '--'
-            p2 = ''
-        else:
-            p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
+    def add_class_args(parser, prefix=None):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog='')
 
-        parser.add_argument(p1+'optimizer', dest=(p2+'opt_type'), type=str.lower,
-                        default='adam',
-                        choices=['sgd','adam', 'radam', 'adadelta', 'adagrad', 'sparse_adam',
-                                 'adamax', 'asgd', 'lbfgs', 'rmsprop','rprop'],
-                        help=('Optimizers: SGD, Adam, AdaDelta, AdaGrad, SparseAdam '
-                              'AdaMax, ASGD, LFGS, RMSprop, Rprop'))
-        parser.add_argument(p1+'lr' , dest=(p2+'lr'),
-                            default=0.001, type=float,
-                            help=('Initial learning rate'))
-        parser.add_argument(p1+'momentum', dest=(p2+'momentum'), default=0.6, type=float,
-                            help=('Momentum'))
-        parser.add_argument(p1+'beta1', dest=(p2+'beta1'), default=0.9, type=float,
-                            help=('Beta_1 in Adam optimizers,  '
-                                  'coefficient used for computing running averages of gradient'))
-        parser.add_argument(p1+'beta2', dest=(p2+'beta2'), default=0.99, type=float,
-                            help=('Beta_2 in Adam optimizers'
-                                  'coefficient used for computing running averages of gradient square'))
-        parser.add_argument(p1+'rho', dest=(p2+'rho'), default=0.9, type=float,
-                            help=('Rho in AdaDelta,' 
-                                  'coefficient used for computing a running average of squared gradients'))
-        parser.add_argument(p1+'eps', dest=(p2+'eps'), default=1e-8, type=float,
-                            help=('Epsilon in RMSprop and Adam optimizers '
-                                  'term added to the denominator to improve numerical stability'))
+        parser.add_argument(
+            '--opt-type', type=str.lower,
+            default='adam',
+            choices=['sgd','adam', 'radam', 'adadelta', 'adagrad', 
+                     'sparse_adam',
+                     'adamax', 'asgd', 'lbfgs', 'rmsprop','rprop'],
+            help=('Optimizers: SGD, Adam, AdaDelta, AdaGrad, SparseAdam '
+                  'AdaMax, ASGD, LFGS, RMSprop, Rprop'))
+        parser.add_argument(
+            '--lr' , 
+            default=0.001, type=float,
+            help=('Initial learning rate'))
+        parser.add_argument(
+            '--momentum', default=0.6, type=float,
+            help=('Momentum'))
+        parser.add_argument(
+            '--beta1', default=0.9, type=float,
+            help=('Beta_1 in Adam optimizers,  '
+                  'coefficient used for computing '
+                  'running averages of gradient'))
+        parser.add_argument(
+            '--beta2', default=0.99, type=float,
+            help=('Beta_2 in Adam optimizers'
+                  'coefficient used for computing '
+                  'running averages of gradient square'))
+        parser.add_argument(
+            '--rho', default=0.9, type=float,
+            help=('Rho in AdaDelta,' 
+                  'coefficient used for computing a '
+                  'running average of squared gradients'))
+        parser.add_argument(
+            '--eps', default=1e-8, type=float,
+            help=('Epsilon in RMSprop and Adam optimizers '
+                  'term added to the denominator '
+                  'to improve numerical stability'))
 
-        parser.add_argument(p1+'weight-decay', dest=(p2+'weight_decay'), default=1e-6, type=float,
-                            help=('L2 regularization coefficient'))
+        parser.add_argument(
+            '--weight-decay', default=1e-6, type=float,
+            help=('L2 regularization coefficient'))
 
-        parser.add_argument(p1+'amsgrad', dest=(p2+'amsgrad'), default=False,
-                            action='store_true',
-                            help=('AMSGrad variant of Adam'))
+        parser.add_argument(
+            '--amsgrad', default=False,
+            action='store_true',
+            help=('AMSGrad variant of Adam'))
 
-        parser.add_argument(p1+'nesterov', dest=(p2+'nesterov'), default=False,
-                            action='store_true',
-                            help=('Use Nesterov momentum in SGD'))
+        parser.add_argument(
+            '--nesterov', default=False,
+            action='store_true',
+            help=('Use Nesterov momentum in SGD'))
 
-        parser.add_argument(p1+'lambd', dest=(p2+'lambd'), default=0.0001, type=float,
-                            help=('decay term in ASGD'))
+        parser.add_argument(
+            '--lambd', default=0.0001, type=float,
+            help=('decay term in ASGD'))
 
-        parser.add_argument(p1+'asgd-alpha', dest=(p2+'asgd_alpha'), default=0.75, type=float,
-                            help=('power for eta update in ASGD'))
+        parser.add_argument(
+            '--asgd-alpha', 
+            default=0.75, type=float,
+            help=('power for eta update in ASGD'))
 
-        parser.add_argument(p1+'t0', dest=(p2+'t0'), default=1e6, type=float,
-                            help=('point at which to start averaging in ASGD'))
+        parser.add_argument(
+            '--t0', default=1e6, type=float,
+            help=('point at which to start averaging in ASGD'))
 
-        parser.add_argument(p1+'rmsprop-alpha', dest=(p2+'rmsprop_alpha'), default=0.99, type=float,
-                            help=('smoothing constant in RMSprop'))
+        parser.add_argument(
+            '--rmsprop-alpha', default=0.99, type=float,
+            help=('smoothing constant in RMSprop'))
         
-        parser.add_argument(p1+'centered', dest=(p2+'centered'), default=False,
-                            action='store_true',
-                            help=('Compute centered RMSprop, gradient normalized by its variance'))
+        parser.add_argument(
+            '--centered',  default=False,
+            action='store_true',
+            help=('Compute centered RMSprop, gradient normalized '
+                  'by its variance'))
 
-        parser.add_argument(p1+'lr-decay', dest=(p2+'lr_decay'), default=1e-6, type=float,
-                            help=('Learning rate decay in AdaGrad optimizer'))
+        parser.add_argument(
+            '--lr-decay', default=1e-6, type=float,
+            help=('Learning rate decay in AdaGrad optimizer'))
     
-        parser.add_argument(p1+'init-acc-val', dest=(p2+'init_acc_val'), default=0, type=float,
-                            help=('Init accum value in Adagrad'))
+        parser.add_argument(
+            '--init-acc-val', default=0, type=float,
+            help=('Init accum value in Adagrad'))
 
-        parser.add_argument(p1+'max-iter', dest=(p2+'max_iter'), default=20, type=int,
-                            help=('max iterations in LBGS'))
+        parser.add_argument(
+            '--max-iter', default=20, type=int,
+            help=('max iterations in LBGS'))
+
+        if prefix is not None:
+            outer_parser.add_argument(
+                '--' + prefix,
+                action=ActionParser(parser=parser),
+                help='optimizer options')
+
+
+    add_argparse_args = add_class_args

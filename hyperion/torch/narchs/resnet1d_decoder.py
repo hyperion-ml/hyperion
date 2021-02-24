@@ -293,11 +293,7 @@ class ResNet1dDecoder(NetArch):
 
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
+    def filter_args(**kwargs):
 
         if 'wo_norm' in kwargs:
             kwargs['use_norm'] = not kwargs['wo_norm']
@@ -306,7 +302,6 @@ class ResNet1dDecoder(NetArch):
         if 'norm_after' in kwargs:
             kwargs['norm_before'] = not kwargs['norm_after']
             del kwargs['norm_after']
-
 
         valid_args = ('in_channels',
                       'in_conv_channels', 'in_kernel_size', 'in_stride',
@@ -318,20 +313,20 @@ class ResNet1dDecoder(NetArch):
                       'dropout_rate',
                       'use_norm', 'norm-layer', 'norm_before')
 
-        args = dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        args = dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
         return args
 
 
 
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         
         if prefix is None:
             p1 = '--'
         else:
-            p1 = '--' + prefix + '-'
+            p1 = '--' + prefix + '.'
 
         parser.add_argument(
                 p1+'in-channels', type=int, required=True,
@@ -413,3 +408,6 @@ class ResNet1dDecoder(NetArch):
         parser.add_argument(
             p1+'se-r', default=16, type=int,
             help=('squeeze-excitation compression ratio'))
+
+
+    add_argparse_args = add_class_args

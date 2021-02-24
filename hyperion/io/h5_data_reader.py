@@ -4,8 +4,6 @@
 
  Classes to read data from hdf5 files.
 """
-#from __future__ import absolute_import
-#from six import string_types
 
 import sys
 import time

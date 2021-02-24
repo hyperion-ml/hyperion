@@ -214,7 +214,7 @@ class TransformerXVectorV1(XVector):
 
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
+    def filter_args(**kwargs):
         """ Filters arguments correspondin to TransformerXVector
             from args dictionary
 
@@ -225,13 +225,7 @@ class TransformerXVectorV1(XVector):
         Returns:
           args dictionary
         """
-        
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
-
-        base_args = XVector.filter_args(prefix, **kwargs)
+        base_args = XVector.filter_args(**kwargs)
 
         valid_args = ('num_enc_blocks',
                       'in_feats',
@@ -247,25 +241,25 @@ class TransformerXVectorV1(XVector):
                       'in_layer_type',
                       'enc_concat_after')
 
-        child_args = dict((k, kwargs[p+k])
-                          for k in valid_args if p+k in kwargs)
+        child_args = dict((k, kwargs[k])
+                          for k in valid_args if k in kwargs)
         base_args.update(child_args)
         return base_args
 
 
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         """Adds TransformerXVector config parameters to argparser
         
         Args:
            parser: argparse object
            prefix: prefix string to add to the argument names
         """
-        XVector.add_argparse_args(parser, prefix)
+        XVector.add_class_args(parser, prefix)
         if prefix is None:
             p1 = '--'
         else:
-            p1 = '--' + prefix + '-'
+            p1 = '--' + prefix + '.'
 
 
         parser.add_argument(p1+'num-enc-blocks',
@@ -317,6 +311,7 @@ class TransformerXVectorV1(XVector):
         #                     help='batch normalization at the input')
 
 
+    add_argparse_args = add_class_args
 
 
 

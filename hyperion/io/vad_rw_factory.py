@@ -31,30 +31,25 @@ class VADReaderFactory(object):
 
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
+    def filter_args(**kwargs):
         valid_args = ('scp_sep', 'path_prefix')
-        return dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        return dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
         
         
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         if prefix is None:
             p1 = '--'
-            p2 = ''
         else:
-            p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
+            p1 = '--' + prefix + '.'
             
-        parser.add_argument(p1+'scp-sep', dest=(p2+'scp_sep'), default=' ',
+        parser.add_argument(p1+'scp-sep', default=' ',
                             help=('scp file field separator'))
-        parser.add_argument(p1+'path-prefix', dest=(p2+'path_prefix'), default=None,
+        parser.add_argument(p1+'path-prefix', default=None,
                             help=('scp file_path prefix'))
 
 
 
+    add_argparse_args = add_class_args

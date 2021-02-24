@@ -4,10 +4,6 @@
  Apache 2.0
 """
 
-from __future__ import absolute_import
-from __future__ import print_function
-from six.moves import xrange
-
 import sys
 import os
 import argparse
@@ -20,7 +16,7 @@ frame_shift=0.01
 
 def write_vad(f, file_id, vad):
     f.write('%s [ ' % (file_id))
-    for i in xrange(len(vad)):
+    for i in range(len(vad)):
         f.write('%d ' % vad[i])
     f.write(']\n')
 
@@ -32,7 +28,7 @@ def segments2vad_file(file_id, marks, num_frames, fvad):
     tend[-1] = min(tend[-1], num_frames)
     
     vad = np.zeros((num_frames,), dtype=int)
-    for j in xrange(len(tbeg)):
+    for j in range(len(tbeg)):
         vad[tbeg[j]:tend[j]+1] = 1
     write_vad(fvad, file_id, vad)
 

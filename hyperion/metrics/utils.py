@@ -4,10 +4,6 @@
 
  Utility functions to evaluate performance
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import numpy as np
 
@@ -72,7 +68,7 @@ def pavx(y):
     ghat[ci] = y[0]
     # ci is the number of the interval considered currently.
     # ghat[ci] is the mean of y-values within this interval.
-    for j in xrange(1, n):
+    for j in range(1, n):
         # a new index intervall, {j}, is created:
         ci = ci+1
         index[ci] = j
@@ -93,7 +89,7 @@ def pavx(y):
 
     # Now define ghat for all indices:
     while n >= 1:
-        for j in xrange(index[ci], n):
+        for j in range(index[ci], n):
             ghat[j] = ghat[ci]
 
         n = index[ci]

@@ -2,7 +2,6 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-
 import logging
 
 import torch
@@ -466,11 +465,7 @@ class XVector(TorchModel):
             
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
+    def filter_args(**kwargs):
 
         # get boolean args that are negated
         if 'pool_wo_bias' in kwargs:
@@ -489,8 +484,8 @@ class XVector(TorchModel):
         pool_valid_args = (
             'pool_type', 'pool_num_comp', 'pool_use_bias', 
             'pool_dist_pow', 'pool_d_k', 'pool_d_v', 'pool_num_heads', 'pool_bin_attn')
-        pool_args = dict((k, kwargs[p+k])
-                         for k in pool_valid_args if p+k in kwargs)
+        pool_args = dict((k, kwargs[k])
+                         for k in pool_valid_args if k in kwargs)
 
         # remove pooling prefix from arg name
         for k in pool_valid_args[1:]:
@@ -504,8 +499,8 @@ class XVector(TorchModel):
                       'use_norm', 'norm_before',
                       'in_feats', 'proj_feats', 'dropout_rate', 
                       'norm_layer', 'head_norm_layer')
-        args = dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        args = dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
         args['pool_net'] = pool_args
 
@@ -513,12 +508,11 @@ class XVector(TorchModel):
 
 
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         if prefix is None:
             p1 = '--'
         else:
-            p1 = '--' + prefix + '-'
-        
+            p1 = '--' + prefix + '.'
         
         parser.add_argument(p1+'pool-type', type=str.lower,
                             default='mean+stddev',
@@ -632,24 +626,19 @@ class XVector(TorchModel):
 
     @staticmethod
     def filter_finetune_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
-
         valid_args = ('loss_type', 's', 'margin', 'margin_warmup_epochs')
-        args = dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        args = dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
         return args
 
 
     @staticmethod
-    def add_argparse_finetune_args(parser, prefix=None):
+    def add_finetune_args(parser, prefix=None):
         if prefix is None:
             p1 = '--'
         else:
-            p1 = '--' + prefix + '-'
+            p1 = '--' + prefix + '.'
         
         parser.add_argument(p1+'loss-type', default='arc-softmax', 
                             choices = ['softmax', 'arc-softmax', 'cos-softmax', 'subcenter-arc-softmax'],
@@ -668,7 +657,7 @@ class XVector(TorchModel):
                             help='number of subcenters in subcenter losses')
        
     
-
-
+    add_argparse_args = add_class_args
+    add_argparse_finetune_args = add_finetune_args
 
             

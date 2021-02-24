@@ -2,10 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import sys
 import numpy as np
@@ -37,7 +33,7 @@ class H5Merger(object):
         else:
             chunk = self.chunk_size
         
-        for first in xrange(0, len(datasets), chunk):
+        for first in range(0, len(datasets), chunk):
             last = min(first+chunk, len(datasets))
             keys = datasets[first:last]
             x = hr.read(keys)

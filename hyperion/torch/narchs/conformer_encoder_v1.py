@@ -314,28 +314,22 @@ class ConformerEncoderV1(NetArch):
 
         
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
+    def filter_args( **kwargs):
         """ Filters arguments correspondin to TransformerXVector
             from args dictionary
 
         Args:
-          prefix: prefix string
           kwargs: args dictionary
 
         Returns:
           args dictionary
         """
-        
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
 
-        if p + 'no_ff_macaron' in kwargs:
-            kwargs[p + 'ff_macaron'] = not kwargs[p + 'no_ff_macaron']
+        if 'no_ff_macaron' in kwargs:
+            kwargs['ff_macaron'] = not kwargs['no_ff_macaron']
 
-        if p + 'abs_pos_enc' in kwargs:
-            kwargs[p + 'rel_pos_enc'] = not kwargs[p + 'abs_pos_enc']
+        if 'abs_pos_enc' in kwargs:
+            kwargs['rel_pos_enc'] = not kwargs['abs_pos_enc']
 
         valid_args = ('num_blocks',
                       'in_feats',
@@ -362,13 +356,13 @@ class ConformerEncoderV1(NetArch):
                       'red_lnorms',
                       'concat_after')
 
-        return dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        return dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
 
 
     @staticmethod
-    def add_argparse_args(parser, prefix=None, in_feats=False):
+    def add_class_args(parser, prefix=None, in_feats=False):
         """Adds Conformer config parameters to argparser
         
         Args:
@@ -378,7 +372,7 @@ class ConformerEncoderV1(NetArch):
         if prefix is None:
             p1 = '--'
         else:
-            p1 = '--' + prefix + '-'
+            p1 = '--' + prefix + '.'
 
 
         if in_feats:
@@ -479,3 +473,6 @@ class ConformerEncoderV1(NetArch):
 
         # parser.add_argument(p1+'in-norm', default=False, action='store_true',
         #                     help='batch normalization at the input')
+
+
+    add_argparse_args = add_class_args

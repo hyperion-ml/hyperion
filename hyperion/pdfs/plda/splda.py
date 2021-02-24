@@ -92,7 +92,7 @@ class SPLDA(PLDABase):
         if N_is_int:
             iterator = np.unique(N)
         else:
-            iterator = xrange(M)
+            iterator = range(M)
 
         y = np.zeros((M, y_dim), dtype=float_cpu())
         if return_cov:

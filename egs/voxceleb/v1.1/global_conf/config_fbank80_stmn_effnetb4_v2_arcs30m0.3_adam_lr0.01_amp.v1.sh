@@ -1,7 +1,7 @@
 # EfficientNet-b4 x-vector with mixed precision training
 
 # acoustic features
-feat_config=conf/fbank80_stmn_16k.pyconf
+feat_config=conf/fbank80_stmn_16k.yml
 feat_type=fbank80_stmn
 
 # x-vector training 
@@ -27,8 +27,8 @@ margin=0.3
 
 nnet_opt="--effnet-type $nnet_type --in-feats 80 --in-channels 1 --in-kernel-size 3 --in-stride 1 --se-r $se_r --fix-stem-head --mbconv-strides 1 1 2 2 1 2 1"
 
-opt_opt="--opt-optimizer adam --opt-lr $lr --opt-beta1 0.9 --opt-beta2 0.95 --opt-weight-decay 1e-5 --opt-amsgrad --use-amp"
-lrs_opt="--lrsch-lrsch-type exp_lr --lrsch-decay-rate 0.5 --lrsch-decay-steps 8000 --lrsch-hold-steps 40000 --lrsch-min-lr 1e-5 --lrsch-warmup-steps 1000 --lrsch-update-lr-on-opt-step"
+opt_opt="--opt.opt-type adam --opt.lr $lr --opt.beta1 0.9 --opt.beta2 0.95 --opt.weight-decay 1e-5 --opt.amsgrad --use-amp"
+lrs_opt="--lrsch.lrsch-type exp_lr --lrsch.decay-rate 0.5 --lrsch.decay-steps 8000 --lrsch.hold-steps 40000 --lrsch.min-lr 1e-5 --lrsch.warmup-steps 1000 --lrsch.update-lr-on-opt-step"
 
 nnet_name=${feat_type}_${nnet_type}_is1_mbs1122121_ser${se_r}_fixsh_e${embed_dim}_arcs${s}m${margin}_do${dropout}_adam_lr${lr}_b${eff_batch_size}_amp.v1
 nnet_num_epochs=70

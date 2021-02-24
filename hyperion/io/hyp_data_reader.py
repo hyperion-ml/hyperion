@@ -2,10 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import sys
 import numpy as np
@@ -45,7 +41,7 @@ class HypDataReader(object):
         else:
             X = []
             
-        for i in xrange(len(keys)):
+        for i in range(len(keys)):
             assert datasets[i] in self.f, 'Dataset %s not found' % datasets[i]
             X_i = self.f[datasets[i]]
             if return_tensor:

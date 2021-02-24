@@ -2,8 +2,6 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-# from __future__ import absolute_import
-
 import math
 
 import torch
@@ -376,12 +374,7 @@ class EfficientNet(NetArch):
 
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
-
+    def filter_args(**kwargs):
 
         valid_args = ('effnet_type', 'in_channels',
                       'in_conv_channels', 'in_kernel_size', 'in_stride',
@@ -393,20 +386,20 @@ class EfficientNet(NetArch):
                       'drop_connect_rate', 'dropout_rate',
                       'se_r', 'time_se')
 
-        args = dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        args = dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
         return args
 
 
 
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         
         if prefix is None:
             p1 = '--'
         else:
-            p1 = '--' + prefix + '-'
+            p1 = '--' + prefix + '.'
 
         net_types = list(EfficientNet.params_dict.keys())
 
@@ -500,3 +493,4 @@ class EfficientNet(NetArch):
             pass
 
 
+    add_argparse_args = add_class_args

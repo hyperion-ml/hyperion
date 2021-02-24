@@ -4,8 +4,6 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0) 
  Copy features/vectors and change format
 """
-from __future__ import absolute_import
-from __future__ import print_function
 
 import sys
 import os
@@ -14,7 +12,6 @@ import time
 import logging
 
 import numpy as np
-from six.moves import xrange
 
 from hyperion.hyp_defs import config_logger
 from hyperion.io import CopyFeats as CF

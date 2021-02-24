@@ -6,10 +6,6 @@
 """
 Computes GMM posteriors
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import sys
 import os
@@ -39,7 +35,7 @@ def to_sparse(r, num_comp):
 
 def to_dense(r_sparse, index, num_comp):
     r = np.zeros((r_sparse.shape[0], num_comp), dtype=float_cpu())
-    for i in xrange(r_sparse.shape[0]):
+    for i in range(r_sparse.shape[0]):
         r[i, index[i]] = r_sparse[i]
 
     return r
@@ -68,7 +64,7 @@ def compute_gmm_post(seq_file, file_list, model_file, preproc_file, output_path,
     index = np.zeros((sr.num_seqs, num_comp), dtype=int)
 
     hw = HypDataWriter(output_path)
-    for i in xrange(sr.num_seqs):
+    for i in range(sr.num_seqs):
         x, key = sr.read_next_seq()
         logging.info('Extracting i-vector %d/%d for %s, num_frames: %d' % (i, sr.num_seqs, key, x.shape[0]))
         r = gmm.compute_z(x)

@@ -2,10 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import numpy as np
 
@@ -93,7 +89,7 @@ class ExpFamily(PDF):
     
     def _accum_suff_stats_nbatches(self, x, sample_weight, batch_size):
         sw_i = None
-        for i1 in xrange(0, x.shape[0], batch_size):
+        for i1 in range(0, x.shape[0], batch_size):
             i2 = np.minimum(i1+batch_size, x.shape[0])
             x_i = x[i1:i2,:]
             if sample_weight is not None:
@@ -113,7 +109,7 @@ class ExpFamily(PDF):
         assert(len(N)==len(u_x))
         acc_N = N[1]
         acc_u_x = u_x[1]
-        for i in xrange(1,len(N)):
+        for i in range(1,len(N)):
             acc_N += N
             acc_u_x += u[i]
         return acc_N, acc_u_x

@@ -4,9 +4,6 @@
 
  Functions to create frames
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from six.moves import xrange
 
 import numpy as np
 
@@ -132,7 +129,7 @@ class Framing(object):
         start=0
         stop=out_dim
         shift=in_dim*frame_shift
-        for i in xrange(num_out_frames):
+        for i in range(num_out_frames):
             X[i,:]=vec_x[start:stop]
             start+=shift
             stop+=shift

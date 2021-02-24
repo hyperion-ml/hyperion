@@ -3,11 +3,6 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
-
 import logging
 
 import numpy as np
@@ -58,11 +53,11 @@ class FilterBankFactory(object):
         mels = FilterBankFactory.lin2mel(np.linspace(0,fs,fft_length))
 
         B = np.zeros((int(fft_length/2+1), num_filters), dtype=float_cpu())
-        for k in xrange(num_filters):
+        for k in range(num_filters):
             left_mel = melfc[k]
             center_mel = melfc[k+1]
             right_mel = melfc[k+2]
-            for j in xrange(int(fft_length/2)):
+            for j in range(int(fft_length/2)):
                 mel_j = mels[j]
                 if mel_j > left_mel and mel_j < right_mel:
                     if mel_j <= center_mel:
@@ -86,10 +81,10 @@ class FilterBankFactory(object):
         cbin = np.round(fc/fs*fft_length).astype(int)
 
         B = np.zeros((int(fft_length/2+1), num_filters), dtype=float_cpu())
-        for k in xrange(num_filters):
-            for j in xrange(cbin[k], cbin[k+1]+1):
+        for k in range(num_filters):
+            for j in range(cbin[k], cbin[k+1]+1):
                 B[j,k] = (j - cbin[k] + 1)/(cbin[k+1]-cbin[k]+1)
-            for j in xrange(cbin[k+1]+1, cbin[k+2]+1):
+            for j in range(cbin[k+1]+1, cbin[k+2]+1):
                 B[j,k] = (cbin[k+2] - j + 1)/(cbin[k+2]-cbin[k+1]+1)
                     
         return B
@@ -106,10 +101,10 @@ class FilterBankFactory(object):
         cbin = np.round(fc/fs*fft_length).astype(int)
 
         B = np.zeros((int(fft_length/2+1), num_filters), dtype=float_cpu())
-        for k in xrange(num_filters):
-            for j in xrange(cbin[k], cbin[k+1]+1):
+        for k in range(num_filters):
+            for j in range(cbin[k], cbin[k+1]+1):
                 B[j,k] = (j - cbin[k] + 1)/(cbin[k+1]-cbin[k]+1)
-            for j in xrange(cbin[k+1]+1, cbin[k+2]+1):
+            for j in range(cbin[k+1]+1, cbin[k+2]+1):
                 B[j,k] = (cbin[k+2] - j + 1)/(cbin[k+2]-cbin[k+1]+1)
                     
         return B
@@ -117,14 +112,11 @@ class FilterBankFactory(object):
 
 
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         if prefix is None:
             p1 = '--'
-            p2 = ''
         else:
-            p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
-
+            p1 = '--' + prefix + '.'
 
         parser.add_argument(
             p1+'fb-type', default='mel_kaldi',
@@ -148,3 +140,4 @@ class FilterBankFactory(object):
             help='Normalize filters coeff to sum up to 1')
 
         
+    add_argparse_args = add_class_args

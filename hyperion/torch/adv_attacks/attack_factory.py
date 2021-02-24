@@ -86,18 +86,18 @@ class AttackFactory(object):
 
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
+    def filter_args(**kwargs):
         if prefix is None:
             p = ''
         else:
             p = prefix + '_'
 
-        if p + 'no_abort' in kwargs:
-            kwargs[p + 'abort_early'] = not kwargs[p + 'no_abort']
+        if 'no_abort' in kwargs:
+            kwargs['abort_early'] = not kwargs['no_abort']
 
-        if p + 'norm' in kwargs:
-            if isinstance(kwargs[p + 'norm'], str):
-                kwargs[p + 'norm'] = float(kwargs[p + 'norm'])
+        if 'norm' in kwargs:
+            if isinstance(kwargs['norm'], str):
+                kwargs['norm'] = float(kwargs['norm'])
 
         valid_args = ('attack_type', 'eps', 'snr', 
                       'norm', 'random_eps', 'num_random_init',
@@ -109,29 +109,31 @@ class AttackFactory(object):
                       'indep_channels', 'use_snr', 'norm_time',
                       'targeted')
 
-        args = dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        args = dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
         return args
 
 
 
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         
         if prefix is None:
             p1 = '--'
         else:
-            p1 = '--' + prefix + '-'
+            p1 = '--' + prefix + '.'
 
         parser.add_argument(
             p1+'attack-type', type=str.lower, default='fgsm',
-            choices=['fgsm', 'snr-fgsm', 'rand-fgsm', 'iter-fgsm', 'cw-l0', 'cw-l2', 'cw-linf', 'pgd'], 
+            choices=['fgsm', 'snr-fgsm', 'rand-fgsm', 'iter-fgsm', 
+                     'cw-l0', 'cw-l2', 'cw-linf', 'pgd'], 
             help=('Attack type'))
 
         parser.add_argument(
             p1+'norm', type=float, default=float('inf'),
-            choices=[float('inf'), 1, 2],  help=('Attack perturbation norm'))
+            choices=[float('inf'), 1, 2],  
+            help=('Attack perturbation norm'))
 
 
         parser.add_argument(
@@ -140,7 +142,8 @@ class AttackFactory(object):
 
         parser.add_argument(
             p1+'snr', default=100, type=float,
-            help=('upper bound for the signal-to-noise ratio of the perturved signal'))
+            help=('upper bound for the signal-to-noise ratio of '
+                  'the perturved signal'))
 
         parser.add_argument(
             p1+'alpha', default=0, type=float,
@@ -168,7 +171,8 @@ class AttackFactory(object):
 
         parser.add_argument(
             p1+'c', default=1e-2, type=float,
-            help=('initial weight of constraint function f in carlini-wagner attack'))
+            help=('initial weight of constraint function f in '
+                  'carlini-wagner attack'))
 
         parser.add_argument(
             p1+'reduce-c', default=False, action='store_true',
@@ -184,7 +188,8 @@ class AttackFactory(object):
 
         parser.add_argument(
             p1+'indep-channels', default=False, action='store_true',
-            help=('consider independent input channels in carline-wagner-l0 attack'))
+            help=('consider independent input channels in '
+                  'carline-wagner-l0 attack'))
 
         parser.add_argument(
             p1+'no-abort', default=False, action='store_true',
@@ -200,10 +205,12 @@ class AttackFactory(object):
 
         parser.add_argument(
             p1+'use-snr', default=False, action='store_true',
-            help=('In carlini-wagner attack maximize SNR instead of minimize perturbation norm'))
+            help=('In carlini-wagner attack maximize SNR instead of '
+                  'minimize perturbation norm'))
 
         parser.add_argument(
             p1+'norm-time', default=False, action='store_true',
             help=('normalize norm by number of samples in time dimension'))
 
 
+    add_argparse_args = add_class_args

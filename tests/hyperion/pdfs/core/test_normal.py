@@ -2,10 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import pytest
 import os
@@ -139,7 +135,7 @@ def test_suff_stats():
     sample_weight = 0.5*np.ones((num_samples,))
 
     xx = []
-    for i in xrange(x.shape[0]):
+    for i in range(x.shape[0]):
         xx.append(symmat2vec(np.outer(x[i], x[i])))
     xx = np.vstack(xx)
     u_x = np.hstack((x, xx))

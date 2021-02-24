@@ -1,12 +1,12 @@
-#!/usr/bin/env python
+k#!/usr/bin/env python
 
 """
 Plot histogram of i-vectors
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
+
+
+
+
 
 import sys
 import os

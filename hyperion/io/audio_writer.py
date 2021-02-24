@@ -2,11 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-#from __future__ import absolute_import
-#from __future__ import print_function
-#from __future__ import division
-#from six.moves import xrange
-#from six import string_types
 
 import os
 import re
@@ -120,24 +115,18 @@ class AudioWriter(object):
 
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
+    def filter_args(**kwargs):
         valid_args = ('output_fs','output_wav_scale', 'output_audio_format', 'output_audio_subtype')
-        return dict((re.sub('output_','', k), kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        return dict((re.sub('output_','', k), kwargs[k])
+                    for k in valid_args if k in kwargs)
 
     
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         if prefix is None:
             p1 = '--'
-            p2 = ''
         else:
-            p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
+            p1 = '--' + prefix + '.'
             
         # parser.add_argument(p1+'output-wav-scale', default=1, type=float,
         #                      help=('scale to divide the waveform before writing'))
@@ -152,3 +141,5 @@ class AudioWriter(object):
 
         # parser.add_argument(p1+'output-fs', default=16000, type=int,
         #                      help=('output sample frequency'))
+
+    add_argparse_args = add_class_args

@@ -1,8 +1,5 @@
 #!/usr/bin/env python
 
-from __future__ import absolute_import
-from __future__ import print_function
-from six.moves import xrange
 
 import sys
 import os
@@ -15,7 +12,7 @@ frame_shift=0.01
 
 def write_vad(f, file_id, vad):
     f.write('%s [ ' % (file_id))
-    for i in xrange(len(vad)):
+    for i in range(len(vad)):
         f.write('%d ' % vad[i])
     f.write(']\n')
 
@@ -40,12 +37,12 @@ def rttm2vad_file(file_id, rttm, num_frames, fvad, fu2o, fseg, min_dur):
         
     
     total_dur = np.zeros((num_spks,), dtype=float)
-    for i in xrange(num_spks):
+    for i in range(num_spks):
         idx = spk_ids == i
         total_dur[i] = np.sum(rttm.tdur.loc[idx])
 
     do_all = np.all(total_dur < min_dur)
-    for i in xrange(num_spks):
+    for i in range(num_spks):
         if total_dur[i] >= min_dur or do_all:
             vad = np.zeros((num_frames,), dtype=int)
             idx = spk_ids == i
@@ -54,7 +51,7 @@ def rttm2vad_file(file_id, rttm, num_frames, fvad, fu2o, fseg, min_dur):
             fbeg = np.round(tbeg/frame_shift).astype('int')
             fend = np.round(tend/frame_shift).astype('int')
             file_dir_id = '%s-d%03d' % (file_id, i)
-            for j in xrange(len(tbeg)):
+            for j in range(len(tbeg)):
                 vad[fbeg[j]:fend[j]+1] = 1
                 if fseg is not None:
                     fseg.write('%s-%03d %s %.3f %.3f %s\n' % (file_dir_id,j,file_id,tbeg[j],tend[j], file_dir_id))                    

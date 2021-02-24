@@ -2,7 +2,6 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba, Nanxin Chen)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-# from __future__ import absolute_import
 
 import torch
 import torch.nn as nn
@@ -273,23 +272,17 @@ class TransformerEncoderV1(NetArch):
 
         
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
+    def filter_args(**kwargs):
         """ Filters arguments correspondin to TransformerXVector
             from args dictionary
 
         Args:
-          prefix: prefix string
           kwargs: args dictionary
 
         Returns:
           args dictionary
         """
         
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
-
         valid_args = ('num_blocks',
                       'in_feats',
                       'd_model',
@@ -308,13 +301,13 @@ class TransformerEncoderV1(NetArch):
                       'causal_pos_enc',
                       'concat_after')
 
-        return dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        return dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
 
 
     @staticmethod
-    def add_argparse_args(parser, prefix=None, in_feats=False):
+    def add_class_args(parser, prefix=None, in_feats=False):
         """Adds Transformer config parameters to argparser
         
         Args:
@@ -324,14 +317,12 @@ class TransformerEncoderV1(NetArch):
         if prefix is None:
             p1 = '--'
         else:
-            p1 = '--' + prefix + '-'
-
+            p1 = '--' + prefix + '.'
 
         if in_feats:
             parser.add_argument(
                 p1+'in-feats', type=int, required=True,
                 help=('input feature dimension'))
-
 
         parser.add_argument(p1+'num-blocks',
                             default=6, type=int,
@@ -379,7 +370,6 @@ class TransformerEncoderV1(NetArch):
         parser.add_argument(p1+'ff-dropout-rate', default=0.1, type=float,
                                 help='feed-forward layer dropout')
 
-        
         parser.add_argument(p1+'in-layer-type', 
                             default='linear', choices=['linear', 'conv2d-sub'],
                             help=('type of input layer'))
@@ -390,9 +380,9 @@ class TransformerEncoderV1(NetArch):
         parser.add_argument(p1+'causal-pos-enc', default=False, action='store_true',
                             help='relative positional encodings are zero when attending to the future')
 
-
         parser.add_argument(p1+'concat-after', default=False, action='store_true',
                             help='concatenate attention input and output instead of adding')
 
-        # parser.add_argument(p1+'in-norm', default=False, action='store_true',
-        #                     help='batch normalization at the input')
+
+
+    add_argparse_args = add_class_args

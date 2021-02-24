@@ -2,10 +2,6 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import numpy as np
 
@@ -36,13 +32,13 @@ class XVectorClassifV1(NetArch):
         if isinstance(hid_units, list):
             assert num_hid_layers == len(embed_dim)
         else:
-            embed_dim = [embed_dim for i in xrange(num_hid_layers)]
+            embed_dim = [embed_dim for i in range(num_hid_layers)]
 
         units = [input_units] + embed_dim
 
         #fully connected layers
         fc_layers = []
-        for i in xrange(1, num_hid_layers+1):
+        for i in range(1, num_hid_layers+1):
             fc_layers.append(Linear(units[i-1], units[i]))
 
         self.fc_layers = nn.ModuleList(fc_layers)
@@ -51,7 +47,7 @@ class XVectorClassifV1(NetArch):
         self.hid_acts = None
         if hid_act is not None:
             hid_acts = []
-            for i in xrange(num_hid_layers):
+            for i in range(num_hid_layers):
                 hid_act = AF.create(hid_act)
                 hid_acts.append(hid_act)
             self.hid_acts = nn.ModuleList(hid_acts)
@@ -60,7 +56,7 @@ class XVectorClassifV1(NetArch):
         self.batchnorm_layers = None
         if use_batchnorm:
             batchnorm_layers = []
-            for i in xrange(num_hid_layers):
+            for i in range(num_hid_layers):
                 batchnorm_layers.append(BatchNorm1d(units[i]))
             self.batchnorm_layers = nn.ModuleList(batchnorm_layers)
 
@@ -68,7 +64,7 @@ class XVectorClassifV1(NetArch):
         self.dropout_layers = None
         if dropout_rate > 0:
             dropout_layers = []
-            for i in xrange(num_hid_layers):
+            for i in range(num_hid_layers):
                 dropout_layers.append(Dropout(dropout_rate))
             self.dropout_layers = nn.ModuleList(dropout_layers)
 
@@ -79,7 +75,7 @@ class XVectorClassifV1(NetArch):
                 
     def forward(self, x):
 
-        for l in xrange(self.num_hid_layers):
+        for l in range(self.num_hid_layers):
             if self.use_batchnorm:
                 x = self.batchnorm_layers[l](x)
                 
@@ -106,7 +102,7 @@ class XVectorClassifV1(NetArch):
         embed_layers = set(embed_layers)
 
         embed_list = []
-        for l in xrange(self.num_hid_layers):
+        for l in range(self.num_hid_layers):
             if self.use_batchnorm:
                 x = self.batchnorm_layers[l](x)
 

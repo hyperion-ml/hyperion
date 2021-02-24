@@ -114,12 +114,7 @@ class ResNetFactory(object):
         return resnet
 
 
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
-
+    def filter_args(**kwargs):
         if 'norm_after' in kwargs:
             kwargs['norm_before'] = not kwargs['norm_after']
             del kwargs['norm_after']
@@ -127,7 +122,6 @@ class ResNetFactory(object):
         if 'no_maxpool' in kwargs:
             kwargs['do_maxpool'] = not kwargs['no_maxpool']
             del kwargs['no_maxpool']
-
 
         valid_args = ('resnet_type', 'in_channels',
                       'conv_channels', 'base_channels', 'out_units',
@@ -137,20 +131,20 @@ class ResNetFactory(object):
                       'in_norm', 'norm_layer', 'norm_before', 'do_maxpool', 
                       'se_r', 'res2net_scale', 'res2net_width_factor')
 
-        args = dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        args = dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
         return args
 
 
 
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         
         if prefix is None:
             p1 = '--'
         else:
-            p1 = '--' + prefix + '-'
+            p1 = '--' + prefix + '.'
 
         resnet_types = resnet_dict.keys()
 
@@ -233,3 +227,4 @@ class ResNetFactory(object):
             pass
 
 
+    add_argparse_args = add_class_args

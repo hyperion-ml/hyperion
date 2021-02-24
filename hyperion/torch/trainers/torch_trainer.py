@@ -398,26 +398,21 @@ class TorchTrainer(object):
 
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
-
+    def filter_args(**kwargs):
         valid_args = ('grad_acc_steps', 'epochs', 'log_interval', 'use_amp', 
                       'grad_clip', 'swa_start', 'swa_lr', 'swa_anneal_epochs', 'exp_path')
-        args = dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        args = dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
         return args
 
 
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         if prefix is None:
             p1 = '--'
         else:
-            p1 = '--' + prefix + '-'
+            p1 = '--' + prefix + '.'
 
         parser.add_argument(
             p1+'grad-acc-steps', type=int, default=1, 
@@ -444,3 +439,6 @@ class TorchTrainer(object):
             help='SWA learning rate anneal epochs')
 
         parser.add_argument(p1+'exp-path', help='experiment path')
+
+    
+    add_argparse_args = add_class_args

@@ -3,12 +3,7 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-#import sys
 import logging
-
-#import numpy as np
-#import h5py
-
 
 from ..utils.kaldi_matrix import compression_methods
 from .rw_specifiers import ArchiveType, WSpecifier, RSpecifier, WSpecType, RSpecType
@@ -53,30 +48,25 @@ class DataWriterFactory(object):
 
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
+    def filter_args(**kwargs):
         valid_args = ('scp_sep', 'compress', 'compression_method')
-        return dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        return dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
         
         
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         if prefix is None:
             p1 = '--'
-            p2 = ''
         else:
-            p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
+            p1 = '--' + prefix + '.'
             
-        parser.add_argument(p1+'scp-sep', dest=(p2+'scp_sep'), default=' ',
-                            help=('scp file field separator'))
-        parser.add_argument('--compress', dest='compress', default=False, action='store_true')
-        parser.add_argument('--compression-method', dest='compression_method', default='auto',
+        parser.add_argument(
+            p1+'scp-sep', default=' ',
+            help=('scp file field separator'))
+        parser.add_argument(p1+'compress', default=False, action='store_true')
+        parser.add_argument(p1+'compression-method', default='auto',
                             choices=compression_methods)
 
 
@@ -106,35 +96,35 @@ class SequentialDataReaderFactory(object):
 
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
+    def filter_args(**kwargs):
         valid_args = ('scp_sep', 'path_prefix', 'part_idx', 'num_parts')
-        return dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        return dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
         
         
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         if prefix is None:
             p1 = '--'
-            p2 = ''
         else:
-            p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
+            p1 = '--' + prefix + '.'
             
-        parser.add_argument(p1+'scp-sep', dest=(p2+'scp_sep'), default=' ',
-                            help=('scp file field separator'))
-        parser.add_argument(p1+'path-prefix', dest=(p2+'path_prefix'), default=None,
-                            help=('scp file_path prefix'))
+        parser.add_argument(
+            p1+'scp-sep', default=' ',
+            help=('scp file field separator'))
+        parser.add_argument(
+            p1+'path-prefix', default=None,
+            help=('scp file_path prefix'))
         try:
-            parser.add_argument(p1+'part-idx', dest=(p2+'part_idx'), type=int, default=1,
-                                help=('splits the list of files in num-parts and process part_idx'))
-            parser.add_argument(p1+'num-parts', dest=(p2+'num_parts'), type=int, default=1,
-                                help=('splits the list of files in num-parts and process part_idx'))
+            parser.add_argument(
+                p1+'part-idx', type=int, default=1,
+                help=('splits the list of files in num-parts '
+                      'and process part_idx'))
+            parser.add_argument(
+                p1+'num-parts', type=int, default=1,
+                help=('splits the list of files in num-parts '
+                      'and process part_idx'))
         except:
             pass
 
@@ -170,29 +160,26 @@ class RandomAccessDataReaderFactory(object):
 
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
+    def filter_args(**kwargs):
         valid_args = ('scp_sep', 'path_prefix')
-        return dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        return dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
         
         
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         if prefix is None:
             p1 = '--'
-            p2 = ''
         else:
-            p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
+            p1 = '--' + prefix + '.'
             
-        parser.add_argument(p1+'scp-sep', dest=(p2+'scp_sep'), default=' ',
-                            help=('scp file field separator'))
-        parser.add_argument(p1+'path-prefix', dest=(p2+'path_prefix'), default=None,
-                            help=('scp file_path prefix'))
+        parser.add_argument(
+            p1+'scp-sep', default=' ',
+            help=('scp file field separator'))
+        parser.add_argument(
+            p1+'path-prefix', default=None,
+            help=('scp file_path prefix'))
 
 
+    add_argparse_args = add_class_args

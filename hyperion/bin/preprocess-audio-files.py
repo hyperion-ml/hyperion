@@ -5,7 +5,7 @@
 """
 import sys
 import os
-import argparse
+from jsonargparse import ArgumentParser, ActionConfigFile, ActionParser, namespace_to_dict
 import time
 import logging
 
@@ -115,11 +115,10 @@ def process_audio_files(input_path, output_path, output_script,
 
 if __name__ == "__main__":
     
-    parser=argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        fromfile_prefix_chars='@',
+    parser=ArgumentParser(
         description='Process pipes in wav.scp file, optionally applies vad and save all audios in the same format')
 
+    parser.add_argument('--cfg', action=ActionConfigFile)
     parser.add_argument('--input', dest='input_path', required=True)
     parser.add_argument('--output-path', required=True)
     parser.add_argument('--output-script',  required=True)
@@ -148,5 +147,5 @@ if __name__ == "__main__":
     del args.verbose
     logging.debug(args)
     
-    process_audio_files(**vars(args))
+    process_audio_files(**namespace_to_dict(args))
     

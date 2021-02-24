@@ -3,10 +3,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import sys
 import os
@@ -52,9 +48,9 @@ def convert(input_file, output_file, test_list, class_file, add_ext):
         for model in scores.model_set[:-1]:
             f.write('%s\t' % model)
         f.write('%s\n' % scores.model_set[-1])
-        for i in xrange(scores.scores.shape[1]):
+        for i in range(scores.scores.shape[1]):
             f.write('%s\t' % scores.seg_set[i])
-            for j in xrange(scores.scores.shape[0]-1):
+            for j in range(scores.scores.shape[0]-1):
                 f.write('%f\t' % scores.scores[j, i])
             f.write('%f\n' % scores.scores[-1, i])
             

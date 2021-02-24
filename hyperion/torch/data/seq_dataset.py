@@ -270,64 +270,61 @@ class SeqDataset(Dataset):
 
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
-
+    def filter_args(**kwargs):
         valid_args = ('path_prefix', 'class_file', 'num_frames_file',
                       'min_chunk_length', 'max_chunk_length',
                       'return_fullseqs',
                       'part_idx', 'num_parts')
-        return dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        return dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
 
 
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         if prefix is None:
             p1 = '--'
-            p2 = ''
         else:
-            p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
-            
+            p1 = '--' + prefix + '.'
 
-        parser.add_argument(p1+'path-prefix', dest=(p2+'path_prefix'),
-                            default='',
-                            help=('path prefix for rspecifier scp file'))
+        parser.add_argument(
+            p1+'path-prefix', 
+            default='',
+            help=('path prefix for rspecifier scp file'))
 
-        parser.add_argument(p1+'class-file', dest=(p2+'class_file'), 
-                            default=None,
-                            help=('ordered list of classes keys, it can contain class weights'))
+        parser.add_argument(
+            p1+'class-file', 
+            default=None,
+            help=('ordered list of classes keys, it can contain class weights'))
 
-        parser.add_argument(p1+'num-frames-file', dest=(p2+'num_frames_file'), 
-                            default=None,
-                            help=('utt to num_frames file, if None it reads from the dataset but it is slow'))
+        parser.add_argument(
+            p1+'num-frames-file', 
+            default=None,
+            help=('utt to num_frames file, if None it reads from the dataset '
+                  'but it is slow'))
 
-        parser.add_argument(p1+'min-chunk-length', dest=(p2+'min_chunk_length'),
-                            type=int, default=None,
-                            help=('minimum length of sequence chunks'))
-        parser.add_argument(p1+'max-chunk-length', dest=(p2+'max_chunk_length'),
-                            type=int, default=None,
-                            help=('maximum length of sequence chunks'))
+        parser.add_argument(
+            p1+'min-chunk-length', 
+            type=int, default=None,
+            help=('minimum length of sequence chunks'))
+        parser.add_argument(
+            p1+'max-chunk-length', 
+            type=int, default=None,
+            help=('maximum length of sequence chunks'))
 
-        parser.add_argument(p1+'return-fullseqs', dest=(p2+'return_fullseqs'),
-                            default=False, action='store_true',
-                            help=('returns full sequences instead of chunks'))
+        parser.add_argument(
+            p1+'return-fullseqs', 
+            default=False, action='store_true',
+            help=('returns full sequences instead of chunks'))
         
         
-        # parser.add_argument(p1+'part-idx', dest=(p2+'part_idx'),
+        # parser.add_argument(p1+'part-idx', 
         #                     type=int, default=1,
         #                     help=('splits the list of files in num-parts and process part_idx'))
-        # parser.add_argument(p1+'num-parts', dest=(p2+'num_parts'),
+        # parser.add_argument(p1+'num-parts', 
         #                     type=int, default=1,
         #                     help=('splits the list of files in num-parts and process part_idx'))
-
-
 
     
-
+    add_argparse_args = add_class_args
             

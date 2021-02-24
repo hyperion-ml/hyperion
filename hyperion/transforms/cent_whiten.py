@@ -106,33 +106,30 @@ class CentWhiten(HypModel):
 
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
-            
+    def filter_args(**kwargs):
         valid_args = ('update_mu', 'update_T', 'name')
-        return dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        return dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
 
 
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         if prefix is None:
             p1 = '--'
-            p2 = ''
         else:
-            p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
+            p1 = '--' + prefix + '.'
             
-        parser.add_argument(p1+'update-mu', dest=(p2+'update_mu'), default=True,
+        parser.add_argument(p1+'update-mu', default=True,
                             type=bool,
                             help=('updates centering parameter'))
 
-        parser.add_argument(p1+'update-t', dest=(p2+'update_T'), default=True,
+        parser.add_argument(p1+'update-T', default=True,
                             type=bool,
                             help=('updates whitening parameter'))
 
-        parser.add_argument('--name', dest='name', default='lnorm')
+        parser.add_argument(p1+'name', default='lnorm')
+
+
+    add_argparse_args = add_class_args
+

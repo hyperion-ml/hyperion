@@ -3,13 +3,9 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-#import sys
-#import os
 import logging
 import argparse
 import time
-#import copy
-#import threading
 import math
 
 import numpy as np
@@ -328,41 +324,35 @@ class AudioDataset(Dataset):
 
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
+    def filter_args(**kwargs):
 
-        ar_args = AR.filter_args(prefix=prefix, **kwargs)
+        ar_args = AR.filter_args(**kwargs)
         valid_args = ('path_prefix', 'class_file', 'time_durs_file',
                       'min_chunk_length', 'max_chunk_length',
                       'return_fullseqs',
                       'part_idx', 'num_parts')
-        args = dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        args = dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
         args.update(ar_args)
         return args
 
 
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         if prefix is None:
             p1 = '--'
-            p2 = ''
         else:
-            p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
-            
+            p1 = '--' + prefix + '.'
 
-        # parser.add_argument(p1+'path-prefix', dest=(p2+'path_prefix'),
+        # parser.add_argument(p1+'path-prefix', 
         #                     default='',
         #                     help=('path prefix for rspecifier scp file'))
 
-        parser.add_argument(p1+'class-file', default=None,
-                            help=('ordered list of classes keys, it can contain class weights'))
+        parser.add_argument(
+            p1+'class-file', default=None,
+            help=('ordered list of classes keys, it can contain class weights'))
 
-        parser.add_argument(p1+'time-durs-file', dest=(p2+'time_durs_file'), 
+        parser.add_argument(p1+'time-durs-file', 
                             default=None,
                             help=('utt to duration in secs file'))
 
@@ -371,13 +361,14 @@ class AudioDataset(Dataset):
         parser.add_argument(p1+'max-chunk-length', type=float, default=None,
                             help=('maximum length of sequence chunks'))
 
-        parser.add_argument(p1+'return-fullseqs', dest=(p2+'return_fullseqs'),
+        parser.add_argument(p1+'return-fullseqs', 
                             default=False, action='store_true',
                             help=('returns full sequences instead of chunks'))
         
-        AR.add_argparse_args(parser, prefix=prefix)
+        AR.add_class_args(parser, prefix=prefix)
 
 
+    add_argparse_args = add_class_args
     
 
             

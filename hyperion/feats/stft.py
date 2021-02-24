@@ -2,10 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import logging
 
@@ -21,7 +17,7 @@ def stft(x, frame_length, frame_shift, fft_length, window=None):
     num_frames = int(np.floor((len(x) - frame_length + frame_shift)/frame_shift))
     X = np.zeros((num_frames, fft_length), dtype='complex64')
     j = 0
-    for i in xrange(num_frames):
+    for i in range(num_frames):
         X[i,:] = np.fft.fft(x[j:j+frame_length]*window, n=fft_length)
         j += frame_shift
             
@@ -39,7 +35,7 @@ def istft(X, frame_length, frame_shift, window=None):
 
     xx = np.fft.ifft(X, axis=-1)[:,:frame_length]
     j = 0
-    for i in xrange(X.shape[0]):
+    for i in range(X.shape[0]):
         x_overlap[j:j+frame_length] += xx[i]
         w_overlap[j:j+frame_length] += window
         j += frame_shift
@@ -61,7 +57,7 @@ def strft(x, frame_length, frame_shift, fft_length, window=None):
     num_frames = int(np.floor((len(x) - frame_length + frame_shift)/frame_shift))
     X = np.zeros((num_frames, int(fft_length/2+1)), dtype='complex64')
     j = 0
-    for i in xrange(num_frames):
+    for i in range(num_frames):
         X[i,:] = np.fft.rfft(x[j:j+frame_length]*window, n=fft_length)
         j += frame_shift
             
@@ -80,7 +76,7 @@ def istrft(X, frame_length, frame_shift, window=None):
 
     xx = np.fft.irfft(X, axis=-1)[:,:frame_length]
     j = 0
-    for i in xrange(X.shape[0]):
+    for i in range(X.shape[0]):
         x_overlap[j:j+frame_length] += xx[i]
         w_overlap[j:j+frame_length] += window
         j += frame_shift
@@ -108,7 +104,7 @@ def st_logE(x, frame_length, frame_shift):
     x2 = x**2
     e = np.zeros((num_frames,), dtype=float_cpu())
     j = 0
-    for i in xrange(num_frames):
+    for i in range(num_frames):
         e[i] = np.sum(x2[j:j+frame_length])
         j += frame_shift
             

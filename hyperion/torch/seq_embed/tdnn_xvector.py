@@ -120,18 +120,20 @@ class TDNNXVector(XVector):
         return model
 
 
-    def filter_args(prefix=None, **kwargs):
+    def filter_args(**kwargs):
 
-        base_args = XVector.filter_args(prefix, **kwargs)
-        child_args = TF.filter_args(prefix, **kwargs)
+        base_args = XVector.filter_args(**kwargs)
+        child_args = TF.filter_args(**kwargs)
 
         base_args.update(child_args)
         return base_args
 
 
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         
-        XVector.add_argparse_args(parser, prefix)
-        TF.add_argparse_args(parser, prefix)
+        XVector.add_class_args(parser, prefix)
+        TF.add_class_args(parser, prefix)
 
+
+    add_argparse_args = add_class_args

@@ -4,11 +4,6 @@
 
  Class to make/read/write k-fold x-validation lists
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
-from six import string_types
 
 import os.path as path
 import logging
@@ -210,7 +205,7 @@ class FoldList(object):
         folds = - np.ones((len(segment_key),), dtype=int)
             
         num_classes = np.max(balance_by_key) + 1
-        for i in xrange(num_classes):
+        for i in range(num_classes):
             
             idx_i = (balance_by_key == i).nonzero()[0]
             group_key_i = group_by_key[idx_i]
@@ -222,11 +217,11 @@ class FoldList(object):
                 shuffle_idx = np.arange(num_groups_i)
                 rng.shuffle(shuffle_idx)
                 group_key_tmp = np.zeros_like(group_key_i)
-                for j in xrange(num_groups_i):
+                for j in range(num_groups_i):
                     group_key_tmp[group_key_i==j] = shuffle_idx[j]
                 group_key_i = group_key_tmp
                     
-            for j in xrange(num_folds):
+            for j in range(num_folds):
                 k1 = int(np.round(j*delta))
                 k2 = int(np.round((j+1)*delta))
                 idx_ij = np.logical_and(group_key_i>=k1, group_key_i<k2)

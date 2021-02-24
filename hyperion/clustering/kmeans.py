@@ -2,10 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import sys
 import logging
@@ -29,7 +25,7 @@ class KMeans(HypModel):
         loss = np.zeros((epochs,), dtype=float_cpu())
         self.mu = self._choose_seeds(x)
         cluster_index, err2 = self.predict(x)
-        for epoch in xrange(epochs):
+        for epoch in range(epochs):
             self.mu = self._compute_centroids(x, cluster_index)
             cluster_index, err2 = self.predict(x)
             loss[epoch] = np.mean(err2)
@@ -46,9 +42,9 @@ class KMeans(HypModel):
     def _choose_seeds(self, x):
         mu = np.zeros((self.num_clusters, x.shape[-1]), dtype=float_cpu())
         mu[0] = x[0]
-        for i in xrange(1, self.num_clusters):
+        for i in range(1, self.num_clusters):
             d = np.zeros((x.shape[0],), dtype=float_cpu())
-            for j in xrange(i):
+            for j in range(i):
                 d += np.sum(np.square(x-mu[j]), axis=-1)
             index = np.argmax(d)
             mu[i] = x[index]
@@ -58,7 +54,7 @@ class KMeans(HypModel):
     
     def _compute_centroids(self, x, index):
         mu = np.zeros((self.num_clusters, x.shape[-1]), dtype=float_cpu())
-        for k in xrange(self.num_clusters):
+        for k in range(self.num_clusters):
             r = index == k
             if np.sum(r)>0:
                 mu[k] = np.mean(x[index==k], axis=0)
@@ -67,7 +63,7 @@ class KMeans(HypModel):
 
     def predict(self, x):
         err2 = np.zeros((x.shape[0], self.num_clusters), dtype=float_cpu())
-        for k in xrange(self.num_clusters):
+        for k in range(self.num_clusters):
             err2[:,k] = np.sum(np.square(x-self.mu[k]), axis=-1)
 
         index = np.argmin(err2, axis=-1)

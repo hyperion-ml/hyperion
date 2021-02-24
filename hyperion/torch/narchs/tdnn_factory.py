@@ -2,7 +2,6 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
 
 from .tdnn import TDNNV1
 from .etdnn import ETDNNV1
@@ -57,11 +56,7 @@ class TDNNFactory(object):
 
 
 
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
+    def filter_args(**kwargs):
 
         if 'wo_norm' in kwargs:
             kwargs['use_norm'] = not kwargs['wo_norm']
@@ -76,8 +71,8 @@ class TDNNFactory(object):
                       'dilation', 'dilation_factor', 'in_norm', 'hid_act', 
                       'norm_layer', 'use_norm', 'norm_before', 'in_feats', 'dropout_rate')
 
-        args = dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        args = dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
         for arg in ('enc_hid_units', 'kernel_size', 'dilation'):
             if arg in args:
@@ -90,12 +85,12 @@ class TDNNFactory(object):
 
 
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         
         if prefix is None:
             p1 = '--'
         else:
-            p1 = '--' + prefix + '-'
+            p1 = '--' + prefix + '.'
 
         parser.add_argument(p1+'tdnn-type', type=str.lower,
                             default='resetdnn',
@@ -168,3 +163,5 @@ class TDNNFactory(object):
         except:
             pass
 
+
+    add_argparse_args = add_class_args

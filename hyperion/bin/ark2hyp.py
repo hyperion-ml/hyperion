@@ -6,14 +6,11 @@
 """
 Converts from Ark format to h5 format (deprecated, use copy-feats.py)
 """
-from __future__ import absolute_import
-from __future__ import print_function
 
 import sys
 import os
 import argparse
 import time
-from six.moves import xrange
 
 import numpy as np
 

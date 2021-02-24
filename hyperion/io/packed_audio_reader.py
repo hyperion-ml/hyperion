@@ -8,7 +8,6 @@ import time
 import math
 import logging
 import numpy as np
-#import threading
 import multiprocessing
 from copy import deepcopy
 
@@ -372,34 +371,31 @@ class SequentialPackedAudioReader(PackedAudioReader):
 
     
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
+    def filter_args(**kwargs):
         valid_args = ('part_idx', 'num_parts','wav_scale')
-        return dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        return dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
     
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         if prefix is None:
             p1 = '--'
-            p2 = ''
         else:
-            p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
+            p1 = '--' + prefix + '.'
             
-        # parser.add_argument(p1+'scp-sep', dest=(p2+'scp_sep'), default=' ',
-        #                     help=('scp file field separator'))
-        parser.add_argument(p1+'wav-scale', dest=(p2+'wav_scale'), default=2**15-1, type=float,
-                             help=('multiplicative factor for waveform'))
+        parser.add_argument(
+            p1+'wav-scale', default=2**15-1, type=float,
+            help=('multiplicative factor for waveform'))
         try:
-            parser.add_argument(p1+'part-idx', dest=(p2+'part_idx'), type=int, default=1,
-                                help=('splits the list of files in num-parts and process part_idx'))
-            parser.add_argument(p1+'num-parts', dest=(p2+'num_parts'), type=int, default=1,
-                                help=('splits the list of files in num-parts and process part_idx'))
+            parser.add_argument(
+                p1+'part-idx', type=int, default=1,
+                help=('splits the list of files in num-parts and '
+                      'process part_idx'))
+            parser.add_argument(
+                p1+'num-parts', type=int, default=1,
+                help=('splits the list of files in num-parts and '
+                      'process part_idx'))
         except:
             pass
 
@@ -634,25 +630,22 @@ class RandomAccessPackedAudioReader(PackedAudioReader):
 
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
+    def filter_args(**kwargs):
         valid_args = ('wav_scale',)
 
-        return dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        return dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         if prefix is None:
             p1 = '--'
-            p2 = ''
         else:
-            p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
+            p1 = '--' + prefix + '.'
             
-        parser.add_argument(p1+'wav-scale', dest=(p2+'wav_scale'), default=2**15, type=float,
-                             help=('multiplicative factor for waveform'))
+        parser.add_argument(
+            p1+'wav-scale', default=2**15, type=float,
+            help=('multiplicative factor for waveform'))
 
+
+    add_argparse_args = add_class_args

@@ -177,22 +177,23 @@ class EfficientNetXVector(XVector):
         return model
 
 
-    def filter_args(prefix=None, **kwargs):
+    def filter_args(**kwargs):
 
-        base_args = XVector.filter_args(prefix, **kwargs)
-        child_args = EN.filter_args(prefix, **kwargs)
+        base_args = XVector.filter_args(**kwargs)
+        child_args = EN.filter_args(**kwargs)
 
         base_args.update(child_args)
         return base_args
 
 
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
 
         # we put args of EfficientNet first so it get swish as 
         # default activation instead of relu
-        EN.add_argparse_args(parser, prefix)        
-        XVector.add_argparse_args(parser, prefix)
+        EN.add_class_args(parser, prefix)        
+        XVector.add_class_args(parser, prefix)
 
 
 
+    add_argparse_args = add_class_args

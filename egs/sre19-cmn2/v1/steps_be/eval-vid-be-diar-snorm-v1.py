@@ -5,10 +5,6 @@
 
   Evals PLDA LLR
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import sys
 import os
@@ -33,7 +29,7 @@ from hyperion.helpers import VectorReader as VR
 def combine_diar_scores(ndx, orig_seg, subseg_scores):
 
     scores = np.zeros(ndx.trial_mask.shape, dtype=float_cpu())
-    for j in xrange(len(ndx.seg_set)):
+    for j in range(len(ndx.seg_set)):
         idx = orig_seg == ndx.seg_set[j]
         subseg_scores_j = subseg_scores[:, idx]
         scores_j = np.max(subseg_scores_j, axis=1)

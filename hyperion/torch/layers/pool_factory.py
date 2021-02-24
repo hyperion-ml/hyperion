@@ -2,7 +2,6 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
 
 import torch.nn as nn
 
@@ -37,11 +36,7 @@ class GlobalPool1dFactory(object):
 
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
+    def filter_args(**kwargs):
 
         if 'wo_bias' in kwargs:
             kwargs['use_bias'] = not kwargs['wo_bias']
@@ -51,17 +46,17 @@ class GlobalPool1dFactory(object):
                       'in_feats', 'num_comp', 'use_bias', 'dist_pow', 
                       'num_heads', 'd_k', 'd_v', 'bin_attn')
 
-        return dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        return dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
     
 
         
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         if prefix is None:
             p1 = '--'
         else:
-            p1 = '--' + prefix + '-'
+            p1 = '--' + prefix + '.'
 
         parser.add_argument(
             p1+'pool-type', type=str.lower, default='mean+stddev',
@@ -132,3 +127,4 @@ class GlobalPool1dFactory(object):
 
         return config
         
+    add_argparse_args = add_class_args

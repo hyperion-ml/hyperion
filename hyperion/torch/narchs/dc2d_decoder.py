@@ -2,7 +2,6 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-#from __future__ import absolute_import
 
 import math 
 
@@ -274,11 +273,7 @@ class DC2dDecoder(NetArch):
 
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
+    def filter_args(**kwargs):
 
         if 'wo_norm' in kwargs:
             kwargs['use_norm'] = not kwargs['wo_norm']
@@ -298,20 +293,20 @@ class DC2dDecoder(NetArch):
                       'dropout_rate',
                       'use_norm', 'norm_layer', 'norm_before')
 
-        args = dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        args = dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
         return args
 
 
 
     @staticmethod
-    def add_argparse_args(parser, prefix=None, head_channels=False):
+    def add_class_args(parser, prefix=None, head_channels=False):
         
         if prefix is None:
             p1 = '--'
         else:
-            p1 = '--' + prefix + '-'
+            p1 = '--' + prefix + '.'
 
         parser.add_argument(
             p1+'in-channels', type=int, required=True,
@@ -383,3 +378,6 @@ class DC2dDecoder(NetArch):
         
         parser.add_argument(p1+'norm-after', default=False, action='store_true',
                             help='batch normalizaton after activation')
+
+
+    add_argparse_args = add_class_args

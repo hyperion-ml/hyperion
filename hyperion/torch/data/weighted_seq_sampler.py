@@ -174,56 +174,52 @@ class ClassWeightedSeqSampler(Sampler):
     
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
+    def filter_args(**kwargs):
 
-        if p+'no_shuffle_seqs' in kwargs:
-            kwargs[p+'shuffle_seqs'] = not kwargs[p+'no_shuffle_seqs']
+        if 'no_shuffle_seqs' in kwargs:
+            kwargs['shuffle_seqs'] = not kwargs['no_shuffle_seqs']
             
         valid_args = ('batch_size', 'var_batch_size',
                       'iters_per_epoch',
                       'num_egs_per_class', 'num_egs_per_utt')
-        return dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        return dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
 
 
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         if prefix is None:
             p1 = '--'
-            p2 = ''
         else:
-            p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
+            p1 = '--' + prefix + '.'
             
-        parser.add_argument(p1+'batch-size', dest=(p2+'batch_size'),
-                            default=128, type=int,
-                            help=('batch size'))
-
-        parser.add_argument(p1+'var-batch-size', default=False,
-                            action='store_true',
-                            help=('use variable batch-size, '
-                                  'then batch-size is the minimum batch size, '
-                                  'which is used when the batch chunk length is '
-                                  'equal to max-chunk-length'))
+        parser.add_argument(
+            p1+'batch-size', 
+            default=128, type=int,
+            help=('batch size'))
 
         parser.add_argument(
-            p1+'iters-per-epoch', dest=(p2+'iters_per_epoch'),
+            p1+'var-batch-size', default=False,
+            action='store_true',
+            help=('use variable batch-size, '
+                  'then batch-size is the minimum batch size, '
+                  'which is used when the batch chunk length is '
+                  'equal to max-chunk-length'))
+
+        parser.add_argument(
+            p1+'iters-per-epoch', 
             default='auto',
             type=lambda x: x if x=='auto' else float(x),
             help=('number of times we sample an utterance in each epoch'))
 
-        parser.add_argument(p1+'num-egs-per-class',
-                            dest=(p2+'num_egs_per_class'),
-                            type=int, default=1,
-                            help=('number of samples per class in batch'))
-        parser.add_argument(p1+'num-egs-per-utt',
-                            dest=(p2+'num_egs_per_utt'),
-                            type=int, default=1,
-                            help=('number of samples per utterance in batch'))
+        parser.add_argument(
+            p1+'num-egs-per-class',
+            type=int, default=1,
+            help=('number of samples per class in batch'))
+        parser.add_argument(
+            p1+'num-egs-per-utt',
+            type=int, default=1,
+            help=('number of samples per utterance in batch'))
 
-
+    add_argparse_args = add_class_args

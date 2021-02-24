@@ -6,7 +6,7 @@
 # Begin configuration section.
 nj=4
 cmd=run.pl
-vad_config=conf/vad.pyconf
+vad_config=conf/vad.yml
 write_utt2num_frames=false  # if true writes utt2num_frames
 # End configuration section.
 
@@ -85,7 +85,7 @@ if [ -f $data/segments ]; then
 fi
 
 $cmd JOB=1:$nj $logdir/make_vad_${name}.JOB.log \
-    compute-energy-vad.py @$vad_config $opt_args \
+    compute-energy-vad.py --cfg $vad_config $opt_args \
     --input $scp --output ark,scp:$vaddir/vad_$name.JOB.ark,$vaddir/vad_$name.JOB.scp \
     --part-idx JOB --num-parts $nj || exit 1
 

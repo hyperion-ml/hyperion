@@ -2,7 +2,7 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-#from __future__ import absolute_import
+#
 
 from .fcnet import FCNetV1
 
@@ -31,5 +31,5 @@ from .efficient_net import EfficientNet
 
 from .classif_head import ClassifHead
 
-
+from .audio_feats_mvn import AudioFeatsMVN
 

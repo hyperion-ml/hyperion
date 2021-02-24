@@ -185,14 +185,10 @@ class ARTAttackFactory(object):
 
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
+    def filter_args(**kwargs):
 
-        if p + 'no_abort' in kwargs:
-            kwargs[p + 'abort_early'] = not kwargs[p + 'no_abort']
+        if 'no_abort' in kwargs:
+            kwargs['abort_early'] = not kwargs['no_abort']
 
         if 'norm' in kwargs:
             if kwargs['norm'] == 'inf':
@@ -223,20 +219,20 @@ class ARTAttackFactory(object):
                       'targeted')
 
 
-        args = dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        args = dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
         return args
 
 
 
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         
         if prefix is None:
             p1 = '--'
         else:
-            p1 = '--' + prefix + '-'
+            p1 = '--' + prefix + '.'
 
         parser.add_argument(
             p1+'attack-type', type=str.lower, default='fgsm',
@@ -443,3 +439,4 @@ class ARTAttackFactory(object):
             help='use targeted attack intead of non-targeted')
 
 
+    add_argparse_args = add_class_args

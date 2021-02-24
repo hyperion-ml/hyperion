@@ -13,7 +13,7 @@ from ...torch_model import TorchModel
 from ...helpers import TorchNALoader
 from ...layers import tensor2pdf as t2pdf
 from ...layers import pdf_storage
-#from ...utils.distributions import squeeze_pdf_, squeeze_pdf
+
 
 class VAE(TorchModel):
     """Variational Autoencoder class
@@ -355,27 +355,22 @@ class VAE(TorchModel):
         
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
-
+    def filter_args(**kwargs):
         valid_args = ('z_dim', 'kldiv_weight', 'qz_pdf', 'px_pdf')
-        args = dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        args = dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
         return args
 
 
 
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         
         if prefix is None:
             p1 = '--'
         else:
-            p1 = '--' + prefix + '-'
+            p1 = '--' + prefix + '.'
 
         parser.add_argument(
                 p1+'z-dim', type=int, required=True,
@@ -394,3 +389,6 @@ class VAE(TorchModel):
             p1+'px-pdf', default='normal-glob-diag-cov', 
             choices = ['normal-i-cov', 'normal-glob-diag-cov', 'normal-diag-cov'],
             help=('pdf for data likelihood p(x|z)'))
+
+
+    add_argparse_args = add_class_args

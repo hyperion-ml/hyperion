@@ -2,10 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -130,8 +126,8 @@ def plot_confusion_matrix(C, labels_true, labels_pred=None,
     normalized = np.all(C<=1)
     fmt = '.2f' if normalized else 'd'
     thresh = np.max(C) / 2.
-    for i in xrange(C.shape[0]):
-        for j in xrange(C.shape[1]):
+    for i in range(C.shape[0]):
+        for j in range(C.shape[1]):
             plt.text(j, i, format(C[i, j], fmt),
                      horizontalalignment="center",
                      color="white" if C[i, j] > thresh else "black")
@@ -170,7 +166,7 @@ def write_confusion_matrix(f, C, labels_true, labels_pred=None):
     
     for i, label_y in enumerate(labels_true):
         f.write('%{0}s'.format(column_width) % label_y)
-        for j in xrange(C.shape[1]):
+        for j in range(C.shape[1]):
             f.write('%{0}{1}'.format(column_width, fmt) % C[i, j])
         f.write('\n')
         

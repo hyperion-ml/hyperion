@@ -2,14 +2,10 @@
 """                                                                                                     Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)                                     
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0) 
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-
 import logging
 import sys
 import os
-import argparse
+from jsonargparse import ArgumentParser, ActionConfigFile, ActionParser, namespace_to_dict
 import time
 
 import numpy as np
@@ -90,9 +86,7 @@ def train_be(iv_file, train_list,
     
 if __name__ == "__main__":
 
-    parser=argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        fromfile_prefix_chars='@',
+    parser=ArgumentParser(
         description='Train Back-end')
 
     parser.add_argument('--iv-file', dest='iv_file', required=True)
@@ -112,6 +106,6 @@ if __name__ == "__main__":
     del args.verbose
     logging.debug(args)
     
-    train_be(**vars(args))
+    train_be(**namespace_to_dict(args))
 
             
