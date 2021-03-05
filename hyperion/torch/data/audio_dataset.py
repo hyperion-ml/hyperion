@@ -19,6 +19,7 @@ from ...utils.utt2info import Utt2Info
 from ...augment import SpeechAugment
 
 from torch.utils.data import Dataset
+import torch.distributed as dist
 
 class AudioDataset(Dataset):
 
@@ -32,11 +33,24 @@ class AudioDataset(Dataset):
                  return_class=True, return_clean_aug_pair=False, 
                  transpose_input=False, wav_scale=2**15-1, is_val=False):
 
-        logging.info('opening dataset %s' % audio_path)
+        try:
+            rank = dist.get_rank()
+            world_size = dist.get_world_size()
+        except:
+            rank = 0
+            world_size = 1
+
+        self.rank = rank
+        self.world_size = world_size
+
+        if rank == 0:
+            logging.info('opening dataset %s' % audio_path)
         self.r = AR(audio_path, wav_scale=wav_scale)
-        logging.info('loading utt2info file %s' % key_file)
+        if rank == 0:
+            logging.info('loading utt2info file %s' % key_file)
         self.u2c = Utt2Info.load(key_file, sep=' ')
-        logging.info('dataset contains %d seqs' % self.num_seqs)
+        if rank == 0:
+            logging.info('dataset contains %d seqs' % self.num_seqs)
 
         self.is_val = is_val
         self._read_time_durs_file(time_durs_file)
@@ -62,12 +76,13 @@ class AudioDataset(Dataset):
         self.augmenter = None
         self.reverb_context = 0
         if aug_cfg is not None:
-            self.augmenter = SpeechAugment.create(aug_cfg)
+            self.augmenter = SpeechAugment.create(aug_cfg, random_seed=112358+1000*rank)
             self.reverb_context = self.augmenter.max_reverb_context
 
 
     def _read_time_durs_file(self, file_path):
-        logging.info('reading time_durs file %s' % file_path)
+        if self.rank == 0:
+            logging.info('reading time_durs file %s' % file_path)
         nf_df = pd.read_csv(file_path, header=None, sep=' ')
         nf_df.index = nf_df[0]
         self._seq_lengths = nf_df.loc[self.u2c.key, 1].values
@@ -116,13 +131,15 @@ class AudioDataset(Dataset):
 
 
     def _prune_short_seqs(self, min_length):
-        logging.info('pruning short seqs')
+        if self.rank == 0:
+            logging.info('pruning short seqs')
         keep_idx = self.seq_lengths >= min_length
         self.u2c = self.u2c.filter_index(keep_idx)
         self._seq_lengths = self.seq_lengths[keep_idx]
-        logging.info('pruned seqs with min_length < %f,'
-                     'keep %d/%d seqs' % (
-                        min_length, self.num_seqs, len(keep_idx)))
+        if self.rank == 0:
+            logging.info('pruned seqs with min_length < %f,'
+                         'keep %d/%d seqs' % (
+                             min_length, self.num_seqs, len(keep_idx)))
 
         
     def _prepare_class_info(self, class_file):
@@ -131,7 +148,8 @@ class AudioDataset(Dataset):
             classes, class_idx = np.unique(self.u2c.info, return_inverse=True)
             class2idx = {k:i for i, k in enumerate(classes)}
         else:
-            logging.info('reading class-file %s' % (class_file))
+            if self.rank == 0:
+                logging.info('reading class-file %s' % (class_file))
             class_info = pd.read_csv(class_file, header=None, sep=' ')
             class2idx = {str(k):i for i,k in enumerate(class_info[0])}
             class_idx = np.array([class2idx[k] for k in self.u2c.info], dtype=int)

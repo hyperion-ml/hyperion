@@ -19,7 +19,7 @@ class ProgLogger(Logger):
       
     """
     def __init__(self, metrics=None, interval=10):
-        super(ProgLogger, self).__init__()
+        super().__init__()
 
         self.metrics = None if metrics is None else set(metrics)
             
@@ -38,15 +38,18 @@ class ProgLogger(Logger):
         
 
     def on_epoch_begin(self, epoch, logs=None, **kwargs):
+        if self.rank != 0:
+            return 
+
         self.cur_epoch = epoch
         logging.info('epoch: %d/%d starts' % (epoch+1, self.epochs))
         if 'samples' in kwargs:
-            self.samples = kwargs['samples']
+            self.samples = kwargs['samples'] * self.world_size
         else:
             self.samples = 0
 
         if 'batches' in kwargs:
-            self.batches = kwargs['batches']
+            self.batches = kwargs['batches'] 
         else:
             self.batches = 0
 
@@ -61,10 +64,13 @@ class ProgLogger(Logger):
 
 
     def on_batch_end(self, logs=None, **kwargs):
+        if self.rank != 0:
+            return 
+
         batch_size = 0
         if 'batch_size' in kwargs:
-            batch_size = kwargs['batch_size']
-            self.cur_sample += batch_size
+            batch_size = kwargs['batch_size'] * self.world_size
+            self.cur_sample += batch_size 
 
         self.cur_batch += 1
 
@@ -92,18 +98,18 @@ class ProgLogger(Logger):
             for k, v in logs.items():
                 if self.metrics is None or k in self.metrics:
                     info += ' %s: %.6f' % (k, v)
-
+            
             logging.info(info)
 
 
     def on_epoch_end(self, logs=None, **kwargs):
+        if self.rank != 0:
+            return 
+
         info = 'epoch: %d/%d ' % (self.cur_epoch+1, self.epochs)
         for k, v in logs.items():
             if self.metrics is None or k in self.metrics:
                 info += ' %s: %.6f' % (k, v)
-
-        logging.info(info)
-
 
 
     def estimate_epoch_time(self):

@@ -161,7 +161,7 @@ class Wav2Win(nn.Module):
         # Add dither
         if self.dither != 0.0:
             n = torch.randn(x.shape, device=x.device)
-            x = x + self.dither*n
+            x = x + self.dither * n
 
         #remove offset
         if self.remove_dc_offset:

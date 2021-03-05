@@ -10,8 +10,8 @@ import logging
 import torch
 import torch.nn as nn
 
-from ..utils import MetricAcc
-from .torch_trainer import TorchTrainer, TorchDataParallel
+from ..utils import MetricAcc, TorchDataParallel
+from .torch_trainer import TorchTrainer
 
 class DFRModelWrapper(nn.Module):
     """Wrapper class for the xvector model, which 

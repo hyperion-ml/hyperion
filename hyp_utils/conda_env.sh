@@ -11,11 +11,20 @@ set -e
 num_gpus=0
 conda_env=base
 
-if [ "$1" == "--num-gpus" ];then
-    shift;
-    num_gpus=$1
-    shift;
-fi
+while true
+do
+    if [ "$1" == "--num-gpus" ];then
+	shift;
+	num_gpus=$1
+	shift;
+    elif [ "$1" == "--conda-env" ];then
+	shift;
+	conda_env=$1
+	shift;
+    else
+	break
+    fi
+done
 
 if [ $# -lt 1 ];then
     echo "Usage: conda_env.sh [--num-gpus n>=0] [--conda-env <conda-env>] python_program.py [args1] [arg2] ..."
@@ -53,12 +62,15 @@ if [ $num_gpus -gt 0 ];then
 	fi
     fi
     echo "CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES"
+    if [ $num_gpus -gt 1 ];then
+	ddp="-m torch.distributed.launch --nproc_per_node=$num_gpus"
+    fi
 fi
 
 py_exec=$(which $1)
 shift
 
-python $py_exec "$@"
+python $ddp $py_exec "$@"
 
 conda deactivate 
 

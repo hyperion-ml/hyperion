@@ -10,20 +10,37 @@ import numpy as np
 
 import torch
 from torch.utils.data import Sampler
-
+import torch.distributed as dist
 
 class ClassWeightedSeqSampler(Sampler):
 
     def __init__(self, dataset, batch_size=1, iters_per_epoch='auto',
-                 num_egs_per_class=1, num_egs_per_utt=1, var_batch_size=False):
+                 num_egs_per_class=1, num_egs_per_utt=1, var_batch_size=False): 
         
-        super(ClassWeightedSeqSampler, self).__init__(None)
+        super().__init__(None)
+
+        try:
+            rank = dist.get_rank()
+            world_size = dist.get_world_size()
+        except:
+            rank = 0
+            world_size = 1
+
         self.dataset = dataset
-        self.batch_size = batch_size
+        self.batch_size = int(math.ceil(batch_size / world_size))
         self.num_egs_per_class = num_egs_per_class
         self.num_egs_per_utt = num_egs_per_utt
         self.var_batch_size = var_batch_size
         self.batch = 0
+
+        self.rank = rank
+        self.world_size = world_size
+
+        if rank > 0:
+            # this will make sure that each process produces different data
+            # when using ddp
+            dummy = torch.rand(1000 * rank)
+            del dummy
         
         if iters_per_epoch == 'auto':
             self._compute_iters_auto()
@@ -33,10 +50,10 @@ class ClassWeightedSeqSampler(Sampler):
         if var_batch_size:
             avg_batch_size = self._compute_avg_batch_size()
         else:
-            avg_batch_size = batch_size
+            avg_batch_size = self.batch_size
 
         self._len = int(math.ceil(
-            self.iters_per_epoch * dataset.num_seqs / avg_batch_size))
+            self.iters_per_epoch * dataset.num_seqs / avg_batch_size / world_size))
 
         logging.info('num batches per epoch: %d' % self._len)
         
@@ -161,7 +178,7 @@ class ClassWeightedSeqSampler(Sampler):
         if self.num_egs_per_utt > 1:
             utt_idx = utt_idx.repeat(self.num_egs_per_utt)
 
-        utt_idx = utt_idx.tolist()[:self.batch_size*batch_mult]
+        utt_idx = utt_idx.tolist()[:self.batch_size * batch_mult]
         if self.batch == 0:
             logging.info('batch 0 uttidx=%s', str(utt_idx[:10]))
 
@@ -169,8 +186,6 @@ class ClassWeightedSeqSampler(Sampler):
 
         index = [(i, chunk_length) for i in utt_idx]
         return index
-        #return utt_idx.tolist()
-
     
 
     @staticmethod

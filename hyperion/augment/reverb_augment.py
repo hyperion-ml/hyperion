@@ -42,7 +42,7 @@ class SingleReverbAugment(object):
     """
 
     def __init__(self, rir_type, rir_path, rir_norm=None, comp_delay=True, 
-                 preload_rirs=True, rng=None):
+                 preload_rirs=True, random_seed=112358, rng=None):
         self.rir_type = rir_type
         logging.info(('init reverb_augment with RIR={} rir_path={} '
                       'rir_norm={} comp_delay={}').format(
@@ -68,7 +68,7 @@ class SingleReverbAugment(object):
 
         self.lock = multiprocessing.Lock()
         if rng is None:
-            self.rng = np.random.RandomState(seed=112358)
+            self.rng = np.random.RandomState(seed=random_seed)
         else:
             self.rng = deepcopy(rng)
 
@@ -147,7 +147,7 @@ class ReverbAugment(object):
       rng:     Random number generator returned by 
                np.random.RandomState (optional)
     """
-    def __init__(self, reverb_prob, rir_types, max_reverb_context=0, rng=None):
+    def __init__(self, reverb_prob, rir_types, max_reverb_context=0, random_seed=112358, rng=None):
 
         logging.info('init reverb_augment')
         self.reverb_prob = reverb_prob
@@ -167,7 +167,7 @@ class ReverbAugment(object):
                     opts_i[opt_key] = opts[opt_key]
 
             aug = SingleReverbAugment(
-                key, **opts_i, rng=rng)
+                key, **opts_i, random_seed=random_seed, rng=rng)
             augmenters.append(aug)
             count += 1
 
@@ -180,13 +180,13 @@ class ReverbAugment(object):
 
         self.lock = multiprocessing.Lock()
         if rng is None:
-            self.rng = np.random.RandomState(seed=112358)
+            self.rng = np.random.RandomState(seed=random_seed)
         else:
             self.rng = deepcopy(rng)
 
 
     @classmethod
-    def create(cls, cfg, rng=None): 
+    def create(cls, cfg, random_seed=112358, rng=None): 
         """ Creates a ReverbAugment object from options dictionary or YAML file.
 
         Args:
@@ -206,7 +206,8 @@ class ReverbAugment(object):
             'wrong object type for cfg={}'.format(cfg))
 
         return cls(reverb_prob=cfg['reverb_prob'], rir_types=cfg['rir_types'], 
-                   max_reverb_context=cfg['max_reverb_context'], rng=rng)
+                   max_reverb_context=cfg['max_reverb_context'], 
+                   random_seed=random_seed, rng=rng)
 
 
     @staticmethod

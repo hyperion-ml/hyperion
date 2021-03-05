@@ -13,8 +13,9 @@ import torch
 import torch.nn as nn
 import torch.cuda.amp as amp
 from torch.optim.swa_utils import AveragedModel, SWALR
+import torch.distributed as dist
 
-from ..utils import MetricAcc, TorchDataParallel
+from ..utils import MetricAcc, TorchDDP
 from ..loggers import LoggerList, CSVLogger, ProgLogger
 
 
@@ -46,7 +47,7 @@ class TorchTrainer(object):
     def __init__(self, model, optimizer, loss, epochs=100, exp_path='./train', 
                  cur_epoch=0, grad_acc_steps=1,
                  device=None, metrics=None, lr_scheduler=None, loggers=None, 
-                 data_parallel=False, 
+                 ddp=False, 
                  train_mode='train', use_amp=False, log_interval=10, 
                  grad_clip=0, swa_start=0, swa_lr=1e-3, swa_anneal_epochs=10):
 
@@ -56,9 +57,8 @@ class TorchTrainer(object):
         self.epochs = epochs
         self.cur_epoch = cur_epoch
         self.grad_acc_steps = grad_acc_steps
-
         self.exp_path = exp_path
-        
+
         if loggers is None:
             self.loggers = self._default_loggers(log_interval)
         elif isinstance(loggers, list):
@@ -91,14 +91,20 @@ class TorchTrainer(object):
         else:
             self.amp_autocast = contextlib.nullcontext
 
-        if data_parallel:
+        self.ddp = ddp
+        self.rank = 0
+        self.world_size = 1
+        if ddp:
+            self.rank = dist.get_rank()
+            self.world_size = dist.get_world_size()
             logging.info('training in multiple gpus with data-parallel')
-            self.model = TorchDataParallel(self.model)
-            if loss is not None:
-                self.loss = TorchDataParallel(self.loss)
+            model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
+            self.model = TorchDDP(self.model, device_ids=[device], output_device=device)
+            # if loss is not None:
+            #     self.loss = TorchDDP(self.loss, device_ids=[device])
 
-            if self.use_amp:
-                self.amp_args = {'use_amp': self.use_amp }
+            #if self.use_amp:
+            #    self.amp_args = {'use_amp': self.use_amp }
 
         self.in_swa = False
         if self.do_swa:
@@ -191,13 +197,12 @@ class TorchTrainer(object):
         Args:
           data_loader: PyTorch data loader return input/output pairs
         """
-        metric_acc = MetricAcc()
+        metric_acc = MetricAcc(device=self.device)
         batch_metrics = ODict()
         self.set_train_mode()
         for batch, (data, target) in enumerate(data_loader):
             
             self.loggers.on_batch_begin(batch)
-
             if batch % self.grad_acc_steps == 0:
                 self.optimizer.zero_grad()
                 
@@ -218,6 +223,7 @@ class TorchTrainer(object):
                     self.lr_scheduler.on_opt_step()
                 self.update_model()
 
+            self._reduce_metric(loss)
             batch_metrics['loss'] = loss.item() * self.grad_acc_steps
             for k, metric in self.metrics.items():
                 batch_metrics[k] = metric(output, target)
@@ -240,7 +246,7 @@ class TorchTrainer(object):
           data_loader: PyTorch data loader return input/output pairs
         """
 
-        metric_acc = MetricAcc()
+        metric_acc = MetricAcc(self.device)
         batch_metrics = ODict()
         with torch.no_grad():
             if swa_update_bn:
@@ -323,7 +329,8 @@ class TorchTrainer(object):
         Args:
           logs: logs containing the current value of the metrics.
         """
-
+        if self.rank != 0:
+            return 
         checkpoint = self.checkpoint(logs)
         file_path = '%s/model_ep%04d.pth' % (self.exp_path, self.cur_epoch)
             
@@ -336,6 +343,8 @@ class TorchTrainer(object):
         Args:
           logs: logs containing the current value of the metrics.
         """
+        if self.rank != 0:
+            return 
 
         checkpoint = self.checkpoint(logs)
         checkpoint['model_state_dict'] = checkpoint['swa_model_state_dict']
@@ -354,6 +363,12 @@ class TorchTrainer(object):
         checkpoint = torch.load(file_path, map_location=torch.device("cpu"))
         rng_state = checkpoint['rng_state']
         torch.set_rng_state(rng_state)
+        if self.rank > 0:
+            # this will make sure that each process produces different data
+            # when using ddp
+            dummy = torch.rand(1000 * self.rank)
+            del dummy
+
         self.cur_epoch = checkpoint['epoch']
         try:
             self.model.load_state_dict(checkpoint['model_state_dict'])

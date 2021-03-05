@@ -28,7 +28,7 @@ class SpeechAugment(object):
 
 
     @classmethod
-    def create(cls, cfg, rng=None): 
+    def create(cls, cfg, random_seed=112358, rng=None): 
         if isinstance(cfg, str):
             with open(cfg, 'r') as f:
                 cfg = yaml.load(f, Loader=yaml.FullLoader)
@@ -36,21 +36,15 @@ class SpeechAugment(object):
         assert isinstance(cfg, dict), (
             'wrong object type for cfg={}'.format(cfg))
 
-        if rng is None:
-            if 'random_seed' in cfg:
-                seed = cfg['random_seed']
-            else:
-                seed = 112358
-            rng = np.random.RandomState(seed=seed)
-
-
         reverb_aug = None
         if 'reverb_aug' in cfg:
-            reverb_aug = ReverbAugment.create(cfg['reverb_aug'])
+            reverb_aug = ReverbAugment.create(
+                cfg['reverb_aug'], random_seed=random_seed)
 
         noise_aug = None
         if 'noise_aug' in cfg:
-            noise_aug = NoiseAugment.create(cfg['noise_aug'])
+            noise_aug = NoiseAugment.create(
+                cfg['noise_aug'], random_seed=random_seed)
 
         return cls(reverb_aug=reverb_aug, noise_aug=noise_aug)
 

@@ -4,6 +4,7 @@
 """
 
 import numpy as np
+import torch.distributed as dist
 
 class LoggerList(object):
     """Container for a list of logger callbacks
@@ -103,9 +104,17 @@ class Logger(object):
        params: training params dictionary
     """
     def __init__(self):
+        try:
+            rank = dist.get_rank()
+            world_size = dist.get_world_size()
+        except:
+            rank = 0
+            world_size = 1
         self.cur_epoch = 0
         self.cur_batch = 0
         self.params=None
+        self.rank = rank
+        self.world_size = world_size
 
     
     def on_epoch_begin(self, epoch, logs, **kwargs):
@@ -134,7 +143,7 @@ class Logger(object):
            batch: batch index within the epoch
            logs: dictionary of logs
         """
-        self.cur_batch = batch
+        self.cur_batch = batch 
         
 
     def on_batch_end(self, logs, **kwargs):

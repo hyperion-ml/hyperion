@@ -13,9 +13,11 @@ import numpy as np
 
 import torch
 import torch.nn as nn
+import torch.multiprocessing as mp
 
 from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch.utils import open_device
+from hyperion.torch.utils import ddp
 from hyperion.torch.helpers import OptimizerFactory as OF
 from hyperion.torch.lr_schedulers import LRSchedulerFactory as LRSF
 from hyperion.torch.seq_embed import ResNetXVector as XVec
@@ -27,6 +29,21 @@ from hyperion.torch.metrics import CategoricalAccuracy
 #from hyperion.torch.layers import AudioFeatsFactory as AFF
 #from hyperion.torch.layers import MeanVarianceNorm as MVN
 from hyperion.torch.narchs import AudioFeatsMVN as AF
+
+# from torch.utils.data import dataloader
+# from torch.multiprocessing import reductions
+# from multiprocessing.reduction import ForkingPickler
+
+# default_collate_func = dataloader.default_collate
+# def default_collate_override(batch):
+#   dataloader._use_shared_memory = False
+#   return default_collate_func(batch)
+
+# setattr(dataloader, 'default_collate', default_collate_override)
+
+# for t in torch._storage_classes:
+#     if t in ForkingPickler._extra_reducers:
+#         del ForkingPickler._extra_reducers[t]
 
 # class FeatExtractor(nn.Module):
 
@@ -52,22 +69,27 @@ def init_device(num_gpus):
     device = open_device(num_gpus=num_gpus)
     return device
 
+
 def init_data(audio_path, train_list, val_list, 
-              train_aug_cfg, val_aug_cfg, num_workers, num_gpus, **kwargs):
+              train_aug_cfg, val_aug_cfg, num_workers, 
+              use_gpu, rank, **kwargs):
+
     ad_args = AD.filter_args(**kwargs)
     sampler_args = Sampler.filter_args(**kwargs)
-    logging.info('audio dataset args={}'.format(ad_args))
-    logging.info('sampler args={}'.format(sampler_args))
+    if rank == 0:
+        logging.info('audio dataset args={}'.format(ad_args))
+        logging.info('sampler args={}'.format(sampler_args))
+        logging.info('init datasets')
 
-    logging.info('init datasets')
     train_data = AD(audio_path, train_list, aug_cfg=train_aug_cfg, **ad_args)
     val_data = AD(audio_path, val_list, aug_cfg=val_aug_cfg, is_val=True, **ad_args)
 
-    logging.info('init samplers')
+    if rank == 0:
+        logging.info('init samplers')
     train_sampler = Sampler(train_data, **sampler_args)
     val_sampler = Sampler(val_data, **sampler_args)
 
-    largs = {'num_workers': num_workers, 'pin_memory': True} if num_gpus>0 else {}
+    largs = {'num_workers': num_workers, 'pin_memory': True} if use_gpu else {}
 
     train_loader = torch.utils.data.DataLoader(
         train_data, batch_sampler = train_sampler, **largs)
@@ -96,57 +118,78 @@ def init_data(audio_path, train_list, val_list,
 #     return feat_extractor
 
 
-def init_feats(**kwargs):
+def init_feats(rank, **kwargs):
     feat_args = AF.filter_args(**kwargs['feats'])
-    logging.info('feat args={}'.format(feat_args))
-    logging.info('initializing feature extractor')
+    if rank == 0:
+        logging.info('feat args={}'.format(feat_args))
+        logging.info('initializing feature extractor')
     feat_extractor = AF(trans=True, **feat_args)
-    logging.info('feat-extractor={}'.format(feat_extractor))
+    if rank == 0:
+        logging.info('feat-extractor={}'.format(feat_extractor))
     return feat_extractor
 
 
-def init_xvector(num_classes, **kwargs):
+def init_xvector(num_classes, rank, **kwargs):
     xvec_args = XVec.filter_args(**kwargs)
-    logging.info('xvector network args={}'.format(xvec_args))
+    if rank == 0:
+        logging.info('xvector network args={}'.format(xvec_args))
     xvec_args['num_classes'] = num_classes
     model = XVec(**xvec_args)
-    logging.info('x-vector-model={}'.format(model))
+    if rank == 0:
+        logging.info('x-vector-model={}'.format(model))
     return model
 
 
-def init_opt(model, **kwargs):
+def init_opt(model, rank, **kwargs):
     opt_args = OF.filter_args(**kwargs['opt'])
     lrsch_args = LRSF.filter_args(**kwargs['lrsch'])
-    logging.info('optimizer args={}'.format(opt_args))
-    logging.info('lr scheduler args={}'.format(lrsch_args))
+    if rank == 0:
+        logging.info('optimizer args={}'.format(opt_args))
+        logging.info('lr scheduler args={}'.format(lrsch_args))
     optimizer = OF.create(model.parameters(), **opt_args)
     lr_sch = LRSF.create(optimizer, **lrsch_args)
     return optimizer, lr_sch
 
 
-def train_xvec(audio_path, train_list, val_list, 
-               train_aug_cfg, val_aug_cfg,
-               num_gpus, resume, num_workers, **kwargs):
+def train_xvec(gpu_id, args):
+        
+    config_logger(args.verbose)
+    del args.verbose
+    logging.debug(args)
 
-    device = init_device(num_gpus)
-    train_loader, test_loader = init_data(
-        audio_path, train_list, val_list, 
-        train_aug_cfg, val_aug_cfg, num_workers, num_gpus, **kwargs)
+    kwargs = namespace_to_dict(args)
+    torch.manual_seed(args.seed)
+    set_float_cpu('float32')
 
+    ddp_args = ddp.filter_ddp_args(**kwargs)
+    device, rank, world_size = ddp.ddp_init(gpu_id, **ddp_args)
+    use_gpu = ddp_args['num_gpus'] > 0
+    kwargs['use_gpu'] = use_gpu
+    kwargs['rank'] = rank
+    # train_loader, test_loader = init_data(
+    #     args.audio_path, args.train_list, args.val_list, 
+    #     args.train_aug_cfg, args.val_aug_cfg, args.num_workers, 
+    #     use_gpu, **kwargs)
+
+    train_loader, test_loader = init_data(**kwargs)
     feat_extractor = init_feats(**kwargs)
     model = init_xvector(train_loader.dataset.num_classes, **kwargs)
 
     optimizer, lr_sch = init_opt(model, **kwargs)
 
     trn_args = Trainer.filter_args(**kwargs)
-    logging.info('trainer args={}'.format(trn_args))
+
+    if rank == 0:
+        logging.info('trainer args={}'.format(trn_args))
     metrics = { 'acc': CategoricalAccuracy() }
     trainer = Trainer(model, feat_extractor, optimizer, 
                       device=device, metrics=metrics, lr_scheduler=lr_sch,
-                      data_parallel=(num_gpus>1), **trn_args)
-    if resume:
+                      ddp=world_size>1, **trn_args)
+    if args.resume:
         trainer.load_last_checkpoint()
     trainer.fit(train_loader, test_loader)
+
+    ddp.ddp_cleanup()
 
 
 
@@ -180,8 +223,7 @@ if __name__ == '__main__':
     LRSF.add_class_args(parser, prefix='lrsch')
     Trainer.add_class_args(parser)
 
-    parser.add_argument('--num-gpus', type=int, default=1,
-                        help='number of gpus, if 0 it uses cpu')
+    ddp.add_ddp_args(parser)
     parser.add_argument('--seed', type=int, default=1123581321, 
                         help='random seed')
     parser.add_argument('--resume', action='store_true', default=False,
@@ -189,13 +231,15 @@ if __name__ == '__main__':
     parser.add_argument('-v', '--verbose', dest='verbose', default=1, 
                         choices=[0, 1, 2, 3], type=int)
 
+    parser.add_argument('--local_rank', default=0, type=int)
+
     args = parser.parse_args()
-    config_logger(args.verbose)
-    del args.verbose
-    logging.debug(args)
 
-    torch.manual_seed(args.seed)
-    del args.seed
-
-    train_xvec(**namespace_to_dict(args))
+    #device = init_device(args.num_gpus)
+    
+    
+    #mp.spawn(train_xvec, nprocs=args.num_gpus, args=(args,))
+    gpu_id = args.local_rank
+    del args.local_rank
+    train_xvec(gpu_id, args)
 

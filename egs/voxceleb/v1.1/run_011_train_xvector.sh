@@ -12,7 +12,7 @@ ngpu=4
 config_file=default_config.sh
 resume=false
 interactive=false
-num_workers=8
+num_workers=2
 
 . parse_options.sh || exit 1;
 . $config_file
@@ -50,7 +50,7 @@ if [ $stage -le 1 ]; then
 
     mkdir -p $nnet_dir/log
     $cuda_cmd --gpu $ngpu $nnet_dir/log/train.log \
-	hyp_utils/torch.sh --num-gpus $ngpu \
+	hyp_utils/conda_env.sh --conda-env $TORCH --num-gpus $ngpu \
 	$train_exec  --feats $feat_config $aug_opt \
 	--audio-path $list_dir/wav.scp \
 	--time-durs-file $list_dir/utt2dur \

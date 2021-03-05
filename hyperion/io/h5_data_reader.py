@@ -9,7 +9,7 @@ import sys
 import time
 import numpy as np
 import h5py
-import threading
+import multiprocessing
 
 from ..hyp_defs import float_cpu
 from ..utils.list_utils import split_list, split_list_group_by_key
@@ -505,7 +505,7 @@ class RandomAccessH5FileDataReader(RandomAccessH5DataReader):
     
     def __init__(self, file_path, **kwargs):
         super().__init__(file_path, **kwargs)
-        self.lock = threading.Lock()
+        self.lock = multiprocessing.Lock()
         self._open_archive(file_path)
 
 
@@ -653,7 +653,7 @@ class RandomAccessH5ScriptDataReader(RandomAccessH5DataReader):
         self.archives = archives
         self.archive_idx = archive_idx
         self.f = [None] * len(self.archives)
-        self.locks = [ threading.Lock() for i in range(len(self.archives)) ]
+        self.locks = [ multiprocessing.Lock() for i in range(len(self.archives)) ]
         
 
         

@@ -9,6 +9,6 @@ import torch.nn as nn
 class TorchDataParallel(nn.DataParallel):
     def __getattr__(self, name):
         try:
-            return super(TorchDataParallel, self).__getattr__(name)
+            return super().__getattr__(name)
         except AttributeError:
             return getattr(self.module, name)

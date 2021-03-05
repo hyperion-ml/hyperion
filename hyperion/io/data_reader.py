@@ -6,7 +6,7 @@
 import logging
 from abc import ABCMeta, abstractmethod
 import numpy as np
-import threading
+import multiprocessing
 
 from ..hyp_defs import float_cpu
 from ..utils.scp_list import SCPList
@@ -179,7 +179,7 @@ class SequentialDataReader(DataReader):
     def __init__(self, file_path, transform=None, permissive=False,
                  part_idx=1, num_parts=1, split_by_key=False):
         super().__init__(file_path, transform, permissive)
-        self.lock = threading.Lock()
+        self.lock = multiprocessing.Lock()
         self.part_idx = part_idx
         self.num_parts = num_parts
         self.split_by_key = split_by_key
