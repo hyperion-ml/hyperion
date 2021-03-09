@@ -44,11 +44,11 @@ fi
 sign_nnet_dir=exp/sign_nnets/$nnet_name/exp_attack_snr_v1
 sign_dir=exp/signatures/$nnet_name/exp_attack_snr_v1
 logits_dir=exp/logits/$nnet_name/exp_attack_snr_v1
-nnet_num_epochs=7
-embed_dim=6
+nnet_num_epochs=20
 embed_dim=10
-sign_nnet=$sign_nnet_dir/model_ep0007.pth
-margin=0
+sign_nnet=$sign_nnet_dir/model_ep0020.pth
+margin=0.2
+margin_warmup=6
 aug_opt="--train-aug-cfg conf/reverb_noise_aug.yml"
 aug_opt=""
 lr=0.05
@@ -56,7 +56,8 @@ lr=0.01
 opt_opt="--opt-optimizer adam --opt-lr $lr --opt-beta1 0.9 --opt-beta2 0.95 --opt-weight-decay 1e-5 --opt-amsgrad --use-amp"
 lrs_opt="--lrsch-lrsch-type exp_lr --lrsch-decay-rate 0.5 --lrsch-decay-steps 8000 --lrsch-hold-steps 40000 --lrsch-min-lr 1e-5 --lrsch-warmup-steps 1000 --lrsch-update-lr-on-opt-step"
 lrs_opt="--lrsch-lrsch-type exp_lr --lrsch-decay-rate 0.5 --lrsch-decay-steps 2000 --lrsch-hold-steps 4000 --lrsch-min-lr 1e-5 --lrsch-warmup-steps 1000 --lrsch-update-lr-on-opt-step"
-
+lrs_opt="--lrsch-lrsch-type exp_lr --lrsch-decay-rate 0.5 --lrsch-decay-steps 4000 --lrsch-hold-steps 8000 --lrsch-min-lr 1e-5 --lrsch-warmup-steps 1000 --lrsch-update-lr-on-opt-step"
+lrs_opt="--lrsch-lrsch-type exp_lr --lrsch-decay-rate 0.5 --lrsch-decay-steps 8000 --lrsch-hold-steps 16000 --lrsch-min-lr 1e-5 --lrsch-warmup-steps 1000 --lrsch-update-lr-on-opt-step"
 
 # Network Training
 if [ $stage -le 1 ]; then
@@ -111,16 +112,34 @@ if [ $stage -le 2 ]; then
 fi
 
 proj_dir=$sign_dir/test/tsne
-if [ $stage -le 3 ];then
-    $train_cmd $proj_dir/train.log \
-        steps_proj/proj-attack-tsne.py \
-        --train-v-file scp:$sign_dir/test/xvector.scp \
-        --train-list $list_dir/test_utt2attack \
-        --pca-var-r 0.99 \
-	--prob-plot 0.3 \
-        --output-path $proj_dir
+# if [ $stage -le 3 ];then
+#     $train_cmd $proj_dir/train.log \
+#         steps_proj/proj-attack-tsne.py \
+#         --train-v-file scp:$sign_dir/test/xvector.scp \
+#         --train-list $list_dir/test_utt2attack \
+#         --pca-var-r 0.99 \
+# 	--prob-plot 0.3 \
+#         --output-path $proj_dir
         
+# fi
+if [ $stage -le 3 ];then
+    for p in 30 100 250
+    do
+	for e in 12 64
+	do
+	    proj_dir_i=$proj_dir/p${p}_e${e}
+	    $train_cmd $proj_dir_i/train.log \
+		steps_proj/proj-attack-tsne.py \
+		--train-v-file scp:$sign_dir/test/xvector.scp \
+		--train-list $list_dir/test_utt2attack \
+		--pca-var-r 0.99 \
+		--prob-plot 0.3 --lnorm --tsne-metric cosine --tsne-early-exaggeration $e --tsne-perplexity $p --tsne-init pca \
+		--output-path $proj_dir_i &
+	done
+    done
+    wait
 fi
+exit
 
 if [ $stage -le 4 ]; then
     # Eval attack logits

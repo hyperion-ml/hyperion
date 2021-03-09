@@ -38,10 +38,13 @@ def eval_classif_perf(score_file, key_file, class_file, output_path=None, **kwar
 
     utts = Utt2Info.load(key_file)
     classes, class2ids = read_class_file(class_file)
-    y_true = [class2ids[c] for c in utts.info]
+    mask = [True if c in class2ids else False for c in utts.info ]
+    info = utts.info[mask]
+    key = utts.key[mask]
+    y_true = [class2ids[c] for c in info]
 
     reader = DRF.create(score_file)
-    y = reader.read(utts.key, squeeze=True)
+    y = reader.read(key, squeeze=True)
     del reader
 
     y_pred = np.argmax(y, axis=1)

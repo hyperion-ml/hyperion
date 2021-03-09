@@ -207,7 +207,7 @@ def generate_attacks(wav_file, list_file, vad_spec, vad_path_prefix,
         if pred[0] != class_id:
             key_attack = '%s-%s' % (key, attack_tag)
             logging.info(
-                'utt %s attack sucessful' % (key))
+                'utt %s attack successful' % (key))
 
             stats_ij = compute_stats_adv_attack(s, s_adv)
             stats_ij = [float(stat.detach().cpu().numpy()[0]) for stat in stats_ij]

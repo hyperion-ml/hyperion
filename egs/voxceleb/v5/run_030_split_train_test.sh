@@ -59,3 +59,10 @@ if [ $stage -le 4 ];then
 	--output-dir data/exp_attack_snr_v1
 fi
 
+if [ $stage -le 5 ];then
+    local/make_train_test_lists_exp_attack_threat_model_v1.py \
+	--input-dir $attack_dir/pool_v1 \
+	--benign-wav-file data/voxceleb2cat_proc_audio_no_sil/wav.scp \
+	--benign-durs data/voxceleb2cat_proc_audio_no_sil/utt2dur \
+	--output-dir data/exp_attack_threat_model_v1
+fi

@@ -122,6 +122,7 @@ class RandomAttackFactory(object):
         attack_args['range_min'] = self.range_min
         attack_args['range_max'] = self.range_max
         attack_args['eps_scale'] = self.eps_scale
+        attack_args['loss'] = self.loss
         
         return attack_args
 

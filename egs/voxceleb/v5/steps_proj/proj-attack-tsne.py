@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 from hyperion.hyp_defs import config_logger
 from hyperion.utils import Utt2Info
 from hyperion.io import RandomAccessDataReaderFactory as DRF
-from hyperion.transforms import PCA, SklTSNE
+from hyperion.transforms import PCA, SklTSNE, LNorm
 
 colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
 markers = ['x', 'o', '+', '*', 's', 'h', 'D', '^', 'v', 'p', '8']
@@ -27,7 +27,7 @@ markers = ['x', 'o', '+', '*', 's', 'h', 'D', '^', 'v', 'p', '8']
 color_marker = [(c,m) for m in markers for c in colors] 
 
 def proj_attack_tsne(train_v_file, train_list, 
-                     pca_var_r, prob_plot, title, output_path, **kwargs):
+                     pca_var_r, prob_plot, lnorm, title, output_path, **kwargs):
 
     train_utts = Utt2Info.load(train_list)
 
@@ -35,11 +35,16 @@ def proj_attack_tsne(train_v_file, train_list,
     x_trn = train_reader.read(train_utts.key, squeeze=True)
     del train_reader
 
-    pca = PCA(pca_var_r=pca_var_r)
-    
-    pca.fit(x_trn)
-    x_pca = pca.predict(x_trn)
-    logging.info('pca-dim={}'.format(x_pca.shape[1]))
+    if lnorm:
+        x_trn = LNorm().predict(x_trn)
+
+    if pca_var_r < 1:
+        pca = PCA(pca_var_r=pca_var_r)
+        pca.fit(x_trn)
+        x_pca = pca.predict(x_trn)
+        logging.info('pca-dim={}'.format(x_pca.shape[1]))
+    else:
+        x_pca = x_trn
 
     tsne_args = SklTSNE.filter_args(prefix='tsne', **kwargs)
     tsne = SklTSNE(**tsne_args)
@@ -76,6 +81,7 @@ if __name__ == "__main__":
 
     parser.add_argument('--pca-var-r', default=0.95, type=float)
     parser.add_argument('--prob-plot', default=0.1, type=float)
+    parser.add_argument('--lnorm', default=False, action='store_true')
     parser.add_argument('--title', default='')
     SklTSNE.add_argparse_args(parser, prefix='tsne')
     

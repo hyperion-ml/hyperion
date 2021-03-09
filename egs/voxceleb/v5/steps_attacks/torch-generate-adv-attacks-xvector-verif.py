@@ -8,9 +8,11 @@ import os
 import argparse
 import time
 import logging
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import yaml
 
 import torch
 import torch.nn as nn
@@ -30,7 +32,7 @@ from hyperion.torch.layers import AudioFeatsFactory as AFF
 from hyperion.torch.layers import MeanVarianceNorm as MVN
 from hyperion.torch.utils.misc import l2_norm, compute_stats_adv_attack
 
-from hyperion.torch.adv_attacks import AttackFactory
+from hyperion.torch.adv_attacks import RandomAttackFactory
 
 def read_data(v_file, key_file, enroll_file, seg_part_idx, num_seg_parts):
 
@@ -78,10 +80,9 @@ class MyModel(nn.Module):
 
 
     def forward(self, s_t):
-        # print('sigma0=', self.sigma)
         if self.sigma > 0:
             s_t = s_t + self.sigma*torch.randn_like(s_t)
-            # print('sigma1=', self.sigma)
+
         f_t = self.feat_extractor(s_t)
         if self.mvn is not None:
             f_t = self.mvn(f_t)
@@ -107,31 +108,18 @@ class MyModel(nn.Module):
         return score
 
 
-def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
-                        mvn_no_norm_mean, mvn_norm_var, mvn_context,
-                        vad_spec, vad_path_prefix, model_path, embed_layer,
-                        score_file, stats_file, cal_file, threshold, smooth_sigma,
-                        save_adv_wav, save_adv_wav_path,
-                        use_gpu, seg_part_idx, num_seg_parts, 
-                        **kwargs):
 
-    num_gpus = 1 if use_gpu else 0
-    logging.info('initializing devices num_gpus={}'.format(num_gpus))
-    device = open_device(num_gpus=num_gpus)
 
+def init_model(model_path, embed_layer, cal_file, threshold, **kwargs):
     feat_args = AFF.filter_args(prefix='feats', **kwargs)
     logging.info('initializing feature extractor args={}'.format(feat_args))
     feat_extractor = AFF.create(**feat_args)
 
-    do_mvn = False
-    if not mvn_no_norm_mean or mvn_norm_var:
-        do_mvn = True
-
-    if do_mvn:
-        logging.info('initializing short-time mvn')
-        mvn = MVN(
-            norm_mean=(not mvn_no_norm_mean), norm_var=mvn_norm_var,
-            left_context=mvn_context, right_context=mvn_context)
+    mvn_args = MVN.filter_args(prefix='mvn', **kwargs)
+    mvn = None
+    if mvn_args['norm_mean'] or mvn_args['norm_var']:
+        logging.info('initializing short-time mvn args={}'.format(mvn_args))
+        mvn = MVN(**mvn_args)
 
     logging.info('loading model {}'.format(model_path))
     xvector_model = TML.load(model_path)
@@ -144,8 +132,53 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
         #subting the threshold here will put the decision threshold in 0
         #some attacks use thr=0 to decide if the attack is succesful
         calibrator = Calibrator(lr.A[0,0], lr.b[0]-threshold) 
-        calibrator.to(device)
 
+    model = MyModel(feat_extractor, xvector_model, mvn, embed_layer, 
+                    calibrator)
+    model.eval()
+    return model
+
+
+def init_attack_factory(wav_scale=1, **kwargs):
+    attacks_args = RandomAttackFactory.filter_args(prefix='attacks', **kwargs)
+    extra_args = {'eps_scale': wav_scale,
+                  'range_min': -wav_scale,
+                  'range_max': wav_scale,
+                  'loss': nn.functional.binary_cross_entropy_with_logits,
+                  'time_dim': 1}
+    attacks_args.update(extra_args)
+
+    logging.info('attacks args={}'.format(attacks_args))
+    attack_factory = RandomAttackFactory(**attacks_args)
+    return attack_factory
+
+
+def skip_attack(is_target, p_tar_attack, p_non_attack):
+    p = torch.rand(1).item()
+    if is_target:
+        if p > p_tar_attack:
+            return True
+    else:
+        if p > p_non_attack:
+            return True
+
+    return False
+
+
+def generate_attacks(
+        v_file, key_file, enroll_file, test_wav_file, 
+        vad_spec, vad_path_prefix, 
+        model_path, embed_layer, cal_file, threshold,
+        output_wav_dir, attack_info_file, attack_tag,
+        use_gpu, seg_part_idx, num_seg_parts, random_seed, 
+        p_tar_attack, p_non_attack, **kwargs):
+
+    num_gpus = 1 if use_gpu else 0
+    logging.info('initializing devices num_gpus={}'.format(num_gpus))
+    device = open_device(num_gpus=num_gpus)
+
+    model = init_model(model_path, embed_layer, cal_file, threshold, **kwargs)
+    model.to(device)
 
     tar = torch.as_tensor([1], dtype=torch.float).to(device)
     non = torch.as_tensor([0], dtype=torch.float).to(device)
@@ -154,45 +187,29 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
     key, x_e = read_data(v_file, key_file, enroll_file, seg_part_idx, num_seg_parts)
     x_e = torch.as_tensor(x_e, dtype=torch.get_default_dtype())
 
+    logging.info('opening audio read stream: %s' % (test_wav_file))
     audio_args = AR.filter_args(**kwargs)
-    audio_reader = AR(test_wav_file, **audio_args)
+    audio_reader = AR(test_wav_file)
     wav_scale = audio_reader.scale
 
-    if save_adv_wav:
-        tar_audio_writer = AW(save_adv_wav_path + '/tar2non')
-        non_audio_writer = AW(save_adv_wav_path + '/non2tar')
+    logging.info('opening audio write stream: %s' % (output_wav_dir))
+    audio_writer = AW(output_wav_dir, audio_format='flac')
 
-    smooth_sigma *= wav_scale
-    model = MyModel(feat_extractor, xvector_model, mvn, embed_layer, 
-                    calibrator, smooth_sigma)
-    model.to(device)
-    model.eval()
-
-    attack_args = AttackFactory.filter_args(prefix='attack', **kwargs)
-    extra_args = {'eps_scale': wav_scale,
-                  'range_min': -wav_scale,
-                  'range_max': wav_scale,
-                  'loss': nn.functional.binary_cross_entropy_with_logits,
-                  'time_dim': 1}
-    attack_args.update(extra_args)
-    logging.info('attacks args={}'.format(attack_args))
-    attack = AttackFactory.create(model, **attack_args)
     if vad_spec is not None:
         logging.info('opening VAD stream: %s' % (vad_spec))
         v_reader = VRF.create(
             vad_spec, path_prefix=vad_path_prefix, scp_sep=' ')
 
-    scores = np.zeros((key.num_models, key.num_tests), dtype='float32')
-    attack_stats = pd.DataFrame(
-        columns=['modelid','segmentid', 'snr', 'px', 'pn', 'x_l2', 'x_linf', 
-                 'n_l0', 'n_l2', 'n_linf', 'num_frames'])
+    attack_factory = init_attack_factory(**kwargs)
+    attacks_info = {}
+
     for j in range(key.num_tests):
         t1 = time.time()
         logging.info('scoring test utt %s' % (key.seg_set[j]))
         s, fs = audio_reader.read([key.seg_set[j]])
         s = s[0]
         fs = fs[0]
-
+        torch.manual_seed(random_seed+int(s[0])) #this is to make results reproducible
         s = torch.as_tensor(s[None,:], dtype=torch.get_default_dtype()).to(device)
         
         if vad_spec is not None:
@@ -211,65 +228,93 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
         trial_time = 0
         num_trials = 0
         for i in range(key.num_models):
+            trial_id='%s-%s' % (key.model_set[i], key.seg_set[j])
             if key.tar[i,j] or key.non[i,j]:
                 t3 = time.time()
-                model.x_e = x_e[i].to(device)
-                if key.tar[i,j]:
-                    if attack.targeted:
-                        t = non
-                    else:
-                        t = tar
-                else:
-                    if attack.targeted:
-                        t = tar
-                    else:
-                        t = non
+                if skip_attack(key.tar[i,j], p_tar_attack, p_non_attack):
+                    logging.info('skipping attack for tar trial %s' % (trial_id))
+                    continue
 
-                s_adv = attack.generate(s, t)
+                model.x_e = x_e[i].to(device)
+                with torch.no_grad():
+                    score_benign = model(s) 
+
+                if key.tar[i,j] and score_benign < 0:
+                    logging.info(
+                        'target trial %s failed benign classification, skipping...' % (trial_id))
+                    continue
+                elif key.non[i,j] and score_benign > 0:
+                    logging.info(
+                        'non-target trial %s failed benign classification, skipping...' % (trial_id))
+                    continue
+
+                attack = attack_factory.sample_attack(model)
+                if key.tar[i,j]:
+                    t = non if attack.targeted else tar
+                else:
+                    t = tar if attack.targeted else non
+
+                attack_info = attack.attack_info
+                s_adv = attack.generate(s, t).detach()
                 with torch.no_grad():
                     # we add the threshold back here to make sure the scores are well calibrated
-                    scores[i,j] = model(s_adv) + threshold 
+                    score_adv = model(s_adv)
 
                 t4 = time.time()
                 trial_time += (t4 - t3)
                 num_trials += 1
 
-                s_adv = s_adv.detach()
-                stats_ij = compute_stats_adv_attack(s, s_adv)
-                stats_ij = [stat.detach().cpu().numpy()[0] for stat in stats_ij]
-                attack_stats = attack_stats.append({
-                    'modelid': key.model_set[i], 'segmentid': key.seg_set[j],
-                    'snr': stats_ij[0], 'px': stats_ij[1], 'pn': stats_ij[2],
-                    'x_l2': stats_ij[3], 'x_linf': stats_ij[4],
-                    'n_l0': stats_ij[5], 'n_l2': stats_ij[6], 'n_linf': stats_ij[7],
-                    'num_frames': s.shape[-1]}, ignore_index=True)
+                if key.tar[i,j] and score_adv > 0:
+                    logging.info(
+                        'attack on target trial %s failed, skipping...' % (trial_id))
+                    continue
+                elif key.non[i,j] and score_adv < 0:
+                    logging.info(
+                        'attack on non-target trial %s failed benign classification, skipping...' % (trial_id))
+                    continue
                 
-                #logging.info('min-max %f %f %f %f' % (torch.min(s), torch.max(s), torch.min(s_adv-s), torch.max(s_adv-s)))
-                if save_adv_wav:
-                    s_adv = s_adv.cpu().numpy()[0]
-                    trial_name = '%s-%s' % (key.model_set[i], key.seg_set[j])
-                    if key.tar[i,j] and scores[i,j] < threshold:
-                        tar_audio_writer.write(trial_name, s_adv, fs)
-                    elif key.non[i,j] and scores[i,j] > threshold:
-                        non_audio_writer.write(trial_name, s_adv, fs)
+                logging.info(
+                        'attack on trial %s successful' % (trial_id))
+                
+                stats_ij = compute_stats_adv_attack(s, s_adv)
+                stats_ij = [float(stat.detach().cpu().numpy()[0]) for stat in stats_ij]
+                
+                s_adv = s_adv.cpu().numpy()[0]
+                key_attack='%s-%s' % (trial_id, attack_tag)
+                output_wav = audio_writer.write(key_attack, s_adv, fs)
 
-        trial_time /= num_trials
-        t7 = time.time()
-        logging.info((
-            'utt %s total-time=%.3f read-time=%.3f trial-time=%.3f n_trials=%d '
-            'rt-factor=%.4f') % (
-                key.seg_set[j], t7-t1, t2-t1, trial_time, num_trials,
-                num_trials*len(s)/fs/(t7-t1)))
-        
-    if num_seg_parts > 1:
-        score_file = '%s-%03d-%03d' % (score_file, 1, seg_part_idx)
-        stats_file = '%s-%03d-%03d' % (stats_file, 1, seg_part_idx)
-    logging.info('saving scores to %s' % (score_file))
-    s = TrialScores(key.model_set, key.seg_set, scores, score_mask=np.logical_or(key.tar,key.non))
-    s.save_txt(score_file)
+                attack_info.update({ 
+                    'attack_tag': attack_tag,
+                    'wav_path': output_wav[0],
+                    'class_name': 'target' if key.tar[i,j] else 'non-target',
+                    'class_id': int(key.tar[i,j]),
+                    'benign_key': trial_id,
+                    'enroll': str(key.model_set[i]),
+                    'benign_test': str(key.seg_set[j]),
+                    'snr': stats_ij[0], 
+                    'px': stats_ij[1], 'pn': stats_ij[2],
+                    'x_l2': stats_ij[3], 'x_linf': stats_ij[4],
+                    'n_l0': stats_ij[5], 
+                    'n_l2': stats_ij[6], 'n_linf': stats_ij[7],
+                    'num_frames': s.shape[-1]})
+                attacks_info[key_attack] = attack_info
 
-    logging.info('saving stats to %s' % (stats_file))
-    attack_stats.to_csv(stats_file)
+        if num_trials > 0:
+            trial_time /= num_trials
+            t7 = time.time()
+            logging.info((
+                'utt %s total-time=%.3f read-time=%.3f trial-time=%.3f n_trials=%d '
+                'rt-factor=%.4f') % (
+                    key.seg_set[j], t7-t1, t2-t1, trial_time, num_trials,
+                    num_trials*len(s)/fs/(t7-t1)))
+
+    logging.info('saving attack info to %s' % (attack_info_file)) 
+    Path(attack_info_file).parent.mkdir(parents=True, exist_ok=True)
+    
+    with open(attack_info_file, 'w') as f:
+        #only save if we have successful attacks
+        if attacks_info:
+            yaml.dump(attacks_info, f, sort_keys=True)
 
 
 if __name__ == "__main__":
@@ -277,12 +322,13 @@ if __name__ == "__main__":
     parser=argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,                
         fromfile_prefix_chars='@',
-        description='Eval cosine-scoring given enroll x-vector and test wave')
+        description='Generate Attacks for speaker verification with x-vectors+cos+calibration')
 
     parser.add_argument('--v-file', required=True)
     parser.add_argument('--key-file', default=None)
     parser.add_argument('--enroll-file', required=True)
     parser.add_argument('--test-wav-file', required=True)
+    parser.add_argument('--attack-tag', required=True)
 
     AR.add_argparse_args(parser)
     AFF.add_argparse_args(parser, prefix='feats')
@@ -300,7 +346,10 @@ if __name__ == "__main__":
     parser.add_argument('--use-gpu', default=False, action='store_true',
                         help='extract xvectors in gpu')
 
-    AttackFactory.add_argparse_args(parser, prefix='attack')
+    parser.add_argument('--cal-file', default=None, help='score calibration file')
+    parser.add_argument('--threshold', default=0, type=float, help='decision threshold')
+
+    RandomAttackFactory.add_argparse_args(parser, prefix='attacks')
 
     parser.add_argument('--seg-part-idx', default=1, type=int,
                         help=('test part index'))
@@ -308,34 +357,24 @@ if __name__ == "__main__":
                         help=('number of parts in which we divide the test list '
                               'to run evaluation in parallel'))
 
-    parser.add_argument('--score-file', dest='score_file', required=True)
+    parser.add_argument('--output-wav-dir', default=None, 
+                        help='output path of adv signals')
+    parser.add_argument('--attack-info-file', default=None, 
+                        help='output path of to save information about the generated attacks')
+    parser.add_argument('--random-seed', default=1234, type=int, 
+                        help='random seed for pytorch')
+
+    parser.add_argument('--p-tar-attack', type=float, default=1, 
+                        help=('probability of generating an attack for a target trial'))
+    parser.add_argument('--p-non-attack', type=float, default=1, 
+                        help=('probability of generating an attack for a non-target trial'))
+
     parser.add_argument('-v', '--verbose', dest='verbose', default=1,
                         choices=[0, 1, 2, 3], type=int)
 
-    parser.add_argument('--save-adv-wav', 
-                        default=False, action='store_true',
-                        help='save adversarial signals to disk')
-    parser.add_argument('--save-adv-wav-path', default=None, 
-                        help='output path of adv signals')
-
-    # parser.add_argument('--save-adv-wav-tar-thr', 
-    #                     default=0.75, type=float,
-    #                     help='min score to save signal from attack that makes non-tar into tar')
-
-    # parser.add_argument('--save-adv-wav-non-thr', 
-    #                     default=-0.75, type=float,
-    #                     help='max score to save signal from attack that makes tar into non-tar')
-
-    parser.add_argument('--stats-file', default=None, 
-                        help='output path of to save stats of adv signals')
-
-    parser.add_argument('--cal-file', default=None, help='score calibration file')
-    parser.add_argument('--threshold', default=0, type=float, help='decision threshold')
-    parser.add_argument('--smooth-sigma', default=0, type=float, help='sigma for smoothing')
-    
     args=parser.parse_args()
     config_logger(args.verbose)
     del args.verbose
     logging.debug(args)
 
-    eval_cosine_scoring(**vars(args))
+    generate_attacks(**vars(args))

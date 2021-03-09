@@ -30,7 +30,7 @@ fi
 batch_size=$(($batch_size_1gpu*$ngpu))
 grad_acc_steps=$(echo $batch_size $eff_batch_size | awk '{ print int($2/$1+0.5)}')
 log_interval=$(echo 100*$grad_acc_steps | bc)
-list_dir=data/exp_attack_type_v1
+list_dir=data/exp_attack_threat_model_v1
 
 args=""
 if [ "$resume" == "true" ];then
@@ -41,11 +41,12 @@ if [ "$interactive" == "true" ];then
     export cuda_cmd=run.pl
 fi
 
-sign_nnet_dir=exp/sign_nnets/$nnet_name/exp_attack_type_v1
-sign_dir=exp/signatures/$nnet_name/exp_attack_type_v1
-logits_dir=exp/logits/$nnet_name/exp_attack_type_v1
+sign_nnet_dir=exp/sign_nnets/$nnet_name/exp_attack_threat_model_v1
+sign_dir=exp/signatures/$nnet_name/exp_attack_threat_model_v1
+logits_dir=exp/logits/$nnet_name/exp_attack_threat_model_v1
 nnet_num_epochs=20
 sign_nnet=$sign_nnet_dir/model_ep0020.pth
+margin=0
 margin=0.2
 margin_warmup=6
 aug_opt="--train-aug-cfg conf/reverb_noise_aug.yml"
@@ -140,6 +141,8 @@ if [ $stage -le 3 ];then
     done
     wait
 fi
+exit
+
 
 if [ $stage -le 4 ]; then
     # Eval attack logits
