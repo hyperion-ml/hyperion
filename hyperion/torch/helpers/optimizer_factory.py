@@ -3,6 +3,9 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 from jsonargparse import ArgumentParser, ActionParser
+import logging
+
+from ...utils.misc import filter_args
 
 import torch
 import torch.optim as optim
@@ -16,57 +19,111 @@ class OptimizerFactory(object):
                amsgrad=False, nesterov=False,
                lambd=0.0001, asgd_alpha=0.75, t0=1000000.0,
                rmsprop_alpha=0.99, centered=False,
-               lr_decay=0, init_acc_val=0, max_iter=20):
+               lr_decay=0, init_acc_val=0, max_iter=20, oss=False):
 
+        kwargs = locals()
+        base_opt = None
         if opt_type == 'sgd':
-            return optim.SGD(params, lr, momentum=momentum, dampening=0,
-                             weight_decay=weight_decay, nesterov=nesterov)
+            valid_args = ('lr', 'momentum', 'weight_decay', 'nesterov')
+            opt_args = filter_args(valid_args, kwargs)
+            opt_args['dampening']=0
+            base_opt = optim.SGD
+            # return optim.SGD(params, lr, momentum=momentum, dampening=0,
+            #                  weight_decay=weight_decay, nesterov=nesterov)
 
         if opt_type == 'adam':
-            return optim.Adam(
-                params, lr, betas=(beta1, beta2), eps=eps,
-                weight_decay=weight_decay, amsgrad=amsgrad)
+            betas = (beta1, beta2)
+            valid_args = ('lr', 'eps', 'weight_decay', 'amsgrad')
+            opt_args = filter_args(valid_args, kwargs)
+            opt_args['betas'] = betas
+            base_opt = optim.Adam
+            # return optim.Adam(
+            #     params, lr, betas=(beta1, beta2), eps=eps,
+            #     weight_decay=weight_decay, amsgrad=amsgrad)
 
         if opt_type == 'radam':
-            return RAdam(
-                params, lr, betas=(beta1, beta2), eps=eps,
-                weight_decay=weight_decay)
+            betas = (beta1, beta2)
+            valid_args = ('lr', 'eps', 'weight_decay')
+            opt_args = filter_args(valid_args, kwargs)
+            opt_args['betas'] = betas
+            base_opt = optim.RAdam
+            # return RAdam(
+            #     params, lr, betas=(beta1, beta2), eps=eps,
+            #     weight_decay=weight_decay)
 
 
         if opt_type == 'adadelta':
-            return optim.Adadelta(params, lr, rho=rho, eps=eps,
-                                  weight_decay=weight_decay)
+            valid_args = ('lr', 'eps', 'weight_decay', 'rho')
+            opt_args = filter_args(valid_args, kwargs)
+            base_opt = optim.Adadelta
+            # return optim.Adadelta(params, lr, rho=rho, eps=eps,
+            #                       weight_decay=weight_decay)
 
         if opt_type == 'adagrad':
-            return optim.Adagrad(
-                params, lr, lr_decay=lr_decay,
-                weight_decay=weight_decay, initial_accumulator_value=init_acc_val)
+            valid_args = ('lr', 'lr_decay', 'weight_decay')
+            opt_args = filter_args(valid_args, kwargs)
+            opt_args['initial_accumulator_value'] = init_acc_val
+            base_opt = optim.Adagrad
+            # return optim.Adagrad(
+            #     params, lr, lr_decay=lr_decay,
+            #     weight_decay=weight_decay, initial_accumulator_value=init_acc_val)
 
         
         if opt_type == 'sparse_adam':
-            return optim.SparseAdam(params, lr, betas=(beta1, beta2), eps=eps)
+            betas = (beta1, beta2)
+            valid_args = ('lr', 'eps')
+            opt_args = filter_args(valid_args, kwargs)
+            opt_args['betas'] = betas
+            base_opt = optim.SparseAdam
+            # return optim.SparseAdam(params, lr, betas=(beta1, beta2), eps=eps)
 
         if opt_type == 'adamax':
-            return optim.Adamax(params, lr, betas=(beta1, beta2), eps=eps,
-                                weight_decay=weight_decay)
+            betas = (beta1, beta2)
+            valid_args = ('lr', 'eps', 'weight_decay')
+            opt_args = filter_args(valid_args, kwargs)
+            opt_args['betas'] = betas
+            base_opt = optim.Adamax
+            # return optim.Adamax(params, lr, betas=(beta1, beta2), eps=eps,
+            #                     weight_decay=weight_decay)
 
         if opt_type == 'asgd':
-            return optim.ASGD(params, lr, lambd=lambd, alpha=asgd_alpha, t0=t0,
-                              weight_decay=weight_decay)
+            valid_args = ('lr', 'lambd', 't0', 'weight_decay')
+            opt_args = filter_args(valid_args, kwargs)
+            opt_args['alpha'] = asgd_alpha
+            base_opt = optim.ASGD
+            # return optim.ASGD(params, lr, lambd=lambd, alpha=asgd_alpha, t0=t0,
+            #                   weight_decay=weight_decay)
 
         if opt_type == 'lbfgs':
-            return optim.LBFGS(
-                params, lr, max_iter=max_iter)
+            valid_args = ('lr', 'max_iter')
+            opt_args = filter_args(valid_args, kwargs)
+            base_opt = optim.LBFGS
+            # return optim.LBFGS(
+            #     params, lr, max_iter=max_iter)
 
         if opt_type == 'rmsprop':
-            return optim.RMSprop(
-                params, lr, alpha=rmsprop_alpha, eps=eps,
-                weight_decay=weight_decay, momentum=momentum, centered=centered)
+            valid_args = ('lr', 'eps', 'momentum', 'weight_decay', 'centered')
+            opt_args = filter_args(valid_args, kwargs)
+            opt_args['alpha'] = rmsprop_alpha
+            base_opt = optim.RMSprop
+            # return optim.RMSprop(
+            #     params, lr, alpha=rmsprop_alpha, eps=eps,
+            #     weight_decay=weight_decay, momentum=momentum, centered=centered)
 
         if opt_type == 'rprop':
-            return optim.Rprop(params, lr, etas=(0.5, 1.2), step_sizes=(1e-06, 50))
+            opts_args = {'lr': lr, 'etas': (0.5, 1.2), 'step_sizes': (1e-06, 50)}
+            base_opt = optim.Rprop
+            # return optim.Rprop(params, lr, etas=(0.5, 1.2), step_sizes=(1e-06, 50))
 
-        raise Exception('unknown optimizer %s' % opt_type)
+        if base_opt is None:
+            raise Exception('unknown optimizer %s' % opt_type)
+
+        if oss:
+            from fairscale.optim.oss import OSS
+            logging.info('Optimizer uses OSS')
+            return OSS(params, base_opt, **opt_args)
+        
+        return base_opt(params, **opt_args)
 
 
     @staticmethod
@@ -74,11 +131,9 @@ class OptimizerFactory(object):
         valid_args = ('opt_type', 'lr', 'momentum', 'beta1', 'beta2',
                       'rho', 'eps', 'weight_decay', 'amsgrad', 'nesterov', 
                       'lambd','asgd_alpha','t0','rmsprop_alpha',
-                      'centered','lr_decay','init_acc_val','max_iter')
+                      'centered','lr_decay','init_acc_val','max_iter', 'oss')
 
-        return dict((k, kwargs[k])
-                    for k in valid_args if k in kwargs)
-    
+        return filter_args(valid_args, kwargs)
 
         
     @staticmethod

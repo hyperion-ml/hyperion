@@ -6,6 +6,7 @@
 import os
 import contextlib
 from collections import OrderedDict as ODict
+from enum import Enum
 
 import logging
 
@@ -15,16 +16,25 @@ import torch.cuda.amp as amp
 from torch.optim.swa_utils import AveragedModel, SWALR
 import torch.distributed as dist
 
-from ..utils import MetricAcc, TorchDDP
+from fairscale.optim.grad_scaler import ShardedGradScaler
+
+from ..utils import MetricAcc, TorchDDP, FairShardedDDP, FairFullyShardedDDP
 from ..loggers import LoggerList, CSVLogger, ProgLogger
 
+
+class DDPType(str, Enum):
+    DDP = 'ddp'
+    OSS_DDP = 'oss_ddp'
+    OSS_SHARDED_DDP = 'oss_sharded_ddp'
+
+ddp_choices = [o.value for o in DDPType]
 
 
 class TorchTrainer(object):
     """Base Trainer class to train basic neural network models
 
        Attributes:
-         model: x-Vector model object.
+         model: model object.
          optimizer: pytorch optimizer object
          loss: nn.Module loss class
          epochs: max. number of epochs
@@ -35,7 +45,8 @@ class TorchTrainer(object):
          metrics: extra metrics to compute besides cxe.
          lr_scheduler: learning rate scheduler object
          loggers: LoggerList object, loggers write training progress to std. output and file.
-         data_parallel: if True use nn.DataParallel
+         ddp: if True use distributed data parallel training
+         ddp_type: type of distributed data parallel in  (ddp, oss_ddp, oss_shared_ddp)
          train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
          use_amp: uses mixed precision training.
          log_interval: number of optim. steps between log outputs
@@ -47,7 +58,7 @@ class TorchTrainer(object):
     def __init__(self, model, optimizer, loss, epochs=100, exp_path='./train', 
                  cur_epoch=0, grad_acc_steps=1,
                  device=None, metrics=None, lr_scheduler=None, loggers=None, 
-                 ddp=False, 
+                 ddp=False, ddp_type='ddp',
                  train_mode='train', use_amp=False, log_interval=10, 
                  grad_clip=0, swa_start=0, swa_lr=1e-3, swa_anneal_epochs=10):
 
@@ -84,27 +95,43 @@ class TorchTrainer(object):
             if loss is not None:
                 self.loss.to(device)
 
-        if self.use_amp:
-            logging.info('using automatic mixed precision training')
-            self.grad_scaler = amp.GradScaler()
-            self.amp_autocast = amp.autocast
-        else:
-            self.amp_autocast = contextlib.nullcontext
-
         self.ddp = ddp
+        self.ddp_type = ddp_type
         self.rank = 0
         self.world_size = 1
         if ddp:
             self.rank = dist.get_rank()
             self.world_size = dist.get_world_size()
-            logging.info('training in multiple gpus with data-parallel')
+
             model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
-            self.model = TorchDDP(self.model, device_ids=[device], output_device=device)
+            if ddp_type == DDPType.OSS_SHARDED_DDP:
+                if self.rank == 0:
+                    logging.info('training in multiple gpus with fair sharded-distributed-data-parallel')
+                self.model = FairShardedDDP(self.model, self.optimizer)
+            else:
+                if self.rank == 0:
+                    logging.info('training in multiple gpus with distributed-data-parallel')
+                self.model = TorchDDP(self.model, device_ids=[device],
+                                      output_device=device)
             # if loss is not None:
             #     self.loss = TorchDDP(self.loss, device_ids=[device])
 
             #if self.use_amp:
             #    self.amp_args = {'use_amp': self.use_amp }
+
+        if self.use_amp:
+            if ddp and ddp_type != DDPType.DDP:
+                if self.rank == 0:
+                    logging.info('using automatic mixed precision training with sharded-grad-scaler')
+                self.grad_scaler = ShardedGradScaler()
+            else:
+                if self.rank == 0:
+                    logging.info('using automatic mixed precision training with grad-scaler')
+                self.grad_scaler = amp.GradScaler()
+            self.amp_autocast = amp.autocast
+        else:
+            self.amp_autocast = contextlib.nullcontext
+
 
         self.in_swa = False
         if self.do_swa:
@@ -329,6 +356,14 @@ class TorchTrainer(object):
         Args:
           logs: logs containing the current value of the metrics.
         """
+        if self.ddp and (self.ddp_type == DDPType.OSS_DDP or self.ddp_type == DDPType.OSS_SHARDED_DDP):
+            # Not sure what this does, just copying from the example in
+            # https://github.com/facebookresearch/fairscale/blob/master/benchmarks/oss.py
+            # Check the checkpointing in the case of the OSS optimizer
+            # Memory usage could spill over from there
+            # optimizer = cast(OSS, optimizer)
+            self.optimizer.consolidate_state_dict()
+
         if self.rank != 0:
             return 
         checkpoint = self.checkpoint(logs)
@@ -414,7 +449,7 @@ class TorchTrainer(object):
 
     @staticmethod
     def filter_args(**kwargs):
-        valid_args = ('grad_acc_steps', 'epochs', 'log_interval', 'use_amp', 
+        valid_args = ('grad_acc_steps', 'epochs', 'log_interval', 'use_amp', 'ddp_type',
                       'grad_clip', 'swa_start', 'swa_lr', 'swa_anneal_epochs', 'exp_path')
         args = dict((k, kwargs[k])
                     for k in valid_args if k in kwargs)
@@ -423,37 +458,44 @@ class TorchTrainer(object):
 
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
-        if prefix is None:
-            p1 = '--'
-        else:
-            p1 = '--' + prefix + '.'
+    def add_class_args(parser, prefix=None, skip=None):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog='')
 
         parser.add_argument(
-            p1+'grad-acc-steps', type=int, default=1, 
+            '--grad-acc-steps', type=int, default=1, 
             help='gradient accumulation batches before weigth update')
         parser.add_argument(
-            p1+'epochs', type=int, default=200, help='number of epochs')
+            '--epochs', type=int, default=200, help='number of epochs')
         parser.add_argument(
-            p1+'log-interval', type=int, default=10, 
+            '--log-interval', type=int, default=10, 
             help='how many batches to wait before logging training status')
         parser.add_argument(
-            p1+'use-amp', action='store_true', default=False,
+            '--ddp-type', default='ddp', choices=ddp_choices,
+            help='DDP type in {}'.format(ddp_choices))
+        parser.add_argument(
+            '--use-amp', action='store_true', default=False,
             help='use mixed precision training')
         parser.add_argument(
-            p1+'grad-clip', type=float, default=0, 
+            '--grad-clip', type=float, default=0, 
             help='gradient clipping norm')
         parser.add_argument(
-            p1+'swa-start', type=int, default=0, 
+            '--swa-start', type=int, default=0, 
             help='start epoch for SWA, if 0 it does not use SWA')
         parser.add_argument(
-            p1+'swa-lr', type=float, default=1e-3, 
+            '--swa-lr', type=float, default=1e-3, 
             help='learning rate for SWA phase')
         parser.add_argument(
-            p1+'swa-anneal-epochs', type=int, default=10, 
+            '--swa-anneal-epochs', type=int, default=10, 
             help='SWA learning rate anneal epochs')
 
-        parser.add_argument(p1+'exp-path', help='experiment path')
+        parser.add_argument('--exp-path', help='experiment path')
 
+        if prefix is not None:
+            outer_parser.add_argument(
+                '--' + prefix,
+                action=ActionParser(parser=parser),
+                help='trainer options')
     
     add_argparse_args = add_class_args

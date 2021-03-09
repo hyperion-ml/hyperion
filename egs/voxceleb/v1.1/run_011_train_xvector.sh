@@ -12,7 +12,7 @@ ngpu=4
 config_file=default_config.sh
 resume=false
 interactive=false
-num_workers=2
+num_workers=8
 
 . parse_options.sh || exit 1;
 . $config_file

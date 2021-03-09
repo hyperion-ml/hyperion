@@ -29,7 +29,8 @@ class XVectorTrainerFromWav(XVectorTrainer):
          metrics: extra metrics to compute besides cxe.
          lr_scheduler: learning rate scheduler object
          loggers: LoggerList object, loggers write training progress to std. output and file.
-         data_parallel: if True use nn.DataParallel
+         ddp: if True use distributed data parallel training
+         ddp_type: type of distributed data parallel in  (ddp, oss_ddp, oss_shared_ddp)
          loss: if None, it uses cross-entropy
          train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
          use_amp: uses mixed precision training.
@@ -42,14 +43,15 @@ class XVectorTrainerFromWav(XVectorTrainer):
     def __init__(self, model, feat_extractor, optimizer, epochs=100, exp_path='./train', cur_epoch=0, 
                  grad_acc_steps=1, 
                  device=None, metrics=None, lr_scheduler=None, loggers=None, 
-                 ddp=False, loss=None, train_mode='train', use_amp=False,
+                 ddp=False, ddp_type='ddp', loss=None, train_mode='train', use_amp=False,
                  log_interval=10, grad_clip=0,
                  swa_start=0, swa_lr=1e-3, swa_anneal_epochs=10):
 
         super().__init__(
             model, optimizer, epochs, exp_path, cur_epoch=cur_epoch,
             grad_acc_steps=grad_acc_steps, device=device, metrics=metrics,
-            lr_scheduler=lr_scheduler, loggers=loggers, ddp=ddp, loss=loss,
+            lr_scheduler=lr_scheduler, loggers=loggers, 
+            ddp=ddp, ddp_type=ddp_type, loss=loss,
             train_mode=train_mode, use_amp=use_amp, log_interval=log_interval, 
             grad_clip=grad_clip,
             swa_start=swa_start, swa_lr=swa_lr, 

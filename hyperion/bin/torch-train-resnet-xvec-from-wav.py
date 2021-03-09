@@ -72,7 +72,7 @@ def init_device(num_gpus):
 
 def init_data(audio_path, train_list, val_list, 
               train_aug_cfg, val_aug_cfg, num_workers, 
-              use_gpu, rank, **kwargs):
+              num_gpus, rank, **kwargs):
 
     ad_args = AD.filter_args(**kwargs)
     sampler_args = Sampler.filter_args(**kwargs)
@@ -89,7 +89,8 @@ def init_data(audio_path, train_list, val_list,
     train_sampler = Sampler(train_data, **sampler_args)
     val_sampler = Sampler(val_data, **sampler_args)
 
-    largs = {'num_workers': num_workers, 'pin_memory': True} if use_gpu else {}
+    num_workers_per_gpu = int((num_workers + num_gpus - 1) / num_gpus)
+    largs = {'num_workers': num_workers_per_gpu, 'pin_memory': True} if num_gpus > 0 else {}
 
     train_loader = torch.utils.data.DataLoader(
         train_data, batch_sampler = train_sampler, **largs)
@@ -141,7 +142,10 @@ def init_xvector(num_classes, rank, **kwargs):
 
 
 def init_opt(model, rank, **kwargs):
+
     opt_args = OF.filter_args(**kwargs['opt'])
+    if kwargs['num_gpus'] > 0 and kwargs['ddp_type'] != 'ddp':
+        opt_args['oss'] = True
     lrsch_args = LRSF.filter_args(**kwargs['lrsch'])
     if rank == 0:
         logging.info('optimizer args={}'.format(opt_args))
@@ -164,7 +168,7 @@ def train_xvec(gpu_id, args):
     ddp_args = ddp.filter_ddp_args(**kwargs)
     device, rank, world_size = ddp.ddp_init(gpu_id, **ddp_args)
     use_gpu = ddp_args['num_gpus'] > 0
-    kwargs['use_gpu'] = use_gpu
+    #kwargs['use_gpu'] = use_gpu
     kwargs['rank'] = rank
     # train_loader, test_loader = init_data(
     #     args.audio_path, args.train_list, args.val_list, 
@@ -174,7 +178,7 @@ def train_xvec(gpu_id, args):
     train_loader, test_loader = init_data(**kwargs)
     feat_extractor = init_feats(**kwargs)
     model = init_xvector(train_loader.dataset.num_classes, **kwargs)
-
+    model.to(device)
     optimizer, lr_sch = init_opt(model, **kwargs)
 
     trn_args = Trainer.filter_args(**kwargs)
