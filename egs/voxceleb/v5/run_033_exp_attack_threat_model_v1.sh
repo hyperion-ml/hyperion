@@ -31,6 +31,7 @@ batch_size=$(($batch_size_1gpu*$ngpu))
 grad_acc_steps=$(echo $batch_size $eff_batch_size | awk '{ print int($2/$1+0.5)}')
 log_interval=$(echo 100*$grad_acc_steps | bc)
 list_dir=data/exp_attack_threat_model_v1
+list_attack_type_dir=data/exp_attack_type_v1
 
 args=""
 if [ "$resume" == "true" ];then
@@ -52,7 +53,6 @@ margin_warmup=6
 aug_opt="--train-aug-cfg conf/reverb_noise_aug.yml"
 aug_opt=""
 embed_dim=10
-lr=0.05
 lr=0.01
 
 opt_opt="--opt-optimizer adam --opt-lr $lr --opt-beta1 0.9 --opt-beta2 0.95 --opt-weight-decay 1e-5 --opt-amsgrad --use-amp"
@@ -113,18 +113,27 @@ if [ $stage -le 2 ]; then
 	$sign_dir/test
 fi
 
-proj_dir=$sign_dir/test/tsne
-# if [ $stage -le 3 ];then
-#     $train_cmd $proj_dir/train.log \
-#         steps_proj/proj-attack-tsne.py \
-#         --train-v-file scp:$sign_dir/test/xvector.scp \
-#         --train-list $list_dir/test_utt2attack \
-#         --pca-var-r 0.99 \
-# 	--prob-plot 0.3 \
-#         --output-path $proj_dir
-        
-# fi
+proj_dir=$sign_dir/test/tsne_attack_type
 if [ $stage -le 3 ];then
+    for p in 30 100 250
+    do
+	for e in 12 64
+	do
+	    proj_dir_i=$proj_dir/p${p}_e${e}
+	    $train_cmd $proj_dir_i/train.log \
+		steps_proj/proj-attack-tsne.py \
+		--train-v-file scp:$sign_dir/test/xvector.scp \
+		--train-list $list_attack_type_dir/test_utt2attack \
+		--pca-var-r 0.99 \
+		--prob-plot 0.3 --lnorm --tsne-metric cosine --tsne-early-exaggeration $e --tsne-perplexity $p --tsne-init pca \
+		--output-path $proj_dir_i &
+	done
+    done
+    wait
+fi
+
+proj_dir=$sign_dir/test/tsne_attack_threat_model
+if [ $stage -le 4 ];then
     for p in 30 100 250
     do
 	for e in 12 64
@@ -141,10 +150,9 @@ if [ $stage -le 3 ];then
     done
     wait
 fi
-exit
 
 
-if [ $stage -le 4 ]; then
+if [ $stage -le 5 ]; then
     # Eval attack logits
     mkdir -p $list_dir/test
     nj=100
@@ -155,7 +163,7 @@ if [ $stage -le 4 ]; then
 	$logits_dir/test
 fi
 
-if [ $stage -le 5 ];then
+if [ $stage -le 6 ];then
     $train_cmd $logits_dir/eval_acc.log \
         steps_proj/eval-classif-perf.py \
         --score-file scp:$logits_dir/test/logits.scp \

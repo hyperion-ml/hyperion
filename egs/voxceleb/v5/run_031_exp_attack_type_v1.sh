@@ -51,7 +51,6 @@ margin_warmup=6
 aug_opt="--train-aug-cfg conf/reverb_noise_aug.yml"
 aug_opt=""
 embed_dim=10
-lr=0.05
 lr=0.01
 
 opt_opt="--opt-optimizer adam --opt-lr $lr --opt-beta1 0.9 --opt-beta2 0.95 --opt-weight-decay 1e-5 --opt-amsgrad --use-amp"
@@ -113,16 +112,6 @@ if [ $stage -le 2 ]; then
 fi
 
 proj_dir=$sign_dir/test/tsne
-# if [ $stage -le 3 ];then
-#     $train_cmd $proj_dir/train.log \
-#         steps_proj/proj-attack-tsne.py \
-#         --train-v-file scp:$sign_dir/test/xvector.scp \
-#         --train-list $list_dir/test_utt2attack \
-#         --pca-var-r 0.99 \
-# 	--prob-plot 0.3 \
-#         --output-path $proj_dir
-        
-# fi
 if [ $stage -le 3 ];then
     for p in 30 100 250
     do
