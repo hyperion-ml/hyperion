@@ -8,6 +8,7 @@ import os
 from jsonargparse import ArgumentParser, ActionConfigFile, ActionParser, namespace_to_dict
 import time
 import logging
+import multiprocessing 
 
 import numpy as np
 
@@ -245,5 +246,6 @@ if __name__ == '__main__':
     #mp.spawn(train_xvec, nprocs=args.num_gpus, args=(args,))
     gpu_id = args.local_rank
     del args.local_rank
+    multiprocessing.set_start_method('forkserver')
     train_xvec(gpu_id, args)
 
