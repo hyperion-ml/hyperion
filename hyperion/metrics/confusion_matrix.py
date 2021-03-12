@@ -32,7 +32,7 @@ def compute_confusion_matrix(y_true, y_pred, labels=None,
     """
     C = confusion_matrix(y_true, y_pred, labels, sample_weight)
     if normalize:
-        C = C/np.sum(C, axis=1, keepdims=True)
+        C = C/(np.sum(C, axis=1, keepdims=True)+1e-10)
     return C
 
 

@@ -30,8 +30,8 @@ fi
 batch_size=$(($batch_size_1gpu*$ngpu))
 grad_acc_steps=$(echo $batch_size $eff_batch_size | awk '{ print int($2/$1+0.5)}')
 log_interval=$(echo 100*$grad_acc_steps | bc)
-list_dir=data/exp_attack_threat_model_v1
-list_attack_type_dir=data/exp_attack_type_v1
+list_dir=data/exp_attack_snr_v2
+list_test_dir=data/exp_attack_snr_v1
 
 args=""
 if [ "$resume" == "true" ];then
@@ -42,24 +42,21 @@ if [ "$interactive" == "true" ];then
     export cuda_cmd=run.pl
 fi
 
-sign_nnet_dir=exp/sign_nnets/$nnet_name/exp_attack_threat_model_v1
-sign_dir=exp/signatures/$nnet_name/exp_attack_threat_model_v1
-logits_dir=exp/logits/$nnet_name/exp_attack_threat_model_v1
+sign_nnet_dir=exp/sign_nnets/$nnet_name/exp_attack_snr_v2
+sign_dir=exp/signatures/$nnet_name/exp_attack_snr_v2
+logits_dir=exp/logits/$nnet_name/exp_attack_snr_v2
 nnet_num_epochs=20
 sign_nnet=$sign_nnet_dir/model_ep0020.pth
-margin=0
+embed_dim=10
 margin=0.2
-margin_warmup=6
 aug_opt="--train-aug-cfg conf/reverb_noise_aug.yml"
 aug_opt=""
-embed_dim=10
 lr=0.01
-
 opt_opt="--opt-optimizer adam --opt-lr $lr --opt-beta1 0.9 --opt-beta2 0.95 --opt-weight-decay 1e-5 --opt-amsgrad --use-amp"
 lrs_opt="--lrsch-lrsch-type exp_lr --lrsch-decay-rate 0.5 --lrsch-decay-steps 8000 --lrsch-hold-steps 40000 --lrsch-min-lr 1e-5 --lrsch-warmup-steps 1000 --lrsch-update-lr-on-opt-step"
 lrs_opt="--lrsch-lrsch-type exp_lr --lrsch-decay-rate 0.5 --lrsch-decay-steps 2000 --lrsch-hold-steps 4000 --lrsch-min-lr 1e-5 --lrsch-warmup-steps 1000 --lrsch-update-lr-on-opt-step"
-lrs_opt="--lrsch-lrsch-type exp_lr --lrsch-decay-rate 0.5 --lrsch-decay-steps 4000 --lrsch-hold-steps 8000 --lrsch-min-lr 1e-5 --lrsch-warmup-steps 1000 --lrsch-update-lr-on-opt-step"
 lrs_opt="--lrsch-lrsch-type exp_lr --lrsch-decay-rate 0.5 --lrsch-decay-steps 8000 --lrsch-hold-steps 16000 --lrsch-min-lr 1e-5 --lrsch-warmup-steps 1000 --lrsch-update-lr-on-opt-step"
+
 
 # Network Training
 if [ $stage -le 1 ]; then
@@ -103,46 +100,27 @@ fi
 
 if [ $stage -le 2 ]; then
     # Extracts x-vectors for evaluation
-    mkdir -p $list_dir/test
-    cp $list_dir/test_wav.scp $list_dir/test/wav.scp
+    mkdir -p $list_test_dir/test
+    cp $list_test_dir/test_wav.scp $list_test_dir/test/wav.scp
     nj=100
     steps_xvec/extract_xvectors_from_wav.sh \
 	--cmd "$xvec_cmd --mem 6G" --nj $nj ${xvec_args} --use-bin-vad false \
 	--feat-config $feat_config \
-	$sign_nnet $list_dir/test \
+	$sign_nnet $list_test_dir/test \
 	$sign_dir/test
 fi
 
-proj_dir=$sign_dir/test/tsne_attack_type
+proj_dir=$sign_dir/test/tsne
 if [ $stage -le 3 ];then
     for p in 30 100 250
     do
 	for e in 12 64
 	do
 	    proj_dir_i=$proj_dir/p${p}_e${e}
-	    $train_cmd $proj_dir_i/train.log \
+	    $train_cmd $proj_dir_i/tsne.log \
 		steps_proj/proj-attack-tsne.py \
 		--train-v-file scp:$sign_dir/test/xvector.scp \
-		--train-list $list_attack_type_dir/test_utt2attack \
-		--pca-var-r 0.99 \
-		--prob-plot 0.3 --lnorm --tsne-metric cosine --tsne-early-exaggeration $e --tsne-perplexity $p --tsne-init pca \
-		--output-path $proj_dir_i &
-	done
-    done
-    wait
-fi
-
-proj_dir=$sign_dir/test/tsne_attack_threat_model
-if [ $stage -le 4 ];then
-    for p in 30 100 250
-    do
-	for e in 12 64
-	do
-	    proj_dir_i=$proj_dir/p${p}_e${e}
-	    $train_cmd $proj_dir_i/train.log \
-		steps_proj/proj-attack-tsne.py \
-		--train-v-file scp:$sign_dir/test/xvector.scp \
-		--train-list $list_dir/test_utt2attack \
+		--train-list $list_test_dir/test_utt2attack \
 		--pca-var-r 0.99 \
 		--prob-plot 0.3 --lnorm --tsne-metric cosine --tsne-early-exaggeration $e --tsne-perplexity $p --tsne-init pca \
 		--output-path $proj_dir_i &
@@ -152,24 +130,51 @@ if [ $stage -le 4 ];then
 fi
 
 
-if [ $stage -le 5 ]; then
+if [ $stage -le 4 ]; then
     # Eval attack logits
-    mkdir -p $list_dir/test
+    mkdir -p $list_test_dir/test
     nj=100
     steps_xvec/eval_xvec_logits_from_wav.sh \
 	--cmd "$xvec_cmd --mem 6G" --nj $nj ${xvec_args} --use-bin-vad false \
 	--feat-config $feat_config \
-	$sign_nnet $list_dir/test \
+	$sign_nnet $list_test_dir/test \
 	$logits_dir/test
 fi
 
-if [ $stage -le 6 ];then
+
+if [ $stage -le 5 ];then
     $train_cmd $logits_dir/test/eval_acc.log \
+        steps_proj/eval-classif-perf.py \
+        --score-file scp:$logits_dir/test/logits.scp \
+        --key-file $list_test_dir/test_utt2attack \
+	--class-file $list_dir/class2int         
+fi
+
+if [ $stage -le 6 ];then
+    $train_cmd $logits_dir/test_seen/eval_acc.log \
         steps_proj/eval-classif-perf.py \
         --score-file scp:$logits_dir/test/logits.scp \
         --key-file $list_dir/test_utt2attack \
 	--class-file $list_dir/class2int         
 fi
 
+if [ $stage -le 7 ];then
+    mkdir -p $logits_dir/test_unseen
+    awk -v f=$list_dir/test_utt2attack 'BEGIN{
+while(getline < f)
+{
+  v[$1]=1
+}
+}
+!/benign/{ if(!($1 in v)){ print $0}}' \
+    $list_test_dir/test_utt2attack \
+    > $logits_dir/test_unseen/utt2attack
+    
+    $train_cmd $logits_dir/test_unseen/eval_acc.log \
+        steps_proj/eval-classif-perf.py \
+        --score-file scp:$logits_dir/test/logits.scp \
+        --key-file $logits_dir/test_unseen/utt2attack \
+	--class-file $list_dir/class2int         
+fi
 
 exit
