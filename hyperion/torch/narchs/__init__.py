@@ -33,3 +33,4 @@ from .classif_head import ClassifHead
 
 from .audio_feats_mvn import AudioFeatsMVN
 
+from .torch_na_loader import TorchNALoader

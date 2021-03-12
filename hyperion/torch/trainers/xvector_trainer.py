@@ -19,7 +19,7 @@ class XVectorTrainer(TorchTrainer):
 
        Attributes:
          model: x-Vector model object.
-         optimizer: pytorch optimizer object
+         optim: pytorch optimizer object or options dict
          epochs: max. number of epochs
          exp_path: experiment output path
          cur_epoch: current epoch
@@ -36,28 +36,31 @@ class XVectorTrainer(TorchTrainer):
          use_amp: uses mixed precision training.
          log_interval: number of optim. steps between log outputs
          grad_clip: norm to clip gradients, if 0 there is no clipping
+         grad_clip_norm: norm type to clip gradients
          swa_start: epoch to start doing swa
          swa_lr: SWA learning rate
          swa_anneal_epochs: SWA learning rate anneal epochs
+         cpu_offload: CPU offload of gradients when using fully sharded ddp
     """
-    def __init__(self, model, optimizer, epochs=100, exp_path='./train', cur_epoch=0, 
+    def __init__(self, model, optim={}, epochs=100, exp_path='./train', cur_epoch=0, 
                  grad_acc_steps=1, 
-                 device=None, metrics=None, lr_scheduler=None, loggers=None, 
+                 device=None, metrics=None, lrsched=None, loggers=None, 
                  ddp=False, ddp_type='ddp', loss=None, train_mode='train', use_amp=False,
-                 log_interval=10, grad_clip=0,
-                 swa_start=0, swa_lr=1e-3, swa_anneal_epochs=10):
+                 log_interval=10, grad_clip=0, grad_clip_norm=2,
+                 swa_start=0, swa_lr=1e-3, swa_anneal_epochs=10, cpu_offload=False):
 
         if loss is None:
             loss = nn.CrossEntropyLoss()
         super().__init__(
-            model, optimizer, loss, epochs, exp_path, cur_epoch=cur_epoch,
+            model, loss, optim, epochs, exp_path, cur_epoch=cur_epoch,
             grad_acc_steps=grad_acc_steps, device=device, metrics=metrics,
-            lr_scheduler=lr_scheduler, loggers=loggers, 
+            lrsched=lrsched, loggers=loggers, 
             ddp=ddp, ddp_type=ddp_type,
             train_mode=train_mode, use_amp=use_amp, log_interval=log_interval, 
-            grad_clip=grad_clip,                  
+            grad_clip=grad_clip, grad_clip_norm=grad_clip_norm,
             swa_start=swa_start, swa_lr=swa_lr, 
-            swa_anneal_epochs=swa_anneal_epochs)
+            swa_anneal_epochs=swa_anneal_epochs, 
+            cpu_offload=cpu_offload)
 
 
     def train_epoch(self, data_loader):

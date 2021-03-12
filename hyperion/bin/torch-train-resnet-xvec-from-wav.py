@@ -19,10 +19,10 @@ import torch.multiprocessing as mp
 from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch.utils import open_device
 from hyperion.torch.utils import ddp
-from hyperion.torch.helpers import OptimizerFactory as OF
-from hyperion.torch.lr_schedulers import LRSchedulerFactory as LRSF
-from hyperion.torch.seq_embed import ResNetXVector as XVec
+# from hyperion.torch.helpers import OptimizerFactory as OF
+# from hyperion.torch.lr_schedulers import LRSchedulerFactory as LRSF
 from hyperion.torch.trainers import XVectorTrainerFromWav as Trainer
+from hyperion.torch.seq_embed import ResNetXVector as XVec
 from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
 from hyperion.torch.metrics import CategoricalAccuracy
@@ -168,7 +168,7 @@ def train_xvec(gpu_id, args):
 
     ddp_args = ddp.filter_ddp_args(**kwargs)
     device, rank, world_size = ddp.ddp_init(gpu_id, **ddp_args)
-    use_gpu = ddp_args['num_gpus'] > 0
+    #use_gpu = ddp_args['num_gpus'] > 0
     #kwargs['use_gpu'] = use_gpu
     kwargs['rank'] = rank
     # train_loader, test_loader = init_data(
@@ -179,23 +179,24 @@ def train_xvec(gpu_id, args):
     train_loader, test_loader = init_data(**kwargs)
     feat_extractor = init_feats(**kwargs)
     model = init_xvector(train_loader.dataset.num_classes, **kwargs)
-    model.to(device)
-    optimizer, lr_sch = init_opt(model, **kwargs)
+    #model.to(device)
+    #optimizer, lr_sch = init_opt(model, **kwargs)
 
     trn_args = Trainer.filter_args(**kwargs)
-
     if rank == 0:
         logging.info('trainer args={}'.format(trn_args))
     metrics = { 'acc': CategoricalAccuracy() }
-    trainer = Trainer(model, feat_extractor, optimizer, 
-                      device=device, metrics=metrics, lr_scheduler=lr_sch,
+    # trainer = Trainer(model, feat_extractor, optimizer, 
+    #                   device=device, metrics=metrics, lr_scheduler=lr_sch,
+    #                   ddp=world_size>1, **trn_args)
+    trainer = Trainer(model, feat_extractor,
+                      device=device, metrics=metrics, 
                       ddp=world_size>1, **trn_args)
     if args.resume:
         trainer.load_last_checkpoint()
     trainer.fit(train_loader, test_loader)
 
     ddp.ddp_cleanup()
-
 
 
 if __name__ == '__main__':
@@ -224,8 +225,8 @@ if __name__ == '__main__':
     # parser.add_argument('--feats', action=ActionParser(parser=feats_parser), help='feat extraction opts')
 
     XVec.add_class_args(parser)
-    OF.add_class_args(parser, prefix='opt')
-    LRSF.add_class_args(parser, prefix='lrsch')
+    # OF.add_class_args(parser, prefix='opt')
+    # LRSF.add_class_args(parser, prefix='lrsch')
     Trainer.add_class_args(parser)
 
     ddp.add_ddp_args(parser)
@@ -241,8 +242,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     #device = init_device(args.num_gpus)
-    
-    
     #mp.spawn(train_xvec, nprocs=args.num_gpus, args=(args,))
     gpu_id = args.local_rank
     del args.local_rank

@@ -9,9 +9,8 @@ import torch.nn as nn
 
 from ..layers import GlobalPool1dFactory as PF
 from ..layer_blocks import TDNNBlock
-from ..narchs import ClassifHead
+from ..narchs import ClassifHead, TorchNALoader
 from ..torch_model import TorchModel
-from ..helpers import TorchNALoader
 from ..utils import eval_nnet_by_chunks
 
 class XVector(TorchModel):

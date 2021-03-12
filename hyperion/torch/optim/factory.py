@@ -9,7 +9,7 @@ from ...utils.misc import filter_args
 
 import torch
 import torch.optim as optim
-from ..optim import RAdam
+from .radam import RAdam
 
 class OptimizerFactory(object):
 
