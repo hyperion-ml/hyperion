@@ -14,7 +14,7 @@ import numpy as np
 
 import torch
 import torch.nn as nn
-import torch.multiprocessing as mp
+# import torch.multiprocessing as mp
 
 from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch.utils import open_device
@@ -64,11 +64,11 @@ from hyperion.torch.narchs import AudioFeatsMVN as AF
 
 
 
-def init_device(num_gpus):
-    set_float_cpu('float32')
-    logging.info('initializing devices num_gpus={}'.format(num_gpus))
-    device = open_device(num_gpus=num_gpus)
-    return device
+# def init_device(num_gpus):
+#     set_float_cpu('float32')
+#     logging.info('initializing devices num_gpus={}'.format(num_gpus))
+#     device = open_device(num_gpus=num_gpus)
+#     return device
 
 
 def init_data(audio_path, train_list, val_list, 
@@ -142,18 +142,18 @@ def init_xvector(num_classes, rank, **kwargs):
     return model
 
 
-def init_opt(model, rank, **kwargs):
+# def init_opt(model, rank, **kwargs):
 
-    opt_args = OF.filter_args(**kwargs['opt'])
-    if kwargs['num_gpus'] > 0 and kwargs['ddp_type'] != 'ddp':
-        opt_args['oss'] = True
-    lrsch_args = LRSF.filter_args(**kwargs['lrsch'])
-    if rank == 0:
-        logging.info('optimizer args={}'.format(opt_args))
-        logging.info('lr scheduler args={}'.format(lrsch_args))
-    optimizer = OF.create(model.parameters(), **opt_args)
-    lr_sch = LRSF.create(optimizer, **lrsch_args)
-    return optimizer, lr_sch
+#     opt_args = OF.filter_args(**kwargs['opt'])
+#     if kwargs['num_gpus'] > 0 and kwargs['ddp_type'] != 'ddp':
+#         opt_args['oss'] = True
+#     lrsch_args = LRSF.filter_args(**kwargs['lrsch'])
+#     if rank == 0:
+#         logging.info('optimizer args={}'.format(opt_args))
+#         logging.info('lr scheduler args={}'.format(lrsch_args))
+#     optimizer = OF.create(model.parameters(), **opt_args)
+#     lr_sch = LRSF.create(optimizer, **lrsch_args)
+#     return optimizer, lr_sch
 
 
 def train_xvec(gpu_id, args):
@@ -245,6 +245,7 @@ if __name__ == '__main__':
     #mp.spawn(train_xvec, nprocs=args.num_gpus, args=(args,))
     gpu_id = args.local_rank
     del args.local_rank
+    # torch docs recommend using forkserver
     multiprocessing.set_start_method('forkserver')
     train_xvec(gpu_id, args)
 

@@ -8,9 +8,8 @@ import re
 
 import torch
 
-from ..narchs import *
-from ..seq_embed import XVector, TDNNXVector, ResNetXVector, TransformerXVectorV1, EfficientNetXVector
-from ..models import VAE, VQVAE
+from .narchs import *
+from .models import *
 
 class TorchModelLoader(object):
 

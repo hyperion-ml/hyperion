@@ -23,7 +23,7 @@ from hyperion.torch.trainers import XVectorTrainerFromWav as Trainer
 from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
 from hyperion.torch.metrics import CategoricalAccuracy
-from hyperion.torch.helpers import TorchModelLoader as TML
+from hyperion.torch import TorchModelLoader as TML
 
 from hyperion.torch.layers import AudioFeatsFactory as AFF
 from hyperion.torch.layers import MeanVarianceNorm as MVN

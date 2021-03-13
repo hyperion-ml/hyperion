@@ -23,11 +23,8 @@ from hyperion.io import VADReaderFactory as VRF
 from hyperion.augment import SpeechAugment
 
 from hyperion.torch.utils import open_device
-from hyperion.torch.helpers import TorchModelLoader as TML
 from hyperion.torch.narchs import AudioFeatsMVN as AF
-
-#from hyperion.torch.layers import AudioFeatsFactory as AFF
-#from hyperion.torch.layers import MeanVarianceNorm as MVN
+from hyperion.torch import TorchModelLoader as TML
 
 def init_device(use_gpu):
     set_float_cpu('float32')

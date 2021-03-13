@@ -23,8 +23,8 @@ from hyperion.torch.trainers import XVectorAdvTrainer as Trainer
 from hyperion.torch.data import SeqDataset as SD
 from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
 from hyperion.torch.metrics import CategoricalAccuracy
-from hyperion.torch.helpers import TorchModelLoader as TML
 from hyperion.torch.adv_attacks import PGDAttack
+from hyperion.torch import TorchModelLoader as TML
 
 def train_xvec(data_rspec, train_list, val_list, in_model_path,
                attack_eps, attack_eps_step, attack_random_eps, 

@@ -26,7 +26,7 @@ from hyperion.io import VADReaderFactory as VRF
 from hyperion.feats import MeanVarianceNorm as MVN
 
 from hyperion.torch.utils import open_device
-from hyperion.torch.helpers import TorchModelLoader as TML
+from hyperion.torch import TorchModelLoader as TML
 
 
 def write_img(output_dir, key, x, x_mean, x_sample, num_frames):
