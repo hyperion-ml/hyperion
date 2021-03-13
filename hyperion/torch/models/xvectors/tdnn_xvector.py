@@ -9,7 +9,7 @@ import torch
 import torch.nn as nn
 
 from .xvector import XVector
-from ..narchs import TDNNFactory as TF
+from ...narchs import TDNNFactory as TF
 
 class TDNNXVector(XVector):
 

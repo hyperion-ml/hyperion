@@ -22,7 +22,7 @@ from hyperion.torch.utils import ddp
 # from hyperion.torch.helpers import OptimizerFactory as OF
 # from hyperion.torch.lr_schedulers import LRSchedulerFactory as LRSF
 from hyperion.torch.trainers import XVectorTrainerFromWav as Trainer
-from hyperion.torch.seq_embed import ResNetXVector as XVec
+from hyperion.torch.models import ResNetXVector as XVec
 from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
 from hyperion.torch.metrics import CategoricalAccuracy

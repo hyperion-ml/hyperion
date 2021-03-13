@@ -9,7 +9,8 @@ import torch
 import torch.nn as nn
 
 from .xvector import XVector
-from ..narchs import TransformerEncoderV1 as TE
+from ...narchs import TransformerEncoderV1 as TE
+
 
 class TransformerXVectorV1(XVector):
     """x-Vector with Transformer encoder.

@@ -9,7 +9,7 @@ import torch
 import torch.nn as nn
 
 from .xvector import XVector
-from ..narchs import EfficientNet as EN
+from ...narchs import EfficientNet as EN
 
 
 class EfficientNetXVector(XVector):

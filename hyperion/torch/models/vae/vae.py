@@ -10,7 +10,7 @@ import torch.nn as nn
 import torch.distributions as pdf
 
 from ...torch_model import TorchModel
-from ...helpers import TorchNALoader
+from ...narchs import TorchNALoader
 from ...layers import tensor2pdf as t2pdf
 from ...layers import pdf_storage
 
