@@ -5,7 +5,7 @@
 """
 import sys
 import os
-import argparse
+from jsonargparse import ArgumentParser, ActionConfigFile, ActionParser, namespace_to_dict
 import time
 import logging
 
@@ -64,18 +64,16 @@ def compute_mfcc_feats(input_path, output_path,
 
 if __name__ == "__main__":
     
-    parser=argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        fromfile_prefix_chars='@',
+    parser=ArgumentParser(
         description='Compute MFCC features')
 
     parser.add_argument('--input', dest='input_path', required=True)
     parser.add_argument('--output', dest='output_path', required=True)
     parser.add_argument('--write-num-frames', default=None)
 
-    AR.add_argparse_args(parser)
-    DRF.add_argparse_args(parser)
-    MFCC.add_argparse_args(parser)
+    AR.add_class_args(parser)
+    DRF.add_class_args(parser)
+    MFCC.add_class_args(parser)
     parser.add_argument('--compress', dest='compress', default=False, action='store_true', help='Compress the features')
     parser.add_argument('--compression-method', dest='compression_method', default='auto',
                         choices=compression_methods, help='Compression method')
@@ -86,5 +84,5 @@ if __name__ == "__main__":
     del args.verbose
     logging.debug(args)
     
-    compute_mfcc_feats(**vars(args))
+    compute_mfcc_feats(**namespace_to_dict(args))
     

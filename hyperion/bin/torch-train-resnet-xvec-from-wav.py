@@ -5,6 +5,7 @@
 """
 import sys
 import os
+from pathlib import Path
 from jsonargparse import ArgumentParser, ActionConfigFile, ActionParser, namespace_to_dict
 import time
 import logging
@@ -245,6 +246,14 @@ if __name__ == '__main__':
     #mp.spawn(train_xvec, nprocs=args.num_gpus, args=(args,))
     gpu_id = args.local_rank
     del args.local_rank
+
+    if gpu_id == 0:
+        try:
+            config_file = Path(args.exp_path) / 'config.yaml'
+            parser.save(args, str(config_file), format='yaml', overwrite=True)
+        except:
+            pass
+
     # torch docs recommend using forkserver
     multiprocessing.set_start_method('forkserver')
     train_xvec(gpu_id, args)

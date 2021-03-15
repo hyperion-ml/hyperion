@@ -5,10 +5,12 @@
 """
 import sys
 import os
+from pathlib import Path
 from jsonargparse import ArgumentParser, ActionConfigFile, ActionParser, namespace_to_dict
 import time
 import logging
 import multiprocessing 
+from copy import deepcopy
 
 import numpy as np
 
@@ -19,11 +21,16 @@ from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch.utils import open_device
 from hyperion.torch.utils import ddp
 from hyperion.torch.trainers import XVectorTrainerFromWav as Trainer
-from hyperion.torch.models import EfficientNetXVector as XVec
 from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
 from hyperion.torch.metrics import CategoricalAccuracy
 from hyperion.torch.narchs import AudioFeatsMVN as AF
+from hyperion.torch.models import ResNetXVector as RXVec
+from hyperion.torch.models import EfficientNetXVector as EXVec
+from hyperion.torch.models import TDNNXVector as TDXVec
+from hyperion.torch.models import TransformerXVectorV1 as TFXVec
+
+xvec_dict = {'resnet': RXVec, 'efficientnet': EXVec, 'tdnn': TDXVec, 'transformer': TFXVec} 
 
 
 def init_data(audio_path, train_list, val_list, 
@@ -68,12 +75,13 @@ def init_feats(rank, **kwargs):
     return feat_extractor
 
 
-def init_xvector(num_classes, rank, **kwargs):
-    xvec_args = XVec.filter_args(**kwargs)
+def init_xvector(num_classes, rank, xvec_class, **kwargs):
+    
+    xvec_args = xvec_class.filter_args(**kwargs)
     if rank == 0:
         logging.info('xvector network args={}'.format(xvec_args))
     xvec_args['num_classes'] = num_classes
-    model = XVec(**xvec_args)
+    model = xvec_class(**xvec_args)
     if rank == 0:
         logging.info('x-vector-model={}'.format(model))
     return model
@@ -92,6 +100,7 @@ def train_xvec(gpu_id, args):
     ddp_args = ddp.filter_ddp_args(**kwargs)
     device, rank, world_size = ddp.ddp_init(gpu_id, **ddp_args)
     kwargs['rank'] = rank
+
     train_loader, test_loader = init_data(**kwargs)
     feat_extractor = init_feats(**kwargs)
     model = init_xvector(train_loader.dataset.num_classes, **kwargs)
@@ -110,12 +119,9 @@ def train_xvec(gpu_id, args):
     ddp.ddp_cleanup()
 
 
-if __name__ == '__main__':
+def make_parser(xvec_class):
+    parser = ArgumentParser()
 
-    parser = ArgumentParser(
-        description='Train XVector with ResNet encoder from audio files')
-
-    parser.add_argument('--cfg', action=ActionConfigFile)
     parser.add_argument('--audio-path', required=True)
     parser.add_argument('--train-list', required=True)
     parser.add_argument('--val-list', required=True)
@@ -130,9 +136,8 @@ if __name__ == '__main__':
                         help='num_workers of data loader')
 
     AF.add_class_args(parser, prefix='feats')
-    XVec.add_class_args(parser)
+    xvec_class.add_class_args(parser)
     Trainer.add_class_args(parser)
-
     ddp.add_ddp_args(parser)
     parser.add_argument('--seed', type=int, default=1123581321, 
                         help='random seed')
@@ -140,22 +145,40 @@ if __name__ == '__main__':
                         help='resume training from checkpoint')
     parser.add_argument('-v', '--verbose', dest='verbose', default=1, 
                         choices=[0, 1, 2, 3], type=int)
+    
+    return parser
+
+
+if __name__ == '__main__':
+
+    parser = ArgumentParser(
+        description='Train XVector from audio files')
 
     parser.add_argument('--local_rank', default=0, type=int)
+    parser.add_argument('--cfg', action=ActionConfigFile)
 
+    subcommands = parser.add_subcommands()
+
+    for k, v in xvec_dict.items():
+        parser_k = make_parser(v)
+        subcommands.add_subcommand(k, parser_k)
+    
     args = parser.parse_args()
     gpu_id = args.local_rank
     del args.local_rank
 
+    xvec_type = args.subcommand
+    args_sc = vars(args)[xvec_type]
+
     if gpu_id == 0:
         try:
-            config_file = Path(args.exp_path) / 'config.yaml'
+            config_file = Path(args_sc.exp_path) / 'config.yaml'
             parser.save(args, str(config_file), format='yaml', overwrite=True)
         except:
             pass
 
+    args_sc.xvec_class = xvec_dict[xvec_type]
     # torch docs recommend using forkserver
     multiprocessing.set_start_method('forkserver')
-    train_xvec(gpu_id, args)
-
+    train_xvec(gpu_id, args_sc)
 
