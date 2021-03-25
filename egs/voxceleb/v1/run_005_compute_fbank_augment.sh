@@ -19,7 +19,7 @@ if [ "$feat_vers" == "kaldi" ];then
     make_fbank=steps/make_fbank.sh
     fbank_cfg=conf/fbank80_16k.conf
 else
-    fbank_cfg=conf/fbank80_16k.pyconf
+    fbank_cfg=conf/fbank80_16k.yaml
     if [ "$feat_vers" == "numpy" ];then
 	make_fbank=steps_pyfe/make_fbank.sh
     else
@@ -35,7 +35,7 @@ if [ $stage -le 1 ];then
   # Make filterbanks for the augmented data.  Note that we do not compute a new
   # vad.scp file here.  Instead, we use the vad.scp from the clean version of
   # the list.
-  for name in voxceleb2cat_augx${num_augs} 
+  for name in voxceleb2cat_train_augx${num_augs} 
   do
       $make_fbank --write-utt2num-frames true \
 	  --fbank-config $fbank_cfg --nj 120 --cmd "$train_cmd" \
@@ -49,7 +49,7 @@ fi
 if [ $stage -le 2 ];then
     
     # Combine the clean and augmented lists.  
-    utils/combine_data.sh --extra-files "utt2num_frames" data/voxceleb2cat_combined data/voxceleb2cat_augx${num_augs} data/voxceleb2cat
+    utils/combine_data.sh --extra-files "utt2num_frames" data/voxceleb2cat_train_combined data/voxceleb2cat_train_augx${num_augs} data/voxceleb2cat_train
 
 fi
     

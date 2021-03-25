@@ -11,9 +11,9 @@ import torch
 from ..torch_defs import floatstr_torch
 
 from ...utils.utt2info import Utt2Info
-from .seq_dataset import SeqDataset
+from .feat_seq_dataset import FeatSeqDataset
 
-class PairedSeqDataset(SeqDataset):
+class PairedFeatSeqDataset(FeatSeqDataset):
 
 
     def __init__(self, rspecifier, key_file,

@@ -67,6 +67,7 @@ if __name__ == "__main__":
     parser=ArgumentParser(
         description='Compute MFCC features')
 
+    parser.add_argument('--cfg', action=ActionConfigFile)
     parser.add_argument('--input', dest='input_path', required=True)
     parser.add_argument('--output', dest='output_path', required=True)
     parser.add_argument('--write-num-frames', default=None)

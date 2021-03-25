@@ -1,4 +1,3 @@
-audio_feat: logfb
 sample_frequency: 16000
 frame_length: 25
 low_freq: 20 

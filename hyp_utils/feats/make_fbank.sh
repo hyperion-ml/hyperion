@@ -92,7 +92,7 @@ if [ -f $data/segments ]; then
 fi
 
 $cmd JOB=1:$nj $logdir/make_fbank_${name}.JOB.log \
-    compute-mfcc-feats.py @$fbank_config $opt_args --output-step logfb \
+    compute-mfcc-feats.py --cfg $fbank_config $opt_args --output-step logfb \
     --input $scp --output ark,scp:$fbankdir/raw_fbank_$name.JOB.ark,$fbankdir/raw_fbank_$name.JOB.scp \
     --part-idx JOB --num-parts $nj || exit 1
 

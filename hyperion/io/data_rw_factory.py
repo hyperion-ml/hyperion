@@ -4,6 +4,7 @@
 """
 
 import logging
+from jsonargparse import ArgumentParser, ActionParser
 
 from ..utils.kaldi_matrix import compression_methods
 from .rw_specifiers import ArchiveType, WSpecifier, RSpecifier, WSpecType, RSpecType
@@ -57,18 +58,22 @@ class DataWriterFactory(object):
         
     @staticmethod
     def add_class_args(parser, prefix=None):
-        if prefix is None:
-            p1 = '--'
-        else:
-            p1 = '--' + prefix + '.'
-            
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog='')
+
         parser.add_argument(
-            p1+'scp-sep', default=' ',
+            '--scp-sep', default=' ',
             help=('scp file field separator'))
-        parser.add_argument(p1+'compress', default=False, action='store_true')
-        parser.add_argument(p1+'compression-method', default='auto',
+        parser.add_argument('--compress', default=False, action='store_true')
+        parser.add_argument('--compression-method', default='auto',
                             choices=compression_methods)
 
+        if prefix is not None:
+            outer_parser.add_argument(
+                '--' + prefix,
+                action=ActionParser(parser=parser),
+                help='data writer options')
 
         
             
@@ -105,28 +110,36 @@ class SequentialDataReaderFactory(object):
         
     @staticmethod
     def add_class_args(parser, prefix=None):
-        if prefix is None:
-            p1 = '--'
-        else:
-            p1 = '--' + prefix + '.'
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog='')
             
+        try:
+            parser.add_argument(
+                '--scp-sep', default=' ',
+                help=('scp file field separator'))
+        except:
+            pass
         parser.add_argument(
-            p1+'scp-sep', default=' ',
-            help=('scp file field separator'))
-        parser.add_argument(
-            p1+'path-prefix', default=None,
+            '--path-prefix', default=None,
             help=('scp file_path prefix'))
         try:
             parser.add_argument(
-                p1+'part-idx', type=int, default=1,
+                '--part-idx', type=int, default=1,
                 help=('splits the list of files in num-parts '
                       'and process part_idx'))
             parser.add_argument(
-                p1+'num-parts', type=int, default=1,
+                '--num-parts', type=int, default=1,
                 help=('splits the list of files in num-parts '
                       'and process part_idx'))
         except:
             pass
+
+        if prefix is not None:
+            outer_parser.add_argument(
+                '--' + prefix,
+                action=ActionParser(parser=parser),
+                help='data reader options')
 
 
         
@@ -169,17 +182,25 @@ class RandomAccessDataReaderFactory(object):
         
     @staticmethod
     def add_class_args(parser, prefix=None):
-        if prefix is None:
-            p1 = '--'
-        else:
-            p1 = '--' + prefix + '.'
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog='')
             
+        try:
+            parser.add_argument(
+                '--scp-sep', default=' ',
+                help=('scp file field separator'))
+        except:
+            pass
         parser.add_argument(
-            p1+'scp-sep', default=' ',
-            help=('scp file field separator'))
-        parser.add_argument(
-            p1+'path-prefix', default=None,
+            '--path-prefix', default=None,
             help=('scp file_path prefix'))
+
+        if prefix is not None:
+            outer_parser.add_argument(
+                '--' + prefix,
+                action=ActionParser(parser=parser),
+                help='data reader options')
 
 
     add_argparse_args = add_class_args

@@ -3,10 +3,9 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-
 # datasets
-from .seq_dataset import SeqDataset
-from .paired_seq_dataset import PairedSeqDataset
+from .feat_seq_dataset import FeatSeqDataset
+from .paired_feat_seq_dataset import PairedFeatSeqDataset
 
 from .audio_dataset import AudioDataset
 

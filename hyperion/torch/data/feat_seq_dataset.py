@@ -22,7 +22,7 @@ from ...utils.utt2info import Utt2Info
 
 from torch.utils.data import Dataset
 
-class SeqDataset(Dataset):
+class FeatSeqDataset(Dataset):
 
     def __init__(self, rspecifier, key_file,
                  class_file = None,
@@ -256,8 +256,8 @@ class SeqDataset(Dataset):
             low=0, high=full_seq_length-chunk_length+1, size=(1,)).item()
 
         x = self.r.read([key], row_offset=first_frame,
-                        num_rows=chunk_length)[0]
-
+                        num_rows=chunk_length)[0].astype(
+                            floatstr_torch(), copy=False)
         if self.transpose_input:
             x = x.T
 

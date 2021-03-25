@@ -201,7 +201,7 @@ def extract_xvectors(input_spec, output_spec, vad_spec, write_num_frames_spec,
 if __name__ == "__main__":
     
     parser=ArgumentParser(
-        description=('Extract x-vectors from waveform computing '
+        description=('Extracts x-vectors from waveform computing '
                      'acoustic features on the fly'))
 
     parser.add_argument('--cfg', action=ActionConfigFile)

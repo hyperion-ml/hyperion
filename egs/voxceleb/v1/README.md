@@ -46,16 +46,16 @@ run_040_eval_be.sh --config-file global_conf/config_resnet34_arcs30m0.3_adam_lr0
           - VoxCeleb2 train+test
           - VoxCeleb1 O/E/H eval sets
 
-   - `run_002a_compute_evad.sh`
+   - `run_002_compute_evad.sh`
       - Computes Energy VAD for all datasets
 
-   - `run_002b_compute_fbank.sh`
+   - `run_003_compute_fbank.sh`
       - Computes log-filter-banks acoustic features for all datasets
 
-   - `run_003_prepare_augment.sh`
+   - `run_004_prepare_augment.sh`
       - Prepares Kaldi style data directories for augmented training data with MUSAN noise and RIR reverberation.
 
-   - `run_004_compute_fbank_augment.sh
+   - `run_005_compute_fbank_augment.sh
       - Computes log-filter-banks for augmented datasets
 
    - `run_010_prepare_xvec_train_data.sh`

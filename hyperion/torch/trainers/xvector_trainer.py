@@ -13,7 +13,6 @@ import torch.nn as nn
 from ..utils import MetricAcc
 from .torch_trainer import TorchTrainer
 
-
 class XVectorTrainer(TorchTrainer):
     """Trainer to train x-vector style models.
 
@@ -80,7 +79,7 @@ class XVectorTrainer(TorchTrainer):
 
             if batch % self.grad_acc_steps == 0:
                 self.optimizer.zero_grad()
-                
+
             data, target = data.to(self.device), target.to(self.device)
             batch_size = data.shape[0]
 

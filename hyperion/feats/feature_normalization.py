@@ -4,6 +4,7 @@
 """
 
 import numpy as np
+from jsonargparse import ArgumentParser, ActionParser
 from scipy.signal import convolve2d
 
 from ..hyp_defs import float_cpu
@@ -242,30 +243,34 @@ class MeanVarianceNorm(object):
              parser: Arguments parser
              prefix: Options prefix.
         """
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog='')
 
-        if prefix is None:
-            p1 = '--'
-        else:
-            p1 = '--' + prefix + '.'
-
-        parser.add_argument(p1+'no-norm-mean', 
+        parser.add_argument('--no-norm-mean', 
                             default=False, action='store_true',
                             help='don\'t center the features')
 
-        parser.add_argument(p1+'norm-var', 
+        parser.add_argument('--norm-var', 
                             default=False, action='store_true',
                             help='normalize the variance of the features')
 
-        parser.add_argument(p1+'left-context', type=int, default=150,
+        parser.add_argument('--left-context', type=int, default=150,
                             help='past context in number of frames')
 
-        parser.add_argument(p1+'right-context', type=int, default=150,
+        parser.add_argument('--right-context', type=int, default=150,
                             help='future context in number of frames')
 
         parser.add_argument(
-            p1+'context', type=int, default=None,
+            '--context', type=int, default=None,
             help=('past/future context in number of frames, '
                   'overwrites left-context and right-context options'))
+
+        if prefix is not None:
+            outer_parser.add_argument(
+                '--' + prefix,
+                action=ActionParser(parser=parser),
+                help='mean-var norm options')
 
 
     add_argparse_args = add_class_args
