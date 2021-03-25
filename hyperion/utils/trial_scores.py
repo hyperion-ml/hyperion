@@ -300,7 +300,7 @@ class TrialScores(object):
 
     
     def validate(self):
-        """Validates the attributes of the TrialKey object.
+        """Validates the attributes of the TrialScores object.
         """
         self.model_set = list2ndarray(self.model_set)
         self.seg_set = list2ndarray(self.seg_set)
@@ -308,7 +308,7 @@ class TrialScores(object):
         assert len(np.unique(self.model_set)) == len(self.model_set)
         assert len(np.unique(self.seg_set)) == len(self.seg_set) 
         if self.scores is None:
-            self.scores = np.zeros((len(model_set), len(seg_set)))
+            self.scores = np.zeros((len(sellf.model_set), len(self.seg_set)))
         else:
             assert (self.scores.shape ==
                    (len(self.model_set), len(self.seg_set)))

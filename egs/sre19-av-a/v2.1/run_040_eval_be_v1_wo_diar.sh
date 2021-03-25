@@ -14,10 +14,19 @@ ncoh_vid=500
 ncoh_vast=120
 coh_vid_data=sitw_sre18_dev_vast
 coh_vast_data=sitw_sre18_dev_vast
+ft=0
 
 . parse_options.sh || exit 1;
 . $config_file
 . datapath.sh 
+
+if [ $ft -eq 1 ];then
+    nnet_name=$ft_nnet_name
+elif [ $ft -eq 2 ];then
+    nnet_name=$ft2_nnet_name
+elif [ $ft -eq 3 ];then
+    nnet_name=$ft3_nnet_name
+fi
 
 plda_label=${plda_type}y${plda_y_dim}_v1
 be_name=lda${lda_dim}_${plda_label}_${plda_data}
