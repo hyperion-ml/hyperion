@@ -142,7 +142,7 @@ if [ $stage -le 4 ]; then
 fi
 
 if [ $stage -le 5 ];then
-    $train_cmd $logits_dir/eval_acc.log \
+    $train_cmd $logits_dir/test/eval_acc.log \
         steps_proj/eval-classif-perf.py \
         --score-file scp:$logits_dir/test/logits.scp \
         --key-file $list_dir/test_utt2attack \

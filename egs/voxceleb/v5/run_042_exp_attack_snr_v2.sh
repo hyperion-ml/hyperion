@@ -177,4 +177,141 @@ while(getline < f)
 	--class-file $list_dir/class2int         
 fi
 
+
+# if [ $stage -le 8 ];then
+#     echo "Eval Attack Verification with Cosine scoring"
+#     steps_be/eval_be_cos.sh --cmd "$train_cmd --mem 4G" --num-parts 2 \
+#         data/exp_attack_snr_verif_v2/trials \
+#         data/exp_attack_snr_verif_v2/utt2enr \
+#         $sign_dir/test/xvector.scp \
+#         $sign_dir/test_scores/attack_verif_scores
+
+#     $train_cmd --mem 10G $sign_dir/test_scores/log/score_attack_verif.log \
+#         steps_proj/score_attack_verif.sh data/exp_attack_snr_verif_v2 $sign_dir/test_scores
+
+#     for f in $(ls $sign_dir/test_scores/*_results);
+#     do
+#         echo $f
+#         cat $f
+#         echo ""
+#     done
+
+
+# fi
+
+
+if [ $stage -le 8 ];then
+    for nes in 1 3 5 10
+    do
+	echo "Eval Attack Verification with Cosine scoring num sides=$nes"
+	(
+	    data_dir=data/exp_attack_snr_verif_${nes}s_v2
+	    output_dir=$sign_dir/attack_snr_verif_${nes}s
+	    steps_be/eval_be_cos_Nvs1.sh --cmd "$train_cmd" --num-parts 2 \
+		$data_dir/trials \
+		$data_dir/utt2enr \
+		$sign_dir/test/xvector.scp \
+		$output_dir/attack_verif_scores
+	    
+	    $train_cmd --mem 10G $output_dir/log/score_attack_verif.log \
+		steps_proj/score_attack_verif.sh $data_dir $output_dir
+	    
+	    for f in $(ls $output_dir/*_results);
+	    do
+		echo $f
+		cat $f
+		echo ""
+	    done
+	) &
+    done
+    wait
+fi
+
+if [ $stage -le 9 ]; then
+    # Extracts x-vectors for training
+    mkdir -p $list_dir/train
+    cp $list_dir/train_wav.scp $list_dir/train/wav.scp
+    cp $list_dir/train_utt2attack $list_dir/train/utt2spk
+    nj=100
+    steps_xvec/extract_xvectors_from_wav.sh \
+	--cmd "$xvec_cmd --mem 6G" --nj $nj ${xvec_args} --use-bin-vad false \
+	--feat-config $feat_config \
+	$sign_nnet $list_dir/train \
+	$sign_dir/train
+fi
+
+be_dir=$sign_dir/train
+if [ $stage -le 10 ]; then
+    echo "Train PLDA"
+    steps_be/train_be_v3.sh --cmd "$train_cmd" \
+        --plda-type splda \
+        --y-dim 6 \
+	$sign_dir/train/xvector.scp \
+        $list_dir/train \
+        $be_dir &
+
+    wait
+
+fi
+
+if [ $stage -le 11 ];then
+    for nes in 1 3 5 10 30 50 100
+    do
+	echo "Eval Attack Verification with PLDA scoring num sides=$nes"
+	(
+	    data_dir=data/exp_attack_snr_verif_${nes}s_v2
+	    output_dir=$sign_dir/attack_snr_verif_${nes}s_plda
+	    steps_be/eval_be_Nvs1_v1.sh --cmd "$train_cmd" --num-parts 2 \
+		--plda-type splda \
+		$data_dir/trials \
+		$data_dir/utt2enr \
+		$sign_dir/test/xvector.scp \
+		$be_dir/lnorm.h5 \
+		$be_dir/plda.h5 \
+		$output_dir/attack_verif_scores
+	    
+	    $train_cmd --mem 10G $output_dir/log/score_attack_verif.log \
+		steps_proj/score_attack_verif.sh $data_dir $output_dir
+	    
+	    for f in $(ls $output_dir/*_results);
+	    do
+		echo $f
+		cat $f
+		echo ""
+	    done
+	) &
+    done
+    wait
+fi
+
+if [ $stage -le 12 ];then
+    for nes in  3 5 10 30 50 100
+    do
+	echo "Eval Attack Verification with PLDA scoring num sides=$nes"
+	(
+	    data_dir=data/exp_attack_snr_verif_${nes}s_v2
+	    output_dir=$sign_dir/attack_snr_verif_${nes}s_plda_bybook
+	    steps_be/eval_be_Nvs1_v1.sh --cmd "$train_cmd" --num-parts 2 \
+		--plda-type splda --plda-opts "--eval-method book" \
+		$data_dir/trials \
+		$data_dir/utt2enr \
+		$sign_dir/test/xvector.scp \
+		$be_dir/lnorm.h5 \
+		$be_dir/plda.h5 \
+		$output_dir/attack_verif_scores
+	    
+	    $train_cmd --mem 10G $output_dir/log/score_attack_verif.log \
+		steps_proj/score_attack_verif.sh $data_dir $output_dir
+	    
+	    for f in $(ls $output_dir/*_results);
+	    do
+		echo $f
+		cat $f
+		echo ""
+	    done
+	) &
+    done
+    wait
+fi
+
 exit

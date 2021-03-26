@@ -142,12 +142,349 @@ if [ $stage -le 4 ]; then
 fi
 
 if [ $stage -le 5 ];then
-    $train_cmd $logits_dir/eval_acc.log \
+    $train_cmd $logits_dir/test/eval_acc.log \
         steps_proj/eval-classif-perf.py \
         --score-file scp:$logits_dir/test/logits.scp \
         --key-file $list_test_dir/test_utt2attack \
 	--class-file $list_dir/class2int         
+
 fi
 
+if [ $stage -le 6 ];then
+    for nes in 1 3 5 10
+    do
+	echo "Eval Attack Verification with Cosine scoring num sides=$nes"
+	(
+	    data_dir=data/exp_attack_type_verif_${nes}s_v2
+	    output_dir=$sign_dir/attack_type_verif_${nes}s
+	    steps_be/eval_be_cos_Nvs1.sh --cmd "$train_cmd" --num-parts 2 \
+		$data_dir/trials \
+		$data_dir/utt2enr \
+		$sign_dir/test/xvector.scp \
+		$output_dir/attack_verif_scores
+	    
+	    $train_cmd --mem 10G $output_dir/log/score_attack_verif.log \
+		steps_proj/score_attack_verif.sh $data_dir $output_dir
+	    
+	    for f in $(ls $output_dir/*_results);
+	    do
+		echo $f
+		cat $f
+		echo ""
+	    done
+	) &
+    done
+    wait
+fi
+
+if [ $stage -le 7 ]; then
+    # Extracts x-vectors for evaluation
+    mkdir -p $list_dir/train
+    cp $list_dir/train_wav.scp $list_dir/train/wav.scp
+    cp $list_dir/train_utt2attack $list_dir/train/utt2spk
+    nj=100
+    steps_xvec/extract_xvectors_from_wav.sh \
+	--cmd "$xvec_cmd --mem 6G" --nj $nj ${xvec_args} --use-bin-vad false \
+	--feat-config $feat_config \
+	$sign_nnet $list_dir/train \
+	$sign_dir/train
+fi
+
+be_dir=$sign_dir/train
+if [ $stage -le 8 ]; then
+    echo "Train PLDA"
+    steps_be/train_be_v3.sh --cmd "$train_cmd" \
+        --plda-type splda \
+        --y-dim 6 \
+	$sign_dir/train/xvector.scp \
+        $list_dir/train \
+        $be_dir &
+
+    wait
+
+fi
+
+if [ $stage -le 9 ];then
+    for nes in  1 3 5 10 30 50 100
+    do
+	echo "Eval Attack Verification with PLDA scoring num sides=$nes"
+	(
+	    data_dir=data/exp_attack_type_verif_${nes}s_v2
+	    output_dir=$sign_dir/attack_type_verif_${nes}s_plda
+	    steps_be/eval_be_Nvs1_v1.sh --cmd "$train_cmd" --num-parts 2 \
+		--plda-type splda \
+		$data_dir/trials \
+		$data_dir/utt2enr \
+		$sign_dir/test/xvector.scp \
+		$be_dir/lnorm.h5 \
+		$be_dir/plda.h5 \
+		$output_dir/attack_verif_scores
+	    
+	    $train_cmd --mem 10G $output_dir/log/score_attack_verif.log \
+		steps_proj/score_attack_verif.sh $data_dir $output_dir
+	    
+	    for f in $(ls $output_dir/*_results);
+	    do
+		echo $f
+		cat $f
+		echo ""
+	    done
+	) &
+    done
+    wait
+fi
+
+if [ $stage -le 10 ];then
+    for nes in  3 5 10 30 50 100
+    do
+	echo "Eval Attack Verification with PLDA scoring num sides=$nes"
+	(
+	    data_dir=data/exp_attack_type_verif_${nes}s_v2
+	    output_dir=$sign_dir/attack_type_verif_${nes}s_plda_bybook
+	    steps_be/eval_be_Nvs1_v1.sh --cmd "$train_cmd" --num-parts 2 \
+		--plda-type splda --plda-opts "--eval-method book" \
+		$data_dir/trials \
+		$data_dir/utt2enr \
+		$sign_dir/test/xvector.scp \
+		$be_dir/lnorm.h5 \
+		$be_dir/plda.h5 \
+		$output_dir/attack_verif_scores
+	    
+	    $train_cmd --mem 10G $output_dir/log/score_attack_verif.log \
+		steps_proj/score_attack_verif.sh $data_dir $output_dir
+	    
+	    for f in $(ls $output_dir/*_results);
+	    do
+		echo $f
+		cat $f
+		echo ""
+	    done
+	) &
+    done
+    wait
+fi
+
+if [ $stage -le 11 ];then
+    echo "Eval Attack Novelty with PLDA"
+    data_dir=data/exp_attack_type_novelty_v2
+    output_dir=$sign_dir/attack_type_novelty_plda
+    mkdir -p $sign_dir/train_test
+    cat $sign_dir/train/xvector.scp $sign_dir/test/xvector.scp > $sign_dir/train_test/xvector.scp
+    steps_be/eval_be_v3.sh --cmd "$train_cmd" \
+	--plda-type splda \
+	$data_dir/trials \
+	$list_dir/train/utt2spk \
+	$sign_dir/train_test/xvector.scp \
+	$be_dir/lnorm.h5 \
+	$be_dir/plda.h5 \
+	$output_dir/attack_novelty_scores
+    
+    $train_cmd --mem 10G $output_dir/log/score_attack_novelty.log \
+	python local/score_dcf.py --key-file $data_dir/trials --score-file $output_dir/attack_novelty_scores --output-path $output_dir/attack_novelty
+    
+    for f in $(ls $output_dir/*_results);
+    do
+	echo $f
+	cat $f
+	echo ""
+    done
+fi
+
+if [ $stage -le 12 ];then
+    echo "Eval Attack Novelty with PLDA"
+    data_dir=data/exp_attack_type_novelty_v2
+    output_dir=$sign_dir/attack_type_novelty_plda_bybook
+    steps_be/eval_be_v3.sh --cmd "$train_cmd" \
+	--plda-type splda --plda-opts "--eval-method book" \
+	$data_dir/trials \
+	$list_dir/train/utt2spk \
+	$sign_dir/train_test/xvector.scp \
+	$be_dir/lnorm.h5 \
+	$be_dir/plda.h5 \
+	$output_dir/attack_novelty_scores
+    
+    $train_cmd --mem 10G $output_dir/log/score_attack_novelty.log \
+	python local/score_dcf.py --key-file $data_dir/trials --score-file $output_dir/attack_novelty_scores --output-path $output_dir/attack_novelty
+    
+    for f in $(ls $output_dir/*_results);
+    do
+	echo $f
+	cat $f
+	echo ""
+    done
+fi
+
+
+be_dir=$sign_dir/train_nobenign
+if [ $stage -le 13 ]; then
+    echo "Train PLDA"
+    mkdir -p $list_dir/train_nobenign
+    awk '!/benign/' $list_dir/train/utt2spk > $list_dir/train_nobenign/utt2spk
+    steps_be/train_be_v3.sh --cmd "$train_cmd" \
+        --plda-type splda \
+        --y-dim 6 \
+	$sign_dir/train/xvector.scp \
+        $list_dir/train_nobenign \
+        $be_dir &
+
+    wait
+
+fi
+
+if [ $stage -le 14 ];then
+    for nes in  1 3 5 10 30 50 100
+    do
+	echo "Eval Attack Verification with PLDA scoring num sides=$nes"
+	(
+	    data_dir0=data/exp_attack_type_verif_${nes}s_v2
+	    data_dir=data/exp_attack_type_verif_${nes}s_v2_nobenign
+	    mkdir -p $data_dir
+	    for f in trials trials_seen trials_unseen utt2enr
+	    do
+		if [ $nes -eq 1 ];then
+		    awk '($1 ~ /fgsm/ || $1 ~ /pgd/ || $1 ~ /cw/) && ($2 ~ /fgsm/ || $2 ~ /pgd/ || $2 ~ /cw/)' $data_dir0/$f > $data_dir/$f
+		else
+		    awk '!/benign/ && ($2 ~ /fgsm/ || $2 ~ /pgd/ || $2 ~ /cw/)' $data_dir0/$f > $data_dir/$f
+		fi
+	    done
+	    output_dir=$sign_dir/attack_type_verif_${nes}s_plda_nobenign
+	    steps_be/eval_be_Nvs1_v1.sh --cmd "$train_cmd" --num-parts 2 \
+		--plda-type splda \
+		$data_dir/trials \
+		$data_dir/utt2enr \
+		$sign_dir/test/xvector.scp \
+		$be_dir/lnorm.h5 \
+		$be_dir/plda.h5 \
+		$output_dir/attack_verif_scores
+	    
+	    $train_cmd --mem 10G $output_dir/log/score_attack_verif.log \
+		steps_proj/score_attack_verif.sh $data_dir $output_dir
+	    
+	    for f in $(ls $output_dir/*_results);
+	    do
+		echo $f
+		cat $f
+		echo ""
+	    done
+	) &
+    done
+    wait
+fi
+
+if [ $stage -le 15 ];then
+    for nes in  3 5 10 30 50 100
+    do
+	echo "Eval Attack Verification with PLDA scoring num sides=$nes"
+	(
+	    data_dir=data/exp_attack_type_verif_${nes}s_v2_nobenign
+	    output_dir=$sign_dir/attack_type_verif_${nes}s_plda_bybook_nobenign
+	    steps_be/eval_be_Nvs1_v1.sh --cmd "$train_cmd" --num-parts 2 \
+		--plda-type splda --plda-opts "--eval-method book" \
+		$data_dir/trials \
+		$data_dir/utt2enr \
+		$sign_dir/test/xvector.scp \
+		$be_dir/lnorm.h5 \
+		$be_dir/plda.h5 \
+		$output_dir/attack_verif_scores
+	    
+	    $train_cmd --mem 10G $output_dir/log/score_attack_verif.log \
+		steps_proj/score_attack_verif.sh $data_dir $output_dir
+	    
+	    for f in $(ls $output_dir/*_results);
+	    do
+		echo $f
+		cat $f
+		echo ""
+	    done
+	) &
+    done
+    wait
+fi
+
+if [ $stage -le 16 ];then
+    echo "Eval Attack Novelty with PLDA"
+    data_dir=data/exp_attack_type_novelty_v2
+    output_dir=$sign_dir/attack_type_novelty_plda_nobenign
+    mkdir -p $sign_dir/train_test
+    cat $sign_dir/train/xvector.scp $sign_dir/test/xvector.scp > $sign_dir/train_test/xvector.scp
+    steps_be/eval_be_v3.sh --cmd "$train_cmd" \
+	--plda-type splda \
+	$data_dir/trials_nobenign \
+	$list_dir/train_nobenign/utt2spk \
+	$sign_dir/train_test/xvector.scp \
+	$be_dir/lnorm.h5 \
+	$be_dir/plda.h5 \
+	$output_dir/attack_novelty_scores
+    
+    $train_cmd --mem 10G $output_dir/log/score_attack_novelty.log \
+	python local/score_dcf.py --key-file $data_dir/trials_nobenign --score-file $output_dir/attack_novelty_scores --output-path $output_dir/attack_novelty
+    
+    for f in $(ls $output_dir/*_results);
+    do
+	echo $f
+	cat $f
+	echo ""
+    done
+fi
+
+if [ $stage -le 17 ];then
+    echo "Eval Attack Novelty with PLDA"
+    data_dir=data/exp_attack_type_novelty_v2
+    output_dir=$sign_dir/attack_type_novelty_plda_bybook_nobenign
+    steps_be/eval_be_v3.sh --cmd "$train_cmd" \
+	--plda-type splda --plda-opts "--eval-method book" \
+	$data_dir/trials_nobenign \
+	$list_dir/train_nobenign/utt2spk \
+	$sign_dir/train_test/xvector.scp \
+	$be_dir/lnorm.h5 \
+	$be_dir/plda.h5 \
+	$output_dir/attack_novelty_scores
+    
+    $train_cmd --mem 10G $output_dir/log/score_attack_novelty.log \
+	python local/score_dcf.py --key-file $data_dir/trials_nobenign --score-file $output_dir/attack_novelty_scores --output-path $output_dir/attack_novelty
+    
+    for f in $(ls $output_dir/*_results);
+    do
+	echo $f
+	cat $f
+	echo ""
+    done
+fi
+
+exit
+
+
+# be_dir=$sign_dir/train_gbe
+# if [ $stage -le 11 ]; then
+#     echo "Train GBE"
+#     steps_be/train_gbe_v3.sh --cmd "$train_cmd" \
+# 	$sign_dir/train/xvector.scp \
+#         $list_dir/train \
+#         $be_dir &
+
+#     wait
+
+# fi
+
+# if [ $stage -le 12 ]; then
+#     data_dir=data/exp_attack_type_novelty_v2
+#     output_dir=$sign_dir/attack_type_novelty_gbe
+#     steps_be/eval_gbe_v1.sh --cmd "$train_cmd" \
+#     	$data_dir/trials \
+#     	$sign_dir/test/xvector.scp \
+#     	$be_dir/lnorm.h5 \
+#     	$be_dir/gbe.h5 \
+#     	$output_dir/attack_novelty_scores
+    
+#     $train_cmd --mem 10G $output_dir/log/score_attack_novelty.log \
+# 	python local/score_dcf.py --key-file $data_dir/trials --score-file $output_dir/attack_novelty_scores --output-path $output_dir/attack_novelty
+
+#     for f in $(ls $output_dir/*_results);
+#     do
+# 	echo $f
+# 	cat $f
+# 	echo ""
+#     done
+# fi
 
 exit

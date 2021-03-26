@@ -82,12 +82,67 @@ if [ $stage -le 7 ];then
 	--seen-attacks benign $seen_attacks \
 	--benign-wav-file data/voxceleb2cat_proc_audio_no_sil/wav.scp \
 	--output-dir data/exp_attack_snr_verif_v2
+    exit
 fi
 
-if [ $stage -le 9 ];then
+if [ $stage -le 8 ];then
     local/make_trials_exp_attack_threat_model_verif_v2.py \
 	--input-dir $attack_dir/pool_v1 \
 	--seen-attacks benign $seen_attacks \
 	--benign-wav-file data/voxceleb2cat_proc_audio_no_sil/wav.scp \
 	--output-dir data/exp_attack_threat_model_verif_v2
+fi
+
+
+if [ $stage -le 9 ];then
+    for nes in 1 3 5 10 30 50 100
+    do
+	$train_cmd --mem 4G data/exp_attack_type_verif_${nes}s_v2/make.log \
+	    local/make_trials_exp_attack_type_verif_v2.py \
+	    --input-dir $attack_dir/pool_v1 \
+	    --seen-attacks benign $seen_attacks \
+	    --benign-wav-file data/voxceleb2cat_proc_audio_no_sil/wav.scp \
+	    --num-enroll-sides $nes \
+	    --output-dir data/exp_attack_type_verif_${nes}s_v2 &
+    done
+    wait
+fi
+
+if [ $stage -le 10 ];then
+    for nes in 1 3 5 10 30 50 100
+    do
+	$train_cmd --mem 4G data/exp_attack_snr_verif_${nes}s_v2/make.log \
+	    local/make_trials_exp_attack_snr_verif_v2.py \
+	    --input-dir $attack_dir/pool_v1 \
+	    --seen-attacks benign $seen_attacks \
+	    --benign-wav-file data/voxceleb2cat_proc_audio_no_sil/wav.scp \
+	    --num-enroll-sides $nes \
+	    --output-dir data/exp_attack_snr_verif_${nes}s_v2 &
+    done
+    wait
+fi
+
+
+if [ $stage -le 11 ];then
+    for nes in 1 3 5 10 30 50 100
+    do
+	$train_cmd --mem 4G data/exp_attack_threat_model_verif_${nes}s_v2/make.log \
+	    local/make_trials_exp_attack_threat_model_verif_v2.py \
+	    --input-dir $attack_dir/pool_v1 \
+	    --seen-attacks benign $seen_attacks \
+	    --benign-wav-file data/voxceleb2cat_proc_audio_no_sil/wav.scp \
+	    --num-enroll-sides $nes \
+	    --output-dir data/exp_attack_threat_model_verif_${nes}s_v2 &
+    done
+    wait
+fi
+
+
+if [ $stage -le 12 ];then
+    $train_cmd --mem 4G data/exp_attack_type_verif_novely_v2/make.log \
+	local/make_trials_exp_attack_type_novelty_v2.py \
+	--input-dir $attack_dir/pool_v1 \
+	--seen-attacks benign $seen_attacks \
+	--benign-wav-file data/voxceleb2cat_proc_audio_no_sil/wav.scp \
+	--output-dir data/exp_attack_type_novelty_v2 
 fi

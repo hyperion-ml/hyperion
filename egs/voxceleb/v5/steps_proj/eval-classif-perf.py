@@ -58,7 +58,7 @@ def eval_classif_perf(score_file, key_file, class_file, output_path=None, **kwar
 
     Cn = compute_confusion_matrix(y_true, y_pred, labels=labels, normalize=True)
     logging.info('Normalized Confusion Matrix:')
-    print_confusion_matrix(Cn, labels_true = classes)
+    print_confusion_matrix(Cn*100, labels_true = classes, fmt='.1f')
     
 
 if __name__ == "__main__":
@@ -66,7 +66,7 @@ if __name__ == "__main__":
     parser=argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         fromfile_prefix_chars='@',
-        description='Evaluates attack classfication accuracy')
+        description='Evaluates attack classification accuracy')
 
     parser.add_argument('--score-file', required=True)
     parser.add_argument('--key-file', required=True)
