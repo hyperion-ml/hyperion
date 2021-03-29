@@ -30,7 +30,7 @@ def compute_confusion_matrix(y_true, y_pred, labels=None,
     Returns:
       Confusion matrix (num_classes x num_classes)
     """
-    C = confusion_matrix(y_true, y_pred, labels, sample_weight)
+    C = confusion_matrix(y_true, y_pred, labels=labels, sample_weight=sample_weight)
     if normalize:
         C = C/(np.sum(C, axis=1, keepdims=True)+1e-10)
     return C
@@ -94,7 +94,7 @@ def compute_xlabel_confusion_matrix(y_true, y_pred, labels_train=None, labels_te
         raise Exception()
 
     labels = np.concatenate((labels_test, labels_train))
-    C = confusion_matrix(y_true, y_pred, labels, sample_weight)
+    C = confusion_matrix(y_true, y_pred, labels=labels, sample_weight=sample_weight)
     C = C[:num_classes_test, num_classes_test:]
     if normalize:
         C = C/np.sum(C, axis=1, keepdims=True)
