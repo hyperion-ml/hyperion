@@ -8,7 +8,7 @@ import torch.nn as nn
 
 from ..layers import ActivationFactory as AF
 from ..layers import NormLayer1dFactory as NLF
-from ..layers import PosEncoder, RelPosEncoder
+from ..layers import PosEncoder, RelPosEncoder, NoPosEncoder
 from ..layer_blocks import ConformerEncoderBlockV1 as EBlock
 from ..layer_blocks import TransformerConv2dSubsampler as Conv2dSubsampler
 from .net_arch import NetArch
@@ -27,6 +27,7 @@ class ConformerEncoderV1(NetArch):
            - Allows choosing activation and layer normalization type
         We call this Conformer+
 
+    This becomes a standard Transformer by setting conv_repeats=0, pos_enc_type='abs', ff_macaron=False.
 
     Attributes:
       in_feats: input features dimension
@@ -45,9 +46,11 @@ class ConformerEncoderV1(NetArch):
       pos_dropout_rate: dropout rate for positional encoder
       att_dropout_rate: dropout rate for attention block
       in_layer_type: input layer block type in ['linear','conv2d-sub', 'embed', None]
-      rel_pos_enc: if True, use relative postional encodings, absolute encodings otherwise.
+      pos_enc_type: type of positional encoder ['no', 'abs', 'rel']
+
       causal_pos_enc: if True, use causal positional encodings (when rel_pos_enc=True), it assumes
                       that query q_i only attents to key k_j when j<=i
+      no_pos_enc: if True, it doesn't use positional encoder.
       hid_act:  hidden activations in ff and input blocks
       conv_norm_layer: norm layer constructor or str for conv block, 
                        if None it uses BatchNorm1d
@@ -62,7 +65,8 @@ class ConformerEncoderV1(NetArch):
       padding_idx: padding idx for embed layer
       in_time_dim: time dimension in the input Tensor
       out_time_dim: dimension that we want to be time in the output tensor
-
+      rel_pos_enc: if True, use relative postional encodings, absolute encodings otherwise. (deprecated)
+      red_lnorm: (deprecated)
     """
 
     def __init__(self, in_feats, d_model=256, num_heads=4, num_blocks=6,
@@ -71,11 +75,13 @@ class ConformerEncoderV1(NetArch):
                  ff_type='linear', d_ff=2048, ff_kernel_size=1,
                  dropout_rate=0.1, pos_dropout_rate=0.1, att_dropout_rate=0.0,
                  in_layer_type='conv2d-sub',
-                 rel_pos_enc=True, causal_pos_enc=False,
+                 pos_enc_type='rel',
+                 causal_pos_enc=False, 
                  hid_act='swish',
                  conv_norm_layer=None, se_r=None,
                  ff_macaron=True, red_lnorms=False, concat_after=False,
-                 padding_idx=-1, in_time_dim=-1, out_time_dim=1, red_lnorm=False):
+                 padding_idx=-1, in_time_dim=-1, out_time_dim=1, 
+                 rel_pos_enc=True, red_lnorm=False):
 
         super().__init__()
         self.in_feats = in_feats
@@ -97,7 +103,7 @@ class ConformerEncoderV1(NetArch):
         self.d_ff = d_ff
         self.ff_kernel_size = ff_kernel_size
         self.dropout_rate = dropout_rate
-        self.rel_pos_enc = rel_pos_enc
+        self.pos_enc_type = pos_enc_type
         self.causal_pos_enc = causal_pos_enc
         self.att_dropout_rate = att_dropout_rate
         self.pos_dropout_rate = pos_dropout_rate
@@ -128,7 +134,7 @@ class ConformerEncoderV1(NetArch):
                 ff_type, d_ff, ff_kernel_size, 
                 hid_act=hid_act, dropout_rate=dropout_rate,
                 att_context=att_context, att_dropout_rate=att_dropout_rate, 
-                rel_pos_enc=rel_pos_enc, causal_pos_enc=causal_pos_enc,
+                pos_enc_type=pos_enc_type, causal_pos_enc=causal_pos_enc,
                 conv_norm_layer=self._conv_norm_layer, se_r = se_r,
                 ff_macaron=ff_macaron, out_lnorm=self.red_lnorms, 
                 concat_after=concat_after))
@@ -159,10 +165,14 @@ class ConformerEncoderV1(NetArch):
         in_feats = self.in_feats
         d_model = self.d_model
         dropout_rate = self.dropout_rate
-        if self.rel_pos_enc:
+        if self.pos_enc_type == 'no':
+            pos_enc = NoPosEncoder()
+        elif self.pos_enc_type == 'rel':
             pos_enc = RelPosEncoder(d_model, self.pos_dropout_rate)
-        else:
+        elif self.pos_enc_type == 'abs':
             pos_enc = PosEncoder(d_model, self.pos_dropout_rate)
+        else:
+            raise Exception('wrong pos-enc-type={}'.format(self.pos_enc_type))
 
         hid_act = AF.create(self.hid_act)
 
@@ -250,7 +260,7 @@ class ConformerEncoderV1(NetArch):
                   'att_dropout_rate': self.att_dropout_rate,
                   'pos_dropout_rate': self.pos_dropout_rate,
                   'in_layer_type': self.in_layer_type,
-                  'rel_pos_enc': self.rel_pos_enc,
+                  'pos_enc_type': self.pos_enc_type,
                   'causal_pos_enc': self.causal_pos_enc,
                   'hid_act': self.hid_act,
                   'se_r': self.se_r,
@@ -334,8 +344,8 @@ class ConformerEncoderV1(NetArch):
         if p + 'no_ff_macaron' in kwargs:
             kwargs[p + 'ff_macaron'] = not kwargs[p + 'no_ff_macaron']
 
-        if p + 'abs_pos_enc' in kwargs:
-            kwargs[p + 'rel_pos_enc'] = not kwargs[p + 'abs_pos_enc']
+        # if p + 'abs_pos_enc' in kwargs:
+        #     kwargs[p + 'rel_pos_enc'] = not kwargs[p + 'abs_pos_enc']
 
         valid_args = ('num_blocks',
                       'in_feats',
@@ -354,7 +364,7 @@ class ConformerEncoderV1(NetArch):
                       'att_dropout_rate',
                       'in_layer_type',
                       'hid_act',
-                      'rel_pos_enc',
+                      'pos_enc_type',
                       'causal_pos_enc',
                       'conv_norm_layer',
                       'se_r',
@@ -450,8 +460,11 @@ class ConformerEncoderV1(NetArch):
                             default='linear', choices=['linear', 'conv2d-sub'],
                             help=('type of input layer'))
 
-        parser.add_argument(p1+'abs-pos-enc', default=False, action='store_true',
-                            help='use absolute positional encoder')
+        # parser.add_argument(p1+'abs-pos-enc', default=False, action='store_true',
+        #                     help='use absolute positional encoder')
+        parser.add_argument(p1+'pos-enc-type', 
+                            default='rel', choices=['no', 'rel', 'abs'],
+                            help=('type of positional encoder'))
 
         parser.add_argument(p1+'causal-pos-enc', default=False, action='store_true',
                             help='relative positional encodings are zero when attending to the future')
