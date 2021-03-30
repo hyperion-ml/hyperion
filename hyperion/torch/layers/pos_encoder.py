@@ -2,7 +2,6 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-# from __future__ import absolute_import
 
 import math
 
@@ -117,4 +116,25 @@ class RelPosEncoder(PosEncoder):
             pos_emb = self.dropout(pos_emb)
 
         return x, pos_emb
+
+
+class NoPosEncoder(nn.Module):
+    """This is a dummy class for the case where we
+       deactivate the positional encoder
+
+    """
+    def __init__(self):
+        super().__init__()
+
+
+    def forward(self, x):
+        """Identity map
+
+        Args:
+            x: Input with shape=(batch, time, C)
+
+        Returns:
+            x
+        """
+        return x
 

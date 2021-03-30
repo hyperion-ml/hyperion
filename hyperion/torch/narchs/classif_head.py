@@ -248,4 +248,100 @@ class ClassifHead(NetArch):
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
+
+    @staticmethod
+    def filter_args(prefix=None, **kwargs):
+        if prefix is None:
+            p = ''
+        else:
+            p = prefix + '_'
+
+        if 'wo_norm' in kwargs:
+            kwargs['use_norm'] = not kwargs['wo_norm']
+            del kwargs['wo_norm']
+
+        if 'norm_after' in kwargs:
+            kwargs['norm_before'] = not kwargs['norm_after']
+            del kwargs['norm_after']
+
+        valid_args = ('num_classes', 'embed_dim', 'num_embed_layers', 'hid_act', 'loss_type',
+                      's', 'margin', 'margin_warmup_epochs', 'num_subcenters',
+                      'use_norm', 'norm_before', 'dropout_rate', 'norm_layer')
+        args = dict((k, kwargs[p+k])
+                    for k in valid_args if p+k in kwargs)
+
+        args['pool_net'] = pool_args
+        args.update(t_args)
+
+        return args
+
+
+    @staticmethod
+    def add_argparse_args(parser, prefix=None):
+        if prefix is None:
+            p1 = '--'
+        else:
+            p1 = '--' + prefix + '-'
+        
+        parser.add_argument(p1+'embed-dim',
+                            default=256, type=int,
+                            help=('x-vector dimension'))
+        
+        parser.add_argument(p1+'num-embed-layers',
+                            default=1, type=int,
+                            help=('number of layers in the classif head'))
+        
+        try:
+            parser.add_argument(p1+'hid-act', default='relu6', 
+                                help='hidden activation')
+        except:
+            pass
+
+        parser.add_argument(p1+'loss-type', default='arc-softmax', 
+                            choices = ['softmax', 'arc-softmax', 'cos-softmax', 'subcenter-arc-softmax'],
+                            help='loss type: softmax, arc-softmax, cos-softmax, subcenter-arc-softmax')
+        
+        parser.add_argument(p1+'s', default=64, type=float,
+                            help='scale for arcface')
+        
+        parser.add_argument(p1+'margin', default=0.3, type=float,
+                            help='margin for arcface, cosface,...')
+        
+        parser.add_argument(p1+'margin-warmup-epochs', default=10, type=float,
+                            help='number of epoch until we set the final margin')
+
+        parser.add_argument(p1+'num-subcenters', default=2, type=int,
+                            help='number of subcenters in subcenter losses')
+
+        try:
+            parser.add_argument(
+                p1+'norm-layer', default=None, 
+                choices=['batch-norm', 'group-norm', 'instance-norm', 'instance-norm-affine', 'layer-norm'],
+                help='type of normalization layer for all components of x-vector network')
+        except:
+            pass
+
+
+        try:
+            parser.add_argument(
+                p1+'head-norm-layer', default=None, 
+                choices=['batch-norm', 'group-norm', 'instance-norm', 'instance-norm-affine', 'layer-norm'],
+                help=('type of normalization layer for classification head, '
+                      'it overrides the value of the norm-layer parameter'))
+        except:
+            pass
+
+        
+        parser.add_argument(p1+'wo-norm', default=False, action='store_true',
+                            help='without batch normalization')
+        
+        parser.add_argument(p1+'norm-after', default=False, action='store_true',
+                            help='batch normalizaton after activation')
+        
+        try:
+            parser.add_argument(p1+'dropout-rate', default=0, type=float,
+                                help='dropout')
+        except:
+            pass
+        
     
