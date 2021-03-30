@@ -100,7 +100,7 @@ def extract_xvectors(input_spec, output_spec, vad_spec, write_num_frames_spec,
                     with torch.no_grad():
                         y = model.extract_embed(
                             xx, chunk_length=chunk_length, 
-                            embed_layer=embed_layer, device=device).detach().cpu().numpy()[0]
+                            embed_layer=embed_layer).detach().cpu().numpy()[0]
 
                 t5 = time.time()
                 writer.write(key, [y])

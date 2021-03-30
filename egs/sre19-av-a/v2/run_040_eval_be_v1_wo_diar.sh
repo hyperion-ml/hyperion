@@ -38,11 +38,10 @@ score_plda_dir=$score_dir/plda
 
 
 if [ $stage -le 1 ]; then
-
     steps_be/train_vid_be_v1.sh --cmd "$train_cmd" \
-	--lda_dim $lda_dim \
-	--plda_type $plda_type \
-	--y_dim $plda_y_dim --z_dim $plda_z_dim \
+	--lda-dim $lda_dim \
+	--plda-type $plda_type \
+	--y-dim $plda_y_dim --z-dim $plda_z_dim \
 	$xvector_dir/$plda_data/xvector.scp \
 	data/$plda_data \
 	$xvector_dir/sitw_dev/xvector.scp \

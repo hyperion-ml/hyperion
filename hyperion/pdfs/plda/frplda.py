@@ -361,7 +361,6 @@ class FRPLDA(PLDABase):
         scores += (-logdet_pdmat(self.B) + np.inner(np.dot(self.mu, self.B), self.mu))
         scores *= 0.5
         return scores
-
     
 
     def sample(self, num_classes, num_samples_per_class, rng=None, seed=1024, return_y=False):
