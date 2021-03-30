@@ -76,7 +76,7 @@ if [ $stage -le 1 ]; then
 
     mkdir -p $nnet_dir/log
     $cuda_cmd --gpu $ngpu $nnet_dir/log/train.log \
-	hyp_utils/torch.sh --num-gpus $ngpu \
+	hyp_utils/conda_env.sh --conda-env $TORCH --num-gpus $ngpu \
 	$train_exec \
 	--data-rspec scp:$list_dir/feats.scp \
 	--train-list $list_dir/lists_xvec/train.scp \

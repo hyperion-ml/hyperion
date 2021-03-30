@@ -30,8 +30,8 @@ score_plda_dir=$score_dir/cosine_from_wav
 if [ $stage -le 1 ];then
 
     echo "Eval Voxceleb 1 with Cosine scoring"
-    steps_adv/eval_cosine_scoring_from_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 200 \
-	--feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
+    steps_xvec/eval_cosine_scoring_from_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 200 \
+	--feat-config conf/fbank80_stmn_16k.yaml \
 	--cal-file $cal_file \
 	data/voxceleb1_test/trials_o_clean \
     	data/voxceleb1_test/utt2model \

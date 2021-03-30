@@ -117,7 +117,7 @@ class LinearSVMC(HypModel):
 
     
     @staticmethod
-    def add_argparse_train_args(parser, prefix=None):
+    def add_class_train_args(parser, prefix=None):
         if prefix is None:
             p1 = '--'
             p2 = ''
@@ -195,7 +195,7 @@ class LinearSVMC(HypModel):
 
     
     @staticmethod
-    def add_argparse_eval_args(parser, prefix=None):
+    def add_class_eval_args(parser, prefix=None):
         if prefix is None:
             p1 = '--'
             p2 = ''
@@ -212,4 +212,5 @@ class LinearSVMC(HypModel):
             help=('type of evaluation'))
 
         
-    add_argparse_args = add_class_args
+    add_argparse_train_args = add_class_train_args
+    add_argparse_eval_args = add_class_eval_args

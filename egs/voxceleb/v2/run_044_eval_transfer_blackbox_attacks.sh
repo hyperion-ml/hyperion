@@ -12,7 +12,7 @@ config_file=default_config.sh
 use_gpu=false
 do_analysis=false
 save_wav=false
-feat_config=conf/fbank80_stmn_16k.pyconf
+feat_config=conf/fbank80_stmn_16k.yaml
 
 . parse_options.sh || exit 1;
 . $config_file
@@ -56,7 +56,7 @@ if [ $stage -le 1 ];then
 	steps_adv/eval_cosine_scoring_from_transfer_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 20 \
 	    --feat-config $feat_config  \
 	    --transfer-feat-config $transfer_feat_config  \
-	    --attack-opts "--attack-attack-type fgsm --attack-eps $eps" \
+	    --attack-opts "--attack.attack-type fgsm --attack.eps $eps" \
 	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --transfer-cal-file $transfer_cal_file \
 	    --threshold $thr005 \
@@ -105,7 +105,7 @@ if [ $stage -le 2 ];then
 	steps_adv/eval_cosine_scoring_from_transfer_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 20 \
 	    --feat-config $feat_config  \
 	    --transfer-feat-config $transfer_feat_config  \
-	    --attack-opts "--attack-attack-type snr-fgsm --attack-snr $snr" \
+	    --attack-opts "--attack.attack-type snr-fgsm --attack.snr $snr" \
 	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --transfer-cal-file $transfer_cal_file \
 	    --threshold $thr005 \
@@ -153,7 +153,7 @@ if [ $stage -le 3 ];then
 	steps_adv/eval_cosine_scoring_from_transfer_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 20 \
 	    --feat-config $feat_config  \
 	    --transfer-feat-config $transfer_feat_config  \
-	    --attack-opts "--attack-attack-type rand-fgsm --attack-eps $eps --attack-alpha $alpha" \
+	    --attack-opts "--attack.attack-type rand-fgsm --attack.eps $eps --attack.alpha $alpha" \
 	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --transfer-cal-file $transfer_cal_file \
 	    --threshold $thr005 \
@@ -201,7 +201,7 @@ if [ $stage -le 4 ];then
 	steps_adv/eval_cosine_scoring_from_transfer_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 20 \
 	    --feat-config $feat_config  \
 	    --transfer-feat-config $transfer_feat_config  \
-	    --attack-opts "--attack-attack-type iter-fgsm --attack-eps $eps --attack-alpha $alpha" \
+	    --attack-opts "--attack.attack-type iter-fgsm --attack.eps $eps --attack.alpha $alpha" \
 	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --transfer-cal-file $transfer_cal_file \
 	    --threshold $thr005 \
@@ -251,7 +251,7 @@ if [ $stage -le 5 ];then
 		steps_adv/eval_cosine_scoring_from_transfer_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 100 \
 		    --feat-config $feat_config  \
 		    --transfer-feat-config $transfer_feat_config  \
-		    --attack-opts "--attack-attack-type cw-l2 --attack-confidence $confidence --attack-lr $lr --attack-no-abort --attack-max-iter $it" \
+		    --attack-opts "--attack.attack-type cw-l2 --attack.confidence $confidence --attack.lr $lr --attack.no-abort --attack.max-iter $it" \
 		    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 		    --cal-file $cal_file --transfer-cal-file $transfer_cal_file \
 		    --threshold $thr005 \
@@ -302,7 +302,7 @@ if [ $stage -le 6 ];then
 		steps_adv/eval_cosine_scoring_from_transfer_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 200 \
 		    --feat-config $feat_config  \
 		    --transfer-feat-config $transfer_feat_config  \
-		    --attack-opts "--attack-attack-type cw-l2 --attack-confidence $confidence --attack-lr $lr --attack-no-abort --attack-norm-time --attack-max-iter $it" \
+		    --attack-opts "--attack.attack-type cw-l2 --attack.confidence $confidence --attack.lr $lr --attack.no-abort --attack.norm-time --attack.max-iter $it" \
 		    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 		    --cal-file $cal_file --transfer-cal-file $transfer_cal_file \
 		    --threshold $thr005 \
@@ -353,7 +353,7 @@ if [ $stage -le 7 ];then
 		steps_adv/eval_cosine_scoring_from_transfer_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 100 \
 		    --feat-config $feat_config  \
 		    --transfer-feat-config $transfer_feat_config  \
-		    --attack-opts "--attack-attack-type cw-l2 --attack-confidence $confidence --attack-lr $lr --attack-no-abort --attack-norm-time --attack-max-iter $it" \
+		    --attack-opts "--attack.attack-type cw-l2 --attack.confidence $confidence --attack.lr $lr --attack.no-abort --attack.norm-time --attack.max-iter $it" \
 		    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 		    --cal-file $cal_file --transfer-cal-file $transfer_cal_file \
 		    --threshold $thr005 \

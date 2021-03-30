@@ -148,6 +148,7 @@ if __name__ == "__main__":
     parser = ArgumentParser(
         description='Extracts x-vectors from features')
 
+    parser.add_argument('--cfg', action=ActionConfigFile)
     parser.add_argument('--input', dest='input_spec', required=True)
     DRF.add_class_args(parser)
     parser.add_argument('--vad', dest='vad_spec', default=None)

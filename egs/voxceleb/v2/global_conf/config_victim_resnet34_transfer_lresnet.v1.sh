@@ -4,7 +4,7 @@
 # Both models uses the same training data.
 
 # victim x-vector training 
-nnet_data=voxceleb2cat_combined
+nnet_data=voxceleb2cat_train_combined
 
 batch_size_1gpu=32
 eff_batch_size=512 # effective batch size
@@ -22,8 +22,8 @@ margin_warmup=20
 margin=0.3
 
 nnet_opt="--resnet-type $nnet_type --in-feats 80 --in-channels 1 --in-kernel-size 3 --in-stride 1 --no-maxpool"
-opt_opt="--opt-optimizer adam --opt-lr $lr --opt-beta1 0.9 --opt-beta2 0.95 --opt-weight-decay 1e-5 --opt-amsgrad --use-amp"
-lrs_opt="--lrsch-lrsch-type exp_lr --lrsch-decay-rate 0.5 --lrsch-decay-steps 8000 --lrsch-hold-steps 40000 --lrsch-min-lr 1e-5 --lrsch-warmup-steps 1000 --lrsch-update-lr-on-opt-step"
+opt_opt="--optim.opt-type adam --optim.lr $lr --optim.beta1 0.9 --optim.beta2 0.95 --optim.weight-decay 1e-5 --optim.amsgrad --use-amp"
+lrs_opt="--lrsched.lrsch-type exp_lr --lrsched.decay-rate 0.5 --lrsched.decay-steps 8000 --lrsched.hold-steps 40000 --lrsched.min-lr 1e-5 --lrsched.warmup-steps 1000 --lrsched.update-lr-on-opt-step"
 nnet_name=${nnet_type}_e${embed_dim}_arcs${s}m${margin}_do${dropout}_adam_lr${lr}_b${eff_batch_size}_amp.v1
 nnet_num_epochs=70
 num_augs=5
@@ -32,12 +32,12 @@ nnet=$nnet_dir/model_ep0070.pth
 
 
 # transfer model training
-transfer_nnet_data=voxceleb2cat_combined #this can be voxceleb2cat or voxceleb2cat_combined
+transfer_nnet_data=voxceleb2cat_train_combined #this can be voxceleb2cat or voxceleb2cat_combined
 
 transfer_batch_size_1gpu=128
 transfer_eff_batch_size=512 # effective batch size
 transfer_min_chunk=400
-tranfer_max_chunk=400
+transfer_max_chunk=400
 transfer_ipe=1
 transfer_lr=0.05
 
@@ -50,8 +50,8 @@ transfer_margin_warmup=20
 transfer_margin=0.3
 
 transfer_nnet_opt="--resnet-type $transfer_nnet_type --in-feats 80 --in-channels 1 --in-kernel-size 3 --in-stride 1 --no-maxpool"
-transfer_opt_opt="--opt-optimizer adam --opt-lr $transfer_lr --opt-beta1 0.9 --opt-beta2 0.95 --opt-weight-decay 1e-5 --opt-amsgrad --use-amp"
-transfer_lrs_opt="--lrsch-lrsch-type exp_lr --lrsch-decay-rate 0.5 --lrsch-decay-steps 8000 --lrsch-hold-steps 40000 --lrsch-min-lr 1e-5 --lrsch-warmup-steps 1000 --lrsch-update-lr-on-opt-step"
+transfer_opt_opt="--optim.opt-type adam --optim.lr $transfer_lr --optim.beta1 0.9 --optim.beta2 0.95 --optim.weight-decay 1e-5 --optim.amsgrad --use-amp"
+transfer_lrs_opt="--lrsched.lrsch-type exp_lr --lrsched.decay-rate 0.5 --lrsched.decay-steps 8000 --lrsched.hold-steps 40000 --lrsched.min-lr 1e-5 --lrsched.warmup-steps 1000 --lrsched.update-lr-on-opt-step"
 transfer_nnet_name=${transfer_nnet_type}_e${transfer_embed_dim}_arcs${transfer_s}m${transfer_margin}_do${transfer_dropout}_adam_lr${transfer_lr}_b${transfer_eff_batch_size}_amp.v1
 transfer_nnet_num_epochs=70
 

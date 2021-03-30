@@ -2,6 +2,7 @@
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+from jsonargparse import ArgumentParser, ActionParser
 
 from .fgsm_attack import FGSMAttack
 from .snr_fgsm_attack import SNRFGSMAttack
@@ -87,11 +88,6 @@ class AttackFactory(object):
 
     @staticmethod
     def filter_args(**kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
-
         if 'no_abort' in kwargs:
             kwargs['abort_early'] = not kwargs['no_abort']
 
@@ -118,99 +114,102 @@ class AttackFactory(object):
 
     @staticmethod
     def add_class_args(parser, prefix=None):
-        
-        if prefix is None:
-            p1 = '--'
-        else:
-            p1 = '--' + prefix + '.'
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog='')
 
         parser.add_argument(
-            p1+'attack-type', type=str.lower, default='fgsm',
+            '--attack-type', type=str.lower, default='fgsm',
             choices=['fgsm', 'snr-fgsm', 'rand-fgsm', 'iter-fgsm', 
                      'cw-l0', 'cw-l2', 'cw-linf', 'pgd'], 
             help=('Attack type'))
 
         parser.add_argument(
-            p1+'norm', type=float, default=float('inf'),
+            '--norm', type=float, default=float('inf'),
             choices=[float('inf'), 1, 2],  
             help=('Attack perturbation norm'))
 
 
         parser.add_argument(
-            p1+'eps', default=0, type=float,
+            '--eps', default=0, type=float,
             help=('attack epsilon, upper bound for the perturbation norm'))
 
         parser.add_argument(
-            p1+'snr', default=100, type=float,
+            '--snr', default=100, type=float,
             help=('upper bound for the signal-to-noise ratio of '
                   'the perturved signal'))
 
         parser.add_argument(
-            p1+'alpha', default=0, type=float,
+            '--alpha', default=0, type=float,
             help=('alpha for iter and rand fgsm attack'))
 
         parser.add_argument(
-            p1+'random-eps', default=False, action='store_true',
+            '--random-eps', default=False, action='store_true',
             help=('use random epsilon in PGD attack'))
 
         parser.add_argument(
-            p1+'confidence', default=0, type=float,
+            '--confidence', default=0, type=float,
             help=('confidence for carlini-wagner attack'))
 
         parser.add_argument(
-            p1+'lr', default=1e-2, type=float,
+            '--lr', default=1e-2, type=float,
             help=('learning rate for attack optimizers'))
 
         parser.add_argument(
-            p1+'binary-search-steps', default=9, type=int,
+            '--binary-search-steps', default=9, type=int,
             help=('num bin. search steps in carlini-wagner-l2 attack'))
 
         parser.add_argument(
-            p1+'max-iter', default=10, type=int,
+            '--max-iter', default=10, type=int,
             help=('max. num. of optim iters in attack'))
 
         parser.add_argument(
-            p1+'c', default=1e-2, type=float,
+            '--c', default=1e-2, type=float,
             help=('initial weight of constraint function f in '
                   'carlini-wagner attack'))
 
         parser.add_argument(
-            p1+'reduce-c', default=False, action='store_true',
+            '--reduce-c', default=False, action='store_true',
             help=('allow to reduce c in carline-wagner-l0/inf attack'))
 
         parser.add_argument(
-            p1+'c-incr-factor', default=2, type=float,
+            '--c-incr-factor', default=2, type=float,
             help=('factor to increment c in carline-wagner-l0/inf attack'))
 
         parser.add_argument(
-            p1+'tau-decr-factor', default=0.75, type=float,
+            '--tau-decr-factor', default=0.75, type=float,
             help=('factor to reduce tau in carline-wagner-linf attack'))
 
         parser.add_argument(
-            p1+'indep-channels', default=False, action='store_true',
+            '--indep-channels', default=False, action='store_true',
             help=('consider independent input channels in '
                   'carline-wagner-l0 attack'))
 
         parser.add_argument(
-            p1+'no-abort', default=False, action='store_true',
+            '--no-abort', default=False, action='store_true',
             help=('do not abort early in optimizer iterations'))
 
         parser.add_argument(
-            p1+'num-random-init', default=0, type=int,
+            '--num-random-init', default=0, type=int,
             help=('number of random initializations in PGD attack'))
 
         parser.add_argument(
-            p1+'targeted', default=False, action='store_true',
+            '--targeted', default=False, action='store_true',
             help='use targeted attack intead of non-targeted')
 
         parser.add_argument(
-            p1+'use-snr', default=False, action='store_true',
+            '--use-snr', default=False, action='store_true',
             help=('In carlini-wagner attack maximize SNR instead of '
                   'minimize perturbation norm'))
 
         parser.add_argument(
-            p1+'norm-time', default=False, action='store_true',
+            '--norm-time', default=False, action='store_true',
             help=('normalize norm by number of samples in time dimension'))
 
+        if prefix is not None:
+            outer_parser.add_argument(
+                '--' + prefix,
+                action=ActionParser(parser=parser),
+                help='adversarial attack options')
 
     add_argparse_args = add_class_args

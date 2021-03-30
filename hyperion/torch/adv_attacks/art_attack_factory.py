@@ -3,6 +3,7 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+from jsonargparse import ArgumentParser, ActionParser
 import numpy as np
 try:
     from art import attacks
@@ -228,14 +229,12 @@ class ARTAttackFactory(object):
 
     @staticmethod
     def add_class_args(parser, prefix=None):
-        
-        if prefix is None:
-            p1 = '--'
-        else:
-            p1 = '--' + prefix + '.'
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog='')
 
         parser.add_argument(
-            p1+'attack-type', type=str.lower, default='fgsm',
+            '--attack-type', type=str.lower, default='fgsm',
             choices=['boundary', 'brendel', 'deepfool', 
                      'fgm', 'bim', 'pgd', 'auto-pgd', 
                      'jsma', 'newtonfool', 'cw-l2', 'cw-linf', 
@@ -244,96 +243,96 @@ class ARTAttackFactory(object):
             help=('Attack type'))
 
         parser.add_argument(
-            p1+'norm', type=str.lower, default='inf',
+            '--norm', type=str.lower, default='inf',
             choices=['inf','1','2'], help=('Attack norm'))
 
         parser.add_argument(
-            p1+'eps', default=0, type=float,
+            '--eps', default=0, type=float,
             help=('attack epsilon, upper bound for the perturbation norm'))
 
         parser.add_argument(
-            p1+'eps-step', default=0.1, type=float,
+            '--eps-step', default=0.1, type=float,
             help=('Step size of input variation for minimal perturbation computation'))
 
         parser.add_argument(
-            p1+'delta', default=0.1, type=float,
+            '--delta', default=0.1, type=float,
             help=('Initial step size for the orthogonal step in boundary-attack'))
         
         parser.add_argument(
-            p1+'step-adapt', default=0.667, type=float,
+            '--step-adapt', default=0.667, type=float,
             help=('Factor by which the step sizes are multiplied or divided, '
                   'must be in the range (0, 1).'))
         
         parser.add_argument(
-            p1+'confidence', default=0, type=float,
+            '--confidence', default=0, type=float,
             help=('confidence for carlini-wagner attack'))
 
         parser.add_argument(
-            p1+'lr', default=1e-2, type=float,
+            '--lr', default=1e-2, type=float,
             help=('learning rate for attack optimizers'))
 
         parser.add_argument(
-            p1+'lr-decay', default=0.5, type=float,
+            '--lr-decay', default=0.5, type=float,
             help=('learning rate decay for attack optimizers'))
 
         parser.add_argument(
-            p1+'lr-num-decay', default=10, type=int,
+            '--lr-num-decay', default=10, type=int,
             help=('learning rate decay steps for attack optimizers'))
 
         parser.add_argument(
-            p1+'momentum', default=0.8, type=float,
+            '--momentum', default=0.8, type=float,
             help=('momentum for attack optimizers'))
 
         parser.add_argument(
-            p1+'overshoot', default=1.1, type=float,
+            '--overshoot', default=1.1, type=float,
             help=('overshoot param. for Brendel attack'))
 
         parser.add_argument(
-            p1+'binary-search-steps', default=9, type=int,
+            '--binary-search-steps', default=9, type=int,
             help=('num bin. search steps in carlini-wagner-l2 attack'))
 
         parser.add_argument(
-            p1+'max-iter', default=10, type=int,
+            '--max-iter', default=10, type=int,
             help=('max. num. of optim iters in attack'))
 
         parser.add_argument(
-            p1+'num-trial', default=25, type=int,
+            '--num-trial', default=25, type=int,
             help=('Maximum number of trials per iteration (boundary attack).'))
 
         parser.add_argument(
-            p1+'num-grads', default=10, type=int,
+            '--num-grads', default=10, type=int,
             help=('number of class gradients (deepfool attack).'))
 
         parser.add_argument(
-            p1+'sample-size', default=20, type=int,
+            '--sample-size', default=20, type=int,
             help=('Number of samples per trial (boundary attack).'))
 
         parser.add_argument(
-            p1+'init-size', default=100, type=int,
+            '--init-size', default=100, type=int,
             help=('Maximum number of trials for initial generation of '
                   'adversarial examples. (boundary attack).'))
 
         parser.add_argument(
-            p1+'init-eval', default=100, type=int,
+            '--init-eval', default=100, type=int,
             help=('Initial number of evaluations for estimating gradient.'))
 
         parser.add_argument(
-            p1+'max-eval', default=10000, type=int,
+            '--max-eval', default=10000, type=int,
             help=('Maximum number of evaluations for estimating gradient.'))
 
         parser.add_argument(
-            p1+'num-random-init', default=0, type=int,
+            '--num-random-init', default=0, type=int,
             help=('Number of random initialisations within the epsilon ball. '
                   'For random_init=0 starting at the original input.'))
 
         parser.add_argument(
-            p1+'minimal', default=False, action='store_true',
+            '--minimal', default=False, action='store_true',
             help=('Indicates if computing the minimal perturbation (True). '
                   'If True, also define eps_step for the step size and eps '
                   'for the maximum perturbation.'))
 
         parser.add_argument(
-            p1+'random-eps', default=False, action='store_true',
+            '--random-eps', default=False, action='store_true',
             help=('When True, epsilon is drawn randomly from '
                   'truncated normal distribution. '
                   'The literature suggests this for FGSM based training to '
@@ -342,101 +341,107 @@ class ARTAttackFactory(object):
                   'The effectiveness of this method with PGD is untested'))
 
         parser.add_argument(
-            p1+'min-eps', default=None, type=float,
+            '--min-eps', default=None, type=float,
             help=('Stop attack if perturbation is smaller than min_eps.'))
 
         parser.add_argument(
-            p1+'theta', default=0.1, type=float,
+            '--theta', default=0.1, type=float,
             help=('Amount of Perturbation introduced to each modified '
                   'feature per step (can be positive or negative).'))
 
         parser.add_argument(
-            p1+'gamma', default=1.0, type=float,
+            '--gamma', default=1.0, type=float,
             help=('Maximum fraction of features being perturbed (between 0 and 1).'))
 
         parser.add_argument(
-            p1+'beta', default=0.001, type=float,
+            '--beta', default=0.001, type=float,
             help=('Hyperparameter trading off L2 minimization for L1 minimization'))
 
         parser.add_argument(
-            p1+'decision-rule', default='EN', choices=['EN','L1','L2'],
+            '--decision-rule', default='EN', choices=['EN','L1','L2'],
             help=('Decision rule. ‘EN’ means Elastic Net rule, ‘L1’ means L1 rule, ‘L2’ means L2 rule. (elasticnet)'))
 
         parser.add_argument(
-            p1+'eta', default=0.01, type=float,
+            '--eta', default=0.01, type=float,
             help=('Eta coeff. for NewtonFool'))
 
         parser.add_argument(
-            p1+'c', default=1e-2, type=float,
+            '--c', default=1e-2, type=float,
             help=('Initial weight of constraint function f in carlini-wagner attack'))
 
         parser.add_argument(
-            p1+'max-halving', default=5, type=int,
+            '--max-halving', default=5, type=int,
             help=('Maximum number of halving steps in the line search optimization.'))
 
         parser.add_argument(
-            p1+'max-doubling', default=5, type=int,
+            '--max-doubling', default=5, type=int,
             help=('Maximum number of doubling steps in the line search optimization.'))
 
         parser.add_argument(
-            p1+'no-abort', default=False, action='store_true',
+            '--no-abort', default=False, action='store_true',
             help=('do not abort early in optimizer iterations'))
 
         parser.add_argument(
-            p1+'use-importance', default=False, action='store_true',
+            '--use-importance', default=False, action='store_true',
             help=('to use importance sampling when choosing coordinates to update.'))
 
         parser.add_argument(
-            p1+'variable-h', default=0.0001, type=float,
+            '--variable-h', default=0.0001, type=float,
             help=('Step size for numerical estimation of derivatives.'))
 
         parser.add_argument(
-            p1+'num-parallel', default=128, type=int,
+            '--num-parallel', default=128, type=int,
             help=('Number of coordinate updates to run in parallel'))
 
         parser.add_argument(
-            p1+'th', default=None, type=int,
+            '--th', default=None, type=int,
             help=('Threshold for threshold attack, None indicates finding and minimum threshold'))
 
         parser.add_argument(
-            p1+'sigma', default=0.5, type=float,
+            '--sigma', default=0.5, type=float,
             help=('Standard deviation random Gaussian Noise'))
 
         parser.add_argument(
-            p1+'lambda-tv', default=0.3, type=float,
+            '--lambda-tv', default=0.3, type=float,
             help=('Scalar penalty weight for total variation of the perturbation (shadow)'))
 
         parser.add_argument(
-            p1+'lambda-c', default=1., type=float,
+            '--lambda-c', default=1., type=float,
             help=('Scalar penalty weight for change in the mean of each color channel of the perturbation'))
 
         parser.add_argument(
-            p1+'lambda-s', default=0.5, type=float,
+            '--lambda-s', default=0.5, type=float,
             help=('Scalar penalty weight for similarity of color channels in perturbation'))
 
         parser.add_argument(
-            p1+'reg', default=3000, type=float,
+            '--reg', default=3000, type=float,
             help=('Entropy regularization.(wasserstein)'))
 
         parser.add_argument(
-            p1+'kernel-size', default=5, type=int,
+            '--kernel-size', default=5, type=int,
             help=('Kernel size for computing the cost matrix'))
         parser.add_argument(
-            p1+'eps-factor', default=1.1, type=float,
+            '--eps-factor', default=1.1, type=float,
             help=('Factor to increase the epsilon'))
         parser.add_argument(
-            p1+'eps-iter', default=10, type=int,
+            '--eps-iter', default=10, type=int,
             help=('Number of iterations to increase the epsilon.'))
         parser.add_argument(
-            p1+'conj-sinkhorn-iter', default=400, type=int,
+            '--conj-sinkhorn-iter', default=400, type=int,
             help=('maximum number of iterations for the conjugate sinkhorn optimizer'))
         parser.add_argument(
-            p1+'proj-sinkhorn-iter', default=400, type=int,
+            '--proj-sinkhorn-iter', default=400, type=int,
             help=('maximum number of iterations for the projected sinkhorn optimizer'))
 
         parser.add_argument(
-            p1+'targeted', default=False, action='store_true',
+            '--targeted', default=False, action='store_true',
             help='use targeted attack intead of non-targeted')
+
+        if prefix is not None:
+            outer_parser.add_argument(
+                '--' + prefix,
+                action=ActionParser(parser=parser),
+                help='ART attack options')
 
 
     add_argparse_args = add_class_args
