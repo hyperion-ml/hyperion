@@ -129,10 +129,13 @@ class ClassWeightedSeqSampler(Sampler):
             utt_weights /= utt_weights.sum()
             
             #sample utt idx
-            utt_idx[k:k+self.num_egs_per_class] = utt_idx_c[
-                torch.multinomial(
-                    utt_weights, 
-                    num_samples=self.num_egs_per_class, replacement=True)]
+            try:
+                utt_idx[k:k+self.num_egs_per_class] = utt_idx_c[
+                    torch.multinomial(
+                        utt_weights, 
+                        num_samples=self.num_egs_per_class, replacement=True)]
+            except:
+                logging.info('{} {}'.format(seq_lengths_c, utt_weights))
 
             k += self.num_egs_per_class
     

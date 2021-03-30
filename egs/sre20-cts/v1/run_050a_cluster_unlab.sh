@@ -66,7 +66,7 @@ if [ $stage -le 1 ];then
 	    --ncoh $ncoh \
 	    --cal-file $cal_file \
 	    --class-prefix $name \
-	    --thr $ahc_thr --min-sps $min_sps \
+	    --thr $ahc_thr \
 	    data/$name \
 	    $xvector_dir/$name/xvector.scp \
 	    $be_dir/lda_lnorm_adapt.h5 \
@@ -77,18 +77,6 @@ if [ $stage -le 1 ];then
 fi
 
 if [ $stage -le 2 ];then
-    output_dir=data/babel_alllangs_$cluster_label
-    mkdir -p $output_dir
-    for name in $babel_datasets
-    do
-	cat data/${name}_${cluster_label}/spk2utt
-    done > $output_dir/spk2utt
-    utils/spk2utt_to_utt2spk.pl $output_dir/spk2utt > $output_dir/utt2spk
-    awk -v min_sps=$min_sps 'NF > min_sps { print $0 }'  $output_dir/spk2utt > $output_dir/spk2utt_minsps$min_sps
-    utils/spk2utt_to_utt2spk.pl $output_dir/spk2utt_minsps$min_sps > $output_dir/utt2spk_minsps$min_sps
-fi
-
-if [ $stage -le 3 ];then
 
     for name in $lre17_datasets
     do
@@ -98,7 +86,7 @@ if [ $stage -le 3 ];then
 	    --ncoh $ncoh \
 	    --cal-file $cal_file \
 	    --class-prefix $name \
-	    --thr $ahc_thr --min-sps $min_sps \
+	    --thr $ahc_thr \
 	    data/$name \
 	    $xvector_dir/$name/xvector.scp \
 	    $be_dir/lda_lnorm_adapt.h5 \
@@ -108,24 +96,73 @@ if [ $stage -le 3 ];then
     wait
 fi
 
+if [ $stage -le 3 ];then
+    output_dir=data/babel_alllangs_$cluster_label
+    mkdir -p $output_dir
+    rm -f $output_dir/*
+    for name in $babel_datasets
+    do
+	for f in vad.scp utt2lang utt2spk wav.scp utt2num_frames utt2dur
+	do
+	    if [ -f data/${name}_${cluster_label}/$f ];then
+		cat data/${name}_${cluster_label}/$f >> $output_dir/$f
+	    fi
+	done
+    done
+    utils/utt2spk_to_spk2utt.pl $output_dir/utt2spk > $output_dir/spk2utt
+    rm -rf ${output_dir}_minsps${min_sps}
+    cp -r ${output_dir} ${output_dir}_minsps${min_sps}
+    hyp_utils/remove_spk_few_utts_nosort.sh --min-num-utts $min_sps ${output_dir}_minsps${min_sps}
+
+	# cat data/${name}_${cluster_label}/spk2utt >> $output_dir/spk2utt
+    # 	cat data/${name}_${cluster_label}/wav.scp >> $output_dir/wav.scp
+    # done
+    # utils/spk2utt_to_utt2spk.pl $output_dir/spk2utt > $output_dir/utt2spk
+    # rm -rf ${output_dir}_minsps${min_sps}
+    # cp -r ${output_dir} ${output_dir}_minsps${min_sps}
+    # awk -v min_sps=$min_sps 'NF > min_sps { print $0 }' $output_dir/spk2utt \
+    # 	> ${output_dir}_minsps${min_sps}/spk2utt
+    # utils/spk2utt_to_utt2spk.pl ${output_dir}_minsps${min_sps}/spk2utt \
+    # 				> ${output_dir}_minsps${min_sps}/utt2spk
+    # awk -v futts=${output_dir}_minsps${min_sps}/utt2spk \
+    # 	-f local/filter_utts.awk ${output_dir}/wav.scp > \
+    # 	${output_dir}_minsps${min_sps}/wav.scp
+fi
+
+
 if [ $stage -le 4 ];then
     output_dir=data/lre17_alllangs_$cluster_label
     mkdir -p $output_dir
+    rm -f $output_dir/*
     for name in $lre17_datasets
     do
-	cat data/${name}_${cluster_label}/spk2utt
-    done > $output_dir/spk2utt
-    utils/spk2utt_to_utt2spk.pl $output_dir/spk2utt > $output_dir/utt2spk
-    awk -v min_sps=$min_sps 'NF > min_sps { print $0 }'  $output_dir/spk2utt > $output_dir/spk2utt_minsps$min_sps
-    utils/spk2utt_to_utt2spk.pl $output_dir/spk2utt_minsps$min_sps > $output_dir/utt2spk_minsps$min_sps
+	for f in vad.scp utt2lang utt2spk wav.scp utt2num_frames utt2dur
+	do
+	    if [ -f data/${name}_${cluster_label}/$f ];then
+		cat data/${name}_${cluster_label}/$f >> $output_dir/$f
+	    fi
+	done
+    done
+    utils/utt2spk_to_spk2utt.pl $output_dir/utt2spk > $output_dir/spk2utt
+    rm -rf ${output_dir}_minsps${min_sps}
+    cp -r ${output_dir} ${output_dir}_minsps${min_sps}
+    hyp_utils/remove_spk_few_utts_nosort.sh --min-num-utts $min_sps ${output_dir}_minsps${min_sps}
+    # awk -v min_sps=$min_sps 'NF > min_sps { print $0 }' $output_dir/spk2utt \
+    # 	> ${output_dir}_minsps${min_sps}/spk2utt
+    # utils/spk2utt_to_utt2spk.pl ${output_dir}_minsps${min_sps}/spk2utt \
+    # 				> ${output_dir}_minsps${min_sps}/utt2spk
+    # awk -v futts=${output_dir}_minsps${min_sps}/utt2spk \
+    # 	-f local/filter_utts.awk ${output_dir}/wav.scp > \
+    # 	${output_dir}_minsps${min_sps}/wav.scp
 fi
 
 if [ $stage -le 5 ];then
-    output_dir=data/babel_lre17_alllangs_$cluster_label
+    output_dir=data/babel_lre17_alllangs_${cluster_label}_minsps$min_sps
     mkdir -p $output_dir
-    for file in utt2spk spk2utt utt2spk_minsps$min_sps spk2utt_minsps$min_sps
+    for file in utt2spk spk2utt 
     do
-	for name in lre17_alllangs_$cluster_label babel_alllangs_$cluster_label
+	for name in lre17_alllangs_${cluster_label}_minsps$min_sps \
+				   babel_alllangs_${cluster_label}_minsps$min_sps
 	do
 	    cat data/$name/$file
 	done > $output_dir/$file

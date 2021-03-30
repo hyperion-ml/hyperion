@@ -75,6 +75,11 @@ $cmd $output_dir/log/ahc.log \
 
 rm $train_list
 utils/utt2spk_to_spk2utt.pl $output_dir/utt2spk > $output_dir/spk2utt
-
-awk -v min_sps=$min_sps 'NF > min_sps { print $0 }'  $output_dir/spk2utt > $output_dir/spk2utt_minsps$min_sps
-utils/spk2utt_to_utt2spk.pl $output_dir/spk2utt_minsps$min_sps > $output_dir/utt2spk_minsps$min_sps
+for f in utt2lang vad.scp wav.scp utt2num_frames utt2dur
+do
+    if [ -f $data_dir/$f ];then
+	cp $data_dir/$f  $output_dir/$f
+    fi
+done
+#awk -v min_sps=$min_sps 'NF > min_sps { print $0 }'  $output_dir/spk2utt > $output_dir/spk2utt_minsps$min_sps
+#utils/spk2utt_to_utt2spk.pl $output_dir/spk2utt_minsps$min_sps > $output_dir/utt2spk_minsps$min_sps

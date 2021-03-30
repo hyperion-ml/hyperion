@@ -319,7 +319,7 @@ class ScaledDotProdAttV1Pool1d(_GlobalPool1d):
         if self.bin_attn:
             scores = nnf.sigmoid(scores+self.bias)
             #print(torch.mean(scores, dim=(0,2,3)))
-        scores = scores.squeeze(dim=-1)                    # (batch, head, time)
+        # scores = scores.squeeze(dim=-1)                    # (batch, head, time)
         if weights is not None:
             mask = weights.view(batch_size, 1, 1, -1).eq(0)  # (batch, 1, 1,time)
             if self.bin_attn:
@@ -334,7 +334,7 @@ class ScaledDotProdAttV1Pool1d(_GlobalPool1d):
                 self.attn = scores/(torch.sum(scores, dim=-1, keepdim=True) + 1e-9)
             else:
                 self.attn = torch.softmax(scores, dim=-1)  # (batch, head, 1, time)
-        #print(self.q.shape, k.shape, v.shape, scores.shape, self.attn.shape)
+
         x = torch.matmul(self.attn, v)  # (batch, head, 1, d_v)
         if self.keepdim:
             x = x.view(batch_size, 1, self.num_heads * self.d_v)  # (batch, 1, d_model)
