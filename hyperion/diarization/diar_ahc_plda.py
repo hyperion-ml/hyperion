@@ -3,6 +3,7 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import logging
+from pathlib import Path
 
 import numpy as np
 import h5py
@@ -31,6 +32,10 @@ class DiarAHCPLDA(object):
     
     @staticmethod
     def _plot_score_hist(scores, output_file, thr=None, gmm=None):
+
+        output_dir = Path(output_file).parent
+        output_dir.mkdir(parents=True, exist_ok=True)
+
         mask = np.triu(np.ones(scores.shape, dtype=np.bool), 1)
         scores_r = scores[mask].ravel()
         

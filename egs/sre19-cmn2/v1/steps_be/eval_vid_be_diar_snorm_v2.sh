@@ -14,15 +14,14 @@ if [ -f path.sh ]; then . ./path.sh; fi
 set -e
 
 if [ $# -ne 9 ]; then
-  echo "Usage: $0 <ndx> <enroll-file>  <diar-segments-to-orig-utt> <vector-file> <cohort-list> <cohort-vector-file> <preproc-file> <plda-file> <output-scores>"
+  echo "Usage: $0 <ndx> <enroll-file>  <enroll-vector-file> <test-vector-file> <cohort-list> <cohort-vector-file> <preproc-file> <plda-file> <output-scores>"
   exit 1;
 fi
 
-
 ndx_file=$1
 enroll_file=$2
-diar2orig=$3
-vector_file=$4
+enroll_vector_file=$3
+test_vector_file=$4
 coh_list=$5
 coh_vector_file=$6
 preproc_file=$7
@@ -47,13 +46,13 @@ while(getline < fv)
 echo "$0 score $ndx_file"
 
 $cmd $output_dir/log/${name}.log \
-     python steps_be/eval-vid-be-diar-snorm-v1.py \
-     --iv-file scp:$vector_file \
+     python steps_be/eval-vid-be-diar-snorm-v2.py \
+     --enroll-v-file scp:$enroll_vector_file \
+     --test-v-file scp:$test_vector_file \
      --ndx-file $ndx_file \
      --enroll-file $enroll_file \
-     --test-subseg2orig-file $diar2orig \
      --coh-list $hyp_coh_list \
-     --coh-iv-file scp:$coh_vector_file \
+     --coh-v-file scp:$coh_vector_file \
      --preproc-file $preproc_file \
      --model-file $plda_file \
      --plda-type $plda_type \
@@ -61,6 +60,5 @@ $cmd $output_dir/log/${name}.log \
      --coh-nbest-discard $ncoh_discard \
      --score-file $output_file
 
-rm -f $output_file.ndx
 rm -f $hyp_coh_list
 

@@ -425,23 +425,23 @@ class TrialKey(object):
         self.seg_set = list2ndarray(self.seg_set)
 
         shape = (len(self.model_set), len(self.seg_set))
-        assert(len(np.unique(self.model_set)) == shape[0])
-        assert(len(np.unique(self.seg_set)) == shape[1])
+        assert len(np.unique(self.model_set)) == shape[0]
+        assert len(np.unique(self.seg_set)) == shape[1]
         
 
         if (self.tar is None) or (self.non is None):
             self.tar = np.zeros(shape, dtype='bool')
             self.non = np.zeros(shape, dtype='bool')
         else:
-            assert(self.tar.shape == shape)
-            assert(self.non.shape == shape)
+            assert self.tar.shape == shape
+            assert self.non.shape == shape
             
         if self.model_cond is not None:
-            assert(self.model_cond.shape[1] == shape[0])
+            assert self.model_cond.shape[1] == shape[0]
         if self.seg_cond is not None:
-            assert(self.seg_cond.shape[1] == shape[1])
+            assert self.seg_cond.shape[1] == shape[1]
         if self.trial_cond is not None:
-            assert(self.trial_cond.shape[1:] == shape)
+            assert self.trial_cond.shape[1:] == shape
                 
         if self.model_cond_name is not None:
             self.model_cond_name = list2ndarray(self.model_cond_name)

@@ -22,7 +22,7 @@ class TDNNBlock(nn.Module):
         self.activation = AF.create(activation)
         padding = int(dilation * (kernel_size -1)/2)
 
-        self.dropout_rate =dropout_rate
+        self.dropout_rate = dropout_rate
         self.dropout = None
         if dropout_rate > 0:
             self.dropout = Dropout1d(dropout_rate)

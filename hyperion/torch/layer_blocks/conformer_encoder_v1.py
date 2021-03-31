@@ -39,7 +39,6 @@ class ConformerEncoderBlockV1(nn.Module):
       dropout_rate: dropout rate for ff and conv blocks
       att_context: maximum context range for local attention
       att_dropout_rate: dropout rate for attention block
-      rel_pos_enc: if True, use relative postional encodings, absolute encodings otherwise.
       causal_pos_enc: if True, use causal positional encodings (when rel_pos_enc=True), it assumes
                       that query q_i only attents to key k_j when j<=i
       conv_norm_layer: norm layer constructor for conv block, 
@@ -60,14 +59,14 @@ class ConformerEncoderBlockV1(nn.Module):
                  feed_forward='linear', d_ff=2048, ff_kernel_size=3, 
                  hid_act='swish', dropout_rate=0,
                  att_context=25, att_dropout_rate=0, 
-                 rel_pos_enc=False, causal_pos_enc=False,
+                 pos_enc_type='rel', causal_pos_enc=False,
                  conv_norm_layer=None, se_r=None,
                  ff_macaron=True, out_lnorm=False, concat_after=False):
 
         super().__init__()
         self.self_attn = self._make_att(
             self_attn, num_feats, num_heads, att_context, att_dropout_rate,
-            rel_pos_enc, causal_pos_enc)
+            pos_enc_type, causal_pos_enc)
         
         self.ff_scale = 1
         self.ff_macaron = ff_macaron
@@ -109,7 +108,7 @@ class ConformerEncoderBlockV1(nn.Module):
 
     @staticmethod
     def _make_att(att_type, num_feats, num_heads, context, 
-                  dropout_rate, rel_pos_enc, causal_pos_enc):
+                  dropout_rate, pos_enc_type, causal_pos_enc):
         """Creates multihead attention block from att_type string
 
         Args:
@@ -117,7 +116,7 @@ class ConformerEncoderBlockV1(nn.Module):
            num_feats: input/output feat. dimension (aka d_model)
            num_heads: number of heads
            dropout_rate: dropout rate for attention block
-           rel_pos_enc: if True, use relative postional encodings, absolute encodings otherwise.
+           pos_enc_type: type of positional encoder
            causal_pos_enc: if True, use causal positional encodings (when rel_pos_enc=True), it assumes
                            that query q_i only attents to key k_j when j<=i
 
@@ -129,7 +128,7 @@ class ConformerEncoderBlockV1(nn.Module):
         d_k = num_feats // num_heads
 
         if att_type == 'scaled-dot-prod-v1':
-            if rel_pos_enc:
+            if pos_enc_type == 'rel':
                 return ScaledDotProdAttRelPosEncV1(
                     num_feats, num_feats, num_heads, d_k, d_k, 
                     causal_pos_enc, dropout_rate, time_dim=1)
@@ -139,7 +138,7 @@ class ConformerEncoderBlockV1(nn.Module):
                 dropout_rate, time_dim=1)
 
         if att_type == 'local-scaled-dot-prod-v1':
-            if rel_pos_enc:
+            if pos_enc_type == 'rel':
                 return LocalScaledDotProdAttRelPosEncV1(
                     num_feats, num_feats, num_heads, d_k, d_k, 
                     context, causal_pos_enc, dropout_rate, time_dim=1)

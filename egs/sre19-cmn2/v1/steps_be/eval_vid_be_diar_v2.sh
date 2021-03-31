@@ -11,14 +11,14 @@ if [ -f path.sh ]; then . ./path.sh; fi
 set -e 
 
 if [ $# -ne 7 ]; then
-  echo "Usage: $0 <ndx> <enroll-file> <diar-segments-to-orig-utt> <vector-file> <preproc-file> <plda-file> <output-scores>"
+  echo "Usage: $0 <ndx> <enroll-file> <enroll-vector-file> <test-vector-file> <preproc-file> <plda-file> <output-scores>"
   exit 1;
 fi
 
 ndx_file=$1
 enroll_file=$2
-diar2orig=$3
-vector_file=$4
+enroll_vector_file=$3
+test_vector_file=$4
 preproc_file=$5
 plda_file=$6
 output_file=$7
@@ -31,15 +31,14 @@ name=$(basename $output_file)
 echo "$0 score $ndx_file"
 
 $cmd $output_dir/log/${name}.log \
-     python steps_be/eval-vid-be-diar-v1.py \
-     --iv-file scp:$vector_file \
+     python steps_be/eval-vid-be-diar-v2.py \
+     --enroll-v-file scp:$enroll_vector_file \
+     --test-v-file scp:$test_vector_file \
      --ndx-file $ndx_file \
      --enroll-file $enroll_file \
-     --test-subseg2orig-file $diar2orig \
      --preproc-file $preproc_file \
      --model-file $plda_file \
      --plda-type $plda_type \
      --score-file $output_file
 
 
-rm -rf $output_file.ndx

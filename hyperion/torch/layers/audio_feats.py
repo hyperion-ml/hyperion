@@ -117,7 +117,7 @@ class Wav2Win(nn.Module):
                  window_type='povey', dither=1, snip_edges=True,
                  energy_floor=0, raw_energy=True, return_log_energy=False):
         
-        super(Wav2Win, self).__init__()
+        super().__init__()
         self.fs = fs
         self.frame_length = frame_length
         self.frame_shift = frame_shift
@@ -207,7 +207,7 @@ class Wav2FFT(nn.Module):
                  window_type='povey', dither=1, snip_edges=True,
                  energy_floor=0, raw_energy=True, use_energy=True):
 
-        super(Wav2FFT, self).__init__()
+        super().__init__()
 
         N = int(math.floor(frame_length * fs/1000))
         if N > fft_length:
@@ -277,7 +277,7 @@ class Wav2Spec(Wav2FFT):
                  window_type='povey', use_fft_mag=False, dither=1, snip_edges=True,
                  energy_floor=0, raw_energy=True, use_energy=True):
     
-        super(Wav2Spec, self).__init__(
+        super().__init__(
             fs, frame_length, frame_shift, fft_length,
             remove_dc_offset=remove_dc_offset, preemph_coeff=preemph_coeff, 
             window_type=window_type, dither=dither, snip_edges=snip_edges,
@@ -312,7 +312,7 @@ class Wav2LogSpec(Wav2FFT):
                  window_type='povey', use_fft_mag=False, dither=1, snip_edges=True,
                  energy_floor=0, raw_energy=True, use_energy=True):
     
-        super(Wav2LogSpec, self).__init__(
+        super().__init__(
             fs, frame_length, frame_shift, fft_length,
             remove_dc_offset=remove_dc_offset, preemph_coeff=preemph_coeff, 
             window_type=window_type, dither=dither, snip_edges=snip_edges,
@@ -352,7 +352,7 @@ class Wav2LogFilterBank(Wav2FFT):
                  snip_edges=True,
                  energy_floor=0, raw_energy=True, use_energy=True):
     
-        super(Wav2LogFilterBank, self).__init__(
+        super().__init__(
             fs, frame_length, frame_shift, fft_length,
             remove_dc_offset=remove_dc_offset, preemph_coeff=preemph_coeff, 
             window_type=window_type, dither=dither, snip_edges=snip_edges,
@@ -412,7 +412,7 @@ class Wav2MFCC(Wav2FFT):
                  num_ceps=13, snip_edges=True, cepstral_lifter=22,
                  energy_floor=0, raw_energy=True, use_energy=True):
     
-        super(Wav2MFCC, self).__init__(
+        super().__init__(
             fs, frame_length, frame_shift, fft_length,
             remove_dc_offset=remove_dc_offset, preemph_coeff=preemph_coeff, 
             window_type=window_type, dither=dither, snip_edges=snip_edges,

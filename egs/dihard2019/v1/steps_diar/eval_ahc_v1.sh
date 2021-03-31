@@ -10,6 +10,7 @@ win_length=1.5
 win_shift=0.25
 win_shrink=0.625
 timestamps_file=""
+vad_opts=""
 
 echo "$0 $@"  # Print the command line for logging
 
@@ -51,12 +52,12 @@ if [ $stage -le 0 ];then
 	python steps_diar/eval-ahc-v1.py \
 	--test-list $utts \
 	--v-file scp:$v_file \
-	--vad-file segments:$vad_file \
+	--vad-file $vad_file \
 	--preproc-file $preproc_file \
 	--model-file $plda_file \
 	--rttm-file $output_dir/rttm.JOB \
 	--part-idx JOB --num-parts $nj \
-	$ahc_opts $ts_opts --win-shrink $win_shrink
+	$ahc_opts $ts_opts $vad_opts --win-shrink $win_shrink
 
 fi
 

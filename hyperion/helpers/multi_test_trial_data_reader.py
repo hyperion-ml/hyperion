@@ -12,8 +12,7 @@ import copy
 import numpy as np
 
 from ..io import RandomAccessDataReaderFactory as DRF
-from ..utils.utt2info import Utt2Info
-from ..utils.trial_ndx import TrialNdx
+from ..utils import TrialNdx, TrialKey, Utt2Info
 from ..transforms import TransformList
 
 class MultiTestTrialDataReader(object):
@@ -35,7 +34,10 @@ class MultiTestTrialDataReader(object):
             test = Utt2Info.load(test_file, sep=tlist_sep)
         ndx = None
         if ndx_file is not None:
-            ndx = TrialNdx.load(ndx_file)
+            try:
+                ndx = TrialNdx.load(ndx_file)
+            except:
+                ndx = TrialKey.load(ndx_file).to_ndx()
 
         subseg2orig = Utt2Info.load(test_subseg2orig_file, sep=tlist_sep)
                 

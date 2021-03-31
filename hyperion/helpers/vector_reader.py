@@ -2,7 +2,7 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-
+from jsonargparse import ArgumentParser, ActionParser
 import sys
 import os
 import argparse
@@ -28,9 +28,18 @@ class VectorReader(object):
         
             
     def read(self):
-        x = self.r.read(self.scp.key, squeeze=True)
-        if self.preproc is not None:
-            x = self.preproc.predict(x)
+        try:
+            x = self.r.read(self.scp.key, squeeze=True)
+            if self.preproc is not None:
+                x = self.preproc.predict(x)
+        except:
+            x = self.r.read(self.scp.key, squeeze=False)
+            if self.preproc is not None:
+                for i in range(len(x)):
+                    if x[i].ndim == 1:
+                        x[i] = x[i][None,:]
+                    x[i] = self.preproc.predict(x[i])
+            
         return x
 
 
@@ -44,13 +53,19 @@ class VectorReader(object):
     
     @staticmethod
     def add_class_args(parser, prefix=None):
-        if prefix is None:
-            p1 = '--'
-        else:
-            p1 = '--' + prefix + '.'
-        parser.add_argument(p1+'vlist-sep', default=' ',
-                            help=('utterance file field separator'))
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog='')
+
+        parser.add_argument(
+            '--vlist-sep', default=' ',
+            help=('utterance file field separator'))
         
+        if prefix is not None:
+            outer_parser.add_argument(
+                '--' + prefix,
+                action=ActionParser(parser=parser),
+                help='vector reader params')
     
 
     add_argparse_args = add_class_args

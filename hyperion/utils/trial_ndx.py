@@ -287,13 +287,13 @@ class TrialNdx(object):
         self.model_set = list2ndarray(self.model_set)
         self.seg_set = list2ndarray(self.seg_set)
 
-        assert(len(np.unique(self.model_set)) == len(self.model_set))
-        assert(len(np.unique(self.seg_set)) == len(self.seg_set))
+        assert len(np.unique(self.model_set)) == len(self.model_set)
+        assert len(np.unique(self.seg_set)) == len(self.seg_set)
         if self.trial_mask is None:
             self.trial_mask = np.ones((len(self.model_set), len(self.seg_set)),
                                       dtype='bool')
         else:
-            assert(self.trial_mask.shape ==
+            assert (self.trial_mask.shape ==
                    (len(self.model_set), len(self.seg_set)))
 
 
