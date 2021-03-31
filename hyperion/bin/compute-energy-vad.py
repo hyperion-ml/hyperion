@@ -3,9 +3,6 @@
  Copyright 2018 Jesus Villalba (Johns Hopkins University)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0) 
 """
-from __future__ import absolute_import
-from __future__ import print_function
-
 import sys
 import os
 import argparse
@@ -13,23 +10,24 @@ import time
 import logging
 
 import numpy as np
-from six.moves import xrange
 
 from hyperion.hyp_defs import config_logger
 from hyperion.io import SequentialAudioReader as AR
-#from hyperion.io import SequentialDataReaderFactory as DRF
 from hyperion.io import DataWriterFactory as DWF
-from hyperion.feats import energy_vad
+from hyperion.feats import EnergyVAD
 
-def compute_vad(input_path, output_path,  **kwargs):
+def compute_vad(input_path, output_path, write_num_frames, **kwargs):
 
-    mfcc_args = EnergyVAD.filter_args(**kwargs)
-    mfcc = EnergVAD(**mfcc_args)
+    vad_args = EnergyVAD.filter_args(**kwargs)
+    vad = EnergyVAD(**vad_args)
     
     input_args = AR.filter_args(**kwargs)
     reader = AR(input_path, **input_args)
 
     writer = DWF.create(output_path, scp_sep=' ')
+
+    if write_num_frames is not None:
+        f_num_frames = open(write_num_frames, 'w')
 
     for data in reader:
         key, x, fs = data
@@ -38,13 +36,19 @@ def compute_vad(input_path, output_path,  **kwargs):
         y = vad.compute(x)
         dt = (time.time() - t1)*1000
         rtf = vad.frame_shift*y.shape[0]/dt
-        logging.info('Extracted VAD for %s num-frames=%d elapsed-time=%.2f ms. real-time-factor=%.2f' %
-                     (key, y.shape[0], dt, rtf))
+        num_speech_frames = np.sum(y)
+        prob_speech = num_speech_frames / y.shape[0] * 100
+        logging.info('Extracted VAD for %s detected %d/%d (%f %%) speech frames, elapsed-time=%.2f ms. real-time-factor=%.2f' %
+                     (key, num_speech_frames, y.shape[0], prob_speech, dt, rtf))
         writer.write([key], [y])
-        
+        if write_num_frames is not None:
+            f_num_frames.write('%s %d\n' % (key, y.shape[0]))
+
         vad.reset()
-            
     
+    if write_num_frames is not None:
+        f_num_frames.close()
+
 
 if __name__ == "__main__":
     
@@ -55,8 +59,9 @@ if __name__ == "__main__":
 
     parser.add_argument('--input', dest='input_path', required=True)
     parser.add_argument('--output', dest='output_path', required=True)
+    parser.add_argument('--write-num-frames', default=None)
 
-    DRF.add_argparse_args(parser)
+    AR.add_argparse_args(parser)
     EnergyVAD.add_argparse_args(parser)
     parser.add_argument('-v', '--verbose', dest='verbose', default=1, choices=[0, 1, 2, 3], type=int,
                         help='Verbose level')

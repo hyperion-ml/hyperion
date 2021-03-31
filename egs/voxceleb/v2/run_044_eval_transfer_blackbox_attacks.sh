@@ -12,10 +12,13 @@ config_file=default_config.sh
 use_gpu=false
 do_analysis=false
 save_wav=false
+feat_config=conf/fbank80_stmn_16k.pyconf
 
 . parse_options.sh || exit 1;
 . $config_file
 . datapath.sh 
+
+transfer_feat_config=$feat_config
 
 if [ "$use_gpu" == "true" ];then
     eval_args="--use-gpu true"
@@ -51,9 +54,9 @@ if [ $stage -le 1 ];then
 	score_plda_dir=$score_dir/transfer.${transfer_nnet_name}/cosine_fgsm_e${eps}
 	echo "Eval Voxceleb 1 with Cosine scoring with FGSM attack eps=$eps"
 	steps_adv/eval_cosine_scoring_from_transfer_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 20 \
-	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
-	    --transfer-feat-config $transfer_feat_conf --transfer-audio-feat $transfer_feat \
-	    --attack-type fgsm --eps $eps \
+	    --feat-config $feat_config  \
+	    --transfer-feat-config $transfer_feat_config  \
+	    --attack-opts "--attack-attack-type fgsm --attack-eps $eps" \
 	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --transfer-cal-file $transfer_cal_file \
 	    --threshold $thr005 \
@@ -100,9 +103,9 @@ if [ $stage -le 2 ];then
 	score_plda_dir=$score_dir/transfer.${transfer_nnet_name}/cosine_fgsm_snr${snr}
 	echo "Eval Voxceleb 1 with Cosine scoring with FGSM attack snr=$snr"
 	steps_adv/eval_cosine_scoring_from_transfer_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 20 \
-	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
-	    --transfer-feat-config $transfer_feat_conf --transfer-audio-feat $transfer_feat \
-	    --attack-type snr-fgsm --snr $snr \
+	    --feat-config $feat_config  \
+	    --transfer-feat-config $transfer_feat_config  \
+	    --attack-opts "--attack-attack-type snr-fgsm --attack-snr $snr" \
 	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --transfer-cal-file $transfer_cal_file \
 	    --threshold $thr005 \
@@ -148,9 +151,9 @@ if [ $stage -le 3 ];then
 	score_plda_dir=$score_dir/transfer.${transfer_nnet_name}/cosine_randfgsm_e${eps}_a${alpha}
 	echo "Eval Voxceleb 1 with Cosine scoring with Rand-FGSM attack eps=$eps"
 	steps_adv/eval_cosine_scoring_from_transfer_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 20 \
-	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
-	    --transfer-feat-config $transfer_feat_conf --transfer-audio-feat $transfer_feat \
-	    --attack-type rand-fgsm --eps $eps --alpha $alpha \
+	    --feat-config $feat_config  \
+	    --transfer-feat-config $transfer_feat_config  \
+	    --attack-opts "--attack-attack-type rand-fgsm --attack-eps $eps --attack-alpha $alpha" \
 	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --transfer-cal-file $transfer_cal_file \
 	    --threshold $thr005 \
@@ -196,9 +199,9 @@ if [ $stage -le 4 ];then
 	score_plda_dir=$score_dir/transfer.${transfer_nnet_name}/cosine_iterfgsm_e${eps}_a${alpha}
 	echo "Eval Voxceleb 1 with Cosine scoring with FGSM attack eps=$eps"
 	steps_adv/eval_cosine_scoring_from_transfer_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 20 \
-	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
-	    --transfer-feat-config $transfer_feat_conf --transfer-audio-feat $transfer_feat \
-	    --attack-type iter-fgsm --eps $eps --alpha $alpha \
+	    --feat-config $feat_config  \
+	    --transfer-feat-config $transfer_feat_config  \
+	    --attack-opts "--attack-attack-type iter-fgsm --attack-eps $eps --attack-alpha $alpha" \
 	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --transfer-cal-file $transfer_cal_file \
 	    --threshold $thr005 \
@@ -246,12 +249,12 @@ if [ $stage -le 5 ];then
 		score_plda_dir=$score_dir/transfer.${transfer_nnet_name}/cosine_cwl2_conf${confidence}_lr${lr}_noabort_it$it
 		echo "Eval Voxceleb 1 with Cosine scoring with Carlini-Wagner L2 attack confidence=$confidence lr=$lr num-its=$it"
 		steps_adv/eval_cosine_scoring_from_transfer_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 100 \
-		    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
-		    --transfer-feat-config $transfer_feat_conf --transfer-audio-feat $transfer_feat \
-		    --attack-type cw-l2 --confidence $confidence \
+		    --feat-config $feat_config  \
+		    --transfer-feat-config $transfer_feat_config  \
+		    --attack-opts "--attack-attack-type cw-l2 --attack-confidence $confidence --attack-lr $lr --attack-no-abort --attack-max-iter $it" \
 		    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 		    --cal-file $cal_file --transfer-cal-file $transfer_cal_file \
-		    --threshold $thr005 --lr $lr --attack-opt "--attack-no-abort" --max-iter $it \
+		    --threshold $thr005 \
 		    data/voxceleb1_test/trials_o_clean \
     		    data/voxceleb1_test/utt2model \
 		    data/voxceleb1_test \
@@ -283,7 +286,6 @@ if [ $stage -le 5 ];then
     done
 
 fi
-
 
 
 if [ $stage -le 6 ];then
@@ -298,12 +300,12 @@ if [ $stage -le 6 ];then
 		score_plda_dir=$score_dir/transfer.${transfer_nnet_name}/cosine_cwrms_conf${confidence}_lr${lr}_noabort_it$it
 		echo "Eval Voxceleb 1 with Cosine scoring with Carlini-Wagner RMS attack confidence=$confidence lr=$lr num-its=$it"
 		steps_adv/eval_cosine_scoring_from_transfer_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 200 \
-		    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
-		    --transfer-feat-config $transfer_feat_conf --transfer-audio-feat $transfer_feat \
-		    --attack-type cw-l2 --confidence $confidence \
+		    --feat-config $feat_config  \
+		    --transfer-feat-config $transfer_feat_config  \
+		    --attack-opts "--attack-attack-type cw-l2 --attack-confidence $confidence --attack-lr $lr --attack-no-abort --attack-norm-time --attack-max-iter $it" \
 		    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 		    --cal-file $cal_file --transfer-cal-file $transfer_cal_file \
-		    --threshold $thr005 --lr $lr --attack-opt "--attack-no-abort --attack-norm-time" --max-iter $it \
+		    --threshold $thr005 \
 		    data/voxceleb1_test/trials_o_clean \
     		    data/voxceleb1_test/utt2model \
 		    data/voxceleb1_test \
@@ -335,7 +337,7 @@ if [ $stage -le 6 ];then
     done
 
 fi
-exit
+
 
 if [ $stage -le 7 ];then
 
@@ -349,12 +351,12 @@ if [ $stage -le 7 ];then
 		score_plda_dir=$score_dir/transfer.${transfer_nnet_name}/cosine_cwsnr_conf${confidence}_lr${lr}_noabort_it$it
 		echo "Eval Voxceleb 1 with Cosine scoring with Carlini-Wagner SNR attack confidence=$confidence lr=$lr num-its=$it"
 		steps_adv/eval_cosine_scoring_from_transfer_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 100 \
-		    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
-		    --transfer-feat-config $transfer_feat_conf --transfer-audio-feat $transfer_feat \
-		    --attack-type cw-l2 --confidence $confidence \
+		    --feat-config $feat_config  \
+		    --transfer-feat-config $transfer_feat_config  \
+		    --attack-opts "--attack-attack-type cw-l2 --attack-confidence $confidence --attack-lr $lr --attack-no-abort --attack-norm-time --attack-max-iter $it" \
 		    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 		    --cal-file $cal_file --transfer-cal-file $transfer_cal_file \
-		    --threshold $thr005 --lr $lr --attack-opt "--attack-no-abort --attack-use-snr" --max-iter $it \
+		    --threshold $thr005 \
 		    data/voxceleb1_test/trials_o_clean \
     		    data/voxceleb1_test/utt2model \
 		    data/voxceleb1_test \
@@ -388,93 +390,92 @@ if [ $stage -le 7 ];then
 fi
 
 
-if [ $stage -le -8 ];then
+# if [ $stage -le -8 ];then
 
-    for confidence in 0 1
-    do
-	alpha=$(echo $eps | awk '{ print $0/5.}')
-	score_plda_dir=$score_dir/transfer.${transfer_nnet_name}/cosine_cwl0_conf${confidence}
-	echo "Eval Voxceleb 1 with Cosine scoring with Carlini-Wagner L0 attack confidence=$confidence"
-	steps_adv/eval_cosine_scoring_from_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 1000 \
-	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
-	    --transfer-feat-config $transfer_feat_conf --transfer-audio-feat $transfer_feat \
-	    --attack-type cw-l0 --confidence $confidence --c-factor 10 \
-	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
-	    --cal-file $cal_file --transfer-cal-file $transfer_cal_file \
-	    --threshold $thr005 \
-	    data/voxceleb1_test/trials_o_clean \
-    	    data/voxceleb1_test/utt2model \
-            data/voxceleb1_test \
-    	    $xvector_dir/voxceleb1_test/xvector.scp \
-	    $nnet \
-    	    $transfer_xvector_dir/voxceleb1_test/xvector.scp \
-	    $transfer_nnet \
-	    $score_plda_dir/voxceleb1_scores $score_plda_dir/voxceleb1_stats
+#     for confidence in 0 1
+#     do
+# 	score_plda_dir=$score_dir/transfer.${transfer_nnet_name}/cosine_cwl0_conf${confidence}
+# 	echo "Eval Voxceleb 1 with Cosine scoring with Carlini-Wagner L0 attack confidence=$confidence"
+# 	steps_adv/eval_cosine_scoring_from_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 1000 \
+# 	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
+# 	    --transfer-feat-config $transfer_feat_conf --transfer-audio-feat $transfer_feat \
+# 	    --attack-type cw-l0 --confidence $confidence --c-factor 10 \
+# 	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
+# 	    --cal-file $cal_file --transfer-cal-file $transfer_cal_file \
+# 	    --threshold $thr005 \
+# 	    data/voxceleb1_test/trials_o_clean \
+#     	    data/voxceleb1_test/utt2model \
+#             data/voxceleb1_test \
+#     	    $xvector_dir/voxceleb1_test/xvector.scp \
+# 	    $nnet \
+#     	    $transfer_xvector_dir/voxceleb1_test/xvector.scp \
+# 	    $transfer_nnet \
+# 	    $score_plda_dir/voxceleb1_scores $score_plda_dir/voxceleb1_stats
     	
-	$train_cmd --mem 10G $score_plda_dir/log/score_voxceleb1.log \
-	    local/score_voxceleb1_o_clean.sh data/voxceleb1_test $score_plda_dir 
+# 	$train_cmd --mem 10G $score_plda_dir/log/score_voxceleb1.log \
+# 	    local/score_voxceleb1_o_clean.sh data/voxceleb1_test $score_plda_dir 
 	
-	for f in $(ls $score_plda_dir/*_results);
-	do
-	    echo $f
-	    cat $f
-	    echo ""
-	done
-	if [ "${do_analysis}" == "true" ];then
-	    score_analysis_dir=$score_plda_dir
-	    local/attack_analysis.sh --cmd "$train_cmd --mem 10G" \
-		data/voxceleb1_test/trials_o_clean $score_clean \
-		$score_plda_dir/voxceleb1_scores $score_plda_dir/voxceleb1_stats \
-		$score_analysis_dir/voxceleb1 &
-	fi
-    done
+# 	for f in $(ls $score_plda_dir/*_results);
+# 	do
+# 	    echo $f
+# 	    cat $f
+# 	    echo ""
+# 	done
+# 	if [ "${do_analysis}" == "true" ];then
+# 	    score_analysis_dir=$score_plda_dir
+# 	    local/attack_analysis.sh --cmd "$train_cmd --mem 10G" \
+# 		data/voxceleb1_test/trials_o_clean $score_clean \
+# 		$score_plda_dir/voxceleb1_scores $score_plda_dir/voxceleb1_stats \
+# 		$score_analysis_dir/voxceleb1 &
+# 	fi
+#     done
 
-fi
+# fi
 
 
-if [ $stage -le 9 ];then
+# if [ $stage -le 9 ];then
 
-    for confidence in 0 1
-    do
-	alpha=$(echo $eps | awk '{ print $0/5.}')
-	score_plda_dir=$score_dir/transfer.${transfer_nnet_name}/cosine_cwlinf_conf${confidence}
-	echo "Eval Voxceleb 1 with Cosine scoring with Carlini-Wagner LInf attack confidence=$confidence"
-	steps_adv/eval_cosine_scoring_from_transfer_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 40 \
-	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
-	    --transfer-feat-config $transfer_feat_conf --transfer-audio-feat $transfer_feat \
-	    --attack-type cw-linf --confidence $confidence --c-factor 2 \
-	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
-	    --cal-file $cal_file --transfer-cal-file $transfer_cal_file \
-	    --threshold $thr005 \
-	    data/voxceleb1_test/trials_o_clean \
-    	    data/voxceleb1_test/utt2model \
-            data/voxceleb1_test \
-    	    $xvector_dir/voxceleb1_test/xvector.scp \
-	    $nnet \
-    	    $transfer_xvector_dir/voxceleb1_test/xvector.scp \
-	    $transfer_nnet \
-	    $score_plda_dir/voxceleb1_scores $score_plda_dir/voxceleb1_stats
+#     for confidence in 0 1
+#     do
+# 	alpha=$(echo $eps | awk '{ print $0/5.}')
+# 	score_plda_dir=$score_dir/transfer.${transfer_nnet_name}/cosine_cwlinf_conf${confidence}
+# 	echo "Eval Voxceleb 1 with Cosine scoring with Carlini-Wagner LInf attack confidence=$confidence"
+# 	steps_adv/eval_cosine_scoring_from_transfer_adv_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 40 \
+# 	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
+# 	    --transfer-feat-config $transfer_feat_conf --transfer-audio-feat $transfer_feat \
+# 	    --attack-type cw-linf --confidence $confidence --c-factor 2 \
+# 	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
+# 	    --cal-file $cal_file --transfer-cal-file $transfer_cal_file \
+# 	    --threshold $thr005 \
+# 	    data/voxceleb1_test/trials_o_clean \
+#     	    data/voxceleb1_test/utt2model \
+#             data/voxceleb1_test \
+#     	    $xvector_dir/voxceleb1_test/xvector.scp \
+# 	    $nnet \
+#     	    $transfer_xvector_dir/voxceleb1_test/xvector.scp \
+# 	    $transfer_nnet \
+# 	    $score_plda_dir/voxceleb1_scores $score_plda_dir/voxceleb1_stats
     	
-	$train_cmd --mem 10G $score_plda_dir/log/score_voxceleb1.log \
-	    local/score_voxceleb1_o_clean.sh data/voxceleb1_test $score_plda_dir 
+# 	$train_cmd --mem 10G $score_plda_dir/log/score_voxceleb1.log \
+# 	    local/score_voxceleb1_o_clean.sh data/voxceleb1_test $score_plda_dir 
 	
-	for f in $(ls $score_plda_dir/*_results);
-	do
-	    echo $f
-	    cat $f
-	    echo ""
-	done
-	if [ "${do_analysis}" == "true" ];then
-	    score_analysis_dir=$score_plda_dir
-	    local/attack_analysis.sh --cmd "$train_cmd --mem 10G" \
-		data/voxceleb1_test/trials_o_clean $score_clean \
-		$score_plda_dir/voxceleb1_scores $score_plda_dir/voxceleb1_stats \
-		$score_analysis_dir/voxceleb1 &
-	fi
+# 	for f in $(ls $score_plda_dir/*_results);
+# 	do
+# 	    echo $f
+# 	    cat $f
+# 	    echo ""
+# 	done
+# 	if [ "${do_analysis}" == "true" ];then
+# 	    score_analysis_dir=$score_plda_dir
+# 	    local/attack_analysis.sh --cmd "$train_cmd --mem 10G" \
+# 		data/voxceleb1_test/trials_o_clean $score_clean \
+# 		$score_plda_dir/voxceleb1_scores $score_plda_dir/voxceleb1_stats \
+# 		$score_analysis_dir/voxceleb1 &
+# 	fi
 
-    done
+#     done
 
-fi
+# fi
 
 wait
 

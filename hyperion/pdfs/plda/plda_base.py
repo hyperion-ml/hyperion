@@ -2,10 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import numpy as np
 
@@ -67,7 +63,7 @@ class PLDABase(PDF):
                 
         elbo = np.zeros((epochs,), dtype=float_cpu())
         elbo_val = np.zeros((epochs,), dtype=float_cpu())
-        for epoch in xrange(epochs):
+        for epoch in range(epochs):
             
             stats=self.Estep(D)
             elbo[epoch]=self.elbo(stats)
@@ -140,7 +136,7 @@ class PLDABase(PDF):
                 
         elbo = np.zeros((epochs,), dtype=float_cpu())
         elbo_val = np.zeros((epochs,), dtype=float_cpu())
-        for epoch in xrange(epochs):
+        for epoch in range(epochs):
             
             stats=self.Estep(D)
             elbo[epoch]=self.elbo(stats)
@@ -196,14 +192,14 @@ class PLDABase(PDF):
                 
         elbo = np.zeros((epochs,), dtype=float_cpu())
         elbo_val = np.zeros((epochs,), dtype=float_cpu())
-        for epoch in xrange(epochs):
+        for epoch in range(epochs):
             
             stats = self.Estep(D)
             stats0 = self.Estep(D0)
-            elbo[epoch]=self.elbo(stats)
+            elbo[epoch] = self.elbo(stats)
             if x_val is not None:
-                stats_val=self.Estep(D_val)
-                elbo_val[epoch]=self.elbo(stats_val)
+                stats_val = self.Estep(D_val)
+                elbo_val[epoch] = self.elbo(stats_val)
 
             if use_ml:
                 self.MstepML(stats)
@@ -231,9 +227,38 @@ class PLDABase(PDF):
         S = np.dot(x.T, wx)
         return N, F, S
 
+
+    @staticmethod
+    def compute_stats_hard(x, class_ids, sample_weight=None, scale_factor=None):
+        x_dim = x.shape[1]
+        num_classes = np.max(class_ids)+1
+        N = np.zeros((num_classes,), dtype=float_cpu())
+        F = np.zeros((num_classes, x_dim), dtype=float_cpu())
+        if sample_weight is not None:
+            wx = sample_weight[:, None] * x
+        else:
+            wx = x
+
+        for i in range(num_classes):
+            idx = class_ids == i
+            if sample_weight is None:
+                N[i] = np.sum(idx).astype(float_cpu())
+                F[i] = np.sum(x[idx], axis=0)
+            else:
+                N[i] = np.sum(sample_weight[idx])
+                F[i] = np.sum(wx[idx], axis=0)
+            
+        S = np.dot(x.T, wx)
+        if scale_factor is not None:
+            N *= scale_factor
+            F *= scale_factor
+            S *= scale_factor
+
+        return N, F, S
+
     
     @staticmethod
-    def compute_stats_hard(x, class_ids, sample_weight=None, scal_factor=None):
+    def compute_stats_hard_v0(x, class_ids, sample_weight=None, scal_factor=None):
         x_dim=x.shape[1]
         num_classes = np.max(class_ids)+1
         p_theta = np.zeros((x.shape[0], num_classes), dtype=float_cpu())

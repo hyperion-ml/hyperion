@@ -2,11 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
-
 import numpy as np
 import h5py
 import scipy.linalg as la
@@ -27,7 +22,7 @@ class GMM(ExpFamilyMixture):
     def __init__(self, mu=None, Lambda=None, var_floor=1e-3,
                  update_mu=True, update_Lambda=True,
                  **kwargs):
-        super(GMM, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         self.mu = mu
         self.Lambda = Lambda
         self.var_floor = var_floor
@@ -85,7 +80,7 @@ class GMM(ExpFamilyMixture):
     def Sigma(self):
         if self._Sigma is None:
             self._Sigma = np.zeros((self.num_comp, self.x_dim, self.x_dim), dtype=float_cpu())
-            for k in xrange(self.num_comp):
+            for k in range(self.num_comp):
                 self._Sigma[k] = invert_pdmat(self.Lambda[k], return_inv=True)[-1]
         return self._Sigma
 
@@ -93,7 +88,7 @@ class GMM(ExpFamilyMixture):
     
     def initialize(self, x=None):
         if x is None and self.mu is None and self.eta is None:
-            assert(self.num_comp==1)
+            assert self.num_comp==1
             self._initialize_stdnormal()
         if x is not None:
             self._initialize_kmeans(self.num_comp, x)
@@ -127,7 +122,7 @@ class GMM(ExpFamilyMixture):
         self.Lambda = np.zeros((self.num_comp, self.x_dim, self.x_dim),
                                dtype=float_cpu())
 
-        for k in xrange(num_comp):
+        for k in range(num_comp):
             r = cluster_index==k
             self.pi[k] = np.sum(r)/x.shape[0]
             delta = x[r] - self.mu[k]
@@ -153,7 +148,7 @@ class GMM(ExpFamilyMixture):
     def norm_suff_stats(self, N, u_x, return_order2=False):
         F, S = self.unstack_suff_stats(u_x)
         F_norm = F - N[:,None]*self.mu
-        for k in xrange(self.num_comp):
+        for k in range(self.num_comp):
             F_norm[k] = np.dot(F_norm[k], self.cholLambda[k].T)
             if return_order2:
                 SS = vec2symat(S[k])
@@ -176,17 +171,26 @@ class GMM(ExpFamilyMixture):
 
         if self.update_Lambda:
             C = np.zeros((self.num_comp, self.x_dim, self.x_dim), dtype=float_cpu())
-            for k in xrange(self.num_comp):
+            for k in range(self.num_comp):
                 C[k] = vec2symmat(S[k]/N[k])
                 C[k] -= np.outer(self.mu[k],self.mu[k])
             Sfloor = self.var_floor*np.mean(C, axis=0)
             cholfloor = la.cholesky(Sfloor, overwrite_a=True)
-            for k in xrange(self.num_comp):
+            for k in range(self.num_comp):
                 C[k] = fullcov_varfloor(C[k], cholfloor, F_is_chol=True)
                 self.Lambda[k] = invert_pdmat(C[k], return_inv=True)[-1]
             self._Sigma = None
             self._logLambda = None
             self._cholLambda = None
+
+        if self.update_pi:
+            N0 = N < self.min_N
+            if np.any(N0):
+                N[N0] = 0
+                mu[N0] = 0
+                S[N0] = 1
+            self.pi = N/np.sum(N)
+            self._log_pi = None
 
         self._compute_nat_params()
 
@@ -199,7 +203,7 @@ class GMM(ExpFamilyMixture):
         Lambda = np.repeat(self.Lambda, K, axis=0)*(K**2)
         mu = np.repeat(self.mu, K, axis=0)
         
-        for g in xrange(self.num_comp):
+        for g in range(self.num_comp):
             w, v = la.eigh(self.Sigma[g])
             v *= np.sqrt(v)
             if K==2:
@@ -207,7 +211,7 @@ class GMM(ExpFamilyMixture):
                 mu[2*g] += std_dev
                 mu[2*g+1] -= std_dev
             else:
-                for k in xrange(K):
+                for k in range(K):
                     factor = 2*(np.random.uniform(size=(v.shape[1],)) > 0.5) - 1
                     std_dev = np.sum(v*factor, axis=1)
                     mu[K*g+k] += std_dev
@@ -220,7 +224,7 @@ class GMM(ExpFamilyMixture):
     def log_prob_std(self, x):
         r0 = self.log_pi + 0.5*self.logLambda - 0.5*self.x_dim*np.log(2*np.pi)
         llk_k = np.zeros((x.shape[0], self.num_comp), dtype=float_cpu())
-        for k in xrange(self.num_comp):                 
+        for k in range(self.num_comp):                 
             mah_dist2 = np.sum(np.dot(x-self.mu[k], self.cholLambda[k])**2, axis=1)
             llk_k[:,k] = r0[k] - 0.5*mah_dist2
         
@@ -234,7 +238,7 @@ class GMM(ExpFamilyMixture):
 
         r = rng.multinomial(1, self.pi, size=(num_samples,))
         x = np.zeros((num_samples, self.x_dim), dtype=float_cpu())
-        for k in xrange(self.num_comp):
+        for k in range(self.num_comp):
             index = r[:, k]==1
             n_k = np.sum(index)
             if n_k == 0:
@@ -250,7 +254,7 @@ class GMM(ExpFamilyMixture):
         config = {'var_floor': self.var_floor,
                   'update_mu': self.update_mu,
                   'update_lambda': self.update_Lambda }
-        base_config = super(DiagGMM, self).get_config()
+        base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
 
@@ -294,7 +298,7 @@ class GMM(ExpFamilyMixture):
                     pi = np.array([float(v) for v in fields[2:-1]], dtype=float_cpu())
                     num_comp = len(pi)
                 elif fields[0]=="<MEANS_INVCOVARS>":
-                    for k in xrange(num_comp):
+                    for k in range(num_comp):
                         line = f.readline()
                         fields = line.split()
                         if x_dim == 0:
@@ -306,9 +310,9 @@ class GMM(ExpFamilyMixture):
                         eta1[k] = [ float(v) for v in fields[:x_dim] ]
                 elif fields[0]=="<INV_COVARS>":
                     L = np.zeros((x_dim, x_dim), dtype=float_cpu())
-                    for k in xrange(num_comp):
+                    for k in range(num_comp):
                         L[:,:] = 0
-                        for j in xrange(x_dim):
+                        for j in range(x_dim):
                             line = f.readline()
                             fields = line.split()
                             if j < x_dim -1:
@@ -361,7 +365,7 @@ class GMM(ExpFamilyMixture):
         x_dim = mu.shape[-1]
         eta_dim = int((x_dim**2+3*x_dim)/2)
         eta = np.zeros((mu.shape[0], eta_dim), dtype=float_cpu())
-        for k in xrange(mu.shape[0]):
+        for k in range(mu.shape[0]):
             eta[k] = Normal.compute_eta(mu[k], Lambda[k])
 
         return eta
@@ -373,7 +377,7 @@ class GMM(ExpFamilyMixture):
         x_dim = Normal.compute_x_dim_from_eta(eta)
         mu = np.zeros((eta.shape[0], x_dim), dtype=float_cpu())
         Lambda = np.zeros((eta.shape[0], x_dim, x_dim), dtype='float32')
-        for k in xrange(eta.shape[0]):
+        for k in range(eta.shape[0]):
             mu[k], Lambda[k] = Normal.compute_std(eta[k])
 
         return mu, Lambda
@@ -383,7 +387,7 @@ class GMM(ExpFamilyMixture):
     @staticmethod
     def compute_A_nat(eta):
         A = np.zeros((eta.shape[0],), dtype=float_cpu())
-        for k in xrange(eta.shape[0]):
+        for k in range(eta.shape[0]):
             A[k] = Normal.compute_A_nat(eta[k])
 
         return A
@@ -393,7 +397,7 @@ class GMM(ExpFamilyMixture):
     @staticmethod
     def compute_A_std(mu, Lambda):
         A = np.zeros((mu.shape[0],), dtype=float_cpu())
-        for k in xrange(mu.shape[0]):
+        for k in range(mu.shape[0]):
             A[k] = Normal.compute_A_std(mu[k], Lambda[k])
 
         return A
@@ -420,8 +424,8 @@ class GMM(ExpFamilyMixture):
         u=np.zeros((x.shape[0], int(d+d*(d+1)/2)), dtype=float_cpu())
         u[:,:d]=x
         k=d
-        for i in xrange(d):
-            for j in xrange(i, d):
+        for i in range(d):
+            for j in range(i, d):
                 u[:,k]=x[:,i]*x[:,j]
                 k+=1
         return u
@@ -430,7 +434,7 @@ class GMM(ExpFamilyMixture):
     
     def plot1D(self, feat_idx=0, num_sigmas=2, num_pts=100, **kwargs):
         mu=self.mu[:,feat_idx]
-        for k in xrange(mu.shape[0]):
+        for k in range(mu.shape[0]):
             C = invert_pdmat(self.Lambda[k], return_inv=True)[-1][feat_idx, feat_idx]
             plot_gaussian_1D(mu[k], C, num_sigmas, num_pts, **kwargs)
 
@@ -439,7 +443,7 @@ class GMM(ExpFamilyMixture):
     def plot2D(self, feat_idx=[0, 1], num_sigmas=2, num_pts=100, **kwargs):
         mu=self.mu[:,feat_idx]
         j, i = np.meshgrid(feat_idx, feat_idx)
-        for k in xrange(mu.shape[0]):
+        for k in range(mu.shape[0]):
             C_k = invert_pdmat(self.Lambda[k], return_inv=True)[-1][i, j]
             plot_gaussian_ellipsoid_2D(
                 mu[k], C_k, num_sigmas, num_pts, **kwargs)
@@ -449,7 +453,7 @@ class GMM(ExpFamilyMixture):
     def plot3D(self, feat_idx=[0, 1], num_sigmas=2, num_pts=100, **kwargs):
         mu=self.mu[:,feat_idx]
         j, i = np.meshgrid(feat_idx, feat_idx)
-        for k in xrange(mu.shape[0]):
+        for k in range(mu.shape[0]):
             C_k = invert_pdmat(self.Lambda[k], return_inv=True)[-1][i, j]
             plot_gaussian_3D(mu[k], C_k, num_sigmas, num_pts, **kwargs)
     
@@ -459,7 +463,7 @@ class GMM(ExpFamilyMixture):
                          **kwargs):
         mu=self.mu[:,feat_idx]
         j, i = np.meshgrid(feat_idx, feat_idx)
-        for k in xrange(mu.shape[0]):
+        for k in range(mu.shape[0]):
             C_k = invert_pdmat(self.Lambda[k], return_inv=True)[-1][i, j]
             plot_gaussian_ellipsoid_3D(mu[k], C_k, num_sigmas, num_pts,
                                        **kwargs)

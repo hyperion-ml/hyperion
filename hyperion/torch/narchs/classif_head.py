@@ -2,14 +2,11 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-#from __future__ import absolute_import
-
-#import numpy as np
 
 import torch.nn as nn
 from torch.nn import Linear
 
-from ..layers import CosLossOutput, ArcLossOutput
+from ..layers import CosLossOutput, ArcLossOutput, SubCenterArcLossOutput
 from ..layers import NormLayer1dFactory as NLF
 from ..layer_blocks import FCBlock
 from .net_arch import NetArch
@@ -28,6 +25,7 @@ class ClassifHead(NetArch):
        s: scale parameter for cos-softmax and arc-softmax
        margin: margin parameter for cos-softmax and arc-softmax
        margin_warmup_epochs: number of epochs to anneal the margin from 0 to margin
+       num_subcenters: number of subcenters in subcenter losses
        norm_layer: norm_layer object or str indicating type norm layer, if None it uses BatchNorm1d
        use_norm: it True it uses layer/batch-normalization
        norm_before: if True, layer-norm is before the activation function
@@ -39,6 +37,7 @@ class ClassifHead(NetArch):
                  hid_act={'name':'relu', 'inplace': True}, 
                  loss_type='arc-softmax',
                  s=64, margin=0.3, margin_warmup_epochs=0,
+                 num_subcenters=2,
                  norm_layer=None,
                  use_norm=True, norm_before=True, 
                  dropout_rate=0):
@@ -68,6 +67,7 @@ class ClassifHead(NetArch):
         self.s = s
         self.margin = margin
         self.margin_warmup_epochs = margin_warmup_epochs
+        self.num_subcenters = num_subcenters
         
         prev_feats = in_feats
         fc_blocks = []
@@ -106,15 +106,23 @@ class ClassifHead(NetArch):
             self.output = ArcLossOutput(
                 embed_dim, num_classes, 
                 s=s, margin=margin, margin_warmup_epochs=margin_warmup_epochs)
+        elif loss_type == 'subcenter-arc-softmax':
+            self.output = SubCenterArcLossOutput(
+                embed_dim, num_classes, num_subcenters,
+                s=s, margin=margin, margin_warmup_epochs=margin_warmup_epochs)
 
 
-    def rebuild_output_layer(self, num_classes, loss_type, s, margin, margin_warmup_epochs):
+    def rebuild_output_layer(
+            self, num_classes, loss_type, 
+            s, margin, margin_warmup_epochs, num_subcenters=2):
+
         embed_dim = self.embed_dim
         self.num_classes = num_classes
         self.loss_type = loss_type
         self.s = s
         self.margin = margin
         self.margin_warmup_epochs = margin_warmup_epochs
+        self.num_subcenters = num_subcenters
 
         if loss_type == 'softmax':
             self.output = Linear(embed_dim, num_classes)
@@ -125,6 +133,10 @@ class ClassifHead(NetArch):
         elif loss_type == 'arc-softmax':
             self.output = ArcLossOutput(
                 embed_dim, num_classes, 
+                s=s, margin=margin, margin_warmup_epochs=margin_warmup_epochs)
+        elif loss_type == 'subcenter-arc-softmax':
+            self.output = SubCenterArcLossOutput(
+                embed_dim, num_classes, num_subcenters,
                 s=s, margin=margin, margin_warmup_epochs=margin_warmup_epochs)
 
 
@@ -226,6 +238,7 @@ class ClassifHead(NetArch):
             's': self.s,
             'margin': self.margin,
             'margin_warmup_epochs': self.margin_warmup_epochs,
+            'num_subcenters': self.num_subcenters,
             'norm_layer': self.norm_layer,
             'use_norm': self.use_norm,
             'norm_before': self.norm_before,
@@ -235,4 +248,100 @@ class ClassifHead(NetArch):
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
+
+    @staticmethod
+    def filter_args(prefix=None, **kwargs):
+        if prefix is None:
+            p = ''
+        else:
+            p = prefix + '_'
+
+        if 'wo_norm' in kwargs:
+            kwargs['use_norm'] = not kwargs['wo_norm']
+            del kwargs['wo_norm']
+
+        if 'norm_after' in kwargs:
+            kwargs['norm_before'] = not kwargs['norm_after']
+            del kwargs['norm_after']
+
+        valid_args = ('num_classes', 'embed_dim', 'num_embed_layers', 'hid_act', 'loss_type',
+                      's', 'margin', 'margin_warmup_epochs', 'num_subcenters',
+                      'use_norm', 'norm_before', 'dropout_rate', 'norm_layer')
+        args = dict((k, kwargs[p+k])
+                    for k in valid_args if p+k in kwargs)
+
+        args['pool_net'] = pool_args
+        args.update(t_args)
+
+        return args
+
+
+    @staticmethod
+    def add_argparse_args(parser, prefix=None):
+        if prefix is None:
+            p1 = '--'
+        else:
+            p1 = '--' + prefix + '-'
+        
+        parser.add_argument(p1+'embed-dim',
+                            default=256, type=int,
+                            help=('x-vector dimension'))
+        
+        parser.add_argument(p1+'num-embed-layers',
+                            default=1, type=int,
+                            help=('number of layers in the classif head'))
+        
+        try:
+            parser.add_argument(p1+'hid-act', default='relu6', 
+                                help='hidden activation')
+        except:
+            pass
+
+        parser.add_argument(p1+'loss-type', default='arc-softmax', 
+                            choices = ['softmax', 'arc-softmax', 'cos-softmax', 'subcenter-arc-softmax'],
+                            help='loss type: softmax, arc-softmax, cos-softmax, subcenter-arc-softmax')
+        
+        parser.add_argument(p1+'s', default=64, type=float,
+                            help='scale for arcface')
+        
+        parser.add_argument(p1+'margin', default=0.3, type=float,
+                            help='margin for arcface, cosface,...')
+        
+        parser.add_argument(p1+'margin-warmup-epochs', default=10, type=float,
+                            help='number of epoch until we set the final margin')
+
+        parser.add_argument(p1+'num-subcenters', default=2, type=int,
+                            help='number of subcenters in subcenter losses')
+
+        try:
+            parser.add_argument(
+                p1+'norm-layer', default=None, 
+                choices=['batch-norm', 'group-norm', 'instance-norm', 'instance-norm-affine', 'layer-norm'],
+                help='type of normalization layer for all components of x-vector network')
+        except:
+            pass
+
+
+        try:
+            parser.add_argument(
+                p1+'head-norm-layer', default=None, 
+                choices=['batch-norm', 'group-norm', 'instance-norm', 'instance-norm-affine', 'layer-norm'],
+                help=('type of normalization layer for classification head, '
+                      'it overrides the value of the norm-layer parameter'))
+        except:
+            pass
+
+        
+        parser.add_argument(p1+'wo-norm', default=False, action='store_true',
+                            help='without batch normalization')
+        
+        parser.add_argument(p1+'norm-after', default=False, action='store_true',
+                            help='batch normalizaton after activation')
+        
+        try:
+            parser.add_argument(p1+'dropout-rate', default=0, type=float,
+                                help='dropout')
+        except:
+            pass
+        
     

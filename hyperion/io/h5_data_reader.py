@@ -599,7 +599,7 @@ class RandomAccessH5FileDataReader(RandomAccessH5DataReader):
             assert len(num_rows) == len(keys)
 
         data = []
-        for i,key in enumerate(keys):
+        for i, key in enumerate(keys):
             
             if not (key in self.f):
                 if self.permissive:

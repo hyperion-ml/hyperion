@@ -66,6 +66,7 @@ class TransformerXVectorV1(XVector):
                  hid_act={'name':'relu6', 'inplace':True}, 
                  loss_type='arc-softmax',
                  s=64, margin=0.3, margin_warmup_epochs=0,
+                 num_subcenters=2,
                  dropout_rate=0.1,
                  pos_dropout_rate=0.1,
                  att_dropout_rate=0.0,
@@ -93,11 +94,12 @@ class TransformerXVectorV1(XVector):
             concat_after=enc_concat_after,
             in_time_dim=-1, out_time_dim=-1)
         
-        super(TransformerXVectorV1, self).__init__(
+        super().__init__(
             encoder_net, num_classes, pool_net=pool_net, 
             embed_dim=embed_dim, num_embed_layers=num_embed_layers, 
             hid_act=hid_act, loss_type=loss_type, 
             s=s, margin=margin, margin_warmup_epochs=margin_warmup_epochs,
+            num_subcenters=num_subcenters,
             norm_layer=norm_layer, head_norm_layer=head_norm_layer,
             use_norm=use_norm, norm_before=norm_before, 
             dropout_rate=dropout_rate,

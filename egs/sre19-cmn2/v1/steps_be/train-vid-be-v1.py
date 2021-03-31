@@ -1,24 +1,31 @@
 #!/usr/bin/env python
 """
-Trains Backend for SRE18 video condition
+  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)  
+
+  Trains Backend for SRE18 video condition
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import sys
 import os
 import argparse
 import time
+import logging
 
 import numpy as np
 
+from hyperion.hyp_defs import float_cpu, config_logger
 from hyperion.helpers import VectorClassReader as VCR
 from hyperion.helpers import VectorReader as VR
 from hyperion.transforms import TransformList, LDA, LNorm
 from hyperion.helpers import PLDAFactory as F
 from hyperion.utils.scp_list import SCPList
+
+def matlist2vec(x):
+    for i in range(len(x)):
+        if x[i].ndim == 1:
+            x[i] = x[i][None,:]
+    return np.concatenate(x, axis=0)
 
 
 def train_be(iv_file, train_list,
@@ -42,7 +49,7 @@ def train_be(iv_file, train_list,
     lda.fit(x, class_ids)
 
     x_lda = lda.predict(x)
-    print('LDA Elapsed time: %.2f s.' % (time.time()-t1))
+    logging.info('LDA Elapsed time: %.2f s.' % (time.time()-t1))
 
     # Train centering and whitening
     t1 = time.time()
@@ -50,7 +57,7 @@ def train_be(iv_file, train_list,
     lnorm.fit(x_lda)
 
     x_ln = lnorm.predict(x_lda)
-    print('LNorm Elapsed time: %.2f s.' % (time.time()-t1))
+    logging.info('LNorm Elapsed time: %.2f s.' % (time.time()-t1))
     
     # Train PLDA
     t1 = time.time()
@@ -60,7 +67,7 @@ def train_be(iv_file, train_list,
     elbo = plda.fit(x_ln, class_ids, 
                     epochs=epochs, ml_md=ml_md, md_epochs=md_epochs)
 
-    print('PLDA Elapsed time: %.2f s.' % (time.time()-t1))
+    logging.info('PLDA Elapsed time: %.2f s.' % (time.time()-t1))
 
     # Save models
     preproc = TransformList(lda)
@@ -77,15 +84,18 @@ def train_be(iv_file, train_list,
     np.savetxt(output_path + '/elbo.csv', elbo, delimiter=',')
  
     # Compute mean for adapted data
+    t1 = time.time()
     vr = VR(adapt_iv_file_1, adapt_list_1, None)
     x = vr.read()
+    if isinstance(x, list):
+        x = matlist2vec(x)
+        
     x = lda.predict(x)
     lnorm.update_T = False
     lnorm.fit(x)
     
     preproc = TransformList(lda)
     preproc.append(lnorm)
-
     preproc.save(output_path + '/lda_lnorm_adapt.h5')
 
 
@@ -95,16 +105,17 @@ def train_be(iv_file, train_list,
     
     vr = VR(adapt_iv_file_2, adapt_list_2, None)
     x = vr.read()
+    if isinstance(x, list):
+        x = matlist2vec(x)
+
     x = lda.predict(x)
     N = x.shape[0]
     alpha = N/(N+r2)
     lnorm.mu = alpha*np.mean(x, axis=0) + (1-alpha)*lnorm.mu
-    print(alpha)
-    print(lnorm.mu[:10])
     preproc = TransformList(lda)
     preproc.append(lnorm)
-
     preproc.save(output_path + '/lda_lnorm_adapt2.h5')
+    logging.info('Adapt Elapsed time: %.2f s.' % (time.time()-t1))
 
     
 if __name__ == "__main__":
@@ -128,9 +139,14 @@ if __name__ == "__main__":
     parser.add_argument('--output-path', dest='output_path', required=True)
     parser.add_argument('--lda-dim', dest='lda_dim', type=int,
                         default=None)
+    parser.add_argument('-v', '--verbose', dest='verbose', default=1,
+                        choices=[0, 1, 2, 3], type=int)
 
     args=parser.parse_args()
-    
+    config_logger(args.verbose)
+    del args.verbose
+    logging.debug(args)
+
     train_be(**vars(args))
 
             

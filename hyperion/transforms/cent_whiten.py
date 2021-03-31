@@ -2,10 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import numpy as np
 import h5py
@@ -19,7 +15,7 @@ class CentWhiten(HypModel):
     """Class to do centering and whitening of i-vectors.
     """
     def __init__(self, mu=None, T=None, update_mu=True, update_T=True, **kwargs):
-        super(CentWhiten, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         self.mu = mu
         self.T = T
         self.update_mu = update_mu
@@ -39,23 +35,23 @@ class CentWhiten(HypModel):
 
 
     
-    def fit(self, x=None, sample_weight=None, mu=None, C=None):
+    def fit(self, x=None, sample_weight=None, mu=None, S=None):
         
         if x is not None:
             if x.shape[0]>x.shape[1]:
                 gauss = Normal(x_dim=x.shape[1])
                 gauss.fit(x=x, sample_weight=sample_weight)
                 mu = gauss.mu
-                C = gauss.Sigma
+                S = gauss.Sigma
             else:
                 mu = np.mean(x, axis=0)
-                C = np.eye(x.shape[1])
+                S = np.eye(x.shape[1])
 
         if self.update_mu:
             self.mu = mu
 
         if self.update_T:
-            d, V = la.eigh(C)
+            d, V = la.eigh(S)
             V *= np.sqrt(1/d)
             V = np.fliplr(V)
             
@@ -73,7 +69,7 @@ class CentWhiten(HypModel):
     def get_config(self):
         config = {'update_mu': self.update_mu,
                   'update_t': self.update_T }
-        base_config = super(CentWhiten, self).get_config()
+        base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
 

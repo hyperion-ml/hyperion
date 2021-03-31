@@ -2,17 +2,10 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import numpy as np
 import h5py
 from scipy.special import erf
-
-# import matplotlib.pyplot as plt
-# import matplotlib.mlab as mlab
 
 from ...hyp_defs import float_cpu
 from ...utils.math import softmax, logsumexp
@@ -27,7 +20,7 @@ class GMMDiagCov(ExpFamilyMixture):
     def __init__(self, mu=None, Lambda=None, var_floor=1e-3,
                  update_mu=True, update_Lambda=True,
                  **kwargs):
-        super(GMMDiagCov, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         self.mu = mu
         self.Lambda = Lambda
         self.var_floor = var_floor
@@ -80,7 +73,7 @@ class GMMDiagCov(ExpFamilyMixture):
     
     def initialize(self, x=None):
         if x is None and self.mu is None and self.eta is None:
-            assert(self.num_comp==1)
+            assert self.num_comp==1
             self._initialize_stdnormal()
         if x is not None:
             self._initialize_kmeans(self.num_comp, x)
@@ -110,7 +103,7 @@ class GMMDiagCov(ExpFamilyMixture):
         self.pi = np.zeros((self.num_comp,), dtype=float_cpu())
         self.Lambda = np.zeros((self.num_comp, x.shape[-1]),
                                dtype=float_cpu())
-        for k in xrange(num_comp):
+        for k in range(num_comp):
             r=cluster_index==k
             self.pi[k] = np.sum(r)/x.shape[0]
             self.Lambda[k] = 1/np.std(x[r], axis=0)**2
@@ -166,6 +159,7 @@ class GMMDiagCov(ExpFamilyMixture):
                 mu[N0] = 0
                 S[N0] = 1
             self.pi = N/np.sum(N)
+            self._log_pi = None
             
         self._compute_nat_params()
         
@@ -184,7 +178,7 @@ class GMMDiagCov(ExpFamilyMixture):
             mu[::2] += std_dev
             mu[1::2] -= std_dev
         else:
-            for k in xrange(K):
+            for k in range(K):
                 factor = 2*(np.random.uniform(size=std_dev.shape) > 0.5) - 1 
                 mu[k::K] += factor*std_dev
 
@@ -196,7 +190,7 @@ class GMMDiagCov(ExpFamilyMixture):
     def log_prob_std(self, x):
         r0 = self.log_pi + 0.5*self.logLambda-0.5*self.x_dim*np.log(2*np.pi)
         llk_k = np.zeros((x.shape[0], self.num_comp), dtype=float_cpu())
-        for k in xrange(self.num_comp):
+        for k in range(self.num_comp):
             mah_dist2 = np.sum(((x-self.mu[k])*self.cholLambda[k])**2, axis=-1)
             llk_k[:,k] = r0[k] - 0.5*mah_dist2
         return  logsumexp(llk_k, axis=-1)
@@ -205,7 +199,7 @@ class GMMDiagCov(ExpFamilyMixture):
     
     def log_cdf(self, x):
         llk_k = np.zeros((x.shape[0], self.num_comp), dtype=float_cpu())
-        for k in xrange(self.num_comp):
+        for k in range(self.num_comp):
             delta = (x-self.mu[k])*self.cholLambda[k]
             lk = 0.5*(1+erf(delta/np.sqrt(2)))
             llk_k[:,k] = self.log_pi[k] + np.sum(np.log(lk+1e-20), axis=-1)
@@ -221,7 +215,7 @@ class GMMDiagCov(ExpFamilyMixture):
         r = rng.multinomial(1, self.pi, size=(num_samples,))
         x = rng.normal(size=(num_samples, self.x_dim)).astype(float_cpu())
 
-        for k in xrange(self.num_comp):
+        for k in range(self.num_comp):
             index = r[:, k]==1
             x[index] = 1./self.cholLambda[k]*x[index] + self.mu[k]
         
@@ -277,7 +271,7 @@ class GMMDiagCov(ExpFamilyMixture):
                     pi = np.array([float(v) for v in fields[2:-1]], dtype=float_cpu())
                     num_comp = len(pi)
                 elif fields[0]=="<MEANS_INVVARS>":
-                    for k in xrange(num_comp):
+                    for k in range(num_comp):
                         line = f.readline()
                         fields = line.split()
                         if x_dim == 0:
@@ -288,14 +282,14 @@ class GMMDiagCov(ExpFamilyMixture):
                         assert(len(fields) == x_dim or len(fields) == x_dim+1)
                         eta1[k] = [ float(v) for v in fields[:x_dim] ]
                 elif fields[0]=="<INV_VARS>":
-                    for k in xrange(num_comp):
+                    for k in range(num_comp):
                         line = f.readline()
                         fields = line.split()
                         assert(len(fields) == x_dim or len(fields) == x_dim+1)
                         eta2[k] = [ -0.5*float(v) for v in fields[:x_dim] ]
                         if k == num_comp-1:
                             success = True
-        assert(success)
+        assert success 
         eta = np.hstack((eta1, eta2))
         return cls(x_dim=x_dim, pi=pi, eta=eta)
 
@@ -307,15 +301,15 @@ class GMMDiagCov(ExpFamilyMixture):
 
         
     def _validate_Lambda(self):
-        assert(self.Lambda.shape[0] == self.num_comp)
-        assert(self.Lambda.shape[1] == self.x_dim)
-        assert(np.all(self.Lambda > 0))
+        assert self.Lambda.shape[0] == self.num_comp
+        assert self.Lambda.shape[1] == self.x_dim
+        assert np.all(self.Lambda > 0)
 
 
         
     def _validate_eta(self):
-        assert(self.eta.shape[0] == self.num_comp)
-        assert(self.eta.shape[1] == self.x_dim*2)
+        assert self.eta.shape[0] == self.num_comp
+        assert self.eta.shape[1] == self.x_dim*2
         
 
         
@@ -339,7 +333,6 @@ class GMMDiagCov(ExpFamilyMixture):
         return eta
 
 
-    
     @staticmethod
     def compute_std(eta):
         x_dim = int(eta.shape[-1]/2)
@@ -350,7 +343,6 @@ class GMMDiagCov(ExpFamilyMixture):
         return mu, Lambda
 
 
-    
     @staticmethod
     def compute_A_nat(eta):
         x_dim = int(eta.shape[-1]/2)
@@ -400,7 +392,7 @@ class GMMDiagCov(ExpFamilyMixture):
     def plot1D(self, feat_idx=0, num_sigmas=2, num_pts=100, **kwargs):
         mu=self.mu[:,feat_idx]
         C=1/self.Lambda[:,feat_idx]
-        for k in xrange(mu.shape[0]):
+        for k in range(mu.shape[0]):
             plot_gaussian_1D(mu[k], C[k], num_sigmas, num_pts, **kwargs)
 
 
@@ -408,7 +400,7 @@ class GMMDiagCov(ExpFamilyMixture):
     def plot2D(self, feat_idx=[0, 1], num_sigmas=2, num_pts=100, **kwargs):
         mu=self.mu[:,feat_idx]
         C=1/self.Lambda[:,feat_idx]
-        for k in xrange(mu.shape[0]):
+        for k in range(mu.shape[0]):
             C_k=np.diag(C[k])
             plot_gaussian_ellipsoid_2D(
                 mu[k], C_k, num_sigmas, num_pts, **kwargs)
@@ -418,7 +410,7 @@ class GMMDiagCov(ExpFamilyMixture):
     def plot3D(self, feat_idx=[0, 1], num_sigmas=2, num_pts=100, **kwargs):
         mu=self.mu[:,feat_idx]
         C=1/self.Lambda[:,feat_idx]
-        for k in xrange(mu.shape[0]):
+        for k in range(mu.shape[0]):
             C_k=np.diag(C[k])
             plot_gaussian_3D(mu[k], C_k, num_sigmas, num_pts, **kwargs)
     
@@ -428,7 +420,7 @@ class GMMDiagCov(ExpFamilyMixture):
                          **kwargs):
         mu=self.mu[:,feat_idx]
         C=1/self.Lambda[:,feat_idx]
-        for k in xrange(mu.shape[0]):
+        for k in range(mu.shape[0]):
             C_k=np.diag(C[k])
             plot_gaussian_ellipsoid_3D(mu[k], C_k, num_sigmas, num_pts,
                                        **kwargs)

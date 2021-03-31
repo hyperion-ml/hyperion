@@ -4,12 +4,12 @@
 #
 nj=20
 cmd=run.pl
-feat_config=conf/fbank.conf
+feat_config=conf/fbank80_stmn_16k.conf
 use_gpu=false
-audio_feat=logfb
-center=true
-norm_var=false
-context=150
+#audio_feat=logfb
+#center=true
+#norm_var=false
+#context=150
 cal_file=""
 if [ -f path.sh ]; then . ./path.sh; fi
 . parse_options.sh || exit 1;
@@ -19,13 +19,13 @@ if [ $# -ne 6 ]; then
   echo "Usage: $0 [options] <ndx> <enroll-file> <test-data-dir> <vector-file> <nnet-model> <output-scores>"
   echo "Options: "
   echo "  --feat-config <config-file>                      # feature extractor config"
-  echo "  --audio-feat <logfb|mfcc>                        # feature type"
+  #echo "  --audio-feat <logfb|mfcc>                        # feature type"
   echo "  --nj <nj>                                        # number of parallel jobs"
   echo "  --cmd (utils/run.pl|utils/queue.pl <queue opts>) # how to run jobs."
-  echo "  --center <true|false>                            # If true, normalize means in the sliding window cmvn (default:true)"
-  echo "  --norm-var <true|false>                          # If true, normalize variances in the sliding window cmvn (default:false)"
+  #echo "  --center <true|false>                            # If true, normalize means in the sliding window cmvn (default:true)"
+  #echo "  --norm-var <true|false>                          # If true, normalize variances in the sliding window cmvn (default:false)"
   echo "  --use-gpu <bool|false>                           # If true, use GPU."
-  echo "  --context <int|150>                              # Left context for short-time cmvn (default: 150)"
+  #echo "  --context <int|150>                              # Left context for short-time cmvn (default: 150)"
   echo "  --cal-file <str|>                                # calibration params file"
   exit 1;
 fi
@@ -42,7 +42,6 @@ log_dir=$output_dir/log
 
 mkdir -p $log_dir
 name=$(basename $output_file)
-
 
 wav=$test_data/wav.scp
 vad=$test_data/vad.scp
@@ -64,13 +63,13 @@ if [ "$use_gpu" == "true" ];then
     args="--use-gpu"
 fi
 
-if [ "$center" == "false" ];then
-    args="${args} --mnv-no-norm-mean"
-fi
-if [ "$norm_var" == "true" ];then
-    args="${args} --mvn-norm-var"
-fi
-args="${args} --mvn-context $context"
+# if [ "$center" == "false" ];then
+#     args="${args} --mnv-no-norm-mean"
+# fi
+# if [ "$norm_var" == "true" ];then
+#     args="${args} --mvn-norm-var"
+# fi
+# args="${args} --mvn-context $context"
 
 if [ -n "$cal_file" ];then
     args="${args} --cal-file $cal_file"
@@ -81,7 +80,7 @@ echo "$0: score $ndx_file to $output_dir"
 $cmd JOB=1:$nj $log_dir/${name}.JOB.log \
     hyp_utils/torch.sh --num-gpus $num_gpus \
     steps_adv/torch-eval-cosine-scoring-from-test-wav.py \
-    @$feat_config --audio-feat $audio_feat ${args} \
+    @$feat_config ${args} \
     --v-file scp:$vector_file \
     --ndx-file $ndx_file \
     --enroll-file $enroll_file \

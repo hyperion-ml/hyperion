@@ -1,1 +1,1 @@
-config_victim_resnet34_transfer_resetdnn.v1.sh
+global_conf/config_victim_resnet34_transfer_resetdnn.v1.sh

@@ -4,10 +4,6 @@
 
  Classes to to write and read kaldi matrices
 """
-#from __future__ import absolute_import
-#from __future__ import print_function
-#from __future__ import division
-#from six.moves import xrange
 
 import struct
 import numpy as np
@@ -261,7 +257,7 @@ class KaldiCompressedMatrix(object):
 
      Attributes:
        data: numpy byte array with the compressed coded matrix.
-       data_format: {1, 2, 3}
+       data_format: {1, 2, 3, 4}
        min_value: Minimum value in the matrix.
        data_range: max_value - min_value
        num_rows: Number of rows in the matrix

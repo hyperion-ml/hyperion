@@ -21,7 +21,6 @@ from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialAudioReader as AR
 from hyperion.io import VADReaderFactory as VRF
 from hyperion.augment import SpeechAugment
-#from hyperion.feats import MeanVarianceNorm as MVN
 
 from hyperion.torch.utils import open_device
 from hyperion.torch.helpers import TorchModelLoader as TML
@@ -157,8 +156,7 @@ def extract_xvectors(input_spec, output_spec, vad_spec, write_num_frames_spec,
                             x = x.transpose(1,2).contiguous()
                             y = model.extract_embed(
                                 x, chunk_length=chunk_length, 
-                                embed_layer=embed_layer, 
-                                device=device).cpu().numpy()[0]
+                                embed_layer=embed_layer).cpu().numpy()[0]
 
                     t7 = time.time()
                     writer.write([key], [y])

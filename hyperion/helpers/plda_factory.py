@@ -82,22 +82,22 @@ class PLDAFactory(object):
             p1 = '--' + prefix + '-'
             p2 = prefix + '_'
 
-        parser.add_argument(p1+'plda-type', dest=(p2+'plda_type'), 
+        parser.add_argument(p1+'plda-type', 
                             default='splda',
                             choices=['frplda', 'splda', 'plda'],
                             help='PLDA type')
         
-        parser.add_argument(p1+'y-dim', dest=(p2+'y_dim'), type=int,
+        parser.add_argument(p1+'y-dim', type=int,
                             default=150,
                             help='num. of eigenvoices')
-        parser.add_argument(p1+'z-dim', dest=(p2+'z_dim'), type=int,
+        parser.add_argument(p1+'z-dim', type=int,
                             default=400,
                             help='num. of eigenchannels')
 
         parser.add_argument(p1+'diag-W', dest=(p2+'diag_W'),
                             default=False, action='store_false',
                             help='use diagonal covariance W')
-        parser.add_argument(p1+'no-update-mu', dest=(p2+'no_update_mu'),
+        parser.add_argument(p1+'no-update-mu', 
                             default=False, action='store_true',
                             help='not update mu')
         parser.add_argument(p1+'no-update-V', dest=(p2+'no_update_V'),
@@ -121,15 +121,15 @@ class PLDAFactory(object):
                             help='floor for inverse of D matrix')
 
         
-        parser.add_argument(p1+'epochs', dest=(p2+'epochs'), type=int,
+        parser.add_argument(p1+'epochs',type=int,
                             default=40,
                             help='num. of epochs')
-        parser.add_argument(p1+'ml-md', dest=(p2+'ml_md'), 
+        parser.add_argument(p1+'ml-md', 
                             default='ml+md',
                             choices=['ml+md', 'ml', 'md'],
                             help=('optimization type'))
 
-        parser.add_argument('--md-epochs', dest='md_epochs', default=None,
+        parser.add_argument('--md-epochs', default=None,
                             type=int, nargs = '+',
                             help=('epochs in which we do MD, if None we do it in all the epochs'))
 
@@ -140,7 +140,7 @@ class PLDAFactory(object):
         
 
     @staticmethod
-    def filter_eval_args(prefix, **kwargs):
+    def filter_eval_args(prefix=None, **kwargs):
         if prefix is None:
             p = ''
         else:
@@ -159,11 +159,11 @@ class PLDAFactory(object):
             p1 = '--' + prefix + '-'
             p2 = prefix + '_'
 
-        parser.add_argument(p1+'plda-type', dest=(p2+'plda_type'), 
+        parser.add_argument(p1+'plda-type', 
                             default='splda',
                             choices=['frplda', 'splda', 'plda'],
                             help=('PLDA type'))
-        parser.add_argument(p1+'model-file', dest=(p2+'model_file'), required=True,
+        parser.add_argument(p1+'model-file', required=True,
                             help=('model file'))
                             
         

@@ -32,6 +32,139 @@ def _make_downsample(in_channels, out_channels, stride, norm_layer, norm_before)
     return _conv1x1(in_channels, out_channels, stride, bias=True) 
     
 
+class Res2NetBasicBlock(nn.Module):
+    expansion = 1
+
+    def __init__(self, in_channels, channels, 
+                 activation={'name':'relu', 'inplace': True},
+                 stride=1, dropout_rate=0, 
+                 width_factor=1, scale=4, groups=1, 
+                 dilation=1, norm_layer=None, norm_before=True, 
+                 se_r=None, time_se=False, num_feats=None):
+
+        super().__init__()
+
+        self.in_channels = in_channels
+        self.channels = channels
+
+        if norm_layer is None:
+            norm_layer = nn.BatchNorm2d
+        bias = not norm_before
+
+        width_in = in_channels // scale
+        width_mid = int(width_factor * channels) // scale
+        self.width_in = width_in
+        self.has_proj1 = width_in != width_mid
+        self.scale = scale
+        channels_mid = width_mid * scale
+        if scale == 1:
+            self.num_3x3 = 1
+        else:
+            self.num_3x3 = scale - 1
+
+        if scale > 1:
+            self.conv1x1 = _conv1x1(width_in, width_mid, stride, bias=bias)
+
+        conv1s = []
+        proj1s = []
+        bn1s = []
+        for i in range(self.num_3x3):
+            conv1s.append(_conv3x3(width_in, width_mid, stride, groups, dilation, bias=bias))
+            bn1s.append(norm_layer(width_mid))
+            if self.has_proj1 and i < self.num_3x3 - 1:
+                proj1s.append(_conv1x1(width_mid, width_in, bias=False))
+
+        self.conv1s = nn.ModuleList(conv1s)
+        self.bn1s = nn.ModuleList(bn1s)
+        if self.has_proj1:
+            self.proj1s = nn.ModuleList(proj1s)
+
+        self.conv2 = _conv3x3(channels_mid, channels, groups=groups, bias=bias)
+        self.bn2 = norm_layer(channels)
+        self.act1 = AF.create(activation)
+        self.act2 = AF.create(activation)
+        self.stride = stride
+
+        self.norm_before = norm_before
+
+        self.downsample = None
+        if stride != 1 or in_channels != channels * self.expansion:
+            self.downsample = _make_downsample(in_channels, channels * self.expansion, 
+                                               stride, norm_layer, norm_before)
+
+        self.dropout_rate = dropout_rate
+        self.dropout = None
+        if dropout_rate > 0:
+            self.dropout = Dropout2d(dropout_rate)
+
+        self.context = dilation
+        self.downsample_factor = stride
+
+        if se_r is not None:
+            if time_se:
+                self.se_layer = TSEBlock2D(
+                    channels, num_feats, se_r, activation)
+            else:
+                self.se_layer = SEBlock2D(
+                    channels, se_r, activation)
+        else:
+            self.se_layer = None
+                
+
+    @property
+    def out_channels(self):
+        return self.channels
+
+
+    def forward(self, x):
+        residual = x
+
+        split_x = torch.split(x, self.width_in, 1)
+        x = []
+        for i in range(self.num_3x3):
+            if i == 0 or self.stride > 1:
+                x_i = split_x[i]
+            else:
+                if self.has_proj1:
+                    x_i = self.proj1s[i-1](x_i)
+
+                x_i = x_i + split_x[i]
+
+            x_i = self.conv1s[i](x_i)
+            if self.norm_before:
+                x_i = self.bn1s[i](x_i)
+            x_i = self.act1(x_i)
+            if not self.norm_before:
+                x_i = self.bn1(x_i)
+            x.append(x_i)
+
+        if self.scale > 1:
+            x.append(self.conv1x1(split_x[-1]))
+
+        x = torch.cat(x, dim=1)
+
+        x = self.conv2(x)
+        if self.norm_before:
+            x = self.bn2(x)
+
+        if self.downsample is not None:
+            residual = self.downsample(residual)
+
+        if self.se_layer:
+            x = self.se_layer(x)
+
+        x += residual
+        x = self.act2(x)
+
+        if not self.norm_before:
+            x = self.bn2(x)
+        
+        if self.dropout_rate > 0:
+            x = self.dropout(x)
+
+        return x
+
+
 
 class Res2NetBNBlock(nn.Module):
     expansion = 4

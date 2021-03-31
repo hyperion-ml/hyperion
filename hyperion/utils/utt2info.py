@@ -2,11 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
-from six import string_types
 
 import os.path as path
 import logging
@@ -52,7 +47,7 @@ class Utt2Info(object):
         else:
             data = np.vstack((key, info)).T
         num_columns = data.shape[1]
-        columns = ['key'] + [i for i in xrange(1, num_columns)]
+        columns = ['key'] + [i for i in range(1, num_columns)]
         utt_info = pd.DataFrame(data, columns=columns)
         return cls(utt_info)
 
@@ -70,7 +65,7 @@ class Utt2Info(object):
     @property
     def info(self):
         if self.utt_info.shape[1] > 2:
-            return np.asarray(self.utt_info[1:])
+            return np.asarray(self.utt_info.iloc[:,1:])
         else:
             return np.asarray(self.utt_info[1])
 
@@ -128,7 +123,7 @@ class Utt2Info(object):
           If key is the index in the key list:
               key, info given index
         """
-        if isinstance(key, string_types):
+        if isinstance(key, str):
             row = np.array(self.utt_info.loc[key])[1:]
             if len(row) == 1:
                 return row[0]

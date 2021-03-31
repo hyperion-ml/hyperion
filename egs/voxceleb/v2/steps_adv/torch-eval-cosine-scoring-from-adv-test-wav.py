@@ -54,7 +54,7 @@ def read_data(v_file, key_file, enroll_file, seg_part_idx, num_seg_parts):
 class Calibrator(nn.Module):
 
     def __init__(self, a, b):
-        super(Calibrator, self).__init__()
+        super().__init__()
         self.a = a
         self.b = b
 
@@ -66,7 +66,7 @@ class MyModel(nn.Module):
 
     def __init__(self, feat_extractor, xvector_model, mvn=None, embed_layer=None, 
                  calibrator=None, sigma=0):
-        super(MyModel, self).__init__()
+        super().__init__()
         self.feat_extractor = feat_extractor
         self.xvector_model = xvector_model
         self.mvn = mvn
@@ -78,10 +78,10 @@ class MyModel(nn.Module):
 
 
     def forward(self, s_t):
-        print('sigma0=', self.sigma)
+        # print('sigma0=', self.sigma)
         if self.sigma > 0:
             s_t = s_t + self.sigma*torch.randn_like(s_t)
-            print('sigma1=', self.sigma)
+            # print('sigma1=', self.sigma)
         f_t = self.feat_extractor(s_t)
         if self.mvn is not None:
             f_t = self.mvn(f_t)
@@ -133,7 +133,6 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
             norm_mean=(not mvn_no_norm_mean), norm_var=mvn_norm_var,
             left_context=mvn_context, right_context=mvn_context)
 
-
     logging.info('loading model {}'.format(model_path))
     xvector_model = TML.load(model_path)
     xvector_model.freeze()
@@ -156,7 +155,7 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
     x_e = torch.as_tensor(x_e, dtype=torch.get_default_dtype())
 
     audio_args = AR.filter_args(**kwargs)
-    audio_reader = AR(test_wav_file)
+    audio_reader = AR(test_wav_file, **audio_args)
     wav_scale = audio_reader.scale
 
     if save_adv_wav:
@@ -169,17 +168,15 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
     model.to(device)
     model.eval()
 
-    attack_args = AttackFactory.filter_args(**kwargs)
-    attack_type = attack_args['attack_type']
-    del attack_args['attack_type']
-    attack_args['attack_eps'] *= wav_scale
-    attack_args['attack_alpha'] *= wav_scale
-    logging.info('attack-args={}'.format(attack_args))
-    attack = AttackFactory.create(
-        attack_type, model, time_dim=1,
-        loss=nn.functional.binary_cross_entropy_with_logits, 
-        range_min=-wav_scale, range_max=wav_scale, **attack_args)
-
+    attack_args = AttackFactory.filter_args(prefix='attack', **kwargs)
+    extra_args = {'eps_scale': wav_scale,
+                  'range_min': -wav_scale,
+                  'range_max': wav_scale,
+                  'loss': nn.functional.binary_cross_entropy_with_logits,
+                  'time_dim': 1}
+    attack_args.update(extra_args)
+    logging.info('attacks args={}'.format(attack_args))
+    attack = AttackFactory.create(model, **attack_args)
     if vad_spec is not None:
         logging.info('opening VAD stream: %s' % (vad_spec))
         v_reader = VRF.create(
@@ -275,9 +272,6 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
     attack_stats.to_csv(stats_file)
 
 
-
-
-
 if __name__ == "__main__":
 
     parser=argparse.ArgumentParser(
@@ -296,11 +290,9 @@ if __name__ == "__main__":
     parser.add_argument('--mvn-no-norm-mean', 
                         default=False, action='store_true',
                         help='don\'t center the features')
-
     parser.add_argument('--mvn-norm-var', 
                         default=False, action='store_true',
                         help='normalize the variance of the features')
-        
     parser.add_argument('--mvn-context', type=int,
                         default=300,
                         help='short-time mvn context in number of frames')
@@ -317,7 +309,7 @@ if __name__ == "__main__":
     parser.add_argument('--use-gpu', default=False, action='store_true',
                         help='extract xvectors in gpu')
 
-    AttackFactory.add_argparse_args(parser)
+    AttackFactory.add_argparse_args(parser, prefix='attack')
 
     parser.add_argument('--seg-part-idx', default=1, type=int,
                         help=('test part index'))
@@ -332,7 +324,6 @@ if __name__ == "__main__":
     parser.add_argument('--save-adv-wav', 
                         default=False, action='store_true',
                         help='save adversarial signals to disk')
-
     parser.add_argument('--save-adv-wav-path', default=None, 
                         help='output path of adv signals')
 

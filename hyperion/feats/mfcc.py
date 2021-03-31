@@ -2,11 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
-
 import logging
 from enum import Enum
 
@@ -189,17 +184,6 @@ class MFCC(object):
              Log-energy
         """
         return st_logE(x, self._length, self._shift)
-        # shift = self._shift
-        # num_frames = int(np.floor((len(x) - self._overlap)/shift))
-        
-        # x2 = x**2
-        # e = np.zeros((num_frames,), dtype=float_cpu())
-        # j = 0
-        # for i in xrange(num_frames):
-        #     e[i] = np.sum(x2[j:j+self._nperseg])
-        #     j += shift
-            
-        # return np.log(e+1e-15)
 
 
     

@@ -2,8 +2,6 @@
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-
 import torch
 
 from .adv_attack import AdvAttack
@@ -11,12 +9,23 @@ from .adv_attack import AdvAttack
 class RandFGSMAttack(AdvAttack):
 
     def __init__(self, model, eps, alpha, loss=None, targeted=False, range_min=None, range_max=None):
-        super(RandFGSMAttack, self).__init__(
+        super().__init__(
             model, loss, targeted, range_min, range_max)
 
         assert alpha < eps, 'alpha({}) >= eps({})'.format(alpha, eps)
         self.eps = eps
         self.alpha = alpha
+
+
+    @property
+    def attack_info(self):
+        info = super().attack_info
+        new_info = {'eps': self.eps,
+                    'alpha': self.alpha,
+                    'threat_model': 'linf',
+                    'attack_type': 'rand-fgsm'}
+        info.update(new_info)
+        return info
 
 
     def generate(self, input, target):
