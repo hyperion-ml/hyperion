@@ -148,7 +148,7 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
     model.eval()
 
     # load white-box model
-    tfeat_extractor = init_feats(device, **kwargs['transfer-feats'])
+    tfeat_extractor = init_feats(device, **kwargs['transfer_feats'])
     xvector_tmodel = load_model(transfer_model_path, device)
     tcalibrator = None
     if transfer_cal_file is not None:
@@ -297,9 +297,9 @@ if __name__ == "__main__":
 
     parser.add_argument('--transfer-v-file', required=True)
 
-    AR.add_argparse_args(parser)
-    AF.add_argparse_args(parser, prefix='feats')
-    AF.add_argparse_args(parser, prefix='transfer-feats')
+    AR.add_class_args(parser)
+    AF.add_class_args(parser, prefix='feats')
+    AF.add_class_args(parser, prefix='transfer_feats')
 
     parser.add_argument('--vad', dest='vad_spec', default=None)
     parser.add_argument('--vad-path-prefix', dest='vad_path_prefix', default=None,
