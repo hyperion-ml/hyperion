@@ -4,7 +4,7 @@
 """
 
 import logging
-import argparse
+from jsonargparse import ArgumentParser, ActionParser
 import time
 import math
 
@@ -357,33 +357,37 @@ class AudioDataset(Dataset):
 
     @staticmethod
     def add_class_args(parser, prefix=None):
-        if prefix is None:
-            p1 = '--'
-        else:
-            p1 = '--' + prefix + '.'
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog='')
 
-        # parser.add_argument(p1+'path-prefix', 
+        # parser.add_argument('--path-prefix', 
         #                     default='',
         #                     help=('path prefix for rspecifier scp file'))
 
         parser.add_argument(
-            p1+'class-file', default=None,
+            '--class-file', default=None,
             help=('ordered list of classes keys, it can contain class weights'))
 
-        parser.add_argument(p1+'time-durs-file', 
+        parser.add_argument('--time-durs-file', 
                             default=None,
                             help=('utt to duration in secs file'))
 
-        parser.add_argument(p1+'min-chunk-length', type=float, default=None,
+        parser.add_argument('--min-chunk-length', type=float, default=None,
                             help=('minimum length of sequence chunks'))
-        parser.add_argument(p1+'max-chunk-length', type=float, default=None,
+        parser.add_argument('--max-chunk-length', type=float, default=None,
                             help=('maximum length of sequence chunks'))
 
-        parser.add_argument(p1+'return-fullseqs', 
+        parser.add_argument('--return-fullseqs', 
                             default=False, action='store_true',
                             help=('returns full sequences instead of chunks'))
         
-        AR.add_class_args(parser, prefix=prefix)
+        AR.add_class_args(parser)
+        if prefix is not None:
+            outer_parser.add_argument(
+                '--' + prefix,
+                action=ActionParser(parser=parser),
+                help='audio dataset options')
 
 
     add_argparse_args = add_class_args

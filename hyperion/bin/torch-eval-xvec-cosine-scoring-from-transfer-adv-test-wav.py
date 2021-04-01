@@ -124,8 +124,6 @@ def read_data(v_file, key_file, enroll_file, seg_part_idx, num_seg_parts):
     return key, x_e
 
 
-
-
 def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
                         vad_spec, vad_path_prefix, transfer_v_file, 
                         model_path, transfer_model_path,

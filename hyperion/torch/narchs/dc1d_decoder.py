@@ -4,6 +4,7 @@
 """
 
 import math 
+from jsonargparse import ArgumentParser, ActionParser
 
 import torch
 import torch.nn as nn
@@ -282,11 +283,9 @@ class DC1dDecoder(NetArch):
 
     @staticmethod
     def add_class_args(parser, prefix=None, head_channels=False):
-        
-        if prefix is None:
-            p1 = '--'
-        else:
-            p1 = '--' + prefix + '.'
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog='')
 
         parser.add_argument(
             p1+'in-channels', type=int, required=True,
@@ -302,7 +301,6 @@ class DC1dDecoder(NetArch):
 
         parser.add_argument(p1+'in-stride', default=1, type=int,
                             help=('stride of input convolution'))
-
 
         parser.add_argument(
             p1+'conv-repeats', default=[1, 1, 1], type=int,
@@ -358,5 +356,11 @@ class DC1dDecoder(NetArch):
         
         parser.add_argument(p1+'norm-after', default=False, action='store_true',
                             help='batch normalizaton after activation')
+
+        if prefix is not None:
+            outer_parser.add_argument(
+                '--' + prefix,
+                action=ActionParser(parser=parser),
+                help='DC1d decoder options')
 
     add_argparse_args = add_class_args

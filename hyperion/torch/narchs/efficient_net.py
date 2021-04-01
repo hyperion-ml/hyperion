@@ -2,7 +2,9 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import math
+from jsonargparse import ArgumentParser, ActionParser
 
 import torch
 import torch.nn as nn
@@ -395,11 +397,9 @@ class EfficientNet(NetArch):
 
     @staticmethod
     def add_class_args(parser, prefix=None):
-        
-        if prefix is None:
-            p1 = '--'
-        else:
-            p1 = '--' + prefix + '.'
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog='')
 
         net_types = list(EfficientNet.params_dict.keys())
 
@@ -492,5 +492,10 @@ class EfficientNet(NetArch):
         except:
             pass
 
+        if prefix is not None:
+            outer_parser.add_argument(
+                '--' + prefix,
+                action=ActionParser(parser=parser),
+                help='efficientnet options')
 
     add_argparse_args = add_class_args

@@ -3,6 +3,7 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+from jsonargparse import ArgumentParser, ActionParser
 import logging
 
 import numpy as np
@@ -113,31 +114,36 @@ class FilterBankFactory(object):
 
     @staticmethod
     def add_class_args(parser, prefix=None):
-        if prefix is None:
-            p1 = '--'
-        else:
-            p1 = '--' + prefix + '.'
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog='')
 
         parser.add_argument(
-            p1+'fb-type', default='mel_kaldi',
+            '--fb-type', default='mel_kaldi',
             choices=['mel_kaldi', 'mel_etsi', 'linear'],
             help='Filter-bank type: mel_kaldi, mel_etsi, linear')
 
         parser.add_argument(
-            p1+'num-filters', type=int, default=23,
+            '--num-filters', type=int, default=23,
             help='Number of triangular mel-frequency bins')
 
         parser.add_argument(
-            p1+'low-freq', type=float, default=20,
+            '--low-freq', type=float, default=20,
             help='Low cutoff frequency for mel bins')
 
         parser.add_argument(
-            p1+'high-freq', type=float, default=0,
+            '--high-freq', type=float, default=0,
             help='High cutoff frequency for mel bins (if < 0, offset from Nyquist)')
 
         parser.add_argument(
-            p1+'norm-filters', default=False, action='store_true',
+            '--norm-filters', default=False, action='store_true',
             help='Normalize filters coeff to sum up to 1')
+
+        if prefix is not None:
+            outer_parser.add_argument(
+                '--' + prefix,
+                action=ActionParser(parser=parser),
+                help='filter-bank options')
 
         
     add_argparse_args = add_class_args

@@ -6,7 +6,7 @@
 import sys
 import os
 import logging
-import argparse
+from jsonargparse import ArgumentParser, ActionParser
 import time
 import copy
 import threading
@@ -282,48 +282,52 @@ class FeatSeqDataset(Dataset):
 
     @staticmethod
     def add_class_args(parser, prefix=None):
-        if prefix is None:
-            p1 = '--'
-        else:
-            p1 = '--' + prefix + '.'
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog='')
 
         parser.add_argument(
-            p1+'path-prefix', 
+            '--path-prefix', 
             default='',
             help=('path prefix for rspecifier scp file'))
 
         parser.add_argument(
-            p1+'class-file', 
+            '--class-file', 
             default=None,
             help=('ordered list of classes keys, it can contain class weights'))
 
         parser.add_argument(
-            p1+'num-frames-file', 
+            '--num-frames-file', 
             default=None,
             help=('utt to num_frames file, if None it reads from the dataset '
                   'but it is slow'))
 
         parser.add_argument(
-            p1+'min-chunk-length', 
+            '--min-chunk-length', 
             type=int, default=None,
             help=('minimum length of sequence chunks'))
         parser.add_argument(
-            p1+'max-chunk-length', 
+            '--max-chunk-length', 
             type=int, default=None,
             help=('maximum length of sequence chunks'))
 
         parser.add_argument(
-            p1+'return-fullseqs', 
+            '--return-fullseqs', 
             default=False, action='store_true',
             help=('returns full sequences instead of chunks'))
         
         
-        # parser.add_argument(p1+'part-idx', 
+        # parser.add_argument('--part-idx', 
         #                     type=int, default=1,
         #                     help=('splits the list of files in num-parts and process part_idx'))
-        # parser.add_argument(p1+'num-parts', 
+        # parser.add_argument('--num-parts', 
         #                     type=int, default=1,
         #                     help=('splits the list of files in num-parts and process part_idx'))
+        if prefix is not None:
+            outer_parser.add_argument(
+                '--' + prefix,
+                action=ActionParser(parser=parser),
+                help='feature sequence dataset options')
 
     
     add_argparse_args = add_class_args

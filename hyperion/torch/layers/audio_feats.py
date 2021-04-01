@@ -13,7 +13,6 @@ import torch
 import torch.nn as nn
 import torch.cuda.amp as amp
 
-#from ...feats.feature_windows import FeatureWindowFactory as FWF
 from ...feats.filter_banks import FilterBankFactory as FBF
 
 # window types
@@ -31,7 +30,6 @@ def _amp_safe_matmul(a, b):
         return mx*torch.matmul(a/mx, b)
 
     return torch.matmul(a, b)
-        
 
 
 def _get_feature_window_function(window_type, window_size, blackman_coeff=0.42):

@@ -3,6 +3,8 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+from jsonargparse import ArgumentParser, ActionParser
+
 import torch.nn as nn
 from torch.nn import Linear
 
@@ -10,6 +12,7 @@ from ..layers import CosLossOutput, ArcLossOutput, SubCenterArcLossOutput
 from ..layers import NormLayer1dFactory as NLF
 from ..layer_blocks import FCBlock
 from .net_arch import NetArch
+
 
 class ClassifHead(NetArch):
     """Classification Head for x-vector style networks
@@ -250,11 +253,7 @@ class ClassifHead(NetArch):
 
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
+    def filter_args(**kwargs):
 
         if 'wo_norm' in kwargs:
             kwargs['use_norm'] = not kwargs['wo_norm']
@@ -267,55 +266,50 @@ class ClassifHead(NetArch):
         valid_args = ('num_classes', 'embed_dim', 'num_embed_layers', 'hid_act', 'loss_type',
                       's', 'margin', 'margin_warmup_epochs', 'num_subcenters',
                       'use_norm', 'norm_before', 'dropout_rate', 'norm_layer')
-        args = dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
-
-        args['pool_net'] = pool_args
-        args.update(t_args)
-
+        args = dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
         return args
 
 
     @staticmethod
     def add_argparse_args(parser, prefix=None):
-        if prefix is None:
-            p1 = '--'
-        else:
-            p1 = '--' + prefix + '-'
-        
-        parser.add_argument(p1+'embed-dim',
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog='')
+
+        parser.add_argument('--embed-dim',
                             default=256, type=int,
                             help=('x-vector dimension'))
         
-        parser.add_argument(p1+'num-embed-layers',
+        parser.add_argument('--num-embed-layers',
                             default=1, type=int,
                             help=('number of layers in the classif head'))
         
         try:
-            parser.add_argument(p1+'hid-act', default='relu6', 
+            parser.add_argument('--hid-act', default='relu6', 
                                 help='hidden activation')
         except:
             pass
 
-        parser.add_argument(p1+'loss-type', default='arc-softmax', 
+        parser.add_argument('--loss-type', default='arc-softmax', 
                             choices = ['softmax', 'arc-softmax', 'cos-softmax', 'subcenter-arc-softmax'],
                             help='loss type: softmax, arc-softmax, cos-softmax, subcenter-arc-softmax')
         
-        parser.add_argument(p1+'s', default=64, type=float,
+        parser.add_argument('--s', default=64, type=float,
                             help='scale for arcface')
         
-        parser.add_argument(p1+'margin', default=0.3, type=float,
+        parser.add_argument('--margin', default=0.3, type=float,
                             help='margin for arcface, cosface,...')
         
-        parser.add_argument(p1+'margin-warmup-epochs', default=10, type=float,
+        parser.add_argument('--margin-warmup-epochs', default=10, type=float,
                             help='number of epoch until we set the final margin')
 
-        parser.add_argument(p1+'num-subcenters', default=2, type=int,
+        parser.add_argument('--num-subcenters', default=2, type=int,
                             help='number of subcenters in subcenter losses')
 
         try:
             parser.add_argument(
-                p1+'norm-layer', default=None, 
+                '--norm-layer', default=None, 
                 choices=['batch-norm', 'group-norm', 'instance-norm', 'instance-norm-affine', 'layer-norm'],
                 help='type of normalization layer for all components of x-vector network')
         except:
@@ -324,7 +318,7 @@ class ClassifHead(NetArch):
 
         try:
             parser.add_argument(
-                p1+'head-norm-layer', default=None, 
+                '--head-norm-layer', default=None, 
                 choices=['batch-norm', 'group-norm', 'instance-norm', 'instance-norm-affine', 'layer-norm'],
                 help=('type of normalization layer for classification head, '
                       'it overrides the value of the norm-layer parameter'))
@@ -332,16 +326,21 @@ class ClassifHead(NetArch):
             pass
 
         
-        parser.add_argument(p1+'wo-norm', default=False, action='store_true',
+        parser.add_argument('--wo-norm', default=False, action='store_true',
                             help='without batch normalization')
         
-        parser.add_argument(p1+'norm-after', default=False, action='store_true',
+        parser.add_argument('--norm-after', default=False, action='store_true',
                             help='batch normalizaton after activation')
         
         try:
-            parser.add_argument(p1+'dropout-rate', default=0, type=float,
+            parser.add_argument('--dropout-rate', default=0, type=float,
                                 help='dropout')
         except:
             pass
         
     
+        if prefix is not None:
+            outer_parser.add_argument(
+                '--' + prefix,
+                action=ActionParser(parser=parser),
+                help='classification head options')

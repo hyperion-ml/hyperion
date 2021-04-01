@@ -2,7 +2,7 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-
+from jsonargparse import ArgumentParser, ActionParser
 import torch.nn as nn
 
 from .global_pool import *
@@ -60,61 +60,63 @@ class GlobalPool1dFactory(object):
 
         
     @staticmethod
-    def add_class_args(parser, prefix=None):
-        if prefix is None:
-            p1 = '--'
-        else:
-            p1 = '--' + prefix + '.'
+    def add_class_args(parser, prefix=None, skip=[]):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog='')
 
         parser.add_argument(
-            p1+'pool-type', type=str.lower, default='mean+stddev',
+            '--pool-type', type=str.lower, default='mean+stddev',
             choices=['avg','mean+stddev', 'mean+logvar', 
                      'lde', 'scaled-dot-prod-att-v1', 'ch-wise-att-mean+stddev'],
             help=('Pooling methods: Avg, Mean+Std, Mean+logVar, LDE, '
                   'scaled-dot-product-attention-v1, Attentive-Mean+Std'))
         
-        parser.add_argument(p1+'dim' , 
-                            default=1, type=int,
-                            help=('Pooling dimension, usually time dimension'))
+        if 'dim' not in skip:
+            parser.add_argument('--dim' , 
+                                default=-1, type=int,
+                                help=('Pooling dimension, usually time dimension'))
         
-        parser.add_argument(
-            p1+'keepdim', default=False, action='store_true',
-            help=('keeps the pooling dimension as singletone'))
+        if 'keepdim' not in skip:
+            parser.add_argument(
+                '--keepdim', default=False, action='store_true',
+                help=('keeps the pooling dimension as singletone'))
+
+        if 'in_feats' not in skip:
+            parser.add_argument(
+                '--in-feats', default=0, type=int,
+                help=('feature size for LDE/Att pooling'))
 
         parser.add_argument(
-            p1+'in-feats', default=0, type=int,
-            help=('feature size for LDE/Att pooling'))
-
-        parser.add_argument(
-            p1+'inner-feats', default=0, type=int,
+            '--inner-feats', default=0, type=int,
             help=('inner feature size for attentive pooling'))
 
         parser.add_argument(
-            p1+'num-comp', default=8, type=int,
+            '--num-comp', default=8, type=int,
             help=('number of components for LDE pooling'))
 
         parser.add_argument(
-            p1+'dist-pow', default=2, type=int,
+            '--dist-pow', default=2, type=int,
             help=('Distace power for LDE pooling'))
         
         parser.add_argument(
-            p1+'wo-bias', default=False, action='store_true',
+            '--wo-bias', default=False, action='store_true',
             help=('Don\'t use bias in LDE'))
 
         parser.add_argument(
-            p1+'num-heads', default=4, type=int,
+            '--num-heads', default=4, type=int,
             help=('number of attention heads'))
 
         parser.add_argument(
-            p1+'d-k', default=256, type=int,
+            '--d-k', default=256, type=int,
             help=('key dimension for attention'))
 
         parser.add_argument(
-            p1+'d-v', default=256, type=int,
+            '--d-v', default=256, type=int,
             help=('value dimension for attention'))
         
         parser.add_argument(
-            p1+'bin-attn', default=False, action='store_true',
+            '--bin-attn', default=False, action='store_true',
             help=('Use binary attention, i.e. sigmoid instead of softmax'))
 
 

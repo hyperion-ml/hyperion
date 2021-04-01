@@ -2,8 +2,9 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-
+from jsonargparse import ArgumentParser, ActionParser
 import re
+
 from ...feats.filter_banks import FilterBankFactory as FBF
 from .audio_feats import *
 
@@ -111,68 +112,65 @@ class AudioFeatsFactory(object):
              parser: Arguments parser
              prefix: Options prefix.
         """
-
-        if prefix is None:
-            p1 = '--'
-        else:
-            p1 = '--' + prefix + '.'
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog='')
 
         parser.add_argument(
-            p1+'sample-frequency', 
+            '--sample-frequency', 
             default=16000, type=int,
             help=('Waveform data sample frequency (must match the waveform file, '
                   'if specified there)'))
         
         parser.add_argument(
-            p1+'frame-length', type=int,
+            '--frame-length', type=int,
             default=25,
             help='Frame length in milliseconds')
         parser.add_argument(
-            p1+'frame-shift', type=int,
+            '--frame-shift', type=int,
             default=10,
             help='Frame shift in milliseconds')
         parser.add_argument(
-            p1+'fft-length', type=int,
+            '--fft-length', type=int,
             default=512,
             help='Length of FFT')
 
         parser.add_argument(
-            p1+'remove-dc-offset', 
+            '--remove-dc-offset', 
             default=True, type=str2bool,
             help='Subtract mean from waveform on each frame')
 
         parser.add_argument(
-            p1+'preemphasis-coeff', type=float,
+            '--preemphasis-coeff', type=float,
             default=0.97,
             help='Coefficient for use in signal preemphasis')
         
         parser.add_argument(
-            p1+'window-type', 
+            '--window-type', 
             default='povey',
             choices=['hamming', 'hanning', 'povey', 'rectangular', 'blackman'],
             help=('Type of window ("hamming"|"hanning"|"povey"|'
                   '"rectangular"|"blackmann")'))
 
-        
         parser.add_argument(
-            p1+'use-fft-mag', 
+            '--use-fft-mag', 
             default=False, action='store_true',
             help='If true, it uses |X(f)|, if false, it uses |X(f)|^2')
 
         parser.add_argument(
-            p1+'dither', type=float,
+            '--dither', type=float,
             default=1,
             help='Dithering constant (0.0 means no dither)')
         
-        FBF.add_class_args(parser, prefix)
+        FBF.add_class_args(parser)
 
         parser.add_argument(
-            p1+'num-ceps', type=int,
+            '--num-ceps', type=int,
             default=13,
             help='Number of cepstra in MFCC computation (including C0)')
         
         parser.add_argument(
-            p1+'snip-edges', 
+            '--snip-edges', 
             default=True, type=str2bool,
             help=('If true, end effects will be handled by outputting only '
                   'frames that completely fit in the file, and the number of '
@@ -181,30 +179,36 @@ class AudioFeatsFactory(object):
                   'and we reflect the data at the ends.'))
 
         parser.add_argument(
-            p1+'energy-floor', type=float,
+            '--energy-floor', type=float,
             default=0,
             help='Floor on energy (absolute, not relative) in MFCC computation')
         
         parser.add_argument(
-            p1+'raw-energy', 
+            '--raw-energy', 
             default=True, type=str2bool,
             help='If true, compute energy before preemphasis and windowing')
         parser.add_argument(
-            p1+'use-energy', 
+            '--use-energy', 
             default=True, type=str2bool,
             help='Use energy (not C0) in MFCC computation')
         
         parser.add_argument(
-            p1+'cepstral-lifter', type=float,
+            '--cepstral-lifter', type=float,
             default=22,
             help='Constant that controls scaling of MFCCs')
         
         parser.add_argument(
-            p1+'audio-feat', 
+            '--audio-feat', 
             default='cepstrum',
             choices=['fft', 'spec', 'log_spec', 'logfb', 'mfcc' ],
             help=('It can return intermediate result: fft, spec, log_spec, '
                   'logfb, mfcc'))
+
+        if prefix is not None:
+            outer_parser.add_argument(
+                '--' + prefix,
+                action=ActionParser(parser=parser),
+                help='acoustic features options')
         
     add_argparse_args = add_class_args
     

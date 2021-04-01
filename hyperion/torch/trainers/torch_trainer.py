@@ -7,7 +7,7 @@ import os
 import contextlib
 from collections import OrderedDict as ODict
 from enum import Enum
-
+from jsonargparse import ArgumentParser, ActionParser
 import logging
 
 import torch

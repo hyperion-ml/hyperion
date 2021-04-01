@@ -4,6 +4,7 @@
 """
 import os
 import math
+from jsonargparse import ArgumentParser, ActionParser
 import logging
 
 import numpy as np
@@ -204,18 +205,17 @@ class ClassWeightedSeqSampler(Sampler):
 
     @staticmethod
     def add_class_args(parser, prefix=None):
-        if prefix is None:
-            p1 = '--'
-        else:
-            p1 = '--' + prefix + '.'
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog='')
             
         parser.add_argument(
-            p1+'batch-size', 
+            '--batch-size', 
             default=128, type=int,
             help=('batch size'))
 
         parser.add_argument(
-            p1+'var-batch-size', default=False,
+            '--var-batch-size', default=False,
             action='store_true',
             help=('use variable batch-size, '
                   'then batch-size is the minimum batch size, '
@@ -223,18 +223,24 @@ class ClassWeightedSeqSampler(Sampler):
                   'equal to max-chunk-length'))
 
         parser.add_argument(
-            p1+'iters-per-epoch', 
+            '--iters-per-epoch', 
             default='auto',
             type=lambda x: x if x=='auto' else float(x),
             help=('number of times we sample an utterance in each epoch'))
 
         parser.add_argument(
-            p1+'num-egs-per-class',
+            '--num-egs-per-class',
             type=int, default=1,
             help=('number of samples per class in batch'))
         parser.add_argument(
-            p1+'num-egs-per-utt',
+            '--num-egs-per-utt',
             type=int, default=1,
             help=('number of samples per utterance in batch'))
+
+        if prefix is not None:
+            outer_parser.add_argument(
+                '--' + prefix,
+                action=ActionParser(parser=parser),
+                help='weighted seq sampler options')
 
     add_argparse_args = add_class_args

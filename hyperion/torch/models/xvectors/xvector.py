@@ -484,8 +484,6 @@ class XVector(TorchModel):
             'pool_type', 'pool_num_comp', 'pool_use_bias', 
             'pool_dist_pow', 'pool_d_k', 'pool_d_v', 'pool_num_heads', 
             'pool_bin_attn', 'pool_inner_feats')
-        pool_args = dict((k, kwargs[p+k])
-                         for k in pool_valid_args if p+k in kwargs)
         pool_args = dict((k, kwargs[k])
                          for k in pool_valid_args if k in kwargs)
 

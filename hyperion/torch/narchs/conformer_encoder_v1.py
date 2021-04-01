@@ -3,6 +3,8 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+from jsonargparse import ArgumentParser, ActionParser
+
 import torch
 import torch.nn as nn
 
@@ -376,113 +378,116 @@ class ConformerEncoderV1(NetArch):
            parser: argparse object
            prefix: prefix string to add to the argument names
         """
-        if prefix is None:
-            p1 = '--'
-        else:
-            p1 = '--' + prefix + '.'
-
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog='')
 
         if in_feats:
             parser.add_argument(
-                p1+'in-feats', type=int, required=True,
+                '--in-feats', type=int, required=True,
                 help=('input feature dimension'))
 
 
-        parser.add_argument(p1+'num-blocks',
+        parser.add_argument('--num-blocks',
                             default=6, type=int,
                             help=('number of tranformer blocks'))
 
-        parser.add_argument(p1+'d-model', 
+        parser.add_argument('--d-model', 
                             default=512, type=int,
                             help=('encoder layer sizes'))
 
-        parser.add_argument(p1+'num-heads',
+        parser.add_argument('--num-heads',
                             default=4, type=int,
                             help=('number of heads in self-attention layers'))
 
-        parser.add_argument(p1+'att-type', 
+        parser.add_argument('--att-type', 
                             default='scaled-dot-prod-v1', 
                             choices=['scaled-dot-prod-v1', 'local-scaled-dot-prod-v1'],
                             help=('type of self-attention'))
 
-        parser.add_argument(p1+'att-context', 
+        parser.add_argument('--att-context', 
                             default=25, type=int,
                             help=('context size when using local attention'))
 
         parser.add_argument(
-            p1+'conv-repeats', default=1, type=int,
+            '--conv-repeats', default=1, type=int,
             nargs='+', help=('number of conv blocks in each conformer block'))
 
         parser.add_argument(
-            p1+'conv-kernel-sizes', default=31, 
+            '--conv-kernel-sizes', default=31, 
             nargs='+', type=int, 
             help=('kernels sizes for the depth-wise convs of each conformer block'))
 
         parser.add_argument(
-            p1+'conv-strides', default=1, 
+            '--conv-strides', default=1, 
             nargs='+', type=int, help=('resb-blocks strides for each encoder stage'))
 
-        parser.add_argument(p1+'ff-type', 
+        parser.add_argument('--ff-type', 
                             default='linear', choices=['linear', 'conv1dx2', 'conv1dlinear'],
                             help=('type of feed forward layers in transformer block'))
         
-        parser.add_argument(p1+'d-ff',
+        parser.add_argument('--d-ff',
                             default=2048, type=int,
                             help=('size middle layer in feed forward block')) 
 
-        parser.add_argument(p1+'ff-kernel-size',
+        parser.add_argument('--ff-kernel-size',
                             default=3, type=int,
                             help=('kernel size in convolutional feed forward block')) 
 
         try:
-            parser.add_argument(p1+'hid-act', default='swish', 
+            parser.add_argument('--hid-act', default='swish', 
                                 help='hidden activation')
         except:
             pass
 
-        parser.add_argument(p1+'pos-dropout-rate', default=0.1, type=float,
+        parser.add_argument('--pos-dropout-rate', default=0.1, type=float,
                                 help='positional encoder dropout')
-        parser.add_argument(p1+'att-dropout-rate', default=0, type=float,
+        parser.add_argument('--att-dropout-rate', default=0, type=float,
                                 help='self-att dropout')
-        parser.add_argument(p1+'dropout-rate', default=0.1, type=float,
+        parser.add_argument('--dropout-rate', default=0.1, type=float,
                                 help='feed-forward layer dropout')
         
-        parser.add_argument(p1+'in-layer-type', 
+        parser.add_argument('--in-layer-type', 
                             default='linear', choices=['linear', 'conv2d-sub'],
                             help=('type of input layer'))
 
-        # parser.add_argument(p1+'abs-pos-enc', default=False, action='store_true',
+        # parser.add_argument('--abs-pos-enc', default=False, action='store_true',
         #                     help='use absolute positional encoder')
-        parser.add_argument(p1+'pos-enc-type', 
+        parser.add_argument('--pos-enc-type', 
                             default='rel', choices=['no', 'rel', 'abs'],
                             help=('type of positional encoder'))
 
-        parser.add_argument(p1+'causal-pos-enc', default=False, action='store_true',
+        parser.add_argument('--causal-pos-enc', default=False, action='store_true',
                             help='relative positional encodings are zero when attending to the future')
 
         try:
             parser.add_argument(
-                p1+'conv-norm-layer', default=None, 
+                '--conv-norm-layer', default=None, 
                 choices=['batch-norm', 'group-norm', 'instance-norm', 'instance-norm-affine', 'layer-norm'],
                 help='type of normalization layer for conv block in conformer')
         except:
             pass
 
         parser.add_argument(
-            p1+'se-r', default=None, type=int,
+            '--se-r', default=None, type=int,
             help=('squeeze-excitation compression ratio'))
 
-        parser.add_argument(p1+'no-ff-macaron', default=False, action='store_true',
+        parser.add_argument('--no-ff-macaron', default=False, action='store_true',
                             help='do not use macaron style ff layers ')
 
-        parser.add_argument(p1+'red-lnorms', default=False, action='store_true',
+        parser.add_argument('--red-lnorms', default=False, action='store_true',
                             help='use redundant Lnorm at conformer blocks\' outputs')
 
-        parser.add_argument(p1+'concat-after', default=False, action='store_true',
+        parser.add_argument('--concat-after', default=False, action='store_true',
                             help='concatenate attention input and output instead of adding')
 
-        # parser.add_argument(p1+'in-norm', default=False, action='store_true',
+        # parser.add_argument('--in-norm', default=False, action='store_true',
         #                     help='batch normalization at the input')
+        if prefix is not None:
+            outer_parser.add_argument(
+                '--' + prefix,
+                action=ActionParser(parser=parser),
+                help='conformer encoder options')
 
 
     add_argparse_args = add_class_args
