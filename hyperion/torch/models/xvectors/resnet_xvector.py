@@ -4,6 +4,7 @@
 """
 
 import logging
+from jsonargparse import ArgumentParser, ActionParser
 
 import torch
 import torch.nn as nn
@@ -166,10 +167,20 @@ class ResNetXVector(XVector):
 
     @staticmethod
     def add_class_args(parser, prefix=None):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog='')
         
-        XVector.add_class_args(parser, prefix)
-        RNF.add_class_args(parser, prefix)
+        XVector.add_class_args(parser)
+        RNF.add_class_args(parser)
+
+        if prefix is not None:
+            outer_parser.add_argument(
+                '--' + prefix,
+                action=ActionParser(parser=parser),
+                help='xvector options')
+
 
     add_argparse_args = add_class_args
 
-
+    

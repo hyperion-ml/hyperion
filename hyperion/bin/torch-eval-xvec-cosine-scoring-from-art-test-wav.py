@@ -288,7 +288,7 @@ if __name__ == "__main__":
     parser.add_argument('--test-wav-file', required=True)
 
     AR.add_class_args(parser)
-    AF.add_class_args(parser)
+    AF.add_class_args(parser, prefix='feats')
 
     parser.add_argument('--vad', dest='vad_spec', default=None)
     parser.add_argument('--vad-path-prefix', dest='vad_path_prefix', default=None,

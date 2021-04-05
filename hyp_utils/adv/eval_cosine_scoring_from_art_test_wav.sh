@@ -11,12 +11,16 @@ threshold=0
 save_wav=false
 save_wav_path=""
 cal_file=""
-attack_opts="--attack-attack-type fgm --attack-eps 1e-3"
+attack_opts="--attack.attack-type fgm --attack.eps 1e-3"
 
 
 if [ -f path.sh ]; then . ./path.sh; fi
 . parse_options.sh || exit 1;
 set -e
+
+if [ -z "$TORCH_ART" ];then
+    TORCH_ART=$TORCH
+fi
 
 if [ $# -ne 7 ]; then
   echo "Usage: $0 [options] <key> <enroll-file> <test-data-dir> <vector-file> <nnet-model> <output-scores> <output-snr>"
@@ -78,17 +82,16 @@ fi
 echo "$0: score $key_file to $output_dir"
 
 $cmd JOB=1:$nj $log_dir/${name}.JOB.log \
-    hyp_utils/conda_env.sh --conda-env $TORCH --num-gpus $num_gpus \
+    hyp_utils/conda_env.sh --conda-env $TORCH_ART --num-gpus $num_gpus \
     torch-eval-xvec-cosine-scoring-from-art-test-wav.py \
-    --feat $feat_config ${args} \
+    --feats $feat_config ${args} \
     --v-file scp:$vector_file \
     --key-file $key_file \
     --enroll-file $enroll_file \
     --test-wav-file $wav \
     --vad scp:$vad \
     --model-path $nnet_file \
-    --threshold $threshold \
-    --attack-type $attack_type $attack_opt \
+    --threshold $threshold $attack_opts \
     --score-file $output_file \
     --stats-file $stats_file \
     --seg-part-idx JOB --num-seg-parts $nj || exit 1

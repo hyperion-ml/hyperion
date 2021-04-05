@@ -4,6 +4,7 @@
 """
 
 import logging
+from jsonargparse import ArgumentParser, ActionParser
 
 import torch
 import torch.nn as nn
@@ -188,11 +189,20 @@ class EfficientNetXVector(XVector):
 
     @staticmethod
     def add_class_args(parser, prefix=None):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog='')
 
         # we put args of EfficientNet first so it get swish as 
         # default activation instead of relu
-        EN.add_class_args(parser, prefix)        
-        XVector.add_class_args(parser, prefix)
+        EN.add_class_args(parser)        
+        XVector.add_class_args(parser)
+
+        if prefix is not None:
+            outer_parser.add_argument(
+                '--' + prefix,
+                action=ActionParser(parser=parser),
+                help='xvector options')
 
 
 

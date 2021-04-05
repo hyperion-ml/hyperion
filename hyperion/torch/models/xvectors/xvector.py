@@ -3,6 +3,7 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import logging
+from jsonargparse import ArgumentParser, ActionParser
 
 import torch
 import torch.nn as nn
@@ -12,6 +13,7 @@ from ...layer_blocks import TDNNBlock
 from ...narchs import ClassifHead, TorchNALoader
 from ...torch_model import TorchModel
 from ...utils import eval_nnet_by_chunks
+
 
 class XVector(TorchModel):
     """x-Vector base class
@@ -466,10 +468,10 @@ class XVector(TorchModel):
     @staticmethod
     def filter_args(**kwargs):
 
-        # get boolean args that are negated
-        if 'pool_wo_bias' in kwargs:
-            kwargs['pool_use_bias'] = not kwargs['pool_wo_bias']
-            del kwargs['pool_wo_bias']
+        # # get boolean args that are negated
+        # if 'pool_wo_bias' in kwargs:
+        #     kwargs['pool_use_bias'] = not kwargs['pool_wo_bias']
+        #     del kwargs['pool_wo_bias']
 
         if 'wo_norm' in kwargs:
             kwargs['use_norm'] = not kwargs['wo_norm']
@@ -480,19 +482,20 @@ class XVector(TorchModel):
             del kwargs['norm_after']
 
         # get arguments for pooling
-        pool_valid_args = (
-            'pool_type', 'pool_num_comp', 'pool_use_bias', 
-            'pool_dist_pow', 'pool_d_k', 'pool_d_v', 'pool_num_heads', 
-            'pool_bin_attn', 'pool_inner_feats')
-        pool_args = dict((k, kwargs[k])
-                         for k in pool_valid_args if k in kwargs)
+        pool_args = PF.filter_args(**kwargs['pool_net'])
+        # pool_valid_args = (
+        #     'pool_type', 'pool_num_comp', 'pool_use_bias', 
+        #     'pool_dist_pow', 'pool_d_k', 'pool_d_v', 'pool_num_heads', 
+        #     'pool_bin_attn', 'pool_inner_feats')
+        # pool_args = dict((k, kwargs[k])
+        #                  for k in pool_valid_args if k in kwargs)
 
-        # remove pooling prefix from arg name
-        for k in pool_valid_args[1:]:
-            if k in pool_args:
-                k2 = k.replace('pool_','')
-                pool_args[k2] = pool_args[k]
-                del pool_args[k]
+        # # remove pooling prefix from arg name
+        # for k in pool_valid_args[1:]:
+        #     if k in pool_args:
+        #         k2 = k.replace('pool_','')
+        #         pool_args[k2] = pool_args[k]
+        #         del pool_args[k]
 
         valid_args = ('num_classes', 'embed_dim', 'num_embed_layers', 'hid_act', 'loss_type',
                       's', 'margin', 'margin_warmup_epochs', 'num_subcenters',
@@ -503,93 +506,94 @@ class XVector(TorchModel):
                     for k in valid_args if k in kwargs)
 
         args['pool_net'] = pool_args
-
         return args
 
 
     @staticmethod
     def add_class_args(parser, prefix=None):
-        if prefix is None:
-            p1 = '--'
-        else:
-            p1 = '--' + prefix + '.'
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog='')
+
+        PF.add_class_args(parser, prefix='pool_net', 
+                          skip=['dim','in_feats','keepdim'])
         
-        parser.add_argument(p1+'pool-type', type=str.lower,
-                            default='mean+stddev',
-                            choices=['avg','mean+stddev', 'mean+logvar', 
-                                     'lde', 'scaled-dot-prod-att-v1', 'ch-wise-att-mean-stddev'],
-                            help=('Pooling methods: Avg, Mean+Std, Mean+logVar, LDE, '
-                                  'scaled-dot-product-attention-v1'))
+        # parser.add_argument('--pool-type', type=str.lower,
+        #                     default='mean+stddev',
+        #                     choices=['avg','mean+stddev', 'mean+logvar', 
+        #                              'lde', 'scaled-dot-prod-att-v1', 'ch-wise-att-mean-stddev'],
+        #                     help=('Pooling methods: Avg, Mean+Std, Mean+logVar, LDE, '
+        #                           'scaled-dot-product-attention-v1'))
         
-        parser.add_argument(p1+'pool-num-comp',
-                            default=64, type=int,
-                            help=('number of components for LDE pooling'))
+        # parser.add_argument('--pool-num-comp',
+        #                     default=64, type=int,
+        #                     help=('number of components for LDE pooling'))
 
-        parser.add_argument(p1+'pool-dist-pow', 
-                            default=2, type=int,
-                            help=('Distace power for LDE pooling'))
+        # parser.add_argument('--pool-dist-pow', 
+        #                     default=2, type=int,
+        #                     help=('Distace power for LDE pooling'))
         
-        parser.add_argument(p1+'pool-wo-bias', 
-                            default=False, action='store_true',
-                            help=('Don\' use bias in LDE'))
+        # parser.add_argument('--pool-wo-bias', 
+        #                     default=False, action='store_true',
+        #                     help=('Don\' use bias in LDE'))
 
-        parser.add_argument(
-            p1+'pool-num-heads', default=8, type=int,
-            help=('number of attention heads'))
+        # parser.add_argument(
+        #     '--pool-num-heads', default=8, type=int,
+        #     help=('number of attention heads'))
 
-        parser.add_argument(
-            p1+'pool-d-k', default=256, type=int,
-            help=('key dimension for attention'))
+        # parser.add_argument(
+        #     '--pool-d-k', default=256, type=int,
+        #     help=('key dimension for attention'))
 
-        parser.add_argument(
-            p1+'pool-d-v', default=256, type=int,
-            help=('value dimension for attention'))
+        # parser.add_argument(
+        #     '--pool-d-v', default=256, type=int,
+        #     help=('value dimension for attention'))
 
-        parser.add_argument(
-            p1+'pool-bin-attn', default=False, action='store_true',
-            help=('Use binary attention, i.e. sigmoid instead of softmax'))
+        # parser.add_argument(
+        #     '--pool-bin-attn', default=False, action='store_true',
+        #     help=('Use binary attention, i.e. sigmoid instead of softmax'))
 
-        parser.add_argument(
-            p1+'pool-inner-feats', default=128, type=int,
-            help=('inner feature size for attentive pooling'))
+        # parser.add_argument(
+        #     '--pool-inner-feats', default=128, type=int,
+        #     help=('inner feature size for attentive pooling'))
 
-        # parser.add_argument(p1+'num-classes',
+        # parser.add_argument('--num-classes',
         #                     required=True, type=int,
         #                     help=('number of classes'))
 
-        parser.add_argument(p1+'embed-dim',
+        parser.add_argument('--embed-dim',
                             default=256, type=int,
                             help=('x-vector dimension'))
         
-        parser.add_argument(p1+'num-embed-layers',
+        parser.add_argument('--num-embed-layers',
                             default=1, type=int,
                             help=('number of layers in the classif head'))
         
         try:
-            parser.add_argument(p1+'hid-act', default='relu6', 
+            parser.add_argument('--hid-act', default='relu6', 
                                 help='hidden activation')
         except:
             pass
 
-        parser.add_argument(p1+'loss-type', default='arc-softmax', 
+        parser.add_argument('--loss-type', default='arc-softmax', 
                             choices = ['softmax', 'arc-softmax', 'cos-softmax', 'subcenter-arc-softmax'],
                             help='loss type: softmax, arc-softmax, cos-softmax, subcenter-arc-softmax')
         
-        parser.add_argument(p1+'s', default=64, type=float,
+        parser.add_argument('--s', default=64, type=float,
                             help='scale for arcface')
         
-        parser.add_argument(p1+'margin', default=0.3, type=float,
+        parser.add_argument('--margin', default=0.3, type=float,
                             help='margin for arcface, cosface,...')
         
-        parser.add_argument(p1+'margin-warmup-epochs', default=10, type=float,
+        parser.add_argument('--margin-warmup-epochs', default=10, type=float,
                             help='number of epoch until we set the final margin')
 
-        parser.add_argument(p1+'num-subcenters', default=2, type=int,
+        parser.add_argument('--num-subcenters', default=2, type=int,
                             help='number of subcenters in subcenter losses')
 
         try:
             parser.add_argument(
-                p1+'norm-layer', default=None, 
+                '--norm-layer', default=None, 
                 choices=['batch-norm', 'group-norm', 'instance-norm', 'instance-norm-affine', 'layer-norm'],
                 help='type of normalization layer for all components of x-vector network')
         except:
@@ -598,7 +602,7 @@ class XVector(TorchModel):
 
         try:
             parser.add_argument(
-                p1+'head-norm-layer', default=None, 
+                '--head-norm-layer', default=None, 
                 choices=['batch-norm', 'group-norm', 'instance-norm', 'instance-norm-affine', 'layer-norm'],
                 help=('type of normalization layer for classification head, '
                       'it overrides the value of the norm-layer parameter'))
@@ -606,30 +610,35 @@ class XVector(TorchModel):
             pass
 
         
-        parser.add_argument(p1+'wo-norm', default=False, action='store_true',
+        parser.add_argument('--wo-norm', default=False, action='store_true',
                             help='without batch normalization')
         
-        parser.add_argument(p1+'norm-after', default=False, action='store_true',
+        parser.add_argument('--norm-after', default=False, action='store_true',
                             help='batch normalizaton after activation')
         
         try:
-            parser.add_argument(p1+'dropout-rate', default=0, type=float,
+            parser.add_argument('--dropout-rate', default=0, type=float,
                                 help='dropout')
         except:
             pass
         
-        parser.add_argument(p1+'in-feats', default=None, type=int,
+        parser.add_argument('--in-feats', default=None, type=int,
                             help=('input feature dimension, '
                                   'if None it will try to infer from encoder network'))
         
-        parser.add_argument(p1+'proj-feats', default=None, type=int,
+        parser.add_argument('--proj-feats', default=None, type=int,
                             help=('dimension of linear projection after encoder network, '
                                   'if None, there is not projection'))
-        
+        if prefix is not None:
+            outer_parser.add_argument(
+                '--' + prefix,
+                action=ActionParser(parser=parser),
+                help='xvector options')
+
 
 
     @staticmethod
-    def filter_finetune_args(prefix=None, **kwargs):
+    def filter_finetune_args(**kwargs):
         valid_args = ('loss_type', 's', 'margin', 'margin_warmup_epochs')
         args = dict((k, kwargs[k])
                     for k in valid_args if k in kwargs)
@@ -639,27 +648,31 @@ class XVector(TorchModel):
 
     @staticmethod
     def add_finetune_args(parser, prefix=None):
-        if prefix is None:
-            p1 = '--'
-        else:
-            p1 = '--' + prefix + '.'
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog='')
         
-        parser.add_argument(p1+'loss-type', default='arc-softmax', 
+        parser.add_argument('--loss-type', default='arc-softmax', 
                             choices = ['softmax', 'arc-softmax', 'cos-softmax', 'subcenter-arc-softmax'],
                             help='loss type: softmax, arc-softmax, cos-softmax, subcenter-arc-softmax')
         
-        parser.add_argument(p1+'s', default=64, type=float,
+        parser.add_argument('--s', default=64, type=float,
                             help='scale for arcface')
         
-        parser.add_argument(p1+'margin', default=0.3, type=float,
+        parser.add_argument('--margin', default=0.3, type=float,
                             help='margin for arcface, cosface,...')
         
-        parser.add_argument(p1+'margin-warmup-epochs', default=10, type=float,
+        parser.add_argument('--margin-warmup-epochs', default=10, type=float,
                             help='number of epoch until we set the final margin')
 
-        parser.add_argument(p1+'num-subcenters', default=2, type=float,
+        parser.add_argument('--num-subcenters', default=2, type=float,
                             help='number of subcenters in subcenter losses')
        
+        if prefix is not None:
+            outer_parser.add_argument(
+                '--' + prefix,
+                action=ActionParser(parser=parser),
+                help='xvector finetune opts')
     
     add_argparse_args = add_class_args
     add_argparse_finetune_args = add_finetune_args

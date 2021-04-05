@@ -22,6 +22,7 @@ fi
 if [ "$(hostname --domain)" == "cm.gemini" ];then
     module load ffmpeg
     TORCH="pytorch1.6_cuda10.1"
+    TORCH_ART="pytorch1.6_cuda10.1_art"
     module load cuda10.1/toolkit/10.1.105
     module load cudnn/7.6.3_cuda10.1
 else

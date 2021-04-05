@@ -4,6 +4,7 @@ f"""
 """
 
 import logging
+from jsonargparse import ArgumentParser, ActionParser
 
 import torch
 import torch.nn as nn
@@ -256,60 +257,63 @@ class TransformerXVectorV1(XVector):
            parser: argparse object
            prefix: prefix string to add to the argument names
         """
-        XVector.add_class_args(parser, prefix)
-        if prefix is None:
-            p1 = '--'
-        else:
-            p1 = '--' + prefix + '.'
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog='')
 
-
-        parser.add_argument(p1+'num-enc-blocks',
+        XVector.add_class_args(parser)
+        parser.add_argument('--num-enc-blocks',
                             default=6, type=int,
                             help=('number of tranformer blocks'))
 
-        parser.add_argument(p1+'enc-d-model', 
+        parser.add_argument('--enc-d-model', 
                             default=512, type=int,
                             help=('encoder layer sizes'))
 
-        parser.add_argument(p1+'num-enc-heads',
+        parser.add_argument('--num-enc-heads',
                             default=4, type=int,
                             help=('number of heads in self-attention layers'))
 
-        parser.add_argument(p1+'enc-att-type', 
+        parser.add_argument('--enc-att-type', 
                             default='scaled-dot-prod-v1', 
                             choices=['scaled-dot-prod-v1', 'local-scaled-dot-prod-v1'],
                             help=('type of self-attention'))
 
-        parser.add_argument(p1+'enc-att-context', 
+        parser.add_argument('--enc-att-context', 
                             default=25, type=int,
                             help=('context size when using local attention'))
 
-        parser.add_argument(p1+'enc-ff-type', 
+        parser.add_argument('--enc-ff-type', 
                             default='linear', choices=['linear', 'conv1dx2', 'conv1dlinear'],
                             help=('type of feed forward layers in transformer block'))
         
-        parser.add_argument(p1+'enc-d-ff',
+        parser.add_argument('--enc-d-ff',
                             default=2048, type=int,
                             help=('size middle layer in feed forward block')) 
 
-        parser.add_argument(p1+'enc-ff-kernel-size',
+        parser.add_argument('--enc-ff-kernel-size',
                             default=3, type=int,
                             help=('kernel size in convolutional feed forward block')) 
 
-        parser.add_argument(p1+'pos-dropout-rate', default=0.1, type=float,
+        parser.add_argument('--pos-dropout-rate', default=0.1, type=float,
                                 help='positional encoder dropout')
-        parser.add_argument(p1+'att-dropout-rate', default=0, type=float,
+        parser.add_argument('--att-dropout-rate', default=0, type=float,
                                 help='self-att dropout')
         
-        parser.add_argument(p1+'in-layer-type', 
+        parser.add_argument('--in-layer-type', 
                             default='linear', choices=['linear', 'conv2d-sub'],
                             help=('type of input layer'))
 
-        parser.add_argument(p1+'enc-concat-after', default=False, action='store_true',
+        parser.add_argument('--enc-concat-after', default=False, action='store_true',
                             help='concatenate attention input and output instead of adding')
 
-        # parser.add_argument(p1+'in-norm', default=False, action='store_true',
+        # parser.add_argument('--in-norm', default=False, action='store_true',
         #                     help='batch normalization at the input')
+        if prefix is not None:
+            outer_parser.add_argument(
+                '--' + prefix,
+                action=ActionParser(parser=parser),
+                help='xvector options')
 
 
     add_argparse_args = add_class_args

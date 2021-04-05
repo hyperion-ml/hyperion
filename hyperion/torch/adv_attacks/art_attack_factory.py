@@ -6,7 +6,7 @@
 from jsonargparse import ArgumentParser, ActionParser
 import numpy as np
 try:
-    from art import attacks
+    from art.attacks import evasion as attacks
 except ImportError:
     pass
 
@@ -156,7 +156,6 @@ class ARTAttackFactory(object):
         if attack_type == 'zoo':
             return attacks.ZooMethod(
                 model, confidence, learning_rate=lr, 
-                binary_search_steps=binary_search_steps, 
                 max_iter=max_iter, initial_const=c,
                 targeted=targeted,
                 binary_search_steps=binary_search_steps,
