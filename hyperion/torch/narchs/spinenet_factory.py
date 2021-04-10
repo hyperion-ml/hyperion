@@ -5,7 +5,6 @@ from .spinenet import *
 spinenet_dict = {
     'spinenet49': SpineNet49,
     'spinenet49s': SpineNet49S,
-    'spinenet49xs': SpineNet49XS,
     'spinenet96': SpineNet96,
     'spinenet143': SpineNet143,
     'spinenet190': SpineNet190,
@@ -60,8 +59,6 @@ spinenet_dict = {
     'spinenet49_aggr_noup_noconv': SpineNet49_aggr_noup_noconv,
     'lspinenet49_nearest_concat_channel_endp_upfirst': LSpineNet49_nearest_concat_channel_endp_upfirst,
     'lspinenet49_345_128': LSpineNet49_345_128,
-    'spinenet49m': SpineNet49M,
-    'spinenet49l': SpineNet49L,
     'spinenet49s_res2net': SpineNet49S_res2net,
     'spinenet49s_res2net_se': SpineNet49S_res2net_se,
     'spinenet49s_res2net_tse': SpineNet49S_res2net_tse,
