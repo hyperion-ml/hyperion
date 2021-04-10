@@ -5,6 +5,7 @@
 import numpy as np
 import h5py
 
+from numpy.linalg import matrix_rank
 import scipy.linalg as la
 
 from ..hyp_model import HypModel
@@ -14,7 +15,8 @@ class PCA(HypModel):
     """Class to do principal component analysis
     """
     def __init__(self, mu=None, T=None, update_mu=True, update_T=True, 
-                 pca_dim=None, pca_var_r=None, **kwargs):
+                 pca_dim=None, pca_var_r=None, pca_min_dim=2, 
+                 whiten=False, **kwargs):
         super().__init__(**kwargs)
         self.mu = mu
         self.T = T
@@ -22,6 +24,8 @@ class PCA(HypModel):
         self.update_T = update_T
         self.pca_dim = pca_dim
         self.pca_var_r = pca_var_r
+        self.pca_min_dim = pca_min_dim
+        self.whiten = whiten
 
         
     def predict(self, x):
@@ -30,29 +34,51 @@ class PCA(HypModel):
         return np.dot(x, self.T)
 
 
+    @staticmethod
+    def get_pca_dim_for_var_ratio(x, var_r, min_dim=2):
+        if var_r == 1:
+            rank = matrix_rank(x)
+            if rank == 0:
+                # it may have failed, let's try the cov
+                rank = matrix_rank(np.dot(x.T,x))
+        else:
+            sv = la.svd(x, compute_uv=False)
+            Ecc = np.cumsum(sv**2)
+            Ecc = Ecc/Ecc[-1]
+            rank = np.where(Ecc > pca_var_r)[0][0]
+
+        rank = max(min_dim, rank)
+        return rank
+
     
-    def fit(self, x=None, sample_weight=None, mu=None, C=None):
+    def fit(self, x=None, sample_weight=None, mu=None, S=None):
         
         if x is not None:
             mu = np.mean(x, axis=0)
             delta = x - mu
-            C = np.dot(delta.T, delta)/x.shape[0]
+            S = np.dot(delta.T, delta)/x.shape[0]
 
         if self.update_mu:
             self.mu = mu
 
         if self.update_T:
-            d, V = la.eigh(C)
+            d, V = la.eigh(S)
+            d = np.flip(d)
             V = np.fliplr(V)
 
+            # This makes the Transform unique
             p = V[0,:] < 0
             V[:,p] *= -1
+            
+            if self.whiten:
+                # the projected features will be whitened
+                V = V * 1/np.sqrt(d)
 
             if self.pca_var_r is not None:
-                d = np.flip(d)
                 var_acc = np.cumsum(d)
                 var_r = var_acc/var_acc[-1]
-                self.pca_dim = np.where(var_r > self.pca_var_r)[0][0]
+                self.pca_dim = max(np.where(var_r > self.pca_var_r)[0][0],
+                                   self.pca_min_dim)
         
             if self.pca_dim is not None:
                 assert self.pca_dim <= V.shape[1]

@@ -25,6 +25,7 @@ class XVector(TorchModel):
                  hid_act={'name':'relu', 'inplace': True}, 
                  loss_type='arc-softmax',
                  s=64, margin=0.3, margin_warmup_epochs=0,
+                 num_subcenters=2,
                  norm_layer=None, head_norm_layer=None,
                  use_norm=True, norm_before=True, 
                  dropout_rate=0,
@@ -66,7 +67,6 @@ class XVector(TorchModel):
             logging.info('adding projection layer after encoder with in/out size %d -> %d' % (enc_feats, proj_feats)) 
             self.proj = TDNNBlock(enc_feats, proj_feats, kernel_size=1, 
                                   activation=None, use_norm=use_norm)
-
         
         # create pooling network
         # infer output dimension of pooling which is input dim for classification head
@@ -94,6 +94,7 @@ class XVector(TorchModel):
             hid_act=hid_act,
             loss_type=loss_type,
             s=s, margin=margin, margin_warmup_epochs=margin_warmup_epochs,
+            num_subcenters=num_subcenters,
             norm_layer=head_norm_layer,
             use_norm=use_norm, norm_before=norm_before, 
             dropout_rate=dropout_rate)
@@ -137,6 +138,10 @@ class XVector(TorchModel):
         return self.classif_net.margin_warmup_epochs
 
     @property
+    def num_subcenters(self):
+        return self.classif_net.num_subcenters
+
+    @property
     def loss_type(self):
         return self.classif_net.loss_type
 
@@ -157,6 +162,7 @@ class XVector(TorchModel):
         if isinstance(pool_net, dict):
             if enc_feats is not None:
                 pool_net['in_feats'] = enc_feats
+
             return PF.create(**pool_net)
         elif isinstance(pool_net, nn.Module):
             return pool_net
@@ -287,6 +293,92 @@ class XVector(TorchModel):
         y = self.classif_net.extract_embed(p, embed_layer)
         return y
 
+    def extract_embed_slidwin(self, x, win_length, win_shift, snip_edges=False,
+                              feat_frame_length=None, feat_frame_shift=None,
+                              chunk_length=0, embed_layer=None, 
+                              detach_chunks=False):
+
+        if feat_frame_shift is not None:
+            #assume win_length/shift are in secs, transform to frames
+            # pass feat times from msecs to secs
+            feat_frame_shift = feat_frame_shift / 1000
+            feat_frame_length = feat_frame_length / 1000
+
+            # get length and shift in number of feature frames
+            win_shift = win_shift / feat_frame_shift # this can be a float
+            win_length = (win_length - feat_frame_length + feat_frame_shift) / feat_frame_shift
+            assert win_shift > 0.5, 'win-length should be longer than feat-frame-length'
+            
+        if embed_layer is None:
+            embed_layer = self.embed_layer
+
+        in_time = x.size(-1)
+        # if self.encoder_net.in_dim() == 4 and x.dim() == 3:
+        #     x = x.view(x.size(0), 1, x.size(1), x.size(2))
+        x = self._pre_enc(x)
+        x = eval_nnet_by_chunks(
+            x, self.encoder_net, 
+            chunk_length, detach_chunks=detach_chunks)
+
+        if x.device != self.device:
+            x = x.to(self.device)
+
+        x = self._post_enc(x)
+        pin_time = x.size(-1)                # time dim before pooling
+        downsample_factor = float(pin_time) / in_time
+        p = self.pool_net.forward_slidwin(
+            x, downsample_factor*win_length, downsample_factor*win_shift,
+            snip_edges=snip_edges) 
+        # (batch, pool_dim, time)
+
+        p = p.transpose(1,2).contiguous().view(-1, p.size(1))
+        y = self.classif_net.extract_embed(p, embed_layer).view(
+            x.size(0), -1, self.embed_dim).transpose(1,2).contiguous()
+
+        return y
+
+
+    def compute_slidwin_timestamps(self, num_windows, win_length, win_shift, snip_edges=False, 
+                                   feat_frame_length=25, feat_frame_shift=10, feat_snip_edges=False):
+
+        P = self.compute_slidwin_left_padding(
+            win_length, win_shift, snip_edges, 
+            feat_frame_length, feat_frame_shift, feat_snip_edges)
+
+        tstamps = torch.as_tensor([[i*win_shift, i*win_shift+win_length] for i in range(num_windows)]) - P
+        tstamps[tstamps < 0] = 0
+        return tstamps
+
+
+    def compute_slidwin_left_padding(self, win_length, win_shift, snip_edges=False, 
+                                     feat_frame_length=25, feat_frame_shift=10, feat_snip_edges=False):
+
+        # pass feat times from msecs to secs
+        feat_frame_shift = feat_frame_shift / 1000
+        feat_frame_length = feat_frame_length / 1000
+
+        # get length and shift in number of feature frames
+        H = win_shift / feat_frame_shift
+        L = (win_length - feat_frame_length + feat_frame_shift) / feat_frame_shift
+        assert L > 0.5, 'win-length should be longer than feat-frame-length'
+        
+        # compute left padding in case of snip_edges is False
+        if snip_edges:
+            P1 = 0
+        else:
+            Q = (L - H) / 2 # left padding in frames introduced by x-vector sliding window
+            P1 = Q * feat_frame_shift # left padding in secs introduced by x-vector sliding window
+
+
+        if feat_snip_edges:
+            # left padding introduced when computing acoustic feats
+            P2 = 0
+        else:
+            P2 = (feat_frame_length - feat_frame_shift) / 2
+
+        # total left padding
+        return P1 + P2
+
 
     def get_config(self):
 
@@ -303,6 +395,7 @@ class XVector(TorchModel):
                   's': self.s,
                   'margin': self.margin,
                   'margin_warmup_epochs': self.margin_warmup_epochs,
+                  'num_subcenters': self.num_subcenters,
                   'norm_layer': self.norm_layer,
                   'head_norm_layer': self.head_norm_layer,
                   'use_norm': self.use_norm,
@@ -406,7 +499,8 @@ class XVector(TorchModel):
         # get arguments for pooling
         pool_valid_args = (
             'pool_type', 'pool_num_comp', 'pool_use_bias', 
-            'pool_dist_pow', 'pool_d_k', 'pool_d_v', 'pool_num_heads', 'pool_bin_attn')
+            'pool_dist_pow', 'pool_d_k', 'pool_d_v', 'pool_num_heads', 
+            'pool_bin_attn', 'pool_inner_feats')
         pool_args = dict((k, kwargs[p+k])
                          for k in pool_valid_args if p+k in kwargs)
 
@@ -417,9 +511,9 @@ class XVector(TorchModel):
                 pool_args[k2] = pool_args[k]
                 del pool_args[k]
 
-
-        valid_args = ('num_classes', 'num_embed_layers', 'hid_act', 'loss_type',
-                      's', 'margin', 'margin_warmup_epochs', 'use_norm', 'norm_before',
+        valid_args = ('num_classes', 'embed_dim', 'num_embed_layers', 'hid_act', 'loss_type',
+                      's', 'margin', 'margin_warmup_epochs', 'num_subcenters',
+                      'use_norm', 'norm_before',
                       'in_feats', 'proj_feats', 'dropout_rate', 
                       'norm_layer', 'head_norm_layer')
         args = dict((k, kwargs[p+k])
@@ -440,8 +534,8 @@ class XVector(TorchModel):
         
         parser.add_argument(p1+'pool-type', type=str.lower,
                             default='mean+stddev',
-                            choices=['avg','mean+stddev', 'mean+logvar', 
-                                     'lde', 'scaled-dot-prod-att-v1', 'aggr-mean+stddev', 'med+iqr'],
+                            choices=['avg','mean+stddev', 'mean+logvar',
+                                     'lde', 'scaled-dot-prod-att-v1', 'ch-wise-att-mean-stddev'],
                             help=('Pooling methods: Avg, Mean+Std, Mean+logVar, LDE, '
                                   'scaled-dot-product-attention-v1'))
         
@@ -473,6 +567,10 @@ class XVector(TorchModel):
             p1+'pool-bin-attn', default=False, action='store_true',
             help=('Use binary attention, i.e. sigmoid instead of softmax'))
 
+        parser.add_argument(
+            p1+'pool-inner-feats', default=128, type=int,
+            help=('inner feature size for attentive pooling'))
+
         # parser.add_argument(p1+'num-classes',
         #                     required=True, type=int,
         #                     help=('number of classes'))
@@ -492,8 +590,8 @@ class XVector(TorchModel):
             pass
 
         parser.add_argument(p1+'loss-type', default='arc-softmax', 
-                            choices = ['softmax', 'arc-softmax', 'cos-softmax'],
-                            help='loss type: softmax, arc-softmax, cos-softmax')
+                            choices = ['softmax', 'arc-softmax', 'cos-softmax', 'subcenter-arc-softmax'],
+                            help='loss type: softmax, arc-softmax, cos-softmax, subcenter-arc-softmax')
         
         parser.add_argument(p1+'s', default=64, type=float,
                             help='scale for arcface')
@@ -503,6 +601,10 @@ class XVector(TorchModel):
         
         parser.add_argument(p1+'margin-warmup-epochs', default=10, type=float,
                             help='number of epoch until we set the final margin')
+
+        parser.add_argument(p1+'num-subcenters', default=2, type=int,
+                            help='number of subcenters in subcenter losses')
+
         try:
             parser.add_argument(
                 p1+'norm-layer', default=None, 
@@ -566,8 +668,8 @@ class XVector(TorchModel):
             p1 = '--' + prefix + '-'
         
         parser.add_argument(p1+'loss-type', default='arc-softmax', 
-                            choices = ['softmax', 'arc-softmax', 'cos-softmax'],
-                            help='loss type: softmax, arc-softmax, cos-softmax')
+                            choices = ['softmax', 'arc-softmax', 'cos-softmax', 'subcenter-arc-softmax'],
+                            help='loss type: softmax, arc-softmax, cos-softmax, subcenter-arc-softmax')
         
         parser.add_argument(p1+'s', default=64, type=float,
                             help='scale for arcface')
@@ -577,9 +679,7 @@ class XVector(TorchModel):
         
         parser.add_argument(p1+'margin-warmup-epochs', default=10, type=float,
                             help='number of epoch until we set the final margin')
+
+        parser.add_argument(p1+'num-subcenters', default=2, type=float,
+                            help='number of subcenters in subcenter losses')
        
-    
-
-
-
-            

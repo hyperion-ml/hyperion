@@ -92,7 +92,8 @@ def bin_vad_to_timestamps(vad, frame_length, frame_shift, snip_edges=False, merg
     
 
 
-def vad_timestamps_to_bin(in_timestamps, frame_length, frame_shift, snip_edges=False, signal_length=None):
+def vad_timestamps_to_bin(in_timestamps, frame_length, frame_shift, snip_edges=False, 
+                          signal_length=None, max_frames=None):
     """Converts VAD time-stamps to a binary vector
 
     Args:
@@ -101,13 +102,16 @@ def vad_timestamps_to_bin(in_timestamps, frame_length, frame_shift, snip_edges=F
        frame_shift: frame-shift used to compute the VAD
        snip_edges: if True, computing VAD used snip-edges option
        signal_length: total duration of the signal, if None it takes it from the last timestamp
+       max_frames: expected number of frames, if None it computes automatically
     Returns:
-       Binary VAD
+       Binary VAD np.array
     """
     _assert_pos_dur(in_timestamps)
 
     if signal_length is None:
         signal_length = in_timestamps[-1,1]
+    else:
+        assert signal_length >= in_timestamps[-1,1]
 
     frame_center = frame_length/2
     if snip_edges:
@@ -117,21 +121,20 @@ def vad_timestamps_to_bin(in_timestamps, frame_length, frame_shift, snip_edges=F
         num_frames = int(np.round(signal_length/frame_shift))
         pad = - (frame_length - frame_shift)/2
 
-    # xx=[(i, np.asarray([pad, pad + frame_center, pad + frame_length]) + frame_shift * i) for i in range(num_frames)]
-    # print(xx)
+    if max_frames is not None and num_frames < max_frames:
+        num_frames = max_frames
 
     vad = np.zeros((num_frames,), dtype=np.bool)
-    # print(in_timestamps)
-    # print((in_timestamps[:,0] - (pad + frame_center))/frame_shift)
-    # print((in_timestamps[:,1] - (pad + frame_center))/frame_shift+1)
     frame_start = np.ceil((in_timestamps[:,0] - (pad + frame_center))/frame_shift).astype(dtype=np.int)
     frame_end = np.floor((in_timestamps[:,1] - (pad + frame_center))/frame_shift).astype(dtype=np.int)+1
     frame_start[frame_start<0] = 0
     frame_end[frame_end>num_frames] = num_frames
-    print(frame_start, frame_end)
     for i,j in zip(frame_start, frame_end):
         if j > i:
             vad[i:j] = True
+
+    if max_frames is not None and num_frames > max_frames:
+        vad = vad[:max_frames]
 
     return vad
     
@@ -235,7 +238,7 @@ def intersect_segment_timestamps_with_vad(in_timestamps, vad_timestamps):
         while j < num_vad_segs and vad_end[j] <= t_start:
             j += 1
 
-        if j == num_vad_segs and vad_end[j] <= t_start:
+        if j == num_vad_segs:
             break 
 
         k = j

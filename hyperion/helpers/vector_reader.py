@@ -2,10 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import sys
 import os
@@ -32,9 +28,18 @@ class VectorReader(object):
         
             
     def read(self):
-        x = self.r.read(self.scp.key, squeeze=True)
-        if self.preproc is not None:
-            x = self.preproc.predict(x)
+        try:
+            x = self.r.read(self.scp.key, squeeze=True)
+            if self.preproc is not None:
+                x = self.preproc.predict(x)
+        except:
+            x = self.r.read(self.scp.key, squeeze=False)
+            if self.preproc is not None:
+                for i in range(len(x)):
+                    if x[i].ndim == 1:
+                        x[i] = x[i][None,:]
+                    x[i] = self.preproc.predict(x[i])
+            
         return x
 
 
@@ -59,10 +64,8 @@ class VectorReader(object):
         else:
             p1 = '--' + prefix + '-'
             p2 = prefix + '_'
-        parser.add_argument(p1+'vlist-sep', dest=(p2+'vlist_sep'), default=' ',
+        parser.add_argument(p1+'vlist-sep', default=' ',
                             help=('utterance file field separator'))
-        # parser.add_argument(p1+'v-field', dest=(p2+'v_field'), default='',
-        #                     help=('dataset field in input vector file'))
         
     
 

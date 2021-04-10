@@ -2,11 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
-
 import numpy as np
 import h5py
 
@@ -29,12 +24,14 @@ class SbSw(HypModel):
         
     def fit(self, x, class_ids, sample_weight=None, class_weights=None, normalize=True):
         dim = x.shape[1]
-        self.Sb = np.zeros((dim, dim))
-        self.Sw = np.zeros((dim, dim))
-        self.mu = np.zeros((dim,))
+        if self.Sb is None:
+            self.Sb = np.zeros((dim, dim))
+            self.Sw = np.zeros((dim, dim))
+            self.mu = np.zeros((dim,))
+            self.num_classes = 0
 
         u_ids = np.unique(class_ids)
-        self.num_classes = len(u_ids)
+        self.num_classes += len(u_ids)
 
         for i in u_ids:
             idx = (class_ids==i)
@@ -123,7 +120,7 @@ class NSbSw(SbSw):
             tree = BallTree(x_i)
             d_i, NN_i = tree.query(x, k=self.K, dualtree=True, sort_results=True)
             d[i] = d_i[:,-1]
-            for l in xrange(x.shape[0]):
+            for l in range(x.shape[0]):
                 delta[i,l] = x[l] - np.mean(x_i[NN_i[l]], axis=0)
 
         d = d**self.alpha
@@ -133,7 +130,7 @@ class NSbSw(SbSw):
             w_i = 0
             Sb_i = np.zeros(self.Sb.shape, dtype=float_cpu())
             
-            for j in xrange(self.num_classes):
+            for j in range(self.num_classes):
                 w_ij = np.minimum(d[i], d[j])/(d[i]+d[j])
                 for l in idx_i:
                     S = np.outer(delta[j,l], delta[j,l])

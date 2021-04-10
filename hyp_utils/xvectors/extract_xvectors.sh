@@ -1,5 +1,4 @@
 #!/bin/bash
-
 #               2019  Johns Hopkins University (Author: Jesus Villalba)
 # Apache 2.0.
 nj=30
@@ -27,7 +26,6 @@ if [ $# != 3 ]; then
   echo "Usage: $0 <nnet-model> <data> <xvector-dir>"
   echo " e.g.: $0 exp/xvector_nnet/model.pt.tar data/train exp/xvectors_train"
   echo "main options (for others, see top of script file)"
-  echo "  --config <config-file>                           # config containing options"
   echo "  --cmd (utils/run.pl|utils/queue.pl <queue opts>) # how to run jobs."
   echo "  --use-gpu <bool|false>                           # If true, use GPU."
   echo "  --nj <n|30>                                      # Number of jobs"

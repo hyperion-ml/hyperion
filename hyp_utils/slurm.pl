@@ -1,0 +1,1 @@
+kaldi/utils/slurm.pl

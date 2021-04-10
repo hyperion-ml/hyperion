@@ -25,14 +25,15 @@ xvector_dir=exp/xvectors_diar/$nnet_name
 
 if [ $stage -le 1 ]; then
     # Extract xvectors for training LDA/PLDA
-    for name in voxceleb2cat #voxceleb1cat
+    for name in voxcelebcat 
     do
     	hyp_utils/xvectors/extract_xvectors_slidwin.sh --cmd "$xvec_cmd --mem 12G" --nj 300 ${xvec_args} \
-	    --win-length 1.5 --win-shift 0.25 --snip-edges true --use-bin-vad true \
+	    --win-length 1.5 --win-shift 5 --snip-edges true --use-bin-vad true \
 	    --feat-opts "--feat-frame-length 25 --feat-frame-shift 10" \
     	    $nnet data/${name}_combined \
     	    $xvector_dir/${name}_combined
     done
+    exit
 fi
 
 

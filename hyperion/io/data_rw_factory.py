@@ -2,8 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from six import string_types
 
 #import sys
 import logging
@@ -34,7 +32,7 @@ class DataWriterFactory(object):
 
     @staticmethod
     def create(wspecifier, compress=False, compression_method='auto', scp_sep=' '):
-        if isinstance(wspecifier, string_types):
+        if isinstance(wspecifier, str):
             wspecifier = WSpecifier.create(wspecifier)
 
         if (wspecifier.spec_type ==  WSpecType.ARCHIVE or
@@ -89,7 +87,7 @@ class SequentialDataReaderFactory(object):
     @staticmethod
     def create(rspecifier, path_prefix=None, scp_sep=' ', **kwargs):
         
-        if isinstance(rspecifier, string_types):
+        if isinstance(rspecifier, str):
             rspecifier = RSpecifier.create(rspecifier)
             
         if rspecifier.spec_type ==  RSpecType.ARCHIVE:
@@ -146,7 +144,7 @@ class RandomAccessDataReaderFactory(object):
 
     @staticmethod
     def create(rspecifier, path_prefix=None, transform=None, scp_sep=' '):
-        if isinstance(rspecifier, string_types):
+        if isinstance(rspecifier, str):
             rspecifier = RSpecifier.create(rspecifier)
         logging.debug(rspecifier.__dict__)
         if rspecifier.spec_type ==  RSpecType.ARCHIVE:

@@ -24,7 +24,7 @@ config_file=default_config.sh
 if [ $stage -le 1 ]; then
     # Prepare to distribute data over multiple machines
     if [[ $(hostname -f) == *.clsp.jhu.edu ]] && [ ! -d $mfccdir/storage ]; then
-	dir_name=$USER/hyp-data/sre19-av/v1/$storage_name/mfcc/storage
+	dir_name=$USER/hyp-data/sre19-av/v2/$storage_name/mfcc/storage
 	if [ "$nodes" == "b0" ];then
 	    utils/create_split_dir.pl \
 			    utils/create_split_dir.pl \
@@ -44,9 +44,9 @@ if [ $stage -le 1 ]; then
     fi
 fi
 
-#Train datasets
+# Train/Test datasets
 if [ $stage -le 2 ];then 
-    for name in voxceleb1cat voxceleb2cat_train \
+    for name in voxcelebcat \
     	sitw_dev_enroll sitw_dev_test sitw_eval_enroll sitw_eval_test \
         sre18_dev_test_vast sre18_eval_test_vast \
 	sre19_av_a_dev_test sre19_av_a_eval_test \

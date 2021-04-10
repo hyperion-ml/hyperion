@@ -2,13 +2,9 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
-
 import numpy as np
 
+import logging
 from abc import ABCMeta, abstractmethod
 
 from ...hyp_defs import float_cpu
@@ -22,7 +18,7 @@ class ExpFamilyMixture(PDF):
     
     def __init__(self, num_comp=1, pi=None, eta=None, min_N=0,
                  update_pi=True, **kwargs):
-        super(ExpFamilyMixture, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         if pi is not None:
             num_comp = len(pi)
         self.num_comp = num_comp
@@ -53,7 +49,7 @@ class ExpFamilyMixture(PDF):
 
     
     def _validate_pi(self):
-        assert(len(self.pi) == self.num_comp)
+        assert len(self.pi) == self.num_comp
 
         
 
@@ -70,7 +66,7 @@ class ExpFamilyMixture(PDF):
             
         elbo = np.zeros((epochs,), dtype=float_cpu())
         elbo_val = np.zeros((epochs,), dtype=float_cpu())
-        for epoch in xrange(epochs):
+        for epoch in range(epochs):
             N, u_x =self.Estep(x=x, sample_weight=sample_weight,
                                batch_size=batch_size)
             elbo[epoch]=self.elbo(None, N=N, u_x=u_x, log_h=log_h)
@@ -107,7 +103,7 @@ class ExpFamilyMixture(PDF):
         
         elbo = np.zeros((epochs,), dtype=float_cpu())
         elbo_val = np.zeros((epochs,), dtype=float_cpu())
-        for epoch in xrange(epochs):
+        for epoch in range(epochs):
             N, u_x, log_h =self.Estep_generator(
                 generator, train_steps, return_log_h=True,
                 max_queue_size=max_queue_size, workers=workers,
@@ -141,6 +137,12 @@ class ExpFamilyMixture(PDF):
         if sample_weight is None:
             return np.sum(self.log_h(x))
         return np.sum(sample_weight * self.log_h(x))
+
+
+    def compute_log_pz(self, x, u_x=None, mode='nat'):
+        if u_x is None:
+            u_x = self.compute_suff_stats(x)
+        return np.dot(u_x, self.eta.T) - self.A + self.log_pi
 
 
     def compute_pz(self, x, u_x=None, mode='nat'):
@@ -193,7 +195,7 @@ class ExpFamilyMixture(PDF):
     
     def _accum_suff_stats_nbatches(self, x, sample_weight, batch_size):
         sw_i = None
-        for i1 in xrange(0, x.shape[0], batch_size):
+        for i1 in range(0, x.shape[0], batch_size):
             i2 = np.minimum(i1+batch_size, x.shape[0])
             x_i = x[i1:i2,:]
             if sample_weight is not None:
@@ -216,7 +218,7 @@ class ExpFamilyMixture(PDF):
         acc_u_x = np.zeros((num_segments, K, self.eta.shape[1]), dtype=float_cpu())
         u_x_i = None
         sw_i = None
-        for i in xrange(num_segments):
+        for i in range(num_segments):
             start = int(segments[i][0])
             end = int(segments[i][1])+1
             x_i = x[start:end]
@@ -255,7 +257,7 @@ class ExpFamilyMixture(PDF):
         N = np.zeros((num_segments, K), float_cpu())
         acc_u_x=np.zeros((num_segments, K, self.eta.shape[1]), float_cpu())
 
-        for i in xrange(num_segments):
+        for i in range(num_segments):
             z_i = z*prob[:,i][:, None]
             N[i] = np.sum(z_i, axis=0)
             acc_u_x[i] = np.dot(z_i.T, u_x)
@@ -267,7 +269,7 @@ class ExpFamilyMixture(PDF):
     def _accum_suff_stats_segments_prob_nbatches(self, x, prob, sample_weight, batch_size):
         
         sw_i = None
-        for i1 in xrange(0, x.shape[0], batch_size):
+        for i1 in range(0, x.shape[0], batch_size):
             i2 = np.minimum(i1+batch_size, x.shape[0])
             x_i = x[i1:i2,:]
             prob_i = prob[i1:i2,:]
@@ -320,7 +322,7 @@ class ExpFamilyMixture(PDF):
         N[1:] = (cum_N[start2:end2:frame_shift] -
                  cum_N[start1:end1:frame_shift])
         
-        for k in xrange(K):
+        for k in range(K):
             cum_u_x_k = np.cumsum(z[:,k][:,None] * u_x, axis=0)
             acc_u_x[0,k] = cum_u_x_k[frame_length-1]
             acc_u_x[1:,k] = (cum_u_x_k[start2:end2:frame_shift] -
@@ -347,7 +349,7 @@ class ExpFamilyMixture(PDF):
         
         sw_i = None
         cur_segment=0
-        for i1 in xrange(0, x.shape[0], batch_shift):
+        for i1 in range(0, x.shape[0], batch_shift):
             i2 = np.minimum(i1+batch_size, x.shape[0])
             x_i = x[i1:i2,:]
             if sample_weight is not None:
@@ -381,7 +383,7 @@ class ExpFamilyMixture(PDF):
             queue_generator = queue.get()
             
             cur_step = 0
-            for cur_step in xrange(num_steps):
+            for cur_step in range(num_steps):
                 data = next(queue_generator)
                 x, u_x, sample_weight = self.tuple2data(data)
                 N_i, u_x_i = self.Estep(x, u_x, sample_weight)
@@ -402,20 +404,17 @@ class ExpFamilyMixture(PDF):
         else:
             return N, acc_u_x
 
-
-
     
     def sum_suff_stats(self, N, u_x):
-        assert(len(N)==len(u_x))
+        assert len(N)==len(u_x)
         acc_N = N[1]
         acc_u_x = u_x[1]
-        for i in xrange(1,len(N)):
+        for i in range(1,len(N)):
             acc_N += N
             acc_u_x += u[i]
         return acc_N, acc_u_x
 
 
-    
     @abstractmethod
     def Mstep(self, stats):
         pass
@@ -468,7 +467,7 @@ class ExpFamilyMixture(PDF):
         if u_x is None:
             u_x = self.compute_suff_stats(x)
         if nbest_mode == 'master':
-            assert(isinstance(nbest, int))
+            assert isinstance(nbest, int)
             llk_k = np.dot(u_x, self.eta.T) - self.A + self.log_pi
             nbest = np.argsort(llk_k)[:-(nbest+1):-1]
             llk_k = llk_k[nbest]

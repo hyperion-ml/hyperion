@@ -17,6 +17,8 @@ class ArchiveType(Enum):
     H5 = 0
     ARK = 1
     AUDIO = 2
+    SEGMENT_LIST = 3
+    RTTM = 4
 
 """Documentation for "wspecifier" (taken from Kaldi).
 "wspecifier" describes how we write a set of objects indexed by keys.
@@ -74,7 +76,7 @@ The basic, unadorned wspecifiers are as follows:
 class WSpecType(Enum):
     """Type of Kaldi stype write specifiers."""
     NO = 0       # No specifier
-    ARCHIVE = 1  # Specifier contains Ark or hdf5 file.
+    ARCHIVE = 1  # Specifier contains Ark, hdf5, segment_list or rttm file.
     SCRIPT = 2   # Specifier contains scp file.
     BOTH = 3     # Specifier contains Ark/hdf5 file and scp file.
 
@@ -174,6 +176,22 @@ class WSpecifier(object):
                         'Repeated scp in wspecifier %s' % script)
                     assert len(archives) > cur_archive
                     script = archives[cur_archive]
+                    cur_archive += 1
+                elif option == 'segments':
+                    assert archive_type is None
+                    assert archive is None, (
+                        'Repeated h5, ark in wspecifier %s' % script)
+                    assert len(archives) > cur_archive
+                    archive_type = ArchiveType.SEGMENT_LIST
+                    archive = archives[cur_archive]
+                    cur_archive += 1
+                elif option == 'rttm':
+                    assert archive_type is None
+                    assert archive is None, (
+                        'Repeated h5, ark in wspecifier %s' % script)
+                    assert len(archives) > cur_archive
+                    archive_type = ArchiveType.RTTM
+                    archive = archives[cur_archive]
                     cur_archive += 1
                 elif option == 'f':
                         flush = True
@@ -335,6 +353,14 @@ class RSpecifier(object):
                     assert spec_type is None
                     spec_type = RSpecType.ARCHIVE
                     archive_type = ArchiveType.AUDIO
+                elif option == 'segments':
+                    assert spec_type is None
+                    spec_type = RSpecType.ARCHIVE
+                    archive_type = ArchiveType.SEGMENT_LIST
+                elif option == 'rttm':
+                    assert spec_type is None
+                    spec_type = RSpecType.ARCHIVE
+                    archive_type = ArchiveType.RTTM
                 elif option == 'scp':
                     assert spec_type is None
                     spec_type = RSpecType.SCRIPT
@@ -383,7 +409,7 @@ class RSpecifier(object):
                        permissive, background)
         else:
             raise ValueError('Two many fields (%d>2) in wspecifier %s'
-                             % (len(fields), wspecifier))
+                             % (len(fields), rspecifier))
         
         
 

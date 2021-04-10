@@ -4,7 +4,6 @@
   Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)  
 
 """
-#from __future__ import absolute_import
 
 import sys
 import os
@@ -56,7 +55,7 @@ def read_data(v_file, ndx_file, enroll_file, seg_part_idx, num_seg_parts):
 class Calibrator(nn.Module):
 
     def __init__(self, a, b):
-        super(Calibrator, self).__init__()
+        super().__init__()
         self.a = a
         self.b = b
 
@@ -74,7 +73,7 @@ def eval_cosine_scoring(v_file, ndx_file, enroll_file, test_wav_file,
     logging.info('initializing devices num_gpus={}'.format(num_gpus))
     device = open_device(num_gpus=num_gpus)
 
-    feat_args = AFF.filter_args(**kwargs)
+    feat_args = AFF.filter_args(prefix='feats', **kwargs)
     logging.info('initializing feature extractor args={}'.format(feat_args))
     feat_extractor = AFF.create(**feat_args)
     feat_extractor.to(device)
@@ -86,13 +85,11 @@ def eval_cosine_scoring(v_file, ndx_file, enroll_file, test_wav_file,
 
     if do_mvn:
         logging.info('initializing short-time mvn')
-        # mvn = MVN2(
-        #     norm_mean=(not mvn_no_norm_mean), norm_var=mvn_norm_var,
-        #     left_context=mvn_context, right_context=mvn_context)
         mvn = MVN(
             norm_mean=(not mvn_no_norm_mean), norm_var=mvn_norm_var,
             left_context=mvn_context, right_context=mvn_context)
         mvn.to(device)
+        mvn.eval()
 
 
     logging.info('loading model {}'.format(model_path))
@@ -106,12 +103,14 @@ def eval_cosine_scoring(v_file, ndx_file, enroll_file, test_wav_file,
         lr = LR.load(cal_file)
         calibrator = Calibrator(lr.A[0,0], lr.b[0])
         calibrator.to(device)
+        calibrator.eval()
         
 
     logging.info('loading ndx and enrollment x-vectors')
     ndx, y_e = read_data(v_file, ndx_file, enroll_file, seg_part_idx, num_seg_parts)
 
-    audio_reader = AR(test_wav_file)
+    audio_args = AR.filter_args(**kwargs)
+    audio_reader = AR(test_wav_file, **audio_args)
 
     if vad_spec is not None:
         logging.info('opening VAD stream: %s' % (vad_spec))
@@ -131,10 +130,8 @@ def eval_cosine_scoring(v_file, ndx_file, enroll_file, test_wav_file,
             t3 = time.time()            
 
             if do_mvn:
-                # x_t = x_t.cpu().numpy()[0]
-                # x_t = mvn.normalize(x_t)
-                # x_t = torch.as_tensor(x_t[None,:], dtype=torch.get_default_dtype()).to(device)
                 x_t = mvn(x_t)
+
             t4 = time.time()            
             tot_frames = x_t.shape[1]
             if vad_spec is not None:
@@ -192,16 +189,14 @@ if __name__ == "__main__":
     parser.add_argument('--enroll-file', dest='enroll_file', required=True)
     parser.add_argument('--test-wav-file', required=True)
 
-    AFF.add_argparse_args(parser)
-
+    AR.add_argparse_args(parser)
+    AFF.add_argparse_args(parser, prefix='feats')
     parser.add_argument('--mvn-no-norm-mean', 
                         default=False, action='store_true',
                         help='don\'t center the features')
-
     parser.add_argument('--mvn-norm-var', 
                         default=False, action='store_true',
                         help='normalize the variance of the features')
-        
     parser.add_argument('--mvn-context', type=int,
                         default=300,
                         help='short-time mvn context in number of frames')

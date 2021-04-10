@@ -2,7 +2,6 @@
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
 
 import logging
 
@@ -22,7 +21,7 @@ class CarliniWagnerL0(CarliniWagner):
                  indep_channels=False,
                  targeted=False, range_min=None, range_max=None):
 
-        super(CarliniWagnerL0, self).__init__(
+        super().__init__(
             model, confidence=confidence, lr=lr, 
             max_iter=max_iter,
             abort_early=abort_early, initial_c=initial_c, 
@@ -30,6 +29,18 @@ class CarliniWagnerL0(CarliniWagner):
         self.reduce_c = reduce_c
         self.c_incr_factor = c_incr_factor
         self.indep_channels = indep_channels
+
+
+    @property
+    def attack_info(self):
+        info = super().attack_info
+        new_info = {'reduce_c': self.reduce_c,
+                    'c_incr_factor': self.c_incr_factor,
+                    'indep_channel': self.indep_channels, 
+                    'threat_model': 'l0', 
+                    'attack_type': 'cw-l0' }
+        info.update(new_info)
+        return info
 
 
     def _attack_l2(self, x, target, valid, start_adv, c):

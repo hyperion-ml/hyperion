@@ -91,6 +91,8 @@ run_040_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | | | | Cosine | 1.94 | 0.137 | 0.207 |
 | config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | ResNet34 | ArcFace s=30/m=0.3 | PLDA |  1.43 | 0.097 | 0.188 |
 | | | | Cosine |  1.35 | 0.088 | 0.146 |
+| config_fbank80_stmn_resnet50_arcs30m0.3_adam_lr0.05_amp.v1.sh | ResNet50 | ArcFace s=30/m=0.3 | PLDA |  1.30 | 0.090 | 0.160 |
+| | | | Cosine |  1.44 | 0.100 | 0.173 |
 | config_fbank80_stmn_tseresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | Time-SE-ResNet34 | ArcFace s=30/m=0.3 | PLDA | 1.23 | 0.091 | 0.143 |
 | | | | Cosine |  1.17 | 0.081 | 0.110 |
 | config_fbank80_stmn_effnetb4_v2_arcs30m0.3_adam_lr0.01_amp.v1.sh | EfficientNet-b4 v2 | EfficientNet-b4 with strides=1122121 <br> ArcFace s=30/m=0.3 | 1.37 | 0.104 | 0.179 |
@@ -109,6 +111,8 @@ run_040_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | | | | Cosine | 1.12 | 0.071 | 0.103 |
 | config_fbank80_stmn_res2net50w13s8_arcs30m0.3_adam_lr0.05_amp.v1.sh | Res2Net50 width=13x8 | ArcFace s=30/m=0.3 | PLDA |  1.05 | 0.077 | 0.123 |
 | | | | Cosine | 0.96 | 0.065 | 0.110 |
+| config_fbank80_stmn_res2net50w26s8_arcs30m0.3_adam_lr0.05_amp.v1.sh | Res2Net50 width=26x8 | ArcFace s=30/m=0.3 | PLDA |  1.04 | 0.071 | 0.118 |
+| | | | Cosine | 0.93 | 0.067 | 0.108 |
 
 
 ### VoxCeleb 1 Entire-Clean trial list
@@ -119,6 +123,8 @@ run_040_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | | | | Cosine | 1.91 | 0.120 | 0.208 |
 | config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | ResNet34 | ArcFace s=30/m=0.3 | PLDA | 1.41 | 0.089 | 0.159 |
 | | | | Cosine | 1.19 | 0.078 | 0.140 |
+| config_fbank80_stmn_resnet50_arcs30m0.3_adam_lr0.05_amp.v1.sh | ResNet50 | ArcFace s=30/m=0.3 | PLDA | 1.27 | 0.084 | 0.150 |
+| | | | Cosine | 1.30 | 0.082 | 0.150 |
 | config_fbank80_stmn_tseresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | Time-SE-ResNet34 | ArcFace s=30/m=0.3 | PLDA | 1.30 | 0.083 | 0.146 |
 | | | | Cosine | 1.09 | 0.071 | 0.124 |
 | config_fbank80_stmn_effnetb4_v2_arcs30m0.3_adam_lr0.01_amp.v1.sh | EfficientNet-b4 v2 | EfficientNet-b4 with strides=1122121 <br> ArcFace s=30/m=0.3 | 1.45 | 0.097 | 0.165 |
@@ -137,6 +143,8 @@ run_040_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | | | | Cosine | 1.05 | 0.067 | 0.117 |
 | config_fbank80_stmn_res2net50w13s8_arcs30m0.3_adam_lr0.05_amp.v1.sh | Res2Net50 width=13x8 | ArcFace s=30/m=0.3 | PLDA |  1.23 | 0.078 | 0.134 |
 | | | | Cosine | 1.05 | 0.069 | 0.121 |
+| config_fbank80_stmn_res2net50w26s8_arcs30m0.3_adam_lr0.05_amp.v1.sh | Res2Net50 width=26x8 | ArcFace s=30/m=0.3 | PLDA |  1.18 | 0.075 | 0.131 |
+| | | | Cosine | 0.98 | 0.063 | 0.110 |
 
 
 ### VoxCeleb 1 Hard-Clean trial list
@@ -147,6 +155,8 @@ run_040_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | | | | Cosine | 3.21 | 0.190 | 0.302 |
 | config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | ResNet34 | ArcFace s=30/m=0.3 | PLDA | 2.65 | 0.155 | 0.254 |
 | | | | Cosine | 2.27 | 0.137 | 0.219 |
+| config_fbank80_stmn_resnet50_arcs30m0.3_adam_lr0.05_amp.v1.sh | ResNet50 | ArcFace s=30/m=0.3 | PLDA | 2.33 | 0.139 | 0.227 |
+| | | | Cosine | 2.33 | 0.142 | 0.235 |
 | config_fbank80_stmn_tseresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | Time-SE-ResNet34 | ArcFace s=30/m=0.3 | PLDA | 2.46 | 0.142 | 0.237 |
 | | | | Cosine | 2.14 | 0.126 | 0.203 |
 | config_fbank80_stmn_effnetb4_v2_arcs30m0.3_adam_lr0.01_amp.v1.sh | EfficientNet-b4 v2 | EfficientNet-b4 with strides=1122121 <br> ArcFace s=30/m=0.3 | 2.57 | 0.153 | 0.255 |
@@ -165,4 +175,5 @@ run_040_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | | | | Cosine | 1.95 | 0.113 | 0.181 |
 | config_fbank80_stmn_res2net50w13s8_arcs30m0.3_adam_lr0.05_amp.v1.sh | Res2Net50 width=13x8 | ArcFace s=30/m=0.3 | PLDA |  2.34 | 0.136 | 0.230 |
 | | | | Cosine | 1.99 | 0.119 | 0.196 |
-
+| config_fbank80_stmn_res2net50w13s8_arcs30m0.3_adam_lr0.05_amp.v1.sh | Res2Net50 width=26x8 | ArcFace s=30/m=0.3 | PLDA |  2.18 | 0.127 | 0.211 |
+| | | | Cosine | 1.89 | 0.112 | 0.184 |

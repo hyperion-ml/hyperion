@@ -55,7 +55,7 @@ def read_data(v_file, key_file, enroll_file, seg_part_idx, num_seg_parts):
 class Calibrator(nn.Module):
 
     def __init__(self, a, b):
-        super(Calibrator, self).__init__()
+        super().__init__()
         self.a = a
         self.b = b
 
@@ -66,7 +66,7 @@ class Calibrator(nn.Module):
 class MyModel(nn.Module):
 
     def __init__(self, feat_extractor, xvector_model, mvn=None, embed_layer=None, calibrator=None):
-        super(MyModel, self).__init__()
+        super().__init__()
         self.feat_extractor = feat_extractor
         self.xvector_model = xvector_model
         self.mvn = mvn
@@ -139,8 +139,6 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
             norm_mean=(not transfer_mvn_no_norm_mean), norm_var=transfer_mvn_norm_var,
             left_context=transfer_mvn_context, right_context=transfer_mvn_context)
 
-
-
     logging.info('loading model {}'.format(model_path))
     xvector_model = TML.load(model_path)
     xvector_model.freeze()
@@ -192,16 +190,15 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
         tar_audio_writer = AW(save_adv_wav_path + '/tar2non')
         non_audio_writer = AW(save_adv_wav_path + '/non2tar')
 
-    attack_args = AttackFactory.filter_args(**kwargs)
-    attack_type = attack_args['attack_type']
-    del attack_args['attack_type']
-    attack_args['attack_eps'] *= wav_scale
-    attack_args['attack_alpha'] *= wav_scale
-    logging.info('attack-args={}'.format(attack_args))
-    attack = AttackFactory.create(
-        attack_type, tmodel, time_dim=1,
-        loss=nn.functional.binary_cross_entropy_with_logits, 
-        range_min=-wav_scale, range_max=wav_scale, **attack_args)
+    attack_args = AttackFactory.filter_args(prefix='attack', **kwargs)
+    extra_args = {'eps_scale': wav_scale,
+                  'range_min': -wav_scale,
+                  'range_max': wav_scale,
+                  'loss': nn.functional.binary_cross_entropy_with_logits,
+                  'time_dim': 1}
+    attack_args.update(extra_args)
+    logging.info('attacks args={}'.format(attack_args))
+    attack = AttackFactory.create(model, **attack_args)
 
     if vad_spec is not None:
         logging.info('opening VAD stream: %s' % (vad_spec))
@@ -343,7 +340,6 @@ if __name__ == "__main__":
                         default=150,
                         help='short-time mvn context in number of frames')
 
-
     parser.add_argument('--vad', dest='vad_spec', default=None)
     parser.add_argument('--vad-path-prefix', dest='vad_path_prefix', default=None,
                         help=('scp file_path prefix for vad'))
@@ -357,7 +353,7 @@ if __name__ == "__main__":
     parser.add_argument('--use-gpu', default=False, action='store_true',
                         help='extract xvectors in gpu')
 
-    AttackFactory.add_argparse_args(parser)
+    AttackFactory.add_argparse_args(parser, prefix='attack')
 
     parser.add_argument('--seg-part-idx', default=1, type=int,
                         help=('test part index'))
@@ -386,7 +382,6 @@ if __name__ == "__main__":
 
     parser.add_argument('--stats-file', default=None, 
                         help='output path of to save stats of adv signals')
-
     parser.add_argument('--cal-file', default=None, 
                         help='score calibration file')
     parser.add_argument('--transfer-cal-file', default=None, 
