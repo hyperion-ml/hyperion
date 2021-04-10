@@ -1,5 +1,6 @@
 """
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+ Copyright 2020 Magdalena Rybicka
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
@@ -21,7 +22,7 @@ class SpineNetXVector(XVector):
                  conv_channels=64, base_channels=64, 
                  in_kernel_size=7, in_stride=1,
                  zero_init_residual=False,
-                 groups=1, replace_stride_with_dilation=None,
+                 groups=1,
                  do_maxpool=False,
                  pool_net='mean+stddev', 
                  embed_dim=256,
@@ -45,8 +46,7 @@ class SpineNetXVector(XVector):
             conv_channels=conv_channels,
             base_channels=base_channels, hid_act=hid_act, 
             in_kernel_size=in_kernel_size, in_stride=in_stride,
-            zero_init_residual=zero_init_residual, groups=groups, 
-            replace_stride_with_dilation=replace_stride_with_dilation, 
+            zero_init_residual=zero_init_residual, groups=groups,
             dropout_rate=dropout_rate,
             norm_layer=norm_layer, norm_before=norm_before, 
             do_maxpool=do_maxpool, in_norm=in_norm, 
@@ -98,10 +98,6 @@ class SpineNetXVector(XVector):
         return self.encoder_net.groups
 
     @property
-    def replace_stride_with_dilation(self):
-        return self.encoder_net.replace_stride_with_dilation
-
-    @property
     def do_maxpool(self):
         return self.encoder_net.do_maxpool
 
@@ -136,7 +132,6 @@ class SpineNetXVector(XVector):
                   'in_stride': self.in_stride,
                   'zero_init_residual': self.zero_init_residual,
                   'groups': self.groups,
-                  'replace_stride_with_dilation': self.replace_stride_with_dilation,
                   'do_maxpool': self.do_maxpool,
                   'in_norm': self.in_norm,
                   'res2net_scale': self.res2net_scale,

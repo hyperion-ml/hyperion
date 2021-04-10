@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
+ Copyright 2020 Magdalena Rybicka
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import sys
@@ -100,15 +101,12 @@ def train_xvec(audio_path, train_list, val_list,
     logging.info('feat-extractor={}'.format(feat_extractor))
     logging.info('x-vector-model={}'.format(model))
 
-    # pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    # logging.info('pytorch_total_params={}'.format(pytorch_total_params))
     total_params = 0
     total_endpoints = 0
     for name, parameter in model.named_parameters():
         if not parameter.requires_grad: continue
         param = parameter.numel()
-        # table.add_row([name, param])
-        logging.info("module {} params: {}".format(name, param))
+        # logging.info("module {} params: {}".format(name, param))
         if 'endpoint' in name:
             total_endpoints += param
         total_params += param

@@ -4,7 +4,7 @@
 """
 
 from .fc_blocks import FCBlock
-from .se_blocks import SEBlock2D, TSEBlock2D, SEBlock2d, TSEBlock2d, SEBlock1d, SEStdBlock2D
+from .se_blocks import SEBlock2D, TSEBlock2D, SEBlock2d, TSEBlock2d, SEBlock1d
 from .tdnn_blocks import TDNNBlock
 from .etdnn_blocks import ETDNNBlock
 from .resetdnn_blocks import ResETDNNBlock

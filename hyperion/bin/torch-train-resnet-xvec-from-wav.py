@@ -105,8 +105,7 @@ def train_xvec(audio_path, train_list, val_list,
     for name, parameter in model.named_parameters():
         if not parameter.requires_grad: continue
         param = parameter.numel()
-        # table.add_row([name, param])
-        logging.info("module {} params: {}".format(name, param))
+        # logging.info("module {} params: {}".format(name, param))
         if 'endpoint' in name:
             total_endpoints += param
         total_params += param

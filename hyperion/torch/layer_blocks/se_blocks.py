@@ -29,7 +29,6 @@ class SEBlock2D(nn.Module):
         return y
 
 
-
 class TSEBlock2D(nn.Module):
     """ From https://arxiv.org/abs/1709.01507
         Modified to do pooling only in time dimension
@@ -53,37 +52,6 @@ class TSEBlock2D(nn.Module):
         y = scale * x
         return y
 
-
-class SEStdBlock2D(nn.Module):
-    """ From https://arxiv.org/abs/1709.01507
-    """
-    def __init__(self, num_channels, r=16, activation={'name':'relu', 'inplace': True}):
-        super().__init__()
-        self.conv1 = nn.Conv2d(2*num_channels, int(2*num_channels/r), kernel_size=1, bias=False)
-        self.act = AF.create(activation)
-        self.conv2 = nn.Conv2d(int(2*num_channels/r), num_channels, kernel_size=1, bias=False)
-        self.sigmoid = nn.Sigmoid()
-
-
-    def forward(self, x):
-        # z = torch.mean(x, dim=(2,3), keepdim=True)
-        mu = torch.mean(x, dim=(2,3), keepdim=True)
-        delta = x - mu
-        # logging.info(mu.shape)
-        # mu.squeeze_()
-        # logging.info(mu.shape)
-        # this can produce slightly negative variance when relu6 saturates in all time steps
-        # add 1e-5 for stability
-        s = torch.sqrt(
-            torch.mean(delta ** 2, dim=(2,3), keepdim=True) + 1e-5)
-
-        mus = torch.cat((mu, s), dim=1)
-        # logging.info(mus.shape)
-            # mus.unsqueeze(dim=self.dim)
-
-        scale = self.sigmoid(self.conv2(self.act(self.conv1(mus))))
-        y = scale * x
-        return y
 
 class SEBlock1d(nn.Module):
     """ 1d Squeeze Excitation version of 
