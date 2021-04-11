@@ -63,13 +63,13 @@ def _make_upsample(in_channels, out_channels, stride, norm_layer, norm_before):
 def _make_resample(channels, scale, norm_layer, norm_before, activation, upsampling_type='nearest'):
     resample_block = nn.ModuleList([])
     if scale > 1:
-        if upsampling_type == 'nearest':
-            resample_block.append(Interpolate(scale_factor=scale, mode='nearest'))
+        if upsampling_type == 'subpixel':
+            resample_block.append(_make_upsample(channels, channels, scale, norm_layer, norm_before))
+            resample_block.append(AF.create(activation))
         elif upsampling_type == 'bilinear':
             resample_block.append(Interpolate(scale_factor=scale, mode='bilinear'))
         else:
-            resample_block.append(_make_upsample(channels, channels, scale, norm_layer, norm_before))
-            resample_block.append(AF.create(activation))
+            resample_block.append(Interpolate(scale_factor=scale, mode='nearest'))
 
     elif scale < 1:
         resample_block.append(_make_downsample(channels, channels, 2, norm_layer, norm_before))

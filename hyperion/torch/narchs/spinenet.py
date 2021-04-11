@@ -178,9 +178,6 @@ class SpineNet(NetArch):
             in_channels, conv_channels, kernel_size=in_kernel_size, stride=in_stride,
             activation=hid_act, norm_layer=self._norm_layer, norm_before=norm_before, do_maxpool=do_maxpool)
 
-        # self._context = self.in_block.context
-        self._downsample_factor = self.in_block.downsample_factor*2**(self.feature_output_level-2)
-
         if self.is_res2net:
             if self._block_specs[0].block_fn == ResNetBNBlock:
                 _in_block = Res2NetBNBlock
@@ -198,6 +195,8 @@ class SpineNet(NetArch):
 
         self.endpoints = self._make_endpoints()
 
+        self._context = self._compute_max_context(self.in_block.context)
+        self._downsample_factor = self.in_block.downsample_factor * 2 ** (self.feature_output_level - 2)
         self.with_output = False
         self.out_act = None
         if out_units > 0:
@@ -297,8 +296,7 @@ class SpineNet(NetArch):
         return endpoints
 
     def _make_layer(self, block, block_level, num_blocks, in_channels=None, stride=1, dilate=False):
-        norm_layer = self._norm_layer
-        downsample = None
+
         previous_dilation = self.dilation
         if dilate:
             self.dilation *= stride
@@ -328,20 +326,52 @@ class SpineNet(NetArch):
             dilation=previous_dilation,
             norm_layer=self._norm_layer, norm_before=self.norm_before, **kwargs))
 
-        # self._context += layers[0].context * self._downsample_factor
-        # self._downsample_factor *= layers[0].downsample_factor
-        # logging.info(self._context)
-
         for _ in range(1, num_blocks):
             layers.append(block(
                 in_channels, channels, activation=self.hid_act,
                 dropout_rate=self.dropout_rate,
                 groups=self.groups, dilation=self.dilation,
                 norm_layer=self._norm_layer, norm_before=self.norm_before, **kwargs))
-            # self._context += layers[-1].context * self._downsample_factor
-            # logging.info(self._context)
 
         return nn.Sequential(*layers)
+
+    def _compute_max_context(self, in_context):
+        block_context = {
+            ResNetBNBlock: 1,
+            ResNetBasicBlock: 2,
+        }
+        base_downsample_factor = self.in_block.downsample_factor
+        context0 = in_context
+        context0 += base_downsample_factor*block_context[self._block_specs[0].block_fn]*self.block_repeats
+        context1 = context0 + base_downsample_factor*block_context[self._block_specs[1].block_fn]*self.block_repeats
+        contexts = [context0, context1]
+
+        num_outgoing_connections = [0, 0]
+        for idx, block in enumerate(self._block_specs[self.stem_nbr:]):
+            input0 = block.input_offsets[0]
+            input1 = block.input_offsets[1]
+
+            target_level = block.level
+            resample0 = self._block_specs[input0].level+1 if self._block_specs[input0].level - target_level < 0 else 0
+            resample1 = self._block_specs[input1].level+1 if self._block_specs[input1].level - target_level < 0 else 0
+            parent0_context = contexts[input0] + resample0
+            parent1_context = contexts[input1] + resample1
+            target_context = max(parent0_context, parent1_context)
+
+            num_outgoing_connections[input0] += 1
+            num_outgoing_connections[input1] += 1
+            # Connect intermediate blocks with outdegree 0 to the output block.
+            if block.is_output:
+                for j, j_connections in enumerate(num_outgoing_connections):
+                    if j_connections == 0 and self._block_specs[j].level == target_level:
+                        target_context = max(contexts[j], target_context)
+                        num_outgoing_connections[j] += 1
+
+            downsample_factor = base_downsample_factor*2**(target_level-2)
+            target_context += block_context[block.block_fn] * self.block_repeats * downsample_factor
+            contexts.append(target_context)
+            num_outgoing_connections.append(0)
+        return max(contexts)
 
     def _compute_out_size(self, in_size):
         """Computes output size given input size.
