@@ -192,7 +192,6 @@ class SpineNet(NetArch):
         self.stem_nbr = 2  # the number of the stem layers
         self.blocks = self._make_permuted_blocks(self._block_specs[self.stem_nbr:])
         self.connections = self._make_permuted_connections(self._block_specs[self.stem_nbr:])
-
         self.endpoints = self._make_endpoints()
 
         self._context = self._compute_max_context(self.in_block.context)
@@ -338,10 +337,10 @@ class SpineNet(NetArch):
 
     def _compute_max_context(self, in_context):
         """
-        Computes maximum possible context in the structure. The method needs a deeper revision.
+        Computes maximum possible context in the structure. The method may need a deeper revision.
         :param in_context: context from the input residual block.
         """
-        block_context = {  # we can define as inside the network the dilation or stride is not applied
+        block_context = {  # we can define specific values as inside the network the dilation or stride is not applied
             ResNetBNBlock: 1,
             ResNetBasicBlock: 2,
         }
@@ -381,7 +380,7 @@ class SpineNet(NetArch):
             target_context += block_context[block.block_fn] * self.block_repeats * downsample_factor
             contexts.append(target_context)
             num_outgoing_connections.append(0)
-        logging.info('block\'s contexts: {}'.format(contexts))
+        # logging.info('block\'s contexts: {}'.format(contexts))
         return max(contexts)
 
     def _compute_out_size(self, in_size):
@@ -565,7 +564,10 @@ class SpineNet(NetArch):
             endpoint_i = self._match_shape(endpoint_i, output_shape)
             output_endpoints.append(endpoint_i)
 
-        x = torch.mean(torch.stack(output_endpoints), 0)
+        if self.concat:
+            x = torch.cat(output_endpoints, self.concat_ax)
+        else:
+            x = torch.mean(torch.stack(output_endpoints), 0)
 
         if self.with_output:
             x = self.avgpool(x)
@@ -717,7 +719,7 @@ class LSpine2Net49(SpineNet):
         super(LSpine2Net49, self).__init__(
             in_channels, **kwargs)
 
-
+# Spine2Nets ans(Time-)Squeeze-and-Excitation
 class SELSpine2Net49(SpineNet):
     def __init__(self, in_channels, **kwargs):
         kwargs['endpoints_num_filters'] = 64
@@ -795,6 +797,7 @@ class TSESpine2Net49S(SpineNet):
             in_channels, **kwargs)
 
 
+# R0-SP53 (structure from the paper)
 class LR0_SP53(SpineNet):
     def __init__(self, in_channels, **kwargs):
         kwargs['endpoints_num_filters'] = 64
@@ -812,6 +815,7 @@ class R0_SP53(SpineNet):
             in_channels, **kwargs)
 
 
+# concatenation
 class SpineNet49_concat_time(SpineNet):
     def __init__(self, in_channels, **kwargs):
         kwargs['concat'] = True
