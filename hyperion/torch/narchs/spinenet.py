@@ -305,7 +305,7 @@ class SpineNet(NetArch):
         kwargs = {}
         if self.has_se:
             if self.time_se:
-                num_feats = self.in_feats
+                num_feats = int(self.in_feats/self.in_block.downsample_factor)
                 for i in range(block_level-2):
                     num_feats = int(num_feats // 2) if num_feats % 2 == 0 else int(num_feats // 2 + 1)
                 kwargs = {'se_r': self.se_r, 'time_se': True, 'num_feats': num_feats}
@@ -326,9 +326,10 @@ class SpineNet(NetArch):
             dilation=previous_dilation,
             norm_layer=self._norm_layer, norm_before=self.norm_before, **kwargs))
 
+        cur_in_channels = channels * block.expansion
         for _ in range(1, num_blocks):
             layers.append(block(
-                in_channels, channels, activation=self.hid_act,
+                cur_in_channels, channels, activation=self.hid_act,
                 dropout_rate=self.dropout_rate,
                 groups=self.groups, dilation=self.dilation,
                 norm_layer=self._norm_layer, norm_before=self.norm_before, **kwargs))
@@ -336,31 +337,40 @@ class SpineNet(NetArch):
         return nn.Sequential(*layers)
 
     def _compute_max_context(self, in_context):
-        block_context = {
+        """
+        Computes maximum possible context in the structure. The method needs a deeper revision.
+        :param in_context: context from the input residual block.
+        """
+        block_context = {  # we can define as inside the network the dilation or stride is not applied
             ResNetBNBlock: 1,
             ResNetBasicBlock: 2,
         }
         base_downsample_factor = self.in_block.downsample_factor
         context0 = in_context
+        # context of the first two blocks (stem part)
         context0 += base_downsample_factor*block_context[self._block_specs[0].block_fn]*self.block_repeats
         context1 = context0 + base_downsample_factor*block_context[self._block_specs[1].block_fn]*self.block_repeats
         contexts = [context0, context1]
 
+        # context in the scale permuted part
         num_outgoing_connections = [0, 0]
         for idx, block in enumerate(self._block_specs[self.stem_nbr:]):
             input0 = block.input_offsets[0]
             input1 = block.input_offsets[1]
 
             target_level = block.level
+            # we add context if in the resampling connection was downsampling operation (it includes 3x3 convolution)
             resample0 = self._block_specs[input0].level+1 if self._block_specs[input0].level - target_level < 0 else 0
             resample1 = self._block_specs[input1].level+1 if self._block_specs[input1].level - target_level < 0 else 0
             parent0_context = contexts[input0] + resample0
             parent1_context = contexts[input1] + resample1
+            # as input context we choose the input with higher value
             target_context = max(parent0_context, parent1_context)
 
             num_outgoing_connections[input0] += 1
             num_outgoing_connections[input1] += 1
             # Connect intermediate blocks with outdegree 0 to the output block.
+            # Some blocks have also this additional connection
             if block.is_output:
                 for j, j_connections in enumerate(num_outgoing_connections):
                     if j_connections == 0 and self._block_specs[j].level == target_level:
@@ -371,6 +381,7 @@ class SpineNet(NetArch):
             target_context += block_context[block.block_fn] * self.block_repeats * downsample_factor
             contexts.append(target_context)
             num_outgoing_connections.append(0)
+        logging.info('block\'s contexts: {}'.format(contexts))
         return max(contexts)
 
     def _compute_out_size(self, in_size):

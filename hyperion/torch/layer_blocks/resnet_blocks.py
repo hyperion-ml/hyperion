@@ -283,12 +283,12 @@ class ResNetEndpointBlock(nn.Module):
         bias = not norm_before
         self.out_channels = out_channels
         self.in_channels = in_channels
+        self.norm_before = norm_before
 
         if self.in_channels != self.out_channels:
             self.conv = _conv1x1(in_channels, out_channels, bias=bias)
             self.bn = norm_layer(out_channels)
             self.act = AF.create(activation)
-        self.norm_before = norm_before
 
         self.scale = scale
         if self.scale > 1:

@@ -8,7 +8,7 @@
 set -e
 stage=1
 ngpu=1
-config_file=config_fbank80_stmn_lresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh
+config_file=default_config.sh
 resume=false
 interactive=false
 num_workers=8
@@ -42,15 +42,13 @@ if [ $stage -le 1 ]; then
 	train_exec=torch-train-tdnn-xvec-from-wav.py
     elif [[ ${nnet_type} =~ transformer ]]; then
 	train_exec=torch-train-transformer-xvec-v1-from-wav.py
-    elif [[ ${nnet_type} =~ spinenet ]]; then
+    elif [[ ${nnet_type} =~ spinenet ]] || [[ ${nnet_type} =~ spine2net ]] || [[ ${nnet_type} =~ r0_sp53 ]]; then
 	train_exec=torch-train-spinenet-xvec-from-wav.py
     else
 	echo "$nnet_type not supported"
 	exit 1
     fi
 
-    echo $config_file
-    echo $ngpu
     mkdir -p $nnet_dir/log
     $cuda_cmd --gpu $ngpu $nnet_dir/log/train.log \
 	hyp_utils/torch.sh --num-gpus $ngpu \

@@ -55,7 +55,7 @@ class ResNet(NetArch):
                  hid_act={'name':'relu6', 'inplace': True}, out_act=None,
                  in_kernel_size=7, in_stride=2,
                  zero_init_residual=False,
-                 multilevel=False, endpoint_channels=128,
+                 multilevel=False, endpoint_channels=64,
                  groups=1, replace_stride_with_dilation=None, dropout_rate=0,
                  norm_layer=None, norm_before=True, do_maxpool=True, in_norm=True,
                  se_r=16, time_se=False, in_feats=None, 
@@ -153,12 +153,12 @@ class ResNet(NetArch):
                                        dilate=replace_stride_with_dilation[2])
 
         if self.multilevel:
-            self.endpoint4 = ResNetEndpointBlock(8*base_channels, self.endpoint_channels, 4, activation=self.hid_act,
-                                                 norm_layer=self._norm_layer, norm_before=self.norm_before)
-            self.endpoint3 = ResNetEndpointBlock(4*base_channels, self.endpoint_channels, 2, activation=self.hid_act,
-                                                 norm_layer=self._norm_layer, norm_before=self.norm_before)
-            self.endpoint2 = ResNetEndpointBlock(2*base_channels, self.endpoint_channels, 1, activation=self.hid_act,
-                                                 norm_layer=self._norm_layer, norm_before=self.norm_before)
+            self.endpoint2 = ResNetEndpointBlock(2*base_channels*self._block.expansion, self.endpoint_channels, 1,
+                                                 activation=self.hid_act, norm_layer=self._norm_layer, norm_before=self.norm_before)
+            self.endpoint3 = ResNetEndpointBlock(4*base_channels*self._block.expansion, self.endpoint_channels, 2,
+                                                 activation=self.hid_act, norm_layer=self._norm_layer, norm_before=self.norm_before)
+            self.endpoint4 = ResNetEndpointBlock(8*base_channels*self._block.expansion, self.endpoint_channels, 4,
+                                                 activation=self.hid_act, norm_layer=self._norm_layer, norm_before=self.norm_before)
 
         self.with_output = False
         self.out_act = None
@@ -350,7 +350,6 @@ class ResNet(NetArch):
             out3 = self.endpoint3(feats[1])
             out4 = self.endpoint4(feats[2])
             x = torch.mean(torch.stack([out2, out3, out4]), 0)
-
 
         if self.with_output:
             x = self.avgpool(x)
@@ -932,16 +931,8 @@ class TSELRes2Next50_4x4d(ResNet):
         super().__init__(
             'seres2bn', [3, 4, 6, 3], in_channels, **kwargs)
 
-class LResNet34_mutilevel_128(ResNet):
-    def __init__(self, in_channels, **kwargs):
-        kwargs['conv_channels'] = 16
-        kwargs['base_channels'] = 16
-        kwargs['multilevel'] = True
-        kwargs['endpoint_channels'] = 128
-        super().__init__(
-            'basic', [3, 4, 6, 3], in_channels, **kwargs)
-
-class LResNet34_mutilevel_64(ResNet):
+# multi-level feature ResNet
+class LResNet34_345(ResNet):
     def __init__(self, in_channels, **kwargs):
         kwargs['conv_channels'] = 16
         kwargs['base_channels'] = 16
