@@ -3,6 +3,7 @@
   Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
   Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)  
 """
+
 import sys
 import os
 from jsonargparse import ArgumentParser, ActionConfigFile, ActionParser, namespace_to_dict
@@ -30,13 +31,13 @@ from hyperion.torch.narchs import AudioFeatsMVN as AF
 from hyperion.torch.utils.misc import l2_norm, compute_stats_adv_attack
 from hyperion.torch import TorchModelLoader as TML
 
-from hyperion.torch.adv_attacks import AttackFactory
-
+from art.classifiers import PyTorchClassifier
+from hyperion.torch.adv_attacks.art_attack_factory import ARTAttackFactory as AttackFactory
 
 class MyModel(nn.Module):
 
-    def __init__(self, feat_extractor, xvector_model, 
-                 embed_layer=None, calibrator=None):
+    def __init__(self, feat_extractor, xvector_model, embed_layer=None, 
+                 calibrator=None, threshold=0):
         super().__init__()
         self.feat_extractor = feat_extractor
         self.xvector_model = xvector_model
@@ -44,6 +45,7 @@ class MyModel(nn.Module):
         self.vad_t = None
         self.embed_layer = embed_layer
         self.calibrator = calibrator
+        self.threshold = threshold
 
 
     def forward(self, s_t):
@@ -63,10 +65,12 @@ class MyModel(nn.Module):
         x_t = self.xvector_model.extract_embed(f_t, embed_layer=self.embed_layer)
         x_t = l2_norm(x_t)
         x_e = l2_norm(self.x_e)
-        score = torch.sum(x_e * x_t, dim=-1)
+        tar_score = torch.sum(x_e * x_t, dim=-1, keepdim=True)
         if self.calibrator is not None:
-            score = self.calibrator(score)
+            score = self.calibrator(tar_score)
 
+        non_score = self.threshold + 0*tar_score
+        score = torch.cat((non_score, tar_score), dim=-1) #.unsqueeze(0)
         return score
 
 
@@ -133,6 +137,7 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
                         use_gpu, seg_part_idx, num_seg_parts, 
                         **kwargs):
 
+    device_type = 'gpu' if use_gpu else 'cpu'
     device = init_device(use_gpu)
     # load victim model
     feat_extractor = init_feats(device, **kwargs['feats'])
@@ -141,7 +146,8 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
     if cal_file is not None:
         calibrator = load_calibrator(cal_file, device)
 
-    model = MyModel(feat_extractor, xvector_model, embed_layer, calibrator)
+    model = MyModel(feat_extractor, xvector_model, embed_layer, 
+                    calibrator, threshold=threshold)
     model.to(device)
     model.eval()
 
@@ -152,12 +158,13 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
     if transfer_cal_file is not None:
         tcalibrator = load_calibrator(transfer_cal_file, device)
 
-    tmodel = MyModel(tfeat_extractor, xvector_tmodel, embed_layer, tcalibrator)
+    tmodel = MyModel(tfeat_extractor, xvector_tmodel, embed_layer, 
+                     tcalibrator, threshold=threshold)
     tmodel.to(device)
     tmodel.eval()
 
-    tar = torch.as_tensor([1], dtype=torch.float).to(device)
-    non = torch.as_tensor([0], dtype=torch.float).to(device)
+    tar = np.asarray([1], dtype=np.int)
+    non = np.asarray([0], dtype=np.int)
 
     logging.info('loading key and enrollment x-vectors')
     key, x_e = read_data(v_file, key_file, enroll_file, seg_part_idx, num_seg_parts)
@@ -175,14 +182,9 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
         non_audio_writer = AW(save_adv_wav_path + '/non2tar')
 
     attack_args = AttackFactory.filter_args(**kwargs['attack'])
-    extra_args = {'eps_scale': wav_scale,
-                  'range_min': -wav_scale,
-                  'range_max': wav_scale,
-                  'loss': nn.functional.binary_cross_entropy_with_logits,
-                  'time_dim': 1}
+    extra_args = {'eps_scale': wav_scale }
     attack_args.update(extra_args)
-    logging.info('attacks args={}'.format(attack_args))
-    attack = AttackFactory.create(model, **attack_args)
+    logging.info('attack-args={}'.format(attack_args))
 
     if vad_spec is not None:
         logging.info('opening VAD stream: %s' % (vad_spec))
@@ -200,7 +202,8 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
         s = s[0]
         fs = fs[0]
 
-        s = torch.as_tensor(s[None,:], dtype=torch.get_default_dtype()).to(device)
+        s = s[None,:].astype('float32', copy=False)
+        s_tensor = torch.as_tensor(s, dtype=torch.get_default_dtype()).to(device)
         
         if vad_spec is not None:
             vad = v_reader.read([key.seg_set[j]])[0]
@@ -209,6 +212,7 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
             vad = torch.as_tensor(vad.astype(np.bool, copy=False), 
                                   dtype=torch.bool).to(device)
             model.vad_t = vad
+            tmodel.vad_t = vad
             logging.info('utt %s detected %d/%d (%.2f %%) speech frames' % (
                 key.seg_set[j], speech_frames, tot_frames, 
                 speech_frames/tot_frames*100))
@@ -217,6 +221,17 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
 
         trial_time = 0
         num_trials = 0
+        model_art = PyTorchClassifier(
+            model=tmodel,
+            loss=nn.CrossEntropyLoss(),
+            optimizer=None,
+            input_shape=[1, s.shape[1]],
+            nb_classes=2,
+            clip_values=(-wav_scale, wav_scale),
+            device_type=device_type)
+
+        attack_args['num_samples'] = s.shape[-1]
+        attack = AttackFactory.create(model_art, **attack_args)
         for i in range(key.num_models):
             if key.tar[i,j] or key.non[i,j]:
                 t3 = time.time()
@@ -234,15 +249,16 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
                         t = non
 
                 s_adv = attack.generate(s, t)
+                s_adv = torch.from_numpy(s_adv).to(device)
                 with torch.no_grad():
-                    scores[i,j] = model(s_adv)
+                    scores[i,j] = model(s_adv).cpu().numpy()[0,1]
 
                 t4 = time.time()
                 trial_time += (t4 - t3)
                 num_trials += 1
 
                 s_adv = s_adv.detach()
-                stats_ij = compute_stats_adv_attack(s, s_adv)
+                stats_ij = compute_stats_adv_attack(s_tensor, s_adv)
                 stats_ij = [stat.detach().cpu().numpy()[0] for stat in stats_ij]
                 attack_stats = attack_stats.append({
                     'modelid': key.model_set[i], 'segmentid': key.seg_set[j],
@@ -260,6 +276,8 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
                     elif key.non[i,j] and scores[i,j] > threshold:
                         non_audio_writer.write(trial_name, s_adv, fs)
 
+        del attack
+        del model_art
         trial_time /= num_trials
         t7 = time.time()
         logging.info((
@@ -279,14 +297,12 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
     attack_stats.to_csv(stats_file)
 
 
-
-
-
 if __name__ == "__main__":
 
     parser = ArgumentParser(
         description=('Eval cosine-scoring given enroll x-vector and '
-                     'adversarial test wave obtained from a different model'))
+                     'adversarial test wave obtained from a different model'
+                     'using ART'))
 
     parser.add_argument('--v-file', required=True)
     parser.add_argument('--key-file', default=None)
@@ -327,10 +343,8 @@ if __name__ == "__main__":
     parser.add_argument('--save-adv-wav', 
                         default=False, action='store_true',
                         help='save adversarial signals to disk')
-
     parser.add_argument('--save-adv-wav-path', default=None, 
                         help='output path of adv signals')
-
     parser.add_argument('--stats-file', default=None, 
                         help='output path of to save stats of adv signals')
     parser.add_argument('--cal-file', default=None, 

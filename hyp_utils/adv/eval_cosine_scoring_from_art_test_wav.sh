@@ -29,7 +29,7 @@ if [ $# -ne 7 ]; then
   echo "  --nj <nj>                                                # number of parallel jobs"
   echo "  --cmd (utils/run.pl|utils/queue.pl <queue opts>)         # how to run jobs."
   echo "  --use-gpu <bool|false>                                   # If true, use GPU."
-  echo "  --attack-opt <str|--attack-attack-type fgm --eps 0.001>  # Attack options string"
+  echo "  --attack-opts <str|--attack-attack-type fgm --eps 0.001>  # Attack options string"
   echo "  --threshold <float|0>                                    # decision threshold"
   echo "  --save-wav-path <str|>                                   # path to save adv wavs"
   echo "  --cal-file <str|>                                        # calibration params file"

@@ -4,27 +4,13 @@
 #
 nj=20
 cmd=run.pl
-feat_config=conf/fbank.pyconf
-transfer_feat_config=conf/fbank.pyconf
+feat_config=conf/fbank80_stmn_16k.yaml
+transfer_feat_config=conf/fbank80_stmn_16k.yaml
 use_gpu=false
-audio_feat=logfb
-transfer_audio_feat=logfb
-center=true
-norm_var=false
-context=150
-attack_type=fgm
-attack_opt="--eps 0.0001"
-# eps=0
-# alpha=0
-# snr=100
-# confidence=0
-# lr=1e-2
-# max_iter=10
-# c_factor=2
+attack_opts="--attack.attack-type fgm --attack.eps 1e-3"
 threshold=0
 save_wav=false
 save_wav_path=""
-
 cal_file=""
 transfer_cal_file=""
 
@@ -32,31 +18,22 @@ if [ -f path.sh ]; then . ./path.sh; fi
 . parse_options.sh || exit 1;
 set -e
 
+if [ -z "$TORCH_ART" ];then
+    TORCH_ART=$TORCH
+fi
+
 if [ $# -ne 9 ]; then
   echo "Usage: $0 [options] <key> <enroll-file> <test-data-dir> <vector-file> <nnet-model> <transfer-vector-file> <transfer-nnet-model> <output-scores> <output-snr>"
   echo "Options: "
   echo "  --feat-config <config-file>                      # feature extractor config"
-  echo "  --audio-feat <logfb|mfcc>                        # feature type"
   echo "  --transfer-feat-config <config-file>             # feature extractor config for white-box model"
-  echo "  --transfer-audio-feat <logfb|mfcc>               # feature type for white-box model"
   echo "  --nj <nj>                                        # number of parallel jobs"
   echo "  --cmd (utils/run.pl|utils/queue.pl <queue opts>) # how to run jobs."
-  echo "  --center <true|false>                            # If true, normalize means in the sliding window cmvn (default:true)"
-  echo "  --norm-var <true|false>                          # If true, normalize variances in the sliding window cmvn (default:false)"
-  echo "  --use-gpu <bool|false>                           # If true, use GPU."
-  echo "  --context <int|150>                              # Left context for short-time cmvn (default: 150)"
-  echo "  --attack-type <str|fgsm>                         # Attack type"
-  echo "  --attack-opt <str|--eps 0.001>                   # Attack options string"
-  # echo "  --eps <float|0>                                  # Attack epsilon"
-  # echo "  --alpha <float|0>                                # Attack alpha"
-  # echo "  --snr <float|100>                                # Attack SNR"
-  # echo "  --confidence <float|0>                           # confidence in Carlini-Wagner attack"
-  # echo "  --lr <float|1e-2>                                # learning rate for attack optimizer"
-  # echo "  --max-iter <int|10>                              # max number of iters for attack optimizer"
-  # echo "  --c-factor <int|2>                               # c increment factor"
+  echo "  --attack-opts <str|--attack-attack-type fgm --eps 0.001>  # Attack options string"
   echo "  --threshold <float|0>                            # decision threshold"
   echo "  --save-wav-path <str|>                           # path to save adv wavs"
-  echo "  --cal-file <str|>                                # calibration params file"
+  echo "  --cal-file <str|>                                # calibration params file for black-box model"
+  echo "  --transfer-cal-file <str|>                       # calibration params file for whitebox model"
   exit 1;
 fi
 
@@ -97,14 +74,6 @@ if [ "$use_gpu" == "true" ];then
     args="--use-gpu"
 fi
 
-if [ "$center" == "false" ];then
-    args="${args} --mnv-no-norm-mean"
-fi
-if [ "$norm_var" == "true" ];then
-    args="${args} --mvn-norm-var"
-fi
-args="${args} --mvn-context $context"
-
 if [ "${save_wav}" == "true" ];then
     args="${args} --save-adv-wav-path $save_wav_path --save-adv-wav"
 fi
@@ -117,19 +86,12 @@ if [ -n "$transfer_cal_file" ];then
     args="${args} --transfer-cal-file $transfer_cal_file"
 fi
 
-#add prefix ''transfer'' to the transfer network feature configuration file
-transfer_feat_config2=$output_dir/transfer.conf
-sed 's@--@--transfer-@' $transfer_feat_config > $transfer_feat_config2
-
-
 echo "$0: score $key_file to $output_dir"
 
 $cmd JOB=1:$nj $log_dir/${name}.JOB.log \
-    hyp_utils/torch.sh --num-gpus $num_gpus \
-    steps_adv/torch-eval-cosine-scoring-from-transfer-art-test-wav.py \
-    @$feat_config --audio-feat $audio_feat \
-    @$transfer_feat_config2 --transfer-audio-feat $transfer_audio_feat \
-    ${args} \
+    hyp_utils/conda_env.sh --conda-env $TORCH_ART --num-gpus $num_gpus \
+    torch-eval-xvec-cosine-scoring-from-transfer-art-test-wav.py \
+    --feats $feat_config --transfer_feats $transfer_feat_config ${args} \
     --v-file scp:$vector_file \
     --key-file $key_file \
     --enroll-file $enroll_file \
@@ -138,8 +100,7 @@ $cmd JOB=1:$nj $log_dir/${name}.JOB.log \
     --model-path $nnet_file \
     --transfer-v-file scp:$transfer_vector_file \
     --transfer-model-path $transfer_nnet_file \
-    --threshold $threshold \
-    --attack-type $attack_type $attack_opt \
+    --threshold $threshold $attack_opts \
     --score-file $output_file \
     --stats-file $stats_file \
     --seg-part-idx JOB --num-seg-parts $nj || exit 1

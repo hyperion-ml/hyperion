@@ -2,7 +2,6 @@
 """
   Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
   Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)  
-
 """
 
 import sys
@@ -317,7 +316,6 @@ if __name__ == "__main__":
     parser.add_argument('--save-adv-wav', 
                         default=False, action='store_true',
                         help='save adversarial signals to disk')
-
     parser.add_argument('--save-adv-wav-path', default=None, 
                         help='output path of adv signals')
 

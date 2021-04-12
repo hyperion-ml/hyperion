@@ -12,10 +12,13 @@ config_file=default_config.sh
 use_gpu=false
 do_analysis=false
 save_wav=false
+feat_config=conf/fbank80_stmn_16k.yaml
 
 . parse_options.sh || exit 1;
 . $config_file
 . datapath.sh 
+
+transfer_feat_config=$feat_config
 
 if [ "$use_gpu" == "true" ];then
     eval_args="--use-gpu true"
@@ -51,9 +54,9 @@ if [ $stage -le 1 ];then
 	score_plda_dir=$score_dir/transfer.${transfer_nnet_name}/cosine_art_fgsm_e${eps}
 	echo "Eval Voxceleb 1 with Cosine scoring with FGSM attack eps=$eps"
 	steps_adv/eval_cosine_scoring_from_transfer_art_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 80 \
-	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
-	    --transfer-feat-config $transfer_feat_conf --transfer-audio-feat $transfer_feat \
-	    --attack-type fgm --attack-opt "--attack-eps $eps" \
+	    --feat-config $feat_config  \
+	    --transfer-feat-config $transfer_feat_config  \
+	    --attack-opts "--attack.attack-type fgm --attack.eps $eps" \
 	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --transfer-cal-file $transfer_cal_file \
 	    --threshold $thr005 \
@@ -100,9 +103,9 @@ if [ $stage -le 2 ];then
 	score_plda_dir=$score_dir/transfer.${transfer_nnet_name}/cosine_art_fgsm_minimal_e${eps}
 	echo "Eval Voxceleb 1 with Cosine scoring with FGSM attack eps=$eps"
 	steps_adv/eval_cosine_scoring_from_transfer_art_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 80 \
-	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
-	    --transfer-feat-config $transfer_feat_conf --transfer-audio-feat $transfer_feat \
-	    --attack-type fgm --attack-opt "--attack-eps $eps --attack-minimal" \
+	    --feat-config $feat_config  \
+	    --transfer-feat-config $transfer_feat_config  \
+	    --attack-opts "--attack.attack-type fgm --attack.eps $eps --attack.minimal" \
 	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --transfer-cal-file $transfer_cal_file \
 	    --threshold $thr005 \
@@ -150,9 +153,9 @@ if [ $stage -le 3 ];then
 	score_plda_dir=$score_dir/transfer.${transfer_nnet_name}/cosine_art_fgml1_e${eps}
 	echo "Eval Voxceleb 1 with Cosine scoring with FGM L1 attack eps=$eps"
 	steps_adv/eval_cosine_scoring_from_transfer_art_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 80 \
-	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
-	    --transfer-feat-config $transfer_feat_conf --transfer-audio-feat $transfer_feat \
-	    --attack-type fgm --attack-opt "--attack-eps $eps --attack-norm 1" \
+	    --feat-config $feat_config  \
+	    --transfer-feat-config $transfer_feat_config  \
+	    --attack-opts "--attack.attack-type fgm --attack.eps $eps --attack.norm 1" \
 	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --transfer-cal-file $transfer_cal_file \
 	    --threshold $thr005 \
@@ -199,9 +202,9 @@ if [ $stage -le 4 ];then
 	score_plda_dir=$score_dir/transfer.${transfer_nnet_name}/cosine_art_fgml1_minimal_e${eps}
 	echo "Eval Voxceleb 1 with Cosine scoring with FGM minimal L1 attack eps=$eps"
 	steps_adv/eval_cosine_scoring_from_transfer_art_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 80 \
-	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
-	    --transfer-feat-config $transfer_feat_conf --transfer-audio-feat $transfer_feat \
-	    --attack-type fgm --attack-opt "--attack-eps $eps --attack-minimal --attack-norm 1" \
+	    --feat-config $feat_config  \
+	    --transfer-feat-config $transfer_feat_config  \
+	    --attack-opts "--attack.attack-type fgm --attack.eps $eps --attack.minimal --attack.norm 1" \
 	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --transfer-cal-file $transfer_cal_file \
 	    --threshold $thr005 \
@@ -249,9 +252,9 @@ if [ $stage -le 5 ];then
 	score_plda_dir=$score_dir/transfer.${transfer_nnet_name}/cosine_art_fgml2_e${eps}
 	echo "Eval Voxceleb 1 with Cosine scoring with FGM L2 attack eps=$eps"
 	steps_adv/eval_cosine_scoring_from_transfer_art_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 80 \
-	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
-	    --transfer-feat-config $transfer_feat_conf --transfer-audio-feat $transfer_feat \
-	    --attack-type fgm --attack-opt "--attack-eps $eps --attack-norm 2" \
+	    --feat-config $feat_config  \
+	    --transfer-feat-config $transfer_feat_config  \
+	    --attack-opts "--attack.attack-type fgm --attack.eps $eps --attack.norm 2" \
 	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --transfer-cal-file $transfer_cal_file \
 	    --threshold $thr005 \
@@ -298,9 +301,9 @@ if [ $stage -le 6 ];then
 	score_plda_dir=$score_dir/transfer.${transfer_nnet_name}/cosine_art_fgml2_minimal_e${eps}
 	echo "Eval Voxceleb 1 with Cosine scoring FGM minimal L2 attack eps=$eps"
 	steps_adv/eval_cosine_scoring_from_transfer_art_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 80 \
-	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
-	    --transfer-feat-config $transfer_feat_conf --transfer-audio-feat $transfer_feat \
-	    --attack-type fgm --attack-opt "--attack-eps $eps --attack-minimal --attack-norm 2" \
+	    --feat-config $feat_config  \
+	    --transfer-feat-config $transfer_feat_config  \
+	    --attack-opts "--attack.attack-type fgm --attack.eps $eps --attack.minimal --attack.norm 2" \
 	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --transfer-cal-file $transfer_cal_file \
 	    --threshold $thr005 \
@@ -347,9 +350,9 @@ if [ $stage -le 7 ];then
 	score_plda_dir=$score_dir/transfer.${transfer_nnet_name}/cosine_art_iterfgsm_e${eps}
 	echo "Eval Voxceleb 1 with Cosine scoring with iter FGSM attack eps=$eps"
 	steps_adv/eval_cosine_scoring_from_transfer_art_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 80 \
-	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
-	    --transfer-feat-config $transfer_feat_conf --transfer-audio-feat $transfer_feat \
-	    --attack-type bim --attack-opt "--attack-eps $eps --attack-eps-step $alpha --attack-max-iter 10" \
+	    --feat-config $feat_config  \
+	    --transfer-feat-config $transfer_feat_config  \
+	    --attack-opts "--attack.attack-type bim --attack.eps $eps --attack.eps-step $alpha --attack.max-iter 10" \
 	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --transfer-cal-file $transfer_cal_file \
 	    --threshold $thr005 \
@@ -396,10 +399,9 @@ if [ $stage -le 8 ];then
 	score_plda_dir=$score_dir/transfer.${transfer_nnet_name}/cosine_art_pgdlinf_e${eps}
 	echo "Eval Voxceleb 1 with Cosine scoring with PGD Linf attack eps=$eps"
 	steps_adv/eval_cosine_scoring_from_transfer_art_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 80 \
-	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
-	    --transfer-feat-config $transfer_feat_conf --transfer-audio-feat $transfer_feat
-	    --attack-type pgd --attack-opt "--attack-eps $eps --attack-eps-step $alpha --attack-max-iter 10" \
-
+	    --feat-config $feat_config  \
+	    --transfer-feat-config $transfer_feat_config  \
+	    --attack-opts "--attack.attack-type pgd --attack.eps $eps --attack.eps-step $alpha --attack.max-iter 10" \
 	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --transfer-cal-file $transfer_cal_file \
 	    --threshold $thr005 \
@@ -445,10 +447,9 @@ if [ $stage -le 9 ];then
 	score_plda_dir=$score_dir/transfer.${transfer_nnet_name}/cosine_art_pgdl1_e${eps}
 	echo "Eval Voxceleb 1 with Cosine scoring with PGD L1 attack eps=$eps"
 	steps_adv/eval_cosine_scoring_from_transfer_art_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 80 \
-	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
-	    --transfer-feat-config $transfer_feat_conf --transfer-audio-feat $transfer_feat
-	    --attack-type pgd --attack-opt "--attack-eps $eps --attack-eps-step $alpha --attack-max-iter 10 --attack-norm 1" \
-
+	    --feat-config $feat_config  \
+	    --transfer-feat-config $transfer_feat_config  \
+	    --attack-opts "--attack.attack-type pgd --attack.eps $eps --attack.eps-step $alpha --attack.max-iter 10 --attack.norm 1" \
 	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --transfer-cal-file $transfer_cal_file \
 	    --threshold $thr005 \
@@ -494,10 +495,9 @@ if [ $stage -le 10 ];then
 	score_plda_dir=$score_dir/transfer.${transfer_nnet_name}/cosine_art_pgdl2_e${eps}
 	echo "Eval Voxceleb 1 with Cosine scoring with PGD L2 attack eps=$eps"
 	steps_adv/eval_cosine_scoring_from_transfer_art_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 80 \
-	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
-	    --transfer-feat-config $transfer_feat_conf --transfer-audio-feat $transfer_feat
-	    --attack-type pgd --attack-opt "--attack-eps $eps --attack-eps-step $alpha --attack-max-iter 10 --attack-norm 2" \
-
+	    --feat-config $feat_config  \
+	    --transfer-feat-config $transfer_feat_config  \
+	    --attack-opts "--attack.attack-type pgd --attack.eps $eps --attack.eps-step $alpha --attack.max-iter 10 --attack.norm 2" \
 	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --transfer-cal-file $transfer_cal_file \
 	    --threshold $thr005 \
@@ -541,9 +541,9 @@ if [ $stage -le 11 ];then
 	score_plda_dir=$score_dir/transfer.${transfer_nnet_name}/cosine_art_cwl2_conf${confidence}
 	echo "Eval Voxceleb 1 with Cosine scoring with Carlini-Wagner L2 attack confidence=$confidence"
 	steps_adv/eval_cosine_scoring_from_transfer_art_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 20 \
-	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
-	    --transfer-feat-config $transfer_feat_conf --transfer-audio-feat $transfer_feat \
-	    --attack-type cw-l2 --attack-opt "--attack-confidence $confidence" \
+	    --feat-config $feat_config  \
+	    --transfer-feat-config $transfer_feat_config  \
+	    --attack-opts "--attack.attack-type cw-l2 --attack.confidence $confidence" \
 	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --transfer-cal-file $transfer_cal_file \
 	    --threshold $thr005 \
@@ -586,9 +586,9 @@ if [ $stage -le 12 ];then
 	score_plda_dir=$score_dir/transfer.${transfer_nnet_name}/cosine_art_cwlinf_conf${confidence}
 	echo "Eval Voxceleb 1 with Cosine scoring with Carlini-Wagner LInf attack confidence=$confidence"
 	steps_adv/eval_cosine_scoring_from_transfer_art_test_wav.sh --cmd "$eval_cmd" $eval_args --nj 40 \
-	    --feat-config conf/fbank80_16k.pyconf --audio-feat logfb \
-	    --transfer-feat-config $transfer_feat_conf --transfer-audio-feat $transfer_feat \
-	    --attack-type cw-linf --attack-opt "--attack-confidence $confidence --attack-eps 0.3" \
+	    --feat-config $feat_config  \
+	    --transfer-feat-config $transfer_feat_config  \
+	    --attack-opts "--attack.attack-type cw-linf --attack.confidence $confidence --attack.eps 0.3" \
 	    --save-wav $save_wav --save-wav-path $score_plda_dir/wav \
 	    --cal-file $cal_file --transfer-cal-file $transfer_cal_file \
 	    --threshold $thr005 \
