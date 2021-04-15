@@ -119,10 +119,16 @@ class GlobalPool1dFactory(object):
             '--bin-attn', default=False, action='store_true',
             help=('Use binary attention, i.e. sigmoid instead of softmax'))
 
+        if prefix is not None:
+            outer_parser.add_argument(
+                '--' + prefix,
+                action=ActionParser(parser=parser),
+                help='pool options')
+
 
     @staticmethod
     def get_config(layer):
-        
+
         config = layer.get_config()
         if isinstance(layer, GlobalAvgPool1d):
             config['pool_type'] = 'avg'

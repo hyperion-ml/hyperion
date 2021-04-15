@@ -22,7 +22,7 @@ fi
 if [ $stage -le 2 ]; then
     # This script preprocess audio for x-vector training
     steps_xvec/preprocess_audios_for_nnet_train.sh --nj 40 --cmd "$train_cmd" \
-	--storage_name voxceleb-v1.1-$(date +'%m_%d_%H_%M') --use-bin-vad true \
+	--storage_name voxceleb-adv.v1.1-$(date +'%m_%d_%H_%M') --use-bin-vad true \
 	data/${transfer_nnet_data} data/${transfer_nnet_data}_proc_audio_no_sil exp/${transfer_nnet_data}_proc_audio_no_sil
     utils/fix_data_dir.sh data/${transfer_nnet_data}_proc_audio_no_sil
 

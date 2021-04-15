@@ -19,7 +19,7 @@ if [ $stage -le 2 ]; then
     # wasteful, as it roughly doubles the amount of training data on disk.  After
     # creating training examples, this can be removed.
     steps_xvec/prepare_feats_for_nnet_train.sh --nj 40 --cmd "$train_cmd" \
-	--storage_name voxceleb-v2-$(date +'%m_%d_%H_%M') \
+	--storage_name voxceleb-adv.v1-$(date +'%m_%d_%H_%M') \
 	data/${nnet_data} data/${nnet_data}_no_sil exp/${nnet_data}_no_sil
     utils/fix_data_dir.sh data/${nnet_data}_no_sil
 

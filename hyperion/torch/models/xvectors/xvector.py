@@ -482,6 +482,7 @@ class XVector(TorchModel):
             del kwargs['norm_after']
 
         # get arguments for pooling
+        print(kwargs)
         pool_args = PF.filter_args(**kwargs['pool_net'])
         # pool_valid_args = (
         #     'pool_type', 'pool_num_comp', 'pool_use_bias', 
