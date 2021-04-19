@@ -1,7 +1,7 @@
 # VQ-VAE with Transformer Encoder for Enc and Dec with 
 # 6 transformer blocks, d_model=512, heads=8, d_ff=2048, latent_dim=512, codebook=8x8, compression factor=36
 
-nnet_data=voxceleb2cat
+nnet_data=voxceleb2cat_train
 batch_size_1gpu=16
 eff_batch_size=512 # effective batch size
 min_chunk=400
@@ -29,8 +29,8 @@ vae_opt="--in-feats 80 --z-dim $latent_dim --vq-type $vq_type --vq-clusters $vq_
 enc_opt="--enc-num-blocks $blocks --enc-d-model $d_model --enc-num-heads $heads --enc-ff-type linear --enc-d-ff $d_ff --enc-in-layer-type linear --enc-att-type local-scaled-dot-prod-v1 --enc-att-context $att_context --enc-conv-kernel-sizes $conv_kernel"
 dec_opt="--dec-in-feats $latent_dim --dec-num-blocks $blocks --dec-d-model $d_model --dec-num-heads $heads --dec-ff-type linear --dec-d-ff $d_ff --dec-in-layer-type linear --dec-att-type local-scaled-dot-prod-v1 --dec-att-context $att_context --dec-conv-kernel-sizes $conv_kernel"
 
-opt_opt="--opt-optimizer radam --opt-lr $lr --opt-beta1 0.9 --opt-beta2 0.95 --opt-weight-decay 1e-5"
-lrs_opt="--lrsch-lrsch-type exp_lr --lrsch-decay-rate 0.5 --lrsch-decay-steps 8000 --lrsch-hold-steps 2000 --lrsch-min-lr 1e-5 --lrsch-warmup-steps 1000 --lrsch-update-lr-on-opt-step"
+opt_opt="--optim.opt-type radam --opt.lr $lr --opt.beta1 0.9 --opt.beta2 0.95 --opt.weight-decay 1e-5"
+lrs_opt="--lrsched.lrsch-type exp_lr --lrsched.decay-rate 0.5 --lrsched.decay-steps 8000 --lrsched.hold-steps 2000 --lrsched.min-lr 1e-5 --lrsched.warmup-steps 1000 --lrsched.update-lr-on-opt-step"
 nnet_name=${model_type}_${narch}_lac${att_context}b${blocks}d${d_model}h${heads}cbk${conv_kernel}linff${d_ff}_${vq_type}_z${latent_dim}c${vq_clusters}x${num_groups}_do${dropout}_optv4_radam_lr${lr}_b${eff_batch_size}.$nnet_data
 nnet_num_epochs=120
 num_augs=5

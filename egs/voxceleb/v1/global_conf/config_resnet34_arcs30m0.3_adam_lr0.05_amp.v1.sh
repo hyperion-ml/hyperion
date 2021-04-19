@@ -52,5 +52,5 @@ lda_dim=200
 plda_y_dim=150
 plda_z_dim=200
 
-plda_data=voxceleb2cat_train_combined
+plda_data=voxceleb2cat_train_train_combined
 plda_type=splda

@@ -332,7 +332,7 @@ class RandomAccessAudioReader(AudioReader):
 
 
 
-    def read(self, keys, time_offset=0, time_durs=0):
+    def _read(self, keys, time_offset=0, time_durs=0):
         """Reads the waveforms  for the recordings in keys.
         
         Args:
@@ -372,6 +372,52 @@ class RandomAccessAudioReader(AudioReader):
             fs.append(fs_i)
 
         return data, fs
+
+
+    def read(self, keys, time_offset=0, time_durs=0):
+        """Reads the waveforms  for the recordings in keys.
+        
+        Args:
+          keys: List of recording/segment_ids names.
+
+        Returns:
+          data: List of waveforms
+          fs: List of sampling freq.
+        """
+        try:
+            x, fs = self._read(keys, time_offset=time_offset,
+                               time_durs=time_durs)
+        except:
+            if not isinstance(time_offset, (list, np.array)):
+                time_offset = [time_offset] * len(keys)
+
+            if not isinstance(time_durs, (list, np.array)):
+                time_durs = [time_durs] * len(keys)
+
+            try:
+                # some files produce error in the fseek after reading the data,
+                # this seems an issue from pysoundfile or soundfile lib itself
+                # we try to read from
+                # time-offset to the end of the file, and remove the extra frames later,
+                # this solves the problem in most cases
+                logging.info(('error-1 reading at keys={} offset={} '
+                              'retrying reading until end-of-file ...').format(
+                                 keys, time_offset))
+                x, fs = self._read(keys, time_offset=time_offset)
+                for i in range(len(x)):
+                    end_sample = int(time_durs[i] * fs[i])
+                    x[i] = x[i][:end_sample]
+            except:
+                # try to read the full file
+                logging.info(('error-2 reading at key={}, '
+                             'retrying reading full file ...').format(keys))
+                x, fs = self._read(keys)
+                for i in range(len(x)):
+                    start_sample = int(time_offset[i] * fs[i])
+                    end_sample = int(time_durs[i] * fs[i])
+                    x[i] = x[i][start_sample:end_sample]
+        
+        return x, fs
 
 
     @staticmethod

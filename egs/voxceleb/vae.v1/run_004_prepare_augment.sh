@@ -1,9 +1,6 @@
 #!/bin/bash
 # Copyright
 #                2018   Johns Hopkins University (Author: Jesus Villalba)
-#                2017   David Snyder
-#                2017   Johns Hopkins University (Author: Daniel Garcia-Romero)
-#                2017   Johns Hopkins University (Author: Daniel Povey)
 # Apache 2.0.
 #
 . ./cmd.sh
@@ -50,7 +47,7 @@ fi
 
 if [ $stage -le 2 ]; then
     
-  for name in voxceleb2cat
+  for name in voxceleb2cat_train
   do
       export TMPDIR=data/tmp
       mkdir -p $TMPDIR
@@ -115,13 +112,11 @@ fi
 
 
 if [ $stage -le 3 ];then
-    
   # Take a random subset of the augmentations 
-  utils/subset_data_dir.sh data/voxceleb2cat_aug \
-      $(wc -l data/voxceleb2cat/utt2spk | awk '{ print int('$num_augs'*$1)}') \
-      data/voxceleb2cat_augx${num_augs}
-  utils/fix_data_dir.sh data/voxceleb2cat_augx${num_augs}
-
+  utils/subset_data_dir.sh data/voxceleb2cat_train_aug \
+      $(wc -l data/voxceleb2cat_train/utt2spk | awk '{ print int('$num_augs'*$1)}') \
+      data/voxceleb2cat_train_augx${num_augs}
+  utils/fix_data_dir.sh data/voxceleb2cat_train_augx${num_augs}
 fi
   
       

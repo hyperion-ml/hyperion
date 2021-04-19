@@ -23,4 +23,8 @@ fi
 if [ $stage -le 2 ];then
     # prepare voxceleb1 for test
     local/make_voxceleb1_o.pl $voxceleb1_root data
+    local/make_trials_subset.py --in-key-file data/voxceleb1_test/trials_o_clean --out-key-file data/voxceleb1_test/trials_o_clean_1000_1000 --ntar 1000 --nnon 1000
 fi
+
+
+

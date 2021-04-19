@@ -35,7 +35,7 @@ class SparseTrialKey(TrialKey):
                  model_cond=None, seg_cond = None, trial_cond=None,
                  model_cond_name=None, seg_cond_name=None, trial_cond_name=None):
         
-        super(SparseTrialKey, self).__init__(
+        super().__init__(
             model_set, seg_set, tar, non,
             model_cond, seg_cond, trial_cond,
             model_cond_name, seg_cond_name, trial_cond_name)
