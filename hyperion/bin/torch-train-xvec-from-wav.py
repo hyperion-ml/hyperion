@@ -10,7 +10,6 @@ from jsonargparse import ArgumentParser, ActionConfigFile, ActionParser, namespa
 import time
 import logging
 import multiprocessing 
-from copy import deepcopy
 
 import numpy as np
 

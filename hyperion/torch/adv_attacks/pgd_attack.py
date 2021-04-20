@@ -112,7 +112,7 @@ class PGDAttack(AdvAttack):
             f = -1
         
         if self.random_eps:
-            eps = self.eps/2*torch.randn(1).item()
+            eps = self.eps*torch.rand(1).item()
             alpha = eps*self.alpha/self.eps
         else:
             eps = self.eps

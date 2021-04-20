@@ -75,3 +75,20 @@ transfer_nnet_dir=exp/xvector_nnets/$transfer_nnet_name
 transfer_nnet=$transfer_nnet_dir/model_ep0070.pth
 
 
+# options for adversarial finetuning of the victim model                                                                                                                           
+advft_batch_size_1gpu=32
+advft_eff_batch_size=128 # effective batch size
+advft_margin=0.3
+advft_margin_warmup=20
+advft_nnet_num_epochs=20
+advft_eps=0.004
+advft_eps_step=$(echo $advft_eps | awk '{ print $1/5}')
+advft_p=0.5
+advft_lr=0.05
+advft_iters=10
+advft_attack_opts="--attack.attack-type pgd --attack.max-iter $advft_iters --attack.eps $advft_eps --attack.alpha $advft_eps_step --attack.random-eps --p-attack $advft_p"
+advft_opt_opt="--optim.opt-type adam --optim.lr $advft_lr --optim.beta1 0.9 --optim.beta2 0.95 --optim.weight-decay 1e-5 --optim.amsgrad --use-amp"
+advft_lrs_opt="--lrsched.lrsch-type exp_lr --lrsched.decay-rate 0.5 --lrsched.decay-steps 8000 --lrsched.hold-steps 8000 --lrsched.min-lr 1e-5 --lrsched.warmup-steps 1000 --lrsched.update-lr-on-opt-step"
+
+advft_nnet_dir=$nnet_dir.advft_p${advft_p}_pgd${advft_iters}e${advft_eps}step${advft_eps_step}_arcm${advft_margin}wup${advft_margin_warmup}_optv1_adam_lr${advft_lr}
+advft_nnet=$advft_nnet_dir/model_ep0020.pth

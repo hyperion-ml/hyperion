@@ -45,7 +45,7 @@ class AudioReader(object):
                 self.segments = SegmentList.load(
                     segments_path, sep=' ', index_by_file=False)
 
-        self.scale = wav_scale
+        self.wav_scale = wav_scale
 
 
     @property
@@ -161,7 +161,7 @@ class AudioReader(object):
             t_end = t_end_new
 
         file_path, _, _ = self.scp[file_id]
-        x_i, fs_i = self.read_wavspecifier(file_path, self.scale)
+        x_i, fs_i = self.read_wavspecifier(file_path, self.wav_scale)
         num_samples_i = len(x_i)
         s_beg = int(t_beg * fs_i)
         if s_beg >= num_samples_i:
@@ -284,7 +284,7 @@ class SequentialAudioReader(AudioReader):
             else:
                 key, file_path, _, _ = self.scp[self.cur_item]
                 x_i, fs_i = self.read_wavspecifier(
-                    file_path, self.scale, offset_i, dur_i)
+                    file_path, self.wav_scale, offset_i, dur_i)
 
             keys.append(key)
             data.append(x_i)
@@ -366,7 +366,7 @@ class RandomAccessAudioReader(AudioReader):
 
                 file_path, _, _ = self.scp[key]
                 x_i, fs_i = self.read_wavspecifier(
-                    file_path, self.scale, offset_i, dur_i)
+                    file_path, self.wav_scale, offset_i, dur_i)
 
             data.append(x_i)
             fs.append(fs_i)

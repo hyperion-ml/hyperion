@@ -89,6 +89,10 @@ class AudioDataset(Dataset):
 
 
     @property
+    def wav_scale(self):
+        return self.r.wav_scale
+
+    @property
     def num_seqs(self):
         return len(self.u2c)
 
@@ -317,6 +321,7 @@ class AudioDataset(Dataset):
             x = x[reverb_context_samples:end_idx]
             if self.return_clean_aug_pair:
                 x_clean = x_clean[reverb_context_samples:end_idx]
+                x_clean = x_clean.astype(floatstr_torch(), copy=False)
             #x_clean = x_clean[reverb_context_samples:]
             #logging.info('augmentation x-clean={}, x={}, aug_info={}'.format(
             #    x_clean.shape, x.shape, aug_info))
@@ -331,6 +336,7 @@ class AudioDataset(Dataset):
             if self.return_clean_aug_pair:
                 x_clean = x_clean[None,:]
 
+        x = x.astype(floatstr_torch(), copy=False)
         if self.return_clean_aug_pair:
             r = x, x_clean
         else:
