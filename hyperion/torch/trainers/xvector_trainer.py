@@ -25,7 +25,7 @@ class XVectorTrainer(TorchTrainer):
          grad_acc_steps: gradient accumulation steps to simulate larger batch size.
          device: cpu/gpu device
          metrics: extra metrics to compute besides cxe.
-         lr_scheduler: learning rate scheduler object
+         lrsched: learning rate scheduler object or options dict
          loggers: LoggerList object, loggers write training progress to std. output and file.
                   If None, it uses default loggers.
          ddp: if True use distributed data parallel training

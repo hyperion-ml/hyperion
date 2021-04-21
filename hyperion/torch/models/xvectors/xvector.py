@@ -193,16 +193,23 @@ class XVector(TorchModel):
         return x
 
       
-    def forward(self, x, y=None, use_amp=False):
-        if use_amp:
-            with torch.cuda.amp.autocast():
-                return self._forward(x, y)
+    # def forward(self, x, y=None, use_amp=False):
+    #     if use_amp:
+    #         with torch.cuda.amp.autocast():
+    #             return self._forward(x, y)
 
-        return self._forward(x, y)
+    #     return self._forward(x, y)
+    def forward(self, x, y=None, 
+                enc_layers=None, classif_layers=None, 
+                return_output=True, use_amp=False):
+        if enc_layers is None and classif_layers is None:
+            return self.forward_output(x, y)
+
+        return self.forward_hid_feats(
+            x, y, enc_layers, classif_layers, return_output)
 
       
-    def _forward(self, x, y=None):
-
+    def forward_output(self, x, y=None):
         """Forward function
 
         Args:

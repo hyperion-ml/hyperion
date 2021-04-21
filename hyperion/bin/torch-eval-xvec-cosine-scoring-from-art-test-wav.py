@@ -153,7 +153,7 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file,
 
     audio_args = AR.filter_args(**kwargs)
     audio_reader = AR(test_wav_file)
-    wav_scale = audio_reader.scale
+    wav_scale = audio_reader.wav_scale
 
     if save_adv_wav:
         tar_audio_writer = AW(save_adv_wav_path + '/tar2non')

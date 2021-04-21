@@ -78,8 +78,8 @@ fi
 echo "$0: score $ndx_file to $output_dir"
 
 $cmd JOB=1:$nj $log_dir/${name}.JOB.log \
-    hyp_utils/conda_env.sh --conda-env $TORCH --num-gpus $num_gpus \
-    torch-eval-xvec-cosine-scoring-from-test-wav.py \
+    hyp_utils/conda_env.sh --conda-env $HYP_ENV --num-gpus $num_gpus \
+    HYP_ENV-eval-xvec-cosine-scoring-from-test-wav.py \
     --feats $feat_config ${args} \
     --v-file scp:$vector_file \
     --ndx-file $ndx_file \

@@ -24,8 +24,8 @@ vq_clusters=512
 num_groups=8
 
 vae_opt="--in-feats 80 --z-dim $latent_dim --vq-type $vq_type --vq-clusters $vq_clusters --vq-groups $num_groups"
-enc_opt="--enc-num-blocks $blocks --enc-d-model $d_model --enc-num-heads $heads --enc-ff-type linear --enc-d-ff $d_ff --enc-in-layer-type linear --enc-att-type scaled-dot-prod-v1 --enc-rel-pos-enc"
-dec_opt="--dec-in-feats $latent_dim --dec-num-blocks $blocks --dec-d-model $d_model --dec-num-heads $heads --dec-ff-type linear --dec-d-ff $d_ff --dec-in-layer-type linear --dec-att-type scaled-dot-prod-v1 --dec-rel-pos-enc"
+enc_opt="--enc.num-blocks $blocks --enc.d-model $d_model --enc.num-heads $heads --enc.ff-type linear --enc.d-ff $d_ff --enc.in-layer-type linear --enc.att-type scaled-dot-prod-v1 --enc.rel-pos-enc"
+dec_opt="--dec.in-feats $latent_dim --dec.num-blocks $blocks --dec.d-model $d_model --dec.num-heads $heads --dec.ff-type linear --dec.d-ff $d_ff --dec.in-layer-type linear --dec.att-type scaled-dot-prod-v1 --dec.rel-pos-enc"
 
 
 opt_opt="--optim.opt-type radam --opt.lr $lr --opt.beta1 0.9 --opt.beta2 0.95 --opt.weight-decay 1e-5"

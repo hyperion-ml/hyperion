@@ -18,8 +18,8 @@ if [ -f path.sh ]; then . ./path.sh; fi
 . parse_options.sh || exit 1;
 set -e
 
-if [ -z "$TORCH_ART" ];then
-    TORCH_ART=$TORCH
+if [ -z "$HYP_ART_ENV" ];then
+    HYP_ART_ENV=$HYP_ENV
 fi
 
 if [ $# -ne 7 ]; then
@@ -82,8 +82,8 @@ fi
 echo "$0: score $key_file to $output_dir"
 
 $cmd JOB=1:$nj $log_dir/${name}.JOB.log \
-    hyp_utils/conda_env.sh --conda-env $TORCH_ART --num-gpus $num_gpus \
-    torch-eval-xvec-cosine-scoring-from-art-test-wav.py \
+    hyp_utils/conda_env.sh --conda-env $HYP_ART_ENV --num-gpus $num_gpus \
+    HYP_ENV-eval-xvec-cosine-scoring-from-art-test-wav.py \
     --feats $feat_config ${args} \
     --v-file scp:$vector_file \
     --key-file $key_file \

@@ -41,6 +41,13 @@ class OptimizerFactory(object):
             #     params, lr, betas=(beta1, beta2), eps=eps,
             #     weight_decay=weight_decay, amsgrad=amsgrad)
 
+        if opt_type == 'adamw':
+            betas = (beta1, beta2)
+            valid_args = ('lr', 'eps', 'weight_decay', 'amsgrad')
+            opt_args = filter_args(valid_args, kwargs)
+            opt_args['betas'] = betas
+            base_opt = optim.AdamW
+
         if opt_type == 'radam':
             betas = (beta1, beta2)
             valid_args = ('lr', 'eps', 'weight_decay')
@@ -145,7 +152,7 @@ class OptimizerFactory(object):
         parser.add_argument(
             '--opt-type', type=str.lower,
             default='adam',
-            choices=['sgd','adam', 'radam', 'adadelta', 'adagrad', 
+            choices=['sgd','adam', 'adamw', 'radam', 'adadelta', 'adagrad', 
                      'sparse_adam',
                      'adamax', 'asgd', 'lbfgs', 'rmsprop','rprop'],
             help=('Optimizers: SGD, Adam, AdaDelta, AdaGrad, SparseAdam '

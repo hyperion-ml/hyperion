@@ -16,8 +16,8 @@ narch=resnet1d
 model_type=vq-dvae
 vq_type=multi-ema-k-means-vq
 vae_opt="--in-feats 80 --z-dim $latent_dim --vq-type $vq_type --vq-clusters $vq_clusters --vq-groups $num_groups"
-enc_opt="--enc-in-conv-channels 256 --enc-in-kernel-size 5 --enc-in-stride 1 --enc-resb-repeats 1 2 3 2 --enc-resb-channels 256 --enc-resb-kernel-sizes 3 --enc-resb-strides 1 2 2 2 --enc-hid-act swish"
-dec_opt="--dec-in-channels 256 --dec-in-conv-channels 256 --dec-in-kernel-size 3 --dec-in-stride 1 --dec-resb-repeats 1 2 3 2 --dec-resb-channels 256 --dec-resb-kernel-sizes 3 --dec-resb-strides 1 2 2 2 --dec-hid-act swish"
+enc_opt="--enc.in-conv-channels 256 --enc.in-kernel-size 5 --enc.in-stride 1 --enc.resb-repeats 1 2 3 2 --enc.resb-channels 256 --enc.resb-kernel-sizes 3 --enc.resb-strides 1 2 2 2 --enc.hid-act swish"
+dec_opt="--dec.in-channels 256 --dec.in-conv-channels 256 --dec.in-kernel-size 3 --dec.in-stride 1 --dec.resb-repeats 1 2 3 2 --dec.resb-channels 256 --dec.resb-kernel-sizes 3 --dec.resb-strides 1 2 2 2 --dec.hid-act swish"
 
 opt_opt="--optim.opt-type adam --opt.lr $lr --opt.beta1 0.9 --opt.beta2 0.95 --opt.weight-decay 1e-5 --opt.amsgrad"
 lrs_opt="--lrsched.lrsch-type exp_lr --lrsched.decay-rate 0.5 --lrsched.decay-steps 16000 --lrsched.hold-steps 16000 --lrsched.min-lr 1e-5 --lrsched.warmup-steps 8000 --lrsched.update-lr-on-opt-step"

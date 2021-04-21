@@ -14,7 +14,6 @@ do_analysis=false
 save_wav=false
 use_trials_subset=true
 
-
 . parse_options.sh || exit 1;
 . $config_file
 . datapath.sh 

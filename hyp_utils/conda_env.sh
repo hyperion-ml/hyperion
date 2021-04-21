@@ -9,7 +9,11 @@ if [ -f "path.sh" ];then
 fi
 set -e
 num_gpus=0
-conda_env=base
+if [ -n "$HYP_ENV" ];then
+    conda_env=$HYP_ENV
+else
+    conda_env=base
+fi
 
 while true
 do
@@ -33,8 +37,8 @@ if [ $# -lt 1 ];then
     echo " - set CUDA_VISIBLE_DEVICES automatically"
     echo "Ex using kaldi's queue.pl utility:"
     echo ""
-    echo "export TORCH=pytorch1.0_cuda9.0"
-    echo "queue.pl --gpu 1 -V log_file conda_env.sh --num-gpus 1 --conda-env $TORCH train-dnn.py --lr 0.1"
+    echo "export HYP_ENV=pytorch1.0_cuda9.0"
+    echo "queue.pl --gpu 1 -V log_file conda_env.sh --num-gpus 1 --conda-env $HYP_ENV train-dnn.py --lr 0.1"
     exit 0
 fi
 echo "PATH=$PATH"

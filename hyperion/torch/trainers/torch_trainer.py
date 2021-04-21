@@ -47,7 +47,7 @@ class TorchTrainer(object):
          grad_acc_steps: gradient accumulation steps to simulate larger batch size.
          device: cpu/gpu device
          metrics: extra metrics to compute besides cxe.
-         lr_scheduler: learning rate scheduler object
+         lrsched: learning rate scheduler object
          loggers: LoggerList object, loggers write training progress to std. output and file.
          ddp: if True use distributed data parallel training
          ddp_type: type of distributed data parallel in  (ddp, oss_ddp, oss_shared_ddp)

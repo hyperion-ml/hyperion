@@ -13,8 +13,8 @@ latent_dim=80
 model_type=vae
 narch=resnet2d
 vae_opt=""
-enc_opt="--enc-in-conv-channels 64 --enc-in-kernel-size 5 --enc-in-stride 1 --enc-resb-repeats 2 2 2 2 --enc-resb-channels 64 128 256 512 --enc-resb-kernel-sizes 3 --enc-resb-strides 1 2 2 2"
-dec_opt="--dec-in-channels 80 --dec-in-conv-channels 512 --dec-in-kernel-size 3 --dec-in-stride 1 --dec-resb-repeats 2 2 2 2 --dec-resb-channels 512 256 128 64 --dec-resb-kernel-sizes 3 --dec-resb-strides 1 2 2 2"
+enc_opt="--enc.in-conv-channels 64 --enc.in-kernel-size 5 --enc.in-stride 1 --enc.resb-repeats 2 2 2 2 --enc.resb-channels 64 128 256 512 --enc.resb-kernel-sizes 3 --enc.resb-strides 1 2 2 2"
+dec_opt="--dec.in-channels 80 --dec.in-conv-channels 512 --dec.in-kernel-size 3 --dec.in-stride 1 --dec.resb-repeats 2 2 2 2 --dec.resb-channels 512 256 128 64 --dec.resb-kernel-sizes 3 --dec.resb-strides 1 2 2 2"
 
 opt_opt="--optim.opt-type adam --opt.lr $lr --opt.beta1 0.9 --opt.beta2 0.95 --opt.weight-decay 1e-5 --opt.amsgrad"
 lrs_opt="--lrsched.lrsch-type exp_lr --lrsched.decay-rate 0.5 --lrsched.decay-steps 16000 --lrsched.hold-steps 16000 --lrsched.min-lr 1e-5 --lrsched.warmup-steps 8000 --lrsched.update-lr-on-opt-step"

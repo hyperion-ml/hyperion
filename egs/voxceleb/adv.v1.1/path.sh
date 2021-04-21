@@ -21,8 +21,8 @@ fi
 
 if [ "$(hostname --domain)" == "cm.gemini" ];then
     module load ffmpeg
-    TORCH="pytorch1.6_cuda10.1"
-    TORCH_ART="pytorch1.6_cuda10.1_art"
+    HYP_ENV="pytorch1.6_cuda10.1"
+    HYP_ART_ENV="pytorch1.6_cuda10.1_art"
     module load cuda10.1/toolkit/10.1.105
     module load cudnn/7.6.3_cuda10.1
 else
@@ -34,8 +34,8 @@ else
 	LD_LIBRARY_PATH=$HOME/cuda/lib64:$LD_LIBRARY_PATH
     fi
 
-    TORCH="pytorch1.6_cuda10.2"
-    TORCH_ART="pytorch1.6_cuda10.1_art"
+    HYP_ENV="pytorch1.6_cuda10.2"
+    HYP_ART_ENV="pytorch1.6_cuda10.2_art"
     # #CuDNN env
     # CUDNN_ROOT=$TOOLS_ROOT/cudnn/cudnn-10.1-v7.6
     # LD_LIBRARY_PATH=$CUDNN_ROOT/lib64:$LD_LIBRARY_PATH
