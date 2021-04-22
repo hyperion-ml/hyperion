@@ -83,7 +83,7 @@ fi
 
 if [ $stage -le 0 ];then
     $cmd JOB=1:$nj $output_dir/log/extract_xvectors.JOB.log \
-	hyp_utils/torch.sh --num-gpus $num_gpus \
+	hyp_utils/conda_env.sh --num-gpus $num_gpus \
 	torch-extract-xvectors-from-wav.py \
 	--feats $feat_config ${args} $write_num_frames_opt \
 	--part-idx JOB --num-parts $nj \

@@ -11,6 +11,8 @@ stage=1
 config_file=default_config.sh
 use_gpu=false
 xvec_chunk_length=12800
+ft=0
+
 . parse_options.sh || exit 1;
 . $config_file
 
@@ -20,6 +22,11 @@ if [ "$use_gpu" == "true" ];then
 else
     xvec_cmd="$train_cmd --mem 12G"
 fi
+
+if [ $ft -eq 1 ];then
+    nnet_name=$advft_nnet_name
+fi
+
 xvector_dir=exp/xvectors/$nnet_name
 
 if [ $stage -le 1 ]; then

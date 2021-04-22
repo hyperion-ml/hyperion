@@ -9,10 +9,15 @@ set -e
 
 stage=1
 config_file=default_config.sh
+ft=0
 
 . parse_options.sh || exit 1;
 . $config_file
 . datapath.sh 
+
+if [ $ft -eq 1 ];then
+    nnet_name=$advft_nnet_name
+fi
 
 xvector_dir=exp/xvectors/$nnet_name
 score_dir=exp/scores/$nnet_name
@@ -41,11 +46,11 @@ fi
 
 
 if [ $stage -le 2 ];then
-#    local/calibrate_voxceleb1_o_clean.sh --cmd "$train_cmd" $score_plda_dir
+    local/calibrate_voxceleb1_o_clean.sh --cmd "$train_cmd" $score_plda_dir
 
-    $train_cmd --mem 10G $score_plda_dir/log/score_voxceleb1.log \
+    $train_cmd --mem 10G ${score_plda_dir}_cal_v1/log/score_voxceleb1.log \
 	local/score_voxceleb1_o_clean.sh data/voxceleb1_test ${score_plda_dir}_cal_v1
-    $train_cmd --mem 10G $score_plda_dir/log/score_voxceleb1_subset.log \
+    $train_cmd --mem 10G ${score_plda_dir}_cal_v1/log/score_voxceleb1_subset.log \
 	local/score_voxceleb1_single_cond.sh data/voxceleb1_test o_clean_1000_1000 ${score_plda_dir}_cal_v1
 
     for f in $(ls ${score_plda_dir}_cal_v1/*_results);

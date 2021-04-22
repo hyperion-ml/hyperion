@@ -90,5 +90,6 @@ advft_attack_opts="--attack.attack-type pgd --attack.max-iter $advft_iters --att
 advft_opt_opt="--optim.opt-type adam --optim.lr $advft_lr --optim.beta1 0.9 --optim.beta2 0.95 --optim.weight-decay 1e-5 --optim.amsgrad --use-amp"
 advft_lrs_opt="--lrsched.lrsch-type exp_lr --lrsched.decay-rate 0.5 --lrsched.decay-steps 8000 --lrsched.hold-steps 8000 --lrsched.min-lr 1e-5 --lrsched.warmup-steps 1000 --lrsched.update-lr-on-opt-step"
 
-advft_nnet_dir=$nnet_dir.advft_p${advft_p}_pgd${advft_iters}e${advft_eps}step${advft_eps_step}_arcm${advft_margin}wup${advft_margin_warmup}_optv1_adam_lr${advft_lr}
+advft_nnet_name=$nnet_name.advft_p${advft_p}_pgd${advft_iters}e${advft_eps}step${advft_eps_step}_arcm${advft_margin}wup${advft_margin_warmup}_optv1_adam_lr${advft_lr}
+advft_nnet_dir=exp/xvector_nnets/$advft_nnet_name
 advft_nnet=$advft_nnet_dir/model_ep0020.pth

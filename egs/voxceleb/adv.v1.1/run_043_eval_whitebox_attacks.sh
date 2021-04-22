@@ -13,6 +13,7 @@ use_gpu=false
 do_analysis=false
 save_wav=false
 use_trials_subset=true
+ft=0
 
 . parse_options.sh || exit 1;
 . $config_file
@@ -31,6 +32,10 @@ else
     condition=o_clean
 fi
 trial_list=data/voxceleb1_test/trials_$condition
+
+if [ $ft -eq 1 ];then
+    nnet_name=$advft_nnet_name
+fi
 
 xvector_dir=exp/xvectors/$nnet_name
 score_dir=exp/scores/$nnet_name

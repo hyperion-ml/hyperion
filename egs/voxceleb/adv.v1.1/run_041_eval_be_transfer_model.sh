@@ -44,8 +44,10 @@ fi
 if [ $stage -le 2 ];then
     local/calibrate_voxceleb1_o_clean.sh --cmd "$train_cmd" $score_plda_dir
 
-    $train_cmd --mem 10G $score_plda_dir/log/score_voxceleb1.log \
+    $train_cmd --mem 10G ${score_plda_dir}_cal_v1/log/score_voxceleb1.log \
 	local/score_voxceleb1_o_clean.sh data/voxceleb1_test ${score_plda_dir}_cal_v1
+    $train_cmd --mem 10G ${score_plda_dir}_cal_v1/log/score_voxceleb1_subset.log \
+	local/score_voxceleb1_single_cond.sh data/voxceleb1_test o_clean_1000_1000 ${score_plda_dir}_cal_v1
 
     for f in $(ls ${score_plda_dir}_cal_v1/*_results);
     do
@@ -53,6 +55,5 @@ if [ $stage -le 2 ];then
 	cat $f
 	echo ""
     done
-
 
 fi

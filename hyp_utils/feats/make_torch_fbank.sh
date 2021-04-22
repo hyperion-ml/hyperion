@@ -101,7 +101,7 @@ if [ -f $data/segments ]; then
 fi
 
 $cmd JOB=1:$nj $logdir/make_fbank_${name}.JOB.log \
-    hyp_utils/torch.sh --num-gpus $num_gpus \
+    hyp_utils/conda_env.sh --num-gpus $num_gpus \
     torch-compute-mfcc-feats.py --cfg $fbank_config $opt_args --audio-feat logfb \
     --input $scp --output ark,scp:$fbankdir/raw_fbank_$name.JOB.ark,$fbankdir/raw_fbank_$name.JOB.scp \
     --part-idx JOB --num-parts $nj || exit 1
