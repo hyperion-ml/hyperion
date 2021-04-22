@@ -95,7 +95,6 @@ def extract_xvectors(input_spec, output_spec, vad_spec, write_num_frames_spec,
 
     rng = np.random.RandomState(seed=1123581321+kwargs['part_idx'])
     device = init_device(use_gpu)
-
     feat_extractor = init_feats(device, **kwargs)
     model = load_model(model_path, device)
 
