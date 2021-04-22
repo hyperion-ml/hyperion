@@ -43,7 +43,7 @@ if [ $stage -le 1 ]; then
       train_exec=torch-train-${narch}-${model_type}.py
 
       $cuda_cmd --gpu $ngpu $nnet_dir/log/train.log \
-	  hyp_utils/torch.sh --num-gpus $ngpu \
+	  hyp_utils/conda_env.sh --num-gpus $ngpu \
 	  $train_exec \
 	  --data-rspec scp:$list_dir/feats.scp \
 	  --train-list $list_dir/lists_xvec/train.scp \
@@ -65,7 +65,7 @@ if [ $stage -le 1 ]; then
       train_exec=torch-train-${narch}-${model_type}.py
 
       $cuda_cmd --gpu $ngpu $nnet_dir/log/train.log \
-	  hyp_utils/torch.sh --num-gpus $ngpu \
+	  hyp_utils/conda_env.sh --num-gpus $ngpu \
 	  $train_exec \
 	  --data-rspec scp:$list_dir/feats.scp \
 	  --train-list $list_dir/lists_xvec/train.scp \

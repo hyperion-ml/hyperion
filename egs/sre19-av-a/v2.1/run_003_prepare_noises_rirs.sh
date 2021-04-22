@@ -30,7 +30,6 @@ if [ $stage -le 1 ]; then
 
 fi
 
-
 if [ $stage -le 2 ]; then
 
     # Create Babble noise from MUSAN speech files
@@ -42,8 +41,6 @@ if [ $stage -le 2 ]; then
 	# utils/fix_data_dir.sh data/${name}_babble
     done
 fi
-
-
 
 if [ $stage -le 3 ]; then
     if [ ! -d "RIRS_NOISES" ]; then

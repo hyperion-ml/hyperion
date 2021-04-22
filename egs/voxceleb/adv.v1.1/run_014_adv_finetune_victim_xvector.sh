@@ -37,7 +37,7 @@ if [ $stage -le 1 ]; then
   mkdir -p $advft_nnet_dir/log
   $cuda_cmd --gpu $ngpu $advft_nnet_dir/log/train.log \
       hyp_utils/conda_env.sh --conda-env $HYP_ENV --num-gpus $ngpu \
-      HYP_ENV-adv-finetune-xvec-from-wav.py --feats $feat_config $aug_opt \
+      torch-adv-finetune-xvec-from-wav.py --feats $feat_config $aug_opt \
       --audio-path $list_dir/wav.scp \
       --time-durs-file $list_dir/utt2dur \
       --train-list $list_dir/lists_xvec/train.scp \

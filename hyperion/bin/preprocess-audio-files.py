@@ -136,8 +136,8 @@ if __name__ == "__main__":
     parser.add_argument('--vad-erosion', default=0, type=float,
                         help=('applies erosion operation to vad (after dilation), in secs'))
 
-    AR.add_argparse_args(parser)
-    Writer.add_argparse_args(parser)
+    AR.add_class_args(parser)
+    Writer.add_class_args(parser)
     parser.add_argument('--remove-dc-offset', default=False, action='store_true',
                         help='removes dc offset from file')
     parser.add_argument('-v', '--verbose', dest='verbose', default=1, choices=[0, 1, 2, 3], type=int,

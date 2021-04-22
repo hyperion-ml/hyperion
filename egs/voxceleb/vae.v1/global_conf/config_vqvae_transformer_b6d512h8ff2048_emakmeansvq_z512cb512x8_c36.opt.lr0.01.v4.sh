@@ -28,9 +28,9 @@ enc_opt="--enc.num-blocks $blocks --enc.d-model $d_model --enc.num-heads $heads 
 dec_opt="--dec.in-feats $latent_dim --dec.num-blocks $blocks --dec.d-model $d_model --dec.num-heads $heads --dec.ff-type linear --dec.d-ff $d_ff --dec.in-layer-type linear --dec.att-type scaled-dot-prod-v1"
 
 
-#opt_opt="--optim.opt-type adam --opt.lr $lr --opt.beta1 0.9 --opt.beta2 0.95 --opt.weight-decay 1e-5 --opt.amsgrad --use-amp"
+#opt_opt="--optim.opt-type adam --optim.lr $lr --optim.beta1 0.9 --optim.beta2 0.95 --optim.weight-decay 1e-5 --optim.amsgrad --use-amp"
 #lrs_opt="--lrsched.lrsch-type exp_lr --lrsched.decay-rate 0.5 --lrsched.decay-steps 12000 --lrsched.hold-steps 40000 --lrsched.min-lr 1e-5 --lrsched.warmup-steps 1000 --lrsched.update-lr-on-opt-step"
-opt_opt="--optim.opt-type adam --opt.lr $lr --opt.beta1 0.9 --opt.beta2 0.95 --opt.weight-decay 1e-5 --opt.amsgrad"
+opt_opt="--optim.opt-type adam --optim.lr $lr --optim.beta1 0.9 --optim.beta2 0.95 --optim.weight-decay 1e-5 --optim.amsgrad"
 lrs_opt="--lrsched.lrsch-type exp_lr --lrsched.decay-rate 0.5 --lrsched.decay-steps 8000 --lrsched.hold-steps 2000 --lrsched.min-lr 1e-5 --lrsched.warmup-steps 1000 --lrsched.update-lr-on-opt-step"
 nnet_name=${model_type}_${narch}_b${blocks}d${d_model}h${heads}linff${d_ff}_${vq_type}_z${latent_dim}c${vq_clusters}x${num_groups}_do${dropout}_optv4_adam_lr${lr}_b${eff_batch_size}.$nnet_data
 nnet_num_epochs=160

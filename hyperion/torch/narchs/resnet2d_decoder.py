@@ -331,7 +331,7 @@ class ResNet2dDecoder(NetArch):
             parser = ArgumentParser(prog='')
 
         parser.add_argument(
-                '--in-channels', type=int, required=True,
+                '--in-channels', type=int, default=60, 
                 help=('input channels of decoder'))
 
         parser.add_argument(
@@ -367,7 +367,7 @@ class ResNet2dDecoder(NetArch):
             nargs='+', type=int, help=('resb-blocks strides for each encoder stage'))
 
         parser.add_argument(
-            '--resb-dilations', default=1,
+            '--resb-dilations', default=[1],
             nargs='+', type=int, help=('resb-blocks dilations for each encoder stage'))
 
         parser.add_argument(
@@ -417,4 +417,5 @@ class ResNet2dDecoder(NetArch):
                 action=ActionParser(parser=parser),
                 help='ResNet2d decoder options')
 
-        add_argparse_args = add_class_args
+
+    add_argparse_args = add_class_args

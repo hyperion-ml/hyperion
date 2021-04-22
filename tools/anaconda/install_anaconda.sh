@@ -3,7 +3,7 @@
 ###########################################################################
 # Install Anaconda default packages
 
-TARGET=$HOME/usr/local/anaconda3.5
+TARGET=$HOME/usr/local/anaconda3
 bash Anaconda3-4.2.0-Linux-x86_64.sh -p $TARGET
 
 # This was for old conda versions
@@ -31,7 +31,6 @@ conda update pip
 #install sphinx
 conda install sphinx
 pip install sphinx_rtd_theme
-
 
 #install soundfile
 pip install pysoundfile
