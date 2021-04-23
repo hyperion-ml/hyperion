@@ -40,11 +40,10 @@ if [ $stage -le 1 ]; then
 
   if [ "$model_type" == "vae" ] || [ "$model_type" == "vq-vae" ];then
       # Train VAE
-      train_exec=torch-train-${narch}-${model_type}.py
-
+      train_exec=torch-train-${model_type}.py
       $cuda_cmd --gpu $ngpu $nnet_dir/log/train.log \
 	  hyp_utils/conda_env.sh --num-gpus $ngpu \
-	  $train_exec \
+	  $train_exec $narch:$narch \
 	  --data-rspec scp:$list_dir/feats.scp \
 	  --train-list $list_dir/lists_xvec/train.scp \
 	  --val-list $list_dir/lists_xvec/val.scp \
@@ -59,6 +58,26 @@ if [ $stage -le 1 ]; then
 	  --num-gpus $ngpu \
 	  --log-interval $log_interval \
 	  --exp-path $nnet_dir $args
+
+      # train_exec=torch-train-${narch}-${model_type}.py
+
+      # $cuda_cmd --gpu $ngpu $nnet_dir/log/train.log \
+      # 	  hyp_utils/conda_env.sh --num-gpus $ngpu \
+      # 	  $train_exec \
+      # 	  --data-rspec scp:$list_dir/feats.scp \
+      # 	  --train-list $list_dir/lists_xvec/train.scp \
+      # 	  --val-list $list_dir/lists_xvec/val.scp \
+      # 	  --num-frames-file $list_dir/utt2num_frames \
+      # 	  --min-chunk-length $min_chunk --max-chunk-length $max_chunk \
+      # 	  --iters-per-epoch $ipe \
+      # 	  --batch-size $batch_size \
+      # 	  --num-workers $num_workers $opt_opt $lrs_opt \
+      # 	  --grad-acc-steps $grad_acc_steps \
+      # 	  --epochs $nnet_num_epochs \
+      # 	  --z-dim $latent_dim $enc_opt $dec_opt $vae_opt \
+      # 	  --num-gpus $ngpu \
+      # 	  --log-interval $log_interval \
+      # 	  --exp-path $nnet_dir $args
 
   elif [[ "$model_type" =~ "dvae" ]];then
       # Train Denoising VAE

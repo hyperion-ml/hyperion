@@ -331,7 +331,7 @@ class ResNet2dDecoder(NetArch):
             parser = ArgumentParser(prog='')
 
         parser.add_argument(
-                '--in-channels', type=int, default=60, 
+                '--in-channels', type=int, default=80, 
                 help=('input channels of decoder'))
 
         parser.add_argument(
