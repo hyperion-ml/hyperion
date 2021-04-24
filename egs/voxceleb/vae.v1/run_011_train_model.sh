@@ -19,7 +19,7 @@ num_workers=8
 . datapath.sh
 
 batch_size=$(($batch_size_1gpu*$ngpu))
-grad_acc_steps=$(echo $batch_size $eff_batch_size | awk '{ print int($2/$1+0.5)}')
+grad_acc_steps=$(echo $batch_size $eff_batch_size | awk '{ x=int($2/$1+0.5); if(x==0){ x=1 }; print x }')
 log_interval=$(echo 100*$grad_acc_steps | bc)
 list_dir=data/${nnet_data}_no_sil
 

@@ -288,7 +288,7 @@ class DC1dDecoder(NetArch):
             parser = ArgumentParser(prog='')
 
         parser.add_argument(
-            '--in-channels', type=int, required=True,
+            '--in-channels', type=int, default=80,
             help=('input channels of decoder'))
 
         parser.add_argument(
@@ -312,15 +312,15 @@ class DC1dDecoder(NetArch):
             help=('conv-blocks channels for each decoder stage'))
 
         parser.add_argument(
-            '--conv-kernel-sizes', default=3, 
+            '--conv-kernel-sizes', default=[3], 
             nargs='+', type=int, help=('conv-blocks kernels for each decoder stage'))
 
         parser.add_argument(
-            '--conv-strides', default=2, 
+            '--conv-strides', default=[2], 
             nargs='+', type=int, help=('conv-blocks strides for each decoder stage'))
 
         parser.add_argument(
-            '--conv-dilations', default=1,
+            '--conv-dilations', default=[1],
             nargs='+', type=int, help=('conv-blocks dilations for each decoder stage'))
 
         if head_channels:

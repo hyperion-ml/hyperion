@@ -24,8 +24,8 @@ from hyperion.torch.narchs import ResNet1dEncoder, ResNet1dDecoder
 from hyperion.torch.narchs import ResNet2dEncoder, ResNet2dDecoder
 from hyperion.torch.narchs import TransformerEncoderV1
 from hyperion.torch.narchs import ConformerEncoderV1
-from hyperion.torch.models import VAE
-from hyperion.torch.trainers import VAETrainer as Trainer
+from hyperion.torch.models import VQVAE as VAE
+from hyperion.torch.trainers import VQVAETrainer as Trainer
 from hyperion.torch.data import FeatSeqDataset as SD
 from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
 

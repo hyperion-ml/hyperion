@@ -113,6 +113,7 @@ def extract_xvectors(input_spec, output_spec, vad_spec,
         aug_df = []
     else:
         augmenter = None
+        aug_df = None
         num_augs = 1
 
     ar_args = AR.filter_args(**kwargs)
