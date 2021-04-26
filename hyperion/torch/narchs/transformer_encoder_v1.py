@@ -322,7 +322,7 @@ class TransformerEncoderV1(NetArch):
 
         if in_feats:
             parser.add_argument(
-                '--in-feats', type=int, required=True,
+                '--in-feats', type=int, default=80,
                 help=('input feature dimension'))
 
         parser.add_argument('--num-blocks',

@@ -53,7 +53,7 @@ class OptimizerFactory(object):
             valid_args = ('lr', 'eps', 'weight_decay')
             opt_args = filter_args(valid_args, kwargs)
             opt_args['betas'] = betas
-            base_opt = optim.RAdam
+            base_opt = RAdam
             # return RAdam(
             #     params, lr, betas=(beta1, beta2), eps=eps,
             #     weight_decay=weight_decay)

@@ -44,7 +44,8 @@ while(getline < fv)
 
 
 $cmd $output_dir/log/train_plda.log \
-    python steps_diar/train-plda-v1.py \
+    hyp_utils/conda_env.sh \
+    steps_diar/train-plda-v1.py \
      --v-file scp:$vector_file \
      --train-list $train_list \
      --lda-dim $lda_dim \

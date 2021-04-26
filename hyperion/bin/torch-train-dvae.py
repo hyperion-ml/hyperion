@@ -24,9 +24,9 @@ from hyperion.torch.narchs import ResNet1dEncoder, ResNet1dDecoder
 from hyperion.torch.narchs import ResNet2dEncoder, ResNet2dDecoder
 from hyperion.torch.narchs import TransformerEncoderV1
 from hyperion.torch.narchs import ConformerEncoderV1
-from hyperion.torch.models import VQVAE as VAE
-from hyperion.torch.trainers import VQVAETrainer as Trainer
-from hyperion.torch.data import FeatSeqDataset as SD
+from hyperion.torch.models import VAE
+from hyperion.torch.trainers import DVAETrainer as Trainer
+from hyperion.torch.data import PairedFeatSeqDataset as SD
 from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
 
 enc_dict = {
@@ -47,6 +47,7 @@ dec_dict = {
 
 
 def init_data(data_rspec, train_list, val_list, 
+              train_pair_list, val_pair_list, 
               num_workers, num_gpus, rank, **kwargs):
     sd_args = SD.filter_args(**kwargs)
     sampler_args = Sampler.filter_args(**kwargs)
@@ -55,8 +56,8 @@ def init_data(data_rspec, train_list, val_list,
         logging.info('sampler args={}'.format(sampler_args))
         logging.info('init datasets')
 
-    train_data = SD(data_rspec, train_list, **sd_args)
-    val_data = SD(data_rspec, val_list, is_val=True, **sd_args)
+    train_data = SD(data_rspec, train_list, train_pair_list, **sd_args)
+    val_data = SD(data_rspec, val_list, val_pair_list, is_val=True, **sd_args)
     if rank == 0:
         logging.info('init samplers')
     train_sampler = Sampler(train_data, **sampler_args)
@@ -209,6 +210,8 @@ def make_parser(enc_class, dec_class):
     parser.add_argument('--data-rspec', required=True)
     parser.add_argument('--train-list', required=True)
     parser.add_argument('--val-list', required=True)
+    parser.add_argument('--train-pair-list', required=True)
+    parser.add_argument('--val-pair-list', required=True)
 
     SD.add_argparse_args(parser)
     Sampler.add_argparse_args(parser)
@@ -232,7 +235,6 @@ def make_parser(enc_class, dec_class):
             ConformerEncoderV1):
         dec_args['in_feats'] = True
     Decoder.add_class_args(parser, prefix='dec', **dec_args)
-
     VAE.add_class_args(parser)
 
     Trainer.add_class_args(parser)
@@ -252,7 +254,7 @@ def make_parser(enc_class, dec_class):
 if __name__ == '__main__':
 
     parser = ArgumentParser(
-        description='Train VAE')
+        description='Train Denoising VAE')
 
     parser.add_argument('--local_rank', default=0, type=int)
     parser.add_argument('--cfg', action=ActionConfigFile)

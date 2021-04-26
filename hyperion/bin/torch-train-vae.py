@@ -225,7 +225,13 @@ def make_parser(enc_class, dec_class):
                             help='input features dimension')
 
     Encoder.add_class_args(parser, prefix='enc')
-    Decoder.add_class_args(parser, prefix='dec')
+
+    dec_args = {}
+    if Decoder in (
+            TransformerEncoderV1,
+            ConformerEncoderV1):
+        dec_args['in_feats'] = True
+    Decoder.add_class_args(parser, prefix='dec', **dec_args)
     VAE.add_class_args(parser)
 
     Trainer.add_class_args(parser)
