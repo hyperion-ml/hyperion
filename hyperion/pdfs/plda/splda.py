@@ -224,7 +224,7 @@ class SPLDA(PLDABase):
             if self.fullcov_W:
                 self.W = invert_pdmat(iW, return_inv=True)[-1]
             else:
-                self.W=np.diag(1/np.diag(iW))
+                self.W = np.diag(1/np.diag(iW))
 
                 
     def MstepMD(self, stats):
