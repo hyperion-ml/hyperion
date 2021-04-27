@@ -237,14 +237,14 @@ if __name__ == "__main__":
     parser.add_argument('--rttm-file', required=True,
                         help=('RTTM file path'))
 
-    AR.add_argparse_args(parser)
+    AR.add_class_args(parser)
 
     parser.add_argument('--aug-cfg', default=None)
     parser.add_argument('--aug-info-path', default=None)
     parser.add_argument('--num-augs', default=1, type=int,
                         help='number of augmentations per utterance')
 
-    AF.add_argparse_args(parser, prefix='feats')
+    AF.add_class_args(parser, prefix='feats')
 
     parser.add_argument('--model-path', required=True)
     parser.add_argument('--chunk-length', type=int, default=0, 
