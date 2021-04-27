@@ -12,7 +12,7 @@ config_file=default_config.sh
 use_gpu=false
 do_analysis=false
 save_wav=false
-use_trials_subset=true
+use_trials_subset=false
 ft=0
 
 . parse_options.sh || exit 1;
