@@ -167,3 +167,18 @@ if [ $stage -le 12 ];then
     done
 fi
 
+if [ $stage -le 13 ];then
+    # Prepare LRE17 data
+    local/make_lre17_train.sh $lre17_train_root 8 data/lre17_train
+    local/make_lre17_dev.sh $lre17_dev_root 8 data/lre17_dev
+    local/make_lre17_eval.sh $lre17_eval_root 8 data/lre17_eval
+    for lang in $lre17_langs
+    do
+	utils/combine_data.sh data/lre17_$lang \
+			      data/lre17_train_$lang \
+			      data/lre17_dev_$lang \
+			      data/lre17_eval_$lang
+    done
+fi
+
+

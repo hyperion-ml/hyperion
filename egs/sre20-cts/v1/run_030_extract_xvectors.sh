@@ -39,7 +39,7 @@ xvector_dir=exp/xvectors/$nnet_name
 if [ $stage -le 1 ]; then
     # Extract xvectors for training LDA/PLDA
     for name in sre_tel cncelebcat_tel fisher_spa \
-    			$cv_noeng_datasets $babel_datasets
+    			$cv_noeng_datasets $babel_datasets $lre17_datasets
     do
 	num_spk=$(wc -l data/$name/spk2utt | awk '{ print $1}')
 	if [ $plda_num_augs -eq 0 ];then
@@ -124,7 +124,7 @@ fi
 if [ $stage -le 5 ];then
     # this is to avoid "Too many open files error" when reading the x-vectors in the back-end
     # we need to combine the ark files into a single ark file
-    for name in $cv_noeng_datasets $babel_datasets
+    for name in $cv_noeng_datasets $babel_datasets $lre17_datasets
     do
 	mv $xvector_dir/$name/xvector.scp $xvector_dir/$name/xvector.tmp.scp 
 	copy-vector scp:$xvector_dir/$name/xvector.tmp.scp ark,scp:$xvector_dir/$name/xvector.ark,$xvector_dir/$name/xvector.scp
@@ -227,7 +227,14 @@ if [ $stage -le 6 ];then
     			  $(echo $babel_datasets | sed 's@babel@data/babel@g')
     mkdir -p $xvector_dir/babel_alllangs
     cat $(echo $babel_datasets | sed -e 's@\([^ ]*\)@'$xvector_dir'/\1/xvector.scp@g' ) > $xvector_dir/babel_alllangs/xvector.scp  
-    
+
+
+    utils/combine_data.sh --extra-files "utt2num_frames utt2lang" \
+    			  data/lre17_alllangs \
+    			  $(echo $lre17_datasets | sed 's@lre17@data/lre17@g')
+    mkdir -p $xvector_dir/lre17_alllangs
+    cat $(echo $lre17_datasets | sed -e 's@\([^ ]*\)@'$xvector_dir'/\1/xvector.scp@g' ) > $xvector_dir/lre17_alllangs/xvector.scp  
+
     utils/combine_data.sh --extra-files "utt2num_frames utt2lang" \
     			  data/realtel_alllangs_labunlab \
 			  data/realtel_alllangs data/babel_alllangs data/sre18_dev_unlabeled

@@ -19,7 +19,7 @@ if [ $stage -le 1 ];then
     utils/combine_data.sh --extra-files "utt2dur utt2lang" \
 			  data/swbd_sre_voxcelebcat_tel_proc_audio_no_sil \
 			  data/swbd_proc_audio_no_sil data/sre_tel_proc_audio_no_sil data/voxcelebcat_tel_proc_audio_no_sil
-    
+
     utils/combine_data.sh --extra-files "utt2dur utt2lang" \
 			  data/sre16-8_proc_audio_no_sil \
 			  data/sre16_train_dev_cmn_proc_audio_no_sil data/sre16_train_dev_ceb_proc_audio_no_sil \
@@ -51,6 +51,13 @@ if [ $stage -le 1 ];then
     			  data/swbd_sre_voxcelebcat_tel_proc_audio_no_sil \
     			  data/sre16-8_proc_audio_no_sil \
     			  data/cncelebcat_tel_proc_audio_no_sil data/fisher_spa_proc_audio_no_sil
+
+    utils/combine_data.sh --extra-files "utt2dur utt2lang" \
+    			  data/alllangs_nocveng_proc_audio_no_sil \
+    			  data/swbd_sre_voxcelebcat_tel_proc_audio_no_sil \
+    			  data/sre16-8_proc_audio_no_sil \
+    			  data/cncelebcat_tel_proc_audio_no_sil data/fisher_spa_proc_audio_no_sil \
+			  data/cvcat_noeng_tel_proc_audio_no_sil
 
     utils/combine_data.sh --extra-files "utt2dur utt2lang" \
     			  data/alllangs_nocv_nocnceleb_proc_audio_no_sil \

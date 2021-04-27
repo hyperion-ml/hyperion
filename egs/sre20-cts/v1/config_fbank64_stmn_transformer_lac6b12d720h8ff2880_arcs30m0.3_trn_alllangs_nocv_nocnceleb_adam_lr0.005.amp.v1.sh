@@ -1,4 +1,8 @@
-# ResNet34 x-vector with mixed precision training
+# x-Vector using Transformer Encoder as x-Vector Encoder
+# Transformer Encoder uses 6 Transformer blocks with 
+# model_d=512 ff_d=2048, heads=8
+# Self attention context is limited to 6 frames around the current frame
+# input is downsampled x4 by conv network
 
 # acoustic features
 feat_config=conf/fbank64_mvn_8k.pyconf
@@ -10,27 +14,31 @@ nnet_data=alllangs_nocv_nocnceleb
 nnet_num_augs=4
 aug_opt="--train-aug-cfg conf/reverb_noise_aug.yml --val-aug-cfg conf/reverb_noise_aug.yml"
 
-batch_size_1gpu=8
+batch_size_1gpu=32
 eff_batch_size=512 # effective batch size
 ipe=$nnet_num_augs
 min_chunk=4
 max_chunk=4
-lr=0.01
+lr=0.005
 
-nnet_type=efficientnet-b4
+nnet_type=transformer
 dropout=0
 embed_dim=256
-se_r=4
+blocks=12
+d_model=720
+heads=8
+d_ff=2880
+att_context=6 # 250 ms
 
 s=30
 margin_warmup=20
 margin=0.3
 
-nnet_opt="--effnet-type $nnet_type --in-feats 64 --in-channels 1 --in-kernel-size 3 --in-stride 1 --se-r $se_r --fix-stem-head --mbconv-strides 1 1 2 2 1 2 1"
+nnet_opt="--in-feats 64 --num-enc-blocks $blocks --enc-d-model $d_model --num-enc-heads $heads --enc-ff-type linear --enc-d-ff $d_ff --in-layer-type conv2d-sub --enc-att-type local-scaled-dot-prod-v1 --enc-att-context $att_context"
 opt_opt="--opt-optimizer adam --opt-lr $lr --opt-beta1 0.9 --opt-beta2 0.95 --opt-weight-decay 1e-5 --opt-amsgrad --use-amp"
-lrs_opt="--lrsch-lrsch-type exp_lr --lrsch-decay-rate 0.5 --lrsch-decay-steps 10000 --lrsch-hold-steps 40000 --lrsch-min-lr 1e-5 --lrsch-warmup-steps 1000 --lrsch-update-lr-on-opt-step"
+lrs_opt="--lrsch-lrsch-type exp_lr --lrsch-decay-rate 0.5 --lrsch-decay-steps 12000 --lrsch-hold-steps 40000 --lrsch-min-lr 1e-5 --lrsch-warmup-steps 10000 --lrsch-update-lr-on-opt-step"
 
-nnet_name=${feat_type}_${nnet_type}_is1_mbs1122121_ser${se_r}_fixsh_e${embed_dim}_arcs${s}m${margin}_do${dropout}_adam_lr${lr}_b${eff_batch_size}_amp.v1.$nnet_data
+nnet_name=${feat_type}_${nnet_type}_csub_lac${att_context}b${blocks}d${d_model}h${heads}linff${d_ff}_e${embed_dim}_arcs${s}m${margin}_do${dropout}_adam_lr${lr}_b${eff_batch_size}_amp.v1.$nnet_data
 nnet_num_epochs=60
 nnet_dir=exp/xvector_nnets/$nnet_name
 nnet=$nnet_dir/model_ep0060.pth
@@ -40,10 +48,10 @@ nnet=$nnet_dir/model_ep0060.pth
 ft_batch_size_1gpu=4
 ft_eff_batch_size=128 # effective batch size
 ft_min_chunk=10
-ft_max_chunk=10
+ft_max_chunk=30
 ft_ipe=1
 ft_lr=0.05
-ft_nnet_num_epochs=30
+ft_nnet_num_epochs=21
 ft_margin=0.3
 ft_margin_warmup=3
 
@@ -51,7 +59,7 @@ ft_opt_opt="--opt-optimizer sgd --opt-lr $ft_lr --opt-momentum 0.9 --opt-weight-
 ft_lrs_opt="--lrsch-lrsch-type cos_lr --lrsch-t 2500 --lrsch-t-mul 2 --lrsch-warm-restarts --lrsch-gamma 0.75 --lrsch-min-lr 1e-4 --lrsch-warmup-steps 100 --lrsch-update-lr-on-opt-step"
 ft_nnet_name=${nnet_name}.ft_${ft_min_chunk}_${ft_max_chunk}_arcm${ft_margin}_sgdcos_lr${ft_lr}_b${ft_eff_batch_size}_amp.v2
 ft_nnet_dir=exp/xvector_nnets/$ft_nnet_name
-ft_nnet=$ft_nnet_dir/model_ep0030.pth
+ft_nnet=$ft_nnet_dir/model_ep0021.pth
 
 
 # xvector last-layer finetuning alllangs
