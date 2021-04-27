@@ -606,11 +606,11 @@ class GlobalChWiseAttMeanStdPool1d(_GlobalPool1d):
     def forward(self, x, weights=None):
 
         x_inner = self.conv1(x)
-        logging.info('x_inner1={} {}'.format(torch.sum(torch.isnan(x_inner)), torch.sum(torch.isinf(x_inner))))
+        # logging.info('x_inner1={} {}'.format(torch.sum(torch.isnan(x_inner)), torch.sum(torch.isinf(x_inner))))
         if self.use_global_context:
             global_mus = self.stats_pool(x)
             x_inner = x_inner + self.lin_global(global_mus).unsqueeze(-1)
-        logging.info('x_inner2={} {}'.format(torch.sum(torch.isnan(x_inner)), torch.sum(torch.isinf(x_inner))))
+        # logging.info('x_inner2={} {}'.format(torch.sum(torch.isnan(x_inner)), torch.sum(torch.isinf(x_inner))))
         attn = self.conv2(self.activation(self.norm_layer(x_inner)))
         if self.bin_attn:
             #attn = torch.sigmoid(attn+self.bias)
@@ -618,12 +618,12 @@ class GlobalChWiseAttMeanStdPool1d(_GlobalPool1d):
         else:
             attn = nnf.softmax(attn, dim=-1)
         
-        kk = torch.mean(attn, dim=-1)
-        mx = torch.max(kk, dim=-1)[0]
-        mn = torch.min(kk, dim=-1)[0]
-        logging.info('att1={} {} {} {}'.format(torch.sum(torch.isnan(attn)), torch.sum(torch.isinf(attn)), mx, mn))
+        # kk = torch.mean(attn, dim=-1)
+        # mx = torch.max(kk, dim=-1)[0]
+        # mn = torch.min(kk, dim=-1)[0]
+        # logging.info('att1={} {} {} {}'.format(torch.sum(torch.isnan(attn)), torch.sum(torch.isinf(attn)), mx, mn))
         mus = self.stats_pool(x, weights=attn)
-        logging.info('mus={} {}'.format(torch.sum(torch.isnan(mus)), torch.sum(torch.isinf(mus))))
+        # logging.info('mus={} {}'.format(torch.sum(torch.isnan(mus)), torch.sum(torch.isinf(mus))))
         return mus
 
 
