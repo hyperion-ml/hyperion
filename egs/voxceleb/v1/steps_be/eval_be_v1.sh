@@ -6,7 +6,7 @@
 cmd=run.pl
 plda_type=frplda
 num_parts=8
-
+stage=1
 if [ -f path.sh ]; then . ./path.sh; fi
 . parse_options.sh || exit 1;
 set -e
@@ -30,34 +30,35 @@ name=$(basename $output_file)
 
 echo "$0 score $ndx_file"
 
-
-for((i=1;i<=$num_parts;i++));
-do
-    for((j=1;j<=$num_parts;j++));
+if [ $stage -le 1 ];then
+    for((i=1;i<=$num_parts;i++));
     do
-	$cmd $output_dir/log/${name}_${i}_${j}.log \
-	    python steps_be/eval-be-v1.py \
-	    --iv-file scp:$vector_file \
-	    --ndx-file $ndx_file \
-	    --enroll-file $enroll_file \
-	    --preproc-file $preproc_file \
-	    --model-file $plda_file \
-	    --plda-type $plda_type \
-	    --score-file $output_file \
-	    --model-part-idx $i --num-model-parts $num_parts \
-	    --seg-part-idx $j --num-seg-parts $num_parts &
+	for((j=1;j<=$num_parts;j++));
+	do
+	    $cmd $output_dir/log/${name}_${i}_${j}.log \
+		python steps_be/eval-be-v1.py \
+		--iv-file scp:$vector_file \
+		--ndx-file $ndx_file \
+		--enroll-file $enroll_file \
+		--preproc-file $preproc_file \
+		--model-file $plda_file \
+		--plda-type $plda_type \
+		--score-file $output_file \
+		--model-part-idx $i --num-model-parts $num_parts \
+		--seg-part-idx $j --num-seg-parts $num_parts &
+	done
     done
-done
+fi
 wait
 
-
-for((i=1;i<=$num_parts;i++));
-do
-    for((j=1;j<=$num_parts;j++));
+if [ $stage -le 2 ];then
+    for((i=1;i<=$num_parts;i++));
     do
-	cat $output_file-$(printf "%03d" $i)-$(printf "%03d" $j)
-    done
-done | sort -u > $output_file
-
+	for((j=1;j<=$num_parts;j++));
+	do
+	    cat $output_file-$(printf "%03d" $i)-$(printf "%03d" $j)
+	done
+    done | sort -u > $output_file
+fi
 
 

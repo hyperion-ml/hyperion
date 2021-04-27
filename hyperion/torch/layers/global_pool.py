@@ -180,11 +180,11 @@ class GlobalMeanStdPool1d(_GlobalPool1d):
         weights = self._standarize_weights(weights, x.dim())
 
         xbar = torch.mean(weights*x, dim=self.dim, keepdim=True)
-        wbar = torch.mean(weights, dim=self.dim, keepdim=True)
+        wbar = torch.mean(weights, dim=self.dim, keepdim=True).clamp(min=1e-6)
         mu = xbar/wbar
         delta = x - mu
         var = torch.mean(weights*delta**2, dim=self.dim, keepdim=True)/wbar
-        s = torch.sqrt(var+1e-5)
+        s = torch.sqrt(var + 1e-5)
         mu = mu.squeeze(self.dim)
         s = s.squeeze(self.dim)
         # mu.squeeze_(self.dim)
@@ -526,7 +526,7 @@ class ScaledDotProdAttV1Pool1d(_GlobalPool1d):
 
         scores = torch.matmul(self.q, k.transpose(-2,-1)) / math.sqrt(self.d_k)  # (batch, head, 1, time)
         if self.bin_attn:
-            scores = nnf.sigmoid(scores+self.bias)
+            scores = torch.sigmoid(scores+self.bias)
 
         #scores = scores.squeeze(dim=-1)                    # (batch, head, time)
         if weights is not None:
@@ -588,22 +588,42 @@ class GlobalChWiseAttMeanStdPool1d(_GlobalPool1d):
         self.conv2 = _conv1(inner_feats, in_feats, bias=True)
         self.stats_pool = GlobalMeanStdPool1d(dim=dim)
         if self.bin_attn:
-            self.bias = nn.Parameter(torch.zeros((1, in_feats, 1)))
+            self.bias = nn.Parameter(torch.ones((1, in_feats, 1)))
+
+
+    def __repr__(self):
+        return self.__str__()
+
+        
+    def __str__(self):
+        s = '{}(in_feats={}, inner_feats={}, use_global_context={}, bin_attn={}, dim={}, keepdim={})'.format(
+            self.__class__.__name__, self.in_feats, self.inner_feats,
+            self.use_global_context,
+            self.bin_attn, self.dim, self.keepdim)
+        return s
 
 
     def forward(self, x, weights=None):
 
         x_inner = self.conv1(x)
+        logging.info('x_inner1={} {}'.format(torch.sum(torch.isnan(x_inner)), torch.sum(torch.isinf(x_inner))))
         if self.use_global_context:
             global_mus = self.stats_pool(x)
             x_inner = x_inner + self.lin_global(global_mus).unsqueeze(-1)
+        logging.info('x_inner2={} {}'.format(torch.sum(torch.isnan(x_inner)), torch.sum(torch.isinf(x_inner))))
         attn = self.conv2(self.activation(self.norm_layer(x_inner)))
         if self.bin_attn:
-            atnn = nnf.sigmoid(attn + self.bias)
+            #attn = torch.sigmoid(attn+self.bias)
+            attn = torch.sigmoid(attn)
         else:
             attn = nnf.softmax(attn, dim=-1)
         
+        kk = torch.mean(attn, dim=-1)
+        mx = torch.max(kk, dim=-1)[0]
+        mn = torch.min(kk, dim=-1)[0]
+        logging.info('att1={} {} {} {}'.format(torch.sum(torch.isnan(attn)), torch.sum(torch.isinf(attn)), mx, mn))
         mus = self.stats_pool(x, weights=attn)
+        logging.info('mus={} {}'.format(torch.sum(torch.isnan(mus)), torch.sum(torch.isinf(mus))))
         return mus
 
 
