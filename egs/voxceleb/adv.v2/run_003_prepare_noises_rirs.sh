@@ -15,8 +15,6 @@ config_file=default_config.sh
 
 # We prepare the noise files and RIR for online speech augmentation
 
-frame_shift=0.01
-
 if [ $stage -le 1 ]; then
 
     # Prepare the MUSAN corpus, which consists of music, speech, and noise
@@ -33,7 +31,6 @@ if [ $stage -le 1 ]; then
 
 fi
 
-
 if [ $stage -le 2 ]; then
 
     # Create Babble noise from MUSAN speech files
@@ -45,8 +42,6 @@ if [ $stage -le 2 ]; then
 	# utils/fix_data_dir.sh data/${name}_babble
     done
 fi
-
-
 
 if [ $stage -le 3 ]; then
     if [ ! -d "RIRS_NOISES" ]; then
@@ -68,5 +63,3 @@ if [ $stage -le 3 ]; then
     done
     
 fi
-
-
