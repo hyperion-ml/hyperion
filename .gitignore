@@ -36,6 +36,7 @@ tools/ibm_art/adversarial-robustness-toolbox/
 tools/cudnn/cudnn-*
 tools/kaldi/kaldi
 tools/nccl/nccl_*
+tools/path.sh
 
 rirs_noises.zip
 RIRS_NOISES
