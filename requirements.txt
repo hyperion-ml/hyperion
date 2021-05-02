@@ -8,3 +8,4 @@ scipy>=1.4.1
 sphinx_rtd_theme
 pympler
 memory_profiler
+gdown
