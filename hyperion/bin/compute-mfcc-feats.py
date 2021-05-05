@@ -44,11 +44,11 @@ def compute_mfcc_feats(input_path, output_path,
             key, x, fs = data
         else:
             key, x = data
-        logging.info('Extracting MFCC for %s' % (key))
+        logging.info('Extracting MFCC for %s num_samples=%d' % (key, len(x)))
         t1 = time.time()
         y = mfcc.compute(x)
         dt = (time.time() - t1)*1000
-        rtf = mfcc.frame_shift*y.shape[0]/dt
+        rtf = dt/(mfcc.frame_shift*y.shape[0])
         logging.info('Extracted MFCC for %s num-frames=%d elapsed-time=%.2f ms. real-time-factor=%.2f' %
                      (key, y.shape[0], dt, rtf))
         writer.write([key], [y])

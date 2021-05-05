@@ -9,7 +9,6 @@ set -e
 nodes=fs01
 storage_name=$(date +'%m_%d_%H_%M')
 fbankdir=`pwd`/exp/fbank
-vaddir=`pwd`/exp/fbank
 
 stage=1
 config_file=default_config.sh
@@ -21,7 +20,7 @@ if [ "$feat_vers" == "kaldi" ];then
     make_fbank=steps/make_fbank.sh
     fbank_cfg=conf/fbank64_8k.conf
 else
-    fbank_cfg=conf/fbank64_8k.pyconf
+    fbank_cfg=conf/fbank64_8k.yaml
     if [ "$feat_vers" == "numpy" ];then
 	make_fbank=steps_pyfe/make_fbank.sh
     else
@@ -33,7 +32,7 @@ fi
 if [ $stage -le 1 ]; then
     # Prepare to distribute data over multiple machines
     if [[ $(hostname -f) == *.clsp.jhu.edu ]] && [ ! -d $fbankdir/storage ]; then
-	dir_name=$USER/hyp-data/voxceleb/v1/$storage_name/fbank/storage
+	dir_name=$USER/hyp-data/sre19-cmn2-v2/$storage_name/fbank/storage
 	if [ "$nodes" == "b0" ];then
 	    utils/create_split_dir.pl \
 			    utils/create_split_dir.pl \

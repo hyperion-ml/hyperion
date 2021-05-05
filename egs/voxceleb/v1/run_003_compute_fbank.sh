@@ -9,8 +9,6 @@ set -e
 nodes=fs01
 storage_name=$(date +'%m_%d_%H_%M')
 fbankdir=`pwd`/exp/fbank
-vaddir=`pwd`/exp/fbank
-vaddir_gt=`pwd`/exp/vad_gt
 
 stage=1
 config_file=default_config.sh
