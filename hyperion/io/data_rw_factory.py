@@ -72,8 +72,8 @@ class DataWriterFactory(object):
         if prefix is not None:
             outer_parser.add_argument(
                 '--' + prefix,
-                action=ActionParser(parser=parser),
-                help='data writer options')
+                action=ActionParser(parser=parser))
+                # help='data writer options')
 
         
             
@@ -138,8 +138,8 @@ class SequentialDataReaderFactory(object):
         if prefix is not None:
             outer_parser.add_argument(
                 '--' + prefix,
-                action=ActionParser(parser=parser),
-                help='data reader options')
+                action=ActionParser(parser=parser))
+                # help='data reader options')
 
 
         
@@ -199,8 +199,8 @@ class RandomAccessDataReaderFactory(object):
         if prefix is not None:
             outer_parser.add_argument(
                 '--' + prefix,
-                action=ActionParser(parser=parser),
-                help='data reader options')
+                action=ActionParser(parser=parser))
+                # help='data reader options')
 
 
     add_argparse_args = add_class_args

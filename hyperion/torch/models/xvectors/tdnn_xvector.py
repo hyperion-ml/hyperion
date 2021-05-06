@@ -142,8 +142,8 @@ class TDNNXVector(XVector):
         if prefix is not None:
             outer_parser.add_argument(
                 '--' + prefix,
-                action=ActionParser(parser=parser),
-                help='xvector options')
+                action=ActionParser(parser=parser))
+                # help='xvector options')
 
 
     add_argparse_args = add_class_args

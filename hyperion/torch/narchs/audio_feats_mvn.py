@@ -86,7 +86,7 @@ class AudioFeatsMVN(NetArch):
         if prefix is not None:
             outer_parser.add_argument(
                 '--' + prefix,
-                action=ActionParser(parser=parser),
-                help='feature extraction options')
+                action=ActionParser(parser=parser))
+                # help='feature extraction options')
 
         

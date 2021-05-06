@@ -342,5 +342,5 @@ class ClassifHead(NetArch):
         if prefix is not None:
             outer_parser.add_argument(
                 '--' + prefix,
-                action=ActionParser(parser=parser),
-                help='classification head options')
+                action=ActionParser(parser=parser))
+                # help='classification head options')

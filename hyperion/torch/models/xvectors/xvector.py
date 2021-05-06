@@ -679,8 +679,8 @@ class XVector(TorchModel):
         if prefix is not None:
             outer_parser.add_argument(
                 '--' + prefix,
-                action=ActionParser(parser=parser),
-                help='xvector finetune opts')
+                action=ActionParser(parser=parser))
+                # help='xvector finetune opts')
     
     add_argparse_args = add_class_args
     add_argparse_finetune_args = add_finetune_args

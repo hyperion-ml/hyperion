@@ -486,8 +486,8 @@ class ConformerEncoderV1(NetArch):
         if prefix is not None:
             outer_parser.add_argument(
                 '--' + prefix,
-                action=ActionParser(parser=parser),
-                help='conformer encoder options')
+                action=ActionParser(parser=parser))
+                # help='conformer encoder options')
 
 
     add_argparse_args = add_class_args

@@ -367,8 +367,8 @@ class ResNet1dEncoder(NetArch):
         if prefix is not None:
             outer_parser.add_argument(
                 '--' + prefix,
-                action=ActionParser(parser=parser),
-                help='ResNet1d encoder options')
+                action=ActionParser(parser=parser))
+                # help='ResNet1d encoder options')
 
 
     add_argparse_args = add_class_args
