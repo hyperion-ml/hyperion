@@ -578,7 +578,7 @@ class TorchTrainer(object):
         if prefix is not None:
             outer_parser.add_argument(
                 '--' + prefix,
-                action=ActionParser(parser=parser),
-                help='trainer options')
+                action=ActionParser(parser=parser))
+                # help='trainer options')
     
     add_argparse_args = add_class_args

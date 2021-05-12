@@ -387,8 +387,8 @@ class TransformerEncoderV1(NetArch):
         if prefix is not None:
             outer_parser.add_argument(
                 '--' + prefix,
-                action=ActionParser(parser=parser),
-                help='transformer encoder options')
+                action=ActionParser(parser=parser))
+                # help='transformer encoder options')
 
 
 

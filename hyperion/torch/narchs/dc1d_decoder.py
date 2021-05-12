@@ -360,7 +360,7 @@ class DC1dDecoder(NetArch):
         if prefix is not None:
             outer_parser.add_argument(
                 '--' + prefix,
-                action=ActionParser(parser=parser),
-                help='DC1d decoder options')
+                action=ActionParser(parser=parser))
+                # help='DC1d decoder options')
 
     add_argparse_args = add_class_args
