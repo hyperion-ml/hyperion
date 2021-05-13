@@ -38,8 +38,8 @@ if [ $stage -le 1 ]; then
 	--plda-opts "--inter-session" \
 	$xvector_dir/$plda_data/xvector.scp \
 	data/$plda_data \
-	$plda_dir &
-    wait
+	$plda_dir 
+
 fi
 
 
@@ -51,10 +51,7 @@ if [ $stage -le 2 ];then
 	do
 	    
 	    out_dir=${diar_ahc_dir}_pcar${r}_thr${threshold}
-	    for name in sitw_dev_test sitw_eval_test \
-		sre18_eval_test_vast sre18_dev_test_vast \
-		sre19_av_a_dev_test sre19_av_a_eval_test \
-		janus_dev_test_core janus_eval_test_core
+	    for name in chime5_spkdet_test
 	    do
     		steps_diar/eval_ahc_v1.sh \
     		    --cmd "$train_cmd --mem 4G" --nj 20 \
@@ -73,36 +70,3 @@ if [ $stage -le 2 ];then
 fi
 exit
 
-if [ $stage -le 2 ];then
-    echo "Apply AHC with PLDA scoring"
-    for r in 1 0.5 0.3 0.15
-    do
-	for threshold in -3 -2 -1 0 #2 3 4 5 6 #-1 0 1 #-3 -2 -1 0 1 2 3 4 5
-	do
-	    out_dir=${diar_ahc_dir}_pcar${r}_unsupcal_thr${threshold}
-	    for name in dihard2019_dev dihard2019_eval
-	    do
-    		steps_diar/eval_ahc_v1.sh \
-    		    --cmd "$train_cmd --mem 10G" \
-    		    --ahc-opts "--threshold $threshold --pca-var-r $r --do-unsup-cal --score-hist-dir $out_dir/$name/hist" \
-    		    data/$name/utt2spk \
-    		    $xvector_dir/$name/xvector.scp \
-    		    data/$name/vad.segments \
-    		    $plda_dir/lda_lnorm.h5 \
-    		    $plda_dir/plda.h5 \
-    		    $out_dir/$name
-	    done
-	    local/dscore_dihard2019_allconds.sh \
-		$dihard2019_dev/data/single_channel \
-		$out_dir/dihard2019_dev/rttm \
-		$out_dir/dihard2019_dev
-	    local/dscore_dihard2019_allconds.sh \
-		$dihard2019_eval/data/single_channel \
-		$out_dir/dihard2019_eval/rttm \
-		$out_dir/dihard2019_eval
-	done
-    done
-
-fi
-
-exit
