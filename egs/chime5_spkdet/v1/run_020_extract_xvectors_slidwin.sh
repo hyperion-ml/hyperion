@@ -50,10 +50,7 @@ fi
 
 if [ $stage -le 2 ]; then
     # Extracts x-vectors for evaluation
-    for name in sitw_dev_test sitw_eval_test \
-	sre18_eval_test_vast sre18_dev_test_vast \
-	sre19_av_a_dev_test sre19_av_a_eval_test \
-	janus_dev_test_core janus_eval_test_core
+    for name in chime5_spkdet_test
     do
 	num_spk=$(wc -l data/$name/spk2utt | awk '{ print $1}')
 	nj=$(($num_spk < 100 ? $num_spk:100))
