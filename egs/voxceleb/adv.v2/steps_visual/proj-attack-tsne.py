@@ -6,7 +6,7 @@
 import logging
 import sys
 import os
-import argparse
+from jsonargparse import ArgumentParser, ActionConfigFile, ActionParser, namespace_to_dict
 import time
 
 import numpy as np
@@ -46,7 +46,7 @@ def proj_attack_tsne(train_v_file, train_list,
     else:
         x_pca = x_trn
 
-    tsne_args = SklTSNE.filter_args(prefix='tsne', **kwargs)
+    tsne_args = SklTSNE.filter_args(**kwargs['tsne'])
     tsne = SklTSNE(**tsne_args)
     x_tsne = tsne.fit(x_pca)
     p = np.random.rand(x_tsne.shape[0]) < prob_plot
@@ -71,9 +71,7 @@ def proj_attack_tsne(train_v_file, train_list,
 
 if __name__ == "__main__":
 
-    parser=argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        fromfile_prefix_chars='@',
+    parser = ArgumentParser(
         description='Proj x-vector with TSNE to visualize attacks')
 
     parser.add_argument('--train-v-file', required=True)
@@ -83,9 +81,9 @@ if __name__ == "__main__":
     parser.add_argument('--prob-plot', default=0.1, type=float)
     parser.add_argument('--lnorm', default=False, action='store_true')
     parser.add_argument('--title', default='')
-    SklTSNE.add_argparse_args(parser, prefix='tsne')
+    SklTSNE.add_class_args(parser, prefix='tsne')
     
-    parser.add_argument('--output-path', dest='output_path', required=True)
+    parser.add_argument('--output-path', required=True)
     parser.add_argument('-v', '--verbose', dest='verbose', default=1, choices=[0, 1, 2, 3], type=int)
 
     args=parser.parse_args()
@@ -93,5 +91,5 @@ if __name__ == "__main__":
     del args.verbose
     logging.debug(args)
     
-    proj_attack_tsne(**vars(args))
+    proj_attack_tsne(**namespace_to_dict(args))
 

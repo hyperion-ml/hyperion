@@ -6,25 +6,17 @@
 import logging
 import sys
 import os
-import argparse
+from jsonargparse import ArgumentParser, ActionConfigFile, ActionParser, namespace_to_dict
 import time
 
 import numpy as np
 import pandas as pd
-#import matplotlib
-#matplotlib.use('Agg')
-#import matplotlib.pyplot as plt
 
 from hyperion.hyp_defs import config_logger
 from hyperion.utils import Utt2Info
 from hyperion.io import RandomAccessDataReaderFactory as DRF
 from hyperion.metrics.acc import compute_accuracy
 from hyperion.metrics.confusion_matrix import compute_confusion_matrix, print_confusion_matrix
-
-#colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
-#markers = ['x', 'o', '+', '*', 's', 'h', 'D', '^', 'v', 'p', '8']
-
-#color_marker = [(c,m) for m in markers for c in colors] 
 
 
 def read_class_file(class_file):
@@ -63,9 +55,7 @@ def eval_classif_perf(score_file, key_file, class_file, output_path=None, **kwar
 
 if __name__ == "__main__":
 
-    parser=argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        fromfile_prefix_chars='@',
+    parser = ArgumentParser(
         description='Evaluates attack classification accuracy')
 
     parser.add_argument('--score-file', required=True)
@@ -80,5 +70,5 @@ if __name__ == "__main__":
     del args.verbose
     logging.debug(args)
     
-    eval_classif_perf(**vars(args))
+    eval_classif_perf(**namespace_to_dict(args))
 

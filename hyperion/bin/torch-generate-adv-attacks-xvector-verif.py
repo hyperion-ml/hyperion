@@ -5,7 +5,7 @@
 """
 import sys
 import os
-import argparse
+from jsonargparse import ArgumentParser, ActionConfigFile, ActionParser, namespace_to_dict
 import time
 import logging
 from pathlib import Path
@@ -17,7 +17,7 @@ import yaml
 import torch
 import torch.nn as nn
 
-from hyperion.hyp_defs import config_logger
+from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.io import RandomAccessDataReaderFactory as DRF
 from hyperion.io import RandomAccessAudioReader as AR
 from hyperion.io import AudioWriter as AW
@@ -27,51 +27,20 @@ from hyperion.io import VADReaderFactory as VRF
 from hyperion.classifiers import BinaryLogisticRegression as LR
 
 from hyperion.torch.utils import open_device
-from hyperion.torch.helpers import TorchModelLoader as TML
-from hyperion.torch.layers import AudioFeatsFactory as AFF
-from hyperion.torch.layers import MeanVarianceNorm as MVN
+from hyperion.torch.layers import LinBinCalibrator as Calibrator
+from hyperion.torch.narchs import AudioFeatsMVN as AF
 from hyperion.torch.utils.misc import l2_norm, compute_stats_adv_attack
+from hyperion.torch import TorchModelLoader as TML
 
 from hyperion.torch.adv_attacks import RandomAttackFactory
 
-def read_data(v_file, key_file, enroll_file, seg_part_idx, num_seg_parts):
-
-    r = DRF.create(v_file)
-    enroll = Utt2Info.load(enroll_file)
-    key = TrialKey.load(key_file)
-        
-    if num_seg_parts > 1:
-        key = key.split(1, 1, seg_part_idx, num_seg_parts)
-
-    x_e = r.read(enroll.key, squeeze=True)
-
-    f, idx = ismember(key.model_set, enroll.info)
-    
-    assert np.all(f)
-    x_e = x_e[idx]
-
-    return key, x_e
-
-
-class Calibrator(nn.Module):
-
-    def __init__(self, a, b):
-        super().__init__()
-        self.a = a
-        self.b = b
-
-    def forward(self, x):
-        return self.a*x+self.b
-
-
 class MyModel(nn.Module):
 
-    def __init__(self, feat_extractor, xvector_model, mvn=None, embed_layer=None, 
+    def __init__(self, feat_extractor, xvector_model, embed_layer=None, 
                  calibrator=None, sigma=0):
         super().__init__()
         self.feat_extractor = feat_extractor
         self.xvector_model = xvector_model
-        self.mvn = mvn
         self.x_e = None
         self.vad_t = None
         self.embed_layer = embed_layer
@@ -80,13 +49,11 @@ class MyModel(nn.Module):
 
 
     def forward(self, s_t):
+        # print('sigma0=', self.sigma)
         if self.sigma > 0:
             s_t = s_t + self.sigma*torch.randn_like(s_t)
-
+            # print('sigma1=', self.sigma)
         f_t = self.feat_extractor(s_t)
-        if self.mvn is not None:
-            f_t = self.mvn(f_t)
-
         if self.vad_t is not None:
             n_vad_frames = len(self.vad_t)
             n_feat_frames = f_t.shape[1]
@@ -108,22 +75,48 @@ class MyModel(nn.Module):
         return score
 
 
+def read_data(v_file, key_file, enroll_file, seg_part_idx, num_seg_parts):
+
+    r = DRF.create(v_file)
+    enroll = Utt2Info.load(enroll_file)
+    key = TrialKey.load(key_file)
+    if num_seg_parts > 1:
+        key = key.split(1, 1, seg_part_idx, num_seg_parts)
+
+    x_e = r.read(enroll.key, squeeze=True)
+    f, idx = ismember(key.model_set, enroll.info)
+    
+    assert np.all(f)
+    x_e = x_e[idx]
+
+    return key, x_e
 
 
 def init_model(model_path, embed_layer, cal_file, threshold, **kwargs):
-    feat_args = AFF.filter_args(prefix='feats', **kwargs)
-    logging.info('initializing feature extractor args={}'.format(feat_args))
-    feat_extractor = AFF.create(**feat_args)
-
-    mvn_args = MVN.filter_args(prefix='mvn', **kwargs)
-    mvn = None
-    if mvn_args['norm_mean'] or mvn_args['norm_var']:
-        logging.info('initializing short-time mvn args={}'.format(mvn_args))
-        mvn = MVN(**mvn_args)
+    feat_args = AF.filter_args(**kwargs['feats'])
+    logging.info('feat args={}'.format(feat_args))
+    logging.info('initializing feature extractor')
+    feat_extractor = AF(trans=False, **feat_args)
+    logging.info('feat-extractor={}'.format(feat_extractor))
 
     logging.info('loading model {}'.format(model_path))
     xvector_model = TML.load(model_path)
     xvector_model.freeze()
+    logging.info('xvector-model={}'.format(xvector_model))
+
+    # feat_args = AFF.filter_args(prefix='feats', **kwargs)
+    # logging.info('initializing feature extractor args={}'.format(feat_args))
+    # feat_extractor = AFF.create(**feat_args)
+
+    # mvn_args = MVN.filter_args(prefix='mvn', **kwargs)
+    # mvn = None
+    # if mvn_args['norm_mean'] or mvn_args['norm_var']:
+    #     logging.info('initializing short-time mvn args={}'.format(mvn_args))
+    #     mvn = MVN(**mvn_args)
+
+    # logging.info('loading model {}'.format(model_path))
+    # xvector_model = TML.load(model_path)
+    # xvector_model.freeze()
 
     calibrator = None
     if cal_file is not None:
@@ -133,8 +126,7 @@ def init_model(model_path, embed_layer, cal_file, threshold, **kwargs):
         #some attacks use thr=0 to decide if the attack is succesful
         calibrator = Calibrator(lr.A[0,0], lr.b[0]-threshold) 
 
-    model = MyModel(feat_extractor, xvector_model, mvn, embed_layer, 
-                    calibrator)
+    model = MyModel(feat_extractor, xvector_model, embed_layer, calibrator)
     model.eval()
     return model
 
@@ -151,6 +143,14 @@ def init_attack_factory(wav_scale=1, **kwargs):
     logging.info('attacks args={}'.format(attacks_args))
     attack_factory = RandomAttackFactory(**attacks_args)
     return attack_factory
+
+
+def init_device(use_gpu):
+    set_float_cpu('float32')
+    num_gpus = 1 if use_gpu else 0
+    logging.info('initializing devices num_gpus={}'.format(num_gpus))
+    device = open_device(num_gpus=num_gpus)
+    return device
 
 
 def skip_attack(is_target, p_tar_attack, p_non_attack):
@@ -170,13 +170,11 @@ def generate_attacks(
         vad_spec, vad_path_prefix, 
         model_path, embed_layer, cal_file, threshold,
         output_wav_dir, attack_info_file, attack_tag,
+        p_tar_attack, p_non_attack,  save_failed, 
         use_gpu, seg_part_idx, num_seg_parts, random_seed, 
-        p_tar_attack, p_non_attack, **kwargs):
+        **kwargs):
 
-    num_gpus = 1 if use_gpu else 0
-    logging.info('initializing devices num_gpus={}'.format(num_gpus))
-    device = open_device(num_gpus=num_gpus)
-
+    device = init_device(use_gpu)
     model = init_model(model_path, embed_layer, cal_file, threshold, **kwargs)
     model.to(device)
 
@@ -190,7 +188,7 @@ def generate_attacks(
     logging.info('opening audio read stream: %s' % (test_wav_file))
     audio_args = AR.filter_args(**kwargs)
     audio_reader = AR(test_wav_file)
-    wav_scale = audio_reader.scale
+    wav_scale = audio_reader.wav_scale
 
     logging.info('opening audio write stream: %s' % (output_wav_dir))
     audio_writer = AW(output_wav_dir, audio_format='flac')
@@ -263,17 +261,21 @@ def generate_attacks(
                 t4 = time.time()
                 trial_time += (t4 - t3)
                 num_trials += 1
-
+                success=true
                 if key.tar[i,j] and score_adv > 0:
-                    logging.info(
-                        'attack on target trial %s failed, skipping...' % (trial_id))
-                    continue
+                    success=false
+                    if not save_failed:
+                        logging.info(
+                            'attack on target trial %s failed, skipping...' % (trial_id))
+                        continue
                 elif key.non[i,j] and score_adv < 0:
+                    success=false
+                    if not save_failed:
+                        logging.info(
+                            'attack on non-target trial %s failed benign classification, skipping...' % (trial_id))
+                        continue
+                if success:
                     logging.info(
-                        'attack on non-target trial %s failed benign classification, skipping...' % (trial_id))
-                    continue
-                
-                logging.info(
                         'attack on trial %s successful' % (trial_id))
                 
                 stats_ij = compute_stats_adv_attack(s, s_adv)
@@ -288,15 +290,16 @@ def generate_attacks(
                     'wav_path': output_wav[0],
                     'class_name': 'target' if key.tar[i,j] else 'non-target',
                     'class_id': int(key.tar[i,j]),
-                    'benign_key': trial_id,
+                    'key_benign': trial_id,
                     'enroll': str(key.model_set[i]),
-                    'benign_test': str(key.seg_set[j]),
+                    'test_benign': str(key.seg_set[j]),
                     'snr': stats_ij[0], 
                     'px': stats_ij[1], 'pn': stats_ij[2],
                     'x_l2': stats_ij[3], 'x_linf': stats_ij[4],
                     'n_l0': stats_ij[5], 
                     'n_l2': stats_ij[6], 'n_linf': stats_ij[7],
-                    'num_frames': s.shape[-1]})
+                    'num_samples': s.shape[-1],
+                    'success': success})
                 attacks_info[key_attack] = attack_info
 
         if num_trials > 0:
@@ -319,20 +322,18 @@ def generate_attacks(
 
 if __name__ == "__main__":
 
-    parser=argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,                
-        fromfile_prefix_chars='@',
+    parser = ArgumentParser(
         description='Generate Attacks for speaker verification with x-vectors+cos+calibration')
 
+    parser.add_argument('--cfg', action=ActionConfigFile)
     parser.add_argument('--v-file', required=True)
     parser.add_argument('--key-file', default=None)
     parser.add_argument('--enroll-file', required=True)
     parser.add_argument('--test-wav-file', required=True)
     parser.add_argument('--attack-tag', required=True)
 
-    AR.add_argparse_args(parser)
-    AFF.add_argparse_args(parser, prefix='feats')
-    MVN.add_argparse_args(parser, prefix='mvn')
+    AR.add_class_args(parser)
+    AF.add_class_args(parser, prefix='feats')
 
     parser.add_argument('--vad', dest='vad_spec', default=None)
     parser.add_argument('--vad-path-prefix', dest='vad_path_prefix', default=None,
@@ -349,7 +350,7 @@ if __name__ == "__main__":
     parser.add_argument('--cal-file', default=None, help='score calibration file')
     parser.add_argument('--threshold', default=0, type=float, help='decision threshold')
 
-    RandomAttackFactory.add_argparse_args(parser, prefix='attacks')
+    RandomAttackFactory.add_class_args(parser, prefix='attacks')
 
     parser.add_argument('--seg-part-idx', default=1, type=int,
                         help=('test part index'))
@@ -368,6 +369,8 @@ if __name__ == "__main__":
                         help=('probability of generating an attack for a target trial'))
     parser.add_argument('--p-non-attack', type=float, default=1, 
                         help=('probability of generating an attack for a non-target trial'))
+    parser.add_argument('--save-failed', default=False, action='store_true',
+                        help=('save failed attacks also'))
 
     parser.add_argument('-v', '--verbose', dest='verbose', default=1,
                         choices=[0, 1, 2, 3], type=int)
@@ -377,4 +380,4 @@ if __name__ == "__main__":
     del args.verbose
     logging.debug(args)
 
-    generate_attacks(**vars(args))
+    generate_attacks(**namespace_to_dict(args))

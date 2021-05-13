@@ -5,7 +5,7 @@
 """
 import sys
 import os
-from jsonargparse import ArgumentParser, ActionConfigFile, ActionParser, namespace_to_dict
+import argparse
 import time
 import logging
 
@@ -18,46 +18,43 @@ from hyperion.hyp_defs import float_cpu, config_logger
 from hyperion.utils import Utt2Info, SCPList
 
 
-def make_lists(input_dir, output_dir,
-               train_min_snr, train_max_snr, train_success_category,
-               test_min_snr, test_max_snr, test_success_category,
-           ):
+def make_lists(input_dir, benign_wav_file, benign_durs, output_dir):
 
     rng = np.random.RandomState(seed=1234)
     input_dir = Path(input_dir)
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    with open(input_dir / 'train_attack_info.yaml', 'r') as f:
+    with open(input_dir / 'train_attack_info.yml', 'r') as f:
         train_attacks = yaml.load(f, Loader=yaml.FullLoader)
 
-    with open(input_dir / 'val_attack_info.yaml', 'r') as f:
+    with open(input_dir / 'val_attack_info.yml', 'r') as f:
         val_attacks = yaml.load(f, Loader=yaml.FullLoader)
 
-    with open(input_dir / 'test_attack_info.yaml', 'r') as f:
+    with open(input_dir / 'test_attack_info.yml', 'r') as f:
         test_attacks = yaml.load(f, Loader=yaml.FullLoader)
 
+    k2w = SCPList.load(benign_wav_file)
+    u2d = Utt2Info.load(benign_durs)
+        
     keys = []
     files = []
     classes = []
+    benign_keys = []
     durs = []
     for k,v in train_attacks.items():
-        s = v['success']
-        if not (train_success_category == 'both' or
-            train_success_category == 'success' and s or
-            train_success_category == 'fail' and not s):
-            continue
-        snr = v['snr']
-        if snr < train_min_snr or snr > train_max_snr:
-            continue
         keys.append(k)
         files.append(v['wav_path'])
-        classes.append(v['attack_type'])
-        durs.append(v['num_samples']/16000)
-        keys.append(v['key_benign'])
-        files.append(v['wav_benign'])
+        classes.append(v['threat_model'])
+        benign_keys.append(v['benign_key'])
+        durs.append(v['num_frames']/16000)
+
+    benign_keys = np.unique(benign_keys)
+    for k in benign_keys:
+        keys.append(k)
         classes.append('benign')
-        durs.append(v['num_samples']/16000)
+        files.append(k2w[k][0])
+        durs.append(u2d[k])
 
     train_u2c = Utt2Info.create(keys, classes)
     train_u2d = Utt2Info.create(keys, durs)
@@ -69,25 +66,21 @@ def make_lists(input_dir, output_dir,
     keys = []
     files = []
     classes = []
+    benign_keys = []
     durs = []
     for k,v in val_attacks.items():
-        s = v['success']
-        if not (train_success_category == 'both' or
-            train_success_category == 'success' and s or
-            train_success_category == 'fail' and not s):
-            continue
-        snr = v['snr']
-        if snr < train_min_snr or snr > train_max_snr:
-            continue
-
         keys.append(k)
         files.append(v['wav_path'])
-        classes.append(v['attack_type'])
-        durs.append(v['num_samples']/16000)
-        keys.append(v['key_benign'])
-        files.append(v['wav_benign'])
+        classes.append(v['threat_model'])
+        benign_keys.append(v['benign_key'])
+        durs.append(v['num_frames']/16000)
+
+    benign_keys = np.unique(benign_keys)
+    for k in benign_keys:
+        keys.append(k)
         classes.append('benign')
-        durs.append(v['num_samples']/16000)
+        files.append(k2w[k][0])
+        durs.append(u2d[k])
 
     val_u2c = Utt2Info.create(keys, classes)
     val_u2d = Utt2Info.create(keys, durs)
@@ -98,25 +91,21 @@ def make_lists(input_dir, output_dir,
     keys = []
     files = []
     classes = []
+    benign_keys = []
     durs = []
     for k,v in test_attacks.items():
-        s = v['success']
-        if not (test_success_category == 'both' or
-            test_success_category == 'success' and s or
-            test_success_category == 'fail' and not s):
-            continue
-        snr = v['snr']
-        if snr < test_min_snr or snr > test_max_snr:
-            continue
-
         keys.append(k)
         files.append(v['wav_path'])
-        classes.append(v['attack_type'])
-        durs.append(v['num_samples']/16000)
-        keys.append(v['key_benign'])
-        files.append(v['wav_benign'])
+        classes.append(v['threat_model'])
+        benign_keys.append(v['benign_key'])
+        durs.append(v['num_frames']/16000)
+
+    benign_keys = np.unique(benign_keys)
+    for k in benign_keys:
+        keys.append(k)
         classes.append('benign')
-        durs.append(v['num_samples']/16000)
+        files.append(k2w[k][0])
+        durs.append(u2d[k])
 
     test_u2c = Utt2Info.create(keys, classes)
     test_u2d = Utt2Info.create(keys, durs)
@@ -141,27 +130,22 @@ def make_lists(input_dir, output_dir,
     trainval_u2d.save(output_dir / 'trainval_utt2dur')
     test_u2d.save(output_dir / 'test_utt2dur')
 
-    with open(output_dir / 'class_file', 'w') as f:
+    with open(output_dir / 'class2int', 'w') as f:
         for c in uclasses:
             f.write('%s\n' % (c))
     
 
 if __name__ == "__main__":
 
-    parser = ArgumentParser(
+    parser=argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        fromfile_prefix_chars='@',
         description='prepare lists to train nnet to discriminate between attacks types and benign speech')
 
     parser.add_argument('--input-dir', required=True)
+    parser.add_argument('--benign-wav-file', required=True)
+    parser.add_argument('--benign-durs', required=True)
     parser.add_argument('--output-dir', required=True)
-    parser.add_argument('--train-min-snr', default=-10, type=float)
-    parser.add_argument('--train-max-snr', default=100, type=float)
-    parser.add_argument('--train-success-category', default='success', 
-                        choices=['success', 'fail', 'both'])
-    parser.add_argument('--test-min-snr', default=-10, type=float)
-    parser.add_argument('--test-max-snr', default=100, type=float)
-    parser.add_argument('--test-success-category', default='success', 
-                        choices=['success', 'fail', 'both'])
-
     parser.add_argument('-v', '--verbose', dest='verbose', default=1,
                         choices=[0, 1, 2, 3], type=int)
         
@@ -170,4 +154,4 @@ if __name__ == "__main__":
     del args.verbose
     logging.debug(args)
 
-    make_lists(**namespace_to_dict(args))
+    make_lists(**vars(args))

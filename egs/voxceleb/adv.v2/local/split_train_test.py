@@ -5,7 +5,7 @@
 """
 import sys
 import os
-import argparse
+from jsonargparse import ArgumentParser, ActionConfigFile, ActionParser, namespace_to_dict
 import time
 import logging
 
@@ -30,7 +30,7 @@ def split_train_test(attack_info_file, train_list, test_list,
 
     benign_to_attack = {}
     for k, v in attack_info.items():
-        bk = v['benign_key']
+        bk = v['key_original']
         if bk in benign_to_attack:
             benign_to_attack[bk].append(k)
         else:
@@ -69,22 +69,20 @@ def split_train_test(attack_info_file, train_list, test_list,
         for ak in benign_to_attack[k]:
             test_info[ak] = attack_info[ak]
 
-    with open(output_dir / 'train_attack_info.yml', 'w') as f:
+    with open(output_dir / 'train_attack_info.yaml', 'w') as f:
         yaml.dump(train_info, f, sort_keys=True)
 
-    with open(output_dir / 'val_attack_info.yml', 'w') as f:
+    with open(output_dir / 'val_attack_info.yaml', 'w') as f:
         yaml.dump(val_info, f, sort_keys=True)
 
-    with open(output_dir / 'test_attack_info.yml', 'w') as f:
+    with open(output_dir / 'test_attack_info.yaml', 'w') as f:
         yaml.dump(test_info, f, sort_keys=True)
     
 
 
 if __name__ == "__main__":
 
-    parser=argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        fromfile_prefix_chars='@',
+    parser = ArgumentParser(
         description='Split Yaml attacks info file into train/val/test')
 
     parser.add_argument('--attack-info-file', required=True)
@@ -100,4 +98,4 @@ if __name__ == "__main__":
     del args.verbose
     logging.debug(args)
 
-    split_train_test(**vars(args))
+    split_train_test(**namespace_to_dict(args))

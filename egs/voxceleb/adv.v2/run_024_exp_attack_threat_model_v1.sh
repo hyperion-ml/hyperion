@@ -12,7 +12,7 @@ ngpu=1
 config_file=default_config.sh
 resume=false
 interactive=false
-num_workers=8
+num_workers=4
 xvec_use_gpu=false
 xvec_chunk_length=12800
 
@@ -27,11 +27,11 @@ else
     xvec_cmd="$train_cmd"
 fi
 
-batch_size=$(($batch_size_1gpu*$ngpu))
-grad_acc_steps=$(echo $batch_size $eff_batch_size | awk '{ print int($2/$1+0.5)}')
+batch_size=$(($sign_nnet_batch_size_1gpu*$ngpu))
+grad_acc_steps=$(echo $batch_size $sign_nnet_eff_batch_size | awk '{ print int($2/$1+0.5)}')
 log_interval=$(echo 100*$grad_acc_steps | bc)
-list_dir=data/exp_attack_threat_model_v1
-list_attack_type_dir=data/exp_attack_type_v1
+list_dir=data/$threat_model_split_tag
+list_attack_type_dir=data/$attack_type_split_tag
 
 args=""
 if [ "$resume" == "true" ];then
@@ -42,63 +42,29 @@ if [ "$interactive" == "true" ];then
     export cuda_cmd=run.pl
 fi
 
-sign_nnet_dir=exp/sign_nnets/$nnet_name/exp_attack_threat_model_v1
-sign_dir=exp/signatures/$nnet_name/exp_attack_threat_model_v1
-logits_dir=exp/logits/$nnet_name/exp_attack_threat_model_v1
-nnet_num_epochs=20
+sign_nnet_reldir=$spknet_name/$sign_nnet_name/$threat_model_split_tag
+sign_nnet_dir=exp/sign_nnets/$sign_nnet_reldir
+sign_dir=exp/signatures/$sign_nnet_reldir
+logits_dir=exp/logits/$sign_nnet_reldir
 sign_nnet=$sign_nnet_dir/model_ep0020.pth
-margin=0
-margin=0.2
-margin_warmup=6
-aug_opt="--train-aug-cfg conf/reverb_noise_aug.yml"
-aug_opt=""
-embed_dim=10
-lr=0.01
-
-opt_opt="--opt-optimizer adam --opt-lr $lr --opt-beta1 0.9 --opt-beta2 0.95 --opt-weight-decay 1e-5 --opt-amsgrad --use-amp"
-lrs_opt="--lrsch-lrsch-type exp_lr --lrsch-decay-rate 0.5 --lrsch-decay-steps 8000 --lrsch-hold-steps 40000 --lrsch-min-lr 1e-5 --lrsch-warmup-steps 1000 --lrsch-update-lr-on-opt-step"
-lrs_opt="--lrsch-lrsch-type exp_lr --lrsch-decay-rate 0.5 --lrsch-decay-steps 2000 --lrsch-hold-steps 4000 --lrsch-min-lr 1e-5 --lrsch-warmup-steps 1000 --lrsch-update-lr-on-opt-step"
-lrs_opt="--lrsch-lrsch-type exp_lr --lrsch-decay-rate 0.5 --lrsch-decay-steps 4000 --lrsch-hold-steps 8000 --lrsch-min-lr 1e-5 --lrsch-warmup-steps 1000 --lrsch-update-lr-on-opt-step"
-lrs_opt="--lrsch-lrsch-type exp_lr --lrsch-decay-rate 0.5 --lrsch-decay-steps 8000 --lrsch-hold-steps 16000 --lrsch-min-lr 1e-5 --lrsch-warmup-steps 1000 --lrsch-update-lr-on-opt-step"
 
 # Network Training
 if [ $stage -le 1 ]; then
-
-    if [[ ${nnet_type} =~ resnet ]] || [[ ${nnet_type} =~ resnext ]]; then
-	train_exec=torch-train-resnet-xvec-from-wav.py
-    elif [[ ${nnet_type} =~ efficientnet ]]; then
-	train_exec=torch-train-efficientnet-xvec-from-wav.py
-    elif [[ ${nnet_type} =~ tdnn ]]; then
-	train_exec=torch-train-tdnn-xvec-from-wav.py
-    elif [[ ${nnet_type} =~ transformer ]]; then
-	train_exec=torch-train-transformer-xvec-v1-from-wav.py
-    else
-	echo "$nnet_type not supported"
-	exit 1
-    fi
-
     mkdir -p $sign_nnet_dir/log
     $cuda_cmd --gpu $ngpu $sign_nnet_dir/log/train.log \
-	hyp_utils/torch.sh --num-gpus $ngpu \
-	$train_exec  @$feat_config $aug_opt \
+	hyp_utils/conda_env.sh --conda-env $HYP_ENV --num-gpus $ngpu \
+	torch-train-xvec-from-wav.py  $sign_nnet_command --cfg $sign_nnet_config \
 	--audio-path $list_dir/trainval_wav.scp \
 	--time-durs-file $list_dir/trainval_utt2dur \
 	--train-list $list_dir/train_utt2attack \
 	--val-list $list_dir/val_utt2attack \
-	--class-file $list_dir/class2int \
-	--min-chunk-length $min_chunk --max-chunk-length $max_chunk \
-	--iters-per-epoch $ipe \
+	--class-file $list_dir/class_file \
 	--batch-size $batch_size \
 	--num-workers $num_workers \
 	--grad-acc-steps $grad_acc_steps \
-	--embed-dim $embed_dim $nnet_opt $opt_opt $lrs_opt \
-	--epochs $nnet_num_epochs \
-	--s $s --margin $margin --margin-warmup-epochs $margin_warmup \
-	--dropout-rate $dropout \
 	--num-gpus $ngpu \
 	--log-interval $log_interval \
 	--exp-path $sign_nnet_dir $args
-
 fi
 
 if [ $stage -le 2 ]; then
@@ -121,11 +87,12 @@ if [ $stage -le 3 ];then
 	do
 	    proj_dir_i=$proj_dir/p${p}_e${e}
 	    $train_cmd $proj_dir_i/train.log \
-		steps_proj/proj-attack-tsne.py \
+		hyp_utils/conda_env.sh steps_visual/proj-attack-tsne.py \
 		--train-v-file scp:$sign_dir/test/xvector.scp \
 		--train-list $list_attack_type_dir/test_utt2attack \
 		--pca-var-r 0.99 \
-		--prob-plot 0.3 --lnorm --tsne-metric cosine --tsne-early-exaggeration $e --tsne-perplexity $p --tsne-init pca \
+		--prob-plot 0.3 --lnorm \
+		--tsne.metric cosine --tsne.early-exaggeration $e --tsne.perplexity $p --tsne.init pca \
 		--output-path $proj_dir_i &
 	done
     done
@@ -140,11 +107,12 @@ if [ $stage -le 4 ];then
 	do
 	    proj_dir_i=$proj_dir/p${p}_e${e}
 	    $train_cmd $proj_dir_i/train.log \
-		steps_proj/proj-attack-tsne.py \
+		hyp_utils/conda_env.sh steps_proj/proj-attack-tsne.py \
 		--train-v-file scp:$sign_dir/test/xvector.scp \
 		--train-list $list_dir/test_utt2attack \
 		--pca-var-r 0.99 \
-		--prob-plot 0.3 --lnorm --tsne-metric cosine --tsne-early-exaggeration $e --tsne-perplexity $p --tsne-init pca \
+		--prob-plot 0.3 --lnorm \
+		--tsne-metric cosine --tsne-early-exaggeration $e --tsne-perplexity $p --tsne-init pca \
 		--output-path $proj_dir_i &
 	done
     done
@@ -165,10 +133,10 @@ fi
 
 if [ $stage -le 6 ];then
     $train_cmd $logits_dir/test/eval_acc.log \
-        steps_proj/eval-classif-perf.py \
+        hyp_utils/conda_env.sh steps_backend/eval-classif-perf.py \
         --score-file scp:$logits_dir/test/logits.scp \
         --key-file $list_dir/test_utt2attack \
-	--class-file $list_dir/class2int         
+	--class-file $list_dir/class_file
 fi
 
 

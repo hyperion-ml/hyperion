@@ -36,10 +36,41 @@
 # nnet_dir=exp/xvector_nnets/$nnet_name
 # nnet=$nnet_dir/model_ep0070.pth
 
+# Victim model speaker LResNet34 x-vector configuration
 spknet_command=resnet
 spknet_data=voxceleb2cat_train
 spknet_config=conf/lresnet34_spknet.yaml
 spknet_batch_size_1gpu=128
 spknet_eff_batch_size=512 # effective batch size
-spknet_dir=exp/xvector_nnets/lresnet34
+spknet_name=lresnet34
+spknet_dir=exp/xvector_nnets/$spknet_name
+spknet=$spknet_dir/model_ep0070.pth
+
+# SpkID Attacks configuration
+feat_config=conf/fbank80_stmn_16k.yaml
+p_attack=0.25 #will try attacks in 25% of utterances
+attacks_common_opts="--save-failed --save-benign" #save failed attacks also
+
+# SpkVerif Attacks configuration
+p_tar_attack=0.1
+p_non_attack=0.1
+spkv_attacks_common_opts="--save-failed" #save failed attacks also
+
+# Splits options
+# train and test on succesful attacks only, all SNR values
+attack_type_split_opts="--train-success-category success --test-success-category success \
+--train-max-snr 100 --train-min-snr -100 --test-max-snr 100 --test-min-snr -100"
+attack_type_split_tag="exp_attack_type_v1"
+threat_model_split_opts="--train-success-category success --test-success-category success \
+--train-max-snr 100 --train-min-snr -100 --test-max-snr 100 --test-min-snr -100"
+threat_model_split_tag="exp_attack_threat_model_v1"
+snr_split_opts="--train-success-category success --test-success-category success"
+snr_split_tag="exp_attack_snr_v1"
+
+# Attack model LResNet34 configuration
+sign_nnet_command=resnet
+sign_nnet_config=conf/lresnet34_atnet.yaml
+sign_nnet_batch_size_1gpu=128
+sign_nnet_eff_batch_size=512 # effective batch size
+sign_nnet_name=lresnet34
 

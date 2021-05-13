@@ -7,7 +7,7 @@ cmd="run.pl"
 chunk_length=0     # The chunk size over which the embedding is extracted.
 use_gpu=false
 write_utt2num_frames=true  # If true writes utt2num_frames.
-feat_config=conf/fbank80_stmn_16k.pyconf
+feat_config=conf/fbank80_stmn_16k.yaml
 stage=0
 min_utt_length=500
 max_utt_length=12000
@@ -83,8 +83,9 @@ fi
 
 if [ $stage -le 0 ];then
     $cmd JOB=1:$nj $output_dir/log/eval_logits.JOB.log \
-	hyp_utils/torch.sh --num-gpus $num_gpus \
-	torch-eval-xvec-logits-from-wav.py @$feat_config ${args} $write_num_frames_opt \
+	hyp_utils/conda_env.sh --num-gpus $num_gpus \
+	torch-eval-xvec-logits-from-wav.py \
+	--feats $feat_config ${args} $write_num_frames_opt \
 	--part-idx JOB --num-parts $nj \
 	--input $data_dir/wav.scp \
 	--model-path $nnet_file --chunk-length $chunk_length \

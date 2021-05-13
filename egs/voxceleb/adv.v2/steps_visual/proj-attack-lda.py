@@ -6,7 +6,7 @@
 import logging
 import sys
 import os
-import argparse
+from jsonargparse import ArgumentParser, ActionConfigFile, ActionParser, namespace_to_dict
 import time
 
 import numpy as np
@@ -91,14 +91,9 @@ def proj_attack_lda(train_v_file, train_list,
         plt.clf()
 
 
-            
-
-
 if __name__ == "__main__":
 
-    parser=argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        fromfile_prefix_chars='@',
+    parser = ArgumentParser(
         description='Proj x-vector with LDA to classify attacks')
 
     parser.add_argument('--train-v-file', required=True)
@@ -118,5 +113,5 @@ if __name__ == "__main__":
     del args.verbose
     logging.debug(args)
     
-    proj_attack_lda(**vars(args))
+    proj_attack_lda(**namespace_to_dict(args))
 
