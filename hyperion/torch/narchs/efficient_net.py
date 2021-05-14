@@ -495,7 +495,7 @@ class EfficientNet(NetArch):
         if prefix is not None:
             outer_parser.add_argument(
                 '--' + prefix,
-                action=ActionParser(parser=parser),
-                help='efficientnet options')
+                action=ActionParser(parser=parser))
+                # help='efficientnet options')
 
     add_argparse_args = add_class_args

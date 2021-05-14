@@ -201,8 +201,8 @@ class EfficientNetXVector(XVector):
         if prefix is not None:
             outer_parser.add_argument(
                 '--' + prefix,
-                action=ActionParser(parser=parser),
-                help='xvector options')
+                action=ActionParser(parser=parser))
+                # help='xvector options')
 
 
 

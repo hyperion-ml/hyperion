@@ -240,7 +240,7 @@ class ClassWeightedSeqSampler(Sampler):
         if prefix is not None:
             outer_parser.add_argument(
                 '--' + prefix,
-                action=ActionParser(parser=parser),
-                help='weighted seq sampler options')
+                action=ActionParser(parser=parser))
+                # help='weighted seq sampler options')
 
     add_argparse_args = add_class_args

@@ -414,8 +414,8 @@ class ResNet2dDecoder(NetArch):
         if prefix is not None:
             outer_parser.add_argument(
                 '--' + prefix,
-                action=ActionParser(parser=parser),
-                help='ResNet2d decoder options')
+                action=ActionParser(parser=parser))
+                # help='ResNet2d decoder options')
 
 
     add_argparse_args = add_class_args
