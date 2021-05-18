@@ -9,6 +9,7 @@ set -e
 nodes=fs01
 storage_name=$(date +'%m_%d_%H_%M')
 vaddir=`pwd`/exp/vad_e
+vaddir_gt=`pwd`/exp/vad_gt
 vad_config=conf/vad_16k.yaml
 
 stage=1
@@ -42,7 +43,7 @@ fi
 
 # Train/Test Datasets
 if [ $stage -le 2 ];then 
-    for name in chime5_spkdet_enroll chime5_spkdet_test voxcelebcat
+    for name in chime5_spkdet_test voxcelebcat
     do
 	num_spk=$(wc -l data/$name/spk2utt | awk '{ print $1}')
 	nj=$(($num_spk < 40 ? $num_spk:40))
@@ -52,5 +53,22 @@ if [ $stage -le 2 ];then
 	utils/fix_data_dir.sh data/${name}
     done
 fi
+
+if [ $stage -le 3 ];then
+    for name in chime5_spkdet_enroll
+    do
+	hyp_utils/feats/segments_to_bin_vad.sh --nj 5 data/$name/diarization_segments data/$name $vaddir_gt
+	utils/fix_data_dir.sh data/$name
+    done
+    for name in chime5_spkdet_test
+    do
+	rm -rf data/${name}_gtvad
+	cp -r data/$name data/${name}_gtvad
+	name=${name}_gtvad
+	hyp_utils/feats/segments_to_bin_vad.sh --nj 5 data/$name/diarization_segments data/$name $vaddir_gt
+	utils/fix_data_dir.sh data/$name
+    done
+fi
+
 
 

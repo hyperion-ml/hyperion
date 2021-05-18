@@ -8,7 +8,7 @@ import csv
 from collections import OrderedDict as ODict
 import numpy as np
 
-from .loggers import Logger
+from .logger import Logger
 
 
 class CSVLogger(Logger):

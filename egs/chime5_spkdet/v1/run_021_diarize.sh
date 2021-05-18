@@ -51,17 +51,22 @@ if [ $stage -le 2 ];then
 	do
 	    
 	    out_dir=${diar_ahc_dir}_pcar${r}_thr${threshold}
-	    for name in chime5_spkdet_test
+	    for xvec_name in chime5_spkdet_test
 	    do
-    		steps_diar/eval_ahc_v1.sh \
-    		    --cmd "$train_cmd --mem 4G" --nj 20 \
-    		    --ahc-opts "--threshold $threshold --pca-var-r $r --score-hist-dir $out_dir/$name/hist" \
-    		    data/$name/utt2spk \
-    		    $xvector_dir/$name/xvector.scp \
-    		    scp:data/$name/vad.scp \
-    		    $plda_dir/lda_lnorm.h5 \
-    		    $plda_dir/plda.h5 \
-    		    $out_dir/$name &
+		# different diarization for energy vad and grount truth vad
+		# xvectors are the same since we extracted xvectors without removing silence
+		for name in chime5_spkdet_test chime5_spkdet_test_gtvad
+		do
+    		    steps_diar/eval_ahc_v1.sh \
+    			--cmd "$train_cmd --mem 4G" --nj 20 \
+    			--ahc-opts "--threshold $threshold --pca-var-r $r --score-hist-dir $out_dir/$name/hist" \
+    			data/$name/utt2spk \
+    			$xvector_dir/$xvec_name/xvector.scp \
+    			scp:data/$name/vad.scp \
+    			$plda_dir/lda_lnorm.h5 \
+    			$plda_dir/plda.h5 \
+    			$out_dir/$name &
+		done
 	    done
 	done
     done
