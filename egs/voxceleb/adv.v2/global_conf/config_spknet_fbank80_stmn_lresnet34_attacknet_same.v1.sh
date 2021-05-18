@@ -56,16 +56,6 @@ p_tar_attack=0.1
 p_non_attack=0.1
 spkv_attacks_common_opts="--save-failed" #save failed attacks also
 
-# Splits options
-# train and test on succesful attacks only, all SNR values
-attack_type_split_opts="--train-success-category success --test-success-category success \
---train-max-snr 100 --train-min-snr -100 --test-max-snr 100 --test-min-snr -100"
-attack_type_split_tag="exp_attack_type_v1"
-threat_model_split_opts="--train-success-category success --test-success-category success \
---train-max-snr 100 --train-min-snr -100 --test-max-snr 100 --test-min-snr -100"
-threat_model_split_tag="exp_attack_threat_model_v1"
-snr_split_opts="--train-success-category success --test-success-category success"
-snr_split_tag="exp_attack_snr_v1"
 
 # Attack model LResNet34 configuration
 sign_nnet_command=resnet
@@ -73,4 +63,38 @@ sign_nnet_config=conf/lresnet34_atnet.yaml
 sign_nnet_batch_size_1gpu=128
 sign_nnet_eff_batch_size=512 # effective batch size
 sign_nnet_name=lresnet34
+
+
+# Splits options
+# train and test on succesful attacks only, all SNR values
+attack_type_split_opts="--train-success-category success --test-success-category success \
+--train-max-snr 100 --train-min-snr -100 --test-max-snr 100 --test-min-snr -100"
+threat_model_split_opts="--train-success-category success --test-success-category success \
+--train-max-snr 100 --train-min-snr -100 --test-max-snr 100 --test-min-snr -100"
+snr_split_opts="--train-success-category success --test-success-category success"
+
+
+# Experiment labels for experiments of attack classification with all attacks known
+attack_type_split_tag="exp_attack_type_allknown"
+snr_split_tag="exp_attack_snr_allknown"
+threat_model_split_tag="exp_attack_threat_model_allknown"
+
+
+# Known/Unknown attacks splits
+known_attacks="fgsm iter-fgsm pgd-linf pgd-l1 pgd-l2"
+unknown_attacks="cw-l2 cw-linf cw-l0"
+
+# Experiment labels for datasets to train signatures with a subset of known attacks
+k_attack_type_split_tag="exp_attack_type_known"
+k_snr_split_tag="exp_attack_snr_allknown"
+k_threat_model_split_tag="exp_attack_threat_model_known"
+
+# Experiment labels for attack verification with same attacks known and some unknown
+attack_type_verif_split_tag="exp_attack_type_verif"
+snr_verif_split_tag="exp_attack_snr_verif"
+threat_model_verif_split_tag="exp_attack_threat_model_verif"
+# Select attacks for attack verification, options are shared for the 3 tasks
+# We use only successful attacks with all SNRs
+verif_split_opts="--success-category success --max-snr 100 --min-snr -100"
+
 

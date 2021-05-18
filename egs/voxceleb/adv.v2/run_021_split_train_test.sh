@@ -29,6 +29,7 @@ if [ $stage -le 1 ];then
     done | awk '!/\{\}/' > $attack_dir/pool_v1/info.yaml
 fi
 
+conda activate $HYP_ENV
 
 if [ $stage -le 2 ];then
     # split attacks into train/val/test
