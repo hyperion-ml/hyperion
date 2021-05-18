@@ -155,19 +155,28 @@ class SpineNetXVector(XVector):
         return model
 
 
-    def filter_args(prefix=None, **kwargs):
+    def filter_args(**kwargs):
 
-        base_args = XVector.filter_args(prefix, **kwargs)
-        child_args = RNF.filter_args(prefix, **kwargs)
+        base_args = XVector.filter_args(**kwargs)
+        child_args = RNF.filter_args(**kwargs)
 
         base_args.update(child_args)
         return base_args
 
 
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog='')
         
-        XVector.add_argparse_args(parser, prefix)
-        RNF.add_argparse_args(parser, prefix)
+        XVector.add_class_args(parser)
+        RNF.add_class_args(parser)
+
+        if prefix is not None:
+            outer_parser.add_argument(
+                '--' + prefix,
+                action=ActionParser(parser=parser))
 
 
+    add_argparse_args = add_class_args

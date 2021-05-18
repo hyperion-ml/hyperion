@@ -2,7 +2,7 @@
  Copyright 2020 Magdalena Rybicka
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
+from jsonargparse import ArgumentParser, ActionParser
 
 from .spinenet import *
 
@@ -64,11 +64,7 @@ class SpineNetFactory(object):
         return spinenet
 
 
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
+    def filter_args(**kwargs):
 
         if 'norm_after' in kwargs:
             kwargs['norm_before'] = not kwargs['norm_after']
@@ -85,7 +81,7 @@ class SpineNetFactory(object):
                       'in_norm', 'norm_layer', 'norm_before', 'do_maxpool',
                       'se_r', 'res2net_scale', 'res2net_width_factor')
 
-        args = dict((k, kwargs[p+k])
+        args = dict((k, kwargs[k])
                     for k in valid_args if p+k in kwargs)
 
         return args
@@ -93,62 +89,60 @@ class SpineNetFactory(object):
 
 
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
-        
-        if prefix is None:
-            p1 = '--'
-        else:
-            p1 = '--' + prefix + '-'
+    def add_class_args(parser, prefix=None):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog='')
 
         spinenet_types = spinenet_dict.keys()
 
         parser.add_argument(
-            p1+'spinenet-type', type=str.lower, default='spinenet49',
+            '--spinenet-type', type=str.lower, default='spinenet49',
             choices=spinenet_types, help=('SpineNet type'))
 
         parser.add_argument(
-            p1+'in-channels', default=1, type=int,
+            '--in-channels', default=1, type=int,
             help=('number of input channels'))
 
         parser.add_argument(
-            p1+'conv-channels', default=64, type=int,
+            '--conv-channels', default=64, type=int,
             help=('number of output channels in input convolution '))
 
         parser.add_argument(
-            p1+'base-channels', default=64, type=int,
+            '--base-channels', default=64, type=int,
             help=('base channels of first SpineNet block'))
 
-        parser.add_argument(p1+'in-kernel-size', 
+        parser.add_argument('--in-kernel-size', 
                             default=7, type=int,
                             help=('kernel size of first convolution'))
 
-        parser.add_argument(p1+'in-stride', 
+        parser.add_argument('--in-stride', 
                             default=2, type=int,
                             help=('stride of first convolution'))
 
-        parser.add_argument(p1+'groups', 
+        parser.add_argument('--groups', 
                             default=1, type=int,
                             help=('number of groups in residual blocks convolutions'))
 
         try:
             parser.add_argument(
-                p1+'norm-layer', default=None, 
+                '--norm-layer', default=None, 
                 choices=['batch-norm', 'group-norm', 'instance-norm', 'instance-norm-affine', 'layer-norm'],
                 help='type of normalization layer')
         except:
             pass
 
-        parser.add_argument(p1+'in-norm', default=False, action='store_true',
+        parser.add_argument('--in-norm', default=False, action='store_true',
                             help='batch normalization at the input')
 
-        parser.add_argument(p1+'no-maxpool', default=False, action='store_true',
+        parser.add_argument('--no-maxpool', default=False, action='store_true',
                             help='don\'t do max pooling after first convolution')
 
-        parser.add_argument(p1+'zero-init-residual', default=False, action='store_true',
+        parser.add_argument('--zero-init-residual', default=False, action='store_true',
                             help='Zero-initialize the last BN in each residual branch')
 
         parser.add_argument(
-            p1+'se-r', default=16, type=int,
+            '--se-r', default=16, type=int,
             help=('squeeze ratio in squeeze-excitation blocks'))
 
         parser.add_argument(
@@ -160,20 +154,27 @@ class SpineNetFactory(object):
             help=('multiplicative factor for the internal width of res2net'))
 
         try:
-            parser.add_argument(p1+'hid-act', default='relu6', 
+            parser.add_argument('--hid-act', default='relu6', 
                                 help='hidden activation')
         except:
             pass
         
         try:
-            parser.add_argument(p1+'norm-after', default=False, action='store_true',
+            parser.add_argument('--norm-after', default=False, action='store_true',
                                 help='batch normalizaton after activation')
         except:
             pass
         
         try:
-            parser.add_argument(p1+'dropout-rate', default=0, type=float,
+            parser.add_argument('--dropout-rate', default=0, type=float,
                                 help='dropout')
         except:
             pass
 
+        if prefix is not None:
+            outer_parser.add_argument(
+                '--' + prefix,
+                action=ActionParser(parser=parser))
+
+
+    add_argparse_args = add_class_args
