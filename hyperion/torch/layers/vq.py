@@ -7,7 +7,7 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+import torch.distributed as dist
 
 class VectorQuantizer(nn.Module):
 
@@ -282,6 +282,9 @@ class EMAKMeansVectorQuantizer(VectorQuantizer):
         # Use Exponetial Moving Average (EMA) to update the embedding vectors
         if self.training:
             N = torch.sum(r, dim=0)
+            # required to sync gpus in DDP
+            dist.all_reduce(N, op=dist.ReduceOp.SUM)
+            
             ema_N = self._ema_N * self.gamma + (1 - self.gamma) * N
             
             N_tot = torch.sum(ema_N)
@@ -289,6 +292,8 @@ class EMAKMeansVectorQuantizer(VectorQuantizer):
             self._ema_N = ((ema_N + self.eps)/(N_tot + self.num_embed * self.eps) * N_tot).detach()
             
             z_acc = torch.matmul(r.t(), flat_inputs)
+            # required to sync gpus in DDP
+            dist.all_reduce(z_acc, op=dist.ReduceOp.SUM)
             self._ema_z_acc = (self.gamma*self._ema_z_acc + (1 - self.gamma)*z_acc).detach()
             self.embed = (self._ema_z_acc/self._ema_N.unsqueeze(1)).detach()
 

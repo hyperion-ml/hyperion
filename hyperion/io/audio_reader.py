@@ -388,10 +388,12 @@ class RandomAccessAudioReader(AudioReader):
             x, fs = self._read(keys, time_offset=time_offset,
                                time_durs=time_durs)
         except:
-            if not isinstance(time_offset, (list, np.array)):
-                time_offset = [time_offset] * len(keys)
+            if isinstance(keys, str):
+                keys = [keys]
 
-            if not isinstance(time_durs, (list, np.array)):
+            if not isinstance(time_offset, (list, np.ndarray)):
+                time_offset = [time_offset] * len(keys)
+            if not isinstance(time_durs, (list, np.ndarray)):
                 time_durs = [time_durs] * len(keys)
 
             try:
@@ -414,7 +416,7 @@ class RandomAccessAudioReader(AudioReader):
                 x, fs = self._read(keys)
                 for i in range(len(x)):
                     start_sample = int(time_offset[i] * fs[i])
-                    end_sample = int(time_durs[i] * fs[i])
+                    end_sample = start_sample + int(time_durs[i] * fs[i])
                     x[i] = x[i][start_sample:end_sample]
         
         return x, fs

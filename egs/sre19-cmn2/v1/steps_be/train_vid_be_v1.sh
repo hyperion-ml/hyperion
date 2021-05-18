@@ -57,7 +57,7 @@ while(getline < fv)
 
 
 $cmd $output_dir/log/train_be.log \
-     python steps_be/train-vid-be-v1.py \
+     hyp_utils/conda_env.sh steps_be/train-vid-be-v1.py \
      --iv-file scp:$vector_file \
      --train-list $train_list \
      --adapt-iv-file-1 scp:$adapt_vector_file1 \

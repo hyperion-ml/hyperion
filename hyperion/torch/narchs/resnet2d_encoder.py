@@ -325,7 +325,7 @@ class ResNet2dEncoder(NetArch):
             nargs='+', type=int, help=('resb-blocks strides for each encoder stage'))
 
         parser.add_argument(
-            '--resb-dilations', default=1,
+            '--resb-dilations', default=[1],
             nargs='+', type=int, help=('resb-blocks dilations for each encoder stage'))
 
         parser.add_argument(
@@ -372,8 +372,9 @@ class ResNet2dEncoder(NetArch):
         if prefix is not None:
             outer_parser.add_argument(
                 '--' + prefix,
-                action=ActionParser(parser=parser),
-                help='ResNet2d encoder options')
+                action=ActionParser(parser=parser))
+                # help='ResNet2d encoder options')
+
 
     add_argparse_args = add_class_args
 

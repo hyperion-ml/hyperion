@@ -384,7 +384,7 @@ class ConformerEncoderV1(NetArch):
 
         if in_feats:
             parser.add_argument(
-                '--in-feats', type=int, required=True,
+                '--in-feats', type=int, default=80,
                 help=('input feature dimension'))
 
 
@@ -410,16 +410,16 @@ class ConformerEncoderV1(NetArch):
                             help=('context size when using local attention'))
 
         parser.add_argument(
-            '--conv-repeats', default=1, type=int,
+            '--conv-repeats', default=[1], type=int,
             nargs='+', help=('number of conv blocks in each conformer block'))
 
         parser.add_argument(
-            '--conv-kernel-sizes', default=31, 
+            '--conv-kernel-sizes', default=[31], 
             nargs='+', type=int, 
             help=('kernels sizes for the depth-wise convs of each conformer block'))
 
         parser.add_argument(
-            '--conv-strides', default=1, 
+            '--conv-strides', default=[1], 
             nargs='+', type=int, help=('resb-blocks strides for each encoder stage'))
 
         parser.add_argument('--ff-type', 
@@ -486,8 +486,8 @@ class ConformerEncoderV1(NetArch):
         if prefix is not None:
             outer_parser.add_argument(
                 '--' + prefix,
-                action=ActionParser(parser=parser),
-                help='conformer encoder options')
+                action=ActionParser(parser=parser))
+                # help='conformer encoder options')
 
 
     add_argparse_args = add_class_args

@@ -11,7 +11,6 @@ file_format=h5
 nodes=b1
 storage_name=$(date +'%m_%d_%H_%M')
 
-
 echo "$0 $@"  # Print the command line for logging
 
 if [ -f path.sh ]; then . ./path.sh; fi
@@ -63,6 +62,7 @@ utils/create_data_link.pl $output_dir/rirs_${name}.${file_format}
 
 args=""
 $cmd $dir/log/pack_rirs_${name}.log \
+    hyp_utils/conda_env.sh \
     pack-wav-rirs.py ${args} --input $data_in/wav.scp \
      --output ${file_format},scp:$output_dir/rirs_${name}.${file_format},$data_out/rirs.scp || exit 1;
 

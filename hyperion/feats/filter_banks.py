@@ -142,8 +142,8 @@ class FilterBankFactory(object):
         if prefix is not None:
             outer_parser.add_argument(
                 '--' + prefix,
-                action=ActionParser(parser=parser),
-                help='filter-bank options')
+                action=ActionParser(parser=parser))
+                # help='filter-bank options')
 
         
     add_argparse_args = add_class_args

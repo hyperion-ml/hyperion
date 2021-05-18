@@ -64,8 +64,8 @@ class VectorReader(object):
         if prefix is not None:
             outer_parser.add_argument(
                 '--' + prefix,
-                action=ActionParser(parser=parser),
-                help='vector reader params')
+                action=ActionParser(parser=parser))
+                # help='vector reader params')
     
 
     add_argparse_args = add_class_args

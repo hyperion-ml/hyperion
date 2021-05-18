@@ -314,8 +314,10 @@ class AudioDataset(Dataset):
             end_idx = len(x)
             reverb_context_samples = end_idx - chunk_length_samples
             assert reverb_context_samples >= 0, (
-                'key={} read-x-samples={}, chunk_samples={}, reverb_context_samples={}'.format(
-                    key, end_idx, chunk_length_samples, reverb_context_samples))
+                ('key={} time-offset={}, read-chunk={} '
+                 'read-x-samples={}, chunk_samples={}, reverb_context_samples={}').format(
+                    key, time_offset, read_chunk_length, 
+                    end_idx, chunk_length_samples, reverb_context_samples))
             # end_idx = reverb_context_samples + chunk_length_samples
             x, aug_info = self.augmenter(x)
             x = x[reverb_context_samples:end_idx]
@@ -395,8 +397,8 @@ class AudioDataset(Dataset):
         if prefix is not None:
             outer_parser.add_argument(
                 '--' + prefix,
-                action=ActionParser(parser=parser),
-                help='audio dataset options')
+                action=ActionParser(parser=parser))
+                # help='audio dataset options')
 
 
     add_argparse_args = add_class_args

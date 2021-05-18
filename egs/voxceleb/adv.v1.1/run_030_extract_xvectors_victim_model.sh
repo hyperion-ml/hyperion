@@ -25,6 +25,7 @@ fi
 
 if [ $ft -eq 1 ];then
     nnet_name=$advft_nnet_name
+    nnet=$advft_nnet
 fi
 
 xvector_dir=exp/xvectors/$nnet_name

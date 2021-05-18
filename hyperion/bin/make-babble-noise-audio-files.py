@@ -104,8 +104,8 @@ if __name__ == "__main__":
     parser.add_argument('--output-script',  required=True)
     parser.add_argument('--write-time-durs', dest='write_time_durs_spec', default=None)
 
-    AR.add_argparse_args(parser)
-    Writer.add_argparse_args(parser)
+    AR.add_class_args(parser)
+    Writer.add_class_args(parser)
 
     parser.add_argument('--min-spks', default=3, type=int)
     parser.add_argument('--max-spks', default=10, type=int)

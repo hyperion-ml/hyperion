@@ -34,6 +34,21 @@ class AudioFeatsMVN(NetArch):
             self.mvn = MVN(**mvn)
 
 
+    @property
+    def fs(self):
+        return self.audio_feats.fs
+
+
+    @property
+    def frame_length(self):
+        return self.audio_feats.frame_length
+
+
+    @property
+    def frame_shift(self):
+        return self.audio_feats.frame_shift
+
+
     def forward(self, x):
         f = self.audio_feats(x)
         if self.mvn is not None:
@@ -71,7 +86,7 @@ class AudioFeatsMVN(NetArch):
         if prefix is not None:
             outer_parser.add_argument(
                 '--' + prefix,
-                action=ActionParser(parser=parser),
-                help='feature extraction options')
+                action=ActionParser(parser=parser))
+                # help='feature extraction options')
 
         

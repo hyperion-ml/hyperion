@@ -209,7 +209,7 @@ class AttackFactory(object):
         if prefix is not None:
             outer_parser.add_argument(
                 '--' + prefix,
-                action=ActionParser(parser=parser),
-                help='adversarial attack options')
+                action=ActionParser(parser=parser))
+                # help='adversarial attack options')
 
     add_argparse_args = add_class_args

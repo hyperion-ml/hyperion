@@ -14,7 +14,7 @@ import numpy as np
 
 import torch
 
-from hyperion.hyp_defs import config_logger, float_cpu
+from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.utils import Utt2Info
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialDataReaderFactory as DRF
@@ -173,7 +173,7 @@ if __name__ == "__main__":
 
     parser.add_argument('--cfg', action=ActionConfigFile)
     parser.add_argument('--input', dest='input_spec', required=True)
-    parser.add_argument('--input', dest='input_spec', required=True)
+    DRF.add_class_args(parser)
     parser.add_argument('--vad', dest='vad_spec', default=None)
     parser.add_argument('--write-num-frames', dest='write_num_frames_spec', default=None)
     # parser.add_argument('--scp-sep', default=' ',

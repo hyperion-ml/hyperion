@@ -53,7 +53,7 @@ class OptimizerFactory(object):
             valid_args = ('lr', 'eps', 'weight_decay')
             opt_args = filter_args(valid_args, kwargs)
             opt_args['betas'] = betas
-            base_opt = optim.RAdam
+            base_opt = RAdam
             # return RAdam(
             #     params, lr, betas=(beta1, beta2), eps=eps,
             #     weight_decay=weight_decay)
@@ -237,8 +237,8 @@ class OptimizerFactory(object):
         if prefix is not None:
             outer_parser.add_argument(
                 '--' + prefix,
-                action=ActionParser(parser=parser),
-                help='optimizer options')
+                action=ActionParser(parser=parser))
+                # help='optimizer options')
 
 
     add_argparse_args = add_class_args

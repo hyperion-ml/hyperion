@@ -207,8 +207,8 @@ class AudioFeatsFactory(object):
         if prefix is not None:
             outer_parser.add_argument(
                 '--' + prefix,
-                action=ActionParser(parser=parser),
-                help='acoustic features options')
+                action=ActionParser(parser=parser))
+                # help='acoustic features options')
         
     add_argparse_args = add_class_args
     

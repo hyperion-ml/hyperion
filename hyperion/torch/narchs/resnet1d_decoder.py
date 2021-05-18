@@ -327,7 +327,7 @@ class ResNet1dDecoder(NetArch):
             parser = ArgumentParser(prog='')
 
         parser.add_argument(
-                '--in-channels', type=int, required=True,
+                '--in-channels', type=int, default=80,
                 help=('input channels of decoder'))
 
         parser.add_argument(
@@ -355,15 +355,15 @@ class ResNet1dDecoder(NetArch):
             help=('resb-blocks channels for each stage'))
 
         parser.add_argument(
-            '--resb-kernel-sizes', default=3, 
+            '--resb-kernel-sizes', default=[3], 
             nargs='+', type=int, help=('resb-blocks kernels for each encoder stage'))
 
         parser.add_argument(
-            '--resb-strides', default=2, 
+            '--resb-strides', default=[2], 
             nargs='+', type=int, help=('resb-blocks strides for each encoder stage'))
 
         parser.add_argument(
-            '--resb-dilations', default=1,
+            '--resb-dilations', default=[1],
             nargs='+', type=int, help=('resb-blocks dilations for each encoder stage'))
 
         parser.add_argument(
@@ -410,8 +410,8 @@ class ResNet1dDecoder(NetArch):
         if prefix is not None:
             outer_parser.add_argument(
                 '--' + prefix,
-                action=ActionParser(parser=parser),
-                help='ResNet1d decoder options')
+                action=ActionParser(parser=parser))
+                # help='ResNet1d decoder options')
 
 
     add_argparse_args = add_class_args

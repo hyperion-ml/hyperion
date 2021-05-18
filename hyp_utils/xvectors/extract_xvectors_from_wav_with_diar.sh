@@ -6,7 +6,7 @@ cmd="run.pl"
 
 chunk_length=0     # The chunk size over which the embedding is extracted.
 use_gpu=false
-feat_config=conf/fbank80_stmn_16k.pyconf
+feat_config=conf/fbank80_stmn_16k.yaml
 stage=0
 min_utt_length=500
 max_utt_length=12000

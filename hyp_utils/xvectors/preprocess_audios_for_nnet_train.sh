@@ -85,6 +85,7 @@ else
 fi
 
 $cmd JOB=1:$nj $dir/log/preproc_audios_${name}.JOB.log \
+    hyp_utils/conda_env.sh \
     preprocess-audio-files.py ${args} --output-audio-format $file_format $args $proc_opts \
     --write-time-durs $output_dir/utt2dur.${name}.JOB \
     --part-idx JOB --num-parts $nj \

@@ -34,6 +34,9 @@ class XVectorTrainer(TorchTrainer):
          train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
          use_amp: uses mixed precision training.
          log_interval: number of optim. steps between log outputs
+         use_tensorboard: use tensorboard logger
+         use_wandb: use wandb logger
+         wandb: wandb dictionary of options
          grad_clip: norm to clip gradients, if 0 there is no clipping
          grad_clip_norm: norm type to clip gradients
          swa_start: epoch to start doing swa
@@ -45,7 +48,9 @@ class XVectorTrainer(TorchTrainer):
                  grad_acc_steps=1, 
                  device=None, metrics=None, lrsched=None, loggers=None, 
                  ddp=False, ddp_type='ddp', loss=None, train_mode='train', use_amp=False,
-                 log_interval=10, grad_clip=0, grad_clip_norm=2,
+                 log_interval=10, use_tensorboard=False, 
+                 use_wandb=False, wandb={},
+                 grad_clip=0, grad_clip_norm=2,
                  swa_start=0, swa_lr=1e-3, swa_anneal_epochs=10, cpu_offload=False):
 
         if loss is None:
@@ -55,7 +60,9 @@ class XVectorTrainer(TorchTrainer):
             grad_acc_steps=grad_acc_steps, device=device, metrics=metrics,
             lrsched=lrsched, loggers=loggers, 
             ddp=ddp, ddp_type=ddp_type,
-            train_mode=train_mode, use_amp=use_amp, log_interval=log_interval, 
+            train_mode=train_mode, use_amp=use_amp, 
+            log_interval=log_interval, use_tensorboard=use_tensorboard,
+            use_wandb=use_wandb, wandb=wandb,
             grad_clip=grad_clip, grad_clip_norm=grad_clip_norm,
             swa_start=swa_start, swa_lr=swa_lr, 
             swa_anneal_epochs=swa_anneal_epochs, 
@@ -107,9 +114,6 @@ class XVectorTrainer(TorchTrainer):
             self.loggers.on_batch_end(logs=logs, batch_size=batch_size)
 
         logs = metric_acc.metrics
+        logs = ODict(('train_' + k, v) for k,v in logs.items())
         logs['lr'] = self._get_lr()
         return logs
-
-                                             
-
-

@@ -85,6 +85,7 @@ if [ -f $data/segments ]; then
 fi
 
 $cmd JOB=1:$nj $logdir/make_vad_${name}.JOB.log \
+    hyp_utils/conda_env.sh \
     compute-energy-vad.py --cfg $vad_config $opt_args \
     --input $scp --output ark,scp:$vaddir/vad_$name.JOB.ark,$vaddir/vad_$name.JOB.scp \
     --part-idx JOB --num-parts $nj || exit 1

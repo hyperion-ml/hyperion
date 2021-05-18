@@ -43,7 +43,7 @@ while(getline < fv)
 echo "$0 score $ndx_file"
 
 $cmd $output_dir/log/${name}.log \
-     python steps_be/eval-tel-be-snorm-v1.py \
+     hyp_utils/conda_env.sh steps_be/eval-tel-be-snorm-v1.py \
      --iv-file scp:$vector_file \
      --ndx-file $ndx_file \
      --enroll-file $enroll_file \

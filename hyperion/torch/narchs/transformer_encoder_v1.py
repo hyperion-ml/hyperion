@@ -322,7 +322,7 @@ class TransformerEncoderV1(NetArch):
 
         if in_feats:
             parser.add_argument(
-                '--in-feats', type=int, required=True,
+                '--in-feats', type=int, default=80,
                 help=('input feature dimension'))
 
         parser.add_argument('--num-blocks',
@@ -387,8 +387,8 @@ class TransformerEncoderV1(NetArch):
         if prefix is not None:
             outer_parser.add_argument(
                 '--' + prefix,
-                action=ActionParser(parser=parser),
-                help='transformer encoder options')
+                action=ActionParser(parser=parser))
+                # help='transformer encoder options')
 
 
 

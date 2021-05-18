@@ -283,15 +283,15 @@ class DC1dEncoder(NetArch):
             help=('conv-blocks channels for each stage'))
 
         parser.add_argument(
-            '--conv-kernel-sizes', default=3, 
+            '--conv-kernel-sizes', default=[3], 
             nargs='+', type=int, help=('conv-blocks kernels for each encoder stage'))
 
         parser.add_argument(
-            '--conv-strides', default=2, 
+            '--conv-strides', default=[2], 
             nargs='+', type=int, help=('conv-blocks strides for each encoder stage'))
 
         parser.add_argument(
-            '--conv-dilations', default=1,
+            '--conv-dilations', default=[1],
             nargs='+', type=int, help=('conv-blocks dilations for each encoder stage'))
 
         if head_channels:
@@ -331,7 +331,7 @@ class DC1dEncoder(NetArch):
         if prefix is not None:
             outer_parser.add_argument(
                 '--' + prefix,
-                action=ActionParser(parser=parser),
-                help='DC1d encoder options')
+                action=ActionParser(parser=parser))
+                # help='DC1d encoder options')
 
     add_argparse_args = add_class_args

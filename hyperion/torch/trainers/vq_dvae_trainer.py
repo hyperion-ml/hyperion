@@ -43,9 +43,12 @@ class VQDVAETrainer(DVAETrainer):
     """
 
     def __init__(self, model, optim={}, epochs=100, exp_path='./train', cur_epoch=0, grad_acc_steps=1,
-                 device=None, metrics=None, lr_scheduler=None, loggers=None, data_parallel=False, 
-                 train_mode='train', use_amp=False, log_interval=10,
-                 grad_clip=0, swa_start=0, swa_lr=1e-3, swa_anneal_epochs=10):
+                 device=None, metrics=None, lrsched=None, loggers=None, 
+                 ddp=False, ddp_type='ddp',
+                 train_mode='train', use_amp=False, log_interval=10, 
+                 grad_clip=0, grad_clip_norm=2, 
+                 swa_start=0, swa_lr=1e-3, swa_anneal_epochs=10, 
+                 cpu_offload=False):
             
         super().__init__(
             model, optim, epochs, exp_path, cur_epoch=cur_epoch,

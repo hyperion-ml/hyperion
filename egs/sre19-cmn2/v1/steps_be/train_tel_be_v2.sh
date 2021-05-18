@@ -73,7 +73,7 @@ while(getline < fv)
 /unlabeled/ { if($1 in files){print $1,$5}}' $unlab_meta > $unlab_list
 
 $cmd $output_dir/log/train_be.log \
-     python steps_be/train-tel-be-v2.py \
+     hyp_utils/conda_env.sh steps_be/train-tel-be-v2.py \
      --iv-file scp:$vector_file \
      --train-list $train_list \
      --adapt-iv-file scp:$adapt_vector_file \

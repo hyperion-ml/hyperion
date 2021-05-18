@@ -31,7 +31,7 @@ diar_ahc_dir=$diar_dir/ahc
 if [ $stage -le 1 ]; then
 
     echo "Train PLDA on Voxceleb"
-    steps_diar/train_plda_v1.sh --cmd "$train_cmd --mem 64G" \
+    steps_diar/train_plda_v1.sh --cmd "$train_cmd --mem 32G" \
 	--lda_dim $lda_dim \
 	--plda_type $plda_type \
 	--y_dim $plda_y_dim --z_dim $plda_z_dim \

@@ -122,8 +122,8 @@ class GlobalPool1dFactory(object):
         if prefix is not None:
             outer_parser.add_argument(
                 '--' + prefix,
-                action=ActionParser(parser=parser),
-                help='pool options')
+                action=ActionParser(parser=parser))
+                # help='pool options')
 
 
     @staticmethod

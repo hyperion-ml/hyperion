@@ -6,6 +6,9 @@
 import numpy as np
 import torch.distributed as dist
 
+from .tensorboard_logger import TensorBoardLogger as TBL
+
+
 class LoggerList(object):
     """Container for a list of logger callbacks
 
@@ -18,6 +21,20 @@ class LoggerList(object):
         
     def append(self, logger):
         self.loggers.append(logger)
+
+
+    @property
+    def tensorboard_logger(self):
+        for l in self.loggers:
+            if isinstance(l, TBL):
+                return l
+
+
+    @property
+    def tensorboard_writer(self):
+        for l in self.loggers:
+            if isinstance(l, TBL):
+                return l.writer
 
         
     def on_epoch_begin(self, epoch, logs=None, **kwargs):
@@ -93,85 +110,5 @@ class LoggerList(object):
 
     def __iter__(self):
         return iter(self.loggers)
-
-    
-
-
-class Logger(object):
-    """Base class for logger objects
-    
-    Attributes:
-       params: training params dictionary
-    """
-    def __init__(self):
-        try:
-            rank = dist.get_rank()
-            world_size = dist.get_world_size()
-        except:
-            rank = 0
-            world_size = 1
-        self.cur_epoch = 0
-        self.cur_batch = 0
-        self.params=None
-        self.rank = rank
-        self.world_size = world_size
-
-    
-    def on_epoch_begin(self, epoch, logs, **kwargs):
-        """At the start of an epoch
-        
-        Args:
-           epoch: index of the epoch
-           logs: dictionary of logs
-        """
-        self.cur_epoch = epoch
-        
-            
-    def on_epoch_end(self, logs, **kwargs):
-        """At the end of an epoch
-        
-        Args:
-           logs: dictionary of logs
-        """
-        pass
-
-    
-    def on_batch_begin(self, batch, logs, **kwargs):
-        """At the start of a batch
-        
-        Args:
-           batch: batch index within the epoch
-           logs: dictionary of logs
-        """
-        self.cur_batch = batch 
-        
-
-    def on_batch_end(self, logs, **kwargs):
-        """At the end of a batch
-        
-        Args:
-           batch: batch index within the epoch
-           logs: dictionary of logs
-        """
-        pass
-
-    def on_train_begin(self, logs, **kwargs):
-        """At the start of training
-        
-        Args:
-           logs: dictionary of logs
-        """
-        pass
-
-    def on_train_end(self, logs, **kwargs):
-        """At the end of training
-        
-        Args:
-           batch: batch index within the epoch
-           logs: dictionary of logs
-        """
-        pass
-
-
 
     

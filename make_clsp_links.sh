@@ -20,12 +20,12 @@ if [ ! -f anaconda3 ];then
 fi
 cd -
 
-# cudnn
-cd tools/cudnn
-#cudnn v7.6 for cuda 10.1 needed by pytorch 1.4 (conda enviroment pytorch1.4_cuda10.1)
-if [ ! -f cudnn-10.1-v7.6 ];then
-    ln -s /home/janto/usr/local/cudnn-10.1-v7.6 cudnn-10.1-v7.6
-fi
+# # cudnn
+# cd tools/cudnn
+# #cudnn v7.6 for cuda 10.1 needed by pytorch 1.4 (conda enviroment pytorch1.4_cuda10.1)
+# if [ ! -f cudnn-10.1-v7.6 ];then
+#     ln -s /home/janto/usr/local/cudnn-10.1-v7.6 cudnn-10.1-v7.6
+# fi
 
 
 # #deprecated from here

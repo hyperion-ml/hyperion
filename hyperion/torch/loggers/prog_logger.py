@@ -9,14 +9,15 @@ from collections import OrderedDict
 
 import numpy as np
 
-from .loggers import Logger
+from .logger import Logger
 
 
 class ProgLogger(Logger):
     """Logger that prints training progress to stdout
 
     Attributes:
-      
+       metrics: list of metrics
+       interval: number of batches between prints
     """
     def __init__(self, metrics=None, interval=10):
         super().__init__()

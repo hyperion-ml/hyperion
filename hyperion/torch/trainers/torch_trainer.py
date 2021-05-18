@@ -19,7 +19,7 @@ import torch.distributed as dist
 from fairscale.optim.grad_scaler import ShardedGradScaler
 
 from ..utils import MetricAcc, TorchDDP, FairShardedDDP, FairFullyShardedDDP
-from ..loggers import LoggerList, CSVLogger, ProgLogger
+from ..loggers import LoggerList, CSVLogger, ProgLogger, TensorBoardLogger, WAndBLogger
 from ..optim import OptimizerFactory as OF
 from ..lr_schedulers import LRSchedulerFactory as LRSF
 from ..lr_schedulers import LRScheduler as LRS
@@ -54,6 +54,9 @@ class TorchTrainer(object):
          train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
          use_amp: uses mixed precision training.
          log_interval: number of optim. steps between log outputs
+         use_tensorboard: use tensorboard logger
+         use_wandb: use wandb logger
+         wandb: wandb dictionary of options
          grad_clip: norm to clip gradients, if 0 there is no clipping
          grad_clip_norm: norm type to clip gradients
          swa_start: epoch to start doing swa
@@ -65,7 +68,9 @@ class TorchTrainer(object):
                  cur_epoch=0, grad_acc_steps=1,
                  device=None, metrics=None, lrsched=None, loggers=None, 
                  ddp=False, ddp_type='ddp',
-                 train_mode='train', use_amp=False, log_interval=10, 
+                 train_mode='train', use_amp=False, 
+                 log_interval=10, use_tensorboard=False,
+                 use_wandb=False, wandb={},
                  grad_clip=0, grad_clip_norm=2, 
                  swa_start=0, swa_lr=1e-3, swa_anneal_epochs=10, 
                  cpu_offload=False):
@@ -79,7 +84,8 @@ class TorchTrainer(object):
         self.exp_path = exp_path
 
         if loggers is None:
-            self.loggers = self._default_loggers(log_interval)
+            self.loggers = self._default_loggers(
+                log_interval, use_tensorboard, use_wandb, wandb)
         elif isinstance(loggers, list):
             self.loggers = LoggerList(loggers)
         else:
@@ -271,6 +277,7 @@ class TorchTrainer(object):
             #total_batches += 1
 
         logs = metric_acc.metrics
+        logs = ODict(('train_' + k, v) for k,v in logs.items())
         logs['lr'] = self._get_lr()
         return logs
 
@@ -286,7 +293,7 @@ class TorchTrainer(object):
         batch_metrics = ODict()
         with torch.no_grad():
             if swa_update_bn:
-                log_tag = ''
+                log_tag = 'train_'
                 self.set_train_mode()
             else:
                 log_tag = 'val_'
@@ -378,12 +385,19 @@ class TorchTrainer(object):
         return lr_sched
 
 
-    def _default_loggers(self, log_interval):
+    def _default_loggers(self, log_interval, use_tensorboard, use_wandb, wandb):
         """Creates the default data loaders
         """
         prog_log = ProgLogger(interval=log_interval)
         csv_log = CSVLogger(self.exp_path + '/train.log', append=True)
-        return LoggerList([prog_log, csv_log])
+        loggers = [prog_log, csv_log]
+        if use_tensorboard:
+            loggers.append(TensorBoardLogger(
+                self.exp_path + '/tb', interval=log_interval))
+        if use_wandb:
+            loggers.append(WAndBLogger(
+                **wandb, path=self.exp_path + '/wandb', interval=log_interval))
+        return LoggerList(loggers)
     
     
     def _get_lr(self):
@@ -519,9 +533,11 @@ class TorchTrainer(object):
 
     @staticmethod
     def filter_args(**kwargs):
-        valid_args = ('grad_acc_steps', 'epochs', 'log_interval', 'use_amp', 'ddp_type',
-                      'grad_clip', 'swa_start', 'swa_lr', 'swa_anneal_epochs', 'exp_path', 
-                      'optim', 'lrsched', 'cpu_offload')
+        valid_args = ('grad_acc_steps', 'epochs', 'log_interval', 
+                      'use_amp', 'ddp_type', 'grad_clip', 
+                      'swa_start', 'swa_lr', 'swa_anneal_epochs', 'exp_path', 
+                      'optim', 'lrsched', 'cpu_offload', 'use_tensorboard',
+                      'use_wandb', 'wandb')
         args = dict((k, kwargs[k])
                     for k in valid_args if k in kwargs)
 
@@ -548,6 +564,28 @@ class TorchTrainer(object):
         parser.add_argument(
             '--log-interval', type=int, default=10, 
             help='how many batches to wait before logging training status')
+        parser.add_argument(
+            '--use-tensorboard', action='store_true', default=False,
+            help='use tensorboard logger')
+        parser.add_argument(
+            '--use-wandb', action='store_true', default=False,
+            help='use wandb logger')
+        parser.add_argument(
+            '--wandb.project', default=None,
+            help='wandb project name')
+        parser.add_argument(
+            '--wandb.group', default=None,
+            help='wandb group name')
+        parser.add_argument(
+            '--wandb.name', default=None,
+            help='wandb display name')
+        # parser.add_argument(
+        #     '--wandb.path', default=None,
+        #     help='wandb directory')
+        parser.add_argument(
+            '--wandb.mode', default='online', choices=['online', 'offline'],
+            help='wandb mode (online, offline)')
+
         parser.add_argument(
             '--ddp-type', default='ddp', choices=ddp_choices,
             help='DDP type in {}'.format(ddp_choices))
@@ -578,7 +616,7 @@ class TorchTrainer(object):
         if prefix is not None:
             outer_parser.add_argument(
                 '--' + prefix,
-                action=ActionParser(parser=parser),
-                help='trainer options')
+                action=ActionParser(parser=parser))
+                # help='trainer options')
     
     add_argparse_args = add_class_args

@@ -81,6 +81,8 @@ class PairedFeatSeqDataset(FeatSeqDataset):
         x_pair = self.r.read([key_pair], row_offset=first_frame,
                              num_rows=chunk_length)[0]
 
+        x = x.astype(floatstr_torch(), copy=False)
+        x_pair = x_pair.astype(floatstr_torch(), copy=False)
         if self.transpose_input:
             x = x.T
             x_pair = x_pair.T
