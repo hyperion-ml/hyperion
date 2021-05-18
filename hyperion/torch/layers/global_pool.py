@@ -4,6 +4,7 @@
 """
 import logging
 import math
+import numpy as np
 
 import torch
 import torch.nn as nn
@@ -615,3 +616,5 @@ class GlobalChWiseAttMeanStdPool1d(_GlobalPool1d):
 
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
+
+

@@ -9,6 +9,7 @@ from torch.nn import Conv2d, Conv1d
 
 from ..layers import ActivationFactory as AF
 
+import logging
 
 class SEBlock2D(nn.Module):
     """ From https://arxiv.org/abs/1709.01507
@@ -26,7 +27,6 @@ class SEBlock2D(nn.Module):
         scale = self.sigmoid(self.conv2(self.act(self.conv1(z))))
         y = scale * x
         return y
-
 
 
 class TSEBlock2D(nn.Module):
@@ -51,7 +51,6 @@ class TSEBlock2D(nn.Module):
         scale = scale.view(-1, num_channels, num_feats, 1)
         y = scale * x
         return y
-
 
 
 class SEBlock1d(nn.Module):

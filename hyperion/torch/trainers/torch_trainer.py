@@ -187,13 +187,13 @@ class TorchTrainer(object):
         val_logs = {}
         self.loggers.on_train_begin(epochs=self.epochs)
         for epoch in range(self.cur_epoch, self.epochs):
-            
+
             self.loggers.on_epoch_begin(epoch, batches=len(train_data))
             if self.lr_scheduler is not None:
                 # this is needed by cosine scheduler
                 epoch_updates = int(len(train_data)/self.grad_acc_steps)
                 self.lr_scheduler.on_epoch_begin(epoch, epoch_updates=epoch_updates)
-            
+
             logs = self.train_epoch(train_data)
             if val_data is not None:
                 val_logs = self.validation_epoch(val_data)
@@ -243,16 +243,14 @@ class TorchTrainer(object):
         batch_metrics = ODict()
         self.set_train_mode()
         for batch, (data, target) in enumerate(data_loader):
-            
             self.loggers.on_batch_begin(batch)
             if batch % self.grad_acc_steps == 0:
                 self.optimizer.zero_grad()
-                
+
             data, target = data.to(self.device), target.to(self.device)
             batch_size = data.shape[0]
-            
             with self.amp_autocast():
-                output = self.model(data, **self.amp_args)
+                output = self.model(data)
                 loss = self.loss(output, target).mean()/self.grad_acc_steps
 
             if self.use_amp:
@@ -269,7 +267,7 @@ class TorchTrainer(object):
             batch_metrics['loss'] = loss.item() * self.grad_acc_steps
             for k, metric in self.metrics.items():
                 batch_metrics[k] = metric(output, target)
-            
+
             metric_acc.update(batch_metrics, batch_size)
             logs = metric_acc.metrics
             logs['lr'] = self._get_lr()

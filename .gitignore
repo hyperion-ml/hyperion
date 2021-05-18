@@ -43,3 +43,8 @@ RIRS_NOISES
 egs/*/*/exp
 egs/*/*/data
 kk
+
+egs/voxceleb/*/*.o*
+egs/voxceleb/*/*.e*
+egs/voxceleb/*/scores
+egs/voxceleb/*/q

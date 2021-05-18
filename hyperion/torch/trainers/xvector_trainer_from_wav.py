@@ -92,7 +92,7 @@ class XVectorTrainerFromWav(XVectorTrainer):
             self.loggers.on_batch_begin(batch)
             if batch % self.grad_acc_steps == 0:
                 self.optimizer.zero_grad()
-                
+
             data, target = data.to(self.device), target.to(self.device)
             batch_size = data.shape[0]
             with torch.no_grad():

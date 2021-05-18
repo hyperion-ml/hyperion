@@ -50,7 +50,10 @@ class XVector(TorchModel):
             in_shape = list(in_shape)
             in_shape[2] = in_feats
             out_shape = self.encoder_net.out_shape(tuple(in_shape))
-            enc_feats = out_shape[1]*out_shape[2]
+            enc_feats = out_shape[-3]*out_shape[-2]
+            logging.info(out_shape)
+            if 'aggr' in pool_net['pool_type'] and len(out_shape) == 5:
+                enc_feats *= out_shape[0]
 
         self.in_feats = in_feats
 
@@ -197,8 +200,8 @@ class XVector(TorchModel):
     #     if use_amp:
     #         with torch.cuda.amp.autocast():
     #             return self._forward(x, y)
-
     #     return self._forward(x, y)
+
     def forward(self, x, y=None, 
                 enc_layers=None, classif_layers=None, 
                 return_output=True, use_amp=False):
@@ -224,7 +227,15 @@ class XVector(TorchModel):
 
         x = self.encoder_net(x)
 
-        if self.encoder_net.out_dim() == 4:
+        if type(x) is dict:
+            for k, v in x.items():
+                # logging.info(k)
+                # logging.info(x[k].size())
+                x[k] = v.view(v.size(0), -1, v.size(-1))
+                # logging.info(x[k].size())
+        elif x.dim() == 5:
+            x = x.view(x.size(0), x.size(1), -1, x.size(-1))
+        elif self.encoder_net.out_dim() == 4:
             x = x.view(x.size(0), -1, x.size(-1))
 
         if self.proj is not None:
@@ -264,31 +275,47 @@ class XVector(TorchModel):
 
 
 
-    def extract_embed(self, x, chunk_length=0, embed_layer=None, detach_chunks=False):
+    def extract_embed(self, x, chunk_length=0, embed_layer=None, device=None):
         if embed_layer is None:
             embed_layer = self.embed_layer
 
-        x = self._pre_enc(x)
-        # if self.encoder_net.in_dim() == 4 and x.dim() == 3:
-        #     x = x.view(x.size(0), 1, x.size(1), x.size(2))
+        if self.encoder_net.in_dim() == 4 and x.dim() == 3:
+            x = x.view(x.size(0), 1, x.size(1), x.size(2))
 
-        x = eval_nnet_by_chunks(x, self.encoder_net, 
-                                chunk_length, detach_chunks=detach_chunks)
+        x = eval_nnet_by_chunks(x, self.encoder_net, chunk_length, device=device)
+        # if chunk_length == 0:
+        #     if device is not None:
+        #         x.to(device)
+        #     x = self.encoder_net(x)
+        # else:
+        #     raise NotImplementedError()
 
-        if x.device != self.device:
-            x = x.to(self.device)
+        # if device is not None:
+        #     x = x.to(device)
+        try:
+            if x.device != self.device:
+                x = x.to(self.device)
+        except:
+            pass
 
-        x = self._post_enc(x)
+        if type(x) is dict:
+            for k, v in x.items():
+                x[k] = v.view(v.size(0), -1, v.size(-1))
+        elif x.dim() == 5:
+            x = x.view(x.size(0), x.size(1), -1, x.size(-1))
+        elif self.encoder_net.out_dim() == 4:
+            x = x.view(x.size(0), -1, x.size(-1))
         # if self.encoder_net.out_dim() == 4:
         #     x = x.view(x.size(0), -1, x.size(-1))
 
-        # if self.proj is not None:
-        #     x = self.proj(x)
+        if self.proj is not None:
+            x = self.proj(x)
+
         p = self.pool_net(x)
+        # logging.info(p.size())
+        # logging.info(x.size())
         y = self.classif_net.extract_embed(p, embed_layer)
         return y
-
-
 
     def extract_embed_slidwin(self, x, win_length, win_shift, snip_edges=False,
                               feat_frame_length=None, feat_frame_shift=None,
@@ -402,7 +429,7 @@ class XVector(TorchModel):
                   'in_feats': self.in_feats,
                   'proj_feats': self.proj_feats }
         
-        base_config = super().get_config()
+        base_config = super(XVector, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
 
@@ -417,6 +444,7 @@ class XVector(TorchModel):
         #     del cfg['preproc_cfg']
 
         encoder_net = TorchNALoader.load_from_cfg(cfg=cfg['encoder_cfg'])
+
         for k in ('encoder_cfg'):
             del cfg[k]
         
@@ -532,7 +560,7 @@ class XVector(TorchModel):
         #                              'lde', 'scaled-dot-prod-att-v1', 'ch-wise-att-mean-stddev'],
         #                     help=('Pooling methods: Avg, Mean+Std, Mean+logVar, LDE, '
         #                           'scaled-dot-product-attention-v1'))
-        
+
         # parser.add_argument('--pool-num-comp',
         #                     default=64, type=int,
         #                     help=('number of components for LDE pooling'))
@@ -685,4 +713,3 @@ class XVector(TorchModel):
     add_argparse_args = add_class_args
     add_argparse_finetune_args = add_finetune_args
 
-            

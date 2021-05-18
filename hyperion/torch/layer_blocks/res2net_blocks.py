@@ -63,7 +63,8 @@ class Res2NetBasicBlock(nn.Module):
             self.num_3x3 = scale - 1
 
         if scale > 1:
-            self.conv1x1 = _conv1x1(width_in, width_mid, stride, bias=bias)
+            single_width = in_channels % width_in + width_in
+            self.conv1x1 = _conv1x1(single_width, width_mid, stride, bias=bias)
 
         conv1s = []
         proj1s = []
@@ -118,8 +119,10 @@ class Res2NetBasicBlock(nn.Module):
 
     def forward(self, x):
         residual = x
-
-        split_x = torch.split(x, self.width_in, 1)
+        split_size = [self.width_in for i in range(self.scale - 1)]
+        split_size.append(self.in_channels % self.width_in + self.width_in)
+        split_x = torch.split(x, split_size, 1)
+        # split_x = torch.split(x, self.width_in, 1)
         x = []
         for i in range(self.num_3x3):
             if i == 0 or self.stride > 1:
