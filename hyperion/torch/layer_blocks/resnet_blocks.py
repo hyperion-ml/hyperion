@@ -5,7 +5,7 @@
 
 import torch.nn as nn
 from torch.nn import Conv2d, BatchNorm2d, Dropout2d
-import torch.nn.functional as F
+import torch.nn.functional as nnf
 
 from ..layers import ActivationFactory as AF
 
@@ -259,14 +259,15 @@ class ResNetBNBlock(nn.Module):
 
 class Interpolate(nn.Module):
     def __init__(self, scale_factor, mode='nearest'):
-        super(Interpolate, self).__init__()
-        self.interp = F.interpolate
+        super().__init__()
+        self.interp = nnf.interpolate
         self.scale_factor = scale_factor
         self.mode = mode
 
     def forward(self, x):
         x = self.interp(x, scale_factor=self.scale_factor, mode=self.mode)
         return x
+
 
 
 class ResNetEndpointBlock(nn.Module):
@@ -293,6 +294,7 @@ class ResNetEndpointBlock(nn.Module):
         self.scale = scale
         if self.scale > 1:
             self.upsample = Interpolate(scale_factor=scale, mode='nearest')
+
 
     def forward(self, x):
 

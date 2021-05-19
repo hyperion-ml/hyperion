@@ -9,7 +9,6 @@ from torch.nn import Conv2d, Conv1d
 
 from ..layers import ActivationFactory as AF
 
-import logging
 
 class SEBlock2D(nn.Module):
     """ From https://arxiv.org/abs/1709.01507

@@ -14,7 +14,6 @@ from .models import *
 
 class TorchModelLoader(object):
 
-
     @staticmethod
     def load(file_path, extra_objs={}, map_location=None):
 
@@ -49,5 +48,3 @@ class TorchModelLoader(object):
                     raise err
                 # remove module prefix when is trained with dataparallel
                 state_dict = ODict((p.sub('',k), v) for k,v in state_dict.items())
-
-    

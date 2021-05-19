@@ -148,7 +148,6 @@ class GlobalPool1dFactory(object):
         if isinstance(layer, GlobalChWiseAttMeanStdPool1d):
             config['pool_type'] = 'ch-wise-att-mean-stddev'
 
-
         return config
 
         

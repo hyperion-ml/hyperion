@@ -146,11 +146,11 @@ class SpineNetFactory(object):
             help=('squeeze ratio in squeeze-excitation blocks'))
 
         parser.add_argument(
-            p1 + 'res2net-scale', default=4, type=int,
+            '--res2net-scale', default=4, type=int,
             help=('scale parameter for res2net'))
 
         parser.add_argument(
-            p1 + 'res2net-width-factor', default=1, type=float,
+            '--res2net-width-factor', default=1, type=float,
             help=('multiplicative factor for the internal width of res2net'))
 
         try:
