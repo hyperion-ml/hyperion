@@ -26,10 +26,7 @@ xvector_dir=exp/xvectors/$nnet_name
 
 if [ $stage -le 1 ]; then
     # Extracts x-vectors for evaluation
-    for name in sitw_dev_test sitw_eval_test \
-	sre18_eval_test_vast sre18_dev_test_vast \
-	sre19_av_a_dev_test sre19_av_a_eval_test \
-	janus_dev_test_core janus_eval_test_core
+    for name in chime5_spkdet_test chime5_spkdet_test_gtvad
     do
 	name_out=${name}_${diar_name}
 	num_spk=$(wc -l data/$name/spk2utt | awk '{ print $1}')
@@ -41,7 +38,7 @@ if [ $stage -le 1 ]; then
 	    $xvector_dir/$name_out
     done
 fi
-
+exit
 if [ $stage -le 2 ]; then
     # combine datasets    
     mkdir -p $xvector_dir/sitw_dev_${diar_name}
