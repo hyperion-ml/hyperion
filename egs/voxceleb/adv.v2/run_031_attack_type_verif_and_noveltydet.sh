@@ -116,9 +116,9 @@ if [ $stage -le 4 ]; then
 fi
 
 if [ $stage -le 5 ];then
-    echo "Compute confusion matrices from logits"
-    echo "Result left in $logits_dir/test/eval_acc.log"
-    $train_cmd $logits_dir/test/eval_acc.log \
+    echo "Compute confusion matrices from logits using all attacks"
+    echo "Result left in $logits_dir/test_all/eval_acc.log"
+    $train_cmd $logits_dir/test_all/eval_acc.log \
 	hyp_utils/conda_env.sh steps_backend/eval-classif-perf.py \
         --score-file scp:$logits_dir/test/logits.scp \
         --key-file $list_all_dir/test_utt2attack \
