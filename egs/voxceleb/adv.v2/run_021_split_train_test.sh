@@ -18,7 +18,7 @@ mkdir -p $attack_dir/pool_v1
 
 if [ $stage -le 1 ];then
     # concatenate infos of all attacks types
-    for attack in fgsm iter-fgsm pgd-linf pgd-l1 pgd-l2 cw-l2 cw-linf #cw-l0
+    for attack in fgsm iter-fgsm pgd-linf pgd-l1 pgd-l2 cw-l2 cw-linf cw-l0
     do
 	for name in voxceleb2cat_train
 	do
@@ -55,7 +55,7 @@ if [ $stage -le 4 ];then
 	--input-dir $attack_dir/pool_v1 \
 	--output-dir data/$snr_split_tag $snr_split_opts
 fi
-
+exit
 if [ $stage -le 5 ];then
     local/make_train_test_lists_exp_attack_threat_model_v1.py \
 	--input-dir $attack_dir/pool_v1 \

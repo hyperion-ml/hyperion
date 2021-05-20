@@ -14,12 +14,15 @@ score_dir=$2
 
 echo "Voxceleb2 Test Attack-Verif"
 key=$data_dir/trials
-python local/score_dcf.py --key-file $key --score-file $score_dir/attack_verif_scores --output-path $score_dir/attack_verif_all &
-for cond in seen unseen
+hyp_utils/conda_env.sh local/score_dcf.py \
+    --key-file $key \
+    --score-file $score_dir/attack_verif_scores \
+    --output-path $score_dir/attack_verif_all &
+for cond in known unknown
 do
     #Compute performance
     key=$data_dir/trials_$cond
-    python local/score_dcf.py --key-file $key \
+    hyp_utils/conda_env.sh local/score_dcf.py --key-file $key \
 	--score-file $score_dir/attack_verif_scores \
 	--output-path $score_dir/attack_verif_${cond} &
 

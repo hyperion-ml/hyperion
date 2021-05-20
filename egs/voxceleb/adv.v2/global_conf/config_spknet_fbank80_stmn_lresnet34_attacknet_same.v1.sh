@@ -85,16 +85,22 @@ known_attacks="fgsm iter-fgsm pgd-linf pgd-l1 pgd-l2"
 unknown_attacks="cw-l2 cw-linf cw-l0"
 
 # Experiment labels for datasets to train signatures with a subset of known attacks
-k_attack_type_split_tag="exp_attack_type_known"
-k_snr_split_tag="exp_attack_snr_allknown"
-k_threat_model_split_tag="exp_attack_threat_model_known"
+sk_attack_type_split_tag="exp_attack_type_someknown"
+sk_snr_split_tag="exp_attack_snr_someknown"
+sk_threat_model_split_tag="exp_attack_threat_model_someknown"
 
 # Experiment labels for attack verification with same attacks known and some unknown
 attack_type_verif_split_tag="exp_attack_type_verif"
 snr_verif_split_tag="exp_attack_snr_verif"
 threat_model_verif_split_tag="exp_attack_threat_model_verif"
+
 # Select attacks for attack verification, options are shared for the 3 tasks
 # We use only successful attacks with all SNRs
 verif_split_opts="--success-category success --max-snr 100 --min-snr -100"
+
+# Select attacks for attack novelty detection
+# We use only successful attacks with all SNRs
+novelty_split_opts="--success-category success --max-snr 100 --min-snr -100"
+novelty_split_tag="exp_attack_type_novelty"
 
 

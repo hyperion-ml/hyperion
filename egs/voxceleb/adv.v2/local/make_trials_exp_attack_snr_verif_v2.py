@@ -5,7 +5,7 @@
 """
 import sys
 import os
-import argparse
+from jsonargparse import ArgumentParser, ActionConfigFile, ActionParser, namespace_to_dict
 import time
 import logging
 
@@ -25,35 +25,41 @@ def quant_snr(snr):
     return q_str
 
 
-def make_lists(input_dir, seen_attacks, benign_wav_file, max_trials, num_enroll_sides, output_dir):
+def make_lists(input_dir, known_attacks, output_dir, 
+               min_snr, max_snr, success_category,
+               max_trials, num_enroll_sides):
 
     rng = np.random.RandomState(seed=1234)
     input_dir = Path(input_dir)
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    with open(input_dir / 'test_attack_info.yml', 'r') as f:
+    with open(input_dir / 'test_attack_info.yaml', 'r') as f:
         test_attacks = yaml.load(f, Loader=yaml.FullLoader)
 
-    k2w = SCPList.load(benign_wav_file)
     keys = []
     files = []
     classes = []
-    benign_keys = []
     snrs = []
     for k,v in test_attacks.items():
+        s = v['success']
+        if not (success_category == 'both' or
+            success_category == 'success' and s or
+            success_category == 'fail' and not s):
+            continue
+        snr = v['snr']
+        if snr < min_snr or snr > max_snr:
+            continue
+
         keys.append(k)
         files.append(v['wav_path'])
         classes.append(v['attack_type'])
         snrs.append(quant_snr(v['snr']))
-        benign_keys.append(v['benign_key'])
-
-    benign_keys = np.unique(benign_keys)
-    for k in benign_keys:
-        keys.append(k)
+        keys.append(v['key_benign'])
+        files.append(v['wav_benign'])
         classes.append('benign')
         snrs.append('benign')
-        files.append(k2w[k][0])
+
 
     u2c = Utt2Info.create(keys, classes)
     u2snr = Utt2Info.create(keys, snrs)
@@ -101,22 +107,22 @@ def make_lists(input_dir, seen_attacks, benign_wav_file, max_trials, num_enroll_
         enr_u2e = Utt2Info.create(enr_u2c.key, enr_u2c.key)
 
     trials_all = TrialKey(enr_e2snr.key, test_u2c.key)
-    trials_seen = TrialKey(enr_e2snr.key, test_u2c.key)
-    trials_unseen = TrialKey(enr_e2snr.key, test_u2c.key)
+    trials_known = TrialKey(enr_e2snr.key, test_u2c.key)
+    trials_unknown = TrialKey(enr_e2snr.key, test_u2c.key)
     for i in range(len(enr_e2snr)):
         for j in range(len(test_u2c)):
             if enr_e2snr.info[i] == test_u2snr.info[j]:
                 trials_all.tar[i,j] = True
-                if enr_e2c.info[i] in seen_attacks and test_u2c.info[j] in seen_attacks:
-                    trials_seen.tar[i,j] = True
-                elif enr_e2c.info[i] not in seen_attacks and test_u2c.info[j] not in seen_attacks:
-                    trials_unseen.tar[i,j] = True
+                if enr_e2c.info[i] in known_attacks and test_u2c.info[j] in known_attacks:
+                    trials_known.tar[i,j] = True
+                elif enr_e2c.info[i] not in known_attacks and test_u2c.info[j] not in known_attacks:
+                    trials_unknown.tar[i,j] = True
             else:
                 trials_all.non[i,j] = True
-                if enr_e2c.info[i] in seen_attacks and test_u2c.info[j] in seen_attacks:
-                    trials_seen.non[i,j] = True
-                elif enr_e2c.info[i] not in seen_attacks and test_u2c.info[j] not in seen_attacks:
-                    trials_unseen.non[i,j] = True
+                if enr_e2c.info[i] in known_attacks and test_u2c.info[j] in known_attacks:
+                    trials_known.non[i,j] = True
+                elif enr_e2c.info[i] not in known_attacks and test_u2c.info[j] not in known_attacks:
+                    trials_unknown.non[i,j] = True
 
     max_trials = int(max_trials * 1e6)
     num_tar_trials = np.sum(trials_all.tar) 
@@ -127,17 +133,17 @@ def make_lists(input_dir, seen_attacks, benign_wav_file, max_trials, num_enroll_
         logging.info('reducing number of trials (%d) with p=%f' % (num_trials, p))
         mask = rng.rand(*trials_all.tar.shape) > p
         trials_all.non[mask] = False
-        trials_seen.non[mask] = False
-        trials_unseen.non[mask] = False
+        trials_known.non[mask] = False
+        trials_unknown.non[mask] = False
         trials_all.tar[mask] = False
-        trials_seen.tar[mask] = False
-        trials_unseen.tar[mask] = False
+        trials_known.tar[mask] = False
+        trials_unknown.tar[mask] = False
 
     enr_u2e.sort(1)
     enr_u2e.save(output_dir / 'utt2enr')
     trials_all.save_txt(output_dir / 'trials')
-    trials_seen.save_txt(output_dir / 'trials_seen')
-    trials_unseen.save_txt(output_dir / 'trials_unseen')
+    trials_known.save_txt(output_dir / 'trials_known')
+    trials_unknown.save_txt(output_dir / 'trials_unknown')
 
     # train_u2d.save(output_dir / 'train_utt2dur')
     # val_u2d.save(output_dir / 'val_utt2dur')
@@ -151,16 +157,17 @@ def make_lists(input_dir, seen_attacks, benign_wav_file, max_trials, num_enroll_
 
 if __name__ == "__main__":
 
-    parser=argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        fromfile_prefix_chars='@',
+    parser = ArgumentParser(
         description='prepare trial list to do attack type verification')
 
     parser.add_argument('--input-dir', required=True)
-    parser.add_argument('--seen-attacks', required=True, nargs='+')
-    parser.add_argument('--benign-wav-file', required=True)
+    parser.add_argument('--known-attacks', required=True, nargs='+')
     parser.add_argument('--num-enroll-sides', default=1, type=int)
     parser.add_argument('--max-trials', default=10, type=float)
+    parser.add_argument('--success-category', default='success', 
+                        choices=['success', 'fail', 'both'])
+    parser.add_argument('--min-snr', default=-10, type=float)
+    parser.add_argument('--max-snr', default=100, type=float)
     parser.add_argument('--output-dir', required=True)
     parser.add_argument('-v', '--verbose', dest='verbose', default=1,
                         choices=[0, 1, 2, 3], type=int)

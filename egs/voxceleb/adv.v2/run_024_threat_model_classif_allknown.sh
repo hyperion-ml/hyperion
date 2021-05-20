@@ -107,12 +107,12 @@ if [ $stage -le 4 ];then
 	do
 	    proj_dir_i=$proj_dir/p${p}_e${e}
 	    $train_cmd $proj_dir_i/train.log \
-		hyp_utils/conda_env.sh steps_proj/proj-attack-tsne.py \
+		hyp_utils/conda_env.sh steps_visual/proj-attack-tsne.py \
 		--train-v-file scp:$sign_dir/test/xvector.scp \
 		--train-list $list_dir/test_utt2attack \
 		--pca-var-r 0.99 \
 		--prob-plot 0.3 --lnorm \
-		--tsne-metric cosine --tsne-early-exaggeration $e --tsne-perplexity $p --tsne-init pca \
+		--tsne.metric cosine --tsne.early-exaggeration $e --tsne.perplexity $p --tsne.init pca \
 		--output-path $proj_dir_i &
 	done
     done
