@@ -14,14 +14,14 @@ config_file=default_config.sh
 . $config_file
 . datapath.sh 
 
-xvector_dir=exp/xvectors/$nnet_name
-score_dir=exp/scores/$nnet_name
+xvector_dir=exp/xvectors/$spknet_name
+score_dir=exp/scores/$spknet_name
 score_plda_dir=$score_dir/cosine
 
 if [ $stage -le 1 ];then
 
     echo "Eval Voxceleb 1 with Cosine scoring"
-    steps_be/eval_be_cos.sh --cmd "$train_cmd" \
+    steps_backend/eval_be_cos.sh --cmd "$train_cmd" \
     	data/voxceleb1_test/trials_o_clean \
     	data/voxceleb1_test/utt2model \
     	$xvector_dir/voxceleb1_test/xvector.scp \
