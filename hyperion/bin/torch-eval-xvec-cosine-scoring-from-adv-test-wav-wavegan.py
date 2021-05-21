@@ -38,7 +38,7 @@ from hyperion.torch.adv_defenses.wave_gan_white import WaveGANDefender
 
 class MyModel(nn.Module):
 
-    def __init__(self, feat_extractor, xvector_model, embed_layer=None, 
+    def __init__(self, feat_extractor, xvector_model, device, embed_layer=None, 
                  calibrator=None, sigma=0, smoothing_after_wavegan=None , wave_gan_root_dir=None, wave_gan_model_ckpt=None):
         super().__init__()
         self.feat_extractor = feat_extractor
@@ -51,13 +51,14 @@ class MyModel(nn.Module):
         self.smoothing_after_wavegan = smoothing_after_wavegan
         self.wave_gan_root_dir = wave_gan_root_dir
         self.wave_gan_model_ckpt = wave_gan_model_ckpt
-        self.wave_gan_defender=WaveGANDefender(Path(wave_gan_root_dir),Path(wave_gan_model_ckpt))
+        self.wave_gan_defender=WaveGANDefender(Path(wave_gan_root_dir),Path(wave_gan_model_ckpt),device=device)
 
     def forward(self, s_t):
-        print('sigma=', self.sigma)
-        print('smoothing_after_wavegan=', self.smoothing_after_wavegan)
-        print('wave_gan_defender=', self.wave_gan_defender)
+        print(f'sigma=', self.sigma)
+        print(f'smoothing_after_wavegan=', self.smoothing_after_wavegan)
+        print(f'wave_gan_defender=', self.wave_gan_defender)
 
+        print(f"type(s_t)=",type(s_t))
         # Pre-proceessing defense, wavegan + smoothing [Added Sonal May21]
         if self.smoothing_after_wavegan:
             if self.wave_gan_defender is not None:
@@ -175,7 +176,7 @@ def eval_cosine_scoring_wavegan(v_file, key_file, enroll_file, test_wav_file,
         non_audio_writer = AW(save_adv_wav_path + '/non2tar')
 
     smooth_sigma *= wav_scale
-    model = MyModel(feat_extractor, xvector_model, embed_layer, 
+    model = MyModel(feat_extractor, xvector_model, device, embed_layer, 
                     calibrator, smooth_sigma, smoothing_after_wavegan, wave_gan_root_dir, wave_gan_model_ckpt)
     model.to(device)
     model.eval()
@@ -204,6 +205,9 @@ def eval_cosine_scoring_wavegan(v_file, key_file, enroll_file, test_wav_file,
         s, fs = audio_reader.read([key.seg_set[j]])
         s = s[0]
         fs = fs[0]
+
+        s = torch.as_tensor(s[None,:], dtype=torch.get_default_dtype()).to(device)
+        #print(f"type(s)=",type(s))
 
         if vad_spec is not None:
             vad = v_reader.read([key.seg_set[j]])[0]
@@ -342,7 +346,8 @@ if __name__ == "__main__":
     parser.add_argument('--smooth-sigma', default=0, type=float, help='sigma for smoothing')
 
     # Defense: WaveGAN specific arguments [Added Sonal May21]    
-    parser.add_argument('--smoothing-after-wavegan', default=False, action='store_true', help='Smoothing before or after wavegan, if true : smoothing is done after wavegan')
+    #parser.add_argument('--smoothing-after-wavegan', default=False, action='store_true', help='Smoothing before or after wavegan, if true : smoothing is done after wavegan')
+    parser.add_argument('--smoothing-after-wavegan', default=None, help='Smoothing before or after wavegan, if true : smoothing is done after wavegan')
     parser.add_argument('--wave-gan-root-dir', default=None, help='WaveGAN model root directory')
     parser.add_argument('--wave-gan-model-ckpt', default=None, help='WaveGAN model checkpoint')
 
