@@ -132,7 +132,7 @@ def init_model(model_path, embed_layer, cal_file, threshold, **kwargs):
 
 
 def init_attack_factory(wav_scale=1, **kwargs):
-    attacks_args = RandomAttackFactory.filter_args(prefix='attacks', **kwargs)
+    attacks_args = RandomAttackFactory.filter_args(**kwargs['attacks'])
     extra_args = {'eps_scale': wav_scale,
                   'range_min': -wav_scale,
                   'range_max': wav_scale,
@@ -261,15 +261,15 @@ def generate_attacks(
                 t4 = time.time()
                 trial_time += (t4 - t3)
                 num_trials += 1
-                success=true
+                success=True
                 if key.tar[i,j] and score_adv > 0:
-                    success=false
+                    success=False
                     if not save_failed:
                         logging.info(
                             'attack on target trial %s failed, skipping...' % (trial_id))
                         continue
                 elif key.non[i,j] and score_adv < 0:
-                    success=false
+                    success=False
                     if not save_failed:
                         logging.info(
                             'attack on non-target trial %s failed benign classification, skipping...' % (trial_id))

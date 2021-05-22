@@ -5,7 +5,7 @@
 """
 import sys
 import os
-import argparse
+from jsonargparse import ArgumentParser, ActionConfigFile, ActionParser, namespace_to_dict
 import time
 import logging
 
@@ -18,7 +18,8 @@ from hyperion.hyp_defs import float_cpu, config_logger
 from hyperion.utils import Utt2Info, SCPList
 
 
-def make_lists(input_file, benign_wav_file, output_dir):
+def make_lists(input_file, benign_wav_file, output_dir,
+               test_min_snr, test_max_snr, test_success_category):
 
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -37,7 +38,7 @@ def make_lists(input_file, benign_wav_file, output_dir):
         keys.append(k)
         files.append(v['wav_path'])
         classes.append(v['threat_model'])
-        benign_keys.append(v['benign_test'])
+        benign_keys.append(v['test_benign'])
 
     benign_keys = np.unique(benign_keys)
     for k in benign_keys:
@@ -54,14 +55,16 @@ def make_lists(input_file, benign_wav_file, output_dir):
 
 if __name__ == "__main__":
 
-    parser=argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        fromfile_prefix_chars='@',
+    parser = ArgumentParser(
         description='prepare lists to test attack classification')
 
     parser.add_argument('--input-file', required=True)
     parser.add_argument('--benign-wav-file', required=True)
     parser.add_argument('--output-dir', required=True)
+    parser.add_argument('--test-min-snr', default=-10, type=float)
+    parser.add_argument('--test-max-snr', default=100, type=float)
+    parser.add_argument('--test-success-category', default='success', 
+                        choices=['success', 'fail', 'both'])
     parser.add_argument('-v', '--verbose', dest='verbose', default=1,
                         choices=[0, 1, 2, 3], type=int)
         

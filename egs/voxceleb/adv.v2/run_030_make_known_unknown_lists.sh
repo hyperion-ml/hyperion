@@ -42,13 +42,13 @@ fi
 if [ $stage -le 3 ];then
     local/make_train_test_lists_exp_attack_snr_v1.py \
 	--input-dir $pool_known_dir \
-	--output-dir data/$sk_snr_split_tag $attack_type_split_opts
+	--output-dir data/$sk_snr_split_tag $snr_split_opts
 fi
 
 if [ $stage -le 4 ];then
     local/make_train_test_lists_exp_attack_threat_model_v1.py \
 	--input-dir $pool_known_dir \
-	--output-dir data/$sk_threat_model_split_tag $attack_type_split_opts
+	--output-dir data/$sk_threat_model_split_tag $threat_model_split_opts
 fi
 
 if [ $stage -le 5 ];then

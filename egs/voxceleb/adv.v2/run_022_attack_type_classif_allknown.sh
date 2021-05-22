@@ -49,6 +49,7 @@ sign_nnet=$sign_nnet_dir/model_ep0020.pth
 
 # Network Training
 if [ $stage -le 1 ]; then
+    echo "Train signature network on all attacks"
     mkdir -p $sign_nnet_dir/log
     $cuda_cmd --gpu $ngpu $sign_nnet_dir/log/train.log \
 	hyp_utils/conda_env.sh --conda-env $HYP_ENV --num-gpus $ngpu \
@@ -67,7 +68,7 @@ if [ $stage -le 1 ]; then
 fi
 
 if [ $stage -le 2 ]; then
-    # Extracts x-vectors for evaluation
+    echo "Extract signatures on the test set"
     mkdir -p $list_dir/test
     cp $list_dir/test_wav.scp $list_dir/test/wav.scp
     nj=100
@@ -80,6 +81,8 @@ fi
 
 proj_dir=$sign_dir/test/tsne
 if [ $stage -le 3 ];then
+    echo "Make TSNE plots on all test attacks"
+    echo "Result will be left in $proj_idr"
     for p in 30 100 250
     do
 	for e in 12 64
@@ -98,7 +101,7 @@ if [ $stage -le 3 ];then
 fi
 
 if [ $stage -le 4 ]; then
-    # Eval attack logits
+    echo "Eval signature network logits on test attacks"
     mkdir -p $list_dir/test
     nj=100
     steps_xvec/eval_xvec_logits_from_wav.sh \
@@ -109,6 +112,8 @@ if [ $stage -le 4 ]; then
 fi
 
 if [ $stage -le 5 ];then
+    echo "Compute cofusion matrices"
+    echo "Result is left in $logits_dir/test/eval_acc.log"
     $train_cmd $logits_dir/test/eval_acc.log \
         hyp_utils/conda_env.sh steps_backend/eval-classif-perf.py \
         --score-file scp:$logits_dir/test/logits.scp \

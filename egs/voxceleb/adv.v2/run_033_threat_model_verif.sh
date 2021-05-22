@@ -34,7 +34,7 @@ log_interval=$(echo 100*$grad_acc_steps | bc)
 list_someknown_dir=data/$sk_threat_model_split_tag
 # list with all the attacks
 list_all_threat_model_dir=data/$threat_model_split_tag
-list_all_attack_type_model_dir=data/$attack_type_split_tag
+list_all_attack_type_dir=data/$attack_type_split_tag
 
 args=""
 if [ "$resume" == "true" ];then
@@ -49,7 +49,7 @@ sign_nnet_reldir=$spknet_name/$sign_nnet_name/$sk_threat_model_split_tag
 sign_nnet_dir=exp/sign_nnets/$sign_nnet_reldir
 sign_dir=exp/signatures/$sign_nnet_reldir
 logits_dir=exp/logits/$sign_nnet_reldir
-sign_nnet=$sign_nnet_dir/model_ep0020.pth
+sign_nnet=$sign_nnet_dir/model_ep0015.pth
 
 # Network Training
 if [ $stage -le 1 ]; then
@@ -145,7 +145,7 @@ if [ $stage -le 5 ];then
         steps_backend/eval-classif-perf.py \
         --score-file scp:$logits_dir/test/logits.scp \
         --key-file $list_all_threat_model_dir/test_utt2attack \
-	--class-file $list_someknown_dir/class2int         
+	--class-file $list_someknown_dir/class_file         
 fi
 
 if [ $stage -le 6 ];then
@@ -155,30 +155,30 @@ if [ $stage -le 6 ];then
         steps_backend/eval-classif-perf.py \
         --score-file scp:$logits_dir/test/logits.scp \
         --key-file $list_someknown_dir/test_utt2attack \
-	--class-file $list_someknown_dir/class2int         
+	--class-file $list_someknown_dir/class_file
 fi
-exit
+
 
 if [ $stage -le 7 ];then
     echo "Compute confusion matrices from logits using only unknown attacks"
     echo "Result left in $logits_dir/test_unknown/eval_acc.log"
 
     mkdir -p $logits_dir/test_unknown
-    awk -v f=$list_dir/test_utt2attack 'BEGIN{
+    awk -v f=$list_someknown_dir/test_utt2attack 'BEGIN{
 while(getline < f)
 {
   v[$1]=1
 }
 }
 !/benign/{ if(!($1 in v)){ print $0}}' \
-    $list_test_dir/test_utt2attack \
+    $list_all_threat_model_dir/test_utt2attack \
     > $logits_dir/test_unknown/utt2attack
     
     $train_cmd $logits_dir/test_unknown/eval_acc.log \
-        steps_proj/eval-classif-perf.py \
+        steps_backend/eval-classif-perf.py \
         --score-file scp:$logits_dir/test/logits.scp \
         --key-file $logits_dir/test_unknown/utt2attack \
-	--class-file $list_someknown_dir/class2int         
+	--class-file $list_someknown_dir/class_file
 fi
 
 if [ $stage -le 9 ]; then
@@ -204,7 +204,7 @@ if [ $stage -le 10 ]; then
         $list_someknown_dir/train \
         $be_dir
 fi
-
+exit
 if [ $stage -le 11 ];then
     for nes in  1 3 #5 10 30 50 100
     do

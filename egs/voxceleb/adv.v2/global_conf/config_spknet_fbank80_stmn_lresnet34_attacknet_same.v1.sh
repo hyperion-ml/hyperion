@@ -103,4 +103,9 @@ verif_split_opts="--success-category success --max-snr 100 --min-snr -100"
 novelty_split_opts="--success-category success --max-snr 100 --min-snr -100"
 novelty_split_tag="exp_attack_type_novelty"
 
-
+# Experiment labels for experiments on attacks against speaker verification task
+# Here we just do attack classification assuming all attacks known
+spkverif_attack_type_split_tag="exp_spkverif_attack_type_allknown"
+spkverif_snr_split_tag="exp_spkverif_attack_snr_allknown"
+spkverif_threat_model_split_tag="exp_spkverif_attack_threat_model_allknown"
+spkverif_split_opts="--test-success-category success --test-max-snr 100 --test-min-snr -100"

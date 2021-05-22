@@ -23,25 +23,27 @@ else
     xvec_cmd="$train_cmd"
 fi
 
-attack_dir=exp/attacks/$nnet_name/
-class_file=data/exp_attack_threat_model_v1/class2int
-sign_nnet_dir=exp/sign_nnets/$nnet_name/exp_attack_threat_model_v1
-sign_dir=exp/signatures/$nnet_name/exp_attack_threat_model_v1
-logits_dir=exp/logits/$nnet_name/exp_attack_threat_model_v1
+sign_nnet_reldir=$spknet_name/$sign_nnet_name/$snr_split_tag
+sign_nnet_dir=exp/sign_nnets/$sign_nnet_reldir
+sign_dir=exp/signatures/$sign_nnet_reldir
+logits_dir=exp/logits/$sign_nnet_reldir
 sign_nnet=$sign_nnet_dir/model_ep0020.pth
-list_dir=data/exp_verif_attack_threat_model_v1
-list_attack_type_dir=data/exp_verif_attack_type_v1
+attack_dir=exp/attacks/$spknet_name
+class_file=data/$snr_split_tag/class_file
+list_dir=data/$spkverif_snr_split_tag
+
+conda activate $HYP_ENV
 
 if [ $stage -le 1 ];then
-    local/make_verif_test_lists_exp_attack_threat_model_v1.py \
-	--input-file $attack_dir/pool_voxceleb1_test_v1/info.yml \
+    echo "make data directory for speaker verification attack classification by snr"
+    local/make_spkverif_test_lists_exp_attack_snr_v1.py \
+	--input-file $attack_dir/pool_voxceleb1_test_v1/info.yaml \
 	--benign-wav-file data/voxceleb1_test/wav.scp \
-	--output-dir $list_dir
+	--output-dir $list_dir $spkverif_split_opts
 fi
 
-
 if [ $stage -le 2 ]; then
-    # Extracts x-vectors for evaluation
+    echo "Extract attack signatures for spk. verif. attacks"
     nj=100
     steps_xvec/extract_xvectors_from_wav.sh \
 	--cmd "$xvec_cmd --mem 6G" --nj $nj ${xvec_args} --use-bin-vad false \
@@ -50,38 +52,22 @@ if [ $stage -le 2 ]; then
 	$sign_dir/voxceleb1_test
 fi
 
-proj_dir=$sign_dir/voxceleb1_test/tsne_attack_type
+proj_dir=$sign_dir/voxceleb1_test/tsne
 if [ $stage -le 3 ];then
+    echo "Make TSNE plots on all test attacks"
+    echo "Result will be left in $proj_dir"
     for p in 30 100 250
     do
 	for e in 12 64
 	do
 	    proj_dir_i=$proj_dir/p${p}_e${e}
 	    $train_cmd $proj_dir_i/train.log \
-		steps_proj/proj-attack-tsne.py \
-		--train-v-file scp:$sign_dir/voxceleb1_test/xvector.scp \
-		--train-list $list_attack_type_dir/utt2attack \
-		--pca-var-r 0.99 \
-		--prob-plot 0.3 --lnorm --tsne-metric cosine --tsne-early-exaggeration $e --tsne-perplexity $p --tsne-init pca \
-		--output-path $proj_dir_i &
-	done
-    done
-    wait
-fi
-
-proj_dir=$sign_dir/voxceleb1_test/tsne_attack_threat_model
-if [ $stage -le 4 ];then
-    for p in 30 100 250
-    do
-	for e in 12 64
-	do
-	    proj_dir_i=$proj_dir/p${p}_e${e}
-	    $train_cmd $proj_dir_i/train.log \
-		steps_proj/proj-attack-tsne.py \
+		steps_visual/proj-attack-tsne.py \
 		--train-v-file scp:$sign_dir/voxceleb1_test/xvector.scp \
 		--train-list $list_dir/utt2attack \
 		--pca-var-r 0.99 \
-		--prob-plot 0.3 --lnorm --tsne-metric cosine --tsne-early-exaggeration $e --tsne-perplexity $p --tsne-init pca \
+		--prob-plot 0.3 --lnorm \
+		--tsne.metric cosine --tsne.early-exaggeration $e --tsne.perplexity $p --tsne.init pca \
 		--output-path $proj_dir_i &
 	done
     done
@@ -89,8 +75,8 @@ if [ $stage -le 4 ];then
 fi
 
 
-if [ $stage -le 5 ]; then
-    # Eval attack logits
+if [ $stage -le 4 ]; then
+    echo "Eval signature network logits on test attacks"
     mkdir -p $list_dir/voxceleb1_test
     nj=100
     steps_xvec/eval_xvec_logits_from_wav.sh \
@@ -100,9 +86,11 @@ if [ $stage -le 5 ]; then
 	$logits_dir/voxceleb1_test
 fi
 
-if [ $stage -le 6 ];then
+if [ $stage -le 5 ];then
+    echo "Compute cofusion matrices"
+    echo "Result is left in $logits_dir/voxceleb1_test/eval_acc.log"
     $train_cmd $logits_dir/voxceleb1_test/eval_acc.log \
-        steps_proj/eval-classif-perf.py \
+        steps_backend/eval-classif-perf.py \
         --score-file scp:$logits_dir/voxceleb1_test/logits.scp \
         --key-file $list_dir/utt2attack \
 	--class-file $class_file

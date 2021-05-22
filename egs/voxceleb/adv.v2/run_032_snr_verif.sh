@@ -122,7 +122,7 @@ if [ $stage -le 5 ];then
         steps_backend/eval-classif-perf.py \
         --score-file scp:$logits_dir/test/logits.scp \
         --key-file $list_all_dir/test_utt2attack \
-	--class-file $list_someknown_dir/class2int         
+	--class-file $list_someknown_dir/class_file         
 fi
 
 if [ $stage -le 6 ];then
@@ -132,7 +132,7 @@ if [ $stage -le 6 ];then
         steps_backend/eval-classif-perf.py \
         --score-file scp:$logits_dir/test/logits.scp \
         --key-file $list_someknown_dir/test_utt2attack \
-	--class-file $list_someknown_dir/class2int         
+	--class-file $list_someknown_dir/class_file       
 fi
 
 if [ $stage -le 7 ];then
@@ -140,21 +140,21 @@ if [ $stage -le 7 ];then
     echo "Result left in $logits_dir/test_unknown/eval_acc.log"
 
     mkdir -p $logits_dir/test_unknown
-    awk -v f=$list_dir/test_utt2attack 'BEGIN{
+    awk -v f=$list_someknown_dir/test_utt2attack 'BEGIN{
 while(getline < f)
 {
   v[$1]=1
 }
 }
 !/benign/{ if(!($1 in v)){ print $0}}' \
-    $list_test_dir/test_utt2attack \
+    $list_all_dir/test_utt2attack \
     > $logits_dir/test_unknown/utt2attack
     
     $train_cmd $logits_dir/test_unknown/eval_acc.log \
-        steps_proj/eval-classif-perf.py \
+        steps_backend/eval-classif-perf.py \
         --score-file scp:$logits_dir/test/logits.scp \
         --key-file $logits_dir/test_unknown/utt2attack \
-	--class-file $list_someknown_dir/class2int         
+	--class-file $list_someknown_dir/class_file
 fi
 
 
