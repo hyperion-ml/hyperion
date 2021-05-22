@@ -204,7 +204,7 @@ if [ $stage -le 10 ]; then
         $list_someknown_dir/train \
         $be_dir
 fi
-exit
+
 if [ $stage -le 11 ];then
     for nes in  1 3 #5 10 30 50 100
     do
