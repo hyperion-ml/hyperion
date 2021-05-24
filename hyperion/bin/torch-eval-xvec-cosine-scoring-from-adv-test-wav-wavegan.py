@@ -39,7 +39,7 @@ from hyperion.torch.adv_defenses.wave_gan_white import WaveGANDefender
 class MyModel(nn.Module):
 
     def __init__(self, feat_extractor, xvector_model, device, embed_layer=None, 
-                 calibrator=None, sigma=0, smoothing_after_wavegan=None , =wave_gan_defender=None):
+                 calibrator=None, sigma=0, smoothing_after_wavegan=None , wave_gan_defender=None):
         super().__init__()
         self.feat_extractor = feat_extractor
         self.xvector_model = xvector_model
@@ -341,8 +341,8 @@ if __name__ == "__main__":
     parser.add_argument('--smooth-sigma', default=0, type=float, help='sigma for smoothing')
 
     # Defense: WaveGAN specific arguments [Added Sonal May21]    
-    #parser.add_argument('--smoothing-after-wavegan', default=False, action='store_true', help='Smoothing before or after wavegan, if true : smoothing is done after wavegan')
-    parser.add_argument('--smoothing-after-wavegan', default=None, help='Smoothing before or after wavegan, if true : smoothing is done after wavegan')
+    parser.add_argument('--smoothing-after-wavegan', default=False, action='store_true', help='Smoothing before or after wavegan, if true : smoothing is done after wavegan')
+    #parser.add_argument('--smoothing-after-wavegan', default=None, help='Smoothing before or after wavegan, if true : smoothing is done after wavegan')
     parser.add_argument('--wave-gan-root-dir', default=None, help='WaveGAN model root directory')
     parser.add_argument('--wave-gan-model-ckpt', default=None, help='WaveGAN model checkpoint')
 

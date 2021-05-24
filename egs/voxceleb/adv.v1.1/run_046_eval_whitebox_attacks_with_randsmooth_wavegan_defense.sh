@@ -42,12 +42,6 @@ score_dir=exp/scores/$nnet_name
 score_clean=$score_dir/cosine_cal_v1/voxceleb1_scores
 cal_file=$score_dir/cosine_cal_v1/cal_tel.h5
 
-# WaveGAN configs
-#smoothing_after_wavegan=true
-#wave_gan_root_dir=/export/c07/sjoshi/codes/gard-speech/egs-clsp/eval-xvec-librispeech-sid/v1/exp/wave-gan-models/train_oneFourth_parallel_wavegan.v1
-#wave_gan_model_ckpt=checkpoint-400000steps.pkl
-#wave_gan_label=voxceleb.oneFourth.Pwavegan_${wave_gan_model_ckpt}
-
 
 #thresholds for p=(0.05,0.01,0.001) -> thr=(2.94, 4.60, 6.90)
 thr005=2.94
