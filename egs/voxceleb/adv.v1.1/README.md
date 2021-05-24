@@ -1,10 +1,10 @@
-# VoxCeleb Version 2.1
+# VoxCeleb Adversarial Attacks Version 1.1
 
-Last update 2020/08/21
+Last update 2021/05/17
 
 Recipe to evaluate Adversarial Attacks to x-Vector Speaker Verification Systems
 
-## Differences w.r.t VoxCeleb V1 recipe
+## Differences w.r.t VoxCeleb adv.v1 recipe
 
 In recipe version V1: 
    - We compute speech augmentations and acoustic features offline and dump them to disk. 
@@ -45,6 +45,20 @@ Two broad types of attacks:
 
 Multiple attacks algorithms: FGSM, Iter-FGSM, PGD, Carlini-Wagner.
 
+## Citing
+
+  If you use this recipe, please cite:
+```
+@inproceedings{Villalba2020,
+address = {Shanghai, China},
+author = {Villalba, Jes{\'{u}}s and Zhang, Yuekai and Dehak, Najim},
+booktitle = {Interspeech 2020},
+month = {sep},
+title = {{x-Vectors Meet Adversarial Attacks : Benchmarking Adversarial Robustness in Speaker Verification}},
+year = {2020}
+}
+```
+
 ## Training Data
 
    - x-Vector network is trained on Voxceleb2 dev + test with augmentations
@@ -65,7 +79,7 @@ Multiple attacks algorithms: FGSM, Iter-FGSM, PGD, Carlini-Wagner.
    - For example, to use LResNet34 as transfer model use `config_victim_resnet34_transfer_lresnet.v1.sh` 
      when calling each of the steps as
 ```bash
-run_0*.sh --config-file config_victim_resnet34_transfer_lresnet.v1.sh
+run_0*.sh --config-file global_conf/config_victim_resnet34_transfer_lresnet.v1.sh
 ```
 
 ## Recipe Steps:

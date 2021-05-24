@@ -1,6 +1,6 @@
-# VoxCeleb Version 2
+# VoxCeleb Adversarial Attacks Version 1
 
-Last update 2020/08/06
+Last update 2021/04/22
 
 Recipe to evaluate Adversarial Attacks to x-Vector Speaker Verification Systems
 
@@ -21,7 +21,7 @@ Also, the speaker verification pipeline needs to be fully differentiable from wa
 so the attack algorithm can optimize the perturbation noise.
 
 However, to train the x-vector network, this recipe computes acoustic features and speech augmentations off-line.
-Look version V2.1, for a newer recipe which computes features 
+Look version adv.v1.1, for a newer recipe which computes features 
 and augmentations on the fly.
 
 Two broad types of attacks:
@@ -66,7 +66,7 @@ year = {2020}
    - For example, to use LResNet34 as transfer model use `config_victim_resnet34_transfer_lresnet.v1.sh` 
      when calling each of the steps as
 ```bash
-run_0*.sh --config-file config_victim_resnet34_transfer_lresnet.v1.sh
+run_0*.sh --config-file global_conf/config_victim_resnet34_transfer_lresnet.v1.sh
 ```
 
 ## Recipe Steps:
@@ -76,16 +76,16 @@ run_0*.sh --config-file config_victim_resnet34_transfer_lresnet.v1.sh
           - VoxCeleb2 train+test
           - VoxCeleb1 Original eval sets
 
-   - `run_002a_compute_evad.sh`
+   - `run_002_compute_evad.sh`
       - Computes Energy VAD for all datasets
 
-   - `run_002b_compute_fbank.sh`
+   - `run_003_compute_fbank.sh`
       - Computes log-filter-banks acoustic features for all datasets
 
-   - `run_003_prepare_augment.sh`
+   - `run_004_prepare_augment.sh`
       - Prepares Kaldi style data directories for augmented training data with MUSAN noise and RIR reverberation.
 
-   - `run_004_compute_fbank_augment.sh
+   - `run_005_compute_fbank_augment.sh
       - Computes log-filter-banks for augmented datasets
 
    - `run_010_prepare_victim_xvec_train_data.sh`
