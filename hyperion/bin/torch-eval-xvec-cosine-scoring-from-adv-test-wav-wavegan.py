@@ -39,7 +39,7 @@ from hyperion.torch.adv_defenses.wave_gan_white import WaveGANDefender
 class MyModel(nn.Module):
 
     def __init__(self, feat_extractor, xvector_model, device, embed_layer=None, 
-                 calibrator=None, sigma=0, smoothing_after_wavegan=None , wave_gan_root_dir=None, wave_gan_model_ckpt=None):
+                 calibrator=None, sigma=0, smoothing_after_wavegan=None , =wave_gan_defender=None):
         super().__init__()
         self.feat_extractor = feat_extractor
         self.xvector_model = xvector_model
@@ -49,9 +49,7 @@ class MyModel(nn.Module):
         self.calibrator = calibrator
         self.sigma = sigma
         self.smoothing_after_wavegan = smoothing_after_wavegan
-        self.wave_gan_root_dir = wave_gan_root_dir
-        self.wave_gan_model_ckpt = wave_gan_model_ckpt
-        self.wave_gan_defender=WaveGANDefender(Path(wave_gan_root_dir),Path(wave_gan_model_ckpt),device=device)
+        self.wave_gan_defender = wave_gan_defender
 
     def forward(self, s_t):
         # Pre-proceessing defense, wavegan + smoothing [Added Sonal May21]
@@ -151,6 +149,8 @@ def eval_cosine_scoring_wavegan(v_file, key_file, enroll_file, test_wav_file,
     feat_extractor = init_feats(device, **kwargs)
     xvector_model = load_model(model_path, device)
 
+    wave_gan_defender=WaveGANDefender(Path(wave_gan_root_dir),Path(wave_gan_model_ckpt),device=device)
+
     calibrator = None
     if cal_file is not None:
         calibrator = load_calibrator(cal_file, device)
@@ -172,7 +172,7 @@ def eval_cosine_scoring_wavegan(v_file, key_file, enroll_file, test_wav_file,
 
     smooth_sigma *= wav_scale
     model = MyModel(feat_extractor, xvector_model, device, embed_layer, 
-                    calibrator, smooth_sigma, smoothing_after_wavegan, wave_gan_root_dir, wave_gan_model_ckpt)
+                    calibrator, smooth_sigma, smoothing_after_wavegan, wave_gan_defender)
     model.to(device)
     model.eval()
 
