@@ -21,6 +21,7 @@ mkdir -p $pool_known_dir
 conda activate $HYP_ENV
 
 if [ $stage -le 1 ];then
+    echo "Split list into known and unknown attacks"
     for file in info.yaml test_attack_info.yaml train_attack_info.yaml val_attack_info.yaml
     do
 	$train_cmd $pool_known_dir/$file.log \
@@ -34,24 +35,28 @@ fi
 
 # make training list for signatures with known attacks
 if [ $stage -le 2 ];then
+    echo "Make train list for known attacks signatures by attack type"
     local/make_train_test_lists_exp_attack_type_v1.py \
 	--input-dir $pool_known_dir \
 	--output-dir data/$sk_attack_type_split_tag $attack_type_split_opts
 fi
 
 if [ $stage -le 3 ];then
+    echo "Make train list for known attacks signatures by SNR"
     local/make_train_test_lists_exp_attack_snr_v1.py \
 	--input-dir $pool_known_dir \
 	--output-dir data/$sk_snr_split_tag $snr_split_opts
 fi
 
 if [ $stage -le 4 ];then
+    echo "Make train list for known attacks signatures by threat model"
     local/make_train_test_lists_exp_attack_threat_model_v1.py \
 	--input-dir $pool_known_dir \
 	--output-dir data/$sk_threat_model_split_tag $threat_model_split_opts
 fi
 
 if [ $stage -le 5 ];then
+    echo "Make attack verification trials by attack type"
     for nes in 1 3 5 10 30 #50 100
     do
 	output_dir=data/${attack_type_verif_split_tag}_enr${nes}sides
@@ -67,6 +72,7 @@ if [ $stage -le 5 ];then
 fi
 
 if [ $stage -le 6 ];then
+    echo "Make attack verification trials by SNR"
     for nes in 1 3 5 10 30 #50 100
     do
 	output_dir=data/${snr_verif_split_tag}_enr${nes}sides
@@ -82,6 +88,7 @@ if [ $stage -le 6 ];then
 fi
 
 if [ $stage -le 7 ];then
+    echo "Make attack verification trials by threat_model"
     for nes in 1 3 5 10 30 #50 100
     do
 	output_dir=data/${threat_model_verif_split_tag}_enr${nes}sides
@@ -97,6 +104,7 @@ if [ $stage -le 7 ];then
 fi
 
 if [ $stage -le 8 ];then
+    echo "Make trials for novelty detection"
     $train_cmd --mem 4G data/$novelty_split_tag/make.log \
 	hyp_utils/conda_env.sh \
 	local/make_trials_exp_attack_type_novelty_v2.py \
