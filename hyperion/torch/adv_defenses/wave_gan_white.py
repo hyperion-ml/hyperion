@@ -95,7 +95,7 @@ class WaveGANReconstruction(nn.Module):
 
 
 class WaveGANDefender(nn.Module):
-    def __init__(self, wave_gan_model_dir : Path, wave_gan_model_ckpt : Path):
+    def __init__(self, wave_gan_model_dir : Path, wave_gan_model_ckpt : Path),device:
         super().__init__()
         with open(wave_gan_model_dir / 'config.yml') as f:
             self.config = yaml.load(f, Loader=yaml.Loader)
@@ -104,7 +104,7 @@ class WaveGANDefender(nn.Module):
 
         self.model = ParallelWaveGANGenerator(**self.config["generator_params"])
         self.model.load_state_dict(
-            torch.load(wave_gan_model_dir / wave_gan_model_ckpt , map_location="cpu")["model"]["generator"]
+            torch.load(wave_gan_model_dir / wave_gan_model_ckpt , map_location=device)["model"]["generator"]
         )
         self.model.remove_weight_norm()
         #self.model = self.model.eval().to(device)
