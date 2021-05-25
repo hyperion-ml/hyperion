@@ -95,7 +95,7 @@ class WaveGANReconstruction(nn.Module):
 
 
 class WaveGANDefender(nn.Module):
-    def __init__(self, wave_gan_model_dir : Path, wave_gan_model_ckpt : Path),device:
+    def __init__(self, wave_gan_model_dir : Path, wave_gan_model_ckpt : Path,device):
         super().__init__()
         with open(wave_gan_model_dir / 'config.yml') as f:
             self.config = yaml.load(f, Loader=yaml.Loader)
