@@ -52,11 +52,7 @@ class MyModel(nn.Module):
         self.wave_gan_defender=wave_gan_defender
 
     def forward(self, s_t):
-        print(f'sigma=', self.sigma)
-        print(f'smoothing_after_wavegan=', self.smoothing_after_wavegan)
-        print(f'wave_gan_defender=', self.wave_gan_defender)
 
-        print(f"type(s_t)=",type(s_t))
         # Pre-proceessing defense, wavegan + smoothing [Added Sonal May21]
         if self.smoothing_after_wavegan:
             if self.wave_gan_defender is not None:
