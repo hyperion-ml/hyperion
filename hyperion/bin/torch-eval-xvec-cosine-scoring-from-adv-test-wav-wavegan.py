@@ -176,7 +176,7 @@ def eval_cosine_scoring_wavegan(v_file, key_file, enroll_file, test_wav_file,
         non_audio_writer = AW(save_adv_wav_path + '/non2tar')
 
     smooth_sigma *= wav_scale
-    model = MyModel(feat_extractor, xvector_model, device, embed_layer, 
+    model = MyModel(feat_extractor, xvector_model,  embed_layer, 
                     calibrator, smooth_sigma, smoothing_after_wavegan, wave_gan_defender)
     model.to(device)
     model.eval()
