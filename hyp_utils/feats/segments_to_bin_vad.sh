@@ -42,7 +42,7 @@ name=`basename $data_dir`
 
 if [ $stage -le 1 ];then
     $cmd JOB=1:$nj $vad_dir/log/vad_$name.JOB.log \
-	 segments-to-bin-vad.py --segments $segments --num-frames $data_dir/utt2num_frames \
+	 hyp_utils/conda_env.sh segments-to-bin-vad.py --segments $segments --num-frames $data_dir/utt2num_frames \
 	 --frame-shift $frame_shift \
 	 --output-path ark,scp:$vad_dir/vad_${name}.JOB.ark,$vad_dir/vad_${name}.JOB.scp \
 	 --part-idx JOB --num-parts $nj

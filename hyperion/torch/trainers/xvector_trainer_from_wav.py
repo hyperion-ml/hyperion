@@ -35,6 +35,9 @@ class XVectorTrainerFromWav(XVectorTrainer):
          train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
          use_amp: uses mixed precision training.
          log_interval: number of optim. steps between log outputs
+         use_tensorboard: use tensorboard logger
+         use_wandb: use wandb logger
+         wandb: wandb dictionary of options
          grad_clip: norm to clip gradients, if 0 there is no clipping
          grad_clip_norm: norm type to clip gradients
          swa_start: epoch to start doing swa
@@ -46,7 +49,9 @@ class XVectorTrainerFromWav(XVectorTrainer):
                  grad_acc_steps=1, 
                  device=None, metrics=None, lrsched=None, loggers=None, 
                  ddp=False, ddp_type='ddp', loss=None, train_mode='train', use_amp=False,
-                 log_interval=10, grad_clip=0, grad_clip_norm=2,
+                 log_interval=10, use_tensorboard=False, 
+                 use_wandb=False, wandb={},
+                 grad_clip=0, grad_clip_norm=2,
                  swa_start=0, swa_lr=1e-3, swa_anneal_epochs=10, cpu_offload=False):
 
         super().__init__(
@@ -54,7 +59,9 @@ class XVectorTrainerFromWav(XVectorTrainer):
             grad_acc_steps=grad_acc_steps, device=device, metrics=metrics,
             lrsched=lrsched, loggers=loggers, 
             ddp=ddp, ddp_type=ddp_type, loss=loss,
-            train_mode=train_mode, use_amp=use_amp, log_interval=log_interval, 
+            train_mode=train_mode, use_amp=use_amp, 
+            log_interval=log_interval, use_tensorboard=use_tensorboard,
+            use_wandb=use_wandb, wandb=wandb,
             grad_clip=grad_clip, grad_clip_norm=grad_clip_norm,
             swa_start=swa_start, swa_lr=swa_lr, 
             swa_anneal_epochs=swa_anneal_epochs, 
@@ -92,7 +99,7 @@ class XVectorTrainerFromWav(XVectorTrainer):
                 feats = self.feat_extractor(data)
 
             with self.amp_autocast():
-                output = self.model(feats, target, **self.amp_args)
+                output = self.model(feats, target)
                 loss = self.loss(output, target).mean()/self.grad_acc_steps
 
             if self.use_amp:
@@ -115,6 +122,7 @@ class XVectorTrainerFromWav(XVectorTrainer):
             self.loggers.on_batch_end(logs=logs, batch_size=batch_size)
 
         logs = metric_acc.metrics
+        logs = ODict(('train_' + k, v) for k,v in logs.items())
         logs['lr'] = self._get_lr()
         return logs
 
@@ -129,7 +137,7 @@ class XVectorTrainerFromWav(XVectorTrainer):
         batch_metrics = ODict()
         with torch.no_grad():
             if swa_update_bn:
-                log_tag = ''
+                log_tag = 'train_'
                 self.set_train_mode()
             else:
                 log_tag = 'val_'

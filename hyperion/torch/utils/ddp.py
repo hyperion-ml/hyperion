@@ -55,7 +55,10 @@ def ddp_init(gpu_id, num_gpus, node_id=0, num_nodes=1, master_addr='localhost', 
 
 
 def ddp_cleanup():
-    dist.destroy_process_group()
+    try:
+        dist.destroy_process_group()
+    except:
+        pass
 
 
 class TorchDDP(nn.parallel.DistributedDataParallel):

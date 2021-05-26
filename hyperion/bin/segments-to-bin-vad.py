@@ -5,7 +5,7 @@
 
 import sys
 import os
-import argparse
+from jsonargparse import ArgumentParser, ActionConfigFile, ActionParser, namespace_to_dict
 import time
 import logging
 
@@ -41,9 +41,7 @@ def segments_to_bin_vad(segments_file, num_frames_file, frame_shift, output_path
         
 if __name__ == "__main__":
 
-    parser=argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        fromfile_prefix_chars='@',
+    parser = ArgumentParser(
         description='Segments file to binary vad')
 
     parser.add_argument('--segments', dest='segments_file', required=True,
@@ -65,6 +63,6 @@ if __name__ == "__main__":
     del args.verbose
     logging.debug(args)
     
-    segments_to_bin_vad(**vars(args))
+    segments_to_bin_vad(**namespace_to_dict(args))
 
     
