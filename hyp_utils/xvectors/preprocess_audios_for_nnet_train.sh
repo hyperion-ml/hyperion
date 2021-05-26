@@ -2,8 +2,7 @@
 #
 #           2020 Johns Hopkins University (Jesus Villalba)
 # Apache 2.0.
-
-
+set -e
 nj=40
 cmd="run.pl"
 stage=0

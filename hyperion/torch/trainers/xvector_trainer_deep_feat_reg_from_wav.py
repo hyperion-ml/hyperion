@@ -111,7 +111,7 @@ class XVectorTrainerDeepFeatRegFromWav(XVectorTrainerDeepFeatReg):
                 #     feats, target, self.reg_layers_enc, self.reg_layers_classif,
                 #     return_output=True, **self.amp_args)
                 outputs = self.model(
-                    data, target, self.reg_layers_enc, self.reg_layers_classif, 
+                    feats, target, self.reg_layers_enc, self.reg_layers_classif, 
                     return_output=True)
                 h_enc, h_classif, output = (outputs['h_enc'], outputs['h_classif'], 
                                             outputs['output'])
@@ -123,7 +123,7 @@ class XVectorTrainerDeepFeatRegFromWav(XVectorTrainerDeepFeatReg):
                 #     feats, target, self.reg_layers_enc, self.reg_layers_classif,
                 #     return_output=False, **self.amp_args)
                 prior_outputs = self.prior_model(
-                    data, target, self.reg_layers_enc, self.reg_layers_classif, 
+                    feats, target, self.reg_layers_enc, self.reg_layers_classif, 
                     return_output=False)
                 prior_h_enc, prior_h_classif = (
                     prior_outputs['h_enc'], prior_outputs['h_classif']) 

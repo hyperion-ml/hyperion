@@ -205,8 +205,23 @@ class XVector(TorchModel):
         if enc_layers is None and classif_layers is None:
             return self.forward_output(x, y)
 
-        return self.forward_hid_feats(
+        h = self.forward_hid_feats(
             x, y, enc_layers, classif_layers, return_output)
+        output = {}
+        if enc_layers is not None:
+            if classif_layers is None:
+                output['h_enc'] = h
+            else:
+                output['h_enc'] = h[0]
+        else:
+            output['h_enc'] = []
+        if classif_layers is not None:
+            output['h_classif'] = h[1]
+        else:
+            output['h_classif'] = []
+        if return_output:
+            output['output'] = h[2]
+        return output
 
       
     def forward_output(self, x, y=None):
@@ -244,7 +259,6 @@ class XVector(TorchModel):
             x = x.view(x.size(0), 1, x.size(1), x.size(2))
 
         h_enc, x = self.encoder_net.forward_hid_feats(x, enc_layers, return_output=True)
-
         if not return_output and classif_layers is None:
             return h_enc
         
