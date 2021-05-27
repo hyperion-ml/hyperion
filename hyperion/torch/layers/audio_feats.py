@@ -2,7 +2,7 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-# 
+#
 
 import math
 import logging
@@ -12,6 +12,11 @@ from ...utils.misc import str2bool
 import torch
 import torch.nn as nn
 import torch.cuda.amp as amp
+try:
+    import torch.fft.rfft as rfft
+    rfft = lambda x: rfft(x, dim=-1)
+except:
+    rfft = lambda x: torch.rfft(x, 1, normalized=False, onesided=True)
 
 from ...feats.filter_banks import FilterBankFactory as FBF
 
@@ -23,32 +28,37 @@ RECTANGULAR = 'rectangular'
 BLACKMAN = 'blackman'
 WINDOWS = [HAMMING, HANNING, POVEY, RECTANGULAR, BLACKMAN]
 
+# def _amp_safe_matmul(a, b):
+#     if _use_amp():
+#         mx = torch.max(a, dim=-1, keepdim=True)[0]
+#         return mx*torch.matmul(a/mx, b)
 
-def _amp_safe_matmul(a, b):
-    if _use_amp():
-        mx = torch.max(a, dim=-1, keepdim=True)[0]
-        return mx*torch.matmul(a/mx, b)
-
-    return torch.matmul(a, b)
+#     return torch.matmul(a, b)
 
 
-def _get_feature_window_function(window_type, window_size, blackman_coeff=0.42):
+def _get_feature_window_function(window_type, window_size,
+                                 blackman_coeff=0.42):
     r"""Returns a window function with the given type and size
     """
     if window_type == HANNING:
         return torch.hann_window(window_size, periodic=True)
     elif window_type == HAMMING:
-        return torch.hamming_window(window_size, periodic=True, alpha=0.54, beta=0.46)
+        return torch.hamming_window(window_size,
+                                    periodic=True,
+                                    alpha=0.54,
+                                    beta=0.46)
     elif window_type == POVEY:
         #return torch.hann_window(window_size, periodic=True).pow(0.85)
         a = 2 * math.pi / window_size
-        window_function = torch.arange(window_size, dtype=torch.get_default_dtype())
+        window_function = torch.arange(window_size,
+                                       dtype=torch.get_default_dtype())
         return (0.5 - 0.5 * torch.cos(a * window_function)).pow(0.85)
     elif window_type == RECTANGULAR:
         return torch.ones(window_size, dtype=torch.get_default_dtype())
     elif window_type == BLACKMAN:
         a = 2 * math.pi / window_size
-        window_function = torch.arange(window_size, dtype=torch.get_default_dtype())
+        window_function = torch.arange(window_size,
+                                       dtype=torch.get_default_dtype())
         return blackman_coeff - 0.5 * torch.cos(a * window_function) + \
             (0.5 - blackman_coeff) * torch.cos(2 * a * window_function)
     else:
@@ -81,16 +91,17 @@ def _get_strided_batch(waveform, window_length, window_shift, snip_edges):
             num_frames = 1 + (num_samples - window_length) // window_shift
     else:
         num_frames = (num_samples + (window_shift // 2)) // window_shift
-        new_num_samples = (num_frames - 1)* window_shift + window_length
+        new_num_samples = (num_frames - 1) * window_shift + window_length
         npad = new_num_samples - num_samples
-        npad_left = int((window_length - window_shift)//2)
+        npad_left = int((window_length - window_shift) // 2)
         npad_right = npad - npad_left
         #waveform = nn.functional.pad(waveform, (npad_left, npad_right), mode='reflect')
-        pad_left = torch.flip(waveform[:, 1:npad_left+1], (1,))
-        pad_right = torch.flip(waveform[:, -npad_right-1:-1], (1,))
+        pad_left = torch.flip(waveform[:, 1:npad_left + 1], (1, ))
+        pad_right = torch.flip(waveform[:, -npad_right - 1:-1], (1, ))
         waveform = torch.cat((pad_left, waveform, pad_right), dim=1)
 
-    strides = (waveform.stride(0), window_shift * waveform.stride(1), waveform.stride(1))
+    strides = (waveform.stride(0), window_shift * waveform.stride(1),
+               waveform.stride(1))
     sizes = (batch_size, num_frames, window_length)
     return waveform.as_strided(sizes, strides)
 
@@ -100,21 +111,29 @@ def _get_log_energy(x, energy_floor):
     """
     log_energy = (x.pow(2).sum(-1) + 1e-15).log()  # size (m)
     if energy_floor > 0.0:
-        log_energy = torch.max(log_energy, torch.tensor(math.log(
-            energy_floor), dtype=torch.get_default_dtype()))
+        log_energy = torch.max(
+            log_energy,
+            torch.tensor(math.log(energy_floor),
+                         dtype=torch.get_default_dtype()))
 
     return log_energy
 
 
-
 class Wav2Win(nn.Module):
-
-    def __init__(self, fs=16000, frame_length=25, frame_shift=10, 
+    def __init__(self,
+                 fs=16000,
+                 frame_length=25,
+                 frame_shift=10,
                  pad_length=None,
-                 remove_dc_offset=True, preemph_coeff=0.97, 
-                 window_type='povey', dither=1, snip_edges=True,
-                 energy_floor=0, raw_energy=True, return_log_energy=False):
-        
+                 remove_dc_offset=True,
+                 preemph_coeff=0.97,
+                 window_type='povey',
+                 dither=1,
+                 snip_edges=True,
+                 energy_floor=0,
+                 raw_energy=True,
+                 return_log_energy=False):
+
         super().__init__()
         self.fs = fs
         self.frame_length = frame_length
@@ -129,33 +148,33 @@ class Wav2Win(nn.Module):
         self.raw_energy = raw_energy
         self.return_log_energy = return_log_energy
 
-        N = int(math.floor(frame_length * fs/1000))
+        N = int(math.floor(frame_length * fs / 1000))
         self._length = N
-        self._shift = int(math.floor(frame_shift * fs/1000))
+        self._shift = int(math.floor(frame_shift * fs / 1000))
 
-        self._window = nn.Parameter(
-            _get_feature_window_function(window_type, N), 
-            requires_grad=False)
+        self._window = nn.Parameter(_get_feature_window_function(
+            window_type, N),
+                                    requires_grad=False)
         self.pad_length = N if pad_length is None else pad_length
         assert self.pad_length >= N
-
 
     def __repr__(self):
         return self.__str__()
 
     def __str__(self):
-        s = ('{}(fs={}, frame_length={}, frame_shift={}, pad_length={}, '
-             'remove_dc_offset={}, preemph_coeff={}, window_type={} '
-             'dither={}, snip_edges={}, energy_floor={}, raw_energy={}, return_log_energy={})').format(
-                 self.__class__.__name__, self.fs, self.frame_length, self.frame_shift,
-                 self.pad_length, self.remove_dc_offset, self.preemph_coeff,
-                 self.window_type, self.dither, self.snip_edges,
-                 self.energy_floor, self.raw_energy, self.return_log_energy)
+        s = (
+            '{}(fs={}, frame_length={}, frame_shift={}, pad_length={}, '
+            'remove_dc_offset={}, preemph_coeff={}, window_type={} '
+            'dither={}, snip_edges={}, energy_floor={}, raw_energy={}, return_log_energy={})'
+        ).format(self.__class__.__name__, self.fs, self.frame_length,
+                 self.frame_shift, self.pad_length, self.remove_dc_offset,
+                 self.preemph_coeff, self.window_type, self.dither,
+                 self.snip_edges, self.energy_floor, self.raw_energy,
+                 self.return_log_energy)
         return s
 
-
     def forward(self, x):
-        
+
         # Add dither
         if self.dither != 0.0:
             n = torch.randn(x.shape, device=x.device)
@@ -168,27 +187,33 @@ class Wav2Win(nn.Module):
 
         if self.return_log_energy and self.raw_energy:
             # Compute the log energy of each frame
-            x_strided = _get_strided_batch(x, self._length, self._shift, self.snip_edges)
-            log_energy = _get_log_energy(x_strided, EPSILON, energy_floor)  # size (m)
+            x_strided = _get_strided_batch(x, self._length, self._shift,
+                                           self.snip_edges)
+            log_energy = _get_log_energy(x_strided,
+                                         self.energy_floor)  # size (m)
 
         if self.preemph_coeff != 0.0:
-            x_offset =  torch.nn.functional.pad(
-                x.unsqueeze(1), (1, 0), mode='replicate').squeeze(1)  
+            x_offset = torch.nn.functional.pad(x.unsqueeze(1), (1, 0),
+                                               mode='replicate').squeeze(1)
             x = x - self.preemph_coeff * x_offset[:, :-1]
-            
-        x_strided = _get_strided_batch(x, self._length, self._shift, self.snip_edges)
+
+        x_strided = _get_strided_batch(x, self._length, self._shift,
+                                       self.snip_edges)
 
         # Apply window_function to each frame
         x_strided = x_strided * self._window
 
         if self.return_log_energy and not self.raw_energy:
-            signal_log_energy = _get_log_energy(strided_input, EPSILON, energy_floor)  # size (batch, m)
+            signal_log_energy = _get_log_energy(
+                strided_input, self.energy_floor)  # size (batch, m)
 
         # Pad columns with zero until we reach size (batch, num_frames, pad_length)
         if self.pad_length != self._length:
             pad = self.pad_length - self._length
-            x_strided = torch.nn.functional.pad(
-                x_strided.unsqueeze(1), (0, pad), mode='constant', value=0).squeeze(1)
+            x_strided = torch.nn.functional.pad(x_strided.unsqueeze(1),
+                                                (0, pad),
+                                                mode='constant',
+                                                value=0).squeeze(1)
 
         if self.return_log_energy:
             return x_strided, log_energy
@@ -196,32 +221,43 @@ class Wav2Win(nn.Module):
         return x_strided
 
 
-
 class Wav2FFT(nn.Module):
-
-    def __init__(self, fs=16000, frame_length=25, frame_shift=10, 
+    def __init__(self,
+                 fs=16000,
+                 frame_length=25,
+                 frame_shift=10,
                  fft_length=512,
-                 remove_dc_offset=True, preemph_coeff=0.97, 
-                 window_type='povey', dither=1, snip_edges=True,
-                 energy_floor=0, raw_energy=True, use_energy=True):
+                 remove_dc_offset=True,
+                 preemph_coeff=0.97,
+                 window_type='povey',
+                 dither=1,
+                 snip_edges=True,
+                 energy_floor=0,
+                 raw_energy=True,
+                 use_energy=True):
 
         super().__init__()
 
-        N = int(math.floor(frame_length * fs/1000))
+        N = int(math.floor(frame_length * fs / 1000))
         if N > fft_length:
-            k = math.ceil(math.log(N)/math.log(2))
+            k = math.ceil(math.log(N) / math.log(2))
             self.fft_length = int(2**k)
 
-        self.wav2win = Wav2Win(
-            fs, frame_length, frame_shift,
-            pad_length=fft_length,
-            remove_dc_offset=remove_dc_offset, preemph_coeff=preemph_coeff, 
-            window_type=window_type, dither=dither, snip_edges=snip_edges,
-            energy_floor=0, raw_energy=raw_energy, return_log_energy=use_energy)
-            
+        self.wav2win = Wav2Win(fs,
+                               frame_length,
+                               frame_shift,
+                               pad_length=fft_length,
+                               remove_dc_offset=remove_dc_offset,
+                               preemph_coeff=preemph_coeff,
+                               window_type=window_type,
+                               dither=dither,
+                               snip_edges=snip_edges,
+                               energy_floor=0,
+                               raw_energy=raw_energy,
+                               return_log_energy=use_energy)
+
         self.fft_length = fft_length
         self.use_energy = use_energy
-    
 
     @property
     def fs(self):
@@ -241,7 +277,7 @@ class Wav2FFT(nn.Module):
 
     @property
     def preemph_coeff(self):
-        return self.wav2win.preemph_coeff 
+        return self.wav2win.preemph_coeff
 
     @property
     def window_type(self):
@@ -250,47 +286,61 @@ class Wav2FFT(nn.Module):
     @property
     def dither(self):
         return self.wav2win.dither
-        
-        
+
     def forward(self, x):
-        
+
         x_strided = self.wav2win(x)
         if self.use_energy:
             x_strided, log_e = x_strided
 
-        X = torch.rfft(x_strided, 1, normalized=False, onesided=True)
+        #X = torch.rfft(x_strided, 1, normalized=False, onesided=True)
+        X = rfft(x_strided)
 
         if self.use_energy:
-            X[:,0, :, 0] = log_e
+            X[:, 0, :, 0] = log_e
 
         return X
-        
 
 
 class Wav2Spec(Wav2FFT):
-
-    def __init__(self, fs=16000, frame_length=25, frame_shift=10, 
+    def __init__(self,
+                 fs=16000,
+                 frame_length=25,
+                 frame_shift=10,
                  fft_length=512,
-                 remove_dc_offset=True, preemph_coeff=0.97, 
-                 window_type='povey', use_fft_mag=False, dither=1, snip_edges=True,
-                 energy_floor=0, raw_energy=True, use_energy=True):
-    
-        super().__init__(
-            fs, frame_length, frame_shift, fft_length,
-            remove_dc_offset=remove_dc_offset, preemph_coeff=preemph_coeff, 
-            window_type=window_type, dither=dither, snip_edges=snip_edges,
-            energy_floor=energy_floor, raw_energy=raw_energy, use_energy=use_energy)
-        
+                 remove_dc_offset=True,
+                 preemph_coeff=0.97,
+                 window_type='povey',
+                 use_fft_mag=False,
+                 dither=1,
+                 snip_edges=True,
+                 energy_floor=0,
+                 raw_energy=True,
+                 use_energy=True):
+
+        super().__init__(fs,
+                         frame_length,
+                         frame_shift,
+                         fft_length,
+                         remove_dc_offset=remove_dc_offset,
+                         preemph_coeff=preemph_coeff,
+                         window_type=window_type,
+                         dither=dither,
+                         snip_edges=snip_edges,
+                         energy_floor=energy_floor,
+                         raw_energy=raw_energy,
+                         use_energy=use_energy)
+
         self.use_fft_mag = use_fft_mag
-        
 
     def forward(self, x):
-        
+
         x_strided = self.wav2win(x)
         if self.use_energy:
             x_strided, log_e = x_strided
 
-        X = torch.rfft(x_strided, 1, normalized=False, onesided=True)
+        #X = torch.rfft(x_strided, 1, normalized=False, onesided=True)
+        X = rfft(x_strided)
 
         pow_spec = X.pow(2).sum(-1)
         if self.use_fft_mag:
@@ -303,29 +353,44 @@ class Wav2Spec(Wav2FFT):
 
 
 class Wav2LogSpec(Wav2FFT):
-
-    def __init__(self, fs=16000, frame_length=25, frame_shift=10, 
+    def __init__(self,
+                 fs=16000,
+                 frame_length=25,
+                 frame_shift=10,
                  fft_length=512,
-                 remove_dc_offset=True, preemph_coeff=0.97, 
-                 window_type='povey', use_fft_mag=False, dither=1, snip_edges=True,
-                 energy_floor=0, raw_energy=True, use_energy=True):
-    
-        super().__init__(
-            fs, frame_length, frame_shift, fft_length,
-            remove_dc_offset=remove_dc_offset, preemph_coeff=preemph_coeff, 
-            window_type=window_type, dither=dither, snip_edges=snip_edges,
-            energy_floor=energy_floor, raw_energy=raw_energy, use_energy=use_energy)
-        
+                 remove_dc_offset=True,
+                 preemph_coeff=0.97,
+                 window_type='povey',
+                 use_fft_mag=False,
+                 dither=1,
+                 snip_edges=True,
+                 energy_floor=0,
+                 raw_energy=True,
+                 use_energy=True):
+
+        super().__init__(fs,
+                         frame_length,
+                         frame_shift,
+                         fft_length,
+                         remove_dc_offset=remove_dc_offset,
+                         preemph_coeff=preemph_coeff,
+                         window_type=window_type,
+                         dither=dither,
+                         snip_edges=snip_edges,
+                         energy_floor=energy_floor,
+                         raw_energy=raw_energy,
+                         use_energy=use_energy)
+
         self.use_fft_mag = use_fft_mag
-        
 
     def forward(self, x):
-        
+
         x_strided = self.wav2win(x)
         if self.use_energy:
             x_strided, log_e = x_strided
 
-        X = torch.rfft(x_strided, 1, normalized=False, onesided=True)
+        #X = torch.rfft(x_strided, 1, normalized=False, onesided=True)
+        X = rfft(x_strided)
 
         pow_spec = X.pow(2).sum(-1)
         if self.use_fft_mag:
@@ -340,22 +405,39 @@ class Wav2LogSpec(Wav2FFT):
 
 
 class Wav2LogFilterBank(Wav2FFT):
-
-    def __init__(self, fs=16000, frame_length=25, frame_shift=10, 
+    def __init__(self,
+                 fs=16000,
+                 frame_length=25,
+                 frame_shift=10,
                  fft_length=512,
-                 remove_dc_offset=True, preemph_coeff=0.97, 
-                 window_type='povey', use_fft_mag=False, dither=1, 
+                 remove_dc_offset=True,
+                 preemph_coeff=0.97,
+                 window_type='povey',
+                 use_fft_mag=False,
+                 dither=1,
                  fb_type='mel_kaldi',
-                 low_freq=20, high_freq=0, num_filters=23, norm_filters=False,
+                 low_freq=20,
+                 high_freq=0,
+                 num_filters=23,
+                 norm_filters=False,
                  snip_edges=True,
-                 energy_floor=0, raw_energy=True, use_energy=True):
-    
-        super().__init__(
-            fs, frame_length, frame_shift, fft_length,
-            remove_dc_offset=remove_dc_offset, preemph_coeff=preemph_coeff, 
-            window_type=window_type, dither=dither, snip_edges=snip_edges,
-            energy_floor=energy_floor, raw_energy=raw_energy, use_energy=use_energy)
-        
+                 energy_floor=0,
+                 raw_energy=True,
+                 use_energy=True):
+
+        super().__init__(fs,
+                         frame_length,
+                         frame_shift,
+                         fft_length,
+                         remove_dc_offset=remove_dc_offset,
+                         preemph_coeff=preemph_coeff,
+                         window_type=window_type,
+                         dither=dither,
+                         snip_edges=snip_edges,
+                         energy_floor=energy_floor,
+                         raw_energy=raw_energy,
+                         use_energy=use_energy)
+
         self.use_fft_mag = use_fft_mag
         self.fb_type = fb_type
         self.low_freq = low_freq
@@ -363,20 +445,20 @@ class Wav2LogFilterBank(Wav2FFT):
         self.num_filters = num_filters
         self.norm_filters = norm_filters
 
-        fb = FBF.create(fb_type, num_filters, self.fft_length,
-                        self.fs, low_freq, high_freq, norm_filters)
-        self._fb = nn.Parameter(
-            torch.tensor(fb, dtype=torch.get_default_dtype()),
-            requires_grad=False)
-        
-        
+        fb = FBF.create(fb_type, num_filters, self.fft_length, self.fs,
+                        low_freq, high_freq, norm_filters)
+        self._fb = nn.Parameter(torch.tensor(fb,
+                                             dtype=torch.get_default_dtype()),
+                                requires_grad=False)
+
     def forward(self, x):
-        
+
         x_strided = self.wav2win(x)
         if self.use_energy:
             x_strided, log_e = x_strided
 
-        X = torch.rfft(x_strided, 1, normalized=False, onesided=True)
+        #X = torch.rfft(x_strided, 1, normalized=False, onesided=True)
+        X = rfft(x_strided)
         # logging.info('X={} {}'.format(X, X.type()))
         # logging.info('X={}'.format(X.type()))
         pow_spec = X.pow(2).sum(-1)
@@ -389,33 +471,51 @@ class Wav2LogFilterBank(Wav2FFT):
             pow_spec = torch.matmul(pow_spec.float(), self._fb.float())
         #logging.info('fb={} {}'.format(pow_spec, pow_spec.type()))
         #logging.info('fb={}'.format(pow_spec.type()))
-        pow_spec = (pow_spec + 1e-10).log() 
+        pow_spec = (pow_spec + 1e-10).log()
         #logging.info('lfb={} {}'.format(pow_spec, pow_spec.type()))
         #logging.info('lfb={}'.format(pow_spec.type()))
         if self.use_energy:
             pow_spec = torch.cat((log_e.unsqueeze(-1), pow_spec), dim=-1)
 
         return pow_spec
-    
 
-    
+
 class Wav2MFCC(Wav2FFT):
-
-    def __init__(self, fs=16000, frame_length=25, frame_shift=10, 
+    def __init__(self,
+                 fs=16000,
+                 frame_length=25,
+                 frame_shift=10,
                  fft_length=512,
-                 remove_dc_offset=True, preemph_coeff=0.97, 
-                 window_type='povey', use_fft_mag=False, dither=1, 
+                 remove_dc_offset=True,
+                 preemph_coeff=0.97,
+                 window_type='povey',
+                 use_fft_mag=False,
+                 dither=1,
                  fb_type='mel_kaldi',
-                 low_freq=20, high_freq=0, num_filters=23, norm_filters=False,
-                 num_ceps=13, snip_edges=True, cepstral_lifter=22,
-                 energy_floor=0, raw_energy=True, use_energy=True):
-    
-        super().__init__(
-            fs, frame_length, frame_shift, fft_length,
-            remove_dc_offset=remove_dc_offset, preemph_coeff=preemph_coeff, 
-            window_type=window_type, dither=dither, snip_edges=snip_edges,
-            energy_floor=energy_floor, raw_energy=raw_energy, use_energy=use_energy)
-        
+                 low_freq=20,
+                 high_freq=0,
+                 num_filters=23,
+                 norm_filters=False,
+                 num_ceps=13,
+                 snip_edges=True,
+                 cepstral_lifter=22,
+                 energy_floor=0,
+                 raw_energy=True,
+                 use_energy=True):
+
+        super().__init__(fs,
+                         frame_length,
+                         frame_shift,
+                         fft_length,
+                         remove_dc_offset=remove_dc_offset,
+                         preemph_coeff=preemph_coeff,
+                         window_type=window_type,
+                         dither=dither,
+                         snip_edges=snip_edges,
+                         energy_floor=energy_floor,
+                         raw_energy=raw_energy,
+                         use_energy=use_energy)
+
         self.use_fft_mag = use_fft_mag
         self.fb_type = fb_type
         self.low_freq = low_freq
@@ -425,19 +525,18 @@ class Wav2MFCC(Wav2FFT):
         self.num_ceps = num_ceps
         self.cepstral_lifter = cepstral_lifter
 
-        fb = FBF.create(fb_type, num_filters, self.fft_length,
-                        self.fs, low_freq, high_freq, norm_filters)
-        self._fb = nn.Parameter(
-            torch.tensor(fb, dtype=torch.get_default_dtype()),
-            requires_grad=False)
-        self._dct = nn.Parameter(
-            self.make_dct_matrix(self.num_ceps, self.num_filters),
-            requires_grad=False)
-        self._lifter = nn.Parameter(
-            self.make_lifter(self.num_ceps, self.cepstral_lifter),
-            requires_grad=False)
-        
-        
+        fb = FBF.create(fb_type, num_filters, self.fft_length, self.fs,
+                        low_freq, high_freq, norm_filters)
+        self._fb = nn.Parameter(torch.tensor(fb,
+                                             dtype=torch.get_default_dtype()),
+                                requires_grad=False)
+        self._dct = nn.Parameter(self.make_dct_matrix(self.num_ceps,
+                                                      self.num_filters),
+                                 requires_grad=False)
+        self._lifter = nn.Parameter(self.make_lifter(self.num_ceps,
+                                                     self.cepstral_lifter),
+                                    requires_grad=False)
+
     @staticmethod
     def make_lifter(N, Q):
         """Makes the liftering function
@@ -451,28 +550,27 @@ class Wav2MFCC(Wav2FFT):
         """
         if Q == 0:
             return 1
-        return 1 + 0.5*Q*torch.sin(math.pi*torch.arange(
-            N, dtype=torch.get_default_dtype())/Q)
-
+        return 1 + 0.5 * Q * torch.sin(
+            math.pi * torch.arange(N, dtype=torch.get_default_dtype()) / Q)
 
     @staticmethod
     def make_dct_matrix(num_ceps, num_filters):
         n = torch.arange(float(num_filters)).unsqueeze(1)
         k = torch.arange(float(num_ceps))
-        dct = torch.cos(math.pi / float(num_filters) * (n + 0.5) * k)  # size (n_mfcc, n_mels)
+        dct = torch.cos(math.pi / float(num_filters) * (n + 0.5) *
+                        k)  # size (n_mfcc, n_mels)
         dct[:, 0] *= 1.0 / math.sqrt(2.0)
         dct *= math.sqrt(2.0 / float(num_filters))
         return dct
 
-
-
     def forward(self, x):
-        
+
         x_strided = self.wav2win(x)
         if self.use_energy:
             x_strided, log_e = x_strided
 
-        X = torch.rfft(x_strided, 1, normalized=False, onesided=True)
+        #X = torch.rfft(x_strided, 1, normalized=False, onesided=True)
+        X = rfft(x_strided)
 
         pow_spec = X.pow(2).sum(-1)
         if self.use_fft_mag:
@@ -491,5 +589,3 @@ class Wav2MFCC(Wav2FFT):
             mfcc[:, 0] = log_e
 
         return mfcc
-    
-        
