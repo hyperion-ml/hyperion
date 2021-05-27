@@ -13,8 +13,8 @@ import torch
 import torch.nn as nn
 import torch.cuda.amp as amp
 try:
-    import torch.fft.rfft as rfft
-    rfft = lambda x: rfft(x, dim=-1)
+    import torch.fft.rfft as torch_rfft
+    rfft = lambda x: torch_rfft(x, dim=-1)
 except:
     rfft = lambda x: torch.rfft(x, 1, normalized=False, onesided=True)
 
