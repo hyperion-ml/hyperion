@@ -13,10 +13,14 @@ import torch
 import torch.nn as nn
 import torch.cuda.amp as amp
 try:
-    import torch.fft.rfft as torch_rfft
-    rfft = lambda x: torch_rfft(x, dim=-1)
+    from torch.fft import rfft as torch_rfft
+    _rfft = lambda x: torch_rfft(x, dim=-1)
+    _pow_spectrogram = lambda x: x.abs()**2
+    _spectrogram = lambda x: x.abs()
 except:
-    rfft = lambda x: torch.rfft(x, 1, normalized=False, onesided=True)
+    _rfft = lambda x: torch.rfft(x, 1, normalized=False, onesided=True)
+    _pow_spectrogram = lambda x: x.pow(2).sum(-1)
+    _spectrogram = lambda x: x.pow(2).sum(-1).sqrt()
 
 from ...feats.filter_banks import FilterBankFactory as FBF
 
@@ -294,7 +298,7 @@ class Wav2FFT(nn.Module):
             x_strided, log_e = x_strided
 
         #X = torch.rfft(x_strided, 1, normalized=False, onesided=True)
-        X = rfft(x_strided)
+        X = _rfft(x_strided)
 
         if self.use_energy:
             X[:, 0, :, 0] = log_e
@@ -332,6 +336,10 @@ class Wav2Spec(Wav2FFT):
                          use_energy=use_energy)
 
         self.use_fft_mag = use_fft_mag
+        if use_fft_mag:
+            self._to_spec = _spectrogram
+        else:
+            self._to_spec = _pow_spectrogram
 
     def forward(self, x):
 
@@ -340,11 +348,11 @@ class Wav2Spec(Wav2FFT):
             x_strided, log_e = x_strided
 
         #X = torch.rfft(x_strided, 1, normalized=False, onesided=True)
-        X = rfft(x_strided)
-
-        pow_spec = X.pow(2).sum(-1)
-        if self.use_fft_mag:
-            pow_spec = pow_spec.sqrt()
+        X = _rfft(x_strided)
+        pow_spec = self._to_spec(X)
+        # pow_spec = X.pow(2).sum(-1)
+        # if self.use_fft_mag:
+        #     pow_spec = pow_spec.sqrt()
 
         if self.use_energy:
             pow_spec[:, 0] = log_e
@@ -382,6 +390,10 @@ class Wav2LogSpec(Wav2FFT):
                          use_energy=use_energy)
 
         self.use_fft_mag = use_fft_mag
+        if use_fft_mag:
+            self._to_spec = _spectrogram
+        else:
+            self._to_spec = _pow_spectrogram
 
     def forward(self, x):
 
@@ -390,11 +402,12 @@ class Wav2LogSpec(Wav2FFT):
             x_strided, log_e = x_strided
 
         #X = torch.rfft(x_strided, 1, normalized=False, onesided=True)
-        X = rfft(x_strided)
+        X = _rfft(x_strided)
+        pow_spec = self._to_spec(X)
 
-        pow_spec = X.pow(2).sum(-1)
-        if self.use_fft_mag:
-            pow_spec = pow_spec.sqrt()
+        # pow_spec = X.pow(2).sum(-1)
+        # if self.use_fft_mag:
+        #     pow_spec = pow_spec.sqrt()
 
         pow_spec = (pow_spec + 1e-15).log()
 
@@ -450,6 +463,10 @@ class Wav2LogFilterBank(Wav2FFT):
         self._fb = nn.Parameter(torch.tensor(fb,
                                              dtype=torch.get_default_dtype()),
                                 requires_grad=False)
+        if use_fft_mag:
+            self._to_spec = _spectrogram
+        else:
+            self._to_spec = _pow_spectrogram
 
     def forward(self, x):
 
@@ -458,14 +475,15 @@ class Wav2LogFilterBank(Wav2FFT):
             x_strided, log_e = x_strided
 
         #X = torch.rfft(x_strided, 1, normalized=False, onesided=True)
-        X = rfft(x_strided)
+        X = _rfft(x_strided)
         # logging.info('X={} {}'.format(X, X.type()))
         # logging.info('X={}'.format(X.type()))
-        pow_spec = X.pow(2).sum(-1)
-        # logging.info('p={} {} nan={}'.format(pow_spec, pow_spec.type(), torch.sum(torch.isnan(pow_spec))))
-        # logging.info('p={}'.format(pow_spec.type()))
-        if self.use_fft_mag:
-            pow_spec = pow_spec.sqrt()
+        pow_spec = self._to_spec(X)
+        # pow_spec = X.pow(2).sum(-1)
+        # # logging.info('p={} {} nan={}'.format(pow_spec, pow_spec.type(), torch.sum(torch.isnan(pow_spec))))
+        # # logging.info('p={}'.format(pow_spec.type()))
+        # if self.use_fft_mag:
+        #     pow_spec = pow_spec.sqrt()
 
         with amp.autocast(enabled=False):
             pow_spec = torch.matmul(pow_spec.float(), self._fb.float())
@@ -536,6 +554,10 @@ class Wav2MFCC(Wav2FFT):
         self._lifter = nn.Parameter(self.make_lifter(self.num_ceps,
                                                      self.cepstral_lifter),
                                     requires_grad=False)
+        if use_fft_mag:
+            self._to_spec = _spectrogram
+        else:
+            self._to_spec = _pow_spectrogram
 
     @staticmethod
     def make_lifter(N, Q):
@@ -570,11 +592,11 @@ class Wav2MFCC(Wav2FFT):
             x_strided, log_e = x_strided
 
         #X = torch.rfft(x_strided, 1, normalized=False, onesided=True)
-        X = rfft(x_strided)
-
-        pow_spec = X.pow(2).sum(-1)
-        if self.use_fft_mag:
-            pow_spec = pow_spec.sqrt()
+        X = _rfft(x_strided)
+        pow_spec = self._to_spec(X)
+        # pow_spec = X.pow(2).sum(-1)
+        # if self.use_fft_mag:
+        #     pow_spec = pow_spec.sqrt()
 
         with amp.autocast(enabled=False):
             pow_spec = torch.matmul(pow_spec.float(), self._fb.float())
