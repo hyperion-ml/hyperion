@@ -6,15 +6,12 @@
 . ./cmd.sh
 . ./path.sh
 set -e
-
 stage=1
-ngpu=4
+ngpu=1
 config_file=default_config.sh
 resume=false
 interactive=false
 num_workers=8
-use_tb=false
-use_wandb=false
 
 . parse_options.sh || exit 1;
 . $config_file
@@ -29,12 +26,6 @@ args=""
 if [ "$resume" == "true" ];then
     args="--resume"
 fi
-if [ "$use_tb" == "true" ];then
-    args="$args --use-tensorboard"
-fi
-if [ "$use_wandb" == "true" ];then
-    args="$args --use-wandb --wandb.project voxceleb-v1.1 --wandb.name $nnet_name.$(date -Iminutes)"
-fi
 
 if [ "$interactive" == "true" ];then
     export cuda_cmd=run.pl
@@ -43,7 +34,7 @@ fi
 # Network Training
 if [ $stage -le 1 ]; then
 
-    if [[ ${nnet_type} =~ resnet ]] || [[ ${nnet_type} =~ resnext ]] || [[ ${nnet_type} =~ res2net ]] || [[ ${nnet_type} =~ res2next ]]; then
+    if [[ ${nnet_type} =~ resnet ]] || [[ ${nnet_type} =~ resnext ]]; then
 	train_exec=torch-train-resnet-xvec-from-wav.py
     elif [[ ${nnet_type} =~ efficientnet ]]; then
 	train_exec=torch-train-efficientnet-xvec-from-wav.py
@@ -60,8 +51,8 @@ if [ $stage -le 1 ]; then
 
     mkdir -p $nnet_dir/log
     $cuda_cmd --gpu $ngpu $nnet_dir/log/train.log \
-	hyp_utils/conda_env.sh --conda-env $HYP_ENV --num-gpus $ngpu \
-	$train_exec --feats $feat_config $aug_opt \
+	hyp_utils/torch.sh --num-gpus $ngpu \
+	$train_exec  @$feat_config $aug_opt \
 	--audio-path $list_dir/wav.scp \
 	--time-durs-file $list_dir/utt2dur \
 	--train-list $list_dir/lists_xvec/train.scp \
@@ -74,13 +65,11 @@ if [ $stage -le 1 ]; then
 	--grad-acc-steps $grad_acc_steps \
 	--embed-dim $embed_dim $nnet_opt $opt_opt $lrs_opt \
 	--epochs $nnet_num_epochs \
-	--s $s --margin $margin --margin-warmup-epochs $margin_warmup \
+	--loss-type $loss_type --s $s --margin $margin --margin-warmup-epochs $margin_warmup \
 	--dropout-rate $dropout \
 	--num-gpus $ngpu \
 	--log-interval $log_interval \
-	--exp-path $nnet_dir $args 
+	--exp-path $nnet_dir $args
 
 fi
-
-
 exit

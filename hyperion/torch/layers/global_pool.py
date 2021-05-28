@@ -4,10 +4,12 @@
 """
 import logging
 import math
+import numpy as np
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as nnf
+
 
 def _conv1(in_channels, out_channels, bias=False):
     """point-wise convolution"""
@@ -615,3 +617,4 @@ class GlobalChWiseAttMeanStdPool1d(_GlobalPool1d):
 
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
+

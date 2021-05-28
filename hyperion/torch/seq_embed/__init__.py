@@ -11,3 +11,4 @@ from ..models.tdnn_xvector import TDNNXVector
 from ..models.resnet_xvector import ResNetXVector
 from ..models.efficient_net_xvector import EfficientNetXVector
 from ..models.transformer_xvector_v1 import TransformerXVectorV1
+from ..models.spinenet_xvector import SpineNetXVector

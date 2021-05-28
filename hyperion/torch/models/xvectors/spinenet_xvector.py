@@ -1,31 +1,35 @@
 """
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+ Copyright 2020 Magdalena Rybicka
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
-from jsonargparse import ArgumentParser, ActionParser
 
 import torch
 import torch.nn as nn
 
 from .xvector import XVector
-from ...narchs import ResNetFactory as RNF
+from ..narchs import SpineNetFactory as SNF
 
 
-class ResNetXVector(XVector):
+class SpineNetXVector(XVector):
     def __init__(self,
-                 resnet_type,
+                 spinenet_type,
                  in_feats,
                  num_classes,
                  in_channels,
+                 output_levels=[3, 4, 5, 6, 7],
+                 endpoints_num_filters=256,
+                 resample_alpha=0.5,
+                 block_repeats=1,
+                 filter_size_scale=1.0,
                  conv_channels=64,
                  base_channels=64,
                  in_kernel_size=7,
                  in_stride=1,
                  zero_init_residual=False,
                  groups=1,
-                 replace_stride_with_dilation=None,
                  do_maxpool=False,
                  pool_net='mean+stddev',
                  embed_dim=256,
@@ -51,27 +55,30 @@ class ResNetXVector(XVector):
                  res2net_scale=4,
                  res2net_width_factor=1):
 
-        logging.info('making %s encoder network', resnet_type)
-        encoder_net = RNF.create(
-            resnet_type,
-            in_channels,
-            conv_channels=conv_channels,
-            base_channels=base_channels,
-            hid_act=hid_act,
-            in_kernel_size=in_kernel_size,
-            in_stride=in_stride,
-            zero_init_residual=zero_init_residual,
-            groups=groups,
-            replace_stride_with_dilation=replace_stride_with_dilation,
-            dropout_rate=dropout_rate,
-            norm_layer=norm_layer,
-            norm_before=norm_before,
-            do_maxpool=do_maxpool,
-            in_norm=in_norm,
-            se_r=se_r,
-            in_feats=in_feats,
-            res2net_scale=res2net_scale,
-            res2net_width_factor=res2net_width_factor)
+        logging.info('making %s encoder network', spinenet_type)
+        encoder_net = SNF.create(spinenet_type,
+                                 in_channels,
+                                 output_levels=output_levels,
+                                 endpoints_num_filters=endpoints_num_filters,
+                                 resample_alpha=resample_alpha,
+                                 block_repeats=block_repeats,
+                                 filter_size_scale=filter_size_scale,
+                                 conv_channels=conv_channels,
+                                 base_channels=base_channels,
+                                 hid_act=hid_act,
+                                 in_kernel_size=in_kernel_size,
+                                 in_stride=in_stride,
+                                 zero_init_residual=zero_init_residual,
+                                 groups=groups,
+                                 dropout_rate=dropout_rate,
+                                 norm_layer=norm_layer,
+                                 norm_before=norm_before,
+                                 do_maxpool=do_maxpool,
+                                 in_norm=in_norm,
+                                 se_r=se_r,
+                                 in_feats=in_feats,
+                                 res2net_scale=res2net_scale,
+                                 res2net_width_factor=res2net_width_factor)
 
         super().__init__(encoder_net,
                          num_classes,
@@ -93,11 +100,27 @@ class ResNetXVector(XVector):
                          in_feats=in_feats,
                          proj_feats=proj_feats)
 
-        self.resnet_type = resnet_type
+        self.spinenet_type = spinenet_type
 
     @property
     def in_channels(self):
         return self.encoder_net.in_channels
+
+    @property
+    def endpoints_num_filters(self):
+        return self.encoder_net.endpoints_num_filters
+
+    @property
+    def resample_alpha(self):
+        return self.encoder_net.resample_alpha
+
+    @property
+    def block_repeats(self):
+        return self.encoder_net.block_repeats
+
+    @property
+    def filter_size_scale(self):
+        return self.encoder_net.filter_size_scale
 
     @property
     def conv_channels(self):
@@ -122,10 +145,6 @@ class ResNetXVector(XVector):
     @property
     def groups(self):
         return self.encoder_net.groups
-
-    @property
-    def replace_stride_with_dilation(self):
-        return self.encoder_net.replace_stride_with_dilation
 
     @property
     def do_maxpool(self):
@@ -155,20 +174,24 @@ class ResNetXVector(XVector):
         pool_cfg = self.pool_net.get_config()
 
         config = {
-            'resnet_type': self.resnet_type,
+            'spinenet_type': self.spinenet_type,
             'in_channels': self.in_channels,
+            'output_levels': self.output_levels,
+            'endpoints_num_filters': self.endpoints_num_filters,
+            'resample_alpha': self.resample_alpha,
+            'block_repeats': self.block_repeats,
+            'filter_size_scale': self.filter_size_scale,
             'conv_channels': self.conv_channels,
             'base_channels': self.base_channels,
             'in_kernel_size': self.in_kernel_size,
             'in_stride': self.in_stride,
             'zero_init_residual': self.zero_init_residual,
             'groups': self.groups,
-            'replace_stride_with_dilation': self.replace_stride_with_dilation,
             'do_maxpool': self.do_maxpool,
             'in_norm': self.in_norm,
-            'se_r': self.se_r,
             'res2net_scale': self.res2net_scale,
-            'res2net_width_factor': self.res2net_width_factor
+            'res2net_width_factor': self.res2net_width_factor,
+            'se_r': self.se_r
         }
 
         config.update(base_config)
@@ -188,7 +211,7 @@ class ResNetXVector(XVector):
     def filter_args(**kwargs):
 
         base_args = XVector.filter_args(**kwargs)
-        child_args = RNF.filter_args(**kwargs)
+        child_args = SNF.filter_args(**kwargs)
 
         base_args.update(child_args)
         return base_args
@@ -200,11 +223,10 @@ class ResNetXVector(XVector):
             parser = ArgumentParser(prog='')
 
         XVector.add_class_args(parser)
-        RNF.add_class_args(parser)
+        SNF.add_class_args(parser)
 
         if prefix is not None:
             outer_parser.add_argument('--' + prefix,
                                       action=ActionParser(parser=parser))
-            # help='xvector options')
 
     add_argparse_args = add_class_args

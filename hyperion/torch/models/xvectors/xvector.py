@@ -74,6 +74,7 @@ class XVector(TorchModel):
             logging.info(
                 'adding projection layer after encoder with in/out size %d -> %d',
                 enc_feats, proj_feats)
+            
             self.proj = TDNNBlock(enc_feats,
                                   proj_feats,
                                   kernel_size=1,
@@ -210,8 +211,8 @@ class XVector(TorchModel):
     #     if use_amp:
     #         with torch.cuda.amp.autocast():
     #             return self._forward(x, y)
-
     #     return self._forward(x, y)
+
     def forward(self,
                 x,
                 y=None,
@@ -257,7 +258,6 @@ class XVector(TorchModel):
                           classif_layers=None,
                           return_output=False):
         """forwards hidden representations in the x-vector network
-        
         """
 
         if self.encoder_net.in_dim() == 4 and x.dim() == 3:
@@ -296,7 +296,6 @@ class XVector(TorchModel):
         x = self._pre_enc(x)
         # if self.encoder_net.in_dim() == 4 and x.dim() == 3:
         #     x = x.view(x.size(0), 1, x.size(1), x.size(2))
-
         x = eval_nnet_by_chunks(x,
                                 self.encoder_net,
                                 chunk_length,
@@ -306,11 +305,13 @@ class XVector(TorchModel):
             x = x.to(self.device)
 
         x = self._post_enc(x)
+
         # if self.encoder_net.out_dim() == 4:
         #     x = x.view(x.size(0), -1, x.size(-1))
 
         # if self.proj is not None:
         #     x = self.proj(x)
+
         p = self.pool_net(x)
         y = self.classif_net.extract_embed(p, embed_layer)
         return y
@@ -342,8 +343,6 @@ class XVector(TorchModel):
             embed_layer = self.embed_layer
 
         in_time = x.size(-1)
-        # if self.encoder_net.in_dim() == 4 and x.dim() == 3:
-        #     x = x.view(x.size(0), 1, x.size(1), x.size(2))
         x = self._pre_enc(x)
         x = eval_nnet_by_chunks(x,
                                 self.encoder_net,
@@ -463,6 +462,7 @@ class XVector(TorchModel):
         #     del cfg['preproc_cfg']
 
         encoder_net = TorchNALoader.load_from_cfg(cfg=cfg['encoder_cfg'])
+
         for k in ('encoder_cfg'):
             del cfg[k]
 
@@ -533,7 +533,6 @@ class XVector(TorchModel):
             del kwargs['norm_after']
 
         # get arguments for pooling
-        print(kwargs)
         pool_args = PF.filter_args(**kwargs['pool_net'])
         # pool_valid_args = (
         #     'pool_type', 'pool_num_comp', 'pool_use_bias',
