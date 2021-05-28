@@ -61,7 +61,7 @@ if [ $stage -le 1 ];then
 	do
 	    score_plda_dir=$score_dir/cosine_fgsm_e${eps}_${defense_suffix}
 	    echo "Eval Voxceleb 1 with Cosine scoring with FGSM attack eps=$eps"
-	    steps_adv/eval_cosine_scoring_from_adv_test_wav_wavegan.sh --cmd "$eval_cmd" $eval_args --nj 20 \
+	    steps_adv/eval_cosine_scoring_from_adv_test_wav_wavegan.sh --cmd "$eval_cmd" $eval_args --nj 160 \
 		--feat-config $feat_config \
 		--attack-opts "--attack.attack-type fgsm --attack.eps $eps" \
 		--save-wav $save_wav --save-wav-path $score_plda_dir/wav \
@@ -96,7 +96,7 @@ if [ $stage -le 1 ];then
 	fi
     done
 fi
-
+exit
 
 if [ $stage -le 2 ];then
 

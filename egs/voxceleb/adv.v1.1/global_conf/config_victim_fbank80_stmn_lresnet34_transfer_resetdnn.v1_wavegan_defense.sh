@@ -95,7 +95,8 @@ advft_nnet_dir=exp/xvector_nnets/$advft_nnet_name
 advft_nnet=$advft_nnet_dir/model_ep0020.pth
 
 # WaveGAN configs
-smoothing_after_wavegan=True
-wave_gan_root_dir=/export/c07/sjoshi/codes/gard-speech/egs-clsp/eval-xvec-librispeech-sid/v1/exp/wave-gan-models/train_oneFourth_parallel_wavegan.v1
+smoothing_after_wavegan=true
+#wave_gan_root_dir=/export/c07/sjoshi/codes/gard-speech/egs-clsp/eval-xvec-librispeech-sid/v1/exp/wave-gan-models/train_oneFourth_parallel_wavegan.v1
+wave_gan_root_dir=exp/wavegan_nnets/train_oneFourth_parallel_wavegan.v1
 wave_gan_model_ckpt=checkpoint-400000steps.pkl
 wave_gan_label=voxceleb.oneFourth.Pwavegan_${wave_gan_model_ckpt}
