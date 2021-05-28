@@ -72,8 +72,9 @@ class XVector(TorchModel):
         self.proj_feats = proj_feats
         if proj_feats is not None:
             logging.info(
-                'adding projection layer after encoder with in/out size %d -> %d'
-                % (enc_feats, proj_feats))
+                'adding projection layer after encoder with in/out size %d -> %d',
+                enc_feats, proj_feats)
+            
             self.proj = TDNNBlock(enc_feats,
                                   proj_feats,
                                   kernel_size=1,
@@ -89,7 +90,7 @@ class XVector(TorchModel):
             self.pool_net = self._make_pool_net(pool_net, proj_feats)
             pool_feats = int(proj_feats * self.pool_net.size_multiplier)
 
-        logging.info('infer pooling dimension %d' % (pool_feats))
+        logging.info('infer pooling dimension %d', pool_feats)
 
         # if head_norm_layer is none we use the global norm_layer
         if head_norm_layer is None and norm_layer is not None:
@@ -299,6 +300,7 @@ class XVector(TorchModel):
                                 self.encoder_net,
                                 chunk_length,
                                 detach_chunks=detach_chunks)
+
         if x.device != self.device:
             x = x.to(self.device)
 
@@ -531,7 +533,6 @@ class XVector(TorchModel):
             del kwargs['norm_after']
 
         # get arguments for pooling
-        print(kwargs)
         pool_args = PF.filter_args(**kwargs['pool_net'])
         # pool_valid_args = (
         #     'pool_type', 'pool_num_comp', 'pool_use_bias',

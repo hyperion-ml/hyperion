@@ -21,10 +21,12 @@ fi
 
 if [ "$(hostname --domain)" == "cm.gemini" ];then
     module load ffmpeg
-    HYP_ENV="pytorch1.6_cuda10.1"
-    HYP_ART_ENV="pytorch1.6_cuda10.1_art"
-    module load cuda10.1/toolkit/10.1.105
-    module load cudnn/7.6.3_cuda10.1
+    # HYP_ENV="pytorch1.6_cuda10.1"
+    # HYP_ART_ENV="pytorch1.6_cuda10.1_art"
+    # module load cuda10.1/toolkit/10.1.105
+    # module load cudnn/7.6.3_cuda10.1
+    HYP_ENV="pytorch1.6_cuda10.2"
+    HYP_ART_ENV="pytorch1.6_cuda10.2_art"
 else
     #CUDA_ROOT=/home/janto/usr/local/cuda-10.1
     CUDA_ROOT=/usr/local/cuda
@@ -47,7 +49,7 @@ export LRU_CACHE_CAPACITY=1 #this will avoid crazy ram memory when using pytorch
 export HDF5_USE_FILE_LOCKING=FALSE
 
 export MPLBACKEND="agg"
-export PATH=$HYP_ROOT/hyperion/bin:$CUDA_ROOT/bin:$PATH
+export PATH=$HYP_ROOT/hyperion/bin:$PATH
 export PYTHONPATH=$HYP_ROOT:$PYTHONPATH
 export LD_LIBRARY_PATH
 export LC_ALL=C

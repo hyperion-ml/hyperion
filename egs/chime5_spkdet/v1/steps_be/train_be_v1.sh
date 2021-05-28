@@ -2,16 +2,16 @@
 # Copyright 2018 Johns Hopkins University (Jesus Villalba)  
 # Apache 2.0.
 #
+set -e 
+
 cmd=run.pl
+lda_dim=150
+plda_type=splda
+y_dim=100
+z_dim=150
 
 if [ -f path.sh ]; then . ./path.sh; fi
 . parse_options.sh || exit 1;
-set -e
-
-if [ $# -ne 3 ]; then
-  echo "Usage: $0 <vector-file> <data-dir> <output-dir>"
-  exit 1;
-fi
 
 vector_file=$1
 data_dir=$2
@@ -28,7 +28,7 @@ done
 
 train_list=$output_dir/train_utt2spk
 
-#filter out the utterances that didn't got an x-vector (empty utts)
+
 awk -v fv=$vector_file 'BEGIN{
 while(getline < fv)
 {
@@ -38,13 +38,16 @@ while(getline < fv)
 { if ($1 in files) {print $1,$2}}' $data_dir/utt2spk > $train_list
 
 
+
 $cmd $output_dir/log/train_be.log \
-  hyp_utils/conda_env.sh \
-  steps_be/train-be-v2.py \
-  --iv-file scp:$vector_file \
-  --train-list $train_list \
-  --output-path $output_dir
+    hyp_utils/conda_env.sh steps_be/train-be-v1.py \
+     --iv-file scp:$vector_file \
+     --train-list $train_list \
+     --lda-dim $lda_dim \
+     --plda-type $plda_type \
+     --y-dim $y_dim --z-dim $z_dim \
+     --output-path $output_dir
 
 
 
-
+     

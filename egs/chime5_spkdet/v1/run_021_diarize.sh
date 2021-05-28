@@ -47,15 +47,13 @@ if [ $stage -le 2 ];then
     echo "Apply AHC with PLDA scoring"
     for r in 1 #0.5 0.3 0.15
     do
-	for threshold in -7 -5 -3 -1 0 
+	for threshold in -10 #-7 -5 -3 -1 0 
 	do
 	    
 	    out_dir=${diar_ahc_dir}_pcar${r}_thr${threshold}
 	    for xvec_name in chime5_spkdet_test
 	    do
-		# different diarization for energy vad and grount truth vad
-		# xvectors are the same since we extracted xvectors without removing silence
-		for name in chime5_spkdet_test chime5_spkdet_test_gtvad
+		for name in chime5_spkdet_test
 		do
     		    steps_diar/eval_ahc_v1.sh \
     			--cmd "$train_cmd --mem 4G" --nj 20 \

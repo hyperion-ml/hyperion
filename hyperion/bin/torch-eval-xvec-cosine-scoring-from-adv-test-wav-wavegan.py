@@ -32,6 +32,10 @@ from hyperion.torch import TorchModelLoader as TML
 
 from hyperion.torch.adv_attacks import AttackFactory
 
+# [Added Sonal May21]
+from pathlib import Path
+from hyperion.torch.adv_defenses.wave_gan_white import WaveGANDefender
+
 
 class MyModel(nn.Module):
     def __init__(self,
@@ -39,7 +43,10 @@ class MyModel(nn.Module):
                  xvector_model,
                  embed_layer=None,
                  calibrator=None,
-                 sigma=0):
+                 sigma=0,
+                 smoothing_after_wavegan=None,
+                 wave_gan_defender=None,
+                 wav_scale=2**15 - 1):
         super().__init__()
         self.feat_extractor = feat_extractor
         self.xvector_model = xvector_model
@@ -48,12 +55,29 @@ class MyModel(nn.Module):
         self.embed_layer = embed_layer
         self.calibrator = calibrator
         self.sigma = sigma
+        self.smoothing_after_wavegan = smoothing_after_wavegan
+        self.wave_gan_defender = wave_gan_defender
+        self.wav_scale = wav_scale
+        self.apply_wavegan = False if wave_gan_defender is None else True
 
     def forward(self, s_t):
-        # print('sigma0=', self.sigma)
-        if self.sigma > 0:
-            s_t = s_t + self.sigma * torch.randn_like(s_t)
-            # print('sigma1=', self.sigma)
+
+        # Pre-proceessing defense, wavegan + smoothing [Added Sonal May21]
+        s_t = s_t / self.wav_scale
+        if self.smoothing_after_wavegan:
+            if self.apply_wavegan:
+                s_t = self.wave_gan_defender(s_t)
+            if self.sigma > 0:
+                s_t = s_t + self.sigma * torch.randn_like(s_t)
+        else:
+            if self.sigma > 0:
+                s_t = s_t + self.sigma * torch.randn_like(s_t)
+            if self.apply_wavegan:
+                s_t = self.wave_gan_defender(s_t)
+
+        s_t = self.wav_scale * s_t
+        # End of pre-processing defense
+
         f_t = self.feat_extractor(s_t)
         if self.vad_t is not None:
             n_vad_frames = len(self.vad_t)
@@ -75,6 +99,18 @@ class MyModel(nn.Module):
             score = self.calibrator(score)
 
         return score
+
+
+def fix_out_of_memory(model, tensors):
+    for p in model.parameters():
+        if p.grad is not None:
+            del p.grad  # free some memory
+
+    for tensor in tensors:
+        if tensor.grad is not None:
+            del tensor.grad
+
+    torch.cuda.empty_cache()
 
 
 def init_device(use_gpu):
@@ -128,14 +164,18 @@ def read_data(v_file, key_file, enroll_file, seg_part_idx, num_seg_parts):
     return key, x_e
 
 
-def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file, vad_spec,
-                        vad_path_prefix, model_path, embed_layer, score_file,
-                        stats_file, cal_file, threshold, smooth_sigma,
-                        save_adv_wav, save_adv_wav_path, use_gpu, seg_part_idx,
-                        num_seg_parts, **kwargs):
+def eval_cosine_scoring_wavegan(
+        v_file, key_file, enroll_file, test_wav_file, vad_spec,
+        vad_path_prefix, model_path, embed_layer, score_file, stats_file,
+        cal_file, threshold, smooth_sigma, save_adv_wav, save_adv_wav_path,
+        use_gpu, seg_part_idx, num_seg_parts, smoothing_after_wavegan,
+        wave_gan_root_dir, wave_gan_model_ckpt, **kwargs):
 
     device = init_device(use_gpu)
     feat_extractor = init_feats(**kwargs)
+
+    wave_gan_defender = WaveGANDefender(Path(wave_gan_root_dir),
+                                        Path(wave_gan_model_ckpt))
     xvector_model = load_model(model_path)
 
     calibrator = None
@@ -158,9 +198,9 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file, vad_spec,
         tar_audio_writer = AW(save_adv_wav_path + '/tar2non')
         non_audio_writer = AW(save_adv_wav_path + '/non2tar')
 
-    smooth_sigma *= wav_scale
     model = MyModel(feat_extractor, xvector_model, embed_layer, calibrator,
-                    smooth_sigma)
+                    smooth_sigma, smoothing_after_wavegan, wave_gan_defender,
+                    wav_scale)
     model.to(device)
     model.eval()
 
@@ -176,7 +216,7 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file, vad_spec,
     logging.info('attacks args={}'.format(attack_args))
     attack = AttackFactory.create(model, **attack_args)
     if vad_spec is not None:
-        logging.info('opening VAD stream: %s', vad_spec)
+        logging.info('opening VAD stream: %s' % (vad_spec))
         v_reader = VRF.create(vad_spec,
                               path_prefix=vad_path_prefix,
                               scp_sep=' ')
@@ -186,22 +226,31 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file, vad_spec,
         'modelid', 'segmentid', 'snr', 'px', 'pn', 'x_l2', 'x_linf', 'n_l0',
         'n_l2', 'n_linf', 'num_frames'
     ])
+
+    max_test_length = 7
+    mem_error = False
     for j in range(key.num_tests):
         t1 = time.time()
-        logging.info('scoring test utt %s', key.seg_set[j])
+        logging.info('scoring test utt %s' % (key.seg_set[j]))
         s, fs = audio_reader.read([key.seg_set[j]])
         s = s[0]
         fs = fs[0]
 
-        s = torch.as_tensor(s[None, :],
-                            dtype=torch.get_default_dtype()).to(device)
+        max_samples = fs * max_test_length
+        if len(s) > max_samples:
+            s = s[:max_samples]
+        s_cpu = s[None, :]
+        s = torch.as_tensor(s_cpu,
+                            dtype=torch.get_default_dtype(),
+                            device=device)
 
         if vad_spec is not None:
             vad = v_reader.read([key.seg_set[j]])[0]
             tot_frames = len(vad)
             speech_frames = np.sum(vad)
             vad = torch.as_tensor(vad.astype(np.bool, copy=False),
-                                  dtype=torch.bool).to(device)
+                                  dtype=torch.bool,
+                                  device=device)
             model.vad_t = vad
             logging.info('utt %s detected %d/%d (%.2f %%) speech frames' %
                          (key.seg_set[j], speech_frames, tot_frames,
@@ -226,10 +275,78 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file, vad_spec,
                     else:
                         t = non
 
-                s_adv = attack.generate(s, t)
+                # for long s wavegan + x-vectors may not fit in GPU memory
+                # in such cases we shorten the signal
+                for mem_trial in range(10):
+                    try:
+                        s_adv = attack.generate(s, t)
+                        break
+                    except RuntimeError as e:
+                        e_str = str(e)
+                        if 'misaligned address' in e_str or 'CUDNN_STATUS_MAPPING_ERROR' in e_str:
+                            # this is a rare error due to some misalignment in s
+                            # don't know why, try to create s again and set score to 0
+                            logging.warning(
+                                '{} we will put LLR=0 for this trial'.format(
+                                    e_str))
+                            # s = torch.as_tensor(
+                            #     s_cpu,
+                            #     dtype=torch.get_default_dtype(),
+                            #     device=device)
+                            mem_error = False
+                            new_dur = s.shape[1] // 2
+                            s = torch.as_tensor(
+                                s_cpu[:, :new_dur],
+                                dtype=torch.get_default_dtype(),
+                                device=device)
+                            break
+
+                        logging.warning(e_str)
+                        fix_out_of_memory(model, [s])
+                        if mem_trial < 9:
+                            new_dur = s.shape[1] // 2
+                            logging.warning(
+                                'Possible GPU memory error, reducing signal length to {} and try again'
+                                .format(new_dur))
+                            #s = s[:, :new_dur].clone().detach()
+                            s = torch.as_tensor(
+                                s_cpu[:, :new_dur],
+                                dtype=torch.get_default_dtype(),
+                                device=device)
+
+                        else:
+                            new_dur = min(s.shape[1],
+                                          fs)  # final try with just 1sec.
+                            logging.warning(
+                                'Possible GPU memory error, reducing signal length to {} and try again (final try)'
+                                .format(new_dur))
+                            #s = s[:, :new_dur].clone().detach()
+                            s = torch.as_tensor(
+                                s_cpu[:, :new_dur],
+                                dtype=torch.get_default_dtype(),
+                                device=device)
+                            try:
+                                s_adv = attack.generate(s, t)
+                            except RuntimeError as e:
+                                e_str = str(e)
+                                logging.warning(
+                                    '{} we will put LLR=0 for this trial',
+                                    format(str(e)))
+                                mem_error = True
+
                 with torch.no_grad():
-                    # we add the threshold back here to make sure the scores are well calibrated
-                    scores[i, j] = model(s_adv) + threshold
+                    # if there was mem error we do nothing, to keep score_ij = 0, equivalent of not taking a decision
+                    if not mem_error:
+                        # we add the threshold back here to make sure the scores are well calibrated
+                        try:
+                            scores[i, j] = model(s_adv) + threshold
+                        except RuntimeError as e:
+                            mem_error = True
+
+                if mem_error:
+                    # if memory error we make s=s_adv to compute the stats
+                    s = torch.as_tensor(s_cpu, dtype=torch.get_default_dtype())
+                    s_adv = s
 
                 t4 = time.time()
                 trial_time += (t4 - t3)
@@ -268,15 +385,14 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file, vad_spec,
         trial_time /= num_trials
         t7 = time.time()
         logging.info((
-            'utt %s total-time=%.3f read-time=%.4f trial-time=%.4f n_trials=%d '
-            'rt-factor=%.5f',
-                     key.seg_set[j], t7 - t1, t2 - t1, trial_time, num_trials,
-                      (t7 - t1) / (num_trials * s.shape[1] / fs))
+            'utt %s total-time=%.3f read-time=%.3f trial-time=%.3f n_trials=%d '
+            'rt-factor=%.5f'), key.seg_set[j], t7 - t1, t2 - t1, trial_time,
+                     num_trials, (t7 - t1) / (num_trials * s.shape[1] / fs))
 
     if num_seg_parts > 1:
         score_file = '%s-%03d-%03d' % (score_file, 1, seg_part_idx)
         stats_file = '%s-%03d-%03d' % (stats_file, 1, seg_part_idx)
-    logging.info('saving scores to %s', score_file)
+    logging.info('saving scores to %s' % (score_file))
     s = TrialScores(key.model_set,
                     key.seg_set,
                     scores,
@@ -373,9 +489,25 @@ if __name__ == "__main__":
                         type=float,
                         help='sigma for smoothing')
 
+    # Defense: WaveGAN specific arguments [Added Sonal May21]
+    parser.add_argument(
+        '--smoothing-after-wavegan',
+        default=False,
+        action='store_true',
+        help=
+        'Smoothing before or after wavegan, if true : smoothing is done after wavegan'
+    )
+    #parser.add_argument('--smoothing-after-wavegan', default=None, help='Smoothing before or after wavegan, if true : smoothing is done after wavegan')
+    parser.add_argument('--wave-gan-root-dir',
+                        default=None,
+                        help='WaveGAN model root directory')
+    parser.add_argument('--wave-gan-model-ckpt',
+                        default=None,
+                        help='WaveGAN model checkpoint')
+
     args = parser.parse_args()
     config_logger(args.verbose)
     del args.verbose
     logging.debug(args)
 
-    eval_cosine_scoring(**namespace_to_dict(args))
+    eval_cosine_scoring_wavegan(**namespace_to_dict(args))
