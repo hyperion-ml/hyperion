@@ -5,7 +5,7 @@
 
 import torch.nn as nn
 from torch.nn import Conv2d, BatchNorm2d, Dropout2d
-import torch.nn.functional as F
+import torch.nn.functional as nnf
 
 from ..layers.subpixel_convs import SubPixelConv2d
 from ..layers import ActivationFactory as AF
@@ -16,7 +16,7 @@ import logging
 class Interpolate(nn.Module):
     def __init__(self, scale_factor, mode='nearest'):
         super(Interpolate, self).__init__()
-        self.interp = F.interpolate
+        self.interp = nnf.interpolate
         self.scale_factor = scale_factor
         self.mode = mode
 
@@ -25,29 +25,49 @@ class Interpolate(nn.Module):
         return x
 
 
-def _conv3x3(in_channels, out_channels, stride=1, groups=1, dilation=1, bias=False):
+def _conv3x3(in_channels,
+             out_channels,
+             stride=1,
+             groups=1,
+             dilation=1,
+             bias=False):
     """3x3 convolution with padding"""
-    return nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=stride,
-                     padding=dilation, groups=groups, bias=bias, dilation=dilation)
+    return nn.Conv2d(in_channels,
+                     out_channels,
+                     kernel_size=3,
+                     stride=stride,
+                     padding=dilation,
+                     groups=groups,
+                     bias=bias,
+                     dilation=dilation)
 
 
 def _conv1x1(in_channels, out_channels, stride=1, bias=False):
     """1x1 convolution"""
-    return nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, bias=bias)
+    return nn.Conv2d(in_channels,
+                     out_channels,
+                     kernel_size=1,
+                     stride=stride,
+                     bias=bias)
 
 
 def _subpixel_conv1x1(in_channels, out_channels, stride=1, bias=False):
     """point-wise subpixel convolution"""
-    return SubPixelConv2d(in_channels, out_channels, kernel_size=1, stride=stride, bias=bias)
+    return SubPixelConv2d(in_channels,
+                          out_channels,
+                          kernel_size=1,
+                          stride=stride,
+                          bias=bias)
 
 
-def _make_downsample(in_channels, out_channels, stride, norm_layer, norm_before):
+def _make_downsample(in_channels, out_channels, stride, norm_layer,
+                     norm_before):
 
     if norm_before:
         return nn.Sequential(
             _conv3x3(in_channels, out_channels, stride, bias=False),
             norm_layer(out_channels))
-    
+
     return _conv3x3(in_channels, out_channels, stride, bias=True)
 
 
@@ -60,32 +80,54 @@ def _make_upsample(in_channels, out_channels, stride, norm_layer, norm_before):
     return _subpixel_conv1x1(in_channels, out_channels, stride, bias=True)
 
 
-def _make_resample(channels, scale, norm_layer, norm_before, activation, upsampling_type='nearest'):
+def _make_resample(channels,
+                   scale,
+                   norm_layer,
+                   norm_before,
+                   activation,
+                   upsampling_type='nearest'):
     resample_block = nn.ModuleList([])
     if scale > 1:
         if upsampling_type == 'subpixel':
-            resample_block.append(_make_upsample(channels, channels, scale, norm_layer, norm_before))
+            resample_block.append(
+                _make_upsample(channels, channels, scale, norm_layer,
+                               norm_before))
             resample_block.append(AF.create(activation))
         elif upsampling_type == 'bilinear':
-            resample_block.append(Interpolate(scale_factor=scale, mode='bilinear'))
+            resample_block.append(
+                Interpolate(scale_factor=scale, mode='bilinear'))
         else:
-            resample_block.append(Interpolate(scale_factor=scale, mode='nearest'))
+            resample_block.append(
+                Interpolate(scale_factor=scale, mode='nearest'))
 
     elif scale < 1:
-        resample_block.append(_make_downsample(channels, channels, 2, norm_layer, norm_before))
+        resample_block.append(
+            _make_downsample(channels, channels, 2, norm_layer, norm_before))
         resample_block.append(AF.create(activation))
 
         if scale < 0.5:
             new_kernel_size = 3 if scale >= 0.25 else 5
-            resample_block.append(nn.MaxPool2d(kernel_size=new_kernel_size, stride=int(0.5 / scale),
-                                              padding=new_kernel_size // 2))
+            resample_block.append(
+                nn.MaxPool2d(kernel_size=new_kernel_size,
+                             stride=int(0.5 / scale),
+                             padding=new_kernel_size // 2))
     return resample_block
 
 
 class SpineConv(nn.Module):
-    def __init__(self, in_channels, channels, stride=1, dropout_rate=0, groups=1, dilation=1,
-                 activation={'name': 'relu', 'inplace': True},
-                 norm_layer=None, norm_before=True):
+    def __init__(self,
+                 in_channels,
+                 channels,
+                 stride=1,
+                 dropout_rate=0,
+                 groups=1,
+                 dilation=1,
+                 activation={
+                     'name': 'relu',
+                     'inplace': True
+                 },
+                 norm_layer=None,
+                 norm_before=True):
         """
         Class that connects the ouputs of the SpineNet to the rest of the network
         """
@@ -109,25 +151,36 @@ class SpineConv(nn.Module):
 
 class BlockSpec(object):
     """A container class that specifies the block configuration for SpineNet."""
-
     def __init__(self, level, block_fn, input_offsets, is_output):
         self.level = level
         self.block_fn = block_fn
         self.input_offsets = input_offsets
         self.is_output = is_output
 
+    @staticmethod
     def build_block_specs(block_specs=None):
         """Builds the list of BlockSpec objects for SpineNet."""
-        if not block_specs:
-            block_specs = SPINENET_BLOCK_SPECS
         return [BlockSpec(*b) for b in block_specs]
 
 
 class SpineEndpoints(nn.Module):
-    def __init__(self, in_channels, channels, level, target_level, upsampling_type='nearest',
-                 stride=1, dropout_rate=0, groups=1, dilation=1,
-                 activation={'name': 'relu', 'inplace': True},
-                 norm_layer=None, norm_before=True, do_endpoint_conv=True):
+    def __init__(self,
+                 in_channels,
+                 channels,
+                 level,
+                 target_level,
+                 upsampling_type='nearest',
+                 stride=1,
+                 dropout_rate=0,
+                 groups=1,
+                 dilation=1,
+                 activation={
+                     'name': 'relu',
+                     'inplace': True
+                 },
+                 norm_layer=None,
+                 norm_before=True,
+                 do_endpoint_conv=True):
         """
         Class that connects the ouputs of the SpineNet to the rest of the network
         """
@@ -137,7 +190,7 @@ class SpineEndpoints(nn.Module):
         self.in_channels = in_channels
         self.channels = channels
         self.norm_before = norm_before
-        self.scale = 2 ** (level - target_level)
+        self.scale = 2**(level - target_level)
         self.do_endpoint_conv = do_endpoint_conv
         self.upsampling_type = upsampling_type
         bias = not norm_before
@@ -151,7 +204,11 @@ class SpineEndpoints(nn.Module):
         else:
             self.channels = in_channels
 
-        self.resample = _make_resample(channels, self.scale, norm_layer, norm_before, activation,
+        self.resample = _make_resample(channels,
+                                       self.scale,
+                                       norm_layer,
+                                       norm_before,
+                                       activation,
                                        upsampling_type=upsampling_type)
 
     def forward(self, x):
@@ -166,9 +223,19 @@ class SpineEndpoints(nn.Module):
 
 
 class SpineResample(nn.Module):
-    def __init__(self, spec, in_channels, out_channels, scale, alpha, upsampling_type='nearest',
-                 activation={'name':'relu', 'inplace': True},
-                 norm_layer=None, norm_before=True):
+    def __init__(self,
+                 spec,
+                 in_channels,
+                 out_channels,
+                 scale,
+                 alpha,
+                 upsampling_type='nearest',
+                 activation={
+                     'name': 'relu',
+                     'inplace': True
+                 },
+                 norm_layer=None,
+                 norm_before=True):
         """
         Class that build a resampling connection between single SpineNet blocks.
         """
@@ -176,7 +243,7 @@ class SpineResample(nn.Module):
         self.spec = spec
 
         in_channels_alpha = int(in_channels * alpha)
-        in_channels = in_channels*spec.block_fn.expansion
+        in_channels = in_channels * spec.block_fn.expansion
         self.scale = 2**scale
         bias = not norm_before
         self.norm_before = norm_before
@@ -187,7 +254,12 @@ class SpineResample(nn.Module):
         self.bn1 = norm_layer(in_channels_alpha)
         self.act1 = AF.create(activation)
 
-        self.resample = _make_resample(in_channels_alpha, self.scale, norm_layer, norm_before, activation, upsampling_type=upsampling_type)
+        self.resample = _make_resample(in_channels_alpha,
+                                       self.scale,
+                                       norm_layer,
+                                       norm_before,
+                                       activation,
+                                       upsampling_type=upsampling_type)
 
         self.conv2 = _conv1x1(in_channels_alpha, out_channels, bias=bias)
         self.bn2 = norm_layer(out_channels)
