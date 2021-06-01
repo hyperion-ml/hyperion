@@ -125,6 +125,7 @@ class RandomAttackFactory(object):
         attack_args['range_min'] = self.range_min
         attack_args['range_max'] = self.range_max
         attack_args['eps_scale'] = self.eps_scale
+        attack_args['loss'] = self.loss
         
         return attack_args
 
@@ -276,8 +277,12 @@ class RandomAttackFactory(object):
             help=('do not abort early in optimizer iterations'))
 
         parser.add_argument(
-            '--num-random-init', default=0, type=int,
-            help=('number of random initializations in PGD attack'))
+            '--min-num-random-init', default=1, type=int,
+            help=('min number of random initializations in PGD attack'))
+
+        parser.add_argument(
+            '--max-num-random-init', default=5, type=int,
+            help=('max number of random initializations in PGD attack'))
 
         parser.add_argument(
             '--targeted', default=False, action='store_true',

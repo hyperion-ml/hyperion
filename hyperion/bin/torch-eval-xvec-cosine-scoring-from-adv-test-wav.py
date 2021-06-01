@@ -292,6 +292,7 @@ if __name__ == "__main__":
     parser = ArgumentParser(
         description='Eval cosine-scoring given enroll x-vector and test wave')
 
+<<<<<<< HEAD:hyperion/bin/torch-eval-xvec-cosine-scoring-from-adv-test-wav.py
     parser.add_argument('--cfg', action=ActionConfigFile)
     parser.add_argument('--v-file', dest='v_file', required=True)
     parser.add_argument('--key-file', dest='key_file', default=None)

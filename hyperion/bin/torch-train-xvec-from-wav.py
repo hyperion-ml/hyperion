@@ -121,6 +121,7 @@ def train_xvec(gpu_id, args):
 def make_parser(xvec_class):
     parser = ArgumentParser()
 
+    parser.add_argument('--cfg', action=ActionConfigFile)
     parser.add_argument('--audio-path', required=True)
     parser.add_argument('--train-list', required=True)
     parser.add_argument('--val-list', required=True)

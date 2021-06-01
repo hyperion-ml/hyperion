@@ -49,7 +49,7 @@ class CarliniWagner(AdvAttack):
 
     @staticmethod
     def atanh(x, eps=1e-6):
-        x = (1-eps) * x
+        x = (1 - eps) * x
         return 0.5 * torch.log((1+x)/(1-x))
     
 
