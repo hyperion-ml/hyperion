@@ -10,3 +10,6 @@ pympler
 memory_profiler
 fairscale>=0.3.0
 tensorboard>=2.5.0
+yapf
+jsonargparse>=3.5.0
+wandb>=0.10.30

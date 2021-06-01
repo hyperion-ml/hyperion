@@ -186,6 +186,19 @@ def train_xvec(gpu_id, args):
     trn_args = Trainer.filter_args(**kwargs)
     if rank == 0:
         logging.info('trainer args={}'.format(trn_args))
+
+    # total_params = 0
+    # total_endpoints = 0
+    # for name, parameter in model.named_parameters():
+    #     if not parameter.requires_grad: continue
+    #     param = parameter.numel()
+    #     # logging.info("module {} params: {}".format(name, param))
+    #     if 'endpoint' in name:
+    #         total_endpoints += param
+    #     total_params += param
+    # logging.info(f"Total Trainable Params: {total_params}")
+    # logging.info(f"Total Trainable Endpoint Params: {total_endpoints}")
+
     metrics = { 'acc': CategoricalAccuracy() }
     # trainer = Trainer(model, feat_extractor, optimizer, 
     #                   device=device, metrics=metrics, lr_scheduler=lr_sch,

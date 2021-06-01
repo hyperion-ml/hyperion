@@ -149,5 +149,6 @@ class GlobalPool1dFactory(object):
             config['pool_type'] = 'ch-wise-att-mean-stddev'
 
         return config
+
         
     add_argparse_args = add_class_args

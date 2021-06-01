@@ -51,6 +51,8 @@ if [ $stage -le 1 ]; then
 	train_exec=torch-train-tdnn-xvec-from-wav.py
     elif [[ ${nnet_type} =~ transformer ]]; then
 	train_exec=torch-train-transformer-xvec-v1-from-wav.py
+    elif [[ ${nnet_type} =~ spinenet ]] || [[ ${nnet_type} =~ spine2net ]] || [[ ${nnet_type} =~ r0_sp53 ]]; then
+	train_exec=torch-train-spinenet-xvec-from-wav.py
     else
 	echo "$nnet_type not supported"
 	exit 1
