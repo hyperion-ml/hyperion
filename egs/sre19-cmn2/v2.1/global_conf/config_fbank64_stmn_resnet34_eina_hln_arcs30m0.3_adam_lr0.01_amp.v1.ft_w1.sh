@@ -63,7 +63,7 @@ ft2_ipe=4
 ft2_lr=0.01
 ft2_nnet_num_epochs=15
 ft2_margin_warmup=3
-ft2_reg_weight_embed=0.1
+ft2_reg_weight_embed=1
 ft2_min_chunk=10
 ft2_max_chunk=60
 
@@ -82,8 +82,8 @@ ft3_lr=0.01
 ft3_nnet_num_epochs=14
 ft3_nnet_num_epochs=42
 ft3_margin_warmup=3
-ft3_reg_weight_embed=0.1
-ft3_reg_weight_enc=0.1
+ft3_reg_weight_embed=1
+ft3_reg_weight_enc=1
 ft3_min_chunk=10
 ft3_max_chunk=30
 
