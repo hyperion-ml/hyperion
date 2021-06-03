@@ -43,8 +43,8 @@ if [ $# -lt 1 ];then
 fi
 # echo "PATH=$PATH"
 # echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
-#export LRU_CACHE_CAPACITY=1
-echo "LRU_CACHE_CAPACITY=$LRU_CACHE_CAPACITY"
+# export LRU_CACHE_CAPACITY=1
+# echo "LRU_CACHE_CAPACITY=$LRU_CACHE_CAPACITY"
 
 conda activate $conda_env
 

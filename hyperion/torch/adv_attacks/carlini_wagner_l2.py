@@ -131,22 +131,33 @@ class CarliniWagnerL2(CarliniWagner):
                 best_adv[improv_idx] = x_adv[improv_idx]
 
                 if opt_step % (self.max_iter//10) == 0:
-                    logging.info('----carlini-wagner bin-search-step={0:d}, opt-step={1:d} '
-                                 'loss={2:.2f} d_norm={3:.2f} cf={4:.4f} num-success={5:d}'.format(
-                                     bs_step, opt_step,
-                                     loss.item(), loss1.item(), loss2.item(), torch.sum(step_success)))
+                    logging.info('----carlini-wagner bin-search-step={0:d}, '
+                                 'opt-step={1:d}/{2:d} '
+                                 'loss={3:.2f} d_norm={4:.2f} cf={5:.4f} '
+                                 'num-success={6:d}'.format(
+                                     bs_step, opt_step, self.max_iter,
+                                     loss.item(), loss1.item(), loss2.item(), 
+                                     torch.sum(step_success)))
 
-                    logging.info('----carlini-wagner bin-search-step={}, opt-step={} '
-                                 'step_success={}, success={} best_norm={} global_success={} global_best_norm={} d_norm={}'.format(
-                                     bs_step, opt_step, step_success, success, best_norm, global_success, global_best_norm, d_norm))
+                    logging.info('----carlini-wagner bin-search-step={}, '
+                                 'opt-step={}/{} '
+                                 'step_success={}, success={} best_norm={} '
+                                 'global_success={} '
+                                 'global_best_norm={} d_norm={}'.format(
+                                     bs_step, opt_step, self.max_iter, 
+                                     step_success, success, best_norm, 
+                                     global_success, global_best_norm, d_norm))
 
                 loss_it = loss.item()
                 if self.abort_early:
                     if loss_it > 0.999*loss_prev:
+                        logging.info('----carlini-wagner abort-early '
+                                     'bin-search-step={}, opt-step={}/{} '
+                                     'loss={}, loss_prev={}'.format(
+                                         bs_step, opt_step, self.max_iter, 
+                                         loss_it, loss_prev))
                         break
                     loss_prev = loss_it
-
-
                 
             #readjust c
             c_upper_bound[success] = torch.min(c_upper_bound[success], c[success])
@@ -156,5 +167,4 @@ class CarliniWagnerL2(CarliniWagner):
             cx10_idx = (~success) & (~avg_c_idx)
             c[cx10_idx] *= 10
 
-            
         return best_adv

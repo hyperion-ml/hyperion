@@ -21,9 +21,10 @@ class AdvAttack(object):
     
     def to(self, device):
         self.model.to(device)
-    # def make_data_parallel(self):
-    #     if self.loss is not None:
-    #         self.loss = TorchDataParallel(self.loss)
+
+    @property
+    def attack_info(self):
+        return {'targeted': self.targeted }
 
 
     def generate(self, input, target):
