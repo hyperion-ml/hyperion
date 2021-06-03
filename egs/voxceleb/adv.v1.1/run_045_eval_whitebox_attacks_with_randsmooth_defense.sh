@@ -14,6 +14,7 @@ do_analysis=false
 save_wav=false
 use_trials_subset=false
 sigmas="0.001 0.01"
+max_test_length=""
 
 . parse_options.sh || exit 1;
 . $config_file
@@ -24,6 +25,10 @@ if [ "$use_gpu" == "true" ];then
     eval_cmd="$cuda_eval_cmd"
 else
     eval_cmd="$train_cmd"
+fi
+
+if [ -n "$max_test_length" ];then
+  eval_args="${eval_args} --max-test-length $max_test_length"
 fi
 
 if [ "$use_trials_subset" == "true" ];then

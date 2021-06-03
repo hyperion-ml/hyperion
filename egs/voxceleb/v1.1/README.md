@@ -87,10 +87,10 @@ run_040_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 
 | Config | Model Type | Model Details | Back-end | EER(%) | MinDCF(p=0.05) | MinDCF(p=0.01) |
 | ------ | ---------- | ------------- | -------- | :----: | :------------: | :------------: |
-| config_fbank80_stmn_lresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | LResNet34 | ArcFace s=30/m=0.3 | PLDA | 1.88 | 0.135 | 0.189 |
-| | | | Cosine | 1.94 | 0.137 | 0.207 |
-| config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | ResNet34 | ArcFace s=30/m=0.3 | PLDA |  1.43 | 0.097 | 0.188 |
-| | | | Cosine |  1.35 | 0.088 | 0.146 |
+| config_fbank80_stmn_lresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | LResNet34 | ArcFace s=30/m=0.3 | PLDA | 2.00 | 0.129 | 0.216 |
+| | | | Cosine | 2.04 | 0.138 | 0.210 |
+| config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | ResNet34 | ArcFace s=30/m=0.3 | PLDA |  1.35 | 0.091 | 0.159 |
+| | | | Cosine |  1.22 | 0.082 | 0.129 |
 | config_fbank80_stmn_resnet50_arcs30m0.3_adam_lr0.05_amp.v1.sh | ResNet50 | ArcFace s=30/m=0.3 | PLDA |  1.30 | 0.090 | 0.160 |
 | | | | Cosine |  1.44 | 0.100 | 0.173 |
 | config_fbank80_stmn_tseresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | Time-SE-ResNet34 | ArcFace s=30/m=0.3 | PLDA | 1.23 | 0.091 | 0.143 |
@@ -103,8 +103,8 @@ run_040_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | | | | Cosine | 1.29 | 0.089 | 0.146 |
 | config_fbank80_stmn_res2net34w26s4_arcs30m0.3_adam_lr0.05_amp.v1.sh | Res2Net34 width=26x4 | ArcFace s=30/m=0.3 | PLDA |  1.20 | 0.084 | 0.136 |
 | | | | Cosine | 1.18 | 0.078 | 0.115 |
-| config_fbank80_stmn_res2net50w26s4_arcs30m0.3_adam_lr0.05_amp.v1.sh | Res2Net50 width=26x4 | ArcFace s=30/m=0.3 | PLDA |  1.14 | 0.073 | 0.134 |
-| | | | Cosine | 1.14 | 0.081 | 0.116 |
+| config_fbank80_stmn_res2net50w26s4_arcs30m0.3_adam_lr0.05_amp.v1.sh | Res2Net50 width=26x4 | ArcFace s=30/m=0.3 | PLDA |  1.11 | 0.084 | 0.145 |
+| | | | Cosine | 1.12 | 0.073 | 0.131 |
 | config_fbank80_stmn_seres2net50w26s4_arcs30m0.3_adam_lr0.05_amp.v1.sh | SE-Res2Net50 | se-r=16 <br> ArcFace s=30/m=0.3 | PLDA |  1.53 | 0.104 | 0.189 |
 | | | | Cosine | 1.31 | 0.084 | 0.132 |
 | config_fbank80_stmn_tseres2net50w26s4_arcs30m0.3_adam_lr0.05_amp.v1.sh | Time-SE-Res2Net50 | se-r=256 <br> ArcFace s=30/m=0.3 | PLDA |  0.98 | 0.066 | 0.116 |
@@ -120,9 +120,9 @@ run_040_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | Config | Model Type | Model Details | Back-end | EER(%) | MinDCF(p=0.05) | MinDCF(p=0.01) |
 | ------ | ---------- | ------------- | -------- | :----: | :------------: | :------------: |
 | config_fbank80_stmn_lresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | LResNet34 | ArcFace s=30/m=0.3 | PLDA | 1.86 | 0.124 | 0.210 |
-| | | | Cosine | 1.91 | 0.120 | 0.208 |
-| config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | ResNet34 | ArcFace s=30/m=0.3 | PLDA | 1.41 | 0.089 | 0.159 |
-| | | | Cosine | 1.19 | 0.078 | 0.140 |
+| | | | Cosine | 1.93 | 0.122 | 0.201 |
+| config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | ResNet34 | ArcFace s=30/m=0.3 | PLDA | 1.43 | 0.091 | 0.159 |
+| | | | Cosine | 1.24 | 0.080 | 0.136 |
 | config_fbank80_stmn_resnet50_arcs30m0.3_adam_lr0.05_amp.v1.sh | ResNet50 | ArcFace s=30/m=0.3 | PLDA | 1.27 | 0.084 | 0.150 |
 | | | | Cosine | 1.30 | 0.082 | 0.150 |
 | config_fbank80_stmn_tseresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | Time-SE-ResNet34 | ArcFace s=30/m=0.3 | PLDA | 1.30 | 0.083 | 0.146 |
@@ -135,8 +135,8 @@ run_040_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | | | | Cosine | 1.22 | 0.079 | 0.134 |
 | config_fbank80_stmn_res2net34w26s4_arcs30m0.3_adam_lr0.05_amp.v1.sh | Res2Net34 width=26x4 | ArcFace s=30/m=0.3 | PLDA |  1.27 | 0.082 | 0.145 |
 | | | | Cosine | 1.16 | 0.074 | 0.130 |
-| config_fbank80_stmn_res2net50w26s4_arcs30m0.3_adam_lr0.05_amp.v1.sh | Res2Net50 width=26x4 | ArcFace s=30/m=0.3 | PLDA |  1.17 | 0.075 | 0.131 |
-| | | | Cosine | 1.09 | 0.068 | 0.122 |
+| config_fbank80_stmn_res2net50w26s4_arcs30m0.3_adam_lr0.05_amp.v1.sh | Res2Net50 width=26x4 | ArcFace s=30/m=0.3 | PLDA |  1.23 | 0.077 | 0.136 |
+| | | | Cosine | 1.11 | 0.071 | 0.125 |
 | config_fbank80_stmn_seres2net50w26s4_arcs30m0.3_adam_lr0.05_amp.v1.sh | SE-Res2Net50 | se-r=16 <br> ArcFace s=30/m=0.3 | PLDA |  1.46 | 0.097 | 0.173 |
 | | | | Cosine | 1.24 | 0.080 | 0.140 |
 | config_fbank80_stmn_tseres2net50w26s4_arcs30m0.3_adam_lr0.05_amp.v1.sh | Time-SE-Res2Net50 | se-r=256 <br> ArcFace s=30/m=0.3 | PLDA |  1.11 | 0.071 | 0.127 |
@@ -151,10 +151,10 @@ run_040_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 
 | Config | Model Type | Model Details | Back-end | EER(%) | MinDCF(p=0.05) | MinDCF(p=0.01) |
 | ------ | ---------- | ------------- | -------- | :----: | :------------: | :------------: |
-| config_fbank80_stmn_lresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | LResNet34 | ArcFace s=30/m=0.3 | PLDA | 3.24 | 0.197 | 0.320 |
-| | | | Cosine | 3.21 | 0.190 | 0.302 |
-| config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | ResNet34 | ArcFace s=30/m=0.3 | PLDA | 2.65 | 0.155 | 0.254 |
-| | | | Cosine | 2.27 | 0.137 | 0.219 |
+| config_fbank80_stmn_lresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | LResNet34 | ArcFace s=30/m=0.3 | PLDA | 3.29 | 0.195 | 0.318 |
+| | | | Cosine | 3.27 | 0.188 | 0.303 |
+| config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | ResNet34 | ArcFace s=30/m=0.3 | PLDA | 2.66 | 0.160 | 0.258 |
+| | | | Cosine | 2.32 | 0.139 | 0.232 |
 | config_fbank80_stmn_resnet50_arcs30m0.3_adam_lr0.05_amp.v1.sh | ResNet50 | ArcFace s=30/m=0.3 | PLDA | 2.33 | 0.139 | 0.227 |
 | | | | Cosine | 2.33 | 0.142 | 0.235 |
 | config_fbank80_stmn_tseresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | Time-SE-ResNet34 | ArcFace s=30/m=0.3 | PLDA | 2.46 | 0.142 | 0.237 |
@@ -167,8 +167,8 @@ run_040_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | | | | Cosine | 2.26 | 0.133 | 0.224
 | config_fbank80_stmn_res2net34w26s4_arcs30m0.3_adam_lr0.05_amp.v1.sh | Res2Net34 width=26x4 | ArcFace s=30/m=0.3 | PLDA |  2.39 | 0.141 | 0.235 |
 | | | | Cosine | 2.17 | 0.128 | 0.215
-| config_fbank80_stmn_res2net50w26s4_arcs30m0.3_adam_lr0.05_amp.v1.sh | Res2Net50 width=26x4 | ArcFace s=30/m=0.3 | PLDA |  2.16 | 0.131 | 0.218 |
-| | | | Cosine | 2.00 | 0.119 | 0.195 |
+| config_fbank80_stmn_res2net50w26s4_arcs30m0.3_adam_lr0.05_amp.v1.sh | Res2Net50 width=26x4 | ArcFace s=30/m=0.3 | PLDA |  2.28 | 0.131 | 0.225 |
+| | | | Cosine | 2.11 | 0.124 | 0.204 |
 | config_fbank80_stmn_seres2net50w26s4_arcs30m0.3_adam_lr0.05_amp.v1.sh | SE-Res2Net50 | se-r=16 <br> ArcFace s=30/m=0.3 | PLDA |  2.77 | 0.172 | 0.271 |
 | | | | Cosine | 2.45 | 0.141 | 0.225 |
 | config_fbank80_stmn_tseres2net50w26s4_arcs30m0.3_adam_lr0.05_amp.v1.sh | Time-SE-Res2Net50 | se-r=256 <br> ArcFace s=30/m=0.3 | PLDA |  2.07 | 0.124 | 0.201 |

@@ -13,6 +13,7 @@ save_wav=false
 save_wav_path=""
 cal_file=""
 transfer_cal_file=""
+max_test_length=""
 
 if [ -f path.sh ]; then . ./path.sh; fi
 . parse_options.sh || exit 1;
@@ -34,6 +35,7 @@ if [ $# -ne 9 ]; then
   echo "  --save-wav-path <str|>                           # path to save adv wavs"
   echo "  --cal-file <str|>                                # calibration params file for black-box model"
   echo "  --transfer-cal-file <str|>                       # calibration params file for whitebox model"
+  echo "  --max-test-length <float|>                             # maximum length for the test side in secs"
   exit 1;
 fi
 
@@ -84,6 +86,10 @@ fi
 
 if [ -n "$transfer_cal_file" ];then
     args="${args} --transfer-cal-file $transfer_cal_file"
+fi
+
+if [ -n "$max_test_length" ];then
+    args="${args} --max-test-length $max_test_length"
 fi
 
 echo "$0: score $key_file to $output_dir"

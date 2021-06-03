@@ -12,6 +12,7 @@ save_wav=false
 save_wav_path=""
 cal_file=""
 attack_opts="--attack-attack-type fgsm --attack-eps 1e-3"
+max_test_length=""
 
 if [ -f path.sh ]; then . ./path.sh; fi
 . parse_options.sh || exit 1;
@@ -29,6 +30,7 @@ if [ $# -ne 7 ]; then
   echo "  --cal-file <str|>                                # calibration params file"
   echo "  --smooth-sigma <float|0>                         # smoothing std"
   echo "  --attack-opts <str>                              # options for the attack"
+  echo "  --max-test-length <float|>                             # maximum length for the test side in secs"
   exit 1;
 fi
 
@@ -73,6 +75,10 @@ fi
 
 if [ -n "$cal_file" ];then
     args="${args} --cal-file $cal_file"
+fi
+
+if [ -n "$max_test_length" ];then
+    args="${args} --max-test-length $max_test_length"
 fi
 
 echo "$0: score $key_file to $output_dir"

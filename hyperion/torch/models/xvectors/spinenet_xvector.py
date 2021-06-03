@@ -10,7 +10,7 @@ import torch
 import torch.nn as nn
 
 from .xvector import XVector
-from ..narchs import SpineNetFactory as SNF
+from ...narchs import SpineNetFactory as SNF
 
 
 class SpineNetXVector(XVector):
@@ -105,6 +105,10 @@ class SpineNetXVector(XVector):
     @property
     def in_channels(self):
         return self.encoder_net.in_channels
+
+    @property
+    def output_levels(self):
+        return self.encoder_net.output_levels
 
     @property
     def endpoints_num_filters(self):

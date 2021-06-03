@@ -132,8 +132,8 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file, vad_spec,
                         vad_path_prefix, transfer_v_file, model_path,
                         transfer_model_path, embed_layer, score_file,
                         stats_file, cal_file, transfer_cal_file, threshold,
-                        save_adv_wav, save_adv_wav_path, use_gpu, seg_part_idx,
-                        num_seg_parts, **kwargs):
+                        max_test_length, save_adv_wav, save_adv_wav_path,
+                        use_gpu, seg_part_idx, num_seg_parts, **kwargs):
 
     device = init_device(use_gpu)
     # load victim model
@@ -207,6 +207,11 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file, vad_spec,
         s, fs = audio_reader.read([key.seg_set[j]])
         s = s[0]
         fs = fs[0]
+
+        if max_test_length is not None:
+            max_samples = int(fs * max_test_length)
+            if len(s) > max_samples:
+                s = s[:max_samples]
 
         s = torch.as_tensor(s[None, :],
                             dtype=torch.get_default_dtype()).to(device)
@@ -381,6 +386,11 @@ if __name__ == "__main__":
                         default=0,
                         type=float,
                         help='decision threshold')
+    parser.add_argument('--max-test-length',
+                        default=None,
+                        type=float,
+                        help=('maximum length (secs) for the test side, '
+                              'this is to avoid GPU memory errors'))
 
     args = parser.parse_args()
     config_logger(args.verbose)

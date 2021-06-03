@@ -15,7 +15,7 @@ attack_opts="--attack-attack-type fgsm --attack-eps 1e-3"
 smoothing_after_wavegan=false
 wave_gan_root_dir=""
 wave_gan_model_ckpt=""
-
+max_test_length=""
 
 if [ -f path.sh ]; then . ./path.sh; fi
 . parse_options.sh || exit 1;
@@ -83,6 +83,10 @@ fi
 
 if [ "$smoothing_after_wavegan" == "true" ];then
     args="${args} --smoothing-after-wavegan"
+fi
+
+if [ -n "$max_test_length" ];then
+    args="${args} --max-test-length $max_test_length"
 fi
 
 echo "$0: score $key_file to $output_dir"

@@ -131,8 +131,8 @@ def read_data(v_file, key_file, enroll_file, seg_part_idx, num_seg_parts):
 def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file, vad_spec,
                         vad_path_prefix, model_path, embed_layer, score_file,
                         stats_file, cal_file, threshold, smooth_sigma,
-                        save_adv_wav, save_adv_wav_path, use_gpu, seg_part_idx,
-                        num_seg_parts, **kwargs):
+                        max_test_length, save_adv_wav, save_adv_wav_path,
+                        use_gpu, seg_part_idx, num_seg_parts, **kwargs):
 
     device = init_device(use_gpu)
     feat_extractor = init_feats(**kwargs)
@@ -192,6 +192,10 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file, vad_spec,
         s, fs = audio_reader.read([key.seg_set[j]])
         s = s[0]
         fs = fs[0]
+        if max_test_length is not None:
+            max_samples = int(fs * max_test_length)
+            if len(s) > max_samples:
+                s = s[:max_samples]
 
         s = torch.as_tensor(s[None, :],
                             dtype=torch.get_default_dtype()).to(device)
@@ -269,9 +273,8 @@ def eval_cosine_scoring(v_file, key_file, enroll_file, test_wav_file, vad_spec,
         t7 = time.time()
         logging.info((
             'utt %s total-time=%.3f read-time=%.4f trial-time=%.4f n_trials=%d '
-            'rt-factor=%.5f',
-                     key.seg_set[j], t7 - t1, t2 - t1, trial_time, num_trials,
-                      (t7 - t1) / (num_trials * s.shape[1] / fs))
+            'rt-factor=%.5f'), key.seg_set[j], t7 - t1, t2 - t1, trial_time,
+                     num_trials, (t7 - t1) / (num_trials * s.shape[1] / fs))
 
     if num_seg_parts > 1:
         score_file = '%s-%03d-%03d' % (score_file, 1, seg_part_idx)
@@ -372,6 +375,11 @@ if __name__ == "__main__":
                         default=0,
                         type=float,
                         help='sigma for smoothing')
+    parser.add_argument('--max-test-length',
+                        default=None,
+                        type=float,
+                        help=('maximum length (secs) for the test side, '
+                              'this is to avoid GPU memory errors'))
 
     args = parser.parse_args()
     config_logger(args.verbose)

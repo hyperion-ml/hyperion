@@ -36,6 +36,8 @@ from hyperion.torch.adv_attacks import AttackFactory
 from pathlib import Path
 from hyperion.torch.adv_defenses.wave_gan_white import WaveGANDefender
 
+torch.backends.cudnn.enabled = False
+
 
 class MyModel(nn.Module):
     def __init__(self,
@@ -164,12 +166,14 @@ def read_data(v_file, key_file, enroll_file, seg_part_idx, num_seg_parts):
     return key, x_e
 
 
-def eval_cosine_scoring_wavegan(
-        v_file, key_file, enroll_file, test_wav_file, vad_spec,
-        vad_path_prefix, model_path, embed_layer, score_file, stats_file,
-        cal_file, threshold, smooth_sigma, save_adv_wav, save_adv_wav_path,
-        use_gpu, seg_part_idx, num_seg_parts, smoothing_after_wavegan,
-        wave_gan_root_dir, wave_gan_model_ckpt, **kwargs):
+def eval_cosine_scoring_wavegan(v_file, key_file, enroll_file, test_wav_file,
+                                vad_spec, vad_path_prefix, model_path,
+                                embed_layer, score_file, stats_file, cal_file,
+                                threshold, smooth_sigma, max_test_length,
+                                save_adv_wav, save_adv_wav_path, use_gpu,
+                                seg_part_idx, num_seg_parts,
+                                smoothing_after_wavegan, wave_gan_root_dir,
+                                wave_gan_model_ckpt, **kwargs):
 
     device = init_device(use_gpu)
     feat_extractor = init_feats(**kwargs)
@@ -227,8 +231,6 @@ def eval_cosine_scoring_wavegan(
         'n_l2', 'n_linf', 'num_frames'
     ])
 
-    max_test_length = 7
-    mem_error = False
     for j in range(key.num_tests):
         t1 = time.time()
         logging.info('scoring test utt %s' % (key.seg_set[j]))
@@ -236,9 +238,11 @@ def eval_cosine_scoring_wavegan(
         s = s[0]
         fs = fs[0]
 
-        max_samples = fs * max_test_length
-        if len(s) > max_samples:
-            s = s[:max_samples]
+        if max_test_length is not None:
+            max_samples = int(fs * max_test_length)
+            if len(s) > max_samples:
+                s = s[:max_samples]
+
         s_cpu = s[None, :]
         s = torch.as_tensor(s_cpu,
                             dtype=torch.get_default_dtype(),
@@ -275,78 +279,9 @@ def eval_cosine_scoring_wavegan(
                     else:
                         t = non
 
-                # for long s wavegan + x-vectors may not fit in GPU memory
-                # in such cases we shorten the signal
-                for mem_trial in range(10):
-                    try:
-                        s_adv = attack.generate(s, t)
-                        break
-                    except RuntimeError as e:
-                        e_str = str(e)
-                        if 'misaligned address' in e_str or 'CUDNN_STATUS_MAPPING_ERROR' in e_str:
-                            # this is a rare error due to some misalignment in s
-                            # don't know why, try to create s again and set score to 0
-                            logging.warning(
-                                '{} we will put LLR=0 for this trial'.format(
-                                    e_str))
-                            # s = torch.as_tensor(
-                            #     s_cpu,
-                            #     dtype=torch.get_default_dtype(),
-                            #     device=device)
-                            mem_error = False
-                            new_dur = s.shape[1] // 2
-                            s = torch.as_tensor(
-                                s_cpu[:, :new_dur],
-                                dtype=torch.get_default_dtype(),
-                                device=device)
-                            break
-
-                        logging.warning(e_str)
-                        fix_out_of_memory(model, [s])
-                        if mem_trial < 9:
-                            new_dur = s.shape[1] // 2
-                            logging.warning(
-                                'Possible GPU memory error, reducing signal length to {} and try again'
-                                .format(new_dur))
-                            #s = s[:, :new_dur].clone().detach()
-                            s = torch.as_tensor(
-                                s_cpu[:, :new_dur],
-                                dtype=torch.get_default_dtype(),
-                                device=device)
-
-                        else:
-                            new_dur = min(s.shape[1],
-                                          fs)  # final try with just 1sec.
-                            logging.warning(
-                                'Possible GPU memory error, reducing signal length to {} and try again (final try)'
-                                .format(new_dur))
-                            #s = s[:, :new_dur].clone().detach()
-                            s = torch.as_tensor(
-                                s_cpu[:, :new_dur],
-                                dtype=torch.get_default_dtype(),
-                                device=device)
-                            try:
-                                s_adv = attack.generate(s, t)
-                            except RuntimeError as e:
-                                e_str = str(e)
-                                logging.warning(
-                                    '{} we will put LLR=0 for this trial',
-                                    format(str(e)))
-                                mem_error = True
-
+                s_adv = attack.generate(s, t)
                 with torch.no_grad():
-                    # if there was mem error we do nothing, to keep score_ij = 0, equivalent of not taking a decision
-                    if not mem_error:
-                        # we add the threshold back here to make sure the scores are well calibrated
-                        try:
-                            scores[i, j] = model(s_adv) + threshold
-                        except RuntimeError as e:
-                            mem_error = True
-
-                if mem_error:
-                    # if memory error we make s=s_adv to compute the stats
-                    s = torch.as_tensor(s_cpu, dtype=torch.get_default_dtype())
-                    s_adv = s
+                    scores[i, j] = model(s_adv) + threshold
 
                 t4 = time.time()
                 trial_time += (t4 - t3)
@@ -488,16 +423,19 @@ if __name__ == "__main__":
                         default=0,
                         type=float,
                         help='sigma for smoothing')
+    parser.add_argument('--max-test-length',
+                        default=5,
+                        type=float,
+                        help=('maximum length (secs) for the test side, '
+                              'this is to avoid GPU memory errors'))
 
     # Defense: WaveGAN specific arguments [Added Sonal May21]
-    parser.add_argument(
-        '--smoothing-after-wavegan',
-        default=False,
-        action='store_true',
-        help=
-        'Smoothing before or after wavegan, if true : smoothing is done after wavegan'
-    )
-    #parser.add_argument('--smoothing-after-wavegan', default=None, help='Smoothing before or after wavegan, if true : smoothing is done after wavegan')
+    parser.add_argument('--smoothing-after-wavegan',
+                        default=False,
+                        action='store_true',
+                        help=('Smoothing before or after wavegan, if true: '
+                              'smoothing is done after wavegan'))
+
     parser.add_argument('--wave-gan-root-dir',
                         default=None,
                         help='WaveGAN model root directory')

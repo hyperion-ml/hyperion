@@ -338,7 +338,7 @@ class SpineNet(NetArch):
                     FILTER_SIZE_MAP[block_spec.level] *
                     self.filter_size_scale * self.base_channels) * expansion
                 out_channels = self.endpoints_num_filters if self.do_endpoint_conv else in_channels
-                endpoints[block_spec.level] = SpineEndpoints(
+                endpoints[str(block_spec.level)] = SpineEndpoints(
                     in_channels,
                     out_channels,
                     block_spec.level,
@@ -348,13 +348,6 @@ class SpineNet(NetArch):
                     norm_layer=self._norm_layer,
                     norm_before=self.norm_before,
                     do_endpoint_conv=self.do_endpoint_conv)
-                # endpoints[str(block_spec.level)] = SpineEndpoints(in_channels, out_channels,
-                #                                                       block_spec.level, self.feature_output_level,
-                #                                                       self.upsampling_type,
-                #                                                       activation=self.hid_act,
-                #                                                       norm_layer=self._norm_layer,
-                #                                                       norm_before=self.norm_before,
-                #                                                       do_endpoint_conv=self.do_endpoint_conv)
 
         return endpoints
 
@@ -649,20 +642,15 @@ class SpineNet(NetArch):
             feats.append(x)
             num_outgoing_connections.append(0)
             if block.is_output and block.level in self.output_levels:
-                if block.level in output_feats:
+                if str(block.level) in output_feats:
                     raise ValueError(
                         'Duplicate feats found for output level {}.'.format(
                             block.level))
-                output_feats[block.level] = x
-            # if block.is_output and block.level in self.output_levels:
-            #     if str(block.level) in output_feats:
-            #         raise ValueError('Duplicate feats found for output level {}.'.format(block.level))
-            #     output_feats[str(block.level)] = x
+                output_feats[str(block.level)] = x
 
         output_endpoints = []
-        output_shape = list(output_feats[
-            self.feature_output_level].size())  # get the target output size
-        # output_shape = list(output_feats[str(self.feature_output_level)].size())  # get the target output size
+        output_shape = list(output_feats[str(
+            self.feature_output_level)].size())  # get the target output size
 
         for endpoint in self.endpoints:
             if self.endpoints[endpoint] is not None:

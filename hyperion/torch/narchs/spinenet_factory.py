@@ -113,8 +113,7 @@ class SpineNetFactory(object):
                       'norm_before', 'do_maxpool', 'se_r', 'res2net_scale',
                       'res2net_width_factor', 'in_feats')
 
-        args = dict((k, kwargs[k]) for k in valid_args if p + k in kwargs)
-
+        args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
         return args
 
     @staticmethod

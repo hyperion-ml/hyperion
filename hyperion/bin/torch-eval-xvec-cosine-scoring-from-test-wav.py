@@ -21,14 +21,11 @@ from hyperion.io import RandomAccessAudioReader as AR
 from hyperion.utils import Utt2Info, TrialNdx, TrialKey, TrialScores
 from hyperion.utils.list_utils import ismember
 from hyperion.io import VADReaderFactory as VRF
-#from hyperion.feats import MeanVarianceNorm as MVN2
 from hyperion.classifiers import BinaryLogisticRegression as LR
 
 from hyperion.torch.utils import open_device
 from hyperion.torch.layers import LinBinCalibrator as Calibrator
 from hyperion.torch.narchs import AudioFeatsMVN as AF
-#from hyperion.torch.layers import AudioFeatsFactory as AFF
-#from hyperion.torch.layers import MeanVarianceNorm as MVN
 from hyperion.torch.utils.misc import l2_norm
 from hyperion.torch import TorchModelLoader as TML
 
@@ -94,7 +91,8 @@ def read_data(v_file, ndx_file, enroll_file, seg_part_idx, num_seg_parts):
 
 def eval_cosine_scoring(v_file, ndx_file, enroll_file, test_wav_file, vad_spec,
                         vad_path_prefix, model_path, embed_layer, score_file,
-                        cal_file, use_gpu, seg_part_idx, num_seg_parts,
+                        cal_file, max_test_length,
+                        use_gpu, seg_part_idx, num_seg_parts,
                         **kwargs):
 
     device = init_device(use_gpu)
@@ -126,6 +124,12 @@ def eval_cosine_scoring(v_file, ndx_file, enroll_file, test_wav_file, vad_spec,
             s, fs = audio_reader.read([ndx.seg_set[j]])
             s = s[0]
             fs = fs[0]
+
+            if max_test_length is not None:
+                max_samples = int(fs * max_test_length)
+                if len(s) > max_samples:
+                    s = s[:max_samples]
+
             t2 = time.time()
             s = torch.as_tensor(s[None, :],
                                 dtype=torch.get_default_dtype()).to(device)
@@ -160,12 +164,14 @@ def eval_cosine_scoring(v_file, ndx_file, enroll_file, test_wav_file, vad_spec,
                         scores[i, j] = calibrator(scores_ij)
 
             t7 = time.time()
+            num_trials = np.sum(ndx.trial_mask[:, j])
+            trial_time = (t7-t6) / num_trials
             logging.info(
                 ('utt %s total-time=%.3f read-time=%.3f feat-time=%.3f '
                  'vad-time=%.3f embed-time=%.3f trial-time=%.3f n_trials=%d '
-                 'rt-factor=%.2f',
+                 'rt-factor=%.2f'),
                 (ndx.seg_set[j], t7 - t1, t2 - t1, t4 - t2, t5 - t4, t6 - t5,
-                 (t7 - t1) / (t7 - t6, np.sum(ndx.trial_mask[:, j]), x_t.shape[-1] * 1e-2))
+                 trial_time, num_trials,  (t7 - t1) / (num_trials * s.shape[1] / fs))
 
     if num_seg_parts > 1:
         score_file = '%s-%03d-%03d' % (score_file, 1, seg_part_idx)
@@ -229,6 +235,11 @@ if __name__ == "__main__":
                         default=1,
                         choices=[0, 1, 2, 3],
                         type=int)
+    parser.add_argument('--max-test-length',
+                        default=None,
+                        type=float,
+                        help=('maximum length (secs) for the test side, '
+                              'this is to avoid GPU memory errors'))
 
     args = parser.parse_args()
     config_logger(args.verbose)
