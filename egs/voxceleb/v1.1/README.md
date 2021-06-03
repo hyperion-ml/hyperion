@@ -113,6 +113,10 @@ run_040_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | | | | Cosine | 0.96 | 0.065 | 0.110 |
 | config_fbank80_stmn_res2net50w26s8_arcs30m0.3_adam_lr0.05_amp.v1.sh | Res2Net50 width=26x8 | ArcFace s=30/m=0.3 | PLDA |  1.04 | 0.071 | 0.118 |
 | | | | Cosine | 0.93 | 0.067 | 0.108 |
+| config_fbank80_stmn_spinenet49s_arcs30m0.3_adam_lr0.05_amp.v1.sh | SpineNet49S | ArcFace s=30/m=0.3 | PLDA | 1.44 | 0.102 | 0.169 |
+| | | | Cosine | 1.29 | 0.084 | 0.140 |
+| config_fbank80_stmn_spinenet49_arcs30m0.3_adam_lr0.05_amp.v1.sh | SpineNet49 | ArcFace s=30/m=0.3 | PLDA | 1.44 | 0.102 | 0.169 |
+| | | | Cosine | 1.29 | 0.084 | 0.140 |
 
 
 ### VoxCeleb 1 Entire-Clean trial list
@@ -145,6 +149,10 @@ run_040_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | | | | Cosine | 1.05 | 0.069 | 0.121 |
 | config_fbank80_stmn_res2net50w26s8_arcs30m0.3_adam_lr0.05_amp.v1.sh | Res2Net50 width=26x8 | ArcFace s=30/m=0.3 | PLDA |  1.18 | 0.075 | 0.131 |
 | | | | Cosine | 0.98 | 0.063 | 0.110 |
+| config_fbank80_stmn_spinenet49s_arcs30m0.3_adam_lr0.05_amp.v1.sh | SpineNet49S | ArcFace s=30/m=0.3 | PLDA | 1.56 | 0.095 | 0.166 |
+| | | | Cosine | 1.27 | 0.079 | 0.142 |
+| config_fbank80_stmn_spinenet49_arcs30m0.3_adam_lr0.05_amp.v1.sh | SpineNet49 | ArcFace s=30/m=0.3 | PLDA | 1.56 | 0.095 | 0.166 |
+| | | | Cosine | 1.27 | 0.079 | 0.142 |
 
 
 ### VoxCeleb 1 Hard-Clean trial list
@@ -177,3 +185,7 @@ run_040_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | | | | Cosine | 1.99 | 0.119 | 0.196 |
 | config_fbank80_stmn_res2net50w13s8_arcs30m0.3_adam_lr0.05_amp.v1.sh | Res2Net50 width=26x8 | ArcFace s=30/m=0.3 | PLDA |  2.18 | 0.127 | 0.211 |
 | | | | Cosine | 1.89 | 0.112 | 0.184 |
+| config_fbank80_stmn_spinenet49s_arcs30m0.3_adam_lr0.05_amp.v1.sh | SpineNet49S | ArcFace s=30/m=0.3 | PLDA | 2.78 | 0.156 | 0.252 |
+| | | | Cosine | 2.26 | 0.134 | 0.214 |
+| config_fbank80_stmn_spinenet49_arcs30m0.3_adam_lr0.05_amp.v1.sh | SpineNet49 | ArcFace s=30/m=0.3 | PLDA | 2.78 | 0.156 | 0.252 |
+| | | | Cosine | 2.26 | 0.134 | 0.214 |
