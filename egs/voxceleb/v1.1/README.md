@@ -19,6 +19,8 @@ In this recipe:
    - Babble noise is created offline by mixing 3-10 single speaker files.
 
 
+## Citing
+
 ## Training Data
 
    - x-Vector network is trained on Voxceleb2 dev + test with augmentations
@@ -91,6 +93,7 @@ run_040_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | | | | Cosine | 2.04 | 0.138 | 0.210 |
 | config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | ResNet34 | ArcFace s=30/m=0.3 | PLDA |  1.35 | 0.091 | 0.159 |
 | | | | Cosine |  1.22 | 0.082 | 0.129 |
+| config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr0.05_amp_swa.v1.sh | ResNet34 | + SWA | Cosine | 1.19 | 0.074 | 0.124 |
 | config_fbank80_stmn_resnet50_arcs30m0.3_adam_lr0.05_amp.v1.sh | ResNet50 | ArcFace s=30/m=0.3 | PLDA |  1.30 | 0.090 | 0.160 |
 | | | | Cosine |  1.44 | 0.100 | 0.173 |
 | config_fbank80_stmn_tseresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | Time-SE-ResNet34 | ArcFace s=30/m=0.3 | PLDA | 1.23 | 0.091 | 0.143 |
@@ -119,6 +122,7 @@ run_040_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | | | | Cosine | 1.29 | 0.084 | 0.140 |
 
 
+
 ### VoxCeleb 1 Entire-Clean trial list
 
 | Config | Model Type | Model Details | Back-end | EER(%) | MinDCF(p=0.05) | MinDCF(p=0.01) |
@@ -127,6 +131,7 @@ run_040_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | | | | Cosine | 1.93 | 0.122 | 0.201 |
 | config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | ResNet34 | ArcFace s=30/m=0.3 | PLDA | 1.43 | 0.091 | 0.159 |
 | | | | Cosine | 1.24 | 0.080 | 0.136 |
+| config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr0.05_amp_swa.v1.sh | ResNet34 | + SWA | Cosine | 1.19 | 0.077 | 0.132 |
 | config_fbank80_stmn_resnet50_arcs30m0.3_adam_lr0.05_amp.v1.sh | ResNet50 | ArcFace s=30/m=0.3 | PLDA | 1.27 | 0.084 | 0.150 |
 | | | | Cosine | 1.30 | 0.082 | 0.150 |
 | config_fbank80_stmn_tseresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | Time-SE-ResNet34 | ArcFace s=30/m=0.3 | PLDA | 1.30 | 0.083 | 0.146 |
@@ -163,6 +168,7 @@ run_040_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | | | | Cosine | 3.27 | 0.188 | 0.303 |
 | config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | ResNet34 | ArcFace s=30/m=0.3 | PLDA | 2.66 | 0.160 | 0.258 |
 | | | | Cosine | 2.32 | 0.139 | 0.232 |
+| config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr0.05_amp_swa.v1.sh | ResNet34 | + SWA | Cosine | 2.19 | 0.133 | 0.215 |
 | config_fbank80_stmn_resnet50_arcs30m0.3_adam_lr0.05_amp.v1.sh | ResNet50 | ArcFace s=30/m=0.3 | PLDA | 2.33 | 0.139 | 0.227 |
 | | | | Cosine | 2.33 | 0.142 | 0.235 |
 | config_fbank80_stmn_tseresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | Time-SE-ResNet34 | ArcFace s=30/m=0.3 | PLDA | 2.46 | 0.142 | 0.237 |
