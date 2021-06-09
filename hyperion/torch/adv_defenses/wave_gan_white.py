@@ -8,21 +8,24 @@ from typing import Tuple
 import math
 import librosa
 import numpy as np
-import parallel_wavegan.models
+
 import torch
 import yaml
-from parallel_wavegan.layers import PQMF
-from parallel_wavegan.models import ParallelWaveGANGenerator
-from parallel_wavegan.utils import read_hdf5
+try:
+    # import parallel_wavegan.models
+    from parallel_wavegan.layers import PQMF
+    from parallel_wavegan.models import ParallelWaveGANGenerator
+    from parallel_wavegan.utils import read_hdf5
+except:
+    pass
+
 from sklearn.preprocessing import StandardScaler
 from torch import nn
 
-#DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-logger = logging.getLogger(__name__)
-
 
 class WaveGANReconstruction(nn.Module):
-    def __init__(self, feature_extractor, wave_gan, pqmf, use_noise_input, config, pad_fn):
+    def __init__(self, feature_extractor, wave_gan, pqmf, use_noise_input,
+                 config, pad_fn):
         super().__init__()
         self.feature_extractor = feature_extractor
         self.wave_gan = wave_gan
@@ -31,7 +34,6 @@ class WaveGANReconstruction(nn.Module):
         self.config = config
         self.pad_fn = pad_fn
 
-    
     def forward(self, audio):
         """
         WaveGAN Vocoder signal reconstruction from spectrum.
@@ -50,20 +52,22 @@ class WaveGANReconstruction(nn.Module):
             # Setup inputs
             inputs = ()
             if use_noise_input:
-                noise = torch.randn(1, 1, len(mel_spectrogram) * config["hop_size"],
+                noise = torch.randn(1,
+                                    1,
+                                    len(mel_spectrogram) * config["hop_size"],
                                     device=mel_spectrogram.device)
-                inputs += (noise,)
+                inputs += (noise, )
 
             mel_spectrogram = pad_fn(
-                mel_spectrogram.unsqueeze(0).transpose(2, 1)
-            ) 
-            inputs += (mel_spectrogram,)
-            # Generate 
+                mel_spectrogram.unsqueeze(0).transpose(2, 1))
+            inputs += (mel_spectrogram, )
+            # Generate
             if config["generator_params"]["out_channels"] == 1:
                 reconstructed_audio = wave_gan(*inputs).view(-1)
                 reconstructed_audio = reconstructed_audio[:num_samples]
             else:
-                reconstructed_audio = pqmf.synthesis(wave_gan(*inputs)).view(-1)
+                reconstructed_audio = pqmf.synthesis(
+                    wave_gan(*inputs)).view(-1)
                 reconstructed_audio = reconstructed_audio[:num_samples]
             return reconstructed_audio
 
@@ -76,58 +80,57 @@ class WaveGANReconstruction(nn.Module):
                 # Setup inputs
                 inputs = ()
                 if use_noise_input:
-                    noise = torch.randn(1, 1, len(mel_spectrogram) * config["hop_size"], device=recording.device)
-                    inputs += (noise,)
+                    noise = torch.randn(1,
+                                        1,
+                                        len(mel_spectrogram) *
+                                        config["hop_size"],
+                                        device=recording.device)
+                    inputs += (noise, )
                 mel_spectrogram = pad_fn(
-                    mel_spectrogram.unsqueeze(0).transpose(2, 1)
-                ) #.to(device)
-                inputs += (mel_spectrogram,)
+                    mel_spectrogram.unsqueeze(0).transpose(2, 1))
+                inputs += (mel_spectrogram, )
                 # Generate
                 if config["generator_params"]["out_channels"] == 1:
                     reconstructed_audio = wave_gan(*inputs).view(-1)
                     reconstructed_audio = reconstructed_audio[:num_samples]
                 else:
-                    reconstructed_audio = pqmf.synthesis(wave_gan(*inputs)).view(-1)
+                    reconstructed_audio = pqmf.synthesis(
+                        wave_gan(*inputs)).view(-1)
                     reconstructed_audio = reconstructed_audio[:, :num_samples]
                 reconstructions.append(reconstructed_audio)
             return torch.stack(reconstructions)
 
 
-
 class WaveGANDefender(nn.Module):
-    def __init__(self, wave_gan_model_dir : Path, wave_gan_model_ckpt : Path,device):
+    def __init__(self, wave_gan_model_dir: Path, wave_gan_model_ckpt: Path):
         super().__init__()
         with open(wave_gan_model_dir / 'config.yml') as f:
             self.config = yaml.load(f, Loader=yaml.Loader)
 
         self.feature_extractor = WaveGANFeatureExtractor(wave_gan_model_dir)
 
-        self.model = ParallelWaveGANGenerator(**self.config["generator_params"])
+        self.model = ParallelWaveGANGenerator(
+            **self.config["generator_params"])
         self.model.load_state_dict(
-            torch.load(wave_gan_model_dir / wave_gan_model_ckpt , map_location=device)["model"]["generator"]
-        )
+            torch.load(wave_gan_model_dir / wave_gan_model_ckpt,
+                       map_location='cpu')["model"]["generator"])
         self.model.remove_weight_norm()
-        #self.model = self.model.eval().to(device)
 
-        self.use_noise_input = not isinstance(self.model, parallel_wavegan.models.MelGANGenerator)
-        self.pad_fn = torch.nn.ReplicationPad1d(self.config["generator_params"].get("aux_context_window", 0))
+        #self.use_noise_input = not isinstance(self.model, parallel_wavegan.models.MelGANGenerator)
+        self.use_noise_input = True
+        self.pad_fn = torch.nn.ReplicationPad1d(
+            self.config["generator_params"].get("aux_context_window", 0))
         if self.config["generator_params"]["out_channels"] > 1:
             self.pqmf = PQMF(self.config["generator_params"]["out_channels"])
         else:
             self.pqmf = None
 
-        self.reconstructor = WaveGANReconstruction(
-            self.feature_extractor,
-            self.model,
-            self.pqmf,
-            self.use_noise_input,
-            self.config,
-            self.pad_fn
-        )
-
+        self.reconstructor = WaveGANReconstruction(self.feature_extractor,
+                                                   self.model, self.pqmf,
+                                                   self.use_noise_input,
+                                                   self.config, self.pad_fn)
 
     def forward(self, audio: torch.Tensor) -> torch.Tensor:
-
         return self.reconstructor(audio)
         # max_len = 8 * 16000
         # audio_len = audio.shape[0]
@@ -136,7 +139,7 @@ class WaveGANDefender(nn.Module):
 
         # audio = audio[:max_len]
         # return self.reconstructor(audio)
-    
+
         # logger.info('audio={}'.format(audio.shape))
 
         # if audio_len <= max_len:
@@ -153,8 +156,6 @@ class WaveGANDefender(nn.Module):
 
         # return torch.cat(audio_chunks)
 
-        
- 
 
 def logmelfilterbank(audio,
                      sampling_rate,
@@ -196,19 +197,22 @@ def logmelfilterbank(audio,
 
     # return np.log10(np.maximum(eps, np.dot(spc, mel_basis.T)))
     # logger.info('{} {}'.format(audio.shape, audio.device))
-    x_stft2 = torch.stft(audio, n_fft=fft_size, hop_length=hop_size,
-                         win_length=win_length, window=window, pad_mode="reflect").transpose(0, 1)**2
+    x_stft2 = torch.stft(audio,
+                         n_fft=fft_size,
+                         hop_length=hop_size,
+                         win_length=win_length,
+                         window=window,
+                         pad_mode="reflect").transpose(0, 1)**2
     # logger.info('{} {}'.format(x_stft2.shape, x_stft2.device))
-    spc = (x_stft2[:,:,0]+x_stft2[:,:,1]).sqrt()
+    spc = (x_stft2[:, :, 0] + x_stft2[:, :, 1]).sqrt()
 
     # get mel basis
     fmin = 0 if fmin is None else fmin
     fmax = sampling_rate / 2 if fmax is None else fmax
-    mel_basis = torch.tensor(librosa.filters.mel(sampling_rate, fft_size, num_mels, fmin, fmax), device=spc.device).transpose(0,1)
-
+    mel_basis = torch.tensor(librosa.filters.mel(sampling_rate, fft_size,
+                                                 num_mels, fmin, fmax),
+                             device=spc.device).transpose(0, 1)
     return torch.matmul(spc, mel_basis).clamp(min=eps).log10()
-
-
 
 
 class WaveGANFeatureExtractor(nn.Module):
@@ -217,9 +221,10 @@ class WaveGANFeatureExtractor(nn.Module):
         with open(wave_gan_model_dir / 'config.yml') as f:
             self.config = yaml.load(f, Loader=yaml.Loader)
 
-        win_len = self.config["fft_size"] if self.config["win_length"] is None else self.config["win_length"]
+        win_len = self.config["fft_size"] if self.config[
+            "win_length"] is None else self.config["win_length"]
         self.register_buffer('window', torch.hann_window(win_len))
-        
+
         # Restore scaler
         stats_path = str(wave_gan_model_dir / 'stats.h5')
         if self.config["format"] == "hdf5":
@@ -227,27 +232,24 @@ class WaveGANFeatureExtractor(nn.Module):
             scaler_scale = read_hdf5(stats_path, "scale")
         elif self.config["format"] == "npy":
             scaler_mean = np.load(stats_path)[0]
-            scaler_scale= np.load(stats_path)[1]
+            scaler_scale = np.load(stats_path)[1]
         else:
             raise ValueError("support only hdf5 or npy format.")
 
         self.register_buffer('scaler_mean', torch.tensor(scaler_mean))
         self.register_buffer('scaler_scale', torch.tensor(scaler_scale))
 
-        
     def transform(self, audio):
 
-        mel = logmelfilterbank(
-            audio,
-            sampling_rate=self.config["sampling_rate"],
-            hop_size=self.config["hop_size"],
-            fft_size=self.config["fft_size"],
-            win_length=self.config["win_length"],
-            window=self.window,
-            num_mels=self.config["num_mels"],
-            fmin=self.config["fmin"],
-            fmax=self.config["fmax"]
-        )
+        mel = logmelfilterbank(audio,
+                               sampling_rate=self.config["sampling_rate"],
+                               hop_size=self.config["hop_size"],
+                               fft_size=self.config["fft_size"],
+                               win_length=self.config["win_length"],
+                               window=self.window,
+                               num_mels=self.config["num_mels"],
+                               fmin=self.config["fmin"],
+                               fmax=self.config["fmax"])
 
         # Normalize the mel spectrogram
         mel = (mel - self.scaler_mean) / self.scaler_scale
