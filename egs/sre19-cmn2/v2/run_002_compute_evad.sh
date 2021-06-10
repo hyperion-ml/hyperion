@@ -21,7 +21,7 @@ config_file=default_config.sh
 if [ $stage -le 1 ]; then
     # Prepare to distribute data over multiple machines
     if [[ $(hostname -f) == *.clsp.jhu.edu ]] && [ ! -d $vaddir/storage ]; then
-	dir_name=$USER/hyp-data/sre19-cmn2-v2.1/$storage_name/vad/storage
+	dir_name=$USER/hyp-data/sre19-cmn2-v2/$storage_name/vad/storage
 	if [ "$nodes" == "b0" ];then
 	    utils/create_split_dir.pl \
 			    utils/create_split_dir.pl \
@@ -56,4 +56,6 @@ if [ $stage -le 2 ];then
 	utils/fix_data_dir.sh data/${name}
     done
 fi
+
+exit
 

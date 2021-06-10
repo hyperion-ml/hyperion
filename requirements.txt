@@ -8,8 +8,10 @@ scipy>=1.4.1
 sphinx_rtd_theme>=0.4.3
 pympler
 memory_profiler
+gdown
 fairscale>=0.3.0
 tensorboard>=2.5.0
 yapf
 jsonargparse>=3.5.0
 wandb>=0.10.30
+
