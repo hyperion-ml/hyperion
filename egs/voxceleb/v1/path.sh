@@ -21,7 +21,7 @@ fi
 
 if [ "$(hostname --domain)" == "cm.gemini" ];then
     module load ffmpeg
-    TORCH="pytorch1.4_cuda10.1"
+    HYP_ENV="pytorch1.6_cuda10.1"
     module load cuda10.1/toolkit/10.1.105
     module load cudnn/7.6.3_cuda10.1
 else
@@ -32,13 +32,16 @@ else
 	LD_LIBRARY_PATH=$HOME/cuda/lib64:$LD_LIBRARY_PATH
     fi
 
-    TORCH="pytorch1.4_cuda10.1"
+    HYP_ENV="pytorch1.6_cuda10.2"
     #CuDNN env
     CUDNN_ROOT=$TOOLS_ROOT/cudnn/cudnn-10.1-v7.6
     LD_LIBRARY_PATH=$CUDNN_ROOT/lib64:$LD_LIBRARY_PATH
     LIBRARY_PATH=$CUDNN_ROOT/lib64:$LIBRARY_PATH
     CPATH=$CUDNN_ROOT/include:$CPATH
 fi
+
+export LRU_CACHE_CAPACITY=1 #this will avoid crazy ram memory when using pytorch with cpu, it controls cache of MKLDNN
+export HDF5_USE_FILE_LOCKING=FALSE
 
 export MPLBACKEND="agg"
 export PATH=$HYP_ROOT/hyperion/bin:/usr/local/cuda/bin:$PATH

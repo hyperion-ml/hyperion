@@ -35,9 +35,9 @@ fi
 
 # Network Training
 if [ $stage -le 1 ]; then
-  mkdir -p $ft3_nnet_dir/log
-  $cuda_cmd --gpu $ngpu $ft3_nnet_dir/log/train.log \
-      hyp_utils/torch.sh --num-gpus $ngpu \
+    mkdir -p $ft3_nnet_dir/log
+    $cuda_cmd --gpu $ngpu $ft3_nnet_dir/log/train.log \
+      hyp_utils/conda_env.sh --conda-env $HYP_ENV --num-gpus $ngpu \
       torch-finetune-xvec-dfr.py \
       --data-rspec scp:$list_dir/feats.scp \
       --train-list $list_dir/lists_xvec/train.scp \
@@ -56,7 +56,7 @@ if [ $stage -le 1 ]; then
       --epochs $ft3_nnet_num_epochs \
       --s $s --margin $margin --margin-warmup-epochs $ft3_margin_warmup \
       --num-gpus $ngpu \
-      --log-interval 100 \
+      --log-interval $log_interval \
       --in-model-path $ft2_nnet \
       --train-mode ft-full \
       --exp-path $ft3_nnet_dir $args

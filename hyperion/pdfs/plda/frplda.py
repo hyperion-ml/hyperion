@@ -2,10 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import numpy as np
 from scipy import linalg as sla
@@ -60,7 +56,7 @@ class FRPLDA(PLDABase):
         y = F/N[:,None]
         Fy = np.dot(F.T, y)
         C = S - Fy - Fy.T
-        for i in xrange(M):
+        for i in range(M):
             yy = np.outer(y[i,:], y[i,:])
             C += N[i] * yy
 
@@ -101,7 +97,7 @@ class FRPLDA(PLDABase):
         if N_is_int:
             iterator = np.unique(N)
         else:
-            iterator = xrange(M)
+            iterator = range(M)
 
         y = np.zeros_like(F)
         if return_cov:

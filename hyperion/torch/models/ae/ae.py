@@ -9,7 +9,7 @@ import torch
 import torch.nn as nn
 
 from ...torch_model import TorchModel
-from ...helpers import TorchNALoader
+from ...narchs import TorchNALoader
 
 class AE(TorchModel):
     """ Basic Autoencoder class

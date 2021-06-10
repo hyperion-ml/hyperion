@@ -3,7 +3,7 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-# from __future__ import absolute_import
+# 
 
 # from . import utils
 # from . import loggers
@@ -18,3 +18,6 @@
 # from . import adv_attacks
 # from . import helpers
 # from . import seq_embed
+
+from .torch_model import TorchModel
+from .torch_model_loader import TorchModelLoader

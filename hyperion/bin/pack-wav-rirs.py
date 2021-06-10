@@ -5,7 +5,7 @@
 """
 import sys
 import os
-import argparse
+from jsonargparse import ArgumentParser, ActionConfigFile, ActionParser, namespace_to_dict
 import time
 import logging
 
@@ -39,11 +39,10 @@ def pack_wav_rirs(input_path, output_spec, **kwargs):
 
 if __name__ == "__main__":
     
-    parser=argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        fromfile_prefix_chars='@',
+    parser=ArgumentParser(
         description='Packs RIRs in wave format to h5/ark files')
 
+    parser.add_argument('--cfg', action=ActionConfigFile)
     parser.add_argument('--input', dest='input_path', required=True)
     parser.add_argument('--output', dest='output_spec', required=True)
     parser.add_argument('-v', '--verbose', dest='verbose', default=1, choices=[0, 1, 2, 3], type=int,
@@ -53,5 +52,5 @@ if __name__ == "__main__":
     del args.verbose
     logging.debug(args)
     
-    pack_wav_rirs(**vars(args))
+    pack_wav_rirs(**namespace_to_dict(args))
     

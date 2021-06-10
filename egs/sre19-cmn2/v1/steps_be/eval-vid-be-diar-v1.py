@@ -5,10 +5,6 @@
 
   Evals PLDA LLR
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import sys
 import os
@@ -19,7 +15,6 @@ import logging
 import numpy as np
 
 from hyperion.hyp_defs import float_cpu, config_logger
-#from hyperion.utils.scp_list import SCPList
 from hyperion.utils.trial_ndx import TrialNdx
 from hyperion.utils.trial_scores import TrialScores
 from hyperion.helpers.multi_test_trial_data_reader import MultiTestTrialDataReader as TDR
@@ -31,7 +26,7 @@ from hyperion.transforms import TransformList
 def combine_diar_scores(ndx, orig_seg, subseg_scores):
 
     scores = np.zeros(ndx.trial_mask.shape, dtype=float_cpu())
-    for j in xrange(len(ndx.seg_set)):
+    for j in range(len(ndx.seg_set)):
         idx = orig_seg == ndx.seg_set[j]
         subseg_scores_j = subseg_scores[:, idx]
         scores_j = np.max(subseg_scores_j, axis=1)

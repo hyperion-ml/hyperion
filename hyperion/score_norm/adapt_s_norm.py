@@ -3,10 +3,6 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import numpy as np
 import h5py
@@ -40,7 +36,7 @@ class AdaptSNorm(ScoreNorm):
             
         best_idx = np.flipud(np.argsort(scores_coh_test, axis=0))[self.nbest_discard:self.nbest_discard+nbest]
         scores_z_norm = np.zeros_like(scores)
-        for i in xrange(scores.shape[1]):
+        for i in range(scores.shape[1]):
             best_idx_i = best_idx[:,i]
                 
             mu_z = np.mean(scores_enr_coh[:, best_idx_i],
@@ -62,7 +58,7 @@ class AdaptSNorm(ScoreNorm):
 
         best_idx = np.fliplr(np.argsort(scores_enr_coh, axis=1))[:,self.nbest_discard:self.nbest_discard+nbest]
         scores_t_norm = np.zeros_like(scores)
-        for i in xrange(scores.shape[0]):
+        for i in range(scores.shape[0]):
             best_idx_i = best_idx[i]
                 
             mu_z = np.mean(scores_coh_test[best_idx_i,:],

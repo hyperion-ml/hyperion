@@ -2,6 +2,7 @@
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+from jsonargparse import ArgumentParser, ActionParser
 
 import torch
 import torch.nn as nn
@@ -90,24 +91,19 @@ class MeanVarianceNorm(nn.Module):
         
         
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
+    def filter_args(**kwargs):
         """Filters ST-CMVN args from arguments dictionary.
            
            Args:
-             prefix: Options prefix.
              kwargs: Arguments dictionary.
            
            Returns:
              Dictionary with ST-CMVN options.
         """
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
 
         valid_args = ('no_norm_mean', 'norm_mean', 'norm_var', 'left_context', 'right_context', 'context')
-        d = dict((k, kwargs[p+k])
-                 for k in valid_args if p+k in kwargs)
+        d = dict((k, kwargs[k])
+                 for k in valid_args if k in kwargs)
 
         if 'no_norm_mean' in d:
             d['norm_mean'] = not d['no_norm_mean']
@@ -124,34 +120,41 @@ class MeanVarianceNorm(nn.Module):
     
         
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         """Adds ST-CMVN options to parser.
            
            Args:
              parser: Arguments parser
              prefix: Options prefix.
         """
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog='')
 
-        if prefix is None:
-            p1 = '--'
-        else:
-            p1 = '--' + prefix + '-'
-
-        parser.add_argument(p1+'no-norm-mean', 
+        parser.add_argument('--no-norm-mean', 
                             default=False, action='store_true',
                             help='don\'t center the features')
 
-        parser.add_argument(p1+'norm-var', 
+        parser.add_argument('--norm-var', 
                             default=False, action='store_true',
                             help='normalize the variance of the features')
 
-        parser.add_argument(p1+'left-context', type=int, default=150,
+        parser.add_argument('--left-context', type=int, default=150,
                             help='past context in number of frames')
 
-        parser.add_argument(p1+'right-context', type=int, default=150,
+        parser.add_argument('--right-context', type=int, default=150,
                             help='future context in number of frames')
 
         parser.add_argument(
-            p1+'context', type=int, default=None,
+            '--context', type=int, default=None,
             help=('past/future context in number of frames, '
                   'overwrites left-context and right-context options'))
+
+        if prefix is not None:
+            outer_parser.add_argument(
+                '--' + prefix,
+                action=ActionParser(parser=parser))
+                # help='mean-var norm. options')
+
+
+    add_argparse_args = add_class_args

@@ -2,13 +2,9 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
-
 
 import numpy as np
+from jsonargparse import ArgumentParser, ActionParser
 from scipy.signal import convolve2d
 
 from ..hyp_defs import float_cpu
@@ -188,7 +184,7 @@ class MeanVarianceNorm(object):
         m_x = np.zeros_like(x)
         s_x = np.zeros_like(x)
 
-        for i in xrange(x.shape[0]):
+        for i in range(x.shape[0]):
             idx1 = max(i-left_context, 0)
             idx2 = min(i+right_context, x.shape[0]-1) + 1
             denom = idx2 - idx1
@@ -207,7 +203,7 @@ class MeanVarianceNorm(object):
 
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
+    def filter_args(**kwargs):
         """Filters ST-CMVN args from arguments dictionary.
            
            Args:
@@ -217,14 +213,10 @@ class MeanVarianceNorm(object):
            Returns:
              Dictionary with ST-CMVN options.
         """
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
         valid_args = ('no_norm_mean', 'norm_mean', 'norm_var', 'left_context', 'right_context', 'context')
 
-        d = dict((k, kwargs[p+k])
-                 for k in valid_args if p+k in kwargs)
+        d = dict((k, kwargs[k])
+                 for k in valid_args if k in kwargs)
 
         neg_args1 = ('no_norm_mean',)
         neg_args2 = ('norm_mean',)
@@ -244,36 +236,41 @@ class MeanVarianceNorm(object):
     
         
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         """Adds ST-CMVN options to parser.
            
            Args:
              parser: Arguments parser
              prefix: Options prefix.
         """
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog='')
 
-        if prefix is None:
-            p1 = '--'
-            p2 = ''
-        else:
-            p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
-
-        parser.add_argument(p1+'no-norm-mean', 
+        parser.add_argument('--no-norm-mean', 
                             default=False, action='store_true',
                             help='don\'t center the features')
 
-        parser.add_argument(p1+'norm-var', 
+        parser.add_argument('--norm-var', 
                             default=False, action='store_true',
                             help='normalize the variance of the features')
 
-        parser.add_argument(p1+'left-context', type=int, default=150,
+        parser.add_argument('--left-context', type=int, default=150,
                             help='past context in number of frames')
 
-        parser.add_argument(p1+'right-context', type=int, default=150,
+        parser.add_argument('--right-context', type=int, default=150,
                             help='future context in number of frames')
 
         parser.add_argument(
-            p1+'context', type=int, default=None,
+            '--context', type=int, default=None,
             help=('past/future context in number of frames, '
                   'overwrites left-context and right-context options'))
+
+        if prefix is not None:
+            outer_parser.add_argument(
+                '--' + prefix,
+                action=ActionParser(parser=parser))
+                # help='mean-var norm options')
+
+
+    add_argparse_args = add_class_args

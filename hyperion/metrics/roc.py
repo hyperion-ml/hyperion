@@ -2,10 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import numpy as np
 import scipy.linalg as sla
@@ -94,7 +90,7 @@ def compute_rocch(tar_scores, non_scores):
     fa = Nn
     miss = 0
 
-    for i in xrange(nbins):
+    for i in range(nbins):
         p_miss[i] = miss/Nt
         p_fa[i] = fa/Nn
         left = left + width[i]
@@ -125,7 +121,7 @@ def rocch2eer(p_miss, p_fa):
 
     _1_1 = np.array([1, -1])
     _11 = np.array([[1], [1]])
-    for i in xrange(len(p_fa)-1):
+    for i in range(len(p_fa)-1):
         xx = p_fa[i:i+2]
         yy = p_miss[i:i+2]
     
@@ -167,7 +163,7 @@ def filter_roc(p_miss,p_fa):
     new_p_miss = np.copy(p_miss)
     new_p_fa = np.copy(p_fa)
 
-    for i in xrange(1,len(p_miss)):
+    for i in range(1,len(p_miss)):
         if p_miss[i] == new_p_miss[out] or p_fa[i] == new_p_fa[out]:
             continue
     
@@ -203,7 +199,7 @@ def compute_area_under_rocch(p_miss, p_fa):
     assert p_miss.shape == p_fa.shape
     
     auc = 0
-    for i in xrange(1, len(p_miss)):
+    for i in range(1, len(p_miss)):
         auc += 0.5 * (p_miss[i] - p_miss[i-1]) * (p_fa[i] + p_fa[i+1])
 
     return auc

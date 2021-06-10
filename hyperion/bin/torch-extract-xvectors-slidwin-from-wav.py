@@ -6,7 +6,7 @@
 
 import sys
 import os
-import argparse
+from jsonargparse import ArgumentParser, ActionConfigFile, ActionParser, namespace_to_dict
 import time
 import logging
 
@@ -24,9 +24,67 @@ from hyperion.io import VADReaderFactory as VRF
 from hyperion.augment import SpeechAugment
 
 from hyperion.torch.utils import open_device
-from hyperion.torch.helpers import TorchModelLoader as TML
-from hyperion.torch.layers import AudioFeatsFactory as AFF
-from hyperion.torch.layers import MeanVarianceNorm as MVN
+from hyperion.torch.narchs import AudioFeatsMVN as AF
+from hyperion.torch import TorchModelLoader as TML
+
+def init_device(use_gpu):
+    set_float_cpu('float32')
+    num_gpus = 1 if use_gpu else 0
+    logging.info('initializing devices num_gpus={}'.format(num_gpus))
+    device = open_device(num_gpus=num_gpus)
+    return device
+
+
+def init_feats(device, **kwargs):
+    feat_args = AF.filter_args(**kwargs['feats'])
+    logging.info('feat args={}'.format(feat_args))
+    logging.info('initializing feature extractor')
+    feat_extractor = AF(trans=False, **feat_args)
+    logging.info('feat-extractor={}'.format(feat_extractor))
+    feat_extractor.eval()
+    feat_extractor.to(device)
+    return feat_extractor
+
+
+def load_model(model_path, device):
+    logging.info('loading model {}'.format(model_path))
+    model = TML.load(model_path)
+    logging.info('xvector-model={}'.format(model))
+    model.to(device)
+    model.eval()
+    return model
+
+
+def augment(key0, x0, augmenter, aug_df, aug_id):
+    if augmenter is None:
+        x = x0
+        key = key0
+    else:
+        x, aug_info = augmenter(x0)
+        key = '%s-aug-%02d' % (key0, aug_id)
+        aug_df_row = {'key_aug': key, 'key_orig': key0,
+                      'noise_type': aug_info['noise']['noise_type'],
+                      'snr': aug_info['noise']['snr'],
+                      'rir_type': aug_info['reverb']['rir_type'],
+                      'srr': aug_info['reverb']['srr'],
+                      'sdr': aug_info['sdr']}
+        
+        aug_df.append(pd.DataFrame(aug_df_row, index=[0]))
+    
+    return key, x
+
+
+def select_random_chunk(key, x, min_utt_length, max_utt_length, rng):
+    utt_length = rng.randint(
+        low=min_utt_length, high=max_utt_length+1)
+    if utt_length < x.shape[1]:
+        first_frame = rng.randint(
+            low=0, high=x.shape[1]-utt_length)
+        x = x[:,first_frame:first_frame+utt_length]
+        logging.info(
+            'extract-random-utt %s of length=%d first-frame=%d' % (
+                key, x.shape[1], first_frame))
+    return x
 
 
 def extract_xvectors(input_spec, output_spec, vad_spec, 
@@ -37,46 +95,25 @@ def extract_xvectors(input_spec, output_spec, vad_spec,
                      aug_cfg, num_augs, aug_info_path,
                      use_gpu, **kwargs):
 
-    set_float_cpu('float32')
     rng = np.random.RandomState(seed=1123581321+kwargs['part_idx'])
-    num_gpus = 1 if use_gpu else 0
-    logging.info('initializing devices num_gpus={}'.format(num_gpus))
-    device = open_device(num_gpus=num_gpus)
+    device = init_device(use_gpu)
+    feat_extractor = init_feats(device, **kwargs)
+    model = load_model(model_path, device)
 
-    feat_args = AFF.filter_args(prefix='feats', **kwargs)
-    mvn_args = MVN.filter_args(prefix='mvn', **kwargs)
+    feat_args = kwargs['feats']['audio_feats']
     feat_frame_length=feat_args['frame_length']
     feat_frame_shift=feat_args['frame_shift']
     feat_snip_edges=feat_args['snip_edges']
 
-    logging.info('initializing feature extractor args={}'.format(feat_args))
-    feat_extractor = AFF.create(**feat_args)
-    logging.info('feat-extractor={}'.format(feat_extractor))
-    feat_extractor.eval()
-    feat_extractor.to(device)
-
-    logging.info('initializing mvn args={}'.format(mvn_args))
-    mvn = None
-    if mvn_args['norm_mean'] or mvn_args['norm_var']:
-        mvn = MVN(**mvn_args)
-        logging.info('mvn={}'.format(mvn))
-        mvn.eval()
-        mvn.to(device)
-
     if write_timestamps_spec is not None:
         time_writer = DWF.create(write_timestamps_spec, scp_sep=scp_sep)
-
-    logging.info('loading model {}'.format(model_path))
-    model = TML.load(model_path)
-    logging.info('xvector-model={}'.format(model))
-    model.to(device)
-    model.eval()
 
     if aug_cfg is not None:
         augmenter = SpeechAugment.create(aug_cfg, rng=rng)
         aug_df = []
     else:
         augmenter = None
+        aug_df = None
         num_augs = 1
 
     ar_args = AR.filter_args(**kwargs)
@@ -104,21 +141,7 @@ def extract_xvectors(input_spec, output_spec, vad_spec,
                 logging.info('processing utt %s' % (key0))
                 for aug_id in range(num_augs):
                     t3 = time.time()
-                    if augmenter is None:
-                        x = x0
-                        key = key0
-                    else:
-                        x, aug_info = augmenter(x0)
-                        key = '%s-aug-%02d' % (key0, aug_id)
-                        aug_df_row = {'key_aug': key, 'key_orig': key0,
-                                      'noise_type': aug_info['noise']['noise_type'],
-                                      'snr': aug_info['noise']['snr'],
-                                      'rir_type': aug_info['reverb']['rir_type'],
-                                      'srr': aug_info['reverb']['srr'],
-                                      'sdr': aug_info['sdr']}
-
-                        aug_df.append(pd.DataFrame(aug_df_row, index=[0]))
-
+                    key, x = augment(key0, x0, augmenter, aug_df, aug_id)
                     t4 = time.time()
                     with torch.no_grad():
                         x = torch.tensor(
@@ -126,9 +149,6 @@ def extract_xvectors(input_spec, output_spec, vad_spec,
                             device)
 
                         x = feat_extractor(x)
-                        if mvn is not None:
-                            x = mvn(x)
-
                         t5 = time.time()
                         tot_frames = x.shape[1]
                         if vad_spec is not None:
@@ -195,13 +215,12 @@ def extract_xvectors(input_spec, output_spec, vad_spec,
 
 if __name__ == "__main__":
     
-    parser=argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        fromfile_prefix_chars='@',
+    parser = ArgumentParser(
         description=('Extract x-vectors over a sliding window' 
                      'from waveform computing '
                      'acoustic features on the fly'))
 
+    parser.add_argument('--cfg', action=ActionConfigFile)
     parser.add_argument('--input', dest='input_spec', required=True)
     parser.add_argument('--vad', dest='vad_spec', default=None)
     parser.add_argument('--write-timestamps', dest='write_timestamps_spec', default=None)
@@ -219,8 +238,7 @@ if __name__ == "__main__":
     parser.add_argument('--num-augs', default=1, type=int,
                         help='number of augmentations per utterance')
 
-    AFF.add_argparse_args(parser, prefix='feats')
-    MVN.add_argparse_args(parser, prefix='mvn')
+    AF.add_class_args(parser, prefix='feats')
 
     parser.add_argument('--model-path', required=True)
     parser.add_argument('--win-length', type=float, default=1.5, 
@@ -242,12 +260,12 @@ if __name__ == "__main__":
                         help=('classifier layer to get the embedding from, ' 
                               'if None, it uses layer set in training phase'))
 
-    parser.add_argument('--random-utt-length', default=False, action='store_true',
-                        help='calculates x-vector from a random chunk')
-    parser.add_argument('--min-utt-length', type=int, default=500, 
-                        help=('minimum utterance length when using random utt length'))
-    parser.add_argument('--max-utt-length', type=int, default=12000, 
-                        help=('maximum utterance length when using random utt length'))
+    # parser.add_argument('--random-utt-length', default=False, action='store_true',
+    #                     help='calculates x-vector from a random chunk')
+    # parser.add_argument('--min-utt-length', type=int, default=500, 
+    #                     help=('minimum utterance length when using random utt length'))
+    # parser.add_argument('--max-utt-length', type=int, default=12000, 
+    #                     help=('maximum utterance length when using random utt length'))
 
     parser.add_argument('--output', dest='output_spec', required=True)
     parser.add_argument('--use-gpu', default=False, action='store_true',
@@ -266,5 +284,5 @@ if __name__ == "__main__":
     del args.verbose
     logging.debug(args)
 
-    extract_xvectors(**vars(args))
+    extract_xvectors(**namespace_to_dict(args))
     

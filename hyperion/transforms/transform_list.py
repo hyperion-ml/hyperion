@@ -2,10 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import logging
 
@@ -61,7 +57,7 @@ class TransformList(HypModel):
     def get_config(self):
         config = super(TransformList, self).get_config()
         config_t = {}
-        for i in xrange(len(self.transforms)):
+        for i in range(len(self.transforms)):
             config_t[i] = self.transforms[i].get_config()
         config['transforms'] = config_t
         return config
@@ -76,7 +72,7 @@ class TransformList(HypModel):
     def load_params(cls, f, config):
         config_ts = config['transforms']
         transforms = []
-        for i in xrange(len(config_ts)):
+        for i in range(len(config_ts)):
             config_t = config_ts[str(i)]
             logging.debug(config_t)
             class_t = globals()[config_t['class_name']]

@@ -36,9 +36,15 @@ tools/ibm_art/adversarial-robustness-toolbox/
 tools/cudnn/cudnn-*
 tools/kaldi/kaldi
 tools/nccl/nccl_*
+tools/path.sh
 
 rirs_noises.zip
 RIRS_NOISES
 egs/*/*/exp
 egs/*/*/data
 kk
+
+egs/voxceleb/*/*.o*
+egs/voxceleb/*/*.e*
+egs/voxceleb/*/scores
+egs/voxceleb/*/q

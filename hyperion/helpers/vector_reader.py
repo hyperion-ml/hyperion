@@ -2,7 +2,7 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-
+from jsonargparse import ArgumentParser, ActionParser
 import sys
 import os
 import argparse
@@ -44,30 +44,28 @@ class VectorReader(object):
 
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
-            
+    def filter_args(**kwargs):
         valid_args = ('vlist_sep')
-        return dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        return dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
 
     
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
-        if prefix is None:
-            p1 = '--'
-            p2 = ''
-        else:
-            p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
-        parser.add_argument(p1+'vlist-sep', default=' ',
-                            help=('utterance file field separator'))
+    def add_class_args(parser, prefix=None):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog='')
+
+        parser.add_argument(
+            '--vlist-sep', default=' ',
+            help=('utterance file field separator'))
         
+        if prefix is not None:
+            outer_parser.add_argument(
+                '--' + prefix,
+                action=ActionParser(parser=parser))
+                # help='vector reader params')
     
 
-                            
-                    
+    add_argparse_args = add_class_args

@@ -2,8 +2,7 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-
-from __future__ import absolute_import
+from jsonargparse import ArgumentParser, ActionParser
 
 import torch
 
@@ -19,7 +18,7 @@ class LRSchedulerFactory(object):
                decay_rate=1/100, decay_steps=100, 
                power=0.5,
                hold_steps=10,
-               T=10, T_mul=1, 
+               t=10, t_mul=1, 
                warm_restarts=False, gamma=1,
                monitor='val_loss', mode='min',
                factor=0.1, patience=10,
@@ -44,13 +43,13 @@ class LRSchedulerFactory(object):
 
 
         if lrsch_type == 'cos_lr':
-            return CosineLR(optimizer, T, T_mul, min_lr=min_lr,
+            return CosineLR(optimizer, t, t_mul, min_lr=min_lr,
                             warmup_steps=warmup_steps,
                             warm_restarts=warm_restarts, gamma=gamma,
                             update_lr_on_opt_step=update_lr_on_opt_step)
 
         if lrsch_type == 'adamcos_lr':
-            return AdamCosineLR(optimizer, T, T_mul, warmup_steps=warmup_steps,
+            return AdamCosineLR(optimizer, t, t_mul, warmup_steps=warmup_steps,
                             warm_restarts=warm_restarts, gamma=gamma,
                             update_lr_on_opt_step=update_lr_on_opt_step)
 
@@ -63,104 +62,106 @@ class LRSchedulerFactory(object):
          
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
-
+    def filter_args(**kwargs):
 
         valid_args = ('lrsch_type', 'decay_rate', 'decay_steps', 'hold_steps', 'power',
-                      'T', 'T_mul', 'warm_restarts', 'gamma', 'monitor', 
+                      't', 't_mul', 'warm_restarts', 'gamma', 'monitor', 
                       'mode','factor','patience','threshold',
                       'threshold_mode','cooldown','eps','min_lr', 'warmup_steps', 'update_lr_on_opt_step')
 
-        return dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        return dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
     
 
         
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
-        if prefix is None:
-            p1 = '--'
-            p2 = ''
-        else:
-            p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
+    def add_class_args(parser, prefix=None):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog='')
 
-        parser.add_argument(p1+'lrsch-type', dest=(p2+'lrsch_type'), type=str.lower,
+        parser.add_argument('--lrsch-type', type=str.lower,
                             default='none',
                             choices=['none','exp_lr', 'invpow_lr', 'cos_lr', 'adamcos_lr', 'red_lr_on_plateau'],
                             help=('Learning rate schedulers: None, Exponential,'
                                   'Cosine Annealing, Cosine Annealing for Adam,' 
                                   'Reduce on Plateau'))
 
-        parser.add_argument(p1+'decay-rate' , dest=(p2+'decay_rate'),
+        parser.add_argument('--decay-rate' , 
                             default=1/100, type=float,
                             help=('LR decay rate in exp lr'))
-        parser.add_argument(p1+'decay-steps' , dest=(p2+'decay_steps'),
+        parser.add_argument('--decay-steps' ,
                             default=100, type=int,
                             help=('LR decay steps in exp lr'))
-        parser.add_argument(p1+'power' , dest=(p2+'power'),
+        parser.add_argument('--power' , 
                             default=0.5, type=float,
                             help=('power in inverse power lr'))
 
-        parser.add_argument(p1+'hold-steps' , dest=(p2+'hold_steps'),
+        parser.add_argument('--hold-steps' , 
                             default=10, type=int,
                             help=('LR hold steps in exp lr'))
-        parser.add_argument(p1+'t' , dest=(p2+'T'),
+        parser.add_argument('--t' , 
                             default=10, type=int,
                             help=('Period in cos lr'))
-        parser.add_argument(p1+'t-mul' , dest=(p2+'T_mul'),
+        parser.add_argument('--t-mul' , 
                             default=1, type=int,
                             help=('Period multiplicator for each restart in cos lr'))
-        parser.add_argument(p1+'gamma' , dest=(p2+'gamma'),
+        parser.add_argument('--gamma' , 
                             default=1/100, type=float,
                             help=('LR decay rate for each restart in cos lr'))
 
-        parser.add_argument(p1+'warm-restarts', dest=(p2+'warm_restarts'), default=False,
+        parser.add_argument('--warm-restarts', default=False,
                             action='store_true',
                             help=('Do warm restarts in cos lr'))
 
-        parser.add_argument(p1+'monitor', dest=(p2+'monitor'), default='val_loss',
+        parser.add_argument('--monitor',  default='val_loss',
                             help=('Monitor metric to reduce lr'))
-        parser.add_argument(p1+'mode', dest=(p2+'mode'), default='min',
+        parser.add_argument('--mode', default='min',
                             choices =['min','max'],
                             help=('Monitor metric mode to reduce lr'))
 
-        parser.add_argument(p1+'factor' , dest=(p2+'factor'),
+        parser.add_argument('--factor' , 
                             default=0.1, type=float,
                             help=('Factor by which the learning rate will be reduced on plateau'))
 
-        parser.add_argument(p1+'patience' , dest=(p2+'patience'),
+        parser.add_argument('--patience' , 
                             default=10, type=int,
                             help=('Number of epochs with no improvement after which learning rate will be reduced'))
 
-        parser.add_argument(p1+'threshold' , dest=(p2+'threshold'),
+        parser.add_argument('--threshold' , 
                             default=1e-4, type=float,
                             help=('Minimum metric improvement'))
 
-        parser.add_argument(p1+'threshold_mode', dest=(p2+'threshold_mode'), default='rel',
+        parser.add_argument('--threshold_mode', default='rel',
                             choices =['rel','abs'],
                             help=('Relative or absolute'))
         
-        parser.add_argument(p1+'cooldown' , dest=(p2+'cooldown'),
+        parser.add_argument('--cooldown' , 
                             default=0, type=int,
                             help=('Number of epochs to wait before resuming normal operation after lr has been reduced'))
 
-        parser.add_argument(p1+'eps' , dest=(p2+'eps'),
+        parser.add_argument('--eps' , 
                             default=1e-8, type=float,
                             help=('Minimum decay applied to lr'))
 
-        parser.add_argument(p1+'min-lr' , dest=(p2+'min_lr'),
+        parser.add_argument('--min-lr' , 
                             default=0, type=float,
                             help=('Minimum lr'))
 
-        parser.add_argument(p1+'warmup-steps' , dest=(p2+'warmup_steps'),
+        parser.add_argument('--warmup-steps' , 
                             default=0, type=int,
                             help=('Number of batches to warmup lr'))
 
-        parser.add_argument(p1+'update-lr-on-opt-step', dest=(p2+'update_lr_on_opt_step'), default=False,
+        parser.add_argument('--update-lr-on-opt-step', default=False,
                             action='store_true',
                             help=('Update lr based on batch number instead of epoch number'))
+
+        if prefix is not None:
+            outer_parser.add_argument(
+                '--' + prefix,
+                action=ActionParser(parser=parser))
+                # help='learning rate scheduler options')
+
+
+
+    add_argparse_args = add_class_args

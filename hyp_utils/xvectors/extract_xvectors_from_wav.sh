@@ -7,7 +7,7 @@ cmd="run.pl"
 chunk_length=0     # The chunk size over which the embedding is extracted.
 use_gpu=false
 write_utt2num_frames=true  # If true writes utt2num_frames.
-feat_config=conf/fbank80_stmn_16k.pyconf
+feat_config=conf/fbank80_stmn_16k.yaml
 stage=0
 min_utt_length=500
 max_utt_length=12000
@@ -23,7 +23,7 @@ if [ -f path.sh ]; then . ./path.sh; fi
 
 if [ $# != 3 ] && [ $# != 4 ]; then
   echo "Usage: $0 [options] <nnet-model> <data> <xvector-dir> [<data-out-dir>]"
-  echo " e.g.: $0 --feat-config conf/fbank_mvn.pyconf --aug-config conf/noise_aug.yml exp/xvector_nnet/model.pt data/train exp/xvectors_train [data/train_aug]"
+  echo " e.g.: $0 --feat-config conf/fbank_mvn.yml --aug-config conf/noise_aug.yml exp/xvector_nnet/model.pt data/train exp/xvectors_train [data/train_aug]"
   echo "main options (for others, see top of script file)"
   echo "  --cmd (utils/run.pl|utils/queue.pl <queue opts>) # how to run jobs."
   echo "  --use-gpu <bool|false>                           # If true, use GPU."
@@ -82,17 +82,43 @@ if [ "$write_utt2num_frames" == "true" ];then
 fi
 
 if [ $stage -le 0 ];then
+    set +e
     $cmd JOB=1:$nj $output_dir/log/extract_xvectors.JOB.log \
-	hyp_utils/torch.sh --num-gpus $num_gpus \
-	torch-extract-xvectors-from-wav.py @$feat_config ${args} $write_num_frames_opt \
+	hyp_utils/conda_env.sh --num-gpus $num_gpus \
+	torch-extract-xvectors-from-wav.py \
+	--feats $feat_config ${args} $write_num_frames_opt \
 	--part-idx JOB --num-parts $nj \
 	--input $data_dir/wav.scp \
 	--model-path $nnet_file --chunk-length $chunk_length \
 	--output ark,scp:$output_dir/xvector.JOB.ark,$output_dir/xvector.JOB.scp || exit 1;
+    set -e
 fi
 
+if [ $stage -le 1 ];then
+    for((i=1;i<=$nj;i++))
+    do
+	status=$(tail -n 1 $output_dir/log/extract_xvectors.$i.log | \
+			awk '/status 0/ { print 0} 
+                            !/status 0/ { print 1}')
+	if [ $status -eq 1 ];then
+	    echo "JOB $i failed, resubmitting"
+	    if [ "$write_utt2num_frames" == "true" ];then
+		write_num_frames_opt="--write-num-frames $output_dir/utt2num_frames.$i"
+	    fi
+	    $cmd $output_dir/log/extract_xvectors.$i.log \
+		 hyp_utils/conda_env.sh --num-gpus $num_gpus \
+		 torch-extract-xvectors-from-wav.py \
+		 --feats $feat_config ${args} $write_num_frames_opt \
+		 --part-idx $i --num-parts $nj \
+		 --input $data_dir/wav.scp \
+		 --model-path $nnet_file --chunk-length $chunk_length \
+		 --output ark,scp:$output_dir/xvector.$i.ark,$output_dir/xvector.$i.scp &
+	fi
+    done
+    wait
+fi
 
-if [ $stage -le 1 ]; then
+if [ $stage -le 2 ]; then
   echo "$0: combining xvectors across jobs"
   for j in $(seq $nj); do cat $output_dir/xvector.$j.scp; done > $output_dir/xvector.scp || exit 1;
   if [ "$write_utt2num_frames" == "true" ];then
@@ -110,7 +136,7 @@ if [ $stage -le 1 ]; then
   fi
 fi
 
-if [ $stage -le 2 ]; then
+if [ $stage -le 3 ]; then
     if [ -n "$data_out_dir" ];then
 	echo "$0: creating data dir $data_out_dir for augmented x-vectors"
 	mkdir -p $data_out_dir

@@ -4,8 +4,8 @@ export TOOLS_ROOT=$HYP_ROOT/tools
 
 export KALDI_ROOT=$TOOLS_ROOT/kaldi/kaldi
 export PATH=$PWD/utils/:$KALDI_ROOT/tools/openfst/bin:$KALDI_ROOT/tools/sph2pipe_v2.5:$PWD:$PATH
-[ ! -f $KALDI_ROOT/tools/config/common_path.sh ] && echo >&2 "The standard file $KALDI_ROOT/tools/config/common_path.sh is not present -> Exit!" && exit 1
-. $KALDI_ROOT/tools/config/common_path.sh
+#[ ! -f $KALDI_ROOT/tools/config/common_path.sh ] && echo >&2 "The standard file $KALDI_ROOT/tools/config/common_path.sh is not present -> Exit!" && exit 1
+#. $KALDI_ROOT/tools/config/common_path.sh
 export LC_ALL=C
 
 #Anaconda env
@@ -21,7 +21,7 @@ fi
 
 if [ "$(hostname --domain)" == "cm.gemini" ];then
     module load ffmpeg
-    TORCH="pytorch1.6_cuda10.2"
+    HYP_ENV="pytorch1.6_cuda10.1"
     module load cuda10.1/toolkit/10.1.105
     module load cudnn/7.6.3_cuda10.1
 else
@@ -32,12 +32,12 @@ else
 	LD_LIBRARY_PATH=$HOME/cuda/lib64:$LD_LIBRARY_PATH
     fi
 
-    TORCH="pytorch1.4_cuda10.1"
+    HYP_ENV="pytorch1.6_cuda10.2"
     #CuDNN env
-    CUDNN_ROOT=$TOOLS_ROOT/cudnn/cudnn-10.1-v7.6
-    LD_LIBRARY_PATH=$CUDNN_ROOT/lib64:$LD_LIBRARY_PATH
-    LIBRARY_PATH=$CUDNN_ROOT/lib64:$LIBRARY_PATH
-    CPATH=$CUDNN_ROOT/include:$CPATH
+    # CUDNN_ROOT=$TOOLS_ROOT/cudnn/cudnn-10.1-v7.6
+    # LD_LIBRARY_PATH=$CUDNN_ROOT/lib64:$LD_LIBRARY_PATH
+    # LIBRARY_PATH=$CUDNN_ROOT/lib64:$LIBRARY_PATH
+    # CPATH=$CUDNN_ROOT/include:$CPATH
 
 fi
 

@@ -64,10 +64,10 @@ if [ "$use_gpu" == "true" ];then
 fi
 
 if [ "$center" == "false" ];then
-    args="${args} --no-norm-mean"
+    args="${args} --mvn.no-norm-mean"
 fi
 if [ "$norm_var" == "true" ];then
-    args="${args} --norm-var"
+    args="${args} --mvn.norm-var"
 fi
 
 if [ "$random_utt_length" == "true" ];then
@@ -82,7 +82,7 @@ if [ $stage -le 0 ];then
     $cmd JOB=1:$nj $output_dir/log/extract_xvectors.JOB.log \
 	hyp_utils/torch.sh --num-gpus $num_gpus \
 	torch-extract-xvectors.py ${args} $write_num_frames_opt \
-	--left-context $left_context --right-context $right_context \
+	--mvn.left-context $left_context --mvn.right-context $right_context \
 	--part-idx JOB --num-parts $nj \
 	--input scp:$data_dir/feats.scp --vad scp:$data_dir/vad.scp \
 	--model-path $nnet_file --chunk-length $chunk_length \

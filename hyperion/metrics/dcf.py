@@ -2,10 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import numpy as np
 
@@ -118,7 +114,7 @@ def compute_act_dcf(tar, non, prior, normalize=True):
     # n_miss2 = np.zeros((num_priors,), dtype='int32')
     # n_fa2 = np.zeros((num_priors,), dtype='int32')
     
-    # for i in xrange(len(t)):
+    # for i in range(len(t)):
     #     n_miss2[i] = np.sum(tar<t[i])
     #     n_fa2[i] = np.sum(non>t[i])
 
@@ -141,7 +137,7 @@ def compute_act_dcf(tar, non, prior, normalize=True):
 
 
 
-def fast_eval_dcf_eer(tar, non, prior, normalize_dcf=True):
+def fast_eval_dcf_eer(tar, non, prior, normalize_dcf=True, return_probs=False):
     """Computes actual DCF, minimum DCF, EER and PRBE all togther
 
     Args:
@@ -167,9 +163,17 @@ def fast_eval_dcf_eer(tar, non, prior, normalize_dcf=True):
     dcf = compute_dcf(p_miss, p_fa, prior, normalize_dcf)
     min_dcf = np.min(dcf, axis=-1)
 
-    act_dcf, _, _ = compute_act_dcf(tar, non, prior, normalize_dcf)
+    act_dcf, act_pmiss, act_pfa = compute_act_dcf(tar, non, prior, normalize_dcf)
 
-    return min_dcf, act_dcf, eer, prbep
+    if not return_probs:
+        return min_dcf, act_dcf, eer, prbep
+
+    idx = np.argmin(dcf, axis=-1)
+    min_pmiss = p_miss[idx]
+    min_pfa = p_fa[idx]
+    return min_dcf, act_dcf, eer, prbep, min_pmiss, min_pfa, act_pmiss, act_pfa
+
+    
 
 
     

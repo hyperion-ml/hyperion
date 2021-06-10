@@ -2,11 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-#from __future__ import absolute_import
-#from __future__ import print_function
-#from __future__ import division
-#from six.moves import xrange
-#from six import string_types
 
 import os
 import os.path as path
@@ -469,40 +464,5 @@ class SCPList(object):
 
 
 
-    
-    # def test():
-
-    #     key = ['spk1']+['spk2']*2+['spk3']*3+['spk10']*10
-    #     file_path = np.arange(len(key)).astype('U')
-    #     file_txt = 'test.txt'
-        
-    #     scp1 = SCPList(key, file_path)
-    #     scp1.sort()
-        
-    #     scp1.save(file_txt)
-    #     scp2 = SCPList.load(file_txt)
-    #     assert(scp1 == scp2)
-
-    #     num_parts=3
-    #     scp_list = []
-    #     for i in range(num_parts):
-    #         scp_i = scp1.split(i+1, num_parts)
-    #         scp_list.append(scp_i)
-
-    #     assert(scp_list[0].len() == 1)
-    #     assert(scp_list[1].len() == 10)
-    #     assert(scp_list[2].len() == 5)
-
-    #     scp2 = SCPList.merge(scp_list)
-    #     assert(scp1 == scp2)
-
-    #     filter_key = ['spk2', 'spk10']
-    #     scp2 = scp1.filter(filter_key)
-
-    #     f = np.zeros(len(key), dtype='bool')
-    #     f[1:13] = True
-    #     scp3 = SCPList(scp1.key[f], scp1.file_path[f])
-        
-    #     assert(scp2 == scp3)
         
         

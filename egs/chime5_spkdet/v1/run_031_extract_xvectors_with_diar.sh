@@ -1,38 +1,40 @@
 #!/bin/bash
 # Copyright
-#                2018   Johns Hopkins University (Author: Jesus Villalba)
-#                2017   David Snyder
-#                2017   Johns Hopkins University (Author: Daniel Garcia-Romero)
-#                2017   Johns Hopkins University (Author: Daniel Povey)
+#                2020   Johns Hopkins University (Author: Jesus Villalba)
 # Apache 2.0.
 #
-
 . ./cmd.sh
 . ./path.sh
 set -e
 
-net_name=1a
-
 stage=1
-diar_name=diar1a
-
+config_file=default_config.sh
+use_gpu=false
+xvec_chunk_length=12800
 . parse_options.sh || exit 1;
+. $config_file
 
-nnet_dir=exp/xvector_nnet_$net_name
-xvector_dir=exp/xvectors/$net_name
+if [ "$use_gpu" == "true" ];then
+    xvec_args="--use-gpu true --chunk-length $xvec_chunk_length"
+    xvec_cmd="$cuda_eval_cmd"
+else
+    xvec_cmd="$train_cmd"
+    xvec_args="--chunk-length $xvec_chunk_length"
+fi
 
+xvector_dir=exp/xvectors/$nnet_name
 
 if [ $stage -le 1 ]; then
-    # Extract xvectors for diarization data
-
-    for name in chime5_spkdet_test_${diar_name} 
+    # Extracts x-vectors for evaluation
+    for name in chime5_spkdet_test
     do
-	steps_kaldi_xvec/extract_xvectors.sh --cmd "$train_cmd --mem 6G" --nj 30 \
-					      $nnet_dir data/$name \
-					      $xvector_dir/$name
+	name_out=${name}_${diar_name}
+	num_spk=$(wc -l data/$name/spk2utt | awk '{ print $1}')
+	nj=$(($num_spk < 100 ? $num_spk:100))
+	steps_xvec/extract_xvectors_from_wav_with_diar.sh \
+	    --cmd "$xvec_cmd --mem 6G" --nj $nj ${xvec_args} \
+	    --feat-config $feat_config \
+	    $nnet data/$name $diar_dir/$name/rttm \
+	    $xvector_dir/$name_out
     done
-
-
 fi
-    
-exit

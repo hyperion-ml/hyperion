@@ -2,11 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
-from six import string_types
 
 import os.path as path
 import logging
@@ -78,7 +73,7 @@ class ExtSegmentList(object):
             series_id = [k for f in v for k,v in series_id.items()]
             files = pd.DataFrame({'file_id': file_id, 'series_id': series_id})
 
-        if isinstance(name, string_types):
+        if isinstance(name, str):
             ext_segment_id = segments['ext_segment_id'].unique()
         elif isinstance(name, dict):
             ext_segment_id = [k for k,v in name.items()]
@@ -476,7 +471,7 @@ class ExtSegmentList(object):
         merging = False
         count = 1
         d = {}
-        for i in xrange(len(self.segments)):
+        for i in range(len(self.segments)):
             if index.iloc[i]:
                 merging = True
                 if count == 1:
@@ -571,7 +566,7 @@ class ExtSegmentList(object):
         d = OrderedDict()
         # logging.debug('MERGE')
         # logging.debug(self.ext_segments)
-        for i in xrange(1, len(self.segments)+1):
+        for i in range(1, len(self.segments)+1):
             if (i==len(self.segments) or not index.iloc[i] or 
                 count==max_segments):
                 #logging.debug(i,first_idx, last_idx)

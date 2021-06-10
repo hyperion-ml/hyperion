@@ -3,10 +3,10 @@
  Copyright 2020 Jesus Villalba (Johns Hopkins University)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0) 
 """
-import argparse
 import time
 import logging
 from pathlib import Path
+from jsonargparse import ArgumentParser, ActionConfigFile, ActionParser, namespace_to_dict
 
 import numpy as np
 import pandas as pd
@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 
-from hyperion.hyp_defs import config_logger, float_cpu
+from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.utils import Utt2Info
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialDataReaderFactory as DRF
@@ -26,7 +26,32 @@ from hyperion.io import VADReaderFactory as VRF
 from hyperion.feats import MeanVarianceNorm as MVN
 
 from hyperion.torch.utils import open_device
-from hyperion.torch.helpers import TorchModelLoader as TML
+from hyperion.torch import TorchModelLoader as TML
+
+def init_device(use_gpu):
+    set_float_cpu('float32')
+    num_gpus = 1 if use_gpu else 0
+    logging.info('initializing devices num_gpus={}'.format(num_gpus))
+    device = open_device(num_gpus=num_gpus)
+    return device
+
+
+def init_mvn(device, **kwargs):
+    mvn_args = MVN.filter_args(**kwargs['mvn'])
+    logging.info('mvn args={}'.format(mvn_args))
+    mvn = MVN(**mvn_args)
+    if mvn.norm_mean or mvn.norm_var:
+        return mvn
+    return None
+
+
+def load_model(model_path, device):
+    logging.info('loading model {}'.format(model_path))
+    model = TML.load(model_path)
+    logging.info('vae-model={}'.format(model))
+    model.to(device)
+    model.eval()
+    return model
 
 
 def write_img(output_dir, key, x, x_mean, x_sample, num_frames):
@@ -60,30 +85,29 @@ def write_img(output_dir, key, x, x_mean, x_sample, num_frames):
     
 
 def eval_vae(input_spec, vad_spec, write_num_frames_spec,
-             scp_sep, path_prefix, vad_path_prefix, 
+             vad_path_prefix, 
              model_path, score_path,
              write_x_mean_spec, write_x_sample_spec, write_z_sample_spec,
              write_img_path, img_frames,
-             use_gpu, part_idx, num_parts, **kwargs):
+             use_gpu, **kwargs):
     
     logging.info('initializing')
-    mvn_args = MVN.filter_args(**kwargs)
-    mvn = MVN(**mvn_args)
-    do_mvn = True
-    if mvn.norm_mean or mvn.norm_var:
-        do_mvn = True
+    rng = np.random.RandomState(seed=1123581321+kwargs['part_idx'])
+    device = init_device(use_gpu)
+    mvn = init_mvn(device, **kwargs)
+    model = load_model(model_path, device)
 
     if write_num_frames_spec is not None:
         keys = []
         info = []
 
-    num_gpus = 1 if use_gpu else 0
-    logging.info('initializing devices num_gpus={}'.format(num_gpus))
-    device = open_device(num_gpus=num_gpus)
-    logging.info('loading model {}'.format(model_path))
-    model = TML.load(model_path)
-    model.to(device)
-    model.eval()
+    # num_gpus = 1 if use_gpu else 0
+    # logging.info('initializing devices num_gpus={}'.format(num_gpus))
+    # device = open_device(num_gpus=num_gpus)
+    # logging.info('loading model {}'.format(model_path))
+    # model = TML.load(model_path)
+    # model.to(device)
+    # model.eval()
       
     x_mean_writer=None
     x_sample_writer=None
@@ -91,16 +115,16 @@ def eval_vae(input_spec, vad_spec, write_num_frames_spec,
     fargs = {'return_x_mean': True} #args for forward function
     if write_x_mean_spec is not None:
         logging.info('opening write x-mean stream: %s' % (write_x_mean_spec))
-        x_mean_writer = DWF.create(write_x_mean_spec, scp_sep=scp_sep) 
+        x_mean_writer = DWF.create(write_x_mean_spec) 
 
     if write_x_sample_spec is not None:
         logging.info('opening write x-sample stream: %s' % (write_x_sample_spec))
-        x_sample_writer = DWF.create(write_x_sample_spec, scp_sep=scp_sep) 
+        x_sample_writer = DWF.create(write_x_sample_spec)
         fargs['return_x_sample'] = True
 
     if write_z_sample_spec is not None:
         logging.info('opening write z-sample stream: %s' % (write_z_sample_spec))
-        z_sample_writer = DWF.create(write_z_sample_spec, scp_sep=scp_sep) 
+        z_sample_writer = DWF.create(write_z_sample_spec)
         fargs['return_z_sample'] = True
 
     if write_img_path is not None:
@@ -114,12 +138,12 @@ def eval_vae(input_spec, vad_spec, write_num_frames_spec,
     extra_metrics = { 'mse': nn.MSELoss(), 'L1': nn.L1Loss() }
     scores_df = []
 
+    dr_args = DRF.filter_args(**kwargs)
     logging.info('opening input stream: %s' % (input_spec))
-    with DRF.create(input_spec, path_prefix=path_prefix, scp_sep=scp_sep,
-                    part_idx=part_idx, num_parts=num_parts) as reader:
+    with DRF.create(input_spec, **dr_args) as reader:
         if vad_spec is not None:
             logging.info('opening VAD stream: %s' % (vad_spec))
-            v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix, scp_sep=scp_sep)
+            v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix)
     
         while not reader.eof():
             t1 = time.time()
@@ -129,7 +153,7 @@ def eval_vae(input_spec, vad_spec, write_num_frames_spec,
             t2 = time.time()
             logging.info('processing utt %s' % (key[0]))
             x = data[0]
-            if do_mvn:
+            if mvn is not None:
                 x = mvn.normalize(x)
             t3 = time.time()
             tot_frames = x.shape[0]
@@ -213,62 +237,46 @@ def eval_vae(input_spec, vad_spec, write_num_frames_spec,
     
 if __name__ == "__main__":
     
-    parser=argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        fromfile_prefix_chars='@',
+    parser = ArgumentParser(
         description='Extract x-vectors with pytorch model')
 
+    parser.add_argument('--cfg', action=ActionConfigFile)
     parser.add_argument('--input', dest='input_spec', required=True)
+    DRF.add_class_args(parser)
     parser.add_argument('--vad', dest='vad_spec', default=None)
     parser.add_argument('--write-num-frames', dest='write_num_frames_spec', default=None)
-    parser.add_argument('--scp-sep', dest='scp_sep', default=' ',
-                        help=('scp file field separator'))
-    parser.add_argument('--path-prefix', dest='path_prefix', default=None,
-                        help=('scp file_path prefix'))
+    # parser.add_argument('--scp-sep', dest='scp_sep', default=' ',
+    #                     help=('scp file field separator'))
+    # parser.add_argument('--path-prefix', dest='path_prefix', default=None,
+    #                     help=('scp file_path prefix'))
     parser.add_argument('--vad-path-prefix', dest='vad_path_prefix', default=None,
                         help=('scp file_path prefix for vad'))
 
-    MVN.add_argparse_args(parser)
+    MVN.add_class_args(parser, prefix='mvn')
 
     parser.add_argument('--model-path', required=True)
     # parser.add_argument('--chunk-length', type=int, default=0, 
     #                     help=('number of frames used in each forward pass of the x-vector encoder,'
     #                           'if 0 the full utterance is used'))
-    # parser.add_argument('--embed-layer', type=int, default=None, 
-    #                     help=('classifier layer to get the embedding from,' 
-    #                           'if None the layer set in training phase is used'))
-
-    # parser.add_argument('--random-utt-length', default=False, action='store_true',
-    #                     help='calculates x-vector from a random chunk of the utterance')
-    # parser.add_argument('--min-utt-length', type=int, default=500, 
-    #                     help=('minimum utterance length when using random utt length'))
-    # parser.add_argument('--max-utt-length', type=int, default=12000, 
-    #                     help=('maximum utterance length when using random utt length'))
 
     parser.add_argument('--write-x-mean', dest='write_x_mean_spec', default=None,
                         help='write-specifier for the mean of P(x|z)')
-
     parser.add_argument('--write-x-sample', dest='write_x_sample_spec', default=None,
                         help='write-specifier for samples drawn from x ~ P(x|z)')
-
     parser.add_argument('--write-z-sample', dest='write_z_sample_spec', default=None,
                         help='write-specifier for samples drawn from z ~ Q(z|x)')
-
     parser.add_argument('--write-img-path', default=None,
                         help='output directory to save spectrogram images in pdf format')
-
     parser.add_argument('--img-frames', default=400, type=int,
                         help='number of frames to plot in the images')
-
     parser.add_argument('--scores', dest='score_path', required=True,
                         help='output file to write ELBO and other metrics')
-
     parser.add_argument('--use-gpu', default=False, action='store_true',
                         help='extract xvectors in gpu')
-    parser.add_argument('--part-idx', type=int, default=1,
-                        help=('splits the list of files in num-parts and process part_idx'))
-    parser.add_argument('--num-parts', type=int, default=1,
-                        help=('splits the list of files in num-parts and process part_idx'))
+    # parser.add_argument('--part-idx', type=int, default=1,
+    #                     help=('splits the list of files in num-parts and process part_idx'))
+    # parser.add_argument('--num-parts', type=int, default=1,
+    #                     help=('splits the list of files in num-parts and process part_idx'))
     parser.add_argument('-v', '--verbose', dest='verbose', default=1, choices=[0, 1, 2, 3], type=int)
 
     args=parser.parse_args()
@@ -276,5 +284,5 @@ if __name__ == "__main__":
     del args.verbose
     logging.debug(args)
 
-    eval_vae(**vars(args))
+    eval_vae(**namespace_to_dict(args))
     

@@ -92,7 +92,7 @@ class SPLDA(PLDABase):
         if N_is_int:
             iterator = np.unique(N)
         else:
-            iterator = xrange(M)
+            iterator = range(M)
 
         y = np.zeros((M, y_dim), dtype=float_cpu())
         if return_cov:
@@ -330,7 +330,6 @@ class SPLDA(PLDABase):
             for N2_j in np.unique(N2):
                 i = np.where(N1 == N1_i)[0]
                 j = np.where(N2 == N2_j)[0]
-
                 L1 = I + N1_i*VV
                 mult_icholL1, logcholL1 = invert_trimat(
                     sla.cholesky(L1, lower=False, overwrite_a=True),
@@ -363,7 +362,7 @@ class SPLDA(PLDABase):
                 
                 Qtar_1 = np.sum(gamma_tar_1*gamma_tar_1, axis=1)[:, None]
                 Qtar_2 = np.sum(gamma_tar_2*gamma_tar_2, axis=1)
-                
+
                 scores_ij = 2*np.dot(gamma_tar_1, gamma_tar_2.T)
                 scores_ij += (Qtar_1 - Qnon_1 + Qtar_2 - Qnon_2)
                 scores_ij += (logL1 + logL2 - logLtar)

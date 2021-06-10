@@ -6,7 +6,7 @@
 
 import sys
 import os
-import argparse
+from jsonargparse import ArgumentParser, ActionConfigFile, ActionParser, namespace_to_dict
 import time
 import logging
 
@@ -14,7 +14,7 @@ import numpy as np
 
 import torch
 
-from hyperion.hyp_defs import config_logger, float_cpu
+from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.utils import Utt2Info
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialDataReaderFactory as DRF
@@ -22,46 +22,72 @@ from hyperion.io import VADReaderFactory as VRF
 from hyperion.feats import MeanVarianceNorm as MVN
 
 from hyperion.torch.utils import open_device
-from hyperion.torch.helpers import TorchModelLoader as TML
+from hyperion.torch import TorchModelLoader as TML
+
+def init_device(use_gpu):
+    set_float_cpu('float32')
+    num_gpus = 1 if use_gpu else 0
+    logging.info('initializing devices num_gpus={}'.format(num_gpus))
+    device = open_device(num_gpus=num_gpus)
+    return device
+
+
+def init_mvn(device, **kwargs):
+    mvn_args = MVN.filter_args(**kwargs['mvn'])
+    logging.info('mvn args={}'.format(mvn_args))
+    mvn = MVN(**mvn_args)
+    if mvn.norm_mean or mvn.norm_var:
+        return mvn
+    return None
+
+
+def load_model(model_path, device):
+    logging.info('loading model {}'.format(model_path))
+    model = TML.load(model_path)
+    logging.info('xvector-model={}'.format(model))
+    model.to(device)
+    model.eval()
+    return model
+
+
+def select_random_chunk(key, x, min_utt_length, max_utt_length, rng):
+    utt_length = rng.randint(
+        low=min_utt_length, high=max_utt_length+1)
+    if utt_length < x.shape[1]:
+        first_frame = rng.randint(
+            low=0, high=x.shape[1]-utt_length)
+        x = x[:,first_frame:first_frame+utt_length]
+        logging.info(
+            'extract-random-utt %s of length=%d first-frame=%d' % (
+                key, x.shape[1], first_frame))
+    return x
 
 
 def extract_xvectors(input_spec, output_spec, vad_spec, write_num_frames_spec,
-                     scp_sep, path_prefix, vad_path_prefix, 
+                     vad_path_prefix, 
                      model_path, chunk_length, embed_layer, 
                      random_utt_length, min_utt_length, max_utt_length,
-                     use_gpu, part_idx, num_parts, **kwargs):
+                     use_gpu, **kwargs):
     
     logging.info('initializing')
-    mvn_args = MVN.filter_args(**kwargs)
-    mvn = MVN(**mvn_args)
-    do_mvn = True
-    if mvn.norm_mean or mvn.norm_var:
-        do_mvn = True
+    rng = np.random.RandomState(seed=1123581321+kwargs['part_idx'])
+    device = init_device(use_gpu)
+    mvn = init_mvn(device, **kwargs)
+    model = load_model(model_path, device)
 
     if write_num_frames_spec is not None:
         keys = []
         info = []
 
-    if random_utt_length:
-        rng = np.random.RandomState(seed=1123581321+part_idx)
-    
-    num_gpus = 1 if use_gpu else 0
-    logging.info('initializing devices num_gpus={}'.format(num_gpus))
-    device = open_device(num_gpus=num_gpus)
-    logging.info('loading model {}'.format(model_path))
-    model = TML.load(model_path)
-    model.to(device)
-    model.eval()
-        
+    dr_args = DRF.filter_args(**kwargs)
     logging.info('opening output stream: %s' % (output_spec))
-    with DWF.create(output_spec, scp_sep=scp_sep) as writer:
+    with DWF.create(output_spec) as writer:
 
         logging.info('opening input stream: %s' % (input_spec))
-        with DRF.create(input_spec, path_prefix=path_prefix, scp_sep=scp_sep,
-                        part_idx=part_idx, num_parts=num_parts) as reader:
+        with DRF.create(input_spec, **dr_args) as reader:
             if vad_spec is not None:
                 logging.info('opening VAD stream: %s' % (vad_spec))
-                v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix, scp_sep=scp_sep)
+                v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix)
     
             while not reader.eof():
                 t1 = time.time()
@@ -71,7 +97,7 @@ def extract_xvectors(input_spec, output_spec, vad_spec, write_num_frames_spec,
                 t2 = time.time()
                 logging.info('processing utt %s' % (key[0]))
                 x = data[0]
-                if do_mvn:
+                if mvn is not None:
                     x = mvn.normalize(x)
                 t3 = time.time()
                 tot_frames = x.shape[0]
@@ -85,12 +111,8 @@ def extract_xvectors(input_spec, output_spec, vad_spec, write_num_frames_spec,
                         key[0], x.shape[0], tot_frames, x.shape[0]/tot_frames*100))
                 
                 if random_utt_length:
-                    utt_length = rng.randint(low=min_utt_length, high=max_utt_length+1)
-                    if utt_length < x.shape[0]:
-                        first_frame = rng.randint(low=0, high=x.shape[0]-utt_length)
-                        x = x[first_frame:first_frame+utt_length]
-                        logging.info('extract-random-utt %s of length=%d first-frame=%d' % (
-                            key[0], x.shape[0], first_frame))
+                    x = select_random_chunk(
+                        key, x, min_utt_length, max_utt_length, rng)
 
                 t4 = time.time()
                 if x.shape[0] == 0:
@@ -123,22 +145,22 @@ def extract_xvectors(input_spec, output_spec, vad_spec, write_num_frames_spec,
     
 if __name__ == "__main__":
     
-    parser=argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        fromfile_prefix_chars='@',
-        description='Extract x-vectors with pytorch model')
+    parser = ArgumentParser(
+        description='Extracts x-vectors from features')
 
+    parser.add_argument('--cfg', action=ActionConfigFile)
     parser.add_argument('--input', dest='input_spec', required=True)
+    DRF.add_class_args(parser)
     parser.add_argument('--vad', dest='vad_spec', default=None)
     parser.add_argument('--write-num-frames', dest='write_num_frames_spec', default=None)
-    parser.add_argument('--scp-sep', default=' ',
-                        help=('scp file field separator'))
-    parser.add_argument('--path-prefix', default=None,
-                        help=('scp file_path prefix'))
+    # parser.add_argument('--scp-sep', default=' ',
+    #                     help=('scp file field separator'))
+    # parser.add_argument('--path-prefix', default=None,
+    #                     help=('scp file_path prefix'))
     parser.add_argument('--vad-path-prefix', default=None,
                         help=('scp file_path prefix for vad'))
 
-    MVN.add_argparse_args(parser)
+    MVN.add_class_args(parser, prefix='mvn')
 
     parser.add_argument('--model-path', required=True)
     parser.add_argument('--chunk-length', type=int, default=0, 
@@ -158,10 +180,10 @@ if __name__ == "__main__":
     parser.add_argument('--output', dest='output_spec', required=True)
     parser.add_argument('--use-gpu', default=False, action='store_true',
                         help='extract xvectors in gpu')
-    parser.add_argument('--part-idx', dest='part_idx', type=int, default=1,
-                        help=('splits the list of files in num-parts and process part_idx'))
-    parser.add_argument('--num-parts', dest='num_parts', type=int, default=1,
-                        help=('splits the list of files in num-parts and process part_idx'))
+    # parser.add_argument('--part-idx', dest='part_idx', type=int, default=1,
+    #                     help=('splits the list of files in num-parts and process part_idx'))
+    # parser.add_argument('--num-parts', dest='num_parts', type=int, default=1,
+    #                     help=('splits the list of files in num-parts and process part_idx'))
     parser.add_argument('-v', '--verbose', dest='verbose', default=1, choices=[0, 1, 2, 3], type=int)
 
     args=parser.parse_args()
@@ -169,5 +191,5 @@ if __name__ == "__main__":
     del args.verbose
     logging.debug(args)
 
-    extract_xvectors(**vars(args))
+    extract_xvectors(**namespace_to_dict(args))
     

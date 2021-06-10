@@ -4,26 +4,44 @@
 """
 # import os
 import math
+from jsonargparse import ArgumentParser, ActionParser
 import logging
 
 import numpy as np
 
 import torch
 from torch.utils.data import Sampler
-
+import torch.distributed as dist
 
 class ClassWeightedSeqSampler(Sampler):
 
     def __init__(self, dataset, batch_size=1, iters_per_epoch='auto',
-                 num_egs_per_class=1, num_egs_per_utt=1, var_batch_size=False):
+                 num_egs_per_class=1, num_egs_per_utt=1, var_batch_size=False): 
         
-        super(ClassWeightedSeqSampler, self).__init__(None)
+        super().__init__(None)
+
+        try:
+            rank = dist.get_rank()
+            world_size = dist.get_world_size()
+        except:
+            rank = 0
+            world_size = 1
+
         self.dataset = dataset
-        self.batch_size = batch_size
+        self.batch_size = int(math.ceil(batch_size / world_size))
         self.num_egs_per_class = num_egs_per_class
         self.num_egs_per_utt = num_egs_per_utt
         self.var_batch_size = var_batch_size
         self.batch = 0
+
+        self.rank = rank
+        self.world_size = world_size
+
+        if rank > 0:
+            # this will make sure that each process produces different data
+            # when using ddp
+            dummy = torch.rand(1000 * rank)
+            del dummy
         
         if iters_per_epoch == 'auto':
             self._compute_iters_auto()
@@ -33,10 +51,10 @@ class ClassWeightedSeqSampler(Sampler):
         if var_batch_size:
             avg_batch_size = self._compute_avg_batch_size()
         else:
-            avg_batch_size = batch_size
+            avg_batch_size = self.batch_size
 
         self._len = int(math.ceil(
-            self.iters_per_epoch * dataset.num_seqs / avg_batch_size))
+            self.iters_per_epoch * dataset.num_seqs / avg_batch_size / world_size))
 
         logging.info('num batches per epoch: %d' % self._len)
         
@@ -164,7 +182,7 @@ class ClassWeightedSeqSampler(Sampler):
         if self.num_egs_per_utt > 1:
             utt_idx = utt_idx.repeat(self.num_egs_per_utt)
 
-        utt_idx = utt_idx.tolist()[:self.batch_size*batch_mult]
+        utt_idx = utt_idx.tolist()[:self.batch_size * batch_mult]
         if self.batch == 0:
             logging.info('batch 0 uttidx=%s', str(utt_idx[:10]))
 
@@ -172,61 +190,60 @@ class ClassWeightedSeqSampler(Sampler):
 
         index = [(i, chunk_length) for i in utt_idx]
         return index
-        #return utt_idx.tolist()
-
     
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
+    def filter_args(**kwargs):
 
-        if p+'no_shuffle_seqs' in kwargs:
-            kwargs[p+'shuffle_seqs'] = not kwargs[p+'no_shuffle_seqs']
+        if 'no_shuffle_seqs' in kwargs:
+            kwargs['shuffle_seqs'] = not kwargs['no_shuffle_seqs']
             
         valid_args = ('batch_size', 'var_batch_size',
                       'iters_per_epoch',
                       'num_egs_per_class', 'num_egs_per_utt')
-        return dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        return dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
 
 
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
-        if prefix is None:
-            p1 = '--'
-            p2 = ''
-        else:
-            p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
+    def add_class_args(parser, prefix=None):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog='')
             
-        parser.add_argument(p1+'batch-size', dest=(p2+'batch_size'),
-                            default=128, type=int,
-                            help=('batch size'))
-
-        parser.add_argument(p1+'var-batch-size', default=False,
-                            action='store_true',
-                            help=('use variable batch-size, '
-                                  'then batch-size is the minimum batch size, '
-                                  'which is used when the batch chunk length is '
-                                  'equal to max-chunk-length'))
+        parser.add_argument(
+            '--batch-size', 
+            default=128, type=int,
+            help=('batch size'))
 
         parser.add_argument(
-            p1+'iters-per-epoch', dest=(p2+'iters_per_epoch'),
+            '--var-batch-size', default=False,
+            action='store_true',
+            help=('use variable batch-size, '
+                  'then batch-size is the minimum batch size, '
+                  'which is used when the batch chunk length is '
+                  'equal to max-chunk-length'))
+
+        parser.add_argument(
+            '--iters-per-epoch', 
             default='auto',
             type=lambda x: x if x=='auto' else float(x),
             help=('number of times we sample an utterance in each epoch'))
 
-        parser.add_argument(p1+'num-egs-per-class',
-                            dest=(p2+'num_egs_per_class'),
-                            type=int, default=1,
-                            help=('number of samples per class in batch'))
-        parser.add_argument(p1+'num-egs-per-utt',
-                            dest=(p2+'num_egs_per_utt'),
-                            type=int, default=1,
-                            help=('number of samples per utterance in batch'))
+        parser.add_argument(
+            '--num-egs-per-class',
+            type=int, default=1,
+            help=('number of samples per class in batch'))
+        parser.add_argument(
+            '--num-egs-per-utt',
+            type=int, default=1,
+            help=('number of samples per utterance in batch'))
 
+        if prefix is not None:
+            outer_parser.add_argument(
+                '--' + prefix,
+                action=ActionParser(parser=parser))
+                # help='weighted seq sampler options')
 
+    add_argparse_args = add_class_args

@@ -28,7 +28,7 @@ fi
 if [ $stage -le 2 ]; then
     # This script applies CMVN and removes nonspeech frames.  
     steps_xvec/prepare_feats_for_nnet_train.sh --nj 40 --cmd "$train_cmd" \
-	--storage_name train-sre19-cmn2-$(date +'%m_%d_%H_%M') \
+	--storage_name train-sre19-cmn2-$(date +'%m_%d_%H_%M') --nodes c0 \
 	data/${nnet_data} data/${nnet_data}_no_sil exp/${nnet_data}_no_sil
     utils/fix_data_dir.sh data/${nnet_data}_no_sil
 

@@ -2,10 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import pytest
 import os
@@ -69,8 +65,8 @@ def test_split():
     
     num_parts=3
     ndx_list = []
-    for i in xrange(num_parts):
-        for j in xrange(num_parts):
+    for i in range(num_parts):
+        for j in range(num_parts):
             ndx_ij = ndx1.split(i+1, num_parts, j+1, num_parts)
             ndx_list.append(ndx_ij)
     ndx2 = TrialNdx.merge(ndx_list)

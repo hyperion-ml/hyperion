@@ -65,7 +65,7 @@ if [[ $(hostname -f) == *.clsp.jhu.edu ]] && [ ! -d $featdir/storage ]; then
 	    /export/b{14,15,16,17,18}/$dir_name $featdir/storage
     else
 	utils/create_split_dir.pl \
-	    /export/c{06,07,08,09}/$dir_name $featdir/storage
+	    /export/c{01,06,07,08,09}/$dir_name $featdir/storage
     fi
 fi
 
@@ -95,7 +95,7 @@ fi
 write_num_frames_opt="--write-num-frames $featdir/log/utt2num_frames.JOB"
 
 $cmd JOB=1:$nj $dir/log/create_embed_feats_${name}.JOB.log \
-    apply-mvn-select-frames.py ${args} $write_num_frames_opt \
+    hyp_utils/conda_env.sh apply-mvn-select-frames.py ${args} $write_num_frames_opt \
      --left-context $left_context --right-context $right_context \
      --part-idx JOB --num-parts $nj \
      --input scp:$data_in/feats.scp --vad scp:$data_in/vad.scp \

@@ -2,10 +2,6 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import logging
 
@@ -52,7 +48,7 @@ class FrameSelector(object):
 
             
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
+    def filter_args(**kwargs):
         """Filters frame selector args from arguments dictionary.
            
            Args:
@@ -62,21 +58,17 @@ class FrameSelector(object):
            Returns:
              Dictionary with frame-selector options.
         """
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
         valid_args = ('tol_num_frames')
 
-        d = dict((k, kwargs[p+k])
-                 for k in valid_args if p+k in kwargs)
+        d = dict((k, kwargs[k])
+                 for k in valid_args if k in kwargs)
 
         return d
 
     
         
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         """Adds frame-selector options to parser.
            
            Args:
@@ -86,13 +78,12 @@ class FrameSelector(object):
 
         if prefix is None:
             p1 = '--'
-            p2 = ''
         else:
-            p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
+            p1 = '--' + prefix + '.'
 
-        parser.add_argument(p1+'tol-num-frames', dest=(p2+'tol_num_frames'), type=int,
+        parser.add_argument(p1+'tol-num-frames', type=int,
                             default=3,
                             help='maximum tolerated error between number of feature frames and VAD frames.')
 
          
+    add_argparse_args = add_class_args

@@ -2,11 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
-from six import string_types
 
 import logging
 import numpy as np
@@ -70,7 +65,7 @@ class LinearGBE(HypModel):
 
 
     def _load_prior(self):
-        if isinstance(self.prior, string_types):
+        if isinstance(self.prior, str):
             self.prior = LinearGBE.load(self.prior)
         num_classes = self.prior.mu.shape[0]
         if self.prior_beta is not None:
@@ -207,7 +202,7 @@ class LinearGBE(HypModel):
                 nu0 = 0
                 S = np.zeros((x.shape[1], x.shape[1]), dtype=float_cpu())
                 
-            for k in xrange(self.num_classes):
+            for k in range(self.num_classes):
                 delta = x - xbar[k]
                 S_k = np.dot(p_theta[:, k]*delta.T, delta)
                 if do_map and self.update_mu:
@@ -258,7 +253,7 @@ class LinearGBE(HypModel):
 
             
     @staticmethod
-    def filter_train_args(prefix=None, **kwargs):
+    def filter_args(**kwargs):
         if prefix is None:
             p = ''
         else:
@@ -270,8 +265,8 @@ class LinearGBE(HypModel):
                       'prior', 'prior_beta', 'prior_nu',
                       'post_beta', 'post_nu',
                       'name')
-        d = dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        d = dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
         if 'no_update_mu' in d:
             d['update_mu'] = not d['no_update_mu']
         if 'no_update_W' in d:
@@ -279,76 +274,85 @@ class LinearGBE(HypModel):
             
         return d
 
+    filter_train_args = filter_args
+
     
     @staticmethod
-    def add_argparse_train_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         if prefix is None:
             p1 = '--'
-            p2 = ''
         else:
-            p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
+            p1 = '--' + prefix + '.'
 
-        parser.add_argument(p1+'no-update-mu', dest=(p2+'no_update_mu'), 
-                            default=False, action='store_true',
-                            help='do not update mu')
-        parser.add_argument(p1+'no-update-W', dest=(p2+'no_update_W'),
-                            default=False, action='store_true',
-                            help='do not update W')
-        parser.add_argument(p1+'balance-class-weight', dest=(p2+'balance_class_weight'),
-                            default=False, action='store_true',
-                            help='Balances the weight of each class when computing W')
-        parser.add_argument(p1+'prior', dest=(p2+'prior'),
-                            default=None, 
-                            help='prior file for MAP adaptation')
-        parser.add_argument(p1+'prior-beta', dest=(p2+'prior_beta'),
-                            default=16, type=float,
-                            help='relevance factor for the means')
-        parser.add_argument(p1+'prior-nu', dest=(p2+'prior_nu'),
-                            default=16, type=float,
-                            help='relevance factor for the variances')
-        parser.add_argument(p1+'post-beta', dest=(p2+'post_beta'),
-                            default=None, type=float,
-                            help='relevance factor for the means')
-        parser.add_argument(p1+'post-nu', dest=(p2+'post_nu'),
-                            default=None, type=float,
-                            help='relevance factor for the variances')
+        parser.add_argument(
+            p1+'no-update-mu', 
+            default=False, action='store_true',
+            help='do not update mu')
+        parser.add_argument(
+            p1+'no-update-W', 
+            default=False, action='store_true',
+            help='do not update W')
+        parser.add_argument(
+            p1+'balance-class-weight', 
+            default=False, action='store_true',
+            help='Balances the weight of each class when computing W')
+        parser.add_argument(
+            p1+'prior', 
+            default=None, 
+            help='prior file for MAP adaptation')
+        parser.add_argument(
+            p1+'prior-beta', 
+            default=16, type=float,
+            help='relevance factor for the means')
+        parser.add_argument(
+            p1+'prior-nu', 
+            default=16, type=float,
+            help='relevance factor for the variances')
+        parser.add_argument(
+            p1+'post-beta', 
+            default=None, type=float,
+            help='relevance factor for the means')
+        parser.add_argument(
+            p1+'post-nu', 
+            default=None, type=float,
+            help='relevance factor for the variances')
 
-        parser.add_argument(p1+'name', dest=(p2+'name'), 
-                            default='lgbe',
-                            help='model name')
+        parser.add_argument(
+            p1+'name', 
+            default='lgbe',
+            help='model name')
 
-        
+
 
     @staticmethod
     def filter_eval_args(prefix, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
         valid_args = ('model_file', 'normalize', 'eval_method')
-        return dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        return dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
 
     
     @staticmethod
-    def add_argparse_eval_args(parser, prefix=None):
+    def add_eval_args(parser, prefix=None):
         if prefix is None:
             p1 = '--'
-            p2 = ''
         else:
-            p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
+            p1 = '--' + prefix + '.'
 
-        parser.add_argument(p1+'model-file', dest=(p2+'model_file'), required=True,
-                            help=('model file'))
-        parser.add_argument(p1+'normalize', dest=(p2+'normalize'), default=False,
-                            action='store_true',
-                            help=('normalizes the ouput probabilities to sum to one'))
-        parser.add_argument(p1+'eval-method', dest=(p2+'eval_method'), default='linear',
-                            choices=['linear','llk','predictive'],
-                            help=('evaluates full gaussian likelihood, linear function'
-                                  'or predictive distribution'))
+        parser.add_argument(
+            p1+'model-file', required=True,
+            help=('model file'))
+        parser.add_argument(
+            p1+'normalize', default=False,
+            action='store_true',
+            help=('normalizes the ouput probabilities to sum to one'))
+        parser.add_argument(
+            p1+'eval-method', default='linear',
+            choices=['linear','llk','predictive'],
+            help=('evaluates full gaussian likelihood, linear function'
+                  'or predictive distribution'))
                             
         
+    add_argparse_args = add_class_args
+    add_argparse_train_args = add_class_args
+    add_argparse_eval_args = add_eval_args

@@ -49,7 +49,8 @@ fi
 
 if [ $stage -le 0 ];then
     $cmd JOB=1:$nj $output_dir/log/eval_ahc.JOB.log \
-	python steps_diar/eval-ahc-v1.py \
+	hyp_utils/conda_env.sh \
+	steps_diar/eval-ahc-v1.py \
 	--test-list $utts \
 	--v-file scp:$v_file \
 	--vad-file $vad_file \

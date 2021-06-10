@@ -2,7 +2,8 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba, Nanxin Chen)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-# from __future__ import absolute_import
+
+from jsonargparse import ArgumentParser, ActionParser
 
 import torch
 import torch.nn as nn
@@ -273,23 +274,17 @@ class TransformerEncoderV1(NetArch):
 
         
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
+    def filter_args(**kwargs):
         """ Filters arguments correspondin to TransformerXVector
             from args dictionary
 
         Args:
-          prefix: prefix string
           kwargs: args dictionary
 
         Returns:
           args dictionary
         """
         
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
-
         valid_args = ('num_blocks',
                       'in_feats',
                       'd_model',
@@ -308,91 +303,93 @@ class TransformerEncoderV1(NetArch):
                       'causal_pos_enc',
                       'concat_after')
 
-        return dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        return dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
 
 
     @staticmethod
-    def add_argparse_args(parser, prefix=None, in_feats=False):
+    def add_class_args(parser, prefix=None, in_feats=False):
         """Adds Transformer config parameters to argparser
         
         Args:
            parser: argparse object
            prefix: prefix string to add to the argument names
         """
-        if prefix is None:
-            p1 = '--'
-        else:
-            p1 = '--' + prefix + '-'
-
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog='')
 
         if in_feats:
             parser.add_argument(
-                p1+'in-feats', type=int, required=True,
+                '--in-feats', type=int, default=80,
                 help=('input feature dimension'))
 
-
-        parser.add_argument(p1+'num-blocks',
+        parser.add_argument('--num-blocks',
                             default=6, type=int,
                             help=('number of tranformer blocks'))
 
-        parser.add_argument(p1+'d-model', 
+        parser.add_argument('--d-model', 
                             default=512, type=int,
                             help=('encoder layer sizes'))
 
-        parser.add_argument(p1+'num-heads',
+        parser.add_argument('--num-heads',
                             default=4, type=int,
                             help=('number of heads in self-attention layers'))
 
-        parser.add_argument(p1+'att-type', 
+        parser.add_argument('--att-type', 
                             default='scaled-dot-prod-v1', 
                             choices=['scaled-dot-prod-v1', 'local-scaled-dot-prod-v1'],
                             help=('type of self-attention'))
 
-        parser.add_argument(p1+'att-context', 
+        parser.add_argument('--att-context', 
                             default=25, type=int,
                             help=('context size when using local attention'))
 
-        parser.add_argument(p1+'ff-type', 
+        parser.add_argument('--ff-type', 
                             default='linear', choices=['linear', 'conv1dx2', 'conv1dlinear'],
                             help=('type of feed forward layers in transformer block'))
         
-        parser.add_argument(p1+'d-ff',
+        parser.add_argument('--d-ff',
                             default=2048, type=int,
                             help=('size middle layer in feed forward block')) 
 
-        parser.add_argument(p1+'ff-kernel-size',
+        parser.add_argument('--ff-kernel-size',
                             default=3, type=int,
                             help=('kernel size in convolutional feed forward block')) 
 
         try:
-            parser.add_argument(p1+'hid-act', default='relu6', 
+            parser.add_argument('--hid-act', default='relu6', 
                                 help='hidden activation')
         except:
             pass
 
-        parser.add_argument(p1+'pos-dropout-rate', default=0.1, type=float,
+        parser.add_argument('--pos-dropout-rate', default=0.1, type=float,
                                 help='positional encoder dropout')
-        parser.add_argument(p1+'att-dropout-rate', default=0, type=float,
+        parser.add_argument('--att-dropout-rate', default=0, type=float,
                                 help='self-att dropout')
-        parser.add_argument(p1+'ff-dropout-rate', default=0.1, type=float,
+        parser.add_argument('--ff-dropout-rate', default=0.1, type=float,
                                 help='feed-forward layer dropout')
 
-        
-        parser.add_argument(p1+'in-layer-type', 
+        parser.add_argument('--in-layer-type', 
                             default='linear', choices=['linear', 'conv2d-sub'],
                             help=('type of input layer'))
 
-        parser.add_argument(p1+'rel-pos-enc', default=False, action='store_true',
+        parser.add_argument('--rel-pos-enc', default=False, action='store_true',
                             help='use relative positional encoder')
 
-        parser.add_argument(p1+'causal-pos-enc', default=False, action='store_true',
+        parser.add_argument('--causal-pos-enc', default=False, action='store_true',
                             help='relative positional encodings are zero when attending to the future')
 
-
-        parser.add_argument(p1+'concat-after', default=False, action='store_true',
+        parser.add_argument('--concat-after', default=False, action='store_true',
                             help='concatenate attention input and output instead of adding')
 
-        # parser.add_argument(p1+'in-norm', default=False, action='store_true',
-        #                     help='batch normalization at the input')
+        if prefix is not None:
+            outer_parser.add_argument(
+                '--' + prefix,
+                action=ActionParser(parser=parser))
+                # help='transformer encoder options')
+
+
+
+    add_argparse_args = add_class_args

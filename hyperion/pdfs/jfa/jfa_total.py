@@ -2,10 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import numpy as np
 from scipy import linalg as sla
@@ -81,7 +77,7 @@ class JFATotal(PDF):
 
         
         Li = np.zeros((self.y_dim, self.y_dim), dtype=float_cpu())
-        for i in xrange(N.shape[0]):
+        for i in range(N.shape[0]):
             Li[self._upptr] = L[i]
             r = invert_pdmat(Li, right_inv=True,
                              return_logdet=return_elbo,
@@ -144,7 +140,7 @@ class JFATotal(PDF):
         T = np.zeros_like(self.T)
         Ryk = np.zeros((self.y_dim, self.y_dim), dtype=float_cpu())
         x_dim = T.shape[1]/self.K
-        for k in xrange(self.K):
+        for k in range(self.K):
             idx = k*x_dim
             Ryk[self._upptr] = Ry[k]
             iRyk_mult = invert_pdmat(Ryk, right_inv=False)[0]
@@ -176,7 +172,7 @@ class JFATotal(PDF):
 
         elbo = np.zeros((epochs,), dtype=float_cpu())
         elbo_val = np.zeros((epochs,), dtype=float_cpu())
-        for epoch in xrange(epochs):
+        for epoch in range(epochs):
             
             stats = self.Estep(N, F, G)
             elbo[epoch] = stats[0]
@@ -219,7 +215,7 @@ class JFATotal(PDF):
         x_dim = int(T.shape[1]/K)
         y_dim = T.shape[0]
         TT = np.zeros((K, y_dim*(y_dim+1)/2), dtype=float_cpu())
-        for k in xrange(K):
+        for k in range(K):
             idx = k*x_dim
             T_k = T[:,idx:idx+x_dim]
             TT_k = np.dot(T_k, T_k.T)
@@ -241,7 +237,7 @@ class JFATotal(PDF):
         Tnorm = np.zeros_like(T)
         K = chol_prec.shape[0]
         x_dim = int(T.shape[1]/K)
-        for k in xrange(K):
+        for k in range(K):
             idx = k*x_dim
             Tnorm[:,idx:idx+x_dim] = np.dot(T[:,idx:idx+x_dim], chol_prec[k].T)
         

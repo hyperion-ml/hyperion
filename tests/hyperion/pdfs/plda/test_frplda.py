@@ -2,10 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import os
 
@@ -71,7 +67,7 @@ def test_sample():
     colors = ['b','r','g','m','c']
     markers = ['o','v','*','p','s']
     plt.figure()
-    for i in xrange(len(spk_idx)):
+    for i in range(len(spk_idx)):
         idx = spk_idx[i]
         x_i = x[idx*num_spc:(idx+1)*num_spc]
         plt.scatter(x_i[:,0], x_i[:,1], 2, colors[i], markers[i])
@@ -114,7 +110,7 @@ def test_py():
     colors = ['b','r','g']
 
     plt.figure()
-    for i in xrange(len(y_t)):
+    for i in range(len(y_t)):
         plt.plot(y_t[i,0], y_t[i,1], color=colors[i], marker='*')
         plt.plot(y[i,0], y[i,1], color=colors[i], marker='s')
         pge2d(y[i], Cy[i], color=colors[i])

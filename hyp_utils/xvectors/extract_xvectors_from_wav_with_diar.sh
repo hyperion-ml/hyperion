@@ -6,7 +6,7 @@ cmd="run.pl"
 
 chunk_length=0     # The chunk size over which the embedding is extracted.
 use_gpu=false
-feat_config=conf/fbank80_stmn_16k.pyconf
+feat_config=conf/fbank80_stmn_16k.yaml
 stage=0
 min_utt_length=500
 max_utt_length=12000
@@ -70,9 +70,9 @@ fi
 
 if [ $stage -le 0 ];then
     $cmd JOB=1:$nj $output_dir/log/extract_xvectors.JOB.log \
-	hyp_utils/torch.sh --num-gpus $num_gpus \
+	hyp_utils/conda_env.sh --num-gpus $num_gpus \
 	torch-extract-xvectors-from-wav-with-rttm.py \
-	@$feat_config ${args} \
+	--feats $feat_config ${args} \
 	--part-idx JOB --num-parts $nj \
 	--input $data_dir/wav.scp \
 	--rttm-file $rttm_file \

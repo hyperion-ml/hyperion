@@ -3,12 +3,9 @@
  Copyright 2018 Jesus Villalba (Johns Hopkins University)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0) 
 """
-from __future__ import absolute_import
-from __future__ import print_function
-
 import sys
 import os
-import argparse
+from jsonargparse import ArgumentParser, ActionConfigFile, ActionParser, namespace_to_dict
 import time
 import logging
 
@@ -47,11 +44,11 @@ def compute_mfcc_feats(input_path, output_path,
             key, x, fs = data
         else:
             key, x = data
-        logging.info('Extracting MFCC for %s' % (key))
+        logging.info('Extracting MFCC for %s num_samples=%d' % (key, len(x)))
         t1 = time.time()
         y = mfcc.compute(x)
         dt = (time.time() - t1)*1000
-        rtf = mfcc.frame_shift*y.shape[0]/dt
+        rtf = dt/(mfcc.frame_shift*y.shape[0])
         logging.info('Extracted MFCC for %s num-frames=%d elapsed-time=%.2f ms. real-time-factor=%.2f' %
                      (key, y.shape[0], dt, rtf))
         writer.write([key], [y])
@@ -67,18 +64,17 @@ def compute_mfcc_feats(input_path, output_path,
 
 if __name__ == "__main__":
     
-    parser=argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        fromfile_prefix_chars='@',
+    parser=ArgumentParser(
         description='Compute MFCC features')
 
+    parser.add_argument('--cfg', action=ActionConfigFile)
     parser.add_argument('--input', dest='input_path', required=True)
     parser.add_argument('--output', dest='output_path', required=True)
     parser.add_argument('--write-num-frames', default=None)
 
-    AR.add_argparse_args(parser)
-    DRF.add_argparse_args(parser)
-    MFCC.add_argparse_args(parser)
+    AR.add_class_args(parser)
+    DRF.add_class_args(parser)
+    MFCC.add_class_args(parser)
     parser.add_argument('--compress', dest='compress', default=False, action='store_true', help='Compress the features')
     parser.add_argument('--compression-method', dest='compression_method', default='auto',
                         choices=compression_methods, help='Compression method')
@@ -89,5 +85,5 @@ if __name__ == "__main__":
     del args.verbose
     logging.debug(args)
     
-    compute_mfcc_feats(**vars(args))
+    compute_mfcc_feats(**namespace_to_dict(args))
     

@@ -28,7 +28,7 @@ class SingleNoiseAugment(object):
       rng:     Random number generator returned by 
                np.random.RandomState (optional)
     """
-    def __init__(self, noise_type, noise_path, min_snr, max_snr, rng=None):
+    def __init__(self, noise_type, noise_path, min_snr, max_snr, random_seed=112358, rng=None):
         logging.info('init noise_augment with noise={} noise_path={} snr={}-{}'.format(
             noise_type, noise_path, min_snr, max_snr))
 
@@ -40,7 +40,7 @@ class SingleNoiseAugment(object):
         self.cache = None
         self.lock = multiprocessing.Lock()
         if rng is None:
-            self.rng = np.random.RandomState(seed=112358)
+            self.rng = np.random.RandomState(seed=random_seed)
         else:
             self.rng = deepcopy(rng)
 
@@ -123,7 +123,7 @@ class NoiseAugment(object):
                np.random.RandomState (optional)
     """
 
-    def __init__(self, noise_prob, noise_types, rng=None):
+    def __init__(self, noise_prob, noise_types, random_seed=112358, rng=None):
         logging.info('init noise_augment')
         self.noise_prob = noise_prob
         assert isinstance(noise_types, dict)
@@ -134,7 +134,8 @@ class NoiseAugment(object):
         count = 0
         for key, opts in noise_types.items():
             self.weights[count] = opts['weight']
-            aug = SingleNoiseAugment(key, opts['noise_path'], opts['min_snr'], opts['max_snr'], rng=rng)
+            aug = SingleNoiseAugment(key, opts['noise_path'], opts['min_snr'], opts['max_snr'], 
+                                     random_seed=random_seed, rng=rng)
             augmenters.append(aug)
             count += 1
 
@@ -143,13 +144,13 @@ class NoiseAugment(object):
 
         self.lock = multiprocessing.Lock()
         if rng is None:
-            self.rng = np.random.RandomState(seed=112358)
+            self.rng = np.random.RandomState(seed=random_seed)
         else:
             self.rng = deepcopy(rng)
 
 
     @classmethod
-    def create(cls, cfg, rng=None): 
+    def create(cls, cfg, random_seed=112358, rng=None): 
         """ Creates a NoiseAugment object from options dictionary or YAML file.
 
         Args:
@@ -167,7 +168,8 @@ class NoiseAugment(object):
         assert isinstance(cfg, dict), (
             'wrong object type for cfg={}'.format(cfg))
 
-        return cls(noise_prob=cfg['noise_prob'], noise_types=cfg['noise_types'], rng=rng)
+        return cls(noise_prob=cfg['noise_prob'], noise_types=cfg['noise_types'], 
+                   random_seed=random_seed, rng=rng)
 
 
     def forward(self, x):

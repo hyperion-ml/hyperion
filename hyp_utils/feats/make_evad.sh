@@ -6,7 +6,7 @@
 # Begin configuration section.
 nj=4
 cmd=run.pl
-vad_config=conf/vad.pyconf
+vad_config=conf/vad.yml
 write_utt2num_frames=false  # if true writes utt2num_frames
 # End configuration section.
 
@@ -85,7 +85,8 @@ if [ -f $data/segments ]; then
 fi
 
 $cmd JOB=1:$nj $logdir/make_vad_${name}.JOB.log \
-    compute-energy-vad.py @$vad_config $opt_args \
+    hyp_utils/conda_env.sh \
+    compute-energy-vad.py --cfg $vad_config $opt_args \
     --input $scp --output ark,scp:$vaddir/vad_$name.JOB.ark,$vaddir/vad_$name.JOB.scp \
     --part-idx JOB --num-parts $nj || exit 1
 
@@ -101,8 +102,8 @@ if $write_utt2num_frames; then
   rm $data/utt2num_frames.*
 fi
 
-nf=`cat $data/feats.scp | wc -l`
-nu=`cat $data/utt2spk | wc -l`
+nf=`cat $data/vad.scp | wc -l`
+nu=`cat $scp | wc -l`
 if [ $nf -ne $nu ]; then
   echo "It seems not all of the feature files were successfully ($nf != $nu);"
   echo "consider using utils/fix_data_dir.sh $data"

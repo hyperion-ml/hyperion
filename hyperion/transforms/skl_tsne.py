@@ -2,8 +2,8 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+from jsonargparse import ArgumentParser, ActionParser
 import numpy as np
-import h5py
 
 from sklearn.manifold import TSNE
 
@@ -131,60 +131,58 @@ class SklTSNE(HypModel):
 
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
-            
+    def filter_args(**kwargs):
         valid_args = ('tsne_dim', 'perplexity', 'early_exaggeration', 'lr', 
                       'num_iter', 'num_iter_without_progress', 
                       'min_grad_norm', 'metric',
                       'init', 'rng_seed', 'method', 'angle', 'num_jobs')
-        return dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        return dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
     
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
-        if prefix is None:
-            p1 = '--'
-            p2 = ''
-        else:
-            p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
+    def add_class_args(parser, prefix=None):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog='')
             
-        parser.add_argument(p1+'tsne-dim', default=2, type=int,
+        parser.add_argument('--tsne-dim', default=2, type=int,
                             help=('tsne dimension'))
 
-        parser.add_argument(p1+'perplexity', default=30., type=float,
+        parser.add_argument('--perplexity', default=30., type=float,
                             help=('tsne perplexity'))
         parser.add_argument(
-            p1+'early-exaggeration', default=12., type=float,
+            '--early-exaggeration', default=12., type=float,
             help=('controls how tight natural clusters in the original space' 
                   'are in the embedded space and how much space will be '
                   'between them.'))
-        parser.add_argument(p1+'lr', default=200., type=float,
+        parser.add_argument('--lr', default=200., type=float,
                             help=('learning rate for t-sne'))
-        parser.add_argument(p1+'num-iter', default=1000, type=int,
+        parser.add_argument('--num-iter', default=1000, type=int,
                             help=('max. number of iterations'))
-        parser.add_argument(p1+'num-iter-without-progress', default=300, type=int,
+        parser.add_argument('--num-iter-without-progress', default=300, type=int,
                             help=('max. number of iterations without improvement'))
-        parser.add_argument(p1+'min-grad-norm', default=1e-07, type=float,
+        parser.add_argument('--min-grad-norm', default=1e-07, type=float,
                             help=('minimum gradient norm to stop optim.'))
-        parser.add_argument(p1+'metric', default='euclidean',
+        parser.add_argument('--metric', default='euclidean',
                             choices=['cosine', 'euclidean', 'l1', 'l2', 'precomputed'],
                             help=('distance metric'))
-        parser.add_argument(p1+'init', default='random',
+        parser.add_argument('--init', default='random',
                             choices=['random', 'pca'],
                             help=('initialization method'))
-        parser.add_argument(p1+'method', default='barnes_hut',
+        parser.add_argument('--method', default='barnes_hut',
                             choices=['barnes_hut', 'exact'],
                             help=('gradient calculation method'))
-        parser.add_argument(p1+'angle', default=0.5, type=float,
+        parser.add_argument('--angle', default=0.5, type=float,
                             help=('angle thetha in Barnes-Hut TSNE'))
-        parser.add_argument(p1+'num-jobs', default=1, type=int,
+        parser.add_argument('--num-jobs', default=1, type=int,
                             help=('num parallel jobs for NN search'))
-        parser.add_argument(p1+'rnd-seed', default=1234, type=int,
+        parser.add_argument('--rnd-seed', default=1234, type=int,
                             help=('random seed'))
+
+        if prefix is not None:
+            outer_parser.add_argument(
+                '--' + prefix,
+                action=ActionParser(parser=parser))
         
+    add_argparse_args = add_class_args

@@ -48,30 +48,11 @@ mkdir -p $dir/log
 mkdir -p $data_out
 output_dir=$(utils/make_absolute.sh $dir)
 
-# if [[ $(hostname -f) == *.clsp.jhu.edu ]] && [ ! -d $output_dir/storage ]; then
-#     dir_name=$USER/hyp-data/xvectors/$storage_name/xvector_audio/storage
-#     if [ "$nodes" == "b0" ];then
-# 	utils/create_split_dir.pl \
-# 	    utils/create_split_dir.pl \
-# 	    /export/b{04,05,06,07}/$dir_name $output_dir/storage
-#     elif [ "$nodes" == "b1" ];then
-# 	utils/create_split_dir.pl \
-# 	    /export/b{14,15,16,17,18}/$dir_name $output_dir/storage
-#     else
-# 	utils/create_split_dir.pl \
-# 	    /export/c{06,07,08,09}/$dir_name $output_dir/storage
-#     fi
-# fi
-
-# for n in $(seq $nj); do
-#   # the next command does nothing unless $output_dir/storage/ exists, see
-#   # utils/create_data_link.pl for more info.
-#   utils/create_data_link.pl $output_dir/feats_${name}.${n}.${file_format}
-# done
-
 args=""
 $cmd $dir/log/make_babble_noise_${name}.log \
-    make-babble-noise-audio-files.py ${args} --output-audio-format $file_format $args $proc_opts \
+    hyp_utils/conda_env.sh \
+    make-babble-noise-audio-files.py ${args} \
+    --output-audio-format $file_format $args $proc_opts \
     --min-spks $min_spks --max-spks $max_spks --num-reuses $num_reuses \
     --write-time-durs $data_out/utt2dur \
     --input $data_in/wav.scp \

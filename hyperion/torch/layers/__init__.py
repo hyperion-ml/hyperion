@@ -21,3 +21,6 @@ from .attention import ScaledDotProdAttV1, LocalScaledDotProdAttV1, ScaledDotPro
 from .pos_encoder import PosEncoder, RelPosEncoder, NoPosEncoder
 
 from .subpixel_convs import SubPixelConv1d, SubPixelConv2d, ICNR1d, ICNR2d
+
+from .calibrators import LinBinCalibrator
+

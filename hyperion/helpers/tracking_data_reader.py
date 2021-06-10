@@ -2,7 +2,10 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+<<<<<<< HEAD
+=======
 
+>>>>>>> 75d3f58c01adf8548745c91cee7de3b7390c1b2e
 import sys
 import os
 import argparse
@@ -75,37 +78,37 @@ class TrackingDataReader(object):
 
     
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
+    def filter_args(**kwargs):
         valid_args = ('tlist_sep', 
                       'model_idx','num_model_parts',
                       'seg_idx', 'num_seg_parts')
-        return dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        return dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
     
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         if prefix is None:
             p1 = '--'
-            p2 = ''
         else:
-            p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
-        parser.add_argument(p1+'tlist-sep', dest=(p2+'tlist_sep'), default=' ',
-                            help=('trial lists field separator'))
+            p1 = '--' + prefix + '.'
+        parser.add_argument(
+            p1+'tlist-sep', default=' ',
+            help=('trial lists field separator'))
 
-        parser.add_argument(p1+'model-part-idx', dest=(p2+'model_idx'), default=1, type=int,
-                            help=('model part index'))
-        parser.add_argument(p1+'num-model-parts', dest=(p2+'num_model_parts'), default=1, type=int,
-                            help=('number of parts in which we divide the model'
-                                  'list to run evaluation in parallel'))
-        parser.add_argument(p1+'seg-part-idx', dest=(p2+'seg_idx'), default=1, type=int,
-                            help=('test part index'))
-        parser.add_argument(p1+'num-seg-parts', dest=(p2+'num_seg_parts'), default=1, type=int,
-                            help=('number of parts in which we divide the test list '
-                                  'to run evaluation in parallel'))
+        parser.add_argument(
+            p1+'model-part-idx', default=1, type=int,
+            help=('model part index'))
+        parser.add_argument(
+            p1+'num-model-parts', default=1, type=int,
+            help=('number of parts in which we divide the model'
+                  'list to run evaluation in parallel'))
+        parser.add_argument(
+            p1+'seg-part-idx', default=1, type=int,
+            help=('test part index'))
+        parser.add_argument(
+            p1+'num-seg-parts', default=1, type=int,
+            help=('number of parts in which we divide the test list '
+                  'to run evaluation in parallel'))
         
+    add_argparse_args = add_class_args

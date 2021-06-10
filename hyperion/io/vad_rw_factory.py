@@ -36,25 +36,18 @@ class VADReaderFactory(object):
 
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
+    def filter_args(**kwargs):
         valid_args = ('scp_sep', 'path_prefix', 'frame_shift', 'frame_length', 'snip_edges')
-        return dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
-
+        return dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
         
         
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         if prefix is None:
             p1 = '--'
-            p2 = ''
         else:
-            p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
+            p1 = '--' + prefix + '.'
             
         parser.add_argument(p1+'scp-sep', default=' ',
                             help=('scp file field separator'))
@@ -68,4 +61,4 @@ class VADReaderFactory(object):
                             help=('snip-edges was true when computing VAD'))
 
 
-
+    add_argparse_args = add_class_args

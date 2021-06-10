@@ -2,11 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-#from __future__ import absolute_import
-#from __future__ import print_function
-#from __future__ import division
-#from six.moves import xrange
-#from six import string_types
 
 import os
 import logging
@@ -50,7 +45,7 @@ class AudioReader(object):
                 self.segments = SegmentList.load(
                     segments_path, sep=' ', index_by_file=False)
 
-        self.scale = wav_scale
+        self.wav_scale = wav_scale
 
 
     @property
@@ -166,7 +161,7 @@ class AudioReader(object):
             t_end = t_end_new
 
         file_path, _, _ = self.scp[file_id]
-        x_i, fs_i = self.read_wavspecifier(file_path, self.scale)
+        x_i, fs_i = self.read_wavspecifier(file_path, self.wav_scale)
         num_samples_i = len(x_i)
         s_beg = int(t_beg * fs_i)
         if s_beg >= num_samples_i:
@@ -289,7 +284,7 @@ class SequentialAudioReader(AudioReader):
             else:
                 key, file_path, _, _ = self.scp[self.cur_item]
                 x_i, fs_i = self.read_wavspecifier(
-                    file_path, self.scale, offset_i, dur_i)
+                    file_path, self.wav_scale, offset_i, dur_i)
 
             keys.append(key)
             data.append(x_i)
@@ -300,39 +295,34 @@ class SequentialAudioReader(AudioReader):
 
     
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
+    def filter_args(**kwargs):
         valid_args = ('part_idx', 'num_parts','wav_scale')
-        return dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        return dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
     
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         if prefix is None:
             p1 = '--'
-            #p2 = ''
         else:
-            p1 = '--' + prefix + '-'
-            #p2 = prefix + '_'
+            p1 = '--' + prefix + '.'
             
-        # parser.add_argument(p1+'scp-sep', dest=(p2+'scp_sep'), default=' ',
-        #                     help=('scp file field separator'))
         parser.add_argument(p1+'wav-scale', default=2**15-1, type=float,
                              help=('multiplicative factor for waveform'))
         try:
             parser.add_argument(
                 p1+'part-idx', type=int, default=1,
-                help=('splits the list of files into num-parts and processes part-idx'))
+                help=('splits the list of files into num-parts and '
+                      'processes part-idx'))
             parser.add_argument(
                 p1+'num-parts', type=int, default=1,
-                help=('splits the list of files into num-parts and processes part-idx'))
+                help=('splits the list of files into num-parts and '
+                      'processes part-idx'))
         except:
             pass
 
+    add_argparse_args = add_class_args
     
 
 class RandomAccessAudioReader(AudioReader):
@@ -342,7 +332,7 @@ class RandomAccessAudioReader(AudioReader):
 
 
 
-    def read(self, keys, time_offset=0, time_durs=0):
+    def _read(self, keys, time_offset=0, time_durs=0):
         """Reads the waveforms  for the recordings in keys.
         
         Args:
@@ -376,7 +366,7 @@ class RandomAccessAudioReader(AudioReader):
 
                 file_path, _, _ = self.scp[key]
                 x_i, fs_i = self.read_wavspecifier(
-                    file_path, self.scale, offset_i, dur_i)
+                    file_path, self.wav_scale, offset_i, dur_i)
 
             data.append(x_i)
             fs.append(fs_i)
@@ -384,24 +374,69 @@ class RandomAccessAudioReader(AudioReader):
         return data, fs
 
 
-    @staticmethod
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
-        valid_args = ('wav_scale',)
-        return dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+    def read(self, keys, time_offset=0, time_durs=0):
+        """Reads the waveforms  for the recordings in keys.
+        
+        Args:
+          keys: List of recording/segment_ids names.
+
+        Returns:
+          data: List of waveforms
+          fs: List of sampling freq.
+        """
+        try:
+            x, fs = self._read(keys, time_offset=time_offset,
+                               time_durs=time_durs)
+        except:
+            if isinstance(keys, str):
+                keys = [keys]
+
+            if not isinstance(time_offset, (list, np.ndarray)):
+                time_offset = [time_offset] * len(keys)
+            if not isinstance(time_durs, (list, np.ndarray)):
+                time_durs = [time_durs] * len(keys)
+
+            try:
+                # some files produce error in the fseek after reading the data,
+                # this seems an issue from pysoundfile or soundfile lib itself
+                # we try to read from
+                # time-offset to the end of the file, and remove the extra frames later,
+                # this solves the problem in most cases
+                logging.info(('error-1 reading at keys={} offset={} '
+                              'retrying reading until end-of-file ...').format(
+                                 keys, time_offset))
+                x, fs = self._read(keys, time_offset=time_offset)
+                for i in range(len(x)):
+                    end_sample = int(time_durs[i] * fs[i])
+                    x[i] = x[i][:end_sample]
+            except:
+                # try to read the full file
+                logging.info(('error-2 reading at key={}, '
+                             'retrying reading full file ...').format(keys))
+                x, fs = self._read(keys)
+                for i in range(len(x)):
+                    start_sample = int(time_offset[i] * fs[i])
+                    end_sample = start_sample + int(time_durs[i] * fs[i])
+                    x[i] = x[i][start_sample:end_sample]
+        
+        return x, fs
+
 
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def filter_args(**kwargs):
+        valid_args = ('wav_scale',)
+        return dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
+
+    @staticmethod
+    def add_class_args(parser, prefix=None):
         if prefix is None:
             p1 = '--'
-            #p2 = ''
         else:
-            p1 = '--' + prefix + '-'
-            #p2 = prefix + '_'
+            p1 = '--' + prefix + '.'
             
         parser.add_argument(p1+'wav-scale', default=2**15-1, type=float,
                              help=('multiplicative factor for waveform'))
+
+
+    add_argparse_args = add_class_args

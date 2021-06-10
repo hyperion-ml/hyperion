@@ -3,11 +3,6 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
-
 import logging
 import numpy as np
 import h5py
@@ -35,7 +30,7 @@ class Gaussianizer(HypModel):
 
         r=self.r[1:]
         y = np.zeros_like(x)
-        for i in xrange(x.shape[1]):
+        for i in range(x.shape[1]):
             y_index = np.searchsorted(r[:,i], x[:,i])
             logging.debug(y_index)
             y[:,i] = y_map[y_index]
@@ -95,29 +90,25 @@ class Gaussianizer(HypModel):
 
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
-            
+    def filter_args(**kwargs):
         valid_args = ('max_vectors', 'name')
-        return dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        return dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
 
 
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         if prefix is None:
             p1 = '--'
-            p2 = ''
         else:
-            p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
+            p1 = '--' + prefix + '.'
             
-        parser.add_argument(p1+'max-vectors', dest=(p2+'max_vectors'), default=None,
+        parser.add_argument(p1+'max-vectors', default=None,
                             type=int,
                             help=('maximum number of background vectors'))
 
-        parser.add_argument('--name', dest='name', default='gauss')
+        parser.add_argument(p1+'name', default='gauss')
+
+
+    add_arparse_args = add_class_args

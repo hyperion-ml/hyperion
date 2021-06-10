@@ -3,7 +3,7 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from .torch_trainer import TorchTrainer, TorchDataParallel
+from .torch_trainer import TorchTrainer
 
 from .xvector_trainer import XVectorTrainer
 from .xvector_trainer_deep_feat_reg import XVectorTrainerDeepFeatReg

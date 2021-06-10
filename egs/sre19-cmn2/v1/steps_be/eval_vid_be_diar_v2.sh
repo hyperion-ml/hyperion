@@ -31,7 +31,7 @@ name=$(basename $output_file)
 echo "$0 score $ndx_file"
 
 $cmd $output_dir/log/${name}.log \
-     python steps_be/eval-vid-be-diar-v2.py \
+     hyp_utils/conda_env.sh steps_be/eval-vid-be-diar-v2.py \
      --enroll-v-file scp:$enroll_vector_file \
      --test-v-file scp:$test_vector_file \
      --ndx-file $ndx_file \

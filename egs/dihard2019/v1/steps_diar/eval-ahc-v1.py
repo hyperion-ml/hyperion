@@ -5,7 +5,7 @@
 """
 import sys
 import os
-import argparse
+from jsonargparse import ArgumentParser, ActionConfigFile, ActionParser, namespace_to_dict
 import time
 import logging
 from pathlib import Path
@@ -274,9 +274,7 @@ def eval_ahc(test_list, v_file, timestamps_file, vad_file,
 
 if __name__ == "__main__":
 
-    parser=argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,                
-        fromfile_prefix_chars='@',
+    parser=ArgumentParser(
         description='Evals AHC with PLDA scoring')
 
     parser.add_argument('--test-list', required=True)

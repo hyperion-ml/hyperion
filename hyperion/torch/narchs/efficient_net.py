@@ -2,9 +2,9 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-# from __future__ import absolute_import
 
 import math
+from jsonargparse import ArgumentParser, ActionParser
 
 import torch
 import torch.nn as nn
@@ -376,12 +376,7 @@ class EfficientNet(NetArch):
 
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
-
+    def filter_args(**kwargs):
 
         valid_args = ('effnet_type', 'in_channels',
                       'in_conv_channels', 'in_kernel_size', 'in_stride',
@@ -393,91 +388,89 @@ class EfficientNet(NetArch):
                       'drop_connect_rate', 'dropout_rate',
                       'se_r', 'time_se')
 
-        args = dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        args = dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
         return args
 
 
 
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
-        
-        if prefix is None:
-            p1 = '--'
-        else:
-            p1 = '--' + prefix + '-'
+    def add_class_args(parser, prefix=None):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog='')
 
         net_types = list(EfficientNet.params_dict.keys())
 
         parser.add_argument(
-            p1+'effnet-type', type=str.lower, default=net_types[0],
+            '--effnet-type', type=str.lower, default=net_types[0],
             choices=net_types, help=('EfficientNet type'))
 
         parser.add_argument(
-            p1+'in-channels', default=1, type=int,
+            '--in-channels', default=1, type=int,
             help=('number of input channels'))
 
         parser.add_argument(
-            p1+'in-conv-channels', default=32, type=int,
+            '--in-conv-channels', default=32, type=int,
             help=('number of output channels in input convolution'))
 
         parser.add_argument(
-            p1+'in-kernel-size', default=3, type=int,
+            '--in-kernel-size', default=3, type=int,
             help=('kernel size of input convolution'))
 
-        parser.add_argument(p1+'in-stride', default=2, type=int,
+        parser.add_argument('--in-stride', default=2, type=int,
                             help=('stride of input convolution'))
 
 
         parser.add_argument(
-            p1+'mbconv-repeats', default=[1, 2, 2, 3, 3, 4, 1], type=int,
+            '--mbconv-repeats', default=[1, 2, 2, 3, 3, 4, 1], type=int,
             nargs='+', help=('mbconv-mbconvs repeats for efficientnet-b0'))
 
         parser.add_argument(
-            p1+'mbconv-channels', default=[16, 24, 40, 80, 112, 192, 320], 
+            '--mbconv-channels', default=[16, 24, 40, 80, 112, 192, 320], 
             type=int, nargs='+',
             help=('mbconv-blocks channels for efficientnet-b0'))
 
         parser.add_argument(
-            p1+'mbconv-kernel-sizes', default=[3, 3, 5, 3, 5, 5, 3], 
+            '--mbconv-kernel-sizes', default=[3, 3, 5, 3, 5, 5, 3], 
             nargs='+', type=int, help=('mbconv-size kernels for efficientnet-b0'))
 
         parser.add_argument(
-            p1+'mbconv-strides', default=[1, 2, 2, 2, 1, 2, 1], 
+            '--mbconv-strides', default=[1, 2, 2, 2, 1, 2, 1], 
             nargs='+', type=int, help=('mbconv-blocks strides for efficientnet-b0'))
 
         parser.add_argument(
-            p1+'mbconv-expansions', default=[1, 6, 6, 6, 6, 6, 6],
+            '--mbconv-expansions', default=[1, 6, 6, 6, 6, 6, 6],
             nargs='+', type=int, help=('mbconv-blocks expansions for efficientnet-b0'))
 
         parser.add_argument(
-            p1+'head-channels', default=1280, type=int,
+            '--head-channels', default=1280, type=int,
             help=('channels in the last conv block for efficientnet-b0'))
 
         parser.add_argument(
-            p1+'width-scale', default=None, type=int,
+            '--width-scale', default=None, type=int,
             help=('width multiplicative factor wrt efficientnet-b0, if None inferred from effnet-type'))
 
         parser.add_argument(
-            p1+'depth-scale', default=None, type=int,
+            '--depth-scale', default=None, type=int,
             help=('depth multiplicative factor wrt efficientnet-b0, if None inferred from effnet-type'))
 
         parser.add_argument(
-            p1+'fix-stem-head', default=False, action='store_true',
+            '--fix-stem-head', default=False, action='store_true',
             help=('if True, the input and head conv blocks are not affected by the width-scale factor'))
 
         parser.add_argument(
-            p1+'se-r', default=4, type=int,
+            '--se-r', default=4, type=int,
             help=('squeeze ratio in squeeze-excitation blocks'))
 
         parser.add_argument(
-            p1+'time-se', default=False, action='store_true',
+            '--time-se', default=False, action='store_true',
             help=('squeeze-excitation pooling operation in time-dimension only'))
 
         try:
             parser.add_argument(
-                p1+'norm-layer', default=None, 
+                '--norm-layer', default=None, 
                 choices=['batch-norm', 'group-norm', 'instance-norm', 'instance-norm-affine', 'layer-norm'],
                 help='type of normalization layer')
         except:
@@ -485,18 +478,24 @@ class EfficientNet(NetArch):
 
 
         try:
-            parser.add_argument(p1+'hid-act', default='swish', 
+            parser.add_argument('--hid-act', default='swish', 
                                 help='hidden activation')
         except:
             pass
         
-        parser.add_argument(p1+'drop-connect-rate', default=0.2, type=float,
+        parser.add_argument('--drop-connect-rate', default=0.2, type=float,
                             help='layer drop probability')
         
         try:
-            parser.add_argument(p1+'dropout-rate', default=0, type=float,
+            parser.add_argument('--dropout-rate', default=0, type=float,
                                 help='dropout probability')
         except:
             pass
 
+        if prefix is not None:
+            outer_parser.add_argument(
+                '--' + prefix,
+                action=ActionParser(parser=parser))
+                # help='efficientnet options')
 
+    add_argparse_args = add_class_args

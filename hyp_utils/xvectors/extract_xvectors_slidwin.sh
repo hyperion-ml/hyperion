@@ -88,7 +88,7 @@ fi
 
 if [ $stage -le 0 ];then
     $cmd JOB=1:$nj $output_dir/log/extract_xvectors.JOB.log \
-	hyp_utils/torch.sh --num-gpus $num_gpus \
+	hyp_utils/conda_env.sh --num-gpus $num_gpus \
 	torch-extract-xvectors-slidwin.py ${args} $write_timestamps_opt \
 	--left-context $left_context --right-context $right_context \
 	--part-idx JOB --num-parts $nj \

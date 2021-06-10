@@ -3,13 +3,10 @@
  Copyright 2019 Jesus Villalba (Johns Hopkins University)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0) 
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
 
 import sys
 import os
-import argparse
+from jsonargparse import ArgumentParser, ActionConfigFile, ActionParser, namespace_to_dict
 import time
 import logging
 
@@ -78,9 +75,7 @@ def process_feats(input_spec, output_spec, vad_spec, write_num_frames_spec,
     
 if __name__ == "__main__":
     
-    parser=argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        fromfile_prefix_chars='@',
+    parser=ArgumentParser(
         description='Apply CMVN and remove silence')
 
     parser.add_argument('--input', dest='input_spec', required=True)
@@ -115,5 +110,5 @@ if __name__ == "__main__":
     del args.verbose
     logging.debug(args)
     
-    process_feats(**vars(args))
+    process_feats(**namespace_to_dict(args))
     

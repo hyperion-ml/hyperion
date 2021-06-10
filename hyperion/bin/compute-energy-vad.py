@@ -5,7 +5,7 @@
 """
 import sys
 import os
-import argparse
+from jsonargparse import ArgumentParser, ActionConfigFile, ActionParser, namespace_to_dict
 import time
 import logging
 
@@ -52,17 +52,16 @@ def compute_vad(input_path, output_path, write_num_frames, **kwargs):
 
 if __name__ == "__main__":
     
-    parser=argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        fromfile_prefix_chars='@',
+    parser=ArgumentParser(
         description='Compute Kaldi Energy VAD')
 
+    parser.add_argument('--cfg', action=ActionConfigFile)
     parser.add_argument('--input', dest='input_path', required=True)
     parser.add_argument('--output', dest='output_path', required=True)
     parser.add_argument('--write-num-frames', default=None)
 
-    AR.add_argparse_args(parser)
-    EnergyVAD.add_argparse_args(parser)
+    AR.add_class_args(parser)
+    EnergyVAD.add_class_args(parser)
     parser.add_argument('-v', '--verbose', dest='verbose', default=1, choices=[0, 1, 2, 3], type=int,
                         help='Verbose level')
     args=parser.parse_args()
@@ -70,5 +69,5 @@ if __name__ == "__main__":
     del args.verbose
     logging.debug(args)
     
-    compute_vad(**vars(args))
+    compute_vad(**namespace_to_dict(args))
     

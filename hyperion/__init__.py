@@ -3,7 +3,7 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from __future__ import absolute_import
+
 
 from . import utils
 from . import metrics
@@ -15,6 +15,6 @@ from . import calibration
 from . import score_norm
 #from . import keras
 from . import helpers
-from . import generators
+#from . import generators
 
 __version__ = '0.1.0'

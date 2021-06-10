@@ -13,6 +13,8 @@ config_file=default_config.sh
 resume=false
 interactive=false
 num_workers=8
+use_tb=false
+use_wandb=false
 
 . parse_options.sh || exit 1;
 . $config_file
@@ -26,6 +28,12 @@ list_dir=data/${nnet_data}_proc_audio_no_sil
 args=""
 if [ "$resume" == "true" ];then
     args="--resume"
+fi
+if [ "$use_tb" == "true" ];then
+    args="$args --use-tensorboard"
+fi
+if [ "$use_wandb" == "true" ];then
+    args="$args --use-wandb --wandb.project voxceleb-v1.1 --wandb.name $nnet_name.$(date -Iminutes)"
 fi
 
 if [ "$interactive" == "true" ];then
@@ -43,6 +51,8 @@ if [ $stage -le 1 ]; then
 	train_exec=torch-train-tdnn-xvec-from-wav.py
     elif [[ ${nnet_type} =~ transformer ]]; then
 	train_exec=torch-train-transformer-xvec-v1-from-wav.py
+    elif [[ ${nnet_type} =~ spinenet ]] || [[ ${nnet_type} =~ spine2net ]] || [[ ${nnet_type} =~ r0_sp53 ]]; then
+	train_exec=torch-train-spinenet-xvec-from-wav.py
     else
 	echo "$nnet_type not supported"
 	exit 1
@@ -50,8 +60,8 @@ if [ $stage -le 1 ]; then
 
     mkdir -p $nnet_dir/log
     $cuda_cmd --gpu $ngpu $nnet_dir/log/train.log \
-	hyp_utils/torch.sh --num-gpus $ngpu \
-	$train_exec  @$feat_config $aug_opt \
+	hyp_utils/conda_env.sh --conda-env $HYP_ENV --num-gpus $ngpu \
+	$train_exec --feats $feat_config $aug_opt \
 	--audio-path $list_dir/wav.scp \
 	--time-durs-file $list_dir/utt2dur \
 	--train-list $list_dir/lists_xvec/train.scp \
@@ -68,7 +78,7 @@ if [ $stage -le 1 ]; then
 	--dropout-rate $dropout \
 	--num-gpus $ngpu \
 	--log-interval $log_interval \
-	--exp-path $nnet_dir $args
+	--exp-path $nnet_dir $args 
 
 fi
 
