@@ -1,0 +1,1 @@
+global_conf/config_spknet_fbank80_stmn_lresnet34_attacknet_same.v1.sh

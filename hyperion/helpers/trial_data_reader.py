@@ -49,6 +49,7 @@ class TrialDataReader(object):
 
         
     def read(self):
+
         x_e = self.r.read(self.enroll.key, squeeze=True)
         x_t = self.r.read(self.ndx.seg_set, squeeze=True)
     

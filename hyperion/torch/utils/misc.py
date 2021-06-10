@@ -26,8 +26,8 @@ def compute_stats_adv_attack(x, x_adv):
         x_adv = torch.flatten(x_adv, start_dim=1)
 
     noise = x_adv - x
-    P_x = 10*torch.log10(torch.mean(x**2, dim=-1))
-    P_n = 10*torch.log10(torch.mean(noise**2, dim=-1))
+    P_x = 10 * torch.log10(torch.mean(x**2, dim=-1))
+    P_n = 10 * torch.log10(torch.mean(noise**2, dim=-1))
     snr = P_x - P_n
     #x_l1 = torch.sum(torch.abs(x), dim=-1)
     x_l2 = torch.norm(x, dim=-1)

@@ -12,10 +12,10 @@ save_wav=false
 save_wav_path=""
 cal_file=""
 attack_opts="--attack-attack-type fgsm --attack-eps 1e-3"
-smoothing_after_wavegan=""
+smoothing_after_wavegan=false
 wave_gan_root_dir=""
 wave_gan_model_ckpt=""
-
+max_test_length=""
 
 if [ -f path.sh ]; then . ./path.sh; fi
 . parse_options.sh || exit 1;
@@ -81,6 +81,14 @@ if [ -n "$cal_file" ];then
     args="${args} --cal-file $cal_file"
 fi
 
+if [ "$smoothing_after_wavegan" == "true" ];then
+    args="${args} --smoothing-after-wavegan"
+fi
+
+if [ -n "$max_test_length" ];then
+    args="${args} --max-test-length $max_test_length"
+fi
+
 echo "$0: score $key_file to $output_dir"
 $cmd JOB=1:$nj $log_dir/${name}.JOB.log \
     hyp_utils/conda_env.sh --conda-env $HYP_ENV --num-gpus $num_gpus \
@@ -96,7 +104,6 @@ $cmd JOB=1:$nj $log_dir/${name}.JOB.log \
     --score-file $output_file \
     --stats-file $stats_file \
     --smooth-sigma $smooth_sigma ${attack_opts} \
-    --smoothing-after-wavegan $smoothing_after_wavegan \
     --wave-gan-root-dir $wave_gan_root_dir \
     --wave-gan-model-ckpt $wave_gan_model_ckpt \
     --seg-part-idx JOB --num-seg-parts $nj || exit 1

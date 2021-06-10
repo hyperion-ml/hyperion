@@ -3,7 +3,6 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-
 from .fgsm_attack import FGSMAttack
 from .snr_fgsm_attack import SNRFGSMAttack
 from .rand_fgsm_attack import RandFGSMAttack
@@ -14,3 +13,4 @@ from .carlini_wagner_l0 import CarliniWagnerL0
 from .pgd_attack import PGDAttack
 
 from .attack_factory import AttackFactory
+from .random_attack_factory import RandomAttackFactory

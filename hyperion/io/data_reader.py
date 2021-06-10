@@ -76,7 +76,6 @@ class DataReader(object):
         Returns:
           2D or 3D numpy array.
         """
-
         ndim = data[0].ndim
         shape = data[0].shape
         for i in range(len(data)):
