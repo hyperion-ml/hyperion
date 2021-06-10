@@ -2,7 +2,7 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-import os
+# import os
 import math
 from jsonargparse import ArgumentParser, ActionParser
 import logging
@@ -147,10 +147,13 @@ class ClassWeightedSeqSampler(Sampler):
             utt_weights /= utt_weights.sum()
             
             #sample utt idx
-            utt_idx[k:k+self.num_egs_per_class] = utt_idx_c[
-                torch.multinomial(
-                    utt_weights, 
-                    num_samples=self.num_egs_per_class, replacement=True)]
+            try:
+                utt_idx[k:k+self.num_egs_per_class] = utt_idx_c[
+                    torch.multinomial(
+                        utt_weights, 
+                        num_samples=self.num_egs_per_class, replacement=True)]
+            except:
+                logging.info('{} {}'.format(seq_lengths_c, utt_weights))
 
             k += self.num_egs_per_class
     

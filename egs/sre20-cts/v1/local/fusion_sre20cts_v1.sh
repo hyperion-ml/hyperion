@@ -60,7 +60,7 @@ do
     train_scores_i=${train_scores}_${i}
     score_files[$i]=$train_scores_i
     if [ ! -d "${score_dirs[$i]}" ];then
-	echo "input systme $i dir ${score_dirs[$i]} not found"
+	echo "input system $i dir ${score_dirs[$i]} not found"
 	exit 1
     fi
     case "$fus_set" in

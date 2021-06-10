@@ -60,6 +60,9 @@ if [ "$(hostname --domain)" == "clsp.jhu.edu" ];then
     babel_root["dholuo"]=$babel_root0/403-dholuo/IARPA-babel403b-v1.0b-build/BABEL_OP3_403
     babel_root["georgian"]=$babel_root0/404-georgian/release-current/BABEL_OP3_404
     fisher_spa_root=$ldc_root/LDC2010S01
+    lre17_train_root=$ldc_root/LDC2017E22_2017_NIST_Language_Recognition_Evaluation_Training_Data
+    lre17_dev_root=$ldc_root/LDC2017E23_2017_NIST_Language_Recognition_Evaluation_Development_Data
+    lre17_eval_root=$ldc_root/LDC2017E23_2017_NIST_Language_Recognition_Evaluation_Eval_Data
 elif [ "$(hostname --domain)" == "cm.gemini" ];then
     ldc_root=/export/common/data/corpora/LDC
     sre_root=/export/common/data/corpora/NIST/SRE
@@ -93,3 +96,9 @@ cv_noeng_datasets="$(echo $cv_langs | awk '{for(i=2;i<=NF;i++){ $(i-1)=sprintf("
 
 babel_langs="${!babel_root[@]}"
 babel_datasets="$(echo $babel_langs | awk '{for(i=1;i<=NF;i++){ $i=sprintf("babel_%s",$i)}; print $0}')"
+
+lre17_langs="ara-acm ara-apc ara-ary ara-arz \
+		    por-brz qsl-pol qsl-rus \
+		    spa-car spa-eur spa-lac \
+		    zho-cmn zho-nan"
+lre17_datasets="$(echo $lre17_langs | awk '{for(i=1;i<=NF;i++){ $i=sprintf("lre17_%s",$i)}; print $0}')"

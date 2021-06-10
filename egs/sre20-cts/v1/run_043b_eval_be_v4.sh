@@ -121,10 +121,11 @@ fi
 
 
 if [ $stage -le 3 ];then
-    local/calibrate_sre20cts_v1.sh --cmd "$train_cmd" $cal_set $score_plda_dir
-    local/score_sre16.sh data/sre16_eval40_yue_test eval40_yue ${score_plda_dir}_cal_v1${cal_set}
-    local/score_sre16.sh data/sre16_eval40_tgl_test eval40_tgl ${score_plda_dir}_cal_v1${cal_set}
-    local/score_sre19cmn2.sh data/sre19_eval_test_cmn2 ${score_plda_dir}_cal_v1${cal_set}
+    local/calibrate_sre20cts_v2.sh --cmd "$train_cmd" $cal_set $score_plda_dir
+    local/score_sre16.sh data/sre16_eval40_yue_test eval40_yue ${score_plda_dir}_cal_v2${cal_set}
+    local/score_sre16.sh data/sre16_eval40_tgl_test eval40_tgl ${score_plda_dir}_cal_v2${cal_set}
+    local/score_sre19cmn2.sh data/sre19_eval_test_cmn2 ${score_plda_dir}_cal_v2${cal_set}
+    exit
 fi
 
 score_plda_dir=$score_dir/plda_snorm_${coh_data}${ncoh}

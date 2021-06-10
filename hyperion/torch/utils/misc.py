@@ -39,3 +39,18 @@ def compute_stats_adv_attack(x, x_adv):
     n_linf = torch.max(noise, dim=-1)[0]
     return snr, P_x, P_n, x_l2, x_linf, n_l0, n_l2, n_linf
     
+
+def get_selfsim_tarnon(y, return_mask=False):
+    y_bin = y.unsqueeze(-1) - y.unsqueeze(0) + 1
+    y_bin[y_bin!=1] = 0
+    y_bin = y_bin.float()
+    if not return_mask:
+        return y_bin
+
+    mask = torch.triu(torch.ones_like(y_bin, dtype=torch.bool), 
+                      diagonal=1)
+    return y_bin, mask
+
+
+
+
