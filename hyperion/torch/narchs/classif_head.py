@@ -32,17 +32,24 @@ class ClassifHead(NetArch):
        norm_layer: norm_layer object or str indicating type norm layer, if None it uses BatchNorm1d
        use_norm: it True it uses layer/batch-normalization
        norm_before: if True, layer-norm is before the activation function
-
     """
-
-    def __init__(self, in_feats, num_classes, embed_dim=256,
-                 num_embed_layers=1, 
-                 hid_act={'name':'relu', 'inplace': True}, 
+    def __init__(self,
+                 in_feats,
+                 num_classes,
+                 embed_dim=256,
+                 num_embed_layers=1,
+                 hid_act={
+                     'name': 'relu',
+                     'inplace': True
+                 },
                  loss_type='arc-softmax',
-                 s=64, margin=0.3, margin_warmup_epochs=0,
+                 s=64,
+                 margin=0.3,
+                 margin_warmup_epochs=0,
                  num_subcenters=2,
                  norm_layer=None,
-                 use_norm=True, norm_before=True, 
+                 use_norm=True,
+                 norm_before=True,
                  dropout_rate=0):
 
         super().__init__()
@@ -53,47 +60,49 @@ class ClassifHead(NetArch):
         self.embed_dim = embed_dim
         self.num_classes = num_classes
         self.norm_layer = norm_layer
-        
+
         if use_norm:
             norm_groups = None
             if norm_layer == 'group-norm':
-                norm_groups = min(embed_dim//8, 32)
+                norm_groups = min(embed_dim // 8, 32)
             self._norm_layer = NLF.create(norm_layer, norm_groups)
         else:
             self._norm_layer = None
-            
+
         self.use_norm = use_norm
         self.norm_before = norm_before
-        
+
         self.dropout_rate = dropout_rate
         self.loss_type = loss_type
         self.s = s
         self.margin = margin
         self.margin_warmup_epochs = margin_warmup_epochs
         self.num_subcenters = num_subcenters
-        
+
         prev_feats = in_feats
         fc_blocks = []
-        for i in range(num_embed_layers-1):
+        for i in range(num_embed_layers - 1):
             fc_blocks.append(
-                FCBlock(prev_feats, embed_dim, 
+                FCBlock(prev_feats,
+                        embed_dim,
                         activation=hid_act,
                         dropout_rate=dropout_rate,
                         norm_layer=self._norm_layer,
-                        use_norm=use_norm, 
+                        use_norm=use_norm,
                         norm_before=norm_before))
             prev_feats = embed_dim
-                
+
         if loss_type != 'softmax':
             act = None
         else:
             act = hid_act
 
         fc_blocks.append(
-            FCBlock(prev_feats, embed_dim, 
+            FCBlock(prev_feats,
+                    embed_dim,
                     activation=act,
                     norm_layer=self._norm_layer,
-                    use_norm=use_norm, 
+                    use_norm=use_norm,
                     norm_before=norm_before))
 
         self.fc_blocks = nn.ModuleList(fc_blocks)
@@ -103,21 +112,34 @@ class ClassifHead(NetArch):
             self.output = Linear(embed_dim, num_classes)
         elif loss_type == 'cos-softmax':
             self.output = CosLossOutput(
-                embed_dim, num_classes, 
-                s=s, margin=margin, margin_warmup_epochs=margin_warmup_epochs)
+                embed_dim,
+                num_classes,
+                s=s,
+                margin=margin,
+                margin_warmup_epochs=margin_warmup_epochs)
         elif loss_type == 'arc-softmax':
             self.output = ArcLossOutput(
-                embed_dim, num_classes, 
-                s=s, margin=margin, margin_warmup_epochs=margin_warmup_epochs)
+                embed_dim,
+                num_classes,
+                s=s,
+                margin=margin,
+                margin_warmup_epochs=margin_warmup_epochs)
         elif loss_type == 'subcenter-arc-softmax':
             self.output = SubCenterArcLossOutput(
-                embed_dim, num_classes, num_subcenters,
-                s=s, margin=margin, margin_warmup_epochs=margin_warmup_epochs)
+                embed_dim,
+                num_classes,
+                num_subcenters,
+                s=s,
+                margin=margin,
+                margin_warmup_epochs=margin_warmup_epochs)
 
-
-    def rebuild_output_layer(
-            self, num_classes, loss_type, 
-            s, margin, margin_warmup_epochs, num_subcenters=2):
+    def rebuild_output_layer(self,
+                             num_classes,
+                             loss_type,
+                             s,
+                             margin,
+                             margin_warmup_epochs,
+                             num_subcenters=2):
 
         embed_dim = self.embed_dim
         self.num_classes = num_classes
@@ -131,17 +153,26 @@ class ClassifHead(NetArch):
             self.output = Linear(embed_dim, num_classes)
         elif loss_type == 'cos-softmax':
             self.output = CosLossOutput(
-                embed_dim, num_classes, 
-                s=s, margin=margin, margin_warmup_epochs=margin_warmup_epochs)
+                embed_dim,
+                num_classes,
+                s=s,
+                margin=margin,
+                margin_warmup_epochs=margin_warmup_epochs)
         elif loss_type == 'arc-softmax':
             self.output = ArcLossOutput(
-                embed_dim, num_classes, 
-                s=s, margin=margin, margin_warmup_epochs=margin_warmup_epochs)
+                embed_dim,
+                num_classes,
+                s=s,
+                margin=margin,
+                margin_warmup_epochs=margin_warmup_epochs)
         elif loss_type == 'subcenter-arc-softmax':
             self.output = SubCenterArcLossOutput(
-                embed_dim, num_classes, num_subcenters,
-                s=s, margin=margin, margin_warmup_epochs=margin_warmup_epochs)
-
+                embed_dim,
+                num_classes,
+                num_subcenters,
+                s=s,
+                margin=margin,
+                margin_warmup_epochs=margin_warmup_epochs)
 
     def set_margin(self, margin):
         if self.loss_type == 'softmax':
@@ -150,14 +181,12 @@ class ClassifHead(NetArch):
         self.margin = margin
         self.output.margin = margin
 
-
     def set_margin_warmup_epochs(self, margin_warmup_epochs):
         if self.loss_type == 'softmax':
             return
 
         self.margin_warmup_epochs = margin_warmup_epochs
         self.output.margin_warmup_epochs = margin_warmup_epochs
-
 
     def set_s(self, s):
         if self.loss_type == 'softmax':
@@ -166,11 +195,9 @@ class ClassifHead(NetArch):
         self.s = s
         self.output.s = s
 
-    
     def update_margin(self, epoch):
         if hasattr(self.output, 'update_margin'):
             self.output.update_margin(epoch)
-
 
     def freeze_layers(self, layer_list):
         for l in layer_list:
@@ -180,20 +207,18 @@ class ClassifHead(NetArch):
     def put_layers_in_eval_mode(self, layer_list):
         for l in layer_list:
             self.fc_blocks[l].eval()
-    
-                
+
     def forward(self, x, y=None):
 
         for l in range(self.num_embed_layers):
             x = self.fc_blocks[l](x)
-        
+
         if self.loss_type == 'softmax':
             y = self.output(x)
         else:
             y = self.output(x, y)
 
         return y
-
 
     def forward_hid_feats(self, x, y=None, layers=None, return_output=False):
 
@@ -206,7 +231,7 @@ class ClassifHead(NetArch):
             x = self.fc_blocks[l](x)
             if l in layers:
                 h.append(x)
-        
+
         if self.loss_type == 'softmax':
             y = self.output(x)
         else:
@@ -216,7 +241,6 @@ class ClassifHead(NetArch):
             return h, y
         return h
 
-
     def extract_embed(self, x, embed_layer=0):
 
         for l in range(embed_layer):
@@ -224,11 +248,9 @@ class ClassifHead(NetArch):
 
         y = self.fc_blocks[embed_layer].forward_linear(x)
         return y
-                    
-        
-    
+
     def get_config(self):
-        
+
         hid_act = AF.get_config(self.fc_blocks[0].activation)
 
         config = {
@@ -247,10 +269,9 @@ class ClassifHead(NetArch):
             'norm_before': self.norm_before,
             'dropout_rate': self.dropout_rate
         }
-        
+
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
-
 
     @staticmethod
     def filter_args(**kwargs):
@@ -263,84 +284,103 @@ class ClassifHead(NetArch):
             kwargs['norm_before'] = not kwargs['norm_after']
             del kwargs['norm_after']
 
-        valid_args = ('num_classes', 'embed_dim', 'num_embed_layers', 'hid_act', 'loss_type',
-                      's', 'margin', 'margin_warmup_epochs', 'num_subcenters',
-                      'use_norm', 'norm_before', 'dropout_rate', 'norm_layer')
-        args = dict((k, kwargs[k])
-                    for k in valid_args if k in kwargs)
+        valid_args = ('num_classes', 'embed_dim', 'num_embed_layers',
+                      'hid_act', 'loss_type', 's', 'margin',
+                      'margin_warmup_epochs', 'num_subcenters', 'use_norm',
+                      'norm_before', 'dropout_rate', 'norm_layer')
+        args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
         return args
 
-
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog='')
 
         parser.add_argument('--embed-dim',
-                            default=256, type=int,
+                            default=256,
+                            type=int,
                             help=('x-vector dimension'))
-        
+
         parser.add_argument('--num-embed-layers',
-                            default=1, type=int,
+                            default=1,
+                            type=int,
                             help=('number of layers in the classif head'))
-        
+
         try:
-            parser.add_argument('--hid-act', default='relu6', 
+            parser.add_argument('--hid-act',
+                                default='relu6',
                                 help='hidden activation')
         except:
             pass
 
-        parser.add_argument('--loss-type', default='arc-softmax', 
-                            choices = ['softmax', 'arc-softmax', 'cos-softmax', 'subcenter-arc-softmax'],
-                            help='loss type: softmax, arc-softmax, cos-softmax, subcenter-arc-softmax')
-        
-        parser.add_argument('--s', default=64, type=float,
-                            help='scale for arcface')
-        
-        parser.add_argument('--margin', default=0.3, type=float,
-                            help='margin for arcface, cosface,...')
-        
-        parser.add_argument('--margin-warmup-epochs', default=10, type=float,
-                            help='number of epoch until we set the final margin')
+        parser.add_argument(
+            '--loss-type',
+            default='arc-softmax',
+            choices=[
+                'softmax', 'arc-softmax', 'cos-softmax',
+                'subcenter-arc-softmax'
+            ],
+            help=
+            'loss type: softmax, arc-softmax, cos-softmax, subcenter-arc-softmax'
+        )
 
-        parser.add_argument('--num-subcenters', default=2, type=int,
+        parser.add_argument('--s',
+                            default=64,
+                            type=float,
+                            help='scale for arcface')
+
+        parser.add_argument('--margin',
+                            default=0.3,
+                            type=float,
+                            help='margin for arcface, cosface,...')
+
+        parser.add_argument(
+            '--margin-warmup-epochs',
+            default=10,
+            type=float,
+            help='number of epoch until we set the final margin')
+
+        parser.add_argument('--num-subcenters',
+                            default=2,
+                            type=int,
                             help='number of subcenters in subcenter losses')
 
         try:
             parser.add_argument(
-                '--norm-layer', default=None, 
-                choices=['batch-norm', 'group-norm', 'instance-norm', 'instance-norm-affine', 'layer-norm'],
-                help='type of normalization layer for all components of x-vector network')
+                '--norm-layer',
+                default=None,
+                choices=[
+                    'batch-norm', 'group-norm', 'instance-norm',
+                    'instance-norm-affine', 'layer-norm'
+                ],
+                help=
+                'type of normalization layer for all components of x-vector network'
+            )
         except:
             pass
 
-
-        try:
-            parser.add_argument(
-                '--head-norm-layer', default=None, 
-                choices=['batch-norm', 'group-norm', 'instance-norm', 'instance-norm-affine', 'layer-norm'],
-                help=('type of normalization layer for classification head, '
-                      'it overrides the value of the norm-layer parameter'))
-        except:
-            pass
-
-        
-        parser.add_argument('--wo-norm', default=False, action='store_true',
+        parser.add_argument('--wo-norm',
+                            default=False,
+                            action='store_true',
                             help='without batch normalization')
-        
-        parser.add_argument('--norm-after', default=False, action='store_true',
+
+        parser.add_argument('--norm-after',
+                            default=False,
+                            action='store_true',
                             help='batch normalizaton after activation')
-        
+
         try:
-            parser.add_argument('--dropout-rate', default=0, type=float,
+            parser.add_argument('--dropout-rate',
+                                default=0,
+                                type=float,
                                 help='dropout')
         except:
             pass
-        
-    
+
         if prefix is not None:
-            outer_parser.add_argument(
-                '--' + prefix,
-                action=ActionParser(parser=parser))
-                # help='classification head options')
+            outer_parser.add_argument('--' + prefix,
+                                      action=ActionParser(parser=parser))
+            # help='classification head options')
+
+    add_argparse_args = add_class_args

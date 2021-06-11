@@ -4,68 +4,29 @@
 """
 
 import logging
-from argparse import Namespace
+from jsonargparse import ArgumentParser, ActionParser
 
 import torch
 import torch.nn as nn
 
 from ..layers import GlobalPool1dFactory as PF
 from ..layer_blocks import TDNNBlock
-from ..narchs import ClassifHead, ConformerEncoderV1
+from ...narchs import ClassifHead, ConformerEncoderV1, TorchNALoader
+from ..narchs import ClassifHead,
 from ..torch_model import TorchModel
-from ..helpers import TorchNALoader
 from ..utils import eval_nnet_by_chunks
 
 
-class TVector(TorchModel):
-    """t-Vector base class
+class TXVector(TorchModel):
+    """x-Vector base class
     """
     def __init__(self,
                  encoder_net,
                  num_classes,
-                 conformer_cfg=Namespace(d_model=256,
-                                         num_heads=4,
-                                         num_blocks=6,
-                                         attype='scaled-dot-prod-v1',
-                                         atcontext=25,
-                                         conv_repeats=1,
-                                         conv_kernel_sizes=31,
-                                         conv_strides=1,
-                                         ff_type='linear',
-                                         d_ff=2048,
-                                         ff_kernel_size=1,
-                                         dropout_rate=0.1,
-                                         pos_dropout_rate=0.1,
-                                         att_dropout_rate=0.0,
-                                         in_layer_type='conv2d-sub',
-                                         rel_pos_enc=True,
-                                         causal_pos_enc=False,
-                                         no_pos_enc=False,
-                                         hid_act='swish',
-                                         conv_norm_layer=None,
-                                         se_r=None,
-                                         ff_macaron=True,
-                                         red_lnorms=False,
-                                         concat_after=False),
+                 conformer_net={},
                  pool_net='mean+stddev',
-                 head_cfg=Namespace(embed_dim=256,
-                                    num_embed_layers=1,
-                                    head_hid_act={
-                                        'name': 'relu',
-                                        'inplace': True
-                                    },
-                                    loss_type='arc-softmax',
-                                    s=64,
-                                    margin=0.3,
-                                    margin_warmup_epochs=0,
-                                    num_subcenters=2,
-                                    norm_layer=None,
-                                    use_norm=True,
-                                    norm_before=True,
-                                    dropout_rate=0,
-                                    embed_layer=0),
-                 in_feats=None,
-                 proj_feats=None):
+                 classif_net={},
+                 in_feats=None):
 
         super().__init__()
 
@@ -92,45 +53,28 @@ class TVector(TorchModel):
         logging.info('encoder input shape={}'.format(in_shape))
         logging.info('encoder output shape={}'.format(out_shape))
 
-        # add projection network to link encoder and pooling layers if proj_feats is not None
-        self.proj = None
-        self.proj_feats = proj_feats
-        if proj_feats is not None:
-            logging.info(
-                'adding projection layer after encoder with in/out size %d -> %d'
-                % (enc_feats, proj_feats))
-            self.proj = TDNNBlock(enc_feats,
-                                  proj_feats,
-                                  kernel_size=1,
-                                  activation=None,
-                                  use_norm=use_norm)
-
-        if isinstance(conformer_cfg, Namespace):
-            conformer_cfg = var(conformer_cfg)
-        if isinstance(head_cfg, Namespace):
-            head_cfg = var(head_cfg)
-
-        self.conformer = ConformerEncoderV1(enc_feats,
-                                            in_time_dim=1,
-                                            out_time_dir=1,
-                                            **conformer_cfg)
-        self.proj_feats = self.conformer.d_model
-
-        # create pooling network
-        # infer output dimension of pooling which is input dim for classification head
-        if proj_feats is None:
-            self.pool_net = self._make_pool_net(pool_net, enc_feats)
-            pool_feats = int(enc_feats * self.pool_net.size_multiplier)
+        # create conformer net
+        if isinstance(conformer_net, nn.Module):
+            self.conformer_net = conformer_net
         else:
-            self.pool_net = self._make_pool_net(pool_net, proj_feats)
-            pool_feats = int(proj_feats * self.pool_net.size_multiplier)
+            logging.info('making conformer net')
+            conformer_net['in_layer_type'] = 'linear'
+            self.conformer_net = ConformerEncoderV1(enc_feats,
+                                                    in_time_dim=1,
+                                                    out_time_dim=1,
+                                                    **conformer_net)
 
-        logging.info('infer pooling dimension %d' % (pool_feats))
+        d_model = self.conformer_net.d_model
+        self.pool_net = self._make_pool_net(pool_cfg, d_model)
+        pool_feats = int(d_model * self.pool_net.size_multiplier)
+        logging.info('infer pooling dimension %d', pool_feats)
 
         # create classification head
-        logging.info('making classification head net')
-        self.classif_net = ClassifHead(pool_feats, num_classes, **head_cfg)
-        self.embed_layer = self.classif_net.embed_layer
+        if isinstance(classif_net, nn.Module):
+            self.classif_net = classif_net
+        else:
+            logging.info('making classification head net')
+            self.classif_net = ClassifHead(pool_feats, num_classes, **head_cfg)
 
     @property
     def pool_feats(self):
@@ -184,6 +128,7 @@ class TVector(TorchModel):
         if isinstance(pool_net, dict):
             if enc_feats is not None:
                 pool_net['in_feats'] = enc_feats
+
             return PF.create(**pool_net)
         elif isinstance(pool_net, nn.Module):
             return pool_net
@@ -213,14 +158,35 @@ class TVector(TorchModel):
 
         return x
 
-    def forward(self, x, y=None, use_amp=False):
-        if use_amp:
-            with torch.cuda.amp.autocast():
-                return self._forward(x, y)
+    def forward(self,
+                x,
+                y=None,
+                enc_layers=None,
+                classif_layers=None,
+                return_output=True,
+                use_amp=False):
+        if enc_layers is None and classif_layers is None:
+            return self.forward_output(x, y)
 
-        return self._forward(x, y)
+        h = self.forward_hid_feats(x, y, enc_layers, classif_layers,
+                                   return_output)
+        output = {}
+        if enc_layers is not None:
+            if classif_layers is None:
+                output['h_enc'] = h
+            else:
+                output['h_enc'] = h[0]
+        else:
+            output['h_enc'] = []
+        if classif_layers is not None:
+            output['h_classif'] = h[1]
+        else:
+            output['h_classif'] = []
+        if return_output:
+            output['output'] = h[2]
+        return output
 
-    def _forward(self, x, y=None):
+    def forward_output(self, x, y=None):
         """Forward function
 
         Args:
@@ -234,14 +200,11 @@ class TVector(TorchModel):
             x = x.view(x.size(0), 1, x.size(1), x.size(2))
 
         x = self.encoder_net(x)
+        x = self.conformer_net(x)
 
         if self.encoder_net.out_dim() == 4:
             x = x.view(x.size(0), -1, x.size(-1))
 
-        if self.proj is not None:
-            x = self.proj(x)
-
-        x = self.conformer_net(x)
         p = self.pool_net(x)
         y = self.classif_net(p, y)
         return y
@@ -250,10 +213,10 @@ class TVector(TorchModel):
                           x,
                           y=None,
                           enc_layers=None,
+                          conf_layers=None,
                           classif_layers=None,
                           return_output=False):
         """forwards hidden representations in the x-vector network
-        
         """
 
         if self.encoder_net.in_dim() == 4 and x.dim() == 3:
@@ -262,6 +225,10 @@ class TVector(TorchModel):
         h_enc, x = self.encoder_net.forward_hid_feats(x,
                                                       enc_layers,
                                                       return_output=True)
+
+        h_conf, x = self.conformer_net.forward_hid_feats(x,
+                                                         conf_layers,
+                                                         return_output=True)
 
         if not return_output and classif_layers is None:
             return h_enc
@@ -292,7 +259,6 @@ class TVector(TorchModel):
         x = self._pre_enc(x)
         # if self.encoder_net.in_dim() == 4 and x.dim() == 3:
         #     x = x.view(x.size(0), 1, x.size(1), x.size(2))
-
         x = eval_nnet_by_chunks(x,
                                 self.encoder_net,
                                 chunk_length,
@@ -302,11 +268,13 @@ class TVector(TorchModel):
             x = x.to(self.device)
 
         x = self._post_enc(x)
+
         # if self.encoder_net.out_dim() == 4:
         #     x = x.view(x.size(0), -1, x.size(-1))
 
         # if self.proj is not None:
         #     x = self.proj(x)
+
         p = self.pool_net(x)
         y = self.classif_net.extract_embed(p, embed_layer)
         return y
@@ -338,8 +306,6 @@ class TVector(TorchModel):
             embed_layer = self.embed_layer
 
         in_time = x.size(-1)
-        # if self.encoder_net.in_dim() == 4 and x.dim() == 3:
-        #     x = x.view(x.size(0), 1, x.size(1), x.size(2))
         x = self._pre_enc(x)
         x = eval_nnet_by_chunks(x,
                                 self.encoder_net,
@@ -423,15 +389,16 @@ class TVector(TorchModel):
 
         enc_cfg = self.encoder_net.get_config()
         pool_cfg = PF.get_config(self.pool_net)
-        conformer_cfg = self.conformer.get_config()
-        head_cfg = self.classif_net.get_config()
+        conformer_cfg = self.conformer_net.get_config()
+        classif_cfg = self.classif_net.get_config()
 
         config = {
             'encoder_cfg': enc_cfg,
-            'pool_net': pool_cfg,
             'num_classes': self.num_classes,
-            'conformer_cfg': conformer_cfg,
-            'head_cfg': head_cfg
+            'conformer_net': self.conformer_cfg,
+            'pool_net': pool_cfg,
+            'classif_net': self.classif_cfg,
+            'in_feats': self.in_feats
         }
 
         base_config = super().get_config()
@@ -440,13 +407,8 @@ class TVector(TorchModel):
     @classmethod
     def load(cls, file_path=None, cfg=None, state_dict=None):
         cfg, state_dict = cls._load_cfg_state_dict(file_path, cfg, state_dict)
-
-        # preproc_net = None
-        # if 'preproc_cfg' in cfg:
-        #     preproc_net = TorchNALoader.load(cfg=cfg['preproc_cfg'])
-        #     del cfg['preproc_cfg']
-
         encoder_net = TorchNALoader.load_from_cfg(cfg=cfg['encoder_cfg'])
+
         for k in ('encoder_cfg'):
             del cfg[k]
 
@@ -492,155 +454,62 @@ class TVector(TorchModel):
             return
 
         self.encoder_net.eval()
-        if self.proj is not None:
-            self.proj.eval()
-
+        self.conformer_net.eval()
         self.pool_net.eval()
         self.classif_net.train()
         layer_list = [l for l in range(self.embed_layer)]
         self.classif_net.put_layers_in_eval_mode(layer_list)
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-            t_args = ConformerEncoderV1.filter_args(prefix='conformer',
-                                                    **kwargs)
-            head_args = ClassifHead.filter_args(prefix='head', **kwargs)
-        else:
-            p = prefix + '_'
-            t_args = ConformerEncoderV1.filter_args(prefix=prefix +
-                                                    'conformer',
-                                                    **kwargs)
-            head_args = ClassifHead.filter_args(prefix='head', **kwargs)
+    def filter_args(**kwargs):
 
-        # get boolean args that are negated
-        if 'pool_wo_bias' in kwargs:
-            kwargs['pool_use_bias'] = not kwargs['pool_wo_bias']
-            del kwargs['pool_wo_bias']
+        valid_args = ('num_classes', 'in_feats')
+        args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
-        if 'wo_norm' in kwargs:
-            kwargs['use_norm'] = not kwargs['wo_norm']
-            del kwargs['wo_norm']
-
-        if 'norm_after' in kwargs:
-            kwargs['norm_before'] = not kwargs['norm_after']
-            del kwargs['norm_after']
-
+        # get arguments for conformer
+        conformer_args = ConformerEncoderV1.filter_args(
+            **kwargs['conformer_net'])
+        args['corformer_net'] = conformer_args
         # get arguments for pooling
-        pool_valid_args = ('pool_type', 'pool_num_comp', 'pool_use_bias',
-                           'pool_dist_pow', 'pool_d_k', 'pool_d_v',
-                           'pool_num_heads', 'pool_bin_attn')
-        pool_args = dict(
-            (k, kwargs[p + k]) for k in pool_valid_args if p + k in kwargs)
-
-        # remove pooling prefix from arg name
-        for k in pool_valid_args[1:]:
-            if k in pool_args:
-                k2 = k.replace('pool_', '')
-                pool_args[k2] = pool_args[k]
-                del pool_args[k]
-
-        valid_args = ('num_classes', 'in_feats', 'proj_feats')
-        args = dict((k, kwargs[p + k]) for k in valid_args if p + k in kwargs)
-
+        pool_args = PF.filter_args(**kwargs['pool_net'])
         args['pool_net'] = pool_args
-        args['conformer_cfg'] = t_args
-        args['head_cfg'] = head_args
+        # get arguments for classif head
+        classif_args = ClassifHead.filter_args(**kwargs['classif_net'])
+        args['classif_net'] = classif_args
+
         return args
 
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
-        if prefix is None:
-            p1 = '--'
-        else:
-            p1 = '--' + prefix + '-'
+    def add_class_args(parser, prefix=None):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog='')
 
-        ConformerEncoderV1.add_argparse_args(parser, prefix='t')
-        ClassifHead.add_argparse_args(parser, prefix='head')
-
-        parser.add_argument(
-            p1 + 'pool-type',
-            type=str.lower,
-            default='mean+stddev',
-            choices=[
-                'avg', 'mean+stddev', 'mean+logvar', 'lde',
-                'scaled-dot-prod-att-v1'
-            ],
-            help=('Pooling methods: Avg, Mean+Std, Mean+logVar, LDE, '
-                  'scaled-dot-product-attention-v1'))
-
-        parser.add_argument(p1 + 'pool-num-comp',
-                            default=64,
-                            type=int,
-                            help=('number of components for LDE pooling'))
-
-        parser.add_argument(p1 + 'pool-dist-pow',
-                            default=2,
-                            type=int,
-                            help=('Distace power for LDE pooling'))
-
-        parser.add_argument(p1 + 'pool-wo-bias',
-                            default=False,
-                            action='store_true',
-                            help=('Don\' use bias in LDE'))
-
-        parser.add_argument(p1 + 'pool-num-heads',
-                            default=8,
-                            type=int,
-                            help=('number of attention heads'))
-
-        parser.add_argument(p1 + 'pool-d-k',
-                            default=256,
-                            type=int,
-                            help=('key dimension for attention'))
-
-        parser.add_argument(p1 + 'pool-d-v',
-                            default=256,
-                            type=int,
-                            help=('value dimension for attention'))
-
-        parser.add_argument(
-            p1 + 'pool-bin-attn',
-            default=False,
-            action='store_true',
-            help=('Use binary attention, i.e. sigmoid instead of softmax'))
-
-        parser.add_argument(
-            p1 + 'in-feats',
-            default=None,
-            type=int,
-            help=('input feature dimension, '
-                  'if None it will try to infer from encoder network'))
-
-        parser.add_argument(
-            p1 + 'proj-feats',
-            default=None,
-            type=int,
-            help=('dimension of linear projection after encoder network, '
-                  'if None, there is not projection'))
+        CoformerEncoderV1.add_class_args(parser, prefix='conformer_net')
+        PF.add_class_args(parser,
+                          prefix='pool_net',
+                          skip=['dim', 'in_feats', 'keepdim'])
+        ClassifHead.add_class_args(parser, prefix='classif_net')
+        if prefix is not None:
+            outer_parser.add_argument('--' + prefix,
+                                      action=ActionParser(parser=parser),
+                                      help='xvector options')
 
     @staticmethod
-    def filter_finetune_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
-
+    def filter_finetune_args(**kwargs):
         valid_args = ('loss_type', 's', 'margin', 'margin_warmup_epochs')
-        args = dict((k, kwargs[p + k]) for k in valid_args if p + k in kwargs)
+        args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
         return args
 
     @staticmethod
-    def add_argparse_finetune_args(parser, prefix=None):
-        if prefix is None:
-            p1 = '--'
-        else:
-            p1 = '--' + prefix + '-'
+    def add_finetune_args(parser, prefix=None):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog='')
 
         parser.add_argument(
-            p1 + 'loss-type',
+            '--loss-type',
             default='arc-softmax',
             choices=[
                 'softmax', 'arc-softmax', 'cos-softmax',
@@ -650,23 +519,27 @@ class TVector(TorchModel):
             'loss type: softmax, arc-softmax, cos-softmax, subcenter-arc-softmax'
         )
 
-        parser.add_argument(p1 + 's',
+        parser.add_argument('--s',
                             default=64,
                             type=float,
                             help='scale for arcface')
 
-        parser.add_argument(p1 + 'margin',
+        parser.add_argument('--margin',
                             default=0.3,
                             type=float,
                             help='margin for arcface, cosface,...')
 
         parser.add_argument(
-            p1 + 'margin-warmup-epochs',
+            '--margin-warmup-epochs',
             default=10,
             type=float,
             help='number of epoch until we set the final margin')
 
-        parser.add_argument(p1 + 'num-subcenters',
+        parser.add_argument('--num-subcenters',
                             default=2,
                             type=float,
                             help='number of subcenters in subcenter losses')
+
+        if prefix is not None:
+            outer_parser.add_argument('--' + prefix,
+                                      action=ActionParser(parser=parser))
