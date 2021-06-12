@@ -64,19 +64,5 @@ plda_type=splda
 lda_dim=200
 plda_y_dim=150
 plda_z_dim=200
-
-diar_plda_num_augs=0
-if [ $diar_plda_num_augs -eq 0 ]; then
-    diar_plda_data=voxcelebcat
-else
-    diar_plda_data=voxcelebcat_augx${plda_num_augs}
-fi
-diar_plda_type=splda
-diar_lda_dim=150
-diar_plda_y_dim=150
-diar_plda_z_dim=150
-
-diar_plda_name=lda${diar_lda_dim}_${diar_plda_type}y${diar_plda_y_dim}_v1_${diar_plda_data}
-diar_thr=-7
-diar_dir=exp/diarization/$nnet_name/${diar_plda_name}/ahc_pcar1_thr${diar_thr}
-diar_name=diar_resnet34_thr${diar_thr}
+adapt_plda_y_dim=75
+coh_data=voices19_challenge_dev_test

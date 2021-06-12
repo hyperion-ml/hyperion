@@ -59,4 +59,14 @@ if [ $stage -le 2 ]; then
   done
 fi
 
+if [ $stage -le 3 ]; then
+  for name in voices19_challenge_dev voices19_challenge_eval
+  do
+    mkdir -p $xvector_dir/$name
+    cat $xvector_dir/${name}_{enroll,test}/xvector.scp > $xvector_dir/$name/xvector.scp
+  done
+  utils/combine_data.sh --extra-files utt2info \
+    data/voices19_challenge_dev data/voices19_challenge_dev_{enroll,test}
+fi
+
 exit
