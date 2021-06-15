@@ -4,15 +4,21 @@
 | -------- | ------- | ---- |
 | [VoxCeleb](http://www.robots.ox.ac.uk/~vgg/data/voxceleb) | v1 | VoxCeleb1 Speaker Verification with x-Vectors |
 | | v1.1 | VoxCeleb1 Speaker Verification with x-Vectors <br> using on-the-fly feature extraction and speech augmentation |
-| | v2 | Adversarial Attacks and Baseline Defenses on x-Vector Speaker Verification |
-| | v2.1 | Adversarial Attacks and Baseline Defenses on x-Vector Speaker Verification <br> where x-vector training is done using on-the-fly feature extaction |
-| | v3 | Evaluate Generative Models (VAE) |
+| | adv.v1 | Adversarial Attacks and Baseline Defenses on <br> x-Vector Speaker Verification <br> used in our InterSpeech 2020 paper|
+| | adv.v1.1 | Adversarial Attacks and Baseline Defenses on <br> x-Vector Speaker Verification <br> where x-vector training is done using on-the-fly feature extaction <br> used in our InterSpeech 2020 paper|
+| | adv.v2 | Classification and Detection of Adversarial Attacks in <br> Speaker Id. and Verification using <br> x-Vector style DNN to compute attack signatures <br> used in our InterSpeech 2021 paper |
+| | vae.v1 | Evaluate Generative Models (VAE) |
 | ------- | ------- | ---- |
 | [sre19-cmn2](https://www.nist.gov/itl/iad/mig/nist-2019-speaker-recognition-evaluation) | v1 | NIST SRE19-CTS Tunisian Arabic using Kaldi x-Vectors |
-| | v2 | SRE19-CTS Tunisian Arabic using PyTorch x-Vectors |
-| | v2.1 | SRE19-CTS Tunisian Arabic using PyTorch x-Vectors <br> using on-the-fly feat extraction and speech augmentation |
+| | v2 | SRE19-CTS Tunisian Arabic using PyTorch x-Vectors <br> It uses precomputed features |
+| | v2.1 | SRE19-CTS Tunisian Arabic using PyTorch x-Vectors <br> It uses on-the-fly feat extraction and speech augmentation |
 | ------- | ------- | ---- |
 | [sre19-av-a](https://www.nist.gov/itl/iad/mig/nist-2019-speaker-recognition-evaluation) | v1 | NIST SRE19-AV Audio only using Kaldi x-Vectors |
+| | v2 | SRE19-AV using PyTorch x-Vectors <br> It uses precomputed features |
+| | v2.1 | SRE19-AV using PyTorch x-Vectors <br> It uses on-the-fly feat extraction and speech augmentation |
+| [sre20-cts](https://www.nist.gov/publications/nist-2020-cts-speaker-recognition-challenge-evaluation-plan) | v1 | NIST SRE20-CTS recipe used by JHU-MIT team |
+| [voices_challenge](https://iqtlabs.github.io/voices/downloads/) | v1 | VOiCES challenge 2019 using x-vectors |
+| [chime_spkdet](https://www.isca-speech.org/archive/Interspeech_2019/pdfs/2174.pdf) | v1 | Speaker Recognition Benchmark based on [CHiME](http://spandh.dcs.shef.ac.uk/chime_challenge/CHiME5/data.html) data |
 | ------- | ------- | ---- |
 | [CIFAR](https://www.cs.toronto.edu/~kriz/cifar.html) | v1 | CIFAR-10/100 Image classification task|
 | ------- | ------- | ---- |
