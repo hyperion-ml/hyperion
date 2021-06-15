@@ -1,1 +1,0 @@
-../../../sre18/v1.8k/local/make_sitw_train.sh

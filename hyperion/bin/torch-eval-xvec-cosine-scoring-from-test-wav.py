@@ -91,9 +91,8 @@ def read_data(v_file, ndx_file, enroll_file, seg_part_idx, num_seg_parts):
 
 def eval_cosine_scoring(v_file, ndx_file, enroll_file, test_wav_file, vad_spec,
                         vad_path_prefix, model_path, embed_layer, score_file,
-                        cal_file, max_test_length,
-                        use_gpu, seg_part_idx, num_seg_parts,
-                        **kwargs):
+                        cal_file, max_test_length, use_gpu, seg_part_idx,
+                        num_seg_parts, **kwargs):
 
     device = init_device(use_gpu)
     feat_extractor = init_feats(device, **kwargs)
@@ -165,17 +164,17 @@ def eval_cosine_scoring(v_file, ndx_file, enroll_file, test_wav_file, vad_spec,
 
             t7 = time.time()
             num_trials = np.sum(ndx.trial_mask[:, j])
-            trial_time = (t7-t6) / num_trials
+            trial_time = (t7 - t6) / num_trials
             logging.info(
                 ('utt %s total-time=%.3f read-time=%.3f feat-time=%.3f '
                  'vad-time=%.3f embed-time=%.3f trial-time=%.3f n_trials=%d '
-                 'rt-factor=%.2f'),
-                (ndx.seg_set[j], t7 - t1, t2 - t1, t4 - t2, t5 - t4, t6 - t5,
-                 trial_time, num_trials,  (t7 - t1) / (num_trials * s.shape[1] / fs))
+                 'rt-factor=%.2f'), ndx.seg_set[j], t7 - t1, t2 - t1, t4 - t2,
+                t5 - t4, t6 - t5, trial_time, num_trials,
+                (t7 - t1) / (num_trials * s.shape[1] / fs))
 
     if num_seg_parts > 1:
         score_file = '%s-%03d-%03d' % (score_file, 1, seg_part_idx)
-    logging.info('saving scores to %s' % (score_file))
+    logging.info('saving scores to %s', score_file)
     s = TrialScores(ndx.model_set,
                     ndx.seg_set,
                     scores,

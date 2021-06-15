@@ -74,7 +74,7 @@ class XVector(TorchModel):
             logging.info(
                 'adding projection layer after encoder with in/out size %d -> %d',
                 enc_feats, proj_feats)
-            
+
             self.proj = TDNNBlock(enc_feats,
                                   proj_feats,
                                   kernel_size=1,
@@ -207,24 +207,18 @@ class XVector(TorchModel):
 
         return x
 
-    # def forward(self, x, y=None, use_amp=False):
-    #     if use_amp:
-    #         with torch.cuda.amp.autocast():
-    #             return self._forward(x, y)
-    #     return self._forward(x, y)
-
     def forward(self,
                 x,
                 y=None,
                 enc_layers=None,
                 classif_layers=None,
-                return_output=True,
-                use_amp=False):
+                return_output=True):
+
         if enc_layers is None and classif_layers is None:
             return self.forward_output(x, y)
 
-        h = self.forward_hid_feats(
-            x, y, enc_layers, classif_layers, return_output)
+        h = self.forward_hid_feats(x, y, enc_layers, classif_layers,
+                                   return_output)
         output = {}
         if enc_layers is not None:
             if classif_layers is None:
@@ -240,7 +234,6 @@ class XVector(TorchModel):
         if return_output:
             output['output'] = h[2]
         return output
-
 
     def forward_output(self, x, y=None):
         """Forward function
@@ -471,14 +464,7 @@ class XVector(TorchModel):
     @classmethod
     def load(cls, file_path=None, cfg=None, state_dict=None):
         cfg, state_dict = cls._load_cfg_state_dict(file_path, cfg, state_dict)
-
-        # preproc_net = None
-        # if 'preproc_cfg' in cfg:
-        #     preproc_net = TorchNALoader.load(cfg=cfg['preproc_cfg'])
-        #     del cfg['preproc_cfg']
-
         encoder_net = TorchNALoader.load_from_cfg(cfg=cfg['encoder_cfg'])
-
         for k in ('encoder_cfg'):
             del cfg[k]
 

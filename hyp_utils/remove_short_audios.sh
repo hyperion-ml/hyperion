@@ -26,6 +26,6 @@ awk -v min_len=${min_len} '{
 	$data_dir/utt2dur > $data_dir/utt2dur.new
 ${kaldi_utils}/filter_scp.pl $data_dir/utt2dur.new $data_dir/utt2spk > $data_dir/utt2spk.new
 mv $data_dir/utt2spk.new $data_dir/utt2spk
-${kaldi_utils}/fix_data_dir.sh --utt-extra-files utt2dur $data_dir
+${kaldi_utils}/fix_data_dir.sh --sort false --utt-extra-files utt2dur $data_dir
 
 
