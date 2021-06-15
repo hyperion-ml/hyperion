@@ -31,7 +31,8 @@ class AudioDataset(Dataset):
                  aug_cfg=None,
                  return_fullseqs=False,
                  return_class=True, return_clean_aug_pair=False, 
-                 transpose_input=False, wav_scale=2**15-1, is_val=False):
+                 transpose_input=False, wav_scale=2**15-1, is_val=False,
+                dinossl_chunk_len_mult=None, dinossl_n_chunks=None):
 
         try:
             rank = dist.get_rank()
@@ -78,6 +79,9 @@ class AudioDataset(Dataset):
         if aug_cfg is not None:
             self.augmenter = SpeechAugment.create(aug_cfg, random_seed=112358+1000*rank)
             self.reverb_context = self.augmenter.max_reverb_context
+        # dinossl related
+        self.dinossl_chunk_len_mult = dinossl_chunk_len_mult
+        self.dinossl_n_chunks = dinossl_n_chunks
 
 
     def _read_time_durs_file(self, file_path):
@@ -226,7 +230,10 @@ class AudioDataset(Dataset):
         if self.return_fullseqs:
             return self._get_fullseq(index)
         else:
-            return self._get_random_chunk(index)
+            if self.dinossl_n_chunks == None:
+                return self._get_random_chunk(index)
+            else: # multi-chunks for dinossl
+                return self._get_random_chunks(index)
         
 
             
@@ -349,6 +356,123 @@ class AudioDataset(Dataset):
 
         class_idx = self.utt_idx2class[index]
         r = *r, class_idx
+        return r
+
+    def _get_random_chunks(self, index):
+
+        if len(index) == 2:
+            index, chunk_length = index
+        else:
+            chunk_length = self.max_chunk_length
+        key = self.u2c.key[index]
+        
+        full_seq_length = self.seq_lengths[index]
+        assert chunk_length <= full_seq_length, 'chunk_length(%d) <= full_seq_length(%d)' % (
+            chunk_length, full_seq_length)
+
+        chunk_length_list = []
+        # 2 long chunks
+        if chunk_length * self.dinossl_chunk_len_mult > full_seq_length:
+            chunk_length_list.extend([full_seq_length]*2)
+        else:
+            chunk_length_list.extend([chunk_length * self.dinossl_chunk_len_mult]*2)
+        # self.n_chunks - 2 short chunks
+        chunk_length_list.extend([chunk_length]*(self.dinossl_n_chunks-2))
+
+        r_list = [] # this is for dino's multiple augmentations (more than once) of a given sample
+        for chunk_length in chunk_length_list: # full_seq_length, self.reverb_context are fixed within this for loop
+            time_offset = torch.rand(size=(1,)).item()*(full_seq_length-chunk_length)
+            reverb_context = min(self.reverb_context, time_offset)
+            time_offset -= reverb_context
+            read_chunk_length = chunk_length + reverb_context
+
+            #logging.info('get-random-chunk {} {} {} {} {}'.format(index, key, time_offset, chunk_length, full_seq_length ))
+            x, fs = self.r.read([key], time_offset=time_offset,
+                                time_durs=read_chunk_length)
+
+            # try:
+            #     x, fs = self.r.read([key], time_offset=time_offset,
+            #                     time_durs=read_chunk_length)
+            # except:
+            #     # some files produce error in the fseek after reading the data,
+            #     # this seems an issue from pysoundfile or soundfile lib itself
+            #     # reading from a sligthly different starting position seems to solve the problem in most cases
+            #     try:
+            #         logging.info('error-1 reading at key={} totol_dur={} offset={} read_chunk_length={}, retrying...'.format(
+            #             key, full_seq_length, time_offset, read_chunk_length))
+            #         time_offset = math.floor(time_offset)
+            #         x, fs = self.r.read([key], time_offset=time_offset,
+            #                             time_durs=read_chunk_length)
+            #     except:
+            #         try:
+            #             # if changing the value of time-offset doesn't solve the issue, we try to read from
+            #             # from time-offset to the end of the file, and remove the extra frames later
+            #             logging.info('error-2 reading at key={} totol_dur={} offset={} retrying reading until end-of-file ...'.format(
+            #                 key, full_seq_length, time_offset))
+            #             x, fs = self.r.read([key], time_offset=time_offset)
+            #             x = [x[0][:int(read_chunk_length * fs[0])]]
+            #         except:
+            #             # try to read the full file
+            #             logging.info('error-3 reading at key={} totol_dur={} retrying reading full file ...'.format(
+            #                 key, full_seq_length))
+            #             x, fs = self.r.read([key])
+            #             x = [x[0][:int(read_chunk_length * fs[0])]]
+
+                
+            x = x[0]
+            fs = fs[0]
+
+            x_clean = x
+            if self.augmenter is not None:
+                chunk_length_samples = int(chunk_length * fs)
+                end_idx = len(x)
+                reverb_context_samples = end_idx - chunk_length_samples
+                assert reverb_context_samples >= 0, (
+                    ('key={} time-offset={}, read-chunk={} '
+                    'read-x-samples={}, chunk_samples={}, reverb_context_samples={}').format(
+                        key, time_offset, read_chunk_length, 
+                        end_idx, chunk_length_samples, reverb_context_samples))
+                # end_idx = reverb_context_samples + chunk_length_samples
+                x, aug_info = self.augmenter(x)
+                x = x[reverb_context_samples:end_idx]
+                if self.return_clean_aug_pair:
+                    x_clean = x_clean[reverb_context_samples:end_idx]
+                    x_clean = x_clean.astype(floatstr_torch(), copy=False)
+                #x_clean = x_clean[reverb_context_samples:]
+                #logging.info('augmentation x-clean={}, x={}, aug_info={}'.format(
+                #    x_clean.shape, x.shape, aug_info))
+            #     if len(x) != 64000:
+            #         logging.info('x!=4s, {} {} {} {} {} {} {} {}'.format(len(x),reverb_context, reverb_context_samples, chunk_length, chunk_length_samples, end_idx, fs, read_chunk_length))
+
+            # if len(x) != 64000:
+            #         logging.info('x!=4s-2, {} {} {} {}'.format(len(x), chunk_length, fs, read_chunk_length))
+
+            if self.transpose_input:
+                x = x[None,:]
+                if self.return_clean_aug_pair:
+                    x_clean = x_clean[None,:]
+
+            x = x.astype(floatstr_torch(), copy=False)
+            if self.return_clean_aug_pair:
+                r = x, x_clean
+            else:
+                r = x,
+            r_list.append(*r)
+
+        if len(r_list) == 1: del r_list
+
+        if not self.return_class:
+            try:
+                return r_list
+            except:
+                return r
+
+        class_idx = self.utt_idx2class[index]
+        try:
+            r = r_list, class_idx
+        except:
+            r = *r, class_idx
+
         return r
 
 

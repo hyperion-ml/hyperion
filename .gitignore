@@ -37,6 +37,7 @@ tools/cudnn/cudnn-*
 tools/kaldi/kaldi
 tools/nccl/nccl_*
 tools/path.sh
+.vscode
 
 rirs_noises.zip
 RIRS_NOISES

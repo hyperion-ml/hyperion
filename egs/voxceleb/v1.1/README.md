@@ -62,7 +62,7 @@ run_040_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
    - `run_003_prepare_noises_rirs.sh`
       - Prepares MUSAN noises, music to be used by SpeechAugment class.
       - Creates Babble noise from MUSAN speech to be used by SpeechAugment class.
-      - Prepares RIRs by compacting then into HDF5 files, to be used by SpeechAugment class.
+      - Prepares RIRs by compacting them into HDF5 files, to be used by SpeechAugment class.
 
    - `run_010_prepare_xvec_train_data.sh`
       - Transforms all the audios that we are going to use to train the x-vector into a common format, e.g., .flac.

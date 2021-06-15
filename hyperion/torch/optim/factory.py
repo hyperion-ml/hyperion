@@ -19,7 +19,7 @@ class OptimizerFactory(object):
                amsgrad=False, nesterov=False,
                lambd=0.0001, asgd_alpha=0.75, t0=1000000.0,
                rmsprop_alpha=0.99, centered=False,
-               lr_decay=0, init_acc_val=0, max_iter=20, oss=False):
+               lr_decay=0, init_acc_val=0, max_iter=20, oss=False, **kwargs):
 
         kwargs = locals()
         base_opt = None
@@ -125,7 +125,7 @@ class OptimizerFactory(object):
         if base_opt is None:
             raise Exception('unknown optimizer %s' % opt_type)
 
-        if oss:
+        if oss: # (JJ: TODO - this is NOT touched for dino_style param filtering so with dino_style, the behavior is not yet confirmed)
             from fairscale.optim.oss import OSS
             logging.info('Optimizer uses OSS')
             return OSS(params, base_opt, **opt_args)
@@ -138,7 +138,7 @@ class OptimizerFactory(object):
         valid_args = ('opt_type', 'lr', 'momentum', 'beta1', 'beta2',
                       'rho', 'eps', 'weight_decay', 'amsgrad', 'nesterov', 
                       'lambd','asgd_alpha','t0','rmsprop_alpha',
-                      'centered','lr_decay','init_acc_val','max_iter', 'oss')
+                      'centered','lr_decay','init_acc_val','max_iter', 'oss', 'dino_style')
 
         return filter_args(valid_args, kwargs)
 
@@ -233,6 +233,10 @@ class OptimizerFactory(object):
         parser.add_argument(
             '--max-iter', default=20, type=int,
             help=('max iterations in LBGS'))
+
+        parser.add_argument(
+            '--dino-style', default=False, type=bool,
+            help=('per-parameter updates following FB dino repo to NOT regularize biases nor Norm parameters'))
 
         if prefix is not None:
             outer_parser.add_argument(

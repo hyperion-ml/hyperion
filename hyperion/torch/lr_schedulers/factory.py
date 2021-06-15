@@ -24,9 +24,9 @@ class LRSchedulerFactory(object):
                factor=0.1, patience=10,
                threshold=1e-4, threshold_mode='rel',
                cooldown=0, eps=1e-8,
-               min_lr=0, warmup_steps=0, update_lr_on_opt_step=False):
+               min_lr=0, warmup_steps=0, update_lr_on_opt_step=False, **kwargs):
 
-        if lrsch_type == 'none':
+        if lrsch_type == 'none' or lrsch_type == 'dinossl' :
             return None
         
         if lrsch_type == 'exp_lr':
@@ -67,7 +67,9 @@ class LRSchedulerFactory(object):
         valid_args = ('lrsch_type', 'decay_rate', 'decay_steps', 'hold_steps', 'power',
                       't', 't_mul', 'warm_restarts', 'gamma', 'monitor', 
                       'mode','factor','patience','threshold',
-                      'threshold_mode','cooldown','eps','min_lr', 'warmup_steps', 'update_lr_on_opt_step')
+                      'threshold_mode','cooldown','eps','min_lr','warmup_steps','update_lr_on_opt_step',
+                      'dinossl_lr','dinossl_min_lr','dinossl_warmup_epochs','dinossl_weight_decay',
+                      'dinossl_weight_decay_end','dinossl_momentum_teacher')
 
         return dict((k, kwargs[k])
                     for k in valid_args if k in kwargs)
@@ -82,7 +84,7 @@ class LRSchedulerFactory(object):
 
         parser.add_argument('--lrsch-type', type=str.lower,
                             default='none',
-                            choices=['none','exp_lr', 'invpow_lr', 'cos_lr', 'adamcos_lr', 'red_lr_on_plateau'],
+                            choices=['none', 'dinossl', 'exp_lr', 'invpow_lr', 'cos_lr', 'adamcos_lr', 'red_lr_on_plateau'],
                             help=('Learning rate schedulers: None, Exponential,'
                                   'Cosine Annealing, Cosine Annealing for Adam,' 
                                   'Reduce on Plateau'))
@@ -155,6 +157,29 @@ class LRSchedulerFactory(object):
         parser.add_argument('--update-lr-on-opt-step', default=False,
                             action='store_true',
                             help=('Update lr based on batch number instead of epoch number'))
+        # dinossl related - start
+        parser.add_argument('--dinossl_lr', default=0.005, type=float,
+            help=("""Learning rate at the end of linear warmup (highest LR used during training). 
+            The learning rate is linearly scaled with the batch size, and specified here for a 
+            reference batch size of 256."""))
+        parser.add_argument('--dinossl_min_lr' , 
+                            default=1e-6, type=float,
+            help=("Target LR at the end of optimization. We use a cosine LR schedule with linear warmup."))
+        parser.add_argument('--dinossl_warmup_epochs' , 
+                            default=10, type=int,
+                        help=("Number of epochs for the linear learning-rate warm up."))
+        parser.add_argument('--dinossl_weight_decay' , 
+                            default=0.04, type=float,
+            help=("Initial value of the weight decay. With ViT, a smaller value at the beginning of training works well."))
+        parser.add_argument('--dinossl_weight_decay_end' , 
+                            default=0.4, type=float,
+            help=("""Final value of the weight decay. We use a cosine schedule for WD and using a larger decay by 
+            the end of training improves performance for ViTs."""))
+        parser.add_argument('--dinossl_momentum_teacher' , 
+                            default=0, type=float,
+            help=("""Base EMA parameter for teacher update. The value is increased to 1 during training with cosine schedule. 
+            We recommend setting a higher value with small batches: for example use 0.9995 with batch size of 256."""))
+        # dinossl related - end
 
         if prefix is not None:
             outer_parser.add_argument(
