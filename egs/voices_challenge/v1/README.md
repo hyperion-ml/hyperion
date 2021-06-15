@@ -21,11 +21,11 @@ year = {2019}
 ```
 
 ## Training Data
-   - VOiCES protocol:
+   - VOiCES protocol (default, follows the evaluation rules, cannot use MUSAN babble):
      - x-Vector network and PLDA back-end is trained on Voxceleb1+2 dev+test + SITW with augmentations
         - MUSAN noise, music and Mixer6 Babble (following eval protocol) or
         - RIR reverberation
-   - SRE19 protocol
+   - SRE19-AV protocol (To use with networks trained on the SRE19-AV recipe)
      - x-Vector network and PLDA back-end is trained on Voxceleb1+2 dev+test with augmentations
         - MUSAN noise, music and babble
         - RIR reverberation
@@ -71,24 +71,37 @@ run_0xx_....sh --config-file global_conf/config_fbank80_stmn_res2net50w26s8_arcs
       - Trains the x-vector network
 
    - `run_030_extract_xvectors.sh`
-      - Computes x-vectors for all datasets without diarization
-
-   - `run_031_extract_xvectors_with_diar.sh`
-      - Computes x-vectors for all datasets that need diarization 
-      - One x-vectors is computed for each speaker found in the file by the AHC.
-      - Input is audio + RTTM files from step 21
+      - Computes x-vectors for all datasets
 
    - `run_040_eval_be_v1_wo_diar.sh`
       - Trains back-end LDA+CenterWhiten+Lenght-Norm+PLDA on VoxCeleb
       - Evals back-end on all datasets without using diarization (assuming one speaker per test file) without AS-Norm
-
-
+   - `run_040_eval_backend.sh`
+      - Trains back-end LDA+CenterWhiten+Lenght-Norm+PLDA on VoxCeleb(+SITW)
+      - It uses Voices dev for centering
+      - Evals Voices dev and eval with and without S-Norm
+      - Calibrates on voices dev
+   - `run_041_eval_backend_2folds.sh`
+      - Evaluate the dev without cheating centering and calibration splitting into 2 folds
+      - Fold 1 is centered and calibrated with fold2 and viceversa
+      - Eval is centered and calibrated with both folds
+   - `run_042_eval_backend_adapt_2folds.sh`
+      - Same as 41, backend withinn class cov is adapted to voxceleb dev
+   - `run_050_make_res_tables.sh`
+      - Prints table with results from steps 40-41
+      - Usage: 
+         `run_050_make_res_tables.sh exp/scores/fbank80_stmn_resnet34_e256_arcs30m0.3_do0_adam_lr0.05_b512_amp.v1/lda200_splday150_v1_voxcelebcat_augx6`
+   - `run_051_make_adapt_res_tables.sh`
+      - Prints table with results from step 42
+      - Usage: 
+         `run_051_make_adapt_res_tables.sh exp/scores/fbank80_stmn_resnet34_e256_arcs30m0.3_do0_adam_lr0.05_b512_amp.v1/lda200_splday150_v2_voxcelebcat_augx6_adapt_w0.35`
 
 ## Results
-TODO
-| Config | NNet | Diar | AS-Norm Cohort | SITW DEV CORE |  |  | SITW DEV CORE-MULTI |  |  | SITW EVAL CORE |  |  | SITW EVAL CORE-MULTI |  |  | SRE18 EVAL VAST |  |  | SRE19 DEV AV |  |  | SRE19 EVAL AV |  |  | JANUS DEV CORE |  |  | JANUS EVAL CORE |  | |
-| ------ | ---- | :--: | :------------: | :------: | :--: | :--: | :------: | :--: | :--: |:------: | :--: | :--: |:------: | :--: | :--: |:------: | :--: | :--: |:------: | :--: | :--: |:------: | :--: | :--: |:------: | :--: | :--: |:------: | :--: | :--: |
-| | | | | EER | Min Cp | Act Cp | EER | Min Cp | Act Cp | EER | Min Cp | Act Cp | EER | Min Cp | Act Cp | EER | Min Cp | Act Cp | EER | Min Cp | Act Cp | EER | Min Cp | Act Cp | EER | Min Cp | Act Cp | EER | Min Cp | Act Cp |
 
+Results here are from step `run_041...`
 
-
+| Config | NNet | AS-Norm | VOICES DEV |    |        | VOICES EVAL |      |      |
+| ------ | ---- | :-----: | :--------: | :--: | :--: | :---------: | :--: | :--: | 
+|  |  |  | EER  | MinDCF  | ActDCF | EER | MinDCF | ActDCF | 
+| config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr0.05_amp_sre19prot.v1.sh |  ResNet34 | N | 1.09 | 0.109 | 0.110 | 4.12 | 0.281 | 0.288 | 
+| config_fbank80_stmn_res2net50w26s4_arcs30m0.3_adam_lr0.05_amp_sre19prot.v1.sh | Res2Net50 | N | 1.04 | 0.089 | 0.089 | 3.50 | 0.249 | 0.250 | 

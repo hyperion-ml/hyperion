@@ -69,4 +69,23 @@ if [ $stage -le 3 ]; then
     data/voices19_challenge_dev data/voices19_challenge_dev_{enroll,test}
 fi
 
+if [ $stage -le 4 ]; then
+  if [ $plda_num_augs -eq 0 ]; then
+    mkdir -p $xvector_dir/voxcelebcat_sitw
+    cat $xvector_dir/{voxcelebcat,sitw_train}/xvector.scp \
+      > $xvector_dir/voxcelebcat_sitw/xvector.scp
+    utils/combine_data.sh  --sort false \
+	data/voxcelebcat_sitw \
+	data/voxcelebcat \
+	data/sitw_train
+  else
+    mkdir -p $xvector_dir/voxcelebcat_sitw_augx${plda_num_augs}
+    cat $xvector_dir/{voxcelebcat,sitw_train}_augx${plda_num_augs}/xvector.scp \
+      > $xvector_dir/voxcelebcat_sitw_augx${plda_num_augs}/xvector.scp
+    utils/combine_data.sh --sort false \
+	data/voxcelebcat_sitw_augx${plda_num_augs} \
+	data/voxcelebcat_augx${plda_num_augs} \
+	data/sitw_train_augx${plda_num_augs}
+  fi
+fi
 exit

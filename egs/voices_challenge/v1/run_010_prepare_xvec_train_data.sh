@@ -22,7 +22,7 @@ if [ $stage -le 2 ]; then
       data/${nnet_data} data/${nnet_data}_proc_audio_no_sil exp/${nnet_data}_proc_audio_no_sil
     hyp_utils/kaldi/utils/fix_data_dir.sh data/${nnet_data}_proc_audio_no_sil
   done
-  utils/combine_data.sh data/voxcelebcat_sitw_proc_audio_no_sil \
+  utils/combine_data.sh --sort false data/voxcelebcat_sitw_proc_audio_no_sil \
     data/voxcelebcat_proc_audio_no_sil data/sitw_train_proc_audio_no_sil
 fi
 
