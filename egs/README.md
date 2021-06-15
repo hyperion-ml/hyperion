@@ -16,8 +16,11 @@
 | [sre19-av-a](https://www.nist.gov/itl/iad/mig/nist-2019-speaker-recognition-evaluation) | v1 | NIST SRE19-AV Audio only using Kaldi x-Vectors |
 | | v2 | SRE19-AV using PyTorch x-Vectors <br> It uses precomputed features |
 | | v2.1 | SRE19-AV using PyTorch x-Vectors <br> It uses on-the-fly feat extraction and speech augmentation |
+| ------- | ------- | ---- |
 | [sre20-cts](https://www.nist.gov/publications/nist-2020-cts-speaker-recognition-challenge-evaluation-plan) | v1 | NIST SRE20-CTS recipe used by JHU-MIT team |
+| ------- | ------- | ---- |
 | [voices_challenge](https://iqtlabs.github.io/voices/downloads/) | v1 | VOiCES challenge 2019 using x-vectors |
+| ------- | ------- | ---- |
 | [chime_spkdet](https://www.isca-speech.org/archive/Interspeech_2019/pdfs/2174.pdf) | v1 | Speaker Recognition Benchmark based on [CHiME](http://spandh.dcs.shef.ac.uk/chime_challenge/CHiME5/data.html) data |
 | ------- | ------- | ---- |
 | [CIFAR](https://www.cs.toronto.edu/~kriz/cifar.html) | v1 | CIFAR-10/100 Image classification task|
