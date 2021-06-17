@@ -120,6 +120,10 @@ run_040_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | | | | Cosine | 1.29 | 0.084 | 0.140 |
 | config_fbank80_stmn_spinenet49_arcs30m0.3_adam_lr0.05_amp.v1.sh | SpineNet49 | ArcFace s=30/m=0.3 | Cosine | 1.12 | 0.071 | 0.116 |
 | config_fbank80_stmn_spine2net49_arcs30m0.3_adam_lr0.05_amp.v1.sh | Spine2Net49 | ArcFace s=30/m=0.3 | Cosine | 1.05 | 0.074 | 0.116 |
+| config_fbank80_stmn_tsespine2net49_arcs30m0.3_adam_lr0.05_amp.v1.sh | Spine2Net49 | ArcFace s=30/m=0.3 | Cosine | 1.09 | 0.081 | 0.150 |
+
+
+
 
 
 ### VoxCeleb 1 Entire-Clean trial list
@@ -157,6 +161,9 @@ run_040_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | | | | Cosine | 1.27 | 0.079 | 0.142 |
 | config_fbank80_stmn_spinenet49_arcs30m0.3_adam_lr0.05_amp.v1.sh | SpineNet49 | ArcFace s=30/m=0.3 | Cosine | 1.19 | 0.077 | 0.137 |
 | config_fbank80_stmn_spine2net49_arcs30m0.3_adam_lr0.05_amp.v1.sh | Spine2Net49 | ArcFace s=30/m=0.3 | Cosine | 1.12 | 0.073 | 0.129 |
+| config_fbank80_stmn_tsespine2net49_arcs30m0.3_adam_lr0.05_amp.v1.sh | TSE-Spine2Net49 | ArcFace s=30/m=0.3 | Cosine | 1.05 | 0.068 | 0.120 |
+
+
 
 
 ### VoxCeleb 1 Hard-Clean trial list
@@ -194,4 +201,5 @@ run_040_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | | | | Cosine | 2.26 | 0.134 | 0.214 |
 | config_fbank80_stmn_spinenet49_arcs30m0.3_adam_lr0.05_amp.v1.sh | SpineNet49 | ArcFace s=30/m=0.3 | Cosine | 2.24 | 0.134 | 0.221 |
 | config_fbank80_stmn_spine2net49_arcs30m0.3_adam_lr0.05_amp.v1.sh | Spine2Net49 | ArcFace s=30/m=0.3 | Cosine | 2.20 | 0.132 | 0.219 |
+| config_fbank80_stmn_tsespine2net49_arcs30m0.3_adam_lr0.05_amp.v1.sh | Spine2Net49 | ArcFace s=30/m=0.3 | Cosine | 2.02 | 0.123 | 0.203 |
 

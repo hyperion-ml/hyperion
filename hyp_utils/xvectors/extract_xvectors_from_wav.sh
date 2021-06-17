@@ -90,7 +90,7 @@ if [ $stage -le 0 ];then
 	--part-idx JOB --num-parts $nj \
 	--input $data_dir/wav.scp \
 	--model-path $nnet_file --chunk-length $chunk_length \
-	--output ark,scp:$output_dir/xvector.JOB.ark,$output_dir/xvector.JOB.scp || exit 1;
+	--output ark,scp:$output_dir/xvector.JOB.ark,$output_dir/xvector.JOB.scp
     set -e
 fi
 
