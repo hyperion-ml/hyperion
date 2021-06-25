@@ -16,6 +16,7 @@ skip_fix=false # skip the fix_data_dir.sh in the end
 echo "$0 $@"  # Print the command line for logging
 
 kaldi_utils=hyp_utils/kaldi/utils
+sort=true
 
 if [ -f path.sh ]; then . ./path.sh; fi
 . parse_options.sh || exit 1;
@@ -142,7 +143,7 @@ if [[ $dir_with_frame_shift ]]; then
 fi
 
 if ! $skip_fix ; then
-  ${kaldi_utils}/fix_data_dir.sh $dest || exit 1;
+  ${kaldi_utils}/fix_data_dir.sh --sort $sort $dest || exit 1;
 fi
 
 exit 0

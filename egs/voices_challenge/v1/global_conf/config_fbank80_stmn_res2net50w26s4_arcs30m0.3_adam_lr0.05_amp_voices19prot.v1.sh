@@ -7,7 +7,7 @@ feat_type=fbank80_stmn
 # x-vector training 
 nnet_data=voxcelebcat
 nnet_num_augs=6
-aug_opt="--train-aug-cfg conf/reverb_noise_aug.yaml --val-aug-cfg conf/reverb_noise_aug.yaml"
+aug_opt="--train-aug-cfg conf/reverb_noise_mx6_aug.yaml --val-aug-cfg conf/reverb_noise_mx6_aug.yaml"
 
 batch_size_1gpu=32
 eff_batch_size=512 # effective batch size
@@ -39,12 +39,12 @@ nnet=$nnet_dir/model_ep0070.pth
 
 
 # back-end
-plda_aug_config=conf/reverb_noise_aug.yaml
+plda_aug_config=conf/reverb_noise_mx6_aug.yaml
 plda_num_augs=6
 if [ $plda_num_augs -eq 0 ]; then
-    plda_data=voxcelebcat
+    plda_data=voxcelebcat_sitw
 else
-    plda_data=voxcelebcat_augx${plda_num_augs}
+    plda_data=voxcelebcat_sitw_augx${plda_num_augs}
 fi
 plda_type=splda
 lda_dim=200

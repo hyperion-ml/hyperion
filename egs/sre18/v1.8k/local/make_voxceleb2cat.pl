@@ -58,7 +58,8 @@ foreach (@spkr_dirs) {
 
   foreach (@rec_dirs) {
       my $rec_id = $_;
-      my $file_list = "$out_dir/lists_cat/$rec_id.txt";
+      my $utt_id = "$spkr_id-$rec_id";
+      my $file_list = "$out_dir/lists_cat/$utt_id.txt";
       if (system("find $dataset_path/$spkr_id/$rec_id -name \"*.m4a\" -printf \"file %p\\n\" > $file_list") != 0){
 	  die "Error creating $file_list";
       }
@@ -66,7 +67,6 @@ foreach (@spkr_dirs) {
       if($fs == 8){
 	  $wav = $wav." sox -t wav - -t wav -r 8k - |"
       }
-      my $utt_id = "$spkr_id-$rec_id";
       print WAV "$utt_id", " $wav", "\n";
       print SPKR "$utt_id", " $spkr_id", "\n";
   }
