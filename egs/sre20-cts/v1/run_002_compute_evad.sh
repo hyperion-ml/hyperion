@@ -56,7 +56,7 @@ if [ $stage -le 2 ];then
     			sre19_eval_enroll_cmn2 sre19_eval_test_cmn2 \
     			sre20cts_eval_enroll sre20cts_eval_test \
     			cncelebcat_tel fisher_spa \
-			$cv_datasets $babel_datasets $lre17_datasets
+			$cv_datasets $babel_datasets $lre17_datasets $mls_datasets
     do
 	num_spk=$(wc -l data/$name/spk2utt | awk '{ print $1}')
 	nj=$(($num_spk < 40 ? $num_spk:40))

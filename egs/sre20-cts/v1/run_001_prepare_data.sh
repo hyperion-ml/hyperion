@@ -182,3 +182,12 @@ if [ $stage -le 13 ];then
 fi
 
 
+if [ $stage -le 14 ];then
+    # Prepare MLS
+    for lang in dutch french german italian polish portuguese spanish
+    do
+	local/make_mls.sh $mls_root $lang 8 data/mls_${lang}
+	local/apply_sox_tel_codec.sh data/mls_${lang} data/mls_${lang}_tel
+    done
+
+fi

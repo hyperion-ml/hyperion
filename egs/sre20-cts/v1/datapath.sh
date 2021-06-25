@@ -63,6 +63,7 @@ if [ "$(hostname --domain)" == "clsp.jhu.edu" ];then
     lre17_train_root=$ldc_root/LDC2017E22_2017_NIST_Language_Recognition_Evaluation_Training_Data
     lre17_dev_root=$ldc_root/LDC2017E23_2017_NIST_Language_Recognition_Evaluation_Development_Data
     lre17_eval_root=$ldc_root/LDC2017E23_2017_NIST_Language_Recognition_Evaluation_Eval_Data
+    mls_root=/export/corpora5/MLS
 elif [ "$(hostname --domain)" == "cm.gemini" ];then
     ldc_root=/export/common/data/corpora/LDC
     sre_root=/export/common/data/corpora/NIST/SRE
@@ -102,3 +103,7 @@ lre17_langs="ara-acm ara-apc ara-ary ara-arz \
 		    spa-car spa-eur spa-lac \
 		    zho-cmn zho-nan"
 lre17_datasets="$(echo $lre17_langs | awk '{for(i=1;i<=NF;i++){ $i=sprintf("lre17_%s",$i)}; print $0}')"
+
+mls_langs="dutch french german italian polish portuguese spanish"
+mls_datasets="$(echo $mls_langs | awk '{for(i=1;i<=NF;i++){ $i=sprintf("mls_%s_tel",$i)}; print $0}')"
+
