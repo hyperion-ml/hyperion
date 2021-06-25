@@ -21,7 +21,7 @@ if [ $stage -le 1 ]; then
     			sre16_eval_tr60_yue sre16_eval_tr60_tgl \
     		        sre18_cmn2_train_lab \
     			cncelebcat_tel fisher_spa \
-    			$cv_datasets
+    			$cv_datasets $mls_datasets
     do
 	steps_xvec/preprocess_audios_for_nnet_train.sh --nj 40 --cmd "$train_cmd" \
 	    --storage_name sre20-cts-v1-$name-$(date +'%m_%d_%H_%M') --use-bin-vad true \
@@ -36,7 +36,7 @@ if [ $stage -le 2 ]; then
     			sre16_eval_tr60_yue sre16_eval_tr60_tgl \
     		        sre18_cmn2_train_lab \
     			cncelebcat_tel fisher_spa \
-    			$cv_datasets
+    			$cv_datasets  $mls_datasets
     do
 	# Now, we remove files with less than 4s
 	hyp_utils/remove_short_audios.sh --min-len 4 data/${name}_proc_audio_no_sil
