@@ -4,7 +4,6 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from tools.kaldi.kaldi.egs.yomdle_korean.v1.steps.nnet3.convert_nnet2_to_nnet3 import parse_bias
 from hyperion.torch.utils import dinossl
 import os
 import contextlib
@@ -122,11 +121,11 @@ class DINOSSLTorchTrainer(object):
         self.ddp_type = ddp_type
         self.rank = 0
         self.world_size = 1
-        if ddp: # (JJ: TODO - in clsp, which ddp_type will be used for the fastest computation?)
+        if ddp: # (JJ: EXP - for now, I will only use self.ddp_type = 'ddp', i.e., DDPType.DDP)
             self.rank = dist.get_rank()
             self.world_size = dist.get_world_size()
             if ddp_type == DDPType.DDP or ddp_type == DDPType.OSS_DDP:
-                if has_batchnorms(self.model): # synchronize batch norms (if any) # (JJ: TODO - Q. Why we wrap teacher with ddp only when it has batchnorms? A. I guess it is to prevent finding easy solution based on intra-batch information exchange)
+                if has_batchnorms(self.model): # synchronize batch norms (if any) # (JJ: EXP - Q: Why we wrap teacher with ddp only when it has batchnorms? A: It seems to use unified estimates over gpus)
                     self.model, self.model_teacher, self.model_teacher_without_ddp = self.convert_sync_batchnorm(device)
                 else: # (JJ: EXP - when we use ViT-like model (in DINO) that does not have batchnorms)
                     self.model_teacher_without_ddp = self.model_teacher
@@ -139,7 +138,7 @@ class DINOSSLTorchTrainer(object):
             elif ddp_type == DDPType.OSS_SHARDED_DDP:
                 if has_batchnorms(self.model):
                     self.model, self.model_teacher, self.model_teacher_without_ddp = self.convert_sync_batchnorm(device)
-                else: # (JJ: EXP - when we use ViT-like model (in DINO) that does not have batchnorms)
+                else:
                     self.model_teacher_without_ddp = self.model_teacher
                 if self.rank == 0:
                     logging.info('training in multiple gpus with fair sharded-distributed-data-parallel')
@@ -158,11 +157,11 @@ class DINOSSLTorchTrainer(object):
             #if self.use_amp:
             #    self.amp_args = {'use_amp': self.use_amp }
         else:
-            self.model_teacher_without_ddp = self.model_teacher # (JJ: EXP - no "self.convert_sync_batchnorm(device)" in the single gpu case so training with single gpu might not be proper)
+            self.model_teacher_without_ddp = self.model_teacher
             self.optimizer = self._make_optimizer(optim, self.model)
-            
-
-        # there is no backpropagation through the teacher, so no need for gradients
+        
+        # NO backpropagation through the teacher, which instead is updated by momentum.
+        # Do the step here after ddp applied. Otherwise, an assertion error raises (DistributedDataParallel is not needed when a module doesn't have any parameter that requires a gradient.)
         for p in self.model_teacher.parameters():
             p.requires_grad = False
 
@@ -396,12 +395,12 @@ class DINOSSLTorchTrainer(object):
         opt_args['oss'] = oss
         if self.rank == 0:
             logging.info('optimizer args={}'.format(opt_args))
-        if opt_args['dino_style']: # dino_style means per-parameter updates following FB dino repo to NOT regularize biases nor Norm parameters
+        if opt_args['dinossl_style']: # dinossl_style means per-parameter updates following FB dino repo to NOT regularize biases nor Norm parameters
             params_groups = dinossl.get_params_groups(model)
-            del opt_args['dino_style']
+            del opt_args['dinossl_style']
             optimizer = OF.create(params_groups, **opt_args)
         else:
-            del opt_args['dino_style']
+            del opt_args['dinossl_style']
             optimizer = OF.create(model.parameters(), **opt_args)
         return optimizer
 

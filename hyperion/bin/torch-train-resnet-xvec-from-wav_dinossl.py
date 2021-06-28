@@ -149,9 +149,11 @@ def init_xvector(num_classes, rank, **kwargs):
             logging.info('dinossl args={}'.format(dinossl_args))
         embed_dim = model.classif_net.in_feats
         # model
-        model_teacher = copy.deepcopy(model) # teacher and student start with the same weights. copying values of parameters from model also happens in this line differently from original dino repo
+        model_teacher = XVec(**xvec_args)
         model = dinossl.MultiCropWrapper(model, dinossl.DINOHead(embed_dim, dinossl_args['dinossl_out_dim'], use_bn=dinossl_args['dinossl_use_bn_in_head'], norm_last_layer=dinossl_args['dinossl_norm_last_layer'])) # multi-crop wrapper handles forward with inputs of different chunk lengths
         model_teacher = dinossl.MultiCropWrapper(model_teacher, dinossl.DINOHead(embed_dim, dinossl_args['dinossl_out_dim'], use_bn=dinossl_args['dinossl_use_bn_in_head']))
+        # teacher and student start with the same weights. "requires_grad = False" happens in torch_trainer_dinossl.py
+        model_teacher.load_state_dict(model.state_dict())
         model = [model, model_teacher]
         # loss
         loss = dinossl.DINOLoss(dinossl_args['dinossl_out_dim'],
@@ -211,14 +213,14 @@ def train_xvec(gpu_id, args):
     # trainer = Trainer(model, feat_extractor, optimizer, 
     #                   device=device, metrics=metrics, lr_scheduler=lr_sch,
     #                   ddp=world_size>1, **trn_args)
-    trn_args['niter_per_ep'] = len(train_loader) # (JJ: TODO - currently this does NOT consider grad_acc_steps
+    trn_args['niter_per_ep'] = len(train_loader)
     trn_args['batch_size'] = kwargs['batch_size']
     trainer = Trainer(model, feat_extractor,
                       device=device, metrics=metrics, 
                       ddp=world_size>1, loss=dino_loss, **trn_args)
     if args.resume:
         trainer.load_last_checkpoint()
-    trainer.fit(train_loader, val_data=None) # (JJ: TODO - We don't use test_loader in SSL but still run the process (better to remove it). )
+    trainer.fit(train_loader, val_data=None) # (JJ: TODO - We don't use test_loader for now but may use it later for knn classifier for validation at every epoch)
 
     ddp.ddp_cleanup()
 
@@ -226,7 +228,7 @@ def train_xvec(gpu_id, args):
 if __name__ == '__main__':
 
     parser = ArgumentParser(
-        description='Train XVector with ResNet encoder from audio files in a self-supervised fashion: Currently it follows DINO')
+        description='Train XVector with ResNet encoder from audio files in a self-supervised fashion: Currently, it follows DINO')
 
     parser.add_argument('--cfg', action=ActionConfigFile)
     parser.add_argument('--audio-path', required=True)
@@ -241,7 +243,6 @@ if __name__ == '__main__':
 
     parser.add_argument('--num-workers', type=int, default=5, 
                         help='num_workers of data loader')
-
     AF.add_class_args(parser, prefix='feats')
     # feats_parser = ArgumentParser()
     # AFF.add_class_args(feats_parser, prefix='audio_feats')
@@ -263,6 +264,7 @@ if __name__ == '__main__':
                         choices=[0, 1, 2, 3], type=int)
 
     parser.add_argument('--local_rank', default=0, type=int)
+    parser.add_argument('--cudnn_benchmark', default=False, type=bool)
 
     args = parser.parse_args()
 
@@ -280,5 +282,8 @@ if __name__ == '__main__':
 
     # torch docs recommend using forkserver
     multiprocessing.set_start_method('forkserver')
+    # JJ: check to see if it speeds up training - A: It doesn't seem so
+    if args.cudnn_benchmark:
+        torch.backends.cudnn.benchmark = True
     train_xvec(gpu_id, args)
 
