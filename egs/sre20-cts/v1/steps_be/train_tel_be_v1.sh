@@ -41,7 +41,7 @@ while(getline < fv)
 { if ($1 in files) {print $1,$2}}' $data_dir/utt2spk > $train_list
 
 $cmd $output_dir/log/train_be.log \
-     python steps_be/train-tel-be-v1.py \
+     hyp_utils/conda_env.sh steps_be/train-tel-be-v1.py \
      --iv-file scp:$vector_file \
      --train-list $train_list \
      --lda-dim $lda_dim \

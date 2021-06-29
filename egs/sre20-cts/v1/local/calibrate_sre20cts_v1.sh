@@ -57,8 +57,11 @@ esac
 
 model_file=$cal_score_dir/cal_tel.h5
 $cmd $cal_score_dir/train_cal_tel.log \
-     steps_be/train-calibration-v1.py --score-file $train_scores \
-     --key-file $train_key --model-file $model_file --prior $p_tel --lambda-reg $l2_reg
+     hyp_utils/conda_env.sh steps_be/train-calibration-v1.py \
+     --score-file $train_scores \
+     --key-file $train_key \
+     --model-file $model_file \
+     --prior $p_tel --lambda-reg $l2_reg
 
 ndxs=(sre16_eval40_yue_test sre16_eval40_tgl_test sre19_eval_test_cmn2 sre20cts_eval_test)
 scores=(sre16_eval40_yue sre16_eval40_tgl sre19_eval_cmn2 sre20cts_eval)
@@ -70,8 +73,11 @@ do
     scores_out=$cal_score_dir/${scores[$i]}_scores
     ndx=data/${ndxs[$i]}/trials
     $cmd $cal_score_dir/eval_cal_${scores[$i]}.log \
-	 steps_be/eval-calibration-v1.py --in-score-file $scores_in \
-	 --ndx-file $ndx --model-file $model_file --out-score-file $scores_out &
+	 hyp_utils/conda_env.sh steps_be/eval-calibration-v1.py \
+	 --in-score-file $scores_in \
+	 --ndx-file $ndx \
+	 --model-file $model_file \
+	 --out-score-file $scores_out &
 
 done
 wait

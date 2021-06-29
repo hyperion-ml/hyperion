@@ -56,7 +56,7 @@ while(getline < fv)
 enr_list=$data_dir_enr/utt2spk
 
 $cmd JOB=1:$nj $output_dir/log/train_be.JOB.log \
-     python steps_be/train-tel-be-knn-v3.py \
+     hyp_utils/conda_env.sh steps_be/train-tel-be-knn-v3.py \
      --v-file-train scp:$vector_file_trn \
      --train-list $train_list \
      --v-file-enroll-test scp:$vector_file_enr \
@@ -67,8 +67,3 @@ $cmd JOB=1:$nj $output_dir/log/train_be.JOB.log \
      --output-path $output_dir \
      --w-mu $w_mu --w-b $w_B --w-w $w_W --pca-var-r $pca_var_r \
      --part-idx JOB --num-parts $nj
-
-
-
-
-     
