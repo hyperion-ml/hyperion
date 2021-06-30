@@ -45,6 +45,8 @@ year = {2019}
 
 ## Training Data
 
+   - Switchboard Cellular 1+2
+   - Switchboard 2 Phase 1+2+3
    - MIXER 6 telephone data
    - NIST SRE04-12 telephone data
    - VoxCeleb1 + VoxCeleb2 dev

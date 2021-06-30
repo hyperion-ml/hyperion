@@ -1,27 +1,9 @@
-# NIST SRE19 CallMyNet2 V2.1
+# NIST SRE20 CTS V1
 
-Last update 2020/08/25
+Last update 2021/06/29
 
-Recipe for NIST Speaker Recognition Evaluation CTS condition
-using CallMyNet2 data in Tunisian Arabic
+Recipe for NIST Speaker Recognition Evaluation2020  CTS condition
 Using Hyperion toolkit Pytorch x-vectors and numpy back-ends
-
-## Differences w.r.t  V2 recipe
-
-In recipe version V2: 
-   - We compute speech augmentations and acoustic features offline and dump them to disk. 
-   - Augmentation is performed using Kaldi scripts and wav-reverbate tool
-   - Babble noise is created on-the-fly when computing features by mixing 3-7 single speaker files.
-
-In this recipe:
-   - We compute speech augmentations and acoustic features are computed always on-the-fly,
-     we don't dump any features to disk. 
-   - Augmentation is performed using Hyperin SpeechAugment class.
-   - The behavior of this class is controlled 
-     by the the configuration file `conf/reverb_noise_aug.yml`, 
-     which mimics the proportions of noise and RIR types, and SNRs used in the V1 or the recipe.
-   - Babble noise is created offline by mixing 3-10 single speaker files.
-
 
 ## Citing
 
@@ -62,16 +44,25 @@ year = {2019}
 
 ## Training Data
 
+   - Switchboard Cellular 1+2
+   - Switchboard 2 Phase 1+2+3
+   - Fisher Spanish
    - MIXER 6 telephone data
    - NIST SRE04-12 telephone data
    - VoxCeleb1 + VoxCeleb2 dev
+   - NIST SRE16 DEV CEB + CMN
+   - NIST SRE16 EVAL TGL + YUE 60%
    - NIST SRE18 CMN Dev Unlabeled
-   - NIST SRE18 CMN Dev+Eval 60% of speakers
+   - NIST SRE18 CMN Dev+Eval
+
+## Dev Data
+
+   - NIST SRE16 EVAL TGL + YUE 40%
+   - NIST SRE19 CTS Dev, Eval
 
 ## Test Data
 
-   - NIST SRE18 CMN Dev+Eval 40% of speakers uses as developement
-   - NIST SRE19 CTS Eval
+   - NIST SRE20-CTS
 
 ## Usage
 
@@ -80,10 +71,10 @@ year = {2019}
    - To use other x-vector models, pass config file as argument to the scripts, e.g.,
 ```bash
 ...
-run_011_train_xvector.sh --config-file config_fbank64_mvn_resnet34_arcs30m0.3_adam_lr0.01_amp.v1.ft_w0.1.sh
-run_030_extract_xvectors.sh --config-file config_fbank64_mvn_resnet34_arcs30m0.3_adam_lr0.01_amp.v1.ft_w0.1.sh
+run_011_train_xvector.sh --config-file config_fbank64_stmn_resnet34_arcs30m0.3_adam_lr0.01_amp.v1.ft_w0.1.sh
+run_030_extract_xvectors.sh --config-file config_fbank64_stmn_resnet34_arcs30m0.3_adam_lr0.01_amp.v1.ft_w0.1.sh
 ...
-run_042a_eval_be_v3.sh --config-file config_fbank64_mvn_resnet34_arcs30m0.3_adam_lr0.01_amp.v1.ft_w0.1.sh
+run_042a_eval_be_v3.sh --config-file config_fbank64_stmn_resnet34_arcs30m0.3_adam_lr0.01_amp.v1.ft_w0.1.sh
 ...
 ```
 
@@ -101,72 +92,45 @@ run_042a_eval_be_v3.sh --config-file config_fbank64_mvn_resnet34_arcs30m0.3_adam
       - Creates Babble noise from MUSAN speech to be used by SpeechAugment class.
       - Prepares RIRs by compacting then into HDF5 files, to be used by SpeechAugment class.
 
-   - `run_010_prepare_xvec_train_data.sh`
+   - `run_010_preproc_audios_for_nnet_train.sh `
       - Transforms all the audios that we are going to use to train the x-vector into a common format, e.g., .flac.
       - Removes silence from the audios
       - Removes utterances shorter than 4secs and speakers with less than 8 utterances.
+
+   - `run_011_combine_xvec_train_data.sh`
+      - Combines all datasets that are going to be used to train the x-vector in a single one
       - Creates training and validation lists for x-vector training
+      
+   - `run_012_train_xvector.sh`
+      - Trains the x-vector network on 4sec utts
 
-   - `run_011_train_xvector.sh`
-      - Trains the x-vector network on English 4sec utts
-
-   - `run_012_finetune_xvector.sh`
-      - Fine-tune x-vector network on English 10-60 secs utts
-
-   - `run_013_prepare_xvec_adapt_data.sh`
-      - Prepares the Arabic adaptation data for x-vector training
-
-   - `run_014_finetune_xvector_lastlayer_indomain.sh`
-      - Finetunes last affine layer before x-vector embedding
-        on Arabic data using deep-feat-prior regularization
-      - It starts from model obtained in step 12
-
-   - `run_015_finetune_xvector_full_indomain.sh`
-      - Finetunes full x-vector network
-        on Arabic data using deep-feat-prior regularization
-      - It starts from model obtained in step 14
+   - `run_013_finetune_xvector.sh`
+      - Fine-tune x-vector network on 10-60 secs utts
 
    - `run_030_extract_xvectors.sh`
-      - Extracts x-vectors for PLDA training and eval using English model from step 11
+      - Extracts x-vectors for PLDA training and eval using English model
+      - By default it uses x-vector network from step 13
 
-   - `run_031_extract_xvectors_ft1.sh`
-      - Extracts x-vectors for PLDA training and eval using English finetuned model from step 12
-
-   - `run_032_extract_xvectors_ft2.sh`
-      - Extracts x-vectors for PLDA training and eval using Arabic finetuned model from step 14
-
-   - `run_033_extract_xvectors_ft3.sh`
-      - Extracts x-vectors for PLDA training and eval using Arabic finetuned model from step 15
-
-   - `run_040a_eval_be_v1.sh, run_041a_eval_be_v2.sh, run_042a_eval_be_v3.sh`
-      - Evals 3 different back-ends on the English x-vectors
+   - `run_040a_eval_be_v1.sh, run_041a_eval_be_v2.sh, run_042a_eval_be_v3.sh run_043a_eval_be_v4.sh run_044a_eval_be_knn_v1.sh run_045a_eval_be_knn_v3.sh`
+      - Evals 5 different back-ends on the English x-vectors
            - V1: LDA + LNorm + PLDA adapted with SRE18 unlabeled
-	   - V2: LDA + LNorm + PLDA adapted with SRE18 labeled
-	   - V3: CORAL + LDA + LNorm + PLDA adapted with SRE18 labeled+unlabeled
-      - Results are left in `exp/scores/fbank64_mvn_resnet34_e256_arcs30m0.3_do0_adam_lr0.01_b512_amp.v1.ft_10_60_sgdcos_lr0.05_b128_amp.v2/*/plda_snorm300_cal_v1eval40/*_results`
+	   - V2: Cosine Scoring
+	   - V3: LDA + LNorm + PLDA adapted with SRE18 labeled
+	   - V4: CORAL + LDA + LNorm + PLDA adapted with SRE18 labeled+unlabeled
+	   - kNN-V1: Back-end Trained on k-NN speakers
+	   - kNN-V3: Back-end Trained on k1-NN speakers, adapted to k2-NN speakers, k2<k1
+      - Calibration condition indepedent
+      - Results are left in `exp/scores/fbank64_stmn_resnet34_eina_hln_chattstatsi128_e256_arcs30m0.3_do0_adam_lr0.01_b512_amp.v1.alllangs_nocv_nocnceleb.ft_10_60_arcm0.3_sgdcos_lr0.05_b128_amp.v2/*/*cal_v1sre16-yue/*_results`
 
-   - `run_050a_eval_be_v1_ftxvec1.sh, run_051a_eval_be_v2_ftxvec1.sh, run_052a_eval_be_v3_ftxvec1.sh`
-      - Some as previous but on adapted x-vectors from step 12
-      - Results are left in `exp/scores/fbank64_mvn_resnet34_e256_arcs30m0.3_do0_adam_lr0.01_b512_amp.v1.ft_10_60_sgdcos_lr0.05_b128_amp.v2/*/plda_snorm300_cal_v1eval40/*_results`
+   - `run_043b_eval_be_v4.sh run_044b_eval_be_knn_v1.sh run_045b_eval_be_knn_v3.sh`
+      - Back-end are the same as above
+      - Calibration depends on the number of enrollment segments
+      - Results are left in `exp/scores/fbank64_stmn_resnet34_eina_hln_chattstatsi128_e256_arcs30m0.3_do0_adam_lr0.01_b512_amp.v1.alllangs_nocv_nocnceleb.ft_10_60_arcm0.3_sgdcos_lr0.05_b128_amp.v2/*/*cal_v2sre16-yue/*_results`	
 
-   - `run_060a_eval_be_v1_ftxvec2.sh, run_061a_eval_be_v2_ftxvec2.sh, run_062a_eval_be_v3_ftxvec2.sh`
-      - Some as previous but on adapted x-vectors from step 14
-      - Results are left in `exp/scores/fbank64_mvn_resnet34_e256_arcs30m0.3_do0_adam_lr0.01_b512_amp.v1.ft_10_60_sgdcos_lr0.05_b128_amp.v2.ft_eaffine_rege_w0.1_10_60_sgdcos_lr0.01_b128_amp.v2/*/plda_snorm300_cal_v1eval40/*_results`
-
-   - `run_070a_eval_be_v1_ftxvec3.sh, run_071a_eval_be_v2_ftxvec3.sh, run_072a_eval_be_v3_ftxvec3.sh`
-      - Some as previous but on adapted x-vectors from step 15
-      - Results are left in `exp/scores/fbank64_mvn_resnet34_e256_arcs30m0.3_do0_adam_lr0.01_b512_amp.v1.ft_10_60_sgdcos_lr0.05_b128_amp.v2.ft_eaffine_rege_w0.1_10_60_sgdcos_lr0.01_b128_amp.v2.ft_reg_wenc0.1_we0.1_10_60_sgdcos_lr0.01_b128_amp.v2/*/plda_snorm300_cal_v1eval40/*_results`
-
-
+   - `run_fus*.sh`
+      - Fusion examples
+      
 ## Results
 
-### Results using Back-end V3 with S-Norm
-
-| Config | Model Type | Model Details | Fine-tuning | Back-end | SRE18 Eval 40% | | | SRE19 Progress | | | SRE19 Eval  | | |
-| ------ | ---------- | ------------- | ------- | -------- | :------------: | :-: | :-: | :------------: | :-: | :-: | :------------: | :-: | :-: |
-| |  |  |  | | EER(%) | MinDCF | ActDCF |  EER(%) | MinDCF | ActDCF |  EER(%) | MinDCF | ActDCF |
-| config_fbank64_mvn_resnet34_arcs30m0.3_adam_lr0.01_amp.v1.ft_w0.1.sh | ResNet34 | ArcFace s=30 / m=0.3 | N | V3(S-Norm) | 03.61 | 0.284 | 0.295 | 3.50 | 0.290 | 0.292 | 3.61 | 0.308 | 0.310 |
-| | | | 1 | V3 (S-Norm) | 3.33 | 0.265 | 0.276 | 3.37 | 0.258 | 0.267 | 3.31 | 0.291 | 0.295 |
-| | | | 2 | V3 (S-Norm) | 
-| | | | 3 | V3 (S-Norm) | 
+TODO
 

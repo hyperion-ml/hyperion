@@ -2,6 +2,8 @@
 # Copyright       2018   Johns Hopkins University (Author: Jesus Villalba)
 #                
 # Apache 2.0.
+# Back-end LDA(All)+LN(All)-Adapted(NonEng) + PLDA(All)-Adapted(NonEng)
+# Condition Independent Calibration
 #
 . ./cmd.sh
 . ./path.sh
@@ -27,7 +29,7 @@ plda_adapt_data=realtel_noeng
 coh_data=realtel_alllangs
 # cal_set=sre16-9
 cal_set=sre16-yue
-ft=0
+ft=1
 
 . parse_options.sh || exit 1;
 . $config_file

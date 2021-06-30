@@ -62,7 +62,7 @@ fi
 
 
 $cmd $output_dir/log/ahc.log \
-     python steps_be/apply-ahc-v1.py \
+     hyp_utils/conda_env.sh steps_be/apply-ahc-v1.py \
      --v-file scp:$vector_file \
      --input-list $train_list \
      --preproc-file $preproc_file \

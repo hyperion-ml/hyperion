@@ -17,9 +17,15 @@ stage=1
 be1=lda150_splday125_sre_tel_v4_adapt_coral_mu1T1_mu1B0.75W0.75_realtel_noeng/plda_snorm_realtel_alllangs500_cal_v2sre16-yue
 be2=pca0.975_knn800-300_lda150_splday125_realtel_alllangs_v3_adapt_mu1B0.5W0.5/plda_cal_v2sre16-yue
 
-system_names="resnet34eng_ll1 resnet34allnocvcn-knn resnet34einaallnocvcn-knn tseresnet34allnocvcn-knn tb8allnocvcn-knn"
-system_dirs="exp/scores/LL_scores_for_fusion_1_cal_v2sre16-yue \
-exp/scores/fbank64_stmn_resnet34_e256_arcs30m0.3_do0_adam_lr0.01_b512_amp.v1.alllangs_nocv_nocnceleb.ft_10_60_arcm0.3_sgdcos_lr0.05_b128_amp.v2/$be2 \
+# system_names="resnet34eng_ll1 resnet34allnocvcn-knn resnet34einaallnocvcn-knn tseresnet34allnocvcn-knn tb8allnocvcn-knn"
+# system_dirs="exp/scores/LL_scores_for_fusion_1_cal_v2sre16-yue \
+# exp/scores/fbank64_stmn_resnet34_e256_arcs30m0.3_do0_adam_lr0.01_b512_amp.v1.alllangs_nocv_nocnceleb.ft_10_60_arcm0.3_sgdcos_lr0.05_b128_amp.v2/$be2 \
+# exp/scores/fbank64_stmn_resnet34_eina_hln_e256_arcs30m0.3_do0_adam_lr0.01_b512_amp.v1.alllangs_nocv_nocnceleb.ft_10_60_arcm0.3_sgdcos_lr0.05_b128_amp.v2/$be2 \
+# exp/scores/fbank64_stmn_tseresnet34_e256_arcs30m0.3_do0_adam_lr0.01_b512_amp.v1.alllangs_nocv_nocnceleb.ft_10_60_arcm0.3_sgdcos_lr0.05_b128_amp.v2/$be2 \
+# exp/scores/fbank64_stmn_transformer_csub_lac6b8d608h8linff2432_e256_arcs30m0.3_do0_adam_lr0.005_b512_amp.v1.alllangs_nocv_nocnceleb.ft_10_60_arcm0.3_sgdcos_lr0.05_b128_amp.v2/$be2"
+
+system_names="resnet34allnocvcn-knn resnet34einaallnocvcn-knn tseresnet34allnocvcn-knn tb8allnocvcn-knn"
+system_dirs="exp/scores/fbank64_stmn_resnet34_e256_arcs30m0.3_do0_adam_lr0.01_b512_amp.v1.alllangs_nocv_nocnceleb.ft_10_60_arcm0.3_sgdcos_lr0.05_b128_amp.v2/$be2 \
 exp/scores/fbank64_stmn_resnet34_eina_hln_e256_arcs30m0.3_do0_adam_lr0.01_b512_amp.v1.alllangs_nocv_nocnceleb.ft_10_60_arcm0.3_sgdcos_lr0.05_b128_amp.v2/$be2 \
 exp/scores/fbank64_stmn_tseresnet34_e256_arcs30m0.3_do0_adam_lr0.01_b512_amp.v1.alllangs_nocv_nocnceleb.ft_10_60_arcm0.3_sgdcos_lr0.05_b128_amp.v2/$be2 \
 exp/scores/fbank64_stmn_transformer_csub_lac6b8d608h8linff2432_e256_arcs30m0.3_do0_adam_lr0.005_b512_amp.v1.alllangs_nocv_nocnceleb.ft_10_60_arcm0.3_sgdcos_lr0.05_b128_amp.v2/$be2"
