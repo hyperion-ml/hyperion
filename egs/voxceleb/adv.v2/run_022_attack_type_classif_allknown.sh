@@ -79,7 +79,7 @@ if [ $stage -le 2 ]; then
 	$sign_dir/test
 fi
 
-proj_dir=$sign_dir/test/tsne
+proj_dir=$sign_dir/test/tsne_${attack_type_split_tag}
 if [ $stage -le 3 ];then
     echo "Make TSNE plots on all test attacks"
     echo "Result will be left in $proj_idr"

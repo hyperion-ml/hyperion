@@ -53,7 +53,7 @@ snr_split_opts="--train-success-category $train_cat --test-success-category $tes
 # Experiment labels for experiments of attack classification with all attacks known
 attack_type_split_tag="exp_attack_type_allknown_trnge20dB_testlt20dB"
 snr_split_tag="exp_attack_snr_allknown_trnge20dB_testlt20dB"
-threat_model_split_tag="exp_attack_threat_model_trnge20dB_testlt20dB"
+threat_model_split_tag="exp_attack_threat_model_allknown_trnge20dB_testlt20dB"
 
 
 # Known/Unknown attacks splits
@@ -83,5 +83,5 @@ novelty_split_tag="exp_attack_type_novelty_trnge20dB_testlt20dB"
 # Here we just do attack classification assuming all attacks known
 spkverif_attack_type_split_tag="exp_spkverif_attack_type_allknown_trnge20dB_testlt20dB"
 spkverif_snr_split_tag="exp_spkverif_attack_snr_allknown_trnge20dB_testlt20dB"
-spkverif_threat_model_split_tag="exp_spkverif_attack_threat_model_allknown_20dB"
+spkverif_threat_model_split_tag="exp_spkverif_attack_threat_model_allknown_trnge20dB_testlt20dB"
 spkverif_split_opts="--test-success-category $test_cat --test-max-snr $test_max_snr --test-min-snr $test_min_snr"

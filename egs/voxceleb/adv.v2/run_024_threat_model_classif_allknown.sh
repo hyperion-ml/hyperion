@@ -80,7 +80,7 @@ if [ $stage -le 2 ]; then
 	$sign_dir/test
 fi
 
-proj_dir=$sign_dir/test/tsne_attack_type
+proj_dir=$sign_dir/test/tsne_${attack_type_split_tag}
 if [ $stage -le 3 ];then
     echo "Make TSNE plots on all test attacks with colors indicating attack type"
     echo "Result will be left in $proj_idr"
@@ -102,7 +102,7 @@ if [ $stage -le 3 ];then
     wait
 fi
 
-proj_dir=$sign_dir/test/tsne_attack_threat_model
+proj_dir=$sign_dir/test/tsne_${threat_model_split_tag}
 if [ $stage -le 4 ];then
     echo "Make TSNE plots on all test attacks with colors indicating threat model"
     echo "Result will be left in $proj_idr"

@@ -1,6 +1,6 @@
 # Experiments using LResNet34 for x-vector extractor and for attack signature extractor
 # We use only sucessful attacks
-# We use attack SNR in (-100, 100) for train and test
+# We train on attacks with all SNR dB and test on attacks with SNR>=20dB
 
 # Victim model speaker LResNet34 x-vector configuration
 spknet_command=resnet
@@ -25,16 +25,16 @@ spkv_attacks_common_opts="--save-failed" #save failed attacks also
 
 # Attack model LResNet34 configuration
 sign_nnet_command=resnet
-sign_nnet_config=conf/res2net50_atnet.yaml
-sign_nnet_batch_size_1gpu=16
-sign_nnet_eff_batch_size=256 # effective batch size
-sign_nnet_name=res2net50
+sign_nnet_config=conf/lresnet34_atnet.yaml
+sign_nnet_batch_size_1gpu=128
+sign_nnet_eff_batch_size=512 # effective batch size
+sign_nnet_name=lresnet34
 
 # SNRs in -100, 100
 train_max_snr=100
 train_min_snr=-100
 test_max_snr=100
-test_min_snr=-100
+test_min_snr=20
 # We only uses succesful attacks (attacks that changed the label)
 train_cat=success
 test_cat=success
@@ -51,9 +51,9 @@ snr_split_opts="--train-success-category $train_cat --test-success-category $tes
 
 
 # Experiment labels for experiments of attack classification with all attacks known
-attack_type_split_tag="exp_attack_type_allknown"
-snr_split_tag="exp_attack_snr_allknown"
-threat_model_split_tag="exp_attack_threat_model_allknown"
+attack_type_split_tag="exp_attack_type_allknown_trnsnrall_testge20dB"
+snr_split_tag="exp_attack_snr_allknown_trnsnrall_testge20dB"
+threat_model_split_tag="exp_attack_threat_model_allknown_trnsnrall_testge20dB"
 
 
 # Known/Unknown attacks splits
@@ -61,14 +61,14 @@ known_attacks="fgsm iter-fgsm pgd-linf pgd-l1 pgd-l2"
 unknown_attacks="cw-l2 cw-linf cw-l0"
 
 # Experiment labels for datasets to train signatures with a subset of known attacks
-sk_attack_type_split_tag="exp_attack_type_someknown"
-sk_snr_split_tag="exp_attack_snr_someknown"
-sk_threat_model_split_tag="exp_attack_threat_model_someknown"
+sk_attack_type_split_tag="exp_attack_type_someknown_trnsnrall_testge20dB"
+sk_snr_split_tag="exp_attack_snr_someknown_trnsnrall_testge20dB"
+sk_threat_model_split_tag="exp_attack_threat_model_someknown_trnsnrall_testge20dB"
 
 # Experiment labels for attack verification with same attacks known and some unknown
-attack_type_verif_split_tag="exp_attack_type_verif"
-snr_verif_split_tag="exp_attack_snr_verif"
-threat_model_verif_split_tag="exp_attack_threat_model_verif"
+attack_type_verif_split_tag="exp_attack_type_verif_trnsnrall_testge20dB"
+snr_verif_split_tag="exp_attack_snr_verif_trnsnrall_testge20dB"
+threat_model_verif_split_tag="exp_attack_threat_model_verif_trnsnrall_testge20dB"
 
 # Select attacks for attack verification, options are shared for the 3 tasks
 # We use only successful attacks with all SNRs
@@ -77,11 +77,11 @@ verif_split_opts="--success-category $test_cat --max-snr $test_max_snr --min-snr
 # Select attacks for attack novelty detection
 # We use only successful attacks with all SNRs
 novelty_split_opts="--success-category $test_cat --max-snr $test_max_snr --min-snr $test_min_snr"
-novelty_split_tag="exp_attack_type_novelty"
+novelty_split_tag="exp_attack_type_novelty_trnsnrall_testge20dB"
 
 # Experiment labels for experiments on attacks against speaker verification task
 # Here we just do attack classification assuming all attacks known
-spkverif_attack_type_split_tag="exp_spkverif_attack_type_allknown"
-spkverif_snr_split_tag="exp_spkverif_attack_snr_allknown"
-spkverif_threat_model_split_tag="exp_spkverif_attack_threat_model_allknown"
+spkverif_attack_type_split_tag="exp_spkverif_attack_type_allknown_trnsnrall_testge20dB"
+spkverif_snr_split_tag="exp_spkverif_attack_snr_allknown_trnsnrall_testge20dB"
+spkverif_threat_model_split_tag="exp_spkverif_attack_threat_model_allknown_trnsnrall_testge20dB"
 spkverif_split_opts="--test-success-category $test_cat --test-max-snr $test_max_snr --test-min-snr $test_min_snr"
