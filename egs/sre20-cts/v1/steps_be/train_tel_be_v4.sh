@@ -64,7 +64,7 @@ while(getline < fv)
 { if ($1 in files) {print $1,$2}}' $adapt_data_dir/utt2spk > $adapt_list
 
 $cmd $output_dir/log/train_be.log \
-    python steps_be/train-tel-be-v4.py \
+    hyp_utils/conda_env.sh steps_be/train-tel-be-v4.py \
     --iv-file scp:$vector_file \
     --train-list $train_list \
     --adapt-iv-file scp:$adapt_vector_file \
@@ -75,8 +75,3 @@ $cmd $output_dir/log/train_be.log \
     --output-path $output_dir \
     --w-mu $w_mu --w-b $w_B --w-w $w_W \
     --w-coral-mu $w_coral_mu --w-coral-t $w_coral_T
-
-
-
-
-     

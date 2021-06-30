@@ -36,8 +36,8 @@ fi
 if [ $stage -le 1 ]; then
   mkdir -p $ft_nnet_dir/log
   $cuda_cmd --gpu $ngpu $ft_nnet_dir/log/train.log \
-      hyp_utils/torch.sh --num-gpus $ngpu \
-      torch-finetune-xvec-from-wav.py @$feat_config $aug_opt \
+      hyp_utils/conda_env.sh --conda-env $HYP_ENV --num-gpus $ngpu \
+      torch-finetune-xvec-from-wav.py --feats $feat_config $aug_opt \
       --audio-path $list_dir/wav.scp \
       --time-durs-file $list_dir/utt2dur \
       --train-list $list_dir/lists_xvec/train.scp \
@@ -57,6 +57,5 @@ if [ $stage -le 1 ]; then
       --exp-path $ft_nnet_dir $args
 
 fi
-#
 
-exit
+
