@@ -6,7 +6,7 @@
 cmd=run.pl
 plda_type=frplda
 num_parts=8
-
+stage=1
 if [ -f path.sh ]; then . ./path.sh; fi
 . parse_options.sh || exit 1;
 set -e
@@ -29,7 +29,6 @@ mkdir -p $output_dir/log
 name=$(basename $output_file)
 
 echo "$0 score $ndx_file"
-
 
 for((i=1;i<=$num_parts;i++));
 do

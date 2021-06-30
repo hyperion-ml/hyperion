@@ -34,8 +34,8 @@ fi
 
 # Network Training
 if [ $stage -le 1 ]; then
-
-    if [[ ${nnet_type} =~ resnet ]] || [[ ${nnet_type} =~ resnext ]]; then
+    
+    if [[ ${nnet_type} =~ resnet ]] || [[ ${nnet_type} =~ resnext ]] || [[ ${nnet_type} =~ res2net ]]; then
 	train_exec=torch-train-resnet-xvec-from-wav.py
     elif [[ ${nnet_type} =~ efficientnet ]]; then
 	train_exec=torch-train-efficientnet-xvec-from-wav.py
@@ -50,8 +50,8 @@ if [ $stage -le 1 ]; then
 
     mkdir -p $nnet_dir/log
     $cuda_cmd --gpu $ngpu $nnet_dir/log/train.log \
-	hyp_utils/torch.sh --num-gpus $ngpu \
-	$train_exec  @$feat_config $aug_opt \
+	hyp_utils/conda_env.sh --conda-env $HYP_ENV --num-gpus $ngpu \
+	$train_exec  --feats $feat_config $aug_opt \
 	--audio-path $list_dir/wav.scp \
 	--time-durs-file $list_dir/utt2dur \
 	--train-list $list_dir/lists_xvec/train.scp \

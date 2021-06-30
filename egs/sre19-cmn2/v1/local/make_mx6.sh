@@ -32,7 +32,7 @@ utils/combine_data.sh --extra-files "utt2clean utt2info" $out_dir/mx6_mic_04_to_
 # To get some channel diversity, but not be overwhelmed with duplicated data
 # we take a 2k subset from mics 04-13 and combine it with all of mic 02.
 echo "$0: selecting a 2k subset of mics 04 through 13 and combining it with mic 02"
-hyp_utils/subset_data_dir.sh --extra-files "utt2clean utt2info" $out_dir/mx6_mic_04_to_13 2000 $out_dir/mx6_mic_04_to_13_2k
+utils/subset_data_dir.sh --extra-files "utt2clean utt2info" $out_dir/mx6_mic_04_to_13 2000 $out_dir/mx6_mic_04_to_13_2k
 utils/combine_data.sh --extra-files "utt2clean utt2info" $out_dir/mx6_mic $out_dir/mx6_mic_02 $out_dir/mx6_mic_04_to_13_2k
 
 #echo "$0 make utt2clean list linking mic-0x to mic-02"

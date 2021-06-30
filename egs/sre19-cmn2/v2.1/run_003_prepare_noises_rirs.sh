@@ -49,8 +49,8 @@ fi
 
 if [ $stage -le 3 ]; then
     if [ ! -d "RIRS_NOISES" ]; then
-	if [ -d ../../sre19-cmn2/v1/RIRS_NOISES ];then
-	    ln -s ../../sre19-cmn2/v1/RIRS_NOISES
+	if [ -d ../../sre19-cmn2/v2/RIRS_NOISES ];then
+	    ln -s ../../sre19-cmn2/v2/RIRS_NOISES
 	else
 	    # Download the package that includes the real RIRs, simulated RIRs, isotropic noises and point-source noises
 	    wget --no-check-certificate http://www.openslr.org/resources/28/rirs_noises.zip

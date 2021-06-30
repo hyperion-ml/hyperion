@@ -40,7 +40,7 @@ fi
 
 # Now we're ready to create training examples.
 if [ -n "${utt_extra}" ];then
-    ${kaldi_utils}/fix_data_dir.sh --utt-extra-files "$utt_extra" $data_dir
+    ${kaldi_utils}/fix_data_dir.sh --sort false --utt-extra-files "$utt_extra" $data_dir
 else
-    ${kaldi_utils}/fix_data_dir.sh $data_dir
+    ${kaldi_utils}/fix_data_dir.sh --sort false $data_dir
 fi

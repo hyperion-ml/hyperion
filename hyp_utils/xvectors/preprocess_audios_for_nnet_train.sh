@@ -2,8 +2,7 @@
 #
 #           2020 Johns Hopkins University (Jesus Villalba)
 # Apache 2.0.
-
-
+set -e
 nj=40
 cmd="run.pl"
 stage=0
@@ -54,9 +53,12 @@ if [[ $(hostname -f) == *.clsp.jhu.edu ]] && [ ! -d $output_dir/storage ]; then
     elif [ "$nodes" == "b1" ];then
 	utils/create_split_dir.pl \
 	    /export/b{14,15,16,17,18}/$dir_name $output_dir/storage
+    elif [ "$nodes" == "s01" ];then
+	utils/create_split_dir.pl \
+	    /export/s01/$dir_name $output_dir/storage
     else
 	utils/create_split_dir.pl \
-	    /export/c{06,07,08,09}/$dir_name $output_dir/storage
+	    /export/c{01,06,07,08,09}/$dir_name $output_dir/storage
     fi
 
     for f in $(awk '{ print $1}' $data_in/wav.scp); do
