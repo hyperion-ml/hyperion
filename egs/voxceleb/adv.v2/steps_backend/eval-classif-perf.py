@@ -20,17 +20,22 @@ from hyperion.metrics.confusion_matrix import compute_confusion_matrix, print_co
 
 
 def read_class_file(class_file):
-    
+
     class_info = pd.read_csv(class_file, header=None, sep=' ')
     classes = class_info[0]
-    class2ids = {str(k):i for i,k in enumerate(class_info[0])}
-    return classes, class2ids 
+    class2ids = {str(k): i for i, k in enumerate(class_info[0])}
+    return classes, class2ids
 
-def eval_classif_perf(score_file, key_file, class_file, output_path=None, **kwargs):
+
+def eval_classif_perf(score_file,
+                      key_file,
+                      class_file,
+                      output_path=None,
+                      **kwargs):
 
     utts = Utt2Info.load(key_file)
     classes, class2ids = read_class_file(class_file)
-    mask = [True if c in class2ids else False for c in utts.info ]
+    mask = [True if c in class2ids else False for c in utts.info]
     info = utts.info[mask]
     key = utts.key[mask]
     y_true = [class2ids[c] for c in info]
@@ -44,14 +49,20 @@ def eval_classif_perf(score_file, key_file, class_file, output_path=None, **kwar
     logging.info('Classification accuracy %.2f %%' % (acc * 100))
 
     labels = np.arange(len(classes), dtype=np.int)
-    C = compute_confusion_matrix(y_true, y_pred, labels=labels, normalize=False)
+    C = compute_confusion_matrix(y_true,
+                                 y_pred,
+                                 labels=labels,
+                                 normalize=False)
     logging.info('Unnormalized Confusion Matrix:')
-    print_confusion_matrix(C, labels_true = classes)
+    print_confusion_matrix(C, labels_true=classes)
 
-    Cn = compute_confusion_matrix(y_true, y_pred, labels=labels, normalize=True)
+    Cn = compute_confusion_matrix(y_true,
+                                  y_pred,
+                                  labels=labels,
+                                  normalize=True)
     logging.info('Normalized Confusion Matrix:')
-    print_confusion_matrix(Cn*100, labels_true = classes, fmt='.1f')
-    
+    print_confusion_matrix(Cn * 100, labels_true=classes, fmt='.1f')
+
 
 if __name__ == "__main__":
 
@@ -63,12 +74,16 @@ if __name__ == "__main__":
     parser.add_argument('--class-file', required=True)
 
     #parser.add_argument('--output-path', dest='output_path', required=True)
-    parser.add_argument('-v', '--verbose', dest='verbose', default=1, choices=[0, 1, 2, 3], type=int)
+    parser.add_argument('-v',
+                        '--verbose',
+                        dest='verbose',
+                        default=1,
+                        choices=[0, 1, 2, 3],
+                        type=int)
 
-    args=parser.parse_args()
+    args = parser.parse_args()
     config_logger(args.verbose)
     del args.verbose
     logging.debug(args)
-    
-    eval_classif_perf(**namespace_to_dict(args))
 
+    eval_classif_perf(**namespace_to_dict(args))
