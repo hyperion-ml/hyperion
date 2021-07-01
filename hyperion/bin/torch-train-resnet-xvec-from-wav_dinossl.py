@@ -150,8 +150,10 @@ def init_xvector(num_classes, rank, **kwargs):
         embed_dim = model.classif_net.in_feats
         # model
         model_teacher = XVec(**xvec_args)
-        model = dinossl.MultiCropWrapper(model, dinossl.DINOHead(embed_dim, dinossl_args['dinossl_out_dim'], use_bn=dinossl_args['dinossl_use_bn_in_head'], norm_last_layer=dinossl_args['dinossl_norm_last_layer'])) # multi-crop wrapper handles forward with inputs of different chunk lengths
-        model_teacher = dinossl.MultiCropWrapper(model_teacher, dinossl.DINOHead(embed_dim, dinossl_args['dinossl_out_dim'], use_bn=dinossl_args['dinossl_use_bn_in_head']))
+        model = dinossl.MultiCropWrapper(model, dinossl.DINOHead(embed_dim, dinossl_args['dinossl_out_dim'], use_bn=dinossl_args['dinossl_use_bn_in_head'],
+                                        norm_last_layer=dinossl_args['dinossl_norm_last_layer'], nlayers=dinossl_args['dinossl_nlayers'])) # multi-crop wrapper handles forward with inputs of different chunk lengths
+        model_teacher = dinossl.MultiCropWrapper(model_teacher, dinossl.DINOHead(embed_dim, dinossl_args['dinossl_out_dim'], use_bn=dinossl_args['dinossl_use_bn_in_head'],
+                                        nlayers=dinossl_args['dinossl_nlayers']))
         # teacher and student start with the same weights. "requires_grad = False" happens in torch_trainer_dinossl.py
         model_teacher.load_state_dict(model.state_dict())
         model = [model, model_teacher]
@@ -213,7 +215,7 @@ def train_xvec(gpu_id, args):
     # trainer = Trainer(model, feat_extractor, optimizer, 
     #                   device=device, metrics=metrics, lr_scheduler=lr_sch,
     #                   ddp=world_size>1, **trn_args)
-    trn_args['niter_per_ep'] = len(train_loader)
+    trn_args['niter_per_ep'] = len(train_loader) # this returns train_loader.batch_sampler.__len__()
     trn_args['batch_size'] = kwargs['batch_size']
     trainer = Trainer(model, feat_extractor,
                       device=device, metrics=metrics, 

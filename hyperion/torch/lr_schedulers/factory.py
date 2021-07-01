@@ -26,7 +26,7 @@ class LRSchedulerFactory(object):
                cooldown=0, eps=1e-8,
                min_lr=0, warmup_steps=0, update_lr_on_opt_step=False, **kwargs):
 
-        if lrsch_type == 'none' or lrsch_type == 'dinossl' :
+        if lrsch_type == 'none':
             return None
         
         if lrsch_type == 'exp_lr':

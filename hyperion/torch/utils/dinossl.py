@@ -40,6 +40,8 @@ from PIL import ImageFilter, ImageOps
 def add_dinossl_args(parser):
     parser.add_argument('--dinossl', default=True, type=bool, # I can simply type=bool with jsonargparse module. Refer to the "Boolean arguments" section in https://jsonargparse.readthedocs.io/en/stable/ 
         help='whether to run DINO self-supervised training')
+    parser.add_argument('--dinossl_nlayers', default=3, type=int, help="""number of layers in MLP
+        except the last optional weight normalized layer""")
     parser.add_argument('--dinossl_out_dim', default=65536, type=int, help="""Dimensionality of
         the DINO head output. For complex and large datasets large values (like 65k) work well.""")
     parser.add_argument('--dinossl_use_bn_in_head', default=False, type=bool,
@@ -65,7 +67,7 @@ def add_dinossl_args(parser):
                         help=('value to multiply chunk_length with for long chunks'))
 
 def filter_args(**kwargs):
-    valid_args = ('dinossl_out_dim', 'dinossl_use_bn_in_head',
+    valid_args = ('dinossl', 'dinossl_nlayers', 'dinossl_out_dim', 'dinossl_use_bn_in_head',
                   'dinossl_norm_last_layer','dinossl_local_crops_number',
                   'dinossl_warmup_teacher_temp','dinossl_teacher_temp','dinossl_warmup_teacher_temp_epochs',
                   'dinossl_chunk_len_mult')
@@ -73,41 +75,6 @@ def filter_args(**kwargs):
                 for k in valid_args if k in kwargs)
 
     return args
-
-class GaussianBlur(object):
-    """
-    Apply Gaussian Blur to the PIL image.
-    """
-    def __init__(self, p=0.5, radius_min=0.1, radius_max=2.):
-        self.prob = p
-        self.radius_min = radius_min
-        self.radius_max = radius_max
-
-    def __call__(self, img):
-        do_it = random.random() <= self.prob
-        if not do_it:
-            return img
-
-        return img.filter(
-            ImageFilter.GaussianBlur(
-                radius=random.uniform(self.radius_min, self.radius_max)
-            )
-        )
-
-
-class Solarization(object):
-    """
-    Apply Solarization to the PIL image.
-    """
-    def __init__(self, p):
-        self.p = p
-
-    def __call__(self, img):
-        if random.random() < self.p:
-            return ImageOps.solarize(img)
-        else:
-            return img
-
 
 def load_pretrained_weights(model, pretrained_weights, checkpoint_key, model_name, patch_size):
     if os.path.isfile(pretrained_weights):
@@ -204,228 +171,6 @@ def cosine_scheduler(base_value, final_value, epochs, niter_per_ep, warmup_epoch
     schedule = np.concatenate((warmup_schedule, schedule))
     assert len(schedule) == epochs * niter_per_ep
     return schedule
-
-
-def bool_flag(s):
-    """
-    Parse boolean arguments from the command line.
-    """
-    FALSY_STRINGS = {"off", "false", "0"}
-    TRUTHY_STRINGS = {"on", "true", "1"}
-    if s.lower() in FALSY_STRINGS:
-        return False
-    elif s.lower() in TRUTHY_STRINGS:
-        return True
-    else:
-        raise argparse.ArgumentTypeError("invalid value for a boolean flag")
-
-
-def fix_random_seeds(seed=31):
-    """
-    Fix random seeds.
-    """
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    np.random.seed(seed)
-
-
-class SmoothedValue(object):
-    """Track a series of values and provide access to smoothed values over a
-    window or the global series average.
-    """
-
-    def __init__(self, window_size=20, fmt=None):
-        if fmt is None:
-            fmt = "{median:.6f} ({global_avg:.6f})"
-        self.deque = deque(maxlen=window_size)
-        self.total = 0.0
-        self.count = 0
-        self.fmt = fmt
-
-    def update(self, value, n=1):
-        self.deque.append(value)
-        self.count += n
-        self.total += value * n
-
-    def synchronize_between_processes(self):
-        """
-        Warning: does not synchronize the deque!
-        """
-        if not is_dist_avail_and_initialized():
-            return
-        t = torch.tensor([self.count, self.total], dtype=torch.float64, device='cuda')
-        dist.barrier()
-        dist.all_reduce(t)
-        t = t.tolist()
-        self.count = int(t[0])
-        self.total = t[1]
-
-    @property
-    def median(self):
-        d = torch.tensor(list(self.deque))
-        return d.median().item()
-
-    @property
-    def avg(self):
-        d = torch.tensor(list(self.deque), dtype=torch.float32)
-        return d.mean().item()
-
-    @property
-    def global_avg(self):
-        return self.total / self.count
-
-    @property
-    def max(self):
-        return max(self.deque)
-
-    @property
-    def value(self):
-        return self.deque[-1]
-
-    def __str__(self):
-        return self.fmt.format(
-            median=self.median,
-            avg=self.avg,
-            global_avg=self.global_avg,
-            max=self.max,
-            value=self.value)
-
-
-def reduce_dict(input_dict, average=True):
-    """
-    Args:
-        input_dict (dict): all the values will be reduced
-        average (bool): whether to do average or sum
-    Reduce the values in the dictionary from all processes so that all processes
-    have the averaged results. Returns a dict with the same fields as
-    input_dict, after reduction.
-    """
-    world_size = get_world_size()
-    if world_size < 2:
-        return input_dict
-    with torch.no_grad():
-        names = []
-        values = []
-        # sort the keys so that they are consistent across processes
-        for k in sorted(input_dict.keys()):
-            names.append(k)
-            values.append(input_dict[k])
-        values = torch.stack(values, dim=0)
-        dist.all_reduce(values)
-        if average:
-            values /= world_size
-        reduced_dict = {k: v for k, v in zip(names, values)}
-    return reduced_dict
-
-
-class MetricLogger(object):
-    def __init__(self, delimiter="\t"):
-        self.meters = defaultdict(SmoothedValue)
-        self.delimiter = delimiter
-
-    def update(self, **kwargs):
-        for k, v in kwargs.items():
-            if isinstance(v, torch.Tensor):
-                v = v.item()
-            assert isinstance(v, (float, int))
-            self.meters[k].update(v)
-
-    def __getattr__(self, attr):
-        if attr in self.meters:
-            return self.meters[attr]
-        if attr in self.__dict__:
-            return self.__dict__[attr]
-        raise AttributeError("'{}' object has no attribute '{}'".format(
-            type(self).__name__, attr))
-
-    def __str__(self):
-        loss_str = []
-        for name, meter in self.meters.items():
-            loss_str.append(
-                "{}: {}".format(name, str(meter))
-            )
-        return self.delimiter.join(loss_str)
-
-    def synchronize_between_processes(self):
-        for meter in self.meters.values():
-            meter.synchronize_between_processes()
-
-    def add_meter(self, name, meter):
-        self.meters[name] = meter
-
-    def log_every(self, iterable, print_freq, header=None):
-        i = 0
-        if not header:
-            header = ''
-        start_time = time.time()
-        end = time.time()
-        iter_time = SmoothedValue(fmt='{avg:.6f}')
-        data_time = SmoothedValue(fmt='{avg:.6f}')
-        space_fmt = ':' + str(len(str(len(iterable)))) + 'd'
-        if torch.cuda.is_available():
-            log_msg = self.delimiter.join([
-                header,
-                '[{0' + space_fmt + '}/{1}]',
-                'eta: {eta}',
-                '{meters}',
-                'time: {time}',
-                'data: {data}',
-                'max mem: {memory:.0f}'
-            ])
-        else:
-            log_msg = self.delimiter.join([
-                header,
-                '[{0' + space_fmt + '}/{1}]',
-                'eta: {eta}',
-                '{meters}',
-                'time: {time}',
-                'data: {data}'
-            ])
-        MB = 1024.0 * 1024.0
-        for obj in iterable:
-            data_time.update(time.time() - end)
-            yield obj
-            iter_time.update(time.time() - end)
-            if i % print_freq == 0 or i == len(iterable) - 1:
-                eta_seconds = iter_time.global_avg * (len(iterable) - i)
-                eta_string = str(datetime.timedelta(seconds=int(eta_seconds)))
-                if torch.cuda.is_available():
-                    print(log_msg.format(
-                        i, len(iterable), eta=eta_string,
-                        meters=str(self),
-                        time=str(iter_time), data=str(data_time),
-                        memory=torch.cuda.max_memory_allocated() / MB))
-                else:
-                    print(log_msg.format(
-                        i, len(iterable), eta=eta_string,
-                        meters=str(self),
-                        time=str(iter_time), data=str(data_time)))
-            i += 1
-            end = time.time()
-        total_time = time.time() - start_time
-        total_time_str = str(datetime.timedelta(seconds=int(total_time)))
-        print('{} Total time: {} ({:.6f} s / it)'.format(
-            header, total_time_str, total_time / len(iterable)))
-
-
-def get_sha():
-    cwd = os.path.dirname(os.path.abspath(__file__))
-
-    def _run(command):
-        return subprocess.check_output(command, cwd=cwd).decode('ascii').strip()
-    sha = 'N/A'
-    diff = "clean"
-    branch = 'N/A'
-    try:
-        sha = _run(['git', 'rev-parse', 'HEAD'])
-        subprocess.check_output(['git', 'diff'], cwd=cwd)
-        diff = _run(['git', 'diff-index', 'HEAD'])
-        diff = "has uncommited changes" if diff else "clean"
-        branch = _run(['git', 'rev-parse', '--abbrev-ref', 'HEAD'])
-    except Exception:
-        pass
-    message = f"sha: {sha}, status: {diff}, branch: {branch}"
-    return message
 
 
 def is_dist_avail_and_initialized():
@@ -607,7 +352,7 @@ class MultiCropWrapper(nn.Module):
     forward passes = number of different resolutions used. We then
     concatenate all the output features and run the head forward on these
     concatenated features.
-    (JJ: TODO - Q: In spkid, I think we do zero-padding at least to make the seq len same. Can we skip this or at least zero-padding separately for local and global view groups?)
+    (JJ: EXP - Q: In spkid, I think we do zero-padding at least to make the seq len same. Can we skip this or at least zero-padding separately for local and global view groups? A: It seems with adaptive pooling, input seq. len. can vary)
     """
     def __init__(self, backbone, head):
         super(MultiCropWrapper, self).__init__()
@@ -737,16 +482,7 @@ class DINOLoss(nn.Module):
                 total_loss += loss.mean()
                 n_loss_terms += 1
         total_loss /= n_loss_terms
-        # (JJ: TODO - this block is stopgap just for debugging with 1 gpu) - start
-        # os.environ['MASTER_ADDR'] = '127.0.0.1'
-        # os.environ['MASTER_PORT'] = '29500'
-        # dist.init_process_group(
-        # backend="nccl",
-        # world_size=1,
-        # rank=0,
-        #  )
-        # (JJ: TODO - this block is stopgap just for debugging with 1 gpu) - end
-        self.update_center(teacher_output) # (JJ: TODO - this raises an error with 1 gpu running without the above stopgap block. However, the above stopgap must be fixed correctly later)
+        self.update_center(teacher_output)
         return total_loss
 
     @torch.no_grad()

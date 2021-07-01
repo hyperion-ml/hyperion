@@ -9,7 +9,6 @@ from collections import OrderedDict as ODict
 import logging
 import copy
 import math
-from numpy.lib.arraysetops import isin
 
 import torch
 import torch.nn as nn
@@ -78,57 +77,6 @@ class DINOSSLXVectorTrainerFromWav(DINOSSLXVectorTrainer):
 
         # if ddp:
         #     self.feat_extractor = TorchDDP(self.feat_extractor)
-        
-        # ########## Adding DINO - start ##########
-        # ### Fix on progress - start
-        # # ============ preparing optimizer ... ============
-        # params_groups = utils.get_params_groups(student)
-        # if args.optimizer == "adamw":
-        #     optimizer = torch.optim.AdamW(params_groups)  # to use with ViTs
-        # elif args.optimizer == "sgd":
-        #     optimizer = torch.optim.SGD(params_groups, lr=0, momentum=0.9)  # lr is set by scheduler
-        # elif args.optimizer == "lars":
-        #     optimizer = utils.LARS(params_groups)  # to use with convnet and large batches
-        # # for mixed precision training
-        # fp16_scaler = None
-        # if args.use_fp16:
-        #     fp16_scaler = torch.cuda.amp.GradScaler()
-
-        # # ============ init schedulers ... ============
-        # lr_schedule = utils.cosine_scheduler(
-        #     args.lr * (args.batch_size_per_gpu * utils.get_world_size()) / 256.,  # linear scaling rule
-        #     args.min_lr,
-        #     args.epochs, len(data_loader),
-        #     warmup_epochs=args.warmup_epochs,
-        # )
-        # wd_schedule = utils.cosine_scheduler(
-        #     args.weight_decay,
-        #     args.weight_decay_end,
-        #     args.epochs, len(data_loader),
-        # )
-        # # momentum parameter is increased to 1. during training with a cosine schedule
-        # momentum_schedule = utils.cosine_scheduler(args.momentum_teacher, 1,
-        #                                         args.epochs, len(data_loader))
-        # print(f"Loss, optimizer and schedulers ready.")
-
-        # # ============ optionally resume training ... ============
-        # to_restore = {"epoch": 0}
-        # utils.restart_from_checkpoint(
-        #     os.path.join(args.output_dir, "checkpoint.pth"),
-        #     run_variables=to_restore,
-        #     student=student,
-        #     teacher=teacher,
-        #     optimizer=optimizer,
-        #     fp16_scaler=fp16_scaler,
-        #     dino_loss=dino_loss,
-        # )
-        # start_epoch = to_restore["epoch"]
-        # # Parts for training loop are added to train_epoch method below
-        # ### Fix on progress - end
-        # ########## Adding DINO - end ##########
-# 
-
-
     def train_epoch(self, data_loader):
         """Training epoch loop
 
@@ -136,7 +84,6 @@ class DINOSSLXVectorTrainerFromWav(DINOSSLXVectorTrainer):
              data_loader: pytorch data loader returning features and class labels.
         """
 
-        #self.model.update_loss_margin(self.cur_epoch) # (JJ: EXP - This is NOT required with the original dino loss)
 
         metric_acc = MetricAcc(device=self.device)
         batch_metrics = ODict()
@@ -144,7 +91,7 @@ class DINOSSLXVectorTrainerFromWav(DINOSSLXVectorTrainer):
 
         for batch, (data, _) in enumerate(data_loader):
             it = len(data_loader) * self.cur_epoch + batch # it: global batch index, batch: local batch index in the current epoch
-            for i, param_group in enumerate(self.optimizer.param_groups): # (JJ: TODO - Is there a reason NOT using Adamw for resnet50? The difference is large between using AdamW and SGD?)
+            for i, param_group in enumerate(self.optimizer.param_groups): # (JJ: TODO - Is there a reason NOT using Adamw for resnet50? The difference is large between using AdamW and SGD? Currently, adam is used with schedules but I might try adamw and sgd.)
                 param_group["lr"] = self.lr_schedule[it]
                 if i == 0:  # only the first group is regularized
                     param_group["weight_decay"] = self.wd_schedule[it]
@@ -164,11 +111,10 @@ class DINOSSLXVectorTrainerFromWav(DINOSSLXVectorTrainer):
             with self.amp_autocast():
                 output = self.model(feats)
                 output_teacher = self.model_teacher(feats[:2])
-                #loss = self.loss(output, target).mean()/self.grad_acc_steps
-                loss = self.loss(output, output_teacher, self.cur_epoch) # (JJ: TODO - Q. Is grad_acc_steps able to be applied?)
+                loss = self.loss(output, output_teacher, self.cur_epoch)/self.grad_acc_steps # (JJ: EXP - Q. Is grad_acc_steps able to be applied? Currently, it is always set to 1, appying the linear lr rule depending on bs instead)
 
             if not math.isfinite(loss.item()):
-                print("Loss is {}, stopping training".format(loss.item()), force=True) # (JJ: TODO - Q: what is force=True?)
+                print("Loss is {}, stopping training".format(loss.item()), force=True)
                 sys.exit(1)
 
             # (JJ TODO: Q: clip_gradients happpens in dino code but for now I skip including it. A: It happens in self.update_model() below but not sure the way it's done the same as in dino )
@@ -180,7 +126,7 @@ class DINOSSLXVectorTrainerFromWav(DINOSSLXVectorTrainer):
             cancel_gradients_last_layer(self.cur_epoch, self.model,
                                             freeze_last_layer) # (JJ: EXP - interesting part that is not explained in the paper)
                                             
-            if (batch+1) % self.grad_acc_steps == 0: # (JJ: TODO - Q: why NOT batch but batch+1? I think there is no big difference. A: I think it is to sync with zero_grad above. Then, why not move zero_grad above to here)
+            if (batch+1) % self.grad_acc_steps == 0: # (JJ: EXP - Q: why NOT batch but batch+1? I think there is no big difference. A: I think it is to sync with zero_grad above. Then, why not move zero_grad above to here. Anyway, we falls into this every time with self.grad_acc_steps=1)
                 if self.lr_scheduler is not None and not self.in_swa:
                     self.lr_scheduler.on_opt_step()
                 self.update_model() # (JJ: EXP - where clip_grad, step, and update happens)
@@ -200,7 +146,7 @@ class DINOSSLXVectorTrainerFromWav(DINOSSLXVectorTrainer):
             
             metric_acc.update(batch_metrics, batch_size)
             logs = metric_acc.metrics
-            logs['lr'] = self._get_lr()
+            logs['lr'] = self._get_lr() # (JJ: TODO - this may need to change later (NOT now) if lrs are applied differerently over parameter groups)
             self.loggers.on_batch_end(logs=logs, batch_size=batch_size)
 
         logs = metric_acc.metrics
