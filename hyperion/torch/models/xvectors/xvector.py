@@ -224,14 +224,14 @@ class XVector(TorchModel):
 
         x = self.encoder_net(x)
 
-        if self.encoder_net.out_dim() == 4:
+        if self.encoder_net.out_dim() == 4 and (not isinstance(self.classif_net,torch.nn.modules.linear.Linear)):
             x = x.view(x.size(0), -1, x.size(-1))
 
         if self.proj is not None:
             x = self.proj(x)
             
         p = self.pool_net(x)
-        if isinstance(self.classif_net,nn.modules.linear.Identity) or isinstance(self.classif_net.output,nn.modules.linear.Identity):
+        if isinstance(self.classif_net,nn.modules.linear.Identity) or isinstance(self.classif_net,torch.nn.modules.linear.Linear) or isinstance(self.classif_net.output,nn.modules.linear.Identity):
             y = self.classif_net(p)
         else:
             y = self.classif_net(p, y)

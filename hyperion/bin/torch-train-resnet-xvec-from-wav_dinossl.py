@@ -147,8 +147,22 @@ def init_xvector(num_classes, rank, **kwargs):
         dinossl_args = dinossl.filter_args(**kwargs)
         if rank == 0:
             logging.info('dinossl args={}'.format(dinossl_args))
-        
-        if dinossl_args['dinossl_keep_classif_net']:
+
+        if dinossl_args['dinossl_fclikeimage']: # (JJ - TODO: remove this condition and related parts if this does not improve performance)
+            class Cat_dim12(nn.Module):
+                def __init__(self):
+                    super().__init__()
+                def __repr__(self):
+                    return f'Cat_dim12()'
+                def forward(self, x):
+                    """
+                    Concate 1st and 2nd dimension axes
+                    """
+                    return x.view(x.size(0),-1)
+            model.pool_net = nn.Sequential(nn.AdaptiveAvgPool2d(output_size=(2, 1)), Cat_dim12())
+            embed_dim = kwargs['embed_dim']
+            model.classif_net = nn.Linear(256, embed_dim) # (JJ - TODO: This is hard-coded for LResNet for now)
+        elif dinossl_args['dinossl_keep_classif_net']:
             embed_dim = kwargs['embed_dim']
             model.classif_net.output = nn.Identity()
         else:

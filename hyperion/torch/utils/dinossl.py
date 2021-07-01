@@ -40,6 +40,8 @@ from PIL import ImageFilter, ImageOps
 def add_dinossl_args(parser):
     parser.add_argument('--dinossl', default=True, type=bool, # I can simply type=bool with jsonargparse module. Refer to the "Boolean arguments" section in https://jsonargparse.readthedocs.io/en/stable/ 
         help='whether to run DINO self-supervised training')
+    parser.add_argument('--dinossl_fclikeimage', default=False, type=bool,
+        help='fc layer after conv layers in LResnet is similar to ResNet in Image field') # (JJ: TODO - revert if NOT improve)
     parser.add_argument('--dinossl_keep_classif_net', default=False, type=bool,
         help='whether to keep the classif_net in XVec before dinohead')
     parser.add_argument('--dinossl_nlayers', default=3, type=int, help="""number of layers in MLP
@@ -69,7 +71,7 @@ def add_dinossl_args(parser):
                         help=('value to multiply chunk_length with for long chunks'))
 
 def filter_args(**kwargs):
-    valid_args = ('dinossl', 'dinossl_keep_classif_net', 'dinossl_nlayers', 'dinossl_out_dim', 'dinossl_use_bn_in_head',
+    valid_args = ('dinossl', 'dinossl_fclikeimage', 'dinossl_keep_classif_net', 'dinossl_nlayers', 'dinossl_out_dim', 'dinossl_use_bn_in_head',
                   'dinossl_norm_last_layer','dinossl_local_crops_number',
                   'dinossl_warmup_teacher_temp','dinossl_teacher_temp','dinossl_warmup_teacher_temp_epochs',
                   'dinossl_chunk_len_mult')
