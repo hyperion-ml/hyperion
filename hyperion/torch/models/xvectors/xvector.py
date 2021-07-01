@@ -231,7 +231,7 @@ class XVector(TorchModel):
             x = self.proj(x)
             
         p = self.pool_net(x)
-        if isinstance(self.classif_net,nn.modules.linear.Identity):
+        if isinstance(self.classif_net,nn.modules.linear.Identity) or isinstance(self.classif_net.output,nn.modules.linear.Identity):
             y = self.classif_net(p)
         else:
             y = self.classif_net(p, y)

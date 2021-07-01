@@ -147,9 +147,16 @@ def init_xvector(num_classes, rank, **kwargs):
         dinossl_args = dinossl.filter_args(**kwargs)
         if rank == 0:
             logging.info('dinossl args={}'.format(dinossl_args))
-        embed_dim = model.classif_net.in_feats
+        
+        if dinossl_args['dinossl_keep_classif_net']:
+            embed_dim = kwargs['embed_dim']
+            model.classif_net.output = nn.Identity()
+        else:
+            embed_dim = model.classif_net.in_feats
+            model.classif_net = nn.Identity()
+
         # model
-        model_teacher = XVec(**xvec_args)
+        model_teacher = copy.deepcopy(model)
         model = dinossl.MultiCropWrapper(model, dinossl.DINOHead(embed_dim, dinossl_args['dinossl_out_dim'], use_bn=dinossl_args['dinossl_use_bn_in_head'],
                                         norm_last_layer=dinossl_args['dinossl_norm_last_layer'], nlayers=dinossl_args['dinossl_nlayers'])) # multi-crop wrapper handles forward with inputs of different chunk lengths
         model_teacher = dinossl.MultiCropWrapper(model_teacher, dinossl.DINOHead(embed_dim, dinossl_args['dinossl_out_dim'], use_bn=dinossl_args['dinossl_use_bn_in_head'],

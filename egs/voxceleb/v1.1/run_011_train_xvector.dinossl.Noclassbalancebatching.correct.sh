@@ -63,7 +63,7 @@ if [ $stage -le 1 ]; then
         # dino arguments
         train_exec=${train_exec%.py}_dinossl.py
         dinossl_args="--dinossl true "
-        for arg in dinossl_nlayers dinossl_out_dim dinossl_use_bn_in_head dinossl_norm_last_layer \
+        for arg in dinossl_keep_classif_net dinossl_nlayers dinossl_out_dim dinossl_use_bn_in_head dinossl_norm_last_layer \
             dinossl_local_crops_number dinossl_warmup_teacher_temp dinossl_teacher_temp \
             dinossl_warmup_teacher_temp_epochs dinossl_chunk_len_mult; do
             if [ ! -z ${!arg} ]; then
