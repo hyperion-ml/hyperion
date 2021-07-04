@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Install the IBM adversarial robustness toolbox
+# Install the IBM adversarial robustness toolbox from github
 
 # To install from PyPi repo
 # pip install adversarial-robustness-toolbox

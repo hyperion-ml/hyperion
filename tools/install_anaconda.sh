@@ -1,7 +1,7 @@
 #!/bin/bash
 
 ###########################################################################
-# Install Anaconda default packages
+# This is just an example of how to install Anaconda
 
 TARGET=$HOME/usr/local/anaconda3
 bash Anaconda3-4.2.0-Linux-x86_64.sh -p $TARGET

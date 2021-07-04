@@ -2,61 +2,29 @@
 # Copyright 2021 Johns Hopkins University  (Author: Jesus Villalba)
 # Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
-conda=""
-kaldi=""
-env=""
+echo "This prepare the paths to run the recipes in egs directory"
 
-. hyp_utils/parse_options.sh || exit 1;
+read -p "Introduce path to your conda base installation (e.g.:/usr/local/anaconda3): " CONDA_ROOT
+read -p "Introduce name/prefix_path for your conda environment (e.g.:hyperion): " HYP_ENV
 
-if [[ -z "$conda" && -z "$kaldi" && -z "$env" ]];then
-    echo "Usage: $0 --conda <path-to-anaconda> --kaldi <path-to-kaldi> --env <conda-environment>"
-    echo "e.g.: $0 --conda /home/janto/usr/local/anaconda3 --kaldi /export/b15/janto/kaldi/kaldi-villalba --env hyperion"
-    exit 1
+cat ./tools/proto_path.sh | \
+  sed -e 's@__HYP_ENV__@'$HYP_ENV'@' \
+  -e 's@__CONDA_ROOT__@'$CONDA_ROOT'@' \
+  > ./tools/path.sh
+
+# Check if Hyperion is installed in the environment
+# if not add hyperion to python path
+if [ -n "$CONDA_ROOT" ];then
+    . $CONDA_ROOT/etc/profile.d/conda.sh
 fi
+conda activate $HYP_ENV
+x=$(pip freeze | awk 'BEGIN{x=0} /hyperion/ { x=1 } END{ print x }')
+if [ $x -eq 1 ];then
+  echo "Hyperion is installed in env $HYP_ENV"
+  echo "Recipes will use the installed one"
+else
+  echo "Hyperion is not installed in env $env"
+  echo "Adding hyperion directory to the PYTHONPATH variable in the recipes"
+  echo "export PYTHONPATH=\$HYP_ROOT:\$PYTHONPATH" >> ./tools/path.sh
+fi 
 
-target=./tools/anaconda/anaconda3
-if [ -n "$conda" ];then
-    if [ -d $target ];then
-	echo "anaconda installation already exists in $target"
-	exit 1
-    fi
-    if [ -h $target ];then
-	echo "anaconda link already exists in $target"
-	exit 1
-    fi
-    echo "Creating link to anaconda in $target"
-    conda=$(readlink -f $conda)
-    ln -s $conda $target
-fi
-
-target=./tools/kaldi/kaldi
-if [ -n "$kaldi" ];then
-    if [ -d $target ];then
-	echo "anaconda installation already exists in $target"
-	exit 1
-    fi
-    if [ -h $target ];then
-	echo "anaconda link already exists in $target"
-	exit 1
-    fi
-    kaldi=$(readlink -f $kaldi)
-    echo "Creating link to kaldi in $target"
-    ln -s $conda $target
-fi
-which python
-if [ -n "$env" ];then
-    cat ./tools/proto_path.sh | \
-	sed -e 's@__HYP_ENV__@'$env'@' > ./tools/path.sh
-
-    . ./tools/anaconda/anaconda3/etc/profile.d/conda.sh
-    conda activate $env
-    x=$(pip freeze | awk 'BEGIN{x=0} /hyperion/ { x=1 } END{ print x }')
-    if [ $x -eq 1 ];then
-	echo "Hyperion is installed in env $env"
-	echo "Recipes will use the installed one"
-    else
-	echo "Hyperion is not installed in env $env"
-	echo "Adding hyperion directory to the PYTHONPATH variable in the recipes"
-	echo "export PYTHONPATH=\$HYP_ROOT:\$PYTHONPATH" >> ./tools/path.sh
-    fi 
-fi
