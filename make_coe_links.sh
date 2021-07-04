@@ -2,8 +2,7 @@
 
 #This script creates links in the tools directory to
 # - kaldi
-# - anaconda3.5
-# - cudnn
+# - anaconda3
 # This avoids that every person need its own copy
 
 #kaldi
@@ -11,10 +10,7 @@ cd tools/kaldi
 if [ ! -f kaldi ]; then
     ln -s /exp/jvillalba/kaldi/kaldi-villalba kaldi
 fi
-cd -
-
-# anaconda 3.5
-cd tools/anaconda
+# anaconda 3
 if [ ! -f anaconda3 ];then
     ln -s /exp/jvillalba/anaconda/anaconda3 anaconda3
 fi

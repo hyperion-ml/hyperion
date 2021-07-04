@@ -2,19 +2,16 @@
 
 #This script creates links in the tools directory to
 # - kaldi
-# - anaconda3.7
-# - cudnn
+# - anaconda3
 # This avoids that every person need its own copy
 
 #kaldi
-cd tools/kaldi
+cd tools
 if [ ! -f kaldi ]; then
     ln -s /export/b15/janto/kaldi/kaldi-villalba kaldi
 fi
-cd -
 
 # anaconda 3
-cd tools/anaconda
 if [ ! -f anaconda3 ];then
     ln -s /home/janto/usr/local/anaconda3 anaconda3
 fi

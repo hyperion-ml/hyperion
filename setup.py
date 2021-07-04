@@ -19,14 +19,17 @@ import setuptools
 with open('apps.txt') as f:
     apps = f.read().splitlines()
 
-apps = ['bin/'+ app for app in apps ]
+apps = ['bin/' + app for app in apps]
+
+with open('requirements.txt') as f:
+    requirements = f.read().splitlines()
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="hyperion-jvillalba", # Replace with your own username
-    version="0.0.1",
+    name="hyperion-jvillalba",  # Replace with your own username
+    version="0.1.01",
     author="Jesus Villalba",
     author_email="jesus.antonio.villalba@gmail.com",
     description="Toolkit for speaker recognition",
@@ -42,14 +45,5 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     python_requires='>=3.7',
-    install_requires=[
-        'numpy>=1.18.1',
-        'pysoundfile>=0.9.0',
-        'h5py>=2.10.0',
-        'matplotlib>=3.1.3',
-        'pandas>=1.0.1',
-        'scikit-learn>=0.22.1',
-        'scipy>=1.4.1',
-        'sphinx_rtd_theme'],
-    scripts=apps
-)
+    install_requires=requirements,
+    scripts=apps)
