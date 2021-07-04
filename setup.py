@@ -19,7 +19,7 @@ import setuptools
 with open('apps.txt') as f:
     apps = f.read().splitlines()
 
-apps = ['bin/' + app for app in apps]
+apps = ['hyperion/bin/' + app for app in apps]
 
 with open('requirements.txt') as f:
     requirements = f.read().splitlines()
@@ -28,8 +28,8 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="hyperion-jvillalba",  # Replace with your own username
-    version="0.1.01",
+    name="hyperion",  # Replace with your own username
+    version="0.1.1",
     author="Jesus Villalba",
     author_email="jesus.antonio.villalba@gmail.com",
     description="Toolkit for speaker recognition",
