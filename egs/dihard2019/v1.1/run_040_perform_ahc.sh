@@ -21,26 +21,45 @@ xvector_dir=exp/xvectors_diar/$nnet_name
 plda_name=lda${lda_dim}_${plda_type}y${plda_y_dim}_v1_${plda_data}
 plda_dir=exp/be/$nnet_name/$plda_name
 
-diar_dir=exp/diarization/$nnet_name/${plda_name}
+plda_adapt_name=${plda_name}_adapt
+plda_adapt_dir=exp/be/$nnet_name/$plda_adapt_name
+
+diar_dir=exp/diarization/$nnet_name/${plda_adapt_name}
 diar_ahc_dir=$diar_dir/ahc
 
 if [ $stage -le 1 ]; then
 
     echo "Train PLDA on Voxceleb"
     steps_diar/train_plda_v1.sh --cmd "$train_cmd --mem 64G" \
-	--lda_dim $lda_dim \
-	--plda_type $plda_type \
-	--y_dim $plda_y_dim --z_dim $plda_z_dim \
-	--plda-opts "--subsampling 20 --inter-session" \
+	--lda-dim $lda_dim \
+	--plda-type $plda_type \
+	--y-dim $plda_y_dim --z-dim $plda_z_dim \
+	--plda-opts "--inter-session" \
 	$xvector_dir/$plda_data/xvector.scp \
 	data/$plda_data \
-	$plda_dir &
-    wait
+	$plda_dir 
+
 fi
+
+if [ $stage -le 2 ]; then
+
+    echo "Adapt PLDA on Dihard dev"
+    steps_diar/adapt_plda_v1.sh --cmd "$train_cmd --mem 64G" \
+	--plda-type $plda_type \
+	--plda-opts "--inter-session --w-mu 1 --w-B 1 --w-W 1" \
+	$xvector_dir/dihard2019_dev/xvector.scp \
+	data/dihard2019_dev \
+	data/dihard2019_dev/diarization.rttm \
+	$plda_dir/lda_lnorm.h5 \
+	$plda_dir/plda.h5 \
+	$plda_adapt_dir 
+
+fi
+
 
 local/install_dscore.sh
 
-if [ $stage -le 2 ];then
+if [ $stage -le 3 ];then
     echo "Apply AHC with PLDA scoring"
     for r in 1 0.5 0.3 0.15
     do
@@ -56,8 +75,8 @@ if [ $stage -le 2 ];then
     			data/$name/utt2spk \
     			$xvector_dir/$name/xvector.scp \
     			data/$name/vad.segments \
-    			$plda_dir/lda_lnorm.h5 \
-    			$plda_dir/plda.h5 \
+    			$plda_adapt_dir/lda_lnorm.h5 \
+    			$plda_adapt_dir/plda.h5 \
     			$out_dir/$name
 		done
 		local/dscore_dihard2019_allconds.sh \
@@ -75,6 +94,7 @@ if [ $stage -le 2 ];then
     exit
 fi
 
+plda_dir=$plda_adapt_dir
 if [ $stage -le 2 ];then
     echo "Apply AHC with PLDA scoring"
     for r in 1 0.5 0.3 0.15

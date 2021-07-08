@@ -127,7 +127,6 @@ def train_plda(v_file, train_list,
     
     # Train PLDA
     t1 = time.time()
-
     plda = F.create_plda(plda_type, y_dim=y_dim, z_dim=z_dim,
                          name='plda')
     elbo, elbo_norm = plda.fit(x, class_ids, 

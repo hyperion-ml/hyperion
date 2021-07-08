@@ -423,6 +423,48 @@ class RTTM(object):
         return np.asarray(names), num_names
 
 
+    def get_segment_names_from_timestamps(self, file_id, timestamps, segment_type='SPEAKER', min_seg_dur=0.1):
+        num_segm = len(timestamps)
+        names = []
+        num_names = np.zeros((num_segm,), dtype=int)
+        segments = self.segments[((self.segments['segment_type'] == segment_type) & (self.segments['file_id'] == file_id))]
+        tbegs = segments['tbeg']
+        tends = segments['tbeg'] + segments['tdur']
+        names = []
+        index = []
+        durs = []
+        for i in range(num_segm):
+            tbeg_i = timestamps[i][0]
+            tend_i = timestamps[i][1]
+            segments_i = segments[((tbegs <= tbeg_i) & (tends > tbeg_i)) |
+                                  ((tbegs < tend_i) & (tends >=tend_i))]
+            # print('####')
+            # print(tbeg_i, tend_i)
+            # print(segments_i)
+            if len(segments_i) == 0:
+                continue
+            tbegs_i = np.asarray(segments_i['tbeg'])
+            tends_i = np.asarray(segments_i['tbeg'] + segments_i['tdur'])
+            durs_i = np.minimum(tends_i, tend_i) - np.maximum(tbeg_i, tbegs_i)
+            # print(tbegs_i)
+            # print(tends_i)
+            # print(durs_i)
+            dur_mask = durs_i >= min_seg_dur
+            segments_i = segments_i[dur_mask]
+            durs_i = durs_i[dur_mask]
+
+            for j in range(len(segments_i)):
+                names.append(segments_i.iloc[j]['name'])
+                durs.append(durs_i[j])
+                index.append(i)
+                # print('----')
+                # print(names)
+                # print(durs)
+                # print(index)
+
+        index = np.asarray(index, dtype=np.int)
+        return index, names, durs
+
     
     def get_files_with_names_diff_to_file(self, file_id, segment_type='SPEAKER'):
         segments = self.segments[self.segments['segment_type'] == segment_type]

@@ -60,7 +60,7 @@ class HypModel(object):
         if not(os.path.isdir(file_dir)):
             os.makedirs(file_dir, exist_ok=True)
         with h5py.File(file_path,'w') as f:
-            config=self.to_json()
+            config = self.to_json()
             f.create_dataset('config', data=np.array(config, dtype='S'))
             self.save_params(f)
 
@@ -92,7 +92,7 @@ class HypModel(object):
         try:
             with h5py.File(file_path,'r') as f:
                 json_str = str(np.asarray(f['config']).astype('U'))
-                return  cls.load_config_from_json(json_str)
+                return cls.load_config_from_json(json_str)
         except:
             with open(file_path,'r') as f:
                 return cls.load_config_from_json(f.read())
