@@ -30,11 +30,11 @@ and augmentations on the fly.
    - Run the run_0*.sh scripts in sequence
    - You can skip the x-vector finetuning scripts since they don't improve the results (steps 12, 31 and 41)
    - By default it will use Light ResNet (16 channels)
-   - For better performance use full ResNet (64 channels) using `config_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh` file as
+   - For better performance use full ResNet (64 channels) using `global_conf/config_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh` file as
 ```bash
-run_011_train_xvector.sh --config-file config_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh
-run_030_extract_xvectors.sh --config-file config_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh
-run_040_eval_be.sh --config-file config_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh
+run_011_train_xvector.sh --config-file global_conf/config_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh
+run_030_extract_xvectors.sh --config-file global_conf/config_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh
+run_040_eval_be.sh --config-file global_conf/config_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh
 ```
 
    - The `amp` suffix in the config files means that we train with mixed precission to reduce GPU memory requirements.
@@ -46,16 +46,16 @@ run_040_eval_be.sh --config-file config_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.s
           - VoxCeleb2 train+test
           - VoxCeleb1 O/E/H eval sets
 
-   - `run_002a_compute_evad.sh`
+   - `run_002_compute_evad.sh`
       - Computes Energy VAD for all datasets
 
-   - `run_002b_compute_fbank.sh`
+   - `run_003_compute_fbank.sh`
       - Computes log-filter-banks acoustic features for all datasets
 
-   - `run_003_prepare_augment.sh`
+   - `run_004_prepare_augment.sh`
       - Prepares Kaldi style data directories for augmented training data with MUSAN noise and RIR reverberation.
 
-   - `run_004_compute_fbank_augment.sh
+   - `run_005_compute_fbank_augment.sh
       - Computes log-filter-banks for augmented datasets
 
    - `run_010_prepare_xvec_train_data.sh`

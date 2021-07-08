@@ -9,6 +9,8 @@ min_len=4
 if [ -f path.sh ]; then . ./path.sh; fi
 . parse_options.sh || exit 1;
 
+kaldi_utils=hyp_utils/kaldi/utils
+
 if [ $# != 1 ]; then
   echo "Usage: $0 [options] <data-dir>"
   echo "e.g.: $0 --min-len 4 data/train_no_sil"
@@ -22,8 +24,8 @@ data_dir=$1
 awk -v min_len=${min_len} '{ 
     if ($2>=min_len) { print $1,t }}' \
 	$data_dir/utt2dur > $data_dir/utt2dur.new
-utils/filter_scp.pl $data_dir/utt2dur.new $data_dir/utt2spk > $data_dir/utt2spk.new
+${kaldi_utils}/filter_scp.pl $data_dir/utt2dur.new $data_dir/utt2spk > $data_dir/utt2spk.new
 mv $data_dir/utt2spk.new $data_dir/utt2spk
-utils/fix_data_dir.sh --utt-extra-files utt2dur $data_dir
+${kaldi_utils}/fix_data_dir.sh --sort false --utt-extra-files utt2dur $data_dir
 
 

@@ -1,18 +1,21 @@
 #!/bin/bash
 #
-# Copyright 2017 Johns Hopkins University (David Snyder)
-#           2019 Johns Hopkins University (Jesus Villalba)
+# Copyright 2019 Johns Hopkins University (Jesus Villalba)
+#           
 # Apache 2.0.
 
 # This script applies sliding window cmvn and removes silence frames.  This
 # is performed on the raw features prior to generating examples for training
 # the xvector system.
+set -e 
 
 nj=40
 cmd="run.pl"
 stage=0
 center=true
 norm_var=false
+compression_method=auto
+file_format=h5
 compress=true
 left_context=150
 right_context=150
@@ -52,7 +55,7 @@ mkdir -p $data_out
 featdir=$(utils/make_absolute.sh $dir)
 
 if [[ $(hostname -f) == *.clsp.jhu.edu ]] && [ ! -d $featdir/storage ]; then
-    dir_name=$USER/hyp-data/kaldi-xvector/$storage_name/xvector_feats/storage
+    dir_name=$USER/hyp-data/xvectors/$storage_name/xvector_feats/storage
     if [ "$nodes" == "b0" ];then
 	utils/create_split_dir.pl \
 	    utils/create_split_dir.pl \
@@ -62,7 +65,7 @@ if [[ $(hostname -f) == *.clsp.jhu.edu ]] && [ ! -d $featdir/storage ]; then
 	    /export/b{14,15,16,17,18}/$dir_name $featdir/storage
     else
 	utils/create_split_dir.pl \
-	    /export/c{06,07,08,09}/$dir_name $featdir/storage
+	    /export/c{01,06,07,08,09}/$dir_name $featdir/storage
     fi
 fi
 
@@ -87,16 +90,16 @@ if [ "$norm_var" == "true" ];then
     args="${args} --norm-var"
 fi
 if [ "$compress" == "true" ];then
-    args="${args} --compress"
+    args="${args} --compress --compression-method $compression_method"
 fi
 write_num_frames_opt="--write-num-frames $featdir/log/utt2num_frames.JOB"
 
 $cmd JOB=1:$nj $dir/log/create_embed_feats_${name}.JOB.log \
-    apply-mvn-select-frames.py ${args} $write_num_frames_opt \
+    hyp_utils/conda_env.sh apply-mvn-select-frames.py ${args} $write_num_frames_opt \
      --left-context $left_context --right-context $right_context \
      --part-idx JOB --num-parts $nj \
      --input scp:$data_in/feats.scp --vad scp:$data_in/vad.scp \
-     --output h5,scp:$featdir/feats_${name}.JOB.h5,$featdir/feats_${name}.JOB.scp || exit 1;
+     --output ${file_format},scp:$featdir/feats_${name}.JOB.${file_format},$featdir/feats_${name}.JOB.scp || exit 1;
 
 for n in $(seq $nj); do
   cat $featdir/feats_${name}.$n.scp || exit 1;

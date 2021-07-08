@@ -2,11 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
-from six import string_types
 
 import logging
 import numpy as np
@@ -51,7 +46,7 @@ class LinearGBEUP(LinearGBE):
             S = invert_pdmat(self.W, return_inv=True)[-1]
             
         logp = np.zeros((len(x), self.num_classes), dtype=float_cpu())
-        for i in xrange(x.shape[0]):
+        for i in range(x.shape[0]):
             W_i = invert_pdmat(S+np.diag(x_s[i]), return_inv=True)[-1]
             A, b = self._compute_Ab_i(self.mu, W_i)
             logp[i] = np.dot(x_m[i], A) + b
@@ -155,7 +150,7 @@ class LinearGBEUP(LinearGBE):
                 nu0 = 0
                 S = np.zeros((x.shape[1], x.shape[1]), dtype=float_cpu())
                 
-            for k in xrange(self.num_classes):
+            for k in range(self.num_classes):
                 delta = x - xbar[k]
                 S_k = np.dot(p_theta[:, k]*delta.T, delta)
                 if do_map and self.update_mu:

@@ -3,7 +3,7 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from __future__ import absolute_import
+
 
 import math
 import logging
@@ -119,5 +119,5 @@ class AdamCosineLR(CosineLR):
         alpha = gamma ** self.num_restarts
         r = math.pi/self.T
             
-        return [alpha * base_lr * 0.5 (1 + math.cos(r * x))
+        return [alpha * base_lr * 0.5 * (1 + math.cos(r * x))
                 for base_lr in self.base_lrs]

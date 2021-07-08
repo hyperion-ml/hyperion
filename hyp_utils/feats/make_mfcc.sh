@@ -6,7 +6,7 @@
 # Begin configuration section.
 nj=4
 cmd=run.pl
-mfcc_config=conf/mfcc.conf
+mfcc_config=conf/mfcc.pyconf
 compress=true
 write_utt2num_frames=false  # if true writes utt2num_frames
 # End configuration section.

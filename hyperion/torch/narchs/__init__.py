@@ -2,7 +2,6 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-#from __future__ import absolute_import
 
 from .fcnet import FCNetV1
 
@@ -13,6 +12,9 @@ from .tdnn_factory import TDNNFactory
 
 from .resnet import *
 from .resnet_factory import ResNetFactory
+
+from .spinenet import *
+from .spinenet_factory import SpineNetFactory
 
 from .transformer_encoder_v1 import TransformerEncoderV1
 from .conformer_encoder_v1 import ConformerEncoderV1
@@ -31,5 +33,6 @@ from .efficient_net import EfficientNet
 
 from .classif_head import ClassifHead
 
+from .audio_feats_mvn import AudioFeatsMVN
 
-
+from .torch_na_loader import TorchNALoader

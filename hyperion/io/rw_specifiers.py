@@ -4,10 +4,6 @@
 
  Functions to write and read kaldi files
 """
-#from __future__ import absolute_import
-#from __future__ import print_function
-#from __future__ import division
-#from six.moves import xrange
 
 import re
 from enum import Enum
@@ -409,7 +405,7 @@ class RSpecifier(object):
                        permissive, background)
         else:
             raise ValueError('Two many fields (%d>2) in wspecifier %s'
-                             % (len(fields), wspecifier))
+                             % (len(fields), rspecifier))
         
         
 

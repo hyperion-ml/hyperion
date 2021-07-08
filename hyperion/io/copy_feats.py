@@ -2,10 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from six.moves import xrange
-from six import string_types
 
 import logging
 
@@ -59,7 +55,7 @@ class CopyFeats(object):
            chunk_size: When copying, it reads the input files in groups of 
                        chunk_size (default:1).
         """
-        if isinstance(input_spec, string_types):
+        if isinstance(input_spec, str):
             input_spec = [input_spec]
 
         assert not(num_parts>1 and len(input_spec)>1), (
@@ -93,28 +89,23 @@ class CopyFeats(object):
 
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
+    def filter_args(**kwargs):
         """Extracts the relevant arguments for the CopyFeats object.
         
         Args:
-          prefix: Prefix for the name of the argument.
           kwargs: Dictionary containing arguments for several classes.
         
         Returns:
           Dictionary with the relevant arguments to initialize the object.
         """
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
         valid_args = ('scp_sep', 'path_prefix', 'part_idx', 'num_parts')
-        return dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        return dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
         
         
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         """Adds arguments required to initialize the object to python
            argparse object.
         
@@ -126,20 +117,27 @@ class CopyFeats(object):
         """
         if prefix is None:
             p1 = '--'
-            p2 = ''
         else:
-            p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
+            p1 = '--' + prefix + '.'
             
-        parser.add_argument(p1+'scp-sep', dest=(p2+'scp_sep'), default=' ',
-                            help=('scp file field separator'))
-        parser.add_argument(p1+'path-prefix', dest=(p2+'path_prefix'), default=None,
-                            help=('scp file_path prefix'))
-        parser.add_argument(p1+'part-idx', dest=(p2+'part_idx'), type=int, default=1,
-                            help=('splits the list of files in num-parts and process part_idx'))
-        parser.add_argument(p1+'num-parts', dest=(p2+'num_parts'), type=int, default=1,
-                            help=('splits the list of files in num-parts and process part_idx'))
+        parser.add_argument(
+            p1+'scp-sep', default=' ',
+            help=('scp file field separator'))
+        parser.add_argument(
+            p1+'path-prefix', default=None,
+            help=('scp file_path prefix'))
+        parser.add_argument(
+            p1+'part-idx', type=int, default=1,
+            help=('splits the list of files in num-parts and process part_idx'))
+        parser.add_argument(
+            p1+'num-parts', type=int, default=1,
+            help=('splits the list of files in num-parts and process part_idx'))
 
-        parser.add_argument('--compress', dest='compress', default=False, action='store_true')
-        parser.add_argument('--compression-method', dest='compression_method', default='auto',
-                            choices=compression_methods)
+        parser.add_argument(
+            p1+'compress', default=False, action='store_true')
+        parser.add_argument(
+            p1+'compression-method', default='auto',
+            choices=compression_methods)
+
+
+    add_argparse_args = add_class_args

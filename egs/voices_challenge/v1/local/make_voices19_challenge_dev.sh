@@ -2,14 +2,14 @@
 # Copyright 2019  Johns Hopkins University (Jesus Villalba) 
 # Apache 2.0
 
-if [  $# != 3 ]; then
+if [  $# != 2 ]; then
     echo "$0 <db-path> <list-path> <output_path>"
     exit 1
 fi
 input_path=$1
-list_path=$2
-output_path=$3
+output_path=$2
 
+list_path=$input_path/Development_Data/Speaker_Recognition/sid_dev_lists_and_keys
 audio_path=$input_path/Development_Data/Speaker_Recognition
 
 echo "$0 making voices challenge dev enroll"

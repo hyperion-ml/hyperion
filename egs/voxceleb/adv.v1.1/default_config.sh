@@ -1,0 +1,1 @@
+global_conf/config_victim_fbank80_stmn_resnet34_transfer_resetdnn.v1.sh

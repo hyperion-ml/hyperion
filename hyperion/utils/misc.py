@@ -4,10 +4,6 @@
 
  Miscellaneous functions
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import numpy as np
 
@@ -18,6 +14,8 @@ def generate_data(g):
 
 def str2bool(s):
     """Convert string to bool for argparse """
+    if isinstance(s, bool):
+        return s
 
     values={'true': True, 't': True, 'yes': True, 'y': True,
             'false': False, 'f': False, 'no': False, 'n': False}
@@ -61,3 +59,17 @@ def compute_snr(x, n, axis=-1):
     P_x = 10*np.log10(np.mean(x**2, axis=axis))
     P_n = 10*np.log10(np.mean(n**2, axis=axis))
     return P_x - P_n
+
+
+def filter_args(valid_args, kwargs):
+    """ Filters arguments from a dictionary
+
+    Args:
+      valid_args: list/tuple of valid arguments
+      kwargs: dictionary containing program config arguments
+    Returns
+      Dictionary with only valid_args keys if they exists
+    """
+    return dict((k, kwargs[k])
+                for k in valid_args if k in kwargs)
+    

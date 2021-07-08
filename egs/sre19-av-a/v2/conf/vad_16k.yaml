@@ -1,0 +1,8 @@
+sample_frequency: 16000
+frame_shift: 10
+frame_length: 25 
+snip_edges: false
+vad_energy_threshold: 5.5
+vad_energy_mean_scale: 0.5
+vad_proportion_threshold: 0.12
+vad_frames_context: 2

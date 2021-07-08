@@ -3,11 +3,6 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
-
 import logging
 
 import numpy as np
@@ -36,28 +31,24 @@ class FeatureWindowFactory(object):
         raise Exception('Invalid window type %s' % window_type)
 
 
-
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         if prefix is None:
             p1 = '--'
-            p2 = ''
         else:
-            p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
+            p1 = '--' + prefix + '.'
 
 
         parser.add_argument(
-            p1+'window-type', dest=(p2+'window_type'), 
+            p1+'window-type', 
             default='povey',
             choices=['hamming', 'hanning', 'povey', 'rectangular', 'blackman'],
             help=('Type of window ("hamming"|"hanning"|"povey"|"rectangular"|"blackmann")'))
 
         # parser.add_argument(
-        #     p1+'blackman-coeff', dest=(p2+'blackman_coeff'), type=float,
+        #     p1+'blackman-coeff', type=float,
         #     default=0.42,
         #     help='Constant coefficient for generalized Blackman window. (default = 0.42)')
 
-        
-
     
+    add_argparse_args = add_class_args

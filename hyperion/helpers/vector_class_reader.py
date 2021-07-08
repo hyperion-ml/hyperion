@@ -2,10 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import sys
 import os
@@ -82,7 +78,7 @@ class VectorClassReader(object):
             return np.unique(self.u2c.info)
         else:
             map_int2class = {k:v for v,k in self.map_class2int.items()}
-            classes = [ map_int2class[i] for i in xrange(len(map_int2class))]
+            classes = [ map_int2class[i] for i in range(len(map_int2class))]
             return np.asarray(classes)
     
     
@@ -124,7 +120,7 @@ class VectorClassReader(object):
             if np.all(num_spc <= max_spc):
                 return u2c
             f = np.ones_like(class_ids, dtype=bool)
-            for i in xrange(np.max(class_ids)+1):
+            for i in range(np.max(class_ids)+1):
                 if num_spc[i] > max_spc:
                     indx = np.where(class_ids == i)[0]
                     num_reject = len(indx) - max_spc
@@ -164,13 +160,13 @@ class VectorClassReader(object):
         
         j = 0
         new_i = 0
-        for i in xrange(num_classes):
+        for i in range(num_classes):
             indx_i = np.where(class_ids == i)[0]
             if num_spc[i] > max_spc:
                 num_subclass = int(np.ceil((num_spc[i] - max_spc)/shift + 1))
                 if mode == 'sequential':
                     l = 0
-                    for k in xrange(num_subclass-1):
+                    for k in range(num_subclass-1):
                         new_indx[j:j+max_spc] = indx_i[l:l+max_spc]
                         new_class_ids[j:j+max_spc] = new_i
                         l += shift
@@ -182,7 +178,7 @@ class VectorClassReader(object):
                     j += n
                     new_i += 1
                 if mode == 'random':
-                    for k in xrange(num_subclass):
+                    for k in range(num_subclass):
                         #indx[j:j+max_spc] = rng.permutation(indx_i)[:max_spc]
                         new_indx[j:j+max_spc] = rng.choice(
                             indx_i, size=max_spc, replace=False)
@@ -204,64 +200,72 @@ class VectorClassReader(object):
                      
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
+    def filter_args(**kwargs):
         valid_args = ('vlist_sep', 'class2int_file',
                       'min_spc', 'max_spc', 'spc_pruning_mode',
                       'csplit_min_spc', 'csplit_max_spc',
                       'csplit_mode', 'csplit_overlap',
                       'csplit_once','vcr_seed')
-        return dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        return dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
     
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         if prefix is None:
             p1 = '--'
-            p2 = ''
+
         else:
-            p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
-        parser.add_argument(p1+'vlist-sep', dest=(p2+'vlist_sep'), default=' ',
-                            help=('utt2class file field separator'))
+            p1 = '--' + prefix + '.'
 
-        parser.add_argument(p1+'class2int-file', dest=(p2+'class2int_file'), default=None,
-                            help=('file that maps class string to integer'))
+        parser.add_argument(
+            p1+'vlist-sep', default=' ',
+            help=('utt2class file field separator'))
 
-        parser.add_argument(p1+'min-spc', dest=(p2+'min_spc'), type=int,
-                            default=1,
-                            help=('minimum samples per class'))
-        parser.add_argument(p1+'max-spc', dest=(p2+'max_spc'), type=int,
-                            default=None,
-                            help=('maximum samples per class'))
-        parser.add_argument(p1+'spc-pruning-mode', dest=(p2+'spc_pruning_mode'), 
-                            default='random',
-                            choices=['random', 'first', 'last'],
-                            help=('vector pruning method when spc > max-spc'))
-        parser.add_argument(p1+'csplit-min-spc', dest=(p2+'csplit_min_spc'), type=int,
-                            default=None,
-                            help=('minimum samples per class when doing class spliting'))
-        parser.add_argument(p1+'csplit-max-spc', dest=(p2+'csplit_max_spc'), type=int,
-                            default=None,
-                            help=('split one class into subclasses with '
-                                  'spc <= csplit-max-spc'))
+        parser.add_argument(
+            p1+'class2int-file', default=None,
+            help=('file that maps class string to integer'))
 
-        parser.add_argument(p1+'csplit-mode', dest=(p2+'csplit_mode'), 
-                            default='random', type=str.lower,
-                            choices = ['sequential', 'random', 'random_1subclass'],
-                            help=('class splitting mode'))
-        parser.add_argument(p1+'csplit-overlap', dest=(p2+'csplit_overlap'), type=float,
-                            default=0, help=('overlap between subclasses'))
-        parser.add_argument(p1+'no-csplit-once', dest=(p2+'csplit_once'), 
-                            default=True, action='store_false',
-                            help=('class spliting done in each iteration'))
-        parser.add_argument(p1+'vcr-seed', dest=(p2+'vcr_seed'), type=int,
-                            default=1024, help=('seed for rng'))
+        parser.add_argument(
+            p1+'min-spc', type=int,
+            default=1,
+            help=('minimum samples per class'))
+        parser.add_argument(
+            p1+'max-spc',  type=int,
+            default=None,
+            help=('maximum samples per class'))
+        parser.add_argument(
+            p1+'spc-pruning-mode', 
+            default='random',
+            choices=['random', 'first', 'last'],
+            help=('vector pruning method when spc > max-spc'))
+        parser.add_argument(
+            p1+'csplit-min-spc', 
+            type=int,
+            default=None,
+            help=('minimum samples per class when doing class spliting'))
+        parser.add_argument(
+            p1+'csplit-max-spc', type=int,
+            default=None,
+            help=('split one class into subclasses with '
+                  'spc <= csplit-max-spc'))
+
+        parser.add_argument(
+            p1+'csplit-mode', 
+            default='random', type=str.lower,
+            choices = ['sequential', 'random', 'random_1subclass'],
+            help=('class splitting mode'))
+        parser.add_argument(
+            p1+'csplit-overlap', type=float,
+            default=0, help=('overlap between subclasses'))
+        parser.add_argument(
+            p1+'no-csplit-once', 
+            default=True, action='store_false',
+            help=('class spliting done in each iteration'))
+        parser.add_argument(
+            p1+'vcr-seed', type=int,
+            default=1024, help=('seed for rng'))
 
 
-                            
+    add_argparse_args = add_class_args                            
                     

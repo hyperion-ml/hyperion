@@ -46,7 +46,7 @@ echo "$0 score $ndx_file"
 for((i=1;i<=$num_parts;i++));
 do
     $cmd $output_dir/log/${name}_${i}.log \
-	 python steps_be/eval-tel-be-knn-snorm-v1.py \
+	 hyp_utils/conda_env.sh steps_be/eval-tel-be-knn-snorm-v1.py \
 	 --iv-file scp:$vector_file \
 	 --ndx-file $ndx_file \
 	 --enroll-file $enroll_file \

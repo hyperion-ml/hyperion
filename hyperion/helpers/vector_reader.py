@@ -2,11 +2,7 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
-
+from jsonargparse import ArgumentParser, ActionParser
 import sys
 import os
 import argparse
@@ -32,39 +28,44 @@ class VectorReader(object):
         
             
     def read(self):
-        x = self.r.read(self.scp.key, squeeze=True)
-        if self.preproc is not None:
-            x = self.preproc.predict(x)
+        try:
+            x = self.r.read(self.scp.key, squeeze=True)
+            if self.preproc is not None:
+                x = self.preproc.predict(x)
+        except:
+            x = self.r.read(self.scp.key, squeeze=False)
+            if self.preproc is not None:
+                for i in range(len(x)):
+                    if x[i].ndim == 1:
+                        x[i] = x[i][None,:]
+                    x[i] = self.preproc.predict(x[i])
+            
         return x
 
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
-            
+    def filter_args(**kwargs):
         valid_args = ('vlist_sep')
-        return dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        return dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
 
     
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
-        if prefix is None:
-            p1 = '--'
-            p2 = ''
-        else:
-            p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
-        parser.add_argument(p1+'vlist-sep', dest=(p2+'vlist_sep'), default=' ',
-                            help=('utterance file field separator'))
-        # parser.add_argument(p1+'v-field', dest=(p2+'v_field'), default='',
-        #                     help=('dataset field in input vector file'))
+    def add_class_args(parser, prefix=None):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog='')
+
+        parser.add_argument(
+            '--vlist-sep', default=' ',
+            help=('utterance file field separator'))
         
+        if prefix is not None:
+            outer_parser.add_argument(
+                '--' + prefix,
+                action=ActionParser(parser=parser))
+                # help='vector reader params')
     
 
-                            
-                    
+    add_argparse_args = add_class_args

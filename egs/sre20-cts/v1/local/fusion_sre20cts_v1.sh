@@ -60,7 +60,7 @@ do
     train_scores_i=${train_scores}_${i}
     score_files[$i]=$train_scores_i
     if [ ! -d "${score_dirs[$i]}" ];then
-	echo "input systme $i dir ${score_dirs[$i]} not found"
+	echo "input system $i dir ${score_dirs[$i]} not found"
 	exit 1
     fi
     case "$fus_set" in
@@ -84,9 +84,13 @@ do
 done
 
 $cmd $output_dir/train_fus.log \
-    steps_be/train-fusion-v1.py --system-names ${system_names[@]} --score-files ${score_files[@]} \
-    --key-file $train_key --model-file $model_file --prior $p_trn --prior-eval $p_eval --lambda-reg $l2_reg --solver $solver \
-    --max-systems $max_systems
+     hyp_utils/conda_env.sh steps_be/train-fusion-v1.py \
+     --system-names ${system_names[@]} \
+     --score-files ${score_files[@]} \
+     --key-file $train_key \
+     --model-file $model_file \
+     --prior $p_trn --prior-eval $p_eval --lambda-reg $l2_reg --solver $solver \
+     --max-systems $max_systems
 
 ndxs=(sre16_eval40_yue_test sre16_eval40_tgl_test sre19_eval_test_cmn2 sre20cts_eval_test)
 scores=(sre16_eval40_yue sre16_eval40_tgl sre19_eval_cmn2 sre20cts_eval)
@@ -106,8 +110,11 @@ do
 	mkdir -p $output_dir/$j
 	scores_out=$output_dir/$j/${scores[$i]}_scores
 	$cmd $output_dir/$j/eval_fus_${scores[$i]}.log \
-	     steps_be/eval-fusion-v1.py --in-score-files ${scores_in[@]} \
-	    --ndx-file $ndx --model-file $model_file --out-score-file $scores_out --fus-idx $j &
+	     hyp_utils/conda_env.sh steps_be/eval-fusion-v1.py \
+	     --in-score-files ${scores_in[@]} \
+	     --ndx-file $ndx \
+	     --model-file $model_file \
+	     --out-score-file $scores_out --fus-idx $j &
     done
 
 done

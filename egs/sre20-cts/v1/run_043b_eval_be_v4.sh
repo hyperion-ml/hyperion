@@ -2,6 +2,8 @@
 # Copyright       2018   Johns Hopkins University (Author: Jesus Villalba)
 #                
 # Apache 2.0.
+# Back-end CORAL(Eng->NonEngl) + LDA(All)+LN(All)-Adapted(NonEng) + PLDA(All)-Adapted(NonEng)
+# Calibration depends on # of enrollment cuts
 #
 . ./cmd.sh
 . ./path.sh
@@ -10,7 +12,6 @@ set -e
 stage=1
 config_file=default_config.sh
 
-#spk det back-end
 lda_dim=150
 ncoh=500
 
@@ -29,7 +30,7 @@ plda_adapt_data=realtel_noeng
 coh_data=realtel_alllangs
 # cal_set=sre16-9
 cal_set=sre16-yue
-ft=0
+ft=1
 
 . parse_options.sh || exit 1;
 . $config_file
@@ -121,10 +122,10 @@ fi
 
 
 if [ $stage -le 3 ];then
-    local/calibrate_sre20cts_v1.sh --cmd "$train_cmd" $cal_set $score_plda_dir
-    local/score_sre16.sh data/sre16_eval40_yue_test eval40_yue ${score_plda_dir}_cal_v1${cal_set}
-    local/score_sre16.sh data/sre16_eval40_tgl_test eval40_tgl ${score_plda_dir}_cal_v1${cal_set}
-    local/score_sre19cmn2.sh data/sre19_eval_test_cmn2 ${score_plda_dir}_cal_v1${cal_set}
+    local/calibrate_sre20cts_v2.sh --cmd "$train_cmd" $cal_set $score_plda_dir
+    local/score_sre16.sh data/sre16_eval40_yue_test eval40_yue ${score_plda_dir}_cal_v2${cal_set}
+    local/score_sre16.sh data/sre16_eval40_tgl_test eval40_tgl ${score_plda_dir}_cal_v2${cal_set}
+    local/score_sre19cmn2.sh data/sre19_eval_test_cmn2 ${score_plda_dir}_cal_v2${cal_set}
 fi
 
 score_plda_dir=$score_dir/plda_snorm_${coh_data}${ncoh}

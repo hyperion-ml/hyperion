@@ -5,14 +5,10 @@
 
  Evals calibration
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import sys
 import os
-import argparse
+from jsonargparse import ArgumentParser, ActionConfigFile, ActionParser, namespace_to_dict
 import time
 import logging
 
@@ -50,9 +46,7 @@ def eval_calibration(in_score_file, ndx_file, model_file, out_score_file):
     
 if __name__ == "__main__":
 
-    parser=argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        fromfile_prefix_chars='@',
+    parser=ArgumentParser(
         description='Evals linear calibration')
 
     parser.add_argument('--in-score-file', dest='in_score_file', required=True)
@@ -67,6 +61,6 @@ if __name__ == "__main__":
     del args.verbose
     logging.debug(args)
     
-    eval_calibration(**vars(args))
+    eval_calibration(**namespace_to_dict(args))
 
             

@@ -6,15 +6,11 @@
 """
 Merges multiple hdf5 files into one file
 """
-from __future__ import absolute_import
-from __future__ import print_function
-
 import sys
 import os
 import argparse
 import time
 import numpy as np
-from six.moves import xrange
 
 from hyperion.io import H5Merger
 

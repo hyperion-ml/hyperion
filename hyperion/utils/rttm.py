@@ -2,7 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-#import os.path as path
 import logging
 from copy import deepcopy
 
@@ -10,6 +9,7 @@ import numpy as np
 import pandas as pd
 
 from .list_utils import *
+from .vad_utils import *
 from .segment_list import SegmentList
 
 
@@ -227,7 +227,6 @@ class RTTM(object):
         return r
 
 
-    
     def __len__(self):
         """Returns the number of segments in the list."""
         return len(self.segments)
@@ -292,7 +291,7 @@ class RTTM(object):
     def filter(self, filter_key, keep=True):
         if not keep :
             filter_key = np.setdiff1d(
-                np.asrray(self.segments.index), filter_key)
+                np.asarray(self.segments.index), filter_key)
         df = self.segments.loc[filter_key]
         return RTTM(df, index_by_file=self.index_by_file)
     
@@ -319,31 +318,15 @@ class RTTM(object):
         index = ((segm.file_id == segm_1.file_id) &
                  (segm.segment_type == segm_1.segment_type) &
                  (segm.name == segm_1.name) & (delta <= t_margin))
-        # ix=self.segments['name'] == 'DH_0006_1'
-        # logging.debug(self.segments[ix])
-        # logging.debug(index[ix])
-        # logging.debug(segm[ix].tbeg)
-        # logging.debug(segm[ix].tbeg+segm[ix].tdur)
+
         for i in range(len(self.segments)-1, 0, -1):
             if index.iloc[i]:
                 tbeg = segm.iloc[i-1].tbeg
                 tend = segm.iloc[i].tbeg + segm.iloc[i].tdur
                 self.segments.iloc[i-1, self.segments.columns.get_loc('tdur')] = tend - tbeg
                 self.segments.iloc[i, self.segments.columns.get_loc('segment_type')] = 'DROP'
-        #logging.debug(self.segments[ix])
-        self.segments = self.segments[self.segments.segment_type != 'DROP']
 
-        # for i in range(len(self.segments)-1, 0, -1):
-        #     row_i = self.segments.iloc[i]
-        #     row_i_1 = self.segments.iloc[i-1]
-        #     if (row_i.segment_type == row_i_1.segment_type and
-        #         row_i.file_id == row_i_1.file_id and
-        #         row_i.name == row_i_1.name and
-        #         row_i.tbeg - row_i_1.tbeg - row_i_1.tdur <= t_margin):
-        #         tend = row_i.tbeg + row_i.tdur
-        #         self.segments.iloc[i-1, self.segments.columns.get_loc('tdur')] = tend - row_i_1.tbeg
-        #         self.segments.iloc[i, self.segments.columns.get_loc('segment_type')] = 'DROP'
-        # self.segments = self.segments[self.segments.segment_type != 'DROP']
+        self.segments = self.segments[self.segments.segment_type != 'DROP']
 
 
     def __eq__(self, other):
@@ -366,61 +349,61 @@ class RTTM(object):
         return 1
 
 
-    def get_segment_names_slow(self, segment_list, sep='@', segment_type='SPEAKER'):
-        num_segm = len(segment_list)
-        names = []
-        num_names = np.zeros((num_segm,), dtype=int)
-        for i in range(num_segm):
-            file_id = segment_list.file_id[i]
-            tbeg = segment_list.tbeg[i]
-            tend = segment_list.tend[i]
-            segments_i = self.segments[(self.segments['segment_type'] == segment_type) &
-                                       (self.segments['file_id'] == file_id) &
-                                       ((self.segments['tbeg']<=tbeg) &
-                                        (self.segments['tbeg'] + self.segments['tdur'] > tbeg) |
-                                        (self.segments['tbeg']<tend) &
-                                        (self.segments['tbeg'] + self.segments['tdur'] >=tend))]
-            num_segm_i = len(segments_i)
-            if num_segm_i == 0:
-                num_names[i] = 0
-                names.append('<NA>')
-            else:
-                names_i = list(segments_i['name'].unique())
-                num_names[i] = len(names_i)
-                names.append(sep.join(names_i))
+    # def get_segment_names_slow(self, segment_list, sep='@', segment_type='SPEAKER'):
+    #     num_segm = len(segment_list)
+    #     names = []
+    #     num_names = np.zeros((num_segm,), dtype=int)
+    #     for i in range(num_segm):
+    #         file_id = segment_list.file_id[i]
+    #         tbeg = segment_list.tbeg[i]
+    #         tend = segment_list.tend[i]
+    #         segments_i = self.segments[(self.segments['segment_type'] == segment_type) &
+    #                                    (self.segments['file_id'] == file_id) &
+    #                                    ((self.segments['tbeg']<=tbeg) &
+    #                                     (self.segments['tbeg'] + self.segments['tdur'] > tbeg) |
+    #                                     (self.segments['tbeg']<tend) &
+    #                                     (self.segments['tbeg'] + self.segments['tdur'] >=tend))]
+    #         num_segm_i = len(segments_i)
+    #         if num_segm_i == 0:
+    #             num_names[i] = 0
+    #             names.append('<NA>')
+    #         else:
+    #             names_i = list(segments_i['name'].unique())
+    #             num_names[i] = len(names_i)
+    #             names.append(sep.join(names_i))
 
-        return np.asarray(names), num_names
+    #     return np.asarray(names), num_names
 
 
-    def get_segment_names(self, segment_list, sep='@', segment_type='SPEAKER'):
-        num_segm = len(segment_list)
-        names = []
-        num_names = np.zeros((num_segm,), dtype=int)
-        segments = self.segments[self.segments['segment_type'] == segment_type]
-        prev_file_id = ''
-        for i in range(num_segm):
-            file_id = segment_list.file_id[i]
-            tbeg = segment_list.tbeg[i]
-            tend = segment_list.tend[i]
-            if file_id != prev_file_id:
-                segments_f = segments[segments['file_id'] == file_id]
-                tbeg_f = segments_f['tbeg']
-                tend_f = segments_f['tbeg'] + segments_f['tdur']
-                prev_file_id = file_id
+    # def get_segment_names(self, segment_list, sep='@', segment_type='SPEAKER'):
+    #     num_segm = len(segment_list)
+    #     names = []
+    #     num_names = np.zeros((num_segm,), dtype=int)
+    #     segments = self.segments[self.segments['segment_type'] == segment_type]
+    #     prev_file_id = ''
+    #     for i in range(num_segm):
+    #         file_id = segment_list.file_id[i]
+    #         tbeg = segment_list.tbeg[i]
+    #         tend = segment_list.tend[i]
+    #         if file_id != prev_file_id:
+    #             segments_f = segments[segments['file_id'] == file_id]
+    #             tbeg_f = segments_f['tbeg']
+    #             tend_f = segments_f['tbeg'] + segments_f['tdur']
+    #             prev_file_id = file_id
 
-            segments_i = segments_f[((tbeg_f<=tbeg) & (tend_f > tbeg)) |
-                                    ((tbeg_f < tend) & (tend_f >=tend))]
+    #         segments_i = segments_f[((tbeg_f<=tbeg) & (tend_f > tbeg)) |
+    #                                 ((tbeg_f < tend) & (tend_f >=tend))]
 
-            num_segm_i = len(segments_i)
-            if num_segm_i == 0:
-                num_names[i] = 0
-                names.append('<NA>')
-            else:
-                names_i = list(segments_i['name'].unique())
-                num_names[i] = len(names_i)
-                names.append(sep.join(names_i))
+    #         num_segm_i = len(segments_i)
+    #         if num_segm_i == 0:
+    #             num_names[i] = 0
+    #             names.append('<NA>')
+    #         else:
+    #             names_i = list(segments_i['name'].unique())
+    #             num_names[i] = len(names_i)
+    #             names.append(sep.join(names_i))
 
-        return np.asarray(names), num_names
+    #     return np.asarray(names), num_names
 
 
     def get_segment_names_from_timestamps(self, file_id, timestamps, segment_type='SPEAKER', min_seg_dur=0.1):
@@ -479,42 +462,120 @@ class RTTM(object):
             idx, ['file_id', 'name']].apply(lambda x: '_'.join(x), axis=1)
 
 
-    def eliminate_overlaps(self):
-        segm = self.segments
-        segm_1 = self.segments.shift(1)
-        tend_1 = segm_1.tbeg + segm_1.tdur
-        tbeg = segm.tbeg
-        tend = segm.tbeg + segm.tdur
-        tavg = (tbeg + tend_1)/2
-        index = ((segm.file_id == segm_1.file_id) &
-                 (segm.segment_type == segm_1.segment_type) &
-                 (tbeg < tend_1))
-        # logging.debug(index)
-        # logging.debug(self.segments.loc[index])
-        # logging.debug(self.segments.loc[index])
-        self.segments.loc[index, 'tbeg'] = tavg[index]
-        # logging.debug(self.segments.loc[index])
-        index_1 = index.shift(-1)
-        index_1[index_1.isnull()] = False
-        # logging.debug(self.segments.loc[index_1])
-        self.segments.loc[index_1, 'tdur'] = tavg[index] - tbeg[index_1]
-        # logging.debug(self.segments.loc[index_1])
-        self.segments.loc[index, 'tdur'] = tend[index] - tavg[index]
+    # def eliminate_overlaps(self):
+    #     segm = self.segments
+    #     segm_1 = self.segments.shift(1)
+    #     tend_1 = segm_1.tbeg + segm_1.tdur
+    #     tbeg = segm.tbeg
+    #     tend = segm.tbeg + segm.tdur
+    #     tavg = (tbeg + tend_1)/2
+    #     index = ((segm.file_id == segm_1.file_id) &
+    #              (segm.segment_type == segm_1.segment_type) &
+    #              (tbeg < tend_1))
+    #     # logging.debug(index)
+    #     # logging.debug(self.segments.loc[index])
+    #     # logging.debug(self.segments.loc[index])
+    #     self.segments.loc[index, 'tbeg'] = tavg[index]
+    #     # logging.debug(self.segments.loc[index])
+    #     index_1 = index.shift(-1)
+    #     index_1[index_1.isnull()] = False
+    #     # logging.debug(self.segments.loc[index_1])
+    #     self.segments.loc[index_1, 'tdur'] = tavg[index] - tbeg[index_1]
+    #     # logging.debug(self.segments.loc[index_1])
+    #     self.segments.loc[index, 'tdur'] = tend[index] - tavg[index]
 
 
-    def to_matrix(self, file_id, frame_shift=0.001):
+    def get_segments_from_file(self, file_id):
         if self.index_by_file:
-            segments = self.segments[file_id]
+            segments = self.segments.loc[[file_id]]
         else:
             segments = self.segments[self.segments['file_id'] == file_id]
 
-        u_names, name_ids = np.unique(segments['name'], return_inverse=True)
-        tbeg = np.round(segments['tbeg']/frame_shift).astype(dtype=int)
-        tend = np.round((segments['tbeg']+segments['tdur'])/frame_shift).astype(dtype=int)
+        return segments
 
-        M = np.zeros((tend[-1], len(u_names)), dtype=int)
-        for i in range(len(u_names)):
-            M[tbeg[i]:tend[i], name_ids[i]] = 1
+
+    def get_uniq_names_for_file(self, file_id=None):
+        segments = self.get_segments_from_file(file_id)
+        u_names = np.unique(segments['name'])
+        return u_names
+
+
+    def get_bin_frame_mask_for_spk(
+            self, file_id, name, 
+            frame_length=0.025, frame_shift=0.01, 
+            snip_edges=False, signal_length=None, max_frames=None):
+        """Returns binary mask of a given speaker to select feature frames
+
+        Args:
+          file_id: file identifier
+          name: speaker id
+          frame_length: frame-length used to compute the VAD
+          frame_shift: frame-shift used to compute the VAD
+          snip_edges: if True, computing VAD used snip-edges option
+          signal_length: total duration of the signal, if None it takes it from the last timestamp
+          max_frames: expected number of frames, if None it computes automatically
+        Returns:
+          Binary VAD np.array
+        """
+
+        segments = self.get_segments_from_file(file_id)
+        segments = segments[(segments['segment_type']=='SPEAKER') &
+                            (segments['name']==name)]
+        tbeg = segments.tbeg
+        tend = segments.tbeg + segments.tdur
+        ts = np.asarray([[tbeg[i],tend[i]] for i in len(tbeg)])
+        return vad_timestamps_to_bin(ts, frame_length, frame_shift, snip_edges,
+                                     signal_length, max_frames)
+
+
+    def get_bin_sample_mask_for_spk(
+            self, file_id, name, fs,
+            signal_length=None, max_samples=None):
+        """Returns binary mask of a given speaker to select waveform samples
+
+        Args:
+          file_id: file identifier
+          name: speaker id
+          fs: sampling frequency
+          signal_length: total duration of the signal, if None it takes it from the last timestamp
+          max_frames: expected number of frames, if None it computes automatically
+        Returns:
+          Binary mask np.array
+        """
+        segments = self.get_segments_from_file(file_id)
+        segments = segments[(segments['segment_type']=='SPEAKER') &
+                            (segments['name']==name)]
+        tbeg = (segments.tbeg * fs).astype(dtype=np.int)
+        tend = ((segments.tbeg + segments.tdur) * fs + 1).astype(dtype=np.int)
+        if max_samples is None:
+            if signal_length is None:
+                max_samples = tend[-1]
+            else:
+                max_samples = int(signal_length * fs)
+        
+        tend[tend>max_samples] = max_samples
+
+        vad = np.zeros((max_samples,), dtype=np.bool)
+        for i,j in zip(tbeg, tend):
+            if j > i:
+                vad[i:j] = True
+
+        return vad
+
+
+    # def to_matrix(self, file_id, frame_shift=0.01, frame_length=0.025, snip_edges=False):
+    #     if self.index_by_file:
+    #         segments = self.segments[file_id]
+    #     else:
+    #         segments = self.segments[self.segments['file_id'] == file_id]
+
+    #     u_names, name_ids = np.unique(segments['name'], return_inverse=True)
+    #     tbeg = np.round(segments['tbeg']/frame_shift).astype(dtype=int)
+    #     tend = np.round((segments['tbeg']+segments['tdur'])/frame_shift).astype(dtype=int)
+
+    #     M = np.zeros((tend[-1], len(u_names)), dtype=int)
+    #     for i in range(len(u_names)):
+    #         M[tbeg[i]:tend[i], name_ids[i]] = 1
 
 
     def compute_stats(self, nbins_dur=None):

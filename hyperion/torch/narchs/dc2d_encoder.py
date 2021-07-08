@@ -2,9 +2,9 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-#from __future__ import absolute_import
 
 import math 
+from jsonargparse import ArgumentParser, ActionParser
 
 import torch
 import torch.nn as nn
@@ -230,11 +230,7 @@ class DC2dEncoder(NetArch):
 
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
+    def filter_args(**kwargs):
 
         if 'wo_norm' in kwargs:
             kwargs['use_norm'] = not kwargs['wo_norm']
@@ -243,7 +239,6 @@ class DC2dEncoder(NetArch):
         if 'norm_after' in kwargs:
             kwargs['norm_before'] = not kwargs['norm_after']
             del kwargs['norm_after']
-
 
         valid_args = ('in_channels',
                       'in_conv_channels', 'in_kernel_size', 'in_stride',
@@ -254,87 +249,93 @@ class DC2dEncoder(NetArch):
                       'dropout_rate',
                       'use_norm', 'norm_layer', 'norm_before')
 
-        args = dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        args = dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
         return args
 
 
 
     @staticmethod
-    def add_argparse_args(parser, prefix=None, head_channels=False):
-        
-        if prefix is None:
-            p1 = '--'
-        else:
-            p1 = '--' + prefix + '-'
+    def add_class_args(parser, prefix=None, head_channels=False):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog='')
 
         parser.add_argument(
-            p1+'in-channels', type=int, default=1,
+            '--in-channels', type=int, default=1,
             help=('input channel dimension'))
 
         parser.add_argument(
-            p1+'in-conv-channels', default=128, type=int,
+            '--in-conv-channels', default=128, type=int,
             help=('number of output channels in input convolution'))
 
         parser.add_argument(
-            p1+'in-kernel-size', default=3, type=int,
+            '--in-kernel-size', default=3, type=int,
             help=('kernel size of input convolution'))
 
-        parser.add_argument(p1+'in-stride', default=1, type=int,
+        parser.add_argument('--in-stride', default=1, type=int,
                             help=('stride of input convolution'))
 
         parser.add_argument(
-            p1+'conv-repeats', default=[1, 1, 1], type=int,
+            '--conv-repeats', default=[1, 1, 1], type=int,
             nargs='+', help=('conv-blocks repeats in each encoder stage'))
 
         parser.add_argument(
-            p1+'conv-channels', default=[128, 64, 32], 
+            '--conv-channels', default=[128, 64, 32], 
             type=int, nargs='+',
             help=('conv-blocks channels for each stage'))
 
         parser.add_argument(
-            p1+'conv-kernel-sizes', default=3, 
+            '--conv-kernel-sizes', default=[3], 
             nargs='+', type=int, help=('conv-blocks kernels for each encoder stage'))
 
         parser.add_argument(
-            p1+'conv-strides', default=2, 
+            '--conv-strides', default=[2], 
             nargs='+', type=int, help=('conv-blocks strides for each encoder stage'))
 
         parser.add_argument(
-            p1+'conv-dilations', default=1,
+            '--conv-dilations', default=[1],
             nargs='+', type=int, help=('conv-blocks dilations for each encoder stage'))
 
         if head_channels:
             parser.add_argument(
-                p1+'head-channels', default=16, type=int,
+                '--head-channels', default=16, type=int,
                 help=('channels in the last conv block of encoder'))
 
         try:
-            parser.add_argument(p1+'hid-act', default='relu6', 
+            parser.add_argument('--hid-act', default='relu6', 
                                 help='hidden activation')
         except:
             pass
         
-        parser.add_argument(p1+'head-act', default=None, 
+        parser.add_argument('--head-act', default=None, 
                                 help='activation in encoder head')
         
         try:
-            parser.add_argument(p1+'dropout-rate', default=0, type=float,
+            parser.add_argument('--dropout-rate', default=0, type=float,
                                 help='dropout probability')
         except:
             pass
 
         try:
             parser.add_argument(
-                p1+'norm-layer', default=None, 
+                '--norm-layer', default=None, 
                 choices=['batch-norm', 'group-norm', 'instance-norm', 'instance-norm-affine', 'layer-norm'],
                 help='type of normalization layer')
         except:
             pass
 
-        parser.add_argument(p1+'wo-norm', default=False, action='store_true',
+        parser.add_argument('--wo-norm', default=False, action='store_true',
                             help='without batch normalization')
         
-        parser.add_argument(p1+'norm-after', default=False, action='store_true',
+        parser.add_argument('--norm-after', default=False, action='store_true',
                             help='batch normalizaton after activation')
+
+        if prefix is not None:
+            outer_parser.add_argument(
+                '--' + prefix,
+                action=ActionParser(parser=parser))
+                # help='DC2d encoder options')
+
+    add_argparse_args = add_class_args

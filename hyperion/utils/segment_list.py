@@ -2,9 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-# from __future__ import absolute_import
-# from __future__ import print_function
-# from __future__ import division
 
 import os.path as path
 import logging
@@ -295,7 +292,7 @@ class SegmentList(object):
                 
         tend = np.minimum(num_frames-1, tend)                
         vad = np.zeros((num_frames,), dtype=int)
-        for j in xrange(len(tbeg)):
+        for j in range(len(tbeg)):
             vad[tbeg[j]:tend[j]+1] = 1
 
         return vad

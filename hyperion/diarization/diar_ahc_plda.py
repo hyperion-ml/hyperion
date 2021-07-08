@@ -3,6 +3,7 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import logging
+from pathlib import Path
 
 import numpy as np
 import h5py
@@ -31,6 +32,10 @@ class DiarAHCPLDA(object):
     
     @staticmethod
     def _plot_score_hist(scores, output_file, thr=None, gmm=None):
+
+        output_dir = Path(output_file).parent
+        output_dir.mkdir(parents=True, exist_ok=True)
+
         mask = np.triu(np.ones(scores.shape, dtype=np.bool), 1)
         scores_r = scores[mask].ravel()
         
@@ -110,7 +115,7 @@ class DiarAHCPLDA(object):
 
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
+    def filter_args(**kwargs):
         """Filters diarization args from arguments dictionary.
            
            Args:
@@ -120,20 +125,16 @@ class DiarAHCPLDA(object):
            Returns:
              Dictionary with diarization options.
         """
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
         valid_args = ('threshold', 'pca_var_r', 'do_unsup_cal', 'use_bic')
         
-        d = dict((k, kwargs[p+k])
-                 for k in valid_args if p+k in kwargs)
+        d = dict((k, kwargs[k])
+                 for k in valid_args if k in kwargs)
         return d
 
     
         
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         """Adds diarization options to parser.
            
            Args:
@@ -143,13 +144,13 @@ class DiarAHCPLDA(object):
 
         if prefix is None:
             p1 = '--'
-            p2 = ''
         else:
-            p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
+            p1 = '--' + prefix + '.'
 
-        parser.add_argument('--threshold', default=0, type=float)
-        parser.add_argument('--pca-var-r', default=1, type=float)
-        parser.add_argument('--do-unsup-cal', default=False, action='store_true')
-        parser.add_argument('--use-bic', default=False, action='store_true')
+        parser.add_argument(p1+'threshold', default=0, type=float)
+        parser.add_argument(p1+'pca-var-r', default=1, type=float)
+        parser.add_argument(p1+'do-unsup-cal', default=False, action='store_true')
+        parser.add_argument(p1+'use-bic', default=False, action='store_true')
 
+
+    add_argparse_args = add_class_args

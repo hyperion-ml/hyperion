@@ -5,14 +5,10 @@
 
   Trains calibration for SRE18 tel condition
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import sys
 import os
-import argparse
+from jsonargparse import ArgumentParser, ActionConfigFile, ActionParser, namespace_to_dict
 import time
 import logging
 
@@ -66,9 +62,7 @@ def train_calibration(score_file, key_file, model_file, prior, lambda_reg, verbo
     
 if __name__ == "__main__":
 
-    parser=argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        fromfile_prefix_chars='@',
+    parser=ArgumentParser(
         description='Trains llr calibration')
 
     parser.add_argument('--score-file', dest='score_file', required=True)
@@ -85,6 +79,6 @@ if __name__ == "__main__":
     config_logger(args.verbose)
     logging.debug(args)
     
-    train_calibration(**vars(args))
+    train_calibration(**namespace_to_dict(args))
 
             

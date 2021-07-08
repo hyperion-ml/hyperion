@@ -2,6 +2,7 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import numpy as np
 
 from ..pdfs.plda import FRPLDA, SPLDA, PLDA
@@ -45,16 +46,12 @@ class PLDAFactory(object):
 
     @staticmethod
     def filter_train_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
         valid_args = ('plda_type', 'y_dim', 'z_dim',
                       'diag_W', 'no_update_mu', 'no_update_V', 'no_update_U',
                       'no_update_B', 'no_update_W', 'no_update_D', 'floor_iD',
                       'epochs', 'ml_md', 'md_epochs', 'name')
-        d = dict((k, kwargs[p+k])
-                 for k in valid_args if p+k in kwargs)
+        d = dict((k, kwargs[k])
+                 for k in valid_args if k in kwargs)
         neg_args1 = ('diag_W', 'no_update_mu', 'no_update_V', 'no_update_U',
                       'no_update_B', 'no_update_W', 'no_update_D')
         neg_args2 = ('fullcov_W', 'update_mu', 'update_V', 'update_U',
@@ -69,13 +66,11 @@ class PLDAFactory(object):
     
         
     @staticmethod
-    def add_argparse_train_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         if prefix is None:
             p1 = '--'
-            p2 = ''
         else:
-            p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
+            p1 = '--' + prefix + '.'
 
         parser.add_argument(p1+'plda-type', 
                             default='splda',
@@ -89,29 +84,29 @@ class PLDAFactory(object):
                             default=400,
                             help='num. of eigenchannels')
 
-        parser.add_argument(p1+'diag-W', dest=(p2+'diag_W'),
+        parser.add_argument(p1+'diag-W', 
                             default=False, action='store_false',
                             help='use diagonal covariance W')
         parser.add_argument(p1+'no-update-mu', 
                             default=False, action='store_true',
                             help='not update mu')
-        parser.add_argument(p1+'no-update-V', dest=(p2+'no_update_V'),
+        parser.add_argument(p1+'no-update-V', 
                             default=False, action='store_true',
                             help='not update V')
-        parser.add_argument(p1+'no-update-U', dest=(p2+'no_update_U'),
+        parser.add_argument(p1+'no-update-U', 
                             default=False, action='store_true',
                             help='not update U')
 
-        parser.add_argument(p1+'no-update-B', dest=(p2+'no_update_B'),
+        parser.add_argument(p1+'no-update-B', 
                             default=False, action='store_true',
                             help='not update B')
-        parser.add_argument(p1+'no-update-w', dest=(p2+'no_update_W'),
+        parser.add_argument(p1+'no-update-W', 
                             default=False, action='store_true',
                             help='not update W')
-        parser.add_argument(p1+'no-update-d', dest=(p2+'no_update_D'),
+        parser.add_argument(p1+'no-update-D', 
                             default=False, action='store_true',
                             help='not update D')
-        parser.add_argument(p1+'floor-id', dest=(p2+'floor_iD'), type=float,
+        parser.add_argument(p1+'floor-iD', type=float,
                             default=1e-5,
                             help='floor for inverse of D matrix')
 
@@ -128,7 +123,7 @@ class PLDAFactory(object):
                             type=int, nargs = '+',
                             help=('epochs in which we do MD, if None we do it in all the epochs'))
 
-        parser.add_argument(p1+'name', dest=(p2+'name'), 
+        parser.add_argument(p1+'name',
                             default='plda',
                             help='model name')
 
@@ -136,23 +131,17 @@ class PLDAFactory(object):
 
     @staticmethod
     def filter_eval_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
         valid_args = ('plda_type', 'model_file')
-        return dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        return dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
         
     @staticmethod
-    def add_argparse_eval_args(parser, prefix=None):
+    def add_eval_args(parser, prefix=None):
         if prefix is None:
             p1 = '--'
-            p2 = ''
         else:
-            p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
+            p1 = '--' + prefix + '.'
 
         parser.add_argument(p1+'plda-type', 
                             default='splda',
@@ -163,3 +152,5 @@ class PLDAFactory(object):
                             
         
         
+    add_argparse_train_args = add_class_args
+    add_argparse_eval_args = add_eval_args

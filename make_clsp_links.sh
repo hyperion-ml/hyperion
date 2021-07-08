@@ -2,30 +2,27 @@
 
 #This script creates links in the tools directory to
 # - kaldi
-# - anaconda3.7
-# - cudnn
+# - anaconda3
 # This avoids that every person need its own copy
 
 #kaldi
-cd tools/kaldi
+cd tools
 if [ ! -f kaldi ]; then
     ln -s /export/b15/janto/kaldi/kaldi-villalba kaldi
 fi
-cd -
 
 # anaconda 3
-cd tools/anaconda
 if [ ! -f anaconda3 ];then
     ln -s /home/janto/usr/local/anaconda3 anaconda3
 fi
 cd -
 
-# cudnn
-cd tools/cudnn
-#cudnn v7.6 for cuda 10.1 needed by pytorch 1.4 (conda enviroment pytorch1.4_cuda10.1)
-if [ ! -f cudnn-10.1-v7.6 ];then
-    ln -s /home/janto/usr/local/cudnn-10.1-v7.6 cudnn-10.1-v7.6
-fi
+# # cudnn
+# cd tools/cudnn
+# #cudnn v7.6 for cuda 10.1 needed by pytorch 1.4 (conda enviroment pytorch1.4_cuda10.1)
+# if [ ! -f cudnn-10.1-v7.6 ];then
+#     ln -s /home/janto/usr/local/cudnn-10.1-v7.6 cudnn-10.1-v7.6
+# fi
 
 
 # #deprecated from here

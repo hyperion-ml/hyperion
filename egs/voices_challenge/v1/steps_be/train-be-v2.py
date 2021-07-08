@@ -5,10 +5,6 @@
   
 Trains Backend for voices19 challenge with adaptation
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import sys
 import os
@@ -26,13 +22,9 @@ from hyperion.helpers import PLDAFactory as F
 from hyperion.utils.utt2info import Utt2Info
 
 
-def train_be(iv_file, train_list,
-             adapt_iv_file, adapt_list,
-             lda_dim,
-             plda_type, y_dim, z_dim,
-             epochs, ml_md, md_epochs,
-             adapt_y_dim, w_mu, w_B, w_W,
-             output_path, **kwargs):
+def train_be(iv_file, train_list, adapt_iv_file, adapt_list, lda_dim,
+             plda_type, y_dim, z_dim, epochs, ml_md, md_epochs, adapt_y_dim,
+             w_mu, w_B, w_W, output_path, **kwargs):
 
     # Read data
     logging.info('loading data')
@@ -47,25 +39,27 @@ def train_be(iv_file, train_list,
     lda.fit(x, class_ids)
 
     x_lda = lda.predict(x)
-    logging.info('LDA elapsed time: %.2f s.' % (time.time()-t1))
+    logging.info('LDA elapsed time: %.2f s.' % (time.time() - t1))
 
     # Train centering and whitening
     logging.info('train length norm')
     t1 = time.time()
-    lnorm = LNorm(name='lnorm')    
+    lnorm = LNorm(name='lnorm')
     lnorm.fit(x_lda)
 
     x_ln = lnorm.predict(x_lda)
-    logging.info('length norm elapsed time: %.2f s.' % (time.time()-t1))
+    logging.info('length norm elapsed time: %.2f s.' % (time.time() - t1))
 
     # Train PLDA
     logging.info('train PLDA')
     t1 = time.time()
-    plda = F.create_plda(plda_type, y_dim=y_dim, z_dim=z_dim,
-                         name='plda')
-    elbo = plda.fit(x_ln, class_ids, 
-                    epochs=epochs, ml_md=ml_md, md_epochs=md_epochs)
-    logging.info('PLDA elapsed time: %.2f s.' % (time.time()-t1))
+    plda = F.create_plda(plda_type, y_dim=y_dim, z_dim=z_dim, name='plda')
+    elbo = plda.fit(x_ln,
+                    class_ids,
+                    epochs=epochs,
+                    ml_md=ml_md,
+                    md_epochs=md_epochs)
+    logging.info('PLDA elapsed time: %.2f s.' % (time.time() - t1))
 
     # Save models
     logging.info('saving models')
@@ -81,7 +75,7 @@ def train_be(iv_file, train_list,
     num = np.arange(epochs)
     elbo = np.vstack((num, elbo)).T
     np.savetxt(output_path + '/elbo.csv', elbo, delimiter=',')
- 
+
     # supervised adaptation
     logging.info('loading adaptation data')
     vcr = VCR(adapt_iv_file, adapt_list, None)
@@ -109,7 +103,7 @@ def train_be(iv_file, train_list,
     plda.update_V = False
     elbo = plda.fit(x_ln, class_ids, epochs=20)
     plda_adapt.weighted_avg_model(plda, w_mu, w_B, w_W)
-    logging.info('PLDA elapsed time: %.2f s.' % (time.time()-t1))
+    logging.info('PLDA elapsed time: %.2f s.' % (time.time() - t1))
 
     logging.info('saving adapted PLDA model')
     plda_adapt.save(output_path + '/plda_adapt.h5')
@@ -118,12 +112,10 @@ def train_be(iv_file, train_list,
     elbo = np.vstack((num, elbo)).T
     np.savetxt(output_path + '/elbo_adapt.csv', elbo, delimiter=',')
 
-    
-    
-    
+
 if __name__ == "__main__":
 
-    parser=argparse.ArgumentParser(
+    parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         fromfile_prefix_chars='@',
         description='Train Back-end for SRE18 telephone condition')
@@ -133,29 +125,28 @@ if __name__ == "__main__":
     parser.add_argument('--adapt-iv-file', dest='adapt_iv_file', required=True)
     parser.add_argument('--adapt-list', dest='adapt_list', required=True)
 
-    
     VCR.add_argparse_args(parser)
     F.add_argparse_train_args(parser)
-    
+
     parser.add_argument('--output-path', dest='output_path', required=True)
-    parser.add_argument('--lda-dim', dest='lda_dim', type=int,
-                        default=150)
-    parser.add_argument('--adapt-y-dim', dest='adapt_y_dim',
-                        type=int, default=None)
-    parser.add_argument('--w-mu', dest='w_mu', type=float,
-                        default=1)
-    parser.add_argument('--w-b', dest='w_B', type=float,
-                        default=0)
-    parser.add_argument('--w-w', dest='w_W', type=float,
-                        default=0.5)
-    parser.add_argument('-v', '--verbose', dest='verbose', default=1,
-                        choices=[0, 1, 2, 3], type=int)
-    
-    args=parser.parse_args()
+    parser.add_argument('--lda-dim', dest='lda_dim', type=int, default=150)
+    parser.add_argument('--adapt-y-dim',
+                        dest='adapt_y_dim',
+                        type=int,
+                        default=None)
+    parser.add_argument('--w-mu', dest='w_mu', type=float, default=1)
+    parser.add_argument('--w-b', dest='w_B', type=float, default=0)
+    parser.add_argument('--w-w', dest='w_W', type=float, default=0.5)
+    parser.add_argument('-v',
+                        '--verbose',
+                        dest='verbose',
+                        default=1,
+                        choices=[0, 1, 2, 3],
+                        type=int)
+
+    args = parser.parse_args()
     config_logger(args.verbose)
     del args.verbose
     logging.debug(args)
 
     train_be(**vars(args))
-
-            

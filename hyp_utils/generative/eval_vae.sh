@@ -71,10 +71,10 @@ if [ "$use_gpu" == "true" ];then
 fi
 
 if [ "$center" == "false" ];then
-    args="${args} --no-norm-mean"
+    args="${args} --mvn.no-norm-mean"
 fi
 if [ "$norm_var" == "true" ];then
-    args="${args} --norm-var"
+    args="${args} --mvn.norm-var"
 fi
 
 if [ "$use_bin_vad" == "true" ];then
@@ -114,9 +114,9 @@ fi
 
 if [ $stage -le 0 ];then
     $cmd JOB=1:$nj $output_dir/log/eval_vae.JOB.log \
-	hyp_utils/torch.sh --num-gpus $num_gpus \
+	hyp_utils/conda_env.sh --num-gpus $num_gpus \
 	torch-eval-vae.py ${args}  \
-	--left-context $left_context --right-context $right_context \
+	--mvn.left-context $left_context --mvn.right-context $right_context \
 	--part-idx JOB --num-parts $nj \
 	--input scp:$data_dir/feats.scp \
 	--model-path $nnet_file \

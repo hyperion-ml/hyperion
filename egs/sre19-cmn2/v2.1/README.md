@@ -62,6 +62,8 @@ year = {2019}
 
 ## Training Data
 
+   - Switchboard Cellular 1+2
+   - Switchboard 2 Phase 1+2+3
    - MIXER 6 telephone data
    - NIST SRE04-12 telephone data
    - VoxCeleb1 + VoxCeleb2 dev
@@ -165,7 +167,7 @@ run_042a_eval_be_v3.sh --config-file config_fbank64_mvn_resnet34_arcs30m0.3_adam
 | Config | Model Type | Model Details | Fine-tuning | Back-end | SRE18 Eval 40% | | | SRE19 Progress | | | SRE19 Eval  | | |
 | ------ | ---------- | ------------- | ------- | -------- | :------------: | :-: | :-: | :------------: | :-: | :-: | :------------: | :-: | :-: |
 | |  |  |  | | EER(%) | MinDCF | ActDCF |  EER(%) | MinDCF | ActDCF |  EER(%) | MinDCF | ActDCF |
-| config_fbank64_mvn_resnet34_arcs30m0.3_adam_lr0.01_amp.v1.ft_w0.1.sh | ResNet34 | ArcFace s=30 / m=0.3 | N | V3(S-Norm) | 03.61 | 0.284 | 0.295 | 3.50 | 0.290 | 0.292 | 3.61 | 0.308 | 0.310 |
+| config_fbank64_stmn_resnet34_arcs30m0.3_adam_lr0.01_amp.v1.ft_w0.1.sh | ResNet34 | ArcFace s=30 / m=0.3 | N | V3(S-Norm) | 03.61 | 0.284 | 0.295 | 3.50 | 0.290 | 0.292 | 3.61 | 0.308 | 0.310 |
 | | | | 1 | V3 (S-Norm) | 3.19 | 0.265 | 0.272 | 3.29 | 0.251 | 0.258 | 3.26 | 0.290 | 0.291 |
 | | | | 2 | V3 (S-Norm) | 3.17 | 0.269 | 0.278 | 3.08 | 0.251 | 0.254 | 3.21 | 0.279 | 0.284 |
 | | | | 3 | V3 (S-Norm) | 3.01 | 0.248 | 0.258 | 2.92 | 0.233 | 0.239 | 2.98 | 0.266 | 0.268 |

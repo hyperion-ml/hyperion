@@ -2,10 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import pytest
 import os
@@ -43,7 +39,7 @@ S0fc = np.array([[1, 0.3, 0.1],
 S1fc = np.zeros((len(pi1), x_dim, x_dim))
 L1fc = np.zeros((len(pi1), x_dim, x_dim))
 L1dc = np.zeros((len(pi1), x_dim, x_dim))
-for k in xrange(len(pi1)):
+for k in range(len(pi1)):
     SS = S1[k]*S0fc
     S1fc[k] = (SS+SS.T)/2
     L1fc[k] = la.inv(S1fc[k])
@@ -76,7 +72,7 @@ def test_diag_properties():
     model, model_diag = create_diag_pdf()
     assert_allclose(model.log_pi, model_diag.log_pi)
     assert_allclose(model.logLambda, model_diag.logLambda)
-    for k in xrange(model.num_comp):
+    for k in range(model.num_comp):
         assert_allclose(model.Sigma[k], np.diag(model_diag.Sigma[k]))
         assert_allclose(model.cholLambda[k], np.diag(np.sqrt(model_diag.Lambda[k])))
         
@@ -87,7 +83,7 @@ def test_properties():
     model = create_pdf()
     assert_allclose(model.log_pi, np.log(model.pi))
 
-    for k in xrange(model.num_comp):
+    for k in range(model.num_comp):
         assert_allclose(model.Sigma[k], la.inv(model.Lambda[k]))
         assert_allclose(model.cholLambda[k], la.cholesky(model.Lambda[k], lower=True))
         assert_allclose(model.logLambda[k],
@@ -114,7 +110,7 @@ def test_diag_initialize():
      assert_allclose(model1.mu, model1_diag.mu)
      assert_allclose(model2.mu, model1_diag.mu)
 
-     for k in xrange(model1.num_comp):
+     for k in range(model1.num_comp):
          assert_allclose(model1.Lambda[k], np.diag(model1_diag.Lambda[k]))
          assert_allclose(model2.Lambda[k], np.diag(model1_diag.Lambda[k]))
 
@@ -195,7 +191,7 @@ def test_suff_stats():
     sample_weight = 0.5*np.ones((num_samples,))
 
     xx = []
-    for i in xrange(x.shape[0]):
+    for i in range(x.shape[0]):
         xx.append(symmat2vec(np.outer(x[i], x[i])))
     xx = np.vstack(xx)
     u_x = np.hstack((x, xx))

@@ -2,19 +2,20 @@
 # Copyright 2019  Johns Hopkins University (Jesus Villalba) 
 # Apache 2.0
 
-if [  $# != 4 ]; then
-    echo "$0 <db-path> <list-path> <key-path> <output_path>"
+if [  $# != 2 ]; then
+    echo "$0 <db-path> <output_path>"
     exit 1
 fi
 input_path=$1
-list_path=$2
-key_path=$3
-output_path=$4
+output_path=$2
+
+list_path=$input_path/Speaker_Recognition/sid_eval_lists
+key_path=$input_path/VOiCES_challenge_2019_post-eval-release
 
 map_file=$key_path/VOiCES_challenge_2019_eval.SID.map
 key=$key_path/VOiCES_challenge_2019_eval.SID.trial-keys.lst
 
-audio_path=$input_path/Evaluation_Data/Speaker_Recognition
+audio_path=$input_path/Speaker_Recognition
 
 echo "$0 making voices challenge eval enroll"
 data_out=$output_path/voices19_challenge_eval_enroll

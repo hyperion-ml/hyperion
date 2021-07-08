@@ -18,7 +18,7 @@ if [ $stage -le 2 ]; then
     steps_xvec/preprocess_audios_for_nnet_train.sh --nj 40 --cmd "$train_cmd" \
 	--storage_name voxceleb-v1.1-$(date +'%m_%d_%H_%M') --use-bin-vad true \
 	data/${nnet_data} data/${nnet_data}_proc_audio_no_sil exp/${nnet_data}_proc_audio_no_sil
-    utils/fix_data_dir.sh data/${nnet_data}_proc_audio_no_sil
+    hyp_utils/kaldi/utils/fix_data_dir.sh data/${nnet_data}_proc_audio_no_sil
 
 fi
 

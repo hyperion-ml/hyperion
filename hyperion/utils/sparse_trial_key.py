@@ -2,7 +2,6 @@
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
 
 import os.path as path
 import copy
@@ -36,7 +35,7 @@ class SparseTrialKey(TrialKey):
                  model_cond=None, seg_cond = None, trial_cond=None,
                  model_cond_name=None, seg_cond_name=None, trial_cond_name=None):
         
-        super(SparseTrialKey, self).__init__(
+        super().__init__(
             model_set, seg_set, tar, non,
             model_cond, seg_cond, trial_cond,
             model_cond_name, seg_cond_name, trial_cond_name)

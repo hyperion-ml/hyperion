@@ -18,6 +18,9 @@ from .audio_feats_factory import AudioFeatsFactory
 from .mvn import MeanVarianceNorm
 
 from .attention import ScaledDotProdAttV1, LocalScaledDotProdAttV1, ScaledDotProdAttRelPosEncV1, LocalScaledDotProdAttRelPosEncV1
-from .pos_encoder import PosEncoder, RelPosEncoder
+from .pos_encoder import PosEncoder, RelPosEncoder, NoPosEncoder
 
 from .subpixel_convs import SubPixelConv1d, SubPixelConv2d, ICNR1d, ICNR2d
+
+from .calibrators import LinBinCalibrator
+

@@ -1,51 +1,82 @@
 #!/bin/bash
 # Copyright
-#                2018   Johns Hopkins University (Author: Jesus Villalba)
-#                2017   David Snyder
-#                2017   Johns Hopkins University (Author: Daniel Garcia-Romero)
-#                2017   Johns Hopkins University (Author: Daniel Povey)
+#                2020   Johns Hopkins University (Author: Jesus Villalba)
 # Apache 2.0.
 #
-
 . ./cmd.sh
 . ./path.sh
 set -e
 
-net_name=3b
-
 stage=1
-
+config_file=default_config.sh
+use_gpu=false
+xvec_chunk_length=12800
+ft=0
 . parse_options.sh || exit 1;
+. $config_file
 
-nnet_dir=exp/xvector_nnet_$net_name
-xvector_dir=exp/xvectors/$net_name
+if [ "$use_gpu" == "true" ];then
+    xvec_args="--use-gpu true --chunk-length $xvec_chunk_length"
+    xvec_cmd="$cuda_eval_cmd"
+else
+    xvec_cmd="$train_cmd"
+    xvec_args="--chunk-length $xvec_chunk_length"
+fi
+
+if [ $ft -eq 1 ];then
+    nnet_name=$ft_nnet_name
+    nnet=$ft_nnet
+elif [ $ft -eq 2 ];then
+    nnet_name=$ft2_nnet_name
+    nnet=$ft2_nnet
+elif [ $ft -eq 3 ];then
+    nnet_name=$ft3_nnet_name
+    nnet=$ft3_nnet
+fi
+
+xvector_dir=exp/xvectors/$nnet_name
 
 if [ $stage -le 1 ]; then
     # Extract xvectors for training LDA/PLDA
-    for name in voxceleb sitw_train
+    for name in voxcelebcat 
     do
-	steps_kaldi_xvec/extract_xvectors.sh --cmd "$train_cmd --mem 12G" --nj 60 \
-					     $nnet_dir data/${name}_combined \
-					     $xvector_dir/${name}_combined
+	if [ $plda_num_augs -eq 0 ]; then
+    	    steps_xvec/extract_xvectors_from_wav.sh --cmd "$xvec_cmd --mem 12G" --nj 100 ${xvec_args} \
+		--random-utt-length true --min-utt-length 400 --max-utt-length 14000 \
+		--feat-config $feat_config \
+    		$nnet data/${name} \
+    		$xvector_dir/${name}
+	else
+	    steps_xvec/extract_xvectors_from_wav.sh --cmd "$xvec_cmd --mem 12G" --nj 300 ${xvec_args} \
+		--random-utt-length true --min-utt-length 400 --max-utt-length 14000 \
+		--feat-config $feat_config --aug-config $plda_aug_config --num-augs $plda_num_augs \
+    		$nnet data/${name} \
+    		$xvector_dir/${name}_augx${plda_num_augs} \
+		data/${name}_augx${plda_num_augs}
+	fi
     done
-
 fi
 
 if [ $stage -le 2 ]; then
     # Extracts x-vectors for evaluation
     for name in chime5_spkdet_enroll chime5_spkdet_test chime5_spkdet_test_gtvad
     do
-	steps_kaldi_xvec/extract_xvectors.sh --cmd "$train_cmd --mem 6G" --nj 30 \
-					      $nnet_dir data/$name \
-					      $xvector_dir/$name
+	num_spk=$(wc -l data/$name/spk2utt | awk '{ print $1}')
+	nj=$(($num_spk < 100 ? $num_spk:100))
+	steps_xvec/extract_xvectors_from_wav.sh --cmd "$xvec_cmd --mem 6G" --nj $nj ${xvec_args} \
+	    --feat-config $feat_config \
+	    $nnet data/$name \
+	    $xvector_dir/$name
     done
-    exit
 fi
 
 if [ $stage -le 3 ]; then
-    mkdir -p $xvector_dir/train_combined
-    cat $xvector_dir/{voxceleb,sitw_train}_combined/xvector.scp > $xvector_dir/train_combined/xvector.scp
+    mkdir -p $xvector_dir/chime5_spkdet_gtvad
+    cat $xvector_dir/chime5_spkdet_{enroll,test_gtvad}/xvector.scp > $xvector_dir/chime5_spkdet_gtvad/xvector.scp
 
+    mkdir -p $xvector_dir/chime5_spkdet
+    cat $xvector_dir/chime5_spkdet_{enroll,test}/xvector.scp > $xvector_dir/chime5_spkdet/xvector.scp
 fi
+
 
 exit

@@ -2,10 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import sys
 import os
@@ -17,8 +13,7 @@ import copy
 import numpy as np
 
 from ..io import HypDataReader
-from ..utils.scp_list import SCPList
-from ..utils.trial_ndx import TrialNdx
+from ..utils import TrialNdx, SCPList
 from ..transforms import TransformList
 
 class ClassifTrialDataReader(object):
@@ -56,30 +51,31 @@ class ClassifTrialDataReader(object):
 
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
+    def filter_args(**kwargs):
         valid_args = ('v_field', 'seg_idx', 'num_seg_parts')
-        return dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        return dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
     
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         if prefix is None:
             p1 = '--'
             p2 = ''
         else:
-            p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
-        parser.add_argument(p1+'v-field', dest=(p2+'v_field'), default='',
-                            help=('dataset field in the data file'))
+            p1 = '--' + prefix + '.'
+            p2 = prefix + '.'
 
-        parser.add_argument(p1+'seg-part-idx', dest=(p2+'seg_idx'), default=1, type=int,
-                            help=('test part index'))
-        parser.add_argument(p1+'num-seg-parts', dest=(p2+'num_seg_parts'), default=1, type=int,
-                            help=('number of parts in which we divide the test list '
-                                  'to run evaluation in parallel'))
+        parser.add_argument(
+            p1+'v-field', default='',
+            help=('dataset field in the data file'))
+
+        parser.add_argument(
+            p1+'seg-part-idx', dest=(p2+'seg_idx'), default=1, type=int,
+            help=('test part index'))
+        parser.add_argument(
+            p1+'num-seg-parts', default=1, type=int,
+            help=('number of parts in which we divide the test list '
+                  'to run evaluation in parallel'))
         
+    add_argparse_args = add_class_args

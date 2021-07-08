@@ -28,7 +28,6 @@ class SEBlock2D(nn.Module):
         return y
 
 
-
 class TSEBlock2D(nn.Module):
     """ From https://arxiv.org/abs/1709.01507
         Modified to do pooling only in time dimension
@@ -51,7 +50,6 @@ class TSEBlock2D(nn.Module):
         scale = scale.view(-1, num_channels, num_feats, 1)
         y = scale * x
         return y
-
 
 
 class SEBlock1d(nn.Module):

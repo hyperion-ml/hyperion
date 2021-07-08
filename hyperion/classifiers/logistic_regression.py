@@ -2,10 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import logging
 import numpy as np
@@ -146,7 +142,7 @@ class LogisticRegression(HypModel):
         if self.priors is None:
             priors = 1/num_classes * np.ones((num_classes,), dtype=float_cpu())
         else:
-            priors = [self.priors[i] for i in xrange(num_classes)]
+            priors = [self.priors[i] for i in range(num_classes)]
         class_weights = priors/counts
         
         if sample_weight is None:
@@ -183,7 +179,7 @@ class LogisticRegression(HypModel):
 
     
     @staticmethod
-    def filter_train_args(prefix=None, **kwargs):
+    def filter_args(prefix=None, **kwargs):
         if prefix is None:
             p = ''
         else:
@@ -195,8 +191,8 @@ class LogisticRegression(HypModel):
                       'solver', 'max_iter',
                       'dual', 'tol', 'multi_class', 'verbose',
                       'warm_start', 'no_warm_start', 'num_jobs', 'name')
-        d = dict((k, kwargs[p+k])
-               for k in valid_args if p+k in kwargs)
+        d = dict((k, kwargs[k])
+               for k in valid_args if k in kwargs)
         if 'no_use_bias' in d:
             d['use_bias'] = not d['no_use_bias']
         if 'no_warm_start' in d:
@@ -204,92 +200,102 @@ class LogisticRegression(HypModel):
         
         return d
 
+    filter_train_args = filter_args
 
     
     @staticmethod
-    def add_argparse_train_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         if prefix is None:
             p1 = '--'
-            p2 = ''
         else:
-            p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
+            p1 = '--' + prefix + '.'
 
-        parser.add_argument(p1+'penalty', dest=(p2+'penalty'), 
-                            default='l2', choices=['l2', 'l1'],
-                            help='used to specify the norm used in the penalization')
-        parser.add_argument(p1+'lambda-reg', dest=(p2+'lambda_reg'), 
-                            default=1e-5, type=float,
-                            help='regularization strength')
-        parser.add_argument(p1+'no-use-bias', dest=(p2+'no_use_bias'),
-                            default=False, action='store_true',
-                            help='Not use bias')
-        parser.add_argument(p1+'bias-scaling', dest=(p2+'bias_scaling'),
-                            default=1.0, type=float,
-                            help='useful only when the solver liblinear is used and use_bias is set to True')
-        parser.add_argument(p1+'lr-seed', dest=(p2+'lr_seed'), 
-                            default=1024, type=int,
-                            help='random number generator seed')
-        parser.add_argument(p1+'solver', dest=(p2+'solver'), 
-                            default='lbfgs', choices=['newton-cg', 'lbfgs', 'liblinear', 'sag', 'saga'],
-                            help='type of solver')
-        parser.add_argument(p1+'max-iter', dest=(p2+'max_iter'), 
-                            default=100, type=int,
-                            help='only for the newton-cg, sag and lbfgs solvers')
-        parser.add_argument(p1+'dual', dest=(p2+'dual'),
-                            default=False, action='store_true',
-                            help=('dual or primal formulation. '
-                                  'Dual formulation is only implemented for l2 penalty with liblinear solver'))
-        parser.add_argument(p1+'tol', dest=(p2+'tol'), default=1e-4, type=float,
-                            help='tolerance for stopping criteria')
-        parser.add_argument(p1+'multi-class', dest=(p2+'multi_class'), 
-                            default='ovr', choices=['ovr', 'multinomial'],
-                            help=('ovr fits a binary problem for each class else it minimizes the multinomial loss.'
-                                  'Does not work for liblinear solver'))
-        parser.add_argument(p1+'verbose', dest=(p2+'verbose'), 
-                            default=0, type=int,
-                            help='For the liblinear and lbfgs solvers')
-        parser.add_argument(p1+'num-jobs', dest=(p2+'num_jobs'), 
-                            default=1, type=int,
-                            help='number of cores for ovr')
-        parser.add_argument(p1+'no-warm-start', dest=(p2+'no_warm_start'),
-                            default=False, action='store_true',
-                            help='don\'t use previous model to start')
+        parser.add_argument(
+            p1+'penalty', 
+            default='l2', choices=['l2', 'l1'],
+            help='used to specify the norm used in the penalization')
+        parser.add_argument(
+            p1+'lambda-reg', 
+            default=1e-5, type=float,
+            help='regularization strength')
+        parser.add_argument(
+            p1+'no-use-bias', 
+            default=False, action='store_true',
+            help='Not use bias')
+        parser.add_argument(
+            p1+'bias-scaling', 
+            default=1.0, type=float,
+            help='useful only when the solver liblinear is used and use_bias is set to True')
+        parser.add_argument(
+            p1+'lr-seed', 
+            default=1024, type=int,
+            help='random number generator seed')
+        parser.add_argument(
+            p1+'solver', 
+            default='lbfgs', 
+            choices=['newton-cg', 'lbfgs', 'liblinear', 'sag', 'saga'],
+            help='type of solver')
+        parser.add_argument(
+            p1+'max-iter', 
+            default=100, type=int,
+            help='only for the newton-cg, sag and lbfgs solvers')
+        parser.add_argument(
+            p1+'dual', 
+            default=False, action='store_true',
+            help=('dual or primal formulation. '
+                  'Dual formulation is only implemented for '
+                  'l2 penalty with liblinear solver'))
+        parser.add_argument(
+            p1+'tol', default=1e-4, type=float,
+            help='tolerance for stopping criteria')
+        parser.add_argument(
+            p1+'multi-class', 
+            default='ovr', choices=['ovr', 'multinomial'],
+            help=('ovr fits a binary problem for each class else '
+                  'it minimizes the multinomial loss.'
+                  'Does not work for liblinear solver'))
+        parser.add_argument(
+            p1+'verbose', 
+            default=0, type=int,
+            help='For the liblinear and lbfgs solvers')
+        parser.add_argument(
+            p1+'num-jobs', 
+            default=1, type=int,
+            help='number of cores for ovr')
+        parser.add_argument(
+            p1+'no-warm-start', 
+            default=False, action='store_true',
+            help='don\'t use previous model to start')
 
-
-        parser.add_argument(p1+'name', dest=(p2+'name'), 
-                            default='lr',
-                            help='model name')
+        parser.add_argument(
+            p1+'name', 
+            default='lr',
+            help='model name')
 
         
-
     @staticmethod
     def filter_eval_args(prefix, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
         valid_args = ('model_file', 'eval_type')
-        return dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
-
+        return dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
     
     @staticmethod
-    def add_argparse_eval_args(parser, prefix=None):
+    def add_eval_args(parser, prefix=None):
         if prefix is None:
             p1 = '--'
-            p2 = ''
         else:
-            p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
+            p1 = '--' + prefix + '.'
 
-        parser.add_argument(p1+'model-file', dest=(p2+'model_file'), required=True,
-                            help=('model file'))
-        parser.add_argument(p1+'eval-type', dest=(p2+'eval_type'), default='logit',
-                            choices=['logit','log-post','post'],
-                            help=('type of evaluation'))
+        parser.add_argument(
+            p1+'model-file', required=True,
+            help=('model file'))
+        parser.add_argument(
+            p1+'eval-type', default='logit',
+            choices=['logit','log-post','post'],
+            help=('type of evaluation'))
                             
-        
-
-        
+                
+    add_argparse_args = add_class_args
+    add_argparse_train_args = add_class_args
+    add_argparse_eval_args = add_eval_args

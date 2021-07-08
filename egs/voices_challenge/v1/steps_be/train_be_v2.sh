@@ -52,37 +52,17 @@ while(getline < fv)
 { if ($1 in files) {print $1,$2}}' $adapt_data_dir1/utt2spk > $adapt_list1
 
 
-# sort --random-source=$adapt_vector_file1 -R $adapt_data_dir1/utt2spk |
-# awk -v fv=$adapt_vector_file1 'BEGIN{
-# while(getline < fv)
-# {
-#    files[$1]=1
-# }
-# }
-# { 
-#   if ($1 in files) { 
-#      seg=$1;
-#      sub(/.*-VOiCES-/,"",seg);
-#      split(seg,f,"-");
-#      seg_name=f[4]"-"f[5];
-#      if(!(seg_name in seen)){
-#          seen[seg_name]=1;
-#          print $1,$2;
-#      }
-#   }
-# }'  | sort -k1,1 > $adapt_list1
-
-
 
 $cmd $output_dir/log/train_be.log \
-     python steps_be/train-be-v2.py \
-     --iv-file scp:$vector_file \
-     --train-list $train_list \
-     --adapt-iv-file scp:$adapt_vector_file1 \
-     --adapt-list $adapt_list1 \
-     --lda-dim $lda_dim \
-     --plda-type $plda_type \
-     --y-dim $y_dim --z-dim $z_dim \
-     --output-path $output_dir \
-     --w-mu $w_mu --w-w $w_w 
+  hyp_utils/conda_env.sh \
+  steps_be/train-be-v2.py \
+  --iv-file scp:$vector_file \
+  --train-list $train_list \
+  --adapt-iv-file scp:$adapt_vector_file1 \
+  --adapt-list $adapt_list1 \
+  --lda-dim $lda_dim \
+  --plda-type $plda_type \
+  --y-dim $y_dim --z-dim $z_dim \
+  --output-path $output_dir \
+  --w-mu $w_mu --w-w $w_w 
 

@@ -2,10 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import numpy as np
 from scipy import linalg as sla
@@ -135,7 +131,7 @@ class PLDA(PLDABase):
         if N_is_int:
             iterator = np.unique(N)
         else:
-            iterator = xrange(M)
+            iterator = range(M)
 
         y = np.zeros((M, y_dim), dtype=float_cpu())
         if return_cov:
@@ -480,8 +476,8 @@ class PLDA(PLDABase):
         scores = np.zeros((len(N1), len(N2)), dtype=float_cpu())
         for N1_i in np.unique(N1):
             for N2_j in np.unique(N2):
-                i = np.where(N1 == N1_i)
-                j = np.where(N2 == N2_j)
+                i = np.where(N1 == N1_i)[0]
+                j = np.where(N2 == N2_j)[0]
 
                 L1 = I + N1_i*VV
                 mult_icholL1, logcholL1 = invert_trimat(
@@ -519,11 +515,10 @@ class PLDA(PLDABase):
                 scores_ij = 2*np.dot(gamma_tar_1, gamma_tar_2.T)
                 scores_ij += (Qtar_1 - Qnon_1 + Qtar_2 - Qnon_2)
                 scores_ij += (logL1 + logL2 - logLtar)
-                scores[i,j] = scores_ij
+                scores[np.ix_(i,j)] = scores_ij
                 
         scores *= 0.5
-
-                
+        return scores
 
 
     def sample(self, num_classes, num_samples_per_class, rng=None, seed=1024):

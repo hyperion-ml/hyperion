@@ -2,10 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import numpy as np
 
@@ -117,7 +113,7 @@ class LinearGBE(HypModel):
                 r_W = 0
                 S = np.zeros((x.shape[1], x.shape[1]), dtype=float_cpu())
                 
-            for k in xrange(self.num_classes):
+            for k in range(self.num_classes):
                 delta = x - xbar[k]
                 S_k = np.dot(p_theta[:, k]*delta.T, delta)
                 if self.do_map:
@@ -160,31 +156,28 @@ class LinearGBE(HypModel):
             
 
     @staticmethod
-    def filter_train_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
+    def filter_args(**kwargs):
             
         valid_args = ('update_mu', 'update_W',
                       'balance_class_weight',
                       'do_map', 'r_mu', 'r_W',
                       'name')
-        return dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        return dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
+    filter_train_args = filter_args
 
     
     @staticmethod
-    def add_argparse_train_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         if prefix is None:
             p1 = '--'
             p2 = ''
         else:
-            p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
+            p1 = '--' + prefix + '.'
+            p2 = prefix + '.'
 
-        parser.add_argument(p1+'no-update-mu', dest=(p2+'update_mu'), 
+        parser.add_argument(p1+'no-update-mu', 
                             default=True, action='store_false',
                             help='not update mu')
         parser.add_argument(p1+'no-update-W', dest=(p2+'update_W'),
@@ -210,14 +203,10 @@ class LinearGBE(HypModel):
         
 
     @staticmethod
-    def filter_eval_args(prefix, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
+    def filter_eval_args(**kwargs):
         valid_args = ('model_file', 'normalize', 'return_full_llk')
-        return dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        return dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
 
     
@@ -227,8 +216,8 @@ class LinearGBE(HypModel):
             p1 = '--'
             p2 = ''
         else:
-            p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
+            p1 = '--' + prefix + '.'
+            p2 = prefix + '.'
 
         parser.add_argument(p1+'model-file', dest=(p2+'model_file'), required=True,
                             help=('model file'))
@@ -240,3 +229,6 @@ class LinearGBE(HypModel):
                             help=('evaluates full gaussian likelihood instead of linear function'))
                             
         
+    add_argparse_args = add_class_args
+    add_argparse_train_args = add_class_args
+    add_argparse_eval_args = add_eval_args

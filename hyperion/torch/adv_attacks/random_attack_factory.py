@@ -2,7 +2,10 @@
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import math
+from jsonargparse import ArgumentParser, ActionParser
+
 import torch
 from .attack_factory import AttackFactory as AF
 
@@ -122,6 +125,7 @@ class RandomAttackFactory(object):
         attack_args['range_min'] = self.range_min
         attack_args['range_max'] = self.range_max
         attack_args['eps_scale'] = self.eps_scale
+        attack_args['loss'] = self.loss
         
         return attack_args
 
@@ -133,17 +137,13 @@ class RandomAttackFactory(object):
 
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
+    def filter_args(**kwargs):
 
-        if p + 'no_abort' in kwargs:
-            kwargs[p + 'abort_early'] = not kwargs[p + 'no_abort']
+        if 'no_abort' in kwargs:
+            kwargs['abort_early'] = not kwargs['no_abort']
 
-        if p + 'norms' in kwargs:
-            kwargs[p + 'norms'] = [float(a) for a in kwargs[p + 'norms']]
+        if 'norms' in kwargs:
+            kwargs['norms'] = [float(a) for a in kwargs['norms']]
 
         valid_args = ('attack_types', 
                       'min_eps', 'max_eps', 
@@ -160,130 +160,147 @@ class RandomAttackFactory(object):
                       'indep_channels', 'use_snr', 'norm_time',
                       'targeted')
 
-        args = dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        args = dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
         return args
 
 
 
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
-        
-        if prefix is None:
-            p1 = '--'
-        else:
-            p1 = '--' + prefix + '-'
+    def add_class_args(parser, prefix=None):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog='')
 
         parser.add_argument(
-            p1+'attack-types', type=str.lower, default=['fgsm'], nargs='+',
-            choices=['fgsm', 'snr-fgsm', 'rand-fgsm', 'iter-fgsm', 'cw-l0', 'cw-l2', 'cw-linf', 'pgd'], 
+            '--attack-types', type=str.lower, default=['fgsm'], nargs='+',
+            choices=['fgsm', 'snr-fgsm', 'rand-fgsm', 'iter-fgsm', 
+                     'cw-l0', 'cw-l2', 'cw-linf', 'pgd'], 
             help=('Attack types'))
 
         parser.add_argument(
-            p1+'norms', type=float, default=[float('inf')], nargs='+',
+            '--norms', type=float, default=[float('inf')], nargs='+',
             choices=[float('inf'), 1, 2],  help=('Attack perturbation norms'))
 
         parser.add_argument(
-            p1+'min-eps', default=1e-5, type=float,
+            '--min-eps', default=1e-5, type=float,
             help=('attack min epsilon, upper bound for the perturbation norm'))
 
         parser.add_argument(
-            p1+'max-eps', default=0.1, type=float,
+            '--max-eps', default=0.1, type=float,
             help=('attack max epsilon, upper bound for the perturbation norm'))
 
         parser.add_argument(
-            p1+'min-snr', default=30, type=float,
-            help=('min upper bound for the signal-to-noise ratio of the perturbed signal'))
+            '--min-snr', default=30, type=float,
+            help=('min upper bound for the signal-to-noise ratio of the '
+                  'perturbed signal'))
 
         parser.add_argument(
-            p1+'max-snr', default=60, type=float,
-            help=('max upper bound for the signal-to-noise ratio of the perturbed signal'))
+            '--max-snr', default=60, type=float,
+            help=('max upper bound for the signal-to-noise ratio of the '
+                  'perturbed signal'))
 
         parser.add_argument(
-            p1+'min-alpha', default=1e-5, type=float,
+            '--min-alpha', default=1e-5, type=float,
             help=('min alpha for iter and rand fgsm attack'))
 
         parser.add_argument(
-            p1+'max-alpha', default=0.02, type=float,
+            '--max-alpha', default=0.02, type=float,
             help=('max alpha for iter and rand fgsm attack'))
 
         parser.add_argument(
-            p1+'random-eps', default=False, action='store_true',
+            '--random-eps', default=False, action='store_true',
             help=('use random epsilon in PGD attack'))
 
         parser.add_argument(
-            p1+'min-confidence', default=0, type=float,
+            '--min-confidence', default=0, type=float,
             help=('min confidence for carlini-wagner attack'))
 
         parser.add_argument(
-            p1+'max-confidence', default=1, type=float,
+            '--max-confidence', default=1, type=float,
             help=('max confidence for carlini-wagner attack'))
 
         parser.add_argument(
-            p1+'min-lr', default=1e-3, type=float,
+            '--min-lr', default=1e-3, type=float,
             help=('min learning rate for attack optimizers'))
 
         parser.add_argument(
-            p1+'max-lr', default=1e-2, type=float,
+            '--max-lr', default=1e-2, type=float,
             help=('max learning rate for attack optimizers'))
 
         parser.add_argument(
-            p1+'min-binary-search-steps', default=9, type=int,
+            '--min-binary-search-steps', default=9, type=int,
             help=('min num bin. search steps in carlini-wagner-l2 attack'))
 
         parser.add_argument(
-            p1+'max-binary-search-steps', default=9, type=int,
+            '--max-binary-search-steps', default=9, type=int,
             help=('max num bin. search steps in carlini-wagner-l2 attack'))
 
         parser.add_argument(
-            p1+'min-iter', default=5, type=int,
+            '--min-iter', default=5, type=int,
             help=('min maximum. num. of optim iters in attack'))
 
         parser.add_argument(
-            p1+'max-iter', default=10, type=int,
+            '--max-iter', default=10, type=int,
             help=('max maximum num. of optim iters in attack'))
 
         parser.add_argument(
-            p1+'min-c', default=1e-3, type=float,
-            help=('min initial weight of constraint function f in carlini-wagner attack'))
+            '--min-c', default=1e-3, type=float,
+            help=('min initial weight of constraint function f '
+                  'in carlini-wagner attack'))
 
         parser.add_argument(
-            p1+'max-c', default=1e-2, type=float,
-            help=('max initial weight of constraint function f in carlini-wagner attack'))
+            '--max-c', default=1e-2, type=float,
+            help=('max initial weight of constraint function f '
+                  'in carlini-wagner attack'))
 
         parser.add_argument(
-            p1+'reduce-c', default=False, action='store_true',
+            '--reduce-c', default=False, action='store_true',
             help=('allow to reduce c in carline-wagner-l0/inf attack'))
 
         parser.add_argument(
-            p1+'c-incr-factor', default=2, type=float,
+            '--c-incr-factor', default=2, type=float,
             help=('factor to increment c in carline-wagner-l0/inf attack'))
 
         parser.add_argument(
-            p1+'tau-decr-factor', default=0.75, type=float,
+            '--tau-decr-factor', default=0.75, type=float,
             help=('factor to reduce tau in carline-wagner-linf attack'))
 
         parser.add_argument(
-            p1+'indep-channels', default=False, action='store_true',
-            help=('consider independent input channels in carline-wagner-l0 attack'))
+            '--indep-channels', default=False, action='store_true',
+            help=('consider independent input channels in '
+                  'carlini-wagner-l0 attack'))
 
         parser.add_argument(
-            p1+'no-abort', default=False, action='store_true',
+            '--no-abort', default=False, action='store_true',
             help=('do not abort early in optimizer iterations'))
 
         parser.add_argument(
-            p1+'num-random-init', default=0, type=int,
-            help=('number of random initializations in PGD attack'))
+            '--min-num-random-init', default=1, type=int,
+            help=('min number of random initializations in PGD attack'))
 
         parser.add_argument(
-            p1+'targeted', default=False, action='store_true',
+            '--max-num-random-init', default=5, type=int,
+            help=('max number of random initializations in PGD attack'))
+
+        parser.add_argument(
+            '--targeted', default=False, action='store_true',
             help='use targeted attack intead of non-targeted')
 
         parser.add_argument(
-            p1+'use-snr', default=False, action='store_true',
-            help=('In carlini-wagner attack maximize SNR instead of minimize perturbation norm'))
+            '--use-snr', default=False, action='store_true',
+            help=('In carlini-wagner attack maximize SNR instead of '
+                  'minimize perturbation norm'))
 
         parser.add_argument(
-            p1+'norm-time', default=False, action='store_true',
+            '--norm-time', default=False, action='store_true',
             help=('normalize norm by number of samples in time dimension'))
+
+        if prefix is not None:
+            outer_parser.add_argument(
+                '--' + prefix,
+                action=ActionParser(parser=parser))
+                # help='adversarial attack options')
+
+    add_argparse_args = add_class_args

@@ -5,7 +5,7 @@
 """
 import sys
 import os
-import argparse
+from jsonargparse import ArgumentParser, ActionConfigFile, ActionParser, namespace_to_dict
 import time
 import logging
 from pathlib import Path
@@ -39,7 +39,7 @@ def make_timestamps(n, win_start, win_length, win_shift, win_shrink):
     return timestamps
 
 
-def init_readers(v_file, timestamps_file, vad_file):
+def init_readers(v_file, timestamps_file, vad_file, **kwargs):
     r_x = DRF.create(v_file)
     r_time = None
     if timestamps_file is not None:
@@ -47,7 +47,8 @@ def init_readers(v_file, timestamps_file, vad_file):
 
     r_vad = None
     if vad_file is not None:
-        r_vad = VRF.create(vad_file)
+        vad_args = VRF.filter_args(**kwargs)
+        r_vad = VRF.create(vad_file, **vad_args)
 
     return r_x, r_time, r_vad
 
@@ -71,6 +72,11 @@ def load_feats(key, r_x, r_time, r_vad,
 
     if r_vad is not None:
         vad_timestamps = r_vad.read_timestamps([key])[0]
+        vad_bin = r_vad.read([key])[0]
+        print(x.shape)
+        print(timestamps)
+        print(vad_timestamps)
+        print(vad_bin)
         speech_idx, timestamps, ts2segs = istwv(timestamps, vad_timestamps)
         x = x[speech_idx]
     else:
@@ -224,7 +230,7 @@ def eval_ahc(test_list, v_file, timestamps_file, vad_file,
     logging.info('reading utterance list %s' % test_list)
     keys = load_test_list(test_list, part_idx, num_parts)
     logging.info('init data readers')
-    r_x, r_time, r_vad = init_readers(v_file, timestamps_file, vad_file)
+    r_x, r_time, r_vad = init_readers(v_file, timestamps_file, vad_file, **kwargs)
     logging.info('loading embedding preprocessor: %s' % (preproc_file))
     t_preproc = TransformList.load(preproc_file)
     plda_args = F.filter_eval_args(**kwargs)
@@ -247,7 +253,7 @@ def eval_ahc(test_list, v_file, timestamps_file, vad_file,
             key, r_x, r_time, r_vad,
             win_start, win_length, win_shift, win_shrink)
 
-        logging.info('clustering utt %s' % (key))
+        logging.info('clustering utt {} x={}'.format(key,  x.shape))
         if score_hist_dir is not None:
             hist_file = score_hist_dir / key
 
@@ -268,9 +274,7 @@ def eval_ahc(test_list, v_file, timestamps_file, vad_file,
 
 if __name__ == "__main__":
 
-    parser=argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,                
-        fromfile_prefix_chars='@',
+    parser=ArgumentParser(
         description='Evals AHC with PLDA scoring')
 
     parser.add_argument('--test-list', required=True)
@@ -278,7 +282,8 @@ if __name__ == "__main__":
     parser.add_argument('--timestamps-file', default=None)
     parser.add_argument('--vad-file', default=None)
     parser.add_argument('--preproc-file', default=None)
-
+    VRF.add_argparse_args(parser, prefix='vad')
+    
     F.add_argparse_eval_args(parser)
     Diar.add_argparse_args(parser)
 

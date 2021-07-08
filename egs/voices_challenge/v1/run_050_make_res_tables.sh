@@ -7,17 +7,14 @@
 . ./path.sh
 set -e
 
-net_name=3b
-
 . parse_options.sh || exit 1;
 
-be_name=lda300_splday175_v1_train_combined
-score_dir=exp/scores/$net_name/${be_name}
+score_dir=$1
 
 #global table
 
 dirs=(plda plda_snorm plda_2folds plda_snorm_2folds)
-cases=("cal-1fold" "s-norm cal-1fold" "" "s-norm") 
+cases=("cal-1fold" "s-norm cal-1fold" "cal-2fold" "s-norm cal-2fold") 
 
 echo "All"
 args="--print_header true"

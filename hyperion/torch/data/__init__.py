@@ -2,11 +2,10 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
 
 # datasets
-from .seq_dataset import SeqDataset
-from .paired_seq_dataset import PairedSeqDataset
+from .feat_seq_dataset import FeatSeqDataset
+from .paired_feat_seq_dataset import PairedFeatSeqDataset
 
 from .audio_dataset import AudioDataset
 

@@ -83,5 +83,5 @@ scores_out=$cal_score_dir_f/$scores_filename
 ndx=data/voices19_challenge_eval_test/trials
 $cmd $cal_score_dir_f/eval_cal_voices19_eval.log \
      steps_be/eval-calibration-v1.py --in-score-file $scores_in \
-     --ndx-file $ndx --model-file $model_file --out-score-file $scores_out &
+     --ndx-file $ndx --model-file $model_file --out-score-file $scores_out
 

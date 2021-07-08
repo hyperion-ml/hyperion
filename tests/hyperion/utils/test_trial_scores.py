@@ -2,10 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import pytest
 import os
@@ -87,8 +83,8 @@ def test_split():
 
     num_parts=3
     scr_list = []
-    for i in xrange(num_parts):
-        for j in xrange(num_parts):
+    for i in range(num_parts):
+        for j in range(num_parts):
             scr_ij = scr1.split(i+1, num_parts, j+1, num_parts)
             scr_list.append(scr_ij)
     scr2 = TrialScores.merge(scr_list)

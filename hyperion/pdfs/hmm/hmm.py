@@ -2,10 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import numpy as np
 
@@ -92,8 +88,8 @@ class HMM(PDF):
         elbo = np.zeros((epochs,), dtype=float_cpu())
         elbo_val = np.zeros((epochs,), dtype=float_cpu())
         stats = None
-        for epoch in xrange(epochs):
-            for i in xrange(x.shape[0]):
+        for epoch in range(epochs):
+            for i in range(x.shape[0]):
                 stats =self.Estep(x[i], stats)
                 pz, Nzz = stats
                 elbo[epoch] += self.elbo(x[i], pz=pz, Nzz=Nzz)
@@ -101,7 +97,7 @@ class HMM(PDF):
             self.Mstep(stats)
 
             if x_val is not None:
-                for i in xrange(x_val.shape[0]):
+                for i in range(x_val.shape[0]):
                     pz, Nzz = self.Estep(x_val[i])
                     elbo_val[epoch] += self.elbo(x[i], pz=pz, Nzz=Nzz)
 
@@ -119,7 +115,7 @@ class HMM(PDF):
         N = x.shape[0]
         log_alpha = np.zeros((N, self.num_states), dtype=float_cpu())
         log_alpha[0] = self.log_pi + x[0]
-        for n in xrange(1, N):
+        for n in range(1, N):
             log_alpha[n] = x[n] + logsumexp(log_alpha[n-1][:, None] + self.log_trans, axis=0)
                              
         return log_alpha
@@ -131,7 +127,7 @@ class HMM(PDF):
         N = x.shape[0]
         log_beta = np.zeros((N, self.num_states), dtype=float_cpu())
         log_beta[-1] = 1
-        for n in xrange(N-2, -1, -1):
+        for n in range(N-2, -1, -1):
             r = log_beta[n+1] + x[n+1] + self.log_trans
             log_beta[n] = logsumexp(r.T, axis=0)
 
@@ -237,7 +233,7 @@ class HMM(PDF):
         idx_aux = np.arange(self.num_states)
         phi = np.zeros((x.shape[0], self.num_states), dtype=int)
         w = self.log_pi + x[0]
-        for i in xrange(x.shape[0]):
+        for i in range(x.shape[0]):
             u = w[:,None] + self.log_trans
             k_max = np.argmax(u, axis=0)
             w = x[i] + u[k_max,idx_aux]
@@ -246,10 +242,10 @@ class HMM(PDF):
         best = np.fliplr(np.argsort(w))[:nbest]
         log_pxz = w[best]
         paths = np.zeros((nbest, x.shape[0]), dtype=int)
-        for n in xrange(nbest):
+        for n in range(nbest):
             k_max = best[n]
             paths[n,-1] = k_max
-            for i in xrange(x.shape[0]-2,-1,-1):
+            for i in range(x.shape[0]-2,-1,-1):
                 k_max = phi[i, k_max]
                 paths[n,i] = k_max
 
@@ -263,8 +259,8 @@ class HMM(PDF):
 
         x = np.zeros((num_seqs, num_steps, self.num_states), dtype=float_cpu())
         x[:, 0, :] = rng.multinomial(1, self.pi, size=(num_seqs,))
-        for t in xrange(1, num_steps):
-            for k in xrange(self.num_states):
+        for t in range(1, num_steps):
+            for k in range(self.num_states):
                 index = x[:,t-1,k] == 1
                 n_k = num.sum(index)
                 if n_k == 0:

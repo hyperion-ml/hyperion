@@ -2,16 +2,13 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
 
 import os
 import csv
 from collections import OrderedDict as ODict
 import numpy as np
 
-from .loggers import Logger
+from .logger import Logger
 
 
 class CSVLogger(Logger):
@@ -24,7 +21,7 @@ class CSVLogger(Logger):
        append: False, overwrite existing file, True, appends.
     """
     def __init__(self, file_path, sep=',', append=False):
-        super(CSVLogger, self).__init__()
+        super().__init__()
         self.file_path = file_path
         self.sep = sep
         self.append = append
@@ -36,7 +33,9 @@ class CSVLogger(Logger):
 
         
     def on_train_begin(self, logs=None, **kwargs):
-
+        if self.rank != 0:
+            return
+        
         file_dir = os.path.dirname(self.file_path) 
         if not os.path.exists(file_dir):
             os.makedirs(file_dir)
@@ -51,9 +50,10 @@ class CSVLogger(Logger):
         else:
             self.csv_file = open(self.file_path, 'a')
 
-
             
     def on_epoch_end(self, logs=None, **kwargs):
+        if self.rank !=0:
+            return
         logs = logs or {}
         
         if self.log_keys is None:
@@ -73,9 +73,11 @@ class CSVLogger(Logger):
         self.csv_writer.writerow(row)
         self.csv_file.flush()
 
-
         
     def on_train_end(self, logs=None, **kwargs):
+        if self.rank != 0:
+            return
+
         self.csv_file.close()
         self.writer = None
 

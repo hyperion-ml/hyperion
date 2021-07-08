@@ -3,13 +3,9 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-#import sys
-#import os
 import logging
-import argparse
+from jsonargparse import ArgumentParser, ActionParser
 import time
-#import copy
-#import threading
 import math
 
 import numpy as np
@@ -23,6 +19,7 @@ from ...utils.utt2info import Utt2Info
 from ...augment import SpeechAugment
 
 from torch.utils.data import Dataset
+import torch.distributed as dist
 
 class AudioDataset(Dataset):
 
@@ -36,11 +33,24 @@ class AudioDataset(Dataset):
                  return_class=True, return_clean_aug_pair=False, 
                  transpose_input=False, wav_scale=2**15-1, is_val=False):
 
-        logging.info('opening dataset %s' % audio_path)
+        try:
+            rank = dist.get_rank()
+            world_size = dist.get_world_size()
+        except:
+            rank = 0
+            world_size = 1
+
+        self.rank = rank
+        self.world_size = world_size
+
+        if rank == 0:
+            logging.info('opening dataset %s' % audio_path)
         self.r = AR(audio_path, wav_scale=wav_scale)
-        logging.info('loading utt2info file %s' % key_file)
+        if rank == 0:
+            logging.info('loading utt2info file %s' % key_file)
         self.u2c = Utt2Info.load(key_file, sep=' ')
-        logging.info('dataset contains %d seqs' % self.num_seqs)
+        if rank == 0:
+            logging.info('dataset contains %d seqs' % self.num_seqs)
 
         self.is_val = is_val
         self._read_time_durs_file(time_durs_file)
@@ -66,16 +76,21 @@ class AudioDataset(Dataset):
         self.augmenter = None
         self.reverb_context = 0
         if aug_cfg is not None:
-            self.augmenter = SpeechAugment.create(aug_cfg)
+            self.augmenter = SpeechAugment.create(aug_cfg, random_seed=112358+1000*rank)
             self.reverb_context = self.augmenter.max_reverb_context
 
 
     def _read_time_durs_file(self, file_path):
-        logging.info('reading time_durs file %s' % file_path)
+        if self.rank == 0:
+            logging.info('reading time_durs file %s' % file_path)
         nf_df = pd.read_csv(file_path, header=None, sep=' ')
         nf_df.index = nf_df[0]
         self._seq_lengths = nf_df.loc[self.u2c.key, 1].values
 
+
+    @property
+    def wav_scale(self):
+        return self.r.wav_scale
 
     @property
     def num_seqs(self):
@@ -120,13 +135,15 @@ class AudioDataset(Dataset):
 
 
     def _prune_short_seqs(self, min_length):
-        logging.info('pruning short seqs')
+        if self.rank == 0:
+            logging.info('pruning short seqs')
         keep_idx = self.seq_lengths >= min_length
         self.u2c = self.u2c.filter_index(keep_idx)
         self._seq_lengths = self.seq_lengths[keep_idx]
-        logging.info('pruned seqs with min_length < %f,'
-                     'keep %d/%d seqs' % (
-                        min_length, self.num_seqs, len(keep_idx)))
+        if self.rank == 0:
+            logging.info('pruned seqs with min_length < %f,'
+                         'keep %d/%d seqs' % (
+                             min_length, self.num_seqs, len(keep_idx)))
 
         
     def _prepare_class_info(self, class_file):
@@ -135,7 +152,8 @@ class AudioDataset(Dataset):
             classes, class_idx = np.unique(self.u2c.info, return_inverse=True)
             class2idx = {k:i for i, k in enumerate(classes)}
         else:
-            logging.info('reading class-file %s' % (class_file))
+            if self.rank == 0:
+                logging.info('reading class-file %s' % (class_file))
             class_info = pd.read_csv(class_file, header=None, sep=' ')
             class2idx = {str(k):i for i,k in enumerate(class_info[0])}
             class_idx = np.array([class2idx[k] for k in self.u2c.info], dtype=int)
@@ -255,33 +273,36 @@ class AudioDataset(Dataset):
         read_chunk_length = chunk_length + reverb_context
 
         #logging.info('get-random-chunk {} {} {} {} {}'.format(index, key, time_offset, chunk_length, full_seq_length ))
-        try:
-            x, fs = self.r.read([key], time_offset=time_offset,
+        x, fs = self.r.read([key], time_offset=time_offset,
                             time_durs=read_chunk_length)
-        except:
-            # some files produce error in the fseek after reading the data,
-            # this seems an issue from pysoundfile or soundfile lib itself
-            # reading from a sligthly different starting position seems to solve the problem in most cases
-            try:
-                logging.info('error-1 reading at key={} totol_dur={} offset={} read_chunk_length={}, retrying...'.format(
-                    key, full_seq_length, time_offset, read_chunk_length))
-                time_offset = math.floor(time_offset)
-                x, fs = self.r.read([key], time_offset=time_offset,
-                                    time_durs=read_chunk_length)
-            except:
-                try:
-                    # if changing the value of time-offset doesn't solve the issue, we try to read from
-                    # from time-offset to the end of the file, and remove the extra frames later
-                    logging.info('error-2 reading at key={} totol_dur={} offset={} retrying reading until end-of-file ...'.format(
-                        key, full_seq_length, time_offset))
-                    x, fs = self.r.read([key], time_offset=time_offset)
-                    x = [x[0][:int(read_chunk_length * fs[0])]]
-                except:
-                    # try to read the full file
-                    logging.info('error-3 reading at key={} totol_dur={} retrying reading full file ...'.format(
-                        key, full_seq_length))
-                    x, fs = self.r.read([key])
-                    x = [x[0][:int(read_chunk_length * fs[0])]]
+
+        # try:
+        #     x, fs = self.r.read([key], time_offset=time_offset,
+        #                     time_durs=read_chunk_length)
+        # except:
+        #     # some files produce error in the fseek after reading the data,
+        #     # this seems an issue from pysoundfile or soundfile lib itself
+        #     # reading from a sligthly different starting position seems to solve the problem in most cases
+        #     try:
+        #         logging.info('error-1 reading at key={} totol_dur={} offset={} read_chunk_length={}, retrying...'.format(
+        #             key, full_seq_length, time_offset, read_chunk_length))
+        #         time_offset = math.floor(time_offset)
+        #         x, fs = self.r.read([key], time_offset=time_offset,
+        #                             time_durs=read_chunk_length)
+        #     except:
+        #         try:
+        #             # if changing the value of time-offset doesn't solve the issue, we try to read from
+        #             # from time-offset to the end of the file, and remove the extra frames later
+        #             logging.info('error-2 reading at key={} totol_dur={} offset={} retrying reading until end-of-file ...'.format(
+        #                 key, full_seq_length, time_offset))
+        #             x, fs = self.r.read([key], time_offset=time_offset)
+        #             x = [x[0][:int(read_chunk_length * fs[0])]]
+        #         except:
+        #             # try to read the full file
+        #             logging.info('error-3 reading at key={} totol_dur={} retrying reading full file ...'.format(
+        #                 key, full_seq_length))
+        #             x, fs = self.r.read([key])
+        #             x = [x[0][:int(read_chunk_length * fs[0])]]
 
             
         x = x[0]
@@ -293,13 +314,16 @@ class AudioDataset(Dataset):
             end_idx = len(x)
             reverb_context_samples = end_idx - chunk_length_samples
             assert reverb_context_samples >= 0, (
-                'key={} read-x-samples={}, chunk_samples={}, reverb_context_samples={}'.format(
-                    key, end_idx, chunk_length_samples, reverb_context_samples))
+                ('key={} time-offset={}, read-chunk={} '
+                 'read-x-samples={}, chunk_samples={}, reverb_context_samples={}').format(
+                    key, time_offset, read_chunk_length, 
+                    end_idx, chunk_length_samples, reverb_context_samples))
             # end_idx = reverb_context_samples + chunk_length_samples
             x, aug_info = self.augmenter(x)
             x = x[reverb_context_samples:end_idx]
             if self.return_clean_aug_pair:
                 x_clean = x_clean[reverb_context_samples:end_idx]
+                x_clean = x_clean.astype(floatstr_torch(), copy=False)
             #x_clean = x_clean[reverb_context_samples:]
             #logging.info('augmentation x-clean={}, x={}, aug_info={}'.format(
             #    x_clean.shape, x.shape, aug_info))
@@ -314,6 +338,7 @@ class AudioDataset(Dataset):
             if self.return_clean_aug_pair:
                 x_clean = x_clean[None,:]
 
+        x = x.astype(floatstr_torch(), copy=False)
         if self.return_clean_aug_pair:
             r = x, x_clean
         else:
@@ -328,56 +353,55 @@ class AudioDataset(Dataset):
 
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
+    def filter_args(**kwargs):
 
-        ar_args = AR.filter_args(prefix=prefix, **kwargs)
+        ar_args = AR.filter_args(**kwargs)
         valid_args = ('path_prefix', 'class_file', 'time_durs_file',
                       'min_chunk_length', 'max_chunk_length',
                       'return_fullseqs',
                       'part_idx', 'num_parts')
-        args = dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        args = dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
         args.update(ar_args)
         return args
 
 
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
-        if prefix is None:
-            p1 = '--'
-            p2 = ''
-        else:
-            p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
-            
+    def add_class_args(parser, prefix=None):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog='')
 
-        # parser.add_argument(p1+'path-prefix', dest=(p2+'path_prefix'),
+        # parser.add_argument('--path-prefix', 
         #                     default='',
         #                     help=('path prefix for rspecifier scp file'))
 
-        parser.add_argument(p1+'class-file', default=None,
-                            help=('ordered list of classes keys, it can contain class weights'))
+        parser.add_argument(
+            '--class-file', default=None,
+            help=('ordered list of classes keys, it can contain class weights'))
 
-        parser.add_argument(p1+'time-durs-file', dest=(p2+'time_durs_file'), 
+        parser.add_argument('--time-durs-file', 
                             default=None,
                             help=('utt to duration in secs file'))
 
-        parser.add_argument(p1+'min-chunk-length', type=float, default=None,
+        parser.add_argument('--min-chunk-length', type=float, default=None,
                             help=('minimum length of sequence chunks'))
-        parser.add_argument(p1+'max-chunk-length', type=float, default=None,
+        parser.add_argument('--max-chunk-length', type=float, default=None,
                             help=('maximum length of sequence chunks'))
 
-        parser.add_argument(p1+'return-fullseqs', dest=(p2+'return_fullseqs'),
+        parser.add_argument('--return-fullseqs', 
                             default=False, action='store_true',
                             help=('returns full sequences instead of chunks'))
         
-        AR.add_argparse_args(parser, prefix=prefix)
+        AR.add_class_args(parser)
+        if prefix is not None:
+            outer_parser.add_argument(
+                '--' + prefix,
+                action=ActionParser(parser=parser))
+                # help='audio dataset options')
 
 
+    add_argparse_args = add_class_args
     
 
             

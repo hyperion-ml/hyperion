@@ -84,8 +84,9 @@ fi
 
 if [ $stage -le 0 ];then
     $cmd JOB=1:$nj $output_dir/log/extract_xvectors.JOB.log \
-	hyp_utils/torch.sh --num-gpus $num_gpus \
-	torch-extract-xvectors-slidwin-from-wav.py @$feat_config ${args} $write_timestamps_opt \
+	hyp_utils/conda_env.sh --num-gpus $num_gpus \
+	torch-extract-xvectors-slidwin-from-wav.py \
+	--feats $feat_config ${args} $write_timestamps_opt \
 	--part-idx JOB --num-parts $nj \
 	--input $data_dir/wav.scp \
 	--model-path $nnet_file --chunk-length $chunk_length \

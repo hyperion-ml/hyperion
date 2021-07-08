@@ -3,8 +3,6 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from __future__ import absolute_import
-
 import torch
 import torch.nn as nn
 
@@ -14,7 +12,7 @@ class TorchMetric(nn.Module):
        objective functions
     """
     def __init__(self, weight=None, reduction='mean'):
-        super(TorchMetric, self).__init__()
+        super().__init__()
         self.weight = weight
         self.reduction = reduction
     

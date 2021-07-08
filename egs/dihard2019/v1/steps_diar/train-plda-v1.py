@@ -7,7 +7,7 @@
 import logging
 import sys
 import os
-import argparse
+from jsonargparse import ArgumentParser, ActionConfigFile, ActionParser, namespace_to_dict
 import time
 
 import numpy as np
@@ -155,9 +155,7 @@ def train_plda(v_file, train_list,
     
 if __name__ == "__main__":
 
-    parser=argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        fromfile_prefix_chars='@',
+    parser=ArgumentParser(
         description='Train LDA/PLDA back-end for diarization')
 
     parser.add_argument('--v-file', required=True, 

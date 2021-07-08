@@ -2,10 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-from six.moves import xrange
 
 import numpy as np
 import h5py
@@ -319,8 +315,8 @@ class Normal(ExpFamily):
         u=np.zeros((x.shape[0], int(d+d*(d+1)/2)), dtype=float_cpu())
         u[:,:d]=x
         k=d
-        for i in xrange(d):
-            for j in xrange(i, d):
+        for i in range(d):
+            for j in range(i, d):
                 u[:,k]=x[:,i]*x[:,j]
                 k+=1
         return u

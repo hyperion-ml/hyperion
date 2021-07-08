@@ -30,7 +30,7 @@ if [ $stage -le 1 ]; then
 	if [ $plda_num_augs -eq 0 ]; then
     	    hyp_utils/xvectors/extract_xvectors_slidwin_from_wav.sh \
 		--cmd "$xvec_cmd --mem 12G" --nj 100 ${xvec_args} \
-		--win-length 1.5 --win-shift 5 --snip-edges --use-bin-vad true \
+		--win-length 1.5 --win-shift 5 --snip-edges true --use-bin-vad true \
 		--feat-config $feat_config \
     		$nnet data/${name} \
     		$xvector_dir/${name}

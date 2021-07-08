@@ -8,6 +8,7 @@ import numpy as np
 from scipy.signal import lfilter
 
 from ..hyp_defs import float_cpu
+from ..utils.misc import str2bool
 from .stft import st_logE
 
 
@@ -15,7 +16,7 @@ class EnergyVAD(object):
     """Compute VAD based on Kaldi Energy VAD method.
 
        Attributes:
-          fs:                    Waveform data sample frequency (must match the waveform file, if specified there) (default = 16000)
+          sample_frequency:                    Waveform data sample frequency (must match the waveform file, if specified there) (default = 16000)
           frame_length:          Frame length in milliseconds (default = 25)
           frame_shift:           Frame shift in milliseconds (default = 10)
           dither:                Dithering constant (0.0 means no dither) (default = 1)
@@ -25,10 +26,14 @@ class EnergyVAD(object):
           vad_frames_context:    Number of frames of context on each side of central frame, in window for which energy is monitored (int, default = 0)
           vad_proportion_threshold: Parameter controlling the proportion of frames within the window that need to have more energy than the threshold (float, default = 0.6)
     """
-    def __init__(self, fs=16000, frame_length=25, frame_shift=10, 
+    def __init__(self, sample_frequency=16000, frame_length=25, frame_shift=10, 
                  dither=1, snip_edges=True,
-                 vad_energy_mean_scale=0.5, vad_energy_threshold=5, vad_frames_context=0, vad_proportion_threshold=0.6):
+                 vad_energy_mean_scale=0.5, 
+                 vad_energy_threshold=5, vad_frames_context=0, 
+                 vad_proportion_threshold=0.6):
         
+        self.sample_frequency = sample_frequency
+        fs = sample_frequency
         self.fs = fs
         self.frame_length = frame_length
         self.frame_shift = frame_shift
@@ -110,9 +115,13 @@ class EnergyVAD(object):
         if context == 0:
             return vad
  
-        window = 2*context + 1
-        if len(vad0) < window:
-            context = int(len(vad0)-1/2)
+        window = 2 * context + 1
+        if len(vad) < window:
+            context = int(len(vad)-1/2)
+            window = 2 * context + 1
+
+        if window == 1:
+            return vad
 
         h = np.ones((window,), dtype='float32')
         num_count = np.convolve(vad.astype('float32'), h, 'same')
@@ -123,37 +132,30 @@ class EnergyVAD(object):
         
         vad = num_count > self.vad_proportion_threshold
         return vad
-        
     
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
+    def filter_args(**kwargs):
         """Filters VAD args from arguments dictionary.
            
            Args:
-             prefix: Options prefix.
              kwargs: Arguments dictionary.
            
            Returns:
              Dictionary with VAD options.
         """
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
-        valid_args = ('fs', 'frame_length', 'frame_shift',
+        valid_args = ('sample_frequency', 'frame_length', 'frame_shift',
                       'dither', 'snip_edges',
                       'vad_energy_mean_scale', 'vad_energy_threshold',
                       'vad_frames_context', 'vad_proportion_threshold')
         
-        d = dict((k, kwargs[p+k])
-                 for k in valid_args if p+k in kwargs)
+        d = dict((k, kwargs[k])
+                 for k in valid_args if k in kwargs)
         return d
-
     
         
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None):
         """Adds VAD options to parser.
            
            Args:
@@ -163,46 +165,58 @@ class EnergyVAD(object):
 
         if prefix is None:
             p1 = '--'
-            p2 = ''
         else:
-            p1 = '--' + prefix + '-'
-            p2 = prefix + '_'
-
-        parser.add_argument(p1+'sample-frequency', dest=(p2+'fs'), 
-                            default=16000, type=int,
-                            help='Waveform data sample frequency (must match the waveform file, if specified there)')
-        
-        parser.add_argument(p1+'frame-length', dest=(p2+'frame_length'), type=int,
-                            default=25,
-                            help='Frame length in milliseconds')
-        parser.add_argument(p1+'frame-shift', dest=(p2+'frame_shift'), type=int,
-                            default=10,
-                            help='Frame shift in milliseconds')
+            p1 = '--' + prefix + '.'
 
         parser.add_argument(
-            p1+'dither', dest=(p2+'dither'), type=float,
+            p1+'sample-frequency', 
+            default=16000, type=int,
+            help=('Waveform data sample frequency '
+                  '(must match the waveform file, if specified there)'))
+        
+        parser.add_argument(
+            p1+'frame-length', type=int,
+            default=25,
+            help='Frame length in milliseconds')
+        parser.add_argument(
+            p1+'frame-shift', type=int,
+            default=10,
+            help='Frame shift in milliseconds')
+
+        parser.add_argument(
+            p1+'dither', type=float,
             default=1,
             help='Dithering constant (0.0 means no dither)')
         
-        parser.add_argument(p1+'snip-edges', dest=(p2+'snip_edges'),
-                            default=True, type=str2bool,
-                            help='If true, end effects will be handled by outputting only frames that completely fit in the file, and the number of frames depends on the frame-length.  If false, the number of frames depends only on the frame-shift, and we reflect the data at the ends.')
+        parser.add_argument(
+            p1+'snip-edges', 
+            default=True, type=str2bool,
+            help=('If true, end effects will be handled by outputting only '
+                  'frames that completely fit in the file, and the number of '
+                  'frames depends on the frame-length. '
+                  'If false, the number of frames depends only on the '
+                  'frame-shift, and we reflect the data at the ends.'))
 
         parser.add_argument(
-            p1+'vad-energy-mean-scale', dest=(p2+'vad_energy_mean_scale'), type=float,
+            p1+'vad-energy-mean-scale', type=float,
             default=0.5,
-            help='If this is set to s, to get the actual threshold we let m be the mean log-energy of the file, and use s*m + vad-energy-threshold')
+            help=('If this is set to s, to get the actual threshold we let m '
+                  'be the mean log-energy of the file, and use '
+                  's*m + vad-energy-threshold'))
         parser.add_argument(
-            p1+'vad-energy-threshold', dest=(p2+'vad_energy_threshold'), type=float,
+            p1+'vad-energy-threshold', type=float,
             default=5,
             help='Constant term in energy threshold for MFCC0 for VAD')
         parser.add_argument(
-            p1+'vad-frames-context', dest=(p2+'vad_frames_context'), type=int,
+            p1+'vad-frames-context', type=int,
             default=0,
-            help='Number of frames of context on each side of central frame, in window for which energy is monitored')
+            help=('Number of frames of context on each side of central frame, '
+                  'in window for which energy is monitored'))
         parser.add_argument(
-            p1+'vad-proportion-threshold', dest=(p2+'vad_proportion_threshold'), type=float,
+            p1+'vad-proportion-threshold', type=float,
             default=0.6,
-            help='Parameter controlling the proportion of frames within the window that need to have more energy than the threshold')
+            help=('Parameter controlling the proportion of frames within '
+                  'the window that need to have more energy than the threshold'))
         
         
+    add_argparse_args = add_class_args

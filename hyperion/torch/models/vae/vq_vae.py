@@ -10,7 +10,7 @@ import torch.nn as nn
 import torch.distributions as pdf
 
 from ...torch_model import TorchModel
-from ...helpers import TorchNALoader
+from ...narchs import TorchNALoader
 from ...layers import tensor2pdf as t2pdf
 from ...layers import vq 
 
@@ -365,67 +365,68 @@ class VQVAE(TorchModel):
 
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ''
-        else:
-            p = prefix + '_'
-
+    def filter_args(**kwargs):
         valid_args = ('z_dim', 'kldiv_weight', 'diversity_weight', 
                       'vq_type', 'vq_groups', 'vq_clusters',
                       'vq_commitment_cost', 'vq_ema_gamma', 'vq_ema_eps', 'px_pdf')
 
-        args = dict((k, kwargs[p+k])
-                    for k in valid_args if p+k in kwargs)
+        args = dict((k, kwargs[k])
+                    for k in valid_args if k in kwargs)
 
         return args
 
 
 
     @staticmethod
-    def add_argparse_args(parser, prefix=None):
-        
-        if prefix is None:
-            p1 = '--'
-        else:
-            p1 = '--' + prefix + '-'
+    def add_class_args(parser, prefix=None):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog='')
 
         parser.add_argument(
-                p1+'z-dim', type=int, required=True,
+                '--z-dim', type=int, required=True,
                 help=('latent factor dimension'))
 
-        parser.add_argument(p1+'kldiv-weight', default=1, type=float,
+        parser.add_argument('--kldiv-weight', default=1, type=float,
                             help=('weight of the KL divergance in the ELBO'))
 
-        parser.add_argument(p1+'diversity-weight', default=0.1, type=float,
+        parser.add_argument('--diversity-weight', default=0.1, type=float,
                             help=('weight of the log-perplexity in the loss'))
 
         parser.add_argument(
-            p1+'vq-type', default='ema-k-means-vq', 
+            '--vq-type', default='ema-k-means-vq', 
             choices = ['k-means-vq', 'multi-k-means-vq', 'ema-k-means-vq', 'multi-ema-k-means-vq'],
             help=('type of vector quantization layer'))
 
         parser.add_argument(
-            p1+'vq-groups', default=1, type=int,
+            '--vq-groups', default=1, type=int,
             help=('number of groups in mulit-vq layers'))
 
         parser.add_argument(
-            p1+'vq-clusters', default=64, type=int,
+            '--vq-clusters', default=64, type=int,
             help=('size of the codebooks'))
 
-        parser.add_argument(p1+'vq-commitment-cost', default=0.25, type=float,
+        parser.add_argument('--vq-commitment-cost', default=0.25, type=float,
                             help=('commitment loss weight (beta in VQ-VAE paper)'))
 
-        parser.add_argument(p1+'vq-ema-gamma', default=0.99, type=float,
+        parser.add_argument('--vq-ema-gamma', default=0.99, type=float,
                             help=('decay parameter for exponential moving '
                                   'average calculation of the embeddings'))
 
-        parser.add_argument(p1+'vq-ema-eps', default=1e-5, type=float,
+        parser.add_argument('--vq-ema-eps', default=1e-5, type=float,
                             help=('pseudo-count value for Laplace smoothing '
                                   'of cluster counts for exponential moving '
                                   'avarage calculation of the embeddings'))
 
         parser.add_argument(
-            p1+'px-pdf', default='normal-glob-diag-cov', 
+            '--px-pdf', default='normal-glob-diag-cov', 
             choices = ['normal-i-cov', 'normal-glob-diag-cov', 'normal-diag-cov'],
             help=('pdf for data likelihood p(x|z)'))
+
+        if prefix is not None:
+            outer_parser.add_argument(
+                '--' + prefix,
+                action=ActionParser(parser=parser))
+                # help='vae options')
+
+    add_argparse_args = add_class_args

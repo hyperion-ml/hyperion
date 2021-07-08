@@ -29,16 +29,23 @@ tests/data_out/*
 
 # developer environments
 #.idea
-tools/anaconda/anaconda3.5
-tools/anaconda/anaconda3
-tools/anaconda/apex
-tools/ibm_art/adversarial-robustness-toolbox/
-tools/cudnn/cudnn-*
-tools/kaldi/kaldi
-tools/nccl/nccl_*
+tools/anaconda3.5
+tools/anaconda3
+tools/apex
+tools/adversarial-robustness-toolbox
+tools/cudnn-*
+tools/kaldi
+tools/nccl_*
+tools/path.sh
+tools/sph2pipe_*
 
 rirs_noises.zip
 RIRS_NOISES
 egs/*/*/exp
 egs/*/*/data
 kk
+
+egs/voxceleb/*/*.o*
+egs/voxceleb/*/*.e*
+egs/voxceleb/*/scores
+egs/voxceleb/*/q

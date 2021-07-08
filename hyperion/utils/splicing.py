@@ -2,9 +2,6 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from six.moves import xrange
 
 import numpy as np
 
@@ -50,7 +47,7 @@ class Splicing(object):
         X=np.zeros((num_out_frames, out_dim), dtype=float_cpu())
         
         start=0
-        for i in xrange(num_out_frames):
+        for i in range(num_out_frames):
             if self.splice_pattern is None:
                 X[i,:]=x[start:start+frame_shift,:].ravel()
             else:

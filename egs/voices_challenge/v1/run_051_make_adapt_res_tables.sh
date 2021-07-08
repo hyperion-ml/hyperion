@@ -2,17 +2,13 @@
 #
 # Apache 2.0.
 #
-
 . ./cmd.sh
 . ./path.sh
 set -e
 
-net_name=3b
-
 . parse_options.sh || exit 1;
 
-be_name=lda300_splday175_v2_train_combined_adapt_w0.35
-score_dir=exp/scores/$net_name/${be_name}
+score_dir=$1
 
 #global table
 

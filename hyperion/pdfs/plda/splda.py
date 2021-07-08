@@ -92,7 +92,7 @@ class SPLDA(PLDABase):
         if N_is_int:
             iterator = np.unique(N)
         else:
-            iterator = xrange(M)
+            iterator = range(M)
 
         y = np.zeros((M, y_dim), dtype=float_cpu())
         if return_cov:
@@ -224,7 +224,7 @@ class SPLDA(PLDABase):
             if self.fullcov_W:
                 self.W = invert_pdmat(iW, return_inv=True)[-1]
             else:
-                self.W=np.diag(1/np.diag(iW))
+                self.W = np.diag(1/np.diag(iW))
 
                 
     def MstepMD(self, stats):
@@ -328,9 +328,8 @@ class SPLDA(PLDABase):
         scores = np.zeros((len(N1), len(N2)), dtype=float_cpu())
         for N1_i in np.unique(N1):
             for N2_j in np.unique(N2):
-                i = np.where(N1 == N1_i)
-                j = np.where(N2 == N2_j)
-
+                i = np.where(N1 == N1_i)[0]
+                j = np.where(N2 == N2_j)[0]
                 L1 = I + N1_i*VV
                 mult_icholL1, logcholL1 = invert_trimat(
                     sla.cholesky(L1, lower=False, overwrite_a=True),
@@ -363,16 +362,15 @@ class SPLDA(PLDABase):
                 
                 Qtar_1 = np.sum(gamma_tar_1*gamma_tar_1, axis=1)[:, None]
                 Qtar_2 = np.sum(gamma_tar_2*gamma_tar_2, axis=1)
-                
+
                 scores_ij = 2*np.dot(gamma_tar_1, gamma_tar_2.T)
                 scores_ij += (Qtar_1 - Qnon_1 + Qtar_2 - Qnon_2)
                 scores_ij += (logL1 + logL2 - logLtar)
-                scores[i,j] = scores_ij
+                scores[np.ix_(i,j)] = scores_ij
                 
         scores *= 0.5
-
+        return scores
                 
-
 
     def sample(self, num_classes, num_samples_per_class, rng=None, seed=1024):
         if rng is None:
