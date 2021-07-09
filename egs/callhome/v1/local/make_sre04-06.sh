@@ -1,0 +1,1 @@
+local/make_sre04-06.sh

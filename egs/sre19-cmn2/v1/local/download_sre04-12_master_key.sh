@@ -8,6 +8,10 @@ set -e
 key_name=master_key_sre04-12
 master_key=$key_name/NIST_SRE_segments_key.v2.csv
 
+if [ -f ./path.sh ]; then 
+  . path.sh
+fi
+
 # shareable link:
 # https://drive.google.com/file/d/1znVYgrEuf9C0B1r7qNARB5E_h1EjKRGX/view?usp=sharing
 

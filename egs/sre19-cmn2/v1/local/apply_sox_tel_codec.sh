@@ -15,7 +15,7 @@ data_out=$2
 mkdir -p $data_out
 for f in utt2spk utt2lang feats.scp vad.scp
 do
-    src=$data/$f
+    src=$data_in/$f
     if [ -f $src ];then
 	awk '{ $1=$1"-tel"; print $0}' $src > $data_out/$f
     fi

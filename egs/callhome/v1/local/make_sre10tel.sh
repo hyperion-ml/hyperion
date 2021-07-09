@@ -1,0 +1,1 @@
+local/make_sre10tel.sh

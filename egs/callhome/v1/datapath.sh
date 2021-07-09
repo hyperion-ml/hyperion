@@ -35,7 +35,6 @@ elif [ "$(hostname --domain)" == "cm.gemini" ];then
     voxceleb1_root=/expscratch/dsnyder/VoxCeleb1
     voxceleb2_root=/expscratch/dgromero/corpora/vox2
     musan_root=/expscratch/dgromero/corpora/musan
-    /export/common/data/corpora/LDC/
     callhome_root=$ldc_root/LDC2001S97
 else
     echo "Put your database paths here"

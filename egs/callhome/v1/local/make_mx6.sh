@@ -1,0 +1,1 @@
+local/make_mx6.sh

@@ -1,0 +1,1 @@
+local/make_sre12.sh
