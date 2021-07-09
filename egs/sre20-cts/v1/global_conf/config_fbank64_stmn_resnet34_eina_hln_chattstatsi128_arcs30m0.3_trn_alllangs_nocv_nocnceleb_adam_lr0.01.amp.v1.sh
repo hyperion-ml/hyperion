@@ -1,7 +1,7 @@
 # ResNet34 x-vector with mixed precision training
 
 # acoustic features
-feat_config=conf/fbank64_mvn_8k.yaml
+feat_config=conf/fbank64_stmn_8k.yaml
 feat_type=fbank64_stmn
 
 

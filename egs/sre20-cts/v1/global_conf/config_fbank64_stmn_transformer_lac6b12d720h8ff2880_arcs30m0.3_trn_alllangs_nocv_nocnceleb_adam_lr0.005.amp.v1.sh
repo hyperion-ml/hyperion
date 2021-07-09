@@ -5,7 +5,7 @@
 # input is downsampled x4 by conv network
 
 # acoustic features
-feat_config=conf/fbank64_mvn_8k.yaml
+feat_config=conf/fbank64_stmn_8k.yaml
 feat_type=fbank64_stmn
 
 
