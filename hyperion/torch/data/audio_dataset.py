@@ -32,7 +32,7 @@ class AudioDataset(Dataset):
                  return_fullseqs=False,
                  return_class=True, return_clean_aug_pair=False, 
                  transpose_input=False, wav_scale=2**15-1, is_val=False,
-                dinossl_chunk_len_mult=None, dinossl_n_chunks=None):
+                dinossl_chunk_len_mult=None, dinossl_n_chunks=None, dinossl_reduce_overlap_prob=0):
 
         try:
             rank = dist.get_rank()
@@ -82,6 +82,7 @@ class AudioDataset(Dataset):
         # dinossl related
         self.dinossl_chunk_len_mult = dinossl_chunk_len_mult
         self.dinossl_n_chunks = dinossl_n_chunks
+        self.dinossl_reduce_overlap_prob = dinossl_reduce_overlap_prob
 
 
     def _read_time_durs_file(self, file_path):
@@ -380,8 +381,18 @@ class AudioDataset(Dataset):
         chunk_length_list.extend([chunk_length]*(self.dinossl_n_chunks-2))
 
         r_list = [] # this is for dino's multiple augmentations (more than once) of a given sample
+
+        # to reduce overlap between 2 long chunks 
+        long_chunk_proc_cnt = 0
+        tmp = torch.rand(size=(5,))*(full_seq_length - chunk_length_list[0])
+        time_offset_long_chunks = [torch.min(tmp), torch.max(tmp)]
+
         for chunk_length in chunk_length_list: # full_seq_length, self.reverb_context are fixed within this for loop
-            time_offset = torch.rand(size=(1,)).item()*(full_seq_length-chunk_length)
+            if (long_chunk_proc_cnt < 2) and (self.dinossl_reduce_overlap_prob > tmp[0]):
+                time_offset = time_offset_long_chunks[long_chunk_proc_cnt]
+                long_chunk_proc_cnt += 1
+            else:
+                time_offset = torch.rand(size=(1,)).item()*(full_seq_length-chunk_length)
             reverb_context = min(self.reverb_context, time_offset)
             time_offset -= reverb_context
             read_chunk_length = chunk_length + reverb_context
@@ -389,35 +400,6 @@ class AudioDataset(Dataset):
             #logging.info('get-random-chunk {} {} {} {} {}'.format(index, key, time_offset, chunk_length, full_seq_length ))
             x, fs = self.r.read([key], time_offset=time_offset,
                                 time_durs=read_chunk_length)
-
-            # try:
-            #     x, fs = self.r.read([key], time_offset=time_offset,
-            #                     time_durs=read_chunk_length)
-            # except:
-            #     # some files produce error in the fseek after reading the data,
-            #     # this seems an issue from pysoundfile or soundfile lib itself
-            #     # reading from a sligthly different starting position seems to solve the problem in most cases
-            #     try:
-            #         logging.info('error-1 reading at key={} totol_dur={} offset={} read_chunk_length={}, retrying...'.format(
-            #             key, full_seq_length, time_offset, read_chunk_length))
-            #         time_offset = math.floor(time_offset)
-            #         x, fs = self.r.read([key], time_offset=time_offset,
-            #                             time_durs=read_chunk_length)
-            #     except:
-            #         try:
-            #             # if changing the value of time-offset doesn't solve the issue, we try to read from
-            #             # from time-offset to the end of the file, and remove the extra frames later
-            #             logging.info('error-2 reading at key={} totol_dur={} offset={} retrying reading until end-of-file ...'.format(
-            #                 key, full_seq_length, time_offset))
-            #             x, fs = self.r.read([key], time_offset=time_offset)
-            #             x = [x[0][:int(read_chunk_length * fs[0])]]
-            #         except:
-            #             # try to read the full file
-            #             logging.info('error-3 reading at key={} totol_dur={} retrying reading full file ...'.format(
-            #                 key, full_seq_length))
-            #             x, fs = self.r.read([key])
-            #             x = [x[0][:int(read_chunk_length * fs[0])]]
-
                 
             x = x[0]
             fs = fs[0]

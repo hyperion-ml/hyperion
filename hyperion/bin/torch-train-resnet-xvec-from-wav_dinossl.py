@@ -87,7 +87,7 @@ def init_data(audio_path, train_list, val_list,
         logging.info('sampler args={}'.format(sampler_args))
         logging.info('init datasets')
 
-    train_data = AD(audio_path, train_list, aug_cfg=train_aug_cfg, **ad_args, dinossl_chunk_len_mult=kwargs['dinossl_chunk_len_mult'], dinossl_n_chunks=kwargs['dinossl_local_crops_number'] + 2)
+    train_data = AD(audio_path, train_list, aug_cfg=train_aug_cfg, **ad_args, dinossl_chunk_len_mult=kwargs['dinossl_chunk_len_mult'], dinossl_n_chunks=kwargs['dinossl_local_crops_number'] + 2, dinossl_reduce_overlap_prob=kwargs['dinossl_reduce_overlap_prob'])
     val_data = AD(audio_path, val_list, aug_cfg=val_aug_cfg, is_val=True, **ad_args)
 
     if rank == 0:
@@ -144,6 +144,7 @@ def init_xvector(num_classes, rank, **kwargs):
     model = XVec(**xvec_args)
     loss = None
     if kwargs['dinossl']:
+        model.conf = model.get_config() # The classif_net part will NOT be correct in the dinssl case but keep around this conf for compatibility with the current code-base 
         dinossl_args = dinossl.filter_args(**kwargs)
         if rank == 0:
             logging.info('dinossl args={}'.format(dinossl_args))
@@ -160,10 +161,10 @@ def init_xvector(num_classes, rank, **kwargs):
                     """
                     return x.view(x.size(0),-1)
             model.pool_net = nn.Sequential(nn.AdaptiveAvgPool2d(output_size=(2, 1)), Cat_dim12())
-            embed_dim = kwargs['embed_dim']
+            embed_dim = model.conf['embed_dim']
             model.classif_net = nn.Linear(256, embed_dim) # (JJ - TODO: This is hard-coded for LResNet for now)
         elif dinossl_args['dinossl_keep_classif_net']:
-            embed_dim = kwargs['embed_dim']
+            embed_dim = model.conf['embed_dim']
             model.classif_net.output = nn.Identity()
         else:
             embed_dim = model.classif_net.in_feats
@@ -185,9 +186,14 @@ def init_xvector(num_classes, rank, **kwargs):
         dinossl_args['dinossl_teacher_temp'],
         dinossl_args['dinossl_warmup_teacher_temp_epochs'],
         kwargs['epochs'],) # to(device) will happen in torch_trainer_dinossl.py
-    if rank == 0:
-        logging.info('x-vector-model={}'.format(model))
-    return model, loss
+
+        if rank == 0:
+            logging.info('dinossl-model={}'.format(model))
+        return model, loss
+    else: # when NOT doing dinossl. However, later parts of this case are NOT working yet.
+        if rank == 0:
+            logging.info('x-vector-model={}'.format(model))
+        return model, loss
 
 
 # def init_opt(model, rank, **kwargs):

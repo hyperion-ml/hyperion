@@ -114,7 +114,7 @@ class DINOSSLXVectorTrainerFromWav(DINOSSLXVectorTrainer):
                 loss = self.loss(output, output_teacher, self.cur_epoch)/self.grad_acc_steps # (JJ: EXP - Q. Is grad_acc_steps able to be applied? Currently, it is always set to 1, appying the linear lr rule depending on bs instead)
 
             if not math.isfinite(loss.item()):
-                print("Loss is {}, stopping training".format(loss.item()), force=True)
+                logging.warning('Loss is {}, stopping training'.format(loss.item()))
                 sys.exit(1)
 
             # (JJ TODO: Q: clip_gradients happpens in dino code but for now I skip including it. A: It happens in self.update_model() below but not sure the way it's done the same as in dino )

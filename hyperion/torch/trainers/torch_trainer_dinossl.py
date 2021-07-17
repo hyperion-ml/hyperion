@@ -21,7 +21,6 @@ import torch.distributed as dist
 from fairscale.optim.grad_scaler import ShardedGradScaler
 
 from ..utils import MetricAcc, TorchDDP, FairShardedDDP, FairFullyShardedDDP
-from ..utils import has_batchnorms
 from ..loggers import LoggerList, CSVLogger, ProgLogger, TensorBoardLogger, WAndBLogger
 from ..optim import OptimizerFactory as OF
 from ..lr_schedulers import LRSchedulerFactory as LRSF
@@ -125,7 +124,7 @@ class DINOSSLTorchTrainer(object):
             self.rank = dist.get_rank()
             self.world_size = dist.get_world_size()
             if ddp_type == DDPType.DDP or ddp_type == DDPType.OSS_DDP:
-                if has_batchnorms(self.model): # synchronize batch norms (if any) # (JJ: EXP - Q: Why we wrap teacher with ddp only when it has batchnorms? A: It seems to use unified estimates over gpus)
+                if dinossl.has_batchnorms(self.model): # synchronize batch norms (if any) # (JJ: EXP - Q: Why we wrap teacher with ddp only when it has batchnorms? A: It seems to use unified estimates over gpus)
                     self.model, self.model_teacher, self.model_teacher_without_ddp = self.convert_sync_batchnorm(device)
                 else: # (JJ: EXP - when we use ViT-like model (in DINO) that does not have batchnorms)
                     self.model_teacher_without_ddp = self.model_teacher
@@ -136,7 +135,7 @@ class DINOSSLTorchTrainer(object):
                 self.model = TorchDDP(self.model, device_ids=[device],
                                       output_device=device)
             elif ddp_type == DDPType.OSS_SHARDED_DDP:
-                if has_batchnorms(self.model):
+                if dinossl.has_batchnorms(self.model):
                     self.model, self.model_teacher, self.model_teacher_without_ddp = self.convert_sync_batchnorm(device)
                 else:
                     self.model_teacher_without_ddp = self.model_teacher
@@ -466,7 +465,7 @@ class DINOSSLTorchTrainer(object):
         checkpoint = {
             'epoch': self.cur_epoch,
             'rng_state': torch.get_rng_state(), # (JJ: TODO - Q: what is this for?)
-            #'model_cfg': self.model.get_config(), # (JJ: TODO - for now, I do NOT save this (looks a bit tedious to write) since it is not being called in resuming anyway)
+            'model_cfg': self.model.backbone.conf,
             'model_state_dict': self.model.state_dict(),
             'model_teacher_state_dict': self.model_teacher.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(), # (JJ: EXP - "it" used for schedules could be found by EITHER "it = len(data_loader) * self.cur_epoch + batch" OR "lr" in the checkpoint['logs'] below)

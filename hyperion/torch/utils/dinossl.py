@@ -69,12 +69,14 @@ def add_dinossl_args(parser):
     # Audio chunking related
     parser.add_argument('--dinossl_chunk_len_mult', type=int, default=2,
                         help=('value to multiply chunk_length with for long chunks'))
+    parser.add_argument('--dinossl_reduce_overlap_prob', type=float, default=0,
+                        help=('probability of applying a function to reduce an overlap between two long chunks'))
 
 def filter_args(**kwargs):
     valid_args = ('dinossl', 'dinossl_fclikeimage', 'dinossl_keep_classif_net', 'dinossl_nlayers', 'dinossl_out_dim', 'dinossl_use_bn_in_head',
                   'dinossl_norm_last_layer','dinossl_local_crops_number',
                   'dinossl_warmup_teacher_temp','dinossl_teacher_temp','dinossl_warmup_teacher_temp_epochs',
-                  'dinossl_chunk_len_mult')
+                  'dinossl_chunk_len_mult', 'dinossl_reduce_overlap_prob')
     args = dict((k, kwargs[k])
                 for k in valid_args if k in kwargs)
 
