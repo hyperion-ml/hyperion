@@ -288,7 +288,11 @@ class XVector(TorchModel):
         # if self.proj is not None:
         #     x = self.proj(x)
         p = self.pool_net(x)
-        y = self.classif_net.extract_embed(p, embed_layer)
+        if isinstance(self.classif_net,nn.modules.linear.Identity) or isinstance(self.classif_net,torch.nn.modules.linear.Linear): # dinossl
+            y = self.classif_net(p)
+        else:
+            y = self.classif_net.extract_embed(p, embed_layer)
+ 
         return y
 
 

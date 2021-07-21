@@ -23,6 +23,7 @@ from hyperion.io import VADReaderFactory as VRF
 from hyperion.augment import SpeechAugment
 
 from hyperion.torch.utils import open_device
+from hyperion.torch.utils import dinossl
 from hyperion.torch.narchs import AudioFeatsMVN as AF
 from hyperion.torch import TorchModelLoader as TML
 
@@ -45,9 +46,9 @@ def init_feats(device, **kwargs):
     return feat_extractor
 
 
-def load_model(model_path, device):
+def load_model(model_path, device, state_dict_key='model_state_dict', dinossl_kwargs=None):
     logging.info('loading model {}'.format(model_path))
-    model = TML.load(model_path)
+    model = TML.load(model_path, state_dict_key=state_dict_key ,dinossl_kwargs=dinossl_kwargs)
     logging.info('xvector-model={}'.format(model))
     model.to(device)
     model.eval()
@@ -96,7 +97,11 @@ def extract_xvectors(input_spec, output_spec, vad_spec, write_num_frames_spec,
     rng = np.random.RandomState(seed=1123581321+kwargs['part_idx'])
     device = init_device(use_gpu)
     feat_extractor = init_feats(device, **kwargs)
-    model = load_model(model_path, device)
+    if kwargs['dinossl']:
+        dinossl_kwargs={k:kwargs[k] for k in kwargs if 'dinossl' in k}
+        model = load_model(model_path, device, state_dict_key=kwargs['state_dict_key'], dinossl_kwargs=dinossl_kwargs)
+    else:
+        model = load_model(model_path, device, state_dict_key=kwargs['state_dict_key'])
 
     if write_num_frames_spec is not None:
         keys = []
@@ -162,7 +167,7 @@ def extract_xvectors(input_spec, output_spec, vad_spec, write_num_frames_spec,
                                 key, x, min_utt_length, max_utt_length, rng)
 
                         t6 = time.time()
-                        if x.shape[1] == 0:
+                        if x.shape[1] == 0: # JJ: EXP - this case is not taken care of for the dinossl case
                             y = np.zeros((model.embed_dim,), dtype=float_cpu())
                         else:
                             x = x.transpose(1,2).contiguous()
@@ -204,6 +209,7 @@ if __name__ == "__main__":
                      'acoustic features on the fly'))
 
     parser.add_argument('--cfg', action=ActionConfigFile)
+    parser.add_argument('--dinossl_cfg', action=ActionConfigFile)
     parser.add_argument('--input', dest='input_spec', required=True)
     parser.add_argument('--vad', dest='vad_spec', default=None)
     parser.add_argument('--write-num-frames', dest='write_num_frames_spec', 
@@ -243,6 +249,14 @@ if __name__ == "__main__":
                         help='extract xvectors in gpu')
     parser.add_argument('-v', '--verbose', dest='verbose', default=1, 
                         choices=[0, 1, 2, 3], type=int)
+    # dinossl related
+    parser.add_argument('--state_dict_key', type=str, default='model_state_dict', 
+                        choices=['model_state_dict','model_teacher_state_dict'],
+                        help=('key for state_dict of a pre-trained model. Currently model_teacher_state_dict only possible for dinossl'))
+    parser.add_argument('--dinossl_xvec_loc', type=str, default='f', 
+                        choices=['f', 'dinohead_mlp','dinohead_l2norm','dinohead_linear'],
+                        help=('Where to extract x-vectors from the dinossl model. The naming follows Figure 9 in the DINO paper'))
+    dinossl.add_dinossl_args(parser)
 
     args=parser.parse_args()
     config_logger(args.verbose)

@@ -122,7 +122,7 @@ class ResNetXVector(XVector):
         base_config = super().get_config()
         del base_config['encoder_cfg']
 
-        pool_cfg = self.pool_net.get_config()
+        pool_cfg = self.pool_net.get_config() # JJ: EXP - Q: seems repeated with super().get_config()
 
         config = {'resnet_type': self.resnet_type, 
                   'in_channels': self.in_channels,
@@ -151,6 +151,28 @@ class ResNetXVector(XVector):
 
         model = cls(**cfg) 
         if state_dict is not None:
+            # (JJ: EXP - This is for dinossl (It would be better to put it to the different script for better code style. Also think about trim the codes. It looks very hacky now)
+            is_classif_net_out = len([ True for k in state_dict.keys() if k[:18] == 'classif_net.output']) # to check this is to know if the training was dinossl or not
+            if not is_classif_net_out:
+                chk_fc_blks = len([ True for k in state_dict.keys() if k[:21] == 'classif_net.fc_blocks'])
+                chk_linear = len([ True for k in state_dict.keys() if k == 'classif_net.weight'])
+                if chk_fc_blks != 0: # dinossl_args['dinossl_keep_classif_net']
+                    model.classif_net.output = nn.Identity()
+                elif chk_linear >= 1: # dinossl_args['dinossl_fclikeimage'] - remove if NOT improving
+                    class Cat_dim12(nn.Module):
+                        def __init__(self):
+                            super().__init__()
+                        def __repr__(self):
+                            return f'Cat_dim12()'
+                        def forward(self, x):
+                            """
+                            Concate 1st and 2nd dimension axes
+                            """
+                            return x.view(x.size(0),-1)
+                    model.pool_net = nn.Sequential(nn.AdaptiveAvgPool2d(output_size=(2, 1)), Cat_dim12())
+                    model.classif_net = nn.Linear(256, cfg['embed_dim'])
+                elif chk_fc_blks + chk_linear == 0: # dino-head directly after hyperion pool_net
+                    model.classif_net = nn.Identity()
             model.load_state_dict(state_dict)
 
         return model

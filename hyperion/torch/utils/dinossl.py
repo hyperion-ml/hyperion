@@ -38,7 +38,7 @@ import torch.distributed as dist
 from PIL import ImageFilter, ImageOps
 
 def add_dinossl_args(parser):
-    parser.add_argument('--dinossl', default=True, type=bool, # I can simply type=bool with jsonargparse module. Refer to the "Boolean arguments" section in https://jsonargparse.readthedocs.io/en/stable/ 
+    parser.add_argument('--dinossl', default=False, type=bool, # I can simply type=bool with jsonargparse module. Refer to the "Boolean arguments" section in https://jsonargparse.readthedocs.io/en/stable/ 
         help='whether to run DINO self-supervised training')
     parser.add_argument('--dinossl_fclikeimage', default=False, type=bool,
         help='fc layer after conv layers in LResnet is similar to ResNet in Image field') # (JJ: TODO - revert if NOT improve)
@@ -385,6 +385,22 @@ class MultiCropWrapper(nn.Module):
             start_idx = end_idx
         # Run the head forward on the concatenated features.
         return self.head(output)
+
+    def extract_embed(self, x, chunk_length=0, embed_layer=None, detach_chunks=False):
+        # - This method is NOT used when extracting xvectors from f (right before the DINOHead)
+        # - self.dinossl_xvec_loc is registered (in TorchModelLoader) for xvector extraction NOT during training.
+        y = self.backbone.extract_embed(x, chunk_length=chunk_length, 
+                                embed_layer=embed_layer)
+        if self.dinossl_xvec_loc == "dinohead_mlp":
+            y = self.head.mlp(y)
+        elif self.dinossl_xvec_loc == "dinohead_l2norm":
+            y = self.head.mlp(y)
+            y = nn.functional.normalize(y, dim=-1, p=2)
+        elif self.dinossl_xvec_loc == "dinohead_linear":
+            y = self.head(y)
+        else:
+            NotImplementedError
+        return y
 
 
 def get_params_groups(model):
