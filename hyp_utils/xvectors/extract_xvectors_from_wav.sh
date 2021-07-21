@@ -15,6 +15,8 @@ random_utt_length=false
 aug_config=""
 num_augs=0
 use_bin_vad=true
+state_dict_key=model_state_dict
+dinossl_cfg=""
 
 echo "$0 $@"  # Print the command line for logging
 
@@ -75,6 +77,15 @@ fi
 
 if [ "$random_utt_length" == "true" ];then
     args="${args} --random-utt-length --min-utt-length $min_utt_length --max-utt-length $max_utt_length"
+fi
+
+if [ "${state_dict_key}" != "model_state_dict" ];then
+    args="${args} --state_dict_key ${state_dict_key}"
+fi
+
+if [[ -n ${dinossl_cfg} ]];then
+    args="${args} --dinossl_cfg ${dinossl_cfg}"
+
 fi
 
 if [ "$write_utt2num_frames" == "true" ];then
