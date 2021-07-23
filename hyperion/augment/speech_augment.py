@@ -13,41 +13,46 @@ from ..hyp_defs import float_cpu
 
 from .noise_augment import NoiseAugment
 from .reverb_augment import ReverbAugment
+from .speed_augment import SpeedAugment
 
 
 class SpeechAugment(object):
-    """ Class to add noise and reverberation on-the-fly when trianing nnets.
-        
+    """Class to add noise and reverberation on-the-fly when trianing nnets.
+
     Attributes:
+       speed_aug: SpeedAugment object
        reverb_aug: ReverbAugment object
        noise_aug: NoiseAugment object
     """
-    def __init__(self, reverb_aug=None, noise_aug=None):
+
+    def __init__(self, speed_aug=None, reverb_aug=None, noise_aug=None):
+        self.speed_aug = speed_aug
         self.reverb_aug = reverb_aug
         self.noise_aug = noise_aug
 
-
     @classmethod
-    def create(cls, cfg, random_seed=112358, rng=None): 
+    def create(cls, cfg, random_seed=112358, rng=None):
         if isinstance(cfg, str):
-            with open(cfg, 'r') as f:
+            with open(cfg, "r") as f:
                 cfg = yaml.load(f, Loader=yaml.FullLoader)
 
-        assert isinstance(cfg, dict), (
-            'wrong object type for cfg={}'.format(cfg))
+        assert isinstance(cfg, dict), "wrong object type for cfg={}".format(cfg)
+
+        speed_aug = None
+        if "speed_aug" in cfg:
+            speed_aug = SpeedAugment.create(cfg["speed_aug"], random_seed=random_seed)
 
         reverb_aug = None
-        if 'reverb_aug' in cfg:
+        if "reverb_aug" in cfg:
             reverb_aug = ReverbAugment.create(
-                cfg['reverb_aug'], random_seed=random_seed)
+                cfg["reverb_aug"], random_seed=random_seed
+            )
 
         noise_aug = None
-        if 'noise_aug' in cfg:
-            noise_aug = NoiseAugment.create(
-                cfg['noise_aug'], random_seed=random_seed)
+        if "noise_aug" in cfg:
+            noise_aug = NoiseAugment.create(cfg["noise_aug"], random_seed=random_seed)
 
-        return cls(reverb_aug=reverb_aug, noise_aug=noise_aug)
-
+        return cls(speed_aug=speed_aug, reverb_aug=reverb_aug, noise_aug=noise_aug)
 
     @property
     def max_reverb_context(self):
@@ -55,40 +60,39 @@ class SpeechAugment(object):
             return 0
 
         return self.reverb_aug.max_reverb_context
-            
-        
 
     def forward(self, x):
 
-        x_clean = x
         info = {}
+        if self.speed_aug is not None:
+            x, speed_info = self.speed_aug(x)
+            info["speed"] = speed_info
+
+        x_speed = x
+
         if self.reverb_aug is not None:
             x, reverb_info = self.reverb_aug(x)
-            info['reverb'] = reverb_info
+            info["reverb"] = reverb_info
         else:
-            info['reverb'] = {'rir_type': None, 'srr': 100, 
-                              'h_max': 1, 'h_delay': 0}
+            info["reverb"] = {"rir_type": None, "srr": 100, "h_max": 1, "h_delay": 0}
 
         if self.noise_aug is not None:
             x, noise_info = self.noise_aug(x)
-            info['noise'] = noise_info
+            info["noise"] = noise_info
         else:
-            info['noise'] = {'noise_type': None, 'snr': 100}
+            info["noise"] = {"noise_type": None, "snr": 100}
 
         if self.noise_aug is None:
-            info['sdr'] = info['reverb']['srr']
+            info["sdr"] = info["reverb"]["srr"]
         elif self.reverb_aug is None:
-            info['sdr'] = info['noise']['snr']
+            info["sdr"] = info["noise"]["snr"]
         else:
             # we calculate SNR(dB) of the combined reverb + noise
-            scale = info['reverb']['h_max']
-            delay = info['reverb']['h_delay']
-            info['sdr'] = ReverbAugment.sdr(x_clean, x, scale, delay)
+            scale = info["reverb"]["h_max"]
+            delay = info["reverb"]["h_delay"]
+            info["sdr"] = ReverbAugment.sdr(x_speed, x, scale, delay)
 
         return x, info
 
-
     def __call__(self, x):
         return self.forward(x)
-        
-        

@@ -40,7 +40,8 @@ WINDOWS = [HAMMING, HANNING, POVEY, RECTANGULAR, BLACKMAN]
 #     return torch.matmul(a, b)
 
 
-def _get_feature_window_function(window_type, window_size,
+def _get_feature_window_function(window_type,
+                                 window_size,
                                  blackman_coeff=0.42):
     r"""Returns a window function with the given type and size
     """
@@ -69,7 +70,11 @@ def _get_feature_window_function(window_type, window_size,
         raise Exception('Invalid window type ' + window_type)
 
 
-def _get_strided_batch(waveform, window_length, window_shift, snip_edges):
+def _get_strided_batch(waveform,
+                       window_length,
+                       window_shift,
+                       snip_edges,
+                       center=False):
     r"""Given a waveform (1D tensor of size ``num_samples``), it returns a 2D tensor (m, ``window_size``)
     representing how the window is shifted along the waveform. Each row is a frame.
 
@@ -80,6 +85,8 @@ def _get_strided_batch(waveform, window_length, window_shift, snip_edges):
         snip_edges (bool): If True, end effects will be handled by outputting only frames that completely fit
             in the file, and the number of frames depends on the frame_length.  If False, the number of frames
             depends only on the frame_shift, and we reflect the data at the ends.
+        center (bool): If true, if puts the center of the frame at t*window_shift, starting at t=0,
+                       If overwrides snip_edges and set it to False
 
     Returns:
         torch.Tensor: 3D tensor of size (m, ``window_size``) where each row is a frame
@@ -87,6 +94,8 @@ def _get_strided_batch(waveform, window_length, window_shift, snip_edges):
     assert waveform.dim() == 2
     batch_size = waveform.size(0)
     num_samples = waveform.size(-1)
+    if center:
+        snip_edges = False
 
     if snip_edges:
         if num_samples < window_length:
@@ -94,11 +103,19 @@ def _get_strided_batch(waveform, window_length, window_shift, snip_edges):
         else:
             num_frames = 1 + (num_samples - window_length) // window_shift
     else:
-        num_frames = (num_samples + (window_shift // 2)) // window_shift
-        new_num_samples = (num_frames - 1) * window_shift + window_length
-        npad = new_num_samples - num_samples
-        npad_left = int((window_length - window_shift) // 2)
-        npad_right = npad - npad_left
+        if center:
+            npad_left = int(window_length // 2)
+            npad_right = npad_left
+            npad = 2 * npad_left
+            num_frames = 1 + (num_samples + npad -
+                              window_length) // window_shift
+        else:
+            num_frames = (num_samples + (window_shift // 2)) // window_shift
+            new_num_samples = (num_frames - 1) * window_shift + window_length
+            npad = new_num_samples - num_samples
+            npad_left = int((window_length - window_shift) // 2)
+            npad_right = npad - npad_left
+
         #waveform = nn.functional.pad(waveform, (npad_left, npad_right), mode='reflect')
         pad_left = torch.flip(waveform[:, 1:npad_left + 1], (1, ))
         pad_right = torch.flip(waveform[:, -npad_right - 1:-1], (1, ))
@@ -134,6 +151,7 @@ class Wav2Win(nn.Module):
                  window_type='povey',
                  dither=1,
                  snip_edges=True,
+                 center=False,
                  energy_floor=0,
                  raw_energy=True,
                  return_log_energy=False):
@@ -148,6 +166,7 @@ class Wav2Win(nn.Module):
         self.window_type = window_type
         self.dither = dither
         self.snip_edges = snip_edges
+        self.center = center
         self.energy_floor = energy_floor
         self.raw_energy = raw_energy
         self.return_log_energy = return_log_energy
@@ -169,12 +188,12 @@ class Wav2Win(nn.Module):
         s = (
             '{}(fs={}, frame_length={}, frame_shift={}, pad_length={}, '
             'remove_dc_offset={}, preemph_coeff={}, window_type={} '
-            'dither={}, snip_edges={}, energy_floor={}, raw_energy={}, return_log_energy={})'
+            'dither={}, snip_edges={}, center={}, energy_floor={}, raw_energy={}, return_log_energy={})'
         ).format(self.__class__.__name__, self.fs, self.frame_length,
                  self.frame_shift, self.pad_length, self.remove_dc_offset,
                  self.preemph_coeff, self.window_type, self.dither,
-                 self.snip_edges, self.energy_floor, self.raw_energy,
-                 self.return_log_energy)
+                 self.snip_edges, self.center, self.energy_floor,
+                 self.raw_energy, self.return_log_energy)
         return s
 
     def forward(self, x):
@@ -191,8 +210,11 @@ class Wav2Win(nn.Module):
 
         if self.return_log_energy and self.raw_energy:
             # Compute the log energy of each frame
-            x_strided = _get_strided_batch(x, self._length, self._shift,
-                                           self.snip_edges)
+            x_strided = _get_strided_batch(x,
+                                           self._length,
+                                           self._shift,
+                                           self.snip_edges,
+                                           center=self.center)
             log_energy = _get_log_energy(x_strided,
                                          self.energy_floor)  # size (m)
 
@@ -201,8 +223,11 @@ class Wav2Win(nn.Module):
                                                mode='replicate').squeeze(1)
             x = x - self.preemph_coeff * x_offset[:, :-1]
 
-        x_strided = _get_strided_batch(x, self._length, self._shift,
-                                       self.snip_edges)
+        x_strided = _get_strided_batch(x,
+                                       self._length,
+                                       self._shift,
+                                       self.snip_edges,
+                                       center=self.center)
 
         # Apply window_function to each frame
         x_strided = x_strided * self._window
@@ -236,6 +261,7 @@ class Wav2FFT(nn.Module):
                  window_type='povey',
                  dither=1,
                  snip_edges=True,
+                 center=False,
                  energy_floor=0,
                  raw_energy=True,
                  use_energy=True):
@@ -256,6 +282,7 @@ class Wav2FFT(nn.Module):
                                window_type=window_type,
                                dither=dither,
                                snip_edges=snip_edges,
+                               center=center,
                                energy_floor=0,
                                raw_energy=raw_energy,
                                return_log_energy=use_energy)
@@ -318,6 +345,7 @@ class Wav2Spec(Wav2FFT):
                  use_fft_mag=False,
                  dither=1,
                  snip_edges=True,
+                 center=False,
                  energy_floor=0,
                  raw_energy=True,
                  use_energy=True):
@@ -331,6 +359,7 @@ class Wav2Spec(Wav2FFT):
                          window_type=window_type,
                          dither=dither,
                          snip_edges=snip_edges,
+                         center=center,
                          energy_floor=energy_floor,
                          raw_energy=raw_energy,
                          use_energy=use_energy)
@@ -372,6 +401,7 @@ class Wav2LogSpec(Wav2FFT):
                  use_fft_mag=False,
                  dither=1,
                  snip_edges=True,
+                 center=False,
                  energy_floor=0,
                  raw_energy=True,
                  use_energy=True):
@@ -385,6 +415,7 @@ class Wav2LogSpec(Wav2FFT):
                          window_type=window_type,
                          dither=dither,
                          snip_edges=snip_edges,
+                         center=center,
                          energy_floor=energy_floor,
                          raw_energy=raw_energy,
                          use_energy=use_energy)
@@ -434,6 +465,7 @@ class Wav2LogFilterBank(Wav2FFT):
                  num_filters=23,
                  norm_filters=False,
                  snip_edges=True,
+                 center=False,
                  energy_floor=0,
                  raw_energy=True,
                  use_energy=True):
@@ -447,6 +479,7 @@ class Wav2LogFilterBank(Wav2FFT):
                          window_type=window_type,
                          dither=dither,
                          snip_edges=snip_edges,
+                         center=center,
                          energy_floor=energy_floor,
                          raw_energy=raw_energy,
                          use_energy=use_energy)
@@ -516,6 +549,7 @@ class Wav2MFCC(Wav2FFT):
                  norm_filters=False,
                  num_ceps=13,
                  snip_edges=True,
+                 center=False,
                  cepstral_lifter=22,
                  energy_floor=0,
                  raw_energy=True,
@@ -530,6 +564,7 @@ class Wav2MFCC(Wav2FFT):
                          window_type=window_type,
                          dither=dither,
                          snip_edges=snip_edges,
+                         center=center,
                          energy_floor=energy_floor,
                          raw_energy=raw_energy,
                          use_energy=use_energy)
@@ -611,3 +646,78 @@ class Wav2MFCC(Wav2FFT):
             mfcc[:, 0] = log_e
 
         return mfcc
+
+
+class Wav2KanBayashiLogFilterBank(Wav2LogFilterBank):
+    """Class to replicate log-filter-banks used in 
+       Kan Bayashi's ParallelWaveGAN repository:
+       https://github.com/kan-bayashi/ParallelWaveGAN
+    """
+    def __init__(self,
+                 fs=16000,
+                 frame_length=64,
+                 frame_shift=16,
+                 fft_length=1024,
+                 remove_dc_offset=True,
+                 window_type='hanning',
+                 low_freq=80,
+                 high_freq=7600,
+                 num_filters=80,
+                 snip_edges=False,
+                 center=True):
+
+        super().__init__(fs=fs,
+                         frame_length=frame_length,
+                         frame_shift=frame_shift,
+                         fft_length=fft_length,
+                         remove_dc_offset=remove_dc_offset,
+                         preemph_coeff=0,
+                         window_type=window_type,
+                         use_fft_mag=True,
+                         dither=1e-5,
+                         fb_type='mel_librosa',
+                         low_freq=low_freq,
+                         high_freq=high_freq,
+                         num_filters=num_filters,
+                         norm_filters=True,
+                         snip_edges=snip_edges,
+                         center=center,
+                         use_energy=False)
+
+        # Kan Bayashi uses log10 instead of log
+        self.scale = 1. / math.log(10)
+
+    def forward(self, x):
+        return self.scale * super().forward(x)
+
+
+class Spec2LogFilterBank():
+    def __init__(self,
+                 fs=16000,
+                 fft_length=512,
+                 fb_type='mel_kaldi',
+                 low_freq=20,
+                 high_freq=0,
+                 num_filters=23,
+                 norm_filters=False):
+
+        super().__init__()
+        self.fs = fs
+        self.fft_length = fft_length
+        self.fb_type = fb_type
+        self.low_freq = low_freq
+        self.high_freq = high_freq
+        self.num_filters = num_filters
+        self.norm_filters = norm_filters
+
+        fb = FBF.create(fb_type, num_filters, self.fft_length, self.fs,
+                        low_freq, high_freq, norm_filters)
+        self._fb = nn.Parameter(torch.tensor(fb,
+                                             dtype=torch.get_default_dtype()),
+                                requires_grad=False)
+
+    def forward(self, x):
+        with amp.autocast(enabled=False):
+            pow_spec = torch.matmul(x.float(), self._fb.float())
+        pow_spec = (pow_spec + 1e-10).log()
+        return pow_spec

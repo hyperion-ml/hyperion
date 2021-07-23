@@ -28,9 +28,16 @@ class SingleNoiseAugment(object):
       rng:     Random number generator returned by 
                np.random.RandomState (optional)
     """
-    def __init__(self, noise_type, noise_path, min_snr, max_snr, random_seed=112358, rng=None):
-        logging.info('init noise_augment with noise={} noise_path={} snr={}-{}'.format(
-            noise_type, noise_path, min_snr, max_snr))
+    def __init__(self,
+                 noise_type,
+                 noise_path,
+                 min_snr,
+                 max_snr,
+                 random_seed=112358,
+                 rng=None):
+        logging.info(
+            'init noise_augment with noise={} noise_path={} snr={}-{}'.format(
+                noise_type, noise_path, min_snr, max_snr))
 
         self.noise_type = noise_type
         self.r = AR(noise_path)
@@ -44,25 +51,22 @@ class SingleNoiseAugment(object):
         else:
             self.rng = deepcopy(rng)
 
-        logging.info('init noise_augment with noise={} done'.format(noise_type))
-
+        logging.info(
+            'init noise_augment with noise={} done'.format(noise_type))
 
     @staticmethod
     def _power(x):
         return 10 * np.log10((x**2).sum())
 
-
     @staticmethod
     def snr(x, n):
         return SingleNoiseAugment._power(x) - SingleNoiseAugment._power(n)
 
-
     @staticmethod
     def _compute_noise_scale(x, n, target_snr):
         snr = SingleNoiseAugment.snr(x, n)
-        return 10**((snr - target_snr)/20)
-        
-    
+        return 10**((snr - target_snr) / 20)
+
     def forward(self, x):
         num_samples = x.shape[0]
         with self.lock:
@@ -75,19 +79,20 @@ class SingleNoiseAugment(object):
                     self.cache = None
             else:
                 noise = None
-                    
+
         while noise is None or noise.shape[0] < num_samples:
             with self.lock:
                 noise_idx = self.rng.randint(len(self.noise_keys))
                 key = self.noise_keys[noise_idx]
                 noise_k, fs_k = self.r.read([key])
                 noise_k = noise_k[0]
-            
+
             if noise is None:
                 need_samples = min(x.shape[0], noise_k.shape[0])
                 noise = noise_k[:need_samples]
             else:
-                need_samples = min(x.shape[0]-noise.shape[0], noise_k.shape[0])
+                need_samples = min(x.shape[0] - noise.shape[0],
+                                   noise_k.shape[0])
                 noise = np.concatenate((noise, noise_k[:need_samples]))
 
             if need_samples < noise_k.shape[0]:
@@ -101,10 +106,8 @@ class SingleNoiseAugment(object):
         info = {'noise_type': self.noise_type, 'snr': target_snr}
         return x + scale * noise, info
 
-
     def __call__(self, x):
         return self.forward(x)
-
 
 
 class NoiseAugment(object):
@@ -122,20 +125,23 @@ class NoiseAugment(object):
       rng:     Random number generator returned by 
                np.random.RandomState (optional)
     """
-
     def __init__(self, noise_prob, noise_types, random_seed=112358, rng=None):
-        logging.info('init noise_augment')
+        logging.info('init noise augment')
         self.noise_prob = noise_prob
         assert isinstance(noise_types, dict)
-        num_noise_types = len(noise_types)
-        
+        # num_noise_types = len(noise_types)
+
         augmenters = []
-        self.weights = np.zeros((len(noise_types),))
+        self.weights = np.zeros((len(noise_types), ))
         count = 0
         for key, opts in noise_types.items():
             self.weights[count] = opts['weight']
-            aug = SingleNoiseAugment(key, opts['noise_path'], opts['min_snr'], opts['max_snr'], 
-                                     random_seed=random_seed, rng=rng)
+            aug = SingleNoiseAugment(key,
+                                     opts['noise_path'],
+                                     opts['min_snr'],
+                                     opts['max_snr'],
+                                     random_seed=random_seed,
+                                     rng=rng)
             augmenters.append(aug)
             count += 1
 
@@ -148,9 +154,8 @@ class NoiseAugment(object):
         else:
             self.rng = deepcopy(rng)
 
-
     @classmethod
-    def create(cls, cfg, random_seed=112358, rng=None): 
+    def create(cls, cfg, random_seed=112358, rng=None):
         """ Creates a NoiseAugment object from options dictionary or YAML file.
 
         Args:
@@ -165,12 +170,13 @@ class NoiseAugment(object):
             with open(cfg, 'r') as f:
                 cfg = yaml.load(f, Loader=yaml.FullLoader)
 
-        assert isinstance(cfg, dict), (
-            'wrong object type for cfg={}'.format(cfg))
+        assert isinstance(cfg,
+                          dict), ('wrong object type for cfg={}'.format(cfg))
 
-        return cls(noise_prob=cfg['noise_prob'], noise_types=cfg['noise_types'], 
-                   random_seed=random_seed, rng=rng)
-
+        return cls(noise_prob=cfg['noise_prob'],
+                   noise_types=cfg['noise_types'],
+                   random_seed=random_seed,
+                   rng=rng)
 
     def forward(self, x):
 
@@ -191,8 +197,5 @@ class NoiseAugment(object):
         x, info = self.augmenters[noise_idx](x)
         return x, info
 
-
     def __call__(self, x):
         return self.forward(x)
-        
-        

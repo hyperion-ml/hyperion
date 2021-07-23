@@ -4,5 +4,6 @@
 """
 
 from .speech_augment import SpeechAugment
+from .speed_augment import SpeedAugment
 from .noise_augment import NoiseAugment
 from .reverb_augment import ReverbAugment
