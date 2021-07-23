@@ -17,3 +17,5 @@ jsonargparse>=3.5.0
 wandb>=0.10.30
 librosa>=0.8.1
 black
+twine
+wheel
