@@ -14,8 +14,8 @@ tests/data_out/*
 
 
 #temp/*
-#dist/*
-#build/*
+dist/*
+build/*
 #keras/datasets/data/*
 #keras/datasets/temp/*
 #docs/site/*
@@ -43,9 +43,18 @@ rirs_noises.zip
 RIRS_NOISES
 egs/*/*/exp
 egs/*/*/data
-kk
 
-egs/voxceleb/*/*.o*
-egs/voxceleb/*/*.e*
-egs/voxceleb/*/scores
-egs/voxceleb/*/q
+
+# some dummy file names
+kk
+qq
+1.sh
+2.sh
+3.sh
+4.sh
+5.sh
+10.sh
+11.sh
+30.sh
+30.*.sh
+40.sh

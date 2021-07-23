@@ -16,34 +16,56 @@
 #
 import setuptools
 
-with open('apps.txt') as f:
+with open("apps.txt") as f:
     apps = f.read().splitlines()
 
-apps = ['hyperion/bin/' + app for app in apps]
+apps = ["hyperion/bin/" + app for app in apps]
 
-with open('requirements.txt') as f:
+with open("requirements.txt") as f:
     requirements = f.read().splitlines()
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="hyperion",  # Replace with your own username
-    version="0.1.1",
+    # This name will decide what users will type when they install your package.
+    name="hyperion-ml",
+    # The version of your project.
+    # Usually, it would be in the form of:
+    # major.minor.patch
+    # eg: 1.0.0, 1.0.1, 3.0.2, 5.0-beta, etc.
+    # You CANNOT upload two versions of your package with the same version number
+    version="0.1.0rc1",
     author="Jesus Villalba",
     author_email="jesus.antonio.villalba@gmail.com",
+    # The description that will be shown on PyPI.
+    # Keep it short and concise
+    # This field is OPTIONAL
     description="Toolkit for speaker recognition",
+    # The content that will be shown on your project page.
+    # In this case, we're displaying whatever is there in our README.md file
+    # This field is OPTIONAL
     long_description=long_description,
     long_description_content_type="text/markdown",
+    keywords="speaker recognition, adversarial attacks, NIST SRE, x-vectors",
     url="https://github.com/hyperion-ml/hyperion",
-    packages=setuptools.find_packages(),
+    # The packages that constitute your project.
+    # For my project, I have only one - "pydash".
+    # Either you could write the name of the package, or
+    # alternatively use setuptools.findpackages()
+    #
+    # If you only have one file, instead of a package,
+    # you can instead use the py_modules field instead.
+    # EITHER py_modules OR packages should be present.
+    packages=setuptools.find_packages(exclude="tests"),
     classifiers=[
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
-        "License :: OSI Approved :: Apache 2.0",
+        "License :: OSI Approved :: Apache Software License",
         "Operating System :: OS Independent",
     ],
-    python_requires='>=3.7',
+    python_requires=">=3.7",
     install_requires=requirements,
-    scripts=apps)
+    scripts=apps,
+)
