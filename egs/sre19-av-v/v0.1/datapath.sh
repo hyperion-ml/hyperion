@@ -20,7 +20,6 @@ else
   exit 1
 fi
 
-
 #trial files
 
 # SRE19 trials

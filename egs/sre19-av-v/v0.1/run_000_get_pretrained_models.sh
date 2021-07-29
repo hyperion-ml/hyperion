@@ -30,7 +30,7 @@ if [ $stage -le 1 ];then
 fi
 
 
-echo "download face recognition models from https://github.com/deepinsight/insightface/wiki/Model-Zoo"
+echo "Download face recognition models from https://github.com/deepinsight/insightface/wiki/Model-Zoo"
 if [ $stage -le 2 ];then
 
     face_reco_modeldir=exp/face_models/r100-arcface
