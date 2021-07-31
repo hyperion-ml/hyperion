@@ -9,19 +9,27 @@ This toolkit requires MX-Net, we create a separate environment for mxnet,
 conda create --name hyperion_tyche python=3.8
 conda activate hyperion_tyche
 conda install pytorch==1.8.0 torchvision==0.9.0 torchaudio==0.8.0 cudatoolkit=10.2 -c pytorch
-pip install mxnet-cu102
 ```
 
 We use PyAV package to read the videos
 ```
 https://docs.mikeboers.com/pyav/develop/index.html
 ```
-
-install in conda with:
+Install in conda with:
 ```bash
 conda install av -c conda-forge
 ```
 it requeres ffmepg available in the grid.
+
+Install mxnet, opencv and other requirements
+```
+pip install -r requirements.txt
+```
+
+Get insightface repo
+```
+local/install_insightface.sh
+```
 
 ## Citing
 
@@ -29,7 +37,7 @@ We used this setup in JHU-CLSP team submission to NIST SRE19, cite:
 ```
 @inproceedings{Villalba2020,
 address = {Tokyo, Japan},
-author = {Villalba, Jes{\'{u}}s and Garcia-Romero, Daniel and Chen, Nanxin and Sell, Gregory and Borgstrom, Jonas and McCree, Alan and {Garcia Perera}, Leibny Paola and Kataria, Saurabh and Nidadavolu, Phani Sankar and Torres-Carrasquiilo, Pedro and Dehak, Najim},
+author = {Villalba, Jes{\'{u}}s and Garcia-Romero, Daniel and Chen, Nanxin and Sell, Gregory and Borgstrom, Jonas and McCree, Alan and {Garcia Perera}, Leibny Paola and Kataria, Saurabh and Nidadavolu, Phani Sankar and Torres-Carrasquillo, Pedro and Dehak, Najim},
 booktitle = {Odyssey 2020 The Speaker and Language Recognition Workshop},
 doi = {10.21437/Odyssey.2020-39},
 month = {nov},
@@ -39,7 +47,6 @@ title = {{Advances in Speaker Recognition for Telephone and Audio-Visual Data: t
 url = {http://www.isca-speech.org/archive/Odyssey_2020/abstracts/88.html},
 year = {2020}
 }
-
 ```
 
 You may want to cite also:
@@ -112,6 +119,8 @@ run_0xx_....sh --config-file global_conf/config_r50.sh
      - Data preparation script to generate Kaldi style data directories for 
        - SRE19 AV/JANUS
 
-   - 
+   - `run_002_extract_embed.sh`
+     - Detect faces and computes face embeddings
+     
 
 

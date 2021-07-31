@@ -4,9 +4,10 @@ export TOOLS_ROOT=$HYP_ROOT/tools
 
 . $TOOLS_ROOT/path.sh
 
-INSIGHT_ROOT=$TOOLS_ROOT/insightface/insightface
-RETINA_PATH=$INSIGHT_ROOT/RetinaFace
-FACERECO_PATH=$INSIGHT_ROOT/deploy
+INSIGHT_ROOT=$PWD/insightface
+RETINA_PATH=$INSIGHT_ROOT/detection/retinaface
+FACERECO_PATH=$INSIGHT_ROOT/recognition/arcface_mxnet
+FACERECO_PATH=$PWD/steps_insightface/deploy
 
 MXNET_ENV=hyperion_tyche
 echo "MXNet Environment=$MXNET_ENV"
