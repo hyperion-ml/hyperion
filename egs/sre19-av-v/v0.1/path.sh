@@ -10,7 +10,7 @@ FACERECO_PATH=$INSIGHT_ROOT/recognition/arcface_mxnet
 FACERECO_PATH=$PWD/steps_insightface/deploy
 
 MXNET_ENV=hyperion_tyche
-echo "MXNet Environment=$MXNET_ENV"
+#echo "MXNet Environment=$MXNET_ENV"
 
 if [ "$(hostname --domain)" == "cm.gemini" ];then
   module load cuda10.2/toolkit
