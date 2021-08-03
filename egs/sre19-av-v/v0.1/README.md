@@ -122,5 +122,48 @@ run_0xx_....sh --config-file global_conf/config_r50.sh
    - `run_002_extract_embed.sh`
      - Detect faces and computes face embeddings
      
+   - `run_040_eval_be_v1.sh`
+     - Evaluates backend v1
+       - Score all enroll face-embeddings versus all test face-embeddings and take the max. score.
+     
+   - `run_041_eval_be_v2.sh`
+     - Evaluates backend v2
+       - Score average enroll face-embeddings versus all test face-embeddings and take the max. score.
+     
+   - `run_042_eval_be_v3.sh`
+     - Evaluates backend v3
+       - Score median enroll face-embeddings versus all test face-embeddings and take the max. score.
+     
+   - `run_043_eval_be_v4.sh`
+     - Evaluates backend v4
+       - Enroll on median face-embeddings
+       - Test performs agglomerative clustering of face-embeddings
+       - Score enrollment embedding versus mean of each cluster and take the maximum score
+     
+   - `run_044_eval_be_v5.sh`
+     - Evaluates backend v5
+       - Enroll performs agglomerative clustering of face-embeddings
+       - Test performs agglomerative clustering of face-embeddings
+       - Score all enrollment clusters versus all test clusters and take the maximum score.
 
+   - `run_045_eval_be_v6.sh`
+     - Evaluates backend v6
+       - Enroll on median face-embeddings
+       - Test performs refinement of embddings with self-attention mechanism
+       - Score enrollment embedding versus refined embeddings take the maximum score
 
+   - `run_046_eval_be_v7.sh`
+     - Evaluates backend v7
+       - Enroll on median face-embeddings
+       - Test source-target attention mechanism between enrollment embedding and test embeddings to obtain a single test embedding close to the enrollment.
+       - Score enrollment embedding versus test embedding
+
+     
+   - `run_048_eval_be_v9.sh`
+     - Evaluates backend v9
+       - Enroll performs refinement of embddings with self-attention mechanism
+       - Test performs refinement of embddings with self-attention mechanism
+       - Score all refined enrollment embeddings versus all test refined embeddings take the maximum score
+
+  Description of the back-ends is in the JHU-MIT SRE19 paper cited above.
+  
