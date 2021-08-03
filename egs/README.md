@@ -14,8 +14,10 @@
 | | v2.1 | SRE19-CTS Tunisian Arabic using PyTorch x-Vectors <br> It uses on-the-fly feat extraction and speech augmentation |
 | ------- | ------- | ---- |
 | [sre19-av-a](https://www.nist.gov/itl/iad/mig/nist-2019-speaker-recognition-evaluation) | v1 | NIST SRE19-AV Audio only using Kaldi x-Vectors |
-| | v2 | SRE19-AV using PyTorch x-Vectors <br> It uses precomputed features |
+| | v2 | SRE19-AV using PyTorch x-Vectors <br> It uses precomputed features (Unfinished)|
 | | v2.1 | SRE19-AV using PyTorch x-Vectors <br> It uses on-the-fly feat extraction and speech augmentation |
+| ------- | ------- | ---- |
+| [sre19-av-v](https://www.nist.gov/itl/iad/mig/nist-2019-speaker-recognition-evaluation) | v0.1 | NIST SRE19-AV Face Recognition using <br> Insightface MX-Net Pretrained RetinaFace and ArcFace models <br> used in JHU-CLSP submission to SRE19 |
 | ------- | ------- | ---- |
 | [sre20-cts](https://www.nist.gov/publications/nist-2020-cts-speaker-recognition-challenge-evaluation-plan) | v1 | NIST SRE20-CTS recipe used by JHU-MIT team |
 | ------- | ------- | ---- |
