@@ -62,14 +62,6 @@ year = {2019}
 run_0xx_....sh --config-file global_conf/config_fbank80_stmn_res2net50w26s8_arcs30m0.3_adam_lr0.05_amp.v1.sh
 ```
 
-run_020_extract_xvectors_slidwin.sh
-run_021_diarize.sh
-run_030_extract_xvectors.sh
-run_031_extract_xvectors_with_diar.sh
-run_040_eval_be_v1_wo_diar.sh
-run_041_eval_be_v1_with_diar.sh
-run_042_eval_be_v1_with_diar_snorm_v3.sh
-
 ## Recipe Steps
 
    - `run_001_prepare_data.sh`
