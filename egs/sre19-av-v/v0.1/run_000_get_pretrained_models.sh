@@ -19,14 +19,12 @@ config_file=default_config.sh
 
 if [ $stage -le 1 ];then
   echo "Download facedet models from https://github.com/deepinsight/insightface/tree/master/detection/retinaface"
-  mkdir -p $face_det_model
+  mkdir -p $face_det_modeldir
   cd $face_det_modeldir
   #wget https://www.dropbox.com/s/53ftnlarhyrpkg2/retinaface-R50.zip
   gdown https://drive.google.com/uc?id=1yyaj--_zrBZvfH9ttZWtc40nEyT_P81G
   unzip retinaface-R50.zip
   cd -
-  #ssh model
-  # https://www.dropbox.com/s/06zmchmq4iwj6rt/ssh-model-final.zip
 fi
 
 
