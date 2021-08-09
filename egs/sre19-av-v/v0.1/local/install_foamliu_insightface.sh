@@ -6,5 +6,5 @@ echo "Download insightface repo"
 git clone https://github.com/jesus-villalba/InsightFace-PyTorch.git
 cd InsightFace-PyTorch
 #use sre21 branch
-git checkout sre21
+git checkout sre21-cpt
 cd -
