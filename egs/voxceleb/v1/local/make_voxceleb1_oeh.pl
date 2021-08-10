@@ -26,15 +26,45 @@ my @trials_basename = ("very_test.txt", "very_test2.txt", "list_test_hard.txt", 
 my @trials_url = ("$url_base/veri_test.txt", "$url_base/veri_test2.txt", "$url_base/list_test_hard.txt", "$url_base/list_test_hard2.txt", "$url_base/list_test_all.txt", "$url_base/list_test_all2.txt");
 my @trials = ("trials_o", "trials_o_clean", "trials_h", "trials_h_clean", "trials_e", "trials_e_clean");
 
-open(META_IN, "<", "$data_base/vox1_meta.csv") or die "Could not open the meta data file $data_base/vox1_meta.csv";
-my %id2spkr = ();
-while (<META_IN>) {
-  chomp;
-  my ($vox_id, $spkr_id, $gender, $nation, $set) = split;
-  $id2spkr{$vox_id} = $spkr_id;
+my $meta_url = "https://www.openslr.org/resources/49/vox1_meta.csv";
+my $meta_path = "$data_base/vox1_meta.csv";
+if (! -e "$meta_path") {
+    $meta_path = "$out_dir/vox1_meta.csv";
+    system("wget -O $meta_path $meta_url");
+}
 
+open(META_IN, "<", "$meta_path") or die "Could not open the meta data file $meta_path";
+my %id2spkr = ();
+my %spkr2gender = ();
+my %spkr2nation = ();
+while (<META_IN>) {
+    chomp;
+    my ($vox_id, $spkr_id, $gender, $nation, $set) = split "\t";
+    $id2spkr{$vox_id} = $spkr_id;
+    $spkr2gender{$spkr_id} = $gender;
+    $nation =~ s@ @-@g;
+    $spkr2nation{$spkr_id} = $nation;
 }
 close(META_IN) or die;
+
+my $lid_url = "https://www.robots.ox.ac.uk/~vgg/data/voxceleb/data_workshop_2021/lang_vox1_final.csv";
+my $lid_path = "$data_base/lang_vox1_final.csv";
+if (! -e "$lid_path") {
+    $lid_path = "$out_dir/lang_vox1_final.csv";
+    system("wget -O $lid_path $lid_url");
+}
+open(LID_IN, "<", "$lid_path") or die "Could not open the output file $lid_path";
+my %utt2lang = ();
+while (<LID_IN>) {
+  chomp;
+  my ($utt_id, $lang, $score) = split ',';
+  my ($vox_id, $vid_id, $file_id) = split '/', $utt_id;
+  my $spkr_id = $id2spkr{$vox_id};
+  my $utt_id = "$spkr_id-$vid_id-00$file_id";
+  $utt_id =~ s@\.wav$@@;
+  $utt2lang{$utt_id} = $lang;
+}
+close(LID_IN) or die;
 
 #download trials from voxceleb web page
 for($i = 0; $i <= $#trials; $i++) {
@@ -81,8 +111,11 @@ opendir my $dh, "$data_base/voxceleb1_wav" or die "Cannot open directory: $!";
 my @spkr_dirs = grep {-d "$data_base/voxceleb1_wav/$_" && ! /^\.{1,2}$/} readdir($dh);
 closedir $dh;
 
-open(SPKR_TEST, ">", "$out_dir/utt2spk") or die "Could not open the output file $out_dir/utt2spk";
-open(WAV_TEST, ">", "$out_dir/wav.scp") or die "Could not open the output file $out_dir/wav.scp";
+open(SPKR, ">", "$out_dir/utt2spk") or die "Could not open the output file $out_dir/utt2spk";
+open(WAV, ">", "$out_dir/wav.scp") or die "Could not open the output file $out_dir/wav.scp";
+open(GENDER, ">", "$out_dir/spk2gender") or die "Could not open the output file $out_dir/spk2gender";
+open(NAT, ">", "$out_dir/spk2nation") or die "Could not open the output file $out_dir/spk2nation";
+open(LANG, ">", "$out_dir/utt2lang") or die "Could not open the output file $out_dir/utt2lang";
 
 foreach (@spkr_dirs) {
   my $spkr_id = $_;
@@ -92,6 +125,9 @@ foreach (@spkr_dirs) {
   if (exists $id2spkr{$spkr_id}) {
     $new_spkr_id = $id2spkr{$spkr_id};
   }
+  print GENDER "$new_spkr_id $spkr2gender{$new_spkr_id}\n";
+  print NAT "$new_spkr_id $spkr2nation{$new_spkr_id}\n";
+
   opendir my $dh, "$data_base/voxceleb1_wav/$spkr_id/" or die "Cannot open directory: $!";
   my @files = map{s/\.[^.]+$//;$_}grep {/\.wav$/} readdir($dh);
   closedir $dh;
@@ -101,13 +137,22 @@ foreach (@spkr_dirs) {
     my $segment = substr($filename, 12, 7);
     my $wav = "$data_base/voxceleb1_wav/$spkr_id/$filename.wav";
     my $utt_id = "$new_spkr_id-$rec_id-$segment";
-    print WAV_TEST "$utt_id", " $wav", "\n";
-    print SPKR_TEST "$utt_id", " $new_spkr_id", "\n";
+    print WAV "$utt_id", " $wav", "\n";
+    print SPKR "$utt_id", " $new_spkr_id", "\n";
+    if (exists $utt2lang{$utt_id}) {
+	print LANG "$utt_id", " $utt2lang{$utt_id}", "\n";
+    }
+    else {
+	print LANG "$utt_id N/A\n";
+    }
   }
 }
 
-close(SPKR_TEST) or die;
-close(WAV_TEST) or die;
+close(SPKR) or die;
+close(WAV) or die;
+close(LANG) or die;
+close(GENDER) or die;
+close(NAT) or die;
 
 if (system(
   "cat $out_dir/trials_* | sort -u > $out_dir/trials") != 0) {

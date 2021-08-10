@@ -22,31 +22,57 @@ if (system("mkdir -p $out_dir") != 0) {
   die "Error making directory $out_train_dir";
 }
 
-opendir my $dh, "$data_base/voxceleb1_wav" or die "Cannot open directory: $!";
-my @spkr_dirs = grep {-d "$data_base/voxceleb1_wav/$_" && ! /^\.{1,2}$/} readdir($dh);
-closedir $dh;
-
-if (! -e "$data_base/voxceleb1_test.txt") {
-  system("wget -O $data_base/voxceleb1_test.txt http://www.openslr.org/resources/49/voxceleb1_test.txt");
+my $meta_url = "https://www.openslr.org/resources/49/vox1_meta.csv";
+my $meta_path = "$data_base/vox1_meta.csv";
+if (! -e "$meta_path") {
+    $meta_path = "$out_dir/vox1_meta.csv";
+    system("wget -O $meta_path $meta_url");
 }
 
-if (! -e "$data_base/vox1_meta.csv") {
-  system("wget -O $data_base/vox1_meta.csv http://www.openslr.org/resources/49/vox1_meta.csv");
-}
-
-open(META_IN, "<", "$data_base/vox1_meta.csv") or die "Could not open the meta data file $data_base/vox1_meta.csv";
+open(META_IN, "<", "$meta_path") or die "Could not open the meta data file $meta_path";
 
 my %id2spkr = ();
 my $test_spkrs = ();
+my %spkr2gender = ();
+my %spkr2nation = ();
 while (<META_IN>) {
   chomp;
-  my ($vox_id, $spkr_id, $gender, $nation, $set) = split;
+  my ($vox_id, $spkr_id, $gender, $nation, $set) = split "\t";
   $id2spkr{$vox_id} = $spkr_id;
+  $spkr2gender{$spkr_id} = $gender;
+  $nation =~ s@ @-@g;
+  $spkr2nation{$spkr_id} = $nation;
   if ( $set eq "test"){
       $test_spkrs{$spkr_id} = ();
   }
 }
+close(META_IN) or die;
 
+my $lid_url = "https://www.robots.ox.ac.uk/~vgg/data/voxceleb/data_workshop_2021/lang_vox1_final.csv";
+my $lid_path = "$data_base/lang_vox1_final.csv";
+if (! -e "$lid_path") {
+    $lid_path = "$out_dir/lang_vox1_final.csv";
+    system("wget -O $lid_path $lid_url");
+}
+open(LID_IN, "<", "$lid_path") or die "Could not open the output file $lid_path";
+my %utt2lang = ();
+while (<LID_IN>) {
+  chomp;
+  my ($utt_id, $lang, $score) = split ',';
+  my ($vox_id, $vid_id, $file_id) = split '/', $utt_id;
+  my $spkr_id = $id2spkr{$vox_id};
+  my $utt_id = "$spkr_id-$vid_id";
+  $utt2lang{$utt_id} = $lang;
+}
+close(LID_IN) or die;
+
+
+opendir my $dh, "$data_base/voxceleb1_wav" or die "Cannot open directory: $!";
+my @spkr_dirs = grep {-d "$data_base/voxceleb1_wav/$_" && ! /^\.{1,2}$/} readdir($dh);
+closedir $dh;
+
+open(GENDER, ">", "$out_dir/spk2gender") or die "Could not open the output file $out_dir/spk2gender";
+open(NAT, ">", "$out_dir/spk2nation") or die "Could not open the output file $out_dir/spk2nation";
 
 my %rec2utt = ();
 my %rec2spk = ();
@@ -56,6 +82,9 @@ foreach (@spkr_dirs) {
     if (exists $id2spkr{$spkr_id}) {
 	$new_spkr_id = $id2spkr{$spkr_id};
     }
+    print GENDER "$new_spkr_id $spkr2gender{$new_spkr_id}\n";
+    print NAT "$new_spkr_id $spkr2nation{$new_spkr_id}\n";
+
     opendir my $dh, "$data_base/voxceleb1_wav/$spkr_id/" or die "Cannot open directory: $!";
     my @files = map{s/\.[^.]+$//;$_}grep {/\.wav$/} readdir($dh);
     closedir $dh;
@@ -76,9 +105,12 @@ foreach (@spkr_dirs) {
 	}
     }
 }
+close(GENDER) or die;
+close(NAT) or die;
 
 open(SPKR, ">", "$out_dir/utt2spk") or die "Could not open the output file $out_dir/utt2spk";
 open(WAV, ">", "$out_dir/wav.scp") or die "Could not open the output file $out_dir/wav.scp";
+open(LANG, ">", "$out_dir/utt2lang") or die "Could not open the output file $out_dir/utt2lang";
 
 foreach my $utt_id (keys %rec2spk) {
     my $wav = "";
@@ -89,12 +121,20 @@ foreach my $utt_id (keys %rec2spk) {
 	$wav = "sox " . $rec2utt{$utt_id} . " -t wav - |";
     }
     my $spkr_id = $rec2spk{$utt_id};
+    my $land_id = $utt2lang{$utt_id};
     print WAV "$utt_id", " $wav", "\n";
     print SPKR "$utt_id", " $spkr_id", "\n";
+    if (exists $utt2lang{$utt_id}) {
+	print LANG "$utt_id", " $utt2lang{$utt_id}", "\n";
+    }
+    else {
+	print LANG "$utt_id N/A\n";
+    }
 }
 
 close(SPKR) or die;
 close(WAV) or die;
+close(LANG) or die;
 
 if (system(
   "utils/utt2spk_to_spk2utt.pl $out_dir/utt2spk >$out_dir/spk2utt") != 0) {
