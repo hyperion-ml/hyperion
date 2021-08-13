@@ -161,6 +161,7 @@ def extract_face_embed(
 
                 frame_bbox = file_bbox.iloc[w_idx]
                 ref_face = np.asarray(frame_bbox[["x1", "y1", "x2", "y2"]])
+                print("faces", ref_face, faces, flush=True)
                 best_face, faces, overlap_score, d_score = select_face(faces, ref_face)
 
                 # logging.info('file %s frame %d selected face with overlap-score=%.2f d-score=%.2f', key, idx, overlap_score, d_score)

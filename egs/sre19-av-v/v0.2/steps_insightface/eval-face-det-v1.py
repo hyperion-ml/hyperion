@@ -101,6 +101,8 @@ def eval_face_det(
             )
             frame, ratio = resize_img(frame)
             faces, landmarks = detector.detect_faces(frame, thresh)
+            faces = faces / ratio
+            landmarks = landmarks / ratio
 
             logging.info(
                 "file %s frame %d dectected %d faces" % (key, idx, faces.shape[0])

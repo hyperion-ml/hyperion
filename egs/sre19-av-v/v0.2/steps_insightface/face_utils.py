@@ -204,6 +204,8 @@ def detect_faces_in_frame(detector, frame, thresh=0.8):
 
     frame, ratio = resize_img(frame)
     faces, landmarks = detector.detect_faces(frame, thresh)
+    faces = faces / ratio
+    landmarks = landmarks / ratio
     return faces, landmarks
 
 
