@@ -1,6 +1,6 @@
 # SRE19-AV-V/v0.1
 
-Recipe for face recognition in videos based on insightface repo
+Recipe for face recognition in videos based on PyTorch pre-trained RetinaFace face detector and ArcFace Embeddings
 
 ## Dependencies
 
@@ -32,7 +32,7 @@ local/install_foamliu_insightface.sh
 
 ## Citing
 
-JHU-HLTCOE team used this repo in their NIST SRE19 submission, cite:
+This recipe intends to replicate JHU-HLTCOE team's NIST SRE19 submission, cite:
 ```
 @inproceedings{Villalba2020,
 address = {Tokyo, Japan},
