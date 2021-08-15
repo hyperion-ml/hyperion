@@ -5,12 +5,12 @@
 #           2020  Jesus Villalba
 #
 # Usage: make_voxceleb1.pl /export/voxceleb1 data/
-# Create trial lists for Voxceleb1 original, Entire (E) and hard (H), 
+# Create trial lists for Voxceleb1 original,
 # with cleaned and non-cleaned versions
 # Attention:
 #  - This script is for the recent version of the dataset
 #  - This script assumes that the voxceleb1 dataset has all speaker directories
-#    dumped in the same wav directory, NOT separated dev and test directories
+#  dumped in the same wav directory, NOT separated dev and test directories
 
 if (@ARGV != 2) {
   print STDERR "Usage: $0 <path-to-voxceleb1> <path-to-data-dir>\n";
@@ -27,8 +27,8 @@ if (system("mkdir -p $out_dir") != 0) {
 
 my $url_base="http://www.robots.ox.ac.uk/~vgg/data/voxceleb/meta";
 my @trials_basename = ("very_test.txt", "very_test2.txt", "list_test_hard.txt", "list_test_hard2.txt", "list_test_all.txt", "list_test_all2.txt");
-my @trials_url = ("$url_base/veri_test.txt", "$url_base/veri_test2.txt", "$url_base/list_test_hard.txt", "$url_base/list_test_hard2.txt", "$url_base/list_test_all.txt", "$url_base/list_test_all2.txt");
-my @trials = ("trials_o", "trials_o_clean", "trials_h", "trials_h_clean", "trials_e", "trials_e_clean");
+my @trials_url = ("$url_base/veri_test.txt", "$url_base/veri_test2.txt");
+my @trials = ("trials_o", "trials_o_clean");
 
 my $meta_url = "https://www.openslr.org/resources/49/vox1_meta.csv";
 my $meta_path = "$data_base/vox1_meta.csv";

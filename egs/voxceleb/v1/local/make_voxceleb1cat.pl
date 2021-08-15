@@ -6,8 +6,12 @@
 #
 # Apache 2.0
 # Usage: make_voxceleb1cat.pl /export/voxceleb1 data/
-# This version of the script does NOT remove SITW overlap speakers
-# Files from the same video are concatenated into 1 segment
+# Attention:
+#  - This script is for the old version of the dataset without anonymized speaker-ids
+#  - This version of the script does NOT remove SITW overlap speakers
+#  - Files from the same video are concatenated into 1 segment
+#  - This script assumes that the voxceleb1 dataset has all speaker directories
+#  dumped in the same wav directory, NOT separated dev and test directories
 
 if (@ARGV != 3) {
   print STDERR "Usage: $0 <path-to-voxceleb1> fs <path-to-data-dir>\n";
