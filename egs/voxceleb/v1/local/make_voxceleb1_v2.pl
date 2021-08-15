@@ -5,13 +5,12 @@
 #           2018  Jesus Villalba
 #
 # Apache 2.0
-# Usage: make_voxceleb1cat.pl /export/voxceleb1 data/
+# Usage: make_voxceleb1_v2.pl /export/voxceleb1 data/
 # Attention:
-#  - This script is for the old version of the dataset without anonymized speaker-ids
+#  - This script is for the recent version of the dataset
 #  - This version of the script does NOT remove SITW overlap speakers
-#  - Files from the same video are concatenated into 1 segment
-#  - This script assumes that the voxceleb1 dataset has all speaker directories
-#  dumped in the same wav directory, NOT separated dev and test directories
+#  - Files from the same video are NOT concatenated into 1 segment
+#  - This script assumes that the voxceleb1 dataset has all speaker directories dumped in the same wav directory, NOT separated dev and test directories
 
 if (@ARGV != 3) {
   print STDERR "Usage: $0 <path-to-voxceleb1> fs <path-to-data-dir>\n";
@@ -20,7 +19,7 @@ if (@ARGV != 3) {
 }
 
 ($data_base, $fs, $out_dir) = @ARGV;
-my $out_dir = "$out_dir/voxceleb1cat_train";
+my $out_dir = "$out_dir/voxceleb1_train";
 
 if (system("mkdir -p $out_dir") != 0) {
   die "Error making directory $out_train_dir";
@@ -42,12 +41,11 @@ my %spkr2nation = ();
 while (<META_IN>) {
   chomp;
   my ($vox_id, $spkr_id, $gender, $nation, $set) = split "\t";
-  $id2spkr{$vox_id} = $spkr_id;
-  $spkr2gender{$spkr_id} = $gender;
+  $spkr2gender{$vox_id} = $gender;
   $nation =~ s@ @-@g;
-  $spkr2nation{$spkr_id} = $nation;
+  $spkr2nation{$vox_id} = $nation;
   if ( $set eq "test"){
-      $test_spkrs{$spkr_id} = ();
+      $test_spkrs{$vox_id} = ();
   }
 }
 close(META_IN) or die;
@@ -63,79 +61,63 @@ my %utt2lang = ();
 while (<LID_IN>) {
   chomp;
   my ($utt_id, $lang, $score) = split ',';
-  my ($vox_id, $vid_id, $file_id) = split '/', $utt_id;
-  my $spkr_id = $id2spkr{$vox_id};
-  my $utt_id = "$spkr_id-$vid_id";
+  my ($spkr_id, $vid_id, $file_id) = split '/', $utt_id;
+  $file_id =~ s@\.wav$@@; 
+  my $utt_id = "$spkr_id-$vid_id-$file_id";
   $utt2lang{$utt_id} = $lang;
 }
 close(LID_IN) or die;
 
-
-opendir my $dh, "$data_base/voxceleb1_wav" or die "Cannot open directory: $!";
-my @spkr_dirs = grep {-d "$data_base/voxceleb1_wav/$_" && ! /^\.{1,2}$/} readdir($dh);
+my $wav_dir = "$data_base/wav";
+opendir my $dh, "$wav_dir" or die "Cannot open directory: $!";
+my @spkr_dirs = grep {-d "$wav_dir/$_" && ! /^\.{1,2}$/ || -l "$wav_dir/$_" } readdir($dh);
 closedir $dh;
 
+open(SPKR, ">", "$out_dir/utt2spk") or die "Could not open the output file $out_dir/utt2spk";
+open(WAV, ">", "$out_dir/wav.scp") or die "Could not open the output file $out_dir/wav.scp";
+open(LANG, ">", "$out_dir/utt2lang") or die "Could not open the output file $out_dir/utt2lang";
 open(GENDER, ">", "$out_dir/spk2gender") or die "Could not open the output file $out_dir/spk2gender";
 open(NAT, ">", "$out_dir/spk2nation") or die "Could not open the output file $out_dir/spk2nation";
 
-my %rec2utt = ();
-my %rec2spk = ();
 foreach (@spkr_dirs) {
     my $spkr_id = $_;
-    my $new_spkr_id = $spkr_id;
-    if (exists $id2spkr{$spkr_id}) {
-	$new_spkr_id = $id2spkr{$spkr_id};
-    }
-    print GENDER "$new_spkr_id $spkr2gender{$new_spkr_id}\n";
-    print NAT "$new_spkr_id $spkr2nation{$new_spkr_id}\n";
 
-    opendir my $dh, "$data_base/voxceleb1_wav/$spkr_id/" or die "Cannot open directory: $!";
+    next if (exists $test_spkrs{$spkr_id});
+
+    print GENDER "$spkr_id $spkr2gender{$spkr_id}\n";
+    print NAT "$spkr_id $spkr2nation{$spkr_id}\n";
+
+    my $spkr_dir = "$wav_dir/$spkr_id";
+    opendir my $dh, "$spkr_dir" or die "Cannot open directory: $!";
+    my @vid_dirs = grep {-d "$spkr_dir/$_" && ! /^\.{1,2}$/ } readdir($dh);
     my @files = map{s/\.[^.]+$//;$_}grep {/\.wav$/} readdir($dh);
     closedir $dh;
-    foreach (@files) {
-	my $filename = $_;
-	my $rec_id = substr($filename, 0, 11);
-	my $segment = substr($filename, 12, 7);
-	my $wav = "$data_base/voxceleb1_wav/$spkr_id/$filename.wav";
-	my $utt_id = "$new_spkr_id-$rec_id";
-	if (not exists $test_spkrs{$new_spkr_id}) {
-	    if (not exists $rec2utt{$utt_id}) {
-		$rec2spk{$utt_id} = $new_spkr_id;
-		$rec2utt{$utt_id} = $wav
+    foreach (@vid_dirs) {
+	my $vid_id = $_;
+	my $vid_dir = "$spkr_dir/$vid_id";
+	opendir my $dh, "$vid_dir" or die "Cannot open directory: $!";
+	my @files = map{s/\.[^.]+$//;$_}grep {/\.wav$/} readdir($dh);
+	closedir $dh;
+	foreach (@files) {
+	    my $segment = $_;
+	    my $wav = "$vid_dir/$segment.wav";
+	    my $utt_id = "$spkr_id-$vid_id-$segment";
+	    if($fs == 8){
+		$wav = "sox " . $wav . " -t wav -r 8k - |";
+	    }
+	    print WAV "$utt_id", " $wav", "\n";
+	    print SPKR "$utt_id", " $spkr_id", "\n";
+	    if (exists $utt2lang{$utt_id}) {
+		print LANG "$utt_id", " $utt2lang{$utt_id}", "\n";
 	    }
 	    else {
-		$rec2utt{$utt_id} = $rec2utt{$utt_id} . " " . $wav
+		print LANG "$utt_id N/A\n";
 	    }
 	}
     }
 }
 close(GENDER) or die;
 close(NAT) or die;
-
-open(SPKR, ">", "$out_dir/utt2spk") or die "Could not open the output file $out_dir/utt2spk";
-open(WAV, ">", "$out_dir/wav.scp") or die "Could not open the output file $out_dir/wav.scp";
-open(LANG, ">", "$out_dir/utt2lang") or die "Could not open the output file $out_dir/utt2lang";
-
-foreach my $utt_id (keys %rec2spk) {
-    my $wav = "";
-    if($fs == 8){
-	$wav = "sox " . $rec2utt{$utt_id} . " -t wav -r 8k - |";
-    }
-    else{
-	$wav = "sox " . $rec2utt{$utt_id} . " -t wav - |";
-    }
-    my $spkr_id = $rec2spk{$utt_id};
-    my $land_id = $utt2lang{$utt_id};
-    print WAV "$utt_id", " $wav", "\n";
-    print SPKR "$utt_id", " $spkr_id", "\n";
-    if (exists $utt2lang{$utt_id}) {
-	print LANG "$utt_id", " $utt2lang{$utt_id}", "\n";
-    }
-    else {
-	print LANG "$utt_id N/A\n";
-    }
-}
-
 close(SPKR) or die;
 close(WAV) or die;
 close(LANG) or die;
