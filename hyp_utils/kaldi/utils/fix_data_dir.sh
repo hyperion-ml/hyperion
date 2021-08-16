@@ -117,7 +117,7 @@ function filter_speakers {
   ${kaldi_utils}/utt2spk_to_spk2utt.pl $data/utt2spk > $data/spk2utt
 
   cat $data/spk2utt | awk '{print $1}' > $tmpdir/speakers
-  for s in cmvn.scp spk2gender; do
+  for s in cmvn.scp spk2gender spk2nation; do
     f=$data/$s
     if [ -f $f ]; then
       filter_file $f $tmpdir/speakers
@@ -127,7 +127,7 @@ function filter_speakers {
   filter_file $tmpdir/speakers $data/spk2utt
   ${kaldi_utils}/spk2utt_to_utt2spk.pl $data/spk2utt > $data/utt2spk
 
-  for s in cmvn.scp spk2gender $spk_extra_files; do
+  for s in cmvn.scp spk2gender spk2nation $spk_extra_files; do
     f=$data/$s
     if [ -f $f ]; then
       filter_file $tmpdir/speakers $f

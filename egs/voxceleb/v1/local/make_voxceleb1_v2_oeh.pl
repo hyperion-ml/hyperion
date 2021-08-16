@@ -8,9 +8,9 @@
 # Create trial lists for Voxceleb1 original, Entire (E) and hard (H), 
 # with cleaned and non-cleaned versions
 # Attention:
-#  - This script is for the old version of the dataset without anonymized speaker-ids
+#  - This script is for the recent version of the dataset
 #  - This script assumes that the voxceleb1 dataset has all speaker directories
-#  dumped in the same wav directory, NOT separated dev and test directories
+#    dumped in the same wav directory, NOT separated dev and test directories
 
 if (@ARGV != 2) {
   print STDERR "Usage: $0 <path-to-voxceleb1> <path-to-data-dir>\n";
@@ -44,10 +44,9 @@ my %spkr2nation = ();
 while (<META_IN>) {
     chomp;
     my ($vox_id, $spkr_id, $gender, $nation, $set) = split "\t";
-    $id2spkr{$vox_id} = $spkr_id;
-    $spkr2gender{$spkr_id} = $gender;
+    $spkr2gender{$vox_id} = $gender;
     $nation =~ s@ @-@g;
-    $spkr2nation{$spkr_id} = $nation;
+    $spkr2nation{$vox_id} = $nation;
 }
 close(META_IN) or die;
 
@@ -63,8 +62,7 @@ while (<LID_IN>) {
   chomp;
   my ($utt_id, $lang, $score) = split ',';
   my ($vox_id, $vid_id, $file_id) = split '/', $utt_id;
-  my $spkr_id = $id2spkr{$vox_id};
-  my $utt_id = "$spkr_id-$vid_id-00$file_id";
+  my $utt_id = "$vox_id-$vid_id-$file_id";
   $utt_id =~ s@\.wav$@@;
   $utt2lang{$utt_id} = $lang;
 }
@@ -87,16 +85,14 @@ for($i = 0; $i <= $#trials; $i++) {
 	my ($tar_or_non, $path1, $path2) = split;
 
 	# Create entry for left-hand side of trial
-	my ($vox_id, $rec_id, $segment) = split('/', $path1);
+	my ($spkr_id, $rec_id, $segment) = split('/', $path1);
 	$segment =~ s/\.wav$//;
-	my $spkr_id = $id2spkr{$vox_id};
-	my $utt_id1 = "$spkr_id-$rec_id-00$segment";
+	my $utt_id1 = "$spkr_id-$rec_id-$segment";
 	
 	# Create entry for right-hand side of trial
-	my ($vox_id, $rec_id, $segment) = split('/', $path2);
+	my ($spkr_id, $rec_id, $segment) = split('/', $path2);
 	$segment =~ s/\.wav$//;
-	my $spkr_id = $id2spkr{$vox_id};
-	my $utt_id2 = "$spkr_id-$rec_id-00$segment";
+	my $utt_id2 = "$spkr_id-$rec_id-$segment";
 	
 	my $target = "nontarget";
 	if ($tar_or_non eq "1") {
@@ -110,9 +106,9 @@ for($i = 0; $i <= $#trials; $i++) {
     
 }
 
-
-opendir my $dh, "$data_base/voxceleb1_wav" or die "Cannot open directory: $!";
-my @spkr_dirs = grep {-d "$data_base/voxceleb1_wav/$_" && ! /^\.{1,2}$/} readdir($dh);
+my $wav_dir = "$data_base/wav";
+opendir my $dh, "$wav_dir" or die "Cannot open directory: $!";
+my @spkr_dirs = grep {-d "$wav_dir/$_" && ! /^\.{1,2}$/ || -l "$wav_dir/$_" } readdir($dh);
 closedir $dh;
 
 open(SPKR, ">", "$out_dir/utt2spk") or die "Could not open the output file $out_dir/utt2spk";
@@ -122,35 +118,71 @@ open(NAT, ">", "$out_dir/spk2nation") or die "Could not open the output file $ou
 open(LANG, ">", "$out_dir/utt2lang") or die "Could not open the output file $out_dir/utt2lang";
 
 foreach (@spkr_dirs) {
-  my $spkr_id = $_;
-  my $new_spkr_id = $spkr_id;
-  # If we're using a newer version of VoxCeleb1, we need to "deanonymize"
-  # the speaker labels.
-  if (exists $id2spkr{$spkr_id}) {
-    $new_spkr_id = $id2spkr{$spkr_id};
-  }
-  print GENDER "$new_spkr_id $spkr2gender{$new_spkr_id}\n";
-  print NAT "$new_spkr_id $spkr2nation{$new_spkr_id}\n";
+    my $spkr_id = $_;
 
-  opendir my $dh, "$data_base/voxceleb1_wav/$spkr_id/" or die "Cannot open directory: $!";
-  my @files = map{s/\.[^.]+$//;$_}grep {/\.wav$/} readdir($dh);
-  closedir $dh;
-  foreach (@files) {
-    my $filename = $_;
-    my $rec_id = substr($filename, 0, 11);
-    my $segment = substr($filename, 12, 7);
-    my $wav = "$data_base/voxceleb1_wav/$spkr_id/$filename.wav";
-    my $utt_id = "$new_spkr_id-$rec_id-$segment";
-    print WAV "$utt_id", " $wav", "\n";
-    print SPKR "$utt_id", " $new_spkr_id", "\n";
-    if (exists $utt2lang{$utt_id}) {
-	print LANG "$utt_id", " $utt2lang{$utt_id}", "\n";
+    print GENDER "$spkr_id $spkr2gender{$spkr_id}\n";
+    print NAT "$spkr_id $spkr2nation{$spkr_id}\n";
+
+    my $spkr_dir = "$wav_dir/$spkr_id";
+    opendir my $dh, "$spkr_dir" or die "Cannot open directory: $!";
+    my @vid_dirs = grep {-d "$spkr_dir/$_" && ! /^\.{1,2}$/ } readdir($dh);
+    my @files = map{s/\.[^.]+$//;$_}grep {/\.wav$/} readdir($dh);
+    closedir $dh;
+    foreach (@vid_dirs) {
+	my $vid_id = $_;
+	my $vid_dir = "$spkr_dir/$vid_id";
+	opendir my $dh, "$vid_dir" or die "Cannot open directory: $!";
+	my @files = map{s/\.[^.]+$//;$_}grep {/\.wav$/} readdir($dh);
+	closedir $dh;
+	foreach (@files) {
+	    my $segment = $_;
+	    my $wav = "$vid_dir/$segment.wav";
+	    my $utt_id = "$spkr_id-$vid_id-$segment";
+	    if($fs == 8){
+		$wav = "sox " . $wav . " -t wav -r 8k - |";
+	    }
+	    print WAV "$utt_id", " $wav", "\n";
+	    print SPKR "$utt_id", " $spkr_id", "\n";
+	    if (exists $utt2lang{$utt_id}) {
+		print LANG "$utt_id", " $utt2lang{$utt_id}", "\n";
+	    }
+	    else {
+		print LANG "$utt_id N/A\n";
+	    }
+	}
     }
-    else {
-	print LANG "$utt_id N/A\n";
-    }
-  }
 }
+
+# foreach (@spkr_dirs) {
+#   my $spkr_id = $_;
+#   my $new_spkr_id = $spkr_id;
+#   # If we're using a newer version of VoxCeleb1, we need to "deanonymize"
+#   # the speaker labels.
+#   if (exists $id2spkr{$spkr_id}) {
+#     $new_spkr_id = $id2spkr{$spkr_id};
+#   }
+#   print GENDER "$new_spkr_id $spkr2gender{$new_spkr_id}\n";
+#   print NAT "$new_spkr_id $spkr2nation{$new_spkr_id}\n";
+
+#   opendir my $dh, "$wav_dir/$spkr_id/" or die "Cannot open directory: $!";
+#   my @files = map{s/\.[^.]+$//;$_}grep {/\.wav$/} readdir($dh);
+#   closedir $dh;
+#   foreach (@files) {
+#     my $filename = $_;
+#     my $rec_id = substr($filename, 0, 11);
+#     my $segment = substr($filename, 12, 7);
+#     my $wav = "$data_base/voxceleb1_wav/$spkr_id/$filename.wav";
+#     my $utt_id = "$new_spkr_id-$rec_id-$segment";
+#     print WAV "$utt_id", " $wav", "\n";
+#     print SPKR "$utt_id", " $new_spkr_id", "\n";
+#     if (exists $utt2lang{$utt_id}) {
+# 	print LANG "$utt_id", " $utt2lang{$utt_id}", "\n";
+#     }
+#     else {
+# 	print LANG "$utt_id N/A\n";
+#     }
+#   }
+# }
 
 close(SPKR) or die;
 close(WAV) or die;
