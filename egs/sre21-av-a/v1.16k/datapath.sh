@@ -21,6 +21,8 @@ elif [ "$(hostname --domain)" == "cm.gemini" ];then
   voxceleb1_root=/exp/jvillalba/corpora/voxceleb1
   voxceleb2_root=/expscratch/dgromero/corpora/vox2
   #sre16_eval_root=$sre_root/SRE16_eval
+  sre16_dev_root=/exp/jvillalba/corpora/LDC2019S20/data/dev/R148_0_0
+  sre16_eval_root=/exp/jvillalba/corpora/LDC2019S20/data/eval/R149_0_1
   janus_root=$sre_root/SRE19/LDC2019E55_Janus_Multimedia_Dataset
   sre_superset_root=/exp/jvillalba/corpora/sre21/releases/LDC2021E08
   sre21_dev_root=/exp/jvillalba/corpora/sre21/releases/LDC2021E09

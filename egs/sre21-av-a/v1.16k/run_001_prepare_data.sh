@@ -8,7 +8,7 @@
 set -e
 
 config_file=default_config.sh
-stage=1
+stage=2
 
 . parse_options.sh || exit 1;
 . datapath.sh 
@@ -24,15 +24,34 @@ if [ $stage -le 1 ];then
 
     utils/combine_data.sh data/voxcelebcat data/voxceleb1cat data/voxceleb2cat_train data/voxceleb2cat_test
     utils/fix_data_dir.sh data/voxcelebcat
+
+    local/downupsample_datadir.sh data/voxcelebcat data/voxcelebcat_8k 8k
 fi
 
 if [ $stage -le 2 ];then
   # Prepare SRE CTS superset
   hyp_utils/conda_env.sh \
     local/prepare_sre_cts_superset.py \
-    --data-dir $sre_superset_root \
+    --corpus-dir $sre_superset_root \
     --target-fs 16000 \
     --output-dir data/sre_cts_superset_16k
+
+  hyp_utils/conda_env.sh \
+    local/trn_dev_split_sre_cts_superset.py \
+    --input-dir data/sre_cts_superset_16k \
+    --trn-dir data/sre_cts_superset_16k_trn \
+    --dev-dir data/sre_cts_superset_16k_dev \
+    --num-dev-spks-cmn 66 \
+    --num-dev-spks-yue 34 
+exit
+fi
+
+if [ $stage -le 3 ];then
+  # Prepare SRE16 dev for training
+  local/make_sre16_train_dev.sh $sre16_dev_root 16 data
+  # Prepare SRE16 Eval
+  # 60% for training 40% for evaluation/calibration
+  local/make_sre16_eval_tr60_ev40.sh $sre16_eval_root 16 data
 fi
 
 exit

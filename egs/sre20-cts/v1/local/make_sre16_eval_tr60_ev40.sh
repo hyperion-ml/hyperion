@@ -67,6 +67,7 @@ while(getline < s2g) { gender[$1]=tolower($2) }
     awk '{ print $2"-"$1,$2}' $output_dir/table_tr60 | sort -k1,1 > $output_dir/utt2spk
     utils/utt2spk_to_spk2utt.pl $output_dir/utt2spk > $output_dir/spk2utt
     awk '{ print $2,$3}' $output_dir/table_tr60 | sort -k1,1 -u > $output_dir/spk2gender
+    awk -v lang=$lang '{ print $1,toupper(lang)}' $output_dir/utt2spk > $output_dir/utt2lang
     
     find -L $input_path -name "*.sph" > $output_dir/wav.scp.tmp    
 
@@ -100,6 +101,7 @@ while(getline < fseg)
 files["segment"]=1;
 }
 { if($2 in files) { print $0 }}' $enroll_file > $enroll_dir/enr40.tsv
+    awk -v lang=$lang '{ print $1,toupper(lang)}' $enroll_dir/utt2spk > $enroll_dir/utt2lang
 
     find -L $input_path -name "*.sph" > $enroll_dir/wav.scp.tmp    
     awk -v fwav=$enroll_dir/wav.scp.tmp 'BEGIN{
@@ -157,10 +159,9 @@ while(getline < fwav)
 
     awk '{ print $1,$1}' $test_dir/wav.scp | sort -k1,1 > $test_dir/utt2spk
     cp $test_dir/utt2spk $test_dir/spk2utt
-
+    awk -v lang=$lang '{ print $1,toupper(lang)}' $test_dir/utt2spk > $test_dir/utt2lang
+    
     utils/fix_data_dir.sh $test_dir
     utils/validate_data_dir.sh --no-text --no-feats $test_dir
 
 done
-
-
