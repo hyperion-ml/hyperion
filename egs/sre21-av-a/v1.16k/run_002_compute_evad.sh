@@ -50,7 +50,9 @@ if [ $stage -le 2 ];then
   		sre16_eval_tr60_tgl \
   		sre16_eval_tr60_yue \
   		sre16_train_dev_ceb \
-  		sre16_train_dev_cmn
+  		sre16_train_dev_cmn \
+		sre21_audio_dev_enroll \
+		sre21_audio_dev_test
   do
     num_spk=$(wc -l data/$name/spk2utt | awk '{ print $1}')
     nj=$(($num_spk < 40 ? $num_spk:40))

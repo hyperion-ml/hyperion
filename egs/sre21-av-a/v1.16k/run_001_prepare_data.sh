@@ -43,7 +43,7 @@ if [ $stage -le 2 ];then
     --dev-dir data/sre_cts_superset_16k_dev \
     --num-dev-spks-cmn 66 \
     --num-dev-spks-yue 34 
-exit
+
 fi
 
 if [ $stage -le 3 ];then
@@ -52,6 +52,16 @@ if [ $stage -le 3 ];then
   # Prepare SRE16 Eval
   # 60% for training 40% for evaluation/calibration
   local/make_sre16_eval_tr60_ev40.sh $sre16_eval_root 16 data
+fi
+
+if [ $stage -le 4 ];then
+  # Prepare SRE21 dev
+  hyp_utils/conda_env.sh \
+    local/prepare_sre21av_dev_audio.py \
+    --corpus-dir $sre21_dev_root \
+    --target-fs 16000 \
+    --output-path data/sre21_audio_dev
+  
 fi
 
 exit

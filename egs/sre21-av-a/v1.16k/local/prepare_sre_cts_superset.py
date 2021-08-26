@@ -43,7 +43,7 @@ def fix_multigender_spks(df):
     return df
 
 
-def prepare_sre_superset(corpus_dir, output_dir, target_fs, verbose):
+def prepare_sre_cts_superset(corpus_dir, output_dir, target_fs, verbose):
     config_logger(verbose)
     logging.info("Preparing corpus %s -> %s", corpus_dir, output_dir)
     wav_dir = Path(corpus_dir) / "data"
@@ -143,4 +143,4 @@ if __name__ == "__main__":
         "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
     )
     args = parser.parse_args()
-    prepare_sre_superset(**namespace_to_dict(args))
+    prepare_sre_cts_superset(**namespace_to_dict(args))
