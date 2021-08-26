@@ -27,8 +27,7 @@ else
 fi
 
 if [ $stage -le 1 ];then 
-  for name in sre19_av_v_dev_test \
-		sre19_av_v_eval_test \
+  for name in sre21_visual_dev_test \
 		janus_dev_enroll \
 		janus_dev_test_core \
 		janus_eval_enroll \

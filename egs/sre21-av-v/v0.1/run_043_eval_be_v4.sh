@@ -30,28 +30,28 @@ score_plda_dir=$score_dir/cosine
 
 if [ $stage -le 4 ]; then
 
-  echo "SRE19"
+  echo "SRE21"
   steps_be/eval_face_vid_be_v4.sh \
     --cmd "$train_cmd" --thr-ahc $thr_ahc \
-    data/sre19_av_v_dev_test/trials \
-    data/sre19_av_v_dev_enroll/utt2spk \
-    $face_embed_ref_dir/sre19_av_v_dev_enroll/embed.scp \
-    $face_embed_facedet_dir/sre19_av_v_dev_enroll/embed.scp \
-    $face_embed_facedet_dir/sre19_av_v_dev_test/embed.scp \
-    $score_plda_dir/sre19_av_v_dev_scores &
+    data/sre21_visual_dev_test/trials \
+    data/sre21_visual_dev_enroll/utt2spk \
+    $face_embed_ref_dir/sre21_visual_dev_enroll/embed.scp \
+    $face_embed_facedet_dir/sre21_visual_dev_enroll/embed.scp \
+    $face_embed_facedet_dir/sre21_visual_dev_test/embed.scp \
+    $score_plda_dir/sre21_visual_dev_scores &
   
-  steps_be/eval_face_vid_be_v4.sh \
-    --cmd "$train_cmd" --thr-ahc $thr_ahc \
-    data/sre19_av_v_eval_test/trials \
-    data/sre19_av_v_eval_enroll/utt2spk \
-    $face_embed_ref_dir/sre19_av_v_eval_enroll/embed.scp \
-    $face_embed_facedet_dir/sre19_av_v_eval_enroll/embed.scp \
-    $face_embed_facedet_dir/sre19_av_v_eval_test/embed.scp \
-    $score_plda_dir/sre19_av_v_eval_scores &
+  # steps_be/eval_face_vid_be_v4.sh \
+  #   --cmd "$train_cmd" --thr-ahc $thr_ahc \
+  #   data/sre21_visual_eval_test/trials \
+  #   data/sre21_visual_eval_enroll/utt2spk \
+  #   $face_embed_ref_dir/sre21_visual_eval_enroll/embed.scp \
+  #   $face_embed_facedet_dir/sre21_visual_eval_enroll/embed.scp \
+  #   $face_embed_facedet_dir/sre21_visual_eval_test/embed.scp \
+  #   $score_plda_dir/sre21_visual_eval_scores &
   wait
 
-  local/score_sre19av.sh data/sre19_av_v_dev_test v_dev $score_plda_dir
-  local/score_sre19av.sh data/sre19_av_v_eval_test v_eval $score_plda_dir
+  local/score_sre21av.sh data/sre21_visual_dev_test v_dev $score_plda_dir
+  local/score_sre21av.sh data/sre21_visual_eval_test v_eval $score_plda_dir
 fi
 
 
@@ -85,9 +85,9 @@ fi
 
 
 if [ $stage -le 6 ];then
-  local/calibrate_sre19av_v_v1_sre19.sh --cmd "$train_cmd" $score_plda_dir
-  local/score_sre19av.sh data/sre19_av_v_dev_test v_dev ${score_plda_dir}_cal_v1_sre19
-  local/score_sre19av.sh data/sre19_av_v_eval_test v_eval ${score_plda_dir}_cal_v1_sre19
+  local/calibrate_sre21_visual_v1_sre21.sh --cmd "$train_cmd" $score_plda_dir
+  local/score_sre21av.sh data/sre21_visual_dev_test v_dev ${score_plda_dir}_cal_v1_sre19
+  local/score_sre21av.sh data/sre21_visual_eval_test v_eval ${score_plda_dir}_cal_v1_sre19
   local/score_janus_core.sh data/janus_dev_test_core dev ${score_plda_dir}_cal_v1_sre19
   local/score_janus_core.sh data/janus_eval_test_core eval ${score_plda_dir}_cal_v1_sre19
 fi
@@ -96,33 +96,33 @@ score_plda_dir=$score_dir/cosine_snorm${ncoh}_v1
 
 if [ $stage -le 9 ]; then
 
-  #SRE19
-  echo "SRE19 S-Norm"
+  #SRE21
+  echo "SRE21 S-Norm"
   steps_be/eval_face_vid_be_snorm_v4.sh \
     --cmd "$train_cmd" --ncoh $ncoh --thr-ahc $thr_ahc \
-    data/sre19_av_v_dev_test/trials \
-    data/sre19_av_v_dev_enroll/utt2spk \
-    $face_embed_ref_dir/sre19_av_v_dev_enroll/embed.scp \
-    $face_embed_facedet_dir/sre19_av_v_dev_enroll/embed.scp \
-    $face_embed_facedet_dir/sre19_av_v_dev_test/embed.scp \
+    data/sre21_visual_dev_test/trials \
+    data/sre21_visual_dev_enroll/utt2spk \
+    $face_embed_ref_dir/sre21_visual_dev_enroll/embed.scp \
+    $face_embed_facedet_dir/sre21_visual_dev_enroll/embed.scp \
+    $face_embed_facedet_dir/sre21_visual_dev_test/embed.scp \
     data/${coh_data}/utt2spk \
     $face_embed_facedet_dir/${coh_data}/embed.scp \
-    $score_plda_dir/sre19_av_v_dev_scores &
+    $score_plda_dir/sre21_visual_dev_scores &
 
-  steps_be/eval_face_vid_be_snorm_v4.sh \
-    --cmd "$train_cmd" --ncoh $ncoh \
-    data/sre19_av_v_eval_test/trials \
-    data/sre19_av_v_eval_enroll/utt2spk \
-    $face_embed_ref_dir/sre19_av_v_eval_enroll/embed.scp \
-    $face_embed_facedet_dir/sre19_av_v_eval_enroll/embed.scp \
-    $face_embed_facedet_dir/sre19_av_v_eval_test/embed.scp \
-    data/${coh_data}/utt2spk \
-    $face_embed_facedet_dir/${coh_data}/embed.scp \
-    $score_plda_dir/sre19_av_v_eval_scores &
+  # steps_be/eval_face_vid_be_snorm_v4.sh \
+  #   --cmd "$train_cmd" --ncoh $ncoh \
+  #   data/sre21_visual_eval_test/trials \
+  #   data/sre21_visual_eval_enroll/utt2spk \
+  #   $face_embed_ref_dir/sre21_visual_eval_enroll/embed.scp \
+  #   $face_embed_facedet_dir/sre21_visual_eval_enroll/embed.scp \
+  #   $face_embed_facedet_dir/sre21_visual_eval_test/embed.scp \
+  #   data/${coh_data}/utt2spk \
+  #   $face_embed_facedet_dir/${coh_data}/embed.scp \
+  #   $score_plda_dir/sre21_visual_eval_scores &
   wait
 
-  local/score_sre19av.sh data/sre19_av_v_dev_test v_dev $score_plda_dir
-  local/score_sre19av.sh data/sre19_av_v_eval_test v_eval $score_plda_dir
+  local/score_sre21av.sh data/sre21_visual_dev_test v_dev $score_plda_dir
+  local/score_sre21av.sh data/sre21_visual_eval_test v_eval $score_plda_dir
 fi
 
 
@@ -159,9 +159,9 @@ fi
 
 
 if [ $stage -le 11 ];then
-  local/calibrate_sre19av_v_v1_sre19.sh --cmd "$train_cmd" $score_plda_dir
-  local/score_sre19av.sh data/sre19_av_v_dev_test v_dev ${score_plda_dir}_cal_v1_sre19
-  local/score_sre19av.sh data/sre19_av_v_eval_test v_eval ${score_plda_dir}_cal_v1_sre19
+  local/calibrate_sre21_visual_v1_sre21.sh --cmd "$train_cmd" $score_plda_dir
+  local/score_sre21av.sh data/sre21_visual_dev_test v_dev ${score_plda_dir}_cal_v1_sre19
+  local/score_sre21av.sh data/sre21_visual_eval_test v_eval ${score_plda_dir}_cal_v1_sre19
   local/score_janus_core.sh data/janus_dev_test_core dev ${score_plda_dir}_cal_v1_sre19
   local/score_janus_core.sh data/janus_eval_test_core eval ${score_plda_dir}_cal_v1_sre19
 fi

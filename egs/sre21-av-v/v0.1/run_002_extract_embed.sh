@@ -38,24 +38,19 @@ fi
 
 
 if [ $stage -le 2 ];then 
-  for name in sre19_av_v_dev_enroll sre19_av_v_eval_enroll 
+  for name in sre21_visual_dev_enroll
   do
     num_spk=$(wc -l data/$name/spk2utt | awk '{ print $1}')
     nj=$(($num_spk < 40 ? $num_spk:40))
-    steps_insightface/extract_face_embed_from_bbox_plus_face_det_v4.sh \
+    steps_insightface/extract_face_embed_from_image.sh \
       --cmd "$cmd" --nj $nj --use-gpu $use_gpu \
-      --time-in-secs true --det-window 5 \
       data/$name $face_det_model $face_reco_model $face_embed_ref_dir/$name
   done
 fi
 
 
 if [ $stage -le 3 ];then 
-  #for name in sre19_av_v_dev_test
-  for name in sre19_av_v_dev_enroll \
-		sre19_av_v_dev_test \
-		sre19_av_v_eval_enroll \
-		sre19_av_v_eval_test \
+  for name in sre21_visual_dev_test \
 		janus_dev_enroll \
 		janus_dev_test_core \
 		janus_eval_enroll \

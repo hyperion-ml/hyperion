@@ -51,7 +51,6 @@ fi
 
 
 if [ $stage -le 3 ];then 
-  #for name in sre19_av_v_dev_test
   for name in sre19_av_v_dev_enroll \
 		sre19_av_v_dev_test \
 		sre19_av_v_eval_enroll \
