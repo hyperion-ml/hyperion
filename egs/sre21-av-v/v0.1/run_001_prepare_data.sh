@@ -20,9 +20,9 @@ if [ $stage -le 1 ];then
   # local/make_sre19av_v_eval.sh $sre19_eval_root data
   # Prepare SRE21 dev
   hyp_utils/conda_env.sh \
-    local/prepare_sre21av_dev_video.py \
+    local/prepare_sre21av_dev_visual.py \
     --corpus-dir $sre21_dev_root \
-    --output-path data/sre21_video_dev
+    --output-path data/sre21_visual_dev
 
 fi
 
