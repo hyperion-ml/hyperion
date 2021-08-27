@@ -332,7 +332,7 @@ def make_trial_key(df_enr, df_test):
     diffphn = np.zeros_like(key.tar)
     lang = np.zeros_like(key.tar, dtype=np.int32)
     nenr = np.zeros_like(key.tar, dtype=np.int32)
-
+    female = np.zeros_like(key.tar, dtype=np.int32)
     for i, model_id in enumerate(model_set):
         enr_row = df_enr.loc[model_id]
         for j, segment_id in enumerate(seg_set):
@@ -357,8 +357,9 @@ def make_trial_key(df_enr, df_test):
                     enr_row["language"], test_row["language"]
                 ).value
                 nenr[i, j] = enr_row["num_segms"]
+                female[i, j] = enr_row["gender"] == "female"
 
-    return key, samephn, diffphn, lang, nenr
+    return key, samephn, diffphn, lang, nenr, female
 
 
 def make_trials(df, output_dir):
@@ -367,7 +368,7 @@ def make_trials(df, output_dir):
     df_enr.to_csv(output_dir / "enroll.csv", sep=",", index=False)
     df_test.to_csv(output_dir / "test.csv", sep=",", index=False)
 
-    key, samephn, diffphn, lang, nenr = make_trial_key(df_enr, df_test)
+    key, samephn, diffphn, lang, nenr, female = make_trial_key(df_enr, df_test)
     key.save(output_dir / "trials")
 
     # same phone trials
@@ -395,6 +396,16 @@ def make_trials(df, output_dir):
         key_cond.tar = np.logical_and(key.tar, nenr == n)
         key_cond.non = np.logical_and(key.non, nenr == n)
         key_cond.save(output_dir / f"trials_nenr{n}")
+
+    key_cond = key.copy()
+    key_cond.tar = np.logical_and(key.tar, np.logical_not(female))
+    key_cond.non = np.logical_and(key.non, np.logical_not(female))
+    key_cond.save(output_dir / "trials_male")
+
+    key_cond = key.copy()
+    key_cond.tar = np.logical_and(key.tar, female)
+    key_cond.non = np.logical_and(key.non, female)
+    key_cond.save(output_dir / "trials_female")
 
 
 def trn_dev_split_sre_superset(

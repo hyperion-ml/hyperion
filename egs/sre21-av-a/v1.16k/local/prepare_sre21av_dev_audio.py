@@ -80,6 +80,8 @@ def write_wav(df, target_fs, wav_dir, output_file):
                     wav = f"{wav_dir}/{segment_id}"
                 else:
                     wav = f"sox {wav_dir}/{segment_id} -t wav -r {target_fs} - |"
+            elif ext == "mp4":
+                wav = f"ffmpeg -v 8 -i {wav_dir}/{segment_id} -vn -ar {target_fs} -ac 1 -f wav - |"
             else:
                 wav = f"sph2pipe -f wav -p -c 1 {wav_dir}/{segment_id} |"
                 if target_fs != 8000:
@@ -144,19 +146,25 @@ def write_simple_trialfile(df_key, output_file):
     )
 
 
-def make_test_dir(df_segms, df_model, df_key, wav_dir, target_fs, output_path):
+def make_test_dir(df_segms, df_model, df_key, wav_dir, target_fs, sources, output_path):
     test_dir = Path(output_path + "_test")
     wav_dir = wav_dir / "test"
     logging.info("making test dir %s", test_dir)
     test_dir.mkdir(parents=True, exist_ok=True)
     df_segms = (
         df_segms[
-            (df_segms["partition"] == "test")
-            & df_segms["source_type"].isin(["cts", "afv"])
+            (df_segms["partition"] == "test") & df_segms["source_type"].isin(sources)
         ]
         .drop(["partition"], axis=1)
         .sort_values(by="segment_id")
     )
+
+    if sources[0] == "na":
+        # fix source
+        df_segms.loc[
+            df_segms["segment_id"].str.match(r".*\.mp4$"), "source_type"
+        ] = "afv"
+
     segment_file = test_dir / "segments.csv"
     df_segms.to_csv(segment_file, sep=",", index=False)
 
@@ -232,7 +240,9 @@ def make_test_dir(df_segms, df_model, df_key, wav_dir, target_fs, output_path):
         write_simple_trialfile(df_cond, test_dir / f"trials_{cond}")
 
 
-def prepare_sre21av_dev_audio(corpus_dir, output_path, target_fs, verbose):
+def prepare_sre21av_dev_audio(
+    corpus_dir, output_path, av_output_path, target_fs, verbose
+):
     config_logger(verbose)
     logging.info("Preparing corpus %s -> %s", corpus_dir, output_path)
     corpus_dir = Path(corpus_dir)
@@ -240,7 +250,8 @@ def prepare_sre21av_dev_audio(corpus_dir, output_path, target_fs, verbose):
     segments_file = corpus_dir / "docs" / "sre21_dev_segment_key.tsv"
     df_segms = pd.read_csv(segments_file, sep="\t")
     df_segms.rename(
-        columns={"segmentid": "segment_id", "subjectid": "speaker_id"}, inplace=True,
+        columns={"segmentid": "segment_id", "subjectid": "speaker_id"},
+        inplace=True,
     )
     df_segms.replace({"language": "english"}, {"language": "ENG"}, inplace=True)
     df_segms.replace({"language": "cantonese"}, {"language": "YUE"}, inplace=True)
@@ -249,16 +260,31 @@ def prepare_sre21av_dev_audio(corpus_dir, output_path, target_fs, verbose):
     enroll_file = corpus_dir / "docs" / "sre21_audio_dev_enrollment.tsv"
     df_enr = pd.read_csv(enroll_file, sep="\t")
     df_enr.rename(
-        columns={"segmentid": "segment_id", "modelid": "model_id"}, inplace=True,
+        columns={"segmentid": "segment_id", "modelid": "model_id"},
+        inplace=True,
     )
     key_file = corpus_dir / "docs" / "sre21_audio_dev_trial_key.tsv"
     df_key = pd.read_csv(key_file, sep="\t")
     df_key.rename(
-        columns={"segmentid": "segment_id", "modelid": "model_id"}, inplace=True,
+        columns={"segmentid": "segment_id", "modelid": "model_id"},
+        inplace=True,
     )
 
     df_model = make_enroll_dir(df_segms, df_enr, wav_dir, target_fs, output_path)
-    make_test_dir(df_segms, df_model, df_key, wav_dir, target_fs, output_path)
+    make_test_dir(
+        df_segms, df_model, df_key, wav_dir, target_fs, ["cts", "afv"], output_path
+    )
+
+    key_file = corpus_dir / "docs" / "sre21_audio-visual_dev_trial_key.tsv"
+    df_key = pd.read_csv(key_file, sep="\t")
+    df_key.rename(
+        columns={"segmentid": "segment_id", "modelid": "model_id"},
+        inplace=True,
+    )
+    wav_dir = corpus_dir / "data" / "video"
+    make_test_dir(
+        df_segms, df_model, df_key, wav_dir, target_fs, ["na"], av_output_path
+    )
 
 
 if __name__ == "__main__":
@@ -269,6 +295,11 @@ if __name__ == "__main__":
         "--corpus-dir", required=True, help="Path to the original dataset"
     )
     parser.add_argument("--output-path", required=True, help="Ouput data path prefix")
+    parser.add_argument(
+        "--av-output-path",
+        required=True,
+        help="Ouput data path prefix for audio visual",
+    )
     parser.add_argument(
         "--target-fs", default=16000, type=int, help="Target sampling frequency"
     )
