@@ -71,14 +71,14 @@ if [ $stage -le 2 ]; then
   do
     num_utts=$(wc -l data/$name/wav.scp | awk '{ print $1}')
     if [ $plda_num_augs -eq 0 ]; then
-      nj=$(($num_utts < 100 ? $num_utts:100))
+      nj=$(($num_utts < 300 ? $num_utts:300))
       steps_xvec/extract_xvectors_from_wav.sh \
 	--cmd "$xvec_cmd --mem 12G" --nj $nj ${xvec_args} \
 	--feat-config $feat_config \
     	$nnet data/${name} \
     	$xvector_dir/${name}
     else
-      nj=$(($num_utts < 300 ? $num_utts:300))
+      nj=$(($num_utts < 1000 ? $num_utts:1000))
       steps_xvec/extract_xvectors_from_wav.sh \
 	--cmd "$xvec_cmd --mem 12G" --nj $nj ${xvec_args} \
 	--feat-config $feat_config --aug-config $plda_aug_config --num-augs $plda_num_augs \
@@ -95,7 +95,8 @@ if [ $stage -le 3 ]; then
   		sre16_eval40_yue_test \
 		sre_cts_superset_16k_dev \
 		sre21_audio_dev_enroll \
-		sre21_audio_dev_test
+		sre21_audio_dev_test \
+		sre21_audio-visual_dev_test
   do
     num_utts=$(wc -l data/$name/wav.scp | awk '{ print $1}')
     nj=$(($num_utts < 100 ? $num_utts:100))
@@ -114,6 +115,49 @@ if [ $stage -le 4 ]; then
 
   mkdir -p $xvector_dir/sre21_audio_dev
   cat $xvector_dir/sre21_audio_dev_{enroll,test}/xvector.scp > $xvector_dir/sre21_audio_dev/xvector.scp
+
+  mkdir -p $xvector_dir/sre21_audio-visual_dev
+  cat $xvector_dir/sre21_{audio_dev_enroll,audio-visual_dev_test}/xvector.scp > $xvector_dir/sre21_audio-visual_dev/xvector.scp
+
+fi
+
+if [ $stage -le 5 ];then
+  # merge training datasets
+  utils/combine_data.sh \
+    data/sre_alllangs \
+    data/sre_cts_superset_16k_trn \
+    data/sre16_eval_tr60_tgl \
+    data/sre16_eval_tr60_yue \
+    data/sre16_train_dev_ceb \
+    data/sre16_train_dev_cmn
+
+  mkdir -p $xvector_dir/sre_alllangs
+  for name in sre_cts_superset_16k_trn \
+    sre16_eval_tr60_tgl \
+    sre16_eval_tr60_yue \
+    sre16_train_dev_ceb \
+    sre16_train_dev_cmn
+  do
+    cat $xvector_dir/$name/xvector.scp
+  done > $xvector_dir/sre_alllangs/xvector.scp
+
+  utils/combine_data.sh \
+    data/voxceleb_sre_alllangs_8k \
+    data/voxcelebcat_8k \
+    data/sre_alllangs
+
+  mkdir -p $xvector_dir/voxceleb_sre_alllangs_8k
+  cat $xvector_dir/{voxcelebcat_8k,sre_alllangs}/xvector.scp \
+      > $xvector_dir/voxceleb_sre_alllangs_8k/xvector.scp
+
+  utils/combine_data.sh \
+    data/voxceleb_sre_alllangs_mixfs \
+    data/voxcelebcat \
+    data/voxceleb_sre_alllangs_8k
+
+  mkdir -p $xvector_dir/voxceleb_sre_alllangs_mixfs
+  cat $xvector_dir/{voxcelebcat,voxceleb_sre_alllangs_8k}/xvector.scp \
+      > $xvector_dir/voxceleb_sre_alllangs_mixfs/xvector.scp
 
 fi
 

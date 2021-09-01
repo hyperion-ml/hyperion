@@ -57,8 +57,8 @@ class LangTrialCond(Enum):
 
 def split_segments_into_trn_dev(df, num_dev_spks_cmn, num_dev_spks_yue):
     """Splits segments into train and dev
-       it leaves the same number of male and feamle speakers
-       for development.
+    it leaves the same number of male and feamle speakers
+    for development.
     """
     # find utterances containing CMN or YUE
     idx_cmn = df.language == "CMN"
@@ -367,6 +367,12 @@ def make_trials(df, output_dir):
     df_enr, df_test = split_enr_test(df)
     df_enr.to_csv(output_dir / "enroll.csv", sep=",", index=False)
     df_test.to_csv(output_dir / "test.csv", sep=",", index=False)
+
+    with open(output_dir / "utt2enroll", "w") as f:
+        for _, row in df_enr.iterrows():
+            model_id = row["model_id"]
+            for segm in row["segment_ids"]:
+                f.write(f"{segm} {model_id}\n")
 
     key, samephn, diffphn, lang, nenr, female = make_trial_key(df_enr, df_test)
     key.save(output_dir / "trials")

@@ -58,7 +58,7 @@ class GlobalPool1dFactory(object):
                 keepdim=keepdim,
             )
 
-        if pool_type == "ch-wise-att-mean+stddev":
+        if pool_type in ["ch-wise-att-mean+stddev", "ch-wise-att-mean-stddev"]:
             return GlobalChWiseAttMeanStdPool1d(
                 in_feats,
                 inner_feats,
@@ -210,7 +210,7 @@ class GlobalPool1dFactory(object):
             config["pool_type"] = "scaled-dot-prod-att-v1"
 
         if isinstance(layer, GlobalChWiseAttMeanStdPool1d):
-            config["pool_type"] = "ch-wise-att-mean-stddev"
+            config["pool_type"] = "ch-wise-att-mean+stddev"
 
         return config
 

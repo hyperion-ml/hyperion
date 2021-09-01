@@ -15,14 +15,11 @@ score_dir=$3
 
 key=$data_dir/trials
 
-echo "SRE16 ${subset}"
+echo "SRE21 ${subset}"
 
 #Compute performance
-python local/score_dcf.py --key-file $key \
-       --score-file $score_dir/sre16_${subset}_scores \
-       --output-path $score_dir/sre16_${subset}
-
-
-
-
-
+hyp_utils/conda_env.sh \
+  local/score_sre21.py --key-file $key \
+  --score-file $score_dir/sre21_${subset}_scores \
+  --sre21-subset $subset \
+  --output-file $score_dir/sre21_${subset}_results.csv
