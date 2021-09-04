@@ -11,7 +11,7 @@ stage=1
 config_file=default_config.sh
 
 ncoh=500
-coh_data=voxceleb_sre_alllangs_mixfs
+coh_data=voxceleb_sre_alllangs
 ft=0
 
 . parse_options.sh || exit 1;
@@ -26,7 +26,7 @@ elif [ $ft -eq 3 ];then
     nnet_name=$ft3_nnet_name
 fi
 
-plda_data=voxceleb_sre_alllangs_mixfs
+plda_data=voxceleb_sre_alllangs
 #plda_data=sre_chnspks
 plda_label=${plda_type}y${plda_y_dim}_v1
 be_name=lda${lda_dim}_${plda_label}_${plda_data}

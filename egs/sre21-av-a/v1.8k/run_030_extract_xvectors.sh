@@ -39,7 +39,7 @@ xvector_dir=exp/xvectors/$nnet_name
 if [ $stage -le 1 ]; then
   # Extract xvectors for training LDA/PLDA on Audio from Video Data
   # we sample 10-60 sec chunks 
-  for name in voxcelebcat voxcelebcat_8k
+  for name in voxcelebcat
   do
     if [ $plda_num_augs -eq 0 ]; then
       steps_xvec/extract_xvectors_from_wav.sh \
@@ -63,7 +63,7 @@ fi
 if [ $stage -le 2 ]; then
   # Extracts x-vectors for telephone datasets
   # This datasets already have speech durations between 10-60secs so we don't do any subsampling
-  for name in sre_cts_superset_16k_trn \
+  for name in sre_cts_superset_8k_trn \
 		sre16_eval_tr60_tgl \
   		sre16_eval_tr60_yue \
 		sre16_train_dev_ceb \
@@ -93,7 +93,7 @@ if [ $stage -le 3 ]; then
     # Extracts x-vectors for evaluation
   for name in sre16_eval40_yue_enroll \
   		sre16_eval40_yue_test \
-		sre_cts_superset_16k_dev \
+		sre_cts_superset_8k_dev \
 		sre21_audio_dev_enroll \
 		sre21_audio_dev_test \
 		sre21_audio-visual_dev_test
@@ -125,14 +125,14 @@ if [ $stage -le 5 ];then
   # merge training datasets
   utils/combine_data.sh \
     data/sre_alllangs \
-    data/sre_cts_superset_16k_trn \
+    data/sre_cts_superset_8k_trn \
     data/sre16_eval_tr60_tgl \
     data/sre16_eval_tr60_yue \
     data/sre16_train_dev_ceb \
     data/sre16_train_dev_cmn
 
   mkdir -p $xvector_dir/sre_alllangs
-  for name in sre_cts_superset_16k_trn \
+  for name in sre_cts_superset_8k_trn \
     sre16_eval_tr60_tgl \
     sre16_eval_tr60_yue \
     sre16_train_dev_ceb \
@@ -142,22 +142,13 @@ if [ $stage -le 5 ];then
   done > $xvector_dir/sre_alllangs/xvector.scp
 
   utils/combine_data.sh \
-    data/voxceleb_sre_alllangs_8k \
-    data/voxcelebcat_8k \
+    data/voxceleb_sre_alllangs \
+    data/voxcelebcat \
     data/sre_alllangs
 
-  mkdir -p $xvector_dir/voxceleb_sre_alllangs_8k
-  cat $xvector_dir/{voxcelebcat_8k,sre_alllangs}/xvector.scp \
-      > $xvector_dir/voxceleb_sre_alllangs_8k/xvector.scp
-
-  utils/combine_data.sh \
-    data/voxceleb_sre_alllangs_mixfs \
-    data/voxcelebcat \
-    data/voxceleb_sre_alllangs_8k
-
-  mkdir -p $xvector_dir/voxceleb_sre_alllangs_mixfs
-  cat $xvector_dir/{voxcelebcat,voxceleb_sre_alllangs_8k}/xvector.scp \
-      > $xvector_dir/voxceleb_sre_alllangs_mixfs/xvector.scp
+  mkdir -p $xvector_dir/voxceleb_sre_alllangs
+  cat $xvector_dir/{voxcelebcat,sre_alllangs}/xvector.scp \
+      > $xvector_dir/voxceleb_sre_alllangs/xvector.scp
 
 fi
 
