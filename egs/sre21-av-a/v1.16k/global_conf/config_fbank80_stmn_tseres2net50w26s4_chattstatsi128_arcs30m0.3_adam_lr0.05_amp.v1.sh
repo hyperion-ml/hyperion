@@ -49,8 +49,7 @@ ft_min_chunk=10
 ft_max_chunk=15
 ft_ipe=1
 ft_lr=0.01
-ft_nnet_num_epochs=21
-ft_nnet_num_epochs=45
+ft_nnet_num_epochs=15
 ft_margin=0.5
 ft_margin_warmup=3
 
@@ -58,7 +57,7 @@ ft_opt_opt="--optim.opt-type sgd --optim.lr $ft_lr --optim.momentum 0.9 --optim.
 ft_lrs_opt="--lrsched.lrsch-type cos_lr --lrsched.t 2500 --lrsched.t-mul 2 --lrsched.warm-restarts --lrsched.gamma 0.75 --lrsched.min-lr 1e-4 --lrsched.warmup-steps 100 --lrsched.update-lr-on-opt-step"
 ft_nnet_name=${nnet_name}.ft_${ft_min_chunk}_${ft_max_chunk}_arcm${ft_margin}_sgdcos_lr${ft_lr}_b${ft_eff_batch_size}_amp.v1
 ft_nnet_dir=exp/xvector_nnets/$ft_nnet_name
-ft_nnet=$ft_nnet_dir/model_ep0014.pth
+ft_nnet=$ft_nnet_dir/model_ep0007.pth
 
 
 # back-end

@@ -29,16 +29,16 @@ if [ "$interactive" == "true" ];then
     export cuda_cmd=run.pl
 fi
 
-lid_nnet_dir=exp/lid_nnets
+lid_nnet_dir=exp/lid_nnets/lresnet34_lid_v1
 # Network Training
 if [ $stage -le 1 ]; then
 
   train_exec=torch-train-resnet-xvec-from-wav.py
   mkdir -p $lid_nnet_dir/log
   $cuda_cmd \
-    --gpu $ngpu $nnet_dir/log/train.log \
+    --gpu $ngpu $lid_nnet_dir/log/train.log \
     hyp_utils/conda_env.sh --conda-env $HYP_ENV --num-gpus $ngpu \
-    $train_exec --feats $feat_config $aug_opt \
+    $train_exec --cfg conf/lresnet34_lid_v1.yaml \
     --audio-path $list_dir/wav.scp \
     --time-durs-file $list_dir/utt2dur \
     --train-list $list_dir/lists_train_lid/train.scp \

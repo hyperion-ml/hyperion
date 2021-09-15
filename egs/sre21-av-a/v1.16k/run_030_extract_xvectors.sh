@@ -44,14 +44,14 @@ if [ $stage -le 1 ]; then
     if [ $plda_num_augs -eq 0 ]; then
       steps_xvec/extract_xvectors_from_wav.sh \
 	--cmd "$xvec_cmd --mem 12G" --nj 100 ${xvec_args} \
-	--random-utt-length true --min-utt-length 400 --max-utt-length 14000 \
+	--random-utt-length true --min-utt-length 1000 --max-utt-length 6000 \
 	--feat-config $feat_config \
     	$nnet data/${name} \
     	$xvector_dir/${name}
     else
       steps_xvec/extract_xvectors_from_wav.sh \
 	--cmd "$xvec_cmd --mem 12G" --nj 300 ${xvec_args} \
-	--random-utt-length true --min-utt-length 400 --max-utt-length 14000 \
+	--random-utt-length true --min-utt-length 1000 --max-utt-length 6000 \
 	--feat-config $feat_config --aug-config $plda_aug_config --num-augs $plda_num_augs \
     	$nnet data/${name} \
     	$xvector_dir/${name}_augx${plda_num_augs} \
