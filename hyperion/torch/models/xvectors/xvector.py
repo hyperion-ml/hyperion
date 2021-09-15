@@ -16,8 +16,7 @@ from ...utils import eval_nnet_by_chunks
 
 
 class XVector(TorchModel):
-    """x-Vector base class
-    """
+    """x-Vector base class"""
 
     def __init__(
         self,
@@ -165,8 +164,8 @@ class XVector(TorchModel):
         return self.classif_net.loss_type
 
     def _make_pool_net(self, pool_net, enc_feats=None):
-        """ Makes the pooling block
-        
+        """Makes the pooling block
+
         Args:
          pool_net: str or dict to pass to the pooling factory create function
          enc_feats: dimension of the features coming from the encoder
@@ -241,7 +240,7 @@ class XVector(TorchModel):
         Args:
           x: input features tensor with shape=(batch, in_feats, time)
           y: target classes torch.long tensor with shape=(batch,)
-        
+
         Returns:
           class posteriors tensor with shape=(batch, num_classes)
         """
@@ -263,8 +262,7 @@ class XVector(TorchModel):
     def forward_hid_feats(
         self, x, y=None, enc_layers=None, classif_layers=None, return_output=False
     ):
-        """forwards hidden representations in the x-vector network
-        """
+        """forwards hidden representations in the x-vector network"""
 
         if self.encoder_net.in_dim() == 4 and x.dim() == 3:
             x = x.view(x.size(0), 1, x.size(1), x.size(2))
@@ -593,7 +591,7 @@ class XVector(TorchModel):
         return args
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None, skip=set()):
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -742,15 +740,16 @@ class XVector(TorchModel):
         except:
             pass
 
-        parser.add_argument(
-            "--in-feats",
-            default=None,
-            type=int,
-            help=(
-                "input feature dimension, "
-                "if None it will try to infer from encoder network"
-            ),
-        )
+        if "in_feats" not in skip:
+            parser.add_argument(
+                "--in-feats",
+                default=None,
+                type=int,
+                help=(
+                    "input feature dimension, "
+                    "if None it will try to infer from encoder network"
+                ),
+            )
 
         parser.add_argument(
             "--proj-feats",

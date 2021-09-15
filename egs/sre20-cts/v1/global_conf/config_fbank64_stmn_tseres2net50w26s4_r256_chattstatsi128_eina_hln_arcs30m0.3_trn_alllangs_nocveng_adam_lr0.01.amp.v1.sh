@@ -35,8 +35,8 @@ margin=0.3
 nnet_opt="--resnet-type $nnet_type --in-feats 64 --in-channels 1 --in-kernel-size 3 --in-stride 1 --no-maxpool --norm-layer instance-norm-affine --head-norm-layer layer-norm  --no-maxpool --res2net-width-factor $width_factor --res2net-scale $scale --pool-type ch-wise-att-mean-stddev --pool-inner-feats $attstats_inner --se-r $se_r"
 
 opt_opt="--optim.opt-type adam --optim.lr $lr --optim.beta1 0.9 --optim.beta2 0.95 --optim.weight-decay 1e-5 --optim.amsgrad" # --use-amp"
-lrs_opt="--lrched.lrsch-type exp_lr --lrched.decay-rate 0.5 --lrched.decay-steps 10000 --lrched.hold-steps 40000 --lrched.min-lr 1e-5 --lrched.warmup-steps 1000 --lrched.update-lr-on-opt-step"
-lrs_opt="--lrched.lrsch-type exp_lr --lrched.decay-rate 0.5 --lrched.decay-steps 15000 --lrched.hold-steps 60000 --lrched.min-lr 1e-5 --lrched.warmup-steps 2000 --lrched.update-lr-on-opt-step"
+lrs_opt="--lrsched.lrsch-type exp_lr --lrsched.decay-rate 0.5 --lrsched.decay-steps 10000 --lrsched.hold-steps 40000 --lrsched.min-lr 1e-5 --lrsched.warmup-steps 1000 --lrsched.update-lr-on-opt-step"
+lrs_opt="--lrsched.lrsch-type exp_lr --lrsched.decay-rate 0.5 --lrsched.decay-steps 15000 --lrsched.hold-steps 60000 --lrsched.min-lr 1e-5 --lrsched.warmup-steps 2000 --lrsched.update-lr-on-opt-step"
 
 nnet_name=${feat_type}_${nnet_type}${ws_tag}_r${se_r}_eina_hln_chattstatsi${attstats_inner}_e${embed_dim}_arcs${s}m${margin}_do${dropout}_adam_lr${lr}_b${eff_batch_size}_amp.v1.$nnet_data
 nnet_num_epochs=100
@@ -57,7 +57,7 @@ ft_margin=0.3
 ft_margin_warmup=3
 
 ft_opt_opt="--optim.opt-type sgd --optim.lr $ft_lr --optim.momentum 0.9 --optim.weight-decay 1e-5 --use-amp --var-batch-size"
-ft_lrs_opt="--lrched.lrsch-type cos_lr --lrched.t 2500 --lrched.t-mul 2 --lrched.warm-restarts --lrched.gamma 0.75 --lrched.min-lr 1e-4 --lrched.warmup-steps 100 --lrched.update-lr-on-opt-step"
+ft_lrs_opt="--lrsched.lrsch-type cos_lr --lrsched.t 2500 --lrsched.t-mul 2 --lrsched.warm-restarts --lrsched.gamma 0.75 --lrsched.min-lr 1e-4 --lrsched.warmup-steps 100 --lrsched.update-lr-on-opt-step"
 ft_nnet_name=${nnet_name}.ft_${ft_min_chunk}_${ft_max_chunk}_arcm${ft_margin}_sgdcos_lr${ft_lr}_b${ft_eff_batch_size}_amp.v2
 ft_nnet_dir=exp/xvector_nnets/$ft_nnet_name
 ft_nnet=$ft_nnet_dir/model_ep0014.pth
@@ -78,7 +78,7 @@ ft2_min_chunk=10
 ft2_max_chunk=60
 
 ft2_opt_opt="--optim.opt-type sgd --optim.lr $ft2_lr --optim.momentum 0.9 --optim.weight-decay 1e-5 --use-amp --var-batch-size"
-ft2_lrs_opt="--lrched.lrsch-type cos_lr --lrched.t 2500 --lrched.t-mul 2 --lrched.warm-restarts --lrched.gamma 0.75 --lrched.min-lr 1e-4 --lrched.warmup-steps 100 --lrched.update-lr-on-opt-step"
+ft2_lrs_opt="--lrsched.lrsch-type cos_lr --lrsched.t 2500 --lrsched.t-mul 2 --lrsched.warm-restarts --lrsched.gamma 0.75 --lrsched.min-lr 1e-4 --lrsched.warmup-steps 100 --lrsched.update-lr-on-opt-step"
 ft2_nnet_name=${ft_nnet_name}.ft_eaffine_rege_w${ft2_reg_weight_embed}_${ft2_min_chunk}_${ft2_max_chunk}_sgdcos_lr${ft2_lr}_b${ft2_eff_batch_size}_amp.v2.$nnet_adapt_data
 ft2_nnet_dir=exp/xvector_nnets/$ft2_nnet_name
 ft2_nnet=$ft2_nnet_dir/model_ep0015.pth
@@ -97,7 +97,7 @@ ft3_min_chunk=10
 ft3_max_chunk=60
 
 ft3_opt_opt="--optim.opt-type sgd --optim.lr $ft3_lr --optim.momentum 0.9 --optim.weight-decay 1e-5 --use-amp --var-batch-size"
-ft3_lrs_opt="--lrched.lrsch-type cos_lr --lrched.t 2500 --lrched.t-mul 2 --lrched.warm-restarts --lrched.gamma 0.75 --lrched.min-lr 1e-4 --lrched.warmup-steps 100 --lrched.update-lr-on-opt-step"
+ft3_lrs_opt="--lrsched.lrsch-type cos_lr --lrsched.t 2500 --lrsched.t-mul 2 --lrsched.warm-restarts --lrsched.gamma 0.75 --lrsched.min-lr 1e-4 --lrsched.warmup-steps 100 --lrsched.update-lr-on-opt-step"
 ft3_nnet_name=${ft2_nnet_name}.ft_reg_wenc${ft3_reg_weight_enc}_we${ft3_reg_weigth_embed}_${ft3_min_chunk}_${ft3_max_chunk}_sgdcos_lr${ft3_lr}_b${ft3_eff_batch_size}_amp.v2
 ft3_nnet_name=${ft2_nnet_name}.ft_${ft3_min_chunk}_${ft3_max_chunk}_sgdcos_lr${ft3_lr}_b${ft3_eff_batch_size}_amp.v2
 ft3_nnet_dir=exp/xvector_nnets/$ft3_nnet_name
