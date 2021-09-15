@@ -42,7 +42,7 @@ export LRU_CACHE_CAPACITY=1 #this will avoid crazy ram memory when using pytorch
 export HDF5_USE_FILE_LOCKING=FALSE
 
 export MPLBACKEND="agg"
-export PATH=$HYP_ROOT/hyperion/bin:$PWD/utils:$PATH
+export PATH=$HYP_ROOT/hyperion/bin:$HYP_ROOT/hyp_utils:$PWD/utils:$PATH
 export LD_LIBRARY_PATH
 
 wait_file() {
