@@ -173,6 +173,7 @@ class XVector(TorchModel):
         Returns:
          GlobalPool1d object
         """
+        print(pool_net, flush=True)
         if isinstance(pool_net, str):
             pool_net = {"pool_type": pool_net}
 

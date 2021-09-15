@@ -1,4 +1,4 @@
-# SRE19-AV-V/v0.1
+# SRE19-AV-V/v0.2
 
 Recipe for face recognition in videos based on PyTorch pre-trained RetinaFace face detector and ArcFace Embeddings
 

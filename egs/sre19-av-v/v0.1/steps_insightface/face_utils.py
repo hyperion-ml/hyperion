@@ -28,6 +28,10 @@ class Namespace:
         self.__dict__.update(kwargs)
 
 
+def read_img(file_path):
+    return cv2.imread(file_path)
+
+
 def read_video(file_path, fps):
 
     f = av.open(str(file_path))

@@ -58,7 +58,7 @@ class GlobalPool1dFactory(object):
                 keepdim=keepdim,
             )
 
-        if pool_type in ["ch-wise-att-mean-stddev", "ch-wise-att-mean+stddev"]:
+        if pool_type in ["ch-wise-att-mean+stddev", "ch-wise-att-mean-stddev"]:
             return GlobalChWiseAttMeanStdPool1d(
                 in_feats,
                 inner_feats,
