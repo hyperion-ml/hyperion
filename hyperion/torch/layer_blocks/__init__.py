@@ -20,8 +20,31 @@ from .conformer_conv import ConformerConvBlock
 from .conformer_encoder_v1 import ConformerEncoderBlockV1
 from .dc1d_blocks import DC1dEncBlock, DC1dDecBlock
 from .dc2d_blocks import DC2dEncBlock, DC2dDecBlock
-from .resnet1d_blocks import ResNet1dBasicBlock, ResNet1dBasicDecBlock, ResNet1dBNBlock, ResNet1dBNDecBlock
-from .resnet1d_blocks import SEResNet1dBasicBlock, SEResNet1dBasicDecBlock, SEResNet1dBNBlock, SEResNet1dBNDecBlock
-from .resnet2d_blocks import ResNet2dBasicBlock, ResNet2dBasicDecBlock, ResNet2dBNBlock, ResNet2dBNDecBlock
-from .resnet2d_blocks import SEResNet2dBasicBlock, SEResNet2dBasicDecBlock, SEResNet2dBNBlock, SEResNet2dBNDecBlock
+from .resnet1d_blocks import (
+    ResNet1dBasicBlock,
+    ResNet1dBasicDecBlock,
+    ResNet1dBNBlock,
+    ResNet1dBNDecBlock,
+    ResNet1dEndpoint,
+)
+from .resnet1d_blocks import (
+    SEResNet1dBasicBlock,
+    SEResNet1dBasicDecBlock,
+    SEResNet1dBNBlock,
+    SEResNet1dBNDecBlock,
+)
+from .res2net1d_blocks import Res2Net1dBasicBlock, Res2Net1dBNBlock
+from .resnet2d_blocks import (
+    ResNet2dBasicBlock,
+    ResNet2dBasicDecBlock,
+    ResNet2dBNBlock,
+    ResNet2dBNDecBlock,
+)
+from .resnet2d_blocks import (
+    SEResNet2dBasicBlock,
+    SEResNet2dBasicDecBlock,
+    SEResNet2dBNBlock,
+    SEResNet2dBNDecBlock,
+)
+from .res2net2d_blocks import Res2Net2dBasicBlock, Res2Net2dBNBlock
 from .spine_blocks import BlockSpec, SpineResample, SpineEndpoints, SpineConv
