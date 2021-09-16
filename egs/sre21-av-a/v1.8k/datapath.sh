@@ -14,6 +14,7 @@ if [ "$(hostname --domain)" == "clsp.jhu.edu" ];then
   janus_root=$ldc_root/LDC2019E55/Janus_Multimedia_Dataset
   sre_superset_root=$ldc_root/LDC2021E08
   sre21_dev_root=$ldc_root/LDC2021E09
+  sre21_eval_root=$ldc_root/LDC2021E10
   musan_root=/export/corpora5/JHU/musan
 elif [ "$(hostname --domain)" == "cm.gemini" ];then
   ldc_root=/export/common/data/corpora/LDC
@@ -26,6 +27,7 @@ elif [ "$(hostname --domain)" == "cm.gemini" ];then
   janus_root=$sre_root/SRE19/LDC2019E55_Janus_Multimedia_Dataset
   sre_superset_root=/exp/jvillalba/corpora/sre21/releases/LDC2021E08
   sre21_dev_root=/exp/jvillalba/corpora/sre21/releases/LDC2021E09
+  sre21_eval_root=/exp/jvillalba/corpora/sre21/releases/LDC2021E10
   musan_root=/expscratch/dgromero/corpora/musan
 else
   echo "Put your database paths here"

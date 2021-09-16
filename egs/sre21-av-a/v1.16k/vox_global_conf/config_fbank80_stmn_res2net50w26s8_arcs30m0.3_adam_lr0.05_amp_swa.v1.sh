@@ -39,7 +39,7 @@ nnet_name=${feat_type}_${nnet_type}${ws_tag}_e${embed_dim}_arcs${s}m${margin}_do
 nnet_num_epochs=90
 nnet_dir=exp/xvector_nnets_vox/$nnet_name
 nnet=$nnet_dir/swa_model_ep0091.pth
-
+nnet_name=$nnet_name.voxceleb2_train
 
 # back-end
 plda_aug_config=conf/reverb_noise_aug.yaml

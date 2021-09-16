@@ -52,7 +52,11 @@ if [ $stage -le 2 ];then
   		sre16_train_dev_ceb \
   		sre16_train_dev_cmn \
 		sre21_audio_dev_enroll \
-		sre21_audio_dev_test
+		sre21_audio_dev_test \
+		sre21_audio-visual_dev_test \
+		sre21_audio_eval_enroll \
+		sre21_audio_eval_test \
+		sre21_audio-visual_eval_test
   do
     num_spk=$(wc -l data/$name/spk2utt | awk '{ print $1}')
     nj=$(($num_spk < 40 ? $num_spk:40))

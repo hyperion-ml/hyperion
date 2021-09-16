@@ -96,7 +96,10 @@ if [ $stage -le 3 ]; then
 		sre_cts_superset_8k_dev \
 		sre21_audio_dev_enroll \
 		sre21_audio_dev_test \
-		sre21_audio-visual_dev_test
+		sre21_audio-visual_dev_test \
+		sre21_audio_eval_enroll \
+		sre21_audio_eval_test \
+		sre21_audio-visual_eval_test
   do
     num_utts=$(wc -l data/$name/wav.scp | awk '{ print $1}')
     nj=$(($num_utts < 100 ? $num_utts:100))
@@ -118,6 +121,12 @@ if [ $stage -le 4 ]; then
 
   mkdir -p $xvector_dir/sre21_audio-visual_dev
   cat $xvector_dir/sre21_{audio_dev_enroll,audio-visual_dev_test}/xvector.scp > $xvector_dir/sre21_audio-visual_dev/xvector.scp
+
+  mkdir -p $xvector_dir/sre21_audio_eval
+  cat $xvector_dir/sre21_audio_eval_{enroll,test}/xvector.scp > $xvector_dir/sre21_audio_eval/xvector.scp
+
+  mkdir -p $xvector_dir/sre21_audio-visual_eval
+  cat $xvector_dir/sre21_{audio_eval_enroll,audio-visual_eval_test}/xvector.scp > $xvector_dir/sre21_audio-visual_eval/xvector.scp
 
 fi
 

@@ -35,7 +35,9 @@ fi
 # Network Training
 if [ $stage -le 1 ]; then
 
-    if [[ ${nnet_type} =~ resnet ]] || [[ ${nnet_type} =~ resnext ]] || [[ ${nnet_type} =~ res2net ]] || [[ ${nnet_type} =~ res2next ]]; then
+    if [[ ${nnet_type} =~ resnet1d ]]; then
+    	train_exec=torch-train-resnet1d-xvec-from-wav.py
+    elif [[ ${nnet_type} =~ resnet ]] || [[ ${nnet_type} =~ resnext ]] || [[ ${nnet_type} =~ res2net ]] || [[ ${nnet_type} =~ res2next ]]; then
 	train_exec=torch-train-resnet-xvec-from-wav.py
     elif [[ ${nnet_type} =~ efficientnet ]]; then
 	train_exec=torch-train-efficientnet-xvec-from-wav.py

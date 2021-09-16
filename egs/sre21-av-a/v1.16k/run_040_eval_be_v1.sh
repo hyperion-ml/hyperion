@@ -115,7 +115,27 @@ if [ $stage -le 3 ]; then
       $be_dir/lda_lnorm.h5 \
       $be_dir/plda.h5 \
       $score_plda_dir/sre21_audio-visual_dev_scores &
-    
+
+    echo "SRE21 Audio Eval"
+    steps_be/eval_be_plda_v1.sh \
+      --cmd "$train_cmd" --plda_type $plda_type \
+      data/sre21_audio_eval_test/trials \
+      data/sre21_audio_eval_enroll/utt2model \
+      $xvector_dir/sre21_audio_eval/xvector.scp \
+      $be_dir/lda_lnorm.h5 \
+      $be_dir/plda.h5 \
+      $score_plda_dir/sre21_audio_eval_scores &
+
+    echo "SRE21 Audio-Visual Eval"
+    steps_be/eval_be_plda_v1.sh \
+      --cmd "$train_cmd" --plda_type $plda_type \
+      data/sre21_audio-visual_eval_test/trials \
+      data/sre21_audio_eval_enroll/utt2model \
+      $xvector_dir/sre21_audio-visual_eval/xvector.scp \
+      $be_dir/lda_lnorm.h5 \
+      $be_dir/plda.h5 \
+      $score_plda_dir/sre21_audio-visual_eval_scores &
+
     wait
 
     local/score_sre21.sh data/sre21_audio_dev_test audio_dev $score_plda_dir
@@ -215,7 +235,35 @@ if [ $stage -le 6 ]; then
       $be_dir/lda_lnorm.h5 \
       $be_dir/plda.h5 \
       $score_plda_dir/sre21_audio-visual_dev_scores &
-    
+
+    echo "SRE21 Audio Eval with AS-Norm"
+    steps_be/eval_be_plda_snorm_v1.sh \
+      --cmd "$train_cmd" \
+      --plda_type $plda_type \
+      --ncoh $ncoh \
+      data/sre21_audio_eval_test/trials \
+      data/sre21_audio_eval_enroll/utt2model \
+      $xvector_dir/sre21_audio_eval/xvector.scp \
+      data/${coh_data}/utt2spk \
+      $xvector_dir/${coh_data}/xvector.scp \
+      $be_dir/lda_lnorm.h5 \
+      $be_dir/plda.h5 \
+      $score_plda_dir/sre21_audio_eval_scores &
+
+    echo "SRE21 Audio-Visual Eval with AS-Norm"
+    steps_be/eval_be_plda_snorm_v1.sh \
+      --cmd "$train_cmd" \
+      --plda_type $plda_type \
+      --ncoh $ncoh \
+      data/sre21_audio-visual_eval_test/trials \
+      data/sre21_audio_eval_enroll/utt2model \
+      $xvector_dir/sre21_audio-visual_eval/xvector.scp \
+      data/${coh_data}/utt2spk \
+      $xvector_dir/${coh_data}/xvector.scp \
+      $be_dir/lda_lnorm.h5 \
+      $be_dir/plda.h5 \
+      $score_plda_dir/sre21_audio-visual_eval_scores &
+
     wait
 
     local/score_sre21.sh data/sre21_audio_dev_test audio_dev $score_plda_dir

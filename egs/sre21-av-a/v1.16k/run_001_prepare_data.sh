@@ -65,4 +65,15 @@ if [ $stage -le 4 ];then
   
 fi
 
+if [ $stage -le 5 ];then
+  # Prepare SRE21 eval
+  hyp_utils/conda_env.sh \
+    local/prepare_sre21av_eval_audio.py \
+    --corpus-dir $sre21_eval_root \
+    --target-fs 16000 \
+    --output-path data/sre21_audio_eval \
+    --av-output-path data/sre21_audio-visual_eval
+  
+fi
+
 exit
