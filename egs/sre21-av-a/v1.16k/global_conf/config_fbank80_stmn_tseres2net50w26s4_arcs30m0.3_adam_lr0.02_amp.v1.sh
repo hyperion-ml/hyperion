@@ -50,7 +50,7 @@ else
     plda_data=voxceleb2cat_train_augx${plda_num_augs}
 fi
 plda_type=splda
-lda_dim=200
-plda_y_dim=150
-plda_z_dim=200
+# lda_dim=200
+# plda_y_dim=150
+# plda_z_dim=200
 

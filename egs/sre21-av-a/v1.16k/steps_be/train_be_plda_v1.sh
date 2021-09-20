@@ -10,7 +10,7 @@ lda_dim=150
 plda_type=frplda
 y_dim=100
 z_dim=150
-
+pca_var_r=1
 
 if [ -f path.sh ]; then . ./path.sh; fi
 . parse_options.sh || exit 1;
@@ -50,6 +50,6 @@ $cmd $output_dir/log/train_be.log \
      --train-list $train_list \
      --lda-dim $lda_dim \
      --plda-type $plda_type \
-     --y-dim $y_dim --z-dim $z_dim \
+     --y-dim $y_dim --z-dim $z_dim --pca-var-r $pca_var_r \
      --output-path $output_dir
 

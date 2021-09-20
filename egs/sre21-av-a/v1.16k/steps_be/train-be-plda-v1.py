@@ -18,7 +18,7 @@ import pandas as pd
 
 from hyperion.hyp_defs import float_cpu, config_logger
 from hyperion.helpers import VectorClassReader as VCR
-from hyperion.transforms import TransformList, LDA, LNorm
+from hyperion.transforms import TransformList, PCA, LDA, LNorm
 from hyperion.helpers import PLDAFactory as F
 from hyperion.utils.scp_list import SCPList
 
@@ -33,6 +33,7 @@ def train_be(
     epochs,
     ml_md,
     md_epochs,
+    pca_var_r,
     output_path,
     **kwargs
 ):
@@ -42,22 +43,38 @@ def train_be(
     vcr_train = VCR(v_file, train_list, None, **vcr_args)
     x, class_ids = vcr_train.read()
 
+    preproc = []
     # Train LDA
     t1 = time.time()
+    rank = PCA.get_pca_dim_for_var_ratio(x, var_r=pca_var_r)
+    pca = None
+    if rank < x.shape[1]:
+        # do PCA if rank of x is smaller than its dimension
+        pca = PCA(pca_dim=rank, name="pca")
+        pca.fit(x)
+        x = pca.predict(x)
+        if y_dim > rank:
+            y_dim = rank
+        logging.info("PCA dim=%d for variance ratio %f", rank, pca_var_r)
+        preproc.append(pca)
 
-    lda = LDA(lda_dim=lda_dim, name="lda")
-    lda.fit(x, class_ids)
-
-    x_lda = lda.predict(x)
-    logging.info("LDA Elapsed time: %.2f s." % (time.time() - t1))
+    if lda_dim < rank:
+        lda = LDA(lda_dim=lda_dim, name="lda")
+        lda.fit(x, class_ids)
+        preproc.append(lda)
+        x_lda = lda.predict(x)
+        logging.info("LDA Elapsed time: %.2f s.", time.time() - t1)
+    else:
+        x_lda = x
 
     # Train centering and whitening
     t1 = time.time()
     lnorm = LNorm(name="lnorm")
     lnorm.fit(x_lda)
+    preproc.append(lnorm)
 
     x_ln = lnorm.predict(x_lda)
-    logging.info("LNorm Elapsed time: %.2f s." % (time.time() - t1))
+    logging.info("LNorm Elapsed time: %.2f s.", time.time() - t1)
 
     # Train PLDA
     t1 = time.time()
@@ -65,14 +82,12 @@ def train_be(
     plda = F.create_plda(plda_type, y_dim=y_dim, z_dim=z_dim, name="plda")
     elbo = plda.fit(x_ln, class_ids, epochs=epochs, ml_md=ml_md, md_epochs=md_epochs)
 
-    logging.info("PLDA Elapsed time: %.2f s." % (time.time() - t1))
+    logging.info("PLDA Elapsed time: %.2f s.", time.time() - t1)
 
     # Save models
-    preproc = TransformList(lda)
-    preproc.append(lnorm)
-
+    preproc = TransformList(preproc)
     if not os.path.exists(output_path):
-        os.makedirs(ouput_path)
+        os.makedirs(output_path)
 
     preproc.save(output_path + "/lda_lnorm.h5")
     plda.save(output_path + "/plda.h5")
@@ -86,7 +101,7 @@ def train_be(
 if __name__ == "__main__":
 
     parser = ArgumentParser(
-        description="Train LDA+LNorm+PLDA Back-end in single dataset"
+        description="Train PCA+LDA+LNorm+PLDA Back-end in single dataset"
     )
 
     parser.add_argument("--v-file", required=True)
@@ -97,6 +112,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--output-path", required=True)
     parser.add_argument("--lda-dim", type=int, default=None)
+    parser.add_argument("--pca-var-r", type=float, default=1)
     parser.add_argument(
         "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
     )
