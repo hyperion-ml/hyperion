@@ -1,4 +1,4 @@
-# LResNet34 x-vector with mixed precision training
+# ECAPA-TDNN 2048x4 layers x-vector with mixed precision training
 
 # acoustic features
 feat_config=conf/fbank64_stmn_8k.yaml
@@ -18,24 +18,45 @@ min_chunk=4
 max_chunk=4
 lr=0.02
 
-nnet_type=res2net50 
-dropout=0
-embed_dim=256
-width_factor=3.25
+nnet_type=resnet1d
+block_type=seres2bn # squeeze-excitation res2net bottleneck
+channels=2048
+ep_channels=8192
+width_factor=1
 scale=8
-ws_tag=w26s8
+se_r=16
+dropout=0
 
+attstats_inner=128
+embed_dim=256
 s=30
 margin_warmup=20
 margin=0.3
-attstats_inner=128
 
-nnet_opt="--resnet-type $nnet_type --in-feats 64 --in-channels 1 --in-kernel-size 3 --in-stride 1 --no-maxpool --res2net-width-factor $width_factor --res2net-scale $scale --pool_net.pool-type ch-wise-att-mean+stddev --pool_net.inner-feats $attstats_inner"
+nnet_opt="--resnet_enc.in-feats 64 \
+		     --resnet_enc.in-conv-channels $channels \
+		     --resnet_enc.in-kernel-size 5 \
+		     --resnet_enc.in-stride 1 \
+		     --resnet_enc.resb-type $block_type \
+		     --resnet_enc.resb-repeats 1 1 1 1 \
+		     --resnet_enc.resb-channels $channels \
+		     --resnet_enc.resb-kernel-sizes 3 \
+		     --resnet_enc.resb-dilations 2 3 4 5 \
+		     --resnet_enc.resb-strides 1 \
+		     --resnet_enc.res2net-width-factor $width_factor \
+		     --resnet_enc.res2net-scale $scale \
+		     --resnet_enc.se-r $se_r \
+		     --resnet_enc.multilayer \
+                     --resnet_enc.multilayer-concat \
+                     --resnet_enc.endpoint-channels $ep_channels \
+		     --pool_net.pool-type ch-wise-att-mean+stddev \
+		     --pool_net.inner-feats $attstats_inner \
+		     --embed-dim $embed_dim"
 
 opt_opt="--optim.opt-type adam --optim.lr $lr --optim.beta1 0.9 --optim.beta2 0.95 --optim.weight-decay 1e-5 --optim.amsgrad --use-amp --swa-start 65 --swa-lr 1e-3 --swa-anneal-epochs 5"
-lrs_opt="--lrsched.lrsch-type exp_lr --lrsched.decay-rate 0.5 --lrsched.decay-steps 10000 --lrsched.hold-steps 35000 --lrsched.min-lr 1e-5 --lrsched.warmup-steps 1000 --lrsched.update-lr-on-opt-step"
+lrs_opt="--lrsched.lrsch-type exp_lr --lrsched.decay-rate 0.5 --lrsched.decay-steps 10000 --lrsched.hold-steps 30000 --lrsched.min-lr 1e-5 --lrsched.warmup-steps 1000 --lrsched.update-lr-on-opt-step"
 
-nnet_name=${feat_type}_${nnet_type}${ws_tag}_chattstatsi128_e${embed_dim}_arcs${s}m${margin}_do${dropout}_adam_lr${lr}_b${eff_batch_size}_amp.v1
+nnet_name=${feat_type}_ecapatdnn2048x4_chattstatsi128_e${embed_dim}_arcs${s}m${margin}_do${dropout}_adam_lr${lr}_b${eff_batch_size}_amp.v1
 nnet_num_epochs=75
 nnet_dir=exp/xvector_nnets/$nnet_name
 nnet=$nnet_dir/model_ep0070.pth

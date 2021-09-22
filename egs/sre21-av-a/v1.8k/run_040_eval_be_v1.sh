@@ -13,6 +13,10 @@ config_file=default_config.sh
 ncoh=500
 coh_data=voxceleb_sre_alllangs
 ft=0
+pca_var_r=0.45
+lda_dim=200
+plda_y_dim=150
+plda_z_dim=200
 
 . parse_options.sh || exit 1;
 . $config_file
@@ -29,7 +33,7 @@ fi
 plda_data=voxceleb_sre_alllangs
 #plda_data=sre_chnspks
 plda_label=${plda_type}y${plda_y_dim}_v1
-be_name=lda${lda_dim}_${plda_label}_${plda_data}
+be_name=pca${pca_var_r}_lda${lda_dim}_${plda_label}_${plda_data}
 
 
 xvector_dir=exp/xvectors/$nnet_name
@@ -54,7 +58,7 @@ if [ $stage -le 1 ]; then
     --cmd "$train_cmd" \
     --lda_dim $lda_dim \
     --plda_type $plda_type \
-    --y_dim $plda_y_dim --z_dim $plda_z_dim \
+    --y_dim $plda_y_dim --z_dim $plda_z_dim --pca-var-r $pca_var_r \
     $xvector_dir/$plda_data/xvector.scp \
     data/$plda_data \
     $be_dir
@@ -68,9 +72,9 @@ if [ $stage -le 2 ]; then
     steps_be/eval_be_plda_v1.sh \
       --cmd "$train_cmd" \
       --plda_type $plda_type \
-      data/sre_cts_superset_16k_dev/trials \
-      data/sre_cts_superset_16k_dev/utt2enroll \
-      $xvector_dir/sre_cts_superset_16k_dev/xvector.scp \
+      data/sre_cts_superset_8k_dev/trials \
+      data/sre_cts_superset_8k_dev/utt2enroll \
+      $xvector_dir/sre_cts_superset_8k_dev/xvector.scp \
       $be_dir/lda_lnorm.h5 \
       $be_dir/plda.h5 \
       $score_plda_dir/sre_cts_superset_dev_scores &
@@ -89,7 +93,7 @@ if [ $stage -le 2 ]; then
     wait
 
     local/score_sre16.sh data/sre16_eval40_yue_test eval40_yue $score_plda_dir
-    local/score_sre_cts_superset.sh data/sre_cts_superset_16k_dev $score_plda_dir
+    local/score_sre_cts_superset.sh data/sre_cts_superset_8k_dev $score_plda_dir
 fi
 
 
@@ -175,9 +179,9 @@ if [ $stage -le 5 ]; then
     #   --cmd "$train_cmd" \
     #   --plda_type $plda_type \
     #   --ncoh $ncoh \
-    #   data/sre_cts_superset_16k_dev/trials \
-    #   data/sre_cts_superset_16k_dev/utt2enroll \
-    #   $xvector_dir/sre_cts_superset_16k_dev/xvector.scp \
+    #   data/sre_cts_superset_8k_dev/trials \
+    #   data/sre_cts_superset_8k_dev/utt2enroll \
+    #   $xvector_dir/sre_cts_superset_8k_dev/xvector.scp \
     #   data/${coh_data}/utt2spk \
     #   $xvector_dir/${coh_data}/xvector.scp \
     #   $be_dir/lda_lnorm.h5 \
@@ -201,7 +205,7 @@ if [ $stage -le 5 ]; then
     wait
 
     local/score_sre16.sh data/sre16_eval40_yue_test eval40_yue $score_plda_dir
-    # local/score_sre_cts_superset.sh data/sre_cts_superset_16k_dev $score_plda_dir
+    # local/score_sre_cts_superset.sh data/sre_cts_superset_8k_dev $score_plda_dir
 fi
 
 
