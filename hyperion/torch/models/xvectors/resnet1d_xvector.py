@@ -118,6 +118,7 @@ class ResNet1dXVector(XVector):
 
         base_config = super().get_config()
         del base_config["encoder_cfg"]
+        del base_config["in_feats"]
 
         encoder_cfg = self.encoder_net.get_config()
         del encoder_cfg["class_name"]
@@ -134,20 +135,20 @@ class ResNet1dXVector(XVector):
         cfg, state_dict = cls._load_cfg_state_dict(file_path, cfg, state_dict)
 
         try:
-            cfg["resnet_enc"] = cfg["encoder_net"]
-            del cfg["encoder_net"]
+            # cfg["resnet_enc"] = cfg["encoder_net"]
+            # del cfg["encoder_net"]
+            # del cfg["in_feats"]
+            # del cfg["resnet_enc"]["class_name"]
+            # kk = {
+            #     "multilayer": True,
+            #     "multilayer_concat": True,
+            #     "endpoint_channels": 1536,
+            #     "endpoint_layers": None,
+            #     "endpoint_scale_layer": -1,
+            #     "upsampling_mode": "nearest",
+            # }
+            # cfg["resnet_enc"].update(kk)
             del cfg["in_feats"]
-            del cfg["resnet_enc"]["class_name"]
-            kk = {
-                "multilayer": True,
-                "multilayer_concat": True,
-                "endpoint_channels": 1536,
-                "endpoint_layers": None,
-                "endpoint_scale_layer": -1,
-                "upsampling_mode": "nearest",
-            }
-            cfg["resnet_enc"].update(kk)
-
         except:
             pass
         print(cfg, flush=True)
