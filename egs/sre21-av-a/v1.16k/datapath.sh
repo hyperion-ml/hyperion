@@ -10,7 +10,9 @@ if [ "$(hostname --domain)" == "clsp.jhu.edu" ];then
   ldc_root3=/export/corpora3/LDC
   voxceleb1_root=/export/corpora5/VoxCeleb1_v2
   voxceleb2_root=/export/corpora5/VoxCeleb2
-  sre16_eval_root=$ldc_root/LDC2018E30/data/eval/R149_0_1
+  #sre16_eval_root=$ldc_root/LDC2018E30/data/eval/R149_0_1
+  sre16_dev_root=$ldc_root/LDC2019S20/data/dev/R148_0_0
+  sre16_eval_root=$ldc_root/LDC2019S20/data/eval/R149_0_1
   janus_root=$ldc_root/LDC2019E55/Janus_Multimedia_Dataset
   sre_superset_root=$ldc_root/LDC2021E08
   sre21_dev_root=$ldc_root/LDC2021E09

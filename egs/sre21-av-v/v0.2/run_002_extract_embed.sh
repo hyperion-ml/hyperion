@@ -38,7 +38,7 @@ fi
 
 
 if [ $stage -le 2 ];then 
-  for name in sre21_visual_dev_enroll
+  for name in sre21_visual_dev_enroll sre21_visual_eval_enroll
   do
     num_spk=$(wc -l data/$name/spk2utt | awk '{ print $1}')
     nj=$(($num_spk < 40 ? $num_spk:40))
@@ -51,6 +51,7 @@ fi
 
 if [ $stage -le 3 ];then 
   for name in sre21_visual_dev_test \
+		sre21_visual_eval_test \
 		janus_dev_enroll \
 		janus_dev_test_core \
 		janus_eval_enroll \

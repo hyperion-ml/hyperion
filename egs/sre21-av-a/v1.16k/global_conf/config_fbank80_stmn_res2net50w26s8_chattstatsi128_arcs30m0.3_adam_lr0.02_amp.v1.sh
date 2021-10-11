@@ -58,14 +58,52 @@ ft_nnet_name=${nnet_name}.ft_${ft_min_chunk}_${ft_max_chunk}_arcm${ft_margin}_sg
 ft_nnet_dir=exp/xvector_nnets/$ft_nnet_name
 ft_nnet=$ft_nnet_dir/model_ep0007.pth
 
+
+# xvector last-layer finetuning in-domain
+reg_layers_classif=0
+reg_layers_enc="0 1 2 3 4"
+nnet_adapt_data=voxcelebcat_sre_alllangs_mixfs_chnspks
+
+# ft2_batch_size_1gpu=4
+# ft2_eff_batch_size=128 # effective batch size
+# ft2_ipe=4
+# ft2_lr=0.01
+# ft2_nnet_num_epochs=12
+# ft2_margin_warmup=3
+# ft2_reg_weight_embed=0.1
+# ft2_min_chunk=10
+# ft2_max_chunk=60
+
+# ft2_opt_opt="--optim.opt-type sgd --optim.lr $ft2_lr --optim.momentum 0.9 --optim.weight-decay 1e-5 --use-amp --var-batch-size"
+# ft2_lrs_opt="--lrsched.lrsch-type cos_lr --lrsched.t 2500 --lrsched.t-mul 2 --lrsched.warm-restarts --lrsched.gamma 0.75 --lrsched.min-lr 1e-4 --lrsched.warmup-steps 100 --lrsched.update-lr-on-opt-step"
+# ft2_nnet_name=${ft_nnet_name}.ft_eaffine_rege_w${ft2_reg_weigth_embed}_${ft2_min_chunk}_${ft2_max_chunk}_sgdcos_lr${ft2_lr}_b${ft2_eff_batch_size}_amp.v2
+# ft2_nnet_dir=exp/xvector_nnets/$ft2_nnet_name
+# ft2_nnet=$ft2_nnet_dir/model_ep0010.pth
+
+
+# xvector full nnet finetuning
+ft2_batch_size_1gpu=6
+ft2_eff_batch_size=128 # effective batch size
+ft2_ipe=1
+ft2_lr=0.01
+ft2_nnet_num_epochs=15
+ft2_margin=0.5
+ft2_margin_warmup=3
+ft2_reg_weight_embed=0.1
+ft2_reg_weight_enc=0.1
+ft2_min_chunk=10
+ft2_max_chunk=10
+
+ft2_opt_opt="--optim.opt-type sgd --optim.lr $ft2_lr --optim.momentum 0.9 --optim.weight-decay 1e-5 --use-amp --var-batch-size"
+ft2_lrs_opt="--lrsched.lrsch-type cos_lr --lrsched.t 2500 --lrsched.t-mul 2 --lrsched.warm-restarts --lrsched.gamma 0.75 --lrsched.min-lr 1e-4 --lrsched.warmup-steps 100 --lrsched.update-lr-on-opt-step"
+ft2_nnet_name=${ft_nnet_name}.ft_reg_wenc${ft2_reg_weight_enc}_we${ft2_reg_weight_embed}_${ft2_min_chunk}_${ft2_max_chunk}_sgdcos_lr${ft2_lr}_b${ft2_eff_batch_size}_amp.v1
+ft2_nnet_dir=exp/xvector_nnets/$ft2_nnet_name
+ft2_nnet=$ft2_nnet_dir/model_ep0012.pth
+
+
 # back-end
 plda_aug_config=conf/reverb_noise_aug.yaml
 plda_num_augs=0
-if [ $plda_num_augs -eq 0 ]; then
-    plda_data=voxceleb2cat_train
-else
-    plda_data=voxceleb2cat_train_augx${plda_num_augs}
-fi
 plda_type=splda
 # lda_dim=200
 # plda_y_dim=150

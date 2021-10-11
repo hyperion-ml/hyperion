@@ -40,14 +40,14 @@ if [ $stage -le 4 ]; then
     $face_embed_facedet_dir/sre21_visual_dev_test/embed.scp \
     $score_plda_dir/sre21_visual_dev_scores &
   
-  # steps_be/eval_face_vid_be_v4.sh \
-  #   --cmd "$train_cmd" --thr-ahc $thr_ahc \
-  #   data/sre21_visual_eval_test/trials \
-  #   data/sre21_visual_eval_enroll/utt2spk \
-  #   $face_embed_ref_dir/sre21_visual_eval_enroll/embed.scp \
-  #   $face_embed_ref_dir/sre21_visual_eval_enroll/embed.scp \
-  #   $face_embed_facedet_dir/sre21_visual_eval_test/embed.scp \
-  #   $score_plda_dir/sre21_visual_eval_scores &
+  steps_be/eval_face_vid_be_v4.sh \
+    --cmd "$train_cmd" --thr-ahc $thr_ahc \
+    data/sre21_visual_eval_test/trials \
+    data/sre21_visual_eval_enroll/utt2spk \
+    $face_embed_ref_dir/sre21_visual_eval_enroll/embed.scp \
+    $face_embed_ref_dir/sre21_visual_eval_enroll/embed.scp \
+    $face_embed_facedet_dir/sre21_visual_eval_test/embed.scp \
+    $score_plda_dir/sre21_visual_eval_scores &
   wait
 
   local/score_sre21av.sh data/sre21_visual_dev_test visual_dev $score_plda_dir
@@ -109,16 +109,16 @@ if [ $stage -le 9 ]; then
     $face_embed_facedet_dir/${coh_data}/embed.scp \
     $score_plda_dir/sre21_visual_dev_scores &
 
-  # steps_be/eval_face_vid_be_snorm_v4.sh \
-  #   --cmd "$train_cmd" --ncoh $ncoh \
-  #   data/sre21_visual_eval_test/trials \
-  #   data/sre21_visual_eval_enroll/utt2spk \
-  #   $face_embed_ref_dir/sre21_visual_eval_enroll/embed.scp \
-  #   $face_embed_ref_dir/sre21_visual_eval_enroll/embed.scp \
-  #   $face_embed_facedet_dir/sre21_visual_eval_test/embed.scp \
-  #   data/${coh_data}/utt2spk \
-  #   $face_embed_facedet_dir/${coh_data}/embed.scp \
-  #   $score_plda_dir/sre21_visual_eval_scores &
+  steps_be/eval_face_vid_be_snorm_v4.sh \
+    --cmd "$train_cmd" --ncoh $ncoh \
+    data/sre21_visual_eval_test/trials \
+    data/sre21_visual_eval_enroll/utt2spk \
+    $face_embed_ref_dir/sre21_visual_eval_enroll/embed.scp \
+    $face_embed_ref_dir/sre21_visual_eval_enroll/embed.scp \
+    $face_embed_facedet_dir/sre21_visual_eval_test/embed.scp \
+    data/${coh_data}/utt2spk \
+    $face_embed_facedet_dir/${coh_data}/embed.scp \
+    $score_plda_dir/sre21_visual_eval_scores &
   wait
 
   local/score_sre21av.sh data/sre21_visual_dev_test visual_dev $score_plda_dir

@@ -35,10 +35,12 @@ $cmd $cal_av_score_dir/train_cal_av.log \
      --key-file $train_key --model-file $model_file --prior $p_vid --lambda-reg $l2_reg
 
 ndxs=(sre21_visual_dev_test/trials \
-    janus_dev_test_core/trials \
-    janus_eval_test_core/trials)
+	sre21_visual_eval_test/trials \
+	janus_dev_test_core/trials \
+	janus_eval_test_core/trials)
 scores=(sre21_visual_dev \
-    janus_dev_core janus_eval_core)
+	  sre21_visual_eval \
+	  janus_dev_core janus_eval_core)
 n_ndx=${#ndxs[*]}
 for((i=0;i<$n_ndx;i++))
 do

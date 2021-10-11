@@ -10,7 +10,7 @@ set -e
 stage=1
 config_file=default_config.sh
 use_gpu=false
-xvec_chunk_length=12800
+xvec_chunk_length=5000
 ft=0
 . parse_options.sh || exit 1;
 . $config_file

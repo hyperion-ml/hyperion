@@ -118,6 +118,12 @@ def extract_face_embed(
                 save_facedet_image(key, 0, frame, faces, landmarks, facedet_dir)
 
             if faces.shape[0] == 0:
+                threshold -= 0.1
+                logging.info(
+                    "did not detect faces in file %s, reducing facedet threshold=%.1f",
+                    key,
+                    threshold,
+                )
                 continue
 
             x = extract_embed_in_frame_v4(
@@ -141,13 +147,6 @@ def extract_face_embed(
 
             if min_faces == 0 or x.shape[0] >= min_faces:
                 break
-
-            threshold -= 0.1
-            logging.info(
-                "did not detect faces in file %s, reducing facedet threshold=%.1f",
-                key,
-                threshold,
-            )
 
         logging.info("file %s saving %d face embeds", key, x.shape[0])
         f_scp.write("%s %s\n" % (key, h5_file))

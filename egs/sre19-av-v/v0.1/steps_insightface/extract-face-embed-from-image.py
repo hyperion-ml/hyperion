@@ -105,6 +105,12 @@ def extract_face_embed(
                 save_facedet_image(key, 0, frame, faces, landmarks, facedet_dir)
 
             if faces.shape[0] == 0:
+                threshold -= 0.1
+                logging.info(
+                    "did not detect faces in file %s, reducing facedet threshold=%.1f",
+                    key,
+                    threshold,
+                )
                 continue
 
             retina_detect_faces = True
@@ -140,13 +146,6 @@ def extract_face_embed(
                         "using retina landmarks then"
                     ),
                     key,
-                )
-            else:
-                threshold -= 0.1
-                logging.info(
-                    "did not detect faces in file %s, reducing facedet threshold=%.1f",
-                    key,
-                    threshold,
                 )
 
         logging.info("file %s saving %d face embeds", key, x.shape[0])

@@ -24,6 +24,11 @@ if [ $stage -le 1 ];then
     --corpus-dir $sre21_dev_root \
     --output-path data/sre21_visual_dev
 
+  hyp_utils/conda_env.sh \
+    local/prepare_sre21av_eval_visual.py \
+    --corpus-dir $sre21_eval_root \
+    --output-path data/sre21_visual_eval
+
 fi
 
 if [ $stage -le 2 ];then
