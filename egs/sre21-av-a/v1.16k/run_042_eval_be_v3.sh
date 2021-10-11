@@ -18,7 +18,7 @@ config_file=default_config.sh
 
 ncoh=500
 coh_data=voxceleb_sre_alllangs_mixfs
-ft=0
+ft=1
 pca_var_r=0.5
 lda_dim=200
 plda_y_dim=150
