@@ -75,6 +75,16 @@ def prepare_sre21av_eval_visual(corpus_dir, output_path, verbose):
     make_enroll_dir(df_trials, img_dir, output_path)
     make_test_dir(df_trials, vid_dir, output_path)
 
+    key_file = corpus_dir / "docs" / "sre21_audio-visual_eval_trials.tsv"
+    df_trials = pd.read_csv(key_file, sep="\t")
+    df_trials = df_trials.drop("modelid", axis=1).drop_duplicates()
+    df_trials.rename(
+        columns={"segmentid": "segment_id", "imageid": "model_id"}, inplace=True,
+    )
+    test_dir = Path(output_path + "_test")
+    df_trials.to_csv(test_dir / "trials_av.csv", sep=",", index=False)
+    write_simple_trialfile(df_trials, test_dir / "trials_av")
+
 
 if __name__ == "__main__":
 

@@ -68,7 +68,7 @@ do
 done
 
 $cmd $output_dir/train_fus.log \
-     hyp_utils/conda_env.sh steps_be/train-fusion-v1.py \
+     hyp_utils/conda_env.sh steps_be/train-fusion-v2.py \
      --system-names ${system_names[@]} \
      --score-files ${score_files[@]} \
      --key-file $train_key \

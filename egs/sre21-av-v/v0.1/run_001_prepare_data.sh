@@ -36,3 +36,8 @@ if [ $stage -le 2 ];then
 fi
 
 
+  hyp_utils/conda_env.sh \
+    local/prepare_sre21av_eval_visual.py \
+    --corpus-dir $sre21_eval_root \
+    --output-path data/sre21_visual_eval_1
+

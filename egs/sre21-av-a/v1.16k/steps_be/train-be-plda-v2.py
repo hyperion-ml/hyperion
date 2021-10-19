@@ -242,8 +242,6 @@ def train_be(
 
     # lnorm doesn't center and whiten, it just the length norm
     lnorm = LNorm(name="lnorm")
-    # xxx = pca.predict(xx)
-    # lnorm.fit(xxx)
 
     conds = [
         "cts",

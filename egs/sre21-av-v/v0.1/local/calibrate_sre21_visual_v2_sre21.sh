@@ -20,7 +20,7 @@ fi
 
 score_dir=$1
 
-cal_av_score_dir=${score_dir}_cal_v1_sre21
+cal_av_score_dir=${score_dir}_cal_v2_sre21
 
 mkdir -p $cal_av_score_dir
 
@@ -31,7 +31,7 @@ train_scores=$score_dir/sre21_visual_dev_scores
 train_key=data/sre21_visual_dev_test/trials
 
 $cmd $cal_av_score_dir/train_cal_av.log \
-     steps_be/train-calibration-v1.py --score-file $train_scores \
+     steps_be/train-calibration-v2.py --score-file $train_scores \
      --key-file $train_key --model-file $model_file --prior $p_vid --lambda-reg $l2_reg
 
 ndxs=(sre21_visual_dev_test/trials \

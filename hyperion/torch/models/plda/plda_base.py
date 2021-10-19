@@ -30,6 +30,7 @@ class PLDABase(TorchModel):
         lnorm=False,
         var_floor=1e-5,
         prec_floor=1e-5,
+        preprocessor=None,
     ):
         super().__init__()
         if mu is None:
@@ -70,6 +71,7 @@ class PLDABase(TorchModel):
             self.x_ref = nn.Parameter(x_ref)
 
         self.lnorm = lnorm
+        self.preprocessor = preprocessor
         self.var_floor = var_floor
         self.prec_floor = prec_floor
         self.adapt_margin = adapt_margin
@@ -105,41 +107,37 @@ class PLDABase(TorchModel):
             self.cur_margin_tar = r * self.margin_tar
             self.cur_margin_non = r * self.margin_non
             logging.info(
-                ("updating plda margin_multi=%.2f " "margin_tar=%.2f margin_non=%.2f")
-                % (
-                    self.cur_margin_multi * max_margin_multi,
-                    self.cur_margin_tar * max_margin_tar,
-                    self.cur_margin_non * max_margin_non,
-                )
+                ("updating plda margin_multi=%.2f " "margin_tar=%.2f margin_non=%.2f"),
+                self.cur_margin_multi * max_margin_multi,
+                self.cur_margin_tar * max_margin_tar,
+                self.cur_margin_non * max_margin_non,
             )
         else:
             if self.cur_margin_multi != self.margin_multi:
                 self.cur_margin_multi = self.margin_multi
                 logging.info(
-                    "updating plda margin_multi=%.2f"
-                    % (self.cur_margin_multi * max_margin_multi)
+                    "updating plda margin_multi=%.2f",
+                    self.cur_margin_multi * max_margin_multi,
                 )
             if self.cur_margin_tar != self.margin_tar:
                 self.cur_margin_tar = self.margin_tar
                 logging.info(
-                    "updating plda margin_tar=%.2f"
-                    % (self.cur_margin_tar * max_margin_tar)
+                    "updating plda margin_tar=%.2f",
+                    self.cur_margin_tar * max_margin_tar,
                 )
             if self.cur_margin_non != self.margin_non:
                 self.cur_margin_non = self.margin_non
                 logging.info(
-                    "updating plda margin_non=%.2f"
-                    % (self.cur_margin_non * max_margin_non)
+                    "updating plda margin_non=%.2f",
+                    self.cur_margin_non * max_margin_non,
                 )
 
         if self.adapt_margin:
             logging.info(
-                ("current plda margin_multi=%.2f " "margin_tar=%.2f margin_non=%.2f")
-                % (
-                    self.cur_margin_multi * max_margin_multi,
-                    self.cur_margin_tar * max_margin_tar,
-                    self.cur_margin_non * max_margin_non,
-                )
+                ("current plda margin_multi=%.2f " "margin_tar=%.2f margin_non=%.2f"),
+                self.cur_margin_multi * max_margin_multi,
+                self.cur_margin_tar * max_margin_tar,
+                self.cur_margin_non * max_margin_non,
             )
 
     def _adapt_margin_multi(self, llr, llr_tar):
@@ -213,17 +211,22 @@ class PLDABase(TorchModel):
         return llr_m
 
     def forward(self, x, y=None, return_multi=True, return_bin=True, y_bin=None):
+        if self.preprocessor is not None:
+            x = self.preprocessor(x)
+
         if return_multi:
             assert self.num_classes > 0
             if return_bin:
                 # t = time.time()
-                llr_multi, llr_bin = self.llr_1vs1_and_self(x, self.x_ref)
+                llr_multi, llr_bin = self.llr_1vs1_and_self(
+                    x, self.x_ref, preproc=False
+                )
                 # logging.info('time-multi-bin={}'.format(time.time()-t))
             else:
-                llr_multi = self.llr_1vs1(x, self.x_ref)
+                llr_multi = self.llr_1vs1(x, self.x_ref, preproc=False)
         elif return_bin:
             # t = time.time()
-            llr_bin = self.llr_self(x)
+            llr_bin = self.llr_self(x, preproc=False)
             # logging.info('time-bin={}'.format(time.time()-t))
 
         output = {}

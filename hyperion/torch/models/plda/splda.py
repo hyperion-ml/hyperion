@@ -32,6 +32,7 @@ class SPLDA(PLDABase):
         lnorm=False,
         var_floor=1e-5,
         prec_floor=1e-5,
+        preprocessor=None,
     ):
         super().__init__(
             x_dim=x_dim,
@@ -48,6 +49,7 @@ class SPLDA(PLDABase):
             lnorm=lnorm,
             var_floor=var_floor,
             prec_floor=prec_floor,
+            preprocessor=preprocessor,
         )
 
         if V is None:
@@ -78,13 +80,14 @@ class SPLDA(PLDABase):
 
     def __str__(self):
         return (
-            "SPLDA(x_dim={}, y_dim={}, num_classes={}, p_tar={}, "
+            "{}(x_dim={}, y_dim={}, num_classes={}, p_tar={}, "
             "margin_multi={}, margin_tar={}, margin_non={}, "
             "margin_warmup_epochs={}, "
             "adapt_margin={}, adapt_gamma={}, "
-            "lnorm={}, "
+            "lnorm={}, preprocessor={}"
             "var_floor={}, prec_floor={} "
         ).format(
+            self.__class__.__name__,
             self.x_dim,
             self.y_dim,
             self.num_classes,
@@ -96,6 +99,7 @@ class SPLDA(PLDABase):
             self.adapt_margin,
             self.adapt_gamma,
             self.lnorm,
+            self.preprocessor,
             self.var_floor,
             self.prec_floor,
         )
@@ -191,7 +195,11 @@ class SPLDA(PLDABase):
         gamma = icholL(VWF)
         return gamma, torch.sum(gamma * gamma, dim=1)
 
-    def llr_1vs1(self, x1, x2, aux_comps=None):
+    def llr_1vs1(self, x1, x2, aux_comps=None, preproc=True):
+        if self.preprocessor is not None and preproc:
+            x1 = self.preprocessor(x1)
+            x2 = self.preprocessor(x2)
+
         if self.lnorm:
             x1 = self.l2_norm(x1)
             x2 = self.l2_norm(x2)
@@ -211,7 +219,10 @@ class SPLDA(PLDABase):
             Qtar_12, Qtar_1, Qtar_2, Qnon_1, Qnon_2, logLtar, logLnon, logLnon
         )
 
-    def llr_self(self, x, aux_comps=None):
+    def llr_self(self, x, aux_comps=None, preproc=True):
+        if self.preprocessor is not None and preproc:
+            x = self.preprocessor(x)
+
         if self.lnorm:
             x = self.l2_norm(x)
 
@@ -273,7 +284,11 @@ class SPLDA(PLDABase):
     #     logging.info('   time10={}'.format(time.time()-t))
     #     return llr_1vs1, llr_self
 
-    def llr_1vs1_and_self(self, x1, x2, aux_comps=None):
+    def llr_1vs1_and_self(self, x1, x2, aux_comps=None, preproc=True):
+        if self.preprocessor is not None and preproc:
+            x1 = self.preprocessor(x1)
+            x2 = self.preprocessor(x2)
+
         if self.lnorm:
             x1 = self.l2_norm(x1)
             x2 = self.l2_norm(x2)

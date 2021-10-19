@@ -94,6 +94,14 @@ if [ $stage -le 6 ];then
   local/score_janus_core.sh data/janus_eval_test_core eval ${score_plda_dir}_cal_v1_sre21
 fi
 
+if [ $stage -le 7 ];then
+  local/calibrate_sre21_visual_v2_sre21.sh --cmd "$train_cmd" $score_plda_dir
+  local/score_sre21av.sh data/sre21_visual_dev_test visual_dev ${score_plda_dir}_cal_v2_sre21
+  # local/score_sre21av.sh data/sre21_visual_eval_test visual_eval ${score_plda_dir}_cal_v2_sre21
+  local/score_janus_core.sh data/janus_dev_test_core dev ${score_plda_dir}_cal_v2_sre21
+  local/score_janus_core.sh data/janus_eval_test_core eval ${score_plda_dir}_cal_v2_sre21
+fi
+
 score_plda_dir=$score_dir/cosine_snorm${ncoh}_v1
 
 if [ $stage -le 9 ]; then
@@ -171,5 +179,13 @@ if [ $stage -le 11 ];then
   # local/score_sre21av.sh data/sre21_visual_eval_test visual_eval ${score_plda_dir}_cal_v1_sre21
   local/score_janus_core.sh data/janus_dev_test_core dev ${score_plda_dir}_cal_v1_sre21
   local/score_janus_core.sh data/janus_eval_test_core eval ${score_plda_dir}_cal_v1_sre21
+fi
+
+if [ $stage -le 12 ];then
+  local/calibrate_sre21_visual_v2_sre21.sh --cmd "$train_cmd" $score_plda_dir
+  local/score_sre21av.sh data/sre21_visual_dev_test visual_dev ${score_plda_dir}_cal_v2_sre21
+  # local/score_sre21av.sh data/sre21_visual_eval_test visual_eval ${score_plda_dir}_cal_v2_sre21
+  local/score_janus_core.sh data/janus_dev_test_core dev ${score_plda_dir}_cal_v2_sre21
+  local/score_janus_core.sh data/janus_eval_test_core eval ${score_plda_dir}_cal_v2_sre21
 fi
 

@@ -12,7 +12,7 @@ stage=1
 
 fus_name=v1
 audio=../../sre21-av-a/v1.16k/exp/fusion/v2.2.1_fus_pfus0.1_l21e-3_pcal0.05_l21e-4/3
-visual=../../sre21-av-v/v0.2/exp/fusion/v1.1_ptrn0.1_l21e-4/0
+visual=../../sre21-av-v/v0.2/exp/fusion/v2.2_ptrn0.05_l21e-4/1
 
 . parse_options.sh || exit 1;
 . datapath.sh
@@ -33,13 +33,13 @@ if [ $stage -le 1 ];then
 
 fi
 
-if [ $stage -le 1 ];then
+if [ $stage -le 2 ];then
   # Prepare SRE21 eval
   hyp_utils/conda_env.sh \
     local/sum_fusion.py \
     --ndx-file data/sre21_audio-visual_eval/trials.csv \
     --audio-scores $audio/sre21_audio-visual_eval_scores \
-    --visual-scores $visual/sre21_visual_eval_scores \
+    --visual-scores $visual/sre21_audio-visual_eval_scores \
     --output-scores $output_dir/sre21_audio-visual_eval_scores \
     
 fi
