@@ -184,7 +184,7 @@ class XVector(TorchModel):
 
 
     def _post_enc(self, x):
-        if self.encoder_net.out_dim() == 4:
+        if self.encoder_net.out_dim() == 4 and (not isinstance(self.classif_net,torch.nn.modules.linear.Linear)):
             x = x.view(x.size(0), -1, x.size(-1))
 
         if self.proj is not None:
@@ -219,17 +219,10 @@ class XVector(TorchModel):
         Returns:
           class posteriors tensor with shape=(batch, num_classes)
         """
-        if self.encoder_net.in_dim() == 4 and x.dim() == 3:
-            x = x.view(x.size(0), 1, x.size(1), x.size(2))
-
+        x = self._pre_enc(x)
         x = self.encoder_net(x)
+        x = self._post_enc(x)
 
-        if self.encoder_net.out_dim() == 4 and (not isinstance(self.classif_net,torch.nn.modules.linear.Linear)):
-            x = x.view(x.size(0), -1, x.size(-1))
-
-        if self.proj is not None:
-            x = self.proj(x)
-            
         p = self.pool_net(x)
         if isinstance(self.classif_net,nn.modules.linear.Identity) or isinstance(self.classif_net,torch.nn.modules.linear.Linear) or isinstance(self.classif_net.output,nn.modules.linear.Identity):
             y = self.classif_net(p)
@@ -437,7 +430,7 @@ class XVector(TorchModel):
     def rebuild_output_layer(self, num_classes=None, loss_type='arc-softmax', 
                              s=64, margin=0.3, margin_warmup_epochs=10):
         if (self.num_classes is not None and self.num_classes != num_classes) or (
-                self.loss_type != loss_type):
+                self.loss_type != loss_type) or (self.margin != margin):
             # if we change the number of classes or the loss-type
             # we need to reinitiate the last layer
             self.classif_net.rebuild_output_layer(
