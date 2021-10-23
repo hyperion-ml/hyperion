@@ -7,6 +7,7 @@ cmd=run.pl
 nj=40
 fps=1
 use_gpu=false
+discard_low_q=false
 
 if [ -f path.sh ]; then . ./path.sh; fi
 . parse_options.sh || exit 1;
@@ -33,6 +34,9 @@ if [ "$use_gpu" == "true" ];then
   num_gpus=1
   args="--use-gpu"
   cmd="$cmd --gpu 1"
+fi
+if [ "$discard_low_q" == "true" ];then
+  args="$args --discard-low-q"
 fi
 
 echo "Extracting face embeddings $data_dir to $output_dir"

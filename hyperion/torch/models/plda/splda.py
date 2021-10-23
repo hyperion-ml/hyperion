@@ -238,6 +238,79 @@ class SPLDA(PLDABase):
             Qtar_11, Qtar_1, Qtar_1, Qnon_1, Qnon_1, logLtar, logLnon, logLnon
         )
 
+    def llr_1vs1_and_self(self, x1, x2, aux_comps=None, preproc=True):
+        if self.preprocessor is not None and preproc:
+            x1 = self.preprocessor(x1)
+            x2 = self.preprocessor(x2)
+
+        if self.lnorm:
+            x1 = self.l2_norm(x1)
+            x2 = self.l2_norm(x2)
+
+        if aux_comps is None:
+            aux_comps = self._compute_aux_llr_1vs1()
+        WV, icholLnon, icholLtar, logLnon, logLtar = aux_comps
+
+        VWF1 = torch.matmul(x1 - self.mu, WV)
+        VWF2 = torch.matmul(x2 - self.mu, WV)
+        gamma_non_1, Qnon_1 = self._llr_compQ(VWF1, icholLnon)
+        gamma_non_2, Qnon_2 = self._llr_compQ(VWF2, icholLnon)
+        gamma_tar_1, Qtar_1 = self._llr_compQ(VWF1, icholLtar)
+        gamma_tar_2, Qtar_2 = self._llr_compQ(VWF2, icholLtar)
+
+        Qtar_12 = torch.matmul(gamma_tar_1, gamma_tar_2.t())
+        llr_1vs1 = self._llr_from_Qs(
+            Qtar_12, Qtar_1, Qtar_2, Qnon_1, Qnon_2, logLtar, logLnon, logLnon
+        )
+
+        Qtar_11 = torch.matmul(gamma_tar_1, gamma_tar_1.t())
+        llr_self = self._llr_from_Qs(
+            Qtar_11, Qtar_1, Qtar_1, Qnon_1, Qnon_1, logLtar, logLnon, logLnon
+        )
+        return llr_1vs1, llr_self
+
+    def get_config(self):
+        config = {"y_dim": self.y_dim}
+        base_config = super().get_config()
+        return dict(list(base_config.items()) + list(config.items()))
+
+    # def llr_1vs1_1(self, x1, x2, aux_comps=None):
+    #     t=time.time()
+    #     if aux_comps is None:
+    #         aux_comps = self._compute_aux_llr_1vs1()
+
+    #     WV, mult_icholLnon, mult_icholLtar, logLnon, logLtar = aux_comps
+    #     logging.info('   time1={}'.format(time.time()-t))
+    #     t=time.time()
+    #     VWF1 = torch.matmul(x1-self.mu, WV)
+    #     VWF2 = torch.matmul(x2-self.mu, WV)
+    #     logging.info('   time2={}'.format(time.time()-t))
+    #     t=time.time()
+    #     gamma_non_1 = mult_icholLnon(VWF1)
+    #     logging.info('   time3={}'.format(time.time()-t))
+    #     t=time.time()
+    #     gamma_non_2 = mult_icholLnon(VWF2)
+    #     logging.info('   time4={}'.format(time.time()-t))
+    #     t=time.time()
+    #     Qnon_1 = torch.sum(gamma_non_1*gamma_non_1, dim=1)
+    #     Qnon_2 = torch.sum(gamma_non_2*gamma_non_2, dim=1)
+    #     logging.info('   time5={}'.format(time.time()-t))
+    #     t=time.time()
+    #     gamma_tar_1 = mult_icholLtar(VWF1)
+    #     logging.info('   time6={}'.format(time.time()-t))
+    #     t=time.time()
+    #     gamma_tar_2 = mult_icholLtar(VWF2)
+    #     logging.info('   time7={}'.format(time.time()-t))
+    #     t=time.time()
+    #     Qtar_1 = torch.sum(gamma_tar_1*gamma_tar_1, dim=1)
+    #     Qtar_2 = torch.sum(gamma_tar_2*gamma_tar_2, dim=1)
+
+    #     Qtar_12 = torch.matmul(gamma_tar_1, gamma_tar_2.t())
+    #     logging.info('   time8={}'.format(time.time()-t))
+    #     return self._llr_from_Qs(Qtar_12, Qtar_1, Qtar_2,
+    #                              Qnon_1, Qnon_2,
+    #                              logLtar, logLnon, logLnon)
+
     # def llr_1vs1_and_self(self, x1, x2, aux_comps=None):
     #     t=time.time()
     #     if self.lnorm:
@@ -283,76 +356,3 @@ class SPLDA(PLDABase):
     #                                   logLtar, logLnon, logLnon)
     #     logging.info('   time10={}'.format(time.time()-t))
     #     return llr_1vs1, llr_self
-
-    def llr_1vs1_and_self(self, x1, x2, aux_comps=None, preproc=True):
-        if self.preprocessor is not None and preproc:
-            x1 = self.preprocessor(x1)
-            x2 = self.preprocessor(x2)
-
-        if self.lnorm:
-            x1 = self.l2_norm(x1)
-            x2 = self.l2_norm(x2)
-
-        if aux_comps is None:
-            aux_comps = self._compute_aux_llr_1vs1()
-        WV, icholLnon, icholLtar, logLnon, logLtar = aux_comps
-
-        VWF1 = torch.matmul(x1 - self.mu, WV)
-        VWF2 = torch.matmul(x2 - self.mu, WV)
-        gamma_non_1, Qnon_1 = self._llr_compQ(VWF1, icholLnon)
-        gamma_non_2, Qnon_2 = self._llr_compQ(VWF2, icholLnon)
-        gamma_tar_1, Qtar_1 = self._llr_compQ(VWF1, icholLtar)
-        gamma_tar_2, Qtar_2 = self._llr_compQ(VWF2, icholLtar)
-
-        Qtar_12 = torch.matmul(gamma_tar_1, gamma_tar_2.t())
-        llr_1vs1 = self._llr_from_Qs(
-            Qtar_12, Qtar_1, Qtar_2, Qnon_1, Qnon_2, logLtar, logLnon, logLnon
-        )
-
-        Qtar_11 = torch.matmul(gamma_tar_1, gamma_tar_1.t())
-        llr_self = self._llr_from_Qs(
-            Qtar_11, Qtar_1, Qtar_1, Qnon_1, Qnon_1, logLtar, logLnon, logLnon
-        )
-        return llr_1vs1, llr_self
-
-    # def llr_1vs1_1(self, x1, x2, aux_comps=None):
-    #     t=time.time()
-    #     if aux_comps is None:
-    #         aux_comps = self._compute_aux_llr_1vs1()
-
-    #     WV, mult_icholLnon, mult_icholLtar, logLnon, logLtar = aux_comps
-    #     logging.info('   time1={}'.format(time.time()-t))
-    #     t=time.time()
-    #     VWF1 = torch.matmul(x1-self.mu, WV)
-    #     VWF2 = torch.matmul(x2-self.mu, WV)
-    #     logging.info('   time2={}'.format(time.time()-t))
-    #     t=time.time()
-    #     gamma_non_1 = mult_icholLnon(VWF1)
-    #     logging.info('   time3={}'.format(time.time()-t))
-    #     t=time.time()
-    #     gamma_non_2 = mult_icholLnon(VWF2)
-    #     logging.info('   time4={}'.format(time.time()-t))
-    #     t=time.time()
-    #     Qnon_1 = torch.sum(gamma_non_1*gamma_non_1, dim=1)
-    #     Qnon_2 = torch.sum(gamma_non_2*gamma_non_2, dim=1)
-    #     logging.info('   time5={}'.format(time.time()-t))
-    #     t=time.time()
-    #     gamma_tar_1 = mult_icholLtar(VWF1)
-    #     logging.info('   time6={}'.format(time.time()-t))
-    #     t=time.time()
-    #     gamma_tar_2 = mult_icholLtar(VWF2)
-    #     logging.info('   time7={}'.format(time.time()-t))
-    #     t=time.time()
-    #     Qtar_1 = torch.sum(gamma_tar_1*gamma_tar_1, dim=1)
-    #     Qtar_2 = torch.sum(gamma_tar_2*gamma_tar_2, dim=1)
-
-    #     Qtar_12 = torch.matmul(gamma_tar_1, gamma_tar_2.t())
-    #     logging.info('   time8={}'.format(time.time()-t))
-    #     return self._llr_from_Qs(Qtar_12, Qtar_1, Qtar_2,
-    #                              Qnon_1, Qnon_2,
-    #                              logLtar, logLnon, logLnon)
-
-    def get_config(self):
-        config = {"y_dim": self.y_dim}
-        base_config = super().get_config()
-        return dict(list(base_config.items()) + list(config.items()))

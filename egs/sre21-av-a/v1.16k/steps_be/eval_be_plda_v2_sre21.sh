@@ -47,4 +47,4 @@ $cmd $output_dir/log/${name}.log \
      --test-lang $test_u2l \
      --model-file $plda_file \
      --plda-type $plda_type \
-     --score-file $output_file
+     --score-file $output_file 

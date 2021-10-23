@@ -236,6 +236,50 @@ class PLDABase(TorchModel):
             output["bin"] = self._apply_margin_bin(llr_bin, y, y_bin)
         return output
 
+    @staticmethod
+    def compute_stats_hard(x, y, order=2, sample_weight=None, scale_factor=1):
+        x_dim = x.shape[1]
+        num_classes = torch.max(y) + 1
+        N = torch.zeros((num_classes,), dtype=x.dtype, device=x.device)
+        F = torch.zeros((num_classes, x_dim), dtype=x.dtype, device=x.device)
+        if sample_weight is not None:
+            wx = sample_weight[:, None] * x
+        else:
+            wx = x
+
+        for i in range(num_classes):
+            idx = y == i
+            if sample_weight is None:
+                N[i] = torch.sum(idx).float()
+                F[i] = torch.sum(x[idx], dim=0)
+            else:
+                N[i] = torch.sum(sample_weight[idx])
+                F[i] = torch.sum(wx[idx], dim=0)
+
+        if scale_factor != 1:
+            N *= scale_factor
+            F *= scale_factor
+
+        if order == 2:
+            return N, F
+
+        S = torch.matmul(x.T, wx)
+        if scale_factor != 1:
+            S *= scale_factor
+
+        return N, F, S
+
+    def llr_Nvs1(self, x1, x2, y1=None, method="vavg", preproc=True):
+        if self.preprocessor is not None and preproc:
+            x1 = self.preprocessor(x1)
+            x2 = self.preprocessor(x2)
+
+        if y1 is not None:
+            N1, F1 = self.compute_stats_hard(x1, y1)
+            x1 = F1 / N1.unsqueeze(-1)
+
+        return self.llr_1vs1(x1, x2, preproc=False)
+
     def get_config(self):
         config = {
             "x_dim": self.x_dim,
@@ -247,7 +291,7 @@ class PLDABase(TorchModel):
             "margin_warmup_epochs": self.margin_warmup_epochs,
             "adapt_margin": self.adapt_margin,
             "adapt_gamma": self.adapt_gamma,
-            "adapt_lnorm": self.lnorm,
+            "lnorm": self.lnorm,
             "var_floor": self.var_floor,
             "prec_floor": self.prec_floor,
         }

@@ -70,7 +70,7 @@ def eval_fusion_sanity(
     df_dev = pd.DataFrame(data=R_dev, index=system_names, columns=system_names)
     df_dev.to_csv(f"{output_path}/r_dev.csv", sep="\t")
     df_eval = pd.DataFrame(data=R_eval, index=system_names, columns=system_names)
-    df_dev.to_csv(f"{output_path}/r_eval.csv", sep="\t")
+    df_eval.to_csv(f"{output_path}/r_eval.csv", sep="\t")
     logging.info(f"R-dev={R_dev}")
     logging.info(f"R-eval={R_eval}")
     ratio = R_eval / R_dev
