@@ -7,6 +7,8 @@
 min_len=4
 
 if [ -f path.sh ]; then . ./path.sh; fi
+
+set -e
 . parse_options.sh || exit 1;
 
 kaldi_utils=hyp_utils/kaldi/utils

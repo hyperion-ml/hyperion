@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 list_dir=$1
 output_dir=$2
 

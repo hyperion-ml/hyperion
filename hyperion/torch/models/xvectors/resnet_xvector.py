@@ -173,6 +173,8 @@ class ResNetXVector(XVector):
                     model.classif_net = nn.Linear(256, cfg['embed_dim'])
                 elif chk_fc_blks + chk_linear == 0: # dino-head directly after hyperion pool_net
                     model.classif_net = nn.Identity()
+                else:
+                    NotImplementedError
             model.load_state_dict(state_dict)
 
         return model
