@@ -10,9 +10,10 @@ set -e
 # config_file=default_config.sh
 stage=1
 
-fus_name=v1
-audio=../../sre21-av-a/v1.16k/exp/fusion/v2.2.1_fus_pfus0.1_l21e-3_pcal0.05_l21e-4/3
-visual=../../sre21-av-v/v0.2/exp/fusion/v2.2_ptrn0.05_l21e-4/1
+fus_name=v1_closed_av_primary
+audio=../../sre21-av-a/v1.16k/exp/fusion/v2.5.1_fus_pfus0.1_l21e-3_pcal0.05_l21e-4/3
+#visual=../../sre21-av-v/v0.2/exp/fusion/v2.3_ptrn0.05_l21e-4/1
+visual=../../sre21-av-v/v0.2/exp/fusion/v2.4_ptrn0.05_l21e-4/2
 
 . parse_options.sh || exit 1;
 . datapath.sh
@@ -30,7 +31,8 @@ if [ $stage -le 1 ];then
     --output-scores $output_dir/sre21_audio-visual_dev_scores
 
   local/score_sre21.sh data/sre21_audio-visual_dev audio-visual_dev $output_dir
-
+  local/score_sre21_official.sh $sre21_dev_root audio-visual dev $output_dir
+    
 fi
 
 if [ $stage -le 2 ];then
@@ -40,7 +42,9 @@ if [ $stage -le 2 ];then
     --ndx-file data/sre21_audio-visual_eval/trials.csv \
     --audio-scores $audio/sre21_audio-visual_eval_scores \
     --visual-scores $visual/sre21_audio-visual_eval_scores \
-    --output-scores $output_dir/sre21_audio-visual_eval_scores \
+    --output-scores $output_dir/sre21_audio-visual_eval_scores 
+
+  ./local/make_sre21_sub.sh $sre21_eval_root $output_dir/sre21_audio-visual_eval_scores 
     
 fi
 

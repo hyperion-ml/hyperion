@@ -110,3 +110,25 @@ do
 
 done
 wait
+
+videos_wo_face="bkcekugi_sre21.mp4 ftijpzkz_sre21.mp4 yketpbyi_sre21.mp4 cvkirfeq_sre21.mp4 fazwaqeu_sre21.mp4 kftmdhza_sre21.mp4"
+for f in sre21_audio-visual_eval_scores sre21_visual_eval_scores
+do
+    for((j=0;j<$max_systems;j++));
+    do
+      echo "$0 fix videos without face $f $j"
+      mkdir -p $output_dir/$j
+      cp $output_dir/$j/$f $output_dir/$j/$f.bk
+      awk -v vwf="$videos_wo_face" '
+BEGIN{
+  nf=split(vwf, f, " ");
+  for(i=1; i<=nf; i++)
+  {
+      v[f[i]]=1;
+  }
+}
+{ if($2 in v){ $3=0}; print $0}' \
+      $output_dir/$j/$f.bk > $output_dir/$j/$f
+
+    done
+done

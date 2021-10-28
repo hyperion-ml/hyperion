@@ -12,7 +12,7 @@ config_file=default_config.sh
 
 coh_data=janus_dev_test_core
 ncoh=1000
-thr_ahc=0.8
+thr_ahc=0.7
 
 . parse_options.sh || exit 1;
 . $config_file
