@@ -90,11 +90,6 @@ class DINOSSLXVectorTrainerFromWav(DINOSSLXVectorTrainer):
         self.set_train_mode()
 
         for batch, (data, _) in enumerate(data_loader):
-            it = len(data_loader) * self.cur_epoch + batch # it: global batch index, batch: local batch index in the current epoch
-            for i, param_group in enumerate(self.optimizer.param_groups): # (JJ: TODO - Is there a reason NOT using Adamw for resnet50? The difference is large between using AdamW and SGD? Currently, adam is used with schedules but I might try adamw and sgd.)
-                param_group["lr"] = self.lr_schedule[it]
-                if i == 0:  # only the first group is regularized
-                    param_group["weight_decay"] = self.wd_schedule[it]
             
             self.loggers.on_batch_begin(batch)
             if batch % self.grad_acc_steps == 0:
@@ -129,7 +124,14 @@ class DINOSSLXVectorTrainerFromWav(DINOSSLXVectorTrainer):
             if (batch+1) % self.grad_acc_steps == 0: # (JJ: EXP - Q: why NOT batch but batch+1? I think there is no big difference. A: I think it is to sync with zero_grad above. Then, why not move zero_grad above to here. Anyway, we falls into this every time with self.grad_acc_steps=1)
                 if self.lr_scheduler is not None and not self.in_swa:
                     self.lr_scheduler.on_opt_step()
+                # update learning rate and weight decay rate
+                it = len(data_loader) * self.cur_epoch + int(batch/self.grad_acc_steps) # it: global batch index, batch: local batch index in the current epoch
+                for i, param_group in enumerate(self.optimizer.param_groups): # (JJ: TODO - Is there a reason NOT using Adamw for resnet50? The difference is large between using AdamW and SGD? Currently, adam is used with schedules but I might try adamw and sgd.)
+                    param_group["lr"] = self.lr_schedule[it]
+                    if i == 0:  # only the first group is regularized
+                        param_group["weight_decay"] = self.wd_schedule[it]
                 self.update_model() # (JJ: EXP - where clip_grad, step, and update happens)
+
                 # EMA update for the teacher
                 with torch.no_grad():
                     m = self.momentum_schedule[it]  # momentum parameter
