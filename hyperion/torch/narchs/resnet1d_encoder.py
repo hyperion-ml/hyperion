@@ -6,6 +6,8 @@
 from jsonargparse import ArgumentParser, ActionParser
 import math
 
+import numpy as np
+
 import torch
 import torch.nn as nn
 
@@ -216,9 +218,9 @@ class ResNet1dEncoder(NetArch):
                         if self.resb_scales[i] != endpoint_scale:
                             self.has_endpoint_block[i] = True
 
-                        if self.resb_channels[i] > endpoint_channels:
-                            out_channels = endpoint_channels
-                            self.has_endpoint_block[i] = True
+                        # if self.resb_channels[i] != endpoint_channels:
+                        #     out_channels = endpoint_channels
+                        #     self.has_endpoint_block[i] = True
 
                         in_concat_channels += out_channels
                     else:
@@ -238,6 +240,7 @@ class ResNet1dEncoder(NetArch):
                         )
                         self.endpoint_block_idx[i] = cur_endpoint
                         endpoint_blocks.append(endpoint_i)
+                        cur_endpoint += 1
 
             self.endpoint_blocks = endpoint_blocks
             if multilayer_concat:
@@ -354,16 +357,23 @@ class ResNet1dEncoder(NetArch):
         for i, superblock in enumerate(self.blocks):
             for j, block in enumerate(superblock):
                 x = block(x)
+
             if self.multilayer and self.is_endpoint[i]:
                 endpoint_i = x
                 if self.has_endpoint_block[i]:
                     idx = self.endpoint_block_idx[i]
                     endpoint_i = self.endpoint_blocks[idx](endpoint_i)
+
                 endpoints.append(endpoint_i)
 
         if self.multilayer:
             if self.multilayer_concat:
-                x = torch.cat(endpoints, dim=1)
+                try:
+                    x = torch.cat(endpoints, dim=1)
+                except:
+                    for k in range(len(endpoints)):
+                        print("epcat ", k, endpoints[k].shape, flush=True)
+
                 x = self.concat_endpoint_block(x)
             else:
                 x = torch.mean(torch.stack(endpoints), 0)
@@ -391,7 +401,7 @@ class ResNet1dEncoder(NetArch):
 
         endpoints = []
         for i, superblock in enumerate(self.blocks):
-            for j, block in enumerage(superblock):
+            for j, block in enumerate(superblock):
                 x = block(x)
 
             if i + 1 in layers:

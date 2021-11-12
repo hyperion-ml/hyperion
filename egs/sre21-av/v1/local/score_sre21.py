@@ -22,7 +22,7 @@ from hyperion.metrics import fast_eval_dcf_eer as fast_eval
 
 def score(key_file, score_file, sre21_subset, output_file):
 
-    if sre21_subset == "audio_dev":
+    if sre21_subset in ["audio_dev", "audio_eval"]:
         conds = [
             "",
             "CTS_CTS",
@@ -49,7 +49,7 @@ def score(key_file, score_file, sre21_subset, output_file):
             "nenr1",
             "nenr3",
         ]
-    elif sre21_subset == "audio-visual_dev":
+    elif sre21_subset in ["audio-visual_dev", "audio-visual_eval"]:
         conds = [
             "",
             "CTS_AFV",

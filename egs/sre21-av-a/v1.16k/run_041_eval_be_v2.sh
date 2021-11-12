@@ -170,8 +170,10 @@ if [ $stage -le 3 ]; then
 
     local/score_sre21.sh data/sre21_audio_dev_test audio_dev $score_plda_dir
     local/score_sre21.sh data/sre21_audio-visual_dev_test audio-visual_dev $score_plda_dir
+    local/score_sre21.sh data/sre21_audio_eval_test audio_eval $score_plda_dir
+    local/score_sre21.sh data/sre21_audio-visual_eval_test audio-visual_eval $score_plda_dir
     local/score_sre21_official.sh $sre21_dev_root audio dev $score_plda_dir
-
+    local/score_sre21_official.sh $sre21_eval_root audio eval $score_plda_dir
 fi
 
 if [ $stage -le 4 ];then
@@ -180,7 +182,10 @@ if [ $stage -le 4 ];then
   local/score_sre_cts_superset.sh data/sre_cts_superset_16k_dev ${score_plda_dir}_cal_v1
   local/score_sre21.sh data/sre21_audio_dev_test audio_dev ${score_plda_dir}_cal_v1
   local/score_sre21.sh data/sre21_audio-visual_dev_test audio-visual_dev ${score_plda_dir}_cal_v1
+  local/score_sre21.sh data/sre21_audio_eval_test audio_eval ${score_plda_dir}_cal_v1
+  local/score_sre21.sh data/sre21_audio-visual_eval_test audio-visual_eval ${score_plda_dir}_cal_v1
   local/score_sre21_official.sh $sre21_dev_root audio dev ${score_plda_dir}_cal_v1
+  local/score_sre21_official.sh $sre21_eval_root audio eval ${score_plda_dir}_cal_v1
 fi
 
 
@@ -290,8 +295,10 @@ if [ $stage -le 6 ]; then
 
     local/score_sre21.sh data/sre21_audio_dev_test audio_dev $score_plda_dir
     local/score_sre21.sh data/sre21_audio-visual_dev_test audio-visual_dev $score_plda_dir
+    local/score_sre21.sh data/sre21_audio_eval_test audio_eval $score_plda_dir
+    local/score_sre21.sh data/sre21_audio-visual_eval_test audio-visual_eval $score_plda_dir
     local/score_sre21_official.sh $sre21_dev_root audio dev $score_plda_dir
-
+    local/score_sre21_official.sh $sre21_eval_root audio eval $score_plda_dir
 fi
 
 if [ $stage -le 7 ];then
@@ -300,7 +307,10 @@ if [ $stage -le 7 ];then
   local/score_sre_cts_superset.sh data/sre_cts_superset_16k_dev ${score_plda_dir}_cal_v1
   local/score_sre21.sh data/sre21_audio_dev_test audio_dev ${score_plda_dir}_cal_v1
   local/score_sre21.sh data/sre21_audio-visual_dev_test audio-visual_dev ${score_plda_dir}_cal_v1
+  local/score_sre21.sh data/sre21_audio_eval_test audio_eval ${score_plda_dir}_cal_v1
+  local/score_sre21.sh data/sre21_audio-visual_eval_test audio-visual_eval ${score_plda_dir}_cal_v1
   local/score_sre21_official.sh $sre21_dev_root audio dev ${score_plda_dir}_cal_v1
+  local/score_sre21_official.sh $sre21_eval_root audio eval ${score_plda_dir}_cal_v1
 fi
 
 exit

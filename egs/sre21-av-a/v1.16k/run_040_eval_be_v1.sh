@@ -146,6 +146,10 @@ if [ $stage -le 3 ]; then
 
     local/score_sre21.sh data/sre21_audio_dev_test audio_dev $score_plda_dir
     local/score_sre21.sh data/sre21_audio-visual_dev_test audio-visual_dev $score_plda_dir
+    local/score_sre21.sh data/sre21_audio_eval_test audio_eval $score_plda_dir
+    local/score_sre21.sh data/sre21_audio-visual_eval_test audio-visual_eval $score_plda_dir
+    local/score_sre21_official.sh $sre21_dev_root audio dev $score_plda_dir
+    local/score_sre21_official.sh $sre21_eval_root audio eval $score_plda_dir
 
 fi
 
@@ -155,31 +159,12 @@ if [ $stage -le 4 ];then
   local/score_sre_cts_superset.sh data/sre_cts_superset_16k_dev ${score_plda_dir}_cal_v1
   local/score_sre21.sh data/sre21_audio_dev_test audio_dev ${score_plda_dir}_cal_v1
   local/score_sre21.sh data/sre21_audio-visual_dev_test audio-visual_dev ${score_plda_dir}_cal_v1
-  exit
+  local/score_sre21.sh data/sre21_audio_eval_test audio_eval ${score_plda_dir}_cal_v1
+  local/score_sre21.sh data/sre21_audio-visual_eval_test audio-visual_eval ${score_plda_dir}_cal_v1
+  local/score_sre21_official.sh $sre21_dev_root audio dev ${score_plda_dir}_cal_v1
+  local/score_sre21_official.sh $sre21_eval_root audio eval ${score_plda_dir}_cal_v1
 fi
-
-# if [ $stage -le 4 ];then
-#     local/calibrate_sre19av_a_v1_sre18.sh --cmd "$train_cmd" $score_plda_dir
-#     local/score_sitw.sh data/sitw_dev_test dev ${score_plda_dir}_cal_v1_sre18
-#     local/score_sitw.sh data/sitw_eval_test eval ${score_plda_dir}_cal_v1_sre18
-#     local/score_sre18vast.sh data/sre18_dev_test_vast dev ${score_plda_dir}_cal_v1_sre18
-#     local/score_sre18vast.sh data/sre18_eval_test_vast eval ${score_plda_dir}_cal_v1_sre18
-#     local/score_sre19av.sh data/sre19_av_a_dev_test a_dev ${score_plda_dir}_cal_v1_sre18
-#     local/score_sre19av.sh data/sre19_av_a_eval_test a_eval ${score_plda_dir}_cal_v1_sre18
-#     local/score_janus_core.sh data/janus_dev_test_core dev ${score_plda_dir}_cal_v1_sre18
-#     local/score_janus_core.sh data/janus_eval_test_core eval ${score_plda_dir}_cal_v1_sre18
-
-#     local/calibrate_sre19av_a_v1_sre19.sh --cmd "$train_cmd" $score_plda_dir
-#     local/score_sitw.sh data/sitw_dev_test dev ${score_plda_dir}_cal_v1_sre19
-#     local/score_sitw.sh data/sitw_eval_test eval ${score_plda_dir}_cal_v1_sre19
-#     local/score_sre18vast.sh data/sre18_dev_test_vast dev ${score_plda_dir}_cal_v1_sre19
-#     local/score_sre18vast.sh data/sre18_eval_test_vast eval ${score_plda_dir}_cal_v1_sre19
-#     local/score_sre19av.sh data/sre19_av_a_dev_test a_dev ${score_plda_dir}_cal_v1_sre19
-#     local/score_sre19av.sh data/sre19_av_a_eval_test a_eval ${score_plda_dir}_cal_v1_sre19
-#     local/score_janus_core.sh data/janus_dev_test_core dev ${score_plda_dir}_cal_v1_sre19
-#     local/score_janus_core.sh data/janus_eval_test_core eval ${score_plda_dir}_cal_v1_sre19
-
-# fi
+exit
 
 score_plda_dir=$score_dir/plda_snorm_v1_${coh_data}_${ncoh}
 

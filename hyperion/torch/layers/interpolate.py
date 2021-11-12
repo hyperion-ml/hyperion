@@ -15,6 +15,14 @@ class Interpolate(nn.Module):
         self.scale_factor = scale_factor
         self.mode = mode
 
+    def __repr__(self):
+        s = "{}(scale_factor={}, mode={})".format(
+            self.__class__.__name__,
+            self.scale_factor,
+            self.mode,
+        )
+        return s
+
     def forward(self, x):
         x = self.interp(x, scale_factor=self.scale_factor, mode=self.mode)
         return x

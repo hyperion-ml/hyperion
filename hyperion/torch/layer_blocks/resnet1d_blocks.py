@@ -74,11 +74,13 @@ def _make_downsample(in_channels, out_channels, stride, norm_layer, norm_before)
     else:
         layers = [_conv1(in_channels, out_channels, first_stride, bias=True)]
 
-    if second_stride > 2:
+    if second_stride > 1:
+        kernel_size = 2 * (second_stride // 2) + 1
         layers.append(
             nn.MaxPool1d(
-                kernel_size=second_stride,
-                padding=(second_stride - 1) // 2,
+                kernel_size=kernel_size,
+                stride=second_stride,
+                padding=(kernel_size - 1) // 2,
             )
         )
 
@@ -100,11 +102,11 @@ def _make_upsample(
 
     if norm_before:
         layers = [
-            _conv1(in_channels, out_channels, first_stride, bias=False),
+            _conv1(in_channels, out_channels, stride=1, bias=False),
             norm_layer(out_channels),
         ]
     else:
-        layers = [_conv1(in_channels, out_channels, first_stride, bias=True)]
+        layers = [_conv1(in_channels, out_channels, stride=1, bias=True)]
 
     layers.append(Interpolate(scale_factor=stride, mode=mode))
     return nn.Sequential(*layers)
@@ -826,13 +828,18 @@ class ResNet1dEndpoint(nn.Module):
         """
         super().__init__()
         if norm_layer is None:
-            norm_layer = nn.BatchNorm2d
+            norm_layer = nn.BatchNorm1d
         self.in_channels = in_channels
         self.channels = channels
         self.norm_before = norm_before
-        self.rel_scale = scale / in_scale
-        if scale > in_scale:
-            stride = scale / in_scale
+        self.rel_scale = in_scale / scale
+        if scale >= in_scale:
+            stride = int(scale / in_scale)
+            self.resample = _make_downsample(
+                in_channels, channels, stride, norm_layer, norm_before
+            )
+        else:
+            stride = int(in_scale / scale)
             self.resample = _make_upsample(
                 in_channels,
                 channels,
@@ -840,11 +847,6 @@ class ResNet1dEndpoint(nn.Module):
                 norm_layer,
                 norm_before,
                 mode=upsampling_mode,
-            )
-        else:
-            stride = in_scale / scale
-            self.resample = _make_downsample(
-                in_channels, channels, stride, norm_layer, norm_before
             )
 
         self.act = AF.create(activation)

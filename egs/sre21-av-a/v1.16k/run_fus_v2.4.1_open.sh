@@ -62,10 +62,13 @@ if [ $stage -le 2 ];then
     for((i=0;i<$max_systems;i++))
     do
       if [ -d $output_dir/$i ];then
-	  local/score_sre21.sh data/sre21_audio_dev_test audio_dev $output_dir/$i 
-	  local/score_sre21.sh data/sre21_audio-visual_dev_test audio-visual_dev $output_dir/$i
-	  local/score_sre21_official.sh $sre21_dev_root audio dev $output_dir/$i 
-	fi
+	local/score_sre21.sh data/sre21_audio_dev_test audio_dev $output_dir/$i 
+	local/score_sre21.sh data/sre21_audio-visual_dev_test audio-visual_dev $output_dir/$i
+	local/score_sre21.sh data/sre21_audio_eval_test audio_eval $output_dir/$i 
+	local/score_sre21.sh data/sre21_audio-visual_eval_test audio-visual_eval $output_dir/$i
+	local/score_sre21_official.sh $sre21_dev_root audio dev $output_dir/$i
+	local/score_sre21_official.sh $sre21_eval_root audio eval $output_dir/$i
+      fi
     done
     exit
 fi

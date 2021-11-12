@@ -176,17 +176,22 @@ if [ $stage -le 3 ]; then
 
     local/score_sre21.sh data/sre21_audio_dev_test audio_dev $score_plda_dir
     local/score_sre21.sh data/sre21_audio-visual_dev_test audio-visual_dev $score_plda_dir
+    local/score_sre21.sh data/sre21_audio_eval_test audio_eval $score_plda_dir
+    local/score_sre21.sh data/sre21_audio-visual_eval_test audio-visual_eval $score_plda_dir
     local/score_sre21_official.sh $sre21_dev_root audio dev $score_plda_dir
-
+    local/score_sre21_official.sh $sre21_eval_root audio eval $score_plda_dir
 fi
 
 if [ $stage -le 4 ];then
   local/calibrate_sre21av_v1.sh --cmd "$train_cmd" $score_plda_dir
   local/score_sre16.sh data/sre16_eval40_yue_test eval40_yue ${score_plda_dir}_cal_v1
-  local/score_sre_cts_superset.sh data/sre_cts_superset_8k_dev ${score_plda_dir}_cal_v1
+  local/score_sre_cts_superset.sh data/sre_cts_superset_16k_dev ${score_plda_dir}_cal_v1
   local/score_sre21.sh data/sre21_audio_dev_test audio_dev ${score_plda_dir}_cal_v1
   local/score_sre21.sh data/sre21_audio-visual_dev_test audio-visual_dev ${score_plda_dir}_cal_v1
+  local/score_sre21.sh data/sre21_audio_eval_test audio_eval ${score_plda_dir}_cal_v1
+  local/score_sre21.sh data/sre21_audio-visual_eval_test audio-visual_eval ${score_plda_dir}_cal_v1
   local/score_sre21_official.sh $sre21_dev_root audio dev ${score_plda_dir}_cal_v1
+  local/score_sre21_official.sh $sre21_eval_root audio eval ${score_plda_dir}_cal_v1
   exit
 fi
 

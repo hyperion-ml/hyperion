@@ -44,7 +44,9 @@ if [ $stage -le 2 ];then
     --visual-scores $visual/sre21_audio-visual_eval_scores \
     --output-scores $output_dir/sre21_audio-visual_eval_scores 
 
-  ./local/make_sre21_sub.sh $sre21_eval_root $output_dir/sre21_audio-visual_eval_scores 
+  local/score_sre21.sh data/sre21_audio-visual_eval audio-visual_eval $output_dir
+  local/score_sre21_official.sh $sre21_eval_root audio-visual eval $output_dir
+  #./local/make_sre21_sub.sh $sre21_eval_root $output_dir/sre21_audio-visual_eval_scores 
     
 fi
 
