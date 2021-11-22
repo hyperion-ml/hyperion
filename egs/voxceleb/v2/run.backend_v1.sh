@@ -9,6 +9,7 @@ set -e
 stage=1
 config_file=default_config.sh
 dinossl_xvec_loc="f" # position we extract xvectors: choices=["f", "dinohead_mlp","dinohead_l2norm","dinohead_linear"]
+use_gpu=false
 
 . parse_options.sh || exit 1;
 . $config_file
@@ -30,10 +31,10 @@ if [ $stage -le 1 ]; then
     echo "Stage 1: Extracting xvectors ..."
     if [[ -n ${dinossl_cfg} ]]; then
         echo "Extracting xvectors with ${dinossl_cfg}"
-        bash run_030_extract_xvectors.v2.sh --stage 2 --config-file ${config_file} --dinossl_cfg ${dinossl_cfg}
+        bash run_030_extract_xvectors.v2.sh --stage 2 --config-file ${config_file} --dinossl_cfg ${dinossl_cfg} --use-gpu ${use_gpu}
     else
         echo "Extracting xvectors right before DINOHead"
-        bash run_030_extract_xvectors.v2.sh --stage 2 --config-file ${config_file}
+        bash run_030_extract_xvectors.v2.sh --stage 2 --config-file ${config_file} --use-gpu ${use_gpu}
     fi
 fi
 

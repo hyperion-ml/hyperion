@@ -41,7 +41,7 @@ if [ $# != 3 ] && [ $# != 4 ]; then
   echo "                                                   # min_utt_length and max_utt_length"
   echo "  --min-utt-length <n|0>                           # "
   echo "  --max-utt-length <n|0>                           # "
-  
+
 
 fi
 
@@ -66,7 +66,7 @@ if [ "$use_gpu" == "true" ];then
 fi
 
 if [ "$use_bin_vad" == "true" ];then
-    f=$data_dir/vad.scp 
+    f=$data_dir/vad.scp
     [ ! -f $f ] && echo "No such file $f" && exit 1;
     args="${args} --vad scp:$f"
 fi
@@ -93,6 +93,7 @@ if [ "$write_utt2num_frames" == "true" ];then
 fi
 
 if [ $stage -le 0 ];then
+    set +e
     $cmd JOB=1:$nj $output_dir/log/extract_xvectors.JOB.log \
 	hyp_utils/conda_env.sh --num-gpus $num_gpus \
 	torch-extract-xvectors-from-wav.py \
@@ -100,9 +101,34 @@ if [ $stage -le 0 ];then
 	--part-idx JOB --num-parts $nj \
 	--input $data_dir/wav.scp \
 	--model-path $nnet_file --chunk-length $chunk_length \
-	--output ark,scp:$output_dir/xvector.JOB.ark,$output_dir/xvector.JOB.scp || exit 1;
-fi
+	--output ark,scp:$output_dir/xvector.JOB.ark,$output_dir/xvector.JOB.scp
+    set -e
 
+    for tmp in {1..3};do
+        for((i=1;i<=$nj;i++))
+        do
+    	status=$(tail -n 1 $output_dir/log/extract_xvectors.$i.log | \
+    			awk '/status 0/ { print 0}
+                                !/status 0/ { print 1}')
+    	if [ $status -eq 1 ];then
+    	    echo "JOB $i failed, resubmitting"
+    	    if [ "$write_utt2num_frames" == "true" ];then
+    		write_num_frames_opt="--write-num-frames $output_dir/utt2num_frames.$i"
+    	    fi
+          sleep 10
+    	    $cmd $output_dir/log/extract_xvectors.$i.log \
+    		 hyp_utils/conda_env.sh --num-gpus $num_gpus \
+    		 torch-extract-xvectors-from-wav.py \
+    		 --feats $feat_config ${args} $write_num_frames_opt \
+    		 --part-idx $i --num-parts $nj \
+    		 --input $data_dir/wav.scp \
+    		 --model-path $nnet_file --chunk-length $chunk_length \
+    		 --output ark,scp:$output_dir/xvector.$i.ark,$output_dir/xvector.$i.scp &
+    	fi
+        done
+    done
+    wait
+fi
 
 if [ $stage -le 1 ]; then
   echo "$0: combining xvectors across jobs"
