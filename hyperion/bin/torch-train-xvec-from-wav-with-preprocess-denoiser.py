@@ -1,7 +1,13 @@
 #!/usr/bin/env python
 """
- Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+
+Adapted from `torch-train-xvec-from-wav.py` to do pre-processing using denoiser.
+In `torch-train-xvec-from-wav.py` : We trained x-vector using adversarial examples
+In `torch-train-xvec-from-denoised-wav-noise.py` : We will obtain the adversarial noise by predicting the benign example using denoiser. 
+adv_noise = adv_example - predicted_benign_example
+(Author: Sonal Joshi with inputs from Saurabh Kataria)
 """
 import sys
 import os
