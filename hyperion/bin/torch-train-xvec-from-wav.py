@@ -179,6 +179,6 @@ if __name__ == '__main__':
 
     args_sc.xvec_class = xvec_dict[xvec_type]
     # torch docs recommend using forkserver
-    multiprocessing.set_start_method('forkserver')
+    #multiprocessing.set_start_method('forkserver') # Commented by Sonal  25Oct21 to avoid `raise RuntimeError('context has already been set')` error
     train_xvec(gpu_id, args_sc)
 

@@ -13,3 +13,5 @@ from .xvectors.spinenet_xvector import SpineNetXVector
 
 from .vae.vae import VAE
 from .vae.vq_vae import VQVAE
+
+from .denoiser.conv_tasnet import TasNet

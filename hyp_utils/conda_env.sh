@@ -46,8 +46,7 @@ fi
 # export LRU_CACHE_CAPACITY=1
 # echo "LRU_CACHE_CAPACITY=$LRU_CACHE_CAPACITY"
 
-conda activate $conda_env
-
+#conda activate $conda_env # Commented Sonal
 if [ $num_gpus -gt 0 ];then
     # set CUDA_VISIBLE_DEVICES
     echo "SGE_HGR_gpu=$SGE_HGR_gpu"
