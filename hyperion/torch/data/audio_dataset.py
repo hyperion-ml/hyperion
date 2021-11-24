@@ -311,9 +311,9 @@ class AudioDataset(Dataset):
         fs = fs[0]
 
         x_clean = x
-        logging.info("hola1")
+        #logging.info("hola1")
         if self.augmenter is not None:
-            logging.info("hola2")
+            #logging.info("hola2")
             chunk_length_samples = int(chunk_length * fs)
             end_idx = len(x)
             reverb_context_samples = end_idx - chunk_length_samples
