@@ -17,6 +17,7 @@ config_file=default_config.sh
 . parse_options.sh || exit 1;
 . $config_file
 
+
 if [ $stage -le 1 ]; then
     # Prepare to distribute data over multiple machines
     if [[ $(hostname -f) == *.clsp.jhu.edu ]] && [ ! -d $vaddir/storage ]; then
