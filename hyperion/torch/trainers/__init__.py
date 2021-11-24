@@ -12,6 +12,7 @@ from .xvector_adv_trainer import XVectorAdvTrainer
 from .xvector_trainer_from_wav import XVectorTrainerFromWav
 from .xvector_trainer_deep_feat_reg_from_wav import XVectorTrainerDeepFeatRegFromWav
 from .xvector_adv_trainer_from_wav import XVectorAdvTrainerFromWav
+from .xvector_trainer_from_wav_with_preproc_denoiser import XVectorTrainerWithPreprocessorDenoiserFromWav
 
 from .vae_trainer import VAETrainer
 from .dvae_trainer import DVAETrainer

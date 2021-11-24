@@ -1,3 +1,7 @@
+'''
+Author: Minor changes to https://github.com/naplab/Conv-TasNet (CC BY-NC-SA 3.0 US) by Saurabh Kataria
+'''
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F

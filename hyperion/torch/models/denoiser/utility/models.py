@@ -1,3 +1,7 @@
+'''
+Author: https://github.com/naplab/Conv-TasNet (CC BY-NC-SA 3.0 US)
+'''
+
 import numpy as np
 import os
 import torch
