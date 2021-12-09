@@ -15,9 +15,6 @@ config_file=default_config.sh
 . datapath.sh 
 
 if [ $stage -le 1 ];then
-  # # Prepare sre19
-  # local/make_sre19av_v_dev.sh $sre19_dev_root data
-  # local/make_sre19av_v_eval.sh $sre19_eval_root data
   # Prepare SRE21 dev
   hyp_utils/conda_env.sh \
     local/prepare_sre21av_dev_visual.py \

@@ -22,20 +22,15 @@ be3s=be_v6_selfatt_a2/cosine_snorm1000_v1_cal_v1_sre21
 be4=be_v7_selfatt_a2_att_a4/cosine_cal_v1_sre21
 be4s=be_v7_selfatt_a2_att_a4/cosine_snorm1000_v1_cal_v1_sre21
 
+echo "This is just a fusion example, \
+     you won't be able to run it if you don't have all the systems need for the fusion"
+
 system_names="mxnet-b1 mxnet-b2 mxnet-b3 mxnet-b4 mxnet-b1s mxnet-b2s mxnet-b3s mxnet-b4s pt-b1 pt-b2 pt-b3 pt-b4 pt-b1s pt-b2s pt-b3s pt-b4s"
 system_dirs="$nnet1/$be1 $nnet1/$be2 $nnet1/$be3 $nnet1/$be4 \
 $nnet1/$be1s $nnet1/$be2s $nnet1/$be3s $nnet1/$be4s \
 $nnet2/$be1 $nnet2/$be2 $nnet2/$be3 $nnet2/$be4 \
 $nnet2/$be1s $nnet2/$be2s $nnet2/$be3s $nnet2/$be4s"
 
-# for s in $system_dirs
-# do
-#   echo $s
-#   #head -n 5 $s/sre21_audio_dev_results.csv
-#   #head -n 2 $s/sre_cts_superset_dev_results.csv
-#   #grep -e ENG_YUE -e dataset $s/sre_cts_superset_dev_results.csv
-# done
-# exit
 output_dir=exp/fusion/v1.1_ptrn${p_trn}_l2${fus_l2_reg}
 
 if [ $stage -le 1 ];then
@@ -52,6 +47,8 @@ if [ $stage -le 2 ];then
       local/score_sre21av.sh data/sre21_visual_dev_test visual_dev $output_dir/$i
       local/score_janus_core.sh data/janus_dev_test_core dev $output_dir/$i
       local/score_janus_core.sh data/janus_eval_test_core eval $output_dir/$i
+      local/score_sre21_official.sh $sre21_dev_root visual dev $output_dir/$i
+      local/score_sre21_official.sh $sre21_eval_root visual eval $output_dir/$i 
     fi
   done
 fi
