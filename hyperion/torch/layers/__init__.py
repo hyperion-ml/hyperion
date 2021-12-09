@@ -3,7 +3,7 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from .dropout import Dropout1d, DropConnect2d
+from .dropout import Dropout1d, DropConnect2d, DropConnect1d
 from .global_pool import *
 
 from .activation_factory import ActivationFactory

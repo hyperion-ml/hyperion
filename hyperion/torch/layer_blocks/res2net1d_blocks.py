@@ -8,7 +8,7 @@ import torch.nn as nn
 from torch.nn import Conv1d, BatchNorm1d
 
 from ..layers import ActivationFactory as AF
-from ..layers import Dropout1d
+from ..layers import Dropout1d, DropConnect1d
 from .se_blocks import SEBlock1d
 
 
@@ -56,6 +56,7 @@ class Res2Net1dBasicBlock(nn.Module):
         activation={"name": "relu6", "inplace": True},
         stride=1,
         dropout_rate=0,
+        drop_connect_rate=0,
         width_factor=1,
         scale=4,
         groups=1,
@@ -142,6 +143,11 @@ class Res2Net1dBasicBlock(nn.Module):
         if dropout_rate > 0:
             self.dropout = Dropout1d(dropout_rate)
 
+        self.drop_connect_rate = drop_connect_rate
+        self.drop_connect = None
+        if drop_connect_rate > 0:
+            self.drop_connect = DropConnect1d(drop_connect_rate)
+
         self.context = (dilation + stride) * (kernel_size - 1) // 2
         self.downsample_factor = stride
 
@@ -187,11 +193,14 @@ class Res2Net1dBasicBlock(nn.Module):
         if self.norm_before:
             x = self.bn2(x)
 
-        if self.downsample is not None:
-            residual = self.downsample(residual)
-
         if self.se_layer:
             x = self.se_layer(x)
+
+        if self.drop_connect_rate > 0:
+            x = self.drop_connect(x)
+
+        if self.downsample is not None:
+            residual = self.downsample(residual)
 
         x += residual
         x = self.act2(x)
@@ -214,6 +223,7 @@ class Res2Net1dBNBlock(nn.Module):
         activation={"name": "relu6", "inplace": True},
         stride=1,
         dropout_rate=0,
+        drop_connect_rate=0,
         width_factor=1,
         scale=4,
         groups=1,
@@ -291,6 +301,11 @@ class Res2Net1dBNBlock(nn.Module):
         if dropout_rate > 0:
             self.dropout = Dropout1d(dropout_rate)
 
+        self.drop_connect_rate = drop_connect_rate
+        self.drop_connect = None
+        if drop_connect_rate > 0:
+            self.drop_connect = DropConnect1d(drop_connect_rate)
+
         self.context = dilation * (kernel_size - 1) // 2
         self.downsample_factor = stride
 
@@ -344,11 +359,14 @@ class Res2Net1dBNBlock(nn.Module):
         if self.norm_before:
             x = self.bn3(x)
 
-        if self.downsample is not None:
-            residual = self.downsample(residual)
-
         if self.se_layer:
             x = self.se_layer(x)
+
+        if self.drop_connect_rate > 0:
+            x = self.drop_connect(x)
+
+        if self.downsample is not None:
+            residual = self.downsample(residual)
 
         x += residual
         x = self.act3(x)

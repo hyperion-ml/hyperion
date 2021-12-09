@@ -9,6 +9,8 @@ cmd=run.pl
 p_tel=0.05
 l2_reg=1e-4
 sre_weight=0.1
+extra_args=""
+extra_tag=""
 
 if [ -f path.sh ]; then . ./path.sh; fi
 . parse_options.sh || exit 1;
@@ -21,6 +23,9 @@ fi
 
 score_dir=$1
 cal_score_dir=${score_dir}_cal_v1
+if [ -n "$extra_tag" ];then
+  cal_score_dir=${cal_score_dir}_${extra_tag}
+fi
 
 mkdir -p $cal_score_dir
 
@@ -47,7 +52,7 @@ $cmd $cal_score_dir/train_cal_tel.log \
      --key-file-sre21 data/sre21_audio_dev_test/trials \
      --nenr-sre16 $cal_score_dir/sre16_nenr \
      --model-file $model_file \
-     --prior $p_tel --lambda-reg $l2_reg --sre-weight $sre_weight
+     --prior $p_tel --lambda-reg $l2_reg --sre-weight $sre_weight $extra_args
 
 echo "$0 eval calibration v1 for sre16-yue"
 $cmd $cal_score_dir/eval_cal_sre16_yue.log \

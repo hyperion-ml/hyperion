@@ -44,6 +44,7 @@ class ResNet1dEncoder(NetArch):
         hid_act="relu6",
         head_act=None,
         dropout_rate=0,
+        drop_connect_rate=0,
         se_r=16,
         res2net_width_factor=1,
         res2net_scale=4,
@@ -105,6 +106,7 @@ class ResNet1dEncoder(NetArch):
         self.hid_act = hid_act
         self.head_act = head_act
         self.dropout_rate = dropout_rate
+        self.drop_connect_rate = drop_connect_rate
         self.use_norm = use_norm
         self.norm_before = norm_before
         self.se_r = se_r
@@ -133,9 +135,11 @@ class ResNet1dEncoder(NetArch):
         self._downsample_factor = self.in_block.stride
 
         cur_in_channels = in_conv_channels
+        total_blocks = np.sum(self.resb_repeats)
 
         # middle blocks
         self.blocks = nn.ModuleList([])
+        k = 0
         self.resb_scales = []
         for i in range(num_superblocks):
             blocks_i = nn.ModuleList([])
@@ -147,6 +151,7 @@ class ResNet1dEncoder(NetArch):
             # if there is downsampling the dilation of the first block
             # is set to 1
             dilation_i1 = dilation_i if stride_i == 1 else 1
+            drop_i = drop_connect_rate * k / (total_blocks - 1)
             block_i1 = self._block(
                 cur_in_channels,
                 channels_i,
@@ -156,18 +161,21 @@ class ResNet1dEncoder(NetArch):
                 groups=self.resb_groups,
                 activation=hid_act,
                 dropout_rate=dropout_rate,
+                drop_connect_rate=drop_i,
                 use_norm=use_norm,
                 norm_layer=self._norm_layer,
                 norm_before=norm_before,
-                **bargs
+                **bargs,
             )
 
             blocks_i.append(block_i1)
+            k += 1
             self._context += block_i1.context * self._downsample_factor
             self._downsample_factor *= block_i1.downsample_factor
             self.resb_scales.append(self._downsample_factor)
 
             for j in range(repeats_i - 1):
+                drop_i = drop_connect_rate * k / (total_blocks - 1)
                 block_ij = self._block(
                     channels_i,
                     channels_i,
@@ -177,13 +185,14 @@ class ResNet1dEncoder(NetArch):
                     groups=self.resb_groups,
                     activation=hid_act,
                     dropout_rate=dropout_rate,
+                    drop_connect_rate=drop_i,
                     use_norm=use_norm,
                     norm_layer=self._norm_layer,
                     norm_before=norm_before,
-                    **bargs
+                    **bargs,
                 )
-
                 blocks_i.append(block_ij)
+                k += 1
                 self._context += block_ij.context * self._downsample_factor
             self.blocks.append(blocks_i)
 
@@ -350,6 +359,18 @@ class ResNet1dEncoder(NetArch):
 
         return (in_shape[0], out_channels, T)
 
+    @staticmethod
+    def _match_lens(endpoints):
+        lens = [e.shape[-1] for e in endpoints]
+        min_len = min(lens)
+        for i in range(len(endpoints)):
+            if lens[i] > min_len:
+                t_start = (lens[i] - min_len) // 2
+                t_end = t_start + min_len
+                endpoints[i] = endpoints[i][:, :, t_start:t_end]
+
+        return endpoints
+
     def forward(self, x):
 
         x = self.in_block(x)
@@ -367,6 +388,7 @@ class ResNet1dEncoder(NetArch):
                 endpoints.append(endpoint_i)
 
         if self.multilayer:
+            endpoints = self._match_lens(endpoints)
             if self.multilayer_concat:
                 try:
                     x = torch.cat(endpoints, dim=1)
@@ -451,6 +473,7 @@ class ResNet1dEncoder(NetArch):
             "resb_groups": self.resb_groups,
             "head_channels": self.head_channels,
             "dropout_rate": self.dropout_rate,
+            "drop_connect_rate": self.drop_connect_rate,
             "hid_act": hid_act,
             "head_act": head_act,
             "se_r": self.se_r,
@@ -499,6 +522,7 @@ class ResNet1dEncoder(NetArch):
             "hid_act",
             "head_act",
             "dropout_rate",
+            "drop_connect_rate",
             "use_norm",
             "norm_layer",
             "norm_before",
@@ -632,6 +656,16 @@ class ResNet1dEncoder(NetArch):
 
         try:
             parser.add_argument(
+                "--drop-connect-rate",
+                default=0,
+                type=float,
+                help="layer drop probability",
+            )
+        except:
+            pass
+
+        try:
+            parser.add_argument(
                 "--norm-layer",
                 default=None,
                 choices=[
@@ -678,10 +712,7 @@ class ResNet1dEncoder(NetArch):
         )
 
         parser.add_argument(
-            "--res2net-scale",
-            default=1,
-            type=int,
-            help=("res2net scaling parameter "),
+            "--res2net-scale", default=1, type=int, help=("res2net scaling parameter "),
         )
 
         parser.add_argument(

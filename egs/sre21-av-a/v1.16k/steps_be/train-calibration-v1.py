@@ -163,6 +163,9 @@ def train_calibration(
     prior,
     lambda_reg,
     sre_weight,
+    no_lang,
+    no_nenr,
+    no_source,
     verbose,
 ):
 
@@ -225,13 +228,21 @@ def train_calibration(
         ),
         axis=0,
     )
+    if no_lang:
+        langs[:] = 0
+    if no_nenr:
+        nenr[:] = 0
+    if no_source:
+        src[:] = 0
 
     x = np.concatenate((scores[:, None], nenr, langs, src), axis=1)
 
     # remove non eng/cts/yue langs
-    mask = np.any(langs, axis=1)
-    x = x[mask]
-    y = y[mask]
+    if not no_lang:
+        mask = np.any(langs, axis=1)
+        x = x[mask]
+        y = y[mask]
+
     lr0 = LR(
         prior=prior,
         lambda_reg=lambda_reg,
@@ -271,13 +282,20 @@ def train_calibration(
         ),
         axis=0,
     )
+    if no_lang:
+        langs[:] = 0
+    if no_nenr:
+        nenr[:] = 0
+    if no_source:
+        src[:] = 0
 
     x = np.concatenate((scores[:, None], nenr, langs, src), axis=1)
 
     # remove non eng/cts/yue langs
-    mask = np.any(langs, axis=1)
-    x = x[mask]
-    y = y[mask]
+    if not no_lang:
+        mask = np.any(langs, axis=1)
+        x = x[mask]
+        y = y[mask]
     ntar = np.sum(y == 1)
     nnon = np.sum(y == 0)
 
@@ -350,6 +368,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
     )
+    parser.add_argument("--no-lang", default=False, action="store_true")
+    parser.add_argument("--no-nenr", default=False, action="store_true")
+    parser.add_argument("--no-source", default=False, action="store_true")
 
     args = parser.parse_args()
     config_logger(args.verbose)
