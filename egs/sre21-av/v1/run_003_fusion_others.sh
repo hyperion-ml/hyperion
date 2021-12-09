@@ -1,12 +1,14 @@
 #!/bin/bash
 # Copyright
-#                2018   Johns Hopkins University (Author: Jesus Villalba)
+#                2021   Johns Hopkins University (Author: Jesus Villalba)
 # Apache 2.0.
 #
 
 . ./cmd.sh
 . ./path.sh
 set -e
+
+echo "This an example of how to fuse audio and visual systems for contrastive systems"
 
 ./run_002_fusion_primary.sh \
   --fus-name v1_closed_av_single \

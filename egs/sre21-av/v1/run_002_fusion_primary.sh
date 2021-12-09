@@ -1,14 +1,15 @@
 #!/bin/bash
 # Copyright
-#                2018   Johns Hopkins University (Author: Jesus Villalba)
+#                2021   Johns Hopkins University (Author: Jesus Villalba)
 # Apache 2.0.
 #
 . ./cmd.sh
 . ./path.sh
 set -e
 
-# config_file=default_config.sh
 stage=1
+
+echo "This an example of how to fuse audio and visual systems"
 
 fus_name=v1_closed_av_primary
 audio=../../sre21-av-a/v1.16k/exp/fusion/v2.5.1_fus_pfus0.1_l21e-3_pcal0.05_l21e-4/3

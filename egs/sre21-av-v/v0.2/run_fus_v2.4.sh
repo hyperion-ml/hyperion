@@ -16,19 +16,12 @@ nnet2=../v0.1/exp/scores/r100-v4
 be2=be_v4_thrahc0.7/cosine_cal_v2_sre21
 be2s=be_v4_thrahc0.7/cosine_snorm1000_v1_cal_v2_sre21
 
+echo "This is just a fusion example, \
+     you won't be able to run it if you don't have all the systems need for the fusion"
+
 system_names="pt-b2s carlos mxnet-b2s"
 system_dirs="$nnet1/$be2s exp/scores/carlos/cosine_cal_v2_sre21 $nnet2/$be2s"
 
-for s in $system_dirs
-do
-  echo $s
-  #head -n 5 $s/sre21_audio_dev_results.csv
-  #head -n 2 $s/sre_cts_superset_dev_results.csv
-  #grep -e ENG_YUE -e dataset $s/sre_cts_superset_dev_results.csv
-  #local/score_sre21_official.sh $sre21_dev_root visual dev $s
-  local/score_sre21_official.sh $sre21_eval_root visual eval $s
-done
-exit
 output_dir=exp/fusion/v2.4_ptrn${p_trn}_l2${fus_l2_reg}
 
 if [ $stage -le 1 ];then
@@ -48,9 +41,4 @@ if [ $stage -le 2 ];then
       local/score_sre21_official.sh $sre21_eval_root visual eval $output_dir/$i 
     fi
   done
-  exit
 fi
-
-local/fusion_sanity.sh \
-  --cmd "$train_cmd --mem 24G" \
-  "$system_names f1 f2 f3" "$system_dirs $output_dir/0 $output_dir/1 $output_dir/2" $output_dir
