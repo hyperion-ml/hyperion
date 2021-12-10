@@ -41,6 +41,7 @@ while(getline < s2g) { gender[$1]=tolower($2) }
     awk '{ print $2"-"$1,$2}' $output_dir/table | sort -k1,1 > $output_dir/utt2spk
     utils/utt2spk_to_spk2utt.pl $output_dir/utt2spk > $output_dir/spk2utt
     awk '{ print $2,$3}' $output_dir/table | sort -k1,1 -u > $output_dir/spk2gender
+    awk -v lang=$lang '{ print $1,toupper(lang)}' $output_dir/utt2spk > $output_dir/utt2lang
     
     find -L $input_path -name "*.sph" > $output_dir/wav.scp.tmp    
 

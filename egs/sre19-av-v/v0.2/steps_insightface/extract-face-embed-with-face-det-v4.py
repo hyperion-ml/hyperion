@@ -32,6 +32,7 @@ from face_utils import (
     save_bbox,
     detect_faces_in_frame,
     extract_embed_in_frame_v4,
+    select_quality_embeds,
 )
 
 
@@ -46,6 +47,7 @@ def extract_face_embed(
     save_facedet_img,
     save_facecrop_img,
     save_facealign_img,
+    discard_low_q,
     part_idx,
     num_parts,
 ):
@@ -110,6 +112,7 @@ def extract_face_embed(
         threshold = 0.9
         while threshold > 0.01:
             x = []
+            q = []
             for frame, idx in zip(frames, frame_idx):
                 logging.info(
                     "processing file %s frame %d of shape=%s",
@@ -130,7 +133,7 @@ def extract_face_embed(
                 if faces.shape[0] == 0:
                     continue
 
-                x_f = extract_embed_in_frame_v4(
+                x_f, q_f = extract_embed_in_frame_v4(
                     embed_extractor,
                     frame,
                     landmarks,
@@ -145,6 +148,7 @@ def extract_face_embed(
                     faces.shape[0],
                 )
                 x.append(x_f)
+                q.append(q_f)
 
                 if save_facecrop_img:
                     save_facecrop_images(key, idx, frame, faces, facecrop_dir)
@@ -155,8 +159,10 @@ def extract_face_embed(
 
             if len(x) > 0:
                 x = np.concatenate(tuple(x), axis=0)
+                q = np.concatenate(tuple(q), axis=0)
             else:
                 x = np.zeros((0, x_dim))
+                q = np.zeros((0, 2))
 
             if min_faces == 0 or x.shape[0] >= min_faces:
                 break
@@ -170,6 +176,8 @@ def extract_face_embed(
 
         logging.info("file %s saving %d face embeds", key, x.shape[0])
         f_scp.write("%s %s\n" % (key, h5_file))
+        if discard_low_q:
+            x = select_quality_embeds(x, q, min_faces)
         f_h5.create_dataset(key, data=x.astype("float32"))
 
     f_bb.close()
@@ -192,6 +200,7 @@ if __name__ == "__main__":
     parser.add_argument("--save-facedet-img", default=False, action="store_true")
     parser.add_argument("--save-facecrop-img", default=False, action="store_true")
     parser.add_argument("--save-facealign-img", default=False, action="store_true")
+    parser.add_argument("--discard-low-q", default=False, action="store_true")
     parser.add_argument("--fps", type=int, default=1)
     parser.add_argument("--min-faces", type=int, default=1)
     parser.add_argument("--part-idx", type=int, default=1)

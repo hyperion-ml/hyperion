@@ -125,8 +125,8 @@ while(getline < u2s)
 }
 { print $1,spk[$2]}' $data_out_dir/augm2clean > $data_out_dir/utt2spk
 	utils/utt2spk_to_spk2utt.pl $data_out_dir/utt2spk > $data_out_dir/spk2utt
-	cp $output_dir/utt2num_frames $data_out_dir
+	cp $output_dir/utt2num_frames $data_out_dir/utt2num_frames_logits
     else
-	cp $output_dir/utt2num_frames $data_dir
+	cp $output_dir/utt2num_frames $data_dir/utt2num_frames_logits
     fi
 fi

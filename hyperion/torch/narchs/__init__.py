@@ -3,7 +3,7 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from .fcnet import FCNetV1
+from .fcnet import FCNetV1, FCNetV2
 
 from .tdnn import TDNNV1
 from .etdnn import ETDNNV1

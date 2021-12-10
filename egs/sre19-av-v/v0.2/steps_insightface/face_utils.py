@@ -24,6 +24,16 @@ from torchvision import transforms
 from retinaface.detector import RetinafaceDetector
 from utils import align_face
 
+rotation_opts = {
+    "90": cv2.ROTATE_90_CLOCKWISE,
+    "180": cv2.ROTATE_180,
+    "270": cv2.ROTATE_90_COUNTERCLOCKWISE,
+}
+
+
+def read_img(file_path):
+    return cv2.imread(file_path)
+
 
 def read_video(file_path, fps):
 
@@ -34,6 +44,11 @@ def read_video(file_path, fps):
         / f.streams.video[0].average_rate.denominator
     )
     delta = video_fps / fps
+    meta = f.streams.video[0].metadata
+    rotate = -1
+    if "rotate" in meta:
+        rotate = rotation_opts[meta["rotate"]]
+
     frames = []
     frame_idx = []
     next_frame = 0
@@ -43,6 +58,9 @@ def read_video(file_path, fps):
             # IMPORTANT!!!!!!
             # OpenCV uses BGR channel order, we need to flip the last dimension!!!
             frame_array = copy.deepcopy(frame_array[:, :, ::-1])
+            if rotate != -1:
+                frame_array = cv2.rotate(frame_array, rotate)
+
             frames.append(frame_array)
             frame_idx.append(count)
             next_frame += delta
@@ -62,6 +80,11 @@ def read_video_frames(file_path, frame_idx=None, time_in_secs=False):
         # transform seconds into frames indexes
         frame_idx = [int(s * video_fps) for s in frame_idx]
 
+    meta = f.streams.video[0].metadata
+    rotate = -1
+    if "rotate" in meta:
+        rotate = rotation_opts[meta["rotate"]]
+
     frames = []
     k = 0
     next_frame = frame_idx[k]
@@ -71,6 +94,9 @@ def read_video_frames(file_path, frame_idx=None, time_in_secs=False):
             # IMPORTANT!!!!!!
             # OpenCV uses BGR channel order, we need to flip the last dimension!!!
             frame_array = copy.deepcopy(frame_array[:, :, ::-1])
+            if rotate != -1:
+                frame_array = cv2.rotate(frame_array, rotate)
+
             frames.append(frame_array)
             k += 1
             if k == len(frame_idx):
@@ -92,6 +118,11 @@ def read_video_windows(file_path, frame_idx=None, det_window=30, time_in_secs=Fa
     if time_in_secs:
         # transform seconds into frames indexes
         frame_idx = [int(s * video_fps) for s in frame_idx]
+
+    meta = f.streams.video[0].metadata
+    rotate = -1
+    if "rotate" in meta:
+        rotate = rotation_opts[meta["rotate"]]
 
     all_frame_idx = []
     window_idx = []
@@ -116,6 +147,9 @@ def read_video_windows(file_path, frame_idx=None, det_window=30, time_in_secs=Fa
             # IMPORTANT!!!!!!
             # OpenCV uses BGR channel order, we need to flip the last dimension!!!
             frame_array = copy.deepcopy(frame_array[:, :, ::-1])
+            if rotate != -1:
+                frame_array = cv2.rotate(frame_array, rotate)
+
             frames.append(frame_array)
             k += 1
             if k == len(frame_idx):
@@ -222,6 +256,8 @@ def extract_embed_in_frame_v4(
 
     num_faces = landmarks.shape[0]
     x = np.zeros((num_faces, x_dim))
+    q = np.zeros((num_faces, 2))
+    k = 0
     batch_size = 128
     for start_idx in range(0, num_faces, batch_size):
         end_idx = min(num_faces, start_idx + batch_size)
@@ -232,6 +268,9 @@ def extract_embed_in_frame_v4(
             frame_i = align_face(frame, [landmarks_i])
             frame_batch[i] = img_transforms(frame_i)
 
+            q[k] = face_quality(landmarks[i], frame_i)
+            k += 1
+
         logging.info(
             "extracting embedding batch tensor size=%s ", str(frame_batch.shape)
         )
@@ -240,7 +279,7 @@ def extract_embed_in_frame_v4(
 
         x[start_idx:end_idx] = x_i
 
-    return x
+    return x, q
 
 
 def compute_overlap(bbox, bbox_ref):
@@ -287,3 +326,40 @@ def select_face(bbox, bbox_ref):
     return best, bbox[best], scores[best], d[best]
 
     # return np.array([]), 0.0, -1000
+
+
+def face_quality(landmarks, frame):
+
+    d_eye = float(landmarks[1] - landmarks[0])
+    area = frame.shape[0] * frame.shape[1]
+    black_points = float(np.sum(frame < 1))
+    black_ratio = black_points / area
+    q = np.array([d_eye, black_ratio])
+    return q
+
+
+def select_quality_embeds(x, q, min_faces):
+
+    n_0 = x.shape[0]
+    d_eye_thr = np.max(q[:, 0]) / 2
+    idx = q[:, 0] > d_eye_thr
+    x = x[idx]
+    q = q[idx, 1]
+    n_1 = x.shape[0]
+    if n_1 < n_0:
+        logging.info(
+            "discard %d/%d faces because of small eye-distance", n_0 - n_1, n_0
+        )
+    for thr in [0.1, 0.25, 0.5, 1]:
+        idx = q < thr
+        n_valid = np.sum(idx)
+        if n_valid > min_faces:
+            x = x[idx]
+            q = q[idx]
+            break
+
+    n_2 = x.shape[0]
+    if n_2 < n_1:
+        logging.info("discard %d/%d faces because of black bars", n_1 - n_2, n_1)
+
+    return x

@@ -22,10 +22,20 @@ from retinaface import RetinaFace
 from face_model import FaceModel
 import face_preprocess
 
+rotation_opts = {
+    "90": cv2.ROTATE_90_CLOCKWISE,
+    "180": cv2.ROTATE_180,
+    "270": cv2.ROTATE_90_COUNTERCLOCKWISE,
+}
+
 
 class Namespace:
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
+
+
+def read_img(file_path):
+    return cv2.imread(file_path)
 
 
 def read_video(file_path, fps):
@@ -37,6 +47,11 @@ def read_video(file_path, fps):
         / f.streams.video[0].average_rate.denominator
     )
     delta = video_fps / fps
+    meta = f.streams.video[0].metadata
+    rotate = -1
+    if "rotate" in meta:
+        rotate = rotation_opts[meta["rotate"]]
+
     frames = []
     frame_idx = []
     next_frame = 0
@@ -46,6 +61,8 @@ def read_video(file_path, fps):
             # IMPORTANT!!!!!!
             # OpenCV uses BGR channel order, we need to flip the last dimension!!!
             frame_array = copy.deepcopy(frame_array[:, :, ::-1])
+            if rotate != -1:
+                frame_array = cv2.rotate(frame_array, rotate)
             frames.append(frame_array)
             frame_idx.append(count)
             next_frame += delta
@@ -65,6 +82,11 @@ def read_video_frames(file_path, frame_idx=None, time_in_secs=False):
         # transform seconds into frames indexes
         frame_idx = [int(s * video_fps) for s in frame_idx]
 
+    meta = f.streams.video[0].metadata
+    rotate = -1
+    if "rotate" in meta:
+        rotate = rotation_opts[meta["rotate"]]
+
     frames = []
     k = 0
     next_frame = frame_idx[k]
@@ -74,6 +96,9 @@ def read_video_frames(file_path, frame_idx=None, time_in_secs=False):
             # IMPORTANT!!!!!!
             # OpenCV uses BGR channel order, we need to flip the last dimension!!!
             frame_array = copy.deepcopy(frame_array[:, :, ::-1])
+            if rotate != -1:
+                frame_array = cv2.rotate(frame_array, rotate)
+
             frames.append(frame_array)
             k += 1
             if k == len(frame_idx):
@@ -95,6 +120,11 @@ def read_video_windows(file_path, frame_idx=None, det_window=30, time_in_secs=Fa
     if time_in_secs:
         # transform seconds into frames indexes
         frame_idx = [int(s * video_fps) for s in frame_idx]
+
+    meta = f.streams.video[0].metadata
+    rotate = -1
+    if "rotate" in meta:
+        rotate = rotation_opts[meta["rotate"]]
 
     all_frame_idx = []
     window_idx = []
@@ -119,6 +149,9 @@ def read_video_windows(file_path, frame_idx=None, det_window=30, time_in_secs=Fa
             # IMPORTANT!!!!!!
             # OpenCV uses BGR channel order, we need to flip the last dimension!!!
             frame_array = copy.deepcopy(frame_array[:, :, ::-1])
+            if rotate != -1:
+                frame_array = cv2.rotate(frame_array, rotate)
+
             frames.append(frame_array)
             k += 1
             if k == len(frame_idx):
