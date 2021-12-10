@@ -28,7 +28,7 @@
 | [sre21-av-v](https://www.nist.gov/itl/iad/mig/nist-2021-speaker-recognition-evaluation-sre21) | v0.1 | NIST SRE21 Visual recipe used by JHU-MIT team <br> It uses Pretrained InsightFace embeddings in MX-Net |
 | | v0.2 | NIST SRE21 Visual recipe used by JHU-MIT team <br> It uses Pretrained InsightFace embeddings in PyTorch |
 | ------- | ------- | ---- |
-| [sre21-av-v](https://www.nist.gov/itl/iad/mig/nist-2021-speaker-recognition-evaluation-sre21) | v0.1 | NIST SRE21 Audio-Visual fusion used by JHU-MIT team <br> It fuses the scores produced by sre21-av-a and sre21-av-v recipes |
+| [sre21-av-v](https://www.nist.gov/itl/iad/mig/nist-2021-speaker-recognition-evaluation-sre21) | v1 | NIST SRE21 Audio-Visual fusion used by JHU-MIT team <br> It fuses the scores produced by sre21-av-a and sre21-av-v recipes |
 | ------- | ------- | ---- |
 | [voices_challenge](https://iqtlabs.github.io/voices/downloads/) | v1 | VOiCES challenge 2019 using x-vectors |
 | ------- | ------- | ---- |
