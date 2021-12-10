@@ -14,3 +14,5 @@ from .xvectors.resnet1d_xvector import ResNet1dXVector
 
 from .vae.vae import VAE
 from .vae.vq_vae import VQVAE
+
+from .denoiser.conv_tasnet import TasNet

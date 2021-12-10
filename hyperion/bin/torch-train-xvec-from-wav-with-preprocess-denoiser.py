@@ -1,7 +1,13 @@
 #!/usr/bin/env python
 """
- Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+
+Adapted from `torch-train-xvec-from-wav.py` to do pre-processing using denoiser.
+In `torch-train-xvec-from-wav.py` : We trained x-vector using adversarial examples
+In `torch-train-xvec-from-denoised-wav-noise.py` : We will obtain the adversarial noise by predicting the benign example using denoiser. 
+adv_noise = adv_example - predicted_benign_example
+(Author: Sonal Joshi with inputs from Saurabh Kataria)
 """
 import sys
 import os
@@ -19,7 +25,7 @@ import torch.nn as nn
 from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch.utils import open_device
 from hyperion.torch.utils import ddp
-from hyperion.torch.trainers import XVectorTrainerFromWav as Trainer
+from hyperion.torch.trainers import XVectorTrainerWithPreprocessorDenoiserFromWav as Trainer
 from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
 from hyperion.torch.metrics import CategoricalAccuracy
@@ -85,9 +91,7 @@ def init_xvector(num_classes, rank, xvec_class, **kwargs):
         logging.info('x-vector-model={}'.format(model))
     return model
 
-
-def train_xvec(gpu_id, args):
-        
+def train_xvec(gpu_id, args):      
     config_logger(args.verbose)
     del args.verbose
     logging.debug(args)
@@ -108,9 +112,14 @@ def train_xvec(gpu_id, args):
     if rank == 0:
         logging.info('trainer args={}'.format(trn_args))
     metrics = { 'acc': CategoricalAccuracy() }
+
     trainer = Trainer(model, feat_extractor,
                       device=device, metrics=metrics, 
-                      ddp=world_size>1, **trn_args)
+                      ddp=world_size>1, denoiser_model_path=args.denoiser_model_path, 
+                      denoiser_model_load_string=args.denoiser_model_load_string, 
+                      denoiser_model_n_layers=args.denoiser_model_n_layers,
+                      **trn_args)
+
     if args.resume:
         trainer.load_last_checkpoint()
     trainer.fit(train_loader, test_loader)
@@ -144,15 +153,19 @@ def make_parser(xvec_class):
     parser.add_argument('--resume', action='store_true', default=False,
                         help='resume training from checkpoint')
     parser.add_argument('-v', '--verbose', dest='verbose', default=1, 
-                        choices=[0, 1, 2, 3], type=int)
-    
+                        choices=[0, 1, 2, 3], type=int) 
+
+    parser.add_argument('--denoiser_model_path', default=None, type=str, help='Path to denoiser model')
+    parser.add_argument('--denoiser_model_load_string', default=None, type=str, help='Denoiser model load string, For example G, model_state_dict')
+    parser.add_argument('--denoiser_model_n_layers', default=None, type=int, help='Denoiser model number of layers')
+
     return parser
 
 
 if __name__ == '__main__':
 
     parser = ArgumentParser(
-        description='Train XVector from audio files')
+        description='Train XVector with denoiser as pre-processor from audio files')
 
     parser.add_argument('--local_rank', default=0, type=int)
     parser.add_argument('--cfg', action=ActionConfigFile)
@@ -163,7 +176,10 @@ if __name__ == '__main__':
         parser_k = make_parser(v)
         subcommands.add_subcommand(k, parser_k)
     
+    print(parser)
     args = parser.parse_args()
+
+   
     gpu_id = args.local_rank
     del args.local_rank
 
@@ -181,4 +197,3 @@ if __name__ == '__main__':
     # torch docs recommend using forkserver
     #multiprocessing.set_start_method('forkserver') # Commented by Sonal  25Oct21 to avoid `raise RuntimeError('context has already been set')` error
     train_xvec(gpu_id, args_sc)
-
