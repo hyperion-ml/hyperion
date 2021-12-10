@@ -22,6 +22,14 @@
 | ------- | ------- | ---- |
 | [sre20-cts](https://www.nist.gov/publications/nist-2020-cts-speaker-recognition-challenge-evaluation-plan) | v1 | NIST SRE20-CTS recipe used by JHU-MIT team |
 | ------- | ------- | ---- |
+| [sre21-av-a](https://www.nist.gov/itl/iad/mig/nist-2021-speaker-recognition-evaluation-sre21) | v1.16k | NIST SRE21 Audio recipe used by JHU-MIT team <br> It usamples telephone data to 16kHz using SoX |
+| | v1.8k | NIST SRE21 Audio recipe used by JHU-MIT team <br> It downsamples audio from video data to 8 kHz |
+| ------- | ------- | ---- |
+| [sre21-av-v](https://www.nist.gov/itl/iad/mig/nist-2021-speaker-recognition-evaluation-sre21) | v0.1 | NIST SRE21 Visual recipe used by JHU-MIT team <br> It uses Pretrained InsightFace embeddings in MX-Net |
+| | v0.2 | NIST SRE21 Visual recipe used by JHU-MIT team <br> It uses Pretrained InsightFace embeddings in PyTorch |
+| ------- | ------- | ---- |
+| [sre21-av-v](https://www.nist.gov/itl/iad/mig/nist-2021-speaker-recognition-evaluation-sre21) | v0.1 | NIST SRE21 Audio-Visual fusion used by JHU-MIT team <br> It fuses the scores produced by sre21-av-a and sre21-av-v recipes |
+| ------- | ------- | ---- |
 | [voices_challenge](https://iqtlabs.github.io/voices/downloads/) | v1 | VOiCES challenge 2019 using x-vectors |
 | ------- | ------- | ---- |
 | [chime_spkdet](https://www.isca-speech.org/archive/Interspeech_2019/pdfs/2174.pdf) | v1 | Speaker Recognition Benchmark based on [CHiME](http://spandh.dcs.shef.ac.uk/chime_challenge/CHiME5/data.html) data |
