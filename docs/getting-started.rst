@@ -78,7 +78,8 @@ which sets all the enviroment variables required to run the recipes.
 This has been tested only on JHU computer grids, so you may need to 
 modify this file manually to adapt it to your grid.
 
-## Recipes structure
+Recipes structure
+~~~~~~~~~~~~~~~~~
 
 The structure of the recipes is very similar to Kaldi, so if should be
 familiar for most people.

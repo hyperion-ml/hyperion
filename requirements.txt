@@ -1,4 +1,4 @@
-torch>=1.6
+torch>=1.6,<=1.8.0
 numpy>=1.18.1
 h5py>=2.10.0
 pysoundfile>=0.9.0
@@ -10,7 +10,7 @@ sphinx_rtd_theme>=0.4.3
 pympler
 memory_profiler
 gdown
-fairscale>=0.3.0
+fairscale>=0.3.0,<=0.3.8
 tensorboard>=2.5.0
 yapf
 jsonargparse>=3.5.0
