@@ -18,6 +18,7 @@ conda create --name ${your_env} python=3.8
 conda activate ${your_env}
 conda install pytorch==1.8.0 torchvision==0.9.0 torchaudio==0.8.0 cudatoolkit=10.2 -c pytorch
 ```
+In next Hyperion versions, we will upgrade to Pytorch>=1.9 and drop compatibility with older PyTorch versions.
 
 ### Installing Hyperion
 
