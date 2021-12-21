@@ -27,21 +27,21 @@ Installing Hyperion
 
    
  * You can choose to install hyperion in the environment::
-      cd hyperion
-      pip install -e .
+     cd hyperion
+     pip install -e .
 
 
  * Or add the hyperion toolkit to the PYTHONPATH envirnoment variable
    This option will allow you to share the same environment if you are working with several hyperion branches
    at the same time, while installing it requires to have an enviroment per branch.
    For this, you need to install the requirements::
-      cd hyperion
-      pip install -r requirements.txt
+     cd hyperion
+     pip install -r requirements.txt
 
  * Then add these lines to your ``~/.bashrc`` or to each script that uses hyperion::
-      HYP_ROOT= #substitute this by your hyperion location
-      export PYTHONPATH=${HYP_ROOT}:$PYTHONPATH
-      export PATH=${HYP_ROOT}/bin:$PATH
+     HYP_ROOT= #substitute this by your hyperion location
+     export PYTHONPATH=${HYP_ROOT}:$PYTHONPATH
+     export PATH=${HYP_ROOT}/bin:$PATH
 
 
 Recipes
@@ -53,15 +53,15 @@ Prerequistes to run the recipes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 These recipes require some extra tools (e.g. sph2pipe), which need to be installed first::
-   ./install_egs_requirements.sh 
+  ./install_egs_requirements.sh 
 
 
 Most recipes do not require Kaldi, only the older ones using Kaldi x-vectors,
 so we do not install it by default. If you are going to need it install it 
 yourself. Then make a link in ``./tools`` to your kaldi installation::
-   cd tools
-   ln -s ${your_kaldi_path} kaldi
-   cd -
+  cd tools
+  ln -s ${your_kaldi_path} kaldi
+  cd -
 
 
 Finally configure the python and environment name that you intend to use to run the recipes.
