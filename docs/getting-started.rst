@@ -131,13 +131,13 @@ It mast cases you just need to re-run the steps from the neural network training
 
 
 Citing
-~~~~~~
+------
 
 Each recipe README.md file contains the bibtex to the works that should be cited if you 
 use that recipe in your research
      
 Directory structure
-~~~~~~~~~~~~~~~~~~~
+-------------------
 
  * The directory structure of the repo looks like this::
      hyperion
