@@ -1,13 +1,18 @@
 # HYPERION
 
-Speaker recognition toolkit
+Hyperion is a Speaker Recognition Toolkit based on PyTorch and numpy. It provides:
+ - x-Vector architectures: ResNet, Res2Net, Spine2Net, ECAPA-TDNN, EfficientNet, Transformers and others.
+ - Embedding preprocessing tools: PCA, LDA, NAP, Centering/Whitening, Length Normalization, CORAL
+ - Several flavours of PLDA back-ends: Full-rank PLDA, Simplified PLDA, PLDA
+ - Calibration and Fusion tools
+ - Recipes for popular datasets: VoxCeleb, NIST-SRE, VOiCES
 
 ## Installation Instructions
 
 ### Prerequisites
 
     We use anaconda or miniconda, though you should be able to make it work in other python distributions
-    To start, you should create a new enviroment and install pytorch>=1.6, e.g.:
+    To start, you should create a new enviroment and install PyTorch>=1.6, we recommend PyTorch 1.8.0 (newer versions give trouble with some training scripts) e.g.:
 ```
 conda create --name ${your_env} python=3.8
 conda activate ${your_env}
@@ -21,7 +26,7 @@ conda install pytorch==1.8.0 torchvision==0.9.0 torchaudio==0.8.0 cudatoolkit=10
 git clone https://github.com/hyperion-ml/hyperion.git
 ```
 
-- You can choolse to install hyperion in the environment
+- You can choose to install hyperion in the environment
 ```bash
 cd hyperion
 pip install -e .
