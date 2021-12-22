@@ -4,7 +4,7 @@ Utils
 The ``hyperion.utils`` module contains several utility classes and functions
 
 
-.. automodule:: hyperion.utils.trial_key
+.. autoclass:: hyperion.utils.trial_key.TrialKey
    :members:
    :inherited-members:
    :undoc-members:
