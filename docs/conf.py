@@ -207,6 +207,7 @@ todo_include_todos = True
 
 autodoc_default_options = {
     "members": True,
+    "inherited-members": True,
     "member-order": "bysource",
     "special-members": "__init__",
     "undoc-members": True,
