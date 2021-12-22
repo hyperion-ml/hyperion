@@ -58,12 +58,12 @@ Functions to manipulate VAD output, convert from binary to timestamps, intersect
 .. automodule:: hyperion.utils.vad_utils
 
 Math Functions
-______________
+--------------
 
 .. automodule:: hyperion.utils.math
 
 Miscellaneous Functions
-______________
+-----------------------
 
 .. automodule:: hyperion.utils.misc
 
