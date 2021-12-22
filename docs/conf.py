@@ -214,4 +214,4 @@ autodoc_default_options = {
     "exclude-members": "__weakref__",
 }
 
-autodoc_mock_imports = ["torchaudio", "SoundFile"]
+autodoc_mock_imports = ["torchaudio", "soundfile", "sndfile"]
