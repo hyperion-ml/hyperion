@@ -19,6 +19,10 @@ Hyperion is a Speaker Recognition Toolkit based on PyTorch and numpy. It provide
    :caption: Contents:
 
    getting-started.rst
+   numpy-models.rst
+   torch.rst
+   io.rst
+   utils.rst
 
 
 Indices and tables
