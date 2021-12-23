@@ -17,13 +17,14 @@ These includes a factory class the creates activation layers from config paramet
 .. autoclass:: hyperion.torch.layers.activation_factory.ActivationFactory
 
 .. autoclass:: hyperion.torch.layers.swish.Swish
-
+   :inherited-members: torch.nn.Module
+		       
 Normalization Layers
 ~~~~~~~~~~~~~~~~~~~~
 
 These includes a factory class the creates normalizaton layers from config parameters.
 
-.. autoclass:: hyperion.torch.layers.norm_layer_factory.NormLayerFactory
+.. automodule:: hyperion.torch.layers.norm_layer_factory
 
 Dropout Layers
 ~~~~~~~~~~~~~~
@@ -47,7 +48,7 @@ These include custom pooling layers and factory class to create pooling layers f
 
 .. automodule:: hyperion.torch.layers.pool_factory
 
-.. automodule:: hyperion.torch.global_pool
+.. automodule:: hyperion.torch.layers.global_pool
 
 
 Acoustic Feature Extraction Layers
@@ -127,7 +128,7 @@ Fully Connected Blocks
 
 These are fully connected blocks used to create simple feed forward networks, classification heads, etc.
 
-.. automodule:: hyperion.torch.layers.fc_blocks
+.. automodule:: hyperion.torch.layer_blocks.fc_blocks
 
 
 Deep Convolutional Blocks
@@ -138,7 +139,7 @@ Deep Convolutional 1d Blocks
 
 These are blocks to create deep convolutional networks 1d without residuals.
 
-.. automodule:: hyperion.torch.layers.dc1d_blocks
+.. automodule:: hyperion.torch.layer_blocks.dc1d_blocks
 
 
 Deep Convolutional 2d Blocks
@@ -146,7 +147,7 @@ Deep Convolutional 2d Blocks
 
 These are blocks to create deep convolutional networks 2d without residuals.
 
-.. automodule:: hyperion.torch.layers.dc2d_blocks
+.. automodule:: hyperion.torch.layer_blocks.dc2d_blocks
 
 TDNN Blocks
 ~~~~~~~~~~~
@@ -156,28 +157,28 @@ TDNN Blocks
 
 TDNN blocks used to create TDNN x-vectors
 
-.. automodule:: hyperion.torch.layers.tdnn_blocks
+.. automodule:: hyperion.torch.layer_blocks.tdnn_blocks
 
 Extended TDNN Blocks
 ^^^^^^^^^^^^^^^^^^^^
 
 Extended TDNN blocks used to create E-TDNN x-vectors
 
-.. automodule:: hyperion.torch.layers.etdnn_blocks
+.. automodule:: hyperion.torch.layer_blocks.etdnn_blocks
 
 Residual Extended TDNN Blocks
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Extended TDNN blocks with residual connections
 
-.. automodule:: hyperion.torch.layers.resetdnn_blocks
+.. automodule:: hyperion.torch.layer_blocks.resetdnn_blocks
 
 Squeeze-Excitation Blocks
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Squeeze-Excitation Blocks 1d and 2d, which are added at the output ResNet blocks and other to create squeeze-excitation networks.
 
-.. automodule:: hyperion.torch.layers.se_blocks
+.. automodule:: hyperion.torch.layer_blocks.se_blocks
 
 Cannonical ResNet Blocks
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -189,21 +190,21 @@ ResNet Blocks
 
 These blocks are used to create cannonical ResNets.
 
-.. automodule:: hyperion.torch.layers.resnet_blocks
+.. automodule:: hyperion.torch.layer_blocks.resnet_blocks
 
 SE-ResNet Blocks
 ^^^^^^^^^^^^^^^^
 
 These blocks are used to create cannonical Squeeze-Excitation ResNets
 
-.. automodule:: hyperion.torch.layers.seresnet_blocks
+.. automodule:: hyperion.torch.layer_blocks.seresnet_blocks
 
 SE-ResNet Blocks
 ^^^^^^^^^^^^^^^^
 
 These blocks are used to create cannonical Squeeze-Excitation ResNets.
 
-.. automodule:: hyperion.torch.layers.res2net_blocks
+.. automodule:: hyperion.torch.layer_blocks.res2net_blocks
 
 
 SpineNet Blocks
@@ -211,14 +212,14 @@ SpineNet Blocks
 
 These are some extra blocks needed to build SpineNet and Spine2Net.
 
-.. automodule:: hyperion.torch.layers.spine_blocks
+.. automodule:: hyperion.torch.layer_blocks.spine_blocks
 
 MobileNet Blocks
 ~~~~~~~~~~~~~~~~
 
 These are blocks needed to build EfficientNet networks.
 
-.. automodule:: hyperion.torch.layers.mbconv_blocks
+.. automodule:: hyperion.torch.layer_blocks.mbconv_blocks
 
 
 Generic ResNet Blocks
@@ -229,28 +230,28 @@ ResNet 1d Blocks
 
 These are blocks used to buld flexible ResNets based on 1d convs.
 
-.. automodule:: hyperion.torch.layers.resnet1d_blocks
+.. automodule:: hyperion.torch.layer_blocks.resnet1d_blocks
 
 Res2Net 1d Blocks
 ^^^^^^^^^^^^^^^^
 
 These are blocks used to buld flexible Res2Nets based on 1d convs.
 
-.. automodule:: hyperion.torch.layers.res2net1d_blocks
+.. automodule:: hyperion.torch.layer_blocks.res2net1d_blocks
 
 ResNet 2d Blocks
 ^^^^^^^^^^^^^^^^
 
 These are blocks used to buld flexible ResNets based on 2d convs.
 
-.. automodule:: hyperion.torch.layers.resnet2d_blocks
+.. automodule:: hyperion.torch.layer_blocks.resnet2d_blocks
 
 Res2Net 2d Blocks
 ^^^^^^^^^^^^^^^^
 
 These are blocks used to buld flexible Res2Nets based on 2d convs.
 
-.. automodule:: hyperion.torch.layers.res2net2d_blocks
+.. automodule:: hyperion.torch.layer_blocks.res2net2d_blocks
 
 
 Transformer Blocks
@@ -258,18 +259,18 @@ Transformer Blocks
 
 These are blocks used to build Transformers.
 
-.. automodule:: hyperion.torch.layers.transformer_conv2d_subsampler
+.. automodule:: hyperion.torch.layer_blocks.transformer_conv2d_subsampler
 
-.. automodule:: hyperion.torch.layers.transformer_encoder_v1
+.. automodule:: hyperion.torch.layer_blocks.transformer_encoder_v1
 
-.. automodule:: hyperion.torch.layers.transformer_feedforward
+.. automodule:: hyperion.torch.layer_blocks.transformer_feedforward
 
 Conformer Blocks
 ~~~~~~~~~~~~~~~~
 
-.. automodule:: hyperion.torch.layers.conformer_encoder_v1
+.. automodule:: hyperion.torch.layer_blocks.conformer_encoder_v1
 
-.. automodule:: hyperion.torch.layers.conformer_conv
+.. automodule:: hyperion.torch.layer_blocks.conformer_conv
 
 		
 Torch Models and Model Loader
@@ -425,19 +426,196 @@ Conformer
 Models
 ------
 
+x-Vectors
+~~~~~~~~~
+
+There are several variants of x-vector embeddings. They all derive from the same base class.
+
+.. autoclass:: hyperion.torch.models.xvectors.xvector.XVector
+
+TDNN x-Vector
+^^^^^^^^^^^^^
+
+x-Vectors with TDNN, E-TDNN, Residual E-TDNN Encoders.
+
+.. autoclass:: hyperion.torch.models.xvectors.tdnn_xvector.TDNNXVector
+
+ResNet x-Vector
+^^^^^^^^^^^^^^^
+
+x-Vectors with Cannonical ResNet, Res2Net Encoders.
+
+.. autoclass:: hyperion.torch.models.xvectors.resnet_xvector.ResNetXVector
+
+
+SpineNet x-Vector
+^^^^^^^^^^^^^^^
+
+x-Vectors with SpineNet, Spine2Net Encoders.
+
+.. autoclass:: hyperion.torch.models.xvectors.spinet_xvector.SpineNetXVector
+
+ResNet 1d x-Vector
+^^^^^^^^^^^^^^^^^
+
+x-Vectors with ResNet, Res2Net 1d Encoders. It can be cofigured as ECAPA-TDNN
+
+.. autoclass:: hyperion.torch.models.xvectors.resnet1d_xvector.ResNet1dXVector
+
+
+Transfomer x-Vector
+^^^^^^^^^^^^^^^^^
+
+x-Vectors based on Transformer Encoder
+
+.. autoclass:: hyperion.torch.models.xvectors.transformer_xvector_v1.TransformerXVectorV1
+
+
+Auto-Encoder
+~~~~~~~~~~~~
+
+.. autoclass:: hyperion.torch.models.ae.ae.AE
+
+
+Variational Auto-Encoders
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. autoclass:: hyperion.torch.models.vae.vae.VAE
+
+.. autoclass:: hyperion.torch.models.vae.vq_vae.VQVAE
+
+
 Losses
 ------
 
+Custom loss classes
+
+.. autoclass:: hyperion.torch.losses.bce_with_llr.BCEWithLLR
 
 Adversarial Attacks
 -------------------
 
+It contains classes to generate adversarial attacks for speaker recognition.
+
+Attack Generation Classes
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+All the adv. attacks derive from the same base class:
+
+.. autoclass:: hyperion.torch.adv_attacks.adv_attack.AdvAttack
+
+FGSM
+^^^^
+
+.. autoclass:: hyperion.torch.adv_attacks.fgsm_attack.FGSMAttack
+
+.. autoclass:: hyperion.torch.adv_attacks.snr_fgsm_attack.SNRFGSMAttack
+
+.. autoclass:: hyperion.torch.adv_attacks.rand_fgsm_attack.RandFGSMAttack
+
+.. autoclass:: hyperion.torch.adv_attacks.iter_fgsm_attack.IterFGSMAttack
+
+PGD
+^^^
+
+.. autoclass:: hyperion.torch.adv_attacks.pgd_attack.PGDAttack
+
+Carlini-Wagner
+^^^^^^^^^^^^^^
+
+Carlini-Wagner attacks derive from the same base class:
+
+.. autoclass:: hyperion.torch.adv_attacks.carlini_wagner.CarliniWagner
+
+.. autoclass:: hyperion.torch.adv_attacks.carlini_wagner_l2.CarliniWagnerL2
+
+.. autoclass:: hyperion.torch.adv_attacks.carlini_wagner_linf.CarliniWagnerLInf
+
+.. autoclass:: hyperion.torch.adv_attacks.carlini_wagner_l0.CarliniWagnerL0
+
+
+Attack Generator Factories
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+These are factory classes that create attack generator objects. They create attacks from Hyperion or from the `Adversarial Robustness Toolbox <https://github.com/Trusted-AI/adversarial-robustness-toolbox>`
+
+.. autoclass:: hyperion.torch.adv_attacks.attack_factory.AttackFactory
+
+.. autoclass:: hyperion.torch.adv_attacks.random_attack_factory.RandomAttackFactory
+
+.. autoclass:: hyperion.torch.adv_attacks.art_attack_factory.ARTAttackFactory
+
+	       
 Trainers
 --------
 
+Generic Trainer
+~~~~~~~~~~~~~~~
+
+.. autoclass:: hyperion.torch.trainers.torch_trainer.TorchTrainer
+
+x-Vector Trainers
+~~~~~~~~~~~~~~~~~
+
+.. autoclass:: hyperion.torch.trainers.xvector_trainer.XVectorTrainer
+
+.. autoclass:: hyperion.torch.trainers.xvector_trainer_from_wav.XVectorTrainerFromWav
+	       
+.. autoclass:: hyperion.torch.trainers.xvector_trainer_deep_feat_reg.XVectorTrainerDeepFeatReg
+
+.. autoclass:: hyperion.torch.trainers.xvector_trainer_deep_feat_reg_from_wav.XVectorTrainerDeepFeatRegFromWav
+
+
+Auto-encoder Trainer
+~~~~~~~~~~~~~~~~~~~~
+
+.. autoclass:: hyperion.torch.trainers.ae_trainer.AETrainer
+
+VAE Trainers
+~~~~~~~~~~~~
+
+.. autoclass:: hyperion.torch.trainers.vae_trainer.VAETrainer
+
+.. autoclass:: hyperion.torch.trainers.dvae_trainer.DVAETrainer
+
+VQ-VAE Trainers
+~~~~~~~~~~~~~~~
+
+.. autoclass:: hyperion.torch.trainers.vq_vae_trainer.VQVAETrainer
+
+.. autoclass:: hyperion.torch.trainers.vq_dvae_trainer.VQDVAETrainer
+
+	       
 Datasets, Data Loaders and Samplers
 -----------------------------------
 
+Datasets
+~~~~~~~~
+
+Audio Datasets
+^^^^^^^^^^^^^^
+
+.. autoclass:: hyperion.torch.data.audio_dataset.AudioDataset
+
+Feature Sequence Datasets
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. autoclass:: hyperion.torch.data.feat_seq_dataset.FeatSeqDataset
+
+.. autoclass:: hyperion.torch.data.paired_feat_seq_dataset.PairedFeatSeqDataset
+
+Embedding Datasets
+^^^^^^^^^^^^^^^^^^
+
+.. autoclass:: hyperion.torch.data.embed_dataset.EmbedDataset
+
+
+Samplers
+~~~~~~~~
+
+.. autoclass:: hyperion.torch.data.weighted_seq_sampler.WeightedSeqSampler
+
+.. autoclass:: hyperion.torch.data.weighted_embed_sampler.WeightedEmbedSampler
 
 Data Transformations
 ~~~~~~~~~~~~~~~~~~~~
@@ -447,9 +625,57 @@ Data Transformations
 Optimizers
 ----------
 
+These are custom optimizers and a factory class to create optimizers from config params.
+
+Custom Optimizers
+~~~~~~~~~~~~~~~~~
+
+.. autoclass:: hyperion.torch.optim.radam.RAdam
+
+Optimizer Factory
+~~~~~~~~~~~~~~~~~
+
+.. autoclass:: hyperion.torch.optim.factory.OptimizerFactory
+	       
+
 Learning Rate Schedulers
 ------------------------
 
+These are custom learning rate schedulers and a factory class to create schedulers from config params.
+
+Custom LR Schedulers
+~~~~~~~~~~~~~~~~~
+
+.. autoclass:: hyperion.torch.lr_schedulers.red_lr_on_plateau.ReduceLROnPlateau
+
+.. autoclass:: hyperion.torch.lr_schedulers.exp_lr.ExpLR
+
+.. autoclass:: hyperion.torch.lr_schedulers.invpow_lr.InvPowLR
+
+.. autoclass:: hyperion.torch.lr_schedulers.cos_lr.CosLR
+	       
+
+LR Scheduler Factory
+~~~~~~~~~~~~~~~~~
+
+.. autoclass:: hyperion.torch.lr_schedulers.factory.LRSchedulerFactory
+
+
+Metrics
+-------
+
+This are metric classes and functions that cannot be used as loss function.
+
+Metric Classes
+~~~~~~~~~~~~~~
+
+.. autoclass:: hyperion.torch.metrics.metrics.TorchMetric
+	       
+.. automodule:: hyperion.torch.metrics.accuracy
+
+Metric Functions
+~~~~~~~~~~~~~~~~
+.. automodule:: hyperion.torch.metrics.accuracy_functional
 
 Loggers
 -------
