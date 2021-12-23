@@ -66,6 +66,8 @@ Hyperion Numpy Models
 All numpy ML models in Hyperion derive from the same base class
 
 .. autoclass:: hyperion.hyp_model.HypModel
+
+.. autoclass:: hyperion.model_loader.ModelLoader
 	       
 
 Probability Density Functions
@@ -219,3 +221,21 @@ These are some functions to compute performance metrics used in speaker identifi
 
 .. automodule:: hyperion.metrics.utils
 		
+
+Helper Code Blocks
+------------------
+
+Classes and codeblocks that are re-used in several scripts
+
+.. autoclass:: hyperion.helpers.vector_reader.VectorReader
+
+.. autoclass:: hyperion.helpers.vector_class_reader.VectorClassReader
+
+.. autoclass:: hyperion.helpers.trial_data_reader.TrialDataReader
+
+.. autoclass:: hyperion.helpers.multi_test_trial_data_reader.MultiTestTrialDataReader
+
+.. autoclass:: hyperion.helpers.multi_test_trial_data_reader_v2.MultiTestTrialDataReaderV2
+
+.. autoclass:: hyperion.helpers.plda_factor.PLDAFactory
+	       
