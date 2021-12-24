@@ -7,6 +7,7 @@
 [![Python Versions](https://img.shields.io/pypi/pyversions/hyperion-ml.svg)](https://pypi.org/project/hyperion-ml/)
 [![Downloads](https://pepy.tech/badge/hyperion-ml)](https://pepy.tech/project/hyperion-ml)
 [![Documentation Status](https://readthedocs.org/projects/hyperion-ml/badge/?version=latest)](https://hyperion-ml.readthedocs.io/en/latest/?badge=latest)
+[![Build Status](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Factions-badge.atrox.dev%2Fhyperion-ml%2Fhyperion%2Fbadge&style=flat)](https://actions-badge.atrox.dev/hyperion-ml/hyperion/goto)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 </div>
