@@ -11,101 +11,106 @@ import logging
 import torch
 import torch.nn as nn
 
-from ..utils import MetricAcc  #, TorchDataParallel
+from ..utils import MetricAcc  # , TorchDataParallel
 from .xvector_trainer_from_wav import XVectorTrainerFromWav
 
 
 class XVectorAdvTrainerFromWav(XVectorTrainerFromWav):
     """Adversarial Training of x-vectors with attack in feature domain
 
-       Attributes:
-         model: x-Vector model object.
-         feat_extractor: feature extractor nn.Module
-         attack: adv. attack generator object
-         optim: pytorch optimizer object or options dict
-         epochs: max. number of epochs
-         exp_path: experiment output path
-         cur_epoch: current epoch
-         grad_acc_steps: gradient accumulation steps to simulate larger batch size.
-         p_attack: attack probability
-         p_val_attack: attack probability in validation
-         device: cpu/gpu device
-         metrics: extra metrics to compute besides cxe.
-         lrsched: learning rate scheduler object or options dict
-         loggers: LoggerList object, loggers write training progress to std. output and file.
-                  If None, it uses default loggers.
-         ddp: if True use distributed data parallel training
-         ddp_type: type of distributed data parallel in  (ddp, oss_ddp, oss_shared_ddp)
-         loss: if None, it uses cross-entropy
-         train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
-         use_amp: uses mixed precision training.
-         log_interval: number of optim. steps between log outputs
-         use_tensorboard: use tensorboard logger
-         use_wandb: use wandb logger
-         wandb: wandb dictionary of options
-         grad_clip: norm to clip gradients, if 0 there is no clipping
-         swa_start: epoch to start doing swa
-         swa_lr: SWA learning rate
-         swa_anneal_epochs: SWA learning rate anneal epochs
-         cpu_offload: CPU offload of gradients when using fully sharded ddp
+    Attributes:
+      model: x-Vector model object.
+      feat_extractor: feature extractor nn.Module
+      attack: adv. attack generator object
+      optim: pytorch optimizer object or options dict
+      epochs: max. number of epochs
+      exp_path: experiment output path
+      cur_epoch: current epoch
+      grad_acc_steps: gradient accumulation steps to simulate larger batch size.
+      p_attack: attack probability
+      p_val_attack: attack probability in validation
+      device: cpu/gpu device
+      metrics: extra metrics to compute besides cxe.
+      lrsched: learning rate scheduler object or options dict
+      loggers: LoggerList object, loggers write training progress to std. output and file.
+               If None, it uses default loggers.
+      ddp: if True use distributed data parallel training
+      ddp_type: type of distributed data parallel in  (ddp, oss_ddp, oss_shared_ddp)
+      loss: if None, it uses cross-entropy
+      train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
+      use_amp: uses mixed precision training.
+      log_interval: number of optim. steps between log outputs
+      use_tensorboard: use tensorboard logger
+      use_wandb: use wandb logger
+      wandb: wandb dictionary of options
+      grad_clip: norm to clip gradients, if 0 there is no clipping
+      swa_start: epoch to start doing swa
+      swa_lr: SWA learning rate
+      swa_anneal_epochs: SWA learning rate anneal epochs
+      cpu_offload: CPU offload of gradients when using fully sharded ddp
     """
-    def __init__(self,
-                 model,
-                 feat_extractor,
-                 attack,
-                 optim={},
-                 epochs=100,
-                 exp_path='./train',
-                 cur_epoch=0,
-                 grad_acc_steps=1,
-                 p_attack=0.8,
-                 p_val_attack=0,
-                 device=None,
-                 metrics=None,
-                 lrsched=None,
-                 loggers=None,
-                 ddp=False,
-                 ddp_type='ddp',
-                 loss=None,
-                 train_mode='train',
-                 use_amp=False,
-                 log_interval=10,
-                 use_tensorboard=False,
-                 use_wandb=False,
-                 wandb={},
-                 grad_clip=0,
-                 grad_clip_norm=2,
-                 swa_start=0,
-                 swa_lr=1e-3,
-                 swa_anneal_epochs=10,
-                 cpu_offload=False):
 
-        super().__init__(model,
-                         feat_extractor,
-                         optim,
-                         epochs,
-                         exp_path,
-                         cur_epoch=cur_epoch,
-                         grad_acc_steps=grad_acc_steps,
-                         device=device,
-                         metrics=metrics,
-                         lrsched=lrsched,
-                         loggers=loggers,
-                         ddp=ddp,
-                         ddp_type=ddp_type,
-                         loss=loss,
-                         train_mode=train_mode,
-                         use_amp=use_amp,
-                         log_interval=log_interval,
-                         use_tensorboard=use_tensorboard,
-                         use_wandb=use_wandb,
-                         wandb=wandb,
-                         grad_clip=grad_clip,
-                         grad_clip_norm=grad_clip_norm,
-                         swa_start=swa_start,
-                         swa_lr=swa_lr,
-                         swa_anneal_epochs=swa_anneal_epochs,
-                         cpu_offload=cpu_offload)
+    def __init__(
+        self,
+        model,
+        feat_extractor,
+        attack,
+        optim={},
+        epochs=100,
+        exp_path="./train",
+        cur_epoch=0,
+        grad_acc_steps=1,
+        p_attack=0.8,
+        p_val_attack=0,
+        device=None,
+        metrics=None,
+        lrsched=None,
+        loggers=None,
+        ddp=False,
+        ddp_type="ddp",
+        loss=None,
+        train_mode="train",
+        use_amp=False,
+        log_interval=10,
+        use_tensorboard=False,
+        use_wandb=False,
+        wandb={},
+        grad_clip=0,
+        grad_clip_norm=2,
+        swa_start=0,
+        swa_lr=1e-3,
+        swa_anneal_epochs=10,
+        cpu_offload=False,
+    ):
+
+        super().__init__(
+            model,
+            feat_extractor,
+            optim,
+            epochs,
+            exp_path,
+            cur_epoch=cur_epoch,
+            grad_acc_steps=grad_acc_steps,
+            device=device,
+            metrics=metrics,
+            lrsched=lrsched,
+            loggers=loggers,
+            ddp=ddp,
+            ddp_type=ddp_type,
+            loss=loss,
+            train_mode=train_mode,
+            use_amp=use_amp,
+            log_interval=log_interval,
+            use_tensorboard=use_tensorboard,
+            use_wandb=use_wandb,
+            wandb=wandb,
+            grad_clip=grad_clip,
+            grad_clip_norm=grad_clip_norm,
+            swa_start=swa_start,
+            swa_lr=swa_lr,
+            swa_anneal_epochs=swa_anneal_epochs,
+            cpu_offload=cpu_offload,
+        )
 
         self.attack = attack
         self.attack.to(device)
@@ -113,11 +118,15 @@ class XVectorAdvTrainerFromWav(XVectorTrainerFromWav):
         self.p_val_attack = p_val_attack
         if self.p_attack > 1:
             logging.warning(
-                ('p-attack(%f) cannot be larger than 1./grad-acc-steps (%f)'
-                 'because we can only create adv. signals in the '
-                 'first step of the gradient acc. loop given that'
-                 'adv optimization over-writes the gradients '
-                 'stored in the model') % (p_attack, 1. / self.grad_acc_steps))
+                (
+                    "p-attack(%f) cannot be larger than 1./grad-acc-steps (%f)"
+                    "because we can only create adv. signals in the "
+                    "first step of the gradient acc. loop given that"
+                    "adv optimization over-writes the gradients "
+                    "stored in the model"
+                )
+                % (p_attack, 1.0 / self.grad_acc_steps)
+            )
 
         # if data_parallel:
         #     # change model in attack by the data parallel version
@@ -142,13 +151,13 @@ class XVectorAdvTrainerFromWav(XVectorTrainerFromWav):
             if batch % self.grad_acc_steps == 0:
                 if torch.rand(1) < self.p_attack:
                     # generate adversarial attacks
-                    #logging.info('generating adv attack for batch=%d' % (batch))
+                    # logging.info('generating adv attack for batch=%d' % (batch))
                     self.model.eval()
                     data_adv = self.attack.generate(data, target)
                     max_delta = torch.max(torch.abs(data_adv - data)).item()
-                    #z = torch.abs(data_adv-data) > 100
-                    #logging.info('zz {} {}'.format(data[z], data_adv[z]))
-                    #logging.info('adv attack max perturbation=%f' % (max_delta))
+                    # z = torch.abs(data_adv-data) > 100
+                    # logging.info('zz {} {}'.format(data[z], data_adv[z]))
+                    # logging.info('adv attack max perturbation=%f' % (max_delta))
                     data = data_adv
                     self.set_train_mode()
 
@@ -171,18 +180,18 @@ class XVectorAdvTrainerFromWav(XVectorTrainerFromWav):
                     self.lr_scheduler.on_opt_step()
                 self.update_model()
 
-            batch_metrics['loss'] = loss.item() * self.grad_acc_steps
+            batch_metrics["loss"] = loss.item() * self.grad_acc_steps
             for k, metric in self.metrics.items():
                 batch_metrics[k] = metric(output, target)
 
             metric_acc.update(batch_metrics, batch_size)
             logs = metric_acc.metrics
-            logs['lr'] = self._get_lr()
+            logs["lr"] = self._get_lr()
             self.loggers.on_batch_end(logs=logs, batch_size=batch_size)
 
         logs = metric_acc.metrics
-        logs = ODict(('train_' + k, v) for k, v in logs.items())
-        logs['lr'] = self._get_lr()
+        logs = ODict(("train_" + k, v) for k, v in logs.items())
+        logs["lr"] = self._get_lr()
         return logs
 
     def validation_epoch(self, data_loader, swa_update_bn=False):
@@ -191,10 +200,10 @@ class XVectorAdvTrainerFromWav(XVectorTrainerFromWav):
         batch_metrics = ODict()
 
         if swa_update_bn:
-            log_tag = 'train_'
+            log_tag = "train_"
             self.set_train_mode()
         else:
-            log_tag = 'val_'
+            log_tag = "val_"
             self.model.eval()
 
         for batch, (data, target) in enumerate(data_loader):
@@ -214,7 +223,7 @@ class XVectorAdvTrainerFromWav(XVectorTrainerFromWav):
                     output = self.model(feats)
                     loss = self.loss(output, target)
 
-            batch_metrics['loss'] = loss.mean().item()
+            batch_metrics["loss"] = loss.mean().item()
             for k, metric in self.metrics.items():
                 batch_metrics[k] = metric(output, target)
 
@@ -227,7 +236,7 @@ class XVectorAdvTrainerFromWav(XVectorTrainerFromWav):
     @staticmethod
     def filter_args(**kwargs):
         args = XVectorTrainerFromWav.filter_args(**kwargs)
-        valid_args = ('p_attack', 'p_val_attack')
+        valid_args = ("p_attack", "p_val_attack")
         args_1 = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
         args.update(args_1)
         return args
@@ -236,20 +245,22 @@ class XVectorAdvTrainerFromWav(XVectorTrainerFromWav):
     def add_class_args(parser, prefix=None, skip=[]):
         if prefix is not None:
             outer_parser = parser
-            parser = ArgumentParser(prog='')
+            parser = ArgumentParser(prog="")
 
         XVectorTrainerFromWav.add_class_args(parser, skip=skip)
-        parser.add_argument('--p-attack',
-                            default=0.5,
-                            type=float,
-                            help='ratio of batches with adv attack')
         parser.add_argument(
-            '--p-val-attack',
-            default=0.,
+            "--p-attack",
+            default=0.5,
             type=float,
-            help='ratio of batches with adv attack in validation')
+            help="ratio of batches with adv attack",
+        )
+        parser.add_argument(
+            "--p-val-attack",
+            default=0.0,
+            type=float,
+            help="ratio of batches with adv attack in validation",
+        )
 
         if prefix is not None:
-            outer_parser.add_argument('--' + prefix,
-                                      action=ActionParser(parser=parser))
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
             # help='trainer options')

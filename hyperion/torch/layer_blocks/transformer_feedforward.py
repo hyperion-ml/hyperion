@@ -21,7 +21,9 @@ class PositionwiseFeedForward(nn.Module):
        time_dim: time dimension in the input tensor
     """
 
-    def __init__(self, num_feats, hid_feats, activation='relu6', dropout_rate=0, time_dim=1):
+    def __init__(
+        self, num_feats, hid_feats, activation="relu6", dropout_rate=0, time_dim=1
+    ):
         super().__init__()
         self.w_1 = nn.Linear(num_feats, hid_feats)
         self.w_2 = nn.Linear(hid_feats, num_feats)
@@ -30,7 +32,6 @@ class PositionwiseFeedForward(nn.Module):
         self.activation = AF.create(activation)
         if self.dropout_rate > 0:
             self.dropout = torch.nn.Dropout(dropout_rate)
-
 
     def forward(self, x):
         """Forward function.
@@ -55,10 +56,9 @@ class PositionwiseFeedForward(nn.Module):
         return x
 
 
-
 class Conv1dx2(nn.Module):
     """Two layer Conv1d for transformer feed-forward block
-    
+
     Introduced in `FastSpeech: Fast, Robust and Controllable Text to Speech`_.
     .. _`FastSpeech: Fast, Robust and Controllable Text to Speech`:
         https://arxiv.org/pdf/1905.09263.pdf
@@ -72,19 +72,30 @@ class Conv1dx2(nn.Module):
       time_dim: indicates what is the time dimension in the input tensor.
     """
 
-    def __init__(self, num_channels, hid_channels, kernel_size, dropout_rate=0, time_dim=-1):
+    def __init__(
+        self, num_channels, hid_channels, kernel_size, dropout_rate=0, time_dim=-1
+    ):
 
         super().__init__()
-        self.w_1 = nn.Conv1d(num_channels, hid_channels, kernel_size,
-                             stride=1, padding=(kernel_size - 1) // 2)
-        self.w_2 = nn.Conv1d(hid_channels, num_channels, kernel_size,
-                             stride=1, padding=(kernel_size - 1) // 2)
+        self.w_1 = nn.Conv1d(
+            num_channels,
+            hid_channels,
+            kernel_size,
+            stride=1,
+            padding=(kernel_size - 1) // 2,
+        )
+        self.w_2 = nn.Conv1d(
+            hid_channels,
+            num_channels,
+            kernel_size,
+            stride=1,
+            padding=(kernel_size - 1) // 2,
+        )
         self.dropout_rate = dropout_rate
         self.time_dim = time_dim
         self.activation = AF.create(activation)
         if self.dropout_rate > 0:
             self.dropout = Dropout1d(dropout_rate)
-
 
     def forward(self, x):
         """Calculates forward propagation.
@@ -118,12 +129,20 @@ class Conv1dLinear(nn.Module):
       activation: activation function for hidden layers
       dropout_rate: dropout rate
       time_dim: indicates what is the time dimension in the input tensor.
-    
+
     """
-    def __init__(self, num_channels, hid_channels, kernel_size, dropout_rate=0, time_dim=-1):
+
+    def __init__(
+        self, num_channels, hid_channels, kernel_size, dropout_rate=0, time_dim=-1
+    ):
         super().__init__()
-        self.w_1 = nn.Conv1d(num_channels, hid_channels, kernel_size,
-                             stride=1, padding=(kernel_size - 1) // 2)
+        self.w_1 = nn.Conv1d(
+            num_channels,
+            hid_channels,
+            kernel_size,
+            stride=1,
+            padding=(kernel_size - 1) // 2,
+        )
         self.w_2 = nn.Conv1d(hid_channels, num_channels, 1)
 
         self.dropout_rate = dropout_rate
@@ -131,7 +150,6 @@ class Conv1dLinear(nn.Module):
         self.activation = AF.create(activation)
         if self.dropout_rate > 0:
             self.dropout = Dropout1d(dropout_rate)
-
 
     def forward(self, x):
         """Calculates forward propagation.
@@ -153,5 +171,3 @@ class Conv1dLinear(nn.Module):
             x.transpose(-1, self.time_dim)
 
         return x
-
-

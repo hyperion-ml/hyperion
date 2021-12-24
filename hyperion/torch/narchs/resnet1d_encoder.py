@@ -712,7 +712,10 @@ class ResNet1dEncoder(NetArch):
         )
 
         parser.add_argument(
-            "--res2net-scale", default=1, type=int, help=("res2net scaling parameter "),
+            "--res2net-scale",
+            default=1,
+            type=int,
+            help=("res2net scaling parameter "),
         )
 
         parser.add_argument(

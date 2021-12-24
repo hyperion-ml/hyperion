@@ -39,32 +39,32 @@ ddp_choices = [o.value for o in DDPType]
 class TorchTrainer(object):
     """Base Trainer class to train basic neural network models
 
-       Attributes:
-         model: model object.
-         loss: nn.Module loss class
-         optim: pytorch optimizer object or optimizer options dict
-         epochs: max. number of epochs
-         exp_path: experiment output path
-         cur_epoch: current epoch
-         grad_acc_steps: gradient accumulation steps to simulate larger batch size.
-         device: cpu/gpu device
-         metrics: extra metrics to compute besides cxe.
-         lrsched: learning rate scheduler object
-         loggers: LoggerList object, loggers write training progress to std. output and file.
-         ddp: if True use distributed data parallel training
-         ddp_type: type of distributed data parallel in  (ddp, oss_ddp, oss_shared_ddp)
-         train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
-         use_amp: uses mixed precision training.
-         log_interval: number of optim. steps between log outputs
-         use_tensorboard: use tensorboard logger
-         use_wandb: use wandb logger
-         wandb: wandb dictionary of options
-         grad_clip: norm to clip gradients, if 0 there is no clipping
-         grad_clip_norm: norm type to clip gradients
-         swa_start: epoch to start doing swa
-         swa_lr: SWA learning rate
-         swa_anneal_epochs: SWA learning rate anneal epochs
-         cpu_offload: CPU offload of gradients when using fully sharded ddp
+    Attributes:
+      model: model object.
+      loss: nn.Module loss class
+      optim: pytorch optimizer object or optimizer options dict
+      epochs: max. number of epochs
+      exp_path: experiment output path
+      cur_epoch: current epoch
+      grad_acc_steps: gradient accumulation steps to simulate larger batch size.
+      device: cpu/gpu device
+      metrics: extra metrics to compute besides cxe.
+      lrsched: learning rate scheduler object
+      loggers: LoggerList object, loggers write training progress to std. output and file.
+      ddp: if True use distributed data parallel training
+      ddp_type: type of distributed data parallel in  (ddp, oss_ddp, oss_shared_ddp)
+      train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
+      use_amp: uses mixed precision training.
+      log_interval: number of optim. steps between log outputs
+      use_tensorboard: use tensorboard logger
+      use_wandb: use wandb logger
+      wandb: wandb dictionary of options
+      grad_clip: norm to clip gradients, if 0 there is no clipping
+      grad_clip_norm: norm type to clip gradients
+      swa_start: epoch to start doing swa
+      swa_lr: SWA learning rate
+      swa_anneal_epochs: SWA learning rate anneal epochs
+      cpu_offload: CPU offload of gradients when using fully sharded ddp
     """
 
     def __init__(
@@ -207,7 +207,7 @@ class TorchTrainer(object):
 
     def fit(self, train_data, val_data=None):
         """Training function, it performs the training and validation epochs
-         
+
         Args:
           train_data: PyTorch data loader for the training loop
           val_data: PyTorch data loader for the validation loop
@@ -416,8 +416,7 @@ class TorchTrainer(object):
         return lr_sched
 
     def _default_loggers(self, log_interval, use_tensorboard, use_wandb, wandb):
-        """Creates the default data loaders
-        """
+        """Creates the default data loaders"""
         prog_log = ProgLogger(interval=log_interval)
         csv_log = CSVLogger(self.exp_path / "train.log", append=True)
         loggers = [prog_log, csv_log]
@@ -434,8 +433,7 @@ class TorchTrainer(object):
         return LoggerList(loggers)
 
     def _get_lr(self):
-        """Returns the current learning rate to show in the loggers
-        """
+        """Returns the current learning rate to show in the loggers"""
         for param_group in self.optimizer.param_groups:
             return param_group["lr"]
 
@@ -558,8 +556,7 @@ class TorchTrainer(object):
         return logs
 
     def load_last_checkpoint(self):
-        """Loads the last training checkpoint in the experiment dir.
-        """
+        """Loads the last training checkpoint in the experiment dir."""
         for epoch in range(self.epochs, 0, -1):
             file_path = "%s/model_ep%04d.pth" % (self.exp_path, epoch)
             if os.path.isfile(file_path):

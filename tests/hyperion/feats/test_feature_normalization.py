@@ -14,11 +14,12 @@ from hyperion.feats.feature_normalization import *
 
 def generate_features():
 
-    rng = np.random.RandomState(seed = 1024)
-    x = rng.randn(60*100,2).astype(float_cpu(), copy=False)
-    x *= rng.rand(60*100,1)
-    
+    rng = np.random.RandomState(seed=1024)
+    x = rng.randn(60 * 100, 2).astype(float_cpu(), copy=False)
+    x *= rng.rand(60 * 100, 1)
+
     return x
+
 
 x = generate_features()
 
@@ -38,8 +39,9 @@ def test_mvn_global():
 
 def test_stmvn():
 
-    mvn = MeanVarianceNorm(norm_mean=True, norm_var=False,
-                           left_context=150, right_context=50)
+    mvn = MeanVarianceNorm(
+        norm_mean=True, norm_var=False, left_context=150, right_context=50
+    )
     x_norm = mvn.normalize(x)
     x_ref = mvn.normalize_slow(x)
     # idx=np.argmax(np.abs(x_norm-x_ref))
@@ -52,35 +54,37 @@ def test_stmvn():
     # print(x_ref[-10:])
     assert_allclose(x_norm, x_ref, atol=1e-4)
 
-    mvn = MeanVarianceNorm(norm_mean=True, norm_var=True,
-                           left_context=150, right_context=50)
+    mvn = MeanVarianceNorm(
+        norm_mean=True, norm_var=True, left_context=150, right_context=50
+    )
     x_norm = mvn.normalize(x)
     x_ref = mvn.normalize_slow(x)
     assert_allclose(x_norm, x_ref, atol=1e-4)
 
 
-    
 def test_mvn_cum_forward():
 
-    mvn = MeanVarianceNorm(norm_mean=True, norm_var=False,
-                           left_context=None, right_context=0)
+    mvn = MeanVarianceNorm(
+        norm_mean=True, norm_var=False, left_context=None, right_context=0
+    )
     x_norm = mvn.normalize(x)
     x_ref = mvn.normalize_slow(x)
 
     assert_allclose(x_norm, x_ref, atol=1e-4)
 
-    mvn = MeanVarianceNorm(norm_mean=True, norm_var=True,
-                           left_context=None, right_context=0)
+    mvn = MeanVarianceNorm(
+        norm_mean=True, norm_var=True, left_context=None, right_context=0
+    )
     x_norm = mvn.normalize(x)
     x_ref = mvn.normalize_slow(x)
     assert_allclose(x_norm, x_ref, atol=1e-4)
 
 
-    
 def test_mvn_cum_backward():
 
-    mvn = MeanVarianceNorm(norm_mean=True, norm_var=False,
-                           left_context=0, right_context=None)
+    mvn = MeanVarianceNorm(
+        norm_mean=True, norm_var=False, left_context=0, right_context=None
+    )
     x_norm = mvn.normalize(x)
     x_ref = mvn.normalize_slow(x)
     # idx=np.argmax(np.abs(x_norm-x_ref))
@@ -93,11 +97,9 @@ def test_mvn_cum_backward():
     # print(x_ref[-10:])
     assert_allclose(x_norm, x_ref, atol=1e-4)
 
-    mvn = MeanVarianceNorm(norm_mean=True, norm_var=True,
-                           left_context=0, right_context=None)
+    mvn = MeanVarianceNorm(
+        norm_mean=True, norm_var=True, left_context=0, right_context=None
+    )
     x_norm = mvn.normalize(x)
     x_ref = mvn.normalize_slow(x)
     assert_allclose(x_norm, x_ref, atol=1e-4)
-
-
-    

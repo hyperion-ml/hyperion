@@ -5,6 +5,3 @@
 
 
 from .jfa_total import JFATotal
-
-
-

@@ -9,8 +9,8 @@ import numpy as np
 def _merge_frames(s_start, s_end):
     merge_idx = s_start[1:] <= s_end[:-1]
     num_frames = len(s_start) - np.sum(merge_idx)
-    new_s_start = np.zeros((num_frames, ), dtype=s_start.dtype)
-    new_s_end = np.zeros((num_frames, ), dtype=s_start.dtype)
+    new_s_start = np.zeros((num_frames,), dtype=s_start.dtype)
+    new_s_end = np.zeros((num_frames,), dtype=s_start.dtype)
     cur_frame = 0
     cur_end = s_end[0]
     new_s_start[0] = s_start[0]
@@ -26,8 +26,7 @@ def _merge_frames(s_start, s_end):
     return new_s_start, new_s_end
 
 
-def frames_to_start_samples(frames, fs, frame_length, frame_shift, snip_edges,
-                            center):
+def frames_to_start_samples(frames, fs, frame_length, frame_shift, snip_edges, center):
     frame_length = int(frame_length * fs // 1000)
     frame_shift = int(frame_shift * fs // 1000)
     if center:
@@ -43,8 +42,7 @@ def frames_to_start_samples(frames, fs, frame_length, frame_shift, snip_edges,
     return s_start
 
 
-def frames_to_bound_samples(frames, fs, frame_length, frame_shift, snip_edges,
-                            center):
+def frames_to_bound_samples(frames, fs, frame_length, frame_shift, snip_edges, center):
     frame_length = int(frame_length * fs // 1000)
     frame_shift = int(frame_shift * fs // 1000)
     if center:
@@ -61,8 +59,7 @@ def frames_to_bound_samples(frames, fs, frame_length, frame_shift, snip_edges,
     return s_start, s_end
 
 
-def frames_to_center_samples(frames, fs, frame_length, frame_shift, snip_edges,
-                             center):
+def frames_to_center_samples(frames, fs, frame_length, frame_shift, snip_edges, center):
     frame_length = int(frame_length * fs // 1000)
     frame_shift = int(frame_shift * fs // 1000)
     if center:
@@ -77,14 +74,14 @@ def frames_to_center_samples(frames, fs, frame_length, frame_shift, snip_edges,
     return s_center
 
 
-def frames_to_samples(frames, fs, frame_length, frame_shift, snip_edges,
-                      center):
-    s_start, s_end = frames_to_bound_samples(frames, fs, frame_length,
-                                             frame_shift, snip_edges, center)
+def frames_to_samples(frames, fs, frame_length, frame_shift, snip_edges, center):
+    s_start, s_end = frames_to_bound_samples(
+        frames, fs, frame_length, frame_shift, snip_edges, center
+    )
     s_start, s_end = _merge_frames(s_start, s_end)
     deltas = s_end - s_start
     num_samples = np.sum(deltas)
-    samples = np.zeros((num_samples, ), dtype=s_start.dtype)
+    samples = np.zeros((num_samples,), dtype=s_start.dtype)
     cur_pos = 0
     for i in range(len(s_start)):
         cur_end = cur_pos + deltas[i]
@@ -94,37 +91,45 @@ def frames_to_samples(frames, fs, frame_length, frame_shift, snip_edges,
     return samples
 
 
-def frames_to_sample_mask(frames, max_samples, fs, frame_length, frame_shift,
-                          snip_edges, center):
-    s_start, s_end = frames_to_bound_samples(frames, fs, frame_length,
-                                             frame_shift, snip_edges, center)
+def frames_to_sample_mask(
+    frames, max_samples, fs, frame_length, frame_shift, snip_edges, center
+):
+    s_start, s_end = frames_to_bound_samples(
+        frames, fs, frame_length, frame_shift, snip_edges, center
+    )
     if max_samples is None:
         max_samples = s_end[-1] - 1
-    mask = np.zeros((max_samples, ), dtype=np.bool)
+    mask = np.zeros((max_samples,), dtype=np.bool)
     for i in range(len(s_start)):
-        mask[s_start[i]:s_end[i]] = True
+        mask[s_start[i] : s_end[i]] = True
 
     return mask
 
 
-def frames_to_start_timestamps(frames, fs, frame_length, frame_shift,
-                               snip_edges, center):
-    s_start = frames_to_start_samples(frames, fs, frame_length, frame_shift,
-                                      snip_edges, center)
+def frames_to_start_timestamps(
+    frames, fs, frame_length, frame_shift, snip_edges, center
+):
+    s_start = frames_to_start_samples(
+        frames, fs, frame_length, frame_shift, snip_edges, center
+    )
     return s_start / fs
 
 
-def frames_to_bound_timestamps(frames, fs, frame_length, frame_shift,
-                               snip_edges, center):
-    s_start, s_end = frames_to_bound_samples(frames, fs, frame_length,
-                                             frame_shift, snip_edges, center)
+def frames_to_bound_timestamps(
+    frames, fs, frame_length, frame_shift, snip_edges, center
+):
+    s_start, s_end = frames_to_bound_samples(
+        frames, fs, frame_length, frame_shift, snip_edges, center
+    )
     t_start = s_start / fs
     t_end = s_end / fs
     return t_start, t_end
 
 
-def frames_to_center_timestamps(frames, fs, frame_length, frame_shift,
-                                snip_edges, center):
-    s_center = frames_to_center_samples(frames, fs, frame_length, frame_shift,
-                                        snip_edges, center)
+def frames_to_center_timestamps(
+    frames, fs, frame_length, frame_shift, snip_edges, center
+):
+    s_center = frames_to_center_samples(
+        frames, fs, frame_length, frame_shift, snip_edges, center
+    )
     return s_center / fs

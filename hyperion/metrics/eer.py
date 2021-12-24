@@ -14,13 +14,12 @@ def compute_eer(tar, non):
     Args:
       tar: Scores of target trials.
       non: Scores of non-target trials.
-    
+
     Returns:
       EER
     """
     p_miss, p_fa = compute_rocch(tar, non)
     return rocch2eer(p_miss, p_fa)
-
 
 
 def compute_prbep(tar, non):
@@ -30,7 +29,7 @@ def compute_prbep(tar, non):
     Args:
       tar: Scores of target trials.
       non: Scores of non-target trials.
-    
+
     Returns:
       PREBP value
     """
@@ -38,8 +37,3 @@ def compute_prbep(tar, non):
     N_miss = p_miss * len(tar)
     N_fa = p_fa * len(non)
     return rocch2eer(N_miss, N_fa)
-
-
-
-
-

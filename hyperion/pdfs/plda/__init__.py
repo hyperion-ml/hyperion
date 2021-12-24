@@ -8,6 +8,3 @@ from .plda_base import PLDABase
 from .frplda import FRPLDA
 from .splda import SPLDA
 from .plda import PLDA
-
-
-

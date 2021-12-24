@@ -7,15 +7,33 @@
 import torch
 import torch.nn as nn
 
-class SubPixelConv1d(nn.Module):
 
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, 
-                 dilation=1, groups=1, bias=True, padding_mode='zeros'):
+class SubPixelConv1d(nn.Module):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride=1,
+        padding=0,
+        dilation=1,
+        groups=1,
+        bias=True,
+        padding_mode="zeros",
+    ):
         super().__init__()
-        self.conv = nn.Conv1d(in_channels, stride*out_channels, kernel_size, stride=1, 
-                              padding=padding, dilation=dilation, 
-                              groups=groups, bias=bias, padding_mode=padding_mode)
-        
+        self.conv = nn.Conv1d(
+            in_channels,
+            stride * out_channels,
+            kernel_size,
+            stride=1,
+            padding=padding,
+            dilation=dilation,
+            groups=groups,
+            bias=bias,
+            padding_mode=padding_mode,
+        )
+
         self.out_channels = out_channels
         self.stride = stride
 
@@ -24,25 +42,43 @@ class SubPixelConv1d(nn.Module):
         if self.stride == 1:
             return x
 
-        x = x.view(-1, self.stride, self.out_channels, x.size(-1)).permute(
-            0,2,3,1).reshape(-1, self.out_channels, x.size(-1)*self.stride)
+        x = (
+            x.view(-1, self.stride, self.out_channels, x.size(-1))
+            .permute(0, 2, 3, 1)
+            .reshape(-1, self.out_channels, x.size(-1) * self.stride)
+        )
         return x
 
 
-
 class SubPixelConv2d(nn.Module):
-
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, 
-                 dilation=1, groups=1, bias=True, padding_mode='zeros'):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride=1,
+        padding=0,
+        dilation=1,
+        groups=1,
+        bias=True,
+        padding_mode="zeros",
+    ):
         super().__init__()
-        self.conv = nn.Conv2d(in_channels, (stride**2)*out_channels, kernel_size, stride=1, 
-                              padding=padding, dilation=dilation, 
-                              groups=groups, bias=bias, padding_mode=padding_mode)
-        
+        self.conv = nn.Conv2d(
+            in_channels,
+            (stride ** 2) * out_channels,
+            kernel_size,
+            stride=1,
+            padding=padding,
+            dilation=dilation,
+            groups=groups,
+            bias=bias,
+            padding_mode=padding_mode,
+        )
+
         self.stride = stride
         if stride > 1:
             self.pixel_shuffle = nn.PixelShuffle(self.stride)
-
 
     def forward(self, x):
         x = self.conv(x)
@@ -52,11 +88,10 @@ class SubPixelConv2d(nn.Module):
         return self.pixel_shuffle(x)
 
 
-
 def ICNR2d(tensor, stride=2, initializer=nn.init.kaiming_normal):
-    """Initialization method 
+    """Initialization method
     "Initialization to Convolution Nearest neighbours Resize (ICNR)"
-    for subpixel convolutions described in 
+    for subpixel convolutions described in
     described in "Andrew Aitken et al. (2017) Checkerboard artifact free sub-pixel convolution"
         https://arxiv.org/abs/1707.02937
 
@@ -74,21 +109,19 @@ def ICNR2d(tensor, stride=2, initializer=nn.init.kaiming_normal):
         subkernel = torch.zeros(new_shape)
         subkernel = initializer(subkernel)
         subkernel = subkernel.transpose(0, 1).contiguous()
-        subkernel = subkernel.view(
-            subkernel.shape[0], subkernel.shape[1], -1)
-        
+        subkernel = subkernel.view(subkernel.shape[0], subkernel.shape[1], -1)
+
         kernel = subkernel.repeat(1, 1, stride ** 2)
-        
+
         transposed_shape = [tensor.shape[1], tensor.shape[0]] + list(tensor.shape[2:])
-        kernel = kernel.contiguous().view(transposed_shape).transpose(
-            0, 1).contiguous()
+        kernel = kernel.contiguous().view(transposed_shape).transpose(0, 1).contiguous()
         tensor.copy_(kernel)
 
 
 def ICNR1d(tensor, stride=2, initializer=nn.init.kaiming_normal):
-    """1d version of the initialization method 
+    """1d version of the initialization method
     "Initialization to Convolution Nearest neighbours Resize (ICNR)"
-    for subpixel convolutions described in 
+    for subpixel convolutions described in
     described in "Andrew Aitken et al. (2017) Checkerboard artifact free sub-pixel convolution"
         https://arxiv.org/abs/1707.02937
 
@@ -106,13 +139,10 @@ def ICNR1d(tensor, stride=2, initializer=nn.init.kaiming_normal):
         subkernel = torch.zeros(new_shape)
         subkernel = initializer(subkernel)
         subkernel = subkernel.transpose(0, 1).contiguous()
-        subkernel = subkernel.view(
-            subkernel.shape[0], subkernel.shape[1], -1)
+        subkernel = subkernel.view(subkernel.shape[0], subkernel.shape[1], -1)
 
         kernel = subkernel.repeat(1, 1, stride)
 
         transposed_shape = (tensor.shape[1], tensor.shape[0], tensor.shape[2])
-        kernel = kernel.contiguous().view(transposed_shape).transpose(
-            0, 1).contiguous()
+        kernel = kernel.contiguous().view(transposed_shape).transpose(0, 1).contiguous()
         tensor.copy_(kernel)
-

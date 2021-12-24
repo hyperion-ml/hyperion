@@ -8,13 +8,16 @@
 import re
 from enum import Enum
 
+
 class ArchiveType(Enum):
     """Types of archive: hdf5, Kaldi Ark or packed-audio files."""
+
     H5 = 0
     ARK = 1
     AUDIO = 2
     SEGMENT_LIST = 3
     RTTM = 4
+
 
 """Documentation for "wspecifier" (taken from Kaldi).
 "wspecifier" describes how we write a set of objects indexed by keys.
@@ -71,13 +74,13 @@ The basic, unadorned wspecifiers are as follows:
 
 class WSpecType(Enum):
     """Type of Kaldi stype write specifiers."""
-    NO = 0       # No specifier
+
+    NO = 0  # No specifier
     ARCHIVE = 1  # Specifier contains Ark, hdf5, segment_list or rttm file.
-    SCRIPT = 2   # Specifier contains scp file.
-    BOTH = 3     # Specifier contains Ark/hdf5 file and scp file.
+    SCRIPT = 2  # Specifier contains scp file.
+    BOTH = 3  # Specifier contains Ark/hdf5 file and scp file.
 
 
-    
 class WSpecifier(object):
     """Class to parse Kaldi style write specifier.
 
@@ -98,9 +101,16 @@ class WSpecifier(object):
                   missing scp entries
     """
 
-    def __init__(self, spec_type, archive, script,
-                 archive_type=ArchiveType.H5,
-                 binary=True, flush=False, permissive=False):
+    def __init__(
+        self,
+        spec_type,
+        archive,
+        script,
+        archive_type=ArchiveType.H5,
+        binary=True,
+        flush=False,
+        permissive=False,
+    ):
         self.archive = archive
         self.script = script
         self.spec_type = spec_type
@@ -109,8 +119,6 @@ class WSpecifier(object):
         self.flush = flush
         self.permissive = permissive
 
-
-        
     @classmethod
     def create(cls, wspecifier):
         """Creates WSpecifier object from string.
@@ -126,13 +134,13 @@ class WSpecifier(object):
         Returns:
           WSpecifier object.
         """
-        fields = wspecifier.strip().split(':')
+        fields = wspecifier.strip().split(":")
         if len(fields) == 1:
             assert len(fields[0]) > 0
             return cls(WSpecType.ARCHIVE, fields[0], None)
         elif len(fields) == 2:
-            options = fields[0].strip().split(',')
-            archives = fields[1].strip().split(',')
+            options = fields[0].strip().split(",")
+            archives = fields[1].strip().split(",")
 
             archive = None
             script = None
@@ -143,86 +151,81 @@ class WSpecifier(object):
 
             cur_archive = 0
             for option in options:
-                if option == 'h5':
+                if option == "h5":
                     assert archive_type is None
-                    assert archive is None, (
-                        'Repeated h5, ark in wspecifier %s' % script)
+                    assert archive is None, "Repeated h5, ark in wspecifier %s" % script
                     assert len(archives) > cur_archive
                     archive_type = ArchiveType.H5
                     archive = archives[cur_archive]
                     cur_archive += 1
-                elif option == 'ark':
+                elif option == "ark":
                     assert archive_type is None
-                    assert archive is None, (
-                        'Repeated h5, ark in wspecifier %s' % script)
+                    assert archive is None, "Repeated h5, ark in wspecifier %s" % script
                     assert len(archives) > cur_archive
                     archive_type = ArchiveType.ARK
                     archive = archives[cur_archive]
                     cur_archive += 1
-                elif option == 'audio':
+                elif option == "audio":
                     assert archive_type is None
                     assert archive is None, (
-                        'Repeated h5, ark, audio in wspecifier %s' % script)
+                        "Repeated h5, ark, audio in wspecifier %s" % script
+                    )
                     assert len(archives) > cur_archive
                     archive_type = ArchiveType.AUDIO
                     archive = archives[cur_archive]
                     cur_archive += 1
-                elif option == 'scp':
-                    assert script is None, (
-                        'Repeated scp in wspecifier %s' % script)
+                elif option == "scp":
+                    assert script is None, "Repeated scp in wspecifier %s" % script
                     assert len(archives) > cur_archive
                     script = archives[cur_archive]
                     cur_archive += 1
-                elif option == 'segments':
+                elif option == "segments":
                     assert archive_type is None
-                    assert archive is None, (
-                        'Repeated h5, ark in wspecifier %s' % script)
+                    assert archive is None, "Repeated h5, ark in wspecifier %s" % script
                     assert len(archives) > cur_archive
                     archive_type = ArchiveType.SEGMENT_LIST
                     archive = archives[cur_archive]
                     cur_archive += 1
-                elif option == 'rttm':
+                elif option == "rttm":
                     assert archive_type is None
-                    assert archive is None, (
-                        'Repeated h5, ark in wspecifier %s' % script)
+                    assert archive is None, "Repeated h5, ark in wspecifier %s" % script
                     assert len(archives) > cur_archive
                     archive_type = ArchiveType.RTTM
                     archive = archives[cur_archive]
                     cur_archive += 1
-                elif option == 'f':
-                        flush = True
-                elif option in ['b', 't', 'nf', 'p']:
+                elif option == "f":
+                    flush = True
+                elif option in ["b", "t", "nf", "p"]:
                     pass
                 else:
-                    raise ValueError('Wrong wspecifier options %s'
-                                     % fields[0])
-                
+                    raise ValueError("Wrong wspecifier options %s" % fields[0])
+
             if archive is None:
                 if script is not None:
                     spec_type = WSpecType.SCRIPT
                 else:
-                    raise ValueError('Wrong wspecifier %s ' % wspecifier)
+                    raise ValueError("Wrong wspecifier %s " % wspecifier)
             else:
                 if script is None:
                     spec_type = WSpecType.ARCHIVE
                 else:
                     spec_type = WSpecType.BOTH
-                
+
             if archive_type == ArchiveType.ARK:
                 for option in options:
-                    if option == 't':
+                    if option == "t":
                         binary = False
-                    elif option == 'p':
+                    elif option == "p":
                         permissive = True
-                
-            return cls(spec_type, archive, script,
-                       archive_type, binary, flush, permissive)
+
+            return cls(
+                spec_type, archive, script, archive_type, binary, flush, permissive
+            )
         else:
-            raise ValueError('Two many fields (%d>2) in wspecifier %s'
-                             % (len(fields), wspecifier))
+            raise ValueError(
+                "Two many fields (%d>2) in wspecifier %s" % (len(fields), wspecifier)
+            )
 
-
-        
     def __eq__(self, other):
         """Equal operator."""
         eq = self.archive == other.archive
@@ -233,14 +236,11 @@ class WSpecifier(object):
         eq = eq and self.flush == other.flush
         eq = eq and self.permissive == other.permissive
         return eq
-    
 
     def __ne__(self, other):
         """Non-equal operator."""
         return not self.__eq__(other)
 
-
-    
     def __cmp__(self, other):
         """Comparison operator."""
         if self.__eq__(other):
@@ -248,8 +248,6 @@ class WSpecifier(object):
         return 1
 
 
-
-    
 """Documentation for "rspecifier" (Taken from Kaldi)
 "rspecifier" describes how we read a set of objects indexed by keys.
 The possibilities are:
@@ -288,7 +286,8 @@ We also allow various modifiers:
 
   "o, s, p, ark:gunzip -c foo.gz|"
 """
-        
+
+
 class RSpecType(Enum):
     NO = 0
     ARCHIVE = 1
@@ -296,10 +295,17 @@ class RSpecType(Enum):
 
 
 class RSpecifier(object):
-    def __init__(self, spec_type, archive,
-                 archive_type=ArchiveType.H5,
-                 once = False, is_sorted = False, called_sorted = False,
-                 permissive=False, background = False):
+    def __init__(
+        self,
+        spec_type,
+        archive,
+        archive_type=ArchiveType.H5,
+        once=False,
+        is_sorted=False,
+        called_sorted=False,
+        permissive=False,
+        background=False,
+    ):
 
         self.spec_type = spec_type
         self.archive = archive
@@ -310,21 +316,19 @@ class RSpecifier(object):
         self.permissive = permissive
         self.background = background
 
-
     @property
     def script(self):
         return self.archive
 
-    
     @classmethod
     def create(cls, rspecifier):
-        fields = rspecifier.strip().split(':')
+        fields = rspecifier.strip().split(":")
         if len(fields) == 1:
             assert len(fields[0]) > 0
             return cls(RSpecType.ARCHIVE, fields[0])
         elif len(fields) == 2:
-            options = fields[0].strip().split(',')
-            archives = fields[1].strip().split(',')
+            options = fields[0].strip().split(",")
+            archives = fields[1].strip().split(",")
             assert len(archives) == 1
 
             spec_type = None
@@ -337,77 +341,83 @@ class RSpecifier(object):
             background = False
 
             for option in options:
-                if option == 'h5':
+                if option == "h5":
                     assert spec_type is None
                     spec_type = RSpecType.ARCHIVE
                     archive_type = ArchiveType.H5
-                elif option == 'ark':
+                elif option == "ark":
                     assert spec_type is None
                     spec_type = RSpecType.ARCHIVE
                     archive_type = ArchiveType.ARK
-                elif option == 'audio':
+                elif option == "audio":
                     assert spec_type is None
                     spec_type = RSpecType.ARCHIVE
                     archive_type = ArchiveType.AUDIO
-                elif option == 'segments':
+                elif option == "segments":
                     assert spec_type is None
                     spec_type = RSpecType.ARCHIVE
                     archive_type = ArchiveType.SEGMENT_LIST
-                elif option == 'rttm':
+                elif option == "rttm":
                     assert spec_type is None
                     spec_type = RSpecType.ARCHIVE
                     archive_type = ArchiveType.RTTM
-                elif option == 'scp':
+                elif option == "scp":
                     assert spec_type is None
                     spec_type = RSpecType.SCRIPT
-                elif option == 'p':
+                elif option == "p":
                     permissive = True
-                elif option in ['o', 's', 'cs', 'bg']:
+                elif option in ["o", "s", "cs", "bg"]:
                     pass
                 else:
-                    raise ValueError('Wrong wspecifier options %s'
-                                     % fields[0])
+                    raise ValueError("Wrong wspecifier options %s" % fields[0])
 
-            assert spec_type is not None, ('Wrong wspecifier options %s'
-                                           % fields[0])
-            
+            assert spec_type is not None, "Wrong wspecifier options %s" % fields[0]
+
             if spec_type == RSpecType.SCRIPT:
-                with open(archive, 'r') as f:
-                    scp_f2 = f.readline().strip().split(' ')[1]
-                    if re.match(r'.*\.h5(?:.[0-9]+:[0-9]+.)?$', scp_f2) is not None:
+                with open(archive, "r") as f:
+                    scp_f2 = f.readline().strip().split(" ")[1]
+                    if re.match(r".*\.h5(?:.[0-9]+:[0-9]+.)?$", scp_f2) is not None:
                         archive_type = ArchiveType.H5
-                    elif re.match(r'.*\.ark:.*$', scp_f2) is not None:
+                    elif re.match(r".*\.ark:.*$", scp_f2) is not None:
                         archive_type = ArchiveType.ARK
-                    elif re.match(r'.*[cvg]:[0-9]+.[0-9]+:[0-9]+.$', scp_f2) is not None:
+                    elif (
+                        re.match(r".*[cvg]:[0-9]+.[0-9]+:[0-9]+.$", scp_f2) is not None
+                    ):
                         archive_type = ArchiveType.AUDIO
                     else:
                         archive_type = ArchiveType.ARK
-                         
+
                     # .split('[')[0].split(':')
                     # if len(scp) == 1:
                     #     archive_type = ArchiveType.H5
                     # else:
                     #     archive_type = ArchiveType.ARK
-                
+
             if archive_type == ArchiveType.ARK:
                 for option in options:
-                    if option == 'o':
+                    if option == "o":
                         once = True
-                    elif option == 's':
+                    elif option == "s":
                         is_sorted = True
-                    elif option == 'cs':
+                    elif option == "cs":
                         called_sorted = True
-                    elif option == 'bg':
+                    elif option == "bg":
                         background = True
-                
-            return cls(spec_type, archive, archive_type,
-                       once, is_sorted, called_sorted,
-                       permissive, background)
+
+            return cls(
+                spec_type,
+                archive,
+                archive_type,
+                once,
+                is_sorted,
+                called_sorted,
+                permissive,
+                background,
+            )
         else:
-            raise ValueError('Two many fields (%d>2) in wspecifier %s'
-                             % (len(fields), rspecifier))
-        
-        
+            raise ValueError(
+                "Two many fields (%d>2) in wspecifier %s" % (len(fields), rspecifier)
+            )
 
     def __eq__(self, other):
         eq = self.spec_type == other.spec_type
@@ -420,6 +430,5 @@ class RSpecifier(object):
         eq = eq and self.background == other.background
         return eq
 
-    
     def __ne__(self, other):
         return not self.__eq__(other)

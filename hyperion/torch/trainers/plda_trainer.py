@@ -19,35 +19,35 @@ from .torch_trainer import TorchTrainer
 class PLDATrainer(TorchTrainer):
     """Trainer to train PLDA back-end
 
-       Attributes:
-         model: PLDA model object.
-         optim: pytorch optimizer object
-         epochs: max. number of epochs
-         exp_path: experiment output path
-         cur_epoch: current epoch
-         grad_acc_steps: gradient accumulation steps to simulate larger batch size.
-         device: cpu/gpu device
-         metrics: extra metrics to compute besides cxe.
-         lrsched: learning rate scheduler object
-         loggers: LoggerList object, loggers write training progress to std. output and file.
-                  If None, it uses default loggers.
-         ddp: if True use distributed data parallel training
-         ddp_type: type of distributed data parallel in  (ddp, oss_ddp, oss_shared_ddp)
-         loss: if None, it uses cross-entropy
-         loss_weights: dictionary with weights for multiclass and binary cross-entropies
+    Attributes:
+      model: PLDA model object.
+      optim: pytorch optimizer object
+      epochs: max. number of epochs
+      exp_path: experiment output path
+      cur_epoch: current epoch
+      grad_acc_steps: gradient accumulation steps to simulate larger batch size.
+      device: cpu/gpu device
+      metrics: extra metrics to compute besides cxe.
+      lrsched: learning rate scheduler object
+      loggers: LoggerList object, loggers write training progress to std. output and file.
+               If None, it uses default loggers.
+      ddp: if True use distributed data parallel training
+      ddp_type: type of distributed data parallel in  (ddp, oss_ddp, oss_shared_ddp)
+      loss: if None, it uses cross-entropy
+      loss_weights: dictionary with weights for multiclass and binary cross-entropies
 
-         train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
-         use_amp: uses mixed precision training.
-         log_interval: number of optim. steps between log outputs
-         use_tensorboard: use tensorboard logger
-         use_wandb: use wandb logger
-         wandb: wandb dictionary of options
-         grad_clip: norm to clip gradients, if 0 there is no clipping
-         grad_clip_norm: norm type to clip gradients
-         swa_start: epoch to start doing swa
-         swa_lr: SWA learning rate
-         swa_anneal_epochs: SWA learning rate anneal epochs
-         cpu_offload: CPU offload of gradients when using fully sharded ddp
+      train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
+      use_amp: uses mixed precision training.
+      log_interval: number of optim. steps between log outputs
+      use_tensorboard: use tensorboard logger
+      use_wandb: use wandb logger
+      wandb: wandb dictionary of options
+      grad_clip: norm to clip gradients, if 0 there is no clipping
+      grad_clip_norm: norm type to clip gradients
+      swa_start: epoch to start doing swa
+      swa_lr: SWA learning rate
+      swa_anneal_epochs: SWA learning rate anneal epochs
+      cpu_offload: CPU offload of gradients when using fully sharded ddp
     """
 
     def __init__(
@@ -117,8 +117,8 @@ class PLDATrainer(TorchTrainer):
     def train_epoch(self, data_loader):
         """Training epoch loop
 
-           Args:
-             data_loader: pytorch data loader returning features and class labels.
+        Args:
+          data_loader: pytorch data loader returning features and class labels.
         """
 
         self.model.update_margin(self.cur_epoch)

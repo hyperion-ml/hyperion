@@ -33,12 +33,19 @@ def load_model(input_path, **kwargs):
         for tf in tfl.transforms:
             if tf.name == name:
                 return tf
-            
 
 
-def train_gauss(iv_file, train_list, preproc_file, 
-                save_tlist, append_tlist, input_path, output_path, **kwargs):
-    
+def train_gauss(
+    iv_file,
+    train_list,
+    preproc_file,
+    save_tlist,
+    append_tlist,
+    input_path,
+    output_path,
+    **kwargs
+):
+
     if preproc_file is not None:
         preproc = TransformList.load(preproc_file)
     else:
@@ -52,7 +59,7 @@ def train_gauss(iv_file, train_list, preproc_file,
 
     model_args = Gaussianizer.filter_args(**kwargs)
     model = load_model(input_path, **model_args)
-    
+
     model.fit(x)
 
     if save_tlist:
@@ -64,58 +71,58 @@ def train_gauss(iv_file, train_list, preproc_file,
 
     model.save(output_path)
 
-
     # import matplotlib
     # matplotlib.use('Agg')
     # import matplotlib.pyplot as plt
 
     # fig_file = '%s.D%04d1.pdf' % (output_path, 0)
-        
+
     # plt.hist(y[:,0], 300)
     # plt.grid(True)
     # plt.show()
     # plt.savefig(fig_file)
     # plt.clf()
 
-
     # fig_file = '%s.D%04d2.pdf' % (output_path, 0)
-        
+
     # plt.hist(y2[:,0], 300)
     # plt.grid(True)
     # plt.show()
     # plt.savefig(fig_file)
     # plt.clf()
 
-    
-    
+
 if __name__ == "__main__":
 
-    parser=argparse.ArgumentParser(
+    parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        fromfile_prefix_chars='@',
-        description='Trains a Gaussianizer')
+        fromfile_prefix_chars="@",
+        description="Trains a Gaussianizer",
+    )
 
-    parser.add_argument('--iv-file', dest='iv_file', required=True)
-    parser.add_argument('--train-list', dest='train_list', required=True)
-    parser.add_argument('--preproc-file', dest='preproc_file', default=None)
-    
+    parser.add_argument("--iv-file", dest="iv_file", required=True)
+    parser.add_argument("--train-list", dest="train_list", required=True)
+    parser.add_argument("--preproc-file", dest="preproc_file", default=None)
+
     VR.add_argparse_args(parser)
     Gaussianizer.add_argparse_args(parser)
-    
-    parser.add_argument('--input-path', dest='input_path', default=None)
-    parser.add_argument('--output-path', dest='output_path', required=True)
 
-    parser.add_argument('--no-save-tlist', dest='save_tlist',
-                        default=True, action='store_false')
-    parser.add_argument('--no-append-tlist', dest='append_tlist', 
-                        default=True, action='store_false')
-    parser.add_argument('-v', '--verbose', dest='verbose', default=1, choices=[0, 1, 2, 3], type=int)
-    
-    args=parser.parse_args()
+    parser.add_argument("--input-path", dest="input_path", default=None)
+    parser.add_argument("--output-path", dest="output_path", required=True)
+
+    parser.add_argument(
+        "--no-save-tlist", dest="save_tlist", default=True, action="store_false"
+    )
+    parser.add_argument(
+        "--no-append-tlist", dest="append_tlist", default=True, action="store_false"
+    )
+    parser.add_argument(
+        "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
+    )
+
+    args = parser.parse_args()
     config_logger(args.verbose)
     del args.verbose
     logging.debug(args)
-        
-    train_gauss(**vars(args))
 
-            
+    train_gauss(**vars(args))

@@ -11,19 +11,26 @@ from ..layers.subpixel_convs import SubPixelConv2d
 
 
 class DC2dEncBlock(nn.Module):
-
-    def __init__(self, in_channels, out_channels, 
-                 kernel_size, stride=1, dilation=1, 
-                 activation='relu',
-                 dropout_rate=0,
-                 use_norm=True, norm_layer=None, norm_before=True):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride=1,
+        dilation=1,
+        activation="relu",
+        dropout_rate=0,
+        use_norm=True,
+        norm_layer=None,
+        norm_before=True,
+    ):
 
         super().__init__()
 
         self.activation = AF.create(activation)
-        padding = int(dilation * (kernel_size -1)/2)
+        padding = int(dilation * (kernel_size - 1) / 2)
 
-        self.dropout_rate =dropout_rate
+        self.dropout_rate = dropout_rate
         self.dropout = None
         if dropout_rate > 0:
             self.dropout = Dropout2d(dropout_rate)
@@ -41,28 +48,26 @@ class DC2dEncBlock(nn.Module):
                 self.norm_after = True
 
         self.conv1 = Conv2d(
-            in_channels, out_channels, 
+            in_channels,
+            out_channels,
             bias=(not self.norm_before),
-            kernel_size=kernel_size, 
+            kernel_size=kernel_size,
             stride=stride,
-            dilation=dilation, 
-            padding=padding) 
+            dilation=dilation,
+            padding=padding,
+        )
 
         self.stride = stride
-        self.context = dilation*(kernel_size-1)//2
-
+        self.context = dilation * (kernel_size - 1) // 2
 
     def freeze(self):
         for param in self.parameters():
             param.requires_grad = False
 
-
     def unfreeze(self):
         for param in self.parameters():
             param.requires_grad = True
 
-
- 
     def forward(self, x):
 
         x = self.conv1(x)
@@ -71,7 +76,7 @@ class DC2dEncBlock(nn.Module):
 
         if self.activation is not None:
             x = self.activation(x)
-        
+
         if self.norm_after:
             x = self.bn1(x)
 
@@ -81,21 +86,27 @@ class DC2dEncBlock(nn.Module):
         return x
 
 
-
 class DC2dDecBlock(nn.Module):
-
-    def __init__(self, in_channels, out_channels, 
-                 kernel_size, stride=1, dilation=1, 
-                 activation='relu',
-                 dropout_rate=0,
-                 use_norm=True, norm_layer=None, norm_before=True):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride=1,
+        dilation=1,
+        activation="relu",
+        dropout_rate=0,
+        use_norm=True,
+        norm_layer=None,
+        norm_before=True,
+    ):
 
         super().__init__()
 
         self.activation = AF.create(activation)
-        padding = int(dilation * (kernel_size -1)/2)
+        padding = int(dilation * (kernel_size - 1) / 2)
 
-        self.dropout_rate =dropout_rate
+        self.dropout_rate = dropout_rate
         self.dropout = None
         if dropout_rate > 0:
             self.dropout = Dropout2d(dropout_rate)
@@ -114,36 +125,36 @@ class DC2dDecBlock(nn.Module):
 
         if stride == 1:
             self.conv1 = Conv2d(
-            in_channels, out_channels, 
-            kernel_size=kernel_size, 
-            stride=1,
-            dilation=dilation, 
-            bias=(not self.norm_before),
-            padding=padding) #pytorch > 1.0
+                in_channels,
+                out_channels,
+                kernel_size=kernel_size,
+                stride=1,
+                dilation=dilation,
+                bias=(not self.norm_before),
+                padding=padding,
+            )  # pytorch > 1.0
         else:
             self.conv1 = SubPixelConv2d(
-                in_channels, out_channels, 
-                kernel_size=kernel_size, 
+                in_channels,
+                out_channels,
+                kernel_size=kernel_size,
                 stride=stride,
-                dilation=dilation, 
+                dilation=dilation,
                 bias=(not self.norm_before),
-                padding=padding)
+                padding=padding,
+            )
 
         self.stride = stride
-        self.context = dilation*(kernel_size-1)//2
-
+        self.context = dilation * (kernel_size - 1) // 2
 
     def freeze(self):
         for param in self.parameters():
             param.requires_grad = False
 
-
     def unfreeze(self):
         for param in self.parameters():
             param.requires_grad = True
 
-
- 
     def forward(self, x):
 
         x = self.conv1(x)
@@ -152,7 +163,7 @@ class DC2dDecBlock(nn.Module):
 
         if self.activation is not None:
             x = self.activation(x)
-        
+
         if self.norm_after:
             x = self.bn1(x)
 
@@ -160,7 +171,3 @@ class DC2dDecBlock(nn.Module):
             x = self.dropout(x)
 
         return x
-
-
-
-

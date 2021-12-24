@@ -34,36 +34,36 @@ from .audio_feats_mvn import AudioFeatsMVN
 
 
 class TorchNALoader(object):
-
     @staticmethod
     def load(file_path, extra_objs={}):
 
         model_data = torch.load(model_path)
-        cfg = model_data['model_cfg']
-        class_name = cfg['class_name']
-        del cfg['class_name']
+        cfg = model_data["model_cfg"]
+        class_name = cfg["class_name"]
+        del cfg["class_name"]
         if class_name in globals():
             class_obj = globals()[class_name]
         elif class_name in extra_objs:
             class_obj = extra_objs[class_name]
         else:
-            raise Exception('unknown neural architecture object with class_name=%s'
-                            % (class_name))
+            raise Exception(
+                "unknown neural architecture object with class_name=%s" % (class_name)
+            )
 
-        state_dict = model_data['model_state_dict']
+        state_dict = model_data["model_state_dict"]
         return class_obj.load(cfg=cfg, state_dict=state_dict)
 
-    
     @staticmethod
     def load_from_cfg(cfg, state_dict=None, extra_objs={}):
-        class_name = cfg['class_name']
-        del cfg['class_name']
+        class_name = cfg["class_name"]
+        del cfg["class_name"]
         if class_name in globals():
             class_obj = globals()[class_name]
         elif class_name in extra_objs:
             class_obj = extra_objs[class_name]
         else:
-            raise Exception('unknown neural architecture object with class_name=%s'
-                            % (class_name))
+            raise Exception(
+                "unknown neural architecture object with class_name=%s" % (class_name)
+            )
 
         return class_obj.load(cfg=cfg, state_dict=state_dict)

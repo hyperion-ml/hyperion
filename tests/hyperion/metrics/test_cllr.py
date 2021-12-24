@@ -20,8 +20,6 @@ def test_cllr():
 
 def test_min_cllr():
 
-    s = 10*np.ones((100,))
+    s = 10 * np.ones((100,))
     c = compute_min_cllr(s, s)
-    assert c <= 1 and c >0.99
-
-    
+    assert c <= 1 and c > 0.99

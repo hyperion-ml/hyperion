@@ -28,10 +28,6 @@ def test_xlabel_confusion_matrix():
     y_pred = np.array([1, 1, 0, 0, 0, 1, 1, 1, 0, 0])
 
     C = compute_xlabel_confusion_matrix(y_true, y_pred)
-    C_true = np.array([[3/5, 2/5], [2/3, 1/3], [0, 1]])
+    C_true = np.array([[3 / 5, 2 / 5], [2 / 3, 1 / 3], [0, 1]])
 
     assert_allclose(C, C_true)
-
-
-
-    

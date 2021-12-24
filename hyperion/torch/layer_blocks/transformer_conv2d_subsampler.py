@@ -6,6 +6,7 @@
 import torch
 import torch.nn as nn
 
+
 class TransformerConv2dSubsampler(nn.Module):
     """Convolutional 2D subsampling (to 1/4 length) Tor transformer
 
@@ -21,15 +22,14 @@ class TransformerConv2dSubsampler(nn.Module):
         super().__init__()
         self.time_dim = time_dim
         self.conv = nn.Sequential(
-            nn.Conv2d(1, out_feats, 3, 2, padding=(0,1)),
+            nn.Conv2d(1, out_feats, 3, 2, padding=(0, 1)),
             hid_act,
-            nn.Conv2d(out_feats, out_feats, 3, 2, padding=(0,1)),
-            hid_act
+            nn.Conv2d(out_feats, out_feats, 3, 2, padding=(0, 1)),
+            hid_act,
         )
         self.out = nn.Sequential(
-            nn.Linear(out_feats * (((in_feats - 1) // 2 - 1) // 2), out_feats),
-            pos_enc)
-
+            nn.Linear(out_feats * (((in_feats - 1) // 2 - 1) // 2), out_feats), pos_enc
+        )
 
     def forward(self, x, mask):
         """Forward function.
@@ -43,12 +43,12 @@ class TransformerConv2dSubsampler(nn.Module):
            Tensor with subsampled mask
         """
         if self.time_dim == 1:
-            x = x.transpose(1,2)
+            x = x.transpose(1, 2)
 
         x = x.unsqueeze(1)  # (b, c, f, t)
         x = self.conv(x)
         b, c, f, t = x.size()
-        x = self.out(x.contiguous().view(b, c * f, t).transpose(1,2))
+        x = self.out(x.contiguous().view(b, c * f, t).transpose(1, 2))
         if mask is None:
             return x, None
         return x, mask[:, :, :-2:2][:, :, :-2:2]

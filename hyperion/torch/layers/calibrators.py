@@ -6,12 +6,12 @@
 import torch
 import torch.nn as nn
 
-class LinBinCalibrator(nn.Module):
 
+class LinBinCalibrator(nn.Module):
     def __init__(self, a, b):
         super().__init__()
         self.a = a
         self.b = b
 
     def forward(self, x):
-        return self.a*x+self.b
+        return self.a * x + self.b

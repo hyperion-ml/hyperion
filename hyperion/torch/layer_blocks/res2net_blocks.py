@@ -13,8 +13,16 @@ from .se_blocks import SEBlock2D, TSEBlock2D
 
 def _conv3x3(in_channels, out_channels, stride=1, groups=1, dilation=1, bias=False):
     """3x3 convolution with padding"""
-    return nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=stride,
-                     padding=dilation, groups=groups, bias=bias, dilation=dilation)
+    return nn.Conv2d(
+        in_channels,
+        out_channels,
+        kernel_size=3,
+        stride=stride,
+        padding=dilation,
+        groups=groups,
+        bias=bias,
+        dilation=dilation,
+    )
 
 
 def _conv1x1(in_channels, out_channels, stride=1, bias=False):
@@ -26,21 +34,33 @@ def _make_downsample(in_channels, out_channels, stride, norm_layer, norm_before)
 
     if norm_before:
         return nn.Sequential(
-            _conv1x1(in_channels, out_channels, stride, bias=False), 
-            norm_layer(out_channels))
-    
-    return _conv1x1(in_channels, out_channels, stride, bias=True) 
-    
+            _conv1x1(in_channels, out_channels, stride, bias=False),
+            norm_layer(out_channels),
+        )
+
+    return _conv1x1(in_channels, out_channels, stride, bias=True)
+
 
 class Res2NetBasicBlock(nn.Module):
     expansion = 1
 
-    def __init__(self, in_channels, channels, 
-                 activation={'name':'relu', 'inplace': True},
-                 stride=1, dropout_rate=0, 
-                 width_factor=1, scale=4, groups=1, 
-                 dilation=1, norm_layer=None, norm_before=True, 
-                 se_r=None, time_se=False, num_feats=None):
+    def __init__(
+        self,
+        in_channels,
+        channels,
+        activation={"name": "relu", "inplace": True},
+        stride=1,
+        dropout_rate=0,
+        width_factor=1,
+        scale=4,
+        groups=1,
+        dilation=1,
+        norm_layer=None,
+        norm_before=True,
+        se_r=None,
+        time_se=False,
+        num_feats=None,
+    ):
 
         super().__init__()
 
@@ -70,7 +90,9 @@ class Res2NetBasicBlock(nn.Module):
         proj1s = []
         bn1s = []
         for i in range(self.num_3x3):
-            conv1s.append(_conv3x3(width_in, width_mid, stride, groups, dilation, bias=bias))
+            conv1s.append(
+                _conv3x3(width_in, width_mid, stride, groups, dilation, bias=bias)
+            )
             bn1s.append(norm_layer(width_mid))
             if self.has_proj1 and i < self.num_3x3 - 1:
                 proj1s.append(_conv1x1(width_mid, width_in, bias=False))
@@ -90,8 +112,9 @@ class Res2NetBasicBlock(nn.Module):
 
         self.downsample = None
         if stride != 1 or in_channels != channels * self.expansion:
-            self.downsample = _make_downsample(in_channels, channels * self.expansion, 
-                                               stride, norm_layer, norm_before)
+            self.downsample = _make_downsample(
+                in_channels, channels * self.expansion, stride, norm_layer, norm_before
+            )
 
         self.dropout_rate = dropout_rate
         self.dropout = None
@@ -103,19 +126,15 @@ class Res2NetBasicBlock(nn.Module):
 
         if se_r is not None:
             if time_se:
-                self.se_layer = TSEBlock2D(
-                    channels, num_feats, se_r, activation)
+                self.se_layer = TSEBlock2D(channels, num_feats, se_r, activation)
             else:
-                self.se_layer = SEBlock2D(
-                    channels, se_r, activation)
+                self.se_layer = SEBlock2D(channels, se_r, activation)
         else:
             self.se_layer = None
-                
 
     @property
     def out_channels(self):
         return self.channels
-
 
     def forward(self, x):
         residual = x
@@ -129,7 +148,7 @@ class Res2NetBasicBlock(nn.Module):
                 x_i = split_x[i]
             else:
                 if self.has_proj1:
-                    x_i = self.proj1s[i-1](x_i)
+                    x_i = self.proj1s[i - 1](x_i)
 
                 x_i = x_i + split_x[i]
 
@@ -161,23 +180,33 @@ class Res2NetBasicBlock(nn.Module):
 
         if not self.norm_before:
             x = self.bn2(x)
-        
+
         if self.dropout_rate > 0:
             x = self.dropout(x)
 
         return x
 
 
-
 class Res2NetBNBlock(nn.Module):
     expansion = 4
 
-    def __init__(self, in_channels, channels, 
-                 activation={'name':'relu', 'inplace': True},
-                 stride=1, dropout_rate=0, 
-                 width_factor=1, scale=4, groups=1, 
-                 dilation=1, norm_layer=None, norm_before=True, 
-                 se_r=None, time_se=False, num_feats=None):
+    def __init__(
+        self,
+        in_channels,
+        channels,
+        activation={"name": "relu", "inplace": True},
+        stride=1,
+        dropout_rate=0,
+        width_factor=1,
+        scale=4,
+        groups=1,
+        dilation=1,
+        norm_layer=None,
+        norm_before=True,
+        se_r=None,
+        time_se=False,
+        num_feats=None,
+    ):
 
         super().__init__()
 
@@ -202,7 +231,7 @@ class Res2NetBNBlock(nn.Module):
             self.num_3x3 = scale - 1
 
         if stride > 1 and scale > 1:
-            self.pool = nn.AvgPool2d(kernel_size=3, stride = stride, padding=1)
+            self.pool = nn.AvgPool2d(kernel_size=3, stride=stride, padding=1)
 
         conv2s = []
         bn2s = []
@@ -224,8 +253,9 @@ class Res2NetBNBlock(nn.Module):
 
         self.downsample = None
         if stride != 1 or in_channels != channels * self.expansion:
-            self.downsample = _make_downsample(in_channels, channels * self.expansion, 
-                                               stride, norm_layer, norm_before)
+            self.downsample = _make_downsample(
+                in_channels, channels * self.expansion, stride, norm_layer, norm_before
+            )
 
         self.dropout_rate = dropout_rate
         self.dropout = None
@@ -238,18 +268,16 @@ class Res2NetBNBlock(nn.Module):
         if se_r is not None:
             if time_se:
                 self.se_layer = TSEBlock2D(
-                    channels * self.expansion, num_feats, se_r, activation)
+                    channels * self.expansion, num_feats, se_r, activation
+                )
             else:
-                self.se_layer = SEBlock2D(
-                    channels * self.expansion, se_r, activation)
+                self.se_layer = SEBlock2D(channels * self.expansion, se_r, activation)
         else:
             self.se_layer = None
-                
 
     @property
     def out_channels(self):
         return self.channels * self.expansion
-
 
     def forward(self, x):
         residual = x
@@ -299,10 +327,8 @@ class Res2NetBNBlock(nn.Module):
 
         if not self.norm_before:
             x = self.bn3(x)
-        
+
         if self.dropout_rate > 0:
             x = self.dropout(x)
 
         return x
-
-

@@ -14,7 +14,7 @@ from .trial_ndx import TrialNdx
 
 
 class TrialKey(object):
-    """ Contains the trial key for speaker recognition trials.
+    """Contains the trial key for speaker recognition trials.
         Bosaris compatible Key.
 
     Attributes:
@@ -342,7 +342,7 @@ class TrialKey(object):
 
     def filter(self, model_set, seg_set, keep=True):
         """Removes elements from TrialKey object.
-        
+
         Args:
           model_set: List of models to keep or remove.
           seg_set: List of test segments to keep or remove.
@@ -392,9 +392,9 @@ class TrialKey(object):
         )
 
     def split(self, model_idx, num_model_parts, seg_idx, num_seg_parts):
-        """Splits the TrialKey into num_model_parts x num_seg_parts and returns part 
+        """Splits the TrialKey into num_model_parts x num_seg_parts and returns part
            (model_idx, seg_idx).
- 
+
         Args:
           model_idx: Model index of the part to return from 1 to num_model_parts.
           num_model_parts: Number of parts to split the model list.
@@ -444,8 +444,7 @@ class TrialKey(object):
         return TrialNdx(self.model_set, self.seg_set, mask)
 
     def validate(self):
-        """Validates the attributes of the TrialKey object.
-        """
+        """Validates the attributes of the TrialKey object."""
         self.model_set = list2ndarray(self.model_set)
         self.seg_set = list2ndarray(self.seg_set)
 

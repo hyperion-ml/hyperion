@@ -14,6 +14,7 @@ from ..layer_blocks import TransformerEncoderBlockV1 as EBlock
 from ..layer_blocks import TransformerConv2dSubsampler as Conv2dSubsampler
 from .net_arch import NetArch
 
+
 class TransformerEncoderV1(NetArch):
     """Transformer encoder module.
 
@@ -46,25 +47,30 @@ class TransformerEncoderV1(NetArch):
 
     """
 
-    def __init__(self, in_feats,
-                 d_model=256,
-                 num_heads=4,
-                 num_blocks=6,
-                 att_type = 'scaled-dot-prod-v1',
-                 att_context = 25,
-                 ff_type='linear',
-                 d_ff=2048,
-                 ff_kernel_size=1,
-                 ff_dropout_rate=0.1,
-                 pos_dropout_rate=0.1,
-                 att_dropout_rate=0.0,
-                 in_layer_type='conv2d-sub',
-                 rel_pos_enc=False,
-                 causal_pos_enc=False,
-                 hid_act='relu6',
-                 norm_before=True,
-                 concat_after=False,
-                 padding_idx=-1, in_time_dim=-1, out_time_dim=1):
+    def __init__(
+        self,
+        in_feats,
+        d_model=256,
+        num_heads=4,
+        num_blocks=6,
+        att_type="scaled-dot-prod-v1",
+        att_context=25,
+        ff_type="linear",
+        d_ff=2048,
+        ff_kernel_size=1,
+        ff_dropout_rate=0.1,
+        pos_dropout_rate=0.1,
+        att_dropout_rate=0.0,
+        in_layer_type="conv2d-sub",
+        rel_pos_enc=False,
+        causal_pos_enc=False,
+        hid_act="relu6",
+        norm_before=True,
+        concat_after=False,
+        padding_idx=-1,
+        in_time_dim=-1,
+        out_time_dim=1,
+    ):
 
         super().__init__()
         self.in_feats = in_feats
@@ -95,22 +101,32 @@ class TransformerEncoderV1(NetArch):
 
         blocks = []
         for i in range(num_blocks):
-            blocks.append(EBlock(
-                d_model, att_type, num_heads, 
-                ff_type, d_ff, ff_kernel_size, 
-                ff_act=hid_act, ff_dropout_rate=ff_dropout_rate,
-                att_context=att_context, att_dropout_rate=att_dropout_rate, 
-                rel_pos_enc=rel_pos_enc, causal_pos_enc=causal_pos_enc,
-                norm_before=norm_before, concat_after=concat_after))
+            blocks.append(
+                EBlock(
+                    d_model,
+                    att_type,
+                    num_heads,
+                    ff_type,
+                    d_ff,
+                    ff_kernel_size,
+                    ff_act=hid_act,
+                    ff_dropout_rate=ff_dropout_rate,
+                    att_context=att_context,
+                    att_dropout_rate=att_dropout_rate,
+                    rel_pos_enc=rel_pos_enc,
+                    causal_pos_enc=causal_pos_enc,
+                    norm_before=norm_before,
+                    concat_after=concat_after,
+                )
+            )
 
         self.blocks = nn.ModuleList(blocks)
-        
+
         if self.norm_before:
             self.norm = nn.LayerNorm(d_model)
 
-
-    # def _make_in_layer(self, in_layer_type, in_feats, d_model, 
-    #                    dropout_rate, pos_dropout_rate, 
+    # def _make_in_layer(self, in_layer_type, in_feats, d_model,
+    #                    dropout_rate, pos_dropout_rate,
     #                    padding_idx, time_dim):
     def _make_in_layer(self):
 
@@ -130,23 +146,22 @@ class TransformerEncoderV1(NetArch):
                 nn.LayerNorm(d_model),
                 nn.Dropout(dropout_rate),
                 hid_act,
-                pos_enc)
+                pos_enc,
+            )
         elif self.in_layer_type == "conv2d-sub":
             self.in_layer = Conv2dSubsampler(
-                in_feats, d_model, hid_act, pos_enc, time_dim=self.in_time_dim)
+                in_feats, d_model, hid_act, pos_enc, time_dim=self.in_time_dim
+            )
         elif self.in_layer_type == "embed":
             self.in_layer = nn.Sequential(
-                nn.Embedding(in_feats, d_model, padding_idx=self.padding_idx),
-                pos_enc)
+                nn.Embedding(in_feats, d_model, padding_idx=self.padding_idx), pos_enc
+            )
         elif isinstance(self.in_layer_type, nn.Module):
-            self.in_layer = nn.Sequential(
-                in_layer_type,
-                pos_enc)
+            self.in_layer = nn.Sequential(in_layer_type, pos_enc)
         elif self.in_layer_type is None:
             self.in_layer = pos_enc
         else:
             raise ValueError("unknown in_layer_type: " + self.in_layer_type)
-
 
     def forward(self, x, mask=None, target_shape=None, use_amp=False):
         if use_amp:
@@ -154,7 +169,6 @@ class TransformerEncoderV1(NetArch):
                 return self._forward(x, mask, target_shape)
 
         return self._forward(x, mask, target_shape)
-
 
     def _forward(self, x, mask=None, target_shape=None):
         """Forward pass function
@@ -176,7 +190,7 @@ class TransformerEncoderV1(NetArch):
 
         if isinstance(x, tuple):
             x, pos_emb = x
-            b_args = {'pos_emb': pos_emb}
+            b_args = {"pos_emb": pos_emb}
         else:
             b_args = {}
 
@@ -194,44 +208,44 @@ class TransformerEncoderV1(NetArch):
 
         return x, mask
 
-
     def get_config(self):
-        """ Gets network config
+        """Gets network config
         Returns:
            dictionary with config params
         """
-        config = {'in_feats': self.in_feats,
-                  'd_model': self.d_model,
-                  'num_heads': self.num_heads,
-                  'num_blocks': self.num_blocks,
-                  'att_type': self.att_type,
-                  'att_context': self.att_context,
-                  'ff_type': self.ff_type,
-                  'd_ff': self.d_ff,
-                  'ff_kernel_size': self.ff_kernel_size,
-                  'ff_dropout_rate': self.ff_dropout_rate,
-                  'att_dropout_rate': self.att_dropout_rate,
-                  'pos_dropout_rate': self.pos_dropout_rate,
-                  'in_layer_type': self.in_layer_type,
-                  'rel_pos_enc': self.rel_pos_enc,
-                  'causal_pos_enc': self.causal_pos_enc,
-                  'hid_act': self.hid_act,
-                  'norm_before': self.norm_before,
-                  'concat_after': self.concat_after,
-                  'padding_idx': self.padding_idx,
-                  'in_time_dim': self.in_time_dim,
-                  'out_time_dim': self.out_time_dim }
-        
+        config = {
+            "in_feats": self.in_feats,
+            "d_model": self.d_model,
+            "num_heads": self.num_heads,
+            "num_blocks": self.num_blocks,
+            "att_type": self.att_type,
+            "att_context": self.att_context,
+            "ff_type": self.ff_type,
+            "d_ff": self.d_ff,
+            "ff_kernel_size": self.ff_kernel_size,
+            "ff_dropout_rate": self.ff_dropout_rate,
+            "att_dropout_rate": self.att_dropout_rate,
+            "pos_dropout_rate": self.pos_dropout_rate,
+            "in_layer_type": self.in_layer_type,
+            "rel_pos_enc": self.rel_pos_enc,
+            "causal_pos_enc": self.causal_pos_enc,
+            "hid_act": self.hid_act,
+            "norm_before": self.norm_before,
+            "concat_after": self.concat_after,
+            "padding_idx": self.padding_idx,
+            "in_time_dim": self.in_time_dim,
+            "out_time_dim": self.out_time_dim,
+        }
+
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
-    
     def in_context(self):
         return (self.att_context, self.att_context)
 
     def in_shape(self):
         """Input shape for network
-        
+
         Returns:
            Tuple describing input shape
         """
@@ -239,7 +253,6 @@ class TransformerEncoderV1(NetArch):
             return (None, None, self.in_feats)
         else:
             return (None, self.in_feats, None)
-
 
     def out_shape(self, in_shape=None):
         """Infers the network output shape given the input shape
@@ -261,8 +274,8 @@ class TransformerEncoderV1(NetArch):
                 out_t = None
             else:
                 if isinstance(self.in_layer, Conv2dSubsampler):
-                    #out_t = in_t//4
-                    out_t = ((in_t - 1)//2 - 1)//2
+                    # out_t = in_t//4
+                    out_t = ((in_t - 1) // 2 - 1) // 2
                 else:
                     out_t = in_t
 
@@ -271,11 +284,9 @@ class TransformerEncoderV1(NetArch):
         else:
             return (batch_size, self.d_model, out_t)
 
-
-        
     @staticmethod
     def filter_args(**kwargs):
-        """ Filters arguments correspondin to TransformerXVector
+        """Filters arguments correspondin to TransformerXVector
             from args dictionary
 
         Args:
@@ -284,112 +295,147 @@ class TransformerEncoderV1(NetArch):
         Returns:
           args dictionary
         """
-        
-        valid_args = ('num_blocks',
-                      'in_feats',
-                      'd_model',
-                      'num_heads',
-                      'att_type',
-                      'att_context',
-                      'ff_type',
-                      'd_ff',
-                      'ff_kernel_size',
-                      'ff_dropout_rate',
-                      'pos_dropout_rate',
-                      'att_dropout_rate',
-                      'in_layer_type',
-                      'hid_act',
-                      'rel_pos_enc',
-                      'causal_pos_enc',
-                      'concat_after')
 
-        return dict((k, kwargs[k])
-                    for k in valid_args if k in kwargs)
+        valid_args = (
+            "num_blocks",
+            "in_feats",
+            "d_model",
+            "num_heads",
+            "att_type",
+            "att_context",
+            "ff_type",
+            "d_ff",
+            "ff_kernel_size",
+            "ff_dropout_rate",
+            "pos_dropout_rate",
+            "att_dropout_rate",
+            "in_layer_type",
+            "hid_act",
+            "rel_pos_enc",
+            "causal_pos_enc",
+            "concat_after",
+        )
 
-
+        return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
     @staticmethod
     def add_class_args(parser, prefix=None, in_feats=False):
         """Adds Transformer config parameters to argparser
-        
+
         Args:
            parser: argparse object
            prefix: prefix string to add to the argument names
         """
         if prefix is not None:
             outer_parser = parser
-            parser = ArgumentParser(prog='')
+            parser = ArgumentParser(prog="")
 
         if in_feats:
             parser.add_argument(
-                '--in-feats', type=int, default=80,
-                help=('input feature dimension'))
+                "--in-feats", type=int, default=80, help=("input feature dimension")
+            )
 
-        parser.add_argument('--num-blocks',
-                            default=6, type=int,
-                            help=('number of tranformer blocks'))
+        parser.add_argument(
+            "--num-blocks", default=6, type=int, help=("number of tranformer blocks")
+        )
 
-        parser.add_argument('--d-model', 
-                            default=512, type=int,
-                            help=('encoder layer sizes'))
+        parser.add_argument(
+            "--d-model", default=512, type=int, help=("encoder layer sizes")
+        )
 
-        parser.add_argument('--num-heads',
-                            default=4, type=int,
-                            help=('number of heads in self-attention layers'))
+        parser.add_argument(
+            "--num-heads",
+            default=4,
+            type=int,
+            help=("number of heads in self-attention layers"),
+        )
 
-        parser.add_argument('--att-type', 
-                            default='scaled-dot-prod-v1', 
-                            choices=['scaled-dot-prod-v1', 'local-scaled-dot-prod-v1'],
-                            help=('type of self-attention'))
+        parser.add_argument(
+            "--att-type",
+            default="scaled-dot-prod-v1",
+            choices=["scaled-dot-prod-v1", "local-scaled-dot-prod-v1"],
+            help=("type of self-attention"),
+        )
 
-        parser.add_argument('--att-context', 
-                            default=25, type=int,
-                            help=('context size when using local attention'))
+        parser.add_argument(
+            "--att-context",
+            default=25,
+            type=int,
+            help=("context size when using local attention"),
+        )
 
-        parser.add_argument('--ff-type', 
-                            default='linear', choices=['linear', 'conv1dx2', 'conv1dlinear'],
-                            help=('type of feed forward layers in transformer block'))
-        
-        parser.add_argument('--d-ff',
-                            default=2048, type=int,
-                            help=('size middle layer in feed forward block')) 
+        parser.add_argument(
+            "--ff-type",
+            default="linear",
+            choices=["linear", "conv1dx2", "conv1dlinear"],
+            help=("type of feed forward layers in transformer block"),
+        )
 
-        parser.add_argument('--ff-kernel-size',
-                            default=3, type=int,
-                            help=('kernel size in convolutional feed forward block')) 
+        parser.add_argument(
+            "--d-ff",
+            default=2048,
+            type=int,
+            help=("size middle layer in feed forward block"),
+        )
+
+        parser.add_argument(
+            "--ff-kernel-size",
+            default=3,
+            type=int,
+            help=("kernel size in convolutional feed forward block"),
+        )
 
         try:
-            parser.add_argument('--hid-act', default='relu6', 
-                                help='hidden activation')
+            parser.add_argument("--hid-act", default="relu6", help="hidden activation")
         except:
             pass
 
-        parser.add_argument('--pos-dropout-rate', default=0.1, type=float,
-                                help='positional encoder dropout')
-        parser.add_argument('--att-dropout-rate', default=0, type=float,
-                                help='self-att dropout')
-        parser.add_argument('--ff-dropout-rate', default=0.1, type=float,
-                                help='feed-forward layer dropout')
+        parser.add_argument(
+            "--pos-dropout-rate",
+            default=0.1,
+            type=float,
+            help="positional encoder dropout",
+        )
+        parser.add_argument(
+            "--att-dropout-rate", default=0, type=float, help="self-att dropout"
+        )
+        parser.add_argument(
+            "--ff-dropout-rate",
+            default=0.1,
+            type=float,
+            help="feed-forward layer dropout",
+        )
 
-        parser.add_argument('--in-layer-type', 
-                            default='linear', choices=['linear', 'conv2d-sub'],
-                            help=('type of input layer'))
+        parser.add_argument(
+            "--in-layer-type",
+            default="linear",
+            choices=["linear", "conv2d-sub"],
+            help=("type of input layer"),
+        )
 
-        parser.add_argument('--rel-pos-enc', default=False, action='store_true',
-                            help='use relative positional encoder')
+        parser.add_argument(
+            "--rel-pos-enc",
+            default=False,
+            action="store_true",
+            help="use relative positional encoder",
+        )
 
-        parser.add_argument('--causal-pos-enc', default=False, action='store_true',
-                            help='relative positional encodings are zero when attending to the future')
+        parser.add_argument(
+            "--causal-pos-enc",
+            default=False,
+            action="store_true",
+            help="relative positional encodings are zero when attending to the future",
+        )
 
-        parser.add_argument('--concat-after', default=False, action='store_true',
-                            help='concatenate attention input and output instead of adding')
+        parser.add_argument(
+            "--concat-after",
+            default=False,
+            action="store_true",
+            help="concatenate attention input and output instead of adding",
+        )
 
         if prefix is not None:
-            outer_parser.add_argument(
-                '--' + prefix,
-                action=ActionParser(parser=parser))
-                # help='transformer encoder options')
-
-
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
+            # help='transformer encoder options')
 
     add_argparse_args = add_class_args

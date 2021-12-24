@@ -7,21 +7,20 @@ import torch
 import torch.nn as nn
 import torch.distributions as pdf
 
+
 class Tensor2PDF(nn.Module):
     """Base class for layers that create a prob distribution
-       from an input tensor
+    from an input tensor
     """
+
     def __init__(self):
         super(Tensor2PDF, self).__init__()
         self.tensor2pdfparam_factor = 1
-        
-
 
 
 class Tensor2NormalICov(Tensor2PDF):
-    """Transforms a Tensor into Normal distribution with identitiy variance
-       
-    """
+    """Transforms a Tensor into Normal distribution with identitiy variance"""
+
     def __init__(self):
         super(Tensor2NormalGlobDiagCov, self).__init__()
 
@@ -30,12 +29,11 @@ class Tensor2NormalICov(Tensor2PDF):
         return pdf.normal.Normal(loc, scale)
 
 
-
 class Tensor2NormalGlobDiagCov(Tensor2PDF):
     """Transforms a Tensor into Normal distribution
-       
-       Input tensor will be the mean of the distribution and 
-       the standard deviation is a global trainable parameter.
+
+    Input tensor will be the mean of the distribution and
+    the standard deviation is a global trainable parameter.
     """
 
     def __init__(self, shape):
@@ -44,9 +42,9 @@ class Tensor2NormalGlobDiagCov(Tensor2PDF):
 
     def forward(self, loc, prior=None):
         # stddev
-        scale = torch.exp(0.5*self.logvar)
+        scale = torch.exp(0.5 * self.logvar)
         if prior is not None:
-            # the variance of the posterior should be smaller than 
+            # the variance of the posterior should be smaller than
             # the variance of the prior
             scale = torch.min(scale, prior.scale)
 
@@ -55,34 +53,32 @@ class Tensor2NormalGlobDiagCov(Tensor2PDF):
 
 class Tensor2NormalDiagCov(Tensor2PDF):
     """Transforms a Tensor into Normal distribution
-       
-       Applies two linear transformation to the tensors to 
-       obtain the mean and the log-variance.
+
+    Applies two linear transformation to the tensors to
+    obtain the mean and the log-variance.
     """
 
     def __init__(self):
         super(Tensor2NormalDiagCov, self).__init__()
         self.tensor2pdfparam_factor = 2
 
-
     def forward(self, x, prior=None):
         # stddev
         loc, logvar = x.chunk(2, dim=1)
         logvar = self.logvar(x)
-        scale = torch.exp(0.5*logvar)
+        scale = torch.exp(0.5 * logvar)
         if prior is not None:
-            # the variance of the posterior should be smaller than 
+            # the variance of the posterior should be smaller than
             # the variance of the prior
             scale = torch.min(scale, prior.scale)
 
         return pdf.normal.Normal(loc, scale)
 
 
-
 # class Tensor2NormalDiagCovLin(Tensor2PDF):
 #     """Transforms a Tensor into Normal distribution
-       
-#        Applies two linear transformation to the tensors to 
+
+#        Applies two linear transformation to the tensors to
 #        obtain the mean and the log-variance.
 #     """
 
@@ -104,7 +100,6 @@ class Tensor2NormalDiagCov(Tensor2PDF):
 #             self.logvar = nn.Conv3d(in_shape[-1], out_shape[-1], kernel_size=1)
 #         else:
 #             raise ValueError('ndim=%d is not supported' % ndim)
-            
 
 
 #     def forward(self, x, prior=None):
@@ -113,10 +108,8 @@ class Tensor2NormalDiagCov(Tensor2PDF):
 #         logvar = self.logvar(x)
 #         scale = torch.exp(0.5*logvar)
 #         if prior is not None:
-#             # the variance of the posterior should be smaller than 
+#             # the variance of the posterior should be smaller than
 #             # the variance of the prior
 #             scale = torch.min(scale, prior.scale)
 
 #         return pdf.normal.Normal(loc, scale)
-        
-        

@@ -13,19 +13,24 @@ from ..layers import Dropout1d
 
 
 class ETDNNBlock(nn.Module):
-
-    def __init__(self, in_channels, out_channels, 
-                 kernel_size, dilation=1, 
-                 activation={'name':'relu', 'inplace': True},
-                 dropout_rate=0,
-                 norm_layer=None, use_norm=True, norm_before=False):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        dilation=1,
+        activation={"name": "relu", "inplace": True},
+        dropout_rate=0,
+        norm_layer=None,
+        use_norm=True,
+        norm_before=False,
+    ):
 
         super().__init__()
 
-
         self.activation1 = AF.create(activation)
         self.activation2 = AF.create(activation)
-        padding = int(dilation * (kernel_size - 1)/2)
+        padding = int(dilation * (kernel_size - 1) / 2)
 
         self.dropout_rate = dropout_rate
         self.dropout = None
@@ -47,11 +52,15 @@ class ETDNNBlock(nn.Module):
                 self.norm_after = True
 
         bias = not self.norm_before
-        self.conv1 = Conv1d(in_channels, out_channels, bias=bias,
-                            kernel_size=kernel_size, dilation=dilation, 
-                            padding=padding) 
+        self.conv1 = Conv1d(
+            in_channels,
+            out_channels,
+            bias=bias,
+            kernel_size=kernel_size,
+            dilation=dilation,
+            padding=padding,
+        )
         self.conv2 = Conv1d(out_channels, out_channels, bias=bias, kernel_size=1)
-        
 
     def forward(self, x):
 
@@ -61,7 +70,7 @@ class ETDNNBlock(nn.Module):
             x = self.bn1(x)
 
         x = self.activation1(x)
-        
+
         if self.norm_after:
             x = self.bn1(x)
 
@@ -74,7 +83,7 @@ class ETDNNBlock(nn.Module):
             x = self.bn2(x)
 
         x = self.activation2(x)
-        
+
         if self.norm_after:
             x = self.bn2(x)
 
@@ -82,4 +91,3 @@ class ETDNNBlock(nn.Module):
             x = self.dropout2(x)
 
         return x
-

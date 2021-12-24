@@ -6,5 +6,3 @@
 # t-vectors
 from .tvector import TVector
 from .resnet_tvector import ResNetTVector
-
-

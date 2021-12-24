@@ -10,4 +10,3 @@ from .binary_logistic_regression import BinaryLogisticRegression
 from .greedy_fusion import GreedyFusionBinaryLR
 from .linear_svmc import LinearSVMC
 from .q_scoring_homo_gbe import QScoringHomoGBE
-

@@ -5,6 +5,7 @@
 import torch
 import torch.nn as nn
 
+
 class SwishImplementation(torch.autograd.Function):
     @staticmethod
     def forward(ctx, i):
@@ -27,6 +28,5 @@ class Swish(nn.Module):
         return self.__str__()
 
     def __str__(self):
-        s = '{}()'.format(self.__class__.__name__)
+        s = "{}()".format(self.__class__.__name__)
         return s
-

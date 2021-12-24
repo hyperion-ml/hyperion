@@ -6,6 +6,7 @@
 import torch
 import torch.nn as nn
 
+
 class TorchDataParallel(nn.DataParallel):
     def __getattr__(self, name):
         try:

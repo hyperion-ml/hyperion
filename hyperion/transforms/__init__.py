@@ -18,4 +18,3 @@ from .transform_list import TransformList
 
 from .cent_whiten_up import CentWhitenUP
 from .lnorm_up import LNormUP
-

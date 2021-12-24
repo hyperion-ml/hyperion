@@ -18,6 +18,7 @@ try:
 except ImportError:
     import Queue as queue
 
+
 class SequenceQueue(object):
     """Base class to enqueue inputs.
 
@@ -90,9 +91,7 @@ class OrderedQueue(SequenceQueue):
         scheduling: Sequential querying of datas if 'sequential', random otherwise.
     """
 
-    def __init__(self, sequence,
-                 use_multiprocessing=False,
-                 scheduling='sequential'):
+    def __init__(self, sequence, use_multiprocessing=False, scheduling="sequential"):
         self.sequence = sequence
         self.use_multiprocessing = use_multiprocessing
         self.scheduling = scheduling
@@ -127,14 +126,14 @@ class OrderedQueue(SequenceQueue):
         """Function to submit request to the executor and queue the `Future` objects."""
         sequence = list(range(len(self.sequence)))
         while True:
-            if self.scheduling is not 'sequential':
+            if self.scheduling is not "sequential":
                 random.shuffle(sequence)
             for i in sequence:
                 if self.stop_signal.is_set():
                     return
                 self.queue.put(
-                    self.executor.apply_async(get_index,
-                                              (self.sequence, i)), block=True)
+                    self.executor.apply_async(get_index, (self.sequence, i)), block=True
+                )
 
     def get(self):
         """Creates a generator to extract data from the queue.
@@ -185,10 +184,9 @@ class GeneratorQueue(SequenceQueue):
             will be incremented by one for each workers.
     """
 
-    def __init__(self, generator,
-                 use_multiprocessing=False,
-                 wait_time=0.05,
-                 random_seed=None):
+    def __init__(
+        self, generator, use_multiprocessing=False, wait_time=0.05, random_seed=None
+    ):
         self.wait_time = wait_time
         self._generator = generator
         self._use_multiprocessing = use_multiprocessing
