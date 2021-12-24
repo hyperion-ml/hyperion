@@ -17,7 +17,7 @@ These includes a factory class the creates activation layers from config paramet
 .. autoclass:: hyperion.torch.layers.activation_factory.ActivationFactory
 
 .. autoclass:: hyperion.torch.layers.swish.Swish
-   :inherited-members: torch.nn.Module
+
 		       
 Normalization Layers
 ~~~~~~~~~~~~~~~~~~~~
@@ -348,17 +348,17 @@ These are variants of TDNNs. There is a factory class that creates TDNN networks
 TDNN
 ^^^^
 
-.. autoclass:: hyperion.torch.narchs.tdnn.TDNN
+.. autoclass:: hyperion.torch.narchs.tdnn.TDNNV1
 
 E-TDNN
 ^^^^^^
 
-.. autoclass:: hyperion.torch.narchs.etdnn.ETDNN
+.. autoclass:: hyperion.torch.narchs.etdnn.ETDNNV1
 
 Residual E-TDNN
 ^^^^^^^^^^^^^^^
 
-.. autoclass:: hyperion.torch.narchs.resetdnn.ResETDNN
+.. autoclass:: hyperion.torch.narchs.resetdnn.ResETDNNV1
 
 
 Cannonical ResNets/SE-ResNets/Res2Nets
@@ -420,7 +420,7 @@ Transformer
 Conformer
 ~~~~~~~~~~~
 
-.. autoclass:: hyperion.torch.narchs.transformer_encoder_v1.ConformerEncoderV1
+.. autoclass:: hyperion.torch.narchs.conformer_encoder_v1.ConformerEncoderV1
 
 
 Models
@@ -449,14 +449,14 @@ x-Vectors with Cannonical ResNet, Res2Net Encoders.
 
 
 SpineNet x-Vector
-^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^
 
 x-Vectors with SpineNet, Spine2Net Encoders.
 
-.. autoclass:: hyperion.torch.models.xvectors.spinet_xvector.SpineNetXVector
+.. autoclass:: hyperion.torch.models.xvectors.spinenet_xvector.SpineNetXVector
 
 ResNet 1d x-Vector
-^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^
 
 x-Vectors with ResNet, Res2Net 1d Encoders. It can be cofigured as ECAPA-TDNN
 
@@ -464,7 +464,7 @@ x-Vectors with ResNet, Res2Net 1d Encoders. It can be cofigured as ECAPA-TDNN
 
 
 Transfomer x-Vector
-^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^
 
 x-Vectors based on Transformer Encoder
 
@@ -613,9 +613,9 @@ Embedding Datasets
 Samplers
 ~~~~~~~~
 
-.. autoclass:: hyperion.torch.data.weighted_seq_sampler.WeightedSeqSampler
+.. automodule:: hyperion.torch.data.weighted_seq_sampler
 
-.. autoclass:: hyperion.torch.data.weighted_embed_sampler.WeightedEmbedSampler
+.. automodule:: hyperion.torch.data.weighted_embed_sampler
 
 Data Transformations
 ~~~~~~~~~~~~~~~~~~~~
@@ -648,11 +648,11 @@ Custom LR Schedulers
 
 .. autoclass:: hyperion.torch.lr_schedulers.red_lr_on_plateau.ReduceLROnPlateau
 
-.. autoclass:: hyperion.torch.lr_schedulers.exp_lr.ExpLR
+.. autoclass:: hyperion.torch.lr_schedulers.exp_lr.ExponentialLR
 
 .. autoclass:: hyperion.torch.lr_schedulers.invpow_lr.InvPowLR
 
-.. autoclass:: hyperion.torch.lr_schedulers.cos_lr.CosLR
+.. autoclass:: hyperion.torch.lr_schedulers.cos_lr.CosineLR
 	       
 
 LR Scheduler Factory
