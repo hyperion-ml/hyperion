@@ -13,5 +13,5 @@ jobs:
       - uses: actions/checkout@v2
       - uses: psf/black@stable
         with:
-          options: "--check --diff --color ./hyperion"
+          args: "--check --diff --color ./hyperion"
           version: "21.10b0"
