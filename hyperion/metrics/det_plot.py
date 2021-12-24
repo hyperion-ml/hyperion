@@ -4,5 +4,3 @@
 """
 
 import numpy as np
-
-

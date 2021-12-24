@@ -14,5 +14,3 @@ from .ext_segment_list import ExtSegmentList
 from .segment_list import SegmentList
 from .kaldi_matrix import KaldiMatrix, KaldiCompressedMatrix
 from .rttm import RTTM
-
-

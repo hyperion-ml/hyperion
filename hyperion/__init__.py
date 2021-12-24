@@ -4,7 +4,6 @@
 """
 
 
-
 from . import utils
 from . import metrics
 from . import pdfs
@@ -13,8 +12,10 @@ from . import io
 from . import feats
 from . import calibration
 from . import score_norm
-#from . import keras
-from . import helpers
-#from . import generators
 
-__version__ = '0.1.0'
+# from . import keras
+from . import helpers
+
+# from . import generators
+
+__version__ = "0.1.0"

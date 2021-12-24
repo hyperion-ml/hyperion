@@ -11,4 +11,3 @@ from .mfcc import MFCC
 from .energy_vad import EnergyVAD
 from .frame_selector import FrameSelector
 from .feature_normalization import MeanVarianceNorm
-

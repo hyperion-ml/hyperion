@@ -12,16 +12,14 @@ import torch.nn.functional as nnf
 
 
 class BCEWithLLR(nn.Module):
-
     def __init__(self, p_tar=0.5):
         super().__init__()
         self.p_tar = p_tar
-        self.logit_ptar = math.log(p_tar/(1-p_tar))
-
+        self.logit_ptar = math.log(p_tar / (1 - p_tar))
 
     # def forward(self, x, y, is_selfsim=False, is_sim=False, y2=None):
     #     # logging.info('{} {}'.format(x.shape[0], y.shape[0]))
-    #     if is_selfsim or is_sim: 
+    #     if is_selfsim or is_sim:
     #         assert x.dim() > 1
     #         # x is a full score matrix
     #         # y contains the labels of the rows
@@ -35,7 +33,7 @@ class BCEWithLLR(nn.Module):
     #         y[y!=1] = 0
     #         if is_selfsim:
     #             #if it is selfsim we only use the upper trianglaur
-    #             mask=torch.triu(torch.ones_like(x, dtype=torch.bool), 
+    #             mask=torch.triu(torch.ones_like(x, dtype=torch.bool),
     #                             diagonal=1)
     #             x = x[mask]
     #             y = y[mask]
@@ -55,19 +53,15 @@ class BCEWithLLR(nn.Module):
     #         x, y, weight=weight, reduction='mean')
     #     return loss
 
-
     def forward(self, x, y):
         y = y.float()
         ntar = torch.mean(y, dim=0)
-        nnon = torch.mean(1-y, dim=0)
+        nnon = torch.mean(1 - y, dim=0)
         weight_tar = self.p_tar / ntar
         weight_non = (1 - self.p_tar) / nnon
         x = x + self.logit_ptar
-        weight = y * weight_tar + (1-y) * weight_non
+        weight = y * weight_tar + (1 - y) * weight_non
         loss = nnf.binary_cross_entropy_with_logits(
-            x, y, weight=weight, reduction='mean')
+            x, y, weight=weight, reduction="mean"
+        )
         return loss
-
-
-            
-            

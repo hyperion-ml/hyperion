@@ -9,9 +9,8 @@ import torch.nn as nn
 
 from ..torch_model import TorchModel
 
+
 class NetArch(TorchModel):
-
-
     def in_context(self):
         return 0
 
@@ -26,4 +25,3 @@ class NetArch(TorchModel):
 
     def out_shape(self, in_shape=None):
         raise NotImplementedError()
-

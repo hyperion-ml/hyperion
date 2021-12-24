@@ -4,13 +4,13 @@
 """
 
 
-
 import math
 import logging
 
 import torch
 
 from .lr_scheduler import LRScheduler
+
 
 class CosineLR(LRScheduler):
     r"""Set the learning rate of each parameter group using a cosine annealing
@@ -25,7 +25,7 @@ class CosineLR(LRScheduler):
     When epoch=-1, sets initial lr as lr.
 
     It has been proposed in
-    `SGDR: Stochastic Gradient Descent with Warm Restarts`_. 
+    `SGDR: Stochastic Gradient Descent with Warm Restarts`_.
 
     Args:
         optimizer (Optimizer): Wrapped optimizer.
@@ -37,12 +37,25 @@ class CosineLR(LRScheduler):
         https://arxiv.org/abs/1608.03983
     """
 
-    def __init__(self, optimizer, T, T_mul=1, min_lr=0, warmup_steps=0,
-                 warm_restarts=False, gamma=1, last_restart=0, num_restarts = 0, 
-                 epoch=0, step=0, update_lr_on_opt_step=False):
+    def __init__(
+        self,
+        optimizer,
+        T,
+        T_mul=1,
+        min_lr=0,
+        warmup_steps=0,
+        warm_restarts=False,
+        gamma=1,
+        last_restart=0,
+        num_restarts=0,
+        epoch=0,
+        step=0,
+        update_lr_on_opt_step=False,
+    ):
 
-        super(CosineLR, self).__init__(optimizer, min_lr, warmup_steps,
-                                       epoch, step, update_lr_on_opt_step)
+        super(CosineLR, self).__init__(
+            optimizer, min_lr, warmup_steps, epoch, step, update_lr_on_opt_step
+        )
         self.T = T
         self.T_mul = T_mul
         self.warm_restarts = warm_restarts
@@ -50,18 +63,15 @@ class CosineLR(LRScheduler):
         self.num_restarts = num_restarts
         self.gamma = gamma
 
-
     def on_epoch_begin(self, epoch=None, epoch_updates=1, **kwargs):
         super(CosineLR, self).on_epoch_begin(epoch)
         if self.update_lr_on_opt_step:
             # T has to correspond to an integer number of epochs
-            T = int(math.ceil(self.T/epoch_updates)*epoch_updates)
+            T = int(math.ceil(self.T / epoch_updates) * epoch_updates)
             if self.T != T:
-                logging.info('readjusting cos_lr T %d -> %d' % (self.T, T))
+                logging.info("readjusting cos_lr T %d -> %d" % (self.T, T))
                 self.T = T
-            
-        
-            
+
     def get_lr(self, step):
         x = step - self.last_restart
         # if x >= self.T and self.update_lr_on_opt_step and self.warm_restarts:
@@ -69,24 +79,26 @@ class CosineLR(LRScheduler):
         #     if self.epoch == 0:
         #         self.T = x + 1
         #         logging.info('readjusting cos_lr T to %d' % (self.T))
-        #logging.info('cos-get-lr step=%d last=%d T=%d' % (step, self.last_restart, self.T))
+        # logging.info('cos-get-lr step=%d last=%d T=%d' % (step, self.last_restart, self.T))
         if x >= self.T:
             if self.warm_restarts:
                 self.last_restart = step
                 x = 0
                 self.T *= self.T_mul
                 self.num_restarts += 1
-                logging.info('cos_lr warm-restart=%d T=%d' % (self.num_restarts, self.T))
+                logging.info(
+                    "cos_lr warm-restart=%d T=%d" % (self.num_restarts, self.T)
+                )
             else:
                 return self.min_lrs
 
         alpha = self.gamma ** self.num_restarts
-        r = math.pi/self.T
+        r = math.pi / self.T
 
-        return [eta_min + (alpha*eta_max - eta_min) *
-                (1 + math.cos(r * x)) / 2
-                for eta_max, eta_min in zip(self.base_lrs, self.min_lrs)]
-
+        return [
+            eta_min + (alpha * eta_max - eta_min) * (1 + math.cos(r * x)) / 2
+            for eta_max, eta_min in zip(self.base_lrs, self.min_lrs)
+        ]
 
     # def epoch_end_step(self, metrics=None):
     #     if self.epoch==0 and self.update_lr_on_opt_step and self.warm_restarts:
@@ -96,14 +108,34 @@ class CosineLR(LRScheduler):
 
 
 class AdamCosineLR(CosineLR):
-
-    def __init__(self, optimizer, T=1, T_mul=2, warmup_steps=0,
-                 warm_restarts=False, gamma=1, last_restart=0, num_restarts = 0, 
-                 epoch=-1, step=-1, update_lr_on_opt_step=False):
-        super(AdamCosineLR, super).__init__(optimizer, T, T_mul, 0, warmup_steps,
-                 warm_restarts, last_restart, num_restarts, gamma,
-                 epoch, step, update_lr_on_opt_step)
-
+    def __init__(
+        self,
+        optimizer,
+        T=1,
+        T_mul=2,
+        warmup_steps=0,
+        warm_restarts=False,
+        gamma=1,
+        last_restart=0,
+        num_restarts=0,
+        epoch=-1,
+        step=-1,
+        update_lr_on_opt_step=False,
+    ):
+        super(AdamCosineLR, super).__init__(
+            optimizer,
+            T,
+            T_mul,
+            0,
+            warmup_steps,
+            warm_restarts,
+            last_restart,
+            num_restarts,
+            gamma,
+            epoch,
+            step,
+            update_lr_on_opt_step,
+        )
 
     def get_lr(self, step):
         x = step - self.last_restart
@@ -117,7 +149,8 @@ class AdamCosineLR(CosineLR):
                 return self.min_lrs
 
         alpha = gamma ** self.num_restarts
-        r = math.pi/self.T
-            
-        return [alpha * base_lr * 0.5 * (1 + math.cos(r * x))
-                for base_lr in self.base_lrs]
+        r = math.pi / self.T
+
+        return [
+            alpha * base_lr * 0.5 * (1 + math.cos(r * x)) for base_lr in self.base_lrs
+        ]

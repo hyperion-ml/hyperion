@@ -17,11 +17,12 @@ import yaml
 from hyperion.hyp_defs import float_cpu, config_logger
 from hyperion.utils import Utt2Info, SCPList
 
-snr_levels = np.arange(0,65,10)
+snr_levels = np.arange(0, 65, 10)
+
 
 def quant_snr(snr):
-    q = np.argmin((snr_levels - snr)**2)
-    q_str = 'snr-%d' % (int(snr_levels[q]))
+    q = np.argmin((snr_levels - snr) ** 2)
+    q_str = "snr-%d" % (int(snr_levels[q]))
     return q_str
 
 
@@ -32,34 +33,34 @@ def make_lists(input_dir, benign_wav_file, benign_durs, output_dir):
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    with open(input_dir / 'train_attack_info.yml', 'r') as f:
+    with open(input_dir / "train_attack_info.yml", "r") as f:
         train_attacks = yaml.load(f, Loader=yaml.FullLoader)
 
-    with open(input_dir / 'val_attack_info.yml', 'r') as f:
+    with open(input_dir / "val_attack_info.yml", "r") as f:
         val_attacks = yaml.load(f, Loader=yaml.FullLoader)
 
-    with open(input_dir / 'test_attack_info.yml', 'r') as f:
+    with open(input_dir / "test_attack_info.yml", "r") as f:
         test_attacks = yaml.load(f, Loader=yaml.FullLoader)
 
     k2w = SCPList.load(benign_wav_file)
     u2d = Utt2Info.load(benign_durs)
-        
+
     keys = []
     files = []
     classes = []
     benign_keys = []
     durs = []
-    for k,v in train_attacks.items():
+    for k, v in train_attacks.items():
         keys.append(k)
-        files.append(v['wav_path'])
-        classes.append(quant_snr(v['snr']))
-        benign_keys.append(v['benign_key'])
-        durs.append(v['num_frames']/16000)
+        files.append(v["wav_path"])
+        classes.append(quant_snr(v["snr"]))
+        benign_keys.append(v["benign_key"])
+        durs.append(v["num_frames"] / 16000)
 
     benign_keys = np.unique(benign_keys)
     for k in benign_keys:
         keys.append(k)
-        classes.append('benign')
+        classes.append("benign")
         files.append(k2w[k][0])
         durs.append(u2d[k])
 
@@ -75,17 +76,17 @@ def make_lists(input_dir, benign_wav_file, benign_durs, output_dir):
     classes = []
     benign_keys = []
     durs = []
-    for k,v in val_attacks.items():
+    for k, v in val_attacks.items():
         keys.append(k)
-        files.append(v['wav_path'])
-        classes.append(quant_snr(v['snr']))
-        benign_keys.append(v['benign_key'])
-        durs.append(v['num_frames']/16000)
+        files.append(v["wav_path"])
+        classes.append(quant_snr(v["snr"]))
+        benign_keys.append(v["benign_key"])
+        durs.append(v["num_frames"] / 16000)
 
     benign_keys = np.unique(benign_keys)
     for k in benign_keys:
         keys.append(k)
-        classes.append('benign')
+        classes.append("benign")
         files.append(k2w[k][0])
         durs.append(u2d[k])
 
@@ -100,17 +101,17 @@ def make_lists(input_dir, benign_wav_file, benign_durs, output_dir):
     classes = []
     benign_keys = []
     durs = []
-    for k,v in test_attacks.items():
+    for k, v in test_attacks.items():
         keys.append(k)
-        files.append(v['wav_path'])
-        classes.append(quant_snr(v['snr']))
-        benign_keys.append(v['benign_key'])
-        durs.append(v['num_frames']/16000)
+        files.append(v["wav_path"])
+        classes.append(quant_snr(v["snr"]))
+        benign_keys.append(v["benign_key"])
+        durs.append(v["num_frames"] / 16000)
 
     benign_keys = np.unique(benign_keys)
     for k in benign_keys:
         keys.append(k)
-        classes.append('benign')
+        classes.append("benign")
         files.append(k2w[k][0])
         durs.append(u2d[k])
 
@@ -123,40 +124,42 @@ def make_lists(input_dir, benign_wav_file, benign_durs, output_dir):
     trainval_u2d = Utt2Info.merge([train_u2d, val_u2d])
 
     #####
-    train_u2c.save(output_dir / 'train_utt2attack')
-    val_u2c.save(output_dir / 'val_utt2attack')
-    test_u2c.save(output_dir / 'test_utt2attack')
+    train_u2c.save(output_dir / "train_utt2attack")
+    val_u2c.save(output_dir / "val_utt2attack")
+    test_u2c.save(output_dir / "test_utt2attack")
 
-    train_wav.save(output_dir / 'train_wav.scp')
-    val_wav.save(output_dir / 'val_wav.scp')
-    trainval_wav.save(output_dir / 'trainval_wav.scp')
-    test_wav.save(output_dir / 'test_wav.scp')
+    train_wav.save(output_dir / "train_wav.scp")
+    val_wav.save(output_dir / "val_wav.scp")
+    trainval_wav.save(output_dir / "trainval_wav.scp")
+    test_wav.save(output_dir / "test_wav.scp")
 
-    train_u2d.save(output_dir / 'train_utt2dur')
-    val_u2d.save(output_dir / 'val_utt2dur')
-    trainval_u2d.save(output_dir / 'trainval_utt2dur')
-    test_u2d.save(output_dir / 'test_utt2dur')
+    train_u2d.save(output_dir / "train_utt2dur")
+    val_u2d.save(output_dir / "val_utt2dur")
+    trainval_u2d.save(output_dir / "trainval_utt2dur")
+    test_u2d.save(output_dir / "test_utt2dur")
 
-    with open(output_dir / 'class2int', 'w') as f:
+    with open(output_dir / "class2int", "w") as f:
         for c in uclasses:
-            f.write('%s\n' % (c))
-    
+            f.write("%s\n" % (c))
+
 
 if __name__ == "__main__":
 
-    parser=argparse.ArgumentParser(
+    parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        fromfile_prefix_chars='@',
-        description='prepare lists to train nnet to discriminate between attacks snr and benign speech')
+        fromfile_prefix_chars="@",
+        description="prepare lists to train nnet to discriminate between attacks snr and benign speech",
+    )
 
-    parser.add_argument('--input-dir', required=True)
-    parser.add_argument('--benign-wav-file', required=True)
-    parser.add_argument('--benign-durs', required=True)
-    parser.add_argument('--output-dir', required=True)
-    parser.add_argument('-v', '--verbose', dest='verbose', default=1,
-                        choices=[0, 1, 2, 3], type=int)
-        
-    args=parser.parse_args()
+    parser.add_argument("--input-dir", required=True)
+    parser.add_argument("--benign-wav-file", required=True)
+    parser.add_argument("--benign-durs", required=True)
+    parser.add_argument("--output-dir", required=True)
+    parser.add_argument(
+        "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
+    )
+
+    args = parser.parse_args()
     config_logger(args.verbose)
     del args.verbose
     logging.debug(args)

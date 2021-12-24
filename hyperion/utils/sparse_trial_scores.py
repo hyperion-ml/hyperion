@@ -10,7 +10,8 @@ import copy
 
 import numpy as np
 import scipy.sparse as sparse
-#import h5py
+
+# import h5py
 
 from ..hyp_defs import float_cpu
 from .list_utils import *
@@ -22,9 +23,9 @@ from .trial_scores import TrialScores
 
 class SparseTrialScores(TrialScores):
 
-    """ Contains the scores for the speaker recognition trials.
+    """Contains the scores for the speaker recognition trials.
         Bosaris compatible Scores.
-    
+
     Attributes:
       model_set: List of model names.
       seg_set: List of test segment names.
@@ -35,10 +36,8 @@ class SparseTrialScores(TrialScores):
     def __init__(self, model_set=None, seg_set=None, scores=None, score_mask=None):
         super(SparseTrialScores, self).__init__(model_set, seg_set, scores, score_mask)
 
-
     def save_h5(self, file_path):
         raise NotImplementedError()
-
 
     def save_txt(self, file_path):
         """Saves object to txt file.
@@ -48,17 +47,16 @@ class SparseTrialScores(TrialScores):
         """
         self.score_mask.eliminate_zeros()
         score_mask = self.score_mask.tocoo()
-        with open(file_path, 'w') as f:
+        with open(file_path, "w") as f:
             for r, c in zip(score_mask.row, score_mask.col):
-                f.write('%s %s %f\n' %
-                        (self.model_set[r], self.seg_set[c],
-                         self.scores[r, c]))
-
+                f.write(
+                    "%s %s %f\n"
+                    % (self.model_set[r], self.seg_set[c], self.scores[r, c])
+                )
 
     @classmethod
     def load_h5(cls, file_path):
         raise NotImplementedError()
-
 
     @classmethod
     def load_txt(cls, file_path):
@@ -70,36 +68,35 @@ class SparseTrialScores(TrialScores):
         Returns:
           SparseTrialScores object.
         """
-        with open(file_path, 'r') as f:
+        with open(file_path, "r") as f:
             fields = [line.split() for line in f]
 
         models = [i[0] for i in fields]
         segments = [i[1] for i in fields]
         scores_v = np.array([i[2] for i in fields])
-        
+
         model_set, _, model_idx = np.unique(
-            models, return_index=True, return_inverse=True)
+            models, return_index=True, return_inverse=True
+        )
         seg_set, _, seg_idx = np.unique(
-            segments, return_index=True, return_inverse=True)
+            segments, return_index=True, return_inverse=True
+        )
 
         scores = sparse.lil_matrix((len(model_set), len(seg_set)), dtype=float_cpu())
-        score_mask = sparse.lil_matrix(scores.shape, dtype='bool')
+        score_mask = sparse.lil_matrix(scores.shape, dtype="bool")
         for item in zip(model_idx, seg_idx, scores_v):
             score_mask[item[0], item[1]] = True
             scores[item[0], item[1]] = item[2]
         return cls(model_set, seg_set, scores.tocsr(), score_mask.tocsr())
 
-
     @classmethod
     def merge(cls, scr_list):
         raise NotImplementedError()
 
-
-
     def split(self, model_idx, num_model_parts, seg_idx, num_seg_parts):
-        """Splits the TrialScores into num_model_parts x num_seg_parts and returns part 
+        """Splits the TrialScores into num_model_parts x num_seg_parts and returns part
            (model_idx, seg_idx).
- 
+
         Args:
           model_idx: Model index of the part to return from 1 to num_model_parts.
           num_model_parts: Number of parts to split the model list.
@@ -110,47 +107,38 @@ class SparseTrialScores(TrialScores):
           Subpart of the TrialScores
         """
 
-        model_set, model_idx1 = split_list(self.model_set,
-                                           model_idx, num_model_parts)
-        seg_set, seg_idx1 = split_list(self.seg_set,
-                                       seg_idx, num_seg_parts)
+        model_set, model_idx1 = split_list(self.model_set, model_idx, num_model_parts)
+        seg_set, seg_idx1 = split_list(self.seg_set, seg_idx, num_seg_parts)
         ix = np.ix_(model_idx1, seg_idx1)
         scores = self.scores[ix]
         score_mask = self.score_mask[ix]
         return SparseTrialScores(model_set, seg_set, scores, score_mask)
 
-
-
     def validate(self):
-        """Validates the attributes of the TrialKey object.
-        """
+        """Validates the attributes of the TrialKey object."""
         self.model_set = list2ndarray(self.model_set)
         self.seg_set = list2ndarray(self.seg_set)
 
         assert len(np.unique(self.model_set)) == len(self.model_set)
-        assert len(np.unique(self.seg_set)) == len(self.seg_set) 
+        assert len(np.unique(self.seg_set)) == len(self.seg_set)
         if self.scores is None:
             self.scores = sparse.csr_matrix(
-                (len(model_set), len(seg_set)), dtype=float_cpu())
+                (len(model_set), len(seg_set)), dtype=float_cpu()
+            )
         else:
-            assert (self.scores.shape ==
-                   (len(self.model_set), len(self.seg_set)))
+            assert self.scores.shape == (len(self.model_set), len(self.seg_set))
             assert np.all(np.isfinite(self.scores.data))
 
         if self.score_mask is None:
             self.score_mask = sparse.csr_matrix(
-                np.ones((len(self.model_set), len(self.seg_set)),
-                        dtype='bool'))
+                np.ones((len(self.model_set), len(self.seg_set)), dtype="bool")
+            )
         else:
-            assert (self.score_mask.shape ==
-                    (len(self.model_set), len(self.seg_set)))
+            assert self.score_mask.shape == (len(self.model_set), len(self.seg_set))
 
-
-
-    
     def filter(self, model_set, seg_set, keep=True, raise_missing=True):
         """Removes elements from TrialScores object.
-        
+
         Args:
           model_set: List of models to keep or remove.
           seg_set: List of test segments to keep or remove.
@@ -162,24 +150,24 @@ class SparseTrialScores(TrialScores):
           Filtered TrialScores object.
         """
 
-        if not(keep):
-            model_set=np.setdiff1d(self.model_set, model_set)
-            seg_set=np.setdiff1d(self.model_set, seg_set)
+        if not (keep):
+            model_set = np.setdiff1d(self.model_set, model_set)
+            seg_set = np.setdiff1d(self.model_set, seg_set)
 
         f_mod, mod_idx = ismember(model_set, self.model_set)
         f_seg, seg_idx = ismember(seg_set, self.seg_set)
 
         if not (np.all(f_mod) and np.all(f_seg)):
-            for i in (f_mod==0).nonzero()[0]:
-                logging.info('model %s not found' % model_set[i])
-            for i in (f_seg==0).nonzero()[0]:
-                logging.info('segment %s not found' % seg_set[i])
+            for i in (f_mod == 0).nonzero()[0]:
+                logging.info("model %s not found" % model_set[i])
+            for i in (f_seg == 0).nonzero()[0]:
+                logging.info("segment %s not found" % seg_set[i])
             if raise_missing:
-                raise Exception('some scores were not computed')
+                raise Exception("some scores were not computed")
 
-        #model_set = self.model_set[mod_idx]
-        #set_set = self.seg_set[seg_idx]
-        #ix = np.ix_(mod_idx, seg_idx)
+        # model_set = self.model_set[mod_idx]
+        # set_set = self.seg_set[seg_idx]
+        # ix = np.ix_(mod_idx, seg_idx)
 
         # logging.info('hola1')
         # new_src = [[self.scores[r,c], i, j] for i,r in enumerate(mod_idx) for j,c in enumerate(seg_idx) if self.score_mask[r,c]]
@@ -198,18 +186,18 @@ class SparseTrialScores(TrialScores):
         scores = self.scores.tocoo()
         new_data = scores.data
         new_row = scores.row.copy()
-        for i,r in enumerate(mod_idx):
+        for i, r in enumerate(mod_idx):
             if f_mod[i] and i != r:
                 idx = scores.row == r
                 new_row[idx] = i
 
         new_col = scores.col.copy()
-        for j,c in enumerate(seg_idx):
+        for j, c in enumerate(seg_idx):
             if f_seg[j] and j != c:
                 idx = scores.col == c
                 new_col[idx] = j
 
-        idx = np.logical_and(new_row<num_mod, new_col<num_seg)
+        idx = np.logical_and(new_row < num_mod, new_col < num_seg)
         if not np.all(idx):
             new_data = new_data[idx]
             new_row = new_row[idx]
@@ -220,41 +208,43 @@ class SparseTrialScores(TrialScores):
         score_mask = self.score_mask.tocoo()
         new_data = score_mask.data
         new_row = score_mask.row.copy()
-        for i,r in enumerate(mod_idx):
+        for i, r in enumerate(mod_idx):
             if f_mod[i] and i != r:
                 idx = score_mask.row == r
                 new_row[idx] = i
 
         new_col = score_mask.col.copy()
-        for j,c in enumerate(seg_idx):
+        for j, c in enumerate(seg_idx):
             if f_seg[j] and j != c:
                 idx = score_mask.col == c
                 new_col[idx] = j
 
-        idx = np.logical_and(new_row<num_mod, new_col<num_seg)
+        idx = np.logical_and(new_row < num_mod, new_col < num_seg)
         if not np.all(idx):
             new_data = new_data[idx]
             new_row = new_row[idx]
             new_col = new_col[idx]
 
-        score_mask = sparse.coo_matrix((new_data, (new_row, new_col)), shape=shape).tocsr()
-            
+        score_mask = sparse.coo_matrix(
+            (new_data, (new_row, new_col)), shape=shape
+        ).tocsr()
+
         return SparseTrialScores(model_set, seg_set, scores, score_mask)
-
-
 
     def align_with_ndx(self, ndx, raise_missing=True):
         """Aligns scores, model_set and seg_set with TrialNdx or TrialKey.
 
         Args:
           ndx: TrialNdx or TrialKey object.
-          raise_missing: Raises exception if there are trials in ndx that are not 
+          raise_missing: Raises exception if there are trials in ndx that are not
                          in the score object.
 
         Returns:
           Aligned TrialScores object.
         """
-        scr = self.filter(ndx.model_set, ndx.seg_set, keep=True, raise_missing=raise_missing)
+        scr = self.filter(
+            ndx.model_set, ndx.seg_set, keep=True, raise_missing=raise_missing
+        )
         if isinstance(ndx, TrialNdx):
             mask = sparse.csr_matrix(ndx.trial_mask)
         elif isinstance(ndx, SparseTrialKey):
@@ -263,31 +253,30 @@ class SparseTrialScores(TrialScores):
             mask = sparse.csr_matrix(np.logical_or(ndx.tar, ndx.non))
         else:
             raise Exception()
-        
+
         mask.eliminate_zeros()
         scr.score_mask = mask.multiply(scr.score_mask)
-        
+
         mask = mask.tocoo()
         missing_scores = False
-        for d,r,c in zip(mask.data, mask.row, mask.col):
+        for d, r, c in zip(mask.data, mask.row, mask.col):
             if not scr.score_mask[r, c]:
                 missing_scores = True
-                logging.info('missing-scores for %s %s' %
-                             (scr.model_set[r], scr.seg_set[c]))
-                
+                logging.info(
+                    "missing-scores for %s %s" % (scr.model_set[r], scr.seg_set[c])
+                )
+
         if missing_scores and raise_missing:
-            raise Exception('some scores were not computed')
+            raise Exception("some scores were not computed")
 
         return scr
 
-
-
     def get_tar_non(self, key):
         """Returns target and non target scores.
-        
+
         Args:
           key: TrialKey object.
-        
+
         Returns:
           Numpy array with target scores.
           Numpy array with non-target scores.
@@ -299,7 +288,6 @@ class SparseTrialScores(TrialScores):
         non = np.array(scr.scores[non_mask])[0]
         return tar, non
 
-
     @classmethod
     def from_trial_scores(cls, scr):
         scores = sparse.csr_matrix(scr.scores)
@@ -307,7 +295,6 @@ class SparseTrialScores(TrialScores):
         scores.eliminate_zeros()
         score_mask.eliminate_zeros()
         return cls(scr.model_set, scr.seg_set, scores, score_mask)
-
 
     def set_missing_to_value(self, ndx, val):
         """Aligns the scores with a TrialNdx and sets the trials with missing
@@ -329,7 +316,7 @@ class SparseTrialScores(TrialScores):
             mask = sparse.csr_matrix(np.logical_or(ndx.tar, ndx.non))
         else:
             raise Exception()
-        
+
         mask.eliminate_zeros()
         mask_coo = mask.tocoo()
         for r, c in zip(mask_coo.row, mask_coo.col):
@@ -339,7 +326,6 @@ class SparseTrialScores(TrialScores):
         scr.score_mask = mask
         return scr
 
-        
     def __eq__(self, other):
         """Equal operator"""
         eq = self.model_set.shape == other.model_set.shape

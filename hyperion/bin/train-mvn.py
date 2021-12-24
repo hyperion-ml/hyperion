@@ -21,9 +21,17 @@ from hyperion.pdfs.core import Normal
 from hyperion.transforms import TransformList, MVN, SbSw
 
 
-def train_mvn(iv_file, train_list, preproc_file,
-              name, save_tlist, append_tlist, output_path, **kwargs):
-    
+def train_mvn(
+    iv_file,
+    train_list,
+    preproc_file,
+    name,
+    save_tlist,
+    append_tlist,
+    output_path,
+    **kwargs
+):
+
     if preproc_file is not None:
         preproc = TransformList.load(preproc_file)
     else:
@@ -38,8 +46,8 @@ def train_mvn(iv_file, train_list, preproc_file,
     model = MVN(name=name)
     model.fit(x)
 
-    logging.info('Elapsed time: %.2f s.' % (time.time()-t1))
-    
+    logging.info("Elapsed time: %.2f s." % (time.time() - t1))
+
     if save_tlist:
         if append_tlist and preproc is not None:
             preproc.append(model)
@@ -48,34 +56,36 @@ def train_mvn(iv_file, train_list, preproc_file,
             model = TransformList(model)
 
     model.save(output_path)
-        
-    
-    
+
+
 if __name__ == "__main__":
 
-    parser=argparse.ArgumentParser(
+    parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        fromfile_prefix_chars='@',
-        description='Train Global Mean and Variance Normalization')
+        fromfile_prefix_chars="@",
+        description="Train Global Mean and Variance Normalization",
+    )
 
-    parser.add_argument('--iv-file', dest='iv_file', required=True)
-    parser.add_argument('--train-list', dest='train_list', required=True)
-    parser.add_argument('--preproc-file', dest='preproc_file', default=None)
+    parser.add_argument("--iv-file", dest="iv_file", required=True)
+    parser.add_argument("--train-list", dest="train_list", required=True)
+    parser.add_argument("--preproc-file", dest="preproc_file", default=None)
     VR.add_argparse_args(parser)
 
-    parser.add_argument('--output-path', dest='output_path', required=True)
-    parser.add_argument('--no-save-tlist', dest='save_tlist',
-                        default=True, action='store_false')
-    parser.add_argument('--no-append-tlist', dest='append_tlist', 
-                        default=True, action='store_false')
-    parser.add_argument('--name', dest='name', default='mvn')
-    parser.add_argument('-v', '--verbose', dest='verbose', default=1, choices=[0, 1, 2, 3], type=int)
-    
-    args=parser.parse_args()
+    parser.add_argument("--output-path", dest="output_path", required=True)
+    parser.add_argument(
+        "--no-save-tlist", dest="save_tlist", default=True, action="store_false"
+    )
+    parser.add_argument(
+        "--no-append-tlist", dest="append_tlist", default=True, action="store_false"
+    )
+    parser.add_argument("--name", dest="name", default="mvn")
+    parser.add_argument(
+        "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
+    )
+
+    args = parser.parse_args()
     config_logger(args.verbose)
     del args.verbose
     logging.debug(args)
-    
-    train_mvn(**vars(args))
 
-            
+    train_mvn(**vars(args))

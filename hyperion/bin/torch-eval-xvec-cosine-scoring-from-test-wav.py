@@ -6,7 +6,12 @@
 
 import sys
 import os
-from jsonargparse import ArgumentParser, ActionConfigFile, ActionParser, namespace_to_dict
+from jsonargparse import (
+    ArgumentParser,
+    ActionConfigFile,
+    ActionParser,
+    namespace_to_dict,
+)
 import time
 import logging
 
@@ -31,35 +36,35 @@ from hyperion.torch import TorchModelLoader as TML
 
 
 def init_device(use_gpu):
-    set_float_cpu('float32')
+    set_float_cpu("float32")
     num_gpus = 1 if use_gpu else 0
-    logging.info('initializing devices num_gpus={}'.format(num_gpus))
+    logging.info("initializing devices num_gpus={}".format(num_gpus))
     device = open_device(num_gpus=num_gpus)
     return device
 
 
 def init_feats(device, **kwargs):
-    feat_args = AF.filter_args(**kwargs['feats'])
-    logging.info('feat args={}'.format(feat_args))
-    logging.info('initializing feature extractor')
+    feat_args = AF.filter_args(**kwargs["feats"])
+    logging.info("feat args={}".format(feat_args))
+    logging.info("initializing feature extractor")
     feat_extractor = AF(trans=False, **feat_args)
-    logging.info('feat-extractor={}'.format(feat_extractor))
+    logging.info("feat-extractor={}".format(feat_extractor))
     feat_extractor.eval()
     feat_extractor.to(device)
     return feat_extractor
 
 
 def load_model(model_path, device):
-    logging.info('loading model {}'.format(model_path))
+    logging.info("loading model {}".format(model_path))
     model = TML.load(model_path)
-    logging.info('xvector-model={}'.format(model))
+    logging.info("xvector-model={}".format(model))
     model.to(device)
     model.eval()
     return model
 
 
 def load_calibrator(cal_file, device):
-    logging.info('loading calibration params {}'.format(cal_file))
+    logging.info("loading calibration params {}".format(cal_file))
     lr = LR.load(cal_file)
     calibrator = Calibrator(lr.A[0, 0], lr.b[0])
     calibrator.to(device)
@@ -89,10 +94,23 @@ def read_data(v_file, ndx_file, enroll_file, seg_part_idx, num_seg_parts):
     return ndx, x_e
 
 
-def eval_cosine_scoring(v_file, ndx_file, enroll_file, test_wav_file, vad_spec,
-                        vad_path_prefix, model_path, embed_layer, score_file,
-                        cal_file, max_test_length, use_gpu, seg_part_idx,
-                        num_seg_parts, **kwargs):
+def eval_cosine_scoring(
+    v_file,
+    ndx_file,
+    enroll_file,
+    test_wav_file,
+    vad_spec,
+    vad_path_prefix,
+    model_path,
+    embed_layer,
+    score_file,
+    cal_file,
+    max_test_length,
+    use_gpu,
+    seg_part_idx,
+    num_seg_parts,
+    **kwargs
+):
 
     device = init_device(use_gpu)
     feat_extractor = init_feats(device, **kwargs)
@@ -102,24 +120,21 @@ def eval_cosine_scoring(v_file, ndx_file, enroll_file, test_wav_file, vad_spec,
     if cal_file is not None:
         calibrator = load_calibrator(cal_file, device)
 
-    logging.info('loading ndx and enrollment x-vectors')
-    ndx, y_e = read_data(v_file, ndx_file, enroll_file, seg_part_idx,
-                         num_seg_parts)
+    logging.info("loading ndx and enrollment x-vectors")
+    ndx, y_e = read_data(v_file, ndx_file, enroll_file, seg_part_idx, num_seg_parts)
 
     audio_args = AR.filter_args(**kwargs)
     audio_reader = AR(test_wav_file, **audio_args)
 
     if vad_spec is not None:
-        logging.info('opening VAD stream: %s' % (vad_spec))
-        v_reader = VRF.create(vad_spec,
-                              path_prefix=vad_path_prefix,
-                              scp_sep=' ')
+        logging.info("opening VAD stream: %s" % (vad_spec))
+        v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix, scp_sep=" ")
 
-    scores = np.zeros((ndx.num_models, ndx.num_tests), dtype='float32')
+    scores = np.zeros((ndx.num_models, ndx.num_tests), dtype="float32")
     with torch.no_grad():
         for j in range(ndx.num_tests):
             t1 = time.time()
-            logging.info('scoring test utt %s' % (ndx.seg_set[j]))
+            logging.info("scoring test utt %s" % (ndx.seg_set[j]))
             s, fs = audio_reader.read([ndx.seg_set[j]])
             s = s[0]
             fs = fs[0]
@@ -130,20 +145,27 @@ def eval_cosine_scoring(v_file, ndx_file, enroll_file, test_wav_file, vad_spec,
                     s = s[:max_samples]
 
             t2 = time.time()
-            s = torch.as_tensor(s[None, :],
-                                dtype=torch.get_default_dtype()).to(device)
+            s = torch.as_tensor(s[None, :], dtype=torch.get_default_dtype()).to(device)
             x_t = feat_extractor(s)
             t4 = time.time()
             tot_frames = x_t.shape[1]
             if vad_spec is not None:
-                vad = torch.as_tensor(v_reader.read(
-                    [ndx.seg_set[j]],
-                    num_frames=x_t.shape[1])[0].astype(np.uint8, copy=False),
-                                      dtype=torch.uint8).to(device)
+                vad = torch.as_tensor(
+                    v_reader.read([ndx.seg_set[j]], num_frames=x_t.shape[1])[0].astype(
+                        np.uint8, copy=False
+                    ),
+                    dtype=torch.uint8,
+                ).to(device)
                 x_t = x_t[:, vad]
-                logging.info('utt %s detected %d/%d (%.2f %%) speech frames' %
-                             (ndx.seg_set[j], x_t.shape[1], tot_frames,
-                              x_t.shape[1] / tot_frames * 100))
+                logging.info(
+                    "utt %s detected %d/%d (%.2f %%) speech frames"
+                    % (
+                        ndx.seg_set[j],
+                        x_t.shape[1],
+                        tot_frames,
+                        x_t.shape[1] / tot_frames * 100,
+                    )
+                )
 
             t5 = time.time()
             x_t = x_t.transpose(1, 2).contiguous()
@@ -153,8 +175,9 @@ def eval_cosine_scoring(v_file, ndx_file, enroll_file, test_wav_file, vad_spec,
 
             for i in range(ndx.num_models):
                 if ndx.trial_mask[i, j]:
-                    y_e_i = torch.as_tensor(
-                        y_e[i], dtype=torch.get_default_dtype()).to(device)
+                    y_e_i = torch.as_tensor(y_e[i], dtype=torch.get_default_dtype()).to(
+                        device
+                    )
                     y_e_i = l2_norm(y_e_i)
                     scores_ij = torch.sum(y_e_i * y_t, dim=-1)
                     if calibrator is None:
@@ -166,79 +189,92 @@ def eval_cosine_scoring(v_file, ndx_file, enroll_file, test_wav_file, vad_spec,
             num_trials = np.sum(ndx.trial_mask[:, j])
             trial_time = (t7 - t6) / num_trials
             logging.info(
-                ('utt %s total-time=%.3f read-time=%.3f feat-time=%.3f '
-                 'vad-time=%.3f embed-time=%.3f trial-time=%.3f n_trials=%d '
-                 'rt-factor=%.2f'), ndx.seg_set[j], t7 - t1, t2 - t1, t4 - t2,
-                t5 - t4, t6 - t5, trial_time, num_trials,
-                (t7 - t1) / (num_trials * s.shape[1] / fs))
+                (
+                    "utt %s total-time=%.3f read-time=%.3f feat-time=%.3f "
+                    "vad-time=%.3f embed-time=%.3f trial-time=%.3f n_trials=%d "
+                    "rt-factor=%.2f"
+                ),
+                ndx.seg_set[j],
+                t7 - t1,
+                t2 - t1,
+                t4 - t2,
+                t5 - t4,
+                t6 - t5,
+                trial_time,
+                num_trials,
+                (t7 - t1) / (num_trials * s.shape[1] / fs),
+            )
 
     if num_seg_parts > 1:
-        score_file = '%s-%03d-%03d' % (score_file, 1, seg_part_idx)
-    logging.info('saving scores to %s', score_file)
-    s = TrialScores(ndx.model_set,
-                    ndx.seg_set,
-                    scores,
-                    score_mask=ndx.trial_mask)
+        score_file = "%s-%03d-%03d" % (score_file, 1, seg_part_idx)
+    logging.info("saving scores to %s", score_file)
+    s = TrialScores(ndx.model_set, ndx.seg_set, scores, score_mask=ndx.trial_mask)
     s.save_txt(score_file)
 
 
 if __name__ == "__main__":
 
     parser = ArgumentParser(
-        description='Eval cosine-scoring given enroll x-vector and test wave')
+        description="Eval cosine-scoring given enroll x-vector and test wave"
+    )
 
-    parser.add_argument('--cfg', action=ActionConfigFile)
-    parser.add_argument('--v-file', dest='v_file', required=True)
-    parser.add_argument('--ndx-file', dest='ndx_file', default=None)
-    parser.add_argument('--enroll-file', dest='enroll_file', required=True)
-    parser.add_argument('--test-wav-file', required=True)
+    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument("--v-file", dest="v_file", required=True)
+    parser.add_argument("--ndx-file", dest="ndx_file", default=None)
+    parser.add_argument("--enroll-file", dest="enroll_file", required=True)
+    parser.add_argument("--test-wav-file", required=True)
 
     AR.add_class_args(parser)
-    AF.add_class_args(parser, prefix='feats')
+    AF.add_class_args(parser, prefix="feats")
 
-    parser.add_argument('--vad', dest='vad_spec', default=None)
-    parser.add_argument('--vad-path-prefix',
-                        dest='vad_path_prefix',
-                        default=None,
-                        help=('scp file_path prefix for vad'))
-
-    parser.add_argument('--model-path', required=True)
+    parser.add_argument("--vad", dest="vad_spec", default=None)
     parser.add_argument(
-        '--embed-layer',
+        "--vad-path-prefix",
+        dest="vad_path_prefix",
+        default=None,
+        help=("scp file_path prefix for vad"),
+    )
+
+    parser.add_argument("--model-path", required=True)
+    parser.add_argument(
+        "--embed-layer",
         type=int,
         default=None,
-        help=('classifier layer to get the embedding from,'
-              'if None the layer set in training phase is used'))
+        help=(
+            "classifier layer to get the embedding from,"
+            "if None the layer set in training phase is used"
+        ),
+    )
 
-    parser.add_argument('--use-gpu',
-                        default=False,
-                        action='store_true',
-                        help='extract xvectors in gpu')
-
-    parser.add_argument('--seg-part-idx',
-                        default=1,
-                        type=int,
-                        help=('test part index'))
     parser.add_argument(
-        '--num-seg-parts',
+        "--use-gpu", default=False, action="store_true", help="extract xvectors in gpu"
+    )
+
+    parser.add_argument("--seg-part-idx", default=1, type=int, help=("test part index"))
+    parser.add_argument(
+        "--num-seg-parts",
         default=1,
         type=int,
-        help=('number of parts in which we divide the test list '
-              'to run evaluation in parallel'))
+        help=(
+            "number of parts in which we divide the test list "
+            "to run evaluation in parallel"
+        ),
+    )
 
-    parser.add_argument('--score-file', required=True)
-    parser.add_argument('--cal-file', default=None)
-    parser.add_argument('-v',
-                        '--verbose',
-                        dest='verbose',
-                        default=1,
-                        choices=[0, 1, 2, 3],
-                        type=int)
-    parser.add_argument('--max-test-length',
-                        default=None,
-                        type=float,
-                        help=('maximum length (secs) for the test side, '
-                              'this is to avoid GPU memory errors'))
+    parser.add_argument("--score-file", required=True)
+    parser.add_argument("--cal-file", default=None)
+    parser.add_argument(
+        "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
+    )
+    parser.add_argument(
+        "--max-test-length",
+        default=None,
+        type=float,
+        help=(
+            "maximum length (secs) for the test side, "
+            "this is to avoid GPU memory errors"
+        ),
+    )
 
     args = parser.parse_args()
     config_logger(args.verbose)

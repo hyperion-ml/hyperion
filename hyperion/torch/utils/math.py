@@ -5,7 +5,10 @@
 
 import torch
 
-def invert_trimat(A, lower=False, right_inv=False, return_logdet=False, return_inv=False):
+
+def invert_trimat(
+    A, lower=False, right_inv=False, return_logdet=False, return_inv=False
+):
     """Inversion of triangular matrices.
        Returns lambda function f that multiplies the inverse of A times a vector.
 
@@ -23,9 +26,9 @@ def invert_trimat(A, lower=False, right_inv=False, return_logdet=False, return_i
     """
 
     if right_inv:
-        fh=lambda x: torch.triangular_solve(x.t(), A.t(), upper=lower)[0].t()
+        fh = lambda x: torch.triangular_solve(x.t(), A.t(), upper=lower)[0].t()
     else:
-        fh=lambda x: torch.triangular_solve(x, A, upper=not(lower))[0]
+        fh = lambda x: torch.triangular_solve(x, A, upper=not (lower))[0]
 
     if return_logdet or return_inv:
         r = [fh]

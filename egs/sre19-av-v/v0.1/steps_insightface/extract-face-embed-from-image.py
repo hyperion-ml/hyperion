@@ -96,7 +96,9 @@ def extract_face_embed(
         while threshold > 0.01:
             retina_detect_faces = False
             logging.info(
-                "processing file %s frame of shape=%s", key, str(frame.shape),
+                "processing file %s frame of shape=%s",
+                key,
+                str(frame.shape),
             )
             faces, landmarks = detect_faces_in_frame(detector, frame, thresh=threshold)
             logging.info("file %s dectected %d faces", key, faces.shape[0])
@@ -127,7 +129,9 @@ def extract_face_embed(
             x = x[valid]
             faces = faces[valid]
             logging.info(
-                "file %s extracted %d face embeds", key, faces.shape[0],
+                "file %s extracted %d face embeds",
+                key,
+                faces.shape[0],
             )
 
             if save_facecrop_img:

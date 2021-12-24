@@ -2,7 +2,7 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-# 
+#
 
 # import numpy as np
 
@@ -11,9 +11,10 @@ from torch.nn import Linear, BatchNorm1d, Dropout
 
 from ..layers import ActivationFactory as AF
 
+
 class FCBlock(nn.Module):
-    """ Fully connected block
-    
+    """Fully connected block
+
     Attributes:
       in_feats: input feature dimension
       out_feats: output feature dimension
@@ -23,11 +24,16 @@ class FCBlock(nn.Module):
       norm_before: if True normalization layer is applied before the activation function, if False after
     """
 
-    def __init__(self, in_feats, out_feats, 
-                 activation={'name':'relu', 'inplace': True},
-                 dropout_rate=0,
-                 norm_layer=None,
-                 use_norm=True, norm_before=False):
+    def __init__(
+        self,
+        in_feats,
+        out_feats,
+        activation={"name": "relu", "inplace": True},
+        dropout_rate=0,
+        norm_layer=None,
+        use_norm=True,
+        norm_before=False,
+    ):
 
         super().__init__()
 
@@ -50,13 +56,10 @@ class FCBlock(nn.Module):
             else:
                 self.norm_after = True
 
-        self.linear = Linear(in_feats, out_feats, bias=(not self.norm_before)) 
-
-
+        self.linear = Linear(in_feats, out_feats, bias=(not self.norm_before))
 
     def forward(self, x):
-        """ Forward function
-        """
+        """Forward function"""
         x = self.linear(x)
         if self.norm_before:
             x = self.bn1(x)
@@ -72,10 +75,9 @@ class FCBlock(nn.Module):
 
         return x
 
-
     def forward_linear(self, x):
-        """ Forward function
-            without activation function
+        """Forward function
+        without activation function
         """
         x = self.linear(x)
 
@@ -83,7 +85,3 @@ class FCBlock(nn.Module):
             x = self.bn1(x)
 
         return x
-
-
-
-

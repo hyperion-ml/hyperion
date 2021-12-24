@@ -7,12 +7,13 @@
 import torch
 from torch.optim.optimizer import Optimizer
 
+
 class FGSM(Optimizer):
     """Implements Fast Gradient Sign Method"""
+
     def __init__(self, params, epsilon):
         defaults = dict(epsilon=epsilon)
         super(FGSM, self).__init__(params, defaults)
-
 
     def step(self, closure=None):
         """Performs a single optimization step.
@@ -26,13 +27,12 @@ class FGSM(Optimizer):
             loss = closure()
 
         for group in self.param_groups:
-            epsilon = group['epsilon']
+            epsilon = group["epsilon"]
 
-            for p in group['params']:
+            for p in group["params"]:
                 if p.grad is None:
                     continue
                 d_p = p.grad.data
                 p.data.add_(-epsilon, d_p.sign())
 
         return loss
-

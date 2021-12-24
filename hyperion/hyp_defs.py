@@ -6,9 +6,9 @@ import logging
 
 import numpy as np
 
-_FLOAT_CPU = 'float64'
-_FLOAT_KERAS = 'float32'
-_FLOAT_SAVE = 'float32'
+_FLOAT_CPU = "float64"
+_FLOAT_KERAS = "float32"
+_FLOAT_SAVE = "float32"
 
 
 def float_cpu():
@@ -38,11 +38,13 @@ def set_float_save(float_save):
     _FLOAT_SAVE = float_save
 
 
-logging_levels = { 0: logging.WARN, 1: logging.INFO, 2: logging.DEBUG, 3: 5}
-    
+logging_levels = {0: logging.WARN, 1: logging.INFO, 2: logging.DEBUG, 3: 5}
+
+
 def config_logger(verbose_level):
 
     logging_level = logging_levels[verbose_level]
     logging.basicConfig(
         level=logging_level,
-        format="%(asctime)s (%(module)s:%(lineno)d) %(levelname)s: %(message)s")
+        format="%(asctime)s (%(module)s:%(lineno)d) %(levelname)s: %(message)s",
+    )

@@ -109,7 +109,9 @@ def extract_face_embed(
         threshold = 0.9
         while threshold > 0.01:
             logging.info(
-                "processing file %s of shape=%s", key, str(frame.shape),
+                "processing file %s of shape=%s",
+                key,
+                str(frame.shape),
             )
             faces, landmarks = detect_faces_in_frame(detector, frame, thresh=threshold)
             logging.info("file %s detected %d faces", key, faces.shape[0])
@@ -135,7 +137,9 @@ def extract_face_embed(
                 device=device,
             )
             logging.info(
-                "file %s extracted %d face embeds", key, faces.shape[0],
+                "file %s extracted %d face embeds",
+                key,
+                faces.shape[0],
             )
 
             if save_facecrop_img:

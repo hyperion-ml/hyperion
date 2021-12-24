@@ -185,7 +185,8 @@ def prepare_sre21av_dev(corpus_dir, output_path, verbose):
     segments_file = corpus_dir / "docs" / "sre21_dev_segment_key.tsv"
     df_segms = pd.read_csv(segments_file, sep="\t")
     df_segms.rename(
-        columns={"segmentid": "segment_id", "subjectid": "speaker_id"}, inplace=True,
+        columns={"segmentid": "segment_id", "subjectid": "speaker_id"},
+        inplace=True,
     )
     df_segms.replace({"language": "english"}, {"language": "ENG"}, inplace=True)
     df_segms.replace({"language": "cantonese"}, {"language": "YUE"}, inplace=True)
@@ -194,7 +195,11 @@ def prepare_sre21av_dev(corpus_dir, output_path, verbose):
     enroll_file = corpus_dir / "docs" / "sre21_audio_dev_enrollment.tsv"
     df_enr = pd.read_csv(enroll_file, sep="\t")
     df_enr.rename(
-        columns={"segmentid": "segment_id", "modelid": "model_id",}, inplace=True,
+        columns={
+            "segmentid": "segment_id",
+            "modelid": "model_id",
+        },
+        inplace=True,
     )
     df_model = make_enroll_dir(df_segms, df_enr)
 

@@ -12,8 +12,7 @@ from ..hyp_model import HypModel
 
 
 class PCA(HypModel):
-    """Class to do principal component analysis
-    """
+    """Class to do principal component analysis"""
 
     def __init__(
         self,

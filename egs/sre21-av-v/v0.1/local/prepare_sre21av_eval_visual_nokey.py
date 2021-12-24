@@ -69,7 +69,8 @@ def prepare_sre21av_eval_visual(corpus_dir, output_path, verbose):
     key_file = corpus_dir / "docs" / "sre21_visual_eval_trials.tsv"
     df_trials = pd.read_csv(key_file, sep="\t")
     df_trials.rename(
-        columns={"segmentid": "segment_id", "imageid": "model_id"}, inplace=True,
+        columns={"segmentid": "segment_id", "imageid": "model_id"},
+        inplace=True,
     )
 
     make_enroll_dir(df_trials, img_dir, output_path)
@@ -79,7 +80,8 @@ def prepare_sre21av_eval_visual(corpus_dir, output_path, verbose):
     df_trials = pd.read_csv(key_file, sep="\t")
     df_trials = df_trials.drop("modelid", axis=1).drop_duplicates()
     df_trials.rename(
-        columns={"segmentid": "segment_id", "imageid": "model_id"}, inplace=True,
+        columns={"segmentid": "segment_id", "imageid": "model_id"},
+        inplace=True,
     )
     test_dir = Path(output_path + "_test")
     df_trials.to_csv(test_dir / "trials_av.csv", sep=",", index=False)

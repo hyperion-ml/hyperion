@@ -11,35 +11,56 @@ from ..layers import ActivationFactory as AF
 
 
 class SEBlock2D(nn.Module):
-    """ From https://arxiv.org/abs/1709.01507
-    """
-    def __init__(self, num_channels, r=16, activation={'name':'relu', 'inplace': True}):
+    """From https://arxiv.org/abs/1709.01507"""
+
+    def __init__(
+        self, num_channels, r=16, activation={"name": "relu", "inplace": True}
+    ):
         super().__init__()
-        self.conv1 = nn.Conv2d(num_channels, int(num_channels/r), kernel_size=1, bias=False)
+        self.conv1 = nn.Conv2d(
+            num_channels, int(num_channels / r), kernel_size=1, bias=False
+        )
         self.act = AF.create(activation)
-        self.conv2 = nn.Conv2d(int(num_channels/r), num_channels, kernel_size=1, bias=False)
+        self.conv2 = nn.Conv2d(
+            int(num_channels / r), num_channels, kernel_size=1, bias=False
+        )
         self.sigmoid = nn.Sigmoid()
 
-
     def forward(self, x):
-        z = torch.mean(x, dim=(2,3), keepdim=True)
+        z = torch.mean(x, dim=(2, 3), keepdim=True)
         scale = self.sigmoid(self.conv2(self.act(self.conv1(z))))
         y = scale * x
         return y
 
 
 class TSEBlock2D(nn.Module):
-    """ From https://arxiv.org/abs/1709.01507
-        Modified to do pooling only in time dimension
+    """From https://arxiv.org/abs/1709.01507
+    Modified to do pooling only in time dimension
     """
-    def __init__(self, num_channels, num_feats, r=16, activation={'name':'relu', 'inplace': True}):
-        super().__init__()
-        self.num_channels_1d = num_channels*num_feats
-        self.conv1 = nn.Conv2d(self.num_channels_1d, int(self.num_channels_1d/r), kernel_size=1, bias=False)
-        self.act = AF.create(activation)
-        self.conv2 = nn.Conv2d(int(self.num_channels_1d/r), self.num_channels_1d, kernel_size=1, bias=False)
-        self.sigmoid = nn.Sigmoid()
 
+    def __init__(
+        self,
+        num_channels,
+        num_feats,
+        r=16,
+        activation={"name": "relu", "inplace": True},
+    ):
+        super().__init__()
+        self.num_channels_1d = num_channels * num_feats
+        self.conv1 = nn.Conv2d(
+            self.num_channels_1d,
+            int(self.num_channels_1d / r),
+            kernel_size=1,
+            bias=False,
+        )
+        self.act = AF.create(activation)
+        self.conv2 = nn.Conv2d(
+            int(self.num_channels_1d / r),
+            self.num_channels_1d,
+            kernel_size=1,
+            bias=False,
+        )
+        self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
         num_feats = x.shape[2]
@@ -53,16 +74,22 @@ class TSEBlock2D(nn.Module):
 
 
 class SEBlock1d(nn.Module):
-    """ 1d Squeeze Excitation version of 
-        https://arxiv.org/abs/1709.01507
+    """1d Squeeze Excitation version of
+    https://arxiv.org/abs/1709.01507
     """
-    def __init__(self, num_channels, r=16, activation={'name':'relu', 'inplace': True}):
-        super().__init__()
-        self.conv1 = nn.Conv1d(num_channels, int(num_channels/r), kernel_size=1, bias=False)
-        self.act = AF.create(activation)
-        self.conv2 = nn.Conv1d(int(num_channels/r), num_channels, kernel_size=1, bias=False)
-        self.sigmoid = nn.Sigmoid()
 
+    def __init__(
+        self, num_channels, r=16, activation={"name": "relu", "inplace": True}
+    ):
+        super().__init__()
+        self.conv1 = nn.Conv1d(
+            num_channels, int(num_channels / r), kernel_size=1, bias=False
+        )
+        self.act = AF.create(activation)
+        self.conv2 = nn.Conv1d(
+            int(num_channels / r), num_channels, kernel_size=1, bias=False
+        )
+        self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
         z = torch.mean(x, dim=2, keepdim=True)

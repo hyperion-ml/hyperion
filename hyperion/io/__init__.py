@@ -17,7 +17,10 @@ from .vad_rw_factory import VADReaderFactory
 
 from .audio_reader import *
 from .audio_writer import *
-from .packed_audio_reader import SequentialPackedAudioReader, RandomAccessPackedAudioReader
+from .packed_audio_reader import (
+    SequentialPackedAudioReader,
+    RandomAccessPackedAudioReader,
+)
 from .packed_audio_writer import PackedAudioWriter
 
 
@@ -27,7 +30,4 @@ from .h5_merger import *
 from .kaldi_data_reader import *
 
 
-
-#from .queues import *
-
-
+# from .queues import *
