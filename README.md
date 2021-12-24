@@ -2,7 +2,12 @@
 
 <div align="center">
 
+[![PyPI version](https://badge.fury.io/py/hyperion-ml.svg)](https://badge.fury.io/py/hyperion-ml)
+[![License](https://img.shields.io/github/license/hyperion-ml/hyperion.svg)](https://www.apache.org/licenses/LICENSE-2.0)
+[![Python Versions](https://img.shields.io/pypi/pyversions/hyperion-ml.svg)](https://pypi.org/project/hyperion-ml/)
+[![Downloads](https://pepy.tech/badge/hyperion-ml)](https://pepy.tech/project/hyperion-ml)
 [![Documentation Status](https://readthedocs.org/projects/hyperion-ml/badge/?version=latest)](https://hyperion-ml.readthedocs.io/en/latest/?badge=latest)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 </div>
 
