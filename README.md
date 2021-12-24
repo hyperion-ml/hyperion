@@ -7,6 +7,8 @@ Hyperion is a Speaker Recognition Toolkit based on PyTorch and numpy. It provide
  - Calibration and Fusion tools
  - Recipes for popular datasets: VoxCeleb, NIST-SRE, VOiCES
 
+The full API is described in the documentation page [https://hyperion-ml.readthedocs.io](https://hyperion-ml.readthedocs.io)
+
 ## Installation Instructions
 
 ### Prerequisites

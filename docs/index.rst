@@ -5,7 +5,8 @@
 
 Hyperion: Speaker Recognition Toolkit
 ====================================
-# .. image:: ./image/hyperion_logo.png
+..
+   .. image:: ./image/hyperion_logo.png
 
 Hyperion is a Speaker Recognition Toolkit based on PyTorch and numpy. It provides:
  * x-Vector architectures: ResNet, Res2Net, Spine2Net, ECAPA-TDNN, EfficientNet, Transformers and others.
