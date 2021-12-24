@@ -14,17 +14,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import setuptools
 
-with open("apps.txt") as f:
+import setuptools
+from pathlib import Path
+
+project_root = Path(__file__).parent
+
+with open(project_root / "apps.txt") as f:
     apps = f.read().splitlines()
 
-apps = ["hyperion/bin/" + app for app in apps]
+apps = [project_root / "hyperion" / "bin" / app for app in apps]
 
-with open("requirements.txt") as f:
+with open(project_root / "requirements.txt") as f:
     requirements = f.read().splitlines()
 
-with open("README.md", "r") as fh:
+with open(project_root / "README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
@@ -35,7 +39,7 @@ setuptools.setup(
     # major.minor.patch
     # eg: 1.0.0, 1.0.1, 3.0.2, 5.0-beta, etc.
     # You CANNOT upload two versions of your package with the same version number
-    version="0.2.3",
+    version="0.2.4",
     author="Jesus Villalba",
     author_email="jesus.antonio.villalba@gmail.com",
     # The description that will be shown on PyPI.
