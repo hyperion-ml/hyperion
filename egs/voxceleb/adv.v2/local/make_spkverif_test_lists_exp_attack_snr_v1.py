@@ -5,7 +5,12 @@
 """
 import sys
 import os
-from jsonargparse import ArgumentParser, ActionConfigFile, ActionParser, namespace_to_dict
+from jsonargparse import (
+    ArgumentParser,
+    ActionConfigFile,
+    ActionParser,
+    namespace_to_dict,
+)
 import time
 import logging
 
@@ -17,21 +22,28 @@ import yaml
 from hyperion.hyp_defs import float_cpu, config_logger
 from hyperion.utils import Utt2Info, SCPList
 
-snr_levels = np.arange(0,65,10)
+snr_levels = np.arange(0, 65, 10)
+
 
 def quant_snr(snr):
-    q = np.argmin((snr_levels - snr)**2)
-    q_str = 'snr-%d' % (int(snr_levels[q]))
+    q = np.argmin((snr_levels - snr) ** 2)
+    q_str = "snr-%d" % (int(snr_levels[q]))
     return q_str
 
 
-def make_lists(input_file, benign_wav_file, output_dir,
-               test_min_snr, test_max_snr, test_success_category):
+def make_lists(
+    input_file,
+    benign_wav_file,
+    output_dir,
+    test_min_snr,
+    test_max_snr,
+    test_success_category,
+):
 
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    with open(input_file, 'r') as f:
+    with open(input_file, "r") as f:
         test_attacks = yaml.load(f, Loader=yaml.FullLoader)
 
     k2w = SCPList.load(benign_wav_file)
@@ -41,50 +53,57 @@ def make_lists(input_file, benign_wav_file, output_dir,
     classes = []
     benign_keys = []
     durs = []
-    for k,v in test_attacks.items():
-        s = v['success']
-        if not (test_success_category == 'both' or
-            test_success_category == 'success' and s or
-            test_success_category == 'fail' and not s):
+    for k, v in test_attacks.items():
+        s = v["success"]
+        if not (
+            test_success_category == "both"
+            or test_success_category == "success"
+            and s
+            or test_success_category == "fail"
+            and not s
+        ):
             continue
-        snr = v['snr']
+        snr = v["snr"]
         if snr < test_min_snr or snr > test_max_snr:
             continue
 
         keys.append(k)
-        files.append(v['wav_path'])
-        classes.append(quant_snr(v['snr']))
-        benign_keys.append(v['test_benign'])
+        files.append(v["wav_path"])
+        classes.append(quant_snr(v["snr"]))
+        benign_keys.append(v["test_benign"])
 
     benign_keys = np.unique(benign_keys)
     for k in benign_keys:
         keys.append(k)
-        classes.append('benign')
+        classes.append("benign")
         files.append(k2w[k][0])
 
     test_u2c = Utt2Info.create(keys, classes)
     test_wav = SCPList(keys, files)
 
-    test_u2c.save(output_dir / 'utt2attack')
-    test_wav.save(output_dir / 'wav.scp')
-    
+    test_u2c.save(output_dir / "utt2attack")
+    test_wav.save(output_dir / "wav.scp")
+
 
 if __name__ == "__main__":
 
-    parser = ArgumentParser(
-        description='prepare lists to test attack classification')
+    parser = ArgumentParser(description="prepare lists to test attack classification")
 
-    parser.add_argument('--input-file', required=True)
-    parser.add_argument('--benign-wav-file', required=True)
-    parser.add_argument('--output-dir', required=True)
-    parser.add_argument('--test-min-snr', default=-10, type=float)
-    parser.add_argument('--test-max-snr', default=100, type=float)
-    parser.add_argument('--test-success-category', default='success', 
-                        choices=['success', 'fail', 'both'])
-    parser.add_argument('-v', '--verbose', dest='verbose', default=1,
-                        choices=[0, 1, 2, 3], type=int)
-        
-    args=parser.parse_args()
+    parser.add_argument("--input-file", required=True)
+    parser.add_argument("--benign-wav-file", required=True)
+    parser.add_argument("--output-dir", required=True)
+    parser.add_argument("--test-min-snr", default=-10, type=float)
+    parser.add_argument("--test-max-snr", default=100, type=float)
+    parser.add_argument(
+        "--test-success-category",
+        default="success",
+        choices=["success", "fail", "both"],
+    )
+    parser.add_argument(
+        "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
+    )
+
+    args = parser.parse_args()
     config_logger(args.verbose)
     del args.verbose
     logging.debug(args)

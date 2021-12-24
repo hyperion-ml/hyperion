@@ -5,7 +5,12 @@
 """
 import sys
 import os
-from jsonargparse import ArgumentParser, ActionConfigFile, ActionParser, namespace_to_dict
+from jsonargparse import (
+    ArgumentParser,
+    ActionConfigFile,
+    ActionParser,
+    namespace_to_dict,
+)
 import time
 import logging
 
@@ -18,75 +23,83 @@ from hyperion.hyp_defs import float_cpu, config_logger
 from hyperion.utils import Utt2Info, SCPList, TrialKey
 
 
-
-def make_lists(input_dir, known_attacks, output_dir, 
-               min_snr, max_snr, success_category,
-               max_trials, num_enroll_sides):
+def make_lists(
+    input_dir,
+    known_attacks,
+    output_dir,
+    min_snr,
+    max_snr,
+    success_category,
+    max_trials,
+    num_enroll_sides,
+):
 
     rng = np.random.RandomState(seed=1234)
     input_dir = Path(input_dir)
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    with open(input_dir / 'test_attack_info.yaml', 'r') as f:
+    with open(input_dir / "test_attack_info.yaml", "r") as f:
         test_attacks = yaml.load(f, Loader=yaml.FullLoader)
 
     keys = []
     files = []
     classes = []
     tms = []
-    for k,v in test_attacks.items():
-        s = v['success']
-        if not (success_category == 'both' or
-            success_category == 'success' and s or
-            success_category == 'fail' and not s):
+    for k, v in test_attacks.items():
+        s = v["success"]
+        if not (
+            success_category == "both"
+            or success_category == "success"
+            and s
+            or success_category == "fail"
+            and not s
+        ):
             continue
-        snr = v['snr']
+        snr = v["snr"]
         if snr < min_snr or snr > max_snr:
             continue
 
         keys.append(k)
-        files.append(v['wav_path'])
-        classes.append(v['attack_type'])
-        tms.append(v['threat_model'])
-        keys.append(v['key_benign'])
-        files.append(v['wav_benign'])
-        classes.append('benign')
-        tms.append('benign')
+        files.append(v["wav_path"])
+        classes.append(v["attack_type"])
+        tms.append(v["threat_model"])
+        keys.append(v["key_benign"])
+        files.append(v["wav_benign"])
+        classes.append("benign")
+        tms.append("benign")
 
     u2c = Utt2Info.create(keys, classes)
     u2tm = Utt2Info.create(keys, tms)
     wav = SCPList(keys, files)
 
     #####
-    u2c.save(output_dir / 'utt2attack')
-    wav.save(output_dir / 'wav.scp')
+    u2c.save(output_dir / "utt2attack")
+    wav.save(output_dir / "wav.scp")
 
-    mask = rng.rand(len(u2c)) > 1/(num_enroll_sides + 1)
+    mask = rng.rand(len(u2c)) > 1 / (num_enroll_sides + 1)
     enr_key = u2c.key[mask]
-    test_key = u2c.key[mask==False]
+    test_key = u2c.key[mask == False]
     enr_u2c = u2c.filter(enr_key)
     test_u2c = u2c.filter(test_key)
     enr_u2tm = u2tm.filter(enr_key)
     test_u2tm = u2tm.filter(test_key)
 
     if num_enroll_sides > 1:
-        class_uniq, class_ids = np.unique(
-            test_u2c.info, return_inverse=True)
-        tm_uniq, tm_ids = np.unique(
-            test_u2tm.info, return_inverse=True)
+        class_uniq, class_ids = np.unique(test_u2c.info, return_inverse=True)
+        tm_uniq, tm_ids = np.unique(test_u2tm.info, return_inverse=True)
         num_classes = len(class_uniq) * len(tm_uniq)
         count_sides = np.zeros((num_classes,), dtype=np.int)
         count_models = np.zeros((num_classes,), dtype=np.int)
         enroll_models = []
         for i in range(len(test_u2c)):
-            a = class_ids[i] 
+            a = class_ids[i]
             b = tm_ids[i]
             j = a * len(tm_uniq) + b
             side = count_sides[j] % num_enroll_sides
             if side == 0:
                 count_models[j] += 1
-            enroll_model = '%s-%s-%03d' % (class_uniq[a], tm_uniq[b], count_models[j])
+            enroll_model = "%s-%s-%03d" % (class_uniq[a], tm_uniq[b], count_models[j])
             enroll_models.append(enroll_model)
             count_sides[j] += 1
 
@@ -105,25 +118,37 @@ def make_lists(input_dir, known_attacks, output_dir,
     for i in range(len(enr_e2tm)):
         for j in range(len(test_u2c)):
             if enr_e2tm.info[i] == test_u2tm.info[j]:
-                trials_all.tar[i,j] = True
-                if enr_e2c.info[i] in known_attacks and test_u2c.info[j] in known_attacks:
-                    trials_known.tar[i,j] = True
-                elif enr_e2c.info[i] not in known_attacks and test_u2c.info[j] not in known_attacks:
-                    trials_unknown.tar[i,j] = True
+                trials_all.tar[i, j] = True
+                if (
+                    enr_e2c.info[i] in known_attacks
+                    and test_u2c.info[j] in known_attacks
+                ):
+                    trials_known.tar[i, j] = True
+                elif (
+                    enr_e2c.info[i] not in known_attacks
+                    and test_u2c.info[j] not in known_attacks
+                ):
+                    trials_unknown.tar[i, j] = True
             else:
-                trials_all.non[i,j] = True
-                if enr_e2c.info[i] in known_attacks and test_u2c.info[j] in known_attacks:
-                    trials_known.non[i,j] = True
-                elif enr_e2c.info[i] not in known_attacks and test_u2c.info[j] not in known_attacks:
-                    trials_unknown.non[i,j] = True
+                trials_all.non[i, j] = True
+                if (
+                    enr_e2c.info[i] in known_attacks
+                    and test_u2c.info[j] in known_attacks
+                ):
+                    trials_known.non[i, j] = True
+                elif (
+                    enr_e2c.info[i] not in known_attacks
+                    and test_u2c.info[j] not in known_attacks
+                ):
+                    trials_unknown.non[i, j] = True
 
     max_trials = int(max_trials * 1e6)
-    num_tar_trials = np.sum(trials_all.tar) 
+    num_tar_trials = np.sum(trials_all.tar)
     num_non_trials = np.sum(trials_all.non)
     num_trials = num_tar_trials + num_non_trials
     if num_trials > max_trials:
         p = max_trials / num_trials
-        logging.info('reducing number of trials (%d) with p=%f' % (num_trials, p))
+        logging.info("reducing number of trials (%d) with p=%f" % (num_trials, p))
         mask = rng.rand(*trials_all.tar.shape) > p
         trials_all.non[mask] = False
         trials_known.non[mask] = False
@@ -133,34 +158,35 @@ def make_lists(input_dir, known_attacks, output_dir,
         trials_unknown.tar[mask] = False
 
     enr_u2e.sort(1)
-    enr_u2e.save(output_dir / 'utt2enr')
-    trials_all.save_txt(output_dir / 'trials')
-    trials_known.save_txt(output_dir / 'trials_known')
-    trials_unknown.save_txt(output_dir / 'trials_unknown')
+    enr_u2e.save(output_dir / "utt2enr")
+    trials_all.save_txt(output_dir / "trials")
+    trials_known.save_txt(output_dir / "trials_known")
+    trials_unknown.save_txt(output_dir / "trials_unknown")
 
 
 if __name__ == "__main__":
 
     parser = ArgumentParser(
-        description='prepare trial list to do attack threat model verification')
+        description="prepare trial list to do attack threat model verification"
+    )
 
-    parser.add_argument('--input-dir', required=True)
-    parser.add_argument('--known-attacks', required=True, nargs='+')
-    parser.add_argument('--num-enroll-sides', default=1, type=int)
-    parser.add_argument('--max-trials', default=10, type=float)
-    parser.add_argument('--success-category', default='success', 
-                        choices=['success', 'fail', 'both'])
-    parser.add_argument('--min-snr', default=-10, type=float)
-    parser.add_argument('--max-snr', default=100, type=float)
-    parser.add_argument('--output-dir', required=True)
-    parser.add_argument('-v', '--verbose', dest='verbose', default=1,
-                        choices=[0, 1, 2, 3], type=int)
-        
-    args=parser.parse_args()
+    parser.add_argument("--input-dir", required=True)
+    parser.add_argument("--known-attacks", required=True, nargs="+")
+    parser.add_argument("--num-enroll-sides", default=1, type=int)
+    parser.add_argument("--max-trials", default=10, type=float)
+    parser.add_argument(
+        "--success-category", default="success", choices=["success", "fail", "both"]
+    )
+    parser.add_argument("--min-snr", default=-10, type=float)
+    parser.add_argument("--max-snr", default=100, type=float)
+    parser.add_argument("--output-dir", required=True)
+    parser.add_argument(
+        "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
+    )
+
+    args = parser.parse_args()
     config_logger(args.verbose)
     del args.verbose
     logging.debug(args)
 
     make_lists(**vars(args))
-
-

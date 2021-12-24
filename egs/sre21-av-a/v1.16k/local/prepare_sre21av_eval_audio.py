@@ -250,7 +250,8 @@ def prepare_sre21av_eval_audio(
     segments_file = corpus_dir / "docs" / "sre21_eval_segment_key.tsv"
     df_segms = pd.read_csv(segments_file, sep="\t")
     df_segms.rename(
-        columns={"segmentid": "segment_id", "subjectid": "speaker_id"}, inplace=True,
+        columns={"segmentid": "segment_id", "subjectid": "speaker_id"},
+        inplace=True,
     )
     df_segms.replace({"language": "english"}, {"language": "ENG"}, inplace=True)
     df_segms.replace({"language": "cantonese"}, {"language": "YUE"}, inplace=True)
@@ -259,12 +260,14 @@ def prepare_sre21av_eval_audio(
     enroll_file = corpus_dir / "docs" / "sre21_audio_eval_enrollment.tsv"
     df_enr = pd.read_csv(enroll_file, sep="\t")
     df_enr.rename(
-        columns={"segmentid": "segment_id", "modelid": "model_id"}, inplace=True,
+        columns={"segmentid": "segment_id", "modelid": "model_id"},
+        inplace=True,
     )
     key_file = corpus_dir / "docs" / "sre21_audio_eval_trial_key.tsv"
     df_key = pd.read_csv(key_file, sep="\t")
     df_key.rename(
-        columns={"segmentid": "segment_id", "modelid": "model_id"}, inplace=True,
+        columns={"segmentid": "segment_id", "modelid": "model_id"},
+        inplace=True,
     )
 
     df_model = make_enroll_dir(df_segms, df_enr, wav_dir, target_fs, output_path)
@@ -275,7 +278,8 @@ def prepare_sre21av_eval_audio(
     key_file = corpus_dir / "docs" / "sre21_audio-visual_eval_trial_key.tsv"
     df_key = pd.read_csv(key_file, sep="\t")
     df_key.rename(
-        columns={"segmentid": "segment_id", "modelid": "model_id"}, inplace=True,
+        columns={"segmentid": "segment_id", "modelid": "model_id"},
+        inplace=True,
     )
     wav_dir = corpus_dir / "data" / "video"
     make_test_dir(

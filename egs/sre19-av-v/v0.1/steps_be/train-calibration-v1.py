@@ -27,64 +27,71 @@ from hyperion.classifiers import BinaryLogisticRegression as LR
 
 def train_calibration(score_file, key_file, model_file, prior, lambda_reg, verbose):
 
-    logging.info('load key: %s' % key_file)
+    logging.info("load key: %s" % key_file)
     key = TrialKey.load_txt(key_file)
-    logging.info('load scores: %s' % score_file)
+    logging.info("load scores: %s" % score_file)
     scr = TrialScores.load_txt(score_file)
     tar, non = scr.get_tar_non(key)
     ntar = len(tar)
     nnon = len(non)
 
     min_dcf, p_miss, p_fa = compute_min_dcf(tar, non, prior)
-    n_miss = p_miss*ntar
-    n_fa = p_fa*nnon
-    logging.info('min_dcf: %.3f p_miss: %.2f p_fa: %.2f n_miss: %.1f n_fa: %.1f' % 
-                 (min_dcf, p_miss*100, p_fa*100, n_miss, n_fa))
+    n_miss = p_miss * ntar
+    n_fa = p_fa * nnon
+    logging.info(
+        "min_dcf: %.3f p_miss: %.2f p_fa: %.2f n_miss: %.1f n_fa: %.1f"
+        % (min_dcf, p_miss * 100, p_fa * 100, n_miss, n_fa)
+    )
 
-    logging.info('train calibration')
+    logging.info("train calibration")
     x = np.concatenate((tar, non))
-    y = np.concatenate((np.ones((ntar,), dtype='int32'),
-                        np.zeros((nnon,), dtype='int32')))
-    lr = LR(prior=prior, lambda_reg=lambda_reg, bias_scaling=1, solver='liblinear', verbose=verbose)
+    y = np.concatenate(
+        (np.ones((ntar,), dtype="int32"), np.zeros((nnon,), dtype="int32"))
+    )
+    lr = LR(
+        prior=prior,
+        lambda_reg=lambda_reg,
+        bias_scaling=1,
+        solver="liblinear",
+        verbose=verbose,
+    )
     lr.fit(x, y)
     print(lr.A)
     print(lr.b)
-    logging.info('save calibration at %s' % model_file)
+    logging.info("save calibration at %s" % model_file)
     lr.save(model_file)
 
-    logging.info('calibrate scores')
+    logging.info("calibrate scores")
     tar_cal = lr.predict(tar)
     non_cal = lr.predict(non)
     act_dcf, p_miss, p_fa = compute_act_dcf(tar_cal, non_cal, prior)
-    n_miss = p_miss*ntar
-    n_fa = p_fa*nnon
-    logging.info('act_dcf: %.3f p_miss: %.2f p_fa: %.2f n_miss: %.1f n_fa: %.1f' % 
-                 (act_dcf, p_miss*100, p_fa*100, n_miss, n_fa))
+    n_miss = p_miss * ntar
+    n_fa = p_fa * nnon
+    logging.info(
+        "act_dcf: %.3f p_miss: %.2f p_fa: %.2f n_miss: %.1f n_fa: %.1f"
+        % (act_dcf, p_miss * 100, p_fa * 100, n_miss, n_fa)
+    )
 
-    
-        
-    
+
 if __name__ == "__main__":
 
-    parser=argparse.ArgumentParser(
+    parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        fromfile_prefix_chars='@',
-        description='Trains llr calibration')
+        fromfile_prefix_chars="@",
+        description="Trains llr calibration",
+    )
 
-    parser.add_argument('--score-file', dest='score_file', required=True)
-    parser.add_argument('--key-file', dest='key_file', required=True)
-    parser.add_argument('--model-file', dest='model_file', required=True)
-    parser.add_argument('--prior', dest='prior', type=float,
-                        default=0.01)
-    parser.add_argument('--lambda-reg', dest='lambda_reg', type=float,
-                        default=1e-5)
-    parser.add_argument('-v', '--verbose', dest='verbose', default=1,
-                        choices=[0, 1, 2, 3], type=int)
+    parser.add_argument("--score-file", dest="score_file", required=True)
+    parser.add_argument("--key-file", dest="key_file", required=True)
+    parser.add_argument("--model-file", dest="model_file", required=True)
+    parser.add_argument("--prior", dest="prior", type=float, default=0.01)
+    parser.add_argument("--lambda-reg", dest="lambda_reg", type=float, default=1e-5)
+    parser.add_argument(
+        "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
+    )
 
-    args=parser.parse_args()
+    args = parser.parse_args()
     config_logger(args.verbose)
     logging.debug(args)
-    
-    train_calibration(**vars(args))
 
-            
+    train_calibration(**vars(args))

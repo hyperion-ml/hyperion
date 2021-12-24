@@ -84,13 +84,15 @@ def prepare_sre21av_eval_visual(corpus_dir, output_path, verbose):
     segments_file = corpus_dir / "docs" / "sre21_eval_segment_key.tsv"
     df_segms = pd.read_csv(segments_file, sep="\t")
     df_segms.rename(
-        columns={"segmentid": "segment_id", "subjectid": "speaker_id"}, inplace=True,
+        columns={"segmentid": "segment_id", "subjectid": "speaker_id"},
+        inplace=True,
     )
 
     key_file = corpus_dir / "docs" / "sre21_visual_eval_trial_key.tsv"
     df_key = pd.read_csv(key_file, sep="\t")
     df_key.rename(
-        columns={"segmentid": "segment_id", "imageid": "model_id"}, inplace=True,
+        columns={"segmentid": "segment_id", "imageid": "model_id"},
+        inplace=True,
     )
 
     make_enroll_dir(df_segms, img_dir, output_path)

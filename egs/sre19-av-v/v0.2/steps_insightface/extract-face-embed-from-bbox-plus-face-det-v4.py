@@ -272,13 +272,19 @@ if __name__ == "__main__":
     parser.add_argument("--faceembed-model-file", required=True)
     parser.add_argument("--use-gpu", default=False, action="store_true")
     parser.add_argument(
-        "--save-facedet-img", default=False, action="store_true",
+        "--save-facedet-img",
+        default=False,
+        action="store_true",
     )
     parser.add_argument(
-        "--save-facecrop-img", default=False, action="store_true",
+        "--save-facecrop-img",
+        default=False,
+        action="store_true",
     )
     parser.add_argument(
-        "--save-facealign-img", default=False, action="store_true",
+        "--save-facealign-img",
+        default=False,
+        action="store_true",
     )
     parser.add_argument("--fps", type=int, default=1)
     parser.add_argument("--time-in-secs", default=False, action="store_true")

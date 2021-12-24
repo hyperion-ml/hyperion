@@ -47,7 +47,8 @@ def sum_fusion(ndx_file, audio_scores, visual_scores, output_scores, verbose):
 if __name__ == "__main__":
     parser = ArgumentParser(description="fuses audio and visual scores")
     parser.add_argument(
-        "--ndx-file", required=True,
+        "--ndx-file",
+        required=True,
     )
     parser.add_argument("--audio-scores", required=True)
     parser.add_argument("--visual-scores", required=True)
