@@ -23,7 +23,7 @@ project_root = Path(__file__).parent
 with open(project_root / "apps.txt") as f:
     apps = f.read().splitlines()
 
-apps = [project_root / "hyperion" / "bin" / app for app in apps]
+apps = [str(project_root / "hyperion" / "bin" / app) for app in apps]
 
 with open(project_root / "requirements.txt") as f:
     requirements = f.read().splitlines()
