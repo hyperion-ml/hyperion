@@ -1,7 +1,9 @@
 # HYPERION
 
 <div align="center">
-[![Documentation Status](https://readthedocs.org/projects/hyperion-ml/badge/?version=latest&style=plastic)](https://hyperion-ml.readthedocs.io/en/latest/?badge=latest)
+
+[![Documentation Status](https://readthedocs.org/projects/hyperion-ml/badge/?version=latest)](https://hyperion-ml.readthedocs.io/en/latest/?badge=latest)
+
 </div>
 
 Hyperion is a Speaker Recognition Toolkit based on PyTorch and numpy. It provides:
