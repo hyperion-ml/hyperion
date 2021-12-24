@@ -1,0 +1,18 @@
+name: black
+
+on:
+  push:	
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  black:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: psf/black@stable
+        with:
+          options: "--check --diff --color"
+          version: "21.10b0"
+	  
