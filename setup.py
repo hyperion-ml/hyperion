@@ -39,7 +39,7 @@ setuptools.setup(
     # major.minor.patch
     # eg: 1.0.0, 1.0.1, 3.0.2, 5.0-beta, etc.
     # You CANNOT upload two versions of your package with the same version number
-    version="0.2.4",
+    version="0.2.5",
     author="Jesus Villalba",
     author_email="jesus.antonio.villalba@gmail.com",
     # The description that will be shown on PyPI.
