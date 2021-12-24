@@ -426,6 +426,8 @@ Conformer
 Models
 ------
 
+These include complex models created by connecting several network architectures.
+
 x-Vectors
 ~~~~~~~~~
 
@@ -680,6 +682,68 @@ Metric Functions
 Loggers
 -------
 
+The logger classes are used to write information to standard output, log files, tensorboard or WandB.
+The LoggerList class contains a set of loggers. When we log something to the LoggerList, the same is written
+in all the loggers contained in it. The loggers support multi-gpu training with ``DistributedDataParallel``
+
+Individual Loggers
+~~~~~~~~~~~~~~~~~~
+
+.. autoclass:: hyperion.torch.loggers.logger.Logger
+
+.. autoclass:: hyperion.torch.loggers.prog_logger.ProgLogger
+
+.. autoclass:: hyperion.torch.loggers.csv_logger.CSVLogger
+
+.. autoclass:: hyperion.torch.loggers.tensorboard_logger.TensorBoardLogger
+
+.. autoclass:: hyperion.torch.loggers.wandb_logger.WAndBLogger
+
+Logger List
+~~~~~~~~~~~
+
+.. autoclass:: hyperion.torch.loggers.logger_list.LoggerList
 
 Utils
 -----
+
+Device Handling Utils
+~~~~~~~~~~~~~~~~~~~~~
+
+Utilities to handle GPU devices, like finding a free GPU in a shared server.
+
+.. automodule:: hyperion.torch.utils.devices
+
+Distributed Data Parallel Utils
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+These contains utils to perform multigpu training with Distributed Data Paralell.
+
+.. automodule:: hyperion.torch.utils.ddp
+
+Metric Accumulators
+~~~~~~~~~~~~~~~~~~~
+
+Tools to combine the metrics computed in multiple GPUs into a single metric
+
+.. automodule:: hyperion.torch.utils.metric_acc
+
+Evaluation Utils
+~~~~~~~~~~~~~~~~
+
+Functions that can be usefull when evaluating neural networks. For example, when a signal is too long to fit
+in memory and needs to be splitted into chunks
+
+.. automodule:: hyperion.torch.utils.eval_utils
+
+Math Functions
+~~~~~~~~~~~~~~
+
+.. automodule:: hyperion.torch.utils.math
+
+
+Miscellaneous Functions
+~~~~~~~~~~~~~~~~~~~~~~~
+
+.. automodule:: hyperion.torch.utils.misc
+
