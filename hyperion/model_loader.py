@@ -25,7 +25,7 @@ class ModelLoader(object):
                    'NAP': NAP,
                    'SbSw': SbSw,
                    'MVN': MVN,
-                   'TransformList', TransformList}
+                   'TransformList': TransformList}
         return obj_dict
         
     

@@ -128,9 +128,9 @@ SVM Classifiers
 Logistic Regression Classifiers and Calibrators
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. autoclass:: hyperion.classifiers.logistic_regression.LogisticRegresion
+.. autoclass:: hyperion.classifiers.logistic_regression.LogisticRegression
 
-.. autoclass:: hyperion.classifiers.binary_logistic_regression.BinaryLogisticRegresion
+.. autoclass:: hyperion.classifiers.binary_logistic_regression.BinaryLogisticRegression
 
 
 Clustering Tools
