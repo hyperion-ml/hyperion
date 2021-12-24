@@ -14,4 +14,6 @@ jobs:
       - uses: psf/black@stable
         with:
           options: "--check --diff --color"
+	  src: "./hyperion"
           version: "21.10b0"
+	  
