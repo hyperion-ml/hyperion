@@ -23,13 +23,24 @@ project_root = Path(__file__).parent
 with open(project_root / "apps.txt") as f:
     apps = f.read().splitlines()
 
-apps = [project_root / "hyperion" / "bin" / app for app in apps]
+apps = [str(project_root / "hyperion" / "bin" / app) for app in apps]
 
 with open(project_root / "requirements.txt") as f:
     requirements = f.read().splitlines()
 
 with open(project_root / "README.md", "r") as fh:
     long_description = fh.read()
+
+
+def get_version():
+    with open(project_root / "hyperion" / "__init__.py") as f:
+        for line in f.read().splitlines():
+            if line.startswith("__version__"):
+                delim = '"' if '"' in line else "'"
+                return line.split(delim)[1]
+
+        raise RuntimeError("Unable to find version string.")
+
 
 setuptools.setup(
     # This name will decide what users will type when they install your package.
@@ -39,7 +50,7 @@ setuptools.setup(
     # major.minor.patch
     # eg: 1.0.0, 1.0.1, 3.0.2, 5.0-beta, etc.
     # You CANNOT upload two versions of your package with the same version number
-    version="0.2.4",
+    version=get_version(),
     author="Jesus Villalba",
     author_email="jesus.antonio.villalba@gmail.com",
     # The description that will be shown on PyPI.
