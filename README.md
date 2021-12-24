@@ -1,11 +1,17 @@
 # HYPERION
 
+<div align="center">
+[![Documentation Status](https://readthedocs.org/projects/hyperion-ml/badge/?version=latest&style=plastic)](https://hyperion-ml.readthedocs.io/en/latest/?badge=latest)
+</div>
+
 Hyperion is a Speaker Recognition Toolkit based on PyTorch and numpy. It provides:
  - x-Vector architectures: ResNet, Res2Net, Spine2Net, ECAPA-TDNN, EfficientNet, Transformers and others.
  - Embedding preprocessing tools: PCA, LDA, NAP, Centering/Whitening, Length Normalization, CORAL
  - Several flavours of PLDA back-ends: Full-rank PLDA, Simplified PLDA, PLDA
  - Calibration and Fusion tools
  - Recipes for popular datasets: VoxCeleb, NIST-SRE, VOiCES
+
+The full API is described in the documentation page [https://hyperion-ml.readthedocs.io](https://hyperion-ml.readthedocs.io)
 
 ## Installation Instructions
 
