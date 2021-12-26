@@ -54,10 +54,17 @@ class SingleNoiseAugment(object):
 
     @staticmethod
     def _power(x):
+        """Computes power of x in dB"""
         return 10 * np.log10((x ** 2).sum())
 
     @staticmethod
     def snr(x, n):
+        """Computes SNR in DB
+
+        Args:
+          x: clean speech signal
+          n: noise signal
+        """
         return SingleNoiseAugment._power(x) - SingleNoiseAugment._power(n)
 
     @staticmethod
@@ -66,6 +73,15 @@ class SingleNoiseAugment(object):
         return 10 ** ((snr - target_snr) / 20)
 
     def forward(self, x):
+        """Adds noise to signal, SNR is chosen randomly
+
+        Args:
+          x: clean speech signal
+
+        Returns:
+          Noisy signal
+          Dictionary containing information of noise type and SNR(dB)
+        """
         num_samples = x.shape[0]
         with self.lock:
             if self.cache is not None:
@@ -180,6 +196,15 @@ class NoiseAugment(object):
         )
 
     def forward(self, x):
+        """Adds noise to signal, noise type and SNR are chosen randomly
+
+        Args:
+          x: clean speech signal
+
+        Returns:
+          Noisy signal
+          Dictionary containing information of noise type and SNR(dB)
+        """
 
         # decide whether to add noise or not
         with self.lock:
