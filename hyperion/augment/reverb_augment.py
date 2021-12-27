@@ -88,15 +88,26 @@ class SingleReverbAugment(object):
 
     @staticmethod
     def _power(x):
+        """Computes power of x in dB"""
         return 10 * np.log10((x ** 2).sum() + 1e-5)
 
     @staticmethod
     def sdr(x, y, scale, delay):
+        """Computes SDR in DB
+
+        Args:
+          x: clean speech signal
+          y: reverberant speech signal
+          scale: linear gain of the RIR
+          delay: delay introduced by the RIR
+        """
+
         x = scale * x
         n = y[delay:] - x
         return SingleReverbAugment._power(x) - SingleReverbAugment._power(n)
 
     def _norm_rir(self, h):
+        """Normalizes RIR by max value or power"""
         if self.rir_norm == RIRNormType.NONE:
             return h
         if self.rir_norm == RIRNormType.MAX:
@@ -106,6 +117,16 @@ class SingleReverbAugment(object):
         return h / np.sum(h ** 2)
 
     def forward(self, x):
+        """Adds reverberation to signal, RIR is chosen randomly
+
+        Args:
+          x: clean speech signal
+
+        Returns:
+          Noisy signal
+          Dictionary containing information of RIR type, Signal reverb ratio (dB), linear gain and delay introduced by RIR
+        """
+
         num_samples = x.shape[0]
         with self.lock:
             rir_idx = self.rng.randint(len(self.rir_keys))
@@ -184,9 +205,6 @@ class ReverbAugment(object):
             count += 1
 
         self.max_reverb_context = max_reverb_context
-        # self.max_rir_length = np.max(
-        #     [a.max_rir_length for a in augmenters])
-
         self.weights /= np.sum(self.weights)
         self.augmenters = augmenters
 
@@ -225,9 +243,27 @@ class ReverbAugment(object):
 
     @staticmethod
     def sdr(x, y, scale, delay):
+        """Computes SDR in DB
+
+        Args:
+          x: clean speech signal
+          y: reverberant speech signal
+          scale: linear gain of the RIR
+          delay: delay introduced by the RIR
+        """
         return SingleReverbAugment.sdr(x, y, scale, delay)
 
     def forward(self, x):
+        """Adds reverberation to signal, Room type is choosen randomly,
+           RIR is chosen randomly
+
+        Args:
+          x: clean speech signal
+
+        Returns:
+          Noisy signal
+          Dictionary containing information of RIR type, Signal reverb ratio (dB), linear gain and delay introduced by RIR
+        """
 
         # decide whether to add reverb or not
         with self.lock:
