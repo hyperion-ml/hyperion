@@ -36,7 +36,7 @@ class TransformerXVectorV1(XVector):
       num_embed_layers: number of hidden layers in classification head
       hid_act: hidden activation configuration string or dictionary
       loss_type: sofmax losss type string in ['softmax', 'arc-softmax', 'cos-softmax']
-      s: s parameter in arc/cos-softmax losses
+      cos_scale: s parameter in arc/cos-softmax losses
       margin: margin in arc/cos-sofmtax losses
       margin_warmup_epochs: number of epochs until we reach the maximum value for margin
       dropout_rate: dropout rate for ff block and classification head
@@ -70,7 +70,7 @@ class TransformerXVectorV1(XVector):
         num_embed_layers=1,
         hid_act={"name": "relu6", "inplace": True},
         loss_type="arc-softmax",
-        s=64,
+        cos_scale=64,
         margin=0.3,
         margin_warmup_epochs=0,
         num_subcenters=2,
@@ -115,7 +115,7 @@ class TransformerXVectorV1(XVector):
             num_embed_layers=num_embed_layers,
             hid_act=hid_act,
             loss_type=loss_type,
-            s=s,
+            cos_scale=cos_scale,
             margin=margin,
             margin_warmup_epochs=margin_warmup_epochs,
             num_subcenters=num_subcenters,

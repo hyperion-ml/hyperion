@@ -258,14 +258,8 @@ if __name__ == "__main__":
     )
 
     AF.add_class_args(parser, prefix="feats")
-    # feats_parser = ArgumentParser()
-    # AFF.add_class_args(feats_parser, prefix='audio_feats')
-    # MVN.add_class_args(feats_parser, prefix='mvn')
-    # parser.add_argument('--feats', action=ActionParser(parser=feats_parser), help='feat extraction opts')
 
     XVec.add_class_args(parser)
-    # OF.add_class_args(parser, prefix='opt')
-    # LRSF.add_class_args(parser, prefix='lrsch')
     Trainer.add_class_args(parser)
 
     ddp.add_ddp_args(parser)
@@ -284,10 +278,10 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # device = init_device(args.num_gpus)
-    # mp.spawn(train_xvec, nprocs=args.num_gpus, args=(args,))
-    gpu_id = args.local_rank
-    del args.local_rank
+    try:
+        gpu_id = int(os.environ["LOCAL_RANK"])
+    except:
+        gpu_id = 0
 
     if gpu_id == 0:
         try:
