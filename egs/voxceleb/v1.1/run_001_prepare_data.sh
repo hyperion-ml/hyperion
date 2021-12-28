@@ -24,7 +24,7 @@ fi
 if [ $stage -le 2 ];then
   # prepare voxceleb1 for test
   # This script is for the old version of the dataset
-  local/make_voxceleb1_oeh.pl $voxceleb1_root data
+  # local/make_voxceleb1_oeh.pl $voxceleb1_root data
   # Use this for the newer version of voxceleb1:
-  # local/make_voxceleb1_v2_oeh.pl $voxceleb1_root data
+  local/make_voxceleb1_v2_oeh.pl $voxceleb1_root data
 fi
