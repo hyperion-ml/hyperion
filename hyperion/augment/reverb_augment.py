@@ -19,7 +19,7 @@ from ..io import RandomAccessDataReaderFactory as DRF
 
 
 class RIRNormType(Enum):
-    """normalization type to apply to RIR"""
+    """normalization type to apply to RIR."""
 
     NONE = 0  # none
     MAX = 1  # max ray normalized to 1
@@ -28,18 +28,18 @@ class RIRNormType(Enum):
 
 class SingleReverbAugment(object):
     """Class to augment speech with reverberation using RIR from a
-        single type, e.g., small room, medium room, large room
+        single type, e.g., small room, medium room, large room.
 
     Attributes:
       rir_type: string label indicating the RIR type.
-      rir_path: Kaldi style rspecifier to Ark or H5 file containing RIRs
-      rir_norm: RIR normalization method between None, 'max' or 'energy'
+      rir_path: Kaldi style rspecifier to Ark or H5 file containing RIRs.
+      rir_norm: RIR normalization method between None, 'max' or 'energy'.
       comp_delay: compensate the delay introduced by the RIR if any,
                   this delay will happen if the maximum of the RIR is not in
                   its first sample.
-      preload_rirs: if True all RIRS are loaded into RAM
+      preload_rirs: if True all RIRS are loaded into RAM.
       rng:     Random number generator returned by
-               np.random.RandomState (optional)
+               np.random.RandomState (optional).
     """
 
     def __init__(
@@ -88,18 +88,18 @@ class SingleReverbAugment(object):
 
     @staticmethod
     def _power(x):
-        """Computes power of x in dB"""
+        """Computes power of x in dB."""
         return 10 * np.log10((x ** 2).sum() + 1e-5)
 
     @staticmethod
     def sdr(x, y, scale, delay):
-        """Computes SDR in DB
+        """Computes SDR in DB.
 
         Args:
-          x: clean speech signal
-          y: reverberant speech signal
-          scale: linear gain of the RIR
-          delay: delay introduced by the RIR
+          x: clean speech signal.
+          y: reverberant speech signal.
+          scale: linear gain of the RIR.
+          delay: delay introduced by the RIR.
         """
 
         x = scale * x
@@ -117,14 +117,14 @@ class SingleReverbAugment(object):
         return h / np.sum(h ** 2)
 
     def forward(self, x):
-        """Adds reverberation to signal, RIR is chosen randomly
+        """Adds reverberation to signal, RIR is chosen randomly.
 
         Args:
-          x: clean speech signal
+          x: clean speech signal.
 
         Returns:
-          Noisy signal
-          Dictionary containing information of RIR type, Signal reverb ratio (dB), linear gain and delay introduced by RIR
+          Noisy signal.
+          Dictionary containing information of RIR type, Signal reverb ratio (dB), linear gain and delay introduced by RIR.
         """
 
         num_samples = x.shape[0]
@@ -167,7 +167,7 @@ class ReverbAugment(object):
         It will randomly choose which RIR type to add.
 
     Attributes:
-      reverb_prob: probability of adding reverberation
+      reverb_prob: probability of adding reverberation.
       rir_types: dictionary of options with one entry per RIR-type,
                   Each entry is also a dictiory with the following entries:
                   weight, rir_norm, comp_delay, rir_path. The weight parameter
@@ -176,7 +176,7 @@ class ReverbAugment(object):
       max_reverb_context: number of samples required as left context
                           for the convolution operation.
       rng:     Random number generator returned by
-               np.random.RandomState (optional)
+               np.random.RandomState (optional).
     """
 
     def __init__(
@@ -221,10 +221,10 @@ class ReverbAugment(object):
         Args:
           cfg: YAML file path or dictionary with reverb options.
           rng: Random number generator returned by
-               np.random.RandomState (optional)
+               np.random.RandomState (optional).
 
         Returns:
-          ReverbAugment object
+          ReverbAugment object.
         """
 
         if isinstance(cfg, str):
@@ -243,26 +243,26 @@ class ReverbAugment(object):
 
     @staticmethod
     def sdr(x, y, scale, delay):
-        """Computes SDR in DB
+        """Computes SDR in DB.
 
         Args:
-          x: clean speech signal
-          y: reverberant speech signal
-          scale: linear gain of the RIR
-          delay: delay introduced by the RIR
+          x: clean speech signal.
+          y: reverberant speech signal.
+          scale: linear gain of the RIR.
+          delay: delay introduced by the RIR.
         """
         return SingleReverbAugment.sdr(x, y, scale, delay)
 
     def forward(self, x):
         """Adds reverberation to signal, Room type is choosen randomly,
-           RIR is chosen randomly
+           RIR is chosen randomly.
 
         Args:
-          x: clean speech signal
+          x: clean speech signal.
 
         Returns:
-          Noisy signal
-          Dictionary containing information of RIR type, Signal reverb ratio (dB), linear gain and delay introduced by RIR
+          Noisy signal.
+          Dictionary containing information of RIR type, Signal reverb ratio (dB), linear gain and delay introduced by RIR.
         """
 
         # decide whether to add reverb or not

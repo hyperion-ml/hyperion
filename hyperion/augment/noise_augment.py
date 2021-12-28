@@ -26,7 +26,7 @@ class SingleNoiseAugment(object):
       min_snr: mininimum SNR(dB) to sample from.
       max_snr: maximum SNR(dB) to sample from.
       rng:     Random number generator returned by
-               np.random.RandomState (optional)
+               np.random.RandomState (optional).
     """
 
     def __init__(
@@ -54,16 +54,16 @@ class SingleNoiseAugment(object):
 
     @staticmethod
     def _power(x):
-        """Computes power of x in dB"""
+        """Computes power of x in dB."""
         return 10 * np.log10((x ** 2).sum())
 
     @staticmethod
     def snr(x, n):
-        """Computes SNR in DB
+        """Computes SNR in dB.
 
         Args:
-          x: clean speech signal
-          n: noise signal
+          x: clean speech signal.
+          n: noise signal.
         """
         return SingleNoiseAugment._power(x) - SingleNoiseAugment._power(n)
 
@@ -73,14 +73,14 @@ class SingleNoiseAugment(object):
         return 10 ** ((snr - target_snr) / 20)
 
     def forward(self, x):
-        """Adds noise to signal, SNR is chosen randomly
+        """Adds noise to signal, SNR is chosen randomly.
 
         Args:
-          x: clean speech signal
+          x: clean speech signal.
 
         Returns:
-          Noisy signal
-          Dictionary containing information of noise type and SNR(dB)
+          Noisy signal.
+          Dictionary containing information of noise type and SNR(dB).
         """
         num_samples = x.shape[0]
         with self.lock:
@@ -129,14 +129,14 @@ class NoiseAugment(object):
         It will randomly choose which noise type to add.
 
     Attributes:
-      noise_prob: probability of adding noise
+      noise_prob: probability of adding noise.
       noise_types: dictionary of options with one entry per noise-type,
                   Each entry is also a dictiory with the following entries:
                   weight, max_snr, min_snr, noise_path. The weight parameter
                   is proportional to how often we want to sample a given noise
                   type.
       rng:     Random number generator returned by
-               np.random.RandomState (optional)
+               np.random.RandomState (optional).
     """
 
     def __init__(self, noise_prob, noise_types, random_seed=112358, rng=None):
@@ -177,7 +177,7 @@ class NoiseAugment(object):
         Args:
           cfg: YAML file path or dictionary with noise options.
           rng: Random number generator returned by
-               np.random.RandomState (optional)
+               np.random.RandomState (optional).
 
         Returns:
           NoiseAugment object
@@ -196,14 +196,14 @@ class NoiseAugment(object):
         )
 
     def forward(self, x):
-        """Adds noise to signal, noise type and SNR are chosen randomly
+        """Adds noise to signal, noise type and SNR are chosen randomly.
 
         Args:
-          x: clean speech signal
+          x: clean speech signal.
 
         Returns:
-          Noisy signal
-          Dictionary containing information of noise type and SNR(dB)
+          Noisy signal.
+          Dictionary containing information of noise type and SNR(dB).
         """
 
         # decide whether to add noise or not
