@@ -13,15 +13,15 @@ from ..hyp_defs import float_cpu
 
 
 class SpeedAugment(object):
-    """Class to augment speech with speed perturbation
+    """Class to augment speech with speed perturbation.
 
     Attributes:
-      speed_prob: probability of applying speed perturbation
-      speed_ratios: list of speed pertubation ratios
-      keep_length: applies padding or cropping to keep the lenght of the signal
-      random_seed: random seed for random number generator
+      speed_prob: probability of applying speed perturbation.
+      speed_ratios: list of speed pertubation ratios.
+      keep_length: applies padding or cropping to keep the lenght of the signal.
+      random_seed: random seed for random number generator.
       rng:     Random number generator returned by
-               np.random.RandomState (optional)
+               np.random.RandomState (optional).
     """
 
     def __init__(
@@ -53,10 +53,10 @@ class SpeedAugment(object):
         Args:
           cfg: YAML file path or dictionary with noise options.
           rng: Random number generator returned by
-               np.random.RandomState (optional)
+               np.random.RandomState (optional).
 
         Returns:
-          NoiseAugment object
+          NoiseAugment object.
         """
         if isinstance(cfg, str):
             with open(cfg, "r") as f:
@@ -73,6 +73,16 @@ class SpeedAugment(object):
         )
 
     def forward(self, x):
+        """Change the speed of the signal,
+           the multiplication factor is chosen randomly.
+
+        Args:
+          x: clean speech signal.
+
+        Returns:
+          Augmented signal.
+          Dictionary containing speed ratio applied.
+        """
 
         # decide whether to add noise or not
         p = self.rng.random_sample()
