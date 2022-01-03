@@ -277,8 +277,10 @@ if __name__ == "__main__":
             subcommands.add_subcommand(k, parser_k)
 
     args = parser.parse_args()
-    gpu_id = args.local_rank
-    del args.local_rank
+    try:
+        gpu_id = int(os.environ["LOCAL_RANK"])
+    except:
+        gpu_id = 0
 
     vae_type = args.subcommand
     args_sc = vars(args)[vae_type]
@@ -296,20 +298,3 @@ if __name__ == "__main__":
     # torch docs recommend using forkserver
     multiprocessing.set_start_method("forkserver")
     train_vae(gpu_id, args_sc)
-
-    # parser.add_argument('--local_rank', default=0, type=int)
-
-    # args = parser.parse_args()
-    # gpu_id = args.local_rank
-    # del args.local_rank
-
-    # if gpu_id == 0:
-    #     try:
-    #         config_file = Path(args.exp_path) / 'config.yaml'
-    #         parser.save(args, str(config_file), format='yaml', overwrite=True)
-    #     except:
-    #         pass
-
-    # # torch docs recommend using forkserver
-    # multiprocessing.set_start_method('forkserver')
-    # train_vae(gpu_id, args)

@@ -49,7 +49,7 @@ if [ $stage -le 1 ]; then
       --num-workers $num_workers $ft_opt_opt $ft_lrs_opt \
       --grad-acc-steps $grad_acc_steps \
       --epochs $ft_nnet_num_epochs \
-      --s $s --margin $ft_margin --margin-warmup-epochs $ft_margin_warmup \
+      --cos-scale $s --margin $ft_margin --margin-warmup-epochs $ft_margin_warmup \
       --num-gpus $ngpu \
       --log-interval $log_interval \
       --in-model-path $nnet \
