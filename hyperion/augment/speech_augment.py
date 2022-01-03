@@ -17,12 +17,13 @@ from .speed_augment import SpeedAugment
 
 
 class SpeechAugment(object):
-    """Class to add noise and reverberation on-the-fly when trianing nnets.
+    """Class to change speedd, add noise and reverberation
+       on-the-fly when training nnets.
 
     Attributes:
-       speed_aug: SpeedAugment object
-       reverb_aug: ReverbAugment object
-       noise_aug: NoiseAugment object
+       speed_aug: SpeedAugment object.
+       reverb_aug: ReverbAugment object.
+       noise_aug: NoiseAugment object.
     """
 
     def __init__(self, speed_aug=None, reverb_aug=None, noise_aug=None):
@@ -32,6 +33,16 @@ class SpeechAugment(object):
 
     @classmethod
     def create(cls, cfg, random_seed=112358, rng=None):
+        """Creates a SpeechAugment object from options dictionary or YAML file.
+
+        Args:
+          cfg: YAML file path or dictionary with noise options.
+          rng: Random number generator returned by
+               np.random.RandomState (optional).
+
+        Returns:
+          SpeechAugment object.
+        """
         if isinstance(cfg, str):
             with open(cfg, "r") as f:
                 cfg = yaml.load(f, Loader=yaml.FullLoader)
@@ -56,12 +67,23 @@ class SpeechAugment(object):
 
     @property
     def max_reverb_context(self):
+        """Maximum length of the RIRs."""
         if self.reverb_aug is None:
             return 0
 
         return self.reverb_aug.max_reverb_context
 
     def forward(self, x):
+        """Adds speed augment, noise and reverberation to signal,
+        speed multiplier, noise type, SNR, room type and RIRs are chosen randomly.
+
+        Args:
+          x: clean speech signal.
+
+        Returns:
+          Augmented signal
+          Dictionary containing information of noise type, rir_type, SNR(dB), SDR(dB), speed.
+        """
 
         info = {}
         if self.speed_aug is not None:

@@ -10,15 +10,31 @@ from .gauss_calibration import GaussCalibration
 
 
 class UnsupGaussCalibration(GaussCalibration):
-    """Class for unsupervised Gaussian calibration."""
+    """Class for unsupervised Gaussian calibration.
+       The model assumes that targer and non-target score distributions are Gaussians
+       with shared covariance.
+       The model is trained using a mixture of two Gaussians using EM algorithm.
+
+    Attributes:
+      mu1: mean of the target score distribution.
+      mu2: mean of the non-target score distribution.
+      sigma2: shared variance of the target and non-target score distributions.
+      prior: prior prob. for target trials. It is the weight of the target component of the GMM.
+      init_prior: initial weight given to the target component of the GMM, when initializing the EM algorithm.
+    """
 
     def __init__(
         self, mu1=None, mu2=None, sigma2=None, prior=0.5, init_prior=0.5, **kwargs
     ):
-        super(UnsupGaussCalibration, self).__init__(mu1, mu2, sigma2, prior, **kwargs)
+        super().__init__(mu1, mu2, sigma2, prior, **kwargs)
         self.init_prior = init_prior
 
     def fit(self, x):
+        """Estimates the parameters of the model.
+
+        Args:
+          x: score numpy tensor (num_scores,).
+        """
 
         if x.ndim == 1:
             x = np.expand_dims(x, axis=-1)
