@@ -53,7 +53,7 @@ if [ $stage -le 1 ]; then
       --reg-layers-enc $reg_layers_enc \
       --reg-weight-enc $ft3_reg_weight_enc \
       --epochs $ft3_nnet_num_epochs \
-      --s $s --margin $margin --margin-warmup-epochs $ft3_margin_warmup \
+      --cos-scale $s --margin $margin --margin-warmup-epochs $ft3_margin_warmup \
       --num-gpus $ngpu \
       --log-interval $log_interval \
       --in-model-path $ft2_nnet \

@@ -25,7 +25,7 @@ class ClassifHead(NetArch):
        hid_act: str or dict hidden activation type in ['relu', 'relu6', 'swish', ... ]
        loss_type: type of loss function that will be used with the x-vector in ['softmax', 'cos-softmax', 'arc-softmax'],
                   corresponding to standard cross-entorpy, additive margin softmax or additive angular margin softmax.
-       s: scale parameter for cos-softmax and arc-softmax
+       cos_scale: scale parameter for cos-softmax and arc-softmax
        margin: margin parameter for cos-softmax and arc-softmax
        margin_warmup_epochs: number of epochs to anneal the margin from 0 to margin
        num_subcenters: number of subcenters in subcenter losses
@@ -42,7 +42,7 @@ class ClassifHead(NetArch):
         num_embed_layers=1,
         hid_act={"name": "relu", "inplace": True},
         loss_type="arc-softmax",
-        s=64,
+        cos_scale=64,
         margin=0.3,
         margin_warmup_epochs=0,
         num_subcenters=2,
@@ -74,7 +74,7 @@ class ClassifHead(NetArch):
 
         self.dropout_rate = dropout_rate
         self.loss_type = loss_type
-        self.s = s
+        self.cos_scale = cos_scale
         self.margin = margin
         self.margin_warmup_epochs = margin_warmup_epochs
         self.num_subcenters = num_subcenters
@@ -120,7 +120,7 @@ class ClassifHead(NetArch):
             self.output = CosLossOutput(
                 embed_dim,
                 num_classes,
-                s=s,
+                cos_scale=cos_scale,
                 margin=margin,
                 margin_warmup_epochs=margin_warmup_epochs,
             )
@@ -128,7 +128,7 @@ class ClassifHead(NetArch):
             self.output = ArcLossOutput(
                 embed_dim,
                 num_classes,
-                s=s,
+                cos_scale=cos_scale,
                 margin=margin,
                 margin_warmup_epochs=margin_warmup_epochs,
             )
@@ -137,7 +137,7 @@ class ClassifHead(NetArch):
                 embed_dim,
                 num_classes,
                 num_subcenters,
-                s=s,
+                cos_scale=cos_scale,
                 margin=margin,
                 margin_warmup_epochs=margin_warmup_epochs,
             )
@@ -149,7 +149,7 @@ class ClassifHead(NetArch):
         embed_dim = self.embed_dim
         self.num_classes = num_classes
         self.loss_type = loss_type
-        self.s = s
+        self.cos_scale = cos_scale
         self.margin = margin
         self.margin_warmup_epochs = margin_warmup_epochs
         self.num_subcenters = num_subcenters
@@ -160,7 +160,7 @@ class ClassifHead(NetArch):
             self.output = CosLossOutput(
                 embed_dim,
                 num_classes,
-                s=s,
+                cos_scale=cos_scale,
                 margin=margin,
                 margin_warmup_epochs=margin_warmup_epochs,
             )
@@ -168,7 +168,7 @@ class ClassifHead(NetArch):
             self.output = ArcLossOutput(
                 embed_dim,
                 num_classes,
-                s=s,
+                cos_scale=cos_scale,
                 margin=margin,
                 margin_warmup_epochs=margin_warmup_epochs,
             )
@@ -177,7 +177,7 @@ class ClassifHead(NetArch):
                 embed_dim,
                 num_classes,
                 num_subcenters,
-                s=s,
+                cos_scale=cos_scale,
                 margin=margin,
                 margin_warmup_epochs=margin_warmup_epochs,
             )
@@ -196,12 +196,12 @@ class ClassifHead(NetArch):
         self.margin_warmup_epochs = margin_warmup_epochs
         self.output.margin_warmup_epochs = margin_warmup_epochs
 
-    def set_s(self, s):
+    def set_cos_scale(self, cos_scale):
         if self.loss_type == "softmax":
             return
 
-        self.s = s
-        self.output.s = s
+        self.cos_scale = cos_scale
+        self.output.cos_scale = cos_scale
 
     def update_margin(self, epoch):
         if hasattr(self.output, "update_margin"):
@@ -268,7 +268,7 @@ class ClassifHead(NetArch):
             "num_embed_layers": self.num_embed_layers,
             "hid_act": hid_act,
             "lost_type": self.lost_type,
-            "s": self.s,
+            "cos_scale": self.cos_scale,
             "margin": self.margin,
             "margin_warmup_epochs": self.margin_warmup_epochs,
             "num_subcenters": self.num_subcenters,

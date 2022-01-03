@@ -51,7 +51,7 @@ if [ $stage -le 1 ]; then
       --reg-layers-classif $reg_layers_classif \
       --reg-weight-classif $ft2_reg_weight_embed \
       --epochs $ft2_nnet_num_epochs \
-      --s $s --margin $margin --margin-warmup-epochs $ft2_margin_warmup \
+      --cos-scale $s --margin $margin --margin-warmup-epochs $ft2_margin_warmup \
       --num-gpus $ngpu \
       --log-interval $log_interval \
       --in-model-path $ft_nnet \

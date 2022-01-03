@@ -167,11 +167,11 @@ if __name__ == "__main__":
         "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
     )
 
-    parser.add_argument("--local_rank", default=0, type=int)
-
     args = parser.parse_args()
-    gpu_id = args.local_rank
-    del args.local_rank
+    try:
+        gpu_id = int(os.environ["LOCAL_RANK"])
+    except:
+        gpu_id = 0
 
     if gpu_id == 0:
         try:

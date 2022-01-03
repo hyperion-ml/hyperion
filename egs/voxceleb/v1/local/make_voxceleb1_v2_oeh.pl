@@ -34,7 +34,7 @@ my $meta_url = "https://www.openslr.org/resources/49/vox1_meta.csv";
 my $meta_path = "$data_base/vox1_meta.csv";
 if (! -e "$meta_path") {
     $meta_path = "$out_dir/vox1_meta.csv";
-    system("wget -O $meta_path $meta_url");
+    system("wget --no-check-certificate -O $meta_path $meta_url");
 }
 
 open(META_IN, "<", "$meta_path") or die "Could not open the meta data file $meta_path";

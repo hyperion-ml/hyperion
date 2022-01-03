@@ -47,7 +47,7 @@ fi
 # echo "LRU_CACHE_CAPACITY=$LRU_CACHE_CAPACITY"
 
 conda activate $conda_env
-
+command="python"
 if [ $num_gpus -gt 0 ];then
     # set CUDA_VISIBLE_DEVICES
     echo "SGE_HGR_gpu=$SGE_HGR_gpu"
@@ -67,14 +67,16 @@ if [ $num_gpus -gt 0 ];then
     fi
     echo "CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES"
     if [ $num_gpus -gt 1 ];then
-	ddp="-m torch.distributed.launch --nproc_per_node=$num_gpus"
+      [[ $(type -P "$torchrun") ]] && command="torchrun" \
+	  || command="python -m torch.distributed.run"
+       command="$command --nproc_per_node=$num_gpus --standalone --nnodes=1"
     fi
 fi
 
 py_exec=$(which $1)
 shift
 
-python $ddp $py_exec "$@"
+$command $py_exec "$@"
 
 conda deactivate 
 

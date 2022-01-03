@@ -165,14 +165,12 @@ class TorchTrainer(object):
                     )
                 # syncbathcnorm is not supported here, it raises exception
                 self.model = FairFullyShardedDDP(
-                    self.model, mixed_precision=self.use_amp, cpu_offload=cpu_offload
+                    self.model,
+                    mixed_precision=self.use_amp,
+                    move_params_to_cpu=cpu_offload,
                 )
                 self.optimizer = self._make_optimizer(optim, self.model, oss=False)
 
-            # if loss is not None:
-            #     self.loss = TorchDDP(self.loss, device_ids=[device])
-            # if self.use_amp:
-            #    self.amp_args = {'use_amp': self.use_amp }
         else:
             self.optimizer = self._make_optimizer(optim, self.model)
 
