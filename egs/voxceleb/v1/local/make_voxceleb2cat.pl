@@ -21,6 +21,8 @@ if (`which ffmpeg` eq "") {
 
 ($data_base, $dataset, $fs, $out_dir) = @ARGV;
 
+print "Preparing VoxCeleb2 Cat in $out_dir \n";
+
 if ("$dataset" ne "dev" && "$dataset" ne "test") {
   die "dataset parameter must be 'dev' or 'test'!";
 }
@@ -42,12 +44,12 @@ if (system("mkdir -p $out_dir/lists_cat") != 0) {
   die "Error making directory $out_dir/lists_cat";
 }
 
-
+print "Reading metadata\n";
 my $meta_url = "https://www.openslr.org/resources/49/vox2_meta.csv";
 my $meta_path = "$data_base/vox2_meta.csv";
 if (! -e "$meta_path") {
     $meta_path = "$out_dir/vox2_meta.csv";
-    system("wget -O $meta_path $meta_url");
+    system("wget --no-check-certificate -O $meta_path $meta_url");
 }
 open(META_IN, "<", "$meta_path") or die "Could not open the output file $meta_path";
 my %spkr2gender = ();
@@ -58,6 +60,7 @@ while (<META_IN>) {
 }
 close(META_IN) or die;
 
+print "Reading languages estimated voxlingua \n";
 my $lid_url = "https://www.robots.ox.ac.uk/~vgg/data/voxceleb/data_workshop_2021/lang_vox2_final.csv";
 my $lid_path = "$data_base/lang_vox2_final.csv";
 if (! -e "$lid_path") {
@@ -84,9 +87,13 @@ opendir my $dh, "$dataset_path" or die "Cannot open directory: $!";
 my @spkr_dirs = grep {-d "$dataset_path/$_" && ! /^\.{1,2}$/} readdir($dh);
 closedir $dh;
 
+my $num_spkrs = @spkr_dirs;
+my $count = 0;
 foreach (@spkr_dirs) {
   my $spkr_id = $_;
 
+  $count++ ;
+  print "  processing speaker $spkr_id $count / $num_spkrs \n";
   print GENDER "$spkr_id $spkr2gender{$spkr_id}\n";
 
   opendir my $dh, "$dataset_path/$spkr_id/" or die "Cannot open directory: $!";
