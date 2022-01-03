@@ -13,6 +13,25 @@ from ..utils.math import int2onehot, logdet_pdmat, invert_pdmat, softmax
 
 
 class LinearGBE(HypModel):
+    """Linear Gaussian Back-end.
+
+    Attributes:
+      mu: mean of the classes (num_classes, x_dim)
+      W: Within-class precision, shared for all classes (x_dim, x_dim)
+      update_mu: if True, it updates the means when calling the fit function.
+      update_W: if True, it updates the precision when calling the fit function.
+      x_dim: dimension of the input features.
+      num_classes: number of classes.
+      balance_class_weight: if True, all classes have the same weight in the estimation of W.
+      beta: beta param of Gaussian-Wishart distribution.
+      nu: nu (deegres of freedom) param of Wishart distribution.
+      prior: LinearGBE object containing a prior mean, precision, beta, nu (used for adaptation).
+      prior_beta: if given, it overwrites beta in the prior object.
+      prior_nu: if given, it overwrites nu in the prior object.
+      post_beta: if given, it fixes the value of beta in the posterior, overwriting the beta computed by the fit function.
+      post_nu: if given, it fixes the value of nu in the posterior, overwriting the beta computed by the fit function.
+    """
+
     def __init__(
         self,
         mu=None,
@@ -32,7 +51,7 @@ class LinearGBE(HypModel):
         **kwargs
     ):
 
-        super(LinearGBE, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         if mu is not None:
             num_classes = mu.shape[0]
             x_dim = mu.shape[1]
@@ -57,6 +76,10 @@ class LinearGBE(HypModel):
         self._compute_Ab()
 
     def get_config(self):
+        """
+        Returns:
+          Dictionary with the hyperparameters of the model.
+        """
         config = {
             "update_mu": self.update_mu,
             "update_W": self.update_W,
@@ -69,7 +92,7 @@ class LinearGBE(HypModel):
             "post_nu": self.post_nu,
         }
 
-        base_config = super(LinearGBE, self).get_config()
+        base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
     def _load_prior(self):
@@ -84,16 +107,32 @@ class LinearGBE(HypModel):
             self.prior.nu = num_classes * self.prior_nu
 
     def _change_post_r(self):
-
         if self.post_beta is not None:
             self.beta = self.post_beta * np.ones((self.num_classes,), dtype=float_cpu())
         if self.post_nu is not None:
             self.nu = self.num_classes * self.post_nu
 
     def eval_linear(self, x):
+        """Evals the class unnormalized log-likelihoods. which reduces to a linear function.
+
+        Args:
+          x: input features (num_trials, x_dim).
+
+        Returns:
+          Log-likelihoods (num_trials, num_classes).
+        """
         return np.dot(x, self.A) + self.b
 
     def eval_llk(self, x):
+        """Evals the class log-likelihoods
+
+        Args:
+          x: input features (num_trials, x_dim).
+
+        Returns:
+          Log-likelihoods (num_trials, num_classes).
+        """
+
         logp = np.dot(x, self.A) + self.b
         K = 0.5 * logdet_pdmat(self.W) - 0.5 * self.x_dim * np.log(2 * np.pi)
         K += -0.5 * np.sum(np.dot(x, self.W) * x, axis=1, keepdims=True)
@@ -101,6 +140,16 @@ class LinearGBE(HypModel):
         return logp
 
     def eval_predictive(self, x):
+        """Evals the log-predictive distribution, taking into account the uncertainty in mu and W.
+            It involves evaluating the Student-t distributions. For this we need to give priors
+            to the model parameters.
+
+        Args:
+          x: input features (num_trials, x_dim).
+
+        Returns:
+          Log-likelihoods (num_trials, num_classes).
+        """
 
         K = self.W / self.nu
         c = self.nu + 1 - self.x_dim
@@ -138,6 +187,18 @@ class LinearGBE(HypModel):
         return logp
 
     def predict(self, x, eval_method="linear", normalize=False):
+        """Evaluates the Gaussian back-end.
+
+        Args:
+          x: input features (num_trials, x_dim).
+          eval_method: evaluation method can be linear (evaluates linear function),
+                       llk (evaluates exact log-likelihood),
+                       or predictive (evaluates the predictive distribution).
+          normalize: if True, normalize log-likelihoods transforming them into log-posteriors.
+
+        Returns:
+          Log-LLK or log-posterior scores (num_trials, num_classes).
+        """
         if eval_method == "linear":
             logp = self.eval_linear(x)
         elif eval_method == "llk":
@@ -152,8 +213,32 @@ class LinearGBE(HypModel):
 
         return logp
 
-    def fit(self, x, class_ids=None, p_theta=None, sample_weight=None):
+    def __call__(self, x, eval_method="linear", normalize=False):
+        """Evaluates the Gaussian back-end.
 
+        Args:
+          x: input features (num_trials, x_dim).
+          eval_method: evaluation method can be linear (evaluates linear function),
+                       llk (evaluates exact log-likelihood),
+                       or predictive (evaluates the predictive distribution).
+          normalize: if True, normalize log-likelihoods transforming them into log-posteriors.
+
+        Returns:
+          Log-LLK or log-posterior scores (num_trials, num_classes).
+        """
+        return self.predict(x, eval_method, normalize)
+
+    def fit(self, x, class_ids=None, p_theta=None, sample_weight=None):
+        """Trains the parameters of the model.
+
+        Args:
+          x: input features (num_samples, x_dim)
+          class_ids: integer vector (num_samples,) with elements in [0, num_classes)
+                     indicating the class of each example.
+          p_theta: alternative to class_ids, it is a matrix (num_samples, num_classes)
+                   indicating the prob. for example i to belong to class j.
+          sample_weight: indicates the weight of each sample in the estimation of the parameters (num_samples,).
+        """
         assert class_ids is not None or p_theta is not None
 
         do_map = True if self.prior is not None else False
@@ -237,12 +322,18 @@ class LinearGBE(HypModel):
         return cls(**kwargs)
 
     def _compute_Ab(self):
+        """Computes the rotation and bias parameters for the linear scoring."""
         if self.mu is not None and self.W is not None:
             self.A = np.dot(self.W, self.mu.T)
             self.b = -0.5 * np.sum(self.mu.T * self.A, axis=0)
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_class_args(**kwargs):
+        """Extracts the hyperparams of the class from a dictionary.
+
+        Returns:
+          Hyperparamters to initialize the class.
+        """
         if prefix is None:
             p = ""
         else:
@@ -273,6 +364,11 @@ class LinearGBE(HypModel):
 
     @staticmethod
     def add_class_args(parser, prefix=None):
+        """It adds the arguments corresponding to the class to jsonarparse.
+        Args:
+          parser: jsonargparse object
+          prefix: argument prefix.
+        """
         if prefix is None:
             p1 = "--"
         else:
@@ -328,11 +424,21 @@ class LinearGBE(HypModel):
 
     @staticmethod
     def filter_eval_args(prefix, **kwargs):
+        """Extracts the evaluation time hyperparams of the class from a dictionary.
+
+        Returns:
+          Hyperparameters to evaluate the class.
+        """
         valid_args = ("model_file", "normalize", "eval_method")
         return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
     @staticmethod
     def add_eval_args(parser, prefix=None):
+        """It adds the arguments needed to evaluate the class to jsonarparse.
+        Args:
+          parser: jsonargparse object
+          prefix: argument prefix.
+        """
         if prefix is None:
             p1 = "--"
         else:
