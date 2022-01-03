@@ -264,12 +264,8 @@ def make_parser(enc_class, dec_class):
 if __name__ == "__main__":
 
     parser = ArgumentParser(description="Train VAE")
-
-    parser.add_argument("--local_rank", default=0, type=int)
     parser.add_argument("--cfg", action=ActionConfigFile)
-
     subcommands = parser.add_subcommands()
-
     for ke, ve in enc_dict.items():
         for kd, vd in dec_dict.items():
             k = "%s:%s" % (ke, kd)
