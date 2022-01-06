@@ -14,6 +14,60 @@ from ..utils.math import softmax
 
 
 class LogisticRegression(HypModel):
+    """Multi-class logistic regression.
+
+    This is a wrapper that add functionalities to sklearn logistic regression.
+
+    Attributes:
+      A: Scaling Coefficients (num_feats, num_classes)
+      b: biases (num_classes, )
+      penalty: str, ‘l1’ or ‘l2’, default: ‘l2’ ,
+                 Used to specify the norm used in the penalization. The ‘newton-cg’, ‘sag’ and ‘lbfgs’ solvers support only l2 penalties.
+                  New in version 0.19: l1 penalty with SAGA solver (allowing ‘multinomial’ + L1)
+      lambda_reg: float, default: 1e-5
+                     Regularization strength; must be a positive float.
+      use_bias: bool, default: True
+                   Specifies if a constant (a.k.a. bias or intercept) should be added to the decision function.
+      bias_scaling: float, default 1.
+                       Useful only when the solver ‘liblinear’ is used and use_bias is set to True.
+                       In this case, x becomes [x, bias_scaling], i.e. a “synthetic” feature with constant value equal to intercept_scaling is appended to the instance vector. The intercept becomes intercept_scaling * synthetic_feature_weight.
+                       Note! the synthetic feature weight is subject to l1/l2 regularization as all other features. To lessen the effect of regularization on synthetic feature weight (and therefore on the intercept) bias_scaling has to be increased.
+      priors: dict or ‘balanced' default: None
+                Weights associated with classes in the form {class_label: weight}. If not given, all classes are supposed to have weight one.
+                The “balanced” mode uses the values of y to automatically adjust weights inversely proportional to class frequencies in the input data as n_samples / (n_classes * np.bincount(y)).
+                Note that these weights will be multiplied with sample_weight (passed through the fit method) if sample_weight is specified.
+      random_state: int, RandomState instance or None, optional, default: None
+                       The seed of the pseudo random number generator to use when shuffling the data. If int, random_state is the seed used by the random number generator; If RandomState instance, random_state is the random number generator; . Used when solver == ‘sag’ or ‘liblinear’.
+      solver: {‘newton-cg’, ‘lbfgs’, ‘liblinear’, ‘sag’, ‘saga’},
+                 default: ‘liblinear’ Algorithm to use in the optimization problem.
+                 For small datasets, ‘liblinear’ is a good choice, whereas ‘sag’ and
+                 ‘saga’ are faster for large ones.
+                 For multiclass problems, only ‘newton-cg’, ‘sag’, ‘saga’ and ‘lbfgs’
+                 handle multinomial loss; ‘liblinear’ is limited to one-versus-rest schemes.
+                 ‘newton-cg’, ‘lbfgs’ and ‘sag’ only handle L2 penalty, whereas
+                 ‘liblinear’ and ‘saga’ handle L1 penalty.
+                 Note that ‘sag’ and ‘saga’ fast convergence is only guaranteed on features with approximately the same scale.
+                 New in version 0.17: Stochastic Average Gradient descent solver.
+                 New in version 0.19: SAGA solver.
+      max_iter: int, default: 100
+                   Useful only for the newton-cg, sag and lbfgs solvers. Maximum number of iterations taken for the solvers to converge.
+      dual: bool, default: False
+               Dual or primal formulation. Dual formulation is only implemented for l2 penalty with liblinear solver. Prefer dual=False when n_samples > n_features.
+      tol: float, default: 1e-4
+              Tolerance for stopping criteria.
+      multi_class: str, {‘ovr’, ‘multinomial’}, default: ‘multiclass’
+                     Multiclass option can be either ‘ovr’ or ‘multinomial’. If the option chosen is ‘ovr’, then a binary problem is fit for each label. Else the loss minimised is the multinomial loss fit across the entire probability distribution. Does not work for liblinear solver.
+                     New in version 0.18: Stochastic Average Gradient descent solver for ‘multinomial’ case.
+      verbose: int, default: 0
+                  For the liblinear and lbfgs solvers set verbose to any positive number for verbosity.
+      warm_start: bool, default: False
+                     When set to True, reuse the solution of the previous call to fit as initialization, otherwise, just erase the previous solution. Useless for liblinear solver.
+                     New in version 0.17: warm_start to support lbfgs, newton-cg, sag, saga solvers.
+      num_jobs: int, default: 1
+                 Number of CPU cores used when parallelizing over classes if multi_class=’ovr’”. This parameter is ignored when the ``solver``is set to ‘liblinear’ regardless of whether ‘multi_class’ is specified or not. If given a value of -1, all cores are used.
+      lr_seed: seed for numpy random.
+    """
+
     def __init__(
         self,
         A=None,
@@ -35,54 +89,7 @@ class LogisticRegression(HypModel):
         lr_seed=1024,
         **kwargs
     ):
-
-        """Wrapper for sktlearn logistic regression.
-        penalty : str, ‘l1’ or ‘l2’, default: ‘l2’ ,
-                 Used to specify the norm used in the penalization. The ‘newton-cg’, ‘sag’ and ‘lbfgs’ solvers support only l2 penalties.
-                  New in version 0.19: l1 penalty with SAGA solver (allowing ‘multinomial’ + L1)
-        dual : bool, default: False
-               Dual or primal formulation. Dual formulation is only implemented for l2 penalty with liblinear solver. Prefer dual=False when n_samples > n_features.
-        tol : float, default: 1e-4
-              Tolerance for stopping criteria.
-        lambda_reg : float, default: 1e-5
-                     Regularization strength; must be a positive float.
-        use_bias : bool, default: True
-                   Specifies if a constant (a.k.a. bias or intercept) should be added to the decision function.
-        bias_scaling : float, default 1.
-                       Useful only when the solver ‘liblinear’ is used and use_bias is set to True.
-                       In this case, x becomes [x, bias_scaling], i.e. a “synthetic” feature with constant value equal to intercept_scaling is appended to the instance vector. The intercept becomes intercept_scaling * synthetic_feature_weight.
-                       Note! the synthetic feature weight is subject to l1/l2 regularization as all other features. To lessen the effect of regularization on synthetic feature weight (and therefore on the intercept) bias_scaling has to be increased.
-        priors : dict or ‘balanced' default: None
-                Weights associated with classes in the form {class_label: weight}. If not given, all classes are supposed to have weight one.
-                The “balanced” mode uses the values of y to automatically adjust weights inversely proportional to class frequencies in the input data as n_samples / (n_classes * np.bincount(y)).
-                Note that these weights will be multiplied with sample_weight (passed through the fit method) if sample_weight is specified.
-        random_state : int, RandomState instance or None, optional, default: None
-                       The seed of the pseudo random number generator to use when shuffling the data. If int, random_state is the seed used by the random number generator; If RandomState instance, random_state is the random number generator; . Used when solver == ‘sag’ or ‘liblinear’.
-        solver : {‘newton-cg’, ‘lbfgs’, ‘liblinear’, ‘sag’, ‘saga’},
-                 default: ‘liblinear’ Algorithm to use in the optimization problem.
-                 For small datasets, ‘liblinear’ is a good choice, whereas ‘sag’ and
-                 ‘saga’ are faster for large ones.
-                 For multiclass problems, only ‘newton-cg’, ‘sag’, ‘saga’ and ‘lbfgs’
-                 handle multinomial loss; ‘liblinear’ is limited to one-versus-rest schemes.
-                 ‘newton-cg’, ‘lbfgs’ and ‘sag’ only handle L2 penalty, whereas
-                 ‘liblinear’ and ‘saga’ handle L1 penalty.
-                 Note that ‘sag’ and ‘saga’ fast convergence is only guaranteed on features with approximately the same scale.
-                 New in version 0.17: Stochastic Average Gradient descent solver.
-                 New in version 0.19: SAGA solver.
-        max_iter : int, default: 100
-                   Useful only for the newton-cg, sag and lbfgs solvers. Maximum number of iterations taken for the solvers to converge.
-        multi_class : str, {‘ovr’, ‘multinomial’}, default: ‘ovr’
-                     Multiclass option can be either ‘ovr’ or ‘multinomial’. If the option chosen is ‘ovr’, then a binary problem is fit for each label. Else the loss minimised is the multinomial loss fit across the entire probability distribution. Does not work for liblinear solver.
-                     New in version 0.18: Stochastic Average Gradient descent solver for ‘multinomial’ case.
-        verbose : int, default: 0
-                  For the liblinear and lbfgs solvers set verbose to any positive number for verbosity.
-        warm_start : bool, default: False
-                     When set to True, reuse the solution of the previous call to fit as initialization, otherwise, just erase the previous solution. Useless for liblinear solver.
-                     New in version 0.17: warm_start to support lbfgs, newton-cg, sag, saga solvers.
-        n_jobs : int, default: 1
-                 Number of CPU cores used when parallelizing over classes if multi_class=’ovr’”. This parameter is ignored when the ``solver``is set to ‘liblinear’ regardless of whether ‘multi_class’ is specified or not. If given a value of -1, all cores are used.
-        """
-        super(LogisticRegression, self).__init__(**kwargs)
+        super().__init__(**kwargs)
 
         if random_state is None:
             random_state = np.random.RandomState(seed=lr_seed)
@@ -98,7 +105,6 @@ class LogisticRegression(HypModel):
         self.priors = priors
         self.lambda_reg = lambda_reg
         self.multi_class = multi_class
-        print(locals())
         self.lr = LR(
             penalty=penalty,
             C=1 / lambda_reg,
@@ -130,15 +136,28 @@ class LogisticRegression(HypModel):
         return self.lr.intercept_ * self.bias_scaling
 
     def get_config(self):
+        """Gets configuration hyperparams.
+        Returns:
+          Dictionary with config hyperparams.
+        """
         config = {
             "use_bias": self.use_bias,
             "bias_scaling": self.bias_scaling,
             "priors": self.priors,
         }
-        base_config = super(LogisticRegression, self).get_config()
+        base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
     def predict(self, x, eval_type="logit"):
+        """Evaluates the logistic regression.
+
+        Args:
+          x: input features (num_samples, feat_dim), it can be (num_samples,) if feat_dim=1.
+          eval_type: evaluationg method: logit (log-likelihood ratio), log-post (log-posteriors), post (posteriors)
+
+        Returns:
+          Ouput scores (num_samples, num_classes)
+        """
         if x.ndim == 1:
             x = x[:, None]
 
@@ -151,7 +170,26 @@ class LogisticRegression(HypModel):
 
         return y
 
+    def __call__(self, x, eval_type="logit"):
+        """Evaluates the logistic regression.
+
+        Args:
+          x: input features (num_samples, feat_dim), it can be (num_samples,) if feat_dim=1.
+          eval_type: evaluationg method: logit (log-likelihood ratio), log-post (log-posteriors), post (posteriors)
+
+        Returns:
+          Ouput scores (num_samples, num_classes)
+        """
+        return self.predict(x, eval_type)
+
     def fit(self, x, class_ids, sample_weight=None):
+        """Estimates the parameters of the model.
+
+        Args:
+          x: input features (num_samples, feat_dim), it can be (num_samples,) if feat_dim=1.
+          class_ids: class integer [0, num_classes-1] identifier (num_samples,)
+          sample_weight: weight of each sample in the estimation (num_samples,)
+        """
         if x.ndim == 1:
             x = x[:, None]
         num_classes = np.max(class_ids) + 1
@@ -192,12 +230,12 @@ class LogisticRegression(HypModel):
         return cls(**kwargs)
 
     @staticmethod
-    def filter_args(prefix=None, **kwargs):
-        if prefix is None:
-            p = ""
-        else:
-            p = prefix + "_"
+    def filter_class_args(**kwargs):
+        """Extracts the hyperparams of the class from a dictionary.
 
+        Returns:
+          Hyperparamter dictionary to initialize the class.
+        """
         valid_args = (
             "penalty",
             "lambda_reg",
@@ -229,6 +267,11 @@ class LogisticRegression(HypModel):
 
     @staticmethod
     def add_class_args(parser, prefix=None):
+        """It adds the arguments corresponding to the class to jsonarparse.
+        Args:
+          parser: jsonargparse object
+          prefix: argument prefix.
+        """
         if prefix is None:
             p1 = "--"
         else:
@@ -309,12 +352,22 @@ class LogisticRegression(HypModel):
         parser.add_argument(p1 + "name", default="lr", help="model name")
 
     @staticmethod
-    def filter_eval_args(prefix, **kwargs):
+    def filter_eval_args(**kwargs):
+        """Extracts the evaluation time hyperparams of the class from a dictionary.
+
+        Returns:
+          Hyperparameters to evaluate the class.
+        """
         valid_args = ("model_file", "eval_type")
         return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
     @staticmethod
     def add_eval_args(parser, prefix=None):
+        """It adds the arguments needed to evaluate the class to jsonarparse.
+        Args:
+          parser: jsonargparse object
+          prefix: argument prefix.
+        """
         if prefix is None:
             p1 = "--"
         else:

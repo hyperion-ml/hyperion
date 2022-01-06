@@ -332,13 +332,8 @@ class LinearGBE(HypModel):
         """Extracts the hyperparams of the class from a dictionary.
 
         Returns:
-          Hyperparamters to initialize the class.
+          Hyperparamter dictionary to initialize the class.
         """
-        if prefix is None:
-            p = ""
-        else:
-            p = prefix + "_"
-
         valid_args = (
             "update_mu",
             "update_W",
