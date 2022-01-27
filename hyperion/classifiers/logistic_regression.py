@@ -36,8 +36,8 @@ class LogisticRegression(HypModel):
                 Weights associated with classes in the form {class_label: weight}. If not given, all classes are supposed to have weight one.
                 The “balanced” mode uses the values of y to automatically adjust weights inversely proportional to class frequencies in the input data as n_samples / (n_classes * np.bincount(y)).
                 Note that these weights will be multiplied with sample_weight (passed through the fit method) if sample_weight is specified.
-      random_state: int, RandomState instance or None, optional, default: None
-                       The seed of the pseudo random number generator to use when shuffling the data. If int, random_state is the seed used by the random number generator; If RandomState instance, random_state is the random number generator; . Used when solver == ‘sag’ or ‘liblinear’.
+      random_state: RandomState instance or None, optional, default: None
+                    Used when solver == ‘sag’ or ‘liblinear’.
       solver: {‘newton-cg’, ‘lbfgs’, ‘liblinear’, ‘sag’, ‘saga’},
                  default: ‘liblinear’ Algorithm to use in the optimization problem.
                  For small datasets, ‘liblinear’ is a good choice, whereas ‘sag’ and
@@ -50,12 +50,13 @@ class LogisticRegression(HypModel):
                  New in version 0.17: Stochastic Average Gradient descent solver.
                  New in version 0.19: SAGA solver.
       max_iter: int, default: 100
-                   Useful only for the newton-cg, sag and lbfgs solvers. Maximum number of iterations taken for the solvers to converge.
+                   Useful only for the newton-cg, sag and lbfgs solvers.
+                   Maximum number of iterations taken for the solvers to converge.
       dual: bool, default: False
                Dual or primal formulation. Dual formulation is only implemented for l2 penalty with liblinear solver. Prefer dual=False when n_samples > n_features.
       tol: float, default: 1e-4
               Tolerance for stopping criteria.
-      multi_class: str, {‘ovr’, ‘multinomial’}, default: ‘multiclass’
+      multi_class: str, {‘ovr’, ‘multinomial’}, default: ‘multinomial’
                      Multiclass option can be either ‘ovr’ or ‘multinomial’. If the option chosen is ‘ovr’, then a binary problem is fit for each label. Else the loss minimised is the multinomial loss fit across the entire probability distribution. Does not work for liblinear solver.
                      New in version 0.18: Stochastic Average Gradient descent solver for ‘multinomial’ case.
       verbose: int, default: 0
@@ -152,8 +153,10 @@ class LogisticRegression(HypModel):
         """Evaluates the logistic regression.
 
         Args:
-          x: input features (num_samples, feat_dim), it can be (num_samples,) if feat_dim=1.
-          eval_type: evaluationg method: logit (log-likelihood ratio), log-post (log-posteriors), post (posteriors)
+          x: input features (num_samples, feat_dim),
+             it can be (num_samples,) if feat_dim=1.
+          eval_type: evaluationg method: logit (log-likelihood ratio),
+                     log-post (log-posteriors), post (posteriors)
 
         Returns:
           Ouput scores (num_samples, num_classes)
@@ -262,8 +265,6 @@ class LogisticRegression(HypModel):
             d["warm_start"] = not d["no_warm_start"]
 
         return d
-
-    filter_train_args = filter_args
 
     @staticmethod
     def add_class_args(parser, prefix=None):
@@ -381,6 +382,8 @@ class LogisticRegression(HypModel):
             help=("type of evaluation"),
         )
 
+    # for backward compatibility
+    filter_train_args = filter_class_args
     add_argparse_args = add_class_args
     add_argparse_train_args = add_class_args
     add_argparse_eval_args = add_eval_args

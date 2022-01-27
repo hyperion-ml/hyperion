@@ -355,7 +355,7 @@ class LinearGBE(HypModel):
 
         return d
 
-    filter_train_args = filter_args
+    filter_train_args = filter_class_args
 
     @staticmethod
     def add_class_args(parser, prefix=None):
