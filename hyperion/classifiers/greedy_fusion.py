@@ -14,6 +14,58 @@ from .binary_logistic_regression import BinaryLogisticRegression as BLR
 
 
 class GreedyFusionBinaryLR(HypModel):
+    """Greedy score fusion based on binary logistic regression.
+
+    It computes ``max_systmes`` fusions. The best system, the best fusion of two,
+    the best fusion of three, ...
+    The system selection procedure is as follows:
+    * Choose the best system.
+    * Fix the best system and choose the system that fuses the best with the best.
+    * Fix the best two and choose the system that fuses the best with those two.
+    * ...
+
+    Attributes:
+      weights: fusion weights, this is a list with ``max_systems`` elements with shapes, (1,1), (2,1), (3,1), ..., (max_systems,1).
+      bias: fusion biaes, this is a list with ``max_systems`` elements with shape (1,).
+      system_idx: list of index vector that indicate, which systems are used for the fusion of 1 system, fusion of 2, ....
+      system_names: list of strings containing descriptive names for the systems,
+      max_systems: max number of systems to fuse, if None, ``max_systems=total_systems``.
+      penalty: str, ‘l1’ or ‘l2’, default: ‘l2’ ,
+                 Used to specify the norm used in the penalization. The ‘newton-cg’, ‘sag’ and ‘lbfgs’ solvers support only l2 penalties.
+                  New in version 0.19: l1 penalty with SAGA solver (allowing ‘multinomial’ + L1)
+      lambda_reg: float, default: 1e-5
+                     Regularization strength; must be a positive float.
+      use_bias: bool, default: True
+                   Specifies if a constant (a.k.a. bias or intercept) should be added to the decision function.
+      bias_scaling: float, default 1.
+                       Useful only when the solver ‘liblinear’ is used and use_bias is set to True.
+                       In this case, x becomes [x, bias_scaling], i.e. a “synthetic” feature with constant value equal to intercept_scaling is appended to the instance vector. The intercept becomes intercept_scaling * synthetic_feature_weight.
+                       Note! the synthetic feature weight is subject to l1/l2 regularization as all other features. To lessen the effect of regularization on synthetic feature weight (and therefore on the intercept) bias_scaling has to be increased.
+      priors: prior prob for having a positive sample.
+      random_state: int, RandomState instance or None, optional, default: None
+                       The seed of the pseudo random number generator to use when shuffling the data. If int, random_state is the seed used by the random number generator; If RandomState instance, random_state is the random number generator; . Used when solver == ‘sag’ or ‘liblinear’.
+      solver: {‘newton-cg’, ‘lbfgs’, ‘liblinear’, ‘sag’, ‘saga’},
+                 default: ‘liblinear’ Algorithm to use in the optimization problem.
+                 For small datasets, ‘liblinear’ is a good choice, whereas ‘sag’ and
+                 ‘saga’ are faster for large ones.
+                 ‘newton-cg’, ‘lbfgs’ and ‘sag’ only handle L2 penalty, whereas
+                 ‘liblinear’ and ‘saga’ handle L1 penalty.
+                 Note that ‘sag’ and ‘saga’ fast convergence is only guaranteed on features with approximately the same scale.
+      max_iter: int, default: 100
+                   Useful only for the newton-cg, sag and lbfgs solvers. Maximum number of iterations taken for the solvers to converge.
+      dual: bool, default: False
+               Dual or primal formulation. Dual formulation is only implemented for l2 penalty with liblinear solver. Prefer dual=False when n_samples > n_features.
+      tol: float, default: 1e-4
+              Tolerance for stopping criteria.
+      verbose: int, default: 0
+                  For the liblinear and lbfgs solvers set verbose to any positive number for verbosity.
+      warm_start: bool, default: False
+                     When set to True, reuse the solution of the previous call to fit as initialization, otherwise, just erase the previous solution. Useless for liblinear solver.
+                     New in version 0.17: warm_start to support lbfgs, newton-cg, sag, saga solvers.
+      lr_seed: seed for numpy random.
+
+    """
+
     def __init__(
         self,
         weights=None,
@@ -36,7 +88,7 @@ class GreedyFusionBinaryLR(HypModel):
         **kwargs
     ):
 
-        super(GreedyFusionBinaryLR, self).__init__(**kwargs)
+        super().__init__(**kwargs)
 
         self.weights = weights
         self.bias = bias
@@ -66,12 +118,33 @@ class GreedyFusionBinaryLR(HypModel):
 
     @property
     def prior(self):
+        """Prior probability for a positive sample."""
         return self.lr.prior
 
     def get_fusion_params(self, idx):
+        """Get fusion parameters for a fusion of ``idx+1`` systems.
+
+        Args:
+          idx: index of the fusion, it returns the parameters for the fusion of ``idx+1`` systems.
+        Returns:
+          Weights for fusion ``idx`` shape=(idx+1, 1)
+          Bias for fusion ``idx``
+          Indices for systems incuded in fusion ``idx``.
+        """
         return self.weights[idx], self.bias[idx], self.system_idx[idx]
 
     def _predict_fus_idx(self, x, fus_idx, eval_type="logit"):
+        """Evals the fusion indicated by ``fus_idx``,
+        which is the fusion of ``fus_idx+1`` systems.
+
+        Args:
+          x: input features (num_samples, num_systems)
+          fus_idx: index of the fusion, it returns the parameters for the fusion of ``fus_idx+1`` systems.
+          eval_type: evaluationg method: logit (log-likelihood ratio), log-post (log-posteriors), post (posteriors)
+
+        Returns:
+          Ouput scores (num_samples,)
+        """
 
         w, b, idx = self.get_fusion_params(fus_idx)
         x = x[:, idx]
@@ -85,6 +158,18 @@ class GreedyFusionBinaryLR(HypModel):
         return y
 
     def predict(self, x, fus_idx=None, eval_type="logit"):
+        """Evals the fusion indicated by ``fus_idx``,
+        which is the fusion of ``fus_idx+1`` systems.
+
+        Args:
+          x: input features (num_samples, num_systems)
+          fus_idx: index of the fusion, it returns the parameters for the fusion of ``fus_idx+1`` systems.
+                   If None, it evals all the fusions and return a list of score vectors
+          eval_type: evaluationg method: logit (log-likelihood ratio), log-post (log-posteriors), post (posteriors)
+
+        Returns:
+          Ouput scores (num_samples,) or List of score vectors.
+        """
 
         if fus_idx is None:
             y = []
@@ -95,7 +180,29 @@ class GreedyFusionBinaryLR(HypModel):
 
         return self._predict_fus_idx(x, fus_idx, eval_type)
 
+    def __call__(self, x, fus_idx=None, eval_type="logit"):
+        """Evals the fusion indicated by ``fus_idx``,
+        which is the fusion of ``fus_idx+1`` systems.
+
+        Args:
+          x: input features (num_samples, num_systems)
+          fus_idx: index of the fusion, it returns the parameters for the fusion of ``fus_idx+1`` systems.
+                   If None, it evals all the fusions and return a list of score vectors
+          eval_type: evaluationg method: logit (log-likelihood ratio), log-post (log-posteriors), post (posteriors)
+
+        Returns:
+          Ouput scores (num_samples,) or List of score vectors.
+        """
+        return self.predict(x, fus_idx, eval_type)
+
     def fit(self, x, class_ids, sample_weights=None):
+        """Estimates the parameters of all the fusions
+
+        Args:
+          x: input features (num_samples, feat_dim), it can be (num_samples,) if feat_dim=1.
+          class_ids: class integer [0, 1] identifier (num_samples,)
+          sample_weight: weight of each sample in the estimation (num_samples,)
+        """
 
         num_systems = x.shape[1]
         if self.max_systems is None:
@@ -199,8 +306,12 @@ class GreedyFusionBinaryLR(HypModel):
         return fus_name
 
     def get_config(self):
+        """Gets configuration hyperparams.
+        Returns:
+          Dictionary with config hyperparams.
+        """
         config = {"bias_scaling": self.lr.bias_scaling, "prior": self.lr.prior}
-        base_config = super(GreedyFusionBinaryLR, self).get_config()
+        base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
     def save_params(self, f):
@@ -208,8 +319,6 @@ class GreedyFusionBinaryLR(HypModel):
         bias = np.concatenate(tuple(self.bias))
         system_idx = np.concatenate(tuple(self.system_idx), axis=0)
         system_names = np.asarray(self.system_names, dtype="S")
-        # print(system_names)
-        # print(system_names.astype('S'))
         params = {
             "weights": weights,
             "bias": bias,
@@ -235,7 +344,7 @@ class GreedyFusionBinaryLR(HypModel):
             "system_names": "S",
         }
         params = cls._load_params_to_dict(f, config["name"], param_list, dtypes)
-        # print(params)
+
         weights = []
         system_idx = []
         i = 1
@@ -249,6 +358,6 @@ class GreedyFusionBinaryLR(HypModel):
         params["weights"] = weights
         params["system_idx"] = system_idx
         params["system_names"] = [t.decode("utf-8") for t in params["system_names"]]
-        # print(params)
+
         kwargs = dict(list(config.items()) + list(params.items()))
         return cls(**kwargs)

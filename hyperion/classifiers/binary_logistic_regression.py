@@ -8,6 +8,52 @@ from .logistic_regression import LogisticRegression
 
 
 class BinaryLogisticRegression(LogisticRegression):
+    """Binary logistic regression.
+
+    This is a wrapper that add functionalities to sklearn logistic regression.
+    Contrary to sklearn, this class produces well-calibrated likelihood ratios.
+    Thus, this is suitable for score calibration.
+
+    Attributes:
+      A: Scaling Coefficients (num_feats, 1)
+      b: biases (1, )
+      penalty: str, ‘l1’ or ‘l2’, default: ‘l2’ ,
+                 Used to specify the norm used in the penalization. The ‘newton-cg’, ‘sag’ and ‘lbfgs’ solvers support only l2 penalties.
+                  New in version 0.19: l1 penalty with SAGA solver (allowing ‘multinomial’ + L1)
+      lambda_reg: float, default: 1e-5
+                     Regularization strength; must be a positive float.
+      use_bias: bool, default: True
+                   Specifies if a constant (a.k.a. bias or intercept) should be added to the decision function.
+      bias_scaling: float, default 1.
+                       Useful only when the solver ‘liblinear’ is used and use_bias is set to True.
+                       In this case, x becomes [x, bias_scaling], i.e. a “synthetic” feature with constant value equal to intercept_scaling is appended to the instance vector. The intercept becomes intercept_scaling * synthetic_feature_weight.
+                       Note! the synthetic feature weight is subject to l1/l2 regularization as all other features. To lessen the effect of regularization on synthetic feature weight (and therefore on the intercept) bias_scaling has to be increased.
+      priors: prior prob for having a positive sample.
+      random_state: RandomState instance or None, optional, default: None
+                    Used when solver == ‘sag’ or ‘liblinear’.
+      solver: {‘newton-cg’, ‘lbfgs’, ‘liblinear’, ‘sag’, ‘saga’},
+                 default: ‘liblinear’ Algorithm to use in the optimization problem.
+                 For small datasets, ‘liblinear’ is a good choice, whereas ‘sag’ and
+                 ‘saga’ are faster for large ones.
+                 ‘newton-cg’, ‘lbfgs’ and ‘sag’ only handle L2 penalty, whereas
+                 ‘liblinear’ and ‘saga’ handle L1 penalty.
+                 Note that ‘sag’ and ‘saga’ fast convergence is only guaranteed on features with approximately the same scale.
+                 New in version 0.17: Stochastic Average Gradient descent solver.
+                 New in version 0.19: SAGA solver.
+      max_iter: int, default: 100
+                   Useful only for the newton-cg, sag and lbfgs solvers. Maximum number of iterations taken for the solvers to converge.
+      dual: bool, default: False
+               Dual or primal formulation. Dual formulation is only implemented for l2 penalty with liblinear solver. Prefer dual=False when n_samples > n_features.
+      tol: float, default: 1e-4
+              Tolerance for stopping criteria.
+      verbose: int, default: 0
+                  For the liblinear and lbfgs solvers set verbose to any positive number for verbosity.
+      warm_start: bool, default: False
+                     When set to True, reuse the solution of the previous call to fit as initialization, otherwise, just erase the previous solution. Useless for liblinear solver.
+                     New in version 0.17: warm_start to support lbfgs, newton-cg, sag, saga solvers.
+      lr_seed: seed for numpy random.
+    """
+
     def __init__(
         self,
         A=None,
@@ -29,7 +75,7 @@ class BinaryLogisticRegression(LogisticRegression):
     ):
 
         priors = {0: 1 - prior, 1: prior}
-        super(BinaryLogisticRegression, self).__init__(
+        super().__init__(
             A=A,
             b=b,
             penalty=penalty,
@@ -51,15 +97,32 @@ class BinaryLogisticRegression(LogisticRegression):
 
     @property
     def prior(self):
+        """Prior probability for a positive sample."""
         return self.priors[1]
 
     def get_config(self):
+        """Gets configuration hyperparams.
+        Returns:
+          Dictionary with config hyperparams.
+        """
+
         config = {"prior": self.prior}
-        base_config = super(BinaryLogisticRegression, self).get_config()
+        base_config = super().get_config()
         del base_config["priors"]
         return dict(list(base_config.items()) + list(config.items()))
 
     def predict(self, x, eval_type="logit"):
+        """Evaluates the logistic regression.
+
+        It provides well calibrated likelihood ratios or posteriors.
+
+        Args:
+          x: input features (num_samples, feat_dim), it can be (num_samples,) if feat_dim=1.
+          eval_type: evaluationg method: logit (log-likelihood ratio), log-post (log-posteriors), post (posteriors)
+
+        Returns:
+          Ouput scores (num_samples,)
+        """
         if x.ndim == 1:
             x = x[:, None]
 
@@ -72,8 +135,25 @@ class BinaryLogisticRegression(LogisticRegression):
 
         return y
 
+    def __call__(self, x, eval_type="logit"):
+        """Evaluates the logistic regression.
+
+        Args:
+          x: input features (num_samples, feat_dim), it can be (num_samples,) if feat_dim=1.
+          eval_type: evaluationg method: logit (log-likelihood ratio), log-post (log-posteriors), post (posteriors)
+
+        Returns:
+          Ouput scores (num_samples,)
+        """
+        return self.predict(x, eval_type)
+
     @staticmethod
-    def filter_train_args(**kwargs):
+    def filter_class_args(**kwargs):
+        """Extracts the hyperparams of the class from a dictionary.
+
+        Returns:
+          Hyperparamter dictionary to initialize the class.
+        """
         valid_args = (
             "penalty",
             "lambda_reg",
@@ -101,6 +181,11 @@ class BinaryLogisticRegression(LogisticRegression):
 
     @staticmethod
     def add_class_args(parser, prefix=None):
+        """It adds the arguments corresponding to the class to jsonarparse.
+        Args:
+          parser: jsonargparse object
+          prefix: argument prefix.
+        """
         if prefix is None:
             p1 = "--"
         else:
