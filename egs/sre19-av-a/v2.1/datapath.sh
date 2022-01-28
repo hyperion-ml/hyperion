@@ -12,7 +12,7 @@ master_key=$master_key_dir/NIST_SRE_segments_key.v2.csv
 if [ "$(hostname --domain)" == "clsp.jhu.edu" ];then
     ldc_root=/export/corpora5/LDC
     ldc_root3=/export/corpora3/LDC
-    sitw_root=/export/corpora5/SRI/sitw
+    sitw_root=/export/corpora5/SRI/SITW
     sre08sup_root=$ldc_root/LDC2011S11
     sre10_root=/export/corpora5/SRE/SRE2010/eval
     sre10_root=$ldc_root3/LDC2012E09/SRE10/eval
