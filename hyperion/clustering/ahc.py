@@ -15,16 +15,17 @@ from ..hyp_model import HypModel
 
 
 class AHC(HypModel):
-    """ Agglomerative Hierarchical Clustering class.
+    """Agglomerative Hierarchical Clustering class.
 
     Attributes:
-      method: linkage method to calculate the distance between a new agglomerated 
-              cluster and the rest of clusters. 
+      method: linkage method to calculate the distance between a new agglomerated
+              cluster and the rest of clusters.
               This can be ["average", "single", "complete", "weighted", "centroid", "median", "ward"].
               See: https://docs.scipy.org/doc/scipy/reference/generated/scipy.cluster.hierarchy.linkage.html
-      metric: indicates the type of metric used to calculate the input scores. 
+      metric: indicates the type of metric used to calculate the input scores.
               It can be: "llr" (log-likelihood ratios), "prob" (probabilities), "distance": (distance metric).
     """
+
     def __init__(self, method="average", metric="llr", **kwargs):
         super().__init__(**kwargs)
         self.method = method
@@ -39,8 +40,8 @@ class AHC(HypModel):
         Args:
           x: input score matrix (num_samples, num_samples).
              It will use the upper triangular matrix only.
-          mask: boolean mask where False in position i,j means that 
-                nodes i and j should not be merged. 
+          mask: boolean mask where False in position i,j means that
+                nodes i and j should not be merged.
         """
 
         if mask is not None:
@@ -63,17 +64,17 @@ class AHC(HypModel):
             self.Z = linkage(scores, method=self.method, metric=self.metric)
 
     def get_flat_clusters(self, t, criterion="threshold"):
-        """ Computes the flat clusters from the AHC tree.
+        """Computes the flat clusters from the AHC tree.
 
         Args:
           t: threshold or number of clusters
-          criterion: if "threshold" with llr/prob larger than threshold or 
+          criterion: if "threshold" with llr/prob larger than threshold or
                     distance lower than threshold.
-                     if "num_clusters" returns the clusters corresponding 
-                     to selecting a given number of clusters. 
+                     if "num_clusters" returns the clusters corresponding
+                     to selecting a given number of clusters.
 
         Returns:
-          Clusters assigments for x as numpy integer vector (num_elements,).
+          Clusters assigments for x as numpy integer vector (num_samples,).
         """
         if criterion == "threshold":
             return self.get_flat_clusters_from_thr(t)
@@ -81,8 +82,8 @@ class AHC(HypModel):
             return self.get_flat_clusters_from_num_clusters(t)
 
     def get_flat_clusters_from_num_clusters(self, num_clusters):
-        """ Computes the flat clusters from the AHC tree using 
-            num_clusters criterion"
+        """Computes the flat clusters from the AHC tree using
+        num_clusters criterion"
         """
         N = self.Z.shape[0] + 1
         num_clusters = min(N, num_clusters)
@@ -101,8 +102,8 @@ class AHC(HypModel):
         return flat_clusters
 
     def get_flat_clusters_from_thr(self, thr):
-        """ Computes the flat clusters from the AHC tree using 
-            threshold criterion"
+        """Computes the flat clusters from the AHC tree using
+        threshold criterion"
         """
         if self.metric == "llr" or self.metric == "prob":
             idx = self.Z[:, 2] >= thr
@@ -112,11 +113,11 @@ class AHC(HypModel):
         return self.get_flat_clusters_from_num_clusters(num_clusters)
 
     def compute_flat_clusters(self):
-        """ Computes the flat clusters for all possible number of clusters
+        """Computes the flat clusters for all possible number of clusters
 
         Returns:
-            numpy matrix (num_elements, num_elements) where row i contains the 
-            clusters assignments for the case of choosing num_elements - i clusters. 
+            numpy matrix (num_samples, num_samples) where row i contains the
+            clusters assignments for the case of choosing num_samples - i clusters.
         """
         N = self.Z.shape[0] + 1
         flat_clusters = np.zeros((N, N), dtype=int)
@@ -133,7 +134,7 @@ class AHC(HypModel):
         self.flat_clusters = flat_clusters
 
     def evaluate_homogeneity_completeness_tradeoff(self, true_labels):
-        """ Evaluates the curve homogeneity versus completeness where
+        """Evaluates the curve homogeneity versus completeness where
               Homogeneity: each cluster contains only members of a single class. (cluster purity)
               Completeness: all members of a given class are assigned to the same cluster. (class purity)
 
@@ -141,13 +142,12 @@ class AHC(HypModel):
           true_labels: true cluster labels
 
         Returns:
-            homogeneity vector (num_elements,)
-            completenes vector (num_elements,)
+            homogeneity vector (num_samples,)
+            completenes vector (num_samples,)
         """
         if self.flat_clusters is None:
             self.compute_flat_clusters()
 
-        
         N = self.flat_clusters.shape[0]
         h = np.zeros((N,), dtype=float_cpu())
         c = np.zeros((N,), dtype=float_cpu())
