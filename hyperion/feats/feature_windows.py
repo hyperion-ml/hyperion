@@ -12,8 +12,20 @@ from ..hyp_defs import float_cpu
 
 
 class FeatureWindowFactory(object):
+    """Factory class to create windowing functions."""
+
     @staticmethod
     def create(window_type, N, sym=False):
+        """Creates a windowing function.
+
+        Args:
+          window_type: window type in ["povey", "hamming", "hanning", "blackman", "rectangular"]
+          N: num samples.
+          sym: if True, the window is symmetric, otherwise non-symmetric.
+
+        Returns:
+          Window as (N,) numpy array.
+        """
 
         if window_type == "povey":
             return np.power(
@@ -33,6 +45,12 @@ class FeatureWindowFactory(object):
 
     @staticmethod
     def add_class_args(parser, prefix=None):
+        """Adds feature window options to parser.
+
+        Args:
+          parser: Arguments parser
+          prefix: Options prefix.
+        """
         if prefix is None:
             p1 = "--"
         else:
