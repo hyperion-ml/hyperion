@@ -13,7 +13,7 @@ import numpy as np
 
 from ..io import RandomAccessDataReaderFactory as DRF
 from ..utils import TrialNdx, TrialKey, Utt2Info
-from ..transforms import TransformList
+from ..np.transforms import TransformList
 
 
 class MultiTestTrialDataReader(object):

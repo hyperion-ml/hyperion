@@ -17,8 +17,8 @@ import numpy as np
 
 from hyperion.hyp_defs import config_logger
 from hyperion.helpers import VectorClassReader as VCR
-from hyperion.transforms import TransformList
-from hyperion.classifiers import LogisticRegression as LR
+from hyperion.np.transforms import TransformList
+from hyperion.np.classifiers import LogisticRegression as LR
 
 
 def train_lr(iv_file, train_list, preproc_file, output_path, **kwargs):

@@ -23,8 +23,8 @@ from hyperion.utils import Utt2Info
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialDataReaderFactory as DRF
 from hyperion.io import RandomAccessDataReaderFactory as RDRF
-from hyperion.feats import MeanVarianceNorm as MVN
-from hyperion.feats import FrameSelector as FSel
+from hyperion.np.feats import MeanVarianceNorm as MVN
+from hyperion.np.feats import FrameSelector as FSel
 
 
 def process_feats(

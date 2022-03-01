@@ -11,8 +11,4 @@ from .multi_test_trial_data_reader import MultiTestTrialDataReader
 from .multi_test_trial_data_reader_v2 import MultiTestTrialDataReaderV2
 from .classif_trial_data_reader import ClassifTrialDataReader
 
-# from .sequence_reader import SequenceReader
-# from .sequence_class_reader import SequenceClassReader
-# from .sequence_post_reader import SequencePostReader
-# from .sequence_post_class_reader import SequencePostClassReader
 from .plda_factory import PLDAFactory

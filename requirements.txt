@@ -19,3 +19,4 @@ librosa>=0.8.1
 black
 twine
 wheel
+transformers>=4.16.2

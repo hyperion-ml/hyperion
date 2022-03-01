@@ -5,7 +5,7 @@
 
 import numpy as np
 
-from ..pdfs.plda import FRPLDA, SPLDA, PLDA
+from ..np.pdfs.plda import FRPLDA, SPLDA, PLDA
 
 
 class PLDAFactory(object):

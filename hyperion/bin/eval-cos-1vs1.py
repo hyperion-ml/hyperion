@@ -19,7 +19,7 @@ from hyperion.hyp_defs import set_float_cpu, float_cpu, config_logger
 from hyperion.utils.trial_ndx import TrialNdx
 from hyperion.utils.trial_scores import TrialScores
 from hyperion.helpers import TrialDataReader as TDR
-from hyperion.transforms import TransformList, LNorm
+from hyperion.np.transforms import TransformList, LNorm
 
 
 def eval_cos(

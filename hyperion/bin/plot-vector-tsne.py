@@ -22,7 +22,7 @@ from sklearn.manifold import TSNE
 from hyperion.hyp_defs import config_logger
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.helpers import VectorClassReader as VCR
-from hyperion.transforms import TransformList, PCA
+from hyperion.np.transforms import TransformList, PCA
 
 colors = ["b", "g", "r", "c", "m", "y", "k"]
 markers = ["x", "o", "+", "*", "s", "h", "D", "^", "v", "p", "8"]

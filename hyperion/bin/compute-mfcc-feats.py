@@ -21,7 +21,7 @@ from hyperion.io import SequentialAudioReader as AR
 from hyperion.io import SequentialDataReaderFactory as DRF
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import compression_methods
-from hyperion.feats import MFCC
+from hyperion.np.feats import MFCC
 
 
 def compute_mfcc_feats(

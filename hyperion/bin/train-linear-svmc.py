@@ -17,8 +17,8 @@ import numpy as np
 
 from hyperion.hyp_defs import config_logger
 from hyperion.helpers import VectorClassReader as VCR
-from hyperion.transforms import TransformList
-from hyperion.classifiers import LinearSVMC as SVM
+from hyperion.np.transforms import TransformList
+from hyperion.np.classifiers import LinearSVMC as SVM
 
 
 def train_svm(iv_file, train_list, preproc_file, output_path, **kwargs):

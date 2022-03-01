@@ -20,8 +20,8 @@ from hyperion.utils.trial_ndx import TrialNdx
 from hyperion.utils.trial_scores import TrialScores
 from hyperion.io import HypDataWriter as HDW
 from hyperion.helpers import ClassifTrialDataReader as TDR
-from hyperion.transforms import TransformList
-from hyperion.classifiers import LogisticRegression as LR
+from hyperion.np.transforms import TransformList
+from hyperion.np.classifiers import LogisticRegression as LR
 
 
 def eval_lr(

@@ -20,8 +20,8 @@ from hyperion.utils.trial_ndx import TrialNdx
 from hyperion.utils.trial_scores import TrialScores
 from hyperion.io import HypDataWriter as HDW
 from hyperion.helpers import ClassifTrialDataReader as TDR
-from hyperion.transforms import TransformList
-from hyperion.classifiers import LinearGBE as GBE
+from hyperion.np.transforms import TransformList
+from hyperion.np.classifiers import LinearGBE as GBE
 
 
 def eval_linear_gbe(

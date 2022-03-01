@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 
 from hyperion.hyp_defs import config_logger
 from hyperion.helpers import VectorReader as VR
-from hyperion.transforms import TransformList
+from hyperion.np.transforms import TransformList
 
 
 def plot_vector_hist(

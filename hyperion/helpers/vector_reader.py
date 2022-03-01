@@ -13,7 +13,7 @@ import numpy as np
 
 from ..io import RandomAccessDataReaderFactory as DRF
 from ..utils.scp_list import SCPList
-from ..transforms import TransformList
+from ..np.transforms import TransformList
 
 
 class VectorReader(object):

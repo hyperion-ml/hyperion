@@ -19,7 +19,7 @@ import numpy as np
 from hyperion.hyp_defs import config_logger
 from hyperion.io import SequentialAudioReader as AR
 from hyperion.io import DataWriterFactory as DWF
-from hyperion.feats import EnergyVAD
+from hyperion.np.feats import EnergyVAD
 
 
 def compute_vad(input_path, output_path, write_num_frames, **kwargs):

@@ -16,7 +16,7 @@ import torch
 from ..torch_defs import floatstr_torch
 from ...io import RandomAccessAudioReader as AR
 from ...utils.utt2info import Utt2Info
-from ...augment import SpeechAugment
+from ...np.augment import SpeechAugment
 
 from torch.utils.data import Dataset
 import torch.distributed as dist

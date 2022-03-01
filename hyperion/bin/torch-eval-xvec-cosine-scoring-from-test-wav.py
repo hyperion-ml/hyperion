@@ -26,7 +26,7 @@ from hyperion.io import RandomAccessAudioReader as AR
 from hyperion.utils import Utt2Info, TrialNdx, TrialKey, TrialScores
 from hyperion.utils.list_utils import ismember
 from hyperion.io import VADReaderFactory as VRF
-from hyperion.classifiers import BinaryLogisticRegression as LR
+from hyperion.np.classifiers import BinaryLogisticRegression as LR
 
 from hyperion.torch.utils import open_device
 from hyperion.torch.layers import LinBinCalibrator as Calibrator

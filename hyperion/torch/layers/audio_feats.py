@@ -7,8 +7,6 @@
 import math
 import logging
 
-from ...utils.misc import str2bool
-
 import torch
 import torch.nn as nn
 import torch.cuda.amp as amp
@@ -24,7 +22,7 @@ except:
     _pow_spectrogram = lambda x: x.pow(2).sum(-1)
     _spectrogram = lambda x: x.pow(2).sum(-1).sqrt()
 
-from ...feats.filter_banks import FilterBankFactory as FBF
+from ...np.feats.filter_banks import FilterBankFactory as FBF
 
 # window types
 HAMMING = "hamming"

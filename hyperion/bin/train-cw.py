@@ -17,8 +17,8 @@ import numpy as np
 
 from hyperion.hyp_defs import config_logger
 from hyperion.helpers import VectorReader as VR
-from hyperion.pdfs.core import Normal
-from hyperion.transforms import TransformList, CentWhiten, LNorm
+from hyperion.np.pdfs.core import Normal
+from hyperion.np.transforms import TransformList, CentWhiten, LNorm
 
 
 def load_model(input_path, with_lnorm, name, **kwargs):

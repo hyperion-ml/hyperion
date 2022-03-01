@@ -14,7 +14,7 @@ import numpy as np
 from ..io import RandomAccessDataReaderFactory as DRF
 from ..utils.utt2info import Utt2Info
 from ..utils.tensors import to3D_by_class
-from ..transforms import TransformList
+from ..np.transforms import TransformList
 
 
 class VectorClassReader(object):

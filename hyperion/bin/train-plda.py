@@ -18,7 +18,7 @@ import numpy as np
 from hyperion.hyp_defs import config_logger
 from hyperion.helpers import VectorClassReader as VCR
 from hyperion.helpers import PLDAFactory as F
-from hyperion.transforms import TransformList
+from hyperion.np.transforms import TransformList
 
 
 def train_plda(

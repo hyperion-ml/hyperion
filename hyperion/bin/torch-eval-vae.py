@@ -29,7 +29,7 @@ from hyperion.utils import Utt2Info
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialDataReaderFactory as DRF
 from hyperion.io import VADReaderFactory as VRF
-from hyperion.feats import MeanVarianceNorm as MVN
+from hyperion.np.feats import MeanVarianceNorm as MVN
 
 from hyperion.torch.utils import open_device
 from hyperion.torch import TorchModelLoader as TML

@@ -17,8 +17,8 @@ import numpy as np
 
 from hyperion.hyp_defs import config_logger
 from hyperion.helpers import VectorClassReader as VCR
-from hyperion.transforms import TransformList
-from hyperion.classifiers import LinearGBE as GBE
+from hyperion.np.transforms import TransformList
+from hyperion.np.classifiers import LinearGBE as GBE
 
 
 def train_linear_gbe(iv_file, train_list, preproc_file, output_path, **kwargs):

@@ -25,7 +25,7 @@ from hyperion.utils import Utt2Info, RTTM
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialAudioReader as AR
 from hyperion.io import VADReaderFactory as VRF
-from hyperion.augment import SpeechAugment
+from hyperion.np.augment import SpeechAugment
 
 from hyperion.torch.utils import open_device
 from hyperion.torch.narchs import AudioFeatsMVN as AF

@@ -14,7 +14,7 @@ import numpy as np
 
 from ..io import HypDataReader
 from ..utils import TrialNdx, SCPList
-from ..transforms import TransformList
+from ..np.transforms import TransformList
 
 
 class ClassifTrialDataReader(object):

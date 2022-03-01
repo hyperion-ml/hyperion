@@ -17,7 +17,7 @@ import numpy as np
 
 from hyperion.hyp_defs import config_logger
 from hyperion.helpers import VectorClassReader as VCR
-from hyperion.transforms import TransformList, NDA, NSbSw
+from hyperion.np.transforms import TransformList, NDA, NSbSw
 
 
 def train_nda(

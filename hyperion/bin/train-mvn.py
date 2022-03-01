@@ -17,8 +17,8 @@ import numpy as np
 
 from hyperion.hyp_defs import config_logger
 from hyperion.helpers import VectorReader as VR
-from hyperion.pdfs.core import Normal
-from hyperion.transforms import TransformList, MVN, SbSw
+from hyperion.np.pdfs.core import Normal
+from hyperion.np.transforms import TransformList, MVN, SbSw
 
 
 def train_mvn(
