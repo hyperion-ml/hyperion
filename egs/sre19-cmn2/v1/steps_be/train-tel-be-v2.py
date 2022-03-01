@@ -13,9 +13,9 @@ import numpy as np
 
 from hyperion.helpers import VectorClassReader as VCR
 from hyperion.helpers import VectorReader as VR
-from hyperion.transforms import TransformList, LDA, LNorm
+from hyperion.np.transforms import TransformList, LDA, LNorm
 from hyperion.helpers import PLDAFactory as F
-from hyperion.clustering import AHC
+from hyperion.np.clustering import AHC
 from hyperion.utils.utt2info import Utt2Info
 
 

@@ -17,8 +17,8 @@ import numpy as np
 from hyperion.hyp_defs import float_cpu, config_logger
 from hyperion.utils import TrialScores, TrialKey, Utt2Info
 from hyperion.utils.list_utils import ismember
-from hyperion.metrics import compute_act_dcf, compute_min_dcf
-from hyperion.classifiers import BinaryLogisticRegression as LR
+from hyperion.np.metrics import compute_act_dcf, compute_min_dcf
+from hyperion.np.classifiers import BinaryLogisticRegression as LR
 
 
 def read_key_and_scores(key_file, score_file):

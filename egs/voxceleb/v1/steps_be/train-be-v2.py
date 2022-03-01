@@ -18,7 +18,7 @@ import numpy as np
 
 from hyperion.hyp_defs import config_logger
 from hyperion.helpers import VectorReader as VR
-from hyperion.transforms import TransformList, CentWhiten, PCA
+from hyperion.np.transforms import TransformList, CentWhiten, PCA
 
 from numpy.linalg import matrix_rank
 

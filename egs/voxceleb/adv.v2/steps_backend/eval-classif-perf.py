@@ -20,8 +20,8 @@ import pandas as pd
 from hyperion.hyp_defs import config_logger
 from hyperion.utils import Utt2Info
 from hyperion.io import RandomAccessDataReaderFactory as DRF
-from hyperion.metrics.acc import compute_accuracy
-from hyperion.metrics.confusion_matrix import (
+from hyperion.np.metrics.acc import compute_accuracy
+from hyperion.np.metrics.confusion_matrix import (
     compute_confusion_matrix,
     print_confusion_matrix,
 )

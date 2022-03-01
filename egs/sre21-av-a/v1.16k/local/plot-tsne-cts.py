@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 from hyperion.hyp_defs import config_logger
 from hyperion.utils import Utt2Info
 from hyperion.io import RandomAccessDataReaderFactory as DRF
-from hyperion.transforms import PCA, SklTSNE, LNorm
+from hyperion.np.transforms import PCA, SklTSNE, LNorm
 
 colors = ["b", "g", "r", "c", "m", "y", "k"]
 markers = ["x", "o", "+", "*", "s", "h", "D", "^", "v", "p", "8"]

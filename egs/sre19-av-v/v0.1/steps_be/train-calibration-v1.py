@@ -21,8 +21,8 @@ import numpy as np
 from hyperion.hyp_defs import float_cpu, config_logger
 from hyperion.utils.trial_scores import TrialScores
 from hyperion.utils.trial_key import TrialKey
-from hyperion.metrics import compute_act_dcf, compute_min_dcf
-from hyperion.classifiers import BinaryLogisticRegression as LR
+from hyperion.np.metrics import compute_act_dcf, compute_min_dcf
+from hyperion.np.classifiers import BinaryLogisticRegression as LR
 
 
 def train_calibration(score_file, key_file, model_file, prior, lambda_reg, verbose):

@@ -12,7 +12,7 @@ import numpy as np
 
 from hyperion.helpers import VectorClassReader as VCR
 from hyperion.helpers import VectorReader as VR
-from hyperion.transforms import TransformList, PCA, LDA, LNorm
+from hyperion.np.transforms import TransformList, PCA, LDA, LNorm
 from hyperion.helpers import PLDAFactory as F
 from hyperion.utils import Utt2Info
 

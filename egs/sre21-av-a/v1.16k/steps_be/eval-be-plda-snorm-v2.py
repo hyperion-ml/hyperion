@@ -20,8 +20,8 @@ from hyperion.hyp_defs import float_cpu, config_logger
 from hyperion.utils import TrialNdx, TrialScores, Utt2Info
 from hyperion.helpers import TrialDataReader as TDR
 from hyperion.helpers import PLDAFactory as F
-from hyperion.transforms import TransformList
-from hyperion.score_norm import AdaptSNorm as SNorm
+from hyperion.np.transforms import TransformList
+from hyperion.np.score_norm import AdaptSNorm as SNorm
 from hyperion.io import RandomAccessDataReaderFactory as DRF
 
 

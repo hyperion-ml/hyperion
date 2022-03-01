@@ -27,13 +27,13 @@ from hyperion.utils.vad_utils import intersect_segment_timestamps_with_vad as is
 from hyperion.io import RandomAccessDataReaderFactory as DRF
 from hyperion.io import VADReaderFactory as VRF
 from hyperion.helpers import PLDAFactory as F
-from hyperion.transforms import TransformList, PCA, LNorm
-from hyperion.clustering import AHC
-from hyperion.pdfs import GMMTiedDiagCov as GMM
-from hyperion.diarization import DiarAHCPLDA as Diar
+from hyperion.np.transforms import TransformList, PCA, LNorm
+from hyperion.np.clustering import AHC
+from hyperion.np.pdfs import GMMTiedDiagCov as GMM
+from hyperion.np.diarization import DiarAHCPLDA as Diar
 
-# from hyperion.pdfs import GMMDiagCov as GMM2
-# from hyperion.pdfs import GMM as GMM3
+# from hyperion.np.pdfs import GMMDiagCov as GMM2
+# from hyperion.np.pdfs import GMM as GMM3
 
 
 def make_timestamps(n, win_start, win_length, win_shift, win_shrink):

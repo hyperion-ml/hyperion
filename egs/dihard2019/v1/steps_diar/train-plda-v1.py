@@ -22,7 +22,7 @@ from hyperion.hyp_defs import config_logger
 from hyperion.utils import Utt2Info
 
 # from hyperion.helpers import VectorClassReader as VCR
-from hyperion.transforms import TransformList, LDA, LNorm, PCA
+from hyperion.np.transforms import TransformList, LDA, LNorm, PCA
 from hyperion.helpers import PLDAFactory as F
 from hyperion.io import RandomAccessDataReaderFactory as DRF
 

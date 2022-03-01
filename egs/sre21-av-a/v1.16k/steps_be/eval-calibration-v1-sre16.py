@@ -18,7 +18,7 @@ import numpy as np
 from hyperion.hyp_defs import float_cpu, config_logger
 from hyperion.utils import TrialScores, TrialKey, TrialNdx, Utt2Info
 from hyperion.utils.list_utils import ismember
-from hyperion.classifiers import BinaryLogisticRegression as LR
+from hyperion.np.classifiers import BinaryLogisticRegression as LR
 
 
 def read_ndx_and_scores(ndx_file, score_file):

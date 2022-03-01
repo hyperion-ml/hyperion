@@ -12,8 +12,8 @@ import numpy as np
 from hyperion.utils.utt2info import Utt2Info
 from hyperion.utils.math import softmax
 from hyperion.io import RandomAccessDataReaderFactory as DRF
-from hyperion.transforms import LNorm
-from hyperion.clustering import AHC
+from hyperion.np.transforms import LNorm
+from hyperion.np.clustering import AHC
 
 
 def lnorm(x):

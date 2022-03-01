@@ -16,7 +16,7 @@ import numpy as np
 from hyperion.hyp_defs import float_cpu, config_logger
 from hyperion.utils import TrialScores, TrialKey, TrialNdx, Utt2Info
 from hyperion.utils.list_utils import ismember
-from hyperion.classifiers import GreedyFusionBinaryLR as GF
+from hyperion.np.classifiers import GreedyFusionBinaryLR as GF
 
 
 def read_ndx(ndx_file):

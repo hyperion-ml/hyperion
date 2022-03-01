@@ -13,8 +13,8 @@ import numpy as np
 from hyperion.hyp_defs import float_cpu, config_logger
 from hyperion.io import RandomAccessDataReaderFactory as DRF
 from hyperion.helpers import VectorClassReader as VCR
-from hyperion.pdfs import PLDA
-from hyperion.transforms import TransformList, PCA, LDA, LNorm
+from hyperion.np.pdfs import PLDA
+from hyperion.np.transforms import TransformList, PCA, LDA, LNorm
 from hyperion.helpers import PLDAFactory as F
 from hyperion.utils.utt2info import Utt2Info
 from hyperion.utils.math import cosine_scoring

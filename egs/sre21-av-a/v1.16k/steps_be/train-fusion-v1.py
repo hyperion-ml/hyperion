@@ -17,8 +17,8 @@ import numpy as np
 from hyperion.hyp_defs import float_cpu, config_logger
 from hyperion.utils.trial_scores import TrialScores
 from hyperion.utils.trial_key import TrialKey
-from hyperion.metrics import compute_act_dcf, compute_min_dcf
-from hyperion.classifiers import GreedyFusionBinaryLR as GF
+from hyperion.np.metrics import compute_act_dcf, compute_min_dcf
+from hyperion.np.classifiers import GreedyFusionBinaryLR as GF
 
 
 def train_fusion(

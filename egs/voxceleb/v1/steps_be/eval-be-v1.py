@@ -23,7 +23,7 @@ from hyperion.hyp_defs import float_cpu, config_logger
 from hyperion.utils import TrialNdx, TrialScores
 from hyperion.helpers import TrialDataReader as TDR
 from hyperion.helpers import PLDAFactory as F
-from hyperion.transforms import TransformList
+from hyperion.np.transforms import TransformList
 
 
 def eval_plda(

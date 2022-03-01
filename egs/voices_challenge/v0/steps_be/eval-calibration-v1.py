@@ -19,8 +19,8 @@ from hyperion.hyp_defs import float_cpu, config_logger
 from hyperion.utils.trial_scores import TrialScores
 from hyperion.utils.trial_key import TrialKey
 from hyperion.utils.trial_ndx import TrialNdx
-from hyperion.metrics import compute_act_dcf, compute_min_dcf
-from hyperion.classifiers import BinaryLogisticRegression as LR
+from hyperion.np.metrics import compute_act_dcf, compute_min_dcf
+from hyperion.np.classifiers import BinaryLogisticRegression as LR
 
 
 def eval_calibration(in_score_file, ndx_file, model_file, out_score_file):

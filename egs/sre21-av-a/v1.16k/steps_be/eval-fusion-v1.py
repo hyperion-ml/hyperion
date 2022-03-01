@@ -17,7 +17,7 @@ from hyperion.hyp_defs import float_cpu, config_logger
 from hyperion.utils.trial_scores import TrialScores
 from hyperion.utils.trial_key import TrialKey
 from hyperion.utils.trial_ndx import TrialNdx
-from hyperion.classifiers import GreedyFusionBinaryLR as GF
+from hyperion.np.classifiers import GreedyFusionBinaryLR as GF
 
 
 def eval_fusion(in_score_files, ndx_file, model_file, out_score_file, fus_idx):

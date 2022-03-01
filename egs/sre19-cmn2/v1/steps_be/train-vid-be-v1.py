@@ -17,7 +17,7 @@ import numpy as np
 from hyperion.hyp_defs import float_cpu, config_logger
 from hyperion.helpers import VectorClassReader as VCR
 from hyperion.helpers import VectorReader as VR
-from hyperion.transforms import TransformList, LDA, LNorm
+from hyperion.np.transforms import TransformList, LDA, LNorm
 from hyperion.helpers import PLDAFactory as F
 from hyperion.utils.scp_list import SCPList
 
