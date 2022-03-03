@@ -11,7 +11,18 @@ from ..hyp_defs import float_cpu
 
 
 def stft(x, frame_length, frame_shift, fft_length, window=None):
+    """Short-time Fourier Transform for real or complex signals.
 
+    Args:
+      x: input signal (num_samples,).
+      frame_length: frame length.
+      frame_shift: frame shift.
+      fft_length: length of the FFT.
+      window: window function as numpy array (frame_length,)
+
+    Returns:
+      Fourier transform (num_frames, fft_length)
+    """
     if window is None:
         window = 1
 
@@ -26,7 +37,18 @@ def stft(x, frame_length, frame_shift, fft_length, window=None):
 
 
 def istft(X, frame_length, frame_shift, window=None):
+    """Short-time Fourier Transform for real or complex signals.
 
+    Args:
+      X: input FFT (num_frames, fft_length).
+      frame_length: frame length.
+      frame_shift: frame shift.
+      fft_length: length of the FFT.
+      window: window function as numpy array (frame_length,)
+
+    Returns:
+      Reconstructed signal (num_frames * (frame_shift-1) + frame_length,)
+    """
     if window is None:
         window = np.ones((frame_length,), dtype=float_cpu())
 
@@ -49,7 +71,18 @@ def istft(X, frame_length, frame_shift, window=None):
 
 
 def strft(x, frame_length, frame_shift, fft_length, window=None):
+    """Short-time Fourier Transform for real signals.
 
+    Args:
+      x: input signal (num_samples,).
+      frame_length: frame length.
+      frame_shift: frame shift.
+      fft_length: length of the FFT.
+      window: window function as numpy array (frame_length,)
+
+    Returns:
+      Fourier transform (num_frames, fft_length/2+1)
+    """
     if window is None:
         window = 1
 
@@ -64,7 +97,18 @@ def strft(x, frame_length, frame_shift, fft_length, window=None):
 
 
 def istrft(X, frame_length, frame_shift, window=None):
+    """Short-time Fourier Transform for real signals.
 
+    Args:
+      X: input FFT (num_frames, fft_length/2+1).
+      frame_length: frame length.
+      frame_shift: frame shift.
+      fft_length: length of the FFT.
+      window: window function as numpy array (frame_length,)
+
+    Returns:
+      Reconstructed signal (num_frames * (frame_shift-1) + frame_length,)
+    """
     if window is None:
         window = np.ones((frame_length,), dtype=float_cpu())
 

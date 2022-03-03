@@ -19,6 +19,30 @@ from ..transforms import PCA, LNorm
 
 
 class DiarAHCPLDA(object):
+    """Class to perform diarization using
+    Agglomerative clustering using scores computed by a PLDA model.
+
+    The steps are:
+    - It applies a pre-processing transformation to the data, such as LDA and
+      Length normalization (optional).
+    - Trains PCA on the test data and reduces test data dimension. It also
+      transforms the parameters of the PLDA model using the PCA projection matrix (optional).
+    - Gets affinity matrix using PLDA scoring.
+    - It applies unsupervised calibration to scores using GMM model (optional).
+    - Performs AHC.
+
+    Attributes:
+      plda_model: pre-trained PLDA model.
+      preproc: preprocessing transformation class.
+               If None, no transformation is applied.
+      threshold: stopping threshold for AHC.
+      pca_var_r: ratio of variance to keep when doing PCA on features after
+                 the preprocessing. If "pca_var_r=1", PCA is not applied.
+      do_unsup_cal: applies unsupervised calibration to PLDA scores.
+      use_bic: uses Bayesian Information Criterion to decide if there is 1 or 2 components
+               in the GMM used for calibration.
+    """
+
     def __init__(
         self,
         plda_model,
@@ -39,7 +63,7 @@ class DiarAHCPLDA(object):
 
     @staticmethod
     def _plot_score_hist(scores, output_file, thr=None, gmm=None):
-
+        """Plots the score histograms and GMM."""
         output_dir = Path(output_file).parent
         output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -72,6 +96,7 @@ class DiarAHCPLDA(object):
 
     @staticmethod
     def _unsup_gmm_calibration(scores):
+        """Performs unsupervised calibration on the scores by training a GMM."""
         mask = np.triu(np.ones(scores.shape, dtype=np.bool), 1)
         scores_r = scores[mask].ravel()[:, None]  # N x 1
         gmm_1c = GMM(num_comp=1)
@@ -95,6 +120,15 @@ class DiarAHCPLDA(object):
         return scores, bic, gmm_2c
 
     def cluster(self, x, hist_file=None):
+        """Peforms the diarization clustering.
+
+        Args:
+          x: input data (num_frames, feat_dim)
+          hist_file: file to plot the score histogram (optional).
+
+        Returns:
+          Cluster assigments as (num_frames,) integer array.
+        """
         x = self.preproc.predict(x)
         if self.pca_var_r < 1:
             pca = PCA(pca_var_r=self.pca_var_r, whiten=True)

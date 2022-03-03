@@ -10,16 +10,15 @@ from .utils import opt_loglr
 
 
 def compute_cllr(tar, non):
-    """CLLR: Measure of goodness of log-likelihood-ratio detection output. This measure          ps both:
-             - The quality of the score (over the whole DET curve), and
-            -  The quality of the calibration
+    """CLLR: Measure of goodness of log-likelihood-ratio detection output.
+       This measures both:
+        - The quality of the score (over the whole DET curve), and
+        -  The quality of the calibration
     Args:
       tar: Scores of target trials.
       non: Scores of non-target trials.
-
     Returns:
       CLLR
-
     """
     c1 = np.mean(neglogsigmoid(tar)) / np.log(2)
     c2 = np.mean(neglogsigmoid(non)) / np.log(2)
@@ -28,6 +27,13 @@ def compute_cllr(tar, non):
 
 
 def compute_min_cllr(tar, non):
+    """Minimum CLLR. CLLR given perfect score calibration.
 
+    Args:
+      tar: Scores of target trials.
+      non: Scores of non-target trials.
+    Returns:
+      CLLR
+    """
     tar_llr, non_llr = opt_loglr(tar, non, "raw")
     return compute_cllr(tar_llr, non_llr)

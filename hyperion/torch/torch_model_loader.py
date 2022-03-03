@@ -14,6 +14,26 @@ from .models import *
 
 class TorchModelLoader(object):
     @staticmethod
+    def _fix_compatibility(class_obj, cfg):
+        """Function that fixed compatibility issues with deprecated models
+
+        Args:
+          class_obj: class type of the model.
+          cfg: configuration dictiory that inits the model.
+
+        Returns:
+          Fixed configuration dictionary.
+        """
+        # for compatibility with older x-vector models
+        if issubclass(class_obj, XVector):
+            # We renamed AM-softmax scale parameer s to cos_scale
+            if "s" in cfg:
+                cfg["cos_scale"] = cfg["s"]
+                del cfg["s"]
+
+        return cfg
+
+    @staticmethod
     def load(file_path, extra_objs={}, map_location=None):
 
         if map_location is None:
@@ -35,12 +55,7 @@ class TorchModelLoader(object):
         if "n_averaged" in state_dict:
             del state_dict["n_averaged"]
 
-        # for compatibility with older x-vector models
-        if isinstance(class_obj, XVector):
-            # We renamed AM-softmax scale parameer s to cos_scale
-            if "s" in cfg:
-                cfg["cos_scale"] = cfg["s"]
-                del cfg["s"]
+        cfg = self._fix_compatibilty(class_obj, cfg)
 
         p = re.compile("^module\.")
         num_tries = 3

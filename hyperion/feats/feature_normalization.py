@@ -31,10 +31,18 @@ class MeanVarianceNorm(object):
         self.right_context = right_context
 
     def normalize(self, x):
+        """Applies feature normalization.
+
+        Args:
+          x: Input feature matrix.
+
+        Returns:
+          Normalized feature matrix.
+        """
         return self.normalize_cumsum(x)
 
     def normalize_global(self, x):
-        # Global mean/var norm.
+        """Applies Global mean/var norm."""
         if self.norm_mean:
             m_x = np.mean(x, axis=0, keepdims=True)
             x = x - m_x
@@ -54,7 +62,6 @@ class MeanVarianceNorm(object):
         Returns:
           Normalized feature matrix.
         """
-
         x = self.normalize_global(x)
 
         if self.right_context is None and self.left_context is None:
