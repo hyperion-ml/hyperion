@@ -73,7 +73,7 @@ def train_be(
         preproc = TransformList([pca, lnorm])
 
     if not os.path.exists(output_path):
-        os.makedirs(ouput_path)
+        os.makedirs(output_path)
 
     preproc.save(output_path + "/lnorm.h5")
     plda.save(output_path + "/plda.h5")

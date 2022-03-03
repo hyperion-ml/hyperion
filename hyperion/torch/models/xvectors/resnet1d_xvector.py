@@ -23,7 +23,7 @@ class ResNet1dXVector(XVector):
         num_embed_layers=1,
         hid_act={"name": "relu", "inplace": True},
         loss_type="arc-softmax",
-        s=64,
+        cos_scale=64,
         margin=0.3,
         margin_warmup_epochs=0,
         num_subcenters=2,
@@ -49,7 +49,7 @@ class ResNet1dXVector(XVector):
             num_embed_layers=num_embed_layers,
             hid_act=hid_act,
             loss_type=loss_type,
-            s=s,
+            cos_scale=cos_scale,
             margin=margin,
             margin_warmup_epochs=margin_warmup_epochs,
             num_subcenters=num_subcenters,
@@ -135,19 +135,6 @@ class ResNet1dXVector(XVector):
         cfg, state_dict = cls._load_cfg_state_dict(file_path, cfg, state_dict)
 
         try:
-            # cfg["resnet_enc"] = cfg["encoder_net"]
-            # del cfg["encoder_net"]
-            # del cfg["in_feats"]
-            # del cfg["resnet_enc"]["class_name"]
-            # kk = {
-            #     "multilayer": True,
-            #     "multilayer_concat": True,
-            #     "endpoint_channels": 1536,
-            #     "endpoint_layers": None,
-            #     "endpoint_scale_layer": -1,
-            #     "upsampling_mode": "nearest",
-            # }
-            # cfg["resnet_enc"].update(kk)
             del cfg["in_feats"]
         except:
             pass

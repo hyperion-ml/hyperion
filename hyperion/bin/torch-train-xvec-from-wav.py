@@ -185,7 +185,6 @@ if __name__ == "__main__":
 
     parser = ArgumentParser(description="Train XVector from audio files")
 
-    parser.add_argument("--local_rank", default=0, type=int)
     parser.add_argument("--cfg", action=ActionConfigFile)
 
     subcommands = parser.add_subcommands()
@@ -195,8 +194,10 @@ if __name__ == "__main__":
         subcommands.add_subcommand(k, parser_k)
 
     args = parser.parse_args()
-    gpu_id = args.local_rank
-    del args.local_rank
+    try:
+        gpu_id = int(os.environ["LOCAL_RANK"])
+    except:
+        gpu_id = 0
 
     xvec_type = args.subcommand
     args_sc = vars(args)[xvec_type]

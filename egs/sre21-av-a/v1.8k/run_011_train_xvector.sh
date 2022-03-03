@@ -67,7 +67,7 @@ if [ $stage -le 1 ]; then
     --grad-acc-steps $grad_acc_steps \
     --embed-dim $embed_dim $nnet_opt $opt_opt $lrs_opt \
     --epochs $nnet_num_epochs \
-    --s $s --margin $margin --margin-warmup-epochs $margin_warmup \
+    --cos-scale $s --margin $margin --margin-warmup-epochs $margin_warmup \
     --dropout-rate $dropout \
     --num-gpus $ngpu \
     --log-interval $log_interval \

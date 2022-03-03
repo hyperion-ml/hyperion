@@ -26,7 +26,7 @@ class TorchModelLoader(object):
         if class_name in globals():
             class_obj = globals()[class_name]
         elif class_name in extra_objs:
-            class_obs = extra_objs[class_name]
+            class_obj = extra_objs[class_name]
         else:
             raise Exception("unknown object with class_name=%s" % (class_name))
 
@@ -34,6 +34,13 @@ class TorchModelLoader(object):
 
         if "n_averaged" in state_dict:
             del state_dict["n_averaged"]
+
+        # for compatibility with older x-vector models
+        if isinstance(class_obj, XVector):
+            # We renamed AM-softmax scale parameer s to cos_scale
+            if "s" in cfg:
+                cfg["cos_scale"] = cfg["s"]
+                del cfg["s"]
 
         p = re.compile("^module\.")
         num_tries = 3

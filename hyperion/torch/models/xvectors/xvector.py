@@ -27,7 +27,7 @@ class XVector(TorchModel):
         num_embed_layers=1,
         hid_act={"name": "relu", "inplace": True},
         loss_type="arc-softmax",
-        s=64,
+        cos_scale=64,
         margin=0.3,
         margin_warmup_epochs=0,
         num_subcenters=2,
@@ -109,7 +109,7 @@ class XVector(TorchModel):
             num_embed_layers=num_embed_layers,
             hid_act=hid_act,
             loss_type=loss_type,
-            s=s,
+            cos_scale=cos_scale,
             margin=margin,
             margin_warmup_epochs=margin_warmup_epochs,
             num_subcenters=num_subcenters,
@@ -144,8 +144,8 @@ class XVector(TorchModel):
         return self.classif_net.num_embed_layers
 
     @property
-    def s(self):
-        return self.classif_net.s
+    def cos_scale(self):
+        return self.classif_net.cos_scale
 
     @property
     def margin(self):
@@ -457,7 +457,7 @@ class XVector(TorchModel):
             "num_embed_layers": self.num_embed_layers,
             "hid_act": self.hid_act,
             "loss_type": self.loss_type,
-            "s": self.s,
+            "cos_scale": self.cos_scale,
             "margin": self.margin,
             "margin_warmup_epochs": self.margin_warmup_epochs,
             "num_subcenters": self.num_subcenters,
@@ -491,7 +491,7 @@ class XVector(TorchModel):
         self,
         num_classes=None,
         loss_type="arc-softmax",
-        s=64,
+        cos_scale=64,
         margin=0.3,
         margin_warmup_epochs=10,
     ):
@@ -508,7 +508,7 @@ class XVector(TorchModel):
         # otherwise we just change the values of s, margin and margin_warmup
         self.classif_net.set_margin(margin)
         self.classif_net.set_margin_warmup_epochs(margin_warmup_epochs)
-        self.classif_net.set_s(s)
+        self.classif_net.set_cos_scale(cos_scale)
 
     def freeze_preembed_layers(self):
         self.encoder_net.freeze()
@@ -666,7 +666,9 @@ class XVector(TorchModel):
             help="loss type: softmax, arc-softmax, cos-softmax, subcenter-arc-softmax",
         )
 
-        parser.add_argument("--s", default=64, type=float, help="scale for arcface")
+        parser.add_argument(
+            "--cos-scale", default=64, type=float, help="scale for arcface"
+        )
 
         parser.add_argument(
             "--margin", default=0.3, type=float, help="margin for arcface, cosface,..."
@@ -787,7 +789,9 @@ class XVector(TorchModel):
             help="loss type: softmax, arc-softmax, cos-softmax, subcenter-arc-softmax",
         )
 
-        parser.add_argument("--s", default=64, type=float, help="scale for arcface")
+        parser.add_argument(
+            "--cos-scale", default=64, type=float, help="scale for arcface"
+        )
 
         parser.add_argument(
             "--margin", default=0.3, type=float, help="margin for arcface, cosface,..."

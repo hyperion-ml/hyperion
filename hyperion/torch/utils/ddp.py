@@ -55,8 +55,6 @@ def ddp_init(
         device = open_device(num_gpus)
         return device, 0, 1
 
-    torch.cuda.set_device(gpu_id)
-    torch.tensor([0]).to(gpu_id)
     os.environ["MASTER_ADDR"] = master_addr
     os.environ["MASTER_PORT"] = master_port
 
@@ -64,6 +62,7 @@ def ddp_init(
         f"init ddp rank={rank} world_size={world_size} master={master_addr}:{master_port}"
     )
     dist.init_process_group("nccl", rank=rank, world_size=world_size)
+    torch.tensor([0]).to(gpu_id)
     return gpu_id, rank, world_size
 
 
