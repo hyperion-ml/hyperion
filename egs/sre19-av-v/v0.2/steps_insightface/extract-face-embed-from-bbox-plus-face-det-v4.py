@@ -180,7 +180,7 @@ def extract_face_embed(
                 overlap_score = np.expand_dims(overlap_score, axis=0)
                 d_score = np.expand_dims(d_score, axis=0)
 
-                x_f = extract_embed_in_frame_v4(
+                x_f, q_f = extract_embed_in_frame_v4(
                     embed_extractor,
                     frame,
                     landmarks,

@@ -5,7 +5,7 @@
 
 #paths to databases
 if [ "$(hostname --domain)" == "clsp.jhu.edu" ];then
-  ldc_root=/export/corpora/LDC
+  ldc_root=/export/corpora5/LDC
   # sre19_dev_root=$ldc_root/LDC2019E56
   # sre19_eval_root=$ldc_root/LDC2019E57
   sre21_dev_root=$ldc_root/LDC2021E09

@@ -128,7 +128,7 @@ def extract_face_embed(
                 )
                 continue
 
-            x = extract_embed_in_frame_v4(
+            x, _ = extract_embed_in_frame_v4(
                 embed_extractor,
                 frame,
                 landmarks,
