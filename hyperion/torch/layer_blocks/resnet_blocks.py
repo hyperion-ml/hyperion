@@ -112,9 +112,22 @@ class ResNetInputBlock(nn.Module):
 
 
 class ResNetBasicBlock(nn.Module):
-    expansion = 1
+    """ResNet basic Block.
 
-    # __constants__ = ['downsample']
+    Attributes:
+      in_channels:       input channels.
+      channels:          output channels.
+      activation:        Non-linear activation object, string of configuration dictionary.
+      stride:            downsampling stride of the convs.
+
+      dropout_rate:      dropout rate.
+      groups:            number of groups in the convolutions.
+      dilation:          dilation factor of the conv. kernels.
+      norm_layer:        normalization layer constructor, if None BatchNorm2d is used.
+      norm_before:       if True, normalization layer is before the activation, after otherwise.
+    """
+
+    expansion = 1
 
     def __init__(
         self,
@@ -166,7 +179,16 @@ class ResNetBasicBlock(nn.Module):
     def out_channels(self):
         return self.channels
 
-    def forward(self, x):
+    def forward(self, x, x_mask=None):
+        """Forward function.
+
+        Args:
+          x: input tensor with shape = (batch, in_channels, in_heigh, in_width).
+          x_mask: unused.
+
+        Returns:
+          Tensor with shape = (batch, out_channels, out_heigh, out_width).
+        """
         residual = x
 
         x = self.conv1(x)
@@ -199,6 +221,20 @@ class ResNetBasicBlock(nn.Module):
 
 
 class ResNetBNBlock(nn.Module):
+    """Res2Net bottleneck Block.
+
+    Attributes:
+      in_channels:       input channels.
+      channels:          channels in bottleneck layer when width_factor=1.
+      activation:        Non-linear activation object, string of configuration dictionary.
+      stride:            downsampling stride of the convs.
+      dropout_rate:      dropout rate.
+      groups:            number of groups in the convolutions.
+      dilation:          dilation factor of the conv. kernels.
+      norm_layer:        normalization layer constructor, if None BatchNorm2d is used.
+      norm_before:       if True, normalization layer is before the activation, after otherwise.
+    """
+
     expansion = 4
     # __constants__ = ['downsample']
 
@@ -256,7 +292,16 @@ class ResNetBNBlock(nn.Module):
     def out_channels(self):
         return self.channels * self.expansion
 
-    def forward(self, x):
+    def forward(self, x, x_mask=None):
+        """Forward function.
+
+        Args:
+          x: input tensor with shape = (batch, in_channels, in_heigh, in_width).
+          x_mask: unused.
+
+        Returns:
+          Tensor with shape = (batch, out_channels, out_heigh, out_width).
+        """
         residual = x
 
         x = self.conv1(x)
@@ -305,6 +350,18 @@ class Interpolate(nn.Module):
 
 
 class ResNetEndpointBlock(nn.Module):
+    """ResNet endpoint basic block. This is used as output block when
+    the output combines feature maps from different resolution levels.
+
+    Attributes:
+      in_channels:       input channels.
+      out_channels:      output channels.
+      scale:             interpolation factor.
+      activation:        Non-linear activation object, string of configuration dictionary.
+      norm_layer:        normalization layer constructor, if None BatchNorm2d is used.
+      norm_before:       if True, normalization layer is before the activation, after otherwise.
+    """
+
     def __init__(
         self,
         in_channels,
@@ -334,7 +391,16 @@ class ResNetEndpointBlock(nn.Module):
         if self.scale > 1:
             self.upsample = Interpolate(scale_factor=scale, mode="nearest")
 
-    def forward(self, x):
+    def forward(self, x, x_mask=None):
+        """Forward function.
+
+        Args:
+          x: input tensor with shape = (batch, in_channels, in_heigh, in_width).
+          x_mask: unused.
+
+        Returns:
+          Tensor with shape = (batch, out_channels, out_heigh, out_width).
+        """
 
         if self.in_channels != self.out_channels:
             x = self.conv(x)

@@ -40,7 +40,7 @@ class PositionwiseFeedForward(nn.Module):
           x: input size=(batch, time, num_feats)
 
         Returns:
-          tensor size=(batch, time, num_feats)
+          Tensor size=(batch, time, num_feats)
         """
         if self.time_dim != 1:
             x = x.transpose(1, time_dim)
@@ -157,7 +157,7 @@ class Conv1dLinear(nn.Module):
             x: input tensors with size=(batch, time, num_channels) or
                size=(batch, num_channels, time).
         Returns:
-            output tensor same size as input
+            Output tensor same size as input
         """
         if self.time_dim != -1:
             x.transpose(-1, self.time_dim)

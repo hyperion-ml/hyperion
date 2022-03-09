@@ -13,6 +13,23 @@ from .resnet_blocks import ResNetBasicBlock, ResNetBNBlock
 
 
 class SEResNetBasicBlock(ResNetBasicBlock):
+    """Squeeze-excitation ResNet basic Block.
+
+    Attributes:
+      in_channels:       input channels.
+      channels:          output channels.
+      activation:        Non-linear activation object, string of configuration dictionary.
+      stride:            downsampling stride of the convs.
+      dropout_rate:      dropout rate.
+      groups:            number of groups in the convolutions.
+      dilation:          dilation factor of the conv. kernels.
+      norm_layer:        normalization layer constructor, if None BatchNorm2d is used.
+      norm_before:       if True, normalization layer is before the activation, after otherwise.
+      se_r:              squeeze-excitation compression ratio.
+      time_se:           If true, squeeze is done only in time dimension.
+      num_feats:         Number of features in dimension 2, needed if time_se=True.
+    """
+
     def __init__(
         self,
         in_channels,
@@ -46,7 +63,16 @@ class SEResNetBasicBlock(ResNetBasicBlock):
         else:
             self.se_layer = SEBlock2D(channels, se_r, activation)
 
-    def forward(self, x):
+    def forward(self, x, x_mask=None):
+        """Forward function.
+
+        Args:
+          x: input tensor with shape = (batch, in_channels, in_heigh, in_width).
+          x_mask: unused.
+
+        Returns:
+          Tensor with shape = (batch, out_channels, out_heigh, out_width).
+        """
         residual = x
 
         x = self.conv1(x)
@@ -80,6 +106,23 @@ class SEResNetBasicBlock(ResNetBasicBlock):
 
 
 class SEResNetBNBlock(ResNetBNBlock):
+    """Squeeze-excitation ResNet bottleneck Block.
+
+    Attributes:
+      in_channels:       input channels.
+      channels:          channels in bottleneck layer when width_factor=1.
+      activation:        Non-linear activation object, string of configuration dictionary.
+      stride:            downsampling stride of the convs.
+      dropout_rate:      dropout rate.
+      groups:            number of groups in the convolutions.
+      dilation:          dilation factor of the conv. kernels.
+      norm_layer:        normalization layer constructor, if None BatchNorm2d is used.
+      norm_before:       if True, normalization layer is before the activation, after otherwise.
+      se_r=None:         squeeze-excitation compression ratio.
+      time_se:           If true, squeeze is done only in time dimension.
+      num_feats:         Number of features in dimension 2, needed if time_se=True.
+    """
+
     def __init__(
         self,
         in_channels,
@@ -115,7 +158,15 @@ class SEResNetBNBlock(ResNetBNBlock):
         else:
             self.se_layer = SEBlock2D(channels * self.expansion, se_r, activation)
 
-    def forward(self, x):
+    def forward(self, x, x_mask=None):
+        """Forward function.
+
+        Args:
+          x: input tensor with shape = (batch, in_channels, in_heigh, in_width).
+          x_mask: unused.
+        Returns:
+          Tensor with shape = (batch, out_channels, out_heigh, out_width).
+        """
         residual = x
 
         x = self.conv1(x)

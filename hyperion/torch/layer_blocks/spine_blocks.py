@@ -132,6 +132,16 @@ class SpineConv(nn.Module):
         self.act1 = AF.create(activation)
 
     def forward(self, x):
+        """Forward function.
+
+        Args:
+          x: input tensor with shape = (batch, in_channels, in_heigh, in_width).
+          x_mask: Binary mask indicating which spatial dimensions are valid of
+                  shape=(batch, time), (batch, 1, time), (batch, height, width)
+
+        Returns:
+          Tensor with shape = (batch, out_channels, out_heigh, out_width).
+        """
         x = self.conv1(x)
         if self.norm_before:
             x = self.bn1(x)
@@ -200,6 +210,16 @@ class SpineEndpoints(nn.Module):
         )
 
     def forward(self, x):
+        """Forward function.
+
+        Args:
+          x: input tensor with shape = (batch, in_channels, in_heigh, in_width).
+          x_mask: Binary mask indicating which spatial dimensions are valid of
+                  shape=(batch, time), (batch, 1, time), (batch, height, width)
+
+        Returns:
+          Tensor with shape = (batch, out_channels, out_heigh, out_width).
+        """
         if self.do_endpoint_conv and self.in_channels != self.channels:
             x = self.conv1(x)
             if self.norm_before:
@@ -254,6 +274,16 @@ class SpineResample(nn.Module):
         self.bn2 = norm_layer(out_channels)
 
     def forward(self, x):
+        """Forward function.
+
+        Args:
+          x: input tensor with shape = (batch, in_channels, in_heigh, in_width).
+          x_mask: Binary mask indicating which spatial dimensions are valid of
+                  shape=(batch, time), (batch, 1, time), (batch, height, width)
+
+        Returns:
+          Tensor with shape = (batch, out_channels, out_heigh, out_width).
+        """
         x = self.conv1(x)
         if self.norm_before:
             x = self.bn1(x)

@@ -31,16 +31,16 @@ class TransformerConv2dSubsampler(nn.Module):
             nn.Linear(out_feats * (((in_feats - 1) // 2 - 1) // 2), out_feats), pos_enc
         )
 
-    def forward(self, x, mask):
+    def forward(self, x, x_mask=None):
         """Forward function.
 
         Args:
-          x: input tensor with size=(batch, time, num_feats)
-          mask: mask to indicate valid time steps for x (batch, time1, time2)
+          x: input tensor with size=(batch, time, in_feats)
+          x_mask: mask to indicate valid time steps for x (batch, time1, time2)
 
         Returns:
-           Tensor with output features
-           Tensor with subsampled mask
+           Tensor with output features with shape = (batch, time//4, out_feats)
+           Tensor with subsampled mask x4.
         """
         if self.time_dim == 1:
             x = x.transpose(1, 2)
@@ -49,6 +49,6 @@ class TransformerConv2dSubsampler(nn.Module):
         x = self.conv(x)
         b, c, f, t = x.size()
         x = self.out(x.contiguous().view(b, c * f, t).transpose(1, 2))
-        if mask is None:
+        if x_mask is None:
             return x, None
-        return x, mask[:, :, :-2:2][:, :, :-2:2]
+        return x, x_mask[:, :, :-2:2][:, :, :-2:2]

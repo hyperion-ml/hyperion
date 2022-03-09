@@ -12,8 +12,9 @@ class Interpolate(nn.Module):
     """Interpolation class.
 
     Attributes:
-      scale_factor: upsampling scale factor.
-      mode: algorithm used for upsampling: 'nearest' | 'linear' | 'bilinear' | 'bicubic' | 'trilinear' | 'area'.
+      scale_factor: Upsampling scale factor.
+      mode: Algorithm used for upsampling:
+            'nearest' | 'linear' | 'bilinear' | 'bicubic' | 'trilinear' | 'area'.
     """
 
     def __init__(self, scale_factor, mode="nearest"):
@@ -34,7 +35,7 @@ class Interpolate(nn.Module):
         """Interpolates the input.
 
         Args:
-          x: input tensor.
+          x: Input tensor.
 
         Returns:
           Interpolated tensor.

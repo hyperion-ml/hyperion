@@ -46,6 +46,28 @@ def _make_downsample(in_channels, out_channels, stride, norm_layer, norm_before)
 
 
 class Res2Net1dBasicBlock(nn.Module):
+    """Res2Net basic Block. This is a modified Res2Net block with
+    two 3x3 convolutions, instead of the standard bottleneck block.
+
+    Attributes:
+      in_channels:       input channels.
+      channels:          output channels.
+      kernel_size:       kernel size.
+      activation:        Non-linear activation object, string of configuration dictionary.
+      stride:            downsampling stride of the convs.
+      dropout_rate:      dropout rate.
+      drop_connect_rate: drop-connect rate for stochastic number of layers.
+      width_factor:      multiplication factor for the number of channels in the first layer
+                         or the block.
+      scale:             scale parameter of the Res2Net.
+      groups:            number of groups in the convolutions.
+      dilation:          dilation factor of the conv. kernels.
+      use_norm:          if True, it uses normalization layers, otherwise it does not.
+      norm_layer:        normalization layer constructor, if None BatchNorm1d is used.
+      norm_before:       if True, normalization layer is before the activation, after otherwise.
+      se_r:              squeeze-excitation compression ratio.
+    """
+
     expansion = 1
 
     def __init__(
@@ -160,7 +182,17 @@ class Res2Net1dBasicBlock(nn.Module):
     def out_channels(self):
         return self.channels
 
-    def forward(self, x):
+    def forward(self, x, x_mask=None):
+        """Forward function.
+
+        Args:
+          x: input tensor with shape = (batch, in_channels, in_heigh, in_width).
+          x_mask: Binary mask indicating which spatial dimensions are valid of
+                  shape=(batch, time), (batch, 1, time).
+
+        Returns:
+          Tensor with shape = (batch, out_channels, time).
+        """
         residual = x
         split_size = [self.width_in for i in range(self.scale - 1)]
         split_size.append(self.in_channels % self.width_in + self.width_in)
@@ -194,7 +226,7 @@ class Res2Net1dBasicBlock(nn.Module):
             x = self.bn2(x)
 
         if self.se_layer:
-            x = self.se_layer(x)
+            x = self.se_layer(x, x_mask=x_mask)
 
         if self.drop_connect_rate > 0:
             x = self.drop_connect(x)
@@ -215,6 +247,26 @@ class Res2Net1dBasicBlock(nn.Module):
 
 
 class Res2Net1dBNBlock(nn.Module):
+    """Res2Net bottleneck Block.
+
+    Attributes:
+      in_channels:       input channels.
+      channels:          channels in bottleneck layer when width_factor=1.
+      kernel_size:       kernel size in bottleneck layers.
+      activation:        Non-linear activation object, string of configuration dictionary.
+      stride:            downsampling stride of the convs.
+      dropout_rate:      dropout rate.
+      drop_connect_rate: drop-connect rate for stochastic number of layers.
+      width_factor:      multiplication factor for the number of channels in the bottleneck.
+      scale:             scale parameter of the Res2Net.
+      groups:            number of groups in the convolutions.
+      dilation:          dilation factor of the conv. kernels.
+      use_norm:          if True, it uses normalization layers, otherwise it does not.
+      norm_layer:        normalization layer constructor, if None BatchNorm1d is used.
+      norm_before:       if True, normalization layer is before the activation, after otherwise.
+      se_r:              squeeze-excitation compression ratio.
+    """
+
     def __init__(
         self,
         in_channels,
@@ -232,7 +284,6 @@ class Res2Net1dBNBlock(nn.Module):
         norm_layer=None,
         norm_before=True,
         se_r=None,
-        num_feats=None,
     ):
 
         super().__init__()
@@ -322,7 +373,17 @@ class Res2Net1dBNBlock(nn.Module):
     def expansion(self):
         return self.channels / self.width / self.scale
 
-    def forward(self, x):
+    def forward(self, x, x_mask=None):
+        """Forward function.
+
+        Args:
+          x: input tensor with shape = (batch, in_channels, in_heigh, in_width).
+          x_mask: Binary mask indicating which spatial dimensions are valid of
+                  shape=(batch, time), (batch, 1, time).
+
+        Returns:
+          Tensor with shape = (batch, out_channels, time).
+        """
         residual = x
 
         x = self.conv1(x)
@@ -360,7 +421,7 @@ class Res2Net1dBNBlock(nn.Module):
             x = self.bn3(x)
 
         if self.se_layer:
-            x = self.se_layer(x)
+            x = self.se_layer(x, x_mask=x_mask)
 
         if self.drop_connect_rate > 0:
             x = self.drop_connect(x)
