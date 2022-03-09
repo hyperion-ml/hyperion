@@ -9,11 +9,22 @@ import torch.nn as nn
 
 
 class MeanVarianceNorm(nn.Module):
+    """Class to apply short-time mean-variance normalization to features.
+    
+    Attributes:
+      norm_mean:    if True, it normalizes the mean.
+      norm_var:     if True, is also normalized the variance.
+      left_context:  left context for the window that computes the normalization stats.
+      right_context: right context for the window that computes the normalization stats.
+      dim:           normalization dimension (time dimension). 
+
+    If left_context = right_context = 0, it computes the stats on the whole utterance.
+    """
     def __init__(
         self, norm_mean=True, norm_var=False, left_context=0, right_context=0, dim=1
     ):
 
-        super(MeanVarianceNorm, self).__init__()
+        super().__init__()
         self.norm_mean = norm_mean
         self.norm_var = norm_var
         self.left_context = left_context
@@ -35,6 +46,14 @@ class MeanVarianceNorm(nn.Module):
         return s
 
     def forward(self, x):
+        """Short-time mean-var normalizes feature tensor.
+        
+        Args:
+          x: feature tensor.
+
+        Returns:
+          Normalized feature tensor.
+        """
 
         T = x.shape[self.dim]
         if (self.left_context == 0 and self.right_context == 0) or (
@@ -45,6 +64,7 @@ class MeanVarianceNorm(nn.Module):
         return self.normalize_cumsum(x)
 
     def normalize_global(self, x):
+        """Applies global mean-var normalization."""
         # Global mean/var norm.
         if self.norm_mean:
             m_x = torch.mean(x, dim=self.dim, keepdim=True)
@@ -57,7 +77,7 @@ class MeanVarianceNorm(nn.Module):
         return x
 
     def normalize_cumsum(self, x):
-
+        """Applies short-time mean-var normalization using cumulative sums."""
         if self.norm_mean:
             # substract first global mean
             # it will help cumsum numerical stability
@@ -99,13 +119,13 @@ class MeanVarianceNorm(nn.Module):
 
     @staticmethod
     def filter_args(**kwargs):
-        """Filters ST-CMVN args from arguments dictionary.
+        """Filters ST-MVN args from arguments dictionary.
 
         Args:
           kwargs: Arguments dictionary.
 
         Returns:
-          Dictionary with ST-CMVN options.
+          Dictionary with ST-MVN options.
         """
 
         valid_args = (

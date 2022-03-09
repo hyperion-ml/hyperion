@@ -138,7 +138,7 @@ class ResNet1dXVector(XVector):
             del cfg["in_feats"]
         except:
             pass
-        print(cfg, flush=True)
+
         model = cls(**cfg)
         if state_dict is not None:
             model.load_state_dict(state_dict)

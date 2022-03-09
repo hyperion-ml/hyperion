@@ -96,21 +96,6 @@ def extract_xvectors(
         keys = []
         info = []
 
-    # num_gpus = 1 if use_gpu else 0
-    # logging.info('initializing devices num_gpus={}'.format(num_gpus))
-    # device = open_device(num_gpus=num_gpus)
-    # logging.info('loading x-vector model {}'.format(xvec_model_path))
-    # xvec_model = TML.load(xvec_model_path)
-    # xvec_model.to(device)
-    # xvec_model.eval()
-    # logging.info('x-vector={}'.format(xvec_model))
-
-    # logging.info('loading vae model {}'.format(vae_model_path))
-    # vae_model = TML.load(vae_model_path)
-    # vae_model.to(device)
-    # vae_model.eval()
-    # logging.info('vae={}'.format(vae_model))
-
     mse_loss = torch.nn.MSELoss()
 
     dr_args = DRF.filter_args(**kwargs)
@@ -151,7 +136,7 @@ def extract_xvectors(
 
                 t4 = time.time()
                 if x.shape[0] == 0:
-                    y = np.zeros((model.embed_dim,), dtype=float_cpu())
+                    y = np.zeros((xvec_model.embed_dim,), dtype=float_cpu())
                 else:
                     xx = torch.tensor(x.T[None, :], dtype=torch.get_default_dtype())
                     with torch.no_grad():

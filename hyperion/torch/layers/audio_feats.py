@@ -66,21 +66,23 @@ def _get_feature_window_function(window_type, window_size, blackman_coeff=0.42):
 
 
 def _get_strided_batch(waveform, window_length, window_shift, snip_edges, center=False):
-    r"""Given a waveform (1D tensor of size ``num_samples``), it returns a 2D tensor (m, ``window_size``)
-    representing how the window is shifted along the waveform. Each row is a frame.
+    """Given a waveform (2D tensor of size  (batch, num_samples),
+       it returns a 3D tensor (batch, m, window_size)
+       representing how the window is shifted along the waveform. Each row is a frame.
 
     Args:
-        waveform (torch.Tensor): Tensor of size ``num_samples``
-        window_size (int): Frame length
-        window_shift (int): Frame shift
-        snip_edges (bool): If True, end effects will be handled by outputting only frames that completely fit
-            in the file, and the number of frames depends on the frame_length.  If False, the number of frames
-            depends only on the frame_shift, and we reflect the data at the ends.
-        center (bool): If true, if puts the center of the frame at t*window_shift, starting at t=0,
-                       If overwrides snip_edges and set it to False
+        waveform:     Tensor of size (batch, num_samples).
+        window_size:  Frame length in samples.
+        window_shift: Frame shift in samples.
+        snip_edges:   If True, end effects will be handled by outputting only frames
+                      that completely fit in the file, and the number of frames depends
+                      on the frame_length.  If False, the number of frames depends only
+                      on the frame_shift, and we reflect the data at the ends.
+        center (bool): If true, if puts the center of the frame at t*window_shift,
+                       starting at t=0, it overwrides snip_edges and set it to False
 
     Returns:
-        torch.Tensor: 3D tensor of size (m, ``window_size``) where each row is a frame
+        3D tensor of size (batch, m, ``window_size``) where each row is a frame
     """
     assert waveform.dim() == 2
     batch_size = waveform.size(0)
@@ -121,7 +123,7 @@ def _get_strided_batch(waveform, window_length, window_shift, snip_edges, center
 
 
 def _get_log_energy(x, energy_floor):
-    r"""Returns the log energy of size (m) for a strided_input (m,*)"""
+    r"""Returns the log energy of size (batch, m) for a strided_input (batch, m,*)"""
     log_energy = (x.pow(2).sum(-1) + 1e-15).log()  # size (m)
     if energy_floor > 0.0:
         log_energy = torch.max(
@@ -133,6 +135,13 @@ def _get_log_energy(x, energy_floor):
 
 
 class Wav2Win(nn.Module):
+    """Class that takes a batch of waveforms and returns windowed frames
+       with a given frame-shift and frame-length.
+
+    Attributes:
+
+    """
+
     def __init__(
         self,
         fs=16000,
@@ -235,7 +244,7 @@ class Wav2Win(nn.Module):
 
         if self.return_log_energy and not self.raw_energy:
             signal_log_energy = _get_log_energy(
-                strided_input, self.energy_floor
+                x_strided, self.energy_floor
             )  # size (batch, m)
 
         # Pad columns with zero until we reach size (batch, num_frames, pad_length)
@@ -252,6 +261,37 @@ class Wav2Win(nn.Module):
 
 
 class Wav2FFT(nn.Module):
+    """Computes FFT from waveforms.
+
+    Attributes:
+      fs:                Waveform data sample frequency (must match the waveform
+                         file, if specified there) (default = 16000)
+      frame_length:      Frame length in milliseconds (default = 25)
+      frame_shift:       Frame shift in milliseconds (default = 10)
+      fft_length:        Length of FFT (default = 512)
+      remove_dc_offset:  Subtract mean from waveform on each frame (default = True)
+      preemphasis_coeff: Coefficient for use in signal preemphasis (default = 0.97)
+      window_type:       Type of window ["hamming"|"hanning"|"povey"|"rectangular"|
+                         "blackmann"] (default = 'povey')
+      use_fft_mag:       If false, it uses |X(f)|^2, if true, it uses |X(f)|,
+                         (default = False)
+      dither:            Dithering constant (0.0 means no dither) (default = 1)
+      snip_edges:        If true, end effects will be handled by outputting only
+                         frames that completely fit in the file, and the number of
+                         frames depends on the frame-length.
+                         If false, the number of frames depends only on the
+                         frame-shift, and we reflect the data at the ends.
+                         (default = True)
+      center:            If true, if puts the center of the frame at t*window_shift, starting at t=0,
+                         If overwrides snip_edges and set it to False
+      energy_floor:      Floor on energy (absolute, not relative) in MFCC computation
+                         (default = 0)
+      raw_energy:        If true, compute energy before preemphasis and
+                         windowing (default = True)
+      use_energy:        Use energy (not C0) in MFCC computation (default = True)
+
+    """
+
     def __init__(
         self,
         fs=16000,
@@ -324,14 +364,19 @@ class Wav2FFT(nn.Module):
         return self.wav2win.dither
 
     def forward(self, x):
+        """Computes the comples Fourier transform.
 
+        Args:
+          x: waveform tensor with shape = (batch, num_samples).
+
+        Returns:
+          FFT tensor with shape = (batch, num_frames, fft_length//2+1)
+        """
         x_strided = self.wav2win(x)
         if self.use_energy:
             x_strided, log_e = x_strided
 
-        # X = torch.rfft(x_strided, 1, normalized=False, onesided=True)
         X = _rfft(x_strided)
-
         if self.use_energy:
             X[:, 0, :, 0] = log_e
 
@@ -339,6 +384,37 @@ class Wav2FFT(nn.Module):
 
 
 class Wav2Spec(Wav2FFT):
+    """Computes Spectrograms from waveforms.
+
+    Attributes:
+      fs:                Waveform data sample frequency (must match the waveform
+                         file, if specified there) (default = 16000)
+      frame_length:      Frame length in milliseconds (default = 25)
+      frame_shift:       Frame shift in milliseconds (default = 10)
+      fft_length:        Length of FFT (default = 512)
+      remove_dc_offset:  Subtract mean from waveform on each frame (default = True)
+      preemphasis_coeff: Coefficient for use in signal preemphasis (default = 0.97)
+      window_type:       Type of window ["hamming"|"hanning"|"povey"|"rectangular"|
+                         "blackmann"] (default = 'povey')
+      use_fft_mag:       If false, it uses |X(f)|^2, if true, it uses |X(f)|,
+                         (default = False)
+      dither:            Dithering constant (0.0 means no dither) (default = 1)
+      snip_edges:        If true, end effects will be handled by outputting only
+                         frames that completely fit in the file, and the number of
+                         frames depends on the frame-length.
+                         If false, the number of frames depends only on the
+                         frame-shift, and we reflect the data at the ends.
+                         (default = True)
+      center:            If true, if puts the center of the frame at t*window_shift, starting at t=0,
+                         If overwrides snip_edges and set it to False
+      energy_floor:      Floor on energy (absolute, not relative) in MFCC computation
+                         (default = 0)
+      raw_energy:        If true, compute energy before preemphasis and
+                         windowing (default = True)
+      use_energy:        Use energy (not C0) in MFCC computation (default = True)
+
+    """
+
     def __init__(
         self,
         fs=16000,
@@ -380,18 +456,21 @@ class Wav2Spec(Wav2FFT):
             self._to_spec = _pow_spectrogram
 
     def forward(self, x):
+        """Computes the Spectrogram.
+
+        Args:
+          x: waveform tensor with shape = (batch, num_samples).
+
+        Returns:
+          Spectrogram tensor with shape = (batch, num_frames, fft_length//2+1)
+        """
 
         x_strided = self.wav2win(x)
         if self.use_energy:
             x_strided, log_e = x_strided
 
-        # X = torch.rfft(x_strided, 1, normalized=False, onesided=True)
         X = _rfft(x_strided)
         pow_spec = self._to_spec(X)
-        # pow_spec = X.pow(2).sum(-1)
-        # if self.use_fft_mag:
-        #     pow_spec = pow_spec.sqrt()
-
         if self.use_energy:
             pow_spec[:, 0] = log_e
 
@@ -399,6 +478,37 @@ class Wav2Spec(Wav2FFT):
 
 
 class Wav2LogSpec(Wav2FFT):
+    """Computes log-spectrograms from waveforms.
+
+    Attributes:
+      fs:                Waveform data sample frequency (must match the waveform
+                         file, if specified there) (default = 16000)
+      frame_length:      Frame length in milliseconds (default = 25)
+      frame_shift:       Frame shift in milliseconds (default = 10)
+      fft_length:        Length of FFT (default = 512)
+      remove_dc_offset:  Subtract mean from waveform on each frame (default = True)
+      preemphasis_coeff: Coefficient for use in signal preemphasis (default = 0.97)
+      window_type:       Type of window ["hamming"|"hanning"|"povey"|"rectangular"|
+                         "blackmann"] (default = 'povey')
+      use_fft_mag:       If false, it uses |X(f)|^2, if true, it uses |X(f)|,
+                         (default = False)
+      dither:            Dithering constant (0.0 means no dither) (default = 1)
+      snip_edges:        If true, end effects will be handled by outputting only
+                         frames that completely fit in the file, and the number of
+                         frames depends on the frame-length.
+                         If false, the number of frames depends only on the
+                         frame-shift, and we reflect the data at the ends.
+                         (default = True)
+      center:            If true, if puts the center of the frame at t*window_shift, starting at t=0,
+                         If overwrides snip_edges and set it to False
+      energy_floor:      Floor on energy (absolute, not relative) in MFCC computation
+                         (default = 0)
+      raw_energy:        If true, compute energy before preemphasis and
+                         windowing (default = True)
+      use_energy:        Use energy (not C0) in MFCC computation (default = True)
+
+    """
+
     def __init__(
         self,
         fs=16000,
@@ -440,21 +550,21 @@ class Wav2LogSpec(Wav2FFT):
             self._to_spec = _pow_spectrogram
 
     def forward(self, x):
+        """Computes the log-spectrogram.
 
+        Args:
+          x: waveform tensor with shape = (batch, num_samples).
+
+        Returns:
+          Spectrogram tensor with shape = (batch, num_frames, fft_length//2+1)
+        """
         x_strided = self.wav2win(x)
         if self.use_energy:
             x_strided, log_e = x_strided
 
-        # X = torch.rfft(x_strided, 1, normalized=False, onesided=True)
         X = _rfft(x_strided)
         pow_spec = self._to_spec(X)
-
-        # pow_spec = X.pow(2).sum(-1)
-        # if self.use_fft_mag:
-        #     pow_spec = pow_spec.sqrt()
-
         pow_spec = (pow_spec + 1e-15).log()
-
         if self.use_energy:
             pow_spec[:, 0] = log_e
 
@@ -462,6 +572,46 @@ class Wav2LogSpec(Wav2FFT):
 
 
 class Wav2LogFilterBank(Wav2FFT):
+    """Computes log-filter-bank from waveforms.
+
+    Attributes:
+      fs:                Waveform data sample frequency (must match the waveform
+                         file, if specified there) (default = 16000)
+      frame_length:      Frame length in milliseconds (default = 25)
+      frame_shift:       Frame shift in milliseconds (default = 10)
+      fft_length:        Length of FFT (default = 512)
+      remove_dc_offset:  Subtract mean from waveform on each frame (default = True)
+      preemphasis_coeff: Coefficient for use in signal preemphasis (default = 0.97)
+      window_type:       Type of window ["hamming"|"hanning"|"povey"|"rectangular"|
+                         "blackmann"] (default = 'povey')
+      use_fft_mag:       If false, it uses |X(f)|^2, if true, it uses |X(f)|,
+                         (default = False)
+      dither:            Dithering constant (0.0 means no dither) (default = 1)
+      fb_type:           Filter-bank type in ["mel_kaldi", "mel_etsi",
+                         "mel_librosa", "mel_librosa_htk", "linear"]
+                         (default = 'mel_kaldi')
+      low_freq:          Low cutoff frequency for mel bins (default = 20)
+      high_freq:         High cutoff frequency for mel bins, if < 0,
+                         offset from Nyquist (default = 0)
+      num_filters:       Number of triangular mel-frequency bins (default = 23)
+      norm_filters:      Normalize filters coeff to sum up to 1, if librosa
+                         it uses Stanley norm (default = False)
+      snip_edges:        If true, end effects will be handled by outputting only
+                         frames that completely fit in the file, and the number of
+                         frames depends on the frame-length.
+                         If false, the number of frames depends only on the
+                         frame-shift, and we reflect the data at the ends.
+                         (default = True)
+      center:            If true, if puts the center of the frame at t*window_shift, starting at t=0,
+                         If overwrides snip_edges and set it to False
+      energy_floor:      Floor on energy (absolute, not relative) in MFCC computation
+                         (default = 0)
+      raw_energy:        If true, compute energy before preemphasis and
+                         windowing (default = True)
+      use_energy:        Use energy (not C0) in MFCC computation (default = True)
+
+    """
+
     def __init__(
         self,
         fs=16000,
@@ -526,29 +676,24 @@ class Wav2LogFilterBank(Wav2FFT):
             self._to_spec = _pow_spectrogram
 
     def forward(self, x):
+        """Computes the log-filter-banks.
 
+        Args:
+          x: waveform tensor with shape = (batch, num_samples).
+
+        Returns:
+          Filter-bank tensor with shape = (batch, num_frames, num_filters)
+        """
         x_strided = self.wav2win(x)
         if self.use_energy:
             x_strided, log_e = x_strided
 
-        # X = torch.rfft(x_strided, 1, normalized=False, onesided=True)
         X = _rfft(x_strided)
-        # logging.info('X={} {}'.format(X, X.type()))
-        # logging.info('X={}'.format(X.type()))
         pow_spec = self._to_spec(X)
-        # pow_spec = X.pow(2).sum(-1)
-        # # logging.info('p={} {} nan={}'.format(pow_spec, pow_spec.type(), torch.sum(torch.isnan(pow_spec))))
-        # # logging.info('p={}'.format(pow_spec.type()))
-        # if self.use_fft_mag:
-        #     pow_spec = pow_spec.sqrt()
-
         with amp.autocast(enabled=False):
             pow_spec = torch.matmul(pow_spec.float(), self._fb.float())
-        # logging.info('fb={} {}'.format(pow_spec, pow_spec.type()))
-        # logging.info('fb={}'.format(pow_spec.type()))
+
         pow_spec = (pow_spec + 1e-10).log()
-        # logging.info('lfb={} {}'.format(pow_spec, pow_spec.type()))
-        # logging.info('lfb={}'.format(pow_spec.type()))
         if self.use_energy:
             pow_spec = torch.cat((log_e.unsqueeze(-1), pow_spec), dim=-1)
 
@@ -556,6 +701,49 @@ class Wav2LogFilterBank(Wav2FFT):
 
 
 class Wav2MFCC(Wav2FFT):
+    """Computes MFCC from waveforms.
+
+    Attributes:
+      fs:                Waveform data sample frequency (must match the waveform
+                         file, if specified there) (default = 16000)
+      frame_length:      Frame length in milliseconds (default = 25)
+      frame_shift:       Frame shift in milliseconds (default = 10)
+      fft_length:        Length of FFT (default = 512)
+      remove_dc_offset:  Subtract mean from waveform on each frame (default = True)
+      preemphasis_coeff: Coefficient for use in signal preemphasis (default = 0.97)
+      window_type:       Type of window ["hamming"|"hanning"|"povey"|"rectangular"|
+                         "blackmann"] (default = 'povey')
+      use_fft_mag:       If false, it uses |X(f)|^2, if true, it uses |X(f)|,
+                         (default = False)
+      dither:            Dithering constant (0.0 means no dither) (default = 1)
+      fb_type:           Filter-bank type in ["mel_kaldi", "mel_etsi",
+                         "mel_librosa", "mel_librosa_htk", "linear"]
+                         (default = 'mel_kaldi')
+      low_freq:          Low cutoff frequency for mel bins (default = 20)
+      high_freq:         High cutoff frequency for mel bins, if < 0,
+                         offset from Nyquist (default = 0)
+      num_filters:       Number of triangular mel-frequency bins (default = 23)
+      norm_filters:      Normalize filters coeff to sum up to 1, if librosa
+                         it uses Stanley norm (default = False)
+      num_ceps:          Number of cepstra in MFCC computation (including C0)
+                         (default = 13)
+      snip_edges:        If true, end effects will be handled by outputting only
+                         frames that completely fit in the file, and the number of
+                         frames depends on the frame-length.
+                         If false, the number of frames depends only on the
+                         frame-shift, and we reflect the data at the ends.
+                         (default = True)
+      center:            If true, if puts the center of the frame at t*window_shift, starting at t=0,
+                         If overwrides snip_edges and set it to False
+      cepstral_lifter:   Constant that controls scaling of MFCCs (default = 22)
+      energy_floor:      Floor on energy (absolute, not relative) in MFCC computation
+                         (default = 0)
+      raw_energy:        If true, compute energy before preemphasis and
+                         windowing (default = True)
+      use_energy:        Use energy (not C0) in MFCC computation (default = True)
+
+    """
+
     def __init__(
         self,
         fs=16000,
@@ -648,6 +836,15 @@ class Wav2MFCC(Wav2FFT):
 
     @staticmethod
     def make_dct_matrix(num_ceps, num_filters):
+        """Calculates the DCT Matrix.
+
+        Args:
+          num_ceps:    Number of cepstral coeffs.
+          num_filters: Number of filters.
+
+        Returns
+          DCT matrix (num_ceps, num_filters)
+        """
         n = torch.arange(float(num_filters)).unsqueeze(1)
         k = torch.arange(float(num_ceps))
         dct = torch.cos(
@@ -658,23 +855,25 @@ class Wav2MFCC(Wav2FFT):
         return dct
 
     def forward(self, x):
+        """Computes the MFCC.
+
+        Args:
+          x: Waveform tensor with shape = (batch, num_samples).
+
+        Returns:
+          MFCC tensor with shape = (batch, num_frames, num_ceps)
+        """
 
         x_strided = self.wav2win(x)
         if self.use_energy:
             x_strided, log_e = x_strided
 
-        # X = torch.rfft(x_strided, 1, normalized=False, onesided=True)
         X = _rfft(x_strided)
         pow_spec = self._to_spec(X)
-        # pow_spec = X.pow(2).sum(-1)
-        # if self.use_fft_mag:
-        #     pow_spec = pow_spec.sqrt()
-
         with amp.autocast(enabled=False):
             pow_spec = torch.matmul(pow_spec.float(), self._fb.float())
 
         pow_spec = (pow_spec + 1e-10).log()
-
         mfcc = torch.matmul(pow_spec, self._dct)
         if self.cepstral_lifter > 0:
             mfcc *= self._lifter
@@ -689,6 +888,31 @@ class Wav2KanBayashiLogFilterBank(Wav2LogFilterBank):
     """Class to replicate log-filter-banks used in
     Kan Bayashi's ParallelWaveGAN repository:
     https://github.com/kan-bayashi/ParallelWaveGAN
+
+    Attributes:
+      fs:                Waveform data sample frequency (must match the waveform
+                         file, if specified there) (default = 16000)
+      frame_length:      Frame length in milliseconds
+      frame_shift:       Frame shift in milliseconds
+      fft_length:        Length of FFT (default = 512)
+      remove_dc_offset:  Subtract mean from waveform on each frame (default = True)
+      window_type:       Type of window ["hamming"|"hanning"|"povey"|"rectangular"|
+                         "blackmann"] (default = 'povey')
+      fb_type:           Filter-bank type in ["mel_kaldi", "mel_etsi",
+                         "mel_librosa", "mel_librosa_htk", "linear"]
+                         (default = 'mel_kaldi')
+      low_freq:          Low cutoff frequency for mel bins (default = 20)
+      high_freq:         High cutoff frequency for mel bins, if < 0,
+                         offset from Nyquist (default = 0)
+      num_filters:       Number of triangular mel-frequency bins (default = 23)
+      snip_edges:        If true, end effects will be handled by outputting only
+                         frames that completely fit in the file, and the number of
+                         frames depends on the frame-length.
+                         If false, the number of frames depends only on the
+                         frame-shift, and we reflect the data at the ends.
+                         (default = True)
+      center:            If true, if puts the center of the frame at t*window_shift, starting at t=0,
+                         If overwrides snip_edges and set it to False
     """
 
     def __init__(
@@ -730,6 +954,14 @@ class Wav2KanBayashiLogFilterBank(Wav2LogFilterBank):
         self.scale = 1.0 / math.log(10)
 
     def forward(self, x):
+        """Computes the Log filter banks using Kan Bayashi configuration.
+
+        Args:
+          x: Waveform tensor with shape = (batch, num_samples).
+
+        Returns:
+          Filter-bank tensor with shape = (batch, num_frames, num_samples)
+        """
         return self.scale * super().forward(x)
 
 
@@ -768,6 +1000,14 @@ class Spec2LogFilterBank:
         )
 
     def forward(self, x):
+        """Computes the Log filter banks from spectrograms.
+
+        Args:
+          x: Waveform tensor with shape = (batch, num_samples).
+
+        Returns:
+          Filter-bank tensor with shape = (batch, num_frames, num_filters)
+        """
         with amp.autocast(enabled=False):
             pow_spec = torch.matmul(x.float(), self._fb.float())
         pow_spec = (pow_spec + 1e-10).log()

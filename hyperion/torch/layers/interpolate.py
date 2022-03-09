@@ -9,6 +9,13 @@ import torch.nn.functional as nnf
 
 
 class Interpolate(nn.Module):
+    """Interpolation class.
+
+    Attributes:
+      scale_factor: upsampling scale factor.
+      mode: algorithm used for upsampling: 'nearest' | 'linear' | 'bilinear' | 'bicubic' | 'trilinear' | 'area'.
+    """
+
     def __init__(self, scale_factor, mode="nearest"):
         super().__init__()
         self.interp = nnf.interpolate
@@ -24,5 +31,13 @@ class Interpolate(nn.Module):
         return s
 
     def forward(self, x):
+        """Interpolates the input.
+
+        Args:
+          x: input tensor.
+
+        Returns:
+          Interpolated tensor.
+        """
         x = self.interp(x, scale_factor=self.scale_factor, mode=self.mode)
         return x

@@ -10,7 +10,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as nnf
 
+from hyperion.torch.utils.masking import seq_lengths_to_mask
+
+from ..utils import seq_le
+
 SQRT_EPS = 1e-5
+N_EPS = 1e-6
 
 
 def _conv1(in_channels, out_channels, bias=False):
@@ -19,19 +24,34 @@ def _conv1(in_channels, out_channels, bias=False):
 
 
 class _GlobalPool1d(nn.Module):
+    """Abstract base class Global pooling in 1d
+
+    Attributes:
+       dim: Pooling dimension
+       keepdim: If True, it keeps the same number of dimensions after pooling
+
+    """
+
     def __init__(self, dim=-1, keepdim=False):
         super().__init__()
         self.dim = dim
         self.keepdim = keepdim
         self.size_multiplier = 1
 
-    def _standarize_weights(self, weights, ndims):
+    def _standardize_weights(self, x, x_lengths=None, weights=None):
+        """standardizes the weights to have the proper shape to be
+        multiplied by the input data.
+        """
+        if weights is None:
+            return seq_lengths_to_mask(
+                x, x.size(self.dim), dtype=x.dtype, time_dim=self.dim
+            )
 
-        if weights.dim() == ndims:
+        if weights.dim() == x.dim():
             return weights
 
         assert weights.dim() == 2
-        shape = ndims * [1]
+        shape = x.dim() * [1]
         shape[0] = weights.shape[0]
         shape[self.dim] = weights.shape[1]
         return weights.view(tuple(shape))
@@ -68,20 +88,29 @@ class GlobalAvgPool1d(_GlobalPool1d):
     """Global average pooling in 1d
 
     Attributes:
-       dim: pooling dimension
-       keepdim: it True keeps the same number of dimensions after pooling
+       dim:     Pooling dimension
+       keepdim: if True, it keeps the same number of dimensions after pooling
 
     """
 
     def __init__(self, dim=-1, keepdim=False):
         super().__init__(dim, keepdim)
 
-    def forward(self, x, weights=None):
+    def forward(self, x, x_lengths=None, weights=None):
+        """Applies pooling to the input.
+
+        Args:
+          x:         Input tensor.
+          x_lengths: Lengths of the input sequences in the pooling dimension.
+                     x_lengths is only used if weights is not given.
+          weights: Weights for weighted pooling with shape=(batch, max_length)
+                   or (batch,..., max_length,...) with shape matching the one
+                   of the input tensor
+        """
+        weights = self._standardize_weights(x, x_lengths, weights)
         if weights is None:
             y = torch.mean(x, dim=self.dim, keepdim=self.keepdim)
             return y
-
-        weights = self._standarize_weights(weights, x.dim())
 
         xbar = torch.mean(weights * x, dim=self.dim, keepdim=self.keepdim)
         wbar = torch.mean(weights, dim=self.dim, keepdim=self.keepdim)
@@ -146,8 +175,8 @@ class GlobalMeanStdPool1d(_GlobalPool1d):
     """Global mean + standard deviation pooling in 1d
 
     Attributes:
-       dim: pooling dimension
-       keepdim: it True keeps the same number of dimensions after pooling
+       dim:     Pooling dimension
+       keepdim: If True, it keeps the same number of dimensions after pooling
 
     """
 
@@ -155,7 +184,18 @@ class GlobalMeanStdPool1d(_GlobalPool1d):
         super().__init__(dim, keepdim)
         self.size_multiplier = 2
 
-    def forward(self, x, weights=None):
+    def forward(self, x, x_lengths=None, weights=None):
+        """Applies pooling to the input.
+
+        Args:
+          x:         Input tensor.
+          x_lengths: Lengths of the input sequences in the pooling dimension.
+                     x_lengths is only used if weights is not given.
+          weights: Weights for weighted pooling with shape=(batch, max_length)
+                   or (batch,..., max_length,...) with shape matching the one
+                   of the input tensor
+        """
+        weights = self._standardize_weights(x, x_lengths, weights)
         if weights is None:
             mu = torch.mean(x, dim=self.dim, keepdim=True)
             delta = x - mu
@@ -173,7 +213,6 @@ class GlobalMeanStdPool1d(_GlobalPool1d):
 
             return mus
 
-        weights = self._standarize_weights(weights, x.dim())
         xbar = torch.mean(weights * x, dim=self.dim, keepdim=True)
         wbar = torch.mean(weights, dim=self.dim, keepdim=True)
         mu = xbar / wbar
@@ -342,8 +381,8 @@ class GlobalMeanLogVarPool1d(_GlobalPool1d):
     """Global mean + log-variance pooling in 1d
 
     Attributes:
-       dim: pooling dimension
-       keepdim: it True keeps the same number of dimensions after pooling
+       dim:     Pooling dimension
+       keepdim: If True, it keeps the same number of dimensions after pooling
 
     """
 
@@ -351,14 +390,23 @@ class GlobalMeanLogVarPool1d(_GlobalPool1d):
         super().__init__(dim, keepdim)
         self.size_multiplier = 2
 
-    def forward(self, x, weights=None):
+    def forward(self, x, x_lengths=None, weights=None):
+        """Applies pooling to the input.
+
+        Args:
+          x: Input tensor.
+          x_lengths: Lengths of the input sequences in the pooling dimension.
+                     x_lengths is only used if weights is not given.
+          weights: Weights for weighted pooling with shape=(batch, max_length)
+                   or (batch,..., max_length,...) with shape matching the one
+                   of the input tensor
+        """
+        weights = self._standardize_weights(x, x_lengths, weights)
         if weights is None:
             mu = torch.mean(x, dim=self.dim, keepdim=self.keepdim)
             x2bar = torch.mean(x ** 2, dim=self.dim, keepdim=self.keepdim)
             logvar = torch.log(x2bar - mu * mu + 1e-5)  # for stability in case var=0
             return torch.cat((mu, logvar), dim=-1)
-
-        weights = self._standarize_weights(weights, x.dim())
 
         xbar = torch.mean(weights * x, dim=self.dim, keepdim=self.keepdim)
         wbar = torch.mean(weights, dim=self.dim, keepdim=self.keepdim)
@@ -371,15 +419,16 @@ class GlobalMeanLogVarPool1d(_GlobalPool1d):
 
 
 class LDEPool1d(_GlobalPool1d):
-    """Learnable dictionary encoder pooling in 1d
+    """Learnable dictionary encoder pooling in 1d.
+       It only works for 3d tensors.
 
     Attributes:
-       in_feats: input feature dimension
-       num_comp: number of cluster components
-       dist_pow: power for distance metric
-       use_bias: use bias parameter when computing posterior responsibility
-       dim: pooling dimension
-       keepdim: it True keeps the same number of dimensions after pooling
+       in_feats: Input feature dimension.
+       num_comp: Number of cluster components.
+       dist_pow: Power for distance metric.
+       use_bias: Use bias parameter when computing posterior responsibility.
+       dim: Pooling dimension.
+       keepdim: if True, it keeps the same number of dimensions after pooling.
 
     """
 
@@ -426,29 +475,52 @@ class LDEPool1d(_GlobalPool1d):
         )
         return s
 
-    def forward(self, x, weights=None):
-        if self.dim != 1 or self.dim != -2:
-            x = x.transpose(1, self.dim)
+    def _standardize_weights(self, x, x_lengths=None, weights=None):
+        """standardizes the weights to have shape (batch, max_length)."""
+        if weights is None:
+            return seq_lengths_to_mask(x, x.size(self.dim), dtype=x.dtype, time_dim=1)
 
-        x = torch.unsqueeze(x, dim=2)
-        delta = x - self.mu
-        dist = self.dist_f(delta)
+        if weights.dim() == x.dim():
+            return weights.traspose(1, self.dim)
+
+        assert weights.dim() == 2
+        return weights
+
+    def forward(self, x, x_lengths=None, weights=None):
+        """Applies pooling to the input.
+
+        Args:
+          x: Input tensor of shape=(batch, time, feat_dim) or (batch, feat_dim, time).
+          x_lengths: Lengths of the input sequences in the pooling dimension.
+                     x_lengths is only used if weights is not given.
+          weights: Weights for weighted pooling with shape=(batch, max_length)
+                   or (batch,..., max_length,...) with shape matching the one
+                   of the input tensor.
+        """
+        weights = self._standardize_weights(x, x_lengths, weights)
+        if self.dim != 1 or self.dim != -2:
+            x = x.transpose(1, self.dim)  # (batch, time, feat_dim)
+
+        x = torch.unsqueeze(x, dim=2)  # (batch, time, 1, feat_dim)
+        delta = x - self.mu  # (batch, time, num_comp, feat_dim)
+        dist = self.dist_f(delta)  # (batch, time, num_comp)
 
         llk = -self.prec ** 2 * dist + self.bias
-        r = nnf.softmax(llk, dim=-1)
+        r = nnf.softmax(llk, dim=-1)  # (batch, time, num_comp)
         if weights is not None:
             r *= weights
 
-        r = torch.unsqueeze(r, dim=-1)
-        N = torch.sum(r, dim=1) + 1e-9
-        F = torch.sum(r * delta, dim=1)
-        pool = F / N
+        r = torch.unsqueeze(r, dim=-1)  # (batch, time, num_comp, 1)
+        N = torch.sum(r, dim=1) + N_EPS  # (batch, num_comp, 1)
+        F = torch.sum(r * delta, dim=1)  # (batch, num_comp, feat_dim)
+        pool = F / N  # (batch, num_comp, feat_dim)
         pool = pool.contiguous().view(-1, self.num_comp * self.in_feats)
+        # (batch, num_comp * feat_dim)
         if self.keepdim:
             if self.dim == 1 or self.dim == -2:
-                pool.unsqueeze_(1)
+                pool = pool.unsqueeze(1)
             else:
-                pool.unsqueeze_(-1)
+                pool = pool.unsqueeze(-1)
 
         return pool
 
@@ -466,6 +538,23 @@ class LDEPool1d(_GlobalPool1d):
 
 
 class ScaledDotProdAttV1Pool1d(_GlobalPool1d):
+    """Scaled dot product attention pooling in 1d.
+       The attention weights are obtained by scaled inner product
+       between the feature frames and learned parameters contained
+       inside the layer.
+       This class only works on 3d tensors.
+
+    Attributes:
+      in_feats: Input feature dimension.
+      num_heads: Number of attention heads.
+      d_k: Dimension of the keys.
+      d_v: Dimension of the values
+      bin_attn: It True, use binary attention. Attention values are obtained by applying sigmoid to
+                the dot products instead of softmax.
+      dim: Pooling dimension.
+      keepdim: if True, it keeps the same number of dimensions after pooling.
+    """
+
     def __init__(
         self, in_feats, num_heads, d_k, d_v, bin_attn=False, dim=-1, keepdim=False
     ):
@@ -505,9 +594,32 @@ class ScaledDotProdAttV1Pool1d(_GlobalPool1d):
         )
         return s
 
-    def forward(self, x, weights=None):
+    def _standardize_weights(self, x, x_lengths=None, weights=None):
+        """standardizes the weights to have shape (batch, max_length)."""
+        if weights is None:
+            return seq_lengths_to_mask(x, x.size(self.dim), dtype=x.dtype, time_dim=1)
+
+        if weights.dim() == x.dim():
+            return weights.traspose(1, self.dim)
+
+        assert weights.dim() == 2
+        return weights
+
+    def forward(self, x, x_lengths=None, weights=None):
+        """Applies pooling to the input.
+
+        Args:
+          x: Input tensor of shape=(batch, time, feat_dim) or (batch, feat_dim, time).
+          x_lengths: Lengths of the input sequences in the pooling dimension.
+                     x_lengths is only used if weights is not given.
+          weights: Weights for weighted pooling with shape=(batch, max_length)
+                   or (batch,..., max_length,...) with shape matching the one
+                   of the input tensor. In this implementation only binary weights
+                   are allowed.
+        """
+        weights = self._standardize_weights(x, x_lengths, weights)
         batch_size = x.size(0)
-        if self.dim != 1:
+        if self.dim == 2 or self.dim == -1:
             x = x.transpose(1, self.dim)
 
         k = self.linear_k(x).view(batch_size, -1, self.num_heads, self.d_k)
@@ -519,16 +631,20 @@ class ScaledDotProdAttV1Pool1d(_GlobalPool1d):
             self.d_k
         )  # (batch, head, 1, time)
         if self.bin_attn:
+            # use binary attention.
             scores = torch.sigmoid(scores + self.bias)
 
         # scores = scores.squeeze(dim=-1)                    # (batch, head, time)
         if weights is not None:
-            mask = weights.view(batch_size, 1, 1, -1).eq(0)  # (batch, 1, 1,time)
+            mask = weights.view(batch_size, 1, 1, -1).eq(0)  # (batch, 1, 1, time)
             if self.bin_attn:
                 scores = scores.masked_fill(mask, 0.0)
                 self.attn = scores / (torch.sum(scores, dim=-1, keepdim=True) + 1e-9)
             else:
-                min_value = -1e200
+                if scores.dtype == torch.half:
+                    min_value = -65504
+                else:
+                    min_value = -1e200
                 scores = scores.masked_fill(mask, min_value)
                 self.attn = torch.softmax(scores, dim=-1).masked_fill(
                     mask, 0.0
@@ -541,7 +657,14 @@ class ScaledDotProdAttV1Pool1d(_GlobalPool1d):
 
         x = torch.matmul(self.attn, v)  # (batch, head, 1, d_v)
         if self.keepdim:
-            x = x.view(batch_size, 1, self.num_heads * self.d_v)  # (batch, 1, d_model)
+            if self.dim == 1 or self.dim == -2:
+                x = x.view(
+                    batch_size, 1, self.num_heads * self.d_v
+                )  # (batch, 1, d_model)
+            else:
+                x = x.view(
+                    batch_size, 1, self.num_heads * self.d_v
+                )  # (batch, d_model, 1)
         else:
             x = x.view(batch_size, self.num_heads * self.d_v)  # (batch, d_model)
         return x
@@ -560,7 +683,20 @@ class ScaledDotProdAttV1Pool1d(_GlobalPool1d):
 
 
 class GlobalChWiseAttMeanStdPool1d(_GlobalPool1d):
-    """Attentive mean + stddev pooling for each channel"""
+    """Attentive mean + stddev pooling for each channel.
+    This class only works on 3d tensors.
+
+    Attributes:
+      in_feats: Input feature dimension.
+      inner_feats: Feature dimension in the hidden layer of the content based attention.
+      bin_attn: If True, use binary attention. Attention values are obtained by applying sigmoid to
+                the dot products instead of softmax.
+      use_global_context: If True, concat global stats pooling to the input features to
+                          compute the attention.
+      norm_layer: Normalization layer object, if None, it used BatchNorm1d.
+      dim: Pooling dimension.
+      keepdim: it True, it keeps the same number of dimensions after pooling.
+    """
 
     def __init__(
         self,
@@ -588,9 +724,9 @@ class GlobalChWiseAttMeanStdPool1d(_GlobalPool1d):
         self.norm_layer = norm_layer(inner_feats)
         self.activation = nn.Tanh()
         self.conv2 = _conv1(inner_feats, in_feats, bias=True)
-        self.stats_pool = GlobalMeanStdPool1d(dim=dim)
+        self.stats_pool = GlobalMeanStdPool1d(dim=-1)
         if self.bin_attn:
-            self.bias = nn.Parameter(torch.ones((1, in_feats, 1)))
+            self.bias = nn.Parameter(torch.zeros((1, in_feats, 1)))
 
     def __repr__(self):
         return self.__str__()
@@ -607,23 +743,69 @@ class GlobalChWiseAttMeanStdPool1d(_GlobalPool1d):
         )
         return s
 
-    def forward(self, x, weights=None):
+    def _standardize_weights(self, x, x_lengths=None, weights=None):
+        """standardizes the weights to have the proper shape to be
+        multiplied by the input data.
+        """
+        if weights is None:
+            return seq_lengths_to_mask(x, x.size(self.dim), dtype=x.dtype, time_dim=-1)
 
-        x_inner = self.conv1(x)
+        if weights.dim() == x.dim():
+            return weights.transpose(self.dim, -1)
+
+        assert weights.dim() == 2
+        shape = x.dim() * [1]
+        shape[0] = weights.shape[0]
+        shape[-1] = weights.shape[1]
+        return weights.view(tuple(shape))
+
+    def forward(self, x, x_lengths=None, weights=None):
+        """Applies pooling to the input.
+
+        Args:
+          x: Input tensor of shape=(batch, time, feat_dim) or (batch, feat_dim, time).
+          x_lengths: Lengths of the input sequences in the pooling dimension.
+                     x_lengths is only used if weights is not given.
+          weights: Weights for weighted pooling with shape=(batch, max_length)
+                   or (batch,..., max_length,...) with shape matching the one
+                   of the input tensor.
+        """
+        assert x.dim() == 3, "Input should be a 3d tensor"
+        if self.dim == 1 or self.dim == -2:
+            x = x.transpose(1, self.dim)
+
+        # x = (batch, feat_dim, time)
+        weights = self._standardize_weights(x, x_lengths, weights)  # (batch, 1,  time)
+        x_inner = self.conv1(x)  # (batch, inner_dim, time)
         # logging.info('x_inner1={} {}'.format(torch.sum(torch.isnan(x_inner)), torch.sum(torch.isinf(x_inner))))
         if self.use_global_context:
-            global_mus = self.stats_pool(x)
+            global_mus = self.stats_pool(x, weights=weights)
             x_inner = x_inner + self.lin_global(global_mus).unsqueeze(-1)
         # logging.info('x_inner2={} {}'.format(torch.sum(torch.isnan(x_inner)), torch.sum(torch.isinf(x_inner))))
-        attn = self.conv2(self.activation(self.norm_layer(x_inner)))
+        attn = self.conv2(
+            self.activation(self.norm_layer(x_inner))
+        )  # (batch, feat_dim, time)
         if self.bin_attn:
-            # attn = torch.sigmoid(attn+self.bias)
-            attn = torch.sigmoid(attn)
+            attn = torch.sigmoid(attn + self.bias).clamp(min=N_EPS)
         else:
+            if weights is not None:
+                if attn.dtype == torch.half:
+                    min_value = -65504
+                else:
+                    min_value = -1e200
+                mask = weights.eq(0)
+                attn = attn.masked_fill(mask, min_value)
+
             attn = nnf.softmax(attn, dim=-1)
+
+        if weights is not None:
+            attn = attn * weights
 
         mus = self.stats_pool(x, weights=attn)
         # logging.info('mus={} {}'.format(torch.sum(torch.isnan(mus)), torch.sum(torch.isinf(mus))))
+        if self.keepdim:
+            mus = mus.unsqueeze(self.dim)
+
         return mus
 
     def get_config(self):

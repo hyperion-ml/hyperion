@@ -41,12 +41,13 @@ class ActivationFactory(object):
         """Creates a non-linear activation object
 
         Args:
-           activation: str with activation type,
-                       dictionary with name field indicating the activation type, and extra activation arguments
+           activation: String with activation type,
+                       dictionary with name field indicating the activation type,
+                       and extra activation arguments
                        None, then it returns None,
                        Activation constructor
 
-           **kwargs: extra arguments for activation constructor
+           **kwargs: Extra arguments for activation constructor
 
         Return:
            Non-linear activation object

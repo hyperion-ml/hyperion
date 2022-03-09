@@ -10,7 +10,21 @@ from torch.nn import Dropout2d
 
 
 class Dropout1d(Dropout2d):
+    """Dropout for tensors with 1d spatial (time) dimension (3d tensors).
+
+    Attributes:
+      p: Drop probability.
+    """
+
     def forward(self, inputs):
+        """Applies dropout 1d.
+
+        Args:
+          inputs: Input tensor with shape = (batch, C, time).
+
+        Returns:
+          Tensor with shape = (batch, C, time).
+        """
         x = torch.unsqueeze(inputs, dim=-2)
         x = F.dropout2d(x, self.p, self.training, self.inplace)
         return torch.squeeze(x, dim=-2)
@@ -24,6 +38,15 @@ class Dropout1d(Dropout2d):
 
 
 class DropConnect2d(nn.Module):
+    """DropsConnect for tensor with 2d spatial dimanions (4d tensors).
+        It drops the full feature map. It used to create residual networks
+        with stochastic depth.
+
+    Attributes:
+      p: Probability of dropping the feature map.
+
+    """
+
     def __init__(self, p=0.2):
         super().__init__()
         self.p = p
@@ -36,6 +59,14 @@ class DropConnect2d(nn.Module):
         return s
 
     def forward(self, inputs):
+        """Applies drop-connect.
+
+        Args:
+          inputs: Input tensor with shape = (batch, C, H, W).
+
+        Returns:
+          Tensor with shape = (batch, C, H, W).
+        """
         if not self.training:
             return inputs
 
@@ -51,6 +82,15 @@ class DropConnect2d(nn.Module):
 
 
 class DropConnect1d(nn.Module):
+    """DropsConnect for tensor with 1d spatial dimanions (3d tensors).
+        It drops the full feature map. It used to create residual networks
+        with stochastic depth.
+
+    Attributes:
+      p: Probability of dropping the feature map.
+
+    """
+
     def __init__(self, p=0.2):
         super().__init__()
         self.p = p
@@ -63,6 +103,14 @@ class DropConnect1d(nn.Module):
         return s
 
     def forward(self, inputs):
+        """Applies drop-connect.
+
+        Args:
+          inputs: Input tensor with shape = (batch, C, time).
+
+        Returns:
+          Tensor with shape = (batch, C, time).
+        """
         if not self.training:
             return inputs
 

@@ -11,7 +11,7 @@ import logging
 import torch
 import torch.nn as nn
 
-from ..utils import MetricAcc  # , TorchDataParallel
+from ..utils import MetricAcc  
 from .xvector_trainer_from_wav import XVectorTrainerFromWav
 
 
@@ -128,11 +128,6 @@ class XVectorAdvTrainerFromWav(XVectorTrainerFromWav):
                 % (p_attack, 1.0 / self.grad_acc_steps)
             )
 
-        # if data_parallel:
-        #     # change model in attack by the data parallel version
-        #     self.attack.model = TorchDataParallel(self.attack.model)
-        #     # make loss function in attack data parallel
-        #     self.attack.make_data_parallel()
 
     def train_epoch(self, data_loader):
 
@@ -167,7 +162,7 @@ class XVectorAdvTrainerFromWav(XVectorTrainerFromWav):
                 feats = self.feat_extractor(data)
 
             with self.amp_autocast():
-                output = self.model(feats, target)
+                output = self.model(feats, y=target)
                 loss = self.loss(output, target).mean() / self.grad_acc_steps
 
             if self.use_amp:
@@ -263,4 +258,4 @@ class XVectorAdvTrainerFromWav(XVectorTrainerFromWav):
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
-            # help='trainer options')
+            

@@ -20,6 +20,17 @@ def _l2_norm(x, axis=-1):
 
 
 class ArcLossOutput(nn.Module):
+    """Additive angular margin softmax (ArcFace) output layer.
+
+    Attributes:
+      in_feats: input feature dimension.
+      num_classes: number of output classes.
+      cos_scale: cosine scale.
+      margin: angular margin.
+      margin_warmup_epochs: number of epochs to warm up the margin from 0 to
+                            its final value.
+    """
+
     def __init__(
         self, in_feats, num_classes, cos_scale=64, margin=0.3, margin_warmup_epochs=0
     ):
@@ -59,6 +70,11 @@ class ArcLossOutput(nn.Module):
         self.sin_m = math.sin(self.cur_margin)
 
     def update_margin(self, epoch):
+        """Updates the value of the margin.
+
+        Args:
+          epoch: value of current epoch.
+        """
         if self.margin_warmup_epochs == 0:
             return
 
@@ -73,6 +89,16 @@ class ArcLossOutput(nn.Module):
         self._compute_aux()
 
     def forward(self, x, y=None):
+        """Computes penalized logits.
+
+        Args:
+          x: input feature tensor with shape = (batch, in_feats).
+          y: ground truth classes. This is required to penalize the logit of
+             the true class at training time.
+
+        Returns:
+          Logit tensor with shape = (batch, num_classes)
+        """
         with amp.autocast(enabled=False):
             s = self.cos_scale
             batch_size = len(x)
@@ -98,6 +124,17 @@ class ArcLossOutput(nn.Module):
 
 
 class CosLossOutput(nn.Module):
+    """Additive margin softmax (CosFace) output layer.
+
+    Attributes:
+      in_feats: input feature dimension.
+      num_classes: number of output classes.
+      cos_scale: cosine scale.
+      margin: angular margin.
+      margin_warmup_epochs: number of epochs to warm up the margin from 0 to
+                            its final value.
+    """
+
     def __init__(
         self, in_feats, num_classes, cos_scale=64, margin=0.3, margin_warmup_epochs=0
     ):
@@ -116,6 +153,11 @@ class CosLossOutput(nn.Module):
         self.kernel.data.uniform_(-1, 1).renorm_(2, 1, 1e-5).mul_(1e5)
 
     def update_margin(self, epoch):
+        """Updates the value of the margin.
+
+        Args:
+          epoch: value of current epoch.
+        """
         if self.margin_warmup_epochs == 0:
             return
 
@@ -130,6 +172,16 @@ class CosLossOutput(nn.Module):
                 return
 
     def forward(self, x, y=None):
+        """Computes penalized logits.
+
+        Args:
+          x: input feature tensor with shape = (batch, in_feats).
+          y: ground truth classes. This is required to penalize the logit of
+             the true class at training time.
+
+        Returns:
+          Logit tensor with shape = (batch, num_classes)
+        """
         with amp.autocast(enabled=False):
             s = self.cos_scale
             x = _l2_norm(x.float())
@@ -152,6 +204,18 @@ class CosLossOutput(nn.Module):
 
 
 class SubCenterArcLossOutput(ArcLossOutput):
+    """Sub-Center Additive angular margin softmax (ArcFace) output layer.
+
+    Attributes:
+      in_feats: input feature dimension.
+      num_classes: number of output classes.
+      num_subcenters: number of subcenters.
+      cos_scale: cosine scale.
+      margin: angular margin.
+      margin_warmup_epochs: number of epochs to warm up the margin from 0 to
+                            its final value.
+    """
+
     def __init__(
         self,
         in_feats,
@@ -184,6 +248,16 @@ class SubCenterArcLossOutput(ArcLossOutput):
         return s
 
     def forward(self, x, y=None):
+        """Computes penalized logits.
+
+        Args:
+          x: input feature tensor with shape = (batch, in_feats).
+          y: ground truth classes. This is required to penalize the logit of
+             the true class at training time.
+
+        Returns:
+          Logit tensor with shape = (batch, num_classes)
+        """
         with amp.autocast(enabled=False):
             s = self.cos_scale
             batch_size = len(x)

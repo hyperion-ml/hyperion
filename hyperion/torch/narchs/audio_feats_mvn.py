@@ -4,6 +4,7 @@
 """
 from jsonargparse import ArgumentParser, ActionParser
 
+import torch
 import torch.nn as nn
 
 from ..layers import AudioFeatsFactory as AFF
@@ -56,16 +57,24 @@ class AudioFeatsMVN(NetArch):
     def frame_shift(self):
         return self.audio_feats.frame_shift
 
-    def forward(self, x, lengths=None):
+    @staticmethod
+    def _compute_feat_lengths(x_lengths, max_samples, max_frames):
+        if x_lengths is None:
+            return None
+
+        return torch.div(x_lengths * max_frames, max_samples, rounding_mode="floor")
+
+    def forward(self, x, x_lengths=None):
         f = self.audio_feats(x)
+        f_lengths = self._compute_feat_lengths(x_lengths, x.size(-1), f.size(1))
         if self.spec_augment is not None and not self.aug_after_mvn:
-            f = self.spec_augment(f, lengths)
+            f = self.spec_augment(f, f_lengths)
 
         if self.mvn is not None:
             f = self.mvn(f)
 
         if self.spec_augment is not None and self.aug_after_mvn:
-            f = self.spec_augment(f, lengths)
+            f = self.spec_augment(f, f_lengths)
 
         if self.trans:
             f = f.transpose(1, 2).contiguous()
@@ -105,4 +114,3 @@ class AudioFeatsMVN(NetArch):
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
-            # help='feature extraction options')

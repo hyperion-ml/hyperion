@@ -8,6 +8,7 @@ from jsonargparse import ArgumentParser, ActionParser
 import torch.nn as nn
 from torch.nn import Linear
 
+from ..layers import ActivationFactory as AF
 from ..layers import CosLossOutput, ArcLossOutput, SubCenterArcLossOutput
 from ..layers import NormLayer1dFactory as NLF
 from ..layer_blocks import FCBlock
@@ -143,7 +144,13 @@ class ClassifHead(NetArch):
             )
 
     def rebuild_output_layer(
-        self, num_classes, loss_type, s, margin, margin_warmup_epochs, num_subcenters=2
+        self,
+        num_classes,
+        loss_type,
+        cos_scale,
+        margin,
+        margin_warmup_epochs,
+        num_subcenters=2,
     ):
 
         embed_dim = self.embed_dim
@@ -228,16 +235,16 @@ class ClassifHead(NetArch):
 
         return y
 
-    def forward_hid_feats(self, x, y=None, layers=None, return_output=False):
+    def forward_hid_feats(self, x, y=None, return_layers=None, return_logits=False):
 
-        assert layers is not None or return_output
-        if layers is None:
-            layers = []
+        assert return_layers is not None or return_logits
+        if return_layers is None:
+            return_layers = []
 
         h = []
         for l in range(self.num_embed_layers):
             x = self.fc_blocks[l](x)
-            if l in layers:
+            if l in return_layers:
                 h.append(x)
 
         if self.loss_type == "softmax":
@@ -245,16 +252,19 @@ class ClassifHead(NetArch):
         else:
             y = self.output(x, y)
 
-        if return_output:
+        if return_logits:
             return h, y
-        return h
+        return h, None
 
     def extract_embed(self, x, embed_layer=0):
 
         for l in range(embed_layer):
             x = self.fc_blocks[l](x)
 
-        y = self.fc_blocks[embed_layer].forward_linear(x)
+        if self.loss_type == "softmax" or embed_layer < self.num_embed_layers:
+            y = self.fc_blocks[embed_layer].forward_linear(x)
+        else:
+            y = self.fc_blocks[l](x)
         return y
 
     def get_config(self):

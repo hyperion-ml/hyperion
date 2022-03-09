@@ -11,7 +11,15 @@ from ..layers import ActivationFactory as AF
 
 
 class SEBlock2D(nn.Module):
-    """From https://arxiv.org/abs/1709.01507"""
+    """Squeeze-excitation block 2d
+        from https://arxiv.org/abs/1709.01507.
+
+    Attributes:
+      num_channels:      input/output channels.
+      r:                 Squeeze-excitation compression ratio.
+      activation:        Non-linear activation object, string of configuration dictionary.
+
+    """
 
     def __init__(
         self, num_channels, r=16, activation={"name": "relu", "inplace": True}
@@ -26,8 +34,33 @@ class SEBlock2D(nn.Module):
         )
         self.sigmoid = nn.Sigmoid()
 
-    def forward(self, x):
-        z = torch.mean(x, dim=(2, 3), keepdim=True)
+    def _standardize_mask(self, mask):
+        if mask.dim() == 2:
+            return mask.view(mask.size(0), 1, 1, mask.size(-1))
+
+        if mask.dim() == 3:
+            return mask.unsqueeze(1)
+
+        return mask
+
+    def forward(self, x, x_mask=None):
+        """Forward function.
+
+        Args:
+          x: input tensor with shape = (batch, channels, heigh, width).
+          x_mask: Binary mask indicating which spatial dimensions are valid of
+                  shape=(batch, time), (batch, 1, time), (batch, height, width)
+
+        Returns:
+          Tensor with shape = (batch, channels, heigh, width).
+        """
+        if x_mask is None:
+            z = torch.mean(x, dim=(2, 3), keepdim=True)
+        else:
+            x_mask = self._standardize_mask(x_mask)
+            total = torch.mean(x_mask, dim=(2, 3), keepdim=True)
+            z = torch.mean(x * x_mask, dim=(2, 3), keepdim=True) / total
+
         scale = self.sigmoid(self.conv2(self.act(self.conv1(z))))
         y = scale * x
         return y
@@ -35,7 +68,14 @@ class SEBlock2D(nn.Module):
 
 class TSEBlock2D(nn.Module):
     """From https://arxiv.org/abs/1709.01507
-    Modified to do pooling only in time dimension
+    Modified to do pooling only in time dimension.
+
+    Attributes:
+      num_channels:      input/output channels.
+      num_feats:         Number of features in dimension 2.
+      r:                 Squeeze-excitation compression ratio.
+      activation:        Non-linear activation object, string of configuration dictionary.
+
     """
 
     def __init__(
@@ -62,10 +102,35 @@ class TSEBlock2D(nn.Module):
         )
         self.sigmoid = nn.Sigmoid()
 
-    def forward(self, x):
+    def _standardize_mask(self, mask):
+        if mask.dim() == 2:
+            return mask.view(mask.size(0), 1, 1, mask.size(-1))
+
+        if mask.dim() == 3:
+            return mask.unsqueeze(1)
+
+        return mask
+
+    def forward(self, x, x_mask=None):
+        """Forward function.
+
+        Args:
+          x: input tensor with shape = (batch, channels, heigh, width).
+          x_mask: Binary mask indicating which spatial dimensions are valid of
+                  shape=(batch, time), (batch, 1, time), (batch, height, width)
+
+        Returns:
+          Tensor with shape = (batch, channels, heigh, width).
+        """
         num_feats = x.shape[2]
         num_channels = x.shape[1]
-        z = torch.mean(x, dim=-1, keepdim=True)
+        if x_mask is None:
+            z = torch.mean(x, dim=-1, keepdim=True)
+        else:
+            x_mask = self._standardize_mask(x_mask)
+            total = torch.mean(x_mask, dim=-1, keepdim=True)
+            z = torch.mean(x * x_mask, dim=-1, keepdim=True) / total
+
         z = z.view(-1, self.num_channels_1d, 1, 1)
         scale = self.sigmoid(self.conv2(self.act(self.conv1(z))))
         scale = scale.view(-1, num_channels, num_feats, 1)
@@ -76,6 +141,11 @@ class TSEBlock2D(nn.Module):
 class SEBlock1d(nn.Module):
     """1d Squeeze Excitation version of
     https://arxiv.org/abs/1709.01507
+
+    Attributes:
+      num_channels:      input/output channels.
+      r:                 Squeeze-excitation compression ratio.
+      activation:        Non-linear activation object, string of configuration dictionary.
     """
 
     def __init__(
@@ -91,8 +161,30 @@ class SEBlock1d(nn.Module):
         )
         self.sigmoid = nn.Sigmoid()
 
-    def forward(self, x):
-        z = torch.mean(x, dim=2, keepdim=True)
+    def _standardize_mask(self, mask):
+        if mask.dim() == 2:
+            return mask.unsqueeze(1)
+
+        return mask
+
+    def forward(self, x, x_mask=None):
+        """Forward function.
+
+        Args:
+          x: input tensor with shape = (batch, channels, time).
+          x_mask: Binary mask indicating which spatial dimensions are valid of
+                  shape=(batch, time), (batch, 1, time)
+
+        Returns:
+          Tensor with shape = (batch, channels, time).
+        """
+        if x_mask is None:
+            z = torch.mean(x, dim=2, keepdim=True)
+        else:
+            x_mask = self._standardize_mask(x_mask)
+            total = torch.mean(x_mask, dim=-1, keepdim=True)
+            z = torch.mean(x * x_mask, dim=-1, keepdim=True) / total
+
         scale = self.sigmoid(self.conv2(self.act(self.conv1(z))))
         y = scale * x
         return y

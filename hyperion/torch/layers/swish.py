@@ -7,6 +7,8 @@ import torch.nn as nn
 
 
 class SwishImplementation(torch.autograd.Function):
+    """Implementation for Swish activation function."""
+
     @staticmethod
     def forward(ctx, i):
         result = i * torch.sigmoid(i)
@@ -21,6 +23,10 @@ class SwishImplementation(torch.autograd.Function):
 
 
 class Swish(nn.Module):
+    """Swish activation class:
+    y = x * sigmoid(x)
+    """
+
     def forward(self, x):
         return SwishImplementation.apply(x)
 

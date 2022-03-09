@@ -7,6 +7,10 @@ import torch.nn as nn
 
 
 class NormLayer2dFactory(object):
+    """Factory class to create normalization layers for
+    tensors with 2D spatial dimension.
+    """
+
     @staticmethod
     def create(norm_name, num_groups=None, momentum=0.1, eps=1e-5):
         """Creates a layer-norm callabe constructor
@@ -54,6 +58,10 @@ class NormLayer2dFactory(object):
 
 
 class NormLayer1dFactory(object):
+    """Factory class to create normalization layers for
+    tensors with 1D spatial (time) dimension.
+    """
+
     @staticmethod
     def create(norm_name, num_groups=None, momentum=0.1, eps=1e-5):
         """Creates a layer-norm callabe constructor

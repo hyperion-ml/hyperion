@@ -135,7 +135,7 @@ class XVectorTrainerFromWav(XVectorTrainer):
                 feats = self.feat_extractor(data)
 
             with self.amp_autocast():
-                output = self.model(feats, target)
+                output = self.model(feats, y=target)
                 loss = self.loss(output, target).mean() / self.grad_acc_steps
 
             if self.use_amp:
@@ -184,7 +184,7 @@ class XVectorTrainerFromWav(XVectorTrainer):
 
                 feats = self.feat_extractor(data)
                 with self.amp_autocast():
-                    output = self.model(feats, **self.amp_args)
+                    output = self.model(feats)
                     loss = self.loss(output, target)
 
                 batch_metrics["loss"] = loss.mean().item()

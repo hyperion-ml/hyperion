@@ -9,6 +9,22 @@ import torch.nn as nn
 
 
 class SubPixelConv1d(nn.Module):
+    """Implements a SubPixel Convolution in 1d proposed in:
+       https://arxiv.org/abs/1609.05158
+
+    Attributes:
+      in_channels:  Number of input channels.
+      out_channels: Number of output channels.
+      kernel_size:  Kernel size.
+      stride:       Downsampling stride.
+      padding:      Int or Int Tuple with the number of left/right padding samples
+      dilation:     Kernel dilation.
+      groups:       Number of groups in the convolution.
+      bias:         If true, the convolution has bias.
+      padding_mode: Padding mode in ['zeros', 'reflect', 'replicate' or 'circular'].
+
+    """
+
     def __init__(
         self,
         in_channels,
@@ -38,6 +54,14 @@ class SubPixelConv1d(nn.Module):
         self.stride = stride
 
     def forward(self, x):
+        """Applies subpixel convolution 1d.
+
+        Args:
+          x: Input tensor with shape = (batch, in_channels, in_time)
+
+        Returns:
+          Output tensor with shape = (batch, out_channels, out_time)
+        """
         x = self.conv(x)
         if self.stride == 1:
             return x
@@ -51,6 +75,22 @@ class SubPixelConv1d(nn.Module):
 
 
 class SubPixelConv2d(nn.Module):
+    """Implements a SubPixel Convolution in 2d proposed in:
+       https://arxiv.org/abs/1609.05158
+
+    Attributes:
+      in_channels:  Number of input channels.
+      out_channels: Number of output channels.
+      kernel_size:  Kernel size.
+      stride:       Downsampling stride.
+      padding:      Int or Int Tuple with the number of left/right padding samples
+      dilation:     Kernel dilation.
+      groups:       Number of groups in the convolution.
+      bias:         If true, the convolution has bias.
+      padding_mode: Padding mode in ['zeros', 'reflect', 'replicate' or 'circular'].
+
+    """
+
     def __init__(
         self,
         in_channels,
@@ -81,6 +121,14 @@ class SubPixelConv2d(nn.Module):
             self.pixel_shuffle = nn.PixelShuffle(self.stride)
 
     def forward(self, x):
+        """Applies subpixel convolution 1d.
+
+        Args:
+          x: Input tensor with shape = (batch, in_channels, in_W, in_H)
+
+        Returns:
+          Output tensor with shape = (batch, out_channels, out_W, out_H)
+        """
         x = self.conv(x)
         if self.stride == 1:
             return x

@@ -2,7 +2,7 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-
+import os
 from copy import deepcopy
 
 import torch
@@ -39,7 +39,7 @@ class TorchModel(nn.Module):
     @staticmethod
     def _load_cfg_state_dict(file_path=None, cfg=None, state_dict=None):
         model_data = None
-        if cfg is None:
+        if cfg is None or state_dict is None:
             assert file_path is not None
             model_data = torch.load(file_path)
         if cfg is None:

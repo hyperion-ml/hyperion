@@ -6,7 +6,7 @@ from jsonargparse import ArgumentParser, ActionParser
 import re
 
 from ...utils.misc import str2bool
-from ...feats.filter_banks import FilterBankFactory as FBF
+from ...np.feats.filter_banks import FilterBankFactory as FBF
 from .audio_feats import *
 
 FFT = "fft"
@@ -20,6 +20,10 @@ FEAT_TYPES = [FFT, SPEC, LOG_SPEC, LOG_FB, MFCC, KAN_BAYASHI]
 
 
 class AudioFeatsFactory(object):
+    """Factory class to create acoustic features layers like
+    FFT, Spectrogram, log-Spectrogram, log-filter-bank, MFCC.
+    """
+
     @staticmethod
     def create(
         audio_feat,
@@ -45,6 +49,53 @@ class AudioFeatsFactory(object):
         raw_energy=True,
         use_energy=True,
     ):
+        """
+        Method that creates  acoustic features layers like
+        FFT, Spectrogram, log-Spectrogram, log-filter-bank, MFCC.
+
+        Args:
+          audio_feat:        Type of feature extractor in ["fft", "spec", "log_spec",
+                             "logfb", "mfcc", "kanbayashi_logfb"]. "kanbayashi_logfb"
+                             should produce features compatible with WaveGAN repository.
+          sample_frequency:  Waveform data sample frequency (must match the waveform
+                             file, if specified there) (default = 16000)
+          frame_length:      Frame length in milliseconds (default = 25)
+          frame_shift:       Frame shift in milliseconds (default = 10)
+          fft_length:        Length of FFT (default = 512)
+          remove_dc_offset:  Subtract mean from waveform on each frame (default = True)
+          preemphasis_coeff: Coefficient for use in signal preemphasis (default = 0.97)
+          window_type:       Type of window ["hamming"|"hanning"|"povey"|"rectangular"|
+                             "blackmann"] (default = 'povey')
+          use_fft_mag:       If false, it uses |X(f)|^2, if true, it uses |X(f)|,
+                             (default = False)
+          dither:            Dithering constant (0.0 means no dither) (default = 1)
+          fb_type:           Filter-bank type in ["mel_kaldi", "mel_etsi",
+                             "mel_librosa", "mel_librosa_htk", "linear"]
+                             (default = 'mel_kaldi')
+          low_freq:          Low cutoff frequency for mel bins (default = 20)
+          high_freq:         High cutoff frequency for mel bins, if < 0,
+                             offset from Nyquist (default = 0)
+          num_filters:       Number of triangular mel-frequency bins (default = 23)
+          norm_filters:      Normalize filters coeff to sum up to 1, if librosa
+                             it uses Stanley norm (default = False)
+          num_ceps:          Number of cepstra in MFCC computation (including C0)
+                             (default = 13)
+          snip_edges:        If true, end effects will be handled by outputting only
+                             frames that completely fit in the file, and the number of
+                             frames depends on the frame-length.
+                             If false, the number of frames depends only on the
+                             frame-shift, and we reflect the data at the ends.
+                             (default = True)
+          center:            If true, if puts the center of the frame at t*window_shift, starting at t=0,
+                             If overwrides snip_edges and set it to False
+          cepstral_lifter:   Constant that controls scaling of MFCCs (default = 22)
+          energy_floor:      Floor on energy (absolute, not relative) in MFCC computation
+                             (default = 0)
+          raw_energy:        If true, compute energy before preemphasis and
+                             windowing (default = True)
+          use_energy:        Use energy (not C0) in MFCC computation (default = True)
+
+        """
 
         if audio_feat == FFT:
             return Wav2FFT(
@@ -163,13 +214,13 @@ class AudioFeatsFactory(object):
 
     @staticmethod
     def filter_args(**kwargs):
-        """Filters MFCC args from arguments dictionary.
+        """Filters feature extractor args from arguments dictionary.
 
         Args:
           kwargs: Arguments dictionary.
 
         Returns:
-          Dictionary with MFCC options.
+          Dictionary with feature extractor options.
         """
         valid_args = (
             "sample_frequency",
@@ -189,7 +240,7 @@ class AudioFeatsFactory(object):
             "norm_filters",
             "num_ceps",
             "snip_edges",
-            "energy_floor",
+            "center" "energy_floor",
             "raw_energy",
             "use_energy",
             "cepstral_lifter",
@@ -201,7 +252,7 @@ class AudioFeatsFactory(object):
 
     @staticmethod
     def add_class_args(parser, prefix=None):
-        """Adds MFCC options to parser.
+        """Adds feature extractor options to parser.
 
         Args:
           parser: Arguments parser
@@ -337,6 +388,5 @@ class AudioFeatsFactory(object):
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
-            # help='acoustic features options')
 
     add_argparse_args = add_class_args

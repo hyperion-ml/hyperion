@@ -42,6 +42,22 @@ def _make_downsample(in_channels, out_channels, stride, norm_layer):
 
 
 class MBConvBlock(nn.Module):
+    """MobileNet/EfficentNet Inverted bottleneck Block
+
+    Attributes:
+      in_channels:       input channels.
+      out_channels:      output channels
+      expansion:         expansion of channels for the inverted bottleneck.
+      kernel_size:       kernel size of the convs.
+      stride:            downsampling stride of the convs.
+      activation:        Non-linear activation object, string of configuration dictionary.
+      drop_connect_rate: Drop-connect rate for stochastic number of layers.
+      norm_layer:        Normalization layer constructor, if None BatchNorm2d is used.
+      se_r=None:         Squeeze-excitation compression ratio.
+      time_se:           If true, squeeze is done only in time dimension.
+      num_feats:         Number of features in dimension 2, needed if time_se=True.
+    """
+
     def __init__(
         self,
         in_channels,
@@ -113,8 +129,17 @@ class MBConvBlock(nn.Module):
         self.context = stride * (kernel_size - 1) // 2
         self.downsample_factor = stride
 
-    def forward(self, x):
+    def forward(self, x, x_mask=None):
+        """Forward function.
 
+        Args:
+          x: input tensor with shape = (batch, in_channels, in_heigh, in_width).
+          x_mask: Binary mask indicating which spatial dimensions are valid of
+                  shape=(batch, time), (batch, 1, time), (batch, height, width)
+
+        Returns:
+          Tensor with shape = (batch, out_channels, out_heigh, out_width).
+        """
         residual = x
         if self.expansion > 1:
             x = self.act(self.bn_exp(self.conv_exp(x)))
@@ -137,6 +162,19 @@ class MBConvBlock(nn.Module):
 
 
 class MBConvInOutBlock(nn.Module):
+    """Convolutional block used as input/output
+        in MobileNet/EffcientNet
+
+    Attributes:
+      in_channels:       input channels.
+      out_channels:      output channels
+      kernel_size:       kernel size of the convs.
+      stride:            downsampling stride of the convs.
+      activation:        Non-linear activation object, string of configuration dictionary.
+      norm_layer:        Normalization layer constructor, if None BatchNorm2d is used.
+
+    """
+
     def __init__(
         self,
         in_channels,
@@ -169,4 +207,13 @@ class MBConvInOutBlock(nn.Module):
         self.downsample_factor = stride
 
     def forward(self, x):
+        """Forward function.
+
+        Args:
+          x: input tensor with shape = (batch, in_channels, in_heigh, in_width).
+          x_mask: unused.
+
+        Returns:
+          Tensor with shape = (batch, out_channels, out_heigh, out_width).
+        """
         return self.act(self.bn(self.conv(x)))

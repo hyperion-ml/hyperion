@@ -13,6 +13,12 @@ import torch.distributions as pdf
 class Tensor2PDF(nn.Module):
     """Base class for layers that create a prob distribution
     from an input tensor
+
+    Attributes:
+      pdf_feats: Feature dimension of the probability distribution.
+      project:   If True, it applies a projection to the input tensor.
+      in_feats:  Feature dimension of the input tensor.
+      in_dim:    Number of dimensions of the input tensor.
     """
 
     def __init__(self, pdf_feats, project=True, in_feats=None, in_dim=None):
@@ -44,7 +50,14 @@ class Tensor2PDF(nn.Module):
 
 
 class Tensor2NormalICov(Tensor2PDF):
-    """Transforms a Tensor into Normal distribution with identitiy variance"""
+    """Transforms a Tensor into Normal distribution with identitiy variance
+
+    Attributes:
+      pdf_feats: Feature dimension of the probability distribution.
+      project:   If True, it applies a projection to the input tensor.
+      in_feats:  Feature dimension of the input tensor.
+      in_dim:    Number of dimensions of the input tensor.
+    """
 
     def __init__(self, pdf_feats, project=True, in_feats=None, in_dim=None):
         super().__init__(pdf_feats, project=project, in_feats=in_feats, in_dim=in_dim)
@@ -53,6 +66,16 @@ class Tensor2NormalICov(Tensor2PDF):
             self._proj = self._make_proj(self.in_feats, self.pdf_feats, self.in_dim)
 
     def forward(self, inputs, prior=None, squeeze_dim=None):
+        """Creates a Normal distribution from input tensor.
+
+        Args:
+          inputs: Input tensor.
+          prior:  Not used.
+          squeeze_dim: Squeezes pdf parameters dimensions.
+
+        Returns:
+          torch.distributions.normal.Normal object.
+        """
         if self.project:
             inputs = self._proj(inputs)
 
@@ -70,6 +93,12 @@ class Tensor2NormalGlobDiagCov(Tensor2PDF):
 
     Input tensor will be the mean of the distribution and
     the standard deviation is a global trainable parameter.
+
+    Attributes:
+      pdf_feats: Feature dimension of the probability distribution.
+      project:   If True, it applies a projection to the input tensor.
+      in_feats:  Feature dimension of the input tensor.
+      in_dim:    Number of dimensions of the input tensor.
     """
 
     def __init__(self, pdf_feats, project=True, in_feats=None, in_dim=None):
@@ -85,6 +114,18 @@ class Tensor2NormalGlobDiagCov(Tensor2PDF):
         self.logvar = nn.Parameter(torch.zeros(pdf_shape))
 
     def forward(self, inputs, prior=None, squeeze_dim=None):
+        """Creates a Normal distribution from input tensor.
+
+        Args:
+          inputs: Input tensor.
+          Args:
+          inputs: Input tensor.
+          prior:  prior pdf object.
+          squeeze_dim: Squeezes pdf parameters dimensions.
+
+        Returns:
+          torch.distributions.normal.Normal object.
+        """
         if self.project:
             inputs = self._proj(inputs)
 
@@ -108,6 +149,12 @@ class Tensor2NormalDiagCov(Tensor2PDF):
 
     Applies two linear transformation to the tensors to
     obtain the mean and the log-variance.
+
+    Attributes:
+      pdf_feats: Feature dimension of the probability distribution.
+      project:   If True, it applies a projection to the input tensor.
+      in_feats:  Feature dimension of the input tensor.
+      in_dim:    Number of dimensions of the input tensor.
     """
 
     def __init__(self, pdf_feats, project=True, in_feats=None, in_dim=None):
@@ -117,6 +164,18 @@ class Tensor2NormalDiagCov(Tensor2PDF):
             self._proj = self._make_proj(self.in_feats, self.pdf_feats * 2, self.in_dim)
 
     def forward(self, inputs, prior=None, squeeze_dim=None):
+        """Creates a Normal distribution from input tensor.
+
+        Args:
+          inputs: Input tensor.
+          Args:
+          inputs: Input tensor.
+          prior:  prior pdf object.
+          squeeze_dim: Squeezes pdf parameters dimensions.
+
+        Returns:
+          torch.distributions.normal.Normal object.
+        """
         if self.project:
             inputs = self._proj(inputs)
 
@@ -138,7 +197,13 @@ class Tensor2NormalDiagCov(Tensor2PDF):
 class Tensor2BayNormalICovGivenNormalPrior(Tensor2PDF):
     """Transforms a Tensor into Normal distribution with identitiy variance
 
-    Uses Bayesian interpolation between Gaussian prior and Maximum Likelihood estimation
+    Uses Bayesian interpolation between Gaussian prior and Maximum Likelihood estimation.
+
+    Attributes:
+      pdf_feats: Feature dimension of the probability distribution.
+      project:   If True, it applies a projection to the input tensor.
+      in_feats:  Feature dimension of the input tensor.
+      in_dim:    Number of dimensions of the input tensor.
     """
 
     def __init__(self, pdf_feats, project=True, in_feats=None, in_dim=None):
@@ -151,6 +216,18 @@ class Tensor2BayNormalICovGivenNormalPrior(Tensor2PDF):
         self._alpha = nn.Parameter(torch.zeros(1))
 
     def forward(self, inputs, prior=None, squeeze_dim=None):
+        """Creates a Normal distribution from input tensor.
+
+        Args:
+          inputs: Input tensor.
+          Args:
+          inputs: Input tensor.
+          prior:  prior pdf object.
+          squeeze_dim: Squeezes pdf parameters dimensions.
+
+        Returns:
+          torch.distributions.normal.Normal object.
+        """
         if self.project:
             inputs = self._proj(inputs)
 
@@ -173,7 +250,13 @@ class Tensor2BayNormalGlobDiagCovGivenNormalPrior(Tensor2PDF):
     Input tensor will be the ML mean of the distribution and
     the ML standard deviation is a global trainable parameter.
 
-    Uses Bayesian interpolation between Gaussian prior and Maximum Likelihood estimation
+    Uses Bayesian interpolation between Gaussian prior and Maximum Likelihood estimation.
+
+    Attributes:
+      pdf_feats: Feature dimension of the probability distribution.
+      project:   If True, it applies a projection to the input tensor.
+      in_feats:  Feature dimension of the input tensor.
+      in_dim:    Number of dimensions of the input tensor.
     """
 
     def __init__(self, pdf_feats, project=True, in_feats=None, in_dim=None):
@@ -193,6 +276,18 @@ class Tensor2BayNormalGlobDiagCovGivenNormalPrior(Tensor2PDF):
         self._beta = nn.Parameter(torch.zeros(1))
 
     def forward(self, inputs, prior=None, squeeze_dim=None):
+        """Creates a Normal distribution from input tensor.
+
+        Args:
+          inputs: Input tensor.
+          Args:
+          inputs: Input tensor.
+          prior:  prior pdf object.
+          squeeze_dim: Squeezes pdf parameters dimensions.
+
+        Returns:
+          torch.distributions.normal.Normal object.
+        """
         if self.project:
             inputs = self._proj(inputs)
 
@@ -231,7 +326,13 @@ class Tensor2BayNormalDiagCovGivenNormalPrior(Tensor2PDF):
     Applies two linear transformation to the tensors to
     obtain the maximum likelihood mean and the log-variance.
 
-    Uses Bayesian interpolation between Gaussian prior and Maximum Likelihood estimation
+    Uses Bayesian interpolation between Gaussian prior and Maximum Likelihood estimation.
+
+    Attributes:
+      pdf_feats: Feature dimension of the probability distribution.
+      project:   If True, it applies a projection to the input tensor.
+      in_feats:  Feature dimension of the input tensor.
+      in_dim:    Number of dimensions of the input tensor.
     """
 
     def __init__(self, pdf_feats, project=True, in_feats=None, in_dim=None):
@@ -245,6 +346,18 @@ class Tensor2BayNormalDiagCovGivenNormalPrior(Tensor2PDF):
         self._beta = nn.Parameter(torch.zeros(1))
 
     def forward(self, inputs, prior=None, squeeze_dim=None):
+        """Creates a Normal distribution from input tensor.
+
+        Args:
+          inputs: Input tensor.
+          Args:
+          inputs: Input tensor.
+          prior:  prior pdf object.
+          squeeze_dim: Squeezes pdf parameters dimensions.
+
+        Returns:
+          torch.distributions.normal.Normal object.
+        """
         if self.project:
             inputs = self._proj(inputs)
 

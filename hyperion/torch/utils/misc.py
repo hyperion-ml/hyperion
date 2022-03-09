@@ -1,26 +1,69 @@
 """
- Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba, Nanxin Chen)
+ Copyright 2022 Johns Hopkins University  (Author: Jesus Villalba, Nanxin Chen)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import torch
+import torch.nn as nn
 import torch.cuda.amp as amp
 
 
-def l2_norm(x, axis=-1):
+def l2_norm(x, dim=1, axis=None):
+    """Applies length normalization to vectors.
+
+    Args:
+      x: input tensor.
+      dim: dimension along which normalize the vectors.
+      axis: same as dim (deprecated).
+
+    Returns:
+      Normalized tensor.
+    """
+    if axis is not None:
+        dim = axis
+
     with amp.autocast(enabled=False):
-        norm = torch.norm(x.float(), 2, axis, True) + 1e-10
+        norm = torch.norm(x.float(), 2, dim, True) + 1e-10
         y = torch.div(x, norm)
     return y
 
 
-def compute_snr(x, n, axis=-1):
-    P_x = 10 * torch.log10(torch.mean(x ** 2, dim=axis))
-    P_n = 10 * torch.log10(torch.mean(n ** 2, dim=axis))
+def compute_snr(x, n, dim=1, axis=None):
+    """Computes SNR (dB)
+
+    Args:
+      x: tensor with clean signal.
+      n: tensor with noisy signal
+      dim: dimension along which normalize power.
+      axis: same as dim (deprecated).
+
+    Returns:
+      Tensor with SNR(dB)
+    """
+    if axis is not None:
+        dim = axis
+    P_x = 10 * torch.log10(torch.mean(x ** 2, dim=dim))
+    P_n = 10 * torch.log10(torch.mean(n ** 2, dim=dim))
     return P_x - P_n
 
 
 def compute_stats_adv_attack(x, x_adv):
+    """Compute statistics of adversarial attack sample.
+
+    Args:
+      x: benign signal tensor.
+      x_adv: adversarial signal tensor.
+
+    Returns:
+      SNR (dB).
+      Power of x.
+      Power of n.
+      L2 norm of x.
+      Linf norm of x.
+      L0 norm of n.
+      L2 norm of n.
+      Linf norm of n.
+    """
 
     if x.dim() > 2:
         x = torch.flatten(x, start_dim=1)
@@ -42,6 +85,17 @@ def compute_stats_adv_attack(x, x_adv):
 
 
 def get_selfsim_tarnon(y, return_mask=False):
+    """Computes ground truth selfsimilarity matrix given
+       integer class labels.
+
+    Args:
+      y: integer tensor with class labels of shape (batch,).
+      return_mask: If True, it returns upper triangular mask with zero diagonal.
+
+    Returns:
+      Self-similarity binary matrix wiht shape=(batch, batch).
+      Upper triangular mask.
+    """
     y_bin = y.unsqueeze(-1) - y.unsqueeze(0) + 1
     y_bin[y_bin != 1] = 0
     y_bin = y_bin.float()

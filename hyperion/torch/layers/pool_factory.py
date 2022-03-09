@@ -9,6 +9,8 @@ from .global_pool import *
 
 
 class GlobalPool1dFactory(object):
+    """Factory class to create global pooling layers 1d."""
+
     @staticmethod
     def create(
         pool_type,
@@ -27,6 +29,28 @@ class GlobalPool1dFactory(object):
         keepdim=False,
         **kwargs
     ):
+        """Creates a global pooling layer from arguments.
+
+        Args:
+          pool_type: pooling type in ["avg", "mean+stddev", "mean+logvar", "lde",
+          "scaled-dot-prod-att-v1", "ch-wise-att-mean+stddev"]
+          in_feats: input feature dimension.
+          inner_feats: feature dimension in the hidden layer of the content based attention,
+                       in channel-wise attention.
+          num_comp: number of LDE components.
+          dist_power: distance type in LDE in L1 or L2.
+          use_bias: use bias in LDE.
+          num_heads: number of attention heads.
+          d_k: dimension of the keys in scaled dot product attn.
+          d_v: dimension of the values in scaled dot product attn.
+          bin_attn: it True, use binary attention. Attention values are obtained by applying sigmoid to
+                    the dot products instead of softmax.
+          use_global_context: if True, concat global stats pooling to the input features to
+                              compute the attention in channel-wise attention.
+          norm_layer: normalization layer object, if None, it used BatchNorm1d.
+          dim: pooling dimension.
+          keepdim: it True keeps the same number of dimensions after pooling.
+        """
 
         if pool_type == "avg":
             return GlobalAvgPool1d(dim=dim, keepdim=keepdim)
@@ -71,6 +95,14 @@ class GlobalPool1dFactory(object):
 
     @staticmethod
     def filter_args(**kwargs):
+        """Filters the arguments corresponding to the creation of a pooling layer.
+
+        Args:
+          kwargs: Arguments dictionary.
+
+        Returns:
+          Dictionary with the pooling layer options.
+        """
 
         if "wo_bias" in kwargs:
             kwargs["use_bias"] = not kwargs["wo_bias"]

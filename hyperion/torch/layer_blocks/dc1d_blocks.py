@@ -12,6 +12,22 @@ from ..layers.subpixel_convs import SubPixelConv1d
 
 
 class DC1dEncBlock(nn.Module):
+    """Build block for deep convolutional encoder 1d.
+
+    Args:
+      in_channels:   input channels.
+      out_channels:  output channels.
+      kernel_size:   kernels size for the convolution.
+      stride:        downsampling stride.
+      dilation:      kernel dilation.
+      activation:    non-linear activation function object, string or config dict.
+      dropout_rate:  dropout rate.
+      use_norm:      if True, if uses layer normalization.
+      norm_layer:    Normalization Layer constructor, if None it used BatchNorm1d.
+      norm_before:   if True, layer normalization is before the non-linearity, else
+                     after the non-linearity.
+    """
+
     def __init__(
         self,
         in_channels,
@@ -62,14 +78,25 @@ class DC1dEncBlock(nn.Module):
         self.context = dilation * (kernel_size - 1) // 2
 
     def freeze(self):
+        """Freezes trainable parameters."""
         for param in self.parameters():
             param.requires_grad = False
 
     def unfreeze(self):
+        """Un freezes trainable parameters."""
         for param in self.parameters():
             param.requires_grad = True
 
-    def forward(self, x):
+    def forward(self, x, x_mask=None):
+        """Forward function.
+
+        Args:
+          x: input tensor with shape = (batch, in_channels, in_time).
+          x_mask: unused.
+
+        Returns:
+          Tensor with shape = (batch, out_channels, out_time).
+        """
 
         x = self.conv1(x)
         if self.norm_before:
@@ -88,6 +115,22 @@ class DC1dEncBlock(nn.Module):
 
 
 class DC1dDecBlock(nn.Module):
+    """Build block for deep convolutional decoder 1d.
+
+    Args:
+      in_channels:   input channels.
+      out_channels:  output channels.
+      kernel_size:   kernels size for the convolution.
+      stride:        upsampling stride.
+      dilation:      kernel dilation.
+      activation:    non-linear activation function object, string or config dict.
+      dropout_rate:  dropout rate.
+      use_norm:      if True, if uses layer normalization.
+      norm_layer:    Normalization Layer constructor, if None it used BatchNorm1d.
+      norm_before:   if True, layer normalization is before the non-linearity, else
+                     after the non-linearity.
+    """
+
     def __init__(
         self,
         in_channels,
@@ -149,15 +192,25 @@ class DC1dDecBlock(nn.Module):
         self.context = dilation * (kernel_size - 1) // 2
 
     def freeze(self):
+        """Freezes trainable parameters."""
         for param in self.parameters():
             param.requires_grad = False
 
     def unfreeze(self):
+        """Unfreezes trainable parameters."""
         for param in self.parameters():
             param.requires_grad = True
 
-    def forward(self, x):
+    def forward(self, x, x_mask=None):
+        """Forward function.
 
+        Args:
+          x: input tensor with shape = (batch, in_channels, in_time).
+          x_mask: unused.
+
+        Returns:
+          Tensor with shape = (batch, out_channels, out_time).
+        """
         x = self.conv1(x)
         if self.norm_before:
             x = self.bn1(x)

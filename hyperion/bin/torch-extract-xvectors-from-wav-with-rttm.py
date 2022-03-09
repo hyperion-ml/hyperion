@@ -154,21 +154,6 @@ def extract_xvectors(
                     t3 = time.time()
                     key, x = augment(key0, x0, augmenter, aug_df, aug_id)
 
-                    # if augmenter is None:
-                    #     x = x0
-                    #     key = key0
-                    # else:
-                    #     x, aug_info = augmenter(x0)
-                    #     key = '%s-aug-%02d' % (key0, aug_id)
-                    #     aug_df_row = {'key_aug': key, 'key_orig': key0,
-                    #                   'noise_type': aug_info['noise']['noise_type'],
-                    #                   'snr': aug_info['noise']['snr'],
-                    #                   'rir_type': aug_info['reverb']['rir_type'],
-                    #                   'srr': aug_info['reverb']['srr'],
-                    #                   'sdr': aug_info['sdr']}
-
-                    #     aug_df.append(pd.DataFrame(aug_df_row, index=[0]))
-
                     x_total = x
                     max_samples = x.shape[0]
                     y = np.zeros(
@@ -218,17 +203,6 @@ def extract_xvectors(
                                 x = select_random_chunk(
                                     key, x, min_utt_length, max_utt_length, rng
                                 )
-
-                            # if random_utt_length:
-                            #     utt_length = rng.randint(
-                            #         low=min_utt_length, high=max_utt_length+1)
-                            #     if utt_length < x.shape[1]:
-                            #         first_frame = rng.randint(
-                            #             low=0, high=x.shape[1]-utt_length)
-                            #         x = x[:,first_frame:first_frame+utt_length]
-                            #         logging.info(
-                            #             'extract-random-utt %s of length=%d first-frame=%d' % (
-                            #                 key, x.shape[1], first_frame))
 
                             t6 = time.time()
                             if x.shape[1] > 0:

@@ -232,25 +232,28 @@ class ConformerEncoderV1(NetArch):
                 nn.Embedding(in_feats, d_model, padding_idx=self.padding_idx), pos_enc
             )
         elif isinstance(self.in_layer_type, nn.Module):
-            self.in_layer = nn.Sequential(in_layer_type, pos_enc)
+            self.in_layer = nn.Sequential(self.in_layer_type, pos_enc)
         elif self.in_layer_type is None:
             self.in_layer = pos_enc
         else:
             raise ValueError("unknown in_layer_type: " + self.in_layer_type)
 
-    def forward(self, x, mask=None, target_shape=None):
+    def forward(self, x, x_lengths=None, x_mask=None, target_shape=None):
         """Forward pass function
 
         Args:
           x: input tensor with size=(batch, time, num_feats)
-          mask: mask to indicate valid time steps for x (batch, time)
+          x_lengths: lengths of the input sequences.
+          x_mask: mask to indicate valid time steps for x (batch, time).
+                  It overwrites the mask of x_lengths.
 
         Returns:
            Tensor with output features
            Tensor with mask
         """
+
         if isinstance(self.in_layer, Conv2dSubsampler):
-            x, mask = self.in_layer(x, mask)
+            x, mask = self.in_layer(x, x_mask)
         else:
             if self.in_time_dim != 1:
                 x = x.transpose(1, self.in_time_dim).contiguous()

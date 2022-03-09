@@ -100,14 +100,16 @@ class ConformerConvBlock(nn.Module):
 
         self.context = stride * (kernel_size - 1) // 2
 
-    def forward(self, x):
+    def forward(self, x, x_mask=None):
         """Forward function
 
         Args:
-          x: input size = (batch, num_channels, time)
+          x: input tesnosr shape = (batch, num_channels, time)
+          x_mask: mask indicating the valid frames in the sequence with
+                  shape = (batch, 1, time) or (batch, time)
 
         Returns
-          torch.Tensor size = (batch, num_channels, (time-1)//stride+1)
+          Tensor with shape = (batch, num_channels, (time-1)//stride+1)
         """
         residual = x
 
@@ -121,7 +123,7 @@ class ConformerConvBlock(nn.Module):
         # depthwide conv phase
         x = self.act(self.norm_dw(self.conv_dw(x)))
         if self.has_se:
-            x = self.se_layer(x)
+            x = self.se_layer(x, x_mask=x_mask)
 
         # final projection
         x = self.conv_proj(x)

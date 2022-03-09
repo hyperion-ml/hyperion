@@ -64,7 +64,7 @@ class MFCC(object):
     """Compute MFCC features.
 
     Attributes:
-       sample_frequency:                Waveform data sample frequency (must match the waveform file, if specified there) (default = 16000)
+       sample_frequency:  Waveform data sample frequency (must match the waveform file, if specified there) (default = 16000)
        frame_length:      Frame length in milliseconds (default = 25)
        frame_shift:       Frame shift in milliseconds (default = 10)
        fft_length:        Length of FFT (default = 512)

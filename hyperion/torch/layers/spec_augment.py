@@ -17,8 +17,10 @@ class AxisMasker(nn.Module):
     Implementation based on espnet.
 
     Attributes:
-      mask_width_range: range for the width of the masks
-      mask_num_range: range for the number of masks
+      min_width: minimum width of the mask.
+      max_width: maximum width of the mask.
+      min_num_mask: minimum number of masks.
+      max_num_mask: maximum number of masks.
       dim: axis where we apply the mask
       fill_value: masking value
     """
@@ -121,7 +123,9 @@ class SpecWarper(nn.Module):
     Implementation based on espnet.
 
     Attributes:
-      window: time warp parameter
+      window: time warp parameter.
+      mode: interpolation mode in ["nearest", "linear", "bilinear"]
+      dim: warping dimension.
     """
 
     def __init__(self, window=80, mode="bicubic", dim=-2):
@@ -136,14 +140,14 @@ class SpecWarper(nn.Module):
         )
         return s
 
-    def forward(self, x, lengths=None):
+    def forward(self, x, x_lengths=None):
         """warps x along time or freq dimension
 
         Args:
-           x: spectrogram (batch, *, time, freq)
-           lengths: length ratios
+           x: spectrogram shape= (batch, *, time, freq)
+           lengths: time lengths of the sequences.
         Returns:
-           warped spectrogram (batch, *, time, freq)
+           warped spectrogram shape = (batch, *, time, freq)
         """
         if not self.training:
             return x
@@ -166,10 +170,10 @@ class SpecWarper(nn.Module):
         # the first n frames where n is the length of the
         # shortest utterance
         # the end of the utterance will not be warped
-        if dim == -1 or lengths is None:
+        if dim == -1 or x_lengths is None:
             warp_length = x.shape[-2]
         else:
-            warp_length = int(x.shape[-2] * torch.min(lengths))
+            warp_length = int(x.shape[-2] * torch.min(x_lengths))
 
         center = torch.randint(self.window, warp_length - self.window, (1,))[0]
         warped = torch.randint(center - self.window, center + self.window, (1,))[0] + 1
@@ -208,6 +212,20 @@ class SpecAugment(nn.Module):
       Augmentation Method for Automatic Speech Recognition"
 
     Attributes:
+      time_warp_prob:   probability of applying time warping.
+      time_warp_window: time warp parameter.
+      time_warp_mode:   interpolation mode in ["nearest", "linear", "bilinear"]
+      time_mask_prob:   probability of applying masking in time.
+      time_min_width:   minimum width of the time mask.
+      time_max_width:   maximum width of the time mask.
+      time_min_num_mask: minimum number of time masks.
+      time_max_num_mask: maximum number of time masks.
+      freq_mask_prob:    probability of applying frequency masking.
+      freq_min_width:    minimum width of the frequency mask.
+      freq_max_width:    maximum width of the frequency mask.
+      freq_min_num_mask: minimum number of frequency masks.
+      freq_max_num_mask: maximum number of frequency masks.
+      fill_value:        masking value.
     """
 
     def __init__(
@@ -287,7 +305,14 @@ class SpecAugment(nn.Module):
         )
         return s
 
-    def forward(self, x, lengths=None):
+    def forward(self, x, x_lengths=None):
+        """Applies spec augment to input
+        Args:
+           x: spectrogram with shape = (batch, time, freq)
+           lengths: time lengths of the sequences.
+        Returns:
+           Augmented spectrogram with shape = (batch, time, freq)
+        """
         if not self.training:
             return x
         # global count
@@ -300,7 +325,7 @@ class SpecAugment(nn.Module):
         # ax.imshow(x.cpu().numpy()[0].T)
         r = torch.rand((3,), device=x.device)
         if self.time_warp_prob > r[0]:
-            x = self.time_warper(x, lengths)
+            x = self.time_warper(x, x_lengths)
             # ax = plt.subplot(222)
             # ax.imshow(x.cpu().numpy()[0].T)
 
@@ -319,6 +344,7 @@ class SpecAugment(nn.Module):
         # count += 1
         return x
 
+    @staticmethod
     def filter_args(**kwargs):
         """Filters SpecAugment args from arguments dictionary.
 
