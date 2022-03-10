@@ -573,7 +573,7 @@ class XVector(TorchModel):
             "num_embed_layers",
             "hid_act",
             "loss_type",
-            "s",
+            "cos_scale",
             "margin",
             "margin_warmup_epochs",
             "num_subcenters",
