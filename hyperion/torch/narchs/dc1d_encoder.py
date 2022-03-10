@@ -64,7 +64,7 @@ class DC1dEncoder(NetArch):
         self.norm_layer = norm_layer
         norm_groups = None
         if norm_layer == "group-norm":
-            norm_groups = min(np.min(self.conv_channels) // 2, 32)
+            norm_groups = min(min(self.conv_channels) // 2, 32)
         self._norm_layer = NLF.create(norm_layer, norm_groups)
 
         # stem block
@@ -209,7 +209,7 @@ class DC1dEncoder(NetArch):
         else:
             T = self._compute_out_size(in_shape[2])
 
-        return (in_shape[0], out_chanels, T)
+        return (in_shape[0], out_channels, T)
 
     def forward(self, x):
 

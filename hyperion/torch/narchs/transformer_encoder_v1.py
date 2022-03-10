@@ -157,7 +157,7 @@ class TransformerEncoderV1(NetArch):
                 nn.Embedding(in_feats, d_model, padding_idx=self.padding_idx), pos_enc
             )
         elif isinstance(self.in_layer_type, nn.Module):
-            self.in_layer = nn.Sequential(in_layer_type, pos_enc)
+            self.in_layer = nn.Sequential(self.in_layer_type, pos_enc)
         elif self.in_layer_type is None:
             self.in_layer = pos_enc
         else:

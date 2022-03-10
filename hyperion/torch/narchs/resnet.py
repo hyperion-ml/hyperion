@@ -29,9 +29,12 @@ class ResNet(NetArch):
     """ResNet2D base class
 
     Attributes:
-      block: resnet basic block type in ['basic', 'bn', 'sebasic', 'sebn'], meaning
+      block: resnet basic block type in
+             ['basic', 'bn', 'sebasic', 'sebn', 'res2basic'
+             'res2bn', 'seres2basic', 'seres2bn'], meaning
              basic resnet block, bottleneck resnet block, basic block with squeeze-excitation,
-             and bottleneck block with squeeze-excitation
+             bottleneck block with squeeze-excitation, Res2Net basic and bottlenec, and
+             squeeze-excitation Res2Net basic and bottleneck.
 
       num_layers: list with the number of layers in each of the 4 layer blocks that we find in
                   resnets, after each layer block feature maps are downsmapled times 2 in each dimension
@@ -46,6 +49,8 @@ class ResNet(NetArch):
       out_act: output activation
       zero_init_residual: initializes batchnorm weights to zero so each residual block behaves as identitiy at
                           the beggining. We observed worse results when using this option in x-vectors
+      multilevel: if True, the output is the combination of the feature maps at different resolution levels.
+      endpoint_channels: number of output channels when multilevel is True.
       groups: number of groups in convolutions
       replace_stride_with_dilation: use dialted conv nets instead of downsammpling, we never tested this.
       dropout_rate: dropout rate
@@ -57,7 +62,8 @@ class ResNet(NetArch):
                instead of time-freq dimension or HxW dimensions
       in_feats: input feature size (number of components in dimension of 2 of input tensor), this is only
                 required when time_se=True to calculcate the size of the squeeze excitation matrices.
-
+      res2net_scale: Res2Net scale parameter
+      res2net_width_factor: Res2Net multiplier for the width of the bottlneck layers.
     """
 
     def __init__(
@@ -395,20 +401,14 @@ class ResNet(NetArch):
 
         return (in_shape[0], self.layer4[-1].out_channels, H, W)
 
-    def forward(self, x, use_amp=False):
-        if use_amp:
-            with torch.cuda.amp.autocast():
-                return self._forward(x)
-
-        return self._forward(x)
-
-    def _forward(self, x):
+    def forward(self, x, x_lengths=None):
         """forward function
 
         Args:
            x: input tensor of size=(batch, Cin, Hin, Win) for image or
               size=(batch, C, freq, time) for audio
-
+           x_lengths: when x are sequences with time in Win dimension, it
+                      contains the lengths of the sequences.
         Returns:
            Tensor with output logits of size=(batch, out_units) if out_units>0,
            otherwise, it returns tensor of represeantions of size=(batch, Cout, Hout, Wout)

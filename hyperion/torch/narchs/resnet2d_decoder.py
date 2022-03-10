@@ -86,7 +86,7 @@ class ResNet2dDecoder(NetArch):
         self.norm_layer = norm_layer
         norm_groups = None
         if norm_layer == "group-norm":
-            norm_groups = min(np.min(resb_channels) // 2, 32)
+            norm_groups = min(min(resb_channels) // 2, 32)
             norm_groups = max(norm_groups, resb_groups)
         self._norm_layer = NLF.create(norm_layer, norm_groups)
 
@@ -237,7 +237,7 @@ class ResNet2dDecoder(NetArch):
         return p
 
     def _compute_out_size(self, in_size):
-        out_size = in_size * in_stride
+        out_size = in_size * self.in_stride
 
         for stride in self.conv_strides:
             out_size *= stride
@@ -270,7 +270,7 @@ class ResNet2dDecoder(NetArch):
         else:
             W = self._compute_out_size(in_shape[3])
 
-        return (in_shape[0], out_chanels, H, W)
+        return (in_shape[0], out_channels, H, W)
 
     def _match_shape(self, x, target_shape):
         x_dim = x.dim()

@@ -132,7 +132,7 @@ class EfficientNet(NetArch):
         # set depth/width scales from net name
         self.cfg_width_scale = width_scale
         self.cfg_depth_scale = depth_scale
-        if width_scale is None or dept_scale is None:
+        if width_scale is None or depth_scale is None:
             width_scale, depth_scale = self.efficientnet_params(effnet_type)[:2]
         self.width_scale = width_scale
         self.depth_scale = depth_scale

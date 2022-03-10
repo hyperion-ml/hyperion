@@ -11,6 +11,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+from ..utils import seq_lengths_to_mask
 from ..layers import ActivationFactory as AF
 from ..layers import NormLayer1dFactory as NLF
 from ..layer_blocks import (
@@ -371,13 +372,36 @@ class ResNet1dEncoder(NetArch):
 
         return endpoints
 
-    def forward(self, x):
+    @staticmethod
+    def _update_mask(x, x_lengths, x_mask=None):
+        if x_lengths is None:
+            return None
 
-        x = self.in_block(x)
+        if x_mask is not None and x.size(-1) == x_mask.size(-1):
+            return x_mask
+
+        return seq_lengths_to_mask(x_lengths, x.size(-1), time_dim=2)
+
+    def forward(self, x, x_lengths=None):
+        """forward function
+
+        Args:
+           x: input tensor of size=(batch, C, time)
+           x_lengths:  it contains the lengths of the sequences.
+        Returns:
+           Tensor with output logits of size=(batch, out_units) if out_units>0,
+           otherwise, it returns tensor of represeantions of size=(batch, Cout, out_time)
+
+        """
+
+        x_mask = self._update_mask(x, x_lengths)
+        x = self.in_block(x, x_mask=x_mask)
         endpoints = []
+
         for i, superblock in enumerate(self.blocks):
             for j, block in enumerate(superblock):
-                x = block(x)
+                x_mask = self._update_mask(x, x_lengths, x_mask)
+                x = block(x, x_mask=x_mask)
 
             if self.multilayer and self.is_endpoint[i]:
                 endpoint_i = x
@@ -401,11 +425,12 @@ class ResNet1dEncoder(NetArch):
                 x = torch.mean(torch.stack(endpoints), 0)
 
         if self.head_channels > 0:
+            x_mask = self._update_mask(x, x_lengths, x_mask)
             x = self.head_block(x)
 
         return x
 
-    def forward_hid_feats(self, x, layers=None, return_output=False):
+    def forward_hid_feats(self, x, x_lengths=None, layers=None, return_output=False):
 
         assert layers is not None or return_output
         if layers is None:

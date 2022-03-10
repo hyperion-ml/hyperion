@@ -37,7 +37,7 @@ class TorchNALoader(object):
     @staticmethod
     def load(file_path, extra_objs={}):
 
-        model_data = torch.load(model_path)
+        model_data = torch.load(file_path)
         cfg = model_data["model_cfg"]
         class_name = cfg["class_name"]
         del cfg["class_name"]

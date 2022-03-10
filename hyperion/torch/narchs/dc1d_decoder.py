@@ -66,7 +66,7 @@ class DC1dDecoder(NetArch):
         self.norm_layer = norm_layer
         norm_groups = None
         if norm_layer == "group-norm":
-            norm_groups = min(np.min(self.conv_channels) // 2, 32)
+            norm_groups = min(min(self.conv_channels) // 2, 32)
         self._norm_layer = NLF.create(norm_layer, norm_groups)
 
         # stem block
@@ -196,7 +196,7 @@ class DC1dDecoder(NetArch):
         return p
 
     def _compute_out_size(self, in_size):
-        out_size = in_size * in_stride
+        out_size = in_size * self.in_stride
 
         for stride in self.conv_strides:
             out_size *= stride
