@@ -122,6 +122,7 @@ class XVectorTrainerFromWav(XVectorTrainer):
 
         metric_acc = MetricAcc(device=self.device)
         batch_metrics = ODict()
+        self.feat_extractor.train()
         self.set_train_mode()
 
         for batch, (data, target) in enumerate(data_loader):
@@ -170,6 +171,7 @@ class XVectorTrainerFromWav(XVectorTrainer):
         """
         metric_acc = MetricAcc(device=self.device)
         batch_metrics = ODict()
+        self.feat_extractor.eval()
         with torch.no_grad():
             if swa_update_bn:
                 log_tag = "train_"
