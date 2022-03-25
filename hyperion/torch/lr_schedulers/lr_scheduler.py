@@ -56,7 +56,7 @@ class LRScheduler(object):
 
     @property
     def in_warmup(self):
-        return self.step <= self.warmup_steps
+        return self.step < self.warmup_steps
 
     def state_dict(self):
         """Returns the state of the scheduler as a :class:`dict`.
@@ -103,9 +103,6 @@ class LRScheduler(object):
         self.epoch += 1
 
     def on_opt_step(self):
-
-        # self.update_lr_on_opt_step=True
-        # print('exp-lr', self.last_step, self.hold_steps, self.decay_rate, self.decay_steps)
 
         if self.in_warmup:
             for param_group, lr in zip(

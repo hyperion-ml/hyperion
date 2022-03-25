@@ -10,9 +10,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as nnf
 
-from hyperion.torch.utils.masking import seq_lengths_to_mask
-
-from ..utils import seq_le
+from ..utils import seq_lengths_to_mask
 
 SQRT_EPS = 1e-5
 N_EPS = 1e-6
@@ -44,7 +42,7 @@ class _GlobalPool1d(nn.Module):
         """
         if weights is None:
             return seq_lengths_to_mask(
-                x, x.size(self.dim), dtype=x.dtype, time_dim=self.dim
+                x_lengths, x.size(self.dim), dtype=x.dtype, time_dim=self.dim
             )
 
         if weights.dim() == x.dim():
@@ -478,7 +476,9 @@ class LDEPool1d(_GlobalPool1d):
     def _standardize_weights(self, x, x_lengths=None, weights=None):
         """standardizes the weights to have shape (batch, max_length)."""
         if weights is None:
-            return seq_lengths_to_mask(x, x.size(self.dim), dtype=x.dtype, time_dim=1)
+            return seq_lengths_to_mask(
+                x_lengths, x.size(self.dim), dtype=x.dtype, time_dim=1
+            )
 
         if weights.dim() == x.dim():
             return weights.traspose(1, self.dim)
@@ -597,7 +597,9 @@ class ScaledDotProdAttV1Pool1d(_GlobalPool1d):
     def _standardize_weights(self, x, x_lengths=None, weights=None):
         """standardizes the weights to have shape (batch, max_length)."""
         if weights is None:
-            return seq_lengths_to_mask(x, x.size(self.dim), dtype=x.dtype, time_dim=1)
+            return seq_lengths_to_mask(
+                x_lengths, x.size(self.dim), dtype=x.dtype, time_dim=1
+            )
 
         if weights.dim() == x.dim():
             return weights.traspose(1, self.dim)

@@ -25,7 +25,7 @@ import torch.distributed as dist
 class AudioDataset(Dataset):
     def __init__(
         self,
-        audio_path,
+        audio_file,
         key_file,
         class_file=None,
         time_durs_file=None,
@@ -51,8 +51,8 @@ class AudioDataset(Dataset):
         self.world_size = world_size
 
         if rank == 0:
-            logging.info("opening dataset %s" % audio_path)
-        self.r = AR(audio_path, wav_scale=wav_scale)
+            logging.info("opening dataset %s", audio_file)
+        self.r = AR(audio_file, wav_scale=wav_scale)
         if rank == 0:
             logging.info("loading utt2info file %s" % key_file)
         self.u2c = Utt2Info.load(key_file, sep=" ")
@@ -62,7 +62,6 @@ class AudioDataset(Dataset):
         self.is_val = is_val
         self._read_time_durs_file(time_durs_file)
 
-        # self._seq_lengths = self.r.read_time_duration(self.u2c.key)
         self._prune_short_seqs(min_chunk_length)
 
         self.short_seq_exist = self._seq_shorter_than_max_length_exists(
@@ -366,6 +365,9 @@ class AudioDataset(Dataset):
 
         ar_args = AR.filter_args(**kwargs)
         valid_args = (
+            "audio_file",
+            "key_file",
+            "aug_cfg",
             "path_prefix",
             "class_file",
             "time_durs_file",
@@ -380,7 +382,7 @@ class AudioDataset(Dataset):
         return args
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None, skip={"audio_file", "key_file"}):
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -388,6 +390,19 @@ class AudioDataset(Dataset):
         # parser.add_argument('--path-prefix',
         #                     default='',
         #                     help=('path prefix for rspecifier scp file'))
+        if "audio_file" not in skip:
+            parser.add_argument(
+                "--audio-file",
+                required=True,
+                help=("audio manifest file"),
+            )
+
+        if "key_file" not in skip:
+            parser.add_argument(
+                "--key-file",
+                required=True,
+                help=("key manifest file"),
+            )
 
         parser.add_argument(
             "--class-file",
@@ -397,6 +412,12 @@ class AudioDataset(Dataset):
 
         parser.add_argument(
             "--time-durs-file", default=None, help=("utt to duration in secs file")
+        )
+
+        parser.add_argument(
+            "--aug-cfg",
+            default=None,
+            help=("augmentation configuration file."),
         )
 
         parser.add_argument(

@@ -36,6 +36,10 @@ class ClassWeightedEmbedSampler(Sampler):
         self.batch = 0
         return self
 
+    @property
+    def avg_batch_size(self):
+        return self.batch_size
+
     def _remove_duplicate_idx(self, utt_idx):
         utt_idx_uniq = torch.unique(utt_idx)
         c = 0

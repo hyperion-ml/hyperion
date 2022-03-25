@@ -93,7 +93,7 @@ class ResNet2dBasicBlock(nn.Module):
       use_norm:          if True, it uses normalization layers, otherwise it does not.
       norm_layer:        normalization layer constructor, if None BatchNorm2d is used.
       norm_before:       if True, normalization layer is before the activation, after otherwise.
-      
+
     """
 
     expansion = 1
@@ -213,7 +213,7 @@ class ResNet2dBasicDecBlock(nn.Module):
       use_norm:          if True, it uses normalization layers, otherwise it does not.
       norm_layer:        normalization layer constructor, if None BatchNorm2d is used.
       norm_before:       if True, normalization layer is before the activation, after otherwise.
-      
+
     """
 
     expansion = 1
@@ -456,7 +456,7 @@ class ResNet2dBNBlock(nn.Module):
 
 
 class ResNet2dBNDecBlock(nn.Module):
-     """ResNet 2d bottleneck Block decoder.
+    """ResNet 2d bottleneck Block decoder.
 
     Attributes:
       in_channels:       input channels.
@@ -472,6 +472,7 @@ class ResNet2dBNDecBlock(nn.Module):
       norm_layer:        normalization layer constructor, if None BatchNorm2d is used.
       norm_before:       if True, normalization layer is before the activation, after otherwise.
     """
+
     def __init__(
         self,
         in_channels,
@@ -602,6 +603,7 @@ class SEResNet2dBasicBlock(ResNet2dBasicBlock):
       norm_layer:        normalization layer constructor, if None BatchNorm2d is used.
       norm_before:       if True, normalization layer is before the activation, after otherwise.
     """
+
     expansion = 1
 
     def __init__(
@@ -697,6 +699,7 @@ class SEResNet2dBasicDecBlock(ResNet2dBasicDecBlock):
       norm_layer:        normalization layer constructor, if None BatchNorm2d is used.
       norm_before:       if True, normalization layer is before the activation, after otherwise.
     """
+
     expansion = 1
 
     def __init__(
@@ -796,6 +799,7 @@ class SEResNet2dBNBlock(ResNet2dBNBlock):
       norm_layer:        normalization layer constructor, if None BatchNorm2d is used.
       norm_before:       if True, normalization layer is before the activation, after otherwise.
     """
+
     def __init__(
         self,
         in_channels,
@@ -897,6 +901,7 @@ class SEResNet2dBNDecBlock(ResNet2dBNDecBlock):
       norm_layer:        normalization layer constructor, if None BatchNorm2d is used.
       norm_before:       if True, normalization layer is before the activation, after otherwise.
     """
+
     def __init__(
         self,
         in_channels,

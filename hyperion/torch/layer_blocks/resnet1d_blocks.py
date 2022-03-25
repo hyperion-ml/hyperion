@@ -260,6 +260,7 @@ class ResNet1dBasicDecBlock(nn.Module):
       norm_layer:        normalization layer constructor, if None BatchNorm1d is used.
       norm_before:       if True, normalization layer is before the activation, after otherwise.
     """
+
     expansion = 1
 
     # __constants__ = ['downsample']
@@ -541,6 +542,7 @@ class ResNet1dBNDecBlock(nn.Module):
       norm_layer:        normalization layer constructor, if None BatchNorm1d is used.
       norm_before:       if True, normalization layer is before the activation, after otherwise.
     """
+
     def __init__(
         self,
         in_channels,
@@ -680,6 +682,7 @@ class SEResNet1dBasicBlock(ResNet1dBasicBlock):
       norm_layer:        normalization layer constructor, if None BatchNorm1d is used.
       norm_before:       if True, normalization layer is before the activation, after otherwise.
     """
+
     expansion = 1
 
     def __init__(
@@ -780,6 +783,7 @@ class SEResNet1dBasicDecBlock(ResNet1dBasicDecBlock):
       norm_layer:        normalization layer constructor, if None BatchNorm1d is used.
       norm_before:       if True, normalization layer is before the activation, after otherwise.
     """
+
     expansion = 1
 
     def __init__(
@@ -886,7 +890,7 @@ class SEResNet1dBNBlock(ResNet1dBNBlock):
       norm_layer:        normalization layer constructor, if None BatchNorm1d is used.
       norm_before:       if True, normalization layer is before the activation, after otherwise.
     """
-    
+
     def __init__(
         self,
         in_channels,
@@ -976,7 +980,7 @@ class SEResNet1dBNBlock(ResNet1dBNBlock):
 
 
 class SEResNet1dBNDecBlock(ResNet1dBNDecBlock):
-     """Squeeze-excitation ResNet 1d bottleneck Block for decoders.
+    """Squeeze-excitation ResNet 1d bottleneck Block for decoders.
 
     Attributes:
       in_channels:       input channels.
@@ -995,6 +999,7 @@ class SEResNet1dBNDecBlock(ResNet1dBNDecBlock):
       norm_layer:        normalization layer constructor, if None BatchNorm1d is used.
       norm_before:       if True, normalization layer is before the activation, after otherwise.
     """
+
     def __init__(
         self,
         in_channels,
@@ -1084,7 +1089,7 @@ class SEResNet1dBNDecBlock(ResNet1dBNDecBlock):
 
 
 class ResNet1dEndpoint(nn.Module):
-    """ Class that connects the ouputs of the ResNet1d to the rest of the network
+    """Class that connects the ouputs of the ResNet1d to the rest of the network
         when using multilevel feature aggregation.
 
         It converts the features of all the levels that we are going to aggregate
@@ -1102,6 +1107,7 @@ class ResNet1dEndpoint(nn.Module):
       norm_before:       if True, normalization layer is before the activation, after otherwise.
 
     """
+
     def __init__(
         self,
         in_channels,
@@ -1114,7 +1120,7 @@ class ResNet1dEndpoint(nn.Module):
         norm_layer=None,
         norm_before=True,
     ):
-        
+
         super().__init__()
         if norm_layer is None:
             norm_layer = nn.BatchNorm1d
@@ -1155,6 +1161,6 @@ class ResNet1dEndpoint(nn.Module):
         """
         x = self.resample(x)
         x = self.act(x)
-        if self.use_norm not self.norm_before:
+        if self.use_norm and not self.norm_before:
             x = self.bn(x)
         return x

@@ -10,7 +10,7 @@ import multiprocessing
 
 from ..hyp_defs import float_cpu
 from ..utils.scp_list import SCPList
-from ..transforms import TransformList
+from ..np.transforms import TransformList
 
 
 class DataReader(object):

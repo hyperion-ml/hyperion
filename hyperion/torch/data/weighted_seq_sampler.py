@@ -35,7 +35,7 @@ class ClassWeightedSeqSampler(Sampler):
             world_size = 1
 
         self.dataset = dataset
-        self.batch_size = int(math.ceil(batch_size / world_size))
+        self.batch_size = batch_size
         self.num_egs_per_class = num_egs_per_class
         self.num_egs_per_utt = num_egs_per_utt
         self.var_batch_size = var_batch_size
@@ -65,13 +65,22 @@ class ClassWeightedSeqSampler(Sampler):
                 self.iters_per_epoch * dataset.num_seqs / avg_batch_size / world_size
             )
         )
-
-        logging.info("num batches per epoch: %d" % self._len)
+        print(
+            "num_batches",
+            self.iters_per_epoch,
+            dataset.num_seqs,
+            avg_batch_size,
+            world_size,
+            self._len,
+            flush=True,
+        )
+        self.avg_batch_size = avg_batch_size
+        logging.info("num batches per epoch: %d", self._len)
 
         self._num_classes_per_batch = int(
-            math.ceil(batch_size / num_egs_per_class / num_egs_per_utt)
+            math.ceil(avg_batch_size / num_egs_per_class / num_egs_per_utt)
         )
-        logging.info("num classes per batch: %d" % self._num_classes_per_batch)
+        logging.info("num classes per batch: %d", self._num_classes_per_batch)
 
         # self.weights = torch.as_tensor(dataset.class_weights, dtype=torch.double)
 
@@ -228,7 +237,9 @@ class ClassWeightedSeqSampler(Sampler):
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        parser.add_argument("--batch-size", default=128, type=int, help=("batch size"))
+        parser.add_argument(
+            "--batch-size", default=128, type=int, help=("batch size per gpu")
+        )
 
         parser.add_argument(
             "--var-batch-size",

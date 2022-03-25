@@ -55,7 +55,7 @@ class TorchModelLoader(object):
         if "n_averaged" in state_dict:
             del state_dict["n_averaged"]
 
-        cfg = TorchModelLoader._fix_compatibilty(class_obj, cfg)
+        cfg = TorchModelLoader._fix_compatibility(class_obj, cfg)
 
         p = re.compile("^module\.")
         num_tries = 3

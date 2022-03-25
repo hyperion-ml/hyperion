@@ -133,7 +133,7 @@ class KaldiDataReader(object):
         while 1:
             line = f.readline()
             if len(line) == 0:
-                raise BadInputFormat  # eof, should not happen!
+                raise ValueError()  # eof, should not happen!
             if len(line.strip()) == 0:
                 continue  # skip empty line
             arr = line.strip().split()

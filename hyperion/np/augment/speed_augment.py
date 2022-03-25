@@ -5,7 +5,7 @@
 
 import logging
 from copy import deepcopy
-import multiprocessing
+import yaml
 import numpy as np
 from librosa.effects import time_stretch
 

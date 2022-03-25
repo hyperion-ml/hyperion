@@ -4,6 +4,7 @@
 """
 
 import os
+import math
 import contextlib
 from collections import OrderedDict as ODict
 from enum import Enum
@@ -76,6 +77,7 @@ class TorchTrainer(object):
         exp_path="./train",
         cur_epoch=0,
         grad_acc_steps=1,
+        eff_batch_size=None,
         device=None,
         metrics=None,
         lrsched=None,
@@ -102,6 +104,7 @@ class TorchTrainer(object):
         self.epochs = epochs
         self.cur_epoch = cur_epoch
         self.grad_acc_steps = grad_acc_steps
+        self.eff_batch_size = eff_batch_size
         self.exp_path = Path(exp_path)
 
         if loggers is None:
@@ -112,8 +115,6 @@ class TorchTrainer(object):
             self.loggers = LoggerList(loggers)
         else:
             self.loggers = loggers
-
-        # self.lr_scheduler = lr_scheduler
 
         self.metrics = metrics
         self.device = device
@@ -211,8 +212,7 @@ class TorchTrainer(object):
           val_data: PyTorch data loader for the validation loop
         """
         self.exp_path.mkdir(parents=True, exist_ok=True)
-        # if not os.path.exists(self.exp_path):
-        #     os.makedirs(self.exp_path)
+        self._compute_grad_acc_steps(train_data)
 
         if self.do_swa and self.cur_epoch >= self.swa_start:
             self.in_swa = True
@@ -435,6 +435,40 @@ class TorchTrainer(object):
         for param_group in self.optimizer.param_groups:
             return param_group["lr"]
 
+    def _compute_grad_acc_steps(self, data_loader):
+        if self.eff_batch_size is None:
+            return
+
+        if data_loader.batch_sampler is not None:
+            try:
+                batch_size = data_loader.batch_sampler.avg_batch_size
+            except:
+                logging.warn(
+                    "batch sampler doesn't have avg_batch_size property, "
+                    "we cannot estimate grad_acc_steps, using grad_acc_steps=%d",
+                    self.grad_acc_steps,
+                )
+                return
+
+            self.grad_acc_steps = int(
+                math.ceil(self.eff_batch_size / batch_size / self.world_size)
+            )
+            logging.info(
+                "Setting grad_acc_steps=%d for"
+                "eff_batch_size=%d, avg_batch_size=%d, world_size=%d",
+                self.grad_acc_steps,
+                self.eff_batch_size,
+                batch_size,
+                self.world_size,
+            )
+            return
+
+        logging.warn(
+            "We cannot determine the batch_size, "
+            "we cannot estimate grad_acc_steps, using grad_acc_steps=%d",
+            self.grad_acc_steps,
+        )
+
     def checkpoint(self, logs=None):
         """Creates a checkpoint of the training, to save and posterior recovery
 
@@ -566,6 +600,7 @@ class TorchTrainer(object):
     def filter_args(**kwargs):
         valid_args = (
             "grad_acc_steps",
+            "eff_batch_size",
             "epochs",
             "log_interval",
             "use_amp",
@@ -603,6 +638,12 @@ class TorchTrainer(object):
             type=int,
             default=1,
             help="gradient accumulation batches before weigth update",
+        )
+        parser.add_argument(
+            "--eff-batch-size",
+            type=int,
+            default=None,
+            help="effective total batch size, if given, it overrides grad_acc_steps",
         )
         parser.add_argument("--epochs", type=int, default=200, help="number of epochs")
         parser.add_argument(
@@ -680,6 +721,5 @@ class TorchTrainer(object):
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
-            # help='trainer options')
 
     add_argparse_args = add_class_args

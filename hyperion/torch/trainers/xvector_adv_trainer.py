@@ -7,6 +7,7 @@ from collections import OrderedDict as ODict
 
 import time
 import logging
+from jsonargparse import ArgumentParser, ActionParser
 
 import torch
 import torch.nn as nn
@@ -58,6 +59,7 @@ class XVectorAdvTrainer(XVectorTrainer):
         exp_path="./train",
         cur_epoch=0,
         grad_acc_steps=1,
+        eff_batch_size=None,
         p_attack=0.8,
         p_val_attack=0,
         device=None,
@@ -88,6 +90,7 @@ class XVectorAdvTrainer(XVectorTrainer):
             exp_path,
             cur_epoch=cur_epoch,
             grad_acc_steps=grad_acc_steps,
+            eff_batch_size=eff_batch_size,
             device=device,
             metrics=metrics,
             lrsched=lrsched,

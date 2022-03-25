@@ -12,4 +12,4 @@ class Int32Writer(DataWriter):
     """Class to write data to int32 files."""
 
     def __init__(self, wspecifier):
-        super(Int32Writer, self).__init__(wspecifier)
+        super().__init__(wspecifier)

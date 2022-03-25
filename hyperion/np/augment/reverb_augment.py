@@ -15,7 +15,7 @@ import numpy as np
 from scipy import signal
 
 from ...hyp_defs import float_cpu
-from ..io import RandomAccessDataReaderFactory as DRF
+from ...io import RandomAccessDataReaderFactory as DRF
 
 
 class RIRNormType(Enum):

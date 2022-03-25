@@ -64,7 +64,7 @@ class CosineLR(LRScheduler):
         self.gamma = gamma
 
     def on_epoch_begin(self, epoch=None, epoch_updates=1, **kwargs):
-        super(CosineLR, self).on_epoch_begin(epoch)
+        super().on_epoch_begin(epoch)
         if self.update_lr_on_opt_step:
             # T has to correspond to an integer number of epochs
             T = int(math.ceil(self.T / epoch_updates) * epoch_updates)
@@ -122,7 +122,7 @@ class AdamCosineLR(CosineLR):
         step=-1,
         update_lr_on_opt_step=False,
     ):
-        super(AdamCosineLR, super).__init__(
+        super().__init__(
             optimizer,
             T,
             T_mul,
@@ -143,12 +143,12 @@ class AdamCosineLR(CosineLR):
             if self.warm_restarts:
                 self.last_restart = step
                 x = 0
-                self.T *= T_mul
+                self.T *= self.T_mul
                 self.num_restarts += 1
             else:
                 return self.min_lrs
 
-        alpha = gamma ** self.num_restarts
+        alpha = self.gamma ** self.num_restarts
         r = math.pi / self.T
 
         return [

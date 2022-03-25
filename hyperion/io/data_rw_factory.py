@@ -13,7 +13,6 @@ from .ark_data_writer import ArkDataWriter as ADW
 from .ark_data_reader import SequentialArkFileDataReader as SAFDR
 from .ark_data_reader import SequentialArkScriptDataReader as SASDR
 from .ark_data_reader import RandomAccessArkDataReader as RADR
-from .h5_data_writer import H5DataWriter as H5DW
 from .h5_data_reader import SequentialH5FileDataReader as SH5FDR
 from .h5_data_reader import SequentialH5ScriptDataReader as SH5SDR
 from .h5_data_reader import RandomAccessH5FileDataReader as RH5FDR

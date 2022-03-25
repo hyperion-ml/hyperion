@@ -251,8 +251,8 @@ class SubCenterArcLossOutput(ArcLossOutput):
         """Computes penalized logits.
 
         Args:
-          x: input feature tensor with shape = (batch, in_feats).
-          y: ground truth classes. This is required to penalize the logit of
+          x: Input feature tensor with shape = (batch, in_feats).
+          y: Ground truth classes. This is required to penalize the logit of
              the true class at training time.
 
         Returns:

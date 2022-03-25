@@ -8,7 +8,7 @@ import logging
 import numpy as np
 import h5py
 
-from ..hyp_model import HypModel
+from ..np_model import NPModel
 
 from .cent_whiten import CentWhiten
 from .cent_whiten_up import CentWhitenUP
@@ -22,11 +22,11 @@ from .mvn import MVN
 from .gaussianizer import Gaussianizer
 
 
-class TransformList(HypModel):
+class TransformList(NPModel):
     """Class to perform a list of transformations"""
 
     def __init__(self, transforms, **kwargs):
-        super(TransformList, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         if not isinstance(transforms, list):
             transforms = [transforms]
         self.transforms = transforms

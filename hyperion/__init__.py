@@ -5,17 +5,10 @@
 
 
 from . import utils
-from . import metrics
-from . import pdfs
-from . import transforms
+from . import np
 from . import io
-from . import feats
-from . import calibration
-from . import score_norm
-
-# from . import keras
+from . import torch
 from . import helpers
 
-# from . import generators
 
-__version__ = "0.3.1"
+__version__ = "0.4.0a"

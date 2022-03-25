@@ -43,7 +43,7 @@ class PositionwiseFeedForward(nn.Module):
           Tensor size=(batch, time, num_feats)
         """
         if self.time_dim != 1:
-            x = x.transpose(1, time_dim)
+            x = x.transpose(1, self.time_dim)
 
         x = self.activation(self.w_1(x))
         if self.dropout_rate > 0:
@@ -51,7 +51,7 @@ class PositionwiseFeedForward(nn.Module):
 
         x = self.w_2(x)
         if self.time_dim != 1:
-            x = x.transpose(1, time_dim)
+            x = x.transpose(1, self.time_dim)
 
         return x
 
@@ -73,7 +73,13 @@ class Conv1dx2(nn.Module):
     """
 
     def __init__(
-        self, num_channels, hid_channels, kernel_size, dropout_rate=0, time_dim=-1
+        self,
+        num_channels,
+        hid_channels,
+        kernel_size,
+        activation="relu6",
+        dropout_rate=0,
+        time_dim=-1,
     ):
 
         super().__init__()
@@ -133,7 +139,13 @@ class Conv1dLinear(nn.Module):
     """
 
     def __init__(
-        self, num_channels, hid_channels, kernel_size, dropout_rate=0, time_dim=-1
+        self,
+        num_channels,
+        hid_channels,
+        kernel_size,
+        activation="relu6",
+        dropout_rate=0,
+        time_dim=-1,
     ):
         super().__init__()
         self.w_1 = nn.Conv1d(
