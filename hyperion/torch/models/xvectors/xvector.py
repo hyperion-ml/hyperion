@@ -501,7 +501,7 @@ class XVector(TorchModel):
             # if we change the number of classes or the loss-type
             # we need to reinitiate the last layer
             self.classif_net.rebuild_output_layer(
-                num_classes, loss_type, s, margin, margin_warmup_epochs
+                num_classes, loss_type, cos_scale, margin, margin_warmup_epochs
             )
             return
 
