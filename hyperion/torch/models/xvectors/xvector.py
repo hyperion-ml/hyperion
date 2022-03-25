@@ -573,7 +573,7 @@ class XVector(TorchModel):
             "num_embed_layers",
             "hid_act",
             "loss_type",
-            "s",
+            "cos_scale",
             "margin",
             "margin_warmup_epochs",
             "num_subcenters",
@@ -771,7 +771,7 @@ class XVector(TorchModel):
 
     @staticmethod
     def filter_finetune_args(**kwargs):
-        valid_args = ("loss_type", "s", "margin", "margin_warmup_epochs")
+        valid_args = ("loss_type", "cos_scale", "margin", "margin_warmup_epochs")
         args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
         return args

@@ -298,7 +298,7 @@ class ClassifHead(NetArch):
             "num_embed_layers",
             "hid_act",
             "loss_type",
-            "s",
+            "cos_scale",
             "margin",
             "margin_warmup_epochs",
             "num_subcenters",
@@ -339,7 +339,9 @@ class ClassifHead(NetArch):
             help="loss type: softmax, arc-softmax, cos-softmax, subcenter-arc-softmax",
         )
 
-        parser.add_argument("--s", default=64, type=float, help="scale for arcface")
+        parser.add_argument(
+            "--cos-scale", default=64, type=float, help="scale for arcface"
+        )
 
         parser.add_argument(
             "--margin", default=0.3, type=float, help="margin for arcface, cosface,..."
