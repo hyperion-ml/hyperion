@@ -1,4 +1,4 @@
-# Time SE Res2Net50 w26s4 x-vector with mixed precision training
+# Time-Squeeze-Excitation Res2Net50 w26s8 x-vector with mixed precision training
 
 # acoustic features
 feat_config=conf/fbank80_stmn_16k.yaml
@@ -9,38 +9,33 @@ vad_config=conf/vad_16k.yaml
 
 # x-vector training 
 nnet_data=voxceleb2cat_train
-nnet_num_augs=6
-aug_opt="--train-aug-cfg conf/reverb_noise_aug.yaml --val-aug-cfg conf/reverb_noise_aug.yaml"
 
-batch_size_1gpu=32
+# x-vector cfg
+
+nnet_type=resnet
+
+resnet_type=tseres2net50
+batch_size_1gpu=24
 eff_batch_size=512 # effective batch size
-ipe=$nnet_num_augs
-min_chunk=4
-max_chunk=4
-lr=0.05
-
-nnet_type=tseres2net50 
 dropout=0
 embed_dim=256
-width_factor=1.625
-scale=4
-ws_tag=w26s4
-se_r=256
-
+lr=0.05
 s=30
 margin_warmup=20
 margin=0.3
-
-nnet_opt="--resnet-type $nnet_type --in-feats 80 --in-channels 1 --in-kernel-size 3 --in-stride 1 --no-maxpool --res2net-width-factor $width_factor --res2net-scale $scale --se-r $se_r"
-
-opt_opt="--optim.opt-type adam --optim.lr $lr --optim.beta1 0.9 --optim.beta2 0.95 --optim.weight-decay 1e-5 --optim.amsgrad --use-amp"
-lrs_opt="--lrsched.lrsch-type exp_lr --lrsched.decay-rate 0.5 --lrsched.decay-steps 8000 --lrsched.hold-steps 40000 --lrsched.min-lr 1e-5 --lrsched.warmup-steps 1000 --lrsched.update-lr-on-opt-step"
-
-nnet_name=${feat_type}_${nnet_type}${ws_tag}_r${se_r}_e${embed_dim}_arcs${s}m${margin}_do${dropout}_adam_lr${lr}_b${eff_batch_size}_amp.v1
+width_factor=1.625
+scale=4
+ws_tag=w26s4
 nnet_num_epochs=70
+se_r=256
+
+xvec_train_base_cfg=conf/train_res2net50_xvec_default.yaml
+xvec_train_args="--data.train.sampler.batch-size $batch_size_1gpu --model.resnet-type $resnet_type --model.res2net-width-factor $width_factor --model.res2net-scale $scale --model.se-r $se_r"
+
+nnet_name=${feat_type}_${resnet_type}${ws_tag}_r${se_r}_e${embed_dim}_arcs${s}m${margin}_do${dropout}_adam_lr${lr}_b${eff_batch_size}_amp.v1
+
 nnet_dir=exp/xvector_nnets/$nnet_name
 nnet=$nnet_dir/model_ep0070.pth
-
 
 # back-end
 plda_aug_config=conf/reverb_noise_aug.yaml

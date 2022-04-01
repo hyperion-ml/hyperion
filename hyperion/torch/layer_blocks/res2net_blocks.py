@@ -96,7 +96,7 @@ class Res2NetBasicBlock(nn.Module):
         width_in = in_channels // scale
         width_mid = int(width_factor * channels) // scale
         self.width_in = width_in
-        self.has_proj1 = width_in != width_mid
+        self.has_proj1 = width_in != width_mid and stride == 1
         self.scale = scale
         channels_mid = width_mid * scale
         if scale == 1:
@@ -189,7 +189,7 @@ class Res2NetBasicBlock(nn.Module):
                 x_i = self.bn1s[i](x_i)
             x_i = self.act1(x_i)
             if not self.norm_before:
-                x_i = self.bn1(x_i)
+                x_i = self.bn1s[i](x_i)
             x.append(x_i)
 
         if self.scale > 1:

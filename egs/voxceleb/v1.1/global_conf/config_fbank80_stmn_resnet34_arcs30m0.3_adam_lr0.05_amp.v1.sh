@@ -11,7 +11,6 @@ vad_config=conf/vad_16k.yaml
 nnet_data=voxceleb2cat_train
 
 # x-vector cfg
-
 nnet_type=resnet
 
 resnet_type=resnet34
@@ -25,7 +24,7 @@ margin_warmup=20
 margin=0.3
 nnet_num_epochs=70
 
-xvec_train_base_cfg=conf/train_xvec_default.yaml
+xvec_train_base_cfg=conf/train_resnet34_xvec_default.yaml
 xvec_train_args="--data.train.sampler.batch-size $batch_size_1gpu"
 
 nnet_name=${feat_type}_${resnet_type}_e${embed_dim}_arcs${s}m${margin}_do${dropout}_adam_lr${lr}_b${eff_batch_size}_amp.v1

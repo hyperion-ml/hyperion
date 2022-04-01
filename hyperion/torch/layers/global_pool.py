@@ -750,7 +750,9 @@ class GlobalChWiseAttMeanStdPool1d(_GlobalPool1d):
         multiplied by the input data.
         """
         if weights is None:
-            return seq_lengths_to_mask(x, x.size(self.dim), dtype=x.dtype, time_dim=-1)
+            return seq_lengths_to_mask(
+                x_lengths, x.size(self.dim), dtype=x.dtype, time_dim=-1
+            )
 
         if weights.dim() == x.dim():
             return weights.transpose(self.dim, -1)

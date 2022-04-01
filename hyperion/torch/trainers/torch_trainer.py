@@ -149,7 +149,9 @@ class TorchTrainer(object):
                 oss = False if ddp_type == DDPType.DDP else True
                 self.optimizer = self._make_optimizer(optim, self.model, oss=oss)
                 self.model = TorchDDP(
-                    self.model, device_ids=[device], output_device=device
+                    self.model,
+                    device_ids=[device],
+                    output_device=device,
                 )
             elif ddp_type == DDPType.OSS_SHARDED_DDP:
                 self.model = nn.SyncBatchNorm.convert_sync_batchnorm(self.model)
@@ -454,7 +456,7 @@ class TorchTrainer(object):
                 math.ceil(self.eff_batch_size / batch_size / self.world_size)
             )
             logging.info(
-                "Setting grad_acc_steps=%d for"
+                "Setting grad_acc_steps=%d for "
                 "eff_batch_size=%d, avg_batch_size=%d, world_size=%d",
                 self.grad_acc_steps,
                 self.eff_batch_size,

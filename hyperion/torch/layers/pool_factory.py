@@ -93,6 +93,8 @@ class GlobalPool1dFactory(object):
                 keepdim=keepdim,
             )
 
+        raise ValueError(f"Invalid pooling type {pool_type}")
+
     @staticmethod
     def filter_args(**kwargs):
         """Filters the arguments corresponding to the creation of a pooling layer.

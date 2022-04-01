@@ -85,7 +85,7 @@ if [ $stage -le 0 ];then
     set +e
     $cmd JOB=1:$nj $output_dir/log/extract_xvectors.JOB.log \
 	hyp_utils/conda_env.sh --num-gpus $num_gpus \
-	torch-extract-xvectors-from-wav.py \
+	extract_xvectors_from_wav.py \
 	--feats $feat_config ${args} $write_num_frames_opt \
 	--part-idx JOB --num-parts $nj \
 	--input $data_dir/wav.scp \
@@ -107,7 +107,7 @@ if [ $stage -le 1 ];then
 	    fi
 	    $cmd $output_dir/log/extract_xvectors.$i.log \
 		 hyp_utils/conda_env.sh --num-gpus $num_gpus \
-		 torch-extract-xvectors-from-wav.py \
+		 extract_xvectors_from_wav.py \
 		 --feats $feat_config ${args} $write_num_frames_opt \
 		 --part-idx $i --num-parts $nj \
 		 --input $data_dir/wav.scp \

@@ -563,6 +563,7 @@ class XVector(TorchModel):
 
     @staticmethod
     def add_class_args(parser, prefix=None, skip=set()):
+
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")

@@ -63,7 +63,7 @@ utils/create_data_link.pl $output_dir/rirs_${name}.${file_format}
 args=""
 $cmd $dir/log/pack_rirs_${name}.log \
     hyp_utils/conda_env.sh \
-    pack-wav-rirs.py ${args} --input $data_in/wav.scp \
+    pack_wav_rirs.py ${args} --input $data_in/wav.scp \
      --output ${file_format},scp:$output_dir/rirs_${name}.${file_format},$data_out/rirs.scp || exit 1;
 
 

@@ -1,0 +1,10 @@
+dataset:
+  max_chunk_length: 4.0
+  min_chunk_length: 4.0
+  aug_cfg: conf/reverb_noise_aug.yaml 
+sampler:
+  batch_size: 32
+  iters_per_epoch: 6
+data_loader:
+  num_workers: 8
+  

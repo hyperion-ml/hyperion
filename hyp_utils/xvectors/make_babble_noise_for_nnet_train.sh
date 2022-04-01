@@ -51,7 +51,7 @@ output_dir=$(utils/make_absolute.sh $dir)
 args=""
 $cmd $dir/log/make_babble_noise_${name}.log \
     hyp_utils/conda_env.sh \
-    make-babble-noise-audio-files.py ${args} \
+    make_babble_noise_audio_files.py ${args} \
     --output-audio-format $file_format $args $proc_opts \
     --min-spks $min_spks --max-spks $max_spks --num-reuses $num_reuses \
     --write-time-durs $data_out/utt2dur \

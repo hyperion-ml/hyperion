@@ -131,7 +131,6 @@ def init_feats(rank, **kwargs):
 
 
 def init_xvector(num_classes, rank, xvec_class, **kwargs):
-
     xvec_args = xvec_class.filter_args(**kwargs["model"])
     if rank == 0:
         logging.info("xvector network args={}".format(xvec_args))
@@ -171,7 +170,7 @@ def train_xvec(gpu_id, args):
         device=device,
         metrics=metrics,
         ddp=world_size > 1,
-        **trn_args
+        **trn_args,
     )
     trainer.load_last_checkpoint()
     trainer.fit(train_loader, val_loader)
