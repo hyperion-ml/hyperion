@@ -66,7 +66,7 @@ if [ $num_gpus -gt 0 ];then
     fi
   fi
   echo "CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES"
-  # export TORCH_DISTRIBUTED_DEBUG=DETAIL #variable to find unused parameters
+  export TORCH_DISTRIBUTED_DEBUG=DETAIL #variable to find unused parameters
   if [ $num_gpus -gt 1 ];then
     [[ $(type -P "$torchrun") ]] && command="torchrun" \
 	|| command="python -m torch.distributed.run"

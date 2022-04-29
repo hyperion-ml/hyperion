@@ -44,7 +44,7 @@ if [ $stage -le 1 ]; then
   $cuda_cmd \
     --gpu $ngpu $nnet_dir/log/train.log \
     hyp_utils/conda_env.sh --conda-env $HYP_ENV --num-gpus $ngpu \
-    torch_train_xvec_from_wav.py $nnet_type --cfg $xvec_train_base_cfg $xvec_train_args $extra_args \
+    train_xvector_from_wav.py $nnet_type --cfg $xvec_train_base_cfg $xvec_train_args $extra_args \
     --data.train.dataset.audio-file $list_dir/wav.scp \
     --data.train.dataset.time-durs-file $list_dir/utt2dur \
     --data.train.dataset.key-file $list_dir/lists_xvec/train.scp \

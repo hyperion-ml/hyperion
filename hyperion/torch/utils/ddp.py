@@ -4,7 +4,7 @@
 """
 import os
 import logging
-
+import datetime
 import torch
 import torch.nn as nn
 import torch.distributed as dist
@@ -61,7 +61,11 @@ def ddp_init(
     logging.info(
         f"init ddp rank={rank} world_size={world_size} master={master_addr}:{master_port}"
     )
-    dist.init_process_group("nccl", rank=rank, world_size=world_size)
+    dist.init_process_group(
+        "nccl",
+        rank=rank,
+        world_size=world_size,
+    )
     torch.tensor([0]).to(gpu_id)
     return gpu_id, rank, world_size
 
@@ -71,6 +75,23 @@ def ddp_cleanup():
         dist.destroy_process_group()
     except:
         pass
+
+
+def ddp_wait_for_all_procs():
+    if dist.is_initialized():
+        dist.barrier()
+
+
+def ddp_get_rank_world_size():
+    if dist.is_initialized():
+        return dist.get_rank(), dist.get_world_size()
+    return 0, 1
+
+
+def ddp_get_rank():
+    if dist.is_initialized():
+        return dist.get_rank()
+    return 0
 
 
 class TorchDDP(nn.parallel.DistributedDataParallel):

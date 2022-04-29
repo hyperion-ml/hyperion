@@ -12,5 +12,11 @@ from .xvectors.transformer_xvector_v1 import TransformerXVectorV1
 from .xvectors.spinenet_xvector import SpineNetXVector
 from .xvectors.resnet1d_xvector import ResNet1dXVector
 
+from .wav2xvectors import (
+    HFWav2Vec2ResNet1dXVector,
+    HFHubert2ResNet1dXVector,
+    HFWavLM2ResNet1dXVector,
+)
+
 from .vae.vae import VAE
 from .vae.vq_vae import VQVAE

@@ -22,7 +22,6 @@ import torch
 import torch.nn as nn
 
 from hyperion.hyp_defs import config_logger, set_float_cpu
-from hyperion.torch.utils import open_device
 from hyperion.torch.utils import ddp
 from hyperion.torch.trainers import XVectorTrainerFromWav as Trainer
 from hyperion.torch.data import AudioDataset as AD

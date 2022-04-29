@@ -99,7 +99,6 @@ class TorchTrainer(object):
     ):
 
         self.model = model
-        # self.optimizer = optim
         self.loss = loss
         self.epochs = epochs
         self.cur_epoch = cur_epoch
@@ -334,7 +333,7 @@ class TorchTrainer(object):
                 batch_size = data.shape[0]
 
                 with self.amp_autocast():
-                    output = self.model(data, **self.amp_args)
+                    output = self.model(data)
                     loss = self.loss(output, target)
 
                 batch_metrics["loss"] = loss.mean().item()
@@ -374,7 +373,7 @@ class TorchTrainer(object):
         )
 
     def update_model(self):
-
+        """Updates the model and does gradding clipping."""
         if self.use_amp:
             if self.grad_clip > 0:
                 self.grad_scaler.unscale_(self.optimizer)
@@ -393,6 +392,7 @@ class TorchTrainer(object):
             self.optimizer.step()
 
     def _make_optimizer(self, optim, model, oss=False):
+        """Makes an optimizer object."""
         if isinstance(optim, torch.optim.Optimizer):
             return optim
 
@@ -405,6 +405,7 @@ class TorchTrainer(object):
         return optimizer
 
     def _make_lr_sched(self, lr_sched, optim):
+        """Makes a Learning Rate scheduler object."""
         if lr_sched is None or isinstance(lr_sched, LRS):
             return lr_sched
 

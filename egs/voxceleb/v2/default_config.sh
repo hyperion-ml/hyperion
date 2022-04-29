@@ -1,0 +1,1 @@
+global_conf/config_wav2vec2base_ecapatdnn512x2_arcs30m0.3_adam_lr0.002_amp.v1.sh

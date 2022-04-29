@@ -1,0 +1,6 @@
+data:
+  train: train_data_default.yaml
+  val: val_data_default.yaml
+model: wav2vec2base_ecapatdnn512x2.yaml
+trainer: trainer_swa_default.yaml
+ 

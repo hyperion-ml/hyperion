@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 
 
-def scale_lengths(lengths, max_out_length, max_in_length=None):
+def scale_seq_lengths(lengths, max_out_length, max_in_length=None):
     if lengths is None:
         return None
 

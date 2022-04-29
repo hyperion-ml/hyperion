@@ -387,9 +387,6 @@ class AudioDataset(Dataset):
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        # parser.add_argument('--path-prefix',
-        #                     default='',
-        #                     help=('path prefix for rspecifier scp file'))
         if "audio_file" not in skip:
             parser.add_argument(
                 "--audio-file",

@@ -75,6 +75,7 @@ class Wav2XVector(TorchModel):
         if vad_feats is not None:
             feats, feat_lengths = remove_silence(feats, feat_lengths)
 
+        feats = feats.transpose(1, 2)
         return self.xvector.extract_embed(
             feats, feat_lengths, chunk_length, embed_layer, detach_chunks
         )

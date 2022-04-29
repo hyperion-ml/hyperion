@@ -26,7 +26,7 @@ from torch.utils.data import Dataset
 class FeatSeqDataset(Dataset):
     def __init__(
         self,
-        rspecifier,
+        feat_file,
         key_file,
         class_file=None,
         num_frames_file=None,
@@ -39,8 +39,8 @@ class FeatSeqDataset(Dataset):
         is_val=False,
     ):
 
-        logging.info("opening dataset %s" % rspecifier)
-        self.r = RF.create(rspecifier, path_prefix=path_prefix, scp_sep=" ")
+        logging.info("opening dataset %s", feat_file)
+        self.r = RF.create(feat_file, path_prefix=path_prefix, scp_sep=" ")
         logging.info("loading utt2info file %s" % key_file)
         self.u2c = Utt2Info.load(key_file, sep=" ")
         logging.info("dataset contains %d seqs" % self.num_seqs)
@@ -264,6 +264,8 @@ class FeatSeqDataset(Dataset):
     @staticmethod
     def filter_args(**kwargs):
         valid_args = (
+            "feat_file",
+            "key_file",
             "path_prefix",
             "class_file",
             "num_frames_file",
@@ -276,10 +278,24 @@ class FeatSeqDataset(Dataset):
         return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(parser, prefix=None, skip={"feat_file", "key_file"}):
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
+
+        if "feat_file" not in skip:
+            parser.add_argument(
+                "--feat-file",
+                required=True,
+                help=("acoustic features manifest file"),
+            )
+
+        if "key_file" not in skip:
+            parser.add_argument(
+                "--key-file",
+                required=True,
+                help=("key manifest file"),
+            )
 
         parser.add_argument(
             "--path-prefix", default="", help=("path prefix for rspecifier scp file")

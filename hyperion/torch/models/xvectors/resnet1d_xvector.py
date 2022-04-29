@@ -133,7 +133,6 @@ class ResNet1dXVector(XVector):
     def load(cls, file_path=None, cfg=None, state_dict=None):
 
         cfg, state_dict = cls._load_cfg_state_dict(file_path, cfg, state_dict)
-
         try:
             del cfg["in_feats"]
         except:
@@ -145,6 +144,7 @@ class ResNet1dXVector(XVector):
 
         return model
 
+    @staticmethod
     def filter_args(**kwargs):
 
         base_args = XVector.filter_args(**kwargs)

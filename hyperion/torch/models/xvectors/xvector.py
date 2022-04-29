@@ -12,7 +12,7 @@ from ...layers import GlobalPool1dFactory as PF
 from ...layer_blocks import TDNNBlock
 from ...narchs import ClassifHead, TorchNALoader
 from ...torch_model import TorchModel
-from ...utils import eval_nnet_by_chunks, scale_lengths
+from ...utils import eval_nnet_by_chunks, scale_seq_lengths
 
 
 class XVector(TorchModel):
@@ -209,7 +209,7 @@ class XVector(TorchModel):
             x = self.proj(x)
 
         if in_lengths is not None:
-            out_lengths = scale_lengths(in_lengths, x.size(-1), max_in_length)
+            out_lengths = scale_seq_lengths(in_lengths, x.size(-1), max_in_length)
         else:
             out_lengths = None
 
@@ -224,6 +224,24 @@ class XVector(TorchModel):
         return_classif_layers=None,
         return_logits=True,
     ):
+        """Forward function. If returns the logits posteriors of the classes.
+        It can also returns the hidden representations in the encoder and
+        classification head. In this case the ouput variable is a dictionary.
+
+        Args:
+          x: input features tensor with shape=(batch, in_feats, time).
+          x_lengths: time lengths of the features with shape=(batch,).
+          y: target classes torch.long tensor with shape=(batch,).
+          return_enc_layers: list of integers indicating, which encoder layers
+                             we should return. If None, no encoder layers are returned.
+          return_enc_layers: list of integers indicating, which classification head layers
+                             we should return. If None, no head layers are returned.
+          return_logits: if True, it adds the logits to the output dictionary.
+        Returns:
+          Tensor with class logits with shape=(batch, num_classes) or
+          Dictionary with "logits", "h_enc" (list of hidden encoder layers),
+          "h_classif" (list hidden classification head layers).
+        """
 
         if return_enc_layers is None and return_classif_layers is None:
             return self.forward_logits(x, x_lengths, y)
@@ -236,11 +254,12 @@ class XVector(TorchModel):
         """Forward function
 
         Args:
-          x: input features tensor with shape=(batch, in_feats, time)
-          y: target classes torch.long tensor with shape=(batch,)
+          x: input features tensor with shape=(batch, in_feats, time).
+          x_lengths: time lengths of the features with shape=(batch,).
+          y: target classes torch.long tensor with shape=(batch,).
 
         Returns:
-          class logits tensor with shape=(batch, num_classes)
+          class logits tensor with shape=(batch, num_classes).
         """
         max_in_length = x.size(-1)
         x = self._pre_enc(x)
@@ -259,7 +278,21 @@ class XVector(TorchModel):
         return_classif_layers=None,
         return_logits=False,
     ):
-        """forwards hidden representations in the x-vector network"""
+        """forwards hidden representations in the x-vector network
+
+        Args:
+          x: input features tensor with shape=(batch, in_feats, time).
+          x_lengths: time lengths of the features with shape=(batch,).
+          y: target classes torch.long tensor with shape=(batch,).
+          return_enc_layers: list of integers indicating, which encoder layers
+                             we should return. If None, no encoder layers are returned.
+          return_enc_layers: list of integers indicating, which classification head layers
+                             we should return. If None, no head layers are returned.
+          return_logits: if True, it adds the logits to the output dictionary.
+        Returns:
+          Dictionary with "logits", "h_enc" (list of hidden encoder layers),
+          "h_classif" (list hidden classification head layers).
+        """
         max_in_length = x.size(-1)
         x = self._pre_enc(x)
         h_enc, x = self.encoder_net.forward_hid_feats(
