@@ -8,8 +8,14 @@ from copy import deepcopy
 import torch
 import torch.nn as nn
 
+torch_model_registry = {}
+
 
 class TorchModel(nn.Module):
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        torch_model_registry[cls.__name__] = cls
+
     def get_config(self):
         config = {"class_name": self.__class__.__name__}
 

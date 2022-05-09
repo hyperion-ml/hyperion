@@ -45,6 +45,10 @@ class HFWav2VecBase(TorchModel):
         ignore_pretrained (`bool` defaults to False): if True, it ignores the pretrained_model_path
             and inits the model from the configuration. This is set to True for models that have already
             been finetuned.
+        override_dropouts (`bool` defaults to False): if True, it ingnores the dropout probs. in the pretrained model
+            and uses the ones passed as arguments.
+        override_spec_augment (`bool` defaults to False): if True, it ingnores the spec. augment.
+            configuration in the pretrained model and uses the ones passed in the arguments.
     """
 
     def __init__(
@@ -58,6 +62,8 @@ class HFWav2VecBase(TorchModel):
         revision: str = "main",
         drop_layers_gt: Optional[int] = None,
         ignore_pretrained: bool = False,
+        override_dropouts: bool = False,
+        override_spec_augment: bool = False,
     ):
         super().__init__()
         self.pretrained_model_path = pretrained_model_path
@@ -67,6 +73,8 @@ class HFWav2VecBase(TorchModel):
         self.revision = revision
         self.drop_layers_gt = drop_layers_gt
         self.ignore_pretrained = ignore_pretrained
+        self.override_dropouts = override_dropouts
+        self.override_spec_augment = override_spec_augment
 
         if pretrained_model_path is not None and not ignore_pretrained:
             logging.info(
@@ -139,13 +147,36 @@ class HFWav2VecBase(TorchModel):
         new_obj.load_state_dict(self.state_dict())
         device = next(self.parameters()).device
         new_obj.to(device)
-        print(
-            "deepcopy",
-            next(self.parameters()).device,
-            next(new_obj.parameters()).device,
-            flush=True,
-        )
         return new_obj
+
+    def change_hyperparams(self, **kwargs):
+        if self.override_spec_augment:
+            self.change_spec_augment(**kwargs)
+
+        if self.override_dropouts:
+            self.change_dropouts(**kwargs)
+
+    def change_spec_augment(
+        self,
+        apply_spec_augment: bool = True,
+        mask_time_prob: float = 0.05,
+        mask_time_length: int = 10,
+        mask_time_min_masks: int = 2,
+        mask_feature_prob: float = 0.0,
+        mask_feature_length: int = 10,
+        mask_feature_min_masks: int = 0,
+        **kwargs,
+    ):
+        self.hf_model.config.apply_spec_augment = apply_spec_augment
+        self.hf_model.config.mask_time_prob = mask_time_prob
+        self.hf_model.config.mask_time_length = mask_time_length
+        self.hf_model.config.mask_time_min_masks = mask_time_min_masks
+        self.hf_model.config.mask_feature_prob = mask_feature_prob
+        self.hf_model.config.mask_feature_length = mask_feature_length
+        self.hf_model.config.mask_feature_min_masks = mask_feature_min_masks
+
+    def change_dropouts(self, **kwargs):
+        pass  # needs to be overloaded
 
     @property
     def hf_config(self):
@@ -238,6 +269,8 @@ class HFWav2VecBase(TorchModel):
             "revision": self.revision,
             "drop_layers_gt": self.drop_layers_gt,
             "ignore_pretrained": self.ignore_pretrained,
+            "override_dropouts": self.override_dropouts,
+            "override_spec_augment": self.override_spec_augment,
         }
 
         base_config = super().get_config()
@@ -260,6 +293,8 @@ class HFWav2VecBase(TorchModel):
             "revision",
             "drop_layers_gt",
             "ignore_pretrained",
+            "override_dropouts",
+            "override_spec_augment",
         )
         args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
         return args
@@ -326,6 +361,24 @@ class HFWav2VecBase(TorchModel):
             default=None,
             type=int,
             help=("drop encoder layers greater than this value."),
+        )
+        parser.add_argument(
+            "--override-dropouts",
+            default=False,
+            action=ActionYesNo,
+            help=(
+                "whether to use the dropout probabilities passed in the "
+                "arguments instead of the defaults in the pretrained model."
+            ),
+        )
+        parser.add_argument(
+            "--override-spec-augment",
+            default=False,
+            action=ActionYesNo,
+            help=(
+                "whether to use the spec augment config. passed in the "
+                "arguments instead of the defaults in the pretrained model."
+            ),
         )
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

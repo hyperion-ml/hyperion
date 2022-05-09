@@ -140,6 +140,10 @@ class HFWavLM(HFWav2VecBase):
         ignore_pretrained (`bool` defaults to False): if True, it ignores the pretrained_model_path
             and inits the model from the configuration. This is set to True for models that have already
             been finetuned.
+        override_dropouts (`bool` defaults to False): if True, it ingnores the dropout probs. in the pretrained model
+            and uses the ones passed as arguments.
+        override_spec_augment (`bool` defaults to False): if True, it ingnores the spec. augment.
+            configuration in the pretrained model and uses the ones passed in the arguments.
     """
 
     def __init__(
@@ -187,6 +191,8 @@ class HFWavLM(HFWav2VecBase):
         revision: str = "main",
         drop_layers_gt: Optional[int] = None,
         ignore_pretrained: bool = False,
+        override_dropouts: bool = False,
+        override_spec_augment: bool = False,
     ):
 
         super().__init__(
@@ -199,6 +205,8 @@ class HFWavLM(HFWav2VecBase):
             revision=revision,
             drop_layers_gt=drop_layers_gt,
             ignore_pretrained=ignore_pretrained,
+            override_dropouts=override_dropouts,
+            override_spec_augment=override_spec_augment,
         )
 
         if pretrained_model_path is not None and not ignore_pretrained:
@@ -226,6 +234,18 @@ class HFWavLM(HFWav2VecBase):
                 )
             ddp_wait_for_all_procs()
             self.hf_model.config.layerdrop = 0.0
+            self.change_hyperparams(
+                hidden_dropout=hidden_dropout,
+                activation_dropout=activation_dropout,
+                attention_dropout=attention_dropout,
+                feat_proj_dropout=feat_proj_dropout,
+                mask_time_prob=mask_time_prob,
+                mask_time_length=mask_time_length,
+                mask_time_min_masks=mask_time_min_masks,
+                mask_feature_prob=mask_feature_prob,
+                mask_feature_length=mask_feature_length,
+                mask_feature_min_masks=mask_feature_min_masks,
+            )
         else:
             hf_config = WavLMConfig(
                 vocab_size=vocab_size,

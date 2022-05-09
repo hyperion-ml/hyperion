@@ -10,7 +10,7 @@ from .lr_scheduler import LRScheduler
 
 
 class InvPowLR(LRScheduler):
-    """inverse power learning rate scheduler."""
+    """inverse power decay learning rate scheduler."""
 
     def __init__(
         self,
@@ -23,7 +23,7 @@ class InvPowLR(LRScheduler):
         step=0,
         update_lr_on_opt_step=False,
     ):
-        super(InvPowLR, self).__init__(
+        super().__init__(
             optimizer, min_lr, warmup_steps, epoch, step, update_lr_on_opt_step
         )
         self.power = power

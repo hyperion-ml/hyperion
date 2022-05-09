@@ -140,6 +140,10 @@ class HFWav2Vec2(HFWav2VecBase):
         ignore_pretrained (`bool` defaults to False): if True, it ignores the pretrained_model_path
             and inits the model from the configuration. This is set to True for models that have already
             been finetuned.
+        override_dropouts (`bool` defaults to False): if True, it ingnores the dropout probs. in the pretrained model
+            and uses the ones passed as arguments.
+        override_spec_augment (`bool` defaults to False): if True, it ingnores the spec. augment.
+            configuration in the pretrained model and uses the ones passed in the arguments.
     """
 
     def __init__(
@@ -187,6 +191,8 @@ class HFWav2Vec2(HFWav2VecBase):
         revision: str = "main",
         drop_layers_gt: Optional[int] = None,
         ignore_pretrained: bool = False,
+        override_dropouts: bool = False,
+        override_spec_augment: bool = False,
     ):
 
         super().__init__(
@@ -199,6 +205,8 @@ class HFWav2Vec2(HFWav2VecBase):
             revision=revision,
             drop_layers_gt=drop_layers_gt,
             ignore_pretrained=ignore_pretrained,
+            override_dropouts=override_dropouts,
+            override_spec_augment=override_spec_augment,
         )
 
         if pretrained_model_path is not None and not ignore_pretrained:
@@ -226,6 +234,18 @@ class HFWav2Vec2(HFWav2VecBase):
                 )
             ddp_wait_for_all_procs()
             self.hf_model.config.layerdrop = 0.0
+            self.change_hyperparams(
+                hidden_dropout=hidden_dropout,
+                activation_dropout=activation_dropout,
+                attention_dropout=attention_dropout,
+                feat_proj_dropout=feat_proj_dropout,
+                mask_time_prob=mask_time_prob,
+                mask_time_length=mask_time_length,
+                mask_time_min_masks=mask_time_min_masks,
+                mask_feature_prob=mask_feature_prob,
+                mask_feature_length=mask_feature_length,
+                mask_feature_min_masks=mask_feature_min_masks,
+            )
         else:
             hf_config = Wav2Vec2Config(
                 vocab_size=vocab_size,
@@ -277,6 +297,32 @@ class HFWav2Vec2(HFWav2VecBase):
     @property
     def hidden_size(self):
         return self.hf_config.hidden_size
+
+    def change_dropouts(
+        self,
+        hidden_dropout: float = 0.1,
+        activation_dropout: float = 0.1,
+        attention_dropout: float = 0.1,
+        feat_proj_dropout: float = 0.0,
+        **kwargs,
+    ):
+        import transformers.models.wav2vec2.modeling_wav2vec2 as t
+
+        self.hf_model.config.hidden_dropout = hidden_dropout
+        self.hf_model.config.activation_dropout = activation_dropout
+        self.hf_model.config.attention_dropout = attention_dropout
+        self.hf_model.config.feat_proj_dropout = feat_proj_dropout
+
+        self.hf_model.feature_projection.dropout.p = feat_proj_dropout
+        for module in self.hf_model.encoder.modules():
+            if isinstance(module, nn.Dropout):
+                t.p = hidden_dropout
+
+        for module in self.hf_model.encoder.modules():
+            if isinstance(module, t.Wav2Vec2Attention):
+                module.dropout = activation_dropout
+            if isinstance(module, t.Wav2Vec2FeatureProjection):
+                module.intermediate_dropout.p = activation_dropout
 
     def drop_upper_layers(self, max_layers: int):
         if max_layers >= self.hf_config.num_hidden_layers:
