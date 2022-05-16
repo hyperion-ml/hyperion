@@ -214,6 +214,7 @@ class TorchTrainer(object):
         """
         self.exp_path.mkdir(parents=True, exist_ok=True)
         self._compute_grad_acc_steps(train_data)
+        self.set_train_mode()
 
         if self.do_swa and self.cur_epoch >= self.swa_start:
             self.in_swa = True
@@ -260,10 +261,7 @@ class TorchTrainer(object):
             self.save_swa_model(logs)
 
     def set_train_mode(self):
-        if self.train_mode == "train":
-            self.model.train()
-        else:
-            self.model.train_mode(self.train_mode)
+        self.model.train_mode = self.train_mode
 
     def train_epoch(self, data_loader):
         """Training epoch loop
@@ -273,7 +271,7 @@ class TorchTrainer(object):
         """
         metric_acc = MetricAcc(device=self.device)
         batch_metrics = ODict()
-        self.set_train_mode()
+        self.model.train()
         for batch, (data, target) in enumerate(data_loader):
             self.loggers.on_batch_begin(batch)
             if batch % self.grad_acc_steps == 0:
@@ -323,7 +321,7 @@ class TorchTrainer(object):
         with torch.no_grad():
             if swa_update_bn:
                 log_tag = "train_"
-                self.set_train_mode()
+                self.train()
             else:
                 log_tag = "val_"
                 self.model.eval()

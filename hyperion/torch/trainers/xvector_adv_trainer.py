@@ -128,19 +128,13 @@ class XVectorAdvTrainer(XVectorTrainer):
                 % (p_attack, 1.0 / self.grad_acc_steps)
             )
 
-        # if data_parallel:
-        #     # change model in attack by the data parallel version
-        #     self.attack.model = self.model
-        #     # make loss function in attack data parallel
-        #     self.attack.make_data_parallel()
-
     def train_epoch(self, data_loader):
 
         self.model.update_loss_margin(self.cur_epoch)
 
         metric_acc = MetricAcc(device=self.device)
         batch_metrics = ODict()
-        self.set_train_mode()
+        self.model.train()
 
         for batch, (data, target) in enumerate(data_loader):
             self.loggers.on_batch_begin(batch)
@@ -157,7 +151,7 @@ class XVectorAdvTrainer(XVectorTrainer):
                     max_delta = torch.max(torch.abs(data_adv - data)).item()
                     logging.info("adv attack max perturbation=%f" % (max_delta))
                     data = data_adv
-                    self.set_train_mode()
+                    self.model.train()
 
                 self.optimizer.zero_grad()
 
@@ -196,7 +190,7 @@ class XVectorAdvTrainer(XVectorTrainer):
 
         if swa_update_bn:
             log_tag = "train_"
-            self.set_train_mode()
+            self.model.train()
         else:
             log_tag = "val_"
             self.model.eval()
@@ -210,7 +204,7 @@ class XVectorAdvTrainer(XVectorTrainer):
                 self.model.eval()
                 data = self.attack.generate(data, target)
                 if swa_update_bn:
-                    self.set_train_mode()
+                    self.model.train()
 
             with torch.no_grad():
                 with self.amp_autocast():

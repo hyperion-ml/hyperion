@@ -131,7 +131,7 @@ class PLDATrainer(TorchTrainer):
 
         metric_acc = MetricAcc()
         batch_metrics = ODict()
-        self.set_train_mode()
+        self.model.train()
         for batch, (data, target) in enumerate(data_loader):
             self.loggers.on_batch_begin(batch)
 
@@ -205,7 +205,7 @@ class PLDATrainer(TorchTrainer):
         with torch.no_grad():
             if swa_update_bn:
                 log_tag = ""
-                self.set_train_mode()
+                self.model.train()
             else:
                 log_tag = "val_"
                 self.model.eval()

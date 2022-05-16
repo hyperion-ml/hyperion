@@ -6,6 +6,7 @@ import os
 from collections import OrderedDict as ODict
 from copy import deepcopy
 from enum import Enum
+from typing import Optional
 
 import torch
 import torch.nn as nn
@@ -69,14 +70,20 @@ class TorchModel(nn.Module):
 
         self._train_mode = mode
 
-    def train(self, mode=None):
-        train_mode = self.train_mode if mode is None else mode
+    def _train(self, train_mode: str):
         if train_mode == "full":
-            super().train()
+            super().train(True)
         elif train_mode == "frozen":
-            super().eval()
+            super().train(False)
         else:
             raise ValueError(f"invalid train_mode={train_mode}")
+
+    def train(self, mode: bool = True):
+        if not mode:
+            super().train(False)
+            return
+
+        self._train(self.train_mode)
 
     def valid_train_modes(self):
         return ["full", "frozen"]

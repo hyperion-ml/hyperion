@@ -138,7 +138,7 @@ class XVectorTrainerDeepFeatRegFromWav(XVectorTrainerDeepFeatReg):
 
         metric_acc = MetricAcc(device=self.device)
         batch_metrics = ODict()
-        self.set_train_mode()
+        self.model.train()
 
         for batch, (data, target) in enumerate(data_loader):
             self.loggers.on_batch_begin(batch)
@@ -239,7 +239,7 @@ class XVectorTrainerDeepFeatRegFromWav(XVectorTrainerDeepFeatReg):
         with torch.no_grad():
             if swa_update_bn:
                 log_tag = "train_"
-                self.set_train_mode()
+                self.model.train()
             else:
                 log_tag = "val_"
                 self.model.eval()

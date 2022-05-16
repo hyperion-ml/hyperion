@@ -108,7 +108,7 @@ class VAETrainer(TorchTrainer):
 
         metric_acc = MetricAcc(device=self.device)
         batch_metrics = ODict()
-        self.set_train_mode()
+        self.model.train()
 
         for batch, data in enumerate(data_loader):
 
@@ -162,7 +162,7 @@ class VAETrainer(TorchTrainer):
         with torch.no_grad():
             if swa_update_bn:
                 log_tag = "train_"
-                self.set_train_mode()
+                self.model.train()
             else:
                 log_tag = "val_"
                 self.model.eval()

@@ -137,7 +137,7 @@ class XVectorAdvTrainerFromWav(XVectorTrainerFromWav):
 
         metric_acc = MetricAcc(device=self.device)
         batch_metrics = ODict()
-        self.set_train_mode()
+        self.model.train()
 
         for batch, (data, target) in enumerate(data_loader):
             self.loggers.on_batch_begin(batch)
@@ -156,7 +156,7 @@ class XVectorAdvTrainerFromWav(XVectorTrainerFromWav):
                     # logging.info('zz {} {}'.format(data[z], data_adv[z]))
                     # logging.info('adv attack max perturbation=%f' % (max_delta))
                     data = data_adv
-                    self.set_train_mode()
+                    self.model.train()
 
                 self.optimizer.zero_grad()
 
@@ -198,7 +198,7 @@ class XVectorAdvTrainerFromWav(XVectorTrainerFromWav):
 
         if swa_update_bn:
             log_tag = "train_"
-            self.set_train_mode()
+            self.model.train()
         else:
             log_tag = "val_"
             self.model.eval()
@@ -212,7 +212,7 @@ class XVectorAdvTrainerFromWav(XVectorTrainerFromWav):
                 self.model.eval()
                 data = self.attack.generate(data, target)
                 if swa_update_bn:
-                    self.set_train_mode()
+                    self.model.train()
 
             with torch.no_grad():
                 feats = self.feat_extractor(data)

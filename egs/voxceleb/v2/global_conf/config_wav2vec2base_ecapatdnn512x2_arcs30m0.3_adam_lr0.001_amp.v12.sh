@@ -37,7 +37,6 @@ nnet=$nnet_dir/swa_model_ep0076.pth
 nnet=$nnet_dir/model_ep0060.pth
 nnet=$nnet_dir/model_ep0030.pth
 nnet=$nnet_dir/model_ep0040.pth
-nnet=$nnet_dir/model_ep0030.pth
 nnet=$nnet_dir/model_ep0020.pth
 
 

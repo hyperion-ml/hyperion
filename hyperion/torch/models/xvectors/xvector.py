@@ -3,7 +3,9 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import logging
+from enum import Enum
 from jsonargparse import ArgumentParser, ActionParser
+from typing import Optional
 
 import torch
 import torch.nn as nn
@@ -13,6 +15,12 @@ from ...layer_blocks import TDNNBlock
 from ...narchs import ClassifHead, TorchNALoader
 from ...torch_model import TorchModel
 from ...utils import eval_nnet_by_chunks, scale_seq_lengths
+
+
+class XVectorTrainMode(Enum):
+    full = 0
+    frozen = 1
+    ft_embed_affine = 2
 
 
 class XVector(TorchModel):
@@ -543,19 +551,38 @@ class XVector(TorchModel):
         layer_list = [l for l in range(self.embed_layer)]
         self.classif_net.freeze_layers(layer_list)
 
-    def train_mode(self, mode="ft-embed-affine"):
-        if mode == "ft-full" or mode == "train":
-            self.train()
+    def set_train_mode(self, mode):
+        if mode == self._train_mode:
             return
 
-        self.encoder_net.eval()
-        if self.proj is not None:
-            self.proj.eval()
+        if mode == "full":
+            self.unfreeze()
+        elif mode == "frozen":
+            self.freeze()
+        elif mode == "ft-embed-affine":
+            self.freeze_preembed_layers()
+        else:
+            raise ValueError(f"invalid train_mode={mode}")
 
-        self.pool_net.eval()
-        self.classif_net.train()
-        layer_list = [l for l in range(self.embed_layer)]
-        self.classif_net.put_layers_in_eval_mode(layer_list)
+        self._train_mode = mode
+
+    def _train(self, train_mode: str):
+        if train_mode in ["full", "frozen"]:
+            super()._train(train_mode)
+        elif train_mode == "ft-embed-affine":
+            self.encoder_net.eval()
+            if self.proj is not None:
+                self.proj.eval()
+
+            self.pool_net.eval()
+            self.classif_net.train()
+            layer_list = [l for l in range(self.embed_layer)]
+            self.classif_net.put_layers_in_eval_mode(layer_list)
+        else:
+            raise ValueError(f"invalid train_mode={train_mode}")
+
+    def valid_train_modes(self):
+        return ["full", "frozen", "ft-embed-affine"]
 
     @staticmethod
     def filter_args(**kwargs):
