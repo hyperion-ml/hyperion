@@ -3,7 +3,9 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import os
+from collections import OrderedDict as ODict
 from copy import deepcopy
+from enum import Enum
 
 import torch
 import torch.nn as nn
@@ -16,13 +18,68 @@ class TorchModel(nn.Module):
         super().__init_subclass__(**kwargs)
         torch_model_registry[cls.__name__] = cls
 
+    def __init__(self):
+        super().__init__()
+        self._train_mode = "full"
+
     def get_config(self):
         config = {"class_name": self.__class__.__name__}
-
         return config
 
     def copy(self):
         return deepcopy(self)
+
+    def clone(self):
+        return deepcopy(self)
+
+    def trainable_parameters(self, recurse: bool = True):
+        for param in self.parameters(recurse=recurse):
+            if param.requires_grad:
+                yield param
+
+    def non_trainable_parameters(self, recurse: bool = True):
+        for param in self.parameters(recurse=recurse):
+            if not param.requires_grad:
+                yield param
+
+    def freeze(self):
+        for param in self.parameters():
+            param.requires_grad = False
+
+    def unfreeze(self):
+        for param in self.parameters():
+            param.requires_grad = True
+
+    @property
+    def train_mode(self):
+        return self._train_mode
+
+    @train_mode.setter
+    def train_mode(self, mode):
+        self.set_train_mode(mode)
+
+    def set_train_mode(self, mode):
+        if mode == self._train_mode:
+            return
+
+        if mode == "full":
+            self.unfreeze()
+        elif mode == "frozen":
+            self.freeze()
+
+        self._train_mode = mode
+
+    def train(self, mode=None):
+        train_mode = self.train_mode if mode is None else mode
+        if train_mode == "full":
+            super().train()
+        elif train_mode == "frozen":
+            super().eval()
+        else:
+            raise ValueError(f"invalid train_mode={train_mode}")
+
+    def valid_train_modes(self):
+        return ["full", "frozen"]
 
     def save(self, file_path):
         file_dir = os.path.dirname(file_path)
@@ -33,14 +90,6 @@ class TorchModel(nn.Module):
         torch.save(
             {"model_cfg": self.get_config(), "model_state_dict": self.state_dict()}
         )
-
-    def freeze(self):
-        for param in self.parameters():
-            param.requires_grad = False
-
-    def unfreeze(self):
-        for param in self.parameters():
-            param.requires_grad = True
 
     @staticmethod
     def _load_cfg_state_dict(file_path=None, cfg=None, state_dict=None):
@@ -86,3 +135,63 @@ class TorchModel(nn.Module):
             )
 
         return next(iter(devices))
+
+    @staticmethod
+    def _fix_cfg_compatibility(class_obj, cfg):
+        """Function that fixed compatibility issues with deprecated models
+
+        Args:
+          class_obj: class type of the model.
+          cfg: configuration dictiory that inits the model.
+
+        Returns:
+          Fixed configuration dictionary.
+        """
+        # for compatibility with older x-vector models
+        XVector = torch_model_registry["xvector"]
+        if issubclass(class_obj, XVector):
+            # We renamed AM-softmax scale parameer s to cos_scale
+            if "s" in cfg:
+                cfg["cos_scale"] = cfg["s"]
+                del cfg["s"]
+
+        return cfg
+
+    @staticmethod
+    def auto_load(file_path, extra_objs={}, map_location=None):
+
+        if map_location is None:
+            map_location = torch.device("cpu")
+
+        model_data = torch.load(file_path, map_location=map_location)
+        cfg = model_data["model_cfg"]
+        class_name = cfg["class_name"]
+        del cfg["class_name"]
+        if class_name in torch_model_registry:
+            class_obj = torch_model_registry[class_name]
+        elif class_name in extra_objs:
+            class_obj = extra_objs[class_name]
+        else:
+            raise Exception("unknown object with class_name=%s" % (class_name))
+
+        state_dict = model_data["model_state_dict"]
+
+        if "n_averaged" in state_dict:
+            del state_dict["n_averaged"]
+
+        cfg = TorchModel._fix_cfg_compatibility(class_obj, cfg)
+
+        import re
+
+        p = re.compile("^module\.")
+        num_tries = 3
+        for tries in range(num_tries):
+            try:
+                return class_obj.load(cfg=cfg, state_dict=state_dict)
+            except RuntimeError as err:
+                # remove module prefix when is trained with dataparallel
+                if tries == num_tries - 1:
+                    # if it failed the 3 trials raise exception
+                    raise err
+                # remove module prefix when is trained with dataparallel
+                state_dict = ODict((p.sub("", k), v) for k, v in state_dict.items())

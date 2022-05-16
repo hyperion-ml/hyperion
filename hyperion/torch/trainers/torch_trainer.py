@@ -54,7 +54,7 @@ class TorchTrainer(object):
       loggers: LoggerList object, loggers write training progress to std. output and file.
       ddp: if True use distributed data parallel training
       ddp_type: type of distributed data parallel in  (ddp, oss_ddp, oss_shared_ddp)
-      train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
+      train_mode: training mode in ['full', 'frozen']
       use_amp: uses mixed precision training.
       log_interval: number of optim. steps between log outputs
       use_tensorboard: use tensorboard logger
@@ -84,7 +84,7 @@ class TorchTrainer(object):
         loggers=None,
         ddp=False,
         ddp_type="ddp",
-        train_mode="train",
+        train_mode="full",
         use_amp=False,
         log_interval=10,
         use_tensorboard=False,
@@ -625,7 +625,7 @@ class TorchTrainer(object):
         return args
 
     @staticmethod
-    def add_class_args(parser, prefix=None, skip=[]):
+    def add_class_args(parser, prefix=None, train_modes=None, skip=[]):
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -649,6 +649,13 @@ class TorchTrainer(object):
             help="effective total batch size, if given, it overrides grad_acc_steps",
         )
         parser.add_argument("--epochs", type=int, default=200, help="number of epochs")
+        if train_modes is not None:
+            parser.add_argument(
+                "--train-mode",
+                default="full",
+                choices=train_modes,
+                help=f"Available train modes for the model in {train_modes}",
+            )
         parser.add_argument(
             "--log-interval",
             type=int,

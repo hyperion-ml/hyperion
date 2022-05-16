@@ -131,28 +131,18 @@ class XVectorTrainer(TorchTrainer):
             batch_size = data.shape[0]
 
             with self.amp_autocast():
-                # logging.info(
-                #     f"in_model rank={self.rank} batch={batch} x={data} mxx={data.max()} avgx={data.mean()}"
-                # )
                 output = self.model(data, y=target)
                 loss = self.loss(output, target).mean() / self.grad_acc_steps
-                # logging.info(
-                #     f"out_model rank={self.rank} batch={batch} y={output} loss={loss.item()}"
-                # )
 
             if self.use_amp:
-                # logging.info("in_backward rank=%d batch=%d", self.rank, batch)
                 self.grad_scaler.scale(loss).backward()
-                # logging.info("out_backward rank=%d batch=%d", self.rank, batch)
             else:
                 loss.backward()
 
             if (batch + 1) % self.grad_acc_steps == 0:
                 if self.lr_scheduler is not None and not self.in_swa:
                     self.lr_scheduler.on_opt_step()
-                # logging.info("in_update rank=%d batch=%d", self.rank, batch)
                 self.update_model()
-                # logging.info("out_update rank=%d batch=%d", self.rank, batch)
 
             batch_metrics["loss"] = loss.item() * self.grad_acc_steps
             for k, metric in self.metrics.items():

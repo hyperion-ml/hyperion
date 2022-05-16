@@ -78,11 +78,11 @@ class ExtSegmentList(object):
         )
 
         if series_id is None:
-            u_file_id = self.segments["file_id"].unique()
+            u_file_id = segments.segments["file_id"].unique()
             files = pd.DataFrame({"file_id": u_file_id, "series_id": u_file_id})
         else:
-            file_id = [f for f in v for k, v in series_id.items()]
-            series_id = [k for f in v for k, v in series_id.items()]
+            file_id = [f for k, v in series_id.items() for f in v]
+            series_id = [k for k, v in series_id.items() for f in v]
             files = pd.DataFrame({"file_id": file_id, "series_id": series_id})
 
         if isinstance(name, str):
@@ -128,8 +128,8 @@ class ExtSegmentList(object):
             u_file_id = segments["file_id"].unique()
             files = pd.DataFrame({"file_id": u_file_id, "series_id": u_file_id})
         else:
-            file_id = [f for f in v for k, v in series_id.items()]
-            series_id = [k for f in v for k, v in series_id.items()]
+            file_id = [f for k, v in series_id.items() for f in v]
+            series_id = [k for k, v in series_id.items() for f in v]
             files = pd.DataFrame({"file_id": file_id, "series_id": series_id})
 
         return cls(segments, ext_segments, files, index_column)
