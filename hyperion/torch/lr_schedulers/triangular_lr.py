@@ -22,6 +22,23 @@ class TriangularLR(LRScheduler):
         x = \mathrm{abs}(2\frac{T_{cur}}{T_{max}}-2\mathrm{cycle}+1)
         \eta_t = \eta_{min} + (\eta_{max} - \eta_{min})\max(0, 1-x)
 
+    Attributes:
+      optimizer: Pytorch optimizer object.
+      T: period of the cycle.
+      T_mul: period multiplier, after each cycle the period is multiplied by T_mul.
+      hold_steps: number of steps until the lr starts decaying.
+      min_lr: minimum learning rate.
+      warmup_steps: number of warm up steps to get the lr from 0 to the maximum lr.
+      gamma: after each period, the maximum lr is multiplied by gamma.
+      last_restart: what is the step when the last restart happened, , this is used
+                    to restart the training from a checkpoint.
+      num_restarts: how many restarts, we have done, this is used to restart the
+                    training from a checkpoint.
+      epoch: initial training training epoch, this is needed to restart the model
+             training.
+      step: initial training step, this is needed to restart the model training.
+      update_lr_on_opt_step: if True, updates the lr each time we update the model,
+        otherwise after each epoch.
     """
 
     def __init__(

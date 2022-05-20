@@ -3,8 +3,9 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import math
-from turtle import up
-import torch
+import logging
+
+# import torch
 
 from .invpow_lr import InvPowLR
 
@@ -17,6 +18,14 @@ class NoamLR(InvPowLR):
     the transformer hidden dimension.
 
     Attributes:
+      optimizer: Pytorch optimizer object.
+      d_model: hidden dimension of transformer model.
+      lr_factor: multiplies the Noam lr by this number.
+      min_lr: minimum learning rate.
+      warmup_steps: number of warm up steps to get the lr from 0 to the maximum lr.
+      epoch: initial training training epoch, this is needed to restart the model
+             training.
+      step: initial training step, this is needed to restart the model training.
 
     """
 
@@ -31,9 +40,16 @@ class NoamLR(InvPowLR):
         step=0,
     ):
         lr = lr_factor / math.sqrt(d_model * warmup_steps)
-        print("noam_lr", lr, flush=True)
+        logging.info("Noam lr=%f", lr)
+        # we scale the lr taking account the relative
+        # learning rates in the param_groups
+        # in order to be able to have different lr for
+        # different modules of the model
+        max_lr = 0
         for group in optimizer.param_groups:
-            group["lr"] = lr
+            max_lr = max(lr, max_lr)
+        for group in optimizer.param_groups:
+            group["lr"] = lr * group["lr"] / max_lr
         super().__init__(
             optimizer,
             min_lr=min_lr,

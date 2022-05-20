@@ -77,11 +77,11 @@ class HFWav2VecBase(TorchModel):
         self.override_spec_augment = override_spec_augment
 
         if pretrained_model_path is not None and not ignore_pretrained:
-            logging.info(
-                f"Downloading config for HF preprocessor from {pretrained_model_path}"
-            )
             rank = ddp_get_rank()
             if rank == 0:
+                logging.info(
+                    f"Downloading config for HF preprocessor from {pretrained_model_path}"
+                )
                 # rank 0 downloads the model from HF web
                 try:
                     # some models donot have config for processor because do not have
@@ -177,6 +177,9 @@ class HFWav2VecBase(TorchModel):
 
     def change_dropouts(self, **kwargs):
         pass  # needs to be overloaded
+
+    def freeze_feature_encoder(self):
+        self.hf_model.freeze_feature_encoder()
 
     @property
     def hf_config(self):

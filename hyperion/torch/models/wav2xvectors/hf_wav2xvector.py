@@ -3,6 +3,7 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import logging
+import contextlib
 from jsonargparse import ArgumentParser, ActionParser
 
 import torch
@@ -35,6 +36,7 @@ class HFWav2XVector(TorchModel):
         self.xvector = xvector
         self.feat_fusion_start = feat_fusion_start
         self.feat_fusion_method = feat_fusion_method
+        self._hf_context = contextlib.nullcontext
         self._make_fuser()
 
     def _make_fuser(self):
@@ -96,7 +98,8 @@ class HFWav2XVector(TorchModel):
             if return_feat_layers is None and self.feat_fusion_method == "last"
             else True
         )
-        hf_output = self.hf_feats(x, x_lengths, return_hid_states=return_hid_states)
+        with self._hf_context:
+            hf_output = self.hf_feats(x, x_lengths, return_hid_states=return_hid_states)
         feat_lengths = hf_output["hidden_states_lengths"]
         if return_hid_states:
             hid_feats = hf_output["hidden_states"]
@@ -191,6 +194,91 @@ class HFWav2XVector(TorchModel):
         return self.xvector.extract_embed(
             feats, feat_lengths, xvec_chunk_length, embed_layer, detach_chunks
         )
+
+    def freeze_feat_fuser(self):
+        if self.feat_fuser is None:
+            return
+
+        if self.feat_fusion_method == "weighted-avg":
+            self.feat_fuser.requires_grad = False
+            return
+
+        for param in self.feat_fuser.parameters():
+            param.requires_grad = False
+
+    def freeze_hf_feats(self):
+        self.hf_feats.freeze()
+
+    def freeze_hf_feature_encoder(self):
+        self.hf_feats.freeze_feature_encoder()
+
+    def set_train_mode(self, mode):
+        if mode == self._train_mode:
+            return
+
+        if mode == "full":
+            self.unfreeze()
+        elif mode == "frozen":
+            self.freeze()
+        elif mode == "ft-embed-affine":
+            self.unfreeze()
+            self.freeze_feat_fuser()
+            self.freeze_hf_feats()
+            self.xvector.freeze_preembed_layers()
+        elif mode in ["ft-xvector", "ft-xvector-nograd"]:
+            self.unfreeze()
+            self.freeze_hf_feats()
+            self.freeze_feat_fuser()
+        elif mode in ["hf-feats-frozen", "hf-feats-frozen-nograd"]:
+            self.unfreeze()
+            self.freeze_hf_feats()
+        elif mode == "hf-feat-extractor-frozen":
+            self.unfreeze()
+            self.freeze_hf_feature_encoder()
+        else:
+            raise ValueError(f"invalid train_mode={mode}")
+
+        logging.info("train mode set to %s", mode)
+
+        if "nograd" in mode:
+            logging.info("using torch.no_grad for hf_feats")
+            self._hf_context = torch.no_grad()
+        else:
+            self._hf_context = contextlib.nullcontext
+
+        self._train_mode = mode
+
+    def _train(self, train_mode: str):
+
+        if train_mode in ["full", "frozen"]:
+            super()._train(train_mode)
+        elif train_mode == "ft-embed-affine":
+            self.hf_feats.train()
+            self.xvector._train("ft-embed_affine")
+        elif train_mode in [
+            "ft-xvector",
+            "hf-feats-frozen",
+            "ft-xvector-nograd",
+            "hf-feats-frozen-nograd",
+            "hf-feat-extractor-frozen",
+        ]:
+            self.hf_feats.train()
+            self.xvector._train("full")
+        else:
+            raise ValueError(f"invalid train_mode={train_mode}")
+
+    @staticmethod
+    def valid_train_modes():
+        return [
+            "full",
+            "frozen",
+            "ft-embed-affine",
+            "ft-xvector",
+            "hf-feats-frozen",
+            "ft-xvector-nograd",
+            "hf-feats-frozen-nograd",
+            "hf-feat-extractor-frozen",
+        ]
 
     @staticmethod
     def filter_args(**kwargs):

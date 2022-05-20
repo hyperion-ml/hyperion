@@ -168,7 +168,8 @@ class XVectorTrainerFromWav(XVectorTrainer):
         """Validation epoch loop
 
         Args:
-          data_loader: PyTorch data loader return input/output pairs
+          data_loader: PyTorch data loader return input/output pairs.
+          sw_update_bn: wheter or not, update batch-norm layers in SWA.
         """
         metric_acc = MetricAcc(device=self.device)
         batch_metrics = ODict()

@@ -210,10 +210,10 @@ class HFWav2Vec2(HFWav2VecBase):
         )
 
         if pretrained_model_path is not None and not ignore_pretrained:
-            logging.info(f"Downloading HF model from {pretrained_model_path}")
             rank = ddp_get_rank()
             if rank == 0:
                 # rank 0 downloads the model from HF web
+                logging.info(f"Downloading HF model from {pretrained_model_path}")
                 self.hf_model = Wav2Vec2Model.from_pretrained(
                     pretrained_model_path,
                     cache_dir=cache_dir,

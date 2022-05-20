@@ -192,9 +192,9 @@ class HFHubert(HFWav2VecBase):
         )
 
         if pretrained_model_path is not None and not ignore_pretrained:
-            logging.info(f"Downloading HF model from {pretrained_model_path}")
             rank = ddp_get_rank()
             if rank == 0:
+                logging.info(f"Downloading HF model from {pretrained_model_path}")
                 # rank 0 downloads the model from HF web
                 self.hf_model = HubertModel.from_pretrained(
                     pretrained_model_path,

@@ -57,6 +57,7 @@ class TorchModel(nn.Module):
 
     @train_mode.setter
     def train_mode(self, mode):
+        print("hola3", mode, flush=True)
         self.set_train_mode(mode)
 
     def set_train_mode(self, mode):
@@ -85,7 +86,8 @@ class TorchModel(nn.Module):
 
         self._train(self.train_mode)
 
-    def valid_train_modes(self):
+    @staticmethod
+    def valid_train_modes():
         return ["full", "frozen"]
 
     def save(self, file_path):

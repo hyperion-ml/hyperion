@@ -25,16 +25,27 @@ class CosineLR(LRScheduler):
     When epoch=-1, sets initial lr as lr.
 
     It has been proposed in
-    `SGDR: Stochastic Gradient Descent with Warm Restarts`_.
-
-    Args:
-        optimizer (Optimizer): Wrapped optimizer.
-        T_max (int): Maximum number of iterations.
-        eta_min (float): Minimum learning rate. Default: 0.
-        epoch (int): The index of last epoch. Default: -1.
-
     .. _SGDR\: Stochastic Gradient Descent with Warm Restarts:
         https://arxiv.org/abs/1608.03983
+
+    Attributes:
+      optimizer: Pytorch optimizer object.
+      T: period of the cycle.
+      T_mul: period multiplier, after each cycle the period is multiplied by T_mul.
+      hold_steps: number of steps until the lr starts decaying.
+      min_lr: minimum learning rate.
+      warmup_steps: number of warm up steps to get the lr from 0 to the maximum lr.
+      warm_restarts: whether or not to do warm restarts.
+      gamma: after each period, the maximum lr is multiplied by gamma.
+      last_restart: what is the step when the last restart happened, , this is used
+                    to restart the training from a checkpoint.
+      num_restarts: how many restarts, we have done, this is used to restart the
+                    training from a checkpoint.
+      epoch: initial training training epoch, this is needed to restart the model
+             training.
+      step: initial training step, this is needed to restart the model training.
+      update_lr_on_opt_step: if True, updates the lr each time we update the model,
+        otherwise after each epoch.
     """
 
     def __init__(
@@ -53,7 +64,7 @@ class CosineLR(LRScheduler):
         update_lr_on_opt_step=False,
     ):
 
-        super(CosineLR, self).__init__(
+        super().__init__(
             optimizer, min_lr, warmup_steps, epoch, step, update_lr_on_opt_step
         )
         self.T = T
@@ -108,6 +119,29 @@ class CosineLR(LRScheduler):
 
 
 class AdamCosineLR(CosineLR):
+    r"""Set the learning rate of each parameter group using a cosine annealing
+    schedule when using adam optimizer
+
+    Attributes:
+      optimizer: Pytorch optimizer object.
+      T: period of the cycle.
+      T_mul: period multiplier, after each cycle the period is multiplied by T_mul.
+      hold_steps: number of steps until the lr starts decaying.
+      min_lr: minimum learning rate.
+      warmup_steps: number of warm up steps to get the lr from 0 to the maximum lr.
+      warm_restarts: whether or not to do warm restarts.
+      gamma: after each period, the maximum lr is multiplied by gamma.
+      last_restart: what is the step when the last restart happened, , this is used
+                    to restart the training from a checkpoint.
+      num_restarts: how many restarts, we have done, this is used to restart the
+                    training from a checkpoint.
+      epoch: initial training training epoch, this is needed to restart the model
+             training.
+      step: initial training step, this is needed to restart the model training.
+      update_lr_on_opt_step: if True, updates the lr each time we update the model,
+        otherwise after each epoch.
+    """
+
     def __init__(
         self,
         optimizer,

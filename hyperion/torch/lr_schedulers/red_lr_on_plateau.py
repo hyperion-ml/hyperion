@@ -21,6 +21,7 @@ class ReduceLROnPlateau(LRScheduler):
 
     Attributes:
      optimizer (Optimizer): optimizer.
+     monitor: which metric to monitor.
      mode (str): One of `min`, `max`. In `min` mode, lr will
          be reduced when the quantity monitored has stopped
          decreasing; in `max` mode it will be reduced when the
@@ -45,6 +46,7 @@ class ReduceLROnPlateau(LRScheduler):
      min_lr (float or list): A scalar or a list of scalars. A
          lower bound on the learning rate of all param groups
          or each group respectively. Default: 0.
+     warmup_steps: number of warm up steps to get the lr from 0 to the maximum lr.
      eps (float): Minimal decay applied to lr. If the difference
          between new and old lr is smaller than eps, the update is
          ignored. Default: 1e-8.
@@ -64,7 +66,7 @@ class ReduceLROnPlateau(LRScheduler):
         warmup_steps=0,
         eps=1e-8,
     ):
-        super(ReduceLROnPlateau, self).__init__(
+        super().__init__(
             optimizer,
             min_lr,
             warmup_steps,

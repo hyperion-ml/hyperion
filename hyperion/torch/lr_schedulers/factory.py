@@ -40,6 +40,53 @@ class LRSchedulerFactory(object):
         lr_factor=1,
         update_lr_on_opt_step=False,
     ):
+        """Creates a  learning rate scheduler object.
+
+        Args:
+          optimizer: Pytorch optimizer object.
+          lrsched_type: type of scheduler in ["none", "exp_lr", "invpow_lr",
+                "cos_lr", "adamcos_lr", "red_lr_on_plateau", "noam_lr",
+                        "triangular_lr"].
+          decay_rate: the lr is multiplied by `decay_rate` after `decay_ste.ps`
+          decay_steps: number of decay steps.
+          power: the step/epoch number is ellebated to this power to compute the decay.
+          hold_steps: number of steps until the lr starts decaying.
+          t: period of the cycle.
+          t_mul: period multiplier, after each cycle the period is multiplied by T_mul.
+          warm_restarts: whether or not to do warm restarts.
+          gamma: after each period, the maximum lr is multiplied by gamma, in cyclid schedulers.
+          monitor: which metric to monitor in RedLROnPlateau scheduler.
+          mode (str): One of `min`, `max`. In `min` mode, lr will
+                be reduced when the quantity monitored has stopped
+                decreasing; in `max` mode it will be reduced when the
+                quantity monitored has stopped increasing. Default: 'min'.
+          factor (float): Factor by which the learning rate will be
+                reduced. new_lr = lr * factor. Default: 0.1.
+          patience (int): Number of epochs with no improvement after
+                which learning rate will be reduced. For example, if
+                `patience = 2`, then we will ignore the first 2 epochs
+                with no improvement, and will only decrease the LR after the
+                3rd epoch if the loss still hasn't improved then.
+          threshold (float): Threshold for measuring the new optimum,
+                to only focus on significant changes. Default: 1e-4.
+          threshold_mode (str): One of `rel`, `abs`. In `rel` mode,
+                dynamic_threshold = best * ( 1 + threshold ) in 'max'
+                 mode or best * ( 1 - threshold ) in `min` mode.
+                 In `abs` mode, dynamic_threshold = best + threshold in
+                 `max` mode or best - threshold in `min` mode. Default: 'rel'.
+          cooldown (int): Number of epochs to wait before resuming
+                normal operation after lr has been reduced. Default: 0.
+          eps (float): Minimal decay applied to lr. If the difference
+                between new and old lr is smaller than eps, the update is
+                ignored. Default: 1e-8.
+                d_model: hidden dimension of transformer model.
+          min_lr: minimum learning rate.
+          warmup_steps: number of warm up steps to get the lr from 0 to the maximum lr.
+          d_model: hidden dimension of transformer model.
+          lr_factor: multiplies the Noam lr by this number.
+          update_lr_on_opt_step: if True, updates the lr each time we update the model,
+                otherwise after each epoch.
+        """
 
         if lrsch_type == "none":
             return None

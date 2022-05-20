@@ -10,7 +10,20 @@ from .lr_scheduler import LRScheduler
 
 
 class InvPowLR(LRScheduler):
-    """inverse power decay learning rate scheduler."""
+    """inverse power decay learning rate scheduler.
+
+    Attributes:
+      optimizer: Pytorch optimizer object.
+      power: the step/epoch number is ellebated to this power to compute the decay.
+      hold_steps: number of steps until the lr starts decaying.
+      min_lr: minimum learning rate.
+      warmup_steps: number of warm up steps to get the lr from 0 to the maximum lr.
+      epoch: initial training training epoch, this is needed to restart the model
+             training.
+      step: initial training step, this is needed to restart the model training.
+      update_lr_on_opt_step: if True, updates the lr each time we update the model,
+        otherwise after each epoch.
+    """
 
     def __init__(
         self,

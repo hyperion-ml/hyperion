@@ -127,6 +127,8 @@ class TorchTrainer(object):
         self.swa_anneal_epochs = swa_anneal_epochs
         self.amp_args = {}
 
+        self.set_train_mode()
+
         if device is not None:
             self.model.to(device)
             if loss is not None:
@@ -214,7 +216,6 @@ class TorchTrainer(object):
         """
         self.exp_path.mkdir(parents=True, exist_ok=True)
         self._compute_grad_acc_steps(train_data)
-        self.set_train_mode()
 
         if self.do_swa and self.cur_epoch >= self.swa_start:
             self.in_swa = True
@@ -261,7 +262,8 @@ class TorchTrainer(object):
             self.save_swa_model(logs)
 
     def set_train_mode(self):
-        self.model.train_mode = self.train_mode
+        # self.model.train_mode = self.train_mode
+        self.model.set_train_mode(self.train_mode)
 
     def train_epoch(self, data_loader):
         """Training epoch loop
@@ -313,7 +315,8 @@ class TorchTrainer(object):
         """Validation epoch loop
 
         Args:
-          data_loader: PyTorch data loader return input/output pairs
+          data_loader: PyTorch data loader return input/output pairs.
+          sw_update_bn: wheter or not, update batch-norm layers in SWA.
         """
 
         metric_acc = MetricAcc(self.device)
@@ -607,6 +610,7 @@ class TorchTrainer(object):
             "use_amp",
             "ddp_type",
             "grad_clip",
+            "grad_clip_norm",
             "swa_start",
             "swa_lr",
             "swa_anneal_epochs",
@@ -617,9 +621,9 @@ class TorchTrainer(object):
             "use_tensorboard",
             "use_wandb",
             "wandb",
+            "train_mode",
         )
         args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
-
         return args
 
     @staticmethod

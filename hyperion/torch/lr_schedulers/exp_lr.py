@@ -10,7 +10,21 @@ from .lr_scheduler import LRScheduler
 
 
 class ExponentialLR(LRScheduler):
-    """Exponential learning rate scheduler."""
+    """Exponential learning rate scheduler.
+
+    Attributes:
+      optimizer: Pytorch optimizer object.
+      decay_rate: the lr is multiplied by `decay_rate` after `decay_ste.ps`
+      decay_steps: number of decay steps.
+      hold_steps: number of steps until the lr starts decaying.
+      min_lr: minimum learning rate.
+      warmup_steps: number of warm up steps to get the lr from 0 to the maximum lr.
+      epoch: initial training training epoch, this is needed to restart the model
+             training.
+      step: initial training step, this is needed to restart the model training.
+      update_lr_on_opt_step: if True, updates the lr each time we update the model,
+        otherwise after each epoch.
+    """
 
     def __init__(
         self,
@@ -24,7 +38,7 @@ class ExponentialLR(LRScheduler):
         step=0,
         update_lr_on_opt_step=False,
     ):
-        super(ExponentialLR, self).__init__(
+        super().__init__(
             optimizer, min_lr, warmup_steps, epoch, step, update_lr_on_opt_step
         )
         self.decay_rate = decay_rate
