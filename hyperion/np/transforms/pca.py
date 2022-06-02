@@ -12,7 +12,18 @@ from ..np_model import NPModel
 
 
 class PCA(NPModel):
-    """Class to do principal component analysis"""
+    """Class to do principal component analysis
+
+    Attributes:
+      mu: data mean vector
+      T: LDA projection.
+      update_mu: whether or not to update the mean when training.
+      update_T: wheter or not to update T when training.
+      pca_dim: pca dimension (optional).
+      pca_var_r: pca variance ratio to retain, overrides pca_dim (optional).
+      pca_min_dim: minimum dimension of PCA when using pca_var_r.
+      whiten: whitens the data after PCA.
+    """
 
     def __init__(
         self,
@@ -36,7 +47,37 @@ class PCA(NPModel):
         self.pca_min_dim = pca_min_dim
         self.whiten = whiten
 
+    def __call__(self, x):
+        """Applies the transformation to the data.
+
+        Args:
+          x: data samples.
+
+        Returns:
+          Transformed data samples.
+        """
+        return self.predict(x)
+
+    def forward(self, x):
+        """Applies the transformation to the data.
+
+        Args:
+          x: data samples.
+
+        Returns:
+          Transformed data samples.
+        """
+        return self.predict(x)
+
     def predict(self, x):
+        """Applies the transformation to the data.
+
+        Args:
+          x: data samples.
+
+        Returns:
+          Transformed data samples.
+        """
         if self.mu is not None:
             x = x - self.mu
         return np.dot(x, self.T)
@@ -57,8 +98,15 @@ class PCA(NPModel):
         rank = max(min_dim, rank)
         return rank
 
-    def fit(self, x=None, sample_weight=None, mu=None, S=None):
+    def fit(self, x=None, mu=None, S=None):
+        """Trains the model.
 
+        Args:
+          x: training data samples with shape (num_samples, x_dim).
+          y: training labels as integers in [0, num_classes-1] with shape (num_samples,)
+          mu: precomputed mean.
+          S: precomputed total covariance.
+        """
         if x is not None:
             mu = np.mean(x, axis=0)
             delta = x - mu
@@ -104,28 +152,44 @@ class PCA(NPModel):
             self.T = V
 
     def get_config(self):
+        """Returns the model configuration dict."""
         config = {
             "update_mu": self.update_mu,
             "update_t": self.update_T,
             "pca_dim": self.pca_dim,
             "pca_var_r": self.pca_var_r,
+            "pca_min_dim": self.pca_min_dim,
         }
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
     def save_params(self, f):
+        """Saves the model paramters into the file.
+
+        Args:
+          f: file handle.
+        """
         params = {"mu": self.mu, "T": self.T}
         self._save_params_from_dict(f, params)
 
     @classmethod
     def load_params(cls, f, config):
+        """Initializes the model from the configuration and loads the model
+        parameters from file.
+
+        Args:
+          f: file handle.
+          config: configuration dictionary.
+
+        Returns:
+          Model object.
+        """
         param_list = ["mu", "T"]
         params = cls._load_params_to_dict(f, config["name"], param_list)
         return cls(
             mu=params["mu"],
             T=params["T"],
-            pca_dim=config["pca_dim"],
-            name=config["name"],
+            **config,
         )
 
     @classmethod

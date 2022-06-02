@@ -13,7 +13,14 @@ from ...hyp_defs import float_cpu
 
 
 class SbSw(NPModel):
-    """Class to compute between and within class matrices"""
+    """Class to compute between and within class covariance matrices.
+
+    Args:
+      Sb: between-class cov. matrix.
+      Sw: within-class cov. matrix.
+      mu: data mean vector.
+      num_classes: number of classes.
+    """
 
     def __init__(self, Sb=None, Sw=None, mu=None, num_classes=0, **kwargs):
         super(SbSw, self).__init__(**kwargs)
@@ -22,7 +29,7 @@ class SbSw(NPModel):
         self.mu = None
         self.num_classes = num_classes
 
-    def fit(self, x, class_ids, sample_weight=None, class_weights=None, normalize=True):
+    def fit(self, x, class_ids, normalize=True):
         dim = x.shape[1]
         if self.Sb is None:
             self.Sb = np.zeros((dim, dim))
@@ -75,7 +82,7 @@ class SbSw(NPModel):
     @classmethod
     def load(cls, file_path):
         with h5py.File(file_path, "r") as f:
-            config = self.load_config_from_json(f["config"])
+            config = cls.load_config_from_json(f["config"])
             param_list = ["mu", "Sb", "Sw", "num_classes"]
             params = cls._load_params_to_dict(f, config["name"], param_list)
             kwargs = dict(list(config.items()) + list(params.items()))
@@ -83,12 +90,26 @@ class SbSw(NPModel):
 
 
 class NSbSw(SbSw):
+    """Class to compute nearest neighbour between and within class
+    covariance matrices.
+    https://www.isca-speech.org/archive/pdfs/interspeech_2014/sadjadi14_interspeech.pdf
+
+    Args:
+      K: number of neighbours.
+      alpha: distance exponent that determines how fast the weight of the samples decays
+        when they get far from the classification boundary.
+      Sb: between-class cov. matrix.
+      Sw: within-class cov. matrix.
+      mu: data mean vector.
+      num_classes: number of classes.
+    """
+
     def __init__(self, K=10, alpha=1, **kwargs):
-        super(NSbSw, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         self.K = K
         self.alpha = alpha
 
-    def fit(self, x, class_ids, sample_weight=None, class_weights=None, normalize=True):
+    def fit(self, x, class_ids, normalize=True):
         dim = x.shape[1]
         self.Sb = np.zeros((dim, dim), dtype=float_cpu())
         self.Sw = np.zeros((dim, dim), dtype=float_cpu())
@@ -139,6 +160,7 @@ class NSbSw(SbSw):
         self.Sw /= self.num_classes
 
     def get_config(self):
+        """Returns the model configuration dict."""
         config = {"K": self.K, "alpha": self.alpha}
         base_config = super(NSbSw, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))

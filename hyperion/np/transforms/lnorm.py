@@ -9,7 +9,14 @@ from .cent_whiten import CentWhiten
 
 
 class LNorm(CentWhiten):
-    """Class to do length normalization."""
+    """Class to do length normalization.
+
+    Attributes:
+      mu: data mean vector
+      T: whitening projection.
+      update_mu: whether or not to update the mean when training.
+      update_T: wheter or not to update T when training.
+    """
 
     def predict(self, x):
         x = super().predict(x)

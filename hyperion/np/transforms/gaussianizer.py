@@ -15,18 +15,56 @@ from ..np_model import NPModel
 
 
 class Gaussianizer(NPModel):
-    """Class to make i-vector distribution standard Normal."""
+    """Class to make i-vector distribution standard Normal.
+
+    Args:
+      max_vectors: maximum number of background vectors needed to
+        compute the Gaussianization.
+      r: background vector matrix obtained by fit function.
+    """
 
     def __init__(self, max_vectors=None, r=None, **kwargs):
-        super(Gaussianizer, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         self.max_vectors = max_vectors
         self.r = r
 
+    def __call__(self, x):
+        """Applies the transformation to the data.
+
+        Args:
+          x: data samples.
+
+        Returns:
+          Transformed data samples.
+        """
+        return self.predict(x)
+
+    def forward(self, x):
+        """Applies the transformation to the data.
+
+        Args:
+          x: data samples.
+
+        Returns:
+          Transformed data samples.
+        """
+        return self.predict(x)
+
     def predict(self, x):
-        px_cum = np.linspace(0, 1, self.r.shape[0] + 2)[1:-1]
+        """Applies the transformation to the data.
+
+        Args:
+          x: data samples.
+
+        Returns:
+          Transformed data samples.
+        """
+        # px_cum = np.linspace(0, 1, self.r.shape[0] + 2)[1:-1]
+        px_cum = np.linspace(0, 1, self.r.shape[0] + 3)[1:-1]
         y_map = erfinv(2 * px_cum - 1) * np.sqrt(2)
 
-        r = self.r[1:]
+        # r = self.r[1:]
+        r = self.r
         y = np.zeros_like(x)
         for i in range(x.shape[1]):
             y_index = np.searchsorted(r[:, i], x[:, i])
@@ -36,10 +74,13 @@ class Gaussianizer(NPModel):
         return y
 
     def fit(self, x):
+        """Trains the model.
 
+        Args:
+          x: training data samples with shape (num_samples, x_dim).
+        """
         r = np.sort(x, axis=0, kind="heapsort")
-
-        x = np.zeros((1, x.shape[-1]), dtype=float_cpu())
+        # x = np.zeros((1, x.shape[-1]), dtype=float_cpu())
 
         if r.shape[0] > self.max_vectors:
             index = np.round(
@@ -47,20 +88,37 @@ class Gaussianizer(NPModel):
             ).astype(int)
             r = r[index, :]
 
-        self.r = np.vstack((x, r))
+        # self.r = np.vstack((x, r))
+        self.r = r
 
     def get_config(self):
+        """Returns the model configuration dict."""
         config = {"max_vectors": self.max_vectors}
 
-        base_config = super(Gaussianizer, self).get_config()
+        base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
     def save_params(self, f):
+        """Saves the model paramters into the file.
+
+        Args:
+          f: file handle.
+        """
         params = {"r": self.r}
         self._save_params_from_dict(f, params)
 
     @classmethod
     def load_params(cls, f, config):
+        """Initializes the model from the configuration and loads the model
+        parameters from file.
+
+        Args:
+          f: file handle.
+          config: configuration dictionary.
+
+        Returns:
+          Model object.
+        """
         param_list = ["r"]
         params = cls._load_params_to_dict(f, config["name"], param_list)
         return cls(

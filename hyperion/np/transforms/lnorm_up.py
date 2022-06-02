@@ -10,10 +10,17 @@ from .cent_whiten_up import CentWhitenUP
 
 
 class LNormUP(CentWhitenUP):
-    """Class to do Lenght Normalization with uncertainty propagation"""
+    """Class to do Lenght Normalization with uncertainty propagation.
+
+    Attributes:
+      mu: data mean vector
+      T: whitening projection.
+      update_mu: whether or not to update the mean when training.
+      update_T: wheter or not to update T when training.
+    """
 
     def predict(self, x):
-        x = super(LNormUP, self).predict(x)
+        x = super().predict(x)
         x_dim = int(x.shape[-1] / 2)
         m_x = x[:, :x_dim]
         s2_x = x[:, x_dim:]

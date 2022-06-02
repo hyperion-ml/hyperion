@@ -121,10 +121,48 @@ class SklTSNE(NPModel):
     def num_jobs(self):
         return self._tsne.n_jobs
 
+    def __call__(self, x):
+        """Trains and applies the transformation to the data.
+
+        Args:
+          x: data samples.
+
+        Returns:
+          Transformed data samples.
+        """
+        return self.predict(x)
+
+    def forward(self, x):
+        """Trains and applies the transformation to the data.
+
+        Args:
+          x: data samples.
+
+        Returns:
+          Transformed data samples.
+        """
+        return self.predict(x)
+
     def predict(self, x):
+        """Trains and applies the transformation to the data.
+
+        Args:
+          x: data samples.
+
+        Returns:
+          Transformed data samples.
+        """
         return self._tsne.fit_transform(x)
 
     def fit(self, x):
+        """Trains and applies the transformation to the data.
+
+        Args:
+          x: data samples.
+
+        Returns:
+          Transformed data samples.
+        """
         return self._tsne.fit_transform(x)
 
     def save_params(self, f):
@@ -135,6 +173,7 @@ class SklTSNE(NPModel):
         return cls(**config)
 
     def get_config(self):
+        """Returns the model configuration dict."""
         config = {
             "tsne_dim": self.tsne_dim,
             "perplexity": self.perplexity,
@@ -155,6 +194,11 @@ class SklTSNE(NPModel):
 
     @staticmethod
     def filter_args(**kwargs):
+        """Filters the arguments corresponding to this model from a dictionary.
+
+        Returns
+          Dictionary containing valid options to initialize the model.
+        """
         valid_args = (
             "tsne_dim",
             "perplexity",
@@ -174,6 +218,12 @@ class SklTSNE(NPModel):
 
     @staticmethod
     def add_class_args(parser, prefix=None):
+        """Adds model options to parser.
+
+        Args:
+          parser: parser object.
+          prefix: prefix str to add to the argument names.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
