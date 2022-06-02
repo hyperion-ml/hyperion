@@ -11,10 +11,18 @@ from .score_norm import ScoreNorm
 
 
 class AdaptSNorm(ScoreNorm):
-    """Class for adaptive S-Norm"""
+    """Class for adaptive S-Norm.
+
+    Attributes:
+      nbest: number of samples selected to compute the statistics for each trial
+        by the adaptive algorith
+      nbest_discard: discard the nbest trials with higher scores, which could
+        be actual target trials.
+      std_floor: floor for standard deviations.
+    """
 
     def __init__(self, nbest=100, nbest_discard=0, **kwargs):
-        super(AdaptSNorm, self).__init__(*kwargs)
+        super().__init__(*kwargs)
         self.nbest = nbest
         self.nbest_discard = nbest_discard
 
@@ -26,6 +34,18 @@ class AdaptSNorm(ScoreNorm):
         mask_coh_test=None,
         mask_enr_coh=None,
     ):
+        """Normalizes the scores.
+
+        Args:
+          scores: score matrix enroll vs. test.
+          scores_coh_test: score matrix cohort vs. test.
+          scores_enr_coh: score matrix enroll vs cohort.
+          mask_coh_test: binary matrix to mask out target trials
+            from cohort vs test matrix.
+          mask_enr_coh: binary matrix to mask out target trials
+            from enroll vs. cohort matrix.
+
+        """
 
         assert scores_enr_coh.shape[1] == scores_coh_test.shape[0]
         assert self.nbest_discard < scores_enr_coh.shape[1]

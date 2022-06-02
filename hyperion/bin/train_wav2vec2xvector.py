@@ -154,7 +154,9 @@ def make_parser(model_class):
     )
 
     model_class.add_class_args(parser, prefix="model")
-    Trainer.add_class_args(parser, prefix="trainer")
+    Trainer.add_class_args(
+        parser, prefix="trainer", train_modes=model_class.valid_train_modes()
+    )
     ddp.add_ddp_args(parser)
     parser.add_argument("--seed", type=int, default=1123581321, help="random seed")
     parser.add_argument(

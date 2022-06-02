@@ -1,0 +1,18 @@
+optim:
+  opt_type: sgd
+  lr: 0.45
+  momentum: 0.9
+  weight_decay: 4e-4
+lrsched:
+  lrsch_type: exp_lr
+  decay_rate: 0.5
+  decay_steps: 2100
+  hold_steps: 1000
+  min_lr: 4e-4
+  warmup_steps: 1000
+  update_lr_on_opt_step: true
+use_amp: true
+log_interval: 1000
+epochs: 30
+eff_batch_size: 1024
+train_mode: hf-feats-frozen-nograd

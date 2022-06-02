@@ -29,6 +29,8 @@ class ClassifHead(NetArch):
        cos_scale: scale parameter for cos-softmax and arc-softmax
        margin: margin parameter for cos-softmax and arc-softmax
        margin_warmup_epochs: number of epochs to anneal the margin from 0 to margin
+       intertop_k: adds negative angular penalty to k largest negative scores.
+       intertop_margin: inter-top-k penalty.
        num_subcenters: number of subcenters in subcenter losses
        norm_layer: norm_layer object or str indicating type norm layer, if None it uses BatchNorm1d
        use_norm: it True it uses layer/batch-normalization
@@ -46,6 +48,8 @@ class ClassifHead(NetArch):
         cos_scale=64,
         margin=0.3,
         margin_warmup_epochs=0,
+        intertop_k=5,
+        intertop_margin=0.0,
         num_subcenters=2,
         norm_layer=None,
         use_norm=True,
@@ -78,6 +82,8 @@ class ClassifHead(NetArch):
         self.cos_scale = cos_scale
         self.margin = margin
         self.margin_warmup_epochs = margin_warmup_epochs
+        self.intertop_k = intertop_k
+        self.intertop_margin = intertop_margin
         self.num_subcenters = num_subcenters
 
         prev_feats = in_feats
@@ -124,6 +130,8 @@ class ClassifHead(NetArch):
                 cos_scale=cos_scale,
                 margin=margin,
                 margin_warmup_epochs=margin_warmup_epochs,
+                intertop_k=intertop_k,
+                intertop_margin=intertop_margin,
             )
         elif loss_type == "arc-softmax":
             self.output = ArcLossOutput(
@@ -132,6 +140,8 @@ class ClassifHead(NetArch):
                 cos_scale=cos_scale,
                 margin=margin,
                 margin_warmup_epochs=margin_warmup_epochs,
+                intertop_k=intertop_k,
+                intertop_margin=intertop_margin,
             )
         elif loss_type == "subcenter-arc-softmax":
             self.output = SubCenterArcLossOutput(
@@ -141,6 +151,8 @@ class ClassifHead(NetArch):
                 cos_scale=cos_scale,
                 margin=margin,
                 margin_warmup_epochs=margin_warmup_epochs,
+                intertop_k=intertop_k,
+                intertop_margin=intertop_margin,
             )
 
     def rebuild_output_layer(
@@ -150,6 +162,8 @@ class ClassifHead(NetArch):
         cos_scale,
         margin,
         margin_warmup_epochs,
+        intertop_k=5,
+        intertop_margin=0.0,
         num_subcenters=2,
     ):
 
@@ -159,6 +173,8 @@ class ClassifHead(NetArch):
         self.cos_scale = cos_scale
         self.margin = margin
         self.margin_warmup_epochs = margin_warmup_epochs
+        self.intertop_margin = intertop_margin
+        self.num_subcenters = num_subcenters
         self.num_subcenters = num_subcenters
 
         if loss_type == "softmax":
@@ -170,6 +186,8 @@ class ClassifHead(NetArch):
                 cos_scale=cos_scale,
                 margin=margin,
                 margin_warmup_epochs=margin_warmup_epochs,
+                intertop_k=intertop_k,
+                intertop_margin=intertop_margin,
             )
         elif loss_type == "arc-softmax":
             self.output = ArcLossOutput(
@@ -178,6 +196,8 @@ class ClassifHead(NetArch):
                 cos_scale=cos_scale,
                 margin=margin,
                 margin_warmup_epochs=margin_warmup_epochs,
+                intertop_k=intertop_k,
+                intertop_margin=intertop_margin,
             )
         elif loss_type == "subcenter-arc-softmax":
             self.output = SubCenterArcLossOutput(
@@ -187,6 +207,8 @@ class ClassifHead(NetArch):
                 cos_scale=cos_scale,
                 margin=margin,
                 margin_warmup_epochs=margin_warmup_epochs,
+                intertop_k=intertop_k,
+                intertop_margin=intertop_margin,
             )
 
     def set_margin(self, margin):
@@ -281,6 +303,8 @@ class ClassifHead(NetArch):
             "cos_scale": self.cos_scale,
             "margin": self.margin,
             "margin_warmup_epochs": self.margin_warmup_epochs,
+            "intertop_k": self.intertop_k,
+            "intertop_margin": self.intertop_margin,
             "num_subcenters": self.num_subcenters,
             "norm_layer": self.norm_layer,
             "use_norm": self.use_norm,
@@ -311,6 +335,8 @@ class ClassifHead(NetArch):
             "s",
             "margin",
             "margin_warmup_epochs",
+            "intertop_k",
+            "intertop_margin",
             "num_subcenters",
             "use_norm",
             "norm_before",
@@ -360,6 +386,16 @@ class ClassifHead(NetArch):
             default=10,
             type=float,
             help="number of epoch until we set the final margin",
+        )
+
+        parser.add_argument(
+            "--intertop-k", default=5, type=int, help="K for InterTopK penalty"
+        )
+        parser.add_argument(
+            "--intertop-margin",
+            default=0.0,
+            type=float,
+            help="margin for InterTopK penalty",
         )
 
         parser.add_argument(

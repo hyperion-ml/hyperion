@@ -14,7 +14,15 @@ class ZNorm(ScoreNorm):
     """
 
     def predict(self, scores, scores_enr_coh, mask=None):
+        """Normalizes the scores.
 
+        Args:
+          scores: score matrix enroll vs. test.
+          scores_enr_coh: score matrix enroll vs cohort.
+          mask: binary matrix to mask out target trials
+            from enroll vs. cohort matrix.
+
+        """
         if mask is None:
             mu_z = np.mean(scores_enr_coh, axis=1, keepdims=True)
             s_z = np.std(scores_enr_coh, axis=1, keepdims=True)

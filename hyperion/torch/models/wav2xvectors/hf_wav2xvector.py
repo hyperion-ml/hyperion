@@ -36,7 +36,7 @@ class HFWav2XVector(TorchModel):
         self.xvector = xvector
         self.feat_fusion_start = feat_fusion_start
         self.feat_fusion_method = feat_fusion_method
-        self._hf_context = contextlib.nullcontext
+        self._hf_context = contextlib.nullcontext()
         self._make_fuser()
 
     def _make_fuser(self):
@@ -244,7 +244,7 @@ class HFWav2XVector(TorchModel):
             logging.info("using torch.no_grad for hf_feats")
             self._hf_context = torch.no_grad()
         else:
-            self._hf_context = contextlib.nullcontext
+            self._hf_context = contextlib.nullcontext()
 
         self._train_mode = mode
 

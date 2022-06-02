@@ -12,6 +12,21 @@ from .plda_base import PLDABase
 
 
 class FRPLDA(PLDABase):
+    """Class for Full-rank PLDA (a.k.a. Two-Covariance Model) where
+    .. math::
+       \mathbf{x}_{ij} = \mathbf{y}_i + \varepsilon_{ij}
+
+
+    Attributes:
+      mu: class-independent mean.
+      B: between-class precision.
+      W: within-class precision.
+      update_mu: whether to update mu or not when training the model.
+      update_B: whether to update B or not when training the model.
+      update_W: whether to update W or not when training the model.
+      x_dim: data dimension.
+    """
+
     def __init__(
         self,
         mu=None,
@@ -23,7 +38,7 @@ class FRPLDA(PLDABase):
         update_W=True,
         **kwargs
     ):
-        super(FRPLDA, self).__init__(mu=mu, update_mu=update_mu, **kwargs)
+        super().__init__(mu=mu, update_mu=update_mu, **kwargs)
         if mu is not None:
             self.y_dim = mu.shape[0]
         self.B = B
@@ -33,6 +48,7 @@ class FRPLDA(PLDABase):
         self.update_W = update_W
 
     def validate(self):
+        """Validates the model parameters."""
         assert self.mu.shape[0] == self.B.shape[0]
         assert self.mu.shape[0] == self.B.shape[1]
         assert self.mu.shape[0] == self.W.shape[0]
@@ -40,6 +56,7 @@ class FRPLDA(PLDABase):
 
     @property
     def is_init(self):
+        """Returns True if the model has been initialized."""
         if self._is_init:
             return True
         if self.mu is not None and self.B is not None and self.W is not None:
@@ -48,6 +65,11 @@ class FRPLDA(PLDABase):
         return self._is_init
 
     def initialize(self, D):
+        """initializes the model.
+
+        Args:
+          D: tuple of sufficient statistics (N, F, S)
+        """
         N, F, S = D
         self.x_dim = F.shape[1]
         self.y_dim = F.shape[1]
@@ -77,6 +99,21 @@ class FRPLDA(PLDABase):
     def compute_py_g_x(
         self, D, return_cov=False, return_logpy_0=False, return_acc=False
     ):
+        """Computes the posterior P(y|x)
+
+        Args:
+          D: tuple of sufficient statistics (N, F, S)
+          return_cov: whether or not to return the posterior covariances.
+          return_logpy_0: whether or not to return log P(y=0|x).
+          return_acc: whether or not to return Ry and Py accumulators.
+
+        Returns:
+          Speaker factor posterior means with shape (num_speakers, y_dim)
+          Speaker factor posterior convariances with shape (num_speakers, y_dim, y_dim)
+          log P(y=0|x) with shape (num_spakers,)
+          Ry accumlator for ML step with shape (y_dim, y_dim)
+          Py accumlator for MD step with shape (y_dim, y_dim)
+        """
 
         assert self.is_init
 
@@ -160,6 +197,14 @@ class FRPLDA(PLDABase):
         return r
 
     def Estep(self, D):
+        """Expectation step.
+
+        Args:
+          D: tuple with sufficient statistics (N, F, S)
+
+        Returns:
+          Tuple of statistics with accumlated expectations.
+        """
         N, F, S = D
         y, logpy, Ry, Py = self.compute_py_g_x(D, return_logpy_0=True, return_acc=True)
 
@@ -179,6 +224,14 @@ class FRPLDA(PLDABase):
         return stats
 
     def elbo(self, stats):
+        """Computes the objective function.
+
+        Args:
+          stats: tuple of expectations computed at the Estep.
+
+        Returns:
+         log P(X)
+        """
         N, M, S, logpy_x = stats[:4]
 
         logW = logdet_pdmat(self.W)
@@ -201,19 +254,14 @@ class FRPLDA(PLDABase):
 
         elbo = logpx_y + logpy - logpy_x
         return elbo
-        # N, M, sumy, yy, _, _, CW, logL = stats
-        # ymu = np.outer(sumy, mu)
-        # CB = yy - ymu -ymu.T + M*np.outer(self.mu, self.mu.T)
-
-        # logW = logdet_pdmat(self.W)
-        # logB = logdet_pdmat(self.B)
-
-        # elbo = 0.5*(-logL - N*self.x_dim*np.log(2*np.pi)
-        #             +N*logW - np.inner(self.W.ravel(), CW.ravel())
-        #             +M*logB - np.inner(self.B.ravel(), CB.ravel()))
-        # return elbo
 
     def MstepML(self, stats):
+        """Maximum likelihood estimation step.
+
+        Args:
+          stats: tuple of expectations computed at the Estep.
+
+        """
         N, M, S, _, y_acc, Ry, Cy, Py = stats
         ybar = y_acc / M
         if self.update_mu:
@@ -236,6 +284,7 @@ class FRPLDA(PLDABase):
         pass
 
     def get_config(self):
+        """Returns the model configuration dict."""
         config = {
             "update_W": self.update_W,
             "update_B": self.update_B,
@@ -245,18 +294,42 @@ class FRPLDA(PLDABase):
         return dict(list(base_config.items()) + list(config.items()))
 
     def save_params(self, f):
+        """Saves the model paramters into the file.
+
+        Args:
+          f: file handle.
+        """
         params = {"mu": self.mu, "B": self.B, "W": self.W}
         self._save_params_from_dict(f, params)
 
     @classmethod
     def load_params(cls, f, config):
+        """Initializes the model from the configuration and loads the model
+        parameters from file.
+
+        Args:
+          f: file handle.
+          config: configuration dictionary.
+
+        Returns:
+          Model object.
+        """
         param_list = ["mu", "B", "W"]
         params = cls._load_params_to_dict(f, config["name"], param_list)
         kwargs = dict(list(config.items()) + list(params.items()))
         return cls(**kwargs)
 
     def llr_1vs1(self, x1, x2):
+        """log-likelihood ratio between target and non-target hypothesis for
+        the case of one enrollment and one test segments.
 
+        Args:
+          x1: enrollment vectors with shape (num_enroll_segmens, x_dim).
+          x2: test vectors with shape (num_enroll_segmens, x_dim).
+
+        Returns:
+          Score matrix with shape (num_enrollment_segments, num_test_segments).
+        """
         assert self.is_init
 
         Lnon = self.B + self.W
@@ -303,7 +376,17 @@ class FRPLDA(PLDABase):
         return scores
 
     def llr_NvsM_book(self, D1, D2):
+        """log-likelihood ratio between target and non-target hypothesis for
+        the case of N segments/enrollment-side and M segments/test-side
+        evaluated with the exact formula (by the book).
 
+        Args:
+          D1: tuple of sufficient statistics for the enrollment sides (N1, F1, S1).
+          D2: tuple of sufficient statistics for the test sides (N2, F2, S2).
+
+        Returns:
+          Score matrix with shape (num_enrollment_sides, num_test_sides).
+        """
         assert self.is_init
 
         N1, F1, _ = D1
@@ -368,7 +451,17 @@ class FRPLDA(PLDABase):
     def sample(
         self, num_classes, num_samples_per_class, rng=None, seed=1024, return_y=False
     ):
+        """Draws samples from the PLDA model.
 
+        Args:
+          num_classes: number of classes to sample.
+          num_samples_per_class: number of samples to sample per each class.
+          rng: random number generator.
+          seed: random seed used if rng is None.
+
+        Returns:
+          Generated samples with shape (num_samples, x_dim).
+        """
         assert self.is_init
 
         if rng is None:
@@ -394,7 +487,15 @@ class FRPLDA(PLDABase):
         return y + z
 
     def weighted_avg_params(self, mu, B, W, w_mu, w_B, w_W):
-        super(FRPLDA, self).weigthed_avg_params(mu, w_mu)
+        """Performs weighted average of the model parameters
+        and some given parameters.
+
+        Args:
+          mu: other mean vector
+          w_mu: weight of the given mean vector.
+
+        """
+        super().weigthed_avg_params(mu, w_mu)
         if w_B > 0:
             Sb0 = invert_pdmat(self.B, return_inv=True)[-1]
             Sb = invert_pdmat(B, return_inv=True)[-1]
@@ -407,4 +508,11 @@ class FRPLDA(PLDABase):
             self.W = invert_pdmat(Sw, return_inv=True)[-1]
 
     def weighted_avg_model(self, plda, w_mu, w_B, w_W):
+        """Performs weighted average of the model parameters
+        and those of another model given as input.
+
+        Args:
+          plda: other PLDA model.
+
+        """
         self.weighted_avg_params(plda.mu, plda.B, plda.W, w_mu, w_B, w_W)

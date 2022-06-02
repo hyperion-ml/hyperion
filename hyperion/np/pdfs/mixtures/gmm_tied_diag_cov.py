@@ -20,8 +20,23 @@ from .gmm_diag_cov import GMMDiagCov
 
 
 class GMMTiedDiagCov(GMMDiagCov):
+    """Class for GMM with diagonal covariance tied across components.
+
+    Attributes:
+      num_comp: number of components of the mixture (intered from pi).
+      pi: weights of the components.
+      mu: mean with shape (num_comp, x_dim,) or None.
+      Lambda: precision with shape (num_comp, x_dim, x_dim) or None.
+      var_floor: variance floor.
+      update_mu: whether or not update mu when optimizing.
+      update_Lambda: wether or not update Lambda when optimizing.
+      x_dim: data dim (infered from mu if present)
+    """
+
     def __init__(
         self,
+        num_comp=1,
+        pi=None,
         mu=None,
         Lambda=None,
         var_floor=1e-3,
@@ -30,6 +45,8 @@ class GMMTiedDiagCov(GMMDiagCov):
         **kwargs
     ):
         super().__init__(
+            num_comp=num_comp,
+            pi=pi,
             mu=mu,
             Lambda=Lambda,
             var_floor=var_floor,
@@ -49,11 +66,18 @@ class GMMTiedDiagCov(GMMDiagCov):
             self._compute_std_params()
 
     def _initialize_stdnormal(self):
+        """Initializes a single component GMM with std. Normal."""
         self.pi = np.array([1], dtype=float_cpu())
         self.mu = np.zeros((1, self.x_dim), dtype=float_cpu())
         self.Lambda = np.ones((self.x_dim,), dtype=float_cpu())
 
     def _initialize_kmeans(self, num_comp, x):
+        """Initializes the GMM with K-Means.
+
+        Args:
+          num_comp: number of components.
+          x: initialization data with shape (num_samples, x_dim).
+        """
         if num_comp == 1:
             self.pi = np.array([1], dtype=float_cpu())
             self.mu = np.mean(x, axis=0, keepdims=True)
@@ -75,7 +99,13 @@ class GMMTiedDiagCov(GMMDiagCov):
         self.Lambda = x.shape[0] / C
 
     def Mstep(self, N, u_x):
+        """Maximization step.
 
+        Args:
+          N: zeroth order stats.
+          u_x: accumlated higher order stats.
+
+        """
         F, S = self.unstack_suff_stats(u_x)
 
         if self.update_mu:
@@ -95,15 +125,22 @@ class GMMTiedDiagCov(GMMDiagCov):
             N0 = N < self.min_N
             if np.any(N0):
                 N[N0] = 0
-                mu[N0] = 0
-                S[N0] = 1
+                self.mu[N0] = 0
+
             self.pi = N / np.sum(N)
             self._log_pi = None
 
         self._compute_nat_params()
 
     def split_comp(self, K=2):
+        """Creates a new GMM with K x num_componentes.
 
+        Args:
+          K: multiplier for the number of components
+
+        Returns:
+          GMMTiedDiagConv object.
+        """
         std_dev = 1 / self.cholLambda
 
         num_comp = self.num_comp * K
@@ -122,6 +159,15 @@ class GMMTiedDiagCov(GMMDiagCov):
         return DiagGMMTiedCov(pi=pi, mu=mu, Lambda=self.Lambda, **config)
 
     def log_prob_std(self, x):
+        """log p(x) of each data sample computed using the
+        standard parameters of the distribution.
+
+        Args:
+          x: input data with shape (num_samples, x_dim).
+
+        Returns:
+          log p(x) with shape (num_samples,)
+        """
         r0 = self.log_pi + 0.5 * self.logLambda - 0.5 * self.x_dim * np.log(2 * np.pi)
         llk_k = np.zeros((x.shape[0], self.num_comp), dtype=float_cpu())
         for k in range(self.num_comp):
@@ -130,6 +176,7 @@ class GMMTiedDiagCov(GMMDiagCov):
         return logsumexp(llk_k, axis=-1)
 
     def log_cdf(self, x):
+        """Log cumulative distribution function."""
         llk_k = np.zeros((x.shape[0], self.num_comp), dtype=float_cpu())
         for k in range(self.num_comp):
             delta = (x - self.mu[k]) * self.cholLambda
@@ -138,11 +185,24 @@ class GMMTiedDiagCov(GMMDiagCov):
 
         return logsumexp(llk_k)
 
-    def sample(self, num_samples, rng=None, seed=1024):
+    def sample(self, num_samples=1, rng=None, seed=1024, r=None):
+        """Draws samples from the data distribution.
+
+        Args:
+          num_samples: number of samples.
+          rng: random number generator.
+          seed: random seed used if rng is None.
+
+        Returns:
+          Generated samples with shape (num_samples, x_dim).
+        """
         if rng is None:
             rng = np.random.RandomState(seed)
 
-        r = rng.multinomial(1, self.pi, size=(num_samples,))
+        if r is None:
+            r = rng.multinomial(1, self.pi, size=(num_samples,))
+        else:
+            num_samples = len(r)
         x = rng.normal(size=(num_samples, self.x_dim)).astype(float_cpu())
 
         for k in range(self.num_comp):
@@ -157,12 +217,14 @@ class GMMTiedDiagCov(GMMDiagCov):
 
     @staticmethod
     def compute_eta(mu, Lambda):
+        """Computes nat param. from mean and precision."""
         Lmu = Lambda * mu
         eta = np.hstack((Lmu, -0.5 * np.tile(Lambda, (mu.shape[0], 1))))
         return eta
 
     @staticmethod
     def compute_std(eta):
+        """Computes standard params. from the natural param."""
         x_dim = int(eta.shape[-1] / 2)
         eta1 = eta[:, :x_dim]
         eta2 = eta[:, x_dim:]
@@ -171,24 +233,56 @@ class GMMTiedDiagCov(GMMDiagCov):
         return mu, Lambda
 
     def plot1D(self, feat_idx=0, num_sigmas=2, num_pts=100, **kwargs):
+        """Plots one slice of each GMM component in 1d.
+
+        Args:
+          feat_idx: feature index.
+          num_sigmas: size of the plot in number of standard devs.
+          num_pts: number of points in the graph.
+          **kwargs: pyplot options.
+        """
         mu = self.mu[:, feat_idx]
         C = 1 / self.Lambda[feat_idx]
         for k in range(mu.shape[0]):
             plot_gaussian_1D(mu[k], C, num_sigmas, num_pts, **kwargs)
 
     def plot2D(self, feat_idx=[0, 1], num_sigmas=2, num_pts=100, **kwargs):
+        """Plots 2 dimensions of each GMM component in 2d.
+
+        Args:
+          feat_idx: feature indeces.
+          num_sigmas: size of the plot in number of standard devs.
+          num_pts: number of points in the graph.
+          **kwargs: pyplot options.
+        """
         mu = self.mu[:, feat_idx]
         C = np.diag(1 / self.Lambda[feat_idx])
         for k in range(mu.shape[0]):
             plot_gaussian_ellipsoid_2D(mu[k], C, num_sigmas, num_pts, **kwargs)
 
     def plot3D(self, feat_idx=[0, 1], num_sigmas=2, num_pts=100, **kwargs):
+        """Plots 2 dimensions of each GMM component in 3d.
+
+        Args:
+          feat_idx: feature indeces.
+          num_sigmas: size of the plot in number of standard devs.
+          num_pts: number of points in the graph.
+          **kwargs: pyplot options.
+        """
         mu = self.mu[:, feat_idx]
         C = np.diag(1 / self.Lambda[feat_idx])
         for k in range(mu.shape[0]):
             plot_gaussian_3D(mu[k], C, num_sigmas, num_pts, **kwargs)
 
     def plot3D_ellipsoid(self, feat_idx=[0, 1, 2], num_sigmas=2, num_pts=100, **kwargs):
+        """Plots 3 dimensions of each GMM component in 3d.
+
+        Args:
+          feat_idx: feature indeces.
+          num_sigmas: size of the plot in number of standard devs.
+          num_pts: number of points in the graph.
+          **kwargs: pyplot options.
+        """
         mu = self.mu[:, feat_idx]
         C = np.diag(1 / self.Lambda[feat_idx])
         for k in range(mu.shape[0]):

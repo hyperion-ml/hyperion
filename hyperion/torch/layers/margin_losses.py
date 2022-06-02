@@ -22,6 +22,9 @@ def _l2_norm(x, axis=-1):
 class ArcLossOutput(nn.Module):
     """Additive angular margin softmax (ArcFace) output layer.
 
+    It includes the option to also use InterTopK penalty:
+    https://arxiv.org/abs/2109.01989
+
     Attributes:
       in_feats: input feature dimension.
       num_classes: number of output classes.
@@ -29,10 +32,19 @@ class ArcLossOutput(nn.Module):
       margin: angular margin.
       margin_warmup_epochs: number of epochs to warm up the margin from 0 to
                             its final value.
+      intertop_k: adds negative angular penalty to k largest negative scores.
+      intertop_margin: inter-top-k penalty.
     """
 
     def __init__(
-        self, in_feats, num_classes, cos_scale=64, margin=0.3, margin_warmup_epochs=0
+        self,
+        in_feats,
+        num_classes,
+        cos_scale=64,
+        margin=0.3,
+        margin_warmup_epochs=0,
+        intertop_k=5,
+        intertop_margin=0,
     ):
         super().__init__()
         self.in_feats = in_feats
@@ -40,10 +52,14 @@ class ArcLossOutput(nn.Module):
         self.cos_scale = cos_scale
         self.margin = margin
         self.margin_warmup_epochs = margin_warmup_epochs
+        self.intertop_k = intertop_k
+        self.intertop_margin = intertop_margin
         if margin_warmup_epochs == 0:
             self.cur_margin = margin
+            self.cur_intertop_margin = intertop_margin
         else:
             self.cur_margin = 0
+            self.cur_intertop_margin = 0
 
         self._compute_aux()
 
@@ -54,20 +70,28 @@ class ArcLossOutput(nn.Module):
         return self.__str__()
 
     def __str__(self):
-        s = "%s(in_feats=%d, num_classes=%d, cos_scale=%.2f, margin=%.2f, margin_warmup_epochs=%d)" % (
+        s = "%s(in_feats=%d, num_classes=%d, cos_scale=%.2f, margin=%.2f, margin_warmup_epochs=%d, intertop_k=%d, intertop_margin=%f)" % (
             self.__class__.__name__,
             self.in_feats,
             self.num_classes,
             self.cos_scale,
             self.margin,
             self.margin_warmup_epochs,
+            self.intertop_k,
+            self.intertop_margin,
         )
         return s
 
     def _compute_aux(self):
-        logging.info("updating arc-softmax margin=%.2f" % (self.cur_margin))
+        logging.info(
+            "updating arc-softmax margin=%.2f intertop-margin=%.2f",
+            self.cur_margin,
+            self.cur_intertop_margin,
+        )
         self.cos_m = math.cos(self.cur_margin)
         self.sin_m = math.sin(self.cur_margin)
+        self.intertop_cos_m = math.cos(self.cur_intertop_margin)
+        self.intertop_sin_m = math.sin(self.cur_intertop_margin)
 
     def update_margin(self, epoch):
         """Updates the value of the margin.
@@ -80,9 +104,13 @@ class ArcLossOutput(nn.Module):
 
         if epoch < self.margin_warmup_epochs:
             self.cur_margin = self.margin * epoch / self.margin_warmup_epochs
+            self.cur_intertop_margin = (
+                self.intertop_margin * epoch / self.margin_warmup_epochs
+            )
         else:
             if self.cur_margin != self.margin:
                 self.cur_margin = self.margin
+                self.cur_intertop_margin = self.intertop_margin
             else:
                 return
 
@@ -117,7 +145,35 @@ class ArcLossOutput(nn.Module):
                 cos_theta_m = cos_theta * self.cos_m - sin_theta * self.sin_m
 
                 idx_ = torch.arange(0, batch_size, dtype=torch.long)
+                # if torch.distributed.get_rank() == 0:
+                #     print("o1", output[idx_, y])
                 output[idx_, y] = cos_theta_m[idx_, y]
+                # if torch.distributed.get_rank() == 0:
+                #     print("o2", output[idx_, y])
+                if self.cur_intertop_margin > 0:
+                    # implementation of intertop-K
+                    # set positive scores to -inf so they don't appear in the top k
+                    cos_aux = cos_theta * 1
+                    cos_aux[idx_, y] = -1e10
+                    # find topk indices for negative samples
+                    topk = torch.topk(cos_aux, k=self.intertop_k, dim=-1, sorted=False)
+                    idx_ = (
+                        idx_.unsqueeze(-1).expand(batch_size, self.intertop_k).flatten()
+                    )
+                    topk_idx = topk.indices.flatten()
+                    # compute cos(theta-m')
+                    cos_theta_m = (
+                        cos_theta[idx_, topk_idx] * self.intertop_cos_m
+                        + sin_theta[idx_, topk_idx] * self.intertop_sin_m
+                    )
+                    # take the maximum for the cases where m' is larger than theta to get cos(max(0, theta-m'))
+                    # if torch.distributed.get_rank() == 0:
+                    #     print("o3", output[idx_, topk_idx])
+                    output[idx_, topk_idx] = torch.maximum(
+                        output[idx_, topk_idx], cos_theta_m
+                    )
+                    # if torch.distributed.get_rank() == 0:
+                    #     print("o4", output[idx_, topk_idx], flush=True)
 
             output *= s  # scale up in order to make softmax work
             return output
@@ -133,10 +189,19 @@ class CosLossOutput(nn.Module):
       margin: angular margin.
       margin_warmup_epochs: number of epochs to warm up the margin from 0 to
                             its final value.
+      intertop_k: adds negative angular penalty to k largest negative scores.
+      intertop_margin: inter-top-k penalty.
     """
 
     def __init__(
-        self, in_feats, num_classes, cos_scale=64, margin=0.3, margin_warmup_epochs=0
+        self,
+        in_feats,
+        num_classes,
+        cos_scale=64,
+        margin=0.3,
+        margin_warmup_epochs=0,
+        intertop_k=5,
+        intertop_margin=0.0,
     ):
         super().__init__()
         self.in_feats = in_feats
@@ -144,13 +209,33 @@ class CosLossOutput(nn.Module):
         self.cos_scale = cos_scale
         self.margin = margin
         self.margin_warmup_epochs = margin_warmup_epochs
+        self.intertop_k = intertop_k
+        self.intertop_margin = intertop_margin
         if margin_warmup_epochs == 0:
             self.cur_margin = margin
+            self.cur_intertop_margin = intertop_margin
         else:
             self.cur_margin = 0
+            self.cur_intertop_margin = 0
 
         self.kernel = nn.Parameter(torch.Tensor(in_feats, num_classes))
         self.kernel.data.uniform_(-1, 1).renorm_(2, 1, 1e-5).mul_(1e5)
+
+    def __repr__(self):
+        return self.__str__()
+
+    def __str__(self):
+        s = "%s(in_feats=%d, num_classes=%d, cos_scale=%.2f, margin=%.2f, margin_warmup_epochs=%d, intertop_k=%d, intertop_margin=%f)" % (
+            self.__class__.__name__,
+            self.in_feats,
+            self.num_classes,
+            self.cos_scale,
+            self.margin,
+            self.margin_warmup_epochs,
+            self.intertop_k,
+            self.intertop_margin,
+        )
+        return s
 
     def update_margin(self, epoch):
         """Updates the value of the margin.
@@ -163,11 +248,23 @@ class CosLossOutput(nn.Module):
 
         if epoch < self.margin_warmup_epochs:
             self.cur_margin = self.margin * epoch / self.margin_warmup_epochs
-            logging.info("updating cos-softmax margin=%.2f" % (self.cur_margin))
+            logging.info(
+                "updating cos-softmax margin=%.2f intertop-margin=%.2f",
+                self.cur_margin,
+                self.cur_intertop_margin,
+            )
+            self.cur_intertop_margin = (
+                self.intertop_margin * epoch / self.margin_warmup_epochs
+            )
         else:
             if self.cur_margin != self.margin:
                 self.cur_margin = self.margin
-                logging.info("updating cos-softmax margin=%.2f" % (self.cur_margin))
+                self.cur_intertop_margin = self.intertop_margin
+                logging.info(
+                    "updating cos-softmax margin=%.2f intertop-margin=%.2f",
+                    self.cur_margin,
+                    self.cur_intertop_margin,
+                )
             else:
                 return
 
@@ -198,6 +295,21 @@ class CosLossOutput(nn.Module):
                 cos_theta_m = cos_theta - self.cur_margin
                 idx_ = torch.arange(0, batch_size, dtype=torch.long)
                 output[idx_, y] = cos_theta_m[idx_, y]
+                if self.cur_intertop_margin > 0:
+                    # implementation of intertop-K
+                    # set positive scores to -inf so they don't appear in the top k
+                    cos_aux = cos_theta * 1
+                    cos_aux[idx_, y] = -1e10
+                    # find topk indices for negative samples
+                    topk = torch.topk(cos_aux, k=self.intertop_k, dim=-1, sorted=False)
+                    idx_ = (
+                        idx_.unsqueeze(-1).expand(batch_size, self.intertop_k).flatten()
+                    )
+                    topk_idx = topk.indices.flatten()
+                    # compute cos(theta) + m'
+                    cos_theta_m = cos_theta[idx_, topk_idx] + self.cur_intertop_margin
+                    # clamp so cos cannt be larger than 1.
+                    output[idx_, topk_idx] = cos_theta_m.clamp(max=1.0)
 
             output *= s  # scale up in order to make softmax work
             return output
@@ -214,6 +326,8 @@ class SubCenterArcLossOutput(ArcLossOutput):
       margin: angular margin.
       margin_warmup_epochs: number of epochs to warm up the margin from 0 to
                             its final value.
+      intertop_k: adds negative angular penalty to k largest negative scores.
+      intertop_margin: inter-top-k penalty.
     """
 
     def __init__(
@@ -224,6 +338,8 @@ class SubCenterArcLossOutput(ArcLossOutput):
         cos_scale=64,
         margin=0.3,
         margin_warmup_epochs=0,
+        intertop_k=5,
+        intertop_margin=0.0,
     ):
         super().__init__(
             in_feats,
@@ -231,12 +347,14 @@ class SubCenterArcLossOutput(ArcLossOutput):
             cos_scale,
             margin,
             margin_warmup_epochs,
+            intertop_k,
+            intertop_margin,
         )
         self.num_classes = num_classes
         self.num_subcenters = num_subcenters
 
     def __str__(self):
-        s = "%s(in_feats=%d, num_classes=%d, num_subcenters=%d, cos_scale=%.2f, margin=%.2f, margin_warmup_epochs=%d)" % (
+        s = "%s(in_feats=%d, num_classes=%d, num_subcenters=%d, cos_scale=%.2f, margin=%.2f, margin_warmup_epochs=%d, intertop_k=%d, intertop_margin=%f)" % (
             self.__class__.__name__,
             self.in_feats,
             self.num_classes,
@@ -244,6 +362,8 @@ class SubCenterArcLossOutput(ArcLossOutput):
             self.cos_scale,
             self.margin,
             self.margin_warmup_epochs,
+            self.intertop_k,
+            self.intertop_margin,
         )
         return s
 
@@ -283,6 +403,26 @@ class SubCenterArcLossOutput(ArcLossOutput):
 
                 idx_ = torch.arange(0, batch_size, dtype=torch.long)
                 output[idx_, y] = cos_theta_m[idx_, y]
+                if self.cur_intertop_margin > 0:
+                    # implementation of intertop-K
+                    # set positive scores to -inf so they don't appear in the top k
+                    cos_aux = cos_theta * 1
+                    cos_aux[idx_, y] = -1e10
+                    # find topk indices for negative samples
+                    topk = torch.topk(cos_aux, k=self.intertop_k, dim=-1, sorted=False)
+                    idx_ = (
+                        idx_.unsqueeze(-1).expand(batch_size, self.intertop_k).flatten()
+                    )
+                    topk_idx = topk.indices.flatten()
+                    # compute cos(theta-m')
+                    cos_theta_m = (
+                        cos_theta[idx_, topk_idx] * self.intertop_cos_m
+                        + sin_theta[idx_, topk_idx] * self.intertop_sin_m
+                    )
+                    # take the maximum for the cases where m' is larger than theta to get cos(max(0, theta-m'))
+                    output[idx_, topk_idx] = torch.maximum(
+                        output[idx_, topk_idx], cos_theta_m
+                    )
 
             output *= s  # scale up in order to make softmax work
             return output

@@ -38,6 +38,8 @@ class XVector(TorchModel):
         cos_scale=64,
         margin=0.3,
         margin_warmup_epochs=0,
+        intertop_k=5,
+        intertop_margin=0.0,
         num_subcenters=2,
         norm_layer=None,
         head_norm_layer=None,
@@ -120,6 +122,8 @@ class XVector(TorchModel):
             cos_scale=cos_scale,
             margin=margin,
             margin_warmup_epochs=margin_warmup_epochs,
+            intertop_k=intertop_k,
+            intertop_margin=intertop_margin,
             num_subcenters=num_subcenters,
             norm_layer=head_norm_layer,
             use_norm=use_norm,
@@ -162,6 +166,14 @@ class XVector(TorchModel):
     @property
     def margin_warmup_epochs(self):
         return self.classif_net.margin_warmup_epochs
+
+    @property
+    def intertop_k(self):
+        return self.classif_net.intertop_k
+
+    @property
+    def intertop_margin(self):
+        return self.classif_net.intertop_margin
 
     @property
     def num_subcenters(self):
@@ -490,6 +502,8 @@ class XVector(TorchModel):
             "cos_scale": self.cos_scale,
             "margin": self.margin,
             "margin_warmup_epochs": self.margin_warmup_epochs,
+            "intertop_k": self.intertop_k,
+            "intertop_margin": self.intertop_margin,
             "num_subcenters": self.num_subcenters,
             "norm_layer": self.norm_layer,
             "head_norm_layer": self.head_norm_layer,
@@ -560,6 +574,7 @@ class XVector(TorchModel):
         elif mode == "frozen":
             self.freeze()
         elif mode == "ft-embed-affine":
+            self.unfreeze()
             self.freeze_preembed_layers()
         else:
             raise ValueError(f"invalid train_mode={mode}")
@@ -581,7 +596,8 @@ class XVector(TorchModel):
         else:
             raise ValueError(f"invalid train_mode={train_mode}")
 
-    def valid_train_modes(self):
+    @staticmethod
+    def valid_train_modes():
         return ["full", "frozen", "ft-embed-affine"]
 
     @staticmethod
@@ -607,6 +623,8 @@ class XVector(TorchModel):
             "cos_scale",
             "margin",
             "margin_warmup_epochs",
+            "intertop_k",
+            "intertop_margin",
             "num_subcenters",
             "use_norm",
             "norm_before",
@@ -668,6 +686,16 @@ class XVector(TorchModel):
             default=10,
             type=float,
             help="number of epoch until we set the final margin",
+        )
+
+        parser.add_argument(
+            "--intertop-k", default=5, type=int, help="K for InterTopK penalty"
+        )
+        parser.add_argument(
+            "--intertop-margin",
+            default=0.0,
+            type=float,
+            help="margin for InterTopK penalty",
         )
 
         parser.add_argument(
@@ -760,9 +788,15 @@ class XVector(TorchModel):
 
     @staticmethod
     def filter_finetune_args(**kwargs):
-        valid_args = ("loss_type", "cos_scale", "margin", "margin_warmup_epochs")
+        valid_args = (
+            "loss_type",
+            "cos_scale",
+            "margin",
+            "margin_warmup_epochs",
+            "intertop_k",
+            "intertop_margin",
+        )
         args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
-
         return args
 
     @staticmethod
@@ -791,6 +825,16 @@ class XVector(TorchModel):
             default=10,
             type=float,
             help="number of epoch until we set the final margin",
+        )
+
+        parser.add_argument(
+            "--intertop-k", default=5, type=int, help="K for InterTopK penalty"
+        )
+        parser.add_argument(
+            "--intertop-margin",
+            default=0.0,
+            type=float,
+            help="margin for InterTopK penalty",
         )
 
         parser.add_argument(

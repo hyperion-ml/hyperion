@@ -5,20 +5,27 @@
 
 import numpy as np
 
-from abc import ABCMeta, abstractmethod
 from .pdf import PDF
 
 
 class ExpFamily(PDF):
-    __metaclass__ = ABCMeta
+    """Base class for exponential family distribution.
+
+    p(x) = h(x) exp(\eta u(x) - A)
+
+    Attributes:
+      eta: natural parameters of the distribution.
+      x_dim: data dimension.
+    """
 
     def __init__(self, eta=None, **kwargs):
-        super(ExpFamily, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         self.eta = eta
         self.A = None
 
     @property
     def is_init(self):
+        """Returns True if the model has been initialized."""
         if not self._is_init:
             self._compute_nat_std()
             if self.eta is not None and self.A is not None:
@@ -29,6 +36,21 @@ class ExpFamily(PDF):
     def fit(
         self, x, sample_weight=None, x_val=None, sample_weight_val=None, batch_size=None
     ):
+        """Trains the model.
+
+        Args:
+          x: train data matrix with shape (num_samples, x_dim).
+          sample_weight: weight of each sample in the training loss shape (num_samples,).
+          x_val: validation data matrix with shape (num_val_samples, x_dim).
+          sample_weight_val: weight of each sample in the val. loss.
+          batch_size: accumlates sufficient statistics in batch_size blocks.
+
+        Returns:
+          log p(X) of the training data.
+          log p(x) per sample.
+          log p(X) of the val. data, if present.
+          log p(x) of the val. data per sample, if present.
+        """
 
         N, u_x = self.Estep(x=x, sample_weight=sample_weight, batch_size=batch_size)
         self.Mstep(N, u_x)
@@ -44,23 +66,49 @@ class ExpFamily(PDF):
         return elbo
 
     def log_h(self, x):
+        """Computes log h(x) of the exp. family."""
         return 0
 
     def accum_log_h(self, x, sample_weight=None):
+        """Accumlates log h(x)"""
         if sample_weight is None:
             return np.sum(self.log_h(x))
         return np.sum(sample_weight * self.log_h(x))
 
     def compute_suff_stats(self, x):
+        """Computes sufficient stats for a data sample."""
         return x
 
     def accum_suff_stats(self, x, u_x=None, sample_weight=None, batch_size=None):
+        """Accumlates sufficient statistis over several data samples.
+
+        Args:
+          x: data samples of shape (num_samples, x_dim).
+          u_x: sufficient stats for x with shape = (num_samples, u(x)_dim) (optional).
+          sample_weight: weight of each sample in the accumalation.
+          batch_size: accumlates sufficient statistics in batch_size blocks.
+
+        Returns:
+          N zero order sufficient statistics (number of samples).
+          Accumlated sufficient statistics \sum u(x)
+        """
         if u_x is not None or batch_size is None:
             return self._accum_suff_stats_1batch(x, u_x, sample_weight)
         else:
             return self._accum_suff_stats_nbatches(x, sample_weight, batch_size)
 
     def _accum_suff_stats_1batch(self, x, u_x=None, sample_weight=None):
+        """Accumlates sufficient statistis over several data samples for a single batch.
+
+        Args:
+          x: data samples of shape (num_samples, x_dim).
+          u_x: sufficient stats for x with shape = (num_samples, u(x)_dim) (optional).
+          sample_weight: weight of each sample in the accumalation.
+
+        Returns:
+          N zero order sufficient statistics (number of samples).
+          Accumlated sufficient statistics \sum u(x)
+        """
         if u_x is None:
             u_x = self.compute_suff_stats(x)
         if sample_weight is None:
@@ -72,6 +120,18 @@ class ExpFamily(PDF):
         return N, acc_u_x
 
     def _accum_suff_stats_nbatches(self, x, sample_weight, batch_size):
+        """Accumlates sufficient statistis over several data samples for multiple batches.
+
+        Args:
+          x: data samples of shape (num_samples, x_dim).
+          u_x: sufficient stats for x with shape = (num_samples, u(x)_dim) (optional).
+          sample_weight: weight of each sample in the accumalation.
+          batch_size: accumlates sufficient statistics in batch_size blocks.
+
+        Returns:
+          N zero order sufficient statistics (number of samples).
+          Accumlated sufficient statistics \sum u(x)
+        """
         sw_i = None
         for i1 in range(0, x.shape[0], batch_size):
             i2 = np.minimum(i1 + batch_size, x.shape[0])
@@ -87,23 +147,56 @@ class ExpFamily(PDF):
                 u_x += u_x_i
         return N, u_x
 
-    def add_suff_stats(self, N, u_x):
+    def sum_suff_stats(self, N, u_x):
+        """Sums suff. stats from muttiple sub-processes.
+
+        Args:
+          N: zero order stats with shape = (num_proc,)
+          u_x: higher order stats with shape = (num_proc, u(x)_dim).
+
+        Args:
+          Accumalted N and u_x.
+        """
         assert len(N) == len(u_x)
         acc_N = N[1]
         acc_u_x = u_x[1]
         for i in range(1, len(N)):
             acc_N += N
-            acc_u_x += u[i]
+            acc_u_x += u_x[i]
         return acc_N, acc_u_x
 
     def Estep(self, x, u_x=None, sample_weight=None, batch_size=None):
+        """Expectation step, accumlates suff. stats.
+
+        Args:
+          x: data samples of shape (num_samples, x_dim).
+          u_x: sufficient stats for x with shape = (num_samples, u(x)_dim) (optional).
+          sample_weight: weight of each sample in the accumalation.
+          batch_size: accumlates sufficient statistics in batch_size blocks.
+
+        Returns:
+          N zero order sufficient statistics (number of samples).
+          Accumlated sufficient statistics \sum u(x)
+        """
         return self.accum_suff_stats(x, u_x, sample_weight, batch_size)
 
-    @abstractmethod
     def Mstep(self, stats):
+        """Maximization step."""
         pass
 
     def elbo(self, x, u_x=None, N=1, log_h=None, sample_weight=None, batch_size=None):
+        """Evidence lower bound.
+
+        Args:
+          x: data samples with shape = (num_samples, x_dim).
+          u_x: accumlated u(x) (optional).
+          log_h: accumlated log h(x) (optional).
+          sample_weight: weigth of each sample in the loss function.
+          batch_size: accumlates sufficient statistics in batch_size blocks.
+
+        Returns:
+          log p(X) of the data.
+        """
         assert self.is_init
         if u_x is None:
             N, u_x = self.accum_suff_stats(
@@ -114,12 +207,33 @@ class ExpFamily(PDF):
         return log_h + np.inner(u_x, self.eta) - N * self.A
 
     def log_prob(self, x, u_x=None, method="nat"):
+        """log p(x) of each data sample.
+
+        Args:
+          x: input data with shape (num_samples, x_dim).
+          u_x: sufficient stats u(x) with shape (num_samples, u_dim).
+          method: the probability is computed using standard ("std") or
+            natural parameters ("nat").
+
+        Returns:
+          log p(x) with shape (num_samples,)
+        """
         if method == "nat":
             return self.log_prob_nat(x, u_x)
         else:
             return self.log_prob_std(x)
 
     def log_prob_nat(self, x, u_x=None):
+        """log p(x) of each data sample computed using the
+        natural parameters of the distribution.
+
+        Args:
+          x: input data with shape (num_samples, x_dim).
+          u_x: sufficient stats u(x) with shape (num_samples, u_dim).
+
+        Returns:
+          log p(x) with shape (num_samples,)
+        """
         assert self.is_init
         if u_x is None:
             u_x = self.compute_suff_stats(x)
@@ -127,31 +241,32 @@ class ExpFamily(PDF):
 
     @staticmethod
     def compute_A_nat(eta):
+        """Computes A_theta from the natural param."""
         raise NotImplementedError()
 
     @staticmethod
     def compute_A_std(params):
+        """Computes A_theta from the standard param."""
         raise NotImplementedError()
 
     @staticmethod
     def compute_eta(param):
+        """Computes the natural param. from the standard param."""
         raise NotImplementedError()
 
     @staticmethod
     def compute_std(eta):
+        """Computes the standard param. from the natural param."""
         raise NotImplementedError()
 
-    @abstractmethod
     def _compute_nat_params(self):
         pass
 
-    @abstractmethod
     def _compute_std_params(self):
         pass
 
     def _compute_nat_std(self):
         pass
 
-    @abstractmethod
     def validate(self):
         pass

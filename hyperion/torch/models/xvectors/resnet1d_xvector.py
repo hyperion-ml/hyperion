@@ -26,6 +26,8 @@ class ResNet1dXVector(XVector):
         cos_scale=64,
         margin=0.3,
         margin_warmup_epochs=0,
+        intertop_k=5,
+        intertop_margin=0.0,
         num_subcenters=2,
         dropout_rate=0,
         norm_layer=None,
@@ -52,6 +54,8 @@ class ResNet1dXVector(XVector):
             cos_scale=cos_scale,
             margin=margin,
             margin_warmup_epochs=margin_warmup_epochs,
+            intertop_k=intertop_k,
+            intertop_margin=intertop_margin,
             num_subcenters=num_subcenters,
             norm_layer=norm_layer,
             head_norm_layer=head_norm_layer,
@@ -61,58 +65,6 @@ class ResNet1dXVector(XVector):
             embed_layer=embed_layer,
             proj_feats=proj_feats,
         )
-
-    # @property
-    # def in_channels(self):
-    #     return self.encoder_net.in_channels
-
-    # @property
-    # def conv_channels(self):
-    #     return self.encoder_net.conv_channels
-
-    # @property
-    # def base_channels(self):
-    #     return self.encoder_net.base_channels
-
-    # @property
-    # def in_kernel_size(self):
-    #     return self.encoder_net.in_kernel_size
-
-    # @property
-    # def in_stride(self):
-    #     return self.encoder_net.in_stride
-
-    # @property
-    # def zero_init_residual(self):
-    #     return self.encoder_net.zero_init_residual
-
-    # @property
-    # def groups(self):
-    #     return self.encoder_net.groups
-
-    # @property
-    # def replace_stride_with_dilation(self):
-    #     return self.encoder_net.replace_stride_with_dilation
-
-    # @property
-    # def do_maxpool(self):
-    #     return self.encoder_net.do_maxpool
-
-    # @property
-    # def in_norm(self):
-    #     return self.encoder_net.in_norm
-
-    # @property
-    # def se_r(self):
-    #     return self.encoder_net.se_r
-
-    # @property
-    # def res2net_scale(self):
-    #     return self.encoder_net.res2net_scale
-
-    # @property
-    # def res2net_width_factor(self):
-    #     return self.encoder_net.res2net_width_factor
 
     def get_config(self):
 

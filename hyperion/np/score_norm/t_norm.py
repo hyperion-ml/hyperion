@@ -13,7 +13,15 @@ class TNorm(ScoreNorm):
     """Class for T-Norm score normalization."""
 
     def predict(self, scores, scores_coh_test, mask=None):
+        """Normalizes the scores.
 
+        Args:
+          scores: score matrix enroll vs. test.
+          scores_coh_test: score matrix cohort vs. test.
+          mask: binary matrix to mask out target trials
+            from cohort vs test matrix.
+
+        """
         if mask is None:
             mu_t = np.mean(scores_coh_test, axis=0, keepdims=True)
             s_t = np.std(scores_coh_test, axis=0, keepdims=True)

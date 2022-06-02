@@ -11,6 +11,22 @@ from .plda_base import PLDABase
 
 
 class SPLDA(PLDABase):
+    """Class for Simplied Probabilistic Discriminant Analysis (SPLDA).
+     .. math::
+        \mathbf{x}_{ij} = \mu + \mathbf{V} \mathbf{y}_i + \varepsilon_{ij}
+
+    Attributes:
+      y_dim: speaker factor dimension.
+      mu: class-independent mean.
+      V: speaker factor loading matrix.
+      W: within-class precision.
+      fullcov_W: whether W is full-precision matrix or not.
+      update_mu: whether to update mu or not when training the model.
+      update_V: whether to update V or not when training the model.
+      update_W: whether to update W or not when training the model.
+      x_dim: data dimension.
+    """
+
     def __init__(
         self,
         y_dim=None,
@@ -33,6 +49,7 @@ class SPLDA(PLDABase):
         self.update_W = update_W
 
     def validate(self):
+        """Validates the model parameters."""
         assert self.mu.shape[0] >= self.V.shape[0]
         assert self.mu.shape[0] == self.V.shape[1]
         assert self.mu.shape[0] == self.W.shape[0]
@@ -40,6 +57,7 @@ class SPLDA(PLDABase):
 
     @property
     def is_init(self):
+        """Returns True if the model has been initialized."""
         if self._is_init:
             return True
         if self.mu is not None and self.V is not None and self.W is not None:
@@ -48,6 +66,11 @@ class SPLDA(PLDABase):
         return self._is_init
 
     def initialize(self, D):
+        """initializes the model.
+
+        Args:
+          D: tuple of sufficient statistics (N, F, S)
+        """
         N, F, S = D
         self.x_dim = F.shape[1]
         M = F.shape[0]
@@ -73,6 +96,21 @@ class SPLDA(PLDABase):
     def compute_py_g_x(
         self, D, return_cov=False, return_logpy_0=False, return_acc=False
     ):
+        """Computes the posterior P(y|x)
+
+        Args:
+          D: tuple of sufficient statistics (N, F, S)
+          return_cov: whether or not to return the posterior covariances.
+          return_logpy_0: whether or not to return log P(y=0|x).
+          return_acc: whether or not to return Ry and Py accumulators.
+
+        Returns:
+          Speaker factor posterior means with shape (num_speakers, y_dim)
+          Speaker factor posterior convariances with shape (num_speakers, y_dim, y_dim)
+          log P(y=0|x) with shape (num_spakers,)
+          Ry accumlator for ML step with shape (y_dim, y_dim)
+          Py accumlator for MD step with shape (y_dim, y_dim)
+        """
         N, F, S = D
         Fc = F - self.mu
 
@@ -158,6 +196,14 @@ class SPLDA(PLDABase):
         return tuple(r)
 
     def Estep(self, D):
+        """Expectation step.
+
+        Args:
+          D: tuple with sufficient statistics (N, F, S)
+
+        Returns:
+          Tuple of statistics with accumlated expectations.
+        """
         N, F, S = D
         y, logpy, Ry, Py = self.compute_py_g_x(D, return_logpy_0=True, return_acc=True)
 
@@ -179,6 +225,14 @@ class SPLDA(PLDABase):
         return stats
 
     def elbo(self, stats):
+        """Computes the objective function.
+
+        Args:
+          stats: tuple of expectations computed at the Estep.
+
+        Returns:
+         log P(X)
+        """
         N, M, F, S, logpy_x = stats[:5]
 
         logW = logdet_pdmat(self.W)
@@ -196,6 +250,12 @@ class SPLDA(PLDABase):
         return elbo
 
     def MstepML(self, stats):
+        """Maximum likelihood estimation step.
+
+        Args:
+          stats: tuple of expectations computed at the Estep.
+
+        """
         N, M, F, S, _, y_acc, Ry1, Ry, Cy, Py = stats
 
         a = np.hstack((Ry, Ry1[:, None]))
@@ -230,6 +290,12 @@ class SPLDA(PLDABase):
                 self.W = np.diag(1 / np.diag(iW))
 
     def MstepMD(self, stats):
+        """Minimum divergence estimation step.
+
+        Args:
+          stats: tuple of expectations computed at the Estep.
+
+        """
         N, M, F, S, _, y_acc, Ry1, Ry, Cy, Py = stats
         mu_y = y_acc / M
 
@@ -242,26 +308,51 @@ class SPLDA(PLDABase):
             self.V = np.dot(chol_Cov_y, self.V)
 
     def get_config(self):
+        """Returns the model configuration dict."""
         config = {
             "update_W": self.update_W,
             "update_V": self.update_V,
             "fullcov_W": self.fullcov_W,
         }
-        base_config = super(SPLDA, self).get_config()
+        base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
     def save_params(self, f):
+        """Saves the model paramters into the file.
+
+        Args:
+          f: file handle.
+        """
         params = {"mu": self.mu, "V": self.V, "W": self.W}
         self._save_params_from_dict(f, params)
 
     @classmethod
     def load_params(cls, f, config):
+        """Initializes the model from the configuration and loads the model
+        parameters from file.
+
+        Args:
+          f: file handle.
+          config: configuration dictionary.
+
+        Returns:
+          Model object.
+        """
         param_list = ["mu", "V", "W"]
         params = cls._load_params_to_dict(f, config["name"], param_list)
         kwargs = dict(list(config.items()) + list(params.items()))
         return cls(**kwargs)
 
     def log_probx_g_y(self, x, y):
+        """Computes logP(X|Y)
+
+        Args:
+          x: data samples with shape (num_samples, x_dim).
+          y: speaker factors for each sample with shape (num_samples, y_dim).
+
+        Returns:
+          log P(X|Y) array with shape (num_samples,)
+        """
         logW = logdet_pdmat(self.W)
         delta = x - self.mu - np.dot(y, self.V)
         logp = (
@@ -273,7 +364,16 @@ class SPLDA(PLDABase):
         return logp
 
     def llr_1vs1(self, x1, x2):
+        """log-likelihood ratio between target and non-target hypothesis for
+        the case of one enrollment and one test segments.
 
+        Args:
+          x1: enrollment vectors with shape (num_enroll_segmens, x_dim).
+          x2: test vectors with shape (num_enroll_segmens, x_dim).
+
+        Returns:
+          Score matrix with shape (num_enrollment_segments, num_test_segments).
+        """
         WV = np.dot(self.W, self.V.T)
         VV = np.dot(self.V, WV)
         I = np.eye(self.y_dim, dtype=float_cpu())
@@ -316,6 +416,17 @@ class SPLDA(PLDABase):
         return scores
 
     def llr_NvsM_book(self, D1, D2):
+        """log-likelihood ratio between target and non-target hypothesis for
+        the case of N segments/enrollment-side and M segments/test-side
+        evaluated with the exact formula (by the book).
+
+        Args:
+          D1: tuple of sufficient statistics for the enrollment sides (N1, F1, S1).
+          D2: tuple of sufficient statistics for the test sides (N2, F2, S2).
+
+        Returns:
+          Score matrix with shape (num_enrollment_sides, num_test_sides).
+        """
         N1, F1, _ = D1
         N2, F2, _ = D2
 
@@ -379,6 +490,17 @@ class SPLDA(PLDABase):
         return scores
 
     def sample(self, num_classes, num_samples_per_class, rng=None, seed=1024):
+        """Draws samples from the PLDA model.
+
+        Args:
+          num_classes: number of classes to sample.
+          num_samples_per_class: number of samples to sample per each class.
+          rng: random number generator.
+          seed: random seed used if rng is None.
+
+        Returns:
+          Generated samples with shape (num_samples, x_dim).
+        """
         if rng is None:
             rng = np.random.RandomState(seed=seed)
 
@@ -399,7 +521,15 @@ class SPLDA(PLDABase):
         return y + z
 
     def weighted_avg_params(self, mu, V, W, w_mu, w_B, w_W):
-        super(SPLDA, self).weigthed_avg_params(mu, w_mu)
+        """Performs weighted average of the model parameters
+        and some given parameters.
+
+        Args:
+          mu: other mean vector
+          w_mu: weight of the given mean vector.
+
+        """
+        super().weigthed_avg_params(mu, w_mu)
         if w_B > 0:
             Sb0 = np.dot(self.V.T, self.V)
             Sb = np.dot(V.T, V)
@@ -416,9 +546,26 @@ class SPLDA(PLDABase):
             self.W = invert_pdmat(Sw, return_inv=True)[-1]
 
     def weighted_avg_model(self, plda, w_mu, w_B, w_W):
+        """Performs weighted average of the model parameters
+        and those of another model given as input.
+
+        Args:
+          plda: other PLDA model.
+
+        """
         self.weighted_avg_params(plda.mu, plda.V, plda.W, w_mu, w_B, w_W)
 
     def project(self, T, delta_mu=None):
+        """Transforms the PLDA parameters given an affine transformation
+        of the data.
+
+        Args:
+          T: data projection matrix.
+          delta_mu: data shift vector.
+
+        Returns:
+          Projected PLDA model.
+        """
         mu = self.mu
         if mu is not None:
             mu -= delta_mu

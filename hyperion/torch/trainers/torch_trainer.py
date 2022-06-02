@@ -586,8 +586,11 @@ class TorchTrainer(object):
             logs = checkpoint["logs"]
 
         del checkpoint
-        if self.device is not None:
-            torch.cuda.empty_cache()
+        # this was added before to try to release as much GPU memory as possible
+        # Recently has started to cause CUDA not available devices error
+        # Commenting for now.
+        # if self.device is not None:
+        #    torch.cuda.empty_cache()
 
         return logs
 

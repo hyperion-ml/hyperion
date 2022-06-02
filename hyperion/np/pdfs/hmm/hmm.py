@@ -11,18 +11,19 @@ from ..core import PDF
 
 
 class HMM(PDF):
-    def __init__(self, **kwargs):
-        super(HMM, self).__init__(
-            num_states=1,
-            pi=None,
-            trans=None,
-            trans_mask=None,
-            update_pi=True,
-            update_trans=True,
-            tied_trans=False,
-            left_to_right=False,
-            **kwargs
-        )
+    def __init__(
+        self,
+        num_states=1,
+        pi=None,
+        trans=None,
+        trans_mask=None,
+        update_pi=True,
+        update_trans=True,
+        tied_trans=False,
+        left_to_right=False,
+        **kwargs
+    ):
+        super().__init__(**kwargs)
         if pi is not None:
             num_states = len(pi)
 
@@ -36,13 +37,13 @@ class HMM(PDF):
         self.tied_trans = tied_trans
         self.left_to_right = left_to_right
 
-        if left_to_rigth and (trans_mask is None):
+        if left_to_right and (trans_mask is None):
             self.trans_mask = np.triu(np.ones_like(self.trans))
 
         self._log_pi = None
         self._log_trans = None
 
-    def reset_aux():
+    def reset_aux(self):
         self._log_pi = None
         self._log_trans = None
 
@@ -132,11 +133,11 @@ class HMM(PDF):
 
         pz = softmax(log_alpha + log_beta, axis=-1)
 
-        if not (return_Nzz or return_elbo or return_log_px):
+        if not (return_Nzz or return_log_px):
             return pz
 
         r = [pz]
-        if return_pzz_acc:
+        if return_Nzz:
             x_e = np.expand_dims(axis=1)
             log_alpha_e = np.expand_dims(axis=-1)
             log_beta_e = np.expand_dims(axis=1)
@@ -169,7 +170,7 @@ class HMM(PDF):
 
         pz, Nzz = self.compute_pz(x, return_Nzz=True)
         Nz += pz[0]
-        Nzz += pzz
+        Nzz += Nzz
         stats = (Nz, Nzz)
 
         return pz, stats
@@ -238,7 +239,7 @@ class HMM(PDF):
         for t in range(1, num_steps):
             for k in range(self.num_states):
                 index = x[:, t - 1, k] == 1
-                n_k = num.sum(index)
+                n_k = np.sum(index)
                 if n_k == 0:
                     continue
                 x[index] = rng.multinomial(1, self.trans[k], size=(n_k,))

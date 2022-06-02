@@ -85,14 +85,6 @@ class LDA(NPModel):
         params = cls._load_params_to_dict(f, config["name"], param_list)
         return cls(mu=params["mu"], T=params["T"], name=config["name"])
 
-    # @classmethod
-    # def load(cls, file_path):
-    #     with h5py.File(file_path, 'r') as f:
-    #         config = self.load_config_from_json(f['config'])
-    #         param_list = ['mu', 'T']
-    #         params = self._load_params_to_dict(f, config['name'], param_list)
-    #         return cls(mu=params['mu'], T=params['T'], name=config['name'])
-
     @classmethod
     def load_mat(cls, file_path):
         with h5py.File(file_path, "r") as f:
