@@ -538,6 +538,9 @@ class XVector(TorchModel):
         cos_scale=64,
         margin=0.3,
         margin_warmup_epochs=10,
+        intertop_k=5,
+        intertop_margin=0.0,
+        num_subcenters=2,
     ):
         if (self.num_classes is not None and self.num_classes != num_classes) or (
             self.loss_type != loss_type
@@ -553,6 +556,9 @@ class XVector(TorchModel):
         self.classif_net.set_margin(margin)
         self.classif_net.set_margin_warmup_epochs(margin_warmup_epochs)
         self.classif_net.set_cos_scale(cos_scale)
+        self.classif_net.set_intertop_k(intertop_k)
+        self.classif_net.set_intertop_margin(intertop_margin)
+        self.classif_net.set_num_subcenters(num_subcenters)
 
     def freeze_preembed_layers(self):
         self.encoder_net.freeze()

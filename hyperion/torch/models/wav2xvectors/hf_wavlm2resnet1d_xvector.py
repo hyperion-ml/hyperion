@@ -72,3 +72,14 @@ class HFWavLM2ResNet1dXVector(HFWav2XVector):
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
+
+    @staticmethod
+    def add_finetune_args(parser, prefix=None):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
+
+        ResNet1dXVector.add_finetune_args(parser, prefix="xvector")
+
+        if prefix is not None:
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

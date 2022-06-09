@@ -29,12 +29,12 @@ nnet_s2=$nnet_s2_dir/model_ep0007.pth
 nnet_s2=$nnet_s2_dir/model_ep0020.pth
 
 xvec_train_s3_base_cfg=conf/train_wavlmbaseplus_ecapatdnn512x3_phase3_default.yaml
-xvec_train_s3_args="--trainer.epochs 10 --data.train.dataset.min-chunk-length 6 --data.train.dataset.max-chunk-length 6"
-nnet_name_s3=${nnet_name}.s3
+xvec_train_s3_args="--trainer.epochs 10 --data.train.dataset.min-chunk-length 6 --data.train.dataset.max-chunk-length 6 --model.xvector.intertop-margin 0.1"
+nnet_name_s3=${nnet_name}.s3.4
 nnet_s3_dir=exp/xvector_nnets/$nnet_name_s3
 nnet_s3=$nnet_s3_dir/model_ep0002.pth
 nnet_s3=$nnet_s3_dir/model_ep0006.pth
-nnet_s3=$nnet_s3_dir/model_ep0010.pth
+#nnet_s3=$nnet_s3_dir/model_ep0010.pth
 
 
 # back-end

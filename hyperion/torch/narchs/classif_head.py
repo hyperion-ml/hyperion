@@ -232,6 +232,27 @@ class ClassifHead(NetArch):
         self.cos_scale = cos_scale
         self.output.cos_scale = cos_scale
 
+    def set_intertop_k(self, intertop_k):
+        if self.loss_type == "softmax":
+            return
+
+        self.intertop_k = intertop_k
+        self.output.intertop_k = intertop_k
+
+    def set_intertop_margin(self, intertop_margin):
+        if self.loss_type == "softmax":
+            return
+
+        self.intertop_margin = intertop_margin
+        self.output.intertop_margin = intertop_margin
+
+    def set_num_subcenters(self, num_subcenters):
+        if not self.loss_type == "subcenter-arc-softmax":
+            return
+
+        self.num_subcenters = num_subcenters
+        self.output.num_subcenters = num_subcenters
+
     def update_margin(self, epoch):
         if hasattr(self.output, "update_margin"):
             self.output.update_margin(epoch)

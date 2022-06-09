@@ -10,6 +10,7 @@ set -e
 stage=1
 config_file=default_config.sh
 use_gpu=false
+nnet_stage=1
 xvec_chunk_length=120 #seconds
 . parse_options.sh || exit 1;
 . $config_file
@@ -19,6 +20,15 @@ if [ "$use_gpu" == "true" ];then
     xvec_cmd="$cuda_eval_cmd --mem 6G"
 else
     xvec_cmd="$train_cmd --mem 12G"
+fi
+
+
+if [ $nnet_stage -eq 2 ];then
+  nnet=$nnet_s2
+  nnet_name=$nnet_name_s2
+elif [ $nnet_stage -eq 3 ];then
+  nnet=$nnet_s3
+  nnet_name=$nnet_name_s3
 fi
 
 xvector_dir=exp/xvectors/$nnet_name

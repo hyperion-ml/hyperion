@@ -1,0 +1,11 @@
+data:
+  train: train_data_default.yaml
+  val: val_data_default.yaml
+model:
+  xvector:
+    cos_scale: 32.0
+    margin: 0.4
+    margin_warmup_epochs: 0
+    intertop_margin: 0.
+trainer: trainer_phase3_sgd_default.yaml
+ 

@@ -9,13 +9,24 @@ set -e
 
 stage=1
 config_file=default_config.sh
+nnet_stage=1
 
 . parse_options.sh || exit 1;
 . $config_file
 . datapath.sh 
 
+if [ $nnet_stage -eq 2 ];then
+  nnet=$nnet_s2
+  nnet_name=$nnet_name_s2
+elif [ $nnet_stage -eq 3 ];then
+  nnet=$nnet_s3
+  nnet_name=$nnet_name_s3
+fi
+
+
 plda_label=${plda_type}y${plda_y_dim}_v1
 be_name=lda${lda_dim}_${plda_label}_${plda_data}
+
 
 xvector_dir=exp/xvectors/$nnet_name
 be_dir=exp/be/$nnet_name/$be_name

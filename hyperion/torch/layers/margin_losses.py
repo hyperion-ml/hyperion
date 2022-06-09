@@ -99,8 +99,8 @@ class ArcLossOutput(nn.Module):
         Args:
           epoch: value of current epoch.
         """
-        if self.margin_warmup_epochs == 0:
-            return
+        # if self.margin_warmup_epochs == 0:
+        #    return
 
         if epoch < self.margin_warmup_epochs:
             self.cur_margin = self.margin * epoch / self.margin_warmup_epochs
@@ -243,8 +243,8 @@ class CosLossOutput(nn.Module):
         Args:
           epoch: value of current epoch.
         """
-        if self.margin_warmup_epochs == 0:
-            return
+        # if self.margin_warmup_epochs == 0:
+        #    return
 
         if epoch < self.margin_warmup_epochs:
             self.cur_margin = self.margin * epoch / self.margin_warmup_epochs

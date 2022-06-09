@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
- Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
+ Copyright 2022 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import sys
@@ -16,29 +16,28 @@ import time
 import logging
 import multiprocessing
 
+import numpy as np
+
 import torch
+import torch.nn as nn
 
 from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch.utils import ddp
-from hyperion.torch.trainers import XVectorTrainerFromWav as Trainer
+from hyperion.torch.trainers import XVectorTrainer as Trainer
 from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
 from hyperion.torch.metrics import CategoricalAccuracy
-from hyperion.torch.narchs import AudioFeatsMVN as AF
-from hyperion.torch.models import ResNetXVector as RXVec
-from hyperion.torch.models import ResNet1dXVector as R1dXVec
-from hyperion.torch.models import EfficientNetXVector as EXVec
-from hyperion.torch.models import TDNNXVector as TDXVec
-from hyperion.torch.models import TransformerXVectorV1 as TFXVec
-from hyperion.torch.models import SpineNetXVector as SpineXVec
+from hyperion.torch.models import (
+    HFWav2Vec2ResNet1dXVector,
+    HFHubert2ResNet1dXVector,
+    HFWavLM2ResNet1dXVector,
+)
+from hyperion.torch import TorchModelLoader as TML
 
-xvec_dict = {
-    "resnet": RXVec,
-    "resnet1d": R1dXVec,
-    "efficientnet": EXVec,
-    "tdnn": TDXVec,
-    "transformer": TFXVec,
-    "spinenet": SpineXVec,
+model_dict = {
+    "hf_wav2vec2resnet1d": HFWav2Vec2ResNet1dXVector,
+    "hf_hubert2resnet1d": HFHubert2ResNet1dXVector,
+    "hf_wavlm2resnet1d": HFWavLM2ResNet1dXVector,
 }
 
 
@@ -72,72 +71,19 @@ def init_data(partition, rank, num_gpus, **kwargs):
     return data_loader
 
 
-# def init_data(
-#     audio_path,
-#     train_list,
-#     val_list,
-#     train_aug_cfg,
-#     val_aug_cfg,
-#     num_workers,
-#     num_gpus,
-#     rank,
-#     **kwargs
-# ):
-
-#     ad_args = AD.filter_args(**kwargs)
-#     sampler_args = Sampler.filter_args(**kwargs)
-#     if rank == 0:
-#         logging.info("audio dataset args={}".format(ad_args))
-#         logging.info("sampler args={}".format(sampler_args))
-#         logging.info("init datasets")
-
-#     train_data = AD(audio_path, train_list, aug_cfg=train_aug_cfg, **ad_args)
-#     val_data = AD(audio_path, val_list, aug_cfg=val_aug_cfg, is_val=True, **ad_args)
-
-#     if rank == 0:
-#         logging.info("init samplers")
-#     train_sampler = Sampler(train_data, **sampler_args)
-#     val_sampler = Sampler(val_data, **sampler_args)
-
-#     num_workers_per_gpu = int((num_workers + num_gpus - 1) / num_gpus)
-#     largs = (
-#         {"num_workers": num_workers_per_gpu, "pin_memory": True} if num_gpus > 0 else {}
-#     )
-
-#     train_loader = torch.utils.data.DataLoader(
-#         train_data, batch_sampler=train_sampler, **largs
-#     )
-
-#     test_loader = torch.utils.data.DataLoader(
-#         val_data, batch_sampler=val_sampler, **largs
-#     )
-
-#     return train_loader, test_loader
-
-
-def init_feats(rank, **kwargs):
-    feat_args = AF.filter_args(**kwargs["feats"])
+def init_model(num_classes, in_model_file, rank, **kwargs):
+    xvec_args = kwargs["model"]["xvector"]
     if rank == 0:
-        logging.info("feat args={}".format(feat_args))
-        logging.info("initializing feature extractor")
-    feat_extractor = AF(trans=True, **feat_args)
-    if rank == 0:
-        logging.info("feat-extractor={}".format(feat_extractor))
-    return feat_extractor
-
-
-def init_xvector(num_classes, rank, xvec_class, **kwargs):
-    xvec_args = xvec_class.filter_args(**kwargs["model"])
-    if rank == 0:
-        logging.info("xvector network args={}".format(xvec_args))
+        logging.info("xvector network ft args={}".format(xvec_args))
     xvec_args["num_classes"] = num_classes
-    model = xvec_class(**xvec_args)
+    model = TML.load(in_model_file)
+    model.rebuild_output_layer(**xvec_args)
     if rank == 0:
-        logging.info("x-vector-model={}".format(model))
+        logging.info("model={}".format(model))
     return model
 
 
-def train_xvec(gpu_id, args):
+def train_model(gpu_id, args):
 
     config_logger(args.verbose)
     del args.verbose
@@ -153,8 +99,7 @@ def train_xvec(gpu_id, args):
 
     train_loader = init_data(partition="train", **kwargs)
     val_loader = init_data(partition="val", **kwargs)
-    feat_extractor = init_feats(**kwargs)
-    model = init_xvector(train_loader.dataset.num_classes, **kwargs)
+    model = init_model(train_loader.dataset.num_classes, **kwargs)
 
     trn_args = Trainer.filter_args(**kwargs["trainer"])
     if rank == 0:
@@ -162,7 +107,6 @@ def train_xvec(gpu_id, args):
     metrics = {"acc": CategoricalAccuracy()}
     trainer = Trainer(
         model,
-        feat_extractor,
         device=device,
         metrics=metrics,
         ddp=world_size > 1,
@@ -174,20 +118,13 @@ def train_xvec(gpu_id, args):
     ddp.ddp_cleanup()
 
 
-def make_parser(xvec_class):
+def make_parser(model_class):
     parser = ArgumentParser()
 
     parser.add_argument("--cfg", action=ActionConfigFile)
-
     train_parser = ArgumentParser(prog="")
-    # parser.add_argument("--audio-path", required=True)
-    # parser.add_argument("--train-list", required=True)
-    # parser.add_argument("--val-list", required=True)
-
     AD.add_class_args(train_parser, prefix="dataset", skip={})
     Sampler.add_class_args(train_parser, prefix="sampler")
-    # parser.add_argument("--train-aug-cfg", default=None)
-    # parser.add_argument("--val-aug-cfg", default=None)
     train_parser.add_argument(
         "--data_loader.num-workers",
         type=int,
@@ -218,19 +155,13 @@ def make_parser(xvec_class):
         "data.train.sampler.batch_size", "data.val.sampler.batch_size"
     )
 
-    AF.add_class_args(parser, prefix="feats")
-    xvec_class.add_class_args(parser, prefix="model")
+    parser.add_argument("--in-model-file", required=True)
+    model_class.add_finetune_args(parser, prefix="model")
     Trainer.add_class_args(
-        parser, prefix="trainer", train_modes=xvec_class.valid_train_modes()
+        parser, prefix="trainer", train_modes=model_class.valid_train_modes()
     )
     ddp.add_ddp_args(parser)
     parser.add_argument("--seed", type=int, default=1123581321, help="random seed")
-    # parser.add_argument(
-    #     "--resume",
-    #     action="store_true",
-    #     default=False,
-    #     help="resume training from checkpoint",
-    # )
     parser.add_argument(
         "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
     )
@@ -240,13 +171,14 @@ def make_parser(xvec_class):
 
 if __name__ == "__main__":
 
-    parser = ArgumentParser(description="Train XVector from audio files")
-
+    parser = ArgumentParser(
+        description="Finetunes Wav2Vec2XVector model from audio files"
+    )
     parser.add_argument("--cfg", action=ActionConfigFile)
 
     subcommands = parser.add_subcommands()
 
-    for k, v in xvec_dict.items():
+    for k, v in model_dict.items():
         parser_k = make_parser(v)
         subcommands.add_subcommand(k, parser_k)
 
@@ -256,8 +188,8 @@ if __name__ == "__main__":
     except:
         gpu_id = 0
 
-    xvec_type = args.subcommand
-    args_sc = vars(args)[xvec_type]
+    model_type = args.subcommand
+    args_sc = vars(args)[model_type]
 
     if gpu_id == 0:
         try:
@@ -266,7 +198,7 @@ if __name__ == "__main__":
         except:
             pass
 
-    args_sc.xvec_class = xvec_dict[xvec_type]
+    args_sc.model_class = model_dict[model_type]
     # torch docs recommend using forkserver
     multiprocessing.set_start_method("forkserver")
-    train_xvec(gpu_id, args_sc)
+    train_model(gpu_id, args_sc)

@@ -35,6 +35,28 @@ class Wav2XVector(TorchModel):
         self.feats = feats
         self.xvector = xvector
 
+    def rebuild_output_layer(
+        self,
+        num_classes=None,
+        loss_type="arc-softmax",
+        cos_scale=64,
+        margin=0.3,
+        margin_warmup_epochs=10,
+        intertop_k=5,
+        intertop_margin=0.0,
+        num_subcenters=2,
+    ):
+        self.xvector.rebuild_output_layer(
+            num_classes=num_classes,
+            loss_type=loss_type,
+            cos_scale=cos_scale,
+            margin=margin,
+            margin_warmup_epochs=margin_warmup_epochs,
+            intertop_k=intertop_k,
+            intertop_margin=intertop_margin,
+            num_subcenters=num_subcenters,
+        )
+
     def forward(
         self,
         x,
