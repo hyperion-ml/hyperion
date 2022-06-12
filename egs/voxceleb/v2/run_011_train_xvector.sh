@@ -34,17 +34,19 @@ if [ "$interactive" == "true" ];then
 fi
 
 if [ "$use_wandb" == "true" ];then
-  extra_args="$extra_args --trainer.use-wandb --trainer.wandb.project voxceleb-v1.2 --trainer.wandb.name $nnet_name.$(date -Iminutes)"
+  extra_args="$extra_args --trainer.use-wandb --trainer.wandb.project voxceleb-v2 --trainer.wandb.name $nnet_s1_name.$(date -Iminutes)"
 fi
+
 
 # Network Training
 if [ $stage -le 1 ]; then
-  
-  mkdir -p $nnet_dir/log
+
+  mkdir -p $nnet_s1_dir/log
   $cuda_cmd \
-    --gpu $ngpu $nnet_dir/log/train.log \
+    --gpu $ngpu $nnet_s1_dir/log/train.log \
     hyp_utils/conda_env.sh --conda-env $HYP_ENV --num-gpus $ngpu \
-    train_wav2vec2xvector.py $nnet_type --cfg $xvec_train_base_cfg $xvec_train_args $extra_args \
+    train_wav2vec2xvector.py $nnet_type \
+    --cfg $nnet_s1_base_cfg $nnet_s1_args $extra_args \
     --data.train.dataset.audio-file $list_dir/wav.scp \
     --data.train.dataset.time-durs-file $list_dir/utt2dur \
     --data.train.dataset.key-file $list_dir/lists_xvec/train.scp \
@@ -52,7 +54,7 @@ if [ $stage -le 1 ]; then
     --data.val.dataset.audio-file $list_dir/wav.scp \
     --data.val.dataset.time-durs-file $list_dir/utt2dur \
     --data.val.dataset.key-file $list_dir/lists_xvec/val.scp \
-    --trainer.exp-path $nnet_dir $args \
+    --trainer.exp-path $nnet_s1_dir $args \
     --num-gpus $ngpu
   
 fi
@@ -60,14 +62,15 @@ fi
 if [ $stage -le 2 ]; then
 
   if [ "$use_wandb" == "true" ];then
-    extra_args="$extra_args --trainer.wandb.name $nnet_name_s2.$(date -Iminutes)"
+    extra_args="$extra_args --trainer.wandb.name $nnet_s2_name.$(date -Iminutes)"
   fi
   
   mkdir -p $nnet_s2_dir/log
   $cuda_cmd \
     --gpu $ngpu $nnet_s2_dir/log/train.log \
     hyp_utils/conda_env.sh --conda-env $HYP_ENV --num-gpus $ngpu \
-    finetune_wav2vec2xvector.py $nnet_type --cfg $xvec_train_s2_base_cfg $xvec_train_s2_args $extra_args \
+    finetune_wav2vec2xvector.py $nnet_type \
+    --cfg $nnet_s2_base_cfg $nnet_s2_args $extra_args \
     --data.train.dataset.audio-file $list_dir/wav.scp \
     --data.train.dataset.time-durs-file $list_dir/utt2dur \
     --data.train.dataset.key-file $list_dir/lists_xvec/train.scp \
@@ -75,7 +78,7 @@ if [ $stage -le 2 ]; then
     --data.val.dataset.audio-file $list_dir/wav.scp \
     --data.val.dataset.time-durs-file $list_dir/utt2dur \
     --data.val.dataset.key-file $list_dir/lists_xvec/val.scp \
-    --in-model-file $nnet \
+    --in-model-file $nnet_s1 \
     --trainer.exp-path $nnet_s2_dir $args \
     --num-gpus $ngpu \
   
@@ -84,14 +87,15 @@ fi
 if [ $stage -le 3 ]; then
 
   if [ "$use_wandb" == "true" ];then
-    extra_args="$extra_args --trainer.wandb.name $nnet_name_s3.$(date -Iminutes)"
+    extra_args="$extra_args --trainer.wandb.name $nnet_s3_name.$(date -Iminutes)"
   fi
   
   mkdir -p $nnet_s3_dir/log
   $cuda_cmd \
     --gpu $ngpu $nnet_s3_dir/log/train.log \
     hyp_utils/conda_env.sh --conda-env $HYP_ENV --num-gpus $ngpu \
-    finetune_wav2vec2xvector.py $nnet_type --cfg $xvec_train_s3_base_cfg $xvec_train_s3_args $extra_args \
+    finetune_wav2vec2xvector.py $nnet_type \
+    --cfg $nnet_s3_base_cfg $nnet_s3_args $extra_args \
     --data.train.dataset.audio-file $list_dir/wav.scp \
     --data.train.dataset.time-durs-file $list_dir/utt2dur \
     --data.train.dataset.key-file $list_dir/lists_xvec/train.scp \

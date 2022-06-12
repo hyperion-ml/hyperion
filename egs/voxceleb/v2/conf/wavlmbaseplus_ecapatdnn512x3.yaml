@@ -33,6 +33,8 @@ xvector:
   embed_dim: 192
   cos_scale: 32.0
   margin: 0.2
-  margin_warmup_epochs: 3
+  margin_warmup_epochs: 5
+  intertop_margin: 0.1
   dropout_rate: 0.0
-feat_fusion_method: last
+feat_fusion_method: weighted-avg
+feat_fusion_start: 2

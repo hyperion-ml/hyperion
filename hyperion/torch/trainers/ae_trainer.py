@@ -63,7 +63,7 @@ class AETrainer(TorchTrainer):
         loggers=None,
         ddp=False,
         ddp_type="ddp",
-        train_mode="train",
+        train_mode="full",
         use_amp=False,
         log_interval=10,
         use_tensorboard=False,

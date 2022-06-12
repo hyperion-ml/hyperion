@@ -69,7 +69,7 @@ class XVectorAdvTrainer(XVectorTrainer):
         ddp=False,
         ddp_type="ddp",
         loss=None,
-        train_mode="train",
+        train_mode="full",
         use_amp=False,
         log_interval=10,
         use_tensorboard=False,

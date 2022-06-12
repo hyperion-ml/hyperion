@@ -1,1 +1,1 @@
-global_conf/config_wav2vec2base_ecapatdnn512x2_arcs30m0.3_adam_lr0.002_amp.v1.sh
+global_conf/config_wavlmbaseplus_ecapatdnn512x3_v1.0.sh

@@ -50,7 +50,7 @@ class HFWav2XVector(TorchModel):
             self.feat_fuser = nn.Parameter(torch.zeros(num_layers))
         elif self.feat_fusion_method == "linear":
             self.feat_fuser = nn.Linear(num_layers, 1, bias=False)
-            self.feat_fuser.weights.data = torch.ones(num_layers) / num_layers
+            self.feat_fuser.weight.data = torch.ones(1, num_layers) / num_layers
         elif self.feat_fusion_method == "cat":
             self.feat_fuser = nn.Linear(num_layers * layer_dim, layer_dim, bias=False)
 
@@ -74,7 +74,7 @@ class HFWav2XVector(TorchModel):
             feats = torch.sum(hid_feats * norm_weights, dim=-1)
         elif self.feat_fusion_method == "linear":
             hid_feats = torch.stack(hid_feats, dim=-1)
-            feats = self.feat_fuser(hid_feats)
+            feats = self.feat_fuser(hid_feats).squeeze(dim=-1)
         elif self.feat_fusion_method == "cat":
             hid_feats = torch.cat(hid_feats, dim=-1)
             feats = self.feat_fuser(hid_feats)
