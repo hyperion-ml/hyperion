@@ -4,7 +4,7 @@
 """
 import logging
 from enum import Enum
-from jsonargparse import ArgumentParser, ActionParser
+from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
 from typing import Optional
 
 import torch
@@ -531,6 +531,36 @@ class XVector(TorchModel):
 
         return model
 
+    def change_config(
+        self,
+        override_dropouts=False,
+        dropout_rate=0,
+        num_classes=None,
+        loss_type="arc-softmax",
+        cos_scale=64,
+        margin=0.3,
+        margin_warmup_epochs=10,
+        intertop_k=5,
+        intertop_margin=0.0,
+        num_subcenters=2,
+    ):
+        logging.info("changing x-vector config")
+        self.rebuild_output_layer(
+            num_classes=num_classes,
+            loss_type=loss_type,
+            cos_scale=cos_scale,
+            margin=margin,
+            margin_warmup_epochs=margin_warmup_epochs,
+            intertop_k=intertop_k,
+            intertop_margin=intertop_margin,
+            num_subcenters=num_subcenters,
+        )
+
+        if override_dropouts:
+            logging.info("overriding x-vector dropouts")
+            self.encoder_net.change_dropouts(dropout_rate)
+            self.classif_net.change_dropouts(dropout_rate)
+
     def rebuild_output_layer(
         self,
         num_classes=None,
@@ -547,6 +577,7 @@ class XVector(TorchModel):
         ):
             # if we change the number of classes or the loss-type
             # we need to reinitiate the last layer
+            logging.info("rebuilding output layer")
             self.classif_net.rebuild_output_layer(
                 num_classes, loss_type, cos_scale, margin, margin_warmup_epochs
             )
@@ -601,6 +632,9 @@ class XVector(TorchModel):
             self.classif_net.put_layers_in_eval_mode(layer_list)
         else:
             raise ValueError(f"invalid train_mode={train_mode}")
+
+    def compute_prototype_affinity(self):
+        return self.classif_net.compute_prototype_affinity()
 
     @staticmethod
     def valid_train_modes():
@@ -850,9 +884,26 @@ class XVector(TorchModel):
             help="number of subcenters in subcenter losses",
         )
 
+        try:
+            parser.add_argument(
+                "--override-dropouts",
+                default=False,
+                action=ActionYesNo,
+                help=(
+                    "whether to use the dropout probabilities passed in the "
+                    "arguments instead of the defaults in the pretrained model."
+                ),
+            )
+        except:
+            pass
+
+        try:
+            parser.add_argument("--dropout-rate", default=0, type=float, help="dropout")
+        except:
+            pass
+
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
-            # help='xvector finetune opts')
 
     add_argparse_args = add_class_args
     add_argparse_finetune_args = add_finetune_args

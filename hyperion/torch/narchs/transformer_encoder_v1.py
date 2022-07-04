@@ -125,9 +125,6 @@ class TransformerEncoderV1(NetArch):
         if self.norm_before:
             self.norm = nn.LayerNorm(d_model)
 
-    # def _make_in_layer(self, in_layer_type, in_feats, d_model,
-    #                    dropout_rate, pos_dropout_rate,
-    #                    padding_idx, time_dim):
     def _make_in_layer(self):
 
         in_feats = self.in_feats
@@ -239,6 +236,31 @@ class TransformerEncoderV1(NetArch):
 
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
+
+    def change_dropouts(self, pos_dropout_rate, att_dropout_rate, ff_dropout_rate):
+
+        assert pos_dropout_rate == 0 or self.pos_dropout_rate > 0
+        assert att_dropout_rate == 0 or self.att_dropout_rate > 0
+        assert ff_dropout_rate == 0 or self.ff_dropout_rate > 0
+
+        for module in self.modules():
+            if isinstance(module, PosEncoder):
+                for layer in module.modules():
+                    if isinstance(layer, nn.Dropout):
+                        layer.p = pos_dropout_rate
+
+            elif isinstance(module, EBlock):
+                for layer in module.modules():
+                    if isinstance(layer, nn.Dropout):
+                        layer.p = ff_dropout_rate
+
+                for layer in module.self_attn.modules():
+                    if isinstance(layer, nn.Dropout):
+                        layer.p = att_dropout_rate
+
+        self.pos_dropout_rate = pos_dropout_rate
+        self.att_dropout_rate = att_dropout_rate
+        self.ff_dropout_rate = ff_dropout_rate
 
     def in_context(self):
         return (self.att_context, self.att_context)

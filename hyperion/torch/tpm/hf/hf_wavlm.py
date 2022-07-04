@@ -144,6 +144,10 @@ class HFWavLM(HFWav2VecBase):
             and uses the ones passed as arguments.
         override_spec_augment (`bool` defaults to False): if True, it ingnores the spec. augment.
             configuration in the pretrained model and uses the ones passed in the arguments.
+        left_encoder_context (`int`): past context frames used by the transformer encoder when the signal is evaluated
+          chunk by chunk, if it is too long to fit in GPU.
+        right_encoder_context: (`int`): future context frames used by the transformer encoder.
+        sample_frequency: (`int`) waveform sample frequency used to train the model.
     """
 
     def __init__(
@@ -193,6 +197,9 @@ class HFWavLM(HFWav2VecBase):
         ignore_pretrained: bool = False,
         override_dropouts: bool = False,
         override_spec_augment: bool = False,
+        left_encoder_context: int = 16,
+        right_encoder_context: int = 16,
+        sample_frequency: int = 16000,
     ):
 
         super().__init__(
@@ -207,6 +214,9 @@ class HFWavLM(HFWav2VecBase):
             ignore_pretrained=ignore_pretrained,
             override_dropouts=override_dropouts,
             override_spec_augment=override_spec_augment,
+            left_encoder_context=left_encoder_context,
+            right_encoder_context=right_encoder_context,
+            sample_frequency=sample_frequency,
         )
 
         if pretrained_model_path is not None and not ignore_pretrained:
@@ -234,7 +244,9 @@ class HFWavLM(HFWav2VecBase):
                 )
             ddp_wait_for_all_procs()
             self.hf_model.config.layerdrop = 0.0
-            self.change_hyperparams(
+            self.change_config(
+                override_dropouts=self.override_dropouts,
+                override_spec_augment=self.override_spec_augment,
                 hidden_dropout=hidden_dropout,
                 activation_dropout=activation_dropout,
                 attention_dropout=attention_dropout,
@@ -638,5 +650,112 @@ class HFWavLM(HFWav2VecBase):
                 " Only relevant if `add_adapter is True"
             ),
         )
+        if prefix is not None:
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
+
+    @staticmethod
+    def filter_finetune_args(**kwargs):
+        args_base = HFWav2VecBase.filter_args(**kwargs)
+        valid_args = (
+            "hidden_dropout",
+            "activation_dropout",
+            "attention_dropout",
+            "feat_proj_dropout",
+            "apply_spec_augment",
+            "mask_time_prob",
+            "mask_time_length",
+            "mask_time_min_masks",
+            "mask_feature_prob",
+            "mask_feature_length",
+            "mask_feature_min_masks",
+        )
+        args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
+        args.update(args_base)
+        return args
+
+    @staticmethod
+    def add_finetune_args(parser, prefix=None, skip=set()):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
+
+        HFWav2VecBase.add_finetune_args(parser)
+        parser.add_argument(
+            "--hidden-dropout",
+            default=0.1,
+            type=float,
+            help=(
+                "the dropout probability for all "
+                "fully connected layers in the embeddings, encoder, and pooler"
+            ),
+        )
+        parser.add_argument(
+            "--activation-dropout",
+            default=0.1,
+            type=float,
+            help=(
+                "the dropout probability for all "
+                "intermediate layer in feedforward transformer layers"
+            ),
+        )
+        parser.add_argument(
+            "--attention-dropout",
+            default=0.1,
+            type=float,
+            help=("the dropout ratio for the attention probabilities"),
+        )
+        parser.add_argument(
+            "--apply-spec-augment",
+            default=True,
+            action=ActionYesNo,
+            help=(
+                "whether to apply *SpecAugment* data augmentation to the outputs of the feature encoder"
+            ),
+        )
+        parser.add_argument(
+            "--mask-time-prob",
+            default=0.05,
+            type=float,
+            help=(
+                "percentage (between 0 and 1) of all feature vectors along the time axis which will be masked"
+            ),
+        )
+        parser.add_argument(
+            "--mask-time-length",
+            default=10,
+            type=int,
+            help=("length of vector span along the time axis"),
+        )
+        parser.add_argument(
+            "--mask-time-min-masks",
+            default=2,
+            type=int,
+            help=(
+                "the minimum number of masks of length `mask_time_length` generated along the time axis"
+            ),
+        )
+        parser.add_argument(
+            "--mask-feature-prob",
+            default=0.0,
+            type=float,
+            help=(
+                "percentage (between 0 and 1) of all feature vectors along the feature axis which will be masked"
+            ),
+        )
+        parser.add_argument(
+            "--mask-feature-length",
+            default=10,
+            type=int,
+            help=(" length of vector span along the feature axis"),
+        )
+        parser.add_argument(
+            "--mask-feature-min-masks",
+            default=0,
+            type=int,
+            help=(
+                "The minimum number of masks of length `mask_feature_length` generated along the feature axis"
+            ),
+        )
+
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

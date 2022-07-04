@@ -57,6 +57,9 @@ class Wav2XVector(TorchModel):
             num_subcenters=num_subcenters,
         )
 
+    def compute_prototype_affinity(self):
+        return self.xvector.compute_prototype_affinity()
+
     def forward(
         self,
         x,

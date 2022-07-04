@@ -365,3 +365,51 @@ class TransformerXVectorV1(XVector):
             # help='xvector options')
 
     add_argparse_args = add_class_args
+
+    @staticmethod
+    def filter_finetune_args(**kwargs):
+        """Filters arguments correspondin to TransformerXVector
+            from args dictionary
+
+        Args:
+          kwargs: args dictionary
+
+        Returns:
+          args dictionary
+        """
+        base_args = XVector.filter_finetune_args(**kwargs)
+
+        valid_args = (
+            "pos_dropout_rate",
+            "att_dropout_rate",
+        )
+
+        child_args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
+        base_args.update(child_args)
+        return base_args
+
+    @staticmethod
+    def add_finetune_args(parser, prefix=None):
+        """Adds TransformerXVector config parameters for finetuning to argparser
+
+        Args:
+           parser: argparse object
+           prefix: prefix string to add to the argument names
+        """
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
+
+        XVector.add_finetune_args(parser)
+        parser.add_argument(
+            "--pos-dropout-rate",
+            default=0.1,
+            type=float,
+            help="positional encoder dropout",
+        )
+        parser.add_argument(
+            "--att-dropout-rate", default=0, type=float, help="self-att dropout"
+        )
+
+        if prefix is not None:
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

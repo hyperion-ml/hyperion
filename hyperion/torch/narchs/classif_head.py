@@ -5,6 +5,7 @@
 
 from jsonargparse import ArgumentParser, ActionParser
 
+import torch
 import torch.nn as nn
 from torch.nn import Linear
 
@@ -309,6 +310,14 @@ class ClassifHead(NetArch):
         else:
             y = self.fc_blocks[l](x)
         return y
+
+    def compute_prototype_affinity(self):
+        if self.loss_type != "softmax":
+            return self.output.compute_prototype_affinity()
+
+        kernel = self.output.weight  # (num_classes, feat_dim)
+        kernel = kernel / torch.linalg.norm(kernel, 2, dim=1, keepdim=True)
+        return torch.mm(kernel, kernel.transpose(0, 1))
 
     def get_config(self):
 

@@ -1,0 +1,45 @@
+data:
+  train:
+    dataset:
+      max_chunk_length: 3.0
+      min_chunk_length: 3.0
+      aug_cfg: conf/reverb_noise_aug.yaml
+      wav_scale: 1
+    sampler:
+      batch_size: 32
+      iters_per_epoch: 6
+    data_loader:
+      num_workers: 8
+  val:
+    dataset:
+      max_chunk_length: 4.0
+      min_chunk_length: 4.0
+      aug_cfg: conf/reverb_noise_aug.yaml
+      wav_scale: 1
+    sampler:
+      batch_size: 32
+      iters_per_epoch: 6
+    data_loader:
+      num_workers: 8
+model: wavlmlarge12l_ecapatdnn512x3.yaml
+trainer:
+  optim:
+    opt_type: sgd
+    lr: 0.45
+    momentum: 0.9
+    weight_decay: 4e-4
+  lrsched:
+    lrsch_type: exp_lr
+    decay_rate: 0.5
+    decay_steps: 4200
+    hold_steps: 1500
+    min_lr: 4e-4
+    warmup_steps: 1500
+    update_lr_on_opt_step: true
+  use_amp: true
+  log_interval: 1000
+  epochs: 60
+  eff_batch_size: 1024
+  train_mode: hf-feats-frozen-nograd
+
+ 

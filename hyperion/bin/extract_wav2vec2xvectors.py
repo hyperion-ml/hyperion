@@ -92,7 +92,8 @@ def extract_xvectors(
     scp_sep,
     vad_path_prefix,
     model_path,
-    chunk_length,
+    hf_chunk_length,
+    xvec_chunk_length,
     embed_layer,
     random_utt_length,
     min_utt_length,
@@ -188,7 +189,8 @@ def extract_xvectors(
                             y = (
                                 model.extract_embed(
                                     x,
-                                    chunk_length=fs * chunk_length,
+                                    hf_chunk_length=hf_chunk_length,
+                                    xvec_chunk_length=xvec_chunk_length,
                                     embed_layer=embed_layer,
                                 )
                                 .cpu()
@@ -259,11 +261,21 @@ if __name__ == "__main__":
 
     parser.add_argument("--model-path", required=True)
     parser.add_argument(
-        "--chunk-length",
+        "--hf-chunk-length",
         type=int,
         default=0,
         help=(
-            "number of frames used in each forward pass "
+            "max. chunk length used in each forward pass "
+            "of the hf encoder,"
+            "if 0 the full utterance is used"
+        ),
+    )
+    parser.add_argument(
+        "--xvec-chunk-length",
+        type=int,
+        default=0,
+        help=(
+            "max. chunk length used in each forward pass "
             "of the x-vector encoder,"
             "if 0 the full utterance is used"
         ),

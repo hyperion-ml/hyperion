@@ -77,8 +77,6 @@ def init_xvector(num_classes, in_model_path, rank, **kwargs):
     xvec_args["num_classes"] = num_classes
     model = TML.load(in_model_path)
     model.rebuild_output_layer(**xvec_args)
-    # if train_mode == "ft-embed-affine":
-    #    model.freeze_preembed_layers()
     if rank == 0:
         logging.info("x-vector-model={}".format(model))
     return model

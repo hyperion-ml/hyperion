@@ -4,7 +4,7 @@
 """
 
 import math
-from jsonargparse import ArgumentParser, ActionParser
+from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
 
 import torch
 import torch.nn as nn
@@ -395,6 +395,17 @@ class EfficientNet(NetArch):
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
+    def change_dropouts(self, dropout_rate, drop_connect_rate):
+        super().change_dropouts(dropout_rate)
+        from ..layers import DropConnect2d
+
+        for module in self.modules():
+            if isinstance(module, DropConnect2d):
+                module.p *= drop_connect_rate / self.drop_connect_rate
+
+        self.drop_connect_rate = drop_connect_rate
+        self.dropout_rate = dropout_rate
+
     @staticmethod
     def filter_args(**kwargs):
 
@@ -424,7 +435,6 @@ class EfficientNet(NetArch):
         )
 
         args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
-
         return args
 
     @staticmethod
@@ -590,6 +600,53 @@ class EfficientNet(NetArch):
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
-            # help='efficientnet options')
 
     add_argparse_args = add_class_args
+
+    @staticmethod
+    def add_finetune_args(parser, prefix=None):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
+
+        try:
+            parser.add_argument(
+                "--override-dropouts",
+                default=False,
+                action=ActionYesNo,
+                help=(
+                    "whether to use the dropout probabilities passed in the "
+                    "arguments instead of the defaults in the pretrained model."
+                ),
+            )
+        except:
+            pass
+
+        parser.add_argument(
+            "--drop-connect-rate",
+            default=0.2,
+            type=float,
+            help="layer drop probability",
+        )
+
+        try:
+            parser.add_argument(
+                "--dropout-rate", default=0, type=float, help="dropout probability"
+            )
+        except:
+            pass
+
+        if prefix is not None:
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
+
+    @staticmethod
+    def filter_finetune_args(**kwargs):
+
+        valid_args = (
+            "out_units",
+            "override_dropouts",
+            "drop_connect_rate",
+            "dropout_rate",
+        )
+        args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
+        return args

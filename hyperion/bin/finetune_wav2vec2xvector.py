@@ -71,13 +71,25 @@ def init_data(partition, rank, num_gpus, **kwargs):
     return data_loader
 
 
+# def init_model(num_classes, in_model_file, rank, **kwargs):
+#     xvec_args = kwargs["model"]["xvector"]
+#     if rank == 0:
+#         logging.info("xvector network ft args={}".format(xvec_args))
+#     xvec_args["num_classes"] = num_classes
+#     model = TML.load(in_model_file)
+#     model.rebuild_output_layer(**xvec_args)
+#     if rank == 0:
+#         logging.info("model={}".format(model))
+#     return model
+
+
 def init_model(num_classes, in_model_file, rank, **kwargs):
-    xvec_args = kwargs["model"]["xvector"]
+    model_args = kwargs["model"]
     if rank == 0:
-        logging.info("xvector network ft args={}".format(xvec_args))
-    xvec_args["num_classes"] = num_classes
+        logging.info("xvector network ft args={}".format(model_args))
+    model_args["xvector"]["num_classes"] = num_classes
     model = TML.load(in_model_file)
-    model.rebuild_output_layer(**xvec_args)
+    model.change_config(**model_args)
     if rank == 0:
         logging.info("model={}".format(model))
     return model

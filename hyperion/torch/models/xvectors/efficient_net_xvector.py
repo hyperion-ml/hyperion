@@ -204,6 +204,17 @@ class EfficientNetXVector(XVector):
         config.update(base_config)
         return config
 
+    def change_config(
+        self, override_dropouts=False, dropout_rate=0, drop_connect_rate=0, **kwargs
+    ):
+        xvec_args = XVector.filter_finetune_args(**kwargs)
+        xvec_args["override_dropouts"] = False
+        super().change_config(**xvec_args)
+
+        if override_dropouts:
+            self.encoder_net.change_dropouts(dropout_rate, drop_connect_rate)
+            self.classif_net.change_dropouts(dropout_rate)
+
     @classmethod
     def load(cls, file_path=None, cfg=None, state_dict=None):
 
@@ -215,6 +226,7 @@ class EfficientNetXVector(XVector):
 
         return model
 
+    @staticmethod
     def filter_args(**kwargs):
 
         base_args = XVector.filter_args(**kwargs)
@@ -236,6 +248,25 @@ class EfficientNetXVector(XVector):
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
-            # help='xvector options')
 
     add_argparse_args = add_class_args
+
+    @staticmethod
+    def filter_finetune_args(**kwargs):
+        base_args = XVector.filter_finetune_args(**kwargs)
+        child_args = EN.filter_finetune_args(**kwargs)
+
+        base_args.update(child_args)
+        return base_args
+
+    @staticmethod
+    def add_finetune_args(parser, prefix=None):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
+
+        EN.add_finetune_args(parser)
+        XVector.add_finetune_args(parser)
+
+        if prefix is not None:
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

@@ -191,6 +191,7 @@ class ResNetXVector(XVector):
 
         return model
 
+    @staticmethod
     def filter_args(**kwargs):
 
         base_args = XVector.filter_args(**kwargs)
@@ -210,6 +211,26 @@ class ResNetXVector(XVector):
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
-            # help='xvector options')
 
     add_argparse_args = add_class_args
+
+    @staticmethod
+    def filter_finetune_args(**kwargs):
+
+        base_args = XVector.filter_finetune_args(**kwargs)
+        child_args = RNF.filter_finetune_args(**kwargs)
+
+        base_args.update(child_args)
+        return base_args
+
+    @staticmethod
+    def add_finetune_args(parser, prefix=None):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
+
+        XVector.add_finetune_args(parser)
+        RNF.add_finetune_args(parser)
+
+        if prefix is not None:
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

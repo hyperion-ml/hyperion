@@ -4,7 +4,8 @@
 nj=30
 cmd="run.pl"
 
-chunk_length=0     # The chunk size over which the embedding is extracted.
+hf_chunk_length=0     # The chunk size over which the embedding is extracted.
+xvec_chunk_length=0     # The chunk size over which the embedding is extracted.
 use_gpu=false
 write_utt2speech_dur=true  # If true writes utt2speech_dur.
 stage=0
@@ -87,7 +88,7 @@ if [ $stage -le 0 ];then
 	${args} $write_speech_dur_opt \
 	--part-idx JOB --num-parts $nj \
 	--input $data_dir/wav.scp \
-	--model-path $nnet_file --chunk-length $chunk_length \
+	--model-path $nnet_file --xvec-chunk-length $xvec_chunk_length --hf-chunk-length $hf_chunk_length \
 	--output ark,scp:$output_dir/xvector.JOB.ark,$output_dir/xvector.JOB.scp
     set -e
 fi
@@ -109,7 +110,7 @@ if [ $stage -le 1 ];then
 		 ${args} $write_speech_dur_opt \
 		 --part-idx $i --num-parts $nj \
 		 --input $data_dir/wav.scp \
-		 --model-path $nnet_file --chunk-length $chunk_length \
+		 --model-path $nnet_file --xvec-chunk-length $xvec_chunk_length --hf-chunk-length $hf_chunk_length \
 		 --output ark,scp:$output_dir/xvector.$i.ark,$output_dir/xvector.$i.scp &
 	fi
     done

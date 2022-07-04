@@ -51,6 +51,16 @@ class TorchModel(nn.Module):
         for param in self.parameters():
             param.requires_grad = True
 
+    def change_dropouts(self, dropout_rate):
+        """Changes all dropout rates of the model."""
+        for module in self.modules():
+            if isinstance(module, nn.modules.dropout._DropoutNd):
+                module.p = dropout_rate
+
+        if hasattr(self, "dropout_rate"):
+            assert dropout_rate == 0 or self.dropout_rate > 0
+            self.dropout_rate = dropout_rate
+
     @property
     def train_mode(self):
         return self._train_mode

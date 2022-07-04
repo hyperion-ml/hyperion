@@ -11,12 +11,13 @@ stage=2
 config_file=default_config.sh
 use_gpu=false
 nnet_stage=3
+hf_chunk_length=120 #seconds
 xvec_chunk_length=120 #seconds
 . parse_options.sh || exit 1;
 . $config_file
 
 if [ "$use_gpu" == "true" ];then
-  xvec_args="--use-gpu true --chunk-length $xvec_chunk_length"
+  xvec_args="--use-gpu true --xvec-chunk-length $xvec_chunk_length --hf-chunk-length $hf_chunk_length"
   xvec_cmd="$cuda_eval_cmd --mem 6G"
 else
   xvec_cmd="$train_cmd --mem 12G"

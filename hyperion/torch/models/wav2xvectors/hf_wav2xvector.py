@@ -83,6 +83,9 @@ class HFWav2XVector(TorchModel):
 
         return feats
 
+    def compute_prototype_affinity(self):
+        return self.xvector.compute_prototype_affinity()
+
     def update_loss_margin(self, epoch):
         """Updates the value of the margin in AAM/AM-softmax losses
            given the epoch number
@@ -114,14 +117,22 @@ class HFWav2XVector(TorchModel):
             num_subcenters=num_subcenters,
         )
 
-    def forward_feats(self, x, x_lengths, return_feat_layers=None):
+    def forward_feats(
+        self, x, x_lengths, return_feat_layers=None, chunk_length=0, detach_chunks=False
+    ):
         return_hid_states = (
             False
             if return_feat_layers is None and self.feat_fusion_method == "last"
             else True
         )
         with self._hf_context:
-            hf_output = self.hf_feats(x, x_lengths, return_hid_states=return_hid_states)
+            hf_output = self.hf_feats(
+                x,
+                x_lengths,
+                return_hid_states=return_hid_states,
+                chunk_length=chunk_length,
+                detach_chunks=detach_chunks,
+            )
         feat_lengths = hf_output["hidden_states_lengths"]
         if return_hid_states:
             hid_feats = hf_output["hidden_states"]
@@ -203,7 +214,8 @@ class HFWav2XVector(TorchModel):
         x,
         x_lengths=None,
         vad_samples=None,
-        chunk_length=0,
+        hf_chunk_length=0,
+        xvec_chunk_length=0,
         embed_layer=None,
         detach_chunks=False,
     ):
@@ -211,8 +223,15 @@ class HFWav2XVector(TorchModel):
         if vad_samples is not None:
             x, x_lengths = remove_silence(x, x_lengths)
 
-        feats, _, feat_lengths = self.forward_feats(x, x_lengths)
-        xvec_chunk_length = int(chunk_length * feats.size(-1) // x.size(-1))
+        feats, _, feat_lengths = self.forward_feats(
+            x, x_lengths, chunk_length=hf_chunk_length, detach_chunks=detach_chunks
+        )
+        xvec_chunk_length = int(
+            xvec_chunk_length
+            * self.hf_feats.sample_frequency
+            * feats.size(-1)
+            // x.size(-1)
+        )
         return self.xvector.extract_embed(
             feats, feat_lengths, xvec_chunk_length, embed_layer, detach_chunks
         )
@@ -328,6 +347,11 @@ class HFWav2XVector(TorchModel):
 
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
+
+    def change_config(self, hf_feats, xvector):
+        logging.info("changing hf wav2xvector config")
+        self.hf_feats.change_config(**hf_feats)
+        self.xvector.change_config(**xvector)
 
     @staticmethod
     def add_class_args(parser, prefix=None, skip=set()):

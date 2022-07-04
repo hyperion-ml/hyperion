@@ -5,6 +5,7 @@
 
 import os
 import logging
+from turtle import right
 from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
 
 from typing import Optional, Tuple, Union, List
@@ -49,6 +50,10 @@ class HFWav2VecBase(TorchModel):
             and uses the ones passed as arguments.
         override_spec_augment (`bool` defaults to False): if True, it ingnores the spec. augment.
             configuration in the pretrained model and uses the ones passed in the arguments.
+        left_encoder_context (`int`): past context frames used by the transformer encoder when the signal is evaluated
+          chunk by chunk, if it is too long to fit in GPU.
+        right_encoder_context: (`int`): future context frames used by the transformer encoder.
+        sample_frequency: (`int`) waveform sample frequency used to train the model.
     """
 
     def __init__(
@@ -64,6 +69,9 @@ class HFWav2VecBase(TorchModel):
         ignore_pretrained: bool = False,
         override_dropouts: bool = False,
         override_spec_augment: bool = False,
+        left_encoder_context: int = 16,
+        right_encoder_context: int = 16,
+        sample_frequency: int = 16000,
     ):
         super().__init__()
         self.pretrained_model_path = pretrained_model_path
@@ -75,6 +83,8 @@ class HFWav2VecBase(TorchModel):
         self.ignore_pretrained = ignore_pretrained
         self.override_dropouts = override_dropouts
         self.override_spec_augment = override_spec_augment
+        self.right_encoder_context = right_encoder_context
+        self.left_encoder_context = left_encoder_context
 
         if pretrained_model_path is not None and not ignore_pretrained:
             rank = ddp_get_rank()
@@ -130,9 +140,14 @@ class HFWav2VecBase(TorchModel):
             ddp_wait_for_all_procs()
             normalize_input = feature_extractor.do_normalize
             use_input_attention_mask = feature_extractor.return_attention_mask
+            sample_frequency = feature_extractor.sampling_rate
 
         self.normalize_input = normalize_input
         self.use_input_attention_mask = use_input_attention_mask
+        self.sample_frequency = sample_frequency
+
+        self._feature_encoder_context = None
+        self._frame_shift = None
 
     def __deepcopy__(self, memo):
         """Reimplementation of deepcopy for Hugging Face models.
@@ -149,11 +164,65 @@ class HFWav2VecBase(TorchModel):
         new_obj.to(device)
         return new_obj
 
-    def change_hyperparams(self, **kwargs):
-        if self.override_spec_augment:
+    @property
+    def feature_encoder_context(self):
+        if self._feature_encoder_context is not None:
+            return self._feature_encoder_context
+
+        total_context = 0
+        total_stride = 1
+        for kernel, stride in zip(
+            self.hf_model.config.conv_kernel, self.hf_model.config.conv_stride
+        ):
+            total_context += total_stride * (kernel - 1) / 2
+            total_stride *= stride
+
+        self._feature_encoder_context = (int(total_context + 0.5), int(total_context))
+        return self._feature_encoder_context
+
+    @property
+    def frame_shift(self):
+        if self._frame_shift is not None:
+            return self._frame_shift
+
+        total_stride = 1
+        for stride in self.hf_model.config.conv_stride:
+            total_stride *= stride
+
+        self._frame_shift = total_stride
+        return total_stride
+
+    @property
+    def context(self):
+        left, right = self.feature_encoder_context
+        left += self.left_encoder_context
+        right += self.right_encoder_context
+        return left, right
+
+    def max_out_length(self, max_in_length):
+        return self.hf_model._get_feat_extract_output_lengths(max_in_length).item()
+        # left_context, right_context = self.feature_encoder_context
+        # max_in_length = max_in_length - left_context - right_context
+        # return max_in_length // self.frame_shift
+
+    def out_lengths(self, in_lengths):
+        return self.hf_model._get_feat_extract_output_lengths(in_lengths)
+        # left_context, right_context = self.feature_encoder_context
+        # in_lengths = in_lengths - left_context - right_context
+        # return torch.div(in_lengths, self.frame_shift, rounding_mode="floor")
+
+    def out_shape(self, in_shape):
+        out_length = self.max_out_length(in_shape[1])
+        C = self.hf_model.config.hidden_size
+        return (in_shape[0], out_length, C)
+
+    def change_config(self, override_dropouts, override_spec_augment, **kwargs):
+        if override_spec_augment:
+            logging.info("overriding speech augment")
             self.change_spec_augment(**kwargs)
 
-        if self.override_dropouts:
+        if override_dropouts:
+            logging.info("overriding hf model dropouts")
             self.change_dropouts(**kwargs)
 
     def change_spec_augment(
@@ -217,6 +286,51 @@ class HFWav2VecBase(TorchModel):
         x_lengths: Optional[torch.LongTensor] = None,
         return_attentions: bool = False,
         return_hid_states: bool = False,
+        chunk_length: float = 0,
+        detach_chunks: bool = True,
+    ):
+        r"""Forward function for long utterances that do not fit in GPU memory.
+
+        Args:
+          x: input audio of shape = (batch, sequence_length).
+          x_lengths: lengths of the audio waveforms in samples with shape = (batch,).
+          return_attentions: whether or not to return the attentions tensors of
+            all attention layers.
+          return_hid_states: whether or not to return the hidden states of all layers.
+          chunk_size: chunk size in seconds.
+
+        Returns:
+          Dictionary with:
+            last_hidden_state: sequence of hidden-states at the output of the last
+                layer of the model (torch.FloatTensor of shape
+                (batch_size, sequence_length, hidden_size)).
+            extract_features: sequence of extracted feature vectors of the last
+                convolutional layer of the model. (torch.FloatTensor of shape
+                (batch_size, sequence_length, conv_dim[-1])
+            hidden_states: hidden-states of the model at the output of each layer
+                plus the initial embedding outputs (tuple(torch.FloatTensor)).
+            attentions: Attentions weights after the attention softmax, used to
+                compute the weighted average in the self-attention heads
+                (tuple(torch.FloatTensor)).
+        """
+        if chunk_length == 0 or x.size(1) < chunk_length * self.sample_frequency:
+            return self.forward_impl(x, x_lengths, return_attentions, return_hid_states)
+        else:
+            return self.forward_long_impl(
+                x,
+                x_lengths,
+                return_attentions,
+                return_hid_states,
+                chunk_length,
+                detach_chunks,
+            )
+
+    def forward_impl(
+        self,
+        x: torch.Tensor,
+        x_lengths: Optional[torch.LongTensor] = None,
+        return_attentions: bool = False,
+        return_hid_states: bool = False,
     ):
         r"""Forward function for wav2vec style models.
 
@@ -259,6 +373,143 @@ class HFWav2VecBase(TorchModel):
 
         return output
 
+    def forward_long_impl(
+        self,
+        x: torch.Tensor,
+        x_lengths: Optional[torch.LongTensor] = None,
+        return_attentions: bool = False,
+        return_hid_states: bool = False,
+        chunk_length: float = 120.0,
+        detach_chunks: bool = True,
+    ):
+        r"""Forward function for long utterances that do not fit in GPU memory.
+
+        Args:
+          x: input audio of shape = (batch, sequence_length).
+          x_lengths: lengths of the audio waveforms in samples with shape = (batch,).
+          return_attentions: whether or not to return the attentions tensors of
+            all attention layers.
+          return_hid_states: whether or not to return the hidden states of all layers.
+          chunk_size: chunk size in seconds.
+
+        Returns:
+          Dictionary with:
+            last_hidden_state: sequence of hidden-states at the output of the last
+                layer of the model (torch.FloatTensor of shape
+                (batch_size, sequence_length, hidden_size)).
+            extract_features: sequence of extracted feature vectors of the last
+                convolutional layer of the model. (torch.FloatTensor of shape
+                (batch_size, sequence_length, conv_dim[-1])
+            hidden_states: hidden-states of the model at the output of each layer
+                plus the initial embedding outputs (tuple(torch.FloatTensor)).
+            attentions: Attentions weights after the attention softmax, used to
+                compute the weighted average in the self-attention heads
+                (tuple(torch.FloatTensor)).
+        """
+        # output0 = self.forward_impl(x, x_lengths)
+        # mol0 = output0.last_hidden_state.size(1)
+        print("long", flush=True)
+        max_in_length = x.size(-1)
+        x, x_mask = self._preprocess(x, x_lengths)
+        # we transform the chunk length from seconds to samples,
+        # making sure that the chunk_length corresponds to an integer number of output samples.
+        chunk_frames = int(chunk_length * self.sample_frequency) // self.frame_shift
+        chunk_length = chunk_frames * self.frame_shift
+        num_chunks = (x.size(1) + chunk_length - 1) // chunk_length
+        left_context, right_context = self.context
+        max_out_length = self.max_out_length(x.size(1))
+        start = 0
+        outputs = []
+        for i in range(num_chunks):
+            if i < num_chunks - 1:
+                start_i = max(start - left_context, 0)
+            else:
+                # last chunk has special treatment, we forward pass
+                # a chunk with chunk_length size ending at the end.
+                # but we will just use the output frames that don't overlap
+                # with the second last chunk.
+                start_i = max(x.size(1) - chunk_length - left_context, 0)
+
+            stop_i = min(start + chunk_length + right_context, x.size(1))
+            x_i = x[:, start_i:stop_i]
+            x_mask_i = None if x_mask is None else x_mask[start_i:stop_i]
+            output_i = self.hf_model(
+                x_i,
+                x_mask_i,
+                output_attentions=return_attentions,
+                output_hidden_states=return_hid_states,
+            )
+
+            if i < num_chunks - 1:
+                start_out_i = max(
+                    output_i.last_hidden_state.size(1)
+                    - chunk_frames
+                    - self.right_encoder_context,
+                    0,
+                )
+                stop_out_i = start_out_i + chunk_frames
+            else:
+                # we just use the frames that do not overlap
+                # with the second last chunk
+                remaining_frames = max_out_length - i * chunk_frames
+                start_out_i = -remaining_frames
+                stop_out_i = output_i.last_hidden_state.size(1)
+
+            output_i.last_hidden_state = output_i.last_hidden_state[
+                :, start_out_i:stop_out_i
+            ]
+            if detach_chunks:
+                output_i.last_hidden_state.detach_()
+
+            if return_hid_states:
+                output_i.hidden_states = [
+                    h[:, start_out_i:stop_out_i] for h in output_i.hidden_states
+                ]
+                if detach_chunks:
+                    output_i.hidden_states = [
+                        h.detach() for h in output_i.hidden_states
+                    ]
+
+            outputs.append(output_i)
+            start += chunk_length
+
+        # concatenate outputs from different chunks
+        output = outputs[0]
+        output.last_hidden_state = torch.cat(
+            [o.last_hidden_state for o in outputs], dim=1
+        )
+        if return_hid_states:
+            hidden_states = []
+            for j in range(len(outputs[0].hidden_states)):
+                hidden_states_j = torch.cat(
+                    [o.hidden_states[j] for o in outputs], dim=1
+                )
+                hidden_states.append(hidden_states_j)
+            output.hidden_states = hidden_states
+
+        if return_attentions:
+            attentions = []
+            for j in range(len(outputs[0].attentions)):
+                attentions_j = [o.attentions[j] for o in outputs]
+                attentions.append(attentions_j)
+            output.attentions = attentions
+
+        feat_lengths = (
+            None
+            if x_lengths is None
+            else scale_seq_lengths(x_lengths, max_out_length, max_in_length)
+        )
+        output["hidden_states_lengths"] = feat_lengths
+        # print(
+        #     "lens",
+        #     mol0,
+        #     max_out_length,
+        #     output.last_hidden_state.size(1),
+        #     output.hidden_states[0].size(1),
+        #     flush=True,
+        # )
+        return output
+
     def get_config(self):
         """Returns the configuration arguments for the object in a dictionary."""
 
@@ -274,6 +525,9 @@ class HFWav2VecBase(TorchModel):
             "ignore_pretrained": self.ignore_pretrained,
             "override_dropouts": self.override_dropouts,
             "override_spec_augment": self.override_spec_augment,
+            "left_encoder_context": self.left_encoder_context,
+            "right_encoder_context": self.right_encoder_context,
+            "sample_frequency": self.sample_frequency,
         }
 
         base_config = super().get_config()
@@ -298,6 +552,9 @@ class HFWav2VecBase(TorchModel):
             "ignore_pretrained",
             "override_dropouts",
             "override_spec_augment",
+            "left_encoder_context",
+            "right_encoder_context",
+            "sample_frequency",
         )
         args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
         return args
@@ -383,5 +640,61 @@ class HFWav2VecBase(TorchModel):
                 "arguments instead of the defaults in the pretrained model."
             ),
         )
+        parser.add_argument(
+            "--left-encoder-context",
+            default=16,
+            type=int,
+            help=(
+                "past context frames used by the transformer encoder "
+                "when the signal is evaluated chunk by chunk."
+            ),
+        )
+        parser.add_argument(
+            "--right-encoder-context",
+            default=16,
+            type=int,
+            help=(
+                "future context frames used by the transformer encoder "
+                "when the signal is evaluated chunk by chunk."
+            ),
+        )
+
+        if prefix is not None:
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
+
+    @staticmethod
+    def filter_finetune_args(**kwargs):
+        valid_args = (
+            "override_dropouts",
+            "override_spec_augment",
+        )
+        args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
+        return args
+
+    @staticmethod
+    def add_finetune_args(parser, prefix=None, skip=set()):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
+
+        parser.add_argument(
+            "--override-dropouts",
+            default=False,
+            action=ActionYesNo,
+            help=(
+                "whether to use the dropout probabilities passed in the "
+                "arguments instead of the defaults in the pretrained model."
+            ),
+        )
+        parser.add_argument(
+            "--override-spec-augment",
+            default=False,
+            action=ActionYesNo,
+            help=(
+                "whether to use the spec augment config. passed in the "
+                "arguments instead of the defaults in the pretrained model."
+            ),
+        )
+
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

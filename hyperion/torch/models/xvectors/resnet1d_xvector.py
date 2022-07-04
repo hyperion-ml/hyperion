@@ -81,6 +81,38 @@ class ResNet1dXVector(XVector):
         config.update(base_config)
         return config
 
+    def change_config(
+        self,
+        resnet_enc,
+        override_dropouts=False,
+        dropout_rate=0,
+        num_classes=None,
+        loss_type="arc-softmax",
+        cos_scale=64,
+        margin=0.3,
+        margin_warmup_epochs=10,
+        intertop_k=5,
+        intertop_margin=0,
+        num_subcenters=2,
+    ):
+        super().change_config(
+            False,
+            dropout_rate,
+            num_classes,
+            loss_type,
+            cos_scale,
+            margin,
+            margin_warmup_epochs,
+            intertop_k,
+            intertop_margin,
+            num_subcenters,
+        )
+        if override_dropouts:
+            logging.info("chaning x-vector head dropouts")
+            self.classif_net.change_dropouts(dropout_rate)
+
+        self.encoder_net.change_config(**resnet_enc)
+
     @classmethod
     def load(cls, file_path=None, cfg=None, state_dict=None):
 
@@ -118,6 +150,26 @@ class ResNet1dXVector(XVector):
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
-            # help='xvector options')
 
     add_argparse_args = add_class_args
+
+    @staticmethod
+    def filter_finetune_args(**kwargs):
+        base_args = XVector.filter_finetune_args(**kwargs)
+        child_args = Encoder.filter_finetune_args(**kwargs["resnet_enc"])
+        base_args["resnet_enc"] = child_args
+        return base_args
+
+    @staticmethod
+    def add_finetune_args(parser, prefix=None):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
+
+        XVector.add_finetune_args(parser)
+        Encoder.add_finetune_args(
+            parser, prefix="resnet_enc", skip=set(["head_channels"])
+        )
+
+        if prefix is not None:
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

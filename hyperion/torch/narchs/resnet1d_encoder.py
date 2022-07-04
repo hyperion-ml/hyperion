@@ -3,8 +3,9 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from jsonargparse import ArgumentParser, ActionParser
+from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
 import math
+import logging
 
 import numpy as np
 
@@ -518,6 +519,22 @@ class ResNet1dEncoder(NetArch):
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
+    def change_config(self, override_dropouts, dropout_rate, drop_connect_rate):
+        if override_dropouts:
+            logging.info("chaning resnet1d dropouts")
+            self.change_dropouts(dropout_rate, drop_connect_rate)
+
+    def change_dropouts(self, dropout_rate, drop_connect_rate):
+        super().change_dropouts(dropout_rate)
+        from ..layers import DropConnect1d
+
+        for module in self.modules():
+            if isinstance(module, DropConnect1d):
+                module.p *= drop_connect_rate / self.drop_connect_rate
+
+        self.drop_connect_rate = drop_connect_rate
+        self.dropout_rate = dropout_rate
+
     @staticmethod
     def filter_args(**kwargs):
         if "wo_norm" in kwargs:
@@ -791,6 +808,55 @@ class ResNet1dEncoder(NetArch):
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
-            # help='ResNet1d encoder options')
 
     add_argparse_args = add_class_args
+
+    @staticmethod
+    def filter_finetune_args(**kwargs):
+
+        valid_args = (
+            "override_dropouts",
+            "drop_connect_rate",
+            "dropout_rate",
+        )
+        args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
+        return args
+
+    @staticmethod
+    def add_finetune_args(parser, prefix=None, skip=set([])):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
+
+        try:
+            parser.add_argument(
+                "--override-dropouts",
+                default=False,
+                action=ActionYesNo,
+                help=(
+                    "whether to use the dropout probabilities passed in the "
+                    "arguments instead of the defaults in the pretrained model."
+                ),
+            )
+        except:
+            pass
+
+        try:
+            parser.add_argument(
+                "--dropout-rate", default=0, type=float, help="dropout probability"
+            )
+        except:
+            pass
+
+        try:
+            parser.add_argument(
+                "--drop-connect-rate",
+                default=0,
+                type=float,
+                help="layer drop probability",
+            )
+        except:
+            pass
+
+        if prefix is not None:
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

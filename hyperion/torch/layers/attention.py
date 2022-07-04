@@ -468,6 +468,7 @@ class LocalScaledDotProdAttV1(ScaledDotProdAttV1):
             else:
                 # case when mask is 1d vector per batch element,
                 # meaning that time1 and time2 are the same, so mask is symmetric
+                pad2 = 0  # fix this
                 mask = nn.functional.pad(mask, (0, pad2))
                 mask = mask.squeeze(1).eq(0)  # (batch, 1, time)
 

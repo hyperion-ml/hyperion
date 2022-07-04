@@ -1,0 +1,41 @@
+hf_feats:
+  pretrained_model_path: microsoft/wavlm-base-plus
+  drop_layers_gt: 9
+xvector:
+  resnet_enc:
+    in_feats: 765
+    in_conv_channels: 512
+    in_kernel_size: 5
+    in_stride: 1
+    resb_type: seres2bn
+    resb_repeats:
+      - 1
+      - 1
+      - 1
+    resb_channels:
+      - 512
+    resb_kernel_sizes:
+      - 3
+    resb_dilations:
+      - 2
+      - 3
+      - 4
+    resb_strides:
+      - 1
+    res2net_width_factor: 1
+    res2net_scale: 8
+    se_r: 4
+    multilayer: true
+    multilayer_concat: true
+    endpoint_channels: 1536
+  pool_net:
+    pool_type: ch-wise-att-mean+stddev
+    inner_feats: 128
+  embed_dim: 192
+  cos_scale: 32.0
+  margin: 0.2
+  margin_warmup_epochs: 5
+  intertop_margin: 0.1
+  dropout_rate: 0.0
+feat_fusion_method: weighted-avg
+feat_fusion_start: 2

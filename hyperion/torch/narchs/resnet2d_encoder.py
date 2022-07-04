@@ -5,6 +5,7 @@
 
 import math
 from jsonargparse import ArgumentParser, ActionParser
+import logging
 
 import torch
 import torch.nn as nn
@@ -351,6 +352,22 @@ class ResNet2dEncoder(NetArch):
 
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
+
+    def change_config(self, override_dropouts, dropout_rate, drop_connect_rate):
+        if override_dropouts:
+            logging.info("chaning resnet2d dropouts")
+            self.change_dropouts(dropout_rate, drop_connect_rate)
+
+    def change_dropouts(self, dropout_rate, drop_connect_rate):
+        super().change_dropouts(dropout_rate)
+        from ..layers import DropConnect2d
+
+        for module in self.modules():
+            if isinstance(module, DropConnect2d):
+                module.p *= drop_connect_rate / self.drop_connect_rate
+
+        self.drop_connect_rate = drop_connect_rate
+        self.dropout_rate = dropout_rate
 
     @staticmethod
     def filter_args(**kwargs):
