@@ -33,6 +33,7 @@ nnet_s3_args=""
 nnet_s3_name=${nnet_name}.s3
 nnet_s3_dir=exp/xvector_nnets/$nnet_s3_name
 nnet_s3=$nnet_s3_dir/model_ep0002.pth
+nnet_s3=$nnet_s3_dir/model_ep0005.pth
 
 # back-end
 plda_aug_config=conf/reverb_noise_aug.yaml

@@ -8,6 +8,7 @@ data:
     sampler:
       batch_size: 16
       iters_per_epoch: 6
+      num_hard_prototypes: 8
     data_loader:
       num_workers: 8
   val:
@@ -43,7 +44,7 @@ trainer:
     update_lr_on_opt_step: true
   use_amp: true
   log_interval: 1000
-  epochs: 2
+  epochs: 5
   eff_batch_size: 192
   train_mode: full
 

@@ -43,7 +43,6 @@ class ClassWeightedSeqSampler(Sampler):
         num_egs_per_utt=1,
         var_batch_size=False,
         num_hard_prototypes=0,
-        num_egs_per_hard_prototype=1,
         affinity_matrix=None,
         iters_per_epoch=None,
     ):
@@ -66,7 +65,6 @@ class ClassWeightedSeqSampler(Sampler):
         self.num_egs_per_utt = num_egs_per_utt
         self.var_batch_size = var_batch_size
         self.num_hard_prototypes = num_hard_prototypes
-        self.num_egs_per_hard_prototype = num_egs_per_hard_prototype
         self.batch = 0
 
         self.rank = rank
@@ -160,6 +158,7 @@ class ClassWeightedSeqSampler(Sampler):
         self.batch = 0
         return self
 
+    @property
     def hard_prototype_mining(self):
         return self.num_hard_prototypes > 0
 
@@ -168,14 +167,22 @@ class ClassWeightedSeqSampler(Sampler):
             self.hard_prototypes = None
             return
 
-        affinity_matrix[np.diag(affinity_matrix.shape[0])] = -1.0
+        # affinity_matrix[np.diag(affinity_matrix.shape[0])] = -1.0
+        # hard prototypes for a class are itself and k-1 closest to it.
         self.hard_prototypes = torch.topk(
             affinity_matrix, self.num_hard_prototypes, dim=-1
         ).indices
 
+    def get_hard_prototypes(self, class_idx):
+        return self.hard_prototypes[class_idx].flatten()
+
     def _get_utt_idx_basic(self, batch_mult=1):
         dataset = self.dataset
         num_classes_per_batch = batch_mult * self._num_classes_per_batch
+        if self.hard_prototype_mining:
+            num_classes_per_batch = int(
+                math.ceil(num_classes_per_batch / self.num_hard_prototypes)
+            )
 
         if dataset.class_weights is None:
             class_idx = torch.randint(
@@ -187,6 +194,9 @@ class ClassWeightedSeqSampler(Sampler):
                 num_samples=num_classes_per_batch,
                 replacement=True,
             )
+
+        if self.hard_prototype_mining:
+            class_idx = self.get_hard_prototypes(class_idx)
 
         if self.num_egs_per_class > 1:
             class_idx = class_idx.repeat(self.num_egs_per_class)
@@ -206,6 +216,10 @@ class ClassWeightedSeqSampler(Sampler):
         dataset = self.dataset
 
         num_classes_per_batch = batch_mult * self._num_classes_per_batch
+        if self.hard_prototype_mining:
+            num_classes_per_batch = int(
+                math.ceil(num_classes_per_batch / self.num_hard_prototypes)
+            )
 
         # first we sample the batch classes
         class_weights = dataset.class_weights.clone()
@@ -218,6 +232,9 @@ class ClassWeightedSeqSampler(Sampler):
         class_idx = torch.multinomial(
             class_weights, num_samples=num_classes_per_batch, replacement=True
         )
+
+        if self.hard_prototype_mining:
+            class_idx = self.get_hard_prototypes(class_idx)
 
         utt_idx = torch.zeros(
             (len(class_idx) * self.num_egs_per_class,), dtype=torch.long
@@ -293,7 +310,6 @@ class ClassWeightedSeqSampler(Sampler):
             "num_egs_per_class",
             "num_egs_per_utt",
             "num_hard_prototypes",
-            "num_egs_per_hard_prototype",
         )
         return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
@@ -350,12 +366,6 @@ class ClassWeightedSeqSampler(Sampler):
             type=int,
             default=0,
             help=("number of hard prototype classes per batch"),
-        )
-        parser.add_argument(
-            "--num-egs-per-hard-prototype",
-            type=int,
-            default=1,
-            help=("number of samples per hard prototype class in the batch"),
         )
 
         if prefix is not None:

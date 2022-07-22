@@ -95,6 +95,22 @@ def init_model(num_classes, in_model_file, rank, **kwargs):
     return model
 
 
+def init_hard_prototype_mining(model, train_loader, val_loader, rank):
+    if not train_loader.batch_sampler.hard_prototype_mining:
+        return
+
+    if rank == 0:
+        logging.info("setting hard prototypes")
+
+    affinity_matrix = model.compute_prototype_affinity()
+    train_loader.batch_sampler.set_hard_prototypes(affinity_matrix)
+
+    if not val_loader.batch_sampler.hard_prototype_mining:
+        return
+
+    val_loader.batch_sampler.set_hard_prototypes(affinity_matrix)
+
+
 def train_model(gpu_id, args):
 
     config_logger(args.verbose)
@@ -112,6 +128,7 @@ def train_model(gpu_id, args):
     train_loader = init_data(partition="train", **kwargs)
     val_loader = init_data(partition="val", **kwargs)
     model = init_model(train_loader.dataset.num_classes, **kwargs)
+    init_hard_prototype_mining(model, train_loader, val_loader, rank)
 
     trn_args = Trainer.filter_args(**kwargs["trainer"])
     if rank == 0:
