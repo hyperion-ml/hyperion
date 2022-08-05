@@ -21,7 +21,7 @@ if [ "$(hostname -d)" == "cm.gemini" ];then
 else
     export train_cmd="queue.pl --mem 4G -l hostname=\"[bc][01]*\" -V" 
     export cuda_cmd="queue.pl --mem 20G -l hostname=\"c[01]*\" -V"
-    export cuda_eval_cmd="$train_cmd"
+    export cuda_eval_cmd="queue.pl --mem 4G -l hostname=\"c[01]*\" -V" 
 fi
 
 

@@ -9,18 +9,19 @@ import logging
 import torch
 
 
-def open_device(num_gpus=1, gpu_ids=None, find_free_gpu=False):
+def _open_device(num_gpus=1, gpu_ids=None, find_free_gpu=False):
     if find_free_gpu:
         os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
         if gpu_ids is None:
             gpu_ids = find_free_gpus(num_gpus)
-        if isinstance(gpu_ids, list):
-            gpu_ids = ",".join([str(i) for i in gpu_ids])
 
+    if isinstance(gpu_ids, list):
+        gpu_ids = ",".join([str(i) for i in gpu_ids])
         os.environ["CUDA_VISIBLE_DEVICES"] = gpu_ids
 
     if num_gpus > 0 and torch.cuda.is_available():
-        logging.info("CUDA_VISIBLE_DEVICES=%s" % os.environ["CUDA_VISIBLE_DEVICES"])
+        logging.info("CUDA_VISIBLE_DEVICES=%s" %
+                     os.environ["CUDA_VISIBLE_DEVICES"])
         logging.info("init gpu device")
         device = torch.device("cuda", 0)
         torch.tensor([0]).to(device)
@@ -33,6 +34,22 @@ def open_device(num_gpus=1, gpu_ids=None, find_free_gpu=False):
         device = torch.device("cpu")
 
     return device
+
+
+def open_device(num_gpus=1, gpu_ids=None, find_free_gpu=False):
+    try:
+        return _open_device(num_gpus, gpu_ids, find_free_gpu)
+    except:
+        try:
+            return _open_device(num_gpus, None, True)
+        except:
+            for g in range(8):
+                try:
+                    return _open_device(num_gpus, [g], False)
+                except Exception:
+                    pass
+
+    raise Exception("Not free gpu found")
 
 
 def find_free_gpus(num_gpus):

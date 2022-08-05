@@ -1,0 +1,39 @@
+data:
+  train: train_data_default.yaml
+  val: val_data_default.yaml
+feats: fbank80_stmn_16k.yaml
+model:
+  resnet_enc:
+    in_feats: 80
+    in_conv_channels: 32
+    in_kernel_size: 5
+    in_stride: 1
+    resb_type: seres2bn
+    resb_repeats:
+    - 1
+    - 1
+    resb_channels:
+    - 32
+    resb_kernel_sizes:
+    - 3
+    resb_dilations:
+    - 2
+    - 3
+    resb_strides:
+    - 1
+    res2net_width_factor: 1
+    res2net_scale: 4
+    se_r: 4
+    multilayer: true
+    multilayer_concat: true
+    endpoint_channels: 64
+  pool_net:
+    pool_type: ch-wise-att-mean+stddev
+    inner_feats: 16
+  embed_dim: 64
+  cos_scale: 30.0
+  margin: 0.3
+  margin_warmup_epochs: 20.0
+  dropout_rate: 0.0
+trainer: trainer_default.yaml
+ 
