@@ -1,0 +1,7 @@
+lrsch_type: exp_lr
+decay_rate: 0.5
+decay_steps: 8000
+hold_steps: 40000
+min_lr: 1.0e-05
+update_lr_on_opt_step: true
+warmup_steps: 1000

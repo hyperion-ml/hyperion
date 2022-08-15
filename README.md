@@ -23,6 +23,17 @@ The full API is described in the documentation page [https://hyperion-ml.readthe
 
 ## Installation Instructions
 
+### If you use the CLSP grid, simply run below in the root of your cloned repo (as of Aug 15 2022):
+```
+./prepare_egs_paths.sh
+# Then, type /home/janto/usr/local/anaconda3 when "Introduce path to your conda base installation (e.g.:/usr/local/anaconda3):" is prompted
+# type hyp_persephone when "Introduce name/prefix_path for your conda environment (e.g.:hyperion)" is prompted
+# You will see the two lines below but it seems okay to ignore:
+# Hyperion is not installed in env
+# Adding hyperion directory to the PYTHONPATH variable in the recipes.
+# Also, with this, you can skip "Prerequistes to run the recipes" below
+```
+
 ### Prerequisites
 
     We use anaconda or miniconda, though you should be able to make it work in other python distributions

@@ -1,0 +1,11 @@
+spinenet_type: spinenet49
+in_channels: 1
+in_feats: 80
+in_kernel_size: 3
+in_stride: 1
+no_maxpool: true
+embed_dim: 256
+cos_scale: 30.0
+margin: 0.3
+margin_warmup_epochs: 20.0
+dropout_rate: 0.0
