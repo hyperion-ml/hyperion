@@ -187,6 +187,10 @@ class ResNetXVector(XVector):
 
         model = cls(**cfg)
         if state_dict is not None:
+            # (hacky coding. may change later for neater codes)
+            is_classif_net_out = len([ True for k in state_dict.keys() if k[:18] == 'classif_net.output']) # to check this is to know if the training was dinossl or not
+            if not is_classif_net_out:
+                model.classif_net.output = nn.Identity()
             model.load_state_dict(state_dict)
 
         return model

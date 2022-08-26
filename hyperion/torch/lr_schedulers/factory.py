@@ -39,6 +39,7 @@ class LRSchedulerFactory(object):
         d_model=None,
         lr_factor=1,
         update_lr_on_opt_step=False,
+        **kwargs
     ):
         """Creates a  learning rate scheduler object.
 
@@ -195,6 +196,12 @@ class LRSchedulerFactory(object):
             "lr_factor",
             "d_model",
             "update_lr_on_opt_step",
+            "dinossl_lr",
+            "dinossl_min_lr",
+            "dinossl_warmup_epochs",
+            "dinossl_weight_decay",
+            "dinossl_weight_decay_end",
+            "dinossl_momentum_teacher"
         )
 
         return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
@@ -211,6 +218,7 @@ class LRSchedulerFactory(object):
             default="none",
             choices=[
                 "none",
+                "dinossl",
                 "exp_lr",
                 "invpow_lr",
                 "cos_lr",
@@ -340,6 +348,29 @@ class LRSchedulerFactory(object):
             action="store_true",
             help=("Update lr based on batch number instead of epoch number"),
         )
+        # dinossl related - start
+        parser.add_argument("--dinossl_lr", default=0.005, type=float,
+            help=("""Learning rate at the end of linear warmup (highest LR used during training).
+            The learning rate is linearly scaled with the batch size, and specified here for a
+            reference batch size of 256."""))
+        parser.add_argument("--dinossl_min_lr" ,
+                            default=1e-6, type=float,
+            help=("Target LR at the end of optimization. We use a cosine LR schedule with linear warmup."))
+        parser.add_argument("--dinossl_warmup_epochs" ,
+                            default=10, type=int,
+                        help=("Number of epochs for the linear learning-rate warm up."))
+        parser.add_argument("--dinossl_weight_decay" ,
+                            default=0.04, type=float,
+            help=("Initial value of the weight decay. With ViT, a smaller value at the beginning of training works well."))
+        parser.add_argument("--dinossl_weight_decay_end" ,
+                            default=0.4, type=float,
+            help=("""Final value of the weight decay. We use a cosine schedule for WD and using a larger decay by
+            the end of training improves performance for ViTs."""))
+        parser.add_argument("--dinossl_momentum_teacher" ,
+                            default=0, type=float,
+            help=("""Base EMA parameter for teacher update. The value is increased to 1 during training with cosine schedule.
+            We recommend setting a higher value with small batches: for example use 0.9995 with batch size of 256."""))
+        # dinossl related - end
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

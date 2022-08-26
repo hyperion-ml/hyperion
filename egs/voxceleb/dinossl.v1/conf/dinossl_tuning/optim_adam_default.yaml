@@ -1,0 +1,6 @@
+opt_type: adam
+amsgrad: true
+beta1: 0.9
+beta2: 0.95
+weight_decay: 1.0e-05
+dinossl_style: true # (TODO: check) I think the above arguments are NOT used. If not, delete them all

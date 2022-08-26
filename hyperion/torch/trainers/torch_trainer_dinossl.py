@@ -1,4 +1,5 @@
 """
+ Copyright 2022 Johns Hopkins University  (Author: Jaejin Cho) - changes in var names from original dino repo to this: student --> model & teacher --> model_teacher
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
@@ -38,7 +39,7 @@ class DDPType(str, Enum):
 ddp_choices = [o.value for o in DDPType]
 
 
-class TorchTrainer(object):
+class DINOSSLTorchTrainer(object):
     """Base Trainer class to train basic neural network models
 
     Attributes:
@@ -97,11 +98,16 @@ class TorchTrainer(object):
         swa_lr=1e-3,
         swa_anneal_epochs=10,
         cpu_offload=False,
+        niter_per_ep=0, 
+        batch_size=0
     ):
 
-        self.model = model
+        self.model = model[0]
+        self.model_teacher = model[1]
         self.loss = loss
         self.epochs = epochs
+        self.niter_per_ep = niter_per_ep
+        self.batch_size = batch_size
         self.cur_epoch = cur_epoch
         self.grad_acc_steps = grad_acc_steps
         self.eff_batch_size = eff_batch_size
@@ -132,6 +138,7 @@ class TorchTrainer(object):
 
         if device is not None:
             self.model.to(device)
+            self.model_teacher.to(device)
             if loss is not None:
                 self.loss.to(device)
 
@@ -139,11 +146,14 @@ class TorchTrainer(object):
         self.ddp_type = ddp_type
         self.rank = 0
         self.world_size = 1
-        if ddp:
+        if ddp:  # (JJ: EXP - for now, I will only use self.ddp_type = 'ddp', i.e., DDPType.DDP)
             self.rank = dist.get_rank()
             self.world_size = dist.get_world_size()
             if ddp_type == DDPType.DDP or ddp_type == DDPType.OSS_DDP:
-                self.model = nn.SyncBatchNorm.convert_sync_batchnorm(self.model)
+                if dinossl.has_batchnorms(self.model):
+                    self.model, self.model_teacher, self.model_teacher_without_ddp = self.convert_sync_batchnorm(device)
+                else: # (JJ: EXP - when we use ViT-like model (in DINO) that does not have batchnorms: This is not tested yet in hyperion)
+                    self.model_teacher_without_ddp = self.model_teacher
                 if self.rank == 0:
                     logging.info(
                         "training in multiple gpus with distributed-data-parallel"
@@ -156,7 +166,10 @@ class TorchTrainer(object):
                     output_device=device,
                 )
             elif ddp_type == DDPType.OSS_SHARDED_DDP:
-                self.model = nn.SyncBatchNorm.convert_sync_batchnorm(self.model)
+                if dinossl.has_batchnorms(self.model):
+                    self.model, self.model_teacher, self.model_teacher_without_ddp = self.convert_sync_batchnorm(device)
+                else:
+                    self.model_teacher_without_ddp = self.model_teacher
                 if self.rank == 0:
                     logging.info(
                         "training in multiple gpus with fair sharded-distributed-data-parallel"
@@ -177,10 +190,20 @@ class TorchTrainer(object):
                 self.optimizer = self._make_optimizer(optim, self.model, oss=False)
 
         else:
+            self.model_teacher_without_ddp = self.model_teacher
             self.optimizer = self._make_optimizer(optim, self.model)
 
-        # make the learning rate scheduler
-        self.lr_scheduler = self._make_lr_sched(lrsched, self.optimizer)
+        # NO backpropagation through model_teacher, which instead is updated by momentum.
+        # Do the step here after ddp applied. Otherwise, an assertion error raises (DistributedDataParallel is not needed when a module doesn't have any parameter that requires a gradient.)
+        for p in self.model_teacher.parameters():
+            p.requires_grad = False
+
+        # make the learning rate scheduler or schedules
+        if lrsched['lrsch_type'] == 'dinossl':
+            self.lr_scheduler = None
+            self.lr_schedule, self.wd_schedule, self.momentum_schedule = self._make_schedules(lrsched)
+        else:
+            self.lr_scheduler = self._make_lr_sched(lrsched, self.optimizer)
 
         if self.use_amp:
             if ddp and ddp_type != DDPType.DDP:
@@ -216,9 +239,10 @@ class TorchTrainer(object):
           val_data: PyTorch data loader for the validation loop
         """
         self.exp_path.mkdir(parents=True, exist_ok=True)
-        self._compute_grad_acc_steps(train_data)
+        #self._compute_grad_acc_steps(train_data) # Do not apply grad_acc_steps with the current dinossl (i.e., set this to 1 as a default). Instead, apply linear scaling of the lr as is done in original dino repo.
 
         if self.do_swa and self.cur_epoch >= self.swa_start:
+            raise NotImplementedError("Using swa is not implemented for dinossl yet")
             self.in_swa = True
 
         val_logs = {}
@@ -235,6 +259,8 @@ class TorchTrainer(object):
             if val_data is not None:
                 val_logs = self.validation_epoch(val_data)
                 logs.update(val_logs)
+            else:
+                logging.info("NO validation phase ...")
 
             self.cur_epoch += 1
 
@@ -412,6 +438,7 @@ class TorchTrainer(object):
             optimizer = OF.create(model.parameters(), **opt_args)
         return optimizer
 
+
     def _make_lr_sched(self, lr_sched, optim):
         """Makes a Learning Rate scheduler object."""
         if lr_sched is None or isinstance(lr_sched, LRS):
@@ -423,6 +450,25 @@ class TorchTrainer(object):
             logging.info("lr scheduler args={}".format(args))
         lr_sched = LRSF.create(optim, **args)
         return lr_sched
+
+    def _make_schedules(self, lrsched):
+        assert (self.niter_per_ep != 0) and (self.batch_size != 0)
+        lr_schedule = dinossl.cosine_scheduler(
+            lrsched['dinossl_lr'] * self.batch_size / 256.,  # linear scaling rule (JJ: TODO - 256. might need to change)
+            lrsched['dinossl_min_lr'],
+            self.epochs, self.niter_per_ep,
+            warmup_epochs=lrsched['dinossl_warmup_epochs'],
+        )
+        wd_schedule = dinossl.cosine_scheduler(
+            lrsched['dinossl_weight_decay'],
+            lrsched['dinossl_weight_decay_end'],
+            self.epochs, self.niter_per_ep,
+        )
+        # momentum parameter is getting increased to 1. during training with a cosine schedule
+        momentum_schedule = dinossl.cosine_scheduler(lrsched['dinossl_momentum_teacher'], 1,
+                                                self.epochs, self.niter_per_ep)
+
+        return lr_schedule, wd_schedule, momentum_schedule
 
     def _default_loggers(self, log_interval, use_tensorboard, use_wandb, wandb):
         """Creates the default data loaders"""
@@ -489,10 +535,11 @@ class TorchTrainer(object):
         checkpoint = {
             "epoch": self.cur_epoch,
             "rng_state": torch.get_rng_state(),
-            "model_cfg": self.model.get_config(),
+            "model_cfg": self.model.backbone.conf,
             "model_state_dict": self.model.state_dict(),
-            "optimizer_state_dict": self.optimizer.state_dict(),
-            "loss_state_dict": self.loss.state_dict()
+            'model_teacher_state_dict': self.model_teacher.state_dict(),
+            "optimizer_state_dict": self.optimizer.state_dict(), # (JJ: EXP - "it" used for schedules could be found by EITHER "it = len(data_loader) * self.cur_epoch + batch" OR "lr" in the checkpoint['logs'] below)
+            "loss_state_dict": self.loss.state_dict() 
             if self.loss is not None
             else None,
         }
@@ -507,6 +554,18 @@ class TorchTrainer(object):
             checkpoint["swa_scheduler_state_dict"] = self.swa_scheduler.state_dict()
 
         return checkpoint
+
+    def convert_sync_batchnorm(self, device):
+            self.model = nn.SyncBatchNorm.convert_sync_batchnorm(self.model)
+            self.model_teacher = nn.SyncBatchNorm.convert_sync_batchnorm(self.model_teacher)
+            # we need DDP wrapper to have synchro batch norms working...
+            if self.ddp_type == DDPType.DDP:
+                self.model_teacher = nn.parallel.DistributedDataParallel(self.model_teacher, device_ids=[device], output_device=device) # (JJ: TODO - for now, simply follow what Jesus did)
+            else:
+                raise NotImplementedError('Need implementation for other DDPType except DDPType.DDP')
+            self.model_teacher_without_ddp = self.model_teacher.module
+
+            return self.model, self.model_teacher, self.model_teacher_without_ddp
 
     def save_checkpoint(self, logs=None):
         """Saves a checkpoint of the training status
@@ -567,6 +626,10 @@ class TorchTrainer(object):
             self.model.load_state_dict(checkpoint["model_state_dict"])
         except:
             self.model.module.load_state_dict(checkpoint["model_state_dict"])
+        try:
+            self.model_teacher.load_state_dict(checkpoint['model_teacher_state_dict'])
+        except:
+            self.model_teacher.module.load_state_dict(checkpoint['model_teacher_state_dict'])
         self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         if self.loss is not None:
             self.loss.load_state_dict(checkpoint["loss_state_dict"])

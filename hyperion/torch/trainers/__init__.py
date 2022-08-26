@@ -4,14 +4,17 @@
 """
 
 from .torch_trainer import TorchTrainer
+from .torch_trainer_dinossl import DINOSSLTorchTrainer
 
 from .xvector_trainer import XVectorTrainer
 from .xvector_trainer_deep_feat_reg import XVectorTrainerDeepFeatReg
 from .xvector_adv_trainer import XVectorAdvTrainer
+from .xvector_trainer_dinossl import DINOSSLXVectorTrainer
 
 from .xvector_trainer_from_wav import XVectorTrainerFromWav
 from .xvector_trainer_deep_feat_reg_from_wav import XVectorTrainerDeepFeatRegFromWav
 from .xvector_adv_trainer_from_wav import XVectorAdvTrainerFromWav
+from .xvector_trainer_from_wav_dinossl import DINOSSLXVectorTrainerFromWav
 
 from .vae_trainer import VAETrainer
 from .dvae_trainer import DVAETrainer

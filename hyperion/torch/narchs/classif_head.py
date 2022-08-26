@@ -272,7 +272,7 @@ class ClassifHead(NetArch):
         for l in range(self.num_embed_layers):
             x = self.fc_blocks[l](x)
 
-        if self.loss_type == "softmax":
+        if self.loss_type == "softmax" or isinstance(self.output,nn.modules.linear.Identity):
             y = self.output(x)
         else:
             y = self.output(x, y)

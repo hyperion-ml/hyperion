@@ -139,7 +139,7 @@ class OptimizerFactory(object):
         if base_opt is None:
             raise Exception("unknown optimizer %s" % opt_type)
 
-        if oss:
+        if oss: # (JJ: this (oss=True) is NOT touched for dinossl_style param filtering so with dinossl_style, the behavior is not yet confirmed)
             from fairscale.optim.oss import OSS
 
             logging.info("Optimizer uses OSS")
@@ -169,6 +169,7 @@ class OptimizerFactory(object):
             "init_acc_val",
             "max_iter",
             "oss",
+            "dinossl_style"
         )
 
         return filter_args(valid_args, kwargs)
@@ -317,6 +318,10 @@ class OptimizerFactory(object):
         parser.add_argument(
             "--max-iter", default=20, type=int, help=("max iterations in LBGS")
         )
+
+        parser.add_argument(
+            '--dinossl_style', default=False, type=bool,
+            help=('per-parameter updates following FB dino repo to NOT regularize biases nor Norm parameters'))
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

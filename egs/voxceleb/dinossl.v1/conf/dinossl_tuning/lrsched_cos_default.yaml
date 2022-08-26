@@ -1,0 +1,7 @@
+lrsch_type: dinossl
+dinossl_lr: 0.005 # For now, the learning rate is linearly scaled with the batch size. What's specified here is for the batch size of 256. (i.e., if ngpu * batch_size_per_gpu = 512, the lr becomes 0.005 * 2)
+dinossl_min_lr: 1e-6
+dinossl_warmup_epochs: 10
+dinossl_weight_decay: 1e-4
+dinossl_weight_decay_end: 1e-4
+dinossl_momentum_teacher: 0.996

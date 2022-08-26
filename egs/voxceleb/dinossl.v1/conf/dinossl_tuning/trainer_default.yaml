@@ -1,0 +1,6 @@
+optim: optim_adam_default.yaml
+lrsched: lrsched_cos_default.yaml
+use_amp: true
+log_interval: 100
+epochs: 70
+eff_batch_size: 128 # For now, this won't be used in dinossl
