@@ -12,7 +12,7 @@ import numpy as np
 
 from ..io import RandomAccessDataReaderFactory as DRF
 from ..utils.utt2info import Utt2Info
-from ..utils import TrialNdx, TrialKey
+from ..utils import TrialNdx, TrialKey  # , SparseTrialNdx, SparseTrialKey
 from ..np.transforms import TransformList
 
 
@@ -34,6 +34,7 @@ class TrialDataReader(object):
         num_seg_parts=1,
         eval_set="enroll-test",
         tlist_sep=" ",
+        sparse=False,
     ):
 
         self.r = DRF.create(v_file)
@@ -45,10 +46,16 @@ class TrialDataReader(object):
             test = Utt2Info.load(test_file, sep=tlist_sep)
         ndx = None
         if ndx_file is not None:
-            try:
-                ndx = TrialNdx.load(ndx_file)
-            except:
-                ndx = TrialKey.load(ndx_file).to_ndx()
+            if sparse:
+                try:
+                    ndx = TrialNdx.load(ndx_file)
+                except:
+                    ndx = TrialKey.load(ndx_file).to_ndx()
+            else:
+                try:
+                    ndx = TrialNdx.load(ndx_file)
+                except:
+                    ndx = TrialKey.load(ndx_file).to_ndx()
 
         ndx, enroll = TrialNdx.parse_eval_set(ndx, enroll, test, eval_set)
         if num_model_parts > 1 or num_seg_parts > 1:

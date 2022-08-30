@@ -26,7 +26,7 @@ class FeatureSet(InfoTable):
         file_path = Path(file_path)
         file_path.parent.mkdir(parents=True, exist_ok=True)
         ext = file_path.suffix
-        if ext == "":
+        if ext == ".scp":
             # if no extension we save as kaldi feats.scp file
             from .scp_list import SCPList
 
@@ -55,7 +55,7 @@ class FeatureSet(InfoTable):
         """
         file_path = Path(file_path)
         ext = file_path.suffix
-        if ext == "":
+        if ext == ".scp":
             # if no extension we load as kaldi feats.scp file
             from .scp_list import SCPList
 

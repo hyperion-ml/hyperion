@@ -24,16 +24,22 @@ class TNorm(ScoreNorm):
         """
         if mask is None:
             mu_t = np.mean(scores_coh_test, axis=0, keepdims=True)
-            s_t = np.std(scores_coh_test, axis=0, keepdims=True)
+            if self.norm_var:
+                s_t = np.std(scores_coh_test, axis=0, keepdims=True)
         else:
             scores_coh_test[mask == False] = 0
             n_t = np.mean(mask, axis=0, keepdims=True)
             mu_t = np.mean(scores_coh_test, axis=0, keepdims=True) / n_t
-            s_t = np.sqrt(
-                np.mean(scores_coh_test ** 2, axis=0, keepdims=True) / n_t - mu_t ** 2
-            )
+            if self.norm_var:
+                s_t = np.sqrt(
+                    np.mean(scores_coh_test ** 2, axis=0, keepdims=True) / n_t
+                    - mu_t ** 2
+                )
 
-        s_t[s_t < self.std_floor] = self.std_floor
+        if self.norm_var:
+            s_t[s_t < self.std_floor] = self.std_floor
+        else:
+            s_t = 1.0
 
         scores_norm = (scores - mu_t) / s_t
         return scores_norm

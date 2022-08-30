@@ -68,6 +68,7 @@ if [ $num_gpus -gt 0 ];then
   echo "CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES"
   export TORCH_DISTRIBUTED_DEBUG=DETAIL #variable to find unused parameters
   if [ $num_gpus -gt 1 ];then
+    # export CUDA_LAUNCH_BLOCKING=1
     [[ $(type -P "$torchrun") ]] && command="torchrun" \
 	|| command="python -m torch.distributed.run"
     command="$command --nproc_per_node=$num_gpus --standalone --nnodes=1"

@@ -56,7 +56,11 @@ class SegSamplerFactory(object):
                 sampler_kwargs.update(base_sampler_kwargs)
 
         if sampler_type in ["class_weighted_random_seg_chunk_sampler"]:
-            sampler_kwargs["class_info"] = dataset.class_info
+            try:
+                class_name = sampler_kwargs["class_name"]
+            except:
+                class_name = "class_id"
+            sampler_kwargs["class_info"] = dataset.class_info[class_name]
 
         logging.info(f"sampler-args={sampler_kwargs}")
 
@@ -77,8 +81,8 @@ class SegSamplerFactory(object):
             "num_segs_per_class",
             "num_chunks_per_seg",
             "num_hard_prototypes",
-            "class_column",
-            "length_column",
+            "class_name",
+            "length_name",
             "iters_per_epoch",
             "batch_size",
             "shuffle",
@@ -115,12 +119,6 @@ class SegSamplerFactory(object):
             help=("minimum length of the segment chunks"),
         )
 
-        parser.add_argument(
-            "--min-chunk-length",
-            type=float,
-            default=4.0,
-            help=("minimum length of the segment chunks"),
-        )
         parser.add_argument(
             "--max-chunk-length",
             type=float,
@@ -211,12 +209,12 @@ class SegSamplerFactory(object):
         )
 
         parser.add_argument(
-            "--length-column",
+            "--length-name",
             default="duration",
             help="which column in the segment table indicates the duration of the segment",
         )
         parser.add_argument(
-            "--class-column",
+            "--class-name",
             default="class_id",
             help="which column in the segment table indicates the class of the segment",
         )

@@ -24,7 +24,7 @@ class InfoTable(object):
 
     def __init__(self, df):
         self.df = df
-        assert "id" in df
+        assert "id" in df, f"info_table={df}"
         self.df.set_index("id", drop=False, inplace=True)
 
     def copy(self):
@@ -60,6 +60,10 @@ class InfoTable(object):
         return self.df.__getitem__
 
     @property
+    def __setitem__(self):
+        return self.df.__setitem__
+
+    @property
     def __contains__(self):
         return self.df.__contains__
 
@@ -73,7 +77,7 @@ class InfoTable(object):
         file_path = Path(file_path)
         file_path.parent.mkdir(parents=True, exist_ok=True)
         ext = file_path.suffix
-        if ext == "":
+        if ext in ["", ".scp"]:
             # if no extension we save as kaldi utt2spk file
             self.df.to_csv(file_path, sep=" ", header=False, index=False)
             return
@@ -96,7 +100,7 @@ class InfoTable(object):
         """
         file_path = Path(file_path)
         ext = file_path.suffix
-        if ext == "":
+        if ext in ["", ".scp"]:
             # if no extension we load as kaldi utt2spk file
             df = pd.read_csv(
                 file_path,
@@ -105,11 +109,12 @@ class InfoTable(object):
                 names=["id", "class_id"],
                 dtype={"id": np.str, "class_id": np.str},
             )
+        else:
+            if sep is None:
+                sep = "\t" if ".tsv" in ext else ","
 
-        if sep is None:
-            sep = "\t" if ".tsv" in ext else ","
+            df = pd.read_csv(file_path, sep=sep)
 
-        df = pd.read_csv(file_path, sep=sep)
         return cls(df)
 
     def sort(self, column="id", ascending=True):

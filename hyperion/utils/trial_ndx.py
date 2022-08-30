@@ -320,7 +320,7 @@ class TrialNdx(object):
 
     def __cmp__(self, other):
         """Comparison operator"""
-        if self.__eq__(oher):
+        if self.__eq__(other):
             return 0
         return 1
 

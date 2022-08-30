@@ -27,17 +27,20 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
         num_chunks_per_seg_epoch="auto",
         num_segs_per_class=1,
         num_chunks_per_seg=1,
+        weight_exponent=1.0,
+        weight_mode="custom",
         num_hard_prototypes=0,
         affinity_matrix=None,
-        class_column="class_id",
-        length_column="duration",
+        class_name="class_id",
+        length_name="duration",
+        shuffle=False,
         iters_per_epoch=None,
         batch_size=None,
         seed=1234,
     ):
-        super().__init__(seed=seed)
-        self.class_column = class_column
-        self.length_column = length_column
+        super().__init__(shuffle=shuffle, seed=seed)
+        self.class_name = class_name
+        self.length_name = length_name
         self.seg_set = seg_set
         self.class_info = class_info
         self.min_chunk_length = min_chunk_length
@@ -71,6 +74,9 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
         self.num_segs_per_class = num_segs_per_class
         self.num_chunks_per_seg = num_chunks_per_seg
 
+        self.weight_exponent = weight_exponent
+        self.weight_mode = weight_mode
+
         self.num_hard_prototypes = num_hard_prototypes
         self.batch = 0
 
@@ -83,6 +89,7 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
         self._compute_len()
 
         self._gather_class_info()
+        self._set_class_weights()
 
         self.set_hard_prototypes(affinity_matrix)
 
@@ -97,17 +104,20 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
         )
 
     def _set_seed(self):
-        self.rng.manual_seed(self.seed + 10 * self.epoch + 100 * self.rank)
+        if self.shuffle:
+            self.rng.manual_seed(self.seed + 10 * self.epoch + 100 * self.rank)
+        else:
+            self.rng.manual_seed(self.seed + 100 * self.rank)
 
     def _set_num_chunks_per_seg_epoch(self, num_chunks_per_seg_epoch):
         if num_chunks_per_seg_epoch == "auto":
             self._compute_num_chunks_per_seg_epoch_auto()
         else:
-            self.num_egs_per_utt_epoch = num_chunks_per_seg_epoch
+            self.num_chunks_per_seg_epoch = num_chunks_per_seg_epoch
 
     def _compute_num_chunks_per_seg_epoch_auto(self):
         seg_set = self.seg_set
-        avg_seg_length = np.mean(seg_set[self.length_column])
+        avg_seg_length = np.mean(seg_set[self.length_name])
         avg_chunk_length = (self.max_chunk_length + self.min_chunk_length) / 2
         self.num_chunks_per_seg_epoch = math.ceil(avg_seg_length / avg_chunk_length)
         logging.debug(
@@ -133,26 +143,41 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
         # we need the maximum/minimum segment duration for each class.
         max_dur = np.zeros(len(self.class_info))
         min_dur = np.zeros(len(self.class_info))
+        total_dur = np.zeros(len(self.class_info))
         for i, c in enumerate(self.class_info["id"]):
-            seg_idx = self.seg_set[self.class_column] == c
-            durs_i = self.seg_set.loc[seg_idx]
-            max_dur[i] = durs_i.max()
-            min_dur[i] = durs_i.min()
+            seg_idx = self.seg_set[self.class_name] == c
+            if seg_idx.sum() > 0:
+                durs_i = self.seg_set.loc[seg_idx, self.length_name]
+                max_dur[i] = durs_i.max()
+                min_dur[i] = durs_i.min()
+                total_dur[i] = durs_i.sum()
+            else:
+                max_dur[i] = min_dur[i] = total_dur[i] = 0
 
         self.class_info["max_seg_duration"] = max_dur
         self.class_info["min_seg_duration"] = min_dur
+        self.class_info["total_duration"] = total_dur
+
+        self.map_idx_to_ids = self.class_info[["class_idx", "id"]]
+        self.map_idx_to_ids.set_index("class_idx", inplace=True)
+
+    def _set_class_weights(self):
+        if self.weight_mode == "uniform":
+            self.class_info.set_uniform_weights()
+        elif self.weight_mode == "dataset-prior":
+            weights = self.class_info["total_duration"].values
+            self.class_info.set_weights(self, weights)
+
+        if self.weight_exponent != 1.0:
+            self.class_info.exp_weights(self.weight_exponent)
 
         zero_weight = self.class_info["min_seg_duration"] < self.min_chunk_length
         if np.any(zero_weight):
-            self.class_info.loc[zero_weight, "weights"] = 0
-            self.class_info.loc["weights"] /= self.class_info["weights"].sum()
+            self.class_info.set_zero_weight(zero_weight)
 
         self.var_weights = np.any(
-            self.seg_set[self.length_column] < self.max_chunk_length
+            self.seg_set[self.length_name] < self.max_chunk_length
         )
-
-        self.map_idx_to_ids = self.class_info[["class_idx", "ids"]]
-        self.map_idx_to_ids.set_index("class_idx", inplace=True)
 
     @property
     def hard_prototype_mining(self):
@@ -186,14 +211,14 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
         return int(self.min_batch_size * self.max_chunk_length / chunk_length)
 
     def _compute_num_classes_per_batch(self, batch_size):
-        num_classes = batch_size / self.num_segs_per_class / self.num_egs_per_utt
+        num_classes = batch_size / self.num_segs_per_class / self.num_chunks_per_seg
         if self.hard_prototype_mining:
             num_classes /= self.num_hard_prototypes
         return int(math.ceil(num_classes))
 
     def _get_class_weights(self, chunk_length):
         if not self.var_weights:
-            return self.class_info["weights"].values
+            return torch.as_tensor(self.class_info["weights"].values)
 
         # get classes where all segments are shorter than
         # chunk length and put weight to 0
@@ -205,7 +230,7 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
         class_weights[zero_idx] = 0.0
         # renormalize weights
         class_weights /= class_weights.sum()
-        return class_weights
+        return torch.as_tensor(class_weights)
 
     def _sample_classes(self, num_classes, chunk_length):
         weights = self._get_class_weights(chunk_length)
@@ -213,7 +238,8 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
             weights,
             num_samples=num_classes,
             replacement=True,
-        )
+            generator=self.rng,
+        ).numpy()
 
         class_ids = self.class_info.iloc[row_idx].id.values
         if self.hard_prototype_mining:
@@ -231,29 +257,34 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
         for c in class_ids:
             # for each class we sample segments longer than chunk length
             # get segments belonging to c
-            seg_mask = (self.seg_set[self.class_column] == c) & (
-                self.seg_set[self.length_column] > chunk_length
+            seg_mask = (self.seg_set[self.class_name] == c) & (
+                self.seg_set[self.length_name] >= chunk_length
             )
-            seg_ids_c = self.seg_set.loc[seg_mask, "id"]
+            seg_ids_c = self.seg_set.loc[seg_mask, "id"].values
             # sample num_segs_per_class random segments
+            if len(seg_ids_c) == 0:
+                print(chunk_length, c, self.class_info.loc[c], flush=True)
             sel_seg_idx_c = torch.randint(
                 low=0,
                 high=len(seg_ids_c),
                 size=(self.num_segs_per_class,),
                 generator=self.rng,
-            )
-            sel_seg_ids_c = seg_ids_c[sel_seg_idx_c]
+            ).numpy()
+            sel_seg_ids_c = list(seg_ids_c[sel_seg_idx_c])
             seg_ids.extend(sel_seg_ids_c)
 
         return seg_ids
 
     def _sample_chunks(self, seg_ids, chunk_length):
         chunks = []
-        scale = self.seg_set.loc[seg_ids, self.length_column] - chunk_length
+        scale = (
+            torch.as_tensor(self.seg_set.loc[seg_ids, self.length_name].values)
+            - chunk_length
+        )
         for i in range(self.num_chunks_per_seg):
             start = scale * torch.rand(size=(len(seg_ids),), generator=self.rng)
-            chunks_i = [(id, s, chunk_length) for id, s in zip(seg_ids, start)]
-            chunks.expand(chunks_i)
+            chunks_i = [(id, s.item(), chunk_length) for id, s in zip(seg_ids, start)]
+            chunks.extend(chunks_i)
 
         return chunks
 
@@ -263,7 +294,7 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
             raise StopIteration
 
         chunk_length = self._sample_chunk_length()
-        batch_size = self._compute_batch_size()
+        batch_size = self._compute_batch_size(chunk_length)
         num_classes = self._compute_num_classes_per_batch(batch_size)
         class_ids = self._sample_classes(num_classes, chunk_length)
         seg_ids = self._sample_segs(class_ids, chunk_length)
@@ -286,9 +317,11 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
             "num_chunks_per_seg_epoch",
             "num_segs_per_class",
             "num_chunks_per_seg",
+            "weight_exponent",
+            "weight_mode",
             "num_hard_prototypes",
-            "class_column",
-            "length_column",
+            "class_name",
+            "length_name",
             "iters_per_epoch",
             "batch_size",
             "shuffle",
@@ -373,6 +406,20 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
             default=1,
             help=("number of chunks per segment in batch"),
         )
+
+        parser.add_argument(
+            "--weight-exponent",
+            default=1.0,
+            type=float,
+            help=("exponent for class weights"),
+        )
+        parser.add_argument(
+            "--weight-mode",
+            default="custom",
+            choices=["custom", "uniform", "dataset-prior"],
+            help=("exponent for class weights"),
+        )
+
         parser.add_argument(
             "--num-hard-prototypes",
             type=int,
@@ -394,12 +441,12 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
         )
 
         parser.add_argument(
-            "--length-column",
+            "--length-name",
             default="duration",
             help="which column in the segment table indicates the duration of the segment",
         )
         parser.add_argument(
-            "--class-column",
+            "--class-name",
             default="class_id",
             help="which column in the segment table indicates the class of the segment",
         )

@@ -9,3 +9,9 @@ from .info_table import InfoTable
 class SegmentSet(InfoTable):
     def __init__(self, df):
         super().__init__(df)
+
+    def recording_ids(self, ids):
+        if "recording_id" in self.df:
+            return self.df.loc[ids, "recording_id"]
+
+        return ids

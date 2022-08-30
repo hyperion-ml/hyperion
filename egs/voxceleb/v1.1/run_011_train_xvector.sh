@@ -47,11 +47,11 @@ if [ $stage -le 1 ]; then
     train_xvector_from_wav.py $nnet_type --cfg $xvec_train_base_cfg $xvec_train_args $extra_args \
     --data.train.dataset.audio-file $list_dir/wav.scp \
     --data.train.dataset.time-durs-file $list_dir/utt2dur \
-    --data.train.dataset.key-file $list_dir/lists_xvec/train.scp \
-    --data.train.dataset.class-file $list_dir/lists_xvec/class2int \
+    --data.train.dataset.segments-file $list_dir/lists_xvec/train.scp \
+    --data.train.dataset.class-files $list_dir/lists_xvec/class2int \
     --data.val.dataset.audio-file $list_dir/wav.scp \
     --data.val.dataset.time-durs-file $list_dir/utt2dur \
-    --data.val.dataset.key-file $list_dir/lists_xvec/val.scp \
+    --data.val.dataset.segments-file $list_dir/lists_xvec/val.scp \
     --trainer.exp-path $nnet_dir $args \
     --num-gpus $ngpu \
   

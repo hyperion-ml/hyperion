@@ -20,7 +20,7 @@ class SegSampler(HypSampler):
         min_batch_size=1,
         max_batch_size=None,
         max_batch_length=None,
-        length_column="duration",
+        length_name="duration",
         shuffle=False,
         drop_last=False,
         seed=1234,
@@ -31,31 +31,31 @@ class SegSampler(HypSampler):
         self.max_batch_size = max_batch_size
         self.max_batch_length = max_batch_length
         self.var_batch_size = max_batch_length is not None
-        self.length_column = length_column
+        self.length_name = length_name
         if self.var_batch_size:
             avg_batch_size = max_batch_length / torch.mean(
-                self.seg_set[self.length_column]
+                self.seg_set[self.length_name]
             )
         else:
             avg_batch_size = min_batch_size
 
-        len = len(self.seg_set) / avg_batch_size / self.world_size
+        self.avg_batch_size = avg_batch_size
+
+        num_batches = len(self.seg_set) / avg_batch_size / self.world_size
         if drop_last:
-            self._len = int(len)
+            self._len = int(num_batches)
         else:
-            self._len = int(math.ceil(len))
+            self._len = int(math.ceil(num_batches))
 
         self._permutation = None
-
-    @property
-    def seg_set(self):
-        return self.dataset
 
     def __len__(self):
         return self._len
 
     def _shuffle_segs(self):
-        self._permutation = torch.randperm(len(self.seg_set), generator=self.rng)
+        self._permutation = torch.randperm(
+            len(self.seg_set), generator=self.rng
+        ).numpy()
 
     def __iter__(self):
         super().__iter__()
@@ -95,25 +95,31 @@ class SegSampler(HypSampler):
 
             assert len(idxs) > self.min_batch_size
         else:
-            stop = min(self.start + self.min_batch_size, len(self.seg_set))
+            stop = min(
+                self.start + self.world_size * self.min_batch_size, len(self.seg_set)
+            )
             if self.shuffle:
-                idx = self._permutation[self.start : stop]
+                idx = self._permutation[self.start : stop : self.world_size]
             else:
-                idx = slice(self.start, stop)
-            self.start
+                idx = slice(self.start, stop, self.world_size)
 
-        seg_ids = self.seg_set.iloc[idx].id
+            self.start += self.world_size * self.min_batch_size
+
+        if "chunk_start" in self.seg_set:
+            chunks = self.seg_set.iloc[idx]
+            seg_ids = [
+                (id, s, d)
+                for id, s, d in zip(
+                    chunks.seg_id, chunks.chunk_start, chunks[self.length_name]
+                )
+            ]
+        else:
+            seg_ids = self.seg_set.iloc[idx].id
 
         if self.batch == 0:
             logging.info("batch 0 chunks=%s", str(seg_ids[:10]))
 
         self.batch += 1
-        if "chunk_start" in self.seg_set:
-            chunks = self.seg_set.loc[
-                seg_ids, ["chunk_start", self.length_column]
-            ].values
-            return [(id, chunk[0], chunk[1]) for id, chunk in zip(seg_ids, chunks)]
-
         return seg_ids
 
     @staticmethod
@@ -123,7 +129,7 @@ class SegSampler(HypSampler):
             "min_batch_size",
             "max_batch_size",
             "max_batch_length",
-            "length_column",
+            "length_name",
             "shuffle",
             "drop_last",
             "seed",
@@ -181,7 +187,7 @@ class SegSampler(HypSampler):
         )
 
         parser.add_argument(
-            "--length-column",
+            "--length-name",
             default="duration",
             help="which column in the segment table indicates the duration of the file",
         )

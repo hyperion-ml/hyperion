@@ -133,7 +133,7 @@ class LRSchedulerFactory(object):
                 update_lr_on_opt_step=update_lr_on_opt_step,
             )
 
-        if lrsch_type == "cos_lr":
+        if lrsch_type == "triangular":
             return TriangularLR(
                 optimizer,
                 t,
@@ -251,7 +251,7 @@ class LRSchedulerFactory(object):
         )
         parser.add_argument(
             "--gamma",
-            default=1 / 100,
+            default=1.0,
             type=float,
             help=("LR decay rate for each restart in cos/triangular lr"),
         )

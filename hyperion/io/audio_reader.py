@@ -184,7 +184,7 @@ class AudioReader(object):
         if s_beg >= num_samples_i:
             raise Exception(
                 "segment %s tbeg=%.2f (num_sample=%d) longer that wav file %s (num_samples=%d)"
-                % (key, tbeg, sbeg, file_id, num_samples_i)
+                % (file_id, t_beg, s_beg, file_id, num_samples_i)
             )
 
         s_end = int(t_end * fs_i)
