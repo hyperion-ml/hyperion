@@ -23,20 +23,14 @@ import torch.nn as nn
 
 from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch.utils import ddp
-from hyperion.torch.trainers import XVectorTrainer as Trainer
+from hyperion.torch.trainers import TransducerTrainer as Trainer
 from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
 from hyperion.torch.metrics import CategoricalAccuracy
-from hyperion.torch.models import (
-    HFWav2Vec2ResNet1dXVector,
-    HFHubert2ResNet1dXVector,
-    HFWavLM2ResNet1dXVector,
-)
+from hyperion.torch.models import HFWav2Vec2Transducer
 
 model_dict = {
-    "hf_wav2vec2resnet1d": HFWav2Vec2ResNet1dXVector,
-    "hf_hubert2resnet1d": HFHubert2ResNet1dXVector,
-    "hf_wavlm2resnet1d": HFWavLM2ResNet1dXVector,
+    "hf_wav2vec2transducer": HFWav2Vec2Transducer,
 }
 
 
@@ -74,7 +68,8 @@ def init_model(num_classes, rank, model_class, **kwargs):
     model_args = model_class.filter_args(**kwargs["model"])
     if rank == 0:
         logging.info("model network args={}".format(model_args))
-    model_args["xvector"]["num_classes"] = num_classes
+    # TODO: check model_args 
+    model_args["transducer"]["num_classes"] = num_classes
     model = model_class(**model_args)
     if rank == 0:
         logging.info("model={}".format(model))
@@ -173,7 +168,7 @@ def make_parser(model_class):
 
 if __name__ == "__main__":
 
-    parser = ArgumentParser(description="Train Wav2Vec2XVector model from audio files")
+    parser = ArgumentParser(description="Train Wav2Vec2Transducer model from audio files")
     parser.add_argument("--cfg", action=ActionConfigFile)
 
     subcommands = parser.add_subcommands()

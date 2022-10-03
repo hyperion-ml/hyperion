@@ -18,5 +18,8 @@ from .wav2xvectors import (
     HFWavLM2ResNet1dXVector,
 )
 
+
+from .transducer import HFWav2Vec2Transducer
+
 from .vae.vae import VAE
 from .vae.vq_vae import VQVAE

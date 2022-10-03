@@ -10,5 +10,5 @@ from .paired_feat_seq_dataset import PairedFeatSeqDataset
 from .audio_dataset import AudioDataset
 
 # samplers
-# from .weighted_seq_sampler import ClassWeightedSeqSampler
+from .weighted_seq_sampler import ClassWeightedSeqSampler
 from .seg_sampler_factory import SegSamplerFactory
