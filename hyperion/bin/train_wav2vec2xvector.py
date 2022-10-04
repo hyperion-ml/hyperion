@@ -144,19 +144,15 @@ def make_parser(model_class):
     data_parser.add_argument("--val", action=ActionParser(parser=val_parser))
     parser.add_argument("--data", action=ActionParser(parser=data_parser))
 
-    parser.add_argument("--data.train.dataset.class_file", action=ActionParser(parser=data_parser))
-    parser.add_argument("--data.val.dataset.class_file", action=ActionParser(parser=data_parser))
-    parser.add_argument("--data.train.data_loader.num_workers", action=ActionParser(parser=data_parser))
-    parser.add_argument("--data.val.data_loader.num_workers", action=ActionParser(parser=data_parser))
-    # parser.link_arguments(
-    #     "data.train.dataset.class_file", "data.val.dataset.class_file"
-    # )
-    # parser.link_arguments(
-    #     "data.train.data_loader.num_workers", "data.val.data_loader.num_workers"
-    # )
-    # parser.link_arguments(
-    #     "data.train.sampler.batch_size", "data.val.sampler.batch_size"
-    # )
+    parser.link_arguments(
+        "data.train.dataset.class_file", "data.val.dataset.class_file"
+    )
+    parser.link_arguments(
+        "data.train.data_loader.num_workers", "data.val.data_loader.num_workers"
+    )
+    parser.link_arguments(
+        "data.train.sampler.batch_size", "data.val.sampler.batch_size"
+    )
 
     model_class.add_class_args(parser, prefix="model")
     Trainer.add_class_args(
