@@ -18,6 +18,7 @@ import logging
 import numpy as np
 
 from hyperion.hyp_defs import float_cpu, config_logger
+from hyperion.utils.list_utils import ismember
 from hyperion.utils import TrialNdx, TrialScores
 from hyperion.utils.math import cosine_scoring
 from hyperion.helpers import TrialDataReader as TDR
@@ -72,7 +73,8 @@ def eval_plda(
     if num_model_parts > 1 or num_seg_parts > 1:
         score_file = "%s-%03d-%03d" % (score_file, model_part_idx, seg_part_idx)
     logging.info("saving scores to %s" % (score_file))
-    s = TrialScores(enroll, ndx.seg_set, scores, score_mask=ndx.trial_mask)
+    f, loc = ismember(enroll, ndx.model_set)
+    s = TrialScores(enroll, ndx.seg_set, scores, score_mask=ndx.trial_mask[loc])
     s.save_txt(score_file)
 
 

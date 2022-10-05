@@ -30,14 +30,16 @@ class FeatureSet(InfoTable):
             # if no extension we save as kaldi feats.scp file
             from .scp_list import SCPList
 
-            offset = self.df["storage_byte"] if "storage_byte" is not None else None
+            offset = self.df["storage_byte"] if "storage_byte" in self.df else None
             range = None
             if "start" and "num_frames" in self.df:
                 range = [
                     np.array([s, n], dtype=np.int64)
                     for s, n in self.df[["start", "num_frames"]]
                 ]
-            scp = SCPList(self.df["id"], self.df["storage_path"], offset, range)
+            scp = SCPList(
+                self.df["id"].values, self.df["storage_path"].values, offset, range
+            )
             scp.save(file_path)
             return
 

@@ -29,6 +29,7 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
         num_chunks_per_seg=1,
         weight_exponent=1.0,
         weight_mode="custom",
+        seg_weight_mode="uniform",
         num_hard_prototypes=0,
         affinity_matrix=None,
         class_name="class_id",
@@ -76,6 +77,7 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
 
         self.weight_exponent = weight_exponent
         self.weight_mode = weight_mode
+        self.seg_weight_mode = seg_weight_mode
 
         self.num_hard_prototypes = num_hard_prototypes
         self.batch = 0
@@ -164,7 +166,7 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
     def _set_class_weights(self):
         if self.weight_mode == "uniform":
             self.class_info.set_uniform_weights()
-        elif self.weight_mode == "dataset-prior":
+        elif self.weight_mode == "data-prior":
             weights = self.class_info["total_duration"].values
             self.class_info.set_weights(self, weights)
 
@@ -264,12 +266,24 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
             # sample num_segs_per_class random segments
             if len(seg_ids_c) == 0:
                 print(chunk_length, c, self.class_info.loc[c], flush=True)
-            sel_seg_idx_c = torch.randint(
-                low=0,
-                high=len(seg_ids_c),
-                size=(self.num_segs_per_class,),
-                generator=self.rng,
-            ).numpy()
+            if self.seg_weight_mode == "uniform":
+                sel_seg_idx_c = torch.randint(
+                    low=0,
+                    high=len(seg_ids_c),
+                    size=(self.num_segs_per_class,),
+                    generator=self.rng,
+                ).numpy()
+            elif self.seg_weight_mode == "data-prior":
+                weights = self.seg_set.loc[seg_mask, self.length_name].values
+                weights /= weights.sum()
+                sel_seg_idx_c = torch.multinomial(
+                    torch.from_numpy(weights),
+                    num_samples=self.num_segs_per_class,
+                    replacement=True,
+                    generator=self.rng,
+                ).numpy()
+            else:
+                raise ValueError("unknown seg-weight-mode=%s", self.seg_weight_mode)
             sel_seg_ids_c = list(seg_ids_c[sel_seg_idx_c])
             seg_ids.extend(sel_seg_ids_c)
 
@@ -319,6 +333,7 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
             "num_chunks_per_seg",
             "weight_exponent",
             "weight_mode",
+            "seg_weight_mode",
             "num_hard_prototypes",
             "class_name",
             "length_name",
@@ -416,8 +431,15 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
         parser.add_argument(
             "--weight-mode",
             default="custom",
-            choices=["custom", "uniform", "dataset-prior"],
-            help=("exponent for class weights"),
+            choices=["custom", "uniform", "data-prior"],
+            help=("method to get the class weights"),
+        )
+
+        parser.add_argument(
+            "--seg-weight-mode",
+            default="uniform",
+            choices=["uniform", "data-prior"],
+            help=("method to sample segments given a class"),
         )
 
         parser.add_argument(

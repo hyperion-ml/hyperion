@@ -80,6 +80,9 @@ class SegSamplerFactory(object):
             "num_chunks_per_seg_epoch",
             "num_segs_per_class",
             "num_chunks_per_seg",
+            "weight_mode",
+            "weight_exponent",
+            "seg_weight_mode",
             "num_hard_prototypes",
             "class_name",
             "length_name",
@@ -183,6 +186,27 @@ class SegSamplerFactory(object):
             default=1,
             help=("number of chunks per segment in batch"),
         )
+
+        parser.add_argument(
+            "--weight-exponent",
+            default=1.0,
+            type=float,
+            help=("exponent for class weights"),
+        )
+        parser.add_argument(
+            "--weight-mode",
+            default="custom",
+            choices=["custom", "uniform", "data-prior"],
+            help=("method to get the class weights"),
+        )
+
+        parser.add_argument(
+            "--seg-weight-mode",
+            default="uniform",
+            choices=["uniform", "data-prior"],
+            help=("method to sample segments given a class"),
+        )
+
         parser.add_argument(
             "--num-hard-prototypes",
             type=int,

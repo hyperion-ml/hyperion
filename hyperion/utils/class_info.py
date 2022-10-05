@@ -19,7 +19,7 @@ class ClassInfo(InfoTable):
         if "weights" not in self.df:
             self.set_uniform_weights()
         else:
-            self.df["weights"] /= self.df["weigths"].sum()
+            self.df["weights"] /= self.df["weights"].sum()
 
     def add_class_idx(self):
         self.df["class_idx"] = [i for i in range(len(self.df))]

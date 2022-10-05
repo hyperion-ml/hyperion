@@ -30,7 +30,7 @@ class RecordingSet(InfoTable):
             # if no extension we save as kaldi feats.scp file
             from .scp_list import SCPList
 
-            scp = SCPList(self.df["id"], self.df["storage_path"])
+            scp = SCPList(self.df["id"].values, self.df["storage_path"].values)
             scp.save(file_path)
             return
 

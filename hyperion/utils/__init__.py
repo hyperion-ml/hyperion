@@ -10,7 +10,12 @@ from .sparse_trial_key import SparseTrialKey
 from .sparse_trial_scores import SparseTrialScores
 from .scp_list import SCPList
 from .utt2info import Utt2Info
-from .ext_segment_list import ExtSegmentList
+
+# from .ext_segment_list import ExtSegmentList
 from .segment_list import SegmentList
 from .kaldi_matrix import KaldiMatrix, KaldiCompressedMatrix
 from .rttm import RTTM
+from .recording_set import RecordingSet
+from .class_info import ClassInfo
+from .segment_set import SegmentSet
+from .feature_set import FeatureSet
