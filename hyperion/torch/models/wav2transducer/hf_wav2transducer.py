@@ -15,7 +15,7 @@ from ...torch_model import TorchModel
 from ...utils import remove_silence
 
 
-class HFWav2XVector(TorchModel):
+class HFWav2Transducer(TorchModel):
     """Abstract Base class for x-vector models that use a Hugging Face Model as feature extractor.
 
     Attributes:

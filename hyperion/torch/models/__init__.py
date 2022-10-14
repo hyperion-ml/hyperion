@@ -19,7 +19,7 @@ from .wav2xvectors import (
 )
 
 
-from .transducer import HFWav2Vec2Transducer
+from .wav2transducer import HFWav2Vec2Transducer
 
 from .vae.vae import VAE
 from .vae.vq_vae import VQVAE

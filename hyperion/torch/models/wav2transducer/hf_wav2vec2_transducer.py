@@ -13,6 +13,7 @@ import torch.nn as nn
 
 from ...torch_model import TorchModel
 from ...utils import remove_silence
+from .hf_wav2transducer import HFWav2Transducer
 
 
 class HFWav2Vec2Transducer(HFWav2Transducer):
