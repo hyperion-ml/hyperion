@@ -5,9 +5,19 @@
 #
 . ./cmd.sh
 . ./path.sh
+
+
 set -e
 nodes=fs01
 storage_name=$(date +'%m_%d_%H_%M')
+. ./datapath.sh 
+
+vocab_sizes=(
+  # 5000
+  2000
+  1000
+  500
+)
 
 
 dl_dir=$PWD/download
@@ -56,9 +66,9 @@ if [ $stage -le 3 ]; then
     if [ ! -f $lang_dir/transcript_words.txt ]; then
       echo "Generate data for BPE training"
       files=$(
-        find "$dl_dir/LibriSpeech/train-clean-100" -name "*.trans.txt"
-        find "$dl_dir/LibriSpeech/train-clean-360" -name "*.trans.txt"
-        find "$dl_dir/LibriSpeech/train-other-500" -name "*.trans.txt"
+        find "$librispeech_root/train-clean-100" -name "*.trans.txt"
+        find "$librispeech_root/train-clean-360" -name "*.trans.txt"
+        find "$librispeech_root/train-other-500" -name "*.trans.txt"
       )
       for f in ${files[@]}; do
         cat $f | cut -d " " -f 2-
