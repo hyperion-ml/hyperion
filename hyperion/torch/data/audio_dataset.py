@@ -18,10 +18,15 @@ from ...io import RandomAccessAudioReader as AR
 from ...utils.utt2info import Utt2Info
 from ...np.augment import SpeechAugment
 
+
+import k2
+import sentencepiece as spm
+
 from torch.utils.data import Dataset
 import torch.distributed as dist
 
 from hyperion.np import augment
+from hyperion.utils.util import read_2column_text
 
 
 class AudioDataset1(Dataset):
@@ -458,6 +463,8 @@ class AudioDataset(Dataset):
         segments_file,
         class_names=None,
         class_files=None,
+        bpe_model=None,
+        text_files=None,
         time_durs_file=None,
         aug_cfgs=None,
         num_augs=1,
@@ -506,6 +513,15 @@ class AudioDataset(Dataset):
         logging.info("loading class-info files")
         self._load_class_infos(class_names, class_files, is_val)
 
+
+        if bpe_model is not None:
+            logging.info("loading bpe models")
+            self._load_bpe_model(bpe_model, is_val)
+
+        if text_files is not None:
+            logging.info("loading text files")
+            self._load_text(text_files, is_val)
+
         self.return_segment_info = (
             [] if return_segment_info is None else return_segment_info
         )
@@ -513,6 +529,23 @@ class AudioDataset(Dataset):
 
         self.num_augs = num_augs
         self._create_augmenters(aug_cfgs)
+
+
+    def _load_bpe_model(self, bpe_model, is_val):
+        self.sp  = spm.SentencePieceProcessor()
+        self.sp.load(params.bpe_model)
+        blank_id = self.sp.piece_to_id("<blk>")
+        vocab_size = self.sp.get_piece_size()
+
+    def _load_text(self, text_file, is_val):
+        #TODO: load bpe and text into data structure
+        if text_file is None:
+            return
+        if self.rank == 0:
+            logging.info("loading text file %s" % text_file)
+        self.text_info = TextInfo.load(text_file, self.sp)
+
+
 
     def _load_class_infos(self, class_names, class_files, is_val):
         self.class_info = {}
@@ -642,8 +675,26 @@ class AudioDataset(Dataset):
 
         return r
 
-    def __getitem__(self, segment):
 
+    def _get_text_info(self, seg_id):
+        #TODO: bpe labels from data structure for getitem 
+        r = []
+        # converts the class_ids to integers
+        for info_name in self.return_segment_info:
+            seg_info = self.seg_set.loc[seg_id, info_name]
+            if info_name in self.class_info:
+                # if the type of information is a class-id
+                # we use the class information table to
+                # convert from id to integer
+                class_info = self.class_info[info_name]
+                idx = class_info.loc[seg_info, "class_idx"]
+                seg_info = idx
+
+            r.append(seg_info)
+
+        return r
+
+    def __getitem__(self, segment):
         seg_id, start, duration = self._parse_segment_item(segment)
         x, fs = self._read_audio(seg_id, start, duration)
         if self.augmenters:
@@ -665,6 +716,11 @@ class AudioDataset(Dataset):
         seg_info = self._get_segment_info(seg_id)
         r.extend(seg_info)
 
+        # adds the text labels
+        text_info = self._get_text_info(seg_id)
+        r.extend(text_info)
+
+
         return (*r,)
 
     @staticmethod
@@ -678,6 +734,7 @@ class AudioDataset(Dataset):
             "num_augs",
             "class_names",
             "class_files",
+            "text_files",
             "return_segment_info",
             "return_orig",
             "time_durs_file",

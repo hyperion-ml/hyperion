@@ -25,6 +25,7 @@ from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch.utils import ddp
 from hyperion.torch.trainers import TransducerTrainer as Trainer
 from hyperion.torch.data import AudioDataset as AD
+# from hyperion.torch.data import LibriSpeechAsrDataModule as ASRD
 from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
 from hyperion.torch.metrics import CategoricalAccuracy
 from hyperion.torch.models import HFWav2Vec2Transducer
@@ -35,7 +36,6 @@ model_dict = {
 
 
 def init_data(partition, rank, num_gpus, **kwargs):
-
     kwargs = kwargs["data"][partition]
     ad_args = AD.filter_args(**kwargs["dataset"])
     sampler_args = Sampler.filter_args(**kwargs["sampler"])
@@ -139,10 +139,18 @@ def make_parser(model_class):
     data_parser.add_argument("--val", action=ActionParser(parser=val_parser))
     parser.add_argument("--data", action=ActionParser(parser=data_parser))
 
-    parser.add_argument("--data.train.dataset.class_file", action=ActionParser(parser=data_parser))
-    parser.add_argument("--data.val.dataset.class_file", action=ActionParser(parser=data_parser))
+    parser.add_argument("--data.train.dataset.text_file", action=ActionParser(parser=data_parser))
+    parser.add_argument("--data.val.dataset.text_file", action=ActionParser(parser=data_parser))
     parser.add_argument("--data.train.data_loader.num_workers", action=ActionParser(parser=data_parser))
     parser.add_argument("--data.val.data_loader.num_workers", action=ActionParser(parser=data_parser))
+
+    parser.add_argument(
+        "--bpe-model",
+        type=str,
+        default="data/lang_bpe_500/bpe.model",
+        help="Path to the BPE model",
+    )
+
     # parser.link_arguments(
     #     "data.train.dataset.class_file", "data.val.dataset.class_file"
     # )

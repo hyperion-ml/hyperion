@@ -8,7 +8,7 @@
 set -e
 
 stage=1
-ngpu=4
+ngpu=1
 config_file=default_config.sh
 interactive=false
 num_workers=""
@@ -19,11 +19,13 @@ use_wandb=false
 . $config_file
 . datapath.sh
 
-list_dir=data/${nnet_data}_proc_audio_no_sil
+train_dir=data/${nnet_data}/
+val_dir=data/dev_clean/
 
 #add extra args from the command line arguments
 if [ -n "$num_workers" ];then
     extra_args="--data.train.data_loader.num-workers $num_workers"
+    extra_args="--data.val.data_loader.num-workers $num_workers"
 fi
 if [ "$use_tb" == "true" ];then
     extra_args="$extra_args --trainer.use-tensorboard"
@@ -33,9 +35,9 @@ if [ "$interactive" == "true" ];then
     export cuda_cmd=run.pl
 fi
 
-if [ "$use_wandb" == "true" ];then
-  extra_args="$extra_args --trainer.use-wandb --trainer.wandb.project voxceleb-v2 --trainer.wandb.name $nnet_s1_name.$(date -Iminutes)"
-fi
+# if [ "$use_wandb" == "true" ];then
+#   extra_args="$extra_args --trainer.use-wandb --trainer.wandb.project voxceleb-v2 --trainer.wandb.name $nnet_s1_name.$(date -Iminutes)"
+# fi
 
 
 # Network Training
@@ -45,15 +47,14 @@ if [ $stage -le 1 ]; then
   $cuda_cmd \
     --gpu $ngpu $nnet_s1_dir/log/train.log \
     hyp_utils/conda_env.sh --conda-env $HYP_ENV --num-gpus $ngpu \
-    train_wav2vec2xvector.py $nnet_type \
+    train_wav2vec2transducer.py $nnet_type \
     --cfg $nnet_s1_base_cfg $nnet_s1_args $extra_args \
-    --data.train.dataset.audio-file $list_dir/wav.scp \
-    --data.train.dataset.time-durs-file $list_dir/utt2dur \
-    --data.train.dataset.key-file $list_dir/lists_xvec/train.scp \
-    --data.train.dataset.class-file $list_dir/lists_xvec/class2int \
-    --data.val.dataset.audio-file $list_dir/wav.scp \
-    --data.val.dataset.time-durs-file $list_dir/utt2dur \
-    --data.val.dataset.key-file $list_dir/lists_xvec/val.scp \
+    --data.train.dataset.audio-file $train_dir/wav.scp \
+    --data.train.dataset.time-durs-file $train_dir/utt2dur \
+    --data.train.dataset.text-file $train_dir/text \
+    --data.val.dataset.audio-file $val_dir/wav.scp \
+    --data.val.dataset.time-durs-file $val_dir/utt2dur \
+    --data.val.dataset.text-file $val_dir/text \
     --trainer.exp-path $nnet_s1_dir $args \
     --num-gpus $ngpu
   
