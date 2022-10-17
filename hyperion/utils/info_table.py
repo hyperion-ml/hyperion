@@ -404,6 +404,9 @@ class InfoTable(object):
             return np.nonzero(loc)[0]
         else:
             return list(range(loc.start, loc.stop, loc.step))
+
+    def get_col_idx(self, keys):
+        return self.df.columns.get_loc(keys)
         
 
     
