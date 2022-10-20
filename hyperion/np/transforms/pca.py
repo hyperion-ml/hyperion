@@ -2,6 +2,7 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
 import numpy as np
 import h5py
 
@@ -186,11 +187,7 @@ class PCA(NPModel):
         """
         param_list = ["mu", "T"]
         params = cls._load_params_to_dict(f, config["name"], param_list)
-        return cls(
-            mu=params["mu"],
-            T=params["T"],
-            **config,
-        )
+        return cls(mu=params["mu"], T=params["T"], **config,)
 
     @classmethod
     def load_mat(cls, file_path):
@@ -211,35 +208,39 @@ class PCA(NPModel):
 
     @staticmethod
     def add_class_args(parser, prefix=None):
-        if prefix is None:
-            p1 = "--"
-        else:
-            p1 = "--" + prefix + "."
+
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
 
         parser.add_argument(
-            p1 + "update-mu",
+            "--update-mu",
             default=True,
-            type=bool,
+            action=ActionYesNo,
             help=("updates centering parameter"),
         )
         parser.add_argument(
-            p1 + "update-T",
+            "--update-T",
             default=True,
-            type=bool,
+            action=ActionYesNo,
             help=("updates whitening parameter"),
         )
 
         parser.add_argument(
-            p1 + "pca-dim", default=None, type=int, help=("output dimension of PCA")
+            "--pca-dim", default=None, type=int, help=("output dimension of PCA")
         )
 
         parser.add_argument(
-            p1 + "pca-var-r",
+            "--pca-var-r",
             default=None,
-            type=int,
+            type=float,
             help=("proportion of variance to keep when choosing the PCA dimension"),
         )
 
         parser.add_argument("--name", dest="name", default="pca")
+        if prefix is not None:
+            outer_parser.add_argument(
+                "--" + prefix, action=ActionParser(parser=parser),
+            )
 
     add_argparse_args = add_class_args

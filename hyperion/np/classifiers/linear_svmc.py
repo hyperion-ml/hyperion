@@ -5,6 +5,7 @@
 
 import logging
 import numpy as np
+from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
 
 from sklearn.svm import LinearSVC as SVC
 
@@ -61,6 +62,7 @@ class LinearSVMC(NPModel):
       verbose: int, default: 0
       balance_class_weight: if True and class_weight is None, it makes class_weight="balanced".
       lr_seed: seed form RandomState, used when random_state is None.
+      labels: list of class labels
     """
 
     def __init__(
@@ -81,7 +83,8 @@ class LinearSVMC(NPModel):
         verbose=0,
         balance_class_weight=True,
         lr_seed=1024,
-        **kwargs
+        labels=None,
+        **kwargs,
     ):
 
         super().__init__(**kwargs)
@@ -95,7 +98,6 @@ class LinearSVMC(NPModel):
         self.use_bias = use_bias
         self.bias_scaling = bias_scaling
         self.balance_class_weight = balance_class_weight
-        logging.debug(class_weight)
         self.svm = SVC(
             penalty=penalty,
             C=C,
@@ -117,6 +119,8 @@ class LinearSVMC(NPModel):
         if b is not None:
             self.svm.intercept_ = b
 
+        self.set_labels(labels)
+
     @property
     def A(self):
         return self.svm.coef_.T
@@ -124,6 +128,12 @@ class LinearSVMC(NPModel):
     @property
     def b(self):
         return self.svm.intercept_ * self.bias_scaling
+
+    def set_labels(self, labels):
+        if isinstance(labels, np.ndarray):
+            labels = list(labels)
+
+        self.labels = labels
 
     def get_config(self):
         """Gets configuration hyperparams.
@@ -134,8 +144,9 @@ class LinearSVMC(NPModel):
             "use_bias": self.use_bias,
             "bias_scaling": self.bias_scaling,
             "balance_class_weight": self.balance_class_weight,
+            "labels": self.labels,
         }
-        base_config = super(LinearSVMC, self).get_config()
+        base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
     def predict(self, x, eval_type="logit"):
@@ -203,7 +214,7 @@ class LinearSVMC(NPModel):
         return cls(**kwargs)
 
     @staticmethod
-    def filter_class_args(prefix=None, **kwargs):
+    def filter_class_args(**kwargs):
         """Extracts the hyperparams of the class from a dictionary.
 
         Returns:
@@ -236,42 +247,35 @@ class LinearSVMC(NPModel):
           parser: jsonargparse object
           prefix: argument prefix.
         """
-        if prefix is None:
-            p1 = "--"
-            p2 = ""
-        else:
-            p1 = "--" + prefix + "."
-            p2 = prefix + "."
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
 
         parser.add_argument(
-            p1 + "penalty",
+            "--penalty",
             default="l2",
             choices=["l2", "l1"],
             help="used to specify the norm used in the penalization",
         )
         parser.add_argument(
-            p1 + "c",
-            dest=(p2 + "C"),
+            "--c",
+            dest="C",
             default=1.0,
             type=float,
             help="inverse of regularization strength",
         )
         parser.add_argument(
-            p1 + "loss",
+            "--loss",
             default="squared_hinge",
             choices=["hinge", "squared_hinge"],
             help="type of loss",
         )
 
         parser.add_argument(
-            p1 + "no-use-bias",
-            dest=(p2 + "use_bias"),
-            default=True,
-            action="store_false",
-            help="Not use bias",
+            "--use-bias", default=True, action=ActionYesNo, nargs="?", help="Use bias",
         )
         parser.add_argument(
-            p1 + "bias-scaling",
+            "--bias-scaling",
             default=1.0,
             type=float,
             help=(
@@ -280,19 +284,19 @@ class LinearSVMC(NPModel):
             ),
         )
         parser.add_argument(
-            p1 + "lr-seed", default=1024, type=int, help="random number generator seed"
+            "--lr-seed", default=1024, type=int, help="random number generator seed"
         )
         parser.add_argument(
-            p1 + "max-iter",
+            "--max-iter",
             default=100,
             type=int,
             help="only for the newton-cg, sag and lbfgs solvers",
         )
         parser.add_argument(
-            p1 + "no-dual",
-            dest=(p2 + "dual"),
+            "--dual",
             default=True,
-            action="store_false",
+            action=ActionYesNo,
+            nargs="?",
             help=(
                 "dual or primal formulation. "
                 "Dual formulation is only implemented for "
@@ -300,10 +304,10 @@ class LinearSVMC(NPModel):
             ),
         )
         parser.add_argument(
-            p1 + "tol", default=1e-4, type=float, help="tolerance for stopping criteria"
+            "--tol", default=1e-4, type=float, help="tolerance for stopping criteria"
         )
         parser.add_argument(
-            p1 + "multi-class",
+            "--multi-class",
             default="ovr",
             choices=["ovr", "crammer_singer"],
             help=(
@@ -312,29 +316,33 @@ class LinearSVMC(NPModel):
             ),
         )
         parser.add_argument(
-            p1 + "verbose",
+            "--verbose",
             default=0,
             type=int,
             help="For the liblinear and lbfgs solvers",
         )
 
         parser.add_argument(
-            p1 + "balance-class-weight",
+            "--balance-class-weight",
             default=False,
-            action="store_true",
+            action=ActionYesNo,
             help="Balances the weight of each class when computing W",
         )
 
-        parser.add_argument(p1 + "name", default="svc", help="model name")
+        parser.add_argument("--name", default="svc", help="model name")
+        if prefix is not None:
+            outer_parser.add_argument(
+                "--" + prefix, action=ActionParser(parser=parser),
+            )
 
     @staticmethod
-    def filter_eval_args(prefix, **kwargs):
+    def filter_eval_args(**kwargs):
         """Extracts the evaluation time hyperparams of the class from a dictionary.
 
         Returns:
           Hyperparameters to evaluate the class.
         """
-        valid_args = ("model_file", "eval_type")
+        valid_args = "eval_type"
         return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
     @staticmethod
@@ -344,20 +352,21 @@ class LinearSVMC(NPModel):
           parser: jsonargparse object
           prefix: argument prefix.
         """
-        if prefix is None:
-            p1 = "--"
-            p2 = ""
-        else:
-            p1 = "--" + prefix + "."
-            p2 = prefix + "."
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
 
-        parser.add_argument(p1 + "model-file", required=True, help=("model file"))
         parser.add_argument(
-            p1 + "eval-type",
+            "--eval-type",
             default="logit",
             choices=["logit", "bin-logpost", "bin-post", "cat-logpost", "cat-post"],
             help=("type of evaluation"),
         )
+
+        if prefix is not None:
+            outer_parser.add_argument(
+                "--" + prefix, action=ActionParser(parser=parser),
+            )
 
     # for backward compatibility
     filter_train_args = filter_class_args
