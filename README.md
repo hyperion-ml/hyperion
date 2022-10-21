@@ -27,10 +27,12 @@ The full API is described in the documentation page [https://hyperion-ml.readthe
 ```
 ./prepare_egs_paths.sh
 # Then, type /home/janto/usr/local/anaconda3 when "Introduce path to your conda base installation (e.g.:/usr/local/anaconda3):" is prompted
-# type hyp_persephone when "Introduce name/prefix_path for your conda environment (e.g.:hyperion)" is prompted
-# You will see the two lines below but it seems okay to ignore:
+# type /home/jcho/.conda/envs/hyp_persephone_jj when "Introduce name/prefix_path for your conda environment (e.g.:hyperion)" is prompted
+
+# You may see the two lines below but it seems okay to ignore:
 # Hyperion is not installed in env
 # Adding hyperion directory to the PYTHONPATH variable in the recipes.
+
 # Also, with this, you can skip "Prerequistes to run the recipes" below
 ```
 
