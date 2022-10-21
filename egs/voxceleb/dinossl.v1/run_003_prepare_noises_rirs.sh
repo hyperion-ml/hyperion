@@ -8,9 +8,7 @@
 set -e
 
 stage=1
-config_file=default_config.sh
 . parse_options.sh || exit 1;
-. $config_file
 . datapath.sh
 
 # We prepare the noise files and RIR for online speech augmentation
@@ -24,7 +22,7 @@ if [ $stage -le 1 ]; then
     for name in musan_noise musan_music
     do
 	steps_xvec/preprocess_audios_for_nnet_train.sh --nj 10 --cmd "$train_cmd" \
-	    --storage_name voxceleb-v1.1-$(date +'%m_%d_%H_%M') \
+	    --storage_name voxceleb-dinossl.v1-$(date +'%m_%d_%H_%M') \
 	    data/${name} data/${name}_proc_audio exp/${name}_proc_audio
 	utils/fix_data_dir.sh data/${name}_proc_audio
     done
@@ -37,7 +35,7 @@ if [ $stage -le 2 ]; then
     for name in musan_speech
     do
 	steps_xvec/make_babble_noise_for_nnet_train.sh --cmd "$train_cmd" \
-	    --storage_name voxceleb-v1.1-$(date +'%m_%d_%H_%M') \
+	    --storage_name voxceleb-dinossl.v1-$(date +'%m_%d_%H_%M') \
 	    data/${name} data/${name}_babble exp/${name}_babble
 	# utils/fix_data_dir.sh data/${name}_babble
     done

@@ -1,5 +1,6 @@
 #!/usr/bin/perl
-#
+# Note: Compared to local/make_voxceleb2cat.pl 1) This does NOT concatenate same speaker recording turns in the conversation
+# 2) skippied the part to get LANG, GENDER metadata
 # Copyright 2018  Johns Hopkins University (Jesus Villalba)
 # Copyright 2018  Ewald Enzinger
 #
@@ -32,58 +33,19 @@ else {
     $dataset_path = "$data_base/$dataset"
 }
 
+opendir my $dh, "$dataset_path" or die "Cannot open directory: $!";
+my @spkr_dirs = grep {-d "$dataset_path/$_" && ! /^\.{1,2}$/} readdir($dh);
+closedir $dh;
 
 if (system("mkdir -p $out_dir") != 0) {
   die "Error making directory $out_dir";
 }
 
-
-my $meta_url = "https://www.openslr.org/resources/49/vox2_meta.csv";
-my $meta_path = "$data_base/vox2_meta.csv";
-if (! -e "$meta_path") {
-    $meta_path = "$out_dir/vox2_meta.csv";
-    system("wget -O $meta_path $meta_url");
-}
-open(META_IN, "<", "$meta_path") or die "Could not open the output file $meta_path";
-my %spkr2gender = ();
-while (<META_IN>) {
-  chomp;
-  my ($spkr, $vox_id, $vgg_id, $gender, $set) = split;
-  $spkr2gender{$vox_id} = $gender;
-}
-close(META_IN) or die;
-
-my $lid_url = "https://www.robots.ox.ac.uk/~vgg/data/voxceleb/data_workshop_2021/lang_vox2_final.csv";
-my $lid_path = "$data_base/lang_vox2_final.csv";
-if (! -e "$lid_path") {
-    $lid_path = "$out_dir/lang_vox2_final.csv";
-    system("wget -O $lid_path $lid_url");
-}
-open(LID_IN, "<", "$lid_path") or die "Could not open the output file $lid_path";
-my %utt2lang = ();
-while (<LID_IN>) {
-  chomp;
-  my ($utt_id, $lang, $score) = split ',';
-  $utt_id =~ s@/@-@g;
-  $utt_id =~ s@\.wav$@@;
-  $utt2lang{$utt_id} = $lang;
-}
-close(LID_IN) or die;
-
-
 open(SPKR, ">", "$out_dir/utt2spk") or die "Could not open the output file $out_dir/utt2spk";
 open(WAV, ">", "$out_dir/wav.scp") or die "Could not open the output file $out_dir/wav.scp";
-open(LANG, ">", "$out_dir/utt2lang") or die "Could not open the output file $out_dir/utt2lang";
-open(GENDER, ">", "$out_dir/spk2gender") or die "Could not open the output file $out_dir/spk2gender";
-
-opendir my $dh, "$dataset_path" or die "Cannot open directory: $!";
-my @spkr_dirs = grep {-d "$dataset_path/$_" && ! /^\.{1,2}$/} readdir($dh);
-closedir $dh;
 
 foreach (@spkr_dirs) {
   my $spkr_id = $_;
-
-  print GENDER "$spkr_id $spkr2gender{$spkr_id}\n";
 
   opendir my $dh, "$dataset_path/$spkr_id/" or die "Cannot open directory: $!";
   my @rec_dirs = grep {-d "$dataset_path/$spkr_id/$_" && ! /^\.{1,2}$/} readdir($dh);
@@ -105,19 +67,11 @@ foreach (@spkr_dirs) {
 	my $utt_id = "$spkr_id-$rec_id-$name";
 	print WAV "$utt_id", " $wav", "\n";
 	print SPKR "$utt_id", " $spkr_id", "\n";
-	if (exists $utt2lang{$utt_id}) {
-	    print LANG "$utt_id", " $utt2lang{$utt_id}", "\n";
-	}
-	else {
-	    print LANG "$utt_id N/A\n";
-	}
     }
   }
 }
 close(SPKR) or die;
 close(WAV) or die;
-close(LANG) or die;
-close(GENDER) or die;
 
 if (system(
   "utils/utt2spk_to_spk2utt.pl $out_dir/utt2spk >$out_dir/spk2utt") != 0) {

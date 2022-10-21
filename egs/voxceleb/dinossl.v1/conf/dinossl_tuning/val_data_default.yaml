@@ -6,5 +6,5 @@ sampler:
   batch_size: 32
   iters_per_epoch: 1
 data_loader:
-  num_workers: 8
+  num_workers: 0 #8
   

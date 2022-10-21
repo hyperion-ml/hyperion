@@ -21,7 +21,7 @@ config_file=default_config.sh
 if [ $stage -le 1 ]; then
     # Prepare to distribute data over multiple machines
     if [[ $(hostname -f) == *.clsp.jhu.edu ]] && [ ! -d $vaddir/storage ]; then
-	dir_name=$USER/hyp-data/voxceleb/v1/$storage_name/vad/storage
+	dir_name=$USER/hyp-data/voxceleb/dinossl.v1/$storage_name/vad/storage
 	if [ "$nodes" == "b0" ];then
 	    utils/create_split_dir.pl \
 			    utils/create_split_dir.pl \
@@ -43,7 +43,7 @@ fi
 
 #Train datasets
 if [ $stage -le 2 ];then 
-    for name in voxceleb2cat_train voxceleb1_test
+    for name in voxceleb2_train voxceleb1_test
     do
 	num_spk=$(wc -l data/$name/spk2utt | awk '{ print $1}')
 	nj=$(($num_spk < 40 ? $num_spk:40))

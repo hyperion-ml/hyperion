@@ -3,7 +3,7 @@ dataset:
   min_chunk_length: 2.0
   aug_cfg: conf/reverb_noise_aug.yaml 
 sampler:
-  batch_size: 32 # 64 oom w/ lresnet34 in this version of hyperion (It wasn't in the old version). Thus, 32 w/ 4 gpu instead of 64 w/ 2 gpu
+    batch_size: 48 # 52:64:4 OOM w/ lresnet34 in this version of hyperion (It wasn't in the old version).
   iters_per_epoch: 1
 data_loader:
   num_workers: 8
