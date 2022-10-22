@@ -590,7 +590,11 @@ class AudioDataset(Dataset):
     def _parse_segment_item(self, segment):
         if isinstance(segment, (tuple, list)):
             seg_id, start, duration = segment
-            assert duration <= self.seg_set.loc[seg_id].duration
+            assert duration <= self.seg_set.loc[seg_id].duration, (
+                f"{seg_id} with start={start} duration "
+                f"({self.seg_set.loc[seg_id].duration}) < "
+                f"chunk duration ({duration})"
+            )
         else:
             seg_id, start, duration = segment, 0, 0
 

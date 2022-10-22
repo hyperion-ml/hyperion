@@ -102,6 +102,22 @@ def init_xvector(num_classes, in_model_file, rank, xvec_class, **kwargs):
     return model
 
 
+def init_hard_prototype_mining(model, train_loader, val_loader, rank):
+    if not train_loader.batch_sampler.hard_prototype_mining:
+        return
+
+    if rank == 0:
+        logging.info("setting hard prototypes")
+
+    affinity_matrix = model.compute_prototype_affinity()
+    train_loader.batch_sampler.set_hard_prototypes(affinity_matrix)
+
+    if not val_loader.batch_sampler.hard_prototype_mining:
+        return
+
+    val_loader.batch_sampler.set_hard_prototypes(affinity_matrix)
+
+
 def train_xvec(gpu_id, args):
 
     config_logger(args.verbose)
@@ -120,6 +136,7 @@ def train_xvec(gpu_id, args):
     val_loader = init_data(partition="val", **kwargs)
     feat_extractor = init_feats(**kwargs)
     model = init_xvector(list(train_loader.dataset.num_classes.values())[0], **kwargs)
+    init_hard_prototype_mining(model, train_loader, val_loader, rank)
 
     trn_args = Trainer.filter_args(**kwargs["trainer"])
     if rank == 0:

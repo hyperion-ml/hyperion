@@ -91,11 +91,11 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
         self._set_num_chunks_per_seg_epoch(num_chunks_per_seg_epoch)
         self._compute_len()
 
-        # fast mapping from classes to segments
-        self.map_class_to_segs = self.seg_set.df[
-            ["id", self.class_name, self.length_name]
-        ]
-        self.map_class_to_segs.set_index(self.class_name, drop=False, inplace=True)
+        # # fast mapping from classes to segments
+        # self.map_class_to_segs = self.seg_set.df[
+        #     ["id", self.class_name, self.length_name]
+        # ]
+        # self.map_class_to_segs.set_index(self.class_name, drop=False, inplace=True)
 
         self._gather_class_info()
         self._set_class_weights()
@@ -103,7 +103,10 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
         self.set_hard_prototypes(affinity_matrix)
 
         logging.info(
-            "batches/epoch=%d min-batch-size=%d, max-batch-size=%d avg-batch-size/gpu=%.2f avg-classes/batch=%.2f  samples/(seg*epoch)=%d",
+            (
+                "sampler batches/epoch=%d min-batch-size=%d, max-batch-size=%d "
+                "avg-batch-size/gpu=%.2f avg-classes/batch=%.2f  samples/(seg*epoch)=%d"
+            ),
             self._len,
             self.min_batch_size,
             self.max_batch_size,
@@ -179,7 +182,7 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
         )
         self.map_class_to_segs_idx = {}
         for class_id in self.class_info["id"].values:
-            seg_ids = map_class_to_segs.loc[class_id, "id"]
+            seg_ids = map_class_to_segs.loc[class_id, "id"].values
             seg_idx = self.seg_set.get_loc(seg_ids)
             self.map_class_to_segs_idx[class_id] = seg_idx
 
@@ -246,7 +249,7 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
         # chunk length and put weight to 0
         zero_idx = self.class_info["max_seg_duration"] < chunk_length
         if not np.any(zero_idx):
-            return self.class_info["weights"].values
+            return torch.as_tensor(self.class_info["weights"].values)
 
         class_weights = self.class_info["weights"].values.copy()
         class_weights[zero_idx] = 0.0
@@ -266,64 +269,12 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
         class_ids = self.class_info.iloc[row_idx].id.values
         if self.hard_prototype_mining:
             # map class ids to class indexes
-            class_idx = self.class_info.loc[class_ids, "class_idx"]
+            class_idx = self.class_info.loc[class_ids, "class_idx"].values
             class_idx = self.get_hard_prototypes(class_idx)
             # map back to class ids
-            class_ids = self.map_class_idx_to_ids.loc[class_idx]
+            class_ids = self.map_class_idx_to_ids.loc[class_idx, "id"].values
 
         return class_ids
-
-    def _sample_segs0(self, class_ids, chunk_length):
-
-        seg_ids = []
-        for c in class_ids:
-            # for each class we sample segments longer than chunk length
-            # get segments belonging to c
-            # t1 = time.time()
-            segs_c = self.map_class_to_segs.loc[c]
-            # seg_idx_c = self.map_class_to_segs.index.get_loc(c)
-            if self.class_info.loc[c, "min_seg_duration"] < chunk_length:
-                segs_c = segs_c[segs_c[self.length_name] >= chunk_length]
-                # seg_idx_c = seg_idx_c[self.seg_set.loc[seg_idx_c, self.length_name]>chunk_length]
-
-            # t2 = time.time()
-            seg_ids_c = segs_c["id"].values
-            # seg_ids_c = self.seg_set.loc[seg_idx_c, "id"].values
-            # t3 = time.time()
-            # sample num_segs_per_class random segments
-            if len(seg_ids_c) == 0:
-                print(chunk_length, c, self.class_info.loc[c], flush=True)
-            if self.seg_weight_mode == "uniform":
-                sel_seg_idx_c = torch.randint(
-                    low=0,
-                    high=len(seg_ids_c),
-                    size=(self.num_segs_per_class,),
-                    generator=self.rng,
-                ).numpy()
-
-            elif self.seg_weight_mode == "data-prior":
-                # weights = self.seg_set.loc[seg_mask, self.length_name].values
-                weights = segs_c[self.length_name].values
-                # weights = self.seg_set.loc[seg_idx_c, self.length_name].values
-                weights /= weights.sum()
-                sel_seg_idx_c = torch.multinomial(
-                    torch.from_numpy(weights),
-                    num_samples=self.num_segs_per_class,
-                    replacement=True,
-                    generator=self.rng,
-                ).numpy()
-                # t4 = time.time()
-            else:
-                raise ValueError("unknown seg-weight-mode=%s", self.seg_weight_mode)
-            sel_seg_ids_c = list(seg_ids_c[sel_seg_idx_c])
-            # t5 = time.time()
-            seg_ids.extend(sel_seg_ids_c)
-            # t6 = time.time()
-            # logging.info(
-            #     "stime %f %f %f %f %f", t2 - t1, t3 - t2, t4 - t3, t5 - t4, t6 - t5
-            # )
-
-        return seg_ids
 
     def _sample_segs(self, class_ids, chunk_length):
 
@@ -334,21 +285,21 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
         for c in class_ids:
             # for each class we sample segments longer than chunk length
             # get segments belonging to c
-            t1 = time.time()
+            # t1 = time.time()
             seg_idx_c = self.map_class_to_segs_idx[c]
-            t2 = time.time()
+            # t2 = time.time()
             durs = self.seg_set.iloc[seg_idx_c, dur_col_idx].values
             if self.class_info.loc[c, "min_seg_duration"] < chunk_length:
                 mask = durs >= chunk_length
                 seg_idx_c = seg_idx_c[mask]
                 durs = durs[mask]
 
-            t3 = time.time()
+            # t3 = time.time()
             # sample num_segs_per_class random segments
             if len(seg_idx_c) == 0:
-                print(chunk_length, c, self.class_info.loc[c], flush=True)
+                logging.error("no segments found with class=%s dur=%d", c, chunk_length)
             if self.seg_weight_mode == "uniform":
-                sel_seg_idx_c = torch.randint(
+                sel_idx = torch.randint(
                     low=0,
                     high=len(seg_idx_c),
                     size=(self.num_segs_per_class,),
@@ -357,23 +308,24 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
 
             elif self.seg_weight_mode == "data-prior":
                 weights = durs / durs.sum()
-                sel_seg_idx_c = torch.multinomial(
+                sel_idx = torch.multinomial(
                     torch.from_numpy(weights),
                     num_samples=self.num_segs_per_class,
                     replacement=True,
                     generator=self.rng,
                 ).numpy()
-                t4 = time.time()
+                # t4 = time.time()
             else:
                 raise ValueError("unknown seg-weight-mode=%s", self.seg_weight_mode)
 
+            sel_seg_idx_c = seg_idx_c[sel_idx]
             sel_seg_ids_c = list(self.seg_set.iloc[sel_seg_idx_c, id_col_idx])
-            t5 = time.time()
+            # t5 = time.time()
             seg_ids.extend(sel_seg_ids_c)
-            t6 = time.time()
-            logging.info(
-                "stime %f %f %f %f %f", t2 - t1, t3 - t2, t4 - t3, t5 - t4, t6 - t5
-            )
+            # t6 = time.time()
+            # logging.info(
+            #     "stime %f %f %f %f %f", t2 - t1, t3 - t2, t4 - t3, t5 - t4, t6 - t5
+            # )
 
         return seg_ids
 
@@ -395,12 +347,33 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
         if self.batch == self._len:
             raise StopIteration
 
+        # t1 = time.time()
         chunk_length = self._sample_chunk_length()
+        # t2 = time.time()
         batch_size = self._compute_batch_size(chunk_length)
+        # t3 = time.time()
         num_classes = self._compute_num_classes_per_batch(batch_size)
+        # t4 = time.time()
         class_ids = self._sample_classes(num_classes, chunk_length)
+        # t5 = time.time()
         seg_ids = self._sample_segs(class_ids, chunk_length)
+        # t6 = time.time()
         chunks = self._sample_chunks(seg_ids, chunk_length)
+        # t7 = time.time()
+        # print(
+        #     "next",
+        #     t2 - t1,
+        #     t3 - t2,
+        #     t4 - t3,
+        #     t5 - t4,
+        #     t6 - t5,
+        #     t7 - t6,
+        #     batch_size,
+        #     num_classes,
+        #     self.min_batch_size,
+        #     len(chunks),
+        #     flush=True,
+        # )
         if self.batch == 0:
             logging.info("batch 0 uttidx=%s", str(chunks[:10]))
 

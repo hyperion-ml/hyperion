@@ -132,7 +132,7 @@ class SegSamplerFactory(object):
         parser.add_argument(
             "--min-batch-size",
             type=int,
-            default=1,
+            default=64,
             help=("minimum batch size per gpu"),
         )
         parser.add_argument(
@@ -146,7 +146,7 @@ class SegSamplerFactory(object):
 
         parser.add_argument(
             "--batch-size",
-            default=128,
+            default=None,
             type=int,
             help=("deprecated, use min-batch-size instead"),
         )

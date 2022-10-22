@@ -40,6 +40,14 @@ class InfoTable(object):
         return self.df.__len__
 
     @property
+    def __str__(self):
+        return self.df.__str__
+
+    @property
+    def __repr__(self):
+        return self.df.__repr__ 
+
+    @property
     def iat(self):
         return self.df.iat
 
@@ -397,6 +405,9 @@ class InfoTable(object):
         self.df.set_index("id", drop=False, inplace=True)
 
     def get_loc(self, keys):
+        if isinstance(keys, (list, np.ndarray)):
+            return self.df.index.get_indexer(keys)
+
         loc = self.df.index.get_loc(keys)
         if isinstance(loc, int):
             return loc
