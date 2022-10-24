@@ -88,13 +88,14 @@ class InfoTable(object):
         self.df.to_csv(file_path, sep=sep, index=False)
 
     @classmethod
-    def load(cls, file_path, sep=None):
+    def load(cls, file_path, sep=None, name="class_id"):
         """Loads utt2info list from text file.
 
         Args:
           file_path: File to read the list.
           sep: Separator between the key and file_path in the text file.
           dtype: Dictionary with the dtypes of each column.
+          name: name for the data to be loaded
         Returns:
           Utt2Info object
         """
@@ -106,8 +107,8 @@ class InfoTable(object):
                 file_path,
                 sep=" ",
                 header=None,
-                names=["id", "class_id"],
-                dtype={"id": np.str, "class_id": np.str},
+                names=["id", name],
+                dtype={"id": np.str, name: np.str},
             )
         else:
             if sep is None:

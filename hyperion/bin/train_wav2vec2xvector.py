@@ -145,7 +145,7 @@ def make_parser(model_class):
     parser.add_argument("--data", action=ActionParser(parser=data_parser))
 
     parser.link_arguments(
-        "data.train.dataset.class_file", "data.val.dataset.class_file"
+        "data.train.dataset.class_files", "data.val.dataset.class_files"
     )
     parser.link_arguments(
         "data.train.data_loader.num_workers", "data.val.data_loader.num_workers"

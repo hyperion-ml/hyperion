@@ -42,17 +42,10 @@ def read_2column_text(path: Union[Path, str]) -> Dict[str, str]:
 class TextInfo(InfoTable):
     def __init__(self, df):
         super().__init__(df)
-        if "class_idx" not in self.df:
-            self.add_class_idx()
-
         if "weights" not in self.df:
             self.set_uniform_weights()
         else:
             self.df["weights"] /= self.df["weigths"].sum()
-
-
-    def add_class_idx(self):
-        self.df["class_idx"] = [i for i in range(len(self.df))]
 
     def set_uniform_weights(self):
         self.df["weights"] = 1 / len(self.df)
@@ -77,7 +70,17 @@ class TextInfo(InfoTable):
         return self.df["class_idx"].values.max() + 1
 
     @classmethod
-    def load(cls, file_path, sp):
+    def load(cls, file_path, sp, sep=None):
+        """Loads utt2info list from text file.
+
+        Args:
+          file_path: File to read the list.
+          sp: SentencePieceProcessor from the BPE model
+          sep: Separator between the key and file_path in the text file.
+          dtype: Dictionary with the dtypes of each column.
+        Returns:
+          Utt2Info object
+        """
         #TODO: load text information
         """Loads utt2info list from text file.
 
@@ -86,29 +89,16 @@ class TextInfo(InfoTable):
           sp: SentencePieceProcessor for bpe.
         Returns:
           Utt2Info object
-        """
-        # y: k2.RaggedTensor,
-        # A ragged tensor with 2 axes [utt][label]. It contains labels of each utterance.
-
-        texts = read_2column_text(file_path)
-        # {'key1': '/some/path/a.wav', 'key2': '/some/path/b.wav'}
-        for utterance_id in texts:
-            texts[utterance_id]
-
-        y = sp.encode(texts, out_type=int)
-        y = k2.RaggedTensor(y).to(device)
-
+        """            
+        # # y: k2.RaggedTensor,
+        # # A ragged tensor with 2 axes [utt][label]. It contains labels of each utterance.
+        # y = sp.encode(texts, out_type=int)
+        # y = k2.RaggedTensor(y).to(device)
         file_path = Path(file_path)
-        ext = file_path.suffix
-        if ext == "":
-            # if no extension we load as kaldi utt2spk file
-            df = pd.read_csv(
-                file_path,
-                sep=" ",
-                header=None,
-                names=["id"],
-                dtype={"id": np.str},
-            )
-            return cls(df)
+        text_df = super().load(file_path, sep, name="text_label")
+        # for i, text in enumerate(text_df["text_label"]):
+        #     y = sp.encode(text, out_type=int)
+        #     y = k2.RaggedTensor(y).to(device)
+        #     text_df["text_label"][i] = y
 
-        return super().load(file_path, sep)
+        return text_df

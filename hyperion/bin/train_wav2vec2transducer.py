@@ -116,7 +116,7 @@ def make_parser(model_class):
 
     parser.add_argument("--cfg", action=ActionConfigFile)
     train_parser = ArgumentParser(prog="")
-    AD.add_class_args(train_parser, prefix="dataset", skip={})
+    AD.add_class_args(train_parser, prefix="dataset", skip={"segments_file"})
     Sampler.add_class_args(train_parser, prefix="sampler")
     train_parser.add_argument(
         "--data_loader.num-workers",
@@ -126,7 +126,7 @@ def make_parser(model_class):
     )
 
     val_parser = ArgumentParser(prog="")
-    AD.add_class_args(val_parser, prefix="dataset", skip={})
+    AD.add_class_args(val_parser, prefix="dataset", skip={"segments_file"})
     Sampler.add_class_args(val_parser, prefix="sampler")
     val_parser.add_argument(
         "--data_loader.num-workers",
@@ -139,10 +139,16 @@ def make_parser(model_class):
     data_parser.add_argument("--val", action=ActionParser(parser=val_parser))
     parser.add_argument("--data", action=ActionParser(parser=data_parser))
 
-    parser.add_argument("--data.train.dataset.text_file", action=ActionParser(parser=data_parser))
-    parser.add_argument("--data.val.dataset.text_file", action=ActionParser(parser=data_parser))
-    parser.add_argument("--data.train.data_loader.num_workers", action=ActionParser(parser=data_parser))
-    parser.add_argument("--data.val.data_loader.num_workers", action=ActionParser(parser=data_parser))
+
+    parser.add_argument(
+        "--data.train.dataset.text_file",
+        type=str, 
+    )
+    parser.add_argument("--data.val.dataset.text_file", type=str)
+    parser.add_argument("--data.train.data_loader.num_workers", type=int,
+        default=5,)
+    parser.add_argument("--data.val.data_loader.num_workers", type=int,
+        default=5,)
 
     parser.add_argument(
         "--bpe-model",

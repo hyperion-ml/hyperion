@@ -26,7 +26,6 @@ from torch.utils.data import Dataset
 import torch.distributed as dist
 
 from hyperion.np import augment
-from hyperion.utils.util import read_2column_text
 
 
 class AudioDataset1(Dataset):
@@ -460,7 +459,7 @@ class AudioDataset(Dataset):
     def __init__(
         self,
         audio_file,
-        segments_file,
+        segments_file=None,
         class_names=None,
         class_files=None,
         bpe_model=None,
@@ -491,24 +490,25 @@ class AudioDataset(Dataset):
 
         self.r = AR(audio_file, wav_scale=wav_scale)
 
+        
         if rank == 0:
             logging.info("loading segments file %s" % segments_file)
-
-        self.seg_set = SegmentSet.load(segments_file)
-        if rank == 0:
-            logging.info("dataset contains %d seqs" % len(self.seg_set))
-
-        self.is_val = is_val
-        if time_durs_file is not None:
+        if segments_file is not None:
+            self.seg_set = SegmentSet.load(segments_file)
             if rank == 0:
-                logging.info("loading durations file %s" % time_durs_file)
+                logging.info("dataset contains %d seqs" % len(self.seg_set))
 
-            time_durs = SegmentSet.load(time_durs_file)
-            self.seg_set["duration"] = time_durs.loc[
-                self.seg_set["id"]
-            ].class_id.values.astype(np.float, copy=False)
-        else:
-            assert "duration" in self.seg_set
+            self.is_val = is_val
+            if time_durs_file is not None:
+                if rank == 0:
+                    logging.info("loading durations file %s" % time_durs_file)
+
+                time_durs = SegmentSet.load(time_durs_file)
+                self.seg_set["duration"] = time_durs.loc[
+                    self.seg_set["id"]
+                ].class_id.values.astype(np.float, copy=False)
+            else:
+                assert "duration" in self.seg_set
 
         logging.info("loading class-info files")
         self._load_class_infos(class_names, class_files, is_val)
@@ -520,7 +520,7 @@ class AudioDataset(Dataset):
 
         if text_files is not None:
             logging.info("loading text files")
-            self._load_text(text_files, is_val)
+            self._load_text_infos(text_files, is_val)
 
         self.return_segment_info = (
             [] if return_segment_info is None else return_segment_info
@@ -537,7 +537,7 @@ class AudioDataset(Dataset):
         blank_id = self.sp.piece_to_id("<blk>")
         vocab_size = self.sp.get_piece_size()
 
-    def _load_text(self, text_file, is_val):
+    def _load_text_infos(self, text_file, is_val):
         #TODO: load bpe and text into data structure
         if text_file is None:
             return
@@ -682,19 +682,22 @@ class AudioDataset(Dataset):
         # converts the class_ids to integers
         for info_name in self.return_segment_info:
             seg_info = self.seg_set.loc[seg_id, info_name]
-            if info_name in self.class_info:
-                # if the type of information is a class-id
-                # we use the class information table to
-                # convert from id to integer
-                class_info = self.class_info[info_name]
-                idx = class_info.loc[seg_info, "class_idx"]
+            if info_name in self.text_info:
+                # if the type of information is a text
+                # we use the text information table to
+                # convert from id to text labels
+                text_info = self.text_info[info_name]
+                idx = text_info.loc[seg_info, "class_idx"]
                 seg_info = idx
+                y = sp.encode(text, out_type=int)
+                y = k2.RaggedTensor(y).to(device)
 
-            r.append(seg_info)
+            r.append(y)
 
         return r
 
     def __getitem__(self, segment):
+        #TODO: check the start/end time for Recognition
         seg_id, start, duration = self._parse_segment_item(segment)
         x, fs = self._read_audio(seg_id, start, duration)
         if self.augmenters:
@@ -712,9 +715,10 @@ class AudioDataset(Dataset):
         else:
             r = [x]
 
-        # adds the segment labels
-        seg_info = self._get_segment_info(seg_id)
-        r.extend(seg_info)
+        #TODO: Add it back for both case
+        # # adds the segment labels
+        # seg_info = self._get_segment_info(seg_id)
+        # r.extend(seg_info)
 
         # adds the text labels
         text_info = self._get_text_info(seg_id)
@@ -784,6 +788,14 @@ class AudioDataset(Dataset):
             default=None,
             help=(
                 "segment to duration in secs file, if durations are not in segments_file"
+            ),
+        )
+
+        parser.add_argument(
+            "--text-file",
+            default=None,
+            help=(
+                "text file"
             ),
         )
 
