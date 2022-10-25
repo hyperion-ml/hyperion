@@ -213,6 +213,17 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
             self.hard_prototypes = None
             return
 
+        # don't sample hard negs from classes with zero weigth or absent
+        zero_w = self.class_info["weights"] == 0
+        if np.any(zero_w):
+            zero_w_idx = self.class_info.loc[zero_w, "class_idx"].values
+            affinity_matrix[:, zero_w_idx] = -1000
+
+        for i in range(affinity_matrix.size(1)):
+            mask_i = self.class_info["class_idx"] == i
+            if np.all(mask_i == 0):
+                affinity_matrix[:, i] = -1000
+
         # affinity_matrix[np.diag(affinity_matrix.shape[0])] = -1.0
         # hard prototypes for a class are itself and k-1 closest to it.
         self.hard_prototypes = torch.topk(
@@ -260,10 +271,7 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
     def _sample_classes(self, num_classes, chunk_length):
         weights = self._get_class_weights(chunk_length)
         row_idx = torch.multinomial(
-            weights,
-            num_samples=num_classes,
-            replacement=True,
-            generator=self.rng,
+            weights, num_samples=num_classes, replacement=True, generator=self.rng,
         ).numpy()
 
         class_ids = self.class_info.iloc[row_idx].id.values
