@@ -2,7 +2,7 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-
+from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
 import numpy as np
 import h5py
 
@@ -155,25 +155,28 @@ class CentWhiten(NPModel):
 
     @staticmethod
     def add_class_args(parser, prefix=None):
-        if prefix is None:
-            p1 = "--"
-        else:
-            p1 = "--" + prefix + "."
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
 
         parser.add_argument(
-            p1 + "update-mu",
-            default=True,
+            "--update-mu",
+            default=ActionYesNo,
             type=bool,
             help=("updates centering parameter"),
         )
 
         parser.add_argument(
-            p1 + "update-T",
+            "--update-T",
             default=True,
-            type=bool,
+            type=ActionYesNo,
             help=("updates whitening parameter"),
         )
 
-        parser.add_argument(p1 + "name", default="lnorm")
+        parser.add_argument("--name", default="lnorm")
+        if prefix is not None:
+            outer_parser.add_argument(
+                "--" + prefix, action=ActionParser(parser=parser),
+            )
 
     add_argparse_args = add_class_args

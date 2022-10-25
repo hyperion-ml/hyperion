@@ -40,6 +40,14 @@ class InfoTable(object):
         return self.df.__len__
 
     @property
+    def __str__(self):
+        return self.df.__str__
+
+    @property
+    def __repr__(self):
+        return self.df.__repr__ 
+
+    @property
     def iat(self):
         return self.df.iat
 
@@ -385,5 +393,32 @@ class InfoTable(object):
         rng.shuffle(index)
         self.df = self.df.iloc[index]
         return index
+
+    def set_index(self, keys, inplace=True):
+        if inplace:
+            self.df.set_index(keys, drop=False, inplace=True)
+            return
+
+        df = self.df.set_index(keys, drop=False, inplace=False)
+        return type(self)(df)
+
+    def reset_index(self):
+        self.df.set_index("id", drop=False, inplace=True)
+
+    def get_loc(self, keys):
+        if isinstance(keys, (list, np.ndarray)):
+            return self.df.index.get_indexer(keys)
+
+        loc = self.df.index.get_loc(keys)
+        if isinstance(loc, int):
+            return loc
+        elif isinstance(loc, np.ndarray) and loc.dtype==np.bool:
+            return np.nonzero(loc)[0]
+        else:
+            return list(range(loc.start, loc.stop, loc.step))
+
+    def get_col_idx(self, keys):
+        return self.df.columns.get_loc(keys)
+        
 
     

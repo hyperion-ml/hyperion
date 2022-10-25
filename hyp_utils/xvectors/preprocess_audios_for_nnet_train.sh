@@ -45,7 +45,7 @@ mkdir -p $data_out
 output_dir=$(utils/make_absolute.sh $dir)
 
 if [[ $(hostname -f) == *.clsp.jhu.edu ]] && [ ! -d $output_dir/storage ]; then
-    dir_name=$USER/hyp-data/xvectors/$storage_name/xvector_audio/storage
+    dir_name=$USER/hyp-data/$storage_name/xvector_audio/storage
     if [ "$nodes" == "b0" ];then
 	utils/create_split_dir.pl \
 	    utils/create_split_dir.pl \
