@@ -23,7 +23,7 @@ data:
       iters_per_epoch: 6
     data_loader:
       num_workers: 8
-model: 
+model: wav2vec2xlsr300m_transducer.yaml
 trainer:
   optim:
     opt_type: sgd

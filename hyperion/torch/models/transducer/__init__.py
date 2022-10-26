@@ -5,3 +5,6 @@
 """
 
 from .transducer import Transducer
+from .conformer import Conformer
+from .decoder import Decoder
+from .joiner import Joiner
