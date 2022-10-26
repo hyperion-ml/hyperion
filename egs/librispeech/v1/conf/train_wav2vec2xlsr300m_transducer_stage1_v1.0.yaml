@@ -6,6 +6,7 @@ data:
       aug_cfgs: [conf/reverb_noise_aug.yaml]
       wav_scale: 1
     sampler:
+      sampler_type: 'bucketing_seg_sampler'
       batch_size: 32
       iters_per_epoch: 6
     data_loader:
@@ -17,6 +18,7 @@ data:
       aug_cfgs: [conf/reverb_noise_aug.yaml]
       wav_scale: 1
     sampler:
+      sampler_type: 'bucketing_seg_sampler'
       batch_size: 32
       iters_per_epoch: 6
     data_loader:

@@ -352,6 +352,7 @@ def store_transcripts(
             print(f"{cut_id}:\thyp={hyp}", file=f)
 
 
+
 def write_error_stats(
     f: TextIO,
     test_set_name: str,

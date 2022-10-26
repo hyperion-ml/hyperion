@@ -72,6 +72,9 @@ done
 
 spk2utt=$dst/spk2utt
 utils/utt2spk_to_spk2utt.pl <$utt2spk >$spk2utt || exit 1
+utils/data/get_utt2dur.sh $dst 
+awk 'sub(/ *$/, "", $0)' $dst/utt2dur > $dst/utt2dur2
+mv $dst/utt2dur2 $dst/utt2dur
 
 ntrans=$(wc -l <$trans)
 nutt2spk=$(wc -l <$utt2spk)

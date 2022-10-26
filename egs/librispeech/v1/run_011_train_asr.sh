@@ -35,9 +35,9 @@ if [ "$interactive" == "true" ];then
     export cuda_cmd=run.pl
 fi
 
-# if [ "$use_wandb" == "true" ];then
-#   extra_args="$extra_args --trainer.use-wandb --trainer.wandb.project voxceleb-v2 --trainer.wandb.name $nnet_s1_name.$(date -Iminutes)"
-# fi
+if [ "$use_wandb" == "true" ];then
+  extra_args="$extra_args --trainer.use-wandb --trainer.wandb.project voxceleb-v2 --trainer.wandb.name $nnet_s1_name.$(date -Iminutes)"
+fi
 
 
 # Network Training
@@ -50,14 +50,26 @@ if [ $stage -le 1 ]; then
     train_wav2vec2transducer.py $nnet_type \
     --cfg $nnet_s1_base_cfg $nnet_s1_args $extra_args \
     --data.train.dataset.audio-file $train_dir/wav.scp \
-    --data.train.dataset.time-durs-file $train_dir/utt2dur \
+    --data.train.dataset.segments-file $train_dir/utt2spk \
+    --data.train.dataset.bpe-model $bpe_model \
+    --data.train.dataset.text-file $train_dir/text \
     --data.val.dataset.audio-file $val_dir/wav.scp \
-    --data.val.dataset.time-durs-file $val_dir/utt2dur \
+    --data.val.dataset.segments-file $val_dir/utt2spk \
+    --data.val.dataset.text-file $val_dir/text \
     --trainer.exp-path $nnet_s1_dir $args \
+    --data.train.dataset.time-durs-file $train_dir/utt2dur \
+    --data.val.dataset.time-durs-file $val_dir/utt2dur \
     --num-gpus $ngpu
-    # --data.train.dataset.text-file $train_dir/text \
-    # --data.val.dataset.text-file $val_dir/text \
-  
+
+# --cfg $xvec_train_base_cfg $xvec_train_args $extra_args \
+#     --data.train.dataset.audio-file $list_dir/wav.scp \
+#     --data.train.dataset.time-durs-file $list_dir/utt2dur \
+#     --data.train.dataset.segments-file $list_dir/lists_xvec/train.scp \
+#     --data.train.dataset.class-files $list_dir/lists_xvec/class2int \
+#     --data.val.dataset.audio-file $list_dir/wav.scp \
+#     --data.val.dataset.time-durs-file $list_dir/utt2dur \
+#     --data.val.dataset.segments-file $list_dir/lists_xvec/val.scp \
+#     --trainer.exp-path $nnet_dir $args \
 fi
 
 if [ $stage -le 2 ]; then

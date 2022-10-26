@@ -26,7 +26,8 @@ from hyperion.torch.utils import ddp
 from hyperion.torch.trainers import TransducerTrainer as Trainer
 from hyperion.torch.data import AudioDataset as AD
 # from hyperion.torch.data import LibriSpeechAsrDataModule as ASRD
-from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
+# from hyperion.torch.data import BucketingSegSampler as Sampler
+from hyperion.torch.data import SegSamplerFactory
 from hyperion.torch.metrics import CategoricalAccuracy
 from hyperion.torch.models import HFWav2Vec2Transducer
 
@@ -38,19 +39,22 @@ model_dict = {
 def init_data(partition, rank, num_gpus, **kwargs):
     kwargs = kwargs["data"][partition]
     ad_args = AD.filter_args(**kwargs["dataset"])
-    sampler_args = Sampler.filter_args(**kwargs["sampler"])
+    sampler_args = kwargs["sampler"]
     if rank == 0:
         logging.info("{} audio dataset args={}".format(partition, ad_args))
         logging.info("{} sampler args={}".format(partition, sampler_args))
         logging.info("init %s dataset", partition)
 
-    ad_args["is_val"] = partition == "val"
+    is_val = partition == "val"
+    ad_args["is_val"] = is_val
+    sampler_args["shuffle"] = not is_val
+    print("ad_args", ad_args)
     dataset = AD(**ad_args)
 
     if rank == 0:
         logging.info("init %s samplers", partition)
-
-    sampler = Sampler(dataset, **sampler_args)
+    print("sampler_args", sampler_args)
+    sampler = SegSamplerFactory.create(dataset, **sampler_args)
 
     if rank == 0:
         logging.info("init %s dataloader", partition)
@@ -69,7 +73,7 @@ def init_model(num_classes, rank, model_class, **kwargs):
     if rank == 0:
         logging.info("model network args={}".format(model_args))
     # TODO: check model_args 
-    model_args["transducer"]["num_classes"] = num_classes
+    model_args["num_classes"] = num_classes
     model = model_class(**model_args)
     if rank == 0:
         logging.info("model={}".format(model))
@@ -86,13 +90,20 @@ def train_model(gpu_id, args):
     torch.manual_seed(args.seed)
     set_float_cpu("float32")
 
-    ddp_args = ddp.filter_ddp_args(**kwargs)
-    device, rank, world_size = ddp.ddp_init(gpu_id, **ddp_args)
-    kwargs["rank"] = rank
+    # ddp_args = ddp.filter_ddp_args(**kwargs)
+    # device, rank, world_size = ddp.ddp_init(gpu_id, **ddp_args)
+    # kwargs["rank"] = rank
 
+    # for Debug
+    rank = 0
+    kwargs["rank"] = 0
+    device = "cpu"
+    world_size=1
+    
     train_loader = init_data(partition="train", **kwargs)
     val_loader = init_data(partition="val", **kwargs)
-    model = init_model(train_loader.dataset.num_classes, **kwargs)
+    model = init_model(list(train_loader.dataset.num_classes.values())[0], **kwargs)
+    # model = init_model(train_loader.dataset.num_classes, **kwargs)
 
     trn_args = Trainer.filter_args(**kwargs["trainer"])
     if rank == 0:
@@ -116,8 +127,9 @@ def make_parser(model_class):
 
     parser.add_argument("--cfg", action=ActionConfigFile)
     train_parser = ArgumentParser(prog="")
-    AD.add_class_args(train_parser, prefix="dataset", skip={"segments_file"})
-    Sampler.add_class_args(train_parser, prefix="sampler")
+    AD.add_class_args(train_parser, prefix="dataset", skip={})
+    SegSamplerFactory.add_class_args(train_parser, prefix="sampler")
+    # Sampler.add_class_args(train_parser, prefix="sampler")
     train_parser.add_argument(
         "--data_loader.num-workers",
         type=int,
@@ -126,8 +138,9 @@ def make_parser(model_class):
     )
 
     val_parser = ArgumentParser(prog="")
-    AD.add_class_args(val_parser, prefix="dataset", skip={"segments_file"})
-    Sampler.add_class_args(val_parser, prefix="sampler")
+    AD.add_class_args(val_parser, prefix="dataset", skip={})
+    SegSamplerFactory.add_class_args(val_parser, prefix="sampler")
+    # Sampler.add_class_args(val_parser, prefix="sampler")
     val_parser.add_argument(
         "--data_loader.num-workers",
         type=int,
@@ -144,18 +157,40 @@ def make_parser(model_class):
         "--data.train.dataset.text_file",
         type=str, 
     )
-    parser.add_argument("--data.val.dataset.text_file", type=str)
-    parser.add_argument("--data.train.data_loader.num_workers", type=int,
-        default=5,)
-    parser.add_argument("--data.val.data_loader.num_workers", type=int,
-        default=5,)
 
     parser.add_argument(
-        "--bpe-model",
-        type=str,
-        default="data/lang_bpe_500/bpe.model",
-        help="Path to the BPE model",
+        "--data.train.dataset.bpe_model",
+        type=str, 
     )
+
+    parser.add_argument("--data.val.dataset.text_file", type=str)
+
+
+    # parser.add_argument(
+    #     "--data.val.dataset.bpe_model",
+    #     type=str, 
+    # )
+
+
+    # parser.add_argument("--data.train.data_loader.num_workers", type=int,
+    #     default=5,)
+    # parser.add_argument("--data.val.data_loader.num_workers", type=int,
+    #     default=5,)
+    parser.link_arguments(
+        "data.train.data_loader.num_workers", "data.val.data_loader.num_workers"
+    )
+
+    parser.link_arguments(
+        "data.train.dataset.bpe_model", "data.val.dataset.bpe_model"
+    )
+
+
+    # parser.add_argument(
+    #     "--bpe-model",
+    #     type=str,
+    #     default="data/lang_bpe_500/bpe.model",
+    #     help="Path to the BPE model",
+    # )
 
     # parser.link_arguments(
     #     "data.train.dataset.class_file", "data.val.dataset.class_file"
@@ -209,5 +244,5 @@ if __name__ == "__main__":
 
     args_sc.model_class = model_dict[model_type]
     # torch docs recommend using forkserver
-    multiprocessing.set_start_method("forkserver")
+    # multiprocessing.set_start_method("forkserver")
     train_model(gpu_id, args_sc)

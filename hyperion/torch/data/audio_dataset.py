@@ -26,7 +26,7 @@ from torch.utils.data import Dataset
 import torch.distributed as dist
 
 from hyperion.np import augment
-
+import pdb
 
 class AudioDataset1(Dataset):
     def __init__(
@@ -453,7 +453,7 @@ class AudioDataset1(Dataset):
 
 from ...utils.class_info import ClassInfo
 from ...utils.segment_set import SegmentSet
-
+from ...utils.text import read_text
 
 class AudioDataset(Dataset):
     def __init__(
@@ -463,7 +463,7 @@ class AudioDataset(Dataset):
         class_names=None,
         class_files=None,
         bpe_model=None,
-        text_files=None,
+        text_file=None,
         time_durs_file=None,
         aug_cfgs=None,
         num_augs=1,
@@ -518,10 +518,9 @@ class AudioDataset(Dataset):
             logging.info("loading bpe models")
             self._load_bpe_model(bpe_model, is_val)
 
-        if text_files is not None:
+        if text_file is not None:
             logging.info("loading text files")
-            self._load_text_infos(text_files, is_val)
-
+            self._load_text_infos(text_file, is_val)
         self.return_segment_info = (
             [] if return_segment_info is None else return_segment_info
         )
@@ -532,8 +531,10 @@ class AudioDataset(Dataset):
 
 
     def _load_bpe_model(self, bpe_model, is_val):
+        if self.rank == 0:
+            logging.info("loading bpe file %s" % bpe_model)
         self.sp  = spm.SentencePieceProcessor()
-        self.sp.load(params.bpe_model)
+        self.sp.load(bpe_model)
         blank_id = self.sp.piece_to_id("<blk>")
         vocab_size = self.sp.get_piece_size()
 
@@ -543,7 +544,9 @@ class AudioDataset(Dataset):
             return
         if self.rank == 0:
             logging.info("loading text file %s" % text_file)
-        self.text_info = TextInfo.load(text_file, self.sp)
+        
+        text = read_text(text_file)
+        self.seg_set["text"] = text.loc[self.seg_set["id"]].text
 
 
 
@@ -742,7 +745,8 @@ class AudioDataset(Dataset):
             "num_augs",
             "class_names",
             "class_files",
-            "text_files",
+            "bpe_model",
+            "text_file",
             "return_segment_info",
             "return_orig",
             "time_durs_file",
@@ -796,10 +800,18 @@ class AudioDataset(Dataset):
         )
 
         parser.add_argument(
+            "--bpe-model",
+            default=None,
+            help=(
+                "bpe model for the text label"
+            ),
+        )
+
+        parser.add_argument(
             "--text-file",
             default=None,
             help=(
-                "text file"
+                "text file with words labels for each utterances"
             ),
         )
 

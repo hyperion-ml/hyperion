@@ -9,6 +9,7 @@ hf_model_name=wav2vec2xlsr300m
 # x-vector training 
 nnet_data=train_clean_100
 
+bpe_model=data/lang_bpe_1000/bpe.model
 # x-vector cfg
 
 nnet_type=hf_wav2vec2transducer
