@@ -12,6 +12,7 @@ import torch
 from .hyp_sampler import HypSampler
 from .seg_sampler import SegSampler
 import torch.distributed as dist
+from torch.nn.utils.rnn import pad_sequence
 
 
 class BucketingSegSampler(HypSampler):
@@ -62,6 +63,9 @@ class BucketingSegSampler(HypSampler):
 
         self.bucket_samplers = bucket_samplers
 
+    def __len__(self):
+        return self._len
+
     def _compute_len(self):
         self._len = 0
         for i in range(self.num_buckets):
@@ -93,7 +97,7 @@ class BucketingSegSampler(HypSampler):
             if self.depleted_buckets[bucket_idx]:
                 continue
 
-            bucket = self.buckets[bucket_idx]
+            bucket = self.bucket_samplers[bucket_idx]
             try:
                 batch = next(bucket)
                 break

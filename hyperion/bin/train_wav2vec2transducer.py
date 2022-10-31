@@ -4,7 +4,6 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import sys
-import pdb
 import os
 from pathlib import Path
 from jsonargparse import (
@@ -13,6 +12,7 @@ from jsonargparse import (
     ActionParser,
     namespace_to_dict,
 )
+import k2
 import time
 import logging
 import multiprocessing
@@ -29,10 +29,7 @@ from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
 from hyperion.torch.metrics import CategoricalAccuracy
 from hyperion.torch.models import HFWav2Vec2Transducer
-from hyperion.torch.models.transducer import Conformer
-from hyperion.torch.models.transducer import Decoder
-from hyperion.torch.models.transducer import Joiner
-
+from torch.nn.utils.rnn import pad_sequence
 
 
 model_dict = {
@@ -40,10 +37,28 @@ model_dict = {
 }
 
 
+def my_collate(batch):
+    audio = []
+    audio_length = []
+    target = []
+    for i, record in enumerate(batch):
+        wav = torch.as_tensor(record[0])
+        audio.append(wav)
+        audio_length.append(wav.shape[0])
+        target.append(record[1])
+        if i==4:
+            break
+    audio = pad_sequence(audio)
+    audio_length = torch.as_tensor(audio_length)
+    target = k2.RaggedTensor(target)
+    return torch.transpose(audio,0,1), audio_length, target
+
+
+
 def init_data(partition, rank, num_gpus, **kwargs):
-    kwargs = kwargs["data"][partition]
-    ad_args = AD.filter_args(**kwargs["dataset"])
-    sampler_args = kwargs["sampler"]
+    data_kwargs = kwargs["data"][partition]
+    ad_args = AD.filter_args(**data_kwargs["dataset"])
+    sampler_args = data_kwargs["sampler"]
     if rank == 0:
         logging.info("{} audio dataset args={}".format(partition, ad_args))
         logging.info("{} sampler args={}".format(partition, sampler_args))
@@ -52,162 +67,37 @@ def init_data(partition, rank, num_gpus, **kwargs):
     is_val = partition == "val"
     ad_args["is_val"] = is_val
     sampler_args["shuffle"] = not is_val
-    print("ad_args", ad_args)
     dataset = AD(**ad_args)
 
     if rank == 0:
         logging.info("init %s samplers", partition)
-    print("sampler_args", sampler_args)
     sampler = SegSamplerFactory.create(dataset, **sampler_args)
 
     if rank == 0:
         logging.info("init %s dataloader", partition)
 
-    num_workers = kwargs["data_loader"]["num_workers"]
+    num_workers = data_kwargs["data_loader"]["num_workers"]
     num_workers_per_gpu = int((num_workers + num_gpus - 1) / num_gpus)
     largs = (
         {"num_workers": num_workers_per_gpu, "pin_memory": True} if num_gpus > 0 else {}
     )
-    data_loader = torch.utils.data.DataLoader(dataset, batch_sampler=sampler, **largs)
+    data_loader = torch.utils.data.DataLoader(dataset, batch_sampler=sampler, **largs, collate_fn=my_collate)
     return data_loader
 
 
-def init_model(num_classes, rank, model_class, **kwargs):
+def init_model(blank_id, vocab_size, rank, model_class, **kwargs):
     model_args = model_class.filter_args(**kwargs["model"])
     if rank == 0:
         logging.info("model network args={}".format(model_args))
     # TODO: check model_args 
-    model_args["num_classes"] = num_classes
+    model_args["transducer"]["blank_id"] = blank_id
+    model_args["transducer"]["vocab_size"] = vocab_size
     model = model_class(**model_args)
     if rank == 0:
         logging.info("model={}".format(model))
     return model
 
 
-
-
-def get_params() -> AttributeDict:
-    """Return a dict containing training parameters.
-
-    All training related parameters that are not passed from the commandline
-    are saved in the variable `params`.
-
-    Commandline options are merged into `params` after they are parsed, so
-    you can also access them via `params`.
-
-    Explanation of options saved in `params`:
-
-        - best_train_loss: Best training loss so far. It is used to select
-                           the model that has the lowest training loss. It is
-                           updated during the training.
-
-        - best_valid_loss: Best validation loss so far. It is used to select
-                           the model that has the lowest validation loss. It is
-                           updated during the training.
-
-        - best_train_epoch: It is the epoch that has the best training loss.
-
-        - best_valid_epoch: It is the epoch that has the best validation loss.
-
-        - batch_idx_train: Used to writing statistics to tensorboard. It
-                           contains number of batches trained so far across
-                           epochs.
-
-        - log_interval:  Print training loss if batch_idx % log_interval` is 0
-
-        - reset_interval: Reset statistics if batch_idx % reset_interval is 0
-
-        - valid_interval:  Run validation if batch_idx % valid_interval is 0
-
-        - feature_dim: The model input dim. It has to match the one used
-                       in computing features.
-
-        - subsampling_factor:  The subsampling factor for the model.
-
-        - attention_dim: Hidden dim for multi-head attention model.
-
-        - num_decoder_layers: Number of decoder layer of transformer decoder.
-
-        - warm_step: The warm_step for Noam optimizer.
-    """
-    params = AttributeDict(
-        {
-            "best_train_loss": float("inf"),
-            "best_valid_loss": float("inf"),
-            "best_train_epoch": -1,
-            "best_valid_epoch": -1,
-            "batch_idx_train": 0,
-            "log_interval": 50,
-            "reset_interval": 200,
-            "valid_interval": 3000,  # For the 100h subset, use 800
-            # parameters for conformer
-            "feature_dim": 80,
-            "encoder_out_dim": 512,
-            "subsampling_factor": 4,
-            "attention_dim": 512,
-            "nhead": 8,
-            "dim_feedforward": 2048,
-            "num_encoder_layers": 12,
-            "vgg_frontend": False,
-            # decoder params
-            "decoder_embedding_dim": 1024,
-            "num_decoder_layers": 2,
-            "decoder_hidden_dim": 512,
-            # parameters for Noam
-            "warm_step": 80000,  # For the 100h subset, use 8k
-            "env_info": get_env_info(),
-        }
-    )
-
-    return params
-
-
-def get_encoder_model(params: AttributeDict):
-    # TODO: We can add an option to switch between Conformer and Transformer
-    encoder = Conformer(
-        num_features=params.feature_dim,
-        output_dim=params.encoder_out_dim,
-        subsampling_factor=params.subsampling_factor,
-        d_model=params.attention_dim,
-        nhead=params.nhead,
-        dim_feedforward=params.dim_feedforward,
-        num_encoder_layers=params.num_encoder_layers,
-        vgg_frontend=params.vgg_frontend,
-    )
-    return encoder
-
-
-def get_decoder_model(params: AttributeDict):
-    decoder = Decoder(
-        vocab_size=params.vocab_size,
-        embedding_dim=params.decoder_embedding_dim,
-        blank_id=params.blank_id,
-        num_layers=params.num_decoder_layers,
-        hidden_dim=params.decoder_hidden_dim,
-        output_dim=params.encoder_out_dim,
-    )
-    return decoder
-
-
-def get_joiner_model(params: AttributeDict):
-    joiner = Joiner(
-        input_dim=params.encoder_out_dim,
-        output_dim=params.vocab_size,
-    )
-    return joiner
-
-
-def get_transducer_model(params: AttributeDict):
-    encoder = get_encoder_model(params)
-    decoder = get_decoder_model(params)
-    joiner = get_joiner_model(params)
-
-    model = Transducer(
-        encoder=encoder,
-        decoder=decoder,
-        joiner=joiner,
-    )
-    return model
 
 
 
@@ -221,20 +111,20 @@ def train_model(gpu_id, args):
     torch.manual_seed(args.seed)
     set_float_cpu("float32")
 
-    ddp_args = ddp.filter_ddp_args(**kwargs)
-    device, rank, world_size = ddp.ddp_init(gpu_id, **ddp_args)
-    kwargs["rank"] = rank
+    # ddp_args = ddp.filter_ddp_args(**kwargs)
+    # device, rank, world_size = ddp.ddp_init(gpu_id, **ddp_args)
+    # kwargs["rank"] = rank
 
-    # # for Debug
-    # rank = 0
-    # kwargs["rank"] = 0
-    # device = "cpu"
-    # world_size=1
-    
+    # for Debug
+    rank = 0
+    kwargs["rank"] = 0
+    device = "cpu"
+    world_size=1
+
     train_loader = init_data(partition="train", **kwargs)
     val_loader = init_data(partition="val", **kwargs)
-    # model = init_model(train_loader.dataset.num_classes.values())[0], **kwargs)
-    model = init_model(train_loader.dataset.num_classes, **kwargs)
+    # model = init_model(train_loader.dataset.num_classes, **kwargs)
+    model = init_model(train_loader.dataset.sp.piece_to_id("<blk>"), train_loader.dataset.sp.get_piece_size(), **kwargs)
 
     trn_args = Trainer.filter_args(**kwargs["trainer"])
     if rank == 0:
@@ -255,12 +145,11 @@ def train_model(gpu_id, args):
 
 def make_parser(model_class):
     parser = ArgumentParser()
-
+    
     parser.add_argument("--cfg", action=ActionConfigFile)
     train_parser = ArgumentParser(prog="")
     AD.add_class_args(train_parser, prefix="dataset", skip={})
     SegSamplerFactory.add_class_args(train_parser, prefix="sampler")
-    # Sampler.add_class_args(train_parser, prefix="sampler")
     train_parser.add_argument(
         "--data_loader.num-workers",
         type=int,
@@ -271,7 +160,6 @@ def make_parser(model_class):
     val_parser = ArgumentParser(prog="")
     AD.add_class_args(val_parser, prefix="dataset", skip={})
     SegSamplerFactory.add_class_args(val_parser, prefix="sampler")
-    # Sampler.add_class_args(val_parser, prefix="sampler")
     val_parser.add_argument(
         "--data_loader.num-workers",
         type=int,
@@ -288,13 +176,20 @@ def make_parser(model_class):
         "--data.train.dataset.text_file",
         type=str, 
     )
+    
+    parser.add_argument("--data.val.dataset.text_file", type=str) 
+    
+    # parser.add_argument(
+    #     "--data.train.dataset.class_files",
+    #     type=str, 
+    # )
 
     parser.add_argument(
         "--data.train.dataset.bpe_model",
         type=str, 
     )
 
-    parser.add_argument("--data.val.dataset.text_file", type=str) 
+    # parser.add_argument("--data.val.dataset.class_files", type=str) 
     
     parser.link_arguments(
         "data.train.data_loader.num_workers", "data.val.data_loader.num_workers"
@@ -303,16 +198,6 @@ def make_parser(model_class):
     parser.link_arguments(
         "data.train.dataset.bpe_model", "data.val.dataset.bpe_model"
     )
-
-    # parser.link_arguments(
-    #     "data.train.dataset.class_file", "data.val.dataset.class_file"
-    # )
-    # parser.link_arguments(
-    #     "data.train.data_loader.num_workers", "data.val.data_loader.num_workers"
-    # )
-    # parser.link_arguments(
-    #     "data.train.sampler.batch_size", "data.val.sampler.batch_size"
-    # )
 
     model_class.add_class_args(parser, prefix="model")
     Trainer.add_class_args(
@@ -328,7 +213,6 @@ def make_parser(model_class):
 
 
 if __name__ == "__main__":
-
     parser = ArgumentParser(description="Train Wav2Vec2Transducer model from audio files")
     parser.add_argument("--cfg", action=ActionConfigFile)
 

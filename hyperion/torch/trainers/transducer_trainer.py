@@ -8,6 +8,7 @@ from collections import OrderedDict as ODict
 import logging
 
 import torch
+import torchaudio
 import torch.nn as nn
 
 from ..utils import MetricAcc
@@ -117,23 +118,25 @@ class TransducerTrainer(TorchTrainer):
           data_loader: pytorch data loader returning features and class labels.
         """
 
-        self.model.update_loss_margin(self.cur_epoch)
+        # self.model.update_loss_margin(self.cur_epoch)
 
         metric_acc = MetricAcc(device=self.device)
         batch_metrics = ODict()
         self.model.train()
-        for batch, (data, target) in enumerate(data_loader):
+        self.sp = data_loader.dataset.sp
+        for batch, (data, audio_length, target) in enumerate(data_loader):
             self.loggers.on_batch_begin(batch)
 
             if batch % self.grad_acc_steps == 0:
                 self.optimizer.zero_grad()
             # TODO: Check and Modify data, target
-            data, target = data.to(self.device), target.to(self.device)
+            data, audio_length, target = data.to(self.device), audio_length.to(self.device), target.to(self.device)
             batch_size = data.shape[0]
 
             with self.amp_autocast():
-                output = self.model(data, y=target)
-                loss = self.loss(output, target).mean() / self.grad_acc_steps
+                output, loss = self.model(data, x_lengths=audio_length, y=target)
+                loss = loss.mean() / self.grad_acc_steps
+                # loss = self.loss(output, target).mean() / self.grad_acc_steps
 
             if self.use_amp:
                 self.grad_scaler.scale(loss).backward()

@@ -1,5 +1,5 @@
 """
- Copyright 2022 Johns Hopkins University  (Author: Jesus Villalba)
+ Copyright 2022 Johns Hopkins University  (Author: Yen-Ju Lu)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import logging
@@ -13,6 +13,8 @@ import torch.nn as nn
 
 from ...torch_model import TorchModel
 from ...utils import remove_silence
+# from ..wav2xvectors.hf_wav2xvector import HFWav2XVector
+
 
 
 class HFWav2Transducer(TorchModel):
@@ -20,7 +22,7 @@ class HFWav2Transducer(TorchModel):
 
     Attributes:
        hf_feats: hugging face model wrapper object.
-       xvector: x-vector model object.
+       transducer: transducer model object.
        feat_fusion_start: the input to x-vector model will fuse the wav2vec layers from "feat_fusion_start" to
                           the wav2vec "num_layers".
        feat_fusion_method: method to fuse the hidden layers from the wav2vec model, when more
@@ -28,12 +30,12 @@ class HFWav2Transducer(TorchModel):
     """
 
     def __init__(
-        self, hf_feats, xvector, feat_fusion_start=0, feat_fusion_method="weighted-avg"
+        self, hf_feats, transducer, feat_fusion_start=0, feat_fusion_method="weighted-avg"
     ):
 
         super().__init__()
         self.hf_feats = hf_feats
-        self.xvector = xvector
+        self.transducer = transducer
         self.feat_fusion_start = feat_fusion_start
         self.feat_fusion_method = feat_fusion_method
         self._hf_context = contextlib.nullcontext()
@@ -84,16 +86,16 @@ class HFWav2Transducer(TorchModel):
         return feats
 
     def compute_prototype_affinity(self):
-        return self.xvector.compute_prototype_affinity()
+        return self.transducer.compute_prototype_affinity()
 
-    def update_loss_margin(self, epoch):
-        """Updates the value of the margin in AAM/AM-softmax losses
-           given the epoch number
+    # def update_loss_margin(self, epoch):
+    #     """Updates the value of the margin in AAM/AM-softmax losses
+    #        given the epoch number
 
-        Args:
-          epoch: epoch which is about to start
-        """
-        self.xvector.update_loss_margin(epoch)
+    #     Args:
+    #       epoch: epoch which is about to start
+    #     """
+    #     self.transducer.update_loss_margin(epoch)
 
     def rebuild_output_layer(
         self,
@@ -106,7 +108,7 @@ class HFWav2Transducer(TorchModel):
         intertop_margin=0.0,
         num_subcenters=2,
     ):
-        self.xvector.rebuild_output_layer(
+        self.transducer.rebuild_output_layer(
             num_classes=num_classes,
             loss_type=loss_type,
             cos_scale=cos_scale,
@@ -189,25 +191,25 @@ class HFWav2Transducer(TorchModel):
         feats, hid_feats, feat_lengths = self.forward_feats(
             x, x_lengths, return_feat_layers
         )
-        output = self.xvector(
+
+        feats = feats.permute(0, 2, 1)  # (N, C, T) ->(N, T, C)
+        
+        output, loss = self.transducer(
             feats,
             feat_lengths,
             y,
-            return_enc_layers=return_enc_layers,
-            return_classif_layers=return_classif_layers,
-            return_logits=return_logits,
         )
 
         if not return_feat_layers:
-            return output
+            return output, loss
 
         if not isinstance(output, dict):
-            # if the xvector just returned the logits we put then into a dictionary
+            # if the transducer just returned the logits we put then into a dictionary
             # to append the hid feats later.
             output["logits"] = output
 
         output["h_feats"] = hid_feats
-        return output
+        return output, loss
 
     def extract_embed(
         self,
@@ -232,7 +234,7 @@ class HFWav2Transducer(TorchModel):
             * feats.size(-1)
             // x.size(-1)
         )
-        return self.xvector.extract_embed(
+        return self.transducer.extract_embed(
             feats, feat_lengths, xvec_chunk_length, embed_layer, detach_chunks
         )
 
@@ -265,8 +267,8 @@ class HFWav2Transducer(TorchModel):
             self.unfreeze()
             self.freeze_feat_fuser()
             self.freeze_hf_feats()
-            self.xvector.freeze_preembed_layers()
-        elif mode in ["ft-xvector", "ft-xvector-nograd"]:
+            self.transducer.freeze_preembed_layers()
+        elif mode in ["ft-transducer", "ft-transducer-nograd"]:
             self.unfreeze()
             self.freeze_hf_feats()
             self.freeze_feat_fuser()
@@ -295,16 +297,16 @@ class HFWav2Transducer(TorchModel):
             super()._train(train_mode)
         elif train_mode == "ft-embed-affine":
             self.hf_feats.train()
-            self.xvector._train("ft-embed_affine")
+            self.transducer._train("ft-embed_affine")
         elif train_mode in [
-            "ft-xvector",
+            "ft-transducer",
             "hf-feats-frozen",
-            "ft-xvector-nograd",
+            "ft-transducer-nograd",
             "hf-feats-frozen-nograd",
             "hf-feat-extractor-frozen",
         ]:
             self.hf_feats.train()
-            self.xvector._train("full")
+            self.transducer._train("full")
         else:
             raise ValueError(f"invalid train_mode={train_mode}")
 
@@ -314,9 +316,9 @@ class HFWav2Transducer(TorchModel):
             "full",
             "frozen",
             "ft-embed-affine",
-            "ft-xvector",
+            "ft-transducer",
             "hf-feats-frozen",
-            "ft-xvector-nograd",
+            "ft-transducer-nograd",
             "hf-feats-frozen-nograd",
             "hf-feat-extractor-frozen",
         ]
@@ -325,7 +327,7 @@ class HFWav2Transducer(TorchModel):
     def filter_args(**kwargs):
         valid_args = (
             "hf_feats",
-            "xvector",
+            "transducer",
             "feat_fusion_start",
             "feat_fusion_method",
         )
@@ -333,14 +335,13 @@ class HFWav2Transducer(TorchModel):
         return args
 
     def get_config(self):
-
         hf_cfg = self.hf_feats.get_config()
-        xvec_cfg = self.xvector.get_config()
+        tran_cfg = self.transducer.get_config()
         del hf_cfg["class_name"]
-        del xvec_cfg["class_name"]
+        del tran_cfg["class_name"]
         config = {
             "hf_feats": hf_cfg,
-            "xvector": xvec_cfg,
+            "transducer": tran_cfg,
             "feat_fusion_start": self.feat_fusion_start,
             "feat_fusion_method": self.feat_fusion_method,
         }
@@ -348,10 +349,10 @@ class HFWav2Transducer(TorchModel):
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
-    def change_config(self, hf_feats, xvector):
-        logging.info("changing hf wav2xvector config")
+    def change_config(self, hf_feats, transducer):
+        logging.info("changing hf wav2transducer config")
         self.hf_feats.change_config(**hf_feats)
-        self.xvector.change_config(**xvector)
+        self.transducer.change_config(**transducer)
 
     @staticmethod
     def add_class_args(parser, prefix=None, skip=set()):
@@ -385,3 +386,5 @@ class HFWav2Transducer(TorchModel):
                 action=ActionParser(parser=parser),
                 help="xvector options",
             )
+
+

@@ -20,11 +20,12 @@ import math
 import warnings
 from typing import List, Optional, Tuple
 
+from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
 import torch
 from torch import Tensor, nn
-from transformer import Transformer
+from .transformer import Transformer
 
-from icefall.utils import make_pad_mask, subsequent_chunk_mask
+from hyperion.utils.utils import make_pad_mask, subsequent_chunk_mask
 
 
 class Conformer(Transformer):
@@ -386,6 +387,64 @@ class Conformer(Transformer):
         logits = logits.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
 
         return logits, lengths, states
+
+
+    @staticmethod
+    def filter_args(**kwargs):
+        valid_args = (
+            "num_features",
+            "encoder_out_dim",
+            "subsampling_factor",
+            "d_model",
+            "nhead",
+            "dim_feedforward",
+            "num_encoder_layers",
+            "vgg_frontend",
+        )
+        args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
+
+        return args
+
+    @staticmethod
+    def add_class_args(parser, prefix=None, skip=set()):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
+
+
+        parser.add_argument(
+            "--num-features", default=80, type=int, help=("")
+        )
+
+        parser.add_argument(
+            "--subsampling-factor", default=4, type=int, help=("")
+        )
+
+        parser.add_argument(
+            "--d-model", default=512, type=int, help=("")
+        )
+
+        parser.add_argument(
+            "--nhead", default=8, type=int, help=("")
+        )
+
+        parser.add_argument(
+            "--dim-feedforward", default=2048, type=int, help=("")
+        )
+
+        parser.add_argument(
+            "--num-encoder-layers", default=12, type=int, help=("")
+        )
+
+        parser.add_argument(
+            "--vgg-frontend", default=False, type=bool, help=("")
+        )
+        if prefix is not None:
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
+
+
+
+
 
 
 class ConformerEncoderLayer(nn.Module):

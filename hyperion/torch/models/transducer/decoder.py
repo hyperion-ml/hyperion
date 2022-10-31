@@ -18,6 +18,7 @@ from typing import Optional, Tuple
 
 import torch
 import torch.nn as nn
+from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
 
 
 # TODO(fangjun): Support switching between LSTM and GRU
@@ -95,3 +96,40 @@ class Decoder(nn.Module):
         out = self.output_linear(rnn_out)
 
         return out, (h, c)
+
+
+    @staticmethod
+    def filter_args(**kwargs):
+        valid_args = (
+            "embedding_dim",
+            "num_layers",
+            "hidden_dim",
+        )
+        args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
+
+        return args
+
+    @staticmethod
+    def add_class_args(parser, prefix=None, skip=set()):
+
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
+            
+        parser.add_argument(
+            "--embedding-dim", default=1024, type=int, help=("feature dimension")
+        )
+
+        parser.add_argument(
+            "--num-layers", default=2, type=int, help=("")
+        )
+
+        parser.add_argument(
+            "--hidden-dim", default=512, type=int, help=("")
+        )
+
+
+
+        if prefix is not None:
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
+

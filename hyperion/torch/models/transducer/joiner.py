@@ -52,3 +52,19 @@ class Joiner(nn.Module):
         output = self.output_linear(logit)
 
         return output
+
+    # @staticmethod
+    # def filter_args(**kwargs):
+    #     valid_args = (
+    #         "encoder_out_dim",
+    #     )
+    #     args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
+
+    #     return args
+
+    # @staticmethod
+    # def add_class_args(parser, prefix=None, skip=set()):
+
+    #     parser.add_argument(
+    #         "--encoder-out-dim", default=512, type=int, help=("")
+    #     )

@@ -21,12 +21,12 @@ from ...np.augment import SpeechAugment
 
 import k2
 import sentencepiece as spm
+from torch.nn.utils.rnn import pad_sequence
 
 from torch.utils.data import Dataset
 import torch.distributed as dist
 
 from hyperion.np import augment
-import pdb
 
 class AudioDataset1(Dataset):
     def __init__(
@@ -539,7 +539,6 @@ class AudioDataset(Dataset):
         vocab_size = self.sp.get_piece_size()
 
     def _load_text_infos(self, text_file, is_val):
-        #TODO: load bpe and text into data structure
         if text_file is None:
             return
         if self.rank == 0:
@@ -547,6 +546,7 @@ class AudioDataset(Dataset):
         
         text = read_text(text_file)
         self.seg_set["text"] = text.loc[self.seg_set["id"]].text
+        self.text_info = ClassInfo(text)
 
 
 
@@ -653,6 +653,7 @@ class AudioDataset(Dataset):
 
     def _apply_augs(self, x, num_samples, reverb_context_samples):
         x_augs = []
+        
         # for each type of augmentation
         for i, augmenter in enumerate(self.augmenters):
             # we do n_augs per augmentation type
@@ -677,34 +678,16 @@ class AudioDataset(Dataset):
                 class_info = self.class_info[info_name]
                 idx = class_info.loc[seg_info, "class_idx"]
                 seg_info = idx
+            if info_name  == "text":
+                text = self.text_info.loc[seg_id, "text"]
+                seg_info = self.sp.encode(text, out_type=int)
 
             r.append(seg_info)
 
         return r
 
 
-    def _get_text_info(self, seg_id):
-        #TODO: bpe labels from data structure for getitem 
-        r = []
-        # converts the class_ids to integers
-        for info_name in self.return_segment_info:
-            seg_info = self.seg_set.loc[seg_id, info_name]
-            if info_name in self.text_info:
-                # if the type of information is a text
-                # we use the text information table to
-                # convert from id to text labels
-                text_info = self.text_info[info_name]
-                idx = text_info.loc[seg_info, "class_idx"]
-                seg_info = idx
-                y = sp.encode(text, out_type=int)
-                y = k2.RaggedTensor(y).to(device)
-
-            r.append(y)
-
-        return r
-
     def __getitem__(self, segment):
-        #TODO: check the start/end time for Recognition
         seg_id, start, duration = self._parse_segment_item(segment)
         x, fs = self._read_audio(seg_id, start, duration)
         if self.augmenters:
@@ -712,6 +695,7 @@ class AudioDataset(Dataset):
             num_samples = int(duration * fs)
             reverb_context_samples = len(x) - num_samples
             x_augs = self._apply_augs(x, num_samples, reverb_context_samples)
+            
             r = x_augs
 
             # add original non augmented audio
@@ -722,14 +706,9 @@ class AudioDataset(Dataset):
         else:
             r = [x]
 
-        #TODO: Add it back for both case
-        # # adds the segment labels
-        # seg_info = self._get_segment_info(seg_id)
-        # r.extend(seg_info)
-
-        # adds the text labels
-        text_info = self._get_text_info(seg_id)
-        r.extend(text_info)
+        # adds the segment labels
+        seg_info = self._get_segment_info(seg_id)
+        r.extend(seg_info)
 
 
         return (*r,)
