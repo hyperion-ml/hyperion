@@ -45,7 +45,7 @@ class InfoTable(object):
 
     @property
     def __repr__(self):
-        return self.df.__repr__ 
+        return self.df.__repr__
 
     @property
     def iat(self):
@@ -74,6 +74,10 @@ class InfoTable(object):
     @property
     def __contains__(self):
         return self.df.__contains__
+
+    @property
+    def index(self):
+        return self.df.index
 
     def save(self, file_path, sep=None):
         """Saves info table to file
@@ -144,9 +148,7 @@ class InfoTable(object):
         if group_by is None:
             _, idx1 = split_list(self.df["id"], idx, num_parts)
         else:
-            _, idx1 = split_list_group_by_key(
-                self.df[group_by], idx, num_parts
-            )
+            _, idx1 = split_list_group_by_key(self.df[group_by], idx, num_parts)
 
         df = self.df.iloc[idx1]
         return self.__class__(df)
@@ -166,7 +168,9 @@ class InfoTable(object):
         return cls(df)
 
     def filter(self, items=None, iindex=None, columns=None, by="id", keep=True):
-        assert items is None or iindex is None, "items and iindex cannot be not None at the same time"
+        assert (
+            items is None or iindex is None
+        ), "items and iindex cannot be not None at the same time"
         df = self.df
 
         if not keep:
@@ -195,9 +199,8 @@ class InfoTable(object):
 
             if columns is not None:
                 df = df[columns]
-       
-        return self.__class__(df)
 
+        return self.__class__(df)
 
     def __eq__(self, other):
         """Equal operator"""
@@ -215,8 +218,6 @@ class InfoTable(object):
         if self.__eq__(other):
             return 0
         return 1
-
-
 
     # def __len__(self):
     #     """Returns the number of elements in the list."""
@@ -316,8 +317,6 @@ class InfoTable(object):
     #     utt_info = self.utt_info.iloc[idx1]
     #     return Utt2Info(utt_info)
 
-    
-
     # def filter(self, filter_key, keep=True):
     #     """Removes elements from Utt2Info object by key
 
@@ -411,13 +410,10 @@ class InfoTable(object):
         loc = self.df.index.get_loc(keys)
         if isinstance(loc, int):
             return loc
-        elif isinstance(loc, np.ndarray) and loc.dtype==np.bool:
+        elif isinstance(loc, np.ndarray) and loc.dtype == np.bool:
             return np.nonzero(loc)[0]
         else:
             return list(range(loc.start, loc.stop, loc.step))
 
     def get_col_idx(self, keys):
         return self.df.columns.get_loc(keys)
-        
-
-    

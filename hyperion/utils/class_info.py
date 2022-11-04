@@ -30,6 +30,10 @@ class ClassInfo(InfoTable):
     def set_weights(self, weights):
         self.df["weights"] = weights / weights.sum()
 
+    def renorm_weights(self):
+        weights = self.df["weights"]
+        self.df["weights"] = weights / weights.sum()
+
     def exp_weights(self, x):
         weights = self.df["weights"] ** x
         self.set_weights(weights)
@@ -62,11 +66,7 @@ class ClassInfo(InfoTable):
         if ext == "":
             # if no extension we load as kaldi utt2spk file
             df = pd.read_csv(
-                file_path,
-                sep=" ",
-                header=None,
-                names=["id"],
-                dtype={"id": np.str},
+                file_path, sep=" ", header=None, names=["id"], dtype={"id": np.str},
             )
             return cls(df)
 
