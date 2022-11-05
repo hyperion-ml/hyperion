@@ -37,7 +37,7 @@ model_dict = {
 }
 
 
-def my_collate(batch):
+def transducer_collate(batch):
     audio = []
     audio_length = []
     target = []
@@ -46,8 +46,6 @@ def my_collate(batch):
         audio.append(wav)
         audio_length.append(wav.shape[0])
         target.append(record[1])
-        if i==4:
-            break
     audio = pad_sequence(audio)
     audio_length = torch.as_tensor(audio_length)
     target = k2.RaggedTensor(target)
@@ -81,7 +79,7 @@ def init_data(partition, rank, num_gpus, **kwargs):
     largs = (
         {"num_workers": num_workers_per_gpu, "pin_memory": True} if num_gpus > 0 else {}
     )
-    data_loader = torch.utils.data.DataLoader(dataset, batch_sampler=sampler, **largs, collate_fn=my_collate)
+    data_loader = torch.utils.data.DataLoader(dataset, batch_sampler=sampler, **largs, collate_fn=transducer_collate)
     return data_loader
 
 
@@ -111,25 +109,24 @@ def train_model(gpu_id, args):
     torch.manual_seed(args.seed)
     set_float_cpu("float32")
 
-    # ddp_args = ddp.filter_ddp_args(**kwargs)
-    # device, rank, world_size = ddp.ddp_init(gpu_id, **ddp_args)
-    # kwargs["rank"] = rank
+    ddp_args = ddp.filter_ddp_args(**kwargs)
+    device, rank, world_size = ddp.ddp_init(gpu_id, **ddp_args)
+    kwargs["rank"] = rank
 
-    # for Debug
-    rank = 0
-    kwargs["rank"] = 0
-    device = "cpu"
-    world_size=1
+    # # for Debug
+    # rank = 0
+    # kwargs["rank"] = 0
+    # device = "cpu"
+    # world_size=1
 
     train_loader = init_data(partition="train", **kwargs)
     val_loader = init_data(partition="val", **kwargs)
-    # model = init_model(train_loader.dataset.num_classes, **kwargs)
     model = init_model(train_loader.dataset.sp.piece_to_id("<blk>"), train_loader.dataset.sp.get_piece_size(), **kwargs)
 
     trn_args = Trainer.filter_args(**kwargs["trainer"])
     if rank == 0:
         logging.info("trainer args={}".format(trn_args))
-    metrics = {"acc": CategoricalAccuracy()}
+    metrics = {} #{"acc": CategoricalAccuracy()}
     trainer = Trainer(
         model,
         device=device,
@@ -179,18 +176,11 @@ def make_parser(model_class):
     
     parser.add_argument("--data.val.dataset.text_file", type=str) 
     
-    # parser.add_argument(
-    #     "--data.train.dataset.class_files",
-    #     type=str, 
-    # )
-
     parser.add_argument(
         "--data.train.dataset.bpe_model",
         type=str, 
     )
 
-    # parser.add_argument("--data.val.dataset.class_files", type=str) 
-    
     parser.link_arguments(
         "data.train.data_loader.num_workers", "data.val.data_loader.num_workers"
     )

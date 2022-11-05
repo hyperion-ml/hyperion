@@ -1,16 +1,16 @@
 hf_feats:
-  pretrained_model_path: microsoft/wavlm-base-plus
+  pretrained_model_path: facebook/wav2vec2-base-960h #microsoft/wavlm-base #facebook/wav2vec2-base #microsoft/wavlm-base-plus
   # test_param: xyz
 transducer:
   encoder_out_dim: 768
-  conformer_enc:
-    num_features: 80
-    subsampling_factor: 4
-    d_model: 512
-    nhead: 8
-    dim_feedforward: 2048
-    num_encoder_layers: 12
-    vgg_frontend: False
+#  conformer_enc:
+  #  num_features: 80
+  #  subsampling_factor: 4
+  #  d_model: 512
+  #  nhead: 8
+  #  dim_feedforward: 2048
+  #  num_encoder_layers: 12
+  #  vgg_frontend: False
   decoder:
     # vocab_size: 1000
     # blank_id: 0

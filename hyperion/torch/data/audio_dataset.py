@@ -692,7 +692,10 @@ class AudioDataset(Dataset):
         x, fs = self._read_audio(seg_id, start, duration)
         if self.augmenters:
             # augmentations
-            num_samples = int(duration * fs)
+            if duration == 0:
+                num_samples = len(x)
+            else:
+                num_samples = int(duration * fs)
             reverb_context_samples = len(x) - num_samples
             x_augs = self._apply_augs(x, num_samples, reverb_context_samples)
             

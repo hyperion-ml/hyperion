@@ -28,7 +28,7 @@ from .encoder_interface import EncoderInterface
 
 from ...torch_model import TorchModel
 from hyperion.utils.utils import add_sos
-from .conformer import Conformer
+# from .conformer import Conformer
 from .decoder import Decoder
 from .joiner import Joiner
 
@@ -43,7 +43,7 @@ class Transducer(TorchModel):
         vocab_size,
         blank_id,
         encoder_out_dim,
-        conformer_enc,
+        # conformer_enc,
         decoder,
     ):
         """
@@ -65,13 +65,13 @@ class Transducer(TorchModel):
         super().__init__()
         # assert isinstance(encoder, EncoderInterface)
         # assert hasattr(decoder, "blank_id")
-        conformer_enc["output_dim"] = encoder_out_dim
+        # conformer_enc["output_dim"] = encoder_out_dim
         decoder["blank_id"] = blank_id
         decoder["vocab_size"] = vocab_size
         decoder["output_dim"] = encoder_out_dim
         joiner = {"input_dim":encoder_out_dim, "output_dim":vocab_size}
 
-        self.encoder = Conformer(**conformer_enc)
+        # self.encoder = Conformer(**conformer_enc)
         self.decoder = Decoder(**decoder)
         self.joiner = Joiner(**joiner)
 
@@ -196,13 +196,13 @@ class Transducer(TorchModel):
         return ["full", "frozen", "ft-embed-affine"]
 
     def get_config(self):
-        enc_cfg = self.encoder.get_config()
+        # enc_cfg = self.encoder.get_config()
         dec_cfg = self.decoder.get_config()
         join_cfg = self.joiner.get_config()
 
         config = {
-            "encoder_out_dim" : self.encoder_out_dim,
-            "conformer_enc": enc_cfg,
+            # "encoder_out_dim" : self.encoder_out_dim,
+            # "conformer_enc": enc_cfg,
             "decoder": dec_cfg,
             "joiner": join_cfg,
         }
@@ -214,7 +214,7 @@ class Transducer(TorchModel):
     def filter_args(**kwargs):
 
         # get arguments for pooling
-        encoder_args = Conformer.filter_args(**kwargs["conformer_enc"])
+        # encoder_args = Conformer.filter_args(**kwargs["conformer_enc"])
         decoder_args = Decoder.filter_args(**kwargs["decoder"])
         # joiner_args = Joiner.filter_args(**kwargs["joiner"])
 
@@ -223,7 +223,7 @@ class Transducer(TorchModel):
         )
         args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
-        args["conformer_enc"] = encoder_args
+        # args["conformer_enc"] = encoder_args
         args["decoder"] = decoder_args
         # args["joiner"] = joiner_args 
         return args
@@ -237,9 +237,9 @@ class Transducer(TorchModel):
 
 
 
-        Conformer.add_class_args(
-            parser, prefix="conformer_enc", skip=[]
-        )
+        # Conformer.add_class_args(
+        #     parser, prefix="conformer_enc", skip=[]
+        # )
 
         Decoder.add_class_args(
             parser, prefix="decoder", skip=[]

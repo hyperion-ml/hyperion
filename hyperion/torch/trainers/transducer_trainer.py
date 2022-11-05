@@ -118,8 +118,6 @@ class TransducerTrainer(TorchTrainer):
           data_loader: pytorch data loader returning features and class labels.
         """
 
-        # self.model.update_loss_margin(self.cur_epoch)
-
         metric_acc = MetricAcc(device=self.device)
         batch_metrics = ODict()
         self.model.train()
