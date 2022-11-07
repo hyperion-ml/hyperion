@@ -142,6 +142,9 @@ class Transducer(TorchModel):
             blank=blank_id,
             reduction="sum",
         )
+        # print("loss",loss)
+        # print("logits",logits)
+        # print("y_padded",y_padded)
 
         return logits, loss
 
@@ -162,32 +165,11 @@ class Transducer(TorchModel):
 
         self._train_mode = mode
 
-    @classmethod
-    def load(cls, file_path=None, cfg=None, state_dict=None):
-        cfg, state_dict = cls._load_cfg_state_dict(file_path, cfg, state_dict)
-        encoder_net = TorchNALoader.load_from_cfg(cfg=cfg["encoder_cfg"])
-        for k in "encoder_cfg":
-            del cfg[k]
-
-        model = cls(encoder_net, **cfg)
-        if state_dict is not None:
-            model.load_state_dict(state_dict)
-
-        return model
 
 
     def _train(self, train_mode: str):
         if train_mode in ["full", "frozen"]:
             super()._train(train_mode)
-        elif train_mode == "ft-embed-affine":
-            self.encoder_net.eval()
-            if self.proj is not None:
-                self.proj.eval()
-
-            self.pool_net.eval()
-            self.classif_net.train()
-            layer_list = [l for l in range(self.embed_layer)]
-            self.classif_net.put_layers_in_eval_mode(layer_list)
         else:
             raise ValueError(f"invalid train_mode={train_mode}")
 

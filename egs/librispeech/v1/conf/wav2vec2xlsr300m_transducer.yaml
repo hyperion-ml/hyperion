@@ -1,6 +1,5 @@
 hf_feats:
   pretrained_model_path: facebook/wav2vec2-base-960h #microsoft/wavlm-base #facebook/wav2vec2-base #microsoft/wavlm-base-plus
-  # test_param: xyz
 transducer:
   encoder_out_dim: 768
 #  conformer_enc:

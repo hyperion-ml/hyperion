@@ -59,7 +59,7 @@ def ddp_init(
     os.environ["MASTER_PORT"] = master_port
 
     logging.info(
-        f"init ddp rank={rank} world_size={world_size} master={master_addr}:{master_port}"
+        f"init ddp rank={rank} world_size={world_size} master={master_addr}:{master_port} gpu_id={gpu_id}" 
     )
     dist.init_process_group(
         "nccl",
@@ -67,7 +67,9 @@ def ddp_init(
         world_size=world_size,
     )
     torch.tensor([0]).to(gpu_id)
-    return gpu_id, rank, world_size
+    device = torch.device('cuda', gpu_id)
+    return device, rank, world_size
+    # return gpu_id, rank, world_size
 
 
 def ddp_cleanup():

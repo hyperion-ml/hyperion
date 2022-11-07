@@ -122,7 +122,13 @@ class TransducerTrainer(TorchTrainer):
         batch_metrics = ODict()
         self.model.train()
         self.sp = data_loader.dataset.sp
+        # for batch, (data, audio_length, target) in enumerate(data_loader):
+        #     print("batch",batch)
+        #     print("data shape",data.shape)
+
         for batch, (data, audio_length, target) in enumerate(data_loader):
+            # print("batch index", batch)
+            # print("batch size", data.shape)
             self.loggers.on_batch_begin(batch)
 
             if batch % self.grad_acc_steps == 0:
@@ -158,4 +164,44 @@ class TransducerTrainer(TorchTrainer):
         logs = metric_acc.metrics
         logs = ODict(("train_" + k, v) for k, v in logs.items())
         logs["lr"] = self._get_lr()
+        return logs
+
+
+    def validation_epoch(self, data_loader, swa_update_bn=False):
+        """Validation epoch loop
+
+        Args:
+          data_loader: PyTorch data loader return input/output pairs.
+          sw_update_bn: wheter or not, update batch-norm layers in SWA.
+        """
+
+        metric_acc = MetricAcc(self.device)
+        batch_metrics = ODict()
+        with torch.no_grad():
+            if swa_update_bn:
+                log_tag = "train_"
+                self.train()
+            else:
+                log_tag = "val_"
+                self.model.eval()
+
+            for batch, (data, audio_length, target) in enumerate(data_loader):
+                data, audio_length, target = data.to(self.device), audio_length.to(self.device), target.to(self.device)
+                batch_size = data.shape[0]
+                # data, target = data.to(self.device), target.to(self.device)
+                # batch_size = data.shape[0]
+
+                with self.amp_autocast():
+                    output, loss = self.model(data, x_lengths=audio_length, y=target)
+                    # output = self.model(data)
+                    # loss = self.loss(output, target)
+
+                batch_metrics["loss"] = loss.mean().item()
+                for k, metric in self.metrics.items():
+                    batch_metrics[k] = metric(output, target)
+
+                metric_acc.update(batch_metrics, batch_size)
+
+        logs = metric_acc.metrics
+        logs = ODict((log_tag + k, v) for k, v in logs.items())
         return logs
