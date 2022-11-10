@@ -45,12 +45,15 @@ class HFWav2Vec2Transducer(HFWav2Transducer):
             assert isinstance(hf_feats, HFWav2Vec2)
 
         if isinstance(transducer, dict):
+            transducer["decoder"]["in_feats"] = hf_feats.hidden_size
+            transducer["joiner"]["in_feats"] = hf_feats.hidden_size
             if "class_name" in transducer:
                 del transducer["class_name"]
             transducer = Transducer(**transducer)
         else:
             assert isinstance(transducer, Transducer)
-            # assert transducer.encoder_net.in_feats == hf_feats.hidden_size
+            assert transducer.decoder.in_feats == hf_feats.hidden_size
+            assert transducer.joiner.in_feats == hf_feats.hidden_size
 
         super().__init__(hf_feats, transducer, feat_fusion_start, feat_fusion_method)
 

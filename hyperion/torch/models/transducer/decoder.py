@@ -14,11 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
 from typing import Optional, Tuple
 
 import torch
 import torch.nn as nn
-from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
 
 
 # TODO(fangjun): Support switching between LSTM and GRU
@@ -30,7 +30,7 @@ class Decoder(nn.Module):
         blank_id: int,
         num_layers: int,
         hidden_dim: int,
-        output_dim: int,
+        in_feats: int,
         embedding_dropout: float = 0.0,
         rnn_dropout: float = 0.0,
     ):
@@ -68,8 +68,14 @@ class Decoder(nn.Module):
             batch_first=True,
             dropout=rnn_dropout,
         )
+
+        self.in_feats = in_feats
         self.blank_id = blank_id
-        self.output_linear = nn.Linear(hidden_dim, output_dim)
+        self.vocab_size = vocab_size
+        self.embedding_dim = embedding_dim
+        self.num_layers = num_layers
+        self.hidden_dim = hidden_dim
+        self.output_linear = nn.Linear(hidden_dim, in_feats)
 
     def forward(
         self,
@@ -97,10 +103,26 @@ class Decoder(nn.Module):
 
         return out, (h, c)
 
+    def get_config(self):
+        config = {
+            "in_feats" : self.in_feats,
+            "blank_id" : self.blank_id,
+            "vocab_size" : self.vocab_size,
+            "embedding_dim" :self.embedding_dim,
+            "num_layers" : self.num_layers,
+            "hidden_dim" : self.hidden_dim,
+        }
+
+        base_config = super().get_config()
+        return dict(list(base_config.items()) + list(config.items()))
+
 
     @staticmethod
     def filter_args(**kwargs):
         valid_args = (
+            "in_feats",
+            "blank_id",
+            "vocab_size",
             "embedding_dim",
             "num_layers",
             "hidden_dim",
@@ -110,12 +132,24 @@ class Decoder(nn.Module):
         return args
 
     @staticmethod
-    def add_class_args(parser, prefix=None, skip=set()):
+    def add_class_args(parser, prefix=None, skip=set(["in_feats", "blank_id", "vocab_size" ])):
 
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
-            
+
+        if "in_feats" not in skip:
+            parser.add_argument(
+                "--in-feats", type=int, required=True, help=("input feature dimension")
+            )
+        if "blank_id" not in skip:
+            parser.add_argument(
+                "--blank-id", type=int, required=True, help=("blank id from sp model")
+            )
+        if "vocab_size" not in skip:
+            parser.add_argument(
+                "--vocab-size", type=int, required=True, help=("output prediction dimension")
+            )
         parser.add_argument(
             "--embedding-dim", default=1024, type=int, help=("feature dimension")
         )
@@ -127,8 +161,6 @@ class Decoder(nn.Module):
         parser.add_argument(
             "--hidden-dim", default=512, type=int, help=("")
         )
-
-
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

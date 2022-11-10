@@ -12,6 +12,7 @@ data:
       min_batch_size: 4
       batch_size: 4
       iters_per_epoch: 6
+      drop_last: true
     data_loader:
       num_workers: 8
   val:
@@ -27,6 +28,7 @@ data:
       min_batch_size: 2
       batch_size: 2
       iters_per_epoch: 6
+      drop_last: true
     data_loader:
       num_workers: 8
 model: wav2vec2xlsr300m_transducer.yaml

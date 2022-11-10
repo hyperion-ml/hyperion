@@ -12,7 +12,6 @@ import torch
 from .hyp_sampler import HypSampler
 from .seg_sampler import SegSampler
 import torch.distributed as dist
-from torch.nn.utils.rnn import pad_sequence
 
 
 class BucketingSegSampler(HypSampler):
@@ -44,10 +43,7 @@ class BucketingSegSampler(HypSampler):
         buckets = []
         for i in range(self.num_buckets):
             bucket_bool = (cum_lengths <= bucket_length) & (cum_lengths > 0)
-            bucket_idx = []
-            for i, bo in enumerate(bucket_bool):
-                if bo:
-                    bucket_idx.append(i)
+            bucket_idx = np.arange(len(bucket_bool))[bucket_bool]
             bucket_i = sorted_seg_set.iloc[bucket_idx]
             buckets.append(bucket_i)
             cum_lengths -= bucket_length

@@ -14,15 +14,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
 import torch
 import torch.nn as nn
 
 
 class Joiner(nn.Module):
-    def __init__(self, input_dim: int, output_dim: int):
+    def __init__(self, in_feats: int, out_dims: int, num_layers: int):
         super().__init__()
+        self.in_feats = in_feats
+        self.out_dims = out_dims
+        self.num_layers = num_layers
 
-        self.output_linear = nn.Linear(input_dim, output_dim)
+        self.output_linear = nn.Linear(in_feats, out_dims)
 
     def forward(
         self, encoder_out: torch.Tensor, decoder_out: torch.Tensor
@@ -53,14 +57,52 @@ class Joiner(nn.Module):
 
         return output
 
-    # @staticmethod
-    # def filter_args(**kwargs):
-    #     valid_args = (
-    #         "encoder_out_dim",
-    #     )
-    #     args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
-    #     return args
+    def get_config(self):
+        config = {
+            "in_feats" : self.in_feats,
+            "out_dims": self.out_dims,
+            "num_layers": self.num_layers,
+        }
+
+        base_config = super().get_config()
+        return dict(list(base_config.items()) + list(config.items()))
+
+
+    @staticmethod
+    def filter_args(**kwargs):
+        valid_args = (
+            "in_feats",
+            "out_dims",
+            "num_layers",
+        )
+        args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
+
+        return args
+
+
+    @staticmethod
+    def add_class_args(parser, prefix=None, skip=set(["in_feats", "out_dims"])):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
+
+        if "in_feats" not in skip:
+            parser.add_argument(
+                "--in-feats", type=int, required=True, help=("input feature dimension")
+            )
+
+        if "out_dims" not in skip:
+            parser.add_argument(
+                "--out-dims", type=int, required=True, help=("output feature dimension (vocab size)")
+            )
+        parser.add_argument(
+            "--num-layers", default=1, type=int, help=("layers of the joiner")
+        )
+
+        if prefix is not None:
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
+
 
     # @staticmethod
     # def add_class_args(parser, prefix=None, skip=set()):

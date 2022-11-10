@@ -122,13 +122,8 @@ class TransducerTrainer(TorchTrainer):
         batch_metrics = ODict()
         self.model.train()
         self.sp = data_loader.dataset.sp
-        # for batch, (data, audio_length, target) in enumerate(data_loader):
-        #     print("batch",batch)
-        #     print("data shape",data.shape)
 
         for batch, (data, audio_length, target) in enumerate(data_loader):
-            # print("batch index", batch)
-            # print("batch size", data.shape)
             self.loggers.on_batch_begin(batch)
 
             if batch % self.grad_acc_steps == 0:

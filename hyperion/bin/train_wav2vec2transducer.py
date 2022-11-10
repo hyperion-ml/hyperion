@@ -41,7 +41,7 @@ def transducer_collate(batch):
     audio = []
     audio_length = []
     target = []
-    for i, record in enumerate(batch):
+    for record in batch:
         wav = torch.as_tensor(record[0])
         audio.append(wav)
         audio_length.append(wav.shape[0])
