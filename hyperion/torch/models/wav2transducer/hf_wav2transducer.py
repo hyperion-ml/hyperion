@@ -338,7 +338,7 @@ class HFWav2Transducer(TorchModel):
         hf_cfg = self.hf_feats.get_config()
         tran_cfg = self.transducer.get_config()
         del hf_cfg["class_name"]
-        del tran_cfg["class_name"]
+        # del tran_cfg["class_name"]
         config = {
             "hf_feats": hf_cfg,
             "transducer": tran_cfg,

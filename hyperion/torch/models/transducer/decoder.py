@@ -113,8 +113,8 @@ class Decoder(nn.Module):
             "hidden_dim" : self.hidden_dim,
         }
 
-        base_config = super().get_config()
-        return dict(list(base_config.items()) + list(config.items()))
+        # base_config = super().get_config()
+        return dict(list(config.items()))
 
 
     @staticmethod

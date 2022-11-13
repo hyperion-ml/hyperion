@@ -8,6 +8,8 @@ hf_model_name=wav2vec2xlsr300m
 
 # x-vector training 
 nnet_data=train_clean_100
+dev_data=dev_clean
+# nnet_data=train_clean_small
 
 bpe_model=data/lang_bpe_1000/bpe.model
 # x-vector cfg

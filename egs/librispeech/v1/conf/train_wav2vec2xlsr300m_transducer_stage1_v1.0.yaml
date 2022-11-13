@@ -7,8 +7,8 @@ data:
       return_segment_info:
         - text
     sampler:
-      # sampler_type: 'seg_sampler'
-      sampler_type: 'bucketing_seg_sampler'
+      sampler_type: 'seg_sampler'
+      # sampler_type: 'bucketing_seg_sampler'
       min_batch_size: 4
       batch_size: 4
       iters_per_epoch: 6
@@ -23,8 +23,8 @@ data:
       return_segment_info:
         - text
     sampler:
-      # sampler_type: 'seg_sampler'
-      sampler_type: 'bucketing_seg_sampler'
+      sampler_type: 'seg_sampler'
+      # sampler_type: 'bucketing_seg_sampler'
       min_batch_size: 2
       batch_size: 2
       iters_per_epoch: 6

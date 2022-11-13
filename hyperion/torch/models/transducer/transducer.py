@@ -70,6 +70,8 @@ class Transducer(TorchModel):
         decoder["vocab_size"] = vocab_size
         joiner["out_dims"] = vocab_size
 
+        self.vocab_size = vocab_size
+        self.blank_id = blank_id
         self.decoder = Decoder(**decoder)
         self.joiner = Joiner(**joiner)
 
@@ -177,12 +179,14 @@ class Transducer(TorchModel):
         join_cfg = self.joiner.get_config()
 
         config = {
+            "blank_id" : self.blank_id,
+            "vocab_size" : self.vocab_size,
             "decoder": dec_cfg,
             "joiner": join_cfg,
         }
 
-        base_config = super().get_config()
-        return dict(list(base_config.items()) + list(config.items()))
+        # base_config = super().get_config()
+        return dict(list(config.items()))
 
     @staticmethod
     def filter_args(**kwargs):
@@ -215,3 +219,53 @@ class Transducer(TorchModel):
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
+
+
+    # def change_config(
+    #     self,
+    #     override_dropouts=False,
+    #     dropout_rate=0,
+    #     num_classes=None,
+    #     loss_type="arc-softmax",
+    #     cos_scale=64,
+    #     margin=0.3,
+    #     margin_warmup_epochs=10,
+    #     intertop_k=5,
+    #     intertop_margin=0.0,
+    #     num_subcenters=2,
+    # ):
+    #     logging.info("changing x-vector config")
+    #     self.rebuild_output_layer(
+    #         num_classes=num_classes,
+    #         loss_type=loss_type,
+    #         cos_scale=cos_scale,
+    #         margin=margin,
+    #         margin_warmup_epochs=margin_warmup_epochs,
+    #         intertop_k=intertop_k,
+    #         intertop_margin=intertop_margin,
+    #         num_subcenters=num_subcenters,
+    #     )
+
+    #     if override_dropouts:
+    #         logging.info("overriding x-vector dropouts")
+    #         self.encoder_net.change_dropouts(dropout_rate)
+    #         self.classif_net.change_dropouts(dropout_rate)
+
+    # @staticmethod
+    # def filter_finetune_args(**kwargs):
+    #     valid_args = (
+    #     )
+    #     args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
+    #     return args
+
+    # @staticmethod
+    # def add_finetune_args(parser, prefix=None):
+    #     if prefix is not None:
+    #         outer_parser = parser
+    #         parser = ArgumentParser(prog="")
+
+    #     if prefix is not None:
+    #         outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
+
+    # add_argparse_args = add_class_args
+    # add_argparse_finetune_args = add_finetune_args
