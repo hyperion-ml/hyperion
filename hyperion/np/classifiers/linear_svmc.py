@@ -359,7 +359,7 @@ class LinearSVMC(NPModel):
         parser.add_argument(
             "--eval-type",
             default="logit",
-            choices=["logit", "bin-logpost", "bin-post", "cat-logpost", "cat-post"],
+            choices=["logit", "bin-log-post", "bin-post", "cat-log-post", "cat-post"],
             help=("type of evaluation"),
         )
 

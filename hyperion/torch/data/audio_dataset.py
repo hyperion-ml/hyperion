@@ -16,7 +16,8 @@ import torchaudio.transforms as tat
 
 from ..torch_defs import floatstr_torch
 from ...io import RandomAccessAudioReader as AR
-from ...utils.utt2info import Utt2Info
+
+# from ...utils.utt2info import Utt2Info
 from ...np.augment import SpeechAugment
 
 from torch.utils.data import Dataset
@@ -618,7 +619,7 @@ class AudioDataset(Dataset):
         # read audio
         recording_id = self.seg_set.recording_ids(seg_id)
         x, fs = self.r.read([recording_id], time_offset=start, time_durs=read_duration)
-        return x[0], fs[0]
+        return x[0].astype(floatstr_torch(), copy=False), fs[0]
 
     def _apply_augs(self, x, num_samples, reverb_context_samples):
         x_augs = []
@@ -630,7 +631,7 @@ class AudioDataset(Dataset):
                 x_aug, aug_info = augmenter(x)
                 # remove the extra left context used to compute the reverberation.
                 x_aug = x_aug[reverb_context_samples : len(x)]
-                x_augs.append(x_aug)
+                x_augs.append(x_aug.astype(floatstr_torch(), copy=False))
 
         return x_augs
 
@@ -663,14 +664,14 @@ class AudioDataset(Dataset):
             resampling_method="kaiser_window",
             beta=14.769656459379492,
         )
-        self.resampler[fs] = resampler
-        return resampler
+        resampler_f = lambda x: resampler(torch.from_numpy(x)).numpy()
+        self.resamplers[fs] = resampler_f
+        return resampler_f
 
     def _resample(self, x, fs):
         try:
             if self.target_sample_freq is None or fs == self.target_sample_freq:
                 return x, fs
-
             resampler = self._get_resampler(fs)
             return resampler(x), self.target_sample_freq
         except:
@@ -681,7 +682,6 @@ class AudioDataset(Dataset):
         seg_id, start, duration = self._parse_segment_item(segment)
         x, fs = self._read_audio(seg_id, start, duration)
         x, fs = self._resample(x, fs)
-
         if self.augmenters:
             # augmentations
             num_samples = int(duration * fs)

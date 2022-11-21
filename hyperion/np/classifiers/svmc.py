@@ -90,7 +90,7 @@ class GaussianSVMC(NPModel):
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
-    def predict(self, x, eval_type="cat-post"):
+    def predict(self, x, eval_type="decision-func"):
         """Evaluates the SVM
 
         Args:
@@ -109,9 +109,9 @@ class GaussianSVMC(NPModel):
         if eval_type == "cat-log-post":
             return self.svm.predict_log_proba(x)
 
-        return self.svm.predict_proba(x)
+        return self.svm.decision_function(x)
 
-    def __call__(self, x, eval_type="logit"):
+    def __call__(self, x, eval_type="decision-func"):
         """Evaluates the SVM
 
         Args:
@@ -138,7 +138,7 @@ class GaussianSVMC(NPModel):
         print("--------------", type(x[3, 2]), type(class_ids[20]), "--------------")
         self.svm.fit(x, class_ids)
         if self.svm.fit_status_:
-            print("SVM did not converge")
+            logging.warning("SVM did not converge")
 
     def save(self, file_path):
         """Saves the model to file.
@@ -339,8 +339,8 @@ class GaussianSVMC(NPModel):
 
         parser.add_argument(
             "--eval-type",
-            default="cat-post",
-            choices=["cat-logpost", "cat-post"],
+            default="decision-func",
+            choices=["cat-log-post", "cat-post", "decision-func"],
             help=("type of evaluation"),
         )
 
