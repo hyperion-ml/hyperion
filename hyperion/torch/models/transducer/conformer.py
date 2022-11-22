@@ -25,7 +25,7 @@ import torch
 from torch import Tensor, nn
 from .transformer import Transformer
 
-from hyperion.utils.utils import make_pad_mask, subsequent_chunk_mask
+from hyperion.utils.text import make_pad_mask, subsequent_chunk_mask
 
 
 class Conformer(Transformer):

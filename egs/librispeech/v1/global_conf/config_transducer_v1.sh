@@ -37,17 +37,3 @@ nnet_s3_name=${nnet_name}.s3
 nnet_s3_dir=exp/transducer_nnets/$nnet_s3_name
 nnet_s3=$nnet_s3_dir/model_ep0002.pth
 nnet_s3=$nnet_s3_dir/model_ep0005.pth
-
-# back-end
-plda_aug_config=conf/reverb_noise_aug.yaml
-plda_num_augs=0
-if [ $plda_num_augs -eq 0 ]; then
-    plda_data=voxceleb2cat_train
-else
-    plda_data=voxceleb2cat_train_augx${plda_num_augs}
-fi
-plda_type=splda
-lda_dim=200
-plda_y_dim=150
-plda_z_dim=200
-

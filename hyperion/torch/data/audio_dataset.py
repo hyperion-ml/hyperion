@@ -459,7 +459,7 @@ class AudioDataset(Dataset):
     def __init__(
         self,
         audio_file,
-        segments_file=None,
+        segments_file,
         class_names=None,
         class_files=None,
         bpe_model=None,
@@ -493,22 +493,21 @@ class AudioDataset(Dataset):
         
         if rank == 0:
             logging.info("loading segments file %s" % segments_file)
-        if segments_file is not None:
-            self.seg_set = SegmentSet.load(segments_file)
+        self.seg_set = SegmentSet.load(segments_file)
+        if rank == 0:
+            logging.info("dataset contains %d seqs" % len(self.seg_set))
+
+        self.is_val = is_val
+        if time_durs_file is not None:
             if rank == 0:
-                logging.info("dataset contains %d seqs" % len(self.seg_set))
+                logging.info("loading durations file %s" % time_durs_file)
 
-            self.is_val = is_val
-            if time_durs_file is not None:
-                if rank == 0:
-                    logging.info("loading durations file %s" % time_durs_file)
-
-                time_durs = SegmentSet.load(time_durs_file)
-                self.seg_set["duration"] = time_durs.loc[
-                    self.seg_set["id"]
-                ].class_id.values.astype(np.float, copy=False)
-            else:
-                assert "duration" in self.seg_set
+            time_durs = SegmentSet.load(time_durs_file)
+            self.seg_set["duration"] = time_durs.loc[
+                self.seg_set["id"]
+            ].class_id.values.astype(np.float, copy=False)
+        else:
+            assert "duration" in self.seg_set
 
         logging.info("loading class-info files")
         self._load_class_infos(class_names, class_files, is_val)
@@ -546,7 +545,6 @@ class AudioDataset(Dataset):
         
         text = read_text(text_file)
         self.seg_set["text"] = text.loc[self.seg_set["id"]].text
-        self.text_info = ClassInfo(text)
 
 
 
@@ -679,8 +677,7 @@ class AudioDataset(Dataset):
                 idx = class_info.loc[seg_info, "class_idx"]
                 seg_info = idx
             if info_name  == "text":
-                text = self.text_info.loc[seg_id, "text"]
-                seg_info = self.sp.encode(text, out_type=int)
+                seg_info = self.sp.encode(seg_info, out_type=int)
 
             r.append(seg_info)
 
@@ -712,7 +709,6 @@ class AudioDataset(Dataset):
         # adds the segment labels
         seg_info = self._get_segment_info(seg_id)
         r.extend(seg_info)
-
 
         return (*r,)
 

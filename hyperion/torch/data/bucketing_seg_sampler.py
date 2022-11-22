@@ -42,9 +42,8 @@ class BucketingSegSampler(HypSampler):
         bucket_length = cum_lengths[-1] / self.num_buckets
         buckets = []
         for i in range(self.num_buckets):
-            bucket_bool = (cum_lengths <= bucket_length) & (cum_lengths > 0)
-            bucket_idx = np.arange(len(bucket_bool))[bucket_bool]
-            bucket_i = sorted_seg_set.iloc[bucket_idx]
+            bucket_idx = (cum_lengths <= bucket_length) & (cum_lengths > 0)
+            bucket_i = sorted_seg_set.loc[bucket_idx]
             buckets.append(bucket_i)
             cum_lengths -= bucket_length
 

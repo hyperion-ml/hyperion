@@ -27,7 +27,7 @@ import torchaudio.functional
 from .encoder_interface import EncoderInterface
 
 from ...torch_model import TorchModel
-from hyperion.utils.utils import add_sos
+from hyperion.utils.text import add_sos
 # from .conformer import Conformer
 from .decoder import Decoder
 from .joiner import Joiner

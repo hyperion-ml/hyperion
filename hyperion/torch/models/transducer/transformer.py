@@ -23,7 +23,7 @@ import torch.nn as nn
 from .encoder_interface import EncoderInterface
 from .subsampling import Conv2dSubsampling, VggSubsampling
 
-from hyperion.utils.utils import make_pad_mask
+from hyperion.utils.text import make_pad_mask
 
 
 class Transformer(EncoderInterface):
