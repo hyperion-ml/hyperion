@@ -77,15 +77,18 @@ class ArcLossOutput(nn.Module):
         return self.__str__()
 
     def __str__(self):
-        s = "%s(in_feats=%d, num_classes=%d, cos_scale=%.2f, margin=%.2f, margin_warmup_epochs=%d, intertop_k=%d, intertop_margin=%f)" % (
-            self.__class__.__name__,
-            self.in_feats,
-            self.num_classes,
-            self.cos_scale,
-            self.margin,
-            self.margin_warmup_epochs,
-            self.intertop_k,
-            self.intertop_margin,
+        s = (
+            "%s(in_feats=%d, num_classes=%d, cos_scale=%.2f, margin=%.2f, margin_warmup_epochs=%d, intertop_k=%d, intertop_margin=%f)"
+            % (
+                self.__class__.__name__,
+                self.in_feats,
+                self.num_classes,
+                self.cos_scale,
+                self.margin,
+                self.margin_warmup_epochs,
+                self.intertop_k,
+                self.intertop_margin,
+            )
         )
         return s
 
@@ -224,15 +227,18 @@ class CosLossOutput(nn.Module):
         return self.__str__()
 
     def __str__(self):
-        s = "%s(in_feats=%d, num_classes=%d, cos_scale=%.2f, margin=%.2f, margin_warmup_epochs=%d, intertop_k=%d, intertop_margin=%f)" % (
-            self.__class__.__name__,
-            self.in_feats,
-            self.num_classes,
-            self.cos_scale,
-            self.margin,
-            self.margin_warmup_epochs,
-            self.intertop_k,
-            self.intertop_margin,
+        s = (
+            "%s(in_feats=%d, num_classes=%d, cos_scale=%.2f, margin=%.2f, margin_warmup_epochs=%d, intertop_k=%d, intertop_margin=%f)"
+            % (
+                self.__class__.__name__,
+                self.in_feats,
+                self.num_classes,
+                self.cos_scale,
+                self.margin,
+                self.margin_warmup_epochs,
+                self.intertop_k,
+                self.intertop_margin,
+            )
         )
         return s
 
@@ -361,20 +367,25 @@ class SubCenterArcLossOutput(ArcLossOutput):
         )
 
     def __str__(self):
-        s = "%s(in_feats=%d, num_classes=%d, num_subcenters=%d, cos_scale=%.2f, margin=%.2f, margin_warmup_epochs=%d, intertop_k=%d, intertop_margin=%f)" % (
-            self.__class__.__name__,
-            self.in_feats,
-            self.num_classes,
-            self.num_subcenters,
-            self.cos_scale,
-            self.margin,
-            self.margin_warmup_epochs,
-            self.intertop_k,
-            self.intertop_margin,
+        s = (
+            "%s(in_feats=%d, num_classes=%d, num_subcenters=%d, cos_scale=%.2f, margin=%.2f, margin_warmup_epochs=%d, intertop_k=%d, intertop_margin=%f)"
+            % (
+                self.__class__.__name__,
+                self.in_feats,
+                self.num_classes,
+                self.num_subcenters,
+                self.cos_scale,
+                self.margin,
+                self.margin_warmup_epochs,
+                self.intertop_k,
+                self.intertop_margin,
+            )
         )
         return s
 
     def _update_counts(self, y, proto_idx):
+        idx1 = torch.arange(y.size(0))
+        proto_idx = proto_idx[idx1, y]
         self.subcenter_counts[y, proto_idx] += 1
         # we make counts relative to avoid risk of overflowing the integers
         min_counts, _ = torch.min(self.subcenter_counts, dim=1, keepdim=True)
@@ -445,7 +456,9 @@ class SubCenterArcLossOutput(ArcLossOutput):
             self.subcenter_counts, dim=-1
         )  # get indices for the main prototype
         idx1 = torch.arange(self.num_classes)
-        kernel = kernel.view(-1, self.num_classes, self.num_subcenters)[:, idx1, idx2]
+        kernel = self.kernel.view(-1, self.num_classes, self.num_subcenters)[
+            :, idx1, idx2
+        ]
         return kernel
 
     def compute_prototype_affinity(self):

@@ -97,6 +97,7 @@ def plot_embedding_tsne(
                 # in the low dim space, we cannot use cosine scoring
                 x2 = np.sum(x_tsne ** 2, axis=1)[:, None]
                 d2 = x2 - 2 * np.dot(x_tsne, x_tsne.T) + x2.T
+                d2 = np.clip(d2, a_min=0, a_max=None)
                 scores = -np.sqrt(d2)
             else:
                 scores = cosine_scoring(x_c, x_c)

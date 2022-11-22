@@ -182,8 +182,19 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
         )
         self.map_class_to_segs_idx = {}
         for class_id in self.class_info["id"].values:
-            seg_ids = map_class_to_segs.loc[class_id, "id"].values
-            seg_idx = self.seg_set.get_loc(seg_ids)
+            if class_id in map_class_to_segs.index:
+                seg_ids = map_class_to_segs.loc[class_id, "id"]
+                if isinstance(seg_ids, str):
+                    seg_ids = [seg_ids]
+                else:
+                    seg_ids = seg_ids.values
+
+                seg_idx = self.seg_set.get_loc(seg_ids)
+            else:
+                seg_idx = []
+                self.class_info.loc[class_id, "weights"] = 0.0
+                self.class_info.renorm_weights()
+
             self.map_class_to_segs_idx[class_id] = seg_idx
 
     def _set_class_weights(self):
@@ -231,7 +242,7 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
         ).indices
 
     def get_hard_prototypes(self, class_idx):
-        return self.hard_prototypes[class_idx].flatten()
+        return self.hard_prototypes[class_idx].flatten().numpy()
 
     def _sample_chunk_length(self):
         if self.var_batch_size:
