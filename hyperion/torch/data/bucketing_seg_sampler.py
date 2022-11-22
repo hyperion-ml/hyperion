@@ -8,7 +8,6 @@ from jsonargparse import ArgumentParser, ActionParser
 import logging
 
 import numpy as np
-
 import torch
 from .hyp_sampler import HypSampler
 from .seg_sampler import SegSampler
@@ -37,9 +36,9 @@ class BucketingSegSampler(HypSampler):
         self.depleted_buckets = torch.zeros((num_buckets,), dtype=torch.bool)
 
     def create_buckets(self):
-        sort_idx = torch.argsort(self.seg_set[self.length_column].values)
+        sort_idx = torch.argsort(torch.from_numpy(self.seg_set[self.length_column].values))
         sorted_seg_set = self.seg_set.iloc[sort_idx]
-        cum_lengths = torch.cumsum(sorted_seg_set[self.length_column].values)
+        cum_lengths = torch.cumsum(torch.from_numpy(sorted_seg_set[self.length_column].values),dim=0)
         bucket_length = cum_lengths[-1] / self.num_buckets
         buckets = []
         for i in range(self.num_buckets):
@@ -54,10 +53,13 @@ class BucketingSegSampler(HypSampler):
         buckets = self.create_buckets()
         bucket_samplers = []
         for i in range(self.num_buckets):
-            sampler_i = self.base_sampler(buckets[i], self.seed, **self.base_kwargs)
+            sampler_i = self.base_sampler(buckets[i], **self.base_kwargs)
             bucket_samplers.append(sampler_i)
 
         self.bucket_samplers = bucket_samplers
+
+    def __len__(self):
+        return self._len
 
     def _compute_len(self):
         self._len = 0
@@ -90,7 +92,7 @@ class BucketingSegSampler(HypSampler):
             if self.depleted_buckets[bucket_idx]:
                 continue
 
-            bucket = self.buckets[bucket_idx]
+            bucket = self.bucket_samplers[bucket_idx]
             try:
                 batch = next(bucket)
                 break

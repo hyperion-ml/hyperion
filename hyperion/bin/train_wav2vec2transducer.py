@@ -3,7 +3,7 @@
  Copyright 2022 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-# import sys
+import sys
 import os
 from pathlib import Path
 from jsonargparse import (
@@ -12,6 +12,7 @@ from jsonargparse import (
     ActionParser,
     namespace_to_dict,
 )
+import k2
 import time
 import logging
 import multiprocessing
@@ -23,30 +24,39 @@ import torch.nn as nn
 
 from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch.utils import ddp
-from hyperion.torch.trainers import XVectorTrainer as Trainer
+from hyperion.torch.trainers import TransducerTrainer as Trainer
 from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
-
-# from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
 from hyperion.torch.metrics import CategoricalAccuracy
-from hyperion.torch.models import (
-    HFWav2Vec2ResNet1dXVector,
-    HFHubert2ResNet1dXVector,
-    HFWavLM2ResNet1dXVector,
-)
+from hyperion.torch.models import HFWav2Vec2Transducer
+from torch.nn.utils.rnn import pad_sequence
+
 
 model_dict = {
-    "hf_wav2vec2resnet1d": HFWav2Vec2ResNet1dXVector,
-    "hf_hubert2resnet1d": HFHubert2ResNet1dXVector,
-    "hf_wavlm2resnet1d": HFWavLM2ResNet1dXVector,
+    "hf_wav2vec2transducer": HFWav2Vec2Transducer,
 }
 
 
-def init_data(partition, rank, num_gpus, **kwargs):
+def transducer_collate(batch):
+    audio = []
+    audio_length = []
+    target = []
+    for record in batch:
+        wav = torch.as_tensor(record[0])
+        audio.append(wav)
+        audio_length.append(wav.shape[0])
+        target.append(record[1])
+    audio = pad_sequence(audio)
+    audio_length = torch.as_tensor(audio_length)
+    target = k2.RaggedTensor(target)
+    return torch.transpose(audio,0,1), audio_length, target
 
-    kwargs = kwargs["data"][partition]
-    ad_args = AD.filter_args(**kwargs["dataset"])
-    sampler_args = kwargs["sampler"]
+
+
+def init_data(partition, rank, num_gpus, **kwargs):
+    data_kwargs = kwargs["data"][partition]
+    ad_args = AD.filter_args(**data_kwargs["dataset"])
+    sampler_args = data_kwargs["sampler"]
     if rank == 0:
         logging.info("{} audio dataset args={}".format(partition, ad_args))
         logging.info("{} sampler args={}".format(partition, sampler_args))
@@ -59,60 +69,34 @@ def init_data(partition, rank, num_gpus, **kwargs):
 
     if rank == 0:
         logging.info("init %s samplers", partition)
-
     sampler = SegSamplerFactory.create(dataset, **sampler_args)
 
     if rank == 0:
         logging.info("init %s dataloader", partition)
 
-    num_workers = kwargs["data_loader"]["num_workers"]
+    num_workers = data_kwargs["data_loader"]["num_workers"]
     num_workers_per_gpu = int((num_workers + num_gpus - 1) / num_gpus)
     largs = (
         {"num_workers": num_workers_per_gpu, "pin_memory": True} if num_gpus > 0 else {}
     )
-    data_loader = torch.utils.data.DataLoader(dataset, batch_sampler=sampler, **largs)
+    data_loader = torch.utils.data.DataLoader(dataset, batch_sampler=sampler, **largs, collate_fn=transducer_collate)
     return data_loader
 
 
-# def init_data(partition, rank, num_gpus, **kwargs):
-
-#     kwargs = kwargs["data"][partition]
-#     ad_args = AD.filter_args(**kwargs["dataset"])
-#     sampler_args = Sampler.filter_args(**kwargs["sampler"])
-#     if rank == 0:
-#         logging.info("{} audio dataset args={}".format(partition, ad_args))
-#         logging.info("{} sampler args={}".format(partition, sampler_args))
-#         logging.info("init %s dataset", partition)
-
-#     ad_args["is_val"] = partition == "val"
-#     dataset = AD(**ad_args)
-
-#     if rank == 0:
-#         logging.info("init %s samplers", partition)
-
-#     sampler = Sampler(dataset, **sampler_args)
-
-#     if rank == 0:
-#         logging.info("init %s dataloader", partition)
-
-#     num_workers = kwargs["data_loader"]["num_workers"]
-#     num_workers_per_gpu = int((num_workers + num_gpus - 1) / num_gpus)
-#     largs = (
-#         {"num_workers": num_workers_per_gpu, "pin_memory": True} if num_gpus > 0 else {}
-#     )
-#     data_loader = torch.utils.data.DataLoader(dataset, batch_sampler=sampler, **largs)
-#     return data_loader
-
-
-def init_model(num_classes, rank, model_class, **kwargs):
+def init_model(blank_id, vocab_size, rank, model_class, **kwargs):
     model_args = model_class.filter_args(**kwargs["model"])
     if rank == 0:
         logging.info("model network args={}".format(model_args))
-    model_args["xvector"]["num_classes"] = num_classes
+    # TODO: check model_args 
+    model_args["transducer"]["blank_id"] = blank_id
+    model_args["transducer"]["vocab_size"] = vocab_size
     model = model_class(**model_args)
     if rank == 0:
         logging.info("model={}".format(model))
     return model
+
+
+
 
 
 def train_model(gpu_id, args):
@@ -129,16 +113,26 @@ def train_model(gpu_id, args):
     device, rank, world_size = ddp.ddp_init(gpu_id, **ddp_args)
     kwargs["rank"] = rank
 
+    # # for Debug
+    # rank = 0
+    # kwargs["rank"] = 0
+    # device = "cpu"
+    # world_size=1
+
     train_loader = init_data(partition="train", **kwargs)
     val_loader = init_data(partition="val", **kwargs)
-    model = init_model(list(train_loader.dataset.num_classes.values())[0], **kwargs)
+    model = init_model(train_loader.dataset.sp.piece_to_id("<blk>"), train_loader.dataset.sp.get_piece_size(), **kwargs)
 
     trn_args = Trainer.filter_args(**kwargs["trainer"])
     if rank == 0:
         logging.info("trainer args={}".format(trn_args))
-    metrics = {"acc": CategoricalAccuracy()}
+    metrics = {} #{"acc": CategoricalAccuracy()}
     trainer = Trainer(
-        model, device=device, metrics=metrics, ddp=world_size > 1, **trn_args,
+        model,
+        device=device,
+        metrics=metrics,
+        ddp=world_size > 1,
+        **trn_args,
     )
     trainer.load_last_checkpoint()
     trainer.fit(train_loader, val_loader)
@@ -148,9 +142,8 @@ def train_model(gpu_id, args):
 
 def make_parser(model_class):
     parser = ArgumentParser()
-
+    
     parser.add_argument("--cfg", action=ActionConfigFile)
-
     train_parser = ArgumentParser(prog="")
     AD.add_class_args(train_parser, prefix="dataset", skip={})
     SegSamplerFactory.add_class_args(train_parser, prefix="sampler")
@@ -175,11 +168,25 @@ def make_parser(model_class):
     data_parser.add_argument("--val", action=ActionParser(parser=val_parser))
     parser.add_argument("--data", action=ActionParser(parser=data_parser))
 
-    parser.link_arguments(
-        "data.train.dataset.class_files", "data.val.dataset.class_files"
+
+    parser.add_argument(
+        "--data.train.dataset.text_file",
+        type=str, 
     )
+    
+    parser.add_argument("--data.val.dataset.text_file", type=str) 
+    
+    parser.add_argument(
+        "--data.train.dataset.bpe_model",
+        type=str, 
+    )
+
     parser.link_arguments(
         "data.train.data_loader.num_workers", "data.val.data_loader.num_workers"
+    )
+
+    parser.link_arguments(
+        "data.train.dataset.bpe_model", "data.val.dataset.bpe_model"
     )
 
     model_class.add_class_args(parser, prefix="model")
@@ -196,8 +203,7 @@ def make_parser(model_class):
 
 
 if __name__ == "__main__":
-
-    parser = ArgumentParser(description="Train Wav2Vec2XVector model from audio files")
+    parser = ArgumentParser(description="Train Wav2Vec2Transducer model from audio files")
     parser.add_argument("--cfg", action=ActionConfigFile)
 
     subcommands = parser.add_subcommands()
@@ -224,5 +230,5 @@ if __name__ == "__main__":
 
     args_sc.model_class = model_dict[model_type]
     # torch docs recommend using forkserver
-    multiprocessing.set_start_method("forkserver")
+    # multiprocessing.set_start_method("forkserver")
     train_model(gpu_id, args_sc)

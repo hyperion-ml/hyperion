@@ -20,11 +20,15 @@ from ...io import RandomAccessAudioReader as AR
 # from ...utils.utt2info import Utt2Info
 from ...np.augment import SpeechAugment
 
+
+import k2
+import sentencepiece as spm
+from torch.nn.utils.rnn import pad_sequence
+
 from torch.utils.data import Dataset
 import torch.distributed as dist
 
 from hyperion.np import augment
-
 
 # class AudioDataset1(Dataset):
 #     def __init__(
@@ -451,7 +455,7 @@ from hyperion.np import augment
 
 from ...utils.class_info import ClassInfo
 from ...utils.segment_set import SegmentSet
-
+from ...utils.text import read_text
 
 class AudioDataset(Dataset):
     def __init__(
@@ -460,6 +464,8 @@ class AudioDataset(Dataset):
         segments_file,
         class_names=None,
         class_files=None,
+        bpe_model=None,
+        text_file=None,
         time_durs_file=None,
         aug_cfgs=None,
         num_augs=1,
@@ -487,9 +493,9 @@ class AudioDataset(Dataset):
 
         self.r = AR(audio_file, wav_scale=wav_scale)
 
+        
         if rank == 0:
             logging.info("loading segments file %s" % segments_file)
-
         self.seg_set = SegmentSet.load(segments_file)
         if rank == 0:
             logging.info("dataset contains %d seqs" % len(self.seg_set))
@@ -509,6 +515,14 @@ class AudioDataset(Dataset):
         logging.info("loading class-info files")
         self._load_class_infos(class_names, class_files, is_val)
 
+
+        if bpe_model is not None:
+            logging.info("loading bpe models")
+            self._load_bpe_model(bpe_model, is_val)
+
+        if text_file is not None:
+            logging.info("loading text files")
+            self._load_text_infos(text_file, is_val)
         self.return_segment_info = (
             [] if return_segment_info is None else return_segment_info
         )
@@ -516,9 +530,26 @@ class AudioDataset(Dataset):
 
         self.num_augs = num_augs
         self._create_augmenters(aug_cfgs)
-
+        
         self.target_sample_freq = target_sample_freq
         self.resamplers = {}
+
+    def _load_bpe_model(self, bpe_model, is_val):
+        if self.rank == 0:
+            logging.info("loading bpe file %s" % bpe_model)
+        self.sp  = spm.SentencePieceProcessor()
+        self.sp.load(bpe_model)
+        blank_id = self.sp.piece_to_id("<blk>")
+        vocab_size = self.sp.get_piece_size()
+
+    def _load_text_infos(self, text_file, is_val):
+        if text_file is None:
+            return
+        if self.rank == 0:
+            logging.info("loading text file %s" % text_file)
+        
+        text = read_text(text_file)
+        self.seg_set["text"] = text.loc[self.seg_set["id"]].text
 
     def _load_class_infos(self, class_names, class_files, is_val):
         self.class_info = {}
@@ -623,6 +654,7 @@ class AudioDataset(Dataset):
 
     def _apply_augs(self, x, num_samples, reverb_context_samples):
         x_augs = []
+        
         # for each type of augmentation
         for i, augmenter in enumerate(self.augmenters):
             # we do n_augs per augmentation type
@@ -647,6 +679,8 @@ class AudioDataset(Dataset):
                 class_info = self.class_info[info_name]
                 idx = class_info.loc[seg_info, "class_idx"]
                 seg_info = idx
+            if info_name  == "text":
+                seg_info = self.sp.encode(seg_info, out_type=int)
 
             r.append(seg_info)
 
@@ -678,15 +712,18 @@ class AudioDataset(Dataset):
             return x, fs
 
     def __getitem__(self, segment):
-
         seg_id, start, duration = self._parse_segment_item(segment)
         x, fs = self._read_audio(seg_id, start, duration)
         x, fs = self._resample(x, fs)
         if self.augmenters:
             # augmentations
-            num_samples = int(duration * fs)
+            if duration == 0:
+                num_samples = len(x)
+            else:
+                num_samples = int(duration * fs)
             reverb_context_samples = len(x) - num_samples
             x_augs = self._apply_augs(x, num_samples, reverb_context_samples)
+            
             r = x_augs
 
             # add original non augmented audio
@@ -714,6 +751,8 @@ class AudioDataset(Dataset):
             "num_augs",
             "class_names",
             "class_files",
+            "bpe_model",
+            "text_file",
             "return_segment_info",
             "return_orig",
             "time_durs_file",
@@ -757,6 +796,22 @@ class AudioDataset(Dataset):
             default=None,
             help=(
                 "segment to duration in secs file, if durations are not in segments_file"
+            ),
+        )
+
+        parser.add_argument(
+            "--bpe-model",
+            default=None,
+            help=(
+                "bpe model for the text label"
+            ),
+        )
+
+        parser.add_argument(
+            "--text-file",
+            default=None,
+            help=(
+                "text file with words labels for each utterances"
             ),
         )
 

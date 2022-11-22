@@ -1,0 +1,56 @@
+data:
+  train:
+    dataset:
+      wav_scale: 1
+      aug_cfgs: 
+        - conf/reverb_noise_aug.yaml
+      return_segment_info:
+        - text
+    sampler:
+      sampler_type: 'seg_sampler'
+      # sampler_type: 'bucketing_seg_sampler'
+      min_batch_size: 4
+      batch_size: 4
+      iters_per_epoch: 6
+      drop_last: true
+    data_loader:
+      num_workers: 8
+  val:
+    dataset:
+      aug_cfgs: 
+        - conf/reverb_noise_aug.yaml
+      wav_scale: 1
+      return_segment_info:
+        - text
+    sampler:
+      sampler_type: 'seg_sampler'
+      # sampler_type: 'bucketing_seg_sampler'
+      min_batch_size: 2
+      batch_size: 2
+      iters_per_epoch: 6
+      drop_last: true
+    data_loader:
+      num_workers: 8
+model: wav2vec2xlsr300m_transducer.yaml
+trainer:
+  optim:
+    opt_type: sgd
+    lr: 0.003
+    momentum: 0.9
+    weight_decay: 4e-4
+  lrsched:
+    lrsch_type: exp_lr
+    decay_rate: 0.5
+    decay_steps: 4200
+    hold_steps: 1500
+    min_lr: 4e-5
+    warmup_steps: 1500
+    update_lr_on_opt_step: true
+  grad_clip: 100
+  use_amp: true
+  log_interval: 1000
+  epochs: 60
+  eff_batch_size: 1024
+  train_mode: hf-feats-frozen-nograd
+
+ 
