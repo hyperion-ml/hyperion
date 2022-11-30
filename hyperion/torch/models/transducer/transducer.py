@@ -13,13 +13,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """
 Note we use `rnnt_loss` from torchaudio, which exists only in
 torchaudio >= v0.10.0. It also means you have to use torch >= v1.10.0
 """
 from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
-import k2
+try:
+    import k2
+except ModuleNotFoundError:
+    from ...utils import dummy_k2 as k2
+
 import torch
 import torch.nn as nn
 import torchaudio
@@ -37,9 +40,8 @@ class Transducer(TorchModel):
     """It implements https://arxiv.org/pdf/1211.3711.pdf
     "Sequence Transduction with Recurrent Neural Networks"
     """
-
     def __init__(
-        self, 
+        self,
         vocab_size,
         blank_id,
         # conformer_enc,
@@ -75,9 +77,6 @@ class Transducer(TorchModel):
         self.decoder = Decoder(**decoder)
         self.joiner = Joiner(**joiner)
 
-
-
-
     def forward(
         self,
         x: torch.Tensor,
@@ -100,7 +99,7 @@ class Transducer(TorchModel):
         assert x.ndim == 3, x.shape
         assert x_lens.ndim == 1, x_lens.shape
         assert y.num_axes == 2, y.num_axes
-        
+
         assert x.size(0) == x_lens.size(0) == y.dim0
 
         #  wav2vec2 works as encoder
@@ -128,11 +127,9 @@ class Transducer(TorchModel):
 
         assert hasattr(torchaudio.functional, "rnnt_loss"), (
             f"Current torchaudio version: {torchaudio.__version__}\n"
-            "Please install a version >= 0.10.0"
-        )
-        
-        x_lens = x_lens.to(torch.int32)
+            "Please install a version >= 0.10.0")
 
+        x_lens = x_lens.to(torch.int32)
 
         loss = torchaudio.functional.rnnt_loss(
             logits=logits,
@@ -144,7 +141,6 @@ class Transducer(TorchModel):
         )
 
         return logits, loss
-
 
     def set_train_mode(self, mode):
         if mode == self._train_mode:
@@ -162,8 +158,6 @@ class Transducer(TorchModel):
 
         self._train_mode = mode
 
-
-
     def _train(self, train_mode: str):
         if train_mode in ["full", "frozen"]:
             super()._train(train_mode)
@@ -179,8 +173,8 @@ class Transducer(TorchModel):
         join_cfg = self.joiner.get_config()
 
         config = {
-            "blank_id" : self.blank_id,
-            "vocab_size" : self.vocab_size,
+            "blank_id": self.blank_id,
+            "vocab_size": self.vocab_size,
             "decoder": dec_cfg,
             "joiner": join_cfg,
         }
@@ -199,7 +193,7 @@ class Transducer(TorchModel):
         args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
         args["decoder"] = decoder_args
-        args["joiner"] = joiner_args 
+        args["joiner"] = joiner_args
         return args
 
     @staticmethod
@@ -209,17 +203,13 @@ class Transducer(TorchModel):
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        Decoder.add_class_args(
-            parser, prefix="decoder"
-        )
+        Decoder.add_class_args(parser, prefix="decoder")
 
-        Joiner.add_class_args(
-            parser, prefix="joiner"
-        )
+        Joiner.add_class_args(parser, prefix="joiner")
 
         if prefix is not None:
-            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
-
+            outer_parser.add_argument("--" + prefix,
+                                      action=ActionParser(parser=parser))
 
     # def change_config(
     #     self,

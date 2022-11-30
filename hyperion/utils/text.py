@@ -4,20 +4,23 @@
 """
 from pathlib import Path
 
-import k2
-import k2.version
+try:
+    import k2
+    import k2.version
+except ModuleNotFoundError:
+    from ..torch.utils import dummy_k2 as k2
+
 import numpy as np
 import pandas as pd
 import torch
 
 
-
 # Copied and modified from https://github.com/wenet-e2e/wenet/blob/main/wenet/utils/mask.py
 def subsequent_chunk_mask(
-    size: int,
-    chunk_size: int,
-    num_left_chunks: int = -1,
-    device: torch.device = torch.device("cpu"),
+        size: int,
+        chunk_size: int,
+        num_left_chunks: int = -1,
+        device: torch.device = torch.device("cpu"),
 ) -> torch.Tensor:
     """Create mask for subsequent steps (size, size) with chunk size,
        this is for streaming encoder
@@ -48,7 +51,6 @@ def subsequent_chunk_mask(
     return ret
 
 
-
 def make_pad_mask(lengths: torch.Tensor) -> torch.Tensor:
     """
     Args:
@@ -76,9 +78,8 @@ def make_pad_mask(lengths: torch.Tensor) -> torch.Tensor:
     return expaned_lengths >= lengths.unsqueeze(1)
 
 
-def concat(
-    ragged: k2.RaggedTensor, value: int, direction: str
-) -> k2.RaggedTensor:
+def concat(ragged: k2.RaggedTensor, value: int,
+           direction: str) -> k2.RaggedTensor:
     """Prepend a value to the beginning of each sublist or append a value.
     to the end of each sublist.
 
@@ -123,10 +124,8 @@ def concat(
     elif direction == "right":
         ans = k2.ragged.cat([ragged, pad], axis=1)
     else:
-        raise ValueError(
-            f'Unsupported direction: {direction}. " \
-            "Expect either "left" or "right"'
-        )
+        raise ValueError(f'Unsupported direction: {direction}. " \
+            "Expect either "left" or "right"')
     return ans
 
 
@@ -156,7 +155,7 @@ def read_text(text_file: str):
     # assert check_argument_types()
     text_file = Path(text_file)
 
-    data = {"id":[],"text":[]}
+    data = {"id": [], "text": []}
     with Path(text_file).open("r", encoding="utf-8") as f:
         for linenum, line in enumerate(f, 1):
             sps = line.rstrip().split(maxsplit=1)
@@ -169,4 +168,3 @@ def read_text(text_file: str):
             data["id"].append(k)
             data["text"].append(v)
     return pd.DataFrame(data=data, index=data["id"])
-
