@@ -3,7 +3,7 @@
  Copyright 2022 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-import sys
+# import sys
 import os
 from pathlib import Path
 from jsonargparse import (
@@ -25,7 +25,9 @@ from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch.utils import ddp
 from hyperion.torch.trainers import XVectorTrainer as Trainer
 from hyperion.torch.data import AudioDataset as AD
-from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
+from hyperion.torch.data import SegSamplerFactory
+
+# from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
 from hyperion.torch.metrics import CategoricalAccuracy
 from hyperion.torch.models import (
     HFWav2Vec2ResNet1dXVector,
@@ -44,19 +46,21 @@ def init_data(partition, rank, num_gpus, **kwargs):
 
     kwargs = kwargs["data"][partition]
     ad_args = AD.filter_args(**kwargs["dataset"])
-    sampler_args = Sampler.filter_args(**kwargs["sampler"])
+    sampler_args = kwargs["sampler"]
     if rank == 0:
         logging.info("{} audio dataset args={}".format(partition, ad_args))
         logging.info("{} sampler args={}".format(partition, sampler_args))
         logging.info("init %s dataset", partition)
 
-    ad_args["is_val"] = partition == "val"
+    is_val = partition == "val"
+    ad_args["is_val"] = is_val
+    sampler_args["shuffle"] = not is_val
     dataset = AD(**ad_args)
 
     if rank == 0:
         logging.info("init %s samplers", partition)
 
-    sampler = Sampler(dataset, **sampler_args)
+    sampler = SegSamplerFactory.create(dataset, **sampler_args)
 
     if rank == 0:
         logging.info("init %s dataloader", partition)
@@ -68,6 +72,36 @@ def init_data(partition, rank, num_gpus, **kwargs):
     )
     data_loader = torch.utils.data.DataLoader(dataset, batch_sampler=sampler, **largs)
     return data_loader
+
+
+# def init_data(partition, rank, num_gpus, **kwargs):
+
+#     kwargs = kwargs["data"][partition]
+#     ad_args = AD.filter_args(**kwargs["dataset"])
+#     sampler_args = Sampler.filter_args(**kwargs["sampler"])
+#     if rank == 0:
+#         logging.info("{} audio dataset args={}".format(partition, ad_args))
+#         logging.info("{} sampler args={}".format(partition, sampler_args))
+#         logging.info("init %s dataset", partition)
+
+#     ad_args["is_val"] = partition == "val"
+#     dataset = AD(**ad_args)
+
+#     if rank == 0:
+#         logging.info("init %s samplers", partition)
+
+#     sampler = Sampler(dataset, **sampler_args)
+
+#     if rank == 0:
+#         logging.info("init %s dataloader", partition)
+
+#     num_workers = kwargs["data_loader"]["num_workers"]
+#     num_workers_per_gpu = int((num_workers + num_gpus - 1) / num_gpus)
+#     largs = (
+#         {"num_workers": num_workers_per_gpu, "pin_memory": True} if num_gpus > 0 else {}
+#     )
+#     data_loader = torch.utils.data.DataLoader(dataset, batch_sampler=sampler, **largs)
+#     return data_loader
 
 
 def init_model(num_classes, rank, model_class, **kwargs):
@@ -97,18 +131,14 @@ def train_model(gpu_id, args):
 
     train_loader = init_data(partition="train", **kwargs)
     val_loader = init_data(partition="val", **kwargs)
-    model = init_model(train_loader.dataset.num_classes, **kwargs)
+    model = init_model(list(train_loader.dataset.num_classes.values())[0], **kwargs)
 
     trn_args = Trainer.filter_args(**kwargs["trainer"])
     if rank == 0:
         logging.info("trainer args={}".format(trn_args))
     metrics = {"acc": CategoricalAccuracy()}
     trainer = Trainer(
-        model,
-        device=device,
-        metrics=metrics,
-        ddp=world_size > 1,
-        **trn_args,
+        model, device=device, metrics=metrics, ddp=world_size > 1, **trn_args,
     )
     trainer.load_last_checkpoint()
     trainer.fit(train_loader, val_loader)
@@ -120,9 +150,10 @@ def make_parser(model_class):
     parser = ArgumentParser()
 
     parser.add_argument("--cfg", action=ActionConfigFile)
+
     train_parser = ArgumentParser(prog="")
     AD.add_class_args(train_parser, prefix="dataset", skip={})
-    Sampler.add_class_args(train_parser, prefix="sampler")
+    SegSamplerFactory.add_class_args(train_parser, prefix="sampler")
     train_parser.add_argument(
         "--data_loader.num-workers",
         type=int,
@@ -132,7 +163,7 @@ def make_parser(model_class):
 
     val_parser = ArgumentParser(prog="")
     AD.add_class_args(val_parser, prefix="dataset", skip={})
-    Sampler.add_class_args(val_parser, prefix="sampler")
+    SegSamplerFactory.add_class_args(val_parser, prefix="sampler")
     val_parser.add_argument(
         "--data_loader.num-workers",
         type=int,
@@ -149,9 +180,6 @@ def make_parser(model_class):
     )
     parser.link_arguments(
         "data.train.data_loader.num_workers", "data.val.data_loader.num_workers"
-    )
-    parser.link_arguments(
-        "data.train.sampler.batch_size", "data.val.sampler.batch_size"
     )
 
     model_class.add_class_args(parser, prefix="model")

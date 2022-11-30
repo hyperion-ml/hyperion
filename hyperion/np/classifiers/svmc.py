@@ -3,83 +3,36 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+import os
 import logging
+import pickle
 import numpy as np
 from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
 
-from sklearn.svm import LinearSVC as SVC
+from sklearn.svm import SVC as SVC
 
 from ...hyp_defs import float_cpu
 from ..np_model import NPModel
 from ...utils.math import softmax
 
 
-class LinearSVMC(NPModel):
-    """Linear Support Vector Machine for Classification.
-
-    Attributes:
-      A: Linear transformation coefficients (num_feats, num_classes)
-      b: biases (num_classes, )
-      penalty: str, ‘l1’ or ‘l2’, default: ‘l2’ ,
-      C: Regularization parameter.
-        The strength of the regularization is inversely proportional to C.
-        Must be strictly positive.
-      loss: str, 'hinge' or 'squared_hinge', default: 'squared_hinge'.
-      use_bias: if True, it uses bias, otherwise bias is zero.
-      bias_scaling: float, default 1.
-                    In this case, x becomes [x, bias_scaling], i.e.
-                    a “synthetic” feature with constant value equal to
-                    intercept_scaling is appended to the instance vector.
-                    The intercept becomes intercept_scaling * synthetic_feature_weight.
-                    Note! the synthetic feature weight is subject to l1/l2
-                    regularization as all other features.
-                    To lessen the effect of regularization on synthetic feature weight
-                    bias_scaling has to be increased.
-      class_weight: dict or ‘balanced’, default=None
-                    Set the parameter C of class i to class_weight[i]*C for SVC.
-                    If not given, all classes are supposed to have weight one.
-                    The “balanced” mode uses the values of y to automatically adjust
-                    weights inversely proportional to class frequencies in the input
-                    data as n_samples / (n_classes * np.bincount(y)).
-      random_state: RandomState instance or None, optional, default: None
-      max_iter: int, default: 100
-                   Useful only for the newton-cg, sag and lbfgs solvers.
-                   Maximum number of iterations taken for the solvers to converge.
-      dual: bool, default: False
-               Dual or primal formulation.
-      tol: float, default: 1e-4
-              Tolerance for stopping criteria.
-      multi_class: {‘ovr’, ‘crammer_singer’}, default=’ovr’
-                   Determines the multi-class strategy if y contains more than
-                   two classes. "ovr" trains n_classes one-vs-rest classifiers,
-                   while "crammer_singer" optimizes a joint objective over all
-                   classes. While crammer_singer is interesting from a theoretical
-                   perspective as it is consistent,
-                   it is seldom used in practice as it rarely leads to better
-                   accuracy and is more expensive to compute.
-                   If "crammer_singer" is chosen, the options loss,
-                   penalty and dual will be ignored.
-      verbose: int, default: 0
-      balance_class_weight: if True and class_weight is None, it makes class_weight="balanced".
-      lr_seed: seed form RandomState, used when random_state is None.
-      labels: list of class labels
-    """
+class GaussianSVMC(NPModel):
+    """Gaussian Support Vector Machine for Classification."""
 
     def __init__(
         self,
-        A=None,
-        b=None,
-        penalty="l2",
         C=1.0,
-        loss="squared_hinge",
-        use_bias=True,
-        bias_scaling=1,
+        gamma="scale",
+        shrinking=True,
+        probability=True,
+        tol=0.0001,
+        cache_size=600,
+        multi_class="ovr",
+        break_ties=True,
         class_weight=None,
         random_state=None,
         max_iter=100,
-        dual=True,
-        tol=0.0001,
-        multi_class="ovr",
+        model=None,
         verbose=0,
         balance_class_weight=True,
         lr_seed=1024,
@@ -95,44 +48,34 @@ class LinearSVMC(NPModel):
         if random_state is None:
             random_state = np.random.RandomState(seed=lr_seed)
 
-        self.use_bias = use_bias
-        self.bias_scaling = bias_scaling
         self.balance_class_weight = balance_class_weight
-        self.svm = SVC(
-            penalty=penalty,
-            C=C,
-            loss=loss,
-            dual=dual,
-            tol=tol,
-            fit_intercept=use_bias,
-            intercept_scaling=bias_scaling,
-            class_weight=class_weight,
-            random_state=random_state,
-            max_iter=max_iter,
-            multi_class=multi_class,
-            verbose=verbose,
-        )
-
-        if A is not None:
-            self.svm.coef_ = A.T
-
-        if b is not None:
-            self.svm.intercept_ = b
-
+        if model is None:
+            self.svm = SVC(
+                C=C,
+                kernel="rbf",
+                gamma=gamma,
+                shrinking=shrinking,
+                probability=probability,
+                tol=tol,
+                cache_size=cache_size,
+                class_weight=class_weight,
+                verbose=verbose,
+                max_iter=max_iter,
+                decision_function_shape=multi_class,
+                break_ties=break_ties,
+                random_state=random_state,
+            )
+        else:
+            self.svm = model
         self.set_labels(labels)
 
     @property
-    def A(self):
-        return self.svm.coef_.T
-
-    @property
-    def b(self):
-        return self.svm.intercept_ * self.bias_scaling
+    def model_params(self):
+        return self.svm.get_params()
 
     def set_labels(self, labels):
         if isinstance(labels, np.ndarray):
             labels = list(labels)
-
         self.labels = labels
 
     def get_config(self):
@@ -141,15 +84,13 @@ class LinearSVMC(NPModel):
           Dictionary with config hyperparams.
         """
         config = {
-            "use_bias": self.use_bias,
-            "bias_scaling": self.bias_scaling,
             "balance_class_weight": self.balance_class_weight,
             "labels": self.labels,
         }
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
-    def predict(self, x, eval_type="logit"):
+    def predict(self, x, eval_type="decision-func"):
         """Evaluates the SVM
 
         Args:
@@ -163,20 +104,14 @@ class LinearSVMC(NPModel):
         Returns:
           Ouput scores (num_samples, num_classes)
         """
-        s = np.dot(x, self.A) + self.b
-
-        if eval_type == "bin-log-post":
-            return np.log(1 + np.exp(-s))
-        if eval_type == "bin-post":
-            return 1 / (1 + np.exp(-s))
         if eval_type == "cat-post":
-            return softmax(s)
+            return self.svm.predict_proba(x)
         if eval_type == "cat-log-post":
-            return np.log(softmax(s))
+            return self.svm.predict_log_proba(x)
 
-        return s
+        return self.svm.decision_function(x)
 
-    def __call__(self, x, eval_type="logit"):
+    def __call__(self, x, eval_type="decision-func"):
         """Evaluates the SVM
 
         Args:
@@ -200,18 +135,63 @@ class LinearSVMC(NPModel):
           class_ids: class integer [0, num_classes-1] identifier (num_samples,)
           sample_weight: weight of each sample in the estimation (num_samples,)
         """
-        self.svm.fit(x, class_ids, sample_weight=sample_weight)
+        print("--------------", type(x[3, 2]), type(class_ids[20]), "--------------")
+        self.svm.fit(x, class_ids)
+        if self.svm.fit_status_:
+            logging.warning("SVM did not converge")
+
+    def save(self, file_path):
+        """Saves the model to file.
+
+        Args:
+          file_path: filename path.
+        """
+        file_dir = os.path.dirname(file_path)
+        if not (os.path.isdir(file_dir)):
+            os.makedirs(file_dir, exist_ok=True)
+        split_path = os.path.splitext(file_path)
+        if not split_path[-1] == "sav":
+            file_path = "".join(split_path[0] + ".sav")
+        with open(file_path, "wb") as f:
+            # with h5py.File(file_path, "w") as f:
+            # config = self.to_json()
+            # f.create_dataset("config", data=np.array(config, dtype="S"))
+            self.save_params(f)
+
+    @classmethod
+    def load(cls, file_path):
+        """Loads the model from file.
+
+        Args:
+          file_path: path to the file where the model is stored.
+
+        Returns:
+          Model object.
+        """
+        split_path = os.path.splitext(file_path)
+        if not split_path[-1] == "sav":
+            file_path = "".join(split_path[0] + ".sav")
+
+        # with h5py.File(file_path, "r") as f:
+        with open(file_path, "rb") as f:
+            # json_str = str(np.asarray(f["config"]).astype("U"))
+            # config = cls.load_config_from_json(json_str)
+            config = None
+            return cls.load_params(f, config)
 
     def save_params(self, f):
-        params = {"A": self.A, "b": self.b}
-        self._save_params_from_dict(f, params)
+        # params = {"A": self.A, "b": self.b}
+        # self._save_params_from_dict(f, params)
+        pickle.dump(self, f)
 
     @classmethod
     def load_params(cls, f, config):
-        param_list = ["A", "b"]
-        params = cls._load_params_to_dict(f, config["name"], param_list)
-        kwargs = dict(list(config.items()) + list(params.items()))
-        return cls(**kwargs)
+        # param_list = ["A", "b"]
+        # params = cls._load_params_to_dict(f, config["name"], param_list)
+        # kwargs = dict(list(config.items()) + list(params.items()))
+        # return cls(**kwargs)
+        svmc = pickle.load(f)
+        return svmc
 
     @staticmethod
     def filter_class_args(**kwargs):
@@ -221,20 +201,22 @@ class LinearSVMC(NPModel):
           Hyperparamter dictionary to initialize the class.
         """
         valid_args = (
-            "penalty",
-            "C",
-            "loss",
-            "use_bias",
-            "bias_scaling",
-            "class_weight",
-            "lr_seed",
-            "max_iter",
-            "dual",
+            "nu",
+            "gamma",
+            "shrinking",
+            "probability",
             "tol",
+            "cache_size",
             "multi_class",
+            "break_ties",
+            "class_weight",
+            "random_state",
+            "max_iter",
             "verbose",
             "balance_class_weight",
-            "name",
+            "lr_seed",
+            "model",
+            "labels",
         )
         return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
@@ -252,56 +234,51 @@ class LinearSVMC(NPModel):
             parser = ArgumentParser(prog="")
 
         parser.add_argument(
-            "--penalty",
-            default="l2",
-            choices=["l2", "l1"],
-            help="used to specify the norm used in the penalization",
-        )
-        parser.add_argument(
             "--c",
             dest="C",
             default=1.0,
             type=float,
             help="inverse of regularization strength",
         )
+        # parser.add_argument(
+        #     "--class_weight",
+        #     default=None,
+        #     help="Class weights",
+        # )
         parser.add_argument(
-            "--loss",
-            default="squared_hinge",
-            choices=["hinge", "squared_hinge"],
-            help="type of loss",
+            "--gamma",
+            default="scale",
+            choices=["scale", "auto"],
+            help="Kernel coefficient for ‘rbf’",
         )
-
         parser.add_argument(
-            "--use-bias", default=True, action=ActionYesNo, nargs="?", help="Use bias",
+            "--shrinking",
+            default=True,
+            type=bool,
+            help="Whether to use the shrinking heuristic",
         )
         parser.add_argument(
-            "--bias-scaling",
-            default=1.0,
-            type=float,
-            help=(
-                "useful only when the solver liblinear is used "
-                "and use_bias is set to True"
-            ),
+            "--probability",
+            default=True,
+            type=bool,
+            help="Whether to enable probability estimates",
+        )
+        parser.add_argument(
+            "--break_ties",
+            default=True,
+            type=bool,
+            help="If true, predict will break ties according to the confidence values of decision_function; otherwise \
+            the first class among the tied classes is returned",
         )
         parser.add_argument(
             "--lr-seed", default=1024, type=int, help="random number generator seed"
         )
         parser.add_argument(
             "--max-iter",
+            dest="max_iter",
             default=100,
             type=int,
             help="only for the newton-cg, sag and lbfgs solvers",
-        )
-        parser.add_argument(
-            "--dual",
-            default=True,
-            action=ActionYesNo,
-            nargs="?",
-            help=(
-                "dual or primal formulation. "
-                "Dual formulation is only implemented for "
-                "l2 penalty with liblinear solver"
-            ),
         )
         parser.add_argument(
             "--tol", default=1e-4, type=float, help="tolerance for stopping criteria"
@@ -309,11 +286,17 @@ class LinearSVMC(NPModel):
         parser.add_argument(
             "--multi-class",
             default="ovr",
-            choices=["ovr", "crammer_singer"],
+            choices=["ovr", "ovo"],
             help=(
                 "ovr fits a binary problem for each class else "
                 "it minimizes the multinomial loss."
             ),
+        )
+        parser.add_argument(
+            "--cache_size",
+            default=600,
+            type=int,
+            help="Specify the size of the kernel cache (in MB)",
         )
         parser.add_argument(
             "--verbose",
@@ -321,14 +304,12 @@ class LinearSVMC(NPModel):
             type=int,
             help="For the liblinear and lbfgs solvers",
         )
-
         parser.add_argument(
             "--balance-class-weight",
             default=False,
             action=ActionYesNo,
             help="Balances the weight of each class when computing W",
         )
-
         parser.add_argument("--name", default="svc", help="model name")
         if prefix is not None:
             outer_parser.add_argument(
@@ -358,8 +339,8 @@ class LinearSVMC(NPModel):
 
         parser.add_argument(
             "--eval-type",
-            default="logit",
-            choices=["logit", "bin-log-post", "bin-post", "cat-log-post", "cat-post"],
+            default="decision-func",
+            choices=["cat-log-post", "cat-post", "decision-func"],
             help=("type of evaluation"),
         )
 
