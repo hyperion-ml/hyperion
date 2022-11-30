@@ -5,12 +5,7 @@
 #
 . ./cmd.sh
 . ./path.sh
-
-
 set -e
-nodes=fs01
-storage_name=$(date +'%m_%d_%H_%M')
-. ./datapath.sh 
 
 vocab_sizes=(
   # 5000
@@ -19,13 +14,13 @@ vocab_sizes=(
   500
 )
 
-
 dl_dir=$PWD/download
 
-stage=2
+stage=1
 config_file=default_config.sh
 
 . parse_options.sh || exit 1;
+. ./datapath.sh 
 . $config_file
 
 
