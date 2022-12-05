@@ -14,8 +14,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-
 """
 This script takes as input a lexicon file "data/lang_phone/lexicon.txt"
 consisting of words and tokens (i.e., phones) and does the following:
@@ -43,7 +41,6 @@ import k2
 import torch
 
 from hyperion.utils.lexicon import read_lexicon, write_lexicon
-from hyperion.utils.utils import str2bool
 
 Lexicon = List[Tuple[str, List[str]]]
 
@@ -61,8 +58,8 @@ def get_args():
 
     parser.add_argument(
         "--debug",
-        type=str2bool,
         default=False,
+        action="store_true",
         help="""True for debugging, which will generate
         a visualization of the lexicon FST.
 
@@ -205,9 +202,8 @@ def generate_id_map(symbols: List[str]) -> Dict[str, int]:
     return {sym: i for i, sym in enumerate(symbols)}
 
 
-def add_self_loops(
-    arcs: List[List[Any]], disambig_token: int, disambig_word: int
-) -> List[List[Any]]:
+def add_self_loops(arcs: List[List[Any]], disambig_token: int,
+                   disambig_word: int) -> List[List[Any]]:
     """Adds self-loops to states of an FST to propagate disambiguation symbols
     through it. They are added on each state with non-epsilon output symbols
     on at least one arc out of the state.
@@ -406,7 +402,8 @@ def main():
 
         L_disambig.labels_sym = labels_sym
         L_disambig.aux_labels_sym = aux_labels_sym
-        L_disambig.draw(f"{lang_dir / 'L_disambig.svg'}", title="L_disambig.pt")
+        L_disambig.draw(f"{lang_dir / 'L_disambig.svg'}",
+                        title="L_disambig.pt")
 
 
 if __name__ == "__main__":

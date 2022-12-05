@@ -36,7 +36,9 @@ $cmd JOB=1:$nj $output_dir/log/audio_to_duration.JOB.log \
     hyp_utils/conda_env.sh \
     audio_to_duration.py \
     --audio-file $data_in/wav.scp \
-    --output-file $output_dir/utt2dur.JOB
+    --output-file $output_dir/utt2dur.JOB \
+    --part-idx JOB --num-parts $nj
+
 
 for n in $(seq $nj); do
   cat $output_dir/utt2dur.$n || exit 1;

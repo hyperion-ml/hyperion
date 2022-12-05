@@ -15,9 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 # Copyright (c)  2021  Xiaomi Corporation (authors: Fangjun Kuang)
-
 """
 
 This script takes as input `lang_dir`, which should contain::
@@ -48,8 +46,6 @@ from prepare_lang import (
     write_lexicon,
     write_mapping,
 )
-
-from hyperion.utils.utils import str2bool
 
 
 def lexicon_to_fst_no_sil(
@@ -126,9 +122,8 @@ def lexicon_to_fst_no_sil(
     return fsa
 
 
-def generate_lexicon(
-    model_file: str, words: List[str]
-) -> Tuple[Lexicon, Dict[str, int]]:
+def generate_lexicon(model_file: str,
+                     words: List[str]) -> Tuple[Lexicon, Dict[str, int]]:
     """Generate a lexicon from a BPE model.
 
     Args:
@@ -180,8 +175,8 @@ def get_args():
 
     parser.add_argument(
         "--debug",
-        type=str2bool,
         default=False,
+        action="store_true",
         help="""True for debugging, which will generate
         a visualization of the lexicon FST.
 
@@ -204,7 +199,9 @@ def main():
 
     words = word_sym_table.symbols
 
-    excluded = ["<eps>", "!SIL", "<SPOKEN_NOISE>", "<UNK>", "#0", "<s>", "</s>"]
+    excluded = [
+        "<eps>", "!SIL", "<SPOKEN_NOISE>", "<UNK>", "#0", "<s>", "</s>"
+    ]
     for w in excluded:
         if w in words:
             words.remove(w)
@@ -254,7 +251,8 @@ def main():
 
         L_disambig.labels_sym = labels_sym
         L_disambig.aux_labels_sym = aux_labels_sym
-        L_disambig.draw(f"{lang_dir / 'L_disambig.svg'}", title="L_disambig.pt")
+        L_disambig.draw(f"{lang_dir / 'L_disambig.svg'}",
+                        title="L_disambig.pt")
 
 
 if __name__ == "__main__":
