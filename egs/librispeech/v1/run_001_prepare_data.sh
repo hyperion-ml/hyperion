@@ -23,7 +23,7 @@ if [ ${stage} -le 1 ]; then
     ### Task dependent. You have to make data the following preparation part by yourself.
     ### But you can utilize Kaldi recipes in most cases
     echo "stage 0: Data preparation"
-    for part in train-clean-360 train-other-500 #dev-clean test-clean dev-other test-other train-clean-100 train-clean-360 train-other-500
+    for part in dev-clean test-clean dev-other test-other train-clean-100 train-clean-360 train-other-500
     do
       # use underscore-separated names in data directories.
       local/data_prep.sh ${librispeech_root}/${part} data/${part//-/_}
