@@ -204,7 +204,6 @@ class Transducer(TorchModel):
             parser = ArgumentParser(prog="")
 
         Decoder.add_class_args(parser, prefix="decoder")
-
         Joiner.add_class_args(parser, prefix="joiner")
 
         if prefix is not None:

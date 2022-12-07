@@ -9,21 +9,20 @@ import logging
 
 import numpy as np
 import torch
+import torch.distributed as dist
+
 from .hyp_sampler import HypSampler
 from .seg_sampler import SegSampler
-import torch.distributed as dist
 
 
 class BucketingSegSampler(HypSampler):
-    def __init__(
-        self,
-        seg_set,
-        base_sampler=SegSampler,
-        num_buckets=10,
-        length_column="duration",
-        seed=1234,
-        **base_kwargs
-    ):
+    def __init__(self,
+                 seg_set,
+                 base_sampler=SegSampler,
+                 num_buckets=10,
+                 length_column="duration",
+                 seed=1234,
+                 **base_kwargs):
         super().__init__(shuffle=False, seed=seed)
         self.seg_set = seg_set
         self.base_sampler = base_sampler
@@ -33,12 +32,13 @@ class BucketingSegSampler(HypSampler):
         self.length_column = length_column
         self._create_bucket_samplers()
         self._compute_len()
-        self.depleted_buckets = torch.zeros((num_buckets,), dtype=torch.bool)
+        self.depleted_buckets = torch.zeros((num_buckets, ), dtype=torch.bool)
 
     def create_buckets(self):
-        sort_idx = torch.argsort(torch.from_numpy(self.seg_set[self.length_column].values))
+        sort_idx = np.argsort(self.seg_set[self.length_column].values)
         sorted_seg_set = self.seg_set.iloc[sort_idx]
-        cum_lengths = torch.cumsum(torch.from_numpy(sorted_seg_set[self.length_column].values),dim=0)
+        cum_lengths = np.cumsum(sorted_seg_set[self.length_column].values,
+                                axis=0)
         bucket_length = cum_lengths[-1] / self.num_buckets
         buckets = []
         for i in range(self.num_buckets):
@@ -72,6 +72,7 @@ class BucketingSegSampler(HypSampler):
 
     def __iter__(self):
         super().__iter__()
+        self.depleted_buckets[:] = False
         for i in range(self.num_buckets):
             self.bucket_samplers[i].__iter__()
 
@@ -86,9 +87,10 @@ class BucketingSegSampler(HypSampler):
             raise StopIteration
 
         while True:
-            bucket_idx = torch.randint(
-                low=0, high=self.num_buckets, size=(1,), generator=self.rng
-            ).item()
+            bucket_idx = torch.randint(low=0,
+                                       high=self.num_buckets,
+                                       size=(1, ),
+                                       generator=self.rng).item()
             if self.depleted_buckets[bucket_idx]:
                 continue
 
@@ -106,6 +108,15 @@ class BucketingSegSampler(HypSampler):
 
         self.batch += 1
         return batch
+
+    @property
+    def avg_batch_size(self):
+        avg_batch_size = 0
+        for sampler in self.bucket_samplers:
+            avg_batch_size += sampler.avg_batch_size
+
+        avg_batch_size /= self.num_buckets
+        return avg_batch_size
 
     @staticmethod
     def filter_args(**kwargs):

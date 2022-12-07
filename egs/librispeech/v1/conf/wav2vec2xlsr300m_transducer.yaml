@@ -5,6 +5,9 @@ transducer:
     embedding_dim: 1024
     num_layers: 2
     hidden_dim: 512
+    #embedding_dim: 128
+    #num_layers: 1
+    #hidden_dim: 64
   joiner:
     num_layers: 1
 feat_fusion_method: weighted-avg

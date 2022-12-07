@@ -47,7 +47,6 @@ class TransducerTrainer(TorchTrainer):
       swa_anneal_epochs: SWA learning rate anneal epochs
       cpu_offload: CPU offload of gradients when using fully sharded ddp
     """
-
     def __init__(
         self,
         model,
@@ -129,13 +128,19 @@ class TransducerTrainer(TorchTrainer):
             if batch % self.grad_acc_steps == 0:
                 self.optimizer.zero_grad()
             # TODO: Check and Modify data, target
-            data, audio_length, target = data.to(self.device), audio_length.to(self.device), target.to(self.device)
+            data, audio_length, target = data.to(self.device), audio_length.to(
+                self.device), target.to(self.device)
             batch_size = data.shape[0]
 
             with self.amp_autocast():
-                output, loss = self.model(data, x_lengths=audio_length, y=target)
+                # print("xx", data.shape, data.shape[0] * data.shape[1] / 16000,
+                #       torch.sum(audio_length).item() / 16000,
+                #       torch.min(audio_length).item() / 16000,
+                #       torch.max(audio_length).item() / 16000)
+                output, loss = self.model(data,
+                                          x_lengths=audio_length,
+                                          y=target)
                 loss = loss.mean() / self.grad_acc_steps
-                # loss = self.loss(output, target).mean() / self.grad_acc_steps
 
             if self.use_amp:
                 self.grad_scaler.scale(loss).backward()
@@ -161,7 +166,6 @@ class TransducerTrainer(TorchTrainer):
         logs["lr"] = self._get_lr()
         return logs
 
-
     def validation_epoch(self, data_loader, swa_update_bn=False):
         """Validation epoch loop
 
@@ -181,13 +185,17 @@ class TransducerTrainer(TorchTrainer):
                 self.model.eval()
 
             for batch, (data, audio_length, target) in enumerate(data_loader):
-                data, audio_length, target = data.to(self.device), audio_length.to(self.device), target.to(self.device)
+                data, audio_length, target = data.to(
+                    self.device), audio_length.to(self.device), target.to(
+                        self.device)
                 batch_size = data.shape[0]
                 # data, target = data.to(self.device), target.to(self.device)
                 # batch_size = data.shape[0]
 
                 with self.amp_autocast():
-                    output, loss = self.model(data, x_lengths=audio_length, y=target)
+                    output, loss = self.model(data,
+                                              x_lengths=audio_length,
+                                              y=target)
                     # output = self.model(data)
                     # loss = self.loss(output, target)
 

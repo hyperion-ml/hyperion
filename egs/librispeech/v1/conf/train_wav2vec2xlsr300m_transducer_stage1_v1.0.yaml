@@ -7,11 +7,10 @@ data:
       return_segment_info:
         - text
     sampler:
-      sampler_type: 'seg_sampler'
-      # sampler_type: 'bucketing_seg_sampler'
-      min_batch_size: 4
-      batch_size: 4
-      iters_per_epoch: 6
+      #sampler_type: 'seg_sampler'
+      sampler_type: 'bucketing_seg_sampler'
+      max_batch_length: 85.
+      min_batch_size: 1
       drop_last: true
     data_loader:
       num_workers: 8
@@ -23,11 +22,10 @@ data:
       return_segment_info:
         - text
     sampler:
-      sampler_type: 'seg_sampler'
-      # sampler_type: 'bucketing_seg_sampler'
-      min_batch_size: 2
-      batch_size: 2
-      iters_per_epoch: 6
+      #sampler_type: 'seg_sampler'
+      sampler_type: 'bucketing_seg_sampler'
+      max_batch_length: 30
+      min_batch_size: 1
       drop_last: true
     data_loader:
       num_workers: 8

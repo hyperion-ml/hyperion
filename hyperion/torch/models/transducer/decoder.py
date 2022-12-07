@@ -98,6 +98,7 @@ class Decoder(nn.Module):
         """
         embedding_out = self.embedding(y)
         embedding_out = self.embedding_dropout(embedding_out)
+        #print("yy", y.shape, embedding_out.shape, y)
         rnn_out, (h, c) = self.rnn(embedding_out, states)
         out = self.output_linear(rnn_out)
 
@@ -105,17 +106,16 @@ class Decoder(nn.Module):
 
     def get_config(self):
         config = {
-            "in_feats" : self.in_feats,
-            "blank_id" : self.blank_id,
-            "vocab_size" : self.vocab_size,
-            "embedding_dim" :self.embedding_dim,
-            "num_layers" : self.num_layers,
-            "hidden_dim" : self.hidden_dim,
+            "in_feats": self.in_feats,
+            "blank_id": self.blank_id,
+            "vocab_size": self.vocab_size,
+            "embedding_dim": self.embedding_dim,
+            "num_layers": self.num_layers,
+            "hidden_dim": self.hidden_dim,
         }
 
         # base_config = super().get_config()
         return dict(list(config.items()))
-
 
     @staticmethod
     def filter_args(**kwargs):
@@ -132,36 +132,38 @@ class Decoder(nn.Module):
         return args
 
     @staticmethod
-    def add_class_args(parser, prefix=None, skip=set(["in_feats", "blank_id", "vocab_size" ])):
+    def add_class_args(parser,
+                       prefix=None,
+                       skip=set(["in_feats", "blank_id", "vocab_size"])):
 
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
         if "in_feats" not in skip:
-            parser.add_argument(
-                "--in-feats", type=int, required=True, help=("input feature dimension")
-            )
+            parser.add_argument("--in-feats",
+                                type=int,
+                                required=True,
+                                help=("input feature dimension"))
         if "blank_id" not in skip:
-            parser.add_argument(
-                "--blank-id", type=int, required=True, help=("blank id from sp model")
-            )
+            parser.add_argument("--blank-id",
+                                type=int,
+                                required=True,
+                                help=("blank id from sp model"))
         if "vocab_size" not in skip:
-            parser.add_argument(
-                "--vocab-size", type=int, required=True, help=("output prediction dimension")
-            )
-        parser.add_argument(
-            "--embedding-dim", default=1024, type=int, help=("feature dimension")
-        )
+            parser.add_argument("--vocab-size",
+                                type=int,
+                                required=True,
+                                help=("output prediction dimension"))
+        parser.add_argument("--embedding-dim",
+                            default=1024,
+                            type=int,
+                            help=("feature dimension"))
 
-        parser.add_argument(
-            "--num-layers", default=2, type=int, help=("")
-        )
+        parser.add_argument("--num-layers", default=2, type=int, help=(""))
 
-        parser.add_argument(
-            "--hidden-dim", default=512, type=int, help=("")
-        )
+        parser.add_argument("--hidden-dim", default=512, type=int, help=(""))
 
         if prefix is not None:
-            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
-
+            outer_parser.add_argument("--" + prefix,
+                                      action=ActionParser(parser=parser))
