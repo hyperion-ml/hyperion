@@ -111,10 +111,10 @@ class SegSampler(HypSampler):
             seg_ids = [(id, s, d) for id, s, d in zip(
                 chunks.seg_id, chunks.chunk_start, chunks[self.length_name])]
         else:
-            seg_ids = self.seg_set.iloc[idxs].id
+            seg_ids = self.seg_set.iloc[idxs].id.values
 
         if self.batch == 0:
-            logging.info("batch 0 chunks=%s", str(seg_ids[:10]))
+            logging.info("batch 0 seg_ids=%s", str(seg_ids[:10]))
 
         self.batch += 1
         return seg_ids

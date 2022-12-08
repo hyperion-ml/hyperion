@@ -11,9 +11,9 @@ data:
       sampler_type: 'bucketing_seg_sampler'
       max_batch_length: 85.
       min_batch_size: 1
-      drop_last: true
+      drop_last: false
     data_loader:
-      num_workers: 8
+      num_workers: 4
   val:
     dataset:
       aug_cfgs: 
@@ -28,7 +28,7 @@ data:
       min_batch_size: 1
       drop_last: true
     data_loader:
-      num_workers: 8
+      num_workers: 4
 model: wav2vec2xlsr300m_transducer.yaml
 trainer:
   optim:
@@ -48,7 +48,8 @@ trainer:
   use_amp: true
   log_interval: 1000
   epochs: 60
-  eff_batch_size: 1024
+  # eff_batch_size: 1024
+  eff_batch_size: 128
   train_mode: hf-feats-frozen-nograd
 
  
