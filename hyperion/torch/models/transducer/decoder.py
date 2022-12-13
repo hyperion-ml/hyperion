@@ -31,8 +31,8 @@ class Decoder(nn.Module):
         num_layers: int,
         hidden_dim: int,
         in_feats: int,
-        embedding_dropout: float = 0.0,
-        rnn_dropout: float = 0.0,
+        embedding_dropout_rate: float = 0.0,
+        rnn_dropout_rate: float = 0.0,
     ):
         """
         Args:
@@ -59,14 +59,14 @@ class Decoder(nn.Module):
             embedding_dim=embedding_dim,
             padding_idx=blank_id,
         )
-        self.embedding_dropout = nn.Dropout(embedding_dropout)
+        self.embedding_dropout = nn.Dropout(embedding_dropout_rate)
         # TODO(fangjun): Use layer normalized LSTM
         self.rnn = nn.LSTM(
             input_size=embedding_dim,
             hidden_size=hidden_dim,
             num_layers=num_layers,
             batch_first=True,
-            dropout=rnn_dropout,
+            dropout=rnn_dropout_rate,
         )
 
         self.in_feats = in_feats
@@ -75,6 +75,8 @@ class Decoder(nn.Module):
         self.embedding_dim = embedding_dim
         self.num_layers = num_layers
         self.hidden_dim = hidden_dim
+        self.embedding_dropout_rate = embedding_dropout_rate
+        self.rnn_dropout_rate = rnn_dropout_rate
         self.output_linear = nn.Linear(hidden_dim, in_feats)
 
     def forward(
@@ -112,6 +114,8 @@ class Decoder(nn.Module):
             "embedding_dim": self.embedding_dim,
             "num_layers": self.num_layers,
             "hidden_dim": self.hidden_dim,
+            "embedding_dropout_rate": self.embedding_dropout_rate,
+            "rnn_dropout_rate": self.rnn_dropout_rate,
         }
 
         # base_config = super().get_config()
@@ -126,6 +130,8 @@ class Decoder(nn.Module):
             "embedding_dim",
             "num_layers",
             "hidden_dim",
+            "embedding_dropout_rate",
+            "rnn_dropout_rate",
         )
         args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
@@ -159,6 +165,14 @@ class Decoder(nn.Module):
                             default=1024,
                             type=int,
                             help=("feature dimension"))
+        parser.add_argument("--embedding-dropout-rate",
+                            default=0.0,
+                            type=float,
+                            help=("dropout prob for decoder input embeddings"))
+        parser.add_argument("--rnn-dropout-rate",
+                            default=0.0,
+                            type=float,
+                            help=("dropout prob for decoder RNN "))
 
         parser.add_argument("--num-layers", default=2, type=int, help=(""))
 

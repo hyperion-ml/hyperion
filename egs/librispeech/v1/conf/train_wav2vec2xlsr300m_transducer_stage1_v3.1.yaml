@@ -29,7 +29,7 @@ data:
       drop_last: true
     data_loader:
       num_workers: 4
-model: wav2vec2xlsr300m_transducer.yaml
+model: wav2vec2xlsr300m_transducer_do0.2.yaml
 trainer:
   optim:
     opt_type: sgd

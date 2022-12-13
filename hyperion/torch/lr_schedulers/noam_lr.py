@@ -28,7 +28,6 @@ class NoamLR(InvPowLR):
       step: initial training step, this is needed to restart the model training.
 
     """
-
     def __init__(
         self,
         optimizer,
@@ -47,7 +46,7 @@ class NoamLR(InvPowLR):
         # different modules of the model
         max_lr = 0
         for group in optimizer.param_groups:
-            max_lr = max(lr, max_lr)
+            max_lr = max(group["lr"], max_lr)
         for group in optimizer.param_groups:
             group["lr"] = lr * group["lr"] / max_lr
         super().__init__(
