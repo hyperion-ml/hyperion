@@ -208,6 +208,17 @@ class TorchTrainer(object):
                 self.optimizer, swa_lr=self.swa_lr, anneal_epochs=self.swa_anneal_epochs
             )
 
+    def set_epoch(self, data_loader):
+        try:
+            data_loader.dataset.set_epoch(self.cur_epoch)
+        except AttributeError:
+            logging.warning("dataset doesn't have set_epoch member function")
+
+        try:
+            data_loader.batch_sampler.set_epoch(self.cur_epoch)
+        except AttributeError:
+            logging.warning("sampler doesn't have set_epoch member function")
+
     def fit(self, train_data, val_data=None):
         """Training function, it performs the training and validation epochs
 
@@ -224,7 +235,7 @@ class TorchTrainer(object):
         val_logs = {}
         self.loggers.on_train_begin(epochs=self.epochs)
         for epoch in range(self.cur_epoch, self.epochs):
-
+            self.set_epoch(train_data)
             self.loggers.on_epoch_begin(epoch, batches=len(train_data))
             if self.lr_scheduler is not None:
                 # this is needed by cosine scheduler
@@ -233,6 +244,7 @@ class TorchTrainer(object):
 
             logs = self.train_epoch(train_data)
             if val_data is not None:
+                self.set_epoch(val_data)
                 val_logs = self.validation_epoch(val_data)
                 logs.update(val_logs)
 
@@ -263,7 +275,6 @@ class TorchTrainer(object):
             self.save_swa_model(logs)
 
     def set_train_mode(self):
-        # self.model.train_mode = self.train_mode
         self.model.set_train_mode(self.train_mode)
 
     def train_epoch(self, data_loader):

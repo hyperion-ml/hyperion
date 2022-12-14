@@ -195,8 +195,14 @@ class NPModel(object):
 
     def to_json(self, **kwargs):
         """Returns model config as json string."""
-        # Piece of code borrowed from keras
+
         def get_json_type(obj):
+            # if obj is a np list of strings
+            if isinstance(obj, np.ndarray) and obj.ndim == 1:
+                if isinstance(obj[0], str):
+                    return list(obj)
+
+            # Piece of code borrowed from keras
             # if obj is any numpy type
             if type(obj).__module__ == np.__name__:
                 return obj.item()

@@ -13,6 +13,8 @@ from .radam import RAdam
 
 
 class OptimizerFactory(object):
+    """Factory class to create different types of optimizers."""
+
     @staticmethod
     def create(
         params,

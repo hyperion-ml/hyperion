@@ -575,14 +575,27 @@ class XVector(TorchModel):
         intertop_margin=0.0,
         num_subcenters=2,
     ):
-        if (self.num_classes is not None and self.num_classes != num_classes) or (
-            self.loss_type != loss_type) or (self.margin != margin
+
+        if (
+            (self.num_classes is not None and self.num_classes != num_classes)
+            or (self.loss_type != loss_type)
+            or (
+                loss_type == "subcenter-arc-softmax"
+                and self.classif_net.num_subcenters != num_subcenters
+            )
         ):
             # if we change the number of classes or the loss-type
             # we need to reinitiate the last layer
             logging.info("rebuilding output layer")
             self.classif_net.rebuild_output_layer(
-                num_classes, loss_type, cos_scale, margin, margin_warmup_epochs
+                num_classes,
+                loss_type,
+                cos_scale,
+                margin,
+                margin_warmup_epochs,
+                intertop_k=intertop_k,
+                intertop_margin=intertop_margin,
+                num_subcenters=num_subcenters,
             )
             return
 

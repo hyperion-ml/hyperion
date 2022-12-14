@@ -25,16 +25,22 @@ class ZNorm(ScoreNorm):
         """
         if mask is None:
             mu_z = np.mean(scores_enr_coh, axis=1, keepdims=True)
-            s_z = np.std(scores_enr_coh, axis=1, keepdims=True)
+            if self.norm_var:
+                s_z = np.std(scores_enr_coh, axis=1, keepdims=True)
         else:
             scores_enr_coh[mask == False] = 0
             n_z = np.mean(mask, axis=1, keepdims=True)
             mu_z = np.mean(scores_enr_coh, axis=1, keepdims=True) / n_z
-            s_z = np.sqrt(
-                np.mean(scores_enr_coh ** 2, axis=1, keepdims=True) / n_z - mu_z ** 2
-            )
+            if self.norm_var:
+                s_z = np.sqrt(
+                    np.mean(scores_enr_coh ** 2, axis=1, keepdims=True) / n_z
+                    - mu_z ** 2
+                )
 
-        s_z[s_z < self.std_floor] = self.std_floor
+        if self.norm_var:
+            s_z[s_z < self.std_floor] = self.std_floor
+        else:
+            s_z = 1.0
 
         scores_norm = (scores - mu_z) / s_z
         return scores_norm

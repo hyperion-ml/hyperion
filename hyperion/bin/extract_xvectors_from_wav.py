@@ -208,7 +208,7 @@ def extract_xvectors(
                     writer.write([key], [y])
                     if write_num_frames_spec is not None:
                         keys.append(key)
-                        info.append(str(x.shape[1]))
+                        info.append(str(x.shape[-1]))
 
                     t8 = time.time()
                     read_time = t2 - t1

@@ -22,4 +22,6 @@ def compute_accuracy(y_true, y_pred, normalize=True, sample_weight=None):
     Returns:
       Accuracy or number of correctly classified samples.
     """
-    return accuracy_score(y_true, y_pred, normalize, sample_weight)
+    return accuracy_score(
+        y_true, y_pred, normalize=normalize, sample_weight=sample_weight
+    )

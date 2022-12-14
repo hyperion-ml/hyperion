@@ -129,7 +129,6 @@ class XVectorTrainer(TorchTrainer):
 
             data, target = data.to(self.device), target.to(self.device)
             batch_size = data.shape[0]
-
             with self.amp_autocast():
                 output = self.model(data, y=target)
                 loss = self.loss(output, target).mean() / self.grad_acc_steps
