@@ -1,0 +1,8 @@
+resnet_type: resnet34
+in_channels: 1
+in_feats: 80
+in_kernel_size: 3
+in_stride: 1
+no_maxpool: true
+embed_dim: 256
+dropout_rate: 0.0

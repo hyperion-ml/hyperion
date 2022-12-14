@@ -468,6 +468,9 @@ class AudioDataset(Dataset):
         target_sample_freq=None,
         wav_scale=2 ** 15 - 1,
         is_val=False,
+        dinossl_chunk_len_mult=None,
+        dinossl_n_chunks=None,
+        dinossl_reduce_overlap_prob=0
     ):
 
         super().__init__()
@@ -514,6 +517,19 @@ class AudioDataset(Dataset):
         )
         self.return_orig = return_orig
 
+        # start dino-stuff persephone_dinossl
+        # dinossl related
+        # self.dinossl_chunk_len_mult = dinossl_chunk_len_mult
+        # self.dinossl_n_chunks = dinossl_n_chunks
+        # self.dinossl_reduce_overlap_prob = dinossl_reduce_overlap_prob
+
+        # self._prepare_class_info(class_file)
+
+        # if max_chunk_length is None:
+        #    max_chunk_length = min_chunk_length
+        # self._min_chunk_length = min_chunk_length
+        # self._max_chunk_length = max_chunk_length
+        # end dinostuff =======
         self.num_augs = num_augs
         self._create_augmenters(aug_cfgs)
 
@@ -589,6 +605,84 @@ class AudioDataset(Dataset):
     def max_seq_length(self):
         return np.max(self.seq_lengths)
 
+    # start dino stuff <<<<<<< persephone_dinossl
+    # def _prune_short_seqs(self, min_length):
+    #    if self.rank == 0:
+    #        logging.info("pruning short seqs")
+    #    keep_idx = self.seq_lengths >= min_length
+    #    self.u2c = self.u2c.filter_index(keep_idx)
+    #    self._seq_lengths = self.seq_lengths[keep_idx]
+    #    if self.rank == 0:
+    #        logging.info(
+    #            "pruned seqs with min_length < %f,"
+    #            "keep %d/%d seqs" % (min_length, self.num_seqs, len(keep_idx))
+    #        )
+
+    # def _prepare_class_info(self, class_file):
+    #    class_weights = None
+    #    if class_file is None:
+    #        classes, class_idx = np.unique(self.u2c.info, return_inverse=True)
+    #        class2idx = {k: i for i, k in enumerate(classes)}
+    #    else:
+    #        if self.rank == 0:
+    #            logging.info("reading class-file %s" % (class_file))
+    #        class_info = pd.read_csv(class_file, header=None, sep=" ")
+    #        class2idx = {str(k): i for i, k in enumerate(class_info[0])}
+    #        class_idx = np.array([class2idx[k] for k in self.u2c.info], dtype=int)
+    #        if class_info.shape[1] == 2:
+    #            class_weights = np.array(class_info[1]).astype(
+    #                floatstr_torch(), copy=False
+    #            )
+    #
+    #    self.num_classes = len(class2idx)
+
+    #    class2utt_idx = {}
+    #    class2num_utt = np.zeros((self.num_classes,), dtype=int)
+
+    #    for k in range(self.num_classes):
+    #        idx = (class_idx == k).nonzero()[0]
+    #        class2utt_idx[k] = idx
+    #        class2num_utt[k] = len(idx)
+    #        if class2num_utt[k] == 0:
+    #            if (not self.is_val) and (self.dinossl_chunk_len_mult is None):
+    #                logging.warning("class %d doesn't have any samples" % (k))
+    #            if class_weights is None:
+    #                class_weights = np.ones((self.num_classes,), dtype=floatstr_torch())
+    #            class_weights[k] = 0
+
+    #    count_empty = np.sum(class2num_utt == 0)
+    #    if count_empty > 0:
+    #        logging.warning("%d classes have 0 samples" % (count_empty))
+
+    #    self.utt_idx2class = class_idx
+    #    self.class2utt_idx = class2utt_idx
+    #    self.class2num_utt = class2num_utt
+    #    if class_weights is not None:
+    #        class_weights /= np.sum(class_weights)
+    #        class_weights = torch.Tensor(class_weights)
+    #    self.class_weights = class_weights
+
+    #    if self.short_seq_exist:
+    #        # if there are seq shorter than max_chunk_lenght we need some extra variables
+    #        # we will need class_weights to put to 0 classes that have all utts shorter than the batch chunk length
+    #        if self.class_weights is None:
+    #            self.class_weights = torch.ones((self.num_classes,))
+
+    #        # we need the max length of the utterances of each class
+    #        class2max_length = torch.zeros((self.num_classes,), dtype=torch.float)
+    #        for c in range(self.num_classes):
+    #            if class2num_utt[c] > 0:
+    #                class2max_length[c] = np.max(
+    #                    self.seq_lengths[self.class2utt_idx[c]]
+    #                )
+    # 
+    #        self.class2max_length = class2max_length
+
+    
+    #def _seq_shorter_than_max_length_exists(self, max_length):
+    #    return np.any(self.seq_lengths < max_length)
+    #end dinostuff
+    
     @property
     def num_classes(self):
         return {k: t.num_classes for k, t in self.class_info.items()}
@@ -602,6 +696,12 @@ class AudioDataset(Dataset):
                 f"chunk duration ({duration})"
             )
         else:
+        # start dino stuff persephone_dinossl
+        #    if self.dinossl_n_chunks == None:
+        #        return self._get_random_chunk(index)
+        #    else: # multi-chunks for dinossl
+        #        return self._get_random_chunks(index)
+        # end dino stuff
             seg_id, start, duration = segment, 0, 0
 
         if "start" in self.seg_set:
@@ -695,7 +795,71 @@ class AudioDataset(Dataset):
                 r.append(x_orig)
 
         else:
+        # start dinostuff persephone_dinossl
+        #    chunk_length = self.max_chunk_length
+
+        #key = self.u2c.key[index]
+
+        #full_seq_length = self.seq_lengths[index]
+        #assert (
+        #    chunk_length <= full_seq_length
+        #), "chunk_length(%d) <= full_seq_length(%d)" % (chunk_length, full_seq_length)
+
+        #time_offset = torch.rand(size=(1,)).item() * (full_seq_length - chunk_length)
+        #reverb_context = min(self.reverb_context, time_offset)
+        #time_offset -= reverb_context
+        #read_chunk_length = chunk_length + reverb_context
+
+        # logging.info('get-random-chunk {} {} {} {} {}'.format(index, key, time_offset, chunk_length, full_seq_length ))
+        #x, fs = self.r.read([key], time_offset=time_offset, time_durs=read_chunk_length)
+
+        #x = x[0]
+        #fs = fs[0]
+
+        #x_clean = x
+        #if self.augmenter is not None:
+        #    chunk_length_samples = int(chunk_length * fs)
+        #    end_idx = len(x)
+        #    reverb_context_samples = end_idx - chunk_length_samples
+        #    assert reverb_context_samples >= 0, (
+        #        "key={} time-offset={}, read-chunk={} "
+        #        "read-x-samples={}, chunk_samples={}, reverb_context_samples={}"
+        #    ).format(
+        #        key,
+        #        time_offset,
+        #        read_chunk_length,
+        #        end_idx,
+        #        chunk_length_samples,
+        #        reverb_context_samples,
+        #    )
+        #    # end_idx = reverb_context_samples + chunk_length_samples
+        #    x, aug_info = self.augmenter(x)
+        #    x = x[reverb_context_samples:end_idx]
+        #    if self.return_clean_aug_pair:
+        #        x_clean = x_clean[reverb_context_samples:end_idx]
+        #        x_clean = x_clean.astype(floatstr_torch(), copy=False)
+        #    # x_clean = x_clean[reverb_context_samples:]
+        #    # logging.info('augmentation x-clean={}, x={}, aug_info={}'.format(
+        #    #    x_clean.shape, x.shape, aug_info))
+        ##     if len(x) != 64000:
+        ##         logging.info('x!=4s, {} {} {} {} {} {} {} {}'.format(len(x),reverb_context, reverb_context_samples, chunk_length, chunk_length_samples, end_idx, fs, read_chunk_length))
+
+        ## if len(x) != 64000:
+        ##         logging.info('x!=4s-2, {} {} {} {}'.format(len(x), chunk_length, fs, read_chunk_length))
+
+        #if self.transpose_input:
+        #    x = x[None, :]
+        #    if self.return_clean_aug_pair:
+        #        x_clean = x_clean[None, :]
+
+        #x = x.astype(floatstr_torch(), copy=False)
+        #if self.return_clean_aug_pair:
+        #    r = x, x_clean
+        #else:
+        #    r = (x,)
+        # end dinostuff
             r = [x]
+
 
         # adds the segment labels
         seg_info = self._get_segment_info(seg_id)
@@ -703,6 +867,105 @@ class AudioDataset(Dataset):
 
         return (*r,)
 
+    def _get_random_chunks(self, index):
+
+        if len(index) == 2:
+            index, chunk_length = index
+        else:
+            chunk_length = self.max_chunk_length
+        key = self.u2c.key[index]
+        
+        full_seq_length = self.seq_lengths[index]
+        assert chunk_length <= full_seq_length, 'chunk_length(%d) <= full_seq_length(%d)' % (
+            chunk_length, full_seq_length)
+
+        chunk_length_list = []
+        # 2 long chunks
+        if chunk_length * self.dinossl_chunk_len_mult > full_seq_length:
+            chunk_length_list.extend([full_seq_length]*2)
+        else:
+            chunk_length_list.extend([chunk_length * self.dinossl_chunk_len_mult]*2)
+        # self.n_chunks - 2 short chunks
+        chunk_length_list.extend([chunk_length]*(self.dinossl_n_chunks-2))
+
+        r_list = [] # this is for dino's multiple augmentations (more than once) of a given sample
+
+        # to reduce overlap between 2 long chunks
+        reduce_overlap = (self.dinossl_reduce_overlap_prob > torch.rand(size=(1,)))
+        if reduce_overlap:
+            long_chunk_proc_cnt = 0
+            tmp = torch.rand(size=(5,))*(full_seq_length - chunk_length_list[0])
+            time_offset_long_chunks = [torch.min(tmp), torch.max(tmp)]
+
+        for chunk_length in chunk_length_list: # full_seq_length, self.reverb_context are fixed within this for loop
+            if reduce_overlap and (long_chunk_proc_cnt < 2):
+                time_offset = time_offset_long_chunks[long_chunk_proc_cnt]
+                long_chunk_proc_cnt += 1
+            else:
+                time_offset = torch.rand(size=(1,)).item()*(full_seq_length-chunk_length)
+            reverb_context = min(self.reverb_context, time_offset)
+            time_offset -= reverb_context
+            read_chunk_length = chunk_length + reverb_context
+
+            #logging.info('get-random-chunk {} {} {} {} {}'.format(index, key, time_offset, chunk_length, full_seq_length ))
+            x, fs = self.r.read([key], time_offset=time_offset,
+                                time_durs=read_chunk_length)
+                
+            x = x[0]
+            fs = fs[0]
+
+            x_clean = x
+            if self.augmenter is not None:
+                chunk_length_samples = int(chunk_length * fs)
+                end_idx = len(x)
+                reverb_context_samples = end_idx - chunk_length_samples
+                assert reverb_context_samples >= 0, (
+                    ('key={} time-offset={}, read-chunk={} '
+                    'read-x-samples={}, chunk_samples={}, reverb_context_samples={}').format(
+                        key, time_offset, read_chunk_length, 
+                        end_idx, chunk_length_samples, reverb_context_samples))
+                # end_idx = reverb_context_samples + chunk_length_samples
+                x, aug_info = self.augmenter(x)
+                x = x[reverb_context_samples:end_idx]
+                if self.return_clean_aug_pair:
+                    x_clean = x_clean[reverb_context_samples:end_idx]
+                    x_clean = x_clean.astype(floatstr_torch(), copy=False)
+                #x_clean = x_clean[reverb_context_samples:]
+                #logging.info('augmentation x-clean={}, x={}, aug_info={}'.format(
+                #    x_clean.shape, x.shape, aug_info))
+            #     if len(x) != 64000:
+            #         logging.info('x!=4s, {} {} {} {} {} {} {} {}'.format(len(x),reverb_context, reverb_context_samples, chunk_length, chunk_length_samples, end_idx, fs, read_chunk_length))
+
+            # if len(x) != 64000:
+            #         logging.info('x!=4s-2, {} {} {} {}'.format(len(x), chunk_length, fs, read_chunk_length))
+
+            if self.transpose_input:
+                x = x[None,:]
+                if self.return_clean_aug_pair:
+                    x_clean = x_clean[None,:]
+
+            x = x.astype(floatstr_torch(), copy=False)
+            if self.return_clean_aug_pair:
+                r = x, x_clean
+            else:
+                r = (x,)
+            r_list.append(*r)
+
+        if len(r_list) == 1: del r_list
+
+        if not self.return_class:
+            try:
+                return r_list
+            except:
+                return r
+
+        class_idx = self.utt_idx2class[index]
+        try:
+            r = r_list, class_idx
+        except:
+            r = *r, class_idx
+
+        return r
     @staticmethod
     def filter_args(**kwargs):
 

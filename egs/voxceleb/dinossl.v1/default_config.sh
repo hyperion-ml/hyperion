@@ -1,0 +1,1 @@
+global_conf/dinossl_tuning/config_fbank80_stmn_lresnet34_e256_do0_b96_amp.dinossl.v1.sh
