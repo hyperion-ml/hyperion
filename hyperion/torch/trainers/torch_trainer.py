@@ -3,6 +3,7 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+from hyperion.torch.utils import dinossl
 import os
 import math
 import contextlib
@@ -413,7 +414,13 @@ class TorchTrainer(object):
         opt_args["oss"] = oss
         if self.rank == 0:
             logging.info("optimizer args={}".format(opt_args))
-        optimizer = OF.create(model.parameters(), **opt_args)
+        if opt_args['dinossl_style']: # dinossl_style means per-parameter updates following FB dino repo to NOT regularize biases nor Norm parameters
+            params_groups = dinossl.get_params_groups(model)
+            del opt_args['dinossl_style']
+            optimizer = OF.create(params_groups, **opt_args)
+        else:
+            del opt_args['dinossl_style']
+            optimizer = OF.create(model.parameters(), **opt_args)
         return optimizer
 
     def _make_lr_sched(self, lr_sched, optim):

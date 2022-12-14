@@ -1,0 +1,6 @@
+optim: optim_adam_default.yaml
+lrsched: lrsched_exp_default.yaml
+use_amp: true
+log_interval: 1000
+epochs: 70
+eff_batch_size: 512

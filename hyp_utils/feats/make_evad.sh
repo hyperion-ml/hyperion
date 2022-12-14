@@ -84,11 +84,42 @@ if [ -f $data/segments ]; then
   opt_args="${opt_args} --segments $data/segments"
 fi
 
+set +e
 $cmd JOB=1:$nj $logdir/make_vad_${name}.JOB.log \
     hyp_utils/conda_env.sh \
     compute_energy_vad.py --cfg $vad_config $opt_args \
     --input $scp --output ark,scp:$vaddir/vad_$name.JOB.ark,$vaddir/vad_$name.JOB.scp \
-    --part-idx JOB --num-parts $nj || exit 1
+    --part-idx JOB --num-parts $nj
+set -e
+
+# rerun not successful jobs
+for tmp in {1..3};do
+    pids=""
+
+    for((i=1;i<=$nj;i++))
+    do
+	status=$(tail -n 1 $logdir/make_vad_${name}.$i.log | \
+			awk '/status 0/ { print 0}
+                            !/status 0/ { print 1}')
+	if [ $status -eq 1 ];then
+	    echo "JOB $i failed, resubmitting"
+        sleep 10
+        opt_args=`echo ${opt_args} | sed -e "s/utt2num_frames.JOB/utt2num_frames.$i/g"`
+        $cmd $logdir/make_vad_${name}.$i.log \
+            hyp_utils/conda_env.sh \
+            compute_energy_vad.py --cfg $vad_config $opt_args \
+            --input $scp --output ark,scp:$vaddir/vad_$name.$i.ark,$vaddir/vad_$name.$i.scp \
+            --part-idx $i --num-parts $nj &
+        opt_args=`echo ${opt_args} | sed -e "s/utt2num_frames.$i/utt2num_frames.JOB/g"`
+        pids="$pids $!"
+	fi
+    done
+
+    for pid in $pids;do
+        wait $pid
+    done
+done
+wait
 
 # concatenate the .scp files together.
 for n in $(seq $nj); do

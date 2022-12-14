@@ -222,7 +222,7 @@ class XVector(TorchModel):
         return x
 
     def _post_enc(self, x, in_lengths=None, max_in_length=None):
-        if self.encoder_net.out_dim() == 4:
+        if self.encoder_net.out_dim() == 4 and (not isinstance(self.classif_net,torch.nn.modules.linear.Linear)):
             x = x.view(x.size(0), -1, x.size(-1))
 
         if self.proj is not None:
@@ -286,7 +286,10 @@ class XVector(TorchModel):
         x = self.encoder_net(x)
         x, x_lengths = self._post_enc(x, x_lengths, max_in_length)
         p = self.pool_net(x, x_lengths=x_lengths)
-        y = self.classif_net(p, y)
+        if isinstance(self.classif_net.output,nn.modules.linear.Identity): # for dino
+            y = self.classif_net(p)
+        else:
+            y = self.classif_net(p, y)
         return y
 
     def forward_hid_feats(
@@ -572,6 +575,7 @@ class XVector(TorchModel):
         intertop_margin=0.0,
         num_subcenters=2,
     ):
+
         if (
             (self.num_classes is not None and self.num_classes != num_classes)
             or (self.loss_type != loss_type)
