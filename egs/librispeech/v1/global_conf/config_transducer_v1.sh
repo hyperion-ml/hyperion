@@ -1,4 +1,4 @@
- WavLM base trained on 60k LibriLight + 10k GigaSpeech + 24k Voxpopuli + ECAPA-TDNN 512x3
+# WavLM base trained on 60k LibriLight + 10k GigaSpeech + 24k Voxpopuli + ECAPA-TDNN 512x3
 
 # hugging face model
 hf_model_name=wav2vec2xlsr300m
