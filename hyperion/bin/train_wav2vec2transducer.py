@@ -18,7 +18,6 @@ import logging
 import multiprocessing
 
 import numpy as np
-import soundfile as sf
 import torch
 import torch.nn as nn
 
@@ -41,7 +40,6 @@ def transducer_collate(batch):
     audio_length = []
     target = []
     for record in batch:
-        # sf.write('/export/c06/ylu125/GSP/hyperion/egs/librispeech/v1/wavs/mix_{}.wav'.format(np.random.randn()), record[0], 16000)
         wav = torch.as_tensor(record[0])
         audio.append(wav)
         audio_length.append(wav.shape[0])
