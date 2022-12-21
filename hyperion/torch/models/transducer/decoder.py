@@ -15,8 +15,10 @@
 # limitations under the License.
 
 from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
+import logging
 from typing import Optional, Tuple
 
+import logging
 import torch
 import torch.nn as nn
 
@@ -137,6 +139,17 @@ class Decoder(nn.Module):
 
         return args
 
+
+    @staticmethod
+    def filter_finetune_args(**kwargs):
+        valid_args = (
+            "embedding_dropout_rate",
+            "rnn_dropout_rate",
+        )
+        args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
+
+        return args
+
     @staticmethod
     def add_class_args(parser,
                        prefix=None,
@@ -177,6 +190,59 @@ class Decoder(nn.Module):
         parser.add_argument("--num-layers", default=2, type=int, help=(""))
 
         parser.add_argument("--hidden-dim", default=512, type=int, help=(""))
+
+        if prefix is not None:
+            outer_parser.add_argument("--" + prefix,
+                                      action=ActionParser(parser=parser))
+
+
+    def change_config(
+        self,
+        override_dropouts=False,
+        embedding_dropout_rate: float = 0.0,
+        rnn_dropout_rate: float = 0.0,
+    ):
+        logging.info("changing decoder config")
+
+        if override_dropouts:
+            logging.info("overriding decoder dropouts")
+
+            # for module in self.modules():
+            #     if isinstance(module, DropConnect1d):
+            #         module.p *= drop_connect_rate / self.drop_connect_rate
+
+            self.rnn_dropout_rate = rnn_dropout_rate
+            self.rnn.p = self.rnn_dropout_rate
+            
+            self.embedding_dropout_rate = embedding_dropout_rate
+            self.embedding_dropout = nn.Dropout(self.embedding_dropout_rate)
+
+
+
+    @staticmethod
+    def add_finetune_args(parser,
+                       prefix=None,
+                       skip=set(["in_feats", "blank_id", "vocab_size"])):
+
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
+
+        parser.add_argument("--override-dropouts",
+                            default=False,
+                            action=ActionYesNo,
+                            help=(
+                                "whether to use the dropout probabilities passed in the "
+                                "arguments instead of the defaults in the pretrained model."
+                            ))
+        parser.add_argument("--embedding-dropout-rate",
+                            default=0.0,
+                            type=float,
+                            help=("dropout prob for decoder input embeddings"))
+        parser.add_argument("--rnn-dropout-rate",
+                            default=0.0,
+                            type=float,
+                            help=("dropout prob for decoder RNN "))
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix,

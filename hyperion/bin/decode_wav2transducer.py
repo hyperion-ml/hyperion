@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
- Copyright 2019 Jesus Villalba (Johns Hopkins University)
+ Copyright 2022 Johns Hopkins University  (Author: Yen-Ju Lu, Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0) 
 """
 
@@ -55,73 +55,6 @@ def load_model(model_path, device):
     model.eval()
     return model
 
-
-
-# def decode_dataset(
-#     dl: torch.utils.data.DataLoader,
-#     params: AttributeDict,
-#     model: nn.Module,
-#     sp: spm.SentencePieceProcessor,
-# ) -> Dict[str, List[Tuple[str, List[str], List[str]]]]:
-#     """Decode dataset.
-#     Args:
-#       dl:
-#         PyTorch's dataloader containing the dataset to decode.
-#       params:
-#         It is returned by :func:`get_params`.
-#       model:
-#         The neural model.
-#       sp:
-#         The BPE model.
-#     Returns:
-#       Return a dict, whose key may be "greedy_search" if greedy search
-#       is used, or it may be "beam_7" if beam size of 7 is used.
-#       Its value is a list of tuples. Each tuple contains two elements:
-#       The first is the reference transcript, and the second is the
-#       predicted result.
-#     """
-#     num_cuts = 0
-
-#     try:
-#         num_batches = len(dl)
-#     except TypeError:
-#         num_batches = "?"
-
-#     if decoding_method == "greedy_search":
-#         log_interval = 100
-#     else:
-#         log_interval = 2
-
-#     results = defaultdict(list)
-#     for batch_idx, batch in enumerate(dl):
-#         texts = batch["supervisions"]["text"]
-#         cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
-
-#         hyps_dict = decode_one_batch(
-#             params=params,
-#             model=model,
-#             sp=sp,
-#             batch=batch,
-#         )
-
-#         for name, hyps in hyps_dict.items():
-#             this_batch = []
-#             assert len(hyps) == len(texts)
-#             for cut_id, hyp_words, ref_text in zip(cut_ids, hyps, texts):
-#                 ref_words = ref_text.split()
-#                 this_batch.append((cut_id, ref_words, hyp_words))
-
-#             results[name].extend(this_batch)
-
-#         num_cuts += len(texts)
-
-#         if batch_idx % log_interval == 0:
-#             batch_str = f"{batch_idx}/{num_batches}"
-
-#             logging.info(f"batch {batch_str}, cuts processed until now is {num_cuts}")
-#     return results
-
-
 def decode_one_batch(
     model: nn.Module,
     sp: spm.SentencePieceProcessor,
@@ -160,13 +93,8 @@ def decode_one_batch(
     feature = feature.to(device)
     # at entry, feature is (N, T, C)
 
-    feature_lens = torch.Tensor([x.shape[1]]).int() #batch["supervisions"]
-    # feature_lens = supervisions["num_frames"].to(device)
+    feature_lens = torch.Tensor([x.shape[1]]).int()
 
-    # encoder_out, encoder_out_lens = model.encoder(x=feature, x_lens=feature_lens)
-
-    # print("feature",feature.shape)
-    # print("feature_lens",feature_lens)
     encoder_out, hid_feats, encoder_out_lens = model.forward_feats(x=feature, x_lengths=feature_lens)
     
     hyps = []
@@ -191,9 +119,9 @@ def decode_one_batch(
     logging.info("hyps:{}".format(" ".join(hyps[0])))
     
     if decoding_method == "greedy_search":
-        return hyps[0] #{"greedy_search": hyps}
+        return hyps[0]
     else:
-        return hyps[0] #{f"beam_{params.beam_size}": hyps}
+        return hyps[0]
 
 
 def decode_transducer(
@@ -211,12 +139,6 @@ def decode_transducer(
 
     sp  = spm.SentencePieceProcessor()
     sp.load(bpe_model)
-    # blank_id = self.sp.piece_to_id("<blk>")
-    # vocab_size = self.sp.get_piece_size()
-
-    # if write_num_frames_spec is not None:
-    #     keys = []
-    #     info = []
 
     augmenter = None
     aug_df = None
@@ -268,27 +190,10 @@ def decode_transducer(
                         if x.shape[1] == 0:
                             y = np.zeros((model.embed_dim,), dtype=float_cpu())
                         else:
-                            # x = x.transpose(1, 2).contiguous()
-                            # x = torch.unsqueeze(x,2)
-                            # writer.write(key + ' ' + "abc")
                             y = decode_one_batch(model=model, sp=sp, x=x)
-                            writer.write(key + ' ' + ' '.join(y) + "\n")
-
-                            # y = (
-                            #     model.extract_embed(
-                            #         x,
-                            #         chunk_length=chunk_length,
-                            #         embed_layer=embed_layer,
-                            #     )
-                            #     .cpu()
-                            #     .numpy()[0]
-                            # )
 
                     t7 = time.time()
-                    # writer.write([key], [y])
-                    # if write_num_frames_spec is not None:
-                    #     keys.append(key)
-                    #     info.append(str(x.shape[-1]))
+                    writer.write(key + ' ' + ' '.join(y) + "\n")
 
                     t8 = time.time()
                     read_time = t2 - t1
@@ -312,15 +217,6 @@ def decode_transducer(
                             x0.shape[0] / fs[0] / tot_time,
                         )
                     )
-
-    # if write_num_frames_spec is not None:
-    #     logging.info("writing num-frames to %s" % (write_num_frames_spec))
-    #     u2nf = Utt2Info.create(keys, info)
-    #     u2nf.save(write_num_frames_spec)
-
-    # if aug_info_path is not None:
-    #     aug_df = pd.concat(aug_df, ignore_index=True)
-    #     aug_df.to_csv(aug_info_path, index=False, na_rep="n/a")
 
 
 if __name__ == "__main__":

@@ -263,11 +263,11 @@ class HFWav2Transducer(TorchModel):
             self.unfreeze()
         elif mode == "frozen":
             self.freeze()
-        elif mode == "ft-embed-affine":
-            self.unfreeze()
-            self.freeze_feat_fuser()
-            self.freeze_hf_feats()
-            self.transducer.freeze_preembed_layers()
+        # elif mode == "ft-embed-affine":
+        #     self.unfreeze()
+        #     self.freeze_feat_fuser()
+        #     self.freeze_hf_feats()
+        #     self.transducer.freeze_preembed_layers()
         elif mode in ["ft-transducer", "ft-transducer-nograd"]:
             self.unfreeze()
             self.freeze_hf_feats()
@@ -295,9 +295,9 @@ class HFWav2Transducer(TorchModel):
 
         if train_mode in ["full", "frozen"]:
             super()._train(train_mode)
-        elif train_mode == "ft-embed-affine":
-            self.hf_feats.train()
-            self.transducer._train("ft-embed_affine")
+        # elif train_mode == "ft-embed-affine":
+        #     self.hf_feats.train()
+        #     self.transducer._train("ft-embed_affine")
         elif train_mode in [
                 "ft-transducer",
                 "hf-feats-frozen",

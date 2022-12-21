@@ -23,6 +23,7 @@ try:
 except ModuleNotFoundError:
     from ...utils import dummy_k2 as k2
 
+import logging
 import torch
 import torch.nn as nn
 import torchaudio
@@ -210,51 +211,41 @@ class Transducer(TorchModel):
             outer_parser.add_argument("--" + prefix,
                                       action=ActionParser(parser=parser))
 
-    # def change_config(
-    #     self,
-    #     override_dropouts=False,
-    #     dropout_rate=0,
-    #     num_classes=None,
-    #     loss_type="arc-softmax",
-    #     cos_scale=64,
-    #     margin=0.3,
-    #     margin_warmup_epochs=10,
-    #     intertop_k=5,
-    #     intertop_margin=0.0,
-    #     num_subcenters=2,
-    # ):
-    #     logging.info("changing x-vector config")
-    #     self.rebuild_output_layer(
-    #         num_classes=num_classes,
-    #         loss_type=loss_type,
-    #         cos_scale=cos_scale,
-    #         margin=margin,
-    #         margin_warmup_epochs=margin_warmup_epochs,
-    #         intertop_k=intertop_k,
-    #         intertop_margin=intertop_margin,
-    #         num_subcenters=num_subcenters,
-    #     )
+    def change_config(self, 
+        decoder,
+        # joiner,
+        ):
+        logging.info("changing transducer config")
+        self.decoder.change_config(**decoder)
+        # self.joiner.change_config(**joiner)
 
-    #     if override_dropouts:
-    #         logging.info("overriding x-vector dropouts")
-    #         self.encoder_net.change_dropouts(dropout_rate)
-    #         self.classif_net.change_dropouts(dropout_rate)
+    @staticmethod
+    def filter_finetune_args(**kwargs):
+        # get arguments for pooling
+        decoder_args = Decoder.filter_finetune_args(**kwargs["decoder"])
+        # joiner_args = Joiner.filter_finetune_args(**kwargs["joiner"])
 
-    # @staticmethod
-    # def filter_finetune_args(**kwargs):
-    #     valid_args = (
-    #     )
-    #     args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
-    #     return args
+        valid_args = (
+        )
+        args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
-    # @staticmethod
-    # def add_finetune_args(parser, prefix=None):
-    #     if prefix is not None:
-    #         outer_parser = parser
-    #         parser = ArgumentParser(prog="")
+        args["decoder"] = decoder_args
+        # args["joiner"] = joiner_args
+        return args
 
-    #     if prefix is not None:
-    #         outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
+    @staticmethod
+    def add_finetune_args(parser, prefix=None):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
 
-    # add_argparse_args = add_class_args
-    # add_argparse_finetune_args = add_finetune_args
+        Decoder.add_finetune_args(parser, prefix="decoder")
+        # Joiner.add_finetune_args(parser, prefix="joiner")
+
+        if prefix is not None:
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
+
+    add_argparse_args = add_class_args
+    add_argparse_finetune_args = add_finetune_args
+
+

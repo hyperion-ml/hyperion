@@ -1,6 +1,6 @@
 #!/bin/bash
 # Copyright
-#                2020   Johns Hopkins University (Author: Jesus Villalba)
+#                2022   Johns Hopkins University (Author: Yen-Ju Lu)
 # Apache 2.0.
 #
 . ./cmd.sh
