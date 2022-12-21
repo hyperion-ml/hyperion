@@ -109,6 +109,7 @@ class TransducerTrainer(TorchTrainer):
             cpu_offload=cpu_offload,
         )
 
+
     @record
     def train_epoch(self, data_loader):
         """Training epoch loop
@@ -124,6 +125,8 @@ class TransducerTrainer(TorchTrainer):
 
         for batch, (data, audio_length, target) in enumerate(data_loader):
             self.loggers.on_batch_begin(batch)
+            # print("data",data.shape)
+            # print("audio_length",audio_length)
 
             if batch % self.grad_acc_steps == 0:
                 self.optimizer.zero_grad()

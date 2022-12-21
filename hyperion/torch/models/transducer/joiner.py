@@ -40,6 +40,8 @@ class Joiner(nn.Module):
         Returns:
           Return a tensor of shape (N, T, U, C).
         """
+        # print("encoder_out",encoder_out.shape)
+        # print("decoder_out",decoder_out.shape)
         assert encoder_out.ndim == decoder_out.ndim == 3
         assert encoder_out.size(0) == decoder_out.size(0)
         assert encoder_out.size(2) == decoder_out.size(2)
