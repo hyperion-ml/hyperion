@@ -22,7 +22,8 @@ import torch
 from .hf_wav2transducer import HFWav2Transducer
 
 
-def greedy_search(model: HFWav2Transducer, encoder_out: torch.Tensor) -> List[int]:
+def greedy_search(model: HFWav2Transducer,
+                  encoder_out: torch.Tensor) -> List[int]:
     """
     Args:
       model:
@@ -39,7 +40,8 @@ def greedy_search(model: HFWav2Transducer, encoder_out: torch.Tensor) -> List[in
     blank_id = model.transducer.decoder.blank_id
     device = model.device
 
-    sos = torch.tensor([blank_id], device=device, dtype=torch.int64).reshape(1, 1)
+    sos = torch.tensor([blank_id], device=device,
+                       dtype=torch.int64).reshape(1, 1)
     decoder_out, (h, c) = model.transducer.decoder(sos)
     T = encoder_out.size(1)
     t = 0
@@ -53,7 +55,7 @@ def greedy_search(model: HFWav2Transducer, encoder_out: torch.Tensor) -> List[in
 
     while t < T and sym_per_utt < max_sym_per_utt:
         # fmt: off
-        current_encoder_out = encoder_out[:, t:t+1, :]
+        current_encoder_out = encoder_out[:, t:t + 1, :]
         # fmt: on
         logits = model.transducer.joiner(current_encoder_out, decoder_out)
         # logits is (1, 1, 1, vocab_size)
@@ -120,11 +122,12 @@ def beam_search(
     max_u = 20000  # terminate after this number of steps
     u = 0
 
-    cache: Dict[str, Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]] = {}
+    cache: Dict[str, Tuple[torch.Tensor, Tuple[torch.Tensor,
+                                               torch.Tensor]]] = {}
 
     while t < T and u < max_u:
         # fmt: off
-        current_encoder_out = encoder_out[:, t:t+1, :]
+        current_encoder_out = encoder_out[:, t:t + 1, :]
         # fmt: on
         A = B
         B = []
@@ -152,9 +155,8 @@ def beam_search(
             cached_key = "_".join(map(str, y_star.ys))
 
             if cached_key not in cache:
-                decoder_input = torch.tensor([y_star.ys[-1]], device=device).reshape(
-                    1, 1
-                )
+                decoder_input = torch.tensor([y_star.ys[-1]],
+                                             device=device).reshape(1, 1)
 
                 decoder_out, decoder_state = model.transducer.decoder(
                     decoder_input,
@@ -176,7 +178,8 @@ def beam_search(
             # First, choose blank
             skip_log_prob = log_prob[blank_id]
             new_y_star_log_prob = y_star.log_prob + skip_log_prob.item()
-
+            # print("tuAB0", t, u, len(y_star.ys), y_star.log_prob,
+            #       skip_log_prob.item(), new_y_star_log_prob)
             # ys[:] returns a copy of ys
             new_y_star = Hypothesis(
                 ys=y_star.ys[:],
@@ -186,8 +189,13 @@ def beam_search(
             )
             B.append(new_y_star)
 
+            topk_log_prob = log_prob.topk(beam, dim=-1)
+
             # Second, choose other labels
-            for i, v in enumerate(log_prob.tolist()):
+            #for i, v in enumerate(log_prob.tolist()):
+            for v, i in zip(*topk_log_prob):
+                v = v.item()
+                i = i.item()
                 if i == blank_id:
                     continue
                 new_ys = y_star.ys + [i]
@@ -202,11 +210,19 @@ def beam_search(
             # check whether B contains more than "beam" elements more probable
             # than the most probable in A
             A_most_probable = max(A, key=lambda hyp: hyp.log_prob)
+            #print("tuAB1", t, u, len(A), A_most_probable.log_prob, len(B))
             B = sorted(
                 [hyp for hyp in B if hyp.log_prob > A_most_probable.log_prob],
                 key=lambda hyp: hyp.log_prob,
                 reverse=True,
             )
+            # print("tuAB2",
+            #       t,
+            #       u,
+            #       len(A),
+            #       A_most_probable.log_prob,
+            #       len(B),
+            #       flush=True)
             if len(B) >= beam:
                 B = B[:beam]
                 break

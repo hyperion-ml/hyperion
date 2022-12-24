@@ -4,8 +4,6 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0) 
 """
 
-
-
 from typing import Dict, List, Tuple
 
 import sentencepiece as spm
@@ -39,6 +37,7 @@ from hyperion.torch import TorchModelLoader as TML
 
 from hyperion.torch.models.wav2transducer.beam_search import greedy_search, beam_search
 
+
 def init_device(use_gpu):
     set_float_cpu("float32")
     num_gpus = 1 if use_gpu else 0
@@ -55,12 +54,12 @@ def load_model(model_path, device):
     model.eval()
     return model
 
+
 def decode_one_batch(
-    model: nn.Module,
-    sp: spm.SentencePieceProcessor,
-    x: torch.Tensor,
-    decoding_method = "beam_search"
-) -> Dict[str, List[List[str]]]:
+        model: nn.Module,
+        sp: spm.SentencePieceProcessor,
+        x: torch.Tensor,
+        decoding_method="beam_search") -> Dict[str, List[List[str]]]:
     """Decode one batch and return the result in a dict. The dict has the
     following format:
         - key: It indicates the setting used for decoding. For example,
@@ -86,7 +85,7 @@ def decode_one_batch(
       the returned dict.
     """
     device = model.device
-    feature = x #batch["inputs"]
+    feature = x  #batch["inputs"]
     assert x.shape[0] == 1
     assert feature.ndim == 2
 
@@ -95,8 +94,9 @@ def decode_one_batch(
 
     feature_lens = torch.Tensor([x.shape[1]]).int()
 
-    encoder_out, hid_feats, encoder_out_lens = model.forward_feats(x=feature, x_lengths=feature_lens)
-    
+    encoder_out, hid_feats, encoder_out_lens = model.forward_feats(
+        x=feature, x_lengths=feature_lens)
+
     hyps = []
     batch_size = encoder_out.size(0)
 
@@ -104,40 +104,31 @@ def decode_one_batch(
 
     for i in range(batch_size):
         # fmt: off
-        encoder_out_i = encoder_out[i:i+1, :encoder_out_lens[i]]
+        encoder_out_i = encoder_out[i:i + 1, :encoder_out_lens[i]]
         # fmt: on
         if decoding_method == "greedy_search":
             hyp = greedy_search(model=model, encoder_out=encoder_out_i)
         elif decoding_method == "beam_search":
-            hyp = beam_search(
-                model=model, encoder_out=encoder_out_i, beam=5
-            )
+            hyp = beam_search(model=model, encoder_out=encoder_out_i, beam=5)
         else:
             raise ValueError(f"Unsupported decoding method: {decoding_method}")
         hyps.append(sp.decode(hyp).split())
-    
+
     logging.info("hyps:{}".format(" ".join(hyps[0])))
-    
+
     if decoding_method == "greedy_search":
         return hyps[0]
     else:
         return hyps[0]
 
 
-def decode_transducer(
-    input_spec,
-    output_spec,
-    scp_sep,
-    model_path,
-    bpe_model,
-    use_gpu,
-    **kwargs
-):
+def decode_transducer(input_spec, output_spec, scp_sep, model_path, bpe_model,
+                      use_gpu, **kwargs):
 
     device = init_device(use_gpu)
     model = load_model(model_path, device)
 
-    sp  = spm.SentencePieceProcessor()
+    sp = spm.SentencePieceProcessor()
     sp.load(bpe_model)
 
     augmenter = None
@@ -147,10 +138,9 @@ def decode_transducer(
     ar_args = AR.filter_args(**kwargs)
     logging.info("opening output: %s" % (output_spec))
     # with DWF.create(output_spec, scp_sep=scp_sep) as writer:
-    with open(output_spec,"w") as writer:
-        logging.info(
-            "opening input stream: {} with args={}".format(input_spec, ar_args)
-        )
+    with open(output_spec, "w") as writer:
+        logging.info("opening input stream: {} with args={}".format(
+            input_spec, ar_args))
         with AR(input_spec, **ar_args) as reader:
             while not reader.eof():
                 t1 = time.time()
@@ -165,30 +155,28 @@ def decode_transducer(
                 logging.info("processing utt %s" % (key0))
                 for aug_id in range(num_augs):
                     t3 = time.time()
-                    key, x = key0, x0 #augment(key0, x0, augmenter, aug_df, aug_id)
+                    key, x = key0, x0  #augment(key0, x0, augmenter, aug_df, aug_id)
                     t4 = time.time()
                     with torch.no_grad():
                         x = torch.tensor(
-                            x[None, :], dtype=torch.get_default_dtype()
-                        ).to(device)
+                            x[None, :],
+                            dtype=torch.get_default_dtype()).to(device)
 
                         t5 = time.time()
                         tot_frames = x.shape[1]
 
                         logging.info(
-                            "utt %s detected %d/%d (%.2f %%) speech frames"
-                            % (
+                            "utt %s detected %d/%d (%.2f %%) speech frames" % (
                                 key,
                                 x.shape[1],
                                 tot_frames,
                                 x.shape[1] / tot_frames * 100,
-                            )
-                        )
-
+                            ))
 
                         t6 = time.time()
                         if x.shape[1] == 0:
-                            y = np.zeros((model.embed_dim,), dtype=float_cpu())
+                            y = np.zeros((model.embed_dim, ),
+                                         dtype=float_cpu())
                         else:
                             y = decode_one_batch(model=model, sp=sp, x=x)
 
@@ -199,40 +187,35 @@ def decode_transducer(
                     read_time = t2 - t1
                     tot_time = read_time + t8 - t3
                     logging.info(
-                        (
-                            "utt %s total-time=%.3f read-time=%.3f "
-                            "aug-time=%.3f feat-time=%.3f "
-                            "vad-time=%.3f embed-time=%.3f write-time=%.3f "
-                            "rt-factor=%.2f"
-                        )
-                        % (
-                            key,
-                            tot_time,
-                            read_time,
-                            t4 - t3,
-                            t5 - t4,
-                            t6 - t5,
-                            t7 - t6,
-                            t8 - t7,
-                            x0.shape[0] / fs[0] / tot_time,
-                        )
-                    )
+                        ("utt %s total-time=%.3f read-time=%.3f "
+                         "aug-time=%.3f feat-time=%.3f "
+                         "vad-time=%.3f embed-time=%.3f write-time=%.3f "
+                         "rt-factor=%.2f") % (
+                             key,
+                             tot_time,
+                             read_time,
+                             t4 - t3,
+                             t5 - t4,
+                             t6 - t5,
+                             t7 - t6,
+                             t8 - t7,
+                             x0.shape[0] / fs[0] / tot_time,
+                         ))
 
 
 if __name__ == "__main__":
 
     parser = ArgumentParser(
-        description=(
-            "Extracts x-vectors from waveform computing " "acoustic features on the fly"
-        )
-    )
+        description=("Extracts x-vectors from waveform computing "
+                     "acoustic features on the fly"))
 
     parser.add_argument("--cfg", action=ActionConfigFile)
     parser.add_argument("--input", dest="input_spec", required=True)
-    parser.add_argument("--scp-sep", default=" ", help=("scp file field separator"))
+    parser.add_argument("--scp-sep",
+                        default=" ",
+                        help=("scp file field separator"))
 
     AR.add_class_args(parser)
-
 
     AF.add_class_args(parser, prefix="feats")
 
@@ -241,12 +224,16 @@ if __name__ == "__main__":
     parser.add_argument("--bpe-model", required=True)
 
     parser.add_argument("--output", dest="output_spec", required=True)
-    parser.add_argument(
-        "--use-gpu", default=False, action="store_true", help="extract xvectors in gpu"
-    )
-    parser.add_argument(
-        "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
-    )
+    parser.add_argument("--use-gpu",
+                        default=False,
+                        action="store_true",
+                        help="extract xvectors in gpu")
+    parser.add_argument("-v",
+                        "--verbose",
+                        dest="verbose",
+                        default=1,
+                        choices=[0, 1, 2, 3],
+                        type=int)
 
     args = parser.parse_args()
     config_logger(args.verbose)
