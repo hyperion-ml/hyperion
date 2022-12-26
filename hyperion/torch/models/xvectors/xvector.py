@@ -892,7 +892,7 @@ class XVector(TorchModel):
         parser.add_argument(
             "--num-subcenters",
             default=2,
-            type=float,
+            type=int,
             help="number of subcenters in subcenter losses",
         )
 

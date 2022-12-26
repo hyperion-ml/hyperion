@@ -83,6 +83,10 @@ class HFWav2XVector(TorchModel):
 
         return feats
 
+    @property
+    def sample_frequency(self):
+        return self.hf_feats.sample_frequency
+
     def compute_prototype_affinity(self):
         return self.xvector.compute_prototype_affinity()
 
