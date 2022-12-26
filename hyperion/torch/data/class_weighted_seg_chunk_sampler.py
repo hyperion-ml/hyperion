@@ -235,7 +235,6 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
             if np.all(mask_i == 0):
                 affinity_matrix[:, i] = -1000
 
-        # affinity_matrix[np.diag(affinity_matrix.shape[0])] = -1.0
         # hard prototypes for a class are itself and k-1 closest to it.
         self.hard_prototypes = torch.topk(
             affinity_matrix, self.num_hard_prototypes, dim=-1

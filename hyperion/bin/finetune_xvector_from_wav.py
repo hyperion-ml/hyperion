@@ -21,11 +21,9 @@ import torch
 from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch.utils import ddp
 
-# from hyperion.torch.models import XVector as XVec
 from hyperion.torch.trainers import XVectorTrainerFromWav as Trainer
 from hyperion.torch.data import AudioDataset as AD
 
-# from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
 from hyperion.torch import TorchModelLoader as TML
 from hyperion.torch.data import SegSamplerFactory
 from hyperion.torch.metrics import CategoricalAccuracy
