@@ -113,5 +113,5 @@ def filter_func_args(func, kwargs, skip=set()):
     if "kwargs" in kwargs:
         my_kwargs.update(kwargs["kwargs"])
 
-    args = sig.bind(**my_kwargs).arguments
+    args = sig.bind_partial(**my_kwargs).arguments
     return args
