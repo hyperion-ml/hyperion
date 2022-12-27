@@ -8,18 +8,20 @@
 import logging
 import time
 
-# import copy
-
 import numpy as np
 import pandas as pd
-
 import torch
+from torch.utils.data import Dataset
 
-from ..torch_defs import floatstr_torch
 from ...io import RandomAccessDataReaderFactory as RF
 from ...utils.utt2info import Utt2Info
+from ..torch_defs import floatstr_torch
 
-from torch.utils.data import Dataset
+# import copy
+
+
+
+
 
 
 class EmbedDataset(Dataset):

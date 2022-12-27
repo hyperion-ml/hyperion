@@ -3,24 +3,22 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import sys
-import os
-import logging
-from jsonargparse import ArgumentParser, ActionParser
-import time
 import copy
+import logging
+import os
+import sys
 import threading
+import time
 
 import numpy as np
 import pandas as pd
-
 import torch
+from jsonargparse import ActionParser, ArgumentParser
+from torch.utils.data import Dataset
 
-from ..torch_defs import floatstr_torch
 from ...io import RandomAccessDataReaderFactory as RF
 from ...utils.utt2info import Utt2Info
-
-from torch.utils.data import Dataset
+from ..torch_defs import floatstr_torch
 
 
 class FeatSeqDataset(Dataset):

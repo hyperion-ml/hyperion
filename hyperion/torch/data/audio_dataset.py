@@ -4,27 +4,25 @@
 """
 
 import logging
-from jsonargparse import ActionYesNo, ArgumentParser, ActionParser
-import time
 import math
+import time
 
 import numpy as np
 import pandas as pd
-
 import torch
+import torch.distributed as dist
 import torchaudio.transforms as tat
 
-from ..torch_defs import floatstr_torch
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
+from torch.utils.data import Dataset
+
 from ...io import RandomAccessAudioReader as AR
 
 # from ...utils.utt2info import Utt2Info
 from ...np.augment import SpeechAugment
-
-from torch.utils.data import Dataset
-import torch.distributed as dist
-
-from hyperion.np import augment
-
+from ...utils.class_info import ClassInfo
+from ...utils.segment_set import SegmentSet
+from ..torch_defs import floatstr_torch
 
 # class AudioDataset1(Dataset):
 #     def __init__(
@@ -447,10 +445,6 @@ from hyperion.np import augment
 #             # help='audio dataset options')
 
 #     add_argparse_args = add_class_args
-
-
-from ...utils.class_info import ClassInfo
-from ...utils.segment_set import SegmentSet
 
 
 class AudioDataset(Dataset):

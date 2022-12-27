@@ -2,12 +2,11 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+import logging
 # import os
 import math
-import logging
 
 import numpy as np
-
 import torch
 from torch.utils.data import Sampler
 
