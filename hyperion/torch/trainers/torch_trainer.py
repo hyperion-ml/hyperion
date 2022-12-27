@@ -3,28 +3,28 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import os
-import math
 import contextlib
+import logging
+import math
+import os
 from collections import OrderedDict as ODict
 from enum import Enum
-from jsonargparse import ArgumentParser, ActionParser
-import logging
 from pathlib import Path
 
 import torch
-import torch.nn as nn
 import torch.cuda.amp as amp
-from torch.optim.swa_utils import AveragedModel, SWALR
 import torch.distributed as dist
-
+import torch.nn as nn
 from fairscale.optim.grad_scaler import ShardedGradScaler
+from jsonargparse import ActionParser, ArgumentParser
+from torch.optim.swa_utils import SWALR, AveragedModel
 
-from ..utils import MetricAcc, TorchDDP, FairShardedDDP, FairFullyShardedDDP
-from ..loggers import LoggerList, CSVLogger, ProgLogger, TensorBoardLogger, WAndBLogger
-from ..optim import OptimizerFactory as OF
-from ..lr_schedulers import LRSchedulerFactory as LRSF
+from ...utils.misc import filter_func_args
+from ..loggers import CSVLogger, LoggerList, ProgLogger, TensorBoardLogger, WAndBLogger
 from ..lr_schedulers import LRScheduler as LRS
+from ..lr_schedulers import LRSchedulerFactory as LRSF
+from ..optim import OptimizerFactory as OF
+from ..utils import FairFullyShardedDDP, FairShardedDDP, MetricAcc, TorchDDP
 
 
 class DDPType(str, Enum):
@@ -66,6 +66,8 @@ class TorchTrainer(object):
       swa_lr: SWA learning rate
       swa_anneal_epochs: SWA learning rate anneal epochs
       cpu_offload: CPU offload of gradients when using fully sharded ddp
+      input_key: dict. key for nnet input.
+      target_key: dict. key for nnet targets.
     """
 
     def __init__(
@@ -96,6 +98,8 @@ class TorchTrainer(object):
         swa_lr=1e-3,
         swa_anneal_epochs=10,
         cpu_offload=False,
+        input_key="x",
+        target_key="class_id",
     ):
 
         self.model = model
@@ -126,6 +130,8 @@ class TorchTrainer(object):
         self.swa_lr = swa_lr
         self.swa_anneal_epochs = swa_anneal_epochs
         self.amp_args = {}
+        self.input_key = input_key
+        self.target_key = target_key
 
         self.set_train_mode()
 
@@ -150,9 +156,7 @@ class TorchTrainer(object):
                 oss = False if ddp_type == DDPType.DDP else True
                 self.optimizer = self._make_optimizer(optim, self.model, oss=oss)
                 self.model = TorchDDP(
-                    self.model,
-                    device_ids=[device],
-                    output_device=device,
+                    self.model, device_ids=[device], output_device=device,
                 )
             elif ddp_type == DDPType.OSS_SHARDED_DDP:
                 self.model = nn.SyncBatchNorm.convert_sync_batchnorm(self.model)
@@ -616,32 +620,34 @@ class TorchTrainer(object):
 
     @staticmethod
     def filter_args(**kwargs):
-        valid_args = (
-            "grad_acc_steps",
-            "eff_batch_size",
-            "epochs",
-            "log_interval",
-            "use_amp",
-            "ddp_type",
-            "grad_clip",
-            "grad_clip_norm",
-            "swa_start",
-            "swa_lr",
-            "swa_anneal_epochs",
-            "exp_path",
-            "optim",
-            "lrsched",
-            "cpu_offload",
-            "use_tensorboard",
-            "use_wandb",
-            "wandb",
-            "train_mode",
-        )
-        args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
+        args = filter_func_args(TorchTrainer.__init__, kwargs)
+
+        # valid_args = (
+        #     "grad_acc_steps",
+        #     "eff_batch_size",
+        #     "epochs",
+        #     "log_interval",
+        #     "use_amp",
+        #     "ddp_type",
+        #     "grad_clip",
+        #     "grad_clip_norm",
+        #     "swa_start",
+        #     "swa_lr",
+        #     "swa_anneal_epochs",
+        #     "exp_path",
+        #     "optim",
+        #     "lrsched",
+        #     "cpu_offload",
+        #     "use_tensorboard",
+        #     "use_wandb",
+        #     "wandb",
+        #     "train_mode",
+        # )
+        # args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
         return args
 
     @staticmethod
-    def add_class_args(parser, prefix=None, train_modes=None, skip=[]):
+    def add_class_args(parser, prefix=None, train_modes=None, skip={}):
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -744,6 +750,14 @@ class TorchTrainer(object):
         )
 
         parser.add_argument("--exp-path", help="experiment path")
+        if "input_key" not in skip:
+            parser.add_argument(
+                "--input-key", default="x", help="dict. key for nnet input"
+            )
+        if "target_key" not in skip:
+            parser.add_argument(
+                "--target-key", default="class_id", help="dict. key for nnet targets"
+            )
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

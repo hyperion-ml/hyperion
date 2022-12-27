@@ -3,10 +3,10 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import os.path as path
 import logging
-from copy import deepcopy
+import os.path as path
 from collections import OrderedDict
+from copy import deepcopy
 
 import numpy as np
 import pandas as pd

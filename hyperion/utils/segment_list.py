@@ -3,8 +3,8 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import os.path as path
 import logging
+import os.path as path
 from copy import deepcopy
 
 import numpy as np

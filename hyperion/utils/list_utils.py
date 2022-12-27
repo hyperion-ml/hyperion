@@ -5,9 +5,10 @@
  Utilities for lists.
 """
 
-import numpy as np
-from operator import itemgetter
 from itertools import groupby
+from operator import itemgetter
+
+import numpy as np
 
 
 def list2ndarray(a, dtype=None):

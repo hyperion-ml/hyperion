@@ -4,6 +4,7 @@
 
  Miscellaneous functions
 """
+from inspect import signature
 
 import numpy as np
 
@@ -88,3 +89,29 @@ def filter_args(valid_args, kwargs):
       Dictionary with only valid_args keys if they exists
     """
     return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
+
+
+def filter_func_args(func, kwargs, skip=set()):
+    """Filters arguments expected by a function
+
+    Args:
+      func: function object
+      kwargs: dictionary containing arguments
+      skip: set with keys of func arguments to remove from kwargs
+
+    Returns
+      Dictionary with arguments expected by the target function
+    """
+    sig = signature(func)
+    valid_args = sig.parameters.keys()
+    skip.add("self")
+    for param in skip:
+        if param in kwargs:
+            del kwargs[param]
+
+    my_kwargs = filter_args(valid_args, kwargs)
+    if "kwargs" in kwargs:
+        my_kwargs.update(kwargs["kwargs"])
+
+    args = sig.bind(**my_kwargs).arguments
+    return args
