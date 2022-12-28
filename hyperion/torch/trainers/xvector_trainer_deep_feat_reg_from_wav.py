@@ -10,7 +10,7 @@ import torch
 import torch.nn as nn
 
 from ...utils.misc import filter_func_args
-from ..utils import MetricAcc
+from ..utils import MetricAcc, tensors_subset
 from .torch_trainer import TorchTrainer
 from .xvector_trainer_deep_feat_reg import XVectorTrainerDeepFeatReg
 
@@ -141,23 +141,22 @@ class XVectorTrainerDeepFeatRegFromWav(XVectorTrainerDeepFeatReg):
         Args:
           data_loader: PyTorch data loader return input/output pairs
         """
+        batch_keys = [self.input_key, self.target_key]
         self.model.update_loss_margin(self.cur_epoch)
 
         metric_acc = MetricAcc(device=self.device)
         batch_metrics = ODict()
         self.model.train()
 
-        for batch, (data, target) in enumerate(data_loader):
+        for batch, data in enumerate(data_loader):
             self.loggers.on_batch_begin(batch)
-
             if batch % self.grad_acc_steps == 0:
                 self.optimizer.zero_grad()
 
-            data, target = data.to(self.device), target.to(self.device)
-            batch_size = data.shape[0]
-
+            input_data, target = tensors_subset(data, batch_keys, self.device)
+            batch_size = input_data.size(0)
             with torch.no_grad():
-                feats = self.feat_extractor(data)
+                feats = self.feat_extractor(input_data)
 
             with self.amp_autocast():
                 outputs = self.model(
@@ -241,6 +240,7 @@ class XVectorTrainerDeepFeatRegFromWav(XVectorTrainerDeepFeatReg):
         Args:
           data_loader: PyTorch data loader return input/output pairs
         """
+        batch_keys = [self.input_key, self.target_key]
         metric_acc = MetricAcc(device=self.device)
         batch_metrics = ODict()
         with torch.no_grad():
@@ -251,11 +251,11 @@ class XVectorTrainerDeepFeatRegFromWav(XVectorTrainerDeepFeatReg):
                 log_tag = "val_"
                 self.model.eval()
 
-            for batch, (data, target) in enumerate(data_loader):
-                data, target = data.to(self.device), target.to(self.device)
-                batch_size = data.shape[0]
+            for batch, data in enumerate(data_loader):
+                input_data, target = tensors_subset(data, batch_keys, self.device)
+                batch_size = input_data.size(0)
 
-                feats = self.feat_extractor(data)
+                feats = self.feat_extractor(input_data)
                 with self.amp_autocast():
                     output = self.model(feats)
                     loss = self.loss(output, target)

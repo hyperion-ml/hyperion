@@ -24,7 +24,13 @@ from ..loggers import CSVLogger, LoggerList, ProgLogger, TensorBoardLogger, WAnd
 from ..lr_schedulers import LRScheduler as LRS
 from ..lr_schedulers import LRSchedulerFactory as LRSF
 from ..optim import OptimizerFactory as OF
-from ..utils import FairFullyShardedDDP, FairShardedDDP, MetricAcc, TorchDDP
+from ..utils import (
+    FairFullyShardedDDP,
+    FairShardedDDP,
+    MetricAcc,
+    TorchDDP,
+    tensors_subset,
+)
 
 
 class DDPType(str, Enum):
@@ -286,18 +292,20 @@ class TorchTrainer(object):
         Args:
           data_loader: PyTorch data loader return input/output pairs
         """
+        batch_keys = [self.input_key, self.target_key]
         metric_acc = MetricAcc(device=self.device)
         batch_metrics = ODict()
         self.model.train()
-        for batch, (data, target) in enumerate(data_loader):
+        for batch, data in enumerate(data_loader):
             self.loggers.on_batch_begin(batch)
             if batch % self.grad_acc_steps == 0:
                 self.optimizer.zero_grad()
 
-            data, target = data.to(self.device), target.to(self.device)
-            batch_size = data.shape[0]
+            input_data, target = tensors_subset(data, batch_keys, self.device)
+            batch_size = input_data.size(0)
+
             with self.amp_autocast():
-                output = self.model(data)
+                output = self.model(input_data)
                 loss = self.loss(output, target).mean() / self.grad_acc_steps
 
             if self.use_amp:
@@ -310,7 +318,6 @@ class TorchTrainer(object):
                     self.lr_scheduler.on_opt_step()
                 self.update_model()
 
-            self._reduce_metric(loss)
             batch_metrics["loss"] = loss.item() * self.grad_acc_steps
             for k, metric in self.metrics.items():
                 batch_metrics[k] = metric(output, target)
@@ -333,7 +340,7 @@ class TorchTrainer(object):
           data_loader: PyTorch data loader return input/output pairs.
           sw_update_bn: wheter or not, update batch-norm layers in SWA.
         """
-
+        batch_keys = [self.input_key, self.target_key]
         metric_acc = MetricAcc(self.device)
         batch_metrics = ODict()
         with torch.no_grad():
@@ -344,12 +351,11 @@ class TorchTrainer(object):
                 log_tag = "val_"
                 self.model.eval()
 
-            for batch, (data, target) in enumerate(data_loader):
-                data, target = data.to(self.device), target.to(self.device)
-                batch_size = data.shape[0]
-
+            for batch, data in enumerate(data_loader):
+                input_data, target = tensors_subset(data, batch_keys, self.device)
+                batch_size = input_data.size(0)
                 with self.amp_autocast():
-                    output = self.model(data)
+                    output = self.model(input_data)
                     loss = self.loss(output, target)
 
                 batch_metrics["loss"] = loss.mean().item()

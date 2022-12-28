@@ -11,7 +11,7 @@ import torch.nn as nn
 from torch.distributed.elastic.multiprocessing.errors import record
 
 from ...utils.misc import filter_func_args
-from ..utils import MetricAcc
+from ..utils import MetricAcc, tensors_subset
 from .torch_trainer import TorchTrainer
 
 
@@ -123,7 +123,7 @@ class XVectorTrainer(TorchTrainer):
         Args:
           data_loader: pytorch data loader returning features and class labels.
         """
-
+        batch_keys = [self.input_key, self.target_key]
         self.model.update_loss_margin(self.cur_epoch)
 
         metric_acc = MetricAcc(device=self.device)
@@ -135,10 +135,10 @@ class XVectorTrainer(TorchTrainer):
             if batch % self.grad_acc_steps == 0:
                 self.optimizer.zero_grad()
 
-            data, target = data.to(self.device), target.to(self.device)
-            batch_size = data.shape[0]
+            input_data, target = tensors_subset(data, batch_keys, self.device)
+            batch_size = input_data.size(0)
             with self.amp_autocast():
-                output = self.model(data, y=target)
+                output = self.model(input_data, y=target)
                 loss = self.loss(output, target).mean() / self.grad_acc_steps
 
             if self.use_amp:

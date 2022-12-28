@@ -12,7 +12,7 @@ import torch.nn as nn
 from jsonargparse import ActionParser, ArgumentParser
 
 from ...utils.misc import filter_func_args
-from ..utils import MetricAcc
+from ..utils import MetricAcc, tensors_subset
 from .xvector_trainer import XVectorTrainer
 
 
@@ -136,34 +136,33 @@ class XVectorAdvTrainer(XVectorTrainer):
             )
 
     def train_epoch(self, data_loader):
-
+        batch_keys = [self.input_key, self.target_key]
         self.model.update_loss_margin(self.cur_epoch)
 
         metric_acc = MetricAcc(device=self.device)
         batch_metrics = ODict()
         self.model.train()
 
-        for batch, (data, target) in enumerate(data_loader):
+        for batch, data in enumerate(data_loader):
             self.loggers.on_batch_begin(batch)
-
-            data, target = data.to(self.device), target.to(self.device)
-            batch_size = data.shape[0]
+            input_data, target = tensors_subset(data, batch_keys, self.device)
+            batch_size = input_data.size(0)
 
             if batch % self.grad_acc_steps == 0:
                 if torch.rand(1) < self.p_attack:
                     # generate adversarial attacks
-                    logging.info("generating adv attack for batch=%d" % (batch))
+                    logging.info("generating adv attack for batch=%d", batch)
                     self.model.eval()
-                    data_adv = self.attack.generate(data, target)
+                    data_adv = self.attack.generate(inptu_data, target)
                     max_delta = torch.max(torch.abs(data_adv - data)).item()
-                    logging.info("adv attack max perturbation=%f" % (max_delta))
-                    data = data_adv
+                    logging.info("adv attack max perturbation=%f", max_delta)
+                    input_data = data_adv
                     self.model.train()
 
                 self.optimizer.zero_grad()
 
             with self.amp_autocast():
-                output = self.model(data, target)
+                output = self.model(input_data, target)
                 loss = self.loss(output, target).mean() / self.grad_acc_steps
 
             if self.use_amp:
@@ -191,7 +190,7 @@ class XVectorAdvTrainer(XVectorTrainer):
         return logs
 
     def validation_epoch(self, data_loader, swa_update_bn=False):
-
+        batch_keys = [self.input_key, self.target_key]
         metric_acc = MetricAcc(device=self.device)
         batch_metrics = ODict()
 
@@ -202,14 +201,14 @@ class XVectorAdvTrainer(XVectorTrainer):
             log_tag = "val_"
             self.model.eval()
 
-        for batch, (data, target) in enumerate(data_loader):
-            data, target = data.to(self.device), target.to(self.device)
-            batch_size = data.shape[0]
+        for batch, data in enumerate(data_loader):
+            input_data, target = tensors_subset(data, batch_keys, self.device)
+            batch_size = input_data.size(0)
 
             if torch.rand(1) < self.p_val_attack:
                 # generate adversarial attacks
                 self.model.eval()
-                data = self.attack.generate(data, target)
+                data = self.attack.generate(input_data, target)
                 if swa_update_bn:
                     self.model.train()
 

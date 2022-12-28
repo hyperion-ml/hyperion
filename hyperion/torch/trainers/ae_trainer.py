@@ -12,7 +12,7 @@ import torch.nn as nn
 from jsonargparse import ActionParser, ArgumentParser
 
 from ...utils.misc import filter_func_args
-from ..utils import MetricAcc
+from ..utils import MetricAcc, tensors_subset
 from .torch_trainer import TorchTrainer
 
 
@@ -122,26 +122,21 @@ class AETrainer(TorchTrainer):
         Args:
           data_loader: pytorch data loader returning features and class labels.
         """
-
+        batch_keys = [self.input_key, self.target_key]
         metric_acc = MetricAcc(device=self.device)
         batch_metrics = ODict()
         self.model.train()
         for batch, data in enumerate(data_loader):
-
-            if isinstance(data, (tuple, list)):
-                data, _ = data
-
             self.loggers.on_batch_begin(batch)
 
             if batch % self.grad_acc_steps == 0:
                 self.optimizer.zero_grad()
 
-            data = data.to(self.device)
-            batch_size = data.shape[0]
-
+            input_data, target = tensors_subset(data, batch_keys, self.device)
+            batch_size = input_data.size(0)
             with self.amp_autocast():
-                output = self.model(data)
-                loss = self.loss(output, data).mean() / self.grad_acc_steps
+                output = self.model(input_data)
+                loss = self.loss(output, target).mean() / self.grad_acc_steps
 
             if self.use_amp:
                 self.grad_scaler.scale(loss).backward()
@@ -155,7 +150,7 @@ class AETrainer(TorchTrainer):
 
             batch_metrics["loss"] = loss.item() * self.grad_acc_steps
             for k, metric in self.metrics.items():
-                batch_metrics[k] = metric(output, data)
+                batch_metrics[k] = metric(output, target)
 
             metric_acc.update(batch_metrics, batch_size)
             logs = metric_acc.metrics
@@ -170,6 +165,7 @@ class AETrainer(TorchTrainer):
 
     def validation_epoch(self, data_loader, swa_update_bn=False):
 
+        batch_keys = [self.input_key, self.target_key]
         metric_acc = MetricAcc(device=self.device)
         batch_metrics = ODict()
         with torch.no_grad():
@@ -181,18 +177,15 @@ class AETrainer(TorchTrainer):
                 self.model.eval()
 
             for batch, data in enumerate(data_loader):
-                if isinstance(data, (tuple, list)):
-                    data, _ = data
-
-                data = data.to(self.device)
-                batch_size = data.shape[0]
+                input_data, target = tensors_subset(data, batch_keys, self.device)
+                batch_size = input_data.size(0)
                 with self.amp_autocast():
-                    output = self.model(data)
-                    loss = self.loss(output, data)
+                    output = self.model(input_data)
+                    loss = self.loss(output, target)
 
                 batch_metrics["loss"] = loss.mean().item()
                 for k, metric in self.metrics.items():
-                    batch_metrics[k] = metric(output, data)
+                    batch_metrics[k] = metric(output, target)
 
                 metric_acc.update(batch_metrics, batch_size)
 

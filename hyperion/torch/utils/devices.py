@@ -51,6 +51,8 @@ def tensors_to_device(data, device):
     elif isinstance(data, list):
         for i, value in enumerate(data):
             data[i] = value.to(device)
+    elif isinstance(data, tuple):
+        data = tuple(value.to(device) for value in data)
     elif isinstance(data, torch.Tensor):
         data = data.to(device)
     else:
@@ -66,6 +68,8 @@ def tensors_to_cpu(data):
     elif isinstance(data, list):
         for i, value in enumerate(data):
             data[i] = value.cpu()
+    elif isinstance(data, tuple):
+        data = tuple(value.cpu() for value in data)
     elif isinstance(data, torch.Tensor):
         data = data.cpu()
     else:
@@ -81,9 +85,23 @@ def tensors_to_numpy(data):
     elif isinstance(data, list):
         for i, value in enumerate(data):
             data[i] = value.cpu().numpy()
+    elif isinstance(data, tuple):
+        data = tuple(value.cpu().numpy() for value in data)
     elif isinstance(data, torch.Tensor):
         data = data.cpu().numpy()
     else:
         raise Exception(f"Unknown data type for {data}")
+
+    return data
+
+
+def tensors_subset(data, keys, device=None, return_dict=False):
+    if return_dict:
+        data = {k: data[k] for k in keys}
+    else:
+        data = tuple(data[k] for k in keys)
+
+    if device is not None:
+        data = tensors_to_device(data, device)
 
     return data

@@ -11,7 +11,7 @@ import torch.nn as nn
 
 from ...utils.misc import filter_func_args
 from ..losses import BCEWithLLR
-from ..utils import MetricAcc
+from ..utils import MetricAcc, tensors_subset
 from ..utils.misc import get_selfsim_tarnon
 from .torch_trainer import TorchTrainer
 
@@ -130,7 +130,7 @@ class PLDATrainer(TorchTrainer):
         Args:
           data_loader: pytorch data loader returning features and class labels.
         """
-
+        batch_keys = [self.input_key, self.target_key]
         self.model.update_margin(self.cur_epoch)
 
         return_multi = self.loss_weights["multi"] > 0
@@ -140,20 +140,20 @@ class PLDATrainer(TorchTrainer):
         metric_acc = MetricAcc()
         batch_metrics = ODict()
         self.model.train()
-        for batch, (data, target) in enumerate(data_loader):
+        for batch, data in enumerate(data_loader):
             self.loggers.on_batch_begin(batch)
 
             if batch % self.grad_acc_steps == 0:
                 self.optimizer.zero_grad()
 
-            data, target = data.to(self.device), target.to(self.device)
-            batch_size = data.shape[0]
+            input_data, target = tensors_subset(data, batch_keys, self.device)
+            batch_size = input_data.size(0)
 
             if return_bin:
                 target_bin, mask_bin = get_selfsim_tarnon(target, return_mask=True)
             with self.amp_autocast():
                 output = self.model(
-                    data,
+                    input_data,
                     target,
                     return_multi=return_multi,
                     return_bin=return_bin,
@@ -204,7 +204,7 @@ class PLDATrainer(TorchTrainer):
         Args:
           data_loader: PyTorch data loader return input/output pairs
         """
-
+        batch_keys = [self.input_key, self.target_key]
         metric_acc = MetricAcc()
         batch_metrics = ODict()
         return_multi = self.loss_weights["multi"] > 0
@@ -218,15 +218,15 @@ class PLDATrainer(TorchTrainer):
                 log_tag = "val_"
                 self.model.eval()
 
-            for batch, (data, target) in enumerate(data_loader):
-                data, target = data.to(self.device), target.to(self.device)
-                batch_size = data.shape[0]
+            for batch, data in enumerate(data_loader):
+                input_data, target = tensors_subset(data, batch_keys, self.device)
+                batch_size = input_data.size(0)
 
                 if return_bin:
                     target_bin, mask_bin = get_selfsim_tarnon(target, return_mask=True)
                 with self.amp_autocast():
                     output = self.model(
-                        data, return_multi=return_multi, return_bin=return_bin
+                        input_data, return_multi=return_multi, return_bin=return_bin
                     )
                     loss = 0
                     if return_multi:

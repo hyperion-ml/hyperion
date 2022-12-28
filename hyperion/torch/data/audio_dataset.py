@@ -615,8 +615,22 @@ class AudioDataset(Dataset):
         x, fs = self.r.read([recording_id], time_offset=start, time_durs=read_duration)
         return x[0].astype(floatstr_torch(), copy=False), fs[0]
 
+    # def _apply_augs(self, x, num_samples, reverb_context_samples):
+    #     x_augs = []
+    #     # for each type of augmentation
+    #     for i, augmenter in enumerate(self.augmenters):
+    #         # we do n_augs per augmentation type
+    #         for j in range(self.num_augs):
+    #             # augment x
+    #             x_aug, aug_info = augmenter(x)
+    #             # remove the extra left context used to compute the reverberation.
+    #             x_aug = x_aug[reverb_context_samples : len(x)]
+    #             x_augs.append(x_aug.astype(floatstr_torch(), copy=False))
+
+    #     return x_augs
+
     def _apply_augs(self, x, num_samples, reverb_context_samples):
-        x_augs = []
+        x_augs = {}
         # for each type of augmentation
         for i, augmenter in enumerate(self.augmenters):
             # we do n_augs per augmentation type
@@ -625,26 +639,31 @@ class AudioDataset(Dataset):
                 x_aug, aug_info = augmenter(x)
                 # remove the extra left context used to compute the reverberation.
                 x_aug = x_aug[reverb_context_samples : len(x)]
-                x_augs.append(x_aug.astype(floatstr_torch(), copy=False))
+                x_aug = x_aug.astype(floatstr_torch(), copy=False)
+                x_augs[f"x_aug_{i}_{j}"] = x_aug
+
+        if not self.return_orig and len(x_augs) == 1:
+            # if we just have one aug and we don't return the clean version,
+            # we just call x to the aug version
+            x_augs["x"] = x_augs.pop("x_aug_0_0")
 
         return x_augs
 
     def _get_segment_info(self, seg_id):
-        r = []
+        seg_info = {}
         # converts the class_ids to integers
         for info_name in self.return_segment_info:
-            seg_info = self.seg_set.loc[seg_id, info_name]
+            seg_info_i = self.seg_set.loc[seg_id, info_name]
             if info_name in self.class_info:
                 # if the type of information is a class-id
                 # we use the class information table to
                 # convert from id to integer
                 class_info = self.class_info[info_name]
-                idx = class_info.loc[seg_info, "class_idx"]
-                seg_info = idx
+                seg_info_i = class_info.loc[seg_info_i, "class_idx"]
 
-            r.append(seg_info)
+            seg_info[info_name] = seg_info_i
 
-        return r
+        return seg_info
 
     def _get_resampler(self, fs):
         if fs in self.resamplers:
@@ -671,39 +690,65 @@ class AudioDataset(Dataset):
         except:
             return x, fs
 
+    # def __getitem__(self, segment):
+
+    #     seg_id, start, duration = self._parse_segment_item(segment)
+    #     x, fs = self._read_audio(seg_id, start, duration)
+    #     x, fs = self._resample(x, fs)
+    #     if self.augmenters:
+    #         # augmentations
+    #         num_samples = int(duration * fs)
+    #         reverb_context_samples = len(x) - num_samples
+    #         x_augs = self._apply_augs(x, num_samples, reverb_context_samples)
+    #         r = x_augs
+
+    #         # add original non augmented audio
+    #         if self.return_orig:
+    #             x_orig = x[reverb_context_samples:]
+    #             r.append(x_orig)
+
+    #     else:
+    #         r = [x]
+
+    #     # try:
+    #     #     import soundfile as sf
+
+    #     #     for i, z in enumerate(r):
+    #     #         sf.write(f"file_{seg_id}.wav", z, fs, "PCM_16")
+    #     # except:
+    #     #     print("soundfile failed", flush=True)
+
+    #     # adds the segment labels
+    #     seg_info = self._get_segment_info(seg_id)
+    #     r.extend(seg_info)
+
+    #     return (*r,)
+
     def __getitem__(self, segment):
 
         seg_id, start, duration = self._parse_segment_item(segment)
         x, fs = self._read_audio(seg_id, start, duration)
         x, fs = self._resample(x, fs)
+        data = {"seg_id": seg_id, "sample_freq": fs}
         if self.augmenters:
             # augmentations
             num_samples = int(duration * fs)
             reverb_context_samples = len(x) - num_samples
             x_augs = self._apply_augs(x, num_samples, reverb_context_samples)
-            r = x_augs
+            data.update(x_augs)
 
             # add original non augmented audio
             if self.return_orig:
                 x_orig = x[reverb_context_samples:]
-                r.append(x_orig)
+                data["x"] = x_orig
 
         else:
-            r = [x]
-
-        # try:
-        #     import soundfile as sf
-
-        #     for i, z in enumerate(r):
-        #         sf.write(f"file_{seg_id}.wav", z, fs, "PCM_16")
-        # except:
-        #     print("soundfile failed", flush=True)
+            data["x"] = x
 
         # adds the segment labels
         seg_info = self._get_segment_info(seg_id)
-        r.extend(seg_info)
-
-        return (*r,)
+        data.update(seg_info)
+        return data
 
     @staticmethod
     def filter_args(**kwargs):

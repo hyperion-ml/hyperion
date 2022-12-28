@@ -11,7 +11,7 @@ import torch.nn as nn
 from jsonargparse import ActionParser, ArgumentParser
 
 from ...utils.misc import filter_func_args
-from ..utils import MetricAcc
+from ..utils import MetricAcc, tensors_subset
 from .xvector_trainer import XVectorTrainer
 
 
@@ -144,24 +144,23 @@ class XVectorTrainerDeepFeatReg(XVectorTrainer):
         Args:
           data_loader: PyTorch data loader return input/output pairs
         """
+        batch_keys = [self.input_key, self.target_key]
         self.model.update_loss_margin(self.cur_epoch)
 
         metric_acc = MetricAcc(device=self.device)
         batch_metrics = ODict()
         self.model.train()
 
-        for batch, (data, target) in enumerate(data_loader):
+        for batch, data in enumerate(data_loader):
             self.loggers.on_batch_begin(batch)
-
             if batch % self.grad_acc_steps == 0:
                 self.optimizer.zero_grad()
 
-            data, target = data.to(self.device), target.to(self.device)
-            batch_size = data.shape[0]
-
+            input_data, target = tensors_subset(data, batch_keys, self.device)
+            batch_size = input_data.size(0)
             with self.amp_autocast():
                 outputs = self.model(
-                    data,
+                    input_data,
                     y=target,
                     return_enc_layers=self.reg_layers_enc,
                     return_classif_layers=self.reg_layers_classif,
@@ -179,7 +178,7 @@ class XVectorTrainerDeepFeatReg(XVectorTrainer):
                 batch_metrics["loss-classif"] = loss.item()
 
                 prior_outputs = self.prior_model(
-                    data,
+                    input_data,
                     return_enc_layers=self.reg_layers_enc,
                     return_classif_layers=self.reg_layers_classif,
                     return_output=False,
@@ -230,7 +229,6 @@ class XVectorTrainerDeepFeatReg(XVectorTrainer):
             logs = ODict(("train_" + k, v) for k, v in logs.items())
             logs["lr"] = self._get_lr()
             self.loggers.on_batch_end(logs=logs, batch_size=batch_size)
-            # total_batches +=1
 
         logs = metric_acc.metrics
         logs["lr"] = self._get_lr()

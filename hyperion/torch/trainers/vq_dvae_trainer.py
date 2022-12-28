@@ -12,7 +12,7 @@ import torch.nn as nn
 from jsonargparse import ActionParser, ArgumentParser
 
 from ...utils.misc import filter_func_args
-from ..utils import MetricAcc
+from ..utils import MetricAcc, tensors_subset
 from .dvae_trainer import DVAETrainer
 
 
@@ -112,27 +112,20 @@ class VQDVAETrainer(DVAETrainer):
 
     def train_epoch(self, data_loader):
 
+        batch_keys = [self.input_key, self.target_key]
         metric_acc = MetricAcc(device=self.device)
         batch_metrics = ODict()
         self.model.train()
 
         for batch, data in enumerate(data_loader):
-
-            assert isinstance(data, (tuple, list))
-            x = data[0]
-            x_target = data[1]
-
             self.loggers.on_batch_begin(batch)
-
             if batch % self.grad_acc_steps == 0:
                 self.optimizer.zero_grad()
 
-            x = x.to(self.device)
-            x_target = x_target.to(self.device)
-            batch_size = x.shape[0]
-
+            input_data, target = tensors_subset(data, batch_keys, self.device)
+            batch_size = input_data.size(0)
             with self.amp_autocast():
-                output = self.model(x, x_target=x_target, return_x_mean=True)
+                output = self.model(input_data, x_target=target, return_x_mean=True)
                 loss = output["loss"]
                 x_hat = output["x_mean"]
                 loss = loss.mean() / self.grad_acc_steps
@@ -154,7 +147,7 @@ class VQDVAETrainer(DVAETrainer):
                 output["log_perplexity"].mean().item()
             )
             for k, metric in self.metrics.items():
-                batch_metrics[k] = metric(x_hat, x_target)
+                batch_metrics[k] = metric(x_hat, target)
 
             metric_acc.update(batch_metrics, batch_size)
             logs = metric_acc.metrics
@@ -167,29 +160,22 @@ class VQDVAETrainer(DVAETrainer):
         return logs
 
     def validation_epoch(self, data_loader, swa_update_bn=False):
-
+        batch_keys = [self.input_key, self.target_key]
         metric_acc = MetricAcc(device=self.device)
         batch_metrics = ODict()
         with torch.no_grad():
             if swa_update_bn:
-                log_tag = "train"
+                log_tag = "train_"
                 self.model.train()
             else:
                 log_tag = "val_"
                 self.model.eval()
 
             for batch, data in enumerate(data_loader):
-
-                assert isinstance(data, (tuple, list))
-                x = data[0]
-                x_target = data[1]
-
-                x = x.to(self.device)
-                x_target = x_target.to(self.device)
-                batch_size = x.shape[0]
-
+                input_data, target = tensors_subset(data, batch_keys, self.device)
+                batch_size = input_data.size(0)
                 with self.amp_autocast():
-                    output = self.model(x, x_target=x_target, return_x_mean=True)
+                    output = self.model(input_data, x_target=target, return_x_mean=True)
 
                 x_hat = output["x_mean"]
                 for metric in ["loss", "elbo", "log_px", "kldiv_z", "vq_loss"]:
@@ -199,7 +185,7 @@ class VQDVAETrainer(DVAETrainer):
                 )
 
                 for k, metric in self.metrics.items():
-                    batch_metrics[k] = metric(x_hat, x_target)
+                    batch_metrics[k] = metric(x_hat, target)
 
                 metric_acc.update(batch_metrics, batch_size)
 
