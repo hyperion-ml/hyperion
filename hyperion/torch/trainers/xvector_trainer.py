@@ -7,6 +7,7 @@ import os
 from collections import OrderedDict as ODict
 
 import torch
+import torch.cuda.amp as amp
 import torch.nn as nn
 from torch.distributed.elastic.multiprocessing.errors import record
 
@@ -137,7 +138,7 @@ class XVectorTrainer(TorchTrainer):
 
             input_data, target = tensors_subset(data, batch_keys, self.device)
             batch_size = input_data.size(0)
-            with self.amp_autocast():
+            with amp.autocast(enabled=self.use_amp):
                 output = self.model(input_data, y=target)
                 loss = self.loss(output, target).mean() / self.grad_acc_steps
 

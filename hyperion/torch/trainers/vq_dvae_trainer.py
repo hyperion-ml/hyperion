@@ -8,6 +8,7 @@ import os
 from collections import OrderedDict as ODict
 
 import torch
+import torch.cuda.amp as amp
 import torch.nn as nn
 from jsonargparse import ActionParser, ArgumentParser
 
@@ -124,7 +125,7 @@ class VQDVAETrainer(DVAETrainer):
 
             input_data, target = tensors_subset(data, batch_keys, self.device)
             batch_size = input_data.size(0)
-            with self.amp_autocast():
+            with amp.autocast(enabled=self.use_amp):
                 output = self.model(input_data, x_target=target, return_x_mean=True)
                 loss = output["loss"]
                 x_hat = output["x_mean"]
@@ -174,7 +175,7 @@ class VQDVAETrainer(DVAETrainer):
             for batch, data in enumerate(data_loader):
                 input_data, target = tensors_subset(data, batch_keys, self.device)
                 batch_size = input_data.size(0)
-                with self.amp_autocast():
+                with amp.autocast(enabled=self.use_amp):
                     output = self.model(input_data, x_target=target, return_x_mean=True)
 
                 x_hat = output["x_mean"]

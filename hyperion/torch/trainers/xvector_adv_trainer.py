@@ -8,6 +8,7 @@ import time
 from collections import OrderedDict as ODict
 
 import torch
+import torch.cuda.amp as amp
 import torch.nn as nn
 from jsonargparse import ActionParser, ArgumentParser
 
@@ -161,7 +162,7 @@ class XVectorAdvTrainer(XVectorTrainer):
 
                 self.optimizer.zero_grad()
 
-            with self.amp_autocast():
+            with amp.autocast(enabled=self.use_amp):
                 output = self.model(input_data, target)
                 loss = self.loss(output, target).mean() / self.grad_acc_steps
 
@@ -213,7 +214,7 @@ class XVectorAdvTrainer(XVectorTrainer):
                     self.model.train()
 
             with torch.no_grad():
-                with self.amp_autocast():
+                with amp.autocast(enabled=self.use_amp):
                     output = self.model(data, **self.amp_args)
                     loss = self.loss(output, target)
 

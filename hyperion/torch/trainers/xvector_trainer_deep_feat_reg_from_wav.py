@@ -7,6 +7,7 @@ import os
 from collections import OrderedDict as ODict
 
 import torch
+import torch.cuda.amp as amp
 import torch.nn as nn
 
 from ...utils.misc import filter_func_args
@@ -158,7 +159,7 @@ class XVectorTrainerDeepFeatRegFromWav(XVectorTrainerDeepFeatReg):
             with torch.no_grad():
                 feats = self.feat_extractor(input_data)
 
-            with self.amp_autocast():
+            with amp.autocast(enabled=self.use_amp):
                 outputs = self.model(
                     feats,
                     y=target,
@@ -256,7 +257,7 @@ class XVectorTrainerDeepFeatRegFromWav(XVectorTrainerDeepFeatReg):
                 batch_size = input_data.size(0)
 
                 feats = self.feat_extractor(input_data)
-                with self.amp_autocast():
+                with amp.autocast(enabled=self.use_amp):
                     output = self.model(feats)
                     loss = self.loss(output, target)
 

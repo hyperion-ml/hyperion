@@ -304,7 +304,7 @@ class TorchTrainer(object):
             input_data, target = tensors_subset(data, batch_keys, self.device)
             batch_size = input_data.size(0)
 
-            with self.amp_autocast():
+            with amp.autocast(enabled=self.use_amp):
                 output = self.model(input_data)
                 loss = self.loss(output, target).mean() / self.grad_acc_steps
 
@@ -354,7 +354,7 @@ class TorchTrainer(object):
             for batch, data in enumerate(data_loader):
                 input_data, target = tensors_subset(data, batch_keys, self.device)
                 batch_size = input_data.size(0)
-                with self.amp_autocast():
+                with amp.autocast(enabled=self.use_amp):
                     output = self.model(input_data)
                     loss = self.loss(output, target)
 
