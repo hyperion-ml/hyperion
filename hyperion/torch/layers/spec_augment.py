@@ -22,7 +22,7 @@ class AxisMasker(nn.Module):
       min_num_mask: minimum number of masks.
       max_num_mask: maximum number of masks.
       dim: axis where we apply the mask
-      fill_value: masking value
+      mask_value: masking value
     """
 
     def __init__(
@@ -32,7 +32,8 @@ class AxisMasker(nn.Module):
         min_num_masks=1,
         max_num_masks=2,
         dim=-1,
-        fill_value=0,
+        mask_method="constant",
+        mask_value=0,
     ):
         super().__init__()
         assert min_width >= 0
@@ -45,13 +46,14 @@ class AxisMasker(nn.Module):
         self.min_num_masks = min_num_masks
         self.max_num_masks = max_num_masks
         self.dim = dim
-        self.fill_value = fill_value
+        self.mask_method = mask_method
+        self.mask_value = mask_value
 
     def __repr__(self):
         s = (
             "{}(min_width={}, max_width={}, "
             "min_num_masks={}, max_num_masks={}, "
-            "dim={}, fill_value={})"
+            "dim={}, mask_method={}, mask_value={})"
         ).format(
             self.__class__.__name__,
             self.min_width,
@@ -59,7 +61,8 @@ class AxisMasker(nn.Module):
             self.min_num_masks,
             self.max_num_masks,
             self.dim,
-            self.fill_value,
+            self.mask_method,
+            self.mask_value,
         )
         return s
 
@@ -111,7 +114,14 @@ class AxisMasker(nn.Module):
         else:
             mask = mask.unsqueeze(-1)
 
-        x = x.masked_fill(mask, self.fill_value)
+        if self.mask_method == "mean":
+            mask_value = x.mean().item()
+        elif self.mask_method == "min":
+            mask_value = x.min().item()
+        else:
+            mask_value = self.mask_value
+
+        x = x.masked_fill(mask, mask_value)
         if ndim > 3:
             x = x.view(in_shape)
 
@@ -225,7 +235,7 @@ class SpecAugment(nn.Module):
       freq_max_width:    maximum width of the frequency mask.
       freq_min_num_mask: minimum number of frequency masks.
       freq_max_num_mask: maximum number of frequency masks.
-      fill_value:        masking value.
+      mask_value:        masking value.
     """
 
     def __init__(
@@ -243,7 +253,8 @@ class SpecAugment(nn.Module):
         freq_mask_max_width=20,
         freq_mask_min_num_masks=1,
         freq_mask_max_num_masks=2,
-        fill_value=0,
+        mask_method="constant",
+        mask_value=0,
     ):
 
         super().__init__()
@@ -260,7 +271,7 @@ class SpecAugment(nn.Module):
         self.freq_mask_max_width = freq_mask_max_width
         self.freq_mask_min_num_masks = freq_mask_min_num_masks
         self.freq_mask_max_num_masks = freq_mask_max_num_masks
-        self.fill_value = fill_value
+        self.mask_value = mask_value
 
         self.time_masker = None
         self.freq_masker = None
@@ -273,7 +284,8 @@ class SpecAugment(nn.Module):
                 min_num_masks=time_mask_min_num_masks,
                 max_num_masks=time_mask_max_num_masks,
                 dim=-2,
-                fill_value=fill_value,
+                mask_method=mask_method,
+                mask_value=mask_value,
             )
 
         if self.freq_mask_prob > 0:
@@ -283,7 +295,8 @@ class SpecAugment(nn.Module):
                 min_num_masks=freq_mask_min_num_masks,
                 max_num_masks=freq_mask_max_num_masks,
                 dim=-1,
-                fill_value=fill_value,
+                mask_method=mask_method,
+                mask_value=mask_value,
             )
 
         if self.time_warp_prob > 0:
@@ -368,7 +381,8 @@ class SpecAugment(nn.Module):
             "freq_mask_min_width",
             "freq_mask_max_num_masks",
             "freq_mask_min_num_masks",
-            "fill_value",
+            "mask_value",
+            "mask_method",
         )
 
         d = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
@@ -463,9 +477,15 @@ class SpecAugment(nn.Module):
             default=2,
             help="max. number of freq mask",
         )
+        parser.add_argument(
+            "--mask-method",
+            default="constant",
+            choices=["constant", "min", "mean"],
+            help="mothod to get the masked value",
+        )
 
         parser.add_argument(
-            "--fill-value",
+            "---mask-value",
             type=float,
             default=0.0,
             help="filling value for the masked spec. bins",

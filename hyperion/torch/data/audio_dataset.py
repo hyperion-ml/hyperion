@@ -482,16 +482,16 @@ class AudioDataset(Dataset):
         self.r = AR(audio_file, wav_scale=wav_scale)
 
         if rank == 0:
-            logging.info("loading segments file %s" % segments_file)
+            logging.info("loading segments file %s", segments_file)
 
         self.seg_set = SegmentSet.load(segments_file)
         if rank == 0:
-            logging.info("dataset contains %d seqs" % len(self.seg_set))
+            logging.info("dataset contains %d seqs", len(self.seg_set))
 
         self.is_val = is_val
         if time_durs_file is not None:
             if rank == 0:
-                logging.info("loading durations file %s" % time_durs_file)
+                logging.info("loading durations file %s", time_durs_file)
 
             time_durs = SegmentSet.load(time_durs_file)
             self.seg_set["duration"] = time_durs.loc[
@@ -771,7 +771,7 @@ class AudioDataset(Dataset):
         return args
 
     @staticmethod
-    def add_class_args(parser, prefix=None, skip={}):
+    def add_class_args(parser, prefix=None, skip=set()):
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")

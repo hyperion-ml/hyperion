@@ -213,7 +213,7 @@ class Res2Net1dBasicBlock(nn.Module):
                 x_i = self.bn1s[i](x_i)
             x_i = self.act1(x_i)
             if not self.norm_before:
-                x_i = self.bn1(x_i)
+                x_i = self.bn1s[i](x_i)
             x.append(x_i)
 
         if self.scale > 1:
@@ -405,7 +405,7 @@ class Res2Net1dBNBlock(nn.Module):
                 x_i = self.bn2s[i](x_i)
             x_i = self.act2(x_i)
             if not self.norm_before:
-                x_i = self.bn2(x_i)
+                x_i = self.bn2s[i](x_i)
             x.append(x_i)
 
         if self.scale > 1:

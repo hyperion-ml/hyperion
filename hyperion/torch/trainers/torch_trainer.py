@@ -653,7 +653,7 @@ class TorchTrainer(object):
         return args
 
     @staticmethod
-    def add_class_args(parser, prefix=None, train_modes=None, skip={}):
+    def add_class_args(parser, prefix=None, train_modes=None, skip=set()):
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")

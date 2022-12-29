@@ -8,7 +8,7 @@ import torch.nn as nn
 from torch.nn import Conv2d, Linear, BatchNorm2d, Dropout2d
 
 from ..layers import ActivationFactory as AF
-from .se_blocks import SEBlock2D, TSEBlock2D
+from .se_blocks import SEBlock2d, TSEBlock2d, FwSEBlock2d, CFwSEBlock2d
 from .resnet_blocks import ResNetBasicBlock, ResNetBNBlock
 
 
@@ -42,6 +42,7 @@ class SEResNetBasicBlock(ResNetBasicBlock):
         norm_layer=None,
         norm_before=True,
         se_r=16,
+        se_type="cw-se",
         time_se=False,
         num_feats=None,
     ):
@@ -59,16 +60,24 @@ class SEResNetBasicBlock(ResNetBasicBlock):
         )
 
         if time_se:
-            self.se_layer = TSEBlock2D(channels, num_feats, se_r, activation)
-        else:
-            self.se_layer = SEBlock2D(channels, se_r, activation)
+            se_type = "t-se"
+
+        if se_type == "t-se":
+            self.se_layer = TSEBlock2d(channels, num_feats, se_r, activation)
+        elif se_type == "cw-se":
+            self.se_layer = SEBlock2d(channels, se_r, activation)
+        elif se_type == "fw-se":
+            self.se_layer = FwSEBlock2d(num_feats, se_r, activation)
+        elif se_type == "cfw-se":
+            self.se_layer = CFwSEBlock2d(channels, num_feats, se_r, activation)
 
     def forward(self, x, x_mask=None):
         """Forward function.
 
         Args:
           x: input tensor with shape = (batch, in_channels, in_heigh, in_width).
-          x_mask: unused.
+          x_mask: Binary mask indicating which spatial dimensions are valid of
+                  shape=(batch, time), (batch, 1, time), (batch, height, width)
 
         Returns:
           Tensor with shape = (batch, out_channels, out_heigh, out_width).
@@ -92,7 +101,7 @@ class SEResNetBasicBlock(ResNetBasicBlock):
         if self.downsample is not None:
             residual = self.downsample(residual)
 
-        x = self.se_layer(x)
+        x = self.se_layer(x, x_mask=x_mask)
         x += residual
         x = self.act2(x)
 
@@ -135,6 +144,7 @@ class SEResNetBNBlock(ResNetBNBlock):
         norm_layer=None,
         norm_before=True,
         se_r=16,
+        se_type="cw-se",
         time_se=False,
         num_feats=None,
     ):
@@ -152,18 +162,26 @@ class SEResNetBNBlock(ResNetBNBlock):
         )
 
         if time_se:
-            self.se_layer = TSEBlock2D(
-                channels * self.expansion, num_feats, se_r, activation
-            )
-        else:
-            self.se_layer = SEBlock2D(channels * self.expansion, se_r, activation)
+            se_type = "t-se"
+
+        se_channels = channels * self.expansion
+        if se_type == "t-se":
+            self.se_layer = TSEBlock2d(se_channels, num_feats, se_r, activation)
+        elif se_type == "cw-se":
+            self.se_layer = SEBlock2d(se_channels, se_r, activation)
+        elif se_type == "fw-se":
+            self.se_layer = FwSEBlock2d(num_feats, se_r, activation)
+        elif se_type == "cfw-se":
+            self.se_layer = CFwSEBlock2d(se_channels, num_feats, se_r, activation)
 
     def forward(self, x, x_mask=None):
         """Forward function.
 
         Args:
           x: input tensor with shape = (batch, in_channels, in_heigh, in_width).
-          x_mask: unused.
+          x_mask: Binary mask indicating which spatial dimensions are valid of
+                  shape=(batch, time), (batch, 1, time), (batch, height, width)
+
         Returns:
           Tensor with shape = (batch, out_channels, out_heigh, out_width).
         """
@@ -190,7 +208,7 @@ class SEResNetBNBlock(ResNetBNBlock):
         if self.downsample is not None:
             residual = self.downsample(residual)
 
-        x = self.se_layer(x)
+        x = self.se_layer(x, x_mask=x_mask)
         x += residual
         x = self.act3(x)
 

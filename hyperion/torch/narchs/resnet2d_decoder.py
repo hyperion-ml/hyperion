@@ -4,7 +4,7 @@
 """
 
 import math
-from jsonargparse import ArgumentParser, ActionParser
+from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
 
 import torch
 import torch.nn as nn
@@ -330,13 +330,13 @@ class ResNet2dDecoder(NetArch):
     @staticmethod
     def filter_args(**kwargs):
 
-        if "wo_norm" in kwargs:
-            kwargs["use_norm"] = not kwargs["wo_norm"]
-            del kwargs["wo_norm"]
+        # if "wo_norm" in kwargs:
+        #     kwargs["use_norm"] = not kwargs["wo_norm"]
+        #     del kwargs["wo_norm"]
 
-        if "norm_after" in kwargs:
-            kwargs["norm_before"] = not kwargs["norm_after"]
-            del kwargs["norm_after"]
+        # if "norm_after" in kwargs:
+        #     kwargs["norm_before"] = not kwargs["norm_after"]
+        #     del kwargs["norm_after"]
 
         valid_args = (
             "in_channels",
@@ -485,18 +485,31 @@ class ResNet2dDecoder(NetArch):
         except:
             pass
 
+        # parser.add_argument(
+        #     "--wo-norm",
+        #     default=False,
+        #     action="store_true",
+        #     help="without batch normalization",
+        # )
+
+        # parser.add_argument(
+        #     "--norm-after",
+        #     default=False,
+        #     action="store_true",
+        #     help="batch normalizaton after activation",
+        # )
         parser.add_argument(
-            "--wo-norm",
-            default=False,
-            action="store_true",
+            "--use-norm",
+            default=True,
+            action=ActionYesNo,
             help="without batch normalization",
         )
 
         parser.add_argument(
-            "--norm-after",
-            default=False,
-            action="store_true",
-            help="batch normalizaton after activation",
+            "--norm-before",
+            default=True,
+            action=ActionYesNo,
+            help="batch normalizaton before activation",
         )
 
         parser.add_argument(
