@@ -8,21 +8,15 @@ import numpy as np
 
 import torch
 import torch.nn as nn
-from torch.nn import Conv1d, Linear, BatchNorm1d
+from torch.nn import BatchNorm1d, Conv1d, Linear
 
-from ..utils import seq_lengths_to_mask, scale_seq_lengths
+from ..layer_blocks import (Res2NetBasicBlock, Res2NetBNBlock,
+                            ResNetBasicBlock, ResNetBNBlock,
+                            ResNetEndpointBlock, ResNetInputBlock,
+                            SEResNetBasicBlock, SEResNetBNBlock)
 from ..layers import ActivationFactory as AF
 from ..layers import NormLayer2dFactory as NLF
-from ..layer_blocks import (
-    ResNetInputBlock,
-    ResNetBasicBlock,
-    ResNetBNBlock,
-    SEResNetBasicBlock,
-    SEResNetBNBlock,
-    Res2NetBasicBlock,
-    Res2NetBNBlock,
-)
-from ..layer_blocks import ResNetEndpointBlock
+from ..utils import scale_seq_lengths, seq_lengths_to_mask
 from .net_arch import NetArch
 
 

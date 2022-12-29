@@ -2,12 +2,13 @@
  Copyright 2022 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-import math
 import logging
+import math
+
+from .invpow_lr import InvPowLR
 
 # import torch
 
-from .invpow_lr import InvPowLR
 
 
 class NoamLR(InvPowLR):

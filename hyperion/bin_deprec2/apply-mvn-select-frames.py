@@ -4,27 +4,23 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0) 
 """
 
-import sys
-import os
-from jsonargparse import (
-    ArgumentParser,
-    ActionConfigFile,
-    ActionParser,
-    namespace_to_dict,
-)
-import time
 import logging
+import os
+import sys
+import time
 
 import numpy as np
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
 
 from hyperion.hyp_defs import config_logger
-from hyperion.utils.kaldi_matrix import compression_methods
-from hyperion.utils import Utt2Info
 from hyperion.io import DataWriterFactory as DWF
-from hyperion.io import SequentialDataReaderFactory as DRF
 from hyperion.io import RandomAccessDataReaderFactory as RDRF
-from hyperion.np.feats import MeanVarianceNorm as MVN
+from hyperion.io import SequentialDataReaderFactory as DRF
 from hyperion.np.feats import FrameSelector as FSel
+from hyperion.np.feats import MeanVarianceNorm as MVN
+from hyperion.utils import Utt2Info
+from hyperion.utils.kaldi_matrix import compression_methods
 
 
 def process_feats(

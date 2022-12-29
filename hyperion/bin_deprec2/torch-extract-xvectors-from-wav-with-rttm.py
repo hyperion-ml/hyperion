@@ -4,32 +4,26 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0) 
 """
 
-import sys
-import os
-from jsonargparse import (
-    ArgumentParser,
-    ActionConfigFile,
-    ActionParser,
-    namespace_to_dict,
-)
-import time
 import logging
+import os
+import sys
+import time
 
 import numpy as np
 import pandas as pd
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
 
 import torch
-
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
-from hyperion.utils import Utt2Info, RTTM
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialAudioReader as AR
 from hyperion.io import VADReaderFactory as VRF
 from hyperion.np.augment import SpeechAugment
-
-from hyperion.torch.utils import open_device
-from hyperion.torch.narchs import AudioFeatsMVN as AF
 from hyperion.torch import TorchModelLoader as TML
+from hyperion.torch.narchs import AudioFeatsMVN as AF
+from hyperion.torch.utils import open_device
+from hyperion.utils import RTTM, Utt2Info
 
 
 def init_device(use_gpu):

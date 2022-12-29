@@ -4,6 +4,6 @@
 """
 
 
-from .metrics import TorchMetric
-from .accuracy_functional import *
 from .accuracy import *
+from .accuracy_functional import *
+from .metrics import TorchMetric

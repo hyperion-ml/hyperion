@@ -3,6 +3,7 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import sys
+
 import numpy as np
 
 from ..pdfs.mixtures.diag_gmm_tiedcovs import DiagGMMTiedCovs as GMM

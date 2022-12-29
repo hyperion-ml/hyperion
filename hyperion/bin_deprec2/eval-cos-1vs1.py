@@ -7,19 +7,19 @@
 Evals cosine scoring
 """
 
-import sys
-import os
 import argparse
-import time
 import logging
+import os
+import sys
+import time
 
 import numpy as np
 
-from hyperion.hyp_defs import set_float_cpu, float_cpu, config_logger
+from hyperion.helpers import TrialDataReader as TDR
+from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
+from hyperion.np.transforms import LNorm, TransformList
 from hyperion.utils.trial_ndx import TrialNdx
 from hyperion.utils.trial_scores import TrialScores
-from hyperion.helpers import TrialDataReader as TDR
-from hyperion.np.transforms import TransformList, LNorm
 
 
 def eval_cos(

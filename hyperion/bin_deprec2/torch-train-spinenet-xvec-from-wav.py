@@ -4,32 +4,27 @@
  Copyright 2020 Magdalena Rybicka
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-import sys
-import os
-from jsonargparse import (
-    ArgumentParser,
-    ActionConfigFile,
-    ActionParser,
-    namespace_to_dict,
-)
-import time
 import logging
 import multiprocessing
+import os
+import sys
+import time
 from pathlib import Path
 
 import numpy as np
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
 
 import torch
 import torch.nn as nn
-
 from hyperion.hyp_defs import config_logger, set_float_cpu
-from hyperion.torch.utils import ddp
-from hyperion.torch.trainers import XVectorTrainerFromWav as Trainer
-from hyperion.torch.models import SpineNetXVector as XVec
 from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
 from hyperion.torch.metrics import CategoricalAccuracy
+from hyperion.torch.models import SpineNetXVector as XVec
 from hyperion.torch.narchs import AudioFeatsMVN as AF
+from hyperion.torch.trainers import XVectorTrainerFromWav as Trainer
+from hyperion.torch.utils import ddp
 
 
 def init_data(

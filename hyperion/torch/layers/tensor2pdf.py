@@ -5,9 +5,9 @@
 #
 
 import torch
+import torch.distributions as pdf
 import torch.nn as nn
 import torch.nn.functional as nnf
-import torch.distributions as pdf
 
 
 class Tensor2PDF(nn.Module):

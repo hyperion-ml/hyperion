@@ -8,8 +8,8 @@ import logging
 import torch
 import torch.nn as nn
 
-from ...torch_model import TorchModel
 from ...narchs import TorchNALoader
+from ...torch_model import TorchModel
 
 
 class AE(TorchModel):

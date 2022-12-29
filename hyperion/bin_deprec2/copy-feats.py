@@ -5,17 +5,16 @@
  Copy features/vectors and change format
 """
 
-import sys
-import os
 import argparse
-import time
 import logging
+import os
+import sys
+import time
 
 import numpy as np
 
 from hyperion.hyp_defs import config_logger
 from hyperion.io import CopyFeats as CF
-
 
 if __name__ == "__main__":
 

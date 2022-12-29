@@ -6,6 +6,7 @@
 import logging
 
 import numpy as np
+
 import torch
 
 from ...utils.utt2info import Utt2Info

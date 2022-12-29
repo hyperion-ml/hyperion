@@ -3,37 +3,31 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-import sys
-import os
-from pathlib import Path
-from jsonargparse import (
-    ArgumentParser,
-    ActionConfigFile,
-    ActionParser,
-    namespace_to_dict,
-)
-import time
 import logging
 import multiprocessing
+import os
+import sys
+import time
+from pathlib import Path
+
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
 
 import torch
-
 from hyperion.hyp_defs import config_logger, set_float_cpu
-from hyperion.torch.utils import ddp
-
-from hyperion.torch.trainers import XVectorTrainerFromWav as Trainer
-from hyperion.torch.data import AudioDataset as AD
-
 from hyperion.torch import TorchModelLoader as TML
+from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
 from hyperion.torch.metrics import CategoricalAccuracy
-from hyperion.torch.narchs import AudioFeatsMVN as AF
-from hyperion.torch.models import ResNetXVector as RXVec
-from hyperion.torch.models import ResNet1dXVector as R1dXVec
 from hyperion.torch.models import EfficientNetXVector as EXVec
+from hyperion.torch.models import ResNet1dXVector as R1dXVec
+from hyperion.torch.models import ResNetXVector as RXVec
+from hyperion.torch.models import SpineNetXVector as SpineXVec
 from hyperion.torch.models import TDNNXVector as TDXVec
 from hyperion.torch.models import TransformerXVectorV1 as TFXVec
-from hyperion.torch.models import SpineNetXVector as SpineXVec
+from hyperion.torch.narchs import AudioFeatsMVN as AF
+from hyperion.torch.trainers import XVectorTrainerFromWav as Trainer
+from hyperion.torch.utils import ddp
 
 xvec_dict = {
     "resnet": RXVec,

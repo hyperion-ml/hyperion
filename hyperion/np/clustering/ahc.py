@@ -3,12 +3,12 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import numpy as np
-import h5py
 from copy import copy
 
+import h5py
+import numpy as np
 from scipy.cluster.hierarchy import linkage
-from sklearn.metrics import homogeneity_score, completeness_score
+from sklearn.metrics import completeness_score, homogeneity_score
 
 from ...hyp_defs import float_cpu
 from ..np_model import NPModel

@@ -7,7 +7,7 @@
 # import numpy as np
 
 import torch.nn as nn
-from torch.nn import Linear, BatchNorm1d, Dropout
+from torch.nn import BatchNorm1d, Dropout, Linear
 
 from ..layers import ActivationFactory as AF
 

@@ -3,16 +3,17 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from jsonargparse import ArgumentParser, ActionParser
+from jsonargparse import ActionParser, ArgumentParser
 
 import torch
 import torch.nn as nn
 from torch.nn import Linear
 
-from ..layers import ActivationFactory as AF
-from ..layers import CosLossOutput, ArcLossOutput, SubCenterArcLossOutput
-from ..layers import NormLayer1dFactory as NLF
 from ..layer_blocks import FCBlock
+from ..layers import ActivationFactory as AF
+from ..layers import ArcLossOutput, CosLossOutput
+from ..layers import NormLayer1dFactory as NLF
+from ..layers import SubCenterArcLossOutput
 from .net_arch import NetArch
 
 

@@ -7,21 +7,21 @@
 Evals Q-scoring back-end
 """
 
-import sys
-import os
 import argparse
-import time
 import logging
+import os
+import sys
+import time
 
 import numpy as np
 
+from hyperion.classifiers import QScoringHomoGBE as GBE
+from hyperion.helpers import ClassifTrialDataReader as TDR
 from hyperion.hyp_defs import config_logger
+from hyperion.io import HypDataWriter as HDW
+from hyperion.transforms import TransformList
 from hyperion.utils.trial_ndx import TrialNdx
 from hyperion.utils.trial_scores import TrialScores
-from hyperion.io import HypDataWriter as HDW
-from hyperion.helpers import ClassifTrialDataReader as TDR
-from hyperion.transforms import TransformList
-from hyperion.classifiers import QScoringHomoGBE as GBE
 
 
 def eval_qscoring_gbe(

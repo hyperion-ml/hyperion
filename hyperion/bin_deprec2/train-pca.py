@@ -6,17 +6,17 @@
 """
 Trains PCA
 """
-import sys
-import os
 import argparse
-import time
 import logging
+import os
+import sys
+import time
 
 import numpy as np
 
-from hyperion.hyp_defs import config_logger
 from hyperion.helpers import VectorReader as VR
-from hyperion.np.transforms import TransformList, PCA
+from hyperion.hyp_defs import config_logger
+from hyperion.np.transforms import PCA, TransformList
 
 
 def load_model(input_path, name, **kwargs):

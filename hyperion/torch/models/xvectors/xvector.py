@@ -4,14 +4,15 @@
 """
 import logging
 from enum import Enum
-from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
 from typing import Optional
+
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 import torch
 import torch.nn as nn
 
-from ...layers import GlobalPool1dFactory as PF
 from ...layer_blocks import TDNNBlock
+from ...layers import GlobalPool1dFactory as PF
 from ...narchs import ClassifHead, TorchNALoader
 from ...torch_model import TorchModel
 from ...utils import eval_nnet_by_chunks, scale_seq_lengths

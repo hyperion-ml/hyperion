@@ -12,15 +12,15 @@ import time
 
 import numpy as np
 import pandas as pd
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
+
 import torch
 import torch.distributed as dist
-
-from jsonargparse import ActionParser, ArgumentParser, ActionYesNo
 from torch.utils.data import Dataset
 
 from ...io import RandomAccessDataReaderFactory as RF
-from ...utils.misc import filter_func_args
 from ...utils.class_info import ClassInfo
+from ...utils.misc import filter_func_args
 from ...utils.segment_set import SegmentSet
 from ..torch_defs import floatstr_torch
 

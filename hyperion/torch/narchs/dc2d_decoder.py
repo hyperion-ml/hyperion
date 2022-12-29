@@ -3,16 +3,18 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
 import math
+
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 import torch
 import torch.nn as nn
 
-from ..layers import ActivationFactory as AF
-from ..layers import NormLayer2dFactory as NLF
 from ..layer_blocks import DC2dDecBlock
-from ..layers import SubPixelConv2d, ICNR2d
+from ..layers import ActivationFactory as AF
+from ..layers import ICNR2d
+from ..layers import NormLayer2dFactory as NLF
+from ..layers import SubPixelConv2d
 from .net_arch import NetArch
 
 

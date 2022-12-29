@@ -5,11 +5,11 @@
 
 import torch
 import torch.nn as nn
-from torch.nn import Conv2d, Linear, BatchNorm2d, Dropout2d
+from torch.nn import BatchNorm2d, Conv2d, Dropout2d, Linear
 
 from ..layers import ActivationFactory as AF
-from .se_blocks import SEBlock2d, TSEBlock2d, FwSEBlock2d, CFwSEBlock2d
 from .resnet_blocks import ResNetBasicBlock, ResNetBNBlock
+from .se_blocks import CFwSEBlock2d, FwSEBlock2d, SEBlock2d, TSEBlock2d
 
 
 class SEResNetBasicBlock(ResNetBasicBlock):

@@ -3,13 +3,14 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import logging
-from jsonargparse import ArgumentParser, ActionParser
+
+from jsonargparse import ActionParser, ArgumentParser
 
 import torch
 import torch.nn as nn
 
-from ...torch_model import TorchModel
 from ...narchs import AudioFeatsMVN
+from ...torch_model import TorchModel
 from ...utils import remove_silence
 
 

@@ -9,15 +9,14 @@ import time
 
 import numpy as np
 import pandas as pd
+import torchaudio.transforms as tat
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
+
 import torch
 import torch.distributed as dist
-import torchaudio.transforms as tat
-
-from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from torch.utils.data import Dataset
 
 from ...io import RandomAccessAudioReader as AR
-
 # from ...utils.utt2info import Utt2Info
 from ...np.augment import SpeechAugment
 from ...utils.class_info import ClassInfo

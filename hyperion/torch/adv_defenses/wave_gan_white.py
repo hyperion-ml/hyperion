@@ -2,15 +2,15 @@
 # Added wave_gan_model_ckpt to test using different model ckpts [Sonal 24Aug20]
 
 import logging
+import math
 from pathlib import Path
 from typing import Tuple
 
-import math
 import librosa
 import numpy as np
+import yaml
 
 import torch
-import yaml
 
 try:
     # import parallel_wavegan.models
@@ -21,6 +21,7 @@ except:
     pass
 
 from sklearn.preprocessing import StandardScaler
+
 from torch import nn
 
 

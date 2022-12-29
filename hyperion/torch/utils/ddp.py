@@ -2,14 +2,17 @@
  Copyright 2021 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-import os
-import logging
 import datetime
-import torch
-import torch.nn as nn
-import torch.distributed as dist
+import logging
+import os
+
+from fairscale.nn.data_parallel import \
+    FullyShardedDataParallel as FullyShardedDDP
 from fairscale.nn.data_parallel import ShardedDataParallel as ShardedDDP
-from fairscale.nn.data_parallel import FullyShardedDataParallel as FullyShardedDDP
+
+import torch
+import torch.distributed as dist
+import torch.nn as nn
 
 from .devices import open_device
 

@@ -3,12 +3,13 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import math
+
 import torch
 import torch.nn as nn
-from torch.nn import Conv1d, BatchNorm1d
+from torch.nn import BatchNorm1d, Conv1d
 
 from ..layers import ActivationFactory as AF
-from ..layers import Dropout1d, DropConnect1d
+from ..layers import DropConnect1d, Dropout1d
 from .se_blocks import SEBlock1d
 
 

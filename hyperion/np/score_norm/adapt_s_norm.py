@@ -4,8 +4,8 @@
 """
 
 
-import numpy as np
 import h5py
+import numpy as np
 
 from .score_norm import ScoreNorm
 

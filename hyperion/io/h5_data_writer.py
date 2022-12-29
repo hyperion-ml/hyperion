@@ -4,13 +4,14 @@
 """
 
 import sys
-import numpy as np
+
 import h5py
+import numpy as np
 
 from ..hyp_defs import float_save
-from ..utils.scp_list import SCPList
-from ..utils.kaldi_matrix import KaldiMatrix, KaldiCompressedMatrix
 from ..utils.kaldi_io_funcs import is_token
+from ..utils.kaldi_matrix import KaldiCompressedMatrix, KaldiMatrix
+from ..utils.scp_list import SCPList
 from .data_writer import DataWriter
 
 

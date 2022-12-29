@@ -4,16 +4,19 @@
 """
 
 import math
-from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
+
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 import torch
 import torch.nn as nn
 
+from ..layer_blocks import (DC2dDecBlock, ResNet2dBasicDecBlock,
+                            ResNet2dBNDecBlock, SEResNet2dBasicDecBlock,
+                            SEResNet2dBNDecBlock)
 from ..layers import ActivationFactory as AF
+from ..layers import ICNR2d
 from ..layers import NormLayer2dFactory as NLF
-from ..layer_blocks import ResNet2dBasicDecBlock, ResNet2dBNDecBlock, DC2dDecBlock
-from ..layer_blocks import SEResNet2dBasicDecBlock, SEResNet2dBNDecBlock
-from ..layers import SubPixelConv2d, ICNR2d
+from ..layers import SubPixelConv2d
 from .net_arch import NetArch
 
 

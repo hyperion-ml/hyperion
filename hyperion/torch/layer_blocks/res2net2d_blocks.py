@@ -3,9 +3,10 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import math
+
 import torch
 import torch.nn as nn
-from torch.nn import Conv2d, BatchNorm2d, Dropout2d
+from torch.nn import BatchNorm2d, Conv2d, Dropout2d
 
 from ..layers import ActivationFactory as AF
 from .se_blocks import SEBlock2d, TSEBlock2d

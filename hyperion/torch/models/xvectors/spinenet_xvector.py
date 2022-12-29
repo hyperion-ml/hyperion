@@ -3,14 +3,15 @@
  Copyright 2020 Magdalena Rybicka
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from jsonargparse import ArgumentParser, ActionParser
 import logging
+
+from jsonargparse import ActionParser, ArgumentParser
 
 import torch
 import torch.nn as nn
 
-from .xvector import XVector
 from ...narchs import SpineNetFactory as SNF
+from .xvector import XVector
 
 
 class SpineNetXVector(XVector):

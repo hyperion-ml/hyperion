@@ -3,28 +3,22 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
-import math
 import logging
+import math
 
 import numpy as np
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 import torch
 import torch.nn as nn
 
-from ..utils import seq_lengths_to_mask
+from ..layer_blocks import (DC1dEncBlock, Res2Net1dBasicBlock,
+                            Res2Net1dBNBlock, ResNet1dBasicBlock,
+                            ResNet1dBNBlock, ResNet1dEndpoint,
+                            SEResNet1dBasicBlock, SEResNet1dBNBlock)
 from ..layers import ActivationFactory as AF
 from ..layers import NormLayer1dFactory as NLF
-from ..layer_blocks import (
-    ResNet1dBasicBlock,
-    ResNet1dBNBlock,
-    DC1dEncBlock,
-    ResNet1dEndpoint,
-    SEResNet1dBasicBlock,
-    SEResNet1dBNBlock,
-    Res2Net1dBasicBlock,
-    Res2Net1dBNBlock,
-)
+from ..utils import seq_lengths_to_mask
 from .net_arch import NetArch
 
 

@@ -6,9 +6,9 @@
 # xvectors had been moved to models
 # we import them here for backwards compatibility
 
-from ..models.xvector import XVector
-from ..models.tdnn_xvector import TDNNXVector
-from ..models.resnet_xvector import ResNetXVector
 from ..models.efficient_net_xvector import EfficientNetXVector
-from ..models.transformer_xvector_v1 import TransformerXVectorV1
+from ..models.resnet_xvector import ResNetXVector
 from ..models.spinenet_xvector import SpineNetXVector
+from ..models.tdnn_xvector import TDNNXVector
+from ..models.transformer_xvector_v1 import TransformerXVectorV1
+from ..models.xvector import XVector

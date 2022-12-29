@@ -4,15 +4,17 @@
 """
 
 import math
-from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
+
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 import torch
 import torch.nn as nn
 
-from ..layers import ActivationFactory as AF
-from ..layers import NormLayer1dFactory as NLF
 from ..layer_blocks import DC1dDecBlock
-from ..layers import SubPixelConv1d, ICNR1d
+from ..layers import ActivationFactory as AF
+from ..layers import ICNR1d
+from ..layers import NormLayer1dFactory as NLF
+from ..layers import SubPixelConv1d
 from .net_arch import NetArch
 
 

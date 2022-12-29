@@ -7,21 +7,20 @@
 Computes GMM posteriors
 """
 
-import sys
-import os
 import argparse
-import time
 import logging
+import os
+import sys
+import time
 
 import numpy as np
-
 from keras import backend as K
 
-from hyperion.hyp_defs import set_float_cpu, float_cpu, config_logger
-from hyperion.io import HypDataWriter
 from hyperion.helpers import SequenceReader as SR
-from hyperion.transforms import TransformList
+from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
+from hyperion.io import HypDataWriter
 from hyperion.pdfs import DiagGMM
+from hyperion.transforms import TransformList
 
 
 def to_sparse(r, num_comp):

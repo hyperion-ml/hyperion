@@ -3,14 +3,14 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import os
-import logging
 import io
+import logging
 import math
+import os
 import subprocess
-import soundfile as sf
 
 import numpy as np
+import soundfile as sf
 
 from ..hyp_defs import float_cpu
 from ..utils import SCPList, SegmentList

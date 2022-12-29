@@ -2,7 +2,7 @@
  Copyright 2020 Magdalena Rybicka
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from .spinenet import *
 

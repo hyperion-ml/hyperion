@@ -4,8 +4,8 @@
 """
 
 import torch
-import torch.nn as nn
 import torch.cuda.amp as amp
+import torch.nn as nn
 
 
 def l2_norm(x, dim=1, axis=None):

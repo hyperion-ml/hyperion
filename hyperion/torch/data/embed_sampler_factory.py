@@ -7,9 +7,9 @@ from typing import Optional, Union
 
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
-from .embed_dataset import EmbedDataset
 from .bucketing_seg_sampler import BucketingSegSampler
 from .class_weighted_embed_sampler import ClassWeightedEmbedSampler
+from .embed_dataset import EmbedDataset
 from .embed_sampler import EmbedSampler
 
 sampler_dict = {

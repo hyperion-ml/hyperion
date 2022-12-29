@@ -4,6 +4,7 @@
 """
 
 import sys
+
 import numpy as np
 
 from .hyp_data_reader import HypDataReader as HR

@@ -4,12 +4,12 @@
 """
 
 import logging
+
 import numpy as np
 
 from ...hyp_defs import float_cpu, float_save
-from ..np_model import NPModel
 from ..metrics import dcf
-
+from ..np_model import NPModel
 from .binary_logistic_regression import BinaryLogisticRegression as BLR
 
 

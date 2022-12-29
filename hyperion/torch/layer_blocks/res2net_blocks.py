@@ -3,12 +3,13 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import math
+
 import torch
 import torch.nn as nn
-from torch.nn import Conv2d, BatchNorm2d, Dropout2d
+from torch.nn import BatchNorm2d, Conv2d, Dropout2d
 
 from ..layers import ActivationFactory as AF
-from .se_blocks import SEBlock2d, TSEBlock2d, FwSEBlock2d, CFwSEBlock2d
+from .se_blocks import CFwSEBlock2d, FwSEBlock2d, SEBlock2d, TSEBlock2d
 
 
 def _conv3x3(in_channels, out_channels, stride=1, groups=1, dilation=1, bias=False):

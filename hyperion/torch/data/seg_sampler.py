@@ -7,8 +7,9 @@ import logging
 import math
 
 import numpy as np
-import torch
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
+
+import torch
 
 from .hyp_sampler import HypSampler
 

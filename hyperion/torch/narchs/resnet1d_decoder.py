@@ -2,17 +2,20 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
 import math
+
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 import torch
 import torch.nn as nn
 
+from ..layer_blocks import (DC1dDecBlock, ResNet1dBasicDecBlock,
+                            ResNet1dBNDecBlock, SEResNet1dBasicDecBlock,
+                            SEResNet1dBNDecBlock)
 from ..layers import ActivationFactory as AF
+from ..layers import ICNR1d
 from ..layers import NormLayer1dFactory as NLF
-from ..layer_blocks import ResNet1dBasicDecBlock, ResNet1dBNDecBlock, DC1dDecBlock
-from ..layer_blocks import SEResNet1dBasicDecBlock, SEResNet1dBNDecBlock
-from ..layers import SubPixelConv1d, ICNR1d
+from ..layers import SubPixelConv1d
 from .net_arch import NetArch
 
 

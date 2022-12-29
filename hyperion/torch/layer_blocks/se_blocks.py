@@ -5,7 +5,7 @@
 
 import torch
 import torch.nn as nn
-from torch.nn import Conv2d, Conv1d
+from torch.nn import Conv1d, Conv2d
 
 from ..layers import ActivationFactory as AF
 

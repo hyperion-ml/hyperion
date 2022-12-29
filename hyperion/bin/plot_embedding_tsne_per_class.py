@@ -4,31 +4,24 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0) 
 """
 import logging
-import sys
 import os
-from jsonargparse import (
-    ArgumentParser,
-    ActionConfigFile,
-    ActionParser,
-    namespace_to_dict,
-    ActionYesNo,
-)
+import sys
 import time
 from pathlib import Path
 
+import matplotlib
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib
-
-import matplotlib.pyplot as plt
+from jsonargparse import (ActionConfigFile, ActionParser, ActionYesNo,
+                          ArgumentParser, namespace_to_dict)
 
 from hyperion.hyp_defs import config_logger
+from hyperion.io import RandomAccessDataReaderFactory as DRF
+from hyperion.np.clustering import AHC
+from hyperion.np.transforms import PCA, LNorm, SklTSNE
 from hyperion.utils import SegmentSet
 from hyperion.utils.math import cosine_scoring
-from hyperion.io import RandomAccessDataReaderFactory as DRF
-from hyperion.np.transforms import PCA, SklTSNE, LNorm
-from hyperion.np.clustering import AHC
-
 
 matplotlib.use("Agg")
 colors = ["b", "g", "r", "c", "m", "y", "k"]

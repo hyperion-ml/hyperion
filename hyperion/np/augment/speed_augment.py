@@ -5,8 +5,9 @@
 
 import logging
 from copy import deepcopy
-import yaml
+
 import numpy as np
+import yaml
 from librosa.effects import time_stretch
 
 from ...hyp_defs import float_cpu

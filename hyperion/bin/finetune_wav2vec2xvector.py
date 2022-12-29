@@ -3,37 +3,29 @@
  Copyright 2022 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-import sys
-import os
-from pathlib import Path
-from jsonargparse import (
-    ArgumentParser,
-    ActionConfigFile,
-    ActionParser,
-    namespace_to_dict,
-)
-import time
 import logging
 import multiprocessing
+import os
+import sys
+import time
+from pathlib import Path
 
 import numpy as np
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
 
 import torch
 import torch.nn as nn
-
 from hyperion.hyp_defs import config_logger, set_float_cpu
-from hyperion.torch.utils import ddp
-from hyperion.torch.trainers import XVectorTrainer as Trainer
+from hyperion.torch import TorchModelLoader as TML
 from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
-
 from hyperion.torch.metrics import CategoricalAccuracy
-from hyperion.torch.models import (
-    HFWav2Vec2ResNet1dXVector,
-    HFHubert2ResNet1dXVector,
-    HFWavLM2ResNet1dXVector,
-)
-from hyperion.torch import TorchModelLoader as TML
+from hyperion.torch.models import (HFHubert2ResNet1dXVector,
+                                   HFWav2Vec2ResNet1dXVector,
+                                   HFWavLM2ResNet1dXVector)
+from hyperion.torch.trainers import XVectorTrainer as Trainer
+from hyperion.torch.utils import ddp
 
 model_dict = {
     "hf_wav2vec2resnet1d": HFWav2Vec2ResNet1dXVector,

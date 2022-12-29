@@ -4,6 +4,7 @@
 """
 
 import logging
+
 import numpy as np
 
 from ..hyp_defs import float_cpu

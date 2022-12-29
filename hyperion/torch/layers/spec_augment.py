@@ -3,7 +3,8 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import logging
-from jsonargparse import ArgumentParser, ActionParser
+
+from jsonargparse import ActionParser, ArgumentParser
 
 import torch
 import torch.nn as nn

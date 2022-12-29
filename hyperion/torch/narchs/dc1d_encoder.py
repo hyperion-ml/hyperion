@@ -2,15 +2,16 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
 import math
+
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 import torch
 import torch.nn as nn
 
+from ..layer_blocks.dc1d_blocks import DC1dEncBlock
 from ..layers import ActivationFactory as AF
 from ..layers import NormLayer1dFactory as NLF
-from ..layer_blocks.dc1d_blocks import DC1dEncBlock
 from .net_arch import NetArch
 
 

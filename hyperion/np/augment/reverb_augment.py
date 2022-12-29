@@ -3,15 +3,15 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import time
 import logging
 import math
 import multiprocessing
-import yaml
+import time
 from copy import deepcopy
 from enum import Enum
 
 import numpy as np
+import yaml
 from scipy import signal
 
 from ...hyp_defs import float_cpu
