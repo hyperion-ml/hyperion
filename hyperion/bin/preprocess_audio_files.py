@@ -45,6 +45,7 @@ def process_audio_files(
     write_time_durs_spec,
     vad_spec,
     vad_path_prefix,
+    output_sampling_rate,
     vad_fs=100,
     vad_dilation=0,
     vad_erosion=0,
@@ -74,6 +75,10 @@ def process_audio_files(
                 logging.info("Processing audio %s" % (key))
                 t2 = time.time()
 
+                if output_sampling_rate is not None:
+                    x = signal.resample(x, int(x.shape[0]*output_sampling_rate/fs))
+                    fs = output_sampling_rate
+                
                 tot_samples = x.shape[0]
                 if vad_spec is not None:
                     num_vad_frames = int(round(tot_samples * vad_fs / fs))
@@ -94,6 +99,7 @@ def process_audio_files(
                         x.shape[0] / tot_samples * 100,
                     )
                 )
+
 
                 if x.shape[0] > 0:
                     if remove_dc_offset:
@@ -148,6 +154,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--vad-path-prefix", default=None, help=("scp file_path prefix for vad")
     )
+    parser.add_argument(
+        "--output-sampling-rate", default=None, type=int, help=("resample output audio"))
 
     parser.add_argument(
         "--vad-fs", default=100, type=float, help=("vad sampling frequency")

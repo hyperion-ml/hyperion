@@ -1,0 +1,1 @@
+global_conf/config_transducer_v1.sh
