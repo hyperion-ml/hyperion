@@ -84,4 +84,7 @@ class FCBlock(nn.Module):
         if self.norm_before:
             x = self.bn1(x)
 
+        if self.activation is None and self.norm_after:
+            x = self.bn1(x)
+
         return x

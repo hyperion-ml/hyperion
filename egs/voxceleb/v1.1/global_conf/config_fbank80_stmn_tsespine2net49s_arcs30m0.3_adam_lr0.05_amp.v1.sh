@@ -28,13 +28,12 @@ ws_tag=w26s4
 se_r=256
 nnet_num_epochs=70
 
-xvec_train_base_cfg=conf/train_spinenet49_xvec_default.yaml
-xvec_train_args="--data.train.sampler.batch-size $batch_size_1gpu --model.spinenet-type $spinenet_type --model.res2net-width-factor $width_factor --model.res2net-scale $scale --model.se-r $se_r"
+nnet_s1_base_cfg=conf/train_spinenet49_xvec_default.yaml
+nnet_s1_args="--data.train.sampler.batch-size $batch_size_1gpu --model.spinenet-type $spinenet_type --model.res2net-width-factor $width_factor --model.res2net-scale $scale --model.se-r $se_r"
 
-nnet_name=${feat_type}_${spinenet_type}${ws_tag}_r${se_r}_e${embed_dim}_arcs${s}m${margin}_do${dropout}_adam_lr${lr}_b${eff_batch_size}_amp.v1
-
-nnet_dir=exp/xvector_nnets/$nnet_name
-nnet=$nnet_dir/model_ep0070.pth
+nnet_s1_name=${feat_type}_${spinenet_type}${ws_tag}_r${se_r}_e${embed_dim}_arcs${s}m${margin}_do${dropout}_adam_lr${lr}_b${eff_batch_size}_amp.v1
+nnet_s1_dir=exp/xvector_nnets/$nnet_s1_name
+nnet_s1=$nnet_s1_dir/model_ep0070.pth
 
 
 # back-end

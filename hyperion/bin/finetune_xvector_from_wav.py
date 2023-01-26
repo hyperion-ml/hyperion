@@ -10,8 +10,12 @@ import sys
 import time
 from pathlib import Path
 
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
 
 import torch
 from hyperion.hyp_defs import config_logger, set_float_cpu
@@ -95,7 +99,12 @@ def init_xvector(num_classes, in_model_file, rank, xvec_class, **kwargs):
 
 
 def init_hard_prototype_mining(model, train_loader, val_loader, rank):
-    if not train_loader.batch_sampler.hard_prototype_mining:
+    try:
+        hard_prototype_mining = train_loader.batch_sampler.hard_prototype_mining
+    except:
+        hard_prototype_mining = False
+
+    if not hard_prototype_mining:
         return
 
     if rank == 0:
@@ -104,7 +113,12 @@ def init_hard_prototype_mining(model, train_loader, val_loader, rank):
     affinity_matrix = model.compute_prototype_affinity()
     train_loader.batch_sampler.set_hard_prototypes(affinity_matrix)
 
-    if not val_loader.batch_sampler.hard_prototype_mining:
+    try:
+        hard_prototype_mining = val_loader.batch_sampler.hard_prototype_mining
+    except:
+        hard_prototype_mining = False
+
+    if not hard_prototype_mining:
         return
 
     val_loader.batch_sampler.set_hard_prototypes(affinity_matrix)
