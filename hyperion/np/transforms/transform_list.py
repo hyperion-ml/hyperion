@@ -5,21 +5,20 @@
 
 import logging
 
-import numpy as np
 import h5py
+import numpy as np
 
 from ..np_model import NPModel
-
 from .cent_whiten import CentWhiten
 from .cent_whiten_up import CentWhitenUP
+from .gaussianizer import Gaussianizer
+from .lda import LDA
 from .lnorm import LNorm
 from .lnorm_up import LNormUP
-from .pca import PCA
-from .lda import LDA
-from .nda import NDA
-from .nap import NAP
 from .mvn import MVN
-from .gaussianizer import Gaussianizer
+from .nap import NAP
+from .nda import NDA
+from .pca import PCA
 
 
 class TransformList(NPModel):

@@ -3,11 +3,11 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+import logging
 import os
 import os.path as path
 from collections import OrderedDict
 from copy import deepcopy
-import logging
 
 import numpy as np
 

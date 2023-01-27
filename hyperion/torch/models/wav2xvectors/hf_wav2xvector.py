@@ -2,17 +2,19 @@
  Copyright 2022 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-import logging
 import contextlib
-from jsonargparse import ArgumentParser, ActionParser
+import logging
+
+from jsonargparse import ActionParser, ArgumentParser
 
 import torch
 import torch.nn as nn
 
-# import torch.nn.functional as nnf
-
 from ...torch_model import TorchModel
 from ...utils import remove_silence
+
+# import torch.nn.functional as nnf
+
 
 
 class HFWav2XVector(TorchModel):
@@ -82,6 +84,10 @@ class HFWav2XVector(TorchModel):
             feats = hid_feats[-1]
 
         return feats
+
+    @property
+    def sample_frequency(self):
+        return self.hf_feats.sample_frequency
 
     def compute_prototype_affinity(self):
         return self.xvector.compute_prototype_affinity()

@@ -4,17 +4,17 @@
 """
 
 
-import os.path as path
-import logging
 import copy
+import logging
+import os.path as path
 
-import numpy as np
 import h5py
+import numpy as np
 
 from ..hyp_defs import float_cpu
 from .list_utils import *
-from .trial_ndx import TrialNdx
 from .trial_key import TrialKey
+from .trial_ndx import TrialNdx
 
 
 class TrialScores(object):

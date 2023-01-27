@@ -4,31 +4,45 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0) 
 """
 
-import sys
-import os
-from jsonargparse import (
-    ArgumentParser,
-    ActionConfigFile,
-    ActionParser,
-    namespace_to_dict,
-)
-import time
 import logging
+import os
+import sys
+import time
 
 import numpy as np
 import pandas as pd
+import torchaudio.transforms as tat
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
 
 import torch
-
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
-from hyperion.utils import Utt2Info
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialAudioReader as AR
 from hyperion.io import VADReaderFactory as VRF
 from hyperion.np.augment import SpeechAugment
-
-from hyperion.torch.utils import open_device
 from hyperion.torch import TorchModelLoader as TML
+from hyperion.torch.utils import open_device
+from hyperion.utils import Utt2Info
+
+resamplers = {}
+
+
+def get_resampler(source_fs, target_fs):
+    if source_fs in resamplers:
+        return resamplers[source_fs]
+
+    resampler = tat.Resample(
+        int(source_fs),
+        int(target_fs),
+        lowpass_filter_width=64,
+        rolloff=0.9475937167399596,
+        resampling_method="kaiser_window",
+        beta=14.769656459379492,
+    )
+    resampler_f = lambda x: resampler(torch.from_numpy(x)).numpy()
+    resamplers[source_fs] = resampler_f
+    return resampler_f
 
 
 def init_device(use_gpu):
@@ -102,7 +116,7 @@ def extract_xvectors(
     num_augs,
     aug_info_path,
     use_gpu,
-    **kwargs
+    **kwargs,
 ):
 
     rng = np.random.RandomState(seed=1123581321 + kwargs["part_idx"])
@@ -122,12 +136,11 @@ def extract_xvectors(
         num_augs = 1
 
     ar_args = AR.filter_args(**kwargs)
+    ar_args["wav_scale"] = 1.0
     logging.info("opening output stream: %s", output_spec)
     with DWF.create(output_spec, scp_sep=scp_sep) as writer:
 
-        logging.info(
-            "opening input stream: {} with args={}".format(input_spec, ar_args)
-        )
+        logging.info(f"opening input stream: {input_spec} with args={ar_args}")
         with AR(input_spec, **ar_args) as reader:
 
             if vad_spec is not None:
@@ -146,6 +159,11 @@ def extract_xvectors(
                 key0 = key[0]
                 fs = fs[0]
                 t2 = time.time()
+                if fs != model.sample_frequency:
+                    resampler = get_resampler(fs, model.sample_frequency)
+                    print(f"x01 {x0.shape} {np.max(x0)}")
+                    x0 = resampler(x0)
+                    print(f"x01 {x0.shape} {np.max(x0)}")
 
                 logging.info("processing utt %s", key0)
                 for aug_id in range(num_augs):

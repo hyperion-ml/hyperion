@@ -3,41 +3,36 @@
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-import sys
-import os
-from pathlib import Path
-from jsonargparse import (
-    ArgumentParser,
-    ActionConfigFile,
-    ActionParser,
-    namespace_to_dict,
-)
-import time
 import logging
 import multiprocessing
+import os
+import sys
+import time
+from pathlib import Path
 
 import numpy as np
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
 
 import torch
 import torch.nn as nn
-
-# import torch.multiprocessing as mp
-
 from hyperion.hyp_defs import config_logger, set_float_cpu
-from hyperion.torch.utils import open_device
-from hyperion.torch.utils import ddp
-
-# from hyperion.torch.helpers import OptimizerFactory as OF
-# from hyperion.torch.lr_schedulers import LRSchedulerFactory as LRSF
-from hyperion.torch.trainers import XVectorTrainerFromWav as Trainer
-from hyperion.torch.models import ResNetXVector as XVec
 from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
 from hyperion.torch.metrics import CategoricalAccuracy
-
+from hyperion.torch.models import ResNetXVector as XVec
 # from hyperion.torch.layers import AudioFeatsFactory as AFF
 # from hyperion.torch.layers import MeanVarianceNorm as MVN
 from hyperion.torch.narchs import AudioFeatsMVN as AF
+# from hyperion.torch.helpers import OptimizerFactory as OF
+# from hyperion.torch.lr_schedulers import LRSchedulerFactory as LRSF
+from hyperion.torch.trainers import XVectorTrainerFromWav as Trainer
+from hyperion.torch.utils import ddp, open_device
+
+# import torch.multiprocessing as mp
+
+
+
 
 # from torch.utils.data import dataloader
 # from torch.multiprocessing import reductions

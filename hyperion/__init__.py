@@ -4,11 +4,6 @@
 """
 
 
-from . import utils
-from . import np
-from . import io
-from . import torch
-from . import helpers
-
+from . import helpers, io, np, torch, utils
 
 __version__ = "0.4.0a"

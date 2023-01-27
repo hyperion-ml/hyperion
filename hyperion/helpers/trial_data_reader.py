@@ -2,18 +2,18 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-import sys
-import os
 import argparse
-import time
 import copy
+import os
+import sys
+import time
 
 import numpy as np
 
 from ..io import RandomAccessDataReaderFactory as DRF
-from ..utils.utt2info import Utt2Info
-from ..utils import TrialNdx, TrialKey  # , SparseTrialNdx, SparseTrialKey
 from ..np.transforms import TransformList
+from ..utils import TrialKey, TrialNdx  # , SparseTrialNdx, SparseTrialKey
+from ..utils.utt2info import Utt2Info
 
 
 class TrialDataReader(object):

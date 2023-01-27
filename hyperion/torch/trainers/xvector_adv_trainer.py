@@ -2,17 +2,19 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+import logging
 import os
+import time
 from collections import OrderedDict as ODict
 
-import time
-import logging
-from jsonargparse import ArgumentParser, ActionParser
+from jsonargparse import ActionParser, ArgumentParser
 
 import torch
+import torch.cuda.amp as amp
 import torch.nn as nn
 
-from ..utils import MetricAcc
+from ...utils.misc import filter_func_args
+from ..utils import MetricAcc, tensors_subset
 from .xvector_trainer import XVectorTrainer
 
 
@@ -48,6 +50,8 @@ class XVectorAdvTrainer(XVectorTrainer):
       swa_lr: SWA learning rate
       swa_anneal_epochs: SWA learning rate anneal epochs
       cpu_offload: CPU offload of gradients when using fully sharded ddp
+      input_key: dict. key for nnet input.
+      target_key: dict. key for nnet targets.
     """
 
     def __init__(
@@ -81,36 +85,41 @@ class XVectorAdvTrainer(XVectorTrainer):
         swa_lr=1e-3,
         swa_anneal_epochs=10,
         cpu_offload=False,
+        input_key="x",
+        target_key="class_id",
     ):
 
-        super().__init__(
-            model,
-            optim,
-            epochs,
-            exp_path,
-            cur_epoch=cur_epoch,
-            grad_acc_steps=grad_acc_steps,
-            eff_batch_size=eff_batch_size,
-            device=device,
-            metrics=metrics,
-            lrsched=lrsched,
-            loggers=loggers,
-            ddp=ddp,
-            ddp_type=ddp_type,
-            loss=loss,
-            train_mode=train_mode,
-            use_amp=use_amp,
-            log_interval=log_interval,
-            use_tensorboard=use_tensorboard,
-            use_wandb=use_wandb,
-            wandb=wandb,
-            grad_clip=grad_clip,
-            grad_clip_norm=grad_clip_norm,
-            swa_start=swa_start,
-            swa_lr=swa_lr,
-            swa_anneal_epochs=swa_anneal_epochs,
-            cpu_offload=cpu_offload,
-        )
+        super_args = filter_func_args(super().__init__, locals())
+        super().__init__(**super_args)
+
+        # super().__init__(
+        #     model,
+        #     optim,
+        #     epochs,
+        #     exp_path,
+        #     cur_epoch=cur_epoch,
+        #     grad_acc_steps=grad_acc_steps,
+        #     eff_batch_size=eff_batch_size,
+        #     device=device,
+        #     metrics=metrics,
+        #     lrsched=lrsched,
+        #     loggers=loggers,
+        #     ddp=ddp,
+        #     ddp_type=ddp_type,
+        #     loss=loss,
+        #     train_mode=train_mode,
+        #     use_amp=use_amp,
+        #     log_interval=log_interval,
+        #     use_tensorboard=use_tensorboard,
+        #     use_wandb=use_wandb,
+        #     wandb=wandb,
+        #     grad_clip=grad_clip,
+        #     grad_clip_norm=grad_clip_norm,
+        #     swa_start=swa_start,
+        #     swa_lr=swa_lr,
+        #     swa_anneal_epochs=swa_anneal_epochs,
+        #     cpu_offload=cpu_offload,
+        # )
 
         self.attack = attack
         self.attack.to(device)
@@ -129,34 +138,33 @@ class XVectorAdvTrainer(XVectorTrainer):
             )
 
     def train_epoch(self, data_loader):
-
+        batch_keys = [self.input_key, self.target_key]
         self.model.update_loss_margin(self.cur_epoch)
 
         metric_acc = MetricAcc(device=self.device)
         batch_metrics = ODict()
         self.model.train()
 
-        for batch, (data, target) in enumerate(data_loader):
+        for batch, data in enumerate(data_loader):
             self.loggers.on_batch_begin(batch)
-
-            data, target = data.to(self.device), target.to(self.device)
-            batch_size = data.shape[0]
+            input_data, target = tensors_subset(data, batch_keys, self.device)
+            batch_size = input_data.size(0)
 
             if batch % self.grad_acc_steps == 0:
                 if torch.rand(1) < self.p_attack:
                     # generate adversarial attacks
-                    logging.info("generating adv attack for batch=%d" % (batch))
+                    logging.info("generating adv attack for batch=%d", batch)
                     self.model.eval()
-                    data_adv = self.attack.generate(data, target)
+                    data_adv = self.attack.generate(inptu_data, target)
                     max_delta = torch.max(torch.abs(data_adv - data)).item()
-                    logging.info("adv attack max perturbation=%f" % (max_delta))
-                    data = data_adv
+                    logging.info("adv attack max perturbation=%f", max_delta)
+                    input_data = data_adv
                     self.model.train()
 
                 self.optimizer.zero_grad()
 
-            with self.amp_autocast():
-                output = self.model(data, target)
+            with amp.autocast(enabled=self.use_amp):
+                output = self.model(input_data, target)
                 loss = self.loss(output, target).mean() / self.grad_acc_steps
 
             if self.use_amp:
@@ -184,7 +192,7 @@ class XVectorAdvTrainer(XVectorTrainer):
         return logs
 
     def validation_epoch(self, data_loader, swa_update_bn=False):
-
+        batch_keys = [self.input_key, self.target_key]
         metric_acc = MetricAcc(device=self.device)
         batch_metrics = ODict()
 
@@ -195,19 +203,19 @@ class XVectorAdvTrainer(XVectorTrainer):
             log_tag = "val_"
             self.model.eval()
 
-        for batch, (data, target) in enumerate(data_loader):
-            data, target = data.to(self.device), target.to(self.device)
-            batch_size = data.shape[0]
+        for batch, data in enumerate(data_loader):
+            input_data, target = tensors_subset(data, batch_keys, self.device)
+            batch_size = input_data.size(0)
 
             if torch.rand(1) < self.p_val_attack:
                 # generate adversarial attacks
                 self.model.eval()
-                data = self.attack.generate(data, target)
+                data = self.attack.generate(input_data, target)
                 if swa_update_bn:
                     self.model.train()
 
             with torch.no_grad():
-                with self.amp_autocast():
+                with amp.autocast(enabled=self.use_amp):
                     output = self.model(data, **self.amp_args)
                     loss = self.loss(output, target)
 
@@ -230,7 +238,7 @@ class XVectorAdvTrainer(XVectorTrainer):
         return args
 
     @staticmethod
-    def add_class_args(parser, prefix=None, skip=[]):
+    def add_class_args(parser, prefix=None, skip=set()):
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")

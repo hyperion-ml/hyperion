@@ -7,11 +7,11 @@
 Converts from Ark format to NIST OpenSAT
 """
 
-import sys
-import os
 import argparse
-import time
 import logging
+import os
+import sys
+import time
 
 import numpy as np
 

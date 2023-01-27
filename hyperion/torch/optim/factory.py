@@ -2,13 +2,14 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from jsonargparse import ArgumentParser, ActionParser
 import logging
 
-from ...utils.misc import filter_args
+from jsonargparse import ActionParser, ArgumentParser
 
 import torch
 import torch.optim as optim
+
+from ...utils.misc import filter_args
 from .radam import RAdam
 
 

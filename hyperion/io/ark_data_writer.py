@@ -4,12 +4,14 @@
 """
 
 import sys
+
 import numpy as np
 
 from ..hyp_defs import float_save
+from ..utils.kaldi_io_funcs import (init_kaldi_output_stream, is_token,
+                                    write_token)
+from ..utils.kaldi_matrix import KaldiCompressedMatrix, KaldiMatrix
 from ..utils.scp_list import SCPList
-from ..utils.kaldi_io_funcs import is_token, write_token, init_kaldi_output_stream
-from ..utils.kaldi_matrix import KaldiMatrix, KaldiCompressedMatrix
 from .data_writer import DataWriter
 
 

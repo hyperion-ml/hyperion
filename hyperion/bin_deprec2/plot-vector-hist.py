@@ -4,20 +4,20 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import sys
-import os
 import argparse
-import time
 import logging
+import os
+import sys
+import time
 
-import numpy as np
 import matplotlib
+import numpy as np
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from hyperion.hyp_defs import config_logger
 from hyperion.helpers import VectorReader as VR
+from hyperion.hyp_defs import config_logger
 from hyperion.np.transforms import TransformList
 
 

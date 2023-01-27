@@ -3,18 +3,18 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import sys
-import os
 import argparse
-import time
 import copy
+import os
+import sys
+import time
 
 import numpy as np
 
 from ..io import RandomAccessDataReaderFactory as DRF
-from ..utils.utt2info import Utt2Info
-from ..utils.tensors import to3D_by_class
 from ..np.transforms import TransformList
+from ..utils.tensors import to3D_by_class
+from ..utils.utt2info import Utt2Info
 
 
 class VectorClassReader(object):

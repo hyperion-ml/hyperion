@@ -3,9 +3,8 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import math
-from jsonargparse import ArgumentParser, ActionParser
 import logging
+import math
 
 import numpy as np
 import torch
@@ -16,6 +15,7 @@ from .seg_sampler import SegSampler
 
 
 class BucketingSegSampler(HypSampler):
+
     def __init__(self,
                  seg_set,
                  base_sampler=SegSampler,

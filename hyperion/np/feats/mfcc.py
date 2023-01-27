@@ -13,7 +13,7 @@ from ...hyp_defs import float_cpu
 from ...utils.misc import str2bool
 from .feature_windows import FeatureWindowFactory as FWF
 from .filter_banks import FilterBankFactory as FBF
-from .stft import strft, st_logE
+from .stft import st_logE, strft
 
 
 class MFCCSteps(Enum):

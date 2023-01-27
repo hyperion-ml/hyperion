@@ -3,23 +3,19 @@
  Copyright 2020 Jesus Villalba (Johns Hopkins University)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0) 
 """
-import sys
-import os
-from jsonargparse import (
-    ArgumentParser,
-    ActionConfigFile,
-    ActionParser,
-    namespace_to_dict,
-)
-import time
 import logging
-
 import math
+import os
+import sys
+import time
+
 import numpy as np
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
 
 from hyperion.hyp_defs import config_logger
-from hyperion.io import SequentialAudioReader as AR
 from hyperion.io import DataWriterFactory as DWF
+from hyperion.io import SequentialAudioReader as AR
 
 
 def pack_wav_rirs(input_path, output_spec, **kwargs):

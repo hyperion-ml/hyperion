@@ -4,7 +4,7 @@
 """
 
 from .core import *
+from .hmm import *
+from .jfa import *
 from .mixtures import *
 from .plda import *
-from .jfa import *
-from .hmm import *

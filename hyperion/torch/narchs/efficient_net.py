@@ -4,15 +4,16 @@
 """
 
 import math
-from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
+
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 import torch
 import torch.nn as nn
-from torch.nn import Linear, Dropout
+from torch.nn import Dropout, Linear
 
+from ..layer_blocks import MBConvBlock, MBConvInOutBlock
 from ..layers import ActivationFactory as AF
 from ..layers import NormLayer2dFactory as NLF
-from ..layer_blocks import MBConvBlock, MBConvInOutBlock
 from .net_arch import NetArch
 
 

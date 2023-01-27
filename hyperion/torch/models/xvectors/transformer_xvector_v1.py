@@ -4,13 +4,14 @@ f"""
 """
 
 import logging
-from jsonargparse import ArgumentParser, ActionParser
+
+from jsonargparse import ActionParser, ArgumentParser
 
 import torch
 import torch.nn as nn
 
-from .xvector import XVector
 from ...narchs import TransformerEncoderV1 as TE
+from .xvector import XVector
 
 
 class TransformerXVectorV1(XVector):

@@ -4,13 +4,14 @@
 """
 
 import logging
-from abc import ABCMeta, abstractmethod
-import numpy as np
 import multiprocessing
+from abc import ABCMeta, abstractmethod
+
+import numpy as np
 
 from ..hyp_defs import float_cpu
-from ..utils.scp_list import SCPList
 from ..np.transforms import TransformList
+from ..utils.scp_list import SCPList
 
 
 class DataReader(object):

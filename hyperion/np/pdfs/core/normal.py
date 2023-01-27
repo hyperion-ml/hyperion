@@ -7,21 +7,11 @@ import numpy as np
 import scipy.linalg as la
 
 from ....hyp_defs import float_cpu
-from ....utils.plotting import (
-    plot_gaussian_1D,
-    plot_gaussian_ellipsoid_2D,
-    plot_gaussian_ellipsoid_3D,
-    plot_gaussian_3D,
-)
-from ....utils.math import (
-    invert_pdmat,
-    invert_trimat,
-    symmat2vec,
-    vec2symmat,
-    fullcov_varfloor,
-    logdet_pdmat,
-)
-
+from ....utils.math import (fullcov_varfloor, invert_pdmat, invert_trimat,
+                            logdet_pdmat, symmat2vec, vec2symmat)
+from ....utils.plotting import (plot_gaussian_1D, plot_gaussian_3D,
+                                plot_gaussian_ellipsoid_2D,
+                                plot_gaussian_ellipsoid_3D)
 from .exp_family import ExpFamily
 
 

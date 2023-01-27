@@ -7,18 +7,18 @@
 Trains Gaussianization for i-vectors.
 """
 
-import sys
-import os
 import argparse
-import time
 import logging
+import os
+import sys
+import time
 
 import numpy as np
 
-from hyperion.hyp_defs import config_logger
 from hyperion.helpers import VectorReader as VR
+from hyperion.hyp_defs import config_logger
 from hyperion.np.pdfs.core import Normal
-from hyperion.np.transforms import TransformList, Gaussianizer
+from hyperion.np.transforms import Gaussianizer, TransformList
 
 
 def load_model(input_path, **kwargs):

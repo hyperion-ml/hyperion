@@ -5,8 +5,9 @@
 
 import logging
 
-from .rw_specifiers import ArchiveType, WSpecifier, RSpecifier, WSpecType, RSpecType
 from .bin_vad_reader import BinVADReader as BVR
+from .rw_specifiers import (ArchiveType, RSpecifier, RSpecType, WSpecifier,
+                            WSpecType)
 from .segment_vad_reader import SegmentVADReader as SVR
 
 

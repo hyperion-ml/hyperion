@@ -4,13 +4,13 @@
 """
 
 
+import copy
 import logging
 import re
-import numpy as np
-import pandas as pd
-import copy
 
 import matplotlib
+import numpy as np
+import pandas as pd
 
 matplotlib.use("Agg")
 matplotlib.rc("font", **{"family": "sans-serif", "sans-serif": ["Helvetica"]})
@@ -20,8 +20,8 @@ import matplotlib.pyplot as plt
 from ...hyp_defs import float_cpu
 from ...utils import TrialKey, TrialScores
 from ...utils.trial_stats import TrialStats
-from .utils import effective_prior
 from .dcf import fast_eval_dcf_eer
+from .utils import effective_prior
 
 
 class VerificationEvaluator(object):

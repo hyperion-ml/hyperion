@@ -6,17 +6,17 @@
 """
 Trains LDA
 """
-import sys
-import os
 import argparse
-import time
 import logging
+import os
+import sys
+import time
 
 import numpy as np
 
-from hyperion.hyp_defs import config_logger
 from hyperion.helpers import VectorClassReader as VCR
-from hyperion.np.transforms import TransformList, LDA, SbSw
+from hyperion.hyp_defs import config_logger
+from hyperion.np.transforms import LDA, SbSw, TransformList
 
 
 def train_lda(

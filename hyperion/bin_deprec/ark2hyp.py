@@ -7,9 +7,9 @@
 Converts from Ark format to h5 format (deprecated, use copy-feats.py)
 """
 
-import sys
-import os
 import argparse
+import os
+import sys
 import time
 
 import numpy as np

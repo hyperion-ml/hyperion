@@ -4,12 +4,13 @@
 """
 
 import logging
+
 import numpy as np
 
 from ..hyp_defs import float_cpu
 from ..utils.vad_utils import bin_vad_to_timestamps
-from .vad_reader import VADReader
 from .data_rw_factory import RandomAccessDataReaderFactory as DRF
+from .vad_reader import VADReader
 
 
 class BinVADReader(VADReader):

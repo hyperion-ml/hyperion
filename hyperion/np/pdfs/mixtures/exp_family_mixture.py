@@ -2,12 +2,12 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-import numpy as np
-
 import logging
 
+import numpy as np
+
 from ....hyp_defs import float_cpu
-from ....utils.math import softmax, logsumexp
+from ....utils.math import logsumexp, softmax
 from ....utils.queues import GeneratorQueue
 from ..core import PDF
 

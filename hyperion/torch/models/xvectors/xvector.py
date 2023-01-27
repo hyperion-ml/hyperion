@@ -4,14 +4,15 @@
 """
 import logging
 from enum import Enum
-from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
 from typing import Optional
+
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 import torch
 import torch.nn as nn
 
-from ...layers import GlobalPool1dFactory as PF
 from ...layer_blocks import TDNNBlock
+from ...layers import GlobalPool1dFactory as PF
 from ...narchs import ClassifHead, TorchNALoader
 from ...torch_model import TorchModel
 from ...utils import eval_nnet_by_chunks, scale_seq_lengths
@@ -655,13 +656,13 @@ class XVector(TorchModel):
     @staticmethod
     def filter_args(**kwargs):
 
-        if "wo_norm" in kwargs:
-            kwargs["use_norm"] = not kwargs["wo_norm"]
-            del kwargs["wo_norm"]
+        # if "wo_norm" in kwargs:
+        #     kwargs["use_norm"] = not kwargs["wo_norm"]
+        #     del kwargs["wo_norm"]
 
-        if "norm_after" in kwargs:
-            kwargs["norm_before"] = not kwargs["norm_after"]
-            del kwargs["norm_after"]
+        # if "norm_after" in kwargs:
+        #     kwargs["norm_before"] = not kwargs["norm_after"]
+        #     del kwargs["norm_after"]
 
         # get arguments for pooling
         pool_args = PF.filter_args(**kwargs["pool_net"])
@@ -792,18 +793,31 @@ class XVector(TorchModel):
         except:
             pass
 
+        # parser.add_argument(
+        #     "--wo-norm",
+        #     default=False,
+        #     action="store_true",
+        #     help="without batch normalization",
+        # )
+
+        # parser.add_argument(
+        #     "--norm-after",
+        #     default=False,
+        #     action="store_true",
+        #     help="batch normalizaton after activation",
+        # )
         parser.add_argument(
-            "--wo-norm",
-            default=False,
-            action="store_true",
+            "--use-norm",
+            default=True,
+            action=ActionYesNo,
             help="without batch normalization",
         )
 
         parser.add_argument(
-            "--norm-after",
-            default=False,
-            action="store_true",
-            help="batch normalizaton after activation",
+            "--norm-before",
+            default=True,
+            action=ActionYesNo,
+            help="batch normalizaton before activation",
         )
 
         try:
@@ -892,7 +906,7 @@ class XVector(TorchModel):
         parser.add_argument(
             "--num-subcenters",
             default=2,
-            type=float,
+            type=int,
             help="number of subcenters in subcenter losses",
         )
 

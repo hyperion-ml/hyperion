@@ -6,13 +6,13 @@
 import logging
 
 import torch
-import torch.nn as nn
 import torch.distributions as pdf
+import torch.nn as nn
 
-from ...torch_model import TorchModel
-from ...narchs import TorchNALoader
 from ...layers import tensor2pdf as t2pdf
 from ...layers import vq
+from ...narchs import TorchNALoader
+from ...torch_model import TorchModel
 
 
 class VQVAE(TorchModel):

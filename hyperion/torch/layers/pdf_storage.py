@@ -5,8 +5,8 @@
 #
 
 import torch
-import torch.nn as nn
 import torch.distributions as pdf
+import torch.nn as nn
 
 
 class StdNormal(nn.Module):

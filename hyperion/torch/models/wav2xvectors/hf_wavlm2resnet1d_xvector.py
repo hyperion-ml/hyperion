@@ -3,14 +3,15 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import logging
-from jsonargparse import ArgumentParser, ActionParser
-from typing import Union, Dict, Optional
+from typing import Dict, Optional, Union
+
+from jsonargparse import ActionParser, ArgumentParser
 
 import torch
 import torch.nn as nn
 
-from ..xvectors import ResNet1dXVector
 from ...tpm import HFWavLM
+from ..xvectors import ResNet1dXVector
 from .hf_wav2xvector import HFWav2XVector
 
 

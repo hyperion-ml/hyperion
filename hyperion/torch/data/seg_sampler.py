@@ -3,13 +3,14 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import math
-from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
 import logging
+import math
 
 import numpy as np
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 import torch
+
 from .hyp_sampler import HypSampler
 
 

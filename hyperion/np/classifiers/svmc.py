@@ -3,17 +3,17 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import os
 import logging
+import os
 import pickle
-import numpy as np
-from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
 
+import numpy as np
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from sklearn.svm import SVC as SVC
 
 from ...hyp_defs import float_cpu
-from ..np_model import NPModel
 from ...utils.math import softmax
+from ..np_model import NPModel
 
 
 class GaussianSVMC(NPModel):

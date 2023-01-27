@@ -6,8 +6,8 @@
 import numpy as np
 
 from ....hyp_defs import float_cpu
-from ..core.pdf import PDF
 from ...transforms import LNorm
+from ..core.pdf import PDF
 
 
 class PLDABase(PDF):

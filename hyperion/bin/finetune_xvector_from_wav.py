@@ -3,39 +3,35 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-import sys
-import os
-from pathlib import Path
-from jsonargparse import (
-    ArgumentParser,
-    ActionConfigFile,
-    ActionParser,
-    namespace_to_dict,
-)
-import time
 import logging
 import multiprocessing
+import os
+import sys
+import time
+from pathlib import Path
+
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
 
 import torch
-
 from hyperion.hyp_defs import config_logger, set_float_cpu
-from hyperion.torch.utils import ddp
-
-# from hyperion.torch.models import XVector as XVec
-from hyperion.torch.trainers import XVectorTrainerFromWav as Trainer
-from hyperion.torch.data import AudioDataset as AD
-
-# from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
 from hyperion.torch import TorchModelLoader as TML
+from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
 from hyperion.torch.metrics import CategoricalAccuracy
-from hyperion.torch.narchs import AudioFeatsMVN as AF
-from hyperion.torch.models import ResNetXVector as RXVec
-from hyperion.torch.models import ResNet1dXVector as R1dXVec
 from hyperion.torch.models import EfficientNetXVector as EXVec
+from hyperion.torch.models import ResNet1dXVector as R1dXVec
+from hyperion.torch.models import ResNetXVector as RXVec
+from hyperion.torch.models import SpineNetXVector as SpineXVec
 from hyperion.torch.models import TDNNXVector as TDXVec
 from hyperion.torch.models import TransformerXVectorV1 as TFXVec
-from hyperion.torch.models import SpineNetXVector as SpineXVec
+from hyperion.torch.narchs import AudioFeatsMVN as AF
+from hyperion.torch.trainers import XVectorTrainerFromWav as Trainer
+from hyperion.torch.utils import ddp
 
 xvec_dict = {
     "resnet": RXVec,
@@ -103,7 +99,12 @@ def init_xvector(num_classes, in_model_file, rank, xvec_class, **kwargs):
 
 
 def init_hard_prototype_mining(model, train_loader, val_loader, rank):
-    if not train_loader.batch_sampler.hard_prototype_mining:
+    try:
+        hard_prototype_mining = train_loader.batch_sampler.hard_prototype_mining
+    except:
+        hard_prototype_mining = False
+
+    if not hard_prototype_mining:
         return
 
     if rank == 0:
@@ -112,7 +113,12 @@ def init_hard_prototype_mining(model, train_loader, val_loader, rank):
     affinity_matrix = model.compute_prototype_affinity()
     train_loader.batch_sampler.set_hard_prototypes(affinity_matrix)
 
-    if not val_loader.batch_sampler.hard_prototype_mining:
+    try:
+        hard_prototype_mining = val_loader.batch_sampler.hard_prototype_mining
+    except:
+        hard_prototype_mining = False
+
+    if not hard_prototype_mining:
         return
 
     val_loader.batch_sampler.set_hard_prototypes(affinity_matrix)

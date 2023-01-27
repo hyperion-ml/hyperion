@@ -6,10 +6,11 @@
 """
 Merges multiple hdf5 files into one file
 """
-import sys
-import os
 import argparse
+import os
+import sys
 import time
+
 import numpy as np
 
 from hyperion.io import H5Merger

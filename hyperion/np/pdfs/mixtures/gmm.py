@@ -2,31 +2,19 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-import numpy as np
 import h5py
+import numpy as np
 import scipy.linalg as la
 from scipy.special import erf
 
-
 from ....hyp_defs import float_cpu
-from ....utils.math import (
-    softmax,
-    logsumexp,
-    invert_pdmat,
-    invert_trimat,
-    symmat2vec,
-    vec2symmat,
-    fullcov_varfloor,
-    logdet_pdmat,
-)
-from ....utils.plotting import (
-    plot_gaussian_1D,
-    plot_gaussian_ellipsoid_2D,
-    plot_gaussian_ellipsoid_3D,
-    plot_gaussian_3D,
-)
+from ....utils.math import (fullcov_varfloor, invert_pdmat, invert_trimat,
+                            logdet_pdmat, logsumexp, softmax, symmat2vec,
+                            vec2symmat)
+from ....utils.plotting import (plot_gaussian_1D, plot_gaussian_3D,
+                                plot_gaussian_ellipsoid_2D,
+                                plot_gaussian_ellipsoid_3D)
 from ...clustering import KMeans
-
 from ..core import Normal
 from .exp_family_mixture import ExpFamilyMixture
 

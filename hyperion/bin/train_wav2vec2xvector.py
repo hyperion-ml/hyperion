@@ -3,37 +3,28 @@
  Copyright 2022 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-# import sys
-import os
-from pathlib import Path
-from jsonargparse import (
-    ArgumentParser,
-    ActionConfigFile,
-    ActionParser,
-    namespace_to_dict,
-)
-import time
 import logging
 import multiprocessing
+# import sys
+import os
+import time
+from pathlib import Path
 
 import numpy as np
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
 
 import torch
 import torch.nn as nn
-
 from hyperion.hyp_defs import config_logger, set_float_cpu
-from hyperion.torch.utils import ddp
-from hyperion.torch.trainers import XVectorTrainer as Trainer
 from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
-
-# from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
 from hyperion.torch.metrics import CategoricalAccuracy
-from hyperion.torch.models import (
-    HFWav2Vec2ResNet1dXVector,
-    HFHubert2ResNet1dXVector,
-    HFWavLM2ResNet1dXVector,
-)
+from hyperion.torch.models import (HFHubert2ResNet1dXVector,
+                                   HFWav2Vec2ResNet1dXVector,
+                                   HFWavLM2ResNet1dXVector)
+from hyperion.torch.trainers import XVectorTrainer as Trainer
+from hyperion.torch.utils import ddp
 
 model_dict = {
     "hf_wav2vec2resnet1d": HFWav2Vec2ResNet1dXVector,
@@ -72,36 +63,6 @@ def init_data(partition, rank, num_gpus, **kwargs):
     )
     data_loader = torch.utils.data.DataLoader(dataset, batch_sampler=sampler, **largs)
     return data_loader
-
-
-# def init_data(partition, rank, num_gpus, **kwargs):
-
-#     kwargs = kwargs["data"][partition]
-#     ad_args = AD.filter_args(**kwargs["dataset"])
-#     sampler_args = Sampler.filter_args(**kwargs["sampler"])
-#     if rank == 0:
-#         logging.info("{} audio dataset args={}".format(partition, ad_args))
-#         logging.info("{} sampler args={}".format(partition, sampler_args))
-#         logging.info("init %s dataset", partition)
-
-#     ad_args["is_val"] = partition == "val"
-#     dataset = AD(**ad_args)
-
-#     if rank == 0:
-#         logging.info("init %s samplers", partition)
-
-#     sampler = Sampler(dataset, **sampler_args)
-
-#     if rank == 0:
-#         logging.info("init %s dataloader", partition)
-
-#     num_workers = kwargs["data_loader"]["num_workers"]
-#     num_workers_per_gpu = int((num_workers + num_gpus - 1) / num_gpus)
-#     largs = (
-#         {"num_workers": num_workers_per_gpu, "pin_memory": True} if num_gpus > 0 else {}
-#     )
-#     data_loader = torch.utils.data.DataLoader(dataset, batch_sampler=sampler, **largs)
-#     return data_loader
 
 
 def init_model(num_classes, rank, model_class, **kwargs):

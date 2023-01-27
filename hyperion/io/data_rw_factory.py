@@ -4,19 +4,21 @@
 """
 
 import logging
-from jsonargparse import ArgumentParser, ActionParser
+
+from jsonargparse import ActionParser, ArgumentParser
 
 from ..utils.kaldi_matrix import compression_methods
-from .rw_specifiers import ArchiveType, WSpecifier, RSpecifier, WSpecType, RSpecType
-from .h5_data_writer import H5DataWriter as H5DW
-from .ark_data_writer import ArkDataWriter as ADW
+from .ark_data_reader import RandomAccessArkDataReader as RADR
 from .ark_data_reader import SequentialArkFileDataReader as SAFDR
 from .ark_data_reader import SequentialArkScriptDataReader as SASDR
-from .ark_data_reader import RandomAccessArkDataReader as RADR
-from .h5_data_reader import SequentialH5FileDataReader as SH5FDR
-from .h5_data_reader import SequentialH5ScriptDataReader as SH5SDR
+from .ark_data_writer import ArkDataWriter as ADW
 from .h5_data_reader import RandomAccessH5FileDataReader as RH5FDR
 from .h5_data_reader import RandomAccessH5ScriptDataReader as RH5SDR
+from .h5_data_reader import SequentialH5FileDataReader as SH5FDR
+from .h5_data_reader import SequentialH5ScriptDataReader as SH5SDR
+from .h5_data_writer import H5DataWriter as H5DW
+from .rw_specifiers import (ArchiveType, RSpecifier, RSpecType, WSpecifier,
+                            WSpecType)
 
 
 class DataWriterFactory(object):

@@ -3,19 +3,19 @@
  Copyright 2020 Jesus Villalba (Johns Hopkins University)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0) 
 """
-import sys
-import os
 import argparse
-import time
 import logging
-
 import math
+import os
+import sys
+import time
+
 import numpy as np
-from scipy import signal, ndimage
+from scipy import ndimage, signal
 
 from hyperion.hyp_defs import config_logger
-from hyperion.io import SequentialAudioReader as AR
 from hyperion.io import PackedAudioWriter as Writer
+from hyperion.io import SequentialAudioReader as AR
 from hyperion.io import VADReaderFactory as VRF
 from hyperion.io import WSpecifier as WS
 

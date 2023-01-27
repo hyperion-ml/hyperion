@@ -3,6 +3,6 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+from .resnet_tvector import ResNetTVector
 # t-vectors
 from .tvector import TVector
-from .resnet_tvector import ResNetTVector

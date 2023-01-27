@@ -2,15 +2,15 @@
  Copyright 2021 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-import time
 import logging
 import math
+import time
 
 import torch
 import torch.nn as nn
 
 from ...torch_model import TorchModel
-from ...utils.misc import l2_norm, get_selfsim_tarnon
+from ...utils.misc import get_selfsim_tarnon, l2_norm
 
 
 class PLDABase(TorchModel):

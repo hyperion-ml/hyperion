@@ -4,13 +4,14 @@
 """
 
 import logging
-from jsonargparse import ArgumentParser, ActionParser
+
+from jsonargparse import ActionParser, ArgumentParser
 
 import torch
 import torch.nn as nn
 
-from .wav2xvector import Wav2XVector
 from ..xvectors import ResNet1dXVector
+from .wav2xvector import Wav2XVector
 
 
 class Wav2ResNet1dXVector(Wav2XVector):

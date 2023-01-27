@@ -3,9 +3,10 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import math
+
 import torch
 import torch.nn as nn
-from torch.nn import Conv2d, BatchNorm2d, Dropout2d
+from torch.nn import BatchNorm2d, Conv2d, Dropout2d
 
 from ..layers import ActivationFactory as AF
 from .se_blocks import SEBlock2d, TSEBlock2d
@@ -213,7 +214,7 @@ class Res2Net2dBasicBlock(nn.Module):
                 x_i = self.bn1s[i](x_i)
             x_i = self.act1(x_i)
             if not self.norm_before:
-                x_i = self.bn1(x_i)
+                x_i = self.bn1s[i](x_i)
             x.append(x_i)
 
         if self.scale > 1:
@@ -402,7 +403,7 @@ class Res2Net2dBNBlock(nn.Module):
                 x_i = self.bn2s[i](x_i)
             x_i = self.act2(x_i)
             if not self.norm_before:
-                x_i = self.bn2(x_i)
+                x_i = self.bn2s[i](x_i)
             x.append(x_i)
 
         if self.scale > 1:

@@ -2,14 +2,14 @@
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-import soundfile as sf
-
-import time
-import math
 import logging
-import numpy as np
+import math
 import multiprocessing
+import time
 from copy import deepcopy
+
+import numpy as np
+import soundfile as sf
 
 from ..hyp_defs import float_cpu
 from ..utils import SCPList, SegmentList

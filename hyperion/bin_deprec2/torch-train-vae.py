@@ -3,36 +3,30 @@
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-import sys
-import os
-from pathlib import Path
-from jsonargparse import (
-    ArgumentParser,
-    ActionConfigFile,
-    ActionParser,
-    namespace_to_dict,
-)
-import time
 import logging
 import multiprocessing
+import os
+import sys
+import time
+from pathlib import Path
 
 import numpy as np
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
 
 import torch
 import torch.nn as nn
-
 from hyperion.hyp_defs import config_logger, set_float_cpu
-from hyperion.torch.utils import open_device, ddp
-from hyperion.torch.narchs import DC1dEncoder, DC1dDecoder
-from hyperion.torch.narchs import DC2dEncoder, DC2dDecoder
-from hyperion.torch.narchs import ResNet1dEncoder, ResNet1dDecoder
-from hyperion.torch.narchs import ResNet2dEncoder, ResNet2dDecoder
-from hyperion.torch.narchs import TransformerEncoderV1
-from hyperion.torch.narchs import ConformerEncoderV1
-from hyperion.torch.models import VAE
-from hyperion.torch.trainers import VAETrainer as Trainer
-from hyperion.torch.data import FeatSeqDataset as SD
 from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
+from hyperion.torch.data import FeatSeqDataset as SD
+from hyperion.torch.models import VAE
+from hyperion.torch.narchs import (ConformerEncoderV1, DC1dDecoder,
+                                   DC1dEncoder, DC2dDecoder, DC2dEncoder,
+                                   ResNet1dDecoder, ResNet1dEncoder,
+                                   ResNet2dDecoder, ResNet2dEncoder,
+                                   TransformerEncoderV1)
+from hyperion.torch.trainers import VAETrainer as Trainer
+from hyperion.torch.utils import ddp, open_device
 
 enc_dict = {
     "dc1d": DC1dEncoder,
