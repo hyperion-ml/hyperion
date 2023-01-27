@@ -85,5 +85,5 @@ trainer:
     update_lr_on_opt_step: true
   use_amp: true
   log_interval: 1000
-  epochs: 30
+  epochs: 40
   eff_batch_size: 256

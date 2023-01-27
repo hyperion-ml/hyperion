@@ -30,8 +30,9 @@ def train_calibration(score_file, key_file, model_file, prior, lambda_reg, verbo
 
     logging.info("load key: %s", key_file)
     key = TrialKey.load_txt(key_file)
-    logging.info("load scores: %s", score_file)
-    scr = TrialScores.load_txt(score_file)
+    score_snorm_file = f"{score_file}_snorm"
+    logging.info("load scores: %s", score_snorm_file)
+    scr = TrialScores.load_txt(score_snorm_file)
     tar, non = scr.get_tar_non(key)
     ntar = len(tar)
     nnon = len(non)

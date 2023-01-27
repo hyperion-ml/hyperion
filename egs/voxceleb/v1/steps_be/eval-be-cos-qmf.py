@@ -100,14 +100,14 @@ def eval_plda(
         np.clip(
             u2nf.filter(enroll_segs).info.astype(float) / 100 - 2.0,
             a_min=0.1,
-            a_max=6.0,
+            a_max=12.0,  # 6.0,
         )
     )
     test_nf = np.log(
         np.clip(
             u2nf.filter(ndx.seg_set).info.astype(float) / 100 - 2.0,
             a_min=0.1,
-            a_max=6.0,
+            a_max=12.0,  # 6.0,
         )
     )
     t1 = time.time()
@@ -132,9 +132,11 @@ def eval_plda(
     t2 = time.time()
     logging.info("apply s-norm")
     snorm = SNorm(nbest=coh_nbest, nbest_sel_method="highest-other-side")
-    scores_norm, mu_z, _, mu_t, _ = snorm(
+    scores_norm, mu_z, s_z, mu_t, s_t = snorm(
         scores, scores_coh_test, scores_enr_coh, return_stats=True
     )
+    mu_z = mu_z / s_z
+    mu_t = mu_t / s_t
 
     dt = time.time() - t1
     num_trials = len(enroll) * x_t.shape[0]
@@ -165,6 +167,7 @@ def eval_plda(
 
     logging.info("applying qmf")
     scores_fus = [scores.ravel()]
+    scores_fus = [scores_norm.ravel()]
     for q_name in ["maxnf", "minnf", "maxcohmu", "mincohmu"]:
         scores_fus.append(q_measures[q_name].ravel())
 

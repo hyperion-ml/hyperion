@@ -155,7 +155,7 @@ if [ "$do_qmf" == "true" ];then
 
     echo "Eval Voxceleb 1 with Cosine scoring"
     steps_be/eval_be_cos_qmf.sh \
-      --cmd "$train_cmd --mem 15G" --coh-nbest 1000 \
+      --cmd "$train_cmd --mem 20G" --coh-nbest 1000 \
       data/voxceleb1_test/trials \
       data/voxceleb1_test/utt2model \
       $xvector_dir/voxceleb1_test/xvector.scp \

@@ -5,8 +5,8 @@
 set -e
 cmd=run.pl
 stage=1
-num_parts=8
-coh_nbest=400
+num_parts=16
+coh_nbest=1000
 
 if [ -f path.sh ]; then . ./path.sh; fi
 . parse_options.sh || exit 1;
