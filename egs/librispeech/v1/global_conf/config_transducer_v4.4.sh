@@ -23,7 +23,9 @@ nnet_name=${hf_model_name}_transducer_v4.4
 nnet_s1_name=$nnet_name.s1
 
 nnet_s1_dir=exp/transducer_nnets/$nnet_s1_name
-nnet_s1=$nnet_s1_dir/model_ep0060.pth
+nnet_s1=$nnet_s1_dir/model_ep0030.pth
+nnet_s1=$nnet_s1_dir/model_ep0050.pth
+nnet_s1=$nnet_s1_dir/model_ep0075.pth
 
 nnet_s2_base_cfg=conf/train_wav2vec2xlsr300m_transducer_stage1_v1.0.yaml
 nnet_s2_args=""
