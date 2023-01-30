@@ -242,16 +242,16 @@ if [ "$do_qmf" == "true" ];then
 
   if [ $stage -le 9 ];then
     echo "Eval voxsrc2 with Cosine scoring"
-    # steps_be/eval_be_cos_qmf.sh \
-    #   --cmd "$train_cmd  --mem 20G" --coh-nbest 1000  \
-    #   data/voxsrc22_dev/trials \
-    #   data/voxsrc22_dev/utt2model \
-    #   $xvector_dir/voxsrc22_dev/xvector.scp \
-    #   $xvector_dir/voxsrc22_dev/utt2num_frames \
-    #   data/voxceleb2cat_train/utt2spk \
-    #   $xvector_dir/voxceleb2cat_train/xvector.scp \
-    #   $score_cosine_qmf_dir/qmf.h5 \
-    #   $score_cosine_qmf_dir/voxsrc22_dev_scores &
+    steps_be/eval_be_cos_qmf.sh \
+      --cmd "$train_cmd  --mem 20G" --coh-nbest 1000  \
+      data/voxsrc22_dev/trials \
+      data/voxsrc22_dev/utt2model \
+      $xvector_dir/voxsrc22_dev/xvector.scp \
+      $xvector_dir/voxsrc22_dev/utt2num_frames \
+      data/voxceleb2cat_train/utt2spk \
+      $xvector_dir/voxceleb2cat_train/xvector.scp \
+      $score_cosine_qmf_dir/qmf.h5 \
+      $score_cosine_qmf_dir/voxsrc22_dev_scores &
 
     # steps_be/eval_be_cos_qmf.sh --cmd "$train_cmd" \
     # 	data/voxsrc22_test/trials \
@@ -280,42 +280,4 @@ if [ "$do_qmf" == "true" ];then
   fi
 
 fi
-
-
-exit
-# be_dir=exp/be/$nnet_name/cw
-# score_plda_dir=$score_dir/cw_cosine
-
-# if [ $stage -le 4 ]; then
-#     echo "Train centering+whitening on Voxceleb2"
-#     steps_be/train_be_v2.sh --cmd "$train_cmd" \
-# 	$xvector_dir/$plda_data/xvector.scp \
-# 	data/$plda_data \
-# 	$be_dir
-# fi
-
-
-# if [ $stage -le 5 ];then
-
-#     echo "Eval Voxceleb 1 with CentWhiten + Cosine scoring"
-#     steps_be/eval_be_v2.sh --cmd "$train_cmd" \
-#     	data/voxceleb1_test/trials \
-#     	data/voxceleb1_test/utt2model \
-#     	$xvector_dir/voxceleb1_test/xvector.scp \
-# 	$be_dir/cw.h5 \
-#     	$score_plda_dir/voxceleb1_scores
-
-#     $train_cmd --mem 10G --num-threads 6 $score_plda_dir/log/score_voxceleb1.log \
-# 	local/score_voxceleb1.sh data/voxceleb1_test $score_plda_dir 
-
-#     for f in $(ls $score_plda_dir/*_results);
-#     do
-# 	echo $f
-# 	cat $f
-# 	echo ""
-#     done
-
-# fi
-
-# exit
 
