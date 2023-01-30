@@ -110,9 +110,37 @@ if [ $stage -le 3 ];then
 
 fi
 
+if [ $stage -le 4 ] && [ "$do_voxsrc22" == "true" ];then
+
+    echo "Eval voxsrc2 with Cosine scoring"
+    steps_be/eval_be_cos.sh --cmd "$train_cmd" \
+    	data/voxsrc22_dev/trials \
+    	data/voxsrc22_dev/utt2model \
+    	$xvector_dir/voxsrc22_dev/xvector.scp \
+    	$score_cosine_dir/voxsrc22_dev_scores &
+
+    # steps_be/eval_be_cos.sh --cmd "$train_cmd" \
+    # 	data/voxsrc22_test/trials \
+    # 	data/voxsrc22_test/utt2model \
+    # 	$xvector_dir/voxsrc22_test/xvector.scp \
+    # 	$score_cosine_dir/voxsrc22_test_scores
+
+    wait
+    $train_cmd --mem 10G --num-threads 1 $score_cosine_dir/log/score_voxsrc22_dev.log \
+	local/score_voxsrc22_dev.sh data/voxsrc22_dev $score_cosine_dir 
+
+    for f in $(ls $score_cosine_dir/voxsrc22_dev_results);
+    do
+	echo $f
+	cat $f
+	echo ""
+    done
+
+fi
+
 
 if [ "$do_snorm" == "true" ];then
-  if [ $stage -le 4 ];then
+  if [ $stage -le 5 ];then
     echo "Eval Voxceleb 1 with Cosine scoring + Adaptive SNorm"
     steps_be/eval_be_cos_snorm.sh \
       --cmd "$train_cmd --mem 20G" --coh-nbest 1000 \
@@ -133,11 +161,42 @@ if [ "$do_snorm" == "true" ];then
       echo ""
     done
   fi
+
+  if [ $stage -le 6 ];then
+    echo "Eval voxsrc2 with Cosine scoring"
+    steps_be/eval_be_cos_snorm.sh \
+      --cmd "$train_cmd --mem 20G" --coh-nbest 1000 \
+      data/voxsrc22_dev/trials \
+      data/voxsrc22_dev/utt2model \
+      $xvector_dir/voxsrc22_dev/xvector.scp \
+      data/voxceleb2cat_train/utt2spk \
+      $xvector_dir/voxceleb2cat_train/xvector.scp \
+      $score_cosine_snorm_dir/voxsrc22_dev_scores &
+    
+    # steps_be/eval_be_cos_snorm.sh --cmd "$train_cmd" \
+    # 	data/voxsrc22_test/trials \
+    # 	data/voxsrc22_test/utt2model \
+    # 	$xvector_dir/voxsrc22_test/xvector.scp \
+    #   data/voxceleb2cat_train/utt2spk \
+    #	$xvector_dir/voxceleb2cat_train/xvector.scp \
+    # 	$score_cosine_snorm_dir/voxsrc22_test_scores
+
+    wait
+    $train_cmd --mem 10G --num-threads 1 $score_cosine_snorm_dir/log/score_voxsrc22_dev.log \
+	local/score_voxsrc22_dev.sh data/voxsrc22_dev $score_cosine_snorm_dir 
+
+    for f in $(ls $score_cosine_snorm_dir/voxsrc22_dev_results);
+    do
+	echo $f
+	cat $f
+	echo ""
+    done
+  fi
 fi
 
 
 if [ "$do_qmf" == "true" ];then
-  if [ $stage -le 5 ];then
+  if [ $stage -le 7 ];then
     echo "Train QMF in Vox2"
     steps_be/train_be_cos_qmf.sh \
       --cmd "$train_cmd" --coh-nbest 1000 \
@@ -151,7 +210,7 @@ if [ "$do_qmf" == "true" ];then
 
   fi
 
-  if [ $stage -le 6 ];then
+  if [ $stage -le 8 ];then
 
     echo "Eval Voxceleb 1 with Cosine scoring"
     steps_be/eval_be_cos_qmf.sh \
@@ -180,6 +239,46 @@ if [ "$do_qmf" == "true" ];then
     done
 
   fi
+
+  if [ $stage -le 9 ];then
+    echo "Eval voxsrc2 with Cosine scoring"
+    # steps_be/eval_be_cos_qmf.sh \
+    #   --cmd "$train_cmd  --mem 20G" --coh-nbest 1000  \
+    #   data/voxsrc22_dev/trials \
+    #   data/voxsrc22_dev/utt2model \
+    #   $xvector_dir/voxsrc22_dev/xvector.scp \
+    #   $xvector_dir/voxsrc22_dev/utt2num_frames \
+    #   data/voxceleb2cat_train/utt2spk \
+    #   $xvector_dir/voxceleb2cat_train/xvector.scp \
+    #   $score_cosine_qmf_dir/qmf.h5 \
+    #   $score_cosine_qmf_dir/voxsrc22_dev_scores &
+
+    # steps_be/eval_be_cos_qmf.sh --cmd "$train_cmd" \
+    # 	data/voxsrc22_test/trials \
+    # 	data/voxsrc22_test/utt2model \
+    # 	$xvector_dir/voxsrc22_test/xvector.scp \
+    #	$xvector_dir/voxsrc22_test/utt2num_frames \
+    #	data/voxceleb2cat_train/utt2spk \
+    #	$xvector_dir/voxceleb2cat_train/xvector.scp \
+    #	$score_cosine_qmf_dir/qmf.h5 \
+    # 	$score_cosine_qmf_dir/voxsrc22_test_scores
+
+    wait
+    $train_cmd --mem 10G --num-threads 1 $score_cosine_qmf_dir/log/score_voxsrc22_dev.log \
+	local/score_voxsrc22_dev.sh data/voxsrc22_dev $score_cosine_qmf_dir 
+    $train_cmd --mem 10G --num-threads 1 $score_cosine_qmf_dir/log/score_voxsrc22_dev_snorm.log \
+	local/score_voxsrc22_dev.sh data/voxsrc22_dev $score_cosine_qmf_dir _snorm
+    $train_cmd --mem 10G --num-threads 1 $score_cosine_qmf_dir/log/score_voxsrc22_dev_qmf.log \
+	local/score_voxsrc22_dev.sh data/voxsrc22_dev $score_cosine_qmf_dir _qmf
+
+    for f in $(ls $score_cosine_qmf_dir/voxsrc22_dev{,_snorm,_qmf}_results);
+    do
+	echo $f
+	cat $f
+	echo ""
+    done
+  fi
+
 fi
 
 

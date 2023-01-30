@@ -13,6 +13,7 @@ elif [ "$(hostname --domain)" == "cm.gemini" ];then
   # voxceleb1_root=/expscratch/dsnyder/VoxCeleb1 #voxceleb1 v1
   voxceleb1_root=/exp/jvillalba/corpora/voxceleb1 #voxceleb1 v2
   voxceleb2_root=/expscratch/dgromero/corpora-open/vox2
+  voxsrc22_root=/exp/jvillalba/corpora/voxsrc22
   musan_root=/expscratch/dgromero/corpora-open/musan
 else
   echo "Put your database paths here"

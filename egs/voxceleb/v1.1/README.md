@@ -89,6 +89,40 @@ run_040_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 
 | Config | Model Type | Model Details | Back-end | EER(%) | MinDCF(p=0.05) | MinDCF(p=0.01) |
 | ------ | ---------- | ------------- | -------- | :----: | :------------: | :------------: |
+| config_fbank80_stmn_ecapatdnn512x3.v2.0.sh | ECAPA-TDNN 512x3 | Stage2: ArcFace m=0.4/intertop_m=0.1 | Cosine | 1.09 | 0.068 | 0.121 |
+| | | | Cosine + AS-Norm | 1.0 | 0.064 | 0.110 |
+| | | | Cosine + QMF | 0.87 | 0.059 | 0.076 |
+
+### VoxCeleb 1 Entire-Clean trial list
+
+| Config | Model Type | Model Details | Back-end | EER(%) | MinDCF(p=0.05) | MinDCF(p=0.01) |
+| ------ | ---------- | ------------- | -------- | :----: | :------------: | :------------: |
+| config_fbank80_stmn_ecapatdnn512x3.v2.0.sh | ECAPA-TDNN 512x3 | Stage2: ArcFace m=0.4/intertop_m=0.1 | Cosine | 1.21 | 0.075 | 0.129 |
+| | | | Cosine + AS-Norm | 1.15 | 0.069 | 0.113 |
+| | | | Cosine + QMF | 1.12 | 0.067 | 0.111 |
+
+### VoxCeleb 1 Hard-Clean trial list
+
+| Config | Model Type | Model Details | Back-end | EER(%) | MinDCF(p=0.05) | MinDCF(p=0.01) |
+| ------ | ---------- | ------------- | -------- | :----: | :------------: | :------------: |
+| config_fbank80_stmn_ecapatdnn512x3.v2.0.sh | ECAPA-TDNN 512x3 | Stage2: ArcFace m=0.4/intertop_m=0.1 | Cosine | 2.17 | 0.129 | 0.212 |
+| | | | Cosine + AS-Norm | 1.98 | 0.116 | 0.190 |
+| | | | Cosine + QMF | 1.88 | 0.112 | 0.181 |
+
+### VoxSRC2022 dev
+
+| Config | Model Type | Model Details | Back-end | EER(%) | MinDCF(p=0.05) | MinDCF(p=0.01) |
+| ------ | ---------- | ------------- | -------- | :----: | :------------: | :------------: |
+| config_fbank80_stmn_ecapatdnn512x3.v2.0.sh | ECAPA-TDNN 512x3 | Stage2: ArcFace m=0.4/intertop_m=0.1 | Cosine | 2.85 | 0.187 | 0.310 |
+| | | | Cosine + AS-Norm | 2.69 | 0.182 | 0.310 |
+| | | | Cosine + QMF | 2.80 | 0.196 | 0.338 |
+
+## Results before 2023
+
+### VoxCeleb 1 Original-Clean trial list
+
+| Config | Model Type | Model Details | Back-end | EER(%) | MinDCF(p=0.05) | MinDCF(p=0.01) |
+| ------ | ---------- | ------------- | -------- | :----: | :------------: | :------------: |
 | config_fbank80_stmn_lresnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | LResNet34 | ArcFace s=30/m=0.3 | PLDA | 2.00 | 0.129 | 0.216 |
 | | | | Cosine | 2.04 | 0.138 | 0.210 |
 | config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh | ResNet34 | ArcFace s=30/m=0.3 | PLDA |  1.35 | 0.091 | 0.159 |

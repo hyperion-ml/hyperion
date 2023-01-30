@@ -177,7 +177,7 @@ class FwSEBlock2d(SEBlock2d):
         """
         x = x.transpose(1, 2)
         y = super().forward(x, x_mask)
-        y = y.tranpose(1, 2).continous()
+        y = y.transpose(1, 2).contiguous()
         return y
 
 

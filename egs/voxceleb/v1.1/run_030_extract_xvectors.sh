@@ -70,7 +70,10 @@ fi
 
 if [ $stage -le 2 ]; then
   # Extracts x-vectors for evaluation
-  for name in voxceleb1_test 
+  if [ "$do_voxsrc22" == "true" ];then
+    extra_data="voxsrc22_dev"
+  fi
+  for name in voxceleb1_test $extra_data
   do
     num_spk=$(wc -l data/$name/spk2utt | awk '{ print $1}')
     nj=$(($num_spk < 100 ? $num_spk:100))

@@ -17,7 +17,7 @@ nnet_name=${feat_type}_ecapatdnn2048x4.v2.0
 nnet_s1_base_cfg=conf/train_ecapatdnn2048x4_xvec_stage1_v2.0.yaml
 nnet_s1_name=$nnet_name.s1
 nnet_s1_dir=exp/xvector_nnets/$nnet_s1_name
-nnet_s1=$nnet_s1_dir/model_ep0030.pth
+nnet_s1=$nnet_s1_dir/model_ep0040.pth
 
 nnet_s2_base_cfg=conf/train_ecapatdnn2048x4_xvec_stage2_v2.0.yaml
 nnet_s2_name=${nnet_name}.s2
@@ -27,9 +27,9 @@ nnet_s2=$nnet_s2_dir/swa_model_ep0036.pth
 
 # back-end
 do_plda=false
-#do_snorm=true
-#do_qmf=true
-do_voxsrc22=false
+do_snorm=true
+do_qmf=true
+do_voxsrc22=true
 
 plda_aug_config=conf/reverb_noise_aug.yaml
 plda_num_augs=0
