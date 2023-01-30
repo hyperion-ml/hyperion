@@ -89,9 +89,12 @@ def eval_plda(
 
     if not np.any(ndx.trial_mask):
         save_empty(score_file, None, model_part_idx, seg_part_idx, parallel)
+        save_empty(score_file, "snorm", model_part_idx, seg_part_idx, parallel)
         if qmf_file is None:
             for q_name in ["snorm", "maxnf", "minnf", "maxcohmu", "mincohmu"]:
                 save_empty(score_file, q_name, model_part_idx, seg_part_idx, parallel)
+        else:
+            save_empty(score_file, "qmf", model_part_idx, seg_part_idx, parallel)
         return
 
     logging.info("read num_frames")
