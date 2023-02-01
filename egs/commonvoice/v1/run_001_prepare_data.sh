@@ -25,7 +25,7 @@ if [ ${stage} -le 1 ]; then
     ### Task dependent. You have to make data the following preparation part by yourself.
     ### But you can utilize Kaldi recipes in most cases
     echo "stage 1: Data preparation"
-    for lan in it #sv-SE
+    for lan in $language #it sv-SE
     do
       # use underscore-separated names in data directories.
       local/data_prep.sh ${lan} $commonvoice_root data/
@@ -35,7 +35,7 @@ fi
 if [ ${stage} -le 2 ]; then
   echo "stage 2: Data conversion"
   # for part in $test_data $dev_data $nnet_data
-  for lan in it #sv-SE
+  for lan in $language #it sv-SE
   do
     for part in ${lan}_test ${lan}_dev ${lan}_train
     do
