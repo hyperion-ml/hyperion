@@ -1,1 +1,1 @@
-global_conf/config_transducer_v1.sh
+global_conf/config_transducer_v3.3_it.sh

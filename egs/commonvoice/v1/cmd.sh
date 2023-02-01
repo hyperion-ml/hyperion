@@ -18,11 +18,13 @@ if [ "$(hostname -d)" == "cm.gemini" ];then
     export cuda_eval_cmd="queue.pl --config conf/coe_gpu_short.conf --mem 4G"
     #export cuda_eval_cmd="queue.pl --config conf/coe_gpu_rtx.conf --mem 10G"
     #export cuda_eval_cmd="queue.pl --config conf/coe_gpu_long.conf --mem 4G"
+elif [ "$(hostname -d)" == "rockfish.cluster" ];then
+    export train_cmd="slurm.pl --config conf/slurm.conf --mem 4G"
+    export cuda_cmd="slurm.pl --config conf/slurm.conf --mem 20G"
+    export cuda_eval_cmd="$train_cmd"
 else
     export train_cmd="queue.pl --config conf/clsp.conf --mem 4G " 
     export cuda_cmd="queue.pl --config conf/clsp.conf --mem 20G"
     export cuda_eval_cmd="$train_cmd"
 fi
-
-
 

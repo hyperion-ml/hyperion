@@ -19,7 +19,6 @@ nj=6
 
 mkdir -p data
 
-commonvoice=/export/c06/ylu125/GSP/corpora/CommonVoice
 
 
 if [ ${stage} -le 1 ]; then
@@ -29,7 +28,7 @@ if [ ${stage} -le 1 ]; then
     for lan in it #sv-SE
     do
       # use underscore-separated names in data directories.
-      local/data_prep.sh ${lan} $commonvoice data/
+      local/data_prep.sh ${lan} $commonvoice_root data/
     done
 fi
 

@@ -65,7 +65,7 @@ if [ $num_gpus -gt 0 ];then
       free_gpu=$(which hyp_utils/free-gpu)
     fi
     
-    if [ ! -z "$free_gpu" ];then
+    if [ ! -z "$free_gpu" ] && [ "$(hostname --domain)" != "rockfish.cluster" ];then
       # if free-gpu found set env var, otherwise we assume that you can use any gpu
       export CUDA_VISIBLE_DEVICES=$($free_gpu -n $num_gpus)
     fi

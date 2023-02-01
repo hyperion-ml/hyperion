@@ -1,5 +1,6 @@
 hf_feats:
-  pretrained_model_path: facebook/wav2vec2-base-960h #microsoft/wavlm-base #facebook/wav2vec2-base #microsoft/wavlm-base-plus
+  pretrained_model_path: facebook/wav2vec2-xls-r-300m 
+  #facebook/wav2vec2-base-960h #microsoft/wavlm-base #facebook/wav2vec2-base #microsoft/wavlm-base-plus
 transducer:
   decoder:
     embedding_dim: 1024
