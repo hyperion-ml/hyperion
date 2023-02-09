@@ -259,7 +259,7 @@ class AudioDataset(Dataset):
                 seg_info_i = class_info.loc[seg_info_i, "class_idx"]
 
             if info_name == "text":
-                seg_info = self.sp.encode(seg_info, out_type=int)
+                seg_info_i = self.sp.encode(seg_info_i, out_type=int)
 
             seg_info[info_name] = seg_info_i
 

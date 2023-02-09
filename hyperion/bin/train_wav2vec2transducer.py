@@ -41,14 +41,19 @@ def transducer_collate(batch):
     audio_length = []
     target = []
     for record in batch:
-        wav = torch.as_tensor(record[0])
+        wav = torch.as_tensor(record["x"])
         audio.append(wav)
         audio_length.append(wav.shape[0])
-        target.append(record[1])
+        target.append(record["text"])
     audio = pad_sequence(audio)
     audio_length = torch.as_tensor(audio_length)
     target = k2.RaggedTensor(target)
-    return torch.transpose(audio, 0, 1), audio_length, target
+    batch = {
+        "x": torch.transpose(audio, 0, 1),
+        "x_lengths": audio_length,
+        "text": target,
+    }
+    return batch
 
 
 def init_data(partition, rank, num_gpus, **kwargs):
