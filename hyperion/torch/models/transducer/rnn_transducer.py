@@ -44,7 +44,7 @@ class Transducer(TorchModel):
 
     def __init__(
         self,
-        encoder_net,
+        encoder,
         # conformer_enc,
         decoder,
         joiner,
@@ -55,7 +55,7 @@ class Transducer(TorchModel):
         Args:
           encoder:
             It is the transcription network in the paper. Its accepts
-            two inputs: `x` of (N, T, C) and `x_lens` of shape (N,).
+            two inputs: `x` of (N, T, C) and `x_lengths` of shape (N,).
             It returns two tensors: `logits` of shape (N, T, C) and
             `logit_lens` of shape (N,).
           decoder:
@@ -74,20 +74,21 @@ class Transducer(TorchModel):
 
         self.vocab_size = vocab_size
         self.blank_id = blank_id
+        self.encoder = encoder
         self.decoder = Decoder(**decoder)
         self.joiner = Joiner(**joiner)
 
     def forward(
         self,
         x: torch.Tensor,
-        x_lens: torch.Tensor,
+        x_lengths: torch.Tensor,
         y: k2.RaggedTensor,
     ) -> torch.Tensor:
         """
         Args:
           x:
             A 3-D tensor of shape (N, T, C).
-          x_lens:
+          x_lengths:
             A 1-D tensor of shape (N,). It contains the number of frames in `x`
             before padding.
           y:
@@ -97,14 +98,14 @@ class Transducer(TorchModel):
           Return the transducer loss.
         """
         assert x.ndim == 3, x.shape
-        assert x_lens.ndim == 1, x_lens.shape
+        assert x_lengths.ndim == 1, x_lengths.shape
         assert y.num_axes == 2, y.num_axes
 
-        assert x.size(0) == x_lens.size(0) == y.dim0
+        assert x.size(0) == x_lengths.size(0) == y.dim0
 
         #  wav2vec2 works as encoder
-        # encoder_out, x_lens = self.encoder(x, x_lens)
-        assert torch.all(x_lens > 0)
+        # encoder_out, x_lengths = self.encoder(x, x_lengths)
+        assert torch.all(x_lengths > 0)
 
         encoder_out = x
         # Now for the decoder, i.e., the prediction network
@@ -129,12 +130,12 @@ class Transducer(TorchModel):
             f"Current torchaudio version: {torchaudio.__version__}\n"
             "Please install a version >= 0.10.0")
 
-        x_lens = x_lens.to(torch.int32)
+        x_lengths = x_lengths.to(torch.int32)
 
         loss = torchaudio.functional.rnnt_loss(
             logits=logits,
             targets=y_padded.to(torch.int32),
-            logit_lengths=x_lens,
+            logit_lengths=x_lengths,
             target_lengths=y_lens,
             blank=blank_id,
             reduction="sum",
