@@ -11,6 +11,7 @@ nnet_data=en_fr_it_train_proc_audio
 dev_data=en_fr_it_dev_proc_audio
 test_data="en_test_proc_audio fr_test_proc_audio it_test_proc_audio"
 
+lans="en fr it"
 language=en_fr_it
 
 bpe_model=data/en_fr_it_lang_bpe_2000/bpe.model
