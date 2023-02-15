@@ -28,6 +28,6 @@ do
   lhotse kaldi export ${dst}/${language}/cv-${language}_recordings_${part}.jsonl.gz ${dst}/${language}/cv-${language}_supervisions_${part}.jsonl.gz  ${dst}/${language}_${part}
   utils/utt2spk_to_spk2utt.pl ${dst}/${language}_${part}/utt2spk > ${dst}/${language}_${part}/spk2utt
   utils/fix_data_dir.sh ${dst}/${language}_${part} 
-  steps_xvec/audio_to_duration.sh --cmd "$train_cmd" ${dst}/${part//-/_}
+  # steps_xvec/audio_to_duration.sh --cmd "$train_cmd" ${dst}/${part//-/_}
 done
 
