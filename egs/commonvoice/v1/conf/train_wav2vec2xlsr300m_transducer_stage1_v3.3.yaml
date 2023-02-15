@@ -13,7 +13,7 @@ data:
       min_batch_size: 1
       drop_last: false
     data_loader:
-      num_workers: 4
+      num_workers: 2
   val:
     dataset:
       aug_cfgs: 
@@ -28,7 +28,7 @@ data:
       min_batch_size: 1
       drop_last: true
     data_loader:
-      num_workers: 4
+      num_workers: 2
 model: wav2vec2xlsr300m_transducer_do0.4.yaml
 trainer:
   optim:

@@ -7,6 +7,8 @@
 . ./path.sh
 set -e
 
+stage=0
+
 config_file=default_config.sh
 use_gpu=false
 nnet_stage=1
@@ -37,10 +39,10 @@ transducer_dir=exp/transducer/$nnet_name
 
 
 # Extracts x-vectors for evaluation
-for name in $dev_data $test_data 
+for name in $test_data  # $dev_data $test_data 
   do
     nj=16
-    steps_transducer/decode_wav2vec2transducer.sh --cmd "$transducer_cmd --mem 12G" --nj $nj ${transducer_args} \
+    steps_transducer/decode_wav2vec2transducer.sh --cmd "$transducer_cmd --mem 12G" --nj $nj --stage $stage ${transducer_args} \
       $nnet data/$name \
       $transducer_dir/$name $bpe_model
   done

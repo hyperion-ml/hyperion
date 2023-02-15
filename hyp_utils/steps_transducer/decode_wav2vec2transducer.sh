@@ -74,7 +74,14 @@ if [ $stage -le 0 ];then
 fi
 
 if [ $stage -le 1 ];then
-  echo "compute wer"
+  echo "compute wer, cer"
+
   cat $output_dir/transducer.*.text > $output_dir/transducer.text
+
+  python steps_transducer/word2char.py $output_dir/transducer.text $output_dir/transducer_char.text
+  python steps_transducer/word2char.py $data_dir/text $data_dir/text_char
+
   compute-wer --text --mode=present ark:$data_dir/text ark:$output_dir/transducer.text
+  compute-wer --text --mode=present ark:$data_dir/text_char ark:$output_dir/transducer_char.text
+
 fi
