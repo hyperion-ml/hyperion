@@ -59,7 +59,7 @@ trainer:
     update_lr_on_opt_step: true
   use_amp: true
   log_interval: 1000
-  epochs: 35
+  epochs: 5
   eff_batch_size: 256
   swa_start: 31
   swa_lr: 1e-4

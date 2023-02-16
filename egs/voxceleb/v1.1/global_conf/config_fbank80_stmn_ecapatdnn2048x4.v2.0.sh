@@ -18,12 +18,20 @@ nnet_s1_base_cfg=conf/train_ecapatdnn2048x4_xvec_stage1_v2.0.yaml
 nnet_s1_name=$nnet_name.s1
 nnet_s1_dir=exp/xvector_nnets/$nnet_s1_name
 nnet_s1=$nnet_s1_dir/model_ep0040.pth
+nnet_s1=$nnet_s1_dir/model_ep0030.pth
+nnet_s1=$nnet_s1_dir/model_ep0020.pth
+#nnet_s1=$nnet_s1_dir/model_ep0010.pth
 
 nnet_s2_base_cfg=conf/train_ecapatdnn2048x4_xvec_stage2_v2.0.yaml
 nnet_s2_name=${nnet_name}.s2
 nnet_s2_dir=exp/xvector_nnets/$nnet_s2_name
-nnet_s2=$nnet_s2_dir/model_ep0030.pth
-nnet_s2=$nnet_s2_dir/swa_model_ep0036.pth
+nnet_s2=$nnet_s2_dir/model_ep0010.pth
+#nnet_s2=$nnet_s2_dir/model_ep0020.pth
+#nnet_s2=$nnet_s2_dir/model_ep0010.pth
+#nnet_s2=$nnet_s2_dir/model_ep0005.pth
+#nnet_s2=$nnet_s2_dir/model_ep0002.pth
+#nnet_s2=$nnet_s2_dir/model_ep0001.pth
+#nnet_s2=$nnet_s2_dir/swa_model_ep0036.pth
 
 # back-end
 do_plda=false
