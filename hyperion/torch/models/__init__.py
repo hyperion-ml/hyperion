@@ -20,6 +20,7 @@ from .wav2xvectors import (
 
 
 from .wav2transducer import HFWav2Vec2Transducer
+from .wav2languageid import HFWav2Vec2ResNet1dLanguageID
 
 from .vae.vae import VAE
 from .vae.vq_vae import VQVAE

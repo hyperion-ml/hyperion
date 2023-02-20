@@ -6,6 +6,8 @@
 from .torch_trainer import TorchTrainer
 
 
+
+from .languageid_trainer import LanguageIDTrainer
 from .transducer_trainer import TransducerTrainer
 
 from .xvector_trainer import XVectorTrainer

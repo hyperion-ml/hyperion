@@ -12,7 +12,6 @@ from jsonargparse import (
     ActionParser,
     namespace_to_dict,
 )
-import k2
 import time
 import logging
 import multiprocessing
@@ -24,31 +23,34 @@ import torch.nn as nn
 
 from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch.utils import ddp
-from hyperion.torch.trainers import TransducerTrainer as Trainer
+from hyperion.torch.trainers import LanguageIDTrainer as Trainer
 from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
 from hyperion.torch.metrics import CategoricalAccuracy
-from hyperion.torch.models import HFWav2Vec2Transducer
+from hyperion.torch.models import HFWav2Vec2ResNet1dLanguageID
 from torch.nn.utils.rnn import pad_sequence
 
 model_dict = {
-    "hf_wav2vec2transducer": HFWav2Vec2Transducer,
+    "hf_wav2vec2resnet1d": HFWav2Vec2ResNet1dLanguageID,
+    # "hf_hubert2resnet1d": HFHubert2ResNet1LanguageID,
+    # "hf_wavlm2resnet1d": HFWavLM2ResNet1dLanguageID,
 }
 
 
-def transducer_collate(batch):
+def Language_collate(batch):
     audio = []
     audio_length = []
-    target = []
+    language = []
     for record in batch:
         wav = torch.as_tensor(record[0])
         audio.append(wav)
         audio_length.append(wav.shape[0])
-        target.append(record[1])
+        language.append(record[1])
     audio = pad_sequence(audio)
     audio_length = torch.as_tensor(audio_length)
-    target = k2.RaggedTensor(target)
-    return torch.transpose(audio, 0, 1), audio_length, target
+    language = torch.as_tensor(language)
+    
+    return torch.transpose(audio, 0, 1), audio_length, language
 
 
 def init_data(partition, rank, num_gpus, **kwargs):
@@ -81,17 +83,15 @@ def init_data(partition, rank, num_gpus, **kwargs):
     data_loader = torch.utils.data.DataLoader(dataset,
                                               batch_sampler=sampler,
                                               **largs,
-                                              collate_fn=transducer_collate)
+                                              collate_fn=Language_collate)
     return data_loader
 
 
-def init_model(blank_id, vocab_size, rank, model_class, **kwargs):
+def init_model(num_classes, rank, model_class, **kwargs):
     model_args = model_class.filter_args(**kwargs["model"])
     if rank == 0:
         logging.info("model network args={}".format(model_args))
-    # TODO: check model_args
-    model_args["transducer"]["blank_id"] = blank_id
-    model_args["transducer"]["vocab_size"] = vocab_size
+    model_args["languageid"]["num_classes"] = num_classes
     model = model_class(**model_args)
     if rank == 0:
         logging.info("model={}".format(model))
@@ -120,13 +120,13 @@ def train_model(gpu_id, args):
 
     train_loader = init_data(partition="train", **kwargs)
     val_loader = init_data(partition="val", **kwargs)
-    model = init_model(train_loader.dataset.sp.piece_to_id("<blk>"),
-                       train_loader.dataset.sp.get_piece_size(), **kwargs)
+
+    model = init_model(list(train_loader.dataset.num_classes.values())[0], **kwargs)
 
     trn_args = Trainer.filter_args(**kwargs["trainer"])
     if rank == 0:
         logging.info("trainer args={}".format(trn_args))
-    metrics = {}  #{"acc": CategoricalAccuracy()}
+    metrics = {"acc": CategoricalAccuracy()}
     trainer = Trainer(
         model,
         device=device,
@@ -173,8 +173,33 @@ def make_parser(model_class):
         "--data.train.dataset.text_file",
         type=str,
     )
-
     parser.add_argument("--data.val.dataset.text_file", type=str)
+
+    parser.add_argument("--data.train.dataset.language_id_file", type=str)
+    parser.add_argument("--data.val.dataset.language_id_file", type=str)
+
+
+    parser.add_argument(
+        "--data.train.dataset.class_files",
+        type=str,
+    )
+
+
+    parser.add_argument(
+        "--data.dev.dataset.class_files",
+        type=str,
+    )
+
+    parser.add_argument(
+        "--data.train.dataset.class_names",
+        type=str,
+    )
+
+    parser.add_argument(
+        "--data.dev.dataset.class_names",
+        type=str,
+    )
+
 
     parser.add_argument(
         "--data.train.dataset.bpe_model",
@@ -183,9 +208,6 @@ def make_parser(model_class):
 
     parser.link_arguments("data.train.data_loader.num_workers",
                           "data.val.data_loader.num_workers")
-
-    parser.link_arguments("data.train.dataset.bpe_model",
-                          "data.val.dataset.bpe_model")
 
     model_class.add_class_args(parser, prefix="model")
     Trainer.add_class_args(parser,
@@ -208,12 +230,11 @@ def make_parser(model_class):
 
 if __name__ == "__main__":
     parser = ArgumentParser(
-        description="Train Wav2Vec2Transducer model from audio files")
+        description="Train Wav2Vec2Language model from audio files")
     parser.add_argument("--cfg", action=ActionConfigFile)
 
     subcommands = parser.add_subcommands()
-    print("cuda available:", torch.cuda.is_available())
-    logging.info("cuda available: {}".format(torch.cuda.is_available()))
+
     for k, v in model_dict.items():
         parser_k = make_parser(v)
         subcommands.add_subcommand(k, parser_k)
@@ -236,5 +257,5 @@ if __name__ == "__main__":
 
     args_sc.model_class = model_dict[model_type]
     # torch docs recommend using forkserver
-    # multiprocessing.set_start_method("forkserver")
+    multiprocessing.set_start_method("forkserver")
     train_model(gpu_id, args_sc)

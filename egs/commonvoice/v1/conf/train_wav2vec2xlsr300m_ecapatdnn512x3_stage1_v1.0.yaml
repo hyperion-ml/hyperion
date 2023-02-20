@@ -5,12 +5,12 @@ data:
       aug_cfgs: 
         - conf/reverb_noise_aug.yaml
       return_segment_info:
-        - text
+        - language
     sampler:
       #sampler_type: 'seg_sampler'
       sampler_type: 'bucketing_seg_sampler'
       max_batch_length: 85.
-      min_batch_size: 1
+      min_batch_size: 2
       drop_last: false
     data_loader:
       num_workers: 1
@@ -20,22 +20,16 @@ data:
         - conf/reverb_noise_aug.yaml
       wav_scale: 1
       return_segment_info:
-        - text
+        - language
     sampler:
       #sampler_type: 'seg_sampler'
       sampler_type: 'bucketing_seg_sampler'
       max_batch_length: 30
-      min_batch_size: 1
+      min_batch_size: 2
       drop_last: true
     data_loader:
       num_workers: 1
-model: 
-  transducer:
-    decoder:
-      override_dropouts: true
-      embedding_dropout_rate: 0.4
-      rnn_dropout_rate: 0.4
-
+model: wav2vec2xlsr300m_ecapatdnn512x3.yaml
 trainer:
   optim:
     opt_type: sgd
@@ -56,6 +50,6 @@ trainer:
   epochs: 120
   # eff_batch_size: 1024
   eff_batch_size: 128
-  train_mode: full
+  train_mode: hf-feats-frozen-nograd
 
  
