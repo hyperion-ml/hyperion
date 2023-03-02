@@ -26,8 +26,8 @@ from hyperion.helpers import PLDAFactory as F
 from hyperion.np.transforms import TransformList
 
 
-def eval_plda(
-    iv_file,
+def eval_cos(
+    v_file,
     ndx_file,
     enroll_file,
     test_file,
@@ -47,7 +47,7 @@ def eval_plda(
         preproc = None
 
     tdr = TDR(
-        iv_file,
+        v_file,
         ndx_file,
         enroll_file,
         test_file,
@@ -60,7 +60,7 @@ def eval_plda(
     x_e, x_t, enroll, ndx = tdr.read()
 
     t1 = time.time()
-    logging.info("computing llr")
+    logging.info("computing llr %d", x_e.shape[1])
     scores = cosine_scoring(x_e, x_t)
 
     dt = time.time() - t1
@@ -82,15 +82,15 @@ if __name__ == "__main__":
 
     parser = ArgumentParser(description="Eval cosine-scoring")
 
-    parser.add_argument("--iv-file", dest="iv_file", required=True)
-    parser.add_argument("--ndx-file", dest="ndx_file", default=None)
-    parser.add_argument("--enroll-file", dest="enroll_file", required=True)
-    parser.add_argument("--test-file", dest="test_file", default=None)
-    parser.add_argument("--preproc-file", dest="preproc_file", default=None)
+    parser.add_argument("--v-file", required=True)
+    parser.add_argument("--ndx-file", default=None)
+    parser.add_argument("--enroll-file", required=True)
+    parser.add_argument("--test-file", default=None)
+    parser.add_argument("--preproc-file", default=None)
 
     TDR.add_argparse_args(parser)
 
-    parser.add_argument("--score-file", dest="score_file", required=True)
+    parser.add_argument("--score-file", required=True)
     parser.add_argument(
         "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
     )
@@ -101,4 +101,4 @@ if __name__ == "__main__":
     logging.debug(args)
 
     assert args.test_file is not None or args.ndx_file is not None
-    eval_plda(**namespace_to_dict(args))
+    eval_cos(**namespace_to_dict(args))

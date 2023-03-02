@@ -39,7 +39,7 @@ if [ $stage -le 1 ];then
     do
       $cmd $output_dir/log/${name}_${i}_${j}.log \
 	   hyp_utils/conda_env.sh \
-	   steps_be/eval-be-cos-qmf.py \
+	   steps_be/eval_be_cos_qmf.py \
 	   --v-file scp:$vector_file \
 	   --ndx-file $ndx_file \
 	   --enroll-file $enroll_file \
@@ -72,7 +72,7 @@ fi
 if [ $stage -le 3 ];then
   $cmd $output_dir/log/train_qmf_${name}.log \
        hyp_utils/conda_env.sh \
-       steps_be/train-qmf.py \
+       steps_be/train_qmf.py \
        --score-file $output_file \
        --key-file $ndx_file \
        --model-file $output_dir/qmf.h5

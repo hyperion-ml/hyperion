@@ -3,6 +3,7 @@
 # Apache 2.0.
 #
 cmd=run.pl
+pca_var_r=0.90
 
 if [ -f path.sh ]; then . ./path.sh; fi
 . parse_options.sh || exit 1;
@@ -40,7 +41,7 @@ while(getline < fv)
 
 $cmd $output_dir/log/train_be.log \
   hyp_utils/conda_env.sh \
-  steps_be/train-be-v2.py \
+  steps_be/train_be_proj_v1.py \
   --iv-file scp:$vector_file \
   --train-list $train_list \
   --output-path $output_dir

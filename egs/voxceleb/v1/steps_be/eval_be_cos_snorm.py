@@ -30,13 +30,13 @@ from hyperion.io import RandomAccessDataReaderFactory as DRF
 
 
 def eval_plda(
-    iv_file,
+    v_file,
     ndx_file,
     enroll_file,
     test_file,
     preproc_file,
     score_file,
-    coh_iv_file,
+    coh_v_file,
     coh_file,
     coh_nbest,
     model_part_idx,
@@ -53,7 +53,7 @@ def eval_plda(
         preproc = None
 
     tdr = TDR(
-        iv_file,
+        v_file,
         ndx_file,
         enroll_file,
         test_file,
@@ -66,8 +66,10 @@ def eval_plda(
     x_e, x_t, enroll, ndx = tdr.read()
 
     coh_segs = SegmentSet.load(coh_file)
-    r = DRF.create(coh_iv_file)
+    r = DRF.create(coh_v_file)
     x_coh = r.read(coh_segs["id"], squeeze=True)
+    if preproc is not None:
+        x_coh = preproc(x_coh)
     _, spk_ids = np.unique(coh_segs["class_id"], return_inverse=True)
     num_coh_spks = np.max(spk_ids) + 1
     x_coh_spk = np.zeros((num_coh_spks, x_coh.shape[1]))
@@ -107,7 +109,7 @@ if __name__ == "__main__":
 
     parser = ArgumentParser(description="Eval cosine-scoring with adaptive s-norm")
 
-    parser.add_argument("--iv-file", required=True)
+    parser.add_argument("--v-file", required=True)
     parser.add_argument("--ndx-file", default=None)
     parser.add_argument("--enroll-file", required=True)
     parser.add_argument("--test-file", default=None)
@@ -115,11 +117,11 @@ if __name__ == "__main__":
 
     TDR.add_argparse_args(parser)
 
-    parser.add_argument("--coh-iv-file", required=True)
+    parser.add_argument("--coh-v-file", required=True)
     parser.add_argument("--coh-file", required=True)
     parser.add_argument("--coh-nbest", type=int, default=1000)
 
-    parser.add_argument("--score-file", dest="score_file", required=True)
+    parser.add_argument("--score-file", required=True)
     parser.add_argument(
         "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
     )

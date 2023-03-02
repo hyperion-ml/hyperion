@@ -44,7 +44,7 @@ fi
 
 xvector_dir=exp/xvectors/$nnet_name
 
-if [[ $stage -le 1 && ( "$do_plda" == "true" || "$do_snorm" == "true" || "$do_qmf" == "true" ) ]]; then
+if [[ $stage -le 1 && ( "$do_plda" == "true" || "$do_snorm" == "true" || "$do_qmf" == "true" || "$do_pca" == "true") ]]; then
   # Extract xvectors for training LDA/PLDA
   for name in voxceleb2cat_train
   do

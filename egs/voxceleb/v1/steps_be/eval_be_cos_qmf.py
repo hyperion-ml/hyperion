@@ -61,6 +61,7 @@ def eval_plda(
     coh_v_file,
     score_file,
     qmf_file,
+    preproc_file,
     model_part_idx,
     num_model_parts,
     seg_part_idx,
@@ -69,13 +70,18 @@ def eval_plda(
     **kwargs
 ):
 
+    if preproc_file is not None:
+        preproc = TransformList.load(preproc_file)
+    else:
+        preproc = None
+
     logging.info("loading data")
     tdr = TDR(
         v_file,
         ndx_file,
         enroll_file,
         None,
-        None,
+        preproc,
         model_part_idx,
         num_model_parts,
         seg_part_idx,
@@ -118,7 +124,7 @@ def eval_plda(
     scores = cosine_scoring(x_e, x_t)
 
     logging.info("read cohort x-vectors")
-    vcr = VCR(coh_v_file, coh_file)
+    vcr = VCR(coh_v_file, coh_file, preproc=preproc)
     x_coh, ids_coh = vcr.read()
     D_coh = PLDA.compute_stats_hard(x_coh, class_ids=ids_coh)
     x_coh = D_coh[1] / np.expand_dims(D_coh[0], axis=-1)
@@ -194,7 +200,7 @@ if __name__ == "__main__":
     parser.add_argument("--coh-file", required=True)
     parser.add_argument("--coh-nbest", type=int, default=400)
     parser.add_argument("--qmf-file", default=None)
-    # parser.add_argument("--preproc-file", dest="preproc_file", default=None)
+    parser.add_argument("--preproc-file", default=None)
 
     TDR.add_argparse_args(parser)
 

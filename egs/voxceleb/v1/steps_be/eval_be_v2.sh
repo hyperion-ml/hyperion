@@ -36,7 +36,7 @@ do
     $cmd $output_dir/log/${name}_${i}_${j}.log \
       hyp_utils/conda_env.sh \
       steps_be/eval-be-v2.py \
-      --iv-file scp:$vector_file \
+      --v-file scp:$vector_file \
       --ndx-file $ndx_file \
       --enroll-file $enroll_file \
       --preproc-file $preproc_file \
