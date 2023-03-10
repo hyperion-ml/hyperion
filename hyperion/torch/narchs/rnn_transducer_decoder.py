@@ -311,7 +311,7 @@ class RNNTransducerDecoder(NetArch):
         pred_out, (h, c) = self.predictor(sos)
         T = x.size(1)
         #t = 0
-        B = [Hypothesis(ys=[blank_id], log_prob=0.0, decoder_state=None)]
+        B = [Hypothesis(ys=[blank_id], log_prob=0.0, pred_state=None)]
         #max_u = 20000  # terminate after this number of steps
         #u = 0
 
@@ -360,7 +360,7 @@ class RNNTransducerDecoder(NetArch):
                 new_y_star = Hypothesis(
                     ys=y_star.ys[:],
                     log_prob=new_y_star_log_prob,
-                    # Caution: Use y_star.decoder_state here
+                    # Caution: Use y_star.pred_state here
                     pred_state=y_star.pred_state,
                 )
                 A.append(new_y_star)
@@ -397,9 +397,10 @@ class RNNTransducerDecoder(NetArch):
                 B = []
                 B_ys = set()
                 for hyp in B0:
-                    if hyp.ys not in B_ys:
+                    hyp_ys = tuple(hyp.ys)  # to make ys hashable
+                    if hyp_ys not in B_ys:
                         B.append(hyp)
-                        B_ys.add(hyp.ys)
+                        B_ys.add(hyp_ys)
                 # print("tuAB2",
                 #       t,
                 #       u,
