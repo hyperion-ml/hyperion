@@ -34,3 +34,5 @@ from .transformer_conv2d_subsampler import TransformerConv2dSubsampler
 from .transformer_encoder_v1 import TransformerEncoderBlockV1
 from .transformer_feedforward import (Conv1dLinear, Conv1dx2,
                                       PositionwiseFeedForward)
+from .transducer_predictor import TransducerPredictor
+from .transducer_joiner import TransducerJoiner

@@ -3,7 +3,7 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import logging
-
+from typing import Dict, Optional, Union, Tuple
 from jsonargparse import ActionParser, ArgumentParser
 
 import torch
@@ -14,7 +14,7 @@ from ...torch_model import TorchModel
 from ...utils import remove_silence
 
 
-class Wav2XVector(TorchModel):
+class Wav2RNNTransducer(TorchModel):
     """Base class for models that integrate the acoustic feature extractor and and x-vector model that takes acoustic features as input.
 
     Attributes:
@@ -22,7 +22,7 @@ class Wav2XVector(TorchModel):
       xvector: x-vector model object.
     """
 
-    def __init__(self, feats, xvector):
+    def __init__(self, feats, transducer):
 
         super().__init__()
 
@@ -34,44 +34,16 @@ class Wav2XVector(TorchModel):
             assert isinstance(feats, AudioFeatsMVN)
 
         self.feats = feats
-        self.xvector = xvector
-
-    def rebuild_output_layer(
-        self,
-        num_classes=None,
-        loss_type="arc-softmax",
-        cos_scale=64,
-        margin=0.3,
-        margin_warmup_epochs=10,
-        intertop_k=5,
-        intertop_margin=0.0,
-        num_subcenters=2,
-    ):
-        self.xvector.rebuild_output_layer(
-            num_classes=num_classes,
-            loss_type=loss_type,
-            cos_scale=cos_scale,
-            margin=margin,
-            margin_warmup_epochs=margin_warmup_epochs,
-            intertop_k=intertop_k,
-            intertop_margin=intertop_margin,
-            num_subcenters=num_subcenters,
-        )
-
-    def compute_prototype_affinity(self):
-        return self.xvector.compute_prototype_affinity()
+        self.transducer = transducer
 
     def forward(
         self,
-        x,
-        x_lengths=None,
-        y=None,
-        vad_samples=None,
-        vad_feats=None,
-        enc_layers=None,
-        classif_layers=None,
-        return_output=True,
-    ):
+        x: torch.Tensor,
+        x_lengths: torch.Tensor,
+        y: k2.RaggedTensor,
+        vad_samples: Optional[torch.Tensor] = None,
+        vad_feats: Optional[torch.Tensor] = None
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
 
         if vad_samples is not None:
             x, x_lengths = remove_silence(x, x_lengths)
@@ -79,33 +51,10 @@ class Wav2XVector(TorchModel):
         if vad_feats is not None:
             feats, feat_lengths = remove_silence(feats, feat_lengths)
 
-        # feat_lengths = torch.div(x_lengths * feats.size(-1), x.size(-1))
-        return self.xvector(feats, feat_lengths, y, enc_layers, classif_layers,
-                            return_output)
-
-    def extract_embed(
-        self,
-        x,
-        x_lengths=None,
-        vad_samples=None,
-        vad_feats=None,
-        chunk_length=0,
-        embed_layer=None,
-        detach_chunks=False,
-    ):
-
-        if vad_samples is not None:
-            x, x_lengths = remove_silence(x, x_lengths)
-        feats, feat_lengths = self.feats(x, x_lengths)
-        if vad_feats is not None:
-            feats, feat_lengths = remove_silence(feats, feat_lengths)
-
-        feats = feats.transpose(1, 2)
-        return self.xvector.extract_embed(feats, feat_lengths, chunk_length,
-                                          embed_layer, detach_chunks)
+        return self.transducer(feats, feat_lengths, y)
 
     def set_train_mode(self, mode):
-        self.xvector.set_train_mode(mode)
+        self.transducer.set_train_mode(mode)
 
     def get_config(self):
         feat_cfg = self.feats.get_config()

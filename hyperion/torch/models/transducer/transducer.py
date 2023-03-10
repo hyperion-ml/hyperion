@@ -28,7 +28,7 @@ import torch
 import torch.nn as nn
 import torchaudio
 import torchaudio.functional
-#from .encoder_interface import EncoderInterface
+from .encoder_interface import EncoderInterface
 
 from ...torch_model import TorchModel
 from hyperion.utils.text import add_sos
@@ -44,12 +44,11 @@ class Transducer(TorchModel):
 
     def __init__(
         self,
-        encoder_net,
+        vocab_size,
+        blank_id,
         # conformer_enc,
         decoder,
         joiner,
-        vocab_size,
-        blank_id,
     ):
         """
         Args:
@@ -68,6 +67,9 @@ class Transducer(TorchModel):
             unnormalized probs, i.e., not processed by log-softmax.
         """
         super().__init__()
+        # assert isinstance(encoder, EncoderInterface)
+        # assert hasattr(decoder, "blank_id")
+
         decoder["blank_id"] = blank_id
         decoder["vocab_size"] = vocab_size
         joiner["out_dims"] = vocab_size

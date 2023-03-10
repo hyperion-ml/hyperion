@@ -26,3 +26,5 @@ from .tdnn import TDNNV1
 from .tdnn_factory import TDNNFactory
 from .torch_na_loader import TorchNALoader
 from .transformer_encoder_v1 import TransformerEncoderV1
+from .rnn_transducer_decoder import RNNTransducerDecoder
+from .rnn_encoder import RNNEncoder

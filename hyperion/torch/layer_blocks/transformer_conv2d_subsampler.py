@@ -6,6 +6,8 @@
 import torch
 import torch.nn as nn
 
+from ..layers import ActivationFactory as AF
+
 
 class TransformerConv2dSubsampler(nn.Module):
     """Convolutional 2D subsampling (to 1/4 length) Tor transformer
@@ -18,18 +20,23 @@ class TransformerConv2dSubsampler(nn.Module):
       time_dim: indicates which is the time dimension in the input tensor
     """
 
-    def __init__(self, in_feats, out_feats, hid_act, pos_enc, time_dim=1):
+    def __init__(self, in_feats, out_feats, hid_act, pos_enc=None, time_dim=1):
         super().__init__()
         self.time_dim = time_dim
+        hid_act = AF.create(hid_act)
         self.conv = nn.Sequential(
             nn.Conv2d(1, out_feats, 3, 2, padding=(0, 1)),
             hid_act,
             nn.Conv2d(out_feats, out_feats, 3, 2, padding=(0, 1)),
             hid_act,
         )
-        self.out = nn.Sequential(
-            nn.Linear(out_feats * (((in_feats - 1) // 2 - 1) // 2), out_feats), pos_enc
-        )
+
+        linear = nn.Linear(out_feats * (((in_feats - 1) // 2 - 1) // 2),
+                           out_feats)
+        if pos_enc is None:
+            self.out = linear
+        else:
+            self.out = nn.Sequential(linear, pos_enc)
 
     def forward(self, x, x_mask=None):
         """Forward function.
