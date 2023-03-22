@@ -3,13 +3,13 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import sys
 import logging
 import math
+import sys
 
 import torch
-import torch.nn as nn
 import torch.cuda.amp as amp
+import torch.nn as nn
 
 
 def _l2_norm(x, axis=-1):

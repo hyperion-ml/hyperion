@@ -4,32 +4,25 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import sys
-import os
-from pathlib import Path
-from jsonargparse import (
-    ArgumentParser,
-    ActionConfigFile,
-    ActionParser,
-    namespace_to_dict,
-)
-import time
 import logging
 import multiprocessing
+import os
+import sys
+import time
+from pathlib import Path
 
 import numpy as np
-
 import torch
 import torch.nn as nn
-
 from hyperion.hyp_defs import config_logger, set_float_cpu
-from hyperion.torch.utils import open_device
-from hyperion.torch.utils import ddp
-from hyperion.torch.trainers import XVectorTrainer as Trainer
-from hyperion.torch.models import TransformerXVectorV1 as XVec
-from hyperion.torch.data import FeatSeqDataset as SD
 from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
+from hyperion.torch.data import FeatSeqDataset as SD
 from hyperion.torch.metrics import CategoricalAccuracy
+from hyperion.torch.models import TransformerXVectorV1 as XVec
+from hyperion.torch.trainers import XVectorTrainer as Trainer
+from hyperion.torch.utils import ddp, open_device
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
 
 
 def init_data(data_rspec, train_list, val_list, num_workers, num_gpus, rank, **kwargs):

@@ -1,0 +1,4 @@
+beam_width: 5
+decoding_method: time_sync_beam_search
+#decoding_method: greedy
+#decoding_method: align_length_sync_beam_search

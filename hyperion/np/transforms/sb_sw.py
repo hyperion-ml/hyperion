@@ -2,14 +2,13 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-import numpy as np
 import h5py
-
+import numpy as np
 import scipy.linalg as la
 from sklearn.neighbors import BallTree
 
-from ..np_model import NPModel
 from ...hyp_defs import float_cpu
+from ..np_model import NPModel
 
 
 class SbSw(NPModel):

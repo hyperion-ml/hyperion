@@ -4,13 +4,13 @@
 """
 
 import logging
-from jsonargparse import ArgumentParser, ActionParser
 
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ArgumentParser
 
-from .xvector import XVector
 from ...narchs import ResNetFactory as RNF
+from .xvector import XVector
 
 
 class ResNetXVector(XVector):

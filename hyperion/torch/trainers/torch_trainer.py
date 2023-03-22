@@ -3,28 +3,30 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import os
-import math
 import contextlib
+import logging
+import math
+import os
 from collections import OrderedDict as ODict
 from enum import Enum
-from jsonargparse import ArgumentParser, ActionParser
-import logging
 from pathlib import Path
 
 import torch
-import torch.nn as nn
 import torch.cuda.amp as amp
-from torch.optim.swa_utils import AveragedModel, SWALR
 import torch.distributed as dist
-
+import torch.nn as nn
 from fairscale.optim.grad_scaler import ShardedGradScaler
+from jsonargparse import ActionParser, ArgumentParser
+from torch.optim.swa_utils import SWALR, AveragedModel
 
-from ..utils import MetricAcc, TorchDDP, FairShardedDDP, FairFullyShardedDDP
-from ..loggers import LoggerList, CSVLogger, ProgLogger, TensorBoardLogger, WAndBLogger
-from ..optim import OptimizerFactory as OF
-from ..lr_schedulers import LRSchedulerFactory as LRSF
+from ...utils.misc import filter_func_args
+from ..loggers import (CSVLogger, LoggerList, ProgLogger, TensorBoardLogger,
+                       WAndBLogger)
 from ..lr_schedulers import LRScheduler as LRS
+from ..lr_schedulers import LRSchedulerFactory as LRSF
+from ..optim import OptimizerFactory as OF
+from ..utils import (FairFullyShardedDDP, FairShardedDDP, MetricAcc, TorchDDP,
+                     tensors_subset)
 
 
 class DDPType(str, Enum):
@@ -66,6 +68,8 @@ class TorchTrainer(object):
       swa_lr: SWA learning rate
       swa_anneal_epochs: SWA learning rate anneal epochs
       cpu_offload: CPU offload of gradients when using fully sharded ddp
+      input_key: dict. key for nnet input.
+      target_key: dict. key for nnet targets.
     """
     def __init__(
         self,
@@ -95,6 +99,8 @@ class TorchTrainer(object):
         swa_lr=1e-3,
         swa_anneal_epochs=10,
         cpu_offload=False,
+        input_key="x",
+        target_key="class_id",
     ):
 
         self.model = model
@@ -124,6 +130,8 @@ class TorchTrainer(object):
         self.swa_lr = swa_lr
         self.swa_anneal_epochs = swa_anneal_epochs
         self.amp_args = {}
+        self.input_key = input_key
+        self.target_key = target_key
 
         self.set_train_mode()
 
@@ -151,9 +159,7 @@ class TorchTrainer(object):
                                                       self.model,
                                                       oss=oss)
                 self.model = TorchDDP(
-                    self.model,
-                    device_ids=[device],
-                    output_device=device,
+                    self.model, device_ids=[device], output_device=device,
                 )
             elif ddp_type == DDPType.OSS_SHARDED_DDP:
                 self.model = nn.SyncBatchNorm.convert_sync_batchnorm(
@@ -290,18 +296,20 @@ class TorchTrainer(object):
         Args:
           data_loader: PyTorch data loader return input/output pairs
         """
+        batch_keys = [self.input_key, self.target_key]
         metric_acc = MetricAcc(device=self.device)
         batch_metrics = ODict()
         self.model.train()
-        for batch, (data, target) in enumerate(data_loader):
+        for batch, data in enumerate(data_loader):
             self.loggers.on_batch_begin(batch)
             if batch % self.grad_acc_steps == 0:
                 self.optimizer.zero_grad()
 
-            data, target = data.to(self.device), target.to(self.device)
-            batch_size = data.shape[0]
-            with self.amp_autocast():
-                output = self.model(data)
+            input_data, target = tensors_subset(data, batch_keys, self.device)
+            batch_size = input_data.size(0)
+
+            with amp.autocast(enabled=self.use_amp):
+                output = self.model(input_data)
                 loss = self.loss(output, target).mean() / self.grad_acc_steps
 
             if self.use_amp:
@@ -314,7 +322,6 @@ class TorchTrainer(object):
                     self.lr_scheduler.on_opt_step()
                 self.update_model()
 
-            self._reduce_metric(loss)
             batch_metrics["loss"] = loss.item() * self.grad_acc_steps
             for k, metric in self.metrics.items():
                 batch_metrics[k] = metric(output, target)
@@ -337,7 +344,7 @@ class TorchTrainer(object):
           data_loader: PyTorch data loader return input/output pairs.
           sw_update_bn: wheter or not, update batch-norm layers in SWA.
         """
-
+        batch_keys = [self.input_key, self.target_key]
         metric_acc = MetricAcc(self.device)
         batch_metrics = ODict()
         with torch.no_grad():
@@ -348,12 +355,11 @@ class TorchTrainer(object):
                 log_tag = "val_"
                 self.model.eval()
 
-            for batch, (data, target) in enumerate(data_loader):
-                data, target = data.to(self.device), target.to(self.device)
-                batch_size = data.shape[0]
-
-                with self.amp_autocast():
-                    output = self.model(data)
+            for batch, data in enumerate(data_loader):
+                input_data, target = tensors_subset(data, batch_keys, self.device)
+                batch_size = input_data.size(0)
+                with amp.autocast(enabled=self.use_amp):
+                    output = self.model(input_data)
                     loss = self.loss(output, target)
 
                 batch_metrics["loss"] = loss.mean().item()
@@ -626,32 +632,34 @@ class TorchTrainer(object):
 
     @staticmethod
     def filter_args(**kwargs):
-        valid_args = (
-            "grad_acc_steps",
-            "eff_batch_size",
-            "epochs",
-            "log_interval",
-            "use_amp",
-            "ddp_type",
-            "grad_clip",
-            "grad_clip_norm",
-            "swa_start",
-            "swa_lr",
-            "swa_anneal_epochs",
-            "exp_path",
-            "optim",
-            "lrsched",
-            "cpu_offload",
-            "use_tensorboard",
-            "use_wandb",
-            "wandb",
-            "train_mode",
-        )
-        args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
+        args = filter_func_args(TorchTrainer.__init__, kwargs)
+
+        # valid_args = (
+        #     "grad_acc_steps",
+        #     "eff_batch_size",
+        #     "epochs",
+        #     "log_interval",
+        #     "use_amp",
+        #     "ddp_type",
+        #     "grad_clip",
+        #     "grad_clip_norm",
+        #     "swa_start",
+        #     "swa_lr",
+        #     "swa_anneal_epochs",
+        #     "exp_path",
+        #     "optim",
+        #     "lrsched",
+        #     "cpu_offload",
+        #     "use_tensorboard",
+        #     "use_wandb",
+        #     "wandb",
+        #     "train_mode",
+        # )
+        # args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
         return args
 
     @staticmethod
-    def add_class_args(parser, prefix=None, train_modes=None, skip=[]):
+    def add_class_args(parser, prefix=None, train_modes=None, skip=set()):
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -767,6 +775,14 @@ class TorchTrainer(object):
         )
 
         parser.add_argument("--exp-path", help="experiment path")
+        if "input_key" not in skip:
+            parser.add_argument(
+                "--input-key", default="x", help="dict. key for nnet input"
+            )
+        if "target_key" not in skip:
+            parser.add_argument(
+                "--target-key", default="class_id", help="dict. key for nnet targets"
+            )
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix,

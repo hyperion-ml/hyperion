@@ -1,6 +1,7 @@
 #!/bin/bash
 #               2022  Johns Hopkins University (Author: Yen-Ju Lu)
 # Apache 2.0.
+set -e
 nj=30
 cmd="run.pl"
 
@@ -61,7 +62,7 @@ if [ "$write_utt2num_frames" == "true" ];then
 fi
 
 if [ $stage -le 0 ];then
-    set +e
+    #set +e
     $cmd JOB=1:$nj $output_dir/log/decode_transducer.JOB.log \
 	hyp_utils/conda_env.sh --num-gpus $num_gpus \
     decode_wav2transducer.py \
@@ -70,7 +71,7 @@ if [ $stage -le 0 ];then
     --model-path $nnet_file \
     --bpe-model $bpe_model \
     --output $output_dir/transducer.JOB.text
-      set -e
+     # set -e
 fi
 
 if [ $stage -le 1 ];then

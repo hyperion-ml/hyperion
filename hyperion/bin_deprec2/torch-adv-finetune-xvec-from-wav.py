@@ -3,35 +3,28 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-import sys
-import os
-from pathlib import Path
-from jsonargparse import (
-    ArgumentParser,
-    ActionConfigFile,
-    ActionParser,
-    namespace_to_dict,
-)
-import time
 import logging
 import multiprocessing
+import os
+import sys
+import time
+from pathlib import Path
 
 import numpy as np
-
 import torch
 import torch.nn as nn
-
 from hyperion.hyp_defs import config_logger, set_float_cpu
-from hyperion.torch.utils import open_device
-from hyperion.torch.utils import ddp
-from hyperion.torch.models import XVector as XVec
-from hyperion.torch.trainers import XVectorAdvTrainerFromWav as Trainer
+from hyperion.torch import TorchModelLoader as TML
+from hyperion.torch.adv_attacks import AttackFactory
 from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
 from hyperion.torch.metrics import CategoricalAccuracy
+from hyperion.torch.models import XVector as XVec
 from hyperion.torch.narchs import AudioFeatsMVN as AF
-from hyperion.torch.adv_attacks import AttackFactory
-from hyperion.torch import TorchModelLoader as TML
+from hyperion.torch.trainers import XVectorAdvTrainerFromWav as Trainer
+from hyperion.torch.utils import ddp, open_device
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
 
 
 def init_data(

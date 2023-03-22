@@ -5,13 +5,12 @@
 import logging
 from pathlib import Path
 
-import numpy as np
 import h5py
 import matplotlib
+import numpy as np
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-
 
 from ..clustering import AHC
 from ..pdfs import GMMTiedDiagCov as GMM

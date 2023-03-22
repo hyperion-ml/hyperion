@@ -28,13 +28,12 @@ scale=4
 ws_tag=w26s4
 nnet_num_epochs=70
 
-xvec_train_base_cfg=conf/train_res2net50_xvec_default.yaml
-xvec_train_args="--data.train.sampler.batch-size $batch_size_1gpu --model.resnet-type $resnet_type --model.res2net-width-factor $width_factor --model.res2net-scale $scale"
+nnet_s1_base_cfg=conf/train_res2net50_xvec_default.yaml
+nnet_s1_args="--data.train.sampler.batch-size $batch_size_1gpu --model.resnet-type $resnet_type --model.res2net-width-factor $width_factor --model.res2net-scale $scale"
 
-nnet_name=${feat_type}_${resnet_type}${ws_tag}_e${embed_dim}_arcs${s}m${margin}_do${dropout}_adam_lr${lr}_b${eff_batch_size}_amp.v1
-
-nnet_dir=exp/xvector_nnets/$nnet_name
-nnet=$nnet_dir/model_ep0070.pth
+nnet_s1_name=${feat_type}_${resnet_type}${ws_tag}_e${embed_dim}_arcs${s}m${margin}_do${dropout}_adam_lr${lr}_b${eff_batch_size}_amp.v1
+nnet_s1_dir=exp/xvector_nnets/$nnet_s1_name
+nnet_s1=$nnet_s1_dir/model_ep0070.pth
 
 # back-end
 plda_aug_config=conf/reverb_noise_aug.yaml

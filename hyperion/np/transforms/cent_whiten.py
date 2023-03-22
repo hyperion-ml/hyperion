@@ -2,11 +2,10 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
-import numpy as np
 import h5py
-
+import numpy as np
 import scipy.linalg as la
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ..np_model import NPModel
 from ..pdfs import Normal

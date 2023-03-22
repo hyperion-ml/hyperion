@@ -3,13 +3,13 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import logging
-from jsonargparse import ArgumentParser, ActionParser
 
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ArgumentParser
 
-from ...torch_model import TorchModel
 from ...narchs import AudioFeatsMVN
+from ...torch_model import TorchModel
 from ...utils import remove_silence
 
 
@@ -79,9 +79,8 @@ class Wav2XVector(TorchModel):
             feats, feat_lengths = remove_silence(feats, feat_lengths)
 
         # feat_lengths = torch.div(x_lengths * feats.size(-1), x.size(-1))
-        return self.xvector(
-            feats, feat_lengths, y, enc_layers, classif_layers, return_output
-        )
+        return self.xvector(feats, feat_lengths, y, enc_layers, classif_layers,
+                            return_output)
 
     def extract_embed(
         self,
@@ -101,12 +100,11 @@ class Wav2XVector(TorchModel):
             feats, feat_lengths = remove_silence(feats, feat_lengths)
 
         feats = feats.transpose(1, 2)
-        return self.xvector.extract_embed(
-            feats, feat_lengths, chunk_length, embed_layer, detach_chunks
-        )
+        return self.xvector.extract_embed(feats, feat_lengths, chunk_length,
+                                          embed_layer, detach_chunks)
 
-    def train_mode(self, mode="ft-embed-affine"):
-        self.xvector.train_mode(mode)
+    def set_train_mode(self, mode):
+        self.xvector.set_train_mode(mode)
 
     def get_config(self):
         feat_cfg = self.feats.get_config()
@@ -151,4 +149,5 @@ class Wav2XVector(TorchModel):
         AudioFeatsMVN.add_class_args(parser, prefix="feats")
 
         if prefix is not None:
-            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
+            outer_parser.add_argument("--" + prefix,
+                                      action=ActionParser(parser=parser))

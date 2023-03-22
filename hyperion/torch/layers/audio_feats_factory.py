@@ -2,11 +2,12 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from jsonargparse import ArgumentParser, ActionParser
 import re
 
-from ...utils.misc import str2bool
+from jsonargparse import ActionParser, ArgumentParser
+
 from ...np.feats.filter_banks import FilterBankFactory as FBF
+from ...utils.misc import str2bool
 from .audio_feats import *
 
 FFT = "fft"

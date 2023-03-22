@@ -3,11 +3,11 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from pathlib import Path
 import logging
+import re
 from collections import OrderedDict
 from copy import deepcopy
-import re
+from pathlib import Path
 
 import numpy as np
 import pandas as pd

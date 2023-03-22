@@ -3,15 +3,15 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import os.path as path
 import copy
+import os.path as path
 
 import numpy as np
 import scipy.sparse as sparse
 
 from .list_utils import *
-from .trial_ndx import TrialNdx
 from .trial_key import TrialKey
+from .trial_ndx import TrialNdx
 
 
 class SparseTrialKey(TrialKey):

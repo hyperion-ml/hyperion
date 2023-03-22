@@ -4,14 +4,13 @@
 """
 
 import numpy as np
-
 import torch
 import torch.nn as nn
 from torch.nn import Conv1d, Linear
 
+from ..layer_blocks import ETDNNBlock
 from ..layers import ActivationFactory as AF
 from ..layers import NormLayer1dFactory as NLF
-from ..layer_blocks import ETDNNBlock
 from .net_arch import NetArch
 
 

@@ -5,8 +5,8 @@
  Class to make/read/write k-fold x-validation lists
 """
 
-import os.path as path
 import logging
+import os.path as path
 from collections import OrderedDict
 from copy import deepcopy
 

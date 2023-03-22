@@ -4,16 +4,16 @@
 """
 
 
-import os.path as path
-import logging
 import copy
+import logging
+import os.path as path
 
 import numpy as np
 import pandas as pd
 
 from ..hyp_defs import float_cpu
-from .trial_ndx import TrialNdx
 from .trial_key import TrialKey
+from .trial_ndx import TrialNdx
 
 
 class TrialStats(object):

@@ -3,13 +3,14 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import logging
+
 import numpy as np
 
 from ..hyp_defs import float_cpu
 from ..utils import SegmentList
 from ..utils.vad_utils import vad_timestamps_to_bin
-from .vad_reader import VADReader
 from .data_reader import DataReader
+from .vad_reader import VADReader
 
 
 class SegmentVADReader(VADReader):

@@ -3,9 +3,12 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+import gzip
+import re
+import struct
 import sys
-import gzip, struct, re
 from collections import OrderedDict
+
 import numpy as np
 
 from ..hyp_defs import float_cpu

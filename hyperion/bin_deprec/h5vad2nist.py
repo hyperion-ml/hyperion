@@ -7,14 +7,13 @@
 Converts from Ark format to NIST OpenSAT
 """
 
-import sys
-import os
 import argparse
-import time
 import logging
+import os
+import sys
+import time
 
 import numpy as np
-
 from hyperion.hyp_defs import config_logger
 from hyperion.io import HypDataReader
 

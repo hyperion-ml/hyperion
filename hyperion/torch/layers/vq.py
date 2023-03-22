@@ -5,9 +5,9 @@
 import math
 
 import torch
+import torch.distributed as dist
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.distributed as dist
 
 from ..utils import seq_lengths_to_mask
 

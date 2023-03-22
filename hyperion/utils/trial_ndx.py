@@ -3,11 +3,11 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import os.path as path
 import copy
+import os.path as path
 
-import numpy as np
 import h5py
+import numpy as np
 
 from .list_utils import *
 

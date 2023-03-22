@@ -2,17 +2,18 @@
  Copyright 2022 Johns Hopkins University  (Author: Yen-Ju Lu)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-import logging
 import contextlib
-from jsonargparse import ArgumentParser, ActionParser
+import logging
 
 import torch
 import torch.nn as nn
-
-# import torch.nn.functional as nnf
+from jsonargparse import ActionParser, ArgumentParser
 
 from ...torch_model import TorchModel
 from ...utils import remove_silence
+
+# import torch.nn.functional as nnf
+
 # from ..wav2xvectors.hf_wav2xvector import HFWav2XVector
 
 

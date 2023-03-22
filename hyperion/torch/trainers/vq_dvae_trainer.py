@@ -2,16 +2,18 @@
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+import logging
+import math
 import os
 from collections import OrderedDict as ODict
 
-import logging
-import math
-
 import torch
+import torch.cuda.amp as amp
 import torch.nn as nn
+from jsonargparse import ActionParser, ArgumentParser
 
-from ..utils import MetricAcc
+from ...utils.misc import filter_func_args
+from ..utils import MetricAcc, tensors_subset
 from .dvae_trainer import DVAETrainer
 
 
@@ -43,7 +45,8 @@ class VQDVAETrainer(DVAETrainer):
       swa_lr: SWA learning rate
       swa_anneal_epochs: SWA learning rate anneal epochs
       cpu_offload: CPU offload of gradients when using fully sharded ddp
-
+      input_key: dict. key for nnet input.
+      target_key: dict. key for nnet targets.
     """
 
     def __init__(
@@ -73,59 +76,57 @@ class VQDVAETrainer(DVAETrainer):
         swa_lr=1e-3,
         swa_anneal_epochs=10,
         cpu_offload=False,
+        input_key="x_aug",
+        target_key="x",
     ):
 
-        super().__init__(
-            model,
-            optim,
-            epochs,
-            exp_path,
-            cur_epoch=cur_epoch,
-            grad_acc_steps=grad_acc_steps,
-            eff_batch_size=eff_batch_size,
-            device=device,
-            metrics=metrics,
-            lrsched=lrsched,
-            loggers=loggers,
-            ddp=ddp,
-            ddp_type=ddp_type,
-            train_mode=train_mode,
-            use_amp=use_amp,
-            log_interval=log_interval,
-            use_tensorboard=use_tensorboard,
-            use_wandb=use_wandb,
-            wandb=wandb,
-            grad_clip=grad_clip,
-            grad_clip_norm=grad_clip_norm,
-            swa_start=swa_start,
-            swa_lr=swa_lr,
-            swa_anneal_epochs=swa_anneal_epochs,
-            cpu_offload=cpu_offload,
-        )
+        super_args = filter_func_args(super().__init__, locals())
+        super().__init__(**super_args)
+
+        # super().__init__(
+        #     model,
+        #     optim,
+        #     epochs,
+        #     exp_path,
+        #     cur_epoch=cur_epoch,
+        #     grad_acc_steps=grad_acc_steps,
+        #     eff_batch_size=eff_batch_size,
+        #     device=device,
+        #     metrics=metrics,
+        #     lrsched=lrsched,
+        #     loggers=loggers,
+        #     ddp=ddp,
+        #     ddp_type=ddp_type,
+        #     train_mode=train_mode,
+        #     use_amp=use_amp,
+        #     log_interval=log_interval,
+        #     use_tensorboard=use_tensorboard,
+        #     use_wandb=use_wandb,
+        #     wandb=wandb,
+        #     grad_clip=grad_clip,
+        #     grad_clip_norm=grad_clip_norm,
+        #     swa_start=swa_start,
+        #     swa_lr=swa_lr,
+        #     swa_anneal_epochs=swa_anneal_epochs,
+        #     cpu_offload=cpu_offload,
+        # )
 
     def train_epoch(self, data_loader):
 
+        batch_keys = [self.input_key, self.target_key]
         metric_acc = MetricAcc(device=self.device)
         batch_metrics = ODict()
         self.model.train()
 
         for batch, data in enumerate(data_loader):
-
-            assert isinstance(data, (tuple, list))
-            x = data[0]
-            x_target = data[1]
-
             self.loggers.on_batch_begin(batch)
-
             if batch % self.grad_acc_steps == 0:
                 self.optimizer.zero_grad()
 
-            x = x.to(self.device)
-            x_target = x_target.to(self.device)
-            batch_size = x.shape[0]
-
-            with self.amp_autocast():
-                output = self.model(x, x_target=x_target, return_x_mean=True)
+            input_data, target = tensors_subset(data, batch_keys, self.device)
+            batch_size = input_data.size(0)
+            with amp.autocast(enabled=self.use_amp):
+                output = self.model(input_data, x_target=target, return_x_mean=True)
                 loss = output["loss"]
                 x_hat = output["x_mean"]
                 loss = loss.mean() / self.grad_acc_steps
@@ -147,7 +148,7 @@ class VQDVAETrainer(DVAETrainer):
                 output["log_perplexity"].mean().item()
             )
             for k, metric in self.metrics.items():
-                batch_metrics[k] = metric(x_hat, x_target)
+                batch_metrics[k] = metric(x_hat, target)
 
             metric_acc.update(batch_metrics, batch_size)
             logs = metric_acc.metrics
@@ -160,29 +161,22 @@ class VQDVAETrainer(DVAETrainer):
         return logs
 
     def validation_epoch(self, data_loader, swa_update_bn=False):
-
+        batch_keys = [self.input_key, self.target_key]
         metric_acc = MetricAcc(device=self.device)
         batch_metrics = ODict()
         with torch.no_grad():
             if swa_update_bn:
-                log_tag = "train"
+                log_tag = "train_"
                 self.model.train()
             else:
                 log_tag = "val_"
                 self.model.eval()
 
             for batch, data in enumerate(data_loader):
-
-                assert isinstance(data, (tuple, list))
-                x = data[0]
-                x_target = data[1]
-
-                x = x.to(self.device)
-                x_target = x_target.to(self.device)
-                batch_size = x.shape[0]
-
-                with self.amp_autocast():
-                    output = self.model(x, x_target=x_target, return_x_mean=True)
+                input_data, target = tensors_subset(data, batch_keys, self.device)
+                batch_size = input_data.size(0)
+                with amp.autocast(enabled=self.use_amp):
+                    output = self.model(input_data, x_target=target, return_x_mean=True)
 
                 x_hat = output["x_mean"]
                 for metric in ["loss", "elbo", "log_px", "kldiv_z", "vq_loss"]:
@@ -192,10 +186,33 @@ class VQDVAETrainer(DVAETrainer):
                 )
 
                 for k, metric in self.metrics.items():
-                    batch_metrics[k] = metric(x_hat, x_target)
+                    batch_metrics[k] = metric(x_hat, target)
 
                 metric_acc.update(batch_metrics, batch_size)
 
         logs = metric_acc.metrics
         logs = ODict((log_tag + k, v) for k, v in logs.items())
         return logs
+
+    @staticmethod
+    def add_class_args(parser, prefix=None, train_modes=None, skip=set()):
+
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
+
+        super().add_class_args(
+            parser, train_modes, skip=skip.union({"input_key", "target_key"})
+        )
+        if "input_key" not in skip:
+            parser.add_argument(
+                "--input-key", default="x_aug", help="dict. key for nnet input"
+            )
+
+        if "target_key" not in skip:
+            parser.add_argument(
+                "--target-key", default="x", help="dict. key for nnet targets"
+            )
+
+        if prefix is not None:
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

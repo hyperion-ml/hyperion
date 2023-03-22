@@ -5,18 +5,19 @@
  Classes to read data from hdf5 files.
 """
 
+import multiprocessing
 import sys
 import time
-import numpy as np
+
 import h5py
-import multiprocessing
+import numpy as np
 
 from ..hyp_defs import float_cpu
+from ..utils.kaldi_io_funcs import is_token
+from ..utils.kaldi_matrix import KaldiCompressedMatrix, KaldiMatrix
 from ..utils.list_utils import split_list, split_list_group_by_key
 from ..utils.scp_list import SCPList
-from ..utils.kaldi_matrix import KaldiMatrix, KaldiCompressedMatrix
-from ..utils.kaldi_io_funcs import is_token
-from .data_reader import SequentialDataReader, RandomAccessDataReader
+from .data_reader import RandomAccessDataReader, SequentialDataReader
 
 
 def _read_h5_data(dset, row_offset=0, num_rows=0, transform=None):

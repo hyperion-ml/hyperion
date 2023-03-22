@@ -3,6 +3,7 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import re
+
 from torch.utils.tensorboard import SummaryWriter
 
 from .logger import Logger

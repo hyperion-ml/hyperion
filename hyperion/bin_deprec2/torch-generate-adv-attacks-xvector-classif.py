@@ -3,37 +3,29 @@
   Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
   Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)  
 """
-import sys
-import os
-from jsonargparse import (
-    ArgumentParser,
-    ActionConfigFile,
-    ActionParser,
-    namespace_to_dict,
-)
-import time
 import logging
+import os
+import sys
+import time
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import yaml
-
 import torch
 import torch.nn as nn
-
+import yaml
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
-from hyperion.io import RandomAccessAudioReader as AR
 from hyperion.io import AudioWriter as AW
-from hyperion.utils import Utt2Info, TrialNdx
+from hyperion.io import RandomAccessAudioReader as AR
 from hyperion.io import VADReaderFactory as VRF
-
-from hyperion.torch.utils import open_device
 from hyperion.torch import TorchModelLoader as TML
-from hyperion.torch.narchs import AudioFeatsMVN as AF
-from hyperion.torch.utils.misc import l2_norm, compute_stats_adv_attack
-
 from hyperion.torch.adv_attacks import RandomAttackFactory
+from hyperion.torch.narchs import AudioFeatsMVN as AF
+from hyperion.torch.utils import open_device
+from hyperion.torch.utils.misc import compute_stats_adv_attack, l2_norm
+from hyperion.utils import TrialNdx, Utt2Info
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
 
 
 def read_utt_list(list_file, class2int_file, part_idx, num_parts):

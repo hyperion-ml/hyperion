@@ -3,20 +3,16 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import numpy as np
 import h5py
+import numpy as np
 from scipy.special import erf
 
 from ....hyp_defs import float_cpu
-from ....utils.math import softmax, logsumexp
-from ....utils.plotting import (
-    plot_gaussian_1D,
-    plot_gaussian_ellipsoid_2D,
-    plot_gaussian_ellipsoid_3D,
-    plot_gaussian_3D,
-)
+from ....utils.math import logsumexp, softmax
+from ....utils.plotting import (plot_gaussian_1D, plot_gaussian_3D,
+                                plot_gaussian_ellipsoid_2D,
+                                plot_gaussian_ellipsoid_3D)
 from ...clustering import KMeans
-
 from .exp_family_mixture import ExpFamilyMixture
 
 

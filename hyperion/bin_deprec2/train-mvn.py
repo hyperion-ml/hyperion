@@ -7,18 +7,17 @@
 Trains global mean and variance normalization of i-vectors.
 """
 
-import sys
-import os
 import argparse
-import time
 import logging
+import os
+import sys
+import time
 
 import numpy as np
-
-from hyperion.hyp_defs import config_logger
 from hyperion.helpers import VectorReader as VR
+from hyperion.hyp_defs import config_logger
 from hyperion.np.pdfs.core import Normal
-from hyperion.np.transforms import TransformList, MVN, SbSw
+from hyperion.np.transforms import MVN, SbSw, TransformList
 
 
 def train_mvn(

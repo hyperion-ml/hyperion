@@ -2,17 +2,18 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+import logging
 import os
 from collections import OrderedDict as ODict
 
-import logging
-
 import torch
+import torch.cuda.amp as amp
 import torch.nn as nn
 
-from ..utils import MetricAcc
-from ..utils.misc import get_selfsim_tarnon
+from ...utils.misc import filter_func_args
 from ..losses import BCEWithLLR
+from ..utils import MetricAcc, tensors_subset
+from ..utils.misc import get_selfsim_tarnon
 from .torch_trainer import TorchTrainer
 
 
@@ -48,6 +49,8 @@ class PLDATrainer(TorchTrainer):
       swa_lr: SWA learning rate
       swa_anneal_epochs: SWA learning rate anneal epochs
       cpu_offload: CPU offload of gradients when using fully sharded ddp
+      input_key: dict. key for nnet input.
+      target_key: dict. key for nnet targets.
     """
 
     def __init__(
@@ -80,38 +83,44 @@ class PLDATrainer(TorchTrainer):
         swa_lr=1e-3,
         swa_anneal_epochs=10,
         cpu_offload=False,
+        input_key="x",
+        target_key="class_id",
     ):
 
         if loss is None:
             loss = nn.CrossEntropyLoss()
-        super().__init__(
-            model,
-            loss,
-            optim,
-            epochs,
-            exp_path,
-            cur_epoch=cur_epoch,
-            grad_acc_steps=grad_acc_steps,
-            eff_batch_size=eff_batch_size,
-            device=device,
-            metrics=metrics,
-            lrsched=lrsched,
-            loggers=loggers,
-            ddp=ddp,
-            ddp_type=ddp_type,
-            train_mode=train_mode,
-            use_amp=use_amp,
-            log_interval=log_interval,
-            use_tensorboard=use_tensorboard,
-            use_wandb=use_wandb,
-            wandb=wandb,
-            grad_clip=grad_clip,
-            grad_clip_norm=grad_clip_norm,
-            swa_start=swa_start,
-            swa_lr=swa_lr,
-            swa_anneal_epochs=swa_anneal_epochs,
-            cpu_offload=cpu_offload,
-        )
+
+        super_args = filter_func_args(super().__init__, locals())
+        super().__init__(**super_args)
+
+        # super().__init__(
+        #     model,
+        #     loss,
+        #     optim,
+        #     epochs,
+        #     exp_path,
+        #     cur_epoch=cur_epoch,
+        #     grad_acc_steps=grad_acc_steps,
+        #     eff_batch_size=eff_batch_size,
+        #     device=device,
+        #     metrics=metrics,
+        #     lrsched=lrsched,
+        #     loggers=loggers,
+        #     ddp=ddp,
+        #     ddp_type=ddp_type,
+        #     train_mode=train_mode,
+        #     use_amp=use_amp,
+        #     log_interval=log_interval,
+        #     use_tensorboard=use_tensorboard,
+        #     use_wandb=use_wandb,
+        #     wandb=wandb,
+        #     grad_clip=grad_clip,
+        #     grad_clip_norm=grad_clip_norm,
+        #     swa_start=swa_start,
+        #     swa_lr=swa_lr,
+        #     swa_anneal_epochs=swa_anneal_epochs,
+        #     cpu_offload=cpu_offload,
+        # )
 
         self.loss_bce = BCEWithLLR(p_tar)
         self.loss_weights = loss_weights
@@ -122,7 +131,7 @@ class PLDATrainer(TorchTrainer):
         Args:
           data_loader: pytorch data loader returning features and class labels.
         """
-
+        batch_keys = [self.input_key, self.target_key]
         self.model.update_margin(self.cur_epoch)
 
         return_multi = self.loss_weights["multi"] > 0
@@ -132,20 +141,21 @@ class PLDATrainer(TorchTrainer):
         metric_acc = MetricAcc()
         batch_metrics = ODict()
         self.model.train()
-        for batch, (data, target) in enumerate(data_loader):
+        for batch, data in enumerate(data_loader):
             self.loggers.on_batch_begin(batch)
 
             if batch % self.grad_acc_steps == 0:
                 self.optimizer.zero_grad()
 
-            data, target = data.to(self.device), target.to(self.device)
-            batch_size = data.shape[0]
+            input_data, target = tensors_subset(data, batch_keys, self.device)
+            batch_size = input_data.size(0)
 
             if return_bin:
                 target_bin, mask_bin = get_selfsim_tarnon(target, return_mask=True)
-            with self.amp_autocast():
+
+            with amp.autocast(enabled=self.use_amp):
                 output = self.model(
-                    data,
+                    input_data,
                     target,
                     return_multi=return_multi,
                     return_bin=return_bin,
@@ -196,7 +206,7 @@ class PLDATrainer(TorchTrainer):
         Args:
           data_loader: PyTorch data loader return input/output pairs
         """
-
+        batch_keys = [self.input_key, self.target_key]
         metric_acc = MetricAcc()
         batch_metrics = ODict()
         return_multi = self.loss_weights["multi"] > 0
@@ -210,15 +220,16 @@ class PLDATrainer(TorchTrainer):
                 log_tag = "val_"
                 self.model.eval()
 
-            for batch, (data, target) in enumerate(data_loader):
-                data, target = data.to(self.device), target.to(self.device)
-                batch_size = data.shape[0]
+            for batch, data in enumerate(data_loader):
+                input_data, target = tensors_subset(data, batch_keys, self.device)
+                batch_size = input_data.size(0)
 
                 if return_bin:
                     target_bin, mask_bin = get_selfsim_tarnon(target, return_mask=True)
-                with self.amp_autocast():
+
+                with amp.autocast(enabled=self.use_amp):
                     output = self.model(
-                        data, return_multi=return_multi, return_bin=return_bin
+                        input_data, return_multi=return_multi, return_bin=return_bin
                     )
                     loss = 0
                     if return_multi:

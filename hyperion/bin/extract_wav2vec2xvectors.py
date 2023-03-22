@@ -4,32 +4,44 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0) 
 """
 
-import sys
-import os
-from jsonargparse import (
-    ArgumentParser,
-    ActionConfigFile,
-    ActionParser,
-    namespace_to_dict,
-)
-import time
 import logging
+import os
+import sys
+import time
 
 import numpy as np
 import pandas as pd
-
 import torch
 import torchaudio.transforms as tat
-
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
-from hyperion.utils import Utt2Info
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialAudioReader as AR
 from hyperion.io import VADReaderFactory as VRF
 from hyperion.np.augment import SpeechAugment
-
-from hyperion.torch.utils import open_device
 from hyperion.torch import TorchModelLoader as TML
+from hyperion.torch.utils import open_device
+from hyperion.utils import Utt2Info
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
+
+resamplers = {}
+
+
+def get_resampler(source_fs, target_fs):
+    if source_fs in resamplers:
+        return resamplers[source_fs]
+
+    resampler = tat.Resample(
+        int(source_fs),
+        int(target_fs),
+        lowpass_filter_width=64,
+        rolloff=0.9475937167399596,
+        resampling_method="kaiser_window",
+        beta=14.769656459379492,
+    )
+    resampler_f = lambda x: resampler(torch.from_numpy(x)).numpy()
+    resamplers[source_fs] = resampler_f
+    return resampler_f
 
 resamplers = {}
 

@@ -26,14 +26,12 @@ eff_batch_size=512 # effective batch size
 lr=0.01
 nnet_num_epochs=70
 
-xvec_train_base_cfg=conf/train_effnetb4_xvec_default.yaml
-xvec_train_args="--data.train.sampler.batch-size $batch_size_1gpu --model $PWD/conf/efficientnet_b7.yaml --trainer.optim.lr $lr"
+nnet_s1_base_cfg=conf/train_effnetb4_xvec_default.yaml
+nnet_s1_args="--data.train.sampler.batch-size $batch_size_1gpu --model $PWD/conf/efficientnet_b7.yaml --trainer.optim.lr $lr"
 
-nnet_name=${feat_type}_${effnet_type}_is1_mbs1122121_ser${se_r}_fixsh_e${embed_dim}_eina_hln_arcs${s}m${margin}_do${dropout}_adam_lr${lr}_b${eff_batch_size}_amp.v1
-
-nnet_dir=exp/xvector_nnets/$nnet_name
-nnet=$nnet_dir/model_ep0070.pth
-
+nnet_s1_name=${feat_type}_${effnet_type}_is1_mbs1122121_ser${se_r}_fixsh_e${embed_dim}_eina_hln_arcs${s}m${margin}_do${dropout}_adam_lr${lr}_b${eff_batch_size}_amp.v1
+nnet_s1_dir=exp/xvector_nnets/$nnet_s1_name
+nnet_s1=$nnet_s1_dir/model_ep0070.pth
 
 # back-end
 plda_aug_config=conf/reverb_noise_aug.yaml

@@ -8,20 +8,18 @@
 Initialize UBM
 """
 
-import sys
-import os
 import argparse
-import time
 import logging
+import os
+import sys
+import time
 
 import numpy as np
-
-from keras import backend as K
-
-from hyperion.hyp_defs import set_float_cpu, float_cpu, config_logger
-from hyperion.utils.multithreading import threadsafe_generator
 from hyperion.helpers import SequenceReader as SR
+from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.pdfs import DiagGMM
+from hyperion.utils.multithreading import threadsafe_generator
+from keras import backend as K
 
 
 @threadsafe_generator

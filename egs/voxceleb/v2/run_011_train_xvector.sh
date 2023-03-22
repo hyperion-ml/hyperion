@@ -49,11 +49,11 @@ if [ $stage -le 1 ]; then
     --cfg $nnet_s1_base_cfg $nnet_s1_args $extra_args \
     --data.train.dataset.audio-file $list_dir/wav.scp \
     --data.train.dataset.time-durs-file $list_dir/utt2dur \
-    --data.train.dataset.key-file $list_dir/lists_xvec/train.scp \
-    --data.train.dataset.class-file $list_dir/lists_xvec/class2int \
+    --data.train.dataset.segments-file $list_dir/lists_xvec/train.scp \
+    --data.train.dataset.class-files $list_dir/lists_xvec/class2int \
     --data.val.dataset.audio-file $list_dir/wav.scp \
     --data.val.dataset.time-durs-file $list_dir/utt2dur \
-    --data.val.dataset.key-file $list_dir/lists_xvec/val.scp \
+    --data.val.dataset.segments-file $list_dir/lists_xvec/val.scp \
     --trainer.exp-path $nnet_s1_dir $args \
     --num-gpus $ngpu
   
@@ -73,11 +73,11 @@ if [ $stage -le 2 ]; then
     --cfg $nnet_s2_base_cfg $nnet_s2_args $extra_args \
     --data.train.dataset.audio-file $list_dir/wav.scp \
     --data.train.dataset.time-durs-file $list_dir/utt2dur \
-    --data.train.dataset.key-file $list_dir/lists_xvec/train.scp \
-    --data.train.dataset.class-file $list_dir/lists_xvec/class2int \
+    --data.train.dataset.segments-file $list_dir/lists_xvec/train.scp \
+    --data.train.dataset.class-files $list_dir/lists_xvec/class2int \
     --data.val.dataset.audio-file $list_dir/wav.scp \
     --data.val.dataset.time-durs-file $list_dir/utt2dur \
-    --data.val.dataset.key-file $list_dir/lists_xvec/val.scp \
+    --data.val.dataset.segments-file $list_dir/lists_xvec/val.scp \
     --in-model-file $nnet_s1 \
     --trainer.exp-path $nnet_s2_dir $args \
     --num-gpus $ngpu \
@@ -98,11 +98,11 @@ if [ $stage -le 3 ]; then
     --cfg $nnet_s3_base_cfg $nnet_s3_args $extra_args \
     --data.train.dataset.audio-file $list_dir/wav.scp \
     --data.train.dataset.time-durs-file $list_dir/utt2dur \
-    --data.train.dataset.key-file $list_dir/lists_xvec/train.scp \
-    --data.train.dataset.class-file $list_dir/lists_xvec/class2int \
+    --data.train.dataset.segments-file $list_dir/lists_xvec/train.scp \
+    --data.train.dataset.class-files $list_dir/lists_xvec/class2int \
     --data.val.dataset.audio-file $list_dir/wav.scp \
     --data.val.dataset.time-durs-file $list_dir/utt2dur \
-    --data.val.dataset.key-file $list_dir/lists_xvec/val.scp \
+    --data.val.dataset.segments-file $list_dir/lists_xvec/val.scp \
     --in-model-file $nnet_s2 \
     --trainer.exp-path $nnet_s3_dir $args \
     --num-gpus $ngpu \

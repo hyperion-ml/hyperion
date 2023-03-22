@@ -3,10 +3,10 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import torch.nn as nn
-from torch.nn import Conv1d, BatchNorm1d
+from torch.nn import BatchNorm1d, Conv1d
 
 from ..layers import ActivationFactory as AF
-from ..layers import Dropout1d, DropConnect1d, Interpolate
+from ..layers import DropConnect1d, Dropout1d, Interpolate
 from ..layers.subpixel_convs import SubPixelConv1d
 from .se_blocks import SEBlock1d
 

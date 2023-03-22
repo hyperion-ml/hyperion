@@ -3,26 +3,21 @@
  Copyright 2020 Jesus Villalba (Johns Hopkins University)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0) 
 """
-import sys
-import os
-from jsonargparse import (
-    ArgumentParser,
-    ActionConfigFile,
-    ActionParser,
-    namespace_to_dict,
-)
-import time
 import logging
-
 import math
-import numpy as np
-from scipy import signal, ndimage
+import os
+import sys
+import time
 
+import numpy as np
 from hyperion.hyp_defs import config_logger
-from hyperion.utils import Utt2Info
-from hyperion.io import SequentialAudioReader as AR
 from hyperion.io import AudioWriter as Writer
+from hyperion.io import SequentialAudioReader as AR
 from hyperion.io import VADReaderFactory as VRF
+from hyperion.utils import Utt2Info
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
+from scipy import ndimage, signal
 
 
 def process_vad(vad, length, fs, dilation, erosion):

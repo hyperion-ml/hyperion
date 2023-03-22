@@ -3,9 +3,10 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import os
 import csv
+import os
 from collections import OrderedDict as ODict
+
 import numpy as np
 
 from .logger import Logger
