@@ -8,9 +8,8 @@ from typing import Tuple
 
 import librosa
 import numpy as np
-import yaml
-
 import torch
+import yaml
 
 try:
     # import parallel_wavegan.models
@@ -21,7 +20,6 @@ except:
     pass
 
 from sklearn.preprocessing import StandardScaler
-
 from torch import nn
 
 

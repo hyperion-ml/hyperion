@@ -2,31 +2,32 @@
  Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba, Yen-Ju Lu)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
 import logging
 from typing import Optional, Tuple
 
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ...utils.misc import filter_func_args
+from ..layers import ActivationFactory as AF
 
 
-class TransducerPredictor(nn.Module):
-    """ RNN-T prediction network.
+class TransducerRNNPredictor(nn.Module):
+    """ RNN-T prediction network with LSTM or GRU
     Implmentation  based on:
     https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/transducer/decoder.py
 
     Attributes:
       vocab_size: Number of tokens of the modeling unit including blank.
       embed_dim: Dimension of the input embedding.
-      blank_id: The ID of the blank symbol.
       num_layers: Number of LSTM layers.
       hid_feats: Hidden dimension of LSTM layers.
       out_feats: Output dimension of the predictor.
       embed_dropout_rate: Dropout rate for the embedding layer.
       rnn_dropout_rate: Dropout for LSTM layers.
-           
+      rnn_type: between lstm and gru
+      blank_id: The ID of the blank symbol.           
     """
 
     def __init__(self,
@@ -34,7 +35,7 @@ class TransducerPredictor(nn.Module):
                  embed_dim: int,
                  num_layers: int,
                  hid_feats: int,
-                 out_feats: int,
+                 out_feats: Optional[int] = None,
                  embed_dropout_rate: float = 0.0,
                  rnn_dropout_rate: float = 0.0,
                  rnn_type: str = "lstm",
@@ -73,7 +74,29 @@ class TransducerPredictor(nn.Module):
         self.hid_feats = hid_feats
         self.embed_dropout_rate = embed_dropout_rate
         self.rnn_dropout_rate = rnn_dropout_rate
-        self.output = nn.Linear(hid_feats, out_feats)
+        if out_feats is None:
+            out_feats = hid_feats
+
+        self.out_feats = out_feats
+        if out_feats != hid_feats:
+            self.output_proj = nn.Linear(hid_feats, out_feats)
+        else:
+            self.output_proj = None
+
+    def get_config(self):
+        config = {
+            "pred_type": "conv",
+            "vocab_size": self.vocab_size,
+            "embed_dim": self.embed_dim,
+            "num_layers": self.num_layers,
+            "hid_feats": self.hid_feats,
+            "out_feats": self.out_feats,
+            "embed_dropout_rate": self.embed_dropout_rate,
+            "rnn_dropout_rate": self.rnn_dropout_rate,
+            "rnn_type": self.rnn_type,
+            "blank_id": self.blank_id,
+        }
+        return config
 
     def forward(
         self,
@@ -90,8 +113,9 @@ class TransducerPredictor(nn.Module):
         """
         embed = self.embedding(y)
         embed = self.embed_dropout(embed)
-        rnn_out, (h, c) = self.rnn(embed, states)
-        out = self.output(rnn_out)
+        out, (h, c) = self.rnn(embed, states)
+        if self.output_proj:
+            out = self.output_proj(out)
 
         return out, (h, c)
 
@@ -110,101 +134,137 @@ class TransducerPredictor(nn.Module):
             self.embed_dropout_rate = embed_dropout_rate
             self.embed_dropout = nn.Dropout(self.embed_dropout_rate)
 
-    # def get_config(self):
-    #     config = {
-    #         "in_feats": self.in_feats,
-    #         "blank_id": self.blank_id,
-    #         "vocab_size": self.vocab_size,
-    #         "embed_dim": self.embed_dim,
-    #         "num_layers": self.num_layers,
-    #         "hid_feats": self.hid_feats,
-    #         "embed_dropout_rate": self.embed_dropout_rate,
-    #         "rnn_dropout_rate": self.rnn_dropout_rate,
-    #     }
 
-    #     # base_config = super().get_config()
-    #     return dict(list(config.items()))
+class TransducerConvPredictor(nn.Module):
+    """ RNN-T prediction network based on Convolutions
+    Implmentation  based on:
+    https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/pruned_transducer_stateless7/decoder.py
 
-    # @staticmethod
-    # def filter_args(**kwargs):
-    #     args = filter_func_args(TransducerPredictor.__init__, kwargs)
-    #     return args
+    Attributes:
+      vocab_size: Number of tokens of the modeling unit including blank.
+      embed_dim: Dimension of the input embedding.
+      blank_id: The ID of the blank symbol.
+      out_feats: Output dimension of the predictor.
+      embed_dropout_rate: Dropout rate for the embedding layer.
+    """
 
-    # @staticmethod
-    # def filter_finetune_args(**kwargs):
-    #     args = filter_func_args(TransducerPredictor.change_config, kwargs)
-    #     return args
+    def __init__(
+        self,
+        vocab_size: int,
+        embed_dim: int,
+        out_feats: Optional[int] = None,
+        context_size: int = 2,
+        embed_dropout_rate: float = 0.0,
+        hid_act: str = "relu",
+        blank_id: int = 0,
+    ):
+        super().__init__()
+        self.embedding = nn.Embedding(
+            num_embeddings=vocab_size,
+            embedding_dim=embed_dim,
+            padding_idx=blank_id,
+        )
+        self.embed_dropout = nn.Dropout(embed_dropout_rate)
+        assert context_size >= 1, context_size
+        if context_size > 1:
+            self.conv = nn.Conv1d(
+                in_channels=embed_dim,
+                out_channels=embed_dim,
+                kernel_size=context_size,
+                padding=0,
+                groups=out_feats // 4,
+                bias=False,
+            )
 
-    # @staticmethod
-    # def add_class_args(parser,
-    #                    prefix=None,
-    #                    skip=set(["in_feats", "blank_id", "vocab_size"])):
+        self.blank_id = blank_id
+        self.vocab_size = vocab_size
+        self.embed_dim = embed_dim
+        self.embed_dropout_rate = embed_dropout_rate
+        self.context_size = context_size
+        self.hid_act = AF.create(hid_act)
 
-    #     if prefix is not None:
-    #         outer_parser = parser
-    #         parser = ArgumentParser(prog="")
+        if out_feats is None:
+            out_feats = embed_dim
 
-    #     if "in_feats" not in skip:
-    #         parser.add_argument("--in-feats",
-    #                             type=int,
-    #                             required=True,
-    #                             help=("input feature dimension"))
-    #     if "blank_id" not in skip:
-    #         parser.add_argument("--blank-id",
-    #                             type=int,
-    #                             required=True,
-    #                             help=("blank id from sp model"))
-    #     if "vocab_size" not in skip:
-    #         parser.add_argument("--vocab-size",
-    #                             type=int,
-    #                             required=True,
-    #                             help=("output prediction dimension"))
-    #     parser.add_argument("--embedding-dim",
-    #                         default=1024,
-    #                         type=int,
-    #                         help=("feature dimension"))
-    #     parser.add_argument("--embedding-dropout-rate",
-    #                         default=0.0,
-    #                         type=float,
-    #                         help=("dropout prob for decoder input embeddings"))
-    #     parser.add_argument("--rnn-dropout-rate",
-    #                         default=0.0,
-    #                         type=float,
-    #                         help=("dropout prob for decoder RNN "))
+        self.out_feats = out_feats
+        if out_feats != embed_feats:
+            self.output_proj = nn.Linear(embed_dim, out_feats)
+        else:
+            self.output_proj = None
 
-    #     parser.add_argument("--num-layers", default=2, type=int, help=(""))
+    def get_config(self):
+        hid_act = AF.get_config(self.hid_act)
+        config = {
+            "pred_type": "conv",
+            "vocab_size": self.vocab_size,
+            "embed_dim": self.embed_dim,
+            "out_feats": self.out_feats,
+            "context_size": self.context_size,
+            "embed_dropout_rate": self.embed_dropout_rate,
+            "blank_id": self.blank_id,
+            "hid_act": hid_act,
+        }
+        return config
 
-    #     parser.add_argument("--hidden-dim", default=512, type=int, help=(""))
+    def forward(
+        self,
+        y: torch.Tensor,
+        states: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor, None]:
+        """
+        Args:
+          y:
+            A 2-D tensor of shape (N, U).
+          # need_pad:
+          #   True to left pad the input. Should be True during training.
+          #   False to not pad the input. Should be False during inference.
+        Returns:
+          Return a tensor of shape (N, U, decoder_dim).
+        """
+        y = y.to(torch.int64)
+        embed = self.embedding(y)
+        if self.context > 1:
+            embed = embed.transpose(1, 2)
+            if states is None:
+                embed = F.pad(embedding_out, pad=(self.context_size - 1, 0))
+            else:
+                raise NotImplementedError()
+            embed = self.conv(embed).transpose(1, 2)
 
-    #     if prefix is not None:
-    #         outer_parser.add_argument("--" + prefix,
-    #                                   action=ActionParser(parser=parser))
+        out = self.hid_act(embed)
+        if self.output_proj:
+            out = self.output_proj(out)
 
-    # @staticmethod
-    # def add_finetune_args(parser,
-    #                       prefix=None,
-    #                       skip=set(["in_feats", "blank_id", "vocab_size"])):
+        return out, None
 
-    #     if prefix is not None:
-    #         outer_parser = parser
-    #         parser = ArgumentParser(prog="")
+        # # this stuff about clamp() is a temporary fix for a mismatch
+        # # at utterance start, we use negative ids in beam_search.py
+        # if torch.jit.is_tracing():
+        #     # This is for exporting to PNNX via ONNX
+        #     embedding_out = self.embedding(y)
+        # else:
+        #     embedding_out = self.embedding(y.clamp(min=0)) * (y >= 0).unsqueeze(-1)
+        # if self.context_size > 1:
+        #     embedding_out = embedding_out.permute(0, 2, 1)
+        #     if need_pad is True:
+        #         embedding_out = F.pad(embedding_out, pad=(self.context_size - 1, 0))
+        #     else:
+        #         # During inference time, there is no need to do extra padding
+        #         # as we only need one output
+        #         assert embedding_out.size(-1) == self.context_size
+        #     embedding_out = self.conv(embedding_out)
+        #     embedding_out = embedding_out.permute(0, 2, 1)
+        # embedding_out = F.relu(embedding_out)
+        # return embedding_out
 
-    #     parser.add_argument(
-    #         "--override-dropouts",
-    #         default=False,
-    #         action=ActionYesNo,
-    #         help=(
-    #             "whether to use the dropout probabilities passed in the "
-    #             "arguments instead of the defaults in the pretrained model."))
-    #     parser.add_argument("--embedding-dropout-rate",
-    #                         default=0.0,
-    #                         type=float,
-    #                         help=("dropout prob for decoder input embeddings"))
-    #     parser.add_argument("--rnn-dropout-rate",
-    #                         default=0.0,
-    #                         type=float,
-    #                         help=("dropout prob for decoder RNN "))
+    def change_config(
+        self,
+        override_dropouts=False,
+        embed_dropout_rate: float = 0.0,
+    ):
+        logging.info("changing predictor config")
 
-    #     if prefix is not None:
-    #         outer_parser.add_argument("--" + prefix,
-    #                                   action=ActionParser(parser=parser))
+        if override_dropouts:
+            logging.info("overriding predictor dropouts")
+            self.embed_dropout_rate = embed_dropout_rate
+            self.embed_dropout = nn.Dropout(self.embed_dropout_rate)

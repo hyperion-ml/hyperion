@@ -5,10 +5,9 @@
 import logging
 from typing import Dict, Optional, Union
 
-from jsonargparse import ActionParser, ArgumentParser
-
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ArgumentParser
 
 from ...tpm import HFWav2Vec2
 from ..xvectors import ResNet1dXVector

@@ -5,13 +5,12 @@
 
 import logging
 import math
-from typing import Dict, Optional, Union, Tuple
+from typing import Dict, Optional, Tuple, Union
 
 import numpy as np
-from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
-
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 from ..layer_blocks import TransformerConv2dSubsampler as Subsampler

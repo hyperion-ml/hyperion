@@ -3,32 +3,26 @@
  Copyright 2022 Johns Hopkins University  (Author: Yen-Ju Lu, Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-import sys
-import os
-from pathlib import Path
-from jsonargparse import (
-    ArgumentParser,
-    ActionConfigFile,
-    ActionParser,
-    namespace_to_dict,
-)
-import k2
-import time
 import logging
 import multiprocessing
+import os
+import sys
+import time
+from pathlib import Path
 
+import k2
 import numpy as np
-
 import torch
 import torch.nn as nn
-
 from hyperion.hyp_defs import config_logger, set_float_cpu
-from hyperion.torch.utils import ddp
-from hyperion.torch.trainers import TransducerTrainer as Trainer
 from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
-from hyperion.torch.models import HFWav2Vec2RNNTransducer
-from hyperion.torch.models import HFWav2Vec2RNNRNNTransducer
+from hyperion.torch.models import (HFWav2Vec2RNNRNNTransducer,
+                                   HFWav2Vec2RNNTransducer)
+from hyperion.torch.trainers import TransducerTrainer as Trainer
+from hyperion.torch.utils import ddp
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
 from torch.nn.utils.rnn import pad_sequence
 
 model_dict = {

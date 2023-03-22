@@ -14,7 +14,6 @@ import sys
 import time
 
 import numpy as np
-
 from hyperion.hyp_defs import config_logger
 from hyperion.score_norm import *
 from hyperion.utils.trial_ndx import TrialNdx

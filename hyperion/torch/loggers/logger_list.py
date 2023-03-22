@@ -4,7 +4,6 @@
 """
 
 import numpy as np
-
 import torch.distributed as dist
 
 from .tensorboard_logger import TensorBoardLogger as TBL

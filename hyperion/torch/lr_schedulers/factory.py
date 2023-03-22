@@ -2,9 +2,8 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from jsonargparse import ActionParser, ArgumentParser
-
 import torch
+from jsonargparse import ActionParser, ArgumentParser
 
 from .cos_lr import AdamCosineLR, CosineLR
 from .exp_lr import ExponentialLR

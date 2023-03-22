@@ -5,10 +5,9 @@
 
 import logging
 
-from jsonargparse import ActionParser, ArgumentParser
-
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ArgumentParser
 
 from ...narchs import ClassifHead, ConformerEncoderV1, TorchNALoader
 from ..layer_blocks import TDNNBlock

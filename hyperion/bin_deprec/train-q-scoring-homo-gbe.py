@@ -14,7 +14,6 @@ import sys
 import time
 
 import numpy as np
-
 from hyperion.classifiers import QScoringHomoGBE as GBE
 from hyperion.helpers import VectorClassReader as VCR
 from hyperion.hyp_defs import config_logger

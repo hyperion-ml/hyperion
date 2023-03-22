@@ -10,9 +10,6 @@ import sys
 import time
 
 import numpy as np
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
-
 from hyperion.hyp_defs import config_logger
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import RandomAccessDataReaderFactory as RDRF
@@ -21,6 +18,8 @@ from hyperion.np.feats import FrameSelector as FSel
 from hyperion.np.feats import MeanVarianceNorm as MVN
 from hyperion.utils import Utt2Info
 from hyperion.utils.kaldi_matrix import compression_methods
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
 
 
 def process_feats(

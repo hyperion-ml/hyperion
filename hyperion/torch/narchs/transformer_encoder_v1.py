@@ -3,10 +3,9 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from jsonargparse import ActionParser, ArgumentParser
-
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ArgumentParser
 
 from ..layer_blocks import TransformerConv2dSubsampler as Conv2dSubsampler
 from ..layer_blocks import TransformerEncoderBlockV1 as EBlock

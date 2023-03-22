@@ -14,7 +14,6 @@ import sys
 import time
 
 import numpy as np
-
 from hyperion.helpers import SequenceReader as SR
 from hyperion.hyp_defs import config_logger, float_cpu
 from hyperion.pdfs import DiagGMM

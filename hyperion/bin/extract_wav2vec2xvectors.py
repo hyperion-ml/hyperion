@@ -11,11 +11,8 @@ import time
 
 import numpy as np
 import pandas as pd
-import torchaudio.transforms as tat
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
-
 import torch
+import torchaudio.transforms as tat
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialAudioReader as AR
@@ -24,6 +21,8 @@ from hyperion.np.augment import SpeechAugment
 from hyperion.torch import TorchModelLoader as TML
 from hyperion.torch.utils import open_device
 from hyperion.utils import Utt2Info
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
 
 resamplers = {}
 

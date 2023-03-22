@@ -17,23 +17,25 @@
 Note we use `rnnt_loss` from torchaudio, which exists only in
 torchaudio >= v0.10.0. It also means you have to use torch >= v1.10.0
 """
-from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
+
 try:
     import k2
 except ModuleNotFoundError:
     from ...utils import dummy_k2 as k2
 
 import logging
+
 import torch
 import torch.nn as nn
 import torchaudio
 import torchaudio.functional
-from .encoder_interface import EncoderInterface
+from hyperion.utils.text import add_sos
 
 from ...torch_model import TorchModel
-from hyperion.utils.text import add_sos
 # from .conformer import Conformer
 from .decoder import Decoder
+from .encoder_interface import EncoderInterface
 from .joiner import Joiner
 
 

@@ -11,7 +11,6 @@ import sys
 import time
 
 import numpy as np
-
 import torch
 import torch.nn as nn
 from hyperion.hyp_defs import config_logger, set_float_cpu

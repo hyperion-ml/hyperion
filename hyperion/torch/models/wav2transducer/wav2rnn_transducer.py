@@ -3,11 +3,11 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import logging
-from typing import Dict, Optional, Union, Tuple
-from jsonargparse import ActionParser, ArgumentParser
+from typing import Dict, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ArgumentParser
 
 from ...narchs import AudioFeatsMVN
 from ...torch_model import TorchModel

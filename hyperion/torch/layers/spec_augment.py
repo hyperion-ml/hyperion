@@ -4,11 +4,10 @@
 """
 import logging
 
-from jsonargparse import ActionParser, ArgumentParser
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as nnf
+from jsonargparse import ActionParser, ArgumentParser
 
 count = 0
 

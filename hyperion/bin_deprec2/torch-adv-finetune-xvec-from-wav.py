@@ -11,9 +11,6 @@ import time
 from pathlib import Path
 
 import numpy as np
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
-
 import torch
 import torch.nn as nn
 from hyperion.hyp_defs import config_logger, set_float_cpu
@@ -26,6 +23,8 @@ from hyperion.torch.models import XVector as XVec
 from hyperion.torch.narchs import AudioFeatsMVN as AF
 from hyperion.torch.trainers import XVectorAdvTrainerFromWav as Trainer
 from hyperion.torch.utils import ddp, open_device
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
 
 
 def init_data(

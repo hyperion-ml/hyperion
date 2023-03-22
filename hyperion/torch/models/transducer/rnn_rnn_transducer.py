@@ -4,8 +4,10 @@
 """
 
 import logging
-from typing import Dict, Optional, Union, Tuple
-from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
+from typing import Dict, Optional, Tuple, Union
+
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
+
 try:
     import k2
 except ModuleNotFoundError:
@@ -13,8 +15,8 @@ except ModuleNotFoundError:
 
 import torch
 
-from .rnn_transducer import RNNTransducer
 from ...narchs import RNNEncoder
+from .rnn_transducer import RNNTransducer
 
 
 class RNNRNNTransducer(RNNTransducer):

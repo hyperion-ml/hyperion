@@ -12,7 +12,6 @@ import sys
 import time
 
 import numpy as np
-
 from hyperion.hyp_defs import config_logger
 from hyperion.io import CopyFeats as CF
 

@@ -4,39 +4,30 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0) 
 """
 
-from typing import Dict, List, Tuple
-
-import sentencepiece as spm
-import torch.nn as nn
-
-import sys
-import os
-from jsonargparse import (
-    ArgumentParser,
-    ActionConfigFile,
-    ActionParser,
-    namespace_to_dict,
-)
-import time
 import logging
+import os
+import sys
+import time
+from typing import Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
-
+import sentencepiece as spm
 import torch
-
+import torch.nn as nn
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
-from hyperion.utils import Utt2Info
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialAudioReader as AR
 from hyperion.np.augment import SpeechAugment
-
-from hyperion.torch.utils import open_device
-from hyperion.torch.narchs import AudioFeatsMVN as AF
-from hyperion.torch.models import HFWav2Vec2RNNTransducer
 from hyperion.torch import TorchModelLoader as TML
-
-from hyperion.torch.models.wav2transducer.beam_search import greedy_search, beam_search
+from hyperion.torch.models import HFWav2Vec2RNNTransducer
+from hyperion.torch.models.wav2transducer.beam_search import (beam_search,
+                                                              greedy_search)
+from hyperion.torch.narchs import AudioFeatsMVN as AF
+from hyperion.torch.utils import open_device
+from hyperion.utils import Utt2Info
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
 
 
 def init_device(use_gpu):

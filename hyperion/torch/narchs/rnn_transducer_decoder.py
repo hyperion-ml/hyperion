@@ -3,14 +3,14 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from jsonargparse import ActionParser, ArgumentParser
-from typing import Optional, Dict, List, Tuple
 from dataclasses import dataclass
+from typing import Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
 import torchaudio
 import torchaudio.functional
+from jsonargparse import ActionParser, ArgumentParser
 
 try:
     import k2
@@ -19,7 +19,8 @@ except ModuleNotFoundError:
 
 from ...utils.misc import filter_func_args
 from ...utils.text import add_sos
-from ..layer_blocks import TransducerPredictor as Predictor, TransducerJoiner as Joiner
+from ..layer_blocks import TransducerJoiner as Joiner
+from ..layer_blocks import TransducerRNNPredictor as RNNPredictor, TransducerConvPredictor as ConvPredictor
 from .net_arch import NetArch
 
 
@@ -40,56 +41,117 @@ class RNNTransducerDecoder(NetArch):
     Attributes:
       in_feats: input features dimension (encoder output)
       vocab_size: Number of tokens of the modeling unit including blank.
-      embed_dim: Dimension of the predictor input embedding.
-      blank_id: The ID of the blank symbol.
-      num_layers: Number of LSTM layers.
-      hid_feats: Hidden dimension for predictor layers.
-      embed_dropout_rate: Dropout rate for the embedding layer.
-      rnn_dropout_rate: Dropout for LSTM layers.
-
+      predictor: Dictionary with the predictor options.
+      joiner: Dictionary with the joiner options.
+      blank_id: id of the null symbol.
+      rnnt_loss: type of rnn-t loss between torchaudio, k2 or k2_pruned.
+      rnnt_type: rnn-t variation between regular, modified or constrained.
+      delay_penalty: penalize symbol delay, which is used to make symbol 
+        emit earlier.
+      reduction: type of reduction for rnn-t loss between sum or mean
+      prune_range: how many symbols to keep for each frame in k2 rnn-t 
+        pruned loss.
+      lm_scale: language model scale in rnn-t smoothed loss.
+      am_scale: acoustic model scale in rnn-t smoothed loss.
+      simple_loss_scale: weight of rnn-t simple loss when using k2 pruned loss.
+      pruned_warmup_steps: number of steps to warm up the k2 rnn-t pruned loss 
+        from 0.1 to 1.
     """
 
-    def __init__(self,
-                 in_feats: int,
-                 vocab_size: int,
-                 embed_dim: int,
-                 num_pred_layers: int,
-                 pred_hid_feats: int,
-                 embed_dropout_rate: float = 0.0,
-                 rnn_dropout_rate: float = 0.0,
-                 rnn_type: str = "lstm",
-                 blank_id: int = 0):
+    def __init__(
+        self,
+        in_feats: int,
+        vocab_size: int,
+        predictor: Dict,
+        joiner: Dict,
+        blank_id: int = 0,
+        rnnt_loss: str = "k2_pruned",
+        rnnt_type: str = "regular",
+        delay_penalty: float = 0.0,
+        reduction: str = "sum",
+        prune_range: int = 5,
+        lm_scale: float = 0.25,
+        am_scale: float = 0.0,
+        simple_loss_scale: float = 0.5,
+        pruned_warmup_steps: int = 2000,
+    ):
 
         super().__init__()
         self.in_feats = in_feats
         self.vocab_size = vocab_size
-        self.embed_dim = embed_dim
-        self.num_pred_layers = num_pred_layers
-        self.pred_hid_feats = pred_hid_feats
-        self.embed_dropout_rate = embed_dropout_rate
-        self.rnn_dropout_rate = rnn_dropout_rate
-        self.rnn_type = rnn_type
+        self.predictor_args = predictor
+        self.joiner_args = joiner
         self.blank_id = blank_id
+        self.rnnt_loss = rnnt_loss
+        self.rnnt_type = rnnt_type
+        self.delay_penalty = delay_penalty
+        self.reduction = reduction
+        self.prune_range = prune_range
+        self.lm_scale = lm_scale
+        self.am_scale = am_scale
+        self.simple_loss_scale = simple_loss_scale
+        self.pruned_warmup_steps = pruned_warmup_steps
 
-        pred_args = filter_func_args(Predictor.__init__, locals())
-        pred_args["num_layers"] = num_pred_layers
-        pred_args["hid_feats"] = pred_hid_feats
-        pred_args["out_feats"] = in_feats
-        self.predictor = Predictor(**pred_args)
-        self.joiner = Joiner(in_feats, vocab_size)
+        self._make_predictor()
+        self._make_joiner()
 
-    def forward(self, x: torch.Tensor, x_lengths: torch.Tensor,
-                y: k2.RaggedTensor) -> torch.Tensor:
+        if self.rnnt_loss == "k2_pruned":
+            self.simple_am_proj = nn.Linear(in_feats, vocab_size)
+            self.simple_lm_proj = nn.Linear(self.predictor.out_feats,
+                                            vocab_size)
+            self.register_buffer("cur_step", torch.as_tensor(0,
+                                                             dtype=torch.int))
 
-        # get y_lengths
-        row_splits = y.shape.row_splits(1)
-        y_lengths = row_splits[1:] - row_splits[:-1]
-        # shift y adding <sos> token
-        sos_y = add_sos(y, sos_id=self.blank_id)
-        sos_y_padded = sos_y.pad(mode="constant", padding_value=self.blank_id)
-        sos_y_padded = sos_y_padded.to(torch.int64)
-        # apply predictor and joiner
-        pred_out, _ = self.predictor(sos_y_padded)
+    def _make_predictor(self):
+        pred_type = self.predictor_args["pred_type"]
+        self.predictor_args["in_feats"] = self.in_feats
+        self.predictor_args["vocab_size"] = self.vocab_size
+        self.predictor_args["blank_id"] = self.blank_id
+        if pred_type == "rnn":
+            pred_args = filter_func_args(RNNPredictor.__init__,
+                                         self.predictor_args)
+            self.predictor = RNNPredictor(**pred_args)
+        elif pred_type == "conv":
+            pred_args = filter_func_args(ConvPredictor.__init__,
+                                         self.predictor_args)
+            self.predictor = ConvPredictor(**pred_args)
+        else:
+            raise ValueError(f"Unknown predictor type {pred_type}")
+
+    def _make_joiner(self):
+        joiner_type = self.joiner_args["joiner_type"]
+
+        if joiner_type == "basic":
+            pred_feats = self.predictor_args["out_feats"]
+            hid_feats = self.joiner_args["hid_feats"]
+            self.joiner = Joiner(self.in_feats, pred_feats, hid_feats,
+                                 self.vocab_size)
+        else:
+            raise ValueError(f"Unknown joiner type {joiner_type}")
+
+    def get_config(self):
+        config = {
+            "in_feats": self.in_feats,
+            "vocab_size": self.vocab_size,
+            "predictor": self.predictor_args,
+            "joiner": self.joiner_args,
+            "blank_id": self.blank_id,
+            "rnnt_loss": self.rnnt_loss,
+            "rnnt_type": self.rnnt_type,
+            "delay_penalty": self.delay_penalty,
+            "reduction": self.reduction,
+            "prune_range": self.prune_range,
+            "lm_scale": self.lm_scale,
+            "am_scale": self.am_scale,
+            "simple_loss_scale": self.simple_loss_scale,
+            "pruned_warmup_steps": self.pruned_warmup_steps,
+        }
+        base_config = super().get_config()
+        return dict(list(base_config.items()) + list(config.items()))
+
+    def _rnnt_loss_torchaudio(self, x: torch.Tensor, x_lengths: torch.Tensor,
+                              y: torch.Tensor, y_lengths: torch.Tensor,
+                              pred_out: torch.Tensor):
         logits = self.joiner(x, pred_out)
         # rnnt_loss requires 0 padded targets
         # Note: y does not start with SOS
@@ -101,9 +163,137 @@ class RNNTransducerDecoder(NetArch):
             logit_lengths=x_lengths,
             target_lengths=y_lengths,
             blank=self.blank_id,
-            reduction="sum",
+            reduction=self.reduction,
         )
-        return logits, loss
+        return loss
+
+    def _rnnt_loss_k2(self, x: torch.Tensor, x_lengths: torch.Tensor,
+                      y: torch.Tensor, y_lengths: torch.Tensor,
+                      pred_out: torch.Tensor):
+        y_padded = y.pad(mode="constant", padding_value=0)
+        y_padded = y_padded.to(torch.int64)
+        boundary = torch.zeros((x.size(0), 4),
+                               dtype=torch.int64,
+                               device=x.device)
+        boundary[:, 2] = y_lengths
+        boundary[:, 3] = x_lengths
+
+        logits = self.joiner(x, pred_out)
+
+        with torch.cuda.amp.autocast(enabled=False):
+            loss = k2.rnnt_loss(
+                logits=logits.float(),
+                symbols=y_padded,
+                termination_symbol=self.blank_id,
+                boundary=boundary,
+                rnnt_type=self.rnnt_type,
+                delay_penalty=self.delay_penalty,
+                reduction=self.reduction,
+            )
+        return loss
+
+    def _rnnt_loss_k2_pruned(self, x: torch.Tensor, x_lengths: torch.Tensor,
+                             y: torch.Tensor, y_lengths: torch.Tensor,
+                             pred_out: torch.Tensor):
+
+        y_padded = y.pad(mode="constant", padding_value=0)
+        y_padded = y_padded.to(torch.int64)
+        boundary = torch.zeros((x.size(0), 4),
+                               dtype=torch.int64,
+                               device=x.device)
+        boundary[:, 2] = y_lengths
+        boundary[:, 3] = x_lengths
+
+        am_simple = self.simple_am_proj(x)
+        lm_simple = self.simple_lm_proj(pred_out)
+        with torch.cuda.amp.autocast(enabled=False):
+            loss_simple, (px_grad, py_grad) = k2.rnnt_loss_smoothed(
+                lm=lm_simple.float(),
+                am=am_simple.float(),
+                symbols=y_padded,
+                termination_symbol=self.blank_id,
+                lm_only_scale=self.lm_scale,
+                am_only_scale=self.am_scale,
+                boundary=boundary,
+                rnnt_type=self.rnnt_type,
+                delay_penalty=self.delay_penalty,
+                reduction=self.reduction,
+                return_grad=True,
+            )
+
+        # ranges : [B, T, prune_range]
+        ranges = k2.get_rnnt_prune_ranges(
+            px_grad=px_grad,
+            py_grad=py_grad,
+            boundary=boundary,
+            s_range=self.prune_range,
+        )
+
+        # am_pruned : [B, T, prune_range, encoder_dim]
+        # lm_pruned : [B, T, prune_range, decoder_dim]
+        am_pruned, lm_pruned = k2.do_rnnt_pruning(
+            am=self.joiner.enc_proj(x),
+            lm=self.joiner.pred_proj(pred_out),
+            ranges=ranges,
+        )
+
+        # logits : [B, T, prune_range, vocab_size]
+
+        # project_input=False since we applied the decoder's input projections
+        # prior to do_rnnt_pruning (this is an optimization for speed).
+        logits = self.joiner(am_pruned, lm_pruned, project_input=False)
+
+        with torch.cuda.amp.autocast(enabled=False):
+            loss_pruned = k2.rnnt_loss_pruned(
+                logits=logits.float(),
+                symbols=y_padded,
+                ranges=ranges,
+                termination_symbol=self.blank_id,
+                boundary=boundary,
+                rnnt_type=self.rnnt_type,
+                delay_penalty=self.delay_penalty,
+                reduction=self.reduction,
+            )
+
+        if self.cur_step > self.pruned_warmup_steps:
+            simple_loss_scale = self.simple_loss_scale
+            pruned_loss_scale = 1.0
+        else:
+            r = self.cur_step / self.pruned_warmup_steps
+            simple_loss_scale = 1.0 - r * (1.0 - self.simple_loss_scale)
+            pruned_loss_scale = 0.1 + 0.9 * r
+            self.cur_step += 1
+            print(simple_loss_scale, pruned_loss_scale)
+
+        loss = simple_loss_scale * loss_simple + pruned_loss_scale * loss_pruned
+
+        return loss, loss_simple, loss_pruned
+
+    def forward(
+        self, x: torch.Tensor, x_lengths: torch.Tensor, y: k2.RaggedTensor
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+
+        # get y_lengths
+        row_splits = y.shape.row_splits(1)
+        y_lengths = row_splits[1:] - row_splits[:-1]
+        # shift y adding <sos> token
+        sos_y = add_sos(y, sos_id=self.blank_id)
+        sos_y_padded = sos_y.pad(mode="constant", padding_value=self.blank_id)
+        sos_y_padded = sos_y_padded.to(torch.int64)
+        # apply predictor and joiner
+        pred_out, _ = self.predictor(sos_y_padded)
+        loss_simple = loss_pruned = None
+        if self.rnnt_loss == "k2_pruned":
+            loss, loss_simple, loss_pruned = self._rnnt_loss_k2_pruned(
+                x, x_lengths, y, y_lengths, pred_out)
+        elif self.rnnt_loss == "k2":
+            loss = self._rnnt_loss_k2(x, x_lengths, y, y_lengths, pred_out)
+        elif self.rnnt_loss == "torchaudio":
+            loss_simple = loss_pruned = None
+            loss = self._rnnt_loss_torchaudio(x, x_lengths, y, y_lengths,
+                                              pred_out)
+
+        return loss, loss_simple, loss_pruned
 
     def decode(self,
                x: torch.Tensor,
@@ -427,21 +617,6 @@ class RNNTransducerDecoder(NetArch):
         self.predictor.change_config(override_dropouts, embed_dropout_rate,
                                      rnn_dropout_rate)
 
-    def get_config(self):
-
-        config = {
-            "in_feats": self.in_feats,
-            "vocab_size": self.vocab_size,
-            "embed_dim": self.embed_dim,
-            "num_pred_layers": self.num_pred_layers,
-            "pred_hid_feats": self.pred_hid_feats,
-            "embed_dropout_rate": self.embed_dropout_rate,
-            "rnn_dropout_rate": self.rnn_dropout_rate,
-            "blank_id": self.blank_id,
-        }
-        base_config = super().get_config()
-        return dict(list(base_config.items()) + list(config.items()))
-
     @staticmethod
     def filter_args(**kwargs):
         args = filter_func_args(RNNTransducerDecoder.__init__, kwargs)
@@ -453,9 +628,78 @@ class RNNTransducerDecoder(NetArch):
         return args
 
     @staticmethod
+    def add_pred_args(parser):
+
+        pred_parser = ArgumentParser(prog="")
+        pred_parser.add_argument(
+            "--pred-type",
+            default="rnn",
+            choices=["rnn", "conv"],
+            help=
+            """type of predictor between RNN and Convolutional [rnn, conv]""")
+        pred_parser.add_argument("--embed-dim",
+                                 default=1024,
+                                 type=int,
+                                 help=("token embedding dimension"))
+        pred_parser.add_argument(
+            "--embed-dropout-rate",
+            default=0.0,
+            type=float,
+            help=("dropout prob for predictor input embeddings"))
+        pred_parser.add_argument("--rnn-dropout-rate",
+                                 default=0.0,
+                                 type=float,
+                                 help="""dropout prob for decoder RNN """)
+        pred_parser.add_argument(
+            "--rnn-type",
+            default="lstm",
+            choices=["lstm", "gru"],
+            help=
+            """type of recurrent network for thep predictor in [lstm, gru]""")
+
+        pred_parser.add_argument("--num-layers",
+                                 default=2,
+                                 type=int,
+                                 help="""number of layers of the predictor """)
+
+        pred_parser.add_argument("--hid-feats",
+                                 default=512,
+                                 type=int,
+                                 help="""hidden features of the predictor""")
+        pred_parser.add_argument("--out-feats",
+                                 default=512,
+                                 type=int,
+                                 help="""output features of the predictor""")
+        pred_parser.add_argument("--context-size",
+                                 default=2,
+                                 type=int,
+                                 help="""context length of the convolutional 
+                                 predictor, 1->bigram, 2-> trigram,...""")
+
+        parser.add_argument("--predictor",
+                            action=ActionParser(parser=pred_parser))
+
+    @staticmethod
+    def add_joiner_args(parser):
+
+        pred_parser = ArgumentParser(prog="")
+        pred_parser.add_argument(
+            "--joiner-type",
+            default="basic",
+            choices=["basic"],
+            help=
+            """type of joiner network, there is only basic joiner for now""")
+        pred_parser.add_argument("--hid-feats",
+                                 default=512,
+                                 type=int,
+                                 help="""hidden features of the joiner""")
+        parser.add_argument("--joiner",
+                            action=ActionParser(parser=pred_parser))
+
+    @staticmethod
     def add_class_args(parser,
                        prefix=None,
-                       skip=set(["in_feats", "blanck_id", "vocab_size"])):
+                       skip=set(["in_feats", "blank_id", "vocab_size"])):
 
         if prefix is not None:
             outer_parser = parser
@@ -476,35 +720,59 @@ class RNNTransducerDecoder(NetArch):
                                 type=int,
                                 required=True,
                                 help=("output prediction dimension"))
-        parser.add_argument("--embed-dim",
-                            default=1024,
-                            type=int,
-                            help=("token embedding dimension"))
+
+        RNNTransducerDecoder.add_pred_args(parser)
+        RNNTransducerDecoder.add_joiner_args(parser)
         parser.add_argument(
-            "--embed-dropout-rate",
+            "--rnnt-loss",
+            default="k2_pruned",
+            choices=["torchaudio", "k2", "k2_pruned"],
+            help="""type of rnn-t loss between torchaudio, k2 or k2_pruned.""")
+        parser.add_argument(
+            "--rnnt-type",
+            default="regular",
+            choices=["regular", "modified", "constrained"],
+            help=
+            """type of rnn-t loss between regular, modified or constrained.""")
+        parser.add_argument(
+            "--delay-penalty",
             default=0.0,
             type=float,
-            help=("dropout prob for predictor input embeddings"))
-        parser.add_argument("--rnn-dropout-rate",
-                            default=0.0,
-                            type=float,
-                            help=("dropout prob for decoder RNN "))
+            help=
+            """penalize symbol delay, which is used to make symbol emit earlier
+            for streaming models.""")
         parser.add_argument(
-            "--rnn-type",
-            default="lstm",
-            choices=["lstm", "gru"],
-            help=(
-                "type of recurrent network for thep predictor in [lstm, gru]"))
-
-        parser.add_argument("--num-pred-layers",
-                            default=2,
-                            type=int,
-                            help="""number of layers of the predictor """)
-
-        parser.add_argument("--pred-hid-feats",
-                            default=512,
-                            type=int,
-                            help="""hidden features of the predictor""")
+            "--reduction",
+            default="sum",
+            choices=["sum", "mean"],
+            help="""type of reduction for rnn-t loss between sum or mean""")
+        parser.add_argument(
+            "--prune-range",
+            default=5,
+            type=int,
+            help="""how many symbols to keep for each frame in k2 rnn-t 
+            pruned loss.""")
+        parser.add_argument(
+            "--lm-scale",
+            default=0.25,
+            type=float,
+            help="""language model scale in rnn-t smoothed loss""")
+        parser.add_argument(
+            "--am-scale",
+            default=0.0,
+            type=float,
+            help="""acoustic model scale in rnn-t smoothed loss""")
+        parser.add_argument(
+            "--simple-loss-scale",
+            default=0.5,
+            type=float,
+            help="""weight of rnn-t simple loss when using k2 pruned loss""")
+        parser.add_argument(
+            "--pruned-warmup-steps",
+            default=2000,
+            type=int,
+            help="""number of steps to warm up the k2 rnn-t pruned loss 
+            from 0.1 to 1""")
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix,

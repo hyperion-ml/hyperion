@@ -2,21 +2,19 @@
  Copyright 2022 Johns Hopkins University  (Author: Yen-Ju Lu)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+import logging
 import os
 from collections import OrderedDict as ODict
 
-import logging
-
-from jsonargparse import ActionParser, ArgumentParser
-
 import torch
-import torchaudio
 import torch.nn as nn
+import torchaudio
+from jsonargparse import ActionParser, ArgumentParser
+from torch.distributed.elastic.multiprocessing.errors import record
 
 from ...utils.misc import filter_func_args
 from ..utils import MetricAcc, tensors_subset
 from .torch_trainer import TorchTrainer
-from torch.distributed.elastic.multiprocessing.errors import record
 
 
 class TransducerTrainer(TorchTrainer):
@@ -87,35 +85,6 @@ class TransducerTrainer(TorchTrainer):
         super_args = filter_func_args(super().__init__, locals())
         super().__init__(**super_args)
 
-        # super().__init__(
-        #     model,
-        #     None,
-        #     optim,
-        #     epochs,
-        #     exp_path,
-        #     cur_epoch=cur_epoch,
-        #     grad_acc_steps=grad_acc_steps,
-        #     eff_batch_size=eff_batch_size,
-        #     device=device,
-        #     metrics=metrics,
-        #     lrsched=lrsched,
-        #     loggers=loggers,
-        #     ddp=ddp,
-        #     ddp_type=ddp_type,
-        #     train_mode=train_mode,
-        #     use_amp=use_amp,
-        #     log_interval=log_interval,
-        #     use_tensorboard=use_tensorboard,
-        #     use_wandb=use_wandb,
-        #     wandb=wandb,
-        #     grad_clip=grad_clip,
-        #     grad_clip_norm=grad_clip_norm,
-        #     swa_start=swa_start,
-        #     swa_lr=swa_lr,
-        #     swa_anneal_epochs=swa_anneal_epochs,
-        #     cpu_offload=cpu_offload,
-        # )
-
     @record
     def train_epoch(self, data_loader):
         """Training epoch loop
@@ -146,13 +115,10 @@ class TransducerTrainer(TorchTrainer):
             batch_size = input_data.shape[0]
 
             with self.amp_autocast():
-                # print("xx", data.shape, data.shape[0] * data.shape[1] / 16000,
-                #       torch.sum(audio_length).item() / 16000,
-                #       torch.min(audio_length).item() / 16000,
-                #       torch.max(audio_length).item() / 16000)
-                output, loss = self.model(input_data,
-                                          x_lengths=input_lengths,
-                                          y=target)
+                output = self.model(input_data,
+                                    x_lengths=input_lengths,
+                                    y=target)
+                loss = output.loss
                 loss = loss.mean() / self.grad_acc_steps
 
             if self.use_amp:
@@ -165,7 +131,10 @@ class TransducerTrainer(TorchTrainer):
                     self.lr_scheduler.on_opt_step()
                 self.update_model()
 
-            batch_metrics["loss"] = loss.item() * self.grad_acc_steps
+            for k, v in output.items():
+                if "loss" in k and v is not None:
+                    batch_metrics[k] = output[k].item()
+
             for k, metric in self.metrics.items():
                 batch_metrics[k] = metric(output, target)
 
@@ -213,13 +182,14 @@ class TransducerTrainer(TorchTrainer):
                 # batch_size = data.shape[0]
 
                 with self.amp_autocast():
-                    output, loss = self.model(input_data,
-                                              x_lengths=input_lengths,
-                                              y=target)
-                    # output = self.model(data)
-                    # loss = self.loss(output, target)
+                    output = self.model(input_data,
+                                        x_lengths=input_lengths,
+                                        y=target)
 
-                batch_metrics["loss"] = loss.mean().item()
+                for k, v in output.items():
+                    if "loss" in k and v is not None:
+                        batch_metrics[k] = output[k].item()
+
                 for k, metric in self.metrics.items():
                     batch_metrics[k] = metric(output, target)
 

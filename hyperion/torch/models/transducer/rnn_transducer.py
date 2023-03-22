@@ -4,8 +4,11 @@
 """
 
 import logging
-from typing import Dict, Optional, Union, Tuple, List
-from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Tuple, Union
+
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
+
 try:
     import k2
 except ModuleNotFoundError:
@@ -13,9 +16,19 @@ except ModuleNotFoundError:
 
 import torch
 
+from ....utils import HypDataClass
 from ....utils.misc import filter_func_args
-from ...torch_model import TorchModel
 from ...narchs import RNNTransducerDecoder
+from ...torch_model import TorchModel
+
+
+@dataclass
+class RNNTransducerOutput(HypDataClass):
+
+    loss: torch.Tensor
+    loss_simple: Optional[torch.Tensor] = None
+    loss_pruned: Optional[torch.Tensor] = None
+    h_feats: Optional[List[torch.Tensor]] = None
 
 
 class RNNTransducer(TorchModel):
@@ -49,7 +62,7 @@ class RNNTransducer(TorchModel):
         x: torch.Tensor,
         x_lengths: torch.Tensor,
         y: k2.RaggedTensor,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> RNNTransducerOutput:
         """
         Args:
           x: input features with shape = (N, T, C)
@@ -65,14 +78,17 @@ class RNNTransducer(TorchModel):
         assert y.num_axes == 2, y.num_axes
 
         assert x.size(0) == x_lengths.size(0) == y.dim0
+        assert torch.all(
+            x_lengths[:-1] >= x_lengths[1:]
+        ), f"x_lengths={x_lengths}"  # check x_lengths are sorted
 
         if self.encoder is not None:
             x, x_lengths = self.encoder(x, x_lengths)
             assert torch.all(x_lengths > 0)
 
-        print("zz", x.shape, x_lengths, y, flush=True)
-        logits, loss = self.decoder(x, x_lengths, y)
-        return logits, loss
+        dec_output = self.decoder(x, x_lengths, y)
+        output = RNNTransducerOutput(*dec_output)
+        return output
 
     def infer(self,
               x: torch.Tensor,

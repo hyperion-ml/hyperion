@@ -4,7 +4,6 @@
 """
 
 import numpy as np
-
 import torch
 import torch.nn as nn
 from torch.nn import Conv1d, Linear

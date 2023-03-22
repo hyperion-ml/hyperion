@@ -4,10 +4,10 @@
 
 """
 
-from .rnn_transducer import RNNTransducer
 from .rnn_rnn_transducer import RNNRNNTransducer
-
+from .rnn_transducer import RNNTransducer, RNNTransducerOutput
 from .transducer import Transducer
+
 #from .conformer import Conformer
 #from .decoder import Decoder
 #from .joiner import Joiner

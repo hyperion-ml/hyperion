@@ -8,10 +8,9 @@ import math
 
 import numpy as np
 import pandas as pd
-from jsonargparse import ActionParser, ArgumentParser
-
 import torch
 import torch.distributed as dist
+from jsonargparse import ActionParser, ArgumentParser
 
 from ...utils.segment_set import SegmentSet
 from .hyp_sampler import HypSampler

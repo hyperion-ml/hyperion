@@ -8,9 +8,6 @@ import os
 import sys
 import time
 
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
-
 import torch
 from hyperion.hyp_defs import config_logger
 from hyperion.io import DataWriterFactory as DWF
@@ -18,6 +15,8 @@ from hyperion.io import SequentialAudioReader as AR
 from hyperion.io import SequentialDataReaderFactory as DRF
 from hyperion.io import compression_methods
 from hyperion.torch.layers import AudioFeatsFactory as AFF
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
 
 
 def compute_mfcc_feats(

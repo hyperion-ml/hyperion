@@ -5,10 +5,9 @@
 
 import math
 
-from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
-
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from torch.nn import Dropout, Linear
 
 from ..layer_blocks import MBConvBlock, MBConvInOutBlock

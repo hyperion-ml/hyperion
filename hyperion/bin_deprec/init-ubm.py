@@ -15,12 +15,11 @@ import sys
 import time
 
 import numpy as np
-from keras import backend as K
-
 from hyperion.helpers import SequenceReader as SR
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.pdfs import DiagGMM
 from hyperion.utils.multithreading import threadsafe_generator
+from keras import backend as K
 
 
 @threadsafe_generator

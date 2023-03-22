@@ -4,10 +4,9 @@
 """
 import logging
 
-from jsonargparse import ActionParser, ArgumentParser
-
 import torch
 import torch.optim as optim
+from jsonargparse import ActionParser, ArgumentParser
 
 from ...utils.misc import filter_args
 from .radam import RAdam

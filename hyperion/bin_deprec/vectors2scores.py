@@ -11,7 +11,6 @@ import sys
 import time
 
 import numpy as np
-
 from hyperion.io import SequentialDataReaderFactory as DRF
 from hyperion.utils.trial_scores import TrialScores
 

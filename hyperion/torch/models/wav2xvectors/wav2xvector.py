@@ -4,10 +4,9 @@
 """
 import logging
 
-from jsonargparse import ActionParser, ArgumentParser
-
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ArgumentParser
 
 from ...narchs import AudioFeatsMVN
 from ...torch_model import TorchModel

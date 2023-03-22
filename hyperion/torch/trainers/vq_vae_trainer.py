@@ -7,11 +7,10 @@ import math
 import os
 from collections import OrderedDict as ODict
 
-from jsonargparse import ActionParser, ArgumentParser
-
 import torch
 import torch.cuda.amp as amp
 import torch.nn as nn
+from jsonargparse import ActionParser, ArgumentParser
 
 from ...utils.misc import filter_func_args
 from ..utils import MetricAcc, tensors_subset

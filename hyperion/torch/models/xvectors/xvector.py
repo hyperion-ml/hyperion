@@ -6,10 +6,9 @@ import logging
 from enum import Enum
 from typing import Optional
 
-from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
-
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ...layer_blocks import TDNNBlock
 from ...layers import GlobalPool1dFactory as PF

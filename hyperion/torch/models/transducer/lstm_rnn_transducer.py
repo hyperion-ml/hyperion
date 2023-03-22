@@ -5,7 +5,9 @@
 
 import logging
 from typing import Dict, Optional, Union
-from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
+
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
+
 try:
     import k2
 except ModuleNotFoundError:

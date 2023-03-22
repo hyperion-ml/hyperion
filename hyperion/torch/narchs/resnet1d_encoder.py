@@ -7,10 +7,9 @@ import logging
 import math
 
 import numpy as np
-from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
-
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ..layer_blocks import (DC1dEncBlock, Res2Net1dBasicBlock,
                             Res2Net1dBNBlock, ResNet1dBasicBlock,

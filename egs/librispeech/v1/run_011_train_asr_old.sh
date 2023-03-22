@@ -47,7 +47,7 @@ if [ $stage -le 1 ]; then
   $cuda_cmd \
     --gpu $ngpu $nnet_s1_dir/log/train.log \
     hyp_utils/conda_env.sh --conda-env $HYP_ENV --num-gpus $ngpu --max-split-size-mb 512 \
-    train_wav2vec2rnn_transducer.py $nnet_type \
+    train_wav2vec2transducer.py $nnet_type \
     --cfg $nnet_s1_base_cfg $nnet_s1_args $extra_args \
     --data.train.dataset.audio-file $train_dir/wav.scp \
     --data.train.dataset.segments-file $train_dir/utt2spk \

@@ -10,13 +10,6 @@ import sys
 import time
 from pathlib import Path
 
-from jsonargparse import (
-    ActionConfigFile,
-    ActionParser,
-    ArgumentParser,
-    namespace_to_dict,
-)
-
 import torch
 from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch import TorchModelLoader as TML
@@ -32,6 +25,8 @@ from hyperion.torch.models import TransformerXVectorV1 as TFXVec
 from hyperion.torch.narchs import AudioFeatsMVN as AF
 from hyperion.torch.trainers import XVectorTrainerFromWav as Trainer
 from hyperion.torch.utils import ddp
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
 
 xvec_dict = {
     "resnet": RXVec,

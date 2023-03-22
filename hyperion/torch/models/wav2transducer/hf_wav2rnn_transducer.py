@@ -2,17 +2,18 @@
  Copyright 2022 Johns Hopkins University  (Author: Yen-Ju Lu)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-import logging
 import contextlib
-from typing import Union, Dict, List
-from jsonargparse import ArgumentParser, ActionParser
+import logging
+from dataclasses import dataclass
+from typing import Dict, List, Union
 
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ArgumentParser
 
-from ...utils import remove_silence
 from ...torch_model import TorchModel
-from ..transducer import RNNTransducer
+from ...utils import remove_silence
+from ..transducer import RNNTransducer, RNNTransducerOutput
 
 
 class HFWav2RNNTransducer(TorchModel):
@@ -163,31 +164,23 @@ class HFWav2RNNTransducer(TorchModel):
                              we should return. If None, no encoder layers are returned.
           return_logits: if True, it adds the logits to the output dictionary.
         Returns:
-          Tensor with class logits with shape=(batch, num_classes) or
-          Dictionary with "logits", "h_enc" (list of hidden encoder layers),
-          "h_classif" (list hidden classification head layers), "h_feats" (wav2vec features)
+          Dataclass with losses, "h_enc" (list of hidden encoder layers),
+          "h_feats" (wav2vec features)
         """
         feats, hid_feats, feat_lengths = self.forward_feats(
             x, x_lengths, return_feat_layers)
 
         feats = feats.permute(0, 2, 1)  # (N, C, T) ->(N, T, C)
-
-        output, loss = self.transducer(
+        output = self.transducer(
             feats,
             feat_lengths,
             y,
         )
 
-        if not return_feat_layers:
-            return output, loss
+        if return_feat_layers:
+            output.h_feats = hid_feats
 
-        if not isinstance(output, dict):
-            # if the transducer just returned the logits we put then into a dictionary
-            # to append the hid feats later.
-            output["logits"] = output
-
-        output["h_feats"] = hid_feats
-        return output, loss
+        return output
 
     def infer(self,
               x: torch.Tensor,

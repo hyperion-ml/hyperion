@@ -8,11 +8,10 @@ import os
 from turtle import right
 from typing import List, Optional, Tuple, Union
 
-from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
-from transformers import Wav2Vec2FeatureExtractor, Wav2Vec2Processor
-
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
+from transformers import Wav2Vec2FeatureExtractor, Wav2Vec2Processor
 
 from ...torch_model import TorchModel
 from ...utils import scale_seq_lengths, seq_lengths_to_mask

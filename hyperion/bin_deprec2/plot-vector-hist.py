@@ -15,7 +15,6 @@ import numpy as np
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-
 from hyperion.helpers import VectorReader as VR
 from hyperion.hyp_defs import config_logger
 from hyperion.np.transforms import TransformList

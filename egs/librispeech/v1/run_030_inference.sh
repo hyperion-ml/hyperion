@@ -38,10 +38,10 @@ test_data=test_clean
 
 
 # Extracts x-vectors for evaluation
-for name in dev_clean dev_other test_clean test_other #$test_data 
+for name in dev_clean dev_other test_clean test_other 
 do
   nj=40
-  steps_transducer/decode_wav2vec2transducer.sh \
+  steps_transducer/decode_wav2vec2rnn_transducer.sh \
       --cmd "$transducer_cmd --mem 12G" --nj $nj ${transducer_args} \
       $nnet data/$name \
       $transducer_dir/$name $bpe_model

@@ -6,13 +6,12 @@ import datetime
 import logging
 import os
 
-from fairscale.nn.data_parallel import \
-    FullyShardedDataParallel as FullyShardedDDP
-from fairscale.nn.data_parallel import ShardedDataParallel as ShardedDDP
-
 import torch
 import torch.distributed as dist
 import torch.nn as nn
+from fairscale.nn.data_parallel import \
+    FullyShardedDataParallel as FullyShardedDDP
+from fairscale.nn.data_parallel import ShardedDataParallel as ShardedDDP
 
 from .devices import open_device
 

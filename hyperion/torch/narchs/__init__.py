@@ -20,11 +20,11 @@ from .resnet1d_encoder import ResNet1dEncoder
 from .resnet2d_decoder import ResNet2dDecoder
 from .resnet2d_encoder import ResNet2dEncoder
 from .resnet_factory import ResNetFactory
+from .rnn_encoder import RNNEncoder
+from .rnn_transducer_decoder import RNNTransducerDecoder
 from .spinenet import *
 from .spinenet_factory import SpineNetFactory
 from .tdnn import TDNNV1
 from .tdnn_factory import TDNNFactory
 from .torch_na_loader import TorchNALoader
 from .transformer_encoder_v1 import TransformerEncoderV1
-from .rnn_transducer_decoder import RNNTransducerDecoder
-from .rnn_encoder import RNNEncoder

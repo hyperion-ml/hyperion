@@ -13,13 +13,12 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from jsonargparse import (ActionConfigFile, ActionParser, ActionYesNo,
-                          ArgumentParser, namespace_to_dict)
-
 from hyperion.hyp_defs import config_logger
 from hyperion.io import RandomAccessDataReaderFactory as DRF
 from hyperion.np.transforms import PCA, LNorm, SklTSNE
 from hyperion.utils import SegmentSet
+from jsonargparse import (ActionConfigFile, ActionParser, ActionYesNo,
+                          ArgumentParser, namespace_to_dict)
 
 matplotlib.use("Agg")
 colors = ["b", "g", "r", "c", "m", "y", "k"]

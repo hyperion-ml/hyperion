@@ -12,10 +12,9 @@ import time
 
 import numpy as np
 import pandas as pd
-from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
-
 import torch
 import torch.distributed as dist
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from torch.utils.data import Dataset
 
 from ...io import RandomAccessDataReaderFactory as RF

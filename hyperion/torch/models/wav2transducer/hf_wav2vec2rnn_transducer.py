@@ -3,14 +3,14 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import logging
-from jsonargparse import ArgumentParser, ActionParser
-from typing import Union, Dict, Optional
+from typing import Dict, Optional, Union
 
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ArgumentParser
 
-from ..transducer import RNNTransducer
 from ...tpm import HFWav2Vec2
+from ..transducer import RNNTransducer
 from .hf_wav2rnn_transducer import HFWav2RNNTransducer
 
 

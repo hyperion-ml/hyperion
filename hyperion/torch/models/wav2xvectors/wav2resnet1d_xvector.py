@@ -5,10 +5,9 @@
 
 import logging
 
-from jsonargparse import ActionParser, ArgumentParser
-
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ArgumentParser
 
 from ..xvectors import ResNet1dXVector
 from .wav2xvector import Wav2XVector

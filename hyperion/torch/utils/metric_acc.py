@@ -6,7 +6,6 @@ import logging
 from collections import OrderedDict as ODict
 
 import numpy as np
-
 import torch
 import torch.distributed as dist
 
