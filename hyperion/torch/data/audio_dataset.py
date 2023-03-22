@@ -310,6 +310,14 @@ class AudioDataset(Dataset):
         else:
             data["x"] = x
 
+        # try:
+        #     import soundfile as sf
+
+        #     for i, z in enumerate(r):
+        #         sf.write(f"file_{seg_id}.wav", z, fs, "PCM_16")
+        # except:
+        #     print("soundfile failed", flush=True)
+
         # adds the segment labels
         seg_info = self._get_segment_info(seg_id)
         data.update(seg_info)
