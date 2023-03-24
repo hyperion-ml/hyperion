@@ -52,6 +52,11 @@ def save_scores(s, score_file, q_name, i, j, p):
     s.save_txt(score_file)
 
 
+def print_q_stats(scores, name):
+    s = f"{name} stats mean={np.mean(scores)} min={np.min(scores)} max={np.max(scores)} median={np.median(scores)}"
+    logging.info(s)
+
+
 def eval_plda(
     v_file,
     ndx_file,
@@ -67,7 +72,7 @@ def eval_plda(
     seg_part_idx,
     num_seg_parts,
     coh_nbest,
-    **kwargs
+    **kwargs,
 ):
 
     if preproc_file is not None:
@@ -105,20 +110,31 @@ def eval_plda(
 
     logging.info("read num_frames")
     u2nf = Utt2Info.load(num_frames_file)
+    # enroll_nf = np.log(
+    #     np.clip(
+    #         u2nf.filter(enroll_segs).info.astype(float) / 100, a_min=0.1, a_max=15.0,
+    #     )
+    # )
+    # test_nf = np.log(
+    #     np.clip(
+    #         u2nf.filter(ndx.seg_set).info.astype(float) / 100, a_min=0.1, a_max=15.0,
+    #     )
+    # )
     enroll_nf = np.log(
         np.clip(
-            u2nf.filter(enroll_segs).info.astype(float) / 100 - 2.0,
+            u2nf.filter(enroll_segs).info.astype(float) / 100 - 1.0,
             a_min=0.1,
-            a_max=12.0,  # 6.0,
+            a_max=15.0,
         )
     )
     test_nf = np.log(
         np.clip(
-            u2nf.filter(ndx.seg_set).info.astype(float) / 100 - 2.0,
+            u2nf.filter(ndx.seg_set).info.astype(float) / 100 - 1.0,
             a_min=0.1,
-            a_max=12.0,  # 6.0,
+            a_max=15.0,
         )
     )
+
     t1 = time.time()
     logging.info("computing llr")
     scores = cosine_scoring(x_e, x_t)
@@ -160,6 +176,8 @@ def eval_plda(
         "maxcohmu": np.maximum(mu_z, mu_t),
         "mincohmu": np.minimum(mu_z, mu_t),
     }
+    for k, v in q_measures.items():
+        print_q_stats(v, k)
 
     f, loc = ismember(enroll, ndx.model_set)
     trial_mask = ndx.trial_mask[loc]

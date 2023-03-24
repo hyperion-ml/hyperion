@@ -35,7 +35,7 @@ class ResNet1dXVector(XVector):
         head_norm_layer=None,
         use_norm=True,
         norm_before=True,
-        in_norm=False,
+        head_use_in_norm=False,
         embed_layer=0,
         proj_feats=None,
     ):
@@ -62,6 +62,7 @@ class ResNet1dXVector(XVector):
             head_norm_layer=head_norm_layer,
             use_norm=use_norm,
             norm_before=norm_before,
+            head_use_in_norm=head_use_in_norm,
             dropout_rate=dropout_rate,
             embed_layer=embed_layer,
             proj_feats=proj_feats,

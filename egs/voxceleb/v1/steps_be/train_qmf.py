@@ -26,6 +26,12 @@ from hyperion.np.metrics import compute_act_dcf, compute_min_dcf
 from hyperion.np.classifiers import BinaryLogisticRegression as LR
 
 
+def print_q_stats(q, name):
+    scores = q.scores[q.score_mask]
+    s = f"{name} stats mean={np.mean(scores)} min={np.min(scores)} max={np.max(scores)} median={np.median(scores)}"
+    logging.info(s)
+
+
 def train_calibration(score_file, key_file, model_file, prior, lambda_reg, verbose):
 
     logging.info("load key: %s", key_file)
@@ -40,29 +46,37 @@ def train_calibration(score_file, key_file, model_file, prior, lambda_reg, verbo
     q_file = f"{score_file}_maxnf"
     logging.info("load max num-frames: %s", q_file)
     q = TrialScores.load_txt(q_file)
+    print_q_stats(q, "max-nf")
     maxnf_tar, maxnf_non = q.get_tar_non(key)
 
     q_file = f"{score_file}_minnf"
     logging.info("load min num-frames: %s", q_file)
     q = TrialScores.load_txt(q_file)
+    print_q_stats(q, "min-nf")
     minnf_tar, minnf_non = q.get_tar_non(key)
 
     q_file = f"{score_file}_maxcohmu"
     logging.info("load max cohort mean: %s", q_file)
     q = TrialScores.load_txt(q_file)
+    print_q_stats(q, "max-cohmu")
     maxcohmu_tar, maxcohmu_non = q.get_tar_non(key)
 
     q_file = f"{score_file}_mincohmu"
     logging.info("load min cohort mean: %s", q_file)
     q = TrialScores.load_txt(q_file)
+    print_q_stats(q, "min-cohmu")
     mincohmu_tar, mincohmu_non = q.get_tar_non(key)
 
     min_dcf, p_miss, p_fa = compute_min_dcf(tar, non, prior)
     n_miss = p_miss * ntar
     n_fa = p_fa * nnon
     logging.info(
-        "min_dcf: %.3f p_miss: %.2f p_fa: %.2f n_miss: %.1f n_fa: %.1f"
-        % (min_dcf, p_miss * 100, p_fa * 100, n_miss, n_fa)
+        "min_dcf: %.3f p_miss: %.2f p_fa: %.2f n_miss: %.1f n_fa: %.1f",
+        min_dcf,
+        p_miss * 100,
+        p_fa * 100,
+        n_miss,
+        n_fa,
     )
 
     logging.info("train calibration")
@@ -92,8 +106,12 @@ def train_calibration(score_file, key_file, model_file, prior, lambda_reg, verbo
     n_miss = p_miss * ntar
     n_fa = p_fa * nnon
     logging.info(
-        "act_dcf: %.3f p_miss: %.2f p_fa: %.2f n_miss: %.1f n_fa: %.1f"
-        % (act_dcf, p_miss * 100, p_fa * 100, n_miss, n_fa)
+        "act_dcf: %.3f p_miss: %.2f p_fa: %.2f n_miss: %.1f n_fa: %.1f",
+        act_dcf,
+        p_miss * 100,
+        p_fa * 100,
+        n_miss,
+        n_fa,
     )
 
     output_file = f"{score_file}_qmf"

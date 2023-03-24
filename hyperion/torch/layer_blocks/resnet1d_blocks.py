@@ -139,7 +139,7 @@ class ResNet1dBasicBlock(nn.Module):
         in_channels,
         channels,
         kernel_size=3,
-        activation="relu6",
+        activation="relu",
         stride=1,
         dropout_rate=0,
         drop_connect_rate=0,
@@ -210,6 +210,8 @@ class ResNet1dBasicBlock(nn.Module):
           Tensor with shape = (batch, out_channels, out_heigh, out_width).
         """
         residual = x
+        if self.downsample is not None:
+            residual = self.downsample(residual)
 
         x = self.conv1(x)
         if self.norm_before:
@@ -221,21 +223,22 @@ class ResNet1dBasicBlock(nn.Module):
             x = self.bn1(x)
 
         x = self.conv2(x)
-
-        if self.norm_before:
-            x = self.bn2(x)
-
-        if self.drop_connect_rate > 0:
-            x = self.drop_connect(x)
-
-        if self.downsample is not None:
-            residual = self.downsample(residual)
-
-        x += residual
-        x = self.act2(x)
-
         if self.norm_after:
+            x = self.act2(x)
             x = self.bn2(x)
+            if self.drop_connect_rate > 0:
+                x = self.drop_connect(x)
+
+            x += residual
+        else:
+            if self.norm_before:
+                x = self.bn2(x)
+
+            if self.drop_connect_rate > 0:
+                x = self.drop_connect(x)
+
+            x += residual
+            x = self.act2(x)
 
         if self.dropout_rate > 0:
             x = self.dropout(x)
@@ -270,7 +273,7 @@ class ResNet1dBasicDecBlock(nn.Module):
         in_channels,
         channels,
         kernel_size=3,
-        activation="relu6",
+        activation="relu",
         stride=1,
         dropout_rate=0,
         drop_connect_rate=0,
@@ -342,6 +345,8 @@ class ResNet1dBasicDecBlock(nn.Module):
           Tensor with shape = (batch, out_channels, out_heigh, out_width).
         """
         residual = x
+        if self.upsample is not None:
+            residual = self.upsample(residual)
 
         x = self.conv1(x)
         if self.norm_before:
@@ -353,21 +358,22 @@ class ResNet1dBasicDecBlock(nn.Module):
             x = self.bn1(x)
 
         x = self.conv2(x)
-
-        if self.norm_before:
-            x = self.bn2(x)
-
-        if self.drop_connect_rate > 0:
-            x = self.drop_connect(x)
-
-        if self.upsample is not None:
-            residual = self.upsample(residual)
-
-        x += residual
-        x = self.act2(x)
-
         if self.norm_after:
+            x = self.act2(x)
             x = self.bn2(x)
+            if self.drop_connect_rate > 0:
+                x = self.drop_connect(x)
+
+            x += residual
+        else:
+            if self.norm_before:
+                x = self.bn2(x)
+
+            if self.drop_connect_rate > 0:
+                x = self.drop_connect(x)
+
+            x += residual
+            x = self.act2(x)
 
         if self.dropout_rate > 0:
             x = self.dropout(x)
@@ -400,7 +406,7 @@ class ResNet1dBNBlock(nn.Module):
         in_channels,
         channels,
         kernel_size=3,
-        activation="relu6",
+        activation="relu",
         stride=1,
         dropout_rate=0,
         drop_connect_rate=0,
@@ -484,6 +490,8 @@ class ResNet1dBNBlock(nn.Module):
         """
 
         residual = x
+        if self.downsample is not None:
+            residual = self.downsample(residual)
 
         x = self.conv1(x)
         if self.norm_before:
@@ -502,20 +510,22 @@ class ResNet1dBNBlock(nn.Module):
             x = self.bn2(x)
 
         x = self.conv3(x)
-        if self.norm_before:
-            x = self.bn3(x)
-
-        if self.drop_connect_rate > 0:
-            x = self.drop_connect(x)
-
-        if self.downsample is not None:
-            residual = self.downsample(residual)
-
-        x += residual
-        x = self.act3(x)
-
         if self.norm_after:
+            x = self.act3(x)
             x = self.bn3(x)
+            if self.drop_connect_rate > 0:
+                x = self.drop_connect(x)
+
+            x += residual
+        else:
+            if self.norm_before:
+                x = self.bn3(x)
+
+            if self.drop_connect_rate > 0:
+                x = self.drop_connect(x)
+
+            x += residual
+            x = self.act3(x)
 
         if self.dropout_rate > 0:
             x = self.dropout(x)
@@ -548,7 +558,7 @@ class ResNet1dBNDecBlock(nn.Module):
         in_channels,
         channels,
         kernel_size=3,
-        activation="relu6",
+        activation="relu",
         stride=1,
         dropout_rate=0,
         drop_connect_rate=0,
@@ -625,6 +635,8 @@ class ResNet1dBNDecBlock(nn.Module):
           Tensor with shape = (batch, out_channels, out_heigh, out_width).
         """
         residual = x
+        if self.upsample is not None:
+            residual = self.upsample(residual)
 
         x = self.conv1(x)
         if self.norm_before:
@@ -643,20 +655,22 @@ class ResNet1dBNDecBlock(nn.Module):
             x = self.bn2(x)
 
         x = self.conv3(x)
-        if self.norm_before:
-            x = self.bn3(x)
-
-        if self.drop_connect_rate > 0:
-            x = self.drop_connect(x)
-
-        if self.upsample is not None:
-            residual = self.upsample(residual)
-
-        x += residual
-        x = self.act3(x)
-
         if self.norm_after:
-            x = self.bn2(x)
+            x = self.act3(x)
+            x = self.bn3(x)
+            if self.drop_connect_rate > 0:
+                x = self.drop_connect(x)
+
+            x += residual
+        else:
+            if self.norm_before:
+                x = self.bn3(x)
+
+            if self.drop_connect_rate > 0:
+                x = self.drop_connect(x)
+
+            x += residual
+            x = self.act3(x)
 
         if self.dropout_rate > 0:
             x = self.dropout(x)
@@ -690,7 +704,7 @@ class SEResNet1dBasicBlock(ResNet1dBasicBlock):
         in_channels,
         channels,
         kernel_size=3,
-        activation="relu6",
+        activation="relu",
         stride=1,
         dropout_rate=0,
         drop_connect_rate=0,
@@ -731,6 +745,8 @@ class SEResNet1dBasicBlock(ResNet1dBasicBlock):
           Tensor with shape = (batch, out_channels, out_heigh, out_width).
         """
         residual = x
+        if self.downsample is not None:
+            residual = self.downsample(residual)
 
         x = self.conv1(x)
         if self.norm_before:
@@ -742,22 +758,24 @@ class SEResNet1dBasicBlock(ResNet1dBasicBlock):
             x = self.bn1(x)
 
         x = self.conv2(x)
-
-        if self.norm_before:
-            x = self.bn2(x)
-
-        x = self.se_layer(x, x_mask=x_mask)
-        if self.drop_connect_rate > 0:
-            x = self.drop_connect(x)
-
-        if self.downsample is not None:
-            residual = self.downsample(residual)
-
-        x += residual
-        x = self.act2(x)
-
         if self.norm_after:
+            x = self.act2(x)
             x = self.bn2(x)
+            x = self.se_layer(x, x_mask=x_mask)
+            if self.drop_connect_rate > 0:
+                x = self.drop_connect(x)
+
+            x += residual
+        else:
+            if self.norm_before:
+                x = self.bn2(x)
+
+            x = self.se_layer(x, x_mask=x_mask)
+            if self.drop_connect_rate > 0:
+                x = self.drop_connect(x)
+
+            x += residual
+            x = self.act2(x)
 
         if self.dropout_rate > 0:
             x = self.dropout(x)
@@ -791,7 +809,7 @@ class SEResNet1dBasicDecBlock(ResNet1dBasicDecBlock):
         in_channels,
         channels,
         kernel_size=3,
-        activation="relu6",
+        activation="relu",
         stride=1,
         dropout_rate=0,
         drop_connect_rate=0,
@@ -836,6 +854,8 @@ class SEResNet1dBasicDecBlock(ResNet1dBasicDecBlock):
           Tensor with shape = (batch, out_channels, out_heigh, out_width).
         """
         residual = x
+        if self.upsample is not None:
+            residual = self.upsample(residual)
 
         x = self.conv1(x)
         if self.norm_before:
@@ -847,22 +867,24 @@ class SEResNet1dBasicDecBlock(ResNet1dBasicDecBlock):
             x = self.bn1(x)
 
         x = self.conv2(x)
-
-        if self.norm_before:
-            x = self.bn2(x)
-
-        x = self.se_layer(x, x_mask=x_mask)
-        if self.drop_connect_rate > 0:
-            x = self.drop_connect(x)
-
-        if self.upsample is not None:
-            residual = self.upsample(residual)
-
-        x += residual
-        x = self.act2(x)
-
         if self.norm_after:
+            x = self.act2(x)
             x = self.bn2(x)
+            x = self.se_layer(x, x_mask=x_mask)
+            if self.drop_connect_rate > 0:
+                x = self.drop_connect(x)
+
+            x += residual
+        else:
+            if self.norm_before:
+                x = self.bn2(x)
+
+            x = self.se_layer(x, x_mask=x_mask)
+            if self.drop_connect_rate > 0:
+                x = self.drop_connect(x)
+
+            x += residual
+            x = self.act2(x)
 
         if self.dropout_rate > 0:
             x = self.dropout(x)
@@ -896,7 +918,7 @@ class SEResNet1dBNBlock(ResNet1dBNBlock):
         in_channels,
         channels,
         kernel_size=3,
-        activation="relu6",
+        activation="relu",
         stride=1,
         dropout_rate=0,
         drop_connect_rate=0,
@@ -939,6 +961,8 @@ class SEResNet1dBNBlock(ResNet1dBNBlock):
           Tensor with shape = (batch, out_channels, out_heigh, out_width).
         """
         residual = x
+        if self.downsample is not None:
+            residual = self.downsample(residual)
 
         x = self.conv1(x)
         if self.norm_before:
@@ -957,21 +981,24 @@ class SEResNet1dBNBlock(ResNet1dBNBlock):
             x = self.bn2(x)
 
         x = self.conv3(x)
-        if self.norm_before:
-            x = self.bn3(x)
-
-        x = self.se_layer(x, x_mask=x_mask)
-        if self.drop_connect_rate > 0:
-            x = self.drop_connect(x)
-
-        if self.downsample is not None:
-            residual = self.downsample(residual)
-
-        x += residual
-        x = self.act3(x)
-
         if self.norm_after:
+            x = self.act3(x)
             x = self.bn3(x)
+            x = self.se_layer(x, x_mask=x_mask)
+            if self.drop_connect_rate > 0:
+                x = self.drop_connect(x)
+
+            x += residual
+        else:
+            if self.norm_before:
+                x = self.bn3(x)
+
+            x = self.se_layer(x, x_mask=x_mask)
+            if self.drop_connect_rate > 0:
+                x = self.drop_connect(x)
+
+            x += residual
+            x = self.act3(x)
 
         if self.dropout_rate > 0:
             x = self.dropout(x)
@@ -1005,7 +1032,7 @@ class SEResNet1dBNDecBlock(ResNet1dBNDecBlock):
         in_channels,
         channels,
         kernel_size=3,
-        activation="relu6",
+        activation="relu",
         stride=1,
         dropout_rate=0,
         drop_connect_rate=0,
@@ -1048,6 +1075,8 @@ class SEResNet1dBNDecBlock(ResNet1dBNDecBlock):
           Tensor with shape = (batch, out_channels, out_heigh, out_width).
         """
         residual = x
+        if self.upsample is not None:
+            residual = self.upsample(residual)
 
         x = self.conv1(x)
         if self.norm_before:
@@ -1066,21 +1095,24 @@ class SEResNet1dBNDecBlock(ResNet1dBNDecBlock):
             x = self.bn2(x)
 
         x = self.conv3(x)
-        if self.norm_before:
-            x = self.bn3(x)
-
-        x = self.se_layer(x, x_mask=x_mask)
-        if self.drop_connect_rate > 0:
-            x = self.drop_connect(x)
-
-        if self.upsample is not None:
-            residual = self.upsample(residual)
-
-        x += residual
-        x = self.act3(x)
-
         if self.norm_after:
+            x = self.act3(x)
             x = self.bn3(x)
+            x = self.se_layer(x, x_mask=x_mask)
+            if self.drop_connect_rate > 0:
+                x = self.drop_connect(x)
+
+            x += residual
+        else:
+            if self.norm_before:
+                x = self.bn3(x)
+
+            x = self.se_layer(x, x_mask=x_mask)
+            if self.drop_connect_rate > 0:
+                x = self.drop_connect(x)
+
+            x += residual
+            x = self.act3(x)
 
         if self.dropout_rate > 0:
             x = self.dropout(x)
@@ -1115,7 +1147,7 @@ class ResNet1dEndpoint(nn.Module):
         in_scale,
         scale,
         upsampling_mode="nearest",
-        activation={"name": "relu6", "inplace": True},
+        activation={"name": "relu", "inplace": True},
         use_norm=True,
         norm_layer=None,
         norm_before=True,
