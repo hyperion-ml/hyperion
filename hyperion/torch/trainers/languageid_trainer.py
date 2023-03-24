@@ -164,45 +164,48 @@ class LanguageIDTrainer(TorchTrainer):
         logs["lr"] = self._get_lr()
         return logs
 
-    # def validation_epoch(self, data_loader, swa_update_bn=False):
-    #     """Validation epoch loop
+    def validation_epoch(self, data_loader, swa_update_bn=False):
+        """Validation epoch loop
 
-    #     Args:
-    #       data_loader: PyTorch data loader return input/output pairs.
-    #       sw_update_bn: wheter or not, update batch-norm layers in SWA.
-    #     """
+        Args:
+          data_loader: PyTorch data loader return input/output pairs.
+          sw_update_bn: wheter or not, update batch-norm layers in SWA.
+        """
 
-    #     metric_acc = MetricAcc(self.device)
-    #     batch_metrics = ODict()
-    #     with torch.no_grad():
-    #         if swa_update_bn:
-    #             log_tag = "train_"
-    #             self.train()
-    #         else:
-    #             log_tag = "val_"
-    #             self.model.eval()
+        metric_acc = MetricAcc(self.device)
+        batch_metrics = ODict()
+        with torch.no_grad():
+            if swa_update_bn:
+                log_tag = "train_"
+                self.train()
+            else:
+                log_tag = "val_"
+                self.model.eval()
 
-    #         for batch, (data, audio_length, target) in enumerate(data_loader):
-    #             data, audio_length, target = data.to(
-    #                 self.device), audio_length.to(self.device), target.to(
-    #                     self.device)
-    #             batch_size = data.shape[0]
-    #             # data, target = data.to(self.device), target.to(self.device)
-    #             # batch_size = data.shape[0]
+            for batch, (data, audio_length, target) in enumerate(data_loader):
+                data, audio_length, target = data.to(
+                    self.device), audio_length.to(self.device), target.to(
+                        self.device)
+                batch_size = data.shape[0]
+                # data, target = data.to(self.device), target.to(self.device)
+                # batch_size = data.shape[0]
 
-    #             with self.amp_autocast():
-    #                 output, loss = self.model(data,
-    #                                           x_lengths=audio_length,
-    #                                           y=target)
-    #                 # output = self.model(data)
-    #                 # loss = self.loss(output, target)
+                with self.amp_autocast():
+                    output = self.model(data, y=target)
+                    loss = self.loss(output, target).mean() / self.grad_acc_steps
 
-    #             batch_metrics["loss"] = loss.mean().item()
-    #             for k, metric in self.metrics.items():
-    #                 batch_metrics[k] = metric(output, target)
+                    # output, loss = self.model(data,
+                    #                           x_lengths=audio_length,
+                    #                           y=target)
+                    # output = self.model(data)
+                    # loss = self.loss(output, target)
 
-    #             metric_acc.update(batch_metrics, batch_size)
+                batch_metrics["loss"] = loss.mean().item()
+                for k, metric in self.metrics.items():
+                    batch_metrics[k] = metric(output, target)
 
-    #     logs = metric_acc.metrics
-    #     logs = ODict((log_tag + k, v) for k, v in logs.items())
-    #     return logs
+                metric_acc.update(batch_metrics, batch_size)
+
+        logs = metric_acc.metrics
+        logs = ODict((log_tag + k, v) for k, v in logs.items())
+        return logs
