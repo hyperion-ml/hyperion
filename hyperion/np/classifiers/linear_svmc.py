@@ -4,14 +4,14 @@
 """
 
 import logging
-import numpy as np
-from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
 
+import numpy as np
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from sklearn.svm import LinearSVC as SVC
 
 from ...hyp_defs import float_cpu
-from ..np_model import NPModel
 from ...utils.math import softmax
+from ..np_model import NPModel
 
 
 class LinearSVMC(NPModel):

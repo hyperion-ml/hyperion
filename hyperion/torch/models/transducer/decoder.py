@@ -14,13 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
 import logging
 from typing import Optional, Tuple
 
-import logging
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 
 # TODO(fangjun): Support switching between LSTM and GRU

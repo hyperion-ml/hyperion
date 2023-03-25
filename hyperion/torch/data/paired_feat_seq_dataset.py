@@ -4,13 +4,12 @@
 """
 
 import logging
-import numpy as np
 
+import numpy as np
 import torch
 
-from ..torch_defs import floatstr_torch
-
 from ...utils.utt2info import Utt2Info
+from ..torch_defs import floatstr_torch
 from .feat_seq_dataset import FeatSeqDataset
 
 

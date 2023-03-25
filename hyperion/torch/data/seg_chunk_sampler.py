@@ -3,18 +3,18 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import math
-from jsonargparse import ArgumentParser, ActionParser
 import logging
+import math
 
 import numpy as np
 import pandas as pd
-
 import torch
+import torch.distributed as dist
+from jsonargparse import ActionParser, ArgumentParser
+
 from ...utils.segment_set import SegmentSet
 from .hyp_sampler import HypSampler
 from .seg_sampler import SegSampler
-import torch.distributed as dist
 
 
 class SegChunkSampler(HypSampler):

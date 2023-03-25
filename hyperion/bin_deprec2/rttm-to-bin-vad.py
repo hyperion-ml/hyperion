@@ -3,18 +3,17 @@
 # Apache 2.0.
 #
 
-import sys
-import os
 import argparse
-import time
 import logging
+import os
+import sys
+import time
 
 import numpy as np
 import pandas as pd
-
 from hyperion.hyp_defs import config_logger
-from hyperion.utils import SegmentList, RTTM
 from hyperion.io import DataWriterFactory as DWF
+from hyperion.utils import RTTM, SegmentList
 
 
 def rttm_to_bin_vad(

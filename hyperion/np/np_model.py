@@ -2,14 +2,14 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-import os
 import json
+import os
 from copy import deepcopy
 
-import numpy as np
 import h5py
+import numpy as np
 
-from ..hyp_defs import float_save, float_cpu
+from ..hyp_defs import float_cpu, float_save
 
 
 class NPModel(object):

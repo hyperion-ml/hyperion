@@ -5,13 +5,13 @@
 
 import os
 import re
-import soundfile as sf
 
 import numpy as np
+import soundfile as sf
 
 from ..hyp_defs import float_cpu
-from ..utils.scp_list import SCPList
 from ..utils.kaldi_io_funcs import is_token
+from ..utils.scp_list import SCPList
 from .audio_reader import valid_ext
 
 subtype_to_npdtype = {

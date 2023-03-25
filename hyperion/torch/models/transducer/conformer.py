@@ -20,12 +20,12 @@ import math
 import warnings
 from typing import List, Optional, Tuple
 
-from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
 import torch
-from torch import Tensor, nn
-from .transformer import Transformer
-
 from hyperion.utils.text import make_pad_mask, subsequent_chunk_mask
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
+from torch import Tensor, nn
+
+from .transformer import Transformer
 
 
 class Conformer(Transformer):

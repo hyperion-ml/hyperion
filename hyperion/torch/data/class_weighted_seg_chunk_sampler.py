@@ -3,15 +3,15 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import math
-from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
 import logging
+import math
 import time
 
 import numpy as np
 import pandas as pd
-
 import torch
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
+
 from .hyp_sampler import HypSampler
 
 
@@ -115,6 +115,8 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
             self.num_chunks_per_seg_epoch,
         )
 
+        self.counts = {}
+
     def _set_seed(self):
         if self.shuffle:
             self.rng.manual_seed(self.seed + 10 * self.epoch + 100 * self.rank)
@@ -207,7 +209,7 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
         if self.weight_exponent != 1.0:
             self.class_info.exp_weights(self.weight_exponent)
 
-        zero_weight = self.class_info["min_seg_duration"] < self.min_chunk_length
+        zero_weight = self.class_info["max_seg_duration"] < self.min_chunk_length
         if np.any(zero_weight):
             self.class_info.set_zero_weight(zero_weight)
 
@@ -373,6 +375,20 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
         num_classes = self._compute_num_classes_per_batch(batch_size)
         # t4 = time.time()
         class_ids = self._sample_classes(num_classes, chunk_length)
+        # for i in class_ids:
+        #     if i in self.counts:
+        #         self.counts[i] += 1
+        #     else:
+        #         self.counts[i] = 1
+
+        # mx = 0
+        # mn = 1000000000
+        # for k, v in self.counts.items():
+        #     if v > mx:
+        #         mx = v
+        #     if v < mn:
+        #         mn = v
+
         # t5 = time.time()
         seg_ids = self._sample_segs(class_ids, chunk_length)
         # t6 = time.time()

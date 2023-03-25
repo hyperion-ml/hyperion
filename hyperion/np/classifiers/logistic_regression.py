@@ -4,13 +4,13 @@
 """
 
 import logging
-import numpy as np
 
+import numpy as np
 from sklearn.linear_model import LogisticRegression as LR
 
 from ...hyp_defs import float_cpu
-from ..np_model import NPModel
 from ...utils.math import softmax
+from ..np_model import NPModel
 
 
 class LogisticRegression(NPModel):

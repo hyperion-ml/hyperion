@@ -3,9 +3,9 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+import matplotlib.pyplot as plt
 import numpy as np
 import scipy.linalg as sla
-import matplotlib.pyplot as plt
 
 from .utils import pavx
 

@@ -2,20 +2,22 @@
  Copyright 2022 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from typing import Union, Optional
 import logging
-from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
+from typing import Optional, Union
+
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from .audio_dataset import AudioDataset
+from .bucketing_seg_sampler import BucketingSegSampler
+from .class_weighted_seg_chunk_sampler import \
+    ClassWeightedRandomSegChunkSampler
 from .feat_seq_dataset import FeatSeqDataset
-
-from .seg_sampler import SegSampler
-from .class_weighted_seg_chunk_sampler import ClassWeightedRandomSegChunkSampler
 from .seg_chunk_sampler import SegChunkSampler
 from .bucketing_seg_sampler import BucketingSegSampler
 from .class_weighted_bucketing_seg_sampler import ClassWeightedRandomBucketingSegSampler
 from .class_weighted_seg_sampler import ClassWeightedRandomSegSampler
 
+from .seg_sampler import SegSampler
 
 sampler_dict = {
     "class_weighted_random_seg_chunk_sampler":

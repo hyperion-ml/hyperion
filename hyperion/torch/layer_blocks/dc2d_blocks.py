@@ -4,7 +4,7 @@
 """
 
 import torch.nn as nn
-from torch.nn import Conv2d, BatchNorm2d, Dropout2d
+from torch.nn import BatchNorm2d, Conv2d, Dropout2d
 
 from ..layers import ActivationFactory as AF
 from ..layers.subpixel_convs import SubPixelConv2d

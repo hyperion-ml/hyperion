@@ -4,12 +4,12 @@
 """
 
 import torch.nn as nn
-from torch.nn import Linear, BatchNorm1d, Dropout
+from torch.nn import BatchNorm1d, Dropout, Linear
 
+from ..layer_blocks import FCBlock
 from ..layers import ActivationFactory as AF
 from ..layers import NormLayer1dFactory as NLF
 from .net_arch import NetArch
-from ..layer_blocks import FCBlock
 
 
 class FCNetV1(NetArch):

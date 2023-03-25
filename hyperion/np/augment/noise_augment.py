@@ -6,10 +6,10 @@
 import logging
 import math
 import multiprocessing
-import yaml
 from copy import deepcopy
 
 import numpy as np
+import yaml
 
 from ...hyp_defs import float_cpu
 from ...io import RandomAccessAudioReader as AR

@@ -8,8 +8,8 @@ import torch
 import torch.nn as nn
 
 from ..layers.attention import *
-from .transformer_feedforward import *
 from .conformer_conv import ConformerConvBlock
+from .transformer_feedforward import *
 
 
 class ConformerEncoderBlockV1(nn.Module):

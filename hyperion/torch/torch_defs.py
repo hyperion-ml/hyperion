@@ -5,7 +5,6 @@
 
 import torch
 
-
 str2torch_dtype = {
     "float32": torch.float32,
     "float64": torch.float64,

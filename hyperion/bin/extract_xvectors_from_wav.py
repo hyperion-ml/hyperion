@@ -4,32 +4,25 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0) 
 """
 
-import sys
-import os
-from jsonargparse import (
-    ArgumentParser,
-    ActionConfigFile,
-    ActionParser,
-    namespace_to_dict,
-)
-import time
 import logging
+import os
+import sys
+import time
 
 import numpy as np
 import pandas as pd
-
 import torch
-
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
-from hyperion.utils import Utt2Info
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialAudioReader as AR
 from hyperion.io import VADReaderFactory as VRF
 from hyperion.np.augment import SpeechAugment
-
-from hyperion.torch.utils import open_device
-from hyperion.torch.narchs import AudioFeatsMVN as AF
 from hyperion.torch import TorchModelLoader as TML
+from hyperion.torch.narchs import AudioFeatsMVN as AF
+from hyperion.torch.utils import open_device
+from hyperion.utils import Utt2Info
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
 
 
 def init_device(use_gpu):
@@ -88,8 +81,10 @@ def select_random_chunk(key, x, min_utt_length, max_utt_length, rng):
         first_frame = rng.randint(low=0, high=x.shape[1] - utt_length)
         x = x[:, first_frame : first_frame + utt_length]
         logging.info(
-            "extract-random-utt %s of length=%d first-frame=%d"
-            % (key, x.shape[1], first_frame)
+            "extract-random-utt %s of length=%d first-frame=%d",
+            key,
+            x.shape[1],
+            first_frame,
         )
     return x
 
@@ -132,7 +127,7 @@ def extract_xvectors(
         num_augs = 1
 
     ar_args = AR.filter_args(**kwargs)
-    logging.info("opening output stream: %s" % (output_spec))
+    logging.info("opening output stream: %s", output_spec)
     with DWF.create(output_spec, scp_sep=scp_sep) as writer:
 
         logging.info(
@@ -141,7 +136,7 @@ def extract_xvectors(
         with AR(input_spec, **ar_args) as reader:
 
             if vad_spec is not None:
-                logging.info("opening VAD stream: %s" % (vad_spec))
+                logging.info("opening VAD stream: %s", vad_spec)
                 v_reader = VRF.create(
                     vad_spec, path_prefix=vad_path_prefix, scp_sep=scp_sep
                 )
@@ -156,7 +151,7 @@ def extract_xvectors(
                 key0 = key[0]
                 t2 = time.time()
 
-                logging.info("processing utt %s" % (key0))
+                logging.info("processing utt %s", key0)
                 for aug_id in range(num_augs):
                     t3 = time.time()
                     key, x = augment(key0, x0, augmenter, aug_df, aug_id)
@@ -175,13 +170,11 @@ def extract_xvectors(
                             x = x[:, vad]
 
                         logging.info(
-                            "utt %s detected %d/%d (%.2f %%) speech frames"
-                            % (
-                                key,
-                                x.shape[1],
-                                tot_frames,
-                                x.shape[1] / tot_frames * 100,
-                            )
+                            "utt %s detected %d/%d (%.2f %%) speech frames",
+                            key,
+                            x.shape[1],
+                            tot_frames,
+                            x.shape[1] / tot_frames * 100,
                         )
 
                         if random_utt_length:
@@ -219,22 +212,20 @@ def extract_xvectors(
                             "aug-time=%.3f feat-time=%.3f "
                             "vad-time=%.3f embed-time=%.3f write-time=%.3f "
                             "rt-factor=%.2f"
-                        )
-                        % (
-                            key,
-                            tot_time,
-                            read_time,
-                            t4 - t3,
-                            t5 - t4,
-                            t6 - t5,
-                            t7 - t6,
-                            t8 - t7,
-                            x0.shape[0] / fs[0] / tot_time,
-                        )
+                        ),
+                        key,
+                        tot_time,
+                        read_time,
+                        t4 - t3,
+                        t5 - t4,
+                        t6 - t5,
+                        t7 - t6,
+                        t8 - t7,
+                        x0.shape[0] / fs[0] / tot_time,
                     )
 
     if write_num_frames_spec is not None:
-        logging.info("writing num-frames to %s" % (write_num_frames_spec))
+        logging.info("writing num-frames to %s", write_num_frames_spec)
         u2nf = Utt2Info.create(keys, info)
         u2nf.save(write_num_frames_spec)
 

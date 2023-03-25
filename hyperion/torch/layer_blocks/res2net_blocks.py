@@ -3,12 +3,13 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import math
+
 import torch
 import torch.nn as nn
-from torch.nn import Conv2d, BatchNorm2d, Dropout2d
+from torch.nn import BatchNorm2d, Conv2d, Dropout2d
 
 from ..layers import ActivationFactory as AF
-from .se_blocks import SEBlock2D, TSEBlock2D
+from .se_blocks import CFwSEBlock2d, FwSEBlock2d, SEBlock2d, TSEBlock2d
 
 
 def _conv3x3(in_channels, out_channels, stride=1, groups=1, dilation=1, bias=False):
@@ -80,6 +81,7 @@ class Res2NetBasicBlock(nn.Module):
         norm_layer=None,
         norm_before=True,
         se_r=None,
+        se_type="cw-se",
         time_se=False,
         num_feats=None,
     ):
@@ -148,9 +150,16 @@ class Res2NetBasicBlock(nn.Module):
 
         if se_r is not None:
             if time_se:
-                self.se_layer = TSEBlock2D(channels, num_feats, se_r, activation)
-            else:
-                self.se_layer = SEBlock2D(channels, se_r, activation)
+                se_type = "cw-se"
+
+            if se_type == "t-se":
+                self.se_layer = TSEBlock2d(channels, num_feats, se_r, activation)
+            elif se_type == "cw-se":
+                self.se_layer = SEBlock2d(channels, se_r, activation)
+            elif se_type == "fw-se":
+                self.se_layer = FwSEBlock2d(num_feats, se_r, activation)
+            elif se_type == "cfw-se":
+                self.se_layer = CFwSEBlock2d(channels, num_feats, se_r, activation)
         else:
             self.se_layer = None
 
@@ -255,6 +264,7 @@ class Res2NetBNBlock(nn.Module):
         norm_layer=None,
         norm_before=True,
         se_r=None,
+        se_type="cw-se",
         time_se=False,
         num_feats=None,
     ):
@@ -318,11 +328,17 @@ class Res2NetBNBlock(nn.Module):
 
         if se_r is not None:
             if time_se:
-                self.se_layer = TSEBlock2D(
-                    channels * self.expansion, num_feats, se_r, activation
-                )
-            else:
-                self.se_layer = SEBlock2D(channels * self.expansion, se_r, activation)
+                se_type = "t-se"
+
+            se_channels = channels * self.expansion
+            if se_type == "t-se":
+                self.se_layer = TSEBlock2d(se_channels, num_feats, se_r, activation)
+            elif se_type == "cw-se":
+                self.se_layer = SEBlock2d(se_channels, se_r, activation)
+            elif se_type == "fw-se":
+                self.se_layer = FwSEBlock2d(num_feats, se_r, activation)
+            elif se_type == "cfw-se":
+                self.se_layer = CFwSEBlock2d(se_channels, num_feats, se_r, activation)
         else:
             self.se_layer = None
 
@@ -362,7 +378,7 @@ class Res2NetBNBlock(nn.Module):
                 x_i = self.bn2s[i](x_i)
             x_i = self.act2(x_i)
             if not self.norm_before:
-                x_i = self.bn2(x_i)
+                x_i = self.bn2s[i](x_i)
             x.append(x_i)
 
         if self.scale > 1:

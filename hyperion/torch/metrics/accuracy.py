@@ -5,8 +5,8 @@
 
 import torch
 
-from .metrics import TorchMetric
 from .accuracy_functional import *
+from .metrics import TorchMetric
 
 
 class CategoricalAccuracy(TorchMetric):

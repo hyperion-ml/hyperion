@@ -3,13 +3,11 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import numpy as np
-import scipy.linalg as la
-
 import matplotlib
-
 # matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import numpy as np
+import scipy.linalg as la
 import scipy.stats as stats
 from mpl_toolkits.mplot3d import Axes3D as plt3d
 

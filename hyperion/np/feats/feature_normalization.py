@@ -4,7 +4,7 @@
 """
 
 import numpy as np
-from jsonargparse import ArgumentParser, ActionParser
+from jsonargparse import ActionParser, ArgumentParser
 from scipy.signal import convolve2d
 
 from ...hyp_defs import float_cpu

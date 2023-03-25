@@ -17,23 +17,25 @@
 Note we use `rnnt_loss` from torchaudio, which exists only in
 torchaudio >= v0.10.0. It also means you have to use torch >= v1.10.0
 """
-from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
+
 try:
     import k2
 except ModuleNotFoundError:
     from ...utils import dummy_k2 as k2
 
 import logging
+
 import torch
 import torch.nn as nn
 import torchaudio
 import torchaudio.functional
-from .encoder_interface import EncoderInterface
+from hyperion.utils.text import add_sos
 
 from ...torch_model import TorchModel
-from hyperion.utils.text import add_sos
 # from .conformer import Conformer
 from .decoder import Decoder
+from .encoder_interface import EncoderInterface
 from .joiner import Joiner
 
 
@@ -41,6 +43,7 @@ class Transducer(TorchModel):
     """It implements https://arxiv.org/pdf/1211.3711.pdf
     "Sequence Transduction with Recurrent Neural Networks"
     """
+
     def __init__(
         self,
         vocab_size,
@@ -211,10 +214,11 @@ class Transducer(TorchModel):
             outer_parser.add_argument("--" + prefix,
                                       action=ActionParser(parser=parser))
 
-    def change_config(self, 
+    def change_config(
+        self,
         decoder,
         # joiner,
-        ):
+    ):
         logging.info("changing transducer config")
         self.decoder.change_config(**decoder)
         # self.joiner.change_config(**joiner)
@@ -225,8 +229,7 @@ class Transducer(TorchModel):
         decoder_args = Decoder.filter_finetune_args(**kwargs["decoder"])
         # joiner_args = Joiner.filter_finetune_args(**kwargs["joiner"])
 
-        valid_args = (
-        )
+        valid_args = ()
         args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
         args["decoder"] = decoder_args
@@ -243,9 +246,8 @@ class Transducer(TorchModel):
         # Joiner.add_finetune_args(parser, prefix="joiner")
 
         if prefix is not None:
-            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
+            outer_parser.add_argument("--" + prefix,
+                                      action=ActionParser(parser=parser))
 
     add_argparse_args = add_class_args
     add_argparse_finetune_args = add_finetune_args
-
-

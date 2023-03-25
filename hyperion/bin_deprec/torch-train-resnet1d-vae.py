@@ -3,27 +3,25 @@
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-import sys
-import os
 import argparse
-import time
 import logging
+import os
+import sys
+import time
 
 import numpy as np
-
 import torch
 import torch.nn as nn
-
 from hyperion.hyp_defs import config_logger, set_float_cpu
-from hyperion.torch.utils import open_device
+from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
+from hyperion.torch.data import SeqDataset as SD
 from hyperion.torch.helpers import OptimizerFactory as OF
 from hyperion.torch.lr_schedulers import LRSchedulerFactory as LRSF
-from hyperion.torch.narchs import ResNet1dEncoder as Encoder
-from hyperion.torch.narchs import ResNet1dDecoder as Decoder
 from hyperion.torch.models.vae.vae import VAE
+from hyperion.torch.narchs import ResNet1dDecoder as Decoder
+from hyperion.torch.narchs import ResNet1dEncoder as Encoder
 from hyperion.torch.trainers import VAETrainer as Trainer
-from hyperion.torch.data import SeqDataset as SD
-from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
+from hyperion.torch.utils import open_device
 
 
 def train_vae(

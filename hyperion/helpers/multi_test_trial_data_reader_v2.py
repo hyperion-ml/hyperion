@@ -3,17 +3,17 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import sys
-import os
 import argparse
-import time
 import copy
+import os
+import sys
+import time
 
 import numpy as np
 
 from ..io import RandomAccessDataReaderFactory as DRF
-from ..utils import Utt2Info, TrialNdx, TrialKey
 from ..np.transforms import TransformList
+from ..utils import TrialKey, TrialNdx, Utt2Info
 
 
 class MultiTestTrialDataReaderV2(object):

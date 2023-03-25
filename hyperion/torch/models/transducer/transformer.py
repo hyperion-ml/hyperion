@@ -20,10 +20,10 @@ from typing import Optional, Tuple
 
 import torch
 import torch.nn as nn
+from hyperion.utils.text import make_pad_mask
+
 from .encoder_interface import EncoderInterface
 from .subsampling import Conv2dSubsampling, VggSubsampling
-
-from hyperion.utils.text import make_pad_mask
 
 
 class Transformer(EncoderInterface):

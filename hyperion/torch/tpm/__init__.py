@@ -3,4 +3,4 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from .hf import HFWav2Vec2, HFHubert, HFWavLM
+from .hf import HFHubert, HFWav2Vec2, HFWavLM

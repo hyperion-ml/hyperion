@@ -3,23 +3,18 @@
  Copyright 2018 Jesus Villalba (Johns Hopkins University)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0) 
 """
-import sys
-import os
-from jsonargparse import (
-    ArgumentParser,
-    ActionConfigFile,
-    ActionParser,
-    namespace_to_dict,
-)
-import time
 import logging
+import os
+import sys
+import time
 
 import numpy as np
-
 from hyperion.hyp_defs import config_logger
-from hyperion.io import SequentialAudioReader as AR
 from hyperion.io import DataWriterFactory as DWF
+from hyperion.io import SequentialAudioReader as AR
 from hyperion.np.feats import EnergyVAD
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
 
 
 def compute_vad(input_path, output_path, write_num_frames, **kwargs):

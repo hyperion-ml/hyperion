@@ -3,23 +3,18 @@
 # Apache 2.0.
 #
 
-import sys
-import os
-from jsonargparse import (
-    ArgumentParser,
-    ActionConfigFile,
-    ActionParser,
-    namespace_to_dict,
-)
-import time
 import logging
+import os
+import sys
+import time
 
 import numpy as np
 import pandas as pd
-
 from hyperion.hyp_defs import config_logger
-from hyperion.utils import SegmentList
 from hyperion.io import DataWriterFactory as DWF
+from hyperion.utils import SegmentList
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
 
 
 def segments_to_bin_vad(

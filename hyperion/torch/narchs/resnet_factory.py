@@ -3,7 +3,7 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from .resnet import *
 
@@ -21,6 +21,7 @@ resnet_dict = {
     "lresnet34": LResNet34,
     "lresnet50": LResNet50,
     "lresnext50_4x4d": LResNext50_4x4d,
+    "lresnet34_345": LResNet34_345,
     "seresnet18": SEResNet18,
     "seresnet34": SEResNet34,
     "seresnet50": SEResNet50,
@@ -47,6 +48,32 @@ resnet_dict = {
     "tselresnet34": TSELResNet34,
     "tselresnet50": TSELResNet50,
     "tselresnext50_4x4d": TSELResNext50_4x4d,
+    "fwseresnet18": FwSEResNet18,
+    "fwseresnet34": FwSEResNet34,
+    "fwseresnet50": FwSEResNet50,
+    "fwseresnet101": FwSEResNet101,
+    "fwseresnet152": FwSEResNet152,
+    "fwseresnext50_32x4d": FwSEResNext50_32x4d,
+    "fwseresnext101_32x8d": FwSEResNext101_32x8d,
+    "fwsewideresnet50": FwSEWideResNet50,
+    "fwsewideresnet101": FwSEWideResNet101,
+    "fwselresnet18": FwSELResNet18,
+    "fwselresnet34": FwSELResNet34,
+    "fwselresnet50": FwSELResNet50,
+    "fwselresnext50_4x4d": FwSELResNext50_4x4d,
+    "cfwseresnet18": CFwSEResNet18,
+    "cfwseresnet34": CFwSEResNet34,
+    "cfwseresnet50": CFwSEResNet50,
+    "cfwseresnet101": CFwSEResNet101,
+    "cfwseresnet152": CFwSEResNet152,
+    "cfwseresnext50_32x4d": CFwSEResNext50_32x4d,
+    "cfwseresnext101_32x8d": CFwSEResNext101_32x8d,
+    "cfwsewideresnet50": CFwSEWideResNet50,
+    "cfwsewideresnet101": CFwSEWideResNet101,
+    "cfwselresnet18": CFwSELResNet18,
+    "cfwselresnet34": CFwSELResNet34,
+    "cfwselresnet50": CFwSELResNet50,
+    "cfwselresnext50_4x4d": CFwSELResNext50_4x4d,
     "res2net18": Res2Net18,
     "res2net34": Res2Net34,
     "res2net50": Res2Net50,
@@ -80,7 +107,34 @@ resnet_dict = {
     "tsewideres2net101": TSEWideRes2Net101,
     "tselres2net50": TSELRes2Net50,
     "tselres2next50_4x4d": TSELRes2Next50_4x4d,
-    "lresnet34_345": LResNet34_345,
+    "fwseres2net18": FwSERes2Net18,
+    "fwseres2net34": FwSERes2Net34,
+    "fwseres2net50": FwSERes2Net50,
+    "fwseres2net101": FwSERes2Net101,
+    "fwseres2net152": FwSERes2Net152,
+    "fwseres2next50_32x4d": FwSERes2Next50_32x4d,
+    "fwseres2next101_32x8d": FwSERes2Next101_32x8d,
+    "fwsewideres2net50": FwSEWideRes2Net50,
+    "fwsewideres2net101": FwSEWideRes2Net101,
+    "fwselres2net50": FwSELRes2Net50,
+    "fwselres2next50_4x4d": FwSELRes2Next50_4x4d,
+    "cfwseres2net18": CFwSERes2Net18,
+    "cfwseres2net34": CFwSERes2Net34,
+    "cfwseres2net50": CFwSERes2Net50,
+    "cfwseres2net101": CFwSERes2Net101,
+    "cfwseres2net152": CFwSERes2Net152,
+    "cfwseres2next50_32x4d": CFwSERes2Next50_32x4d,
+    "cfwseres2next101_32x8d": CFwSERes2Next101_32x8d,
+    "cfwsewideres2net50": CFwSEWideRes2Net50,
+    "cfwsewideres2net101": CFwSEWideRes2Net101,
+    "cfwselres2net50": CFwSELRes2Net50,
+    "cfwselres2next50_4x4d": CFwSELRes2Next50_4x4d,
+    "idrndresnet100": IdRndResNet100,
+    "idrndresnet202": IdRndResNet202,
+    "fwseidrndresnet100": FwSEIdRndResNet100,
+    "fwseidrndresnet202": FwSEIdRndResNet202,
+    "cfwseidrndresnet100": CFwSEIdRndResNet100,
+    "cfwseidrndresnet202": CFwSEIdRndResNet202,
 }
 
 
@@ -141,9 +195,9 @@ class ResNetFactory(object):
         return resnet
 
     def filter_args(**kwargs):
-        if "norm_after" in kwargs:
-            kwargs["norm_before"] = not kwargs["norm_after"]
-            del kwargs["norm_after"]
+        # if "norm_after" in kwargs:
+        #     kwargs["norm_before"] = not kwargs["norm_after"]
+        #     del kwargs["norm_after"]
 
         if "no_maxpool" in kwargs:
             kwargs["do_maxpool"] = not kwargs["no_maxpool"]
@@ -247,21 +301,21 @@ class ResNetFactory(object):
         parser.add_argument(
             "--in-norm",
             default=False,
-            action="store_true",
+            action=ActionYesNo,
             help="batch normalization at the input",
         )
 
         parser.add_argument(
             "--no-maxpool",
             default=False,
-            action="store_true",
+            action=ActionYesNo,
             help="don't do max pooling after first convolution",
         )
 
         parser.add_argument(
             "--zero-init-residual",
             default=False,
-            action="store_true",
+            action=ActionYesNo,
             help="Zero-initialize the last BN in each residual branch",
         )
 
@@ -293,11 +347,18 @@ class ResNetFactory(object):
 
         try:
             parser.add_argument(
-                "--norm-after",
-                default=False,
-                action="store_true",
-                help="batch normalizaton after activation",
+                "--norm-before",
+                default=True,
+                action=ActionYesNo,
+                help="batch normalizaton before activation",
             )
+
+            # parser.add_argument(
+            #     "--norm-after",
+            #     default=False,
+            #     action="store_true",
+            #     help="batch normalizaton after activation",
+            # )
         except:
             pass
 

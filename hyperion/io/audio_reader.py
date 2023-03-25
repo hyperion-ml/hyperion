@@ -3,15 +3,15 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import os
-import logging
-from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
 import io
+import logging
 import math
+import os
 import subprocess
-import soundfile as sf
 
 import numpy as np
+import soundfile as sf
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ..hyp_defs import float_cpu
 from ..utils import SCPList, SegmentList
@@ -48,6 +48,7 @@ class AudioReader(object):
          segments_path: segments file with format: segment_id file_id tbeg tend
          wav_scale:     multiplies signal by scale factor
     """
+
     def __init__(self, file_path, segments_path=None, wav_scale=2**15 - 1):
         self.file_path = file_path
         if isinstance(file_path, SCPList):
@@ -201,6 +202,7 @@ class AudioReader(object):
 
 
 class SequentialAudioReader(AudioReader):
+
     def __init__(
         self,
         file_path,
@@ -355,6 +357,7 @@ class SequentialAudioReader(AudioReader):
 
 
 class RandomAccessAudioReader(AudioReader):
+
     def __init__(self, file_path, segments_path=None, wav_scale=2**15 - 1):
         super().__init__(file_path, segments_path, wav_scale)
 

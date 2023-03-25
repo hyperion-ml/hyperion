@@ -2,18 +2,18 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from jsonargparse import ArgumentParser, ActionParser
-import sys
-import os
 import argparse
-import time
 import copy
+import os
+import sys
+import time
 
 import numpy as np
+from jsonargparse import ActionParser, ArgumentParser
 
 from ..io import RandomAccessDataReaderFactory as DRF
-from ..utils.scp_list import SCPList
 from ..np.transforms import TransformList
+from ..utils.scp_list import SCPList
 
 
 class VectorReader(object):

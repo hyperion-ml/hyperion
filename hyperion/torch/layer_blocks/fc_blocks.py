@@ -7,7 +7,7 @@
 # import numpy as np
 
 import torch.nn as nn
-from torch.nn import Linear, BatchNorm1d, Dropout
+from torch.nn import BatchNorm1d, Dropout, Linear
 
 from ..layers import ActivationFactory as AF
 
@@ -82,6 +82,9 @@ class FCBlock(nn.Module):
         x = self.linear(x)
 
         if self.norm_before:
+            x = self.bn1(x)
+
+        if self.activation is None and self.norm_after:
             x = self.bn1(x)
 
         return x

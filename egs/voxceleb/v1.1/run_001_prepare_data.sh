@@ -26,3 +26,30 @@ if [ $stage -le 2 ];then
   # Use this for the newer version of voxceleb1:
   local/make_voxceleb1_v2_oeh.pl $voxceleb1_root data
 fi
+
+if [ $stage -le 3 ] && [ "$do_voxsrc22" == "true" ];then
+  local/prepare_voxsrc22_dev.py \
+    --vox1-corpus-dir $voxceleb1_root \
+    --voxsrc22-corpus-dir $voxsrc22_root \
+    --output-dir data/voxsrc22_dev
+fi
+
+if [ $stage -le 4 ] && [ "$do_voxsrc22" == "true" ];then
+  local/prepare_voxsrc22_test.py \
+    --corpus-dir $voxsrc22_root \
+    --output-dir data/voxsrc22_test
+fi
+
+if [ $stage -le 5 ] && [ "$do_qmf" == "true" ];then
+  # # split vox2 into 2 parts, for cohort and qmf training
+  # utils/copy_data_dir.sh data/voxceleb2cat_train data/voxceleb2cat_train_odd
+  # utils/copy_data_dir.sh data/voxceleb2cat_train data/voxceleb2cat_train_even
+  # awk 'int(substr($2,3)) % 2 == 1' data/voxceleb2cat_train/utt2spk > data/voxceleb2cat_train_odd/utt2spk
+  # utils/fix_data_dir.sh data/voxceleb2cat_train_odd
+  # awk 'int(substr($2,3)) % 2 == 0' data/voxceleb2cat_train/utt2spk > data/voxceleb2cat_train_even/utt2spk
+  # utils/fix_data_dir.sh data/voxceleb2cat_train_even
+  # # we keep 3 utts per speaker
+  # utils/subset_data_dir.sh --per-spk data/voxceleb2cat_train_odd 3 data/voxceleb2cat_train_subset_cohort
+  # utils/subset_data_dir.sh --per-spk data/voxceleb2cat_train_even 3 data/voxceleb2cat_train_subset_qmf
+  local/make_vox2_trials.py --data-dir data/voxceleb2cat_train
+fi

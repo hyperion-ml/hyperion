@@ -5,9 +5,8 @@
 #
 
 import numpy as np
-
 import torch.nn as nn
-from torch.nn import Conv1d, Linear, BatchNorm1d
+from torch.nn import BatchNorm1d, Conv1d, Linear
 
 from ..layers import ActivationFactory as AF
 from ..layers import Dropout1d

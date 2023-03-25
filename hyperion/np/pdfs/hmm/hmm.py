@@ -6,7 +6,7 @@
 import numpy as np
 
 from ....hyp_defs import float_cpu
-from ....utils.math import softmax, logsumexp
+from ....utils.math import logsumexp, softmax
 from ..core import PDF
 
 

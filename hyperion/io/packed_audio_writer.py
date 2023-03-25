@@ -4,9 +4,9 @@
 """
 import os
 import re
-import soundfile as sf
 
 import numpy as np
+import soundfile as sf
 
 from ..utils.kaldi_io_funcs import is_token
 from .audio_reader import valid_ext

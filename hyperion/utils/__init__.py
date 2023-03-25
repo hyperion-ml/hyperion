@@ -3,19 +3,19 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from .trial_ndx import TrialNdx
-from .trial_key import TrialKey
-from .trial_scores import TrialScores
-from .sparse_trial_key import SparseTrialKey
-from .sparse_trial_scores import SparseTrialScores
+from .class_info import ClassInfo
+from .feature_set import FeatureSet
+from .hyp_dataclass import HypDataClass
+from .kaldi_matrix import KaldiCompressedMatrix, KaldiMatrix
+from .recording_set import RecordingSet
+from .rttm import RTTM
 from .scp_list import SCPList
-from .utt2info import Utt2Info
-
 # from .ext_segment_list import ExtSegmentList
 from .segment_list import SegmentList
-from .kaldi_matrix import KaldiMatrix, KaldiCompressedMatrix
-from .rttm import RTTM
-from .recording_set import RecordingSet
-from .class_info import ClassInfo
 from .segment_set import SegmentSet
-from .feature_set import FeatureSet
+from .sparse_trial_key import SparseTrialKey
+from .sparse_trial_scores import SparseTrialScores
+from .trial_key import TrialKey
+from .trial_ndx import TrialNdx
+from .trial_scores import TrialScores
+from .utt2info import Utt2Info

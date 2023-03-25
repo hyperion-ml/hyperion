@@ -4,13 +4,13 @@
 """
 
 import logging
-from jsonargparse import ArgumentParser, ActionParser
 
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ArgumentParser
 
-from .xvector import XVector
 from ...narchs import TDNNFactory as TF
+from .xvector import XVector
 
 
 class TDNNXVector(XVector):

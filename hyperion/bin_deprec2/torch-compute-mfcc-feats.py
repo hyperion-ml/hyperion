@@ -3,25 +3,20 @@
  Copyright 2018 Jesus Villalba (Johns Hopkins University)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0) 
 """
-import sys
-import os
-from jsonargparse import (
-    ArgumentParser,
-    ActionConfigFile,
-    ActionParser,
-    namespace_to_dict,
-)
-import time
 import logging
+import os
+import sys
+import time
 
 import torch
-
 from hyperion.hyp_defs import config_logger
+from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialAudioReader as AR
 from hyperion.io import SequentialDataReaderFactory as DRF
-from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import compression_methods
 from hyperion.torch.layers import AudioFeatsFactory as AFF
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
 
 
 def compute_mfcc_feats(

@@ -3,10 +3,10 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from jsonargparse import ArgumentParser, ActionParser
 import logging
 
 import numpy as np
+from jsonargparse import ActionParser, ArgumentParser
 from librosa.filters import mel as make_mel_librosa
 
 from ...hyp_defs import float_cpu

@@ -8,7 +8,7 @@
 import numpy as np
 
 from ...hyp_defs import float_cpu
-from ...utils.math import softmax, logsumexp
+from ...utils.math import logsumexp, softmax
 
 
 def effective_prior(p_tar, c_miss, c_fa):

@@ -3,32 +3,26 @@
  Copyright 2022 Johns Hopkins University  (Author: Yen-Ju Lu, Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-import sys
-import os
-from pathlib import Path
-from jsonargparse import (
-    ArgumentParser,
-    ActionConfigFile,
-    ActionParser,
-    namespace_to_dict,
-)
-import k2
-import time
 import logging
 import multiprocessing
+import os
+import sys
+import time
+from pathlib import Path
 
+import k2
 import numpy as np
-
 import torch
 import torch.nn as nn
-
 from hyperion.hyp_defs import config_logger, set_float_cpu
-from hyperion.torch.utils import ddp
-from hyperion.torch.trainers import TransducerTrainer as Trainer
 from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
 from hyperion.torch.metrics import CategoricalAccuracy
 from hyperion.torch.models import HFWav2Vec2Transducer
+from hyperion.torch.trainers import TransducerTrainer as Trainer
+from hyperion.torch.utils import ddp
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
 from torch.nn.utils.rnn import pad_sequence
 
 model_dict = {
@@ -41,14 +35,19 @@ def transducer_collate(batch):
     audio_length = []
     target = []
     for record in batch:
-        wav = torch.as_tensor(record[0])
+        wav = torch.as_tensor(record["x"])
         audio.append(wav)
         audio_length.append(wav.shape[0])
-        target.append(record[1])
+        target.append(record["text"])
     audio = pad_sequence(audio)
     audio_length = torch.as_tensor(audio_length)
     target = k2.RaggedTensor(target)
-    return torch.transpose(audio, 0, 1), audio_length, target
+    batch = {
+        "x": torch.transpose(audio, 0, 1),
+        "x_lengths": audio_length,
+        "text": target,
+    }
+    return batch
 
 
 def init_data(partition, rank, num_gpus, **kwargs):

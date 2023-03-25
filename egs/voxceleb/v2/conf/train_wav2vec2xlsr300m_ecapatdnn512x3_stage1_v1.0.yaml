@@ -1,24 +1,44 @@
 data:
   train:
     dataset:
-      max_chunk_length: 3.0
-      min_chunk_length: 3.0
-      aug_cfg: conf/reverb_noise_aug.yaml
+      class_names:
+      - class_id
+      aug_cfgs:
+      - conf/reverb_noise_aug.yaml
+      return_segment_info:
+      - class_id
+      target_sample_freq: 16000
       wav_scale: 1
     sampler:
-      batch_size: 32
-      iters_per_epoch: 6
+      sampler_type: class_weighted_random_seg_chunk_sampler
+      min_batch_size: 32
+      max_chunk_length: 3.0
+      min_chunk_length: 3.0
+      num_chunks_per_seg_epoch: 6
+      class_name: class_id
+      seg_weight_mode: uniform
+      num_hard_prototypes: 0
     data_loader:
       num_workers: 8
   val:
     dataset:
-      max_chunk_length: 4.0
-      min_chunk_length: 4.0
-      aug_cfg: conf/reverb_noise_aug.yaml
+      class_names:
+      - class_id
+      aug_cfgs:
+      - conf/reverb_noise_aug.yaml
+      return_segment_info:
+      - class_id
+      target_sample_freq: 16000
       wav_scale: 1
     sampler:
-      batch_size: 32
-      iters_per_epoch: 6
+      sampler_type: class_weighted_random_seg_chunk_sampler
+      min_batch_size: 32
+      max_chunk_length: 4.0
+      min_chunk_length: 4.0
+      num_chunks_per_seg_epoch: 6
+      class_name: class_id
+      seg_weight_mode: uniform
+      num_hard_prototypes: 0
     data_loader:
       num_workers: 8
 model: wav2vec2xlsr300m_ecapatdnn512x3.yaml

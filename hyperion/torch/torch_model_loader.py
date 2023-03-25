@@ -3,13 +3,13 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from collections import OrderedDict as ODict
 import re
+from collections import OrderedDict as ODict
 
 import torch
 
-from .narchs import *
 from .models import *
+from .narchs import *
 
 
 class TorchModelLoader(object):
