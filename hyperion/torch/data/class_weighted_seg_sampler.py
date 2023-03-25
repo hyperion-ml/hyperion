@@ -6,6 +6,8 @@
 import math
 from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
 import logging
+import copy
+
 
 import numpy as np
 
@@ -36,18 +38,12 @@ class ClassWeightedRandomSegSampler(HypSampler):
         length_name="duration",
         shuffle=False,
         drop_last=False,
-        # weight_exponent=1.0,
-        # weight_mode="custom",
-        seg_weight_mode="uniform",
         num_segs_per_class=1,
         class_name="class_id",
         seed=1234,
     ):
         super().__init__(shuffle=shuffle, seed=seed)
-        self.class_info = class_info
-        # self.weight_exponent=weight_exponent
-        # self.weight_mode=weight_mode
-        self.seg_weight_mode = seg_weight_mode
+        self.class_info = copy.deepcopy(class_info)
         self.num_segs_per_class = num_segs_per_class
         self.class_name=class_name
         self.seg_set = seg_set
@@ -120,6 +116,7 @@ class ClassWeightedRandomSegSampler(HypSampler):
                 seg_idx = get_loc(self.seg_set,seg_ids)
             else:
                 seg_idx = []
+                logging.warning("no segments found with class=%s", class_id)
                 self.class_info.loc[class_id, "weights"] = 0.0
                 self.class_info.renorm_weights()
 
@@ -172,25 +169,13 @@ class ClassWeightedRandomSegSampler(HypSampler):
             # sample num_segs_per_class random segments
             if len(seg_idx_c) == 0:
                 logging.error("no segments found with class=%s dur=%d", c, chunk_length)
-            if self.seg_weight_mode == "uniform":
-                sel_idx = torch.randint(
-                    low=0,
-                    high=len(seg_idx_c),
-                    size=(self.num_segs_per_class,),
-                    generator=self.rng,
-                ).numpy()
-
-            elif self.seg_weight_mode == "data-prior":
-                weights = durs / durs.sum()
-                sel_idx = torch.multinomial(
-                    torch.from_numpy(weights),
-                    num_samples=self.num_segs_per_class,
-                    replacement=True,
-                    generator=self.rng,
-                ).numpy()
-                # t4 = time.time()
-            else:
-                raise ValueError("unknown seg-weight-mode=%s", self.seg_weight_mode)
+            
+            sel_idx = torch.randint(
+                low=0,
+                high=len(seg_idx_c),
+                size=(self.num_segs_per_class,),
+                generator=self.rng,
+            ).numpy()
 
             sel_seg_idx_c = seg_idx_c[sel_idx]
             sel_seg_ids_c = list(self.seg_set.iloc[sel_seg_idx_c, id_col_idx])
@@ -285,9 +270,6 @@ class ClassWeightedRandomSegSampler(HypSampler):
             "max_batch_size",
             "max_batch_length",
             "length_name",
-            # "weight_exponent",
-            # "weight_mode",
-            "seg_weight_mode",
             "num_segs_per_class",
             "class_name",
             "shuffle",
@@ -354,31 +336,11 @@ class ClassWeightedRandomSegSampler(HypSampler):
             "which column in the segment table indicates the duration of the file",
         )
 
-
-        parser.add_argument(
-            "--weight-exponent",
-            default=1.0,
-            type=float,
-            help=("exponent for class weights"),
-        )
-        parser.add_argument(
-            "--weight-mode",
-            default="custom",
-            choices=["custom", "uniform", "data-prior"],
-            help=("method to get the class weights"),
-        )
-
         parser.add_argument(
             "--num-segs-per-class",
             type=int,
             default=1,
             help=("number of segments per class in batch"),
-        )
-        parser.add_argument(
-            "--seg-weight-mode",
-            default="uniform",
-            choices=["uniform", "data-prior"],
-            help=("method to sample segments given a class"),
         )
         parser.add_argument(
             "--class-name",

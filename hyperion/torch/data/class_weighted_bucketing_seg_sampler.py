@@ -25,7 +25,6 @@ class ClassWeightedRandomBucketingSegSampler(HypSampler):
                  length_column="duration",
                  weight_exponent=1.0,
                  weight_mode="custom",
-                 seg_weight_mode="uniform",
                  class_name="language",
                  seed=1234,
                  **base_kwargs):
@@ -40,7 +39,6 @@ class ClassWeightedRandomBucketingSegSampler(HypSampler):
         self.length_column = length_column
         self.weight_exponent = weight_exponent
         self.weight_mode = weight_mode
-        self.seg_weight_mode = seg_weight_mode
         self._gather_class_info()
         self._set_class_weights()
         self._create_bucket_samplers()
@@ -72,9 +70,6 @@ class ClassWeightedRandomBucketingSegSampler(HypSampler):
         for i in range(self.num_buckets):
             sampler_i = self.base_sampler(buckets[i],
                  self.class_info,
-                #  weight_exponent=self.weight_exponent,
-                #  weight_mode=self.weight_mode,
-                 seg_weight_mode=self.seg_weight_mode,
                  class_name=self.class_name, 
                  **self.base_kwargs)
             bucket_samplers.append(sampler_i)
@@ -186,7 +181,6 @@ class ClassWeightedRandomBucketingSegSampler(HypSampler):
             "length_column",
             "weight_exponent",
             "weight_mode",
-            "seg_weight_mode",
             "class_name",
             "length_column",
             "shuffle",
@@ -214,13 +208,6 @@ class ClassWeightedRandomBucketingSegSampler(HypSampler):
             default="custom",
             choices=["custom", "uniform", "data-prior"],
             help=("method to get the class weights"),
-        )
-
-        parser.add_argument(
-            "--seg-weight-mode",
-            default="uniform",
-            choices=["uniform", "data-prior"],
-            help=("method to sample segments given a class"),
         )
 
         parser.add_argument(

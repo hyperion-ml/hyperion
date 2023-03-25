@@ -467,7 +467,6 @@ class AudioDataset(Dataset):
         bpe_model=None,
         text_file=None,
         time_durs_file=None,
-        language_id_file=None,
         aug_cfgs=None,
         num_augs=1,
         return_segment_info=None,
@@ -513,12 +512,6 @@ class AudioDataset(Dataset):
         else:
             assert "duration" in self.seg_set
 
-        if language_id_file is not None:
-            if rank == 0:
-                logging.info("loading language id file %s" % language_id_file)
-
-            language_ids = SegmentSet.load(language_id_file)
-            self.seg_set["language"] = language_ids.loc[self.seg_set["id"]].class_id
 
         logging.info("loading class-info files")
         
@@ -775,7 +768,6 @@ class AudioDataset(Dataset):
             "return_segment_info",
             "return_orig",
             "time_durs_file",
-            "language_id_file",
             "target_sample_freq",
         )
         args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
@@ -819,13 +811,6 @@ class AudioDataset(Dataset):
             ),
         )
 
-        parser.add_argument(
-            "--language-id-file",
-            default=None,
-            help=(
-                "file with language ids for each utterance"
-            ),
-        )
 
         parser.add_argument(
             "--bpe-model",

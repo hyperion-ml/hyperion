@@ -175,21 +175,10 @@ def make_parser(model_class):
     )
     parser.add_argument("--data.val.dataset.text_file", type=str)
 
-    parser.add_argument("--data.train.dataset.language_id_file", type=str)
-    parser.add_argument("--data.val.dataset.language_id_file", type=str)
 
-
-    parser.add_argument(
-        "--data.train.dataset.class_files",
-        type=str,
+    parser.link_arguments(
+        "data.train.dataset.class_files", "data.val.dataset.class_files"
     )
-
-
-    parser.add_argument(
-        "--data.dev.dataset.class_files",
-        type=str,
-    )
-
     parser.add_argument(
         "--data.train.dataset.class_names",
         type=str,

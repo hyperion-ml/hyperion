@@ -37,7 +37,7 @@ if [ ${stage} -le 2 ]; then
   # for part in $test_data $dev_data $nnet_data
   for lan in $lans 
   do
-    for part in ${lan}_test ${lan}_dev ${lan}_train
+    for part in ${lan}_train # ${lan}_test ${lan}_dev 
     do
       echo ${part}
       steps_transducer/preprocess_audios_for_nnet_train.sh --nj 16 --cmd "$train_cmd" \
@@ -59,8 +59,10 @@ if [ ${stage} -le 3 ]; then
     train_folders+="data/${lan}_train_proc_audio "
   done 
   
-  combine_data.sh data/dev_data/ $dev_folders
-  combine_data.sh data/nnet_data/ $train_folders
+  combine_data.sh data/${dev_data}/ $dev_folders
+  combine_data.sh data/${nnet_data}/ $train_folders
+  awk 'BEGIN {FS = " "} NR == FNR {a[$1]=$2; next} {print $1 "," a[$1] "," $2}' data/13_langs_dev_proc_audio/utt2lang data/13_langs_dev_proc_audio/utt2spk > data/13_langs_dev_proc_audio/data/13_langs_train_proc_audio/utt2seg.csv
+  awk 'BEGIN {FS = " "} NR == FNR {a[$1]=$2; next} {print $1 "," a[$1] "," $2}' data/13_langs_train_proc_audio/utt2lang data/13_langs_train_proc_audio/utt2spk > data/13_langs_train_proc_audio/data/13_langs_train_proc_audio/utt2seg.csv
 
-
+  # cut -d' ' -f1 --complement  data/${nnet_data}/text > data/lm/${lan}_transcript_words.txt
 fi
