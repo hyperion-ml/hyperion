@@ -110,30 +110,27 @@ def eval_plda(
 
     logging.info("read num_frames")
     u2nf = Utt2Info.load(num_frames_file)
-    # enroll_nf = np.log(
-    #     np.clip(
-    #         u2nf.filter(enroll_segs).info.astype(float) / 100, a_min=0.1, a_max=15.0,
-    #     )
-    # )
-    # test_nf = np.log(
-    #     np.clip(
-    #         u2nf.filter(ndx.seg_set).info.astype(float) / 100, a_min=0.1, a_max=15.0,
-    #     )
-    # )
+    min_dur = 0.1
+    max_dur = 30.0
+
     enroll_nf = np.log(
         np.clip(
-            u2nf.filter(enroll_segs).info.astype(float) / 100 - 1.0,
-            a_min=0.1,
-            a_max=15.0,
+            u2nf.filter(enroll_segs).info.astype(float) / 100,
+            a_min=min_dur,
+            a_max=max_dur,
         )
     )
     test_nf = np.log(
         np.clip(
-            u2nf.filter(ndx.seg_set).info.astype(float) / 100 - 1.0,
-            a_min=0.1,
-            a_max=15.0,
+            u2nf.filter(ndx.seg_set).info.astype(float) / 100,
+            a_min=min_dur,
+            a_max=max_dur,
         )
     )
+    log_min_dur = np.log(min_dur)
+    log_max_dur = np.log(max_dur)
+    enroll_nf = (enroll_nf - log_min_dur) / (log_max_dur - log_min_dur)
+    test_nf = (test_nf - log_min_dur) / (log_max_dur - log_min_dur)
 
     t1 = time.time()
     logging.info("computing llr")
@@ -166,8 +163,9 @@ def eval_plda(
     dt = time.time() - t1
     num_trials = len(enroll) * x_t.shape[0]
     logging.info(
-        "scoring elapsed time: %.2f s. elapsed time per trial: %.2f ms."
-        % (dt, dt / num_trials * 1000)
+        "scoring elapsed time: %.2f s. elapsed time per trial: %.2f ms.",
+        dt,
+        dt / num_trials * 1000,
     )
 
     q_measures = {
@@ -193,7 +191,7 @@ def eval_plda(
         return
 
     logging.info("applying qmf")
-    scores_fus = [scores.ravel()]
+    # scores_fus = [scores.ravel()]
     scores_fus = [scores_norm.ravel()]
     for q_name in ["maxnf", "minnf", "maxcohmu", "mincohmu"]:
         scores_fus.append(q_measures[q_name].ravel())

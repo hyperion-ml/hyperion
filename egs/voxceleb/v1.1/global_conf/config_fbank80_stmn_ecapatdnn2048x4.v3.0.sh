@@ -12,14 +12,14 @@ nnet_data=voxceleb2cat_train
 
 # x-vector cfg
 nnet_type=resnet1d
-nnet_name=${feat_type}_ecapatdnn2048x4.v4.0
+nnet_name=${feat_type}_ecapatdnn2048x4.v3.0
 
-nnet_s1_base_cfg=conf/train_ecapatdnn2048x4_xvec_stage1_v4.0.yaml
+nnet_s1_base_cfg=conf/train_ecapatdnn2048x4_xvec_stage1_v3.0.yaml
 nnet_s1_name=$nnet_name.s1
 nnet_s1_dir=exp/xvector_nnets/$nnet_s1_name
 nnet_s1=$nnet_s1_dir/model_ep0035.pth
 
-nnet_s2_base_cfg=conf/train_ecapatdnn2048x4_xvec_stage2_v4.0.yaml
+nnet_s2_base_cfg=conf/train_ecapatdnn2048x4_xvec_stage2_v3.0.yaml
 nnet_s2_name=${nnet_name}.s2
 nnet_s2_dir=exp/xvector_nnets/$nnet_s2_name
 nnet_s2=$nnet_s2_dir/swa_model_ep0016.pth

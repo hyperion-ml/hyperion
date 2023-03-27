@@ -209,7 +209,7 @@ if [ "$do_qmf" == "true" ];then
       $score_cosine_qmf_dir/voxceleb2_qmf_scores
 
   fi
-  stage=9
+
   if [ $stage -le 8 ];then
 
     echo "Eval Voxceleb 1 with Cosine scoring"

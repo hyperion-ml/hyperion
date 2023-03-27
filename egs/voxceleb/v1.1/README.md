@@ -89,63 +89,57 @@ run_040_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 
 | Config | Model Type | Model Details | Back-end | EER(%) | MinDCF(p=0.05) | MinDCF(p=0.01) |
 | ------ | ---------- | ------------- | -------- | :----: | :------------: | :------------: |
-| config_fbank80_stmn_ecapatdnn512x3.v3.0.sh | ECAPA-TDNN 512x3 | Stage2: ArcFace m=0.3/intertop_m=0.1 | Cosine | 1.10 | 0.069 | 0.124 |
-| | | | Cosine + AS-Norm | 1.09 | 0.065 | 0.105 |
-| | | | Cosine + QMF | 0.92 | 0.059 | 0.090 |
+| config_fbank80_stmn_ecapatdnn512x3.v3.0.sh | ECAPA-TDNN 512x3 | Stage2: ArcFace m=0.3/intertop_m=0.1 | Cosine | 1.11 | 0.069 | 0.126 |
+| | | | Cosine + AS-Norm | 1.10 | 0.065 | 0.108 |
+| | | | Cosine + QMF | 0.95 | 0.059 | 0.084 |
 | config_fbank80_stmn_ecapatdnn2048x4.v3.0.sh | ECAPA-TDNN 2048x4 | Stage2: ArcFace m=0.3/intertop_m=0.1 Dropout=0.25 | Cosine | 0.68 | 0.052 | 0.088 |
-| | | | Cosine + AS-Norm | 0.63 | 0.048 | 0.083 |
-| | | | Cosine + QMF | 0.66 | 0.047 | 0.090 |
+| | | | Cosine + AS-Norm | 0.63 | 0.049 | 0.083 |
+| | | | Cosine + QMF | 0.57 | 0.037 | 0.071 |
 | config_fbank80_stmn_idrnd_resnet100.v3.0.sh | ResNet100 / BasicBlock 128-256 ch. | Stage2: ArcFace m=0.4/intertop_m=0.1 | Cosine | | | |
 | | | | Cosine + AS-Norm | | | |
 | | | | Cosine + QMF | || |
-
-
-
-
 
 ### VoxCeleb 1 Entire-Clean trial list
 
 | Config | Model Type | Model Details | Back-end | EER(%) | MinDCF(p=0.05) | MinDCF(p=0.01) |
 | ------ | ---------- | ------------- | -------- | :----: | :------------: | :------------: |
 | config_fbank80_stmn_ecapatdnn512x3.v3.0.sh | ECAPA-TDNN 512x3 | Stage2: ArcFace m=0.3/intertop_m=0.1 | Cosine | 1.16 | 0.073 | 0.130 |
-| | | | Cosine + AS-Norm | 1.13 | 0.068 | 0.117 |
-| | | | Cosine + QMF | 1.06 | 0.065 | 0.108 |
+| | | | Cosine + AS-Norm | 1.13 | 0.068 | 0.118 |
+| | | | Cosine + QMF | 1.06 | 0.064 | 0.112 |
 | config_fbank80_stmn_ecapatdnn2048x4.v3.0.sh | ECAPA-TDNN 2048x4 | Stage2: ArcFace m=0.3/intertop_m=0.1 Dropout=0.25 | Cosine | 0.85 | 0.055 | 0.100 |
-| | | | Cosine + AS-Norm | 0.80 | 0.050 | 0.088 |
-| | | | Cosine + QMF | 0.90 | 0.053 | 0.090 |
+| | | | Cosine + AS-Norm | 0.80 | 0.050 | 0.087 |
+| | | | Cosine + QMF | 0.76 | 0.047 | 0.083 |
 | config_fbank80_stmn_idrnd_resnet100.v3.0.sh | ResNet100 / BasicBlock 128-256 ch. | Stage2: ArcFace m=0.4/intertop_m=0.1 | Cosine | | | |
 | | | | Cosine + AS-Norm | | | |
 | | | | Cosine + QMF | | | |
-
 
 ### VoxCeleb 1 Hard-Clean trial list
 
 | Config | Model Type | Model Details | Back-end | EER(%) | MinDCF(p=0.05) | MinDCF(p=0.01) |
 | ------ | ---------- | ------------- | -------- | :----: | :------------: | :------------: |
 | config_fbank80_stmn_ecapatdnn512x3.v3.0.sh | ECAPA-TDNN 512x3 | Stage2: ArcFace m=0.3/intertop_m=0.1 | Cosine | 2.10 | 0.128 | 0.209 |
-| | | | Cosine + AS-Norm | 1.99 | 0.117 | 0.191 |
-| | | | Cosine + QMF | 1.82 | 0.111 | 0.183 |
+| | | | Cosine + AS-Norm | 1.99 | 0.118 | 0.190 |
+| | | | Cosine + QMF | 1.84 | 0.111 | 0.184 |
 | config_fbank80_stmn_ecapatdnn2048x4.v3.0.sh | ECAPA-TDNN 2048x4 | Stage2: ArcFace m=0.3/intertop_m=0.1 Dropout=0.25 | Cosine | 1.66 | 0.103 | 0.168 |
-| | | | Cosine + AS-Norm | 1.53 | 0.091 | 0.150 |
-| | | | Cosine + QMF | 1.62 | 0.096 | 0.158 |
+| | | | Cosine + AS-Norm | 1.53 | 0.091 | 0.151 |
+| | | | Cosine + QMF | 1.44 | 0.087 | 0.145 |
 | config_fbank80_stmn_idrnd_resnet100.v3.0.sh | ResNet100 / BasicBlock 128-256 ch. | Stage2: ArcFace m=0.4/intertop_m=0.1 | Cosine | | | |
 | | | | Cosine + AS-Norm | | | |
 | | | | Cosine + QMF | | | |
-
 
 ### VoxSRC2022 dev
 
 | Config | Model Type | Model Details | Back-end | EER(%) | MinDCF(p=0.05) | MinDCF(p=0.01) |
 | ------ | ---------- | ------------- | -------- | :----: | :------------: | :------------: |
-| config_fbank80_stmn_ecapatdnn512x3.v3.0.sh | ECAPA-TDNN 512x3 | Stage2: ArcFace m=0.4/intertop_m=0.1 | Cosine | 2.87 | 0.185 | 0.301 |
-| | | | Cosine + AS-Norm | 2.84 | 0.182 | 0.307 |
-| | | | Cosine + QMF | 2.62 | 0.175 | 0.282 |
+| config_fbank80_stmn_ecapatdnn512x3.v3.0.sh | ECAPA-TDNN 512x3 | Stage2: ArcFace m=0.3/intertop_m=0.1 | Cosine | 2.87 | 0.185 | 0.304 |
+| | | | Cosine + AS-Norm | 2.84 | 0.182 | 0.304 |
+| | | | Cosine + QMF | 2.61 | 0.172 | 0.283 |
 | config_fbank80_stmn_ecapatdnn2048x4.v3.0.sh | ECAPA-TDNN 2048x4 | Stage2: ArcFace m=0.3/intertop_m=0.1 Dropout=0.25 | Cosine | 2.33 | 0.156 | 0.260 |
-| | | | Cosine + AS-Norm | 2.19 | 0.145 | 0.265 |
-| | | | Cosine + QMF | 2.54 | 0.179 | 0.304 |
-| config_fbank80_stmn_idrnd_resnet100.v3.0.sh | ResNet100 / BasicBlock 128-256 ch. | Stage2: ArcFace m=0.4/intertop_m=0.1 | Cosine |  ||  |
+| | | | Cosine + AS-Norm | 2.19 | 0.144 | 0.263 |
+| | | | Cosine + QMF | 2.06 | 0.137 | 0.251 |
+| config_fbank80_stmn_idrnd_resnet100.v3.0.sh | ResNet100 / BasicBlock 128-256 ch. | Stage2: ArcFace m=0.4/intertop_m=0.1 | Cosine | ||  |
 | | | | Cosine + AS-Norm | | | |
-| | | | Cosine + QMF |  | | |
+| | | | Cosine + QMF | | | |
 
 ## Results before 2023
 
