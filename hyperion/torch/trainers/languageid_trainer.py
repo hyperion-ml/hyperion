@@ -2,18 +2,19 @@
  Copyright 2022 Johns Hopkins University  (Author: Yen-Ju Lu)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+import logging
 import os
 from collections import OrderedDict as ODict
 
-import logging
-
 import torch
-import torchaudio
 import torch.nn as nn
-
-from ..utils import MetricAcc
-from .torch_trainer import TorchTrainer
+import torchaudio
+from jsonargparse import ActionParser, ArgumentParser
 from torch.distributed.elastic.multiprocessing.errors import record
+
+from ...utils.misc import filter_func_args
+from ..utils import MetricAcc, tensors_subset
+from .torch_trainer import TorchTrainer
 
 
 class LanguageIDTrainer(TorchTrainer):
@@ -75,38 +76,14 @@ class LanguageIDTrainer(TorchTrainer):
         swa_lr=1e-3,
         swa_anneal_epochs=10,
         cpu_offload=False,
+        input_key="x",
+        target_key="language",
     ):
 
         if loss is None:
             loss = nn.CrossEntropyLoss()
-        super().__init__(
-            model,
-            loss,
-            optim,
-            epochs,
-            exp_path,
-            cur_epoch=cur_epoch,
-            grad_acc_steps=grad_acc_steps,
-            eff_batch_size=eff_batch_size,
-            device=device,
-            metrics=metrics,
-            lrsched=lrsched,
-            loggers=loggers,
-            ddp=ddp,
-            ddp_type=ddp_type,
-            train_mode=train_mode,
-            use_amp=use_amp,
-            log_interval=log_interval,
-            use_tensorboard=use_tensorboard,
-            use_wandb=use_wandb,
-            wandb=wandb,
-            grad_clip=grad_clip,
-            grad_clip_norm=grad_clip_norm,
-            swa_start=swa_start,
-            swa_lr=swa_lr,
-            swa_anneal_epochs=swa_anneal_epochs,
-            cpu_offload=cpu_offload,
-        )
+        super_args = filter_func_args(super().__init__, locals())
+        super().__init__(**super_args)
 
     @record
     def train_epoch(self, data_loader):
@@ -115,6 +92,9 @@ class LanguageIDTrainer(TorchTrainer):
         Args:
           data_loader: pytorch data loader returning features and class labels.
         """
+        batch_keys = [
+            self.input_key, f"{self.input_key}_lengths", self.target_key
+        ]
 
         self.model.update_loss_margin(self.cur_epoch)
 
@@ -122,14 +102,14 @@ class LanguageIDTrainer(TorchTrainer):
         batch_metrics = ODict()
         self.model.train()
 
-        for batch, (data, audio_length, target) in enumerate(data_loader):
+        for batch, data in enumerate(data_loader):
             self.loggers.on_batch_begin(batch)
 
             if batch % self.grad_acc_steps == 0:
                 self.optimizer.zero_grad()
-            data, audio_length, target = data.to(self.device), audio_length.to(
-                self.device), target.to(self.device)
-            batch_size = data.shape[0]
+            input_data, input_lengths, target = tensors_subset(
+                data, batch_keys, self.device)
+            batch_size = input_data.shape[0]
 
             with self.amp_autocast():
                 # TODO: Check and Modify output, loss from the model
@@ -137,7 +117,7 @@ class LanguageIDTrainer(TorchTrainer):
                 #                           x_lengths=audio_length,
                 #                           y=target)
                 # loss = loss.mean() / self.grad_acc_steps
-                output = self.model(data, y=target)
+                output = self.model(input_data, y=target)
                 loss = self.loss(output, target).mean() / self.grad_acc_steps
 
             if self.use_amp:
@@ -171,7 +151,9 @@ class LanguageIDTrainer(TorchTrainer):
           data_loader: PyTorch data loader return input/output pairs.
           sw_update_bn: wheter or not, update batch-norm layers in SWA.
         """
-
+        batch_keys = [
+            self.input_key, f"{self.input_key}_lengths", self.target_key
+        ]
         metric_acc = MetricAcc(self.device)
         batch_metrics = ODict()
         with torch.no_grad():
@@ -182,16 +164,15 @@ class LanguageIDTrainer(TorchTrainer):
                 log_tag = "val_"
                 self.model.eval()
 
-            for batch, (data, audio_length, target) in enumerate(data_loader):
-                data, audio_length, target = data.to(
-                    self.device), audio_length.to(self.device), target.to(
-                        self.device)
-                batch_size = data.shape[0]
+            for batch, data in enumerate(data_loader):
+                input_data, input_lengths, target = tensors_subset(
+                    data, batch_keys, self.device)
+                batch_size = input_data.shape[0]
                 # data, target = data.to(self.device), target.to(self.device)
                 # batch_size = data.shape[0]
 
                 with self.amp_autocast():
-                    output = self.model(data, y=target)
+                    output = self.model(input_data, y=target)
                     loss = self.loss(output, target).mean() / self.grad_acc_steps
 
                     # output, loss = self.model(data,
@@ -209,3 +190,23 @@ class LanguageIDTrainer(TorchTrainer):
         logs = metric_acc.metrics
         logs = ODict((log_tag + k, v) for k, v in logs.items())
         return logs
+
+    @staticmethod
+    def add_class_args(parser, prefix=None, train_modes=None, skip=set()):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
+
+        super_skip = skip.copy()
+        super_skip.add("target_key")
+        TorchTrainer.add_class_args(parser,
+                                    train_modes=train_modes,
+                                    skip=super_skip)
+        if "target_key" not in skip:
+            parser.add_argument("--target-key",
+                                default="language",
+                                help="dict. key for nnet targets")
+
+        if prefix is not None:
+            outer_parser.add_argument("--" + prefix,
+                                      action=ActionParser(parser=parser))

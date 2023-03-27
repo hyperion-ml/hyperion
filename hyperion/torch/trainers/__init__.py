@@ -5,13 +5,10 @@
 
 from .dvae_trainer import DVAETrainer
 from .torch_trainer import TorchTrainer
-<<<<<<< HEAD
 
 
 
 from .languageid_trainer import LanguageIDTrainer
-=======
->>>>>>> hyp/persephone-asr
 from .transducer_trainer import TransducerTrainer
 from .vae_trainer import VAETrainer
 from .vq_dvae_trainer import VQDVAETrainer

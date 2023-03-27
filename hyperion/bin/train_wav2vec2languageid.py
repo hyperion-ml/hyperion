@@ -42,16 +42,27 @@ def Language_collate(batch):
     audio_length = []
     language = []
     for record in batch:
-        wav = torch.as_tensor(record[0])
+        wav = torch.as_tensor(record["x"])
         audio.append(wav)
         audio_length.append(wav.shape[0])
-        language.append(record[1])
-    audio = pad_sequence(audio)
+        language.append(record["language"])
+    audio = pad_sequence(audio).transpose(0, 1)
     audio_length = torch.as_tensor(audio_length)
-    language = torch.as_tensor(language)
-    
-    return torch.transpose(audio, 0, 1), audio_length, language
 
+    # sort audios by length
+    sort_idx = torch.argsort(audio_length, descending=True)
+    audio = audio[sort_idx]
+    audio_length = audio_length[sort_idx]
+
+    language = [language[k] for k in sort_idx]
+    language = torch.as_tensor(language)
+
+    batch = {
+        "x": audio,
+        "x_lengths": audio_length,
+        "language": language,
+    }
+    return batch
 
 def init_data(partition, rank, num_gpus, **kwargs):
     data_kwargs = kwargs["data"][partition]
