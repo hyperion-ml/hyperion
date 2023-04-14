@@ -75,7 +75,7 @@ echo "$0: generate attacks for $data_dir to $output_dir"
 if [ $stage -le 1 ];then
     $cmd JOB=1:$nj $log_dir/generate_attack.JOB.log \
 	hyp_utils/conda_env.sh --num-gpus $num_gpus \
-	torch-generate-adv-attacks-xvector-classif.py \
+	generate_adv_attacks_xvector_classif.py \
 	--feats $feat_config ${args} $attacks_opts \
 	--wav-file $wav \
 	--list-file $list \

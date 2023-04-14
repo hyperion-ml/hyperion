@@ -20,7 +20,7 @@ config_file=default_config.sh
 if [ $stage -le 1 ]; then
     # Prepare to distribute data over multiple machines
     if [[ $(hostname -f) == *.clsp.jhu.edu ]] && [ ! -d $vaddir/storage ]; then
-	dir_name=$USER/hyp-data/voxceleb/v1/$storage_name/vad/storage
+	dir_name=$USER/hyp-data/voxceleb/adv.v1.1/$storage_name/vad/storage
 	if [ "$nodes" == "b0" ];then
 	    utils/create_split_dir.pl \
 			    utils/create_split_dir.pl \
