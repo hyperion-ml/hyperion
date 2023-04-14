@@ -1,0 +1,1 @@
+global_conf/config_fbank80_stmn_ecapatdnn512x3.v3.0.sh

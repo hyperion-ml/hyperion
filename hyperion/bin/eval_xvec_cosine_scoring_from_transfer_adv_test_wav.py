@@ -10,8 +10,12 @@ import time
 
 import numpy as np
 import pandas as pd
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
 
 import torch
 import torch.nn as nn
@@ -260,8 +264,8 @@ def eval_cosine_scoring(
         for i in range(key.num_models):
             if key.tar[i, j] or key.non[i, j]:
                 t3 = time.time()
-                model.x_e = x_e[i].to(device)
-                tmodel.x_e = t_x_e[i].to(device)
+                model.x_e = x_e[i : i + 1].to(device)
+                tmodel.x_e = t_x_e[i : i + 1].to(device)
                 if key.tar[i, j]:
                     if attack.targeted:
                         t = non

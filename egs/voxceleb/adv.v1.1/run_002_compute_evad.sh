@@ -9,7 +9,6 @@ set -e
 nodes=fs01
 storage_name=$(date +'%m_%d_%H_%M')
 vaddir=`pwd`/exp/vad_e
-vad_config=conf/vad_16k.yaml
 
 stage=1
 config_file=default_config.sh
