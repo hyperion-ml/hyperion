@@ -10,6 +10,7 @@ from .torch_trainer import TorchTrainer
 
 from .languageid_trainer import LanguageIDTrainer
 from .transducer_trainer import TransducerTrainer
+from .transducer_languageid_trainer import TransducerLanguageIDTrainer
 from .vae_trainer import VAETrainer
 from .vq_dvae_trainer import VQDVAETrainer
 from .vq_vae_trainer import VQVAETrainer

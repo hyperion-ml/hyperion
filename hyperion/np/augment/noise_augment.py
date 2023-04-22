@@ -55,7 +55,7 @@ class SingleNoiseAugment(object):
     @staticmethod
     def _power(x):
         """Computes power of x in dB."""
-        return 10 * np.log10((x ** 2).sum())
+        return 10 * np.log10(((x+1e-5) ** 2).sum())
 
     @staticmethod
     def snr(x, n):

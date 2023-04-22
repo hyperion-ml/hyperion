@@ -12,6 +12,7 @@ from .wav2transducer import (HFWav2Vec2RNNRNNTransducer,
                              HFWav2Vec2RNNTransducer, HFWav2Vec2Transducer)
 from .wav2xvectors import (HFHubert2ResNet1dXVector, HFWav2Vec2ResNet1dXVector,
                            HFWavLM2ResNet1dXVector)
+from .wav2transducer_languageid import HFWav2Vec2RNNTransducerResnet1D
 from .xvectors.efficient_net_xvector import EfficientNetXVector
 from .xvectors.resnet1d_xvector import ResNet1dXVector
 from .xvectors.resnet_xvector import ResNetXVector

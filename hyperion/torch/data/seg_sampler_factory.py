@@ -86,6 +86,7 @@ class SegSamplerFactory(object):
             "min_batch_size",
             "max_batch_size",
             "max_batch_length",
+            "max_audio_length",
             "num_chunks_per_seg_epoch",
             "num_segs_per_class",
             "num_chunks_per_seg",
@@ -153,6 +154,15 @@ class SegSamplerFactory(object):
             ("maximum batch size per gpu, if None, estimated from max_batch_length"
              ),
         )
+
+
+        parser.add_argument(
+            "--max-audio-length",
+            default=None,
+            type=float,
+            help=("the maximum length of an audio segment in seconds"),
+        )
+
 
         parser.add_argument(
             "--batch-size",

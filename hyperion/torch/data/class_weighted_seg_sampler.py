@@ -35,6 +35,7 @@ class ClassWeightedRandomSegSampler(HypSampler):
         min_batch_size=1,
         max_batch_size=None,
         max_batch_length=None,
+        num_chunks_per_seg_epoch=1,
         length_name="duration",
         shuffle=False,
         drop_last=False,
@@ -46,6 +47,7 @@ class ClassWeightedRandomSegSampler(HypSampler):
         self.class_info = copy.deepcopy(class_info)
         self.num_segs_per_class = num_segs_per_class
         self.class_name=class_name
+        self.num_chunks_per_seg_epoch = num_chunks_per_seg_epoch
         self.seg_set = seg_set
         self.min_batch_size = min_batch_size
         self.max_batch_size = max_batch_size
@@ -62,11 +64,11 @@ class ClassWeightedRandomSegSampler(HypSampler):
 
         if drop_last:
             self._len = int(
-                len(self.seg_set) / (avg_batch_size * self.world_size))
+                self.num_chunks_per_seg_epoch * len(self.seg_set) / (avg_batch_size * self.world_size))
         else:
             self._len = int(
                 math.ceil(
-                    (len(self.seg_set) // self.world_size) / avg_batch_size))
+                    (self.num_chunks_per_seg_epoch * len(self.seg_set) // self.world_size) / avg_batch_size))
 
         self._gather_class_info()
         self._permutation = None
@@ -271,6 +273,7 @@ class ClassWeightedRandomSegSampler(HypSampler):
             "max_batch_length",
             "length_name",
             "num_segs_per_class",
+            "num_chunks_per_seg_epoch",
             "class_name",
             "shuffle",
             "drop_last",
@@ -334,6 +337,13 @@ class ClassWeightedRandomSegSampler(HypSampler):
             default="duration",
             help=
             "which column in the segment table indicates the duration of the file",
+        )
+
+        parser.add_argument(
+            "--num-chunks-per-seg-epoch",
+            default=1,
+            type=lambda x: x if x == "auto" else float(x),
+            help=("number of times we sample a segment in each epoch"),
         )
 
         parser.add_argument(

@@ -23,9 +23,11 @@ class ClassWeightedRandomBucketingSegSampler(HypSampler):
                  base_sampler=ClassWeightedRandomSegSampler,
                  num_buckets=10,
                  length_column="duration",
+                 num_chunks_per_seg_epoch=1.0,
                  weight_exponent=1.0,
                  weight_mode="custom",
                  class_name="language",
+                 max_audio_length=None,
                  seed=1234,
                  **base_kwargs):
         super().__init__(shuffle=False, seed=seed)
@@ -37,7 +39,9 @@ class ClassWeightedRandomBucketingSegSampler(HypSampler):
         self.base_kwargs["seed"] = seed
         self.num_buckets = num_buckets
         self.length_column = length_column
+        self.num_chunks_per_seg_epoch = num_chunks_per_seg_epoch
         self.weight_exponent = weight_exponent
+        self.max_audio_length = max_audio_length
         self.weight_mode = weight_mode
         self._gather_class_info()
         self._set_class_weights()
@@ -49,6 +53,10 @@ class ClassWeightedRandomBucketingSegSampler(HypSampler):
         # class_ids = self._sample_classes()
         sort_idx = np.argsort(self.seg_set[self.length_column].values)
         sorted_seg_set = self.seg_set.iloc[sort_idx]
+        # import pdb; pdb.set_trace()
+        # remove audio length larger than max_audio_length
+        if self.max_audio_length is not None:
+            sorted_seg_set = sorted_seg_set.loc[sorted_seg_set[self.length_column] <= self.max_audio_length]
         cum_lengths = np.cumsum(sorted_seg_set[self.length_column].values,
                                 axis=0)
         bucket_length = cum_lengths[-1] / self.num_buckets
@@ -71,6 +79,7 @@ class ClassWeightedRandomBucketingSegSampler(HypSampler):
             sampler_i = self.base_sampler(buckets[i],
                  self.class_info,
                  class_name=self.class_name, 
+                 num_chunks_per_seg_epoch=self.num_chunks_per_seg_epoch,
                  **self.base_kwargs)
             bucket_samplers.append(sampler_i)
 
@@ -179,8 +188,10 @@ class ClassWeightedRandomBucketingSegSampler(HypSampler):
         valid_args = (
             "num_buckets",
             "length_column",
+            "num_chunks_per_seg_epoch",
             "weight_exponent",
             "weight_mode",
+            "max_audio_length",
             "class_name",
             "length_column",
             "shuffle",
@@ -198,11 +209,27 @@ class ClassWeightedRandomBucketingSegSampler(HypSampler):
 
 
         parser.add_argument(
+            "--num-chunks-per-seg-epoch",
+            default=1,
+            type=lambda x: x if x == "auto" else float(x),
+            help=("number of times we sample a segment in each epoch"),
+        )
+
+        parser.add_argument(
             "--weight-exponent",
             default=1.0,
             type=float,
             help=("exponent for class weights"),
         )
+
+
+        parser.add_argument(
+            "--max-audio-length",
+            default=None,
+            type=float,
+            help=("the maximum length of an audio segment in seconds"),
+        )
+
         parser.add_argument(
             "--weight-mode",
             default="custom",
