@@ -13,6 +13,7 @@ import torch.nn as nn
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
+from ...utils.misc import filter_func_args
 from ..layer_blocks import TransformerConv2dSubsampler as Subsampler
 from ..layers import ActivationFactory as AF
 #from ..layers import NormLayer1dFactory as NLF
@@ -46,7 +47,7 @@ class RNNEncoder(NetArch):
                  bidirectional: bool = False,
                  dropout_rate: float = 0.0,
                  subsample_input: bool = False,
-                 subsampling_act: str = "relu6"):
+                 subsampling_act: str = "relu"):
         super().__init__()
         if rnn_type != "lstm":
             proj_feats = 0
@@ -74,7 +75,7 @@ class RNNEncoder(NetArch):
 
         if rnn_type == "lstm":
             self.rnn = nn.LSTM(
-                input_size=hid_feats,
+                input_size=lstm_in_dim,
                 hidden_size=hid_feats,
                 num_layers=num_layers,
                 bias=True,
@@ -85,7 +86,7 @@ class RNNEncoder(NetArch):
             )
         else:
             self.rnn = nn.GRU(
-                input_size=hid_feats,
+                input_size=lstm_in_dim,
                 hidden_size=hid_feats,
                 num_layers=num_layers,
                 bias=True,
@@ -113,7 +114,7 @@ class RNNEncoder(NetArch):
                                  batch_first=True,
                                  enforce_sorted=True)
         x, _ = self.rnn(x)
-        x = pad_packed_sequence(x, batch_first=True)
+        x, x_lengths = pad_packed_sequence(x, batch_first=True)
         if self.out_feats > 0:
             x = self.output(x)
 
@@ -149,7 +150,7 @@ class RNNEncoder(NetArch):
 
     @staticmethod
     def filter_args(**kwargs):
-        args = filter_func_args(RNNEncoder.__init__, **kwargs)
+        args = filter_func_args(RNNEncoder.__init__, kwargs)
         return args
 
     @staticmethod
@@ -166,7 +167,7 @@ class RNNEncoder(NetArch):
 
         parser.add_argument(
             "--hid-feats",
-            default=512,
+            default=1024,
             type=int,
             help=("num of hidden dimensions of RNN layers"),
         )
@@ -182,7 +183,7 @@ class RNNEncoder(NetArch):
 
         parser.add_argument(
             "--proj-feats",
-            default=512,
+            default=0,
             type=int,
             help=("projection features of LSTM layers"),
         )
@@ -225,7 +226,7 @@ class RNNEncoder(NetArch):
             help="whether to subsaple input features x4",
         )
         parser.add_argument("--subsampling-act",
-                            default="relu6",
+                            default="relu",
                             help="activation for subsampler block")
 
         if "dropout_rate" not in skip:

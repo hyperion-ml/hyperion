@@ -11,14 +11,15 @@ from typing import Optional
 import torch
 import torch.nn as nn
 
-torch_model_registry = {}
-
 
 class TorchModel(nn.Module):
+    """Base class for all Pytorch Models and NNet architectures
+    """
+    registry = {}
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        torch_model_registry[cls.__name__] = cls
+        TorchModel.registry[cls.__name__] = cls
 
     def __init__(self):
         super().__init__()
