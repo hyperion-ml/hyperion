@@ -10,6 +10,7 @@ import sys
 import time
 
 import numpy as np
+
 import torch
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.torch.data import ClassWeightedSeqSampler as Sampler

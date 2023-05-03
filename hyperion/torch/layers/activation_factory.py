@@ -6,7 +6,7 @@
 
 import torch.nn as nn
 
-from .swish import Swish, DoubleSwish, Swish6, DoubleSwish6
+from .swish import DoubleSwish, DoubleSwish6, Swish, Swish6
 
 act_dict = {
     "elu": nn.ELU,

@@ -11,12 +11,13 @@ from collections import OrderedDict as ODict
 from enum import Enum
 from pathlib import Path
 
+from fairscale.optim.grad_scaler import ShardedGradScaler
+from jsonargparse import ActionParser, ArgumentParser
+
 import torch
 import torch.cuda.amp as amp
 import torch.distributed as dist
 import torch.nn as nn
-from fairscale.optim.grad_scaler import ShardedGradScaler
-from jsonargparse import ActionParser, ArgumentParser
 from torch.optim.swa_utils import SWALR, AveragedModel
 
 from ...utils.misc import filter_func_args

@@ -11,6 +11,9 @@ import time
 
 import numpy as np
 import pandas as pd
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
+
 import torch
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.io import DataWriterFactory as DWF
@@ -21,8 +24,6 @@ from hyperion.torch import TorchModelLoader as TML
 from hyperion.torch.narchs import AudioFeatsMVN as AF
 from hyperion.torch.utils import open_device
 from hyperion.utils import Utt2Info
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
 
 
 def init_device(use_gpu):

@@ -13,6 +13,7 @@ import sys
 import time
 
 import numpy as np
+
 from hyperion.helpers import VectorReader as VR
 from hyperion.hyp_defs import config_logger
 from hyperion.np.transforms import PCA, TransformList

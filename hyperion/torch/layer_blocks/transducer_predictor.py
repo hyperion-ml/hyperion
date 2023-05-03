@@ -5,9 +5,10 @@
 import logging
 from typing import Optional, Tuple
 
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
+
 import torch
 import torch.nn as nn
-from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ...utils.misc import filter_func_args
 from ..layers import ActivationFactory as AF

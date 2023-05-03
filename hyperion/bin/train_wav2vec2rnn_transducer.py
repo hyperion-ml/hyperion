@@ -12,6 +12,9 @@ from pathlib import Path
 
 import k2
 import numpy as np
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
+
 import torch
 import torch.nn as nn
 from hyperion.hyp_defs import config_logger, set_float_cpu
@@ -22,8 +25,6 @@ from hyperion.torch.models import (HFWav2Vec2ConformerV1RNNTransducer,
                                    HFWav2Vec2RNNTransducer)
 from hyperion.torch.trainers import TransducerTrainer as Trainer
 from hyperion.torch.utils import ddp
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
 from torch.nn.utils.rnn import pad_sequence
 
 model_dict = {

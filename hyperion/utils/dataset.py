@@ -3,15 +3,16 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from typing import Dict, Optional
 from pathlib import Path
+from typing import Dict, Optional
+
 import yaml
 
-from .segment_set import SegmentSet
-from .recording_set import RecordingSet
-from .feature_set import FeatureSet
 from .class_info import ClassInfo
+from .feature_set import FeatureSet
 from .misc import PathLike
+from .recording_set import RecordingSet
+from .segment_set import SegmentSet
 
 
 class Dataset:

@@ -10,6 +10,9 @@ import sys
 import time
 
 import numpy as np
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
+
 import torch
 import torch.nn as nn
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
@@ -24,8 +27,6 @@ from hyperion.torch.utils import open_device
 from hyperion.torch.utils.misc import l2_norm
 from hyperion.utils import TrialKey, TrialNdx, TrialScores, Utt2Info
 from hyperion.utils.list_utils import ismember
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
 
 
 def init_device(use_gpu):

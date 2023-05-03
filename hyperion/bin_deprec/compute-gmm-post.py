@@ -14,12 +14,13 @@ import sys
 import time
 
 import numpy as np
+from keras import backend as K
+
 from hyperion.helpers import SequenceReader as SR
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.io import HypDataWriter
 from hyperion.pdfs import DiagGMM
 from hyperion.transforms import TransformList
-from keras import backend as K
 
 
 def to_sparse(r, num_comp):

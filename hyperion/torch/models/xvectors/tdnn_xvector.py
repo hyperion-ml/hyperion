@@ -5,9 +5,10 @@
 
 import logging
 
+from jsonargparse import ActionParser, ArgumentParser
+
 import torch
 import torch.nn as nn
-from jsonargparse import ActionParser, ArgumentParser
 
 from ...narchs import TDNNFactory as TF
 from .xvector import XVector

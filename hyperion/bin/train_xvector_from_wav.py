@@ -10,10 +10,10 @@ import sys
 import time
 from pathlib import Path
 
-import torch
 from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
                           namespace_to_dict)
 
+import torch
 from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory

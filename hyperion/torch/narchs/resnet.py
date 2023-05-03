@@ -5,20 +5,15 @@
 import logging
 
 import numpy as np
+
 import torch
 import torch.nn as nn
 from torch.nn import BatchNorm1d, Conv1d, Linear
 
-from ..layer_blocks import (
-    Res2NetBasicBlock,
-    Res2NetBNBlock,
-    ResNetBasicBlock,
-    ResNetBNBlock,
-    ResNetEndpointBlock,
-    ResNetInputBlock,
-    SEResNetBasicBlock,
-    SEResNetBNBlock,
-)
+from ..layer_blocks import (Res2NetBasicBlock, Res2NetBNBlock,
+                            ResNetBasicBlock, ResNetBNBlock,
+                            ResNetEndpointBlock, ResNetInputBlock,
+                            SEResNetBasicBlock, SEResNetBNBlock)
 from ..layers import ActivationFactory as AF
 from ..layers import NormLayer2dFactory as NLF
 from ..utils import scale_seq_lengths, seq_lengths_to_mask

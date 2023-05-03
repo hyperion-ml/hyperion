@@ -17,6 +17,7 @@ from .margin_losses import ArcLossOutput, CosLossOutput, SubCenterArcLossOutput
 from .mvn import MeanVarianceNorm
 from .norm_layer_factory import NormLayer1dFactory, NormLayer2dFactory
 from .pool_factory import GlobalPool1dFactory
-from .pos_encoder import NoPosEncoder, PosEncoder, RelPosEncoder, ConvPosEncoder
+from .pos_encoder import (ConvPosEncoder, NoPosEncoder, PosEncoder,
+                          RelPosEncoder)
 from .spec_augment import AxisMasker, SpecAugment, SpecWarper
 from .subpixel_convs import ICNR1d, ICNR2d, SubPixelConv1d, SubPixelConv2d

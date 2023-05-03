@@ -5,9 +5,10 @@
 import logging
 from typing import Dict, Optional, Tuple, Union
 
+from jsonargparse import ActionParser, ArgumentParser
+
 import torch
 import torch.nn as nn
-from jsonargparse import ActionParser, ArgumentParser
 
 from ...narchs import AudioFeatsMVN
 from ...torch_model import TorchModel

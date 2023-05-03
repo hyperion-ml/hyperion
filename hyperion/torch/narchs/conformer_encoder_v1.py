@@ -3,17 +3,19 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
+
 import torch
 import torch.nn as nn
-from jsonargparse import ActionParser, ArgumentParser, ActionYesNo
 
 from ...utils.misc import filter_func_args
 from ..layer_blocks import ConformerEncoderBlockV1 as EBlock
 from ..layer_blocks import TransformerConv2dSubsampler as Conv2dSubsampler
 from ..layers import ActivationFactory as AF
+from ..layers import ConvPosEncoder, NoPosEncoder
 from ..layers import NormLayer1dFactory as NLF
-from ..layers import NoPosEncoder, PosEncoder, RelPosEncoder, ConvPosEncoder
-from ..utils import seq_lengths_to_mask, scale_seq_lengths
+from ..layers import PosEncoder, RelPosEncoder
+from ..utils import scale_seq_lengths, seq_lengths_to_mask
 from .net_arch import NetArch
 
 

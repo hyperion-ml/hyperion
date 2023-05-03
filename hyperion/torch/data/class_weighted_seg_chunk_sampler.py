@@ -9,8 +9,9 @@ import time
 
 import numpy as np
 import pandas as pd
-import torch
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
+
+import torch
 
 from .hyp_sampler import HypSampler
 

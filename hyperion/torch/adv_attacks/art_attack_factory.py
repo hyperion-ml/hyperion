@@ -4,7 +4,7 @@
 """
 
 import numpy as np
-from jsonargparse import ActionParser, ArgumentParser, ActionYesNo
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 try:
     from art.attacks import evasion as attacks

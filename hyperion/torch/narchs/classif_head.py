@@ -4,9 +4,10 @@
 """
 
 
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
+
 import torch
 import torch.nn as nn
-from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from torch.nn import Linear
 
 from ...utils.misc import filter_func_args

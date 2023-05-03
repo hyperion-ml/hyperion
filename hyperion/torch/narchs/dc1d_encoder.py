@@ -4,9 +4,10 @@
 """
 import math
 
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
+
 import torch
 import torch.nn as nn
-from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ..layer_blocks.dc1d_blocks import DC1dEncBlock
 from ..layers import ActivationFactory as AF

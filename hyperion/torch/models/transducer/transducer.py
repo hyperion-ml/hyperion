@@ -26,10 +26,11 @@ except ModuleNotFoundError:
 
 import logging
 
-import torch
-import torch.nn as nn
 import torchaudio
 import torchaudio.functional
+
+import torch
+import torch.nn as nn
 from hyperion.utils.text import add_sos
 
 from ...torch_model import TorchModel

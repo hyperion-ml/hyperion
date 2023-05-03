@@ -2,8 +2,9 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-import torch.nn as nn
 from jsonargparse import ActionParser, ArgumentParser
+
+import torch.nn as nn
 
 from .global_pool import *
 

@@ -11,12 +11,12 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import torch
-import torch.nn as nn
 import yaml
 from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
                           namespace_to_dict)
 
+import torch
+import torch.nn as nn
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.io import AudioWriter as AW
 from hyperion.io import RandomAccessAudioReader as AR

@@ -6,10 +6,11 @@ import logging
 import os
 from typing import Callable, List, Optional, Tuple, Union
 
-import torch
-import torch.nn as nn
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from transformers import Wav2Vec2Config, Wav2Vec2Model
+
+import torch
+import torch.nn as nn
 
 from ...utils.ddp import ddp_get_rank, ddp_wait_for_all_procs
 from .hf_wav2vec_base import HFWav2VecBase

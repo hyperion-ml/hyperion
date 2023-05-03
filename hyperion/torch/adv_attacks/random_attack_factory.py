@@ -5,8 +5,9 @@
 
 import math
 
-import torch
 from jsonargparse import ActionParser, ArgumentParser
+
+import torch
 
 from .attack_factory import AttackFactory as AF
 

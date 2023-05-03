@@ -7,9 +7,10 @@ import logging
 from dataclasses import dataclass
 from typing import Dict, List, Union
 
+from jsonargparse import ActionParser, ArgumentParser
+
 import torch
 import torch.nn as nn
-from jsonargparse import ActionParser, ArgumentParser
 
 from ...torch_model import TorchModel
 from ...utils import remove_silence

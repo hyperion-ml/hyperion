@@ -11,10 +11,11 @@ import numpy as np
 import pandas as pd
 #import k2
 import sentencepiece as spm
-import torch
-import torch.distributed as dist
 import torchaudio.transforms as tat
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
+
+import torch
+import torch.distributed as dist
 from torch.utils.data import Dataset
 
 from ...io import RandomAccessAudioReader as AR

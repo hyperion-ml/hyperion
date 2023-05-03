@@ -14,6 +14,7 @@ import sys
 import time
 
 import numpy as np
+
 from hyperion.helpers import TrialDataReader as TDR
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.np.transforms import LNorm, TransformList

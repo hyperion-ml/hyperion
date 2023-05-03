@@ -5,9 +5,10 @@
 import logging
 from typing import Optional, Tuple
 
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
+
 import torch
 import torch.nn as nn
-from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 
 class TransducerJoiner(nn.Module):
