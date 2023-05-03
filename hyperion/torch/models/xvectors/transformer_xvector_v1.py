@@ -46,7 +46,6 @@ class TransformerXVectorV1(XVector):
 
       use_norm: if True use batch/layer norm
       norm_before: if True, use layer norm before layers, otherwise after
-      in_norm: add batchnorm at the input
       embed_layer: which layer to use to extract x-vectors
       proj_feats: add linear projection layer after the encoder to project feature dimension to proj_feats
     """
@@ -83,7 +82,7 @@ class TransformerXVectorV1(XVector):
         head_norm_layer=None,
         use_norm=True,
         norm_before=False,
-        in_norm=False,
+        head_use_in_norm=False,
         embed_layer=0,
         proj_feats=None,
     ):
@@ -127,6 +126,7 @@ class TransformerXVectorV1(XVector):
             head_norm_layer=head_norm_layer,
             use_norm=use_norm,
             norm_before=norm_before,
+            head_use_in_norm=head_use_in_norm,
             dropout_rate=dropout_rate,
             embed_layer=embed_layer,
             in_feats=None,
@@ -185,10 +185,6 @@ class TransformerXVectorV1(XVector):
     def enc_ff_type(self):
         return self.encoder_net.ff_type
 
-    # @property
-    # def in_norm(self):
-    #     return self.encoder_net.in_norm
-
     def get_config(self):
         """Gets network config
         Returns:
@@ -214,7 +210,6 @@ class TransformerXVectorV1(XVector):
             "in_layer_type": self.in_layer_type,
             "enc_concat_after": self.enc_concat_after,
         }
-        #'in_norm': self.in_norm }
 
         config.update(base_config)
         return config

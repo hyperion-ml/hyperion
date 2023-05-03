@@ -22,6 +22,7 @@ class ClassInfo(InfoTable):
             self.df["weights"] /= self.df["weights"].sum()
 
     def add_class_idx(self):
+        self.sort()
         self.df["class_idx"] = [i for i in range(len(self.df))]
 
     def set_uniform_weights(self):
@@ -38,17 +39,20 @@ class ClassInfo(InfoTable):
         weights = self.df["weights"] ** x
         self.set_weights(weights)
 
-    def set_zero_weight(self, id):
-        self.df.loc[id, "weights"] = 0
+    def set_zero_weight(self, ids):
+        self.df.loc[ids, "weights"] = 0
         self.df["weights"] /= self.df["weights"].sum()
 
     @property
-    def weights(self, id):
-        return self.df.loc[id, "weights"]
+    def weights(self, ids):
+        return self.df.loc[ids, "weights"]
 
     @property
     def num_classes(self):
         return self.df["class_idx"].values.max() + 1
+
+    def sort_by_idx(self, ascending=True):
+        self.sort("class_idx", ascending)
 
     @classmethod
     def load(cls, file_path, sep=None):

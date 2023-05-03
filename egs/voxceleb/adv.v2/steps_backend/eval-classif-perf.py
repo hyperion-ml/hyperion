@@ -52,7 +52,7 @@ def eval_classif_perf(score_file, key_file, class_file, output_path=None, **kwar
     acc = compute_accuracy(y_true, y_pred)
     logging.info("Classification accuracy %.2f %%" % (acc * 100))
 
-    labels = np.arange(len(classes), dtype=np.int)
+    labels = np.arange(len(classes), dtype=int)
     C = compute_confusion_matrix(y_true, y_pred, labels=labels, normalize=False)
     logging.info("Unnormalized Confusion Matrix:")
     print_confusion_matrix(C, labels_true=classes)
@@ -69,8 +69,6 @@ if __name__ == "__main__":
     parser.add_argument("--score-file", required=True)
     parser.add_argument("--key-file", required=True)
     parser.add_argument("--class-file", required=True)
-
-    # parser.add_argument('--output-path', dest='output_path', required=True)
     parser.add_argument(
         "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
     )

@@ -44,21 +44,21 @@ fi
 
 xvector_dir=exp/xvectors/$nnet_name
 
-if [[ $stage -le 1 && ( "$do_plda" == "true" || "$do_snorm" == "true" || "$do_qmf" == "true" ) ]]; then
+if [[ $stage -le 1 && ( "$do_plda" == "true" || "$do_snorm" == "true" || "$do_qmf" == "true" || "$do_pca" == "true") ]]; then
   # Extract xvectors for training LDA/PLDA
   for name in voxceleb2cat_train
   do
     if [ $plda_num_augs -eq 0 ]; then
       steps_xvec/extract_xvectors_from_wav.sh \
 	--cmd "$xvec_cmd" --nj 100 ${xvec_args} \
-	--random-utt-length true --min-utt-length 200 --max-utt-length 14000 \
+	--random-utt-length true --min-utt-length 200 --max-utt-length 3000 \
 	--feat-config $feat_config \
     	$nnet data/${name} \
     	$xvector_dir/${name}
     else
       steps_xvec/extract_xvectors_from_wav.sh \
 	--cmd "$xvec_cmd" --nj 300 ${xvec_args} \
-	--random-utt-length true --min-utt-length 200 --max-utt-length 14000 \
+	--random-utt-length true --min-utt-length 200 --max-utt-length 3000 \
 	--feat-config $feat_config --aug-config $plda_aug_config --num-augs $plda_num_augs \
     	$nnet data/${name} \
     	$xvector_dir/${name}_augx${plda_num_augs} \
@@ -70,7 +70,10 @@ fi
 
 if [ $stage -le 2 ]; then
   # Extracts x-vectors for evaluation
-  for name in voxceleb1_test 
+  if [ "$do_voxsrc22" == "true" ];then
+    extra_data="voxsrc22_dev"
+  fi
+  for name in voxceleb1_test $extra_data
   do
     num_spk=$(wc -l data/$name/spk2utt | awk '{ print $1}')
     nj=$(($num_spk < 100 ? $num_spk:100))

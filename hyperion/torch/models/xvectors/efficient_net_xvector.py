@@ -51,11 +51,12 @@ class EfficientNetXVector(XVector):
         head_norm_layer=None,
         use_norm=True,
         norm_before=True,
+        head_use_in_norm=False,
         embed_layer=0,
         proj_feats=None,
     ):
 
-        logging.info("making %s encoder network" % (effnet_type))
+        logging.info("making %s encoder network", effnet_type)
         encoder_net = EN(
             effnet_type,
             in_channels,
@@ -97,6 +98,7 @@ class EfficientNetXVector(XVector):
             head_norm_layer=head_norm_layer,
             use_norm=use_norm,
             norm_before=norm_before,
+            head_use_in_norm=head_use_in_norm,
             dropout_rate=dropout_rate,
             embed_layer=embed_layer,
             in_feats=in_feats,

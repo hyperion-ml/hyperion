@@ -259,8 +259,8 @@ def eval_cosine_scoring(
         for i in range(key.num_models):
             if key.tar[i, j] or key.non[i, j]:
                 t3 = time.time()
-                model.x_e = x_e[i].to(device)
-                tmodel.x_e = t_x_e[i].to(device)
+                model.x_e = x_e[i : i + 1].to(device)
+                tmodel.x_e = t_x_e[i : i + 1].to(device)
                 if key.tar[i, j]:
                     if attack.targeted:
                         t = non

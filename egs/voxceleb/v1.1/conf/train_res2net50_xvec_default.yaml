@@ -2,6 +2,6 @@ data:
   train: train_data_default.yaml
   val: val_data_default.yaml
 feats: fbank80_stmn_16k.yaml
-model: resnet34.yaml
+model: res2net50.yaml
 trainer: trainer_default.yaml
  
