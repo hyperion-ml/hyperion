@@ -4,9 +4,9 @@
 
  Miscellaneous functions
 """
-from typing import TypeVar
 from inspect import signature
 from pathlib import Path
+from typing import TypeVar
 
 import numpy as np
 

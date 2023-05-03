@@ -11,12 +11,8 @@ import time
 from pathlib import Path
 
 import numpy as np
-from jsonargparse import (
-    ActionConfigFile,
-    ActionParser,
-    ArgumentParser,
-    namespace_to_dict,
-)
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
 
 import torch
 import torch.nn as nn
@@ -24,8 +20,8 @@ from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch import TorchModelLoader as TML
 from hyperion.torch.adv_attacks import AttackFactory
 from hyperion.torch.data import AudioDataset as AD
-from hyperion.torch.data import SegSamplerFactory
 from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
+from hyperion.torch.data import SegSamplerFactory
 from hyperion.torch.metrics import CategoricalAccuracy
 from hyperion.torch.models import EfficientNetXVector as EXVec
 from hyperion.torch.models import ResNet1dXVector as R1dXVec

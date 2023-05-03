@@ -72,7 +72,6 @@ class TorchTrainer(object):
       input_key: dict. key for nnet input.
       target_key: dict. key for nnet targets.
     """
-
     def __init__(
         self,
         model,
@@ -114,9 +113,8 @@ class TorchTrainer(object):
         self.exp_path = Path(exp_path)
 
         if loggers is None:
-            self.loggers = self._default_loggers(
-                log_interval, use_tensorboard, use_wandb, wandb
-            )
+            self.loggers = self._default_loggers(log_interval, use_tensorboard,
+                                                 use_wandb, wandb)
         elif isinstance(loggers, list):
             self.loggers = LoggerList(loggers)
         else:
@@ -151,23 +149,29 @@ class TorchTrainer(object):
             self.rank = dist.get_rank()
             self.world_size = dist.get_world_size()
             if ddp_type == DDPType.DDP or ddp_type == DDPType.OSS_DDP:
-                self.model = nn.SyncBatchNorm.convert_sync_batchnorm(self.model)
+                self.model = nn.SyncBatchNorm.convert_sync_batchnorm(
+                    self.model)
                 if self.rank == 0:
                     logging.info(
                         "training in multiple gpus with distributed-data-parallel"
                     )
                 oss = False if ddp_type == DDPType.DDP else True
-                self.optimizer = self._make_optimizer(optim, self.model, oss=oss)
+                self.optimizer = self._make_optimizer(optim,
+                                                      self.model,
+                                                      oss=oss)
                 self.model = TorchDDP(
                     self.model, device_ids=[device], output_device=device,
                 )
             elif ddp_type == DDPType.OSS_SHARDED_DDP:
-                self.model = nn.SyncBatchNorm.convert_sync_batchnorm(self.model)
+                self.model = nn.SyncBatchNorm.convert_sync_batchnorm(
+                    self.model)
                 if self.rank == 0:
                     logging.info(
                         "training in multiple gpus with fair sharded-distributed-data-parallel"
                     )
-                self.optimizer = self._make_optimizer(optim, self.model, oss=True)
+                self.optimizer = self._make_optimizer(optim,
+                                                      self.model,
+                                                      oss=True)
                 self.model = FairShardedDDP(self.model, self.optimizer)
             else:
                 if self.rank == 0:
@@ -180,7 +184,9 @@ class TorchTrainer(object):
                     mixed_precision=self.use_amp,
                     move_params_to_cpu=cpu_offload,
                 )
-                self.optimizer = self._make_optimizer(optim, self.model, oss=False)
+                self.optimizer = self._make_optimizer(optim,
+                                                      self.model,
+                                                      oss=False)
 
         else:
             self.optimizer = self._make_optimizer(optim, self.model)
@@ -210,9 +216,9 @@ class TorchTrainer(object):
             if self.rank == 0:
                 logging.info("init SWA model")
             self.swa_model = AveragedModel(self.model)
-            self.swa_scheduler = SWALR(
-                self.optimizer, swa_lr=self.swa_lr, anneal_epochs=self.swa_anneal_epochs
-            )
+            self.swa_scheduler = SWALR(self.optimizer,
+                                       swa_lr=self.swa_lr,
+                                       anneal_epochs=self.swa_anneal_epochs)
 
     def set_epoch(self, data_loader):
         try:
@@ -246,7 +252,8 @@ class TorchTrainer(object):
             if self.lr_scheduler is not None:
                 # this is needed by cosine scheduler
                 epoch_updates = int(len(train_data) / self.grad_acc_steps)
-                self.lr_scheduler.on_epoch_begin(epoch, epoch_updates=epoch_updates)
+                self.lr_scheduler.on_epoch_begin(epoch,
+                                                 epoch_updates=epoch_updates)
 
             logs = self.train_epoch(train_data)
             if val_data is not None:
@@ -268,7 +275,8 @@ class TorchTrainer(object):
             self.save_checkpoint(logs)
 
         if self.in_swa:
-            self.loggers.on_epoch_begin(self.cur_epoch, batches=len(train_data))
+            self.loggers.on_epoch_begin(self.cur_epoch,
+                                        batches=len(train_data))
             self.model = self.swa_model.module
             logs = self.bn_update_epoch(train_data)
 
@@ -373,9 +381,9 @@ class TorchTrainer(object):
     def _clip_grad_norm(self, model, optim, grad_clip, grad_clip_norm):
         if self.ddp:
             if self.ddp_type == DDPType.DDP:
-                nn.utils.clip_grad_norm_(
-                    model.parameters(), grad_clip, norm_type=grad_clip_norm
-                )
+                nn.utils.clip_grad_norm_(model.parameters(),
+                                         grad_clip,
+                                         norm_type=grad_clip_norm)
                 return
             if self.ddp_type == DDPType.FULLY_SHARDED_DDP:
                 # we have to use the member function in FullyShardedDDP class
@@ -387,26 +395,24 @@ class TorchTrainer(object):
                 optim.clip_grad_norm(grad_clip, norm_type=grad_clip_norm)
 
         # if no DDP clip normally
-        nn.utils.clip_grad_norm_(
-            model.parameters(), grad_clip, norm_type=grad_clip_norm
-        )
+        nn.utils.clip_grad_norm_(model.parameters(),
+                                 grad_clip,
+                                 norm_type=grad_clip_norm)
 
     def update_model(self):
         """Updates the model and does gradding clipping."""
         if self.use_amp:
             if self.grad_clip > 0:
                 self.grad_scaler.unscale_(self.optimizer)
-                self._clip_grad_norm(
-                    self.model, self.optimizer, self.grad_clip, self.grad_clip_norm
-                )
+                self._clip_grad_norm(self.model, self.optimizer,
+                                     self.grad_clip, self.grad_clip_norm)
 
             self.grad_scaler.step(self.optimizer)
             self.grad_scaler.update()
         else:
             if self.grad_clip > 0:
-                self._clip_grad_norm(
-                    self.model, self.optimizer, self.grad_clip, self.grad_clip_norm
-                )
+                self._clip_grad_norm(self.model, self.optimizer,
+                                     self.grad_clip, self.grad_clip_norm)
 
             self.optimizer.step()
 
@@ -435,21 +441,20 @@ class TorchTrainer(object):
         lr_sched = LRSF.create(optim, **args)
         return lr_sched
 
-    def _default_loggers(self, log_interval, use_tensorboard, use_wandb, wandb):
+    def _default_loggers(self, log_interval, use_tensorboard, use_wandb,
+                         wandb):
         """Creates the default data loaders"""
         prog_log = ProgLogger(interval=log_interval)
         csv_log = CSVLogger(self.exp_path / "train.log", append=True)
         loggers = [prog_log, csv_log]
         if use_tensorboard:
             loggers.append(
-                TensorBoardLogger(self.exp_path / "tb", interval=log_interval)
-            )
+                TensorBoardLogger(self.exp_path / "tb", interval=log_interval))
         if use_wandb:
             loggers.append(
-                WAndBLogger(
-                    **wandb, path=self.exp_path / "wandb", interval=log_interval
-                )
-            )
+                WAndBLogger(**wandb,
+                            path=self.exp_path / "wandb",
+                            interval=log_interval))
         return LoggerList(loggers)
 
     def _get_lr(self):
@@ -465,7 +470,7 @@ class TorchTrainer(object):
             try:
                 batch_size = data_loader.batch_sampler.avg_batch_size
             except:
-                logging.warn(
+                logging.warning(
                     "batch sampler doesn't have avg_batch_size property, "
                     "we cannot estimate grad_acc_steps, using grad_acc_steps=%d",
                     self.grad_acc_steps,
@@ -473,8 +478,7 @@ class TorchTrainer(object):
                 return
 
             self.grad_acc_steps = int(
-                math.ceil(self.eff_batch_size / batch_size / self.world_size)
-            )
+                math.ceil(self.eff_batch_size / batch_size / self.world_size))
             logging.info(
                 "Setting grad_acc_steps=%d for "
                 "eff_batch_size=%d, avg_batch_size=%d, world_size=%d",
@@ -485,7 +489,7 @@ class TorchTrainer(object):
             )
             return
 
-        logging.warn(
+        logging.warning(
             "We cannot determine the batch_size, "
             "we cannot estimate grad_acc_steps, using grad_acc_steps=%d",
             self.grad_acc_steps,
@@ -498,24 +502,30 @@ class TorchTrainer(object):
           logs: logs containing the current value of the metrics.
         """
         checkpoint = {
-            "epoch": self.cur_epoch,
-            "rng_state": torch.get_rng_state(),
-            "model_cfg": self.model.get_config(),
-            "model_state_dict": self.model.state_dict(),
-            "optimizer_state_dict": self.optimizer.state_dict(),
-            "loss_state_dict": self.loss.state_dict()
-            if self.loss is not None
-            else None,
+            "epoch":
+            self.cur_epoch,
+            "rng_state":
+            torch.get_rng_state(),
+            "model_cfg":
+            self.model.get_config(),
+            "model_state_dict":
+            self.model.state_dict(),
+            "optimizer_state_dict":
+            self.optimizer.state_dict(),
+            "loss_state_dict":
+            self.loss.state_dict() if self.loss is not None else None,
         }
         if self.lr_scheduler is not None:
-            checkpoint["lr_scheduler_state_dict"] = self.lr_scheduler.state_dict()
+            checkpoint[
+                "lr_scheduler_state_dict"] = self.lr_scheduler.state_dict()
 
         if logs is not None:
             checkpoint["logs"] = logs
 
         if self.in_swa:
             checkpoint["swa_model_state_dict"] = self.swa_model.state_dict()
-            checkpoint["swa_scheduler_state_dict"] = self.swa_scheduler.state_dict()
+            checkpoint[
+                "swa_scheduler_state_dict"] = self.swa_scheduler.state_dict()
 
         return checkpoint
 
@@ -525,9 +535,8 @@ class TorchTrainer(object):
         Args:
           logs: logs containing the current value of the metrics.
         """
-        if self.ddp and (
-            self.ddp_type == DDPType.OSS_DDP or self.ddp_type == DDPType.OSS_SHARDED_DDP
-        ):
+        if self.ddp and (self.ddp_type == DDPType.OSS_DDP
+                         or self.ddp_type == DDPType.OSS_SHARDED_DDP):
             # Not sure what this does, just copying from the example in
             # https://github.com/facebookresearch/fairscale/blob/master/benchmarks/oss.py
             # Check the checkpointing in the case of the OSS optimizer
@@ -582,16 +591,17 @@ class TorchTrainer(object):
         if self.loss is not None:
             self.loss.load_state_dict(checkpoint["loss_state_dict"])
         if self.lr_scheduler is not None:
-            self.lr_scheduler.load_state_dict(checkpoint["lr_scheduler_state_dict"])
+            self.lr_scheduler.load_state_dict(
+                checkpoint["lr_scheduler_state_dict"])
 
         # if self.use_amp:
         #    amp.load_state_dict(checkpoint['amp'])
         if self.do_swa:
             if "swa_model_state_dict" in checkpoint:
-                self.swa_model.load_state_dict(checkpoint["swa_model_state_dict"])
+                self.swa_model.load_state_dict(
+                    checkpoint["swa_model_state_dict"])
                 self.swa_scheduler.load_state_dict(
-                    checkpoint["swa_scheduler_state_dict"]
-                )
+                    checkpoint["swa_scheduler_state_dict"])
             else:
                 self.swa_scheduler = SWALR(
                     self.optimizer,
@@ -671,9 +681,13 @@ class TorchTrainer(object):
             "--eff-batch-size",
             type=int,
             default=None,
-            help="effective total batch size, if given, it overrides grad_acc_steps",
+            help=
+            "effective total batch size, if given, it overrides grad_acc_steps",
         )
-        parser.add_argument("--epochs", type=int, default=200, help="number of epochs")
+        parser.add_argument("--epochs",
+                            type=int,
+                            default=200,
+                            help="number of epochs")
         if train_modes is not None:
             parser.add_argument(
                 "--train-mode",
@@ -693,12 +707,19 @@ class TorchTrainer(object):
             default=False,
             help="use tensorboard logger",
         )
-        parser.add_argument(
-            "--use-wandb", action="store_true", default=False, help="use wandb logger"
-        )
-        parser.add_argument("--wandb.project", default=None, help="wandb project name")
-        parser.add_argument("--wandb.group", default=None, help="wandb group name")
-        parser.add_argument("--wandb.name", default=None, help="wandb display name")
+        parser.add_argument("--use-wandb",
+                            action="store_true",
+                            default=False,
+                            help="use wandb logger")
+        parser.add_argument("--wandb.project",
+                            default=None,
+                            help="wandb project name")
+        parser.add_argument("--wandb.group",
+                            default=None,
+                            help="wandb group name")
+        parser.add_argument("--wandb.name",
+                            default=None,
+                            help="wandb display name")
         # parser.add_argument(
         #     '--wandb.path', default=None,
         #     help='wandb directory')
@@ -727,9 +748,10 @@ class TorchTrainer(object):
             default=False,
             help="CPU offload of gradients when using fully_sharded_ddp",
         )
-        parser.add_argument(
-            "--grad-clip", type=float, default=0, help="gradient clipping norm value"
-        )
+        parser.add_argument("--grad-clip",
+                            type=float,
+                            default=0,
+                            help="gradient clipping norm value")
         parser.add_argument(
             "--grad-clip-norm",
             default=2,
@@ -742,9 +764,10 @@ class TorchTrainer(object):
             default=0,
             help="start epoch for SWA, if 0 it does not use SWA",
         )
-        parser.add_argument(
-            "--swa-lr", type=float, default=1e-3, help="learning rate for SWA phase"
-        )
+        parser.add_argument("--swa-lr",
+                            type=float,
+                            default=1e-3,
+                            help="learning rate for SWA phase")
         parser.add_argument(
             "--swa-anneal-epochs",
             type=int,
@@ -763,6 +786,7 @@ class TorchTrainer(object):
             )
 
         if prefix is not None:
-            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
+            outer_parser.add_argument("--" + prefix,
+                                      action=ActionParser(parser=parser))
 
     add_argparse_args = add_class_args

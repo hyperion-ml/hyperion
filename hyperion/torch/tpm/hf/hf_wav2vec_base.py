@@ -272,7 +272,7 @@ class HFWav2VecBase(TorchModel):
         """Prepares input audio to be used as input to wav2vec style model."""
         x_mask = seq_lengths_to_mask(x_lengths, x.size(-1), dtype=torch.long)
         if self.normalize_input:
-            x = self._normalize(x, x_lengths)
+            x = self._normalize(x, x_mask)
 
         if self.use_input_attention_mask:
             x_mask = None
@@ -569,6 +569,8 @@ class HFWav2VecBase(TorchModel):
             default=None,
             help=("file path or HuggingFace Hub path to pre-trained model"),
         )
+
+
         parser.add_argument(
             "--normalize-input",
             default=True,

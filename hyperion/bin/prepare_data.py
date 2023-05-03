@@ -6,12 +6,8 @@
 import logging
 from pathlib import Path
 
-from jsonargparse import (
-    ActionConfigFile,
-    ActionParser,
-    ArgumentParser,
-    namespace_to_dict,
-)
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
 
 from hyperion.data_prep import DataPrep
 from hyperion.hyp_defs import config_logger

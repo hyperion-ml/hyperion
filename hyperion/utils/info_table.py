@@ -4,6 +4,7 @@
 """
 
 import logging
+import re
 from collections import OrderedDict
 from copy import deepcopy
 from pathlib import Path
@@ -21,7 +22,6 @@ class InfoTable:
     Attributes:
       df: pandas dataframe.
     """
-
     def __init__(self, df):
         self.df = df
         assert "id" in df, f"info_table={df}"
@@ -89,8 +89,9 @@ class InfoTable:
         file_path = Path(file_path)
         file_path.parent.mkdir(parents=True, exist_ok=True)
         ext = file_path.suffix
-        if ext in ["", ".scp"]:
+        if ext in ["", ".scp"] or re.match(r"\.[0-9]+$", ext):
             # if no extension we save as kaldi utt2spk file
+            assert len(self.df.columns) == 2
             self.df.to_csv(file_path, sep=" ", header=False, index=False)
             return
 
@@ -100,13 +101,30 @@ class InfoTable:
         self.df.to_csv(file_path, sep=sep, index=False)
 
     @classmethod
-    def load(cls, file_path, sep=None):
+    def from_lists(cls, ids, column_names, column_data):
+        df_dict = {"id": ids}
+        assert len(column_names) == len(column_data)
+        for name, data in zip(column_names, column_data):
+            assert len(ids) == len(data)
+            df_dict[name] = data
+        df = pd.DataFrame(df_dict)
+        return cls(df)
+
+    @classmethod
+    def from_dict(cls, df_dict):
+        assert "id" in df_dict
+        df = pd.DataFrame(df_dict)
+        return cls(df)
+
+    @classmethod
+    def load(cls, file_path, sep=None, name="class_id"):
         """Loads utt2info list from text file.
 
         Args:
           file_path: File to read the list.
           sep: Separator between the key and file_path in the text file.
           dtype: Dictionary with the dtypes of each column.
+          name: name for the data to be loaded
         Returns:
           Utt2Info object
         """
@@ -118,8 +136,11 @@ class InfoTable:
                 file_path,
                 sep=" ",
                 header=None,
-                names=["id", "class_id"],
-                dtype={"id": np.str, "class_id": np.str},
+                names=["id", name],
+                dtype={
+                    "id": np.str,
+                    name: np.str
+                },
             )
         else:
             if sep is None:
@@ -151,7 +172,8 @@ class InfoTable:
         if group_by is None:
             _, idx1 = split_list(self.df["id"], idx, num_parts)
         else:
-            _, idx1 = split_list_group_by_key(self.df[group_by], idx, num_parts)
+            _, idx1 = split_list_group_by_key(self.df[group_by], idx,
+                                              num_parts)
 
         df = self.df.iloc[idx1]
         return self.__class__(df)
@@ -170,10 +192,14 @@ class InfoTable:
         df = pd.concat(df_list)
         return cls(df)
 
-    def filter(self, items=None, iindex=None, columns=None, by="id", keep=True):
-        assert (
-            items is None or iindex is None
-        ), "items and iindex cannot be not None at the same time"
+    def filter(self,
+               items=None,
+               iindex=None,
+               columns=None,
+               by="id",
+               keep=True):
+        assert (items is None or iindex is None
+                ), "items and iindex cannot be not None at the same time"
         df = self.df
 
         if not keep:
@@ -222,7 +248,51 @@ class InfoTable:
             return 0
         return 1
 
-    # def __len__(self):
+    def shuffle(self, seed=1024, rng=None):
+        """Shuffles the elements of the list.
+
+        Args:
+          seed: Seed for random number generator.
+          rng: numpy random number generator object.
+
+        Returns:
+          Index used to shuffle the list.
+        """
+        if rng is None:
+            rng = np.random.RandomState(seed=seed)
+        index = np.arange(len(self.df))
+        rng.shuffle(index)
+        self.df = self.df.iloc[index]
+        return index
+
+    def set_index(self, keys, inplace=True):
+        if inplace:
+            self.df.set_index(keys, drop=False, inplace=True)
+            return
+
+        df = self.df.set_index(keys, drop=False, inplace=False)
+        return type(self)(df)
+
+    def reset_index(self):
+        self.df.set_index("id", drop=False, inplace=True)
+
+    def get_loc(self, keys):
+        if isinstance(keys, (list, np.ndarray)):
+            return self.df.index.get_indexer(keys)
+
+        loc = self.df.index.get_loc(keys)
+        if isinstance(loc, int):
+            return loc
+        elif isinstance(loc, np.ndarray) and loc.dtype == np.bool:
+            return np.nonzero(loc)[0]
+        else:
+            return list(range(loc.start, loc.stop, loc.step))
+
+    def get_col_idx(self, keys):
+        return self.df.columns.get_loc(keys)
+
+        # def __len__(self):
+
     #     """Returns the number of elements in the list."""
     #     return len(self.df)
 
@@ -377,46 +447,3 @@ class InfoTable:
 
     #     utt_info = self.utt_info.iloc[index]
     #     return Utt2Info(utt_info)
-
-    def shuffle(self, seed=1024, rng=None):
-        """Shuffles the elements of the list.
-
-        Args:
-          seed: Seed for random number generator.
-          rng: numpy random number generator object.
-
-        Returns:
-          Index used to shuffle the list.
-        """
-        if rng is None:
-            rng = np.random.RandomState(seed=seed)
-        index = np.arange(len(self.df))
-        rng.shuffle(index)
-        self.df = self.df.iloc[index]
-        return index
-
-    def set_index(self, keys, inplace=True):
-        if inplace:
-            self.df.set_index(keys, drop=False, inplace=True)
-            return
-
-        df = self.df.set_index(keys, drop=False, inplace=False)
-        return type(self)(df)
-
-    def reset_index(self):
-        self.df.set_index("id", drop=False, inplace=True)
-
-    def get_loc(self, keys):
-        if isinstance(keys, (list, np.ndarray)):
-            return self.df.index.get_indexer(keys)
-
-        loc = self.df.index.get_loc(keys)
-        if isinstance(loc, int):
-            return loc
-        elif isinstance(loc, np.ndarray) and loc.dtype == np.bool:
-            return np.nonzero(loc)[0]
-        else:
-            return list(range(loc.start, loc.stop, loc.step))
-
-    def get_col_idx(self, keys):
-        return self.df.columns.get_loc(keys)

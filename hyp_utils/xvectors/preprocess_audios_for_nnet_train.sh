@@ -56,9 +56,13 @@ if [[ $(hostname -f) == *.clsp.jhu.edu ]] && [ ! -d $output_dir/storage ]; then
     elif [ "$nodes" == "s01" ];then
 	utils/create_split_dir.pl \
 	    /export/s01/$dir_name $output_dir/storage
-    else
+    elif [ "$nodes" == "c0" ];then
 	utils/create_split_dir.pl \
 	    /export/c{01,06,07,08,09}/$dir_name $output_dir/storage
+    elif [ "$nodes" == "fs05" ];then
+	utils/create_split_dir.pl \
+	    utils/create_split_dir.pl \
+	    /export/fs05/$dir_name $output_dir/storage
     fi
 
     for f in $(awk '{ print $1}' $data_in/wav.scp); do

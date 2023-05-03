@@ -19,7 +19,6 @@ class HFWav2Vec2ResNet1dXVector(HFWav2XVector):
     """Class extracting Wav2Vec2 + ResNet1d x-vectors from waveform.
 
     Attributes:
-      Attributes:
       hf_feats: HFWav2Vec configuration dictionary or object.
                 This is a warpper over Hugging Face Wav2Vec model.
       xvector: ResNet1dXVector configuration dictionary or object.
@@ -53,7 +52,8 @@ class HFWav2Vec2ResNet1dXVector(HFWav2XVector):
             assert isinstance(xvector, ResNet1dXVector)
             assert xvector.encoder_net.in_feats == hf_feats.hidden_size
 
-        super().__init__(hf_feats, xvector, feat_fusion_start, feat_fusion_method)
+        super().__init__(hf_feats, xvector, feat_fusion_start,
+                         feat_fusion_method)
 
     @staticmethod
     def filter_args(**kwargs):
@@ -76,7 +76,8 @@ class HFWav2Vec2ResNet1dXVector(HFWav2XVector):
         HFWav2XVector.add_class_args(parser)
 
         if prefix is not None:
-            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
+            outer_parser.add_argument("--" + prefix,
+                                      action=ActionParser(parser=parser))
 
     @staticmethod
     def filter_finetune_args(**kwargs):
@@ -97,4 +98,5 @@ class HFWav2Vec2ResNet1dXVector(HFWav2XVector):
         ResNet1dXVector.add_finetune_args(parser, prefix="xvector")
 
         if prefix is not None:
-            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
+            outer_parser.add_argument("--" + prefix,
+                                      action=ActionParser(parser=parser))

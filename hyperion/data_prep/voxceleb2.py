@@ -2,18 +2,18 @@
  Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from jsonargparse import ActionYesNo
-from pathlib import Path
-import re
 import logging
-from tqdm import tqdm
+import re
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
-import pandas as pd
 import numpy as np
+import pandas as pd
+from jsonargparse import ActionYesNo
+from tqdm import tqdm
 
-from ..utils.misc import urlretrieve_progress, PathLike
-from ..utils import RecordingSet, SegmentSet, ClassInfo, Dataset
+from ..utils import ClassInfo, Dataset, RecordingSet, SegmentSet
+from ..utils.misc import PathLike, urlretrieve_progress
 from .data_prep import DataPrep
 
 

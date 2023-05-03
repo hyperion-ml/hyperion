@@ -3,17 +3,19 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from jsonargparse import ActionParser, ArgumentParser
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 import torch
 import torch.nn as nn
 
+from ...utils.misc import filter_func_args
 from ..layer_blocks import ConformerEncoderBlockV1 as EBlock
 from ..layer_blocks import TransformerConv2dSubsampler as Conv2dSubsampler
 from ..layers import ActivationFactory as AF
-from ..layers import NoPosEncoder
+from ..layers import ConvPosEncoder, NoPosEncoder
 from ..layers import NormLayer1dFactory as NLF
 from ..layers import PosEncoder, RelPosEncoder
+from ..utils import scale_seq_lengths, seq_lengths_to_mask
 from .net_arch import NetArch
 
 
@@ -38,7 +40,7 @@ class ConformerEncoderV1(NetArch):
       d_model: encoder blocks feature dimension
       num_heads: number of heads
       num_blocks: number of self attn blocks
-      att_type: string in ['scaled-dot-prod-att-v1', 'local-scaled-dot-prod-att-v1']
+      att_type: string in ['scaled-dot-prod-att-v1', 'local-scaled-dot-prod-att-v1', 'block-scaled-dot-prod-att-v1']
       att_context: maximum context range for local attention
       conv_repeats: number of conv blocks in each conformer block
       conv_kernel_sizes: kernel size for conv blocks
@@ -50,11 +52,10 @@ class ConformerEncoderV1(NetArch):
       pos_dropout_rate: dropout rate for positional encoder
       att_dropout_rate: dropout rate for attention block
       in_layer_type: input layer block type in ['linear','conv2d-sub', 'embed', None]
-      pos_enc_type: type of positional encoder ['no', 'abs', 'rel']
+      pos_enc_type: type of positional encoder ['no', 'abs', 'rel', 'conv']
 
       causal_pos_enc: if True, use causal positional encodings (when rel_pos_enc=True), it assumes
                       that query q_i only attents to key k_j when j<=i
-      no_pos_enc: if True, it doesn't use positional encoder.
       hid_act:  hidden activations in ff and input blocks
       conv_norm_layer: norm layer constructor or str for conv block,
                        if None it uses BatchNorm1d
@@ -69,8 +70,6 @@ class ConformerEncoderV1(NetArch):
       padding_idx: padding idx for embed layer
       in_time_dim: time dimension in the input Tensor
       out_time_dim: dimension that we want to be time in the output tensor
-      rel_pos_enc: if True, use relative postional encodings, absolute encodings otherwise. (deprecated)
-      red_lnorm: (deprecated)
     """
 
     def __init__(
@@ -93,17 +92,17 @@ class ConformerEncoderV1(NetArch):
         in_layer_type="conv2d-sub",
         pos_enc_type="rel",
         causal_pos_enc=False,
+        pos_kernel_size=128,
+        pos_num_groups=16,
         hid_act="swish",
         conv_norm_layer=None,
         se_r=None,
         ff_macaron=True,
-        red_lnorms=False,
+        red_lnorms=True,
         concat_after=False,
         padding_idx=-1,
-        in_time_dim=-1,
+        in_time_dim=1,
         out_time_dim=1,
-        rel_pos_enc=True,
-        red_lnorm=False,
     ):
 
         super().__init__()
@@ -116,14 +115,11 @@ class ConformerEncoderV1(NetArch):
         self.att_context = att_context
 
         self.conv_repeats = self._standarize_cblocks_param(
-            conv_repeats, num_blocks, "conv_repeats"
-        )
+            conv_repeats, num_blocks, "conv_repeats")
         self.conv_kernel_sizes = self._standarize_cblocks_param(
-            conv_kernel_sizes, num_blocks, "conv_kernel_sizes"
-        )
+            conv_kernel_sizes, num_blocks, "conv_kernel_sizes")
         self.conv_strides = self._standarize_cblocks_param(
-            conv_strides, num_blocks, "conv_strides"
-        )
+            conv_strides, num_blocks, "conv_strides")
 
         self.ff_type = ff_type
         self.d_ff = d_ff
@@ -142,6 +138,8 @@ class ConformerEncoderV1(NetArch):
         self.in_time_dim = in_time_dim
         self.out_time_dim = out_time_dim
         self.hid_act = hid_act
+        self.pos_kernel_size = pos_kernel_size
+        self.pos_num_groups = pos_num_groups
 
         self.conv_norm_layer = conv_norm_layer
         norm_groups = None
@@ -175,8 +173,7 @@ class ConformerEncoderV1(NetArch):
                     ff_macaron=ff_macaron,
                     out_lnorm=self.red_lnorms,
                     concat_after=concat_after,
-                )
-            )
+                ))
 
         self.blocks = nn.ModuleList(blocks)
         if not self.red_lnorms:
@@ -211,6 +208,9 @@ class ConformerEncoderV1(NetArch):
             pos_enc = RelPosEncoder(d_model, self.pos_dropout_rate)
         elif self.pos_enc_type == "abs":
             pos_enc = PosEncoder(d_model, self.pos_dropout_rate)
+        elif self.pos_enc_type == "conv":
+            pos_enc = ConvPosEncoder(d_model, self.pos_kernel_size,
+                                     self.pos_num_groups, self.hid_act)
         else:
             raise Exception("wrong pos-enc-type={}".format(self.pos_enc_type))
 
@@ -225,13 +225,15 @@ class ConformerEncoderV1(NetArch):
                 pos_enc,
             )
         elif self.in_layer_type == "conv2d-sub":
-            self.in_layer = Conv2dSubsampler(
-                in_feats, d_model, hid_act, pos_enc, time_dim=self.in_time_dim
-            )
+            self.in_layer = Conv2dSubsampler(in_feats,
+                                             d_model,
+                                             hid_act,
+                                             pos_enc,
+                                             time_dim=self.in_time_dim)
         elif self.in_layer_type == "embed":
             self.in_layer = nn.Sequential(
-                nn.Embedding(in_feats, d_model, padding_idx=self.padding_idx), pos_enc
-            )
+                nn.Embedding(in_feats, d_model, padding_idx=self.padding_idx),
+                pos_enc)
         elif isinstance(self.in_layer_type, nn.Module):
             self.in_layer = nn.Sequential(self.in_layer_type, pos_enc)
         elif self.in_layer_type is None:
@@ -239,7 +241,12 @@ class ConformerEncoderV1(NetArch):
         else:
             raise ValueError("unknown in_layer_type: " + self.in_layer_type)
 
-    def forward(self, x, x_lengths=None, x_mask=None, target_shape=None):
+    def forward(self,
+                x,
+                x_lengths=None,
+                x_mask=None,
+                return_mask=False,
+                target_shape=None):
         """Forward pass function
 
         Args:
@@ -247,14 +254,20 @@ class ConformerEncoderV1(NetArch):
           x_lengths: lengths of the input sequences.
           x_mask: mask to indicate valid time steps for x (batch, time).
                   It overwrites the mask of x_lengths.
+          return_mask: if True, it also return the output mask
+          target_shape: unused
 
         Returns:
            Tensor with output features
-           Tensor with mask
+           Tensor with output lengths
+           Tensor with mask if return_mask is True
         """
+        max_in_length = x.size(self.in_time_dim)
+        if x_mask is None and x_lengths is not None:
+            x_mask = seq_lengths_to_mask(x_lengths, max_in_length, time_dim=1)
 
         if isinstance(self.in_layer, Conv2dSubsampler):
-            x, mask = self.in_layer(x, x_mask)
+            x, x_mask = self.in_layer(x, x_mask)
         else:
             if self.in_time_dim != 1:
                 x = x.transpose(1, self.in_time_dim).contiguous()
@@ -267,7 +280,7 @@ class ConformerEncoderV1(NetArch):
             b_args = {}
 
         for i in range(len(self.blocks)):
-            x, mask = self.blocks[i](x, mask=mask, **b_args)
+            x, x_mask = self.blocks[i](x, mask=x_mask, **b_args)
 
         if not self.red_lnorms:
             x = self.norm_out(x)
@@ -275,10 +288,13 @@ class ConformerEncoderV1(NetArch):
         if self.out_time_dim != 1:
             x = x.transpose(1, self.out_time_dim)
 
-        if mask is None:
-            return x
+        if x_lengths is not None:
+            x_lengths = scale_seq_lengths(x_lengths, x.size(1), max_in_length)
 
-        return x, mask
+        if return_mask:
+            return x, x_lengths, x_mask
+
+        return x, x_lengths
 
     def get_config(self):
         """Gets network config
@@ -304,6 +320,8 @@ class ConformerEncoderV1(NetArch):
             "in_layer_type": self.in_layer_type,
             "pos_enc_type": self.pos_enc_type,
             "causal_pos_enc": self.causal_pos_enc,
+            "pos_kernel_size": self.pos_kernel_size,
+            "pos_num_groups": self.pos_num_groups,
             "hid_act": self.hid_act,
             "se_r": self.se_r,
             "ff_macaron": self.ff_macaron,
@@ -373,41 +391,11 @@ class ConformerEncoderV1(NetArch):
         Returns:
           args dictionary
         """
-
-        if "no_ff_macaron" in kwargs:
-            kwargs["ff_macaron"] = not kwargs["no_ff_macaron"]
-
-        valid_args = (
-            "num_blocks",
-            "in_feats",
-            "d_model",
-            "num_heads",
-            "att_type",
-            "att_context",
-            "conv_repeats",
-            "conv_kernel_sizes",
-            "conv_strides",
-            "ff_type",
-            "d_ff",
-            "ff_kernel_size",
-            "dropout_rate",
-            "pos_dropout_rate",
-            "att_dropout_rate",
-            "in_layer_type",
-            "hid_act",
-            "pos_enc_type",
-            "causal_pos_enc",
-            "conv_norm_layer",
-            "se_r",
-            "ff_macaron",
-            "red_lnorms",
-            "concat_after",
-        )
-
-        return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
+        args = filter_func_args(ConformerEncoderV1.__init__, kwargs)
+        return args
 
     @staticmethod
-    def add_class_args(parser, prefix=None, in_feats=False):
+    def add_class_args(parser, prefix=None, skip=set()):
         """Adds Conformer config parameters to argparser
 
         Args:
@@ -418,18 +406,21 @@ class ConformerEncoderV1(NetArch):
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        if in_feats:
-            parser.add_argument(
-                "--in-feats", type=int, default=80, help=("input feature dimension")
-            )
+        if "in_feats" not in skip:
+            parser.add_argument("--in-feats",
+                                type=int,
+                                default=80,
+                                help=("input feature dimension"))
 
-        parser.add_argument(
-            "--num-blocks", default=6, type=int, help=("number of tranformer blocks")
-        )
+        parser.add_argument("--num-blocks",
+                            default=6,
+                            type=int,
+                            help=("number of tranformer blocks"))
 
-        parser.add_argument(
-            "--d-model", default=512, type=int, help=("encoder layer sizes")
-        )
+        parser.add_argument("--d-model",
+                            default=512,
+                            type=int,
+                            help=("encoder layer sizes"))
 
         parser.add_argument(
             "--num-heads",
@@ -441,7 +432,10 @@ class ConformerEncoderV1(NetArch):
         parser.add_argument(
             "--att-type",
             default="scaled-dot-prod-v1",
-            choices=["scaled-dot-prod-v1", "local-scaled-dot-prod-v1"],
+            choices=[
+                "scaled-dot-prod-v1", "local-scaled-dot-prod-v1",
+                "block-scaled-dot-prod-v1"
+            ],
             help=("type of self-attention"),
         )
 
@@ -465,7 +459,9 @@ class ConformerEncoderV1(NetArch):
             default=[31],
             nargs="+",
             type=int,
-            help=("kernels sizes for the depth-wise convs of each conformer block"),
+            help=(
+                "kernels sizes for the depth-wise convs of each conformer block"
+            ),
         )
 
         parser.add_argument(
@@ -497,10 +493,9 @@ class ConformerEncoderV1(NetArch):
             help=("kernel size in convolutional feed forward block"),
         )
 
-        try:
-            parser.add_argument("--hid-act", default="swish", help="hidden activation")
-        except:
-            pass
+        parser.add_argument("--hid-act",
+                            default="swish",
+                            help="hidden activation")
 
         parser.add_argument(
             "--pos-dropout-rate",
@@ -508,12 +503,14 @@ class ConformerEncoderV1(NetArch):
             type=float,
             help="positional encoder dropout",
         )
-        parser.add_argument(
-            "--att-dropout-rate", default=0, type=float, help="self-att dropout"
-        )
-        parser.add_argument(
-            "--dropout-rate", default=0.1, type=float, help="feed-forward layer dropout"
-        )
+        parser.add_argument("--att-dropout-rate",
+                            default=0,
+                            type=float,
+                            help="self-att dropout")
+        parser.add_argument("--dropout-rate",
+                            default=0.1,
+                            type=float,
+                            help="feed-forward layer dropout")
 
         parser.add_argument(
             "--in-layer-type",
@@ -522,37 +519,45 @@ class ConformerEncoderV1(NetArch):
             help=("type of input layer"),
         )
 
-        # parser.add_argument('--abs-pos-enc', default=False, action='store_true',
-        #                     help='use absolute positional encoder')
         parser.add_argument(
             "--pos-enc-type",
             default="rel",
-            choices=["no", "rel", "abs"],
+            choices=["no", "rel", "abs", "conv"],
             help=("type of positional encoder"),
         )
 
         parser.add_argument(
             "--causal-pos-enc",
             default=False,
-            action="store_true",
-            help="relative positional encodings are zero when attending to the future",
+            action=ActionYesNo,
+            help=
+            "relative positional encodings are zero when attending to the future",
+        )
+        parser.add_argument(
+            "--pos-kernel-size",
+            default=128,
+            type=int,
+            help="kernel size for conv positional encoder",
+        )
+        parser.add_argument(
+            "--pos-num-groups",
+            default=16,
+            type=int,
+            help="number of conv groups for conv positional encoder",
         )
 
-        try:
-            parser.add_argument(
-                "--conv-norm-layer",
-                default=None,
-                choices=[
-                    "batch-norm",
-                    "group-norm",
-                    "instance-norm",
-                    "instance-norm-affine",
-                    "layer-norm",
-                ],
-                help="type of normalization layer for conv block in conformer",
-            )
-        except:
-            pass
+        parser.add_argument(
+            "--conv-norm-layer",
+            default=None,
+            choices=[
+                "batch-norm",
+                "group-norm",
+                "instance-norm",
+                "instance-norm-affine",
+                "layer-norm",
+            ],
+            help="type of normalization layer for conv block in conformer",
+        )
 
         parser.add_argument(
             "--se-r",
@@ -562,30 +567,26 @@ class ConformerEncoderV1(NetArch):
         )
 
         parser.add_argument(
-            "--no-ff-macaron",
-            default=False,
-            action="store_true",
+            "--ff-macaron",
+            default=True,
+            action=ActionYesNo,
             help="do not use macaron style ff layers ",
         )
 
         parser.add_argument(
             "--red-lnorms",
-            default=False,
-            action="store_true",
+            default=True,
+            action=ActionYesNo,
             help="use redundant Lnorm at conformer blocks' outputs",
         )
 
         parser.add_argument(
             "--concat-after",
             default=False,
-            action="store_true",
+            action=ActionYesNo,
             help="concatenate attention input and output instead of adding",
         )
 
-        # parser.add_argument('--in-norm', default=False, action='store_true',
-        #                     help='batch normalization at the input')
         if prefix is not None:
-            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
-            # help='conformer encoder options')
-
-    add_argparse_args = add_class_args
+            outer_parser.add_argument("--" + prefix,
+                                      action=ActionParser(parser=parser))

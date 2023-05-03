@@ -10,12 +10,8 @@ import time
 
 import numpy as np
 import pandas as pd
-from jsonargparse import (
-    ActionConfigFile,
-    ActionParser,
-    ArgumentParser,
-    namespace_to_dict,
-)
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
 
 import torch
 import torch.nn as nn

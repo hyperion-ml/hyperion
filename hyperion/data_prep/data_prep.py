@@ -2,10 +2,12 @@
  Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from jsonargparse import ActionYesNo
-from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+
+from jsonargparse import ActionYesNo
 from tqdm import tqdm
+
 from ..utils import PathLike
 
 
@@ -63,8 +65,9 @@ class DataPrep:
 
     def get_recording_duration(self, recording_set):
 
-        from ..utils import SCPList
         import itertools
+
+        from ..utils import SCPList
 
         scp = SCPList(recording_set["id"].values, recording_set["storage_path"].values)
         futures = []

@@ -18,7 +18,6 @@ from ...narchs import ClassifHead, TorchNALoader
 from ...torch_model import TorchModel
 from ...utils import eval_nnet_by_chunks, scale_seq_lengths
 
-
 # class XVectorTrainMode(Enum):
 #     full = 0
 #     frozen = 1

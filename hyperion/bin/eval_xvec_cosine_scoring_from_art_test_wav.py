@@ -11,13 +11,10 @@ import time
 
 import numpy as np
 import pandas as pd
+from art.classifiers import PyTorchClassifier
 from art.estimators.classification import PyTorchClassifier
-from jsonargparse import (
-    ActionConfigFile,
-    ActionParser,
-    ArgumentParser,
-    namespace_to_dict,
-)
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
 
 import torch
 import torch.nn as nn
@@ -28,9 +25,8 @@ from hyperion.io import RandomAccessDataReaderFactory as DRF
 from hyperion.io import VADReaderFactory as VRF
 from hyperion.np.classifiers import BinaryLogisticRegression as LR
 from hyperion.torch import TorchModelLoader as TML
-from hyperion.torch.adv_attacks.art_attack_factory import (
-    ARTAttackFactory as AttackFactory,
-)
+from hyperion.torch.adv_attacks.art_attack_factory import \
+    ARTAttackFactory as AttackFactory
 from hyperion.torch.layers import LinBinCalibrator as Calibrator
 from hyperion.torch.narchs import AudioFeatsMVN as AF
 from hyperion.torch.utils import open_device

@@ -11,6 +11,7 @@ import subprocess
 
 import numpy as np
 import soundfile as sf
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ..hyp_defs import float_cpu
 from ..utils import SCPList, SegmentList
@@ -48,7 +49,7 @@ class AudioReader(object):
          wav_scale:     multiplies signal by scale factor
     """
 
-    def __init__(self, file_path, segments_path=None, wav_scale=2 ** 15 - 1):
+    def __init__(self, file_path, segments_path=None, wav_scale=2**15 - 1):
         self.file_path = file_path
         if isinstance(file_path, SCPList):
             self.scp = file_path
@@ -64,9 +65,9 @@ class AudioReader(object):
             if isinstance(file_path, SegmentList):
                 self.segments = segments_path
             else:
-                self.segments = SegmentList.load(
-                    segments_path, sep=" ", index_by_file=False
-                )
+                self.segments = SegmentList.load(segments_path,
+                                                 sep=" ",
+                                                 index_by_file=False)
 
         self.wav_scale = wav_scale
 
@@ -93,7 +94,10 @@ class AudioReader(object):
         pass
 
     @staticmethod
-    def read_wavspecifier(wavspecifier, scale=2 ** 15, time_offset=0, time_dur=0):
+    def read_wavspecifier(wavspecifier,
+                          scale=2**15,
+                          time_offset=0,
+                          time_dur=0):
         """Reads an audiospecifier (audio_file/pipe)
            It reads from pipe or from all the files that can be read
            by `libsndfile <http://www.mega-nerd.com/libsndfile/#Features>`
@@ -143,20 +147,20 @@ class AudioReader(object):
         raise Exception("Unknown format for %s" % (wavspecifier))
 
     @staticmethod
-    def read_pipe(wavspecifier, scale=2 ** 15):
+    def read_pipe(wavspecifier, scale=2**15):
         """Reads wave file from a pipe
         Args:
           wavspecifier: Shell command with pipe output
           scale:        Multiplies signal by scale factor
         """
         # proc = subprocess.Popen(wavspecifier, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        proc = subprocess.Popen(wavspecifier, shell=True, stdout=subprocess.PIPE)
+        proc = subprocess.Popen(wavspecifier,
+                                shell=True,
+                                stdout=subprocess.PIPE)
         pipe = proc.communicate()[0]
         if proc.returncode != 0:
-            raise Exception(
-                "Wave read pipe command %s returned code %d"
-                % (wavspecifier, proc.returncode)
-            )
+            raise Exception("Wave read pipe command %s returned code %d" %
+                            (wavspecifier, proc.returncode))
         x, fs = sf.read(io.BytesIO(pipe), dtype=float_cpu())
         x *= scale
         return x, fs
@@ -184,8 +188,7 @@ class AudioReader(object):
         if s_beg >= num_samples_i:
             raise Exception(
                 "segment %s tbeg=%.2f (num_sample=%d) longer that wav file %s (num_samples=%d)"
-                % (file_id, t_beg, s_beg, file_id, num_samples_i)
-            )
+                % (file_id, t_beg, s_beg, file_id, num_samples_i))
 
         s_end = int(t_end * fs_i)
         if s_end > num_samples_i or t_end < 0:
@@ -199,11 +202,12 @@ class AudioReader(object):
 
 
 class SequentialAudioReader(AudioReader):
+
     def __init__(
         self,
         file_path,
         segments_path=None,
-        wav_scale=2 ** 15 - 1,
+        wav_scale=2**15 - 1,
         part_idx=1,
         num_parts=1,
     ):
@@ -213,11 +217,12 @@ class SequentialAudioReader(AudioReader):
         self.num_parts = num_parts
         if self.num_parts > 1:
             if self.with_segments:
-                self.segments = self.segments.split(self.part_idx, self.num_parts)
+                self.segments = self.segments.split(self.part_idx,
+                                                    self.num_parts)
             else:
-                self.scp = self.scp.split(
-                    self.part_idx, self.num_parts, group_by_key=False
-                )
+                self.scp = self.scp.split(self.part_idx,
+                                          self.num_parts,
+                                          group_by_key=False)
 
     def __iter__(self):
         """Needed to build an iterator, e.g.:
@@ -297,9 +302,8 @@ class SequentialAudioReader(AudioReader):
                 x_i, fs_i = self._read_segment(segment, offset_i, dur_i)
             else:
                 key, file_path, _, _ = self.scp[self.cur_item]
-                x_i, fs_i = self.read_wavspecifier(
-                    file_path, self.wav_scale, offset_i, dur_i
-                )
+                x_i, fs_i = self.read_wavspecifier(file_path, self.wav_scale,
+                                                   offset_i, dur_i)
 
             keys.append(key)
             data.append(x_i)
@@ -315,42 +319,46 @@ class SequentialAudioReader(AudioReader):
 
     @staticmethod
     def add_class_args(parser, prefix=None):
-        if prefix is None:
-            p1 = "--"
-        else:
-            p1 = "--" + prefix + "."
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
 
         parser.add_argument(
-            p1 + "wav-scale",
-            default=2 ** 15 - 1,
+            "--wav-scale",
+            default=2**15 - 1,
             type=float,
             help=("multiplicative factor for waveform"),
         )
         try:
             parser.add_argument(
-                p1 + "part-idx",
+                "--part-idx",
                 type=int,
                 default=1,
-                help=(
-                    "splits the list of files into num-parts and " "processes part-idx"
-                ),
+                help=("splits the list of files into num-parts and "
+                      "processes part-idx"),
             )
             parser.add_argument(
-                p1 + "num-parts",
+                "--num-parts",
                 type=int,
                 default=1,
-                help=(
-                    "splits the list of files into num-parts and " "processes part-idx"
-                ),
+                help=("splits the list of files into num-parts and "
+                      "processes part-idx"),
             )
         except:
             pass
+
+        if prefix is not None:
+            outer_parser.add_argument(
+                "--" + prefix,
+                action=ActionParser(parser=parser),
+            )
 
     add_argparse_args = add_class_args
 
 
 class RandomAccessAudioReader(AudioReader):
-    def __init__(self, file_path, segments_path=None, wav_scale=2 ** 15 - 1):
+
+    def __init__(self, file_path, segments_path=None, wav_scale=2**15 - 1):
         super().__init__(file_path, segments_path, wav_scale)
 
     def _read(self, keys, time_offset=0, time_durs=0):
@@ -386,9 +394,8 @@ class RandomAccessAudioReader(AudioReader):
                     raise Exception("Key %s not found" % key)
 
                 file_path, _, _ = self.scp[key]
-                x_i, fs_i = self.read_wavspecifier(
-                    file_path, self.wav_scale, offset_i, dur_i
-                )
+                x_i, fs_i = self.read_wavspecifier(file_path, self.wav_scale,
+                                                   offset_i, dur_i)
 
             data.append(x_i)
             fs.append(fs_i)
@@ -406,7 +413,9 @@ class RandomAccessAudioReader(AudioReader):
           fs: List of sampling freq.
         """
         try:
-            x, fs = self._read(keys, time_offset=time_offset, time_durs=time_durs)
+            x, fs = self._read(keys,
+                               time_offset=time_offset,
+                               time_durs=time_durs)
         except:
             if isinstance(keys, str):
                 keys = [keys]
@@ -422,23 +431,17 @@ class RandomAccessAudioReader(AudioReader):
                 # we try to read from
                 # time-offset to the end of the file, and remove the extra frames later,
                 # this solves the problem in most cases
-                logging.info(
-                    (
-                        "error-1 reading at keys={} offset={} "
-                        "retrying reading until end-of-file ..."
-                    ).format(keys, time_offset)
-                )
+                logging.info(("error-1 reading at keys={} offset={} "
+                              "retrying reading until end-of-file ...").format(
+                                  keys, time_offset))
                 x, fs = self._read(keys, time_offset=time_offset)
                 for i in range(len(x)):
                     end_sample = int(time_durs[i] * fs[i])
                     x[i] = x[i][:end_sample]
             except:
                 # try to read the full file
-                logging.info(
-                    (
-                        "error-2 reading at key={}, " "retrying reading full file ..."
-                    ).format(keys)
-                )
+                logging.info(("error-2 reading at key={}, "
+                              "retrying reading full file ...").format(keys))
                 x, fs = self._read(keys)
                 for i in range(len(x)):
                     start_sample = int(time_offset[i] * fs[i])
@@ -449,21 +452,25 @@ class RandomAccessAudioReader(AudioReader):
 
     @staticmethod
     def filter_args(**kwargs):
-        valid_args = ("wav_scale",)
+        valid_args = ("wav_scale", )
         return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
     @staticmethod
     def add_class_args(parser, prefix=None):
-        if prefix is None:
-            p1 = "--"
-        else:
-            p1 = "--" + prefix + "."
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
 
         parser.add_argument(
-            p1 + "wav-scale",
-            default=2 ** 15 - 1,
+            "--wav-scale",
+            default=2**15 - 1,
             type=float,
             help=("multiplicative factor for waveform"),
         )
+        if prefix is not None:
+            outer_parser.add_argument(
+                "--" + prefix,
+                action=ActionParser(parser=parser),
+            )
 
     add_argparse_args = add_class_args

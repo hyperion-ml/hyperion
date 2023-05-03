@@ -30,6 +30,9 @@ from .se_blocks import (CFwSEBlock2d, FwSEBlock2d, SEBlock1d, SEBlock2D,
 from .seresnet_blocks import SEResNetBasicBlock, SEResNetBNBlock
 from .spine_blocks import BlockSpec, SpineConv, SpineEndpoints, SpineResample
 from .tdnn_blocks import TDNNBlock
+from .transducer_joiner import TransducerJoiner
+from .transducer_predictor import (TransducerConvPredictor,
+                                   TransducerRNNPredictor)
 from .transformer_conv2d_subsampler import TransformerConv2dSubsampler
 from .transformer_encoder_v1 import TransformerEncoderBlockV1
 from .transformer_feedforward import (Conv1dLinear, Conv1dx2,

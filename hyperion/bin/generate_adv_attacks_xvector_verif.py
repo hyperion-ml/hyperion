@@ -12,12 +12,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import yaml
-from jsonargparse import (
-    ActionConfigFile,
-    ActionParser,
-    ArgumentParser,
-    namespace_to_dict,
-)
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
 
 import torch
 import torch.nn as nn
