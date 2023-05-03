@@ -50,6 +50,8 @@ class RNNTransducer(TorchModel):
         if encoder is not None:
             assert isinstance(encoder, TorchModel)
         if isinstance(decoder, dict):
+            if encoder is not None:
+                decoder["in_feats"] = encoder.out_shape()[-1]
             decoder = RNNTransducerDecoder(**decoder)
         else:
             assert isinstance(decoder, RNNTransducerDecoder)

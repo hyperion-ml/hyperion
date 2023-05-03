@@ -38,7 +38,6 @@ class HFWav2RNNTransducer(TorchModel):
         self.hf_feats = hf_feats
         if isinstance(transducer, dict):
             transducer["decoder"]["in_feats"] = hf_feats.hidden_size
-            #transducer["joiner"]["in_feats"] = hf_feats.hidden_size
             if "class_name" in transducer:
                 del transducer["class_name"]
 
@@ -48,7 +47,6 @@ class HFWav2RNNTransducer(TorchModel):
             assert isinstance(transducer, RNNTransducer)
             if transducer.encoder is None:
                 assert transducer.decoder.in_feats == hf_feats.hidden_size
-                #assert transducer.joiner.in_feats == hf_feats.hidden_size
 
         self.transducer = transducer
         self.feat_fusion_start = feat_fusion_start

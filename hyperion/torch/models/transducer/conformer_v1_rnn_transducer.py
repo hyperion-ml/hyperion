@@ -15,12 +15,12 @@ except ModuleNotFoundError:
 
 import torch
 
-from ...narchs import RNNEncoder
+from ...narchs import ConformerEncoderV1
 from .rnn_transducer import RNNTransducer
 
 
-class RNNRNNTransducer(RNNTransducer):
-    """RNN-T with RNN Encoder
+class ConformerV1RNNTransducer(RNNTransducer):
+    """RNN-T with Conformer Encoder
 
     Attributes:
       encoder: dictionary of options to initialize RNNEncoder class or RNNEncoder object
@@ -30,7 +30,7 @@ class RNNRNNTransducer(RNNTransducer):
 
     def __init__(self, encoder, decoder):
         if isinstance(encoder, dict):
-            encoder = RNNEncoder(**encoder)
+            encoder = ConformerEncoderV1(**encoder)
         else:
             assert isinstance(encoder, RNNEncoder)
 
@@ -39,7 +39,7 @@ class RNNRNNTransducer(RNNTransducer):
     @staticmethod
     def filter_args(**kwargs):
         args = RNNTransducer.filter_args(**kwargs)
-        encoder_args = RNNEncoder.filter_args(**kwargs["encoder"])
+        encoder_args = ConformerEncoderV1.filter_args(**kwargs["encoder"])
         args["encoder"] = encoder_args
         return args
 
@@ -50,7 +50,7 @@ class RNNRNNTransducer(RNNTransducer):
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        RNNEncoder.add_class_args(parser, prefix="encoder", skip=skip)
+        ConformerEncoderV1.add_class_args(parser, prefix="encoder", skip=skip)
         RNNTransducer.add_class_args(parser)
         if prefix is not None:
             outer_parser.add_argument("--" + prefix,
@@ -68,7 +68,8 @@ class RNNRNNTransducer(RNNTransducer):
     @staticmethod
     def filter_finetune_args(**kwargs):
         args = RNNTransducer.filter_finetune_args(**kwargs)
-        encoder_args = RNNEncoder.filter_finetune_args(**kwargs["encoder"])
+        encoder_args = ConformerEncoderV1.filter_finetune_args(
+            **kwargs["encoder"])
         args["encoder"] = encoder_args
         return args
 
@@ -78,7 +79,7 @@ class RNNRNNTransducer(RNNTransducer):
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        RNNEncoder.add_finetune_args(parser, prefix="encoder")
+        ConformerEncoderV1.add_finetune_args(parser, prefix="encoder")
         RNNTransducer.add_finetune_args(parser)
 
         if prefix is not None:

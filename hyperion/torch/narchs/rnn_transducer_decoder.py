@@ -30,7 +30,7 @@ class Hypothesis:
     log_prob: float  # log prob of ys
 
     # Optional LSTM predictor state.
-    pred_state: Optional[Tuple[torch.Tensor, torch.Tensor]] = None
+    pred_state: Optional[Tuple[torch.Tensor, ...]] = None
 
 
 class RNNTransducerDecoder(NetArch):
@@ -115,6 +115,7 @@ class RNNTransducerDecoder(NetArch):
             pred_args = filter_func_args(ConvPredictor.__init__,
                                          self.predictor_args)
             self.predictor = ConvPredictor(**pred_args)
+            self.predictor_args["out_feats"] = self.predictor.embed_dim
         else:
             raise ValueError(f"Unknown predictor type {pred_type}")
 
@@ -263,7 +264,7 @@ class RNNTransducerDecoder(NetArch):
             simple_loss_scale = 1.0 - r * (1.0 - self.simple_loss_scale)
             pruned_loss_scale = 0.1 + 0.9 * r
             self.cur_step += 1
-            print(simple_loss_scale, pruned_loss_scale)
+            #print(simple_loss_scale, pruned_loss_scale)
 
         loss = simple_loss_scale * loss_simple + pruned_loss_scale * loss_pruned
 
@@ -338,7 +339,7 @@ class RNNTransducerDecoder(NetArch):
 
         sos = torch.tensor([blank_id], device=device,
                            dtype=torch.int64).reshape(1, 1)
-        pred_out, (h, c) = self.predictor(sos)
+        pred_out, state = self.predictor(sos)
         T = x.size(1)
         t = 0
         hyp = []
@@ -357,7 +358,7 @@ class RNNTransducerDecoder(NetArch):
             if y != blank_id:
                 hyp.append(y.item())
                 y = y.reshape(1, 1)
-                pred_out, (h, c) = self.predictor(y, (h, c))
+                pred_out, state = self.predictor(y, state)
 
                 sym_per_utt += 1
                 sym_per_frame += 1
@@ -379,7 +380,7 @@ class RNNTransducerDecoder(NetArch):
         device = x.device
 
         sos = torch.tensor([blank_id], device=device).reshape(1, 1)
-        pred_out, (h, c) = self.predictor(sos)
+        pred_out, state = self.predictor(sos)
         T = x.size(1)
         t = 0
         B = [Hypothesis(ys=[blank_id], log_prob=0.0, pred_state=None)]
@@ -498,7 +499,7 @@ class RNNTransducerDecoder(NetArch):
         device = x.device
 
         sos = torch.tensor([blank_id], device=device).reshape(1, 1)
-        pred_out, (h, c) = self.predictor(sos)
+        pred_out, state = self.predictor(sos)
         T = x.size(1)
         #t = 0
         B = [Hypothesis(ys=[blank_id], log_prob=0.0, pred_state=None)]
