@@ -43,6 +43,25 @@ def get_resampler(source_fs, target_fs):
     resamplers[source_fs] = resampler_f
     return resampler_f
 
+resamplers = {}
+
+
+def get_resampler(source_fs, target_fs):
+    if source_fs in resamplers:
+        return resamplers[source_fs]
+
+    resampler = tat.Resample(
+        int(source_fs),
+        int(target_fs),
+        lowpass_filter_width=64,
+        rolloff=0.9475937167399596,
+        resampling_method="kaiser_window",
+        beta=14.769656459379492,
+    )
+    resampler_f = lambda x: resampler(torch.from_numpy(x)).numpy()
+    resamplers[source_fs] = resampler_f
+    return resampler_f
+
 
 def init_device(use_gpu):
     set_float_cpu("float32")
