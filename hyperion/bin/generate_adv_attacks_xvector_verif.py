@@ -12,8 +12,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import yaml
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
 
 import torch
 import torch.nn as nn
@@ -102,20 +106,6 @@ def init_model(model_path, embed_layer, cal_file, threshold, **kwargs):
     xvector_model.freeze()
     logging.info("xvector-model={}".format(xvector_model))
 
-    # feat_args = AFF.filter_args(prefix='feats', **kwargs)
-    # logging.info('initializing feature extractor args={}'.format(feat_args))
-    # feat_extractor = AFF.create(**feat_args)
-
-    # mvn_args = MVN.filter_args(prefix='mvn', **kwargs)
-    # mvn = None
-    # if mvn_args['norm_mean'] or mvn_args['norm_var']:
-    #     logging.info('initializing short-time mvn args={}'.format(mvn_args))
-    #     mvn = MVN(**mvn_args)
-
-    # logging.info('loading model {}'.format(model_path))
-    # xvector_model = TML.load(model_path)
-    # xvector_model.freeze()
-
     calibrator = None
     if cal_file is not None:
         logging.info("loading calibration params {}".format(cal_file))
@@ -200,16 +190,17 @@ def generate_attacks(
     key, x_e = read_data(v_file, key_file, enroll_file, seg_part_idx, num_seg_parts)
     x_e = torch.as_tensor(x_e, dtype=torch.get_default_dtype())
 
-    logging.info("opening audio read stream: %s" % (test_wav_file))
+    logging.info("opening audio read stream: %s", test_wav_file)
     audio_args = AR.filter_args(**kwargs)
-    audio_reader = AR(test_wav_file)
+    audio_reader = AR(test_wav_file, **audio_args)
     wav_scale = audio_reader.wav_scale
+    kwargs["wav_scale"] = wav_scale
 
-    logging.info("opening audio write stream: %s" % (output_wav_dir))
+    logging.info("opening audio write stream: %s", output_wav_dir)
     audio_writer = AW(output_wav_dir, audio_format="flac")
 
     if vad_spec is not None:
-        logging.info("opening VAD stream: %s" % (vad_spec))
+        logging.info("opening VAD stream: %s", vad_spec)
         v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix, scp_sep=" ")
 
     attack_factory = init_attack_factory(**kwargs)
@@ -217,7 +208,7 @@ def generate_attacks(
 
     for j in range(key.num_tests):
         t1 = time.time()
-        logging.info("scoring test utt %s" % (key.seg_set[j]))
+        logging.info("scoring test utt %s", key.seg_set[j])
         s, fs = audio_reader.read([key.seg_set[j]])
         s = s[0]
         fs = fs[0]
@@ -235,13 +226,11 @@ def generate_attacks(
             )
             model.vad_t = vad
             logging.info(
-                "utt %s detected %d/%d (%.2f %%) speech frames"
-                % (
-                    key.seg_set[j],
-                    speech_frames,
-                    tot_frames,
-                    speech_frames / tot_frames * 100,
-                )
+                "utt %s detected %d/%d (%.2f %%) speech frames",
+                key.seg_set[j],
+                speech_frames,
+                tot_frames,
+                speech_frames / tot_frames * 100,
             )
 
         t2 = time.time()
@@ -253,23 +242,23 @@ def generate_attacks(
             if key.tar[i, j] or key.non[i, j]:
                 t3 = time.time()
                 if skip_attack(key.tar[i, j], p_tar_attack, p_non_attack):
-                    logging.info("skipping attack for tar trial %s" % (trial_id))
+                    logging.info("skipping attack for tar trial %s", trial_id)
                     continue
 
-                model.x_e = x_e[i].to(device)
+                model.x_e = x_e[i : i + 1].to(device)
                 with torch.no_grad():
                     score_benign = model(s)
 
                 if key.tar[i, j] and score_benign < 0:
                     logging.info(
-                        "target trial %s failed benign classification, skipping..."
-                        % (trial_id)
+                        "target trial %s failed benign classification, skipping...",
+                        trial_id,
                     )
                     continue
                 elif key.non[i, j] and score_benign > 0:
                     logging.info(
-                        "non-target trial %s failed benign classification, skipping..."
-                        % (trial_id)
+                        "non-target trial %s failed benign classification, skipping...",
+                        trial_id,
                     )
                     continue
 
@@ -293,19 +282,19 @@ def generate_attacks(
                     success = False
                     if not save_failed:
                         logging.info(
-                            "attack on target trial %s failed, skipping..." % (trial_id)
+                            "attack on target trial %s failed, skipping...", trial_id
                         )
                         continue
                 elif key.non[i, j] and score_adv < 0:
                     success = False
                     if not save_failed:
                         logging.info(
-                            "attack on non-target trial %s failed benign classification, skipping..."
-                            % (trial_id)
+                            "attack on non-target trial %s failed benign classification, skipping...",
+                            trial_id,
                         )
                         continue
                 if success:
-                    logging.info("attack on trial %s successful" % (trial_id))
+                    logging.info("attack on trial %s successful", trial_id)
 
                 stats_ij = compute_stats_adv_attack(s, s_adv)
                 stats_ij = [float(stat.detach().cpu().numpy()[0]) for stat in stats_ij]
@@ -344,18 +333,16 @@ def generate_attacks(
                 (
                     "utt %s total-time=%.3f read-time=%.3f trial-time=%.3f n_trials=%d "
                     "rt-factor=%.4f"
-                )
-                % (
-                    key.seg_set[j],
-                    t7 - t1,
-                    t2 - t1,
-                    trial_time,
-                    num_trials,
-                    num_trials * len(s) / fs / (t7 - t1),
-                )
+                ),
+                key.seg_set[j],
+                t7 - t1,
+                t2 - t1,
+                trial_time,
+                num_trials,
+                num_trials * len(s) / fs / (t7 - t1),
             )
 
-    logging.info("saving attack info to %s" % (attack_info_file))
+    logging.info("saving attack info to %s", attack_info_file)
     Path(attack_info_file).parent.mkdir(parents=True, exist_ok=True)
 
     with open(attack_info_file, "w") as f:

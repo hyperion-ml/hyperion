@@ -4,9 +4,13 @@
 
  Miscellaneous functions
 """
+from typing import TypeVar
 from inspect import signature
+from pathlib import Path
 
 import numpy as np
+
+PathLike = TypeVar("PathLike", str, Path, None)
 
 
 def generate_data(g):

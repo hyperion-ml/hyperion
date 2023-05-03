@@ -3,8 +3,6 @@ data:
     dataset:
       class_names:
       - class_id
-      aug_cfgs:
-      - conf/reverb_noise_aug.yaml
       return_segment_info:
       - class_id
     sampler:
@@ -20,8 +18,6 @@ data:
     dataset:
       class_names:
       - class_id
-      aug_cfgs:
-      - conf/reverb_noise_aug.yaml
       return_segment_info:
       - class_id
     sampler:

@@ -14,6 +14,7 @@ from jsonargparse import (
 )
 
 from hyperion.data_prep import DataPrep
+from hyperion.hyp_defs import config_logger
 
 
 def make_parser(data_prep_class):
@@ -34,6 +35,7 @@ if __name__ == "__main__":
         subcommands.add_subcommand(k, parser_k)
 
     args = parser.parse_args()
+    config_logger(1)
     data_prep_class = DataPrep.registry[args.subcommand]
     args = namespace_to_dict(args)[args.subcommand]
 

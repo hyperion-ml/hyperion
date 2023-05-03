@@ -12,8 +12,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import yaml
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
 
 import torch
 import torch.nn as nn
@@ -160,7 +164,7 @@ def generate_attacks(
 
     logging.info("opening audio read stream: %s" % (wav_file))
     audio_args = AR.filter_args(**kwargs)
-    audio_reader = AR(wav_file)
+    audio_reader = AR(wav_file ** audio_args)
     wav_scale = audio_reader.wav_scale
 
     logging.info("opening audio write stream: %s" % (output_wav_dir))

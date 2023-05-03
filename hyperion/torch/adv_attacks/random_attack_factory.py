@@ -128,7 +128,7 @@ class RandomAttackFactory(object):
         )
         attack_args["max_iter"] = self._randint(self.min_iter, self.max_iter)
         attack_args["abort_early"] = self.abort_early
-        attack_args["c"] = self._uniform(self.min_c, self.max_c)
+        attack_args["initial_c"] = self._uniform(self.min_c, self.max_c)
         attack_args["reduce_c"] = self.reduce_c
         attack_args["c_incr_factor"] = self.c_incr_factor
         attack_args["tau_decr_factor"] = self.tau_decr_factor
@@ -220,10 +220,9 @@ class RandomAttackFactory(object):
 
         parser.add_argument(
             "--norms",
-            type=float,
-            default=[float("inf")],
+            default=["inf"],
             nargs="+",
-            choices=[float("inf"), 1, 2],
+            choices=["inf", "1", "2"],
             help=("Attack perturbation norms"),
         )
 
