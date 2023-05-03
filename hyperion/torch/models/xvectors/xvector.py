@@ -4,23 +4,24 @@
 """
 import logging
 from enum import Enum
-from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
 from typing import Optional
+
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 import torch
 import torch.nn as nn
 
-from ...layers import GlobalPool1dFactory as PF
+from ....utils.misc import filter_func_args
 from ...layer_blocks import TDNNBlock
+from ...layers import GlobalPool1dFactory as PF
 from ...narchs import ClassifHead, TorchNALoader
 from ...torch_model import TorchModel
 from ...utils import eval_nnet_by_chunks, scale_seq_lengths
 
-
-class XVectorTrainMode(Enum):
-    full = 0
-    frozen = 1
-    ft_embed_affine = 2
+# class XVectorTrainMode(Enum):
+#     full = 0
+#     frozen = 1
+#     ft_embed_affine = 2
 
 
 class XVector(TorchModel):
@@ -45,6 +46,7 @@ class XVector(TorchModel):
         head_norm_layer=None,
         use_norm=True,
         norm_before=True,
+        head_use_in_norm=False,
         dropout_rate=0,
         embed_layer=0,
         in_feats=None,
@@ -105,7 +107,7 @@ class XVector(TorchModel):
 
         # if head_norm_layer is none we use the global norm_layer
         if head_norm_layer is None and norm_layer is not None:
-            if norm_layer == "instance-norm" or norm_layer == "instance-norm-affine":
+            if norm_layer in ("instance-norm", "instance-norm-affine"):
                 head_norm_layer = "batch-norm"
             else:
                 head_norm_layer = norm_layer
@@ -129,6 +131,7 @@ class XVector(TorchModel):
             use_norm=use_norm,
             norm_before=norm_before,
             dropout_rate=dropout_rate,
+            use_in_norm=head_use_in_norm,
         )
 
         self.hid_act = hid_act
@@ -136,6 +139,7 @@ class XVector(TorchModel):
         self.head_norm_layer = head_norm_layer
         self.use_norm = use_norm
         self.norm_before = norm_before
+        self.head_use_in_norm = head_use_in_norm
         self.dropout_rate = dropout_rate
         self.embed_layer = embed_layer
 
@@ -281,12 +285,47 @@ class XVector(TorchModel):
         Returns:
           class logits tensor with shape=(batch, num_classes).
         """
+        f = x
         max_in_length = x.size(-1)
         x = self._pre_enc(x)
         x = self.encoder_net(x)
         x, x_lengths = self._post_enc(x, x_lengths, max_in_length)
         p = self.pool_net(x, x_lengths=x_lengths)
         y = self.classif_net(p, y)
+        # if not self.training:
+        #     fnf = (
+        #         torch.any(torch.any(torch.logical_not(torch.isfinite(f)), dim=1), dim=1)
+        #         .sum()
+        #         .cpu()
+        #         .item()
+        #     )
+        #     xnf = (
+        #         torch.any(torch.any(torch.logical_not(torch.isfinite(x)), dim=1), dim=1)
+        #         .sum()
+        #         .cpu()
+        #         .item()
+        #     )
+        #     pnf = (
+        #         torch.any(torch.logical_not(torch.isfinite(p)), dim=1)
+        #         .sum()
+        #         .cpu()
+        #         .item()
+        #     )
+        #     ynf = (
+        #         torch.any(torch.logical_not(torch.isfinite(y)), dim=1)
+        #         .sum()
+        #         .cpu()
+        #         .item()
+        #     )
+        #     # if xnf + pnf + ynf > 0:
+        #     logging.warning("ff %d xnf %d pnf %d ynf %d", fnf, xnf, pnf, ynf)
+        #     if xnf > 0:
+        #         ii = torch.any(
+        #             torch.any(torch.logical_not(torch.isfinite(x)), dim=1), dim=1
+        #         )
+        #         xx = x[ii]
+        #         logging.info(f"xx={xx}")
+
         return y
 
     def forward_hid_feats(
@@ -509,6 +548,7 @@ class XVector(TorchModel):
             "head_norm_layer": self.head_norm_layer,
             "use_norm": self.use_norm,
             "norm_before": self.norm_before,
+            "head_use_in_norm": self.head_use_in_norm,
             "dropout_rate": self.dropout_rate,
             "embed_layer": self.embed_layer,
             "in_feats": self.in_feats,
@@ -572,14 +612,26 @@ class XVector(TorchModel):
         intertop_margin=0.0,
         num_subcenters=2,
     ):
-        if (self.num_classes is not None and self.num_classes != num_classes) or (
-            self.loss_type != loss_type
+        if (
+            (self.num_classes is not None and self.num_classes != num_classes)
+            or (self.loss_type != loss_type)
+            or (
+                loss_type == "subcenter-arc-softmax"
+                and self.classif_net.num_subcenters != num_subcenters
+            )
         ):
             # if we change the number of classes or the loss-type
             # we need to reinitiate the last layer
             logging.info("rebuilding output layer")
             self.classif_net.rebuild_output_layer(
-                num_classes, loss_type, cos_scale, margin, margin_warmup_epochs
+                num_classes,
+                loss_type,
+                cos_scale,
+                margin,
+                margin_warmup_epochs,
+                intertop_k=intertop_k,
+                intertop_margin=intertop_margin,
+                num_subcenters=num_subcenters,
             )
             return
 
@@ -643,41 +695,37 @@ class XVector(TorchModel):
     @staticmethod
     def filter_args(**kwargs):
 
-        if "wo_norm" in kwargs:
-            kwargs["use_norm"] = not kwargs["wo_norm"]
-            del kwargs["wo_norm"]
-
-        if "norm_after" in kwargs:
-            kwargs["norm_before"] = not kwargs["norm_after"]
-            del kwargs["norm_after"]
-
         # get arguments for pooling
         pool_args = PF.filter_args(**kwargs["pool_net"])
-
-        valid_args = (
-            "num_classes",
-            "embed_dim",
-            "num_embed_layers",
-            "hid_act",
-            "loss_type",
-            "cos_scale",
-            "margin",
-            "margin_warmup_epochs",
-            "intertop_k",
-            "intertop_margin",
-            "num_subcenters",
-            "use_norm",
-            "norm_before",
-            "in_feats",
-            "proj_feats",
-            "dropout_rate",
-            "norm_layer",
-            "head_norm_layer",
-        )
-        args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
-
+        args = filter_func_args(ClassifHead.__init__, kwargs)
         args["pool_net"] = pool_args
         return args
+
+        # valid_args = (
+        #     "num_classes",
+        #     "embed_dim",
+        #     "num_embed_layers",
+        #     "hid_act",
+        #     "loss_type",
+        #     "cos_scale",
+        #     "margin",
+        #     "margin_warmup_epochs",
+        #     "intertop_k",
+        #     "intertop_margin",
+        #     "num_subcenters",
+        #     "use_norm",
+        #     "norm_before",
+        #     "in_feats",
+        #     "proj_feats",
+        #     "dropout_rate",
+        #     "norm_layer",
+        #     "head_norm_layer",
+        #     "head_use_in_norm",
+        # )
+        # args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
+
+        # args["pool_net"] = pool_args
+        # return args
 
     @staticmethod
     def add_class_args(parser, prefix=None, skip=set()):
@@ -781,17 +829,24 @@ class XVector(TorchModel):
             pass
 
         parser.add_argument(
-            "--wo-norm",
-            default=False,
-            action="store_true",
+            "--use-norm",
+            default=True,
+            action=ActionYesNo,
             help="without batch normalization",
         )
 
         parser.add_argument(
-            "--norm-after",
+            "--norm-before",
+            default=True,
+            action=ActionYesNo,
+            help="batch normalizaton before activation",
+        )
+
+        parser.add_argument(
+            "--head-use-in-norm",
             default=False,
-            action="store_true",
-            help="batch normalizaton after activation",
+            action=ActionYesNo,
+            help="batch normalizaton at the head input",
         )
 
         try:
@@ -880,7 +935,7 @@ class XVector(TorchModel):
         parser.add_argument(
             "--num-subcenters",
             default=2,
-            type=float,
+            type=int,
             help="number of subcenters in subcenter losses",
         )
 

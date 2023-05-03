@@ -91,7 +91,7 @@ class BinaryLogisticRegression(LogisticRegression):
             verbose=verbose,
             warm_start=warm_start,
             multi_class="ovr",
-            lr_seed=1024,
+            lr_seed=lr_seed,
             **kwargs
         )
 

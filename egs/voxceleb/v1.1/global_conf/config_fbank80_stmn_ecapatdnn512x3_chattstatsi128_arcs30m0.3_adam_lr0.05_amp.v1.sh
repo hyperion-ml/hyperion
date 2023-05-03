@@ -25,7 +25,7 @@ margin=0.3
 nnet_num_epochs=70
 
 xvec_train_base_cfg=conf/train_ecapatdnn_xvec_default.yaml
-xvec_train_args="--data.train.sampler.batch-size $batch_size_1gpu"
+xvec_train_args="--data.train.sampler.min-batch-size $batch_size_1gpu --data.val.sampler.min-batch-size $batch_size_1gpu"
 
 nnet_name=${feat_type}_ecapatdnn512x3_chattstatsi128_e${embed_dim}_arcs${s}m${margin}_do${dropout}_adam_lr${lr}_b${eff_batch_size}_amp.v1
 

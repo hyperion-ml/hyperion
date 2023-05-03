@@ -4,8 +4,8 @@
 """
 
 
-import math
 import logging
+import math
 
 import torch
 
@@ -84,9 +84,9 @@ class TriangularLR(LRScheduler):
             )
 
         alpha = self.gamma ** self.num_restarts
-        x = math.abs(2 * x / self.T - 1)
+        x = abs(2 * x / self.T - 1)
 
         return [
-            eta_min + (alpha * eta_max - eta_min) * math.max(0, 1 - x)
+            eta_min + (alpha * eta_max - eta_min) * max(0, 1 - x)
             for eta_max, eta_min in zip(self.base_lrs, self.min_lrs)
         ]

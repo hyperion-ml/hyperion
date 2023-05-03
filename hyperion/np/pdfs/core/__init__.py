@@ -4,7 +4,7 @@
 """
 
 
-from .pdf import PDF
 from .exp_family import ExpFamily
-from .normal_diag_cov import NormalDiagCov, DiagNormal
 from .normal import Normal
+from .normal_diag_cov import DiagNormal, NormalDiagCov
+from .pdf import PDF

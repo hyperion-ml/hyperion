@@ -4,11 +4,12 @@
 """
 
 import sys
-import numpy as np
+
 import h5py
+import numpy as np
 
 from ..hyp_defs import float_cpu
-from ..utils.list_utils import list2ndarray, ismember
+from ..utils.list_utils import ismember, list2ndarray
 
 
 class HypDataReader(object):

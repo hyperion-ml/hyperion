@@ -4,18 +4,14 @@
 """
 
 import logging
+
 import numpy as np
 from scipy.special import gammaln
 
 from ...hyp_defs import float_cpu
+from ...utils.math import (fullcov_varfloor, int2onehot, invert_pdmat,
+                           logdet_pdmat, softmax)
 from ..np_model import NPModel
-from ...utils.math import (
-    int2onehot,
-    logdet_pdmat,
-    invert_pdmat,
-    softmax,
-    fullcov_varfloor,
-)
 from .linear_gbe import LinearGBE
 
 

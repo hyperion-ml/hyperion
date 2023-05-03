@@ -4,19 +4,18 @@
 
 """
 
-from .xvectors.xvector import XVector
-from .xvectors.tdnn_xvector import TDNNXVector
-from .xvectors.resnet_xvector import ResNetXVector
-from .xvectors.efficient_net_xvector import EfficientNetXVector
-from .xvectors.transformer_xvector_v1 import TransformerXVectorV1
-from .xvectors.spinenet_xvector import SpineNetXVector
-from .xvectors.resnet1d_xvector import ResNet1dXVector
-
-from .wav2xvectors import (
-    HFWav2Vec2ResNet1dXVector,
-    HFHubert2ResNet1dXVector,
-    HFWavLM2ResNet1dXVector,
-)
-
+from .transducer import RNNRNNTransducer, RNNTransducer
 from .vae.vae import VAE
 from .vae.vq_vae import VQVAE
+from .wav2transducer import (HFWav2Vec2ConformerV1RNNTransducer,
+                             HFWav2Vec2RNNRNNTransducer,
+                             HFWav2Vec2RNNTransducer, HFWav2Vec2Transducer)
+from .wav2xvectors import (HFHubert2ResNet1dXVector, HFWav2Vec2ResNet1dXVector,
+                           HFWavLM2ResNet1dXVector)
+from .xvectors.efficient_net_xvector import EfficientNetXVector
+from .xvectors.resnet1d_xvector import ResNet1dXVector
+from .xvectors.resnet_xvector import ResNetXVector
+from .xvectors.spinenet_xvector import SpineNetXVector
+from .xvectors.tdnn_xvector import TDNNXVector
+from .xvectors.transformer_xvector_v1 import TransformerXVectorV1
+from .xvectors.xvector import XVector

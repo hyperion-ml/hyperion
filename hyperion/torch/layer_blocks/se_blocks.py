@@ -5,12 +5,12 @@
 
 import torch
 import torch.nn as nn
-from torch.nn import Conv2d, Conv1d
+from torch.nn import Conv1d, Conv2d
 
 from ..layers import ActivationFactory as AF
 
 
-class SEBlock2D(nn.Module):
+class SEBlock2d(nn.Module):
     """Squeeze-excitation block 2d
         from https://arxiv.org/abs/1709.01507.
 
@@ -43,8 +43,8 @@ class SEBlock2D(nn.Module):
 
         return mask
 
-    def forward(self, x, x_mask=None):
-        """Forward function.
+    def compute_scale_logits(self, x, x_mask=None):
+        """comptue the scale before the sigmoid
 
         Args:
           x: input tensor with shape = (batch, channels, heigh, width).
@@ -61,12 +61,26 @@ class SEBlock2D(nn.Module):
             total = torch.mean(x_mask, dim=(2, 3), keepdim=True)
             z = torch.mean(x * x_mask, dim=(2, 3), keepdim=True) / total
 
-        scale = self.sigmoid(self.conv2(self.act(self.conv1(z))))
+        return self.conv2(self.act(self.conv1(z)))
+
+    def forward(self, x, x_mask=None):
+        """Forward function.
+
+        Args:
+          x: input tensor with shape = (batch, channels, heigh, width).
+          x_mask: Binary mask indicating which spatial dimensions are valid of
+                  shape=(batch, time), (batch, 1, time), (batch, height, width)
+
+        Returns:
+          Tensor with shape = (batch, channels, heigh, width).
+        """
+        scale_logits = self.compute_scale_logits(x, x_mask)
+        scale = self.sigmoid(scale_logits)
         y = scale * x
         return y
 
 
-class TSEBlock2D(nn.Module):
+class TSEBlock2d(nn.Module):
     """From https://arxiv.org/abs/1709.01507
     Modified to do pooling only in time dimension.
 
@@ -138,6 +152,81 @@ class TSEBlock2D(nn.Module):
         return y
 
 
+class FwSEBlock2d(SEBlock2d):
+    """frequency-wise Squeeze-excitation block 2d
+
+    Attributes:
+      num_feats:      input/output channels.
+      r:                 Squeeze-excitation compression ratio.
+      activation:        Non-linear activation object, string of configuration dictionary.
+
+    """
+
+    def __init__(self, num_feats, r=16, activation={"name": "relu", "inplace": True}):
+        super().__init__(num_feats, r, activation)
+
+    def forward(self, x, x_mask=None):
+        """Forward function.
+
+        Args:
+          x: input tensor with shape = (batch, channels, heigh, width).
+          x_mask: Binary mask indicating which spatial dimensions are valid of
+                  shape=(batch, time), (batch, 1, time)
+        Returns:
+          Tensor with shape = (batch, channels, heigh, width).
+        """
+        x = x.transpose(1, 2)
+        y = super().forward(x, x_mask)
+        y = y.transpose(1, 2).contiguous()
+        return y
+
+
+class CFwSEBlock2d(nn.Module):
+    """2-d channel and frequency wise squeeze-excitation block
+
+    Attributes:
+      num_channels:      input/output channels.
+      num_feats:         Number of features in dimension 2.
+      r:                 Squeeze-excitation compression ratio.
+      activation:        Non-linear activation object, string of configuration dictionary.
+
+    """
+
+    def __init__(
+        self,
+        num_channels,
+        num_feats,
+        r=16,
+        activation={"name": "relu", "inplace": True},
+    ):
+        super().__init__()
+        self.cw_se = SEBlock2d(num_channels, r, activation)
+        # the bottlenet features will have at least dimension 4
+        if num_feats // r < 4:
+            r = num_feats // 4
+
+        self.fw_se = SEBlock2d(num_feats, r, activation)
+
+    def forward(self, x, x_mask=None):
+        """Forward function.
+
+        Args:
+          x: input tensor with shape = (batch, channels, heigh, width).
+          x_mask: Binary mask indicating which spatial dimensions are valid of
+                  shape=(batch, time), (batch, 1, time)
+        Returns:
+          Tensor with shape = (batch, channels, heigh, width).
+        """
+        cw_scale_logits = self.cw_se.compute_scale_logits(x, x_mask)
+        fw_scale_logits = self.fw_se.compute_scale_logits(
+            x.transpose(1, 2), x_mask
+        ).transpose(1, 2)
+        scale_logits = cw_scale_logits + fw_scale_logits
+        scale = torch.sigmoid(scale_logits)
+        y = scale * x
+        return y
+
+
 class SEBlock1d(nn.Module):
     """1d Squeeze Excitation version of
     https://arxiv.org/abs/1709.01507
@@ -191,5 +280,5 @@ class SEBlock1d(nn.Module):
 
 
 # aliases to mantein backwards compatibility
-SEBlock2d = SEBlock2D
-TSEBlock2d = TSEBlock2D
+SEBlock2D = SEBlock2d
+TSEBlock2D = TSEBlock2d

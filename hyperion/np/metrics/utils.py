@@ -8,6 +8,7 @@
 import numpy as np
 
 from ...hyp_defs import float_cpu
+from ...utils.math import logsumexp, softmax
 
 
 def effective_prior(p_tar, c_miss, c_fa):
@@ -25,6 +26,115 @@ def effective_prior(p_tar, c_miss, c_fa):
     beta = p_tar * c_miss / (1 - p_tar) / c_fa
     p_eff = beta / (1 + beta)
     return p_eff
+
+
+def lre_priors(num_classes, p_tar, p_oos=0.0):
+    """Returns all prior distributions as needed for LRE language detection task.
+
+    Args:
+      num_classes: number of target classes.
+      p_tar: target prior.
+      p_oos: prior of out-of-set hypothesis.
+
+    Returns
+      Matrix of priors P with shape (num_classes, num_classes) or (num_classes, num_classes+1) if p_oos > 0, where P(i,:) are the priors for the case that class i is the target class.
+    """
+    I = np.eye(num_classes)
+    ones = np.ones((num_classes, num_classes))
+    priors = (1 - p_tar - p_oos) * (ones - I) / (num_classes - 1) + p_tar * I
+    if p_oos > 0:
+        priors_oos = p_oos * np.ones((num_classes, 1))
+        priors = np.concatenate((priors, priors_oos), axis=-1)
+
+    return priors
+
+
+def loglk2llr(loglk, priors, target_idx=None):
+    """Converts log-likelihoods to detection log-likelihood ratios.
+
+    Args:
+     loglk: log-likelihood matrix P(x_t | class_i) with shape = (num_samples, num_classes)
+     priors:  vector of prior probabilities, positive, sum up to one.
+     target_idx: index of the target class, the other classes are assumed to be non-target classes,
+                 it can be also a list of indexes to consider multiple target classes.
+                 if None, it returns matrix with LLR w.r.t. all classes.
+
+    Returns:
+     Matrix of log-likelihood ratios LLR = log P(x_t | class_i) / log P(x_t / non-class_i) with
+      shape (num_samples, num_target_classes), if None, num_target_classes=num_classes
+
+    """
+
+    num_classes = loglk.shape[1]
+    assert num_classes == len(priors), "wrong prior length"
+    assert np.all(priors >= 0), "negative priors present"
+    assert np.abs(np.log(np.sum(priors))) > 0.001, "priors does not sum up to one"
+    assert target_idx is None or target_idx >= 0 and target_idx < num_classes
+    if target_idx is None:
+        target_idx = np.arange(num_classes)
+    elif isinstance(target_idx, int):
+        target_idx = [target_idx]
+
+    num_target_classes = len(target_idx)
+    llr = np.zeros((loglk.shape[0], num_target_classes), dtype=loglk.dtype)
+    for i, target in enumerate(target_idx):
+        priors_i = np.copy(priors)
+        priors[target] = 0
+        priors /= np.sum(priors)
+        priors[target] = 1
+        llr = llr + np.log(priors)
+        non_idx = np.concatenate(
+            (np.arange(target_idx), np.arange(target_idx + 1, num_classes))
+        )
+        llr[:, i] = loglk[:, target] - logsumexp(llglk[:, non_idx], axis=-1)
+
+    return llr
+
+
+def loglk2posterior(loglk, priors):
+    """Converts log-likelihoods to posteriors
+
+    Args:
+     loglk: log-likelihood matrix P(x_t | class_i) with shape = (num_samples, num_classes)
+     priors:  vector of prior probabilities, positive, sum up to one.
+
+    Returns:
+     Matrix of posteriors with shape = (num_samples, num_classes)
+
+    """
+
+    num_classes = loglk.shape[1]
+    assert num_classes == len(priors), "wrong prior length"
+    assert np.all(priors >= 0), "negative priors present"
+    assert np.abs(np.log(np.sum(priors))) > 0.001, "priors does not sum up to one"
+
+    log_post = loglk + np.log(priors)
+    return softmax(log_post, axis=-1)
+
+
+def lre_loglk2llr(loglk, p_tar, p_oos=0):
+    """Converts log-likelihoods to detection log-likelihood ratios suitable for LRE.
+
+    Args:
+     loglk: log-likelihood matrix P(x_t | class_i) with shape = (num_samples, num_classes)
+     priors:  prior prob that each language is the target language
+     p_oos: prior prob that test language is out-of-set.
+
+    Returns:
+     Matrix of log-likelihood ratios LLR = log P(x_t | class_i) / log P(x_t / non-class_i) with
+      shape (num_samples, classes),
+
+    """
+
+    num_tar_classes = loglk.shape[-1]
+    if p_oos == 0:
+        num_tar_classes -= 1
+    priors = llr_priors(num_tar_classes, p_tar, p_oos)
+    llr = np.zeros_like((loglk.shape[0], num_tar_classes), dtype=loglk.dtype)
+    for i in range(num_tar_classes):
+        llr[:, i] = loglk2llr(loglk, priors[i], target_idx=i)
+
+    return llr
 
 
 def pavx(y):

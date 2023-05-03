@@ -3,8 +3,8 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import numpy as np
 import h5py
+import numpy as np
 
 from .score_norm import ScoreNorm
 from .t_norm import TNorm

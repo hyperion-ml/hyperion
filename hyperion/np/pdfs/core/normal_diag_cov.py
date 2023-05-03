@@ -7,13 +7,9 @@ import numpy as np
 from scipy.special import erf
 
 from ....hyp_defs import float_cpu
-from ....utils.plotting import (
-    plot_gaussian_1D,
-    plot_gaussian_ellipsoid_2D,
-    plot_gaussian_ellipsoid_3D,
-    plot_gaussian_3D,
-)
-
+from ....utils.plotting import (plot_gaussian_1D, plot_gaussian_3D,
+                                plot_gaussian_ellipsoid_2D,
+                                plot_gaussian_ellipsoid_3D)
 from .exp_family import ExpFamily
 
 

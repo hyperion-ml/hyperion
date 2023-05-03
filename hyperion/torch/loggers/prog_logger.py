@@ -3,8 +3,8 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import time
 import logging
+import time
 from collections import OrderedDict
 
 import numpy as np

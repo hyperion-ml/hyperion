@@ -8,57 +8,63 @@
 import logging
 import time
 
-# import copy
-
 import numpy as np
 import pandas as pd
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 import torch
-
-from ..torch_defs import floatstr_torch
-from ...io import RandomAccessDataReaderFactory as RF
-from ...utils.utt2info import Utt2Info
-
+import torch.distributed as dist
 from torch.utils.data import Dataset
+
+from ...io import RandomAccessDataReaderFactory as RF
+from ...utils.class_info import ClassInfo
+from ...utils.info_table import InfoTable
+from ...utils.misc import filter_func_args
+from ..torch_defs import floatstr_torch
 
 
 class EmbedDataset(Dataset):
     def __init__(
         self,
         embeds=None,
-        class_ids=None,
-        class_weights=None,
-        rspecifier=None,
-        key_file=None,
-        class_file=None,
+        embed_info=None,
+        class_info=None,
+        embed_file=None,
+        embed_info_file=None,
+        class_names=None,
+        class_files=None,
+        return_segment_info=None,
         path_prefix=None,
         preload_embeds=False,
-        return_class=True,
         is_val=False,
     ):
 
-        assert embeds is not None or rspecifier is not None
-        assert rspecifier is None or key_file is not None
-        assert class_ids is not None or key_file is not None
+        assert embeds is not None or embed_file is not None
+        assert embed_info is not None or embed_info is not None
+        assert class_info is not None or class_files is not None
+        super().__init__()
+        try:
+            rank = dist.get_rank()
+            world_size = dist.get_world_size()
+        except:
+            rank = 0
+            world_size = 1
 
         self.preload_embeds = preload_embeds
-        if key_file is not None:
-            if isinstance(key_file, Utt2Info):
-                self.u2c = key_file
-            else:
-                logging.info("loading utt2info file %s", key_file)
-                self.u2c = Utt2Info.load(key_file, sep=" ")
-            self.num_embeds = len(self.u2c)
-        else:
-            assert embeds is not None
-            self.u2c = None
-            self.num_embeds = len(embeds)
+
+        if embed_info is None:
+            embed_info = InfoTable.load(embed_info_file)
+
+        self.embed_info = embed_info
+        if rank == 0:
+            logging.info("dataset contains %d embeddings", len(self.embed_info))
 
         if embeds is None:
-            logging.info("opening dataset %s", rspecifier)
-            self.r = RF.create(rspecifier, path_prefix=path_prefix, scp_sep=" ")
+            if rank == 0:
+                logging.info("opening dataset %s", rspecifier)
+            self.r = RF.create(embed_file, path_prefix=path_prefix, scp_sep=" ")
             if self.preload_embeds:
-                self.embeds = self.r.load(u2c.key, squeeze=True).astype(
+                self.embeds = self.r.load(embed_info["id"], squeeze=True).astype(
                     floatstr_torch(), copy=False
                 )
                 del self.r
@@ -68,65 +74,80 @@ class EmbedDataset(Dataset):
             self.embeds = embeds.astype(floatstr_torch(), copy=False)
 
         self.is_val = is_val
-        self._prepare_class_info(class_file, class_ids, class_weights)
-        self.return_class = return_class
+        if rank == 0:
+            logging.info("loading class-info files")
+        self._load_class_infos(class_names, class_files, is_val)
 
-        logging.info("dataset contains %d embeds", self.num_embeds)
+        self.return_segment_info = (
+            [] if return_segment_info is None else return_segment_info
+        )
+
+    def _load_class_infos(self, class_names, class_files, is_val):
+        self.class_info = {}
+        if class_names is None:
+            assert class_files is None
+            return
+
+        assert len(class_names) == len(class_files)
+        for name, file in zip(class_names, class_files):
+            assert (
+                name in self.seg_set
+            ), f"class_name {name} not present in the segment set"
+            if self.rank == 0:
+                logging.info("loading class-info file %s" % file)
+            table = ClassInfo.load(file)
+            self.class_info[name] = table
+            if not is_val:
+                # check that all classes are present in the training segments
+                class_ids = table["id"]
+                segment_class_ids = self.seg_set[name].unique()
+                for c_id in class_ids:
+                    if c_id not in segment_class_ids:
+                        logging.warning(
+                            "%s class: %s not present in dataset", name, c_id
+                        )
+
+    @property
+    def num_embeds(self):
+        return len(self.embed_info)
 
     def __len__(self):
         return self.num_embeds
 
-    def _prepare_class_info(self, class_file, class_idx=None, class_weights=None):
-        if class_file is None:
-            if self.u2c is not None:
-                classes, class_idx = np.unique(self.u2c.info, return_inverse=True)
-            self.num_classes = np.max(class_idx) + 1
-        else:
-            logging.info("reading class-file %s", class_file)
-            class_info = pd.read_csv(class_file, header=None, sep=" ")
-            class2idx = {str(k): i for i, k in enumerate(class_info[0])}
-            self.num_classes = len(class2idx)
-            class_idx = np.array([class2idx[k] for k in self.u2c.info], dtype=int)
-            if class_info.shape[1] == 2:
-                class_weights = np.array(class_info[1]).astype(
-                    floatstr_torch(), copy=False
-                )
+    @property
+    def num_classes(self):
+        return {k: t.num_classes for k, t in self.class_info.items()}
 
-        class2utt_idx = {}
-        class2num_utt = np.zeros((self.num_classes,), dtype=int)
-
-        for k in range(self.num_classes):
-            idx = (class_idx == k).nonzero()[0]
-            class2utt_idx[k] = idx
-            class2num_utt[k] = len(idx)
-            if class2num_utt[k] == 0:
-                if not self.is_val:
-                    logging.warning("class %d doesn't have any samples", k)
-                if class_weights is None:
-                    class_weights = np.ones((self.num_classes,), dtype=floatstr_torch())
-                class_weights[k] = 0
-
-        count_empty = np.sum(class2num_utt == 0)
-        if count_empty > 0:
-            logging.warning("%d classes have 0 samples", count_empty)
-
-        self.utt_idx2class = class_idx
-        self.class2utt_idx = class2utt_idx
-        self.class2num_utt = class2num_utt
-        if class_weights is not None:
-            class_weights /= np.sum(class_weights)
-            class_weights = torch.Tensor(class_weights)
-        self.class_weights = class_weights
-
-    def __getitem__(self, index):
+    def _read_embeds(self, embed_id):
         if self.preload_embeds:
+            index = self.embed_info.index.get_loc(embed_id)
             x = self.embeds[index]
         else:
-            key = self.u2c.key[index]
-            x = self.r.read([key])[0].astype(floatstr_torch(), copy=False)
+            x = self.r.read([embed_id])[0].astype(floatstr_torch(), copy=False)
+        return x
 
-        if not self.return_class:
-            return x
+    def _get_embed_info(self, embed_id):
+        embed_info = {}
+        # converts the class_ids to integers
+        for info_name in self.return_embed_info:
+            embed_info_i = self.embed_info.loc[embed_id, info_name]
+            if info_name in self.class_info:
+                # if the type of information is a class-id
+                # we use the class information table to
+                # convert from id to integer
+                class_info = self.class_info[info_name]
+                embed_info_i = class_info.loc[embed_info_i, "class_idx"]
 
-        class_idx = self.utt_idx2class[index]
-        return x, class_idx
+            embed_info[info_name] = embed_info_i
+
+        return embed_info
+
+    def __getitem__(self, embed_id):
+
+        x = self._read_embed(embed_id)
+
+        data = {"embed_id": embed_id, "x": x}
+        # adds the embed labels
+        embed_info = self._get_embed_info(embed_id)
+        data.update(embed_info)
+        return data

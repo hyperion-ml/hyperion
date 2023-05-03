@@ -38,22 +38,44 @@ fi
 
 # Network Training
 if [ $stage -le 1 ]; then
-
   
-  mkdir -p $nnet_dir/log
+  mkdir -p $nnet_s1_dir/log
   $cuda_cmd \
-    --gpu $ngpu $nnet_dir/log/train.log \
+    --gpu $ngpu $nnet_s1_dir/log/train.log \
     hyp_utils/conda_env.sh --conda-env $HYP_ENV --num-gpus $ngpu \
-    train_xvector_from_wav.py $nnet_type --cfg $xvec_train_base_cfg $xvec_train_args $extra_args \
+    train_xvector_from_wav.py $nnet_type --cfg $nnet_s1_base_cfg $nnet_s1_args $extra_args \
     --data.train.dataset.audio-file $list_dir/wav.scp \
     --data.train.dataset.time-durs-file $list_dir/utt2dur \
-    --data.train.dataset.key-file $list_dir/lists_xvec/train.scp \
-    --data.train.dataset.class-file $list_dir/lists_xvec/class2int \
+    --data.train.dataset.segments-file $list_dir/lists_xvec/train.scp \
+    --data.train.dataset.class-files $list_dir/lists_xvec/class2int \
     --data.val.dataset.audio-file $list_dir/wav.scp \
     --data.val.dataset.time-durs-file $list_dir/utt2dur \
-    --data.val.dataset.key-file $list_dir/lists_xvec/val.scp \
-    --trainer.exp-path $nnet_dir $args \
+    --data.val.dataset.segments-file $list_dir/lists_xvec/val.scp \
+    --trainer.exp-path $nnet_s1_dir \
     --num-gpus $ngpu \
   
 fi
 
+
+# Large Margin Fine-tuning
+if [ $stage -le 2 ]; then
+  if [ "$use_wandb" == "true" ];then
+    extra_args="$extra_args --trainer.wandb.name $nnet_s2_name.$(date -Iminutes)"
+  fi
+  mkdir -p $nnet_s2_dir/log
+  $cuda_cmd \
+    --gpu $ngpu $nnet_s2_dir/log/train.log \
+    hyp_utils/conda_env.sh --conda-env $HYP_ENV --num-gpus $ngpu \
+    finetune_xvector_from_wav.py $nnet_type --cfg $nnet_s2_base_cfg $nnet_s2_args $extra_args \
+    --data.train.dataset.audio-file $list_dir/wav.scp \
+    --data.train.dataset.time-durs-file $list_dir/utt2dur \
+    --data.train.dataset.segments-file $list_dir/lists_xvec/train.scp \
+    --data.train.dataset.class-files $list_dir/lists_xvec/class2int \
+    --data.val.dataset.audio-file $list_dir/wav.scp \
+    --data.val.dataset.time-durs-file $list_dir/utt2dur \
+    --data.val.dataset.segments-file $list_dir/lists_xvec/val.scp \
+    --in-model-file $nnet_s1 \
+    --trainer.exp-path $nnet_s2_dir \
+    --num-gpus $ngpu \
+  
+fi

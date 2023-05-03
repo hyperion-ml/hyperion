@@ -5,8 +5,9 @@
 
 import logging
 from copy import deepcopy
-import yaml
+
 import numpy as np
+import yaml
 from librosa.effects import time_stretch
 
 from ...hyp_defs import float_cpu
@@ -33,10 +34,8 @@ class SpeedAugment(object):
         rng=None,
     ):
         logging.info(
-            "init speed augment with prob={}, speed_ratios={}, keep_length={}".format(
-                speed_prob, speed_ratios, keep_length
-            )
-        )
+            "init speed augment with prob={}, speed_ratios={}, keep_length={}".
+            format(speed_prob, speed_ratios, keep_length))
         self.speed_prob = speed_prob
         self.speed_ratios = speed_ratios
         self.keep_length = keep_length
@@ -62,12 +61,12 @@ class SpeedAugment(object):
             with open(cfg, "r") as f:
                 cfg = yaml.load(f, Loader=yaml.FullLoader)
 
-        assert isinstance(cfg, dict), "wrong object type for cfg={}".format(cfg)
+        assert isinstance(cfg, dict), f"wrong object type for cfg={cfg}"
 
         return cls(
             speed_prob=cfg["speed_prob"],
             speed_ratios=cfg["speed_ratios"],
-            keep_length=cfg["keep_length"],
+            keep_length=cfg["keep_length"] if "keep_length" in cfg else False,
             random_seed=random_seed,
             rng=rng,
         )
@@ -99,11 +98,12 @@ class SpeedAugment(object):
         # print(f"1 r={r} {x.shape} {y.shape}", flush=True)
         if self.keep_length:
             if r > 1:
-                dither = np.max(x) / 2 ** 15  # we add some dither in the padding
-                pad_y = dither * np.ones((x.shape[-1] - y.shape[-1],), dtype=y.dtype)
+                dither = np.max(x) / 2**15  # we add some dither in the padding
+                pad_y = dither * np.ones(
+                    (x.shape[-1] - y.shape[-1], ), dtype=y.dtype)
                 y = np.concatenate((y, pad_y), axis=-1)
             elif r < 1:
-                y = y[: x.shape[-1]]
+                y = y[:x.shape[-1]]
 
         # print(f"2 r={r} {x.shape} {y.shape}", flush=True)
         return y, info

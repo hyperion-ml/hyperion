@@ -3,15 +3,15 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import warnings
 import copy
-import time
-import numpy as np
 import multiprocessing
 import threading
-import six
+import time
+import warnings
 from abc import abstractmethod
 
+import numpy as np
+import six
 
 try:
     import queue

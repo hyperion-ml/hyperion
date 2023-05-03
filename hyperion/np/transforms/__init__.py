@@ -4,17 +4,16 @@
 """
 
 from .cent_whiten import CentWhiten
-from .lnorm import LNorm
-from .sb_sw import SbSw
-from .pca import PCA
-from .lda import LDA
-from .nda import NDA
-from .nap import NAP
-from .mvn import MVN
+from .cent_whiten_up import CentWhitenUP
 from .coral import CORAL
 from .gaussianizer import Gaussianizer
+from .lda import LDA
+from .lnorm import LNorm
+from .lnorm_up import LNormUP
+from .mvn import MVN
+from .nap import NAP
+from .nda import NDA
+from .pca import PCA
+from .sb_sw import SbSw
 from .skl_tsne import SklTSNE
 from .transform_list import TransformList
-
-from .cent_whiten_up import CentWhitenUP
-from .lnorm_up import LNormUP

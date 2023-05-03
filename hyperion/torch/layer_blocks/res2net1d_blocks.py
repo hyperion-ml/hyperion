@@ -3,12 +3,13 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import math
+
 import torch
 import torch.nn as nn
-from torch.nn import Conv1d, BatchNorm1d
+from torch.nn import BatchNorm1d, Conv1d
 
 from ..layers import ActivationFactory as AF
-from ..layers import Dropout1d, DropConnect1d
+from ..layers import DropConnect1d, Dropout1d
 from .se_blocks import SEBlock1d
 
 
@@ -75,7 +76,7 @@ class Res2Net1dBasicBlock(nn.Module):
         in_channels,
         channels,
         kernel_size=3,
-        activation={"name": "relu6", "inplace": True},
+        activation={"name": "relu", "inplace": True},
         stride=1,
         dropout_rate=0,
         drop_connect_rate=0,
@@ -194,6 +195,9 @@ class Res2Net1dBasicBlock(nn.Module):
           Tensor with shape = (batch, out_channels, time).
         """
         residual = x
+        if self.downsample is not None:
+            residual = self.downsample(residual)
+
         split_size = [self.width_in for i in range(self.scale - 1)]
         split_size.append(self.in_channels % self.width_in + self.width_in)
         split_x = torch.split(x, split_size, 1)
@@ -212,8 +216,8 @@ class Res2Net1dBasicBlock(nn.Module):
             if self.norm_before:
                 x_i = self.bn1s[i](x_i)
             x_i = self.act1(x_i)
-            if not self.norm_before:
-                x_i = self.bn1(x_i)
+            if self.norm_after:
+                x_i = self.bn1s[i](x_i)
             x.append(x_i)
 
         if self.scale > 1:
@@ -222,23 +226,28 @@ class Res2Net1dBasicBlock(nn.Module):
         x = torch.cat(x, dim=1)
 
         x = self.conv2(x)
-        if self.norm_before:
+        if self.norm_after:
+            x = self.act2(x)
             x = self.bn2(x)
+            if self.se_layer:
+                x = self.se_layer(x, x_mask=x_mask)
 
-        if self.se_layer:
-            x = self.se_layer(x, x_mask=x_mask)
+            if self.drop_connect_rate > 0:
+                x = self.drop_connect(x)
 
-        if self.drop_connect_rate > 0:
-            x = self.drop_connect(x)
+            x += residual
+        else:
+            if self.norm_before:
+                x = self.bn2(x)
 
-        if self.downsample is not None:
-            residual = self.downsample(residual)
+            if self.se_layer:
+                x = self.se_layer(x, x_mask=x_mask)
 
-        x += residual
-        x = self.act2(x)
+            if self.drop_connect_rate > 0:
+                x = self.drop_connect(x)
 
-        if not self.norm_before:
-            x = self.bn2(x)
+            x += residual
+            x = self.act2(x)
 
         if self.dropout_rate > 0:
             x = self.dropout(x)
@@ -385,6 +394,79 @@ class Res2Net1dBNBlock(nn.Module):
           Tensor with shape = (batch, out_channels, time).
         """
         residual = x
+        if self.downsample is not None:
+            residual = self.downsample(residual)
+
+        x = self.conv1(x)
+        if self.norm_before:
+            x = self.bn1(x)
+        x = self.act1(x)
+        if self.norm_after:
+            x = self.bn1(x)
+
+        split_x = torch.split(x, self.width, 1)
+        x = []
+        for i in range(self.num_k):
+            if i == 0 or self.stride > 1:
+                x_i = split_x[i]
+            else:
+                x_i = x_i + split_x[i]
+            x_i = self.conv2s[i](x_i)
+            if self.norm_before:
+                x_i = self.bn2s[i](x_i)
+            x_i = self.act2(x_i)
+            if self.norm_after:
+                x_i = self.bn2s[i](x_i)
+            x.append(x_i)
+
+        if self.scale > 1:
+            if self.stride == 1:
+                x.append(split_x[-1])
+            else:
+                x.append(self.pool(split_x[-1]))
+
+        x = torch.cat(x, dim=1)
+
+        x = self.conv3(x)
+        if self.norm_after:
+            x = self.act3(x)
+            x = self.bn3(x)
+            if self.se_layer:
+                x = self.se_layer(x, x_mask=x_mask)
+
+            if self.drop_connect_rate > 0:
+                x = self.drop_connect(x)
+
+            x += residual
+        else:
+            if self.norm_before:
+                x = self.bn3(x)
+            if self.se_layer:
+                x = self.se_layer(x, x_mask=x_mask)
+
+            if self.drop_connect_rate > 0:
+                x = self.drop_connect(x)
+
+            x += residual
+            x = self.act3(x)
+
+        if self.dropout_rate > 0:
+            x = self.dropout(x)
+
+        return x
+
+    def forward0(self, x, x_mask=None):
+        """Forward function.
+
+        Args:
+          x: input tensor with shape = (batch, in_channels, in_heigh, in_width).
+          x_mask: Binary mask indicating which spatial dimensions are valid of
+                  shape=(batch, time), (batch, 1, time).
+
+        Returns:
+          Tensor with shape = (batch, out_channels, time).
+        """
+        residual = x
 
         x = self.conv1(x)
         if self.norm_before:
@@ -405,7 +487,7 @@ class Res2Net1dBNBlock(nn.Module):
                 x_i = self.bn2s[i](x_i)
             x_i = self.act2(x_i)
             if not self.norm_before:
-                x_i = self.bn2(x_i)
+                x_i = self.bn2s[i](x_i)
             x.append(x_i)
 
         if self.scale > 1:

@@ -3,15 +3,17 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import sys
-import numpy as np
 import multiprocessing as threading
+import sys
+
+import numpy as np
 
 from ..hyp_defs import float_cpu
+from ..utils.kaldi_io_funcs import (init_kaldi_input_stream, is_token, peek,
+                                    read_token)
+from ..utils.kaldi_matrix import KaldiCompressedMatrix, KaldiMatrix
 from ..utils.scp_list import SCPList
-from ..utils.kaldi_matrix import KaldiMatrix, KaldiCompressedMatrix
-from ..utils.kaldi_io_funcs import is_token, read_token, peek, init_kaldi_input_stream
-from .data_reader import SequentialDataReader, RandomAccessDataReader
+from .data_reader import RandomAccessDataReader, SequentialDataReader
 
 
 class SequentialArkDataReader(SequentialDataReader):

@@ -4,16 +4,18 @@
 """
 
 import logging
-from jsonargparse import ArgumentParser, ActionParser
+
+from jsonargparse import ActionParser, ArgumentParser
 
 import torch
 import torch.nn as nn
 
-from .xvector import XVector
 from ...narchs import ResNet1dEncoder as Encoder
+from .xvector import XVector
 
 
 class ResNet1dXVector(XVector):
+
     def __init__(
         self,
         resnet_enc,
@@ -21,7 +23,10 @@ class ResNet1dXVector(XVector):
         pool_net="mean+stddev",
         embed_dim=256,
         num_embed_layers=1,
-        hid_act={"name": "relu", "inplace": True},
+        hid_act={
+            "name": "relu",
+            "inplace": True
+        },
         loss_type="arc-softmax",
         cos_scale=64,
         margin=0.3,
@@ -34,13 +39,14 @@ class ResNet1dXVector(XVector):
         head_norm_layer=None,
         use_norm=True,
         norm_before=True,
-        in_norm=False,
+        head_use_in_norm=False,
         embed_layer=0,
         proj_feats=None,
     ):
 
         if isinstance(resnet_enc, dict):
-            logging.info("making %s resnet1d encoder network", resnet_enc["resb_type"])
+            logging.info("making %s resnet1d encoder network",
+                         resnet_enc["resb_type"])
             resnet_enc = Encoder(**resnet_enc)
 
         super().__init__(
@@ -61,6 +67,7 @@ class ResNet1dXVector(XVector):
             head_norm_layer=head_norm_layer,
             use_norm=use_norm,
             norm_before=norm_before,
+            head_use_in_norm=head_use_in_norm,
             dropout_rate=dropout_rate,
             embed_layer=embed_layer,
             proj_feats=proj_feats,
@@ -144,12 +151,12 @@ class ResNet1dXVector(XVector):
             parser = ArgumentParser(prog="")
 
         XVector.add_class_args(parser, skip=set(["in_feats"]))
-        Encoder.add_class_args(parser, prefix="resnet_enc", skip=set(["head_channels"]))
-        # parser.link_arguments("in_feats", "resnet_enc.in_feats", apply_on="parse")
-        # parser.link_arguments("norm_layer", "encoder_net.norm_layer", apply_on="parse")
-
+        Encoder.add_class_args(parser,
+                               prefix="resnet_enc",
+                               skip=set(["head_channels"]))
         if prefix is not None:
-            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
+            outer_parser.add_argument("--" + prefix,
+                                      action=ActionParser(parser=parser))
 
     add_argparse_args = add_class_args
 
@@ -167,9 +174,10 @@ class ResNet1dXVector(XVector):
             parser = ArgumentParser(prog="")
 
         XVector.add_finetune_args(parser)
-        Encoder.add_finetune_args(
-            parser, prefix="resnet_enc", skip=set(["head_channels"])
-        )
+        Encoder.add_finetune_args(parser,
+                                  prefix="resnet_enc",
+                                  skip=set(["head_channels"]))
 
         if prefix is not None:
-            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
+            outer_parser.add_argument("--" + prefix,
+                                      action=ActionParser(parser=parser))

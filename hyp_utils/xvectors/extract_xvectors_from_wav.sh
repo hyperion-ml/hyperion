@@ -137,21 +137,27 @@ if [ $stage -le 2 ]; then
 fi
 
 if [ $stage -le 3 ]; then
-    if [ -n "$data_out_dir" ];then
-	echo "$0: creating data dir $data_out_dir for augmented x-vectors"
-	mkdir -p $data_out_dir
-	awk -F "," '$1 != "key_aug" { print $1,$2}' $output_dir/aug_info.csv \
-	> $data_out_dir/augm2clean 
-	awk -v u2s=$data_dir/utt2spk 'BEGIN{
+  if [ -n "$data_out_dir" ];then
+      echo "$0: creating data dir $data_out_dir for augmented x-vectors"
+      mkdir -p $data_out_dir
+      awk -F "," '$1 != "key_aug" { print $1,$2}' $output_dir/aug_info.csv \
+	  > $data_out_dir/augm2clean
+
+      for f in utt2spk utt2lang
+      do
+	if [ -f $data_dir/utt2spk ];then
+	  awk -v u2s=$data_dir/$f 'BEGIN{
 while(getline < u2s)
 {
    spk[$1]=$2
 }
 }
-{ print $1,spk[$2]}' $data_out_dir/augm2clean > $data_out_dir/utt2spk
-	utils/utt2spk_to_spk2utt.pl $data_out_dir/utt2spk > $data_out_dir/spk2utt
-	cp $output_dir/utt2num_frames $data_out_dir
-    else
-	cp $output_dir/utt2num_frames $data_dir
-    fi
+{ print $1,spk[$2]}' $data_out_dir/augm2clean > $data_out_dir/$f
+	fi
+      done
+      utils/utt2spk_to_spk2utt.pl $data_out_dir/utt2spk > $data_out_dir/spk2utt
+      cp $output_dir/utt2num_frames $data_out_dir
+  else
+    cp $output_dir/utt2num_frames $data_dir
+  fi
 fi

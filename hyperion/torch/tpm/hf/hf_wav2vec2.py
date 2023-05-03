@@ -2,17 +2,17 @@
  Copyright 2022 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-import os
 import logging
-from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
-from typing import Optional, Tuple, Union, List, Callable
+import os
+from typing import Callable, List, Optional, Tuple, Union
+
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
+from transformers import Wav2Vec2Config, Wav2Vec2Model
 
 import torch
 import torch.nn as nn
 
-from transformers import Wav2Vec2Model, Wav2Vec2Config
-
-from ...utils.ddp import ddp_wait_for_all_procs, ddp_get_rank
+from ...utils.ddp import ddp_get_rank, ddp_wait_for_all_procs
 from .hf_wav2vec_base import HFWav2VecBase
 
 

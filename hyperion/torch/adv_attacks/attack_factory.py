@@ -2,16 +2,16 @@
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from jsonargparse import ArgumentParser, ActionParser
+from jsonargparse import ActionParser, ArgumentParser
 
-from .fgsm_attack import FGSMAttack
-from .snr_fgsm_attack import SNRFGSMAttack
-from .rand_fgsm_attack import RandFGSMAttack
-from .iter_fgsm_attack import IterFGSMAttack
-from .carlini_wagner_l2 import CarliniWagnerL2
 from .carlini_wagner_l0 import CarliniWagnerL0
+from .carlini_wagner_l2 import CarliniWagnerL2
 from .carlini_wagner_linf import CarliniWagnerLInf
+from .fgsm_attack import FGSMAttack
+from .iter_fgsm_attack import IterFGSMAttack
 from .pgd_attack import PGDAttack
+from .rand_fgsm_attack import RandFGSMAttack
+from .snr_fgsm_attack import SNRFGSMAttack
 
 
 class AttackFactory(object):
@@ -30,7 +30,7 @@ class AttackFactory(object):
         binary_search_steps=9,
         max_iter=10,
         abort_early=True,
-        c=1e-3,
+        initial_c=1e-3,
         reduce_c=False,
         c_incr_factor=2,
         tau_decr_factor=0.9,
@@ -47,6 +47,7 @@ class AttackFactory(object):
 
         eps = eps * eps_scale
         alpha = alpha * eps_scale
+        norm = float(norm)
 
         if attack_type == "fgsm":
             return FGSMAttack(
@@ -98,7 +99,7 @@ class AttackFactory(object):
                 binary_search_steps,
                 max_iter,
                 abort_early,
-                c,
+                initial_c,
                 norm_time=norm_time,
                 time_dim=time_dim,
                 use_snr=use_snr,
@@ -114,7 +115,7 @@ class AttackFactory(object):
                 lr,
                 max_iter,
                 abort_early,
-                c,
+                initial_c,
                 reduce_c,
                 c_incr_factor,
                 indep_channels,
@@ -130,7 +131,7 @@ class AttackFactory(object):
                 lr,
                 max_iter,
                 abort_early,
-                c,
+                initial_c,
                 reduce_c,
                 c_incr_factor,
                 tau_decr_factor,
@@ -219,9 +220,8 @@ class AttackFactory(object):
 
         parser.add_argument(
             "--norm",
-            type=float,
-            default=float("inf"),
-            choices=[float("inf"), 1, 2],
+            default="inf",
+            choices=["inf", "1", "2"],
             help=("Attack perturbation norm"),
         )
 
@@ -284,7 +284,7 @@ class AttackFactory(object):
         )
 
         parser.add_argument(
-            "--c",
+            "--initial-c",
             default=1e-2,
             type=float,
             help=(

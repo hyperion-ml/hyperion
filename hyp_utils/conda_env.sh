@@ -14,6 +14,7 @@ if [ -n "$HYP_ENV" ];then
 else
     conda_env=base
 fi
+max_split_size_mb=""
 
 while true
 do
@@ -24,6 +25,10 @@ do
     elif [ "$1" == "--conda-env" ];then
 	shift;
 	conda_env=$1
+	shift;
+    elif [ "$1" == "--max-split-size-mb" ];then
+	shift;
+	max_split_size_mb=$1
 	shift;
     else
 	break
@@ -49,7 +54,7 @@ fi
 conda activate $conda_env
 command="python"
 if [ $num_gpus -gt 0 ];then
-    # set CUDA_VISIBLE_DEVICES
+  # set CUDA_VISIBLE_DEVICES
   if [ ! -z "$SGE_HGR_gpu" ]; then
     echo "SGE_HGR_gpu=$SGE_HGR_gpu"
     export CUDA_VISIBLE_DEVICES=$(echo $SGE_HGR_gpu | sed 's@ @,@g')
@@ -66,8 +71,14 @@ if [ $num_gpus -gt 0 ];then
     fi
   fi
   echo "CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES"
-  export TORCH_DISTRIBUTED_DEBUG=DETAIL #variable to find unused parameters
+  if [ -n "$max_split_size_mb" ];then
+      export PYTORCH_CUDA_ALLOC_CONF="max_split_size_mb:${max_split_size_mb}"
+      echo "PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF}
+  fi
+  #export CUDA_LAUNCH_BLOCKING=1
+  #export TORCH_DISTRIBUTED_DEBUG=DETAIL #variable to find unused parameters
   if [ $num_gpus -gt 1 ];then
+    
     [[ $(type -P "$torchrun") ]] && command="torchrun" \
 	|| command="python -m torch.distributed.run"
     command="$command --nproc_per_node=$num_gpus --standalone --nnodes=1"

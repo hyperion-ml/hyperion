@@ -9,8 +9,8 @@ import numpy as np
 import pandas as pd
 
 from .list_utils import *
-from .vad_utils import *
 from .segment_list import SegmentList
+from .vad_utils import *
 
 
 class RTTM(object):

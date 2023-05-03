@@ -3,28 +3,22 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
-import math
 import logging
+import math
 
 import numpy as np
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 import torch
 import torch.nn as nn
 
-from ..utils import seq_lengths_to_mask
+from ..layer_blocks import (DC1dEncBlock, Res2Net1dBasicBlock,
+                            Res2Net1dBNBlock, ResNet1dBasicBlock,
+                            ResNet1dBNBlock, ResNet1dEndpoint,
+                            SEResNet1dBasicBlock, SEResNet1dBNBlock)
 from ..layers import ActivationFactory as AF
 from ..layers import NormLayer1dFactory as NLF
-from ..layer_blocks import (
-    ResNet1dBasicBlock,
-    ResNet1dBNBlock,
-    DC1dEncBlock,
-    ResNet1dEndpoint,
-    SEResNet1dBasicBlock,
-    SEResNet1dBNBlock,
-    Res2Net1dBasicBlock,
-    Res2Net1dBNBlock,
-)
+from ..utils import seq_lengths_to_mask
 from .net_arch import NetArch
 
 
@@ -537,13 +531,13 @@ class ResNet1dEncoder(NetArch):
 
     @staticmethod
     def filter_args(**kwargs):
-        if "wo_norm" in kwargs:
-            kwargs["use_norm"] = not kwargs["wo_norm"]
-            del kwargs["wo_norm"]
+        # if "wo_norm" in kwargs:
+        #     kwargs["use_norm"] = not kwargs["wo_norm"]
+        #     del kwargs["wo_norm"]
 
-        if "norm_after" in kwargs:
-            kwargs["norm_before"] = not kwargs["norm_after"]
-            del kwargs["norm_after"]
+        # if "norm_after" in kwargs:
+        #     kwargs["norm_before"] = not kwargs["norm_after"]
+        #     del kwargs["norm_after"]
 
         valid_args = (
             "in_feats",
@@ -722,18 +716,31 @@ class ResNet1dEncoder(NetArch):
         except:
             pass
 
+        # parser.add_argument(
+        #     "--wo-norm",
+        #     default=False,
+        #     action="store_true",
+        #     help="without batch normalization",
+        # )
+
+        # parser.add_argument(
+        #     "--norm-after",
+        #     default=False,
+        #     action="store_true",
+        #     help="batch normalizaton after activation",
+        # )
         parser.add_argument(
-            "--wo-norm",
-            default=False,
-            action="store_true",
+            "--use-norm",
+            default=True,
+            action=ActionYesNo,
             help="without batch normalization",
         )
 
         parser.add_argument(
-            "--norm-after",
-            default=False,
-            action="store_true",
-            help="batch normalizaton after activation",
+            "--norm-before",
+            default=True,
+            action=ActionYesNo,
+            help="batch normalizaton before activation",
         )
 
         parser.add_argument(
@@ -754,10 +761,7 @@ class ResNet1dEncoder(NetArch):
         )
 
         parser.add_argument(
-            "--res2net-scale",
-            default=1,
-            type=int,
-            help=("res2net scaling parameter "),
+            "--res2net-scale", default=1, type=int, help=("res2net scaling parameter "),
         )
 
         parser.add_argument(

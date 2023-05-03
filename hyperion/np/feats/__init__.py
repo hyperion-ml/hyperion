@@ -4,10 +4,10 @@
 """
 #
 
-from .filter_banks import FilterBankFactory
-from .feature_windows import FeatureWindowFactory
-from .stft import *
-from .mfcc import MFCC
 from .energy_vad import EnergyVAD
-from .frame_selector import FrameSelector
 from .feature_normalization import MeanVarianceNorm
+from .feature_windows import FeatureWindowFactory
+from .filter_banks import FilterBankFactory
+from .frame_selector import FrameSelector
+from .mfcc import MFCC
+from .stft import *

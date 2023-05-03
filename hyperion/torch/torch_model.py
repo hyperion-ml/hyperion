@@ -11,13 +11,15 @@ from typing import Optional
 import torch
 import torch.nn as nn
 
-torch_model_registry = {}
-
 
 class TorchModel(nn.Module):
+    """Base class for all Pytorch Models and NNet architectures
+    """
+    registry = {}
+
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        torch_model_registry[cls.__name__] = cls
+        TorchModel.registry[cls.__name__] = cls
 
     def __init__(self):
         super().__init__()
@@ -56,6 +58,8 @@ class TorchModel(nn.Module):
         for module in self.modules():
             if isinstance(module, nn.modules.dropout._DropoutNd):
                 module.p = dropout_rate
+            if isinstance(module, nn.RNNBase):
+                module.dropout = dropout
 
         if hasattr(self, "dropout_rate"):
             assert dropout_rate == 0 or self.dropout_rate > 0
@@ -67,7 +71,6 @@ class TorchModel(nn.Module):
 
     @train_mode.setter
     def train_mode(self, mode):
-        print("hola3", mode, flush=True)
         self.set_train_mode(mode)
 
     def set_train_mode(self, mode):
@@ -106,9 +109,10 @@ class TorchModel(nn.Module):
             os.makedirs(file_dir, exist_ok=True)
 
         config = self.get_config()
-        torch.save(
-            {"model_cfg": self.get_config(), "model_state_dict": self.state_dict()}
-        )
+        torch.save({
+            "model_cfg": self.get_config(),
+            "model_state_dict": self.state_dict()
+        })
 
     @staticmethod
     def _load_cfg_state_dict(file_path=None, cfg=None, state_dict=None):
@@ -128,7 +132,8 @@ class TorchModel(nn.Module):
 
     @classmethod
     def load(cls, file_path=None, cfg=None, state_dict=None):
-        cfg, state_dict = TorchModel._load_cfg_state_dict(file_path, cfg, state_dict)
+        cfg, state_dict = TorchModel._load_cfg_state_dict(
+            file_path, cfg, state_dict)
 
         model = cls(**cfg)
         if state_dict is not None:
@@ -143,15 +148,14 @@ class TorchModel(nn.Module):
 
     @property
     def device(self):
-        devices = {param.device for param in self.parameters()} | {
-            buf.device for buf in self.buffers()
-        }
+        devices = {param.device
+                   for param in self.parameters()
+                   } | {buf.device
+                        for buf in self.buffers()}
         if len(devices) != 1:
             raise RuntimeError(
                 "Cannot determine device: {} different devices found".format(
-                    len(devices)
-                )
-            )
+                    len(devices)))
 
         return next(iter(devices))
 
@@ -213,4 +217,5 @@ class TorchModel(nn.Module):
                     # if it failed the 3 trials raise exception
                     raise err
                 # remove module prefix when is trained with dataparallel
-                state_dict = ODict((p.sub("", k), v) for k, v in state_dict.items())
+                state_dict = ODict(
+                    (p.sub("", k), v) for k, v in state_dict.items())

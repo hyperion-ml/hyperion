@@ -7,11 +7,12 @@
 import torch
 import torch.nn as nn
 
-# from torch.nn import Conv2d, BatchNorm2d
-
 from ..layers import ActivationFactory as AF
 from ..layers import DropConnect2d
 from .se_blocks import SEBlock2D, TSEBlock2D
+
+# from torch.nn import Conv2d, BatchNorm2d
+
 
 
 def _conv1x1(in_channels, out_channels, stride=1, bias=False):

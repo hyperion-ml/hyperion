@@ -2,16 +2,16 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+import logging
 # import os
 import math
-from jsonargparse import ArgumentParser, ActionParser
-import logging
 
 import numpy as np
+from jsonargparse import ActionParser, ArgumentParser
 
 import torch
-from torch.utils.data import Sampler
 import torch.distributed as dist
+from torch.utils.data import Sampler
 
 
 class ClassWeightedSeqSampler(Sampler):

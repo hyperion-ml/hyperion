@@ -2,19 +2,20 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from jsonargparse import ArgumentParser, ActionParser
+from jsonargparse import ActionParser, ArgumentParser
 
 import torch
 
-from .red_lr_on_plateau import ReduceLROnPlateau
+from .cos_lr import AdamCosineLR, CosineLR
 from .exp_lr import ExponentialLR
 from .invpow_lr import InvPowLR
-from .cos_lr import CosineLR, AdamCosineLR
 from .noam_lr import NoamLR
+from .red_lr_on_plateau import ReduceLROnPlateau
 from .triangular_lr import TriangularLR
 
 
 class LRSchedulerFactory(object):
+
     def create(
         optimizer,
         lrsch_type,
@@ -133,7 +134,7 @@ class LRSchedulerFactory(object):
                 update_lr_on_opt_step=update_lr_on_opt_step,
             )
 
-        if lrsch_type == "cos_lr":
+        if lrsch_type == "triangular":
             return TriangularLR(
                 optimizer,
                 t,
@@ -168,6 +169,8 @@ class LRSchedulerFactory(object):
                 warmup_steps=warmup_steps,
                 eps=eps,
             )
+
+        raise ValueError(f"invalid lrsch_type={lrsch_type}")
 
     @staticmethod
     def filter_args(**kwargs):
@@ -219,11 +222,9 @@ class LRSchedulerFactory(object):
                 "noam_lr",
                 "triangular_lr",
             ],
-            help=(
-                "Learning rate schedulers: None, Exponential,"
-                "Cosine Annealing, Cosine Annealing for Adam,"
-                "Reduce on Plateau"
-            ),
+            help=("Learning rate schedulers: None, Exponential,"
+                  "Cosine Annealing, Cosine Annealing for Adam,"
+                  "Reduce on Plateau"),
         )
 
         parser.add_argument(
@@ -232,26 +233,33 @@ class LRSchedulerFactory(object):
             type=float,
             help=("LR decay rate in exp lr"),
         )
-        parser.add_argument(
-            "--decay-steps", default=100, type=int, help=("LR decay steps in exp lr")
-        )
-        parser.add_argument(
-            "--power", default=0.5, type=float, help=("power in inverse power lr")
-        )
+        parser.add_argument("--decay-steps",
+                            default=100,
+                            type=int,
+                            help=("LR decay steps in exp lr"))
+        parser.add_argument("--power",
+                            default=0.5,
+                            type=float,
+                            help=("power in inverse power lr"))
 
-        parser.add_argument(
-            "--hold-steps", default=10, type=int, help=("LR hold steps in exp lr")
-        )
-        parser.add_argument("--t", default=10, type=int, help=("Period in cos lr"))
+        parser.add_argument("--hold-steps",
+                            default=10,
+                            type=int,
+                            help=("LR hold steps in exp lr"))
+        parser.add_argument("--t",
+                            default=10,
+                            type=int,
+                            help=("Period in cos lr"))
         parser.add_argument(
             "--t-mul",
             default=1,
             type=int,
-            help=("Period multiplicator for each restart in cos/triangular lr"),
+            help=(
+                "Period multiplicator for each restart in cos/triangular lr"),
         )
         parser.add_argument(
             "--gamma",
-            default=1 / 100,
+            default=1.0,
             type=float,
             help=("LR decay rate for each restart in cos/triangular lr"),
         )
@@ -263,9 +271,9 @@ class LRSchedulerFactory(object):
             help=("Do warm restarts in cos lr"),
         )
 
-        parser.add_argument(
-            "--monitor", default="val_loss", help=("Monitor metric to reduce lr")
-        )
+        parser.add_argument("--monitor",
+                            default="val_loss",
+                            help=("Monitor metric to reduce lr"))
         parser.add_argument(
             "--mode",
             default="min",
@@ -277,21 +285,24 @@ class LRSchedulerFactory(object):
             "--factor",
             default=0.1,
             type=float,
-            help=("Factor by which the learning rate will be reduced on plateau"),
+            help=(
+                "Factor by which the learning rate will be reduced on plateau"
+            ),
         )
 
         parser.add_argument(
             "--patience",
             default=10,
             type=int,
-            help=(
-                "Number of epochs with no improvement after which learning rate will be reduced"
-            ),
+            help=
+            ("Number of epochs with no improvement after which learning rate will be reduced"
+             ),
         )
 
-        parser.add_argument(
-            "--threshold", default=1e-4, type=float, help=("Minimum metric improvement")
-        )
+        parser.add_argument("--threshold",
+                            default=1e-4,
+                            type=float,
+                            help=("Minimum metric improvement"))
 
         parser.add_argument(
             "--threshold_mode",
@@ -304,16 +315,20 @@ class LRSchedulerFactory(object):
             "--cooldown",
             default=0,
             type=int,
-            help=(
-                "Number of epochs to wait before resuming normal operation after lr has been reduced"
-            ),
+            help=
+            ("Number of epochs to wait before resuming normal operation after lr has been reduced"
+             ),
         )
 
-        parser.add_argument(
-            "--eps", default=1e-8, type=float, help=("Minimum decay applied to lr")
-        )
+        parser.add_argument("--eps",
+                            default=1e-8,
+                            type=float,
+                            help=("Minimum decay applied to lr"))
 
-        parser.add_argument("--min-lr", default=0, type=float, help=("Minimum lr"))
+        parser.add_argument("--min-lr",
+                            default=0,
+                            type=float,
+                            help=("Minimum lr"))
 
         parser.add_argument(
             "--warmup-steps",
@@ -342,7 +357,8 @@ class LRSchedulerFactory(object):
         )
 
         if prefix is not None:
-            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
+            outer_parser.add_argument("--" + prefix,
+                                      action=ActionParser(parser=parser))
             # help='learning rate scheduler options')
 
     add_argparse_args = add_class_args

@@ -8,20 +8,15 @@ import numpy as np
 
 import torch
 import torch.nn as nn
-from torch.nn import Conv1d, Linear, BatchNorm1d
+from torch.nn import BatchNorm1d, Conv1d, Linear
 
+from ..layer_blocks import (Res2NetBasicBlock, Res2NetBNBlock,
+                            ResNetBasicBlock, ResNetBNBlock,
+                            ResNetEndpointBlock, ResNetInputBlock,
+                            SEResNetBasicBlock, SEResNetBNBlock)
 from ..layers import ActivationFactory as AF
 from ..layers import NormLayer2dFactory as NLF
-from ..layer_blocks import (
-    ResNetInputBlock,
-    ResNetBasicBlock,
-    ResNetBNBlock,
-    SEResNetBasicBlock,
-    SEResNetBNBlock,
-    Res2NetBasicBlock,
-    Res2NetBNBlock,
-)
-from ..layer_blocks import ResNetEndpointBlock
+from ..utils import scale_seq_lengths, seq_lengths_to_mask
 from .net_arch import NetArch
 
 
@@ -89,10 +84,12 @@ class ResNet(NetArch):
         do_maxpool=True,
         in_norm=True,
         se_r=16,
-        time_se=False,
+        se_type="cw-se",
         in_feats=None,
         res2net_scale=4,
         res2net_width_factor=1,
+        resb_channels=None,
+        time_se=False,
     ):
 
         super().__init__()
@@ -100,6 +97,7 @@ class ResNet(NetArch):
         self.block = block
         self.has_se = False
         self.is_res2net = False
+
         if isinstance(block, str):
             if block == "basic":
                 self._block = ResNetBasicBlock
@@ -117,7 +115,7 @@ class ResNet(NetArch):
             elif block == "res2bn":
                 self._block = Res2NetBNBlock
                 self.is_res2net = True
-            elif block == "seres2bn" or block == "tseres2bn":
+            elif block in ("seres2bn", "tseres2bn"):
                 self._block = Res2NetBNBlock
                 self.has_se = True
                 self.is_res2net = True
@@ -140,9 +138,13 @@ class ResNet(NetArch):
         # self.width_per_group = width_per_group
         self.se_r = se_r
         self.time_se = time_se
+        if time_se:
+            se_type = "t-se"
+        self.se_type = se_type
         self.in_feats = in_feats
         self.res2net_scale = res2net_scale
         self.res2net_width_factor = res2net_width_factor
+        self.resb_channels = resb_channels
 
         self.multilevel = multilevel
         self.endpoint_channels = endpoint_channels
@@ -186,25 +188,31 @@ class ResNet(NetArch):
         self._context = self.in_block.context
         self._downsample_factor = self.in_block.downsample_factor
 
+        if resb_channels is None:
+            resb_channels = [base_channels * (2 ** i) for i in range(4)]
+
         self.cur_in_channels = conv_channels
-        self.layer1 = self._make_layer(self._block, base_channels, num_layers[0])
+        self.layer1 = self._make_layer(self._block, resb_channels[0], num_layers[0])
         self.layer2 = self._make_layer(
             self._block,
-            2 * base_channels,
+            # 2 * base_channels,
+            resb_channels[1],
             num_layers[1],
             stride=2,
             dilate=replace_stride_with_dilation[0],
         )
         self.layer3 = self._make_layer(
             self._block,
-            4 * base_channels,
+            # 4 * base_channels,
+            resb_channels[2],
             num_layers[2],
             stride=2,
             dilate=replace_stride_with_dilation[1],
         )
         self.layer4 = self._make_layer(
             self._block,
-            8 * base_channels,
+            # 8 * base_channels,
+            resb_channels[3],
             num_layers[3],
             stride=2,
             dilate=replace_stride_with_dilation[2],
@@ -277,8 +285,6 @@ class ResNet(NetArch):
                     nn.init.constant_(m.bn2.weight, 0)
 
     def _make_layer(self, block, channels, num_blocks, stride=1, dilate=False):
-        norm_layer = self._norm_layer
-        downsample = None
         previous_dilation = self.dilation
         if dilate:
             self.dilation *= stride
@@ -286,11 +292,15 @@ class ResNet(NetArch):
 
         kwargs = {}
         if self.has_se:
-            if self.time_se:
-                num_feats = int(self.in_feats / (self._downsample_factor * stride))
-                kwargs = {"se_r": self.se_r, "time_se": True, "num_feats": num_feats}
-            else:
+            if self.se_type == "cw-se":
                 kwargs = {"se_r": self.se_r}
+            else:
+                num_feats = int(self.in_feats / (self._downsample_factor * stride))
+                kwargs = {
+                    "se_r": self.se_r,
+                    "se_type": self.se_type,
+                    "num_feats": num_feats,
+                }
 
         if self.is_res2net:
             kwargs["scale"] = self.res2net_scale
@@ -401,6 +411,15 @@ class ResNet(NetArch):
 
         return (in_shape[0], self.layer4[-1].out_channels, H, W)
 
+    def _forward_layer_with_lens(layer, x, in_lengths, max_in_length):
+        x_lengths = scale_seq_lengths(in_lengths, x.size(-1), max_in_length)
+        x_mask = seq_lengths_to_mask(x_lengths, x.size(-1), time_dim=3)
+
+        for sub_layer in layer:
+            x = sub_layer(x, x_mask)
+
+        return x
+
     def forward(self, x, x_lengths=None):
         """forward function
 
@@ -414,21 +433,39 @@ class ResNet(NetArch):
            otherwise, it returns tensor of represeantions of size=(batch, Cout, Hout, Wout)
 
         """
+        if x_lengths is not None:
+            # if all lengths are eq. to the max length, we set x_lengths to None
+            max_length = x.size(-1)
+            if torch.all(x_lengths == max_length):
+                x_lengths = None
 
         if self.in_norm:
             x = self.in_bn(x)
         feats = []
         x = self.in_block(x)
-        x = self.layer1(x)
-        x = self.layer2(x)
-        if self.multilevel:
-            feats.append(x)
-        x = self.layer3(x)
-        if self.multilevel:
-            feats.append(x)
-        x = self.layer4(x)
-        if self.multilevel:
-            feats.append(x)
+
+        if x_lengths is None:
+            x = self.layer1(x)
+            x = self.layer2(x)
+            if self.multilevel:
+                feats.append(x)
+            x = self.layer3(x)
+            if self.multilevel:
+                feats.append(x)
+            x = self.layer4(x)
+            if self.multilevel:
+                feats.append(x)
+        else:
+            x = self._forward_layer_with_lens(self.layer1, x, x_lengths, max_length)
+            x = self._forward_layer_with_lens(self.layer2, x, x_lengths, max_length)
+            if self.multilevel:
+                feats.append(x)
+            x = self._forward_layer_with_lens(self.layer3, x, x_lengths, max_length)
+            if self.multilevel:
+                feats.append(x)
+            x = self._forward_layer_with_lens(self.layer4, x, x_lengths, max_length)
+            if self.multilevel:
+                feats.append(x)
 
         if self.multilevel:
             out2 = self.endpoint2(feats[0])
@@ -547,9 +584,11 @@ class ResNet(NetArch):
             "out_act": out_act,
             "hid_act": hid_act,
             "se_r": self.se_r,
+            "se_type": self.se_type,
             "in_feats": self.in_feats,
             "res2net_scale": self.res2net_scale,
             "res2net_width_factor": self.res2net_width_factor,
+            "resb_channels": self.resb_channels,
         }
 
         base_config = super().get_config()
@@ -608,6 +647,20 @@ class WideResNet101(ResNet):
         super().__init__("bn", [3, 4, 23, 3], in_channels, **kwargs)
 
 
+class IdRndResNet100(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["base_channels"] = 128
+        kwargs["resb_channels"] = [128, 128, 256, 256]
+        super().__init__("basic", [6, 16, 24, 3], in_channels, **kwargs)
+
+
+class IdRndResNet202(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["base_channels"] = 128
+        kwargs["resb_channels"] = [128, 128, 256, 256]
+        super().__init__("basic", [6, 16, 75, 3], in_channels, **kwargs)
+
+
 class LResNet18(ResNet):
     def __init__(self, in_channels, **kwargs):
         kwargs["conv_channels"] = 16
@@ -634,6 +687,16 @@ class LResNext50_4x4d(ResNet):
         kwargs["groups"] = 4
         kwargs["base_channels"] = 16
         super().__init__("bn", [3, 4, 6, 3], in_channels, **kwargs)
+
+
+# multi-level feature ResNet
+class LResNet34_345(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["conv_channels"] = 16
+        kwargs["base_channels"] = 16
+        kwargs["multilevel"] = True
+        kwargs["endpoint_channels"] = 64
+        super().__init__("basic", [3, 4, 6, 3], in_channels, **kwargs)
 
 
 # Squezee-Excitation ResNets
@@ -811,6 +874,228 @@ class TSELResNext50_4x4d(ResNet):
         kwargs["base_channels"] = 16
         kwargs["time_se"] = True
         super().__init__("sebn", [3, 4, 6, 3], in_channels, **kwargs)
+
+
+# Freq-wise Squezee-Excitation ResNets
+
+
+class FwSEResNet18(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["se_type"] = "fw-se"
+        super().__init__("sebasic", [2, 2, 2, 2], in_channels, **kwargs)
+
+
+class FwSEResNet34(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["se_type"] = "fw-se"
+        super().__init__("sebasic", [3, 4, 6, 3], in_channels, **kwargs)
+
+
+class FwSEResNet50(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["se_type"] = "fw-se"
+        super().__init__("sebn", [3, 4, 6, 3], in_channels, **kwargs)
+
+
+class FwSEResNet101(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["se_type"] = "fw-se"
+        super().__init__("sebn", [3, 4, 23, 3], in_channels, **kwargs)
+
+
+class FwSEResNet152(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["se_type"] = "fw-se"
+        super().__init__("sebn", [3, 8, 36, 3], in_channels, **kwargs)
+
+
+class FwSEResNext50_32x4d(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["groups"] = 32
+        kwargs["base_channels"] = 128
+        kwargs["se_type"] = "fw-se"
+        super().__init__("sebn", [3, 4, 6, 3], in_channels, **kwargs)
+
+
+class FwSEResNext101_32x8d(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["groups"] = 32
+        kwargs["base_channels"] = 256
+        kwargs["se_type"] = "fw-se"
+        super().__init__("sebn", [3, 4, 23, 3], in_channels, **kwargs)
+
+
+class FwSEWideResNet50(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["base_channels"] = 128
+        kwargs["se_type"] = "fw-se"
+        super().__init__("sebn", [3, 4, 6, 3], in_channels, **kwargs)
+
+
+class FwSEWideResNet101(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["base_channels"] = 128
+        kwargs["se_type"] = "fw-se"
+        super().__init__("sebn", [3, 4, 23, 3], in_channels, **kwargs)
+
+
+class FwSELResNet18(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["conv_channels"] = 16
+        kwargs["base_channels"] = 16
+        kwargs["se_type"] = "fw-se"
+        super().__init__("sebasic", [2, 2, 2, 2], in_channels, **kwargs)
+
+
+class FwSELResNet34(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["conv_channels"] = 16
+        kwargs["base_channels"] = 16
+        kwargs["se_type"] = "fw-se"
+        super().__init__("sebasic", [3, 4, 6, 3], in_channels, **kwargs)
+
+
+class FwSELResNet50(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["conv_channels"] = 16
+        kwargs["base_channels"] = 16
+        kwargs["se_type"] = "fw-se"
+        super().__init__("sebn", [3, 4, 6, 3], in_channels, **kwargs)
+
+
+class FwSELResNext50_4x4d(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["groups"] = 4
+        kwargs["base_channels"] = 16
+        kwargs["se_type"] = "fw-se"
+        super().__init__("sebn", [3, 4, 6, 3], in_channels, **kwargs)
+
+
+class FwSEIdRndResNet100(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["base_channels"] = 128
+        kwargs["resb_channels"] = [128, 128, 256, 256]
+        kwargs["se_type"] = "fw-se"
+        super().__init__("sebasic", [6, 16, 24, 3], in_channels, **kwargs)
+
+
+class FwSEIdRndResNet202(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["base_channels"] = 128
+        kwargs["resb_channels"] = [128, 128, 256, 256]
+        kwargs["se_type"] = "fw-se"
+        super().__init__("sebasic", [6, 16, 75, 3], in_channels, **kwargs)
+
+
+# Channel-Freq-wise Squezee-Excitation ResNets
+
+
+class CFwSEResNet18(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["se_type"] = "cfw-se"
+        super().__init__("sebasic", [2, 2, 2, 2], in_channels, **kwargs)
+
+
+class CFwSEResNet34(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["se_type"] = "cfw-se"
+        super().__init__("sebasic", [3, 4, 6, 3], in_channels, **kwargs)
+
+
+class CFwSEResNet50(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["se_type"] = "cfw-se"
+        super().__init__("sebn", [3, 4, 6, 3], in_channels, **kwargs)
+
+
+class CFwSEResNet101(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["se_type"] = "cfw-se"
+        super().__init__("sebn", [3, 4, 23, 3], in_channels, **kwargs)
+
+
+class CFwSEResNet152(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["se_type"] = "cfw-se"
+        super().__init__("sebn", [3, 8, 36, 3], in_channels, **kwargs)
+
+
+class CFwSEResNext50_32x4d(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["groups"] = 32
+        kwargs["base_channels"] = 128
+        kwargs["se_type"] = "cfw-se"
+        super().__init__("sebn", [3, 4, 6, 3], in_channels, **kwargs)
+
+
+class CFwSEResNext101_32x8d(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["groups"] = 32
+        kwargs["base_channels"] = 256
+        kwargs["se_type"] = "cfw-se"
+        super().__init__("sebn", [3, 4, 23, 3], in_channels, **kwargs)
+
+
+class CFwSEWideResNet50(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["base_channels"] = 128
+        kwargs["se_type"] = "cfw-se"
+        super().__init__("sebn", [3, 4, 6, 3], in_channels, **kwargs)
+
+
+class CFwSEWideResNet101(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["base_channels"] = 128
+        kwargs["se_type"] = "cfw-se"
+        super().__init__("sebn", [3, 4, 23, 3], in_channels, **kwargs)
+
+
+class CFwSELResNet18(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["conv_channels"] = 16
+        kwargs["base_channels"] = 16
+        kwargs["se_type"] = "cfw-se"
+        super().__init__("sebasic", [2, 2, 2, 2], in_channels, **kwargs)
+
+
+class CFwSELResNet34(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["conv_channels"] = 16
+        kwargs["base_channels"] = 16
+        kwargs["se_type"] = "cfw-se"
+        super().__init__("sebasic", [3, 4, 6, 3], in_channels, **kwargs)
+
+
+class CFwSELResNet50(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["conv_channels"] = 16
+        kwargs["base_channels"] = 16
+        kwargs["se_type"] = "cfw-se"
+        super().__init__("sebn", [3, 4, 6, 3], in_channels, **kwargs)
+
+
+class CFwSELResNext50_4x4d(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["groups"] = 4
+        kwargs["base_channels"] = 16
+        kwargs["se_type"] = "cfw-se"
+        super().__init__("sebn", [3, 4, 6, 3], in_channels, **kwargs)
+
+
+class CFwSEIdRndResNet100(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["base_channels"] = 128
+        kwargs["resb_channels"] = [128, 128, 256, 256]
+        kwargs["se_type"] = "cfw-se"
+        super().__init__("sebasic", [6, 16, 24, 3], in_channels, **kwargs)
+
+
+class CFwSEIdRndResNet202(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["base_channels"] = 128
+        kwargs["resb_channels"] = [128, 128, 256, 256]
+        kwargs["se_type"] = "cfw-se"
+        super().__init__("sebasic", [6, 16, 75, 3], in_channels, **kwargs)
 
 
 #################### Res2Net variants ########################
@@ -1024,11 +1309,155 @@ class TSELRes2Next50_4x4d(ResNet):
         super().__init__("seres2bn", [3, 4, 6, 3], in_channels, **kwargs)
 
 
-# multi-level feature ResNet
-class LResNet34_345(ResNet):
+# frequency-wise  Squezee-Excitation Res2Nets
+class FwSERes2Net18(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["se_type"] = "fw-se"
+        super().__init__("se2basic", [2, 2, 2, 2], in_channels, **kwargs)
+
+
+class FwSERes2Net34(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["se_type"] = "fw-se"
+        super().__init__("se2basic", [3, 4, 6, 3], in_channels, **kwargs)
+
+
+class FwSERes2Net50(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["se_type"] = "fw-se"
+        super().__init__("seres2bn", [3, 4, 6, 3], in_channels, **kwargs)
+
+
+class FwSERes2Net101(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["se_type"] = "fw-se"
+        super().__init__("seres2bn", [3, 4, 23, 3], in_channels, **kwargs)
+
+
+class FwSERes2Net152(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["se_type"] = "fw-se"
+        super().__init__("seres2bn", [3, 8, 36, 3], in_channels, **kwargs)
+
+
+class FwSERes2Next50_32x4d(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["groups"] = 32
+        kwargs["base_channels"] = 128
+        kwargs["se_type"] = "fw-se"
+        super().__init__("seres2bn", [3, 4, 6, 3], in_channels, **kwargs)
+
+
+class FwSERes2Next101_32x8d(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["groups"] = 32
+        kwargs["base_channels"] = 256
+        kwargs["se_type"] = "fw-se"
+        super().__init__("seres2bn", [3, 4, 23, 3], in_channels, **kwargs)
+
+
+class FwSEWideRes2Net50(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["base_channels"] = 128
+        kwargs["se_type"] = "fw-se"
+        super().__init__("seres2bn", [3, 4, 6, 3], in_channels, **kwargs)
+
+
+class FwSEWideRes2Net101(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["base_channels"] = 128
+        kwargs["se_type"] = "fw-se"
+        super().__init__("seres2bn", [3, 4, 23, 3], in_channels, **kwargs)
+
+
+class FwSELRes2Net50(ResNet):
     def __init__(self, in_channels, **kwargs):
         kwargs["conv_channels"] = 16
         kwargs["base_channels"] = 16
-        kwargs["multilevel"] = True
-        kwargs["endpoint_channels"] = 64
-        super().__init__("basic", [3, 4, 6, 3], in_channels, **kwargs)
+        kwargs["se_type"] = "fw-se"
+        super().__init__("seres2bn", [3, 4, 6, 3], in_channels, **kwargs)
+
+
+class FwSELRes2Next50_4x4d(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["groups"] = 4
+        kwargs["base_channels"] = 16
+        kwargs["se_type"] = "fw-se"
+        super().__init__("seres2bn", [3, 4, 6, 3], in_channels, **kwargs)
+
+
+# channel-frequency-wise  Squezee-Excitation Res2Nets
+class CFwSERes2Net18(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["se_type"] = "cfw-se"
+        super().__init__("se2basic", [2, 2, 2, 2], in_channels, **kwargs)
+
+
+class CFwSERes2Net34(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["se_type"] = "cfw-se"
+        super().__init__("se2basic", [3, 4, 6, 3], in_channels, **kwargs)
+
+
+class CFwSERes2Net50(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["se_type"] = "cfw-se"
+        super().__init__("seres2bn", [3, 4, 6, 3], in_channels, **kwargs)
+
+
+class CFwSERes2Net101(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["se_type"] = "cfw-se"
+        super().__init__("seres2bn", [3, 4, 23, 3], in_channels, **kwargs)
+
+
+class CFwSERes2Net152(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["se_type"] = "cfw-se"
+        super().__init__("seres2bn", [3, 8, 36, 3], in_channels, **kwargs)
+
+
+class CFwSERes2Next50_32x4d(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["groups"] = 32
+        kwargs["base_channels"] = 128
+        kwargs["se_type"] = "cfw-se"
+        super().__init__("seres2bn", [3, 4, 6, 3], in_channels, **kwargs)
+
+
+class CFwSERes2Next101_32x8d(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["groups"] = 32
+        kwargs["base_channels"] = 256
+        kwargs["se_type"] = "cfw-se"
+        super().__init__("seres2bn", [3, 4, 23, 3], in_channels, **kwargs)
+
+
+class CFwSEWideRes2Net50(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["base_channels"] = 128
+        kwargs["se_type"] = "cfw-se"
+        super().__init__("seres2bn", [3, 4, 6, 3], in_channels, **kwargs)
+
+
+class CFwSEWideRes2Net101(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["base_channels"] = 128
+        kwargs["se_type"] = "cfw-se"
+        super().__init__("seres2bn", [3, 4, 23, 3], in_channels, **kwargs)
+
+
+class CFwSELRes2Net50(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["conv_channels"] = 16
+        kwargs["base_channels"] = 16
+        kwargs["se_type"] = "cfw-se"
+        super().__init__("seres2bn", [3, 4, 6, 3], in_channels, **kwargs)
+
+
+class CFwSELRes2Next50_4x4d(ResNet):
+    def __init__(self, in_channels, **kwargs):
+        kwargs["groups"] = 4
+        kwargs["base_channels"] = 16
+        kwargs["se_type"] = "cfw-se"
+        super().__init__("seres2bn", [3, 4, 6, 3], in_channels, **kwargs)

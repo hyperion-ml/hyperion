@@ -3,21 +3,20 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import os
 import logging
+import os
 from turtle import right
-from jsonargparse import ArgumentParser, ActionParser, ActionYesNo
+from typing import List, Optional, Tuple, Union
 
-from typing import Optional, Tuple, Union, List
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
+from transformers import Wav2Vec2FeatureExtractor, Wav2Vec2Processor
 
 import torch
 import torch.nn as nn
 
-from transformers import Wav2Vec2Processor, Wav2Vec2FeatureExtractor
-
 from ...torch_model import TorchModel
-from ...utils import seq_lengths_to_mask, scale_seq_lengths
-from ...utils.ddp import ddp_wait_for_all_procs, ddp_get_rank
+from ...utils import scale_seq_lengths, seq_lengths_to_mask
+from ...utils.ddp import ddp_get_rank, ddp_wait_for_all_procs
 
 
 class HFWav2VecBase(TorchModel):
@@ -273,7 +272,7 @@ class HFWav2VecBase(TorchModel):
         """Prepares input audio to be used as input to wav2vec style model."""
         x_mask = seq_lengths_to_mask(x_lengths, x.size(-1), dtype=torch.long)
         if self.normalize_input:
-            x = self._normalize(x, x_lengths)
+            x = self._normalize(x, x_mask)
 
         if self.use_input_attention_mask:
             x_mask = None
@@ -570,6 +569,8 @@ class HFWav2VecBase(TorchModel):
             default=None,
             help=("file path or HuggingFace Hub path to pre-trained model"),
         )
+
+
         parser.add_argument(
             "--normalize-input",
             default=True,

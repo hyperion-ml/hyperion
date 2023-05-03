@@ -4,12 +4,14 @@
 """
 
 import logging
+
 import numpy as np
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from scipy.special import gammaln
 
 from ...hyp_defs import float_cpu
+from ...utils.math import int2onehot, invert_pdmat, logdet_pdmat, softmax
 from ..np_model import NPModel
-from ...utils.math import int2onehot, logdet_pdmat, invert_pdmat, softmax
 
 
 class LinearGBE(NPModel):
@@ -30,6 +32,7 @@ class LinearGBE(NPModel):
       prior_nu: if given, it overwrites nu in the prior object.
       post_beta: if given, it fixes the value of beta in the posterior, overwriting the beta computed by the fit function.
       post_nu: if given, it fixes the value of nu in the posterior, overwriting the beta computed by the fit function.
+      labels: list of class labels.
     """
 
     def __init__(
@@ -48,6 +51,7 @@ class LinearGBE(NPModel):
         prior_nu=None,
         post_beta=None,
         post_nu=None,
+        labels=None,
         **kwargs
     ):
 
@@ -73,7 +77,14 @@ class LinearGBE(NPModel):
         self.post_beta = post_beta
         self.post_nu = post_nu
 
+        self.set_labels(labels)
         self._compute_Ab()
+
+    def set_labels(self, labels):
+        if isinstance(labels, np.ndarray):
+            labels = list(labels)
+
+        self.labels = labels
 
     def get_config(self):
         """
@@ -90,6 +101,7 @@ class LinearGBE(NPModel):
             "prior_nu": self.prior_nu,
             "post_beta": self.post_beta,
             "post_nu": self.post_nu,
+            "labels": self.labels,
         }
 
         base_config = super().get_config()
@@ -259,7 +271,6 @@ class LinearGBE(NPModel):
             p_theta = sample_weight[:, None] * p_theta
 
         N = np.sum(p_theta, axis=0)
-
         F = np.dot(p_theta.T, x)
 
         if self.update_mu:
@@ -337,8 +348,8 @@ class LinearGBE(NPModel):
         valid_args = (
             "update_mu",
             "update_W",
-            "no_update_mu",
-            "no_update_W",
+            "update_mu",
+            "update_W",
             "balance_class_weight",
             "prior",
             "prior_beta",
@@ -348,11 +359,6 @@ class LinearGBE(NPModel):
             "name",
         )
         d = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
-        if "no_update_mu" in d:
-            d["update_mu"] = not d["no_update_mu"]
-        if "no_update_W" in d:
-            d["update_W"] = not d["no_update_W"]
-
         return d
 
     filter_train_args = filter_class_args
@@ -364,61 +370,67 @@ class LinearGBE(NPModel):
           parser: jsonargparse object
           prefix: argument prefix.
         """
-        if prefix is None:
-            p1 = "--"
-        else:
-            p1 = "--" + prefix + "."
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
 
         parser.add_argument(
-            p1 + "no-update-mu",
-            default=False,
-            action="store_true",
+            "--update-mu",
+            default=True,
+            action=ActionYesNo,
+            nargs="?",
             help="do not update mu",
         )
         parser.add_argument(
-            p1 + "no-update-W",
-            default=False,
-            action="store_true",
+            "--update-W",
+            default=True,
+            action=ActionYesNo,
+            nargs="?",
             help="do not update W",
         )
         parser.add_argument(
-            p1 + "balance-class-weight",
+            "--balance-class-weight",
             default=False,
-            action="store_true",
+            action=ActionYesNo,
+            nargs="?",
             help="Balances the weight of each class when computing W",
         )
         parser.add_argument(
-            p1 + "prior", default=None, help="prior file for MAP adaptation"
+            "--prior", default=None, help="prior file for MAP adaptation"
         )
         parser.add_argument(
-            p1 + "prior-beta",
+            "--prior-beta",
             default=16,
             type=float,
             help="relevance factor for the means",
         )
         parser.add_argument(
-            p1 + "prior-nu",
+            "--prior-nu",
             default=16,
             type=float,
             help="relevance factor for the variances",
         )
         parser.add_argument(
-            p1 + "post-beta",
+            "--post-beta",
             default=None,
             type=float,
             help="relevance factor for the means",
         )
         parser.add_argument(
-            p1 + "post-nu",
+            "--post-nu",
             default=None,
             type=float,
             help="relevance factor for the variances",
         )
 
-        parser.add_argument(p1 + "name", default="lgbe", help="model name")
+        parser.add_argument("--name", default="lgbe", help="model name")
+        if prefix is not None:
+            outer_parser.add_argument(
+                "--" + prefix, action=ActionParser(parser=parser),
+            )
 
     @staticmethod
-    def filter_eval_args(prefix, **kwargs):
+    def filter_eval_args(**kwargs):
         """Extracts the evaluation time hyperparams of the class from a dictionary.
 
         Returns:
@@ -434,20 +446,19 @@ class LinearGBE(NPModel):
           parser: jsonargparse object
           prefix: argument prefix.
         """
-        if prefix is None:
-            p1 = "--"
-        else:
-            p1 = "--" + prefix + "."
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
 
-        parser.add_argument(p1 + "model-file", required=True, help=("model file"))
         parser.add_argument(
-            p1 + "normalize",
+            "--normalize",
             default=False,
-            action="store_true",
+            action=ActionYesNo,
+            nargs="?",
             help=("normalizes the ouput probabilities to sum to one"),
         )
         parser.add_argument(
-            p1 + "eval-method",
+            "--eval-method",
             default="linear",
             choices=["linear", "llk", "predictive"],
             help=(
@@ -455,6 +466,10 @@ class LinearGBE(NPModel):
                 "or predictive distribution"
             ),
         )
+        if prefix is not None:
+            outer_parser.add_argument(
+                "--" + prefix, action=ActionParser(parser=parser),
+            )
 
     add_argparse_args = add_class_args
     add_argparse_train_args = add_class_args

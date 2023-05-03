@@ -3,11 +3,11 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import os.path as path
 import copy
+import os.path as path
 
-import numpy as np
 import h5py
+import numpy as np
 
 from .list_utils import *
 
@@ -320,7 +320,7 @@ class TrialNdx(object):
 
     def __cmp__(self, other):
         """Comparison operator"""
-        if self.__eq__(oher):
+        if self.__eq__(other):
             return 0
         return 1
 

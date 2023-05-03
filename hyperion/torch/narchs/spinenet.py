@@ -3,17 +3,19 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import numpy as np
 import logging
+
+import numpy as np
+
 import torch
 import torch.nn as nn
-from torch.nn import Conv1d, Linear, BatchNorm1d
+from torch.nn import BatchNorm1d, Conv1d, Linear
 
+from ..layer_blocks import (BlockSpec, Res2NetBasicBlock, Res2NetBNBlock,
+                            ResNetBasicBlock, ResNetBNBlock, ResNetInputBlock,
+                            SpineConv, SpineEndpoints, SpineResample)
 from ..layers import ActivationFactory as AF
 from ..layers import NormLayer2dFactory as NLF
-from ..layer_blocks import ResNetInputBlock, ResNetBasicBlock, ResNetBNBlock
-from ..layer_blocks import Res2NetBNBlock, Res2NetBasicBlock
-from ..layer_blocks import BlockSpec, SpineResample, SpineEndpoints, SpineConv
 from .net_arch import NetArch
 
 SPINENET_BLOCK_SPECS = [

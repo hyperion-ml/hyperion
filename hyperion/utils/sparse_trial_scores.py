@@ -4,21 +4,22 @@
 """
 
 
-import os.path as path
-import logging
 import copy
+import logging
+import os.path as path
 
 import numpy as np
 import scipy.sparse as sparse
 
-# import h5py
-
 from ..hyp_defs import float_cpu
 from .list_utils import *
-from .trial_ndx import TrialNdx
-from .trial_key import TrialKey
 from .sparse_trial_key import SparseTrialKey
+from .trial_key import TrialKey
+from .trial_ndx import TrialNdx
 from .trial_scores import TrialScores
+
+# import h5py
+
 
 
 class SparseTrialScores(TrialScores):
@@ -34,7 +35,7 @@ class SparseTrialScores(TrialScores):
     """
 
     def __init__(self, model_set=None, seg_set=None, scores=None, score_mask=None):
-        super(SparseTrialScores, self).__init__(model_set, seg_set, scores, score_mask)
+        super().__init__(model_set, seg_set, scores, score_mask)
 
     def save_h5(self, file_path):
         raise NotImplementedError()
@@ -123,7 +124,7 @@ class SparseTrialScores(TrialScores):
         assert len(np.unique(self.seg_set)) == len(self.seg_set)
         if self.scores is None:
             self.scores = sparse.csr_matrix(
-                (len(model_set), len(seg_set)), dtype=float_cpu()
+                (len(self.model_set), len(self.seg_set)), dtype=float_cpu()
             )
         else:
             assert self.scores.shape == (len(self.model_set), len(self.seg_set))
@@ -164,21 +165,6 @@ class SparseTrialScores(TrialScores):
                 logging.info("segment %s not found" % seg_set[i])
             if raise_missing:
                 raise Exception("some scores were not computed")
-
-        # model_set = self.model_set[mod_idx]
-        # set_set = self.seg_set[seg_idx]
-        # ix = np.ix_(mod_idx, seg_idx)
-
-        # logging.info('hola1')
-        # new_src = [[self.scores[r,c], i, j] for i,r in enumerate(mod_idx) for j,c in enumerate(seg_idx) if self.score_mask[r,c]]
-        # logging.info('hola2')
-        # new_data = np.array([r[0] for r in new_src], dtype=float_cpu())
-        # new_row = np.array([r[1] for r in new_src], dtype=np.int)
-        # new_col = np.array([r[2] for r in new_src], dtype=np.int)
-        # logging.info('hola3')
-        # shape = (len(model_set), len(seg_set))
-        # scores = sparse.coo_matrix((new_data, (new_row, new_col)), shape=shape).tocsr()
-        # score_mask = sparse.coo_matrix((np.ones(new_data.shape, dtype=np.bool), (new_row, new_col)), shape=shape).tocsr()
 
         num_mod = len(model_set)
         num_seg = len(seg_set)
@@ -288,9 +274,29 @@ class SparseTrialScores(TrialScores):
         non = np.array(scr.scores[non_mask])[0]
         return tar, non
 
+    def get_valid_scores(self, ndx=None):
+        if ndx is None:
+            scr = self
+        else:
+            scr = self.align_with_ndx(ndx)
+
+        scores = np.array(scr.scores[scr.score_mask])[0]
+        return scores
+
+    def set_valid_scores(self, scores, ndx=None):
+        if ndx is not None:
+            scr = self.align_with_ndx(ndx)
+            self.model_set = scr.model_set
+            self.seg_set = scr.seg_set
+            self.scores = scr.scores
+            self.score_mat = scr.score_mat
+
+        self.scores[self.score_mask]=scores
+
     @classmethod
     def from_trial_scores(cls, scr):
-        scores = sparse.csr_matrix(scr.scores)
+        scores = scr.scores * scr.score_mask
+        scores = sparse.csr_matrix(scores)
         score_mask = sparse.csr_matrix(scr.score_mask)
         scores.eliminate_zeros()
         score_mask.eliminate_zeros()

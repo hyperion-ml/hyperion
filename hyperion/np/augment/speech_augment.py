@@ -5,12 +5,11 @@
 
 import logging
 import math
-import yaml
 
 import numpy as np
+import yaml
 
 from ...hyp_defs import float_cpu
-
 from .noise_augment import NoiseAugment
 from .reverb_augment import ReverbAugment
 from .speed_augment import SpeedAugment

@@ -4,14 +4,15 @@
 """
 
 import logging
-from jsonargparse import ArgumentParser, ActionParser
+
+from jsonargparse import ActionParser, ArgumentParser
 
 import torch
 import torch.nn as nn
 
-from ..layers import GlobalPool1dFactory as PF
-from ..layer_blocks import TDNNBlock
 from ...narchs import ClassifHead, ConformerEncoderV1, TorchNALoader
+from ..layer_blocks import TDNNBlock
+from ..layers import GlobalPool1dFactory as PF
 from ..torch_model import TorchModel
 from ..utils import eval_nnet_by_chunks
 

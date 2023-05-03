@@ -3,9 +3,10 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import math
+
 import torch
 import torch.nn as nn
-from torch.nn import Conv2d, BatchNorm2d, Dropout2d
+from torch.nn import BatchNorm2d, Conv2d, Dropout2d
 
 from ..layers import ActivationFactory as AF
 from .se_blocks import SEBlock2d, TSEBlock2d
@@ -194,6 +195,9 @@ class Res2Net2dBasicBlock(nn.Module):
           Tensor with shape = (batch, out_channels, out_heigh, out_width).
         """
         residual = x
+        if self.downsample is not None:
+            residual = self.downsample(residual)
+
         split_size = [self.width_in for i in range(self.scale - 1)]
         split_size.append(self.in_channels % self.width_in + self.width_in)
         split_x = torch.split(x, split_size, 1)
@@ -212,8 +216,8 @@ class Res2Net2dBasicBlock(nn.Module):
             if self.norm_before:
                 x_i = self.bn1s[i](x_i)
             x_i = self.act1(x_i)
-            if not self.norm_before:
-                x_i = self.bn1(x_i)
+            if self.norm_after:
+                x_i = self.bn1s[i](x_i)
             x.append(x_i)
 
         if self.scale > 1:
@@ -222,20 +226,22 @@ class Res2Net2dBasicBlock(nn.Module):
         x = torch.cat(x, dim=1)
 
         x = self.conv2(x)
-        if self.norm_before:
+        if self.norm_after:
+            x = self.act2(x)
             x = self.bn2(x)
+            if self.se_layer:
+                x = self.se_layer(x, x_mask=x_mask)
 
-        if self.downsample is not None:
-            residual = self.downsample(residual)
+            x += residual
+        else:
+            if self.norm_before:
+                x = self.bn2(x)
 
-        if self.se_layer:
-            x = self.se_layer(x, x_mask=x_mask)
+            if self.se_layer:
+                x = self.se_layer(x, x_mask=x_mask)
 
-        x += residual
-        x = self.act2(x)
-
-        if not self.norm_before:
-            x = self.bn2(x)
+            x += residual
+            x = self.act2(x)
 
         if self.dropout_rate > 0:
             x = self.dropout(x)
@@ -382,12 +388,14 @@ class Res2Net2dBNBlock(nn.Module):
           Tensor with shape = (batch, out_channels, out_heigh, out_width).
         """
         residual = x
+        if self.downsample is not None:
+            residual = self.downsample(residual)
 
         x = self.conv1(x)
         if self.norm_before:
             x = self.bn1(x)
         x = self.act1(x)
-        if not self.norm_before:
+        if self.norm_after:
             x = self.bn1(x)
 
         split_x = torch.split(x, self.width, 1)
@@ -401,8 +409,8 @@ class Res2Net2dBNBlock(nn.Module):
             if self.norm_before:
                 x_i = self.bn2s[i](x_i)
             x_i = self.act2(x_i)
-            if not self.norm_before:
-                x_i = self.bn2(x_i)
+            if self.norm_after:
+                x_i = self.bn2s[i](x_i)
             x.append(x_i)
 
         if self.scale > 1:
@@ -414,20 +422,22 @@ class Res2Net2dBNBlock(nn.Module):
         x = torch.cat(x, dim=1)
 
         x = self.conv3(x)
-        if self.norm_before:
+        if self.norm_after:
+            x = self.act3(x)
             x = self.bn3(x)
+            if self.se_layer:
+                x = self.se_layer(x, x_mask=x_mask)
 
-        if self.downsample is not None:
-            residual = self.downsample(residual)
+            x += residual
+        else:
+            if self.norm_before:
+                x = self.bn3(x)
 
-        if self.se_layer:
-            x = self.se_layer(x, x_mask=x_mask)
+            if self.se_layer:
+                x = self.se_layer(x, x_mask=x_mask)
 
-        x += residual
-        x = self.act3(x)
-
-        if not self.norm_before:
-            x = self.bn3(x)
+            x += residual
+            x = self.act3(x)
 
         if self.dropout_rate > 0:
             x = self.dropout(x)
