@@ -158,8 +158,9 @@ class VoxCeleb2DataPrep(DataPrep):
             file_paths = []
             futures = []
             logging.info("making video cat lists")
+            logging.info("submitting threats...")
             with ThreadPoolExecutor(max_workers=self.num_threads) as pool:
-                for i, rec_id in enumerate(rec_ids):
+                for i, rec_id in tqdm(enumerate(rec_ids)):
                     future = pool.submit(
                         VoxCeleb2DataPrep.make_cat_list,
                         lists_cat_dir,
@@ -170,6 +171,7 @@ class VoxCeleb2DataPrep(DataPrep):
                     )
                     futures.append(future)
 
+            logging.info("waiting threats...")
             file_paths = [f.result() for f in tqdm(futures)]
             video_ids = uniq_video_ids
 
@@ -213,14 +215,14 @@ class VoxCeleb2DataPrep(DataPrep):
                     df_lang.loc[r, "confidence"] if r in df_lang.index else "N/A"
                     for r in rec_ids
                 ],
-                # "duration": recs.loc[rec_ids, "duration"],
+                "duration": recs.loc[rec_ids, "duration"].values,
             }
         )
-        print(
-            recs.loc[rec_ids, "duration"],
-            len(segments),
-            len(recs.loc[rec_ids, "duration"]),
-        )
+        # print(
+        #     recs.loc[rec_ids, "duration"],
+        #     len(segments),
+        #     len(recs.loc[rec_ids, "duration"]),
+        # )
         segments = SegmentSet(segments)
         segments.sort()
 

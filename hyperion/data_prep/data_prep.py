@@ -2,6 +2,7 @@
  Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+import logging
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -66,21 +67,22 @@ class DataPrep:
     def get_recording_duration(self, recording_set):
 
         import itertools
-
         from ..utils import SCPList
 
         scp = SCPList(recording_set["id"].values, recording_set["storage_path"].values)
         futures = []
+        logging.info("submitting threats...")
         with ThreadPoolExecutor(max_workers=self.num_threads) as pool:
-            for i in range(self.num_threads):
+            for i in tqdm(range(self.num_threads)):
                 future = pool.submit(
                     DataPrep._get_recording_duration, scp, i, self.num_threads
                 )
                 futures.append(future)
 
+        logging.info("waiting threats...")
         res = [f.result() for f in tqdm(futures)]
         fss = list(itertools.chain(*[r[0] for r in res]))
-        durations = list(itertools.chain(*[r[0] for r in res]))
+        durations = list(itertools.chain(*[r[1] for r in res]))
 
         recording_set["duration"] = durations
         recording_set["sample_freq"] = fss
