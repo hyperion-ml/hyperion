@@ -480,8 +480,11 @@ class RNNTransducerDecoder(NetArch):
                     break
             t += 1
 
-        best_hyp = max(B,
-                       key=lambda hyp: hyp.log_prob / max(1, len(hyp.ys[1:])))
+        try:
+            best_hyp = max(B,
+                            key=lambda hyp: hyp.log_prob / max(1, len(hyp.ys[1:])))
+        except:
+            return ""
         ys = best_hyp.ys[1:]  # [1:] to remove the blank
         return ys
 

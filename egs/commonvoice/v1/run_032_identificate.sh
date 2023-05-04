@@ -1,12 +1,13 @@
 #!/bin/bash
 # Copyright
-#                2022   Johns Hopkins University (Author: Yen-Ju Lu)
+#                2020   Johns Hopkins University (Author: Jesus Villalba)
 # Apache 2.0.
 #
 . ./cmd.sh
 . ./path.sh
 set -e
 
+stage=0
 config_file=default_config.sh
 use_gpu=false
 nnet_stage=1
@@ -14,10 +15,10 @@ nnet_stage=1
 . $config_file
 
 if [ "$use_gpu" == "true" ];then
-  transducer_args="--use-gpu true"
-  transducer_cmd="$cuda_eval_cmd --mem 6G"
+  lid_args="--use-gpu true"
+  lid_cmd="$cuda_eval_cmd --mem 6G"
 else
-  transducer_cmd="$train_cmd --mem 12G"
+  lid_cmd="$train_cmd --mem 12G"
 fi
 
 if [ $nnet_stage -eq 1 ];then
@@ -31,19 +32,16 @@ elif [ $nnet_stage -eq 3 ];then
   nnet_name=$nnet_s3_name
 fi
 
-transducer_dir=exp/transducer/$nnet_name
-
-
-# test_data=test_clean
-
+lid_dir=exp/resnet1d/$nnet_name
 
 # Extracts x-vectors for evaluation
-for name in $test_data
-do
-  nj=40
-  steps_transducer/decode_wav2vec2rnn_transducer.sh \
-      --cmd "$transducer_cmd --mem 12G" --nj $nj ${transducer_args} \
+for name in $test_data  # $dev_data $test_data 
+  do
+    nj=40
+    steps_lid/identificate_wav2vec2resnet1d.sh \
+      --cmd "$lid_cmd" --nj $nj ${lid_args} \
       $nnet data/$name \
-      $transducer_dir/$name $bpe_model
-done
+      $lid_dir/$name data/$nnet_data/langs
+  done
 
+exit
