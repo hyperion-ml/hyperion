@@ -5,9 +5,13 @@
 
 import os
 from abc import ABCMeta, abstractmethod
+from typing import Union, Optional, List
+from pathlib import Path
+import numpy as np
+from ..utils import PathLike
 
 
-class DataWriter(object):
+class DataWriter:
     """Abstract base class to write Ark or hdf5 feature files.
 
     Attributes:
@@ -19,35 +23,42 @@ class DataWriter(object):
                           {auto (default), speech_feat,
                            2byte-auto, 2byte-signed-integer,
                            1byte-auto, 1byte-unsigned-integer, 1byte-0-1}.
-      scp_sep: Separator for scp files (default ' ').
     """
 
     __metaclass__ = ABCMeta
 
     def __init__(
         self,
-        archive_path,
-        script_path=None,
-        flush=False,
-        compress=False,
-        compression_method="auto",
-        scp_sep=" ",
+        archive_path: PathLike,
+        script_path: Optional[PathLike] = None,
+        flush: bool = False,
+        compress: bool = False,
+        compression_method: str = "auto",
     ):
-        self.archive_path = archive_path
-        self.script_path = script_path
+        self.archive_path = Path(archive_path)
+        self.script_path = Path(script_path) if script_path is not None else None
         self._flush = flush
         self.compress = compress
         self.compression_method = compression_method
-        self.scp_sep = scp_sep
 
-        archive_dir = os.path.dirname(archive_path)
-        if not os.path.exists(archive_dir):
-            os.makedirs(archive_dir)
+        archive_dir = self.archive_path.parent
+        archive_dir.mkdir(exist_ok=True, parents=True)
 
+        self.script_is_scp = False
+        self.script_sep = None
+        self.f_script = None
         if script_path is not None:
-            script_dir = os.path.dirname(script_path)
-            if not os.path.exists(script_dir):
-                os.makedirs(script_dir)
+            self.script_path.parent.mkdir(exist_ok=True, parents=True)
+            script_ext = self.script_path.suffix
+            self.script_is_scp = script_ext == ".scp"
+
+            if self.script_is_scp:
+                self.f_script = open(self.script_path, "w")
+            else:
+                self.script_sep = "," if script_ext == ".csv" else "\t"
+                self.f_script = open(self.script_path, "w", "utf-8")
+                row = self.script_sep.join(["id", "storage_path"])
+                self.f_script.write(f"{row}\n")
 
     def __enter__(self):
         """Function required when entering contructions of type
@@ -77,7 +88,11 @@ class DataWriter(object):
         pass
 
     @abstractmethod
-    def write(self, key, data):
+    def write(
+        self,
+        keys: Union[str, List[str], np.array],
+        data: Union[np.array, List[np.array]],
+    ):
         """Writes data to file.
 
         Args:

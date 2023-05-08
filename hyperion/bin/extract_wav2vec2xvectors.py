@@ -12,8 +12,12 @@ import time
 import numpy as np
 import pandas as pd
 import torchaudio.transforms as tat
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
 
 import torch
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
@@ -43,6 +47,7 @@ def get_resampler(source_fs, target_fs):
     resampler_f = lambda x: resampler(torch.from_numpy(x)).numpy()
     resamplers[source_fs] = resampler_f
     return resampler_f
+
 
 resamplers = {}
 
@@ -122,7 +127,6 @@ def extract_xvectors(
     output_spec,
     vad_spec,
     write_speech_dur,
-    scp_sep,
     vad_path_prefix,
     model_path,
     hf_chunk_length,
@@ -157,16 +161,14 @@ def extract_xvectors(
     ar_args = AR.filter_args(**kwargs)
     ar_args["wav_scale"] = 1.0
     logging.info("opening output stream: %s", output_spec)
-    with DWF.create(output_spec, scp_sep=scp_sep) as writer:
+    with DWF.create(output_spec) as writer:
 
         logging.info(f"opening input stream: {input_spec} with args={ar_args}")
         with AR(input_spec, **ar_args) as reader:
 
             if vad_spec is not None:
                 logging.info("opening VAD stream: %s", vad_spec)
-                v_reader = VRF.create(
-                    vad_spec, path_prefix=vad_path_prefix, scp_sep=scp_sep
-                )
+                v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix,)
 
             while not reader.eof():
                 t1 = time.time()
@@ -283,7 +285,6 @@ if __name__ == "__main__":
     parser.add_argument("--input", dest="input_spec", required=True)
     parser.add_argument("--vad", dest="vad_spec", default=None)
     parser.add_argument("--write-speech-dur", default=None)
-    parser.add_argument("--scp-sep", default=" ", help=("scp file field separator"))
     parser.add_argument(
         "--vad-path-prefix", default=None, help=("scp file_path prefix for vad")
     )

@@ -11,8 +11,12 @@ import time
 
 import numpy as np
 import pandas as pd
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
 
 import torch
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
@@ -93,7 +97,6 @@ def eval_xvec(
     output_spec,
     vad_spec,
     write_num_frames_spec,
-    scp_sep,
     vad_path_prefix,
     model_path,
     chunk_length,
@@ -125,8 +128,8 @@ def eval_xvec(
         num_augs = 1
 
     ar_args = AR.filter_args(**kwargs)
-    logging.info("opening output stream: %s" % (output_spec))
-    with DWF.create(output_spec, scp_sep=scp_sep) as writer:
+    logging.info("opening output stream: %s", output_spec)
+    with DWF.create(output_spec) as writer:
 
         logging.info(
             "opening input stream: {} with args={}".format(input_spec, ar_args)
@@ -135,9 +138,7 @@ def eval_xvec(
 
             if vad_spec is not None:
                 logging.info("opening VAD stream: %s" % (vad_spec))
-                v_reader = VRF.create(
-                    vad_spec, path_prefix=vad_path_prefix, scp_sep=scp_sep
-                )
+                v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix,)
 
             while not reader.eof():
                 t1 = time.time()
@@ -243,7 +244,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--write-num-frames", dest="write_num_frames_spec", default=None
     )
-    parser.add_argument("--scp-sep", default=" ", help=("scp file field separator"))
+
     parser.add_argument(
         "--vad-path-prefix", default=None, help=("scp file_path prefix for vad")
     )

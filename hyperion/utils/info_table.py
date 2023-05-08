@@ -22,6 +22,7 @@ class InfoTable:
     Attributes:
       df: pandas dataframe.
     """
+
     def __init__(self, df):
         self.df = df
         assert "id" in df, f"info_table={df}"
@@ -137,10 +138,7 @@ class InfoTable:
                 sep=" ",
                 header=None,
                 names=["id", name],
-                dtype={
-                    "id": np.str,
-                    name: np.str
-                },
+                dtype={"id": np.str, name: np.str},
             )
         else:
             if sep is None:
@@ -163,17 +161,16 @@ class InfoTable:
         Args:
           idx: Part to return from 1 to num_parts.
           num_parts: Number of parts to split the list.
-          group_by_field: All the lines with the same value in column
+          group_by: All the lines with the same value in column
                           groub_by_field go to the same part
 
         Returns:
-          Sub Utt2Info object
+          Sub InfoTable object
         """
-        if group_by is None:
+        if group_by is None or group_by == "id":
             _, idx1 = split_list(self.df["id"], idx, num_parts)
         else:
-            _, idx1 = split_list_group_by_key(self.df[group_by], idx,
-                                              num_parts)
+            _, idx1 = split_list_group_by_key(self.df[group_by], idx, num_parts)
 
         df = self.df.iloc[idx1]
         return self.__class__(df)
@@ -192,14 +189,10 @@ class InfoTable:
         df = pd.concat(df_list)
         return cls(df)
 
-    def filter(self,
-               items=None,
-               iindex=None,
-               columns=None,
-               by="id",
-               keep=True):
-        assert (items is None or iindex is None
-                ), "items and iindex cannot be not None at the same time"
+    def filter(self, items=None, iindex=None, columns=None, by="id", keep=True):
+        assert (
+            items is None or iindex is None
+        ), "items and iindex cannot be not None at the same time"
         df = self.df
 
         if not keep:

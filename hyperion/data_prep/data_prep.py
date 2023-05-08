@@ -50,12 +50,12 @@ class DataPrep:
         raise NotImplementedError()
 
     @staticmethod
-    def _get_recording_duration(scp, i, n):
+    def _get_recording_duration(recordings, i, n):
         from ..io import SequentialAudioReader as AR
 
         durations = []
         fss = []
-        with AR(scp, part_idx=i, num_parts=n) as reader:
+        with AR(recordings, part_idx=i + 1, num_parts=n) as reader:
             for data in reader:
                 key, x, fs = data
                 duration = x.shape[0] / fs
@@ -69,13 +69,13 @@ class DataPrep:
         import itertools
         from ..utils import SCPList
 
-        scp = SCPList(recording_set["id"].values, recording_set["storage_path"].values)
+        # scp = SCPList(recording_set["id"].values, recording_set["storage_path"].values)
         futures = []
         logging.info("submitting threats...")
         with ThreadPoolExecutor(max_workers=self.num_threads) as pool:
             for i in tqdm(range(self.num_threads)):
                 future = pool.submit(
-                    DataPrep._get_recording_duration, scp, i, self.num_threads
+                    DataPrep._get_recording_duration, recording_set, i, self.num_threads
                 )
                 futures.append(future)
 

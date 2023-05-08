@@ -13,8 +13,12 @@ import numpy as np
 import pandas as pd
 from art.classifiers import PyTorchClassifier
 from art.estimators.classification import PyTorchClassifier
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
 
 import torch
 import torch.nn as nn
@@ -25,8 +29,9 @@ from hyperion.io import RandomAccessDataReaderFactory as DRF
 from hyperion.io import VADReaderFactory as VRF
 from hyperion.np.classifiers import BinaryLogisticRegression as LR
 from hyperion.torch import TorchModelLoader as TML
-from hyperion.torch.adv_attacks.art_attack_factory import \
-    ARTAttackFactory as AttackFactory
+from hyperion.torch.adv_attacks.art_attack_factory import (
+    ARTAttackFactory as AttackFactory,
+)
 from hyperion.torch.layers import LinBinCalibrator as Calibrator
 from hyperion.torch.narchs import AudioFeatsMVN as AF
 from hyperion.torch.utils import open_device
@@ -195,7 +200,7 @@ def eval_cosine_scoring(
 
     if vad_spec is not None:
         logging.info("opening VAD stream: %s" % (vad_spec))
-        v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix, scp_sep=" ")
+        v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix)
 
     scores = np.zeros((key.num_models, key.num_tests), dtype="float32")
     attack_stats = pd.DataFrame(
@@ -354,9 +359,9 @@ if __name__ == "__main__":
     )
 
     parser.add_argument("--cfg", action=ActionConfigFile)
-    parser.add_argument("--v-file", dest="v_file", required=True)
-    parser.add_argument("--key-file", dest="key_file", default=None)
-    parser.add_argument("--enroll-file", dest="enroll_file", required=True)
+    parser.add_argument("--v-file", required=True)
+    parser.add_argument("--key-file", default=None)
+    parser.add_argument("--enroll-file", required=True)
     parser.add_argument("--test-wav-file", required=True)
 
     AR.add_class_args(parser)
@@ -364,10 +369,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--vad", dest="vad_spec", default=None)
     parser.add_argument(
-        "--vad-path-prefix",
-        dest="vad_path_prefix",
-        default=None,
-        help=("scp file_path prefix for vad"),
+        "--vad-path-prefix", default=None, help=("scp file_path prefix for vad"),
     )
 
     parser.add_argument("--model-path", required=True)

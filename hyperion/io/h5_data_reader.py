@@ -6,8 +6,8 @@
 """
 
 import multiprocessing
-import sys
 import time
+from typing import Union, Optional, List, Callable, Tuple
 
 import h5py
 import numpy as np
@@ -16,11 +16,18 @@ from ..hyp_defs import float_cpu
 from ..utils.kaldi_io_funcs import is_token
 from ..utils.kaldi_matrix import KaldiCompressedMatrix, KaldiMatrix
 from ..utils.list_utils import split_list, split_list_group_by_key
-from ..utils.scp_list import SCPList
+
+# from ..utils.scp_list import SCPList
+from ..utils import FeatureSet, PathLike
 from .data_reader import RandomAccessDataReader, SequentialDataReader
 
 
-def _read_h5_data(dset, row_offset=0, num_rows=0, transform=None):
+def _read_h5_data(
+    dset,
+    row_offset: int = 0,
+    num_rows: int = 0,
+    transform: Optional[Callable[[np.array], np.array]] = None,
+):
     """Auxiliary function to read the feature matrix from hdf5 dataset.
        It decompresses the data if it was compressed.
 
@@ -74,7 +81,7 @@ class SequentialH5DataReader(SequentialDataReader):
         split_by_key: If True, all the elements with the same key go to the same part.
     """
 
-    def __init__(self, file_path, **kwargs):
+    def __init__(self, file_path: PathLike, **kwargs):
         super().__init__(file_path, **kwargs)
         self.f = None
         self.cur_file = None
@@ -86,7 +93,7 @@ class SequentialH5DataReader(SequentialDataReader):
             self.f.close()
             self.f = None
 
-    def _open_archive(self, file_path):
+    def _open_archive(self, file_path: PathLike):
         """Opens the hdf5 file where the next matrix/vector is
         if it is not open.
         If there was another hdf5 file open, it closes it.
@@ -96,7 +103,7 @@ class SequentialH5DataReader(SequentialDataReader):
             self.cur_file = file_path
             self.f = h5py.File(file_path, "r")
 
-    def read_num_rows(self, num_records=0, assert_same_dim=True):
+    def read_num_rows(self, num_records: int = 0, assert_same_dim: bool = True):
         """Reads the number of rows in the feature matrices of the dataset.
 
         Args:
@@ -113,7 +120,7 @@ class SequentialH5DataReader(SequentialDataReader):
         num_rows = np.array([s[0] if len(s) == 2 else 1 for s in shapes], dtype=int)
         return keys, num_rows
 
-    def read_dims(self, num_records=0, assert_same_dim=True):
+    def read_dims(self, num_records: int = 0, assert_same_dim: bool = True):
         """Reads the number of columns in the feature matrices of the dataset.
 
         Args:
@@ -147,7 +154,7 @@ class SequentialH5FileDataReader(SequentialH5DataReader):
         split_by_key: If True, all the elements with the same key go to the same part.
     """
 
-    def __init__(self, file_path, **kwargs):
+    def __init__(self, file_path: PathLike, **kwargs):
         super().__init__(file_path, permissive=False, **kwargs)
         self._open_archive(self.file_path)
         self._keys = list(self.f.keys())
@@ -172,7 +179,7 @@ class SequentialH5FileDataReader(SequentialH5DataReader):
         """Returns True when it reaches the end of the ark file."""
         return self.cur_item == len(self._keys)
 
-    def read_shapes(self, num_records=0, assert_same_dim=True):
+    def read_shapes(self, num_records: int = 0, assert_same_dim: bool = True):
         """Reads the shapes in the feature matrices of the dataset.
 
         Args:
@@ -204,7 +211,13 @@ class SequentialH5FileDataReader(SequentialH5DataReader):
 
         return keys, shapes
 
-    def read(self, num_records=0, squeeze=False, row_offset=0, num_rows=0):
+    def read(
+        self,
+        num_records: int = 0,
+        squeeze: bool = False,
+        row_offset: int = 0,
+        num_rows: int = 0,
+    ):
         """Reads next num_records feature matrices/vectors.
 
         Args:
@@ -225,12 +238,8 @@ class SequentialH5FileDataReader(SequentialH5DataReader):
         if num_records == 0:
             num_records = len(self._keys) - self.cur_item
 
-        row_offset_is_list = isinstance(row_offset, list) or isinstance(
-            row_offset, np.ndarray
-        )
-        num_rows_is_list = isinstance(num_rows, list) or isinstance(
-            num_rows, np.ndarray
-        )
+        row_offset_is_list = isinstance(row_offset, (list, np.ndarray))
+        num_rows_is_list = isinstance(num_rows, (list, np.ndarray))
         keys = []
         data = []
         with self.lock:
@@ -268,7 +277,6 @@ class SequentialH5ScriptDataReader(SequentialH5DataReader):
                      the scp file. This is useful when data
                      is read from a different directory of that
                      it was created.
-        scp_sep: Separator for scp files (default ' ').
         transform: TransformList object, applies a transformation to the
                    features after reading them from disk.
         part_idx: It splits the input into num_parts and writes only
@@ -277,20 +285,20 @@ class SequentialH5ScriptDataReader(SequentialH5DataReader):
         split_by_key: If True, all the elements with the same key go to the same part.
     """
 
-    def __init__(self, file_path, path_prefix=None, scp_sep=" ", **kwargs):
+    def __init__(
+        self, file_path: PathLike, path_prefix: Optional[PathLike] = None, **kwargs
+    ):
         super().__init__(file_path, permissive=False, **kwargs)
 
-        self.scp = SCPList.load(self.file_path, sep=scp_sep)
+        self.feature_set = FeatureSet.load(self.file_path)
         if self.num_parts > 1:
-            self.scp = self.scp.split(
-                self.part_idx, self.num_parts, group_by_key=self.split_by_key
-            )
+            self.feature_set = self.feature_set.split(self.part_idx, self.num_parts)
         if path_prefix is not None:
-            self.scp.add_prefix_to_filepath(path_prefix)
+            self.feature_set.add_prefix_to_storage_path(path_prefix)
 
     @property
     def keys(self):
-        return self.scp.key
+        return self.feature_set["id"]
 
     def reset(self):
         """Closes all the open hdf5 files and puts the read pointer pointing
@@ -300,9 +308,9 @@ class SequentialH5ScriptDataReader(SequentialH5DataReader):
 
     def eof(self):
         """Returns True when all the elements in the scp have been read."""
-        return self.cur_item == len(self.scp)
+        return self.cur_item == len(self.feature_set)
 
-    def read_shapes(self, num_records=0, assert_same_dim=True):
+    def read_shapes(self, num_records: int = 0, assert_same_dim: bool = True):
         """Reads the shapes in the feature matrices of the dataset.
 
         Args:
@@ -316,7 +324,7 @@ class SequentialH5ScriptDataReader(SequentialH5DataReader):
           List of tuples with num_records shapes.
         """
         if num_records == 0:
-            num_records = len(self.scp) - self.cur_item
+            num_records = len(self.feature_set) - self.cur_item
 
         keys = []
         shapes = []
@@ -324,14 +332,15 @@ class SequentialH5ScriptDataReader(SequentialH5DataReader):
             if self.eof():
                 break
 
-            key, file_path, offset, range_spec = self.scp[self.cur_item]
+            feature_spec = self.feature_set.iloc[self.cur_item]
+            key = feature_spec["id"]
 
-            row_offset_i, num_rows_i = self._combine_ranges(range_spec, 0, 0)
-
-            self._open_archive(file_path)
-
+            self._open_archive(feature_spec["storage_path"])
             shape_i = self.f[key].shape
-            shape_i = self._apply_range_to_shape(shape_i, row_offset_i, num_rows_i)
+            if "start" in feature_spec and "num_frames" in feature_spec:
+                range_spec = [feature_spec["start"], feature_spec["num_frames"]]
+                row_offset_i, num_rows_i = self._combine_ranges(range_spec, 0, 0)
+                shape_i = self._apply_range_to_shape(shape_i, row_offset_i, num_rows_i)
 
             keys.append(key)
             shapes.append(shape_i)
@@ -343,7 +352,13 @@ class SequentialH5ScriptDataReader(SequentialH5DataReader):
 
         return keys, shapes
 
-    def read(self, num_records=0, squeeze=False, row_offset=0, num_rows=0):
+    def read(
+        self,
+        num_records: int = 0,
+        squeeze: bool = False,
+        row_offset: int = 0,
+        num_rows: int = 0,
+    ):
         """Reads next num_records feature matrices/vectors.
 
         Args:
@@ -362,14 +377,10 @@ class SequentialH5ScriptDataReader(SequentialH5DataReader):
           data: List of feature matrices/vectors or 3D/2D numpy array.
         """
         if num_records == 0:
-            num_records = len(self.scp) - self.cur_item
+            num_records = len(self.feature_set) - self.cur_item
 
-        row_offset_is_list = isinstance(row_offset, list) or isinstance(
-            row_offset, np.ndarray
-        )
-        num_rows_is_list = isinstance(num_rows, list) or isinstance(
-            num_rows, np.ndarray
-        )
+        row_offset_is_list = isinstance(row_offset, (list, np.ndarray))
+        num_rows_is_list = isinstance(num_rows, (list, np.ndarray))
 
         keys = []
         data = []
@@ -378,7 +389,13 @@ class SequentialH5ScriptDataReader(SequentialH5DataReader):
                 if self.eof():
                     break
 
-                key, file_path, offset, range_spec = self.scp[self.cur_item]
+                feature_spec = self.feature_set.iloc[self.cur_item]
+                key = feature_spec["id"]
+                file_path = feature_spec["storage_path"]
+                if "start" in feature_spec and "num_frames" in feature_spec:
+                    range_spec = [feature_spec["start"], feature_spec["num_frames"]]
+                else:
+                    range_spec = None
 
                 row_offset_i = row_offset[i] if row_offset_is_list else row_offset
                 num_rows_i = num_rows[i] if num_rows_is_list else num_rows
@@ -413,11 +430,18 @@ class RandomAccessH5DataReader(RandomAccessDataReader):
                     it returns an empty matrix, if False it raises an exception.
     """
 
-    def __init__(self, file_path, transform=None, permissive=False):
+    def __init__(
+        self,
+        file_path: PathLike,
+        transform: Optional[Callable[[np.array], np.array]] = None,
+        permissive: bool = False,
+    ):
         super().__init__(file_path, transform, permissive)
         self.f = None
 
-    def read_num_rows(self, keys, assert_same_dim=True):
+    def read_num_rows(
+        self, keys: Union[str, List[str], np.array], assert_same_dim: bool = True
+    ):
         """Reads the number of rows in the feature matrices of the dataset.
 
         Args:
@@ -433,7 +457,9 @@ class RandomAccessH5DataReader(RandomAccessDataReader):
         num_rows = np.array([s[0] if len(s) == 2 else 1 for s in shapes], dtype=int)
         return num_rows
 
-    def read_dims(self, keys, assert_same_dim=True):
+    def read_dims(
+        self, keys: Union[str, List[str], np.array], assert_same_dim: bool = True
+    ):
         """Reads the number of columns in the feature matrices of the dataset.
 
         Args:
@@ -463,7 +489,7 @@ class RandomAccessH5FileDataReader(RandomAccessH5DataReader):
                    it returns an empty matrix, if False it raises an exception.
     """
 
-    def __init__(self, file_path, **kwargs):
+    def __init__(self, file_path: PathLike, **kwargs):
         super().__init__(file_path, **kwargs)
         self.lock = multiprocessing.Lock()
         self._open_archive(file_path)
@@ -474,7 +500,7 @@ class RandomAccessH5FileDataReader(RandomAccessH5DataReader):
             self.f.close()
             self.f = None
 
-    def _open_archive(self, file_path):
+    def _open_archive(self, file_path: PathLike):
         """Open the hdf5 file it it is not open."""
         if self.f is None:
             self.close()
@@ -484,7 +510,9 @@ class RandomAccessH5FileDataReader(RandomAccessH5DataReader):
     def keys(self):
         return list(self.f.keys())
 
-    def read_shapes(self, keys, assert_same_dim=True):
+    def read_shapes(
+        self, keys: Union[str, List[str], np.array], assert_same_dim: bool = True
+    ):
         """Reads the shapes in the feature matrices of the dataset.
 
         Args:
@@ -518,7 +546,13 @@ class RandomAccessH5FileDataReader(RandomAccessH5DataReader):
 
         return shapes
 
-    def read(self, keys, squeeze=False, row_offset=0, num_rows=0):
+    def read(
+        self,
+        keys: Union[str, List[str], np.array],
+        squeeze: bool = False,
+        row_offset: int = 0,
+        num_rows: int = 0,
+    ):
         """Reads the feature matrices/vectors for the recordings in keys.
 
         Args:
@@ -539,12 +573,8 @@ class RandomAccessH5FileDataReader(RandomAccessH5DataReader):
         if isinstance(keys, str):
             keys = [keys]
 
-        row_offset_is_list = isinstance(row_offset, list) or isinstance(
-            row_offset, np.ndarray
-        )
-        num_rows_is_list = isinstance(num_rows, list) or isinstance(
-            num_rows, np.ndarray
-        )
+        row_offset_is_list = isinstance(row_offset, (list, np.ndarray))
+        num_rows_is_list = isinstance(num_rows, (list, np.ndarray))
         if row_offset_is_list:
             assert len(row_offset) == len(keys)
         if num_rows_is_list:
@@ -589,17 +619,20 @@ class RandomAccessH5ScriptDataReader(RandomAccessH5DataReader):
                    features after reading them from disk.
         permissive: If True, if the data that we want to read is not in the file
                     it returns an empty matrix, if False it raises an exception.
-        scp_sep: Separator for scp files (default ' ').
     """
 
-    def __init__(self, file_path, path_prefix=None, scp_sep=" ", **kwargs):
+    def __init__(
+        self, file_path: PathLike, path_prefix: Optional[PathLike] = None, **kwargs
+    ):
         super().__init__(file_path, **kwargs)
 
-        self.scp = SCPList.load(self.file_path, sep=scp_sep)
+        self.feature_set = FeatureSet.load(self.file_path)
         if path_prefix is not None:
-            self.scp.add_prefix_to_filepath(path_prefix)
+            self.feature_set.add_prefix_to_storage_path(path_prefix)
 
-        archives, archive_idx = np.unique(self.scp.file_path, return_inverse=True)
+        archives, archive_idx = np.unique(
+            self.feature_set["storage_path"], return_inverse=True
+        )
         self.archives = archives
         self.archive_idx = archive_idx
         self.f = [None] * len(self.archives)
@@ -614,9 +647,9 @@ class RandomAccessH5ScriptDataReader(RandomAccessH5DataReader):
 
     @property
     def keys(self):
-        return self.scp.key
+        return self.feature_set["id"]
 
-    def _open_archive(self, key_idx):
+    def _open_archive(self, key_idx: int):
         """Opens the hdf5 file correspoding to a given feature/matrix
            if it is not already open.
 
@@ -633,7 +666,9 @@ class RandomAccessH5ScriptDataReader(RandomAccessH5DataReader):
 
         return self.f[archive_idx], self.locks[archive_idx]
 
-    def read_shapes(self, keys, assert_same_dim=True):
+    def read_shapes(
+        self, keys: Union[str, List[str], np.array], assert_same_dim: bool = True
+    ):
         """Reads the shapes in the feature matrices of the dataset.
 
         Args:
@@ -651,18 +686,15 @@ class RandomAccessH5ScriptDataReader(RandomAccessH5DataReader):
         shapes = []
         for key in keys:
 
-            if not (key in self.scp):
+            if not (key in self.feature_set.index):
                 if self.permissive:
                     shapes.append((0,))
                     continue
                 else:
                     raise Exception("Key %s not found" % key)
 
-            index = self.scp.get_index(key)
-            _, file_path, offset, range_spec = self.scp[index]
-
-            row_offset_i, num_rows_i = self._combine_ranges(range_spec, 0, 0)
-
+            index = self.feature_set.get_loc(key)
+            feature_spec = self.feature_set.loc[key]
             f, lock = self._open_archive(index)
             if not (key in f):
                 if self.permissive:
@@ -673,8 +705,12 @@ class RandomAccessH5ScriptDataReader(RandomAccessH5DataReader):
 
             with lock:
                 shape_i = f[key].shape
-            shape_i = self._apply_range_to_shape(shape_i, row_offset_i, num_rows_i)
-            # print('%s %d %.2f' % (key,time.time()-t1, len(shapes)/len(keys)*100.))
+
+            if "start" in feature_spec and "num_frames" in feature_spec:
+                range_spec = [feature_spec["start"], feature_spec["num_frames"]]
+                row_offset_i, num_rows_i = self._combine_ranges(range_spec, 0, 0)
+                shape_i = self._apply_range_to_shape(shape_i, row_offset_i, num_rows_i)
+
             shapes.append(shape_i)
 
         if assert_same_dim:
@@ -683,7 +719,13 @@ class RandomAccessH5ScriptDataReader(RandomAccessH5DataReader):
 
         return shapes
 
-    def read(self, keys, squeeze=False, row_offset=0, num_rows=0):
+    def read(
+        self,
+        keys: Union[str, List[str], np.array],
+        squeeze: bool = False,
+        row_offset: int = 0,
+        num_rows: int = 0,
+    ):
         """Reads the feature matrices/vectors for the recordings in keys.
 
         Args:
@@ -704,12 +746,8 @@ class RandomAccessH5ScriptDataReader(RandomAccessH5DataReader):
         if isinstance(keys, str):
             keys = [keys]
 
-        row_offset_is_list = isinstance(row_offset, list) or isinstance(
-            row_offset, np.ndarray
-        )
-        num_rows_is_list = isinstance(num_rows, list) or isinstance(
-            num_rows, np.ndarray
-        )
+        row_offset_is_list = isinstance(row_offset, (list, np.ndarray))
+        num_rows_is_list = isinstance(num_rows, (list, np.ndarray))
         if row_offset_is_list:
             assert len(row_offset) == len(keys)
         if num_rows_is_list:
@@ -718,15 +756,19 @@ class RandomAccessH5ScriptDataReader(RandomAccessH5DataReader):
         data = []
         for i, key in enumerate(keys):
 
-            if not (key in self.scp):
+            if not (key in self.feature_set.index):
                 if self.permissive:
                     data.append(np.array([], dtype=float_cpu()))
                     continue
                 else:
                     raise Exception("Key %s not found" % key)
 
-            index = self.scp.get_index(key)
-            _, file_path, offset, range_spec = self.scp[index]
+            index = self.feature_set.get_loc(key)
+            feature_spec = self.feature_set.loc[key]
+            if "start" in feature_spec and "num_frames" in feature_spec:
+                range_spec = [feature_spec["start"], feature_spec["num_frames"]]
+            else:
+                range_spec = None
 
             row_offset_i = row_offset[i] if row_offset_is_list else row_offset
             num_rows_i = num_rows[i] if num_rows_is_list else num_rows

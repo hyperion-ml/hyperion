@@ -9,12 +9,16 @@ import numpy as np
 import pandas as pd
 
 from .info_table import InfoTable
+from .misc import PathLike
 
 
 class FeatureSet(InfoTable):
     def __init__(self, df):
         super().__init__(df)
         assert "storage_path" in df
+
+    def add_prefix_to_storage_path(self, prefix: PathLike):
+        self.df["storge_path"] = self.df["storage_path"].apply(lambda x: f"{prefix}{x}")
 
     def save(self, file_path, sep=None):
         """Saves info table to file
@@ -31,14 +35,14 @@ class FeatureSet(InfoTable):
             from .scp_list import SCPList
 
             offset = self.df["storage_byte"] if "storage_byte" in self.df else None
-            range = None
+            range_spec = None
             if "start" and "num_frames" in self.df:
-                range = [
+                range_spec = [
                     np.array([s, n], dtype=np.int64)
                     for s, n in self.df[["start", "num_frames"]]
                 ]
             scp = SCPList(
-                self.df["id"].values, self.df["storage_path"].values, offset, range
+                self.df["id"].values, self.df["storage_path"].values, offset, range_spec
             )
             scp.save(file_path)
             return
@@ -67,9 +71,9 @@ class FeatureSet(InfoTable):
             if scp.offset is not None:
                 df["storage_byte"] = scp.offset
 
-            if scp.range is not None:
-                df["start"] = [r[0] for r in scp.range]
-                df["num_frames"] = [r[0] for r in scp.range]
+            if scp.range_spec is not None:
+                df["start"] = [r[0] for r in scp.range_spec]
+                df["num_frames"] = [r[1] for r in scp.range_spec]
 
             return cls(df)
 
