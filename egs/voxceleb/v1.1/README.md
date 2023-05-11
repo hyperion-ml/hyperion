@@ -104,12 +104,12 @@ run_040_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | config_fbank80_stmn_fwseresnet34.v3.0.sh | FwSE-ResNet34 | Stage2: ArcFace m=0.3/intertop_m=0.1 | Cosine | 0.77 | 0.48 | 0.077 |
 | | | | Cosine + AS-Norm | 0.68 | 0.040 | 0.062|
 | | | | Cosine + QMF | 0.62 | 0.036 | 0.063 |
-| config_fbank80_stmn_tseresnet34.v3.0.sh | Time-SE-ResNet34 | Stage2: ArcFace m=0.3/intertop_m=0.1 | Cosine | | | |
-| | | | Cosine + AS-Norm | | | |
-| | | | Cosine + QMF |  |  |  |
-| config_fbank80_stmn_cfwseresnet34.v3.0.sh | CwFwSE-ResNet34 | Stage2: ArcFace m=0.3/intertop_m=0.1 | Cosine | | | |
-| | | | Cosine + AS-Norm | | | |
-| | | | Cosine + QMF |  |  |  |
+| config_fbank80_stmn_tseresnet34.v3.0.sh | Time-SE-ResNet34 | Stage2: ArcFace m=0.3/intertop_m=0.1 | Cosine | 0.78 | 0.053 | 0.082 |
+| | | | Cosine + AS-Norm | 0.70 | 0.043 | 0.076 |
+| | | | Cosine + QMF | 0.63 | 0.042 | 0.071 |
+| config_fbank80_stmn_cfwseresnet34.v3.0.sh | CwFwSE-ResNet34 | Stage2: ArcFace m=0.3/intertop_m=0.1 | Cosine | 0.78 | 0.051 | 0.095 |
+| | | | Cosine + AS-Norm | 0.72 | 0.046 | 0.070 |
+| | | | Cosine + QMF | 0.67 | 0.039 | 0.074 |
 | config_fbank80_stmn_idrnd_resnet100.v3.0.sh | ResNet100 / BasicBlock 128-256 ch. | Stage2: ArcFace m=0.4/intertop_m=0.1 | Cosine | 0.56 | 0.040 | 0.065 |
 | | | | Cosine + AS-Norm | 0.52 | 0.33 | 0.045 |
 | | | | Cosine + QMF | 0.45 | 0.027 | 0.043 |
@@ -134,15 +134,17 @@ run_040_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | config_fbank80_stmn_fwseresnet34.v3.0.sh | FwSE-ResNet34 | Stage2: ArcFace m=0.3/intertop_m=0.1 | Cosine | 0.83 | 0.053 | 0.098 |
 | | | | Cosine + AS-Norm | 0.78 | 0.047| 0.085 |
 | | | | Cosine + QMF | 0.74 | 0.045 | 0.081 |
-| config_fbank80_stmn_tseresnet34.v3.0.sh | Time-SE-ResNet34 | Stage2: ArcFace m=0.3/intertop_m=0.1 | Cosine | | | |
-| | | | Cosine + AS-Norm | | | |
-| | | | Cosine + QMF |  |  |  |
-| config_fbank80_stmn_cfwseresnet34.v3.0.sh | CwFwSE-ResNet34 | Stage2: ArcFace m=0.3/intertop_m=0.1 | Cosine | | | |
-| | | | Cosine + AS-Norm | | | |
-| | | | Cosine + QMF |  |  |  |
+| config_fbank80_stmn_tseresnet34.v3.0.sh | Time-SE-ResNet34 | Stage2: ArcFace m=0.3/intertop_m=0.1 | Cosine | 0.91 | 0.057 | 0.100 |
+| | | | Cosine + AS-Norm | 0.85 | 0.052 | 0.089 |
+| | | | Cosine + QMF | 0.81 | 0.049 | 0.085 |
+| config_fbank80_stmn_cfwseresnet34.v3.0.sh | CwFwSE-ResNet34 | Stage2: ArcFace m=0.3/intertop_m=0.1 | Cosine | 0.94 | 0.059 | 0.105 |
+| | | | Cosine + AS-Norm | 0.88 | 0.053 | 0.093 |
+| | | | Cosine + QMF | 0.84 | 0.051 | 0.088 |
 | config_fbank80_stmn_idrnd_resnet100.v3.0.sh | ResNet100 / BasicBlock 128-256 ch. | Stage2: ArcFace m=0.4/intertop_m=0.1 | Cosine | 0.71 | 0.044 | 0.076|
 | | | | Cosine + AS-Norm | 0.66 | 0.040 | 0.069 |
 | | | | Cosine + QMF | 0.63 | 0.037 | 0.067 |
+
+
 
 ### VoxCeleb 1 Hard-Clean trial list
 
@@ -163,15 +165,17 @@ run_040_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | config_fbank80_stmn_fwseresnet34.v3.0.sh | FwSE-ResNet34 | Stage2: ArcFace m=0.3/intertop_m=0.1 | Cosine | 1.59 | 0.096 | 0.165 |
 | | | | Cosine + AS-Norm | 1.41 | 0.083 | 0.143 |
 | | | | Cosine + QMF | 1.34 | 0.079 | 0.136 |
-| config_fbank80_stmn_tseresnet34.v3.0.sh | Time-SE-ResNet34 | Stage2: ArcFace m=0.3/intertop_m=0.1 | Cosine | | | |
-| | | | Cosine + AS-Norm | | | |
-| | | | Cosine + QMF |  |  |  |
-| config_fbank80_stmn_cfwseresnet34.v3.0.sh | CwFwSE-ResNet34 | Stage2: ArcFace m=0.3/intertop_m=0.1 | Cosine | | | |
-| | | | Cosine + AS-Norm | | | |
-| | | | Cosine + QMF |  |  |  |
+| config_fbank80_stmn_tseresnet34.v3.0.sh | Time-SE-ResNet34 | Stage2: ArcFace m=0.3/intertop_m=0.1 | Cosine | 1.75 | 0.104 | 0.171 |
+| | | | Cosine + AS-Norm | 1.56 | 0.091 | 0.152 |
+| | | | Cosine + QMF | 1.50 | 0.087 | 0.145 |
+| config_fbank80_stmn_cfwseresnet34.v3.0.sh | CwFwSE-ResNet34 | Stage2: ArcFace m=0.3/intertop_m=0.1 | Cosine | 1.76 | 0.104 | 0.174 |
+| | | | Cosine + AS-Norm |  1.58 | 0.092 | 0.152 |
+| | | | Cosine + QMF | 1.51 | 0.089 | 0.149 |
 | config_fbank80_stmn_idrnd_resnet100.v3.0.sh | ResNet100 / BasicBlock 128-256 ch. | Stage2: ArcFace m=0.4/intertop_m=0.1 | Cosine | 1.30 | 0.076 | 0.125 |
 | | | | Cosine + AS-Norm | 1.15 | 0.066 | 0.109 |
 | | | | Cosine + QMF | 1.11 | 0.065 | 0.103 |
+
+
 
 ### VoxSRC2022 dev
 
@@ -192,12 +196,12 @@ run_040_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | config_fbank80_stmn_fwseresnet34.v3.0.sh | FwSE-ResNet34 | Stage2: ArcFace m=0.3/intertop_m=0.1 | Cosine | 2.25 | 0.136 | 0.239 |
 | | | | Cosine + AS-Norm | 1.99 | 0.127 | 0.232 |
 | | | | Cosine + QMF | 1.87 | 0.119 | 0.216 |
-| config_fbank80_stmn_tseresnet34.v3.0.sh | Time-SE-ResNet34 | Stage2: ArcFace m=0.3/intertop_m=0.1 | Cosine | | | |
-| | | | Cosine + AS-Norm | | | |
-| | | | Cosine + QMF |  |  |  |
-| config_fbank80_stmn_cfwseresnet34.v3.0.sh | CwFwSE-ResNet34 | Stage2: ArcFace m=0.3/intertop_m=0.1 | Cosine | | | |
-| | | | Cosine + AS-Norm | | | |
-| | | | Cosine + QMF |  |  |  |
+| config_fbank80_stmn_tseresnet34.v3.0.sh | Time-SE-ResNet34 | Stage2: ArcFace m=0.3/intertop_m=0.1 | Cosine | 2.36 | 0.153 | 0.259 |
+| | | | Cosine + AS-Norm | 2.18 | 0.139 | 0.249 |
+| | | | Cosine + QMF | 2.08 | 0.128 | 0.222 |
+| config_fbank80_stmn_cfwseresnet34.v3.0.sh | CwFwSE-ResNet34 | Stage2: ArcFace m=0.3/intertop_m=0.1 | Cosine | 2.49 | 0.158 | 0.265 |
+| | | | Cosine + AS-Norm | 2.29 | 0.145 | 0.251 |
+| | | | Cosine + QMF | 2.17 | 0.133 | 0.230 |
 | config_fbank80_stmn_idrnd_resnet100.v3.0.sh | ResNet100 / BasicBlock 128-256 ch. | Stage2: ArcFace m=0.4/intertop_m=0.1 | Cosine | 1.92 | 0.124 | 0.208 |
 | | | | Cosine + AS-Norm | 1.71 | 0.109 | 0.212 |
 | | | | Cosine + QMF | 1.62 | 0.103 | 0.192 |
