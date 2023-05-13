@@ -9,6 +9,7 @@ from .dc1d_blocks import DC1dDecBlock, DC1dEncBlock
 from .dc2d_blocks import DC2dDecBlock, DC2dEncBlock
 from .etdnn_blocks import ETDNNBlock
 from .fc_blocks import FCBlock
+from .film_blocks import FiLM, LSTMWithFiLM, initialize_lstm_with_film
 from .mbconv_blocks import MBConvBlock, MBConvInOutBlock
 from .res2net1d_blocks import Res2Net1dBasicBlock, Res2Net1dBNBlock
 from .res2net2d_blocks import Res2Net2dBasicBlock, Res2Net2dBNBlock
@@ -32,6 +33,10 @@ from .spine_blocks import BlockSpec, SpineConv, SpineEndpoints, SpineResample
 from .tdnn_blocks import TDNNBlock
 from .transducer_joiner import TransducerJoiner
 from .transducer_predictor import TransducerRNNPredictor, TransducerConvPredictor
+
+from .transducer_film_joiner import TransducerFiLMJoiner 
+from .transducer_film_predictor import TransducerRNNFiLMPredictor
+
 from .transformer_conv2d_subsampler import TransformerConv2dSubsampler
 from .transformer_encoder_v1 import TransformerEncoderBlockV1
 from .transformer_feedforward import (Conv1dLinear, Conv1dx2,

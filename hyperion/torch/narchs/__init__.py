@@ -22,6 +22,7 @@ from .resnet2d_encoder import ResNet2dEncoder
 from .resnet_factory import ResNetFactory
 from .rnn_encoder import RNNEncoder
 from .rnn_transducer_decoder import RNNTransducerDecoder
+from .rnn_film_transducer_decoder import RNNFiLMTransducerDecoder
 from .spinenet import *
 from .spinenet_factory import SpineNetFactory
 from .tdnn import TDNNV1

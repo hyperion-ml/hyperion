@@ -6,6 +6,7 @@
 
 from .rnn_rnn_transducer import RNNRNNTransducer
 from .rnn_transducer import RNNTransducer, RNNTransducerOutput
+from .rnn_film_transducer import RNNFiLMTransducer
 from .transducer import Transducer
 
 #from .conformer import Conformer

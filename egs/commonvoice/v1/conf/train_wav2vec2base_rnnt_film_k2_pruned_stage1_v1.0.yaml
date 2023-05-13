@@ -1,0 +1,86 @@
+data:
+  train:
+    dataset:
+      wav_scale: 1
+      aug_cfgs: 
+        - conf/reverb_noise_aug.yaml
+      return_segment_info:
+        - text
+    sampler:
+      #sampler_type: 'bucketing_seg_sampler'
+      sampler_type: 'class_weighted_random_bucketing_seg_sampler'
+      max_batch_length: 50
+      min_batch_size: 1
+      drop_last: false
+      # for class_weighted_random_bucketing_seg_sampler
+      base_sampler_type: class_weighted_seg_sampler
+      weight_mode: "data-prior"
+      class_name: "language"
+      weight_exponent: 0.3
+      num_chunks_per_seg_epoch: 0.3
+
+    data_loader:
+      num_workers: 1
+  val:
+    dataset:
+      aug_cfgs: 
+        - conf/reverb_noise_aug.yaml
+      wav_scale: 1
+      return_segment_info:
+        - text
+    sampler:
+      #sampler_type: 'bucketing_seg_sampler'
+      sampler_type: 'class_weighted_random_bucketing_seg_sampler'
+      max_batch_length: 50
+      min_batch_size: 1
+      drop_last: true
+      # for class_weighted_random_bucketing_seg_sampler
+      base_sampler_type: class_weighted_seg_sampler
+      weight_mode: "data-prior"
+      class_name: "language"
+      weight_exponent: 0.3
+      num_chunks_per_seg_epoch: 1.0
+    data_loader:
+      num_workers: 1
+model: 
+  hf_feats:
+    pretrained_model_path: facebook/wav2vec2-xls-r-300m 
+  transducer:
+    decoder:
+      prune_range: 15
+      rnnt_loss: k2_pruned
+      simple_loss_scale: 0.2
+      predictor:
+        embed_dim: 1024
+        num_layers: 2
+        hid_feats: 512
+        embed_dropout_rate: 0.4
+        rnn_dropout_rate: 0.4
+        rnn_type: lstm
+      joiner:
+        hid_feats: 512
+  feat_fusion_method: weighted-avg
+  feat_fusion_start: 2
+trainer:
+  optim:
+    opt_type: sgd
+    lr: 0.005
+    momentum: 0.9
+    weight_decay: 4e-4
+  lrsched:
+    lrsch_type: exp_lr
+    decay_rate: 0.5
+    decay_steps: 45000
+    hold_steps: 30000
+    min_lr: 4e-5
+    warmup_steps: 6000
+    update_lr_on_opt_step: true
+  grad_clip: 100
+  use_amp: true
+  log_interval: 1000
+  epochs: 120
+  # eff_batch_size: 1024
+  eff_batch_size: 128
+  train_mode: hf-feats-frozen-nograd
+
+ 

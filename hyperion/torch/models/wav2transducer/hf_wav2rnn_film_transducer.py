@@ -5,34 +5,24 @@
 import contextlib
 import logging
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Union
 
 import torch
 import torch.nn as nn
 from jsonargparse import ActionParser, ArgumentParser
 
-from ....utils import HypDataClass
 from ...torch_model import TorchModel
 from ...utils import remove_silence
-from ..transducer import RNNTransducer, RNNTransducerOutput
+from ..transducer import RNNFiLMTransducer
 
-@dataclass
-class RNNTransducerLanguageIDOutput(HypDataClass):
-    loss: torch.Tensor
-    loss_transducer: torch.Tensor
-    loss_lid: torch.Tensor
-    loss_transducer_simple: Optional[torch.Tensor] = None
-    loss_transducer_pruned: Optional[torch.Tensor] = None
-    h_feats: Optional[List[torch.Tensor]] = None
 
-class HFWav2RNNTransducerLanguageID(TorchModel):
-    """Abstract Base class for combined transducer language identification models that use a Hugging Face Model as feature extractor.
+class HFWav2RNNFiLMTransducer(TorchModel):
+    """Abstract Base class for x-vector models that use a Hugging Face Model as feature extractor.
 
     Attributes:
        hf_feats: hugging face model wrapper object.
        transducer: transducer model object.
-       languageid: language identification model object.
-       feat_fusion_start: the input to the combined model will fuse the wav2vec layers from "feat_fusion_start" to
+       feat_fusion_start: the input to x-vector model will fuse the wav2vec layers from "feat_fusion_start" to
                           the wav2vec "num_layers".
        feat_fusion_method: method to fuse the hidden layers from the wav2vec model, when more
                            than one layer is used.
@@ -40,59 +30,49 @@ class HFWav2RNNTransducerLanguageID(TorchModel):
 
     def __init__(self,
                  hf_feats: TorchModel,
-                 transducer: TorchModel,
-                 languageid: TorchModel,
-                 transducer_fuser: TorchModel,
-                 languageid_fuser: TorchModel,
+                 transducer: Union[Dict, TorchModel],
                  feat_fusion_start: int = 0,
-                 feat_fusion_method: str = "weighted-avg",
-                 loss_weight_transducer: float = 0.005,
-                 loss_weight_lid: float = 1.0,):
+                 feat_fusion_method: str = "weighted-avg"):
 
         super().__init__()
         self.hf_feats = hf_feats
-        # if isinstance(transducer, dict):
-        #     transducer["decoder"]["in_feats"] = hf_feats.hidden_size
-        #     #transducer["joiner"]["in_feats"] = hf_feats.hidden_size
-        #     if "class_name" in transducer:
-        #         del transducer["class_name"]
+        if isinstance(transducer, dict):
+            transducer["decoder"]["in_feats"] = hf_feats.hidden_size
+            #transducer["joiner"]["in_feats"] = hf_feats.hidden_size
+            if "class_name" in transducer:
+                del transducer["class_name"]
 
-        #     transducer["encoder"] = None
-        #     transducer = RNNTransducer(**transducer)
-        # else:
-        #     assert isinstance(transducer, RNNTransducer)
-        #     if transducer.encoder is None:
-        #         assert transducer.decoder.in_feats == hf_feats.hidden_size
-        #         #assert transducer.joiner.in_feats == hf_feats.hidden_size
+            transducer["encoder"] = None
+            transducer = RNNFiLMTransducer(**transducer)
+        else:
+            assert isinstance(transducer, RNNFiLMTransducer)
+            if transducer.encoder is None:
+                assert transducer.decoder.in_feats == hf_feats.hidden_size
+                #assert transducer.joiner.in_feats == hf_feats.hidden_size
 
         self.transducer = transducer
-        self.languageid = languageid
-        self.transducer_fuser = transducer_fuser
-        self.languageid_fuser = languageid_fuser
-
         self.feat_fusion_start = feat_fusion_start
         self.feat_fusion_method = feat_fusion_method
-        self.loss_weight_transducer = loss_weight_transducer
-        self.loss_weight_lid = loss_weight_lid
         self._hf_context = contextlib.nullcontext()
+        self._make_fuser()
 
-    # def _make_fuser(self, transducer_fuser, languageid_fuser):
-    #     if self.feat_fusion_method == "last":
-    #         self.feat_fuser = None
-    #         return
+    def _make_fuser(self):
+        if self.feat_fusion_method == "last":
+            self.feat_fuser = None
+            return
 
-    #     num_layers = self.hf_feats.num_encoder_layers + 1 - self.feat_fusion_start
-    #     layer_dim = self.hf_feats.hidden_size
-    #     if self.feat_fusion_method == "weighted-avg":
-    #         self.feat_fuser = nn.Parameter(torch.zeros(num_layers))
-    #     elif self.feat_fusion_method == "linear":
-    #         self.feat_fuser = nn.Linear(num_layers, 1, bias=False)
-    #         self.feat_fuser.weight.data = torch.ones(1,
-    #                                                  num_layers) / num_layers
-    #     elif self.feat_fusion_method == "cat":
-    #         self.feat_fuser = nn.Linear(num_layers * layer_dim,
-    #                                     layer_dim,
-    #                                     bias=False)
+        num_layers = self.hf_feats.num_encoder_layers + 1 - self.feat_fusion_start
+        layer_dim = self.hf_feats.hidden_size
+        if self.feat_fusion_method == "weighted-avg":
+            self.feat_fuser = nn.Parameter(torch.zeros(num_layers))
+        elif self.feat_fusion_method == "linear":
+            self.feat_fuser = nn.Linear(num_layers, 1, bias=False)
+            self.feat_fuser.weight.data = torch.ones(1,
+                                                     num_layers) / num_layers
+        elif self.feat_fusion_method == "cat":
+            self.feat_fuser = nn.Linear(num_layers * layer_dim,
+                                        layer_dim,
+                                        bias=False)
 
     def _fuse_hid_feats(self, hid_feats):
         """Fuses the hidden features from the Wav2Vec model.
@@ -110,23 +90,18 @@ class HFWav2RNNTransducerLanguageID(TorchModel):
         hid_feats = hid_feats[self.feat_fusion_start:]
         if self.feat_fusion_method == "weighted-avg":
             hid_feats = torch.stack(hid_feats, dim=-1)
-            norm_weights_transducer = nn.functional.softmax(self.transducer_fuser, dim=-1)
-            norm_weights_languageid = nn.functional.softmax(self.languageid_fuser, dim=-1)
-            feats_transducer = torch.sum(hid_feats * norm_weights_transducer, dim=-1)
-            feats_languageid = torch.sum(hid_feats * norm_weights_languageid, dim=-1)
+            norm_weights = nn.functional.softmax(self.feat_fuser, dim=-1)
+            feats = torch.sum(hid_feats * norm_weights, dim=-1)
         elif self.feat_fusion_method == "linear":
             hid_feats = torch.stack(hid_feats, dim=-1)
-            feats_transducer = self.transducer_fuser(hid_feats).squeeze(dim=-1)
-            feats_languageid = self.languageid_fuser(hid_feats).squeeze(dim=-1)
+            feats = self.feat_fuser(hid_feats).squeeze(dim=-1)
         elif self.feat_fusion_method == "cat":
             hid_feats = torch.cat(hid_feats, dim=-1)
-            feats_transducer = self.transducer_fuser(hid_feats)
-            feats_languageid = self.languageid_fuser(hid_feats)
+            feats = self.feat_fuser(hid_feats)
         elif self.feat_fusion_method == "last":
-            feats_transducer = hid_feats[-1]
-            feats_languageid = hid_feats[-1]
+            feats = hid_feats[-1]
 
-        return feats_transducer, feats_languageid
+        return feats
 
     def forward_feats(self,
                       x,
@@ -147,14 +122,12 @@ class HFWav2RNNTransducerLanguageID(TorchModel):
         feat_lengths = hf_output["hidden_states_lengths"]
         if return_hid_states:
             hid_feats = hf_output["hidden_states"]
-            feats_transducer, feats_languageid = self._fuse_hid_feats(hid_feats)
+            feats = self._fuse_hid_feats(hid_feats)
         else:
             hid_feats = None
-            feats_transducer = hf_output["last_hidden_state"]
-            feats_languageid = hf_output["last_hidden_state"]
+            feats = hf_output["last_hidden_state"]
 
-        feats_transducer = feats_transducer.transpose(1, 2)
-        feats_languageid = feats_languageid.transpose(1, 2)
+        feats = feats.transpose(1, 2)
         if return_feat_layers is not None:
             # add hidden feats from wav2vec to the output. We transpose to be (batch, C, time)
             # as the hidden features of the x-vector encoder.
@@ -165,17 +138,16 @@ class HFWav2RNNTransducerLanguageID(TorchModel):
         else:
             hid_feats = None
 
-        return feats_transducer, feats_languageid, hid_feats, feat_lengths
+        return feats, hid_feats, feat_lengths
 
     def forward(
         self,
         x,
+        languageid,
         x_lengths=None,
         text=None,
-        languageid=None,
         return_feat_layers=None,
-        return_enc_layers=None,
-        return_classif_layers=None,
+        # return_enc_layers=None,
         return_logits=True,
     ):
         """Forward function. If returns the logits posteriors of the classes.
@@ -196,37 +168,26 @@ class HFWav2RNNTransducerLanguageID(TorchModel):
           Dataclass with losses, "h_enc" (list of hidden encoder layers),
           "h_feats" (wav2vec features)
         """
-        feats_transducer, feats_languageid, hid_feats, feat_lengths = self.forward_feats(
+        feats, hid_feats, feat_lengths = self.forward_feats(
             x, x_lengths, return_feat_layers)
 
-        feats_transducer = feats_transducer.permute(0, 2, 1)  # (N, C, T) ->(N, T, C)
-            
-        logits = self.languageid(
-            feats_languageid,
-            None,
-            languageid,
-            return_enc_layers=return_enc_layers,
-            return_classif_layers=return_classif_layers,
-            return_logits=return_logits,
-        )
-
-        loss_lid = nn.CrossEntropyLoss()(logits, languageid)
-        
-        trans_output = self.transducer(
-            feats_transducer,
+        feats = feats.permute(0, 2, 1)  # (N, C, T) ->(N, T, C)
+        output = self.transducer(
+            feats,
             feat_lengths,
             text,
+            languageid,
         )
 
-
         if return_feat_layers:
-            trans_output.h_feats = hid_feats
-        output = RNNTransducerLanguageIDOutput(self.loss_weight_transducer * trans_output.loss + self.loss_weight_lid * loss_lid, trans_output.loss, loss_lid,trans_output.loss_simple, trans_output.loss_pruned,trans_output.h_feats)
+            output.h_feats = hid_feats
+
         return output
 
     def infer(self,
               x: torch.Tensor,
               x_lengths: torch.Tensor,
+              langugeid: torch.Tensor,
               decoding_method="time_sync_beam_search",
               beam_width: int = 5,
               max_sym_per_frame: int = 3,
@@ -243,12 +204,13 @@ class HFWav2RNNTransducerLanguageID(TorchModel):
           List of list of integer indexes of the recognizer's symbols.
         """
 
-        feats_transducer, _, _, feat_lengths = self.forward_feats(x, x_lengths)
+        feats, _, feat_lengths = self.forward_feats(x, x_lengths)
 
-        feats = feats_transducer.permute(0, 2, 1)  # (N, C, T) ->(N, T, C)
+        feats = feats.permute(0, 2, 1)  # (N, C, T) ->(N, T, C)
 
         y = self.transducer.infer(feats,
                                   feat_lengths,
+                                  langugeid,
                                   decoding_method=decoding_method,
                                   beam_width=beam_width,
                                   max_sym_per_frame=max_sym_per_frame,
@@ -339,8 +301,6 @@ class HFWav2RNNTransducerLanguageID(TorchModel):
             "transducer",
             "feat_fusion_start",
             "feat_fusion_method",
-            "loss_weight_transducer",
-            "loss_weight_lid",
         )
         args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
         return args
@@ -348,28 +308,22 @@ class HFWav2RNNTransducerLanguageID(TorchModel):
     def get_config(self):
         hf_cfg = self.hf_feats.get_config()
         tran_cfg = self.transducer.get_config()
-        lid_cfg = self.languageid.get_config()
         del hf_cfg["class_name"]
         del tran_cfg["class_name"]
-        del lid_cfg["class_name"]
         config = {
             "hf_feats": hf_cfg,
             "transducer": tran_cfg,
-            "languageid": lid_cfg,
             "feat_fusion_start": self.feat_fusion_start,
             "feat_fusion_method": self.feat_fusion_method,
-            "loss_weight_transducer": self.loss_weight_transducer,
-            "loss_weight_lid": self.loss_weight_lid,
         }
 
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
-    def change_config(self, hf_feats, transducer, languageid):
+    def change_config(self, hf_feats, transducer):
         logging.info("changing hf wav2transducer config")
         self.hf_feats.change_config(**hf_feats)
         self.transducer.change_config(**transducer)
-        self.languageid.change_config(**languageid)
 
     @staticmethod
     def add_class_args(parser, prefix=None, skip=set()):
@@ -395,26 +349,6 @@ class HFWav2RNNTransducerLanguageID(TorchModel):
                   "in [weighted-avg, linear, cat, last]"),
         )
 
-        parser.add_argument(
-            "--loss-weight-transducer",
-            default=0.005,
-            type=float,
-            help="""
-            The weight of the transducer loss
-            """,
-        )
-
-        parser.add_argument(
-            "--loss-weight-lid",
-            default=1.0,
-            type=float,
-            help="""
-            The weight of the lid loss
-            """,
-        )
-
-
-
         if prefix is not None:
             outer_parser.add_argument(
                 "--" + prefix,
@@ -427,7 +361,7 @@ class HFWav2RNNTransducerLanguageID(TorchModel):
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        RNNTransducer.add_infer_args(parser)
+        RNNFiLMTransducer.add_infer_args(parser)
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix,
@@ -435,4 +369,4 @@ class HFWav2RNNTransducerLanguageID(TorchModel):
 
     @staticmethod
     def filter_infer_args(**kwargs):
-        return RNNTransducer.filter_infer_args(**kwargs)
+        return RNNFiLMTransducer.filter_infer_args(**kwargs)
