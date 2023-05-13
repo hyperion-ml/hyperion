@@ -80,7 +80,7 @@ class AudioDataset(Dataset):
 
             time_durs = SegmentSet.load(time_durs_file)
             self.seg_set["duration"] = time_durs.loc[
-                self.seg_set["id"]].class_id.values.astype(np.float,
+                self.seg_set["id"]].class_id.values.astype(float,
                                                            copy=False)
         else:
             assert "duration" in self.seg_set

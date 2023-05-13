@@ -66,7 +66,7 @@ class ClassInfo(InfoTable):
         if ext == "":
             # if no extension we load as kaldi utt2spk file
             df = pd.read_csv(
-                file_path, sep=" ", header=None, names=["id"], dtype={"id": np.str},
+                file_path, sep=" ", header=None, names=["id"], dtype={"id": str},
             )
             return cls(df)
 

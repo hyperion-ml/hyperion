@@ -138,8 +138,8 @@ class InfoTable(object):
                 header=None,
                 names=["id", name],
                 dtype={
-                    "id": np.str,
-                    name: np.str
+                    "id": str,
+                    name: str
                 },
             )
         else:

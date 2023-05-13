@@ -4,13 +4,14 @@
 """
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+import logging
+from typing import Dict, List, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
 import torchaudio
 import torchaudio.functional
-from jsonargparse import ActionParser, ArgumentParser
+from jsonargparse import ActionParser, ArgumentParser, ActionYesNo
 
 try:
     import k2
@@ -74,6 +75,7 @@ class RNNTransducerDecoder(NetArch):
         am_scale: float = 0.0,
         simple_loss_scale: float = 0.5,
         pruned_warmup_steps: int = 2000,
+        # film: bool=False,
     ):
 
         super().__init__()
@@ -615,10 +617,13 @@ class RNNTransducerDecoder(NetArch):
         override_dropouts=False,
         embed_dropout_rate: float = 0.0,
         rnn_dropout_rate: float = 0.0,
+        prune_range: Optional[int] = None,
     ):
         logging.info("changing decoder config")
         self.predictor.change_config(override_dropouts, embed_dropout_rate,
                                      rnn_dropout_rate)
+        if prune_range is not None:
+            self.prune_range = prune_range
 
     @staticmethod
     def filter_args(**kwargs):
@@ -751,8 +756,8 @@ class RNNTransducerDecoder(NetArch):
             help="""type of reduction for rnn-t loss between sum or mean""")
         parser.add_argument(
             "--prune-range",
-            default=5,
-            type=int,
+            default=None,
+            type=Optional[int],
             help="""how many symbols to keep for each frame in k2 rnn-t 
             pruned loss.""")
         parser.add_argument(
@@ -803,6 +808,13 @@ class RNNTransducerDecoder(NetArch):
                             default=0.0,
                             type=float,
                             help=("dropout prob for decoder RNN "))
+
+        parser.add_argument(
+            "--prune-range",
+            default=5,
+            type=int,
+            help="""how many symbols to keep for each frame in k2 rnn-t 
+            pruned loss.""")
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix,
