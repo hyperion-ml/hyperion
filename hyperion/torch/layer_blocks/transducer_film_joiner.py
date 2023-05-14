@@ -33,8 +33,7 @@ class TransducerFiLMJoiner(nn.Module):
         self.pred_proj = nn.Linear(pred_feats, hid_feats)
         self.output = nn.Linear(hid_feats, vocab_size)
 
-        self.FiLM_encoder = FiLM(hid_feats, condition_size)
-        self.FiLM_joiner = FiLM(hid_feats, condition_size)
+        self.film = FiLM(hid_feats, condition_size)
         
     def get_config(self):
         config = {
@@ -46,7 +45,7 @@ class TransducerFiLMJoiner(nn.Module):
     def forward(self,
             enc_out: torch.Tensor,
             pred_out: torch.Tensor,
-            condition: torch.Tensor, 
+            lang_condition: torch.Tensor, 
             project_input: bool = True) -> torch.Tensor:
         
         """
@@ -60,19 +59,18 @@ class TransducerFiLMJoiner(nn.Module):
         """
         assert enc_out.ndim == pred_out.ndim
         assert enc_out.ndim in (3, 4)
-
         if enc_out.ndim == 3:
             enc_out = enc_out.unsqueeze(2)  # (N, T, 1, C)
             pred_out = pred_out.unsqueeze(1)  # (N, 1, U, C)
         
-        enc_out = self.FiLM_encoder(enc_out, condition)
+        # enc_out = self.FiLM_encoder(enc_out, lang_condition)
 
         if project_input:
             x = self.enc_proj(enc_out) + self.pred_proj(pred_out)
         else:
             x = enc_out + pred_out
 
-        x = self.FiLM_joiner(x, condition)
+        x = self.film(x, lang_condition)
         
         x = torch.tanh(x)
         logits = self.output(x)

@@ -78,7 +78,7 @@ class TransducerLanguageIDTrainer(TorchTrainer):
         swa_anneal_epochs=10,
         cpu_offload=False,
         input_key="x",
-        target_key=["text", "languageid"],
+        target_key=["text", "language"],
     ):
 
         loss = None
@@ -214,7 +214,7 @@ class TransducerLanguageIDTrainer(TorchTrainer):
                                     skip=super_skip)
         if "target_key" not in skip:
             parser.add_argument("--target-keys",
-                                default=["text", "languageid"],
+                                default=["text", "language"],
                                 help="list of dict. key for nnet targets")
 
         if prefix is not None:

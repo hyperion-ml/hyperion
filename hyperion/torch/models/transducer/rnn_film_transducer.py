@@ -83,7 +83,6 @@ class RNNFiLMTransducer(TorchModel):
             x_lengths[:-1] >= x_lengths[1:]
         ), f"x_lengths={x_lengths}"  # check x_lengths are sorted
         assert lang.size(0) == y.dim0
-        assert lang.size(1) == 1
 
         if self.encoder is not None:
             x, x_lengths = self.encoder(x, x_lengths)

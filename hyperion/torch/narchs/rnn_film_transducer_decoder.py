@@ -20,8 +20,8 @@ except ModuleNotFoundError:
 
 from ...utils.misc import filter_func_args
 from ...utils.text import add_sos
-from ..layer_blocks import TransducerJoiner as Joiner
-from ..layer_blocks import TransducerRNNPredictor as RNNPredictor, TransducerConvPredictor as ConvPredictor
+from ..layer_blocks import TransducerFiLMJoiner as Joiner
+from ..layer_blocks import TransducerRNNFiLMPredictor as RNNPredictor
 from .net_arch import NetArch
 
 

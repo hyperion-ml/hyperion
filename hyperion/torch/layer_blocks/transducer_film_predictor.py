@@ -93,7 +93,7 @@ class TransducerRNNFiLMPredictor(nn.Module):
     def forward(
         self,
         y: torch.Tensor,
-        condition: torch.Tensor,
+        lang_condition: torch.Tensor,
         states: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
     ) -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         """
@@ -106,7 +106,7 @@ class TransducerRNNFiLMPredictor(nn.Module):
         """
         embed = self.embedding(y)
         embed = self.embed_dropout(embed)
-        out, (h, c) = self.rnn(embed, states, condition)
+        out, (h, c) = self.rnn(embed, states, lang_condition)
         if self.output_proj:
             out = self.output_proj(out)
 

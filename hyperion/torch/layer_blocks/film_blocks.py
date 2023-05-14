@@ -9,10 +9,15 @@ class FiLM(nn.Module):
         self.linear_scale = nn.Linear(condition_size, input_size)
         self.linear_shift = nn.Linear(condition_size, input_size)
 
-    def forward(self, x, condition):
-        gamma = self.linear_scale(condition).unsqueeze(2).expand_as(x)
-        beta = self.linear_shift(condition).unsqueeze(2).expand_as(x)
-        x = x * gamma + beta
+    def forward(self, x, lang_condition):
+        if x.ndim == 3:
+            gamma = self.linear_scale(lang_condition).unsqueeze(1).expand_as(x)
+            beta = self.linear_shift(lang_condition).unsqueeze(1).expand_as(x)
+            x = x * gamma + beta
+        elif x.ndim == 4:
+            gamma = self.linear_scale(lang_condition).unsqueeze(1).unsqueeze(2).expand_as(x)
+            beta = self.linear_shift(lang_condition).unsqueeze(1).unsqueeze(2).expand_as(x)
+            x = x * gamma + beta
         return x
 
 
@@ -30,13 +35,15 @@ class LSTMWithFiLM(nn.Module):
         self.films = nn.ModuleList([FiLM(hidden_size, condition_size) for _ in range(num_layers)])
         self.dropout_layer = nn.Dropout(dropout)
 
-    def forward(self, x, states, condition):
+    def forward(self, x, states, lang_condition):
         outputs = []
-        h, c = states
         new_h, new_c = [], []
         for i, (lstm, film) in enumerate(zip(self.lstms, self.films)):
-            x, (h_i, c_i) = lstm(x, (h[i].unsqueeze(0), c[i].unsqueeze(0)))
-            x = film(x, condition)
+            if states:
+                x, (h_i, c_i) = lstm(x, (states[0][i].unsqueeze(0), states[1][i].unsqueeze(0)))
+            else:
+                x, (h_i, c_i) = lstm(x)
+            x = film(x, lang_condition)
             new_h.append(h_i)
             new_c.append(c_i)
             if i != self.num_layers - 1:
@@ -44,45 +51,5 @@ class LSTMWithFiLM(nn.Module):
             outputs.append(x)
         new_h = torch.cat(new_h, dim=0)
         new_c = torch.cat(new_c, dim=0)
-        return torch.cat(outputs, dim=0), (new_h, new_c)
+        return x, (new_h, new_c)
 
-
-
-def initialize_lstm_with_film(lstm_with_film, pretrained_dict):
-    # Load pretrained LSTM state_dict
-    pretrained_lstm = pretrained_dict['lstm']
-    pretrained_num_layers = pretrained_dict['num_layers']
-
-    # Copy weights from pretrained LSTM layers to LSTMWithFiLM
-    for i, (lstm, film) in enumerate(zip(lstm_with_film.lstms, lstm_with_film.films)):
-        if i < pretrained_num_layers:
-            lstm.weight_ih_l0.data.copy_(pretrained_lstm['weight_ih_l' + str(i)])
-            lstm.weight_hh_l0.data.copy_(pretrained_lstm['weight_hh_l' + str(i)])
-            lstm.bias_ih_l0.data.copy_(pretrained_lstm['bias_ih_l' + str(i)])
-            lstm.bias_hh_l0.data.copy_(pretrained_lstm['bias_hh_l' + str(i)])
-        else:
-            # For extra layers in LSTMWithFiLM, just reset the weights
-            nn.init.xavier_uniform_(lstm.weight_ih_l0)
-            nn.init.orthogonal_(lstm.weight_hh_l0)
-            nn.init.zeros_(lstm.bias_ih_l0)
-            nn.init.zeros_(lstm.bias_hh_l0)
-
-
-# def initialize_lstm_with_film(lstm_with_film, pretrained_lstm):
-#     # Copy weights from pretrained LSTM layers to LSTMWithFiLM
-#     for i, (lstm, film) in enumerate(zip(lstm_with_film.lstms, lstm_with_film.films)):
-#         if i < pretrained_lstm.num_layers:
-#             lstm.weight_ih_l0.data.copy_(pretrained_lstm.weight_ih_l[i])
-#             lstm.weight_hh_l0.data.copy_(pretrained_lstm.weight_hh_l[i])
-#             lstm.bias_ih_l0.data.copy_(pretrained_lstm.bias_ih_l[i])
-#             lstm.bias_hh_l0.data.copy_(pretrained_lstm.bias_hh_l[i])
-#         else:
-#             # For extra layers in LSTMWithFiLM, just reset the weights
-#             nn.init.xavier_uniform_(lstm.weight_ih_l0)
-#             nn.init.orthogonal_(lstm.weight_hh_l0)
-#             nn.init.zeros_(lstm.bias_ih_l0)
-#             nn.init.zeros_(lstm.bias_hh_l0)
-
-
-
-    # rnn = LSTMWithFiLM(embed_dim, hid_feats, num_layers, rnn_dropout_rate, batch_first=True)

@@ -144,15 +144,15 @@ def train_model(gpu_id, args):
     #torch.backends.cudnn.benchmark = False
     # torch.backends.cudnn.enabled = False
 
-    # ddp_args = ddp.filter_ddp_args(**kwargs)
-    # device, rank, world_size = ddp.ddp_init(gpu_id, **ddp_args)
-    # kwargs["rank"] = rank
+    ddp_args = ddp.filter_ddp_args(**kwargs)
+    device, rank, world_size = ddp.ddp_init(gpu_id, **ddp_args)
+    kwargs["rank"] = rank
 
-    # for Debug
-    rank = 0
-    kwargs["rank"] = 0
-    device = "cpu"
-    world_size=1
+    # # for Debug
+    # rank = 0
+    # kwargs["rank"] = 0
+    # device = torch.device("cuda:{}".format(gpu_id))
+    # world_size=1
 
     train_loader = init_data(partition="train", **kwargs)
     val_loader = init_data(partition="val", **kwargs)
@@ -172,6 +172,7 @@ def train_model(gpu_id, args):
         **trn_args,
     )
     trainer.load_last_checkpoint()
+    # import pdb; pdb.set_trace()
     trainer.fit(train_loader, val_loader)
 
     ddp.ddp_cleanup()

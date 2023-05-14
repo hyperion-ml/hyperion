@@ -13,6 +13,7 @@ from jsonargparse import ActionParser, ArgumentParser
 
 from ...torch_model import TorchModel
 from ...utils import remove_silence
+from ...layer_blocks import FiLM
 from ..transducer import RNNFiLMTransducer
 
 
@@ -63,7 +64,13 @@ class HFWav2RNNFiLMTransducer(TorchModel):
 
         num_layers = self.hf_feats.num_encoder_layers + 1 - self.feat_fusion_start
         layer_dim = self.hf_feats.hidden_size
-        if self.feat_fusion_method == "weighted-avg":
+        if self.feat_fusion_method == "film-weighted-avg":
+            self.films = nn.ModuleList([FiLM(layer_dim, self.transducer.decoder.condition_size) for _ in range(num_layers)])
+            self.feat_fuser = nn.Parameter(torch.zeros(num_layers))
+        elif self.feat_fusion_method == "weighted-avg-film":
+            self.feat_fuser = nn.Parameter(torch.zeros(num_layers))
+            self.film = FiLM(layer_dim, self.transducer.decoder.condition_size)
+        elif self.feat_fusion_method == "weighted-avg":
             self.feat_fuser = nn.Parameter(torch.zeros(num_layers))
         elif self.feat_fusion_method == "linear":
             self.feat_fuser = nn.Linear(num_layers, 1, bias=False)
@@ -74,11 +81,12 @@ class HFWav2RNNFiLMTransducer(TorchModel):
                                         layer_dim,
                                         bias=False)
 
-    def _fuse_hid_feats(self, hid_feats):
+    def _fuse_hid_feats(self, hid_feats, lang):
         """Fuses the hidden features from the Wav2Vec model.
 
         Args:
           hid_feats: list of hidden features Tensors from Wav2Vec model.
+          lang: language id Tensor.
 
         Returns:
           Tensor of fused features (batch, channels, time)
@@ -87,8 +95,19 @@ class HFWav2RNNFiLMTransducer(TorchModel):
             # There is only one layer of features
             return hid_feats[0]
 
+        lang_condition = self.transducer.decoder.lang_embedding(lang)
         hid_feats = hid_feats[self.feat_fusion_start:]
-        if self.feat_fusion_method == "weighted-avg":
+        if self.feat_fusion_method == "film-weighted-avg":
+            film_hid_feats = tuple(self.films[i](hid_feats[i], lang_condition) for i in range(len(self.films)))
+            film_hid_feats = torch.stack(film_hid_feats, dim=-1)
+            norm_weights = nn.functional.softmax(self.feat_fuser, dim=-1)
+            feats = torch.sum(film_hid_feats * norm_weights, dim=-1)
+        elif self.feat_fusion_method == "weighted-avg-film":
+            hid_feats = torch.stack(hid_feats, dim=-1)
+            norm_weights = nn.functional.softmax(self.feat_fuser, dim=-1)
+            feats = torch.sum(hid_feats * norm_weights, dim=-1)
+            feats = self.film(feats, lang_condition)
+        elif self.feat_fusion_method == "weighted-avg":
             hid_feats = torch.stack(hid_feats, dim=-1)
             norm_weights = nn.functional.softmax(self.feat_fuser, dim=-1)
             feats = torch.sum(hid_feats * norm_weights, dim=-1)
@@ -106,6 +125,7 @@ class HFWav2RNNFiLMTransducer(TorchModel):
     def forward_feats(self,
                       x,
                       x_lengths,
+                      lang: torch.Tensor, 
                       return_feat_layers=None,
                       chunk_length=0,
                       detach_chunks=False):
@@ -122,7 +142,7 @@ class HFWav2RNNFiLMTransducer(TorchModel):
         feat_lengths = hf_output["hidden_states_lengths"]
         if return_hid_states:
             hid_feats = hf_output["hidden_states"]
-            feats = self._fuse_hid_feats(hid_feats)
+            feats = self._fuse_hid_feats(hid_feats, lang)
         else:
             hid_feats = None
             feats = hf_output["last_hidden_state"]
@@ -168,8 +188,9 @@ class HFWav2RNNFiLMTransducer(TorchModel):
           Dataclass with losses, "h_enc" (list of hidden encoder layers),
           "h_feats" (wav2vec features)
         """
+        
         feats, hid_feats, feat_lengths = self.forward_feats(
-            x, x_lengths, return_feat_layers)
+            x, x_lengths, languageid, return_feat_layers)
 
         feats = feats.permute(0, 2, 1)  # (N, C, T) ->(N, T, C)
         output = self.transducer(
@@ -204,7 +225,7 @@ class HFWav2RNNFiLMTransducer(TorchModel):
           List of list of integer indexes of the recognizer's symbols.
         """
 
-        feats, _, feat_lengths = self.forward_feats(x, x_lengths)
+        feats, _, feat_lengths = self.forward_feats(x, x_lengths, languageid)
 
         feats = feats.permute(0, 2, 1)  # (N, C, T) ->(N, T, C)
 

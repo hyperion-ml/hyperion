@@ -6,6 +6,7 @@ data:
         - conf/reverb_noise_aug.yaml
       return_segment_info:
         - text
+        - language
     sampler:
       #sampler_type: 'bucketing_seg_sampler'
       sampler_type: 'class_weighted_random_bucketing_seg_sampler'
@@ -17,7 +18,7 @@ data:
       weight_mode: "data-prior"
       class_name: "language"
       weight_exponent: 0.3
-      num_chunks_per_seg_epoch: 0.3
+      num_chunks_per_seg_epoch: 0.1
 
     data_loader:
       num_workers: 1
@@ -28,6 +29,7 @@ data:
       wav_scale: 1
       return_segment_info:
         - text
+        - language
     sampler:
       #sampler_type: 'bucketing_seg_sampler'
       sampler_type: 'class_weighted_random_bucketing_seg_sampler'
@@ -59,7 +61,7 @@ model:
         rnn_type: lstm
       joiner:
         hid_feats: 512
-  feat_fusion_method: weighted-avg
+  feat_fusion_method: film-weighted-avg
   feat_fusion_start: 2
 trainer:
   optim:
