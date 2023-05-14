@@ -12,7 +12,6 @@ from jsonargparse import ActionParser, ArgumentParser
 from ...tpm import HFWav2Vec2
 from .hf_wav2rnn_film_transducer import HFWav2RNNFiLMTransducer
 from ..transducer import RNNFiLMTransducer
-from ...layer_blocks import initialize_lstm_with_film
 
 class HFWav2Vec2RNNFiLMTransducer(HFWav2RNNFiLMTransducer):
     """Class for RNN-T with Wav2Vec2 features
