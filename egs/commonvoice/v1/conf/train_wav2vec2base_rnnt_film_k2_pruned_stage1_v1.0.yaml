@@ -11,6 +11,7 @@ data:
       #sampler_type: 'bucketing_seg_sampler'
       sampler_type: 'class_weighted_random_bucketing_seg_sampler'
       max_batch_length: 50
+      max_audio_length: 15.
       min_batch_size: 1
       drop_last: false
       # for class_weighted_random_bucketing_seg_sampler
@@ -34,6 +35,7 @@ data:
       #sampler_type: 'bucketing_seg_sampler'
       sampler_type: 'class_weighted_random_bucketing_seg_sampler'
       max_batch_length: 50
+      max_audio_length: 15.
       min_batch_size: 1
       drop_last: true
       # for class_weighted_random_bucketing_seg_sampler
@@ -41,7 +43,7 @@ data:
       weight_mode: "data-prior"
       class_name: "language"
       weight_exponent: 0.3
-      num_chunks_per_seg_epoch: 1.0
+      num_chunks_per_seg_epoch: 0.5
     data_loader:
       num_workers: 1
 model: 
@@ -66,7 +68,7 @@ model:
 trainer:
   optim:
     opt_type: sgd
-    lr: 0.005
+    lr: 0.002
     momentum: 0.9
     weight_decay: 4e-4
   lrsched:
