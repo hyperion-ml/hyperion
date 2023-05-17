@@ -105,6 +105,7 @@ class RNNFiLMTransducer(TorchModel):
         Args:
           x: input features with shape = (N, T, C)
           x_lengths: feature number for frames with shape = (N,)
+          lang: language id for each utterance with shape = (N,)
           decoding_method: greedy, time_sync_beam_search or align_length_sync_beam_search
           max_sym_per_frame: maximum number of symbols RNN-T can emit in 1 frame.
           max_sym_per_utt: maximimum number of symbols in a single utterance.
@@ -251,4 +252,4 @@ class RNNFiLMTransducer(TorchModel):
 
     @staticmethod
     def filter_infer_args(**kwargs):
-        return filter_func_args(RNNTransducer.infer, kwargs)
+        return filter_func_args(RNNFiLMTransducer.infer, kwargs)

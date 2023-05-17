@@ -356,7 +356,7 @@ class RNNFiLMTransducerDecoder(NetArch):
         blank_id = self.blank_id
         device = x.device
 
-        sos = torch.Tensor([blank_id], device=device,
+        sos = torch.tensor([blank_id], device=device,
                            dtype=torch.int64).reshape(1, 1)
         pred_out, (h, c) = self.predictor(sos, lang_embedding)
         T = x.size(1)
@@ -399,7 +399,7 @@ class RNNFiLMTransducerDecoder(NetArch):
         blank_id = self.blank_id
         device = x.device
 
-        sos = torch.Tensor([blank_id], device=device).reshape(1, 1)
+        sos = torch.tensor([blank_id], device=device).reshape(1, 1)
         pred_out, (h, c) = self.predictor(sos, lang_embedding)
         T = x.size(1)
         t = 0
@@ -424,12 +424,12 @@ class RNNFiLMTransducerDecoder(NetArch):
                 cached_key = "_".join(map(str, y_star.ys))
 
                 if cached_key not in cache:
-                    pred_in = torch.Tensor([y_star.ys[-1]],
+                    pred_in = torch.tensor([y_star.ys[-1]],
                                            device=device).reshape(1, 1)
 
                     pred_out, pred_state = self.predictor(
                         pred_in,
-                        lang,
+                        lang_embedding,
                         y_star.pred_state,
                     )
                     cache[cached_key] = (pred_out, pred_state)
@@ -523,7 +523,7 @@ class RNNFiLMTransducerDecoder(NetArch):
         blank_id = self.blank_id
         device = x.device
 
-        sos = torch.Tensor([blank_id], device=device).reshape(1, 1)
+        sos = torch.tensor([blank_id], device=device).reshape(1, 1)
         pred_out, (h, c) = self.predictor(sos, lang_embedding)
         T = x.size(1)
         #t = 0
@@ -552,7 +552,7 @@ class RNNFiLMTransducerDecoder(NetArch):
                 cached_key = "_".join(map(str, y_star.ys))
 
                 if cached_key not in cache:
-                    pred_in = torch.Tensor([y_star.ys[-1]],
+                    pred_in = torch.tensor([y_star.ys[-1]],
                                            device=device).reshape(1, 1)
 
                     pred_out, pred_state = self.predictor(

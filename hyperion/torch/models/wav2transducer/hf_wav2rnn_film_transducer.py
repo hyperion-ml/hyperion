@@ -179,6 +179,7 @@ class HFWav2RNNFiLMTransducer(TorchModel):
           x: input features tensor with shape=(batch, in_feats, time)
           x_lengths: time lengths of the features with shape=(batch,)
           y: target classes torch.long tensor with shape=(batch,)
+          languageid: language id torch.long tensor with shape=(batch,)
           return_feat_layers: list of integers indicating, which wav2vec layers
                              we should return. If None, no wav2vec layers are returned.
           return_enc_layers: list of integers indicating, which encoder layers
@@ -208,7 +209,7 @@ class HFWav2RNNFiLMTransducer(TorchModel):
     def infer(self,
               x: torch.Tensor,
               x_lengths: torch.Tensor,
-              langugeid: torch.Tensor,
+              languageid: torch.Tensor,
               decoding_method="time_sync_beam_search",
               beam_width: int = 5,
               max_sym_per_frame: int = 3,
@@ -218,20 +219,22 @@ class HFWav2RNNFiLMTransducer(TorchModel):
         Args:
           x: input features with shape = (N, T, C)
           x_lengths: feature number for frames with shape = (N,)
+          languageid: language id torch.long tensor with shape=(batch,)
           decoding_method: greedy, time_sync_beam_search or align_length_sync_beam_search
           max_sym_per_frame: maximum number of symbols RNN-T can emit in 1 frame.
           max_sym_per_utt: maximimum number of symbols in a single utterance.
         Returns:
           List of list of integer indexes of the recognizer's symbols.
         """
-
+        # import pdb; pdb.set_trace()
+        languageid = languageid[0]
         feats, _, feat_lengths = self.forward_feats(x, x_lengths, languageid)
 
         feats = feats.permute(0, 2, 1)  # (N, C, T) ->(N, T, C)
 
         y = self.transducer.infer(feats,
                                   feat_lengths,
-                                  langugeid,
+                                  languageid,
                                   decoding_method=decoding_method,
                                   beam_width=beam_width,
                                   max_sym_per_frame=max_sym_per_frame,
