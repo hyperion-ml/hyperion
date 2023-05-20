@@ -41,7 +41,6 @@ if [ $stage -le 1 ]; then
   fi
 fi
 
-#Train datasets
 if [ $stage -le 2 ];then
   if [ "$do_voxsrc22" == "true" ];then
     extra_data="voxsrc22_dev"

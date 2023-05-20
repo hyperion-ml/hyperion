@@ -7,6 +7,10 @@ from .info_table import InfoTable
 
 
 class SegmentSet(InfoTable):
+    """Class to store information about a speech segment
+       Internally, it uses a pandas table.
+    """
+
     def __init__(self, df):
         super().__init__(df)
         if "start" in df and "recording_id" not in df:

@@ -10,4 +10,4 @@ from .linear_gbe_up import LinearGBEUP
 from .linear_svmc import LinearSVMC
 from .logistic_regression import LogisticRegression
 from .q_scoring_homo_gbe import QScoringHomoGBE
-from .svmc import GaussianSVMC
+from .svmc import SVMC

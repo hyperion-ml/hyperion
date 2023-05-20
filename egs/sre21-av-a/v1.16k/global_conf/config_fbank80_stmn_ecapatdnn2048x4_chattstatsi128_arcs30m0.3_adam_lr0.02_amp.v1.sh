@@ -27,7 +27,7 @@ nnet_num_epochs=75
 nnet_dir=exp/xvector_nnets/$nnet_name
 nnet=$nnet_dir/model_ep0070.pth
 nnet=$nnet_dir/swa_model_ep0076.pth
-nnet=$nnet_dir/model_ep0004.pth
+
 # xvector full net finetuning with out-of-domain
 ft_eff_batch_size=128 # effective batch size
 ft_min_chunk=10

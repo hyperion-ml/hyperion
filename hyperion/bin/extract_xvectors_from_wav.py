@@ -163,7 +163,7 @@ def extract_xvectors(
                             x[None, :], dtype=torch.get_default_dtype()
                         ).to(device)
 
-                        x = feat_extractor(x)
+                        x, _ = feat_extractor(x)
                         t5 = time.time()
                         tot_frames = x.shape[1]
                         if vad_spec is not None:

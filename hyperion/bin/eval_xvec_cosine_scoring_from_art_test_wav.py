@@ -113,7 +113,7 @@ class MyModel(nn.Module):
             s_t = s_t[0, 0]
 
         f_t = s_t
-        f_t = self.feat_extractor(s_t)
+        f_t, _ = self.feat_extractor(s_t)
         if self.vad_t is not None:
             n_vad_frames = len(self.vad_t)
             n_feat_frames = f_t.shape[1]

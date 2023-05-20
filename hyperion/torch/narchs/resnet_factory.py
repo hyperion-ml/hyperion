@@ -146,7 +146,7 @@ class ResNetFactory(object):
         conv_channels=64,
         base_channels=64,
         out_units=0,
-        hid_act={"name": "relu6", "inplace": True},
+        hid_act={"name": "relu", "inplace": True},
         out_act=None,
         in_kernel_size=7,
         in_stride=2,
@@ -341,7 +341,7 @@ class ResNetFactory(object):
         )
 
         try:
-            parser.add_argument("--hid-act", default="relu6", help="hidden activation")
+            parser.add_argument("--hid-act", default="relu", help="hidden activation")
         except:
             pass
 

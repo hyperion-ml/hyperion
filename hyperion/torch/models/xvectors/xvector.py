@@ -355,7 +355,7 @@ class XVector(TorchModel):
         max_in_length = x.size(-1)
         x = self._pre_enc(x)
         h_enc, x = self.encoder_net.forward_hid_feats(
-            x, return_enc_layers, return_logits=True
+            x, return_enc_layers, return_output=True
         )
         output = {"h_enc": h_enc}
         if not return_logits and return_classif_layers is None:
@@ -363,7 +363,7 @@ class XVector(TorchModel):
 
         x, x_lengths = self._post_enc(x, x_lengths, max_in_length)
         p = self.pool_net(x, x_lengths=x_lengths)
-        h_classif, y_pred = self.classif_net.forward_hid_feats(
+        h_classif = self.classif_net.forward_hid_feats(
             p, y, return_classif_layers, return_logits=return_logits
         )
         if return_logits:
@@ -750,7 +750,7 @@ class XVector(TorchModel):
         )
 
         try:
-            parser.add_argument("--hid-act", default="relu6", help="hidden activation")
+            parser.add_argument("--hid-act", default="relu", help="hidden activation")
         except:
             pass
 

@@ -3,6 +3,7 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import logging
+import glob
 import re
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -39,8 +40,7 @@ class VoxCeleb2DataPrep(DataPrep):
         target_sample_freq: int,
         num_threads: int = 10,
     ):
-        if cat_videos:
-            use_kaldi_ids = True
+        use_kaldi_ids = True
         super().__init__(
             corpus_dir, output_dir, use_kaldi_ids, target_sample_freq, num_threads
         )
@@ -143,6 +143,12 @@ class VoxCeleb2DataPrep(DataPrep):
         rec_dir = self.corpus_dir / self.subset
         logging.info("searching audio files in %s", str(rec_dir))
         rec_files = list(rec_dir.glob("**/*.m4a"))
+        if not rec_files:
+            # symlinks? try glob
+            rec_files = [
+                Path(f) for f in glob.iglob(f"{rec_dir}/**/*.wav", recursive=True)
+            ]
+
         speakers = [f.parents[1].name for f in rec_files]
         video_ids = [f.parent.name for f in rec_files]
         if self.cat_videos:
@@ -176,7 +182,7 @@ class VoxCeleb2DataPrep(DataPrep):
             video_ids = uniq_video_ids
 
         else:
-            file_names = [f.name for f in rec_files]
+            file_names = [f.with_suffix("").name for f in rec_files]
             if self.use_kaldi_ids:
                 rec_ids = [
                     f"{s}-{v}-{f}" for s, v, f in zip(speakers, video_ids, file_names)

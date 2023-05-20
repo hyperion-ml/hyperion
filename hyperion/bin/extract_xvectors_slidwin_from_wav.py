@@ -155,7 +155,7 @@ def extract_xvectors(
                             x[None, :], dtype=torch.get_default_dtype()
                         ).to(device)
 
-                        x = feat_extractor(x)
+                        x, _ = feat_extractor(x)
                         t5 = time.time()
                         tot_frames = x.shape[1]
                         if vad_spec is not None:
@@ -164,13 +164,11 @@ def extract_xvectors(
                             x = x[:, vad]
 
                         logging.info(
-                            "utt %s detected %d/%d (%.2f %%) speech frames"
-                            % (
-                                key,
-                                x.shape[1],
-                                tot_frames,
-                                x.shape[1] / tot_frames * 100,
-                            )
+                            "utt %s detected %d/%d (%.2f %%) speech frames",
+                            key,
+                            x.shape[1],
+                            tot_frames,
+                            x.shape[1] / tot_frames * 100,
                         )
 
                         t6 = time.time()

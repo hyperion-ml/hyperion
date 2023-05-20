@@ -19,7 +19,6 @@ num_workers=""
 
 list_dir=data/${nnet_data}_proc_audio_no_sil
 
-args=""
 if [ -n "$num_workers" ];then
     extra_args="--data.train.data_loader.num-workers $num_workers"
 fi

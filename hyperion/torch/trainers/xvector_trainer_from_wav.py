@@ -109,10 +109,10 @@ class XVectorTrainerFromWav(XVectorTrainer):
             input_data, target = tensors_subset(data, batch_keys, self.device)
             batch_size = input_data.size(0)
             with torch.no_grad():
-                feats = self.feat_extractor(input_data)
+                feats, feats_lengths = self.feat_extractor(input_data)
 
             with amp.autocast(enabled=self.use_amp):
-                output = self.model(feats, y=target)
+                output = self.model(feats, feats_lengths, y=target)
                 loss = self.loss(output, target).mean() / self.grad_acc_steps
 
             if self.use_amp:
@@ -162,9 +162,9 @@ class XVectorTrainerFromWav(XVectorTrainer):
                 input_data, target = tensors_subset(data, batch_keys, self.device)
                 batch_size = input_data.size(0)
 
-                feats = self.feat_extractor(input_data)
+                feats, feats_lengths = self.feat_extractor(input_data)
                 with amp.autocast(enabled=self.use_amp):
-                    output = self.model(feats)
+                    output = self.model(feats, feats_lengths)
                     loss = self.loss(output, target)
 
                 batch_metrics["loss"] = loss.mean().item()

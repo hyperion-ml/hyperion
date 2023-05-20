@@ -32,7 +32,12 @@ class AudioFeatsMVN(NetArch):
         if mvn is not None:
             mvn = MVN.filter_args(**mvn)
             self.mvn_cfg = mvn
-            if mvn["norm_mean"] or mvn["norm_var"]:
+            if (
+                ("norm_mean" in mvn)
+                and mvn["norm_mean"]
+                or ("norm_var" in mvn)
+                and mvn["norm_var"]
+            ):
                 self.mvn = MVN(**mvn)
 
         self.spec_augment = None
@@ -79,7 +84,7 @@ class AudioFeatsMVN(NetArch):
         if self.trans:
             f = f.transpose(1, 2).contiguous()
 
-        return f
+        return f, f_lengths
 
     def get_config(self):
         config = {

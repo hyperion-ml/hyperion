@@ -195,7 +195,7 @@ if [ $stage -le 5 ]; then
     #SRE superset and 16
     echo "SRE Superset Dev"
     steps_be/eval_be_plda_snorm_v2_cts.sh \
-      --cmd "$train_cmd --mem 8G" \
+      --cmd "$train_cmd --mem 12G" \
       --plda_type $plda_type --ncoh $ncoh --num-parts 100 \
       data/sre_cts_superset_16k_dev/trials \
       data/sre_cts_superset_16k_dev/utt2enroll \

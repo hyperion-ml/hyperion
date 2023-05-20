@@ -49,11 +49,11 @@ class MyModel(nn.Module):
         self.sigma = sigma
 
     def forward(self, s_t):
-        # print('sigma0=', self.sigma)
+
         if self.sigma > 0:
             s_t = s_t + self.sigma * torch.randn_like(s_t)
-            # print('sigma1=', self.sigma)
-        f_t = self.feat_extractor(s_t)
+
+        f_t, _ = self.feat_extractor(s_t)
         if self.vad_t is not None:
             n_vad_frames = len(self.vad_t)
             n_feat_frames = f_t.shape[1]
@@ -320,7 +320,7 @@ def eval_cosine_scoring(
     )
     s.save_txt(score_file)
 
-    logging.info("saving stats to %s" % (stats_file))
+    logging.info("saving stats to %s", stats_file)
     attack_stats.to_csv(stats_file)
 
 

@@ -137,7 +137,7 @@ def eval_xvec(
         with AR(input_spec, **ar_args) as reader:
 
             if vad_spec is not None:
-                logging.info("opening VAD stream: %s" % (vad_spec))
+                logging.info("opening VAD stream: %s", vad_spec)
                 v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix,)
 
             while not reader.eof():
@@ -160,7 +160,7 @@ def eval_xvec(
                             x[None, :], dtype=torch.get_default_dtype()
                         ).to(device)
 
-                        x = feat_extractor(x)
+                        x, _ = feat_extractor(x)
                         t5 = time.time()
                         tot_frames = x.shape[1]
                         if vad_spec is not None:
@@ -169,13 +169,11 @@ def eval_xvec(
                             x = x[:, vad]
 
                         logging.info(
-                            "utt %s detected %d/%d (%.2f %%) speech frames"
-                            % (
-                                key,
-                                x.shape[1],
-                                tot_frames,
-                                x.shape[1] / tot_frames * 100,
-                            )
+                            "utt %s detected %d/%d (%.2f %%) speech frames",
+                            key,
+                            x.shape[1],
+                            tot_frames,
+                            x.shape[1] / tot_frames * 100,
                         )
 
                         if random_utt_length:
@@ -200,27 +198,23 @@ def eval_xvec(
                     read_time = t2 - t1
                     tot_time = read_time + t8 - t3
                     logging.info(
-                        (
-                            "utt %s total-time=%.3f read-time=%.3f "
-                            "aug-time=%.3f feat-time=%.3f "
-                            "vad-time=%.3f embed-time=%.3f write-time=%.3f "
-                            "rt-factor=%.2f"
-                        )
-                        % (
-                            key,
-                            tot_time,
-                            read_time,
-                            t4 - t3,
-                            t5 - t4,
-                            t6 - t5,
-                            t7 - t6,
-                            t8 - t7,
-                            x0.shape[0] / fs[0] / tot_time,
-                        )
+                        "utt %s total-time=%.3f read-time=%.3f "
+                        "aug-time=%.3f feat-time=%.3f "
+                        "vad-time=%.3f embed-time=%.3f write-time=%.3f "
+                        "rt-factor=%.2f",
+                        key,
+                        tot_time,
+                        read_time,
+                        t4 - t3,
+                        t5 - t4,
+                        t6 - t5,
+                        t7 - t6,
+                        t8 - t7,
+                        x0.shape[0] / fs[0] / tot_time,
                     )
 
     if write_num_frames_spec is not None:
-        logging.info("writing num-frames to %s" % (write_num_frames_spec))
+        logging.info("writing num-frames to %s", write_num_frames_spec)
         u2nf = Utt2Info.create(keys, info)
         u2nf.save(write_num_frames_spec)
 

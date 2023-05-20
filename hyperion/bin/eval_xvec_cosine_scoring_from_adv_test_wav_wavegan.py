@@ -84,7 +84,7 @@ class MyModel(nn.Module):
         s_t = self.wav_scale * s_t
         # End of pre-processing defense
 
-        f_t = self.feat_extractor(s_t)
+        f_t, _ = self.feat_extractor(s_t)
         if self.vad_t is not None:
             n_vad_frames = len(self.vad_t)
             n_feat_frames = f_t.shape[1]
@@ -289,13 +289,11 @@ def eval_cosine_scoring_wavegan(
             vad = torch.tensor(vad, dtype=torch.bool).to(device)
             model.vad_t = vad
             logging.info(
-                "utt %s detected %d/%d (%.2f %%) speech frames"
-                % (
-                    key.seg_set[j],
-                    speech_frames,
-                    tot_frames,
-                    speech_frames / tot_frames * 100,
-                )
+                "utt %s detected %d/%d (%.2f %%) speech frames",
+                key.seg_set[j],
+                speech_frames,
+                tot_frames,
+                speech_frames / tot_frames * 100,
             )
 
         t2 = time.time()

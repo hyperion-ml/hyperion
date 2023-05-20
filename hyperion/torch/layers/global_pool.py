@@ -42,8 +42,9 @@ class _GlobalPool1d(nn.Module):
         multiplied by the input data.
         """
         if weights is None:
+            time_dim = self.dim if self.dim >= 0 else x.dim() + self.dim
             return seq_lengths_to_mask(
-                x_lengths, x.size(self.dim), dtype=x.dtype, time_dim=self.dim
+                x_lengths, x.size(self.dim), dtype=x.dtype, time_dim=time_dim
             )
 
         if weights.dim() == x.dim():
@@ -599,7 +600,7 @@ class ScaledDotProdAttV1Pool1d(_GlobalPool1d):
         """standardizes the weights to have shape (batch, max_length)."""
         if weights is None:
             return seq_lengths_to_mask(
-                x_lengths, x.size(self.dim), dtype=x.dtype, time_dim=1
+                x_lengths, x.size(self.dim), dtype=x.dtype, time_dim=2
             )
 
         if weights.dim() == x.dim():
@@ -797,7 +798,7 @@ class GlobalChWiseAttMeanStdPool1d(_GlobalPool1d):
                 if attn.dtype == torch.half:
                     min_value = -65504
                 else:
-                    min_value = -1e200
+                    min_value = -1e20
                 mask = weights.eq(0)
                 attn = attn.masked_fill(mask, min_value)
 

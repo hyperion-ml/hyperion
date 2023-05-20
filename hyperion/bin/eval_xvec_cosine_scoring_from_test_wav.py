@@ -125,7 +125,7 @@ def eval_cosine_scoring(
     audio_reader = AR(test_wav_file, **audio_args)
 
     if vad_spec is not None:
-        logging.info("opening VAD stream: %s" % (vad_spec))
+        logging.info("opening VAD stream: %s", vad_spec)
         v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix)
 
     scores = np.zeros((ndx.num_models, ndx.num_tests), dtype="float32")
@@ -144,7 +144,7 @@ def eval_cosine_scoring(
 
             t2 = time.time()
             s = torch.as_tensor(s[None, :], dtype=torch.get_default_dtype()).to(device)
-            x_t = feat_extractor(s)
+            x_t, _ = feat_extractor(s)
             t4 = time.time()
             tot_frames = x_t.shape[1]
             if vad_spec is not None:
