@@ -750,7 +750,6 @@ class RNNFiLMTransducerDecoder(NetArch):
                                 type=int,
                                 required=True,
                                 help=("output prediction dimension"))
-
         RNNFiLMTransducerDecoder.add_pred_args(parser)
         RNNFiLMTransducerDecoder.add_joiner_args(parser)
         parser.add_argument(
@@ -782,6 +781,12 @@ class RNNFiLMTransducerDecoder(NetArch):
             type=Optional[int],
             help="""how many symbols to keep for each frame in k2 rnn-t 
             pruned loss.""")
+
+        parser.add_argument("--condition-size",
+                            type=int,
+                            required=True,
+                            help=("condition vector dimension"))
+
         parser.add_argument(
             "--lm-scale",
             default=0.25,

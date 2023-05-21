@@ -9,7 +9,7 @@ from .dc1d_blocks import DC1dDecBlock, DC1dEncBlock
 from .dc2d_blocks import DC2dDecBlock, DC2dEncBlock
 from .etdnn_blocks import ETDNNBlock
 from .fc_blocks import FCBlock
-from .film_blocks import FiLM, LSTMWithFiLM
+from .film_blocks import FiLM, RNNWithFiLM, RNNWithFiLMResidual
 from .mbconv_blocks import MBConvBlock, MBConvInOutBlock
 from .res2net1d_blocks import Res2Net1dBasicBlock, Res2Net1dBNBlock
 from .res2net2d_blocks import Res2Net2dBasicBlock, Res2Net2dBNBlock
