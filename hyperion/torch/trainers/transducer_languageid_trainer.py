@@ -135,9 +135,8 @@ class TransducerLanguageIDTrainer(TorchTrainer):
             for k, v in output.items():
                 if "loss" in k and v is not None:
                     batch_metrics[k] = output[k].item()
-
             for k, metric in self.metrics.items():
-                batch_metrics[k] = metric(output, target)
+                batch_metrics[k] = metric(output["logits"], languageid)
 
             metric_acc.update(batch_metrics, batch_size)
             logs = metric_acc.metrics
