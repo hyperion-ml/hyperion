@@ -205,7 +205,8 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
             self.class_info.set_uniform_weights()
         elif self.weight_mode == "data-prior":
             weights = self.class_info["total_duration"].values
-            self.class_info.set_weights(self, weights)
+            logging.info(weights)
+            self.class_info.set_weights(weights)
 
         if self.weight_exponent != 1.0:
             self.class_info.exp_weights(self.weight_exponent)
@@ -217,6 +218,7 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
         self.var_weights = np.any(
             self.seg_set[self.length_name] < self.max_chunk_length
         )
+        logging.info(f'updated weight:{self.class_info["weights"]}')
 
     @property
     def hard_prototype_mining(self):

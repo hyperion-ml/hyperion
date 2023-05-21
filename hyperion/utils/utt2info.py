@@ -142,7 +142,7 @@ class Utt2Info(object):
         self.utt_info.to_csv(file_path, sep=sep, header=False, index=False)
 
     @classmethod
-    def load(cls, file_path, sep=" ", dtype={0: np.str_, 1: np.str_}):
+    def load(cls, file_path, sep=" ", dtype={0: str, 1: str}):
         """Loads utt2info list from text file.
 
         Args:

@@ -93,7 +93,7 @@ class LanguageIDTrainer(TorchTrainer):
           data_loader: pytorch data loader returning features and class labels.
         """
         batch_keys = [
-            self.input_key, f"{self.input_key}_lengths", self.target_key
+            self.input_key, self.target_key
         ]
 
         self.model.update_loss_margin(self.cur_epoch)
@@ -107,8 +107,10 @@ class LanguageIDTrainer(TorchTrainer):
 
             if batch % self.grad_acc_steps == 0:
                 self.optimizer.zero_grad()
-            input_data, input_lengths, target = tensors_subset(
+            input_data, target = tensors_subset(
                 data, batch_keys, self.device)
+            # input_data, input_lengths, target = tensors_subset(
+                # data, batch_keys, self.device)
             batch_size = input_data.shape[0]
 
             with self.amp_autocast():
@@ -152,7 +154,7 @@ class LanguageIDTrainer(TorchTrainer):
           sw_update_bn: wheter or not, update batch-norm layers in SWA.
         """
         batch_keys = [
-            self.input_key, f"{self.input_key}_lengths", self.target_key
+            self.input_key, self.target_key
         ]
         metric_acc = MetricAcc(self.device)
         batch_metrics = ODict()
@@ -165,8 +167,10 @@ class LanguageIDTrainer(TorchTrainer):
                 self.model.eval()
 
             for batch, data in enumerate(data_loader):
-                input_data, input_lengths, target = tensors_subset(
+                input_data, target = tensors_subset(
                     data, batch_keys, self.device)
+                # input_data, input_lengths, target = tensors_subset(
+                    # data, batch_keys, self.device)
                 batch_size = input_data.shape[0]
                 # data, target = data.to(self.device), target.to(self.device)
                 # batch_size = data.shape[0]

@@ -18,23 +18,31 @@ from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch import TorchModelLoader as TML
 from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
-from hyperion.torch.metrics import CategoricalAccuracy
 from hyperion.torch.models import (HFWav2Vec2RNNRNNTransducer,
                                    HFWav2Vec2RNNTransducer,
-                                   HFWav2Vec2RNNTransducerResnet1D)
+                                   HFWav2Vec2RNNFiLMTransducer)
 from hyperion.torch.trainers import TransducerLanguageIDTrainer as Trainer
 from hyperion.torch.utils import ddp
 from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
                           namespace_to_dict)
 from torch.nn.utils.rnn import pad_sequence
 
+import warnings
+
+warnings.filterwarnings('ignore', category=UserWarning, module='torch.distributed.distributed_c10d')
+
 model_dict = {
-    "hf_wav2vec2rnn_transducer_resnet1d": HFWav2Vec2RNNTransducerResnet1D,
-    
+    "hf_wav2vec2rnn_transducer": HFWav2Vec2RNNTransducer,
+    "hf_wav2vec2rnn_filmed_transducer": HFWav2Vec2RNNFiLMTransducer,
+    "hf_wav2vec2rnn_rnn_transducer": HFWav2Vec2RNNRNNTransducer,
+    # "hf_hubert2rnn_transducer": HFWav2Vec2RNNTransducer,
+    # "hf_hubert2rnn_rnn_transducer": Hubert2RNNRNNTransducer,
+    # "hf_wavlm2rnn_transducer": HFHubert2RNNTransducer,
+    # "hf_wavlm2rnn_rnn_transducer": HFWavLM2RNNRNNTransducer,
 }
 
 
-def transducer_language_collate(batch):
+def transducer_collate(batch):
     audio = []
     audio_length = []
     target = []
@@ -96,97 +104,23 @@ def init_data(partition, rank, num_gpus, **kwargs):
     largs = (
         {"num_workers": num_workers_per_gpu, "pin_memory": True} if num_gpus > 0 else {}
     )
-    data_loader = torch.utils.data.DataLoader(dataset, batch_sampler=sampler, **largs, collate_fn=transducer_language_collate)
+    data_loader = torch.utils.data.DataLoader(dataset, batch_sampler=sampler, **largs, collate_fn=transducer_collate)
     return data_loader
 
 
-def check_update_parameters(joint_state_dict, new_joint_state_dict, rank):
-    unchanged_parameters = []
-    changed_parameters = []
-    unloaded_parameters = []
-    for name, param in joint_state_dict.items():
-        new_param = new_joint_state_dict[name].to(param.device)
-        if torch.all(torch.eq(param, new_param)):
-            unchanged_parameters.append(name)
-        else:
-            changed_parameters.append(name)
-    # logging
-    if rank == 0:
-        logging.info("Unchanged parameters: {}".format(unchanged_parameters))
-        logging.info("Changed parameters: {}".format(changed_parameters))
-
-
-def remove_module_from_state_dict(state_dict):
-    new_state_dict = {}
-    for name, param in state_dict.items():
-        if name.startswith("module."):
-            new_state_dict[name[len("module."):]] = param
-        else:
-            new_state_dict[name] = param
-    return new_state_dict
-
-
-def copy_model_parameters(joint_model, wav2transducer_state_dict, wav2lid_state_dict, rank):
-    joint_state_dict = joint_model.state_dict()
-    wav2transducer_state_dict = remove_module_from_state_dict(wav2transducer_state_dict)
-    wav2lid_state_dict = remove_module_from_state_dict(wav2lid_state_dict)  
-
-
-    hf_feats_update_state_dict = {name: param for name, param in wav2transducer_state_dict.items() if name in joint_state_dict and param.shape == joint_state_dict[name].shape and "hf_feats" in name}
-    transducer_update_state_dict = {name: param for name, param in wav2transducer_state_dict.items() if name in joint_state_dict and param.shape == joint_state_dict[name].shape and "transducer" in name}
-    languageid_update_state_dict = {name: param for name, param in wav2lid_state_dict.items() if name in joint_state_dict and param.shape == joint_state_dict[name].shape and "languageid" in name}
-    
-    new_joint_state_dict = joint_state_dict.copy()
-    new_joint_state_dict.update(hf_feats_update_state_dict)
-    new_joint_state_dict.update(transducer_update_state_dict)
-    new_joint_state_dict.update(languageid_update_state_dict)
-    
-    new_joint_state_dict["transducer_fuser"] = wav2transducer_state_dict["feat_fuser"]
-    new_joint_state_dict["languageid_fuser"] = wav2lid_state_dict["feat_fuser"]
-    
-
-    check_update_parameters(joint_state_dict, new_joint_state_dict, rank)
-    joint_model.load_state_dict(new_joint_state_dict)
-
-def init_model(in_model_transducer, in_model_lid, rank, model_class, **kwargs):
-    # load pretrained models
-    model_wav2transducer = torch.load(in_model_transducer)
-    model_wav2lid = torch.load(in_model_lid) 
-    if rank == 0:
-        logging.info("init joint model")
-        logging.info("hf_feats network ft args={}".format(model_wav2transducer["model_cfg"]["hf_feats"]))
-        logging.info("transducer network ft args={}".format(model_wav2transducer["model_cfg"]["transducer"]))
-        logging.info("languageid network ft args={}".format(model_wav2lid["model_cfg"]["languageid"]))
-        logging.info("feat_fusion_start={}".format(model_wav2transducer["model_cfg"]["feat_fusion_start"]))
-        logging.info("feat_fusion_method_transducer={}".format(model_wav2transducer["model_cfg"]["feat_fusion_method"]))
-        logging.info("feat_fusion_method_languageid={}".format(model_wav2lid["model_cfg"]["feat_fusion_method"]))
-
-    # init joint model
-    model = model_class(hf_feats=model_wav2transducer["model_cfg"]["hf_feats"], 
-                        transducer=model_wav2transducer["model_cfg"]["transducer"], 
-                        languageid=model_wav2lid["model_cfg"]["languageid"],
-                        feat_fusion_start=model_wav2transducer["model_cfg"]["feat_fusion_start"],
-                        feat_fusion_method_transducer=model_wav2transducer["model_cfg"]["feat_fusion_method"],
-                        feat_fusion_method_languageid=model_wav2lid["model_cfg"]["feat_fusion_method"],
-                        loss_weight_transducer=kwargs["model"]["loss_weight_transducer"],
-                        loss_weight_lid=kwargs["model"]["loss_weight_lid"],
-                        lid_length=kwargs["model"]["lid_length"],
-                        )
-
-    copy_model_parameters(model, model_wav2transducer["model_state_dict"], model_wav2lid["model_state_dict"], rank)
-
-
-    # add finetune args
+def init_model(in_model_file, rank, model_class, **kwargs):
     model_args = model_class.filter_finetune_args(**kwargs["model"])
-
     # model_args = model_class.filter_args(**kwargs["model"])
     if rank == 0:
         logging.info("model network ft args={}".format(model_args))
-    model_args["languageid"]["num_classes"] = model_wav2lid["model_cfg"]["languageid"]["num_classes"]
+    model = TML.load(in_model_file)
     model.change_config(**model_args)
     if rank == 0:
         logging.info("model={}".format(model))
     return model
+
+
+
 
 
 def train_model(gpu_id, args):
@@ -199,15 +133,15 @@ def train_model(gpu_id, args):
     torch.manual_seed(args.seed)
     set_float_cpu("float32")
 
-    # ddp_args = ddp.filter_ddp_args(**kwargs)
-    # device, rank, world_size = ddp.ddp_init(gpu_id, **ddp_args)
-    # kwargs["rank"] = rank
+    ddp_args = ddp.filter_ddp_args(**kwargs)
+    device, rank, world_size = ddp.ddp_init(gpu_id, **ddp_args)
+    kwargs["rank"] = rank
 
-    # for Debug
-    rank = 0
-    kwargs["rank"] = 0
-    device = torch.device("cuda:0")
-    world_size=1
+    # # for Debug
+    # rank = 0
+    # kwargs["rank"] = 0
+    # device = "cpu"
+    # world_size=1
 
     train_loader = init_data(partition="train", **kwargs)
     val_loader = init_data(partition="val", **kwargs)
@@ -216,7 +150,7 @@ def train_model(gpu_id, args):
     trn_args = Trainer.filter_args(**kwargs["trainer"])
     if rank == 0:
         logging.info("trainer args={}".format(trn_args))
-    metrics = {"acc": CategoricalAccuracy()}
+    metrics = {} 
     trainer = Trainer(
         model,
         device=device,
@@ -280,8 +214,7 @@ def make_parser(model_class):
     )
 
 
-    parser.add_argument("--in-model-transducer", required=True)
-    parser.add_argument("--in-model-lid", required=True)
+    parser.add_argument("--in-model-file", required=True)
     model_class.add_finetune_args(parser, prefix="model")
     # model_class.add_class_args(parser, prefix="model")
     Trainer.add_class_args(

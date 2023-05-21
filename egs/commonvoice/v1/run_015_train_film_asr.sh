@@ -14,11 +14,10 @@ set -e
 #module load cuda/11.6.0
 #ml
 #nvidia-smi
-#export CUDA_VISIBLE_DEVICES=0,1,2,3
+# export CUDA_VISIBLE_DEVICES=0,1,2,3
 #export CONV_RSH=ssh
 #export LD_LIBRARY_PATH=/scratch4/jvillal7/ylu125/miniconda3/envs/gsp_hyp/lib/:$LD_LIBRARY_PATH
 
-export CUDA_VISIBLE_DEVICES=0,1
 stage=1
 ngpu=2
 config_file=default_config.sh
@@ -59,7 +58,7 @@ if [ $stage -le 1 ]; then
   $cuda_cmd \
     --gpu $ngpu $nnet_s1_dir/log/train.log \
     hyp_utils/conda_env.sh --conda-env $HYP_ENV --num-gpus $ngpu --max-split-size-mb 512 \
-    train_wav2vec2rnn_transducer.py $nnet_type \
+    train_wav2vec2rnn_film_transducer.py $nnet_type \
     --cfg $nnet_s1_base_cfg $nnet_s1_args $extra_args \
     --data.train.dataset.audio-file $train_dir/wav.scp \
     --data.train.dataset.segments-file $train_dir/utt2seg.csv \
@@ -75,6 +74,8 @@ if [ $stage -le 1 ]; then
     --trainer.exp-path $nnet_s1_dir $args \
     --data.train.dataset.time-durs-file $train_dir/utt2dur \
     --data.val.dataset.time-durs-file $val_dir/utt2dur \
+    --in-model-file $nnet_rnn_transducer \
+    --master-port 1237 \
     --num-gpus $ngpu
 
 fi
@@ -89,7 +90,7 @@ if [ $stage -le 2 ]; then
   $cuda_cmd \
     --gpu $ngpu $nnet_s2_dir/log/train.log \
     hyp_utils/conda_env.sh --conda-env $HYP_ENV --num-gpus $ngpu \
-    finetune_wav2vec2rnn_transducer.py $nnet_type \
+    finetune_wav2vec2rnn_film_transducer.py $nnet_type \
     --cfg $nnet_s2_base_cfg $nnet_s2_args $extra_args \
     --data.train.dataset.audio-file $train_dir/wav.scp \
     --data.train.dataset.segments-file $train_dir/utt2seg.csv \
@@ -106,7 +107,7 @@ if [ $stage -le 2 ]; then
     --in-model-file $nnet_s1 \
     --data.train.dataset.time-durs-file $train_dir/utt2dur \
     --data.val.dataset.time-durs-file $val_dir/utt2dur \
-    --master-port 1236 \
+    --master-port 1237 \
     --num-gpus $ngpu
   
 fi
@@ -122,7 +123,8 @@ if [ $stage -le 3 ]; then
   $cuda_cmd \
     --gpu $ngpu $nnet_s3_dir/log/train.log \
     hyp_utils/conda_env.sh --conda-env $HYP_ENV --num-gpus $ngpu \
-    finetune_wav2vec2transducer.py $nnet_type \
+    
+    .py $nnet_type \
     --cfg $nnet_s3_base_cfg $nnet_s3_args $extra_args \
     --data.train.dataset.audio-file $train_dir/wav.scp \
     --data.train.dataset.segments-file $train_dir/utt2seg.csv \

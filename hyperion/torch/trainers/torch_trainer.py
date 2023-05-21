@@ -627,6 +627,7 @@ class TorchTrainer(object):
         for epoch in range(self.epochs, 0, -1):
             file_path = "%s/model_ep%04d.pth" % (self.exp_path, epoch)
             if os.path.isfile(file_path):
+                logging.info("Loading checkpoint %s" % file_path)
                 return self.load_checkpoint(file_path)
 
         return None

@@ -7,12 +7,11 @@ from dataclasses import dataclass
 import logging
 from typing import Dict, List, Optional, Tuple, Union
 
+import torch
+import torch.nn as nn
 import torchaudio
 import torchaudio.functional
 from jsonargparse import ActionParser, ArgumentParser, ActionYesNo
-
-import torch
-import torch.nn as nn
 
 try:
     import k2
@@ -21,9 +20,8 @@ except ModuleNotFoundError:
 
 from ...utils.misc import filter_func_args
 from ...utils.text import add_sos
-from ..layer_blocks import TransducerConvPredictor as ConvPredictor
-from ..layer_blocks import TransducerJoiner as Joiner
-from ..layer_blocks import TransducerRNNPredictor as RNNPredictor
+from ..layer_blocks import TransducerFiLMJoiner as Joiner
+from ..layer_blocks import TransducerRNNFiLMPredictor as RNNPredictor
 from .net_arch import NetArch
 
 
@@ -33,10 +31,10 @@ class Hypothesis:
     log_prob: float  # log prob of ys
 
     # Optional LSTM predictor state.
-    pred_state: Optional[Tuple[torch.Tensor, ...]] = None
+    pred_state: Optional[Tuple[torch.Tensor, torch.Tensor]] = None
 
 
-class RNNTransducerDecoder(NetArch):
+class RNNFiLMTransducerDecoder(NetArch):
     """ RNN-T Decoder composed of Predictor and Joiner networks
     Implementation based on 
     https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/transducer/transducer.py
@@ -77,7 +75,8 @@ class RNNTransducerDecoder(NetArch):
         am_scale: float = 0.0,
         simple_loss_scale: float = 0.5,
         pruned_warmup_steps: int = 2000,
-        # film: bool=False,
+        langs_size: int = 13,
+        condition_size: int = 64,
     ):
 
         super().__init__()
@@ -95,10 +94,13 @@ class RNNTransducerDecoder(NetArch):
         self.am_scale = am_scale
         self.simple_loss_scale = simple_loss_scale
         self.pruned_warmup_steps = pruned_warmup_steps
+        self.condition_size = condition_size
+
 
         self._make_predictor()
         self._make_joiner()
-
+        # make embedding layer for language id
+        self.lang_embedding = nn.Embedding(langs_size, condition_size)
         if self.rnnt_loss == "k2_pruned":
             self.simple_am_proj = nn.Linear(in_feats, vocab_size)
             self.simple_lm_proj = nn.Linear(self.predictor.out_feats,
@@ -111,26 +113,28 @@ class RNNTransducerDecoder(NetArch):
         self.predictor_args["in_feats"] = self.in_feats
         self.predictor_args["vocab_size"] = self.vocab_size
         self.predictor_args["blank_id"] = self.blank_id
+        self.predictor_args["condition_size"] = self.condition_size
+        # Add FiLM args to the predictor args
         if pred_type == "rnn":
             pred_args = filter_func_args(RNNPredictor.__init__,
                                          self.predictor_args)
             self.predictor = RNNPredictor(**pred_args)
-        elif pred_type == "conv":
-            pred_args = filter_func_args(ConvPredictor.__init__,
-                                         self.predictor_args)
-            self.predictor = ConvPredictor(**pred_args)
-            self.predictor_args["out_feats"] = self.predictor.embed_dim
+        # elif pred_type == "conv":
+        #     pred_args = filter_func_args(ConvPredictor.__init__,
+        #                                  self.predictor_args)
+        #     self.predictor = ConvPredictor(**pred_args)
         else:
             raise ValueError(f"Unknown predictor type {pred_type}")
 
     def _make_joiner(self):
         joiner_type = self.joiner_args["joiner_type"]
+        # Add FiLM args to the joiner args
 
         if joiner_type == "basic":
             pred_feats = self.predictor_args["out_feats"]
             hid_feats = self.joiner_args["hid_feats"]
             self.joiner = Joiner(self.in_feats, pred_feats, hid_feats,
-                                 self.vocab_size)
+                                 self.vocab_size, self.condition_size)
         else:
             raise ValueError(f"Unknown joiner type {joiner_type}")
 
@@ -150,14 +154,15 @@ class RNNTransducerDecoder(NetArch):
             "am_scale": self.am_scale,
             "simple_loss_scale": self.simple_loss_scale,
             "pruned_warmup_steps": self.pruned_warmup_steps,
+            "condition_size": self.condition_size,
         }
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
     def _rnnt_loss_torchaudio(self, x: torch.Tensor, x_lengths: torch.Tensor,
                               y: torch.Tensor, y_lengths: torch.Tensor,
-                              pred_out: torch.Tensor):
-        logits = self.joiner(x, pred_out)
+                              pred_out: torch.Tensor, lang_embedding: torch.Tensor):
+        logits = self.joiner(x, pred_out, lang_embedding)
         # rnnt_loss requires 0 padded targets
         # Note: y does not start with SOS
         y_padded = y.pad(mode="constant", padding_value=0)
@@ -174,7 +179,7 @@ class RNNTransducerDecoder(NetArch):
 
     def _rnnt_loss_k2(self, x: torch.Tensor, x_lengths: torch.Tensor,
                       y: torch.Tensor, y_lengths: torch.Tensor,
-                      pred_out: torch.Tensor):
+                      pred_out: torch.Tensor, lang_embedding: torch.Tensor):
         y_padded = y.pad(mode="constant", padding_value=0)
         y_padded = y_padded.to(torch.int64)
         boundary = torch.zeros((x.size(0), 4),
@@ -183,7 +188,7 @@ class RNNTransducerDecoder(NetArch):
         boundary[:, 2] = y_lengths
         boundary[:, 3] = x_lengths
 
-        logits = self.joiner(x, pred_out)
+        logits = self.joiner(x, pred_out, lang_embedding)
 
         with torch.cuda.amp.autocast(enabled=False):
             loss = k2.rnnt_loss(
@@ -199,7 +204,7 @@ class RNNTransducerDecoder(NetArch):
 
     def _rnnt_loss_k2_pruned(self, x: torch.Tensor, x_lengths: torch.Tensor,
                              y: torch.Tensor, y_lengths: torch.Tensor,
-                             pred_out: torch.Tensor):
+                             pred_out: torch.Tensor, lang_embedding: torch.Tensor):
 
         y_padded = y.pad(mode="constant", padding_value=0)
         y_padded = y_padded.to(torch.int64)
@@ -246,7 +251,8 @@ class RNNTransducerDecoder(NetArch):
 
         # project_input=False since we applied the decoder's input projections
         # prior to do_rnnt_pruning (this is an optimization for speed).
-        logits = self.joiner(am_pruned, lm_pruned, project_input=False)
+        logits = self.joiner(am_pruned, lm_pruned, lang_embedding, project_input=False)
+
 
         with torch.cuda.amp.autocast(enabled=False):
             loss_pruned = k2.rnnt_loss_pruned(
@@ -268,16 +274,17 @@ class RNNTransducerDecoder(NetArch):
             simple_loss_scale = 1.0 - r * (1.0 - self.simple_loss_scale)
             pruned_loss_scale = 0.1 + 0.9 * r
             self.cur_step += 1
-            #print(simple_loss_scale, pruned_loss_scale)
+            # print(simple_loss_scale, pruned_loss_scale)
 
         loss = simple_loss_scale * loss_simple + pruned_loss_scale * loss_pruned
 
         return loss, loss_simple, loss_pruned
 
     def forward(
-        self, x: torch.Tensor, x_lengths: torch.Tensor, y: k2.RaggedTensor
+        self, x: torch.Tensor, x_lengths: torch.Tensor, y: k2.RaggedTensor, lang: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-
+        # embed lang
+        lang_embedding = self.lang_embedding(lang)
         # get y_lengths
         row_splits = y.shape.row_splits(1)
         y_lengths = row_splits[1:] - row_splits[:-1]
@@ -286,45 +293,53 @@ class RNNTransducerDecoder(NetArch):
         sos_y_padded = sos_y.pad(mode="constant", padding_value=self.blank_id)
         sos_y_padded = sos_y_padded.to(torch.int64)
         # apply predictor and joiner
-        pred_out, _ = self.predictor(sos_y_padded)
+        pred_out, _ = self.predictor(sos_y_padded, lang_embedding)
         loss_simple = loss_pruned = None
         if self.rnnt_loss == "k2_pruned":
             loss, loss_simple, loss_pruned = self._rnnt_loss_k2_pruned(
-                x, x_lengths, y, y_lengths, pred_out)
+                x, x_lengths, y, y_lengths, pred_out, lang_embedding)
         elif self.rnnt_loss == "k2":
-            loss = self._rnnt_loss_k2(x, x_lengths, y, y_lengths, pred_out)
+            loss = self._rnnt_loss_k2(x, x_lengths, y, y_lengths, pred_out, lang_embedding)
         elif self.rnnt_loss == "torchaudio":
             loss_simple = loss_pruned = None
             loss = self._rnnt_loss_torchaudio(x, x_lengths, y, y_lengths,
-                                              pred_out)
+                                              pred_out, lang_embedding)
 
         return loss, loss_simple, loss_pruned
 
     def decode(self,
                x: torch.Tensor,
+               lang: torch.Tensor,
                x_lengths: torch.Tensor = None,
                method="time_sync_beam_search",
                beam_width: int = 5,
                max_sym_per_frame: int = 3,
-               max_sym_per_utt: int = 1000) -> List[int]:
+               max_sym_per_utt: int = 1000, ) -> List[int]:
+
+        # embed lang
+        lang_embedding = self.lang_embedding(lang)
         if method == "time_sync_beam_search":
             return self.decode_time_sync_beam_search(x,
+                                                     lang_embedding,
                                                      x_lengths,
                                                      beam_width=beam_width)
         elif method == "align_length_sync_beam_search":
             return self.decode_align_length_sync_beam_search(
                 x,
                 x_lengths,
+                lang_embedding,
                 beam_width=beam_width,
                 max_sym_per_utt=max_sym_per_utt)
         elif method == "greedy":
             return self.decode_greedy(x,
+                                      lang_embedding,
                                       x_lengths,
                                       max_sym_per_frame=max_sym_per_frame,
                                       max_sym_per_utt=max_sym_per_utt)
 
     def decode_greedy(self,
                       x: torch.Tensor,
+                      lang_embedding: torch.Tensor,
                       x_lengths: torch.Tensor = None,
                       max_sym_per_frame: int = 3,
                       max_sym_per_utt: int = 1000) -> List[int]:
@@ -343,7 +358,7 @@ class RNNTransducerDecoder(NetArch):
 
         sos = torch.tensor([blank_id], device=device,
                            dtype=torch.int64).reshape(1, 1)
-        pred_out, state = self.predictor(sos)
+        pred_out, (h, c) = self.predictor(sos, lang_embedding)
         T = x.size(1)
         t = 0
         hyp = []
@@ -353,7 +368,7 @@ class RNNTransducerDecoder(NetArch):
 
         while t < T and sym_per_utt < max_sym_per_utt:
             x_t = x[:, t:t + 1, :]
-            logits = self.joiner(x_t, pred_out)  # (1, 1, 1, vocab_size)
+            logits = self.joiner(x_t, pred_out, lang_embedding)  # (1, 1, 1, vocab_size)
             # logits is
 
             log_prob = logits.log_softmax(dim=-1)  # (1, 1, 1, vocab_size)
@@ -362,7 +377,7 @@ class RNNTransducerDecoder(NetArch):
             if y != blank_id:
                 hyp.append(y.item())
                 y = y.reshape(1, 1)
-                pred_out, state = self.predictor(y, state)
+                pred_out, (h, c) = self.predictor(y, lang_embedding, (h, c))
 
                 sym_per_utt += 1
                 sym_per_frame += 1
@@ -375,7 +390,8 @@ class RNNTransducerDecoder(NetArch):
 
     def decode_time_sync_beam_search(self,
                                      x: torch.Tensor,
-                                     x_lengths: torch.Tensor = None,
+                                     lang_embedding: torch.Tensor,
+                                     x_lengths: torch.Tensor = None, 
                                      beam_width: int = 5) -> List[int]:
         assert x.ndim == 3
         assert x.size(0) == 1, x.size(0)
@@ -384,7 +400,7 @@ class RNNTransducerDecoder(NetArch):
         device = x.device
 
         sos = torch.tensor([blank_id], device=device).reshape(1, 1)
-        pred_out, state = self.predictor(sos)
+        pred_out, (h, c) = self.predictor(sos, lang_embedding)
         T = x.size(1)
         t = 0
         B = [Hypothesis(ys=[blank_id], log_prob=0.0, pred_state=None)]
@@ -413,13 +429,14 @@ class RNNTransducerDecoder(NetArch):
 
                     pred_out, pred_state = self.predictor(
                         pred_in,
+                        lang_embedding,
                         y_star.pred_state,
                     )
                     cache[cached_key] = (pred_out, pred_state)
                 else:
                     pred_out, pred_state = cache[cached_key]
 
-                logits = self.joiner(x_t, pred_out)
+                logits = self.joiner(x_t, pred_out, lang_embedding)
                 log_prob = logits.log_softmax(dim=-1)
                 # log_prob is (1, 1, 1, vocab_size)
                 log_prob = log_prob.squeeze()
@@ -497,6 +514,7 @@ class RNNTransducerDecoder(NetArch):
             self,
             x: torch.Tensor,
             x_lengths: torch.Tensor,
+            lang_embedding: torch.Tensor,
             beam_width: int = 5,
             max_sym_per_utt: int = 1000) -> List[int]:
         assert x.ndim == 3
@@ -506,7 +524,7 @@ class RNNTransducerDecoder(NetArch):
         device = x.device
 
         sos = torch.tensor([blank_id], device=device).reshape(1, 1)
-        pred_out, state = self.predictor(sos)
+        pred_out, (h, c) = self.predictor(sos, lang_embedding)
         T = x.size(1)
         #t = 0
         B = [Hypothesis(ys=[blank_id], log_prob=0.0, pred_state=None)]
@@ -539,13 +557,14 @@ class RNNTransducerDecoder(NetArch):
 
                     pred_out, pred_state = self.predictor(
                         pred_in,
+                        lang_embedding,
                         y_star.pred_state,
                     )
                     cache[cached_key] = (pred_out, pred_state)
                 else:
                     pred_out, pred_state = cache[cached_key]
 
-                logits = self.joiner(x_t, pred_out)
+                logits = self.joiner(x_t, pred_out, lang_embedding)
                 log_prob = logits.log_softmax(dim=-1)  # (1, 1, 1, vocab_size)
                 log_prob = log_prob.squeeze()  # (vocab_size,)
 
@@ -630,12 +649,12 @@ class RNNTransducerDecoder(NetArch):
 
     @staticmethod
     def filter_args(**kwargs):
-        args = filter_func_args(RNNTransducerDecoder.__init__, kwargs)
+        args = filter_func_args(RNNFiLMTransducerDecoder.__init__, kwargs)
         return args
 
     @staticmethod
     def filter_finetune_args(**kwargs):
-        args = filter_func_args(RNNTransducerDecoder.change_config, kwargs)
+        args = filter_func_args(RNNFiLMTransducerDecoder.change_config, kwargs)
         return args
 
     @staticmethod
@@ -731,9 +750,8 @@ class RNNTransducerDecoder(NetArch):
                                 type=int,
                                 required=True,
                                 help=("output prediction dimension"))
-
-        RNNTransducerDecoder.add_pred_args(parser)
-        RNNTransducerDecoder.add_joiner_args(parser)
+        RNNFiLMTransducerDecoder.add_pred_args(parser)
+        RNNFiLMTransducerDecoder.add_joiner_args(parser)
         parser.add_argument(
             "--rnnt-loss",
             default="k2_pruned",
@@ -763,6 +781,12 @@ class RNNTransducerDecoder(NetArch):
             type=Optional[int],
             help="""how many symbols to keep for each frame in k2 rnn-t 
             pruned loss.""")
+
+        parser.add_argument("--condition-size",
+                            type=int,
+                            required=True,
+                            help=("condition vector dimension"))
+
         parser.add_argument(
             "--lm-scale",
             default=0.25,

@@ -39,15 +39,19 @@ class HFWav2Vec2RNNTransducerResnet1D(HFWav2RNNTransducerLanguageID):
         transducer: Union[Dict, RNNTransducer],
         languageid: Union[Dict, ResNet1dLanguageID],
         feat_fusion_start: int = 0,
-        feat_fusion_method: str = "weighted-avg",
+        feat_fusion_method_transducer: str = "weighted-avg",
+        feat_fusion_method_languageid: str = "weighted-avg",
+        loss_weight_transducer: float = 0.005,
+        loss_weight_lid: float = 1.0,
+        lid_length: float = 3.0,
     ):
 
-        # if isinstance(hf_feats, dict):
-        #     if "class_name" in hf_feats:
-        #         del hf_feats["class_name"]
-        #     hf_feats = HFWav2Vec2(**hf_feats)
-        # else:
-        #     assert isinstance(hf_feats, HFWav2Vec2)
+        if isinstance(hf_feats, dict):
+            if "class_name" in hf_feats:
+                del hf_feats["class_name"]
+            hf_feats = HFWav2Vec2(**hf_feats)
+        else:
+            assert isinstance(hf_feats, HFWav2Vec2)
 
         # if isinstance(languageid, dict):
         #     languageid["resnet_enc"]["in_feats"] = hf_feats.hidden_size
@@ -64,7 +68,7 @@ class HFWav2Vec2RNNTransducerResnet1D(HFWav2RNNTransducerLanguageID):
 
 
         super().__init__(hf_feats, transducer, languageid, feat_fusion_start,
-                         feat_fusion_method)
+                         feat_fusion_method_transducer, feat_fusion_method_languageid, loss_weight_transducer, loss_weight_lid, lid_length)
 
     @staticmethod
     def filter_args(**kwargs):
@@ -96,6 +100,12 @@ class HFWav2Vec2RNNTransducerResnet1D(HFWav2RNNTransducerLanguageID):
     @staticmethod
     def filter_finetune_args(**kwargs):
         base_args = {}
+
+        valid_args = (
+            "loss_weight_transducer",
+            "loss_weight_lid",
+            "lid_length",
+        )
         child_args = HFWav2Vec2.filter_finetune_args(**kwargs["hf_feats"])
         base_args["hf_feats"] = child_args
         child_args = RNNTransducer.filter_finetune_args(**kwargs["transducer"])
@@ -109,6 +119,33 @@ class HFWav2Vec2RNNTransducerResnet1D(HFWav2RNNTransducerLanguageID):
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
+
+        parser.add_argument(
+            "--loss-weight-transducer",
+            default=0.005,
+            type=float,
+            help="""
+            The weight of the transducer loss
+            """,
+        )
+
+        parser.add_argument(
+            "--loss-weight-lid",
+            default=1.0,
+            type=float,
+            help="""
+            The weight of the lid loss
+            """,
+        )
+
+        parser.add_argument(
+            "--lid-length",
+            default=3.0,
+            type=float,
+            help="""
+            The length of the chunks for language id
+            """,
+        )
 
         HFWav2Vec2.add_finetune_args(parser, prefix="hf_feats")
         RNNTransducer.add_finetune_args(parser, prefix="transducer")
