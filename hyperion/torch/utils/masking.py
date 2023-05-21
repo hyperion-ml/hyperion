@@ -14,7 +14,12 @@ def scale_seq_lengths(lengths, max_out_length, max_in_length=None):
     if max_in_length is None:
         max_in_length = lengths.max()
 
-    return torch.div(lengths * max_out_length, max_in_length, rounding_mode="floor")
+    if max_in_length == max_out_length:
+        return lengths
+
+    return torch.div(lengths * max_out_length,
+                     max_in_length,
+                     rounding_mode="floor")
 
 
 def seq_lengths_to_mask(lengths, max_length=None, dtype=None, time_dim=1):

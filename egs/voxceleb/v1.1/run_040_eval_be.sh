@@ -98,7 +98,7 @@ if [ $stage -le 3 ];then
     $xvector_dir/voxceleb1_test/xvector.scp \
     $score_cosine_dir/voxceleb1_scores
 
-  $train_cmd --mem 10G --num-threads 6 $score_cosine_dir/log/score_voxceleb1.log \
+  $train_cmd --mem 12G --num-threads 6 $score_cosine_dir/log/score_voxceleb1.log \
 	     local/score_voxceleb1.sh data/voxceleb1_test $score_cosine_dir 
 
   for f in $(ls $score_cosine_dir/*_results);
@@ -110,12 +110,40 @@ if [ $stage -le 3 ];then
 
 fi
 
+if [ $stage -le 4 ] && [ "$do_voxsrc22" == "true" ];then
+
+    echo "Eval voxsrc2 with Cosine scoring"
+    steps_be/eval_be_cos.sh --cmd "$train_cmd" \
+    	data/voxsrc22_dev/trials \
+    	data/voxsrc22_dev/utt2model \
+    	$xvector_dir/voxsrc22_dev/xvector.scp \
+    	$score_cosine_dir/voxsrc22_dev_scores &
+
+    # steps_be/eval_be_cos.sh --cmd "$train_cmd" \
+    # 	data/voxsrc22_test/trials \
+    # 	data/voxsrc22_test/utt2model \
+    # 	$xvector_dir/voxsrc22_test/xvector.scp \
+    # 	$score_cosine_dir/voxsrc22_test_scores
+
+    wait
+    $train_cmd --mem 10G --num-threads 1 $score_cosine_dir/log/score_voxsrc22_dev.log \
+	local/score_voxsrc22_dev.sh data/voxsrc22_dev $score_cosine_dir 
+
+    for f in $(ls $score_cosine_dir/voxsrc22_dev_results);
+    do
+	echo $f
+	cat $f
+	echo ""
+    done
+
+fi
+
 
 if [ "$do_snorm" == "true" ];then
-  if [ $stage -le 4 ];then
+  if [ $stage -le 5 ];then
     echo "Eval Voxceleb 1 with Cosine scoring + Adaptive SNorm"
     steps_be/eval_be_cos_snorm.sh \
-      --cmd "$train_cmd --mem 20G" --coh-nbest 1000 \
+      --cmd "$train_cmd --mem 22G" --coh-nbest 1000 \
       data/voxceleb1_test/trials \
       data/voxceleb1_test/utt2model \
       $xvector_dir/voxceleb1_test/xvector.scp \
@@ -133,11 +161,42 @@ if [ "$do_snorm" == "true" ];then
       echo ""
     done
   fi
+
+  if [ $stage -le 6 ];then
+    echo "Eval voxsrc2 with Cosine scoring"
+    steps_be/eval_be_cos_snorm.sh \
+      --cmd "$train_cmd --mem 20G" --coh-nbest 1000 \
+      data/voxsrc22_dev/trials \
+      data/voxsrc22_dev/utt2model \
+      $xvector_dir/voxsrc22_dev/xvector.scp \
+      data/voxceleb2cat_train/utt2spk \
+      $xvector_dir/voxceleb2cat_train/xvector.scp \
+      $score_cosine_snorm_dir/voxsrc22_dev_scores &
+    
+    # steps_be/eval_be_cos_snorm.sh --cmd "$train_cmd" \
+    # 	data/voxsrc22_test/trials \
+    # 	data/voxsrc22_test/utt2model \
+    # 	$xvector_dir/voxsrc22_test/xvector.scp \
+    #   data/voxceleb2cat_train/utt2spk \
+    #	$xvector_dir/voxceleb2cat_train/xvector.scp \
+    # 	$score_cosine_snorm_dir/voxsrc22_test_scores
+
+    wait
+    $train_cmd --mem 10G --num-threads 1 $score_cosine_snorm_dir/log/score_voxsrc22_dev.log \
+	local/score_voxsrc22_dev.sh data/voxsrc22_dev $score_cosine_snorm_dir 
+
+    for f in $(ls $score_cosine_snorm_dir/voxsrc22_dev_results);
+    do
+	echo $f
+	cat $f
+	echo ""
+    done
+  fi
 fi
 
 
 if [ "$do_qmf" == "true" ];then
-  if [ $stage -le 5 ];then
+  if [ $stage -le 7 ];then
     echo "Train QMF in Vox2"
     steps_be/train_be_cos_qmf.sh \
       --cmd "$train_cmd" --coh-nbest 1000 \
@@ -151,7 +210,7 @@ if [ "$do_qmf" == "true" ];then
 
   fi
 
-  if [ $stage -le 6 ];then
+  if [ $stage -le 8 ];then
 
     echo "Eval Voxceleb 1 with Cosine scoring"
     steps_be/eval_be_cos_qmf.sh \
@@ -180,43 +239,97 @@ if [ "$do_qmf" == "true" ];then
     done
 
   fi
+
+  if [ $stage -le 9 ];then
+    echo "Eval voxsrc2 with Cosine scoring"
+    steps_be/eval_be_cos_qmf.sh \
+      --cmd "$train_cmd  --mem 20G" --coh-nbest 1000  \
+      data/voxsrc22_dev/trials \
+      data/voxsrc22_dev/utt2model \
+      $xvector_dir/voxsrc22_dev/xvector.scp \
+      $xvector_dir/voxsrc22_dev/utt2num_frames \
+      data/voxceleb2cat_train/utt2spk \
+      $xvector_dir/voxceleb2cat_train/xvector.scp \
+      $score_cosine_qmf_dir/qmf.h5 \
+      $score_cosine_qmf_dir/voxsrc22_dev_scores &
+
+    # steps_be/eval_be_cos_qmf.sh --cmd "$train_cmd" \
+    # 	data/voxsrc22_test/trials \
+    # 	data/voxsrc22_test/utt2model \
+    # 	$xvector_dir/voxsrc22_test/xvector.scp \
+    #	$xvector_dir/voxsrc22_test/utt2num_frames \
+    #	data/voxceleb2cat_train/utt2spk \
+    #	$xvector_dir/voxceleb2cat_train/xvector.scp \
+    #	$score_cosine_qmf_dir/qmf.h5 \
+    # 	$score_cosine_qmf_dir/voxsrc22_test_scores
+
+    wait
+    $train_cmd --mem 10G --num-threads 1 $score_cosine_qmf_dir/log/score_voxsrc22_dev.log \
+	local/score_voxsrc22_dev.sh data/voxsrc22_dev $score_cosine_qmf_dir 
+    $train_cmd --mem 10G --num-threads 1 $score_cosine_qmf_dir/log/score_voxsrc22_dev_snorm.log \
+	local/score_voxsrc22_dev.sh data/voxsrc22_dev $score_cosine_qmf_dir _snorm
+    $train_cmd --mem 10G --num-threads 1 $score_cosine_qmf_dir/log/score_voxsrc22_dev_qmf.log \
+	local/score_voxsrc22_dev.sh data/voxsrc22_dev $score_cosine_qmf_dir _qmf
+
+    for f in $(ls $score_cosine_qmf_dir/voxsrc22_dev{,_snorm,_qmf}_results);
+    do
+	echo $f
+	cat $f
+	echo ""
+    done
+  fi
+
+fi
+
+if [ "$do_pca" != "true" ];then
+  exit 0
 fi
 
 
-exit
-# be_dir=exp/be/$nnet_name/cw
-# score_plda_dir=$score_dir/cw_cosine
+be_name=pca_r${pca_var_r}
 
-# if [ $stage -le 4 ]; then
-#     echo "Train centering+whitening on Voxceleb2"
-#     steps_be/train_be_v2.sh --cmd "$train_cmd" \
-# 	$xvector_dir/$plda_data/xvector.scp \
-# 	data/$plda_data \
-# 	$be_dir
-# fi
+xvector_dir=exp/xvectors/$nnet_name
+be_dir=exp/be/$nnet_name/$be_name
+score_dir=exp/scores/$nnet_name/${be_name}
+score_cosine_dir=exp/scores/$nnet_name/$be_name/cosine
+score_cosine_snorm_dir=exp/scores/$nnet_name/$be_name/cosine_snorm
+score_cosine_qmf_dir=exp/scores/$nnet_name/$be_name/cosine_qmf
+
+be_dir=exp/be/$nnet_name/
+score_be_dir=$score_dir/pca_r${pca_var_r}
+
+if [ $stage -le 10 ]; then
+  echo "Train projection on Voxceleb2"
+  $train_cmd $be_dir/log/train_be.log \
+	     hyp_utils/conda_env.sh \
+	     steps_be/train_be_proj_v1.py \
+	     --v-file scp:$xvector_dir/$plda_data/xvector.scp \
+	     --train-list data/$plda_data/utt2spk \
+	     --output-path $be_dir \
+	     --pca.pca-var-r $pca_var_r
+
+fi
 
 
-# if [ $stage -le 5 ];then
+if [ $stage -le 11 ];then
 
-#     echo "Eval Voxceleb 1 with CentWhiten + Cosine scoring"
-#     steps_be/eval_be_v2.sh --cmd "$train_cmd" \
-#     	data/voxceleb1_test/trials \
-#     	data/voxceleb1_test/utt2model \
-#     	$xvector_dir/voxceleb1_test/xvector.scp \
-# 	$be_dir/cw.h5 \
-#     	$score_plda_dir/voxceleb1_scores
+  echo "Eval Voxceleb 1 with Cosine scoring"
+  steps_be/eval_be_cos.sh \
+    --cmd "$train_cmd" \
+    --preproc-file $be_dir/preproc.h5 \
+    data/voxceleb1_test/trials \
+    data/voxceleb1_test/utt2model \
+    $xvector_dir/voxceleb1_test/xvector.scp \
+    $score_cosine_dir/voxceleb1_scores
 
-#     $train_cmd --mem 10G --num-threads 6 $score_plda_dir/log/score_voxceleb1.log \
-# 	local/score_voxceleb1.sh data/voxceleb1_test $score_plda_dir 
+  $train_cmd --mem 10G --num-threads 6 $score_cosine_dir/log/score_voxceleb1.log \
+	     local/score_voxceleb1.sh data/voxceleb1_test $score_cosine_dir 
 
-#     for f in $(ls $score_plda_dir/*_results);
-#     do
-# 	echo $f
-# 	cat $f
-# 	echo ""
-#     done
+  for f in $(ls $score_cosine_dir/*_results);
+  do
+    echo $f
+    cat $f
+    echo ""
+  done
 
-# fi
-
-# exit
-
+fi

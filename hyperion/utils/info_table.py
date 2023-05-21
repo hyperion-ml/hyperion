@@ -15,7 +15,7 @@ import pandas as pd
 from .list_utils import split_list, split_list_group_by_key
 
 
-class InfoTable(object):
+class InfoTable:
     """This is a base class to store information about recordings, segments,
     features, etc.
 
@@ -152,7 +152,10 @@ class InfoTable(object):
 
     def sort(self, column="id", ascending=True):
         """Sorts the table by column"""
-        self.df.sort_values(by=column, inplace=True, ascending=ascending)
+        if column == "id":
+            self.df.sort_index(inplace=True, ascending=ascending)
+        else:
+            self.df.sort_values(by=column, inplace=True, ascending=ascending)
 
     def split(self, idx, num_parts, group_by=None):
         """Splits SCPList into num_parts and return part idx.

@@ -6,7 +6,7 @@
 
 import torch.nn as nn
 
-from .swish import Swish
+from .swish import DoubleSwish, DoubleSwish6, Swish, Swish6
 
 act_dict = {
     "elu": nn.ELU,
@@ -33,6 +33,9 @@ act_dict = {
     "logsoftmax": nn.LogSoftmax,
     "alogsoftmax": nn.AdaptiveLogSoftmaxWithLoss,
     "swish": Swish,
+    "double_swish": DoubleSwish,
+    "swish6": Swish6,
+    "double_swish6": DoubleSwish6,
 }
 
 
@@ -90,7 +93,6 @@ class ActivationFactory(object):
             except:
                 # activation didn't have inplace option
                 del kwargs["inplace"]
-                pass
 
         return act_dict[activation_name](**kwargs)
 
@@ -186,3 +188,9 @@ class ActivationFactory(object):
             }
         if isinstance(activation, Swish):
             return {"name": "swish"}
+        if isinstance(activation, DoubleSwish):
+            return {"name": "double_swish"}
+        if isinstance(activation, Swish6):
+            return {"name": "swish6"}
+        if isinstance(activation, DoubleSwish6):
+            return {"name": "double_swish6"}

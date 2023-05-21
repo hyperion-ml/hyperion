@@ -14,6 +14,7 @@ import sys
 import time
 
 import numpy as np
+
 from hyperion.io import KaldiDataReader
 
 

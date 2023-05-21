@@ -10,14 +10,15 @@ import sys
 import time
 
 import numpy as np
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
+from scipy import ndimage, signal
+
 from hyperion.hyp_defs import config_logger
 from hyperion.io import AudioWriter as Writer
 from hyperion.io import RandomAccessAudioReader as AR
 from hyperion.io import VADReaderFactory as VRF
 from hyperion.utils import Utt2Info
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
-from scipy import ndimage, signal
 
 
 def make_noise(xs):

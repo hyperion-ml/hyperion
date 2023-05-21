@@ -50,7 +50,7 @@ class RNNRNNTransducer(RNNTransducer):
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        RNNEncoder.add_class_args(parser, prefix="encoder")
+        RNNEncoder.add_class_args(parser, prefix="encoder", skip=skip)
         RNNTransducer.add_class_args(parser)
         if prefix is not None:
             outer_parser.add_argument("--" + prefix,

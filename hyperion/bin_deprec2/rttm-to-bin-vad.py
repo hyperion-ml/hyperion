@@ -11,6 +11,7 @@ import time
 
 import numpy as np
 import pandas as pd
+
 from hyperion.hyp_defs import config_logger
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.utils import RTTM, SegmentList

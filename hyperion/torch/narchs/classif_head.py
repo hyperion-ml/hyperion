@@ -3,11 +3,14 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
+
 import torch
 import torch.nn as nn
-from jsonargparse import ActionParser, ArgumentParser
 from torch.nn import Linear
 
+from ...utils.misc import filter_func_args
 from ..layer_blocks import FCBlock
 from ..layers import ActivationFactory as AF
 from ..layers import ArcLossOutput, CosLossOutput
@@ -36,6 +39,7 @@ class ClassifHead(NetArch):
        norm_layer: norm_layer object or str indicating type norm layer, if None it uses BatchNorm1d
        use_norm: it True it uses layer/batch-normalization
        norm_before: if True, layer-norm is before the activation function
+       use_in_norm: put batchnorm at the input
     """
 
     def __init__(
@@ -56,6 +60,7 @@ class ClassifHead(NetArch):
         use_norm=True,
         norm_before=True,
         dropout_rate=0,
+        use_in_norm=False,
     ):
 
         super().__init__()
@@ -66,6 +71,7 @@ class ClassifHead(NetArch):
         self.embed_dim = embed_dim
         self.num_classes = num_classes
         self.norm_layer = norm_layer
+        self.use_in_norm = use_in_norm
 
         if use_norm:
             norm_groups = None
@@ -86,6 +92,10 @@ class ClassifHead(NetArch):
         self.intertop_k = intertop_k
         self.intertop_margin = intertop_margin
         self.num_subcenters = num_subcenters
+
+        if self.use_in_norm:
+            assert not self.norm_before
+            self.in_norm = self._norm_layer(prev_feats)
 
         prev_feats = in_feats
         fc_blocks = []
@@ -108,16 +118,21 @@ class ClassifHead(NetArch):
         else:
             act = hid_act
 
-        fc_blocks.append(
-            FCBlock(
-                prev_feats,
-                embed_dim,
-                activation=act,
-                norm_layer=self._norm_layer,
-                use_norm=use_norm,
-                norm_before=norm_before,
+        if self.use_in_norm:
+            fc_blocks.append(
+                FCBlock(prev_feats, embed_dim, activation=act, use_norm=False)
             )
-        )
+        else:
+            fc_blocks.append(
+                FCBlock(
+                    prev_feats,
+                    embed_dim,
+                    activation=act,
+                    norm_layer=self._norm_layer,
+                    use_norm=use_norm,
+                    norm_before=norm_before,
+                )
+            )
 
         self.fc_blocks = nn.ModuleList(fc_blocks)
 
@@ -269,6 +284,9 @@ class ClassifHead(NetArch):
 
     def forward(self, x, y=None):
 
+        if self.use_in_norm:
+            x = self.in_norm(x)
+
         for l in range(self.num_embed_layers):
             x = self.fc_blocks[l](x)
 
@@ -284,6 +302,9 @@ class ClassifHead(NetArch):
         assert return_layers is not None or return_logits
         if return_layers is None:
             return_layers = []
+
+        if self.use_in_norm:
+            x = self.in_norm(x)
 
         h = []
         for l in range(self.num_embed_layers):
@@ -301,6 +322,9 @@ class ClassifHead(NetArch):
         return h, None
 
     def extract_embed(self, x, embed_layer=0):
+
+        if self.use_in_norm:
+            x = self.in_norm(x)
 
         for l in range(embed_layer):
             x = self.fc_blocks[l](x)
@@ -340,6 +364,7 @@ class ClassifHead(NetArch):
             "use_norm": self.use_norm,
             "norm_before": self.norm_before,
             "dropout_rate": self.dropout_rate,
+            "use_in_norm": self.use_in_norm,
         }
 
         base_config = super().get_config()
@@ -356,24 +381,7 @@ class ClassifHead(NetArch):
             kwargs["norm_before"] = not kwargs["norm_after"]
             del kwargs["norm_after"]
 
-        valid_args = (
-            "num_classes",
-            "embed_dim",
-            "num_embed_layers",
-            "hid_act",
-            "loss_type",
-            "s",
-            "margin",
-            "margin_warmup_epochs",
-            "intertop_k",
-            "intertop_margin",
-            "num_subcenters",
-            "use_norm",
-            "norm_before",
-            "dropout_rate",
-            "norm_layer",
-        )
-        args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
+        args = filter_func_args(ClassifHead.__init__, kwargs)
         return args
 
     @staticmethod
@@ -454,15 +462,22 @@ class ClassifHead(NetArch):
         parser.add_argument(
             "--wo-norm",
             default=False,
-            action="store_true",
+            action=ActionYesNo,
             help="without batch normalization",
         )
 
         parser.add_argument(
             "--norm-after",
             default=False,
-            action="store_true",
+            action=ActionYesNo,
             help="batch normalizaton after activation",
+        )
+
+        parser.add_argument(
+            "--use-in-norm",
+            default=False,
+            action=ActionYesNo,
+            help="batch normalizaton in the classif head input",
         )
 
         try:

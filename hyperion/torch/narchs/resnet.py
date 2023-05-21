@@ -5,6 +5,7 @@
 import logging
 
 import numpy as np
+
 import torch
 import torch.nn as nn
 from torch.nn import BatchNorm1d, Conv1d, Linear
@@ -295,7 +296,11 @@ class ResNet(NetArch):
                 kwargs = {"se_r": self.se_r}
             else:
                 num_feats = int(self.in_feats / (self._downsample_factor * stride))
-                kwargs = {"se_r": self.se_r, "time_se": True, "num_feats": num_feats}
+                kwargs = {
+                    "se_r": self.se_r,
+                    "se_type": self.se_type,
+                    "num_feats": num_feats,
+                }
 
         if self.is_res2net:
             kwargs["scale"] = self.res2net_scale
@@ -971,7 +976,7 @@ class FwSEIdRndResNet100(ResNet):
         kwargs["base_channels"] = 128
         kwargs["resb_channels"] = [128, 128, 256, 256]
         kwargs["se_type"] = "fw-se"
-        super().__init__("basic", [6, 16, 24, 3], in_channels, **kwargs)
+        super().__init__("sebasic", [6, 16, 24, 3], in_channels, **kwargs)
 
 
 class FwSEIdRndResNet202(ResNet):
@@ -979,7 +984,7 @@ class FwSEIdRndResNet202(ResNet):
         kwargs["base_channels"] = 128
         kwargs["resb_channels"] = [128, 128, 256, 256]
         kwargs["se_type"] = "fw-se"
-        super().__init__("basic", [6, 16, 75, 3], in_channels, **kwargs)
+        super().__init__("sebasic", [6, 16, 75, 3], in_channels, **kwargs)
 
 
 # Channel-Freq-wise Squezee-Excitation ResNets
@@ -1082,7 +1087,7 @@ class CFwSEIdRndResNet100(ResNet):
         kwargs["base_channels"] = 128
         kwargs["resb_channels"] = [128, 128, 256, 256]
         kwargs["se_type"] = "cfw-se"
-        super().__init__("basic", [6, 16, 24, 3], in_channels, **kwargs)
+        super().__init__("sebasic", [6, 16, 24, 3], in_channels, **kwargs)
 
 
 class CFwSEIdRndResNet202(ResNet):
@@ -1090,7 +1095,7 @@ class CFwSEIdRndResNet202(ResNet):
         kwargs["base_channels"] = 128
         kwargs["resb_channels"] = [128, 128, 256, 256]
         kwargs["se_type"] = "cfw-se"
-        super().__init__("basic", [6, 16, 75, 3], in_channels, **kwargs)
+        super().__init__("sebasic", [6, 16, 75, 3], in_channels, **kwargs)
 
 
 #################### Res2Net variants ########################

@@ -14,7 +14,7 @@ data:
       min_chunk_length: 6.0
       num_chunks_per_seg_epoch: 6
       class_name: class_id
-      seg_weight_mode: uniform
+      seg_weight_mode: data-prior
       num_hard_prototypes: 8
     data_loader:
       num_workers: 8
@@ -33,7 +33,7 @@ data:
       min_chunk_length: 6.0
       num_chunks_per_seg_epoch: 6
       class_name: class_id
-      seg_weight_mode: uniform
+      seg_weight_mode: data-prior
       num_hard_prototypes: 8
     data_loader:
       num_workers: 8

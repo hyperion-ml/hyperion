@@ -43,7 +43,7 @@ class SEBlock2d(nn.Module):
 
         return mask
 
-    def compute_scale_logit(self, x, x_mask=None):
+    def compute_scale_logits(self, x, x_mask=None):
         """comptue the scale before the sigmoid
 
         Args:
@@ -74,8 +74,8 @@ class SEBlock2d(nn.Module):
         Returns:
           Tensor with shape = (batch, channels, heigh, width).
         """
-        scale_logit = self.compute_scale_logit(x, x_mask)
-        scale = self.sigmoid(scale_logit)
+        scale_logits = self.compute_scale_logits(x, x_mask)
+        scale = self.sigmoid(scale_logits)
         y = scale * x
         return y
 
@@ -177,7 +177,7 @@ class FwSEBlock2d(SEBlock2d):
         """
         x = x.transpose(1, 2)
         y = super().forward(x, x_mask)
-        y = y.tranpose(1, 2).continous()
+        y = y.transpose(1, 2).contiguous()
         return y
 
 
@@ -201,6 +201,10 @@ class CFwSEBlock2d(nn.Module):
     ):
         super().__init__()
         self.cw_se = SEBlock2d(num_channels, r, activation)
+        # the bottlenet features will have at least dimension 4
+        if num_feats // r < 4:
+            r = num_feats // 4
+
         self.fw_se = SEBlock2d(num_feats, r, activation)
 
     def forward(self, x, x_mask=None):

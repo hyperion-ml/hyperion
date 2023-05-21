@@ -20,6 +20,8 @@ class NPModel(object):
     """
 
     def __init__(self, name=None, **kwargs):
+        if name is None:
+            name = self.__class__.__name__
         self.name = name
         self._is_init = False
 

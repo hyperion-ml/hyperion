@@ -4,6 +4,7 @@
 """
 
 import numpy as np
+
 import torch.nn as nn
 
 from ..torch_model import TorchModel

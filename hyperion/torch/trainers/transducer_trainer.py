@@ -6,10 +6,11 @@ import logging
 import os
 from collections import OrderedDict as ODict
 
-import torch
-import torch.nn as nn
 import torchaudio
 from jsonargparse import ActionParser, ArgumentParser
+
+import torch
+import torch.nn as nn
 from torch.distributed.elastic.multiprocessing.errors import record
 
 from ...utils.misc import filter_func_args

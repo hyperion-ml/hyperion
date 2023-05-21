@@ -10,6 +10,9 @@ import time
 
 import numpy as np
 import pandas as pd
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
+
 import torch
 import torch.nn as nn
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
@@ -26,8 +29,6 @@ from hyperion.torch.utils import open_device
 from hyperion.torch.utils.misc import compute_stats_adv_attack, l2_norm
 from hyperion.utils import TrialKey, TrialNdx, TrialScores, Utt2Info
 from hyperion.utils.list_utils import ismember
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
 
 
 class MyModel(nn.Module):
@@ -222,9 +223,7 @@ def eval_cosine_scoring(
             vad = v_reader.read([key.seg_set[j]])[0]
             tot_frames = len(vad)
             speech_frames = np.sum(vad)
-            vad = torch.as_tensor(vad.astype(np.bool, copy=False), dtype=torch.bool).to(
-                device
-            )
+            vad = torch.tensor(vad, dtype=torch.bool).to(device)
             model.vad_t = vad
             logging.info(
                 "utt %s detected %d/%d (%.2f %%) speech frames"
@@ -243,7 +242,7 @@ def eval_cosine_scoring(
         for i in range(key.num_models):
             if key.tar[i, j] or key.non[i, j]:
                 t3 = time.time()
-                model.x_e = x_e[i].to(device)
+                model.x_e = x_e[i : i + 1].to(device)
                 if key.tar[i, j]:
                     if attack.targeted:
                         t = non

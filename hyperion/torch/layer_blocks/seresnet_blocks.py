@@ -95,18 +95,19 @@ class SEResNetBasicBlock(ResNetBasicBlock):
 
         x = self.conv2(x)
 
-        if self.norm_before:
-            x = self.bn2(x)
-
         if self.downsample is not None:
             residual = self.downsample(residual)
 
-        x = self.se_layer(x, x_mask=x_mask)
-        x += residual
-        x = self.act2(x)
-
-        if not self.norm_before:
+        if self.norm_before:
             x = self.bn2(x)
+            x = self.se_layer(x, x_mask=x_mask)
+            x += residual
+            x = self.act2(x)
+        else:
+            x = self.act2(x)
+            x = self.bn2(x)
+            x = self.se_layer(x, x_mask=x_mask)
+            x += residual
 
         if self.dropout_rate > 0:
             x = self.dropout(x)
@@ -186,6 +187,8 @@ class SEResNetBNBlock(ResNetBNBlock):
           Tensor with shape = (batch, out_channels, out_heigh, out_width).
         """
         residual = x
+        if self.downsample is not None:
+            residual = self.downsample(residual)
 
         x = self.conv1(x)
         if self.norm_before:
@@ -204,16 +207,14 @@ class SEResNetBNBlock(ResNetBNBlock):
         x = self.conv3(x)
         if self.norm_before:
             x = self.bn3(x)
-
-        if self.downsample is not None:
-            residual = self.downsample(residual)
-
-        x = self.se_layer(x, x_mask=x_mask)
-        x += residual
-        x = self.act3(x)
-
-        if not self.norm_before:
+            x = self.se_layer(x, x_mask=x_mask)
+            x += residual
+            x = self.act3(x)
+        else:
+            x = self.act3(x)
             x = self.bn3(x)
+            x = self.se_layer(x, x_mask=x_mask)
+            x += residual
 
         if self.dropout_rate > 0:
             x = self.dropout(x)
