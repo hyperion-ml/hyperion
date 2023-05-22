@@ -646,12 +646,15 @@ class RNNFiLMTransducerDecoder(NetArch):
         embed_dropout_rate: float = 0.0,
         rnn_dropout_rate: float = 0.0,
         prune_range: Optional[int] = None,
+        reduction: Optional[str] = None,
     ):
         logging.info("changing decoder config")
         self.predictor.change_config(override_dropouts, embed_dropout_rate,
                                      rnn_dropout_rate)
         if prune_range is not None:
             self.prune_range = prune_range
+        if reduction is not None:
+            self.reduction = reduction
 
     @staticmethod
     def filter_args(**kwargs):
@@ -848,6 +851,12 @@ class RNNFiLMTransducerDecoder(NetArch):
             type=int,
             help="""how many symbols to keep for each frame in k2 rnn-t 
             pruned loss.""")
+
+        parser.add_argument(
+            "--reduction",
+            default="sum",
+            choices=["sum", "mean"],
+            help="""type of reduction for rnn-t loss between sum or mean""")
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix,
