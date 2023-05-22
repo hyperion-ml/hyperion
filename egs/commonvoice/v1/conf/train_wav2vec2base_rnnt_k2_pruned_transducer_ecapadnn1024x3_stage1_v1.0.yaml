@@ -53,6 +53,7 @@ model:
     decoder:
       prune_range: 15
       rnnt_loss: k2_pruned
+      reduction: mean
       simple_loss_scale: 0.2
       predictor:
         embed_dim: 1024
@@ -104,7 +105,7 @@ model:
     dropout_rate: 0.3
     hid_act: swish
   
-  loss_weight_transducer: 0.005
+  loss_weight_transducer: 0.05
   loss_weight_lid: 1.0
   lid_length: 3.0
   # feat_fusion_method: weighted-avg
