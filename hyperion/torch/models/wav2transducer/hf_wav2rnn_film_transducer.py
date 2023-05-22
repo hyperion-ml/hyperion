@@ -67,7 +67,7 @@ class HFWav2RNNFiLMTransducer(TorchModel):
         if self.feat_fusion_method == "film-weighted-avg":
             self.films = nn.ModuleList([FiLM(layer_dim, self.transducer.decoder.condition_size) for _ in range(num_layers)])
             self.feat_fuser = nn.Parameter(torch.zeros(num_layers))
-        elif self.feat_fusion_method == "weighted-avg-film":
+        elif self.feat_fusion_method == "film-fused-feature":
             self.feat_fuser = nn.Parameter(torch.zeros(num_layers))
             self.film = FiLM(layer_dim, self.transducer.decoder.condition_size)
         elif self.feat_fusion_method == "weighted-avg":
@@ -102,7 +102,7 @@ class HFWav2RNNFiLMTransducer(TorchModel):
             film_hid_feats = torch.stack(film_hid_feats, dim=-1)
             norm_weights = nn.functional.softmax(self.feat_fuser, dim=-1)
             feats = torch.sum(film_hid_feats * norm_weights, dim=-1)
-        elif self.feat_fusion_method == "weighted-avg-film":
+        elif self.feat_fusion_method == "film-fused-feature":
             hid_feats = torch.stack(hid_feats, dim=-1)
             norm_weights = nn.functional.softmax(self.feat_fuser, dim=-1)
             feats = torch.sum(hid_feats * norm_weights, dim=-1)
