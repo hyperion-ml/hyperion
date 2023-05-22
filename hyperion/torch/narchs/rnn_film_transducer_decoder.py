@@ -20,7 +20,8 @@ except ModuleNotFoundError:
 
 from ...utils.misc import filter_func_args
 from ...utils.text import add_sos
-from ..layer_blocks import TransducerFiLMJoiner as Joiner
+from ..layer_blocks import TransducerFiLMJoiner as FiLMJoiner
+from ..layer_blocks import TransducerJoiner as Joiner
 from ..layer_blocks import TransducerRNNFiLMPredictor as RNNPredictor
 from .net_arch import NetArch
 
@@ -131,6 +132,11 @@ class RNNFiLMTransducerDecoder(NetArch):
         # Add FiLM args to the joiner args
 
         if joiner_type == "basic":
+            pred_feats = self.predictor_args["out_feats"]
+            hid_feats = self.joiner_args["hid_feats"]
+            self.joiner = FiLMJoiner(self.in_feats, pred_feats, hid_feats,
+                                 self.vocab_size)
+        elif joiner_type == "original_joiner":
             pred_feats = self.predictor_args["out_feats"]
             hid_feats = self.joiner_args["hid_feats"]
             self.joiner = Joiner(self.in_feats, pred_feats, hid_feats,
