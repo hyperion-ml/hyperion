@@ -78,7 +78,7 @@ if [ $stage -le 1 ];then
 
   cat $output_dir/languageid.* > $output_dir/langs
 
-  # python steps_transducer/word2char.py $output_dir/transducer.text $output_dir/transducer_char.text
+  python steps_lid/lid_score.py $output_dir/langs >> $output_dir/scores
   # python steps_transducer/word2char.py $data_dir/text $data_dir/text_char
 
   # compute-wer --text --mode=present ark:$data_dir/text ark:$output_dir/transducer.text

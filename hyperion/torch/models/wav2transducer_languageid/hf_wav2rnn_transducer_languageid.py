@@ -47,7 +47,7 @@ class HFWav2RNNTransducerLanguageID(TorchModel):
                  languageid: Union[Dict, TorchModel],
                  feat_fusion_start: int = 0,
                  feat_fusion_method_transducer: str = "weighted-avg",
-                 feat_fusion_method_languageid: str = "weighted-avg",
+                 feat_fusion_method_lid: str = "weighted-avg",
                  loss_weight_transducer: float = 0.005,
                  loss_weight_lid: float = 1.0,
                  lid_length: float = 3.0,
@@ -84,13 +84,13 @@ class HFWav2RNNTransducerLanguageID(TorchModel):
 
         self.feat_fusion_start = feat_fusion_start
         self.feat_fusion_method_transducer = feat_fusion_method_transducer
-        self.feat_fusion_method_languageid = feat_fusion_method_languageid
+        self.feat_fusion_method_lid = feat_fusion_method_lid
         self.loss_weight_transducer = loss_weight_transducer
         self.loss_weight_lid = loss_weight_lid
         self.lid_length = lid_length
         self._hf_context = contextlib.nullcontext()
         self.transducer_fuser = self._make_fuser(self.feat_fusion_method_transducer)
-        self.languageid_fuser = self._make_fuser(self.feat_fusion_method_languageid)
+        self.languageid_fuser = self._make_fuser(self.feat_fusion_method_lid)
 
     def _make_fuser(self, method):
         if method == "last":
@@ -165,7 +165,7 @@ class HFWav2RNNTransducerLanguageID(TorchModel):
         if return_hid_states:
             hid_feats = hf_output["hidden_states"]
             feats_transducer, feats_languageid = self._fuse_hid_feats(hid_feats)
-            # feats_languageid = self._fuse_hid_feats(hid_feats, self.feat_fusion_method_languageid, self.languageid_fuser)
+            # feats_languageid = self._fuse_hid_feats(hid_feats, self.feat_fusion_method_lid, self.languageid_fuser)
         else:
             hid_feats = None
             feats_transducer = hf_output["last_hidden_state"]
@@ -235,11 +235,12 @@ class HFWav2RNNTransducerLanguageID(TorchModel):
         """
         feats_transducer, feats_languageid, hid_feats, feat_lengths = self.forward_feats(
             x, x_lengths, return_feat_layers)
-        
-        lid_len = int(self.lid_length * 50)
-        lid_start = torch.randint(0, torch.min(feat_lengths).item() - lid_len + 1, (1,)).item()
 
-        feats_languageid = feats_languageid[:, :, lid_start: lid_start + lid_len]
+        lid_len = int(self.lid_length * 50)
+        min_len = torch.min(feat_lengths).item()
+        if min_len > lid_len:
+            lid_start = torch.randint(0, min_len - lid_len + 1, (1,)).item()
+            feats_languageid = feats_languageid[:, :, lid_start: lid_start + lid_len]
 
 
         # feats_languageid = self.languageid_chunk(feats_languageid, feat_lengths)
@@ -271,8 +272,8 @@ class HFWav2RNNTransducerLanguageID(TorchModel):
                                                 loss_lid=loss_lid,
                                                 loss_transducer_simple=trans_output.loss_simple, 
                                                 loss_transducer_pruned=trans_output.loss_pruned,
-                                                h_feats=trans_output.h_feats)
-                                                #logits=[logit.item() for logit in logits] if return_logits else None)
+                                                h_feats=trans_output.h_feats,
+                                                logits=logits if return_logits else None)
         return output
 
     def infer(self,
@@ -389,7 +390,8 @@ class HFWav2RNNTransducerLanguageID(TorchModel):
             "hf_feats",
             "transducer",
             "feat_fusion_start",
-            "feat_fusion_method",
+            "feat_fusion_method_transducer",
+            "feat_fusion_method_lid",
             "loss_weight_transducer",
             "loss_weight_lid",
             "languageid",
@@ -442,13 +444,46 @@ class HFWav2RNNTransducerLanguageID(TorchModel):
             the wav2vec num_layers""",
         )
         parser.add_argument(
-            "--feat-fusion-method",
+            "--feat-fusion-method-transducer",
+            default="weighted-avg",
+            choices=["weighted-avg", "linear", "cat", "last"],
+            help=("method to fuse the hidden layers from the wav2vec model "
+                  "in [weighted-avg, linear, cat, last]"),
+        )
+        parser.add_argument(
+            "--feat-fusion-method-lid",
             default="weighted-avg",
             choices=["weighted-avg", "linear", "cat", "last"],
             help=("method to fuse the hidden layers from the wav2vec model "
                   "in [weighted-avg, linear, cat, last]"),
         )
 
+        parser.add_argument(
+            "--loss-weight-transducer",
+            default=0.005,
+            type=float,
+            help="""
+            The weight of the transducer loss
+            """,
+        )
+
+        parser.add_argument(
+            "--loss-weight-lid",
+            default=1.0,
+            type=float,
+            help="""
+            The weight of the lid loss
+            """,
+        )
+
+        parser.add_argument(
+            "--lid-length",
+            default=3.0,
+            type=float,
+            help="""
+            The length of the chunks for language id
+            """,
+        )
 
         if prefix is not None:
             outer_parser.add_argument(
