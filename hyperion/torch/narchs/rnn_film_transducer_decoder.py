@@ -135,12 +135,12 @@ class RNNFiLMTransducerDecoder(NetArch):
             pred_feats = self.predictor_args["out_feats"]
             hid_feats = self.joiner_args["hid_feats"]
             self.joiner = FiLMJoiner(self.in_feats, pred_feats, hid_feats,
-                                 self.vocab_size)
+                                 self.vocab_size, self.condition_size)
         elif joiner_type == "original_joiner":
             pred_feats = self.predictor_args["out_feats"]
             hid_feats = self.joiner_args["hid_feats"]
             self.joiner = Joiner(self.in_feats, pred_feats, hid_feats,
-                                 self.vocab_size, self.condition_size)
+                                 self.vocab_size)
         else:
             raise ValueError(f"Unknown joiner type {joiner_type}")
 
