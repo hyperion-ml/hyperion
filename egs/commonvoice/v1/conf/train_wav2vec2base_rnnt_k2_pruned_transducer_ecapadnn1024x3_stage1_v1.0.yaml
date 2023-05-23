@@ -19,7 +19,7 @@ data:
       weight_mode: "data-prior"
       class_name: "language"
       weight_exponent: 0.3
-      num_chunks_per_seg_epoch: 0.0002
+      num_chunks_per_seg_epoch: 0.1
 
     data_loader:
       num_workers: 8
@@ -43,22 +43,73 @@ data:
       weight_mode: "data-prior"
       class_name: "language"
       weight_exponent: 0.3
-      num_chunks_per_seg_epoch: 0.01
+      num_chunks_per_seg_epoch: 1.0
     data_loader:
       num_workers: 8
 model:
+  hf_feats:
+    pretrained_model_path: facebook/wav2vec2-xls-r-300m 
   transducer:
     decoder:
       prune_range: 15
-      override_dropouts: false
+      rnnt_loss: k2_pruned
+      reduction: mean
+      simple_loss_scale: 0.2
+      predictor:
+        embed_dim: 1024
+        num_layers: 2
+        hid_feats: 512
+        embed_dropout_rate: 0.4
+        rnn_dropout_rate: 0.4
+        rnn_type: lstm
+      joiner:
+        hid_feats: 512
+
   languageid:
-    # resnet_enc:
-      # num_classes: 13
+    resnet_enc:
+      in_feats: 1024
+      in_conv_channels: 1024
+      in_kernel_size: 5
+      in_stride: 1
+      resb_type: seres2bn
+      resb_repeats:
+        - 1
+        - 1
+        - 1
+      resb_channels:
+        - 1024
+      resb_kernel_sizes:
+        - 3
+      resb_dilations:
+        - 2
+        - 3
+        - 4
+      resb_strides:
+        - 1
+      res2net_width_factor: 1
+      res2net_scale: 8
+      se_r: 8
+      multilayer: true
+      multilayer_concat: true
+      endpoint_channels: 3072
+      hid_act: swish
+    pool_net:
+      pool_type: ch-wise-att-mean+stddev
+      inner_feats: 128
+    embed_dim: 128
+    loss_type: subcenter-arc-softmax
     cos_scale: 32.0
+    margin: 0.
+    margin_warmup_epochs: 5
+    intertop_margin: 0.
+    dropout_rate: 0.3
+    hid_act: swish
   
-  loss_weight_transducer: 0.005
+  loss_weight_transducer: 0.1
   loss_weight_lid: 1.0
   lid_length: 3.0
+  # feat_fusion_method: weighted-avg
+  feat_fusion_start: 2
 
 trainer:
   optim:

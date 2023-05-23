@@ -9,14 +9,14 @@ data:
       wav_scale: 1
     sampler:
       sampler_type: 'class_weighted_random_seg_chunk_sampler'
-      min_batch_size: 64
+      min_batch_size: 32
       max_chunk_length: 3.0
       min_chunk_length: 3.0
       # weighted
       weight_mode: "data-prior"
       class_name: "language"
       weight_exponent: 0.3
-      num_chunks_per_seg_epoch: 0.1
+      num_chunks_per_seg_epoch: 0.3
     data_loader:
       num_workers: 8
   val:
@@ -29,14 +29,14 @@ data:
       wav_scale: 1
     sampler:
       sampler_type: 'class_weighted_random_seg_chunk_sampler'
-      min_batch_size: 64
+      min_batch_size: 32
       max_chunk_length: 3.0
       min_chunk_length: 3.0
       # weighted
       weight_mode: "data-prior"
       class_name: "language"
       weight_exponent: 0.3
-      num_chunks_per_seg_epoch: 0.1
+      num_chunks_per_seg_epoch: 1.0
     data_loader:
       num_workers: 8
 model: wav2vec2xlsr300m_ecapatdnn1024x3_subcenter.yaml
