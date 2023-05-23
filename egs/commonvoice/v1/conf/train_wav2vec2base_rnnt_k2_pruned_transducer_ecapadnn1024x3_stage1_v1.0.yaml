@@ -105,7 +105,7 @@ model:
     dropout_rate: 0.3
     hid_act: swish
   
-  loss_weight_transducer: 0.05
+  loss_weight_transducer: 0.1
   loss_weight_lid: 1.0
   lid_length: 3.0
   # feat_fusion_method: weighted-avg
