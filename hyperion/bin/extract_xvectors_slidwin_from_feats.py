@@ -11,8 +11,12 @@ import time
 
 import numpy as np
 import yaml
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
 
 import torch
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
@@ -78,7 +82,7 @@ def extract_xvectors(
     model = load_model(model_path, device)
 
     if write_timestamps_spec is not None:
-        time_writer = DWF.create(write_timestamps_spec, scp_sep=" ")
+        time_writer = DWF.create(write_timestamps_spec)
 
     dr_args = DRF.filter_args(**kwargs)
     logging.info("opening output stream: %s" % (output_spec))
@@ -205,10 +209,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--slidwin-params-path", default=None)
     parser.add_argument(
-        "--vad-path-prefix",
-        dest="vad_path_prefix",
-        default=None,
-        help=("scp file_path prefix for vad"),
+        "--vad-path-prefix", default=None, help=("scp file_path prefix for vad"),
     )
 
     MVN.add_class_args(parser, prefix="mvn")

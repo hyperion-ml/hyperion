@@ -44,11 +44,11 @@ if [ $stage -le 1 ]; then
     --gpu $ngpu $nnet_s1_dir/log/train.log \
     hyp_utils/conda_env.sh --conda-env $HYP_ENV --num-gpus $ngpu \
     train_xvector_from_wav.py $nnet_type --cfg $nnet_s1_base_cfg $nnet_s1_args $extra_args \
-    --data.train.dataset.audio-file $list_dir/wav.scp \
+    --data.train.dataset.recordings-file $list_dir/wav.scp \
     --data.train.dataset.time-durs-file $list_dir/utt2dur \
     --data.train.dataset.segments-file $list_dir/lists_xvec/train.scp \
     --data.train.dataset.class-files $list_dir/lists_xvec/class2int \
-    --data.val.dataset.audio-file $list_dir/wav.scp \
+    --data.val.dataset.recordings-file $list_dir/wav.scp \
     --data.val.dataset.time-durs-file $list_dir/utt2dur \
     --data.val.dataset.segments-file $list_dir/lists_xvec/val.scp \
     --trainer.exp-path $nnet_s1_dir \
@@ -67,11 +67,11 @@ if [ $stage -le 2 ]; then
     --gpu $ngpu $nnet_s2_dir/log/train.log \
     hyp_utils/conda_env.sh --conda-env $HYP_ENV --num-gpus $ngpu \
     finetune_xvector_from_wav.py $nnet_type --cfg $nnet_s2_base_cfg $nnet_s2_args $extra_args \
-    --data.train.dataset.audio-file $list_dir/wav.scp \
+    --data.train.dataset.recordings-file $list_dir/wav.scp \
     --data.train.dataset.time-durs-file $list_dir/utt2dur \
     --data.train.dataset.segments-file $list_dir/lists_xvec/train.scp \
     --data.train.dataset.class-files $list_dir/lists_xvec/class2int \
-    --data.val.dataset.audio-file $list_dir/wav.scp \
+    --data.val.dataset.recordings-file $list_dir/wav.scp \
     --data.val.dataset.time-durs-file $list_dir/utt2dur \
     --data.val.dataset.segments-file $list_dir/lists_xvec/val.scp \
     --in-model-file $nnet_s1 \

@@ -49,11 +49,11 @@ if [ $stage -le 1 ]; then
     $cuda_cmd --gpu $ngpu $sign_nnet_dir/log/train.log \
 	      hyp_utils/conda_env.sh --conda-env $HYP_ENV --num-gpus $ngpu \
 	      train_xvector_from_wav.py  $sign_nnet_command --cfg $sign_nnet_config \
-	      --data.train.dataset.audio-file $list_someknown_dir/trainval_wav.scp \
+	      --data.train.dataset.recordings-file $list_someknown_dir/trainval_wav.scp \
 	      --data.train.dataset.time-durs-file $list_someknown_dir/trainval_utt2dur \
 	      --data.train.dataset.segments-file $list_someknown_dir/train_utt2attack \
 	      --data.train.dataset.class-file $list_someknown_dir/class_file \
-	      --data.val.dataset.audio-file $list_someknown_dir/trainval_wav.scp \
+	      --data.val.dataset.recordings-file $list_someknown_dir/trainval_wav.scp \
 	      --data.val.dataset.time-durs-file $list_someknown_dir/trainval_utt2dur \
 	      --data.val.dataset.segments-file $list_someknown_dir/val_utt2attack \
 	      --trainer.exp-path $sign_nnet_dir $args \

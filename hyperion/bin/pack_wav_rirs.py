@@ -10,8 +10,12 @@ import sys
 import time
 
 import numpy as np
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
 
 from hyperion.hyp_defs import config_logger
 from hyperion.io import DataWriterFactory as DWF
@@ -20,7 +24,7 @@ from hyperion.io import SequentialAudioReader as AR
 
 def pack_wav_rirs(input_path, output_spec, **kwargs):
 
-    writer = DWF.create(output_spec, scp_sep=" ", compress=False)
+    writer = DWF.create(output_spec, compress=False)
     t1 = time.time()
     with AR(input_path, wav_scale=1) as reader:
         for data in reader:

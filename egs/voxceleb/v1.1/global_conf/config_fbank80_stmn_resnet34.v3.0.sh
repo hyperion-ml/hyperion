@@ -16,7 +16,7 @@ nnet_name=${feat_type}_resnet34.v3.0
 
 nnet_s1_base_cfg=conf/train_resnet34_xvec_stage1_v3.0.yaml
 nnet_s1_name=$nnet_name.s1
-nnet_s1_dir=exp/xvector_nnets/$nnet_s1_name
+nnet_s1_dir=exp/xvector_nnets/$nnet_s1_name.kk2
 nnet_s1=$nnet_s1_dir/model_ep0035.pth
 
 nnet_s2_base_cfg=conf/train_resnet34_xvec_stage2_v3.0.yaml

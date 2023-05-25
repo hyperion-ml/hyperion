@@ -5,8 +5,10 @@
 
 import copy
 import os.path as path
+from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import scipy.sparse as sparse
 
 from .list_utils import *
@@ -79,6 +81,28 @@ class SparseTrialKey(TrialKey):
             for r, c in zip(non.row, non.col):
                 f.write("%s %s nontarget\n" % (self.model_set[r], self.seg_set[c]))
 
+    def save_table(self, file_path, sep=None):
+        """Saves object to txt file.
+
+        Args:
+          file_path: File to write the list.
+        """
+        file_path = Path(file_path)
+        ext = file_path.suffix
+        if sep is None:
+            sep = "\t" if ".tsv" in ext else ","
+
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(f"modelid{sep}segmentid{sep}targettype\n")
+            self.tar.eliminate_zeros()
+            self.non.eliminate_zeros()
+            tar = self.tar.tocoo()
+            for r, c in zip(tar.row, tar.col):
+                f.write(f"{self.model_set[r]}{sep}{self.seg_set[c]}{sep}target\n")
+            non = self.non.tocoo()
+            for r, c in zip(non.row, non.col):
+                f.write(f"{self.model_set[r]}{sep}{self.seg_set[c]}{sep}nontarget\n")
+
     @classmethod
     def load_h5(cls, file_path):
         raise NotImplementedError()
@@ -98,6 +122,40 @@ class SparseTrialKey(TrialKey):
         models = [i[0] for i in fields]
         segments = [i[1] for i in fields]
         is_tar = [i[2] == "target" for i in fields]
+        model_set, _, model_idx = np.unique(
+            models, return_index=True, return_inverse=True
+        )
+        seg_set, _, seg_idx = np.unique(
+            segments, return_index=True, return_inverse=True
+        )
+        tar = sparse.lil_matrix((len(model_set), len(seg_set)), dtype="bool")
+        non = sparse.lil_matrix((len(model_set), len(seg_set)), dtype="bool")
+        for item in zip(model_idx, seg_idx, is_tar):
+            if item[2]:
+                tar[item[0], item[1]] = True
+            else:
+                non[item[0], item[1]] = True
+        return cls(model_set, seg_set, tar.tocsr(), non.tocsr())
+
+    @classmethod
+    def load_table(cls, file_path, sep=None):
+        """Loads object from txt file
+
+        Args:
+          file_path: File to read the list.
+
+        Returns:
+          TrialKey object.
+        """
+        file_path = Path(file_path)
+        ext = file_path.suffix
+        if sep is None:
+            sep = "\t" if ".tsv" in ext else ","
+
+        df = pd.read_csv(file_path, sep=sep)
+        models = df["modelid"].values
+        segments = df["segmentid"].values
+        is_tar = (df["targettype"] == "target").values
         model_set, _, model_idx = np.unique(
             models, return_index=True, return_inverse=True
         )

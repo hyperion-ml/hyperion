@@ -10,8 +10,12 @@ import sys
 import time
 
 import numpy as np
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
 
 import torch
 import torch.nn as nn
@@ -121,8 +125,8 @@ def eval_cosine_scoring(
     audio_reader = AR(test_wav_file, **audio_args)
 
     if vad_spec is not None:
-        logging.info("opening VAD stream: %s" % (vad_spec))
-        v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix, scp_sep=" ")
+        logging.info("opening VAD stream: %s", vad_spec)
+        v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix)
 
     scores = np.zeros((ndx.num_models, ndx.num_tests), dtype="float32")
     with torch.no_grad():
@@ -140,7 +144,7 @@ def eval_cosine_scoring(
 
             t2 = time.time()
             s = torch.as_tensor(s[None, :], dtype=torch.get_default_dtype()).to(device)
-            x_t = feat_extractor(s)
+            x_t, _ = feat_extractor(s)
             t4 = time.time()
             tot_frames = x_t.shape[1]
             if vad_spec is not None:
@@ -217,10 +221,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--vad", dest="vad_spec", default=None)
     parser.add_argument(
-        "--vad-path-prefix",
-        dest="vad_path_prefix",
-        default=None,
-        help=("scp file_path prefix for vad"),
+        "--vad-path-prefix", default=None, help=("scp file_path prefix for vad"),
     )
 
     parser.add_argument("--model-path", required=True)

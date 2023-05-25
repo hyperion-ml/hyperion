@@ -12,8 +12,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import yaml
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
 
 import torch
 import torch.nn as nn
@@ -197,7 +201,7 @@ def generate_attacks(
 
     if vad_spec is not None:
         logging.info("opening VAD stream: %s", vad_spec)
-        v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix, scp_sep=" ")
+        v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix)
 
     attack_factory = init_attack_factory(**kwargs)
     attacks_info = {}

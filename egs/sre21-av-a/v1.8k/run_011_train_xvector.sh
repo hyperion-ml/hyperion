@@ -10,22 +10,17 @@ set -e
 stage=1
 ngpu=4
 config_file=default_config.sh
-resume=false
 interactive=false
-num_workers=8
+num_workers=""
 
 . parse_options.sh || exit 1;
 . $config_file
 . datapath.sh
 
-batch_size=$(($batch_size_1gpu*$ngpu))
-grad_acc_steps=$(echo $batch_size $eff_batch_size | awk '{ print int($2/$1+0.5)}')
-log_interval=$(echo 100*$grad_acc_steps | bc)
 list_dir=data/${nnet_data}_proc_audio_no_sil
 
-args=""
-if [ "$resume" == "true" ];then
-    args="--resume"
+if [ -n "$num_workers" ];then
+    extra_args="--data.train.data_loader.num-workers $num_workers"
 fi
 
 if [ "$interactive" == "true" ];then
@@ -35,6 +30,49 @@ fi
 # Network Training
 if [ $stage -le 1 ]; then
   
+  mkdir -p $nnet_dir/log
+  $cuda_cmd \
+    --gpu $ngpu $nnet_dir/log/train.log \
+    hyp_utils/conda_env.sh --conda-env $HYP_ENV --num-gpus $ngpu \
+    train_xvector_from_wav.py $nnet_type \
+    --cfg $nnet_base_cfg $nnet_args $extra_args \
+    --data.train.dataset.recordings-file $list_dir/wav.scp \
+    --data.train.dataset.time-durs-file $list_dir/utt2dur \
+    --data.train.dataset.segments-file $list_dir/lists_xvec/train.scp \
+    --data.train.dataset.class-files $list_dir/lists_xvec/class2int \
+    --data.val.dataset.recordings-file $list_dir/wav.scp \
+    --data.val.dataset.time-durs-file $list_dir/utt2dur \
+    --data.val.dataset.segments-file $list_dir/lists_xvec/val.scp \
+    --trainer.exp-path $nnet_dir \
+    --num-gpus $ngpu \
+  
+fi
+
+# Large Margin Fine-tuning
+if [ $stage -le 2 ]; then
+  mkdir -p $ft_nnet_dir/log
+  $cuda_cmd \
+    --gpu $ngpu $ft_nnet_dir/log/train.log \
+    hyp_utils/conda_env.sh --conda-env $HYP_ENV --num-gpus $ngpu \
+    finetune_xvector_from_wav.py $nnet_type \
+    --cfg $ft_nnet_base_cfg $ft_nnet_args $extra_args \
+    --data.train.dataset.recordings-file $list_dir/wav.scp \
+    --data.train.dataset.time-durs-file $list_dir/utt2dur \
+    --data.train.dataset.segments-file $list_dir/lists_xvec/train.scp \
+    --data.train.dataset.class-files $list_dir/lists_xvec/class2int \
+    --data.val.dataset.recordings-file $list_dir/wav.scp \
+    --data.val.dataset.time-durs-file $list_dir/utt2dur \
+    --data.val.dataset.segments-file $list_dir/lists_xvec/val.scp \
+    --in-model-file $nnet \
+    --trainer.exp-path $ft_nnet_dir \
+    --num-gpus $ngpu \
+  
+fi
+exit
+
+# Network Training
+if [ $stage -le 1 ]; then
+
   if [[ ${nnet_type} =~ resnet1d ]]; then
     train_exec=torch-train-resnet1d-xvec-from-wav.py
   elif [[ ${nnet_type} =~ resnet ]] || [[ ${nnet_type} =~ resnext ]] || [[ ${nnet_type} =~ res2net ]] || [[ ${nnet_type} =~ res2next ]]; then

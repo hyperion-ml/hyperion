@@ -6,18 +6,24 @@
 import logging
 import multiprocessing
 from abc import ABCMeta, abstractmethod
+from typing import Union, Optional, List, Callable, Tuple
 
 import numpy as np
 
 from ..hyp_defs import float_cpu
 from ..np.transforms import TransformList
-from ..utils.scp_list import SCPList
+from ..utils import PathLike
 
 
 class DataReader(object):
     __metaclass__ = ABCMeta
 
-    def __init__(self, file_path, transform=None, permissive=False):
+    def __init__(
+        self,
+        file_path: PathLike,
+        transform: Optional[Callable[[np.array], np.array]] = None,
+        permissive: bool = False,
+    ):
         """Abstract base class to read Ark or hdf5 feature files.
 
         Attributes:
@@ -57,7 +63,7 @@ class DataReader(object):
         pass
 
     @staticmethod
-    def _squeeze(data, permissive=False):
+    def _squeeze(data: np.array, permissive: bool = False):
         """Converts list of matrices to 3D numpy array or
            list of vectors to 2D numpy array.
 
@@ -121,7 +127,7 @@ class DataReader(object):
         return row_offset, num_rows
 
     @staticmethod
-    def _apply_range_to_shape(shape, row_offset, num_rows):
+    def _apply_range_to_shape(shape: Tuple[int, int], row_offset: int, num_rows: int):
         """Modifies shape given the user defined row_offset and num_rows to read.
            If we are reading a matrix of shape (100,4) and row_offset=10, num_rows=20,
            it returns (20,4).
@@ -158,25 +164,22 @@ class SequentialDataReader(DataReader):
         part_idx: It splits the input into num_parts and writes only
                   part part_idx, where part_idx=1,...,num_parts.
         num_parts: Number of parts to split the input data.
-        split_by_key: If True, all the elements with the same key go to the same part.
     """
 
     __metaclass__ = ABCMeta
 
     def __init__(
         self,
-        file_path,
-        transform=None,
-        permissive=False,
-        part_idx=1,
-        num_parts=1,
-        split_by_key=False,
+        file_path: PathLike,
+        transform: Optional[Callable[[np.array], np.array]] = None,
+        permissive: bool = False,
+        part_idx: int = 1,
+        num_parts: int = 1,
     ):
         super().__init__(file_path, transform, permissive)
         self.lock = multiprocessing.Lock()
         self.part_idx = part_idx
         self.num_parts = num_parts
-        self.split_by_key = split_by_key
 
     def __iter__(self):
         """Needed to build an iterator, e.g.:
@@ -218,7 +221,7 @@ class SequentialDataReader(DataReader):
         return False
 
     @abstractmethod
-    def read_num_rows(self, num_records=0, assert_same_dim=True):
+    def read_num_rows(self, num_records: int = 0, assert_same_dim: bool = True):
         """Reads the number of rows in the feature matrices of the dataset.
 
         Args:
@@ -234,7 +237,7 @@ class SequentialDataReader(DataReader):
         pass
 
     @abstractmethod
-    def read_dims(self, num_records=0, assert_same_dim=True):
+    def read_dims(self, num_records: int = 0, assert_same_dim: bool = True):
         """Reads the number of columns in the feature matrices of the dataset.
 
         Args:
@@ -250,7 +253,7 @@ class SequentialDataReader(DataReader):
         pass
 
     @abstractmethod
-    def read_shapes(self, num_records=0, assert_same_dim=True):
+    def read_shapes(self, num_records: int = 0, assert_same_dim: bool = True):
         """Reads the shapes in the feature matrices of the dataset.
 
         Args:
@@ -266,7 +269,13 @@ class SequentialDataReader(DataReader):
         pass
 
     @abstractmethod
-    def read(self, num_records=0, squeeze=False, offset=0, num_rows=0):
+    def read(
+        self,
+        num_records: int = 0,
+        squeeze: bool = False,
+        offset: int = 0,
+        num_rows: int = 0,
+    ):
         """Reads next num_records feature matrices/vectors.
 
         Args:
@@ -290,7 +299,12 @@ class SequentialDataReader(DataReader):
 class RandomAccessDataReader(DataReader):
     __metaclass__ = ABCMeta
 
-    def __init__(self, file_path, transform=None, permissive=False):
+    def __init__(
+        self,
+        file_path: PathLike,
+        transform: Optional[Callable[[np.array], np.array]] = None,
+        permissive: bool = False,
+    ):
         """Abstract base class to read Ark or hdf5 feature files in
            random order.
 
@@ -305,7 +319,7 @@ class RandomAccessDataReader(DataReader):
         super().__init__(file_path, transform, permissive)
 
     @abstractmethod
-    def read_num_rows(self, keys=None, assert_same_dim=True):
+    def read_num_rows(self, keys: Union[str, List[str]], assert_same_dim: bool = True):
         """Reads the number of rows in the feature matrices of the dataset.
 
         Args:
@@ -320,7 +334,7 @@ class RandomAccessDataReader(DataReader):
         pass
 
     @abstractmethod
-    def read_dims(self, keys=None, assert_same_dim=True):
+    def read_dims(self, keys: Union[str, List[str]], assert_same_dim: bool = True):
         """Reads the number of columns in the feature matrices of the dataset.
 
         Args:
@@ -335,7 +349,7 @@ class RandomAccessDataReader(DataReader):
         pass
 
     @abstractmethod
-    def read_shapes(self, keys=None, assert_same_dim=True):
+    def read_shapes(self, keys: Union[str, List[str]], assert_same_dim: bool = True):
         """Reads the shapes in the feature matrices of the dataset.
 
         Args:
@@ -350,7 +364,13 @@ class RandomAccessDataReader(DataReader):
         pass
 
     @abstractmethod
-    def read(self, keys, squeeze=False, offset=0, num_rows=0):
+    def read(
+        self,
+        keys: Union[str, List[str]],
+        squeeze: bool = False,
+        offset: int = 0,
+        num_rows: int = 0,
+    ):
         """Reads the feature matrices/vectors for the recordings in keys.
 
         Args:

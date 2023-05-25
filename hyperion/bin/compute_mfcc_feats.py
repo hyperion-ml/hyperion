@@ -9,8 +9,12 @@ import sys
 import time
 
 import numpy as np
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
 
 from hyperion.hyp_defs import config_logger
 from hyperion.io import DataWriterFactory as DWF
@@ -35,10 +39,7 @@ def compute_mfcc_feats(
         reader = DRF.create(input_path, **input_args)
 
     writer = DWF.create(
-        output_path,
-        scp_sep=" ",
-        compress=compress,
-        compression_method=compression_method,
+        output_path, compress=compress, compression_method=compression_method,
     )
 
     if write_num_frames is not None:
@@ -55,8 +56,11 @@ def compute_mfcc_feats(
         dt = (time.time() - t1) * 1000
         rtf = dt / (mfcc.frame_shift * y.shape[0])
         logging.info(
-            "Extracted MFCC for %s num-frames=%d elapsed-time=%.2f ms. real-time-factor=%.2f"
-            % (key, y.shape[0], dt, rtf)
+            "Extracted MFCC for %s num-frames=%d elapsed-time=%.2f ms. real-time-factor=%.2f",
+            key,
+            y.shape[0],
+            dt,
+            rtf,
         )
         writer.write([key], [y])
 

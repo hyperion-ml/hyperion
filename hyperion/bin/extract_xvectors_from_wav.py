@@ -11,8 +11,12 @@ import time
 
 import numpy as np
 import pandas as pd
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
 
 import torch
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
@@ -95,7 +99,6 @@ def extract_xvectors(
     output_spec,
     vad_spec,
     write_num_frames_spec,
-    scp_sep,
     vad_path_prefix,
     model_path,
     chunk_length,
@@ -129,7 +132,7 @@ def extract_xvectors(
 
     ar_args = AR.filter_args(**kwargs)
     logging.info("opening output stream: %s", output_spec)
-    with DWF.create(output_spec, scp_sep=scp_sep) as writer:
+    with DWF.create(output_spec) as writer:
 
         logging.info(
             "opening input stream: {} with args={}".format(input_spec, ar_args)
@@ -138,9 +141,7 @@ def extract_xvectors(
 
             if vad_spec is not None:
                 logging.info("opening VAD stream: %s", vad_spec)
-                v_reader = VRF.create(
-                    vad_spec, path_prefix=vad_path_prefix, scp_sep=scp_sep
-                )
+                v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix)
 
             while not reader.eof():
                 t1 = time.time()
@@ -162,7 +163,7 @@ def extract_xvectors(
                             x[None, :], dtype=torch.get_default_dtype()
                         ).to(device)
 
-                        x = feat_extractor(x)
+                        x, _ = feat_extractor(x)
                         t5 = time.time()
                         tot_frames = x.shape[1]
                         if vad_spec is not None:
@@ -249,7 +250,6 @@ if __name__ == "__main__":
     parser.add_argument(
         "--write-num-frames", dest="write_num_frames_spec", default=None
     )
-    parser.add_argument("--scp-sep", default=" ", help=("scp file field separator"))
     parser.add_argument(
         "--vad-path-prefix", default=None, help=("scp file_path prefix for vad")
     )
