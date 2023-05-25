@@ -25,8 +25,7 @@ if [[ $(hostname -f) == *.clsp.jhu.edu ]] && [ ! -d $linkdir ]; then
   echo "Prepare to distribute data over multiple $nodes nodes"
   dir_name=$storage_dir/$storage_name/storage
   if [ "$nodes" == "b0" ];then
-    utils/create_split_dir.pl \
-      hyp_utils/create_split_dir.pl \
+    hyp_utils/create_split_dir.pl \
       /export/b{04,05,06,07}/$dir_name $link_dir
   elif [ "$nodes" == "b1" ];then
     hyp_utils/create_split_dir.pl \

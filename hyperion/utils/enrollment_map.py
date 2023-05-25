@@ -18,12 +18,13 @@ from .info_table import InfoTable
 
 class EnrollmentMap(InfoTable):
     """Class to store the mapping between enrollment id
-       and segmentids
+    and segmentids
     """
 
     def __init__(self, df):
         if "modelid" in df:
             df.rename(columns={"modelid": "id"}, inplace=True)
+        assert "segmentid" in df
         super().__init__(df)
 
     def split(self, idx, num_parts):
@@ -83,4 +84,18 @@ class EnrollmentMap(InfoTable):
 
             df = pd.read_csv(file_path, sep=sep)
 
+        return cls(df)
+
+    @classmethod
+    def cat(cls, tables):
+        """Concatenates several tables.
+
+        Args:
+          info_lists: List of InfoTables
+
+        Returns:
+          InfoTable object concatenation the info_lists.
+        """
+        df_list = [table.df for table in tables]
+        df = pd.concat(df_list)
         return cls(df)

@@ -176,8 +176,8 @@ class InfoTable:
         return self.__class__(df)
 
     @classmethod
-    def merge(cls, tables):
-        """Merges several tables.
+    def cat(cls, tables):
+        """Concatenates several tables.
 
         Args:
           info_lists: List of InfoTables
@@ -187,6 +187,9 @@ class InfoTable:
         """
         df_list = [table.df for table in tables]
         df = pd.concat(df_list)
+        assert df[
+            "id"
+        ].is_unique, """there are duplicated ids in the tables we are concatenating"""
         return cls(df)
 
     def filter(self, items=None, iindex=None, columns=None, by="id", keep=True):

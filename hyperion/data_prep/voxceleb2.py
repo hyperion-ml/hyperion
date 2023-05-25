@@ -136,6 +136,12 @@ class VoxCeleb2DataPrep(DataPrep):
         return file_path
 
     def prepare(self):
+        logging.info(
+            "Peparing VoxCeleb2 %s corpus_dir:%s -> data_dir:%s",
+            self.subset,
+            self.corpus_dir,
+            self.output_dir,
+        )
         logging.info("getting audio meta-data")
         df_meta = self._get_metadata()
         logging.info("getting language estimations")
@@ -224,11 +230,6 @@ class VoxCeleb2DataPrep(DataPrep):
                 "duration": recs.loc[rec_ids, "duration"].values,
             }
         )
-        # print(
-        #     recs.loc[rec_ids, "duration"],
-        #     len(segments),
-        #     len(recs.loc[rec_ids, "duration"]),
-        # )
         segments = SegmentSet(segments)
         segments.sort()
 

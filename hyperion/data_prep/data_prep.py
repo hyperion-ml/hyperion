@@ -69,7 +69,6 @@ class DataPrep:
         import itertools
         from ..utils import SCPList
 
-        # scp = SCPList(recording_set["id"].values, recording_set["storage_path"].values)
         futures = []
         logging.info("submitting threats...")
         with ThreadPoolExecutor(max_workers=self.num_threads) as pool:

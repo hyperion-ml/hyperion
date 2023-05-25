@@ -214,7 +214,12 @@ class VoxCeleb1DataPrep(DataPrep):
         return enrollments, trials
 
     def prepare(self):
-
+        logging.info(
+            "Peparing VoxCeleb1 for %s corpus_dir:%s -> data_dir:%s",
+            self.task,
+            self.corpus_dir,
+            self.output_dir,
+        )
         logging.info("getting audio meta-data")
         df_meta = self._get_metadata()
         logging.info("getting language estimations")

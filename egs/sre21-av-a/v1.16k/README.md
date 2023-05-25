@@ -7,6 +7,20 @@ The systems runs at 16 kHz, telephone data is upsampled to 16k using SoX
 
    This recipe is based on these works
 ```
+@inproceedings{Villalba2022,
+author = {Jes\'us Villalba and Bengt J Borgstrom and Saurabh Kataria and Magdalena Rybicka and Carlos D Castillo and Jaejin Cho and L. Paola García-Perera and Pedro A. Torres-Carrasquillo and Najim Dehak},
+city = {ISCA},
+doi = {10.21437/Odyssey.2022-30},
+issue = {July},
+journal = {The Speaker and Language Recognition Workshop (Odyssey 2022)},
+month = {6},
+pages = {213-220},
+publisher = {ISCA},
+title = {Advances in Cross-Lingual and Cross-Source Audio-Visual Speaker Recognition: The JHU-MIT System for NIST SRE21},
+url = {https://www.isca-speech.org/archive/odyssey_2022/villalba22b_odyssey.html},
+year = {2022},
+}
+				 
 @inproceedings{Villalba2020,
 address = {Tokyo, Japan},
 author = {Villalba, Jes{\'{u}}s and Garcia-Romero, Daniel and Chen, Nanxin and Sell, Gregory and Borgstrom, Jonas and McCree, Alan and {Garcia Perera}, Leibny Paola and Kataria, Saurabh and Nidadavolu, Phani Sankar and Torres-Carrasquiilo, Pedro and Dehak, Najim},
@@ -130,14 +144,6 @@ The back-end used for these results is:
 | config_fbank80_stmn_ecapatdnn2048x4_chattstatsi128_arcs30m0.3_adam_lr0.02_amp.v1.sh | ECAPA-TDNN 2048x4 | fine-tuned 10-15secs <br> AAM-Softmax margin=0.5 | 1.57   | 0.135 | 0.237 |
 | config_fbank80_stmn_res2net50w26s8_chattstatsi128_arcs30m0.3_adam_lr0.02_amp.v1.sh | Res2Net50 w26xs8 | fine-tuned 10 secs <br> AAM-Softmax margin=0.5 | 1.23  | 0.136 | 0.187 | 
 | config_fbank80_stmn_tseres2net50w26s4_chattstatsi128_arcs30m0.3_adam_lr0.02_amp.v1.sh | TSE-Res2Net50 w26xs4 | fine-tuned 10 secs <br> AAM-Softmax margin=0.5 | 1.38   | 0.147 | 0.189 |
-
-## SRE-CTS Superset dev set
-
-| Config | Model Type | Model Details | EER(%) | Min. Cprimary | Act. Cprimary |
-| ------ | ---------- | ------------- | ------ | ------------- | ------------- |
-| config_fbank80_stmn_ecapatdnn2048x4_chattstatsi128_arcs30m0.3_adam_lr0.02_amp.v1.sh | ECAPA-TDNN 2048x4 | fine-tuned 10-15secs <br> AAM-Softmax margin=0.5 | 1.37 | 0.076 | 0.106 | 
-| config_fbank80_stmn_res2net50w26s8_chattstatsi128_arcs30m0.3_adam_lr0.02_amp.v1.sh | Res2Net50 w26xs8 | fine-tuned 10 secs <br> AAM-Softmax margin=0.5 | 1.19 | 0.64 | 0.089 | 
-| config_fbank80_stmn_tseres2net50w26s4_chattstatsi128_arcs30m0.3_adam_lr0.02_amp.v1.sh | TSE-Res2Net50 w26xs4 | fine-tuned 10 secs <br> AAM-Softmax margin=0.5 | 1.15 | 0.61 | 0.102 |
 
 ## SRE-CTS Superset dev set
 
