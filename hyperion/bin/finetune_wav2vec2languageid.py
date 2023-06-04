@@ -31,6 +31,11 @@ from hyperion.torch.metrics import CategoricalAccuracy
 from hyperion.torch.models import HFWav2Vec2ResNet1dLanguageID
 from torch.nn.utils.rnn import pad_sequence
 
+import warnings
+
+warnings.filterwarnings('ignore', category=UserWarning, module='torch.distributed.distributed_c10d')
+
+
 model_dict = {
     "hf_wav2vec2resnet1d": HFWav2Vec2ResNet1dLanguageID,
     # "hf_hubert2resnet1d": HFHubert2ResNet1LanguageID,
@@ -94,8 +99,9 @@ def init_data(partition, rank, num_gpus, **kwargs):
     } if num_gpus > 0 else {})
     data_loader = torch.utils.data.DataLoader(dataset,
                                               batch_sampler=sampler,
-                                              **largs,
-                                              collate_fn=Language_collate)
+                                              **largs)
+                                            #   ,
+                                            #   collate_fn=Language_collate)
     return data_loader
 
 
@@ -113,6 +119,21 @@ def init_model(num_classes, in_model_file, rank, model_class, **kwargs):
         logging.info("model={}".format(model))
     return model
 
+
+def init_hard_prototype_mining(model, train_loader, val_loader, rank):
+    if not train_loader.batch_sampler.hard_prototype_mining:
+        return
+
+    if rank == 0:
+        logging.info("setting hard prototypes")
+
+    affinity_matrix = model.compute_prototype_affinity()
+    train_loader.batch_sampler.set_hard_prototypes(affinity_matrix)
+
+    if not val_loader.batch_sampler.hard_prototype_mining:
+        return
+
+    val_loader.batch_sampler.set_hard_prototypes(affinity_matrix)
 
 def train_model(gpu_id, args):
 
@@ -138,6 +159,7 @@ def train_model(gpu_id, args):
     val_loader = init_data(partition="val", **kwargs)
 
     model = init_model(list(train_loader.dataset.num_classes.values())[0], **kwargs)
+    init_hard_prototype_mining(model, train_loader, val_loader, rank)
 
     trn_args = Trainer.filter_args(**kwargs["trainer"])
     if rank == 0:
@@ -148,6 +170,7 @@ def train_model(gpu_id, args):
         device=device,
         metrics=metrics,
         ddp=world_size > 1,
+        # loss_weight=train_loader.batch_sampler.class_info["weights"],
         **trn_args,
     )
     trainer.load_last_checkpoint()
