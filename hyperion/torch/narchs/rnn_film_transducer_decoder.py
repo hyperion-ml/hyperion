@@ -168,7 +168,10 @@ class RNNFiLMTransducerDecoder(NetArch):
     def _rnnt_loss_torchaudio(self, x: torch.Tensor, x_lengths: torch.Tensor,
                               y: torch.Tensor, y_lengths: torch.Tensor,
                               pred_out: torch.Tensor, lang_embedding: torch.Tensor):
-        logits = self.joiner(x, pred_out, lang_embedding)
+        if self.joiner_args["joiner_type"] == "original_joiner":
+            logits = self.joiner(x, pred_out)
+        else:
+            logits = self.joiner(x, pred_out, lang_embedding)
         # rnnt_loss requires 0 padded targets
         # Note: y does not start with SOS
         y_padded = y.pad(mode="constant", padding_value=0)
@@ -194,7 +197,10 @@ class RNNFiLMTransducerDecoder(NetArch):
         boundary[:, 2] = y_lengths
         boundary[:, 3] = x_lengths
 
-        logits = self.joiner(x, pred_out, lang_embedding)
+        if self.joiner_args["joiner_type"] == "original_joiner":
+            logits = self.joiner(x, pred_out)
+        else:
+            logits = self.joiner(x, pred_out, lang_embedding)
 
         with torch.cuda.amp.autocast(enabled=False):
             loss = k2.rnnt_loss(
@@ -257,7 +263,11 @@ class RNNFiLMTransducerDecoder(NetArch):
 
         # project_input=False since we applied the decoder's input projections
         # prior to do_rnnt_pruning (this is an optimization for speed).
-        logits = self.joiner(am_pruned, lm_pruned, lang_embedding, project_input=False)
+
+        if self.joiner_args["joiner_type"] == "original_joiner":
+            logits = self.joiner(am_pruned, lm_pruned, project_input=False)
+        else:
+            logits = self.joiner(am_pruned, lm_pruned, lang_embedding, project_input=False)
 
 
         with torch.cuda.amp.autocast(enabled=False):
@@ -374,7 +384,11 @@ class RNNFiLMTransducerDecoder(NetArch):
 
         while t < T and sym_per_utt < max_sym_per_utt:
             x_t = x[:, t:t + 1, :]
-            logits = self.joiner(x_t, pred_out, lang_embedding)  # (1, 1, 1, vocab_size)
+            
+            if self.joiner_args["joiner_type"] == "original_joiner":
+                logits = self.joiner(x_t, pred_out)
+            else:
+                logits = self.joiner(x_t, pred_out, lang_embedding)  # (1, 1, 1, vocab_size)
             # logits is
 
             log_prob = logits.log_softmax(dim=-1)  # (1, 1, 1, vocab_size)
@@ -442,7 +456,10 @@ class RNNFiLMTransducerDecoder(NetArch):
                 else:
                     pred_out, pred_state = cache[cached_key]
 
-                logits = self.joiner(x_t, pred_out, lang_embedding)
+                if self.joiner_args["joiner_type"] == "original_joiner":
+                    logits = self.joiner(x_t, pred_out)
+                else:
+                    logits = self.joiner(x_t, pred_out, lang_embedding)
                 log_prob = logits.log_softmax(dim=-1)
                 # log_prob is (1, 1, 1, vocab_size)
                 log_prob = log_prob.squeeze()
@@ -570,7 +587,10 @@ class RNNFiLMTransducerDecoder(NetArch):
                 else:
                     pred_out, pred_state = cache[cached_key]
 
-                logits = self.joiner(x_t, pred_out, lang_embedding)
+                if self.joiner_args["joiner_type"] == "original_joiner":
+                    logits = self.joiner(x_t, pred_out)
+                else:
+                    logits = self.joiner(x_t, pred_out, lang_embedding)
                 log_prob = logits.log_softmax(dim=-1)  # (1, 1, 1, vocab_size)
                 log_prob = log_prob.squeeze()  # (vocab_size,)
 
