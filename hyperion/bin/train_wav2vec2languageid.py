@@ -23,12 +23,18 @@ import torch.nn as nn
 
 from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch.utils import ddp
+
 from hyperion.torch.trainers import LanguageIDTrainer as Trainer
 from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
 from hyperion.torch.metrics import CategoricalAccuracy
 from hyperion.torch.models import HFWav2Vec2ResNet1dLanguageID
 from torch.nn.utils.rnn import pad_sequence
+
+import warnings
+
+warnings.filterwarnings('ignore', category=UserWarning, module='torch.distributed.distributed_c10d')
+
 
 model_dict = {
     "hf_wav2vec2resnet1d": HFWav2Vec2ResNet1dLanguageID,
@@ -93,8 +99,9 @@ def init_data(partition, rank, num_gpus, **kwargs):
     } if num_gpus > 0 else {})
     data_loader = torch.utils.data.DataLoader(dataset,
                                               batch_sampler=sampler,
-                                              **largs,
-                                              collate_fn=Language_collate)
+                                              **largs)
+                                            #   ,
+                                            #   collate_fn=Language_collate)
     return data_loader
 
 
@@ -107,6 +114,23 @@ def init_model(num_classes, rank, model_class, **kwargs):
     if rank == 0:
         logging.info("model={}".format(model))
     return model
+
+
+
+def init_hard_prototype_mining(model, train_loader, val_loader, rank):
+    if not train_loader.batch_sampler.hard_prototype_mining:
+        return
+
+    if rank == 0:
+        logging.info("setting hard prototypes")
+
+    affinity_matrix = model.compute_prototype_affinity()
+    train_loader.batch_sampler.set_hard_prototypes(affinity_matrix)
+
+    if not val_loader.batch_sampler.hard_prototype_mining:
+        return
+
+    val_loader.batch_sampler.set_hard_prototypes(affinity_matrix)
 
 
 def train_model(gpu_id, args):
@@ -129,6 +153,7 @@ def train_model(gpu_id, args):
     # device = "cpu"
     # world_size=1
 
+    # import pdb; pdb.set_trace()
     train_loader = init_data(partition="train", **kwargs)
     val_loader = init_data(partition="val", **kwargs)
 
@@ -138,14 +163,17 @@ def train_model(gpu_id, args):
     if rank == 0:
         logging.info("trainer args={}".format(trn_args))
     metrics = {"acc": CategoricalAccuracy()}
+    # import pdb; pdb.set_trace()
     trainer = Trainer(
         model,
         device=device,
         metrics=metrics,
         ddp=world_size > 1,
+        loss_weight=train_loader.batch_sampler.class_info["weights"],
         **trn_args,
     )
     trainer.load_last_checkpoint()
+    init_hard_prototype_mining(trainer.model, train_loader, val_loader, rank)
     trainer.fit(train_loader, val_loader)
 
     ddp.ddp_cleanup()

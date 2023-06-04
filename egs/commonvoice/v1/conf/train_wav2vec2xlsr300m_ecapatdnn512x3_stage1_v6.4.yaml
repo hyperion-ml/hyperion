@@ -1,0 +1,70 @@
+data:
+  train:
+    dataset:
+      aug_cfgs:
+      - conf/reverb_noise_aug.yaml
+      return_segment_info:
+      - language
+      target_sample_freq: 16000
+      wav_scale: 1
+   
+    sampler:
+      sampler_type: 'class_weighted_random_seg_chunk_sampler'
+      min_batch_size: 64
+      max_chunk_length: 3.0
+      min_chunk_length: 3.0
+      # weighted
+      weight_mode: "data-prior"
+      class_name: "language"
+      weight_exponent: 0.3
+      num_chunks_per_seg_epoch: 0.1
+      num_hard_prototypes: 8
+    data_loader:
+      num_workers: 4
+  val:
+    dataset:
+      aug_cfgs: 
+        - conf/reverb_noise_aug.yaml
+      wav_scale: 1
+      return_segment_info:
+        - language
+      target_sample_freq: 16000
+      wav_scale: 1
+    
+    sampler:
+      sampler_type: 'class_weighted_random_seg_chunk_sampler'
+      min_batch_size: 64
+      max_chunk_length: 3.0
+      min_chunk_length: 3.0
+      # weighted
+      weight_mode: "data-prior"
+      class_name: "language"
+      weight_exponent: 0.3
+      num_chunks_per_seg_epoch: 1.0
+      num_hard_prototypes: 8
+    data_loader:
+      num_workers: 4
+model: wav2vec2xlsr300m_ecapatdnn512x3_1layer_do0.2.yaml
+trainer:
+  optim:
+    opt_type: sgd
+    lr: 0.01
+    momentum: 0.9
+    weight_decay: 4e-4
+  lrsched:
+    lrsch_type: exp_lr
+    decay_rate: 0.5
+    decay_steps: 16000
+    hold_steps: 20000
+    min_lr: 4e-5
+    warmup_steps: 5000
+    update_lr_on_opt_step: true
+  grad_clip: 100
+  use_amp: true
+  log_interval: 1000
+  epochs: 120
+  eff_batch_size: 1024
+  # eff_batch_size: 128
+  train_mode: hf-feats-frozen-nograd
+
+ 

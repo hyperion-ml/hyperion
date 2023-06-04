@@ -4,3 +4,4 @@
 """
 
 from .bce_with_llr import BCEWithLLR
+from .focal_loss import FocalLoss
