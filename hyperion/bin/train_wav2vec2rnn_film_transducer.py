@@ -27,6 +27,7 @@ from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
                           namespace_to_dict)
 from torch.nn.utils.rnn import pad_sequence
 
+
 model_dict = {
     "hf_wav2vec2rnn_transducer": HFWav2Vec2RNNTransducer,
     "hf_wav2vec2rnn_filmed_transducer": HFWav2Vec2RNNFiLMTransducer,
@@ -225,7 +226,7 @@ def make_parser(model_class):
     parser.link_arguments("data.train.dataset.bpe_model",
                           "data.val.dataset.bpe_model")
 
-    parser.add_argument("--in-model-file", required=True)
+    # parser.add_argument("--in-model-file", required=True)
     model_class.add_class_args(parser, prefix="model")
 
     Trainer.add_class_args(parser,
