@@ -28,7 +28,7 @@ from .net_arch import NetArch
 
 @dataclass
 class Hypothesis:
-    ys: List[int]  # predicted sequences
+    ys: List[int]  # lid_pred sequences
     log_prob: float  # log prob of ys
 
     # Optional LSTM predictor state.
@@ -78,6 +78,7 @@ class RNNFiLMTransducerDecoder(NetArch):
         pruned_warmup_steps: int = 2000,
         langs_size: int = 13,
         condition_size: int = 64,
+        film_type: str = "one-hot",
     ):
 
         super().__init__()
@@ -96,12 +97,16 @@ class RNNFiLMTransducerDecoder(NetArch):
         self.simple_loss_scale = simple_loss_scale
         self.pruned_warmup_steps = pruned_warmup_steps
         self.condition_size = condition_size
+        self.film_type = film_type
 
 
         self._make_predictor()
         self._make_joiner()
         # make embedding layer for language id
-        self.lang_embedding = nn.Embedding(langs_size, condition_size)
+        if self.film_type == "one-hot":
+            self.lang_embedding = nn.Embedding(langs_size, condition_size)
+        elif self.film_type == "lid_pred":
+            self.lang_embedding = nn.Linear(langs_size, condition_size)
         if self.rnnt_loss == "k2_pruned":
             self.simple_am_proj = nn.Linear(in_feats, vocab_size)
             self.simple_lm_proj = nn.Linear(self.predictor.out_feats,
@@ -161,6 +166,7 @@ class RNNFiLMTransducerDecoder(NetArch):
             "simple_loss_scale": self.simple_loss_scale,
             "pruned_warmup_steps": self.pruned_warmup_steps,
             "condition_size": self.condition_size,
+            "film_type": self.film_type,
         }
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
@@ -815,6 +821,12 @@ class RNNFiLMTransducerDecoder(NetArch):
                             type=int,
                             required=True,
                             help=("condition vector dimension"))
+                            
+        parser.add_argument("--film-type",
+                            default="one-hot",
+                            choices=["one-hot", "lid_pred"],
+                            help=("type of the condition of FiLM layer"))
+
 
         parser.add_argument(
             "--lm-scale",

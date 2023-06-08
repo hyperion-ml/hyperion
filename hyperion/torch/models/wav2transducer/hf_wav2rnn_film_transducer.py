@@ -241,6 +241,12 @@ class HFWav2RNNFiLMTransducer(TorchModel):
                                   max_sym_per_utt=max_sym_per_utt)
         return y
 
+    def unfreeze_film(self):
+        for name, param in self.named_parameters():
+            if "film" in name:
+                logging.info(f"unfreezing {name}")
+                param.requires_grad = True
+
     def freeze_feat_fuser(self):
         if self.feat_fuser is None:
             return
@@ -266,6 +272,9 @@ class HFWav2RNNFiLMTransducer(TorchModel):
             self.unfreeze()
         elif mode == "frozen":
             self.freeze()
+        elif mode in ["ft-film", "ft-film-grad"]:
+            self.freeze()
+            self.unfreeze_film()
         elif mode in ["ft-transducer", "ft-transducer-nograd"]:
             self.unfreeze()
             self.freeze_hf_feats()
@@ -294,8 +303,10 @@ class HFWav2RNNFiLMTransducer(TorchModel):
         if train_mode in ["full", "frozen"]:
             super()._train(train_mode)
         elif train_mode in [
+                "ft-film",
                 "ft-transducer",
                 "hf-feats-frozen",
+                "ft-film-grad",
                 "ft-transducer-nograd",
                 "hf-feats-frozen-nograd",
                 "hf-feat-extractor-frozen",
@@ -310,8 +321,10 @@ class HFWav2RNNFiLMTransducer(TorchModel):
         return [
             "full",
             "frozen",
+            "ft-film",
             "ft-embed-affine",
             "ft-transducer",
+            "ft-film-grad",
             "hf-feats-frozen",
             "ft-transducer-nograd",
             "hf-feats-frozen-nograd",
