@@ -2,10 +2,20 @@ import torch
 import torch.nn as nn
 
 class FiLM(nn.Module):
-    def __init__(self, input_size, condition_size):
+    def __init__(self, input_size, condition_size, film_type="linear"):
         # condition_size: the size of the language id vector
         # input_size: the size of the RNN input to the FiLM layer
         super(FiLM, self).__init__()
+        # if film_type == "tanh":
+        #     self.linear_scale = nn.Sequential(
+        #         nn.Linear(condition_size, input_size),
+        #         nn.Tanh()
+        #     )
+        #     self.linear_shift = nn.Sequential(
+        #         nn.Linear(condition_size, input_size),
+        #         nn.Tanh()
+        #     )
+        # elif film_type == "linear":
         self.linear_scale = nn.Linear(condition_size, input_size)
         self.linear_shift = nn.Linear(condition_size, input_size)
 
@@ -24,7 +34,7 @@ class FiLM(nn.Module):
 
 
 class RNNWithFiLM(nn.Module):
-    def __init__(self, input_size, hidden_size, num_layers, dropout, condition_size, batch_first=True, rnn_type="lstm"):
+    def __init__(self, input_size, hidden_size, num_layers, dropout, condition_size, batch_first=True, rnn_type="lstm", film_type="tanh"):
         super(RNNWithFiLM, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
@@ -32,11 +42,14 @@ class RNNWithFiLM(nn.Module):
         self.dropout = dropout
         self.batch_first = batch_first 
         self.rnn_type = rnn_type
+        self.film_type = film_type
         if self.rnn_type == "lstm":
             self.lstms = nn.ModuleList([nn.LSTM(input_size if i==0 else hidden_size, hidden_size, 1, batch_first=batch_first) for i in range(num_layers)])
         elif self.rnn_type == "gru":
             self.grus = nn.ModuleList([nn.GRU(input_size if i==0 else hidden_size, hidden_size, 1, batch_first=batch_first) for i in range(num_layers)])
-        self.films = nn.ModuleList([FiLM(hidden_size, condition_size) for _ in range(num_layers)])
+
+        self.films = nn.ModuleList([FiLM(hidden_size, condition_size, film_type) for _ in range(num_layers)])
+
         self.dropout_layer = nn.Dropout(dropout)
 
     def forward(self, x, states, lang_condition):
@@ -64,7 +77,7 @@ class RNNWithFiLM(nn.Module):
 
 
 class RNNWithFiLMResidual(nn.Module):
-    def __init__(self, input_size, hidden_size, num_layers, dropout, condition_size, batch_first=True, rnn_type="lstm_residual"):
+    def __init__(self, input_size, hidden_size, num_layers, dropout, condition_size, batch_first=True, rnn_type="lstm_residual", film_type="linear"):
         super(RNNWithFiLMResidual, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
@@ -76,7 +89,8 @@ class RNNWithFiLMResidual(nn.Module):
             self.lstms = nn.ModuleList([nn.LSTM(input_size if i==0 else hidden_size, hidden_size, 1, batch_first=batch_first) for i in range(num_layers)])
         elif self.rnn_type == "gru_residual":
             self.grus = nn.ModuleList([nn.GRU(input_size if i==0 else hidden_size, hidden_size, 1, batch_first=batch_first) for i in range(num_layers)])
-        self.films = nn.ModuleList([FiLM(hidden_size, condition_size) for _ in range(num_layers)])
+        self.film_type = film_type
+        self.films = nn.ModuleList([FiLM(hidden_size, condition_size, film_type)  for _ in range(num_layers)])
         self.dropout_layer = nn.Dropout(dropout)
 
     def forward(self, x, states, lang_condition):

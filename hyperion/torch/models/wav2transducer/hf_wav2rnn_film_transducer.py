@@ -65,11 +65,11 @@ class HFWav2RNNFiLMTransducer(TorchModel):
         num_layers = self.hf_feats.num_encoder_layers + 1 - self.feat_fusion_start
         layer_dim = self.hf_feats.hidden_size
         if self.feat_fusion_method == "film-weighted-avg":
-            self.films = nn.ModuleList([FiLM(layer_dim, self.transducer.decoder.condition_size) for _ in range(num_layers)])
+            self.films = nn.ModuleList([FiLM(layer_dim, self.transducer.decoder.condition_size, self.transducer.decoder.film_type) for _ in range(num_layers)])
             self.feat_fuser = nn.Parameter(torch.zeros(num_layers))
         elif self.feat_fusion_method == "film-fused-feature":
             self.feat_fuser = nn.Parameter(torch.zeros(num_layers))
-            self.film = FiLM(layer_dim, self.transducer.decoder.condition_size)
+            self.film = FiLM(layer_dim, self.transducer.decoder.condition_size, self.transducer.decoder.film_type)
         elif self.feat_fusion_method == "weighted-avg":
             self.feat_fuser = nn.Parameter(torch.zeros(num_layers))
         elif self.feat_fusion_method == "linear":
@@ -251,7 +251,7 @@ class HFWav2RNNFiLMTransducer(TorchModel):
         if self.feat_fuser is None:
             return
 
-        if self.feat_fusion_method == "weighted-avg":
+        if self.feat_fusion_method in ["weighted-avg", "film-weighted-avg", "film-fused-feature"]:
             self.feat_fuser.requires_grad = False
             return
 
