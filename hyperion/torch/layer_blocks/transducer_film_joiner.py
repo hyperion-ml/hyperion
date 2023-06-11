@@ -21,7 +21,7 @@ class TransducerFiLMJoiner(nn.Module):
       vocab_size: vocabulary size
     """
 
-    def __init__(self, enc_feats: int, pred_feats: int, hid_feats: int, vocab_size: int, condition_size: int):
+    def __init__(self, enc_feats: int, pred_feats: int, hid_feats: int, vocab_size: int, condition_size: int, film_type: str = "linear"):
         
         super().__init__()
         self.enc_feats = enc_feats
@@ -32,8 +32,7 @@ class TransducerFiLMJoiner(nn.Module):
         self.enc_proj = nn.Linear(enc_feats, hid_feats)
         self.pred_proj = nn.Linear(pred_feats, hid_feats)
         self.output = nn.Linear(hid_feats, vocab_size)
-
-        self.film = FiLM(hid_feats, condition_size)
+        self.film = FiLM(hid_feats, condition_size, film_type)
         
     def get_config(self):
         config = {

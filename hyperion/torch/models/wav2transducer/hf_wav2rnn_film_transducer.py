@@ -65,11 +65,11 @@ class HFWav2RNNFiLMTransducer(TorchModel):
         num_layers = self.hf_feats.num_encoder_layers + 1 - self.feat_fusion_start
         layer_dim = self.hf_feats.hidden_size
         if self.feat_fusion_method == "film-weighted-avg":
-            self.films = nn.ModuleList([FiLM(layer_dim, self.transducer.decoder.condition_size) for _ in range(num_layers)])
+            self.films = nn.ModuleList([FiLM(layer_dim, self.transducer.decoder.condition_size, self.transducer.decoder.film_type) for _ in range(num_layers)])
             self.feat_fuser = nn.Parameter(torch.zeros(num_layers))
         elif self.feat_fusion_method == "film-fused-feature":
             self.feat_fuser = nn.Parameter(torch.zeros(num_layers))
-            self.film = FiLM(layer_dim, self.transducer.decoder.condition_size)
+            self.film = FiLM(layer_dim, self.transducer.decoder.condition_size, self.transducer.decoder.film_type)
         elif self.feat_fusion_method == "weighted-avg":
             self.feat_fuser = nn.Parameter(torch.zeros(num_layers))
         elif self.feat_fusion_method == "linear":
@@ -241,11 +241,17 @@ class HFWav2RNNFiLMTransducer(TorchModel):
                                   max_sym_per_utt=max_sym_per_utt)
         return y
 
+    def unfreeze_film(self):
+        for name, param in self.named_parameters():
+            if "film" in name:
+                logging.info(f"unfreezing {name}")
+                param.requires_grad = True
+
     def freeze_feat_fuser(self):
         if self.feat_fuser is None:
             return
 
-        if self.feat_fusion_method == "weighted-avg":
+        if self.feat_fusion_method in ["weighted-avg", "film-weighted-avg", "film-fused-feature"]:
             self.feat_fuser.requires_grad = False
             return
 
@@ -266,6 +272,9 @@ class HFWav2RNNFiLMTransducer(TorchModel):
             self.unfreeze()
         elif mode == "frozen":
             self.freeze()
+        elif mode in ["ft-film", "ft-film-grad"]:
+            self.freeze()
+            self.unfreeze_film()
         elif mode in ["ft-transducer", "ft-transducer-nograd"]:
             self.unfreeze()
             self.freeze_hf_feats()
@@ -294,8 +303,10 @@ class HFWav2RNNFiLMTransducer(TorchModel):
         if train_mode in ["full", "frozen"]:
             super()._train(train_mode)
         elif train_mode in [
+                "ft-film",
                 "ft-transducer",
                 "hf-feats-frozen",
+                "ft-film-grad",
                 "ft-transducer-nograd",
                 "hf-feats-frozen-nograd",
                 "hf-feat-extractor-frozen",
@@ -310,8 +321,10 @@ class HFWav2RNNFiLMTransducer(TorchModel):
         return [
             "full",
             "frozen",
+            "ft-film",
             "ft-embed-affine",
             "ft-transducer",
+            "ft-film-grad",
             "hf-feats-frozen",
             "ft-transducer-nograd",
             "hf-feats-frozen-nograd",

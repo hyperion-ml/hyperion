@@ -246,7 +246,7 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
         ).indices
 
     def get_hard_prototypes(self, class_idx):
-        return self.hard_prototypes[class_idx].flatten().numpy()
+        return self.hard_prototypes[class_idx].flatten().cpu().numpy()
 
     def _sample_chunk_length(self):
         if self.var_batch_size:

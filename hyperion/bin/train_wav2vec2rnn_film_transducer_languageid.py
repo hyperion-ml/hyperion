@@ -18,28 +18,29 @@ from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch import TorchModelLoader as TML
 from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
+from hyperion.torch.metrics import CategoricalAccuracy
 from hyperion.torch.models import (HFWav2Vec2RNNRNNTransducer,
                                    HFWav2Vec2RNNTransducer,
-                                   HFWav2Vec2RNNFiLMTransducer)
+                                   HFWav2Vec2RNNFiLMTransducer,
+                                   HFWav2Vec2RNNTransducerResnet1D,
+                                   HFWav2Vec2RNNFiLMTransducerResnet1D)
 from hyperion.torch.trainers import TransducerLanguageIDTrainer as Trainer
 from hyperion.torch.utils import ddp
 from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
                           namespace_to_dict)
 from torch.nn.utils.rnn import pad_sequence
 
+import warnings
+
+warnings.filterwarnings('ignore', category=UserWarning, module='torch.distributed.distributed_c10d')
+
 
 model_dict = {
-    "hf_wav2vec2rnn_transducer": HFWav2Vec2RNNTransducer,
-    "hf_wav2vec2rnn_filmed_transducer": HFWav2Vec2RNNFiLMTransducer,
-    "hf_wav2vec2rnn_rnn_transducer": HFWav2Vec2RNNRNNTransducer,
-    # "hf_hubert2rnn_transducer": HFWav2Vec2RNNTransducer,
-    # "hf_hubert2rnn_rnn_transducer": Hubert2RNNRNNTransducer,
-    # "hf_wavlm2rnn_transducer": HFHubert2RNNTransducer,
-    # "hf_wavlm2rnn_rnn_transducer": HFWavLM2RNNRNNTransducer,
+    "hf_wav2vec2rnn_film_transducer_resnet1d": HFWav2Vec2RNNFiLMTransducerResnet1D,
 }
 
 
-def transducer_collate(batch):
+def transducer_language_collate(batch):
     audio = []
     audio_length = []
     target = []
@@ -103,29 +104,18 @@ def init_data(partition, rank, num_gpus, **kwargs):
     data_loader = torch.utils.data.DataLoader(dataset,
                                               batch_sampler=sampler,
                                               **largs,
-                                              collate_fn=transducer_collate)
+                                              collate_fn=transducer_language_collate)
     return data_loader
 
-
-# def init_model_from_transducer(in_model_file, rank, model_class, **kwargs):
-#     model_args = model_class.filter_finetune_args(**kwargs["model"])
-#     # model_args = model_class.filter_args(**kwargs["model"])
-#     if rank == 0:
-#         logging.info("model network ft args={}".format(model_args))
-#     model = TML.load(in_model_file)
-#     model.change_config(**model_args)
-#     if rank == 0:
-#         logging.info("model={}".format(model))
-#     return model
-
-
-def init_model(blank_id, vocab_size, rank, model_class, **kwargs):
+def init_model(blank_id, vocab_size, num_classes, loss_class_weight, rank, model_class, **kwargs):
     model_args = model_class.filter_args(**kwargs["model"])
     if rank == 0:
         logging.info("model network args={}".format(model_args))
     # TODO: check model_args
     model_args["transducer"]["decoder"]["blank_id"] = blank_id
     model_args["transducer"]["decoder"]["vocab_size"] = vocab_size
+    model_args["languageid"]["num_classes"] = num_classes
+    model_args["loss_class_weight"] = loss_class_weight
     model = model_class(**model_args)
     if rank == 0:
         logging.info("model={}".format(model))
@@ -155,16 +145,20 @@ def train_model(gpu_id, args):
     # device = torch.device("cuda:{}".format(gpu_id))
     # world_size=1
 
+    # import pdb; pdb.set_trace()
     train_loader = init_data(partition="train", **kwargs)
     val_loader = init_data(partition="val", **kwargs)
     # model = init_model_from_transducer(**kwargs)
     model = init_model(train_loader.dataset.sp.piece_to_id("<blk>"),
-                       train_loader.dataset.sp.get_piece_size(), **kwargs)
+                       train_loader.dataset.sp.get_piece_size(),
+                       list(train_loader.dataset.num_classes.values())[0],
+                       train_loader.batch_sampler.class_info["weights"],
+                        **kwargs)
 
     trn_args = Trainer.filter_args(**kwargs["trainer"])
     if rank == 0:
         logging.info("trainer args={}".format(trn_args))
-    metrics = {}  #{"acc": CategoricalAccuracy()}
+    metrics = {"acc": CategoricalAccuracy()}
     trainer = Trainer(
         model,
         device=device,

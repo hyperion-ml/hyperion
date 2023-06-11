@@ -15,6 +15,8 @@ from torch.distributed.elastic.multiprocessing.errors import record
 from ...utils.misc import filter_func_args
 from ..utils import MetricAcc, tensors_subset
 from .torch_trainer import TorchTrainer
+# from ..losses.focal_loss import FocalLoss
+# from torchvision.ops.focal_loss import sigmoid_focal_loss
 
 
 class LanguageIDTrainer(TorchTrainer):
@@ -78,10 +80,17 @@ class LanguageIDTrainer(TorchTrainer):
         cpu_offload=False,
         input_key="x",
         target_key="language",
+        loss_weight=None,
+        loss_weight_exp=0.5,
     ):
 
-        if loss is None:
+        if loss == "CE" or loss is None:
             loss = nn.CrossEntropyLoss()
+        elif loss == "weightedCE":
+            loss = nn.CrossEntropyLoss(weight=torch.tensor(loss_weight.values, dtype=torch.float).to(device)**(-loss_weight_exp))
+            logging.info(torch.tensor(loss_weight.values).to(device)**(-loss_weight_exp))
+        elif loss == "focal_loss":
+            loss = FocalLoss(alpha=torch.tensor(focal_weight.values).to(device)**(-loss_weight_exp), gamma=2, size_average=True)
         super_args = filter_func_args(super().__init__, locals())
         super().__init__(**super_args)
 
@@ -196,6 +205,11 @@ class LanguageIDTrainer(TorchTrainer):
         return logs
 
     @staticmethod
+    def filter_args(**kwargs):
+        args = filter_func_args(LanguageIDTrainer.__init__, kwargs)
+        return args
+
+    @staticmethod
     def add_class_args(parser, prefix=None, train_modes=None, skip=set()):
         if prefix is not None:
             outer_parser = parser
@@ -210,7 +224,16 @@ class LanguageIDTrainer(TorchTrainer):
             parser.add_argument("--target-key",
                                 default="language",
                                 help="dict. key for nnet targets")
-
+        if "loss" not in skip:
+            parser.add_argument("--loss",
+                                default=None,
+                                choices=["CE", "weightedCE", "focal_loss"],
+                                help="loss function")
+        if "loss_weight_exp" not in skip:
+            parser.add_argument("--loss-weight-exp",
+                                default=0.5,
+                                type=float,
+                                help="focal loss weight exponent")
         if prefix is not None:
             outer_parser.add_argument("--" + prefix,
                                       action=ActionParser(parser=parser))

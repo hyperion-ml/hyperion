@@ -5,3 +5,4 @@
 """
 
 from .hf_wav2vec2rnn_transducer_languageid import HFWav2Vec2RNNTransducerResnet1D
+from .hf_wav2vec2rnn_film_transducer_languageid import HFWav2Vec2RNNFiLMTransducerResnet1D
