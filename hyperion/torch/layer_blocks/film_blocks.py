@@ -6,18 +6,18 @@ class FiLM(nn.Module):
         # condition_size: the size of the language id vector
         # input_size: the size of the RNN input to the FiLM layer
         super(FiLM, self).__init__()
-        # if film_type == "tanh":
-        #     self.linear_scale = nn.Sequential(
-        #         nn.Linear(condition_size, input_size),
-        #         nn.Tanh()
-        #     )
-        #     self.linear_shift = nn.Sequential(
-        #         nn.Linear(condition_size, input_size),
-        #         nn.Tanh()
-        #     )
-        # elif film_type == "linear":
-        self.linear_scale = nn.Linear(condition_size, input_size)
-        self.linear_shift = nn.Linear(condition_size, input_size)
+        if film_type == "tanh":
+            self.linear_scale = nn.Sequential(
+                nn.Linear(condition_size, input_size),
+                nn.Tanh()
+            )
+            self.linear_shift = nn.Sequential(
+                nn.Linear(condition_size, input_size),
+                nn.Tanh()
+            )
+        elif film_type == "linear":
+            self.linear_scale = nn.Linear(condition_size, input_size)
+            self.linear_shift = nn.Linear(condition_size, input_size)
 
     def forward(self, x, lang_condition):
         # import pdb; pdb.set_trace()
