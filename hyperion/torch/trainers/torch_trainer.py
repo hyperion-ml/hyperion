@@ -246,6 +246,9 @@ class TorchTrainer(object):
 
         val_logs = {}
         self.loggers.on_train_begin(epochs=self.epochs)
+        if self.cur_epoch == 0:
+            self.save_checkpoint()
+        # exit()
         for epoch in range(self.cur_epoch, self.epochs):
             self.set_epoch(train_data)
             self.loggers.on_epoch_begin(epoch, batches=len(train_data))
