@@ -7,19 +7,11 @@ import logging
 import os
 import sys
 import time
-
 # [Added Sonal May21]
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from jsonargparse import (
-    ActionConfigFile,
-    ActionParser,
-    ArgumentParser,
-    namespace_to_dict,
-)
-
 import torch
 import torch.nn as nn
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
@@ -37,6 +29,8 @@ from hyperion.torch.utils import open_device
 from hyperion.torch.utils.misc import compute_stats_adv_attack, l2_norm
 from hyperion.utils import TrialKey, TrialNdx, TrialScores, Utt2Info
 from hyperion.utils.list_utils import ismember
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
 
 torch.backends.cudnn.enabled = False
 

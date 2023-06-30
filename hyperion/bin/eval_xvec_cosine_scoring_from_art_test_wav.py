@@ -11,17 +11,10 @@ import time
 
 import numpy as np
 import pandas as pd
-from art.classifiers import PyTorchClassifier
-from art.estimators.classification import PyTorchClassifier
-from jsonargparse import (
-    ActionConfigFile,
-    ActionParser,
-    ArgumentParser,
-    namespace_to_dict,
-)
-
 import torch
 import torch.nn as nn
+from art.classifiers import PyTorchClassifier
+from art.estimators.classification import PyTorchClassifier
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.io import AudioWriter as AW
 from hyperion.io import RandomAccessAudioReader as AR
@@ -29,15 +22,16 @@ from hyperion.io import RandomAccessDataReaderFactory as DRF
 from hyperion.io import VADReaderFactory as VRF
 from hyperion.np.classifiers import BinaryLogisticRegression as LR
 from hyperion.torch import TorchModelLoader as TML
-from hyperion.torch.adv_attacks.art_attack_factory import (
-    ARTAttackFactory as AttackFactory,
-)
+from hyperion.torch.adv_attacks.art_attack_factory import \
+    ARTAttackFactory as AttackFactory
 from hyperion.torch.layers import LinBinCalibrator as Calibrator
 from hyperion.torch.narchs import AudioFeatsMVN as AF
 from hyperion.torch.utils import open_device
 from hyperion.torch.utils.misc import compute_stats_adv_attack, l2_norm
 from hyperion.utils import TrialKey, TrialNdx, TrialScores, Utt2Info
 from hyperion.utils.list_utils import ismember
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
 
 
 def init_device(use_gpu):

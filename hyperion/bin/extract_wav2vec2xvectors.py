@@ -11,15 +11,8 @@ import time
 
 import numpy as np
 import pandas as pd
-import torchaudio.transforms as tat
-from jsonargparse import (
-    ActionConfigFile,
-    ActionParser,
-    ArgumentParser,
-    namespace_to_dict,
-)
-
 import torch
+import torchaudio.transforms as tat
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialAudioReader as AR
@@ -28,26 +21,8 @@ from hyperion.np.augment import SpeechAugment
 from hyperion.torch import TorchModelLoader as TML
 from hyperion.torch.utils import open_device
 from hyperion.utils import Utt2Info
-
-resamplers = {}
-
-
-def get_resampler(source_fs, target_fs):
-    if source_fs in resamplers:
-        return resamplers[source_fs]
-
-    resampler = tat.Resample(
-        int(source_fs),
-        int(target_fs),
-        lowpass_filter_width=64,
-        rolloff=0.9475937167399596,
-        resampling_method="kaiser_window",
-        beta=14.769656459379492,
-    )
-    resampler_f = lambda x: resampler(torch.from_numpy(x)).numpy()
-    resamplers[source_fs] = resampler_f
-    return resampler_f
-
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
 
 resamplers = {}
 
@@ -168,7 +143,10 @@ def extract_xvectors(
 
             if vad_spec is not None:
                 logging.info("opening VAD stream: %s", vad_spec)
-                v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix,)
+                v_reader = VRF.create(
+                    vad_spec,
+                    path_prefix=vad_path_prefix,
+                )
 
             while not reader.eof():
                 t1 = time.time()
@@ -240,7 +218,7 @@ def extract_xvectors(
                     writer.write([key], [y])
                     if write_speech_dur is not None:
                         keys.append(key)
-                        info.append(str(x.shape[1] * fs))
+                        info.append(str(x.shape[1] / fs))
 
                     t8 = time.time()
                     read_time = t2 - t1

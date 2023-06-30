@@ -53,7 +53,7 @@ class VoxSRC22DataPrep(DataPrep):
 
     @staticmethod
     def dataset_name():
-        return "voxceleb2"
+        return "voxsrc22"
 
     @staticmethod
     def add_class_args(parser):
@@ -117,11 +117,13 @@ class VoxSRC22DataPrep(DataPrep):
                 vox1_segmentid.append(s)
 
         vox1_rec_files = [
-            glob.glob(f"{self.vox1_corpus_dir}/**/{s}") for s in vox1_segmentid
+            glob.glob(f"{self.vox1_corpus_dir}/**/{s}")[0] for s in vox1_segmentid
         ]
-        vox22_rec_files = [
-            glob.glob(f"{self.corpus_dir}/**/{s}") for s in vox22_segmentid
-        ]
+        # vox22_rec_files = [
+        #     glob.glob(f"{self.corpus_dir}/**/{s}")[0] for s in vox22_segmentid
+        # ]
+        vox22_rec_files = [f"{self.corpus_dir}/{s}" for s in vox22_segmentid]
+
         rec_ids = vox22_segmentid + vox1_segmentid
         rec_files = vox22_rec_files + vox1_rec_files
 
@@ -135,7 +137,11 @@ class VoxSRC22DataPrep(DataPrep):
             recs["target_sample_freq"] = self.target_sample_freq
 
         logging.info("making SegmentsSet")
-        segments = pd.DataFrame({"id": rec_ids,})
+        segments = pd.DataFrame(
+            {
+                "id": rec_ids,
+            }
+        )
         segments = SegmentSet(segments)
         segments.sort()
 
@@ -150,7 +156,8 @@ class VoxSRC22DataPrep(DataPrep):
         logging.info("saving dataset at %s", self.output_dir)
         dataset.save(self.output_dir)
         logging.info(
-            "datasets containts %d segments", len(segments),
+            "datasets containts %d segments",
+            len(segments),
         )
 
     #             wav_file = voxsrc22_corpus_dir / file_id

@@ -4,26 +4,14 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import logging
-from typing import Optional, Union, List
 from pathlib import Path
-
-from jsonargparse import (
-    ActionConfigFile,
-    ActionParser,
-    ArgumentParser,
-    namespace_to_dict,
-)
+from typing import List, Optional, Union
 
 from hyperion.hyp_defs import config_logger
-from hyperion.utils import (
-    PathLike,
-    InfoTable,
-    RecordingSet,
-    FeatureSet,
-    ClassInfo,
-    EnrollmentMap,
-    SegmentSet,
-)
+from hyperion.utils import (ClassInfo, EnrollmentMap, FeatureSet, InfoTable,
+                            PathLike, RecordingSet, SegmentSet)
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
 
 subcommands = ["cat"]
 table_dict = {

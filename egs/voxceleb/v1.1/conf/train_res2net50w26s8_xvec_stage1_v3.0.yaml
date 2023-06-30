@@ -68,5 +68,5 @@ trainer:
   grad_clip: 250
   use_amp: true
   log_interval: 1000
-  epochs: 35
+  epochs: 30
   eff_batch_size: 256

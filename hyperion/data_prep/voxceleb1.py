@@ -330,7 +330,7 @@ class VoxCeleb1DataPrep(DataPrep):
         logging.info("making dataset")
         dataset = Dataset(
             segments,
-            classes={"speaker": speakers, "languages": languages},
+            classes={"speaker": speakers, "language_est": languages},
             recordings={"recordings": recs},
             enrollments=enrollments,
             trials=trials,
