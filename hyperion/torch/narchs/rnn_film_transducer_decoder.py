@@ -109,6 +109,9 @@ class RNNFiLMTransducerDecoder(NetArch):
             self.lang_embedding = nn.Embedding(langs_size, condition_size)
         elif self.film_cond_type == "lid_pred":
             self.lang_embedding = nn.Linear(langs_size, condition_size)
+        elif self.film_cond_type == "lid_pred_embed":
+            # self.lang_embedding = nn.Linear(langs_size, condition_size)
+            pass
         if self.rnnt_loss == "k2_pruned":
             self.simple_am_proj = nn.Linear(in_feats, vocab_size)
             self.simple_lm_proj = nn.Linear(self.predictor.out_feats,
@@ -309,7 +312,8 @@ class RNNFiLMTransducerDecoder(NetArch):
         self, x: torch.Tensor, x_lengths: torch.Tensor, y: k2.RaggedTensor, lang: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         # embed lang
-        lang_embedding = self.lang_embedding(lang)
+        if self.film_cond_type in ["one-hot", "lid_pred"]:
+            lang_embedding = self.lang_embedding(lang)
         # get y_lengths
         row_splits = y.shape.row_splits(1)
         y_lengths = row_splits[1:] - row_splits[:-1]
@@ -342,7 +346,8 @@ class RNNFiLMTransducerDecoder(NetArch):
                max_sym_per_utt: int = 1000, ) -> List[int]:
 
         # embed lang
-        lang_embedding = self.lang_embedding(lang)
+        if self.film_cond_type in ["one-hot", "lid_pred"]:
+            lang_embedding = self.lang_embedding(lang)
         if method == "time_sync_beam_search":
             return self.decode_time_sync_beam_search(x,
                                                      lang_embedding,
@@ -833,7 +838,7 @@ class RNNFiLMTransducerDecoder(NetArch):
                             
         parser.add_argument("--film-cond-type",
                             default="one-hot",
-                            choices=["one-hot", "lid_pred"],
+                            choices=["one-hot", "lid_pred", "lid_pred_embed"],
                             help=("type of the condition of FiLM layer"))
 
         parser.add_argument("--film-type",

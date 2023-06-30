@@ -140,7 +140,8 @@ class HFWav2RNNFiLMTransducerLanguageID(TorchModel):
             # There is only one layer of features
             return hid_feats[0]
 
-        lang_condition = self.transducer.decoder.lang_embedding(lang)
+        if self.transducer.decoder.film_cond_type in ["one-hot", "lid_pred"]:
+            lang_condition = self.transducer.decoder.lang_embedding(lang)
         hid_feats = hid_feats[self.feat_fusion_start_transducer:]
         if self.feat_fusion_method_transducer == "film-weighted-avg":
             film_hid_feats = tuple(self.films[i](hid_feats[i], lang_condition) for i in range(len(self.films)))
@@ -230,7 +231,7 @@ class HFWav2RNNFiLMTransducerLanguageID(TorchModel):
         languageid=None,
         return_feat_layers=None,
         return_enc_layers=None,
-        return_classif_layers=None,
+        return_classif_layers=[0],
         return_logits=True,
     ):
         """Forward function. If returns the logits posteriors of the classes.
@@ -261,7 +262,7 @@ class HFWav2RNNFiLMTransducerLanguageID(TorchModel):
             feats_languageid = feats_languageid[:, :, lid_start: lid_start + lid_len]
 
 
-        lid_logits = self.languageid(
+        output = self.languageid(
             feats_languageid,
             None,
             languageid,
@@ -269,17 +270,21 @@ class HFWav2RNNFiLMTransducerLanguageID(TorchModel):
             return_classif_layers=return_classif_layers,
             return_logits=return_logits,
         )
+        # output["h_classif"] = h_classif
+        # output["logits"] = y_pred
 
-        loss_lid = self.loss_lid(lid_logits, languageid)
+        #loss_lid = self.loss_lid(lid_logits, languageid)
+        loss_lid = self.loss_lid(output["logits"], languageid)
         
-
-        feats_transducer = self._fuse_transducer_hid_feats(hid_feats, lid_logits) # (N, T, C)
+        # feats_transducer = self._fuse_transducer_hid_feats(hid_feats, lid_logits) # (N, T, C)
+        feats_transducer = self._fuse_transducer_hid_feats(hid_feats, output["h_classif"]) # (N, T, C)
             
         trans_output = self.transducer(
             feats_transducer,
             feat_lengths,
             text,
-            lid_logits
+            output["h_classif"]
+            # lid_logits
         )
 
         if return_feat_layers:
@@ -293,7 +298,8 @@ class HFWav2RNNFiLMTransducerLanguageID(TorchModel):
                                                 loss_transducer_simple=trans_output.loss_simple, 
                                                 loss_transducer_pruned=trans_output.loss_pruned,
                                                 h_feats=trans_output.h_feats,
-                                                logits=lid_logits if return_logits else None)
+                                                logits=output["logits"] if return_logits else None)
+                                                # logits=lid_logits if return_logits else None)
         return output
 
     def infer(self,
@@ -341,6 +347,12 @@ class HFWav2RNNFiLMTransducerLanguageID(TorchModel):
                                   
         return text, lid
 
+    def unfreeze_film(self):
+        for name, param in self.named_parameters():
+            if "film" in name:
+                logging.info(f"unfreezing {name}")
+                param.requires_grad = True
+
     # def freeze_feat_fuser(self):
     #     if self.feat_fuser is None:
     #         return
@@ -366,6 +378,9 @@ class HFWav2RNNFiLMTransducerLanguageID(TorchModel):
             self.unfreeze()
         elif mode == "frozen":
             self.freeze()
+        elif mode in ["ft-film", "ft-film-grad"]:
+            self.freeze()
+            self.unfreeze_film()
         elif mode in ["ft-transducer", "ft-transducer-nograd"]:
             self.unfreeze()
             self.freeze_hf_feats()
@@ -394,8 +409,10 @@ class HFWav2RNNFiLMTransducerLanguageID(TorchModel):
         if train_mode in ["full", "frozen"]:
             super()._train(train_mode)
         elif train_mode in [
+                "ft-film",
                 "ft-transducer",
                 "hf-feats-frozen",
+                "ft-film-grad",
                 "ft-transducer-nograd",
                 "hf-feats-frozen-nograd",
                 "hf-feat-extractor-frozen",
@@ -410,8 +427,10 @@ class HFWav2RNNFiLMTransducerLanguageID(TorchModel):
         return [
             "full",
             "frozen",
+            "ft-film",
             "ft-embed-affine",
             "ft-transducer",
+            "ft-film-grad",
             "hf-feats-frozen",
             "ft-transducer-nograd",
             "hf-feats-frozen-nograd",
