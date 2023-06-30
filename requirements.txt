@@ -16,7 +16,9 @@ yapf
 jsonargparse>=3.5.0
 wandb>=0.10.30
 librosa>=0.8.1
+isort
 black
 twine
 wheel
 transformers>=4.16.2
+sentencepiece>=0.1.97

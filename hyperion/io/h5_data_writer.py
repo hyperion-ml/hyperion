@@ -3,7 +3,7 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import sys
+from typing import Union, Optional, List
 
 import h5py
 import numpy as np
@@ -11,7 +11,7 @@ import numpy as np
 from ..hyp_defs import float_save
 from ..utils.kaldi_io_funcs import is_token
 from ..utils.kaldi_matrix import KaldiCompressedMatrix, KaldiMatrix
-from ..utils.scp_list import SCPList
+from ..utils import PathLike
 from .data_writer import DataWriter
 
 
@@ -27,18 +27,18 @@ class H5DataWriter(DataWriter):
                           {auto (default), speech_feat,
                            2byte-auto, 2byte-signed-integer,
                            1byte-auto, 1byte-unsigned-integer, 1byte-0-1}.
-      scp_sep: Separator for scp files (default ' ').
     """
 
-    def __init__(self, archive_path, script_path=None, **kwargs):
+    def __init__(
+        self, archive_path: PathLike, script_path: Optional[PathLike] = None, **kwargs
+    ):
 
         super().__init__(archive_path, script_path, **kwargs)
 
         self.f = h5py.File(archive_path, "w")
-        if script_path is None:
-            self.f_script = None
-        else:
-            self.f_script = open(script_path, "w")
+        if script_path is not None and not self.script_is_scp:
+            row = self.script_sep.join(["id", "storage_path"])
+            self.f_script.write(f"{row}\n")
 
     def __exit__(self, exc_type, exc_value, traceback):
         """Function required when exiting from contructions of type
@@ -64,7 +64,7 @@ class H5DataWriter(DataWriter):
         if self.f_script is not None:
             self.f_script.flush()
 
-    def _convert_data(self, data):
+    def _convert_data(self, data: np.array):
         """Converts data to the format for saving.
         Compresses the data it needed.
         Args:
@@ -85,7 +85,11 @@ class H5DataWriter(DataWriter):
         else:
             raise ValueError("Data is not ndarray")
 
-    def write(self, keys, data):
+    def write(
+        self,
+        keys: Union[str, List[str], np.array],
+        data: Union[np.array, List[np.array]],
+    ):
         """Writes data to file.
 
         Args:
@@ -108,9 +112,11 @@ class H5DataWriter(DataWriter):
                     dset.attrs[k] = v
 
             if self.f_script is not None:
-                self.f_script.write(
-                    "%s%s%s\n" % (key_i, self.scp_sep, self.archive_path)
-                )
+                if self.script_is_scp:
+                    self.f_script.write(f"{key_i} {self.archive_path}\n")
+                else:
+                    row = self.script_sep.join([key_i, self.archive_path])
+                    self.f_script.write(f"{row}\n")
 
             if self._flush:
                 self.flush()

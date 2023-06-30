@@ -14,6 +14,7 @@ import pandas as pd
 import torch
 import torch.nn as nn
 from art.classifiers import PyTorchClassifier
+from art.estimators.classification import PyTorchClassifier
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.io import AudioWriter as AW
 from hyperion.io import RandomAccessAudioReader as AR
@@ -101,8 +102,12 @@ class MyModel(nn.Module):
         self.threshold = threshold
 
     def forward(self, s_t):
+        if s_t.dim() == 4:
+            # this is for attacks that only work in 4D inputs
+            s_t = s_t[0, 0]
+
         f_t = s_t
-        f_t = self.feat_extractor(s_t)
+        f_t, _ = self.feat_extractor(s_t)
         if self.vad_t is not None:
             n_vad_frames = len(self.vad_t)
             n_feat_frames = f_t.shape[1]
@@ -115,6 +120,10 @@ class MyModel(nn.Module):
 
         f_t = f_t.transpose(1, 2).contiguous()
         x_t = self.xvector_model.extract_embed(f_t, embed_layer=self.embed_layer)
+        if self.x_e is None:
+            # this is for auto-pgd, when it runs a dummy evaluation
+            self.x_e = x_t
+
         x_t = l2_norm(x_t)
         x_e = l2_norm(self.x_e)
         tar_score = torch.sum(x_e * x_t, dim=-1, keepdim=True)
@@ -163,15 +172,15 @@ def eval_cosine_scoring(
     model.to(device)
     model.eval()
 
-    tar = np.asarray([1], dtype=np.int)
-    non = np.asarray([0], dtype=np.int)
+    tar = np.asarray([1], dtype=int)
+    non = np.asarray([0], dtype=int)
 
     logging.info("loading key and enrollment x-vectors")
     key, x_e = read_data(v_file, key_file, enroll_file, seg_part_idx, num_seg_parts)
     x_e = torch.as_tensor(x_e, dtype=torch.get_default_dtype())
 
     audio_args = AR.filter_args(**kwargs)
-    audio_reader = AR(test_wav_file)
+    audio_reader = AR(test_wav_file, **audio_args)
     wav_scale = audio_reader.wav_scale
 
     if save_adv_wav:
@@ -185,7 +194,7 @@ def eval_cosine_scoring(
 
     if vad_spec is not None:
         logging.info("opening VAD stream: %s" % (vad_spec))
-        v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix, scp_sep=" ")
+        v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix)
 
     scores = np.zeros((key.num_models, key.num_tests), dtype="float32")
     attack_stats = pd.DataFrame(
@@ -206,7 +215,7 @@ def eval_cosine_scoring(
 
     for j in range(key.num_tests):
         t1 = time.time()
-        logging.info("scoring test utt %s" % (key.seg_set[j]))
+        logging.info("scoring test utt %s", key.seg_set[j])
         s, fs = audio_reader.read([key.seg_set[j]])
         s = s[0]
         fs = fs[0]
@@ -223,18 +232,14 @@ def eval_cosine_scoring(
             vad = v_reader.read([key.seg_set[j]])[0]
             tot_frames = len(vad)
             speech_frames = np.sum(vad)
-            vad = torch.as_tensor(vad.astype(np.bool, copy=False), dtype=torch.bool).to(
-                device
-            )
+            vad = torch.tensor(vad, dtype=torch.bool).to(device)
             model.vad_t = vad
             logging.info(
-                "utt %s detected %d/%d (%.2f %%) speech frames"
-                % (
-                    key.seg_set[j],
-                    speech_frames,
-                    tot_frames,
-                    speech_frames / tot_frames * 100,
-                )
+                "utt %s detected %d/%d (%.2f %%) speech frames",
+                key.seg_set[j],
+                speech_frames,
+                tot_frames,
+                speech_frames / tot_frames * 100,
             )
 
         t2 = time.time()
@@ -245,7 +250,7 @@ def eval_cosine_scoring(
             model=model,
             loss=nn.CrossEntropyLoss(),
             optimizer=None,
-            input_shape=[1, s.shape[1]],
+            input_shape=(s.shape[1],),
             nb_classes=2,
             clip_values=(-wav_scale, wav_scale),
             device_type=device_type,
@@ -253,10 +258,11 @@ def eval_cosine_scoring(
 
         attack_args["num_samples"] = s.shape[-1]
         attack = AttackFactory.create(model_art, **attack_args)
+        # s = s[None, None, :, :]
         for i in range(key.num_models):
             if key.tar[i, j] or key.non[i, j]:
                 t3 = time.time()
-                model.x_e = x_e[i].to(device)
+                model.x_e = x_e[i : i + 1].to(device)
                 if key.tar[i, j]:
                     if attack.targeted:
                         t = non
@@ -269,6 +275,7 @@ def eval_cosine_scoring(
                         t = non
 
                 s_adv = attack.generate(s, t)
+                # s_adv = s_adv[0, 0]
                 s_adv = torch.from_numpy(s_adv).to(device)
                 with torch.no_grad():
                     scores[i, j] = model(s_adv).cpu().numpy()[0, 1]
@@ -326,13 +333,13 @@ def eval_cosine_scoring(
     if num_seg_parts > 1:
         score_file = "%s-%03d-%03d" % (score_file, 1, seg_part_idx)
         stats_file = "%s-%03d-%03d" % (stats_file, 1, seg_part_idx)
-    logging.info("saving scores to %s" % (score_file))
+    logging.info("saving scores to %s", score_file)
     s = TrialScores(
         key.model_set, key.seg_set, scores, score_mask=np.logical_or(key.tar, key.non)
     )
     s.save_txt(score_file)
 
-    logging.info("saving stats to %s" % (stats_file))
+    logging.info("saving stats to %s", stats_file)
     attack_stats.to_csv(stats_file)
 
 
@@ -346,9 +353,9 @@ if __name__ == "__main__":
     )
 
     parser.add_argument("--cfg", action=ActionConfigFile)
-    parser.add_argument("--v-file", dest="v_file", required=True)
-    parser.add_argument("--key-file", dest="key_file", default=None)
-    parser.add_argument("--enroll-file", dest="enroll_file", required=True)
+    parser.add_argument("--v-file", required=True)
+    parser.add_argument("--key-file", default=None)
+    parser.add_argument("--enroll-file", required=True)
     parser.add_argument("--test-wav-file", required=True)
 
     AR.add_class_args(parser)
@@ -356,10 +363,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--vad", dest="vad_spec", default=None)
     parser.add_argument(
-        "--vad-path-prefix",
-        dest="vad_path_prefix",
-        default=None,
-        help=("scp file_path prefix for vad"),
+        "--vad-path-prefix", default=None, help=("scp file_path prefix for vad"),
     )
 
     parser.add_argument("--model-path", required=True)

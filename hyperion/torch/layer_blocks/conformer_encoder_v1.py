@@ -94,14 +94,14 @@ class ConformerEncoderBlockV1(nn.Module):
         self.ff_macaron = ff_macaron
         if ff_macaron:
             self.ff_scale = 0.5
-            self.feed_forward_macaron = self._make_ff(
-                feed_forward, num_feats, d_ff, ff_kernel_size, hid_act, dropout_rate
-            )
+            self.feed_forward_macaron = self._make_ff(feed_forward, num_feats,
+                                                      d_ff, ff_kernel_size,
+                                                      hid_act, dropout_rate)
             self.norm_ff_macaron = nn.LayerNorm(num_feats)
 
-        self.feed_forward = self._make_ff(
-            feed_forward, num_feats, d_ff, ff_kernel_size, hid_act, dropout_rate
-        )
+        self.feed_forward = self._make_ff(feed_forward, num_feats, d_ff,
+                                          ff_kernel_size, hid_act,
+                                          dropout_rate)
 
         conv_blocks = []
         for i in range(conv_repeats):
@@ -145,7 +145,7 @@ class ConformerEncoderBlockV1(nn.Module):
         """Creates multihead attention block from att_type string
 
         Args:
-           att_type: string in ['scaled-dot-prod-att-v1', 'local-scaled-dot-prod-att-v1']
+           att_type: string in ['scaled-dot-prod-att-v1', 'local-scaled-dot-prod-att-v1', 'block-scaled-dot-prod-att-v1']
            num_feats: input/output feat. dimension (aka d_model)
            num_heads: number of heads
            dropout_rate: dropout rate for attention block
@@ -170,11 +170,15 @@ class ConformerEncoderBlockV1(nn.Module):
                     d_k,
                     causal_pos_enc,
                     dropout_rate,
-                    time_dim=1,
                 )
 
             return ScaledDotProdAttV1(
-                num_feats, num_feats, num_heads, d_k, d_k, dropout_rate, time_dim=1
+                num_feats,
+                num_feats,
+                num_heads,
+                d_k,
+                d_k,
+                dropout_rate,
             )
 
         if att_type == "local-scaled-dot-prod-v1":
@@ -188,7 +192,6 @@ class ConformerEncoderBlockV1(nn.Module):
                     context,
                     causal_pos_enc,
                     dropout_rate,
-                    time_dim=1,
                 )
 
             return LocalScaledDotProdAttV1(
@@ -199,11 +202,34 @@ class ConformerEncoderBlockV1(nn.Module):
                 d_k,
                 context,
                 dropout_rate,
-                time_dim=1,
+            )
+
+        if att_type == "block-scaled-dot-prod-v1":
+            if pos_enc_type == "rel":
+                return BlockScaledDotProdAttRelPosEncV1(
+                    num_feats,
+                    num_feats,
+                    num_heads,
+                    d_k,
+                    d_k,
+                    context,
+                    causal_pos_enc,
+                    dropout_rate,
+                )
+
+            return BlockScaledDotProdAttV1(
+                num_feats,
+                num_feats,
+                num_heads,
+                d_k,
+                d_k,
+                context,
+                dropout_rate,
             )
 
     @staticmethod
-    def _make_ff(ff_type, num_feats, hid_feats, kernel_size, activation, dropout_rate):
+    def _make_ff(ff_type, num_feats, hid_feats, kernel_size, activation,
+                 dropout_rate):
         """Creates position-wise feed forward block from ff_type string
 
         Args:
@@ -219,19 +245,27 @@ class ConformerEncoderBlockV1(nn.Module):
 
         """
         if ff_type == "linear":
-            return PositionwiseFeedForward(
-                num_feats, hid_feats, activation, dropout_rate, time_dim=1
-            )
+            return PositionwiseFeedForward(num_feats,
+                                           hid_feats,
+                                           activation,
+                                           dropout_rate,
+                                           time_dim=1)
 
         if ff_type == "conv1dx2":
-            return Conv1dx2(
-                num_feats, hid_feats, kernel_size, activation, dropout_rate, time_dim=1
-            )
+            return Conv1dx2(num_feats,
+                            hid_feats,
+                            kernel_size,
+                            activation,
+                            dropout_rate,
+                            time_dim=1)
 
         if ff_type == "conv1d-linear":
-            return Conv1dLinear(
-                num_feats, hid_feats, kernel_size, activation, dropout_rate, time_dim=1
-            )
+            return Conv1dLinear(num_feats,
+                                hid_feats,
+                                kernel_size,
+                                activation,
+                                dropout_rate,
+                                time_dim=1)
 
     def forward(self, x, pos_emb=None, mask=None):
         """Forward pass function

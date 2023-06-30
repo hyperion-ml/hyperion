@@ -78,7 +78,12 @@ def init_model(num_classes, in_model_file, rank, **kwargs):
 
 
 def init_hard_prototype_mining(model, train_loader, val_loader, rank):
-    if not train_loader.batch_sampler.hard_prototype_mining:
+    try:
+        hard_prototype_mining = train_loader.batch_sampler.hard_prototype_mining
+    except:
+        hard_prototype_mining = False
+
+    if not hard_prototype_mining:
         return
 
     if rank == 0:
@@ -117,7 +122,11 @@ def train_model(gpu_id, args):
         logging.info("trainer args={}".format(trn_args))
     metrics = {"acc": CategoricalAccuracy()}
     trainer = Trainer(
-        model, device=device, metrics=metrics, ddp=world_size > 1, **trn_args,
+        model,
+        device=device,
+        metrics=metrics,
+        ddp=world_size > 1,
+        **trn_args,
     )
     trainer.load_last_checkpoint()
     trainer.fit(train_loader, val_loader)

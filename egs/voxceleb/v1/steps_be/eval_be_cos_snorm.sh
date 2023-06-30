@@ -6,6 +6,8 @@
 cmd=run.pl
 num_parts=16
 coh_nbest=1000
+preproc_file=""
+
 if [ -f path.sh ]; then . ./path.sh; fi
 . parse_options.sh || exit 1;
 set -e
@@ -29,6 +31,9 @@ name=$(basename $output_file)
 
 echo "$0 score $ndx_file"
 
+if [ -n "$preproc_file" ];then
+  extra_args="--preproc-file $preproc_file"
+fi
 
 for((i=1;i<=$num_parts;i++));
 do
@@ -36,12 +41,12 @@ do
   do
     $cmd $output_dir/log/${name}_${i}_${j}.log \
       hyp_utils/conda_env.sh \
-      steps_be/eval-be-v2-snorm.py \
-      --iv-file scp:$vector_file \
+      steps_be/eval_be_cos_snorm.py $extra_args \
+      --v-file scp:$vector_file \
       --ndx-file $ndx_file \
       --enroll-file $enroll_file \
       --coh-file $coh_file \
-      --coh-iv-file scp:$coh_vector_file \
+      --coh-v-file scp:$coh_vector_file \
       --score-file $output_file \
       --coh-nbest $coh_nbest \
       --model-part-idx $i --num-model-parts $num_parts \

@@ -44,7 +44,7 @@ class MyModel(nn.Module):
 
     def forward(self, s_t):
         f_t = s_t
-        f_t = self.feat_extractor(s_t)
+        f_t, _ = self.feat_extractor(s_t)
         if self.vad_t is not None:
             n_vad_frames = len(self.vad_t)
             n_feat_frames = f_t.shape[1]
@@ -204,7 +204,7 @@ def eval_cosine_scoring(
 
     if vad_spec is not None:
         logging.info("opening VAD stream: %s", vad_spec)
-        v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix, scp_sep=" ")
+        v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix
 
     scores = np.zeros((key.num_models, key.num_tests), dtype="float32")
     attack_stats = pd.DataFrame(
@@ -259,8 +259,8 @@ def eval_cosine_scoring(
         for i in range(key.num_models):
             if key.tar[i, j] or key.non[i, j]:
                 t3 = time.time()
-                model.x_e = x_e[i].to(device)
-                tmodel.x_e = t_x_e[i].to(device)
+                model.x_e = x_e[i : i + 1].to(device)
+                tmodel.x_e = t_x_e[i : i + 1].to(device)
                 if key.tar[i, j]:
                     if attack.targeted:
                         t = non
@@ -360,7 +360,6 @@ if __name__ == "__main__":
     parser.add_argument("--vad", dest="vad_spec", default=None)
     parser.add_argument(
         "--vad-path-prefix",
-        dest="vad_path_prefix",
         default=None,
         help=("scp file_path prefix for vad"),
     )

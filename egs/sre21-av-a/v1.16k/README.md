@@ -7,6 +7,20 @@ The systems runs at 16 kHz, telephone data is upsampled to 16k using SoX
 
    This recipe is based on these works
 ```
+@inproceedings{Villalba2022,
+author = {Jes\'us Villalba and Bengt J Borgstrom and Saurabh Kataria and Magdalena Rybicka and Carlos D Castillo and Jaejin Cho and L. Paola García-Perera and Pedro A. Torres-Carrasquillo and Najim Dehak},
+city = {ISCA},
+doi = {10.21437/Odyssey.2022-30},
+issue = {July},
+journal = {The Speaker and Language Recognition Workshop (Odyssey 2022)},
+month = {6},
+pages = {213-220},
+publisher = {ISCA},
+title = {Advances in Cross-Lingual and Cross-Source Audio-Visual Speaker Recognition: The JHU-MIT System for NIST SRE21},
+url = {https://www.isca-speech.org/archive/odyssey_2022/villalba22b_odyssey.html},
+year = {2022},
+}
+				 
 @inproceedings{Villalba2020,
 address = {Tokyo, Japan},
 author = {Villalba, Jes{\'{u}}s and Garcia-Romero, Daniel and Chen, Nanxin and Sell, Gregory and Borgstrom, Jonas and McCree, Alan and {Garcia Perera}, Leibny Paola and Kataria, Saurabh and Nidadavolu, Phani Sankar and Torres-Carrasquiilo, Pedro and Dehak, Najim},
@@ -88,8 +102,6 @@ run_0xx_....sh --config-file global_conf/config_fbank80_stmn_res2net50w26s8_arcs
 
    - `run_011_train_xvector.sh`
       - Trains the x-vector network on 4sec chunks
-
-   - `run_012_finetune_xvector.sh`
       - Fine-tune x-vector network on 10-15 secs utts
 
    - `run_013_prepare_langid_train_data.sh`
@@ -110,8 +122,8 @@ run_0xx_....sh --config-file global_conf/config_fbank80_stmn_res2net50w26s8_arcs
    - `run_040_eval_be_v1.sh, run_041_eval_be_v2.sh, run_042_eval_be_v3.sh, run_042b_eval_be_v3.sh`
       - Evals different back-end versions:
          - V1: Back-end trained on all data without adaptation
-	 - V2: Centering + PCA + LNorm + PLDA (+S-Norm), Centering adapted to source and langauge, global PLDA adapted to SRE-Vox-CHN
-	 - V3: Centering + PCA + LNorm + PLDA (+S-Norm), Centering adapted to source and langauge, source dependent PLDA adapted to SRE-CHN or Vox-CHN
+	 - V2: Centering + PCA + LNorm + PLDA (+S-Norm), Centering adapted to source and language, global PLDA adapted to SRE-Vox-CHN
+	 - V3: Centering + PCA + LNorm + PLDA (+S-Norm), Centering adapted to source and language, source dependent PLDA adapted to SRE-CHN or Vox-CHN
 	 - V3b: V3 with hyperparmeters tuned for x-vectors trained on VoxCeleb only
 
    - `run_fus*.sh`
@@ -120,4 +132,39 @@ run_0xx_....sh --config-file global_conf/config_fbank80_stmn_res2net50w26s8_arcs
 
 ## Results
 
-TODO
+The back-end used for these results is:
+- back-end V2 (run_041_eval_be_v2.sh)
+- Without S-Norm
+- Scores are calibrated as indicated in the paper.
+
+## SRE16 Eval40% YUE
+
+| Config | Model Type | Model Details | EER(%) | Min. Cprimary | Act. Cprimary |
+| ------ | ---------- | ------------- | ------ | ------------- | ------------- |
+| config_fbank80_stmn_ecapatdnn2048x4_chattstatsi128_arcs30m0.3_adam_lr0.02_amp.v1.sh | ECAPA-TDNN 2048x4 | fine-tuned 10-15secs <br> AAM-Softmax margin=0.5 | 1.57   | 0.135 | 0.237 |
+| config_fbank80_stmn_res2net50w26s8_chattstatsi128_arcs30m0.3_adam_lr0.02_amp.v1.sh | Res2Net50 w26xs8 | fine-tuned 10 secs <br> AAM-Softmax margin=0.5 | 1.23  | 0.136 | 0.187 | 
+| config_fbank80_stmn_tseres2net50w26s4_chattstatsi128_arcs30m0.3_adam_lr0.02_amp.v1.sh | TSE-Res2Net50 w26xs4 | fine-tuned 10 secs <br> AAM-Softmax margin=0.5 | 1.38   | 0.147 | 0.189 |
+
+## SRE-CTS Superset dev set
+
+| Config | Model Type | Model Details | EER(%) | Min. Cprimary | Act. Cprimary |
+| ------ | ---------- | ------------- | ------ | ------------- | ------------- |
+| config_fbank80_stmn_ecapatdnn2048x4_chattstatsi128_arcs30m0.3_adam_lr0.02_amp.v1.sh | ECAPA-TDNN 2048x4 | fine-tuned 10-15secs <br> AAM-Softmax margin=0.5 | 1.37 | 0.076 | 0.106 | 
+| config_fbank80_stmn_res2net50w26s8_chattstatsi128_arcs30m0.3_adam_lr0.02_amp.v1.sh | Res2Net50 w26xs8 | fine-tuned 10 secs <br> AAM-Softmax margin=0.5 | 1.19 | 0.64 | 0.089 | 
+| config_fbank80_stmn_tseres2net50w26s4_chattstatsi128_arcs30m0.3_adam_lr0.02_amp.v1.sh | TSE-Res2Net50 w26xs4 | fine-tuned 10 secs <br> AAM-Softmax margin=0.5 | 1.15 | 0.61 | 0.102 |
+
+## SRE21 Audio Dev (official scoring tool)
+
+| Config | Model Type | Model Details | EER(%) | Min. Cprimary | Act. Cprimary |
+| ------ | ---------- | ------------- | ------ | ------------- | ------------- |
+| config_fbank80_stmn_ecapatdnn2048x4_chattstatsi128_arcs30m0.3_adam_lr0.02_amp.v1.sh | ECAPA-TDNN 2048x4 | fine-tuned 10-15secs <br> AAM-Softmax margin=0.5 | 5.91 | 0.393 | 0.409 |
+| config_fbank80_stmn_res2net50w26s8_chattstatsi128_arcs30m0.3_adam_lr0.02_amp.v1.sh | Res2Net50 w26xs8 | fine-tuned 10 secs <br> AAM-Softmax margin=0.5 | 5.22 | 0.370 | 0.377 |
+| config_fbank80_stmn_tseres2net50w26s4_chattstatsi128_arcs30m0.3_adam_lr0.02_amp.v1.sh | TSE-Res2Net50 w26xs4 | fine-tuned 10 secs <br> AAM-Softmax margin=0.5 | 4.79 | 0.309 | 0.325 |
+
+## SRE21 Audio Eval (official scoring tool)
+
+| Config | Model Type | Model Details | EER(%) | Min. Cprimary | Act. Cprimary |
+| ------ | ---------- | ------------- | ------ | ------------- | ------------- |
+| config_fbank80_stmn_ecapatdnn2048x4_chattstatsi128_arcs30m0.3_adam_lr0.02_amp.v1.sh | ECAPA-TDNN 2048x4 | fine-tuned 10-15secs <br> AAM-Softmax margin=0.5 | 5.68 | 0.395 | 0.401 |
+| config_fbank80_stmn_res2net50w26s8_chattstatsi128_arcs30m0.3_adam_lr0.02_amp.v1.sh | Res2Net50 w26xs8 | fine-tuned 10 secs <br> AAM-Softmax margin=0.5 | 4.92 | 0.405 | 0.412 |
+| config_fbank80_stmn_tseres2net50w26s4_chattstatsi128_arcs30m0.3_adam_lr0.02_amp.v1.sh | TSE-Res2Net50 w26xs4 | fine-tuned 10 secs <br> AAM-Softmax margin=0.5 | 4.80 | 0.357 | 0.360 |

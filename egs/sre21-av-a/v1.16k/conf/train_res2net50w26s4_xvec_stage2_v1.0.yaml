@@ -1,0 +1,66 @@
+data:
+  train:
+    dataset:
+      class_names:
+      - class_id
+      aug_cfgs:
+      - conf/reverb_noise_aug.yaml
+      return_segment_info:
+      - class_id
+    sampler:
+      sampler_type: class_weighted_random_seg_chunk_sampler
+      min_batch_size: 8
+      max_chunk_length: 15.0
+      min_chunk_length: 10.0
+      num_chunks_per_seg_epoch: 1
+      class_name: class_id
+      seg_weight_mode: uniform
+      num_hard_prototypes: 0
+    data_loader:
+      num_workers: 8
+  val:
+    dataset:
+      class_names:
+      - class_id
+      aug_cfgs:
+      - conf/reverb_noise_aug.yaml
+      return_segment_info:
+      - class_id
+    sampler:
+      sampler_type: class_weighted_random_seg_chunk_sampler
+      min_batch_size: 8
+      max_chunk_length: 15.0
+      min_chunk_length: 10.0
+      num_chunks_per_seg_epoch: 1
+      class_name: class_id
+      seg_weight_mode: uniform
+      num_hard_prototypes: 0
+    data_loader:
+      num_workers: 8
+feats: fbank80_stmn_16k.yaml
+model:
+  cos_scale: 30.0
+  margin: 0.5
+  margin_warmup_epochs: 3
+  intertop_margin: 0.0
+trainer:
+  optim:
+    opt_type: sgd
+    lr: 0.01
+    momentum: 0.9
+    weight_decay: 1e-5
+  lrsched:
+    lrsch_type: cos_lr
+    t: 2500
+    t_mul: 2
+    warm_restarts: true
+    gamma: 0.75
+    min_lr: 1e-4
+    warmup_steps: 100
+    update_lr_on_opt_step: true
+  grad_clip: 250
+  use_amp: true
+  log_interval: 1000
+  epochs: 21
+  eff_batch_size: 128
+

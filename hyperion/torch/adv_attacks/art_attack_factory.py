@@ -4,12 +4,23 @@
 """
 
 import numpy as np
-from jsonargparse import ActionParser, ArgumentParser
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 try:
     from art.attacks import evasion as attacks
 except ImportError:
     pass
+
+from ...utils.misc import filter_func_args
+
+
+def make_4d_hook(func):
+    def wrapper(x, *args, **kwargs):
+        x = x[None, None]
+        y = func(x, *args, **kwargs)
+        return y[0, 0]
+
+    return wrapper
 
 
 class ARTAttackFactory(object):
@@ -28,11 +39,10 @@ class ARTAttackFactory(object):
         num_random_init=0,
         minimal=False,
         random_eps=False,
-        min_eps=None,
+        min_eps=1e-6,
         beta=0.001,
         theta=0.1,
         gamma=1.0,
-        etha=0.01,
         confidence=0.0,
         lr=1e-2,
         lr_decay=0.5,
@@ -42,9 +52,12 @@ class ARTAttackFactory(object):
         max_iter=10,
         overshoot=1.1,
         num_grads=10,
-        c=1e-3,
         max_halving=5,
         max_doubling=5,
+        tau_decr_factor=0.9,
+        initial_c=1e-5,
+        largest_c=20.0,
+        c_incr_factor=2.0,
         decision_rule="EN",
         init_eval=100,
         max_eval=10000,
@@ -53,31 +66,44 @@ class ARTAttackFactory(object):
         use_importance=False,
         abort_early=True,
         th=None,
+        es: int = 0,
         sigma=0.5,
         lambda_tv=0.3,
-        labmda_c=1.0,
+        lambda_c=1.0,
         lambda_s=0.5,
         reg=3000,
         kernel_size=5,
         eps_factor=1.1,
         eps_iter=10,
+        p_wassertein=2,
         conj_sinkhorn_iter=400,
         proj_sinkhorn_iter=400,
+        sub_dim: int = 10,
+        bin_search_tol: float = 0.1,
+        lambda_geoda: float = 0.6,
+        sigma_geoda: float = 0.0002,
+        lambda_fadv=0.0,
+        layers_fadv=[1],
+        thr_lowpro: float = 0.5,
+        lambda_lowpro: float = 1.5,
+        eta_lowpro: float = 0.2,
+        eta_lowpro_decay: float = 0.98,
+        eta_lowpro_min: float = 1e-7,
+        eta_newton: float = 0.01,
         targeted=False,
         num_samples=1,
         eps_scale=1,
         batch_size=1,
     ):
 
-        eps = eps * eps_scale
-        eps_step = eps_step * eps_scale
-        if min_eps is not None:
+        if attack_type not in ["feature-adv"]:
+            eps = eps * eps_scale
+            eps_step = eps_step * eps_scale
             min_eps = min_eps * eps_scale
+            delta = delta * eps_scale
 
-        attack_set = set(
-            ["fgm", "pgd", "auto-pgd", "boundary", "cw-linf", "wasserstein"]
-        )
-        if attack_type in attack_set:
+        attack_l12 = set(["fgm", "pgd", "auto-pgd", "wasserstein"])
+        if attack_type in attack_l12:
             if norm == 1:
                 eps = eps * num_samples
                 eps_step = eps_step * num_samples
@@ -98,14 +124,14 @@ class ARTAttackFactory(object):
                 epsilon=eps,
                 step_adapt=step_adapt,
                 max_iter=max_iter,
-                num_trials=num_trials,
+                num_trial=num_trial,
                 sample_size=sample_size,
                 init_size=init_size,
                 min_epsilon=min_eps,
             )
 
-        if attack_type == "hop-skin-jump":
-            return attacks.HopSkinJump(
+        if attack_type == "hop-skip-jump":
+            return attacks.HopSkipJump(
                 model,
                 targeted=targeted,
                 norm=norm,
@@ -132,7 +158,7 @@ class ARTAttackFactory(object):
             )
 
         if attack_type == "deepfool":
-            attacks.DeepFool(
+            return attacks.DeepFool(
                 model,
                 max_iter=max_iter,
                 epsilon=eps,
@@ -141,7 +167,7 @@ class ARTAttackFactory(object):
             )
 
         if attack_type == "elasticnet":
-            attacks.ElasticNet(
+            return attacks.ElasticNet(
                 model,
                 confidence=confidence,
                 targeted=targeted,
@@ -149,13 +175,25 @@ class ARTAttackFactory(object):
                 binary_search_steps=binary_search_steps,
                 max_iter=max_iter,
                 beta=beta,
-                initial_const=c,
+                initial_const=initial_c,
                 batch_size=batch_size,
                 decision_rule=decision_rule,
             )
 
+        if attack_type == "feature-adv":
+            return attacks.FeatureAdversariesPyTorch(
+                model,
+                delta=delta,
+                lambda_=lambda_fadv,
+                layer=tuple(layers_fadv),
+                max_iter=max_iter,
+                batch_size=batch_size,
+                step_size=eps_step,
+                random_start=num_random_init > 0,
+            )
+
         if attack_type == "threshold":
-            attacks.ThresholdAttack(model, th=th, es=es, targeted=targeted)
+            return attacks.ThresholdAttack(model, th=th, es=es, targeted=targeted)
 
         if attack_type == "fgm":
             return attacks.FastGradientMethod(
@@ -193,15 +231,48 @@ class ARTAttackFactory(object):
             )
 
         if attack_type == "auto-pgd":
-            return attacks.AutoProjectedGradientDescent(
+            if len(model.input_shape) == 1:
+                # autopgd only works with image kind shape
+                model._input_shape = (1, 1, model.input_shape[0])
+            attack = attacks.AutoProjectedGradientDescent(
                 model,
                 norm=norm,
                 eps=eps,
                 eps_step=eps_step,
                 max_iter=max_iter,
                 targeted=targeted,
-                nb_random_init=num_random_init,
-                random_eps=random_eps,
+                nb_random_init=max(1, num_random_init),
+                batch_size=batch_size,
+            )
+            attack.generate = make_4d_hook(attack.generate)
+            return attack
+
+        if attack_type == "auto-cgd":
+            if len(model.input_shape) == 1:
+                # autopgd only works with image kind shape
+                model._input_shape = (1, 1, model.input_shape[0])
+            attack = attacks.AutoConjugateGradient(
+                model,
+                norm=norm,
+                eps=eps,
+                eps_step=eps_step,
+                max_iter=max_iter,
+                targeted=targeted,
+                nb_random_init=max(1, num_random_init),
+                batch_size=batch_size,
+            )
+            attack.generate = make_4d_hook(attack.generate)
+            return attack
+
+        if attack_type == "geoda":
+            return attacks.GeoDA(
+                model,
+                norm=norm,
+                sub_dim=sub_dim,
+                max_iter=max_iter,
+                bin_search_tol=bin_search_tol,
+                lambda_param=lambda_geoda,
+                sigma=sigma_geoda,
                 batch_size=batch_size,
             )
 
@@ -210,14 +281,21 @@ class ARTAttackFactory(object):
                 model, theta=theta, gamma=gamma, batch_size=batch_size
             )
 
-        if attack_type == "newtonfool":
-            return attacks.NewtonFool(
-                model, eta=eta, max_iter=max_iter, batch_size=batch_size
+        if attack_type == "low-pro-fool":
+            return attacks.LowProFool(
+                model,
+                n_steps=max_iter,
+                threshold=thr_lowpro,
+                lambd=lambda_lowpro,
+                eta=eta_lowpro,
+                eta_decay=eta_lowpro_decay,
+                eta_min=eta_lowpro_min,
+                norm=norm,
             )
 
-        if attack_type == "threshold":
+        if attack_type == "newtonfool":
             return attacks.NewtonFool(
-                model, eta=eta, max_iter=max_iter, batch_size=batch_size
+                model, eta=eta_newton, max_iter=max_iter, batch_size=batch_size
             )
 
         if attack_type == "cw-l2":
@@ -227,8 +305,8 @@ class ARTAttackFactory(object):
                 learning_rate=lr,
                 binary_search_steps=binary_search_steps,
                 max_iter=max_iter,
-                initial_const=c,
                 targeted=targeted,
+                initial_const=initial_c,
                 max_halving=max_halving,
                 max_doubling=max_doubling,
                 batch_size=batch_size,
@@ -241,19 +319,20 @@ class ARTAttackFactory(object):
                 learning_rate=lr,
                 max_iter=max_iter,
                 targeted=targeted,
-                max_halving=max_halving,
-                max_doubling=max_doubling,
-                eps=eps,
+                decrease_factor=tau_decr_factor,
+                initial_const=initial_c,
+                largest_const=largest_c,
+                const_factor=c_incr_factor,
                 batch_size=batch_size,
             )
 
         if attack_type == "zoo":
-            return attacks.ZooMethod(
+            return attacks.ZooAttack(
                 model,
                 confidence,
                 learning_rate=lr,
                 max_iter=max_iter,
-                initial_const=c,
+                initial_const=initial_c,
                 targeted=targeted,
                 binary_search_steps=binary_search_steps,
                 abort_early=abort_early,
@@ -265,22 +344,33 @@ class ARTAttackFactory(object):
             )
 
         if attack_type == "shadow":
-            return attacks.ShadowAttack(
+            if len(model.input_shape) == 1:
+                # autopgd only works with image kind shape
+                model._input_shape = (1, 1, model.input_shape[0])
+
+            attack = attacks.ShadowAttack(
                 model,
                 sigma=sigma,
-                num_steps=num_iters,
+                nb_steps=max_iter,
                 learning_rate=lr,
                 lambda_tv=lambda_tv,
                 lambda_c=lambda_c,
                 lambda_s=lambda_s,
-                batch_norm=batch_norm,
+                batch_size=batch_size,
                 targeted=targeted,
             )
+            attack.generate = make_4d_hook(attack.generate)
+            return attack
 
         if attack_type == "wasserstein":
-            return attacks.Wasserstein(
+            if len(model.input_shape) == 1:
+                # autopgd only works with image kind shape
+                model._input_shape = (1, 1, model.input_shape[0])
+
+            attack = attacks.Wasserstein(
                 model,
                 targeted=targeted,
+                p=p_wassertein,
                 regularization=reg,
                 kernel_size=kernel_size,
                 eps=eps,
@@ -292,6 +382,8 @@ class ARTAttackFactory(object):
                 projected_sinkhorn_max_iter=proj_sinkhorn_iter,
                 batch_size=batch_size,
             )
+            attack.generate = make_4d_hook(attack.generate)
+            return attack
 
         raise Exception("%s is not a valid attack type" % (attack_type))
 
@@ -307,59 +399,7 @@ class ARTAttackFactory(object):
             else:
                 kwargs["norm"] = int(kwargs["norm"])
 
-        valid_args = (
-            "attack_type",
-            "eps",
-            "delta",
-            "step_adapt",
-            "num_trial",
-            "sample_size",
-            "init_size",
-            "norm",
-            "eps_step",
-            "num_random_init",
-            "minimal",
-            "random_eps",
-            "min_eps",
-            "beta",
-            "theta",
-            "gamma",
-            "etha",
-            "confidence",
-            "decision_rule",
-            "lr",
-            "lr_decay",
-            "lr_num_decay",
-            "momentum",
-            "binary_search_steps",
-            "max_iter",
-            "init_eval",
-            "max_eval",
-            "overshoot",
-            "num_grads",
-            "c",
-            "max_halving",
-            "max_doubling",
-            "variable_h",
-            "abort_early",
-            "num_parallel",
-            "use_importance",
-            "th",
-            "sigma",
-            "lambda_tv",
-            "labmda_c",
-            "lambda_s",
-            "reg",
-            "kernel_size",
-            "eps_factor",
-            "eps_iter",
-            "conj_sinkhorn_iter",
-            "proj_sinkhorn_iter",
-            "targeted",
-        )
-
-        args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
-
+        args = filter_func_args(ARTAttackFactory.create, kwargs)
         return args
 
     @staticmethod
@@ -371,7 +411,7 @@ class ARTAttackFactory(object):
         parser.add_argument(
             "--attack-type",
             type=str.lower,
-            default="fgsm",
+            default="fgm",
             choices=[
                 "boundary",
                 "brendel",
@@ -380,12 +420,15 @@ class ARTAttackFactory(object):
                 "bim",
                 "pgd",
                 "auto-pgd",
+                "auto-cgd",
+                "feature-adv",
+                "low-pro-fool",
                 "jsma",
                 "newtonfool",
                 "cw-l2",
                 "cw-linf",
                 "elasticnet",
-                "hop-skin-jump",
+                "hop-skip-jump",
                 "zoo",
                 "threshold",
                 "shadow",
@@ -571,7 +614,7 @@ class ARTAttackFactory(object):
 
         parser.add_argument(
             "--min-eps",
-            default=None,
+            default=1e-6,
             type=float,
             help=("Stop attack if perturbation is smaller than min_eps."),
         )
@@ -614,10 +657,31 @@ class ARTAttackFactory(object):
         )
 
         parser.add_argument(
-            "--c",
+            "--initial-c",
             default=1e-2,
             type=float,
             help=("Initial weight of constraint function f in carlini-wagner attack"),
+        )
+
+        parser.add_argument(
+            "--largest-c",
+            default=20.0,
+            type=float,
+            help=("largest weight of constraint function f in carlini-wagner attack"),
+        )
+
+        parser.add_argument(
+            "--c-incr-factor",
+            default=2,
+            type=float,
+            help=("factor to increment c in carline-wagner-l0/inf attack"),
+        )
+
+        parser.add_argument(
+            "--tau-decr-factor",
+            default=0.9,
+            type=float,
+            help=("factor to reduce tau in carline-wagner-linf attack"),
         )
 
         parser.add_argument(
@@ -635,10 +699,10 @@ class ARTAttackFactory(object):
         )
 
         parser.add_argument(
-            "--no-abort",
-            default=False,
-            action="store_true",
-            help=("do not abort early in optimizer iterations"),
+            "--abort-early",
+            default=True,
+            action=ActionYesNo,
+            help=("abort early in optimizer iterations"),
         )
 
         parser.add_argument(
@@ -668,6 +732,14 @@ class ARTAttackFactory(object):
             type=int,
             help=(
                 "Threshold for threshold attack, None indicates finding and minimum threshold"
+            ),
+        )
+        parser.add_argument(
+            "--es",
+            default=0,
+            type=int,
+            help=(
+                "Indicates whether the attack uses CMAES (0) or DE (1) as Evolutionary Strategy"
             ),
         )
 
@@ -704,6 +776,19 @@ class ARTAttackFactory(object):
                 "Scalar penalty weight for similarity of color channels in perturbation"
             ),
         )
+        parser.add_argument(
+            "--lambda-fadv",
+            default=0.0,
+            type=float,
+            help=("Regularization parameter of the L-inf soft constraint"),
+        )
+        parser.add_argument(
+            "--layers-fadv",
+            default=[1],
+            type=int,
+            nargs="+",
+            help=("indices of the representation layers"),
+        )
 
         parser.add_argument(
             "--reg",
@@ -731,6 +816,12 @@ class ARTAttackFactory(object):
             help=("Number of iterations to increase the epsilon."),
         )
         parser.add_argument(
+            "--p-wassertein",
+            default=2,
+            type=int,
+            help=("lp distance for wassertein distance"),
+        )
+        parser.add_argument(
             "--conj-sinkhorn-iter",
             default=400,
             type=int,
@@ -742,6 +833,65 @@ class ARTAttackFactory(object):
             type=int,
             help=("maximum number of iterations for the projected sinkhorn optimizer"),
         )
+
+        parser.add_argument(
+            "--thr-lowpro",
+            type=float,
+            default=0.5,
+            help="""Lowest prediction probability of a valid adversary for low-pro-fool""",
+        )
+        parser.add_argument(
+            "--lambda-lowpro",
+            type=float,
+            default=1.5,
+            help="""Amount of lp-norm impact on objective function for low-pro-fool""",
+        )
+        parser.add_argument(
+            "--eta-lowpro",
+            type=float,
+            default=0.2,
+            help="""Rate of updating the perturbation vectors for low-pro-fool""",
+        )
+        parser.add_argument(
+            "--eta-lowpro-decay",
+            type=float,
+            default=0.98,
+            help="""Step-by-step decrease of eta for low-pro-fool""",
+        )
+        parser.add_argument(
+            "--eta-lowpro-min", type=float, default=1e-7, help="""Minimal eta value"""
+        )
+        parser.add_argument(
+            "--eta-newton", type=float, default=0.01, help="""eta for newtonfool"""
+        )
+        # parser.add_argument(
+        #     "--sub-dim",
+        #     default=10,
+        #     type=int,
+        #     help="Dimensionality of 2D frequency space (DCT).",
+        # )
+
+        # parser.add_argument(
+        #     "--bin-search-tol",
+        #     default=0.1,
+        #     type=float,
+        #     help="""Maximum remaining L2 perturbation defining binary search
+        #     convergence""",
+        # )
+        # parser.add_argument(
+        #     "--lambda-geoda",
+        #     default=0.6,
+        #     type=float,
+        #     help="""The lambda of equation 19 with lambda_param=0 corresponding to a
+        #     single iteration and lambda_param=1 to a uniform distribution of
+        #     iterations per step.""",
+        # )
+        # parser.add_argument(
+        #     "--sigma-geoda",
+        #     default=0.0002,
+        #     type=float,
+        #     help="""Variance of the Gaussian perturbation.""",
+        # )
 
         parser.add_argument(
             "--targeted",

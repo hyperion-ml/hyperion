@@ -5,9 +5,11 @@
 
 import copy
 import os.path as path
+from pathlib import Path
 
 import h5py
 import numpy as np
+import pandas as pd
 
 from .list_utils import *
 from .trial_ndx import TrialNdx
@@ -82,18 +84,20 @@ class TrialKey(object):
         if self.trial_cond is not None:
             self.trial_cond = self.trial_cond[:, ix]
 
-    def save(self, file_path):
+    def save(self, file_path, sep=None):
         """Saves object to txt/h5 file.
 
         Args:
           file_path: File to write the list.
         """
-
-        file_base, file_ext = path.splitext(file_path)
-        if file_ext == ".h5" or file_ext == ".hdf5":
+        file_path = Path(file_path)
+        ext = file_path.suffix
+        if ext in (".h5", ".hdf5"):
             self.save_h5(file_path)
-        else:
+        elif ext in ("", ".txt"):
             self.save_txt(file_path)
+        else:
+            self.save_table(file_path, sep)
 
     def save_h5(self, file_path):
         """Saves object to h5 file.
@@ -132,20 +136,40 @@ class TrialKey(object):
           file_path: File to write the list.
         """
         with open(file_path, "w") as f:
-            idx = (self.tar.T == True).nonzero()
+            idx = (self.tar.T).nonzero()
             for item in zip(idx[0], idx[1]):
                 f.write(
                     "%s %s target\n" % (self.model_set[item[1]], self.seg_set[item[0]])
                 )
-            idx = (self.non.T == True).nonzero()
+            idx = (self.non.T).nonzero()
             for item in zip(idx[0], idx[1]):
                 f.write(
                     "%s %s nontarget\n"
                     % (self.model_set[item[1]], self.seg_set[item[0]])
                 )
 
+    def save_table(self, file_path, sep=None):
+        """Saves object to txt file.
+
+        Args:
+          file_path: File to write the list.
+        """
+        file_path = Path(file_path)
+        ext = file_path.suffix
+        if sep is None:
+            sep = "\t" if ".tsv" in ext else ","
+
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(f"modelid{sep}segmentid{sep}targettype\n")
+            I, J = np.logical_or(self.tar, self.non).nonzero()
+            for i, j in zip(I, J):
+                target_type = "target" if self.tar[i, j] else "nontarget"
+                f.write(
+                    f"{self.model_set[i]}{sep}{self.seg_set[j]}{sep}{target_type}\n"
+                )
+
     @classmethod
-    def load(cls, file_path):
+    def load(cls, file_path, sep=None):
         """Loads object from txt/h5 file
 
         Args:
@@ -154,11 +178,13 @@ class TrialKey(object):
         Returns:
           TrialKey object.
         """
-        file_base, file_ext = path.splitext(file_path)
-        if file_ext == ".h5" or file_ext == ".hdf5":
+        _, file_ext = path.splitext(file_path)
+        if file_ext in (".h5", ".hdf5"):
             return cls.load_h5(file_path)
-        else:
+        elif file_ext in ("", ".txt"):
             return cls.load_txt(file_path)
+        else:
+            return cls.load_table(file_path, sep)
 
     @classmethod
     def load_h5(cls, file_path):
@@ -238,6 +264,40 @@ class TrialKey(object):
                 tar[item[0], item[1]] = True
             else:
                 non[item[0], item[1]] = True
+        return cls(model_set, seg_set, tar, non)
+
+    @classmethod
+    def load_table(cls, file_path, sep=None):
+        """Loads object from txt file
+
+        Args:
+          file_path: File to read the list.
+
+        Returns:
+          TrialKey object.
+        """
+        file_path = Path(file_path)
+        ext = file_path.suffix
+        if sep is None:
+            sep = "\t" if ".tsv" in ext else ","
+
+        df = pd.read_csv(file_path, sep=sep)
+        models = df["modelid"].values
+        segments = df["segmentid"].values
+        is_tar = (df["targettype"] == "target").values
+        model_set, _, model_idx = np.unique(
+            models, return_index=True, return_inverse=True
+        )
+        seg_set, _, seg_idx = np.unique(
+            segments, return_index=True, return_inverse=True
+        )
+        tar = np.zeros((len(model_set), len(seg_set)), dtype="bool")
+        non = np.zeros((len(model_set), len(seg_set)), dtype="bool")
+        for i, j, target_type in zip(model_idx, seg_idx, is_tar):
+            if target_type:
+                tar[i, j] = True
+            else:
+                non[i, j] = True
         return cls(model_set, seg_set, tar, non)
 
     @classmethod

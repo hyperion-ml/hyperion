@@ -43,25 +43,6 @@ def get_resampler(source_fs, target_fs):
     resamplers[source_fs] = resampler_f
     return resampler_f
 
-resamplers = {}
-
-
-def get_resampler(source_fs, target_fs):
-    if source_fs in resamplers:
-        return resamplers[source_fs]
-
-    resampler = tat.Resample(
-        int(source_fs),
-        int(target_fs),
-        lowpass_filter_width=64,
-        rolloff=0.9475937167399596,
-        resampling_method="kaiser_window",
-        beta=14.769656459379492,
-    )
-    resampler_f = lambda x: resampler(torch.from_numpy(x)).numpy()
-    resamplers[source_fs] = resampler_f
-    return resampler_f
-
 
 def init_device(use_gpu):
     set_float_cpu("float32")
@@ -121,7 +102,6 @@ def extract_xvectors(
     output_spec,
     vad_spec,
     write_speech_dur,
-    scp_sep,
     vad_path_prefix,
     model_path,
     hf_chunk_length,
@@ -156,7 +136,7 @@ def extract_xvectors(
     ar_args = AR.filter_args(**kwargs)
     ar_args["wav_scale"] = 1.0
     logging.info("opening output stream: %s", output_spec)
-    with DWF.create(output_spec, scp_sep=scp_sep) as writer:
+    with DWF.create(output_spec) as writer:
 
         logging.info(f"opening input stream: {input_spec} with args={ar_args}")
         with AR(input_spec, **ar_args) as reader:
@@ -164,7 +144,8 @@ def extract_xvectors(
             if vad_spec is not None:
                 logging.info("opening VAD stream: %s", vad_spec)
                 v_reader = VRF.create(
-                    vad_spec, path_prefix=vad_path_prefix, scp_sep=scp_sep
+                    vad_spec,
+                    path_prefix=vad_path_prefix,
                 )
 
             while not reader.eof():
@@ -237,7 +218,7 @@ def extract_xvectors(
                     writer.write([key], [y])
                     if write_speech_dur is not None:
                         keys.append(key)
-                        info.append(str(x.shape[1] * fs))
+                        info.append(str(x.shape[1] / fs))
 
                     t8 = time.time()
                     read_time = t2 - t1
@@ -282,7 +263,6 @@ if __name__ == "__main__":
     parser.add_argument("--input", dest="input_spec", required=True)
     parser.add_argument("--vad", dest="vad_spec", default=None)
     parser.add_argument("--write-speech-dur", default=None)
-    parser.add_argument("--scp-sep", default=" ", help=("scp file field separator"))
     parser.add_argument(
         "--vad-path-prefix", default=None, help=("scp file_path prefix for vad")
     )

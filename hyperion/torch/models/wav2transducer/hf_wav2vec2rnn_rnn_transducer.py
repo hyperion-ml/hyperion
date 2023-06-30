@@ -5,9 +5,10 @@
 import logging
 from typing import Dict, Optional, Union
 
+from jsonargparse import ActionParser, ArgumentParser
+
 import torch
 import torch.nn as nn
-from jsonargparse import ActionParser, ArgumentParser
 
 from ...tpm import HFWav2Vec2
 from ..transducer import RNNRNNTransducer
@@ -44,8 +45,7 @@ class HFWav2Vec2RNNRNNTransducer(HFWav2RNNTransducer):
             assert isinstance(hf_feats, HFWav2Vec2)
 
         if isinstance(transducer, dict):
-            transducer["decoder"]["in_feats"] = hf_feats.hidden_size
-            #transducer["joiner"]["in_feats"] = hf_feats.hidden_size
+            transducer["encoder"]["in_feats"] = hf_feats.hidden_size
             if "class_name" in transducer:
                 del transducer["class_name"]
 
@@ -72,7 +72,9 @@ class HFWav2Vec2RNNRNNTransducer(HFWav2RNNTransducer):
             parser = ArgumentParser(prog="")
 
         HFWav2Vec2.add_class_args(parser, prefix="hf_feats")
-        RNNRNNTransducer.add_class_args(parser, prefix="transducer")
+        RNNRNNTransducer.add_class_args(parser,
+                                        prefix="transducer",
+                                        skip={"in_feats"})
         HFWav2RNNTransducer.add_class_args(parser)
 
         if prefix is not None:

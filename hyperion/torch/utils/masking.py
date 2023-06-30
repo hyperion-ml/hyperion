@@ -14,6 +14,9 @@ def scale_seq_lengths(lengths, max_out_length, max_in_length=None):
     if max_in_length is None:
         max_in_length = lengths.max()
 
+    if max_in_length == max_out_length:
+        return lengths
+
     return torch.div(lengths * max_out_length, max_in_length, rounding_mode="floor")
 
 
@@ -24,7 +27,7 @@ def seq_lengths_to_mask(lengths, max_length=None, dtype=None, time_dim=1):
       lengths: sequence lengths with shape=(batch,). If None, it returns None
       max_length: maximum length of the sequence.
       dtype: dtype for the mask.
-      time_dim: dimension corresponding to time in the mask. This will
+      time_dim: dimension > 0 corresponding to time in the mask. This will
                 return a view of the mask which will adapt to the shape
                 of the tensor where we want to apply the mask.
                 This has to be a positive integer.
@@ -35,6 +38,7 @@ def seq_lengths_to_mask(lengths, max_length=None, dtype=None, time_dim=1):
     if lengths is None:
         return None
 
+    assert time_dim > 0
     assert lengths.dim() == 1
 
     if max_length is None:

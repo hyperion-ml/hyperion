@@ -5,9 +5,10 @@
 
 import math
 
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
+
 import torch
 import torch.nn as nn
-from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ..layer_blocks import DC2dDecBlock
 from ..layers import ActivationFactory as AF
@@ -30,7 +31,7 @@ class DC2dDecoder(NetArch):
         conv_strides=2,
         conv_dilations=1,
         head_channels=0,
-        hid_act="relu6",
+        hid_act="relu",
         head_act=None,
         dropout_rate=0,
         use_norm=True,
@@ -409,7 +410,7 @@ class DC2dDecoder(NetArch):
             )
 
         try:
-            parser.add_argument("--hid-act", default="relu6", help="hidden activation")
+            parser.add_argument("--hid-act", default="relu", help="hidden activation")
         except:
             pass
 

@@ -79,7 +79,7 @@ if [ $num_gpus -gt 0 ];then
   #export TORCH_DISTRIBUTED_DEBUG=DETAIL #variable to find unused parameters
   if [ $num_gpus -gt 1 ];then
     
-    [[ $(type -P "$torchrun") ]] && command="torchrun" \
+    [[ $(type -P "torchrun") ]] && command="torchrun" \
 	|| command="python -m torch.distributed.run"
     command="$command --nproc_per_node=$num_gpus --standalone --nnodes=1"
   fi

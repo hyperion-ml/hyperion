@@ -6,14 +6,20 @@
 import logging
 import math
 
-import torch
-import torch.nn as nn
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
-from ..layer_blocks import (DC2dEncBlock, Res2Net2dBasicBlock,
-                            Res2Net2dBNBlock, ResNet2dBasicBlock,
-                            ResNet2dBNBlock, SEResNet2dBasicBlock,
-                            SEResNet2dBNBlock)
+import torch
+import torch.nn as nn
+
+from ..layer_blocks import (
+    DC2dEncBlock,
+    Res2Net2dBasicBlock,
+    Res2Net2dBNBlock,
+    ResNet2dBasicBlock,
+    ResNet2dBNBlock,
+    SEResNet2dBasicBlock,
+    SEResNet2dBNBlock,
+)
 from ..layers import ActivationFactory as AF
 from ..layers import NormLayer2dFactory as NLF
 from ..utils import seq_lengths_to_mask
@@ -37,7 +43,7 @@ class ResNet2dEncoder(NetArch):
         resb_dilations=1,
         resb_groups=1,
         head_channels=0,
-        hid_act="relu6",
+        hid_act="relu",
         head_act=None,
         dropout_rate=0,
         se_r=16,
@@ -64,7 +70,7 @@ class ResNet2dEncoder(NetArch):
         resb_dilations=1,
         resb_groups=1,
         head_channels=0,
-        hid_act="relu6",
+        hid_act="relu",
         head_act=None,
         dropout_rate=0,
         se_r=16,
@@ -510,7 +516,7 @@ class ResNet2dEncoder(NetArch):
             )
 
         try:
-            parser.add_argument("--hid-act", default="relu6", help="hidden activation")
+            parser.add_argument("--hid-act", default="relu", help="hidden activation")
         except:
             pass
 

@@ -18,13 +18,12 @@ class BinVADReader(VADReader):
         self,
         rspecifier,
         path_prefix=None,
-        scp_sep=" ",
         frame_length=25,
         frame_shift=10,
         snip_edges=False,
     ):
 
-        r = DRF.create(rspecifier, path_prefix, scp_sep=scp_sep)
+        r = DRF.create(rspecifier, path_prefix)
         super().__init__(r.file_path, r.permissive)
         self.r = r
         self.frame_shift = frame_shift

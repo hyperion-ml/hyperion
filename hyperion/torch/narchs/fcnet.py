@@ -125,7 +125,7 @@ class FCNetV2(NetArch):
         in_units,
         hid_units,
         out_units=0,
-        hid_act={"name": "relu6", "inplace": True},
+        hid_act={"name": "relu", "inplace": True},
         out_act=None,
         dropout_rate=0,
         norm_layer=None,

@@ -17,7 +17,8 @@ import torch.nn as nn
 from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
-from hyperion.torch.models import (HFWav2Vec2RNNRNNTransducer,
+from hyperion.torch.models import (HFWav2Vec2ConformerV1RNNTransducer,
+                                   HFWav2Vec2RNNRNNTransducer,
                                    HFWav2Vec2RNNTransducer)
 from hyperion.torch.trainers import TransducerTrainer as Trainer
 from hyperion.torch.utils import ddp
@@ -28,6 +29,8 @@ from torch.nn.utils.rnn import pad_sequence
 model_dict = {
     "hf_wav2vec2rnn_transducer": HFWav2Vec2RNNTransducer,
     "hf_wav2vec2rnn_rnn_transducer": HFWav2Vec2RNNRNNTransducer,
+    "hf_wav2vec2conformer_v1_rnn_transducer":
+    HFWav2Vec2ConformerV1RNNTransducer,
     # "hf_hubert2rnn_transducer": HFWav2Vec2RNNTransducer,
     # "hf_hubert2rnn_rnn_transducer": Hubert2RNNRNNTransducer,
     # "hf_wavlm2rnn_transducer": HFHubert2RNNTransducer,

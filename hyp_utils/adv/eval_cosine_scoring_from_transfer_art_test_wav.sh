@@ -96,7 +96,7 @@ echo "$0: score $key_file to $output_dir"
 
 $cmd JOB=1:$nj $log_dir/${name}.JOB.log \
     hyp_utils/conda_env.sh --conda-env $HYP_ART_ENV --num-gpus $num_gpus \
-    torch-eval-xvec-cosine-scoring-from-transfer-art-test-wav.py \
+    eval_xvec_cosine_scoring_from_transfer_art_test_wav.py \
     --feats $feat_config --transfer_feats $transfer_feat_config ${args} \
     --v-file scp:$vector_file \
     --key-file $key_file \

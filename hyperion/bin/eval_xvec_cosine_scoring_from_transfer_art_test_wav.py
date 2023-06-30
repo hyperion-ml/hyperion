@@ -14,6 +14,7 @@ import pandas as pd
 import torch
 import torch.nn as nn
 from art.classifiers import PyTorchClassifier
+from art.estimators.classification import PyTorchClassifier
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.io import AudioWriter as AW
 from hyperion.io import RandomAccessAudioReader as AR
@@ -52,8 +53,7 @@ class MyModel(nn.Module):
         self.threshold = threshold
 
     def forward(self, s_t):
-        f_t = s_t
-        f_t = self.feat_extractor(s_t)
+        f_t, _ = self.feat_extractor(s_t)
         if self.vad_t is not None:
             n_vad_frames = len(self.vad_t)
             n_feat_frames = f_t.shape[1]
@@ -184,8 +184,8 @@ def eval_cosine_scoring(
     tmodel.to(device)
     tmodel.eval()
 
-    tar = np.asarray([1], dtype=np.int)
-    non = np.asarray([0], dtype=np.int)
+    tar = np.asarray([1], dtype=int)
+    non = np.asarray([0], dtype=int)
 
     logging.info("loading key and enrollment x-vectors")
     key, x_e = read_data(v_file, key_file, enroll_file, seg_part_idx, num_seg_parts)
@@ -211,7 +211,7 @@ def eval_cosine_scoring(
 
     if vad_spec is not None:
         logging.info("opening VAD stream: %s" % (vad_spec))
-        v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix, scp_sep=" ")
+        v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix)
 
     scores = np.zeros((key.num_models, key.num_tests), dtype="float32")
     attack_stats = pd.DataFrame(
@@ -248,9 +248,7 @@ def eval_cosine_scoring(
             vad = v_reader.read([key.seg_set[j]])[0]
             tot_frames = len(vad)
             speech_frames = np.sum(vad)
-            vad = torch.as_tensor(vad.astype(np.bool, copy=False), dtype=torch.bool).to(
-                device
-            )
+            vad = torch.tensor(vad, dtype=torch.bool).to(device)
             model.vad_t = vad
             tmodel.vad_t = vad
             logging.info(
@@ -282,8 +280,8 @@ def eval_cosine_scoring(
         for i in range(key.num_models):
             if key.tar[i, j] or key.non[i, j]:
                 t3 = time.time()
-                model.x_e = x_e[i].to(device)
-                tmodel.x_e = t_x_e[i].to(device)
+                model.x_e = x_e[i : i + 1].to(device)
+                tmodel.x_e = t_x_e[i : i + 1].to(device)
                 if key.tar[i, j]:
                     if attack.targeted:
                         t = non
@@ -386,10 +384,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--vad", dest="vad_spec", default=None)
     parser.add_argument(
-        "--vad-path-prefix",
-        dest="vad_path_prefix",
-        default=None,
-        help=("scp file_path prefix for vad"),
+        "--vad-path-prefix", default=None, help=("scp file_path prefix for vad"),
     )
 
     parser.add_argument("--model-path", required=True)

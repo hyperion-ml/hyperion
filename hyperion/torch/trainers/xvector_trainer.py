@@ -88,35 +88,6 @@ class XVectorTrainer(TorchTrainer):
         super_args = filter_func_args(super().__init__, locals())
         super().__init__(**super_args)
 
-        # super().__init__(
-        #     model,
-        #     loss,
-        #     optim,
-        #     epochs,
-        #     exp_path,
-        #     cur_epoch=cur_epoch,
-        #     grad_acc_steps=grad_acc_steps,
-        #     eff_batch_size=eff_batch_size,
-        #     device=device,
-        #     metrics=metrics,
-        #     lrsched=lrsched,
-        #     loggers=loggers,
-        #     ddp=ddp,
-        #     ddp_type=ddp_type,
-        #     train_mode=train_mode,
-        #     use_amp=use_amp,
-        #     log_interval=log_interval,
-        #     use_tensorboard=use_tensorboard,
-        #     use_wandb=use_wandb,
-        #     wandb=wandb,
-        #     grad_clip=grad_clip,
-        #     grad_clip_norm=grad_clip_norm,
-        #     swa_start=swa_start,
-        #     swa_lr=swa_lr,
-        #     swa_anneal_epochs=swa_anneal_epochs,
-        #     cpu_offload=cpu_offload,
-        # )
-
     @record
     def train_epoch(self, data_loader):
         """Training epoch loop
@@ -130,16 +101,16 @@ class XVectorTrainer(TorchTrainer):
         metric_acc = MetricAcc(device=self.device)
         batch_metrics = ODict()
         self.model.train()
-        for batch, (data, target) in enumerate(data_loader):
+        for batch, data in enumerate(data_loader):
             self.loggers.on_batch_begin(batch)
 
             if batch % self.grad_acc_steps == 0:
                 self.optimizer.zero_grad()
 
-            input_data, target = tensors_subset(data, batch_keys, self.device)
-            batch_size = input_data.size(0)
+            x, target = tensors_subset(data, batch_keys, self.device)
+            batch_size = x.size(0)
             with amp.autocast(enabled=self.use_amp):
-                output = self.model(input_data, y=target)
+                output = self.model(x, y=target)
                 loss = self.loss(output, target).mean() / self.grad_acc_steps
 
             if self.use_amp:

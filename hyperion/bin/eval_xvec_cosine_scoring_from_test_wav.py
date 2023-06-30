@@ -120,14 +120,14 @@ def eval_cosine_scoring(
     audio_reader = AR(test_wav_file, **audio_args)
 
     if vad_spec is not None:
-        logging.info("opening VAD stream: %s" % (vad_spec))
-        v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix, scp_sep=" ")
+        logging.info("opening VAD stream: %s", vad_spec)
+        v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix)
 
     scores = np.zeros((ndx.num_models, ndx.num_tests), dtype="float32")
     with torch.no_grad():
         for j in range(ndx.num_tests):
             t1 = time.time()
-            logging.info("scoring test utt %s" % (ndx.seg_set[j]))
+            logging.info("scoring test utt %s", ndx.seg_set[j])
             s, fs = audio_reader.read([ndx.seg_set[j]])
             s = s[0]
             fs = fs[0]
@@ -139,25 +139,19 @@ def eval_cosine_scoring(
 
             t2 = time.time()
             s = torch.as_tensor(s[None, :], dtype=torch.get_default_dtype()).to(device)
-            x_t = feat_extractor(s)
+            x_t, _ = feat_extractor(s)
             t4 = time.time()
             tot_frames = x_t.shape[1]
             if vad_spec is not None:
-                vad = torch.as_tensor(
-                    v_reader.read([ndx.seg_set[j]], num_frames=x_t.shape[1])[0].astype(
-                        np.uint8, copy=False
-                    ),
-                    dtype=torch.uint8,
-                ).to(device)
+                vad = v_reader.read([ndx.seg_set[j]], num_frames=x_t.shape[1])[0]
+                vad = torch.tensor(vad, dtype=torch.bool).to(device)
                 x_t = x_t[:, vad]
                 logging.info(
-                    "utt %s detected %d/%d (%.2f %%) speech frames"
-                    % (
-                        ndx.seg_set[j],
-                        x_t.shape[1],
-                        tot_frames,
-                        x_t.shape[1] / tot_frames * 100,
-                    )
+                    "utt %s detected %d/%d (%.2f %%) speech frames",
+                    ndx.seg_set[j],
+                    x_t.shape[1],
+                    tot_frames,
+                    x_t.shape[1] / tot_frames * 100,
                 )
 
             t5 = time.time()
@@ -168,9 +162,9 @@ def eval_cosine_scoring(
 
             for i in range(ndx.num_models):
                 if ndx.trial_mask[i, j]:
-                    y_e_i = torch.as_tensor(y_e[i], dtype=torch.get_default_dtype()).to(
-                        device
-                    )
+                    y_e_i = torch.as_tensor(
+                        y_e[i : i + 1], dtype=torch.get_default_dtype()
+                    ).to(device)
                     y_e_i = l2_norm(y_e_i)
                     scores_ij = torch.sum(y_e_i * y_t, dim=-1)
                     if calibrator is None:
@@ -212,9 +206,9 @@ if __name__ == "__main__":
     )
 
     parser.add_argument("--cfg", action=ActionConfigFile)
-    parser.add_argument("--v-file", dest="v_file", required=True)
-    parser.add_argument("--ndx-file", dest="ndx_file", default=None)
-    parser.add_argument("--enroll-file", dest="enroll_file", required=True)
+    parser.add_argument("--v-file", required=True)
+    parser.add_argument("--ndx-file", default=None)
+    parser.add_argument("--enroll-file", required=True)
     parser.add_argument("--test-wav-file", required=True)
 
     AR.add_class_args(parser)
@@ -222,10 +216,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--vad", dest="vad_spec", default=None)
     parser.add_argument(
-        "--vad-path-prefix",
-        dest="vad_path_prefix",
-        default=None,
-        help=("scp file_path prefix for vad"),
+        "--vad-path-prefix", default=None, help=("scp file_path prefix for vad"),
     )
 
     parser.add_argument("--model-path", required=True)
@@ -240,7 +231,7 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "--use-gpu", default=False, action="store_true", help="extract xvectors in gpu"
+        "--use-gpu", default=False, action="store_true", help="evaluate  in gpu"
     )
 
     parser.add_argument("--seg-part-idx", default=1, type=int, help=("test part index"))

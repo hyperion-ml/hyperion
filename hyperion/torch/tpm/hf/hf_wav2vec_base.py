@@ -8,10 +8,11 @@ import os
 from turtle import right
 from typing import List, Optional, Tuple, Union
 
-import torch
-import torch.nn as nn
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from transformers import Wav2Vec2FeatureExtractor, Wav2Vec2Processor
+
+import torch
+import torch.nn as nn
 
 from ...torch_model import TorchModel
 from ...utils import scale_seq_lengths, seq_lengths_to_mask
@@ -52,6 +53,8 @@ class HFWav2VecBase(TorchModel):
           chunk by chunk, if it is too long to fit in GPU.
         right_encoder_context: (`int`): future context frames used by the transformer encoder.
         sample_frequency: (`int`) waveform sample frequency used to train the model.
+        feat_extract_lr: learning rate for conv feature extractor, serves to set a lr different than the global one.
+        encoder_lr: learning rate for the wav2vec encoder, serves to set a lr different than the global one.
     """
 
     def __init__(
@@ -70,6 +73,8 @@ class HFWav2VecBase(TorchModel):
         left_encoder_context: int = 16,
         right_encoder_context: int = 16,
         sample_frequency: int = 16000,
+        feat_extract_lr: Optional[float] = None,
+        encoder_lr: Optional[float] = None,
     ):
         super().__init__()
         self.pretrained_model_path = pretrained_model_path
@@ -83,6 +88,8 @@ class HFWav2VecBase(TorchModel):
         self.override_spec_augment = override_spec_augment
         self.right_encoder_context = right_encoder_context
         self.left_encoder_context = left_encoder_context
+        self.feat_extract_lr = feat_extract_lr
+        self.encoder_lr = encoder_lr
 
         if pretrained_model_path is not None and not ignore_pretrained:
             rank = ddp_get_rank()
@@ -214,7 +221,14 @@ class HFWav2VecBase(TorchModel):
         C = self.hf_model.config.hidden_size
         return (in_shape[0], out_length, C)
 
-    def change_config(self, override_dropouts, override_spec_augment, **kwargs):
+    def change_config(
+        self,
+        override_dropouts: bool,
+        override_spec_augment: bool,
+        feat_extract_lr: Optional[float] = None,
+        encoder_lr: Optional[float] = None,
+        **kwargs,
+    ):
         if override_spec_augment:
             logging.info("overriding speech augment")
             self.change_spec_augment(**kwargs)
@@ -222,6 +236,9 @@ class HFWav2VecBase(TorchModel):
         if override_dropouts:
             logging.info("overriding hf model dropouts")
             self.change_dropouts(**kwargs)
+
+        self.feat_extract_lr = feat_extract_lr
+        self.encoder_lr = encoder_lr
 
     def change_spec_augment(
         self,
@@ -247,6 +264,35 @@ class HFWav2VecBase(TorchModel):
 
     def freeze_feature_encoder(self):
         self.hf_model.freeze_feature_encoder()
+
+    def has_param_groups(self):
+        return self.feat_extract_lr is not None or self.encoder_lr is not None
+
+    def trainable_param_groups(self):
+        if not self.has_param_groups():
+            return self.trainable_parameters()
+
+        if self.feat_extract_lr == self.encoder_lr:
+            return [{"params": self.trainable_parameters(), "lr": self.encoder_lr}]
+
+        param_groups = [
+            {"params": self.hf_model.feature_extractor.parameters()},
+            {"params": self.hf_model.feature_projection.parameters()},
+            {"params": self.hf_model.encoder.parameters()},
+        ]
+        if self.hf_model.adapter is not None:
+            param_groups.append({"params": self.hf_model.adapter.parameters()})
+
+        if self.feat_extract_lr is not None:
+            param_groups[0]["lr"] = self.feat_extract_lr
+            param_groups[1]["lr"] = self.feat_extract_lr
+
+        if self.encoder_lr is not None:
+            param_groups[2]["lr"] = self.encoder_lr
+            if len(param_groups) == 4:
+                param_groups[3]["lr"] = self.encoder_lr
+
+        return param_groups
 
     @property
     def hf_config(self):
@@ -569,7 +615,6 @@ class HFWav2VecBase(TorchModel):
             help=("file path or HuggingFace Hub path to pre-trained model"),
         )
 
-
         parser.add_argument(
             "--normalize-input",
             default=True,
@@ -658,6 +703,24 @@ class HFWav2VecBase(TorchModel):
                 "when the signal is evaluated chunk by chunk."
             ),
         )
+        parser.add_argument(
+            "--feat-extractor-lr",
+            default=None,
+            type=float,
+            help=(
+                "lr for conv feature extractor, it serves to set a lr "
+                "different than the global one."
+            ),
+        )
+        parser.add_argument(
+            "--encoder-lr",
+            default=None,
+            type=float,
+            help=(
+                "lr for transformer encoder, it serves to set a lr "
+                "different than the global one."
+            ),
+        )
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
@@ -693,6 +756,24 @@ class HFWav2VecBase(TorchModel):
             help=(
                 "whether to use the spec augment config. passed in the "
                 "arguments instead of the defaults in the pretrained model."
+            ),
+        )
+        parser.add_argument(
+            "--feat-extractor-lr",
+            default=None,
+            type=float,
+            help=(
+                "lr for conv feature extractor, it serves to set a lr "
+                "different than the global one."
+            ),
+        )
+        parser.add_argument(
+            "--encoder-lr",
+            default=None,
+            type=float,
+            help=(
+                "lr for transformer encoder, it serves to set a lr "
+                "different than the global one."
             ),
         )
 

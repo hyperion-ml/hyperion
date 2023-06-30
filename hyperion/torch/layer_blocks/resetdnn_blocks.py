@@ -5,6 +5,7 @@
 #
 
 import numpy as np
+
 import torch.nn as nn
 from torch.nn import BatchNorm1d, Conv1d, Linear
 

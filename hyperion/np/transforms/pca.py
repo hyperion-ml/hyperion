@@ -224,6 +224,12 @@ class PCA(NPModel):
             action=ActionYesNo,
             help=("updates whitening parameter"),
         )
+        parser.add_argument(
+            "--whiten",
+            default=False,
+            action=ActionYesNo,
+            help=("whitens the data after projection"),
+        )
 
         parser.add_argument(
             "--pca-dim", default=None, type=int, help=("output dimension of PCA")

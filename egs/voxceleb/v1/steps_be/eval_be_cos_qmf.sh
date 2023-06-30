@@ -7,6 +7,7 @@ cmd=run.pl
 stage=1
 num_parts=16
 coh_nbest=1000
+preproc_file=""
 
 if [ -f path.sh ]; then . ./path.sh; fi
 . parse_options.sh || exit 1;
@@ -33,6 +34,10 @@ name=$(basename $output_file)
 
 echo "$0 score $ndx_file"
 
+if [ -n "$preproc_file" ];then
+  extra_args="--preproc-file $preproc_file"
+fi
+
 if [ $stage -le 1 ];then
   for((i=1;i<=$num_parts;i++));
   do
@@ -40,7 +45,7 @@ if [ $stage -le 1 ];then
     do
       $cmd $output_dir/log/${name}_${i}_${j}.log \
 	   hyp_utils/conda_env.sh \
-	   steps_be/eval-be-cos-qmf.py \
+	   steps_be/eval_be_cos_qmf.py $extra_args \
 	   --v-file scp:$vector_file \
 	   --ndx-file $ndx_file \
 	   --enroll-file $enroll_file \

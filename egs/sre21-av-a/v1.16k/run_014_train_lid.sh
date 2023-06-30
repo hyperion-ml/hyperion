@@ -10,19 +10,17 @@ set -e
 stage=1
 ngpu=4
 config_file=default_config.sh
-resume=false
 interactive=false
-num_workers=8
-lid_ipe=1
+num_workers=""
+
 . parse_options.sh || exit 1;
 . $config_file
 . datapath.sh
 
 list_dir=data/train_lid_proc_audio_no_sil
 
-args=""
-if [ "$resume" == "true" ];then
-    args="--resume"
+if [ -n "$num_workers" ];then
+    extra_args="--data.train.data_loader.num-workers $num_workers"
 fi
 
 if [ "$interactive" == "true" ];then
@@ -33,22 +31,20 @@ lid_nnet_dir=exp/lid_nnets/lresnet34_lid_v1
 # Network Training
 if [ $stage -le 1 ]; then
 
-  train_exec=torch-train-resnet-xvec-from-wav.py
   mkdir -p $lid_nnet_dir/log
   $cuda_cmd \
     --gpu $ngpu $lid_nnet_dir/log/train.log \
     hyp_utils/conda_env.sh --conda-env $HYP_ENV --num-gpus $ngpu \
-    $train_exec --cfg conf/lresnet34_lid_v1.yaml \
-    --audio-path $list_dir/wav.scp \
-    --time-durs-file $list_dir/utt2dur \
-    --train-list $list_dir/lists_train_lid/train.scp \
-    --val-list $list_dir/lists_train_lid/val.scp \
-    --class-file $list_dir/lists_train_lid/class2int \
-    --iters-per-epoch $lid_ipe \
-    --num-workers $num_workers \
-    --num-gpus $ngpu \
-    --exp-path $lid_nnet_dir $args
-
+    train_xvector_from_wav.py resnet \
+    --cfg conf/train_lresnet34_lid_v1.yaml \
+    --data.train.dataset.recordings-file $list_dir/wav.scp \
+    --data.train.dataset.time-durs-file $list_dir/utt2dur \
+    --data.train.dataset.segments-file $list_dir/lists_train_lid/train.scp \
+    --data.train.dataset.class-file $list_dir/lists_train_lid/class2int \
+    --data.val.dataset.recordings-file $list_dir/wav.scp \
+    --data.val.dataset.time-durs-file $list_dir/utt2dur \
+    --data.val.dataset.segments-file $list_dir/lists_train_lid/val.scp \
+    --trainer.exp-path $lid_nnet_dir $extra_args \
+    --num-gpus $ngpu
 fi
 
-exit

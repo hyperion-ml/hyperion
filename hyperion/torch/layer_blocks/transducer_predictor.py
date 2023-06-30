@@ -5,9 +5,10 @@
 import logging
 from typing import Optional, Tuple
 
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
+
 import torch
 import torch.nn as nn
-from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ...utils.misc import filter_func_args
 from ..layers import ActivationFactory as AF
@@ -85,7 +86,7 @@ class TransducerRNNPredictor(nn.Module):
 
     def get_config(self):
         config = {
-            "pred_type": "conv",
+            "pred_type": "rnn",
             "vocab_size": self.vocab_size,
             "embed_dim": self.embed_dim,
             "num_layers": self.num_layers,
@@ -187,7 +188,7 @@ class TransducerConvPredictor(nn.Module):
             out_feats = embed_dim
 
         self.out_feats = out_feats
-        if out_feats != embed_feats:
+        if out_feats != embed_dim:
             self.output_proj = nn.Linear(embed_dim, out_feats)
         else:
             self.output_proj = None
@@ -210,7 +211,7 @@ class TransducerConvPredictor(nn.Module):
         self,
         y: torch.Tensor,
         states: Optional[torch.Tensor] = None,
-    ) -> Tuple[torch.Tensor, None]:
+    ) -> Tuple[torch.Tensor, Tuple[torch.Tensor]]:
         """
         Args:
           y:
@@ -223,19 +224,21 @@ class TransducerConvPredictor(nn.Module):
         """
         y = y.to(torch.int64)
         embed = self.embedding(y)
-        if self.context > 1:
+        if self.context_size > 1:
             embed = embed.transpose(1, 2)
             if states is None:
-                embed = F.pad(embedding_out, pad=(self.context_size - 1, 0))
+                embed = nn.functional.pad(embed,
+                                          pad=(self.context_size - 1, 0))
             else:
-                raise NotImplementedError()
-            embed = self.conv(embed).transpose(1, 2)
+                embed = torch.cat((states[0], embed), dim=-1)
 
-        out = self.hid_act(embed)
+            out = self.conv(embed).transpose(1, 2)
+
+        out = self.hid_act(out)
         if self.output_proj:
             out = self.output_proj(out)
 
-        return out, None
+        return out, (embed[:, :, -self.context_size + 1:], )
 
         # # this stuff about clamp() is a temporary fix for a mismatch
         # # at utterance start, we use negative ids in beam_search.py

@@ -18,7 +18,7 @@ echo "Score SRE21 ${track} ${subset} for $score_dir"
 
 soft_dir=./sre21/scoring_software
 
-if [ ! -f $s_dir/sre_scorer.py ];then
+if [ ! -f $soft_dir/sre_scorer.py ];then
     echo "downloading scoring tool"
     local/download_sre21_scoring_tool.sh
 fi

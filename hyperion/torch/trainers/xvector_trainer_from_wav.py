@@ -84,35 +84,6 @@ class XVectorTrainerFromWav(XVectorTrainer):
 
         super_args = filter_func_args(super().__init__, locals())
         super().__init__(**super_args)
-        # super().__init__(
-        #     model,
-        #     optim,
-        #     epochs,
-        #     exp_path,
-        #     cur_epoch=cur_epoch,
-        #     grad_acc_steps=grad_acc_steps,
-        #     eff_batch_size=eff_batch_size,
-        #     device=device,
-        #     metrics=metrics,
-        #     lrsched=lrsched,
-        #     loggers=loggers,
-        #     ddp=ddp,
-        #     ddp_type=ddp_type,
-        #     loss=loss,
-        #     train_mode=train_mode,
-        #     use_amp=use_amp,
-        #     log_interval=log_interval,
-        #     use_tensorboard=use_tensorboard,
-        #     use_wandb=use_wandb,
-        #     wandb=wandb,
-        #     grad_clip=grad_clip,
-        #     grad_clip_norm=grad_clip_norm,
-        #     swa_start=swa_start,
-        #     swa_lr=swa_lr,
-        #     swa_anneal_epochs=swa_anneal_epochs,
-        #     cpu_offload=cpu_offload,
-        # )
-
         self.feat_extractor = feat_extractor
         if device is not None:
             self.feat_extractor.to(device)
@@ -135,17 +106,13 @@ class XVectorTrainerFromWav(XVectorTrainer):
             if batch % self.grad_acc_steps == 0:
                 self.optimizer.zero_grad()
 
-            # input_data, target = (
-            #     data[self.input_key].to(self.device),
-            #     data[self.target_key].to(self.device),
-            # )
-            input_data, target = tensors_subset(data, batch_keys, self.device)
-            batch_size = input_data.size(0)
+            audio, target = tensors_subset(data, batch_keys, self.device)
+            batch_size = audio.size(0)
             with torch.no_grad():
-                feats = self.feat_extractor(input_data)
+                feats, feats_lengths = self.feat_extractor(audio)
 
             with amp.autocast(enabled=self.use_amp):
-                output = self.model(feats, y=target)
+                output = self.model(feats, feats_lengths, y=target)
                 loss = self.loss(output, target).mean() / self.grad_acc_steps
 
             if self.use_amp:
@@ -192,12 +159,12 @@ class XVectorTrainerFromWav(XVectorTrainer):
                 self.model.eval()
 
             for batch, data in enumerate(data_loader):
-                input_data, target = tensors_subset(data, batch_keys, self.device)
-                batch_size = input_data.size(0)
+                audio, target = tensors_subset(data, batch_keys, self.device)
+                batch_size = audio.size(0)
 
-                feats = self.feat_extractor(input_data)
+                feats, feats_lengths = self.feat_extractor(audio)
                 with amp.autocast(enabled=self.use_amp):
-                    output = self.model(feats)
+                    output = self.model(feats, feats_lengths)
                     loss = self.loss(output, target)
 
                 batch_metrics["loss"] = loss.mean().item()

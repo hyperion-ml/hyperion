@@ -4,6 +4,7 @@
 
 """
 
+from .conformer_v1_rnn_transducer import ConformerV1RNNTransducer
 from .rnn_rnn_transducer import RNNRNNTransducer
 from .rnn_transducer import RNNTransducer, RNNTransducerOutput
 from .rnn_film_transducer import RNNFiLMTransducer

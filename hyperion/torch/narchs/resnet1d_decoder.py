@@ -4,13 +4,18 @@
 """
 import math
 
-import torch
-import torch.nn as nn
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
-from ..layer_blocks import (DC1dDecBlock, ResNet1dBasicDecBlock,
-                            ResNet1dBNDecBlock, SEResNet1dBasicDecBlock,
-                            SEResNet1dBNDecBlock)
+import torch
+import torch.nn as nn
+
+from ..layer_blocks import (
+    DC1dDecBlock,
+    ResNet1dBasicDecBlock,
+    ResNet1dBNDecBlock,
+    SEResNet1dBasicDecBlock,
+    SEResNet1dBNDecBlock,
+)
 from ..layers import ActivationFactory as AF
 from ..layers import ICNR1d
 from ..layers import NormLayer1dFactory as NLF
@@ -33,7 +38,7 @@ class ResNet1dDecoder(NetArch):
         resb_dilations=1,
         resb_groups=1,
         head_channels=0,
-        hid_act="relu6",
+        hid_act="relu",
         head_act=None,
         dropout_rate=0,
         se_r=16,
@@ -449,7 +454,7 @@ class ResNet1dDecoder(NetArch):
         )
 
         try:
-            parser.add_argument("--hid-act", default="relu6", help="hidden activation")
+            parser.add_argument("--hid-act", default="relu", help="hidden activation")
         except:
             pass
 

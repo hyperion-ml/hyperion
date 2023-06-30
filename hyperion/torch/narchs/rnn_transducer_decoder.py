@@ -7,21 +7,23 @@ from dataclasses import dataclass
 import logging
 from typing import Dict, List, Optional, Tuple, Union
 
-import torch
-import torch.nn as nn
 import torchaudio
 import torchaudio.functional
 from jsonargparse import ActionParser, ArgumentParser, ActionYesNo
 
+import torch
+import torch.nn as nn
+
 try:
     import k2
 except ModuleNotFoundError:
-    from ...utils import dummy_k2 as k2
+    from ..utils import dummy_k2 as k2
 
 from ...utils.misc import filter_func_args
 from ...utils.text import add_sos
+from ..layer_blocks import TransducerConvPredictor as ConvPredictor
 from ..layer_blocks import TransducerJoiner as Joiner
-from ..layer_blocks import TransducerRNNPredictor as RNNPredictor, TransducerConvPredictor as ConvPredictor
+from ..layer_blocks import TransducerRNNPredictor as RNNPredictor
 from .net_arch import NetArch
 
 
@@ -31,7 +33,7 @@ class Hypothesis:
     log_prob: float  # log prob of ys
 
     # Optional LSTM predictor state.
-    pred_state: Optional[Tuple[torch.Tensor, torch.Tensor]] = None
+    pred_state: Optional[Tuple[torch.Tensor, ...]] = None
 
 
 class RNNTransducerDecoder(NetArch):
@@ -99,10 +101,8 @@ class RNNTransducerDecoder(NetArch):
 
         if self.rnnt_loss == "k2_pruned":
             self.simple_am_proj = nn.Linear(in_feats, vocab_size)
-            self.simple_lm_proj = nn.Linear(self.predictor.out_feats,
-                                            vocab_size)
-            self.register_buffer("cur_step", torch.as_tensor(0,
-                                                             dtype=torch.int))
+            self.simple_lm_proj = nn.Linear(self.predictor.out_feats, vocab_size)
+            self.register_buffer("cur_step", torch.as_tensor(0, dtype=torch.int))
 
     def _make_predictor(self):
         pred_type = self.predictor_args["pred_type"]
@@ -110,13 +110,12 @@ class RNNTransducerDecoder(NetArch):
         self.predictor_args["vocab_size"] = self.vocab_size
         self.predictor_args["blank_id"] = self.blank_id
         if pred_type == "rnn":
-            pred_args = filter_func_args(RNNPredictor.__init__,
-                                         self.predictor_args)
+            pred_args = filter_func_args(RNNPredictor.__init__, self.predictor_args)
             self.predictor = RNNPredictor(**pred_args)
         elif pred_type == "conv":
-            pred_args = filter_func_args(ConvPredictor.__init__,
-                                         self.predictor_args)
+            pred_args = filter_func_args(ConvPredictor.__init__, self.predictor_args)
             self.predictor = ConvPredictor(**pred_args)
+            self.predictor_args["out_feats"] = self.predictor.embed_dim
         else:
             raise ValueError(f"Unknown predictor type {pred_type}")
 
@@ -126,8 +125,7 @@ class RNNTransducerDecoder(NetArch):
         if joiner_type == "basic":
             pred_feats = self.predictor_args["out_feats"]
             hid_feats = self.joiner_args["hid_feats"]
-            self.joiner = Joiner(self.in_feats, pred_feats, hid_feats,
-                                 self.vocab_size)
+            self.joiner = Joiner(self.in_feats, pred_feats, hid_feats, self.vocab_size)
         else:
             raise ValueError(f"Unknown joiner type {joiner_type}")
 
@@ -151,9 +149,14 @@ class RNNTransducerDecoder(NetArch):
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
-    def _rnnt_loss_torchaudio(self, x: torch.Tensor, x_lengths: torch.Tensor,
-                              y: torch.Tensor, y_lengths: torch.Tensor,
-                              pred_out: torch.Tensor):
+    def _rnnt_loss_torchaudio(
+        self,
+        x: torch.Tensor,
+        x_lengths: torch.Tensor,
+        y: torch.Tensor,
+        y_lengths: torch.Tensor,
+        pred_out: torch.Tensor,
+    ):
         logits = self.joiner(x, pred_out)
         # rnnt_loss requires 0 padded targets
         # Note: y does not start with SOS
@@ -169,14 +172,17 @@ class RNNTransducerDecoder(NetArch):
         )
         return loss
 
-    def _rnnt_loss_k2(self, x: torch.Tensor, x_lengths: torch.Tensor,
-                      y: torch.Tensor, y_lengths: torch.Tensor,
-                      pred_out: torch.Tensor):
+    def _rnnt_loss_k2(
+        self,
+        x: torch.Tensor,
+        x_lengths: torch.Tensor,
+        y: torch.Tensor,
+        y_lengths: torch.Tensor,
+        pred_out: torch.Tensor,
+    ):
         y_padded = y.pad(mode="constant", padding_value=0)
         y_padded = y_padded.to(torch.int64)
-        boundary = torch.zeros((x.size(0), 4),
-                               dtype=torch.int64,
-                               device=x.device)
+        boundary = torch.zeros((x.size(0), 4), dtype=torch.int64, device=x.device)
         boundary[:, 2] = y_lengths
         boundary[:, 3] = x_lengths
 
@@ -194,15 +200,18 @@ class RNNTransducerDecoder(NetArch):
             )
         return loss
 
-    def _rnnt_loss_k2_pruned(self, x: torch.Tensor, x_lengths: torch.Tensor,
-                             y: torch.Tensor, y_lengths: torch.Tensor,
-                             pred_out: torch.Tensor):
+    def _rnnt_loss_k2_pruned(
+        self,
+        x: torch.Tensor,
+        x_lengths: torch.Tensor,
+        y: torch.Tensor,
+        y_lengths: torch.Tensor,
+        pred_out: torch.Tensor,
+    ):
 
         y_padded = y.pad(mode="constant", padding_value=0)
         y_padded = y_padded.to(torch.int64)
-        boundary = torch.zeros((x.size(0), 4),
-                               dtype=torch.int64,
-                               device=x.device)
+        boundary = torch.zeros((x.size(0), 4), dtype=torch.int64, device=x.device)
         boundary[:, 2] = y_lengths
         boundary[:, 3] = x_lengths
 
@@ -265,7 +274,7 @@ class RNNTransducerDecoder(NetArch):
             simple_loss_scale = 1.0 - r * (1.0 - self.simple_loss_scale)
             pruned_loss_scale = 0.1 + 0.9 * r
             self.cur_step += 1
-            print(simple_loss_scale, pruned_loss_scale)
+            # print(simple_loss_scale, pruned_loss_scale)
 
         loss = simple_loss_scale * loss_simple + pruned_loss_scale * loss_pruned
 
@@ -287,44 +296,48 @@ class RNNTransducerDecoder(NetArch):
         loss_simple = loss_pruned = None
         if self.rnnt_loss == "k2_pruned":
             loss, loss_simple, loss_pruned = self._rnnt_loss_k2_pruned(
-                x, x_lengths, y, y_lengths, pred_out)
+                x, x_lengths, y, y_lengths, pred_out
+            )
         elif self.rnnt_loss == "k2":
             loss = self._rnnt_loss_k2(x, x_lengths, y, y_lengths, pred_out)
         elif self.rnnt_loss == "torchaudio":
             loss_simple = loss_pruned = None
-            loss = self._rnnt_loss_torchaudio(x, x_lengths, y, y_lengths,
-                                              pred_out)
+            loss = self._rnnt_loss_torchaudio(x, x_lengths, y, y_lengths, pred_out)
 
         return loss, loss_simple, loss_pruned
 
-    def decode(self,
-               x: torch.Tensor,
-               x_lengths: torch.Tensor = None,
-               method="time_sync_beam_search",
-               beam_width: int = 5,
-               max_sym_per_frame: int = 3,
-               max_sym_per_utt: int = 1000) -> List[int]:
+    def decode(
+        self,
+        x: torch.Tensor,
+        x_lengths: torch.Tensor = None,
+        method="time_sync_beam_search",
+        beam_width: int = 5,
+        max_sym_per_frame: int = 3,
+        max_sym_per_utt: int = 1000,
+    ) -> List[int]:
         if method == "time_sync_beam_search":
-            return self.decode_time_sync_beam_search(x,
-                                                     x_lengths,
-                                                     beam_width=beam_width)
+            return self.decode_time_sync_beam_search(
+                x, x_lengths, beam_width=beam_width
+            )
         elif method == "align_length_sync_beam_search":
             return self.decode_align_length_sync_beam_search(
+                x, x_lengths, beam_width=beam_width, max_sym_per_utt=max_sym_per_utt
+            )
+        elif method == "greedy":
+            return self.decode_greedy(
                 x,
                 x_lengths,
-                beam_width=beam_width,
-                max_sym_per_utt=max_sym_per_utt)
-        elif method == "greedy":
-            return self.decode_greedy(x,
-                                      x_lengths,
-                                      max_sym_per_frame=max_sym_per_frame,
-                                      max_sym_per_utt=max_sym_per_utt)
+                max_sym_per_frame=max_sym_per_frame,
+                max_sym_per_utt=max_sym_per_utt,
+            )
 
-    def decode_greedy(self,
-                      x: torch.Tensor,
-                      x_lengths: torch.Tensor = None,
-                      max_sym_per_frame: int = 3,
-                      max_sym_per_utt: int = 1000) -> List[int]:
+    def decode_greedy(
+        self,
+        x: torch.Tensor,
+        x_lengths: torch.Tensor = None,
+        max_sym_per_frame: int = 3,
+        max_sym_per_utt: int = 1000,
+    ) -> List[int]:
         """
         Args:
           x: encoder embeddings with shape = (N, T, C)
@@ -338,9 +351,8 @@ class RNNTransducerDecoder(NetArch):
         blank_id = self.blank_id
         device = x.device
 
-        sos = torch.tensor([blank_id], device=device,
-                           dtype=torch.int64).reshape(1, 1)
-        pred_out, (h, c) = self.predictor(sos)
+        sos = torch.tensor([blank_id], device=device, dtype=torch.int64).reshape(1, 1)
+        pred_out, state = self.predictor(sos)
         T = x.size(1)
         t = 0
         hyp = []
@@ -349,7 +361,7 @@ class RNNTransducerDecoder(NetArch):
         sym_per_utt = 0
 
         while t < T and sym_per_utt < max_sym_per_utt:
-            x_t = x[:, t:t + 1, :]
+            x_t = x[:, t : t + 1, :]
             logits = self.joiner(x_t, pred_out)  # (1, 1, 1, vocab_size)
             # logits is
 
@@ -359,7 +371,7 @@ class RNNTransducerDecoder(NetArch):
             if y != blank_id:
                 hyp.append(y.item())
                 y = y.reshape(1, 1)
-                pred_out, (h, c) = self.predictor(y, (h, c))
+                pred_out, state = self.predictor(y, state)
 
                 sym_per_utt += 1
                 sym_per_frame += 1
@@ -370,10 +382,9 @@ class RNNTransducerDecoder(NetArch):
 
         return hyp
 
-    def decode_time_sync_beam_search(self,
-                                     x: torch.Tensor,
-                                     x_lengths: torch.Tensor = None,
-                                     beam_width: int = 5) -> List[int]:
+    def decode_time_sync_beam_search(
+        self, x: torch.Tensor, x_lengths: torch.Tensor = None, beam_width: int = 5
+    ) -> List[int]:
         assert x.ndim == 3
         assert x.size(0) == 1, x.size(0)
 
@@ -381,18 +392,17 @@ class RNNTransducerDecoder(NetArch):
         device = x.device
 
         sos = torch.tensor([blank_id], device=device).reshape(1, 1)
-        pred_out, (h, c) = self.predictor(sos)
+        pred_out, state = self.predictor(sos)
         T = x.size(1)
         t = 0
         B = [Hypothesis(ys=[blank_id], log_prob=0.0, pred_state=None)]
         max_u = 20000  # terminate after this number of steps
         u = 0
 
-        cache: Dict[str, Tuple[torch.Tensor, Tuple[torch.Tensor,
-                                                   torch.Tensor]]] = {}
+        cache: Dict[str, Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]] = {}
 
         while t < T and u < max_u:
-            x_t = x[:, t:t + 1, :]
+            x_t = x[:, t : t + 1, :]
             A = B
             B = []
 
@@ -405,13 +415,9 @@ class RNNTransducerDecoder(NetArch):
                 cached_key = "_".join(map(str, y_star.ys))
 
                 if cached_key not in cache:
-                    pred_in = torch.tensor([y_star.ys[-1]],
-                                           device=device).reshape(1, 1)
+                    pred_in = torch.tensor([y_star.ys[-1]], device=device).reshape(1, 1)
 
-                    pred_out, pred_state = self.predictor(
-                        pred_in,
-                        y_star.pred_state,
-                    )
+                    pred_out, pred_state = self.predictor(pred_in, y_star.pred_state,)
                     cache[cached_key] = (pred_out, pred_state)
                 else:
                     pred_out, pred_state = cache[cached_key]
@@ -442,7 +448,7 @@ class RNNTransducerDecoder(NetArch):
                 topk_log_prob = log_prob.topk(beam_width, dim=-1)
 
                 # Second, choose other labels
-                #for i, v in enumerate(log_prob.tolist()):
+                # for i, v in enumerate(log_prob.tolist()):
                 for v, i in zip(*topk_log_prob):
                     v = v.item()
                     i = i.item()
@@ -451,9 +457,7 @@ class RNNTransducerDecoder(NetArch):
                     new_ys = y_star.ys + [i]
                     new_log_prob = y_star.log_prob + v
                     new_hyp = Hypothesis(
-                        ys=new_ys,
-                        log_prob=new_log_prob,
-                        pred_state=pred_state,
+                        ys=new_ys, log_prob=new_log_prob, pred_state=pred_state,
                     )
                     A.append(new_hyp)
 
@@ -461,12 +465,9 @@ class RNNTransducerDecoder(NetArch):
                 # check whether B contains more than "beam" elements more probable
                 # than the most probable in A
                 A_most_probable = max(A, key=lambda hyp: hyp.log_prob)
-                #print("tuAB1", t, u, len(A), A_most_probable.log_prob, len(B))
+                # print("tuAB1", t, u, len(A), A_most_probable.log_prob, len(B))
                 B = sorted(
-                    [
-                        hyp
-                        for hyp in B if hyp.log_prob > A_most_probable.log_prob
-                    ],
+                    [hyp for hyp in B if hyp.log_prob > A_most_probable.log_prob],
                     key=lambda hyp: hyp.log_prob,
                     reverse=True,
                 )
@@ -491,11 +492,12 @@ class RNNTransducerDecoder(NetArch):
         return ys
 
     def decode_align_length_sync_beam_search(
-            self,
-            x: torch.Tensor,
-            x_lengths: torch.Tensor,
-            beam_width: int = 5,
-            max_sym_per_utt: int = 1000) -> List[int]:
+        self,
+        x: torch.Tensor,
+        x_lengths: torch.Tensor,
+        beam_width: int = 5,
+        max_sym_per_utt: int = 1000,
+    ) -> List[int]:
         assert x.ndim == 3
         assert x.size(0) == 1, x.size(0)
 
@@ -503,41 +505,36 @@ class RNNTransducerDecoder(NetArch):
         device = x.device
 
         sos = torch.tensor([blank_id], device=device).reshape(1, 1)
-        pred_out, (h, c) = self.predictor(sos)
+        pred_out, state = self.predictor(sos)
         T = x.size(1)
-        #t = 0
+        # t = 0
         B = [Hypothesis(ys=[blank_id], log_prob=0.0, pred_state=None)]
-        #max_u = 20000  # terminate after this number of steps
-        #u = 0
+        # max_u = 20000  # terminate after this number of steps
+        # u = 0
 
-        cache: Dict[str, Tuple[torch.Tensor, Tuple[torch.Tensor,
-                                                   torch.Tensor]]] = {}
+        cache: Dict[str, Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]] = {}
         F = []
-        #for t < T and u < max_u:
+        # for t < T and u < max_u:
         for i in range(T + max_sym_per_utt):
             A = []
             for y_star in B:
-                #while u < max_u:
+                # while u < max_u:
                 u = len(y_star.ys) - 1
                 t = i - u
                 if t >= T:
                     continue
 
-                #y_star = max(A, key=lambda hyp: hyp.log_prob)
-                #A.remove(y_star)
-                x_t = x[:, t:t + 1, :]
+                # y_star = max(A, key=lambda hyp: hyp.log_prob)
+                # A.remove(y_star)
+                x_t = x[:, t : t + 1, :]
                 # Note: y_star.ys is unhashable, i.e., cannot be used
                 # as a key into a dict
                 cached_key = "_".join(map(str, y_star.ys))
 
                 if cached_key not in cache:
-                    pred_in = torch.tensor([y_star.ys[-1]],
-                                           device=device).reshape(1, 1)
+                    pred_in = torch.tensor([y_star.ys[-1]], device=device).reshape(1, 1)
 
-                    pred_out, pred_state = self.predictor(
-                        pred_in,
-                        y_star.pred_state,
-                    )
+                    pred_out, pred_state = self.predictor(pred_in, y_star.pred_state,)
                     cache[cached_key] = (pred_out, pred_state)
                 else:
                     pred_out, pred_state = cache[cached_key]
@@ -565,7 +562,7 @@ class RNNTransducerDecoder(NetArch):
                 topk_log_prob = log_prob.topk(beam_width, dim=-1)
 
                 # Second, choose other labels
-                #for i, v in enumerate(log_prob.tolist()):
+                # for i, v in enumerate(log_prob.tolist()):
                 for v, i in zip(*topk_log_prob):
                     v = v.item()
                     i = i.item()
@@ -574,20 +571,16 @@ class RNNTransducerDecoder(NetArch):
                     new_ys = y_star.ys + [i]
                     new_log_prob = y_star.log_prob + v
                     new_hyp = Hypothesis(
-                        ys=new_ys,
-                        log_prob=new_log_prob,
-                        pred_state=pred_state,
+                        ys=new_ys, log_prob=new_log_prob, pred_state=pred_state,
                     )
                     A.append(new_hyp)
 
                 # check whether B contains more than "beam_width" elements more probable
                 # than the most probable in A
-                #A_most_probable = max(A, key=lambda hyp: hyp.log_prob)
-                #print("tuAB1", t, u, len(A), A_most_probable.log_prob, len(B))
+                # A_most_probable = max(A, key=lambda hyp: hyp.log_prob)
+                # print("tuAB1", t, u, len(A), A_most_probable.log_prob, len(B))
                 B0 = sorted(
-                    [hyp for hyp in A],
-                    key=lambda hyp: hyp.log_prob,
-                    reverse=True,
+                    [hyp for hyp in A], key=lambda hyp: hyp.log_prob, reverse=True,
                 )
                 B = []
                 B_ys = set()
@@ -607,8 +600,7 @@ class RNNTransducerDecoder(NetArch):
                     B = B[:beam_width]
                     break
 
-        best_hyp = max(F,
-                       key=lambda hyp: hyp.log_prob / max(1, len(hyp.ys[1:])))
+        best_hyp = max(F, key=lambda hyp: hyp.log_prob / max(1, len(hyp.ys[1:])))
         ys = best_hyp.ys[1:]  # [1:] to remove the blank
         return ys
 
@@ -646,49 +638,58 @@ class RNNTransducerDecoder(NetArch):
             "--pred-type",
             default="rnn",
             choices=["rnn", "conv"],
-            help=
-            """type of predictor between RNN and Convolutional [rnn, conv]""")
-        pred_parser.add_argument("--embed-dim",
-                                 default=1024,
-                                 type=int,
-                                 help=("token embedding dimension"))
+            help="""type of predictor between RNN and Convolutional [rnn, conv]""",
+        )
+        pred_parser.add_argument(
+            "--embed-dim", default=1024, type=int, help=("token embedding dimension")
+        )
         pred_parser.add_argument(
             "--embed-dropout-rate",
             default=0.0,
             type=float,
-            help=("dropout prob for predictor input embeddings"))
-        pred_parser.add_argument("--rnn-dropout-rate",
-                                 default=0.0,
-                                 type=float,
-                                 help="""dropout prob for decoder RNN """)
+            help=("dropout prob for predictor input embeddings"),
+        )
+        pred_parser.add_argument(
+            "--rnn-dropout-rate",
+            default=0.0,
+            type=float,
+            help="""dropout prob for decoder RNN """,
+        )
         pred_parser.add_argument(
             "--rnn-type",
             default="lstm",
             choices=["lstm", "gru"],
-            help=
-            """type of recurrent network for thep predictor in [lstm, gru]""")
+            help="""type of recurrent network for thep predictor in [lstm, gru]""",
+        )
 
-        pred_parser.add_argument("--num-layers",
-                                 default=2,
-                                 type=int,
-                                 help="""number of layers of the predictor """)
+        pred_parser.add_argument(
+            "--num-layers",
+            default=2,
+            type=int,
+            help="""number of layers of the predictor """,
+        )
 
-        pred_parser.add_argument("--hid-feats",
-                                 default=512,
-                                 type=int,
-                                 help="""hidden features of the predictor""")
-        pred_parser.add_argument("--out-feats",
-                                 default=512,
-                                 type=int,
-                                 help="""output features of the predictor""")
-        pred_parser.add_argument("--context-size",
-                                 default=2,
-                                 type=int,
-                                 help="""context length of the convolutional 
-                                 predictor, 1->bigram, 2-> trigram,...""")
+        pred_parser.add_argument(
+            "--hid-feats",
+            default=512,
+            type=int,
+            help="""hidden features of the predictor""",
+        )
+        pred_parser.add_argument(
+            "--out-feats",
+            default=512,
+            type=int,
+            help="""output features of the predictor""",
+        )
+        pred_parser.add_argument(
+            "--context-size",
+            default=2,
+            type=int,
+            help="""context length of the convolutional 
+                                 predictor, 1->bigram, 2-> trigram,...""",
+        )
 
-        parser.add_argument("--predictor",
-                            action=ActionParser(parser=pred_parser))
+        parser.add_argument("--predictor", action=ActionParser(parser=pred_parser))
 
     @staticmethod
     def add_joiner_args(parser):
@@ -698,39 +699,43 @@ class RNNTransducerDecoder(NetArch):
             "--joiner-type",
             default="basic",
             choices=["basic"],
-            help=
-            """type of joiner network, there is only basic joiner for now""")
-        pred_parser.add_argument("--hid-feats",
-                                 default=512,
-                                 type=int,
-                                 help="""hidden features of the joiner""")
-        parser.add_argument("--joiner",
-                            action=ActionParser(parser=pred_parser))
+            help="""type of joiner network, there is only basic joiner for now""",
+        )
+        pred_parser.add_argument(
+            "--hid-feats",
+            default=512,
+            type=int,
+            help="""hidden features of the joiner""",
+        )
+        parser.add_argument("--joiner", action=ActionParser(parser=pred_parser))
 
     @staticmethod
-    def add_class_args(parser,
-                       prefix=None,
-                       skip=set(["in_feats", "blank_id", "vocab_size"])):
+    def add_class_args(
+        parser, prefix=None, skip=set(["in_feats", "blank_id", "vocab_size"])
+    ):
 
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
         if "in_feats" not in skip:
-            parser.add_argument("--in-feats",
-                                type=int,
-                                required=True,
-                                help=("input feature dimension"))
+            parser.add_argument(
+                "--in-feats", type=int, required=True, help=("input feature dimension")
+            )
         if "blank_id" not in skip:
-            parser.add_argument("--blank-id",
-                                type=int,
-                                default=0,
-                                help=("blank id from tokenizer model"))
+            parser.add_argument(
+                "--blank-id",
+                type=int,
+                default=0,
+                help=("blank id from tokenizer model"),
+            )
         if "vocab_size" not in skip:
-            parser.add_argument("--vocab-size",
-                                type=int,
-                                required=True,
-                                help=("output prediction dimension"))
+            parser.add_argument(
+                "--vocab-size",
+                type=int,
+                required=True,
+                help=("output prediction dimension"),
+            )
 
         RNNTransducerDecoder.add_pred_args(parser)
         RNNTransducerDecoder.add_joiner_args(parser)
@@ -738,56 +743,62 @@ class RNNTransducerDecoder(NetArch):
             "--rnnt-loss",
             default="k2_pruned",
             choices=["torchaudio", "k2", "k2_pruned"],
-            help="""type of rnn-t loss between torchaudio, k2 or k2_pruned.""")
+            help="""type of rnn-t loss between torchaudio, k2 or k2_pruned.""",
+        )
         parser.add_argument(
             "--rnnt-type",
             default="regular",
             choices=["regular", "modified", "constrained"],
-            help=
-            """type of rnn-t loss between regular, modified or constrained.""")
+            help="""type of rnn-t loss between regular, modified or constrained.""",
+        )
         parser.add_argument(
             "--delay-penalty",
             default=0.0,
             type=float,
-            help=
-            """penalize symbol delay, which is used to make symbol emit earlier
-            for streaming models.""")
+            help="""penalize symbol delay, which is used to make symbol emit earlier
+            for streaming models.""",
+        )
         parser.add_argument(
             "--reduction",
             default="sum",
             choices=["sum", "mean"],
-            help="""type of reduction for rnn-t loss between sum or mean""")
+            help="""type of reduction for rnn-t loss between sum or mean""",
+        )
         parser.add_argument(
             "--prune-range",
             default=None,
             type=Optional[int],
             help="""how many symbols to keep for each frame in k2 rnn-t 
-            pruned loss.""")
+            pruned loss.""",
+        )
         parser.add_argument(
             "--lm-scale",
             default=0.25,
             type=float,
-            help="""language model scale in rnn-t smoothed loss""")
+            help="""language model scale in rnn-t smoothed loss""",
+        )
         parser.add_argument(
             "--am-scale",
             default=0.0,
             type=float,
-            help="""acoustic model scale in rnn-t smoothed loss""")
+            help="""acoustic model scale in rnn-t smoothed loss""",
+        )
         parser.add_argument(
             "--simple-loss-scale",
             default=0.5,
             type=float,
-            help="""weight of rnn-t simple loss when using k2 pruned loss""")
+            help="""weight of rnn-t simple loss when using k2 pruned loss""",
+        )
         parser.add_argument(
             "--pruned-warmup-steps",
             default=2000,
             type=int,
             help="""number of steps to warm up the k2 rnn-t pruned loss 
-            from 0.1 to 1""")
+            from 0.1 to 1""",
+        )
 
         if prefix is not None:
-            outer_parser.add_argument("--" + prefix,
-                                      action=ActionParser(parser=parser))
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     @staticmethod
     def add_finetune_args(parser, prefix=None, skip=set()):
@@ -802,15 +813,21 @@ class RNNTransducerDecoder(NetArch):
             action=ActionYesNo,
             help=(
                 "whether to use the dropout probabilities passed in the "
-                "arguments instead of the defaults in the pretrained model."))
-        parser.add_argument("--embed-dropout-rate",
-                            default=0.0,
-                            type=float,
-                            help=("dropout prob for decoder input embeddings"))
-        parser.add_argument("--rnn-dropout-rate",
-                            default=0.0,
-                            type=float,
-                            help=("dropout prob for decoder RNN "))
+                "arguments instead of the defaults in the pretrained model."
+            ),
+        )
+        parser.add_argument(
+            "--embed-dropout-rate",
+            default=0.0,
+            type=float,
+            help=("dropout prob for decoder input embeddings"),
+        )
+        parser.add_argument(
+            "--rnn-dropout-rate",
+            default=0.0,
+            type=float,
+            help=("dropout prob for decoder RNN "),
+        )
 
 
         parser.add_argument(
@@ -827,5 +844,4 @@ class RNNTransducerDecoder(NetArch):
             pruned loss.""")
 
         if prefix is not None:
-            outer_parser.add_argument("--" + prefix,
-                                      action=ActionParser(parser=parser))
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

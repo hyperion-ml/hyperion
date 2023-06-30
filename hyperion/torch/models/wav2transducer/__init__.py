@@ -5,6 +5,8 @@
 """
 
 from .hf_wav2vec2_transducer import HFWav2Vec2Transducer
+from .hf_wav2vec2conformer_v1_rnn_transducer import \
+    HFWav2Vec2ConformerV1RNNTransducer
 from .hf_wav2vec2rnn_rnn_transducer import HFWav2Vec2RNNRNNTransducer
 from .hf_wav2vec2rnn_transducer import HFWav2Vec2RNNTransducer
 from .hf_wav2vec2rnn_film_transducer import HFWav2Vec2RNNFiLMTransducer

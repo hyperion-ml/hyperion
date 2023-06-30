@@ -20,6 +20,8 @@ class NPModel(object):
     """
 
     def __init__(self, name=None, **kwargs):
+        if name is None:
+            name = self.__class__.__name__
         self.name = name
         self._is_init = False
 
@@ -97,6 +99,8 @@ class NPModel(object):
         """
         if dtypes is None:
             dtypes = dict((k, float_save()) for k in params)
+        elif isinstance(dtypes, type):
+            dtypes = dict((k, dtypes) for k in params)
 
         if self.name is None:
             prefix = ""
@@ -172,6 +176,9 @@ class NPModel(object):
         """
         if dtypes is None:
             dtypes = dict((k, float_cpu()) for k in params)
+        elif isinstance(dtypes, type):
+            dtypes = dict((k, dtypes) for k in params)
+
         if name is None:
             prefix = ""
         else:

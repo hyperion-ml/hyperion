@@ -179,6 +179,9 @@ class Res2NetBasicBlock(nn.Module):
           Tensor with shape = (batch, out_channels, out_heigh, out_width).
         """
         residual = x
+        if self.downsample is not None:
+            residual = self.downsample(residual)
+
         split_size = [self.width_in for i in range(self.scale - 1)]
         split_size.append(self.in_channels % self.width_in + self.width_in)
         split_x = torch.split(x, split_size, 1)
@@ -209,18 +212,18 @@ class Res2NetBasicBlock(nn.Module):
         x = self.conv2(x)
         if self.norm_before:
             x = self.bn2(x)
+            if self.se_layer:
+                x = self.se_layer(x, x_mask=x_mask)
 
-        if self.downsample is not None:
-            residual = self.downsample(residual)
-
-        if self.se_layer:
-            x = self.se_layer(x, x_mask=x_mask)
-
-        x += residual
-        x = self.act2(x)
-
-        if not self.norm_before:
+            x += residual
+            x = self.act2(x)
+        else:
+            x = self.act2(x)
             x = self.bn2(x)
+            if self.se_layer:
+                x = self.se_layer(x, x_mask=x_mask)
+
+            x += residual
 
         if self.dropout_rate > 0:
             x = self.dropout(x)
@@ -358,6 +361,8 @@ class Res2NetBNBlock(nn.Module):
           Tensor with shape = (batch, out_channels, out_heigh, out_width).
         """
         residual = x
+        if self.downsample is not None:
+            residual = self.downsample(residual)
 
         x = self.conv1(x)
         if self.norm_before:
@@ -392,18 +397,18 @@ class Res2NetBNBlock(nn.Module):
         x = self.conv3(x)
         if self.norm_before:
             x = self.bn3(x)
+            if self.se_layer:
+                x = self.se_layer(x, x_mask=x_mask)
 
-        if self.downsample is not None:
-            residual = self.downsample(residual)
-
-        if self.se_layer:
-            x = self.se_layer(x, x_mask=x_mask)
-
-        x += residual
-        x = self.act3(x)
-
-        if not self.norm_before:
+            x += residual
+            x = self.act3(x)
+        else:
+            x = self.act3(x)
             x = self.bn3(x)
+            if self.se_layer:
+                x = self.se_layer(x, x_mask=x_mask)
+
+            x += residual
 
         if self.dropout_rate > 0:
             x = self.dropout(x)

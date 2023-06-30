@@ -195,6 +195,9 @@ class Res2Net2dBasicBlock(nn.Module):
           Tensor with shape = (batch, out_channels, out_heigh, out_width).
         """
         residual = x
+        if self.downsample is not None:
+            residual = self.downsample(residual)
+
         split_size = [self.width_in for i in range(self.scale - 1)]
         split_size.append(self.in_channels % self.width_in + self.width_in)
         split_x = torch.split(x, split_size, 1)
@@ -213,7 +216,7 @@ class Res2Net2dBasicBlock(nn.Module):
             if self.norm_before:
                 x_i = self.bn1s[i](x_i)
             x_i = self.act1(x_i)
-            if not self.norm_before:
+            if self.norm_after:
                 x_i = self.bn1s[i](x_i)
             x.append(x_i)
 
@@ -223,20 +226,22 @@ class Res2Net2dBasicBlock(nn.Module):
         x = torch.cat(x, dim=1)
 
         x = self.conv2(x)
-        if self.norm_before:
+        if self.norm_after:
+            x = self.act2(x)
             x = self.bn2(x)
+            if self.se_layer:
+                x = self.se_layer(x, x_mask=x_mask)
 
-        if self.downsample is not None:
-            residual = self.downsample(residual)
+            x += residual
+        else:
+            if self.norm_before:
+                x = self.bn2(x)
 
-        if self.se_layer:
-            x = self.se_layer(x, x_mask=x_mask)
+            if self.se_layer:
+                x = self.se_layer(x, x_mask=x_mask)
 
-        x += residual
-        x = self.act2(x)
-
-        if not self.norm_before:
-            x = self.bn2(x)
+            x += residual
+            x = self.act2(x)
 
         if self.dropout_rate > 0:
             x = self.dropout(x)
@@ -383,12 +388,14 @@ class Res2Net2dBNBlock(nn.Module):
           Tensor with shape = (batch, out_channels, out_heigh, out_width).
         """
         residual = x
+        if self.downsample is not None:
+            residual = self.downsample(residual)
 
         x = self.conv1(x)
         if self.norm_before:
             x = self.bn1(x)
         x = self.act1(x)
-        if not self.norm_before:
+        if self.norm_after:
             x = self.bn1(x)
 
         split_x = torch.split(x, self.width, 1)
@@ -402,7 +409,7 @@ class Res2Net2dBNBlock(nn.Module):
             if self.norm_before:
                 x_i = self.bn2s[i](x_i)
             x_i = self.act2(x_i)
-            if not self.norm_before:
+            if self.norm_after:
                 x_i = self.bn2s[i](x_i)
             x.append(x_i)
 
@@ -415,20 +422,22 @@ class Res2Net2dBNBlock(nn.Module):
         x = torch.cat(x, dim=1)
 
         x = self.conv3(x)
-        if self.norm_before:
+        if self.norm_after:
+            x = self.act3(x)
             x = self.bn3(x)
+            if self.se_layer:
+                x = self.se_layer(x, x_mask=x_mask)
 
-        if self.downsample is not None:
-            residual = self.downsample(residual)
+            x += residual
+        else:
+            if self.norm_before:
+                x = self.bn3(x)
 
-        if self.se_layer:
-            x = self.se_layer(x, x_mask=x_mask)
+            if self.se_layer:
+                x = self.se_layer(x, x_mask=x_mask)
 
-        x += residual
-        x = self.act3(x)
-
-        if not self.norm_before:
-            x = self.bn3(x)
+            x += residual
+            x = self.act3(x)
 
         if self.dropout_rate > 0:
             x = self.dropout(x)
