@@ -39,6 +39,7 @@ class TransducerRNNFiLMPredictor(nn.Module):
                  rnn_dropout_rate: float = 0.0,
                  rnn_type: str = "lstm",
                  film_type: str = "linear",
+                 film_cond_type: str = "one-hot",
                  blank_id: int = 0):
         super().__init__()
         self.embedding = nn.Embedding(
@@ -56,7 +57,8 @@ class TransducerRNNFiLMPredictor(nn.Module):
                 condition_size=condition_size,
                 batch_first=True,
                 rnn_type=rnn_type,
-                film_type=film_type
+                film_type=film_type,
+                film_cond_type=film_cond_type
             )
         elif rnn_type in ["lstm_residual","gru_residual"]:
             self.rnn = RNNWithFiLMResidual(
@@ -67,7 +69,8 @@ class TransducerRNNFiLMPredictor(nn.Module):
                 condition_size=condition_size,
                 batch_first=True,
                 rnn_type=rnn_type,
-                film_type=film_type
+                film_type=film_type,
+                film_cond_type=film_cond_type
             )
         else:
             raise Exception(f"Unknown RNN type {rnn_type}")
@@ -101,6 +104,7 @@ class TransducerRNNFiLMPredictor(nn.Module):
             "rnn_dropout_rate": self.rnn_dropout_rate,
             "rnn_type": self.rnn_type,
             "film_type": self.film_type,
+            "film_cond_type": self.film_cond_type,
             "blank_id": self.blank_id,
         }
         return config

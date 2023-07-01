@@ -78,8 +78,8 @@ class RNNFiLMTransducerDecoder(NetArch):
         pruned_warmup_steps: int = 2000,
         langs_size: int = 13,
         condition_size: int = 64,
-        film_cond_type: str = "one-hot",
         film_type: str = "linear",
+        film_cond_type: str = "one-hot",
     ):
 
         super().__init__()
@@ -105,13 +105,10 @@ class RNNFiLMTransducerDecoder(NetArch):
         self._make_predictor()
         self._make_joiner()
         # make embedding layer for language id
-        if self.film_cond_type == "one-hot":
-            self.lang_embedding = nn.Embedding(langs_size, condition_size)
-        elif self.film_cond_type == "lid_pred":
-            self.lang_embedding = nn.Linear(langs_size, condition_size)
-        elif self.film_cond_type == "lid_pred_embed":
-            # self.lang_embedding = nn.Linear(langs_size, condition_size)
-            pass
+        self.lang_embedding = nn.Embedding(langs_size, condition_size)
+        if self.film_cond_type == "lid_pred":
+            self.lid_lang_embedding = nn.Linear(langs_size, condition_size)
+
         if self.rnnt_loss == "k2_pruned":
             self.simple_am_proj = nn.Linear(in_feats, vocab_size)
             self.simple_lm_proj = nn.Linear(self.predictor.out_feats,
@@ -129,7 +126,7 @@ class RNNFiLMTransducerDecoder(NetArch):
         if pred_type == "rnn":
             pred_args = filter_func_args(RNNPredictor.__init__,
                                          self.predictor_args)
-            self.predictor = RNNPredictor(**pred_args)
+            self.predictor = RNNPredictor(**pred_args, film_type=self.film_type, film_cond_type=self.film_cond_type)
         # elif pred_type == "conv":
         #     pred_args = filter_func_args(ConvPredictor.__init__,
         #                                  self.predictor_args)
@@ -145,7 +142,7 @@ class RNNFiLMTransducerDecoder(NetArch):
             pred_feats = self.predictor_args["out_feats"]
             hid_feats = self.joiner_args["hid_feats"]
             self.joiner = FiLMJoiner(self.in_feats, pred_feats, hid_feats,
-                                 self.vocab_size, self.condition_size, self.film_type)
+                                 self.vocab_size, self.condition_size, film_type=self.film_type, film_cond_type=self.film_cond_type)
         elif joiner_type == "original_joiner":
             pred_feats = self.predictor_args["out_feats"]
             hid_feats = self.joiner_args["hid_feats"]
@@ -309,11 +306,13 @@ class RNNFiLMTransducerDecoder(NetArch):
         return loss, loss_simple, loss_pruned
 
     def forward(
-        self, x: torch.Tensor, x_lengths: torch.Tensor, y: k2.RaggedTensor, lang: torch.Tensor
+        self, x: torch.Tensor, x_lengths: torch.Tensor, y: k2.RaggedTensor, lang_embedding: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         # embed lang
-        if self.film_cond_type in ["one-hot", "lid_pred"]:
-            lang_embedding = self.lang_embedding(lang)
+        if self.film_cond_type == ["one-hot"]:
+            lang_embedding = self.lang_embedding(lang_embedding)
+        elif self.film_cond_type == ["lid_pred"]:
+            lang_embedding = self.lid_lang_embedding(lang_embedding)
         # get y_lengths
         row_splits = y.shape.row_splits(1)
         y_lengths = row_splits[1:] - row_splits[:-1]
@@ -346,8 +345,13 @@ class RNNFiLMTransducerDecoder(NetArch):
                max_sym_per_utt: int = 1000, ) -> List[int]:
 
         # embed lang
-        if self.film_cond_type in ["one-hot", "lid_pred"]:
+        # if self.film_cond_type in ["one-hot", "lid_pred"]:
+        #     lang_embedding = self.lang_embedding(lang)
+
+        if self.film_cond_type == ["one-hot"]:
             lang_embedding = self.lang_embedding(lang)
+        elif self.film_cond_type == ["lid_pred"]:
+            lang_embedding = self.lid_lang_embedding(lang)
         if method == "time_sync_beam_search":
             return self.decode_time_sync_beam_search(x,
                                                      lang_embedding,
@@ -730,10 +734,7 @@ class RNNFiLMTransducerDecoder(NetArch):
             help=
             """type of recurrent network for thep predictor in [lstm, gru]""")
 
-        pred_parser.add_argument("--film-type",
-                                    default="linear",
-                                    choices=["linear", "tanh"],
-                                    help=("type of the FiLM layer"))
+                                    
 
 
         pred_parser.add_argument("--num-layers",

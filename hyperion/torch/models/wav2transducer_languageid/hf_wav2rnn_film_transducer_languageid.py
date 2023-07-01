@@ -46,6 +46,7 @@ class HFWav2RNNFiLMTransducerLanguageID(TorchModel):
                  loss_class_weight_exp= 1.0,
                  loss_weight_transducer: float = 0.005,
                  loss_weight_lid: float = 1.0,
+                 loss_weight_embed: float = 0.005,
                  lid_length: float = 3.0,
                  ):
 
@@ -95,24 +96,28 @@ class HFWav2RNNFiLMTransducerLanguageID(TorchModel):
 
         self.loss_weight_transducer = loss_weight_transducer
         self.loss_weight_lid = loss_weight_lid
+        self.loss_weight_embed = loss_weight_embed
         self.lid_length = lid_length
         self._hf_context = contextlib.nullcontext()
-        self.transducer_fuser, self.films = self._make_fuser(self.feat_fusion_method_transducer, self.feat_fusion_start_transducer)
-        self.languageid_fuser, _ = self._make_fuser(self.feat_fusion_method_lid, self.feat_fusion_start_lid)
+        self.transducer_fuser, self.film, self.lid_film = self._make_fuser(self.feat_fusion_method_transducer, self.feat_fusion_start_transducer)
+        self.languageid_fuser, _, _ = self._make_fuser(self.feat_fusion_method_lid, self.feat_fusion_start_lid)
 
     def _make_fuser(self, method, start):
         feat_fuser = None
-        films = None
+        film = None
+        lid_film = None
         if method == "last":
-            return feat_fuser, films
+            return feat_fuser, None, None
         num_layers = self.hf_feats.num_encoder_layers + 1 - start
         layer_dim = self.hf_feats.hidden_size
         if method == "film-weighted-avg":
-            films = nn.ModuleList([FiLM(layer_dim, self.transducer.decoder.condition_size) for _ in range(num_layers)])
+            film = nn.ModuleList([FiLM(layer_dim, self.transducer.decoder.condition_size) for _ in range(num_layers)])
+            lid_film = nn.ModuleList([FiLM(layer_dim, self.transducer.decoder.condition_size) for _ in range(num_layers)])
             feat_fuser = nn.Parameter(torch.zeros(num_layers))
         elif method == "film-fused-feature":
             feat_fuser = nn.Parameter(torch.zeros(num_layers))
             film = FiLM(layer_dim, self.transducer.decoder.condition_size)
+            lid_film = FiLM(layer_dim, self.transducer.decoder.condition_size)
         elif method == "weighted-avg":
             feat_fuser = nn.Parameter(torch.zeros(num_layers))
         elif method == "linear":
@@ -124,9 +129,9 @@ class HFWav2RNNFiLMTransducerLanguageID(TorchModel):
                                         layer_dim,
                                         bias=False)
 
-        return feat_fuser, films
+        return feat_fuser, film, lid_film
 
-    def _fuse_transducer_hid_feats(self, hid_feats, lang):
+    def _fuse_transducer_hid_feats(self, hid_feats, lang_condition):
         """Fuses the hidden features from the Wav2Vec model.
 
         Args:
@@ -141,10 +146,10 @@ class HFWav2RNNFiLMTransducerLanguageID(TorchModel):
             return hid_feats[0]
 
         if self.transducer.decoder.film_cond_type in ["one-hot", "lid_pred"]:
-            lang_condition = self.transducer.decoder.lang_embedding(lang)
+            lang_condition = self.transducer.decoder.lang_embedding(lang_condition)
         hid_feats = hid_feats[self.feat_fusion_start_transducer:]
         if self.feat_fusion_method_transducer == "film-weighted-avg":
-            film_hid_feats = tuple(self.films[i](hid_feats[i], lang_condition) for i in range(len(self.films)))
+            film_hid_feats = tuple(self.lid_film[i](hid_feats[i], lang_condition) for i in range(len(self.lid_film)))
             film_hid_feats = torch.stack(film_hid_feats, dim=-1)
             norm_weights = nn.functional.softmax(self.transducer_fuser, dim=-1)
             feats = torch.sum(film_hid_feats * norm_weights, dim=-1)
@@ -152,7 +157,7 @@ class HFWav2RNNFiLMTransducerLanguageID(TorchModel):
             hid_feats = torch.stack(hid_feats, dim=-1)
             norm_weights = nn.functional.softmax(self.transducer_fuser, dim=-1)
             feats = torch.sum(hid_feats * norm_weights, dim=-1)
-            feats = self.films(feats, lang_condition)
+            feats = self.lid_film(feats, lang_condition)
         elif self.feat_fusion_method_transducer == "weighted-avg":
             hid_feats = torch.stack(hid_feats, dim=-1)
             norm_weights = nn.functional.softmax(self.transducer_fuser, dim=-1)
@@ -223,6 +228,39 @@ class HFWav2RNNFiLMTransducerLanguageID(TorchModel):
 
         return feats, hid_feats, feat_lengths
             
+    def compute_embed_loss(self, lang_embed, languageid):
+        # comput the loss for the embeding between the film and lid_film
+        lang_condition = self.transducer.decoder.lang_embedding(languageid)
+
+        # for the encoder
+        film_scale = self.film.linear_scale(lang_condition)
+        lid_film_scale = self.lid_film.linear_scale(lang_embed)
+        film_shift = self.film.linear_shift(lang_condition)
+        lid_film_shift = self.lid_film.linear_shift(lang_embed)
+        loss_embed_encode = torch.mean(torch.abs(film_scale - lid_film_scale)) + torch.mean(torch.abs(film_shift - lid_film_shift))
+
+        # for the predictor
+        loss_embed_predictor = 0
+        for i in range(2):
+            film_scale = self.transducer.decoder.predictor.rnn.films[i].linear_scale(lang_condition)
+            lid_film_scale = self.transducer.decoder.predictor.rnn.lid_films[i].linear_scale(lang_embed)
+            film_shift = self.transducer.decoder.predictor.rnn.films[i].linear_shift(lang_condition)
+            lid_film_shift = self.transducer.decoder.predictor.rnn.lid_films[i].linear_shift(lang_embed)
+            loss_embed_predictor += torch.mean(torch.abs(film_scale - lid_film_scale)) + torch.mean(torch.abs(film_shift - lid_film_shift))
+            
+
+        # for the joiner
+        film_scale = self.transducer.decoder.joiner.film.linear_scale(lang_condition)
+        lid_film_scale = self.transducer.decoder.joiner.lid_film.linear_scale(lang_embed)
+        film_shift = self.transducer.decoder.joiner.film.linear_shift(lang_condition)
+        lid_film_shift = self.transducer.decoder.joiner.lid_film.linear_shift(lang_embed)
+        loss_embed_joiner = torch.mean(torch.abs(film_scale - lid_film_scale)) + torch.mean(torch.abs(film_shift - lid_film_shift))
+
+
+        loss_embed = loss_embed_encode + loss_embed_predictor + loss_embed_joiner
+
+        return loss_embed
+
     def forward(
         self,
         x,
@@ -275,15 +313,19 @@ class HFWav2RNNFiLMTransducerLanguageID(TorchModel):
 
         #loss_lid = self.loss_lid(lid_logits, languageid)
         loss_lid = self.loss_lid(output["logits"], languageid)
+        # import pdb; pdb.set_trace()
+        # logging.info(output["h_classif"])
+
+        loss_embed = self.compute_embed_loss(output["h_classif"][0], languageid)
         
         # feats_transducer = self._fuse_transducer_hid_feats(hid_feats, lid_logits) # (N, T, C)
-        feats_transducer = self._fuse_transducer_hid_feats(hid_feats, output["h_classif"]) # (N, T, C)
+        feats_transducer = self._fuse_transducer_hid_feats(hid_feats, output["h_classif"][0]) # (N, T, C)
             
         trans_output = self.transducer(
             feats_transducer,
             feat_lengths,
             text,
-            output["h_classif"]
+            output["h_classif"][0]
             # lid_logits
         )
 
@@ -292,9 +334,10 @@ class HFWav2RNNFiLMTransducerLanguageID(TorchModel):
                 f.transpose(1, 2) for i, f in enumerate(hid_feats)
                 if i in return_feat_layers
             ]
-        output = RNNTransducerLanguageIDOutput(loss=self.loss_weight_transducer * trans_output.loss + self.loss_weight_lid * loss_lid, 
+        output = RNNTransducerLanguageIDOutput(loss=self.loss_weight_transducer * trans_output.loss + self.loss_weight_lid * loss_lid + self.loss_weight_embed * loss_embed, 
                                                 loss_transducer=trans_output.loss, 
                                                 loss_lid=loss_lid,
+                                                loss_embed=loss_embed,
                                                 loss_transducer_simple=trans_output.loss_simple, 
                                                 loss_transducer_pruned=trans_output.loss_pruned,
                                                 h_feats=trans_output.h_feats,
@@ -347,9 +390,9 @@ class HFWav2RNNFiLMTransducerLanguageID(TorchModel):
                                   
         return text, lid
 
-    def unfreeze_film(self):
+    def unfreeze_lid_film(self):
         for name, param in self.named_parameters():
-            if "film" in name:
+            if "lid_film" in name:
                 logging.info(f"unfreezing {name}")
                 param.requires_grad = True
 
@@ -380,11 +423,13 @@ class HFWav2RNNFiLMTransducerLanguageID(TorchModel):
             self.freeze()
         elif mode in ["ft-film", "ft-film-grad"]:
             self.freeze()
-            self.unfreeze_film()
+            self.unfreeze_lid_film()
         elif mode in ["ft-transducer", "ft-transducer-nograd"]:
             self.unfreeze()
             self.freeze_hf_feats()
             self.freeze_feat_fuser()
+            self.freeze_film()
+            self.unfreeze_lid_film()
         elif mode in ["hf-feats-frozen", "hf-feats-frozen-nograd"]:
             self.unfreeze()
             self.freeze_hf_feats()
@@ -451,6 +496,7 @@ class HFWav2RNNFiLMTransducerLanguageID(TorchModel):
             "loss_class_weight_exp",
             "loss_weight_transducer",
             "loss_weight_lid",
+            "loss_weight_embed",
             "languageid",
         )
         args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
@@ -476,6 +522,7 @@ class HFWav2RNNFiLMTransducerLanguageID(TorchModel):
             "loss_class_weight_exp": self.loss_class_weight_exp,
             "loss_weight_transducer": self.loss_weight_transducer,
             "loss_weight_lid": self.loss_weight_lid,
+            "loss_weight_embed": self.loss_weight_embed,
             "lid_length": self.lid_length,
         }
 
@@ -562,6 +609,15 @@ class HFWav2RNNFiLMTransducerLanguageID(TorchModel):
             type=float,
             help="""
             The weight of the lid loss
+            """,
+        )
+
+        parser.add_argument(
+            "--loss-weight-embed",
+            default=0.005,
+            type=float,
+            help="""
+            The weight of the embedding loss
             """,
         )
 

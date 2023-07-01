@@ -22,6 +22,7 @@ class RNNTransducerLanguageIDOutput(HypDataClass):
     loss: torch.Tensor  # Total loss
     loss_transducer: torch.Tensor  # Loss from the transducer
     loss_lid: torch.Tensor  # Loss from the language ID
+    loss_embed: Optional[torch.Tensor] = None  # Loss from the embedding
     loss_transducer_simple: Optional[torch.Tensor] = None  # Simple loss from the transducer, if available
     loss_transducer_pruned: Optional[torch.Tensor] = None  # Pruned loss from the transducer, if available
     h_feats: Optional[List[torch.Tensor]] = None  # Hidden features, if available

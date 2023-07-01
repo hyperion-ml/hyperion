@@ -21,7 +21,7 @@ class TransducerFiLMJoiner(nn.Module):
       vocab_size: vocabulary size
     """
 
-    def __init__(self, enc_feats: int, pred_feats: int, hid_feats: int, vocab_size: int, condition_size: int, film_type: str = "linear"):
+    def __init__(self, enc_feats: int, pred_feats: int, hid_feats: int, vocab_size: int, condition_size: int, film_type: str = "linear", film_cond_type="one-hot"):
         
         super().__init__()
         self.enc_feats = enc_feats
@@ -32,7 +32,18 @@ class TransducerFiLMJoiner(nn.Module):
         self.enc_proj = nn.Linear(enc_feats, hid_feats)
         self.pred_proj = nn.Linear(pred_feats, hid_feats)
         self.output = nn.Linear(hid_feats, vocab_size)
-        self.film = FiLM(hid_feats, condition_size, film_type)
+
+        self.film_cond_type = film_cond_type
+
+
+        if self.film_cond_type == "one-hot":
+            self.film = FiLM(hid_feats, condition_size, film_type)
+        else:
+            self.film = FiLM(hid_feats, condition_size, film_type)
+            self.lid_film = FiLM(hid_feats, condition_size, film_type)
+
+        # self.film = FiLM(hid_feats, condition_size, film_type)
+
         
     def get_config(self):
         config = {
@@ -69,8 +80,11 @@ class TransducerFiLMJoiner(nn.Module):
         else:
             x = enc_out + pred_out
 
-        x = self.film(x, lang_condition)
-        
+        if self.film_cond_type == "one-hot":
+            x = self.film(x, lang_condition)
+        else:
+            x = self.lid_film(x, lang_condition)
+            
         x = torch.tanh(x)
         logits = self.output(x)
         return logits
