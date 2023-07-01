@@ -9,7 +9,8 @@ import time
 
 import numpy as np
 import pandas as pd
-#import k2
+
+# import k2
 import sentencepiece as spm
 import torchaudio.transforms as tat
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
@@ -25,16 +26,11 @@ from ...utils.segment_set import SegmentSet
 from ...utils.text import read_text
 from ..torch_defs import floatstr_torch
 
-#from torch.nn.utils.rnn import pad_sequence
-
-
-
 
 class AudioDataset(Dataset):
-
     def __init__(
         self,
-        audio_file,
+        recordings_file,
         segments_file,
         class_names=None,
         class_files=None,
@@ -46,7 +42,7 @@ class AudioDataset(Dataset):
         return_segment_info=None,
         return_orig=False,
         target_sample_freq=None,
-        wav_scale=2**15 - 1,
+        wav_scale=2 ** 15 - 1,
         is_val=False,
     ):
 
@@ -61,12 +57,6 @@ class AudioDataset(Dataset):
         self.rank = rank
         self.world_size = world_size
         self.epoch = 0
-
-        if rank == 0:
-            logging.info("opening audio reader %s", audio_file)
-
-        self.r = AR(audio_file, wav_scale=wav_scale)
-
         if rank == 0:
             logging.info("loading segments file %s", segments_file)
 
@@ -74,17 +64,23 @@ class AudioDataset(Dataset):
         if rank == 0:
             logging.info("dataset contains %d seqs", len(self.seg_set))
 
+        if rank == 0:
+            logging.info("opening audio reader %s", recordings_file)
+
+        audio_seg_set = self.seg_set if self.seg_set.has_time_marks else None
+        self.r = AR(recordings_file, segments=audio_seg_set, wav_scale=wav_scale)
+
         self.is_val = is_val
         if time_durs_file is not None:
-            if rank == 0:
-                logging.info("loading durations file %s", time_durs_file)
+            self._load_legacy_durations(time_durs_file)
 
-            time_durs = SegmentSet.load(time_durs_file)
-            self.seg_set["duration"] = time_durs.loc[
-                self.seg_set["id"]].class_id.values.astype(float,
-                                                           copy=False)
-        else:
-            assert "duration" in self.seg_set
+            # time_durs = SegmentSet.load(time_durs_file)
+            # self.seg_set["duration"] = time_durs.loc[
+            #     self.seg_set["id"]].class_id.values.astype(float,
+            #                                                copy=False)
+        # else:
+        #     assert "duration" in self.seg_set
+        assert "duration" in self.seg_set
 
 
         logging.info("loading class-info files")
@@ -98,8 +94,9 @@ class AudioDataset(Dataset):
         if text_file is not None:
             logging.info("loading text files")
             self._load_text_infos(text_file, is_val)
-        self.return_segment_info = ([] if return_segment_info is None else
-                                    return_segment_info)
+        self.return_segment_info = (
+            [] if return_segment_info is None else return_segment_info
+        )
         self.return_orig = return_orig
 
         self.num_augs = num_augs
@@ -108,9 +105,18 @@ class AudioDataset(Dataset):
         self.target_sample_freq = target_sample_freq
         self.resamplers = {}
 
+    def _load_legacy_durations(self, time_durs_file):
+        if self.rank == 0:
+            logging.info("loading durations file %s", time_durs_file)
+
+        time_durs = SegmentSet.load(time_durs_file)
+        self.seg_set["duration"] = time_durs.loc[
+            self.seg_set["id"]
+        ].class_id.values.astype(float, copy=False)
+
     def _load_bpe_model(self, bpe_model, is_val):
         if self.rank == 0:
-            logging.info("loading bpe file %s" % bpe_model)
+            logging.info("loading bpe file %s", bpe_model)
         self.sp = spm.SentencePieceProcessor()
         self.sp.load(bpe_model)
         blank_id = self.sp.piece_to_id("<blk>")
@@ -120,7 +126,7 @@ class AudioDataset(Dataset):
         if text_file is None:
             return
         if self.rank == 0:
-            logging.info("loading text file %s" % text_file)
+            logging.info("loading text file %s", text_file)
 
         text = read_text(text_file)
         self.seg_set["text"] = text.loc[self.seg_set["id"]].text
@@ -133,8 +139,9 @@ class AudioDataset(Dataset):
 
         assert len(class_names) == len(class_files)
         for name, file in zip(class_names, class_files):
-            assert (name in self.seg_set
-                    ), f"class_name {name} not present in the segment set"
+            assert (
+                name in self.seg_set
+            ), f"class_name {name} not present in the segment set"
             if self.rank == 0:
                 logging.info("loading class-info file %s" % file)
             table = ClassInfo.load(file)
@@ -145,8 +152,9 @@ class AudioDataset(Dataset):
                 segment_class_ids = self.seg_set[name].unique()
                 for c_id in class_ids:
                     if c_id not in segment_class_ids:
-                        logging.warning("%s class: %s not present in dataset",
-                                        name, c_id)
+                        logging.warning(
+                            "%s class: %s not present in dataset", name, c_id
+                        )
 
     def _create_augmenters(self, aug_cfgs):
         self.augmenters = []
@@ -156,12 +164,11 @@ class AudioDataset(Dataset):
 
         for aug_cfg in aug_cfgs:
             logging.info(f"loading augmentation={aug_cfg}")
-            augmenter = SpeechAugment.create(aug_cfg,
-                                             random_seed=112358 +
-                                             1000 * self.rank)
+            augmenter = SpeechAugment.create(
+                aug_cfg, random_seed=112358 + 1000 * self.rank
+            )
             self.augmenters.append(augmenter)
-            self.reverb_context = max(augmenter.max_reverb_context,
-                                      self.reverb_context)
+            self.reverb_context = max(augmenter.max_reverb_context, self.reverb_context)
 
     def set_epoch(self, epoch):
         self.epoch = epoch
@@ -203,12 +210,13 @@ class AudioDataset(Dataset):
             assert duration <= self.seg_set.loc[seg_id].duration, (
                 f"{seg_id} with start={start} duration "
                 f"({self.seg_set.loc[seg_id].duration}) < "
-                f"chunk duration ({duration})")
+                f"chunk duration ({duration})"
+            )
         else:
             seg_id, start, duration = segment, 0, 0
 
-        if "start" in self.seg_set:
-            start += self.seg_set.loc[seg_id].start
+        # if "start" in self.seg_set:
+        #     start += self.seg_set.loc[seg_id].start
 
         return seg_id, start, duration
 
@@ -220,13 +228,22 @@ class AudioDataset(Dataset):
         read_duration = duration + reverb_context
 
         # read audio
-        recording_id = self.seg_set.recording_ids(seg_id)
-        x, fs = self.r.read([recording_id],
-                            time_offset=start,
-                            time_durs=read_duration)
+        x, fs = self.r.read([seg_id], time_offset=start, time_durs=read_duration)
         return x[0].astype(floatstr_torch(), copy=False), fs[0]
 
-    def _apply_augs(self, x, num_samples, reverb_context_samples):
+    def _read_audio0(self, seg_id, start, duration):
+        # how much extra audio we need to load to
+        # calculate the reverb of the first part of the audio
+        reverb_context = min(self.reverb_context, start)
+        start -= reverb_context
+        read_duration = duration + reverb_context
+
+        # read audio
+        recording_id = self.seg_set.recording_ids(seg_id)
+        x, fs = self.r.read([recording_id], time_offset=start, time_durs=read_duration)
+        return x[0].astype(floatstr_torch(), copy=False), fs[0]
+
+    def _apply_augs(self, x, reverb_context_samples):
         x_augs = {}
         # for each type of augmentation
         for i, augmenter in enumerate(self.augmenters):
@@ -235,7 +252,7 @@ class AudioDataset(Dataset):
                 # augment x
                 x_aug, aug_info = augmenter(x)
                 # remove the extra left context used to compute the reverberation.
-                x_aug = x_aug[reverb_context_samples:len(x)]
+                x_aug = x_aug[reverb_context_samples : len(x)]
                 x_aug = x_aug.astype(floatstr_torch(), copy=False)
                 x_augs[f"x_aug_{i}_{j}"] = x_aug
 
@@ -302,7 +319,7 @@ class AudioDataset(Dataset):
             else:
                 num_samples = int(duration * fs)
             reverb_context_samples = len(x) - num_samples
-            x_augs = self._apply_augs(x, num_samples, reverb_context_samples)
+            x_augs = self._apply_augs(x, reverb_context_samples)
             data.update(x_augs)
 
             # add original non augmented audio
@@ -313,15 +330,6 @@ class AudioDataset(Dataset):
         else:
             data["x"] = x
 
-        # try:
-        #     import soundfile as sf
-
-        #     for i, z in enumerate(r):
-        #         sf.write(f"file_{seg_id}.wav", z, fs, "PCM_16")
-        # except:
-        #     print("soundfile failed", flush=True)
-
-        # adds the segment labels
         seg_info = self._get_segment_info(seg_id)
         data.update(seg_info)
         return data
@@ -331,7 +339,7 @@ class AudioDataset(Dataset):
 
         ar_args = AR.filter_args(**kwargs)
         valid_args = (
-            "audio_file",
+            "recordings_file",
             "segments_file",
             "aug_cfgs",
             "num_augs",
@@ -354,49 +362,44 @@ class AudioDataset(Dataset):
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        if "audio_file" not in skip:
+        if "recordings_file" not in skip:
             parser.add_argument(
-                "--audio-file",
+                "--recordings-file",
                 required=True,
-                help=("audio manifest file"),
+                help=("recordings manifest file (kaldi .scp or pandas .csv)"),
             )
 
         if "segments_file" not in skip:
             parser.add_argument(
                 "--segments-file",
                 required=True,
-                help=("segments manifest file"),
+                help=("segments manifest file (kaldi .scp or pandas .csv)"),
             )
 
         parser.add_argument(
             "--class-names",
             default=None,
             nargs="+",
-            help=
-            ("list with the names of the types of classes in the datasets, e.g., speaker, language"
-             ),
+            help=(
+                "list with the names of the types of classes in the datasets, e.g., speaker, language"
+            ),
         )
 
         parser.add_argument(
-            "--class-files",
-            default=None,
-            nargs="+",
-            help=("list of class info files"),
+            "--class-files", default=None, nargs="+", help=("list of class info files"),
         )
 
         parser.add_argument(
             "--time-durs-file",
             default=None,
-            help=
-            ("segment to duration in secs file, if durations are not in segments_file"
-             ),
+            help=(
+                "(deprecated) segment to duration in secs file, if durations are not in segments_file"
+            ),
         )
 
 
         parser.add_argument(
-            "--bpe-model",
-            default=None,
-            help=("bpe model for the text label"),
+            "--bpe-model", default=None, help=("bpe model for the text label"),
         )
 
         parser.add_argument(
@@ -421,32 +424,31 @@ class AudioDataset(Dataset):
             "--return-segment-info",
             default=None,
             nargs="+",
-            help=
-            ("list of columns of the segment file which should be returned as supervisions"
-             ),
+            help=(
+                "list of columns of the segment file which should be returned as supervisions"
+            ),
         )
         parser.add_argument(
             "--return-orig",
             default=False,
             action=ActionYesNo,
-            help=
-            ("when using augmentation, whether or not to return also the original audio"
-             ),
+            help=(
+                "when using augmentation, whether or not to return also the original audio"
+            ),
         )
 
         parser.add_argument(
             "--target-sample-freq",
             default=None,
             type=int,
-            help=
-            ("target sampling frequencey, if not None all audios are converted to this sample freq"
-             ),
+            help=(
+                "target sampling frequencey, if not None all audios are converted to this sample freq"
+            ),
         )
 
         AR.add_class_args(parser)
         if prefix is not None:
-            outer_parser.add_argument("--" + prefix,
-                                      action=ActionParser(parser=parser))
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
             # help='audio dataset options')
 
     add_argparse_args = add_class_args

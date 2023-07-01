@@ -29,7 +29,7 @@ class DC2dEncoder(NetArch):
         conv_strides=2,
         conv_dilations=1,
         head_channels=0,
-        hid_act="relu6",
+        hid_act="relu",
         head_act=None,
         dropout_rate=0,
         use_norm=True,
@@ -367,7 +367,7 @@ class DC2dEncoder(NetArch):
             )
 
         try:
-            parser.add_argument("--hid-act", default="relu6", help="hidden activation")
+            parser.add_argument("--hid-act", default="relu", help="hidden activation")
         except:
             pass
 

@@ -22,6 +22,7 @@ class InfoTable:
     Attributes:
       df: pandas dataframe.
     """
+
     def __init__(self, df):
         self.df = df
         assert "id" in df, f"info_table={df}"
@@ -118,7 +119,7 @@ class InfoTable:
 
     @classmethod
     def load(cls, file_path, sep=None, name="class_id"):
-        """Loads utt2info list from text file.
+        """Loads table from file.
 
         Args:
           file_path: File to read the list.
@@ -126,7 +127,7 @@ class InfoTable:
           dtype: Dictionary with the dtypes of each column.
           name: name for the data to be loaded
         Returns:
-          Utt2Info object
+          InfoTable object
         """
         file_path = Path(file_path)
         ext = file_path.suffix
@@ -158,48 +159,46 @@ class InfoTable:
             self.df.sort_values(by=column, inplace=True, ascending=ascending)
 
     def split(self, idx, num_parts, group_by=None):
-        """Splits SCPList into num_parts and return part idx.
+        """Splits the table into num_parts and return part idx.
 
         Args:
           idx: Part to return from 1 to num_parts.
           num_parts: Number of parts to split the list.
-          group_by_field: All the lines with the same value in column
+          group_by: All the lines with the same value in column
                           groub_by_field go to the same part
 
         Returns:
-          Sub Utt2Info object
+          Sub InfoTable object
         """
-        if group_by is None:
+        if group_by is None or group_by == "id":
             _, idx1 = split_list(self.df["id"], idx, num_parts)
         else:
-            _, idx1 = split_list_group_by_key(self.df[group_by], idx,
-                                              num_parts)
+            _, idx1 = split_list_group_by_key(self.df[group_by], idx, num_parts)
 
         df = self.df.iloc[idx1]
         return self.__class__(df)
 
     @classmethod
-    def merge(cls, tables):
-        """Merges several Utt2Info tables.
+    def cat(cls, tables):
+        """Concatenates several tables.
 
         Args:
-          info_lists: List of Utt2Info
+          info_lists: List of InfoTables
 
         Returns:
-          Utt2Info object concatenation the info_lists.
+          InfoTable object concatenation the info_lists.
         """
         df_list = [table.df for table in tables]
         df = pd.concat(df_list)
+        assert df[
+            "id"
+        ].is_unique, """there are duplicated ids in the tables we are concatenating"""
         return cls(df)
 
-    def filter(self,
-               items=None,
-               iindex=None,
-               columns=None,
-               by="id",
-               keep=True):
-        assert (items is None or iindex is None
-                ), "items and iindex cannot be not None at the same time"
+    def filter(self, items=None, iindex=None, columns=None, by="id", keep=True):
+        assert (
+            items is None or iindex is None
+        ), "items and iindex cannot be not None at the same time"
         df = self.df
 
         if not keep:

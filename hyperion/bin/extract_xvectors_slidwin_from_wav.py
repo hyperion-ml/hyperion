@@ -11,11 +11,8 @@ import time
 
 import numpy as np
 import pandas as pd
-import yaml
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
-
 import torch
+import yaml
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialAudioReader as AR
@@ -25,6 +22,8 @@ from hyperion.torch import TorchModelLoader as TML
 from hyperion.torch.narchs import AudioFeatsMVN as AF
 from hyperion.torch.utils import open_device
 from hyperion.utils import Utt2Info
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
 
 
 def init_device(use_gpu):
@@ -83,7 +82,6 @@ def extract_xvectors(
     vad_spec,
     write_timestamps_spec,
     slidwin_params_path,
-    scp_sep,
     vad_path_prefix,
     model_path,
     chunk_length,
@@ -109,7 +107,7 @@ def extract_xvectors(
     feat_snip_edges = feat_args["snip_edges"]
 
     if write_timestamps_spec is not None:
-        time_writer = DWF.create(write_timestamps_spec, scp_sep=scp_sep)
+        time_writer = DWF.create(write_timestamps_spec)
 
     if aug_cfg is not None:
         augmenter = SpeechAugment.create(aug_cfg, rng=rng)
@@ -121,7 +119,7 @@ def extract_xvectors(
 
     ar_args = AR.filter_args(**kwargs)
     logging.info("opening output stream: %s", output_spec)
-    with DWF.create(output_spec, scp_sep=scp_sep) as writer:
+    with DWF.create(output_spec) as writer:
 
         logging.info(
             "opening input stream: {} with args={}".format(input_spec, ar_args)
@@ -130,9 +128,7 @@ def extract_xvectors(
 
             if vad_spec is not None:
                 logging.info("opening VAD stream: %s", vad_spec)
-                v_reader = VRF.create(
-                    vad_spec, path_prefix=vad_path_prefix, scp_sep=scp_sep
-                )
+                v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix,)
 
             while not reader.eof():
                 t1 = time.time()
@@ -154,7 +150,7 @@ def extract_xvectors(
                             x[None, :], dtype=torch.get_default_dtype()
                         ).to(device)
 
-                        x = feat_extractor(x)
+                        x, _ = feat_extractor(x)
                         t5 = time.time()
                         tot_frames = x.shape[1]
                         if vad_spec is not None:
@@ -163,13 +159,11 @@ def extract_xvectors(
                             x = x[:, vad]
 
                         logging.info(
-                            "utt %s detected %d/%d (%.2f %%) speech frames"
-                            % (
-                                key,
-                                x.shape[1],
-                                tot_frames,
-                                x.shape[1] / tot_frames * 100,
-                            )
+                            "utt %s detected %d/%d (%.2f %%) speech frames",
+                            key,
+                            x.shape[1],
+                            tot_frames,
+                            x.shape[1] / tot_frames * 100,
                         )
 
                         t6 = time.time()
@@ -275,7 +269,6 @@ if __name__ == "__main__":
     )
     parser.add_argument("--slidwin-params-path", default=None)
 
-    parser.add_argument("--scp-sep", default=" ", help=("scp file field separator"))
     parser.add_argument(
         "--vad-path-prefix", default=None, help=("scp file_path prefix for vad")
     )

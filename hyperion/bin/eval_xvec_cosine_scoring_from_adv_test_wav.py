@@ -10,9 +10,6 @@ import time
 
 import numpy as np
 import pandas as pd
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
-
 import torch
 import torch.nn as nn
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
@@ -29,6 +26,8 @@ from hyperion.torch.utils import open_device
 from hyperion.torch.utils.misc import compute_stats_adv_attack, l2_norm
 from hyperion.utils import TrialKey, TrialNdx, TrialScores, Utt2Info
 from hyperion.utils.list_utils import ismember
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
 
 
 class MyModel(nn.Module):
@@ -45,11 +44,11 @@ class MyModel(nn.Module):
         self.sigma = sigma
 
     def forward(self, s_t):
-        # print('sigma0=', self.sigma)
+
         if self.sigma > 0:
             s_t = s_t + self.sigma * torch.randn_like(s_t)
-            # print('sigma1=', self.sigma)
-        f_t = self.feat_extractor(s_t)
+
+        f_t, _ = self.feat_extractor(s_t)
         if self.vad_t is not None:
             n_vad_frames = len(self.vad_t)
             n_feat_frames = f_t.shape[1]
@@ -188,7 +187,7 @@ def eval_cosine_scoring(
     attack = AttackFactory.create(model, **attack_args)
     if vad_spec is not None:
         logging.info("opening VAD stream: %s", vad_spec)
-        v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix, scp_sep=" ")
+        v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix)
 
     scores = np.zeros((key.num_models, key.num_tests), dtype="float32")
     attack_stats = pd.DataFrame(
@@ -316,7 +315,7 @@ def eval_cosine_scoring(
     )
     s.save_txt(score_file)
 
-    logging.info("saving stats to %s" % (stats_file))
+    logging.info("saving stats to %s", stats_file)
     attack_stats.to_csv(stats_file)
 
 
@@ -327,9 +326,9 @@ if __name__ == "__main__":
     )
 
     parser.add_argument("--cfg", action=ActionConfigFile)
-    parser.add_argument("--v-file", dest="v_file", required=True)
-    parser.add_argument("--key-file", dest="key_file", default=None)
-    parser.add_argument("--enroll-file", dest="enroll_file", required=True)
+    parser.add_argument("--v-file", required=True)
+    parser.add_argument("--key-file", default=None)
+    parser.add_argument("--enroll-file", required=True)
     parser.add_argument("--test-wav-file", required=True)
 
     AR.add_class_args(parser)
@@ -337,10 +336,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--vad", dest="vad_spec", default=None)
     parser.add_argument(
-        "--vad-path-prefix",
-        dest="vad_path_prefix",
-        default=None,
-        help=("scp file_path prefix for vad"),
+        "--vad-path-prefix", default=None, help=("scp file_path prefix for vad"),
     )
 
     parser.add_argument("--model-path", required=True)

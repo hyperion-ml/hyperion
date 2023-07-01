@@ -47,7 +47,7 @@ model:
   dropout_rate: 0.1
   norm_before: false
   hid_act: swish
-  se_r: 128
+  se_r: 256
 trainer:
   optim: 
     opt_type: adam
@@ -67,5 +67,5 @@ trainer:
   grad_clip: 250
   use_amp: true
   log_interval: 1000
-  epochs: 35
+  epochs: 25
   eff_batch_size: 256

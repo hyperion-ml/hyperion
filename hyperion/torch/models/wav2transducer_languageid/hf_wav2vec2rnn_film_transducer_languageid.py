@@ -47,6 +47,7 @@ class HFWav2Vec2RNNFiLMTransducerResnet1D(HFWav2RNNFiLMTransducerLanguageID):
         loss_class_weight_exp: float = 1.0,
         loss_weight_transducer: float = 0.005,
         loss_weight_lid: float = 1.0,
+        loss_weight_embed: float = 0.005,
         lid_length: float = 3.0,
     ):
 
@@ -81,6 +82,7 @@ class HFWav2Vec2RNNFiLMTransducerResnet1D(HFWav2RNNFiLMTransducerLanguageID):
                         loss_class_weight_exp=loss_class_weight_exp,
                         loss_weight_transducer=loss_weight_transducer,
                         loss_weight_lid=loss_weight_lid,
+                        loss_weight_embed=loss_weight_embed,
                         lid_length=lid_length)
                             
                             
@@ -117,8 +119,11 @@ class HFWav2Vec2RNNFiLMTransducerResnet1D(HFWav2RNNFiLMTransducerLanguageID):
         base_args = {}
 
         valid_args = (
+            "loss_lid_type",
+            "loss_class_weight_exp",
             "loss_weight_transducer",
             "loss_weight_lid",
+            "loss_weight_embed",
             "lid_length",
         )
         child_args = HFWav2Vec2.filter_finetune_args(**kwargs["hf_feats"])
@@ -134,6 +139,22 @@ class HFWav2Vec2RNNFiLMTransducerResnet1D(HFWav2RNNFiLMTransducerLanguageID):
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
+        parser.add_argument(
+            "--loss-lid-type",
+            default="weightedCE",
+            type=str,
+            help="""
+            The type of the loss for language id
+            """,
+        )
+        parser.add_argument(
+            "--loss-class-weight-exp",
+            default=1.0,
+            type=float,
+            help="""
+            The exponent of the class weight for language id
+            """,
+        )
 
         parser.add_argument(
             "--loss-weight-transducer",
@@ -150,6 +171,15 @@ class HFWav2Vec2RNNFiLMTransducerResnet1D(HFWav2RNNFiLMTransducerLanguageID):
             type=float,
             help="""
             The weight of the lid loss
+            """,
+        )
+
+        parser.add_argument(
+            "--loss-weight-embed",
+            default=0.005,
+            type=float,
+            help="""
+            The weight of the embedding loss
             """,
         )
 

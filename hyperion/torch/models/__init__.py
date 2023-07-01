@@ -9,7 +9,8 @@ from .vae.vae import VAE
 from .vae.vq_vae import VQVAE
 from .transducer import RNNTransducer, RNNRNNTransducer
 from .wav2languageid import HFWav2Vec2ResNet1dLanguageID
-from .wav2transducer import (HFWav2Vec2RNNRNNTransducer,
+from .wav2transducer import (HFWav2Vec2ConformerV1RNNTransducer,
+                             HFWav2Vec2RNNRNNTransducer,
                              HFWav2Vec2RNNTransducer, HFWav2Vec2Transducer,
                              HFWav2Vec2RNNFiLMTransducer)
 from .wav2xvectors import (HFHubert2ResNet1dXVector, HFWav2Vec2ResNet1dXVector,

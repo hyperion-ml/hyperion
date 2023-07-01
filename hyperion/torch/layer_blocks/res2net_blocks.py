@@ -410,9 +410,6 @@ class Res2NetBNBlock(nn.Module):
 
             x += residual
 
-        if not self.norm_before:
-            x = self.bn3(x)
-
         if self.dropout_rate > 0:
             x = self.dropout(x)
 

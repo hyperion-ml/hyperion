@@ -148,6 +148,8 @@ class HFWav2Vec2(HFWav2VecBase):
           chunk by chunk, if it is too long to fit in GPU.
         right_encoder_context: (`int`): future context frames used by the transformer encoder.
         sample_frequency: (`int`) waveform sample frequency used to train the model.
+        feat_extract_lr: learning rate for conv feature extractor, serves to set a lr different than the global one.
+        encoder_lr: learning rate for the wav2vec encoder, serves to set a lr different than the global one.
     """
 
     def __init__(
@@ -200,6 +202,8 @@ class HFWav2Vec2(HFWav2VecBase):
         left_encoder_context: int = 16,
         right_encoder_context: int = 16,
         sample_frequency: int = 16000,
+        feat_extract_lr: Optional[float] = None,
+        encoder_lr: Optional[float] = None,
     ):
 
         super().__init__(
@@ -217,6 +221,8 @@ class HFWav2Vec2(HFWav2VecBase):
             left_encoder_context=left_encoder_context,
             right_encoder_context=right_encoder_context,
             sample_frequency=sample_frequency,
+            feat_extract_lr=feat_extract_lr,
+            encoder_lr=encoder_lr,
         )
 
         if pretrained_model_path is not None and not ignore_pretrained:

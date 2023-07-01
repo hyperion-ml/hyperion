@@ -34,7 +34,7 @@ class FiLM(nn.Module):
 
 
 class RNNWithFiLM(nn.Module):
-    def __init__(self, input_size, hidden_size, num_layers, dropout, condition_size, batch_first=True, rnn_type="lstm", film_type="tanh"):
+    def __init__(self, input_size, hidden_size, num_layers, dropout, condition_size, batch_first=True, rnn_type="lstm", film_type="tanh", film_cond_type="one-hot"):
         super(RNNWithFiLM, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
@@ -43,12 +43,18 @@ class RNNWithFiLM(nn.Module):
         self.batch_first = batch_first 
         self.rnn_type = rnn_type
         self.film_type = film_type
+        self.film_cond_type = film_cond_type
+
         if self.rnn_type == "lstm":
             self.lstms = nn.ModuleList([nn.LSTM(input_size if i==0 else hidden_size, hidden_size, 1, batch_first=batch_first) for i in range(num_layers)])
         elif self.rnn_type == "gru":
             self.grus = nn.ModuleList([nn.GRU(input_size if i==0 else hidden_size, hidden_size, 1, batch_first=batch_first) for i in range(num_layers)])
 
-        self.films = nn.ModuleList([FiLM(hidden_size, condition_size, film_type) for _ in range(num_layers)])
+        if self.film_cond_type == "one-hot":
+            self.films = nn.ModuleList([FiLM(hidden_size, condition_size, film_type) for _ in range(num_layers)])
+        else:
+            self.films = nn.ModuleList([FiLM(hidden_size, condition_size, film_type) for _ in range(num_layers)])
+            self.lid_films = nn.ModuleList([FiLM(hidden_size, condition_size, film_type) for _ in range(num_layers)])
 
         self.dropout_layer = nn.Dropout(dropout)
 
@@ -59,8 +65,13 @@ class RNNWithFiLM(nn.Module):
             rnns = self.lstms
         elif self.rnn_type == "gru":
             rnns = self.grus
+            
+        if self.film_cond_type == "one-hot":
+            films = self.films
+        else:
+            films = self.lid_films
 
-        for i, (rnn, film) in enumerate(zip(rnns, self.films)):
+        for i, (rnn, film) in enumerate(zip(rnns, films)):
             if states:
                 x, (h_i, c_i) = rnn(x, (states[0][i].unsqueeze(0), states[1][i].unsqueeze(0)))
             else:

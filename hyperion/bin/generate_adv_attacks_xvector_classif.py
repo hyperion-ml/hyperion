@@ -11,12 +11,9 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import yaml
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
-
 import torch
 import torch.nn as nn
+import yaml
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.io import AudioWriter as AW
 from hyperion.io import RandomAccessAudioReader as AR
@@ -27,6 +24,8 @@ from hyperion.torch.narchs import AudioFeatsMVN as AF
 from hyperion.torch.utils import open_device
 from hyperion.torch.utils.misc import compute_stats_adv_attack, l2_norm
 from hyperion.utils import TrialNdx, Utt2Info
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
 
 
 def read_utt_list(list_file, class2int_file, part_idx, num_parts):
@@ -168,7 +167,7 @@ def generate_attacks(
 
     if vad_spec is not None:
         logging.info("opening VAD stream: %s" % (vad_spec))
-        v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix, scp_sep=" ")
+        v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix)
 
     keys, class_names, class_ids = read_utt_list(
         list_file, class2int_file, part_idx, num_parts
@@ -329,10 +328,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--vad", dest="vad_spec", default=None)
     parser.add_argument(
-        "--vad-path-prefix",
-        dest="vad_path_prefix",
-        default=None,
-        help=("scp file_path prefix for vad"),
+        "--vad-path-prefix", default=None, help=("scp file_path prefix for vad"),
     )
 
     parser.add_argument("--model-path", required=True)

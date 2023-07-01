@@ -9,13 +9,12 @@ import sys
 import time
 
 import numpy as np
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
-
 from hyperion.hyp_defs import config_logger
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialAudioReader as AR
 from hyperion.np.feats import EnergyVAD
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
 
 
 def compute_vad(input_path, output_path, write_num_frames, **kwargs):
@@ -26,14 +25,14 @@ def compute_vad(input_path, output_path, write_num_frames, **kwargs):
     input_args = AR.filter_args(**kwargs)
     reader = AR(input_path, **input_args)
 
-    writer = DWF.create(output_path, scp_sep=" ")
+    writer = DWF.create(output_path)
 
     if write_num_frames is not None:
         f_num_frames = open(write_num_frames, "w")
 
     for data in reader:
         key, x, fs = data
-        logging.info("Extracting VAD for %s" % (key))
+        logging.info("Extracting VAD for %s", key)
         t1 = time.time()
         y = vad.compute(x)
         dt = (time.time() - t1) * 1000
@@ -41,8 +40,13 @@ def compute_vad(input_path, output_path, write_num_frames, **kwargs):
         num_speech_frames = np.sum(y)
         prob_speech = num_speech_frames / y.shape[0] * 100
         logging.info(
-            "Extracted VAD for %s detected %d/%d (%f %%) speech frames, elapsed-time=%.2f ms. real-time-factor=%.2f"
-            % (key, num_speech_frames, y.shape[0], prob_speech, dt, rtf)
+            "Extracted VAD for %s detected %d/%d (%f %%) speech frames, elapsed-time=%.2f ms. real-time-factor=%.2f",
+            key,
+            num_speech_frames,
+            y.shape[0],
+            prob_speech,
+            dt,
+            rtf,
         )
         writer.write([key], [y])
         if write_num_frames is not None:

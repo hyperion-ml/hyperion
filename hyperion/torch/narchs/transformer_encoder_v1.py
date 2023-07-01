@@ -64,7 +64,7 @@ class TransformerEncoderV1(NetArch):
         in_layer_type="conv2d-sub",
         rel_pos_enc=False,
         causal_pos_enc=False,
-        hid_act="relu6",
+        hid_act="relu",
         norm_before=True,
         concat_after=False,
         padding_idx=-1,
@@ -408,7 +408,7 @@ class TransformerEncoderV1(NetArch):
         )
 
         try:
-            parser.add_argument("--hid-act", default="relu6", help="hidden activation")
+            parser.add_argument("--hid-act", default="relu", help="hidden activation")
         except:
             pass
 

@@ -11,9 +11,6 @@ import time
 from pathlib import Path
 
 import numpy as np
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
-
 import torch
 import torch.nn as nn
 from hyperion.hyp_defs import config_logger, set_float_cpu
@@ -25,6 +22,8 @@ from hyperion.torch.models import (HFHubert2ResNet1dXVector,
                                    HFWavLM2ResNet1dXVector)
 from hyperion.torch.trainers import XVectorTrainer as Trainer
 from hyperion.torch.utils import ddp
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
 
 model_dict = {
     "hf_wav2vec2resnet1d": HFWav2Vec2ResNet1dXVector,

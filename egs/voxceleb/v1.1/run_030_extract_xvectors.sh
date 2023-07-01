@@ -8,7 +8,7 @@
 set -e
 
 stage=1
-nnet_stage=1
+nnet_stage=2
 config_file=default_config.sh
 use_gpu=false
 xvec_chunk_length=12800
@@ -85,4 +85,4 @@ if [ $stage -le 2 ]; then
   done
 fi
 
-exit
+

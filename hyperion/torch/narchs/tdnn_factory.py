@@ -21,7 +21,7 @@ class TDNNFactory(object):
         kernel_size=3,
         dilation=1,
         dilation_factor=1,
-        hid_act={"name": "relu6", "inplace": True},
+        hid_act={"name": "relu", "inplace": True},
         out_units=0,
         out_act=None,
         dropout_rate=0,
@@ -194,7 +194,7 @@ class TDNNFactory(object):
         )
 
         try:
-            parser.add_argument("--hid-act", default="relu6", help="hidden activation")
+            parser.add_argument("--hid-act", default="relu", help="hidden activation")
         except:
             pass
 

@@ -11,9 +11,6 @@ import time
 
 import numpy as np
 import pandas as pd
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
-
 import torch
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.io import DataWriterFactory as DWF
@@ -24,6 +21,8 @@ from hyperion.torch import TorchModelLoader as TML
 from hyperion.torch.narchs import AudioFeatsMVN as AF
 from hyperion.torch.utils import open_device
 from hyperion.utils import Utt2Info
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
 
 
 def init_device(use_gpu):
@@ -93,7 +92,6 @@ def eval_xvec(
     output_spec,
     vad_spec,
     write_num_frames_spec,
-    scp_sep,
     vad_path_prefix,
     model_path,
     chunk_length,
@@ -125,8 +123,8 @@ def eval_xvec(
         num_augs = 1
 
     ar_args = AR.filter_args(**kwargs)
-    logging.info("opening output stream: %s" % (output_spec))
-    with DWF.create(output_spec, scp_sep=scp_sep) as writer:
+    logging.info("opening output stream: %s", output_spec)
+    with DWF.create(output_spec) as writer:
 
         logging.info(
             "opening input stream: {} with args={}".format(input_spec, ar_args)
@@ -134,10 +132,8 @@ def eval_xvec(
         with AR(input_spec, **ar_args) as reader:
 
             if vad_spec is not None:
-                logging.info("opening VAD stream: %s" % (vad_spec))
-                v_reader = VRF.create(
-                    vad_spec, path_prefix=vad_path_prefix, scp_sep=scp_sep
-                )
+                logging.info("opening VAD stream: %s", vad_spec)
+                v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix,)
 
             while not reader.eof():
                 t1 = time.time()
@@ -159,7 +155,7 @@ def eval_xvec(
                             x[None, :], dtype=torch.get_default_dtype()
                         ).to(device)
 
-                        x = feat_extractor(x)
+                        x, _ = feat_extractor(x)
                         t5 = time.time()
                         tot_frames = x.shape[1]
                         if vad_spec is not None:
@@ -168,13 +164,11 @@ def eval_xvec(
                             x = x[:, vad]
 
                         logging.info(
-                            "utt %s detected %d/%d (%.2f %%) speech frames"
-                            % (
-                                key,
-                                x.shape[1],
-                                tot_frames,
-                                x.shape[1] / tot_frames * 100,
-                            )
+                            "utt %s detected %d/%d (%.2f %%) speech frames",
+                            key,
+                            x.shape[1],
+                            tot_frames,
+                            x.shape[1] / tot_frames * 100,
                         )
 
                         if random_utt_length:
@@ -199,27 +193,23 @@ def eval_xvec(
                     read_time = t2 - t1
                     tot_time = read_time + t8 - t3
                     logging.info(
-                        (
-                            "utt %s total-time=%.3f read-time=%.3f "
-                            "aug-time=%.3f feat-time=%.3f "
-                            "vad-time=%.3f embed-time=%.3f write-time=%.3f "
-                            "rt-factor=%.2f"
-                        )
-                        % (
-                            key,
-                            tot_time,
-                            read_time,
-                            t4 - t3,
-                            t5 - t4,
-                            t6 - t5,
-                            t7 - t6,
-                            t8 - t7,
-                            x0.shape[0] / fs[0] / tot_time,
-                        )
+                        "utt %s total-time=%.3f read-time=%.3f "
+                        "aug-time=%.3f feat-time=%.3f "
+                        "vad-time=%.3f embed-time=%.3f write-time=%.3f "
+                        "rt-factor=%.2f",
+                        key,
+                        tot_time,
+                        read_time,
+                        t4 - t3,
+                        t5 - t4,
+                        t6 - t5,
+                        t7 - t6,
+                        t8 - t7,
+                        x0.shape[0] / fs[0] / tot_time,
                     )
 
     if write_num_frames_spec is not None:
-        logging.info("writing num-frames to %s" % (write_num_frames_spec))
+        logging.info("writing num-frames to %s", write_num_frames_spec)
         u2nf = Utt2Info.create(keys, info)
         u2nf.save(write_num_frames_spec)
 
@@ -243,7 +233,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--write-num-frames", dest="write_num_frames_spec", default=None
     )
-    parser.add_argument("--scp-sep", default=" ", help=("scp file field separator"))
+
     parser.add_argument(
         "--vad-path-prefix", default=None, help=("scp file_path prefix for vad")
     )
