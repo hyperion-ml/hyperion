@@ -99,13 +99,15 @@ class HFWav2Vec2RNNTransducerResnet1D(HFWav2RNNTransducerLanguageID):
 
     @staticmethod
     def filter_finetune_args(**kwargs):
-        base_args = {}
 
         valid_args = (
             "loss_weight_transducer",
             "loss_weight_lid",
             "lid_length",
         )
+
+        base_args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
+
         child_args = HFWav2Vec2.filter_finetune_args(**kwargs["hf_feats"])
         base_args["hf_feats"] = child_args
         child_args = RNNTransducer.filter_finetune_args(**kwargs["transducer"])

@@ -47,74 +47,26 @@ data:
     data_loader:
       num_workers: 4
 model:
-  hf_feats:
-    pretrained_model_path: facebook/wav2vec2-xls-r-300m   
   transducer:
     decoder:
-      film_cond_type: lid_pred_embed
       reduction: mean
       prune_range: 15
-      rnnt_loss: k2_pruned
-      simple_loss_scale: 0.2
-      condition_size: 128
-      predictor:
-        embed_dim: 1024
-        num_layers: 2
-        hid_feats: 512
-        embed_dropout_rate: 0.4
-        rnn_dropout_rate: 0.4
-        rnn_type: lstm
-      joiner:
-        hid_feats: 512
+      override_dropouts: false
   languageid:
-    resnet_enc:
-      in_feats: 1024
-      in_conv_channels: 1024
-      in_kernel_size: 5
-      in_stride: 1
-      resb_type: seres2bn
-      resb_repeats:
-        - 1
-      resb_channels:
-        - 512
-      resb_kernel_sizes:
-        - 3
-      resb_dilations:
-        - 2
-      resb_strides:
-        - 1
-      res2net_width_factor: 1
-      res2net_scale: 8
-      se_r: 8
-      multilayer: true
-      multilayer_concat: true
-      endpoint_channels: 3072
-      hid_act: swish
-      dropout_rate: 0.2
-    pool_net:
-      pool_type: ch-wise-att-mean+stddev
-      inner_feats: 128
-    embed_dim: 128
-    loss_type: arc-softmax
     cos_scale: 32.0
-    margin: 0.
-    margin_warmup_epochs: 5
-    intertop_margin: 0.
-    dropout_rate: 0.3
-    hid_act: swish
 
-  loss_lid_type: weightedCE
-  loss_class_weight_exp: 1.0 # 0~1
+  # loss_lid_type: weightedCE
+  # loss_class_weight_exp: 1.0 # 0~1
 
   loss_weight_transducer: 1.0
   loss_weight_lid: 0.0
-  loss_weight_embed: 0.05
-  lid_length: 3.0
+  loss_weight_embed: 10
+  # lid_length: 3.0
   
-  feat_fusion_method_transducer: film-fused-feature
-  feat_fusion_method_lid: weighted-avg
-  feat_fusion_start_transducer: 2
-  feat_fusion_start_lid: 2
+  # feat_fusion_method_transducer: film-fused-feature
+  # feat_fusion_method_lid: weighted-avg
+  # feat_fusion_start_transducer: 2
+  # feat_fusion_start_lid: 2
 
 trainer:
   optim:
@@ -125,10 +77,10 @@ trainer:
   lrsched:
     lrsch_type: exp_lr
     decay_rate: 0.6
-    decay_steps: 9000
-    hold_steps: 6000
+    decay_steps: 12000
+    hold_steps: 10000
     min_lr: 4e-5
-    warmup_steps: 3000
+    warmup_steps: 6000
     update_lr_on_opt_step: true
   grad_clip: 100
   use_amp: true
@@ -136,5 +88,5 @@ trainer:
   epochs: 120
   # eff_batch_size: 1024
   eff_batch_size: 128
-  train_mode: ft-film
+  train_mode: ft-transducer
  

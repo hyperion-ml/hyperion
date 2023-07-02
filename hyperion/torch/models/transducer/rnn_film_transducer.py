@@ -193,6 +193,19 @@ class RNNFiLMTransducer(TorchModel):
         if prefix is not None:
             outer_parser.add_argument("--" + prefix,
                                       action=ActionParser(parser=parser))
+    
+    def get_regularization_loss(self):
+        reg_loss = 0.0
+        total_params = 0
+
+        for param in self.parameters():
+            reg_loss += torch.norm(param)**2
+            total_params += torch.numel(param)
+
+        reg_loss = (reg_loss) / total_params
+
+        return reg_loss
+
 
     def change_config(
         self,

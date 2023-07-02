@@ -48,6 +48,8 @@ class HFWav2Vec2RNNFiLMTransducerResnet1D(HFWav2RNNFiLMTransducerLanguageID):
         loss_weight_transducer: float = 0.005,
         loss_weight_lid: float = 1.0,
         loss_weight_embed: float = 0.005,
+        loss_reg_weight_transducer: float = 0.0,
+        loss_reg_weight_lid: float = 0.0,
         lid_length: float = 3.0,
     ):
 
@@ -82,6 +84,8 @@ class HFWav2Vec2RNNFiLMTransducerResnet1D(HFWav2RNNFiLMTransducerLanguageID):
                         loss_class_weight_exp=loss_class_weight_exp,
                         loss_weight_transducer=loss_weight_transducer,
                         loss_weight_lid=loss_weight_lid,
+                        loss_reg_weight_transducer=loss_reg_weight_transducer,
+                        loss_reg_weight_lid=loss_reg_weight_lid,
                         loss_weight_embed=loss_weight_embed,
                         lid_length=lid_length)
                             
@@ -116,16 +120,20 @@ class HFWav2Vec2RNNFiLMTransducerResnet1D(HFWav2RNNFiLMTransducerLanguageID):
 
     @staticmethod
     def filter_finetune_args(**kwargs):
-        base_args = {}
 
         valid_args = (
-            "loss_lid_type",
-            "loss_class_weight_exp",
+            # "loss_lid_type",
+            # "loss_class_weight_exp",
             "loss_weight_transducer",
             "loss_weight_lid",
             "loss_weight_embed",
+            "loss_reg_weight_transducer",
+            "loss_reg_weight_lid",
             "lid_length",
         )
+
+        base_args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
+
         child_args = HFWav2Vec2.filter_finetune_args(**kwargs["hf_feats"])
         base_args["hf_feats"] = child_args
         child_args = RNNFiLMTransducer.filter_finetune_args(**kwargs["transducer"])
@@ -180,6 +188,24 @@ class HFWav2Vec2RNNFiLMTransducerResnet1D(HFWav2RNNFiLMTransducerLanguageID):
             type=float,
             help="""
             The weight of the embedding loss
+            """,
+        )
+
+        parser.add_argument(
+            "--loss-reg-weight-transducer",
+            default=0.0,
+            type=float,
+            help="""
+            The weight of the transducer regularization loss
+            """,
+        )
+        
+        parser.add_argument(
+            "--loss-reg-weight-lid",
+            default=0.0,
+            type=float,
+            help="""
+            The weight of the lid regularization loss
             """,
         )
 
