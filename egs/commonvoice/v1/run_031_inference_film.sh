@@ -34,6 +34,8 @@ fi
 transducer_dir=exp/transducer/$nnet_name
 
 
+rm -f $transducer_dir/overall_wer_char.txt
+
 # test_data=test_clean
 
 

@@ -40,7 +40,7 @@ nnet_s2_base_cfg=conf/train_wav2vec2base_rnnt_film_k2_pruned_stage2_v2.0.yaml
 nnet_s2_args=""
 nnet_s2_name=${nnet_name}.s2
 nnet_s2_dir=exp/transducer_nnets/$nnet_s2_name
-nnet_s2=$nnet_s2_dir/model_ep0003.pth
+nnet_s2=$nnet_s2_dir/model_ep0047.pth
 
 nnet_s3_base_cfg=conf/train_wav2vec2xlsr300m_transducer_stage1_v2.0.yaml
 nnet_s3_args=""

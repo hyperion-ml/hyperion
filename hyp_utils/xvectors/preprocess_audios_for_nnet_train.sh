@@ -11,6 +11,7 @@ nodes=b1
 storage_name=$(date +'%m_%d_%H_%M')
 proc_opts="--remove-dc-offset"
 use_bin_vad=false
+osr=0
 
 echo "$0 $@"  # Print the command line for logging
 
@@ -88,6 +89,10 @@ else
     if [ -f $data_in/$f ];then
 	cp $data_in/$f $data_out/$f
     fi
+fi
+
+if [ "$osr" != 0 ];then
+    args="${args} --output-sampling-rate ${osr}"
 fi
 
 $cmd JOB=1:$nj $dir/log/preproc_audios_${name}.JOB.log \

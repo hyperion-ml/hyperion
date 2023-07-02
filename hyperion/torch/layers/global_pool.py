@@ -800,6 +800,15 @@ class GlobalChWiseAttMeanStdPool1d(_GlobalPool1d):
                 else:
                     min_value = -1e20
                 mask = weights.eq(0)
+                # #logging mask type, shape
+                # logging.info('mask type={}, shape={}'.format(mask.dtype, mask.shape))
+                # #logging attn type, min_value type
+                # logging.info('attn type={}'.format(attn.dtype))
+                # logging.info('attn={}'.format(attn))
+                # logging.info('min_value={}'.format(min_value))
+                
+
+
                 attn = attn.masked_fill(mask, min_value)
 
             attn = nnf.softmax(attn, dim=-1)

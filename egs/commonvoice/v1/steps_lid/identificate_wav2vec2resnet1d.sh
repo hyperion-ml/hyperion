@@ -77,8 +77,11 @@ if [ $stage -le 1 ];then
   echo "compute error rate"
 
   cat $output_dir/languageid.* > $output_dir/langs
+  python steps_lid/cal_lid_score.py $output_dir/langs > $output_dir/lid_score
 
-  python steps_lid/lid_score.py $output_dir/langs >> $output_dir/scores
+  echo $(basename "$output_dir") >> $output_dir/../overall_lid_score.txt
+  cat $output_dir/lid_score >> $output_dir/../overall_lid_score.txt
+  echo " " >> $output_dir/../overall_lid_score.txt
   # python steps_transducer/word2char.py $data_dir/text $data_dir/text_char
 
   # compute-wer --text --mode=present ark:$data_dir/text ark:$output_dir/transducer.text

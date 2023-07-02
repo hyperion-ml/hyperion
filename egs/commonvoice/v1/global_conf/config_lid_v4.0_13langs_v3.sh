@@ -28,7 +28,7 @@ nnet_name=${hf_model_name}_resnet1d_v4.0_13_langs
 nnet_s1_name=$nnet_name.s3
 
 nnet_s1_dir=exp/resnet1d_nnets/$nnet_s1_name
-nnet_s1=$nnet_s1_dir/model_ep0008.pth
+nnet_s1=$nnet_s1_dir/model_ep0003.pth
 nnet_s2_base_cfg=conf/train_wav2vec2xlsr300m_ecapadnn1024x3_stage2_v4.0.yaml
 nnet_s2_args=""
 nnet_s2_name=${hf_model_name}_resnet1d_v4.0_13_langs.s4

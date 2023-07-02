@@ -296,17 +296,32 @@ class HFWav2RNNTransducerLanguageID(TorchModel):
           List of list of integer indexes of the recognizer's symbols.
         """
 
-        feats_transducer, _, _, feat_lengths = self.forward_feats(x, x_lengths)
+        feats_transducer, feats_languageid, _, feat_lengths = self.forward_feats(x, x_lengths)
+        # logging.info(f"feat_lengths: {feat_lengths}")
+        # logging.info(f"feats_transducer.shape: {feats_transducer.shape}")
+        # logging.info(f"feats_languageid.shape: {feats_languageid.shape}")
+        # logging.info(f"feats_transducer: {feats_transducer}")
+        # logging.info(f"feats_languageid: {feats_languageid}")
+        lid = self.languageid(
+            feats_languageid.float(),
+            feat_lengths,
+            None,
+            return_enc_layers=None,
+            return_classif_layers=None,
+            return_logits=True,
+        )
 
-        feats = feats_transducer.permute(0, 2, 1)  # (N, C, T) ->(N, T, C)
 
-        y = self.transducer.infer(feats,
+        feats_transducer = feats_transducer.permute(0, 2, 1)  # (N, C, T) ->(N, T, C)
+
+        text = self.transducer.infer(feats_transducer,
                                   feat_lengths,
                                   decoding_method=decoding_method,
                                   beam_width=beam_width,
                                   max_sym_per_frame=max_sym_per_frame,
                                   max_sym_per_utt=max_sym_per_utt)
-        return y
+
+        return text, lid
 
     # def freeze_feat_fuser(self):
     #     if self.feat_fuser is None:

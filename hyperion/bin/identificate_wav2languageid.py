@@ -120,6 +120,7 @@ def decode_languageid(input_spec, output_spec, scp_sep, model_path, lang_file,
     device = init_device(use_gpu)
     model = load_model(model_path, device)
 
+    logging.info(nn.functional.softmax(model.feat_fuser, dim=-1))
     # load language dict form langfile by row number
     lang_dict = {}
     with open(lang_file, "r") as f:
