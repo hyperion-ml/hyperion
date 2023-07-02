@@ -49,18 +49,19 @@ data:
 model:
   transducer:
     decoder:
+      reduction: mean
       prune_range: 15
       override_dropouts: false
   languageid:
     cos_scale: 32.0
 
-  loss_lid_type: weightedCE
-  loss_class_weight_exp: 1.0 # 0~1
+  # loss_lid_type: weightedCE
+  # loss_class_weight_exp: 1.0 # 0~1
 
   loss_weight_transducer: 1.0
   loss_weight_lid: 10.0
   loss_weight_embed: 10
-  lid_length: 3.0
+  # lid_length: 3.0
   
   # feat_fusion_method_transducer: film-fused-feature
   # feat_fusion_method_lid: weighted-avg
@@ -87,5 +88,5 @@ trainer:
   epochs: 120
   # eff_batch_size: 1024
   eff_batch_size: 128
-  train_mode: ft-film
+  train_mode: freeze-gt-film
  

@@ -21,21 +21,21 @@ bpe_model=data/13_langs_weighted_lang_bpe_8000/bpe.model
 
 nnet_type=hf_wav2vec2rnn_film_transducer_resnet1d
 
-nnet_s1_base_cfg=conf/train_wav2vec2xlsr_rnnt_k2_pruned_film_transducer_ecapadnn512x3_1layer_stage1_v2.1.yaml
+nnet_s1_base_cfg=conf/train_wav2vec2xlsr_rnnt_k2_pruned_film_transducer_ecapadnn512x3_1layer_stage1_v2.2.yaml
 nnet_s1_args=""
 
-nnet_name=${hf_model_name}_rnnt_k2_pruned_film_transducer_ecapadnn512x3_1layer_stage1_v2.1_13_langs_weighted_8000_bpe
+nnet_name=${hf_model_name}_rnnt_k2_pruned_film_transducer_ecapadnn512x3_1layer_stage1_v2.2_13_langs_weighted_8000_bpe
 nnet_s1_name=$nnet_name.s1
 nnet_s1_dir=exp/transducer_resnet1d_nnets/$nnet_s1_name
-nnet_s1=$nnet_s1_dir/model_ep0015.pth
+nnet_s1=$nnet_s1_dir/model_ep0006.pth
 
-nnet_s2_base_cfg=conf/train_wav2vec2xlsr_rnnt_k2_pruned_film_transducer_ecapadnn512x3_1layer_stage2_v2.1.yaml
+nnet_s2_base_cfg=conf/train_wav2vec2xlsr_rnnt_k2_pruned_film_transducer_ecapadnn512x3_1layer_stage2_v2.2.yaml
 nnet_s2_args=""
 nnet_s2_name=${nnet_name}.s2
 nnet_s2_dir=exp/transducer_resnet1d_nnets/$nnet_s2_name
 nnet_s2=$nnet_s2_dir/model_ep0020.pth
 
-nnet_s3_base_cfg=conf/train_wav2vec2xlsr_rnnt_k2_pruned_film_transducer_ecapadnn512x3_1layer_stage3_v2.1.yaml
+nnet_s3_base_cfg=conf/train_wav2vec2xlsr_rnnt_k2_pruned_film_transducer_ecapadnn512x3_1layer_stage3_v2.2.yaml
 nnet_s3_args=""
 nnet_s3_name=${nnet_name}.s3
 nnet_s3_dir=exp/transducer_resnet1d_nnets/$nnet_s3_name

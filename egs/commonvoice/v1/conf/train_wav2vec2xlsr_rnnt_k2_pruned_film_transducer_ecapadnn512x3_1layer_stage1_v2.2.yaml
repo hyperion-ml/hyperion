@@ -108,7 +108,7 @@ model:
 
   loss_weight_transducer: 1.0
   loss_weight_lid: 0.0
-  loss_weight_embed: 0.05
+  loss_weight_embed: 10
   lid_length: 3.0
   
   feat_fusion_method_transducer: film-fused-feature
@@ -125,10 +125,10 @@ trainer:
   lrsched:
     lrsch_type: exp_lr
     decay_rate: 0.6
-    decay_steps: 9000
-    hold_steps: 6000
+    decay_steps: 12000
+    hold_steps: 10000
     min_lr: 4e-5
-    warmup_steps: 3000
+    warmup_steps: 6000
     update_lr_on_opt_step: true
   grad_clip: 100
   use_amp: true
