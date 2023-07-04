@@ -70,8 +70,8 @@ trainer:
   lrsched:
     lrsch_type: exp_lr
     decay_rate: 0.5
-    decay_steps: 180000
-    hold_steps: 60000
+    decay_steps: 45000
+    hold_steps: 30000
     min_lr: 4e-5
     warmup_steps: 6000
     update_lr_on_opt_step: true

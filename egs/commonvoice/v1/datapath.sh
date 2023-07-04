@@ -5,7 +5,7 @@
 
 
 if [ "$(hostname --domain)" == "clsp.jhu.edu" ];then
-  commonvoice_root=
+  commonvoice_root=/scratch4/jvillal7/ylu125/corpora/commonvoice
   musan_root=/export/corpora5/JHU/musan
   echo "Put your database paths here"
   exit 1

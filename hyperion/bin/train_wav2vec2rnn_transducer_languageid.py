@@ -105,7 +105,7 @@ def init_data(partition, rank, num_gpus, **kwargs):
                                               collate_fn=transducer_language_collate)
     return data_loader
 
-def init_model(blank_id, vocab_size, num_classes, rank, model_class, **kwargs):
+def init_model(blank_id, vocab_size, num_classes, loss_class_weight, rank, model_class, **kwargs):
     model_args = model_class.filter_args(**kwargs["model"])
     if rank == 0:
         logging.info("model network args={}".format(model_args))
@@ -113,6 +113,7 @@ def init_model(blank_id, vocab_size, num_classes, rank, model_class, **kwargs):
     model_args["transducer"]["decoder"]["blank_id"] = blank_id
     model_args["transducer"]["decoder"]["vocab_size"] = vocab_size
     model_args["languageid"]["num_classes"] = num_classes
+    model_args["loss_class_weight"] = loss_class_weight
     model = model_class(**model_args)
     if rank == 0:
         logging.info("model={}".format(model))
@@ -149,6 +150,7 @@ def train_model(gpu_id, args):
     model = init_model(train_loader.dataset.sp.piece_to_id("<blk>"),
                        train_loader.dataset.sp.get_piece_size(),
                        list(train_loader.dataset.num_classes.values())[0],
+                       train_loader.batch_sampler.class_info["weights"],
                         **kwargs)
 
     trn_args = Trainer.filter_args(**kwargs["trainer"])

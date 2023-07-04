@@ -27,6 +27,7 @@ from torch.nn.utils.rnn import pad_sequence
 
 model_dict = {
     "hf_wav2vec2transducer": HFWav2Vec2Transducer,
+    "hf_wav2vec2rnn_transducer": HFWav2Vec2Transducer,
 }
 
 
@@ -51,9 +52,12 @@ def transducer_collate(batch):
 
 
 def init_data(partition, rank, num_gpus, **kwargs):
+    logging.getLogger().setLevel(logging.INFO)
     data_kwargs = kwargs["data"][partition]
     ad_args = AD.filter_args(**data_kwargs["dataset"])
     sampler_args = data_kwargs["sampler"]
+    logging.info("rank={}".format(rank))
+    logging.info("{} audio dataset args={}".format(partition, ad_args))
     if rank == 0:
         logging.info("{} audio dataset args={}".format(partition, ad_args))
         logging.info("{} sampler args={}".format(partition, sampler_args))
@@ -85,6 +89,7 @@ def init_data(partition, rank, num_gpus, **kwargs):
 
 
 def init_model(blank_id, vocab_size, rank, model_class, **kwargs):
+    logging.getLogger().setLevel(logging.INFO)
     model_args = model_class.filter_args(**kwargs["model"])
     if rank == 0:
         logging.info("model network args={}".format(model_args))
@@ -123,6 +128,8 @@ def train_model(gpu_id, args):
                        train_loader.dataset.sp.get_piece_size(), **kwargs)
 
     trn_args = Trainer.filter_args(**kwargs["trainer"])
+    logging.info("trainer args={}".format(trn_args))
+    logging.info("rank={}".format(rank))
     if rank == 0:
         logging.info("trainer args={}".format(trn_args))
     metrics = {}  #{"acc": CategoricalAccuracy()}

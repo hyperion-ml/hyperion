@@ -123,7 +123,7 @@ def train_model(gpu_id, args):
     set_float_cpu("float32")
     #torch.backends.cudnn.deterministic = True
     #torch.backends.cudnn.benchmark = False
-    torch.backends.cudnn.enabled = False
+    # torch.backends.cudnn.enabled = False
 
     ddp_args = ddp.filter_ddp_args(**kwargs)
     device, rank, world_size = ddp.ddp_init(gpu_id, **ddp_args)
@@ -252,5 +252,5 @@ if __name__ == "__main__":
 
     args_sc.model_class = model_dict[model_type]
     # torch docs recommend using forkserver
-    # multiprocessing.set_start_method("forkserver")
+    multiprocessing.set_start_method("forkserver")
     train_model(gpu_id, args_sc)

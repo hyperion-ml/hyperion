@@ -196,7 +196,7 @@ def train_model(gpu_id, args):
     trn_args = Trainer.filter_args(**kwargs["trainer"])
     if rank == 0:
         logging.info("trainer args={}".format(trn_args))
-    metrics = {"acc": CategoricalAccuracy()}
+    metrics = {} #{"acc": CategoricalAccuracy()}
     trainer = Trainer(
         model,
         device=device,

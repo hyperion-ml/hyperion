@@ -22,7 +22,7 @@ data:
       num_chunks_per_seg_epoch: 0.1
 
     data_loader:
-      num_workers: 8
+      num_workers: 4
   val:
     dataset:
       aug_cfgs: 
@@ -45,7 +45,7 @@ data:
       weight_exponent: 0.3
       num_chunks_per_seg_epoch: 1.0
     data_loader:
-      num_workers: 8
+      num_workers: 4
 model: 
   hf_feats:
     pretrained_model_path: facebook/wav2vec2-xls-r-300m 

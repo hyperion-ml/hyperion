@@ -47,7 +47,7 @@ model: wav2vec2xlsr300m_ecapatdnn512x3_do0.2.yaml
 trainer:
   optim:
     opt_type: sgd
-    lr: 0.003
+    lr: 0.001
     momentum: 0.9
     weight_decay: 4e-4
   lrsched:

@@ -9,7 +9,7 @@ data:
     sampler:
       #sampler_type: 'bucketing_seg_sampler'
       sampler_type: 'class_weighted_random_bucketing_seg_sampler'
-      max_batch_length: 70.
+      max_batch_length: 50.
       min_batch_size: 1
       drop_last: false
       # for class_weighted_random_bucketing_seg_sampler
@@ -30,7 +30,7 @@ data:
     sampler:
       #sampler_type: 'bucketing_seg_sampler'
       sampler_type: 'class_weighted_random_bucketing_seg_sampler'
-      max_batch_length: 70.
+      max_batch_length: 50.
       min_batch_size: 1
       drop_last: true
       # for class_weighted_random_bucketing_seg_sampler

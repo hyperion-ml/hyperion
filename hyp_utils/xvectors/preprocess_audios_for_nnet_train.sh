@@ -89,7 +89,7 @@ else
 	cp $data_in/$f $data_out/$f
     fi
 fi
-
+echo $cmd
 $cmd JOB=1:$nj $dir/log/preproc_audios_${name}.JOB.log \
     hyp_utils/conda_env.sh \
     preprocess_audio_files.py ${args} --output-audio-format $file_format $args $proc_opts \

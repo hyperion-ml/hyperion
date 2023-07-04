@@ -6,10 +6,8 @@
 set -e
 
 vocab_sizes=(
-  # 5000
-  2000
-  1000
-  500
+  8000
+  16000
 )
 
 dl_dir=$PWD/download
@@ -23,14 +21,14 @@ config_file=default_config.sh
 . $config_file
 
 
-if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
-  echo "Stage 1: Dump transcripts for LM training"
-  mkdir -p data/lm
-  gunzip -c data/${language}/cv-${language}_supervisions_train.jsonl.gz \
-    | jq '.text' \
-    | sed 's:"::g' \
-    > data/lm/${language}_transcript_words.txt
-fi
+# if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
+#   echo "Stage 1: Dump transcripts for LM training"
+#   mkdir -p data/lm
+#   gunzip -c data/${language}/cv-${language}_supervisions_train.jsonl.gz \
+#     | jq '.text' \
+#     | sed 's:"::g' \
+#     > data/lm/${language}_transcript_words.txt
+# fi
 
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   echo "Stage 2: Prepare BPE based lang"
@@ -44,16 +42,16 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
     echo "!SIL 1" >> $lang_dir/words.txt
     echo "<UNK> 2" >> $lang_dir/words.txt
 
-    # Add regular words to words.txt
-    gunzip -c data/${language}/cv-${language}_supervisions_train.jsonl.gz \
-      | jq '.text' \
-      | sed 's:"::g' \
-      | sed 's: :\n:g' \
-      | sort \
-      | uniq \
-      | sed '/^$/d' \
-      | awk '{print $0,NR+2}' \
-      >> $lang_dir/words.txt
+    # # Add regular words to words.txt
+    # gunzip -c data/${language}/cv-${language}_supervisions_train.jsonl.gz \
+    #   | jq '.text' \
+    #   | sed 's:"::g' \
+    #   | sed 's: :\n:g' \
+    #   | sort \
+    #   | uniq \
+    #   | sed '/^$/d' \
+    #   | awk '{print $0,NR+2}' \
+    #   >> $lang_dir/words.txt
 
     # Add remaining special word symbols expected by LM scripts.
     num_words=$(cat $lang_dir/words.txt | wc -l)
