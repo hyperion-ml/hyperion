@@ -25,6 +25,10 @@ from hyperion.torch.utils import ddp
 from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
                           namespace_to_dict)
 
+import warnings
+
+warnings.filterwarnings('ignore', category=UserWarning, module='torch.distributed.distributed_c10d')
+
 model_dict = {
     "hf_wav2vec2resnet1d": HFWav2Vec2ResNet1dXVector,
     "hf_hubert2resnet1d": HFHubert2ResNet1dXVector,

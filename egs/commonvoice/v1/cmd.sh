@@ -23,8 +23,11 @@ elif [ "$(hostname -d)" == "rockfish.cluster" ];then
     export cuda_cmd="slurm.pl --config conf/slurm.conf --mem 20G"
     export cuda_eval_cmd="$train_cmd"
 else
-    export train_cmd="queue.pl --config conf/clsp.conf --mem 4G " 
-    export cuda_cmd="queue.pl --config conf/clsp.conf --mem 20G"
+    export train_cmd="run.pl" 
+    export cuda_cmd="run.pl"
     export cuda_eval_cmd="$train_cmd"
+    #export train_cmd="queue.pl --config conf/clsp.conf --mem 4G " 
+    #export cuda_cmd="queue.pl --config conf/clsp.conf --mem 20G"
+    #export cuda_eval_cmd="$train_cmd"
 fi
 

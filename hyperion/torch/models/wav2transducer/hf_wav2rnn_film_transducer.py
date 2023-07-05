@@ -246,6 +246,9 @@ class HFWav2RNNFiLMTransducer(TorchModel):
             if "film" in name:
                 logging.info(f"unfreezing {name}")
                 param.requires_grad = True
+            if "lang_embedding" in name:
+                logging.info(f"unfreezing {name}")
+                param.requires_grad = True
 
     def freeze_feat_fuser(self):
         if self.feat_fuser is None:

@@ -23,15 +23,14 @@ nnet_type=hf_wav2vec2resnet1d
 
 nnet_s1_base_cfg=conf/train_wav2vec2xlsr300m_ecapadnn1024x3_stage1_v4.2.yaml
 nnet_s1_args=""
-
 nnet_name=${hf_model_name}_resnet1d_v4.2_13_langs
 nnet_s1_name=$nnet_name.s1
-
 nnet_s1_dir=exp/resnet1d_nnets/$nnet_s1_name
-nnet_s1=$nnet_s1_dir/model_ep0008.pth
+nnet_s1=$nnet_s1_dir/model_ep0003.pth
+
 nnet_s2_base_cfg=conf/train_wav2vec2xlsr300m_ecapadnn1024x3_stage2_v4.2.yaml
 nnet_s2_args=""
-nnet_s2_name=${hf_model_name}_resnet1d_v2_13_langs.s2
+nnet_s2_name=${hf_model_name}_resnet1d_v4.2_13_langs.s2
 nnet_s2_dir=exp/resnet1d_nnets/$nnet_s2_name
 nnet_s2=$nnet_s2_dir/model_ep0020.pth
 

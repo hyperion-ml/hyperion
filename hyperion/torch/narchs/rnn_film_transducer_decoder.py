@@ -309,10 +309,14 @@ class RNNFiLMTransducerDecoder(NetArch):
         self, x: torch.Tensor, x_lengths: torch.Tensor, y: k2.RaggedTensor, lang_embedding: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         # embed lang
-        if self.film_cond_type == ["one-hot"]:
+        # logging.info(f"lang_embedding.shape: {lang_embedding.shape}")
+        # import pdb; pdb.set_trace()
+        if self.film_cond_type == "one-hot":
             lang_embedding = self.lang_embedding(lang_embedding)
-        elif self.film_cond_type == ["lid_pred"]:
+        elif self.film_cond_type == "lid_pred":
             lang_embedding = self.lid_lang_embedding(lang_embedding)
+        # logging.info(f"lang_embedding.shape: {lang_embedding.shape}")
+        # logging.info(f"film_cond_type: {self.film_cond_type}")
         # get y_lengths
         row_splits = y.shape.row_splits(1)
         y_lengths = row_splits[1:] - row_splits[:-1]
@@ -348,9 +352,9 @@ class RNNFiLMTransducerDecoder(NetArch):
         # if self.film_cond_type in ["one-hot", "lid_pred"]:
         #     lang_embedding = self.lang_embedding(lang)
 
-        if self.film_cond_type == ["one-hot"]:
+        if self.film_cond_type == "one-hot":
             lang_embedding = self.lang_embedding(lang)
-        elif self.film_cond_type == ["lid_pred"]:
+        elif self.film_cond_type == "lid_pred":
             lang_embedding = self.lid_lang_embedding(lang)
         if method == "time_sync_beam_search":
             return self.decode_time_sync_beam_search(x,

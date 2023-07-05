@@ -17,7 +17,9 @@ def copy_model_parameters(ASR_model, LID_model):
     ASR_state_dict = ASR_model["model_state_dict"]
     LID_state_dict = LID_model["model_state_dict"]
     
-    #ASR_state_dict = {name.replace("module.", ""): param for name, param in ASR_state_dict.items()} 
+    # LID_state_dict = {name.replace("module.", ""): param for name, param in LID_state_dict.items()} 
+
+    # ASR_state_dict = {name.replace("module.", ""): param for name, param in ASR_state_dict.items()} 
 
     update_state_dict = {name: param for name, param in ASR_state_dict.items() if name in LID_state_dict and param.shape == LID_state_dict[name].shape and "hf_feats" in name}
     # remove feature fuser

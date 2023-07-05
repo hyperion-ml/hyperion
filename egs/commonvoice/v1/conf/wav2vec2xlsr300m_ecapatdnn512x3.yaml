@@ -27,6 +27,7 @@ languageid:
     multilayer: true
     multilayer_concat: true
     endpoint_channels: 1536
+    dropout_rate: 0.1
   pool_net:
     pool_type: ch-wise-att-mean+stddev
     inner_feats: 128

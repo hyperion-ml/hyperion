@@ -59,8 +59,10 @@ model:
   # loss_class_weight_exp: 1.0 # 0~1
 
   loss_weight_transducer: 1.0
-  loss_weight_lid: 10.0
-  loss_weight_embed: 10
+  loss_weight_lid: 20.0
+  loss_weight_embed: 20
+  loss_reg_weight_transducer: 0.0
+  loss_reg_weight_lid: 10.0
   # lid_length: 3.0
   
   # feat_fusion_method_transducer: film-fused-feature

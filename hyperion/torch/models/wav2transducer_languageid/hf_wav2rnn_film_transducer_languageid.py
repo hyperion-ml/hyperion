@@ -339,13 +339,13 @@ class HFWav2RNNFiLMTransducerLanguageID(TorchModel):
                 if i in return_feat_layers
             ]
 
-        loss_reg_lid = 0
-        if self.loss_reg_weight_lid > 0:
-            loss_reg_lid = self.languageid.get_regularization_loss()
+        # loss_reg_lid = 0
+        # if self.loss_reg_weight_lid > 0:
+        loss_reg_lid = self.languageid.get_regularization_loss()
             
-        loss_reg_transducer = 0
-        if self.loss_reg_weight_transducer > 0:
-            loss_reg_transducer = self.transducer.get_regularization_loss()
+        # loss_reg_transducer = 0
+        # if self.loss_reg_weight_transducer > 0:
+        loss_reg_transducer = self.transducer.get_regularization_loss()
 
 
 
@@ -353,6 +353,8 @@ class HFWav2RNNFiLMTransducerLanguageID(TorchModel):
                                                 loss_transducer=trans_output.loss, 
                                                 loss_lid=loss_lid,
                                                 loss_embed=loss_embed,
+                                                loss_reg_lid=loss_reg_lid,
+                                                loss_reg_transducer=loss_reg_transducer,
                                                 loss_transducer_simple=trans_output.loss_simple, 
                                                 loss_transducer_pruned=trans_output.loss_pruned,
                                                 h_feats=trans_output.h_feats,

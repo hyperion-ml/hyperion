@@ -558,6 +558,21 @@ class XVector(TorchModel):
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
+
+    def get_regularization_loss(self):
+        reg_loss = 0.0
+        total_params = 0
+
+        for param in self.parameters():
+            reg_loss += torch.norm(param)**2
+            total_params += torch.numel(param)
+
+        reg_loss = (reg_loss) / total_params
+
+        return reg_loss
+
+
+
     @classmethod
     def load(cls, file_path=None, cfg=None, state_dict=None):
         cfg, state_dict = cls._load_cfg_state_dict(file_path, cfg, state_dict)

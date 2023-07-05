@@ -61,13 +61,13 @@ if [ $stage -le 1 ]; then
     hyp_utils/conda_env.sh --conda-env $HYP_ENV --num-gpus $ngpu --max-split-size-mb 512 \
     train_wav2vec2rnn_transducer_languageid.py $nnet_type \
     --cfg $nnet_s1_base_cfg $nnet_s1_args $extra_args \
-    --data.train.dataset.audio-file $train_dir/wav.scp \
+    --data.train.dataset.recordings-file $train_dir/wav.scp \
     --data.train.dataset.segments-file $train_dir/utt2seg.csv \
     --data.train.dataset.class-names "language" \
     --data.train.dataset.class-files $train_dir/langs \
     --data.train.dataset.bpe-model $bpe_model \
     --data.train.dataset.text-file $train_dir/text \
-    --data.val.dataset.audio-file $val_dir/wav.scp \
+    --data.val.dataset.recordings-file $val_dir/wav.scp \
     --data.val.dataset.segments-file $val_dir/utt2seg.csv \
     --data.val.dataset.class-names "language" \
     --data.val.dataset.class-files $train_dir/langs \
@@ -92,13 +92,13 @@ if [ $stage -le 2 ]; then
     hyp_utils/conda_env.sh --conda-env $HYP_ENV --num-gpus $ngpu \
     finetune_wav2vec2transducer_languageid.py $nnet_type \
     --cfg $nnet_s2_base_cfg $nnet_s2_args $extra_args \
-    --data.train.dataset.audio-file $train_dir/wav.scp \
+    --data.train.dataset.recordings-file $train_dir/wav.scp \
     --data.train.dataset.segments-file $train_dir/utt2seg.csv \
     --data.train.dataset.class-names "language" \
     --data.train.dataset.class-files $train_dir/langs \
     --data.train.dataset.bpe-model $bpe_model \
     --data.train.dataset.text-file $train_dir/text \
-    --data.val.dataset.audio-file $val_dir/wav.scp \
+    --data.val.dataset.recordings-file $val_dir/wav.scp \
     --data.val.dataset.segments-file $val_dir/utt2seg.csv \
     --data.val.dataset.class-names "language" \
     --data.val.dataset.class-files $train_dir/langs \
@@ -125,11 +125,11 @@ if [ $stage -le 3 ]; then
     hyp_utils/conda_env.sh --conda-env $HYP_ENV --num-gpus $ngpu \
     finetune_wav2vec2transducer.py $nnet_type \
     --cfg $nnet_s3_base_cfg $nnet_s3_args $extra_args \
-    --data.train.dataset.audio-file $train_dir/wav.scp \
+    --data.train.dataset.recordings-file $train_dir/wav.scp \
     --data.train.dataset.segments-file $train_dir/utt2seg.csv \
     --data.train.dataset.bpe-model $bpe_model \
     --data.train.dataset.text-file $train_dir/text \
-    --data.val.dataset.audio-file $val_dir/wav.scp \
+    --data.val.dataset.recordings-file $val_dir/wav.scp \
     --data.val.dataset.segments-file $val_dir/utt2seg.csv \
     --data.val.dataset.text-file $val_dir/text \
     --trainer.exp-path $nnet_s3_dir $args \

@@ -18,7 +18,6 @@ from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch import TorchModelLoader as TML
 from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
-from hyperion.torch.metrics import CategoricalAccuracy
 from hyperion.torch.models import (HFWav2Vec2RNNRNNTransducer,
                                    HFWav2Vec2RNNTransducer)
 from hyperion.torch.trainers import TransducerTrainer as Trainer
@@ -26,6 +25,10 @@ from hyperion.torch.utils import ddp
 from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
                           namespace_to_dict)
 from torch.nn.utils.rnn import pad_sequence
+
+import warnings
+
+warnings.filterwarnings('ignore', category=UserWarning, module='torch.distributed.distributed_c10d')
 
 model_dict = {
     "hf_wav2vec2rnn_transducer": HFWav2Vec2RNNTransducer,

@@ -75,6 +75,7 @@ if [ $stage -le 1 ]; then
     --trainer.exp-path $nnet_s1_dir $args \
     --data.train.dataset.time-durs-file $train_dir/utt2dur \
     --data.val.dataset.time-durs-file $val_dir/utt2dur \
+    --master-port 1236 \
     --num-gpus $ngpu
 
 fi

@@ -104,8 +104,7 @@ if [ $stage -le 2 ]; then
     --data.val.dataset.class-files $train_dir/langs \
     --data.val.dataset.text-file $val_dir/text \
     --trainer.exp-path $nnet_s2_dir $args \
-    --in-model-transducer $nnet_transducer \
-    --in-model-lid $nnet_lid \
+    --in-model-file $nnet_s1 \
     --data.train.dataset.time-durs-file $train_dir/utt2dur \
     --data.val.dataset.time-durs-file $val_dir/utt2dur \
     --num-gpus $ngpu

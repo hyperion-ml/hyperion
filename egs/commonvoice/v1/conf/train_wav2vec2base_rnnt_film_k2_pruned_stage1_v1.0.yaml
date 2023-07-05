@@ -10,7 +10,7 @@ data:
     sampler:
       #sampler_type: 'bucketing_seg_sampler'
       sampler_type: 'class_weighted_random_bucketing_seg_sampler'
-      max_batch_length: 50
+      max_batch_length: 40
       max_audio_length: 15.
       min_batch_size: 1
       drop_last: false
@@ -34,7 +34,7 @@ data:
     sampler:
       #sampler_type: 'bucketing_seg_sampler'
       sampler_type: 'class_weighted_random_bucketing_seg_sampler'
-      max_batch_length: 50
+      max_batch_length: 40
       max_audio_length: 15.
       min_batch_size: 1
       drop_last: true
@@ -62,6 +62,7 @@ model:
         rnn_dropout_rate: 0.4
         rnn_type: lstm
       joiner:
+        joiner_type: film_joiner
         hid_feats: 512
   feat_fusion_method: film-weighted-avg
   feat_fusion_start: 2

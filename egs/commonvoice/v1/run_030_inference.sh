@@ -40,7 +40,7 @@ transducer_dir=exp/transducer/$nnet_name
 # Extracts x-vectors for evaluation
 for name in $test_data
 do
-  nj=40
+  nj=20
   steps_transducer/decode_wav2vec2rnn_transducer.sh \
       --cmd "$transducer_cmd --mem 12G" --nj $nj ${transducer_args} \
       $nnet data/$name \
