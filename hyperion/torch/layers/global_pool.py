@@ -781,9 +781,13 @@ class GlobalChWiseAttMeanStdPool1d(_GlobalPool1d):
             x = x.transpose(1, self.dim)
 
         # x = (batch, feat_dim, time)
+        # logging.info("x_lengths",x_lengths)
+        # logging.info("weights_bef",weights)
         weights = self._standardize_weights(x, x_lengths, weights)  # (batch, 1,  time)
         x_inner = self.conv1(x)  # (batch, inner_dim, time)
+        # logging.info("weights_aft",weights)
         # logging.info('x_inner1={} {}'.format(torch.sum(torch.isnan(x_inner)), torch.sum(torch.isinf(x_inner))))
+        # logging.info('weights shape={} {}'.format(weights.shape, weights.dtype))
         if self.use_global_context:
             global_mus = self.stats_pool(x, weights=weights)
             x_inner = x_inner + self.lin_global(global_mus).unsqueeze(-1)
@@ -800,15 +804,7 @@ class GlobalChWiseAttMeanStdPool1d(_GlobalPool1d):
                 else:
                     min_value = -1e20
                 mask = weights.eq(0)
-                # #logging mask type, shape
-                # logging.info('mask type={}, shape={}'.format(mask.dtype, mask.shape))
-                # #logging attn type, min_value type
-                # logging.info('attn type={}'.format(attn.dtype))
-                # logging.info('attn={}'.format(attn))
-                # logging.info('min_value={}'.format(min_value))
-                
-
-
+                # logging.info("attn", attn.shape, mask.shape)
                 attn = attn.masked_fill(mask, min_value)
 
             attn = nnf.softmax(attn, dim=-1)

@@ -18,7 +18,7 @@ set -e
 #export CONV_RSH=ssh
 #export LD_LIBRARY_PATH=/scratch4/jvillal7/ylu125/miniconda3/envs/gsp_hyp/lib/:$LD_LIBRARY_PATH
 
-export CUDA_VISIBLE_DEVICES=0,1
+# export CUDA_VISIBLE_DEVICES=0,1
 stage=1
 ngpu=2
 config_file=default_config.sh
@@ -106,8 +106,8 @@ if [ $stage -le 2 ]; then
     --in-model-file $nnet_s1 \
     --data.train.dataset.time-durs-file $train_dir/utt2dur \
     --data.val.dataset.time-durs-file $val_dir/utt2dur \
-    --master-port 1236 \
     --num-gpus $ngpu
+    # --master-port 1236 \
   
 fi
 

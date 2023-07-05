@@ -360,8 +360,9 @@ class XVector(TorchModel):
         output = {"h_enc": h_enc}
         if not return_logits and return_classif_layers is None:
             return output
-
+        # logging.info(f"forward_hid_feats: x.shape={x.shape}")
         x, x_lengths = self._post_enc(x, x_lengths, max_in_length)
+        # logging.info(f"x_lengths: {x_lengths}")
         p = self.pool_net(x, x_lengths=x_lengths)
         h_classif = self.classif_net.forward_hid_feats(
             p, y, return_classif_layers, return_logits=return_logits

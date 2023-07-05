@@ -348,10 +348,13 @@ class RNNFiLMTransducerDecoder(NetArch):
         # if self.film_cond_type in ["one-hot", "lid_pred"]:
         #     lang_embedding = self.lang_embedding(lang)
 
-        if self.film_cond_type == ["one-hot"]:
+        if self.film_cond_type == "one-hot":
             lang_embedding = self.lang_embedding(lang)
-        elif self.film_cond_type == ["lid_pred"]:
+        elif self.film_cond_type == "lid_pred":
             lang_embedding = self.lid_lang_embedding(lang)
+        elif self.film_cond_type == "lid_pred_embed":
+            lang_embedding = lang
+            
         if method == "time_sync_beam_search":
             return self.decode_time_sync_beam_search(x,
                                                      lang_embedding,

@@ -49,10 +49,11 @@ model:
     decoder:
       prune_range: 15
       override_dropouts: false
+      reduction: mean
 trainer:
   optim:
     opt_type: sgd
-    lr: 0.005
+    lr: 0.0002
     momentum: 0.9
     weight_decay: 4e-4
   lrsched:

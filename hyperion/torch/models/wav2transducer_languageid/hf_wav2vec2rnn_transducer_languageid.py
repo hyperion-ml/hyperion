@@ -38,9 +38,13 @@ class HFWav2Vec2RNNTransducerResnet1D(HFWav2RNNTransducerLanguageID):
         hf_feats: Union[Dict, HFWav2Vec2],
         transducer: Union[Dict, RNNTransducer],
         languageid: Union[Dict, ResNet1dLanguageID],
-        feat_fusion_start: int = 0,
+        feat_fusion_start_transducer: int = 0,
+        feat_fusion_start_lid: int = 0,
         feat_fusion_method_transducer: str = "weighted-avg",
         feat_fusion_method_lid: str = "weighted-avg",
+        loss_lid_type: str = "weightedCE",
+        loss_class_weight: Optional[torch.Tensor] = None,
+        loss_class_weight_exp: float = 1.0,
         loss_weight_transducer: float = 0.005,
         loss_weight_lid: float = 1.0,
         lid_length: float = 3.0,
@@ -67,8 +71,17 @@ class HFWav2Vec2RNNTransducerResnet1D(HFWav2RNNTransducerLanguageID):
         # languageid = wav2languageid.languageid
 
 
-        super().__init__(hf_feats, transducer, languageid, feat_fusion_start,
-                         feat_fusion_method_transducer, feat_fusion_method_lid, loss_weight_transducer, loss_weight_lid, lid_length)
+        super().__init__(hf_feats, transducer, languageid, 
+                        feat_fusion_start_transducer=feat_fusion_start_transducer,
+                        feat_fusion_start_lid=feat_fusion_start_lid,
+                        feat_fusion_method_transducer=feat_fusion_method_transducer,
+                        feat_fusion_method_lid=feat_fusion_method_lid,
+                        loss_lid_type=loss_lid_type,
+                        loss_class_weight=loss_class_weight,
+                        loss_class_weight_exp=loss_class_weight_exp,
+                        loss_weight_transducer=loss_weight_transducer,
+                        loss_weight_lid=loss_weight_lid,
+                        lid_length=lid_length)
 
     @staticmethod
     def filter_args(**kwargs):
@@ -121,6 +134,22 @@ class HFWav2Vec2RNNTransducerResnet1D(HFWav2RNNTransducerLanguageID):
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
+        parser.add_argument(
+            "--loss-lid-type",
+            default="weightedCE",
+            type=str,
+            help="""
+            The type of the loss for language id
+            """,
+        )
+        parser.add_argument(
+            "--loss-class-weight-exp",
+            default=1.0,
+            type=float,
+            help="""
+            The exponent of the class weight for language id
+            """,
+        )
 
         parser.add_argument(
             "--loss-weight-transducer",

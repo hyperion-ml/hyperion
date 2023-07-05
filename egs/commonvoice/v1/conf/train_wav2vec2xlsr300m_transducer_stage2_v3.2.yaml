@@ -32,10 +32,7 @@ data:
 model: 
   transducer:
     decoder:
-      override_dropouts: true
-      embedding_dropout_rate: 0.3
-      rnn_dropout_rate: 0.3
-
+      override_dropouts: false
 trainer:
   optim:
     opt_type: sgd
