@@ -381,29 +381,42 @@ class HFWav2RNNFiLMTransducerLanguageID(TorchModel):
 
 
         feats_languageid, hid_feats, feat_lengths = self.forward_lid_feats(
-            x, x_lengths, return_feat_layers)
+            x, x_lengths, None)
+        # logging.info(f"feat_lengths: {feat_lengths}")
+        # logging.info(f"feats_languageid.shape: {feats_languageid.shape}")
+        # logging.info(f"feats_languageid: {feats_languageid}")
 
 
-        lid = self.languageid(
-            feats_languageid.float(),
-            feat_lengths,
+        output = self.languageid(
+            feats_languageid,
+            None,
             None,
             return_enc_layers=None,
-            return_classif_layers=None,
+            return_classif_layers=[0],
             return_logits=True,
         )
+
+        # output = self.languageid(
+        #     feats_languageid,
+        #     feat_lengths,
+        #     None,
+        #     return_enc_layers=None,
+        #     return_classif_layers=[0],
+        #     return_logits=True,
+        # )
         
-        feats_transducer = self._fuse_transducer_hid_feats(hid_feats, lid) # (N, T, C)
+        feats_transducer = self._fuse_transducer_hid_feats(hid_feats, output["h_classif"][0])  # (N, T, C)
             
 
         text = self.transducer.infer(feats_transducer,
                                   feat_lengths,
+                                  lang=output["h_classif"][0],
                                   decoding_method=decoding_method,
                                   beam_width=beam_width,
                                   max_sym_per_frame=max_sym_per_frame,
                                   max_sym_per_utt=max_sym_per_utt)
                                   
-        return text, lid
+        return text, output["logits"]
 
     def unfreeze_lid_film(self):
         for name, param in self.named_parameters():

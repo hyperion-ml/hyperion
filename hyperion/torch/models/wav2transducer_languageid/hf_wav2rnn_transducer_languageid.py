@@ -321,7 +321,7 @@ class HFWav2RNNTransducerLanguageID(TorchModel):
         # logging.info(f"feats_languageid: {feats_languageid}")
         lid = self.languageid(
             feats_languageid.float(),
-            feat_lengths,
+            None,
             None,
             return_enc_layers=None,
             return_classif_layers=None,
