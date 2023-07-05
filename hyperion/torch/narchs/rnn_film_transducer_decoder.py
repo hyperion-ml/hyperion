@@ -107,7 +107,8 @@ class RNNFiLMTransducerDecoder(NetArch):
         # make embedding layer for language id
         self.lang_embedding = nn.Embedding(langs_size, condition_size)
         if self.film_cond_type == "lid_pred":
-            self.lid_lang_embedding = nn.Linear(langs_size, condition_size)
+            self.lang_embedding = nn.Embedding(langs_size, condition_size)
+            # self.lid_lang_embedding = nn.Linear(langs_size, condition_size)
 
         if self.rnnt_loss == "k2_pruned":
             self.simple_am_proj = nn.Linear(in_feats, vocab_size)
@@ -314,7 +315,7 @@ class RNNFiLMTransducerDecoder(NetArch):
         if self.film_cond_type == "one-hot":
             lang_embedding = self.lang_embedding(lang_embedding)
         elif self.film_cond_type == "lid_pred":
-            lang_embedding = self.lid_lang_embedding(lang_embedding)
+            lang_embedding = self.lang_embedding(lang_embedding) #self.lid_lang_embedding(lang_embedding)
         # logging.info(f"lang_embedding.shape: {lang_embedding.shape}")
         # logging.info(f"film_cond_type: {self.film_cond_type}")
         # get y_lengths
@@ -355,7 +356,9 @@ class RNNFiLMTransducerDecoder(NetArch):
         if self.film_cond_type == "one-hot":
             lang_embedding = self.lang_embedding(lang)
         elif self.film_cond_type == "lid_pred":
-            lang_embedding = self.lid_lang_embedding(lang)
+            lang_embedding = self.lang_embedding(lang)
+
+            # lang_embedding = self.lid_lang_embedding(lang)
         if method == "time_sync_beam_search":
             return self.decode_time_sync_beam_search(x,
                                                      lang_embedding,

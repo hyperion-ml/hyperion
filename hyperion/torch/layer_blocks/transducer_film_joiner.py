@@ -35,11 +35,9 @@ class TransducerFiLMJoiner(nn.Module):
 
         self.film_cond_type = film_cond_type
 
+        self.film = FiLM(hid_feats, condition_size, film_type)
 
-        if self.film_cond_type == "one-hot":
-            self.film = FiLM(hid_feats, condition_size, film_type)
-        else:
-            self.film = FiLM(hid_feats, condition_size, film_type)
+        if self.film_cond_type == "lid_pred_embed":
             self.lid_film = FiLM(hid_feats, condition_size, film_type)
 
         # self.film = FiLM(hid_feats, condition_size, film_type)
@@ -80,7 +78,7 @@ class TransducerFiLMJoiner(nn.Module):
         else:
             x = enc_out + pred_out
 
-        if self.film_cond_type == "one-hot":
+        if self.film_cond_type in ["one-hot", "lid_pred"]:
             x = self.film(x, lang_condition)
         else:
             x = self.lid_film(x, lang_condition)

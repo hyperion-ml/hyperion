@@ -29,7 +29,7 @@ nnet_name=${hf_model_name}_rnnt_k2_pruned_film.v5.1_13_langs_weighted_8000_bpe
 nnet_s1_name=$nnet_name.s3
 
 nnet_s1_dir=exp/transducer_nnets/$nnet_s1_name
-nnet_s1=$nnet_s1_dir/model_ep0008.pth
+nnet_s1=$nnet_s1_dir/model_ep0042.pth
 
 nnet_s2_base_cfg=conf/train_wav2vec2base_rnnt_film_k2_pruned_stage4_v5.1.yaml
 nnet_s2_args=""

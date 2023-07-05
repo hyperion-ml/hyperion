@@ -34,6 +34,8 @@ fi
 
 lid_dir=exp/resnet1d/$nnet_name
 
+rm -f $lid_dir/overall_lid_score.txt
+
 # Extracts x-vectors for evaluation
 for name in $test_data  # $dev_data $test_data 
   do

@@ -76,7 +76,11 @@ if [ $stage -le 1 ];then
   python steps_transducer/word2bpe.py $data_dir/text $data_dir/text_bpe $bpe_model
 
   # compute-wer --text --mode=present ark:$data_dir/text ark:$output_dir/transducer.text > $output_dir/wer
-  # compute-wer --text --mode=present ark:$data_dir/text_char ark:$output_dir/transducer_char.text > $output_dir/wer_char
+  compute-wer --text --mode=present ark:$data_dir/text_char ark:$output_dir/transducer_char.text > $output_dir/wer_char
   # compute-wer --text --mode=present ark:$data_dir/text_bpe ark:$output_dir/transducer_bpe.text > $output_dir/wer_bpe
+
+  echo $(basename "$output_dir") >> $output_dir/../overall_wer_char.txt
+  cat $output_dir/wer_char >> $output_dir/../overall_wer_char.txt
+  echo " " >> $output_dir/../overall_wer_char
 
 fi

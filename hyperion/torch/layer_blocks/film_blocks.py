@@ -50,10 +50,8 @@ class RNNWithFiLM(nn.Module):
         elif self.rnn_type == "gru":
             self.grus = nn.ModuleList([nn.GRU(input_size if i==0 else hidden_size, hidden_size, 1, batch_first=batch_first) for i in range(num_layers)])
 
-        if self.film_cond_type == "one-hot":
-            self.films = nn.ModuleList([FiLM(hidden_size, condition_size, film_type) for _ in range(num_layers)])
-        else:
-            self.films = nn.ModuleList([FiLM(hidden_size, condition_size, film_type) for _ in range(num_layers)])
+        self.films = nn.ModuleList([FiLM(hidden_size, condition_size, film_type) for _ in range(num_layers)])
+        if self.film_cond_type == "lid_pred_embed":
             self.lid_films = nn.ModuleList([FiLM(hidden_size, condition_size, film_type) for _ in range(num_layers)])
 
         self.dropout_layer = nn.Dropout(dropout)
@@ -66,7 +64,7 @@ class RNNWithFiLM(nn.Module):
         elif self.rnn_type == "gru":
             rnns = self.grus
             
-        if self.film_cond_type == "one-hot":
+        if self.film_cond_type in ["one-hot", "lid_pred"]:
             films = self.films
         else:
             films = self.lid_films

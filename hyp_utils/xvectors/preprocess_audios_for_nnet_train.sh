@@ -11,6 +11,7 @@ nodes=b1
 storage_name=$(date +'%m_%d_%H_%M')
 proc_opts="--remove-dc-offset"
 use_bin_vad=false
+osr=0
 
 echo "$0 $@"  # Print the command line for logging
 

@@ -20,7 +20,7 @@ set -e
 
 
 stage=1
-ngpu=2
+ngpu=4
 config_file=default_config.sh
 interactive=false
 num_workers=""

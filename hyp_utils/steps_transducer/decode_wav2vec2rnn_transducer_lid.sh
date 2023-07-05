@@ -69,6 +69,7 @@ if [ $stage -le 1 ];then
   echo "compute wer"
   cat $output_dir/transducer.*.text > $output_dir/transducer.text
   cat $output_dir/languageid.* > $output_dir/langs
+  python steps_lid/cal_lid_score.py $output_dir/langs > $output_dir/lid_score
 
   python steps_transducer/word2char.py $output_dir/transducer.text $output_dir/transducer_char.text
   python steps_transducer/word2char.py $data_dir/text $data_dir/text_char
@@ -79,5 +80,12 @@ if [ $stage -le 1 ];then
   compute-wer --text --mode=present ark:$data_dir/text ark:$output_dir/transducer.text > $output_dir/wer
   compute-wer --text --mode=present ark:$data_dir/text_char ark:$output_dir/transducer_char.text > $output_dir/wer_char
   # compute-wer --text --mode=present ark:$data_dir/text_bpe ark:$output_dir/transducer_bpe.text > $output_dir/wer_bpe
+  echo $(basename "$output_dir") >> $output_dir/../overall_lid_score.txt
+  cat $output_dir/lid_score >> $output_dir/../overall_lid_score.txt
+  echo " " >> $output_dir/../overall_lid_score.txt
+  echo $(basename "$output_dir") >> $output_dir/../overall_wer_char.txt
+  cat $output_dir/wer_char >> $output_dir/../overall_wer_char.txt
+  echo " " >> $output_dir/../overall_wer_char.txt
+
 
 fi

@@ -103,7 +103,10 @@ class HFWav2RNNFiLMTransducerLanguageID(TorchModel):
         self.loss_reg_weight_lid = loss_reg_weight_lid
         self.lid_length = lid_length
         self._hf_context = contextlib.nullcontext()
-        self.transducer_fuser, self.film, self.lid_film = self._make_fuser(self.feat_fusion_method_transducer, self.feat_fusion_start_transducer)
+        if self.transducer.decoder.film_cond_type in ["one-hot", "lid_pred"]:
+            self.transducer_fuser, self.film, _ = self._make_fuser(self.feat_fusion_method_transducer, self.feat_fusion_start_transducer)
+        elif self.transducer.decoder.film_cond_type == "lid_pred_embed":
+            self.transducer_fuser, self.film, self.lid_film = self._make_fuser(self.feat_fusion_method_transducer, self.feat_fusion_start_transducer)
         self.languageid_fuser, _, _ = self._make_fuser(self.feat_fusion_method_lid, self.feat_fusion_start_lid)
 
     def _make_fuser(self, method, start):
@@ -151,9 +154,12 @@ class HFWav2RNNFiLMTransducerLanguageID(TorchModel):
 
         if self.transducer.decoder.film_cond_type in ["one-hot", "lid_pred"]:
             lang_condition = self.transducer.decoder.lang_embedding(lang_condition)
+            film = self.film
+        else:
+            film = self.lid_film
         hid_feats = hid_feats[self.feat_fusion_start_transducer:]
         if self.feat_fusion_method_transducer == "film-weighted-avg":
-            film_hid_feats = tuple(self.lid_film[i](hid_feats[i], lang_condition) for i in range(len(self.lid_film)))
+            film_hid_feats = tuple(film[i](hid_feats[i], lang_condition) for i in range(len(film)))
             film_hid_feats = torch.stack(film_hid_feats, dim=-1)
             norm_weights = nn.functional.softmax(self.transducer_fuser, dim=-1)
             feats = torch.sum(film_hid_feats * norm_weights, dim=-1)
@@ -161,7 +167,7 @@ class HFWav2RNNFiLMTransducerLanguageID(TorchModel):
             hid_feats = torch.stack(hid_feats, dim=-1)
             norm_weights = nn.functional.softmax(self.transducer_fuser, dim=-1)
             feats = torch.sum(hid_feats * norm_weights, dim=-1)
-            feats = self.lid_film(feats, lang_condition)
+            feats = film(feats, lang_condition)
         elif self.feat_fusion_method_transducer == "weighted-avg":
             hid_feats = torch.stack(hid_feats, dim=-1)
             norm_weights = nn.functional.softmax(self.transducer_fuser, dim=-1)
@@ -312,27 +318,41 @@ class HFWav2RNNFiLMTransducerLanguageID(TorchModel):
             return_classif_layers=return_classif_layers,
             return_logits=return_logits,
         )
-        # output["h_classif"] = h_classif
-        # output["logits"] = y_pred
-
-        #loss_lid = self.loss_lid(lid_logits, languageid)
         loss_lid = self.loss_lid(output["logits"], languageid)
-        # import pdb; pdb.set_trace()
-        # logging.info(output["h_classif"])
-
-        loss_embed = self.compute_embed_loss(output["h_classif"][0], languageid)
         
-        # feats_transducer = self._fuse_transducer_hid_feats(hid_feats, lid_logits) # (N, T, C)
-        feats_transducer = self._fuse_transducer_hid_feats(hid_feats, output["h_classif"][0]) # (N, T, C)
-            
-        trans_output = self.transducer(
-            feats_transducer,
-            feat_lengths,
-            text,
-            output["h_classif"][0]
-            # lid_logits
-        )
 
+        loss_embed = torch.tensor(0)
+        if self.transducer.decoder.film_cond_type == "lid_pred_embed":
+            loss_embed = self.compute_embed_loss(output["h_classif"][0], languageid)
+            feats_transducer = self._fuse_transducer_hid_feats(hid_feats, output["h_classif"][0]) # (N, T, C)
+            trans_output = self.transducer(
+                feats_transducer,
+                feat_lengths,
+                text,
+                output["h_classif"][0]
+                # lid_logits
+            )
+        elif self.transducer.decoder.film_cond_type == "one-hot":
+            feats_transducer = self._fuse_transducer_hid_feats(hid_feats, languageid)
+            output = self.transducer(
+                feats,
+                feat_lengths,
+                text,
+                languageid,
+            )
+        elif self.transducer.decoder.film_cond_type == "lid_pred":
+            _, lid_pred = torch.max(output["logits"], dim=-1)
+            # logging.info("logits", output["logits"])
+            # logging.info("lid_pred", lid_pred)
+            feats_transducer = self._fuse_transducer_hid_feats(hid_feats, lid_pred)
+            trans_output = self.transducer(
+                feats_transducer,
+                feat_lengths,
+                text,
+                lid_pred
+                # lid_logits
+            )
+            
         if return_feat_layers:
             trans_output.h_feats = [
                 f.transpose(1, 2) for i, f in enumerate(hid_feats)
@@ -352,7 +372,7 @@ class HFWav2RNNFiLMTransducerLanguageID(TorchModel):
         output = RNNTransducerLanguageIDOutput(loss=self.loss_weight_transducer * trans_output.loss + self.loss_weight_lid * loss_lid + self.loss_weight_embed * loss_embed + self.loss_reg_weight_lid * loss_reg_lid + self.loss_reg_weight_transducer * loss_reg_transducer, 
                                                 loss_transducer=trans_output.loss, 
                                                 loss_lid=loss_lid,
-                                                loss_embed=loss_embed,
+                                                loss_embed=loss_embed if self.transducer.decoder.film_cond_type == "lid_pred_embed" else None,
                                                 loss_reg_lid=loss_reg_lid,
                                                 loss_reg_transducer=loss_reg_transducer,
                                                 loss_transducer_simple=trans_output.loss_simple, 
@@ -383,35 +403,56 @@ class HFWav2RNNFiLMTransducerLanguageID(TorchModel):
 
 
         feats_languageid, hid_feats, feat_lengths = self.forward_lid_feats(
-            x, x_lengths, return_feat_layers)
+            x, x_lengths, None)
+        # logging.info(f"feat_lengths: {feat_lengths}")
+        # logging.info(f"feats_languageid.shape: {feats_languageid.shape}")
+        # logging.info(f"feats_languageid: {feats_languageid}")
 
 
-        lid = self.languageid(
-            feats_languageid.float(),
-            feat_lengths,
+        output = self.languageid(
+            feats_languageid,
+            None,
             None,
             return_enc_layers=None,
-            return_classif_layers=None,
+            return_classif_layers=[0],
             return_logits=True,
         )
+
+        # output = self.languageid(
+        #     feats_languageid,
+        #     feat_lengths,
+        #     None,
+        #     return_enc_layers=None,
+        #     return_classif_layers=[0],
+        #     return_logits=True,
+        # )
         
-        feats_transducer = self._fuse_transducer_hid_feats(hid_feats, lid) # (N, T, C)
+        feats_transducer = self._fuse_transducer_hid_feats(hid_feats, output["h_classif"][0])  # (N, T, C)
             
 
         text = self.transducer.infer(feats_transducer,
                                   feat_lengths,
+                                  lang=output["h_classif"][0],
                                   decoding_method=decoding_method,
                                   beam_width=beam_width,
                                   max_sym_per_frame=max_sym_per_frame,
                                   max_sym_per_utt=max_sym_per_utt)
                                   
-        return text, lid
+        return text, output["logits"]
 
     def unfreeze_lid_film(self):
         for name, param in self.named_parameters():
             if "lid_film" in name:
                 logging.info(f"unfreezing {name}")
                 param.requires_grad = True
+
+
+    def unfreeze_film(self):
+        for name, param in self.named_parameters():
+            if "film" in name:
+                logging.info(f"unfreezing {name}")
+                param.requires_grad = True
+
 
     def freeze_lid(self):
         self.languageid.freeze()
@@ -456,6 +497,9 @@ class HFWav2RNNFiLMTransducerLanguageID(TorchModel):
             self.freeze_film()
         elif mode == "frozen":
             self.freeze()
+        elif mode in ["ft-gt-film", "ft-gt-film-grad"]:
+            self.freeze()
+            self.unfreeze_film()
         elif mode in ["ft-film", "ft-film-grad"]:
             self.freeze()
             self.unfreeze_lid_film()
@@ -490,10 +534,12 @@ class HFWav2RNNFiLMTransducerLanguageID(TorchModel):
         if train_mode in ["full", "frozen"]:
             super()._train(train_mode)
         elif train_mode in [
+                "ft-gt-film",
                 "ft-film",
                 "freeze-gt-film",
                 "ft-transducer",
                 "hf-feats-frozen",
+                "ft-gt-film-grad",
                 "ft-film-grad",
                 "ft-transducer-nograd",
                 "hf-feats-frozen-nograd",
@@ -510,9 +556,11 @@ class HFWav2RNNFiLMTransducerLanguageID(TorchModel):
             "full",
             "frozen",
             "freeze-gt-film",
+            "ft-gt-film",
             "ft-film",
             "ft-embed-affine",
             "ft-transducer",
+            "ft-gt-film-grad",
             "ft-film-grad",
             "hf-feats-frozen",
             "ft-transducer-nograd",
