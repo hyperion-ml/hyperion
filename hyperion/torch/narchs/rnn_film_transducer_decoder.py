@@ -22,7 +22,8 @@ from ...utils.misc import filter_func_args
 from ...utils.text import add_sos
 from ..layer_blocks import TransducerFiLMJoiner as FiLMJoiner
 from ..layer_blocks import TransducerJoiner as Joiner
-from ..layer_blocks import TransducerRNNFiLMPredictor as RNNPredictor
+from ..layer_blocks import TransducerRNNFiLMPredictor as FiLMRNNPredictor
+from ..layer_blocks import TransducerRNNPredictor as RNNPredictor
 from .net_arch import NetArch
 
 
@@ -125,9 +126,13 @@ class RNNFiLMTransducerDecoder(NetArch):
         self.predictor_args["condition_size"] = self.condition_size
         # Add FiLM args to the predictor args
         if pred_type == "rnn":
+            pred_args = filter_func_args(FiLMRNNPredictor.__init__,
+                                         self.predictor_args)
+            self.predictor = FiLMRNNPredictor(**pred_args, film_type=self.film_type, film_cond_type=self.film_cond_type)
+        elif pred_type == "rnn_original":
             pred_args = filter_func_args(RNNPredictor.__init__,
                                          self.predictor_args)
-            self.predictor = RNNPredictor(**pred_args, film_type=self.film_type, film_cond_type=self.film_cond_type)
+            self.predictor = RNNPredictor(**pred_args)
         # elif pred_type == "conv":
         #     pred_args = filter_func_args(ConvPredictor.__init__,
         #                                  self.predictor_args)
@@ -326,7 +331,10 @@ class RNNFiLMTransducerDecoder(NetArch):
         sos_y_padded = sos_y.pad(mode="constant", padding_value=self.blank_id)
         sos_y_padded = sos_y_padded.to(torch.int64)
         # apply predictor and joiner
-        pred_out, _ = self.predictor(sos_y_padded, lang_embedding)
+        if self.predictor_args["pred_type"] == "rnn":
+            pred_out, _ = self.predictor(sos_y_padded, lang_embedding)
+        elif self.predictor_args["pred_type"] == "rnn_original":
+            pred_out, _ = self.predictor(sos_y_padded)
         loss_simple = loss_pruned = None
         if self.rnnt_loss == "k2_pruned":
             loss, loss_simple, loss_pruned = self._rnnt_loss_k2_pruned(
@@ -399,7 +407,10 @@ class RNNFiLMTransducerDecoder(NetArch):
 
         sos = torch.tensor([blank_id], device=device,
                            dtype=torch.int64).reshape(1, 1)
-        pred_out, (h, c) = self.predictor(sos, lang_embedding)
+        if self.predictor_args["pred_type"] == "rnn":
+            pred_out, (h, c) = self.predictor(sos, lang_embedding)
+        elif self.predictor_args["pred_type"] == "rnn_original":
+            pred_out, (h, c) = self.predictor(sos)
         T = x.size(1)
         t = 0
         hyp = []
@@ -422,8 +433,11 @@ class RNNFiLMTransducerDecoder(NetArch):
             if y != blank_id:
                 hyp.append(y.item())
                 y = y.reshape(1, 1)
-                pred_out, (h, c) = self.predictor(y, lang_embedding, (h, c))
-
+                if self.predictor_args["pred_type"] == "rnn":
+                    pred_out, (h, c) = self.predictor(y, lang_embedding, (h, c))
+                elif self.predictor_args["pred_type"] == "rnn_original":
+                    pred_out, (h, c) = self.predictor(y, (h, c))
+                    
                 sym_per_utt += 1
                 sym_per_frame += 1
 
@@ -445,7 +459,10 @@ class RNNFiLMTransducerDecoder(NetArch):
         device = x.device
 
         sos = torch.tensor([blank_id], device=device).reshape(1, 1)
-        pred_out, (h, c) = self.predictor(sos, lang_embedding)
+        if self.predictor_args["pred_type"] == "rnn":
+            pred_out, (h, c) = self.predictor(sos, lang_embedding)
+        elif self.predictor_args["pred_type"] == "rnn_original":
+            pred_out, state = self.predictor(sos)
         T = x.size(1)
         t = 0
         B = [Hypothesis(ys=[blank_id], log_prob=0.0, pred_state=None)]
@@ -472,11 +489,20 @@ class RNNFiLMTransducerDecoder(NetArch):
                     pred_in = torch.tensor([y_star.ys[-1]],
                                            device=device).reshape(1, 1)
 
-                    pred_out, pred_state = self.predictor(
+                    # pred_out, pred_state = self.predictor(
+                    #     pred_in,
+                    #     lang_embedding,
+                    #     y_star.pred_state,
+                    # )
+                    if self.predictor_args["pred_type"] == "rnn":
+                        pred_out, pred_state = self.predictor(
                         pred_in,
                         lang_embedding,
                         y_star.pred_state,
-                    )
+                        )
+                    elif self.predictor_args["pred_type"] == "rnn_original":
+                        pred_out, pred_state = self.predictor(pred_in, y_star.pred_state,)
+                        
                     cache[cached_key] = (pred_out, pred_state)
                 else:
                     pred_out, pred_state = cache[cached_key]
@@ -572,7 +598,11 @@ class RNNFiLMTransducerDecoder(NetArch):
         device = x.device
 
         sos = torch.tensor([blank_id], device=device).reshape(1, 1)
-        pred_out, (h, c) = self.predictor(sos, lang_embedding)
+        if self.predictor_args["pred_type"] == "rnn":
+            pred_out, (h, c) = self.predictor(sos, lang_embedding)
+        elif self.predictor_args["pred_type"] == "rnn_original":
+            pred_out, state = self.predictor(sos)
+
         T = x.size(1)
         #t = 0
         B = [Hypothesis(ys=[blank_id], log_prob=0.0, pred_state=None)]
@@ -602,12 +632,14 @@ class RNNFiLMTransducerDecoder(NetArch):
                 if cached_key not in cache:
                     pred_in = torch.tensor([y_star.ys[-1]],
                                            device=device).reshape(1, 1)
-
-                    pred_out, pred_state = self.predictor(
+                    if self.predictor_args["pred_type"] == "rnn":
+                        pred_out, pred_state = self.predictor(
                         pred_in,
                         lang_embedding,
                         y_star.pred_state,
-                    )
+                        )
+                    elif self.predictor_args["pred_type"] == "rnn_original":
+                        pred_out, pred_state = self.predictor(pred_in, y_star.pred_state,)
                     cache[cached_key] = (pred_out, pred_state)
                 else:
                     pred_out, pred_state = cache[cached_key]
