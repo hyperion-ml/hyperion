@@ -135,6 +135,8 @@ class HFHubert(HFWav2VecBase):
           chunk by chunk, if it is too long to fit in GPU.
         right_encoder_context: (`int`): future context frames used by the transformer encoder.
         sample_frequency: (`int`) waveform sample frequency used to train the model.
+        feat_extract_lr: learning rate for conv feature extractor, serves to set a lr different than the global one.
+        encoder_lr: learning rate for the wav2vec encoder, serves to set a lr different than the global one.
     """
 
     def __init__(
@@ -182,6 +184,8 @@ class HFHubert(HFWav2VecBase):
         left_encoder_context: int = 16,
         right_encoder_context: int = 16,
         sample_frequency: int = 16000,
+        feat_extract_lr: Optional[float] = None,
+        encoder_lr: Optional[float] = None,
     ):
 
         super().__init__(
@@ -199,6 +203,8 @@ class HFHubert(HFWav2VecBase):
             left_encoder_context=left_encoder_context,
             right_encoder_context=right_encoder_context,
             sample_frequency=sample_frequency,
+            feat_extract_lr=feat_extract_lr,
+            encoder_lr=encoder_lr,
         )
 
         if pretrained_model_path is not None and not ignore_pretrained:
@@ -286,6 +292,32 @@ class HFHubert(HFWav2VecBase):
     @property
     def hidden_size(self):
         return self.hf_config.hidden_size
+
+    def change_dropouts(
+        self,
+        hidden_dropout: float = 0.1,
+        activation_dropout: float = 0.1,
+        attention_dropout: float = 0.1,
+        feat_proj_dropout: float = 0.1,
+        **kwargs,
+    ):
+        import transformers.models.hubert.modeling_hubert as t
+
+        self.hf_model.config.hidden_dropout = hidden_dropout
+        self.hf_model.config.activation_dropout = activation_dropout
+        self.hf_model.config.attention_dropout = attention_dropout
+        self.hf_model.config.feat_proj_dropout = feat_proj_dropout
+
+        self.hf_model.feature_projection.dropout.p = feat_proj_dropout
+        for module in self.hf_model.encoder.modules():
+            if isinstance(module, nn.Dropout):
+                module.p = hidden_dropout
+
+        for module in self.hf_model.encoder.modules():
+            if isinstance(module, t.HubertAttention):
+                module.dropout = activation_dropout
+            if isinstance(module, t.HubertFeatureProjection):
+                module.intermediate_dropout.p = activation_dropout
 
     def drop_upper_layers(self, max_layers: int):
         if max_layers >= self.hf_config.num_hidden_layers:

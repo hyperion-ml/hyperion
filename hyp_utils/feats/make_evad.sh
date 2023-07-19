@@ -87,7 +87,7 @@ fi
 $cmd JOB=1:$nj $logdir/make_vad_${name}.JOB.log \
     hyp_utils/conda_env.sh \
     compute_energy_vad.py --cfg $vad_config $opt_args \
-    --input $scp --output ark,scp:$vaddir/vad_$name.JOB.ark,$vaddir/vad_$name.JOB.scp \
+    --recordings-file $scp --output-spec ark,scp:$vaddir/vad_$name.JOB.ark,$vaddir/vad_$name.JOB.scp \
     --part-idx JOB --num-parts $nj || exit 1
 
 # concatenate the .scp files together.

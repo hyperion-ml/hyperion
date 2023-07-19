@@ -3,6 +3,7 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+from .info_table import InfoTable
 from .class_info import ClassInfo
 from .dataset import Dataset
 from .enrollment_map import EnrollmentMap

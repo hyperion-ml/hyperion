@@ -8,7 +8,7 @@ from .info_table import InfoTable
 
 class SegmentSet(InfoTable):
     """Class to store information about a speech segment
-       Internally, it uses a pandas table.
+    Internally, it uses a pandas table.
     """
 
     def __init__(self, df):
@@ -29,7 +29,13 @@ class SegmentSet(InfoTable):
     def has_recording_ids(self):
         return "recording_id" in self.df
 
-    def recording_ids(self, ids):
+    def recording_ids(self, ids=None):
+        if ids is None:
+            if "recording_id" in self.df:
+                return self.df["recording_id"]
+            else:
+                return self.df["id"]
+
         if "recording_id" in self.df:
             return self.df.loc[ids, "recording_id"]
 

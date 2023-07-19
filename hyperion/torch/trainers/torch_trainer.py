@@ -163,7 +163,9 @@ class TorchTrainer(object):
                 oss = False if ddp_type == DDPType.DDP else True
                 self.optimizer = self._make_optimizer(optim, self.model, oss=oss)
                 self.model = TorchDDP(
-                    self.model, device_ids=[device], output_device=device,
+                    self.model,
+                    device_ids=[device],
+                    output_device=device,
                 )
             elif ddp_type == DDPType.OSS_SHARDED_DDP:
                 self.model = nn.SyncBatchNorm.convert_sync_batchnorm(self.model)
@@ -424,7 +426,9 @@ class TorchTrainer(object):
         opt_args["oss"] = oss
         if self.rank == 0:
             logging.info("optimizer args={}".format(opt_args))
-        optimizer = OF.create(model.parameters(), **opt_args)
+
+        # optimizer = OF.create(model.parameters(), **opt_args)
+        optimizer = OF.create(model.trainable_param_groups(), **opt_args)
         return optimizer
 
     def _make_lr_sched(self, lr_sched, optim):
@@ -458,8 +462,8 @@ class TorchTrainer(object):
 
     def _get_lr(self):
         """Returns the current learning rate to show in the loggers"""
-        for param_group in self.optimizer.param_groups:
-            return param_group["lr"]
+        lrs = [param_group["lr"] for param_group in self.optimizer.param_groups]
+        return max(lrs)
 
     def _compute_grad_acc_steps(self, data_loader):
         if self.eff_batch_size is None:

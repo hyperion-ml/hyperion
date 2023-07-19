@@ -44,7 +44,8 @@ model:
   margin_warmup_epochs: 0
   intertop_margin: 0.1
   override_dropouts: true
-  dropout_rate: 0.0
+  # dropout_rate: 0.0
+  dropout_rate: 0.2
 trainer:
   optim:
     opt_type: sgd

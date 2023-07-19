@@ -7,10 +7,10 @@
 . ./path.sh
 set -e
 
-stage=2
+stage=1
+nnet_stage=3
 config_file=default_config.sh
 use_gpu=false
-nnet_stage=3
 hf_chunk_length=120 #seconds
 xvec_chunk_length=120 #seconds
 . parse_options.sh || exit 1;
@@ -36,20 +36,20 @@ fi
 
 xvector_dir=exp/xvectors/$nnet_name
 
-if [ $stage -le 1 ]; then
+if [[ $stage -le 1 && ( "$do_plda" == "true" || "$do_snorm" == "true" || "$do_qmf" == "true" || "$do_pca" == "true") ]]; then
   # Extract xvectors for training LDA/PLDA
   for name in voxceleb2cat_train
   do
     if [ $plda_num_augs -eq 0 ]; then
       steps_xvec/extract_wav2vec2xvectors.sh \
 	--cmd "$xvec_cmd" --nj 100 ${xvec_args} \
-	--random-utt-length true --min-utt-length 4 --max-utt-length 140 \
+	--random-utt-length true --min-utt-length 2 --max-utt-length 30 \
     	$nnet data/${name} \
     	$xvector_dir/${name}
     else
       steps_xvec/extract_wav2vec2xvectors.sh \
 	--cmd "$xvec_cmd" --nj 300 ${xvec_args} \
-	--random-utt-length true --min-utt-length 4 --max-utt-length 140 \
+	--random-utt-length true --min-utt-length 2 --max-utt-length 30 \
 	--aug-config $plda_aug_config --num-augs $plda_num_augs \
     	$nnet data/${name} \
     	$xvector_dir/${name}_augx${plda_num_augs} \
@@ -60,7 +60,10 @@ fi
 
 if [ $stage -le 2 ]; then
   # Extracts x-vectors for evaluation
-  for name in voxceleb1_test 
+  if [ "$do_voxsrc22" == "true" ];then
+    extra_data="voxsrc22_dev"
+  fi
+  for name in voxceleb1_test $extra_data
   do
     num_spk=$(wc -l data/$name/spk2utt | awk '{ print $1}')
     nj=$(($num_spk < 100 ? $num_spk:100))
@@ -71,4 +74,3 @@ if [ $stage -le 2 ]; then
   done
 fi
 
-exit

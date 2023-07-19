@@ -251,7 +251,7 @@ class VoxCeleb2DataPrep(DataPrep):
         logging.info("making dataset")
         dataset = Dataset(
             segments,
-            {"speaker": speakers, "languages": languages},
+            {"speaker": speakers, "language_est": languages},
             {"recordings": recs},
         )
         logging.info("saving dataset at %s", self.output_dir)

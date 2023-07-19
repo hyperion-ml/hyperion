@@ -293,7 +293,7 @@ if [ $stage -le 13 ]; then
     awk '!/benign/' $list_someknown_dir/train/utt2spk > $list_someknown_dir/train_nobenign/utt2spk
     steps_backend/train_be_v1.sh --cmd "$train_cmd" \
         --plda-type splda \
-        --y-dim 6 \
+        --y-dim 5 \
 	$sign_dir/train/xvector.scp \
         $list_someknown_dir/train_nobenign \
         $be_dir 

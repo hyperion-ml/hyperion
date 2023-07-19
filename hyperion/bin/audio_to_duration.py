@@ -9,12 +9,11 @@ import sys
 import time
 
 import numpy as np
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
-
 from hyperion.hyp_defs import config_logger
 from hyperion.io import SequentialAudioReader as AR
 from hyperion.utils import SegmentSet
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
 
 
 def audio_to_duration(audio_file, output_file, **kwargs):

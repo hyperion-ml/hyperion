@@ -30,7 +30,10 @@ class DataWriterFactory(object):
 
     @staticmethod
     def create(
-        wspecifier: PathLike, compress: bool = False, compression_method: str = "auto"
+        wspecifier: PathLike,
+        compress: bool = False,
+        compression_method: str = "auto",
+        metadata_columns: Optional[List[str]] = None,
     ):
         if isinstance(wspecifier, str):
             wspecifier = WSpecifier.create(wspecifier)
@@ -47,6 +50,7 @@ class DataWriterFactory(object):
                     flush=wspecifier.flush,
                     compress=compress,
                     compression_method=compression_method,
+                    metadata_columns=metadata_columns,
                 )
             else:
                 return ADW(
@@ -56,6 +60,7 @@ class DataWriterFactory(object):
                     flush=wspecifier.flush,
                     compress=compress,
                     compression_method=compression_method,
+                    metadata_columns=metadata_columns,
                 )
 
     @staticmethod
@@ -76,7 +81,6 @@ class DataWriterFactory(object):
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
-            # help='data writer options')
 
 
 class SequentialDataReaderFactory(object):

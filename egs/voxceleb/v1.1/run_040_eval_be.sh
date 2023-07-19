@@ -8,7 +8,7 @@
 set -e
 
 stage=1
-nnet_stage=1
+nnet_stage=2
 config_file=default_config.sh
 
 

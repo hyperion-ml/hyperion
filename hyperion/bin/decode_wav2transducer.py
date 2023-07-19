@@ -13,13 +13,6 @@ from typing import Dict, List, Tuple
 import numpy as np
 import pandas as pd
 import sentencepiece as spm
-from jsonargparse import (
-    ActionConfigFile,
-    ActionParser,
-    ArgumentParser,
-    namespace_to_dict,
-)
-
 import torch
 import torch.nn as nn
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
@@ -27,10 +20,13 @@ from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialAudioReader as AR
 from hyperion.np.augment import SpeechAugment
 from hyperion.torch import TorchModelLoader as TML
-from hyperion.torch.models.wav2transducer.beam_search import beam_search, greedy_search
+from hyperion.torch.models.wav2transducer.beam_search import (beam_search,
+                                                              greedy_search)
 from hyperion.torch.narchs import AudioFeatsMVN as AF
 from hyperion.torch.utils import open_device
 from hyperion.utils import Utt2Info
+from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
+                          namespace_to_dict)
 
 
 def init_device(use_gpu):
