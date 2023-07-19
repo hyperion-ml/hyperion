@@ -5,9 +5,10 @@
 
 import os
 from abc import ABCMeta, abstractmethod
-from typing import Union, Optional, List
+from typing import Union, Optional, List, Dict
 from pathlib import Path
 import numpy as np
+import pandas as pd
 from ..utils import PathLike
 
 
@@ -34,12 +35,14 @@ class DataWriter:
         flush: bool = False,
         compress: bool = False,
         compression_method: str = "auto",
+        metadata_columns: Optional[List[str]] = None,
     ):
         self.archive_path = Path(archive_path)
         self.script_path = Path(script_path) if script_path is not None else None
         self._flush = flush
         self.compress = compress
         self.compression_method = compression_method
+        self.metadata_columns = metadata_columns
 
         archive_dir = self.archive_path.parent
         archive_dir.mkdir(exist_ok=True, parents=True)
@@ -56,9 +59,7 @@ class DataWriter:
                 self.f_script = open(self.script_path, "w")
             else:
                 self.script_sep = "," if script_ext == ".csv" else "\t"
-                self.f_script = open(self.script_path, "w", "utf-8")
-                row = self.script_sep.join(["id", "storage_path"])
-                self.f_script.write(f"{row}\n")
+                self.f_script = open(self.script_path, "w", encoding="utf-8")
 
     def __enter__(self):
         """Function required when entering contructions of type
@@ -87,11 +88,37 @@ class DataWriter:
         """Flushes the file"""
         pass
 
+    def standardize_write_args(
+        self,
+        keys: Union[str, List[str], np.array],
+        data: Union[np.array, List[np.array]],
+        metadata: Optional[Union[pd.DataFrame, Dict]] = None,
+    ):
+        if isinstance(keys, str):
+            keys = [keys]
+            data = [data]
+
+        if metadata is not None:
+            if isinstance(metadata, pd.DataFrame):
+                metadata = metadata.to_dict()
+
+            metadata_list = []
+            for c in self.metadata_columns:
+                m_c = metadata[c]
+                if not isinstance(m_c, (list, np.ndarray)):
+                    m_c = [m_c]
+                metadata_list.append(m_c)
+
+            metadata = metadata_list
+
+        return keys, data, metadata
+
     @abstractmethod
     def write(
         self,
         keys: Union[str, List[str], np.array],
         data: Union[np.array, List[np.array]],
+        metadata: Optional[Union[pd.DataFrame, Dict]] = None,
     ):
         """Writes data to file.
 
@@ -101,5 +128,6 @@ class DataWriter:
                 If all the matrices have the same dimension
                 it can be a 3D numpy array.
                 If they are vectors, it can be a 2D numpy array.
+          metadata: dictionary/DataFrame with metadata
         """
         pass

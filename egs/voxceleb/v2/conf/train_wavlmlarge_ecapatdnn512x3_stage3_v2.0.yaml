@@ -11,7 +11,7 @@ data:
       wav_scale: 1
     sampler:
       sampler_type: class_weighted_random_seg_chunk_sampler
-      min_batch_size: 32
+      min_batch_size: 16
       max_chunk_length: 6.0
       min_chunk_length: 6.0
       num_chunks_per_seg_epoch: 6
@@ -34,7 +34,7 @@ data:
       wav_scale: 1
     sampler:
       sampler_type: class_weighted_random_seg_chunk_sampler
-      min_batch_size: 32
+      min_batch_size: 16
       max_chunk_length: 3.0
       min_chunk_length: 3.0
       num_chunks_per_seg_epoch: 6

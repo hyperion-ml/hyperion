@@ -346,7 +346,9 @@ class SequentialAudioReader(AudioReader):
                 key = segment["id"]
                 x_i, fs_i = self._read_segment(segment, offset_i, dur_i)
             else:
-                key, file_path = self.recordings.iloc[self.cur_item]
+                segment = self.recordings.iloc[self.cur_item]
+                key = segment["id"]
+                file_path = segment["storage_path"]
                 x_i, fs_i = self.read_wavspecifier(
                     file_path, self.wav_scale, offset_i, dur_i
                 )
@@ -397,7 +399,8 @@ class SequentialAudioReader(AudioReader):
 
         if prefix is not None:
             outer_parser.add_argument(
-                "--" + prefix, action=ActionParser(parser=parser),
+                "--" + prefix,
+                action=ActionParser(parser=parser),
             )
 
     add_argparse_args = add_class_args
@@ -423,7 +426,7 @@ class RandomAccessAudioReader(AudioReader):
         Args:
           keys: List of recording/segment_ids names.
           time_offset: float or float list with time-offsets
-          time_durs: float or float list with durations 
+          time_durs: float or float list with durations
 
         Returns:
           data: List of waveforms
@@ -527,7 +530,8 @@ class RandomAccessAudioReader(AudioReader):
         )
         if prefix is not None:
             outer_parser.add_argument(
-                "--" + prefix, action=ActionParser(parser=parser),
+                "--" + prefix,
+                action=ActionParser(parser=parser),
             )
 
     add_argparse_args = add_class_args
