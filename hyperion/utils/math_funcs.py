@@ -346,10 +346,26 @@ def int2onehot(class_ids, num_classes=None):
     return p
 
 
-def cosine_scoring(x1, x2):
+def average_vectors(x, ids):
+    assert x.shape[0] == len(ids)
+    num_ids = np.max(ids) + 1
+    x_avg = np.zeros((num_ids, x.shape[1]), dtype=x.dtype)
+    for i in range(num_ids):
+        mask = ids == i
+        x_avg[i] = np.mean(x[mask], axis=0)
 
-    l2_1 = np.sqrt(np.sum(x1 ** 2, axis=-1, keepdims=True))
-    l2_2 = np.sqrt(np.sum(x2 ** 2, axis=-1, keepdims=True))
+    return x_avg
+
+
+def cosine_scoring(x1, x2, ids1=None, ids2=None):
+    if ids1 is not None:
+        x1 = average_vectors(x1, ids1)
+
+    if ids2 is not None:
+        x2 = average_vectors(x2, ids2)
+
+    l2_1 = np.sqrt(np.sum(x1 ** 2, axis=-1, keepdims=True) + 1e-10)
+    l2_2 = np.sqrt(np.sum(x2 ** 2, axis=-1, keepdims=True) + 1e-10)
     x1 = x1 / l2_1
     x2 = x2 / l2_2
 

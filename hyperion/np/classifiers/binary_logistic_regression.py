@@ -29,7 +29,7 @@ class BinaryLogisticRegression(LogisticRegression):
                        In this case, x becomes [x, bias_scaling], i.e. a “synthetic” feature with constant value equal to intercept_scaling is appended to the instance vector. The intercept becomes intercept_scaling * synthetic_feature_weight.
                        Note! the synthetic feature weight is subject to l1/l2 regularization as all other features. To lessen the effect of regularization on synthetic feature weight (and therefore on the intercept) bias_scaling has to be increased.
       priors: prior prob for having a positive sample.
-      random_state: RandomState instance or None, optional, default: None
+      random_state: default_rng instance or None, optional, default: None
                     Used when solver == ‘sag’ or ‘liblinear’.
       solver: {‘newton-cg’, ‘lbfgs’, ‘liblinear’, ‘sag’, ‘saga’},
                  default: ‘liblinear’ Algorithm to use in the optimization problem.

@@ -2,8 +2,6 @@
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-
-
 import copy
 import logging
 import re
@@ -18,13 +16,13 @@ matplotlib.rc("text", usetex=True)
 import matplotlib.pyplot as plt
 
 from ...hyp_defs import float_cpu
-from ...utils import TrialKey, TrialScores
+from ...utils import TrialKey, TrialScores, SparseTrialKey, SparseTrialScores
 from ...utils.trial_stats import TrialStats
 from .dcf import fast_eval_dcf_eer
 from .utils import effective_prior
 
 
-class VerificationEvaluator(object):
+class VerificationEvaluator:
     """Class computes performance metrics for verification problems.
        Same metrics can be obtained from fast_eval_dcf_eer functions
 
@@ -34,21 +32,40 @@ class VerificationEvaluator(object):
        p_tar: target prior float or list/nparray sorted in ascending order
        c_miss: cost of miss
        c_fa: cost of false alarm
-
+       key_name: name describing the key
+       score_name: name describing the score
+       sparse: use sparse versions of TrialScores and Keys
     """
 
-    def __init__(self, key, scores, p_tar, c_miss=None, c_fa=None):
-
+    def __init__(
+        self,
+        key,
+        scores,
+        p_tar,
+        c_miss=None,
+        c_fa=None,
+        key_name=None,
+        score_name=None,
+        sparse=False,
+    ):
         if isinstance(key, str):
-            logging.info("Load key: %s" % key)
-            key = TrialKey.load(key)
+            logging.info("Load key: %s", key)
+            if sparse:
+                key = SparseTrialKey.load(key)
+            else:
+                key = TrialKey.load(key)
 
         if isinstance(scores, str):
-            logging.info("Load scores: %s" % scores)
-            scores = TrialScores.load(scores)
+            logging.info("Load scores: %s", scores)
+            if sparse:
+                scores = SparseTrialScores.load(scores)
+            else:
+                scores = TrialScores.load(scores)
 
         self.key = key
         self.scores = scores.align_with_ndx(key)
+        self.key_name = key_name
+        self.score_name = score_name
 
         # compute effective prior is c_miss and c_fa are given
         if isinstance(p_tar, float):
@@ -56,13 +73,16 @@ class VerificationEvaluator(object):
 
         p_tar = np.asarray(p_tar)
         if c_miss is not None and c_fa is not None:
+            assert len(c_miss) == len(p_tar)
+            assert len(c_fa) == len(p_tar)
             c_miss = np.asarray(c_miss)
             c_fa = np.asarray(c_fa)
             p_tar = effective_prior(p_tar, c_miss, c_fa)
 
+        self._p_tar_sort = np.argsort(p_tar)
         self.p_tar = p_tar
 
-    def compute_dcf_eer(self, return_df=False):
+    def compute_dcf_eer(self, return_df=True):
         """
         Computes DCF/EER
 
@@ -74,24 +94,38 @@ class VerificationEvaluator(object):
         """
         logging.info("separating tar/non")
         tar, non = self.scores.get_tar_non(self.key)
+        ntar = len(tar)
+        nnon = len(non)
         logging.info("computing EER/DCF")
-        min_dcf, act_dcf, eer, _ = fast_eval_dcf_eer(tar, non, self.p_tar)
+        min_dcf, act_dcf, eer, _ = fast_eval_dcf_eer(
+            tar, non, self.p_tar[self._p_tar_sort]
+        )
+        min_dcf[self._p_tar_sort] = min_dcf.copy()
+        act_dcf[self._p_tar_sort] = act_dcf.copy()
 
         if not return_df:
-            return min_dcf, act_dcf, eer
+            return min_dcf, act_dcf, eer, ntar, nnon
 
         if len(self.p_tar) == 1:
             eer = [eer]
             min_dcf = [min_dcf]
             act_dcf = [act_dcf]
 
-        df = pd.DataFrame({"eer": eer})
-
+        df = pd.DataFrame(
+            {
+                "scores": [self.score_name],
+                "key": [self.key_name],
+                "eer": eer,
+                "eer(%)": eer * 100,
+            }
+        )
         for i in range(len(min_dcf)):
             pi = self.p_tar[i]
             df["min-dcf-%.3f" % (pi)] = min_dcf[i]
             df["act-dcf-%.3f" % (pi)] = act_dcf[i]
 
+        df["num_targets"] = ntar
+        df["num_nontargets"] = nnon
         return df
 
 
@@ -116,9 +150,7 @@ class VerificationAdvAttackEvaluator(VerificationEvaluator):
     def __init__(
         self, key, scores, attack_scores, attack_stats, p_tar, c_miss=None, c_fa=None
     ):
-        super(VerificationAdvAttackEvaluator, self).__init__(
-            key, scores, p_tar, c_miss, c_fa
-        )
+        super().__init__(key, scores, p_tar, c_miss, c_fa)
         if not isinstance(attack_scores, list):
             attack_scores = [attack_scores]
         if not isinstance(attack_stats, list):
@@ -133,7 +165,7 @@ class VerificationAdvAttackEvaluator(VerificationEvaluator):
         if isinstance(attack_scores[0], str):
             l = []
             for file_path in attack_scores:
-                logging.info("Load attack scores: %s" % file_path)
+                logging.info("Load attack scores: %s", file_path)
                 scores = TrialScores.load(file_path)
                 l.append(scores)
             attack_scores = l
@@ -151,7 +183,7 @@ class VerificationAdvAttackEvaluator(VerificationEvaluator):
         if isinstance(attack_stats[0], str):
             l = []
             for file_path in attack_stats:
-                logging.info("Load attack stats: %s" % file_path)
+                logging.info("Load attack stats: %s", file_path)
                 scores = TrialStats.load(file_path)
                 l.append(scores)
             attack_stats = l
@@ -216,7 +248,7 @@ class VerificationAdvAttackEvaluator(VerificationEvaluator):
         stat_bins,
         attacked_trials="all",
         higher_better=False,
-        return_df=False,
+        return_df=True,
     ):
         """
         Computes DCF/EER versus SNR/Linf/etc curves
@@ -307,7 +339,7 @@ class VerificationAdvAttackEvaluator(VerificationEvaluator):
         threshold=None,
         prior_idx=0,
         higher_better=False,
-        return_df=False,
+        return_df=True,
     ):
         """
         Find the best attacks from the point of view of some of the stats. E.g.,

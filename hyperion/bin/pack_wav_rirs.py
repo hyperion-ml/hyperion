@@ -13,8 +13,12 @@ import numpy as np
 from hyperion.hyp_defs import config_logger
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialAudioReader as AR
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
 
 
 def pack_wav_rirs(input_path, output_spec, **kwargs):
@@ -32,12 +36,15 @@ def pack_wav_rirs(input_path, output_spec, **kwargs):
             h[h < 1e-3] = 0
             h = np.trim_zeros(h)
             logging.info(
-                "Packing rir %s h_max=%f h_delay=%d h-length=%d"
-                % (key, h_max, h_delay, len(h))
+                "Packing rir %s h_max=%f h_delay=%d h-length=%d",
+                key,
+                h_max,
+                h_delay,
+                len(h),
             )
             writer.write([key], [h])
 
-    logging.info("Packed RIRS elapsed-time=%.f" % (time.time() - t1))
+    logging.info("Packed RIRS elapsed-time=%.f", time.time() - t1)
 
 
 if __name__ == "__main__":

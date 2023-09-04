@@ -22,8 +22,12 @@ from hyperion.torch import TorchModelLoader as TML
 from hyperion.torch.narchs import AudioFeatsMVN as AF
 from hyperion.torch.utils import open_device
 from hyperion.utils import Utt2Info
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
 
 
 def init_device(use_gpu):
@@ -96,7 +100,7 @@ def extract_xvectors(
     **kwargs
 ):
 
-    rng = np.random.RandomState(seed=1123581321 + kwargs["part_idx"])
+    rng = np.random.default_rng(seed=1123581321 + kwargs["part_idx"])
     device = init_device(use_gpu)
     feat_extractor = init_feats(device, **kwargs)
     model = load_model(model_path, device)

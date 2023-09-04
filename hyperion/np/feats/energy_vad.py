@@ -5,6 +5,7 @@
 import logging
 
 import numpy as np
+from jsonargparse import ActionParser, ArgumentParser
 from scipy.signal import lfilter
 
 from ...hyp_defs import float_cpu
@@ -19,7 +20,7 @@ class EnergyVAD(object):
        sample_frequency:      Waveform data sample frequency (must match the waveform file, if specified there) (default = 16000)
        frame_length:          Frame length in milliseconds (default = 25)
        frame_shift:           Frame shift in milliseconds (default = 10)
-       dither:                Dithering constant (0.0 means no dither) (default = 1)
+       dither:                Dithering constant (0.0 means no dither) (default = 2^(-15))
        snip_edges:            If true, end effects will be handled by outputting only frames that completely fit in the file, and the number of frames depends on the frame-length.  If false, the number of frames depends only on the frame-shift, and we reflect the data at the ends. (default = True)
        vad_energy_mean_scale: If this is set to s, to get the actual threshold we let m be the mean log-energy of the file, and use s*m + vad-energy-threshold (float, default = 0.5)
        vad_energy_threshold:  Constant term in energy threshold for MFCC0 for VAD (also see --vad-energy-mean-scale) (float, default = 5)
@@ -32,7 +33,7 @@ class EnergyVAD(object):
         sample_frequency=16000,
         frame_length=25,
         frame_shift=10,
-        dither=1,
+        dither=1 / 2 ** 15,
         snip_edges=True,
         vad_energy_mean_scale=0.5,
         vad_energy_threshold=5,
@@ -97,7 +98,7 @@ class EnergyVAD(object):
 
             # add dither
             if self.dither > 0:
-                n = self.dither * np.random.RandomState(seed=len(x)).randn(
+                n = self.dither * np.random.default_rng(seed=len(x)).randn(
                     len(x)
                 ).astype(float_cpu(), copy=False)
                 x = x + n
@@ -174,14 +175,12 @@ class EnergyVAD(object):
           parser: Arguments parser
           prefix: Options prefix.
         """
-
-        if prefix is None:
-            p1 = "--"
-        else:
-            p1 = "--" + prefix + "."
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
 
         parser.add_argument(
-            p1 + "sample-frequency",
+            "--sample-frequency",
             default=16000,
             type=int,
             help=(
@@ -191,24 +190,21 @@ class EnergyVAD(object):
         )
 
         parser.add_argument(
-            p1 + "frame-length",
-            type=int,
-            default=25,
-            help="Frame length in milliseconds",
+            "--frame-length", type=int, default=25, help="Frame length in milliseconds",
         )
         parser.add_argument(
-            p1 + "frame-shift", type=int, default=10, help="Frame shift in milliseconds"
+            "--frame-shift", type=int, default=10, help="Frame shift in milliseconds"
         )
 
         parser.add_argument(
-            p1 + "dither",
+            "--dither",
             type=float,
-            default=1,
+            default=1 / 2 ** 15,
             help="Dithering constant (0.0 means no dither)",
         )
 
         parser.add_argument(
-            p1 + "snip-edges",
+            "--snip-edges",
             default=True,
             type=str2bool,
             help=(
@@ -221,7 +217,7 @@ class EnergyVAD(object):
         )
 
         parser.add_argument(
-            p1 + "vad-energy-mean-scale",
+            "--vad-energy-mean-scale",
             type=float,
             default=0.5,
             help=(
@@ -231,13 +227,13 @@ class EnergyVAD(object):
             ),
         )
         parser.add_argument(
-            p1 + "vad-energy-threshold",
+            "--vad-energy-threshold",
             type=float,
             default=5,
             help="Constant term in energy threshold for MFCC0 for VAD",
         )
         parser.add_argument(
-            p1 + "vad-frames-context",
+            "--vad-frames-context",
             type=int,
             default=0,
             help=(
@@ -246,7 +242,7 @@ class EnergyVAD(object):
             ),
         )
         parser.add_argument(
-            p1 + "vad-proportion-threshold",
+            "--vad-proportion-threshold",
             type=float,
             default=0.6,
             help=(
@@ -254,5 +250,7 @@ class EnergyVAD(object):
                 "the window that need to have more energy than the threshold"
             ),
         )
+        if prefix is not None:
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     add_argparse_args = add_class_args

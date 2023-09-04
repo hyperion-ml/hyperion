@@ -304,6 +304,7 @@ class AudioDataset(Dataset):
         x, fs = self._read_audio(seg_id, start, duration)
         x, fs = self._resample(x, fs)
         data = {"seg_id": seg_id, "sample_freq": fs}
+
         if self.augmenters:
             # augmentations
             if duration == 0:
@@ -324,6 +325,17 @@ class AudioDataset(Dataset):
 
         seg_info = self._get_segment_info(seg_id)
         data.update(seg_info)
+        if np.any(~np.isfinite(data["x"])):
+            print(
+                "zzz",
+                x.max(),
+                x.min(),
+                x.mean(),
+                data["x"].max(),
+                data["x"].min(),
+                data["x"].mean(),
+                flush=True,
+            )
         return data
 
     @staticmethod

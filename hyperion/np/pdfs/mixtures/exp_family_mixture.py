@@ -7,7 +7,7 @@ import logging
 import numpy as np
 
 from ....hyp_defs import float_cpu
-from ....utils.math import logsumexp, softmax
+from ....utils.math_funcs import logsumexp, softmax
 from ....utils.queues import GeneratorQueue
 from ..core import PDF
 

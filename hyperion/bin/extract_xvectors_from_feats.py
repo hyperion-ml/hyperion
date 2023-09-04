@@ -19,8 +19,12 @@ from hyperion.np.feats import MeanVarianceNorm as MVN
 from hyperion.torch import TorchModelLoader as TML
 from hyperion.torch.utils import open_device
 from hyperion.utils import Utt2Info
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
 
 
 def init_device(use_gpu):
@@ -50,13 +54,15 @@ def load_model(model_path, device):
 
 
 def select_random_chunk(key, x, min_utt_length, max_utt_length, rng):
-    utt_length = rng.randint(low=min_utt_length, high=max_utt_length + 1)
+    utt_length = rng.integers(low=min_utt_length, high=max_utt_length + 1)
     if utt_length < x.shape[1]:
-        first_frame = rng.randint(low=0, high=x.shape[1] - utt_length)
+        first_frame = rng.integers(low=0, high=x.shape[1] - utt_length)
         x = x[:, first_frame : first_frame + utt_length]
         logging.info(
-            "extract-random-utt %s of length=%d first-frame=%d"
-            % (key, x.shape[1], first_frame)
+            "extract-random-utt %s of length=%d first-frame=%d",
+            key,
+            x.shape[1],
+            first_frame,
         )
     return x
 
@@ -78,7 +84,7 @@ def extract_xvectors(
 ):
 
     logging.info("initializing")
-    rng = np.random.RandomState(seed=1123581321 + kwargs["part_idx"])
+    rng = np.random.default_rng(seed=1123581321 + kwargs["part_idx"])
     device = init_device(use_gpu)
     mvn = init_mvn(device, **kwargs)
     model = load_model(model_path, device)

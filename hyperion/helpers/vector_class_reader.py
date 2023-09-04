@@ -49,7 +49,7 @@ class VectorClassReader(object):
                     v[0]: int(v[1]) for v in [line.rstrip().split() for line in f]
                 }
 
-        self.rng = np.random.RandomState(vcr_seed)
+        self.rng = np.random.default_rng(vcr_seed)
         self.csplit_max_spc = csplit_max_spc
         self.csplit_min_spc = csplit_min_spc
         self.csplit_mode = csplit_mode

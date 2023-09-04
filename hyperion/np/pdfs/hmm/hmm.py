@@ -6,7 +6,7 @@
 import numpy as np
 
 from ....hyp_defs import float_cpu
-from ....utils.math import logsumexp, softmax
+from ....utils.math_funcs import logsumexp, softmax
 from ..core import PDF
 
 
@@ -232,7 +232,7 @@ class HMM(PDF):
 
     def sample(self, num_seqs, num_steps, rng=None, seed=1024):
         if rng is None:
-            rng = np.random.RandomState(seed)
+            rng = np.random.default_rng(seed)
 
         x = np.zeros((num_seqs, num_steps, self.num_states), dtype=float_cpu())
         x[:, 0, :] = rng.multinomial(1, self.pi, size=(num_seqs,))

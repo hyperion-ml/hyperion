@@ -55,7 +55,7 @@ class AudioReader(object):
         self,
         recordings: Union[RecordingSet, PathLike],
         segments: Union[SegmentSet, PathLike, None] = None,
-        wav_scale: float = 2 ** 15 - 1,
+        wav_scale: float = 1.0,
     ):
         if not isinstance(recordings, RecordingSet):
             recordings = RecordingSet.load(recordings)
@@ -255,7 +255,7 @@ class SequentialAudioReader(AudioReader):
         self,
         recordings: Union[RecordingSet, PathLike],
         segments: Union[SegmentSet, PathLike, None] = None,
-        wav_scale: float = 2 ** 15 - 1,
+        wav_scale: float = 1.0,
         part_idx: int = 1,
         num_parts: int = 1,
     ):
@@ -373,7 +373,8 @@ class SequentialAudioReader(AudioReader):
 
         parser.add_argument(
             "--wav-scale",
-            default=2 ** 15 - 1,
+            default=1.0,
+            # default=2 ** 15 - 1,
             type=float,
             help=("multiplicative factor for waveform"),
         )
@@ -399,8 +400,7 @@ class SequentialAudioReader(AudioReader):
 
         if prefix is not None:
             outer_parser.add_argument(
-                "--" + prefix,
-                action=ActionParser(parser=parser),
+                "--" + prefix, action=ActionParser(parser=parser),
             )
 
     add_argparse_args = add_class_args
@@ -411,7 +411,7 @@ class RandomAccessAudioReader(AudioReader):
         self,
         recordings: Union[RecordingSet, PathLike],
         segments: Union[SegmentSet, PathLike, None] = None,
-        wav_scale: float = 2 ** 15 - 1,
+        wav_scale: float = 1.0,
     ):
         super().__init__(recordings, segments, wav_scale)
 
@@ -524,14 +524,14 @@ class RandomAccessAudioReader(AudioReader):
 
         parser.add_argument(
             "--wav-scale",
-            default=2 ** 15 - 1,
+            default=1.0,
+            # default=2 ** 15 - 1,
             type=float,
             help=("multiplicative factor for waveform"),
         )
         if prefix is not None:
             outer_parser.add_argument(
-                "--" + prefix,
-                action=ActionParser(parser=parser),
+                "--" + prefix, action=ActionParser(parser=parser),
             )
 
     add_argparse_args = add_class_args

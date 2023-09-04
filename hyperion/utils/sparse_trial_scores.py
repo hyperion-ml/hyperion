@@ -3,12 +3,12 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-
 import copy
 import logging
-import os.path as path
+from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import scipy.sparse as sparse
 
 from ..hyp_defs import float_cpu
@@ -17,9 +17,6 @@ from .sparse_trial_key import SparseTrialKey
 from .trial_key import TrialKey
 from .trial_ndx import TrialNdx
 from .trial_scores import TrialScores
-
-# import h5py
-
 
 
 class SparseTrialScores(TrialScores):
@@ -55,6 +52,26 @@ class SparseTrialScores(TrialScores):
                     % (self.model_set[r], self.seg_set[c], self.scores[r, c])
                 )
 
+    def save_table(self, file_path, sep=None):
+        """Saves object to pandas tabnle file.
+
+        Args:
+          file_path: File to write the list.
+        """
+        file_path = Path(file_path)
+        ext = file_path.suffix
+        if sep is None:
+            sep = "\t" if ".tsv" in ext else ","
+
+        self.score_mask.eliminate_zeros()
+        score_mask = self.score_mask.tocoo()
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(f"modelid{sep}segmentid{sep}LLR\n")
+            for i, j in zip(score_mask.row, score_mask.col):
+                f.write(
+                    f"{self.model_set[i]}{sep}{self.seg_set[j]}{sep}{self.scores[i,j]}\n"
+                )
+
     @classmethod
     def load_h5(cls, file_path):
         raise NotImplementedError()
@@ -88,6 +105,35 @@ class SparseTrialScores(TrialScores):
         for item in zip(model_idx, seg_idx, scores_v):
             score_mask[item[0], item[1]] = True
             scores[item[0], item[1]] = item[2]
+        return cls(model_set, seg_set, scores.tocsr(), score_mask.tocsr())
+
+    @classmethod
+    def load_table(cls, file_path, sep=None):
+        """Loads object from pandas table file
+
+        Args:
+          file_path: File to read the list.
+
+        Returns:
+          TrialScores object.
+        """
+        file_path = Path(file_path)
+        ext = file_path.suffix
+        if sep is None:
+            sep = "\t" if ".tsv" in ext else ","
+
+        df = pd.read_csv(file_path, sep=sep)
+        models = df["modelid"].values
+        segments = df["segmentid"].values
+        score_list = df["LLR"].values
+        model_set, model_idx = np.unique(models, return_inverse=True)
+        seg_set, seg_idx = np.unique(segments, return_inverse=True)
+        scores = sparse.lil_matrix((len(model_set), len(seg_set)), dtype=float_cpu())
+        score_mask = sparse.lil_matrix(scores.shape, dtype="bool")
+        for i, j, score in zip(model_idx, seg_idx, score_list):
+            score_mask[i, j] = True
+            scores[i, j] = score
+
         return cls(model_set, seg_set, scores.tocsr(), score_mask.tocsr())
 
     @classmethod
@@ -160,9 +206,9 @@ class SparseTrialScores(TrialScores):
 
         if not (np.all(f_mod) and np.all(f_seg)):
             for i in (f_mod == 0).nonzero()[0]:
-                logging.info("model %s not found" % model_set[i])
+                logging.info("model %s not found", model_set[i])
             for i in (f_seg == 0).nonzero()[0]:
-                logging.info("segment %s not found" % seg_set[i])
+                logging.info("segment %s not found", seg_set[i])
             if raise_missing:
                 raise Exception("some scores were not computed")
 
@@ -172,18 +218,36 @@ class SparseTrialScores(TrialScores):
         scores = self.scores.tocoo()
         new_data = scores.data
         new_row = scores.row.copy()
+        # for i, r in enumerate(mod_idx):
+        #     if f_mod[i] and i != r:
+        #         idx = scores.row == r
+        #         new_row[idx] = i
+
+        # new_col = scores.col.copy()
+        # for j, c in enumerate(seg_idx):
+        #     if f_seg[j] and j != c:
+        #         idx = scores.col == c
+        #         new_col[idx] = j
+
+        # idx = np.logical_and(new_row < num_mod, new_col < num_seg)
+        # if not np.all(idx):
+        #     new_data = new_data[idx]
+        #     new_row = new_row[idx]
+        #     new_col = new_col[idx]
+
+        new_row = -1 * np.ones_like(scores.row)
         for i, r in enumerate(mod_idx):
-            if f_mod[i] and i != r:
+            if f_mod[i]:
                 idx = scores.row == r
                 new_row[idx] = i
 
-        new_col = scores.col.copy()
+        new_col = -1 * np.ones_like(scores.col)
         for j, c in enumerate(seg_idx):
-            if f_seg[j] and j != c:
+            if f_seg[j]:
                 idx = scores.col == c
                 new_col[idx] = j
 
-        idx = np.logical_and(new_row < num_mod, new_col < num_seg)
+        idx = np.logical_and(new_row != -1, new_col != -1)
         if not np.all(idx):
             new_data = new_data[idx]
             new_row = new_row[idx]
@@ -193,19 +257,37 @@ class SparseTrialScores(TrialScores):
 
         score_mask = self.score_mask.tocoo()
         new_data = score_mask.data
-        new_row = score_mask.row.copy()
+        # new_row = score_mask.row.copy()
+        # for i, r in enumerate(mod_idx):
+        #     if f_mod[i] and i != r:
+        #         idx = score_mask.row == r
+        #         new_row[idx] = i
+
+        # new_col = score_mask.col.copy()
+        # for j, c in enumerate(seg_idx):
+        #     if f_seg[j] and j != c:
+        #         idx = score_mask.col == c
+        #         new_col[idx] = j
+
+        # idx = np.logical_and(new_row < num_mod, new_col < num_seg)
+        # if not np.all(idx):
+        #     new_data = new_data[idx]
+        #     new_row = new_row[idx]
+        #     new_col = new_col[idx]
+
+        new_row = -1 * np.ones_like(score_mask.row)
         for i, r in enumerate(mod_idx):
-            if f_mod[i] and i != r:
+            if f_mod[i]:
                 idx = score_mask.row == r
                 new_row[idx] = i
 
-        new_col = score_mask.col.copy()
+        new_col = -1 * np.ones_like(score_mask.col)
         for j, c in enumerate(seg_idx):
-            if f_seg[j] and j != c:
+            if f_seg[j]:
                 idx = score_mask.col == c
                 new_col[idx] = j
 
-        idx = np.logical_and(new_row < num_mod, new_col < num_seg)
+        idx = np.logical_and(new_row != -1, new_col != -1)
         if not np.all(idx):
             new_data = new_data[idx]
             new_row = new_row[idx]
@@ -249,7 +331,7 @@ class SparseTrialScores(TrialScores):
             if not scr.score_mask[r, c]:
                 missing_scores = True
                 logging.info(
-                    "missing-scores for %s %s" % (scr.model_set[r], scr.seg_set[c])
+                    "missing-scores for %s %s", scr.model_set[r], scr.seg_set[c]
                 )
 
         if missing_scores and raise_missing:
@@ -291,7 +373,7 @@ class SparseTrialScores(TrialScores):
             self.scores = scr.scores
             self.score_mat = scr.score_mat
 
-        self.scores[self.score_mask]=scores
+        self.scores[self.score_mask] = scores
 
     @classmethod
     def from_trial_scores(cls, scr):
@@ -301,6 +383,12 @@ class SparseTrialScores(TrialScores):
         scores.eliminate_zeros()
         score_mask.eliminate_zeros()
         return cls(scr.model_set, scr.seg_set, scores, score_mask)
+
+    def to_trial_scores(self):
+        scores = self.scores.toarray("C")
+        score_mask = self.score_mask.toarray("C")
+        # scores[~score_mask] = 0.0
+        return TrialScores(self.model_set, self.seg_set, scores, score_mask)
 
     def set_missing_to_value(self, ndx, val):
         """Aligns the scores with a TrialNdx and sets the trials with missing

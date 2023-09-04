@@ -100,3 +100,19 @@ class ClassInfo(InfoTable):
             )
             df["class_idx"].drop(columns=["class_idx"], inplace=True)
         return cls(df)
+
+    def filter(
+        self,
+        predicate=None,
+        items=None,
+        iindex=None,
+        columns=None,
+        by="id",
+        keep=True,
+        rebuild_idx=False,
+    ):
+        new_class_info = super().filter(predicate, items, iindex, columns, by, keep)
+        if rebuild_idx:
+            new_class_info.add_class_idx()
+
+        return new_class_info

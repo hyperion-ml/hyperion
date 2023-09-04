@@ -9,7 +9,7 @@ import numpy as np
 from sklearn.linear_model import LogisticRegression as LR
 
 from ...hyp_defs import float_cpu
-from ...utils.math import softmax
+from ...utils.math_funcs import softmax
 from ..np_model import NPModel
 
 
@@ -36,7 +36,7 @@ class LogisticRegression(NPModel):
                 Weights associated with classes in the form {class_label: weight}. If not given, all classes are supposed to have weight one.
                 The “balanced” mode uses the values of y to automatically adjust weights inversely proportional to class frequencies in the input data as n_samples / (n_classes * np.bincount(y)).
                 Note that these weights will be multiplied with sample_weight (passed through the fit method) if sample_weight is specified.
-      random_state: RandomState instance or None, optional, default: None
+      random_state: default_rng instance or None, optional, default: None
                     Used when solver == ‘sag’ or ‘liblinear’.
       solver: {‘newton-cg’, ‘lbfgs’, ‘liblinear’, ‘sag’, ‘saga’},
                  default: ‘liblinear’ Algorithm to use in the optimization problem.
@@ -93,7 +93,7 @@ class LogisticRegression(NPModel):
         super().__init__(**kwargs)
 
         if random_state is None:
-            random_state = np.random.RandomState(seed=lr_seed)
+            random_state = np.random.default_rng(seed=lr_seed)
 
         if bias_scaling is None:
             if use_bias and solver == "liblinear":

@@ -21,8 +21,12 @@ from hyperion.torch import TorchModelLoader as TML
 from hyperion.torch.narchs import AudioFeatsMVN as AF
 from hyperion.torch.utils import open_device
 from hyperion.utils import Utt2Info
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
 
 
 def init_device(use_gpu):
@@ -76,9 +80,9 @@ def augment(key0, x0, augmenter, aug_df, aug_id):
 
 
 def select_random_chunk(key, x, min_utt_length, max_utt_length, rng):
-    utt_length = rng.randint(low=min_utt_length, high=max_utt_length + 1)
+    utt_length = rng.integers(low=min_utt_length, high=max_utt_length + 1)
     if utt_length < x.shape[1]:
-        first_frame = rng.randint(low=0, high=x.shape[1] - utt_length)
+        first_frame = rng.integers(low=0, high=x.shape[1] - utt_length)
         x = x[:, first_frame : first_frame + utt_length]
         logging.info(
             "extract-random-utt %s of length=%d first-frame=%d",
@@ -90,7 +94,7 @@ def select_random_chunk(key, x, min_utt_length, max_utt_length, rng):
 
 
 def extract_xvectors(
-    input_spec,
+    recordings_file,
     output_spec,
     vad_spec,
     write_num_frames_spec,
@@ -108,7 +112,7 @@ def extract_xvectors(
     **kwargs
 ):
 
-    rng = np.random.RandomState(seed=1123581321 + kwargs["part_idx"])
+    rng = np.random.default_rng(seed=1123581321 + kwargs["part_idx"])
     device = init_device(use_gpu)
     feat_extractor = init_feats(device, **kwargs)
     model = load_model(model_path, device)
@@ -130,9 +134,9 @@ def extract_xvectors(
     with DWF.create(output_spec) as writer:
 
         logging.info(
-            "opening input stream: {} with args={}".format(input_spec, ar_args)
+            "opening input stream: {} with args={}".format(recordings_file, ar_args)
         )
-        with AR(input_spec, **ar_args) as reader:
+        with AR(recordings_file, **ar_args) as reader:
 
             if vad_spec is not None:
                 logging.info("opening VAD stream: %s", vad_spec)
@@ -235,12 +239,12 @@ if __name__ == "__main__":
 
     parser = ArgumentParser(
         description=(
-            "Extracts x-vectors from waveform computing " "acoustic features on the fly"
+            "Extracts x-vectors from waveform computing acoustic features on the fly"
         )
     )
 
     parser.add_argument("--cfg", action=ActionConfigFile)
-    parser.add_argument("--input", dest="input_spec", required=True)
+    parser.add_argument("--recordings-file", required=True)
     parser.add_argument("--vad", dest="vad_spec", default=None)
     parser.add_argument(
         "--write-num-frames", dest="write_num_frames_spec", default=None
@@ -299,7 +303,7 @@ if __name__ == "__main__":
         help=("maximum utterance length when using random utt length"),
     )
 
-    parser.add_argument("--output", dest="output_spec", required=True)
+    parser.add_argument("--output-spec", required=True)
     parser.add_argument(
         "--use-gpu", default=False, action="store_true", help="extract xvectors in gpu"
     )

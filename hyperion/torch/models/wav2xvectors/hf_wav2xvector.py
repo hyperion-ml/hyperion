@@ -224,7 +224,7 @@ class HFWav2XVector(TorchModel):
     ):
 
         if vad_samples is not None:
-            x, x_lengths = remove_silence(x, x_lengths)
+            x, x_lengths = remove_silence(x, vad_samples, x_lengths)
 
         feats, _, feat_lengths = self.forward_feats(
             x, x_lengths, chunk_length=hf_chunk_length, detach_chunks=detach_chunks
@@ -301,7 +301,7 @@ class HFWav2XVector(TorchModel):
 
         logging.info("train mode set to %s", mode)
 
-        if "nograd" in mode:
+        if "nograd" in mode or mode == "ft-embed-affine":
             logging.info("using torch.no_grad for hf_feats")
             self._hf_context = torch.no_grad()
         else:

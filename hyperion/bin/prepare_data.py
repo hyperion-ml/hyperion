@@ -8,8 +8,12 @@ from pathlib import Path
 
 from hyperion.data_prep import DataPrep
 from hyperion.hyp_defs import config_logger
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
 
 
 def make_parser(data_prep_class):
@@ -33,6 +37,5 @@ if __name__ == "__main__":
     config_logger(1)
     data_prep_class = DataPrep.registry[args.subcommand]
     args = namespace_to_dict(args)[args.subcommand]
-
     data_prep = data_prep_class(**args)
     data_prep.prepare()

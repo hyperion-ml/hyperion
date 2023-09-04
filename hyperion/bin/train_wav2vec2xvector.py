@@ -5,6 +5,7 @@
 """
 import logging
 import multiprocessing
+
 # import sys
 import os
 import time
@@ -17,13 +18,19 @@ from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
 from hyperion.torch.metrics import CategoricalAccuracy
-from hyperion.torch.models import (HFHubert2ResNet1dXVector,
-                                   HFWav2Vec2ResNet1dXVector,
-                                   HFWavLM2ResNet1dXVector)
+from hyperion.torch.models import (
+    HFHubert2ResNet1dXVector,
+    HFWav2Vec2ResNet1dXVector,
+    HFWavLM2ResNet1dXVector,
+)
 from hyperion.torch.trainers import XVectorTrainer as Trainer
 from hyperion.torch.utils import ddp
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
 
 model_dict = {
     "hf_wav2vec2resnet1d": HFWav2Vec2ResNet1dXVector,
@@ -95,7 +102,7 @@ def train_model(gpu_id, args):
 
     trn_args = Trainer.filter_args(**kwargs["trainer"])
     if rank == 0:
-        logging.info("trainer args={}".format(trn_args))
+        logging.info(f"trainer args={trn_args}")
     metrics = {"acc": CategoricalAccuracy()}
     trainer = Trainer(
         model, device=device, metrics=metrics, ddp=world_size > 1, **trn_args,

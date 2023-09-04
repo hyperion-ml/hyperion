@@ -22,7 +22,7 @@ class SpeedAugment(object):
       keep_length: applies padding or cropping to keep the lenght of the signal.
       random_seed: random seed for random number generator.
       rng:     Random number generator returned by
-               np.random.RandomState (optional).
+               np.random.default_rng (optional).
     """
 
     def __init__(
@@ -34,14 +34,16 @@ class SpeedAugment(object):
         rng=None,
     ):
         logging.info(
-            "init speed augment with prob={}, speed_ratios={}, keep_length={}".
-            format(speed_prob, speed_ratios, keep_length))
+            "init speed augment with prob={}, speed_ratios={}, keep_length={}".format(
+                speed_prob, speed_ratios, keep_length
+            )
+        )
         self.speed_prob = speed_prob
         self.speed_ratios = speed_ratios
         self.keep_length = keep_length
 
         if rng is None:
-            self.rng = np.random.RandomState(seed=random_seed)
+            self.rng = np.random.default_rng(seed=random_seed)
         else:
             self.rng = deepcopy(rng)
 
@@ -52,7 +54,7 @@ class SpeedAugment(object):
         Args:
           cfg: YAML file path or dictionary with noise options.
           rng: Random number generator returned by
-               np.random.RandomState (optional).
+               np.random.default_rng (optional).
 
         Returns:
           NoiseAugment object.
@@ -84,7 +86,7 @@ class SpeedAugment(object):
         """
 
         # decide whether to add noise or not
-        p = self.rng.random_sample()
+        p = self.rng.random()
         if p > self.speed_prob:
             # we don't add speed perturbation
             info = {"speed_ratio": 1}
@@ -98,14 +100,12 @@ class SpeedAugment(object):
         # print(f"1 r={r} {x.shape} {y.shape}", flush=True)
         if self.keep_length:
             if r > 1:
-                dither = np.max(x) / 2**15  # we add some dither in the padding
-                pad_y = dither * np.ones(
-                    (x.shape[-1] - y.shape[-1], ), dtype=y.dtype)
+                dither = np.max(x) / 2 ** 15  # we add some dither in the padding
+                pad_y = dither * np.ones((x.shape[-1] - y.shape[-1],), dtype=y.dtype)
                 y = np.concatenate((y, pad_y), axis=-1)
             elif r < 1:
-                y = y[:x.shape[-1]]
+                y = y[: x.shape[-1]]
 
-        # print(f"2 r={r} {x.shape} {y.shape}", flush=True)
         return y, info
 
     def __call__(self, x):

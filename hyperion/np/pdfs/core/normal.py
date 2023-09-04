@@ -7,11 +7,20 @@ import numpy as np
 import scipy.linalg as la
 
 from ....hyp_defs import float_cpu
-from ....utils.math import (fullcov_varfloor, invert_pdmat, invert_trimat,
-                            logdet_pdmat, symmat2vec, vec2symmat)
-from ....utils.plotting import (plot_gaussian_1D, plot_gaussian_3D,
-                                plot_gaussian_ellipsoid_2D,
-                                plot_gaussian_ellipsoid_3D)
+from ....utils.math_funcs import (
+    fullcov_varfloor,
+    invert_pdmat,
+    invert_trimat,
+    logdet_pdmat,
+    symmat2vec,
+    vec2symmat,
+)
+from ....utils.plotting import (
+    plot_gaussian_1D,
+    plot_gaussian_3D,
+    plot_gaussian_ellipsoid_2D,
+    plot_gaussian_ellipsoid_3D,
+)
 from .exp_family import ExpFamily
 
 
@@ -213,7 +222,7 @@ class Normal(ExpFamily):
         assert self.is_init
 
         if rng is None:
-            rng = np.random.RandomState(seed)
+            rng = np.random.default_rng(seed)
         return rng.multivariate_normal(self.mu, self.Sigma, size=(num_samples,)).astype(
             float_cpu()
         )

@@ -3,16 +3,18 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-
 import copy
 import logging
-import os.path as path
+from pathlib import Path
 
 import h5py
 import numpy as np
+import pandas as pd
 
 from ..hyp_defs import float_cpu
-from .list_utils import *
+
+# from .list_utils import *
+from .list_utils import sort, intersect, ismember, split_list, list2ndarray
 from .trial_key import TrialKey
 from .trial_ndx import TrialNdx
 
@@ -56,17 +58,20 @@ class TrialScores(object):
         self.scores = self.scores[ix]
         self.score_mask = self.score_mask[ix]
 
-    def save(self, file_path):
+    def save(self, file_path, sep=None):
         """Saves object to txt/h5 file.
 
         Args:
           file_path: File to write the list.
         """
-        file_base, file_ext = path.splitext(file_path)
-        if file_ext == ".h5" or file_ext == ".hdf5":
+        file_path = Path(file_path)
+        file_ext = file_path.suffix
+        if file_ext in [".h5", ".hdf5"]:
             self.save_h5(file_path)
-        else:
+        elif file_ext in ["", ".txt"]:
             self.save_txt(file_path)
+        else:
+            self.save_table(file_path, sep=sep)
 
     def save_h5(self, file_path):
         """Saves object to h5 file.
@@ -100,8 +105,27 @@ class TrialScores(object):
                     )
                 )
 
+    def save_table(self, file_path, sep=None):
+        """Saves object to pandas tabnle file.
+
+        Args:
+          file_path: File to write the list.
+        """
+        file_path = Path(file_path)
+        ext = file_path.suffix
+        if sep is None:
+            sep = "\t" if ".tsv" in ext else ","
+
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(f"modelid{sep}segmentid{sep}LLR\n")
+            I, J = self.score_mask.nonzero()
+            for i, j in zip(I, J):
+                f.write(
+                    f"{self.model_set[i]}{sep}{self.seg_set[j]}{sep}{self.scores[i,j]}\n"
+                )
+
     @classmethod
-    def load(cls, file_path):
+    def load(cls, file_path, sep=None):
         """Loads object from txt/h5 file
 
         Args:
@@ -110,11 +134,14 @@ class TrialScores(object):
         Returns:
           TrialScores object.
         """
-        file_base, file_ext = path.splitext(file_path)
-        if file_ext == ".h5" or file_ext == ".hdf5":
+        file_path = Path(file_path)
+        file_ext = file_path.suffix
+        if file_ext in (".h5", ".hdf5"):
             return cls.load_h5(file_path)
-        else:
+        elif file_ext in ("", ".txt"):
             return cls.load_txt(file_path)
+        else:
+            return cls.load_table(file_path, sep)
 
     @classmethod
     def load_h5(cls, file_path):
@@ -161,6 +188,35 @@ class TrialScores(object):
         for item in zip(model_idx, seg_idx, scores_v):
             score_mask[item[0], item[1]] = True
             scores[item[0], item[1]] = item[2]
+        return cls(model_set, seg_set, scores, score_mask)
+
+    @classmethod
+    def load_table(cls, file_path, sep=None):
+        """Loads object from pandas table file
+
+        Args:
+          file_path: File to read the list.
+
+        Returns:
+          TrialScores object.
+        """
+        file_path = Path(file_path)
+        ext = file_path.suffix
+        if sep is None:
+            sep = "\t" if ".tsv" in ext else ","
+
+        df = pd.read_csv(file_path, sep=sep)
+        models = df["modelid"].values
+        segments = df["segmentid"].values
+        score_list = df["LLR"].values
+        model_set, model_idx = np.unique(models, return_inverse=True)
+        seg_set, seg_idx = np.unique(segments, return_inverse=True)
+        score_mask = np.zeros((len(model_set), len(seg_set)), dtype="bool")
+        scores = np.zeros((len(model_set), len(seg_set)), dtype=float_cpu())
+        for i, j, score in zip(model_idx, seg_idx, score_list):
+            score_mask[i, j] = True
+            scores[i, j] = score
+
         return cls(model_set, seg_set, scores, score_mask)
 
     @classmethod
@@ -235,7 +291,7 @@ class TrialScores(object):
           Filtered TrialScores object.
         """
 
-        if not (keep):
+        if not keep:
             model_set = np.setdiff1d(self.model_set, model_set)
             seg_set = np.setdiff1d(self.model_set, seg_set)
 
@@ -244,15 +300,15 @@ class TrialScores(object):
 
         if np.all(f_mod) and np.all(f_seg):
             model_set = self.model_set[mod_idx]
-            set_set = self.seg_set[seg_idx]
+            seg_set = self.seg_set[seg_idx]
             ix = np.ix_(mod_idx, seg_idx)
             scores = self.scores[ix]
             score_mask = self.score_mask[ix]
         else:
             for i in (f_mod == 0).nonzero()[0]:
-                logging.info("model %s not found" % model_set[i])
+                logging.info("model %s not found", model_set[i])
             for i in (f_seg == 0).nonzero()[0]:
-                logging.info("segment %s not found" % seg_set[i])
+                logging.info("segment %s not found", seg_set[i])
             if raise_missing:
                 raise Exception("some scores were not computed")
 

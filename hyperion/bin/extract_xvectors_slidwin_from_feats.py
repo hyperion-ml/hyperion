@@ -20,8 +20,12 @@ from hyperion.np.feats import MeanVarianceNorm as MVN
 from hyperion.torch import TorchModelLoader as TML
 from hyperion.torch.utils import open_device
 from hyperion.utils import Utt2Info
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
 
 
 def init_device(use_gpu):
@@ -71,7 +75,7 @@ def extract_xvectors(
 ):
 
     logging.info("initializing")
-    rng = np.random.RandomState(seed=1123581321 + kwargs["part_idx"])
+    rng = np.random.default_rng(seed=1123581321 + kwargs["part_idx"])
     device = init_device(use_gpu)
     mvn = init_mvn(device, **kwargs)
     model = load_model(model_path, device)

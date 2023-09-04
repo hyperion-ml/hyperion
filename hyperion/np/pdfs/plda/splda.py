@@ -6,7 +6,7 @@ import numpy as np
 from scipy import linalg as sla
 
 from ....hyp_defs import float_cpu
-from ....utils.math import invert_pdmat, invert_trimat, logdet_pdmat
+from ....utils.math_funcs import invert_pdmat, invert_trimat, logdet_pdmat
 from .plda_base import PLDABase
 
 
@@ -502,7 +502,7 @@ class SPLDA(PLDABase):
           Generated samples with shape (num_samples, x_dim).
         """
         if rng is None:
-            rng = np.random.RandomState(seed=seed)
+            rng = np.random.default_rng(seed=seed)
 
         Sw = invert_pdmat(self.W, return_inv=True)[-1]
         chol_Sw = sla.cholesky(Sw, lower=False)

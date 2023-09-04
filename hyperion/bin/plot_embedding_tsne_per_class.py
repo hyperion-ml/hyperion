@@ -18,9 +18,14 @@ from hyperion.io import RandomAccessDataReaderFactory as DRF
 from hyperion.np.clustering import AHC
 from hyperion.np.transforms import PCA, LNorm, SklTSNE
 from hyperion.utils import SegmentSet
-from hyperion.utils.math import cosine_scoring
-from jsonargparse import (ActionConfigFile, ActionParser, ActionYesNo,
-                          ArgumentParser, namespace_to_dict)
+from hyperion.utils.math_funcs import cosine_scoring
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ActionYesNo,
+    ArgumentParser,
+    namespace_to_dict,
+)
 
 matplotlib.use("Agg")
 colors = ["b", "g", "r", "c", "m", "y", "k"]

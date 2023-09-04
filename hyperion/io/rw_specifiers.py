@@ -387,11 +387,11 @@ class RSpecifier(object):
                 if archive.suffix == ".csv":
                     df = pd.read_csv(archive, nrows=2)
                     storage_path = df["storage_path"].values[0]
-                    if re.match(r".*\.h5$", scp_f2) is not None:
+                    if re.match(r".*\.h5$", storage_path) is not None:
                         archive_type = ArchiveType.H5
-                    elif re.match(r".*\.ark$", scp_f2) is not None:
+                    elif re.match(r".*\.ark$", storage_path) is not None:
                         archive_type = ArchiveType.ARK
-                    elif re.match(r".*[cvg]$", scp_f2) is not None:
+                    elif re.match(r".*[cvg]$", storage_path) is not None:
                         archive_type = ArchiveType.AUDIO
                     else:
                         raise ValueError(f"Unknown format for {storage_path}")

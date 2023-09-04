@@ -2,11 +2,11 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-import os
 from collections import OrderedDict as ODict
 from copy import deepcopy
 from enum import Enum
 from typing import Optional
+from pathlib import Path
 
 import torch
 import torch.nn as nn
@@ -110,13 +110,11 @@ class TorchModel(nn.Module):
         return ["full", "frozen"]
 
     def save(self, file_path):
-        file_dir = os.path.dirname(file_path)
-        if not (os.path.isdir(file_dir)):
-            os.makedirs(file_dir, exist_ok=True)
-
-        config = self.get_config()
+        file_path = Path(file_path)
+        file_path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(
-            {"model_cfg": self.get_config(), "model_state_dict": self.state_dict()}
+            {"model_cfg": self.get_config(), "model_state_dict": self.state_dict()},
+            file_path,
         )
 
     @staticmethod
@@ -176,7 +174,7 @@ class TorchModel(nn.Module):
           Fixed configuration dictionary.
         """
         # for compatibility with older x-vector models
-        XVector = torch_model_registry["xvector"]
+        XVector = TorchModel.registry["XVector"]
         if issubclass(class_obj, XVector):
             # We renamed AM-softmax scale parameer s to cos_scale
             if "s" in cfg:
@@ -195,8 +193,9 @@ class TorchModel(nn.Module):
         cfg = model_data["model_cfg"]
         class_name = cfg["class_name"]
         del cfg["class_name"]
-        if class_name in torch_model_registry:
-            class_obj = torch_model_registry[class_name]
+        print(TorchModel.registry)
+        if class_name in TorchModel.registry:
+            class_obj = TorchModel.registry[class_name]
         elif class_name in extra_objs:
             class_obj = extra_objs[class_name]
         else:

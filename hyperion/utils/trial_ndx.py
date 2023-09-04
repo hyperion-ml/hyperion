@@ -4,12 +4,14 @@
 """
 
 import copy
-import os.path as path
+from pathlib import Path
 
 import h5py
 import numpy as np
+import pandas as pd
 
-from .list_utils import *
+# from .list_utils import *
+from .list_utils import sort, intersect, ismember, split_list, list2ndarray
 
 
 class TrialNdx(object):
@@ -46,17 +48,20 @@ class TrialNdx(object):
         self.seg_set, s_idx = sort(self.seg_set, return_index=True)
         self.trial_mask = self.trial_mask[np.ix_(m_idx, s_idx)]
 
-    def save(self, file_path):
+    def save(self, file_path, sep=None):
         """Saves object to txt/h5 file.
 
         Args:
           file_path: File to write the list.
         """
-        file_base, file_ext = path.splitext(file_path)
-        if file_ext == ".h5" or file_ext == ".hdf5":
+        file_path = Path(file_path)
+        file_ext = file_path.suffix
+        if file_ext in [".h5", ".hdf5"]:
             self.save_h5(file_path)
-        else:
+        elif file_ext in [".txt", ""]:
             self.save_txt(file_path)
+        else:
+            self.save_table(file_path, sep=sep)
 
     def save_h5(self, file_path):
         """Saves object to h5 file.
@@ -71,15 +76,6 @@ class TrialNdx(object):
             f.create_dataset("ID/column_ids", data=seg_set)
             f.create_dataset("trial_mask", data=self.trial_mask.astype("uint8"))
 
-            # model_set = self.model_set.astype('S')
-            # f.create_dataset('ID/row_ids', self.model_set.shape, dtype=model_set.dtype)
-            # f['ID/row_ids'] = model_set
-            # seg_set = self.seg_set.astype('S')
-            # f.create_dataset('ID/column_ids', self.seg_set.shape, dtype=seg_set.dtype)
-            # f['ID/column_ids'] = seg_set
-            # f.create_dataset('trial_mask', self.trial_mask.shape, dtype='uint8')
-            # f['trial_mask'] = self.trial_mask.astype('uint8')
-
     def save_txt(self, file_path):
         """Saves object to txt file.
 
@@ -91,8 +87,25 @@ class TrialNdx(object):
             for item in zip(idx[0], idx[1]):
                 f.write("%s %s\n" % (self.model_set[item[1]], self.seg_set[item[0]]))
 
+    def save_table(self, file_path, sep=None):
+        """Saves object to pandas tabnle file.
+
+        Args:
+          file_path: File to write the list.
+        """
+        file_path = Path(file_path)
+        ext = file_path.suffix
+        if sep is None:
+            sep = "\t" if ".tsv" in ext else ","
+
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(f"modelid{sep}segmentid{sep}\n")
+            I, J = self.trial_mask.nonzero()
+            for i, j in zip(I, J):
+                f.write(f"{self.model_set[i]}{sep}{self.seg_set[j]}\n")
+
     @classmethod
-    def load(cls, file_path):
+    def load(cls, file_path, sep=None):
         """Loads object from txt/h5 file
 
         Args:
@@ -101,11 +114,14 @@ class TrialNdx(object):
         Returns:
           TrialNdx object.
         """
-        file_base, file_ext = path.splitext(file_path)
-        if file_ext == ".h5" or file_ext == ".hdf5":
+        file_path = Path(file_path)
+        file_ext = file_path.suffix
+        if file_ext in (".h5", ".hdf5"):
             return cls.load_h5(file_path)
-        else:
+        elif file_ext in ("", ".txt"):
             return cls.load_txt(file_path)
+        else:
+            return cls.load_table(file_path, sep)
 
     @classmethod
     def load_h5(cls, file_path):
@@ -146,6 +162,36 @@ class TrialNdx(object):
         trial_mask = np.zeros((len(model_set), len(seg_set)), dtype="bool")
         for item in zip(model_idx, seg_idx):
             trial_mask[item[0], item[1]] = True
+        return cls(model_set, seg_set, trial_mask)
+
+    @classmethod
+    def load_table(cls, file_path, sep=None):
+        """Loads object from pandas table file
+
+        Args:
+          file_path: File to read the list.
+
+        Returns:
+          TrialNdx object.
+        """
+        file_path = Path(file_path)
+        ext = file_path.suffix
+        if sep is None:
+            sep = "\t" if ".tsv" in ext else ","
+
+        df = pd.read_csv(file_path, sep=sep)
+        models = df["modelid"].values
+        segments = df["segmentid"].values
+        model_set, _, model_idx = np.unique(
+            models, return_index=True, return_inverse=True
+        )
+        seg_set, _, seg_idx = np.unique(
+            segments, return_index=True, return_inverse=True
+        )
+        trial_mask = np.zeros((len(model_set), len(seg_set)), dtype="bool")
+        for i, j in zip(model_idx, seg_idx):
+            trial_mask[i, j] = True
+
         return cls(model_set, seg_set, trial_mask)
 
     @classmethod

@@ -12,7 +12,7 @@ from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from sklearn.svm import SVC
 
 from ...hyp_defs import float_cpu
-from ...utils.math import softmax
+from ...utils.math_funcs import softmax
 from ...utils.misc import filter_func_args
 from ..np_model import NPModel
 
@@ -49,7 +49,7 @@ class SVMC(NPModel):
             class_weight = "balanced"
 
         if random_state is None:
-            random_state = np.random.RandomState(seed=lr_seed)
+            random_state = np.random.default_rng(seed=lr_seed)
 
         self.C = C
         self.kernel = kernel
