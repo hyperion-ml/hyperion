@@ -33,6 +33,7 @@ class HFWav2Vec2ResNet1dLanguageID(HFWav2LanguageID):
         hf_feats: Union[Dict, HFWav2Vec2],
         languageid: Union[Dict, ResNet1dLanguageID],
         feat_fusion_start: int = 0,
+        feat_fusion_end: int = -1,
         feat_fusion_method: str = "weighted-avg",
     ):
 
@@ -52,7 +53,7 @@ class HFWav2Vec2ResNet1dLanguageID(HFWav2LanguageID):
             assert isinstance(languageid, ResNet1dLanguageID)
             assert languageid.encoder_net.in_feats == hf_feats.hidden_size
 
-        super().__init__(hf_feats, languageid, feat_fusion_start, feat_fusion_method)
+        super().__init__(hf_feats, languageid, feat_fusion_start, feat_fusion_end, feat_fusion_method)
 
     @staticmethod
     def filter_args(**kwargs):
