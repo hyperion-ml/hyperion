@@ -93,7 +93,8 @@ class LogisticRegression(NPModel):
         super().__init__(**kwargs)
 
         if random_state is None:
-            random_state = np.random.default_rng(seed=lr_seed)
+            # random_state = np.random.default_rng(seed=lr_seed)
+            random_state = np.random.RandomState(seed=lr_seed)
 
         if bias_scaling is None:
             if use_bias and solver == "liblinear":

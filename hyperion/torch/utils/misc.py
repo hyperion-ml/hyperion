@@ -4,8 +4,8 @@
 """
 
 import torch
-import torch.cuda.amp as amp
 import torch.nn as nn
+import torch.cuda.amp as amp
 
 
 def l2_norm(x, dim=1, axis=None):
@@ -104,3 +104,5 @@ def get_selfsim_tarnon(y, return_mask=False):
 
     mask = torch.triu(torch.ones_like(y_bin, dtype=torch.bool), diagonal=1)
     return y_bin, mask
+
+  

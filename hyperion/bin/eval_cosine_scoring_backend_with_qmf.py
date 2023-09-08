@@ -30,6 +30,7 @@ from hyperion.utils.math_funcs import cosine_scoring, average_vectors
 from hyperion.io import RandomAccessDataReaderFactory as DRF
 from hyperion.np.transforms import TransformList
 from hyperion.np.score_norm import AdaptSNorm
+from hyperion.np.classifiers import BinaryLogisticRegression as LR
 
 
 def get_precomp_qm_names(quality_measures):
@@ -38,7 +39,6 @@ def get_precomp_qm_names(quality_measures):
 
 
 def normalize_duration(q, min_dur, max_dur, frame_rate):
-
     q = q / frame_rate
     q = np.log(np.clip(q / frame_rate, a_min=min_dur, a_max=max_dur))
     log_min_dur = np.log(min_dur)
@@ -99,6 +99,9 @@ def load_trial_data(
         test_segments.add_columns(test_feats_set)
         if enroll_feats_set != test_feats_set or enroll_segments != test_segments:
             enroll_segments.add_columns(enroll_feats_set)
+    else:
+        test_segments = test_feats_set
+        enroll_segments = enroll_feats_set
 
     # now we retrive the quality measures
     q_e = []
@@ -132,7 +135,6 @@ def load_trial_data(
 
 
 def load_cohort_data(segments_file, feats_file):
-
     segments = SegmentSet.load(segments_file)
     feats_reader = DRF.create(feats_file)
     x = feats_reader.read(segments["id"], squeeze=True)
@@ -160,16 +162,13 @@ def get_score_filepath(
     test_part_idx,
     num_test_parts,
 ):
-
     score_file = Path(score_file)
     new_suffix = ""
     if score_name is not None:
         new_suffix = f".{score_name}"
 
     if num_enroll_parts > 1 or num_test_parts > 1:
-        new_suffix = (
-            f"{new_suffix}.{enroll_part_idx}.{test_part_idx}{score_file.suffix}"
-        )
+        new_suffix = f"{new_suffix}.{enroll_part_idx}.{test_part_idx}"
 
     if new_suffix:
         new_suffix = f"{new_suffix}{score_file.suffix}"
@@ -177,25 +176,58 @@ def get_score_filepath(
 
     return score_file
 
-def save_scores(ndx, scores, score_file, score_name,     enroll_part_idx,
-    num_enroll_parts,
-    test_part_idx,
-    num_test_parts):
 
-def save_empty_scores(ndx, score_file, score_name,     enroll_part_idx,
+def save_scores(
+    ndx,
+    scores,
+    score_file,
+    score_name,
+    q_measures,
+    enroll_part_idx,
     num_enroll_parts,
     test_part_idx,
-    num_test_parts):
-    scores = np.zeros(ndx.trial_mask.shape, dtype="float32")
-    score_file = get_score_filepath(score_file, score_name,enroll_part_idx,
-    num_enroll_parts,
-    test_part_idx,
-    num_test_parts)
-
-    scores = TrialScores(ndx.model_set, ndx.seg_set, scores, ndx.trial_mask)
+    num_test_parts,
+):
+    score_file = get_score_filepath(
+        score_file,
+        score_name,
+        enroll_part_idx,
+        num_enroll_parts,
+        test_part_idx,
+        num_test_parts,
+    )
+    logging.info("saving scores with to %s", score_file)
+    scores = TrialScores(
+        ndx.model_set, ndx.seg_set, scores, ndx.trial_mask, q_measures=q_measures
+    )
     scores.save(score_file)
 
 
+def save_empty_scores(
+    ndx,
+    score_file,
+    score_name,
+    q_measures,
+    enroll_part_idx,
+    num_enroll_parts,
+    test_part_idx,
+    num_test_parts,
+):
+    scores = np.zeros(ndx.trial_mask.shape, dtype="float32")
+    if q_measures is not None:
+        q_measures = {k: scores for k in q_measures}
+
+    save_scores(
+        ndx,
+        scores,
+        score_file,
+        score_name,
+        q_measures,
+        enroll_part_idx,
+        num_enroll_parts,
+        test_part_idx,
+        num_test_parts,
+    )
 
 
 def segment_to_trial_qm(q_e, q_t):
@@ -226,31 +258,29 @@ def align_scores_to_ndx(enroll_set, ndx, scores, scores_norm, q_trial):
     return scores, scores_norm, q_trial
 
 
-def make_qm_table(ndx, scores, scores_norm, q_trial):
-    if scores_norm is None:
-        scores = scores[ndx.trial_mask]
-    else:
-        scores = scores_norm[ndx.trial_mask]
+# def make_qm_table(ndx, scores, scores_norm, q_trial):
+#     if scores_norm is None:
+#         scores = scores[ndx.trial_mask]
+#     else:
+#         scores = scores_norm[ndx.trial_mask]
 
-    for qm in q_trial:
-        q_trial[qm] = q_trial[qm][ndx.trial_mask]
+#     for qm in q_trial:
+#         q_trial[qm] = q_trial[qm][ndx.trial_mask]
 
-    I, J = np.nonzero(ndx.trial_mask)
-    modelid = ndx.model_set[I]
-    segmentid = ndx.seg_set[J]
-    unique_id = [f"{a}-{b}" for a, b in zip(modelid, segmentid)]
+#     I, J = np.nonzero(ndx.trial_mask)
+#     modelid = ndx.model_set[I]
+#     segmentid = ndx.seg_set[J]
+#     unique_id = [f"{a}-{b}" for a, b in zip(modelid, segmentid)]
 
-    q_dict = {
-        "id": unique_id,
-        "modelid": modelid,
-        "segmentid": segmentid,
-        "scores": scores,
-    }
-    q_dict.update(q_trial)
-    df = pd.DataFrame(q_dict)
-    return InfoTable(df)
-
-
+#     q_dict = {
+#         "id": unique_id,
+#         "modelid": modelid,
+#         "segmentid": segmentid,
+#         "scores": scores,
+#     }
+#     q_dict.update(q_trial)
+#     df = pd.DataFrame(q_dict)
+#     return InfoTable(df)
 
 
 def eval_backend(
@@ -276,7 +306,6 @@ def eval_backend(
     test_part_idx,
     num_test_parts,
 ):
-
     logging.info("loading data")
     enroll_map, ndx, x_e, x_t, q_e, q_t = load_trial_data(
         enroll_map_file,
@@ -297,8 +326,43 @@ def eval_backend(
 
     if not np.any(ndx.trial_mask):
         # this part doesn't have any trials, save empty files
-        
-    
+        if qmf_file is not None:
+            quality_measures = None
+            save_empty_scores(
+                ndx,
+                score_file,
+                "snorm.qmf" if cohort_segments_file is not None else "qmf",
+                quality_measures,
+                enroll_part_idx,
+                num_enroll_parts,
+                test_part_idx,
+                num_test_parts,
+            )
+
+        save_empty_scores(
+            ndx,
+            score_file,
+            None,
+            quality_measures,
+            enroll_part_idx,
+            num_enroll_parts,
+            test_part_idx,
+            num_test_parts,
+        )
+
+        if cohort_segments_file is not None:
+            save_empty_scores(
+                ndx,
+                score_file,
+                "snorm",
+                quality_measures,
+                enroll_part_idx,
+                num_enroll_parts,
+                test_part_idx,
+                num_test_parts,
+            )
+        return
+
     enroll_set, enroll_ids = np.unique(enroll_map["id"], return_inverse=True)
     q_e = average_qm(q_e, enroll_set, enroll_ids)
 
@@ -362,46 +426,123 @@ def eval_backend(
         enroll_set, ndx, scores, scores_norm, q_trial
     )
     if qmf_file is None:
-        qm_table = make_qm_table(ndx, scores, scores_norm, q_trial)
-        qm_file = get_score_filepath(
+        save_scores(
+            ndx,
+            scores,
             score_file,
-            "qm",
+            None,
+            q_trial,
             enroll_part_idx,
             num_enroll_parts,
             test_part_idx,
             num_test_parts,
         )
-        qm_table.save(qm_file)
+
+        if scores_norm is not None:
+            save_scores(
+                ndx,
+                scores_norm,
+                score_file,
+                "snorm",
+                q_trial,
+                enroll_part_idx,
+                num_enroll_parts,
+                test_part_idx,
+                num_test_parts,
+            )
+        # qm_table = make_qm_table(ndx, scores, scores_norm, q_trial)
+        # qm_file = get_score_filepath(
+        #     score_file,
+        #     "qm",
+        #     enroll_part_idx,
+        #     num_enroll_parts,
+        #     test_part_idx,
+        #     num_test_parts,
+        # )
+        # qm_table.save(qm_file)
         return
 
-    score_file_nonorm = get_score_filepath(
+    save_scores(
+        ndx,
+        scores,
         score_file,
+        None,
         None,
         enroll_part_idx,
         num_enroll_parts,
         test_part_idx,
         num_test_parts,
     )
-    logging.info("saving scores to %s", score_file_nonorm)
-    scores = TrialScores(ndx.model_set, ndx.seg_set, scores, ndx.trial_mask)
-    scores.save(score_file_nonorm)
 
     if scores_norm is not None:
-        score_file_snorm = get_score_filepath(
+        save_scores(
+            ndx,
+            scores_norm,
             score_file,
             "snorm",
+            None,
             enroll_part_idx,
             num_enroll_parts,
             test_part_idx,
             num_test_parts,
         )
-        logging.info("saving scores with AS-Norm to %s", score_file_snorm)
-        scores.scores = scores_norm
-        scores.save(score_file_snorm)
+
+    logging.info("applying qmf")
+    if scores_norm is None:
+        score_name = "qmf"
+        scores_fus = [scores.ravel()]
+    else:
+        score_name = "snorm.qmf"
+        scores_fus = [scores_norm.ravel()]
+
+    q_names = list(q_trial.keys())
+    q_names.sort()
+    for q_name in q_names:
+        scores_fus.append(q_trial[q_name].ravel())
+
+    scores_fus = np.vstack(scores_fus).T
+    lr = LR.load(qmf_file)
+    scores_fus = lr.predict(scores_fus)
+    scores_fus = np.reshape(scores_fus, (ndx.num_models, ndx.num_tests))
+    save_scores(
+        ndx,
+        scores_fus,
+        score_file,
+        score_name,
+        None,
+        enroll_part_idx,
+        num_enroll_parts,
+        test_part_idx,
+        num_test_parts,
+    )
+
+    # score_file_nonorm = get_score_filepath(
+    #     score_file,
+    #     None,
+    #     enroll_part_idx,
+    #     num_enroll_parts,
+    #     test_part_idx,
+    #     num_test_parts,
+    # )
+    # logging.info("saving scores to %s", score_file_nonorm)
+    # scores = TrialScores(ndx.model_set, ndx.seg_set, scores, ndx.trial_mask)
+    # scores.save(score_file_nonorm)
+
+    # if scores_norm is not None:
+    #     score_file_snorm = get_score_filepath(
+    #         score_file,
+    #         "snorm",
+    #         enroll_part_idx,
+    #         num_enroll_parts,
+    #         test_part_idx,
+    #         num_test_parts,
+    #     )
+    #     logging.info("saving scores with AS-Norm to %s", score_file_snorm)
+    #     scores.scores = scores_norm
+    #     scores.save(score_file_snorm)
 
 
 if __name__ == "__main__":
-
     parser = ArgumentParser(
         description="Eval cosine-scoring with optional AS-Norm and QMF"
     )

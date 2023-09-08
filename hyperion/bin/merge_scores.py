@@ -18,14 +18,19 @@ from jsonargparse import (
 
 
 def merge_scores(input_files, output_file, num_enroll_parts, num_test_parts, base_idx):
-
     output_file = Path(output_file)
     output_file.parent.mkdir(exist_ok=True, parents=True)
 
     ext = output_file.suffix
 
     if input_files is None:
-        input_file_base = output_file.with_suffix("")
+        if ext in [".h5", ".csv", ".tsv"]:
+            input_file_base = output_file
+        else:
+            input_file_base = output_file.parent / (output_file.name + ".txt")
+            ext = ""
+
+        logging.info("merging %s* -> %s", input_file_base.with_suffix(""), output_file)
         input_files = []
         for i in range(num_enroll_parts):
             idx_i = base_idx + i
@@ -33,6 +38,8 @@ def merge_scores(input_files, output_file, num_enroll_parts, num_test_parts, bas
                 idx_j = base_idx + j
                 input_file_i = input_file_base.with_suffix(f".{idx_i}.{idx_j}{ext}")
                 input_files.append(input_file_i)
+    else:
+        logging.info("merging %s -> %s", " + ".join(input_files), output_file)
 
     if ext == ".h5":
         # if files are h5 we need to load everything in RAM
@@ -57,7 +64,6 @@ def merge_scores(input_files, output_file, num_enroll_parts, num_test_parts, bas
 
 
 if __name__ == "__main__":
-
     parser = ArgumentParser(description="Tool to manipulates the Hyperion data tables")
     parser.add_argument("--cfg", action=ActionConfigFile)
     parser.add_argument(
@@ -88,7 +94,12 @@ if __name__ == "__main__":
         help="""index of the first job, typically 0 or 1""",
     )
     parser.add_argument(
-        "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int,
+        "-v",
+        "--verbose",
+        dest="verbose",
+        default=1,
+        choices=[0, 1, 2, 3],
+        type=int,
     )
 
     args = parser.parse_args()
