@@ -35,42 +35,42 @@ if [ $stage -le 2 ];then
   
   $train_cmd JOB=1:$nj $output_dir/log/preproc_audios_${nnet_data}.JOB.log \
 	     hyp_utils/conda_env.sh \
-	     preprocess_audio_files.py \
+	     hyperion-preprocess-audio-files \
 	     --audio-format flac --remove-dc-offset $vad_args \
 	     --part-idx JOB --num-parts $nj \
 	     --recordings-file data/$nnet_data/recordings.csv \
 	     --output-path $output_dir \
 	     --output-recordings-file $output_dir/recordings.JOB.csv
 
-  hyperion_tables.py cat \
-		     --table-type recordings \
-		     --output-file $output_dir/recordings.csv --num-tables $nj
+  hyperion-tables cat \
+		  --table-type recordings \
+		  --output-file $output_dir/recordings.csv --num-tables $nj
 
-  hyperion_dataset.py set_recordings $update_durs \
-		      --dataset data/$nnet_data \
-		      --recordings-file $output_dir/recordings.csv \
-		      --output-dataset data/${nnet_data}_proc_audio \
-		      --remove-features vad
+  hyperion-dataset set_recordings $update_durs \
+		   --dataset data/$nnet_data \
+		   --recordings-file $output_dir/recordings.csv \
+		   --output-dataset data/${nnet_data}_proc_audio \
+		   --remove-features vad
 fi
 
 if [ $stage -le 3 ];then
-  hyperion_dataset.py remove_short_segments \
-		      --dataset data/${nnet_data}_proc_audio \
-		      --output-dataset data/${nnet_data}_filtered \
-		      --length-name duration --min-length 2.0
+  hyperion-dataset remove_short_segments \
+		   --dataset data/${nnet_data}_proc_audio \
+		   --output-dataset data/${nnet_data}_filtered \
+		   --length-name duration --min-length 2.0
 
-  hyperion_dataset.py remove_classes_few_segments \
-		      --dataset data/${nnet_data}_filtered \
-		      --class-name speaker --min-segs 4
+  hyperion-dataset remove_classes_few_segments \
+		   --dataset data/${nnet_data}_filtered \
+		   --class-name speaker --min-segs 4
 fi
 
 if [ $stage -le 4 ];then
-  hyperion_dataset.py split_train_val \
-		      --dataset data/${nnet_data}_filtered \
-		      --val-prob 0.03 \
-		      --joint-classes speaker --min-train-samples 1 \
-		      --seed 1123581321 \
-		      --train-dataset data/${nnet_data}_xvector_train \
-		      --val-dataset data/${nnet_data}_xvector_val 
+  hyperion-dataset split_train_val \
+		   --dataset data/${nnet_data}_filtered \
+		   --val-prob 0.03 \
+		   --joint-classes speaker --min-train-samples 1 \
+		   --seed 1123581321 \
+		   --train-dataset data/${nnet_data}_xvector_train \
+		   --val-dataset data/${nnet_data}_xvector_val 
 fi
 

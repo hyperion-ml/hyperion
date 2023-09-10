@@ -58,15 +58,15 @@ if [[ $stage -le 1 && ( "$do_plda" == "true" || "$do_snorm" == "true" || "$do_qm
     echo "Extracting x-vectors for $name"
     $xvec_cmd JOB=1:$nj $output_dir/log/extract_xvectors.JOB.log \
 	      hyp_utils/conda_env.sh --num-gpus $num_gpus \
-	      extract_wav2xvectors.py ${xvec_args} ${vad_args} \
+	      hyperion-extract-wav2xvectors ${xvec_args} ${vad_args} \
 	      --part-idx JOB --num-parts $nj  \
 	      --recordings-file data/$name/recordings.csv \
 	      --random-utt-length --min-utt-length 2 --max-utt-length 30 \
 	      --model-path $nnet  \
 	      --output-spec ark,csv:$output_dir/xvector.JOB.ark,$output_dir/xvector.JOB.csv
-    hyperion_tables.py cat \
-		       --table-type features \
-		       --output-file $output_dir/xvector.csv --num-tables $nj
+    hyperion-tables cat \
+		    --table-type features \
+		    --output-file $output_dir/xvector.csv --num-tables $nj
 
   done
 fi
@@ -88,14 +88,14 @@ if [ $stage -le 2 ]; then
     echo "Extracting x-vectors for $name"
     $xvec_cmd JOB=1:$nj $output_dir/log/extract_xvectors.JOB.log \
 	      hyp_utils/conda_env.sh --num-gpus $num_gpus \
-	      extract_wav2xvectors.py ${xvec_args} ${vad_args} \
+	      hyperion-extract-wav2xvectors ${xvec_args} ${vad_args} \
 	      --part-idx JOB --num-parts $nj  \
 	      --recordings-file data/$name/recordings.csv \
 	      --model-path $nnet  \
 	      --output-spec ark,csv:$output_dir/xvector.JOB.ark,$output_dir/xvector.JOB.csv
-    hyperion_tables.py cat \
-		       --table-type features \
-		       --output-file $output_dir/xvector.csv --num-tables $nj
+    hyperion-tables cat \
+		    --table-type features \
+		    --output-file $output_dir/xvector.csv --num-tables $nj
 
   done
 fi

@@ -10,9 +10,6 @@ import sys
 import time
 
 import numpy as np
-from hyperion.hyp_defs import config_logger
-from hyperion.io import DataWriterFactory as DWF
-from hyperion.io import SequentialAudioReader as AR
 from jsonargparse import (
     ActionConfigFile,
     ActionParser,
@@ -20,9 +17,12 @@ from jsonargparse import (
     namespace_to_dict,
 )
 
+from hyperion.hyp_defs import config_logger
+from hyperion.io import DataWriterFactory as DWF
+from hyperion.io import SequentialAudioReader as AR
+
 
 def pack_wav_rirs(input_path, output_spec, **kwargs):
-
     writer = DWF.create(output_spec, compress=False)
     t1 = time.time()
     with AR(input_path, wav_scale=1) as reader:
@@ -47,8 +47,7 @@ def pack_wav_rirs(input_path, output_spec, **kwargs):
     logging.info("Packed RIRS elapsed-time=%.f", time.time() - t1)
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(description="Packs RIRs in wave format to h5/ark files")
 
     parser.add_argument("--cfg", action=ActionConfigFile)
@@ -69,3 +68,7 @@ if __name__ == "__main__":
     logging.debug(args)
 
     pack_wav_rirs(**namespace_to_dict(args))
+
+
+if __name__ == "__main__":
+    main()

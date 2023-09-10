@@ -8,7 +8,6 @@ import numpy as np
 
 from ....hyp_defs import float_cpu
 from ....utils.math_funcs import logsumexp, softmax
-from ....utils.queues import GeneratorQueue
 from ..core import PDF
 
 
@@ -106,86 +105,6 @@ class ExpFamilyMixture(PDF):
                 elbo_val[epoch] = self.elbo(None, N=N, u_x=u_x, log_h=log_h_val)
 
         if x_val is None:
-            return elbo, elbo / x.shape[0]
-        else:
-            return elbo, elbo / x.shape[0], elbo_val, elbo_val / x.shape[0]
-
-    def fit_generator(
-        self,
-        generator,
-        train_steps,
-        epochs=10,
-        val_data=None,
-        val_steps=0,
-        max_queue_size=10,
-        workers=1,
-        use_multiprocessing=False,
-    ):
-        """Trains the model from data read by a generator function.
-           This function is deprecated.
-
-        Args:
-          generator: train data generator function returning a tuple
-                (x, u_x, sample_weight), (x, u_x), (x, sample_weight) or x.
-          train_steps: number of training steps / epoch
-          epochs: number of epochs.
-          val_data: val. data generator function returning a tuple
-                (x, u_x, sample_weight), (x, u_x), (x, sample_weight) or x.
-          val_steps: number of validation steps / epoch
-          max_queue_size: max. size of the generator queue.
-          workers: number of workers in the generator.
-          use_multiprocessing: use multi-processing in the generator queue.
-
-        Returns:
-          log p(X) of the training data.
-          log p(x) per sample.
-          log p(X) of the val. data, if present.
-          log p(x) of the val. data per sample, if present.
-        """
-
-        do_validation = bool(val_data)
-        val_gen = hasattr(val_data, "next") or hasattr(val_data, "__next__")
-        if val_gen and not val_steps:
-            raise ValueError(
-                "When using a generator for validation data, "
-                "you must specify a value for "
-                "`val_steps`."
-            )
-
-        if do_validation and not val_gen:
-            x, u_x_val, sample_weight_val = self.tuple2data(val_data)
-            log_h_val = self.accum_log_h(x, sample_weight_val)
-
-        elbo = np.zeros((epochs,), dtype=float_cpu())
-        elbo_val = np.zeros((epochs,), dtype=float_cpu())
-        for epoch in range(epochs):
-            N, u_x, log_h = self.Estep_generator(
-                generator,
-                train_steps,
-                return_log_h=True,
-                max_queue_size=max_queue_size,
-                workers=workers,
-                use_multiprocessing=use_multiprocessing,
-            )
-
-            self.Mstep(N, u_x)
-            elbo[epoch] = self.elbo(None, N=N, u_x=u_x, log_h=log_h)
-
-            if val_data is not None:
-                if val_gen:
-                    N, u_x, log_h_val = self.Estep_generator(
-                        val_data,
-                        train_steps,
-                        return_log_h=True,
-                        max_queue_size=max_queue_size,
-                        workers=workers,
-                        use_multiprocessing=use_multiprocessing,
-                    )
-                else:
-                    N, u_x = self.Estep(val_data, u_x_val, sample_weight_val)
-                elbo_val[epoch] = self.elbo(None, N=N, u_x=u_x, log_h=log_h_val)
-
-        if val_data is None:
             return elbo, elbo / x.shape[0]
         else:
             return elbo, elbo / x.shape[0], elbo_val, elbo_val / x.shape[0]
@@ -404,7 +323,6 @@ class ExpFamilyMixture(PDF):
     def _accum_suff_stats_segments_prob_nbatches(
         self, x, prob, sample_weight, batch_size
     ):
-
         sw_i = None
         for i1 in range(0, x.shape[0], batch_size):
             i2 = np.minimum(i1 + batch_size, x.shape[0])
@@ -458,7 +376,6 @@ class ExpFamilyMixture(PDF):
     def _accum_suff_stats_sorttime_1batch(
         self, x, frame_length, frame_shift, u_x=None, sample_weight=None
     ):
-
         K = len(self.pi)
         num_frames = x.shape[0]
         num_segments = int(np.floor((num_frames - frame_length) / frame_shift + 1))
@@ -494,7 +411,6 @@ class ExpFamilyMixture(PDF):
     def _accum_suff_stats_sorttime_nbatches(
         self, x, frame_length, frame_shift, sample_weight, batch_size
     ):
-
         K = len(self.pi)
         num_frames = x.shape[0]
         num_segments = int(np.floor((num_frames - frame_length) / frame_shift + 1))
@@ -538,65 +454,6 @@ class ExpFamilyMixture(PDF):
           Accumlated sufficient statistics \sum u(x)
         """
         return self.accum_suff_stats(x, u_x, sample_weight, batch_size)
-
-    def Estep_generator(
-        self,
-        generator,
-        num_steps,
-        return_log_h,
-        max_queue_size=10,
-        workers=1,
-        use_multiprocessing=False,
-    ):
-        """Expectation step, where data is read from a generator function.
-
-        Args:
-          generator: data generator function returning a tuple
-                (x, u_x, sample_weight), (x, u_x), (x, sample_weight) or x.
-          num_steps: number of steps / epoch
-          return_log_h: returns accumlated log h(x).
-          max_queue_size: max. size of the generator queue.
-          workers: number of workers in the generator.
-          use_multiprocessing: use multi-processing in the generator queue.
-
-        Returns:
-          N zero order sufficient statistics (number of samples).
-          Accumlated sufficient statistics \sum u(x).
-          Accumlated log h(x) (optional).
-        """
-        wait_time = 0.01  # in secs
-        queue = None
-        N = None
-        acc_u_x = None
-        log_h = 0
-        try:
-            queue = GeneratorQueue(
-                generator, use_multiprocessing=use_multiprocessing, wait_time=wait_time
-            )
-            queue.start(workers=workers, max_queue_size=max_queue_size)
-            queue_generator = queue.get()
-
-            cur_step = 0
-            for cur_step in range(num_steps):
-                data = next(queue_generator)
-                x, u_x, sample_weight = self.tuple2data(data)
-                N_i, u_x_i = self.Estep(x, u_x, sample_weight)
-                if return_log_h:
-                    log_h += self.accum_log_h(x)
-                if cur_step == 0:
-                    N = N_i
-                    acc_u_x = u_x_i
-                else:
-                    N += N_i
-                    acc_u_x += u_x_i
-        finally:
-            if queue is not None:
-                queue.stop()
-
-        if return_log_h:
-            return N, acc_u_x, log_h
-        else:
-            return N, acc_u_x
 
     def sum_suff_stats(self, N, u_x):
         """Sums suff. stats from muttiple sub-processes.
@@ -753,28 +610,6 @@ class ExpFamilyMixture(PDF):
         config = {"min_n": self.min_N, "update_pi": self.update_pi}
         base_config = super(ExpFamilyMixture, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
-
-    @staticmethod
-    def tuple2data(data):
-        if isinstance(data, tuple):
-            if len(data) == 2:
-                x, u_x = data
-                if u_x.ndim == 2:
-                    sample_weight = None
-                elif u_x.ndim == 1:
-                    sample_weight = u_x
-                    u_x = None
-                else:
-                    raise ValueError("Generator output: " + str(data))
-            elif len(data) == 3:
-                x, u_x, sample_weight = data
-            else:
-                raise ValueError("Generator output: " + str(data))
-        else:
-            x = data
-            u_x = None
-            sample_weight = None
-        return x, u_x, sample_weight
 
     @staticmethod
     def compute_A_nat(eta):

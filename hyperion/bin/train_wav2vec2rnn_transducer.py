@@ -14,23 +14,29 @@ import k2
 import numpy as np
 import torch
 import torch.nn as nn
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
+from torch.nn.utils.rnn import pad_sequence
+
 from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
-from hyperion.torch.models import (HFWav2Vec2ConformerV1RNNTransducer,
-                                   HFWav2Vec2RNNRNNTransducer,
-                                   HFWav2Vec2RNNTransducer)
+from hyperion.torch.models import (
+    HFWav2Vec2ConformerV1RNNTransducer,
+    HFWav2Vec2RNNRNNTransducer,
+    HFWav2Vec2RNNTransducer,
+)
 from hyperion.torch.trainers import TransducerTrainer as Trainer
 from hyperion.torch.utils import ddp
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
-from torch.nn.utils.rnn import pad_sequence
 
 model_dict = {
     "hf_wav2vec2rnn_transducer": HFWav2Vec2RNNTransducer,
     "hf_wav2vec2rnn_rnn_transducer": HFWav2Vec2RNNRNNTransducer,
-    "hf_wav2vec2conformer_v1_rnn_transducer":
-    HFWav2Vec2ConformerV1RNNTransducer,
+    "hf_wav2vec2conformer_v1_rnn_transducer": HFWav2Vec2ConformerV1RNNTransducer,
     # "hf_hubert2rnn_transducer": HFWav2Vec2RNNTransducer,
     # "hf_hubert2rnn_rnn_transducer": Hubert2RNNRNNTransducer,
     # "hf_wavlm2rnn_transducer": HFHubert2RNNTransducer,
@@ -88,14 +94,12 @@ def init_data(partition, rank, num_gpus, **kwargs):
 
     num_workers = data_kwargs["data_loader"]["num_workers"]
     num_workers_per_gpu = int((num_workers + num_gpus - 1) / num_gpus)
-    largs = ({
-        "num_workers": num_workers_per_gpu,
-        "pin_memory": True
-    } if num_gpus > 0 else {})
-    data_loader = torch.utils.data.DataLoader(dataset,
-                                              batch_sampler=sampler,
-                                              **largs,
-                                              collate_fn=transducer_collate)
+    largs = (
+        {"num_workers": num_workers_per_gpu, "pin_memory": True} if num_gpus > 0 else {}
+    )
+    data_loader = torch.utils.data.DataLoader(
+        dataset, batch_sampler=sampler, **largs, collate_fn=transducer_collate
+    )
     return data_loader
 
 
@@ -113,7 +117,6 @@ def init_model(blank_id, vocab_size, rank, model_class, **kwargs):
 
 
 def train_model(gpu_id, args):
-
     config_logger(args.verbose)
     del args.verbose
     logging.debug(args)
@@ -121,8 +124,8 @@ def train_model(gpu_id, args):
     kwargs = namespace_to_dict(args)
     torch.manual_seed(args.seed)
     set_float_cpu("float32")
-    #torch.backends.cudnn.deterministic = True
-    #torch.backends.cudnn.benchmark = False
+    # torch.backends.cudnn.deterministic = True
+    # torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.enabled = False
 
     ddp_args = ddp.filter_ddp_args(**kwargs)
@@ -137,13 +140,16 @@ def train_model(gpu_id, args):
 
     train_loader = init_data(partition="train", **kwargs)
     val_loader = init_data(partition="val", **kwargs)
-    model = init_model(train_loader.dataset.sp.piece_to_id("<blk>"),
-                       train_loader.dataset.sp.get_piece_size(), **kwargs)
+    model = init_model(
+        train_loader.dataset.sp.piece_to_id("<blk>"),
+        train_loader.dataset.sp.get_piece_size(),
+        **kwargs,
+    )
 
     trn_args = Trainer.filter_args(**kwargs["trainer"])
     if rank == 0:
         logging.info("trainer args={}".format(trn_args))
-    metrics = {}  #{"acc": CategoricalAccuracy()}
+    metrics = {}  # {"acc": CategoricalAccuracy()}
     trainer = Trainer(
         model,
         device=device,
@@ -181,8 +187,7 @@ def make_parser(model_class):
         help="num_workers of data loader",
     )
     data_parser = ArgumentParser(prog="")
-    data_parser.add_argument("--train",
-                             action=ActionParser(parser=train_parser))
+    data_parser.add_argument("--train", action=ActionParser(parser=train_parser))
     data_parser.add_argument("--val", action=ActionParser(parser=val_parser))
     parser.add_argument("--data", action=ActionParser(parser=data_parser))
 
@@ -198,34 +203,29 @@ def make_parser(model_class):
         type=str,
     )
 
-    parser.link_arguments("data.train.data_loader.num_workers",
-                          "data.val.data_loader.num_workers")
+    parser.link_arguments(
+        "data.train.data_loader.num_workers", "data.val.data_loader.num_workers"
+    )
 
-    parser.link_arguments("data.train.dataset.bpe_model",
-                          "data.val.dataset.bpe_model")
+    parser.link_arguments("data.train.dataset.bpe_model", "data.val.dataset.bpe_model")
 
     model_class.add_class_args(parser, prefix="model")
-    Trainer.add_class_args(parser,
-                           prefix="trainer",
-                           train_modes=model_class.valid_train_modes())
+    Trainer.add_class_args(
+        parser, prefix="trainer", train_modes=model_class.valid_train_modes()
+    )
     ddp.add_ddp_args(parser)
-    parser.add_argument("--seed",
-                        type=int,
-                        default=1123581321,
-                        help="random seed")
-    parser.add_argument("-v",
-                        "--verbose",
-                        dest="verbose",
-                        default=1,
-                        choices=[0, 1, 2, 3],
-                        type=int)
+    parser.add_argument("--seed", type=int, default=1123581321, help="random seed")
+    parser.add_argument(
+        "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
+    )
 
     return parser
 
 
-if __name__ == "__main__":
+def main():
     parser = ArgumentParser(
-        description="Train Wav2Vec2Transducer model from audio files")
+        description="Train Wav2Vec2Transducer model from audio files"
+    )
     parser.add_argument("--cfg", action=ActionConfigFile)
 
     subcommands = parser.add_subcommands()
@@ -254,3 +254,7 @@ if __name__ == "__main__":
     # torch docs recommend using forkserver
     # multiprocessing.set_start_method("forkserver")
     train_model(gpu_id, args_sc)
+
+
+if __name__ == "__main__":
+    main()

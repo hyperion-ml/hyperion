@@ -11,6 +11,13 @@ import time
 from pathlib import Path
 
 import torch
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
+
 from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch import TorchModelLoader as TML
 from hyperion.torch.data import AudioDataset as AD
@@ -27,12 +34,6 @@ from hyperion.torch.models import Wav2ResNetXVector as RXVec
 # from hyperion.torch.narchs import AudioFeatsMVN as AF
 from hyperion.torch.trainers import XVectorTrainer as Trainer
 from hyperion.torch.utils import ddp
-from jsonargparse import (
-    ActionConfigFile,
-    ActionParser,
-    ArgumentParser,
-    namespace_to_dict,
-)
 
 xvec_dict = {
     "resnet": RXVec,
@@ -45,7 +46,6 @@ xvec_dict = {
 
 
 def init_data(partition, rank, num_gpus, **kwargs):
-
     kwargs = kwargs["data"][partition]
     ad_args = AD.filter_args(**kwargs["dataset"])
     sampler_args = kwargs["sampler"]
@@ -115,7 +115,6 @@ def init_hard_prototype_mining(model, train_loader, val_loader, rank):
 
 
 def train_xvec(gpu_id, args):
-
     config_logger(args.verbose)
     del args.verbose
     logging.debug(args)
@@ -196,8 +195,7 @@ def make_parser(xvec_class):
     return parser
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(description="Fine-tune x-vector model from audio files")
     parser.add_argument("--cfg", action=ActionConfigFile)
 
@@ -226,3 +224,7 @@ if __name__ == "__main__":
     # torch docs recommend using forkserver
     multiprocessing.set_start_method("forkserver")
     train_xvec(gpu_id, args_sc)
+
+
+if __name__ == "__main__":
+    main()

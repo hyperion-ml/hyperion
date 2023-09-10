@@ -7,6 +7,13 @@ import logging
 from pathlib import Path
 from typing import List, Optional, Union
 
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
+
 from hyperion.hyp_defs import config_logger
 from hyperion.utils import (
     ClassInfo,
@@ -16,12 +23,6 @@ from hyperion.utils import (
     PathLike,
     RecordingSet,
     SegmentSet,
-)
-from jsonargparse import (
-    ActionConfigFile,
-    ActionParser,
-    ArgumentParser,
-    namespace_to_dict,
 )
 
 subcommand_list = ["cat"]
@@ -87,7 +88,6 @@ def cat(
     num_tables: int,
     base_idx: int = 1,
 ):
-
     assert input_files is not None or num_tables != 0
     output_file = Path(output_file)
     if input_files is None:
@@ -108,8 +108,7 @@ def cat(
     output_table.save(output_file)
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(description="Tool to manipulates the Hyperion data tables")
     parser.add_argument("--cfg", action=ActionConfigFile)
 
@@ -126,3 +125,7 @@ if __name__ == "__main__":
     del kwargs["verbose"]
     del kwargs["cfg"]
     globals()[subcommand](**kwargs)
+
+
+if __name__ == "__main__":
+    main()

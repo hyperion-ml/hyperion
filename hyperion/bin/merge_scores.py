@@ -6,15 +6,15 @@
 import logging
 from pathlib import Path
 
-from hyperion.hyp_defs import config_logger
-
-from hyperion.utils import TrialScores
 from jsonargparse import (
     ActionConfigFile,
     ActionParser,
     ArgumentParser,
     namespace_to_dict,
 )
+
+from hyperion.hyp_defs import config_logger
+from hyperion.utils import TrialScores
 
 
 def merge_scores(input_files, output_file, num_enroll_parts, num_test_parts, base_idx):
@@ -63,7 +63,7 @@ def merge_scores(input_files, output_file, num_enroll_parts, num_test_parts, bas
                         write_header = False
 
 
-if __name__ == "__main__":
+def main():
     parser = ArgumentParser(description="Tool to manipulates the Hyperion data tables")
     parser.add_argument("--cfg", action=ActionConfigFile)
     parser.add_argument(
@@ -108,3 +108,7 @@ if __name__ == "__main__":
     del kwargs["verbose"]
     del kwargs["cfg"]
     merge_scores(**kwargs)
+
+
+if __name__ == "__main__":
+    main()

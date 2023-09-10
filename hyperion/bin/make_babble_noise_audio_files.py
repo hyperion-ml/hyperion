@@ -10,11 +10,6 @@ import sys
 import time
 
 import numpy as np
-from hyperion.hyp_defs import config_logger
-from hyperion.io import AudioWriter as Writer
-from hyperion.io import RandomAccessAudioReader as AR
-from hyperion.io import VADReaderFactory as VRF
-from hyperion.utils import Utt2Info
 from jsonargparse import (
     ActionConfigFile,
     ActionParser,
@@ -22,9 +17,14 @@ from jsonargparse import (
     namespace_to_dict,
 )
 
+from hyperion.hyp_defs import config_logger
+from hyperion.io import AudioWriter as Writer
+from hyperion.io import RandomAccessAudioReader as AR
+from hyperion.io import VADReaderFactory as VRF
+from hyperion.utils import Utt2Info
+
 
 def make_noise(xs, max_value):
-
     lens = np.array([x.shape[0] for x in xs])
     max_len = np.max(lens)
     num_tiles = np.ceil(max_len / lens)
@@ -53,7 +53,6 @@ def make_babble_noise_audio_files(
     random_seed=112358,
     **kwargs,
 ):
-
     input_args = AR.filter_args(**kwargs)
     output_args = Writer.filter_args(**kwargs)
     logging.info(f"input_args={input_args}")
@@ -105,8 +104,7 @@ def make_babble_noise_audio_files(
     logging.info("finished making babble files, elapsed-time=%f", time.time() - t1)
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(description="Creates babble noise by adding speech files")
 
     parser.add_argument("--cfg", action=ActionConfigFile)
@@ -137,3 +135,7 @@ if __name__ == "__main__":
     logging.debug(args)
 
     make_babble_noise_audio_files(**namespace_to_dict(args))
+
+
+if __name__ == "__main__":
+    main()

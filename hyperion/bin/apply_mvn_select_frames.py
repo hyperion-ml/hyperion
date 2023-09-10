@@ -10,6 +10,13 @@ import sys
 import time
 
 import numpy as np
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
+
 from hyperion.hyp_defs import config_logger
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import RandomAccessDataReaderFactory as RDRF
@@ -18,8 +25,6 @@ from hyperion.np.feats import FrameSelector as FSel
 from hyperion.np.feats import MeanVarianceNorm as MVN
 from hyperion.utils import Utt2Info
 from hyperion.utils.kaldi_matrix import compression_methods
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
 
 
 def process_feats(
@@ -35,7 +40,6 @@ def process_feats(
     compression_method,
     **kwargs
 ):
-
     logging.info("initializing")
     mvn_args = MVN.filter_args(**kwargs)
     mvn = MVN(**mvn_args)
@@ -49,16 +53,23 @@ def process_feats(
 
     logging.info("opening output stream: %s" % (output_spec))
     with DWF.create(
-        output_spec, compress=compress, compression_method=compression_method,
+        output_spec,
+        compress=compress,
+        compression_method=compression_method,
     ) as writer:
-
         logging.info("opening input stream: %s" % (output_spec))
         with DRF.create(
-            input_spec, path_prefix=path_prefix, part_idx=part_idx, num_parts=num_parts,
+            input_spec,
+            path_prefix=path_prefix,
+            part_idx=part_idx,
+            num_parts=num_parts,
         ) as reader:
             if vad_spec is not None:
                 logging.info("opening VAD stream: %s" % (vad_spec))
-                v_reader = RDRF.create(vad_spec, path_prefix=vad_path_prefix,)
+                v_reader = RDRF.create(
+                    vad_spec,
+                    path_prefix=vad_path_prefix,
+                )
 
             while not reader.eof():
                 key, data = reader.read(1)
@@ -91,8 +102,7 @@ def process_feats(
         u2nf.save(write_num_frames_spec)
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(description="Apply CMVN and remove silence")
 
     parser.add_argument("--input", dest="input_spec", required=True)
@@ -105,7 +115,9 @@ if __name__ == "__main__":
         "--path-prefix", dest="path_prefix", default=None, help=("scp file_path prefix")
     )
     parser.add_argument(
-        "--vad-path-prefix", default=None, help=("scp file_path prefix for vad"),
+        "--vad-path-prefix",
+        default=None,
+        help=("scp file_path prefix for vad"),
     )
     parser.add_argument(
         "--part-idx",
@@ -150,3 +162,7 @@ if __name__ == "__main__":
     logging.debug(args)
 
     process_feats(**namespace_to_dict(args))
+
+
+if __name__ == "__main__":
+    main()

@@ -48,18 +48,18 @@ if [ $stage -le 2 ];then
     echo "compute vad for $name"
     $train_cmd JOB=1:$nj $vad_dir/$name/log/vad.JOB.log \
 	       hyp_utils/conda_env.sh \
-	       compute_energy_vad.py --cfg $vad_config \
+	       hyperion-compute-energy-vad --cfg $vad_config \
 	       --recordings-file data/$name/recordings.csv \
 	       --output-spec ark,csv:$vad_dir/$name/vad.JOB.ark,$vad_dir/$name/vad.JOB.csv \
 	       --part-idx JOB --num-parts $nj || exit 1
 
-    hyperion_tables.py cat \
-		       --table-type features \
-		       --output-file $vad_dir/$name/vad.csv --num-tables $nj
-    hyperion_dataset.py add_features \
-			--dataset data/$name \
-			--features-name vad \
-			--features-file $vad_dir/$name/vad.csv
+    hyperion-tables cat \
+		    --table-type features \
+		    --output-file $vad_dir/$name/vad.csv --num-tables $nj
+    hyperion-dataset add_features \
+		     --dataset data/$name \
+		     --features-name vad \
+		     --features-file $vad_dir/$name/vad.csv
   done
 fi
 

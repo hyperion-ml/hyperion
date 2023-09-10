@@ -12,6 +12,13 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
+
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.io import AudioWriter as AW
 from hyperion.io import RandomAccessAudioReader as AR
@@ -26,8 +33,6 @@ from hyperion.torch.utils import open_device
 from hyperion.torch.utils.misc import compute_stats_adv_attack, l2_norm
 from hyperion.utils import TrialKey, TrialNdx, TrialScores, Utt2Info
 from hyperion.utils.list_utils import ismember
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
 
 
 class MyModel(nn.Module):
@@ -104,7 +109,6 @@ def load_calibrator(cal_file, threshold):
 
 
 def read_data(v_file, key_file, enroll_file, seg_part_idx, num_seg_parts):
-
     r = DRF.create(v_file)
     enroll = Utt2Info.load(enroll_file)
     key = TrialKey.load(key_file)
@@ -146,7 +150,6 @@ def eval_cosine_scoring(
     num_seg_parts,
     **kwargs
 ):
-
     device = init_device(use_gpu)
     # load victim model
     feat_extractor = init_feats(**kwargs["feats"])
@@ -204,7 +207,7 @@ def eval_cosine_scoring(
 
     if vad_spec is not None:
         logging.info("opening VAD stream: %s", vad_spec)
-        v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix
+        v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix)
 
     scores = np.zeros((key.num_models, key.num_tests), dtype="float32")
     attack_stats = pd.DataFrame(
@@ -337,8 +340,7 @@ def eval_cosine_scoring(
     attack_stats.to_csv(stats_file)
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(
         description=(
             "Eval cosine-scoring given enroll x-vector and "
@@ -435,3 +437,7 @@ if __name__ == "__main__":
     logging.debug(args)
 
     eval_cosine_scoring(**namespace_to_dict(args))
+
+
+if __name__ == "__main__":
+    main()

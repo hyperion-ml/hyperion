@@ -6,8 +6,6 @@
 import logging
 from pathlib import Path
 
-from hyperion.hyp_defs import config_logger
-from hyperion.utils import Dataset
 from jsonargparse import (
     ActionConfigFile,
     ActionParser,
@@ -16,8 +14,11 @@ from jsonargparse import (
     namespace_to_dict,
 )
 
-if __name__ == "__main__":
+from hyperion.hyp_defs import config_logger
+from hyperion.utils import Dataset
 
+
+def main():
     parser = ArgumentParser(
         description=(
             """Split speakers in dataset into test speaker to create ASV trials and 
@@ -66,3 +67,7 @@ if __name__ == "__main__":
     trials_dataset, cohort_dataset = dataset.split_into_trials_and_cohort(**args)
     trials_dataset.save(trials_dir)
     cohort_dataset.save(cohort_dir)
+
+
+if __name__ == "__main__":
+    main()

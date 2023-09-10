@@ -56,7 +56,7 @@ if [ $stage -le 3 ];then
     do
       $train_cmd $score_cosine_dir/log/voxceleb1_${i}_${j}.log \
 		 hyp_utils/conda_env.sh \
-		 eval_cosine_scoring_backend.py \
+		 hyperion-eval-cosine-scoring-backend \
 		 --feats-file csv:$xvector_dir/voxceleb1_test/xvector.csv \
 		 --ndx-file data/voxceleb1_test/trials.csv \
 		 --enroll-map-file data/voxceleb1_test/enrollment.csv  \
@@ -66,11 +66,11 @@ if [ $stage -le 3 ];then
     done
   done
   wait
-  merge_scores.py --output-file $score_cosine_dir/voxceleb1_scores.csv \
-		  --num-enroll-parts $num_parts --num-test-parts $num_parts
+  hyperion-merge-scores --output-file $score_cosine_dir/voxceleb1_scores.csv \
+			--num-enroll-parts $num_parts --num-test-parts $num_parts
 
   $train_cmd --mem 12G --num-threads 6 $score_cosine_dir/log/score_voxceleb1.log \
-	     eval_verification_metrics.py \
+	     hyperion-eval-verification-metrics \
 	     --score-files $score_cosine_dir/voxceleb1_scores.csv \
 	     --key-files data/voxceleb1_test/trials_{o,e,h}.csv \
 	     --score-names voxceleb1 \
@@ -85,22 +85,22 @@ if [ $stage -le 4 ] && [ "$do_voxsrc22" == "true" ];then
   echo "Eval voxsrc2 with Cosine scoring"
   $train_cmd $score_cosine_dir/log/voxsrc22_dev.log \
 	     hyp_utils/conda_env.sh \
-	     eval_cosine_scoring_backend.py \
+	     hyperion-eval-cosine-scoring-backend \
 	     --feats-file csv:$xvector_dir/voxsrc22_dev/xvector.csv \
 	     --ndx-file data/voxsrc22_dev/trials.csv \
 	     --enroll-map-file data/voxsrc22_dev/enrollment.csv  \
 	     --score-file $score_cosine_dir/voxsrc22_dev_scores.csv
 
   # $train_cmd $score_cosine_dir/log/voxsrc22_eval.log \
-  # 	     hyp_utils/conda_env.sh \
-  # 	     eval_cosine_scoring_backend.py \
-  # 	     --feats-file csv:$xvector_dir/voxsrc22_eval/xvector.csv \
-  # 	     --ndx-file data/voxsrc22_eval/trials.csv \
-  # 	     --enroll-map-file data/voxsrc22_eval/enrollment.csv  \
-  # 	     --score-file $score_cosine_dir/voxsrc22_eval_scores.csv
+    # 	     hyp_utils/conda_env.sh \
+    # 	     hyperion-eval-cosine-scoring-backend \
+    # 	     --feats-file csv:$xvector_dir/voxsrc22_eval/xvector.csv \
+    # 	     --ndx-file data/voxsrc22_eval/trials.csv \
+    # 	     --enroll-map-file data/voxsrc22_eval/enrollment.csv  \
+    # 	     --score-file $score_cosine_dir/voxsrc22_eval_scores.csv
   
   $train_cmd --mem 12G --num-threads 6 $score_cosine_dir/log/score_voxsrc22_dev.log \
-	     eval_verification_metrics.py \
+	     hyperion-eval-verification-metrics \
 	     --score-files $score_cosine_dir/voxsrc22_dev_scores.csv \
 	     --key-files data/voxsrc22_dev/trials.csv \
 	     --score-names voxsrc22_dev \
@@ -121,7 +121,7 @@ if [ "$do_snorm" == "true" ];then
       do
 	$train_cmd --mem 22G $score_cosine_snorm_dir/log/voxceleb1_${i}_${j}.log \
 		   hyp_utils/conda_env.sh \
-		   eval_cosine_scoring_backend.py \
+		   hyperion-eval-cosine-scoring-backend \
 		   --feats-file csv:$xvector_dir/voxceleb1_test/xvector.csv \
 		   --ndx-file data/voxceleb1_test/trials.csv \
 		   --enroll-map-file data/voxceleb1_test/enrollment.csv  \
@@ -135,11 +135,11 @@ if [ "$do_snorm" == "true" ];then
       sleep 5s
     done
     wait
-    merge_scores.py --output-file $score_cosine_snorm_dir/voxceleb1_scores.csv \
-		    --num-enroll-parts $num_parts --num-test-parts $num_parts
+    hyperion-merge-scores --output-file $score_cosine_snorm_dir/voxceleb1_scores.csv \
+			  --num-enroll-parts $num_parts --num-test-parts $num_parts
     
     $train_cmd --mem 12G --num-threads 6 $score_cosine_snorm_dir/log/score_voxceleb1.log \
-	       eval_verification_metrics.py \
+	       hyperion-eval-verification-metrics \
 	       --score-files $score_cosine_snorm_dir/voxceleb1_scores.csv \
 	       --key-files data/voxceleb1_test/trials_{o,e,h}.csv \
 	       --score-names voxceleb1 \
@@ -159,7 +159,7 @@ if [ "$do_snorm" == "true" ];then
       do    
 	$train_cmd $score_cosine_snorm_dir/log/voxsrc22_dev_${i}_${j}.log \
 		   hyp_utils/conda_env.sh \
-		   eval_cosine_scoring_backend.py \
+		   hyperion-eval-cosine-scoring-backend \
 		   --feats-file csv:$xvector_dir/voxsrc22_dev/xvector.csv \
 		   --ndx-file data/voxsrc22_dev/trials.csv \
 		   --enroll-map-file data/voxsrc22_dev/enrollment.csv  \
@@ -174,16 +174,16 @@ if [ "$do_snorm" == "true" ];then
       sleep 10s
     done
     wait
-    merge_scores.py --output-file $score_cosine_snorm_dir/voxsrc22_dev_scores.csv \
-		    --num-enroll-parts $num_parts --num-test-parts $num_parts
+    hyperion-merge-scores --output-file $score_cosine_snorm_dir/voxsrc22_dev_scores.csv \
+			  --num-enroll-parts $num_parts --num-test-parts $num_parts
 
     $train_cmd --mem 12G --num-threads 6 $score_cosine_snorm_dir/log/score_voxsrc22_dev.log \
-	     eval_verification_metrics.py \
-	     --score-files $score_cosine_snorm_dir/voxsrc22_dev_scores.csv \
-	     --key-files data/voxsrc22_dev/trials.csv \
-	     --score-names voxsrc22_dev \
-	     --key-names all \
-	     --output-file $score_cosine_snorm_dir/voxsrc22_dev_results.csv
+	       hyperion-eval-verification-metrics \
+	       --score-files $score_cosine_snorm_dir/voxsrc22_dev_scores.csv \
+	       --key-files data/voxsrc22_dev/trials.csv \
+	       --score-names voxsrc22_dev \
+	       --key-names all \
+	       --output-file $score_cosine_snorm_dir/voxsrc22_dev_results.csv
 
     cat $score_cosine_snorm_dir/voxsrc22_dev_results.csv
 
@@ -202,7 +202,7 @@ if [ "$do_qmf" == "true" ];then
       do
 	$train_cmd $score_cosine_qmf_dir/log/voxceleb2_trials_${i}_${j}.log \
 		   hyp_utils/conda_env.sh \
-		   eval_cosine_scoring_backend_with_qmf.py \
+		   hyperion-eval-cosine-scoring-backend-with-qmf \
 		   --feats-file csv:$xvector_dir/voxceleb2cat_train/xvector.csv \
 		   --ndx-file data/voxceleb2cat_train_trials/trials.csv \
 		   --enroll-map-file data/voxceleb2cat_train_trials/enrollments.csv  \
@@ -216,13 +216,13 @@ if [ "$do_qmf" == "true" ];then
       sleep 5s
     done
     wait
-    merge_scores.py --output-file $score_cosine_qmf_dir/voxceleb2_scores.snorm.csv \
-      		    --num-enroll-parts $num_parts --num-test-parts $num_parts
+    hyperion-merge-scores --output-file $score_cosine_qmf_dir/voxceleb2_scores.snorm.csv \
+      			  --num-enroll-parts $num_parts --num-test-parts $num_parts
 
-    train_qmf.py --score-file $score_cosine_qmf_dir/voxceleb2_scores.snorm.csv \
-		 --key-file data/voxceleb2cat_train_trials/trials.csv \
-		 --model-file $score_cosine_qmf_dir/qmf.h5
-		 
+    hyperion-train-qmf --score-file $score_cosine_qmf_dir/voxceleb2_scores.snorm.csv \
+		       --key-file data/voxceleb2cat_train_trials/trials.csv \
+		       --model-file $score_cosine_qmf_dir/qmf.h5
+    
   fi
 
   if [ $stage -le 8 ];then
@@ -234,7 +234,7 @@ if [ "$do_qmf" == "true" ];then
       do
 	$train_cmd --mem 22G $score_cosine_qmf_dir/log/voxceleb1_${i}_${j}.log \
 		   hyp_utils/conda_env.sh \
-		   eval_cosine_scoring_backend_with_qmf.py \
+		   hyperion-eval-cosine-scoring-backend-with-qmf \
 		   --feats-file csv:$xvector_dir/voxceleb1_test/xvector.csv \
 		   --ndx-file data/voxceleb1_test/trials.csv \
 		   --enroll-map-file data/voxceleb1_test/enrollment.csv  \
@@ -252,11 +252,11 @@ if [ "$do_qmf" == "true" ];then
     for suffix in "" .snorm .snorm.qmf
     do
       (
-	merge_scores.py --output-file $score_cosine_qmf_dir/voxceleb1_scores$suffix.csv \
-			--num-enroll-parts $num_parts --num-test-parts $num_parts
+	hyperion-merge-scores --output-file $score_cosine_qmf_dir/voxceleb1_scores$suffix.csv \
+			      --num-enroll-parts $num_parts --num-test-parts $num_parts
 	
 	$train_cmd --mem 12G --num-threads 6 $score_cosine_qmf_dir/log/score_voxceleb1$suffix.log \
-		   eval_verification_metrics.py \
+		   hyperion-eval-verification-metrics \
 		   --score-files $score_cosine_qmf_dir/voxceleb1_scores$suffix.csv \
 		   --key-files data/voxceleb1_test/trials_{o,e,h}.csv \
 		   --score-names voxceleb1 \
@@ -280,7 +280,7 @@ if [ "$do_qmf" == "true" ];then
       do    
 	$train_cmd $score_cosine_qmf_dir/log/voxsrc22_dev_${i}_${j}.log \
 		   hyp_utils/conda_env.sh \
-		   eval_cosine_scoring_backend_with_qmf.py \
+		   hyperion-eval-cosine-scoring-backend-with-qmf \
 		   --feats-file csv:$xvector_dir/voxsrc22_dev/xvector.csv \
 		   --ndx-file data/voxsrc22_dev/trials.csv \
 		   --enroll-map-file data/voxsrc22_dev/enrollment.csv  \
@@ -299,11 +299,11 @@ if [ "$do_qmf" == "true" ];then
     for suffix in "" .snorm .snorm.qmf
     do
       (
-	merge_scores.py --output-file $score_cosine_qmf_dir/voxsrc22_dev_scores$suffix.csv \
-			--num-enroll-parts $num_parts --num-test-parts $num_parts
+	hyperion-merge-scores --output-file $score_cosine_qmf_dir/voxsrc22_dev_scores$suffix.csv \
+			      --num-enroll-parts $num_parts --num-test-parts $num_parts
 
 	$train_cmd --mem 12G --num-threads 6 $score_cosine_qmf_dir/log/score_voxsrc22_dev$suffix.log \
-		   eval_verification_metrics.py \
+		   hyperion-eval-verification-metrics \
 		   --score-files $score_cosine_qmf_dir/voxsrc22_dev_scores$suffix.csv \
 		   --key-files data/voxsrc22_dev/trials.csv \
 		   --score-names voxsrc22_dev \

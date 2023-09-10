@@ -13,6 +13,13 @@ import numpy as np
 import pandas as pd
 import torch
 import torchaudio.transforms as tat
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
+
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialAudioReader as AR
@@ -21,12 +28,6 @@ from hyperion.np.augment import SpeechAugment
 from hyperion.torch import TorchModelLoader as TML
 from hyperion.torch.utils import open_device
 from hyperion.utils import Utt2Info
-from jsonargparse import (
-    ActionConfigFile,
-    ActionParser,
-    ArgumentParser,
-    namespace_to_dict,
-)
 
 resamplers = {}
 
@@ -121,7 +122,6 @@ def extract_xvectors(
     use_gpu,
     **kwargs,
 ):
-
     rng = np.random.default_rng(seed=1123581321 + kwargs["part_idx"])
     device = init_device(use_gpu)
     model = load_model(model_path, device)
@@ -143,10 +143,8 @@ def extract_xvectors(
     ar_args = AR.filter_args(**kwargs)
     logging.info("opening output stream: %s with args=%s", output_spec, str(ar_args))
     with DWF.create(output_spec, metadata_columns=metadata_columns) as writer:
-
         logging.info(f"opening input stream: {recordings_file} with args={ar_args}")
         with AR(recordings_file, **ar_args) as reader:
-
             if vad_spec is not None:
                 logging.info("opening VAD stream: %s", vad_spec)
                 v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix)
@@ -255,8 +253,7 @@ def extract_xvectors(
         aug_df.to_csv(aug_info_path, index=False, na_rep="n/a")
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(
         description="""Extracts x-vectors from waveform computing acoustic features on the fly"""
     )
@@ -331,3 +328,7 @@ if __name__ == "__main__":
     logging.debug(args)
 
     extract_xvectors(**namespace_to_dict(args))
+
+
+if __name__ == "__main__":
+    main()

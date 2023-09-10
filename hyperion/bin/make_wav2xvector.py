@@ -12,6 +12,13 @@ import time
 import numpy as np
 import pandas as pd
 import torch
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
+
 from hyperion.hyp_defs import config_logger
 
 # from hyperion.torch import TorchModelLoader as TML
@@ -26,12 +33,6 @@ from hyperion.torch.models import ResNetXVector as RXVec
 from hyperion.torch.models import Wav2ResNet1dXVector as W2R1dXVec
 from hyperion.torch.models import Wav2ResNetXVector as W2RXVec
 from hyperion.torch.narchs import AudioFeatsMVN as AF
-from jsonargparse import (
-    ActionConfigFile,
-    ActionParser,
-    ArgumentParser,
-    namespace_to_dict,
-)
 
 
 def init_feats(feats):
@@ -51,7 +52,6 @@ def load_model(model_path):
 
 
 def make_wav2xvector(feats, xvector_path, output_path):
-
     feats = init_feats(feats)
     xvector_model = load_model(xvector_path)
     if isinstance(xvector_model, RXVec):
@@ -67,8 +67,7 @@ def make_wav2xvector(feats, xvector_path, output_path):
     model.save(output_path)
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(
         description="""Combines the feature extractor config with XVector model
         to produce a Wav2XVector model with integrated feature extraction"""
@@ -89,3 +88,7 @@ if __name__ == "__main__":
     logging.debug(args)
 
     make_wav2xvector(**namespace_to_dict(args))
+
+
+if __name__ == "__main__":
+    main()

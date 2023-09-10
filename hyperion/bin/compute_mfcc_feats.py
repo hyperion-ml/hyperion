@@ -9,20 +9,24 @@ import sys
 import time
 
 import numpy as np
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
+
 from hyperion.hyp_defs import config_logger
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialAudioReader as AR
 from hyperion.io import SequentialDataReaderFactory as DRF
 from hyperion.io import compression_methods
 from hyperion.np.feats import MFCC
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
 
 
 def compute_mfcc_feats(
     input_path, output_path, compress, compression_method, write_num_frames, **kwargs
 ):
-
     mfcc_args = MFCC.filter_args(**kwargs)
     mfcc = MFCC(**mfcc_args)
 
@@ -34,7 +38,9 @@ def compute_mfcc_feats(
         reader = DRF.create(input_path, **input_args)
 
     writer = DWF.create(
-        output_path, compress=compress, compression_method=compression_method,
+        output_path,
+        compress=compress,
+        compression_method=compression_method,
     )
 
     if write_num_frames is not None:
@@ -68,8 +74,7 @@ def compute_mfcc_feats(
         f_num_frames.close()
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(description="Compute MFCC features")
 
     parser.add_argument("--cfg", action=ActionConfigFile)
@@ -109,3 +114,7 @@ if __name__ == "__main__":
     logging.debug(args)
 
     compute_mfcc_feats(**namespace_to_dict(args))
+
+
+if __name__ == "__main__":
+    main()

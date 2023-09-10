@@ -12,11 +12,12 @@ import sys
 import time
 
 import numpy as np
+
 from hyperion.hyp_defs import config_logger
 from hyperion.io import CopyFeats as CF
 
-if __name__ == "__main__":
 
+def main():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         fromfile_prefix_chars="@",
@@ -37,3 +38,7 @@ if __name__ == "__main__":
     logging.debug(args)
 
     CF(**vars(args))
+
+
+if __name__ == "__main__":
+    main()

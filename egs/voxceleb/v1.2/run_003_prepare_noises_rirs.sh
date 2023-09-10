@@ -18,10 +18,10 @@ config_file=default_config.sh
 if [ $stage -le 1 ]; then
   for name in noise music speech
   do
-    prepare_data.py musan \
-		    --corpus-dir $musan_root \
-		    --subset $name \
-		    --output-dir data/musan_$name
+    hyperion-prepare-data musan \
+			  --corpus-dir $musan_root \
+			  --subset $name \
+			  --output-dir data/musan_$name
   done
 fi
 
@@ -37,66 +37,66 @@ if [ $stage -le 2 ]; then
     output_dir=exp/proc_audio/$name
     $train_cmd JOB=1:$nj $output_dir/log/preproc_audios_${name}.JOB.log \
 	       hyp_utils/conda_env.sh \
-	       preprocess_audio_files.py \
+	       hyperion-preprocess-audio-files \
 	       --audio-format flac  \
 	       --part-idx JOB --num-parts $nj \
 	       --recordings-file $input_data_dir/recordings.csv \
 	       --output-path $output_dir \
 	       --output-recordings-file $output_dir/recordings.JOB.csv
-   
-    hyperion_tables.py cat \
-		       --table-type recordings \
-		       --output-file $output_dir/recordings.csv --num-tables $nj
-    hyperion_dataset.py set_recordings \
-			--dataset $input_data_dir \
-			--recordings-file $output_dir/recordings.csv \
-			--output-dataset $output_data_dir
-		     
+    
+    hyperion-tables cat \
+		    --table-type recordings \
+		    --output-file $output_dir/recordings.csv --num-tables $nj
+    hyperion-dataset set_recordings \
+		     --dataset $input_data_dir \
+		     --recordings-file $output_dir/recordings.csv \
+		     --output-dataset $output_data_dir
+    
     
   done
 fi
 
 if [ $stage -le 3 ]; then
-    # Create Babble noise from MUSAN speech files
-    for name in musan_speech
-    do
-      input_data_dir=data/$name
-      output_data_dir=data/${name}_babble
-      output_dir=exp/proc_audio/${name}_babble
-      $train_cmd $output_dir/log/make_babble_noise_${name}.log \
-		 hyp_utils/conda_env.sh \
-		 make_babble_noise_audio_files.py \
-		 --audio-format flac \
-		 --min-spks 3 --max-spks 10 --num-reuses 5 \
-		 --recordings-file $input_data_dir/recordings.csv \
-		 --output-path $output_dir \
-		 --output-recordings-file $output_data_dir/recordings.csv
-      hyperion_dataset.py make_from_recordings \
-			  --dataset $output_data_dir \
-			  --recordings-file $output_data_dir/recordings.csv
-    done
+  # Create Babble noise from MUSAN speech files
+  for name in musan_speech
+  do
+    input_data_dir=data/$name
+    output_data_dir=data/${name}_babble
+    output_dir=exp/proc_audio/${name}_babble
+    $train_cmd $output_dir/log/make_babble_noise_${name}.log \
+	       hyp_utils/conda_env.sh \
+	       hyperion-make-babble-noise-audio-files \
+	       --audio-format flac \
+	       --min-spks 3 --max-spks 10 --num-reuses 5 \
+	       --recordings-file $input_data_dir/recordings.csv \
+	       --output-path $output_dir \
+	       --output-recordings-file $output_data_dir/recordings.csv
+    hyperion-dataset make_from_recordings \
+		     --dataset $output_data_dir \
+		     --recordings-file $output_data_dir/recordings.csv
+  done
 fi
 
 if [ $stage -le 4 ]; then
-    if [ ! -d "RIRS_NOISES" ]; then
-      # Download the package that includes the real RIRs, simulated RIRs, isotropic noises and point-source noises
-      wget --no-check-certificate http://www.openslr.org/resources/28/rirs_noises.zip
-      unzip rirs_noises.zip
-    fi
-    prepare_data.py rirs --corpus-dir RIRS_NOISES/simulated_rirs/smallroom --output-dir data/rirs_smallroom
-    prepare_data.py rirs --corpus-dir RIRS_NOISES/simulated_rirs/mediumroom --output-dir data/rirs_mediumroom
-    prepare_data.py rirs --corpus-dir RIRS_NOISES/real_rirs_isotropic_noises --output-dir data/rirs_real
-    for rirs in rirs_smallroom rirs_mediumroom rirs_real
-    do
-      output_dir=exp/rirs/$rirs
-      data_dir=data/$rirs
-      $train_cmd $output_dir/log/pack_rirs_${name}.log \
-		 hyp_utils/conda_env.sh \
-		 pack_wav_rirs.py ${args} --input $data_dir/recordings.csv \
-		 --output h5,csv:$output_dir/rirs.h5,$output_dir/rirs.csv || exit 1;
-      hyperion_dataset.py add_features --dataset $data_dir \
-			  --features-name rirs --features-file $output_dir/rirs.csv
+  if [ ! -d "RIRS_NOISES" ]; then
+    # Download the package that includes the real RIRs, simulated RIRs, isotropic noises and point-source noises
+    wget --no-check-certificate http://www.openslr.org/resources/28/rirs_noises.zip
+    unzip rirs_noises.zip
+  fi
+  hyperion-prepare-data rirs --corpus-dir RIRS_NOISES/simulated_rirs/smallroom --output-dir data/rirs_smallroom
+  hyperion-prepare-data rirs --corpus-dir RIRS_NOISES/simulated_rirs/mediumroom --output-dir data/rirs_mediumroom
+  hyperion-prepare-data rirs --corpus-dir RIRS_NOISES/real_rirs_isotropic_noises --output-dir data/rirs_real
+  for rirs in rirs_smallroom rirs_mediumroom rirs_real
+  do
+    output_dir=exp/rirs/$rirs
+    data_dir=data/$rirs
+    $train_cmd $output_dir/log/pack_rirs_${name}.log \
+	       hyp_utils/conda_env.sh \
+	       hyperion-pack-wav-rirs ${args} --input $data_dir/recordings.csv \
+	       --output h5,csv:$output_dir/rirs.h5,$output_dir/rirs.csv || exit 1;
+    hyperion-dataset add_features --dataset $data_dir \
+		     --features-name rirs --features-file $output_dir/rirs.csv
 
-    done
+  done
 fi
 

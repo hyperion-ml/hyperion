@@ -9,6 +9,13 @@ import os
 from pathlib import Path
 
 import torch
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
+
 from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
@@ -23,12 +30,6 @@ from hyperion.torch.models import Wav2ResNetXVector as RXVec
 # from hyperion.torch.models import TransformerXVectorV1 as TFXVec
 from hyperion.torch.trainers import XVectorTrainer as Trainer
 from hyperion.torch.utils import ddp
-from jsonargparse import (
-    ActionConfigFile,
-    ActionParser,
-    ArgumentParser,
-    namespace_to_dict,
-)
 
 xvec_dict = {
     "resnet": RXVec,
@@ -41,7 +42,6 @@ xvec_dict = {
 
 
 def init_data(partition, rank, num_gpus, **kwargs):
-
     kwargs = kwargs["data"][partition]
     ad_args = AD.filter_args(**kwargs["dataset"])
     sampler_args = kwargs["sampler"]
@@ -84,7 +84,6 @@ def init_xvector(num_classes, rank, xvec_class, **kwargs):
 
 
 def train_xvec(gpu_id, args):
-
     config_logger(args.verbose)
     del args.verbose
     logging.debug(args)
@@ -107,7 +106,11 @@ def train_xvec(gpu_id, args):
         logging.info("trainer args={}".format(trn_args))
     metrics = {"acc": CategoricalAccuracy()}
     trainer = Trainer(
-        model, device=device, metrics=metrics, ddp=world_size > 1, **trn_args,
+        model,
+        device=device,
+        metrics=metrics,
+        ddp=world_size > 1,
+        **trn_args,
     )
     trainer.load_last_checkpoint()
     trainer.fit(train_loader, val_loader)
@@ -164,8 +167,7 @@ def make_parser(xvec_class):
     return parser
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(description="Train Wav2XVector from audio files")
     parser.add_argument("--cfg", action=ActionConfigFile)
 
@@ -194,3 +196,7 @@ if __name__ == "__main__":
     # torch docs recommend using forkserver
     multiprocessing.set_start_method("forkserver")
     train_xvec(gpu_id, args_sc)
+
+
+if __name__ == "__main__":
+    main()
