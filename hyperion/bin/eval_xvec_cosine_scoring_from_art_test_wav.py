@@ -15,6 +15,13 @@ import torch
 import torch.nn as nn
 from art.classifiers import PyTorchClassifier
 from art.estimators.classification import PyTorchClassifier
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
+
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.io import AudioWriter as AW
 from hyperion.io import RandomAccessAudioReader as AR
@@ -22,16 +29,15 @@ from hyperion.io import RandomAccessDataReaderFactory as DRF
 from hyperion.io import VADReaderFactory as VRF
 from hyperion.np.classifiers import BinaryLogisticRegression as LR
 from hyperion.torch import TorchModelLoader as TML
-from hyperion.torch.adv_attacks.art_attack_factory import \
-    ARTAttackFactory as AttackFactory
+from hyperion.torch.adv_attacks.art_attack_factory import (
+    ARTAttackFactory as AttackFactory,
+)
 from hyperion.torch.layers import LinBinCalibrator as Calibrator
 from hyperion.torch.narchs import AudioFeatsMVN as AF
 from hyperion.torch.utils import open_device
 from hyperion.torch.utils.misc import compute_stats_adv_attack, l2_norm
 from hyperion.utils import TrialKey, TrialNdx, TrialScores, Utt2Info
 from hyperion.utils.list_utils import ismember
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
 
 
 def init_device(use_gpu):
@@ -69,7 +75,6 @@ def load_calibrator(cal_file):
 
 
 def read_data(v_file, key_file, enroll_file, seg_part_idx, num_seg_parts):
-
     r = DRF.create(v_file)
     enroll = Utt2Info.load(enroll_file)
     key = TrialKey.load(key_file)
@@ -156,7 +161,6 @@ def eval_cosine_scoring(
     num_seg_parts,
     **kwargs
 ):
-
     device_type = "gpu" if use_gpu else "cpu"
     device = init_device(use_gpu)
     feat_extractor = init_feats(**kwargs)
@@ -343,8 +347,7 @@ def eval_cosine_scoring(
     attack_stats.to_csv(stats_file)
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(
         description=(
             "Eval cosine-scoring given enroll x-vector "
@@ -363,7 +366,9 @@ if __name__ == "__main__":
 
     parser.add_argument("--vad", dest="vad_spec", default=None)
     parser.add_argument(
-        "--vad-path-prefix", default=None, help=("scp file_path prefix for vad"),
+        "--vad-path-prefix",
+        default=None,
+        help=("scp file_path prefix for vad"),
     )
 
     parser.add_argument("--model-path", required=True)
@@ -431,3 +436,7 @@ if __name__ == "__main__":
     logging.debug(args)
 
     eval_cosine_scoring(**namespace_to_dict(args))
+
+
+if __name__ == "__main__":
+    main()

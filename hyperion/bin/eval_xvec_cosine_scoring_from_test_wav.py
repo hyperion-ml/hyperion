@@ -12,6 +12,13 @@ import time
 import numpy as np
 import torch
 import torch.nn as nn
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
+
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.io import RandomAccessAudioReader as AR
 from hyperion.io import RandomAccessDataReaderFactory as DRF
@@ -24,8 +31,6 @@ from hyperion.torch.utils import open_device
 from hyperion.torch.utils.misc import l2_norm
 from hyperion.utils import TrialKey, TrialNdx, TrialScores, Utt2Info
 from hyperion.utils.list_utils import ismember
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
 
 
 def init_device(use_gpu):
@@ -66,7 +71,6 @@ def load_calibrator(cal_file, device):
 
 
 def read_data(v_file, ndx_file, enroll_file, seg_part_idx, num_seg_parts):
-
     r = DRF.create(v_file)
     enroll = Utt2Info.load(enroll_file)
     try:
@@ -104,7 +108,6 @@ def eval_cosine_scoring(
     num_seg_parts,
     **kwargs
 ):
-
     device = init_device(use_gpu)
     feat_extractor = init_feats(device, **kwargs)
     model = load_model(model_path, device)
@@ -199,8 +202,7 @@ def eval_cosine_scoring(
     s.save_txt(score_file)
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(
         description="Eval cosine-scoring given enroll x-vector and test wave"
     )
@@ -216,7 +218,9 @@ if __name__ == "__main__":
 
     parser.add_argument("--vad", dest="vad_spec", default=None)
     parser.add_argument(
-        "--vad-path-prefix", default=None, help=("scp file_path prefix for vad"),
+        "--vad-path-prefix",
+        default=None,
+        help=("scp file_path prefix for vad"),
     )
 
     parser.add_argument("--model-path", required=True)
@@ -266,3 +270,7 @@ if __name__ == "__main__":
     logging.debug(args)
 
     eval_cosine_scoring(**namespace_to_dict(args))
+
+
+if __name__ == "__main__":
+    main()

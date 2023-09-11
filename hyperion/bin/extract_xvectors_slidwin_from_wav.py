@@ -13,6 +13,13 @@ import numpy as np
 import pandas as pd
 import torch
 import yaml
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
+
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialAudioReader as AR
@@ -22,12 +29,6 @@ from hyperion.torch import TorchModelLoader as TML
 from hyperion.torch.narchs import AudioFeatsMVN as AF
 from hyperion.torch.utils import open_device
 from hyperion.utils import Utt2Info
-from jsonargparse import (
-    ActionConfigFile,
-    ActionParser,
-    ArgumentParser,
-    namespace_to_dict,
-)
 
 
 def init_device(use_gpu):
@@ -99,7 +100,6 @@ def extract_xvectors(
     use_gpu,
     **kwargs
 ):
-
     rng = np.random.default_rng(seed=1123581321 + kwargs["part_idx"])
     device = init_device(use_gpu)
     feat_extractor = init_feats(device, **kwargs)
@@ -124,15 +124,16 @@ def extract_xvectors(
     ar_args = AR.filter_args(**kwargs)
     logging.info("opening output stream: %s", output_spec)
     with DWF.create(output_spec) as writer:
-
         logging.info(
             "opening input stream: {} with args={}".format(input_spec, ar_args)
         )
         with AR(input_spec, **ar_args) as reader:
-
             if vad_spec is not None:
                 logging.info("opening VAD stream: %s", vad_spec)
-                v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix,)
+                v_reader = VRF.create(
+                    vad_spec,
+                    path_prefix=vad_path_prefix,
+                )
 
             while not reader.eof():
                 t1 = time.time()
@@ -172,7 +173,13 @@ def extract_xvectors(
 
                         t6 = time.time()
                         if x.shape[1] == 0:
-                            y = np.zeros((1, model.embed_dim,), dtype=float_cpu(),)
+                            y = np.zeros(
+                                (
+                                    1,
+                                    model.embed_dim,
+                                ),
+                                dtype=float_cpu(),
+                            )
                         else:
                             x = x.transpose(1, 2).contiguous()
                             y = (
@@ -255,8 +262,7 @@ def extract_xvectors(
             yaml.dump(params, f)
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(
         description=(
             "Extract x-vectors over a sliding window"
@@ -347,3 +353,7 @@ if __name__ == "__main__":
     logging.debug(args)
 
     extract_xvectors(**namespace_to_dict(args))
+
+
+if __name__ == "__main__":
+    main()

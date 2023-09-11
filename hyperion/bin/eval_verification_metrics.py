@@ -5,18 +5,18 @@
 """
 import logging
 from pathlib import Path
+
 import pandas as pd
-
-from hyperion.hyp_defs import config_logger
-from hyperion.np.metrics import VerificationEvaluator as VE
-
 from jsonargparse import (
     ActionConfigFile,
-    ActionYesNo,
     ActionParser,
+    ActionYesNo,
     ArgumentParser,
     namespace_to_dict,
 )
+
+from hyperion.hyp_defs import config_logger
+from hyperion.np.metrics import VerificationEvaluator as VE
 
 
 def eval_verification_metrics(
@@ -30,7 +30,6 @@ def eval_verification_metrics(
     sparse,
     output_file,
 ):
-
     assert len(key_files) == len(key_names)
     assert len(score_files) == len(score_names)
     dfs = []
@@ -61,8 +60,7 @@ def eval_verification_metrics(
     print(df.to_string(), flush=True)
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(description="Evaluate speaker verification metrics")
     parser.add_argument("--cfg", action=ActionConfigFile)
     parser.add_argument("--key-files", required=True, nargs="+")
@@ -85,7 +83,12 @@ if __name__ == "__main__":
     parser.add_argument("--sparse", default=False, action=ActionYesNo)
     parser.add_argument("--output-file", required=True)
     parser.add_argument(
-        "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int,
+        "-v",
+        "--verbose",
+        dest="verbose",
+        default=1,
+        choices=[0, 1, 2, 3],
+        type=int,
     )
 
     args = parser.parse_args()
@@ -94,3 +97,7 @@ if __name__ == "__main__":
     del kwargs["verbose"]
     del kwargs["cfg"]
     eval_verification_metrics(**kwargs)
+
+
+if __name__ == "__main__":
+    main()

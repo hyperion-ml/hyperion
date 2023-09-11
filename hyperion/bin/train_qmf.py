@@ -6,25 +6,25 @@
   Trains calibration for SRE18 tel condition
 """
 
-import sys
-import os
-from jsonargparse import (
-    ArgumentParser,
-    ActionConfigFile,
-    ActionParser,
-    namespace_to_dict,
-)
-import time
 import logging
+import os
+import sys
+import time
 from pathlib import Path
 
 import numpy as np
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
 
-from hyperion.hyp_defs import float_cpu, config_logger
-from hyperion.utils.trial_scores import TrialScores
-from hyperion.utils.trial_key import TrialKey
-from hyperion.np.metrics import compute_act_dcf, compute_min_dcf
+from hyperion.hyp_defs import config_logger, float_cpu
 from hyperion.np.classifiers import BinaryLogisticRegression as LR
+from hyperion.np.metrics import compute_act_dcf, compute_min_dcf
+from hyperion.utils.trial_key import TrialKey
+from hyperion.utils.trial_scores import TrialScores
 
 
 def print_q_stats(scr, q_names):
@@ -110,7 +110,7 @@ def train_qmf(
     scr_out.save(output_file)
 
 
-if __name__ == "__main__":
+def main():
     parser = ArgumentParser(description="Trains QMF calibration")
 
     parser.add_argument("--score-file", required=True)
@@ -133,3 +133,7 @@ if __name__ == "__main__":
     logging.debug(args)
 
     train_qmf(**namespace_to_dict(args))
+
+
+if __name__ == "__main__":
+    main()

@@ -10,11 +10,6 @@ import sys
 import time
 
 import numpy as np
-from hyperion.hyp_defs import config_logger
-from hyperion.io import AudioWriter as Writer
-from hyperion.io import SequentialAudioReader as AR
-from hyperion.io import VADReaderFactory as VRF
-from hyperion.utils import Utt2Info
 from jsonargparse import (
     ActionConfigFile,
     ActionParser,
@@ -22,6 +17,12 @@ from jsonargparse import (
     namespace_to_dict,
 )
 from scipy import ndimage, signal
+
+from hyperion.hyp_defs import config_logger
+from hyperion.io import AudioWriter as Writer
+from hyperion.io import SequentialAudioReader as AR
+from hyperion.io import VADReaderFactory as VRF
+from hyperion.utils import Utt2Info
 
 
 def resample_vad(vad, length):
@@ -59,7 +60,6 @@ def process_audio_files(
     remove_dc_offset=False,
     **kwargs,
 ):
-
     input_args = AR.filter_args(**kwargs)
     output_args = Writer.filter_args(**kwargs)
     logging.info(f"input_args={input_args}")
@@ -72,7 +72,6 @@ def process_audio_files(
     with AR(recordings_file, **input_args) as reader, Writer(
         output_path, output_recordings_file, **output_args
     ) as writer:
-
         if vad_spec is not None:
             logging.info("opening VAD stream: %s", vad_spec)
             v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix)
@@ -147,8 +146,7 @@ def process_audio_files(
         u2td.save(write_time_durs_spec)
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(
         description="Process pipes in wav.scp file, optionally applies vad and save all audios in the same format"
     )
@@ -204,3 +202,7 @@ if __name__ == "__main__":
     logging.debug(args)
 
     process_audio_files(**namespace_to_dict(args))
+
+
+if __name__ == "__main__":
+    main()

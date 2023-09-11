@@ -14,6 +14,14 @@ import k2
 import numpy as np
 import torch
 import torch.nn as nn
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
+from torch.nn.utils.rnn import pad_sequence
+
 from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch import TorchModelLoader as TML
 from hyperion.torch.data import AudioDataset as AD
@@ -22,9 +30,6 @@ from hyperion.torch.metrics import CategoricalAccuracy
 from hyperion.torch.models import HFWav2Vec2Transducer
 from hyperion.torch.trainers import TransducerTrainer as Trainer
 from hyperion.torch.utils import ddp
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
-from torch.nn.utils.rnn import pad_sequence
 
 model_dict = {
     "hf_wav2vec2transducer": HFWav2Vec2Transducer,
@@ -43,8 +48,7 @@ def transducer_collate(batch):
     audio = pad_sequence(audio)
     audio_length = torch.as_tensor(audio_length)
     target = k2.RaggedTensor(target)
-    return torch.transpose(audio,0,1), audio_length, target
-
+    return torch.transpose(audio, 0, 1), audio_length, target
 
 
 def init_data(partition, rank, num_gpus, **kwargs):
@@ -73,7 +77,9 @@ def init_data(partition, rank, num_gpus, **kwargs):
     largs = (
         {"num_workers": num_workers_per_gpu, "pin_memory": True} if num_gpus > 0 else {}
     )
-    data_loader = torch.utils.data.DataLoader(dataset, batch_sampler=sampler, **largs, collate_fn=transducer_collate)
+    data_loader = torch.utils.data.DataLoader(
+        dataset, batch_sampler=sampler, **largs, collate_fn=transducer_collate
+    )
     return data_loader
 
 
@@ -89,11 +95,7 @@ def init_model(in_model_file, rank, model_class, **kwargs):
     return model
 
 
-
-
-
 def train_model(gpu_id, args):
-
     config_logger(args.verbose)
     del args.verbose
     logging.debug(args)
@@ -119,7 +121,7 @@ def train_model(gpu_id, args):
     trn_args = Trainer.filter_args(**kwargs["trainer"])
     if rank == 0:
         logging.info("trainer args={}".format(trn_args))
-    metrics = {} 
+    metrics = {}
     trainer = Trainer(
         model,
         device=device,
@@ -135,7 +137,7 @@ def train_model(gpu_id, args):
 
 def make_parser(model_class):
     parser = ArgumentParser()
-    
+
     parser.add_argument("--cfg", action=ActionConfigFile)
     train_parser = ArgumentParser(prog="")
     AD.add_class_args(train_parser, prefix="dataset", skip={})
@@ -161,27 +163,23 @@ def make_parser(model_class):
     data_parser.add_argument("--val", action=ActionParser(parser=val_parser))
     parser.add_argument("--data", action=ActionParser(parser=data_parser))
 
-
     parser.add_argument(
         "--data.train.dataset.text_file",
-        type=str, 
+        type=str,
     )
-    
-    parser.add_argument("--data.val.dataset.text_file", type=str) 
-    
+
+    parser.add_argument("--data.val.dataset.text_file", type=str)
+
     parser.add_argument(
         "--data.train.dataset.bpe_model",
-        type=str, 
+        type=str,
     )
 
     parser.link_arguments(
         "data.train.data_loader.num_workers", "data.val.data_loader.num_workers"
     )
 
-    parser.link_arguments(
-        "data.train.dataset.bpe_model", "data.val.dataset.bpe_model"
-    )
-
+    parser.link_arguments("data.train.dataset.bpe_model", "data.val.dataset.bpe_model")
 
     parser.add_argument("--in-model-file", required=True)
     model_class.add_finetune_args(parser, prefix="model")
@@ -198,8 +196,10 @@ def make_parser(model_class):
     return parser
 
 
-if __name__ == "__main__":
-    parser = ArgumentParser(description="Fine-tune  Wav2Vec2Transducer model from audio files")
+def main():
+    parser = ArgumentParser(
+        description="Fine-tune  Wav2Vec2Transducer model from audio files"
+    )
     parser.add_argument("--cfg", action=ActionConfigFile)
 
     subcommands = parser.add_subcommands()
@@ -228,3 +228,7 @@ if __name__ == "__main__":
     # torch docs recommend using forkserver
     # multiprocessing.set_start_method("forkserver")
     train_model(gpu_id, args_sc)
+
+
+if __name__ == "__main__":
+    main()

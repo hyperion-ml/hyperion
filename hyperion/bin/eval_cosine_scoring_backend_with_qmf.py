@@ -4,33 +4,33 @@
   Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)  
 
 """
-from jsonargparse import (
-    ArgumentParser,
-    ActionConfigFile,
-    ActionParser,
-    namespace_to_dict,
-)
-import time
 import logging
+import time
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
 
 from hyperion.hyp_defs import config_logger
-from hyperion.utils import (
-    TrialNdx,
-    TrialKey,
-    TrialScores,
-    EnrollmentMap,
-    SegmentSet,
-    InfoTable,
-)
-from hyperion.utils.math_funcs import cosine_scoring, average_vectors
 from hyperion.io import RandomAccessDataReaderFactory as DRF
-from hyperion.np.transforms import TransformList
-from hyperion.np.score_norm import AdaptSNorm
 from hyperion.np.classifiers import BinaryLogisticRegression as LR
+from hyperion.np.score_norm import AdaptSNorm
+from hyperion.np.transforms import TransformList
+from hyperion.utils import (
+    EnrollmentMap,
+    InfoTable,
+    SegmentSet,
+    TrialKey,
+    TrialNdx,
+    TrialScores,
+)
+from hyperion.utils.math_funcs import average_vectors, cosine_scoring
 
 
 def get_precomp_qm_names(quality_measures):
@@ -542,7 +542,7 @@ def eval_backend(
     #     scores.save(score_file_snorm)
 
 
-if __name__ == "__main__":
+def main():
     parser = ArgumentParser(
         description="Eval cosine-scoring with optional AS-Norm and QMF"
     )
@@ -611,3 +611,7 @@ if __name__ == "__main__":
     logging.debug(args)
 
     eval_backend(**namespace_to_dict(args))
+
+
+if __name__ == "__main__":
+    main()

@@ -7,6 +7,14 @@ import logging
 from pathlib import Path
 from typing import List, Optional, Union
 
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ActionYesNo,
+    ArgumentParser,
+    namespace_to_dict,
+)
+
 from hyperion.hyp_defs import config_logger
 from hyperion.utils import (
     ClassInfo,
@@ -17,13 +25,6 @@ from hyperion.utils import (
     PathLike,
     RecordingSet,
     SegmentSet,
-)
-from jsonargparse import (
-    ActionConfigFile,
-    ActionParser,
-    ArgumentParser,
-    namespace_to_dict,
-    ActionYesNo,
 )
 
 subcommand_list = [
@@ -41,7 +42,12 @@ subcommand_list = [
 
 def add_common_args(parser):
     parser.add_argument(
-        "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int,
+        "-v",
+        "--verbose",
+        dest="verbose",
+        default=1,
+        choices=[0, 1, 2, 3],
+        type=int,
     )
 
 
@@ -145,7 +151,8 @@ def make_make_from_recordings_parser():
 
 
 def make_from_recordings(
-    dataset: PathLike, recordings_file: PathLike,
+    dataset: PathLike,
+    recordings_file: PathLike,
 ):
     output_dataset = dataset
     import pandas as pd
@@ -186,7 +193,10 @@ def make_remove_short_segments_parser():
 
 
 def remove_short_segments(
-    dataset: PathLike, min_length: float, length_name: str, output_dataset: PathLike,
+    dataset: PathLike,
+    min_length: float,
+    length_name: str,
+    output_dataset: PathLike,
 ):
     if output_dataset is None:
         output_dataset = dataset
@@ -216,7 +226,9 @@ def make_rebuild_class_idx_parser():
 
 
 def rebuild_class_idx(
-    dataset: PathLike, class_name: str, output_dataset: PathLike,
+    dataset: PathLike,
+    class_name: str,
+    output_dataset: PathLike,
 ):
     if output_dataset is None:
         output_dataset = dataset
@@ -301,14 +313,21 @@ def make_split_train_val_parser():
         help="""types of classes that need to have different classes in train and val""",
     )
     parser.add_argument(
-        "--seed", default=11235813, type=int, help="""random seed""",
+        "--seed",
+        default=11235813,
+        type=int,
+        help="""random seed""",
     )
 
     parser.add_argument(
-        "--train-dataset", required=True, help="""output train dataset dir""",
+        "--train-dataset",
+        required=True,
+        help="""output train dataset dir""",
     )
     parser.add_argument(
-        "--val-dataset", required=True, help="""output val dataset dir""",
+        "--val-dataset",
+        required=True,
+        help="""output val dataset dir""",
     )
 
     add_common_args(parser)
@@ -361,7 +380,8 @@ def make_copy_parser():
 
 
 def copy(
-    dataset: PathLike, output_dataset: PathLike,
+    dataset: PathLike,
+    output_dataset: PathLike,
 ):
     dataset = Dataset.load(dataset, lazy=True)
     dataset.save(output_dataset)
@@ -383,7 +403,10 @@ def make_add_cols_to_segments_parser():
         help="""columns to copy to segments table""",
     )
     parser.add_argument(
-        "--on", default=["id"], nargs="+", help="""columns to match both tables rows""",
+        "--on",
+        default=["id"],
+        nargs="+",
+        help="""columns to match both tables rows""",
     )
     parser.add_argument(
         "--right-on",
@@ -418,8 +441,7 @@ def add_cols_to_segments(
     dataset.save(output_dataset)
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(description="Tool to manipulates the Hyperion dataset")
     parser.add_argument("--cfg", action=ActionConfigFile)
 
@@ -436,3 +458,7 @@ if __name__ == "__main__":
     del kwargs["verbose"]
     del kwargs["cfg"]
     globals()[subcommand](**kwargs)
+
+
+if __name__ == "__main__":
+    main()

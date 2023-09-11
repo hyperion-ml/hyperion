@@ -44,7 +44,7 @@ if [ $stage -le 1 ]; then
   $cuda_cmd \
     --gpu $ngpu $nnet_s1_dir/log/train.log \
     hyp_utils/conda_env.sh --conda-env $HYP_ENV --num-gpus $ngpu \
-    train_wav2xvector.py $nnet_type --cfg $nnet_s1_base_cfg $nnet_s1_args $extra_args \
+    hyperion-train-wav2xvector $nnet_type --cfg $nnet_s1_base_cfg $nnet_s1_args $extra_args \
     --data.train.dataset.recordings-file $train_data_dir/recordings.csv \
     --data.train.dataset.segments-file $train_data_dir/segments.csv \
     --data.train.dataset.class-files $train_data_dir/speaker.csv \
@@ -65,7 +65,7 @@ if [ $stage -le 2 ]; then
   $cuda_cmd \
     --gpu $ngpu $nnet_s2_dir/log/train.log \
     hyp_utils/conda_env.sh --conda-env $HYP_ENV --num-gpus $ngpu \
-    finetune_wav2xvector.py $nnet_type --cfg $nnet_s2_base_cfg $nnet_s2_args $extra_args \
+    hyperion-finetune-wav2xvector $nnet_type --cfg $nnet_s2_base_cfg $nnet_s2_args $extra_args \
     --data.train.dataset.recordings-file $train_data_dir/recordings.csv \
     --data.train.dataset.segments-file $train_data_dir/segments.csv \
     --data.train.dataset.class-files $train_data_dir/speaker.csv \

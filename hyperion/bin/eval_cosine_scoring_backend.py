@@ -4,24 +4,24 @@
   Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)  
 
 """
-from jsonargparse import (
-    ArgumentParser,
-    ActionConfigFile,
-    ActionParser,
-    namespace_to_dict,
-)
-import time
 import logging
+import time
 from pathlib import Path
 
 import numpy as np
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
 
 from hyperion.hyp_defs import config_logger
-from hyperion.utils import TrialNdx, TrialKey, TrialScores, EnrollmentMap, SegmentSet
-from hyperion.utils.math_funcs import cosine_scoring
 from hyperion.io import RandomAccessDataReaderFactory as DRF
-from hyperion.np.transforms import TransformList
 from hyperion.np.score_norm import AdaptSNorm
+from hyperion.np.transforms import TransformList
+from hyperion.utils import EnrollmentMap, SegmentSet, TrialKey, TrialNdx, TrialScores
+from hyperion.utils.math_funcs import cosine_scoring
 
 
 def load_trial_data(
@@ -58,7 +58,6 @@ def load_trial_data(
 
 
 def load_cohort_data(segments_file, feats_file):
-
     segments = SegmentSet.load(segments_file)
     feats_reader = DRF.create(feats_file)
     x = feats_reader.read(segments["id"], squeeze=True)
@@ -81,7 +80,6 @@ def eval_backend(
     cohort_nbest,
     avg_cohort_by,
 ):
-
     logging.info("loading data")
     enroll_map, ndx, x_e, x_t = load_trial_data(
         enroll_map_file,
@@ -151,8 +149,7 @@ def eval_backend(
     scores.save(score_file)
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(description="Eval cosine-scoring with optional AS-Norm")
 
     parser.add_argument("--enroll-feats-file", default=None)
@@ -198,3 +195,7 @@ if __name__ == "__main__":
     logging.debug(args)
 
     eval_backend(**namespace_to_dict(args))
+
+
+if __name__ == "__main__":
+    main()

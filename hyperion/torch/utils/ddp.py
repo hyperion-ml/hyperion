@@ -6,19 +6,16 @@ import datetime
 import logging
 import os
 
-from fairscale.nn.data_parallel import \
-    FullyShardedDataParallel as FullyShardedDDP
-from fairscale.nn.data_parallel import ShardedDataParallel as ShardedDDP
-
 import torch
 import torch.distributed as dist
 import torch.nn as nn
+from fairscale.nn.data_parallel import FullyShardedDataParallel as FullyShardedDDP
+from fairscale.nn.data_parallel import ShardedDataParallel as ShardedDDP
 
 from .devices import open_device
 
 
 def add_ddp_args(parser):
-
     parser.add_argument(
         "--num-gpus", type=int, default=1, help="number of gpus, if 0 it uses cpu"
     )
@@ -50,7 +47,6 @@ def filter_ddp_args(**kwargs):
 def ddp_init(
     gpu_id, num_gpus, node_id=0, num_nodes=1, master_addr="localhost", master_port=None
 ):
-
     rank = node_id * num_gpus + gpu_id
     world_size = num_nodes * num_gpus
 
@@ -62,15 +58,16 @@ def ddp_init(
     os.environ["MASTER_PORT"] = master_port
 
     logging.info(
-        f"init ddp rank={rank} world_size={world_size} master={master_addr}:{master_port} gpu_id={gpu_id}" 
+        f"init ddp rank={rank} world_size={world_size} master={master_addr}:{master_port} gpu_id={gpu_id}"
     )
     dist.init_process_group(
         "nccl",
         rank=rank,
         world_size=world_size,
     )
+    torch.cuda.set_device(rank)
     torch.tensor([0]).to(gpu_id)
-    device = torch.device('cuda', gpu_id)
+    device = torch.device("cuda", gpu_id)
     return device, rank, world_size
     # return gpu_id, rank, world_size
 
