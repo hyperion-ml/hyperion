@@ -8,15 +8,16 @@
 set -e
 
 stage=1
-nnet_stage=2
+nnet_stage=3
 config_file=default_config.sh
 use_gpu=false
+hf_chunk_length=120.0 #seconds
 xvec_chunk_length=120.0
 . parse_options.sh || exit 1;
 . $config_file
 
 if [ "$use_gpu" == "true" ];then
-  xvec_args="--use-gpu --chunk-length $xvec_chunk_length"
+  xvec_args="--use-gpu true --xvec-chunk-length $xvec_chunk_length --hf-chunk-length $hf_chunk_length"
   xvec_cmd="$cuda_eval_cmd --gpu 1 --mem 6G"
   num_gpus=1
 else
@@ -58,7 +59,7 @@ if [[ $stage -le 1 && ( "$do_plda" == "true" || "$do_snorm" == "true" || "$do_qm
     echo "Extracting x-vectors for $name"
     $xvec_cmd JOB=1:$nj $output_dir/log/extract_xvectors.JOB.log \
 	      hyp_utils/conda_env.sh --num-gpus $num_gpus \
-	      hyperion-extract-wav2xvectors ${xvec_args} ${vad_args} \
+	      hyperion-extract-wav2vec2xvectors ${xvec_args} ${vad_args} \
 	      --part-idx JOB --num-parts $nj  \
 	      --recordings-file data/$name/recordings.csv \
 	      --random-utt-length --min-utt-length 2 --max-utt-length 30 \
@@ -88,7 +89,7 @@ if [ $stage -le 2 ]; then
     echo "Extracting x-vectors for $name"
     $xvec_cmd JOB=1:$nj $output_dir/log/extract_xvectors.JOB.log \
 	      hyp_utils/conda_env.sh --num-gpus $num_gpus \
-	      hyperion-extract-wav2xvectors ${xvec_args} ${vad_args} \
+	      hyperion-extract-wav2vec2xvectors ${xvec_args} ${vad_args} \
 	      --part-idx JOB --num-parts $nj  \
 	      --recordings-file data/$name/recordings.csv \
 	      --model-path $nnet  \
