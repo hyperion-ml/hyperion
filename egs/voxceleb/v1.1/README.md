@@ -1,5 +1,7 @@
 # VoxCeleb V1.1
 
+This recipe will be deprecated, use V1.2
+
 Recipe for the VoxCeleb Speaker Verification Task
 
 ## Differences w.r.t VoxCeleb V1 recipe
