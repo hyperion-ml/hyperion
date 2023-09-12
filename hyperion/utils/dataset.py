@@ -55,7 +55,6 @@ class Dataset:
         sparse_trials: bool = False,
         table_sep: Optional[str] = None,
     ):
-
         if isinstance(segments, SegmentSet):
             self._segments = segments
             self._segments_path = None
@@ -82,10 +81,12 @@ class Dataset:
             features, FeatureSet
         )
         self._enrollments, self._enrollments_paths = self._parse_dict_args(
-            enrollments, EnrollmentMap,
+            enrollments,
+            EnrollmentMap,
         )
         self._trials, self._trials_paths = self._parse_dict_args(
-            trials, (TrialKey, TrialNdx, SparseTrialKey),
+            trials,
+            (TrialKey, TrialNdx, SparseTrialKey),
         )
 
         self.sparse_trials = sparse_trials
@@ -711,7 +712,8 @@ class Dataset:
             raise ValueError()
 
     def set_segments(
-        self, segments: Union[PathLike, SegmentSet], update_seg_durs: bool,
+        self,
+        segments: Union[PathLike, SegmentSet],
     ):
         if isinstance(segments, (str, Path)):
             self._segments = None
@@ -723,7 +725,9 @@ class Dataset:
             raise ValueError()
 
     def set_recordings(
-        self, recordings: Union[PathLike, RecordingSet], update_seg_durs: bool,
+        self,
+        recordings: Union[PathLike, RecordingSet],
+        update_seg_durs: bool = False,
     ):
         if isinstance(recordings, (str, Path)):
             self._recordings = None
@@ -753,7 +757,9 @@ class Dataset:
             raise ValueError()
 
     def add_enrollments(
-        self, enrollments_name: str, enrollments: Union[PathLike, EnrollmentMap],
+        self,
+        enrollments_name: str,
+        enrollments: Union[PathLike, EnrollmentMap],
     ):
         if self._enrollments is None:
             self._enrollments = {}
@@ -793,7 +799,9 @@ class Dataset:
         del self._features[features_name]
         del self._features_paths[features_name]
 
-    def remove_recordings(self,):
+    def remove_recordings(
+        self,
+    ):
         if self._recordings_path is not None:
             self._files_to_delete.append(self._recordings_path)
 
@@ -820,7 +828,8 @@ class Dataset:
         del self._classes_paths[classes_name]
 
     def remove_enrollments(
-        self, enrollments_name: str,
+        self,
+        enrollments_name: str,
     ):
         if self._enrollments_paths[enrollments_name] is not None:
             self._files_to_delete.append(self._enrollments_paths[enrollments_name])
@@ -829,7 +838,8 @@ class Dataset:
         del self._enrollments_paths[enrollments_name]
 
     def remove_trials(
-        self, trials_name: str,
+        self,
+        trials_name: str,
     ):
         if self._trials_paths[trials_name] is not None:
             self._files_to_delete.append(self._trials_paths[trials_name])
@@ -981,14 +991,20 @@ class Dataset:
             segments_male = SegmentSet(segments[segments["gender"] == "m"])
             segments_female = SegmentSet(segments[segments["gender"] == "f"])
             trials_male, enroll_male, cohort_male = self._split_into_trials_and_cohort(
-                segments_male, num_tar_trials, num_trial_speakers, seed,
+                segments_male,
+                num_tar_trials,
+                num_trial_speakers,
+                seed,
             )
             (
                 trials_female,
                 enroll_female,
                 cohort_female,
             ) = self._split_into_trials_and_cohort(
-                segments_female, num_tar_trials, num_trial_speakers, seed,
+                segments_female,
+                num_tar_trials,
+                num_trial_speakers,
+                seed,
             )
             trials = TrialKey.merge([trials_male, trials_female])
             enroll = EnrollmentMap.cat([enroll_male, enroll_female])
@@ -996,7 +1012,10 @@ class Dataset:
         else:
             segments = self.segments()
             trials, enroll, cohort = self._split_into_trials_and_cohort(
-                segments, num_tar_trials, num_trial_speakers, seed,
+                segments,
+                num_tar_trials,
+                num_trial_speakers,
+                seed,
             )
 
         dataset_trials = self.clone()
@@ -1019,7 +1038,10 @@ class Dataset:
         self.clean()
 
     def remove_classes_few_segments(
-        self, class_name: str, min_segs: int, rebuild_idx: bool = False,
+        self,
+        class_name: str,
+        min_segs: int,
+        rebuild_idx: bool = False,
     ):
         segments = self.segments()
         classes, counts = np.unique(segments[class_name], return_counts=True)
@@ -1082,7 +1104,10 @@ class Dataset:
         return train_segs, val_segs
 
     def _segments_split_disjoint_classes(
-        self, val_prob: float, disjoint_classes: List[str], rng: np.random.Generator,
+        self,
+        val_prob: float,
+        disjoint_classes: List[str],
+        rng: np.random.Generator,
     ):
         segments = self.segments()
         classes = segments[disjoint_classes].apply("-".join, axis=1)
@@ -1165,15 +1190,24 @@ class Dataset:
             train_segs, val_segs = self._segments_split(val_prob, rng)
         elif joint_classes is not None and disjoint_classes is None:
             train_segs, val_segs = self._segments_split_joint_classes(
-                val_prob, joint_classes, min_train_samples, rng,
+                val_prob,
+                joint_classes,
+                min_train_samples,
+                rng,
             )
         elif joint_classes is None and disjoint_classes is not None:
             train_segs, val_segs = self._segments_split_disjoint_classes(
-                val_prob, disjoint_classes, rng,
+                val_prob,
+                disjoint_classes,
+                rng,
             )
         else:
             train_segs, val_segs = self._segments_split_joint_and_disjoint_classes(
-                val_prob, joint_classes, disjoint_classes, min_train_samples, rng,
+                val_prob,
+                joint_classes,
+                disjoint_classes,
+                min_train_samples,
+                rng,
             )
 
         train_ds = self.clone()

@@ -8,12 +8,13 @@ import os
 from turtle import right
 from typing import List, Optional, Tuple, Union
 
+import torch
+import torch.nn as nn
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from transformers import Wav2Vec2FeatureExtractor, Wav2Vec2Processor
 
-import torch
-import torch.nn as nn
-
+from ....utils.misc import filter_func_args
+from ...layers import LoRAFactory
 from ...torch_model import TorchModel
 from ...utils import scale_seq_lengths, seq_lengths_to_mask
 from ...utils.ddp import ddp_get_rank, ddp_wait_for_all_procs
@@ -55,6 +56,12 @@ class HFWav2VecBase(TorchModel):
         sample_frequency: (`int`) waveform sample frequency used to train the model.
         feat_extract_lr: learning rate for conv feature extractor, serves to set a lr different than the global one.
         encoder_lr: learning rate for the wav2vec encoder, serves to set a lr different than the global one.
+        use_lora: use low-rank adapters
+        lora_components: list of components where we apply LoRA, eg [Wq, Wv]
+        lora_rank: rank of LoRA
+        lora_alpha: scale for LoRA
+        lora_dropout: dropout rate for LoRA
+        lora_merge_weights: lora weights are merged with the pretrained weights at inference.
     """
 
     def __init__(
@@ -75,6 +82,12 @@ class HFWav2VecBase(TorchModel):
         sample_frequency: int = 16000,
         feat_extract_lr: Optional[float] = None,
         encoder_lr: Optional[float] = None,
+        use_lora: bool = False,
+        lora_components: List[str] = ["q_proj", "v_proj"],
+        lora_rank: int = 4,
+        lora_alpha: int = 1,
+        lora_dropout: float = 0.0,
+        lora_merge_weights: bool = True,
     ):
         super().__init__()
         self.pretrained_model_path = pretrained_model_path
@@ -90,6 +103,12 @@ class HFWav2VecBase(TorchModel):
         self.left_encoder_context = left_encoder_context
         self.feat_extract_lr = feat_extract_lr
         self.encoder_lr = encoder_lr
+        self.use_lora = use_lora
+        self.lora_components = lora_components
+        self.lora_rank = lora_rank
+        self.lora_alpha = lora_alpha
+        self.lora_dropout = lora_dropout
+        self.lora_merge_weights = lora_merge_weights
 
         if pretrained_model_path is not None and not ignore_pretrained:
             rank = ddp_get_rank()
@@ -153,6 +172,16 @@ class HFWav2VecBase(TorchModel):
 
         self._feature_encoder_context = None
         self._frame_shift = None
+        self.hf_model = None
+
+        if use_lora:
+            self._make_lora_layers(
+                lora_components,
+                lora_rank,
+                lora_alpha,
+                lora_dropout,
+                lora_merge_weights,
+            )
 
     def __deepcopy__(self, memo):
         """Reimplementation of deepcopy for Hugging Face models.
@@ -225,17 +254,35 @@ class HFWav2VecBase(TorchModel):
         self,
         override_dropouts: bool,
         override_spec_augment: bool,
+        override_lora: bool,
         feat_extract_lr: Optional[float] = None,
         encoder_lr: Optional[float] = None,
+        use_lora: bool = False,
+        lora_components: List[str] = ["q_proj", "v_proj"],
+        lora_rank: int = 4,
+        lora_alpha: int = 1,
+        lora_dropout: float = 0.0,
+        lora_merge_weights: bool = True,
         **kwargs,
     ):
         if override_spec_augment:
-            logging.info("overriding speech augment")
+            logging.info(f"overriding speech augment with args={kwargs}")
             self.change_spec_augment(**kwargs)
 
         if override_dropouts:
-            logging.info("overriding hf model dropouts")
+            logging.info(f"overriding hf model dropouts with args={kwargs}")
             self.change_dropouts(**kwargs)
+
+        if override_lora:
+            logging.info("overriding LoRA config")
+            self.change_lora(
+                use_lora=use_lora,
+                lora_components=lora_components,
+                lora_rank=lora_rank,
+                lora_alpha=lora_alpha,
+                lora_dropout=lora_dropout,
+                lora_merge_weights=lora_merge_weights,
+            )
 
         self.feat_extract_lr = feat_extract_lr
         self.encoder_lr = encoder_lr
@@ -259,11 +306,108 @@ class HFWav2VecBase(TorchModel):
         self.hf_model.config.mask_feature_length = mask_feature_length
         self.hf_model.config.mask_feature_min_masks = mask_feature_min_masks
 
+    def change_lora(
+        self,
+        use_lora: bool = False,
+        lora_components: List[str] = ["q_proj", "v_proj"],
+        lora_rank: int = 4,
+        lora_alpha: int = 1,
+        lora_dropout: float = 0.0,
+        lora_merge_weights: bool = True,
+    ):
+        if not self.use_lora:
+            if use_lora:
+                self._make_lora_layers(
+                    lora_components,
+                    lora_rank,
+                    lora_alpha,
+                    lora_dropout,
+                    lora_merge_weights,
+                )
+                pass
+            else:
+                # TODO
+                pass
+        else:
+            if use_lora:
+                # TODO
+                pass
+            else:
+                # TODO
+                pass
+
+        self.use_lora = use_lora
+        self.lora_components = lora_components
+        self.lora_rank = lora_rank
+        self.lora_alpha = lora_alpha
+        self.lora_dropout = lora_dropout
+        self.lora_merge_weights = lora_merge_weights
+
+    def _make_lora_layers(
+        self,
+        lora_components: List[str],
+        lora_rank: int,
+        lora_alpha: int,
+        lora_dropout: float,
+        lora_merge_weights: bool,
+    ):
+        counts = {k: 0 for k in lora_components}
+        self._recursive_replace_layer_by_lora(
+            self.hf_model,
+            counts,
+            lora_components,
+            lora_rank,
+            lora_alpha,
+            lora_dropout,
+            lora_merge_weights,
+        )
+        for k, v in counts.items():
+            logging.info("count of LoRA layers for %s = %d", k, v)
+            assert v > 0, f"did not make any {k} LoRA"
+
+    @staticmethod
+    def _recursive_replace_layer_by_lora(
+        model: nn.Module,
+        counts: dict,
+        lora_components: List[str],
+        lora_rank: int,
+        lora_alpha: int,
+        lora_dropout: float,
+        lora_merge_weights: bool,
+    ):
+        for name, module in model.named_children():
+            if len(list(module.children())) > 0:
+                HFWav2VecBase._recursive_replace_layer_by_lora(
+                    module,
+                    counts,
+                    lora_components,
+                    lora_rank,
+                    lora_alpha,
+                    lora_dropout,
+                    lora_merge_weights,
+                )
+            if isinstance(module, nn.Linear) and name in lora_components:
+                lora_layer = LoRAFactory.create_from_pretrained(
+                    module,
+                    r=lora_rank,
+                    lora_alpha=lora_alpha,
+                    lora_dropout=lora_dropout,
+                    merge_weights=lora_merge_weights,
+                )
+                setattr(model, name, lora_layer)
+                counts[name] += 1
+
     def change_dropouts(self, **kwargs):
         pass  # needs to be overloaded
 
     def freeze_feature_encoder(self):
         self.hf_model.freeze_feature_encoder()
+
+    def freeze_except_lora(self, bias=None):
+        bias = "none" if bias is None else bias
+        from ...layers.lora import mark_only_lora_as_trainable
+
+        mark_only_lora_as_trainable(self.hf_model, bias=bias)
 
     def has_param_groups(self):
         return self.feat_extract_lr is not None or self.encoder_lr is not None
@@ -302,14 +446,14 @@ class HFWav2VecBase(TorchModel):
         """Normalizes the audio to have zero mean and unit variance."""
         if x_mask is None:
             x = x - x.mean(dim=1, keepdim=True)
-            std = torch.sqrt((x ** 2).mean(dim=1, keepdim=True) + 1e-7)
+            std = torch.sqrt((x**2).mean(dim=1, keepdim=True) + 1e-7)
             x = x / std
         else:
             x_mask = x_mask.to(dtype=x.dtype)
             x_samples = torch.mean(x_mask, dim=1, keepdim=True)
             x_mean = torch.mean(x * x_mask, dim=1, keepdim=True) / x_samples
-            x2_mean = torch.mean(x ** 2 * x_mask, dim=1, keepdim=True) / x_samples
-            std = torch.sqrt(x2_mean - x_mean ** 2 + 1e-7)
+            x2_mean = torch.mean(x**2 * x_mask, dim=1, keepdim=True) / x_samples
+            std = torch.sqrt(x2_mean - x_mean**2 + 1e-7)
             x = (x - x_mean) / std
         return x
 
@@ -544,14 +688,6 @@ class HFWav2VecBase(TorchModel):
             else scale_seq_lengths(x_lengths, max_out_length, max_in_length)
         )
         output["hidden_states_lengths"] = feat_lengths
-        # print(
-        #     "lens",
-        #     mol0,
-        #     max_out_length,
-        #     output.last_hidden_state.size(1),
-        #     output.hidden_states[0].size(1),
-        #     flush=True,
-        # )
         return output
 
     def get_config(self):
@@ -572,6 +708,14 @@ class HFWav2VecBase(TorchModel):
             "left_encoder_context": self.left_encoder_context,
             "right_encoder_context": self.right_encoder_context,
             "sample_frequency": self.sample_frequency,
+            "feat_extract_lr": self.feat_extract_lr,
+            "encoder_lr": self.encoder_lr,
+            "use_lora": self.use_lora,
+            "lora_components": self.lora_components,
+            "lora_rank": self.lora_rank,
+            "lora_alpha": self.lora_alpha,
+            "lora_dropout": self.lora_dropout,
+            "lora_merge_weights": self.lora_merge_weights,
         }
 
         base_config = super().get_config()
@@ -584,24 +728,78 @@ class HFWav2VecBase(TorchModel):
 
     @staticmethod
     def filter_args(**kwargs):
-        valid_args = (
-            "pretrained_model_path",
-            "normalize_input",
-            "use_input_attention_mask",
-            "cache_dir",
-            "force_download",
-            "resume_download",
-            "revision",
-            "drop_layers_gt",
-            "ignore_pretrained",
-            "override_dropouts",
-            "override_spec_augment",
-            "left_encoder_context",
-            "right_encoder_context",
-            "sample_frequency",
+        return filter_func_args(HFWav2VecBase.__init__, **kwargs)
+        # valid_args = (
+        #     "pretrained_model_path",
+        #     "normalize_input",
+        #     "use_input_attention_mask",
+        #     "cache_dir",
+        #     "force_download",
+        #     "resume_download",
+        #     "revision",
+        #     "drop_layers_gt",
+        #     "ignore_pretrained",
+        #     "override_dropouts",
+        #     "override_spec_augment",
+        #     "left_encoder_context",
+        #     "right_encoder_context",
+        #     "sample_frequency",
+        # )
+        # args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
+        # return args
+
+    @staticmethod
+    def _add_lr_args(parser):
+        parser.add_argument(
+            "--feat-extractor-lr",
+            default=None,
+            type=float,
+            help=(
+                "lr for conv feature extractor, it serves to set a lr "
+                "different than the global one."
+            ),
         )
-        args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
-        return args
+        parser.add_argument(
+            "--encoder-lr",
+            default=None,
+            type=float,
+            help=(
+                "lr for transformer encoder, it serves to set a lr "
+                "different than the global one."
+            ),
+        )
+
+    @staticmethod
+    def _add_lora_args(parser):
+        parser.add_argument(
+            "--use-lora",
+            default=False,
+            action=ActionYesNo,
+            help="use low-rank adapters",
+        )
+        parser.add_argument(
+            "--lora-components",
+            default=["q_proj", "v_proj"],
+            nargs="+",
+            choices=[
+                "k_proj",
+                "q_proj",
+                "v_proj",
+                "out_proj",
+                "intermediate_dense",
+                "output_dense",
+            ],
+            help="list of components where we apply LoRA, eg [Wq, Wv]",
+        )
+        parser.add_argument("--lora-rank", default=4, help="rank of LoRA")
+        parser.add_argument("--lora-alpha", default=1.0, help="scale for LoRA")
+        parser.add_argument("--lora-dropout", default=0.0, help="dropout rate for LoRA")
+        parser.add_argument(
+            "--lora-merge-weights",
+            default=True,
+            action=ActionYesNo,
+            help="lora weights are merged with the pretrained weights at inference.",
+        )
 
     @staticmethod
     def add_class_args(parser, prefix=None, skip=set()):
@@ -703,36 +901,22 @@ class HFWav2VecBase(TorchModel):
                 "when the signal is evaluated chunk by chunk."
             ),
         )
-        parser.add_argument(
-            "--feat-extractor-lr",
-            default=None,
-            type=float,
-            help=(
-                "lr for conv feature extractor, it serves to set a lr "
-                "different than the global one."
-            ),
-        )
-        parser.add_argument(
-            "--encoder-lr",
-            default=None,
-            type=float,
-            help=(
-                "lr for transformer encoder, it serves to set a lr "
-                "different than the global one."
-            ),
-        )
+
+        HFWav2VecBase._add_lr_args(parser)
+        HFWav2VecBase._add_lora_args(parser)
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     @staticmethod
     def filter_finetune_args(**kwargs):
-        valid_args = (
-            "override_dropouts",
-            "override_spec_augment",
-        )
-        args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
-        return args
+        return filter_func_args(HFWav2VecBase.change_config, **kwargs)
+        # valid_args = (
+        #     "override_dropouts",
+        #     "override_spec_augment",
+        # )
+        # args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
+        # return args
 
     @staticmethod
     def add_finetune_args(parser, prefix=None, skip=set()):
@@ -759,23 +943,13 @@ class HFWav2VecBase(TorchModel):
             ),
         )
         parser.add_argument(
-            "--feat-extractor-lr",
-            default=None,
-            type=float,
-            help=(
-                "lr for conv feature extractor, it serves to set a lr "
-                "different than the global one."
-            ),
-        )
-        parser.add_argument(
-            "--encoder-lr",
-            default=None,
-            type=float,
-            help=(
-                "lr for transformer encoder, it serves to set a lr "
-                "different than the global one."
-            ),
+            "--override-lora",
+            default=False,
+            action=ActionYesNo,
+            help=("whether to change the config of LoRA layers in the model."),
         )
 
+        HFWav2VecBase._add_lr_args(parser)
+        HFWav2VecBase._add_lora_args(parser)
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
