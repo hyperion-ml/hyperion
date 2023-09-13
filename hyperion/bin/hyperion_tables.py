@@ -7,13 +7,25 @@ import logging
 from pathlib import Path
 from typing import List, Optional, Union
 
-from hyperion.hyp_defs import config_logger
-from hyperion.utils import (ClassInfo, EnrollmentMap, FeatureSet, InfoTable,
-                            PathLike, RecordingSet, SegmentSet)
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
 
-subcommands = ["cat"]
+from hyperion.hyp_defs import config_logger
+from hyperion.utils import (
+    ClassInfo,
+    EnrollmentMap,
+    FeatureSet,
+    InfoTable,
+    PathLike,
+    RecordingSet,
+    SegmentSet,
+)
+
+subcommand_list = ["cat"]
 table_dict = {
     "segments": SegmentSet,
     "recordings": RecordingSet,
@@ -73,11 +85,10 @@ def cat(
     table_type: str,
     input_files: Union[List[PathLike], None],
     output_file: PathLike,
-    num_table: int,
+    num_tables: int,
     base_idx: int = 1,
 ):
-
-    assert input_files is not None or num_jobs != 0
+    assert input_files is not None or num_tables != 0
     output_file = Path(output_file)
     if input_files is None:
         ext = output_file.suffix
@@ -97,21 +108,24 @@ def cat(
     output_table.save(output_file)
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(description="Tool to manipulates the Hyperion data tables")
     parser.add_argument("--cfg", action=ActionConfigFile)
 
     subcommands = parser.add_subcommands()
-    for subcommand in subcommands:
+    for subcommand in subcommand_list:
         parser_func = f"make_{subcommand}_parser"
         subparser = globals()[parser_func]()
-        subcommands.add_subcommand(k, subparser)
+        subcommands.add_subcommand(subcommand, subparser)
 
     args = parser.parse_args()
     subcommand = args.subcommand
     kwargs = namespace_to_dict(args)[args.subcommand]
     config_logger(kwargs["verbose"])
     del kwargs["verbose"]
-
+    del kwargs["cfg"]
     globals()[subcommand](**kwargs)
+
+
+if __name__ == "__main__":
+    main()

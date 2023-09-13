@@ -5,6 +5,7 @@
 """
 import logging
 import multiprocessing
+
 # import sys
 import os
 import time
@@ -13,17 +14,24 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch.nn as nn
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
+
 from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
 from hyperion.torch.metrics import CategoricalAccuracy
-from hyperion.torch.models import (HFHubert2ResNet1dXVector,
-                                   HFWav2Vec2ResNet1dXVector,
-                                   HFWavLM2ResNet1dXVector)
+from hyperion.torch.models import (
+    HFHubert2ResNet1dXVector,
+    HFWav2Vec2ResNet1dXVector,
+    HFWavLM2ResNet1dXVector,
+)
 from hyperion.torch.trainers import XVectorTrainer as Trainer
 from hyperion.torch.utils import ddp
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
 
 import warnings
 
@@ -37,7 +45,6 @@ model_dict = {
 
 
 def init_data(partition, rank, num_gpus, **kwargs):
-
     kwargs = kwargs["data"][partition]
     ad_args = AD.filter_args(**kwargs["dataset"])
     sampler_args = kwargs["sampler"]
@@ -80,7 +87,6 @@ def init_model(num_classes, rank, model_class, **kwargs):
 
 
 def train_model(gpu_id, args):
-
     config_logger(args.verbose)
     del args.verbose
     logging.debug(args)
@@ -99,10 +105,14 @@ def train_model(gpu_id, args):
 
     trn_args = Trainer.filter_args(**kwargs["trainer"])
     if rank == 0:
-        logging.info("trainer args={}".format(trn_args))
+        logging.info(f"trainer args={trn_args}")
     metrics = {"acc": CategoricalAccuracy()}
     trainer = Trainer(
-        model, device=device, metrics=metrics, ddp=world_size > 1, **trn_args,
+        model,
+        device=device,
+        metrics=metrics,
+        ddp=world_size > 1,
+        **trn_args,
     )
     trainer.load_last_checkpoint()
     trainer.fit(train_loader, val_loader)
@@ -159,8 +169,7 @@ def make_parser(model_class):
     return parser
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(description="Train Wav2Vec2XVector model from audio files")
     parser.add_argument("--cfg", action=ActionConfigFile)
 
@@ -190,3 +199,7 @@ if __name__ == "__main__":
     # torch docs recommend using forkserver
     multiprocessing.set_start_method("forkserver")
     train_model(gpu_id, args_sc)
+
+
+if __name__ == "__main__":
+    main()

@@ -39,7 +39,7 @@ class SingleReverbAugment(object):
                   its first sample.
       preload_rirs: if True all RIRS are loaded into RAM.
       rng:     Random number generator returned by
-               np.random.RandomState (optional).
+               np.random.default_rng (optional).
     """
 
     def __init__(
@@ -80,7 +80,7 @@ class SingleReverbAugment(object):
 
         self.lock = multiprocessing.Lock()
         if rng is None:
-            self.rng = np.random.RandomState(seed=random_seed)
+            self.rng = np.random.default_rng(seed=random_seed)
         else:
             self.rng = deepcopy(rng)
 
@@ -129,7 +129,7 @@ class SingleReverbAugment(object):
 
         num_samples = x.shape[0]
         with self.lock:
-            rir_idx = self.rng.randint(len(self.rir_keys))
+            rir_idx = self.rng.integers(len(self.rir_keys))
 
         if self.preload_rirs:
             h = self.rirs[rir_idx]
@@ -155,6 +155,7 @@ class SingleReverbAugment(object):
             "h_max": h_max,
             "h_delay": h_delay,
         }
+
         return y, info
 
     def __call__(self, x):
@@ -176,7 +177,7 @@ class ReverbAugment(object):
       max_reverb_context: number of samples required as left context
                           for the convolution operation.
       rng:     Random number generator returned by
-               np.random.RandomState (optional).
+               np.random.default_rng (optional).
     """
 
     def __init__(
@@ -210,7 +211,7 @@ class ReverbAugment(object):
 
         self.lock = multiprocessing.Lock()
         if rng is None:
-            self.rng = np.random.RandomState(seed=random_seed)
+            self.rng = np.random.default_rng(seed=random_seed)
         else:
             self.rng = deepcopy(rng)
 
@@ -221,7 +222,7 @@ class ReverbAugment(object):
         Args:
           cfg: YAML file path or dictionary with reverb options.
           rng: Random number generator returned by
-               np.random.RandomState (optional).
+               np.random.default_rng (optional).
 
         Returns:
           ReverbAugment object.
@@ -267,7 +268,7 @@ class ReverbAugment(object):
 
         # decide whether to add reverb or not
         with self.lock:
-            p = self.rng.random_sample()
+            p = self.rng.random()
 
         if p > self.reverb_prob:
             # we don't add reverb

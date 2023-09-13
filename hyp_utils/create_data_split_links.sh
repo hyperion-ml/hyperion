@@ -4,13 +4,11 @@
 # Apache 2.0.
 # Creates links to distrubute data into multiple nodes in clsp grid
 
-storage_name=$(date +'%m_%d_%H_%M')
-
-echo "$0 $@"  # Print the command line for logging
-if [ $# -ne 3 ]; then
-  echo "Usage: $0 <output-file-pattern> < <num-jobs>"
+if [ $# -ne 2 ]; then
+  echo "Usage: $0 <output-file-pattern> <num-jobs>"
   echo "$0 exp/vad_dir/vad.JOB.ark 40"
 fi
+echo "$0 $@"  # Print the command line for logging
 output_file_pattern=$1
 nj=$2
 

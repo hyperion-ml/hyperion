@@ -4,13 +4,14 @@
 """
 import logging
 from pathlib import Path
-from typing import Dict, Optional, Union
+from typing import List, Dict, Optional, Union
 from copy import deepcopy
 import math
 import numpy as np
 import pandas as pd
 import yaml
 
+from .info_table import InfoTable
 from .class_info import ClassInfo
 from .feature_set import FeatureSet
 from .misc import PathLike
@@ -30,7 +31,7 @@ class Dataset:
     Attributes:
       segments:     SegmentSet object or path to it.
       classes:      Dictionary of ClassInfo objects or paths to then
-      recordings:   Dictionary of RecordingSet objects or paths to then
+      recordings:   RecordingSet object or paths to then
       features:     Dictionary of FeatureSet objects or paths to then
       enrollments:  Dictionary of EnrollmentMap objects or paths to then
       trials:       Dictionary of TrialKey/TrialNdx/SparseTrialKey objects
@@ -45,7 +46,7 @@ class Dataset:
         self,
         segments: Union[SegmentSet, PathLike],
         classes: Optional[Dict[str, Union[ClassInfo, PathLike]]] = None,
-        recordings: Optional[Dict[str, Union[RecordingSet, PathLike]]] = None,
+        recordings: Optional[Union[RecordingSet, PathLike]] = None,
         features: Optional[Dict[str, Union[FeatureSet, PathLike]]] = None,
         enrollments: Optional[Dict[str, Union[EnrollmentMap, PathLike]]] = None,
         trials: Optional[
@@ -54,7 +55,6 @@ class Dataset:
         sparse_trials: bool = False,
         table_sep: Optional[str] = None,
     ):
-
         if isinstance(segments, SegmentSet):
             self._segments = segments
             self._segments_path = None
@@ -65,9 +65,17 @@ class Dataset:
 
         self._classes, self._classes_paths = self._parse_dict_args(classes, ClassInfo)
 
-        self._recordings, self._recordings_paths = self._parse_dict_args(
-            recordings, RecordingSet
-        )
+        if isinstance(recordings, RecordingSet):
+            self._recordings = recordings
+            self._recordings_path = None
+        else:
+            assert isinstance(recordings, (str, Path))
+            self._recordings = None
+            self._recordings_path = Path(recordings)
+
+        # self._recordings, self._recordings_paths = self._parse_dict_args(
+        #     recordings, RecordingSet
+        # )
 
         self._features, self._features_paths = self._parse_dict_args(
             features, FeatureSet
@@ -83,6 +91,41 @@ class Dataset:
 
         self.sparse_trials = sparse_trials
         self.table_sep = table_sep
+        self._files_to_delete = []
+
+    def get_dataset_files(self):
+        file_paths = []
+        for file_path in [self._segments_path, self._recordings_path]:
+            if file_path is not None:
+                file_paths.append(file_path)
+
+        for path_dict in [
+            self._features_paths,
+            self._enrollments_paths,
+            self._trials_paths,
+        ]:
+            if path_dict is None:
+                continue
+            for k, v in path_dict.items():
+                file_paths.append(v)
+
+        return file_paths
+
+    def _delete_files(self, dataset_dir):
+        if not self._files_to_delete:
+            return
+
+        dataset_files = self.get_dataset_files()
+        for file_path in self._files_to_delete:
+            file_path = Path(file_path)
+            # if the file has been added again we don't delete
+            if file_path in dataset_files:
+                continue
+
+            # if we are saving the dataset to another location
+            # we don't delete the one in the original
+            if file_path.parent == dataset_dir and file_path.is_file():
+                file_path.unlink()
 
     def _parse_dict_args(self, data, types):
         if data is None:
@@ -109,17 +152,38 @@ class Dataset:
 
         return self._segments
 
-    def recordings_value(self, key: str, keep_loaded: bool = True):
-        if self._recordings[key] is None:
-            assert self._recordings_paths[key] is not None
-            recordings = RecordingSet.load(
-                self._recordings_paths[key], sep=self.table_sep
-            )
+    def __len__(self):
+        return len(self.segments())
+
+    def recordings(self, keep_loaded: bool = True):
+        if self._recordings is None:
+            assert self._recordings_path is not None
+            recordings = RecordingSet.load(self._recordings_path, sep=self.table_sep)
             if keep_loaded:
-                self._recordings[key] = recordings
+                self._recordings = recordings
             return recordings
 
-        return self._recordings[key]
+        return self._recordings
+
+    # def recordings_value(self, key: str, keep_loaded: bool = True):
+    #     if self._recordings[key] is None:
+    #         assert self._recordings_paths[key] is not None
+    #         recordings = RecordingSet.load(
+    #             self._recordings_paths[key], sep=self.table_sep
+    #         )
+    #         if keep_loaded:
+    #             self._recordings[key] = recordings
+    #         return recordings
+
+    #     return self._recordings[key]
+
+    def features_keys(self):
+        if self._features is not None:
+            return self._features.keys()
+        elif self._features_path is not None:
+            return self._features_path.keys()
+        else:
+            return {}
 
     def features_value(self, key: str, keep_loaded: bool = True):
         if self._features[key] is None:
@@ -130,6 +194,14 @@ class Dataset:
             return features
 
         return self._features[key]
+
+    def classes_keys(self):
+        if self._classes is not None:
+            return self._classes.keys()
+        elif self._classes_path is not None:
+            return self._classes_path.keys()
+        else:
+            return {}
 
     def classes_value(self, key: str, keep_loaded: bool = True):
         if self._classes[key] is None:
@@ -170,12 +242,12 @@ class Dataset:
 
         return self._trials[key]
 
-    def recordings(self, keep_loaded: bool = True):
-        if self._recordings is None:
-            yield from ()
-        else:
-            for key in self._recordings.keys():
-                yield key, self.recordings_value(key, keep_loaded)
+    # def recordings(self, keep_loaded: bool = True):
+    #     if self._recordings is None:
+    #         yield from ()
+    #     else:
+    #         for key in self._recordings.keys():
+    #             yield key, self.recordings_value(key, keep_loaded)
 
     def features(self, keep_loaded: bool = True):
         if self._features is None:
@@ -299,7 +371,6 @@ class Dataset:
         dataset_path: PathLike,
         update_paths: bool = True,
         table_sep: Optional[str] = None,
-        force_save_all: bool = False,
     ):
         """Saves the tables that change in disk or tables
            that are not in the ouput directory.
@@ -330,24 +401,36 @@ class Dataset:
             if update_paths:
                 self._segments_path = file_path
 
-        if self._recordings is not None:
-            file_names = {}
-            for k in self._recordings.keys():
-                file_name = k + table_ext
-                file_names[k] = file_name
-                file_path = dataset_dir / file_name
-                if (
-                    self._recordings[k] is not None
-                    or file_path != self._recordings_paths[k]
-                    or not file_path.exists()
-                ):
-                    v = self.recordings_value(k, keep_loaded=False)
-                    v.save(file_path, sep=table_sep)
-                    if update_paths:
-                        self._recordings_paths[k] = file_path
+        file_name = f"recordings{table_ext}"
+        dataset["recordings"] = file_name
+        file_path = dataset_dir / file_name
+        if (
+            self._recordings is not None
+            or file_path != self._recordings_path
+            or not file_path.exists()
+        ):
+            self.recordings(keep_loaded=False).save(file_path, sep=table_sep)
+            if update_paths:
+                self._recordings_path = file_path
 
-            if file_names:
-                dataset["recordings"] = file_names
+        # if self._recordings is not None:
+        #     file_names = {}
+        #     for k in self._recordings.keys():
+        #         file_name = k + table_ext
+        #         file_names[k] = file_name
+        #         file_path = dataset_dir / file_name
+        #         if (
+        #             self._recordings[k] is not None
+        #             or file_path != self._recordings_paths[k]
+        #             or not file_path.exists()
+        #         ):
+        #             v = self.recordings_value(k, keep_loaded=False)
+        #             v.save(file_path, sep=table_sep)
+        #             if update_paths:
+        #                 self._recordings_paths[k] = file_path
+
+        #     if file_names:
+        #         dataset["recordings"] = file_names
 
         if self._features is not None:
             file_names = {}
@@ -428,6 +511,8 @@ class Dataset:
         with open(dataset_file, "w") as f:
             yaml.dump(dataset, f)
 
+        self._delete_files(dataset_dir)
+
     def save_all(
         self,
         dataset_path: PathLike,
@@ -457,17 +542,24 @@ class Dataset:
         if update_paths:
             self._segments_path = file_path
 
-        file_names = {}
-        for k, v in self.recordings(keep_loaded=False):
-            file_name = k + table_ext
-            file_names[k] = file_name
-            file_path = dataset_dir / file_name
-            v.save(file_path, sep=table_sep)
-            if update_paths:
-                self._recordings_paths[k] = file_path
+        file_name = f"recordings{table_ext}"
+        dataset["recordings"] = file_name
+        file_path = dataset_dir / file_name
+        self.recordings(keep_loaded=False).save(file_path, sep=table_sep)
+        if update_paths:
+            self._recordings_path = file_path
 
-        if file_names:
-            dataset["recordings"] = file_names
+        # file_names = {}
+        # for k, v in self.recordings(keep_loaded=False):
+        #     file_name = k + table_ext
+        #     file_names[k] = file_name
+        #     file_path = dataset_dir / file_name
+        #     v.save(file_path, sep=table_sep)
+        #     if update_paths:
+        #         self._recordings_paths[k] = file_path
+
+        # if file_names:
+        #     dataset["recordings"] = file_names
 
         file_names = {}
         for k, v in self.features(keep_loaded=False):
@@ -520,10 +612,13 @@ class Dataset:
         with open(dataset_file, "w") as f:
             yaml.dump(dataset, f)
 
+        self._delete_files(dataset_dir)
+
     def update_from_disk(self):
         self.segments()
-        for k, v in self.recordings():
-            pass
+        self.recordings()
+        # for k, v in self.recordings():
+        #     pass
 
         for k, v in self.features():
             pass
@@ -568,9 +663,10 @@ class Dataset:
                 classes[k] = Dataset.resolve_file_path(dataset_dir, v)
 
         if "recordings" in dataset:
-            recordings = {}
-            for k, v in dataset["recordings"].items():
-                recordings[k] = Dataset.resolve_file_path(dataset_dir, v)
+            recordings = Dataset.resolve_file_path(dataset_dir, dataset["recordings"])
+            # recordings = {}
+            # for k, v in dataset["recordings"].items():
+            #     recordings[k] = Dataset.resolve_file_path(dataset_dir, v)
 
         if "features" in dataset:
             features = {}
@@ -615,23 +711,36 @@ class Dataset:
         else:
             raise ValueError()
 
-    def add_recordings(
+    def set_segments(
         self,
-        recordings_name: str,
-        recordings: Union[PathLike, RecordingSet],
+        segments: Union[PathLike, SegmentSet],
     ):
-        if self._recordings is None:
-            self._recordings = {}
-            self._recordings_paths = {}
-
-        if isinstance(features, (str, Path)):
-            self._recordings[features_name] = None
-            self._recordings_paths[recordings_name] = recordings
-        elif isinstance(recordings, RecordingSet):
-            self._recordings[recordings_name] = recordings
-            self._recordings_paths[recordings_name] = None
+        if isinstance(segments, (str, Path)):
+            self._segments = None
+            self._segments_path = segments
+        elif isinstance(segments, SegmentSet):
+            self._segments = segments
+            self._segments_path = None
         else:
             raise ValueError()
+
+    def set_recordings(
+        self,
+        recordings: Union[PathLike, RecordingSet],
+        update_seg_durs: bool = False,
+    ):
+        if isinstance(recordings, (str, Path)):
+            self._recordings = None
+            self._recordings_path = Path(recordings)
+        elif isinstance(recordings, RecordingSet):
+            self._recordings = recordings
+            self._recordings_path = None
+        else:
+            raise ValueError()
+
+        if update_seg_durs:
+            rec_ids = self.segments(keep_loaded=True).recordings()
+            self.segments()["duration"] = self.recordings().loc[rec_ids, "duration"]
 
     def add_classes(self, classes_name: str, classes: Union[PathLike, ClassInfo]):
         if self._classes is None:
@@ -639,8 +748,8 @@ class Dataset:
             self._classes_paths = {}
 
         if isinstance(classes, (str, Path)):
-            self._classes[features_name] = None
-            self._classes_paths[classes_name] = classes
+            self._classes[classes_name] = None
+            self._classes_paths[classes_name] = Path(classes)
         elif isinstance(classes, ClassInfo):
             self._classes[classes_name] = classes
             self._classes_paths[classes_name] = None
@@ -658,7 +767,7 @@ class Dataset:
 
         if isinstance(enrollments, (str, Path)):
             self._enrollments[enrollments_name] = None
-            self._enrollments_paths[enrollments_name] = enrollments
+            self._enrollments_paths[enrollments_name] = Path(enrollments)
         elif isinstance(enrollments, EnrollmentMap):
             self._enrollments[enrollments_name] = enrollments
             self._enrollments_paths[enrollments_name] = None
@@ -675,8 +784,8 @@ class Dataset:
             self._trials_paths = {}
 
         if isinstance(trials, (str, Path)):
-            self._trials[features_name] = None
-            self._trials_paths[trials_name] = trials
+            self._trials[trials_name] = None
+            self._trials_paths[trials_name] = Path(trials)
         elif isinstance(trials, (TrialKey, TrialNdx, SparseTrialKey)):
             self._trials[trials_name] = trials
             self._trials_paths[trials_name] = None
@@ -685,30 +794,35 @@ class Dataset:
 
     def remove_features(self, features_name: str):
         if self._features_paths[features_name] is not None:
-            file_path = Path(self._features_paths[features_name])
-            if file_path.is_file():
-                file_path.unlink()
+            self._files_to_delete.append(self._features_paths[features_name])
 
         del self._features[features_name]
         del self._features_paths[features_name]
 
     def remove_recordings(
         self,
-        recordings_name: str,
     ):
-        if self._recordingsr_paths[recordings_name] is not None:
-            file_path = Path(self._recordings_paths[recordings_name])
-            if file_path.is_file():
-                file_path.unlink()
+        if self._recordings_path is not None:
+            self._files_to_delete.append(self._recordings_path)
 
-        del self._recordings[recordings_name]
-        del self._recordings_paths[recordings_name]
+        self._recordings = None
+        self._recordings_path = None
+
+    # def remove_recordings(
+    #     self,
+    #     recordings_name: str,
+    # ):
+    #     if self._recordingsr_paths[recordings_name] is not None:
+    #         file_path = Path(self._recordings_paths[recordings_name])
+    #         if file_path.is_file():
+    #             file_path.unlink()
+
+    #     del self._recordings[recordings_name]
+    #     del self._recordings_paths[recordings_name]
 
     def remove_classes(self, classes_name: str):
         if self._classes_paths[classes_name] is not None:
-            file_path = Path(self._classes_paths[classes_name])
-            if file_path.is_file():
-                file_path.unlink()
+            self._files_to_delete.append(self._class_paths[class_name])
 
         del self._classes[classes_name]
         del self._classes_paths[classes_name]
@@ -718,9 +832,7 @@ class Dataset:
         enrollments_name: str,
     ):
         if self._enrollments_paths[enrollments_name] is not None:
-            file_path = Path(self._enrollments_paths[enrollments_name])
-            if file_path.is_file():
-                file_path.unlink()
+            self._files_to_delete.append(self._enrollments_paths[enrollments_name])
 
         del self._enrollments[enrollments_name]
         del self._enrollments_paths[enrollments_name]
@@ -730,40 +842,60 @@ class Dataset:
         trials_name: str,
     ):
         if self._trials_paths[trials_name] is not None:
-            file_path = Path(self._trials_paths[trials_name])
-            if file_path.is_file():
-                file_path.unlink()
+            self._files_to_delete.append(self._trials_paths[trials_name])
 
         del self._trials[trials_name]
         del self._trials_paths[trials_name]
 
-    def set_segments(self, segments: Union[PathLike, SegmentSet]):
-        if isinstance(segments, SegmentSet):
-            self._segments = segments
-        else:
-            self._segments_path = segments
+    def add_cols_to_segments(
+        self,
+        right_table: Union[InfoTable, pd.DataFrame, PathLike],
+        column_names: Union[None, str, List[str], np.ndarray] = None,
+        on: Union[str, List[str], np.ndarray] = "id",
+        right_on: Union[None, str, List[str], np.ndarray] = None,
+    ):
+        if isinstance(right_table, (str, Path)):
+            file_path = Path(right_table)
+            if file_path.is_file():
+                right_table = InfoTable.load(file_path)
+            else:
+                if right_table == "recordings":
+                    right_table = self.recordings()
+                elif right_table in self.features_keys():
+                    right_table = self.features_value(right_table)
+                elif right_table in self.classes_keys():
+                    right_table = self.classes_value
+                else:
+                    raise ValueError("%s not found", right_table)
 
-    def clean(self):
-        rec_ids = self.segments().recording_ids()
-        for k, table in self.recordings():
-            table = table.loc[table["id"].isin(rec_ids)].copy()
-            self._recordings[k] = RecordingSet(table)
+        segments = self.segments(keep_loaded=True)
+        segments.add_columns(right_table, column_names, on=on, right_on=right_on)
+
+    def clean(self, rebuild_class_idx=False):
+        rec_ids = self.segments().recordings()
+        # for k, table in self.recordings():
+        #     # table = table.loc[table["id"].isin(rec_ids)].copy()
+        #     # self._recordings[k] = RecordingSet(table)
+        self._recordings = self.recordings().filter(lambda df: df["id"].isin(rec_ids))
 
         ids = self.segments()["id"].values
         for k, table in self.features():
-            table = table.loc[table["id"].isin(ids)].copy()
-            self._features[k] = FeatureSet(table)
+            self._features[k] = table.filter(lambda df: df["id"].isin(ids))
+            # table = table.loc[table["id"].isin(ids)].copy()
+            # self._features[k] = FeatureSet(table)
 
         for k, table in self.classes():
             class_ids = self.segments()[k].unique()
-            table = table[table["id"].isin(class_ids)].copy()
-            self._classes[k] = ClassInfo(table)
+            self._classes[k] = table.filter(lambda df: df["id"].isin(class_ids))
+            # table = table[table["id"].isin(class_ids)].copy()
+            # self._classes[k] = ClassInfo(table)
 
         remove_keys = []
         for k, table in self.enrollments():
-            table = table.loc[table["segmentid"].isin(ids)].copy()
+            # table = table.loc[table["segmentid"].isin(ids)].copy()
+            table = table.filter(lambda df: df["segmentid"].isin(ids))
             if len(table) > 0:
-                self._enrollments[k] = EnrollmentMap(table)
+                self._enrollments[k] = table
             else:
                 remove_keys.append(k)
 
@@ -790,7 +922,7 @@ class Dataset:
         seed: int,
     ):
         # select test speakers
-        rng = np.random.RandomState(seed=seed)
+        rng = np.random.default_rng(seed=seed)
 
         spks = segments["speaker"].unique()
         trial_spks = rng.choice(spks, size=(num_trial_speakers,), replace=False)
@@ -899,3 +1031,191 @@ class Dataset:
         dataset_cohort.clean()
 
         return dataset_trials, dataset_cohort
+
+    def remove_short_segments(self, min_length: float, length_name: str = "duration"):
+        segments = self.segments()
+        self._segments = segments.filter(lambda df: df[length_name] >= min_length)
+        self.clean()
+
+    def remove_classes_few_segments(
+        self,
+        class_name: str,
+        min_segs: int,
+        rebuild_idx: bool = False,
+    ):
+        segments = self.segments()
+        classes, counts = np.unique(segments[class_name], return_counts=True)
+        keep_classes = classes[counts >= min_segs]
+        self._segments = segments.filter(lambda df: df[class_name].isin(keep_classes))
+        self.clean()
+        if rebuild_idx:
+            class_info = self.classes_value(class_name)
+            class_info.add_class_idx()
+
+    def rebuild_class_idx(self, class_name: str):
+        class_info = self.classes_value(class_name)
+        class_info.add_class_idx()
+
+    def _segments_split(self, val_prob: float, rng: np.random.Generator):
+        segments = self.segments()
+        p = rng.permutation(len(segments))
+        num_train = int(round((1 - val_prob) * len(p)))
+
+        train_idx = p[:num_train]
+        train_segs = segments.filter(iindex=train_idx)
+        train_segs.sort()
+
+        val_idx = p[num_train:]
+        val_segs = segments.filter(iindex=val_idx)
+        val_segs.sort()
+
+        return train_segs, val_segs
+
+    def _segments_split_joint_classes(
+        self,
+        val_prob: float,
+        joint_classes: List[str],
+        min_train_samples: int,
+        rng: np.random.Generator,
+    ):
+        segments = self.segments()
+        classes = segments[joint_classes].apply("-".join, axis=1)
+        u_classes, class_ids = np.unique(classes, return_inverse=True)
+        train_mask = np.zeros(len(segments), dtype=bool)
+        kk = 0
+        for c_id in range(len(u_classes)):
+            idx = (class_ids == c_id).nonzero()[0]
+            count = len(idx)
+            p = rng.permutation(count)
+            num_train = max(
+                int(round((1 - val_prob) * count)), min(min_train_samples, count)
+            )
+            kk += count - num_train
+            train_idx = idx[p[:num_train]]
+            train_mask[train_idx] = True
+
+        train_idx = train_mask.nonzero()[0]
+        train_segs = segments.filter(iindex=train_idx)
+        train_segs.sort()
+
+        val_segs = segments.filter(iindex=train_idx, keep=False)
+        val_segs.sort()
+
+        return train_segs, val_segs
+
+    def _segments_split_disjoint_classes(
+        self,
+        val_prob: float,
+        disjoint_classes: List[str],
+        rng: np.random.Generator,
+    ):
+        segments = self.segments()
+        classes = segments[disjoint_classes].apply("-".join, axis=1)
+        u_classes, class_ids = np.unique(classes, return_inverse=True)
+        p = rng.permutation(len(u_classes))
+        class_ids = p[class_ids]
+        num_train = int(round((1 - val_prob) * len(segments)))
+        train_mask = np.zeros(len(segments), dtype=bool)
+        count_acc = 0
+        for c_id in range(len(u_classes)):
+            idx = (class_ids == c_id).nonzero()[0]
+            train_mask[idx] = True
+            count = len(idx)
+            count_acc += count
+            if count_acc >= num_train:
+                break
+
+        train_idx = train_mask.nonzero()[0]
+        train_segs = segments.filter(iindex=train_idx)
+        train_segs.sort()
+
+        val_segs = segments.filter(iindex=train_idx, keep=False)
+        val_segs.sort()
+
+        return train_segs, val_segs
+
+    def _segments_split_joint_and_disjoint_classes(
+        self,
+        val_prob: float,
+        joint_classes: List[str],
+        disjoint_clases: List[str],
+        min_train_samples: int,
+        rng: np.random.Generator,
+    ):
+        raise NotImplementedError("I'll implement this when I need it")
+        segments = self.segments()
+        j_classes = segments[joint_classes].apply("-".join, axis=1)
+        ju_classes, j_class_ids = np.unique(j_classes, return_inverse=True)
+        d_classes = segments[disjoint_classes].apply("-".join, axis=1)
+        du_classes, d_class_ids = np.unique(d_classes, return_inverse=True)
+        d_p = rng.permutation(len(du_classes))
+        d_class_ids = d_p[d_class_ids]
+        d_sort_idx = np.argsort(d_class_ids)
+        d_sort_j_class_ids = j_class_ids[d_sort_idx]
+
+        train_d_classes = set()
+        for c_id in range(len(ju_classes)):
+            idx = (j_sort_class_ids == c_id).nonzero()[0]
+            count = len(idx)
+            num_train = max(
+                int(round((1 - val_prob) * count)), min(min_train_samples, count)
+            )
+            sel_d_class_ids = set(d_sort_idx[:num_train])
+            train_d_classes = train_d_classes.union(sel_d_class_ids)
+
+        train_mask = np.zeros(len(segments), dtype=bool)
+        for c_id in train_d_classes:
+            mask = d_class_ids == c_id
+            train_mask[mask] = True
+
+        train_idx = train_mask.nonzero()[0]
+        train_segs = segments.filter(iindex=train_idx)
+        train_segs.sort()
+
+        val_segs = segments.filter(iindex=train_idx, keep=False)
+        val_segs.sort()
+
+        return train_segs, val_segs
+
+    def split_train_val(
+        self,
+        val_prob: float,
+        joint_classes: Optional[List[str]] = None,
+        disjoint_classes: Optional[List[str]] = None,
+        min_train_samples: int = 1,
+        seed: int = 11235813,
+    ):
+        rng = np.random.default_rng(seed)
+        if joint_classes is None and disjoint_classes is None:
+            train_segs, val_segs = self._segments_split(val_prob, rng)
+        elif joint_classes is not None and disjoint_classes is None:
+            train_segs, val_segs = self._segments_split_joint_classes(
+                val_prob,
+                joint_classes,
+                min_train_samples,
+                rng,
+            )
+        elif joint_classes is None and disjoint_classes is not None:
+            train_segs, val_segs = self._segments_split_disjoint_classes(
+                val_prob,
+                disjoint_classes,
+                rng,
+            )
+        else:
+            train_segs, val_segs = self._segments_split_joint_and_disjoint_classes(
+                val_prob,
+                joint_classes,
+                disjoint_classes,
+                min_train_samples,
+                rng,
+            )
+
+        train_ds = self.clone()
+        train_ds.set_segments(train_segs)
+        train_ds.clean()
+
+        val_ds = self.clone()
+        val_ds.set_segments(val_segs)
+        val_ds.clean()
+
+        return train_ds, val_ds

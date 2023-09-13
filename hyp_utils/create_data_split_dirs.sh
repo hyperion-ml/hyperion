@@ -6,7 +6,7 @@
 
 storage_name=$(date +'%m_%d_%H_%M')
 
-echo "$0 $@"  # Print the command line for logging
+
 
 if [ -f path.sh ]; then . ./path.sh; fi
 . parse_options.sh || exit 1;
@@ -15,6 +15,7 @@ if [ $# -ne 3 ]; then
   echo "Usage: $0 <output-dir> <storage-dir> <nodes>"
   echo "$0 exp/vad_dir $USER/hyp-data/voxceleb/v1/vad/storage b0"
 fi
+
 output_dir=$1
 storage_dir=$2
 nodes=$3
@@ -22,6 +23,7 @@ nodes=$3
 link_dir=$output_dir/storage
 
 if [[ $(hostname -f) == *.clsp.jhu.edu ]] && [ ! -d $linkdir ]; then
+  echo "$0 $@"  # Print the command line for logging
   echo "Prepare to distribute data over multiple $nodes nodes"
   dir_name=$storage_dir/$storage_name/storage
   if [ "$nodes" == "b0" ];then

@@ -67,7 +67,8 @@ class DataPrep:
     def get_recording_duration(self, recording_set):
 
         import itertools
-        from ..utils import SCPList
+
+        # from ..utils import SCPList #don't remember why I put this here
 
         futures = []
         logging.info("submitting threats...")

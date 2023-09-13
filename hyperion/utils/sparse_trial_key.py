@@ -145,7 +145,7 @@ class SparseTrialKey(TrialKey):
           file_path: File to read the list.
 
         Returns:
-          TrialKey object.
+          SparseTrialKey object.
         """
         file_path = Path(file_path)
         ext = file_path.suffix
@@ -156,19 +156,15 @@ class SparseTrialKey(TrialKey):
         models = df["modelid"].values
         segments = df["segmentid"].values
         is_tar = (df["targettype"] == "target").values
-        model_set, _, model_idx = np.unique(
-            models, return_index=True, return_inverse=True
-        )
-        seg_set, _, seg_idx = np.unique(
-            segments, return_index=True, return_inverse=True
-        )
+        model_set, model_idx = np.unique(models, return_inverse=True)
+        seg_set, seg_idx = np.unique(segments, return_inverse=True)
         tar = sparse.lil_matrix((len(model_set), len(seg_set)), dtype="bool")
         non = sparse.lil_matrix((len(model_set), len(seg_set)), dtype="bool")
-        for item in zip(model_idx, seg_idx, is_tar):
-            if item[2]:
-                tar[item[0], item[1]] = True
+        for i, j, target_type in zip(model_idx, seg_idx, is_tar):
+            if target_type:
+                tar[i, j] = True
             else:
-                non[item[0], item[1]] = True
+                non[i, j] = True
         return cls(model_set, seg_set, tar.tocsr(), non.tocsr())
 
     @classmethod

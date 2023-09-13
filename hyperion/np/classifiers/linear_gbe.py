@@ -10,7 +10,7 @@ from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from scipy.special import gammaln
 
 from ...hyp_defs import float_cpu
-from ...utils.math import int2onehot, invert_pdmat, logdet_pdmat, softmax
+from ...utils.math_funcs import int2onehot, invert_pdmat, logdet_pdmat, softmax
 from ..np_model import NPModel
 
 
@@ -426,7 +426,8 @@ class LinearGBE(NPModel):
         parser.add_argument("--name", default="lgbe", help="model name")
         if prefix is not None:
             outer_parser.add_argument(
-                "--" + prefix, action=ActionParser(parser=parser),
+                "--" + prefix,
+                action=ActionParser(parser=parser),
             )
 
     @staticmethod
@@ -468,7 +469,8 @@ class LinearGBE(NPModel):
         )
         if prefix is not None:
             outer_parser.add_argument(
-                "--" + prefix, action=ActionParser(parser=parser),
+                "--" + prefix,
+                action=ActionParser(parser=parser),
             )
 
     add_argparse_args = add_class_args

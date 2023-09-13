@@ -37,7 +37,7 @@ class SpeechAugment(object):
         Args:
           cfg: YAML file path or dictionary with noise options.
           rng: Random number generator returned by
-               np.random.RandomState (optional).
+               np.random.default_rng (optional).
 
         Returns:
           SpeechAugment object.

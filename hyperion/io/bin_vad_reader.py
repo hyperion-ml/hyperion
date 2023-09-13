@@ -59,7 +59,7 @@ class BinVADReader(VADReader):
         vad = self.r.read(keys)
         output_vad = []
         for i in range(len(keys)):
-            vad_i = vad[i].astype(np.bool, copy=False)
+            vad_i = vad[i].astype(bool, copy=False)
             offset_i = offset[i] if offset_is_list else offset
             num_frames_i = num_frames[i] if num_frames_is_list else num_frames
             vad_i = self._get_bin_vad_slice(vad_i, offset_i, num_frames_i)
@@ -77,7 +77,7 @@ class BinVADReader(VADReader):
         vad = self.r.read(keys)
         ts = []
         for i in range(len(keys)):
-            vad_i = vad[i].astype(np.bool, copy=False)
+            vad_i = vad[i].astype(bool, copy=False)
             ts_i = bin_vad_to_timestamps(
                 vad_i,
                 self.frame_length / 1000,

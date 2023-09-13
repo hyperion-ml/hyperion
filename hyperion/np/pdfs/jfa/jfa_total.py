@@ -7,8 +7,13 @@ import numpy as np
 from scipy import linalg as la
 
 from ....hyp_defs import float_cpu
-from ....utils.math import (invert_pdmat, invert_trimat, logdet_pdmat,
-                            symmat2vec, vec2symmat)
+from ....utils.math_funcs import (
+    invert_pdmat,
+    invert_trimat,
+    logdet_pdmat,
+    symmat2vec,
+    vec2symmat,
+)
 from ..core.pdf import PDF
 
 

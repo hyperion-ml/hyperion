@@ -3,16 +3,18 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-
 import copy
 import logging
-import os.path as path
+from pathlib import Path
 
 import h5py
 import numpy as np
+import pandas as pd
 
 from ..hyp_defs import float_cpu
-from .list_utils import *
+
+# from .list_utils import *
+from .list_utils import intersect, ismember, list2ndarray, sort, split_list
 from .trial_key import TrialKey
 from .trial_ndx import TrialNdx
 
@@ -26,13 +28,22 @@ class TrialScores(object):
       seg_set: List of test segment names.
       scores: Matrix with the scores (num_models x num_segments).
       score_mask: Boolean matrix with the trials with valid scores to True (num_models x num_segments).
+      q_measures: optional dictionary of quality measure matrices
     """
 
-    def __init__(self, model_set=None, seg_set=None, scores=None, score_mask=None):
+    def __init__(
+        self,
+        model_set=None,
+        seg_set=None,
+        scores=None,
+        score_mask=None,
+        q_measures=None,
+    ):
         self.model_set = model_set
         self.seg_set = seg_set
         self.scores = scores
         self.score_mask = score_mask
+        self.q_measures = q_measures
         if (model_set is not None) and (seg_set is not None):
             self.validate()
 
@@ -55,18 +66,24 @@ class TrialScores(object):
         ix = np.ix_(m_idx, s_idx)
         self.scores = self.scores[ix]
         self.score_mask = self.score_mask[ix]
+        if self.q_measures is not None:
+            for k in self.q_measures.keys():
+                self.q_measures[k] = self.q_measures[k][ix]
 
-    def save(self, file_path):
+    def save(self, file_path, sep=None):
         """Saves object to txt/h5 file.
 
         Args:
           file_path: File to write the list.
         """
-        file_base, file_ext = path.splitext(file_path)
-        if file_ext == ".h5" or file_ext == ".hdf5":
+        file_path = Path(file_path)
+        file_ext = file_path.suffix
+        if file_ext in [".h5", ".hdf5"]:
             self.save_h5(file_path)
-        else:
+        elif file_ext in ["", ".txt"]:
             self.save_txt(file_path)
+        else:
+            self.save_table(file_path, sep=sep)
 
     def save_h5(self, file_path):
         """Saves object to h5 file.
@@ -81,6 +98,10 @@ class TrialScores(object):
             f.create_dataset("ID/column_ids", data=seg_set)
             f.create_dataset("scores", data=self.scores)
             f.create_dataset("score_mask", data=self.score_mask.astype("uint8"))
+            if self.q_measures is not None:
+                q_grp = f.create_group("q_measures")
+                for k, v in self.q_measures.items():
+                    q_grp.create_dataset(k, data=v)
 
     def save_txt(self, file_path):
         """Saves object to txt file.
@@ -100,8 +121,38 @@ class TrialScores(object):
                     )
                 )
 
+        if self.q_measures is not None:
+            logging.warning("q_measures cannot be saved to txt file")
+
+    def save_table(self, file_path, sep=None):
+        """Saves object to pandas tabnle file.
+
+        Args:
+          file_path: File to write the list.
+        """
+        file_path = Path(file_path)
+        ext = file_path.suffix
+        if sep is None:
+            sep = "\t" if ".tsv" in ext else ","
+
+        q_str = ""
+        if self.q_measures is not None:
+            q_str = sep + sep.join(self.q_measures.keys())
+
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(f"modelid{sep}segmentid{sep}LLR{q_str}\n")
+            I, J = self.score_mask.nonzero()
+            for i, j in zip(I, J):
+                if self.q_measures is not None:
+                    q_str = sep + sep.join(
+                        [str(v[i, j]) for k, v in self.q_measures.items()]
+                    )
+                f.write(
+                    f"{self.model_set[i]}{sep}{self.seg_set[j]}{sep}{self.scores[i,j]}{q_str}\n"
+                )
+
     @classmethod
-    def load(cls, file_path):
+    def load(cls, file_path, sep=None):
         """Loads object from txt/h5 file
 
         Args:
@@ -110,11 +161,14 @@ class TrialScores(object):
         Returns:
           TrialScores object.
         """
-        file_base, file_ext = path.splitext(file_path)
-        if file_ext == ".h5" or file_ext == ".hdf5":
+        file_path = Path(file_path)
+        file_ext = file_path.suffix
+        if file_ext in (".h5", ".hdf5"):
             return cls.load_h5(file_path)
-        else:
+        elif file_ext in ("", ".txt"):
             return cls.load_txt(file_path)
+        else:
+            return cls.load_table(file_path, sep)
 
     @classmethod
     def load_h5(cls, file_path):
@@ -131,7 +185,12 @@ class TrialScores(object):
             seg_set = [t.decode("utf-8") for t in f["ID/column_ids"]]
             scores = np.asarray(f["scores"], dtype=float_cpu())
             score_mask = np.asarray(f["score_mask"], dtype="bool")
-        return cls(model_set, seg_set, scores, score_mask)
+            if "q_measures" in f:
+                q_grp = f["q_measures"]
+                q_measures = {k: q_grp[k] for k in q_grp}
+            else:
+                q_measures = None
+        return cls(model_set, seg_set, scores, score_mask, q_measures)
 
     @classmethod
     def load_txt(cls, file_path):
@@ -164,6 +223,49 @@ class TrialScores(object):
         return cls(model_set, seg_set, scores, score_mask)
 
     @classmethod
+    def load_table(cls, file_path, sep=None):
+        """Loads object from pandas table file
+
+        Args:
+          file_path: File to read the list.
+
+        Returns:
+          TrialScores object.
+        """
+        file_path = Path(file_path)
+        ext = file_path.suffix
+        if sep is None:
+            sep = "\t" if ".tsv" in ext else ","
+
+        df = pd.read_csv(file_path, sep=sep)
+        models = df["modelid"].values
+        segments = df["segmentid"].values
+        score_list = df["LLR"].values
+        model_set, model_idx = np.unique(models, return_inverse=True)
+        seg_set, seg_idx = np.unique(segments, return_inverse=True)
+        score_mask = np.zeros((len(model_set), len(seg_set)), dtype="bool")
+        scores = np.zeros((len(model_set), len(seg_set)), dtype=float_cpu())
+        for i, j, score in zip(model_idx, seg_idx, score_list):
+            score_mask[i, j] = True
+            scores[i, j] = score
+
+        if len(df.columns) > 3:
+            q_names = df.columns[3:]
+            q_vals = df.iloc[:, 3:].values
+            q_measures = {}
+            for q_name in q_names:
+                q_measures[q_name] = np.zeros(scores.shape, dtype=float_cpu())
+
+            for i, j, q_row in zip(model_idx, seg_idx, q_vals):
+                for col, q_name in enumerate(q_names):
+                    q_measures[q_name][i, j] = q_row[col]
+
+        else:
+            q_measures = None
+
+        return cls(model_set, seg_set, scores, score_mask, q_measures)
+
+    @classmethod
     def merge(cls, scr_list):
         """Merges several score objects.
 
@@ -178,6 +280,7 @@ class TrialScores(object):
         seg_set = scr_list[0].seg_set
         scores = scr_list[0].scores
         score_mask = scr_list[0].score_mask
+        q_measures = scr_list[0].q_measures
         for i in range(1, num_scr):
             scr_i = scr_list[i]
             new_model_set = np.union1d(model_set, scr_i.model_set)
@@ -196,6 +299,10 @@ class TrialScores(object):
             scores_1[ix_a] = scores[ix_b]
             score_mask_1 = np.zeros(shape, dtype="bool")
             score_mask_1[ix_a] = score_mask[ix_b]
+            if q_measures is not None:
+                q_measures_1 = {k: np.zeros(shape) for k in q_measures.keys()}
+                for k in q_measures.keys():
+                    q_measures_1[k][ix_a] = q_measures[k][ix_b]
 
             trial_mask_2 = np.zeros(
                 (len(new_model_set), len(new_seg_set)), dtype="bool"
@@ -212,14 +319,21 @@ class TrialScores(object):
             scores_2[ix_a] = scr_i.scores[ix_b]
             score_mask_2 = np.zeros(shape, dtype="bool")
             score_mask_2[ix_a] = scr_i.score_mask[ix_b]
+            if q_measures is not None:
+                q_measures_2 = {k: np.zeros(shape) for k in q_measures.keys()}
+                for k in q_measures.keys():
+                    q_measures_2[k][ix_a] = scr_i.q_measures[k][ix_b]
 
             model_set = new_model_set
             seg_set = new_seg_set
             scores = scores_1 + scores_2
             assert not (np.any(np.logical_and(score_mask_1, score_mask_2)))
             score_mask = np.logical_or(score_mask_1, score_mask_2)
+            if q_measures is not None:
+                for k in q_measures.keys():
+                    q_measures[k] = q_measures_1[k] + q_measures_2[k]
 
-        return cls(model_set, seg_set, scores, score_mask)
+        return cls(model_set, seg_set, scores, score_mask, q_measures)
 
     def filter(self, model_set, seg_set, keep=True, raise_missing=True):
         """Removes elements from TrialScores object.
@@ -235,24 +349,28 @@ class TrialScores(object):
           Filtered TrialScores object.
         """
 
-        if not (keep):
+        if not keep:
             model_set = np.setdiff1d(self.model_set, model_set)
             seg_set = np.setdiff1d(self.model_set, seg_set)
 
         f_mod, mod_idx = ismember(model_set, self.model_set)
         f_seg, seg_idx = ismember(seg_set, self.seg_set)
-
+        q_measures = None
         if np.all(f_mod) and np.all(f_seg):
             model_set = self.model_set[mod_idx]
-            set_set = self.seg_set[seg_idx]
+            seg_set = self.seg_set[seg_idx]
             ix = np.ix_(mod_idx, seg_idx)
             scores = self.scores[ix]
             score_mask = self.score_mask[ix]
+            if self.q_measures is not None:
+                q_measures = {}
+                for k in self.q_measures.keys():
+                    q_measures[k] = self.q_measures[k][ix]
         else:
             for i in (f_mod == 0).nonzero()[0]:
-                logging.info("model %s not found" % model_set[i])
+                logging.info("model %s not found", model_set[i])
             for i in (f_seg == 0).nonzero()[0]:
-                logging.info("segment %s not found" % seg_set[i])
+                logging.info("segment %s not found", seg_set[i])
             if raise_missing:
                 raise Exception("some scores were not computed")
 
@@ -262,8 +380,13 @@ class TrialScores(object):
             ix2 = np.ix_(mod_idx[f_mod], seg_idx[f_seg])
             scores[ix1] = self.scores[ix2]
             score_mask[ix1] = self.score_mask[ix2]
+            if self.q_measures is not None:
+                q_measures = {}
+                for k in self.q_measures.keys():
+                    q_measures[k] = np.zeros(scores.shape, dtype=float_cpu())
+                    q_measures[k][ix1] = self.q_measures[k][ix2]
 
-        return TrialScores(model_set, seg_set, scores, score_mask)
+        return TrialScores(model_set, seg_set, scores, score_mask, q_measures)
 
     def split(self, model_idx, num_model_parts, seg_idx, num_seg_parts):
         """Splits the TrialScores into num_model_parts x num_seg_parts and returns part
@@ -284,7 +407,13 @@ class TrialScores(object):
         ix = np.ix_(model_idx1, seg_idx1)
         scores = self.scores[ix]
         score_mask = self.score_mask[ix]
-        return TrialScores(model_set, seg_set, scores, score_mask)
+        q_measures = None
+        if self.q_measures is not None:
+            q_measures = {}
+            for k in self.q_measures.keys():
+                q_measures[k] = self.q_measures[k][ix]
+
+        return TrialScores(model_set, seg_set, scores, score_mask, q_measures)
 
     def validate(self):
         """Validates the attributes of the TrialScores object."""
@@ -305,6 +434,10 @@ class TrialScores(object):
             )
         else:
             assert self.score_mask.shape == (len(self.model_set), len(self.seg_set))
+
+        if self.q_measures is not None:
+            for k in self.q_measures.keys():
+                assert self.q_measures[k].shape == self.scores.shape
 
     def align_with_ndx(self, ndx, raise_missing=True):
         """Aligns scores, model_set and seg_set with TrialNdx or TrialKey.
@@ -356,6 +489,34 @@ class TrialScores(object):
         non = scr.scores[non_mask]
         return tar, non
 
+    def get_tar_non_q_measures(self, key, q_names=None, return_dict=False):
+        """Returns target and non target scores.
+
+        Args:
+          key: TrialKey object.
+          q_names: names of quality measures to return, if None it will return all
+
+        Returns:
+          Numpy array with target scores.
+          Numpy array with non-target scores.
+        """
+        scr = self.align_with_ndx(key)
+        tar_mask = np.logical_and(scr.score_mask, key.tar)
+        if q_names is None:
+            q_names = self.q_measures.keys()
+        tar = {}
+        for k in q_names:
+            tar[k] = self.q_measures[k][tar_mask]
+        non_mask = np.logical_and(scr.score_mask, key.non)
+        non = {}
+        for k in q_names:
+            non[k] = self.q_measures[k][non_mask]
+
+        if not return_dict:
+            tar = np.vstack(tuple(tar[k] for k in q_names)).T
+            non = np.vstack(tuple(non[k] for k in q_names)).T
+        return tar, non
+
     def set_missing_to_value(self, ndx, val):
         """Aligns the scores with a TrialNdx and sets the trials with missing
         scores to the same value.
@@ -394,6 +555,18 @@ class TrialScores(object):
         eq = eq and np.all(self.seg_set == other.seg_set)
         eq = eq and np.all(np.isclose(self.scores, other.scores, atol=1e-5))
         eq = eq and np.all(self.score_mask == other.score_mask)
+        if self.q_measures is not None:
+            eq = eq and other.q_measures is not None
+            if eq:
+                eq = self.q_measures.keys() == other.q_measures.keys()
+                if eq:
+                    for k in self.q_measures.keys():
+                        eq = eq and np.all(
+                            np.isclose(
+                                self.q_measures[k], other.q_measures[k], atol=1e-5
+                            )
+                        )
+
         return eq
 
     def __ne__(self, other):
@@ -407,7 +580,6 @@ class TrialScores(object):
         return 1
 
     def test(key_file="core-core_det5_key.h5"):
-
         key = TrialKey.load(key_file)
 
         mask = np.logical_or(key.tar, key.non)

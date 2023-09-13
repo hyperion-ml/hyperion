@@ -3,10 +3,10 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from typing import Union, Optional, List
+from typing import Union, Optional, List, Dict
 
 import numpy as np
-
+import pandas as pd
 from ..hyp_defs import float_save
 from ..utils.kaldi_io_funcs import init_kaldi_output_stream, is_token, write_token
 from ..utils.kaldi_matrix import KaldiCompressedMatrix, KaldiMatrix
@@ -46,7 +46,10 @@ class ArkDataWriter(DataWriter):
             self.f = open(archive_path, "w")
 
         if script_path is not None and not self.script_is_scp:
-            row = self.script_sep.join(["id", "storage_path", "storage_byte"])
+            columns = ["id", "storage_path", "storage_byte"]
+            if self.metadata_columns is not None:
+                columns += self.metadata_columns
+            row = self.script_sep.join(columns)
             self.f_script.write(f"{row}\n")
 
     def __exit__(self, exc_type, exc_value, traceback):
@@ -97,6 +100,7 @@ class ArkDataWriter(DataWriter):
         self,
         keys: Union[str, List[str], np.array],
         data: Union[np.array, List[np.array]],
+        metadata: Optional[Union[pd.DataFrame, Dict]] = None,
     ):
         """Writes data to file.
 
@@ -107,9 +111,7 @@ class ArkDataWriter(DataWriter):
                 it can be a 3D numpy array.
                 If they are vectors, it can be a 2D numpy array.
         """
-        if isinstance(keys, str):
-            keys = [keys]
-            data = [data]
+        keys, data, metadata = self.standardize_write_args(keys, data, metadata)
 
         for i, key_i in enumerate(keys):
             assert is_token(key_i), "Token %s not valid" % key_i
@@ -125,7 +127,11 @@ class ArkDataWriter(DataWriter):
                 if self.script_is_scp:
                     self.f_script.write(f"{key_i} {self.archive_path}:{pos}\n")
                 else:
-                    row = self.script_sep.join([key_i, self.archive_path, str(pos)])
+                    columns = [key_i, str(self.archive_path), str(pos)]
+                    if metadata is not None:
+                        metadata_i = [str(m[i]) for m in metadata]
+                        columns += metadata_i
+                    row = self.script_sep.join(columns)
                     self.f_script.write(f"{row}\n")
 
             if self._flush:

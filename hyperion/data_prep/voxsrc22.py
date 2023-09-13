@@ -127,6 +127,9 @@ class VoxSRC22DataPrep(DataPrep):
         rec_ids = vox22_segmentid + vox1_segmentid
         rec_files = vox22_rec_files + vox1_rec_files
 
+        assert len(vox22_rec_files) > 0, "vox22 recording files not found"
+        assert len(vox1_rec_files) > 0, "vox1 recording files not found"
+
         recs = pd.DataFrame({"id": rec_ids, "storage_path": rec_files})
         recs = RecordingSet(recs)
         recs.sort()
@@ -148,7 +151,7 @@ class VoxSRC22DataPrep(DataPrep):
         logging.info("making dataset")
         dataset = Dataset(
             segments,
-            recordings={"recordings": recs},
+            recordings=recs,
             enrollments=enrollments,
             trials=trials,
             sparse_trials=False,
@@ -159,50 +162,6 @@ class VoxSRC22DataPrep(DataPrep):
             "datasets containts %d segments",
             len(segments),
         )
-
-    #             wav_file = voxsrc22_corpus_dir / file_id
-    #                             wav_file = vox1_corpus_dir / "wav" / file_id
-    #     logging.info("searching audio files in %s", self.vox1_corpus_dir)
-    #     vox1_rec_files = list(self.vox1_corpus_dir.glob("**/*.wav"))
-    #     if not vox1_rec_files:
-    #         # symlinks? try glob
-    #         vox1_rec_files = [
-    #             Path(f) for f in glob.iglob(f"{self.vox1_corpus_dir}/**/*.wav", recursive=True)
-    #         ]
-
-    #     vox1_rec_ids = [ f.parent.parent.name / f.parent.name / f.name for f in vox1_rec_files]
-    #     rec_files =
-
-    #     rec_files = list(self.corpus_dir.glob("**/*.wav"))
-    #     if not rec_files:
-    #         # symlinks? try glob
-    #         rec_files = [
-    #             Path(f) for f in glob.iglob(f"{self.corpus_dir}/**/*.wav", recursive=True)
-    #         ]
-
-    # u2s_file = output_dir / "utt2spk"
-    # logging.info("creating utt2spk file %s", u2s_file)
-    # file_ids = np.unique(np.concatenate((df_trials["enroll"], df_trials["test"])))
-    # with open(u2s_file, "w") as f:
-    #     for file_id in file_ids:
-    #         f.write("%s %s\n" % (file_id, file_id))
-
-    # s2u_file = output_dir / "spk2utt"
-    # logging.info("creating spk2utt file %s", s2u_file)
-    # with open(s2u_file, "w") as f:
-    #     for file_id in file_ids:
-    #         f.write("%s %s\n" % (file_id, file_id))
-
-    # wav_file = output_dir / "wav.scp"
-    # logging.info("creating wav.scp file %s", wav_file)
-    # with open(wav_file, "w") as f:
-    #     for file_id in file_ids:
-    #         if "VoxSRC2022_dev" in file_id:
-    #             wav_file = voxsrc22_corpus_dir / file_id
-    #         else:
-    #             wav_file = vox1_corpus_dir / "wav" / file_id
-
-    #         f.write("%s %s\n" % (file_id, wav_file))
 
     def prepare_track12_test(self):
         logging.info(

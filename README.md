@@ -26,13 +26,20 @@ The full API is described in the documentation page [https://hyperion-ml.readthe
 ### Prerequisites
 
     We use anaconda or miniconda, though you should be able to make it work in other python distributions
-    To start, you should create a new enviroment and install PyTorch>=1.9, (older versions are not supported any longer) e.g.:
+    To start, you should create a new enviroment and install PyTorch:
 ```
-conda create --name ${your_env} python=3.8
+conda create --name ${your_env} python=3.11
 conda activate ${your_env}
-conda install pytorch==1.10.1 torchvision==0.11.2 torchaudio==0.10.1 cudatoolkit=10.2 -c pytorch
+conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
 ```
-In next Hyperion versions, we will upgrade to Pytorch>=1.9 and drop compatibility with older PyTorch versions.
+
+For systems with cuda 10.2 driver:
+```
+conda create --name ${your_env} python=3.10
+conda activate ${your_env}
+conda install pytorch==1.12.1 torchvision==0.13.1 torchaudio==0.12.1 cudatoolkit=10.2 -c pytorch
+```
+
 
 ### Installing Hyperion
 

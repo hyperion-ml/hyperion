@@ -6,11 +6,10 @@ import logging
 import os
 from typing import Callable, List, Optional, Tuple, Union
 
-from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
-from transformers import Wav2Vec2Config, Wav2Vec2Model
-
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
+from transformers import Wav2Vec2Config, Wav2Vec2Model
 
 from ...utils.ddp import ddp_get_rank, ddp_wait_for_all_procs
 from .hf_wav2vec_base import HFWav2VecBase
@@ -204,8 +203,13 @@ class HFWav2Vec2(HFWav2VecBase):
         sample_frequency: int = 16000,
         feat_extract_lr: Optional[float] = None,
         encoder_lr: Optional[float] = None,
+        use_lora: bool = False,
+        lora_components: List[str] = ["q_proj", "v_proj"],
+        lora_rank: int = 4,
+        lora_alpha: int = 1,
+        lora_dropout: float = 0.0,
+        lora_merge_weights: bool = True,
     ):
-
         super().__init__(
             pretrained_model_path=pretrained_model_path,
             normalize_input=normalize_input,
@@ -223,6 +227,12 @@ class HFWav2Vec2(HFWav2VecBase):
             sample_frequency=sample_frequency,
             feat_extract_lr=feat_extract_lr,
             encoder_lr=encoder_lr,
+            use_lora=use_lora,
+            lora_components=lora_components,
+            lora_rank=lora_rank,
+            lora_alpha=lora_alpha,
+            lora_dropout=lora_dropout,
+            lora_merge_weights=lora_merge_weights,
         )
 
         if pretrained_model_path is not None and not ignore_pretrained:

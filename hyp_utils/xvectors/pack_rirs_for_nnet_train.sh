@@ -66,13 +66,4 @@ $cmd $dir/log/pack_rirs_${name}.log \
     pack_wav_rirs.py ${args} --input $data_in/wav.scp \
      --output ${file_format},scp:$output_dir/rirs_${name}.${file_format},$data_out/rirs.scp || exit 1;
 
-
-# for n in $(seq $nj); do
-#   cat $output_dir/wav.${name}.$n.scp || exit 1;
-# done > ${data_out}/wav.scp || exit 1
-
-# for n in $(seq $nj); do
-#   cat $output_dir/utt2dur.${name}.$n || exit 1;
-# done > ${data_out}/utt2dur || exit 1
-
 echo "$0: Succeeded packing RIRs for $name"

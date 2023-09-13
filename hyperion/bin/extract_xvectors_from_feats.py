@@ -11,6 +11,13 @@ import time
 
 import numpy as np
 import torch
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
+
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialDataReaderFactory as DRF
@@ -19,8 +26,6 @@ from hyperion.np.feats import MeanVarianceNorm as MVN
 from hyperion.torch import TorchModelLoader as TML
 from hyperion.torch.utils import open_device
 from hyperion.utils import Utt2Info
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
 
 
 def init_device(use_gpu):
@@ -50,13 +55,15 @@ def load_model(model_path, device):
 
 
 def select_random_chunk(key, x, min_utt_length, max_utt_length, rng):
-    utt_length = rng.randint(low=min_utt_length, high=max_utt_length + 1)
+    utt_length = rng.integers(low=min_utt_length, high=max_utt_length + 1)
     if utt_length < x.shape[1]:
-        first_frame = rng.randint(low=0, high=x.shape[1] - utt_length)
+        first_frame = rng.integers(low=0, high=x.shape[1] - utt_length)
         x = x[:, first_frame : first_frame + utt_length]
         logging.info(
-            "extract-random-utt %s of length=%d first-frame=%d"
-            % (key, x.shape[1], first_frame)
+            "extract-random-utt %s of length=%d first-frame=%d",
+            key,
+            x.shape[1],
+            first_frame,
         )
     return x
 
@@ -76,9 +83,8 @@ def extract_xvectors(
     use_gpu,
     **kwargs
 ):
-
     logging.info("initializing")
-    rng = np.random.RandomState(seed=1123581321 + kwargs["part_idx"])
+    rng = np.random.default_rng(seed=1123581321 + kwargs["part_idx"])
     device = init_device(use_gpu)
     mvn = init_mvn(device, **kwargs)
     model = load_model(model_path, device)
@@ -90,7 +96,6 @@ def extract_xvectors(
     dr_args = DRF.filter_args(**kwargs)
     logging.info("opening output stream: %s" % (output_spec))
     with DWF.create(output_spec) as writer:
-
         logging.info("opening input stream: %s" % (input_spec))
         with DRF.create(input_spec, **dr_args) as reader:
             if vad_spec is not None:
@@ -168,8 +173,7 @@ def extract_xvectors(
         u2nf.save(write_num_frames_spec)
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(description="Extracts x-vectors from features")
 
     parser.add_argument("--cfg", action=ActionConfigFile)
@@ -238,3 +242,7 @@ if __name__ == "__main__":
     logging.debug(args)
 
     extract_xvectors(**namespace_to_dict(args))
+
+
+if __name__ == "__main__":
+    main()

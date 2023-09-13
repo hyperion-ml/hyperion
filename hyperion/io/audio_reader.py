@@ -55,7 +55,7 @@ class AudioReader(object):
         self,
         recordings: Union[RecordingSet, PathLike],
         segments: Union[SegmentSet, PathLike, None] = None,
-        wav_scale: float = 2 ** 15 - 1,
+        wav_scale: float = 1.0,
     ):
         if not isinstance(recordings, RecordingSet):
             recordings = RecordingSet.load(recordings)
@@ -255,7 +255,7 @@ class SequentialAudioReader(AudioReader):
         self,
         recordings: Union[RecordingSet, PathLike],
         segments: Union[SegmentSet, PathLike, None] = None,
-        wav_scale: float = 2 ** 15 - 1,
+        wav_scale: float = 1.0,
         part_idx: int = 1,
         num_parts: int = 1,
     ):
@@ -346,7 +346,9 @@ class SequentialAudioReader(AudioReader):
                 key = segment["id"]
                 x_i, fs_i = self._read_segment(segment, offset_i, dur_i)
             else:
-                key, file_path = self.recordings.iloc[self.cur_item]
+                segment = self.recordings.iloc[self.cur_item]
+                key = segment["id"]
+                file_path = segment["storage_path"]
                 x_i, fs_i = self.read_wavspecifier(
                     file_path, self.wav_scale, offset_i, dur_i
                 )
@@ -371,7 +373,8 @@ class SequentialAudioReader(AudioReader):
 
         parser.add_argument(
             "--wav-scale",
-            default=2 ** 15 - 1,
+            default=1.0,
+            # default=2 ** 15 - 1,
             type=float,
             help=("multiplicative factor for waveform"),
         )
@@ -408,7 +411,7 @@ class RandomAccessAudioReader(AudioReader):
         self,
         recordings: Union[RecordingSet, PathLike],
         segments: Union[SegmentSet, PathLike, None] = None,
-        wav_scale: float = 2 ** 15 - 1,
+        wav_scale: float = 1.0,
     ):
         super().__init__(recordings, segments, wav_scale)
 
@@ -423,7 +426,7 @@ class RandomAccessAudioReader(AudioReader):
         Args:
           keys: List of recording/segment_ids names.
           time_offset: float or float list with time-offsets
-          time_durs: float or float list with durations 
+          time_durs: float or float list with durations
 
         Returns:
           data: List of waveforms
@@ -521,7 +524,8 @@ class RandomAccessAudioReader(AudioReader):
 
         parser.add_argument(
             "--wav-scale",
-            default=2 ** 15 - 1,
+            default=1.0,
+            # default=2 ** 15 - 1,
             type=float,
             help=("multiplicative factor for waveform"),
         )

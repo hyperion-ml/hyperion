@@ -4,6 +4,8 @@
 """
 
 from .data_prep import DataPrep
+from .musan import MusanDataPrep
+from .rirs import RIRSDataPrep
 from .voxceleb2 import VoxCeleb2DataPrep
 from .voxceleb1 import VoxCeleb1DataPrep
 from .voxsrc22 import VoxSRC22DataPrep

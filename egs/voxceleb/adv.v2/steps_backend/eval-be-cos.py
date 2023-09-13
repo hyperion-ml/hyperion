@@ -19,7 +19,7 @@ import numpy as np
 
 from hyperion.hyp_defs import float_cpu, config_logger
 from hyperion.utils import TrialNdx, TrialScores
-from hyperion.utils.math import cosine_scoring
+from hyperion.utils.math_funcs import cosine_scoring
 from hyperion.helpers import TrialDataReader as TDR
 from hyperion.helpers import PLDAFactory as F
 from hyperion.np.transforms import TransformList

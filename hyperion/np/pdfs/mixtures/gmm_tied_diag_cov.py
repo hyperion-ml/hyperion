@@ -7,10 +7,13 @@ import numpy as np
 from scipy.special import erf
 
 from ....hyp_defs import float_cpu
-from ....utils.math import logsumexp, softmax
-from ....utils.plotting import (plot_gaussian_1D, plot_gaussian_3D,
-                                plot_gaussian_ellipsoid_2D,
-                                plot_gaussian_ellipsoid_3D)
+from ....utils.math_funcs import logsumexp, softmax
+from ....utils.plotting import (
+    plot_gaussian_1D,
+    plot_gaussian_3D,
+    plot_gaussian_ellipsoid_2D,
+    plot_gaussian_ellipsoid_3D,
+)
 from ...clustering import KMeans
 from .gmm_diag_cov import GMMDiagCov
 
@@ -193,7 +196,7 @@ class GMMTiedDiagCov(GMMDiagCov):
           Generated samples with shape (num_samples, x_dim).
         """
         if rng is None:
-            rng = np.random.RandomState(seed)
+            rng = np.random.default_rng(seed)
 
         if r is None:
             r = rng.multinomial(1, self.pi, size=(num_samples,))

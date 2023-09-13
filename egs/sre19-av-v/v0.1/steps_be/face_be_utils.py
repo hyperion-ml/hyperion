@@ -2,15 +2,11 @@
   Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
   Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)  
 """
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-
 import logging
 import numpy as np
 
 from hyperion.utils.utt2info import Utt2Info
-from hyperion.utils.math import softmax
+from hyperion.utils.math_funcs import softmax
 from hyperion.io import RandomAccessDataReaderFactory as DRF
 from hyperion.np.transforms import LNorm
 from hyperion.np.clustering import AHC
@@ -23,9 +19,6 @@ def lnorm(x):
 
 def cosine_scr(x1, x2):
 
-    # t = LNorm()
-    # x1 = t.predict(x1)
-    # x2 = t.predict(x2)
     x1 = lnorm(x1)
     x2 = lnorm(x2)
     return np.dot(x1, x2.T)

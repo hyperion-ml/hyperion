@@ -17,7 +17,7 @@ from hyperion.np.pdfs import PLDA
 from hyperion.np.transforms import TransformList, PCA, LDA, LNorm
 from hyperion.helpers import PLDAFactory as F
 from hyperion.utils.utt2info import Utt2Info
-from hyperion.utils.math import cosine_scoring
+from hyperion.utils.math_funcs import cosine_scoring
 
 from numpy.linalg import matrix_rank, svd
 

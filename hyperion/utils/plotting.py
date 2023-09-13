@@ -4,6 +4,7 @@
 """
 
 import matplotlib
+
 # matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
@@ -11,7 +12,7 @@ import scipy.linalg as la
 import scipy.stats as stats
 from mpl_toolkits.mplot3d import Axes3D as plt3d
 
-from .math import invert_pdmat
+from .math_funcs import invert_pdmat
 
 
 def plot_gaussian_1D(mu, C, num_sigmas=3, num_pts=100, weight=1, **kwargs):
