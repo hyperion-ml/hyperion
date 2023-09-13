@@ -9,7 +9,7 @@ if [ "$(hostname --domain)" == "clsp.jhu.edu" ];then
   musan_root=/export/corpora5/JHU/musan
   echo "Put your database paths here"
   exit 1
-elif [ "$(hostname --domain)" == "rockfish.cluster" ];then
+elif [ "$(hostname --domain)" == "cm.cluster" ];then
   commonvoice_root=/data/jvillal7/corpora/commonvoice
   musan_root=/data/jvillal7/corpora/musan
 elif [ "$(hostname --domain)" == "cm.gemini" ];then
