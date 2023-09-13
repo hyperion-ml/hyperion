@@ -35,26 +35,37 @@ data:
       class_name: speaker
     data_loader:
       num_workers: 8
-model: wavlmbaseplus_ecapatdnn512x3_v2.0.yaml
-trainer:
+model:
+  hf_feats:
+    override_lora: true
+    use_lora: true
+    lora_rank: 4
+    lora_components:
+    - q_proj
+    - v_proj
+  xvector:
+    cos_scale: 32.0
+    margin: 0.2
+    margin_warmup_epochs: 0
+    intertop_k: 5
+    intertop_margin: 0.1
+trainer: 
   optim:
     opt_type: sgd
-    lr: 0.4
+    lr: 5e-2
     momentum: 0.9
-    weight_decay: 4e-4
+    weight_decay: 1e-4
   lrsched:
     lrsch_type: exp_lr
     decay_rate: 0.5
-    decay_steps: 7500
-    hold_steps: 2600
-    #min_lr: 4e-4
-    min_lr: 1e-6
-    warmup_steps: 2600
+    decay_steps: 5000
+    hold_steps: 6000
+    min_lr: 5e-4
+    warmup_steps: 6000
     update_lr_on_opt_step: true
   use_amp: true
   log_interval: 1000
-  epochs: 35
-  eff_batch_size: 1024
+  epochs: 8
+  eff_batch_size: 512
   target_key: speaker
-  train_mode: hf-feats-frozen-nograd
- 
+  train_mode: hf-lora
