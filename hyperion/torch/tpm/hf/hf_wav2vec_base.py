@@ -545,6 +545,24 @@ class HFWav2VecBase(TorchModel):
         """
         max_in_length = x.size(-1)
         x, x_mask = self._preprocess(x, x_lengths)
+        if ddp_get_rank() == 0:
+            lora_layer = self.hf_model.encoder.layers[0].attention.v_proj
+            # print(
+            #     "lora\nw=",
+            #     lora_layer.weight[:3, :3],
+            #     "\na=",
+            #     lora_layer.lora_A[:3, :3],
+            #     "\nb=",
+            #     lora_layer.lora_B[:3, :3],
+            #     "\n",
+            #     "merged=",
+            #     lora_layer.merged,
+            #     "training=",
+            #     lora_layer.training,
+            #     flush=True,
+            # )
+            assert self.training == lora_layer.training
+            assert self.training == (not lora_layer.merged)
         output = self.hf_model(
             x,
             x_mask,
@@ -728,7 +746,7 @@ class HFWav2VecBase(TorchModel):
 
     @staticmethod
     def filter_args(**kwargs):
-        return filter_func_args(HFWav2VecBase.__init__, **kwargs)
+        return filter_func_args(HFWav2VecBase.__init__, kwargs)
         # valid_args = (
         #     "pretrained_model_path",
         #     "normalize_input",
@@ -910,7 +928,7 @@ class HFWav2VecBase(TorchModel):
 
     @staticmethod
     def filter_finetune_args(**kwargs):
-        return filter_func_args(HFWav2VecBase.change_config, **kwargs)
+        return filter_func_args(HFWav2VecBase.change_config, kwargs)
         # valid_args = (
         #     "override_dropouts",
         #     "override_spec_augment",

@@ -7,7 +7,47 @@ from typing import Union
 
 import loralib as lora
 import torch.nn as nn
-from loralib import *
+from loralib import mark_only_lora_as_trainable
+
+
+def repr_lora(self, str_base):
+    if isinstance(self.lora_dropout, nn.Dropout):
+        lora_dropout = self.lora_dropout.p
+    else:
+        lora_dropout = 0
+
+    str_lora = f", r={self.r}, alpha={self.lora_alpha}, dropout={lora_dropout}, merge_weights={self.merge_weights})"
+    return str_base[:-1] + str_lora
+
+
+class LinearLoRA(lora.Linear):
+    def __repr__(self):
+        str_base = super().__repr__()
+        return repr_lora(self, str_base)
+
+
+class EmbeddingLoRA(lora.Embedding):
+    def __repr__(self):
+        str_base = super().__repr__()
+        return repr_lora(self, str_base)
+
+
+class Conv1dLoRA(lora.Conv1d):
+    def __repr__(self):
+        str_base = super().__repr__()
+        return repr_lora(self, str_base)
+
+
+class Conv2dLoRA(lora.Conv2d):
+    def __repr__(self):
+        str_base = super().__repr__()
+        return repr_lora(self, str_base)
+
+
+class Conv3dLoRA(lora.Conv3d):
+    def __repr__(self):
+        str_base = super().__repr__()
+        return repr_lora(self, str_base)
 
 
 class LoRAFactory:
@@ -19,7 +59,7 @@ class LoRAFactory:
         merge_weights: bool = True,
     ):
         if isinstance(layer, nn.Embedding):
-            lora_layer = lora.Embedding(
+            lora_layer = EmbeddingLoRA(
                 layer.num_embeddings,
                 layer.embedding_dim,
                 padding_idx=layer.padding_idx,
@@ -36,7 +76,7 @@ class LoRAFactory:
 
         elif isinstance(layer, nn.Linear):
             bias = layer.bias is not None
-            lora_layer = lora.Linear(
+            lora_layer = LinearLoRA(
                 layer.in_features,
                 layer.out_features,
                 bias=bias,
@@ -51,11 +91,11 @@ class LoRAFactory:
 
         elif isinstance(layer, (nn.Conv1d, nn.Conv2d, nn.Conv3d)):
             if isinstance(layer, nn.Conv1d):
-                lora_class = lora.Conv1d
+                lora_class = Conv1dLoRA
             elif isinstance(layer, nn.Conv2d):
-                lora_class = lora.Conv2d
+                lora_class = Conv2dLoRA
             elif isinstance(layer, nn.Conv3d):
-                lora_class = lora.Conv3d
+                lora_class = Conv3dLoRA
 
             bias = layer.bias is not None
             lora_layer = lora_class(

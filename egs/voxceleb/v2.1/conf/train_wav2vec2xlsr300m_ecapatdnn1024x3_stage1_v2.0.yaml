@@ -2,11 +2,11 @@ data:
   train:
     dataset:
       class_names:
-      - class_id
+      - speaker
       aug_cfgs:
       - conf/reverb_noise_aug.yaml
       return_segment_info:
-      - class_id
+      - speaker
       target_sample_freq: 16000
       wav_scale: 1
     sampler:
@@ -14,17 +14,17 @@ data:
       min_batch_size: 128
       max_chunk_length: 3.0
       min_chunk_length: 3.0
-      class_name: class_id
+      class_name: speaker
     data_loader:
       num_workers: 8
   val:
     dataset:
       class_names:
-      - class_id
+      - speaker
       aug_cfgs:
       - conf/reverb_noise_aug.yaml
       return_segment_info:
-      - class_id
+      - speaker
       target_sample_freq: 16000
       wav_scale: 1
     sampler:
@@ -32,7 +32,7 @@ data:
       min_batch_size: 128
       max_chunk_length: 3.0
       min_chunk_length: 3.0
-      class_name: class_id
+      class_name: speaker
     data_loader:
       num_workers: 8
 model: wav2vec2xlsr300m_ecapatdnn1024x3_v2.0.yaml
@@ -55,5 +55,6 @@ trainer:
   log_interval: 1000
   epochs: 35
   eff_batch_size: 1024
+  target_key: speaker
   train_mode: hf-feats-frozen-nograd
  
