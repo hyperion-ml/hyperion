@@ -149,6 +149,12 @@ class HFWav2Vec2(HFWav2VecBase):
         sample_frequency: (`int`) waveform sample frequency used to train the model.
         feat_extract_lr: learning rate for conv feature extractor, serves to set a lr different than the global one.
         encoder_lr: learning rate for the wav2vec encoder, serves to set a lr different than the global one.
+        use_lora: use low-rank adapters
+        lora_components: list of components where we apply LoRA, eg [Wq, Wv]
+        lora_rank: rank of LoRA
+        lora_alpha: scale for LoRA
+        lora_dropout: dropout rate for LoRA
+        lora_merge_weights: lora weights are merged with the pretrained weights at inference.
     """
 
     def __init__(
@@ -697,7 +703,7 @@ class HFWav2Vec2(HFWav2VecBase):
 
     @staticmethod
     def filter_finetune_args(**kwargs):
-        args_base = HFWav2VecBase.filter_args(**kwargs)
+        args_base = HFWav2VecBase.filter_finetune_args(**kwargs)
         valid_args = (
             "hidden_dropout",
             "activation_dropout",
