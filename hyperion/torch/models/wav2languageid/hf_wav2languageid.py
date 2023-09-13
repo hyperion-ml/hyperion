@@ -28,13 +28,16 @@ class HFWav2LanguageID(TorchModel):
     """
 
     def __init__(
-        self, hf_feats, languageid, feat_fusion_start=0, feat_fusion_method="weighted-avg"
+        self, hf_feats, languageid, feat_fusion_start=0, feat_fusion_end=-1, feat_fusion_method="weighted-avg"
     ):
 
         super().__init__()
         self.hf_feats = hf_feats
         self.languageid = languageid
         self.feat_fusion_start = feat_fusion_start
+        if feat_fusion_end == -1:
+            feat_fusion_end = self.hf_feats.num_encoder_layers
+        self.feat_fusion_end = feat_fusion_end
         self.feat_fusion_method = feat_fusion_method
         self._hf_context = contextlib.nullcontext()
         self._make_fuser()
@@ -44,7 +47,7 @@ class HFWav2LanguageID(TorchModel):
             self.feat_fuser = None
             return
 
-        num_layers = self.hf_feats.num_encoder_layers + 1 - self.feat_fusion_start
+        num_layers = self.feat_fusion_end + 1 - self.feat_fusion_start
         layer_dim = self.hf_feats.hidden_size
         if self.feat_fusion_method == "weighted-avg":
             self.feat_fuser = nn.Parameter(torch.zeros(num_layers))
@@ -67,10 +70,11 @@ class HFWav2LanguageID(TorchModel):
             # There is only one layer of features
             return hid_feats[0]
 
-        hid_feats = hid_feats[self.feat_fusion_start :]
+        hid_feats = hid_feats[self.feat_fusion_start : self.feat_fusion_end + 1]
         if self.feat_fusion_method == "weighted-avg":
             hid_feats = torch.stack(hid_feats, dim=-1)
             norm_weights = nn.functional.softmax(self.feat_fuser, dim=-1)
+            # logging.info(torch.tensor(norm_weights.values).to(device))
             feats = torch.sum(hid_feats * norm_weights, dim=-1)
         elif self.feat_fusion_method == "linear":
             hid_feats = torch.stack(hid_feats, dim=-1)
@@ -140,6 +144,7 @@ class HFWav2LanguageID(TorchModel):
         feat_lengths = hf_output["hidden_states_lengths"]
         if return_hid_states:
             hid_feats = hf_output["hidden_states"]
+            assert(len(hid_feats) == self.hf_feats.num_encoder_layers + 1)
             feats = self._fuse_hid_feats(hid_feats)
         else:
             hid_feats = None
@@ -331,6 +336,7 @@ class HFWav2LanguageID(TorchModel):
             "hf_feats",
             "languageid",
             "feat_fusion_start",
+            "feat_fusion_end",
             "feat_fusion_method",
         )
         args = dict((k, kwargs[k]) for k in valanguageid_args if k in kwargs)
@@ -346,6 +352,7 @@ class HFWav2LanguageID(TorchModel):
             "hf_feats": hf_cfg,
             "languageid": xvec_cfg,
             "feat_fusion_start": self.feat_fusion_start,
+            "feat_fusion_end": self.feat_fusion_end,
             "feat_fusion_method": self.feat_fusion_method,
         }
 
@@ -370,9 +377,23 @@ class HFWav2LanguageID(TorchModel):
             type=int,
             help=(
                 "the input to language identification model will fuse the wav2vec layers from feat_fusion_start to"
-                "the wav2vec num_layers"
+                "the feat_fusion_end"
             ),
         )
+
+
+        parser.add_argument(
+            "--feat-fusion-end",
+            default=-1,
+            type=int,
+            help=(
+                "the input to language identification model will fuse the wav2vec layers from feat_fusion_start to"
+                "the feat_fusion_end"
+            ),
+        )
+
+                
+
         parser.add_argument(
             "--feat-fusion-method",
             default="weighted-avg",
