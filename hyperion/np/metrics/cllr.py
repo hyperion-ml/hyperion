@@ -5,7 +5,7 @@
 
 import numpy as np
 
-from ..utils.math import neglogsigmoid
+from ..utils.math_funcs import neglogsigmoid
 from .utils import opt_loglr
 
 

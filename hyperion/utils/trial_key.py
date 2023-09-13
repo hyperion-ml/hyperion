@@ -11,7 +11,8 @@ import h5py
 import numpy as np
 import pandas as pd
 
-from .list_utils import *
+# from .list_utils import *
+from .list_utils import sort, intersect, ismember, split_list, list2ndarray
 from .trial_ndx import TrialNdx
 
 
@@ -178,7 +179,8 @@ class TrialKey(object):
         Returns:
           TrialKey object.
         """
-        _, file_ext = path.splitext(file_path)
+        file_path = Path(file_path)
+        file_ext = file_path.suffix
         if file_ext in (".h5", ".hdf5"):
             return cls.load_h5(file_path)
         elif file_ext in ("", ".txt"):
@@ -268,7 +270,7 @@ class TrialKey(object):
 
     @classmethod
     def load_table(cls, file_path, sep=None):
-        """Loads object from txt file
+        """Loads object from pandas table file
 
         Args:
           file_path: File to read the list.
@@ -285,12 +287,8 @@ class TrialKey(object):
         models = df["modelid"].values
         segments = df["segmentid"].values
         is_tar = (df["targettype"] == "target").values
-        model_set, _, model_idx = np.unique(
-            models, return_index=True, return_inverse=True
-        )
-        seg_set, _, seg_idx = np.unique(
-            segments, return_index=True, return_inverse=True
-        )
+        model_set, model_idx = np.unique(models, return_inverse=True)
+        seg_set, seg_idx = np.unique(segments, return_inverse=True)
         tar = np.zeros((len(model_set), len(seg_set)), dtype="bool")
         non = np.zeros((len(model_set), len(seg_set)), dtype="bool")
         for i, j, target_type in zip(model_idx, seg_idx, is_tar):

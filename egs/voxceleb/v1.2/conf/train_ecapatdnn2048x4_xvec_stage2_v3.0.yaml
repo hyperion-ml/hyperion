@@ -37,15 +37,15 @@ data:
       num_hard_prototypes: 8
     data_loader:
       num_workers: 8
-feats: fbank80_stmn_16k.yaml
 model:
-  cos_scale: 30.0
-  margin: 0.3
-  margin_warmup_epochs: 0
-  intertop_margin: 0.1
-  resnet_enc:
-    override_dropouts: true
-    dropout_rate: 0.25
+  xvector:
+    cos_scale: 30.0
+    margin: 0.3
+    margin_warmup_epochs: 0
+    intertop_margin: 0.1
+    resnet_enc:
+      override_dropouts: true
+      dropout_rate: 0.25
 trainer:
   optim:
     opt_type: sgd

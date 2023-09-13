@@ -12,6 +12,13 @@ import time
 import numpy as np
 import torch
 import yaml
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
+
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialDataReaderFactory as DRF
@@ -20,8 +27,6 @@ from hyperion.np.feats import MeanVarianceNorm as MVN
 from hyperion.torch import TorchModelLoader as TML
 from hyperion.torch.utils import open_device
 from hyperion.utils import Utt2Info
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
 
 
 def init_device(use_gpu):
@@ -69,9 +74,8 @@ def extract_xvectors(
     use_gpu,
     **kwargs
 ):
-
     logging.info("initializing")
-    rng = np.random.RandomState(seed=1123581321 + kwargs["part_idx"])
+    rng = np.random.default_rng(seed=1123581321 + kwargs["part_idx"])
     device = init_device(use_gpu)
     mvn = init_mvn(device, **kwargs)
     model = load_model(model_path, device)
@@ -82,7 +86,6 @@ def extract_xvectors(
     dr_args = DRF.filter_args(**kwargs)
     logging.info("opening output stream: %s" % (output_spec))
     with DWF.create(output_spec) as writer:
-
         logging.info("opening input stream: %s" % (output_spec))
         with DRF.create(input_spec, **dr_args) as reader:
             if vad_spec is not None:
@@ -114,7 +117,13 @@ def extract_xvectors(
 
                 t4 = time.time()
                 if x.shape[0] == 0:
-                    y = np.zeros((1, model.embed_dim,), dtype=float_cpu(),)
+                    y = np.zeros(
+                        (
+                            1,
+                            model.embed_dim,
+                        ),
+                        dtype=float_cpu(),
+                    )
                 else:
                     xx = torch.tensor(x.T[None, :], dtype=torch.get_default_dtype())
                     with torch.no_grad():
@@ -191,8 +200,7 @@ def extract_xvectors(
             yaml.dump(params, f)
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(description="Extract x-vectors over a sliding window")
 
     parser.add_argument("--cfg", action=ActionConfigFile)
@@ -204,7 +212,9 @@ if __name__ == "__main__":
     )
     parser.add_argument("--slidwin-params-path", default=None)
     parser.add_argument(
-        "--vad-path-prefix", default=None, help=("scp file_path prefix for vad"),
+        "--vad-path-prefix",
+        default=None,
+        help=("scp file_path prefix for vad"),
     )
 
     MVN.add_class_args(parser, prefix="mvn")
@@ -294,3 +304,7 @@ if __name__ == "__main__":
     logging.debug(args)
 
     extract_xvectors(**namespace_to_dict(args))
+
+
+if __name__ == "__main__":
+    main()

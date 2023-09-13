@@ -12,6 +12,13 @@ import time
 import numpy as np
 import pandas as pd
 import torch
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
+
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialAudioReader as AR
@@ -21,8 +28,6 @@ from hyperion.torch import TorchModelLoader as TML
 from hyperion.torch.narchs import AudioFeatsMVN as AF
 from hyperion.torch.utils import open_device
 from hyperion.utils import Utt2Info
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
 
 
 def init_device(use_gpu):
@@ -76,13 +81,15 @@ def augment(key0, x0, augmenter, aug_df, aug_id):
 
 
 def select_random_chunk(key, x, min_utt_length, max_utt_length, rng):
-    utt_length = rng.randint(low=min_utt_length, high=max_utt_length + 1)
+    utt_length = rng.integers(low=min_utt_length, high=max_utt_length + 1)
     if utt_length < x.shape[1]:
-        first_frame = rng.randint(low=0, high=x.shape[1] - utt_length)
+        first_frame = rng.integers(low=0, high=x.shape[1] - utt_length)
         x = x[:, first_frame : first_frame + utt_length]
         logging.info(
-            "extract-random-utt %s of length=%d first-frame=%d"
-            % (key, x.shape[1], first_frame)
+            "extract-random-utt %s of length=%d first-frame=%d",
+            key,
+            x.shape[1],
+            first_frame,
         )
     return x
 
@@ -104,8 +111,7 @@ def eval_xvec(
     use_gpu,
     **kwargs
 ):
-
-    rng = np.random.RandomState(seed=1123581321 + kwargs["part_idx"])
+    rng = np.random.default_rng(seed=1123581321 + kwargs["part_idx"])
     device = init_device(use_gpu)
     feat_extractor = init_feats(device, **kwargs)
     model = load_model(model_path, device)
@@ -125,15 +131,16 @@ def eval_xvec(
     ar_args = AR.filter_args(**kwargs)
     logging.info("opening output stream: %s", output_spec)
     with DWF.create(output_spec) as writer:
-
         logging.info(
             "opening input stream: {} with args={}".format(input_spec, ar_args)
         )
         with AR(input_spec, **ar_args) as reader:
-
             if vad_spec is not None:
                 logging.info("opening VAD stream: %s", vad_spec)
-                v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix,)
+                v_reader = VRF.create(
+                    vad_spec,
+                    path_prefix=vad_path_prefix,
+                )
 
             while not reader.eof():
                 t1 = time.time()
@@ -218,8 +225,7 @@ def eval_xvec(
         aug_df.to_csv(aug_info_path, index=False, na_rep="n/a")
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(
         description=(
             "Evaluates x-vectors logits from waveform computing "
@@ -293,3 +299,7 @@ if __name__ == "__main__":
     logging.debug(args)
 
     eval_xvec(**namespace_to_dict(args))
+
+
+if __name__ == "__main__":
+    main()

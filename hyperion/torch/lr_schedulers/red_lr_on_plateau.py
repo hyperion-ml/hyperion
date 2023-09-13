@@ -7,7 +7,11 @@ import logging
 from functools import partial
 
 import torch
-from torch._six import inf
+
+try:
+    from torch import inf
+except:
+    from torch._six import inf
 
 from .lr_scheduler import LRScheduler
 

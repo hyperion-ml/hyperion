@@ -87,10 +87,10 @@ if [ $stage -le 0 ];then
 	hyp_utils/conda_env.sh --num-gpus $num_gpus \
 	extract_xvectors_from_wav.py \
 	--feats $feat_config ${args} $write_num_frames_opt \
-	--part-idx JOB --num-parts $nj \
-	--input $data_dir/wav.scp \
+	--part-idx JOB --num-parts $nj  \
+	--recordings-file $data_dir/wav.scp \
 	--model-path $nnet_file --chunk-length $chunk_length \
-	--output ark,scp:$output_dir/xvector.JOB.ark,$output_dir/xvector.JOB.scp
+	--output-spec ark,scp:$output_dir/xvector.JOB.ark,$output_dir/xvector.JOB.scp
     set -e
 fi
 
@@ -110,9 +110,9 @@ if [ $stage -le 1 ];then
 		 extract_xvectors_from_wav.py \
 		 --feats $feat_config ${args} $write_num_frames_opt \
 		 --part-idx $i --num-parts $nj \
-		 --input $data_dir/wav.scp \
+		 --recordings-file $data_dir/wav.scp \
 		 --model-path $nnet_file --chunk-length $chunk_length \
-		 --output ark,scp:$output_dir/xvector.$i.ark,$output_dir/xvector.$i.scp &
+		 --output-spec ark,scp:$output_dir/xvector.$i.ark,$output_dir/xvector.$i.scp &
 	fi
     done
     wait

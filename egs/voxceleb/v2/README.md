@@ -26,12 +26,12 @@ Recipe for the VoxCeleb Speaker Verification Task using Wav2Vec2, WavLM or Huber
 ## Usage
 
    - Run the run_0*.sh scripts in sequence
-   - By default it will use 
+   - By default it will use config global_conf/config_wavlmbaseplus_ecapatdnn512x3_v2.0.sh
    - For better performance use 
 ```bash
-run_011_train_xvector.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh
-run_030_extract_xvectors.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh --use-gpu true
-run_040_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr0.05_amp.v1.sh
+run_011_train_xvector.sh --config-file global_conf/other_config.sh
+run_030_extract_xvectors.sh --config-file global_conf/other_config.sh --use-gpu true
+run_040_eval_be.sh --config-file global_conf/other_config.sh
 ```
 
 
@@ -155,7 +155,7 @@ run_040_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | | | | Cosine + QMF | 2.38 | 0.159 | 0.266 |
 | config_wavlmlarge12l_ecapatdnn512x3_v2.0.sh | WavLM-Large(layer=2-12)+ECAPA-TDNN 512x3 | Stage3: ArcFace m=0.4/intertop_m=0.1 | Cosine | 2.62 | 0.153 | 0.251 |
 | | | | Cosine + AS-Norm | 2.53 | 0.149 | 0.247 |
-| | | | Cosine + QMF | 0.242 | 0.144 | 0.231 |
+| | | | Cosine + QMF | 2.42 | 0.144 | 0.231 |
 | config_wav2vec2xlsr300m_ecapatdnn512x3_v2.0.sh | Wav2Vec2-XLSR300M+ECAPA-TDNN 512x3 | Stage3: ArcFace m=0.4/intertop_m=0.1 | Cosine | 2.25 | 0.136 | 0.225 |
 | | | | Cosine + AS-Norm | 2.01 | 0.125 | 0.209 |
 | | | | Cosine + QMF | 1.92 | 0.117 | 0.200 |

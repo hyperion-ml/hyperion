@@ -7,7 +7,7 @@ import numpy as np
 from scipy import linalg as sla
 
 from ....hyp_defs import float_cpu
-from ....utils.math import invert_pdmat, invert_trimat, logdet_pdmat
+from ....utils.math_funcs import invert_pdmat, invert_trimat, logdet_pdmat
 from .plda_base import PLDABase
 
 
@@ -465,7 +465,7 @@ class FRPLDA(PLDABase):
         assert self.is_init
 
         if rng is None:
-            rng = np.random.RandomState(seed=seed)
+            rng = np.random.default_rng(seed=seed)
 
         Sb = invert_pdmat(self.B, return_inv=True)[-1]
         chol_Sb = sla.cholesky(Sb, lower=False)

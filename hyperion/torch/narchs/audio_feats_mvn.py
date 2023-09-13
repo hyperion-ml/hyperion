@@ -51,6 +51,10 @@ class AudioFeatsMVN(NetArch):
         self.aug_after_mvn = aug_after_mvn
 
     @property
+    def sample_frequency(self):
+        return self.audio_feats.fs
+
+    @property
     def fs(self):
         return self.audio_feats.fs
 

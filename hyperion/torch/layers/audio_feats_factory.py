@@ -315,7 +315,7 @@ class AudioFeatsFactory(object):
         parser.add_argument(
             "--dither",
             type=float,
-            default=1,
+            default=1.0 / 2 ** 15,
             help="Dithering constant (0.0 means no dither)",
         )
 

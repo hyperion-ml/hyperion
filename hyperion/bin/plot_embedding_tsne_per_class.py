@@ -13,14 +13,20 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ActionYesNo,
+    ArgumentParser,
+    namespace_to_dict,
+)
+
 from hyperion.hyp_defs import config_logger
 from hyperion.io import RandomAccessDataReaderFactory as DRF
 from hyperion.np.clustering import AHC
 from hyperion.np.transforms import PCA, LNorm, SklTSNE
 from hyperion.utils import SegmentSet
-from hyperion.utils.math import cosine_scoring
-from jsonargparse import (ActionConfigFile, ActionParser, ActionYesNo,
-                          ArgumentParser, namespace_to_dict)
+from hyperion.utils.math_funcs import cosine_scoring
 
 matplotlib.use("Agg")
 colors = ["b", "g", "r", "c", "m", "y", "k"]
@@ -45,7 +51,6 @@ def plot_embedding_tsne(
     output_dir,
     **kwargs,
 ):
-
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     logging.info("loading data")
@@ -87,7 +92,7 @@ def plot_embedding_tsne(
         if do_ahc:
             if cluster_tsne:
                 # in the low dim space, we cannot use cosine scoring
-                x2 = np.sum(x_tsne ** 2, axis=1)[:, None]
+                x2 = np.sum(x_tsne**2, axis=1)[:, None]
                 d2 = x2 - 2 * np.dot(x_tsne, x_tsne.T) + x2.T
                 d2 = np.clip(d2, a_min=0, a_max=None)
                 scores = -np.sqrt(d2)
@@ -135,8 +140,7 @@ def plot_embedding_tsne(
         train_segs.save(output_dir / "segments.csv")
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(
         description=(
             "Projects embeddings using TSNE, "
@@ -189,3 +193,7 @@ if __name__ == "__main__":
     logging.debug(args)
 
     plot_embedding_tsne(**namespace_to_dict(args))
+
+
+if __name__ == "__main__":
+    main()

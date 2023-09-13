@@ -9,10 +9,6 @@ import sys
 import time
 
 import numpy as np
-from hyperion.hyp_defs import config_logger
-from hyperion.io import DataWriterFactory as DWF
-from hyperion.io import SequentialAudioReader as AR
-from hyperion.np.feats import EnergyVAD
 from jsonargparse import (
     ActionConfigFile,
     ActionParser,
@@ -20,9 +16,13 @@ from jsonargparse import (
     namespace_to_dict,
 )
 
+from hyperion.hyp_defs import config_logger
+from hyperion.io import DataWriterFactory as DWF
+from hyperion.io import SequentialAudioReader as AR
+from hyperion.np.feats import EnergyVAD
+
 
 def compute_vad(recordings_file, output_spec, write_num_frames, **kwargs):
-
     vad_args = EnergyVAD.filter_args(**kwargs)
     vad = EnergyVAD(**vad_args)
 
@@ -78,8 +78,7 @@ def compute_vad(recordings_file, output_spec, write_num_frames, **kwargs):
         f_num_frames.close()
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(description="Compute Kaldi Energy VAD")
 
     parser.add_argument("--cfg", action=ActionConfigFile)
@@ -105,3 +104,7 @@ if __name__ == "__main__":
     logging.debug(args)
 
     compute_vad(**namespace_to_dict(args))
+
+
+if __name__ == "__main__":
+    main()

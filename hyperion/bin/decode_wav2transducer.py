@@ -15,18 +15,22 @@ import pandas as pd
 import sentencepiece as spm
 import torch
 import torch.nn as nn
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
+
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialAudioReader as AR
 from hyperion.np.augment import SpeechAugment
 from hyperion.torch import TorchModelLoader as TML
-from hyperion.torch.models.wav2transducer.beam_search import (beam_search,
-                                                              greedy_search)
+from hyperion.torch.models.wav2transducer.beam_search import beam_search, greedy_search
 from hyperion.torch.narchs import AudioFeatsMVN as AF
 from hyperion.torch.utils import open_device
 from hyperion.utils import Utt2Info
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
 
 
 def init_device(use_gpu):
@@ -118,7 +122,6 @@ def decode_one_batch(
 def decode_transducer(
     input_spec, output_spec, model_path, bpe_model, use_gpu, **kwargs
 ):
-
     device = init_device(use_gpu)
     model = load_model(model_path, device)
 
@@ -202,8 +205,7 @@ def decode_transducer(
                     )
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(
         description=(
             "Extracts x-vectors from waveform computing " "acoustic features on the fly"
@@ -235,3 +237,7 @@ if __name__ == "__main__":
     logging.debug(args)
 
     decode_transducer(**namespace_to_dict(args))
+
+
+if __name__ == "__main__":
+    main()

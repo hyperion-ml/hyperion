@@ -261,7 +261,7 @@ class Utt2Info(object):
           Index used to shuffle the list.
         """
         if rng is None:
-            rng = np.random.RandomState(seed=seed)
+            rng = np.random.default_rng(seed=seed)
         index = np.arange(len(self.key))
         rng.shuffle(index)
         self.utt_info = self.utt_info.iloc[index]

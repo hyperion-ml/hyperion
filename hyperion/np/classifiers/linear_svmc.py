@@ -10,7 +10,7 @@ from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from sklearn.svm import LinearSVC as SVC
 
 from ...hyp_defs import float_cpu
-from ...utils.math import softmax
+from ...utils.math_funcs import softmax
 from ..np_model import NPModel
 
 
@@ -41,7 +41,7 @@ class LinearSVMC(NPModel):
                     The “balanced” mode uses the values of y to automatically adjust
                     weights inversely proportional to class frequencies in the input
                     data as n_samples / (n_classes * np.bincount(y)).
-      random_state: RandomState instance or None, optional, default: None
+      random_state: default_rng instance or None, optional, default: None
       max_iter: int, default: 100
                    Useful only for the newton-cg, sag and lbfgs solvers.
                    Maximum number of iterations taken for the solvers to converge.
@@ -61,7 +61,7 @@ class LinearSVMC(NPModel):
                    penalty and dual will be ignored.
       verbose: int, default: 0
       balance_class_weight: if True and class_weight is None, it makes class_weight="balanced".
-      lr_seed: seed form RandomState, used when random_state is None.
+      lr_seed: seed form default_rng, used when random_state is None.
       labels: list of class labels
     """
 
@@ -93,7 +93,7 @@ class LinearSVMC(NPModel):
             class_weight = "balanced"
 
         if random_state is None:
-            random_state = np.random.RandomState(seed=lr_seed)
+            random_state = np.random.default_rng(seed=lr_seed)
 
         self.use_bias = use_bias
         self.bias_scaling = bias_scaling

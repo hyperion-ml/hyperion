@@ -148,24 +148,27 @@ class VoxCeleb2DataPrep(DataPrep):
         df_lang = self._get_langs_est()
         rec_dir = self.corpus_dir / self.subset
         logging.info("searching audio files in %s", str(rec_dir))
-        rec_files = list(rec_dir.glob("**/*.m4a"))
+        rec_files1 = list(rec_dir.glob("**/*.m4a"))
+        rec_files = [Path(f) for f in glob.iglob(f"{rec_dir}/**/*.m4a", recursive=True)]
         if not rec_files:
             # symlinks? try glob
             rec_files = [
-                Path(f) for f in glob.iglob(f"{rec_dir}/**/*.wav", recursive=True)
+                Path(f) for f in glob.iglob(f"{rec_dir}/**/*.m4a", recursive=True)
             ]
+
+        assert len(rec_files) > 0, "recording files not found"
 
         speakers = [f.parents[1].name for f in rec_files]
         video_ids = [f.parent.name for f in rec_files]
         if self.cat_videos:
+            rec_ids = [f"{s}-{v}" for s, v in zip(speakers, video_ids)]
             lists_cat_dir = self.output_dir / "lists_cat"
             lists_cat_dir.mkdir(exist_ok=True, parents=True)
-            uniq_video_ids, uniq_video_idx, video_idx = np.unique(
-                video_ids, return_index=True, return_inverse=True
+            rec_ids, uniq_rec_idx, rec_idx = np.unique(
+                rec_ids, return_index=True, return_inverse=True
             )
-            rec_ids = uniq_video_ids
-            speakers = [speakers[i] for i in uniq_video_idx]
-            rec_ids = [f"{s}-{v}" for s, v in zip(speakers, uniq_video_ids)]
+            speakers = [speakers[i] for i in uniq_rec_idx]
+            video_ids = [video_ids[i] for i in uniq_rec_idx]
 
             file_paths = []
             futures = []
@@ -178,15 +181,13 @@ class VoxCeleb2DataPrep(DataPrep):
                         lists_cat_dir,
                         rec_id,
                         rec_files,
-                        video_idx,
+                        rec_idx,
                         i,
                     )
                     futures.append(future)
 
             logging.info("waiting threats...")
             file_paths = [f.result() for f in tqdm(futures)]
-            video_ids = uniq_video_ids
-
         else:
             file_names = [f.with_suffix("").name for f in rec_files]
             if self.use_kaldi_ids:
@@ -252,7 +253,7 @@ class VoxCeleb2DataPrep(DataPrep):
         dataset = Dataset(
             segments,
             {"speaker": speakers, "language_est": languages},
-            {"recordings": recs},
+            recs,
         )
         logging.info("saving dataset at %s", self.output_dir)
         dataset.save(self.output_dir)

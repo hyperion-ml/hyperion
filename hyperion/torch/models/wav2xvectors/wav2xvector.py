@@ -2,6 +2,7 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+import contextlib
 import logging
 
 from jsonargparse import ActionParser, ArgumentParser
@@ -35,6 +36,23 @@ class Wav2XVector(TorchModel):
 
         self.feats = feats
         self.xvector = xvector
+        self._feats_context = contextlib.nullcontext()
+
+    @property
+    def sample_frequency(self):
+        return self.feats.sample_frequency
+
+    def compute_prototype_affinity(self):
+        return self.xvector.compute_prototype_affinity()
+
+    def update_loss_margin(self, epoch):
+        """Updates the value of the margin in AAM/AM-softmax losses
+           given the epoch number
+
+        Args:
+          epoch: epoch which is about to start
+        """
+        self.xvector.update_loss_margin(epoch)
 
     def rebuild_output_layer(
         self,
@@ -58,8 +76,9 @@ class Wav2XVector(TorchModel):
             num_subcenters=num_subcenters,
         )
 
-    def compute_prototype_affinity(self):
-        return self.xvector.compute_prototype_affinity()
+    def change_config(self, xvector):
+        logging.info("changing wav2xvector config")
+        self.xvector.change_config(**xvector)
 
     def forward(
         self,
@@ -73,15 +92,28 @@ class Wav2XVector(TorchModel):
         return_output=True,
     ):
 
-        if vad_samples is not None:
-            x, x_lengths = remove_silence(x, x_lengths)
-        feats, feat_lengths = self.feats(x, x_lengths)
-        if vad_feats is not None:
-            feats, feat_lengths = remove_silence(feats, feat_lengths)
+        with self._feats_context:
+            if vad_samples is not None:
+                x, x_lengths = remove_silence(x, vad_samples, x_lengths)
 
-        # feat_lengths = torch.div(x_lengths * feats.size(-1), x.size(-1))
-        return self.xvector(feats, feat_lengths, y, enc_layers, classif_layers,
-                            return_output)
+            feats, feat_lengths = self.feats(x, x_lengths)
+            if vad_feats is not None:
+                feats, feat_lengths = remove_silence(feats, vad_feats, feat_lengths)
+
+        n = torch.sum(~torch.isfinite(feats))
+        if n > 0:
+            print(
+                "feats",
+                n,
+                torch.sum(torch.isnan(feats)),
+                torch.sum(torch.any(torch.isnan(x), dim=-1)),
+                x.dtype,
+                feats.dtype,
+                flush=True,
+            )
+        return self.xvector(
+            feats, feat_lengths, y, enc_layers, classif_layers, return_output
+        )
 
     def extract_embed(
         self,
@@ -94,18 +126,54 @@ class Wav2XVector(TorchModel):
         detach_chunks=False,
     ):
 
-        if vad_samples is not None:
-            x, x_lengths = remove_silence(x, x_lengths)
-        feats, feat_lengths = self.feats(x, x_lengths)
-        if vad_feats is not None:
-            feats, feat_lengths = remove_silence(feats, feat_lengths)
+        with self._feats_context:
+            if vad_samples is not None:
+                x, x_lengths = remove_silence(x, vad_samples, x_lengths)
 
-        feats = feats.transpose(1, 2)
-        return self.xvector.extract_embed(feats, feat_lengths, chunk_length,
-                                          embed_layer, detach_chunks)
+            feats, feat_lengths = self.feats(x, x_lengths)
+            if vad_feats is not None:
+                feats, feat_lengths = remove_silence(feats, vad_feats, feat_lengths)
+
+            chunk_length = int(chunk_length * feats.shape[1] / x.shape[-1])
+
+        return self.xvector.extract_embed(
+            feats, feat_lengths, chunk_length, embed_layer, detach_chunks
+        )
 
     def set_train_mode(self, mode):
-        self.xvector.set_train_mode(mode)
+        if mode == self._train_mode:
+            return
+
+        if mode == "full-feats-grad":
+            self._feats_context = contextlib.nullcontext()
+            xvector_mode = "full"
+        else:
+            logging.info("using torch.no_grad for feats")
+            self._feats_context = torch.no_grad()
+
+        self.xvector.set_train_mode(xvector_mode)
+        self._train_mode = mode
+
+    def _train(self, train_mode: str):
+
+        self.feats.train()
+        if train_mode in ["frozen"]:
+            super()._train(train_mode)
+        elif train_mode in ["full-feats-grad", "full"]:
+            self.xvector._train("full")
+        elif train_mode == "ft-embed-affine":
+            self.xvector._train("ft-embed_affine")
+        else:
+            raise ValueError(f"invalid train_mode={train_mode}")
+
+    @staticmethod
+    def valid_train_modes():
+        return [
+            "full",
+            "frozen",
+            "ft-embed-affine",
+            "full-feats-grad",
+        ]
 
     def get_config(self):
         feat_cfg = self.feats.get_config()
@@ -119,7 +187,7 @@ class Wav2XVector(TorchModel):
         return dict(list(base_config.items()) + list(config.items()))
 
     @staticmethod
-    def filter_args(*kwargs):
+    def filter_args(**kwargs):
         """Filters Wav2XVector class arguments from arguments dictionary.
 
         Args:
@@ -150,5 +218,4 @@ class Wav2XVector(TorchModel):
         AudioFeatsMVN.add_class_args(parser, prefix="feats")
 
         if prefix is not None:
-            outer_parser.add_argument("--" + prefix,
-                                      action=ActionParser(parser=parser))
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

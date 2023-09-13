@@ -15,19 +15,23 @@ import pandas as pd
 import sentencepiece as spm
 import torch
 import torch.nn as nn
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
+
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialAudioReader as AR
 from hyperion.np.augment import SpeechAugment
 from hyperion.torch import TorchModelLoader as TML
 from hyperion.torch.models import HFWav2Vec2RNNTransducer
-from hyperion.torch.models.wav2transducer.beam_search import (beam_search,
-                                                              greedy_search)
+from hyperion.torch.models.wav2transducer.beam_search import beam_search, greedy_search
 from hyperion.torch.narchs import AudioFeatsMVN as AF
 from hyperion.torch.utils import open_device
 from hyperion.utils import Utt2Info
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
 
 
 def init_device(use_gpu):
@@ -48,10 +52,11 @@ def load_model(model_path, device):
 
 
 def decode_one_batch(
-        model: nn.Module,
-        sp: spm.SentencePieceProcessor,
-        x: torch.Tensor,
-        decoding_method="beam_search") -> Dict[str, List[List[str]]]:
+    model: nn.Module,
+    sp: spm.SentencePieceProcessor,
+    x: torch.Tensor,
+    decoding_method="beam_search",
+) -> Dict[str, List[List[str]]]:
     """Decode one batch and return the result in a dict. The dict has the
     following format:
         - key: It indicates the setting used for decoding. For example,
@@ -77,7 +82,7 @@ def decode_one_batch(
       the returned dict.
     """
     device = model.device
-    feature = x  #batch["inputs"]
+    feature = x  # batch["inputs"]
     assert x.shape[0] == 1
     assert feature.ndim == 2
 
@@ -87,7 +92,8 @@ def decode_one_batch(
     feature_lens = torch.Tensor([x.shape[1]]).int()
 
     encoder_out, hid_feats, encoder_out_lens = model.forward_feats(
-        x=feature, x_lengths=feature_lens)
+        x=feature, x_lengths=feature_lens
+    )
 
     hyps = []
     batch_size = encoder_out.size(0)
@@ -114,9 +120,16 @@ def decode_one_batch(
         return hyps[0]
 
 
-def decode_transducer(input_spec, output_spec, scp_sep, model_path, bpe_model,
-                      infer_args, use_gpu, **kwargs):
-
+def decode_transducer(
+    input_spec,
+    output_spec,
+    scp_sep,
+    model_path,
+    bpe_model,
+    infer_args,
+    use_gpu,
+    **kwargs,
+):
     device = init_device(use_gpu)
     model = load_model(model_path, device)
 
@@ -142,8 +155,9 @@ def decode_transducer(input_spec, output_spec, scp_sep, model_path, bpe_model,
                 t2 = time.time()
                 logging.info("processing utt %s", key)
                 with torch.no_grad():
-                    x = torch.tensor(
-                        x[None, :], dtype=torch.get_default_dtype()).to(device)
+                    x = torch.tensor(x[None, :], dtype=torch.get_default_dtype()).to(
+                        device
+                    )
 
                     tot_frames = x.shape[1]
                     logging.info(
@@ -157,10 +171,10 @@ def decode_transducer(input_spec, output_spec, scp_sep, model_path, bpe_model,
                     if x.shape[1] == 0:
                         y = [""]
                     else:
-                        #y = decode_one_batch(model=model, sp=sp, x=x)
-                        x_lengths = torch.tensor((x.shape[1], ),
-                                                 dtype=torch.long,
-                                                 device=device)
+                        # y = decode_one_batch(model=model, sp=sp, x=x)
+                        x_lengths = torch.tensor(
+                            (x.shape[1],), dtype=torch.long, device=device
+                        )
                         y = model.infer(x, x_lengths, **infer_args)
 
                     y = sp.decode(y[0])
@@ -172,10 +186,12 @@ def decode_transducer(input_spec, output_spec, scp_sep, model_path, bpe_model,
                     tot_time = t4 - t1
                     infer_time = t3 - t2
                     logging.info(
-                        ("utt %s total-time=%.3f read-time=%.3f "
-                         "infer-time=%.3f "
-                         "write-time=%.3f "
-                         "infer-rt-factor=%.2f tot-rt-factor=%.2f"),
+                        (
+                            "utt %s total-time=%.3f read-time=%.3f "
+                            "infer-time=%.3f "
+                            "write-time=%.3f "
+                            "infer-rt-factor=%.2f tot-rt-factor=%.2f"
+                        ),
                         key,
                         tot_time,
                         t2 - t1,
@@ -186,16 +202,14 @@ def decode_transducer(input_spec, output_spec, scp_sep, model_path, bpe_model,
                     )
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(
-        description=("ASR decoding for RNN-T with Wav2vec features"))
+        description=("ASR decoding for RNN-T with Wav2vec features")
+    )
 
     parser.add_argument("--cfg", action=ActionConfigFile)
     parser.add_argument("--input", dest="input_spec", required=True)
-    parser.add_argument("--scp-sep",
-                        default=" ",
-                        help=("scp file field separator"))
+    parser.add_argument("--scp-sep", default=" ", help=("scp file field separator"))
 
     AR.add_class_args(parser)
     parser.add_argument("--model-path", required=True)
@@ -203,16 +217,12 @@ if __name__ == "__main__":
 
     HFWav2Vec2RNNTransducer.add_infer_args(parser, "infer-args")
     parser.add_argument("--output", dest="output_spec", required=True)
-    parser.add_argument("--use-gpu",
-                        default=False,
-                        action="store_true",
-                        help="extract xvectors in gpu")
-    parser.add_argument("-v",
-                        "--verbose",
-                        dest="verbose",
-                        default=1,
-                        choices=[0, 1, 2, 3],
-                        type=int)
+    parser.add_argument(
+        "--use-gpu", default=False, action="store_true", help="extract xvectors in gpu"
+    )
+    parser.add_argument(
+        "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
+    )
 
     args = parser.parse_args()
     config_logger(args.verbose)
@@ -220,3 +230,7 @@ if __name__ == "__main__":
     logging.debug(args)
 
     decode_transducer(**namespace_to_dict(args))
+
+
+if __name__ == "__main__":
+    main()

@@ -223,8 +223,8 @@ class SequentialArkFileDataReader(SequentialArkDataReader):
                     self._eof = True
                     break
 
-                row_offset_i = row_offset[i] if row_offset_is_list else row_offset
-                num_rows_i = num_rows[i] if num_rows_is_list else num_rows
+                row_offset_i = row_offset[count] if row_offset_is_list else row_offset
+                num_rows_i = num_rows[count] if num_rows_is_list else num_rows
 
                 binary = init_kaldi_input_stream(self.f)
                 data_i = KaldiMatrix.read(
@@ -269,7 +269,7 @@ class SequentialArkScriptDataReader(SequentialArkDataReader):
         self, file_path: PathLike, path_prefix: Optional[PathLike] = None, **kwargs
     ):
         super().__init__(file_path, permissive=False, **kwargs)
-        self.feature_set = FeatureSet.load(self.file_path, sep=scp_sep)
+        self.feature_set = FeatureSet.load(self.file_path)
 
         if self.num_parts > 1:
             self.feature_set = self.feature_set.split(self.part_idx, self.num_parts)

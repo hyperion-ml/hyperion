@@ -16,10 +16,10 @@ from .h5_merger import *
 from .hyp_data_reader import *
 from .hyp_data_writer import *
 from .kaldi_data_reader import *
-from .packed_audio_reader import (RandomAccessPackedAudioReader,
-                                  SequentialPackedAudioReader)
+from .packed_audio_reader import (
+    RandomAccessPackedAudioReader,
+    SequentialPackedAudioReader,
+)
 from .packed_audio_writer import PackedAudioWriter
 from .segment_vad_reader import SegmentVADReader
 from .vad_rw_factory import VADReaderFactory
-
-# from .queues import *

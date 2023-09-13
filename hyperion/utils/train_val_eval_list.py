@@ -207,7 +207,7 @@ class TrainValEvalList(object):
                 part_names = ["train", "eval"]
 
         if shuffle:
-            rng = np.random.RandomState(seed=seed)
+            rng = np.random.default_rng(seed=seed)
 
         if group_by_key is None:
             group_by_key = segment_key

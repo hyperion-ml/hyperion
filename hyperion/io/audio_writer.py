@@ -27,12 +27,33 @@ subtype_to_npdtype = {
     "DOUBLE": "float64",
     "MS_ADPCM": "int16",
     "ULAW": "int16",
-    "PCM_U8": "uint8",
-    "PCM_S8": "int8",
+    "PCM_S8": "int16",
     "VORBIS": "float32",
     "GSM610": "int16",
     "G721_32": "int16",
-    "PCM_24": "int24",
+    "PCM_24": "int32",
+}
+
+scale_32 = 2 ** 31 - 1
+scale_24 = 2 ** 23 - 1
+scale_16 = 2 ** 15 - 1
+scale_8 = 2 ** 7 - 1
+
+
+subtype_to_scale = {
+    "PCM_32": scale_32,
+    "ALAW": scale_16,
+    "IMA_ADPCM": scale_16,
+    "FLOAT": 1,
+    "PCM_16": scale_16,
+    "DOUBLE": 1,
+    "MS_ADPCM": scale_16,
+    "ULAW": scale_16,
+    "PCM_S8": scale_8,
+    "VORBIS": 1,
+    "GSM610": scale_16,
+    "G721_32": scale_16,
+    "PCM_24": scale_24,
 }
 
 
@@ -45,6 +66,7 @@ class AudioWriter(object):
       audio_format:   audio file format
       audio_subtype: subtype of audio in [PCM_16, PCM_32, FLOAT, DOUBLE, ...],
                if None, it uses soundfile defaults (recommended)
+      wav_scale: scale of the input waveform
     """
 
     def __init__(
@@ -53,6 +75,7 @@ class AudioWriter(object):
         script_path: Optional[PathLike] = None,
         audio_format: str = "wav",
         audio_subtype: Optional[str] = None,
+        wav_scale: float = 1.0,
     ):
         self.output_path = Path(output_path)
         self.script_path = Path(script_path) if script_path is not None else None
@@ -63,8 +86,14 @@ class AudioWriter(object):
         if audio_subtype is None:
             self.subtype = sf.default_subtype(self.audio_format)
         else:
-            self.subtype = audio_subtype
+            self.subtype = audio_subtype.upper()
             assert sf.check_format(self.audio_format, self.subtype)
+
+        self._dtype = subtype_to_npdtype[self.subtype]
+
+        self.wav_scale = wav_scale
+        # we multiply the audio for this number before saving it.
+        self._output_wav_scale = subtype_to_scale[self.subtype] / wav_scale
 
         self.script_is_scp = False
         self.script_sep = None
@@ -78,7 +107,7 @@ class AudioWriter(object):
                 self.f_script = open(self.script_path, "w")
             else:
                 self.script_sep = "," if script_ext == ".csv" else "\t"
-                self.f_script = open(self.script_path, "w", "utf-8")
+                self.f_script = open(self.script_path, "w", encoding="utf-8")
                 row = self.script_sep.join(
                     ["id", "storage_path", "duration", "sample_freq"]
                 )
@@ -123,8 +152,7 @@ class AudioWriter(object):
             data = [data]
 
         fs_is_list = isinstance(fs, (list, np.ndarray))
-        assert self.subtype in subtype_to_npdtype
-        dtype = subtype_to_npdtype[self.subtype]
+
         output_files = []
         for i, key_i in enumerate(keys):
             assert is_token(key_i), "Token %s not valid" % key_i
@@ -135,7 +163,7 @@ class AudioWriter(object):
                 self.audio_format,
             )
             fs_i = int(fs[i]) if fs_is_list else fs
-            data_i = data[i].astype(dtype, copy=False)
+            data_i = (self._output_wav_scale * data[i]).astype(self._dtype, copy=False)
             sf.write(output_file, data_i, fs_i, subtype=self.subtype)
 
             output_files.append(output_file)
@@ -156,14 +184,11 @@ class AudioWriter(object):
     @staticmethod
     def filter_args(**kwargs):
         valid_args = (
-            "output_fs",
-            "output_wav_scale",
-            "output_audio_format",
-            "output_audio_subtype",
+            "wav_scale",
+            "audio_format",
+            "audio_subtype",
         )
-        return dict(
-            (re.sub("output_", "", k), kwargs[k]) for k in valid_args if k in kwargs
-        )
+        return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
     @staticmethod
     def add_class_args(parser, prefix=None):
@@ -171,22 +196,26 @@ class AudioWriter(object):
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        # parser.add_argument(p1+'output-wav-scale', default=1, type=float,
-        #                      help=('scale to divide the waveform before writing'))
-
         parser.add_argument(
-            "--output-audio-format",
+            "--audio-format",
             default="flac",
             choices=["flac", "ogg", "wav"],
             help=("ouput audio format"),
         )
 
         parser.add_argument(
-            "--output-audio-subtype",
+            "--audio-subtype",
             default=None,
-            choices=["pcm_16", "pcm_24", "float", "double", "vorbis"],
+            choices=["pcm_16", "pcm_24", "pcm_32", "float", "double", "vorbis"],
             help=("coding format for audio file"),
         )
+
+        try:
+            parser.add_argument(
+                "--wav-scale", default="1.0", help=("input waveform scale wrt 1"),
+            )
+        except:
+            pass
 
         if prefix is not None:
             outer_parser.add_argument(

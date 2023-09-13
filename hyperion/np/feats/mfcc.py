@@ -6,6 +6,7 @@ import logging
 from enum import Enum
 
 import numpy as np
+from jsonargparse import ActionParser, ArgumentParser
 from scipy.fftpack import dct
 from scipy.signal import lfilter
 
@@ -72,7 +73,7 @@ class MFCC(object):
        preemphasis_coeff: Coefficient for use in signal preemphasis (default = 0.97)
        window_type:       Type of window ("hamming"|"hanning"|"povey"|"rectangular"|"blackmann") (default = 'povey')
        use_fft2:          If true, it uses |X(f)|^2, if false, it uses |X(f)|, (default = True)
-       dither:            Dithering constant (0.0 means no dither) (default = 1)
+       dither:            Dithering constant (0.0 means no dither) (default = 1/2**15)
        fb_type:           Filter-bank type: mel_kaldi, mel_etsi, mel_librosa, mel_librosa_htk, linear (default = 'mel_kaldi')
        low_freq:          Low cutoff frequency for mel bins (default = 20)
        high_freq:         High cutoff frequency for mel bins (if < 0, offset from Nyquist) (default = 0)
@@ -98,7 +99,7 @@ class MFCC(object):
         preemphasis_coeff=0.97,
         window_type="povey",
         use_fft2=True,
-        dither=1,
+        dither=1 / 2 ** 15,
         fb_type="mel_kaldi",
         low_freq=20,
         high_freq=0,
@@ -256,7 +257,7 @@ class MFCC(object):
 
             # add dither
             if self.dither > 0:
-                n = self.dither * np.random.RandomState(seed=len(x)).randn(
+                n = self.dither * np.random.default_rng(seed=len(x)).randn(
                     len(x)
                 ).astype(float_cpu(), copy=False)
                 x = x + n
@@ -400,14 +401,12 @@ class MFCC(object):
           parser: Arguments parser
           prefix: Options prefix.
         """
-
-        if prefix is None:
-            p1 = "--"
-        else:
-            p1 = "--" + prefix + "."
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
 
         parser.add_argument(
-            p1 + "sample-frequency",
+            "--sample-frequency",
             default=16000,
             type=int,
             help="Waveform data sample frequency "
@@ -415,27 +414,22 @@ class MFCC(object):
         )
 
         parser.add_argument(
-            p1 + "frame-length",
-            type=int,
-            default=25,
-            help="Frame length in milliseconds",
+            "--frame-length", type=int, default=25, help="Frame length in milliseconds",
         )
         parser.add_argument(
-            p1 + "frame-shift", type=int, default=10, help="Frame shift in milliseconds"
+            "--frame-shift", type=int, default=10, help="Frame shift in milliseconds"
         )
-        parser.add_argument(
-            p1 + "fft-length", type=int, default=512, help="Length of FFT"
-        )
+        parser.add_argument("--fft-length", type=int, default=512, help="Length of FFT")
 
         parser.add_argument(
-            p1 + "remove-dc-offset",
+            "--remove-dc-offset",
             default=True,
             type=str2bool,
             help="Subtract mean from waveform on each frame",
         )
 
         parser.add_argument(
-            p1 + "preemphasis-coeff",
+            "--preemphasis-coeff",
             type=float,
             default=0.97,
             help="Coefficient for use in signal preemphasis",
@@ -444,30 +438,30 @@ class MFCC(object):
         FWF.add_class_args(parser, prefix)
 
         parser.add_argument(
-            p1 + "use-fft2",
+            "--use-fft2",
             default=True,
             type=str2bool,
             help="If true, it uses |X(f)|^2, if false, it uses |X(f)|",
         )
 
         parser.add_argument(
-            p1 + "dither",
+            "--dither",
             type=float,
-            default=1,
+            default=1 / 2 ** 15,
             help="Dithering constant (0.0 means no dither)",
         )
 
         FBF.add_class_args(parser, prefix)
 
         parser.add_argument(
-            p1 + "num-ceps",
+            "--num-ceps",
             type=int,
             default=13,
             help="Number of cepstra in MFCC computation (including C0)",
         )
 
         parser.add_argument(
-            p1 + "snip-edges",
+            "--snip-edges",
             default=True,
             type=str2bool,
             help=(
@@ -480,34 +474,34 @@ class MFCC(object):
         )
 
         parser.add_argument(
-            p1 + "energy-floor",
+            "--energy-floor",
             type=float,
             default=0,
             help="Floor on energy (absolute, not relative) in MFCC computation",
         )
 
         parser.add_argument(
-            p1 + "raw-energy",
+            "--raw-energy",
             default=True,
             type=str2bool,
             help="If true, compute energy before preemphasis and windowing",
         )
         parser.add_argument(
-            p1 + "use-energy",
+            "--use-energy",
             default=True,
             type=str2bool,
             help="Use energy (not C0) in MFCC computation",
         )
 
         parser.add_argument(
-            p1 + "cepstral-lifter",
+            "--cepstral-lifter",
             type=float,
             default=22,
             help="Constant that controls scaling of MFCCs",
         )
 
         parser.add_argument(
-            p1 + "input-step",
+            "--input-step",
             default="wave",
             choices=["wave", "fft", "spec", "log_spec", "logfb"],
             help=(
@@ -516,12 +510,15 @@ class MFCC(object):
         )
 
         parser.add_argument(
-            p1 + "output-step",
+            "--output-step",
             default="mfcc",
             choices=["fft", "spec", "log_spec", "logfb", "mfcc"],
             help=(
                 "It can return intermediate result: " "fft, spec, log_spec, logfb, mfcc"
             ),
         )
+
+        if prefix is not None:
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     add_argparse_args = add_class_args

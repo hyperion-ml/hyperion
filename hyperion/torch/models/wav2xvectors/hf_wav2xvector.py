@@ -5,10 +5,9 @@
 import contextlib
 import logging
 
-from jsonargparse import ActionParser, ArgumentParser
-
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ArgumentParser
 
 from ...torch_model import TorchModel
 from ...utils import remove_silence
@@ -29,7 +28,6 @@ class HFWav2XVector(TorchModel):
     def __init__(
         self, hf_feats, xvector, feat_fusion_start=0, feat_fusion_method="weighted-avg"
     ):
-
         super().__init__()
         self.hf_feats = hf_feats
         self.xvector = xvector
@@ -222,9 +220,8 @@ class HFWav2XVector(TorchModel):
         embed_layer=None,
         detach_chunks=False,
     ):
-
         if vad_samples is not None:
-            x, x_lengths = remove_silence(x, x_lengths)
+            x, x_lengths = remove_silence(x, vad_samples, x_lengths)
 
         feats, _, feat_lengths = self.forward_feats(
             x, x_lengths, chunk_length=hf_chunk_length, detach_chunks=detach_chunks
@@ -255,6 +252,9 @@ class HFWav2XVector(TorchModel):
 
     def freeze_hf_feature_encoder(self):
         self.hf_feats.freeze_feature_encoder()
+
+    def freeze_hf_except_lora(self, bias=None):
+        self.hf_feats.freeze_except_lora(bias)
 
     def has_param_groups(self):
         return self.hf_feats.has_param_groups()
@@ -296,12 +296,21 @@ class HFWav2XVector(TorchModel):
         elif mode == "hf-feat-extractor-frozen":
             self.unfreeze()
             self.freeze_hf_feature_encoder()
+        elif mode == "hf-lora":
+            self.unfreeze()
+            self.freeze_hf_except_lora()
+        elif mode == "hf-all-bias-lora":
+            self.unfreeze()
+            self.freeze_hf_except_lora(bias="all")
+        elif mode == "hf-lora-with-bias":
+            self.unfreeze()
+            self.freeze_hf_except_lora(bias="lora_only")
         else:
             raise ValueError(f"invalid train_mode={mode}")
 
         logging.info("train mode set to %s", mode)
 
-        if "nograd" in mode:
+        if "nograd" in mode or mode == "ft-embed-affine":
             logging.info("using torch.no_grad for hf_feats")
             self._hf_context = torch.no_grad()
         else:
@@ -310,7 +319,6 @@ class HFWav2XVector(TorchModel):
         self._train_mode = mode
 
     def _train(self, train_mode: str):
-
         if train_mode in ["full", "frozen"]:
             super()._train(train_mode)
         elif train_mode == "ft-embed-affine":
@@ -322,6 +330,9 @@ class HFWav2XVector(TorchModel):
             "ft-xvector-nograd",
             "hf-feats-frozen-nograd",
             "hf-feat-extractor-frozen",
+            "hf-lora",
+            "hf-all-bias-lora",
+            "hf-lora-with-bias",
         ]:
             self.hf_feats.train()
             self.xvector._train("full")
@@ -339,6 +350,9 @@ class HFWav2XVector(TorchModel):
             "ft-xvector-nograd",
             "hf-feats-frozen-nograd",
             "hf-feat-extractor-frozen",
+            "hf-lora",
+            "hf-all-bias-lora",
+            "hf-lora-with-bias",
         ]
 
     @staticmethod
@@ -353,7 +367,6 @@ class HFWav2XVector(TorchModel):
         return args
 
     def get_config(self):
-
         hf_cfg = self.hf_feats.get_config()
         xvec_cfg = self.xvector.get_config()
         del hf_cfg["class_name"]
@@ -375,7 +388,6 @@ class HFWav2XVector(TorchModel):
 
     @staticmethod
     def add_class_args(parser, prefix=None, skip=set()):
-
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
