@@ -174,15 +174,6 @@ class HFWav2VecBase(TorchModel):
         self._frame_shift = None
         self.hf_model = None
 
-        if use_lora:
-            self._make_lora_layers(
-                lora_components,
-                lora_rank,
-                lora_alpha,
-                lora_dropout,
-                lora_merge_weights,
-            )
-
     def __deepcopy__(self, memo):
         """Reimplementation of deepcopy for Hugging Face models.
         The weight_norm in the Conv. Pos. Encoder of Wav2Vec models make the default deepcopy to fail.
@@ -545,8 +536,8 @@ class HFWav2VecBase(TorchModel):
         """
         max_in_length = x.size(-1)
         x, x_mask = self._preprocess(x, x_lengths)
-        if ddp_get_rank() == 0:
-            lora_layer = self.hf_model.encoder.layers[0].attention.v_proj
+        # if ddp_get_rank() == 0:
+        #     lora_layer = self.hf_model.encoder.layers[0].attention.v_proj
             # print(
             #     "lora\nw=",
             #     lora_layer.weight[:3, :3],
@@ -561,8 +552,8 @@ class HFWav2VecBase(TorchModel):
             #     lora_layer.training,
             #     flush=True,
             # )
-            assert self.training == lora_layer.training
-            assert self.training == (not lora_layer.merged)
+            # assert self.training == lora_layer.training
+            # assert self.training == (not lora_layer.merged)
         output = self.hf_model(
             x,
             x_mask,
