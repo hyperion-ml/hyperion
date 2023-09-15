@@ -322,6 +322,15 @@ class HFWav2Vec2(HFWav2VecBase):
         if drop_layers_gt is not None:
             self.drop_upper_layers(drop_layers_gt)
 
+        if use_lora:
+            self._make_lora_layers(
+                lora_components,
+                lora_rank,
+                lora_alpha,
+                lora_dropout,
+                lora_merge_weights,
+            )
+
         self.ignore_pretrained = True
 
     @property

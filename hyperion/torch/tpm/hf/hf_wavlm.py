@@ -209,6 +209,7 @@ class HFWavLM(HFWav2VecBase):
         sample_frequency: int = 16000,
         feat_extract_lr: Optional[float] = None,
         encoder_lr: Optional[float] = None,
+        use_lora: bool = False,
         lora_components: List[str] = ["q_proj", "v_proj"],
         lora_rank: int = 4,
         lora_alpha: int = 1,
@@ -320,6 +321,15 @@ class HFWavLM(HFWav2VecBase):
 
         if drop_layers_gt is not None:
             self.drop_upper_layers(drop_layers_gt)
+
+        if use_lora:
+            self._make_lora_layers(
+                lora_components,
+                lora_rank,
+                lora_alpha,
+                lora_dropout,
+                lora_merge_weights,
+            )
 
         self.ignore_pretrained = True
 
