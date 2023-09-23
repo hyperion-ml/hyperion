@@ -204,6 +204,7 @@ class HFWav2Vec2(HFWav2VecBase):
         ignore_pretrained: bool = False,
         override_dropouts: bool = False,
         override_spec_augment: bool = False,
+        override_lora: bool = False,
         left_encoder_context: int = 16,
         right_encoder_context: int = 16,
         sample_frequency: int = 16000,
@@ -214,7 +215,7 @@ class HFWav2Vec2(HFWav2VecBase):
         lora_rank: int = 4,
         lora_alpha: int = 1,
         lora_dropout: float = 0.0,
-        lora_merge_weights: bool = True,
+        lora_merge_weights: bool = False,
     ):
         super().__init__(
             pretrained_model_path=pretrained_model_path,
@@ -228,6 +229,7 @@ class HFWav2Vec2(HFWav2VecBase):
             ignore_pretrained=ignore_pretrained,
             override_dropouts=override_dropouts,
             override_spec_augment=override_spec_augment,
+            override_lora=override_lora,
             left_encoder_context=left_encoder_context,
             right_encoder_context=right_encoder_context,
             sample_frequency=sample_frequency,
@@ -269,6 +271,7 @@ class HFWav2Vec2(HFWav2VecBase):
             self.change_config(
                 override_dropouts=self.override_dropouts,
                 override_spec_augment=self.override_spec_augment,
+                override_lora=self.override_lora,
                 hidden_dropout=hidden_dropout,
                 activation_dropout=activation_dropout,
                 attention_dropout=attention_dropout,

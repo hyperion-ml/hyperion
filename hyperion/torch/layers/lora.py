@@ -56,7 +56,7 @@ class LoRAFactory:
         r: int = 8,
         lora_alpha: int = 1,
         lora_dropout: float = 0.0,
-        merge_weights: bool = True,
+        merge_weights: bool = False,
     ):
         if isinstance(layer, nn.Embedding):
             lora_layer = EmbeddingLoRA(

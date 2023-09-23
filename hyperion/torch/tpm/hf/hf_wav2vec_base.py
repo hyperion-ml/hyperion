@@ -15,6 +15,7 @@ from transformers import Wav2Vec2FeatureExtractor, Wav2Vec2Processor
 
 from ....utils.misc import filter_func_args
 from ...layers import LoRAFactory
+import loralib as lora
 from ...torch_model import TorchModel
 from ...utils import scale_seq_lengths, seq_lengths_to_mask
 from ...utils.ddp import ddp_get_rank, ddp_wait_for_all_procs
@@ -77,6 +78,7 @@ class HFWav2VecBase(TorchModel):
         ignore_pretrained: bool = False,
         override_dropouts: bool = False,
         override_spec_augment: bool = False,
+        override_lora: bool = False,
         left_encoder_context: int = 16,
         right_encoder_context: int = 16,
         sample_frequency: int = 16000,
@@ -87,7 +89,7 @@ class HFWav2VecBase(TorchModel):
         lora_rank: int = 4,
         lora_alpha: int = 1,
         lora_dropout: float = 0.0,
-        lora_merge_weights: bool = True,
+        lora_merge_weights: bool = False,
     ):
         super().__init__()
         self.pretrained_model_path = pretrained_model_path
@@ -99,6 +101,7 @@ class HFWav2VecBase(TorchModel):
         self.ignore_pretrained = ignore_pretrained
         self.override_dropouts = override_dropouts
         self.override_spec_augment = override_spec_augment
+        self.override_lora = override_lora
         self.right_encoder_context = right_encoder_context
         self.left_encoder_context = left_encoder_context
         self.feat_extract_lr = feat_extract_lr
@@ -253,7 +256,7 @@ class HFWav2VecBase(TorchModel):
         lora_rank: int = 4,
         lora_alpha: int = 1,
         lora_dropout: float = 0.0,
-        lora_merge_weights: bool = True,
+        lora_merge_weights: bool = False,
         **kwargs,
     ):
         if override_spec_augment:
@@ -304,7 +307,7 @@ class HFWav2VecBase(TorchModel):
         lora_rank: int = 4,
         lora_alpha: int = 1,
         lora_dropout: float = 0.0,
-        lora_merge_weights: bool = True,
+        lora_merge_weights: bool = False,
     ):
         if not self.use_lora:
             if use_lora:
@@ -714,6 +717,7 @@ class HFWav2VecBase(TorchModel):
             "ignore_pretrained": self.ignore_pretrained,
             "override_dropouts": self.override_dropouts,
             "override_spec_augment": self.override_spec_augment,
+            "override_lora": self.override_lora,
             "left_encoder_context": self.left_encoder_context,
             "right_encoder_context": self.right_encoder_context,
             "sample_frequency": self.sample_frequency,
