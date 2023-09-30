@@ -13,7 +13,7 @@ from transformers import Wav2Vec2Config, Wav2Vec2Model
 
 from ...utils.ddp import ddp_get_rank, ddp_wait_for_all_procs
 from .hf_wav2vec_base import HFWav2VecBase
-
+from .wav2vec2.modeling_wav2vec2 import Wav2Vec2CondModel
 
 class HFWav2Vec2(HFWav2VecBase):
     r"""This is wrapper over HuggingFace Wav2Vec2 model.
@@ -205,6 +205,7 @@ class HFWav2Vec2(HFWav2VecBase):
         override_dropouts: bool = False,
         override_spec_augment: bool = False,
         override_lora: bool = False,
+        override_condition: bool = False,
         left_encoder_context: int = 16,
         right_encoder_context: int = 16,
         sample_frequency: int = 16000,
@@ -216,6 +217,10 @@ class HFWav2Vec2(HFWav2VecBase):
         lora_alpha: int = 1,
         lora_dropout: float = 0.0,
         lora_merge_weights: bool = False,
+        use_condition: bool = False,
+        condition_size: int = 128,
+        condition_components: List[str] = ["attention"],
+        condition_type: str = "one-hot",
     ):
         super().__init__(
             pretrained_model_path=pretrained_model_path,
@@ -230,6 +235,7 @@ class HFWav2Vec2(HFWav2VecBase):
             override_dropouts=override_dropouts,
             override_spec_augment=override_spec_augment,
             override_lora=override_lora,
+            override_condition=override_condition,
             left_encoder_context=left_encoder_context,
             right_encoder_context=right_encoder_context,
             sample_frequency=sample_frequency,
@@ -241,6 +247,10 @@ class HFWav2Vec2(HFWav2VecBase):
             lora_alpha=lora_alpha,
             lora_dropout=lora_dropout,
             lora_merge_weights=lora_merge_weights,
+            use_condition=use_condition,
+            condition_size=condition_size,
+            condition_components=condition_components,
+            condition_type=condition_type,
         )
 
         if pretrained_model_path is not None and not ignore_pretrained:
@@ -272,6 +282,7 @@ class HFWav2Vec2(HFWav2VecBase):
                 override_dropouts=self.override_dropouts,
                 override_spec_augment=self.override_spec_augment,
                 override_lora=self.override_lora,
+                override_condition=self.override_condition,
                 hidden_dropout=hidden_dropout,
                 activation_dropout=activation_dropout,
                 attention_dropout=attention_dropout,
@@ -332,6 +343,12 @@ class HFWav2Vec2(HFWav2VecBase):
                 lora_alpha,
                 lora_dropout,
                 lora_merge_weights,
+            )
+        if use_condition:
+            self._make_condition_layers(
+                condition_size,
+                condition_components,
+                condition_type,
             )
 
         self.ignore_pretrained = True

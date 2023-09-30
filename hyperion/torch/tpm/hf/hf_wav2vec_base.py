@@ -19,6 +19,7 @@ import loralib as lora
 from ...torch_model import TorchModel
 from ...utils import scale_seq_lengths, seq_lengths_to_mask
 from ...utils.ddp import ddp_get_rank, ddp_wait_for_all_procs
+from .wav2vec2.modeling_wav2vec2 import Wav2Vec2CondModel
 
 
 class HFWav2VecBase(TorchModel):
@@ -79,6 +80,7 @@ class HFWav2VecBase(TorchModel):
         override_dropouts: bool = False,
         override_spec_augment: bool = False,
         override_lora: bool = False,
+        override_condition: bool = False,
         left_encoder_context: int = 16,
         right_encoder_context: int = 16,
         sample_frequency: int = 16000,
@@ -90,6 +92,10 @@ class HFWav2VecBase(TorchModel):
         lora_alpha: int = 1,
         lora_dropout: float = 0.0,
         lora_merge_weights: bool = False,
+        use_condition: bool = False,
+        condition_size: int = 128,
+        condition_components: List[str] = ["attention"],
+        condition_type: str = "one-hot",
     ):
         super().__init__()
         self.pretrained_model_path = pretrained_model_path
@@ -102,6 +108,7 @@ class HFWav2VecBase(TorchModel):
         self.override_dropouts = override_dropouts
         self.override_spec_augment = override_spec_augment
         self.override_lora = override_lora
+        self.override_condition = override_condition
         self.right_encoder_context = right_encoder_context
         self.left_encoder_context = left_encoder_context
         self.feat_extract_lr = feat_extract_lr
@@ -112,6 +119,10 @@ class HFWav2VecBase(TorchModel):
         self.lora_alpha = lora_alpha
         self.lora_dropout = lora_dropout
         self.lora_merge_weights = lora_merge_weights
+        self.use_condition = use_condition
+        self.condition_size = condition_size
+        self.condition_components = condition_components
+        self.condition_type = condition_type
 
         if pretrained_model_path is not None and not ignore_pretrained:
             rank = ddp_get_rank()
@@ -249,14 +260,19 @@ class HFWav2VecBase(TorchModel):
         override_dropouts: bool,
         override_spec_augment: bool,
         override_lora: bool,
+        override_condition: bool,
         feat_extract_lr: Optional[float] = None,
         encoder_lr: Optional[float] = None,
         use_lora: bool = False,
+        use_condition: bool = False,
         lora_components: List[str] = ["q_proj", "v_proj"],
         lora_rank: int = 4,
         lora_alpha: int = 1,
         lora_dropout: float = 0.0,
         lora_merge_weights: bool = False,
+        condition_size: int = 128,
+        condition_components: List[str] = ["attention"],
+        condition_type: str = "one-hot",
         **kwargs,
     ):
         if override_spec_augment:
@@ -276,6 +292,15 @@ class HFWav2VecBase(TorchModel):
                 lora_alpha=lora_alpha,
                 lora_dropout=lora_dropout,
                 lora_merge_weights=lora_merge_weights,
+            )
+
+        if override_condition:
+            logging.info(f"overriding Condition config")
+            self.change_condition(
+                use_condition=use_condition,
+                condition_size=condition_size,
+                condition_components=condition_components,
+                condition_type=condition_type,
             )
 
         self.feat_extract_lr = feat_extract_lr
@@ -391,6 +416,53 @@ class HFWav2VecBase(TorchModel):
                 setattr(model, name, lora_layer)
                 counts[name] += 1
 
+    def change_condition(self,
+        use_condition: bool = False,
+        condition_size: int = 128,
+        condition_components: List[str] = ["attention"],
+        condition_type: str = "one-hot",
+    ):
+        if not self.use_condition:
+            if use_condition:
+                self._make_condition_layers(
+                    condition_size,
+                    condition_components,
+                    condition_type,
+                )
+            else:
+                pass
+        else:
+            if use_condition:
+                pass
+            else:
+                pass
+        self.use_condition = use_condition
+        self.condition_size = condition_size
+        self.condition_components = condition_components
+        self.condition_type = condition_type
+
+    def _make_condition_layers(self,
+        condition_size: int,
+        condition_components: List[str],
+        condition_type: str,
+        ):
+        # TODO: copy weight from self.hf_model to self.hf_model_with_condition
+        config = self.hf_model.config
+        config.condition_size = condition_size
+        config.condition_components = condition_components
+        config.condition_type = condition_type
+        
+        hf_model_with_condition = Wav2Vec2CondModel(config)
+        self._copy_condition_weights(self.hf_model, hf_model_with_condition)
+        # TODO: make weight for the FiLM layers (0,1)
+        self.hf_model = hf_model_with_condition
+
+
+    def _copy_condition_weights(self, hf_model, hf_model_with_condition):
+        for name, param in hf_model.named_parameters():
+            if name in hf_model_with_condition.state_dict():
+                hf_model_with_condition.state_dict()[name].data.copy_(param.data)
+
     def change_dropouts(self, **kwargs):
         pass  # needs to be overloaded
 
@@ -466,6 +538,7 @@ class HFWav2VecBase(TorchModel):
         self,
         x: torch.Tensor,
         x_lengths: Optional[torch.LongTensor] = None,
+        condition_features: Optional[torch.Tensor] = None,
         return_attentions: bool = False,
         return_hid_states: bool = False,
         chunk_length: float = 0,
@@ -496,11 +569,12 @@ class HFWav2VecBase(TorchModel):
                 (tuple(torch.FloatTensor)).
         """
         if chunk_length == 0 or x.size(1) < chunk_length * self.sample_frequency:
-            return self.forward_impl(x, x_lengths, return_attentions, return_hid_states)
+            return self.forward_impl(x, x_lengths, condition_features, return_attentions, return_hid_states)
         else:
             return self.forward_long_impl(
                 x,
                 x_lengths,
+                condition_features,
                 return_attentions,
                 return_hid_states,
                 chunk_length,
@@ -511,6 +585,7 @@ class HFWav2VecBase(TorchModel):
         self,
         x: torch.Tensor,
         x_lengths: Optional[torch.LongTensor] = None,
+        condition_features: Optional[torch.Tensor] = None,
         return_attentions: bool = False,
         return_hid_states: bool = False,
     ):
@@ -557,12 +632,23 @@ class HFWav2VecBase(TorchModel):
             # )
             # assert self.training == lora_layer.training
             # assert self.training == (not lora_layer.merged)
-        output = self.hf_model(
-            x,
-            x_mask,
-            output_attentions=return_attentions,
-            output_hidden_states=return_hid_states,
-        )
+
+        if condition_features is not None:
+            output = self.hf_model(
+                x,
+                condition_features,
+                x_mask,
+                output_attentions=return_attentions,
+                output_hidden_states=return_hid_states,
+            )
+
+        else:
+            output = self.hf_model(
+                x,
+                x_mask,
+                output_attentions=return_attentions,
+                output_hidden_states=return_hid_states,
+            )
         max_out_length = output.last_hidden_state.size(1)
         feat_lengths = (
             None
@@ -577,6 +663,7 @@ class HFWav2VecBase(TorchModel):
         self,
         x: torch.Tensor,
         x_lengths: Optional[torch.LongTensor] = None,
+        condition_features: Optional[torch.Tensor] = None,
         return_attentions: bool = False,
         return_hid_states: bool = False,
         chunk_length: float = 120.0,
@@ -633,12 +720,21 @@ class HFWav2VecBase(TorchModel):
             stop_i = min(start + chunk_length + right_context, x.size(1))
             x_i = x[:, start_i:stop_i]
             x_mask_i = None if x_mask is None else x_mask[start_i:stop_i]
-            output_i = self.hf_model(
-                x_i,
-                x_mask_i,
-                output_attentions=return_attentions,
-                output_hidden_states=return_hid_states,
-            )
+            if condition_features is not None:
+                output_i = self.hf_model(
+                    x_i,
+                    x_mask_i,
+                    condition_features=condition_features,
+                    output_attentions=return_attentions,
+                    output_hidden_states=return_hid_states,
+                )
+            else:
+                output_i = self.hf_model(
+                    x_i,
+                    x_mask_i,
+                    output_attentions=return_attentions,
+                    output_hidden_states=return_hid_states,
+                )
 
             if i < num_chunks - 1:
                 start_out_i = max(
@@ -718,6 +814,7 @@ class HFWav2VecBase(TorchModel):
             "override_dropouts": self.override_dropouts,
             "override_spec_augment": self.override_spec_augment,
             "override_lora": self.override_lora,
+            "override_condition": self.override_condition,
             "left_encoder_context": self.left_encoder_context,
             "right_encoder_context": self.right_encoder_context,
             "sample_frequency": self.sample_frequency,
@@ -729,6 +826,10 @@ class HFWav2VecBase(TorchModel):
             "lora_alpha": self.lora_alpha,
             "lora_dropout": self.lora_dropout,
             "lora_merge_weights": self.lora_merge_weights,
+            "use_condition": self.use_condition,
+            "condition_size": self.condition_size,
+            "condition_components": self.condition_components,
+            "condition_type": self.condition_type,
         }
 
         base_config = super().get_config()
@@ -813,6 +914,34 @@ class HFWav2VecBase(TorchModel):
             action=ActionYesNo,
             help="lora weights are merged with the pretrained weights at inference.",
         )
+
+    def _add_condition_args(parser):
+        parser.add_argument(
+            "--use-condition",
+            default=False,
+            action=ActionYesNo,
+            help="use condition",
+        )
+        parser.add_argument(
+            "--condition-size",
+            default=128,
+            type=int,
+            help="size of the condition",
+        )
+        parser.add_argument(
+            "--condition-components",
+            default=["attention"],
+            nargs="+",
+            choices=["attention"],
+            help="list of components where we apply condition, eg [attention]",
+        )
+        parser.add_argument(
+            "--condition-type",
+            default="one-hot",
+            choices=["one-hot", "learned"],
+            help="type of condition",
+        )
+
 
     @staticmethod
     def add_class_args(parser, prefix=None, skip=set()):
@@ -917,6 +1046,7 @@ class HFWav2VecBase(TorchModel):
 
         HFWav2VecBase._add_lr_args(parser)
         HFWav2VecBase._add_lora_args(parser)
+        HFWav2VecBase._add_condition_args(parser)
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
@@ -962,7 +1092,15 @@ class HFWav2VecBase(TorchModel):
             help=("whether to change the config of LoRA layers in the model."),
         )
 
+        parser.add_argument(
+            "--override-condition",
+            default=False,
+            action=ActionYesNo,
+            help=("whether to change the config of condition layers in the model."),
+        )
+
         HFWav2VecBase._add_lr_args(parser)
         HFWav2VecBase._add_lora_args(parser)
+        HFWav2VecBase._add_condition_args(parser)
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
