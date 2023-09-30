@@ -81,12 +81,12 @@ class HFWav2RNNFiLMTransducer(TorchModel):
                                         layer_dim,
                                         bias=False)
 
-    def _fuse_hid_feats(self, hid_feats, lang):
+    def _fuse_hid_feats(self, hid_feats, lang_condition):
         """Fuses the hidden features from the Wav2Vec model.
 
         Args:
           hid_feats: list of hidden features Tensors from Wav2Vec model.
-          lang: language id Tensor.
+          lang_condition: language condition Tensor.
 
         Returns:
           Tensor of fused features (batch, channels, time)
@@ -95,7 +95,6 @@ class HFWav2RNNFiLMTransducer(TorchModel):
             # There is only one layer of features
             return hid_feats[0]
 
-        lang_condition = self.transducer.decoder.lang_embedding(lang)
         hid_feats = hid_feats[self.feat_fusion_start:]
         if self.feat_fusion_method == "film-weighted-avg":
             film_hid_feats = tuple(self.films[i](hid_feats[i], lang_condition) for i in range(len(self.films)))
@@ -129,12 +128,17 @@ class HFWav2RNNFiLMTransducer(TorchModel):
                       return_feat_layers=None,
                       chunk_length=0,
                       detach_chunks=False):
+
+
+        lang_condition = self.transducer.decoder.lang_embedding(lang)
+
         return_hid_states = (False if return_feat_layers is None
                              and self.feat_fusion_method == "last" else True)
         with self._hf_context:
             hf_output = self.hf_feats(
                 x,
                 x_lengths,
+                condition_features=lang_condition,
                 return_hid_states=return_hid_states,
                 chunk_length=chunk_length,
                 detach_chunks=detach_chunks,
@@ -142,7 +146,7 @@ class HFWav2RNNFiLMTransducer(TorchModel):
         feat_lengths = hf_output["hidden_states_lengths"]
         if return_hid_states:
             hid_feats = hf_output["hidden_states"]
-            feats = self._fuse_hid_feats(hid_feats, lang)
+            feats = self._fuse_hid_feats(hid_feats, lang_condition)
         else:
             hid_feats = None
             feats = hf_output["last_hidden_state"]
