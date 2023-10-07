@@ -70,8 +70,45 @@ class ClassInfo(InfoTable):
         if ext == "":
             # if no extension we load as kaldi utt2spk file
             df = pd.read_csv(
-                file_path, sep=" ", header=None, names=["id"], dtype={"id": np.str},
+                file_path, sep=" ", header=None, names=["id"], dtype={"id": str},
             )
             return cls(df)
 
         return super().load(file_path, sep)
+
+    @classmethod
+    def cat(cls, tables):
+        """Concatenates several tables.
+
+        Args:
+          info_lists: List of InfoTables
+
+        Returns:
+          InfoTable object concatenation the info_lists.
+        """
+        df_list = [table.df for table in tables]
+        df = pd.concat(df_list)
+        assert df["id"].is_unique, """there are duplicated ids in original tables"""
+        if not df["class_idx"].is_unique:
+            logging.warning(
+                """class_idx in concat tables are not unique, 
+                we will assign new class_idx"""
+            )
+            df["class_idx"].drop(columns=["class_idx"], inplace=True)
+        return cls(df)
+
+    def filter(
+        self,
+        predicate=None,
+        items=None,
+        iindex=None,
+        columns=None,
+        by="id",
+        keep=True,
+        rebuild_idx=False,
+    ):
+        new_class_info = super().filter(predicate, items, iindex, columns, by, keep)
+        if rebuild_idx:
+            new_class_info.add_class_idx()
+
+        return new_class_info

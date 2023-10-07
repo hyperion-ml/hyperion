@@ -8,6 +8,7 @@ import re
 from collections import OrderedDict
 from copy import deepcopy
 from pathlib import Path
+from typing import Optional, Union, List
 
 import numpy as np
 import pandas as pd
@@ -22,6 +23,7 @@ class InfoTable:
     Attributes:
       df: pandas dataframe.
     """
+
     def __init__(self, df):
         self.df = df
         assert "id" in df, f"info_table={df}"
@@ -118,7 +120,7 @@ class InfoTable:
 
     @classmethod
     def load(cls, file_path, sep=None, name="class_id"):
-        """Loads utt2info list from text file.
+        """Loads table from file.
 
         Args:
           file_path: File to read the list.
@@ -126,7 +128,7 @@ class InfoTable:
           dtype: Dictionary with the dtypes of each column.
           name: name for the data to be loaded
         Returns:
-          Utt2Info object
+          InfoTable object
         """
         file_path = Path(file_path)
         ext = file_path.suffix
@@ -138,8 +140,8 @@ class InfoTable:
                 header=None,
                 names=["id", name],
                 dtype={
-                    "id": np.str,
-                    name: np.str
+                    "id": str,
+                    name: str
                 },
             )
         else:
@@ -158,52 +160,77 @@ class InfoTable:
             self.df.sort_values(by=column, inplace=True, ascending=ascending)
 
     def split(self, idx, num_parts, group_by=None):
-        """Splits SCPList into num_parts and return part idx.
+        """Splits the table into num_parts and return part idx.
 
         Args:
           idx: Part to return from 1 to num_parts.
           num_parts: Number of parts to split the list.
-          group_by_field: All the lines with the same value in column
+          group_by: All the lines with the same value in column
                           groub_by_field go to the same part
 
         Returns:
-          Sub Utt2Info object
+          Sub InfoTable object
         """
-        if group_by is None:
+        if group_by is None or group_by == "id":
             _, idx1 = split_list(self.df["id"], idx, num_parts)
         else:
-            _, idx1 = split_list_group_by_key(self.df[group_by], idx,
-                                              num_parts)
+            _, idx1 = split_list_group_by_key(self.df[group_by], idx, num_parts)
 
         df = self.df.iloc[idx1]
         return self.__class__(df)
 
     @classmethod
-    def merge(cls, tables):
-        """Merges several Utt2Info tables.
+    def cat(cls, tables):
+        """Concatenates several tables.
 
         Args:
-          info_lists: List of Utt2Info
+          info_lists: List of InfoTables
 
         Returns:
-          Utt2Info object concatenation the info_lists.
+          InfoTable object concatenation the info_lists.
         """
         df_list = [table.df for table in tables]
         df = pd.concat(df_list)
+        assert df[
+            "id"
+        ].is_unique, """there are duplicated ids in the tables we are concatenating"""
         return cls(df)
 
-    def filter(self,
-               items=None,
-               iindex=None,
-               columns=None,
-               by="id",
-               keep=True):
-        assert (items is None or iindex is None
-                ), "items and iindex cannot be not None at the same time"
+    def filter(
+        self, predicate=None, items=None, iindex=None, columns=None, by="id", keep=True
+    ):
+        """Filters the table and produce a new table with the elements to keep
+
+        Args:
+          predicate: callable function that defines the filtering criterion e.g.:
+            lambda df: df["duration"] > 1.0.
+          items: filters the table based in column value with pandas command:
+            df.loc[items, by], used only if predicate is None
+          iindex: filters the table based on integer index with pandas command:
+            df.iloc[iiindex], used if predicate and items are None
+          columns: columns to keep of remove.
+          by: column id to use with itmes criterion
+          keep: if True, the criterion is used to keep rows, if False it is used
+            to remove rows
+
+        Returns
+          InfoTable of the same class as the input.
+        """
+        assert (
+            predicate is not None
+            or items is not None
+            or iindex is not None
+            or columns is not None
+        ), "predicate, items, iindex and columns cannot be not None at the same time"
         df = self.df
 
+        if predicate is not None:
+            mask = predicate(self.df)
+
         if not keep:
-            if items is not None:
+            if predicate is not None:
+                mask = np.logical_not(mask)
+            elif items is not None:
                 items = np.setdiff1d(df[by], items)
             elif iindex is not None:
                 iindex = np.setdiff1d(np.arange(len(df)), iindex)
@@ -211,7 +238,12 @@ class InfoTable:
             if columns is not None:
                 columns = np.setdiff1d(df.columns, columns)
 
-        if items is not None:
+        if predicate is not None:
+            if columns is None:
+                df = df.loc[mask]
+            else:
+                df = df.loc[mask, columns]
+        elif items is not None:
             if by != "id":
                 missing = [False if v in df[by] else True for v in items]
                 if any(missing):
@@ -229,7 +261,7 @@ class InfoTable:
             if columns is not None:
                 df = df[columns]
 
-        return self.__class__(df)
+        return self.__class__(df.copy())
 
     def __eq__(self, other):
         """Equal operator"""
@@ -259,7 +291,7 @@ class InfoTable:
           Index used to shuffle the list.
         """
         if rng is None:
-            rng = np.random.RandomState(seed=seed)
+            rng = np.random.default_rng(seed=seed)
         index = np.arange(len(self.df))
         rng.shuffle(index)
         self.df = self.df.iloc[index]
@@ -283,13 +315,32 @@ class InfoTable:
         loc = self.df.index.get_loc(keys)
         if isinstance(loc, int):
             return loc
-        elif isinstance(loc, np.ndarray) and loc.dtype == np.bool:
+
+        if isinstance(loc, np.ndarray) and loc.dtype == np.bool:
             return np.nonzero(loc)[0]
-        else:
-            return list(range(loc.start, loc.stop, loc.step))
+
+        return list(range(loc.start, loc.stop, loc.step))
 
     def get_col_idx(self, keys):
         return self.df.columns.get_loc(keys)
+
+    def add_columns(
+        self,
+        right_table,
+        column_names: Union[None, str, List[str], np.ndarray] = None,
+        on: Union[str, List[str], np.ndarray] = "id",
+        right_on: Union[None, str, List[str], np.ndarray] = None,
+    ):
+        if isinstance(right_table, InfoTable):
+            right_table = right_table.df
+
+        if column_names is not None:
+            right_table = right_table[column_names]
+
+        if right_on is None:
+            right_on = on
+
+        self.df = self.df.merge(right_table, how="left", left_on=on, right_on=right_on)
 
         # def __len__(self):
 

@@ -11,11 +11,15 @@ import time
 
 import numpy as np
 import pandas as pd
-import yaml
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
-
 import torch
+import yaml
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
+
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialAudioReader as AR
@@ -83,7 +87,6 @@ def extract_xvectors(
     vad_spec,
     write_timestamps_spec,
     slidwin_params_path,
-    scp_sep,
     vad_path_prefix,
     model_path,
     chunk_length,
@@ -97,8 +100,7 @@ def extract_xvectors(
     use_gpu,
     **kwargs
 ):
-
-    rng = np.random.RandomState(seed=1123581321 + kwargs["part_idx"])
+    rng = np.random.default_rng(seed=1123581321 + kwargs["part_idx"])
     device = init_device(use_gpu)
     feat_extractor = init_feats(device, **kwargs)
     model = load_model(model_path, device)
@@ -109,7 +111,7 @@ def extract_xvectors(
     feat_snip_edges = feat_args["snip_edges"]
 
     if write_timestamps_spec is not None:
-        time_writer = DWF.create(write_timestamps_spec, scp_sep=scp_sep)
+        time_writer = DWF.create(write_timestamps_spec)
 
     if aug_cfg is not None:
         augmenter = SpeechAugment.create(aug_cfg, rng=rng)
@@ -121,17 +123,16 @@ def extract_xvectors(
 
     ar_args = AR.filter_args(**kwargs)
     logging.info("opening output stream: %s", output_spec)
-    with DWF.create(output_spec, scp_sep=scp_sep) as writer:
-
+    with DWF.create(output_spec) as writer:
         logging.info(
             "opening input stream: {} with args={}".format(input_spec, ar_args)
         )
         with AR(input_spec, **ar_args) as reader:
-
             if vad_spec is not None:
                 logging.info("opening VAD stream: %s", vad_spec)
                 v_reader = VRF.create(
-                    vad_spec, path_prefix=vad_path_prefix, scp_sep=scp_sep
+                    vad_spec,
+                    path_prefix=vad_path_prefix,
                 )
 
             while not reader.eof():
@@ -154,7 +155,7 @@ def extract_xvectors(
                             x[None, :], dtype=torch.get_default_dtype()
                         ).to(device)
 
-                        x = feat_extractor(x)
+                        x, _ = feat_extractor(x)
                         t5 = time.time()
                         tot_frames = x.shape[1]
                         if vad_spec is not None:
@@ -163,18 +164,22 @@ def extract_xvectors(
                             x = x[:, vad]
 
                         logging.info(
-                            "utt %s detected %d/%d (%.2f %%) speech frames"
-                            % (
-                                key,
-                                x.shape[1],
-                                tot_frames,
-                                x.shape[1] / tot_frames * 100,
-                            )
+                            "utt %s detected %d/%d (%.2f %%) speech frames",
+                            key,
+                            x.shape[1],
+                            tot_frames,
+                            x.shape[1] / tot_frames * 100,
                         )
 
                         t6 = time.time()
                         if x.shape[1] == 0:
-                            y = np.zeros((1, model.embed_dim,), dtype=float_cpu(),)
+                            y = np.zeros(
+                                (
+                                    1,
+                                    model.embed_dim,
+                                ),
+                                dtype=float_cpu(),
+                            )
                         else:
                             x = x.transpose(1, 2).contiguous()
                             y = (
@@ -257,8 +262,7 @@ def extract_xvectors(
             yaml.dump(params, f)
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(
         description=(
             "Extract x-vectors over a sliding window"
@@ -275,7 +279,6 @@ if __name__ == "__main__":
     )
     parser.add_argument("--slidwin-params-path", default=None)
 
-    parser.add_argument("--scp-sep", default=" ", help=("scp file field separator"))
     parser.add_argument(
         "--vad-path-prefix", default=None, help=("scp file_path prefix for vad")
     )
@@ -350,3 +353,7 @@ if __name__ == "__main__":
     logging.debug(args)
 
     extract_xvectors(**namespace_to_dict(args))
+
+
+if __name__ == "__main__":
+    main()

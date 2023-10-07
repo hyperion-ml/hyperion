@@ -12,11 +12,15 @@ import time
 from pathlib import Path
 
 import numpy as np
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
-
 import torch
 import torch.nn as nn
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
+
 from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch import TorchModelLoader as TML
 from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
@@ -61,7 +65,6 @@ def init_data(data_rspec, train_list, val_list, num_workers, num_gpus, rank, **k
 def init_xvector(
     num_classes, in_model_path, prior_model_path, rank, train_mode, **kwargs
 ):
-
     xvec_args = XVec.filter_finetune_args(**kwargs)
     if rank == 0:
         logging.info("xvector network ft args={}".format(xvec_args))
@@ -195,8 +198,7 @@ def train_xvec(gpu_id, args):
 #     trainer.fit(train_loader, test_loader)
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(
         description="Fine-tune x-vector model with deep feature loss regularization"
     )
@@ -279,3 +281,7 @@ if __name__ == "__main__":
     # del args.seed
 
     # train_xvec(**vars(args))
+
+
+if __name__ == "__main__":
+    main()

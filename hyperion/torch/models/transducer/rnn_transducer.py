@@ -63,7 +63,7 @@ class RNNTransducer(TorchModel):
         self,
         x: torch.Tensor,
         x_lengths: torch.Tensor,
-        y: k2.RaggedTensor,
+        y: Union[Dict, k2.RaggedTensor],
     ) -> RNNTransducerOutput:
         """
         Args:
@@ -201,7 +201,7 @@ class RNNTransducer(TorchModel):
     @staticmethod
     def filter_finetune_args(**kwargs):
         args = {}
-        decoder_args = Decoder.filter_finetune_args(**kwargs["decoder"])
+        decoder_args = RNNTransducerDecoder.filter_finetune_args(**kwargs["decoder"])
         args["decoder"] = decoder_args
         return args
 

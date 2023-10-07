@@ -8,7 +8,7 @@ import time
 import torch
 import torch.nn as nn
 
-from ...utils.math import invert_trimat
+from ...utils.math_funcs import invert_trimat
 from .plda_base import PLDABase
 
 

@@ -13,14 +13,20 @@ from .class_weighted_seg_chunk_sampler import \
     ClassWeightedRandomSegChunkSampler
 from .feat_seq_dataset import FeatSeqDataset
 from .seg_chunk_sampler import SegChunkSampler
+from .bucketing_seg_sampler import BucketingSegSampler
+from .class_weighted_bucketing_seg_sampler import ClassWeightedRandomBucketingSegSampler
+from .class_weighted_seg_sampler import ClassWeightedRandomSegSampler
+
 from .seg_sampler import SegSampler
 
 sampler_dict = {
     "class_weighted_random_seg_chunk_sampler":
     ClassWeightedRandomSegChunkSampler,
     "seg_sampler": SegSampler,
+    "class_weighted_seg_sampler": ClassWeightedRandomSegSampler,
     "seg_chunk_sampler": SegChunkSampler,
     "bucketing_seg_sampler": BucketingSegSampler,
+    "class_weighted_random_bucketing_seg_sampler": ClassWeightedRandomBucketingSegSampler,
 }
 
 
@@ -46,7 +52,7 @@ class SegSamplerFactory(object):
         sampler_class = sampler_dict[sampler_type]
         sampler_kwargs = sampler_class.filter_args(**kwargs)
 
-        if sampler_type in ["bucketing_seg_sampler", "seg_chunk_sampler"]:
+        if sampler_type in ["bucketing_seg_sampler", "seg_chunk_sampler", "class_weighted_random_bucketing_seg_sampler"]:
             base_sampler_class = sampler_dict[base_sampler_type]
             base_sampler_kwargs = base_sampler_class.filter_args(**kwargs)
             sampler_kwargs.update(base_sampler_kwargs)
@@ -56,7 +62,9 @@ class SegSamplerFactory(object):
                 base_sampler_kwargs = base_sampler_class.filter_args(**kwargs)
                 sampler_kwargs.update(base_sampler_kwargs)
 
-        if sampler_type in ["class_weighted_random_seg_chunk_sampler"]:
+        if sampler_type in ["class_weighted_random_seg_chunk_sampler", "class_weighted_random_bucketing_seg_sampler"]:
+            # import pdb; pdb.set_trace()
+            logging.info(f"sampler-args={sampler_kwargs}")
             try:
                 class_name = sampler_kwargs["class_name"]
             except:
@@ -78,6 +86,7 @@ class SegSamplerFactory(object):
             "min_batch_size",
             "max_batch_size",
             "max_batch_length",
+            "max_audio_length",
             "num_chunks_per_seg_epoch",
             "num_segs_per_class",
             "num_chunks_per_seg",
@@ -111,7 +120,7 @@ class SegSamplerFactory(object):
 
         parser.add_argument(
             "--base-sampler-type",
-            choices=["seg_sampler", "bucketing_seg_sampler"],
+            choices=["seg_sampler", "bucketing_seg_sampler", "bucketing_seg_sampler","class_weighted_seg_sampler"],
             default="seg_sampler",
             help=
             "base sampler used for seg_chunk_sampler or bucketing_seg_sampler",
@@ -145,6 +154,15 @@ class SegSamplerFactory(object):
             ("maximum batch size per gpu, if None, estimated from max_batch_length"
              ),
         )
+
+
+        parser.add_argument(
+            "--max-audio-length",
+            default=None,
+            type=float,
+            help=("the maximum length of an audio segment in seconds"),
+        )
+
 
         parser.add_argument(
             "--batch-size",

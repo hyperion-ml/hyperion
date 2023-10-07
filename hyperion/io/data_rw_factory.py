@@ -4,10 +4,13 @@
 """
 
 import logging
+from typing import Union, Optional, List, Callable, Tuple
 
 from jsonargparse import ActionParser, ArgumentParser
+import numpy as np
 
 from ..utils.kaldi_matrix import compression_methods
+from ..utils import PathLike
 from .ark_data_reader import RandomAccessArkDataReader as RADR
 from .ark_data_reader import SequentialArkFileDataReader as SAFDR
 from .ark_data_reader import SequentialArkScriptDataReader as SASDR
@@ -17,8 +20,7 @@ from .h5_data_reader import RandomAccessH5ScriptDataReader as RH5SDR
 from .h5_data_reader import SequentialH5FileDataReader as SH5FDR
 from .h5_data_reader import SequentialH5ScriptDataReader as SH5SDR
 from .h5_data_writer import H5DataWriter as H5DW
-from .rw_specifiers import (ArchiveType, RSpecifier, RSpecType, WSpecifier,
-                            WSpecType)
+from .rw_specifiers import ArchiveType, RSpecifier, RSpecType, WSpecifier, WSpecType
 
 
 class DataWriterFactory(object):
@@ -27,7 +29,12 @@ class DataWriterFactory(object):
     """
 
     @staticmethod
-    def create(wspecifier, compress=False, compression_method="auto", scp_sep=" "):
+    def create(
+        wspecifier: PathLike,
+        compress: bool = False,
+        compression_method: str = "auto",
+        metadata_columns: Optional[List[str]] = None,
+    ):
         if isinstance(wspecifier, str):
             wspecifier = WSpecifier.create(wspecifier)
 
@@ -43,7 +50,7 @@ class DataWriterFactory(object):
                     flush=wspecifier.flush,
                     compress=compress,
                     compression_method=compression_method,
-                    scp_sep=scp_sep,
+                    metadata_columns=metadata_columns,
                 )
             else:
                 return ADW(
@@ -53,21 +60,20 @@ class DataWriterFactory(object):
                     flush=wspecifier.flush,
                     compress=compress,
                     compression_method=compression_method,
-                    scp_sep=scp_sep,
+                    metadata_columns=metadata_columns,
                 )
 
     @staticmethod
     def filter_args(**kwargs):
-        valid_args = ("scp_sep", "compress", "compression_method")
+        valid_args = ("compress", "compression_method")
         return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(parser, prefix: Optional[PathLike] = None):
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        parser.add_argument("--scp-sep", default=" ", help=("scp file field separator"))
         parser.add_argument("--compress", default=False, action="store_true")
         parser.add_argument(
             "--compression-method", default="auto", choices=compression_methods
@@ -75,12 +81,11 @@ class DataWriterFactory(object):
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
-            # help='data writer options')
 
 
 class SequentialDataReaderFactory(object):
     @staticmethod
-    def create(rspecifier, path_prefix=None, scp_sep=" ", **kwargs):
+    def create(rspecifier: PathLike, path_prefix: Optional[PathLike] = None, **kwargs):
 
         if isinstance(rspecifier, str):
             rspecifier = RSpecifier.create(rspecifier)
@@ -92,27 +97,21 @@ class SequentialDataReaderFactory(object):
                 return SAFDR(rspecifier.archive, **kwargs)
         else:
             if rspecifier.archive_type == ArchiveType.H5:
-                return SH5SDR(rspecifier.script, path_prefix, scp_sep=scp_sep, **kwargs)
+                return SH5SDR(rspecifier.script, path_prefix, **kwargs)
             else:
-                return SASDR(rspecifier.script, path_prefix, scp_sep=scp_sep, **kwargs)
+                return SASDR(rspecifier.script, path_prefix, **kwargs)
 
     @staticmethod
     def filter_args(**kwargs):
-        valid_args = ("scp_sep", "path_prefix", "part_idx", "num_parts")
+        valid_args = ("path_prefix", "part_idx", "num_parts")
         return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(parser, prefix: Optional[PathLike] = None):
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        try:
-            parser.add_argument(
-                "--scp-sep", default=" ", help=("scp file field separator")
-            )
-        except:
-            pass
         parser.add_argument(
             "--path-prefix", default=None, help=("scp file_path prefix")
         )
@@ -139,7 +138,11 @@ class SequentialDataReaderFactory(object):
 
 class RandomAccessDataReaderFactory(object):
     @staticmethod
-    def create(rspecifier, path_prefix=None, transform=None, scp_sep=" "):
+    def create(
+        rspecifier: PathLike,
+        path_prefix: Optional[PathLike] = None,
+        transform: Optional[Callable[[np.array], np.array]] = None,
+    ):
         if isinstance(rspecifier, str):
             rspecifier = RSpecifier.create(rspecifier)
         logging.debug(rspecifier.__dict__)
@@ -162,7 +165,6 @@ class RandomAccessDataReaderFactory(object):
                     path_prefix,
                     transform=transform,
                     permissive=rspecifier.permissive,
-                    scp_sep=scp_sep,
                 )
             else:
                 return RADR(
@@ -170,26 +172,19 @@ class RandomAccessDataReaderFactory(object):
                     path_prefix,
                     transform=transform,
                     permissive=rspecifier.permissive,
-                    scp_sep=scp_sep,
                 )
 
     @staticmethod
     def filter_args(**kwargs):
-        valid_args = ("scp_sep", "path_prefix")
+        valid_args = "path_prefix"
         return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(parser, prefix: Optional[PathLike] = None):
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        try:
-            parser.add_argument(
-                "--scp-sep", default=" ", help=("scp file field separator")
-            )
-        except:
-            pass
         parser.add_argument(
             "--path-prefix", default=None, help=("scp file_path prefix")
         )

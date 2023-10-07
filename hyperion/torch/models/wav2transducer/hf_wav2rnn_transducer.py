@@ -226,6 +226,9 @@ class HFWav2RNNTransducer(TorchModel):
     def freeze_hf_feats(self):
         self.hf_feats.freeze()
 
+    def freeze_hf_except_lora(self, bias=None):
+        self.hf_feats.freeze_except_lora(bias)
+
     def freeze_hf_feature_encoder(self):
         self.hf_feats.freeze_feature_encoder()
 
@@ -247,6 +250,15 @@ class HFWav2RNNTransducer(TorchModel):
         elif mode == "hf-feat-extractor-frozen":
             self.unfreeze()
             self.freeze_hf_feature_encoder()
+        elif mode == "hf-lora":
+            self.unfreeze()
+            self.freeze_hf_except_lora()
+        elif mode == "hf-all-bias-lora":
+            self.unfreeze()
+            self.freeze_hf_except_lora(bias="all")
+        elif mode == "hf-lora-with-bias":
+            self.unfreeze()
+            self.freeze_hf_except_lora(bias="lora_only")
         else:
             raise ValueError(f"invalid train_mode={mode}")
 
@@ -270,6 +282,9 @@ class HFWav2RNNTransducer(TorchModel):
                 "ft-transducer-nograd",
                 "hf-feats-frozen-nograd",
                 "hf-feat-extractor-frozen",
+                "hf-lora",
+                "hf-all-bias-lora",
+                "hf-lora-with-bias",
         ]:
             self.hf_feats.train()
             self.transducer._train("full")
@@ -287,6 +302,9 @@ class HFWav2RNNTransducer(TorchModel):
             "ft-transducer-nograd",
             "hf-feats-frozen-nograd",
             "hf-feat-extractor-frozen",
+            "hf-lora",
+            "hf-all-bias-lora",
+            "hf-lora-with-bias",
         ]
 
     @staticmethod

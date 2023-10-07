@@ -9,20 +9,24 @@ import pickle
 
 import numpy as np
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
-from sklearn.svm import SVC as SVC
+from sklearn.svm import SVC
 
 from ...hyp_defs import float_cpu
-from ...utils.math import softmax
+from ...utils.math_funcs import softmax
+from ...utils.misc import filter_func_args
 from ..np_model import NPModel
 
 
-class GaussianSVMC(NPModel):
+class SVMC(NPModel):
     """Gaussian Support Vector Machine for Classification."""
 
     def __init__(
         self,
         C=1.0,
+        kernel="rbf",
+        degree=3,
         gamma="scale",
+        coef0=0.0,
         shrinking=True,
         probability=True,
         tol=0.0001,
@@ -32,7 +36,6 @@ class GaussianSVMC(NPModel):
         class_weight=None,
         random_state=None,
         max_iter=100,
-        model=None,
         verbose=0,
         balance_class_weight=True,
         lr_seed=1024,
@@ -46,27 +49,40 @@ class GaussianSVMC(NPModel):
             class_weight = "balanced"
 
         if random_state is None:
-            random_state = np.random.RandomState(seed=lr_seed)
+            random_state = np.random.default_rng(seed=lr_seed)
+
+        self.C = C
+        self.kernel = kernel
+        self.degree = degree
+        self.gamma = gamma
+        self.coef0 = coef0
+        self.shrinking = shrinking
+        self.probability = probability
+        self.tol = tol
+        self.cache_size = cache_size
+        self.multi_class = multi_class
+        self.break_ties = break_ties
+        self.class_weight = class_weight
 
         self.balance_class_weight = balance_class_weight
-        if model is None:
-            self.svm = SVC(
-                C=C,
-                kernel="rbf",
-                gamma=gamma,
-                shrinking=shrinking,
-                probability=probability,
-                tol=tol,
-                cache_size=cache_size,
-                class_weight=class_weight,
-                verbose=verbose,
-                max_iter=max_iter,
-                decision_function_shape=multi_class,
-                break_ties=break_ties,
-                random_state=random_state,
-            )
-        else:
-            self.svm = model
+        self.svm = SVC(
+            C=C,
+            kernel=kernel,
+            gamma=gamma,
+            degree=degree,
+            coef0=coef0,
+            shrinking=shrinking,
+            probability=probability,
+            tol=tol,
+            cache_size=cache_size,
+            class_weight=class_weight,
+            verbose=verbose,
+            max_iter=max_iter,
+            decision_function_shape=multi_class,
+            break_ties=break_ties,
+            random_state=random_state,
+        )
+
         self.set_labels(labels)
 
     @property
@@ -84,6 +100,18 @@ class GaussianSVMC(NPModel):
           Dictionary with config hyperparams.
         """
         config = {
+            "C": self.C,
+            "kernel": self.kernel,
+            "gamma": self.gamma,
+            "degree": self.degree,
+            "coef0": self.coef0,
+            "shrinking": self.shrinking,
+            "probability": self.probability,
+            "tol": self.tol,
+            "cache_size": self.cache_size,
+            "multi_class": self.multi_class,
+            "break_ties": self.break_ties,
+            "class_weight": self.class_weight,
             "balance_class_weight": self.balance_class_weight,
             "labels": self.labels,
         }
@@ -135,7 +163,6 @@ class GaussianSVMC(NPModel):
           class_ids: class integer [0, num_classes-1] identifier (num_samples,)
           sample_weight: weight of each sample in the estimation (num_samples,)
         """
-        print("--------------", type(x[3, 2]), type(class_ids[20]), "--------------")
         self.svm.fit(x, class_ids)
         if self.svm.fit_status_:
             logging.warning("SVM did not converge")
@@ -153,9 +180,6 @@ class GaussianSVMC(NPModel):
         if not split_path[-1] == "sav":
             file_path = "".join(split_path[0] + ".sav")
         with open(file_path, "wb") as f:
-            # with h5py.File(file_path, "w") as f:
-            # config = self.to_json()
-            # f.create_dataset("config", data=np.array(config, dtype="S"))
             self.save_params(f)
 
     @classmethod
@@ -169,27 +193,17 @@ class GaussianSVMC(NPModel):
           Model object.
         """
         split_path = os.path.splitext(file_path)
-        if not split_path[-1] == "sav":
-            file_path = "".join(split_path[0] + ".sav")
+        if not split_path[-1] == "pkl":
+            file_path = "".join(split_path[0] + ".pkl")
 
-        # with h5py.File(file_path, "r") as f:
         with open(file_path, "rb") as f:
-            # json_str = str(np.asarray(f["config"]).astype("U"))
-            # config = cls.load_config_from_json(json_str)
-            config = None
-            return cls.load_params(f, config)
+            return pickle.load(f)
 
     def save_params(self, f):
-        # params = {"A": self.A, "b": self.b}
-        # self._save_params_from_dict(f, params)
         pickle.dump(self, f)
 
     @classmethod
-    def load_params(cls, f, config):
-        # param_list = ["A", "b"]
-        # params = cls._load_params_to_dict(f, config["name"], param_list)
-        # kwargs = dict(list(config.items()) + list(params.items()))
-        # return cls(**kwargs)
+    def load_params(cls, f):
         svmc = pickle.load(f)
         return svmc
 
@@ -200,27 +214,7 @@ class GaussianSVMC(NPModel):
         Returns:
           Hyperparamter dictionary to initialize the class.
         """
-        valid_args = (
-            "nu",
-            "gamma",
-            "shrinking",
-            "probability",
-            "tol",
-            "cache_size",
-            "multi_class",
-            "break_ties",
-            "class_weight",
-            "random_state",
-            "max_iter",
-            "verbose",
-            "balance_class_weight",
-            "lr_seed",
-            "model",
-            "labels",
-        )
-        return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
-
-    filter_train_args = filter_class_args
+        return filter_func_args(SVMC.__init__, **kwargs)
 
     @staticmethod
     def add_class_args(parser, prefix=None):
@@ -240,16 +234,26 @@ class GaussianSVMC(NPModel):
             type=float,
             help="inverse of regularization strength",
         )
-        # parser.add_argument(
-        #     "--class_weight",
-        #     default=None,
-        #     help="Class weights",
-        # )
+        parser.add_argument(
+            "--kernel",
+            default="rbf",
+            choices=["linear", "poly", "rbf", "sigmoid", "precomputed"],
+            help="kernel for svm",
+        )
+        parser.add_argument(
+            "--degree", defaut=3, type=int, help="degree of polynomial kernel"
+        )
         parser.add_argument(
             "--gamma",
             default="scale",
             choices=["scale", "auto"],
             help="Kernel coefficient for ‘rbf’",
+        )
+        parser.add_argument(
+            "--coef0",
+            default=0.0,
+            type=float,
+            help="independent term of poly and sigmoid kernels",
         )
         parser.add_argument(
             "--shrinking",
@@ -264,7 +268,7 @@ class GaussianSVMC(NPModel):
             help="Whether to enable probability estimates",
         )
         parser.add_argument(
-            "--break_ties",
+            "--break-ties",
             default=True,
             type=bool,
             help="If true, predict will break ties according to the confidence values of decision_function; otherwise \
@@ -293,7 +297,7 @@ class GaussianSVMC(NPModel):
             ),
         )
         parser.add_argument(
-            "--cache_size",
+            "--cache-size",
             default=600,
             type=int,
             help="Specify the size of the kernel cache (in MB)",

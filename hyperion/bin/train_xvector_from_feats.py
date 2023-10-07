@@ -11,11 +11,15 @@ import time
 from pathlib import Path
 
 import numpy as np
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
-
 import torch
 import torch.nn as nn
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
+
 from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch.data import ClassWeightedSeqSampler as Sampler
 from hyperion.torch.data import FeatSeqDataset as SD
@@ -40,7 +44,6 @@ xvec_dict = {
 
 
 def init_data(partition, rank, num_gpus, **kwargs):
-
     kwargs = kwargs["data"][partition]
     sd_args = SD.filter_args(**kwargs["dataset"])
     sampler_args = Sampler.filter_args(**kwargs["sampler"])
@@ -81,7 +84,6 @@ def init_xvector(num_classes, rank, xvec_class, **kwargs):
 
 
 def train_xvec(gpu_id, args):
-
     config_logger(args.verbose)
     del args.verbose
     logging.debug(args)
@@ -165,8 +167,7 @@ def make_parser(xvec_class):
     return parser
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(description="Train XVector from audio files")
 
     parser.add_argument("--cfg", action=ActionConfigFile)
@@ -197,3 +198,7 @@ if __name__ == "__main__":
     # torch docs recommend using forkserver
     multiprocessing.set_start_method("forkserver")
     train_xvec(gpu_id, args_sc)
+
+
+if __name__ == "__main__":
+    main()

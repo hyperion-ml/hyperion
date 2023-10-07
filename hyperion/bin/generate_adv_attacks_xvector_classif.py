@@ -11,12 +11,16 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import yaml
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
-
 import torch
 import torch.nn as nn
+import yaml
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
+
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.io import AudioWriter as AW
 from hyperion.io import RandomAccessAudioReader as AR
@@ -153,14 +157,13 @@ def generate_attacks(
     num_parts,
     **kwargs
 ):
-
     device = init_device(use_gpu)
     model = init_model(model_path, **kwargs)
     model.to(device)
 
     logging.info("opening audio read stream: %s" % (wav_file))
     audio_args = AR.filter_args(**kwargs)
-    audio_reader = AR(wav_file ** audio_args)
+    audio_reader = AR(wav_file**audio_args)
     wav_scale = audio_reader.wav_scale
 
     logging.info("opening audio write stream: %s" % (output_wav_dir))
@@ -168,7 +171,7 @@ def generate_attacks(
 
     if vad_spec is not None:
         logging.info("opening VAD stream: %s" % (vad_spec))
-        v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix, scp_sep=" ")
+        v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix)
 
     keys, class_names, class_ids = read_utt_list(
         list_file, class2int_file, part_idx, num_parts
@@ -204,7 +207,7 @@ def generate_attacks(
         s = torch.as_tensor(s[None, :], dtype=torch.get_default_dtype()).to(device)
         target = torch.as_tensor([class_id], dtype=torch.long).to(device)
         if vad_spec is not None:
-            vad = v_reader.read([key.seg_set[j]])[0]
+            vad = v_reader.read([key])[0]
             tot_frames = len(vad)
             speech_frames = np.sum(vad)
             vad = torch.as_tensor(vad.astype(np.bool, copy=False), dtype=torch.bool).to(
@@ -214,7 +217,7 @@ def generate_attacks(
             logging.info(
                 "utt %s detected %d/%d (%.2f %%) speech frames"
                 % (
-                    key.seg_set[j],
+                    key,
                     speech_frames,
                     tot_frames,
                     speech_frames / tot_frames * 100,
@@ -312,8 +315,7 @@ def generate_attacks(
             yaml.dump(attacks_info, f, sort_keys=True)
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(
         description="Generate Attacks for speaker classification with x-vectors"
     )
@@ -330,7 +332,6 @@ if __name__ == "__main__":
     parser.add_argument("--vad", dest="vad_spec", default=None)
     parser.add_argument(
         "--vad-path-prefix",
-        dest="vad_path_prefix",
         default=None,
         help=("scp file_path prefix for vad"),
     )
@@ -413,3 +414,7 @@ if __name__ == "__main__":
     logging.debug(args)
 
     generate_attacks(**namespace_to_dict(args))
+
+
+if __name__ == "__main__":
+    main()

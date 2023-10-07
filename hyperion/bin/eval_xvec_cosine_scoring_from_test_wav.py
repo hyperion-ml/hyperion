@@ -10,11 +10,15 @@ import sys
 import time
 
 import numpy as np
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
-
 import torch
 import torch.nn as nn
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
+
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.io import RandomAccessAudioReader as AR
 from hyperion.io import RandomAccessDataReaderFactory as DRF
@@ -67,7 +71,6 @@ def load_calibrator(cal_file, device):
 
 
 def read_data(v_file, ndx_file, enroll_file, seg_part_idx, num_seg_parts):
-
     r = DRF.create(v_file)
     enroll = Utt2Info.load(enroll_file)
     try:
@@ -105,7 +108,6 @@ def eval_cosine_scoring(
     num_seg_parts,
     **kwargs
 ):
-
     device = init_device(use_gpu)
     feat_extractor = init_feats(device, **kwargs)
     model = load_model(model_path, device)
@@ -121,8 +123,8 @@ def eval_cosine_scoring(
     audio_reader = AR(test_wav_file, **audio_args)
 
     if vad_spec is not None:
-        logging.info("opening VAD stream: %s" % (vad_spec))
-        v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix, scp_sep=" ")
+        logging.info("opening VAD stream: %s", vad_spec)
+        v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix)
 
     scores = np.zeros((ndx.num_models, ndx.num_tests), dtype="float32")
     with torch.no_grad():
@@ -140,7 +142,7 @@ def eval_cosine_scoring(
 
             t2 = time.time()
             s = torch.as_tensor(s[None, :], dtype=torch.get_default_dtype()).to(device)
-            x_t = feat_extractor(s)
+            x_t, _ = feat_extractor(s)
             t4 = time.time()
             tot_frames = x_t.shape[1]
             if vad_spec is not None:
@@ -200,8 +202,7 @@ def eval_cosine_scoring(
     s.save_txt(score_file)
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(
         description="Eval cosine-scoring given enroll x-vector and test wave"
     )
@@ -218,7 +219,6 @@ if __name__ == "__main__":
     parser.add_argument("--vad", dest="vad_spec", default=None)
     parser.add_argument(
         "--vad-path-prefix",
-        dest="vad_path_prefix",
         default=None,
         help=("scp file_path prefix for vad"),
     )
@@ -270,3 +270,7 @@ if __name__ == "__main__":
     logging.debug(args)
 
     eval_cosine_scoring(**namespace_to_dict(args))
+
+
+if __name__ == "__main__":
+    main()

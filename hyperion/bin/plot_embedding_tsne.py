@@ -13,8 +13,13 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from jsonargparse import (ActionConfigFile, ActionParser, ActionYesNo,
-                          ArgumentParser, namespace_to_dict)
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ActionYesNo,
+    ArgumentParser,
+    namespace_to_dict,
+)
 
 from hyperion.hyp_defs import config_logger
 from hyperion.io import RandomAccessDataReaderFactory as DRF
@@ -41,7 +46,6 @@ def plot_embedding_tsne(
     output_dir,
     **kwargs,
 ):
-
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     logging.info("loading data")
@@ -127,8 +131,7 @@ def plot_embedding_tsne(
     # plt.clf()
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(description="Projects embeddings using TSNE")
 
     parser.add_argument("--train-v-file", required=True)
@@ -162,6 +165,9 @@ if __name__ == "__main__":
 
     plot_embedding_tsne(**namespace_to_dict(args))
 
+
+if __name__ == "__main__":
+    main()
 
 # #!/usr/bin/env python
 # """

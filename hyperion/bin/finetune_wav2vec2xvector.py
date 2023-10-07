@@ -11,21 +11,31 @@ import time
 from pathlib import Path
 
 import numpy as np
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
-
 import torch
 import torch.nn as nn
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
+
 from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch import TorchModelLoader as TML
 from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
 from hyperion.torch.metrics import CategoricalAccuracy
-from hyperion.torch.models import (HFHubert2ResNet1dXVector,
-                                   HFWav2Vec2ResNet1dXVector,
-                                   HFWavLM2ResNet1dXVector)
+from hyperion.torch.models import (
+    HFHubert2ResNet1dXVector,
+    HFWav2Vec2ResNet1dXVector,
+    HFWavLM2ResNet1dXVector,
+)
 from hyperion.torch.trainers import XVectorTrainer as Trainer
 from hyperion.torch.utils import ddp
+
+import warnings
+
+warnings.filterwarnings('ignore', category=UserWarning, module='torch.distributed.distributed_c10d')
 
 model_dict = {
     "hf_wav2vec2resnet1d": HFWav2Vec2ResNet1dXVector,
@@ -35,7 +45,6 @@ model_dict = {
 
 
 def init_data(partition, rank, num_gpus, **kwargs):
-
     kwargs = kwargs["data"][partition]
     ad_args = AD.filter_args(**kwargs["dataset"])
     sampler_args = kwargs["sampler"]
@@ -79,7 +88,12 @@ def init_model(num_classes, in_model_file, rank, **kwargs):
 
 
 def init_hard_prototype_mining(model, train_loader, val_loader, rank):
-    if not train_loader.batch_sampler.hard_prototype_mining:
+    try:
+        hard_prototype_mining = train_loader.batch_sampler.hard_prototype_mining
+    except:
+        hard_prototype_mining = False
+
+    if not hard_prototype_mining:
         return
 
     if rank == 0:
@@ -95,7 +109,6 @@ def init_hard_prototype_mining(model, train_loader, val_loader, rank):
 
 
 def train_model(gpu_id, args):
-
     config_logger(args.verbose)
     del args.verbose
     logging.debug(args)
@@ -118,7 +131,12 @@ def train_model(gpu_id, args):
         logging.info("trainer args={}".format(trn_args))
     metrics = {"acc": CategoricalAccuracy()}
     trainer = Trainer(
-        model, device=device, metrics=metrics, ddp=world_size > 1, **trn_args,
+        model,
+        device=device,
+        metrics=metrics,
+        ddp=world_size > 1,
+        # loss_weight=train_loader.batch_sampler.class_info["weights"],
+        **trn_args,
     )
     trainer.load_last_checkpoint()
     trainer.fit(train_loader, val_loader)
@@ -174,8 +192,7 @@ def make_parser(model_class):
     return parser
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(
         description="Finetunes Wav2Vec2XVector model from audio files"
     )
@@ -207,3 +224,7 @@ if __name__ == "__main__":
     # torch docs recommend using forkserver
     multiprocessing.set_start_method("forkserver")
     train_model(gpu_id, args_sc)
+
+
+if __name__ == "__main__":
+    main()

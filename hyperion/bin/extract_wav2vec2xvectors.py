@@ -11,11 +11,15 @@ import time
 
 import numpy as np
 import pandas as pd
-import torchaudio.transforms as tat
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
-
 import torch
+import torchaudio.transforms as tat
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
+
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialAudioReader as AR
@@ -24,25 +28,6 @@ from hyperion.np.augment import SpeechAugment
 from hyperion.torch import TorchModelLoader as TML
 from hyperion.torch.utils import open_device
 from hyperion.utils import Utt2Info
-
-resamplers = {}
-
-
-def get_resampler(source_fs, target_fs):
-    if source_fs in resamplers:
-        return resamplers[source_fs]
-
-    resampler = tat.Resample(
-        int(source_fs),
-        int(target_fs),
-        lowpass_filter_width=64,
-        rolloff=0.9475937167399596,
-        resampling_method="kaiser_window",
-        beta=14.769656459379492,
-    )
-    resampler_f = lambda x: resampler(torch.from_numpy(x)).numpy()
-    resamplers[source_fs] = resampler_f
-    return resampler_f
 
 resamplers = {}
 
@@ -104,9 +89,11 @@ def augment(key0, x0, augmenter, aug_df, aug_id):
 
 
 def select_random_chunk(key, x, fs, min_utt_length, max_utt_length, rng):
-    utt_length = rng.randint(low=fs * min_utt_length, high=fs * max_utt_length + 1)
+    utt_length = rng.integers(
+        low=int(fs * min_utt_length), high=int(fs * max_utt_length + 1)
+    )
     if utt_length < x.shape[1]:
-        first_frame = rng.randint(low=0, high=x.shape[1] - utt_length)
+        first_frame = rng.integers(low=0, high=x.shape[1] - utt_length)
         x = x[:, first_frame : first_frame + utt_length]
         logging.info(
             "extract-random-utt %s of length=%d first-frame=%d",
@@ -118,11 +105,10 @@ def select_random_chunk(key, x, fs, min_utt_length, max_utt_length, rng):
 
 
 def extract_xvectors(
-    input_spec,
+    recordings_file,
     output_spec,
     vad_spec,
     write_speech_dur,
-    scp_sep,
     vad_path_prefix,
     model_path,
     hf_chunk_length,
@@ -137,8 +123,7 @@ def extract_xvectors(
     use_gpu,
     **kwargs,
 ):
-
-    rng = np.random.RandomState(seed=1123581321 + kwargs["part_idx"])
+    rng = np.random.default_rng(seed=1123581321 + kwargs["part_idx"])
     device = init_device(use_gpu)
     model = load_model(model_path, device)
 
@@ -157,15 +142,14 @@ def extract_xvectors(
     ar_args = AR.filter_args(**kwargs)
     ar_args["wav_scale"] = 1.0
     logging.info("opening output stream: %s", output_spec)
-    with DWF.create(output_spec, scp_sep=scp_sep) as writer:
-
-        logging.info(f"opening input stream: {input_spec} with args={ar_args}")
-        with AR(input_spec, **ar_args) as reader:
-
+    with DWF.create(output_spec) as writer:
+        logging.info(f"opening input stream: {recordings_file} with args={ar_args}")
+        with AR(recordings_file, **ar_args) as reader:
             if vad_spec is not None:
                 logging.info("opening VAD stream: %s", vad_spec)
                 v_reader = VRF.create(
-                    vad_spec, path_prefix=vad_path_prefix, scp_sep=scp_sep
+                    vad_spec,
+                    path_prefix=vad_path_prefix,
                 )
 
             while not reader.eof():
@@ -180,9 +164,7 @@ def extract_xvectors(
                 t2 = time.time()
                 if fs != model.sample_frequency:
                     resampler = get_resampler(fs, model.sample_frequency)
-                    print(f"x01 {x0.shape} {np.max(x0)}")
                     x0 = resampler(x0)
-                    print(f"x01 {x0.shape} {np.max(x0)}")
 
                 logging.info("processing utt %s", key0)
                 for aug_id in range(num_augs):
@@ -238,7 +220,7 @@ def extract_xvectors(
                     writer.write([key], [y])
                     if write_speech_dur is not None:
                         keys.append(key)
-                        info.append(str(x.shape[1] * fs))
+                        info.append(str(x.shape[1] / fs))
 
                     t8 = time.time()
                     read_time = t2 - t1
@@ -271,8 +253,7 @@ def extract_xvectors(
         aug_df.to_csv(aug_info_path, index=False, na_rep="n/a")
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(
         description=(
             "Extracts x-vectors from waveform computing " "acoustic features on the fly"
@@ -280,10 +261,9 @@ if __name__ == "__main__":
     )
 
     parser.add_argument("--cfg", action=ActionConfigFile)
-    parser.add_argument("--input", dest="input_spec", required=True)
+    parser.add_argument("--recordings-file", required=True)
     parser.add_argument("--vad", dest="vad_spec", default=None)
     parser.add_argument("--write-speech-dur", default=None)
-    parser.add_argument("--scp-sep", default=" ", help=("scp file field separator"))
     parser.add_argument(
         "--vad-path-prefix", default=None, help=("scp file_path prefix for vad")
     )
@@ -299,7 +279,7 @@ if __name__ == "__main__":
     parser.add_argument("--model-path", required=True)
     parser.add_argument(
         "--hf-chunk-length",
-        type=int,
+        type=float,
         default=0,
         help=(
             "max. chunk length used in each forward pass "
@@ -309,7 +289,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--xvec-chunk-length",
-        type=int,
+        type=float,
         default=0,
         help=(
             "max. chunk length used in each forward pass "
@@ -335,18 +315,18 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--min-utt-length",
-        type=int,
+        type=float,
         default=5,
         help=("minimum utterance length in secs when using random utt length"),
     )
     parser.add_argument(
         "--max-utt-length",
-        type=int,
+        type=float,
         default=120,
         help=("maximum utterance length in secs when using random utt length"),
     )
 
-    parser.add_argument("--output", dest="output_spec", required=True)
+    parser.add_argument("--output-spec", required=True)
     parser.add_argument(
         "--use-gpu", default=False, action="store_true", help="extract xvectors in gpu"
     )
@@ -360,3 +340,7 @@ if __name__ == "__main__":
     logging.debug(args)
 
     extract_xvectors(**namespace_to_dict(args))
+
+
+if __name__ == "__main__":
+    main()

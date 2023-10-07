@@ -5,9 +5,14 @@
 
 import os
 from abc import ABCMeta, abstractmethod
+from typing import Union, Optional, List, Dict
+from pathlib import Path
+import numpy as np
+import pandas as pd
+from ..utils import PathLike
 
 
-class DataWriter(object):
+class DataWriter:
     """Abstract base class to write Ark or hdf5 feature files.
 
     Attributes:
@@ -19,35 +24,42 @@ class DataWriter(object):
                           {auto (default), speech_feat,
                            2byte-auto, 2byte-signed-integer,
                            1byte-auto, 1byte-unsigned-integer, 1byte-0-1}.
-      scp_sep: Separator for scp files (default ' ').
     """
 
     __metaclass__ = ABCMeta
 
     def __init__(
         self,
-        archive_path,
-        script_path=None,
-        flush=False,
-        compress=False,
-        compression_method="auto",
-        scp_sep=" ",
+        archive_path: PathLike,
+        script_path: Optional[PathLike] = None,
+        flush: bool = False,
+        compress: bool = False,
+        compression_method: str = "auto",
+        metadata_columns: Optional[List[str]] = None,
     ):
-        self.archive_path = archive_path
-        self.script_path = script_path
+        self.archive_path = Path(archive_path)
+        self.script_path = Path(script_path) if script_path is not None else None
         self._flush = flush
         self.compress = compress
         self.compression_method = compression_method
-        self.scp_sep = scp_sep
+        self.metadata_columns = metadata_columns
 
-        archive_dir = os.path.dirname(archive_path)
-        if not os.path.exists(archive_dir):
-            os.makedirs(archive_dir)
+        archive_dir = self.archive_path.parent
+        archive_dir.mkdir(exist_ok=True, parents=True)
 
+        self.script_is_scp = False
+        self.script_sep = None
+        self.f_script = None
         if script_path is not None:
-            script_dir = os.path.dirname(script_path)
-            if not os.path.exists(script_dir):
-                os.makedirs(script_dir)
+            self.script_path.parent.mkdir(exist_ok=True, parents=True)
+            script_ext = self.script_path.suffix
+            self.script_is_scp = script_ext == ".scp"
+
+            if self.script_is_scp:
+                self.f_script = open(self.script_path, "w")
+            else:
+                self.script_sep = "," if script_ext == ".csv" else "\t"
+                self.f_script = open(self.script_path, "w", encoding="utf-8")
 
     def __enter__(self):
         """Function required when entering contructions of type
@@ -76,8 +88,38 @@ class DataWriter(object):
         """Flushes the file"""
         pass
 
+    def standardize_write_args(
+        self,
+        keys: Union[str, List[str], np.array],
+        data: Union[np.array, List[np.array]],
+        metadata: Optional[Union[pd.DataFrame, Dict]] = None,
+    ):
+        if isinstance(keys, str):
+            keys = [keys]
+            data = [data]
+
+        if metadata is not None:
+            if isinstance(metadata, pd.DataFrame):
+                metadata = metadata.to_dict()
+
+            metadata_list = []
+            for c in self.metadata_columns:
+                m_c = metadata[c]
+                if not isinstance(m_c, (list, np.ndarray)):
+                    m_c = [m_c]
+                metadata_list.append(m_c)
+
+            metadata = metadata_list
+
+        return keys, data, metadata
+
     @abstractmethod
-    def write(self, key, data):
+    def write(
+        self,
+        keys: Union[str, List[str], np.array],
+        data: Union[np.array, List[np.array]],
+        metadata: Optional[Union[pd.DataFrame, Dict]] = None,
+    ):
         """Writes data to file.
 
         Args:
@@ -86,5 +128,6 @@ class DataWriter(object):
                 If all the matrices have the same dimension
                 it can be a 3D numpy array.
                 If they are vectors, it can be a 2D numpy array.
+          metadata: dictionary/DataFrame with metadata
         """
         pass

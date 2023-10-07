@@ -10,10 +10,14 @@ import sys
 import time
 from pathlib import Path
 
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
-
 import torch
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
+
 from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch import TorchModelLoader as TML
 from hyperion.torch.data import AudioDataset as AD
@@ -40,7 +44,6 @@ xvec_dict = {
 
 
 def init_data(partition, rank, num_gpus, **kwargs):
-
     kwargs = kwargs["data"][partition]
     ad_args = AD.filter_args(**kwargs["dataset"])
     sampler_args = kwargs["sampler"]
@@ -121,7 +124,6 @@ def init_hard_prototype_mining(model, train_loader, val_loader, rank):
 
 
 def train_xvec(gpu_id, args):
-
     config_logger(args.verbose)
     del args.verbose
     logging.debug(args)
@@ -209,8 +211,7 @@ def make_parser(xvec_class):
     return parser
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(description="Fine-tune x-vector model from audio files")
     parser.add_argument("--cfg", action=ActionConfigFile)
 
@@ -241,70 +242,5 @@ if __name__ == "__main__":
     train_xvec(gpu_id, args_sc)
 
 
-# if __name__ == "__main__":
-
-#     parser = ArgumentParser(description="Fine-tune x-vector model from audio files")
-#     parser.add_argument("--cfg", action=ActionConfigFile)
-
-#     train_parser = ArgumentParser(prog="")
-#     AD.add_class_args(train_parser, prefix="dataset", skip={})
-#     Sampler.add_class_args(train_parser, prefix="sampler")
-#     train_parser.add_argument(
-#         "--data_loader.num-workers",
-#         type=int,
-#         default=5,
-#         help="num_workers of data loader",
-#     )
-
-#     val_parser = ArgumentParser(prog="")
-#     AD.add_class_args(val_parser, prefix="dataset", skip={})
-#     Sampler.add_class_args(val_parser, prefix="sampler")
-#     val_parser.add_argument(
-#         "--data_loader.num-workers",
-#         type=int,
-#         default=5,
-#         help="num_workers of data loader",
-#     )
-#     data_parser = ArgumentParser(prog="")
-#     data_parser.add_argument("--train", action=ActionParser(parser=train_parser))
-#     data_parser.add_argument("--val", action=ActionParser(parser=val_parser))
-#     parser.add_argument("--data", action=ActionParser(parser=data_parser))
-#     parser.link_arguments(
-#         "data.train.dataset.class_file", "data.val.dataset.class_file"
-#     )
-#     parser.link_arguments(
-#         "data.train.data_loader.num_workers", "data.val.data_loader.num_workers"
-#     )
-#     parser.link_arguments(
-#         "data.train.sampler.batch_size", "data.val.sampler.batch_size"
-#     )
-
-#     AF.add_class_args(parser, prefix="feats")
-#     parser.add_argument("--in-model-path", required=True)
-
-#     XVec.add_finetune_args(parser, prefix="model")
-#     Trainer.add_class_args(
-#         parser, prefix="trainer", train_modes=XVec.valid_train_modes()
-#     )
-#     ddp.add_ddp_args(parser)
-
-#     parser.add_argument("--seed", type=int, default=1123581321, help="random seed")
-#     parser.add_argument(
-#         "-v", "--verbose", dest="verbose", default=1, choices=[0, 1, 2, 3], type=int
-#     )
-#     parser.add_argument("--local_rank", default=0, type=int)
-
-#     args = parser.parse_args()
-#     gpu_id = args.local_rank
-#     del args.local_rank
-
-#     if gpu_id == 0:
-#         try:
-#             config_file = Path(args.exp_path) / "config.yaml"
-#             parser.save(args, str(config_file), format="yaml", overwrite=True)
-#         except:
-#             pass
-
-#     # torch docs recommend using forkserver
-#     multiprocessing.set_start_method("forkserver")
-#     train_xvec(gpu_id, args)
+if __name__ == "__main__":
+    main()

@@ -6,10 +6,9 @@ import logging
 from enum import Enum
 from typing import Optional
 
-from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
-
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ....utils.misc import filter_func_args
 from ...layer_blocks import TDNNBlock
@@ -52,7 +51,6 @@ class XVector(TorchModel):
         in_feats=None,
         proj_feats=None,
     ):
-
         super().__init__()
 
         # encoder network
@@ -355,15 +353,16 @@ class XVector(TorchModel):
         max_in_length = x.size(-1)
         x = self._pre_enc(x)
         h_enc, x = self.encoder_net.forward_hid_feats(
-            x, return_enc_layers, return_logits=True
+            x, return_enc_layers, return_output=True
         )
         output = {"h_enc": h_enc}
         if not return_logits and return_classif_layers is None:
             return output
-
+        # logging.info(f"forward_hid_feats: x.shape={x.shape}")
         x, x_lengths = self._post_enc(x, x_lengths, max_in_length)
+        # logging.info(f"x_lengths: {x_lengths}")
         p = self.pool_net(x, x_lengths=x_lengths)
-        h_classif, y_pred = self.classif_net.forward_hid_feats(
+        h_classif = self.classif_net.forward_hid_feats(
             p, y, return_classif_layers, return_logits=return_logits
         )
         if return_logits:
@@ -407,7 +406,6 @@ class XVector(TorchModel):
         embed_layer=None,
         detach_chunks=False,
     ):
-
         if feat_frame_shift is not None:
             # assume win_length/shift are in secs, transform to frames
             # pass feat times from msecs to secs
@@ -464,7 +462,6 @@ class XVector(TorchModel):
         feat_frame_shift=10,
         feat_snip_edges=False,
     ):
-
         P = self.compute_slidwin_left_padding(
             win_length,
             win_shift,
@@ -495,7 +492,6 @@ class XVector(TorchModel):
         feat_frame_shift=10,
         feat_snip_edges=False,
     ):
-
         # pass feat times from msecs to secs
         feat_frame_shift = feat_frame_shift / 1000
         feat_frame_length = feat_frame_length / 1000
@@ -526,7 +522,6 @@ class XVector(TorchModel):
         return P1 + P2
 
     def get_config(self):
-
         enc_cfg = self.encoder_net.get_config()
         pool_cfg = PF.get_config(self.pool_net)
 
@@ -557,6 +552,21 @@ class XVector(TorchModel):
 
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
+
+
+    def get_regularization_loss(self):
+        reg_loss = 0.0
+        total_params = 0
+
+        for param in self.parameters():
+            reg_loss += torch.norm(param)**2
+            total_params += torch.numel(param)
+
+        reg_loss = (reg_loss) / total_params
+
+        return reg_loss
+
+
 
     @classmethod
     def load(cls, file_path=None, cfg=None, state_dict=None):
@@ -694,42 +704,14 @@ class XVector(TorchModel):
 
     @staticmethod
     def filter_args(**kwargs):
-
         # get arguments for pooling
         pool_args = PF.filter_args(**kwargs["pool_net"])
         args = filter_func_args(ClassifHead.__init__, kwargs)
         args["pool_net"] = pool_args
         return args
 
-        # valid_args = (
-        #     "num_classes",
-        #     "embed_dim",
-        #     "num_embed_layers",
-        #     "hid_act",
-        #     "loss_type",
-        #     "cos_scale",
-        #     "margin",
-        #     "margin_warmup_epochs",
-        #     "intertop_k",
-        #     "intertop_margin",
-        #     "num_subcenters",
-        #     "use_norm",
-        #     "norm_before",
-        #     "in_feats",
-        #     "proj_feats",
-        #     "dropout_rate",
-        #     "norm_layer",
-        #     "head_norm_layer",
-        #     "head_use_in_norm",
-        # )
-        # args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
-
-        # args["pool_net"] = pool_args
-        # return args
-
     @staticmethod
     def add_class_args(parser, prefix=None, skip=set()):
-
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -750,7 +732,7 @@ class XVector(TorchModel):
         )
 
         try:
-            parser.add_argument("--hid-act", default="relu6", help="hidden activation")
+            parser.add_argument("--hid-act", default="relu", help="hidden activation")
         except:
             pass
 

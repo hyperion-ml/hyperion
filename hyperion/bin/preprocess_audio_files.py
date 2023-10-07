@@ -10,8 +10,12 @@ import sys
 import time
 
 import numpy as np
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
 from scipy import ndimage, signal
 
 from hyperion.hyp_defs import config_logger
@@ -21,8 +25,17 @@ from hyperion.io import VADReaderFactory as VRF
 from hyperion.utils import Utt2Info
 
 
+def resample_vad(vad, length):
+    step = (len(vad) - 1) / length
+    assert step < 1
+    idx = step * np.arange(length, dtype=float)
+    idx = np.round(idx).astype(int)
+    return vad[idx]
+
+
 def process_vad(vad, length, fs, dilation, erosion):
-    vad = signal.resample(vad, length) > 0.5
+    # vad = signal.resample(vad, length) > 0.5
+    vad = resample_vad(vad, length)
     if dilation > 0:
         iters = int(dilation * fs)
         vad = ndimage.binary_dilation(vad, iterations=iters)
@@ -35,115 +48,121 @@ def process_vad(vad, length, fs, dilation, erosion):
 
 
 def process_audio_files(
-    input_path,
+    recordings_file,
     output_path,
-    output_script,
+    output_recordings_file,
     write_time_durs_spec,
     vad_spec,
     vad_path_prefix,
+    output_sampling_rate,
     vad_fs=100,
     vad_dilation=0,
     vad_erosion=0,
     remove_dc_offset=False,
-    **kwargs
+    **kwargs,
 ):
-
     input_args = AR.filter_args(**kwargs)
     output_args = Writer.filter_args(**kwargs)
-    logging.info("input_args={}".format(input_args))
-    logging.info("output_args={}".format(output_args))
+    logging.info(f"input_args={input_args}")
+    logging.info(f"output_args={output_args}")
 
     if write_time_durs_spec is not None:
         keys = []
         info = []
 
-    with AR(input_path, **input_args) as reader:
-        with Writer(output_path, output_script, **output_args) as writer:
+    with AR(recordings_file, **input_args) as reader, Writer(
+        output_path, output_recordings_file, **output_args
+    ) as writer:
+        if vad_spec is not None:
+            logging.info("opening VAD stream: %s", vad_spec)
+            v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix)
 
+        t1 = time.time()
+        for data in reader:
+            key, x, fs = data
+            logging.info("Processing audio %s", key)
+            t2 = time.time()
+
+            tot_samples = x.shape[0]
             if vad_spec is not None:
-                logging.info("opening VAD stream: %s" % (vad_spec))
-                v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix)
+                num_vad_frames = int(round(tot_samples * vad_fs / fs))
+                vad = v_reader.read(key, num_frames=num_vad_frames)[0].astype(
+                    "bool", copy=False
+                )
+                logging.info("vad=%d/%d", np.sum(vad == 1), len(vad))
+                vad = process_vad(vad, tot_samples, fs, vad_dilation, vad_erosion)
+                logging.info("vad=%d/%d", np.sum(vad == 1), len(vad))
+                x = x[vad]
 
+            logging.info(
+                "utt %s detected %f/%f secs (%.2f %%) speech ",
+                key[0],
+                x.shape[0] / fs,
+                tot_samples / fs,
+                x.shape[0] / tot_samples * 100,
+            )
+
+            if x.shape[0] > 0:
+                if remove_dc_offset:
+                    x -= np.mean(x)
+
+                writer.write([key], [x], [fs])
+                if write_time_durs_spec is not None:
+                    keys.append(key)
+                    info.append(x.shape[0] / fs)
+
+                xmax = np.max(x)
+                xmin = np.min(x)
+            else:
+                xmax = 0
+                xmin = 0
+
+            t3 = time.time()
+            dt2 = (t2 - t1) * 1000
+            dt3 = (t3 - t1) * 1000
+            time_dur = len(x) / fs
+            rtf = (time_dur * 1000) / dt3
+            logging.info(
+                (
+                    "Packed audio %s length=%0.3f secs "
+                    "elapsed-time=%.2f ms. "
+                    "read-time=%.2f ms. write-time=%.2f ms. "
+                    "real-time-factor=%.2f "
+                    "x-range=[%f - %f]"
+                ),
+                key,
+                time_dur,
+                dt3,
+                dt2,
+                dt3 - dt2,
+                rtf,
+                xmin,
+                xmax,
+            )
             t1 = time.time()
-            for data in reader:
-                key, x, fs = data
-                logging.info("Processing audio %s" % (key))
-                t2 = time.time()
-
-                tot_samples = x.shape[0]
-                if vad_spec is not None:
-                    num_vad_frames = int(round(tot_samples * vad_fs / fs))
-                    vad = v_reader.read(key, num_frames=num_vad_frames)[0].astype(
-                        "bool", copy=False
-                    )
-                    logging.info("vad=%d/%d" % (np.sum(vad == 1), len(vad)))
-                    vad = process_vad(vad, tot_samples, fs, vad_dilation, vad_erosion)
-                    logging.info("vad=%d/%d" % (np.sum(vad == 1), len(vad)))
-                    x = x[vad]
-
-                logging.info(
-                    "utt %s detected %f/%f secs (%.2f %%) speech "
-                    % (
-                        key[0],
-                        x.shape[0] / fs,
-                        tot_samples / fs,
-                        x.shape[0] / tot_samples * 100,
-                    )
-                )
-
-                if x.shape[0] > 0:
-                    if remove_dc_offset:
-                        x -= np.mean(x)
-
-                    writer.write([key], [x], [fs])
-                    if write_time_durs_spec is not None:
-                        keys.append(key)
-                        info.append(x.shape[0] / fs)
-
-                    xmax = np.max(x)
-                    xmin = np.min(x)
-                else:
-                    xmax = 0
-                    xmin = 0
-
-                t3 = time.time()
-                dt2 = (t2 - t1) * 1000
-                dt3 = (t3 - t1) * 1000
-                time_dur = len(x) / fs
-                rtf = (time_dur * 1000) / dt3
-                logging.info(
-                    (
-                        "Packed audio %s length=%0.3f secs "
-                        "elapsed-time=%.2f ms. "
-                        "read-time=%.2f ms. write-time=%.2f ms. "
-                        "real-time-factor=%.2f"
-                        "x-range=[%f-%f]"
-                    )
-                    % (key, time_dur, dt3, dt2, dt3 - dt2, rtf, xmin, xmax)
-                )
-                t1 = time.time()
 
     if write_time_durs_spec is not None:
-        logging.info("writing time durations to %s" % (write_time_durs_spec))
+        logging.info("writing time durations to %s", write_time_durs_spec)
         u2td = Utt2Info.create(keys, info)
         u2td.save(write_time_durs_spec)
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(
         description="Process pipes in wav.scp file, optionally applies vad and save all audios in the same format"
     )
 
     parser.add_argument("--cfg", action=ActionConfigFile)
-    parser.add_argument("--input", dest="input_path", required=True)
+    parser.add_argument("--recordings-file", required=True)
     parser.add_argument("--output-path", required=True)
-    parser.add_argument("--output-script", required=True)
+    parser.add_argument("--output-recordings-file", required=True)
     parser.add_argument("--write-time-durs", dest="write_time_durs_spec", default=None)
     parser.add_argument("--vad", dest="vad_spec", default=None)
     parser.add_argument(
         "--vad-path-prefix", default=None, help=("scp file_path prefix for vad")
     )
+    parser.add_argument(
+        "--output-sampling-rate", default=None, type=int, help=("resample output audio"))
 
     parser.add_argument(
         "--vad-fs", default=100, type=float, help=("vad sampling frequency")
@@ -186,3 +205,7 @@ if __name__ == "__main__":
     logging.debug(args)
 
     process_audio_files(**namespace_to_dict(args))
+
+
+if __name__ == "__main__":
+    main()

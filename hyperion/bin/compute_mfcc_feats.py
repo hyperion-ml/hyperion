@@ -9,8 +9,12 @@ import sys
 import time
 
 import numpy as np
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
 
 from hyperion.hyp_defs import config_logger
 from hyperion.io import DataWriterFactory as DWF
@@ -23,7 +27,6 @@ from hyperion.np.feats import MFCC
 def compute_mfcc_feats(
     input_path, output_path, compress, compression_method, write_num_frames, **kwargs
 ):
-
     mfcc_args = MFCC.filter_args(**kwargs)
     mfcc = MFCC(**mfcc_args)
 
@@ -36,7 +39,6 @@ def compute_mfcc_feats(
 
     writer = DWF.create(
         output_path,
-        scp_sep=" ",
         compress=compress,
         compression_method=compression_method,
     )
@@ -55,8 +57,11 @@ def compute_mfcc_feats(
         dt = (time.time() - t1) * 1000
         rtf = dt / (mfcc.frame_shift * y.shape[0])
         logging.info(
-            "Extracted MFCC for %s num-frames=%d elapsed-time=%.2f ms. real-time-factor=%.2f"
-            % (key, y.shape[0], dt, rtf)
+            "Extracted MFCC for %s num-frames=%d elapsed-time=%.2f ms. real-time-factor=%.2f",
+            key,
+            y.shape[0],
+            dt,
+            rtf,
         )
         writer.write([key], [y])
 
@@ -69,8 +74,7 @@ def compute_mfcc_feats(
         f_num_frames.close()
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(description="Compute MFCC features")
 
     parser.add_argument("--cfg", action=ActionConfigFile)
@@ -110,3 +114,7 @@ if __name__ == "__main__":
     logging.debug(args)
 
     compute_mfcc_feats(**namespace_to_dict(args))
+
+
+if __name__ == "__main__":
+    main()

@@ -7,16 +7,21 @@ import logging
 import os
 import sys
 import time
+
 # [Added Sonal May21]
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
-
 import torch
 import torch.nn as nn
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
+
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.io import AudioWriter as AW
 from hyperion.io import RandomAccessAudioReader as AR
@@ -46,7 +51,7 @@ class MyModel(nn.Module):
         sigma=0,
         smoothing_after_wavegan=None,
         wave_gan_defender=None,
-        wav_scale=2 ** 15 - 1,
+        wav_scale=2**15 - 1,
     ):
         super().__init__()
         self.feat_extractor = feat_extractor
@@ -62,7 +67,6 @@ class MyModel(nn.Module):
         self.apply_wavegan = False if wave_gan_defender is None else True
 
     def forward(self, s_t):
-
         # Pre-proceessing defense, wavegan + smoothing [Added Sonal May21]
         s_t = s_t / self.wav_scale
         if self.smoothing_after_wavegan:
@@ -79,7 +83,7 @@ class MyModel(nn.Module):
         s_t = self.wav_scale * s_t
         # End of pre-processing defense
 
-        f_t = self.feat_extractor(s_t)
+        f_t, _ = self.feat_extractor(s_t)
         if self.vad_t is not None:
             n_vad_frames = len(self.vad_t)
             n_feat_frames = f_t.shape[1]
@@ -150,7 +154,6 @@ def load_calibrator(cal_file, threshold):
 
 
 def read_data(v_file, key_file, enroll_file, seg_part_idx, num_seg_parts):
-
     r = DRF.create(v_file)
     enroll = Utt2Info.load(enroll_file)
     key = TrialKey.load(key_file)
@@ -189,7 +192,6 @@ def eval_cosine_scoring_wavegan(
     wave_gan_model_ckpt,
     **kwargs
 ):
-
     device = init_device(use_gpu)
     feat_extractor = init_feats(**kwargs)
 
@@ -243,7 +245,7 @@ def eval_cosine_scoring_wavegan(
     attack = AttackFactory.create(model, **attack_args)
     if vad_spec is not None:
         logging.info("opening VAD stream: %s" % (vad_spec))
-        v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix, scp_sep=" ")
+        v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix)
 
     scores = np.zeros((key.num_models, key.num_tests), dtype="float32")
     attack_stats = pd.DataFrame(
@@ -284,13 +286,11 @@ def eval_cosine_scoring_wavegan(
             vad = torch.tensor(vad, dtype=torch.bool).to(device)
             model.vad_t = vad
             logging.info(
-                "utt %s detected %d/%d (%.2f %%) speech frames"
-                % (
-                    key.seg_set[j],
-                    speech_frames,
-                    tot_frames,
-                    speech_frames / tot_frames * 100,
-                )
+                "utt %s detected %d/%d (%.2f %%) speech frames",
+                key.seg_set[j],
+                speech_frames,
+                tot_frames,
+                speech_frames / tot_frames * 100,
             )
 
         t2 = time.time()
@@ -377,16 +377,15 @@ def eval_cosine_scoring_wavegan(
     attack_stats.to_csv(stats_file)
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(
         description="Eval cosine-scoring given enroll x-vector and test wave"
     )
 
     parser.add_argument("--cfg", action=ActionConfigFile)
-    parser.add_argument("--v-file", dest="v_file", required=True)
-    parser.add_argument("--key-file", dest="key_file", default=None)
-    parser.add_argument("--enroll-file", dest="enroll_file", required=True)
+    parser.add_argument("--v-file", required=True)
+    parser.add_argument("--key-file", default=None)
+    parser.add_argument("--enroll-file", required=True)
     parser.add_argument("--test-wav-file", required=True)
 
     AR.add_class_args(parser)
@@ -395,7 +394,6 @@ if __name__ == "__main__":
     parser.add_argument("--vad", dest="vad_spec", default=None)
     parser.add_argument(
         "--vad-path-prefix",
-        dest="vad_path_prefix",
         default=None,
         help=("scp file_path prefix for vad"),
     )
@@ -494,3 +492,7 @@ if __name__ == "__main__":
     logging.debug(args)
 
     eval_cosine_scoring_wavegan(**namespace_to_dict(args))
+
+
+if __name__ == "__main__":
+    main()

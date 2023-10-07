@@ -24,7 +24,6 @@ if [ $stage -le 1 ]; then
     dir_name=$USER/hyp-data/voxceleb/v1/$storage_name/vad/storage
     if [ "$nodes" == "b0" ];then
       utils/create_split_dir.pl \
-	utils/create_split_dir.pl \
 	/export/b{04,05,06,07}/$dir_name $vaddir/storage
     elif [ "$nodes" == "b1" ];then
       utils/create_split_dir.pl \
@@ -41,7 +40,6 @@ if [ $stage -le 1 ]; then
   fi
 fi
 
-#Train datasets
 if [ $stage -le 2 ];then
   if [ "$do_voxsrc22" == "true" ];then
     extra_data="voxsrc22_dev"

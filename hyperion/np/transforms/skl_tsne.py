@@ -23,7 +23,7 @@ class SklTSNE(NPModel):
       metric: the metric to use when calculating distance between instances in ['cosine', 'euclidean', 'l1', 'l2', 'precomputed'] or callable function.
       init: initialization method in ['random', 'pca'] or embedding matrix of shape (num_samples, num_comp)
       verbose: verbosity level.
-      rng: RandomState instance
+      rng: default_rng instance
       rng_seed: seed for random number generator
       method: gradient calculation method in [‘barnes_hut’, 'exact']
       angle: angle thetha in Barnes-Hut TSNE
@@ -53,7 +53,7 @@ class SklTSNE(NPModel):
         super().__init__(**kwargs)
         self.rng_seed = rng_seed
         if rng is None:
-            rng = np.random.RandomState(seed=rng_seed)
+            rng = np.random.default_rng(seed=rng_seed)
 
         self._tsne = TSNE(
             n_components=tsne_dim,

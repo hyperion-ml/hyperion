@@ -26,7 +26,7 @@ class SingleNoiseAugment(object):
       min_snr: mininimum SNR(dB) to sample from.
       max_snr: maximum SNR(dB) to sample from.
       rng:     Random number generator returned by
-               np.random.RandomState (optional).
+               np.random.default_rng (optional).
     """
 
     def __init__(
@@ -46,7 +46,7 @@ class SingleNoiseAugment(object):
         self.cache = None
         self.lock = multiprocessing.Lock()
         if rng is None:
-            self.rng = np.random.RandomState(seed=random_seed)
+            self.rng = np.random.default_rng(seed=random_seed)
         else:
             self.rng = deepcopy(rng)
 
@@ -55,7 +55,7 @@ class SingleNoiseAugment(object):
     @staticmethod
     def _power(x):
         """Computes power of x in dB."""
-        return 10 * np.log10((x ** 2).sum())
+        return 10 * np.log10((x**2).sum() + 1e-10)
 
     @staticmethod
     def snr(x, n):
@@ -96,7 +96,7 @@ class SingleNoiseAugment(object):
 
         while noise is None or noise.shape[0] < num_samples:
             with self.lock:
-                noise_idx = self.rng.randint(len(self.noise_keys))
+                noise_idx = self.rng.integers(len(self.noise_keys))
                 key = self.noise_keys[noise_idx]
                 noise_k, fs_k = self.r.read([key])
                 noise_k = noise_k[0]
@@ -112,12 +112,22 @@ class SingleNoiseAugment(object):
                 with self.lock:
                     self.cache = noise_k[need_samples:]
 
+        num_zeros = np.sum(noise == 0)
         with self.lock:
+            # add dither for noises files with many 0s.
+            if num_zeros > len(noise) // 3:
+                noise += 0.0001 * self.rng.standard_normal(
+                    noise.shape, dtype=noise.dtype
+                )
+
             target_snr = self.rng.uniform(self.min_snr, self.max_snr)
+
         scale = self._compute_noise_scale(x, noise, target_snr)
 
         info = {"noise_type": self.noise_type, "snr": target_snr}
-        return x + scale * noise, info
+        y = x + scale * noise
+
+        return y, info
 
     def __call__(self, x):
         return self.forward(x)
@@ -136,7 +146,7 @@ class NoiseAugment(object):
                   is proportional to how often we want to sample a given noise
                   type.
       rng:     Random number generator returned by
-               np.random.RandomState (optional).
+               np.random.default_rng (optional).
     """
 
     def __init__(self, noise_prob, noise_types, random_seed=112358, rng=None):
@@ -166,7 +176,7 @@ class NoiseAugment(object):
 
         self.lock = multiprocessing.Lock()
         if rng is None:
-            self.rng = np.random.RandomState(seed=random_seed)
+            self.rng = np.random.default_rng(seed=random_seed)
         else:
             self.rng = deepcopy(rng)
 
@@ -177,7 +187,7 @@ class NoiseAugment(object):
         Args:
           cfg: YAML file path or dictionary with noise options.
           rng: Random number generator returned by
-               np.random.RandomState (optional).
+               np.random.default_rng (optional).
 
         Returns:
           NoiseAugment object
@@ -208,7 +218,7 @@ class NoiseAugment(object):
 
         # decide whether to add noise or not
         with self.lock:
-            p = self.rng.random_sample()
+            p = self.rng.random()
 
         if p > self.noise_prob:
             # we don't add noise

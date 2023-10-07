@@ -11,9 +11,17 @@ import torch
 import torch.nn as nn
 from torch.nn import BatchNorm1d, Conv1d, Linear
 
-from ..layer_blocks import (BlockSpec, Res2NetBasicBlock, Res2NetBNBlock,
-                            ResNetBasicBlock, ResNetBNBlock, ResNetInputBlock,
-                            SpineConv, SpineEndpoints, SpineResample)
+from ..layer_blocks import (
+    BlockSpec,
+    Res2NetBasicBlock,
+    Res2NetBNBlock,
+    ResNetBasicBlock,
+    ResNetBNBlock,
+    ResNetInputBlock,
+    SpineConv,
+    SpineEndpoints,
+    SpineResample,
+)
 from ..layers import ActivationFactory as AF
 from ..layers import NormLayer2dFactory as NLF
 from .net_arch import NetArch
@@ -111,7 +119,7 @@ class SpineNet(NetArch):
         do_endpoint_conv=True,
         concat_ax=3,
         upsampling_type="nearest",
-        hid_act={"name": "relu6", "inplace": True},
+        hid_act={"name": "relu", "inplace": True},
         out_act=None,
         in_kernel_size=7,
         in_stride=2,

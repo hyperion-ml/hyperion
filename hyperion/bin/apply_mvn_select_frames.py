@@ -10,8 +10,12 @@ import sys
 import time
 
 import numpy as np
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
 
 from hyperion.hyp_defs import config_logger
 from hyperion.io import DataWriterFactory as DWF
@@ -28,7 +32,6 @@ def process_feats(
     output_spec,
     vad_spec,
     write_num_frames_spec,
-    scp_sep,
     path_prefix,
     vad_path_prefix,
     part_idx,
@@ -37,7 +40,6 @@ def process_feats(
     compression_method,
     **kwargs
 ):
-
     logging.info("initializing")
     mvn_args = MVN.filter_args(**kwargs)
     mvn = MVN(**mvn_args)
@@ -54,21 +56,19 @@ def process_feats(
         output_spec,
         compress=compress,
         compression_method=compression_method,
-        scp_sep=scp_sep,
     ) as writer:
-
         logging.info("opening input stream: %s" % (output_spec))
         with DRF.create(
             input_spec,
             path_prefix=path_prefix,
-            scp_sep=scp_sep,
             part_idx=part_idx,
             num_parts=num_parts,
         ) as reader:
             if vad_spec is not None:
                 logging.info("opening VAD stream: %s" % (vad_spec))
                 v_reader = RDRF.create(
-                    vad_spec, path_prefix=vad_path_prefix, scp_sep=scp_sep
+                    vad_spec,
+                    path_prefix=vad_path_prefix,
                 )
 
             while not reader.eof():
@@ -102,8 +102,7 @@ def process_feats(
         u2nf.save(write_num_frames_spec)
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(description="Apply CMVN and remove silence")
 
     parser.add_argument("--input", dest="input_spec", required=True)
@@ -113,27 +112,21 @@ if __name__ == "__main__":
         "--write-num-frames", dest="write_num_frames_spec", default=None
     )
     parser.add_argument(
-        "--scp-sep", dest="scp_sep", default=" ", help=("scp file field separator")
-    )
-    parser.add_argument(
         "--path-prefix", dest="path_prefix", default=None, help=("scp file_path prefix")
     )
     parser.add_argument(
         "--vad-path-prefix",
-        dest="vad_path_prefix",
         default=None,
         help=("scp file_path prefix for vad"),
     )
     parser.add_argument(
         "--part-idx",
-        dest="part_idx",
         type=int,
         default=1,
         help=("splits the list of files in num-parts and process part_idx"),
     )
     parser.add_argument(
         "--num-parts",
-        dest="num_parts",
         type=int,
         default=1,
         help=("splits the list of files in num-parts and process part_idx"),
@@ -141,14 +134,12 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--compress",
-        dest="compress",
         default=False,
         action="store_true",
         help="Lossy compress the features",
     )
     parser.add_argument(
         "--compression-method",
-        dest="compression_method",
         default="auto",
         choices=compression_methods,
         help=(
@@ -171,3 +162,7 @@ if __name__ == "__main__":
     logging.debug(args)
 
     process_feats(**namespace_to_dict(args))
+
+
+if __name__ == "__main__":
+    main()

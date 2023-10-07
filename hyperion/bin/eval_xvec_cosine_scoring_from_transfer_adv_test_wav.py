@@ -10,11 +10,15 @@ import time
 
 import numpy as np
 import pandas as pd
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
-
 import torch
 import torch.nn as nn
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
+
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.io import AudioWriter as AW
 from hyperion.io import RandomAccessAudioReader as AR
@@ -45,7 +49,7 @@ class MyModel(nn.Module):
 
     def forward(self, s_t):
         f_t = s_t
-        f_t = self.feat_extractor(s_t)
+        f_t, _ = self.feat_extractor(s_t)
         if self.vad_t is not None:
             n_vad_frames = len(self.vad_t)
             n_feat_frames = f_t.shape[1]
@@ -105,7 +109,6 @@ def load_calibrator(cal_file, threshold):
 
 
 def read_data(v_file, key_file, enroll_file, seg_part_idx, num_seg_parts):
-
     r = DRF.create(v_file)
     enroll = Utt2Info.load(enroll_file)
     key = TrialKey.load(key_file)
@@ -147,7 +150,6 @@ def eval_cosine_scoring(
     num_seg_parts,
     **kwargs
 ):
-
     device = init_device(use_gpu)
     # load victim model
     feat_extractor = init_feats(**kwargs["feats"])
@@ -205,7 +207,7 @@ def eval_cosine_scoring(
 
     if vad_spec is not None:
         logging.info("opening VAD stream: %s", vad_spec)
-        v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix, scp_sep=" ")
+        v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix)
 
     scores = np.zeros((key.num_models, key.num_tests), dtype="float32")
     attack_stats = pd.DataFrame(
@@ -338,8 +340,7 @@ def eval_cosine_scoring(
     attack_stats.to_csv(stats_file)
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(
         description=(
             "Eval cosine-scoring given enroll x-vector and "
@@ -361,7 +362,6 @@ if __name__ == "__main__":
     parser.add_argument("--vad", dest="vad_spec", default=None)
     parser.add_argument(
         "--vad-path-prefix",
-        dest="vad_path_prefix",
         default=None,
         help=("scp file_path prefix for vad"),
     )
@@ -437,3 +437,7 @@ if __name__ == "__main__":
     logging.debug(args)
 
     eval_cosine_scoring(**namespace_to_dict(args))
+
+
+if __name__ == "__main__":
+    main()

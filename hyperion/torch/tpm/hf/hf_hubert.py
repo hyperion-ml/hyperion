@@ -6,11 +6,10 @@ import logging
 import os
 from typing import Callable, List, Optional, Tuple, Union
 
-from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
-from transformers import HubertConfig, HubertModel
-
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
+from transformers import HubertConfig, HubertModel
 
 from ...utils.ddp import ddp_get_rank, ddp_wait_for_all_procs
 from .hf_wav2vec_base import HFWav2VecBase
@@ -135,6 +134,14 @@ class HFHubert(HFWav2VecBase):
           chunk by chunk, if it is too long to fit in GPU.
         right_encoder_context: (`int`): future context frames used by the transformer encoder.
         sample_frequency: (`int`) waveform sample frequency used to train the model.
+        feat_extract_lr: learning rate for conv feature extractor, serves to set a lr different than the global one.
+        encoder_lr: learning rate for the wav2vec encoder, serves to set a lr different than the global one.
+        use_lora: use low-rank adapters
+        lora_components: list of components where we apply LoRA, eg [Wq, Wv]
+        lora_rank: rank of LoRA
+        lora_alpha: scale for LoRA
+        lora_dropout: dropout rate for LoRA
+        lora_merge_weights: lora weights are merged with the pretrained weights at inference.
     """
 
     def __init__(
@@ -182,8 +189,15 @@ class HFHubert(HFWav2VecBase):
         left_encoder_context: int = 16,
         right_encoder_context: int = 16,
         sample_frequency: int = 16000,
+        feat_extract_lr: Optional[float] = None,
+        encoder_lr: Optional[float] = None,
+        use_lora: bool = False,
+        lora_components: List[str] = ["q_proj", "v_proj"],
+        lora_rank: int = 4,
+        lora_alpha: int = 1,
+        lora_dropout: float = 0.0,
+        lora_merge_weights: bool = True,
     ):
-
         super().__init__(
             pretrained_model_path=pretrained_model_path,
             normalize_input=normalize_input,
@@ -199,6 +213,14 @@ class HFHubert(HFWav2VecBase):
             left_encoder_context=left_encoder_context,
             right_encoder_context=right_encoder_context,
             sample_frequency=sample_frequency,
+            feat_extract_lr=feat_extract_lr,
+            encoder_lr=encoder_lr,
+            use_lora=use_lora,
+            lora_components=lora_components,
+            lora_rank=lora_rank,
+            lora_alpha=lora_alpha,
+            lora_dropout=lora_dropout,
+            lora_merge_weights=lora_merge_weights,
         )
 
         if pretrained_model_path is not None and not ignore_pretrained:
@@ -277,6 +299,15 @@ class HFHubert(HFWav2VecBase):
         if drop_layers_gt is not None:
             self.drop_upper_layers(drop_layers_gt)
 
+        if use_lora:
+            self._make_lora_layers(
+                lora_components,
+                lora_rank,
+                lora_alpha,
+                lora_dropout,
+                lora_merge_weights,
+            )
+
         self.ignore_pretrained = True
 
     @property
@@ -286,6 +317,32 @@ class HFHubert(HFWav2VecBase):
     @property
     def hidden_size(self):
         return self.hf_config.hidden_size
+
+    def change_dropouts(
+        self,
+        hidden_dropout: float = 0.1,
+        activation_dropout: float = 0.1,
+        attention_dropout: float = 0.1,
+        feat_proj_dropout: float = 0.1,
+        **kwargs,
+    ):
+        import transformers.models.hubert.modeling_hubert as t
+
+        self.hf_model.config.hidden_dropout = hidden_dropout
+        self.hf_model.config.activation_dropout = activation_dropout
+        self.hf_model.config.attention_dropout = attention_dropout
+        self.hf_model.config.feat_proj_dropout = feat_proj_dropout
+
+        self.hf_model.feature_projection.dropout.p = feat_proj_dropout
+        for module in self.hf_model.encoder.modules():
+            if isinstance(module, nn.Dropout):
+                module.p = hidden_dropout
+
+        for module in self.hf_model.encoder.modules():
+            if isinstance(module, t.HubertAttention):
+                module.dropout = activation_dropout
+            if isinstance(module, t.HubertFeatureProjection):
+                module.intermediate_dropout.p = activation_dropout
 
     def drop_upper_layers(self, max_layers: int):
         if max_layers >= self.hf_config.num_hidden_layers:
@@ -586,7 +643,7 @@ class HFHubert(HFWav2VecBase):
 
     @staticmethod
     def filter_finetune_args(**kwargs):
-        args_base = HFWav2VecBase.filter_args(**kwargs)
+        args_base = HFWav2VecBase.filter_finetune_args(**kwargs)
         valid_args = (
             "hidden_dropout",
             "activation_dropout",

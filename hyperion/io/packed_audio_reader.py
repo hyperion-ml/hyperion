@@ -378,7 +378,8 @@ class SequentialPackedAudioReader(PackedAudioReader):
 
         parser.add_argument(
             p1 + "wav-scale",
-            default=2 ** 15 - 1,
+            default=1.0,
+            # default=2 ** 15 - 1,
             type=float,
             help=("multiplicative factor for waveform"),
         )
@@ -633,7 +634,8 @@ class RandomAccessPackedAudioReader(PackedAudioReader):
 
         parser.add_argument(
             p1 + "wav-scale",
-            default=2 ** 15,
+            default=1.0,
+            # default=2 ** 15,
             type=float,
             help=("multiplicative factor for waveform"),
         )

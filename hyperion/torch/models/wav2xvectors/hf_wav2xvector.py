@@ -5,10 +5,9 @@
 import contextlib
 import logging
 
-from jsonargparse import ActionParser, ArgumentParser
-
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ArgumentParser
 
 from ...torch_model import TorchModel
 from ...utils import remove_silence
@@ -26,12 +25,9 @@ class HFWav2XVector(TorchModel):
                            than one layer is used.
     """
 
-    def __init__(self,
-                 hf_feats,
-                 xvector,
-                 feat_fusion_start=0,
-                 feat_fusion_method="weighted-avg"):
-
+    def __init__(
+        self, hf_feats, xvector, feat_fusion_start=0, feat_fusion_method="weighted-avg"
+    ):
         super().__init__()
         self.hf_feats = hf_feats
         self.xvector = xvector
@@ -51,12 +47,9 @@ class HFWav2XVector(TorchModel):
             self.feat_fuser = nn.Parameter(torch.zeros(num_layers))
         elif self.feat_fusion_method == "linear":
             self.feat_fuser = nn.Linear(num_layers, 1, bias=False)
-            self.feat_fuser.weight.data = torch.ones(1,
-                                                     num_layers) / num_layers
+            self.feat_fuser.weight.data = torch.ones(1, num_layers) / num_layers
         elif self.feat_fusion_method == "cat":
-            self.feat_fuser = nn.Linear(num_layers * layer_dim,
-                                        layer_dim,
-                                        bias=False)
+            self.feat_fuser = nn.Linear(num_layers * layer_dim, layer_dim, bias=False)
 
     def _fuse_hid_feats(self, hid_feats):
         """Fuses the hidden features from the Wav2Vec model.
@@ -71,7 +64,7 @@ class HFWav2XVector(TorchModel):
             # There is only one layer of features
             return hid_feats[0]
 
-        hid_feats = hid_feats[self.feat_fusion_start:]
+        hid_feats = hid_feats[self.feat_fusion_start :]
         if self.feat_fusion_method == "weighted-avg":
             hid_feats = torch.stack(hid_feats, dim=-1)
             norm_weights = nn.functional.softmax(self.feat_fuser, dim=-1)
@@ -125,14 +118,14 @@ class HFWav2XVector(TorchModel):
             num_subcenters=num_subcenters,
         )
 
-    def forward_feats(self,
-                      x,
-                      x_lengths,
-                      return_feat_layers=None,
-                      chunk_length=0,
-                      detach_chunks=False):
-        return_hid_states = (False if return_feat_layers is None
-                             and self.feat_fusion_method == "last" else True)
+    def forward_feats(
+        self, x, x_lengths, return_feat_layers=None, chunk_length=0, detach_chunks=False
+    ):
+        return_hid_states = (
+            False
+            if return_feat_layers is None and self.feat_fusion_method == "last"
+            else True
+        )
         with self._hf_context:
             hf_output = self.hf_feats(
                 x,
@@ -154,7 +147,8 @@ class HFWav2XVector(TorchModel):
             # add hidden feats from wav2vec to the output. We transpose to be (batch, C, time)
             # as the hidden features of the x-vector encoder.
             hid_feats = [
-                f.transpose(1, 2) for i, f in enumerate(hid_feats)
+                f.transpose(1, 2)
+                for i, f in enumerate(hid_feats)
                 if i in return_feat_layers
             ]
         else:
@@ -194,7 +188,8 @@ class HFWav2XVector(TorchModel):
           "h_classif" (list hidden classification head layers), "h_feats" (wav2vec features)
         """
         feats, hid_feats, feat_lengths = self.forward_feats(
-            x, x_lengths, return_feat_layers)
+            x, x_lengths, return_feat_layers
+        )
         output = self.xvector(
             feats,
             feat_lengths,
@@ -225,21 +220,21 @@ class HFWav2XVector(TorchModel):
         embed_layer=None,
         detach_chunks=False,
     ):
-
         if vad_samples is not None:
-            x, x_lengths = remove_silence(x, x_lengths)
+            x, x_lengths = remove_silence(x, vad_samples, x_lengths)
 
         feats, _, feat_lengths = self.forward_feats(
-            x,
-            x_lengths,
-            chunk_length=hf_chunk_length,
-            detach_chunks=detach_chunks)
-        xvec_chunk_length = int(xvec_chunk_length *
-                                self.hf_feats.sample_frequency *
-                                feats.size(-1) // x.size(-1))
-        return self.xvector.extract_embed(feats, feat_lengths,
-                                          xvec_chunk_length, embed_layer,
-                                          detach_chunks)
+            x, x_lengths, chunk_length=hf_chunk_length, detach_chunks=detach_chunks
+        )
+        xvec_chunk_length = int(
+            xvec_chunk_length
+            * self.hf_feats.sample_frequency
+            * feats.size(-1)
+            // x.size(-1)
+        )
+        return self.xvector.extract_embed(
+            feats, feat_lengths, xvec_chunk_length, embed_layer, detach_chunks
+        )
 
     def freeze_feat_fuser(self):
         if self.feat_fuser is None:
@@ -257,6 +252,26 @@ class HFWav2XVector(TorchModel):
 
     def freeze_hf_feature_encoder(self):
         self.hf_feats.freeze_feature_encoder()
+
+    def freeze_hf_except_lora(self, bias=None):
+        self.hf_feats.freeze_except_lora(bias)
+
+    def has_param_groups(self):
+        return self.hf_feats.has_param_groups()
+
+    def trainable_param_groups(self):
+        if not self.has_param_groups():
+            return self.trainable_parameters()
+
+        param_groups = self.hf_feats.trainable_param_groups()
+        if self.feat_fusion_method == "weighted-avg":
+            if self.feat_fuser.requires_grad:
+                param_groups.append({"params": self.feat_fuser})
+        else:
+            param_groups.append({"params": self.feat_fuser.parameters()})
+
+        param_groups.append({"params": self.xvector.trainable_parameters()})
+        return param_groups
 
     def set_train_mode(self, mode):
         if mode == self._train_mode:
@@ -281,12 +296,21 @@ class HFWav2XVector(TorchModel):
         elif mode == "hf-feat-extractor-frozen":
             self.unfreeze()
             self.freeze_hf_feature_encoder()
+        elif mode == "hf-lora":
+            self.unfreeze()
+            self.freeze_hf_except_lora()
+        elif mode == "hf-all-bias-lora":
+            self.unfreeze()
+            self.freeze_hf_except_lora(bias="all")
+        elif mode == "hf-lora-with-bias":
+            self.unfreeze()
+            self.freeze_hf_except_lora(bias="lora_only")
         else:
             raise ValueError(f"invalid train_mode={mode}")
 
         logging.info("train mode set to %s", mode)
 
-        if "nograd" in mode:
+        if "nograd" in mode or mode == "ft-embed-affine":
             logging.info("using torch.no_grad for hf_feats")
             self._hf_context = torch.no_grad()
         else:
@@ -295,18 +319,20 @@ class HFWav2XVector(TorchModel):
         self._train_mode = mode
 
     def _train(self, train_mode: str):
-
         if train_mode in ["full", "frozen"]:
             super()._train(train_mode)
         elif train_mode == "ft-embed-affine":
             self.hf_feats.train()
             self.xvector._train("ft-embed_affine")
         elif train_mode in [
-                "ft-xvector",
-                "hf-feats-frozen",
-                "ft-xvector-nograd",
-                "hf-feats-frozen-nograd",
-                "hf-feat-extractor-frozen",
+            "ft-xvector",
+            "hf-feats-frozen",
+            "ft-xvector-nograd",
+            "hf-feats-frozen-nograd",
+            "hf-feat-extractor-frozen",
+            "hf-lora",
+            "hf-all-bias-lora",
+            "hf-lora-with-bias",
         ]:
             self.hf_feats.train()
             self.xvector._train("full")
@@ -324,6 +350,9 @@ class HFWav2XVector(TorchModel):
             "ft-xvector-nograd",
             "hf-feats-frozen-nograd",
             "hf-feat-extractor-frozen",
+            "hf-lora",
+            "hf-all-bias-lora",
+            "hf-lora-with-bias",
         ]
 
     @staticmethod
@@ -338,7 +367,6 @@ class HFWav2XVector(TorchModel):
         return args
 
     def get_config(self):
-
         hf_cfg = self.hf_feats.get_config()
         xvec_cfg = self.xvector.get_config()
         del hf_cfg["class_name"]
@@ -360,7 +388,6 @@ class HFWav2XVector(TorchModel):
 
     @staticmethod
     def add_class_args(parser, prefix=None, skip=set()):
-
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -369,16 +396,19 @@ class HFWav2XVector(TorchModel):
             "--feat-fusion-start",
             default=0,
             type=int,
-            help=
-            ("the input to x-vector model will fuse the wav2vec layers from feat_fusion_start to"
-             "the wav2vec num_layers"),
+            help=(
+                "the input to x-vector model will fuse the wav2vec layers from feat_fusion_start to"
+                "the wav2vec num_layers"
+            ),
         )
         parser.add_argument(
             "--feat-fusion-method",
             default="weighted-avg",
             choices=["weighted-avg", "linear", "cat", "last"],
-            help=("method to fuse the hidden layers from the wav2vec model "
-                  "in [weighted-avg, cat]"),
+            help=(
+                "method to fuse the hidden layers from the wav2vec model "
+                "in [weighted-avg, cat]"
+            ),
         )
 
         if prefix is not None:

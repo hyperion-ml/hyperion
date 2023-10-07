@@ -76,9 +76,8 @@ class HypDataReader(object):
         dataset = key + field
         assert dataset in self.f, "Dataset %s not found" % dataset
         num_rows = self.f[dataset].shape[0]
-        # print('hola',num_rows,num_samples,num_rows-num_samples)
-        # index = rng.random_integers(low=0, high=num_rows-num_samples, size=1)[0]
-        index = rng.randint(low=0, high=num_rows - num_samples + 1)
+
+        index = rng.integers(low=0, high=num_rows - num_samples + 1)
         X = self.f[dataset][index : index + num_samples]
         return X, index
 

@@ -11,6 +11,7 @@ nodes=b1
 storage_name=$(date +'%m_%d_%H_%M')
 proc_opts="--remove-dc-offset"
 use_bin_vad=false
+osr=0
 
 echo "$0 $@"  # Print the command line for logging
 
@@ -89,15 +90,17 @@ else
 	cp $data_in/$f $data_out/$f
     fi
 fi
-
+echo $cmd
 $cmd JOB=1:$nj $dir/log/preproc_audios_${name}.JOB.log \
     hyp_utils/conda_env.sh \
-    preprocess_audio_files.py ${args} --output-audio-format $file_format $args $proc_opts \
+    preprocess_audio_files.py ${args} --audio-format $file_format $args $proc_opts \
     --write-time-durs $output_dir/utt2dur.${name}.JOB \
     --part-idx JOB --num-parts $nj \
-    --input $data_in/wav.scp \
+    # --input $data_in/wav.scp \
+    --recordings-file $data_in/wav.scp \
     --output-path $output_dir \
-    --output-script $output_dir/wav.${name}.JOB.scp
+    --output-recordings-file $output_dir/wav.${name}.JOB.scp
+    #--output-script $output_dir/wav.${name}.JOB.scp
 
 for n in $(seq $nj); do
   cat $output_dir/wav.${name}.$n.scp || exit 1;

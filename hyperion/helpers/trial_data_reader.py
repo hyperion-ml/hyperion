@@ -16,7 +16,7 @@ from ..utils import TrialKey, TrialNdx  # , SparseTrialNdx, SparseTrialKey
 from ..utils.utt2info import Utt2Info
 
 
-class TrialDataReader(object):
+class TrialDataReader:
     """
     Loads Ndx, enroll file and x-vectors to evaluate PLDA.
     """

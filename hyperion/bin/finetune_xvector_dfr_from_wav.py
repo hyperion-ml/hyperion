@@ -8,13 +8,18 @@ import multiprocessing
 import os
 import sys
 import time
+from pathlib import Path
 
 import numpy as np
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
-
 import torch
 import torch.nn as nn
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
+
 from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch import TorchModelLoader as TML
 from hyperion.torch.data import AudioDataset as AD
@@ -37,7 +42,6 @@ def init_data(
     rank,
     **kwargs
 ):
-
     ad_args = AD.filter_args(**kwargs)
     sampler_args = Sampler.filter_args(**kwargs)
     if rank == 0:
@@ -83,7 +87,6 @@ def init_feats(rank, **kwargs):
 def init_xvector(
     num_classes, in_model_path, prior_model_path, rank, train_mode, **kwargs
 ):
-
     xvec_args = XVec.filter_finetune_args(**kwargs)
     if rank == 0:
         logging.info("xvector network ft args={}".format(xvec_args))
@@ -104,7 +107,6 @@ def init_xvector(
 
 
 def train_xvec(gpu_id, args):
-
     config_logger(args.verbose)
     del args.verbose
     logging.debug(args)
@@ -232,8 +234,7 @@ def train_xvec(gpu_id, args):
 #     trainer.fit(train_loader, test_loader)
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(
         description=(
             "Fine-tune x-vector model with deep feature loss "
@@ -328,3 +329,7 @@ if __name__ == "__main__":
     # del args.seed
 
     # train_xvec(**vars(args))
+
+
+if __name__ == "__main__":
+    main()

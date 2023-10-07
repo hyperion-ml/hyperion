@@ -1,0 +1,44 @@
+hf_feats:
+  pretrained_model_path: facebook/wav2vec2-xls-r-300m
+xvector:
+  resnet_enc:
+    in_feats: 1024
+    in_conv_channels: 1024
+    in_kernel_size: 5
+    in_stride: 1
+    resb_type: seres2bn
+    resb_repeats:
+      - 1
+      - 1
+      - 1
+    resb_channels:
+      - 1024
+    resb_kernel_sizes:
+      - 3
+    resb_dilations:
+      - 2
+      - 3
+      - 4
+    resb_strides:
+      - 1
+    res2net_width_factor: 1
+    res2net_scale: 8
+    se_r: 4
+    multilayer: true
+    multilayer_concat: true
+    endpoint_channels: 3072
+    norm_before: false
+    hid_act: swish
+  pool_net:
+    pool_type: ch-wise-att-mean+stddev
+    inner_feats: 128
+  embed_dim: 192
+  cos_scale: 32.0
+  margin: 0.2
+  margin_warmup_epochs: 2
+  intertop_margin: 0.1
+  dropout_rate: 0.0
+  norm_before: false
+  hid_act: swish
+feat_fusion_method: weighted-avg
+feat_fusion_start: 2

@@ -11,10 +11,14 @@ import time
 
 import numpy as np
 import pandas as pd
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
-
 import torch
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
+
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialAudioReader as AR
@@ -77,13 +81,15 @@ def augment(key0, x0, augmenter, aug_df, aug_id):
 
 
 def select_random_chunk(key, x, min_utt_length, max_utt_length, rng):
-    utt_length = rng.randint(low=min_utt_length, high=max_utt_length + 1)
+    utt_length = rng.integers(low=min_utt_length, high=max_utt_length + 1)
     if utt_length < x.shape[1]:
-        first_frame = rng.randint(low=0, high=x.shape[1] - utt_length)
+        first_frame = rng.integers(low=0, high=x.shape[1] - utt_length)
         x = x[:, first_frame : first_frame + utt_length]
         logging.info(
-            "extract-random-utt %s of length=%d first-frame=%d"
-            % (key, x.shape[1], first_frame)
+            "extract-random-utt %s of length=%d first-frame=%d",
+            key,
+            x.shape[1],
+            first_frame,
         )
     return x
 
@@ -93,7 +99,6 @@ def eval_xvec(
     output_spec,
     vad_spec,
     write_num_frames_spec,
-    scp_sep,
     vad_path_prefix,
     model_path,
     chunk_length,
@@ -106,8 +111,7 @@ def eval_xvec(
     use_gpu,
     **kwargs
 ):
-
-    rng = np.random.RandomState(seed=1123581321 + kwargs["part_idx"])
+    rng = np.random.default_rng(seed=1123581321 + kwargs["part_idx"])
     device = init_device(use_gpu)
     feat_extractor = init_feats(device, **kwargs)
     model = load_model(model_path, device)
@@ -125,18 +129,17 @@ def eval_xvec(
         num_augs = 1
 
     ar_args = AR.filter_args(**kwargs)
-    logging.info("opening output stream: %s" % (output_spec))
-    with DWF.create(output_spec, scp_sep=scp_sep) as writer:
-
+    logging.info("opening output stream: %s", output_spec)
+    with DWF.create(output_spec) as writer:
         logging.info(
             "opening input stream: {} with args={}".format(input_spec, ar_args)
         )
         with AR(input_spec, **ar_args) as reader:
-
             if vad_spec is not None:
-                logging.info("opening VAD stream: %s" % (vad_spec))
+                logging.info("opening VAD stream: %s", vad_spec)
                 v_reader = VRF.create(
-                    vad_spec, path_prefix=vad_path_prefix, scp_sep=scp_sep
+                    vad_spec,
+                    path_prefix=vad_path_prefix,
                 )
 
             while not reader.eof():
@@ -159,7 +162,7 @@ def eval_xvec(
                             x[None, :], dtype=torch.get_default_dtype()
                         ).to(device)
 
-                        x = feat_extractor(x)
+                        x, _ = feat_extractor(x)
                         t5 = time.time()
                         tot_frames = x.shape[1]
                         if vad_spec is not None:
@@ -168,13 +171,11 @@ def eval_xvec(
                             x = x[:, vad]
 
                         logging.info(
-                            "utt %s detected %d/%d (%.2f %%) speech frames"
-                            % (
-                                key,
-                                x.shape[1],
-                                tot_frames,
-                                x.shape[1] / tot_frames * 100,
-                            )
+                            "utt %s detected %d/%d (%.2f %%) speech frames",
+                            key,
+                            x.shape[1],
+                            tot_frames,
+                            x.shape[1] / tot_frames * 100,
                         )
 
                         if random_utt_length:
@@ -199,27 +200,23 @@ def eval_xvec(
                     read_time = t2 - t1
                     tot_time = read_time + t8 - t3
                     logging.info(
-                        (
-                            "utt %s total-time=%.3f read-time=%.3f "
-                            "aug-time=%.3f feat-time=%.3f "
-                            "vad-time=%.3f embed-time=%.3f write-time=%.3f "
-                            "rt-factor=%.2f"
-                        )
-                        % (
-                            key,
-                            tot_time,
-                            read_time,
-                            t4 - t3,
-                            t5 - t4,
-                            t6 - t5,
-                            t7 - t6,
-                            t8 - t7,
-                            x0.shape[0] / fs[0] / tot_time,
-                        )
+                        "utt %s total-time=%.3f read-time=%.3f "
+                        "aug-time=%.3f feat-time=%.3f "
+                        "vad-time=%.3f embed-time=%.3f write-time=%.3f "
+                        "rt-factor=%.2f",
+                        key,
+                        tot_time,
+                        read_time,
+                        t4 - t3,
+                        t5 - t4,
+                        t6 - t5,
+                        t7 - t6,
+                        t8 - t7,
+                        x0.shape[0] / fs[0] / tot_time,
                     )
 
     if write_num_frames_spec is not None:
-        logging.info("writing num-frames to %s" % (write_num_frames_spec))
+        logging.info("writing num-frames to %s", write_num_frames_spec)
         u2nf = Utt2Info.create(keys, info)
         u2nf.save(write_num_frames_spec)
 
@@ -228,8 +225,7 @@ def eval_xvec(
         aug_df.to_csv(aug_info_path, index=False, na_rep="n/a")
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(
         description=(
             "Evaluates x-vectors logits from waveform computing "
@@ -243,7 +239,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--write-num-frames", dest="write_num_frames_spec", default=None
     )
-    parser.add_argument("--scp-sep", default=" ", help=("scp file field separator"))
+
     parser.add_argument(
         "--vad-path-prefix", default=None, help=("scp file_path prefix for vad")
     )
@@ -303,3 +299,7 @@ if __name__ == "__main__":
     logging.debug(args)
 
     eval_xvec(**namespace_to_dict(args))
+
+
+if __name__ == "__main__":
+    main()

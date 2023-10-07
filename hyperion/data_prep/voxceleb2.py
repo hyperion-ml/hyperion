@@ -3,6 +3,7 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import logging
+import glob
 import re
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -39,8 +40,7 @@ class VoxCeleb2DataPrep(DataPrep):
         target_sample_freq: int,
         num_threads: int = 10,
     ):
-        if cat_videos:
-            use_kaldi_ids = True
+        use_kaldi_ids = True
         super().__init__(
             corpus_dir, output_dir, use_kaldi_ids, target_sample_freq, num_threads
         )
@@ -136,45 +136,60 @@ class VoxCeleb2DataPrep(DataPrep):
         return file_path
 
     def prepare(self):
+        logging.info(
+            "Peparing VoxCeleb2 %s corpus_dir:%s -> data_dir:%s",
+            self.subset,
+            self.corpus_dir,
+            self.output_dir,
+        )
         logging.info("getting audio meta-data")
         df_meta = self._get_metadata()
         logging.info("getting language estimations")
         df_lang = self._get_langs_est()
         rec_dir = self.corpus_dir / self.subset
         logging.info("searching audio files in %s", str(rec_dir))
-        rec_files = list(rec_dir.glob("**/*.m4a"))
+        rec_files1 = list(rec_dir.glob("**/*.m4a"))
+        rec_files = [Path(f) for f in glob.iglob(f"{rec_dir}/**/*.m4a", recursive=True)]
+        if not rec_files:
+            # symlinks? try glob
+            rec_files = [
+                Path(f) for f in glob.iglob(f"{rec_dir}/**/*.m4a", recursive=True)
+            ]
+
+        assert len(rec_files) > 0, "recording files not found"
+
         speakers = [f.parents[1].name for f in rec_files]
         video_ids = [f.parent.name for f in rec_files]
         if self.cat_videos:
+            rec_ids = [f"{s}-{v}" for s, v in zip(speakers, video_ids)]
             lists_cat_dir = self.output_dir / "lists_cat"
             lists_cat_dir.mkdir(exist_ok=True, parents=True)
-            uniq_video_ids, uniq_video_idx, video_idx = np.unique(
-                video_ids, return_index=True, return_inverse=True
+            rec_ids, uniq_rec_idx, rec_idx = np.unique(
+                rec_ids, return_index=True, return_inverse=True
             )
-            rec_ids = uniq_video_ids
-            speakers = [speakers[i] for i in uniq_video_idx]
-            rec_ids = [f"{s}-{v}" for s, v in zip(speakers, uniq_video_ids)]
+            speakers = [speakers[i] for i in uniq_rec_idx]
+            video_ids = [video_ids[i] for i in uniq_rec_idx]
 
             file_paths = []
             futures = []
             logging.info("making video cat lists")
+            logging.info("submitting threats...")
             with ThreadPoolExecutor(max_workers=self.num_threads) as pool:
-                for i, rec_id in enumerate(rec_ids):
+                for i, rec_id in tqdm(enumerate(rec_ids)):
                     future = pool.submit(
                         VoxCeleb2DataPrep.make_cat_list,
                         lists_cat_dir,
                         rec_id,
                         rec_files,
-                        video_idx,
+                        rec_idx,
                         i,
                     )
                     futures.append(future)
 
+            logging.info("waiting threats...")
             file_paths = [f.result() for f in tqdm(futures)]
-            video_ids = uniq_video_ids
-
         else:
-            file_names = [f.name for f in rec_files]
+            file_names = [f.with_suffix("").name for f in rec_files]
             if self.use_kaldi_ids:
                 rec_ids = [
                     f"{s}-{v}-{f}" for s, v, f in zip(speakers, video_ids, file_names)
@@ -213,13 +228,8 @@ class VoxCeleb2DataPrep(DataPrep):
                     df_lang.loc[r, "confidence"] if r in df_lang.index else "N/A"
                     for r in rec_ids
                 ],
-                # "duration": recs.loc[rec_ids, "duration"],
+                "duration": recs.loc[rec_ids, "duration"].values,
             }
-        )
-        print(
-            recs.loc[rec_ids, "duration"],
-            len(segments),
-            len(recs.loc[rec_ids, "duration"]),
         )
         segments = SegmentSet(segments)
         segments.sort()
@@ -242,8 +252,8 @@ class VoxCeleb2DataPrep(DataPrep):
         logging.info("making dataset")
         dataset = Dataset(
             segments,
-            {"speaker": speakers, "languages": languages},
-            {"recordings": recs},
+            {"speaker": speakers, "language_est": languages},
+            recs,
         )
         logging.info("saving dataset at %s", self.output_dir)
         dataset.save(self.output_dir)

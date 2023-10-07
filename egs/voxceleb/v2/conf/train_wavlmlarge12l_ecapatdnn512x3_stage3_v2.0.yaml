@@ -1,0 +1,73 @@
+data:
+  train:
+    dataset:
+      class_names:
+      - class_id
+      aug_cfgs:
+      - conf/reverb_noise_aug.yaml
+      return_segment_info:
+      - class_id
+      target_sample_freq: 16000
+      wav_scale: 1
+    sampler:
+      sampler_type: class_weighted_random_seg_chunk_sampler
+      min_batch_size: 32
+      max_chunk_length: 6.0
+      min_chunk_length: 6.0
+      num_chunks_per_seg_epoch: 6
+      class_name: class_id
+      weight_exponent: 0.5
+      weight_mode: data-prior
+      seg_weight_mode: data-prior
+      num_hard_prototypes: 8
+    data_loader:
+      num_workers: 8
+  val:
+    dataset:
+      class_names:
+      - class_id
+      aug_cfgs:
+      - conf/reverb_noise_aug.yaml
+      return_segment_info:
+      - class_id
+      target_sample_freq: 16000
+      wav_scale: 1
+    sampler:
+      sampler_type: class_weighted_random_seg_chunk_sampler
+      min_batch_size: 32
+      max_chunk_length: 3.0
+      min_chunk_length: 3.0
+      num_chunks_per_seg_epoch: 6
+      class_name: class_id
+      weight_exponent: 0.5
+      weight_mode: data-prior
+      seg_weight_mode: data-prior
+      num_hard_prototypes: 0
+    data_loader:
+      num_workers: 8
+model:
+  xvector:
+    cos_scale: 32.0
+    margin: 0.4
+    margin_warmup_epochs: 0
+    intertop_k: 5
+    intertop_margin: 0.1
+trainer: 
+  optim:
+    opt_type: sgd
+    lr: 2e-3
+    momentum: 0.9
+    weight_decay: 1e-4
+  lrsched:
+    lrsch_type: exp_lr
+    decay_rate: 0.5
+    decay_steps: 5000
+    hold_steps: 6000
+    min_lr: 1e-4
+    warmup_steps: 6000
+    update_lr_on_opt_step: true
+  use_amp: true
+  log_interval: 1000
+  epochs: 4
+  eff_batch_size: 256
+  train_mode: full

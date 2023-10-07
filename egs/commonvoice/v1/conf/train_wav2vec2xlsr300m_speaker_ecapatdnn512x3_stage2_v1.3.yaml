@@ -1,0 +1,70 @@
+data:
+  train:
+    dataset:
+      aug_cfgs:
+      - conf/reverb_noise_aug.yaml
+      return_segment_info:
+      - speaker
+      - language
+      target_sample_freq: 16000
+      wav_scale: 1
+   
+    sampler:
+      sampler_type: class_weighted_random_seg_chunk_sampler
+      min_batch_size: 32
+      max_chunk_length: 3.0
+      min_chunk_length: 3.0
+      num_chunks_per_seg_epoch: 0.3
+      class_name: language
+      seg_weight_mode: uniform
+      num_hard_prototypes: 0
+    data_loader:
+      num_workers: 4
+  val:
+    dataset:
+      aug_cfgs: 
+        - conf/reverb_noise_aug.yaml
+      wav_scale: 1
+      return_segment_info:
+        - speaker
+        - language
+      target_sample_freq: 16000
+      wav_scale: 1
+    
+    sampler:
+      sampler_type: class_weighted_random_seg_chunk_sampler
+      min_batch_size: 32
+      max_chunk_length: 3.0
+      min_chunk_length: 3.0
+      num_chunks_per_seg_epoch: 1.0
+      class_name: language
+      seg_weight_mode: uniform
+      num_hard_prototypes: 0
+    data_loader:
+      num_workers: 4
+model:
+  xvector:
+    cos_scale: 32.0
+    margin: 0.2
+    margin_warmup_epochs: 0
+    intertop_k: 5
+    intertop_margin: 0.1
+trainer: 
+  optim:
+    opt_type: sgd
+    lr: 0.001
+    momentum: 0.9
+    weight_decay: 1e-4
+  lrsched:
+    lrsch_type: exp_lr
+    decay_rate: 0.5
+    decay_steps: 28000
+    hold_steps: 20000
+    min_lr: 4e-4
+    warmup_steps: 5000
+    update_lr_on_opt_step: true
+  use_amp: true
+  log_interval: 1000
+  epochs: 40
+  eff_batch_size: 512
+  train_mode: full

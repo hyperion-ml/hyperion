@@ -42,8 +42,9 @@ class _GlobalPool1d(nn.Module):
         multiplied by the input data.
         """
         if weights is None:
+            time_dim = self.dim if self.dim >= 0 else x.dim() + self.dim
             return seq_lengths_to_mask(
-                x_lengths, x.size(self.dim), dtype=x.dtype, time_dim=self.dim
+                x_lengths, x.size(self.dim), dtype=x.dtype, time_dim=time_dim
             )
 
         if weights.dim() == x.dim():
@@ -599,7 +600,7 @@ class ScaledDotProdAttV1Pool1d(_GlobalPool1d):
         """standardizes the weights to have shape (batch, max_length)."""
         if weights is None:
             return seq_lengths_to_mask(
-                x_lengths, x.size(self.dim), dtype=x.dtype, time_dim=1
+                x_lengths, x.size(self.dim), dtype=x.dtype, time_dim=2
             )
 
         if weights.dim() == x.dim():
@@ -780,9 +781,13 @@ class GlobalChWiseAttMeanStdPool1d(_GlobalPool1d):
             x = x.transpose(1, self.dim)
 
         # x = (batch, feat_dim, time)
+        # logging.info("x_lengths",x_lengths)
+        # logging.info("weights_bef",weights)
         weights = self._standardize_weights(x, x_lengths, weights)  # (batch, 1,  time)
         x_inner = self.conv1(x)  # (batch, inner_dim, time)
+        # logging.info("weights_aft",weights)
         # logging.info('x_inner1={} {}'.format(torch.sum(torch.isnan(x_inner)), torch.sum(torch.isinf(x_inner))))
+        # logging.info('weights shape={} {}'.format(weights.shape, weights.dtype))
         if self.use_global_context:
             global_mus = self.stats_pool(x, weights=weights)
             x_inner = x_inner + self.lin_global(global_mus).unsqueeze(-1)
@@ -797,8 +802,9 @@ class GlobalChWiseAttMeanStdPool1d(_GlobalPool1d):
                 if attn.dtype == torch.half:
                     min_value = -65504
                 else:
-                    min_value = -1e200
+                    min_value = -1e20
                 mask = weights.eq(0)
+                # logging.info("attn", attn.shape, mask.shape)
                 attn = attn.masked_fill(mask, min_value)
 
             attn = nnf.softmax(attn, dim=-1)

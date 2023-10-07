@@ -52,22 +52,24 @@ fi
 # echo "LRU_CACHE_CAPACITY=$LRU_CACHE_CAPACITY"
 
 conda activate $conda_env
-command="python"
+command=""
 if [ $num_gpus -gt 0 ];then
-  # set CUDA_VISIBLE_DEVICES
-  if [ ! -z "$SGE_HGR_gpu" ]; then
-    echo "SGE_HGR_gpu=$SGE_HGR_gpu"
-    export CUDA_VISIBLE_DEVICES=$(echo $SGE_HGR_gpu | sed 's@ @,@g')
-  else
-    # seach location of free-gpu program in the PATH or hyp_utils directory
-    free_gpu=$(which free-gpu)
-    if [ -z "$free_gpu" ];then
-      free_gpu=$(which hyp_utils/free-gpu)
-    fi
-    
-    if [ ! -z "$free_gpu" ];then
-      # if free-gpu found set env var, otherwise we assume that you can use any gpu
-      export CUDA_VISIBLE_DEVICES=$($free_gpu -n $num_gpus)
+  if [ -z "$CUDA_VISIBLE_DEVICES" ];then
+    # set CUDA_VISIBLE_DEVICES
+    if [ ! -z "$SGE_HGR_gpu" ]; then
+      echo "SGE_HGR_gpu=$SGE_HGR_gpu"
+      export CUDA_VISIBLE_DEVICES=$(echo $SGE_HGR_gpu | sed 's@ @,@g')
+    else
+      # seach location of free-gpu program in the PATH or hyp_utils directory
+      free_gpu=$(which free-gpu)
+      if [ -z "$free_gpu" ];then
+	free_gpu=$(which hyp_utils/free-gpu)
+      fi
+      
+      if [ ! -z "$free_gpu" ];then
+	# if free-gpu found set env var, otherwise we assume that you can use any gpu
+	export CUDA_VISIBLE_DEVICES=$($free_gpu -n $num_gpus)
+      fi
     fi
   fi
   echo "CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES"
@@ -79,7 +81,7 @@ if [ $num_gpus -gt 0 ];then
   #export TORCH_DISTRIBUTED_DEBUG=DETAIL #variable to find unused parameters
   if [ $num_gpus -gt 1 ];then
     
-    [[ $(type -P "$torchrun") ]] && command="torchrun" \
+    [[ $(type -P "torchrun") ]] && command="torchrun" \
 	|| command="python -m torch.distributed.run"
     command="$command --nproc_per_node=$num_gpus --standalone --nnodes=1"
   fi

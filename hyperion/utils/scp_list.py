@@ -36,7 +36,7 @@ class SCPList(object):
     def validate(self):
         """Validates the attributes of the SCPList object."""
         self.key = list2ndarray(self.key)
-        self.file_path = list2ndarray(self.file_path, dtype=np.object)
+        self.file_path = list2ndarray(self.file_path, dtype=object)
         assert len(self.key) == len(self.file_path)
         if self.offset is not None:
             if isinstance(self.offset, list):
@@ -384,7 +384,7 @@ class SCPList(object):
           Index used to shuffle the list.
         """
         if rng is None:
-            rng = np.random.RandomState(seed=seed)
+            rng = np.random.default_rng(seed=seed)
         index = np.arange(len(self.key))
         rng.shuffle(index)
 

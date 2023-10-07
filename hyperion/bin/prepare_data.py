@@ -6,8 +6,12 @@
 import logging
 from pathlib import Path
 
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
 
 from hyperion.data_prep import DataPrep
 from hyperion.hyp_defs import config_logger
@@ -19,7 +23,7 @@ def make_parser(data_prep_class):
     return parser
 
 
-if __name__ == "__main__":
+def main():
     parser = ArgumentParser(
         description="""Prepares a dataset into relational database tables"""
     )
@@ -34,6 +38,9 @@ if __name__ == "__main__":
     config_logger(1)
     data_prep_class = DataPrep.registry[args.subcommand]
     args = namespace_to_dict(args)[args.subcommand]
-
     data_prep = data_prep_class(**args)
     data_prep.prepare()
+
+
+if __name__ == "__main__":
+    main()

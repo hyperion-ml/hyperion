@@ -7,6 +7,8 @@
 
 import re
 from enum import Enum
+from pathlib import Path
+import pandas as pd
 
 
 class ArchiveType(Enum):
@@ -174,6 +176,11 @@ class WSpecifier(object):
                     archive_type = ArchiveType.AUDIO
                     archive = archives[cur_archive]
                     cur_archive += 1
+                elif option == "csv":
+                    assert script is None, "Repeated csv in wspecifier %s" % script
+                    assert len(archives) > cur_archive
+                    script = archives[cur_archive]
+                    cur_archive += 1
                 elif option == "scp":
                     assert script is None, "Repeated scp in wspecifier %s" % script
                     assert len(archives) > cur_archive
@@ -332,7 +339,7 @@ class RSpecifier(object):
             assert len(archives) == 1
 
             spec_type = None
-            archive = archives[0]
+            archive = Path(archives[0])
             archive_type = None
             once = False
             is_sorted = False
@@ -361,6 +368,9 @@ class RSpecifier(object):
                     assert spec_type is None
                     spec_type = RSpecType.ARCHIVE
                     archive_type = ArchiveType.RTTM
+                elif option == "csv":
+                    assert spec_type is None
+                    spec_type = RSpecType.SCRIPT
                 elif option == "scp":
                     assert spec_type is None
                     spec_type = RSpecType.SCRIPT
@@ -374,24 +384,31 @@ class RSpecifier(object):
             assert spec_type is not None, "Wrong wspecifier options %s" % fields[0]
 
             if spec_type == RSpecType.SCRIPT:
-                with open(archive, "r") as f:
-                    scp_f2 = f.readline().strip().split(" ")[1]
-                    if re.match(r".*\.h5(?:.[0-9]+:[0-9]+.)?$", scp_f2) is not None:
+                if archive.suffix == ".csv":
+                    df = pd.read_csv(archive, nrows=2)
+                    storage_path = df["storage_path"].values[0]
+                    if re.match(r".*\.h5$", storage_path) is not None:
                         archive_type = ArchiveType.H5
-                    elif re.match(r".*\.ark:.*$", scp_f2) is not None:
+                    elif re.match(r".*\.ark$", storage_path) is not None:
                         archive_type = ArchiveType.ARK
-                    elif (
-                        re.match(r".*[cvg]:[0-9]+.[0-9]+:[0-9]+.$", scp_f2) is not None
-                    ):
+                    elif re.match(r".*[cvg]$", storage_path) is not None:
                         archive_type = ArchiveType.AUDIO
                     else:
-                        archive_type = ArchiveType.ARK
-
-                    # .split('[')[0].split(':')
-                    # if len(scp) == 1:
-                    #     archive_type = ArchiveType.H5
-                    # else:
-                    #     archive_type = ArchiveType.ARK
+                        raise ValueError(f"Unknown format for {storage_path}")
+                else:
+                    with open(archive, "r") as f:
+                        scp_f2 = f.readline().strip().split(" ")[1]
+                        if re.match(r".*\.h5(?:.[0-9]+:[0-9]+.)?$", scp_f2) is not None:
+                            archive_type = ArchiveType.H5
+                        elif re.match(r".*\.ark:.*$", scp_f2) is not None:
+                            archive_type = ArchiveType.ARK
+                        elif (
+                            re.match(r".*[cvg]:[0-9]+.[0-9]+:[0-9]+.$", scp_f2)
+                            is not None
+                        ):
+                            archive_type = ArchiveType.AUDIO
+                        else:
+                            archive_type = ArchiveType.ARK
 
             if archive_type == ArchiveType.ARK:
                 for option in options:

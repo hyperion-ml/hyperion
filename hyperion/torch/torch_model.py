@@ -2,19 +2,19 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-import os
 from collections import OrderedDict as ODict
 from copy import deepcopy
 from enum import Enum
 from typing import Optional
+from pathlib import Path
 
 import torch
 import torch.nn as nn
 
 
 class TorchModel(nn.Module):
-    """Base class for all Pytorch Models and NNet architectures
-    """
+    """Base class for all Pytorch Models and NNet architectures"""
+
     registry = {}
 
     def __init_subclass__(cls, **kwargs):
@@ -44,6 +44,12 @@ class TorchModel(nn.Module):
         for param in self.parameters(recurse=recurse):
             if not param.requires_grad:
                 yield param
+
+    def has_param_groups(self):
+        return False
+
+    def trainable_param_groups(self):
+        return self.trainable_parameters()
 
     def freeze(self):
         for param in self.parameters():
@@ -104,15 +110,12 @@ class TorchModel(nn.Module):
         return ["full", "frozen"]
 
     def save(self, file_path):
-        file_dir = os.path.dirname(file_path)
-        if not (os.path.isdir(file_dir)):
-            os.makedirs(file_dir, exist_ok=True)
-
-        config = self.get_config()
-        torch.save({
-            "model_cfg": self.get_config(),
-            "model_state_dict": self.state_dict()
-        })
+        file_path = Path(file_path)
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(
+            {"model_cfg": self.get_config(), "model_state_dict": self.state_dict()},
+            file_path,
+        )
 
     @staticmethod
     def _load_cfg_state_dict(file_path=None, cfg=None, state_dict=None):
@@ -132,8 +135,7 @@ class TorchModel(nn.Module):
 
     @classmethod
     def load(cls, file_path=None, cfg=None, state_dict=None):
-        cfg, state_dict = TorchModel._load_cfg_state_dict(
-            file_path, cfg, state_dict)
+        cfg, state_dict = TorchModel._load_cfg_state_dict(file_path, cfg, state_dict)
 
         model = cls(**cfg)
         if state_dict is not None:
@@ -148,14 +150,15 @@ class TorchModel(nn.Module):
 
     @property
     def device(self):
-        devices = {param.device
-                   for param in self.parameters()
-                   } | {buf.device
-                        for buf in self.buffers()}
+        devices = {param.device for param in self.parameters()} | {
+            buf.device for buf in self.buffers()
+        }
         if len(devices) != 1:
             raise RuntimeError(
                 "Cannot determine device: {} different devices found".format(
-                    len(devices)))
+                    len(devices)
+                )
+            )
 
         return next(iter(devices))
 
@@ -171,7 +174,7 @@ class TorchModel(nn.Module):
           Fixed configuration dictionary.
         """
         # for compatibility with older x-vector models
-        XVector = torch_model_registry["xvector"]
+        XVector = TorchModel.registry["XVector"]
         if issubclass(class_obj, XVector):
             # We renamed AM-softmax scale parameer s to cos_scale
             if "s" in cfg:
@@ -190,8 +193,9 @@ class TorchModel(nn.Module):
         cfg = model_data["model_cfg"]
         class_name = cfg["class_name"]
         del cfg["class_name"]
-        if class_name in torch_model_registry:
-            class_obj = torch_model_registry[class_name]
+        print(TorchModel.registry)
+        if class_name in TorchModel.registry:
+            class_obj = TorchModel.registry[class_name]
         elif class_name in extra_objs:
             class_obj = extra_objs[class_name]
         else:
@@ -217,5 +221,4 @@ class TorchModel(nn.Module):
                     # if it failed the 3 trials raise exception
                     raise err
                 # remove module prefix when is trained with dataparallel
-                state_dict = ODict(
-                    (p.sub("", k), v) for k, v in state_dict.items())
+                state_dict = ODict((p.sub("", k), v) for k, v in state_dict.items())

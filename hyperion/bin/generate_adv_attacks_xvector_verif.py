@@ -11,12 +11,16 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import yaml
-from jsonargparse import (ActionConfigFile, ActionParser, ArgumentParser,
-                          namespace_to_dict)
-
 import torch
 import torch.nn as nn
+import yaml
+from jsonargparse import (
+    ActionConfigFile,
+    ActionParser,
+    ArgumentParser,
+    namespace_to_dict,
+)
+
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
 from hyperion.io import AudioWriter as AW
 from hyperion.io import RandomAccessAudioReader as AR
@@ -74,7 +78,6 @@ class MyModel(nn.Module):
 
 
 def read_data(v_file, key_file, enroll_file, seg_part_idx, num_seg_parts):
-
     r = DRF.create(v_file)
     enroll = Utt2Info.load(enroll_file)
     key = TrialKey.load(key_file)
@@ -174,7 +177,6 @@ def generate_attacks(
     random_seed,
     **kwargs
 ):
-
     device = init_device(use_gpu)
     model = init_model(model_path, embed_layer, cal_file, threshold, **kwargs)
     model.to(device)
@@ -197,7 +199,7 @@ def generate_attacks(
 
     if vad_spec is not None:
         logging.info("opening VAD stream: %s", vad_spec)
-        v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix, scp_sep=" ")
+        v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix)
 
     attack_factory = init_attack_factory(**kwargs)
     attacks_info = {}
@@ -347,8 +349,7 @@ def generate_attacks(
             yaml.dump(attacks_info, f, sort_keys=True)
 
 
-if __name__ == "__main__":
-
+def main():
     parser = ArgumentParser(
         description="Generate Attacks for speaker verification with x-vectors+cos+calibration"
     )
@@ -443,3 +444,7 @@ if __name__ == "__main__":
     logging.debug(args)
 
     generate_attacks(**namespace_to_dict(args))
+
+
+if __name__ == "__main__":
+    main()

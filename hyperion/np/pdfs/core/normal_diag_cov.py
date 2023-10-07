@@ -7,9 +7,12 @@ import numpy as np
 from scipy.special import erf
 
 from ....hyp_defs import float_cpu
-from ....utils.plotting import (plot_gaussian_1D, plot_gaussian_3D,
-                                plot_gaussian_ellipsoid_2D,
-                                plot_gaussian_ellipsoid_3D)
+from ....utils.plotting import (
+    plot_gaussian_1D,
+    plot_gaussian_3D,
+    plot_gaussian_ellipsoid_2D,
+    plot_gaussian_ellipsoid_3D,
+)
 from .exp_family import ExpFamily
 
 
@@ -183,7 +186,7 @@ class NormalDiagCov(ExpFamily):
         """
         assert self.is_init
         if rng is None:
-            rng = np.random.RandomState(seed)
+            rng = np.random.default_rng(seed)
         x = rng.normal(size=(num_samples, self.x_dim)).astype(float_cpu())
         return self.mu + 1.0 / self.cholLambda * x
 

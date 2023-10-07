@@ -2,6 +2,7 @@
  Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+import logging
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -49,12 +50,12 @@ class DataPrep:
         raise NotImplementedError()
 
     @staticmethod
-    def _get_recording_duration(scp, i, n):
+    def _get_recording_duration(recordings, i, n):
         from ..io import SequentialAudioReader as AR
 
         durations = []
         fss = []
-        with AR(scp, part_idx=i, num_parts=n) as reader:
+        with AR(recordings, part_idx=i + 1, num_parts=n) as reader:
             for data in reader:
                 key, x, fs = data
                 duration = x.shape[0] / fs
@@ -67,20 +68,21 @@ class DataPrep:
 
         import itertools
 
-        from ..utils import SCPList
+        # from ..utils import SCPList #don't remember why I put this here
 
-        scp = SCPList(recording_set["id"].values, recording_set["storage_path"].values)
         futures = []
+        logging.info("submitting threats...")
         with ThreadPoolExecutor(max_workers=self.num_threads) as pool:
-            for i in range(self.num_threads):
+            for i in tqdm(range(self.num_threads)):
                 future = pool.submit(
-                    DataPrep._get_recording_duration, scp, i, self.num_threads
+                    DataPrep._get_recording_duration, recording_set, i, self.num_threads
                 )
                 futures.append(future)
 
+        logging.info("waiting threats...")
         res = [f.result() for f in tqdm(futures)]
         fss = list(itertools.chain(*[r[0] for r in res]))
-        durations = list(itertools.chain(*[r[0] for r in res]))
+        durations = list(itertools.chain(*[r[1] for r in res]))
 
         recording_set["duration"] = durations
         recording_set["sample_freq"] = fss
