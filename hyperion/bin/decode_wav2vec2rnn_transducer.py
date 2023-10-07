@@ -27,6 +27,7 @@ from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialAudioReader as AR
 from hyperion.np.augment import SpeechAugment
 from hyperion.torch import TorchModelLoader as TML
+from hyperion.torch.data.char_piece import CharPieceProcessor
 from hyperion.torch.models import HFWav2Vec2RNNTransducer
 from hyperion.torch.models.wav2transducer.beam_search import beam_search, greedy_search
 from hyperion.torch.narchs import AudioFeatsMVN as AF
@@ -133,9 +134,16 @@ def decode_transducer(
     device = init_device(use_gpu)
     model = load_model(model_path, device)
 
-    logging.info("bpe-model=%s", bpe_model)
-    sp = spm.SentencePieceProcessor()
-    sp.load(bpe_model)
+
+
+    if bpe_model.endswith(".txt"):
+        logging.info("loading char piece file %s", bpe_model)
+        sp = CharPieceProcessor()
+        sp.load(open(bpe_model).read().split())    
+    else:
+        logging.info("bpe-model=%s", bpe_model)
+        sp = spm.SentencePieceProcessor()
+        sp.load(bpe_model)
 
     infer_args = HFWav2Vec2RNNTransducer.filter_infer_args(**infer_args)
     logging.info(f"infer-args={infer_args}")

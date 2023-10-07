@@ -25,7 +25,7 @@ from ...utils.class_info import ClassInfo
 from ...utils.segment_set import SegmentSet
 from ...utils.text import read_text
 from ..torch_defs import floatstr_torch
-
+from .char_piece import CharPieceProcessor
 
 class AudioDataset(Dataset):
     def __init__(
@@ -115,10 +115,21 @@ class AudioDataset(Dataset):
         ].class_id.values.astype(float, copy=False)
 
     def _load_bpe_model(self, bpe_model, is_val):
-        if self.rank == 0:
-            logging.info("loading bpe file %s", bpe_model)
-        self.sp = spm.SentencePieceProcessor()
-        self.sp.load(bpe_model)
+        # if bpe_model end with .txt, it is a char piece model
+        # if bpe_model end with .model, it is a sentence piece model
+        if bpe_model.endswith(".txt"):
+            if self.rank == 0:
+                logging.info("loading char piece file %s", bpe_model)
+            self.sp = CharPieceProcessor()
+            self.sp.load(open(bpe_model).read().split())    
+        else:
+            if self.rank == 0:
+                logging.info("loading bpe file %s", bpe_model)
+            self.sp = spm.SentencePieceProcessor()
+            self.sp.load(bpe_model)
+
+
+
         blank_id = self.sp.piece_to_id("<blk>")
         vocab_size = self.sp.get_piece_size()
 
