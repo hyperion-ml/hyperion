@@ -1,0 +1,1 @@
+global_conf/config_fbank64_stmn_ecapatdnn2048x4_v1.0.sh

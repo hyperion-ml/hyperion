@@ -53,7 +53,8 @@ class SklTSNE(NPModel):
         super().__init__(**kwargs)
         self.rng_seed = rng_seed
         if rng is None:
-            rng = np.random.default_rng(seed=rng_seed)
+            #rng = np.random.default_rng(seed=rng_seed)
+            rng = np.random.RandomState(seed=rng_seed)
 
         self._tsne = TSNE(
             n_components=tsne_dim,
