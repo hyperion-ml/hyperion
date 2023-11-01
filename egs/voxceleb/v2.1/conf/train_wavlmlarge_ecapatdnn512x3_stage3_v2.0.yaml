@@ -35,8 +35,8 @@ data:
     sampler:
       sampler_type: class_weighted_random_seg_chunk_sampler
       min_batch_size: 16
-      max_chunk_length: 3.0
-      min_chunk_length: 3.0
+      max_chunk_length: 6.0
+      min_chunk_length: 6.0
       num_chunks_per_seg_epoch: 6
       class_name: speaker
       weight_exponent: 0.5
@@ -70,5 +70,4 @@ trainer:
   log_interval: 1000
   epochs: 4
   eff_batch_size: 256
-  target_key: speaker
   train_mode: full

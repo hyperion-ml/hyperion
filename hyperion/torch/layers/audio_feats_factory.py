@@ -4,10 +4,9 @@
 """
 import re
 
-from jsonargparse import ActionParser, ArgumentParser
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ...np.feats.filter_banks import FilterBankFactory as FBF
-from ...utils.misc import str2bool
 from .audio_feats import *
 
 FFT = "fft"
@@ -20,7 +19,7 @@ KAN_BAYASHI = "kanbayashi_logfb"
 FEAT_TYPES = [FFT, SPEC, LOG_SPEC, LOG_FB, MFCC, KAN_BAYASHI]
 
 
-class AudioFeatsFactory(object):
+class AudioFeatsFactory:
     """Factory class to create acoustic features layers like
     FFT, Spectrogram, log-Spectrogram, log-filter-bank, MFCC.
     """
@@ -213,6 +212,8 @@ class AudioFeatsFactory(object):
                 snip_edges=snip_edges,
             )
 
+        raise ValueError(f"unknown feature type {audio_feat}")
+
     @staticmethod
     def filter_args(**kwargs):
         """Filters feature extractor args from arguments dictionary.
@@ -284,7 +285,7 @@ class AudioFeatsFactory(object):
         parser.add_argument(
             "--remove-dc-offset",
             default=True,
-            type=str2bool,
+            action=ActionYesNo,
             help="Subtract mean from waveform on each frame",
         )
 
@@ -315,7 +316,7 @@ class AudioFeatsFactory(object):
         parser.add_argument(
             "--dither",
             type=float,
-            default=1.0 / 2 ** 15,
+            default=1.0 / 2**15,
             help="Dithering constant (0.0 means no dither)",
         )
 
@@ -331,7 +332,7 @@ class AudioFeatsFactory(object):
         parser.add_argument(
             "--snip-edges",
             default=True,
-            type=str2bool,
+            action=ActionYesNo,
             help=(
                 "If true, end effects will be handled by outputting only "
                 "frames that completely fit in the file, and the number of "
@@ -344,7 +345,7 @@ class AudioFeatsFactory(object):
         parser.add_argument(
             "--center",
             default=False,
-            type=str2bool,
+            action=ActionYesNo,
             help=(
                 "If true, puts the center of the frame at t*frame_shift, "
                 "it over-wrides snip-edges and set it to false"
@@ -361,13 +362,13 @@ class AudioFeatsFactory(object):
         parser.add_argument(
             "--raw-energy",
             default=True,
-            type=str2bool,
+            action=ActionYesNo,
             help="If true, compute energy before preemphasis and windowing",
         )
         parser.add_argument(
             "--use-energy",
             default=True,
-            type=str2bool,
+            action=ActionYesNo,
             help="Use energy (not C0) in MFCC computation",
         )
 
@@ -380,10 +381,10 @@ class AudioFeatsFactory(object):
 
         parser.add_argument(
             "--audio-feat",
-            default="cepstrum",
+            default="logfb",
             choices=FEAT_TYPES,
             help=(
-                "It can return intermediate result: fft, spec, log_spec, " "logfb, mfcc"
+                "It can return intermediate result: fft, spec, log_spec, logfb, mfcc"
             ),
         )
 

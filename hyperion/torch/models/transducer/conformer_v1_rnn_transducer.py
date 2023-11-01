@@ -32,7 +32,7 @@ class ConformerV1RNNTransducer(RNNTransducer):
         if isinstance(encoder, dict):
             encoder = ConformerEncoderV1(**encoder)
         else:
-            assert isinstance(encoder, RNNEncoder)
+            assert isinstance(encoder, ConformerEncoderV1)
 
         super().__init__(encoder, decoder)
 
@@ -45,7 +45,6 @@ class ConformerV1RNNTransducer(RNNTransducer):
 
     @staticmethod
     def add_class_args(parser, prefix=None, skip=set()):
-
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -53,8 +52,7 @@ class ConformerV1RNNTransducer(RNNTransducer):
         ConformerEncoderV1.add_class_args(parser, prefix="encoder", skip=skip)
         RNNTransducer.add_class_args(parser)
         if prefix is not None:
-            outer_parser.add_argument("--" + prefix,
-                                      action=ActionParser(parser=parser))
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     def change_config(
         self,
@@ -68,8 +66,7 @@ class ConformerV1RNNTransducer(RNNTransducer):
     @staticmethod
     def filter_finetune_args(**kwargs):
         args = RNNTransducer.filter_finetune_args(**kwargs)
-        encoder_args = ConformerEncoderV1.filter_finetune_args(
-            **kwargs["encoder"])
+        encoder_args = ConformerEncoderV1.filter_finetune_args(**kwargs["encoder"])
         args["encoder"] = encoder_args
         return args
 
@@ -83,5 +80,4 @@ class ConformerV1RNNTransducer(RNNTransducer):
         RNNTransducer.add_finetune_args(parser)
 
         if prefix is not None:
-            outer_parser.add_argument("--" + prefix,
-                                      action=ActionParser(parser=parser))
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

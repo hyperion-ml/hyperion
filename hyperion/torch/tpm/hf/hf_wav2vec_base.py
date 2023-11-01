@@ -245,7 +245,7 @@ class HFWav2VecBase(TorchModel):
         self,
         override_dropouts: bool,
         override_spec_augment: bool,
-        override_lora: bool,
+        override_lora: bool = False,
         feat_extract_lr: Optional[float] = None,
         encoder_lr: Optional[float] = None,
         use_lora: bool = False,
@@ -538,22 +538,22 @@ class HFWav2VecBase(TorchModel):
         x, x_mask = self._preprocess(x, x_lengths)
         # if ddp_get_rank() == 0:
         #     lora_layer = self.hf_model.encoder.layers[0].attention.v_proj
-            # print(
-            #     "lora\nw=",
-            #     lora_layer.weight[:3, :3],
-            #     "\na=",
-            #     lora_layer.lora_A[:3, :3],
-            #     "\nb=",
-            #     lora_layer.lora_B[:3, :3],
-            #     "\n",
-            #     "merged=",
-            #     lora_layer.merged,
-            #     "training=",
-            #     lora_layer.training,
-            #     flush=True,
-            # )
-            # assert self.training == lora_layer.training
-            # assert self.training == (not lora_layer.merged)
+        # print(
+        #     "lora\nw=",
+        #     lora_layer.weight[:3, :3],
+        #     "\na=",
+        #     lora_layer.lora_A[:3, :3],
+        #     "\nb=",
+        #     lora_layer.lora_B[:3, :3],
+        #     "\n",
+        #     "merged=",
+        #     lora_layer.merged,
+        #     "training=",
+        #     lora_layer.training,
+        #     flush=True,
+        # )
+        # assert self.training == lora_layer.training
+        # assert self.training == (not lora_layer.merged)
         output = self.hf_model(
             x,
             x_mask,
@@ -760,7 +760,7 @@ class HFWav2VecBase(TorchModel):
     @staticmethod
     def _add_lr_args(parser):
         parser.add_argument(
-            "--feat-extractor-lr",
+            "--feat-extract-lr",
             default=None,
             type=float,
             help=(

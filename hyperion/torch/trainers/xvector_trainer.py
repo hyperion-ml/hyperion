@@ -81,7 +81,6 @@ class XVectorTrainer(TorchTrainer):
         input_key="x",
         target_key="class_id",
     ):
-
         if loss is None:
             loss = nn.CrossEntropyLoss()
 
@@ -101,38 +100,53 @@ class XVectorTrainer(TorchTrainer):
         metric_acc = MetricAcc(device=self.device)
         batch_metrics = ODict()
         self.model.train()
+
         for batch, data in enumerate(data_loader):
             self.loggers.on_batch_begin(batch)
+
+            # try:
+            #       l1 = self.model.hf_feats.hf_model.encoder.layers[0].attention.v_proj
+            #      # print(f"lora train {l1.training}")
+            #        print(f"loraA {l1.lora_A}")
+            #        print(f"loraB {l1.lora_B}", flush=True)
+            # except:
+            #   pass
 
             if batch % self.grad_acc_steps == 0:
                 self.optimizer.zero_grad()
 
-            x, target = tensors_subset(data, batch_keys, self.device)
-            batch_size = x.size(0)
-            with amp.autocast(enabled=self.use_amp):
-                output = self.model(x, y=target)
-                loss = self.loss(output, target).mean() / self.grad_acc_steps
+            input_keys = self.get_augs_keys(data, self.input_key)
+            loss_scale = self.grad_acc_steps * len(input_keys)
+            for aug_key in input_keys:
+                batch_keys = [aug_key, self.target_key]
+                x, target = tensors_subset(data, batch_keys, self.device)
+                batch_size = x.size(0)
+                with amp.autocast(enabled=self.use_amp):
+                    output = self.model(x, y=target)
+                    loss = self.loss(output, target) / loss_scale
 
-            if self.use_amp:
-                self.grad_scaler.scale(loss).backward()
-            else:
-                loss.backward()
+                if self.use_amp:
+                    self.grad_scaler.scale(loss).backward()
+                else:
+                    loss.backward()
 
             if (batch + 1) % self.grad_acc_steps == 0:
                 if self.lr_scheduler is not None and not self.in_swa:
                     self.lr_scheduler.on_opt_step()
                 self.update_model()
 
-            batch_metrics["loss"] = loss.item() * self.grad_acc_steps
+            batch_metrics["loss"] = loss.item() * loss_scale
             for k, metric in self.metrics.items():
                 batch_metrics[k] = metric(output, target)
 
             metric_acc.update(batch_metrics, batch_size)
             logs = metric_acc.metrics
-            logs["lr"] = self._get_lr()
+            lrs = self._get_lrs()
+            logs.update(lrs)
             self.loggers.on_batch_end(logs=logs, batch_size=batch_size)
 
         logs = metric_acc.metrics
         logs = ODict(("train_" + k, v) for k, v in logs.items())
-        logs["lr"] = self._get_lr()
+        lrs = self._get_lrs()
+        logs.update(lrs)
         return logs

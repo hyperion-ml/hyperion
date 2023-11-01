@@ -1,0 +1,25 @@
+audio_feats:
+  audio_feat: logfb
+  sample_frequency: 16000
+  frame_length: 25
+  low_freq: 20 
+  high_freq: 7600
+  num_filters: 80
+  snip_edges: false
+  use_energy: false
+spec_augment:
+  time_warp_prob: 0.66
+  time_warp_window: 5
+  time_mask_prob: 1.
+  time_mask_min_width: 0
+  time_mask_max_width: 40
+  time_mask_min_num_masks: 1
+  time_mask_max_num_masks: 2
+  freq_mask_prob: 1.
+  freq_mask_min_width: 0
+  freq_mask_max_width: 30
+  freq_mask_min_num_masks: 1
+  freq_mask_max_num_masks: 2
+  mask_method: mean
+mvn:
+  norm_var: false

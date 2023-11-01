@@ -54,7 +54,7 @@ class MyModel(nn.Module):
         self.vad = None
 
     def forward(self, s):
-        f = self.feat_extractor(s)
+        f, _ = self.feat_extractor(s)
         if self.vad is not None:
             n_vad_frames = len(self.vad)
             n_feat_frames = f.shape[1]
@@ -161,16 +161,16 @@ def generate_attacks(
     model = init_model(model_path, **kwargs)
     model.to(device)
 
-    logging.info("opening audio read stream: %s" % (wav_file))
+    logging.info("opening audio read stream: %s", wav_file)
     audio_args = AR.filter_args(**kwargs)
-    audio_reader = AR(wav_file**audio_args)
+    audio_reader = AR(wav_file, **audio_args)
     wav_scale = audio_reader.wav_scale
 
-    logging.info("opening audio write stream: %s" % (output_wav_dir))
+    logging.info("opening audio write stream: %s", output_wav_dir)
     audio_writer = AW(output_wav_dir, audio_format="flac")
 
     if vad_spec is not None:
-        logging.info("opening VAD stream: %s" % (vad_spec))
+        logging.info("opening VAD stream: %s", vad_spec)
         v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix)
 
     keys, class_names, class_ids = read_utt_list(
@@ -190,9 +190,7 @@ def generate_attacks(
         s = s[0]
         fs = fs[0]
 
-        torch.manual_seed(
-            random_seed + int(s[0])
-        )  # this is to make results reproducible
+        torch.manual_seed(random_seed + len(s))  # this is to make results reproducible
         p = torch.rand(1).item()
         if p > p_attack:
             logging.info("skipping attack for utt %s" % (key))

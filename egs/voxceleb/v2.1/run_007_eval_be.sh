@@ -8,7 +8,7 @@
 set -e
 
 stage=1
-nnet_stage=2
+nnet_stage=3
 config_file=default_config.sh
 
 . parse_options.sh || exit 1;

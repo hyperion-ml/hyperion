@@ -9,6 +9,7 @@ import torch
 import torch.nn as nn
 from jsonargparse import ActionParser, ArgumentParser
 
+from ...layers import MeanVarianceNorm
 from ...torch_model import TorchModel
 from ...utils import remove_silence
 

@@ -1,0 +1,70 @@
+data:
+  train:
+    dataset:
+      wav_scale: 1
+      aug_cfgs: 
+        - conf/speed_reverb_noise10-20dB_aug.yaml
+      return_segment_info:
+        - text
+    sampler:
+      sampler_type: bucketing_seg_sampler
+      max_batch_length: 625.
+      min_batch_size: 1
+      drop_last: false
+    data_loader:
+      num_workers: 8
+  val:
+    dataset:
+      wav_scale: 1
+      return_segment_info:
+        - text
+    sampler:
+      sampler_type: bucketing_seg_sampler
+      max_batch_length: 625
+      min_batch_size: 1
+      drop_last: true
+    data_loader:
+      num_workers: 8
+model: 
+  feats: fbank80_specaug1_mn_16k.yaml
+  transducer:
+    encoder:
+      att_type: local-scaled-dot-prod-v1
+      att_context: 32
+      d_model: 144
+      num_heads: 4
+      num_blocks: 16
+      d_ff: 576
+      in_layer_type: conv2d-sub
+    decoder:
+      rnnt_loss: k2_pruned
+      simple_loss_scale: 0.2
+      predictor:
+        embed_dim: 1024
+        num_layers: 2
+        hid_feats: 320
+        embed_dropout_rate: 0.1
+        rnn_dropout_rate: 0.1
+        rnn_type: lstm
+      joiner:
+        hid_feats: 320
+trainer:
+  optim:
+    opt_type: adamw
+    lr: 0.001
+    beta1: 0.9
+    beta2: 0.98
+    weight_decay: 1e-6
+  lrsched:
+    lrsch_type: noam_lr
+    d_model: 144
+    lr_factor: 8.0
+    min_lr: 1e-6
+    warmup_steps: 25000
+    update_lr_on_opt_step: true
+  grad_clip: 100
+  use_amp: true
+  log_interval: 1000
+  epochs: 120
+  eff_batch_size: 128
+  train_mode: full

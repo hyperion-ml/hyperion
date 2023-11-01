@@ -6,22 +6,23 @@
 import logging
 import math
 import time
+from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
 
 # import k2
 import sentencepiece as spm
-import torchaudio.transforms as tat
-from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
-
 import torch
 import torch.distributed as dist
+import torchaudio.transforms as tat
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from torch.utils.data import Dataset
 
 from ...io import RandomAccessAudioReader as AR
 from ...np.augment import SpeechAugment
 from ...utils.class_info import ClassInfo
+from ...utils.misc import filter_func_args
 from ...utils.segment_set import SegmentSet
 from ...utils.text import read_text
 from ..torch_defs import floatstr_torch
@@ -30,22 +31,24 @@ from ..torch_defs import floatstr_torch
 class AudioDataset(Dataset):
     def __init__(
         self,
-        recordings_file,
-        segments_file,
-        class_names=None,
-        class_files=None,
-        bpe_model=None,
-        text_file=None,
-        time_durs_file=None,
-        aug_cfgs=None,
-        num_augs=1,
-        return_segment_info=None,
-        return_orig=False,
-        target_sample_freq=None,
-        wav_scale=2 ** 15 - 1,
-        is_val=False,
+        recordings_file: str,
+        segments_file: str,
+        class_names: Optional[List[str]] = None,
+        class_files: Optional[List[str]] = None,
+        bpe_model: Optional[str] = None,
+        text_file: Optional[str] = None,
+        time_durs_file: Optional[str] = None,
+        aug_cfgs: Optional[List[str]] = None,
+        num_augs: int = 1,
+        num_aug_mix: int = 0,
+        aug_mix_alpha: float = 0,
+        return_segment_info: Optional[List[str]] = None,
+        return_orig: bool = False,
+        target_sample_freq: Optional[float] = None,
+        wav_scale: float = 1,
+        is_val: bool = False,
+        seed: int = 112358,
     ):
-
         super().__init__()
         try:
             rank = dist.get_rank()
@@ -86,12 +89,17 @@ class AudioDataset(Dataset):
         if text_file is not None:
             logging.info("loading text files")
             self._load_text_infos(text_file, is_val)
+
         self.return_segment_info = (
             [] if return_segment_info is None else return_segment_info
         )
         self.return_orig = return_orig
 
         self.num_augs = num_augs
+        self.num_aug_mix = num_aug_mix
+        self.aug_mix_alpha = aug_mix_alpha
+        self.seed = seed
+        self.rng = np.random.default_rng(seed + 1000 * rank)
         self._create_augmenters(aug_cfgs)
 
         self.target_sample_freq = target_sample_freq
@@ -135,7 +143,7 @@ class AudioDataset(Dataset):
                 name in self.seg_set
             ), f"class_name {name} not present in the segment set"
             if self.rank == 0:
-                logging.info("loading class-info file %s" % file)
+                logging.info("loading class-info file %s", file)
             table = ClassInfo.load(file)
             self.class_info[name] = table
             if not is_val:
@@ -157,7 +165,7 @@ class AudioDataset(Dataset):
         for aug_cfg in aug_cfgs:
             logging.info(f"loading augmentation={aug_cfg}")
             augmenter = SpeechAugment.create(
-                aug_cfg, random_seed=112358 + 1000 * self.rank
+                aug_cfg, random_seed=self.seed + 1000 * self.rank
             )
             self.augmenters.append(augmenter)
             self.reverb_context = max(augmenter.max_reverb_context, self.reverb_context)
@@ -223,32 +231,64 @@ class AudioDataset(Dataset):
         x, fs = self.r.read([seg_id], time_offset=start, time_durs=read_duration)
         return x[0].astype(floatstr_torch(), copy=False), fs[0]
 
-    def _read_audio0(self, seg_id, start, duration):
-        # how much extra audio we need to load to
-        # calculate the reverb of the first part of the audio
-        reverb_context = min(self.reverb_context, start)
-        start -= reverb_context
-        read_duration = duration + reverb_context
+    # def _read_audio0(self, seg_id, start, duration):
+    #     # how much extra audio we need to load to
+    #     # calculate the reverb of the first part of the audio
+    #     reverb_context = min(self.reverb_context, start)
+    #     start -= reverb_context
+    #     read_duration = duration + reverb_context
 
-        # read audio
-        recording_id = self.seg_set.recording_ids(seg_id)
-        x, fs = self.r.read([recording_id], time_offset=start, time_durs=read_duration)
-        return x[0].astype(floatstr_torch(), copy=False), fs[0]
+    #     # read audio
+    #     recording_id = self.seg_set.recording_ids(seg_id)
+    #     x, fs = self.r.read([recording_id], time_offset=start, time_durs=read_duration)
+    #     return x[0].astype(floatstr_torch(), copy=False), fs[0]
 
-    def _apply_augs(self, x, reverb_context_samples):
+    def _apply_aug_mix(self, x, x_augs, aug_idx):
+        x_aug_mix = {}
+        alpha_d = (self.aug_mix_alpha,) * len(x_augs)
+        w = self.rng.dirichlet(alpha_d, self.num_aug_mix)
+        m = self.rng.beta(alpha_d, self.num_aug_mix)
+        for i in range(self.num_aug_mix):
+            x_mix = np.zeros_like(x)
+            for j, (_, x_aug_j) in enumerate(x_augs.items()):
+                x_mix += w[i, j] * x_aug_j
+
+            x_aug_mix[f"x_aug_{aug_idx}_{i}"] = m[i] * x + (1 - m[i]) * x_mix
+
+        return x_aug_mix
+
+    def _apply_augs(self, x, duration, fs):
+        if not self.augmenters:
+            return {"x": x}
+
+        if duration == 0:
+            num_samples = len(x)
+        else:
+            num_samples = int(duration * fs)
+
+        reverb_context_samples = len(x) - num_samples
+        x_orig = x[reverb_context_samples:]
         x_augs = {}
         # for each type of augmentation
         for i, augmenter in enumerate(self.augmenters):
             # we do n_augs per augmentation type
+            x_augs_i = {}
             for j in range(self.num_augs):
                 # augment x
                 x_aug, aug_info = augmenter(x)
                 # remove the extra left context used to compute the reverberation.
                 x_aug = x_aug[reverb_context_samples : len(x)]
                 x_aug = x_aug.astype(floatstr_torch(), copy=False)
-                x_augs[f"x_aug_{i}_{j}"] = x_aug
+                x_augs_i[f"x_aug_{i}_{j}"] = x_aug
 
-        if not self.return_orig and len(x_augs) == 1:
+            if self.num_aug_mix > 0:
+                x_augs_i = self._apply_aug_mix(x_orig, x_augs_i, i)
+
+            x_augs.update(x_augs_i)
+
+        if self.return_orig:
+            x_augs["x"] = x_orig
+        elif len(x_augs) == 1:
             # if we just have one aug and we don't return the clean version,
             # we just call x to the aug version
             x_augs["x"] = x_augs.pop("x_aug_0_0")
@@ -304,61 +344,69 @@ class AudioDataset(Dataset):
         x, fs = self._read_audio(seg_id, start, duration)
         x, fs = self._resample(x, fs)
         data = {"seg_id": seg_id, "sample_freq": fs}
+        x_augs = self._apply_augs(x, duration, fs)
+        data.update(x_augs)
 
-        if self.augmenters:
-            # augmentations
-            if duration == 0:
-                num_samples = len(x)
-            else:
-                num_samples = int(duration * fs)
-            reverb_context_samples = len(x) - num_samples
-            x_augs = self._apply_augs(x, reverb_context_samples)
-            data.update(x_augs)
+        # if self.augmenters:
+        #     # augmentations
+        #     if duration == 0:
+        #         num_samples = len(x)
+        #     else:
+        #         num_samples = int(duration * fs)
 
-            # add original non augmented audio
-            if self.return_orig:
-                x_orig = x[reverb_context_samples:]
-                data["x"] = x_orig
+        #     reverb_context_samples = len(x) - num_samples
+        #     x_augs = self._apply_augs(x, reverb_context_samples)
+        #     data.update(x_augs)
 
-        else:
-            data["x"] = x
+        #     # add original non augmented audio
+        #     if self.return_orig:
+        #         x_orig = x[reverb_context_samples:]
+        #         data["x"] = x_orig
+
+        # else:
+        #     data["x"] = x
 
         seg_info = self._get_segment_info(seg_id)
         data.update(seg_info)
-        if np.any(~np.isfinite(data["x"])):
-            print(
-                "zzz",
-                x.max(),
-                x.min(),
-                x.mean(),
-                data["x"].max(),
-                data["x"].min(),
-                data["x"].mean(),
-                flush=True,
-            )
+        # if np.any(~np.isfinite(data["x"])):
+        #     print(
+        #         "zzz",
+        #         x.max(),
+        #         x.min(),
+        #         x.mean(),
+        #         data["x"].max(),
+        #         data["x"].min(),
+        #         data["x"].mean(),
+        #         flush=True,
+        #     )
         return data
 
     @staticmethod
     def filter_args(**kwargs):
-
-        ar_args = AR.filter_args(**kwargs)
-        valid_args = (
-            "recordings_file",
-            "segments_file",
-            "aug_cfgs",
-            "num_augs",
-            "class_names",
-            "class_files",
-            "bpe_model",
-            "text_file",
-            "return_segment_info",
-            "return_orig",
-            "time_durs_file",
-            "target_sample_freq",
-        )
-        args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
-        args.update(ar_args)
+        args = filter_func_args(AudioDataset.__init__, kwargs)
         return args
+
+    # @staticmethod
+    # def filter_args(**kwargs):
+
+    #     ar_args = AR.filter_args(**kwargs)
+    #     valid_args = (
+    #         "recordings_file",
+    #         "segments_file",
+    #         "aug_cfgs",
+    #         "num_augs",
+    #         "class_names",
+    #         "class_files",
+    #         "bpe_model",
+    #         "text_file",
+    #         "return_segment_info",
+    #         "return_orig",
+    #         "time_durs_file",
+    #         "target_sample_freq",
+    #     )
+    #     args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
+    #     args.update(ar_args)
+    #     return args
 
     @staticmethod
     def add_class_args(parser, prefix=None, skip=set()):
@@ -390,7 +438,10 @@ class AudioDataset(Dataset):
         )
 
         parser.add_argument(
-            "--class-files", default=None, nargs="+", help=("list of class info files"),
+            "--class-files",
+            default=None,
+            nargs="+",
+            help=("list of class info files"),
         )
 
         parser.add_argument(
@@ -402,7 +453,9 @@ class AudioDataset(Dataset):
         )
 
         parser.add_argument(
-            "--bpe-model", default=None, help=("bpe model for the text label"),
+            "--bpe-model",
+            default=None,
+            help=("bpe model for the text label"),
         )
 
         parser.add_argument(
@@ -421,7 +474,20 @@ class AudioDataset(Dataset):
         parser.add_argument(
             "--num-augs",
             default=1,
+            type=int,
             help=("number of augmentations per segment and augmentation type"),
+        )
+        parser.add_argument(
+            "--num-aug-mix",
+            default=0,
+            type=int,
+            help=("number of AugMix augmentations per segment"),
+        )
+        parser.add_argument(
+            "--aug-mix-alpha",
+            default=0.5,
+            type=float,
+            help=("number of AugMix augmentations per segment"),
         )
         parser.add_argument(
             "--return-segment-info",
@@ -447,6 +513,13 @@ class AudioDataset(Dataset):
             help=(
                 "target sampling frequencey, if not None all audios are converted to this sample freq"
             ),
+        )
+
+        parser.add_argument(
+            "--seed",
+            default=11235811,
+            type=int,
+            help="random seed",
         )
 
         AR.add_class_args(parser)
