@@ -1,0 +1,1 @@
+global_conf/config_fbank64_stmn_fwseres2net50s8_v1.0.sh

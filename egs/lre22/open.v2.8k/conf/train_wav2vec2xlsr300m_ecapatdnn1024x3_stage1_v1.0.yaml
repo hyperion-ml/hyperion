@@ -1,0 +1,59 @@
+data:
+  train:
+    dataset:
+      class_names:
+      - class_id
+      aug_cfgs:
+      - conf/reverb_noise_aug.yaml
+      return_segment_info:
+      - class_id
+      target_sample_freq: 16000
+      wav_scale: 1
+    sampler:
+      sampler_type: seg_chunk_sampler
+      min_batch_size: 128
+      max_chunk_length: 3.0
+      min_chunk_length: 3.0
+    data_loader:
+      num_workers: 8
+  val:
+    dataset:
+      class_names:
+      - class_id
+      aug_cfgs:
+      - conf/reverb_noise_aug.yaml
+      return_segment_info:
+      - class_id
+      target_sample_freq: 16000
+      wav_scale: 1
+    sampler:
+      sampler_type: seg_chunk_sampler
+      min_batch_size: 128
+      max_chunk_length: 3.0
+      min_chunk_length: 3.0
+    data_loader:
+      num_workers: 8
+model: wav2vec2xlsr300m_ecapatdnn1024x3_subcenter.yaml
+trainer:
+  optim:
+    opt_type: sgd
+    lr: 0.45
+    momentum: 0.9
+    weight_decay: 4e-4
+  lrsched:
+    lrsch_type: exp_lr
+    decay_rate: 0.5
+    #decay_steps: 4200
+    #hold_steps: 1500
+    decay_steps: 16000
+    hold_steps: 18000
+    min_lr: 4e-4
+    warmup_steps: 4000
+    update_lr_on_opt_step: true
+  use_amp: true
+  log_interval: 1000
+  epochs: 12
+  eff_batch_size: 1024
+  train_mode: hf-feats-frozen-nograd
+
+ 

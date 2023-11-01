@@ -139,7 +139,7 @@ class InfoTable:
                 sep=" ",
                 header=None,
                 names=["id", name],
-                dtype={"id": np.str, name: np.str},
+                dtype={"id": str, name: str},
             )
         else:
             if sep is None:
