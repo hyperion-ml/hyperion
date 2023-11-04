@@ -9,7 +9,6 @@ import torch
 
 
 def eval_nnet_by_chunks(x, nnet, chunk_length=0, detach_chunks=True, time_dim=-1):
-
     device = None if nnet.device == x.device else nnet.device
     T = x.shape[time_dim]
     if T <= chunk_length or chunk_length == 0:
@@ -17,6 +16,8 @@ def eval_nnet_by_chunks(x, nnet, chunk_length=0, detach_chunks=True, time_dim=-1
             x = x.to(device)
 
         y = nnet(x)
+        if isinstance(y, tuple):
+            y = y[0]
         if detach_chunks:
             y = y.detach()
         return y
@@ -50,6 +51,8 @@ def eval_nnet_by_chunks(x, nnet, chunk_length=0, detach_chunks=True, time_dim=-1
             x_i = x_i.to(device)
 
         y_i = nnet(x_i)
+        if isinstance(y_i, tuple):
+            y_i = y_i[0]
         if detach_chunks:
             y_i = y_i.detach()
 
@@ -99,7 +102,6 @@ def eval_nnet_by_chunks(x, nnet, chunk_length=0, detach_chunks=True, time_dim=-1
 def eval_nnet_overlap_add(
     x, nnet, chunk_length=0, chunk_overlap=None, detach_chunks=True, time_dim=-1
 ):
-
     device = None if nnet.device == x.device else nnet.device
 
     # assume time is the last dimension

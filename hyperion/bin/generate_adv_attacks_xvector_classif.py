@@ -34,10 +34,10 @@ from hyperion.utils import TrialNdx, Utt2Info
 
 
 def read_utt_list(list_file, class2int_file, part_idx, num_parts):
-    logging.info("reading utt list %s" % (list_file))
+    logging.info("reading utt list %s", list_file)
     utt_list = Utt2Info.load(list_file)
     utt_list = utt_list.split(part_idx, num_parts)
-    logging.info("reading class2int-file %s" % (class2int_file))
+    logging.info("reading class2int-file %s", class2int_file)
     class_info = pd.read_csv(class2int_file, header=None, sep=" ")
     class2idx = {str(k): i for i, k in enumerate(class_info[0])}
     class_idx = np.array([class2idx[k] for k in utt_list.info], dtype=int)
@@ -193,7 +193,7 @@ def generate_attacks(
         torch.manual_seed(random_seed + len(s))  # this is to make results reproducible
         p = torch.rand(1).item()
         if p > p_attack:
-            logging.info("skipping attack for utt %s" % (key))
+            logging.info("skipping attack for utt %s", key)
             continue
 
         if random_utt_length:
@@ -228,7 +228,7 @@ def generate_attacks(
 
         _, pred = torch.max(score_benign, dim=1)
         if pred[0] != class_id:
-            logging.info("utt %s failed benign classification, skipping..." % (key))
+            logging.info("utt %s failed benign classification, skipping...", key)
             continue
 
         t3 = time.time()

@@ -25,7 +25,9 @@ from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialAudioReader as AR
 from hyperion.io import VADReaderFactory as VRF
 from hyperion.np.augment import SpeechAugment
-from hyperion.torch import TorchModelLoader as TML
+
+# from hyperion.torch import TorchModelLoader as TML
+from hyperion.torch import TorchModel
 from hyperion.torch.utils import open_device
 from hyperion.utils import Utt2Info
 
@@ -59,7 +61,8 @@ def init_device(use_gpu):
 
 def load_model(model_path, device):
     logging.info("loading model {}".format(model_path))
-    model = TML.load(model_path)
+    # model = TML.load(model_path)
+    model = TorchModel.auto_load(model_path)
     logging.info("xvector-model={}".format(model))
     model.to(device)
     model.eval()

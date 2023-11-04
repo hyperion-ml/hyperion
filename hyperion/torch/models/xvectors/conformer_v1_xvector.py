@@ -5,10 +5,9 @@
 
 import logging
 
-from jsonargparse import ActionParser, ArgumentParser
-
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ArgumentParser
 
 from ...narchs import ConformerEncoderV1 as Encoder
 from .xvector import XVector
@@ -40,8 +39,13 @@ class ConformerV1XVector(XVector):
         proj_feats=None,
     ):
         if isinstance(encoder, dict):
-            logging.info("making %s conformer encoder network")
+            logging.info(f"making conformer encoder network={encoder}")
+            encoder["in_time_dim"] = 2
+            encoder["out_time_dim"] = 2
             encoder = Encoder(**encoder)
+        else:
+            encoder.in_time_dim = 2
+            encoder.out_time_dim = 2
 
         super().__init__(
             encoder,
@@ -75,7 +79,7 @@ class ConformerV1XVector(XVector):
         encoder_cfg = self.encoder_net.get_config()
         del encoder_cfg["class_name"]
         config = {
-            "resnet_enc": encoder_cfg,
+            "encoder": encoder_cfg,
         }
 
         config.update(base_config)

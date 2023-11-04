@@ -4,7 +4,7 @@
 """
 import torch
 import torch.nn as nn
-from jsonargparse import ActionParser, ArgumentParser
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ..utils import seq_lengths_to_mask
 
@@ -225,16 +225,16 @@ class MeanVarianceNorm(nn.Module):
             parser = ArgumentParser(prog="")
 
         parser.add_argument(
-            "--no-norm-mean",
-            default=False,
-            action="store_true",
-            help="don't center the features",
+            "--norm-mean",
+            default=True,
+            action=ActionYesNo,
+            help="center the features",
         )
 
         parser.add_argument(
             "--norm-var",
             default=False,
-            action="store_true",
+            action=ActionYesNo,
             help="normalize the variance of the features",
         )
 

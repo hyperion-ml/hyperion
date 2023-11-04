@@ -9,6 +9,7 @@ import torch
 import torch.nn as nn
 from jsonargparse import ActionParser, ArgumentParser
 
+from ...narchs import FeatFuserMVN
 from ...tpm import HFWavLM
 from ..xvectors import ConformerV1XVector
 from .hf_wav2xvector import HFWav2XVector
@@ -31,9 +32,9 @@ class HFWavLM2ConformerV1XVector(HFWav2XVector):
     def __init__(
         self,
         hf_feats: Union[Dict, HFWavLM],
+        feat_fuser: Union[Dict, FeatFuserMVN],
         xvector: Union[Dict, ConformerV1XVector],
         feat_fusion_start: int = 0,
-        feat_fusion_method: str = "weighted-avg",
     ):
         if isinstance(hf_feats, dict):
             hf_feats = HFWavLM(**hf_feats)
@@ -41,13 +42,13 @@ class HFWavLM2ConformerV1XVector(HFWav2XVector):
             assert isinstance(hf_feats, HFWavLM)
 
         if isinstance(xvector, dict):
-            xvector["resnet_enc"]["in_feats"] = hf_feats.hidden_size
+            xvector["encoder"]["in_feats"] = hf_feats.hidden_size
             xvector = ConformerV1XVector(**xvector)
         else:
             assert isinstance(xvector, ConformerV1XVector)
             assert xvector.encoder_net.in_feats == hf_feats.hidden_size
 
-        super().__init__(hf_feats, xvector, feat_fusion_start, feat_fusion_method)
+        super().__init__(hf_feats, feat_fuser, xvector, feat_fusion_start)
 
     @staticmethod
     def filter_args(**kwargs):

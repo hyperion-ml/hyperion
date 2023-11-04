@@ -208,7 +208,42 @@ class TorchModel(nn.Module):
         return next(iter(devices))
 
     @staticmethod
-    def _fix_cfg_compatibility(class_obj, cfg):
+    def _remove_module_prefix(state_dict):
+        import re
+
+        p = re.compile("^(module\.)+")
+        if p.match(list(state_dict.keys())[0]) is not None:
+            state_dict = ODict((p.sub("", k), v) for k, v in state_dict.items())
+
+        return state_dict
+
+    @staticmethod
+    def _fix_xvector_cfg(cfg):
+        # We renamed AM-softmax scale parameer s to cos_scale
+        if "s" in cfg:
+            cfg["cos_scale"] = cfg.pop("s")
+
+        return cfg
+
+    @staticmethod
+    def _fix_hf_wav2xvector(cfg, state_dict):
+        key = "feat_fusion_method"
+        if key in cfg:
+            fuser_type = cfg.pop(key)
+            feat_fuser = {
+                "feat_fuser": {"fuser_type": fuser_type},
+                "mvn": None,
+                "spec_augment": None,
+            }
+            cfg["feat_fuser"] = feat_fuser
+            state_dict["feat_fuser.feat_fuser.feat_fuser"] = state_dict.pop(
+                "feat_fuser"
+            )
+
+        return cfg, state_dict
+
+    @staticmethod
+    def _fix_model_compatibility(class_obj, cfg, state_dict):
         """Function that fixed compatibility issues with deprecated models
 
         Args:
@@ -221,12 +256,14 @@ class TorchModel(nn.Module):
         # for compatibility with older x-vector models
         XVector = TorchModel.registry["XVector"]
         if issubclass(class_obj, XVector):
-            # We renamed AM-softmax scale parameer s to cos_scale
-            if "s" in cfg:
-                cfg["cos_scale"] = cfg["s"]
-                del cfg["s"]
+            cfg = TorchModel._fix_xvector_cfg(cfg)
 
-        return cfg
+        # switch old feature fuser to new feature fuser in w2v x-vectors
+        HFWav2XVector = TorchModel.registry["HFWav2XVector"]
+        if issubclass(class_obj, HFWav2XVector):
+            cfg, state_dict = TorchModel._fix_hf_wav2xvector(cfg, state_dict)
+
+        return cfg, state_dict
 
     @staticmethod
     def _is_hf_path(file_path: Path):
@@ -316,19 +353,20 @@ class TorchModel(nn.Module):
         if "n_averaged" in state_dict:
             del state_dict["n_averaged"]
 
-        cfg = TorchModel._fix_cfg_compatibility(class_obj, cfg)
+        state_dict = TorchModel._remove_module_prefix(state_dict)
+        cfg, state_dict = TorchModel._fix_model_compatibility(
+            class_obj, cfg, state_dict
+        )
 
-        import re
-
-        p = re.compile("^module\.")
-        num_tries = 3
-        for tries in range(num_tries):
-            try:
-                return class_obj.load(cfg=cfg, state_dict=state_dict)
-            except RuntimeError as err:
-                # remove module prefix when is trained with dataparallel
-                if tries == num_tries - 1:
-                    # if it failed the 3 trials raise exception
-                    raise err
-                # remove module prefix when is trained with dataparallel
-                state_dict = ODict((p.sub("", k), v) for k, v in state_dict.items())
+        return class_obj.load(cfg=cfg, state_dict=state_dict)
+        # num_tries = 3
+        # for tries in range(num_tries):
+        #     try:
+        #         return class_obj.load(cfg=cfg, state_dict=state_dict)
+        #     except RuntimeError as err:
+        #         # remove module prefix when is trained with dataparallel
+        #         if tries == num_tries - 1:
+        #             # if it failed the 3 trials raise exception
+        #             raise err
+        #         # remove module prefix when is trained with dataparallel
+        #         state_dict = ODict((p.sub("", k), v) for k, v in state_dict.items())

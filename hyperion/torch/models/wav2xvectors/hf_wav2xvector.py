@@ -9,7 +9,7 @@ import torch
 import torch.nn as nn
 from jsonargparse import ActionParser, ArgumentParser
 
-from ...layers import MeanVarianceNorm
+from ...narchs import FeatFuserMVN
 from ...torch_model import TorchModel
 from ...utils import remove_silence
 
@@ -19,25 +19,38 @@ class HFWav2XVector(TorchModel):
 
     Attributes:
        hf_feats: hugging face model wrapper object.
+       feat_fuser: Dictionary to build feature fuser object.
        xvector: x-vector model object.
        feat_fusion_start: the input to x-vector model will fuse the wav2vec layers from "feat_fusion_start" to
                           the wav2vec "num_layers".
        feat_fusion_method: method to fuse the hidden layers from the wav2vec model, when more
-                           than one layer is used.
+                           than one layer is used (deprecated).
     """
 
     def __init__(
-        self, hf_feats, xvector, feat_fusion_start=0, feat_fusion_method="weighted-avg"
+        self,
+        hf_feats,
+        feat_fuser,
+        xvector,
+        feat_fusion_start=0,
+        # feat_fusion_method="weighted-avg",
     ):
         super().__init__()
         self.hf_feats = hf_feats
         self.xvector = xvector
         self.feat_fusion_start = feat_fusion_start
-        self.feat_fusion_method = feat_fusion_method
+        # self.feat_fusion_method = feat_fusion_method
         self._hf_context = contextlib.nullcontext()
-        self._make_fuser()
+        self._make_fuser(feat_fuser)
 
-    def _make_fuser(self):
+    def _make_fuser(self, feat_fuser):
+        num_feats = self.hf_feats.num_encoder_layers + 1 - self.feat_fusion_start
+        feat_dim = self.hf_feats.hidden_size
+        feat_fuser["feat_fuser"]["num_feats"] = num_feats
+        feat_fuser["feat_fuser"]["feat_dim"] = feat_dim
+        self.feat_fuser = FeatFuserMVN(**feat_fuser)
+
+    def _make_fuser_legacy(self):
         if self.feat_fusion_method == "last":
             self.feat_fuser = None
             return
@@ -52,7 +65,7 @@ class HFWav2XVector(TorchModel):
         elif self.feat_fusion_method == "cat":
             self.feat_fuser = nn.Linear(num_layers * layer_dim, layer_dim, bias=False)
 
-    def _fuse_hid_feats(self, hid_feats):
+    def _fuse_hid_feats_legacy(self, hid_feats):
         """Fuses the hidden features from the Wav2Vec model.
 
         Args:
@@ -120,6 +133,44 @@ class HFWav2XVector(TorchModel):
         )
 
     def forward_feats(
+        self, x, x_lengths, return_feat_layers=None, chunk_length=0, detach_chunks=False
+    ):
+        return_hid_states = (
+            False
+            if return_feat_layers is None and self.feat_fuser.fuser_type == "last"
+            else True
+        )
+        with self._hf_context:
+            hf_output = self.hf_feats(
+                x,
+                x_lengths,
+                return_hid_states=return_hid_states,
+                chunk_length=chunk_length,
+                detach_chunks=detach_chunks,
+            )
+        feat_lengths = hf_output["hidden_states_lengths"]
+        if return_hid_states:
+            hid_feats = hf_output["hidden_states"]
+            hid_feats = hid_feats[self.feat_fusion_start :]
+        else:
+            hid_feats = [hf_output["last_hidden_state"]]
+
+        feats, feat_lengths = self.feat_fuser(hid_feats, feat_lengths)
+        feats = feats.transpose(1, 2)
+        if return_feat_layers is not None:
+            # add hidden feats from wav2vec to the output. We transpose to be (batch, C, time)
+            # as the hidden features of the x-vector encoder.
+            hid_feats = [
+                f.transpose(1, 2)
+                for i, f in enumerate(hid_feats)
+                if i in return_feat_layers
+            ]
+        else:
+            hid_feats = None
+
+        return feats, hid_feats, feat_lengths
+
+    def forward_feats_legacy(
         self, x, x_lengths, return_feat_layers=None, chunk_length=0, detach_chunks=False
     ):
         return_hid_states = (
@@ -360,23 +411,27 @@ class HFWav2XVector(TorchModel):
     def filter_args(**kwargs):
         valid_args = (
             "hf_feats",
+            "feat_fuser",
             "xvector",
             "feat_fusion_start",
-            "feat_fusion_method",
+            # "feat_fusion_method",
         )
         args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
         return args
 
     def get_config(self):
         hf_cfg = self.hf_feats.get_config()
+        fuser_cfg = self.feat_fuser.get_config()
         xvec_cfg = self.xvector.get_config()
         del hf_cfg["class_name"]
+        del fuser_cfg["class_name"]
         del xvec_cfg["class_name"]
         config = {
             "hf_feats": hf_cfg,
+            "feat_fuser": fuser_cfg,
             "xvector": xvec_cfg,
             "feat_fusion_start": self.feat_fusion_start,
-            "feat_fusion_method": self.feat_fusion_method,
+            # "feat_fusion_method": self.feat_fusion_method,
         }
 
         base_config = super().get_config()
@@ -393,6 +448,8 @@ class HFWav2XVector(TorchModel):
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
+        FeatFuserMVN.add_class_args(parser, prefix="feat_fuser")
+
         parser.add_argument(
             "--feat-fusion-start",
             default=0,
@@ -402,19 +459,15 @@ class HFWav2XVector(TorchModel):
                 "the wav2vec num_layers"
             ),
         )
-        parser.add_argument(
-            "--feat-fusion-method",
-            default="weighted-avg",
-            choices=["weighted-avg", "linear", "cat", "last"],
-            help=(
-                "method to fuse the hidden layers from the wav2vec model "
-                "in [weighted-avg, cat]"
-            ),
-        )
+        # parser.add_argument(
+        #     "--feat-fusion-method",
+        #     default="weighted-avg",
+        #     choices=["weighted-avg", "linear", "cat", "last"],
+        #     help=(
+        #         "method to fuse the hidden layers from the wav2vec model "
+        #         "in [weighted-avg, cat]"
+        #     ),
+        # )
 
         if prefix is not None:
-            outer_parser.add_argument(
-                "--" + prefix,
-                action=ActionParser(parser=parser),
-                help="xvector options",
-            )
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

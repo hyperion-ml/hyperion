@@ -2,7 +2,7 @@
  Copyright 2021 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 import torch
 import torch.nn as nn
@@ -21,9 +21,9 @@ class FeatFuserMVN(NetArch):
 
     def __init__(
         self,
-        feat_fuser: Dict[str],
-        mvn: Optional[Dict[str]] = None,
-        spec_augment: Optional[Dict[str]] = None,
+        feat_fuser: Dict[str, Any],
+        mvn: Optional[Dict[str, Any]] = None,
+        spec_augment: Optional[Dict[str, Any]] = None,
         trans: bool = False,
         aug_after_mvn: bool = False,
     ):
@@ -56,6 +56,10 @@ class FeatFuserMVN(NetArch):
         self.trans = trans
         self.aug_after_mvn = aug_after_mvn
 
+    @property
+    def fuser_type(self):
+        return self.feat_fuser_cfg["fuser_type"]
+
     def forward(self, feats, feats_lengths=None):
         feats = self.feat_fuser(feats)
         if self.spec_augment is not None and not self.aug_after_mvn:
@@ -74,7 +78,7 @@ class FeatFuserMVN(NetArch):
 
     def get_config(self):
         config = {
-            "feat_fuser": self.feat_feats_cfg,
+            "feat_fuser": self.feat_fuser_cfg,
             "mvn": self.mvn_cfg,
             "spec_augment": self.spec_augment_cfg,
             "trans": self.trans,

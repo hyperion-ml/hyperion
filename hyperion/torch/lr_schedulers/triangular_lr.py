@@ -61,6 +61,12 @@ class TriangularLR(LRScheduler):
         self.num_restarts = num_restarts
         self.gamma = gamma
 
+    def load_state_dict(self, state_dict):
+        # we want to be able to change gamma and T_mul in the middle of training
+        del state_dict["gamma"]
+        del state_dict["T_mul"]
+        super().load_state_dict(state_dict)
+
     def on_epoch_begin(self, epoch=None, epoch_updates=1, **kwargs):
         super().on_epoch_begin(epoch)
         if self.update_lr_on_opt_step:
