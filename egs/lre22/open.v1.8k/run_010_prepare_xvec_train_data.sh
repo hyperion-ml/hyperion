@@ -77,15 +77,17 @@ if [ $stage -le 5 ]; then
   done
 fi
 
-if [ $stage -le 6 ]; then
-  awk 'BEGIN{
-adapt_langs_list="ara-acm ara-aeb ara-apc ara-arq ara-ary ara-arz ara-ayl ara-jor ara-ksa ara-kuw ara-leb ara-mau ara-mor ara-oma ara-pal ara-qat ara-sud ara-syr ara-uae ara-yem fra-can fra-fra fra-ntf eng-ens eng-gbr eng-iaf eng-ine eng-usg eng-zho afr-afr nbl-nbl orm-orm tir-tir tso-tso ven-ven xho-xho zul-zul";
-nf=split(adapt_langs_list, f, " "); 
-for(i=1;i<=nf;i++){ adapt_langs[f[i]]=1;};
-FS=","; OFS=",";
-getline; print $0;
-}
-{ if ($1 in adapt_langs) { $3="1."} else{ $3="0.01"}; print $0}' \
-      data/open_proc_audio_no_sil/train_val_split/class_file.csv > \
-      data/open_proc_audio_no_sil/train_val_split/class_file_adapt_1.csv
-fi
+exit
+
+# if [ $stage -le 6 ]; then
+#   awk 'BEGIN{
+# adapt_langs_list="ara-acm ara-aeb ara-apc ara-arq ara-ary ara-arz ara-ayl ara-jor ara-ksa ara-kuw ara-leb ara-mau ara-mor ara-oma ara-pal ara-qat ara-sud ara-syr ara-uae ara-yem fra-can fra-fra fra-ntf eng-ens eng-gbr eng-iaf eng-ine eng-usg eng-zho afr-afr nbl-nbl orm-orm tir-tir tso-tso ven-ven xho-xho zul-zul";
+# nf=split(adapt_langs_list, f, " "); 
+# for(i=1;i<=nf;i++){ adapt_langs[f[i]]=1;};
+# FS=","; OFS=",";
+# getline; print $0;
+# }
+# { if ($1 in adapt_langs) { $3="1."} else{ $3="0.01"}; print $0}' \
+#       data/open_proc_audio_no_sil/train_val_split/class_file.csv > \
+#       data/open_proc_audio_no_sil/train_val_split/class_file_adapt_1.csv
+# fi
