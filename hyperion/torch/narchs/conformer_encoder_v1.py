@@ -3,13 +3,13 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
-
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ...utils.misc import filter_func_args
 from ..layer_blocks import ConformerEncoderBlockV1 as EBlock
+from ..layer_blocks import TransformerConv1dSubsampler as Conv1dSubsampler
 from ..layer_blocks import TransformerConv2dSubsampler as Conv2dSubsampler
 from ..layers import ActivationFactory as AF
 from ..layers import ConvPosEncoder, NoPosEncoder
@@ -90,6 +90,7 @@ class ConformerEncoderV1(NetArch):
         pos_dropout_rate=0.1,
         att_dropout_rate=0.0,
         in_layer_type="conv2d-sub",
+        in_stride=4,
         pos_enc_type="rel",
         causal_pos_enc=False,
         pos_kernel_size=128,
@@ -104,7 +105,6 @@ class ConformerEncoderV1(NetArch):
         in_time_dim=1,
         out_time_dim=1,
     ):
-
         super().__init__()
         self.in_feats = in_feats
         self.d_model = d_model
@@ -115,11 +115,14 @@ class ConformerEncoderV1(NetArch):
         self.att_context = att_context
 
         self.conv_repeats = self._standarize_cblocks_param(
-            conv_repeats, num_blocks, "conv_repeats")
+            conv_repeats, num_blocks, "conv_repeats"
+        )
         self.conv_kernel_sizes = self._standarize_cblocks_param(
-            conv_kernel_sizes, num_blocks, "conv_kernel_sizes")
+            conv_kernel_sizes, num_blocks, "conv_kernel_sizes"
+        )
         self.conv_strides = self._standarize_cblocks_param(
-            conv_strides, num_blocks, "conv_strides")
+            conv_strides, num_blocks, "conv_strides"
+        )
 
         self.ff_type = ff_type
         self.d_ff = d_ff
@@ -130,6 +133,7 @@ class ConformerEncoderV1(NetArch):
         self.att_dropout_rate = att_dropout_rate
         self.pos_dropout_rate = pos_dropout_rate
         self.in_layer_type = in_layer_type
+        self.in_stride = in_stride
         self.se_r = se_r
         self.ff_macaron = ff_macaron
         self.red_lnorms = red_lnorms
@@ -173,7 +177,8 @@ class ConformerEncoderV1(NetArch):
                     ff_macaron=ff_macaron,
                     out_lnorm=self.red_lnorms,
                     concat_after=concat_after,
-                ))
+                )
+            )
 
         self.blocks = nn.ModuleList(blocks)
         if not self.red_lnorms:
@@ -198,7 +203,6 @@ class ConformerEncoderV1(NetArch):
         return p
 
     def _make_in_layer(self):
-
         in_feats = self.in_feats
         d_model = self.d_model
         dropout_rate = self.dropout_rate
@@ -209,8 +213,9 @@ class ConformerEncoderV1(NetArch):
         elif self.pos_enc_type == "abs":
             pos_enc = PosEncoder(d_model, self.pos_dropout_rate)
         elif self.pos_enc_type == "conv":
-            pos_enc = ConvPosEncoder(d_model, self.pos_kernel_size,
-                                     self.pos_num_groups, self.hid_act)
+            pos_enc = ConvPosEncoder(
+                d_model, self.pos_kernel_size, self.pos_num_groups, self.hid_act
+            )
         else:
             raise Exception("wrong pos-enc-type={}".format(self.pos_enc_type))
 
@@ -225,28 +230,53 @@ class ConformerEncoderV1(NetArch):
                 pos_enc,
             )
         elif self.in_layer_type == "conv2d-sub":
-            self.in_layer = Conv2dSubsampler(in_feats,
-                                             d_model,
-                                             hid_act,
-                                             pos_enc,
-                                             time_dim=self.in_time_dim)
+            self.in_layer = Conv2dSubsampler(
+                in_feats,
+                d_model,
+                hid_act,
+                self.in_stride,
+                pos_enc,
+                time_dim=self.in_time_dim,
+            )
+        elif self.in_layer_type == "conv1d-sub":
+            self.in_layer = Conv1dSubsampler(
+                in_feats,
+                d_model,
+                hid_act,
+                self.in_stride,
+                pos_enc,
+                time_dim=self.in_time_dim,
+            )
         elif self.in_layer_type == "embed":
             self.in_layer = nn.Sequential(
-                nn.Embedding(in_feats, d_model, padding_idx=self.padding_idx),
-                pos_enc)
+                nn.Embedding(in_feats, d_model, padding_idx=self.padding_idx), pos_enc
+            )
         elif isinstance(self.in_layer_type, nn.Module):
             self.in_layer = nn.Sequential(self.in_layer_type, pos_enc)
         elif self.in_layer_type is None:
             self.in_layer = pos_enc
         else:
-            raise ValueError("unknown in_layer_type: " + self.in_layer_type)
+            raise ValueError(f"unknown in_layer_type: {self.in_layer_type}")
 
-    def forward(self,
-                x,
-                x_lengths=None,
-                x_mask=None,
-                return_mask=False,
-                target_shape=None):
+    def _make_masks(self, max_in_length, x_lengths=None, x_mask=None):
+        if x_mask is None and x_lengths is not None:
+            x_mask = seq_lengths_to_mask(x_lengths, max_in_length, time_dim=1)
+
+        return x_mask
+
+    def _forward_input(self, x, x_mask):
+        if isinstance(self.in_layer, (Conv2dSubsampler, Conv1dSubsampler)):
+            x, x_mask = self.in_layer(x, x_mask)
+        else:
+            if self.in_time_dim != 1:
+                x = x.transpose(1, self.in_time_dim).contiguous()
+            x = self.in_layer(x)
+
+        return x, x_mask
+
+    def forward(
+        self, x, x_lengths=None, x_mask=None, return_mask=False, target_shape=None
+    ):
         """Forward pass function
 
         Args:
@@ -263,16 +293,8 @@ class ConformerEncoderV1(NetArch):
            Tensor with mask if return_mask is True
         """
         max_in_length = x.size(self.in_time_dim)
-        if x_mask is None and x_lengths is not None:
-            x_mask = seq_lengths_to_mask(x_lengths, max_in_length, time_dim=1)
-
-        if isinstance(self.in_layer, Conv2dSubsampler):
-            x, x_mask = self.in_layer(x, x_mask)
-        else:
-            if self.in_time_dim != 1:
-                x = x.transpose(1, self.in_time_dim).contiguous()
-            x = self.in_layer(x)
-
+        x_mask = self._make_masks(x, x_lengths, x_mask)
+        x, x_mask = self._forward_input(x, x_mask)
         if isinstance(x, tuple):
             x, pos_emb = x
             b_args = {"pos_emb": pos_emb}
@@ -318,6 +340,7 @@ class ConformerEncoderV1(NetArch):
             "att_dropout_rate": self.att_dropout_rate,
             "pos_dropout_rate": self.pos_dropout_rate,
             "in_layer_type": self.in_layer_type,
+            "in_stride": self.in_stride,
             "pos_enc_type": self.pos_enc_type,
             "causal_pos_enc": self.causal_pos_enc,
             "pos_kernel_size": self.pos_kernel_size,
@@ -382,7 +405,7 @@ class ConformerEncoderV1(NetArch):
 
     @staticmethod
     def filter_args(**kwargs):
-        """Filters arguments correspondin to TransformerXVector
+        """Filters arguments correspondin to Conformer Encoder
             from args dictionary
 
         Args:
@@ -407,20 +430,17 @@ class ConformerEncoderV1(NetArch):
             parser = ArgumentParser(prog="")
 
         if "in_feats" not in skip:
-            parser.add_argument("--in-feats",
-                                type=int,
-                                default=80,
-                                help=("input feature dimension"))
+            parser.add_argument(
+                "--in-feats", type=int, default=80, help=("input feature dimension")
+            )
 
-        parser.add_argument("--num-blocks",
-                            default=6,
-                            type=int,
-                            help=("number of tranformer blocks"))
+        parser.add_argument(
+            "--num-blocks", default=6, type=int, help=("number of tranformer blocks")
+        )
 
-        parser.add_argument("--d-model",
-                            default=512,
-                            type=int,
-                            help=("encoder layer sizes"))
+        parser.add_argument(
+            "--d-model", default=512, type=int, help=("encoder layer sizes")
+        )
 
         parser.add_argument(
             "--num-heads",
@@ -433,8 +453,9 @@ class ConformerEncoderV1(NetArch):
             "--att-type",
             default="scaled-dot-prod-v1",
             choices=[
-                "scaled-dot-prod-v1", "local-scaled-dot-prod-v1",
-                "block-scaled-dot-prod-v1"
+                "scaled-dot-prod-v1",
+                "local-scaled-dot-prod-v1",
+                "block-scaled-dot-prod-v1",
             ],
             help=("type of self-attention"),
         )
@@ -459,9 +480,7 @@ class ConformerEncoderV1(NetArch):
             default=[31],
             nargs="+",
             type=int,
-            help=(
-                "kernels sizes for the depth-wise convs of each conformer block"
-            ),
+            help=("kernels sizes for the depth-wise convs of each conformer block"),
         )
 
         parser.add_argument(
@@ -493,9 +512,7 @@ class ConformerEncoderV1(NetArch):
             help=("kernel size in convolutional feed forward block"),
         )
 
-        parser.add_argument("--hid-act",
-                            default="swish",
-                            help="hidden activation")
+        parser.add_argument("--hid-act", default="swish", help="hidden activation")
 
         parser.add_argument(
             "--pos-dropout-rate",
@@ -503,20 +520,26 @@ class ConformerEncoderV1(NetArch):
             type=float,
             help="positional encoder dropout",
         )
-        parser.add_argument("--att-dropout-rate",
-                            default=0,
-                            type=float,
-                            help="self-att dropout")
-        parser.add_argument("--dropout-rate",
-                            default=0.1,
-                            type=float,
-                            help="feed-forward layer dropout")
+        parser.add_argument(
+            "--att-dropout-rate", default=0, type=float, help="self-att dropout"
+        )
+        parser.add_argument(
+            "--dropout-rate", default=0.1, type=float, help="feed-forward layer dropout"
+        )
 
         parser.add_argument(
             "--in-layer-type",
             default="linear",
-            choices=["linear", "conv2d-sub"],
+            choices=["linear", "conv2d-sub", "conv1d-sub"],
             help=("type of input layer"),
+        )
+
+        parser.add_argument(
+            "--in-stride",
+            default=4,
+            type=int,
+            choices=[1, 2, 4],
+            help="stride of conformer input layer",
         )
 
         parser.add_argument(
@@ -530,8 +553,7 @@ class ConformerEncoderV1(NetArch):
             "--causal-pos-enc",
             default=False,
             action=ActionYesNo,
-            help=
-            "relative positional encodings are zero when attending to the future",
+            help="relative positional encodings are zero when attending to the future",
         )
         parser.add_argument(
             "--pos-kernel-size",
@@ -588,5 +610,4 @@ class ConformerEncoderV1(NetArch):
         )
 
         if prefix is not None:
-            outer_parser.add_argument("--" + prefix,
-                                      action=ActionParser(parser=parser))
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

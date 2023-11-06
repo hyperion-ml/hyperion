@@ -37,9 +37,9 @@ nnet_s3=$nnet_s3_dir/model_ep0004.pth
 
 # back-end
 do_plda=false
-do_snorm=true
-do_qmf=true
-do_voxsrc22=true
+#do_snorm=true
+#do_qmf=true
+#do_voxsrc22=true
 
 plda_aug_config=conf/reverb_noise_aug.yaml
 plda_num_augs=0

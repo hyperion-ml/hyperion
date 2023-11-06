@@ -81,7 +81,6 @@ class XVectorTrainerFromWav(XVectorTrainer):
         input_key="x",
         target_key="class_id",
     ):
-
         super_args = filter_func_args(super().__init__, locals())
         super().__init__(**super_args)
         self.feat_extractor = feat_extractor
@@ -131,12 +130,14 @@ class XVectorTrainerFromWav(XVectorTrainer):
 
             metric_acc.update(batch_metrics, batch_size)
             logs = metric_acc.metrics
-            logs["lr"] = self._get_lr()
+            lrs = self._get_lrs()
+            logs.update(lrs)
             self.loggers.on_batch_end(logs=logs, batch_size=batch_size)
 
         logs = metric_acc.metrics
         logs = ODict(("train_" + k, v) for k, v in logs.items())
-        logs["lr"] = self._get_lr()
+        lrs = self._get_lrs()
+        logs.update(lrs)
         return logs
 
     def validation_epoch(self, data_loader, swa_update_bn=False):

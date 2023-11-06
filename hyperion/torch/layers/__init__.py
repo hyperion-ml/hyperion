@@ -14,6 +14,13 @@ from .audio_feats import *
 from .audio_feats_factory import AudioFeatsFactory
 from .calibrators import LinBinCalibrator
 from .dropout import DropConnect1d, DropConnect2d, Dropout1d
+from .feat_fuser_factory import FeatFuserFactory
+from .feat_fusers import (
+    CatFeatFuser,
+    LastFeatFuser,
+    LinearFeatFuser,
+    WeightedAvgFeatFuser,
+)
 from .global_pool import *
 from .interpolate import Interpolate
 from .lora import LoRAFactory

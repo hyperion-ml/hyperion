@@ -2,7 +2,6 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-#
 
 import logging
 import math
@@ -158,7 +157,6 @@ class Wav2Win(nn.Module):
         raw_energy=True,
         return_log_energy=False,
     ):
-
         super().__init__()
         self.fs = fs
         self.frame_length = frame_length
@@ -211,7 +209,6 @@ class Wav2Win(nn.Module):
         return s
 
     def forward(self, x):
-
         # Add dither
         if self.dither != 0.0:
             n = torch.randn(x.shape, device=x.device)
@@ -308,13 +305,12 @@ class Wav2FFT(nn.Module):
         raw_energy=True,
         use_energy=True,
     ):
-
         super().__init__()
 
         N = int(math.floor(frame_length * fs / 1000))
         if N > fft_length:
             k = math.ceil(math.log(N) / math.log(2))
-            self.fft_length = int(2 ** k)
+            self.fft_length = int(2**k)
 
         self.wav2win = Wav2Win(
             fs,
@@ -432,7 +428,6 @@ class Wav2Spec(Wav2FFT):
         raw_energy=True,
         use_energy=True,
     ):
-
         super().__init__(
             fs,
             frame_length,
@@ -526,7 +521,6 @@ class Wav2LogSpec(Wav2FFT):
         raw_energy=True,
         use_energy=True,
     ):
-
         super().__init__(
             fs,
             frame_length,
@@ -634,7 +628,6 @@ class Wav2LogFilterBank(Wav2FFT):
         raw_energy=True,
         use_energy=True,
     ):
-
         super().__init__(
             fs,
             frame_length,
@@ -768,7 +761,6 @@ class Wav2MFCC(Wav2FFT):
         raw_energy=True,
         use_energy=True,
     ):
-
         super().__init__(
             fs,
             frame_length,
@@ -929,7 +921,6 @@ class Wav2KanBayashiLogFilterBank(Wav2LogFilterBank):
         snip_edges=False,
         center=True,
     ):
-
         super().__init__(
             fs=fs,
             frame_length=frame_length,
@@ -976,7 +967,6 @@ class Spec2LogFilterBank:
         num_filters=23,
         norm_filters=False,
     ):
-
         super().__init__()
         self.fs = fs
         self.fft_length = fft_length

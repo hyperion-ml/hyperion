@@ -2,14 +2,16 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+import logging
 from collections import OrderedDict as ODict
 from copy import deepcopy
-from enum import Enum
-from typing import Optional
 from pathlib import Path
+from typing import Callable, Dict, Optional, Union
 
 import torch
 import torch.nn as nn
+
+from ..utils.misc import PathLike
 
 
 class TorchModel(nn.Module):
@@ -45,6 +47,49 @@ class TorchModel(nn.Module):
             if not param.requires_grad:
                 yield param
 
+    def trainable_named_parameters(self, recurse: bool = True):
+        for name, param in self.named_parameters(recurse=recurse):
+            if param.requires_grad:
+                yield name, param
+
+    def non_trainable_named_parameters(self, recurse: bool = True):
+        for name, param in self.named_parameters(recurse=recurse):
+            if not param.requires_grad:
+                yield name, param
+
+    def parameter_summary(self, verbose: bool = False):
+        trainable_params = sum(p.numel() for p in self.trainable_parameters())
+        non_trainable_params = sum(p.numel() for p in self.non_trainable_parameters())
+        buffer_params = sum(p.numel() for p in self.buffers())
+        non_trainable_total = non_trainable_params + buffer_params
+        total_params = trainable_params + non_trainable_total
+        if verbose:
+            logging.info(
+                "total-params=%d, trainable-params=%d, non-trainable-params+buffers=%d, non-trainable-params=%d, buffer-params=%d",
+                total_params,
+                trainable_params,
+                non_trainable_total,
+                non_trainable_params,
+                buffer_params,
+            )
+        return (
+            total_params,
+            trainable_params,
+            non_trainable_total,
+            non_trainable_params,
+            buffer_params,
+        )
+
+    def print_parameter_list(self):
+        for n, p in self.trainable_named_parameters():
+            logging.info("trainable: %s", n)
+
+        for n, p in self.non_trainable_named_parameters():
+            logging.info("non_trainable: %s", n)
+
+        for n, p in self.named_buffers():
+            logging.info("buffers: %s", n)
+
     def has_param_groups(self):
         return False
 
@@ -65,7 +110,7 @@ class TorchModel(nn.Module):
             if isinstance(module, nn.modules.dropout._DropoutNd):
                 module.p = dropout_rate
             if isinstance(module, nn.RNNBase):
-                module.dropout = dropout
+                module.dropout = dropout_rate
 
         if hasattr(self, "dropout_rate"):
             assert dropout_rate == 0 or self.dropout_rate > 0
@@ -163,7 +208,42 @@ class TorchModel(nn.Module):
         return next(iter(devices))
 
     @staticmethod
-    def _fix_cfg_compatibility(class_obj, cfg):
+    def _remove_module_prefix(state_dict):
+        import re
+
+        p = re.compile("^(module\.)+")
+        if p.match(list(state_dict.keys())[0]) is not None:
+            state_dict = ODict((p.sub("", k), v) for k, v in state_dict.items())
+
+        return state_dict
+
+    @staticmethod
+    def _fix_xvector_cfg(cfg):
+        # We renamed AM-softmax scale parameer s to cos_scale
+        if "s" in cfg:
+            cfg["cos_scale"] = cfg.pop("s")
+
+        return cfg
+
+    @staticmethod
+    def _fix_hf_wav2xvector(cfg, state_dict):
+        key = "feat_fusion_method"
+        if key in cfg:
+            fuser_type = cfg.pop(key)
+            feat_fuser = {
+                "feat_fuser": {"fuser_type": fuser_type},
+                "mvn": None,
+                "spec_augment": None,
+            }
+            cfg["feat_fuser"] = feat_fuser
+            state_dict["feat_fuser.feat_fuser.feat_fuser"] = state_dict.pop(
+                "feat_fuser"
+            )
+
+        return cfg, state_dict
+
+    @staticmethod
+    def _fix_model_compatibility(class_obj, cfg, state_dict):
         """Function that fixed compatibility issues with deprecated models
 
         Args:
@@ -176,15 +256,83 @@ class TorchModel(nn.Module):
         # for compatibility with older x-vector models
         XVector = TorchModel.registry["XVector"]
         if issubclass(class_obj, XVector):
-            # We renamed AM-softmax scale parameer s to cos_scale
-            if "s" in cfg:
-                cfg["cos_scale"] = cfg["s"]
-                del cfg["s"]
+            cfg = TorchModel._fix_xvector_cfg(cfg)
 
-        return cfg
+        # switch old feature fuser to new feature fuser in w2v x-vectors
+        HFWav2XVector = TorchModel.registry["HFWav2XVector"]
+        if issubclass(class_obj, HFWav2XVector):
+            cfg, state_dict = TorchModel._fix_hf_wav2xvector(cfg, state_dict)
+
+        return cfg, state_dict
 
     @staticmethod
-    def auto_load(file_path, extra_objs={}, map_location=None):
+    def _is_hf_path(file_path: Path):
+        # hf path can have only 2 dir levels
+        return len(file_path.parents) == 2
+
+    @staticmethod
+    def _get_from_hf(
+        file_path: Path, cache_dir: PathLike = None, local_dir: PathLike = None
+    ):
+        from huggingface_hub import hf_hub_download
+
+        return hf_hub_download(
+            repo_id=file_path.parent,
+            filename=file_path.name,
+            cache_dir=cache_dir,
+            local_dir=local_dir,
+        )
+
+    @staticmethod
+    def _try_to_get_from_hf(
+        file_path: Path, cache_dir: PathLike = None, local_dir: PathLike = None
+    ):
+        if str(file_path)[:3] == "hf:":
+            # hf: prefix indicates to download from hub
+            file_path = Path(str(file_path)[3:])
+            assert TorchModel._is_hf_path(
+                file_path
+            ), f"{file_path} is not a valid HF path"
+            file_path = TorchModel._get_from_hf(
+                file_path, cache_dir=cache_dir, local_dir=local_dir
+            )
+            return Path(file_path)
+        elif not file_path.is_file():
+            # if no prefix but file not in local dir try to get it from hub
+            if not TorchModel._is_hf_path(file_path):
+                return file_path
+
+            try:
+                file_path = TorchModel._get_from_hf(file_path)
+                return Path(file_path)
+            except:
+                return file_path
+
+        else:
+            # file is local
+            return file_path
+
+    @staticmethod
+    def auto_load(
+        file_path: PathLike,
+        extra_objs: dict = {},
+        map_location: Optional[
+            Union[
+                Callable[[torch.Tensor, str], torch.Tensor],
+                torch.device,
+                str,
+                Dict[str, str],
+            ]
+        ] = None,
+        cache_dir: PathLike = None,
+        local_dir: PathLike = None,
+    ):
+        file_path = Path(file_path)
+        file_path = TorchModel._try_to_get_from_hf(
+            file_path, cache_dir=cache_dir, local_dir=local_dir
+        )
+
+        assert file_path.is_file(), f"TorchModel file: {file_path} not found"
 
         if map_location is None:
             map_location = torch.device("cpu")
@@ -193,7 +341,6 @@ class TorchModel(nn.Module):
         cfg = model_data["model_cfg"]
         class_name = cfg["class_name"]
         del cfg["class_name"]
-        print(TorchModel.registry)
         if class_name in TorchModel.registry:
             class_obj = TorchModel.registry[class_name]
         elif class_name in extra_objs:
@@ -206,19 +353,20 @@ class TorchModel(nn.Module):
         if "n_averaged" in state_dict:
             del state_dict["n_averaged"]
 
-        cfg = TorchModel._fix_cfg_compatibility(class_obj, cfg)
+        state_dict = TorchModel._remove_module_prefix(state_dict)
+        cfg, state_dict = TorchModel._fix_model_compatibility(
+            class_obj, cfg, state_dict
+        )
 
-        import re
-
-        p = re.compile("^module\.")
-        num_tries = 3
-        for tries in range(num_tries):
-            try:
-                return class_obj.load(cfg=cfg, state_dict=state_dict)
-            except RuntimeError as err:
-                # remove module prefix when is trained with dataparallel
-                if tries == num_tries - 1:
-                    # if it failed the 3 trials raise exception
-                    raise err
-                # remove module prefix when is trained with dataparallel
-                state_dict = ODict((p.sub("", k), v) for k, v in state_dict.items())
+        return class_obj.load(cfg=cfg, state_dict=state_dict)
+        # num_tries = 3
+        # for tries in range(num_tries):
+        #     try:
+        #         return class_obj.load(cfg=cfg, state_dict=state_dict)
+        #     except RuntimeError as err:
+        #         # remove module prefix when is trained with dataparallel
+        #         if tries == num_tries - 1:
+        #             # if it failed the 3 trials raise exception
+        #             raise err
+        #         # remove module prefix when is trained with dataparallel
+        #         state_dict = ODict((p.sub("", k), v) for k, v in state_dict.items())

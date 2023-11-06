@@ -283,46 +283,14 @@ class XVector(TorchModel):
         Returns:
           class logits tensor with shape=(batch, num_classes).
         """
-        f = x
         max_in_length = x.size(-1)
         x = self._pre_enc(x)
         x = self.encoder_net(x)
+        if isinstance(x, tuple):
+            x = x[0]
         x, x_lengths = self._post_enc(x, x_lengths, max_in_length)
         p = self.pool_net(x, x_lengths=x_lengths)
         y = self.classif_net(p, y)
-        # if not self.training:
-        #     fnf = (
-        #         torch.any(torch.any(torch.logical_not(torch.isfinite(f)), dim=1), dim=1)
-        #         .sum()
-        #         .cpu()
-        #         .item()
-        #     )
-        #     xnf = (
-        #         torch.any(torch.any(torch.logical_not(torch.isfinite(x)), dim=1), dim=1)
-        #         .sum()
-        #         .cpu()
-        #         .item()
-        #     )
-        #     pnf = (
-        #         torch.any(torch.logical_not(torch.isfinite(p)), dim=1)
-        #         .sum()
-        #         .cpu()
-        #         .item()
-        #     )
-        #     ynf = (
-        #         torch.any(torch.logical_not(torch.isfinite(y)), dim=1)
-        #         .sum()
-        #         .cpu()
-        #         .item()
-        #     )
-        #     # if xnf + pnf + ynf > 0:
-        #     logging.warning("ff %d xnf %d pnf %d ynf %d", fnf, xnf, pnf, ynf)
-        #     if xnf > 0:
-        #         ii = torch.any(
-        #             torch.any(torch.logical_not(torch.isfinite(x)), dim=1), dim=1
-        #         )
-        #         xx = x[ii]
-        #         logging.info(f"xx={xx}")
 
         return y
 

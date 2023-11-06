@@ -14,11 +14,15 @@ from .wav2transducer import (
     HFWav2Vec2Transducer,
 )
 from .wav2xvectors import (
+    HFHubert2ConformerV1XVector,
     HFHubert2ResNet1dXVector,
+    HFWav2Vec2ConformerV1XVector,
     HFWav2Vec2ResNet1dXVector,
+    HFWavLM2ConformerV1XVector,
     HFWavLM2ResNet1dXVector,
-    Wav2ResNetXVector,
+    Wav2ConformerV1XVector,
     Wav2ResNet1dXVector,
+    Wav2ResNetXVector,
 )
 from .xvectors.efficient_net_xvector import EfficientNetXVector
 from .xvectors.resnet1d_xvector import ResNet1dXVector

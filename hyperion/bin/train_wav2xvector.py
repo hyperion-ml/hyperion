@@ -22,6 +22,7 @@ from hyperion.torch.data import SegSamplerFactory
 from hyperion.torch.metrics import CategoricalAccuracy
 
 # from hyperion.torch.models import EfficientNetXVector as EXVec
+from hyperion.torch.models import Wav2ConformerV1XVector as CXVec
 from hyperion.torch.models import Wav2ResNet1dXVector as R1dXVec
 from hyperion.torch.models import Wav2ResNetXVector as RXVec
 
@@ -34,6 +35,7 @@ from hyperion.torch.utils import ddp
 xvec_dict = {
     "resnet": RXVec,
     "resnet1d": R1dXVec,
+    "conformer": CXVec,
     # "efficientnet": EXVec,
     # "tdnn": TDXVec,
     # "transformer": TFXVec,

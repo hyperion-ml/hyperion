@@ -10,7 +10,7 @@ from typing import TypeVar
 
 import numpy as np
 
-PathLike = TypeVar("PathLike", str, Path, None)
+PathLike = TypeVar("PathLike", str, Path, type(None))
 
 
 def generate_data(g):
@@ -77,9 +77,8 @@ def energy_vad(P):
 
 
 def compute_snr(x, n, axis=-1):
-
-    P_x = 10 * np.log10(np.mean(x ** 2, axis=axis))
-    P_n = 10 * np.log10(np.mean(n ** 2, axis=axis))
+    P_x = 10 * np.log10(np.mean(x**2, axis=axis))
+    P_n = 10 * np.log10(np.mean(n**2, axis=axis))
     return P_x - P_n
 
 

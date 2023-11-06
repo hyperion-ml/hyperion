@@ -5,11 +5,11 @@
 import logging
 from typing import Dict, Optional, Union
 
-from jsonargparse import ActionParser, ArgumentParser
-
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ArgumentParser
 
+from ...narchs import FeatFuserMVN
 from ...tpm import HFHubert
 from ..xvectors import ResNet1dXVector
 from .hf_wav2xvector import HFWav2XVector
@@ -32,11 +32,10 @@ class HFHubert2ResNet1dXVector(HFWav2XVector):
     def __init__(
         self,
         hf_feats: Union[Dict, HFHubert],
+        feat_fuser: Union[Dict, FeatFuserMVN],
         xvector: Union[Dict, ResNet1dXVector],
         feat_fusion_start: int = 0,
-        feat_fusion_method: str = "weighted-avg",
     ):
-
         if isinstance(hf_feats, dict):
             hf_feats = HFHubert(**hf_feats)
         else:
@@ -49,7 +48,7 @@ class HFHubert2ResNet1dXVector(HFWav2XVector):
             assert isinstance(xvector, ResNet1dXVector)
             assert xvector.encoder_net.in_feats == hf_feats.hidden_size
 
-        super().__init__(hf_feats, xvector, feat_fusion_start, feat_fusion_method)
+        super().__init__(hf_feats, feat_fuser, xvector, feat_fusion_start)
 
     @staticmethod
     def filter_args(**kwargs):

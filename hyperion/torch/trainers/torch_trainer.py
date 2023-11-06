@@ -11,13 +11,12 @@ from collections import OrderedDict as ODict
 from enum import Enum
 from pathlib import Path
 
-from fairscale.optim.grad_scaler import ShardedGradScaler
-from jsonargparse import ActionParser, ArgumentParser
-
 import torch
 import torch.cuda.amp as amp
 import torch.distributed as dist
 import torch.nn as nn
+from fairscale.optim.grad_scaler import ShardedGradScaler
+from jsonargparse import ActionParser, ArgumentParser
 from torch.optim.swa_utils import SWALR, AveragedModel
 
 from ...utils.misc import filter_func_args
@@ -108,7 +107,6 @@ class TorchTrainer(object):
         input_key="x",
         target_key="class_id",
     ):
-
         self.model = model
         self.loss = loss
         self.epochs = epochs
@@ -139,6 +137,13 @@ class TorchTrainer(object):
         self.amp_args = {}
         self.input_key = input_key
         self.target_key = target_key
+        self.ddp = ddp
+        self.ddp_type = ddp_type
+        self.rank = 0
+        self.world_size = 1
+        if ddp:
+            self.rank = dist.get_rank()
+            self.world_size = dist.get_world_size()
 
         self.set_train_mode()
 
@@ -147,13 +152,7 @@ class TorchTrainer(object):
             if loss is not None:
                 self.loss.to(device)
 
-        self.ddp = ddp
-        self.ddp_type = ddp_type
-        self.rank = 0
-        self.world_size = 1
         if ddp:
-            self.rank = dist.get_rank()
-            self.world_size = dist.get_world_size()
             if ddp_type == DDPType.DDP or ddp_type == DDPType.OSS_DDP:
                 self.model = nn.SyncBatchNorm.convert_sync_batchnorm(self.model)
                 if self.rank == 0:
@@ -288,6 +287,9 @@ class TorchTrainer(object):
 
     def set_train_mode(self):
         self.model.set_train_mode(self.train_mode)
+        if self.rank == 0:
+            self.model.parameter_summary(verbose=True)
+            self.model.print_parameter_list()
 
     def train_epoch(self, data_loader):
         """Training epoch loop
@@ -465,6 +467,20 @@ class TorchTrainer(object):
         lrs = [param_group["lr"] for param_group in self.optimizer.param_groups]
         return max(lrs)
 
+    def _get_lrs(self):
+        """Returns the current learning rates of all param groups to show in the loggers"""
+        lrs = [param_group["lr"] for param_group in self.optimizer.param_groups]
+        all_eq = True
+        for lr in lrs:
+            if lr != lrs[0]:
+                all_eq = False
+                break
+
+        if all_eq:
+            return {"lr": lrs[0]}
+
+        return {f"lr_{i}": lr for i, lr in enumerate(lrs)}
+
     def _compute_grad_acc_steps(self, data_loader):
         if self.eff_batch_size is None:
             return
@@ -505,6 +521,7 @@ class TorchTrainer(object):
         Args:
           logs: logs containing the current value of the metrics.
         """
+        self.model.train()
         checkpoint = {
             "epoch": self.cur_epoch,
             "rng_state": torch.get_rng_state(),
@@ -545,6 +562,7 @@ class TorchTrainer(object):
 
         if self.rank != 0:
             return
+
         checkpoint = self.checkpoint(logs)
         file_path = "%s/model_ep%04d.pth" % (self.exp_path, self.cur_epoch)
 
@@ -630,31 +648,33 @@ class TorchTrainer(object):
         return None
 
     @staticmethod
+    def get_augs_keys(batch, base_key, skip={}):
+        keys = []
+        if base_key in batch and base_key not in skip:
+            keys.append(base_key)
+
+        aug_idx_1 = 0
+        while True:
+            aug_idx_2 = 0
+            while True:
+                aug_key = f"{base_key}_aug_{aug_idx_1}_{aug_idx_2}"
+                if aug_key in batch:
+                    if aug_key not in skip:
+                        keys.append(aug_key)
+                    aug_idx_2 += 1
+                else:
+                    break
+
+            if aug_idx_2 == 0:
+                break
+
+            aug_idx_1 += 1
+
+        return keys
+
+    @staticmethod
     def filter_args(**kwargs):
         args = filter_func_args(TorchTrainer.__init__, kwargs)
-
-        # valid_args = (
-        #     "grad_acc_steps",
-        #     "eff_batch_size",
-        #     "epochs",
-        #     "log_interval",
-        #     "use_amp",
-        #     "ddp_type",
-        #     "grad_clip",
-        #     "grad_clip_norm",
-        #     "swa_start",
-        #     "swa_lr",
-        #     "swa_anneal_epochs",
-        #     "exp_path",
-        #     "optim",
-        #     "lrsched",
-        #     "cpu_offload",
-        #     "use_tensorboard",
-        #     "use_wandb",
-        #     "wandb",
-        #     "train_mode",
-        # )
-        # args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
         return args
 
     @staticmethod

@@ -54,7 +54,6 @@ class TriangularLR(LRScheduler):
         step=0,
         update_lr_on_opt_step=False,
     ):
-
         super().__init__(optimizer, min_lr, 0, epoch, step, update_lr_on_opt_step)
         self.T = T
         self.T_mul = T_mul
@@ -62,13 +61,19 @@ class TriangularLR(LRScheduler):
         self.num_restarts = num_restarts
         self.gamma = gamma
 
+    def load_state_dict(self, state_dict):
+        # we want to be able to change gamma and T_mul in the middle of training
+        del state_dict["gamma"]
+        del state_dict["T_mul"]
+        super().load_state_dict(state_dict)
+
     def on_epoch_begin(self, epoch=None, epoch_updates=1, **kwargs):
         super().on_epoch_begin(epoch)
         if self.update_lr_on_opt_step:
             # T has to correspond to an integer number of epochs
             T = int(math.ceil(self.T / epoch_updates) * epoch_updates)
             if self.T != T:
-                logging.info("readjusting triangular_lr T %d -> %d" % (self.T, T))
+                logging.info("readjusting triangular_lr T %d -> %d", self.T, T)
                 self.T = T
 
     def get_lr(self, step):
@@ -80,10 +85,10 @@ class TriangularLR(LRScheduler):
             self.T *= self.T_mul
             self.num_restarts += 1
             logging.info(
-                "triangular_lr warm-restart=%d T=%d" % (self.num_restarts, self.T)
+                "triangular_lr warm-restart=%d T=%d", self.num_restarts, self.T
             )
 
-        alpha = self.gamma ** self.num_restarts
+        alpha = self.gamma**self.num_restarts
         x = abs(2 * x / self.T - 1)
 
         return [

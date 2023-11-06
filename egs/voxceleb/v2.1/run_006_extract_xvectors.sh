@@ -17,7 +17,7 @@ xvec_chunk_length=120.0
 . $config_file
 
 if [ "$use_gpu" == "true" ];then
-  xvec_args="--use-gpu true --xvec-chunk-length $xvec_chunk_length --hf-chunk-length $hf_chunk_length"
+  xvec_args="--use-gpu --xvec-chunk-length $xvec_chunk_length --hf-chunk-length $hf_chunk_length"
   xvec_cmd="$cuda_eval_cmd --gpu 1 --mem 6G"
   num_gpus=1
 else

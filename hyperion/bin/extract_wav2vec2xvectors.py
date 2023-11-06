@@ -25,7 +25,9 @@ from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialAudioReader as AR
 from hyperion.io import VADReaderFactory as VRF
 from hyperion.np.augment import SpeechAugment
-from hyperion.torch import TorchModelLoader as TML
+
+# from hyperion.torch import TorchModelLoader as TML
+from hyperion.torch import TorchModel
 from hyperion.torch.utils import open_device
 from hyperion.utils import Utt2Info
 
@@ -59,7 +61,8 @@ def init_device(use_gpu):
 
 def load_model(model_path, device):
     logging.info("loading model {}".format(model_path))
-    model = TML.load(model_path)
+    # model = TML.load(model_path)
+    model = TorchModel.auto_load(model_path)
     logging.info("xvector-model={}".format(model))
     model.to(device)
     model.eval()
@@ -139,10 +142,12 @@ def extract_xvectors(
         aug_df = None
         num_augs = 1
 
+    metadata_columns = ["speech_duration"]
+
     ar_args = AR.filter_args(**kwargs)
     ar_args["wav_scale"] = 1.0
     logging.info("opening output stream: %s", output_spec)
-    with DWF.create(output_spec) as writer:
+    with DWF.create(output_spec, metadata_columns=metadata_columns) as writer:
         logging.info(f"opening input stream: {recordings_file} with args={ar_args}")
         with AR(recordings_file, **ar_args) as reader:
             if vad_spec is not None:
@@ -168,6 +173,7 @@ def extract_xvectors(
 
                 logging.info("processing utt %s", key0)
                 for aug_id in range(num_augs):
+                    metadata = {}
                     t3 = time.time()
                     key, x = augment(key0, x0, augmenter, aug_df, aug_id)
                     t4 = time.time()
@@ -201,6 +207,8 @@ def extract_xvectors(
                                 key, x, fs, min_utt_length, max_utt_length, rng
                             )
 
+                        metadata["speech_duration"] = x.shape[1] / fs
+
                         t6 = time.time()
                         if x.shape[1] == 0:
                             y = np.zeros((model.embed_dim,), dtype=float_cpu())
@@ -217,7 +225,7 @@ def extract_xvectors(
                             )
 
                     t7 = time.time()
-                    writer.write([key], [y])
+                    writer.write([key], [y], metadata=metadata)
                     if write_speech_dur is not None:
                         keys.append(key)
                         info.append(str(x.shape[1] / fs))

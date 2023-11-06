@@ -20,6 +20,7 @@ from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
 from hyperion.torch.metrics import CategoricalAccuracy
+from hyperion.torch.models import ConformerV1XVector as CXVec
 from hyperion.torch.models import EfficientNetXVector as EXVec
 from hyperion.torch.models import ResNet1dXVector as R1dXVec
 from hyperion.torch.models import ResNetXVector as RXVec
@@ -37,6 +38,7 @@ xvec_dict = {
     "tdnn": TDXVec,
     "transformer": TFXVec,
     "spinenet": SpineXVec,
+    "conformer": CXVec,
 }
 
 

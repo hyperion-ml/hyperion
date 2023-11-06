@@ -60,5 +60,4 @@ trainer:
   log_interval: 1000
   epochs: 8
   eff_batch_size: 512
-  target_key: speaker
   train_mode: full
