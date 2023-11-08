@@ -13,14 +13,14 @@ nnet_data=open
 
 nnet_type=hf_wav2vec2resnet1d
 
-nnet_s1_base_cfg=conf/train_wav2vec2xlsr300m_ecapatdnn1024x3_stage1_v2.2.yaml
+nnet_s1_base_cfg=conf/train_wav2vec2xlsr300m_ecapatdnn1024x3_stage1_v1.0.yaml
 nnet_s1_args=""
 
-nnet_name=${hf_model_name}_ecapatdnn1024x3_v2.2
+nnet_name=${hf_model_name}_ecapatdnn1024x3_v1.0
 nnet_s1_name=$nnet_name.s1
 
 nnet_s1_dir=exp/xvector_nnets/$nnet_s1_name
-nnet_s1=$nnet_s1_dir/model_ep0011.pth
+nnet_s1=$nnet_s1_dir/model_ep0012.pth
 
 nnet_s2_base_cfg=conf/train_wav2vec2xlsr300m_ecapatdnn1024x3_stage2_v2.2.yaml
 nnet_s2_args=""

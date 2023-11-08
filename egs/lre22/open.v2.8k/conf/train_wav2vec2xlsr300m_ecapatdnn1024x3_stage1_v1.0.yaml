@@ -37,17 +37,16 @@ model: wav2vec2xlsr300m_ecapatdnn1024x3_subcenter.yaml
 trainer:
   optim:
     opt_type: sgd
-    lr: 0.45
+    lr: 0.4
     momentum: 0.9
     weight_decay: 4e-4
   lrsched:
     lrsch_type: exp_lr
     decay_rate: 0.5
-    #decay_steps: 4200
-    #hold_steps: 1500
     decay_steps: 16000
     hold_steps: 18000
-    min_lr: 4e-4
+    #min_lr: 4e-4
+    min_lr: 1e-6
     warmup_steps: 4000
     update_lr_on_opt_step: true
   use_amp: true
@@ -55,5 +54,3 @@ trainer:
   epochs: 12
   eff_batch_size: 1024
   train_mode: hf-feats-frozen-nograd
-
- 
