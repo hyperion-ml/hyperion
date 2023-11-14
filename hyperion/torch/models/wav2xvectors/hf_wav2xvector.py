@@ -50,49 +50,49 @@ class HFWav2XVector(TorchModel):
         feat_fuser["feat_fuser"]["feat_dim"] = feat_dim
         self.feat_fuser = FeatFuserMVN(**feat_fuser)
 
-    def _make_fuser_legacy(self):
-        if self.feat_fusion_method == "last":
-            self.feat_fuser = None
-            return
+    # def _make_fuser_legacy(self):
+    #     if self.feat_fusion_method == "last":
+    #         self.feat_fuser = None
+    #         return
 
-        num_layers = self.hf_feats.num_encoder_layers + 1 - self.feat_fusion_start
-        layer_dim = self.hf_feats.hidden_size
-        if self.feat_fusion_method == "weighted-avg":
-            self.feat_fuser = nn.Parameter(torch.zeros(num_layers))
-        elif self.feat_fusion_method == "linear":
-            self.feat_fuser = nn.Linear(num_layers, 1, bias=False)
-            self.feat_fuser.weight.data = torch.ones(1, num_layers) / num_layers
-        elif self.feat_fusion_method == "cat":
-            self.feat_fuser = nn.Linear(num_layers * layer_dim, layer_dim, bias=False)
+    #     num_layers = self.hf_feats.num_encoder_layers + 1 - self.feat_fusion_start
+    #     layer_dim = self.hf_feats.hidden_size
+    #     if self.feat_fusion_method == "weighted-avg":
+    #         self.feat_fuser = nn.Parameter(torch.zeros(num_layers))
+    #     elif self.feat_fusion_method == "linear":
+    #         self.feat_fuser = nn.Linear(num_layers, 1, bias=False)
+    #         self.feat_fuser.weight.data = torch.ones(1, num_layers) / num_layers
+    #     elif self.feat_fusion_method == "cat":
+    #         self.feat_fuser = nn.Linear(num_layers * layer_dim, layer_dim, bias=False)
 
-    def _fuse_hid_feats_legacy(self, hid_feats):
-        """Fuses the hidden features from the Wav2Vec model.
+    # def _fuse_hid_feats_legacy(self, hid_feats):
+    #     """Fuses the hidden features from the Wav2Vec model.
 
-        Args:
-          hid_feats: list of hidden features Tensors from Wav2Vec model.
+    #     Args:
+    #       hid_feats: list of hidden features Tensors from Wav2Vec model.
 
-        Returns:
-          Tensor of fused features (batch, channels, time)
-        """
-        if len(hid_feats) == 1:
-            # There is only one layer of features
-            return hid_feats[0]
+    #     Returns:
+    #       Tensor of fused features (batch, channels, time)
+    #     """
+    #     if len(hid_feats) == 1:
+    #         # There is only one layer of features
+    #         return hid_feats[0]
 
-        hid_feats = hid_feats[self.feat_fusion_start :]
-        if self.feat_fusion_method == "weighted-avg":
-            hid_feats = torch.stack(hid_feats, dim=-1)
-            norm_weights = nn.functional.softmax(self.feat_fuser, dim=-1)
-            feats = torch.sum(hid_feats * norm_weights, dim=-1)
-        elif self.feat_fusion_method == "linear":
-            hid_feats = torch.stack(hid_feats, dim=-1)
-            feats = self.feat_fuser(hid_feats).squeeze(dim=-1)
-        elif self.feat_fusion_method == "cat":
-            hid_feats = torch.cat(hid_feats, dim=-1)
-            feats = self.feat_fuser(hid_feats)
-        elif self.feat_fusion_method == "last":
-            feats = hid_feats[-1]
+    #     hid_feats = hid_feats[self.feat_fusion_start :]
+    #     if self.feat_fusion_method == "weighted-avg":
+    #         hid_feats = torch.stack(hid_feats, dim=-1)
+    #         norm_weights = nn.functional.softmax(self.feat_fuser, dim=-1)
+    #         feats = torch.sum(hid_feats * norm_weights, dim=-1)
+    #     elif self.feat_fusion_method == "linear":
+    #         hid_feats = torch.stack(hid_feats, dim=-1)
+    #         feats = self.feat_fuser(hid_feats).squeeze(dim=-1)
+    #     elif self.feat_fusion_method == "cat":
+    #         hid_feats = torch.cat(hid_feats, dim=-1)
+    #         feats = self.feat_fuser(hid_feats)
+    #     elif self.feat_fusion_method == "last":
+    #         feats = hid_feats[-1]
 
-        return feats
+    #     return feats
 
     @property
     def sample_frequency(self):
@@ -170,43 +170,43 @@ class HFWav2XVector(TorchModel):
 
         return feats, hid_feats, feat_lengths
 
-    def forward_feats_legacy(
-        self, x, x_lengths, return_feat_layers=None, chunk_length=0, detach_chunks=False
-    ):
-        return_hid_states = (
-            False
-            if return_feat_layers is None and self.feat_fusion_method == "last"
-            else True
-        )
-        with self._hf_context:
-            hf_output = self.hf_feats(
-                x,
-                x_lengths,
-                return_hid_states=return_hid_states,
-                chunk_length=chunk_length,
-                detach_chunks=detach_chunks,
-            )
-        feat_lengths = hf_output["hidden_states_lengths"]
-        if return_hid_states:
-            hid_feats = hf_output["hidden_states"]
-            feats = self._fuse_hid_feats(hid_feats)
-        else:
-            hid_feats = None
-            feats = hf_output["last_hidden_state"]
+    # def forward_feats_legacy(
+    #     self, x, x_lengths, return_feat_layers=None, chunk_length=0, detach_chunks=False
+    # ):
+    #     return_hid_states = (
+    #         False
+    #         if return_feat_layers is None and self.feat_fusion_method == "last"
+    #         else True
+    #     )
+    #     with self._hf_context:
+    #         hf_output = self.hf_feats(
+    #             x,
+    #             x_lengths,
+    #             return_hid_states=return_hid_states,
+    #             chunk_length=chunk_length,
+    #             detach_chunks=detach_chunks,
+    #         )
+    #     feat_lengths = hf_output["hidden_states_lengths"]
+    #     if return_hid_states:
+    #         hid_feats = hf_output["hidden_states"]
+    #         feats = self._fuse_hid_feats(hid_feats)
+    #     else:
+    #         hid_feats = None
+    #         feats = hf_output["last_hidden_state"]
 
-        feats = feats.transpose(1, 2)
-        if return_feat_layers is not None:
-            # add hidden feats from wav2vec to the output. We transpose to be (batch, C, time)
-            # as the hidden features of the x-vector encoder.
-            hid_feats = [
-                f.transpose(1, 2)
-                for i, f in enumerate(hid_feats)
-                if i in return_feat_layers
-            ]
-        else:
-            hid_feats = None
+    #     feats = feats.transpose(1, 2)
+    #     if return_feat_layers is not None:
+    #         # add hidden feats from wav2vec to the output. We transpose to be (batch, C, time)
+    #         # as the hidden features of the x-vector encoder.
+    #         hid_feats = [
+    #             f.transpose(1, 2)
+    #             for i, f in enumerate(hid_feats)
+    #             if i in return_feat_layers
+    #         ]
+    #     else:
+    #         hid_feats = None
 
-        return feats, hid_feats, feat_lengths
+    #     return feats, hid_feats, feat_lengths
 
     def forward(
         self,
@@ -289,15 +289,16 @@ class HFWav2XVector(TorchModel):
         )
 
     def freeze_feat_fuser(self):
-        if self.feat_fuser is None:
-            return
+        self.feat_fuser.freeze()
+        # if self.feat_fuser is None:
+        #     return
 
-        if self.feat_fusion_method == "weighted-avg":
-            self.feat_fuser.requires_grad = False
-            return
+        # if self.feat_fusion_method == "weighted-avg":
+        #     self.feat_fuser.requires_grad = False
+        #     return
 
-        for param in self.feat_fuser.parameters():
-            param.requires_grad = False
+        # for param in self.feat_fuser.parameters():
+        #     param.requires_grad = False
 
     def freeze_hf_feats(self):
         self.hf_feats.freeze()
@@ -316,11 +317,12 @@ class HFWav2XVector(TorchModel):
             return self.trainable_parameters()
 
         param_groups = self.hf_feats.trainable_param_groups()
-        if self.feat_fusion_method == "weighted-avg":
-            if self.feat_fuser.requires_grad:
-                param_groups.append({"params": self.feat_fuser})
-        else:
-            param_groups.append({"params": self.feat_fuser.parameters()})
+        param_groups.append({"params": self.feat_fuser.trainable_parameters()})
+        # if self.feat_fusion_method == "weighted-avg":
+        #     if self.feat_fuser.requires_grad:
+        #         param_groups.append({"params": self.feat_fuser})
+        # else:
+        #     param_groups.append({"params": self.feat_fuser.parameters()})
 
         param_groups.append({"params": self.xvector.trainable_parameters()})
         return param_groups
