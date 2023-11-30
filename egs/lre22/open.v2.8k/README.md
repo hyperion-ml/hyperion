@@ -1,6 +1,6 @@
-# LRE22 Open Condition V1
+# LRE22 Open Condition V2
 
-Recipe for the NIST LRE22 open condition based to the JHU-MIT Submission.
+Recipe for the NIST LRE22 open condition based to the JHU-MIT Submission, using Hugging Face Wav2Vec + x-vector model.
 
 ## Citing
 ```
@@ -38,12 +38,12 @@ Recipe for the NIST LRE22 open condition based to the JHU-MIT Submission.
 ## Usage
 
    - Run the run_0*.sh scripts in sequence
-   - By default it uses Res2Net50
+   - By default it uses Wav2Vec2 XLSR 300M
    - To change the default network run scripts with the config-file argument:
 ```bash
-run_011_train_xvector.sh --config-file global_conf/config_fbank64_stmn_fwseres2net50s8_v1.0.sh
-run_030_extract_xvectors.sh --config-file global_conf/config_fbank64_stmn_fwseres2net50s8_v1.0.sh --use-gpu true
-run_040_be_final.sh --config-file global_conf/config_fbank64_stmn_fwseres2net50s8_v1.0.sh
+run_011_train_xvector.sh --config-file global_conf/config_wav2vec2xlr300m_ecapatdnn1024x3_v1.0.sh
+run_030_extract_xvectors.sh --config-file global_conf/config_wav2vec2xlr300m_ecapatdnn1024x3_v1.0.sh --use-gpu true
+run_040_be_final.sh --config-file global_conf/config_wav2vec2xlr300m_ecapatdnn1024x3_v1.0.sh
 ```
 
 ## Results
@@ -53,3 +53,6 @@ run_040_be_final.sh --config-file global_conf/config_fbank64_stmn_fwseres2net50s
 | config_fbank64_stmn_ecapatdnn2048x4_v1.0.sh | ECAPA-TDNN 2048x4 | Stage-1 | GBE | 0.100 | 0.101 | 0.105 | 0.106 |
 | config_fbank64_stmn_fwseres2net50s8_v1.0.sh  | fw-SE Res2Net50 scale=8 | Stage-1 | GBE | 0.092 | 0.093 | 0.103 | 0.104 |
 | Fusion ECAPA-TDNN + FwSE Res2Net50 |  | | FoCal | 0.082 | 0.083 | 0.089 | 0.090 | 
+| config_wav2vec2xlr300m_ecapatdnn1024x3_v1.0.sh | Wav2VectXLR 300M + ECAPA-TDNN 1024x3 | Stage-1 | GBE | 0.088 | 0.089 | 0.106 | 0.107 |
+| " | " | Stage-2 | GBE | 0.083 | 0.085 | 0.089 | 0.090 |
+| Fusion ECAPA-TDNN + FwSE Res2Net50 + Wav2Vec2 |  | | FoCal | 0.069 | 0.072 | 0.076 | 0.077 |

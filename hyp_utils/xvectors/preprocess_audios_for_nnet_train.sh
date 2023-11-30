@@ -95,11 +95,10 @@ $cmd JOB=1:$nj $dir/log/preproc_audios_${name}.JOB.log \
     preprocess_audio_files.py ${args} --audio-format $file_format $args $proc_opts \
     --write-time-durs $output_dir/utt2dur.${name}.JOB \
     --part-idx JOB --num-parts $nj \
-    # --input $data_in/wav.scp \
     --recordings-file $data_in/wav.scp \
     --output-path $output_dir \
     --output-recordings-file $output_dir/wav.${name}.JOB.scp
-    #--output-script $output_dir/wav.${name}.JOB.scp
+
 
 for n in $(seq $nj); do
   cat $output_dir/wav.${name}.$n.scp || exit 1;

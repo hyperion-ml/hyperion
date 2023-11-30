@@ -63,7 +63,7 @@ elif [ "$(hostname --domain)" == "cm.gemini" ];then
   lre22_dev_root=$my_root/LDC2022E14_2022_NIST_Language_Recognition_Evaluation_Development_Data
   lre22_eval_root=$my_root/lre22_test_data_v2
   voxlingua_root=$my_root/voxlingua107
-  musan_root=/expscratch/dgromero/corpora/musan
+  musan_root=/export/common/data/corpora/MUSAN/musan
   babel_assamese_root=$ldc_root/LDC2016S06
   babel_bengali_root=$ldc_root/LDC2016S08
   babel_pashto_root=$ldc_root/LDC2016S09

@@ -31,7 +31,6 @@ fi
 if [ "$use_wandb" == "true" ];then
     extra_args="$extra_args --trainer.use-wandb --trainer.wandb.project lre22-fixed-v1.8k --trainer.wandb.name $nnet_s1_name.$(date -Iminutes)"
 fi
-
 if [ "$interactive" == "true" ];then
     export cuda_cmd=run.pl
 fi
@@ -50,7 +49,7 @@ if [ $stage -le 1 ]; then
 	    --data.val.dataset.recordings-file $list_dir/wav.scp \
 	    --data.val.dataset.segments-file $list_dir/train_val_split/val_segments.csv \
 	    --trainer.exp-path $nnet_s1_dir \
-	    --num-gpus $ngpu --master-port 3456
+	    --num-gpus $ngpu #--master-port 3456
     else
 	$cuda_cmd \
 	    --gpu $ngpu $nnet_s1_dir/log/train.log \

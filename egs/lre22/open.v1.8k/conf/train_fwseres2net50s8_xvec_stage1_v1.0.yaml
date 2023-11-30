@@ -50,7 +50,7 @@ model:
   margin: 0.0
   intertop_margin: 0.0
   margin_warmup_epochs: 3.0
-  dropout_rate: 0.0
+  dropout_rate: 0.05
   norm_before: false
   hid_act: swish
 trainer:

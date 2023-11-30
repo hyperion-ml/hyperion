@@ -8,10 +8,10 @@
 set -e
 
 stage=2
-nnet_stage=2
+nnet_stage=1
 config_file=default_config.sh
 use_gpu=false
-do_tsne=true
+do_tsne=false
 split_dev=false
 xvec_chunk_length=12800
 . parse_options.sh || exit 1;

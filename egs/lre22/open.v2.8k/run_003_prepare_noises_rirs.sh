@@ -23,7 +23,7 @@ if [ $stage -le 1 ]; then
     for name in musan_noise musan_music
     do
 	steps_xvec/preprocess_audios_for_nnet_train.sh --nj 10 --cmd "$train_cmd" \
-	    --storage_name lre22-fixed-v2.8k-$(date +'%m_%d_%H_%M') \
+	    --storage_name lre22-open-v2.8k-$(date +'%m_%d_%H_%M') \
 	    data/${name} data/${name}_proc_audio exp/${name}_proc_audio
 	utils/fix_data_dir.sh data/${name}_proc_audio
     done
@@ -36,7 +36,7 @@ if [ $stage -le 2 ]; then
     for name in musan_speech
     do
 	steps_xvec/make_babble_noise_for_nnet_train.sh --cmd "$train_cmd" \
-	    --storage_name lre22-fixed-v2.8k-$(date +'%m_%d_%H_%M') \
+	    --storage_name lre22-open-v2.8k-$(date +'%m_%d_%H_%M') \
 	    data/${name} data/${name}_babble exp/${name}_babble
 	# utils/fix_data_dir.sh data/${name}_babble
     done
@@ -44,8 +44,8 @@ fi
 
 if [ $stage -le 3 ]; then
     if [ ! -d "RIRS_NOISES" ]; then
-	if [ -d ../v1.8k/RIRS_NOISES ];then
-	    ln -s ../v1.8k/RIRS_NOISES
+	if [ -d ../fixed.v1.8k/RIRS_NOISES ];then
+	    ln -s ../fixed.v1.8k/RIRS_NOISES
 	else
 	    # Download the package that includes the real RIRs, simulated RIRs, isotropic noises and point-source noises
 	    wget --no-check-certificate http://www.openslr.org/resources/28/rirs_noises.zip
