@@ -17,8 +17,9 @@ from jsonargparse import (
 )
 
 from hyperion.hyp_defs import config_logger, set_float_cpu
-from hyperion.torch.data import AudioDataset as AD
+from hyperion.torch.data import DINOAudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
+from hyperion.torch.losses import DINOLoss
 from hyperion.torch.metrics import CategoricalAccuracy
 
 # from hyperion.torch.models import EfficientNetXVector as EXVec
@@ -29,7 +30,7 @@ from hyperion.torch.models import Wav2ResNetXVector as RXVec
 # from hyperion.torch.models import SpineNetXVector as SpineXVec
 # from hyperion.torch.models import TDNNXVector as TDXVec
 # from hyperion.torch.models import TransformerXVectorV1 as TFXVec
-from hyperion.torch.trainers import XVectorTrainer as Trainer
+from hyperion.torch.trainers import DINOXVectorTrainer as Trainer
 from hyperion.torch.utils import ddp
 
 xvec_dict = {
@@ -74,15 +75,38 @@ def init_data(partition, rank, num_gpus, **kwargs):
     return data_loader
 
 
-def init_xvector(num_classes, rank, xvec_class, **kwargs):
-    xvec_args = xvec_class.filter_args(**kwargs["model"])
+def init_student_xvector(num_classes, rank, xvec_class, **kwargs):
+    xvec_args = xvec_class.filter_args(**kwargs["student_model"])
     if rank == 0:
-        logging.info("xvector network args={}".format(xvec_args))
+        logging.info(f"student xvector network args={xvec_args}")
     xvec_args["xvector"]["num_classes"] = num_classes
     model = xvec_class(**xvec_args)
     if rank == 0:
-        logging.info("x-vector-model={}".format(model))
+        logging.info(f"student-model={model}")
     return model
+
+
+def init_teacher_xvector(student_model, rank, xvec_class, **kwargs):
+    xvec_args = xvec_class.filter_args(**kwargs["teacher_model"])
+    if rank == 0:
+        logging.info(f"teacher xvector network args={xvec_args}")
+    # xvec_args["xvector"]["num_classes"] = num_classes
+    model = student_model.clone()
+    model.change_config(**xvec_args)
+    if rank == 0:
+        logging.info(f"teacher-model={model}")
+    return model
+
+
+def init_dino_loss(rank, **kwargs):
+    loss_args = kwargs["dino_loss"]
+    if rank == 0:
+        logging.info(f"dino loss args={loss_args}")
+    loss = DINOLoss(**loss_args)
+    if rank == 0:
+        logging.info(f"dino-loss={loss}")
+
+    return loss
 
 
 def train_xvec(gpu_id, args):
@@ -101,14 +125,19 @@ def train_xvec(gpu_id, args):
     train_loader = init_data(partition="train", **kwargs)
     val_loader = init_data(partition="val", **kwargs)
 
-    model = init_xvector(list(train_loader.dataset.num_classes.values())[0], **kwargs)
+    dino_loss = init_dino_loss(**kwargs)
+    student_model = init_student_xvector(num_classes=dino_loss.num_classes, **kwargs)
+    kwargs["student_model"] = student_model
+    teacher_model = init_teacher_xvector(**kwargs)
 
     trn_args = Trainer.filter_args(**kwargs["trainer"])
     if rank == 0:
         logging.info("trainer args={}".format(trn_args))
     metrics = {"acc": CategoricalAccuracy()}
     trainer = Trainer(
-        model,
+        student_model,
+        teacher_model,
+        dino_loss,
         device=device,
         metrics=metrics,
         ddp=world_size > 1,
@@ -150,13 +179,12 @@ def make_parser(xvec_class):
     data_parser.add_argument("--val", action=ActionParser(parser=val_parser))
     parser.add_argument("--data", action=ActionParser(parser=data_parser))
     parser.link_arguments(
-        "data.train.dataset.class_files", "data.val.dataset.class_files"
-    )
-    parser.link_arguments(
         "data.train.data_loader.num_workers", "data.val.data_loader.num_workers"
     )
 
-    xvec_class.add_class_args(parser, prefix="model")
+    xvec_class.add_class_args(parser, prefix="student_model")
+    xvec_class.add_dino_teacher_args(parser, prefix="teacher_model")
+    DINOLoss.add_class_args(parser, prefix="dino_loss")
     Trainer.add_class_args(
         parser, prefix="trainer", train_modes=xvec_class.valid_train_modes()
     )

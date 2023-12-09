@@ -128,7 +128,7 @@ def make_parser(model_class):
     parser.add_argument("--cfg", action=ActionConfigFile)
 
     train_parser = ArgumentParser(prog="")
-    AD.add_class_args(train_parser, prefix="dataset", skip={})
+    AD.add_class_args(train_parser, prefix="dataset")
     SegSamplerFactory.add_class_args(train_parser, prefix="sampler")
     train_parser.add_argument(
         "--data_loader.num-workers",
@@ -138,7 +138,7 @@ def make_parser(model_class):
     )
 
     val_parser = ArgumentParser(prog="")
-    AD.add_class_args(val_parser, prefix="dataset", skip={})
+    AD.add_class_args(val_parser, prefix="dataset")
     SegSamplerFactory.add_class_args(val_parser, prefix="sampler")
     val_parser.add_argument(
         "--data_loader.num-workers",

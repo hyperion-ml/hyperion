@@ -3,24 +3,26 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import logging
-from pathlib import Path
-from typing import List, Dict, Optional, Union
-from copy import deepcopy
 import math
+from copy import deepcopy
+from pathlib import Path
+from typing import Dict, List, Optional, Union
+
+import lhotse
 import numpy as np
 import pandas as pd
 import yaml
 
-from .info_table import InfoTable
 from .class_info import ClassInfo
+from .enrollment_map import EnrollmentMap
 from .feature_set import FeatureSet
+from .info_table import InfoTable
 from .misc import PathLike
 from .recording_set import RecordingSet
 from .segment_set import SegmentSet
-from .enrollment_map import EnrollmentMap
+from .sparse_trial_key import SparseTrialKey
 from .trial_key import TrialKey
 from .trial_ndx import TrialNdx
-from .sparse_trial_key import SparseTrialKey
 
 
 class Dataset:
@@ -822,7 +824,7 @@ class Dataset:
 
     def remove_classes(self, classes_name: str):
         if self._classes_paths[classes_name] is not None:
-            self._files_to_delete.append(self._class_paths[class_name])
+            self._files_to_delete.append(self._class_paths[classes_name])
 
         del self._classes[classes_name]
         del self._classes_paths[classes_name]
@@ -1219,3 +1221,11 @@ class Dataset:
         val_ds.clean()
 
         return train_ds, val_ds
+
+    def from_lhotse(
+        cls,
+        cuts: Optional[Union[lhotse.CutSet, PathLike]] = None,
+        recordings: Optional[Union[lhotse.RecordingSet, PathLike]] = None,
+        supervisions: Optional[Union[lhotse.SupervisionSet, PathLike]] = None,
+    ):
+        return None

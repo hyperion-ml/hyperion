@@ -105,4 +105,4 @@ class NormLayer1dFactory(object):
 
         if norm_name == "layer-norm":
             # it is equivalent to groupnorm with 1 group
-            return lambda x, momentum=momentum, eps=eps: nn.GroupNorm(1, x, eps=eps)
+            return lambda x, momentum=momentum, eps=eps: nn.LayerNorm(x, eps=eps)

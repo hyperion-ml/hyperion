@@ -2,16 +2,15 @@
  Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-
+import logging
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
-import torchaudio
-import torchaudio.functional
-from jsonargparse import ActionParser, ArgumentParser
-
 import torch
 import torch.nn as nn
+import torchaudio
+import torchaudio.functional
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 try:
     import k2
@@ -36,8 +35,8 @@ class Hypothesis:
 
 
 class RNNTransducerDecoder(NetArch):
-    """ RNN-T Decoder composed of Predictor and Joiner networks
-    Implementation based on 
+    """RNN-T Decoder composed of Predictor and Joiner networks
+    Implementation based on
     https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/transducer/transducer.py
 
     Attributes:
@@ -48,15 +47,15 @@ class RNNTransducerDecoder(NetArch):
       blank_id: id of the null symbol.
       rnnt_loss: type of rnn-t loss between torchaudio, k2 or k2_pruned.
       rnnt_type: rnn-t variation between regular, modified or constrained.
-      delay_penalty: penalize symbol delay, which is used to make symbol 
+      delay_penalty: penalize symbol delay, which is used to make symbol
         emit earlier.
       reduction: type of reduction for rnn-t loss between sum or mean
-      prune_range: how many symbols to keep for each frame in k2 rnn-t 
+      prune_range: how many symbols to keep for each frame in k2 rnn-t
         pruned loss.
       lm_scale: language model scale in rnn-t smoothed loss.
       am_scale: acoustic model scale in rnn-t smoothed loss.
       simple_loss_scale: weight of rnn-t simple loss when using k2 pruned loss.
-      pruned_warmup_steps: number of steps to warm up the k2 rnn-t pruned loss 
+      pruned_warmup_steps: number of steps to warm up the k2 rnn-t pruned loss
         from 0.1 to 1.
     """
 
@@ -77,7 +76,6 @@ class RNNTransducerDecoder(NetArch):
         simple_loss_scale: float = 0.5,
         pruned_warmup_steps: int = 2000,
     ):
-
         super().__init__()
         self.in_feats = in_feats
         self.vocab_size = vocab_size
@@ -206,7 +204,6 @@ class RNNTransducerDecoder(NetArch):
         y_lengths: torch.Tensor,
         pred_out: torch.Tensor,
     ):
-
         y_padded = y.pad(mode="constant", padding_value=0)
         y_padded = y_padded.to(torch.int64)
         boundary = torch.zeros((x.size(0), 4), dtype=torch.int64, device=x.device)
@@ -281,7 +278,6 @@ class RNNTransducerDecoder(NetArch):
     def forward(
         self, x: torch.Tensor, x_lengths: torch.Tensor, y: k2.RaggedTensor
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-
         # get y_lengths
         row_splits = y.shape.row_splits(1)
         y_lengths = row_splits[1:] - row_splits[:-1]
@@ -415,7 +411,10 @@ class RNNTransducerDecoder(NetArch):
                 if cached_key not in cache:
                     pred_in = torch.tensor([y_star.ys[-1]], device=device).reshape(1, 1)
 
-                    pred_out, pred_state = self.predictor(pred_in, y_star.pred_state,)
+                    pred_out, pred_state = self.predictor(
+                        pred_in,
+                        y_star.pred_state,
+                    )
                     cache[cached_key] = (pred_out, pred_state)
                 else:
                     pred_out, pred_state = cache[cached_key]
@@ -455,7 +454,9 @@ class RNNTransducerDecoder(NetArch):
                     new_ys = y_star.ys + [i]
                     new_log_prob = y_star.log_prob + v
                     new_hyp = Hypothesis(
-                        ys=new_ys, log_prob=new_log_prob, pred_state=pred_state,
+                        ys=new_ys,
+                        log_prob=new_log_prob,
+                        pred_state=pred_state,
                     )
                     A.append(new_hyp)
 
@@ -528,7 +529,10 @@ class RNNTransducerDecoder(NetArch):
                 if cached_key not in cache:
                     pred_in = torch.tensor([y_star.ys[-1]], device=device).reshape(1, 1)
 
-                    pred_out, pred_state = self.predictor(pred_in, y_star.pred_state,)
+                    pred_out, pred_state = self.predictor(
+                        pred_in,
+                        y_star.pred_state,
+                    )
                     cache[cached_key] = (pred_out, pred_state)
                 else:
                     pred_out, pred_state = cache[cached_key]
@@ -565,7 +569,9 @@ class RNNTransducerDecoder(NetArch):
                     new_ys = y_star.ys + [i]
                     new_log_prob = y_star.log_prob + v
                     new_hyp = Hypothesis(
-                        ys=new_ys, log_prob=new_log_prob, pred_state=pred_state,
+                        ys=new_ys,
+                        log_prob=new_log_prob,
+                        pred_state=pred_state,
                     )
                     A.append(new_hyp)
 
@@ -574,7 +580,9 @@ class RNNTransducerDecoder(NetArch):
                 # A_most_probable = max(A, key=lambda hyp: hyp.log_prob)
                 # print("tuAB1", t, u, len(A), A_most_probable.log_prob, len(B))
                 B0 = sorted(
-                    [hyp for hyp in A], key=lambda hyp: hyp.log_prob, reverse=True,
+                    [hyp for hyp in A],
+                    key=lambda hyp: hyp.log_prob,
+                    reverse=True,
                 )
                 B = []
                 B_ys = set()
@@ -621,7 +629,6 @@ class RNNTransducerDecoder(NetArch):
 
     @staticmethod
     def add_pred_args(parser):
-
         pred_parser = ArgumentParser(prog="")
         pred_parser.add_argument(
             "--pred-type",
@@ -682,7 +689,6 @@ class RNNTransducerDecoder(NetArch):
 
     @staticmethod
     def add_joiner_args(parser):
-
         pred_parser = ArgumentParser(prog="")
         pred_parser.add_argument(
             "--joiner-type",
@@ -702,7 +708,6 @@ class RNNTransducerDecoder(NetArch):
     def add_class_args(
         parser, prefix=None, skip=set(["in_feats", "blank_id", "vocab_size"])
     ):
-
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -791,7 +796,6 @@ class RNNTransducerDecoder(NetArch):
 
     @staticmethod
     def add_finetune_args(parser, prefix=None, skip=set()):
-
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")

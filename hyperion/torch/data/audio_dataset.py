@@ -29,6 +29,28 @@ from ..torch_defs import floatstr_torch
 
 
 class AudioDataset(Dataset):
+    """AudioDataset class
+
+    Args:
+      recordings_file: recordings manifest file (kaldi .scp or pandas .csv)
+      segments_file: segments manifest file (kaldi .scp or pandas .csv)
+      class_names: list with the names of the types of classes in the datasets, e.g., speaker, language
+      class_files: list of class info files
+      time_durs_file: (deprecated) segment to duration in secs file, if durations are not in segments_file
+      bpe_model: bpe model for the text label
+      text_file: text file with words labels for each utterances
+      aug_cfgs: list of augmentation configuration files
+      num_augs: number of augmentations per segment and augmentation type
+      num_aug_mix: "number of AugMix augmentations per segment
+      aug_mix_alpha: AugMix Diritchlet distribution parameter
+      return_segment_info: list of columns of the segment file which should be returned as supervisions
+      return_orig: when using augmentation, whether or not to return also the original audio
+      target_sample_freq: target sampling frequencey, if not None all audios are converted to this sample freq
+      wav_scale: make waves to be in [-wav_scale, wav_scale]
+      is_val: is validation dataset.
+      seed: random seed",
+    """
+
     def __init__(
         self,
         recordings_file: str,
@@ -418,14 +440,14 @@ class AudioDataset(Dataset):
             parser.add_argument(
                 "--recordings-file",
                 required=True,
-                help=("recordings manifest file (kaldi .scp or pandas .csv)"),
+                help="recordings manifest file (kaldi .scp or pandas .csv)",
             )
 
         if "segments_file" not in skip:
             parser.add_argument(
                 "--segments-file",
                 required=True,
-                help=("segments manifest file (kaldi .scp or pandas .csv)"),
+                help="segments manifest file (kaldi .scp or pandas .csv)",
             )
 
         parser.add_argument(
@@ -441,7 +463,7 @@ class AudioDataset(Dataset):
             "--class-files",
             default=None,
             nargs="+",
-            help=("list of class info files"),
+            help="list of class info files",
         )
 
         parser.add_argument(
@@ -455,39 +477,40 @@ class AudioDataset(Dataset):
         parser.add_argument(
             "--bpe-model",
             default=None,
-            help=("bpe model for the text label"),
+            help="bpe model for the text label",
         )
 
         parser.add_argument(
             "--text-file",
             default=None,
-            help=("text file with words labels for each utterances"),
+            help="text file with words labels for each utterances",
         )
 
-        parser.add_argument(
-            "--aug-cfgs",
-            default=None,
-            nargs="+",
-            help=("augmentation configuration file."),
-        )
+        if "aug_cfgs" not in skip:
+            parser.add_argument(
+                "--aug-cfgs",
+                default=None,
+                nargs="+",
+                help="augmentation configuration file.",
+            )
 
         parser.add_argument(
             "--num-augs",
             default=1,
             type=int,
-            help=("number of augmentations per segment and augmentation type"),
+            help="number of augmentations per segment and augmentation type",
         )
         parser.add_argument(
             "--num-aug-mix",
             default=0,
             type=int,
-            help=("number of AugMix augmentations per segment"),
+            help="number of AugMix augmentations per segment",
         )
         parser.add_argument(
             "--aug-mix-alpha",
             default=0.5,
             type=float,
-            help=("number of AugMix augmentations per segment"),
+            help="number of AugMix augmentations per segment",
         )
         parser.add_argument(
             "--return-segment-info",

@@ -6,11 +6,10 @@ import logging
 import os
 from collections import OrderedDict as ODict
 
-import torchaudio
-from jsonargparse import ActionParser, ArgumentParser
-
 import torch
 import torch.nn as nn
+import torchaudio
+from jsonargparse import ActionParser, ArgumentParser
 from torch.distributed.elastic.multiprocessing.errors import record
 
 from ...utils.misc import filter_func_args
@@ -47,6 +46,7 @@ class TransducerTrainer(TorchTrainer):
       swa_start: epoch to start doing swa
       swa_lr: SWA learning rate
       swa_anneal_epochs: SWA learning rate anneal epochs
+      save_interval_steps: number of steps between model saves, if None only saves at the end of the epoch
       cpu_offload: CPU offload of gradients when using fully sharded ddp
     """
 
@@ -68,7 +68,7 @@ class TransducerTrainer(TorchTrainer):
         loss=None,
         train_mode="full",
         use_amp=False,
-        log_interval=10,
+        log_interval=1000,
         use_tensorboard=False,
         use_wandb=False,
         wandb={},
@@ -77,11 +77,11 @@ class TransducerTrainer(TorchTrainer):
         swa_start=0,
         swa_lr=1e-3,
         swa_anneal_epochs=10,
+        save_interval_steps=None,
         cpu_offload=False,
         input_key="x",
         target_key="text",
     ):
-
         loss = None
         super_args = filter_func_args(super().__init__, locals())
         super().__init__(**super_args)
@@ -93,9 +93,7 @@ class TransducerTrainer(TorchTrainer):
         Args:
           data_loader: pytorch data loader returning features and class labels.
         """
-        batch_keys = [
-            self.input_key, f"{self.input_key}_lengths", self.target_key
-        ]
+        batch_keys = [self.input_key, f"{self.input_key}_lengths", self.target_key]
         metric_acc = MetricAcc(device=self.device)
         batch_metrics = ODict()
         self.model.train()
@@ -110,15 +108,14 @@ class TransducerTrainer(TorchTrainer):
             # # TODO: Check and Modify data, target
             # data, audio_length, target = data.to(self.device), audio_length.to(
             #     self.device), target.to(self.device)
-            #print(data.keys(), batch_keys, flush=True)
+            # print(data.keys(), batch_keys, flush=True)
             input_data, input_lengths, target = tensors_subset(
-                data, batch_keys, self.device)
+                data, batch_keys, self.device
+            )
             batch_size = input_data.shape[0]
 
             with self.amp_autocast():
-                output = self.model(input_data,
-                                    x_lengths=input_lengths,
-                                    y=target)
+                output = self.model(input_data, x_lengths=input_lengths, y=target)
                 loss = output.loss
                 loss = loss.mean() / self.grad_acc_steps
 
@@ -128,9 +125,9 @@ class TransducerTrainer(TorchTrainer):
                 loss.backward()
 
             if (batch + 1) % self.grad_acc_steps == 0:
-                if self.lr_scheduler is not None and not self.in_swa:
-                    self.lr_scheduler.on_opt_step()
+                self.cur_batch = batch + 1
                 self.update_model()
+                self.save_checkpoint(partial=True)
 
             for k, v in output.items():
                 if "loss" in k and v is not None:
@@ -141,12 +138,14 @@ class TransducerTrainer(TorchTrainer):
 
             metric_acc.update(batch_metrics, batch_size)
             logs = metric_acc.metrics
-            logs["lr"] = self._get_lr()
+            lrs = self._get_lrs()
+            logs.update(lrs)
             self.loggers.on_batch_end(logs=logs, batch_size=batch_size)
 
         logs = metric_acc.metrics
         logs = ODict(("train_" + k, v) for k, v in logs.items())
-        logs["lr"] = self._get_lr()
+        lrs = self._get_lrs()
+        logs.update(lrs)
         return logs
 
     def validation_epoch(self, data_loader, swa_update_bn=False):
@@ -156,9 +155,7 @@ class TransducerTrainer(TorchTrainer):
           data_loader: PyTorch data loader return input/output pairs.
           sw_update_bn: wheter or not, update batch-norm layers in SWA.
         """
-        batch_keys = [
-            self.input_key, f"{self.input_key}_lengths", self.target_key
-        ]
+        batch_keys = [self.input_key, f"{self.input_key}_lengths", self.target_key]
         metric_acc = MetricAcc(self.device)
         batch_metrics = ODict()
         with torch.no_grad():
@@ -170,9 +167,9 @@ class TransducerTrainer(TorchTrainer):
                 self.model.eval()
 
             for batch, data in enumerate(data_loader):
-
                 input_data, input_lengths, target = tensors_subset(
-                    data, batch_keys, self.device)
+                    data, batch_keys, self.device
+                )
                 batch_size = input_data.shape[0]
 
                 # data, audio_length, target = data.to(
@@ -183,9 +180,7 @@ class TransducerTrainer(TorchTrainer):
                 # batch_size = data.shape[0]
 
                 with self.amp_autocast():
-                    output = self.model(input_data,
-                                        x_lengths=input_lengths,
-                                        y=target)
+                    output = self.model(input_data, x_lengths=input_lengths, y=target)
 
                 for k, v in output.items():
                     if "loss" in k and v is not None:
@@ -208,14 +203,11 @@ class TransducerTrainer(TorchTrainer):
 
         super_skip = skip.copy()
         super_skip.add("target_key")
-        TorchTrainer.add_class_args(parser,
-                                    train_modes=train_modes,
-                                    skip=super_skip)
+        TorchTrainer.add_class_args(parser, train_modes=train_modes, skip=super_skip)
         if "target_key" not in skip:
-            parser.add_argument("--target-key",
-                                default="text",
-                                help="dict. key for nnet targets")
+            parser.add_argument(
+                "--target-key", default="text", help="dict. key for nnet targets"
+            )
 
         if prefix is not None:
-            outer_parser.add_argument("--" + prefix,
-                                      action=ActionParser(parser=parser))
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

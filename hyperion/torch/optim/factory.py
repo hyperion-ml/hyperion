@@ -4,12 +4,11 @@
 """
 import logging
 
-from jsonargparse import ActionParser, ArgumentParser
-
 import torch
 import torch.optim as optim
+from jsonargparse import ActionParser, ArgumentParser
 
-from ...utils.misc import filter_args
+from ...utils.misc import filter_args, filter_func_args
 from .radam import RAdam
 
 
@@ -39,7 +38,6 @@ class OptimizerFactory(object):
         max_iter=20,
         oss=False,
     ):
-
         kwargs = locals()
         base_opt = None
         if opt_type == "sgd":
@@ -152,29 +150,30 @@ class OptimizerFactory(object):
 
     @staticmethod
     def filter_args(**kwargs):
-        valid_args = (
-            "opt_type",
-            "lr",
-            "momentum",
-            "beta1",
-            "beta2",
-            "rho",
-            "eps",
-            "weight_decay",
-            "amsgrad",
-            "nesterov",
-            "lambd",
-            "asgd_alpha",
-            "t0",
-            "rmsprop_alpha",
-            "centered",
-            "lr_decay",
-            "init_acc_val",
-            "max_iter",
-            "oss",
-        )
+        return filter_func_args(OptimizerFactory.create, kwargs)
+        # valid_args = (
+        #     "opt_type",
+        #     "lr",
+        #     "momentum",
+        #     "beta1",
+        #     "beta2",
+        #     "rho",
+        #     "eps",
+        #     "weight_decay",
+        #     "amsgrad",
+        #     "nesterov",
+        #     "lambd",
+        #     "asgd_alpha",
+        #     "t0",
+        #     "rmsprop_alpha",
+        #     "centered",
+        #     "lr_decay",
+        #     "init_acc_val",
+        #     "max_iter",
+        #     "oss",
+        # )
 
-        return filter_args(valid_args, kwargs)
+        # return filter_args(valid_args, kwargs)
 
     @staticmethod
     def add_class_args(parser, prefix=None):
@@ -323,6 +322,5 @@ class OptimizerFactory(object):
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
-            # help='optimizer options')
 
     add_argparse_args = add_class_args

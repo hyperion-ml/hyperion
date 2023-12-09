@@ -39,6 +39,7 @@ data:
       num_workers: 8
 feats: fbank80_stmn_16k.yaml
 model:
+  override_output: true
   cos_scale: 30.0
   margin: 0.4
   margin_warmup_epochs: 0

@@ -4,7 +4,7 @@
 """
 import torch
 import torch.nn as nn
-from jsonargparse import ActionParser, ArgumentParser
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ..layers import AudioFeatsFactory as AFF
 from ..layers import MeanVarianceNorm as MVN
@@ -116,7 +116,7 @@ class AudioFeatsMVN(NetArch):
         parser.add_argument(
             "--aug-after-mvn",
             default=False,
-            action="store_true",
+            action=ActionYesNo,
             help=("do spec augment after st-mvn," "instead of before"),
         )
 

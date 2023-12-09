@@ -7,11 +7,10 @@ import logging
 import os
 from collections import OrderedDict as ODict
 
-from jsonargparse import ActionParser, ArgumentParser
-
 import torch
 import torch.cuda.amp as amp
 import torch.nn as nn
+from jsonargparse import ActionParser, ArgumentParser
 
 from ...utils.misc import filter_func_args
 from ..utils import MetricAcc, tensors_subset
@@ -45,6 +44,7 @@ class DVAETrainer(TorchTrainer):
       swa_start: epoch to start doing swa
       swa_lr: SWA learning rate
       swa_anneal_epochs: SWA learning rate anneal epochs
+      save_interval_steps: number of steps between model saves, if None only saves at the end of the epoch
       cpu_offload: CPU offload of gradients when using fully sharded ddp
       input_key: dict. key for nnet input.
       target_key: dict. key for nnet targets.
@@ -67,7 +67,7 @@ class DVAETrainer(TorchTrainer):
         ddp_type="ddp",
         train_mode="full",
         use_amp=False,
-        log_interval=10,
+        log_interval=1000,
         use_tensorboard=False,
         use_wandb=False,
         wandb={},
@@ -76,6 +76,7 @@ class DVAETrainer(TorchTrainer):
         swa_start=0,
         swa_lr=1e-3,
         swa_anneal_epochs=10,
+        save_interval_steps=None,
         cpu_offload=False,
         input_key="x_aug",
         target_key="x",
@@ -144,9 +145,9 @@ class DVAETrainer(TorchTrainer):
                 loss.backward()
 
             if (batch + 1) % self.grad_acc_steps == 0:
-                if self.lr_scheduler is not None and not self.in_swa:
-                    self.lr_scheduler.on_opt_step()
+                self.cur_batch = batch + 1
                 self.update_model()
+                self.save_checkpoint(partial=True)
 
             batch_metrics["elbo"] = elbo.item()
             for metric in ["log_px", "kldiv_z"]:
@@ -156,12 +157,14 @@ class DVAETrainer(TorchTrainer):
 
             metric_acc.update(batch_metrics, batch_size)
             logs = metric_acc.metrics
-            logs["lr"] = self._get_lr()
+            lrs = self._get_lrs()
+            logs.update(lrs)
             self.loggers.on_batch_end(logs=logs, batch_size=batch_size)
 
         logs = metric_acc.metrics
         logs = ODict(("train_" + k, v) for k, v in logs.items())
-        logs["lr"] = self._get_lr()
+        lrs = self._get_lrs()
+        logs.update(lrs)
         return logs
 
     def validation_epoch(self, data_loader, swa_update_bn=False):
@@ -201,7 +204,6 @@ class DVAETrainer(TorchTrainer):
 
     @staticmethod
     def add_class_args(parser, prefix=None, train_modes=None, skip=set()):
-
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")

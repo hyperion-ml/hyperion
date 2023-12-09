@@ -48,6 +48,7 @@ class PLDATrainer(TorchTrainer):
       swa_start: epoch to start doing swa
       swa_lr: SWA learning rate
       swa_anneal_epochs: SWA learning rate anneal epochs
+      save_interval_steps: number of steps between model saves, if None only saves at the end of the epoch
       cpu_offload: CPU offload of gradients when using fully sharded ddp
       input_key: dict. key for nnet input.
       target_key: dict. key for nnet targets.
@@ -73,7 +74,7 @@ class PLDATrainer(TorchTrainer):
         p_tar=0.5,
         train_mode="train",
         use_amp=False,
-        log_interval=10,
+        log_interval=1000,
         use_tensorboard=False,
         use_wandb=False,
         wandb={},
@@ -82,45 +83,16 @@ class PLDATrainer(TorchTrainer):
         swa_start=0,
         swa_lr=1e-3,
         swa_anneal_epochs=10,
+        save_interval_steps=None,
         cpu_offload=False,
         input_key="x",
         target_key="class_id",
     ):
-
         if loss is None:
             loss = nn.CrossEntropyLoss()
 
         super_args = filter_func_args(super().__init__, locals())
         super().__init__(**super_args)
-
-        # super().__init__(
-        #     model,
-        #     loss,
-        #     optim,
-        #     epochs,
-        #     exp_path,
-        #     cur_epoch=cur_epoch,
-        #     grad_acc_steps=grad_acc_steps,
-        #     eff_batch_size=eff_batch_size,
-        #     device=device,
-        #     metrics=metrics,
-        #     lrsched=lrsched,
-        #     loggers=loggers,
-        #     ddp=ddp,
-        #     ddp_type=ddp_type,
-        #     train_mode=train_mode,
-        #     use_amp=use_amp,
-        #     log_interval=log_interval,
-        #     use_tensorboard=use_tensorboard,
-        #     use_wandb=use_wandb,
-        #     wandb=wandb,
-        #     grad_clip=grad_clip,
-        #     grad_clip_norm=grad_clip_norm,
-        #     swa_start=swa_start,
-        #     swa_lr=swa_lr,
-        #     swa_anneal_epochs=swa_anneal_epochs,
-        #     cpu_offload=cpu_offload,
-        # )
 
         self.loss_bce = BCEWithLLR(p_tar)
         self.loss_weights = loss_weights
@@ -179,9 +151,9 @@ class PLDATrainer(TorchTrainer):
                 loss.backward()
 
             if (batch + 1) % self.grad_acc_steps == 0:
-                if self.lr_scheduler is not None and not self.in_swa:
-                    self.lr_scheduler.on_opt_step()
+                self.cur_batch = batch + 1
                 self.update_model()
+                self.save_checkpoint(partial=True)
 
             batch_metrics["loss"] = loss.item() * self.grad_acc_steps
             if return_bin:
@@ -193,11 +165,13 @@ class PLDATrainer(TorchTrainer):
 
             metric_acc.update(batch_metrics, batch_size)
             logs = metric_acc.metrics
-            logs["lr"] = self._get_lr()
+            lrs = self._get_lrs()
+            logs.update(lrs)
             self.loggers.on_batch_end(logs=logs, batch_size=batch_size)
 
         logs = metric_acc.metrics
-        logs["lr"] = self._get_lr()
+        lrs = self._get_lrs()
+        logs.update(lrs)
         return logs
 
     def validation_epoch(self, data_loader, swa_update_bn=False):

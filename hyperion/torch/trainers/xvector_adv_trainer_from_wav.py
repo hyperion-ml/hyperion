@@ -7,11 +7,10 @@ import os
 import time
 from collections import OrderedDict as ODict
 
-from jsonargparse import ActionParser, ArgumentParser
-
 import torch
 import torch.cuda.amp as amp
 import torch.nn as nn
+from jsonargparse import ActionParser, ArgumentParser
 
 from ...utils.misc import filter_func_args
 from ..utils import MetricAcc, tensors_subset
@@ -50,6 +49,7 @@ class XVectorAdvTrainerFromWav(XVectorTrainerFromWav):
       swa_start: epoch to start doing swa
       swa_lr: SWA learning rate
       swa_anneal_epochs: SWA learning rate anneal epochs
+      save_interval_steps: number of steps between model saves, if None only saves at the end of the epoch
       cpu_offload: CPU offload of gradients when using fully sharded ddp
       input_key: dict. key for nnet input.
       target_key: dict. key for nnet targets.
@@ -77,7 +77,7 @@ class XVectorAdvTrainerFromWav(XVectorTrainerFromWav):
         loss=None,
         train_mode="full",
         use_amp=False,
-        log_interval=10,
+        log_interval=1000,
         use_tensorboard=False,
         use_wandb=False,
         wandb={},
@@ -86,44 +86,13 @@ class XVectorAdvTrainerFromWav(XVectorTrainerFromWav):
         swa_start=0,
         swa_lr=1e-3,
         swa_anneal_epochs=10,
+        save_interval_steps=None,
         cpu_offload=False,
         input_key="x",
         target_key="class_id",
     ):
-
         super_args = filter_func_args(super().__init__, locals())
         super().__init__(**super_args)
-
-        # super().__init__(
-        #     model,
-        #     feat_extractor,
-        #     optim,
-        #     epochs,
-        #     exp_path,
-        #     cur_epoch=cur_epoch,
-        #     grad_acc_steps=grad_acc_steps,
-        #     eff_batch_size=eff_batch_size,
-        #     device=device,
-        #     metrics=metrics,
-        #     lrsched=lrsched,
-        #     loggers=loggers,
-        #     ddp=ddp,
-        #     ddp_type=ddp_type,
-        #     loss=loss,
-        #     train_mode=train_mode,
-        #     use_amp=use_amp,
-        #     log_interval=log_interval,
-        #     use_tensorboard=use_tensorboard,
-        #     use_wandb=use_wandb,
-        #     wandb=wandb,
-        #     grad_clip=grad_clip,
-        #     grad_clip_norm=grad_clip_norm,
-        #     swa_start=swa_start,
-        #     swa_lr=swa_lr,
-        #     swa_anneal_epochs=swa_anneal_epochs,
-        #     cpu_offload=cpu_offload,
-        # )
-
         self.attack = attack
         self.attack.to(device)
         self.p_attack = p_attack * self.grad_acc_steps
@@ -182,9 +151,9 @@ class XVectorAdvTrainerFromWav(XVectorTrainerFromWav):
                 loss.backward()
 
             if (batch + 1) % self.grad_acc_steps == 0:
-                if self.lr_scheduler is not None and not self.in_swa:
-                    self.lr_scheduler.on_opt_step()
+                self.cur_batch = batch + 1
                 self.update_model()
+                self.save_checkpoint(partial=True)
 
             batch_metrics["loss"] = loss.item() * self.grad_acc_steps
             for k, metric in self.metrics.items():
@@ -192,12 +161,14 @@ class XVectorAdvTrainerFromWav(XVectorTrainerFromWav):
 
             metric_acc.update(batch_metrics, batch_size)
             logs = metric_acc.metrics
-            logs["lr"] = self._get_lr()
+            lrs = self._get_lrs()
+            logs.update(lrs)
             self.loggers.on_batch_end(logs=logs, batch_size=batch_size)
 
         logs = metric_acc.metrics
         logs = ODict(("train_" + k, v) for k, v in logs.items())
-        logs["lr"] = self._get_lr()
+        lrs = self._get_lrs()
+        logs.update(lrs)
         return logs
 
     def validation_epoch(self, data_loader, swa_update_bn=False):

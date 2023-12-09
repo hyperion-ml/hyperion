@@ -41,15 +41,11 @@ data:
       num_workers: 8
 feats: fbank80_stmn_16k.yaml
 model:
+  override_output: true
   cos_scale: 30.0
   margin: 0.4
   margin_warmup_epochs: 0
   intertop_margin: 0.1
-  # override_dropouts: false
-  # dropout_rate: 0.1
-  # resnet_enc:
-  #   override_dropouts: true
-  #   dropout_rate: 0.1
 trainer:
   optim:
     opt_type: sgd

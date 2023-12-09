@@ -44,6 +44,7 @@ class XVectorTrainerFromWav(XVectorTrainer):
       swa_start: epoch to start doing swa
       swa_lr: SWA learning rate
       swa_anneal_epochs: SWA learning rate anneal epochs
+      save_interval_steps: number of steps between model saves, if None only saves at the end of the epoch
       cpu_offload: CPU offload of gradients when using fully sharded ddp
       input_key: dict. key for nnet input.
       target_key: dict. key for nnet targets.
@@ -68,7 +69,7 @@ class XVectorTrainerFromWav(XVectorTrainer):
         loss=None,
         train_mode="full",
         use_amp=False,
-        log_interval=10,
+        log_interval=1000,
         use_tensorboard=False,
         use_wandb=False,
         wandb={},
@@ -77,6 +78,7 @@ class XVectorTrainerFromWav(XVectorTrainer):
         swa_start=0,
         swa_lr=1e-3,
         swa_anneal_epochs=10,
+        save_interval_steps=None,
         cpu_offload=False,
         input_key="x",
         target_key="class_id",
@@ -120,9 +122,9 @@ class XVectorTrainerFromWav(XVectorTrainer):
                 loss.backward()
 
             if (batch + 1) % self.grad_acc_steps == 0:
-                if self.lr_scheduler is not None and not self.in_swa:
-                    self.lr_scheduler.on_opt_step()
+                self.cur_batch = batch + 1
                 self.update_model()
+                self.save_checkpoint(partial=True)
 
             batch_metrics["loss"] = loss.item() * self.grad_acc_steps
             for k, metric in self.metrics.items():

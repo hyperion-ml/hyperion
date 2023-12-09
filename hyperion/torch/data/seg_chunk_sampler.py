@@ -8,10 +8,9 @@ import math
 
 import numpy as np
 import pandas as pd
-from jsonargparse import ActionParser, ArgumentParser
-
 import torch
 import torch.distributed as dist
+from jsonargparse import ActionParser, ArgumentParser
 
 from ...utils.segment_set import SegmentSet
 from .hyp_sampler import HypSampler
@@ -30,7 +29,6 @@ class SegChunkSampler(HypSampler):
         seed=1234,
         **base_kwargs,
     ):
-
         super().__init__(shuffle=shuffle, seed=seed)
         self.seg_set = seg_set
         self.min_chunk_length = min_chunk_length
@@ -80,7 +78,6 @@ class SegChunkSampler(HypSampler):
             return self.min_chunk_length
 
     def _create_chunks(self):
-
         chunks = []
         for id, len in zip(self.seg_set["id"], self.seg_set[self.length_name]):
             if len < self.min_chunk_length:
@@ -91,7 +88,16 @@ class SegChunkSampler(HypSampler):
             num_chunks = math.ceil(len / self.avg_chunk_length)
             start = 0
             for i in range(num_chunks - 1):
-                dur = self.get_random_duration()
+                remainder = len - start
+                if remainder < self.min_chunk_length:
+                    remainder = self.min_chunk_length
+                    dur = remainder
+                    start = len - dur
+                else:
+                    dur = self.get_random_duration()
+                    if dur > remainder:
+                        dur = remainder
+
                 chunk = (f"{id}-{i}", id, start, dur)
                 chunks.append(chunk)
                 start += dur
@@ -135,7 +141,6 @@ class SegChunkSampler(HypSampler):
 
     @staticmethod
     def filter_args(**kwargs):
-
         valid_args = (
             "min_chunk_length",
             "max_chunk_length",

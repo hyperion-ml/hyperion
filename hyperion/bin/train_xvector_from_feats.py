@@ -126,7 +126,7 @@ def make_parser(xvec_class):
 
     train_parser = ArgumentParser(prog="")
 
-    SD.add_class_args(train_parser, prefix="dataset", skip={})
+    SD.add_class_args(train_parser, prefix="dataset")
     Sampler.add_class_args(train_parser, prefix="sampler")
     train_parser.add_argument(
         "--data_loader.num-workers",
@@ -136,7 +136,7 @@ def make_parser(xvec_class):
     )
 
     val_parser = ArgumentParser(prog="")
-    SD.add_class_args(val_parser, prefix="dataset", skip={})
+    SD.add_class_args(val_parser, prefix="dataset")
     Sampler.add_class_args(val_parser, prefix="sampler")
     val_parser.add_argument(
         "--data_loader.num-workers",

@@ -4,19 +4,21 @@
 """
 
 import contextlib
+import glob
 import logging
 import math
 import os
 from collections import OrderedDict as ODict
 from enum import Enum
 from pathlib import Path
+from typing import Any, Dict, Optional
 
 import torch
 import torch.cuda.amp as amp
 import torch.distributed as dist
 import torch.nn as nn
 from fairscale.optim.grad_scaler import ShardedGradScaler
-from jsonargparse import ActionParser, ArgumentParser
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from torch.optim.swa_utils import SWALR, AveragedModel
 
 from ...utils.misc import filter_func_args
@@ -71,6 +73,7 @@ class TorchTrainer(object):
       swa_start: epoch to start doing swa
       swa_lr: SWA learning rate
       swa_anneal_epochs: SWA learning rate anneal epochs
+      save_interval_steps: number of steps between model saves, if None only saves at the end of the epoch
       cpu_offload: CPU offload of gradients when using fully sharded ddp
       input_key: dict. key for nnet input.
       target_key: dict. key for nnet targets.
@@ -94,7 +97,7 @@ class TorchTrainer(object):
         ddp_type="ddp",
         train_mode="full",
         use_amp=False,
-        log_interval=10,
+        log_interval=1000,
         use_tensorboard=False,
         use_wandb=False,
         wandb={},
@@ -103,6 +106,7 @@ class TorchTrainer(object):
         swa_start=0,
         swa_lr=1e-3,
         swa_anneal_epochs=10,
+        save_interval_steps=None,
         cpu_offload=False,
         input_key="x",
         target_key="class_id",
@@ -111,9 +115,12 @@ class TorchTrainer(object):
         self.loss = loss
         self.epochs = epochs
         self.cur_epoch = cur_epoch
+        self.cur_batch = 0
         self.grad_acc_steps = grad_acc_steps
         self.eff_batch_size = eff_batch_size
         self.exp_path = Path(exp_path)
+        self.optim = optim
+        self.lrsched = lrsched
 
         if loggers is None:
             self.loggers = self._default_loggers(
@@ -139,94 +146,212 @@ class TorchTrainer(object):
         self.target_key = target_key
         self.ddp = ddp
         self.ddp_type = ddp_type
+        self.cpu_offload = cpu_offload
         self.rank = 0
         self.world_size = 1
+        self.in_swa = False
+        self.global_step = 0
+        self.save_interval_steps = save_interval_steps
         if ddp:
             self.rank = dist.get_rank()
             self.world_size = dist.get_world_size()
 
         self.set_train_mode()
+        self.prepare_models_for_training()
 
+        # if device is not None:
+        #     self.model.to(device)
+        #     if loss is not None:
+        #         self.loss.to(device)
+
+        # if ddp:
+        #     if ddp_type == DDPType.DDP or ddp_type == DDPType.OSS_DDP:
+        #         self.model = nn.SyncBatchNorm.convert_sync_batchnorm(self.model)
+        #         if self.rank == 0:
+        #             logging.info(
+        #                 "training in multiple gpus with distributed-data-parallel"
+        #             )
+        #         oss = False if ddp_type == DDPType.DDP else True
+        #         self.optimizer = self._make_optimizer(optim, self.model, oss=oss)
+        #         self.model = TorchDDP(
+        #             self.model,
+        #             device_ids=[device],
+        #             output_device=device,
+        #         )
+        #     elif ddp_type == DDPType.OSS_SHARDED_DDP:
+        #         self.model = nn.SyncBatchNorm.convert_sync_batchnorm(self.model)
+        #         if self.rank == 0:
+        #             logging.info(
+        #                 "training in multiple gpus with fair sharded-distributed-data-parallel"
+        #             )
+        #         self.optimizer = self._make_optimizer(optim, self.model, oss=True)
+        #         self.model = FairShardedDDP(self.model, self.optimizer)
+        #     else:
+        #         if self.rank == 0:
+        #             logging.info(
+        #                 "training in multiple gpus with fair fully-sharded-distributed-data-parallel"
+        #             )
+        #         # syncbathcnorm is not supported here, it raises exception
+        #         self.model = FairFullyShardedDDP(
+        #             self.model,
+        #             mixed_precision=self.use_amp,
+        #             move_params_to_cpu=cpu_offload,
+        #         )
+        #         self.optimizer = self._make_optimizer(optim, self.model, oss=False)
+
+        # else:
+        #     self.optimizer = self._make_optimizer(optim, self.model)
+
+        # # make the learning rate scheduler
+        # self.lr_scheduler = self._make_lr_sched(lrsched, self.optimizer)
+
+        # if self.use_amp:
+        #     if ddp and ddp_type != DDPType.DDP:
+        #         if self.rank == 0:
+        #             logging.info(
+        #                 "using automatic mixed precision training with sharded-grad-scaler"
+        #             )
+        #         self.grad_scaler = ShardedGradScaler()
+        #     else:
+        #         if self.rank == 0:
+        #             logging.info(
+        #                 "using automatic mixed precision training with grad-scaler"
+        #             )
+        #         self.grad_scaler = amp.GradScaler()
+        #     self.amp_autocast = amp.autocast
+        # else:
+        #     self.amp_autocast = contextlib.nullcontext
+
+        # self.in_swa = False
+        # if self.do_swa:
+        #     if self.rank == 0:
+        #         logging.info("init SWA model")
+        #     self.swa_model = AveragedModel(self.model)
+        #     self.swa_scheduler = SWALR(
+        #         self.optimizer, swa_lr=self.swa_lr, anneal_epochs=self.swa_anneal_epochs
+        #     )
+
+    def prepare_models_for_training(self):
+        self.loss = self._prepare_loss_for_training(self.loss, self.device)
+        (
+            self.model,
+            self.optimizer,
+            self.lr_scheduler,
+            self.grad_scaler,
+            self.swa_model,
+            self.swa_scheduler,
+        ) = self._prepare_model_for_training(
+            self.model,
+            self.optim,
+            self.lrsched,
+            self.device,
+            self.use_amp,
+            self.ddp,
+            self.ddp_type,
+            self.cpu_offload,
+            self.do_swa,
+            self.swa_lr,
+            self.swa_anneal_epochs,
+        )
+
+    def _prepare_loss_for_training(self, loss, device):
+        if loss is not None:
+            loss.to(device)
+
+        return loss
+
+    def _prepare_model_for_training(
+        self,
+        model,
+        optim,
+        lrsched,
+        device,
+        use_amp,
+        ddp,
+        ddp_type,
+        cpu_offload,
+        do_swa,
+        swa_lr,
+        swa_anneal_epochs,
+    ):
         if device is not None:
-            self.model.to(device)
-            if loss is not None:
-                self.loss.to(device)
+            model.to(device)
 
         if ddp:
             if ddp_type == DDPType.DDP or ddp_type == DDPType.OSS_DDP:
-                self.model = nn.SyncBatchNorm.convert_sync_batchnorm(self.model)
+                model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
                 if self.rank == 0:
                     logging.info(
                         "training in multiple gpus with distributed-data-parallel"
                     )
                 oss = False if ddp_type == DDPType.DDP else True
-                self.optimizer = self._make_optimizer(optim, self.model, oss=oss)
-                self.model = TorchDDP(
-                    self.model,
+                optimizer = self._make_optimizer(optim, model, oss=oss)
+                model = TorchDDP(
+                    model,
                     device_ids=[device],
                     output_device=device,
                 )
             elif ddp_type == DDPType.OSS_SHARDED_DDP:
-                self.model = nn.SyncBatchNorm.convert_sync_batchnorm(self.model)
+                model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
                 if self.rank == 0:
                     logging.info(
                         "training in multiple gpus with fair sharded-distributed-data-parallel"
                     )
-                self.optimizer = self._make_optimizer(optim, self.model, oss=True)
-                self.model = FairShardedDDP(self.model, self.optimizer)
+                optimizer = self._make_optimizer(optim, model, oss=True)
+                model = FairShardedDDP(model, optimizer)
             else:
                 if self.rank == 0:
                     logging.info(
                         "training in multiple gpus with fair fully-sharded-distributed-data-parallel"
                     )
                 # syncbathcnorm is not supported here, it raises exception
-                self.model = FairFullyShardedDDP(
-                    self.model,
-                    mixed_precision=self.use_amp,
+                model = FairFullyShardedDDP(
+                    model,
+                    mixed_precision=use_amp,
                     move_params_to_cpu=cpu_offload,
                 )
-                self.optimizer = self._make_optimizer(optim, self.model, oss=False)
+                optimizer = self._make_optimizer(optim, model, oss=False)
 
         else:
-            self.optimizer = self._make_optimizer(optim, self.model)
+            optimizer = self._make_optimizer(optim, model)
 
         # make the learning rate scheduler
-        self.lr_scheduler = self._make_lr_sched(lrsched, self.optimizer)
+        lr_scheduler = self._make_lr_sched(lrsched, optimizer)
 
-        if self.use_amp:
+        if use_amp:
             if ddp and ddp_type != DDPType.DDP:
                 if self.rank == 0:
                     logging.info(
                         "using automatic mixed precision training with sharded-grad-scaler"
                     )
-                self.grad_scaler = ShardedGradScaler()
+                grad_scaler = ShardedGradScaler()
             else:
                 if self.rank == 0:
                     logging.info(
                         "using automatic mixed precision training with grad-scaler"
                     )
-                self.grad_scaler = amp.GradScaler()
-            self.amp_autocast = amp.autocast
-        else:
-            self.amp_autocast = contextlib.nullcontext
+                grad_scaler = amp.GradScaler()
 
-        self.in_swa = False
-        if self.do_swa:
+        swa_model = None
+        swa_scheduler = None
+        if do_swa:
             if self.rank == 0:
                 logging.info("init SWA model")
-            self.swa_model = AveragedModel(self.model)
-            self.swa_scheduler = SWALR(
-                self.optimizer, swa_lr=self.swa_lr, anneal_epochs=self.swa_anneal_epochs
+            swa_model = AveragedModel(model)
+            swa_scheduler = SWALR(
+                optimizer, swa_lr=swa_lr, anneal_epochs=swa_anneal_epochs
             )
 
-    def set_epoch(self, data_loader):
+        return model, optimizer, lr_scheduler, grad_scaler, swa_model, swa_scheduler
+
+    def set_epoch(self, data_loader, cur_batch: int = 0):
         try:
             data_loader.dataset.set_epoch(self.cur_epoch)
         except AttributeError:
             logging.warning("dataset doesn't have set_epoch member function")
 
         try:
-            data_loader.batch_sampler.set_epoch(self.cur_epoch)
+            data_loader.batch_sampler.set_epoch(self.cur_epoch, cur_batch)
         except AttributeError:
             logging.warning("sampler doesn't have set_epoch member function")
 
@@ -246,7 +371,7 @@ class TorchTrainer(object):
         val_logs = {}
         self.loggers.on_train_begin(epochs=self.epochs)
         for epoch in range(self.cur_epoch, self.epochs):
-            self.set_epoch(train_data)
+            self.set_epoch(train_data, self.cur_batch)
             self.loggers.on_epoch_begin(epoch, batches=len(train_data))
             if self.lr_scheduler is not None:
                 # this is needed by cosine scheduler
@@ -254,6 +379,7 @@ class TorchTrainer(object):
                 self.lr_scheduler.on_epoch_begin(epoch, epoch_updates=epoch_updates)
 
             logs = self.train_epoch(train_data)
+            self.cur_batch = 0
             if val_data is not None:
                 self.set_epoch(val_data)
                 val_logs = self.validation_epoch(val_data)
@@ -311,7 +437,7 @@ class TorchTrainer(object):
 
             with amp.autocast(enabled=self.use_amp):
                 output = self.model(input_data)
-                loss = self.loss(output, target).mean() / self.grad_acc_steps
+                loss = self.loss(output, target) / self.grad_acc_steps
 
             if self.use_amp:
                 self.grad_scaler.scale(loss).backward()
@@ -319,9 +445,9 @@ class TorchTrainer(object):
                 loss.backward()
 
             if (batch + 1) % self.grad_acc_steps == 0:
-                if self.lr_scheduler is not None and not self.in_swa:
-                    self.lr_scheduler.on_opt_step()
+                self.cur_batch = batch + 1
                 self.update_model()
+                self.save_checkpoint(partial=True)
 
             batch_metrics["loss"] = loss.item() * self.grad_acc_steps
             for k, metric in self.metrics.items():
@@ -329,13 +455,14 @@ class TorchTrainer(object):
 
             metric_acc.update(batch_metrics, batch_size)
             logs = metric_acc.metrics
-            logs["lr"] = self._get_lr()
+            lrs = self._get_lrs()
+            logs.update(lrs)
             self.loggers.on_batch_end(logs=logs, batch_size=batch_size)
-            # total_batches += 1
 
         logs = metric_acc.metrics
         logs = ODict(("train_" + k, v) for k, v in logs.items())
-        logs["lr"] = self._get_lr()
+        lrs = self._get_lrs()
+        logs.update(lrs)
         return logs
 
     def validation_epoch(self, data_loader, swa_update_bn=False):
@@ -399,24 +526,54 @@ class TorchTrainer(object):
             model.parameters(), grad_clip, norm_type=grad_clip_norm
         )
 
+    def _update_model_by_optim(
+        self, model, optimizer, grad_clip, grad_clip_norm, use_amp, grad_scaler
+    ):
+        """Updates the model and does gradding clipping."""
+        if use_amp:
+            if grad_clip > 0:
+                grad_scaler.unscale_(optimizer)
+                self._clip_grad_norm(model, optimizer, grad_clip, grad_clip_norm)
+
+            grad_scaler.step(optimizer)
+            grad_scaler.update()
+        else:
+            if grad_clip > 0:
+                self._clip_grad_norm(model, optimizer, grad_clip, grad_clip_norm)
+
+            optimizer.step()
+
     def update_model(self):
         """Updates the model and does gradding clipping."""
-        if self.use_amp:
-            if self.grad_clip > 0:
-                self.grad_scaler.unscale_(self.optimizer)
-                self._clip_grad_norm(
-                    self.model, self.optimizer, self.grad_clip, self.grad_clip_norm
-                )
+        if self.lr_scheduler is not None and not self.in_swa:
+            self.lr_scheduler.on_opt_step()
 
-            self.grad_scaler.step(self.optimizer)
-            self.grad_scaler.update()
-        else:
-            if self.grad_clip > 0:
-                self._clip_grad_norm(
-                    self.model, self.optimizer, self.grad_clip, self.grad_clip_norm
-                )
+        self._update_model_by_optim(
+            self.model,
+            self.optimizer,
+            self.grad_clip,
+            self.grad_clip_norm,
+            self.use_amp,
+            self.grad_scaler,
+        )
+        self.global_step += 1
 
-            self.optimizer.step()
+        # if self.use_amp:
+        #     if self.grad_clip > 0:
+        #         self.grad_scaler.unscale_(self.optimizer)
+        #         self._clip_grad_norm(
+        #             self.model, self.optimizer, self.grad_clip, self.grad_clip_norm
+        #         )
+
+        #     self.grad_scaler.step(self.optimizer)
+        #     self.grad_scaler.update()
+        # else:
+        #     if self.grad_clip > 0:
+        #         self._clip_grad_norm(
+        #             self.model, self.optimizer, self.grad_clip, self.grad_clip_norm
+        #         )
+
+        #     self.optimizer.step()
 
     def _make_optimizer(self, optim, model, oss=False):
         """Makes an optimizer object."""
@@ -429,7 +586,6 @@ class TorchTrainer(object):
         if self.rank == 0:
             logging.info("optimizer args={}".format(opt_args))
 
-        # optimizer = OF.create(model.parameters(), **opt_args)
         optimizer = OF.create(model.trainable_param_groups(), **opt_args)
         return optimizer
 
@@ -469,17 +625,14 @@ class TorchTrainer(object):
 
     def _get_lrs(self):
         """Returns the current learning rates of all param groups to show in the loggers"""
-        lrs = [param_group["lr"] for param_group in self.optimizer.param_groups]
-        all_eq = True
-        for lr in lrs:
-            if lr != lrs[0]:
-                all_eq = False
-                break
+        lrs = {
+            f"lr_{i}": param_group["lr"]
+            for i, param_group in enumerate(self.optimizer.param_groups)
+        }
+        if len(lrs) == 1:
+            lrs["lr"] = lrs.pop("lr_0")
 
-        if all_eq:
-            return {"lr": lrs[0]}
-
-        return {f"lr_{i}": lr for i, lr in enumerate(lrs)}
+        return lrs
 
     def _compute_grad_acc_steps(self, data_loader):
         if self.eff_batch_size is None:
@@ -524,6 +677,8 @@ class TorchTrainer(object):
         self.model.train()
         checkpoint = {
             "epoch": self.cur_epoch,
+            "batch": self.cur_batch,
+            "global_step": self.global_step,
             "rng_state": torch.get_rng_state(),
             "model_cfg": self.model.get_config(),
             "model_state_dict": self.model.state_dict(),
@@ -544,12 +699,22 @@ class TorchTrainer(object):
 
         return checkpoint
 
-    def save_checkpoint(self, logs=None):
+    def save_partial_checkpoint(self):
+        return (
+            self.save_interval_steps is not None
+            and self.global_step % self.save_interval_steps == 0
+        )
+
+    def new_save_checkpoint(self, logs=None, partial: bool = False):
         """Saves a checkpoint of the training status
 
         Args:
           logs: logs containing the current value of the metrics.
+          partial: if True, it is saving in the middle of the epoch
         """
+        if partial and not self.save_partial_checkpoint():
+            return
+
         if self.ddp and (
             self.ddp_type == DDPType.OSS_DDP or self.ddp_type == DDPType.OSS_SHARDED_DDP
         ):
@@ -564,7 +729,58 @@ class TorchTrainer(object):
             return
 
         checkpoint = self.checkpoint(logs)
-        file_path = "%s/model_ep%04d.pth" % (self.exp_path, self.cur_epoch)
+        self.save_model_checkpoint("model", checkpoint, partial=partial)
+
+    def save_model_checkpoint(
+        self, model_name: str, checkpoint: Dict[str, Any], partial: bool = False
+    ):
+        if partial:
+            file_path = "%s/%s_ep%04d_step%08d.pth" % (
+                model_name,
+                self.exp_path,
+                self.cur_epoch,
+                self.global_step,
+            )
+        else:
+            file_path = "%s/%s_ep%04d.pth" % (model_name, self.exp_path, self.cur_epoch)
+
+        torch.save(checkpoint, file_path)
+
+    def save_checkpoint(self, logs=None, partial: bool = False):
+        """Saves a checkpoint of the training status
+
+        Args:
+          logs: logs containing the current value of the metrics.
+          partial: if True, it is saving in the middle of the epoch
+        """
+        if partial and (
+            self.save_interval_steps is None
+            or self.global_step % self.save_interval_steps != 0
+        ):
+            return
+
+        if self.ddp and (
+            self.ddp_type == DDPType.OSS_DDP or self.ddp_type == DDPType.OSS_SHARDED_DDP
+        ):
+            # Not sure what this does, just copying from the example in
+            # https://github.com/facebookresearch/fairscale/blob/master/benchmarks/oss.py
+            # Check the checkpointing in the case of the OSS optimizer
+            # Memory usage could spill over from there
+            # optimizer = cast(OSS, optimizer)
+            self.optimizer.consolidate_state_dict()
+
+        if self.rank != 0:
+            return
+
+        checkpoint = self.checkpoint(logs)
+        if partial:
+            file_path = "%s/model_ep%04d_step%08d.pth" % (
+                self.exp_path,
+                self.cur_epoch,
+                self.global_step,
+            )
+        else:
+            file_path = "%s/model_ep%04d.pth" % (self.exp_path, self.cur_epoch)
 
         torch.save(checkpoint, file_path)
 
@@ -584,13 +800,7 @@ class TorchTrainer(object):
 
         torch.save(checkpoint, file_path)
 
-    def load_checkpoint(self, file_path):
-        """Loads a training checkpoint from file.
-
-        Args:
-           file_path: checkpoint file path
-        """
-        checkpoint = torch.load(file_path, map_location=torch.device("cpu"))
+    def _load_checkpoint(self, checkpoint):
         rng_state = checkpoint["rng_state"]
         torch.set_rng_state(rng_state)
         if self.rank > 0:
@@ -600,6 +810,11 @@ class TorchTrainer(object):
             del dummy
 
         self.cur_epoch = checkpoint["epoch"]
+        if "batch" in checkpoint:
+            self.cur_batch = checkpoint["batch"]
+        else:
+            self.cur_batch = 0
+
         try:
             self.model.load_state_dict(checkpoint["model_state_dict"])
         except:
@@ -609,6 +824,12 @@ class TorchTrainer(object):
             self.loss.load_state_dict(checkpoint["loss_state_dict"])
         if self.lr_scheduler is not None:
             self.lr_scheduler.load_state_dict(checkpoint["lr_scheduler_state_dict"])
+
+        if "global_step" in checkpoint:
+            self.global_step = checkpoint["global_step"]
+        elif self.lr_scheduler is not None:
+            # this for older models that didn't save the global step
+            self.global_step = self.lr_scheduler.step
 
         # if self.use_amp:
         #    amp.load_state_dict(checkpoint['amp'])
@@ -638,17 +859,31 @@ class TorchTrainer(object):
 
         return logs
 
+    def load_checkpoint(self, file_path):
+        """Loads a training checkpoint from file.
+
+        Args:
+           file_path: checkpoint file path
+        """
+        checkpoint = torch.load(file_path, map_location=torch.device("cpu"))
+        return self._load_checkpoint(checkpoint)
+
     def load_last_checkpoint(self):
         """Loads the last training checkpoint in the experiment dir."""
         for epoch in range(self.epochs, 0, -1):
-            file_path = "%s/model_ep%04d.pth" % (self.exp_path, epoch)
-            if os.path.isfile(file_path):
+            file_path = Path("%s/model_ep%04d.pth" % (self.exp_path, epoch))
+            if file_path.is_file():
+                steps_pattern = "%s/model_ep%04d_steps*.pth" % (self.exp_path, epoch)
+                steps_file_paths = sorted(glob.glob(steps_pattern))
+                if len(steps_file_paths) > 0:
+                    file_path = steps_file_paths[-1]
+
                 return self.load_checkpoint(file_path)
 
         return None
 
     @staticmethod
-    def get_augs_keys(batch, base_key, skip={}):
+    def get_augs_keys(batch, base_key, skip=set()):
         keys = []
         if base_key in batch and base_key not in skip:
             keys.append(base_key)
@@ -712,12 +947,18 @@ class TorchTrainer(object):
         parser.add_argument(
             "--log-interval",
             type=int,
-            default=10,
+            default=1000,
             help="how many batches to wait before logging training status",
         )
         parser.add_argument(
+            "--save-interval-steps",
+            default=None,
+            type=int,
+            help="number of steps between model saves, if None only saves at the end of the epoch",
+        )
+        parser.add_argument(
             "--use-tensorboard",
-            action="store_true",
+            action=ActionYesNo,
             default=False,
             help="use tensorboard logger",
         )
@@ -745,13 +986,13 @@ class TorchTrainer(object):
         )
         parser.add_argument(
             "--use-amp",
-            action="store_true",
+            action=ActionYesNo,
             default=False,
             help="use mixed precision training",
         )
         parser.add_argument(
             "--cpu-offload",
-            action="store_true",
+            action=ActionYesNo,
             default=False,
             help="CPU offload of gradients when using fully_sharded_ddp",
         )

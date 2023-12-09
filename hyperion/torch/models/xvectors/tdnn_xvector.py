@@ -5,10 +5,9 @@
 
 import logging
 
-from jsonargparse import ActionParser, ArgumentParser
-
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ArgumentParser
 
 from ...narchs import TDNNFactory as TF
 from .xvector import XVector
@@ -43,11 +42,17 @@ class TDNNXVector(XVector):
         use_norm=True,
         norm_before=False,
         in_norm=False,
+        head_use_norm=True,
         head_use_in_norm=False,
+        head_hid_dim=2048,
+        head_bottleneck_dim=256,
+        proj_head_use_norm=True,
+        proj_head_norm_before=True,
         embed_layer=0,
         proj_feats=None,
+        head_type="x-vector",
+        bias_weight_decay=None,
     ):
-
         logging.info("making %s encoder network", tdnn_type)
         encoder_net = TF.create(
             tdnn_type,
@@ -84,11 +89,18 @@ class TDNNXVector(XVector):
             head_norm_layer=head_norm_layer,
             use_norm=use_norm,
             norm_before=norm_before,
+            head_use_norm=head_use_norm,
             head_use_in_norm=head_use_in_norm,
+            head_hid_dim=head_hid_dim,
+            head_bottleneck_dim=head_bottleneck_dim,
+            proj_head_use_norm=proj_head_use_norm,
+            proj_head_norm_before=proj_head_norm_before,
             dropout_rate=dropout_rate,
             embed_layer=embed_layer,
             in_feats=None,
             proj_feats=proj_feats,
+            head_type=head_type,
+            bias_weight_decay=bias_weight_decay,
         )
 
         self.tdnn_type = tdnn_type
@@ -125,7 +137,6 @@ class TDNNXVector(XVector):
         return self.encoder_net.in_norm
 
     def get_config(self):
-
         base_config = super().get_config()
         del base_config["encoder_cfg"]
 
@@ -193,6 +204,26 @@ class TDNNXVector(XVector):
             parser = ArgumentParser(prog="")
 
         XVector.add_finetune_args(parser)
+        TF.add_finetune_args(parser)
+
+        if prefix is not None:
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
+
+    @staticmethod
+    def filter_dino_teacher_args(**kwargs):
+        base_args = XVector.filter_dino_teacher_args(**kwargs)
+        child_args = TF.filter_finetune_args(**kwargs)
+
+        base_args.update(child_args)
+        return base_args
+
+    @staticmethod
+    def add_dino_teacher_args(parser, prefix=None):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
+
+        XVector.add_dino_teacher_args(parser)
         TF.add_finetune_args(parser)
 
         if prefix is not None:

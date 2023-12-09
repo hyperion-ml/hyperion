@@ -40,6 +40,7 @@ model:
     encoder_lr: 1e-2
     feat_extract_lr: 1e-2
   xvector:
+    override_output: true
     cos_scale: 32.0
     margin: 0.2
     margin_warmup_epochs: 0

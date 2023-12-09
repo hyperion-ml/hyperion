@@ -131,6 +131,12 @@ class ConformerEncoderBlockV1(nn.Module):
         if self.concat_after:
             self.concat_linear = nn.Linear(num_feats + num_feats, num_feats)
 
+    def change_attn_dropout(self, att_dropout_rate):
+        attn = self.self_attn
+        if hasattr(attn, "dropout_rate"):
+            attn.dropout_rate = att_dropout_rate
+            attn.dropout.p = att_dropout_rate
+
     @staticmethod
     def _make_att(
         att_type,

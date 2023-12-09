@@ -3,6 +3,8 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+import logging
+
 import torch
 import torch.nn as nn
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
@@ -217,7 +219,7 @@ class ConformerEncoderV1(NetArch):
                 d_model, self.pos_kernel_size, self.pos_num_groups, self.hid_act
             )
         else:
-            raise Exception("wrong pos-enc-type={}".format(self.pos_enc_type))
+            raise Exception(f"wrong pos-enc-type={self.pos_enc_type}")
 
         hid_act = AF.create(self.hid_act)
 
@@ -273,6 +275,29 @@ class ConformerEncoderV1(NetArch):
             x = self.in_layer(x)
 
         return x, x_mask
+
+    def change_config(
+        self, override_dropouts, dropout_rate, pos_dropout_rate, att_dropout_rate
+    ):
+        if override_dropouts:
+            logging.info("changing conformer dropouts")
+            self.change_dropouts(dropout_rate, pos_dropout_rate, att_dropout_rate)
+
+    def change_dropouts(self, dropout_rate, pos_dropout_rate, att_dropout_rate):
+        super().change_dropouts(dropout_rate)
+        from ..layers import PosEncoderBase
+
+        for m in self.modules():
+            if isinstance(m, PosEncoderBase):
+                if hasattr(m, "dropout_rate"):
+                    m.dropout_rate = pos_dropout_rate
+                    m.dropout.p = pos_dropout_rate
+            elif isinstance(m, EBlock):
+                m.change_attn_dropout(att_dropout_rate)
+
+        self.dropout_rate = dropout_rate
+        self.pos_dropout_rate = pos_dropout_rate
+        self.att_dropout_rate = att_dropout_rate
 
     def forward(
         self, x, x_lengths=None, x_mask=None, return_mask=False, target_shape=None
@@ -608,6 +633,66 @@ class ConformerEncoderV1(NetArch):
             action=ActionYesNo,
             help="concatenate attention input and output instead of adding",
         )
+
+        if prefix is not None:
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
+
+    @staticmethod
+    def filter_finetune_args(**kwargs):
+        valid_args = (
+            "override_dropouts",
+            "dropout_rate",
+            "pos_dropout_rate",
+            "att_dropout_rate",
+        )
+        args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
+        return args
+
+    @staticmethod
+    def add_finetune_args(parser, prefix=None, skip=set([])):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
+
+        try:
+            parser.add_argument(
+                "--override-dropouts",
+                default=False,
+                action=ActionYesNo,
+                help=(
+                    "whether to use the dropout probabilities passed in the "
+                    "arguments instead of the defaults in the pretrained model."
+                ),
+            )
+        except:
+            pass
+
+        try:
+            parser.add_argument(
+                "--dropout-rate", default=0, type=float, help="dropout probability"
+            )
+        except:
+            pass
+
+        try:
+            parser.add_argument(
+                "--pos-dropout-rate",
+                default=0,
+                type=float,
+                help="positional encoder dropout probability",
+            )
+        except:
+            pass
+
+        try:
+            parser.add_argument(
+                "--att-dropout-rate",
+                default=0,
+                type=float,
+                help="attention dropout probability",
+            )
+        except:
+            pass
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

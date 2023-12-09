@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional
 
 import torch
 import torch.nn as nn
-from jsonargparse import ActionParser, ArgumentParser
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ..layers import FeatFuserFactory as FFF
 from ..layers import MeanVarianceNorm as MVN
@@ -103,7 +103,7 @@ class FeatFuserMVN(NetArch):
         parser.add_argument(
             "--aug-after-mvn",
             default=False,
-            action="store_true",
+            action=ActionYesNo,
             help=("do spec augment after st-mvn," "instead of before"),
         )
 

@@ -34,9 +34,16 @@ class ConformerV1XVector(XVector):
         head_norm_layer=None,
         use_norm=True,
         norm_before=True,
+        head_use_norm=True,
         head_use_in_norm=False,
+        head_hid_dim=2048,
+        head_bottleneck_dim=256,
+        proj_head_use_norm=True,
+        proj_head_norm_before=True,
         embed_layer=0,
         proj_feats=None,
+        head_type="x-vector",
+        bias_weight_decay=None,
     ):
         if isinstance(encoder, dict):
             logging.info(f"making conformer encoder network={encoder}")
@@ -65,10 +72,17 @@ class ConformerV1XVector(XVector):
             head_norm_layer=head_norm_layer,
             use_norm=use_norm,
             norm_before=norm_before,
+            head_use_norm=head_use_norm,
             head_use_in_norm=head_use_in_norm,
+            head_hid_dim=head_hid_dim,
+            head_bottleneck_dim=head_bottleneck_dim,
+            proj_head_use_norm=proj_head_use_norm,
+            proj_head_norm_before=proj_head_norm_before,
             dropout_rate=dropout_rate,
             embed_layer=embed_layer,
             proj_feats=proj_feats,
+            head_type=head_type,
+            bias_weight_decay=bias_weight_decay,
         )
 
     def get_config(self):
@@ -88,6 +102,7 @@ class ConformerV1XVector(XVector):
     def change_config(
         self,
         encoder,
+        override_output=False,
         override_dropouts=False,
         dropout_rate=0,
         num_classes=None,
@@ -100,6 +115,7 @@ class ConformerV1XVector(XVector):
         num_subcenters=2,
     ):
         super().change_config(
+            override_output,
             False,
             dropout_rate,
             num_classes,
@@ -166,6 +182,25 @@ class ConformerV1XVector(XVector):
             parser = ArgumentParser(prog="")
 
         XVector.add_finetune_args(parser)
+        Encoder.add_finetune_args(parser, prefix="encoder", skip=set())
+
+        if prefix is not None:
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
+
+    @staticmethod
+    def filter_dino_teacher_args(**kwargs):
+        base_args = XVector.filter_dino_teacher_args(**kwargs)
+        child_args = Encoder.filter_finetune_args(**kwargs["encoder"])
+        base_args["encoder"] = child_args
+        return base_args
+
+    @staticmethod
+    def add_dino_teacher_args(parser, prefix=None):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
+
+        XVector.add_dino_teacher_args(parser)
         Encoder.add_finetune_args(parser, prefix="encoder", skip=set())
 
         if prefix is not None:

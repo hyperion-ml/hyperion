@@ -23,9 +23,10 @@ class TorchModel(nn.Module):
         super().__init_subclass__(**kwargs)
         TorchModel.registry[cls.__name__] = cls
 
-    def __init__(self):
+    def __init__(self, bias_weight_decay=None):
         super().__init__()
         self._train_mode = "full"
+        self.bias_weight_decay = bias_weight_decay
 
     def get_config(self):
         config = {"class_name": self.__class__.__name__}
@@ -91,10 +92,26 @@ class TorchModel(nn.Module):
             logging.info("buffers: %s", n)
 
     def has_param_groups(self):
-        return False
+        return self.bias_weight_decay is not None
 
     def trainable_param_groups(self):
-        return self.trainable_parameters()
+        assert self.bias_weight_decay is not None
+        if self.bias_weight_decay is None:
+            return [{"params": self.trainable_parameters()}]
+
+        regularized = []
+        not_regularized = []
+        for name, param in self.trainable_named_parameters():
+            # we do not regularize biases nor Norm parameters
+            if name.endswith(".bias") or len(param.shape) == 1:
+                not_regularized.append(param)
+            else:
+                regularized.append(param)
+
+        return [
+            {"params": regularized},
+            {"params": not_regularized, "weight_decay": self.bias_weight_decay},
+        ]
 
     def freeze(self):
         for param in self.parameters():
@@ -315,6 +332,7 @@ class TorchModel(nn.Module):
     @staticmethod
     def auto_load(
         file_path: PathLike,
+        model_name: Optional[str] = None,
         extra_objs: dict = {},
         map_location: Optional[
             Union[
@@ -348,7 +366,9 @@ class TorchModel(nn.Module):
         else:
             raise Exception("unknown object with class_name=%s" % (class_name))
 
-        state_dict = model_data["model_state_dict"]
+        if model_name is None:
+            model_name = "model"
+        state_dict = model_data[f"{model_name}_state_dict"]
 
         if "n_averaged" in state_dict:
             del state_dict["n_averaged"]

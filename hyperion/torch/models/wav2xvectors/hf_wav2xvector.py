@@ -310,21 +310,15 @@ class HFWav2XVector(TorchModel):
         self.hf_feats.freeze_except_lora(bias)
 
     def has_param_groups(self):
-        return self.hf_feats.has_param_groups()
+        return self.hf_feats.has_param_groups() or self.xvector.has_param_groups()
 
     def trainable_param_groups(self):
         if not self.has_param_groups():
-            return self.trainable_parameters()
+            return [{"params": self.trainable_parameters()}]
 
         param_groups = self.hf_feats.trainable_param_groups()
         param_groups.append({"params": self.feat_fuser.trainable_parameters()})
-        # if self.feat_fusion_method == "weighted-avg":
-        #     if self.feat_fuser.requires_grad:
-        #         param_groups.append({"params": self.feat_fuser})
-        # else:
-        #     param_groups.append({"params": self.feat_fuser.parameters()})
-
-        param_groups.append({"params": self.xvector.trainable_parameters()})
+        param_groups.extend(self.xvector.trainable_param_groups())
         return param_groups
 
     def set_train_mode(self, mode):
@@ -362,6 +356,9 @@ class HFWav2XVector(TorchModel):
         else:
             raise ValueError(f"invalid train_mode={mode}")
 
+        if self.xvector.head_type == "dino":
+            self.xvector.classif_net.freeze_output_g()
+
         logging.info("train mode set to %s", mode)
 
         if "nograd" in mode or mode == "ft-embed-affine":
@@ -377,6 +374,7 @@ class HFWav2XVector(TorchModel):
             super()._train(train_mode)
         elif train_mode == "ft-embed-affine":
             self.hf_feats.train()
+            self.feat_fuser.train()
             self.xvector._train("ft-embed_affine")
         elif train_mode in [
             "ft-xvector",
@@ -389,6 +387,7 @@ class HFWav2XVector(TorchModel):
             "hf-lora-with-bias",
         ]:
             self.hf_feats.train()
+            self.feat_fuser.train()
             self.xvector._train("full")
         else:
             raise ValueError(f"invalid train_mode={train_mode}")

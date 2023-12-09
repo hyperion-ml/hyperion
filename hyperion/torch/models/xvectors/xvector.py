@@ -3,24 +3,32 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import logging
-from enum import Enum
-from typing import Optional
+
+# from enum import Enum
+from dataclasses import dataclass
+from typing import List, Optional
 
 import torch
 import torch.nn as nn
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
+from ....utils import HypDataClass
 from ....utils.misc import filter_func_args
 from ...layer_blocks import TDNNBlock
 from ...layers import GlobalPool1dFactory as PF
-from ...narchs import ClassifHead, TorchNALoader
+from ...narchs import ClassifHead, DINOHead, ProjHead, TorchNALoader
 from ...torch_model import TorchModel
 from ...utils import eval_nnet_by_chunks, scale_seq_lengths
 
-# class XVectorTrainMode(Enum):
-#     full = 0
-#     frozen = 1
-#     ft_embed_affine = 2
+
+@dataclass
+class XVectorOutput(HypDataClass):
+    loss: torch.Tensor
+    logits: torch.Tensor
+    xvector: torch.Tensor
+    h_enc: Optional[List[torch.Tensor]] = None
+    h_classif: Optional[List[torch.Tensor]] = None
+    h_feats: Optional[List[torch.Tensor]] = None
 
 
 class XVector(TorchModel):
@@ -45,13 +53,20 @@ class XVector(TorchModel):
         head_norm_layer=None,
         use_norm=True,
         norm_before=True,
+        head_use_norm=True,
         head_use_in_norm=False,
+        head_hid_dim=2048,
+        head_bottleneck_dim=256,
+        proj_head_use_norm=True,
+        proj_head_norm_before=True,
         dropout_rate=0,
         embed_layer=0,
         in_feats=None,
         proj_feats=None,
+        head_type="x-vector",
+        bias_weight_decay=None,
     ):
-        super().__init__()
+        super().__init__(bias_weight_decay=bias_weight_decay)
 
         # encoder network
         self.encoder_net = encoder_net
@@ -112,78 +127,147 @@ class XVector(TorchModel):
 
         # create classification head
         logging.info("making classification head net")
-        self.classif_net = ClassifHead(
-            pool_feats,
-            num_classes,
-            embed_dim=embed_dim,
-            num_embed_layers=num_embed_layers,
-            hid_act=hid_act,
-            loss_type=loss_type,
-            cos_scale=cos_scale,
-            margin=margin,
-            margin_warmup_epochs=margin_warmup_epochs,
-            intertop_k=intertop_k,
-            intertop_margin=intertop_margin,
-            num_subcenters=num_subcenters,
-            norm_layer=head_norm_layer,
-            use_norm=use_norm,
-            norm_before=norm_before,
-            dropout_rate=dropout_rate,
-            use_in_norm=head_use_in_norm,
-        )
-
+        self.embed_dim = embed_dim
+        self.num_embed_layers = num_embed_layers
+        self.head_type = head_type
         self.hid_act = hid_act
         self.norm_layer = norm_layer
-        self.head_norm_layer = head_norm_layer
         self.use_norm = use_norm
         self.norm_before = norm_before
         self.head_use_in_norm = head_use_in_norm
+        self.head_use_norm = head_use_norm
+        self.head_norm_layer = head_norm_layer
+        self.head_hid_dim = head_hid_dim
+        self.head_bottleneck_dim = head_bottleneck_dim
+        self.proj_head_use_norm = proj_head_use_norm
+        self.proj_head_norm_before = proj_head_norm_before
         self.dropout_rate = dropout_rate
         self.embed_layer = embed_layer
+        if self.head_type == "x-vector":
+            self.proj_head_net = None
+            self.classif_net = ClassifHead(
+                pool_feats,
+                num_classes,
+                embed_dim=embed_dim,
+                num_embed_layers=num_embed_layers,
+                hid_act=hid_act,
+                loss_type=loss_type,
+                cos_scale=cos_scale,
+                margin=margin,
+                margin_warmup_epochs=margin_warmup_epochs,
+                intertop_k=intertop_k,
+                intertop_margin=intertop_margin,
+                num_subcenters=num_subcenters,
+                norm_layer=head_norm_layer,
+                use_norm=head_use_norm,
+                norm_before=norm_before,
+                dropout_rate=dropout_rate,
+                use_in_norm=head_use_in_norm,
+            )
+        elif self.head_type == "dino":
+            self.proj_head_net = ProjHead(
+                pool_feats,
+                embed_dim,
+                use_norm=proj_head_use_norm,
+                norm_before=proj_head_norm_before,
+            )
+            self.classif_net = DINOHead(
+                embed_dim,
+                num_classes,
+                hid_feats=head_hid_dim,
+                bottleneck_feats=head_bottleneck_dim,
+                num_hid_layers=num_embed_layers,
+                hid_act=hid_act,
+                output_type=loss_type,
+                norm_layer=head_norm_layer,
+                use_norm=head_use_norm,
+                norm_before=norm_before,
+                dropout_rate=dropout_rate,
+                use_in_norm=head_use_in_norm,
+            )
 
     @property
     def pool_feats(self):
-        return self.classif_net.in_feats
+        if self.proj_head_net is None:
+            return self.classif_net.in_feats
+        else:
+            return self.proj_head_net.in_feats
 
     @property
     def num_classes(self):
         return self.classif_net.num_classes
 
     @property
-    def embed_dim(self):
-        return self.classif_net.embed_dim
-
-    @property
-    def num_embed_layers(self):
-        return self.classif_net.num_embed_layers
-
-    @property
     def cos_scale(self):
-        return self.classif_net.cos_scale
+        if self.head_type == "x-vector":
+            return self.classif_net.cos_scale
+        elif self.head_type == "dino":
+            return 1
+        else:
+            raise ValueError
 
     @property
     def margin(self):
-        return self.classif_net.margin
+        if self.head_type == "x-vector":
+            return self.classif_net.margin
+        else:
+            return 0.0
 
     @property
     def margin_warmup_epochs(self):
-        return self.classif_net.margin_warmup_epochs
+        if self.head_type == "x-vector":
+            return self.classif_net.margin_warmup_epochs
+        else:
+            return 0
 
     @property
     def intertop_k(self):
-        return self.classif_net.intertop_k
+        if self.head_type == "x-vector":
+            return self.classif_net.intertop_k
+        else:
+            return 0
 
     @property
     def intertop_margin(self):
-        return self.classif_net.intertop_margin
+        if self.head_type == "x-vector":
+            return self.classif_net.intertop_margin
+        else:
+            return 0.0
 
     @property
     def num_subcenters(self):
-        return self.classif_net.num_subcenters
+        if self.head_type == "x-vector":
+            return self.classif_net.num_subcenters
+        else:
+            return 0
 
     @property
     def loss_type(self):
-        return self.classif_net.loss_type
+        if self.head_type == "x-vector":
+            return self.classif_net.loss_type
+        elif self.head_type == "dino":
+            return self.classif_net.output_type
+        else:
+            raise ValueError()
+
+    # def clone(self):
+    #     # weight normalized layers cannot be copied with deepcopy,
+    #     # we remove them to clone and put them back later
+    #     modules, cloned_modules = self.before_cloning()
+    #     new_self = super().clone()
+    #     self.after_cloning(*modules)
+    #     new_self.after_cloning(*cloned_modules)
+    #     return new_self
+
+    # def before_cloning(self):
+    #     if self.head_type == "dino":
+    #         return self.classif_net.before_cloning()
+    #     else:
+    #         return None, None
+
+    # def after_cloning(self, output):
+    #     if self.head_type == "dino":
+    #         self.classif_net.after_cloning(output)
 
     def _make_pool_net(self, pool_net, enc_feats=None):
         """Makes the pooling block
@@ -290,6 +374,8 @@ class XVector(TorchModel):
             x = x[0]
         x, x_lengths = self._post_enc(x, x_lengths, max_in_length)
         p = self.pool_net(x, x_lengths=x_lengths)
+        if self.proj_head_net is not None:
+            p = self.proj_head_net(p)
         y = self.classif_net(p, y)
 
         return y
@@ -329,6 +415,8 @@ class XVector(TorchModel):
 
         x, x_lengths = self._post_enc(x, x_lengths, max_in_length)
         p = self.pool_net(x, x_lengths=x_lengths)
+        if self.proj_head_net is not None:
+            p = self.proj_head_net(p)
         h_classif = self.classif_net.forward_hid_feats(
             p, y, return_classif_layers, return_logits=return_logits
         )
@@ -358,6 +446,9 @@ class XVector(TorchModel):
 
         x, x_lengths = self._post_enc(x, x_lengths, max_in_length)
         p = self.pool_net(x, x_lengths=x_lengths)
+        if self.proj_head_net is not None:
+            return self.proj_head_net(p)
+
         y = self.classif_net.extract_embed(p, embed_layer)
         return y
 
@@ -491,7 +582,6 @@ class XVector(TorchModel):
     def get_config(self):
         enc_cfg = self.encoder_net.get_config()
         pool_cfg = PF.get_config(self.pool_net)
-
         config = {
             "encoder_cfg": enc_cfg,
             "pool_net": pool_cfg,
@@ -507,14 +597,21 @@ class XVector(TorchModel):
             "intertop_margin": self.intertop_margin,
             "num_subcenters": self.num_subcenters,
             "norm_layer": self.norm_layer,
-            "head_norm_layer": self.head_norm_layer,
             "use_norm": self.use_norm,
             "norm_before": self.norm_before,
+            "head_norm_layer": self.head_norm_layer,
+            "head_use_norm": self.head_use_norm,
             "head_use_in_norm": self.head_use_in_norm,
+            "head_hid_dim": self.head_hid_dim,
+            "head_bottleneck_dim": self.head_bottleneck_dim,
+            "proj_head_use_norm": self.proj_head_use_norm,
+            "proj_head_norm_before": self.proj_head_norm_before,
             "dropout_rate": self.dropout_rate,
             "embed_layer": self.embed_layer,
             "in_feats": self.in_feats,
             "proj_feats": self.proj_feats,
+            "head_type": self.head_type,
+            "bias_weight_decay": self.bias_weight_decay,
         }
 
         base_config = super().get_config()
@@ -535,6 +632,7 @@ class XVector(TorchModel):
 
     def change_config(
         self,
+        override_output=False,
         override_dropouts=False,
         dropout_rate=0,
         num_classes=None,
@@ -547,16 +645,17 @@ class XVector(TorchModel):
         num_subcenters=2,
     ):
         logging.info("changing x-vector config")
-        self.rebuild_output_layer(
-            num_classes=num_classes,
-            loss_type=loss_type,
-            cos_scale=cos_scale,
-            margin=margin,
-            margin_warmup_epochs=margin_warmup_epochs,
-            intertop_k=intertop_k,
-            intertop_margin=intertop_margin,
-            num_subcenters=num_subcenters,
-        )
+        if override_output:
+            self.rebuild_output_layer(
+                num_classes=num_classes,
+                loss_type=loss_type,
+                cos_scale=cos_scale,
+                margin=margin,
+                margin_warmup_epochs=margin_warmup_epochs,
+                intertop_k=intertop_k,
+                intertop_margin=intertop_margin,
+                num_subcenters=num_subcenters,
+            )
 
         if override_dropouts:
             logging.info("overriding x-vector dropouts")
@@ -605,6 +704,10 @@ class XVector(TorchModel):
         self.classif_net.set_intertop_margin(intertop_margin)
         self.classif_net.set_num_subcenters(num_subcenters)
 
+    def cancel_output_layer_grads(self):
+        for p in self.classif_net.output.parameters():
+            p.grad = None
+
     def freeze_preembed_layers(self):
         self.encoder_net.freeze()
         if self.proj is not None:
@@ -629,6 +732,9 @@ class XVector(TorchModel):
             self.freeze_preembed_layers()
         else:
             raise ValueError(f"invalid train_mode={mode}")
+
+        if self.head_type == "dino":
+            self.classif_net.freeze_output_g()
 
         self._train_mode = mode
 
@@ -658,7 +764,7 @@ class XVector(TorchModel):
     def filter_args(**kwargs):
         # get arguments for pooling
         pool_args = PF.filter_args(**kwargs["pool_net"])
-        args = filter_func_args(ClassifHead.__init__, kwargs)
+        args = filter_func_args(XVector.__init__, kwargs)
         args["pool_net"] = pool_args
         return args
 
@@ -670,6 +776,13 @@ class XVector(TorchModel):
 
         PF.add_class_args(
             parser, prefix="pool_net", skip=["dim", "in_feats", "keepdim"]
+        )
+
+        parser.add_argument(
+            "--head-type",
+            default="x-vector",
+            choices=["x-vector", "dino"],
+            help="type of classification head in [x-vector, dino]",
         )
 
         parser.add_argument(
@@ -777,10 +890,43 @@ class XVector(TorchModel):
         )
 
         parser.add_argument(
+            "--head-use-norm",
+            default=True,
+            action=ActionYesNo,
+            help="batch normalizaton at the head",
+        )
+        parser.add_argument(
             "--head-use-in-norm",
             default=False,
             action=ActionYesNo,
             help="batch normalizaton at the head input",
+        )
+
+        parser.add_argument(
+            "--head-hid-dim",
+            default=2048,
+            type=int,
+            help="bottleneck dim of DINO head",
+        )
+
+        parser.add_argument(
+            "--head-bottleneck-dim",
+            default=256,
+            type=int,
+            help="bottleneck dim of DINO head",
+        )
+
+        parser.add_argument(
+            "--proj-head-use-norm",
+            default=True,
+            action=ActionYesNo,
+            help="batch normalizaton at projection head",
+        )
+        parser.add_argument(
+            "--proj-head-norm-before",
+            default=False,
+            action=ActionYesNo,
+            help="batch normalizaton at the begining of projection head",
         )
 
         try:
@@ -808,6 +954,14 @@ class XVector(TorchModel):
                 "if None, there is not projection"
             ),
         )
+
+        parser.add_argument(
+            "--bias-weight-decay",
+            default=None,
+            type=float,
+            help="biases weight decay, if None default it is used",
+        )
+
         if prefix is not None:
             outer_parser.add_argument(
                 "--" + prefix,
@@ -817,15 +971,7 @@ class XVector(TorchModel):
 
     @staticmethod
     def filter_finetune_args(**kwargs):
-        valid_args = (
-            "loss_type",
-            "cos_scale",
-            "margin",
-            "margin_warmup_epochs",
-            "intertop_k",
-            "intertop_margin",
-        )
-        args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
+        args = filter_func_args(XVector.change_config, kwargs)
         return args
 
     @staticmethod
@@ -833,6 +979,13 @@ class XVector(TorchModel):
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
+
+        parser.add_argument(
+            "--override-output",
+            default=False,
+            action=ActionYesNo,
+            help="changes the config of the output layer",
+        )
 
         parser.add_argument(
             "--loss-type",
@@ -872,6 +1025,37 @@ class XVector(TorchModel):
             type=int,
             help="number of subcenters in subcenter losses",
         )
+
+        try:
+            parser.add_argument(
+                "--override-dropouts",
+                default=False,
+                action=ActionYesNo,
+                help=(
+                    "whether to use the dropout probabilities passed in the "
+                    "arguments instead of the defaults in the pretrained model."
+                ),
+            )
+        except:
+            pass
+
+        try:
+            parser.add_argument("--dropout-rate", default=0, type=float, help="dropout")
+        except:
+            pass
+
+        if prefix is not None:
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
+
+    @staticmethod
+    def filter_dino_teacher_args(**kwargs):
+        return XVector.filter_finetune_args(**kwargs)
+
+    @staticmethod
+    def add_dino_teacher_args(parser, prefix=None):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
 
         try:
             parser.add_argument(

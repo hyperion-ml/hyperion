@@ -5,10 +5,9 @@ f"""
 
 import logging
 
-from jsonargparse import ActionParser, ArgumentParser
-
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ArgumentParser
 
 from ...narchs import TransformerEncoderV1 as TE
 from .xvector import XVector
@@ -83,11 +82,17 @@ class TransformerXVectorV1(XVector):
         head_norm_layer=None,
         use_norm=True,
         norm_before=False,
+        head_use_norm=True,
         head_use_in_norm=False,
+        head_hid_dim=2048,
+        head_bottleneck_dim=256,
+        proj_head_use_norm=True,
+        proj_head_norm_before=True,
         embed_layer=0,
         proj_feats=None,
+        head_type="x-vector",
+        bias_weight_decay=None,
     ):
-
         logging.info("making transformer-v1 encoder network")
         encoder_net = TE(
             in_feats,
@@ -127,11 +132,18 @@ class TransformerXVectorV1(XVector):
             head_norm_layer=head_norm_layer,
             use_norm=use_norm,
             norm_before=norm_before,
+            head_use_norm=head_use_norm,
             head_use_in_norm=head_use_in_norm,
+            head_hid_dim=head_hid_dim,
+            head_bottleneck_dim=head_bottleneck_dim,
+            proj_head_use_norm=proj_head_use_norm,
+            proj_head_norm_before=proj_head_norm_before,
             dropout_rate=dropout_rate,
             embed_layer=embed_layer,
             in_feats=None,
             proj_feats=proj_feats,
+            head_type=head_type,
+            bias_weight_decay=bias_weight_decay,
         )
 
     @property
@@ -397,6 +409,54 @@ class TransformerXVectorV1(XVector):
             parser = ArgumentParser(prog="")
 
         XVector.add_finetune_args(parser)
+        parser.add_argument(
+            "--pos-dropout-rate",
+            default=0.1,
+            type=float,
+            help="positional encoder dropout",
+        )
+        parser.add_argument(
+            "--att-dropout-rate", default=0, type=float, help="self-att dropout"
+        )
+
+        if prefix is not None:
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
+
+    @staticmethod
+    def filter_dino_teacher_args(**kwargs):
+        """Filters arguments correspondin to TransformerXVector
+            from args dictionary
+
+        Args:
+          kwargs: args dictionary
+
+        Returns:
+          args dictionary
+        """
+        base_args = XVector.filter_dino_teacher_args(**kwargs)
+
+        valid_args = (
+            "pos_dropout_rate",
+            "att_dropout_rate",
+        )
+
+        child_args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
+        base_args.update(child_args)
+        return base_args
+
+    @staticmethod
+    def add_dino_teacher_args(parser, prefix=None):
+        """Adds TransformerXVector config parameters for finetuning to argparser
+
+        Args:
+           parser: argparse object
+           prefix: prefix string to add to the argument names
+        """
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
+
+        XVector.add_dino_teacher_args(parser)
         parser.add_argument(
             "--pos-dropout-rate",
             default=0.1,

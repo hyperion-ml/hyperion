@@ -68,3 +68,21 @@ class Wav2ConformerV1XVector(Wav2XVector):
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
+
+    @staticmethod
+    def filter_dino_teacher_args(**kwargs):
+        base_args = {}
+        child_args = ConformerV1XVector.filter_dino_teacher_args(**kwargs["xvector"])
+        base_args["xvector"] = child_args
+        return base_args
+
+    @staticmethod
+    def add_dino_teacher_args(parser, prefix=None):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
+
+        ConformerV1XVector.add_dino_teacher_args(parser, prefix="xvector")
+
+        if prefix is not None:
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
