@@ -63,6 +63,7 @@ class XVectorTrainer(TorchTrainer):
         device=None,
         metrics=None,
         lrsched=None,
+        wdsched=None,
         loggers=None,
         ddp=False,
         ddp_type="ddp",
@@ -143,4 +144,5 @@ class XVectorTrainer(TorchTrainer):
         logs = ODict(("train_" + k, v) for k, v in logs.items())
         lrs = self._get_lrs()
         logs.update(lrs)
+        logs.update(self._get_wds())
         return logs

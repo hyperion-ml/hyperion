@@ -8,6 +8,7 @@ import glob
 import logging
 import math
 import os
+import re
 from collections import OrderedDict as ODict
 from enum import Enum
 from pathlib import Path
@@ -33,6 +34,8 @@ from ..utils import (
     TorchDDP,
     tensors_subset,
 )
+from ..wd_schedulers import WDScheduler as WDS
+from ..wd_schedulers import WDSchedulerFactory as WDSF
 
 
 class DDPType(str, Enum):
@@ -92,6 +95,7 @@ class TorchTrainer(object):
         device=None,
         metrics=None,
         lrsched=None,
+        wdsched=None,
         loggers=None,
         ddp=False,
         ddp_type="ddp",
@@ -121,6 +125,7 @@ class TorchTrainer(object):
         self.exp_path = Path(exp_path)
         self.optim = optim
         self.lrsched = lrsched
+        self.wdsched = wdsched
 
         if loggers is None:
             self.loggers = self._default_loggers(
@@ -237,6 +242,7 @@ class TorchTrainer(object):
             self.model,
             self.optimizer,
             self.lr_scheduler,
+            self.wd_scheduler,
             self.grad_scaler,
             self.swa_model,
             self.swa_scheduler,
@@ -244,6 +250,7 @@ class TorchTrainer(object):
             self.model,
             self.optim,
             self.lrsched,
+            self.wdsched,
             self.device,
             self.use_amp,
             self.ddp,
@@ -265,6 +272,7 @@ class TorchTrainer(object):
         model,
         optim,
         lrsched,
+        wdsched,
         device,
         use_amp,
         ddp,
@@ -318,6 +326,9 @@ class TorchTrainer(object):
         # make the learning rate scheduler
         lr_scheduler = self._make_lr_sched(lrsched, optimizer)
 
+        # make weight decay scheduler if needed
+        wd_scheduler = self._make_wd_sched(wdsched, optimizer)
+
         if use_amp:
             if ddp and ddp_type != DDPType.DDP:
                 if self.rank == 0:
@@ -342,7 +353,15 @@ class TorchTrainer(object):
                 optimizer, swa_lr=swa_lr, anneal_epochs=swa_anneal_epochs
             )
 
-        return model, optimizer, lr_scheduler, grad_scaler, swa_model, swa_scheduler
+        return (
+            model,
+            optimizer,
+            lr_scheduler,
+            wd_scheduler,
+            grad_scaler,
+            swa_model,
+            swa_scheduler,
+        )
 
     def set_epoch(self, data_loader, cur_batch: int = 0):
         try:
@@ -378,6 +397,9 @@ class TorchTrainer(object):
                 epoch_updates = int(len(train_data) / self.grad_acc_steps)
                 self.lr_scheduler.on_epoch_begin(epoch, epoch_updates=epoch_updates)
 
+            if self.wd_scheduler is not None:
+                self.wd_scheduler.on_epoch_begin(epoch)
+
             logs = self.train_epoch(train_data)
             self.cur_batch = 0
             if val_data is not None:
@@ -395,6 +417,8 @@ class TorchTrainer(object):
             else:
                 if self.lr_scheduler is not None:
                     self.lr_scheduler.on_epoch_end(logs)
+                if self.wd_scheduler is not None:
+                    self.wd_scheduler.on_epoch_end()
 
             self.save_checkpoint(logs)
 
@@ -463,6 +487,7 @@ class TorchTrainer(object):
         logs = ODict(("train_" + k, v) for k, v in logs.items())
         lrs = self._get_lrs()
         logs.update(lrs)
+        logs.update(self._get_wds())
         return logs
 
     def validation_epoch(self, data_loader, swa_update_bn=False):
@@ -502,7 +527,7 @@ class TorchTrainer(object):
 
     def bn_update_epoch(self, data_loader):
         logs = self.validation_epoch(data_loader, swa_update_bn=True)
-        logs["lr"] = self._get_lr()
+        logs.update(self._get_lrs())
         return logs
 
     def _clip_grad_norm(self, model, optim, grad_clip, grad_clip_norm):
@@ -597,9 +622,21 @@ class TorchTrainer(object):
         assert isinstance(lr_sched, dict)
         args = LRSF.filter_args(**lr_sched)
         if self.rank == 0:
-            logging.info("lr scheduler args={}".format(args))
+            logging.info(f"lr scheduler args={args}")
         lr_sched = LRSF.create(optim, **args)
         return lr_sched
+
+    def _make_wd_sched(self, wd_sched, optim):
+        """Makes a Learning Rate scheduler object."""
+        if wd_sched is None or isinstance(wd_sched, WDS):
+            return wd_sched
+
+        assert isinstance(wd_sched, dict)
+        args = WDSF.filter_args(**wd_sched)
+        if self.rank == 0:
+            logging.info("wd scheduler args={args}")
+        wd_sched = WDSF.create(optim, **args)
+        return wd_sched
 
     def _default_loggers(self, log_interval, use_tensorboard, use_wandb, wandb):
         """Creates the default data loaders"""
@@ -633,6 +670,27 @@ class TorchTrainer(object):
             lrs["lr"] = lrs.pop("lr_0")
 
         return lrs
+
+    def _get_wd(self):
+        """Returns the current learning rate to show in the loggers"""
+        wds = [
+            param_group["weight_decay"] for param_group in self.optimizer.param_groups
+        ]
+        return max(wds)
+
+    def _get_wds(self, if_scheduler=True):
+        """Returns the current learning rates of all param groups to show in the loggers"""
+        if if_scheduler and self.wd_scheduler is None:
+            return {}
+
+        wds = {
+            f"wd_{i}": param_group["weight_decay"]
+            for i, param_group in enumerate(self.optimizer.param_groups)
+        }
+        if len(wds) == 1:
+            wds["wd"] = wds.pop("wd_0")
+
+        return wds
 
     def _compute_grad_acc_steps(self, data_loader):
         if self.eff_batch_size is None:
@@ -690,6 +748,9 @@ class TorchTrainer(object):
         if self.lr_scheduler is not None:
             checkpoint["lr_scheduler_state_dict"] = self.lr_scheduler.state_dict()
 
+        if self.wd_scheduler is not None:
+            checkpoint["wd_scheduler_state_dict"] = self.wd_scheduler.state_dict()
+
         if logs is not None:
             checkpoint["logs"] = logs
 
@@ -705,7 +766,7 @@ class TorchTrainer(object):
             and self.global_step % self.save_interval_steps == 0
         )
 
-    def new_save_checkpoint(self, logs=None, partial: bool = False):
+    def save_checkpoint(self, logs=None, partial: bool = False):
         """Saves a checkpoint of the training status
 
         Args:
@@ -735,18 +796,19 @@ class TorchTrainer(object):
         self, model_name: str, checkpoint: Dict[str, Any], partial: bool = False
     ):
         if partial:
-            file_path = "%s/%s_ep%04d_step%08d.pth" % (
-                model_name,
+            file_path = "%s/%s_ep%04d_step%10d.pth" % (
                 self.exp_path,
+                model_name,
                 self.cur_epoch,
                 self.global_step,
             )
         else:
-            file_path = "%s/%s_ep%04d.pth" % (model_name, self.exp_path, self.cur_epoch)
+            file_path = "%s/%s_ep%04d.pth" % (self.exp_path, model_name, self.cur_epoch)
 
+        logging.info("saving %s to %s", model_name, file_path)
         torch.save(checkpoint, file_path)
 
-    def save_checkpoint(self, logs=None, partial: bool = False):
+    def old_save_checkpoint(self, logs=None, partial: bool = False):
         """Saves a checkpoint of the training status
 
         Args:
@@ -824,6 +886,8 @@ class TorchTrainer(object):
             self.loss.load_state_dict(checkpoint["loss_state_dict"])
         if self.lr_scheduler is not None:
             self.lr_scheduler.load_state_dict(checkpoint["lr_scheduler_state_dict"])
+        if self.wd_scheduler is not None:
+            self.wd_scheduler.load_state_dict(checkpoint["wd_scheduler_state_dict"])
 
         if "global_step" in checkpoint:
             self.global_step = checkpoint["global_step"]
@@ -859,6 +923,51 @@ class TorchTrainer(object):
 
         return logs
 
+    def find_last_checkpoint(self, model_name="model"):
+        """finds the last checkpoint epoch and step in the experiment dir"""
+        last_epoch = 0
+        last_step = 0
+        file_pattern = "%s/%s_ep[0-9]*.pth" % (self.exp_path, model_name)
+        file_paths = sorted(glob.glob(file_pattern))
+        if len(file_paths) > 0:
+            last_epoch = int(re.search(r"ep[0-9]*", file_paths[-1])[2:])
+
+        file_pattern = "%s/%s_ep%04d_step[0-9]*.pth" % (
+            self.exp_path,
+            model_name,
+            last_epoch,
+        )
+        file_paths = sorted(glob.glob(file_pattern))
+        if len(file_paths) > 0:
+            last_step = int(re.search(r"step[0-9]*", file_paths[-1])[4:])
+
+        return last_epoch, last_step
+
+    def load_last_checkpoint(self):
+        """Loads the last training checkpoint in the experiment dir."""
+        last_epoch, last_step = self.find_last_checkpoint()
+        if last_epoch > 0 or last_step > 0:
+            return self.new_load_checkpoint(last_epoch, last_step)
+
+        return None
+
+    def load_model_checkpoint(self, model_name="model", epoch=0, step=0):
+        if step == 0:
+            file_path = "%s/%s_ep%04d.pth" % (self.exp_path, model_name, epoch)
+        else:
+            file_path = "%s/%s_ep%04d_steps%10d.pth" % (
+                self.exp_path,
+                model_name,
+                epoch,
+                step,
+            )
+        logging.info("loading %s from %s", model_name, file_path)
+        return torch.load(file_path, map_location=torch.device("cpu"))
+
+    def new_load_checkpoint(self, epoch, step):
+        checkpoint = self.load_model_checkpoint("model", epoch, step)
+        return self._load_checkpoint(checkpoint)
+
     def load_checkpoint(self, file_path):
         """Loads a training checkpoint from file.
 
@@ -868,7 +977,7 @@ class TorchTrainer(object):
         checkpoint = torch.load(file_path, map_location=torch.device("cpu"))
         return self._load_checkpoint(checkpoint)
 
-    def load_last_checkpoint(self):
+    def old_load_last_checkpoint(self):
         """Loads the last training checkpoint in the experiment dir."""
         for epoch in range(self.epochs, 0, -1):
             file_path = Path("%s/model_ep%04d.pth" % (self.exp_path, epoch))
@@ -924,11 +1033,14 @@ class TorchTrainer(object):
         if "lrsched" not in skip:
             LRSF.add_class_args(parser, prefix="lrsched")
 
+        if "wdsched" not in skip:
+            WDSF.add_class_args(parser, prefix="wdsched")
+
         parser.add_argument(
             "--grad-acc-steps",
             type=int,
             default=1,
-            help="gradient accumulation batches before weigth update",
+            help="gradient accumulation batches before weight update",
         )
         parser.add_argument(
             "--eff-batch-size",

@@ -95,7 +95,6 @@ class TorchModel(nn.Module):
         return self.bias_weight_decay is not None
 
     def trainable_param_groups(self):
-        assert self.bias_weight_decay is not None
         if self.bias_weight_decay is None:
             return [{"params": self.trainable_parameters()}]
 

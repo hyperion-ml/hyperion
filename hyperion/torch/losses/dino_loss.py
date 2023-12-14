@@ -51,7 +51,7 @@ class DINOLoss(nn.Module):
                 * epoch
                 / self.temp_warmup_epochs
             )
-            logging.info("updating dino-loss teacher temp=%.2f", self.cur_teacher_temp)
+            logging.info("updating dino-loss teacher temp=%.3f", self.cur_teacher_temp)
         else:
             self.cur_teacher_temp = self.teacher_temp
 

@@ -73,6 +73,7 @@ class XVectorTrainerDeepFeatReg(XVectorTrainer):
         device=None,
         metrics=None,
         lrsched=None,
+        wdsched=None,
         loggers=None,
         ddp=False,
         ddp_type="ddp",

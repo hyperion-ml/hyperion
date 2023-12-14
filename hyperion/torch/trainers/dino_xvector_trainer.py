@@ -15,7 +15,7 @@ from torch.distributed.elastic.multiprocessing.errors import record
 from ...utils.misc import filter_func_args
 from ..optim import ExpMovingAvg as EMA
 from ..utils import MetricAcc, TorchDDP, tensors_subset
-from .torch_trainer import TorchTrainer
+from .torch_trainer import DDPType, TorchTrainer
 
 
 class DINOXVectorTrainer(TorchTrainer):
@@ -69,6 +69,7 @@ class DINOXVectorTrainer(TorchTrainer):
         device=None,
         metrics=None,
         lrsched=None,
+        wdsched=None,
         loggers=None,
         ddp=False,
         ddp_type="ddp",
@@ -121,28 +122,6 @@ class DINOXVectorTrainer(TorchTrainer):
     @torch.no_grad()
     def update_teacher_model(self):
         self.teacher_optimizer.step(self.model.parameters())
-        # print(
-        #     "pmw",
-        #     self.model.xvector.proj_head_net.proj.weight[:5, :5],
-        #     self.teacher_model.xvector.proj_head_net.proj.weight[:5, :5],
-        # )
-        # print(
-        #     "mw",
-        #     self.model.xvector.classif_net.output.weight[:5, :5],
-        #     self.teacher_model.xvector.classif_net.output.weight[:5, :5],
-        # )
-        # print(
-        #     "mwg",
-        #     self.model.xvector.classif_net.output.weight_g[:5, :5],
-        #     self.teacher_model.xvector.classif_net.output.weight_g[:5, :5],
-        # )
-        # print(
-        #     "mwv",
-        #     self.model.xvector.classif_net.output.weight_v[:5, :5],
-        #     self.teacher_model.xvector.classif_net.output.weight_v[:5, :5],
-        #     flush=True,
-        # )
-        # print("------------------------------", flush=True)
 
     @staticmethod
     def get_augs_keys(batch, base_key, subset, skip=set()):
@@ -264,6 +243,7 @@ class DINOXVectorTrainer(TorchTrainer):
         logs = ODict(("train_" + k, v) for k, v in logs.items())
         lrs = self._get_lrs()
         logs.update(lrs)
+        logs.update(self._get_wds())
         logs["ema_momentum"] = self.teacher_optimizer.momentum
         return logs
 
@@ -332,6 +312,18 @@ class DINOXVectorTrainer(TorchTrainer):
         )
         return super()._load_checkpoint(checkpoint)
 
+    def _new_load_checkpoint(self, checkpoint, teacher_checkpoint):
+        self.teacher_model.load_state_dict(teacher_checkpoint["model_state_dict"])
+        self.teacher_optimizer.load_state_dict(
+            teacher_checkpoint["optimizer_state_dict"]
+        )
+        return super()._load_checkpoint(checkpoint)
+
+    def load_checkpoint(self, epoch, step):
+        checkpoint = self.load_model_checkpoint("model", epoch, step)
+        teacher_checkpoint = self.load_model_checkpoint("teacher_model", epoch, step)
+        return self._new_load_checkpoint(checkpoint, teacher_checkpoint)
+
     def checkpoint(self, logs=None):
         checkpoint = super().checkpoint(logs)
         self.teacher_model.train()
@@ -359,6 +351,35 @@ class DINOXVectorTrainer(TorchTrainer):
             checkpoint["logs"] = logs
 
         return checkpoint
+
+    def save_checkpoint(self, logs=None, partial: bool = False):
+        """Saves a checkpoint of the training status
+
+        Args:
+          logs: logs containing the current value of the metrics.
+          partial: if True, it is saving in the middle of the epoch
+        """
+        if partial and not self.save_partial_checkpoint():
+            return
+
+        if self.ddp and (
+            self.ddp_type == DDPType.OSS_DDP or self.ddp_type == DDPType.OSS_SHARDED_DDP
+        ):
+            # Not sure what this does, just copying from the example in
+            # https://github.com/facebookresearch/fairscale/blob/master/benchmarks/oss.py
+            # Check the checkpointing in the case of the OSS optimizer
+            # Memory usage could spill over from there
+            # optimizer = cast(OSS, optimizer)
+            self.optimizer.consolidate_state_dict()
+
+        if self.rank != 0:
+            return
+
+        checkpoint = self.checkpoint(logs)
+        self.save_model_checkpoint("model", checkpoint, partial=partial)
+
+        teacher_checkpoint = self.teacher_checkpoint(logs)
+        self.save_model_checkpoint("teacher_model", teacher_checkpoint, partial=partial)
 
     @staticmethod
     def filter_args(**kwargs):
