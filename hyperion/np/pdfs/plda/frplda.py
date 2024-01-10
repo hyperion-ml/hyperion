@@ -36,9 +36,12 @@ class FRPLDA(PLDABase):
         update_mu=True,
         update_B=True,
         update_W=True,
+        epochs=20,
+        ml_md="ml+md",
+        md_epochs=None,
         **kwargs
     ):
-        super().__init__(mu=mu, update_mu=update_mu, **kwargs)
+        super().__init__(mu=mu, update_mu=update_mu, epochs=epochs, **kwargs)
         if mu is not None:
             self.y_dim = mu.shape[0]
         self.B = B

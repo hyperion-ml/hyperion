@@ -40,12 +40,7 @@ class ProjHead(NetArch):
     """
 
     def __init__(
-        self,
-        in_feats,
-        out_feats=256,
-        norm_layer=None,
-        use_norm=True,
-        norm_before=True,
+        self, in_feats, out_feats=256, norm_layer=None, use_norm=True, norm_before=True,
     ):
         super().__init__()
 
@@ -72,23 +67,21 @@ class ProjHead(NetArch):
     def forward(self, x, y=None):
         if self.use_norm and self.norm_before:
             x = self._norm_layer(x)
-        assert not torch.any(
-            torch.isnan(x)
-        ), f"x before proj is nan {x.size()} {torch.sum(torch.isnan(x))}"
+        # assert not torch.any(
+        #     torch.isnan(x)
+        # ), f"x before proj is nan {x.size()} {torch.sum(torch.isnan(x))}"
         x = self.proj(x)
-        assert not torch.any(
-            torch.isnan(x)
-        ), f"x after proj is nan {x.size()} {torch.sum(torch.isnan(x))}"
+        # assert not torch.any(
+        #     torch.isnan(x)
+        # ), f"x after proj is nan {x.size()} {torch.sum(torch.isnan(x))}"
         if self.use_norm and not self.norm_before:
             x = self._norm_layer(x)
-        assert not torch.any(
-            torch.isnan(x)
-        ), f"x after bn is nan {x.size()} {torch.sum(torch.isnan(x))}"
+        # assert not torch.any(
+        #     torch.isnan(x)
+        # ), f"x after bn is nan {x.size()} {torch.sum(torch.isnan(x))}"
         return x
 
     def get_config(self):
-        hid_act = AF.get_config(self.fc_blocks[0].activation)
-
         config = {
             "in_feats": self.in_feats,
             "out_feats": self.out_feats,
@@ -96,7 +89,6 @@ class ProjHead(NetArch):
             "use_norm": self.use_norm,
             "norm_before": self.norm_before,
         }
-
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 

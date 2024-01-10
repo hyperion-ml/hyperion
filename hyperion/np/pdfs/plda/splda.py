@@ -37,9 +37,20 @@ class SPLDA(PLDABase):
         update_mu=True,
         update_V=True,
         update_W=True,
+        epochs=20,
+        ml_md="ml+md",
+        md_epochs=None,
         **kwargs
     ):
-        super().__init__(y_dim=y_dim, mu=mu, update_mu=update_mu, **kwargs)
+        super().__init__(
+            y_dim=y_dim,
+            mu=mu,
+            update_mu=update_mu,
+            epochs=epochs,
+            ml_md=ml_md,
+            md_epochs=md_epochs,
+            **kwargs
+        )
         if V is not None:
             self.y_dim = V.shape[0]
         self.V = V

@@ -31,7 +31,7 @@ class WDSchedulerFactory:
         if wdsch_type == "none":
             return None
 
-        if wdsch_type == "cos_lr":
+        if wdsch_type == "cos_wd":
             return CosineWD(
                 optimizer,
                 initial_wd=initial_wd,

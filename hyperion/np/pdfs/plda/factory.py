@@ -8,8 +8,11 @@ from enum import Enum
 import numpy as np
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
-from ..np.pdfs.plda import FRPLDA, PLDA, SPLDA
-from ..utils.misc import filter_func_args
+from ....utils.misc import filter_func_args
+from .frplda import FRPLDA
+from .plda import PLDA
+from .plda_base import PLDALLRNvsMMethod
+from .splda import SPLDA
 
 
 class PLDAType(str, Enum):
@@ -86,49 +89,6 @@ class PLDAFactory(object):
     @staticmethod
     def filter_args(**kwargs):
         return filter_func_args(PLDAFactory.create, kwargs)
-
-        valid_args = (
-            "plda_type",
-            "y_dim",
-            "z_dim",
-            "diag_W",
-            "no_update_mu",
-            "no_update_V",
-            "no_update_U",
-            "no_update_B",
-            "no_update_W",
-            "no_update_D",
-            "floor_iD",
-            "epochs",
-            "ml_md",
-            "md_epochs",
-            "name",
-        )
-        d = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
-        neg_args1 = (
-            "diag_W",
-            "no_update_mu",
-            "no_update_V",
-            "no_update_U",
-            "no_update_B",
-            "no_update_W",
-            "no_update_D",
-        )
-        neg_args2 = (
-            "fullcov_W",
-            "update_mu",
-            "update_V",
-            "update_U",
-            "update_B",
-            "update_W",
-            "update_D",
-        )
-
-        for a, b in zip(neg_args1, neg_args2):
-            d[b] = not d[a]
-            del d[a]
-
-        return d
 
     @staticmethod
     def add_class_args(parser, prefix=None):
@@ -209,24 +169,36 @@ class PLDAFactory(object):
             )
 
     @staticmethod
-    def filter_eval_args(prefix=None, **kwargs):
-        valid_args = ("plda_type", "model_file")
+    def filter_eval_args(**kwargs):
+        valid_args = "eval_method"
         return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
     @staticmethod
-    def add_eval_args(parser, prefix=None):
-        if prefix is None:
-            p1 = "--"
-        else:
-            p1 = "--" + prefix + "."
+    def add_llr_args(parser, prefix=None):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
 
         parser.add_argument(
-            p1 + "plda-type",
-            default="splda",
-            choices=["frplda", "splda", "plda"],
-            help=("PLDA type"),
+            "--llr-method", default="vavg", choices=PLDALLRNvsMMethod.choices()
         )
-        parser.add_argument(p1 + "model-file", required=True, help=("model file"))
+        if prefix is not None:
+            outer_parser.add_argument(
+                "--" + prefix,
+                action=ActionParser(parser=parser),
+            )
 
-    add_argparse_train_args = add_class_args
-    add_argparse_eval_args = add_eval_args
+    # @staticmethod
+    # def add_eval_args(parser, prefix=None):
+    #     if prefix is None:
+    #         p1 = "--"
+    #     else:
+    #         p1 = "--" + prefix + "."
+
+    #     parser.add_argument(
+    #         p1 + "plda-type",
+    #         default="splda",
+    #         choices=["frplda", "splda", "plda"],
+    #         help=("PLDA type"),
+    #     )
+    #     parser.add_argument(p1 + "model-file", required=True, help=("model file"))

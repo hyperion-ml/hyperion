@@ -44,9 +44,20 @@ class PLDA(PLDABase):
         update_V=True,
         update_U=True,
         update_D=True,
+        epochs=20,
+        ml_md="ml+md",
+        md_epochs=None,
         **kwargs
     ):
-        super().__init__(y_dim=y_dim, mu=mu, update_mu=update_mu, **kwargs)
+        super().__init__(
+            y_dim=y_dim,
+            mu=mu,
+            update_mu=update_mu,
+            epochs=epochs,
+            ml_md=ml_md,
+            md_epochs=md_epochs,
+            **kwargs
+        )
         self.z_dim = z_dim
         if V is not None:
             self.y_dim = V.shape[0]
@@ -526,7 +537,7 @@ class PLDA(PLDABase):
         logp = (
             -x.shape[-1] * np.log(2 * np.pi)
             + logD
-            - np.sum(self.D * delta ** 2, axis=-1)
+            - np.sum(self.D * delta**2, axis=-1)
         )
         logp /= 2
         return logp

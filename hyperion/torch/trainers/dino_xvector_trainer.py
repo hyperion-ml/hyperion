@@ -304,7 +304,7 @@ class DINOXVectorTrainer(TorchTrainer):
         logs = ODict((log_tag + k, v) for k, v in logs.items())
         return logs
 
-    def _load_checkpoint(self, checkpoint):
+    def _old_load_checkpoint(self, checkpoint):
         self.teacher_model.load_state_dict(checkpoint["teacher_model_state_dict"])
         # self.teacher_model.load_state_dict(checkpoint["teacher_state_dict"])
         self.teacher_optimizer.load_state_dict(
@@ -312,7 +312,7 @@ class DINOXVectorTrainer(TorchTrainer):
         )
         return super()._load_checkpoint(checkpoint)
 
-    def _new_load_checkpoint(self, checkpoint, teacher_checkpoint):
+    def _load_checkpoint(self, checkpoint, teacher_checkpoint):
         self.teacher_model.load_state_dict(teacher_checkpoint["model_state_dict"])
         self.teacher_optimizer.load_state_dict(
             teacher_checkpoint["optimizer_state_dict"]
@@ -322,7 +322,7 @@ class DINOXVectorTrainer(TorchTrainer):
     def load_checkpoint(self, epoch, step):
         checkpoint = self.load_model_checkpoint("model", epoch, step)
         teacher_checkpoint = self.load_model_checkpoint("teacher_model", epoch, step)
-        return self._new_load_checkpoint(checkpoint, teacher_checkpoint)
+        return self._load_checkpoint(checkpoint, teacher_checkpoint)
 
     def checkpoint(self, logs=None):
         checkpoint = super().checkpoint(logs)

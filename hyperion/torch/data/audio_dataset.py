@@ -21,6 +21,7 @@ from torch.utils.data import Dataset
 
 from ...io import RandomAccessAudioReader as AR
 from ...np.augment import SpeechAugment
+from ...np.preprocessing import Resampler
 from ...utils.class_info import ClassInfo
 from ...utils.misc import filter_func_args
 from ...utils.segment_set import SegmentSet
@@ -126,6 +127,7 @@ class AudioDataset(Dataset):
 
         self.target_sample_freq = target_sample_freq
         self.resamplers = {}
+        self.resampler = Resampler(target_sample_freq)
 
     def _load_legacy_durations(self, time_durs_file):
         if self.rank == 0:
@@ -353,13 +355,18 @@ class AudioDataset(Dataset):
         return resampler_f
 
     def _resample(self, x, fs):
-        try:
-            if self.target_sample_freq is None or fs == self.target_sample_freq:
-                return x, fs
-            resampler = self._get_resampler(fs)
-            return resampler(x), self.target_sample_freq
-        except:
+        if self.target_sample_freq is None:
             return x, fs
+
+        return self.resampler(x, fs)
+
+        # try:
+        #     if self.target_sample_freq is None or fs == self.target_sample_freq:
+        #         return x, fs
+        #     resampler = self._get_resampler(fs)
+        #     return resampler(x), self.target_sample_freq
+        # except:
+        #     return x, fs
 
     def __getitem__(self, segment):
         seg_id, start, duration = self._parse_segment_item(segment)
@@ -368,39 +375,8 @@ class AudioDataset(Dataset):
         data = {"seg_id": seg_id, "sample_freq": fs}
         x_augs = self._apply_augs(x, duration, fs)
         data.update(x_augs)
-
-        # if self.augmenters:
-        #     # augmentations
-        #     if duration == 0:
-        #         num_samples = len(x)
-        #     else:
-        #         num_samples = int(duration * fs)
-
-        #     reverb_context_samples = len(x) - num_samples
-        #     x_augs = self._apply_augs(x, reverb_context_samples)
-        #     data.update(x_augs)
-
-        #     # add original non augmented audio
-        #     if self.return_orig:
-        #         x_orig = x[reverb_context_samples:]
-        #         data["x"] = x_orig
-
-        # else:
-        #     data["x"] = x
-
         seg_info = self._get_segment_info(seg_id)
         data.update(seg_info)
-        # if np.any(~np.isfinite(data["x"])):
-        #     print(
-        #         "zzz",
-        #         x.max(),
-        #         x.min(),
-        #         x.mean(),
-        #         data["x"].max(),
-        #         data["x"].min(),
-        #         data["x"].mean(),
-        #         flush=True,
-        #     )
         return data
 
     @staticmethod

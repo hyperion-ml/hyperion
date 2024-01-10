@@ -634,7 +634,7 @@ class TorchTrainer(object):
         assert isinstance(wd_sched, dict)
         args = WDSF.filter_args(**wd_sched)
         if self.rank == 0:
-            logging.info("wd scheduler args={args}")
+            logging.info(f"wd scheduler args={args}")
         wd_sched = WDSF.create(optim, **args)
         return wd_sched
 
@@ -930,7 +930,7 @@ class TorchTrainer(object):
         file_pattern = "%s/%s_ep[0-9]*.pth" % (self.exp_path, model_name)
         file_paths = sorted(glob.glob(file_pattern))
         if len(file_paths) > 0:
-            last_epoch = int(re.search(r"ep[0-9]*", file_paths[-1])[2:])
+            last_epoch = int(re.search(r"ep[0-9]*", file_paths[-1]).group()[2:])
 
         file_pattern = "%s/%s_ep%04d_step[0-9]*.pth" % (
             self.exp_path,
@@ -939,7 +939,7 @@ class TorchTrainer(object):
         )
         file_paths = sorted(glob.glob(file_pattern))
         if len(file_paths) > 0:
-            last_step = int(re.search(r"step[0-9]*", file_paths[-1])[4:])
+            last_step = int(re.search(r"step[0-9]*", file_paths[-1]).group()[4:])
 
         return last_epoch, last_step
 
@@ -947,7 +947,7 @@ class TorchTrainer(object):
         """Loads the last training checkpoint in the experiment dir."""
         last_epoch, last_step = self.find_last_checkpoint()
         if last_epoch > 0 or last_step > 0:
-            return self.new_load_checkpoint(last_epoch, last_step)
+            return self.load_checkpoint(last_epoch, last_step)
 
         return None
 
@@ -964,11 +964,11 @@ class TorchTrainer(object):
         logging.info("loading %s from %s", model_name, file_path)
         return torch.load(file_path, map_location=torch.device("cpu"))
 
-    def new_load_checkpoint(self, epoch, step):
+    def load_checkpoint(self, epoch, step):
         checkpoint = self.load_model_checkpoint("model", epoch, step)
         return self._load_checkpoint(checkpoint)
 
-    def load_checkpoint(self, file_path):
+    def old_load_checkpoint(self, file_path):
         """Loads a training checkpoint from file.
 
         Args:

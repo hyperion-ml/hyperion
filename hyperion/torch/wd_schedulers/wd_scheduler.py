@@ -64,6 +64,10 @@ class WDScheduler:
                 for group in optimizer.param_groups
             ]
 
+        if epoch == 0:
+            for group, wd in zip(optimizer.param_groups, self.initial_wds):
+                group["weight_decay"] = wd
+
         self.warmup_steps = warmup_steps
         self.epoch = epoch
         self.step = step
