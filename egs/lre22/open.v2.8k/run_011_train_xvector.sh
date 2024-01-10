@@ -28,15 +28,12 @@ fi
 if [ "$use_tb" == "true" ];then
     extra_args="$extra_args --trainer.use-tensorboard"
 fi
-
-if [ "$interactive" == "true" ];then
-    export cuda_cmd=run.pl
-fi
-
 if [ "$use_wandb" == "true" ];then
   extra_args="$extra_args --trainer.use-wandb --trainer.wandb.project lre22-open-v2.8k --trainer.wandb.name $nnet_s1_name.$(date -Iminutes)"
 fi
-
+if [ "$interactive" == "true" ];then
+    export cuda_cmd=run.pl
+fi
 
 # Network Training
 if [ $stage -le 1 ]; then

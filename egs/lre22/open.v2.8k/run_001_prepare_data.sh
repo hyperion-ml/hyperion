@@ -233,17 +233,17 @@ if [ $stage -le 11 ];then
 	--map-langs-to-lre-codes --target-fs 8000
     
     hyp_utils/conda_env.sh \
-	local/prepare_some_data_for_lre.py \
+	local/prepare_some_data_for_lre_cat.py \
 	--corpus-dir $lwazi_root \
 	--output-dir data/lwazi09 \
 	--map-langs-to-lre-codes --target-fs 8000
     hyp_utils/conda_env.sh \
-	local/prepare_some_data_for_lre.py \
+	local/prepare_some_data_for_lre_cat.py \
 	--corpus-dir $nchlt_root \
 	--output-dir data/nchlt14 \
 	--map-langs-to-lre-codes --target-fs 8000
     hyp_utils/conda_env.sh \
-	local/prepare_some_data_for_lre.py \
+	local/prepare_some_data_for_lre_cat.py \
 	--corpus-dir $ammi_root \
 	--output-dir data/ammi20 \
 	--map-langs-to-lre-codes --target-fs 8000
@@ -286,7 +286,7 @@ fi
 
 if [ $stage -le 15 ];then
     hyp_utils/conda_env.sh \
-	local/prepare_ast.py \
+	local/prepare_ast_cat.py \
 	--corpus-dir $ast_root \
 	--output-dir data/ast \
 	--map-langs-to-lre-codes --target-fs 8000
@@ -328,3 +328,15 @@ if [ $stage -le 16 ];then
     
 fi
   
+if [ $stage -le 5 ];then
+    if [ -d ../fixed.v1.8k/lre-scorer ];then
+	ln -s ../fixed.v1.8k/lre-scorer
+    else
+	local/download_lre22_scorer.sh
+    fi
+    if [ -d ../fixed.v1.8k/focal_multiclass ];then
+	ln -s ../fixed.v1.8k/focal_multiclass
+    else
+	local/download_focal.sh
+    fi
+fi
