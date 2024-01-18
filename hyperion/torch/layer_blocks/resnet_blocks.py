@@ -2,7 +2,7 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-
+import torch
 import torch.nn as nn
 import torch.nn.functional as nnf
 from torch.nn import BatchNorm2d, Conv2d, Dropout2d
@@ -30,7 +30,6 @@ def _conv1x1(in_channels, out_channels, stride=1, bias=False):
 
 
 def _make_downsample(in_channels, out_channels, stride, norm_layer, norm_before):
-
     if norm_before:
         return nn.Sequential(
             _conv1x1(in_channels, out_channels, stride, bias=False),
@@ -38,6 +37,14 @@ def _make_downsample(in_channels, out_channels, stride, norm_layer, norm_before)
         )
 
     return _conv1x1(in_channels, out_channels, stride, bias=True)
+
+
+class FreqPosEnc(nn.Module):
+    def __init__(self, num_feats):
+        self.pos_enc = nn.Parameter(torch.zeros((num_feats, 1)))
+
+    def forward(self, x):
+        return x + self.pos_enc
 
 
 class ResNetInputBlock(nn.Module):
@@ -67,7 +74,6 @@ class ResNetInputBlock(nn.Module):
         norm_before=True,
         do_maxpool=True,
     ):
-
         super().__init__()
 
         padding = int((kernel_size - 1) / 2)
@@ -96,7 +102,6 @@ class ResNetInputBlock(nn.Module):
             self.downsample_factor *= 2
 
     def forward(self, x):
-
         x = self.conv(x)
         if self.norm_before:
             x = self.bn(x)
@@ -125,6 +130,9 @@ class ResNetBasicBlock(nn.Module):
       dilation:          dilation factor of the conv. kernels.
       norm_layer:        normalization layer constructor, if None BatchNorm2d is used.
       norm_before:       if True, normalization layer is before the activation, after otherwise.
+      freq_pos_enc: use frequency wise positional encoder
+      num_feats:         Number of features in dimension 2, needed if freq_pos_enc=True.
+
     """
 
     expansion = 1
@@ -140,8 +148,9 @@ class ResNetBasicBlock(nn.Module):
         dilation=1,
         norm_layer=None,
         norm_before=True,
+        freq_pos_enc=False,
+        num_feats=None,
     ):
-
         super().__init__()
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
@@ -174,6 +183,9 @@ class ResNetBasicBlock(nn.Module):
 
         self.context = dilation + stride
         self.downsample_factor = stride
+        self.pos_enc = None
+        if freq_pos_enc:
+            self.pos_enc = FreqPosEnc(num_feats)
 
     @property
     def out_channels(self):
@@ -192,6 +204,9 @@ class ResNetBasicBlock(nn.Module):
         residual = x
         if self.downsample is not None:
             residual = self.downsample(residual)
+
+        if self.pos_enc is not None:
+            x = self.pos_enc(x)
 
         x = self.conv1(x)
         if self.norm_before:
@@ -232,6 +247,8 @@ class ResNetBNBlock(nn.Module):
       dilation:          dilation factor of the conv. kernels.
       norm_layer:        normalization layer constructor, if None BatchNorm2d is used.
       norm_before:       if True, normalization layer is before the activation, after otherwise.
+      freq_pos_enc: use frequency wise positional encoder
+      num_feats:         Number of features in dimension 2, needed if freq_pos_enc=True.
     """
 
     expansion = 4
@@ -248,8 +265,9 @@ class ResNetBNBlock(nn.Module):
         dilation=1,
         norm_layer=None,
         norm_before=True,
+        freq_pos_enc=False,
+        num_feats=None,
     ):
-
         super().__init__()
 
         self.in_channels = in_channels
@@ -286,6 +304,9 @@ class ResNetBNBlock(nn.Module):
 
         self.context = dilation
         self.downsample_factor = stride
+        self.pos_enc = None
+        if freq_pos_enc:
+            self.pos_enc = FreqPosEnc(num_feats)
 
     @property
     def out_channels(self):
@@ -304,6 +325,9 @@ class ResNetBNBlock(nn.Module):
         residual = x
         if self.downsample is not None:
             residual = self.downsample(residual)
+
+        if self.pos_enc is not None:
+            x = self.pos_enc(x)
 
         x = self.conv1(x)
         if self.norm_before:
@@ -369,7 +393,6 @@ class ResNetEndpointBlock(nn.Module):
         norm_layer=None,
         norm_before=True,
     ):
-
         super().__init__()
 
         if norm_layer is None:

@@ -26,8 +26,10 @@ class SEResNetBasicBlock(ResNetBasicBlock):
       norm_layer:        normalization layer constructor, if None BatchNorm2d is used.
       norm_before:       if True, normalization layer is before the activation, after otherwise.
       se_r:              squeeze-excitation compression ratio.
-      time_se:           If true, squeeze is done only in time dimension.
+      se_type:           type of squeeze excitation in [t-se, cw-se, fw-se, cfw-se]
+      freq_pos_enc:      use frequency wise positional encoder.
       num_feats:         Number of features in dimension 2, needed if time_se=True.
+      time_se:           (legacy deprecated) If true, use t-se
     """
 
     def __init__(
@@ -43,10 +45,10 @@ class SEResNetBasicBlock(ResNetBasicBlock):
         norm_before=True,
         se_r=16,
         se_type="cw-se",
-        time_se=False,
+        freq_pos_enc=False,
         num_feats=None,
+        time_se=False,
     ):
-
         super().__init__(
             in_channels,
             channels,
@@ -57,6 +59,8 @@ class SEResNetBasicBlock(ResNetBasicBlock):
             dilation=dilation,
             norm_layer=norm_layer,
             norm_before=norm_before,
+            freq_pos_enc=freq_pos_enc,
+            num_feats=num_feats,
         )
 
         if time_se:
@@ -83,6 +87,9 @@ class SEResNetBasicBlock(ResNetBasicBlock):
           Tensor with shape = (batch, out_channels, out_heigh, out_width).
         """
         residual = x
+
+        if self.pos_enc is not None:
+            x = self.pos_enc(x)
 
         x = self.conv1(x)
         if self.norm_before:
@@ -129,8 +136,10 @@ class SEResNetBNBlock(ResNetBNBlock):
       norm_layer:        normalization layer constructor, if None BatchNorm2d is used.
       norm_before:       if True, normalization layer is before the activation, after otherwise.
       se_r=None:         squeeze-excitation compression ratio.
-      time_se:           If true, squeeze is done only in time dimension.
+      se_type:           type of squeeze excitation in [t-se, cw-se, fw-se, cfw-se]
+      freq_pos_enc:      use frequency wise positional encoder.
       num_feats:         Number of features in dimension 2, needed if time_se=True.
+      time_se:           (legacy deprecated) If true, use t-se
     """
 
     def __init__(
@@ -146,10 +155,10 @@ class SEResNetBNBlock(ResNetBNBlock):
         norm_before=True,
         se_r=16,
         se_type="cw-se",
-        time_se=False,
+        freq_pos_enc=False,
         num_feats=None,
+        time_se=False,
     ):
-
         super().__init__(
             in_channels,
             channels,
@@ -160,6 +169,8 @@ class SEResNetBNBlock(ResNetBNBlock):
             dilation=dilation,
             norm_layer=norm_layer,
             norm_before=norm_before,
+            freq_pos_enc=freq_pos_enc,
+            num_feats=num_feats,
         )
 
         if time_se:
@@ -189,6 +200,9 @@ class SEResNetBNBlock(ResNetBNBlock):
         residual = x
         if self.downsample is not None:
             residual = self.downsample(residual)
+
+        if self.pos_enc is not None:
+            x = self.pos_enc(x)
 
         x = self.conv1(x)
         if self.norm_before:

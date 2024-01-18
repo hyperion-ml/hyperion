@@ -40,6 +40,8 @@ data:
 model:
   xvector:
     override_output: true
+    loss_type: subcenter-arc-softmax
+    num_subcenters: 2
     cos_scale: 30.0
     margin: 0.3
     margin_warmup_epochs: 0

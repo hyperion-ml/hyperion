@@ -9,6 +9,7 @@ import torch.nn as nn
 from torch.nn import BatchNorm2d, Conv2d, Dropout2d
 
 from ..layers import ActivationFactory as AF
+from .resnet_blocks import FreqPosEnc
 from .se_blocks import CFwSEBlock2d, FwSEBlock2d, SEBlock2d, TSEBlock2d
 
 
@@ -32,7 +33,6 @@ def _conv1x1(in_channels, out_channels, stride=1, bias=False):
 
 
 def _make_downsample(in_channels, out_channels, stride, norm_layer, norm_before):
-
     if norm_before:
         return nn.Sequential(
             _conv1x1(in_channels, out_channels, stride, bias=False),
@@ -61,8 +61,10 @@ class Res2NetBasicBlock(nn.Module):
       norm_layer:        normalization layer constructor, if None BatchNorm2d is used.
       norm_before:       if True, normalization layer is before the activation, after otherwise.
       se_r:              squeeze-excitation compression ratio.
-      time_se:           If true, squeeze is done only in time dimension.
-      num_feats:         Number of features in dimension 2, needed if time_se=True.
+      se_type:           type of squeeze excitation in [t-se, cw-se, fw-se, cfw-se]
+      freq_pos_enc: use  frequency wise positional encoder
+      num_feats:         Number of features in dimension 2, needed if se_type!=cw-se or freq_pos_enc=True.
+      time_se:           (legacy deprecated) If true, use t-se
     """
 
     expansion = 1
@@ -82,10 +84,10 @@ class Res2NetBasicBlock(nn.Module):
         norm_before=True,
         se_r=None,
         se_type="cw-se",
-        time_se=False,
+        freq_pos_enc=False,
         num_feats=None,
+        time_se=False,
     ):
-
         super().__init__()
 
         self.in_channels = in_channels
@@ -148,9 +150,13 @@ class Res2NetBasicBlock(nn.Module):
         self.context = dilation
         self.downsample_factor = stride
 
+        self.pos_enc = None
+        if freq_pos_enc:
+            self.pos_enc = FreqPosEnc(num_feats)
+
         if se_r is not None:
             if time_se:
-                se_type = "cw-se"
+                se_type = "t-se"
 
             if se_type == "t-se":
                 self.se_layer = TSEBlock2d(channels, num_feats, se_r, activation)
@@ -181,6 +187,9 @@ class Res2NetBasicBlock(nn.Module):
         residual = x
         if self.downsample is not None:
             residual = self.downsample(residual)
+
+        if self.pos_enc is not None:
+            x = self.pos_enc(x)
 
         split_size = [self.width_in for i in range(self.scale - 1)]
         split_size.append(self.in_channels % self.width_in + self.width_in)
@@ -247,8 +256,10 @@ class Res2NetBNBlock(nn.Module):
       norm_layer:        normalization layer constructor, if None BatchNorm2d is used.
       norm_before:       if True, normalization layer is before the activation, after otherwise.
       se_r:              squeeze-excitation compression ratio.
-      time_se:           If true, squeeze is done only in time dimension.
-      num_feats:         Number of features in dimension 2, needed if time_se=True.
+      se_type:           type of squeeze excitation in [t-se, cw-se, fw-se, cfw-se]
+      freq_pos_enc: use  frequency wise positional encoder
+      num_feats:         Number of features in dimension 2, needed if se_type!=cw-se or freq_pos_enc=True.
+      time_se:           (legacy deprecated) If true, use t-se
     """
 
     expansion = 4
@@ -268,10 +279,10 @@ class Res2NetBNBlock(nn.Module):
         norm_before=True,
         se_r=None,
         se_type="cw-se",
-        time_se=False,
+        freq_pos_enc=False,
         num_feats=None,
+        time_se=False,
     ):
-
         super().__init__()
 
         self.in_channels = in_channels
@@ -329,6 +340,10 @@ class Res2NetBNBlock(nn.Module):
         self.context = dilation
         self.downsample_factor = stride
 
+        self.pos_enc = None
+        if freq_pos_enc:
+            self.pos_enc = FreqPosEnc(num_feats)
+
         if se_r is not None:
             if time_se:
                 se_type = "t-se"
@@ -363,6 +378,9 @@ class Res2NetBNBlock(nn.Module):
         residual = x
         if self.downsample is not None:
             residual = self.downsample(residual)
+
+        if self.pos_enc is not None:
+            x = self.pos_enc(x)
 
         x = self.conv1(x)
         if self.norm_before:

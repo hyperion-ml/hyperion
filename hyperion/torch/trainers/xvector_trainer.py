@@ -97,7 +97,7 @@ class XVectorTrainer(TorchTrainer):
         Args:
           data_loader: pytorch data loader returning features and class labels.
         """
-        batch_keys = [self.input_key, self.target_key]
+        # batch_keys = [self.input_key, self.target_key]
         self.model.update_loss_margin(self.cur_epoch)
 
         metric_acc = MetricAcc(device=self.device)
@@ -112,6 +112,7 @@ class XVectorTrainer(TorchTrainer):
 
             input_keys = self.get_augs_keys(data, self.input_key)
             loss_scale = self.grad_acc_steps * len(input_keys)
+            loss_acc = 0.0
             for aug_key in input_keys:
                 batch_keys = [aug_key, self.target_key]
                 x, target = tensors_subset(data, batch_keys, self.device)
@@ -119,6 +120,7 @@ class XVectorTrainer(TorchTrainer):
                 with amp.autocast(enabled=self.use_amp):
                     output = self.model(x, y=target)
                     loss = self.loss(output, target) / loss_scale
+                    loss_acc += loss.item()
 
                 if self.use_amp:
                     self.grad_scaler.scale(loss).backward()
@@ -130,7 +132,7 @@ class XVectorTrainer(TorchTrainer):
                 self.update_model()
                 self.save_checkpoint(partial=True)
 
-            batch_metrics["loss"] = loss.item() * loss_scale
+            batch_metrics["loss"] = loss_acc * self.grad_acc_steps
             for k, metric in self.metrics.items():
                 batch_metrics[k] = metric(output, target)
 
@@ -145,4 +147,45 @@ class XVectorTrainer(TorchTrainer):
         lrs = self._get_lrs()
         logs.update(lrs)
         logs.update(self._get_wds())
+        return logs
+
+    def validation_epoch(self, data_loader, swa_update_bn=False):
+        """Validation epoch loop
+
+        Args:
+          data_loader: PyTorch data loader return input/output pairs.
+          sw_update_bn: wheter or not, update batch-norm layers in SWA.
+        """
+        # batch_keys = [self.input_key, self.target_key]
+        metric_acc = MetricAcc(self.device)
+        batch_metrics = ODict()
+        with torch.no_grad():
+            if swa_update_bn:
+                log_tag = "train_"
+                self.model.train()
+            else:
+                log_tag = "val_"
+                self.model.eval()
+
+            for batch, data in enumerate(data_loader):
+                input_keys = self.get_augs_keys(data, self.input_key)
+                loss_scale = len(input_keys)
+                loss_acc = 0.0
+                for aug_key in input_keys:
+                    batch_keys = [aug_key, self.target_key]
+                    x, target = tensors_subset(data, batch_keys, self.device)
+                    batch_size = x.size(0)
+                    with amp.autocast(enabled=self.use_amp):
+                        output = self.model(x)
+                        loss = self.loss(output, target) / loss_scale
+                        loss_acc += loss.item()
+
+                batch_metrics["loss"] = loss_acc
+                for k, metric in self.metrics.items():
+                    batch_metrics[k] = metric(output, target)
+
+                metric_acc.update(batch_metrics, batch_size)
+
+        logs = metric_acc.metrics
+        logs = ODict((log_tag + k, v) for k, v in logs.items())
         return logs

@@ -2,11 +2,11 @@ data:
   train:
     dataset:
       class_names:
-      - class_id
+      - speaker
       aug_cfgs:
       - conf/reverb_noise_aug.yaml
       return_segment_info:
-      - class_id
+      - speaker
     sampler:
       sampler_type: seg_chunk_sampler
       min_batch_size: 64
@@ -17,11 +17,11 @@ data:
   val:
     dataset:
       class_names:
-      - class_id
+      - speaker
       aug_cfgs:
       - conf/reverb_noise_aug.yaml
       return_segment_info:
-      - class_id
+      - speaker
     sampler:
       sampler_type: seg_chunk_sampler
       min_batch_size: 64
@@ -69,3 +69,4 @@ trainer:
   log_interval: 1000
   epochs: 35
   eff_batch_size: 256
+  target_key: speaker
