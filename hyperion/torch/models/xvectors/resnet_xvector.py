@@ -57,6 +57,7 @@ class ResNetXVector(XVector):
         se_r=16,
         res2net_scale=4,
         res2net_width_factor=1,
+        freq_pos_enc=False,
         bias_weight_decay=None,
     ):
         logging.info("making %s encoder network", resnet_type)
@@ -80,6 +81,7 @@ class ResNetXVector(XVector):
             in_feats=in_feats,
             res2net_scale=res2net_scale,
             res2net_width_factor=res2net_width_factor,
+            freq_pos_enc=freq_pos_enc,
         )
 
         super().__init__(
@@ -168,6 +170,10 @@ class ResNetXVector(XVector):
     def res2net_width_factor(self):
         return self.encoder_net.res2net_width_factor
 
+    @property
+    def freq_pos_enc(self):
+        return self.encoder_net.freq_pos_enc
+
     def get_config(self):
         base_config = super().get_config()
         del base_config["encoder_cfg"]
@@ -186,6 +192,7 @@ class ResNetXVector(XVector):
             "se_r": self.se_r,
             "res2net_scale": self.res2net_scale,
             "res2net_width_factor": self.res2net_width_factor,
+            "freq_pos_enc": self.freq_pos_enc,
         }
 
         config.update(base_config)
