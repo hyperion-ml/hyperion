@@ -9,6 +9,7 @@ import sys
 import time
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from jsonargparse import (
@@ -124,6 +125,14 @@ def get_gmm_post(x, y):
     return p_max, p_2nd
 
 
+def plot_score_hist(scores, fig_file):
+    mask = np.triu(np.ones_like(scores, dtype=bool))
+    fig = plt.figure()
+    scores = scores[mask]
+    plt.hist(scores, bins=100, density=True)
+    fig.savefig(fig_file)
+
+
 def cos_ahc(
     segments_file,
     feats_file,
@@ -155,6 +164,8 @@ def cos_ahc(
         x_lowprec = x_km
 
     scores = cosine_scoring(x_lowprec, x_lowprec)
+    fig_file = Path(output_file).parent / "score_hist.png"
+    plot_score_hist(scores, fig_file)
 
     logging.info("running AHC")
     ahc = AHC(method=linkage_method)

@@ -2,6 +2,7 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 import os
 from collections import OrderedDict as ODict
@@ -15,7 +16,7 @@ from torch.distributed.elastic.multiprocessing.errors import record
 from ...utils.misc import filter_func_args
 from ..optim import ExpMovingAvg as EMA
 from ..utils import MetricAcc, TorchDDP, tensors_subset
-from .torch_trainer import DDPType, TorchTrainer
+from .torch_trainer import AMPDType, DDPType, TorchTrainer
 
 
 class DINOXVectorTrainer(TorchTrainer):
@@ -39,6 +40,7 @@ class DINOXVectorTrainer(TorchTrainer):
       loss: if None, it uses cross-entropy
       train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
       use_amp: uses mixed precision training.
+      amp_dtype: float16 | bfloat16
       log_interval: number of optim. steps between log outputs
       use_tensorboard: use tensorboard logger
       use_wandb: use wandb logger
@@ -76,6 +78,7 @@ class DINOXVectorTrainer(TorchTrainer):
         train_mode="full",
         freeze_output_layer_steps=3000,
         use_amp=False,
+        amp_dtype=AMPDType.FLOAT16,
         log_interval=1000,
         use_tensorboard=False,
         use_wandb=False,
@@ -98,10 +101,7 @@ class DINOXVectorTrainer(TorchTrainer):
     def prepare_models_for_training(self):
         super().prepare_models_for_training()
         self.teacher_model, self.teacher_optimizer = self._prepare_model_for_ema(
-            self.teacher_model,
-            self.teacher_optim,
-            self.device,
-            self.ddp,
+            self.teacher_model, self.teacher_optim, self.device, self.ddp,
         )
 
     def _prepare_model_for_ema(self, model, optim, device, ddp):
@@ -177,25 +177,25 @@ class DINOXVectorTrainer(TorchTrainer):
 
             teacher_keys = self.get_augs_keys(data, self.input_key, "teacher")
             student_keys = self.get_augs_keys(data, self.input_key, "student")
-            with amp.autocast(enabled=self.use_amp):
+            with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
                 with torch.no_grad():
                     teacher_data = tensors_subset(data, teacher_keys, self.device)
                     batch_size = teacher_data[0].size(0)
                     num_teacher_crops = len(teacher_data)
                     teacher_data = torch.cat(teacher_data, dim=0)
                     teacher_out = self.teacher_model(teacher_data)
+                    assert not torch.any(torch.isnan(teacher_out)), "teacher is nan"
+                    assert not torch.any(torch.isinf(teacher_out)), "teacher is inf"
 
                 if num_teacher_crops > 1:
                     student_out1 = self.model(teacher_data)
+                    assert not torch.any(torch.isnan(student_out1)), "s1 is nan"
+                    assert not torch.any(torch.isinf(student_out1)), "s1 is inf"
 
                 student_data = tensors_subset(data, student_keys, self.device)
                 num_student_crops = len(student_data)
                 student_data = torch.cat(student_data, dim=0)
                 student_out2 = self.model(student_data)
-                assert not torch.any(torch.isnan(teacher_out)), "teacher is nan"
-                assert not torch.any(torch.isinf(teacher_out)), "teacher is inf"
-                assert not torch.any(torch.isnan(student_out1)), "s1 is nan"
-                assert not torch.any(torch.isinf(student_out1)), "s1 is inf"
                 assert not torch.any(torch.isnan(student_out2)), "s2 is nan"
                 assert not torch.any(torch.isinf(student_out2)), "s2 is inf"
                 if num_teacher_crops > 1:
@@ -261,7 +261,6 @@ class DINOXVectorTrainer(TorchTrainer):
         self.loss.eval()
 
         if swa_update_bn:
-            log_tag = "train_"
             self.model.train()
         else:
             log_tag = "val_"
@@ -270,20 +269,26 @@ class DINOXVectorTrainer(TorchTrainer):
         for batch, data in enumerate(data_loader):
             teacher_keys = self.get_augs_keys(data, self.input_key, "teacher")
             student_keys = self.get_augs_keys(data, self.input_key, "student")
-            with amp.autocast(enabled=self.use_amp):
+            with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
                 teacher_data = tensors_subset(data, teacher_keys, self.device)
                 batch_size = teacher_data[0].size(0)
                 num_teacher_crops = len(teacher_data)
                 teacher_data = torch.cat(teacher_data, dim=0)
                 teacher_out = self.teacher_model(teacher_data)
+                assert not torch.any(torch.isnan(teacher_out)), "teacher is nan"
+                assert not torch.any(torch.isinf(teacher_out)), "teacher is inf"
 
                 if num_teacher_crops > 1:
                     student_out1 = self.model(teacher_data)
+                    assert not torch.any(torch.isnan(student_out1)), "s1 is nan"
+                    assert not torch.any(torch.isinf(student_out1)), "s1 is inf"
 
                 student_data = tensors_subset(data, student_keys, self.device)
                 num_student_crops = len(student_data)
                 student_data = torch.cat(student_data, dim=0)
                 student_out2 = self.model(student_data)
+                assert not torch.any(torch.isnan(student_out2)), "s2 is nan"
+                assert not torch.any(torch.isinf(student_out2)), "s2 is inf"
                 if num_teacher_crops > 1:
                     student_out = torch.cat((student_out1, student_out2), dim=0)
                     num_student_crops += num_teacher_crops

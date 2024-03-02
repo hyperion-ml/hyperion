@@ -7,7 +7,7 @@
 . ./path.sh
 set -e
 
-stage=2
+stage=1
 nnet_stage=1
 config_file=default_config.sh
 use_gpu=false
@@ -38,31 +38,6 @@ score_cosine_dir=$score_dir/cosine
 score_plda_dir=$score_dir/${cluster_name}_plda
 
 if [ $stage -le 1 ]; then
-  # Extract xvectors for training LDA/PLDA
-  nj=100
-  for name in voxceleb2cat_train
-  do
-    if [ -n "$vad_config" ];then
-      vad_args="--vad csv:data/$name/vad.csv"
-    fi
-    output_dir=$xvector_dir/$name
-    echo "Extracting x-vectors for $name"
-    $xvec_cmd JOB=1:$nj $output_dir/log/extract_xvectors.JOB.log \
-	      hyp_utils/conda_env.sh --num-gpus $num_gpus \
-	      hyperion-extract-wav2xvectors ${xvec_args} ${vad_args} \
-	      --part-idx JOB --num-parts $nj  \
-	      --recordings-file data/$name/recordings.csv \
-	      --random-utt-length --min-utt-length 30 --max-utt-length 30 \
-	      --model-path $nnet  \
-	      --output-spec ark,csv:$output_dir/xvector.JOB.ark,$output_dir/xvector.JOB.csv
-    hyperion-tables cat \
-		    --table-type features \
-		    --output-file $output_dir/xvector.csv --num-tables $nj
-
-  done
-fi
-
-if [ $stage -le 2 ]; then
   # Extracts x-vectors for evaluation
   nj=100
   if [ "$do_voxsrc22" == "true" ];then
@@ -91,7 +66,7 @@ if [ $stage -le 2 ]; then
   done
 fi
 
-if [ $stage -le 3 ];then
+if [ $stage -le 2 ];then
 
   echo "Eval Voxceleb 1 with Cosine scoring"
   num_parts=8
@@ -125,6 +100,31 @@ if [ $stage -le 3 ];then
 
   cat $score_cosine_dir/voxceleb1_results.csv
   exit
+fi
+
+if [ $stage -le 3 ]; then
+  # Extract xvectors for training LDA/PLDA
+  nj=100
+  for name in voxceleb2cat_train
+  do
+    if [ -n "$vad_config" ];then
+      vad_args="--vad csv:data/$name/vad.csv"
+    fi
+    output_dir=$xvector_dir/$name
+    echo "Extracting x-vectors for $name"
+    $xvec_cmd JOB=1:$nj $output_dir/log/extract_xvectors.JOB.log \
+	      hyp_utils/conda_env.sh --num-gpus $num_gpus \
+	      hyperion-extract-wav2xvectors ${xvec_args} ${vad_args} \
+	      --part-idx JOB --num-parts $nj  \
+	      --recordings-file data/$name/recordings.csv \
+	      --random-utt-length --min-utt-length 30 --max-utt-length 30 \
+	      --model-path $nnet  \
+	      --output-spec ark,csv:$output_dir/xvector.JOB.ark,$output_dir/xvector.JOB.csv
+    hyperion-tables cat \
+		    --table-type features \
+		    --output-file $output_dir/xvector.csv --num-tables $nj
+
+  done
 fi
 
 
