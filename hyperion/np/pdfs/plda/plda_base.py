@@ -47,7 +47,7 @@ class PLDABase(PDF):
         epochs=20,
         ml_md="ml+md",
         md_epochs=None,
-        **kwargs
+        **kwargs,
     ):
         super().__init__(**kwargs)
         self.mu = mu
@@ -380,7 +380,9 @@ class PLDABase(PDF):
         """
         pass
 
-    def llr_NvsM(self, x1, x2, ids1=None, ids2=None, method="vavg-lnorm"):
+    def llr_NvsM(
+        self, x1, x2, ids1=None, ids2=None, method=PLDALLRNvsMMethod.lnorm_vavg
+    ):
         """log-likelihood ratio between target and non-target hypothesis for
         the case of N segments/enrollment-side and M segments/test-side
 
@@ -410,6 +412,8 @@ class PLDABase(PDF):
             return self.llr_NvsM_vavg(D1, D2, do_lnorm=False)
         if method == PLDALLRNvsMMethod.lnorm_vavg:
             return self.llr_NvsM_vavg(D1, D2, do_lnorm=True)
+
+        raise ValueError(f"wrong llr {method}")
 
     def llr_NvsM_vavg(self, D1, D2, do_lnorm=True):
         """log-likelihood ratio between target and non-target hypothesis for
@@ -455,7 +459,7 @@ class PLDABase(PDF):
         scores = F.T / N
         return scores
 
-    def llr_Nvs1(self, x1, x2, ids1=None, method="vavg-lnorm"):
+    def llr_Nvs1(self, x1, x2, ids1=None, method=PLDALLRNvsMMethod.lnorm_vavg):
         """log-likelihood ratio between target and non-target hypothesis for
         the case of N segments/enrollment-side and M segments/test-side
 
@@ -483,6 +487,8 @@ class PLDABase(PDF):
             return self.llr_Nvs1_vavg(D1, x2, do_lnorm=False)
         if method == PLDALLRNvsMMethod.lnorm_vavg:
             return self.llr_Nvs1_vavg(D1, x2, do_lnorm=True)
+
+        raise ValueError(f"wrong llr {method}")
 
     def llr_Nvs1_vavg(self, D1, x2, do_lnorm=True):
         """log-likelihood ratio between target and non-target hypothesis for

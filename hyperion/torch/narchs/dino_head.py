@@ -2,6 +2,7 @@
  Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 from typing import Optional
 
 import torch
@@ -80,7 +81,8 @@ class DINOHead(NetArch):
         if num_hid_layers == 1:
             self.fc_layers = nn.Linear(in_feats, bottleneck_feats)
         else:
-            layers = [nn.Linear(in_feats, hid_feats)]
+            use_bias = False if use_norm and norm_before else True
+            layers = [nn.Linear(in_feats, hid_feats, bias=use_bias)]
             if use_norm and norm_before:
                 layers.append(self._norm_layer(hid_feats))
             layers.append(AF.create(hid_act))
@@ -90,7 +92,7 @@ class DINOHead(NetArch):
                 layers.append(nn.Dropout(self.dropout_rate))
 
             for _ in range(num_hid_layers - 2):
-                layers.append(nn.Linear(hid_feats, hid_feats))
+                layers.append(nn.Linear(hid_feats, hid_feats, bias=use_bias))
                 if use_norm and norm_before:
                     layers.append(self._norm_layer(hid_feats))
                 layers.append(AF.create(hid_act))

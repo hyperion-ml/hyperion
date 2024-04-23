@@ -34,6 +34,7 @@ subcommand_list = [
     "remove_short_segments",
     "rebuild_class_idx",
     "remove_classes_few_segments",
+    "remove_classes_few_toomany_segments",
     "split_train_val",
     "copy",
     "add_cols_to_segments",
@@ -281,6 +282,55 @@ def remove_classes_few_segments(
     dataset.save(output_dataset)
 
 
+def make_remove_classes_few_toomany_segments_parser():
+    parser = ArgumentParser()
+    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument(
+        "--dataset", required=True, help="""dataset dir or .yaml file"""
+    )
+    parser.add_argument(
+        "--class-name", required=True, help="""name of the class type e.g.: speaker"""
+    )
+    parser.add_argument(
+        "--min-segs", default=1, type=int, help="""min. num. of segments/class"""
+    )
+    parser.add_argument(
+        "--max-segs", default=None, type=int, help="""max. num. of segments/class"""
+    )
+    parser.add_argument(
+        "--rebuild-idx",
+        default=False,
+        action=ActionYesNo,
+        help="""regenerate class indexes from 0 to new_num_classes-1""",
+    )
+    parser.add_argument(
+        "--output-dataset",
+        default=None,
+        help="""output dataset dir, if None, we use the same as input""",
+    )
+
+    add_common_args(parser)
+    return parser
+
+
+def remove_classes_few_toomany_segments(
+    dataset: PathLike,
+    class_name: str,
+    min_segs: int,
+    max_segs: Union[int, None],
+    rebuild_idx: bool,
+    output_dataset: PathLike,
+):
+    if output_dataset is None:
+        output_dataset = dataset
+
+    dataset = Dataset.load(dataset, lazy=True)
+    dataset.remove_classes_few_toomany_segments(
+        class_name, min_segs, max_segs, rebuild_idx
+    )
+    dataset.save(output_dataset)
+
+
 def make_split_train_val_parser():
     parser = ArgumentParser()
     parser.add_argument("--cfg", action=ActionConfigFile)
@@ -397,7 +447,7 @@ def make_add_cols_to_segments_parser():
         "--right-table", required=True, help="table where the new data is"
     )
     parser.add_argument(
-        "--columns",
+        "--column-names",
         required=True,
         nargs="+",
         help="""columns to copy to segments table""",
@@ -421,6 +471,20 @@ def make_add_cols_to_segments_parser():
         help="""output dataset dir, if None, we use the same as input""",
     )
 
+    parser.add_argument(
+        "--remove-missing",
+        default=False,
+        action=ActionYesNo,
+        help="remove dataset entries that don't have a value in the right table",
+    )
+
+    parser.add_argument(
+        "--create-class-info",
+        default=False,
+        action=ActionYesNo,
+        help="creates class-info tables for the new columns added to the dataset",
+    )
+
     add_common_args(parser)
     return parser
 
@@ -432,12 +496,21 @@ def add_cols_to_segments(
     on: List[str],
     right_on: List[str],
     output_dataset: PathLike,
+    remove_missing: bool = False,
+    create_class_info: bool = False,
 ):
     if output_dataset is None:
         output_dataset = dataset
 
     dataset = Dataset.load(dataset, lazy=True)
-    dataset.add_cols_to_segments(right_table, column_names, on, right_on)
+    dataset.add_cols_to_segments(
+        right_table,
+        column_names,
+        on,
+        right_on,
+        remove_missing=remove_missing,
+        create_class_info=create_class_info,
+    )
     dataset.save(output_dataset)
 
 

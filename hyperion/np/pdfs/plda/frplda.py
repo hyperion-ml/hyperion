@@ -120,7 +120,12 @@ class FRPLDA(PLDABase):
 
         assert self.is_init
 
-        N, F, S = D
+        if isinstance(D, tuple):
+            N, F, S = D
+        else:
+            F = D
+            N = np.ones((F.shape[0],), dtype=F.dtype)
+            S = None
 
         M = F.shape[0]
         y_dim = self.y_dim

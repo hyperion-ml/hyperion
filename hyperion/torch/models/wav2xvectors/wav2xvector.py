@@ -2,6 +2,7 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import contextlib
 import logging
 
@@ -155,14 +156,18 @@ class Wav2XVector(TorchModel):
     def set_train_mode(self, mode):
         if mode == self._train_mode:
             return
-
+        logging.info("setting Wav2XVector train mode to %s", mode)
         if mode == "full-feats-grad":
             self._feats_context = contextlib.nullcontext()
             xvector_mode = "full"
         else:
             logging.info("using torch.no_grad for feats")
             self._feats_context = torch.no_grad()
+            xvector_mode = mode
 
+        logging.info(
+            "setting Wav2XVector XVector object train mode to %s", xvector_mode
+        )
         self.xvector.set_train_mode(xvector_mode)
         self._train_mode = mode
 
@@ -173,7 +178,7 @@ class Wav2XVector(TorchModel):
         elif train_mode in ["full-feats-grad", "full"]:
             self.xvector._train("full")
         elif train_mode == "ft-embed-affine":
-            self.xvector._train("ft-embed_affine")
+            self.xvector._train(train_mode)
         else:
             raise ValueError(f"invalid train_mode={train_mode}")
 

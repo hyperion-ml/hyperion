@@ -2,6 +2,7 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 import os
 import time
@@ -14,6 +15,7 @@ from jsonargparse import ActionParser, ArgumentParser
 
 from ...utils.misc import filter_func_args
 from ..utils import MetricAcc, tensors_subset
+from .torch_trainer import AMPDType
 from .xvector_trainer import XVectorTrainer
 
 
@@ -39,6 +41,7 @@ class XVectorAdvTrainer(XVectorTrainer):
       loss: if None, it uses cross-entropy
       train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
       use_amp: uses mixed precision training.
+      amp_dtype: "float16" | "bfloat16"
       log_interval: number of optim. steps between log outputs
       log_interval: number of optim. steps between log outputs
       use_tensorboard: use tensorboard logger
@@ -76,6 +79,7 @@ class XVectorAdvTrainer(XVectorTrainer):
         loss=None,
         train_mode="full",
         use_amp=False,
+        amp_dtype=AMPDType.FLOAT16,
         log_interval=1000,
         use_tensorboard=False,
         use_wandb=False,

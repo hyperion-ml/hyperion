@@ -19,11 +19,6 @@ nnet_s1_name=$nnet_name.s1
 nnet_s1_dir=exp/xvector_nnets/$nnet_s1_name
 nnet_s1=$nnet_s1_dir/teacher_model_ep0080.pth
 
-nnet_s2_base_cfg=conf/train_resnet34_xvec_stage2_v3.0.yaml
-nnet_s2_name=${nnet_name}.s2
-nnet_s2_dir=exp/xvector_nnets/$nnet_s2_name
-nnet_s2=$nnet_s2_dir/swa_model_ep0016.pth
-
 # clustering
 cluster_method=cos_ahc
 cluster_name=${cluster_method}_1
@@ -32,21 +27,34 @@ cluster_cfg=conf/ahc.yaml
 # plda
 plda_cfg=conf/plda.yaml
 
-# back-end
-do_plda=false
-# do_snorm=true
-# do_qmf=true
-# do_voxsrc22=true
+# finetuning stage 1.1
+nnet_ft_s1_1_base_cfg=conf/train_lresnet34_stage1.1_v1.1.yaml
+nnet_ft_s1_1_name=$nnet_name.s1.ft.s1.1
+nnet_ft_s1_1_dir=exp/xvector_nnets/$nnet_ft_s1_1_name
+nnet_ft_s1_1=$nnet_ft_s1_1_dir/model_ep0010.pth
 
-plda_aug_config=conf/reverb_noise_aug.yaml
-plda_num_augs=0
-if [ $plda_num_augs -eq 0 ]; then
-    plda_data=voxceleb2cat_train
-else
-    plda_data=voxceleb2cat_train_augx${plda_num_augs}
-fi
-plda_type=splda
-lda_dim=200
-plda_y_dim=150
-plda_z_dim=200
+# finetuning stage 1.2
+nnet_ft_s1_2_base_cfg=conf/train_lresnet34_stage1.2_v1.1.yaml
+nnet_ft_s1_2_name=$nnet_name.s1.ft.s1.2
+nnet_ft_s1_2_dir=exp/xvector_nnets/$nnet_ft_s1_2_name
+nnet_ft_s1_2=$nnet_ft_s1_2_dir/model_ep0080.pth
+
+
+# # back-end
+# do_plda=false
+# # do_snorm=true
+# # do_qmf=true
+# # do_voxsrc22=true
+
+# plda_aug_config=conf/reverb_noise_aug.yaml
+# plda_num_augs=0
+# if [ $plda_num_augs -eq 0 ]; then
+#     plda_data=voxceleb2cat_train
+# else
+#     plda_data=voxceleb2cat_train_augx${plda_num_augs}
+# fi
+# plda_type=splda
+# lda_dim=200
+# plda_y_dim=150
+# plda_z_dim=200
 

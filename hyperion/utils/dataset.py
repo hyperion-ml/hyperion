@@ -2,6 +2,7 @@
  Copyright 2022 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 import math
 from copy import deepcopy
@@ -619,8 +620,6 @@ class Dataset:
     def update_from_disk(self):
         self.segments()
         self.recordings()
-        # for k, v in self.recordings():
-        #     pass
 
         for k, v in self.features():
             pass
@@ -810,18 +809,6 @@ class Dataset:
         self._recordings = None
         self._recordings_path = None
 
-    # def remove_recordings(
-    #     self,
-    #     recordings_name: str,
-    # ):
-    #     if self._recordingsr_paths[recordings_name] is not None:
-    #         file_path = Path(self._recordings_paths[recordings_name])
-    #         if file_path.is_file():
-    #             file_path.unlink()
-
-    #     del self._recordings[recordings_name]
-    #     del self._recordings_paths[recordings_name]
-
     def remove_classes(self, classes_name: str):
         if self._classes_paths[classes_name] is not None:
             self._files_to_delete.append(self._class_paths[classes_name])
@@ -855,6 +842,8 @@ class Dataset:
         column_names: Union[None, str, List[str], np.ndarray] = None,
         on: Union[str, List[str], np.ndarray] = "id",
         right_on: Union[None, str, List[str], np.ndarray] = None,
+        remove_missing: bool = False,
+        create_class_info: bool = False,
     ):
         if isinstance(right_table, (str, Path)):
             file_path = Path(right_table)
@@ -871,30 +860,50 @@ class Dataset:
                     raise ValueError("%s not found", right_table)
 
         segments = self.segments(keep_loaded=True)
-        segments.add_columns(right_table, column_names, on=on, right_on=right_on)
+        num_segs_0 = len(segments)
+        segments.add_columns(
+            right_table,
+            column_names,
+            on=on,
+            right_on=right_on,
+            remove_missing=remove_missing,
+        )
+        if remove_missing and len(segments) < num_segs_0:
+            self.clean()
+
+        if create_class_info and column_names is not None:
+            self.create_class_info_from_col(column_names)
+
+    def create_class_info_from_col(
+        self,
+        column_names: Union[str, List[str], np.ndarray],
+    ):
+        if isinstance(column_names, str):
+            column_names = [column_names]
+
+        for col in column_names:
+            if col not in self._classes:
+                df = pd.DataFrame(
+                    {"id": np.unique(self.segments(keep_loaded=True)[col])}
+                )
+                class_info = ClassInfo(df)
+                self.add_classes(col, class_info)
 
     def clean(self, rebuild_class_idx=False):
+
         rec_ids = self.segments().recordings()
-        # for k, table in self.recordings():
-        #     # table = table.loc[table["id"].isin(rec_ids)].copy()
-        #     # self._recordings[k] = RecordingSet(table)
         self._recordings = self.recordings().filter(lambda df: df["id"].isin(rec_ids))
 
         ids = self.segments()["id"].values
         for k, table in self.features():
             self._features[k] = table.filter(lambda df: df["id"].isin(ids))
-            # table = table.loc[table["id"].isin(ids)].copy()
-            # self._features[k] = FeatureSet(table)
 
         for k, table in self.classes():
             class_ids = self.segments()[k].unique()
             self._classes[k] = table.filter(lambda df: df["id"].isin(class_ids))
-            # table = table[table["id"].isin(class_ids)].copy()
-            # self._classes[k] = ClassInfo(table)
 
         remove_keys = []
         for k, table in self.enrollments():
-            # table = table.loc[table["segmentid"].isin(ids)].copy()
             table = table.filter(lambda df: df["segmentid"].isin(ids))
             if len(table) > 0:
                 self._enrollments[k] = table
@@ -1048,6 +1057,27 @@ class Dataset:
         segments = self.segments()
         classes, counts = np.unique(segments[class_name], return_counts=True)
         keep_classes = classes[counts >= min_segs]
+        self._segments = segments.filter(lambda df: df[class_name].isin(keep_classes))
+        self.clean()
+        if rebuild_idx:
+            class_info = self.classes_value(class_name)
+            class_info.add_class_idx()
+
+    def remove_classes_few_toomany_segments(
+        self,
+        class_name: str,
+        min_segs: int,
+        max_segs: int,
+        rebuild_idx: bool = False,
+    ):
+        segments = self.segments()
+        classes, counts = np.unique(segments[class_name], return_counts=True)
+        if max_segs is None:
+            keep_classes = classes[counts >= min_segs]
+        else:
+            keep_classes = classes[
+                np.logical_and(counts >= min_segs, counts <= max_segs)
+            ]
         self._segments = segments.filter(lambda df: df[class_name].isin(keep_classes))
         self.clean()
         if rebuild_idx:

@@ -2,6 +2,7 @@
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 import math
 import os
@@ -14,7 +15,7 @@ from jsonargparse import ActionParser, ArgumentParser
 
 from ...utils.misc import filter_func_args
 from ..utils import MetricAcc, tensors_subset
-from .vae_trainer import VAETrainer
+from .vae_trainer import AMPDType, VAETrainer
 
 
 class VQVAETrainer(VAETrainer):
@@ -35,6 +36,7 @@ class VQVAETrainer(VAETrainer):
       ddp_type: type of distributed data parallel in  (ddp, oss_ddp, oss_shared_ddp)
       train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
       use_amp: uses mixed precision training.
+      amp_dtype: "float16" | "bfloat16"
       log_interval: number of optim. steps between log outputs
       use_tensorboard: use tensorboard logger
       use_wandb: use wandb logger
@@ -68,6 +70,7 @@ class VQVAETrainer(VAETrainer):
         ddp_type="ddp",
         train_mode="full",
         use_amp=False,
+        amp_dtype=AMPDType.FLOAT16,
         log_interval=1000,
         use_tensorboard=False,
         use_wandb=False,
@@ -84,34 +87,6 @@ class VQVAETrainer(VAETrainer):
     ):
         super_args = filter_func_args(super().__init__, locals())
         super().__init__(**super_args)
-
-        # super().__init__(
-        #     model,
-        #     optim,
-        #     epochs,
-        #     exp_path,
-        #     cur_epoch=cur_epoch,
-        #     grad_acc_steps=grad_acc_steps,
-        #     eff_batch_size=eff_batch_size,
-        #     device=device,
-        #     metrics=metrics,
-        #     lrsched=lrsched,
-        #     loggers=loggers,
-        #     ddp=ddp,
-        #     ddp_type=ddp_type,
-        #     train_mode=train_mode,
-        #     use_amp=use_amp,
-        #     log_interval=log_interval,
-        #     use_tensorboard=use_tensorboard,
-        #     use_wandb=use_wandb,
-        #     wandb=wandb,
-        #     grad_clip=grad_clip,
-        #     grad_clip_norm=grad_clip_norm,
-        #     swa_start=swa_start,
-        #     swa_lr=swa_lr,
-        #     swa_anneal_epochs=swa_anneal_epochs,
-        #     cpu_offload=cpu_offload,
-        # )
 
     def train_epoch(self, data_loader):
         batch_keys = [self.input_key, self.target_key]
@@ -203,7 +178,7 @@ class VQVAETrainer(VAETrainer):
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        super().add_class_args(parser, train_modes, skip=skip.union({"target_key"}))
+        VAETrainer.add_class_args(parser, train_modes, skip=skip.union({"target_key"}))
         if "target_key" not in skip:
             parser.add_argument(
                 "--target-key", default="x", help="dict. key for nnet targets"

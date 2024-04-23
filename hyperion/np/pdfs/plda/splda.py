@@ -2,6 +2,7 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import numpy as np
 from scipy import linalg as sla
 
@@ -122,7 +123,13 @@ class SPLDA(PLDABase):
           Ry accumlator for ML step with shape (y_dim, y_dim)
           Py accumlator for MD step with shape (y_dim, y_dim)
         """
-        N, F, S = D
+        if isinstance(D, tuple):
+            N, F, S = D
+        else:
+            F = D
+            N = np.ones((F.shape[0],), dtype=F.dtype)
+            S = None
+
         Fc = F - self.mu
 
         M = F.shape[0]

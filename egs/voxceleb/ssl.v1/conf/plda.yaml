@@ -1,0 +1,11 @@
+class_name: cluster
+pca:
+  #pca_var_r: 0.975
+  pca_var_r: 0.99
+do_lda: true
+lda:
+  lda_dim: 120
+plda:
+  plda_type: splda
+  y_dim: 100
+  epochs: 20

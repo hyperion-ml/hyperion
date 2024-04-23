@@ -360,17 +360,12 @@ class AudioDataset(Dataset):
 
         return self.resampler(x, fs)
 
-        # try:
-        #     if self.target_sample_freq is None or fs == self.target_sample_freq:
-        #         return x, fs
-        #     resampler = self._get_resampler(fs)
-        #     return resampler(x), self.target_sample_freq
-        # except:
-        #     return x, fs
-
     def __getitem__(self, segment):
         seg_id, start, duration = self._parse_segment_item(segment)
         x, fs = self._read_audio(seg_id, start, duration)
+        assert (
+            len(x) > 0
+        ), f"read audio empty seg_id={seg_id}, start={start}, dur={duration}"
         x, fs = self._resample(x, fs)
         data = {"seg_id": seg_id, "sample_freq": fs}
         x_augs = self._apply_augs(x, duration, fs)
@@ -383,28 +378,6 @@ class AudioDataset(Dataset):
     def filter_args(**kwargs):
         args = filter_func_args(AudioDataset.__init__, kwargs)
         return args
-
-    # @staticmethod
-    # def filter_args(**kwargs):
-
-    #     ar_args = AR.filter_args(**kwargs)
-    #     valid_args = (
-    #         "recordings_file",
-    #         "segments_file",
-    #         "aug_cfgs",
-    #         "num_augs",
-    #         "class_names",
-    #         "class_files",
-    #         "bpe_model",
-    #         "text_file",
-    #         "return_segment_info",
-    #         "return_orig",
-    #         "time_durs_file",
-    #         "target_sample_freq",
-    #     )
-    #     args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
-    #     args.update(ar_args)
-    #     return args
 
     @staticmethod
     def add_class_args(parser, prefix=None, skip=set()):

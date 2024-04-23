@@ -136,10 +136,12 @@ run_007_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | config_fbank80_stmn_idrnd_resnet100.v3.1.sh | ResNet100 / BasicBlock 128-256 ch. | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 0.50 | 0.035 | 0.038 |
 | | | | Cosine + AS-Norm | 0.47 | 0.031 | 0.038 |
 | | | | Cosine + QMF | 0.40 | 0.027 | 0.032 |
+| config_fbank80_stmn_idrnd_resnet100.v3.2.sh | ResNet100 / BasicBlock 128-256 ch. | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 0.49 | 0.032 | 0.038 |
+| | | | Cosine + AS-Norm | 0.43 | 0.025 | 0.034 |
+| | | | Cosine + QMF | 0.37 | 0.024 | 0.033 |
 | config_fbank80_stmn_res2net50w26s8.v3.0.sh | Res2Net50 w26 scale=8 | Stage2: ArcFace m=0.4/intertop_m=0.1 | Cosine | 0.60 | 0.043 | 0.071 |
 | | | | Cosine + AS-Norm | 0.53 | 0.034 | 0.063 |
 | | | | Cosine + QMF | 0.49 | 0.033 | 0.054 |
-
 
 ### VoxCeleb 1 Entire-Clean trial list
 
@@ -190,6 +192,9 @@ run_007_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | config_fbank80_stmn_idrnd_resnet100.v3.1.sh | ResNet100 / BasicBlock 128-256 ch. | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 0.69 | 0.043 | 0.074 |
 | | | | Cosine + AS-Norm | 0.65 | 0.039 | 0.068 |
 | | | | Cosine + QMF | 0.63 | 0.036 | 0.065 |
+| config_fbank80_stmn_idrnd_resnet100.v3.2.sh | ResNet100 / BasicBlock 128-256 ch. | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 0.66 | 0.040 | 0.072 |
+| | | | Cosine + AS-Norm | 0.62 | 0.037 | 0.066 |
+| | | | Cosine + QMF | 0.59 | 0.035 | 0.064 |
 | config_fbank80_stmn_res2net50w26s8.v3.0.sh | Res2Net50 w26 scale=8 | Stage2: ArcFace m=0.4/intertop_m=0.1 | Cosine | 0.75 | 0.047 | 0.077 |
 | | | | Cosine + AS-Norm | 0.70 | 0.042 | 0.072 |
 | | | | Cosine + QMF | 0.68 | 0.040 | 0.069 |
@@ -244,10 +249,12 @@ run_007_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | config_fbank80_stmn_idrnd_resnet100.v3.1.sh | ResNet100 / BasicBlock 128-256 ch. | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 1.36 | 0.077 | 0.122 |
 | | | | Cosine + AS-Norm | 1.23 | 0.069 | 0.112 |
 | | | | Cosine + QMF | 1.17 | 0.065 | 0.110 |
+| config_fbank80_stmn_idrnd_resnet100.v3.1.sh | ResNet100 / BasicBlock 128-256 ch. | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 1.27 | 0.072 | 0.121 |
+| | | | Cosine + AS-Norm | 1.15 | 0.065 | 0.107 |
+| | | | Cosine + QMF | 1.10 | 0.062 | 0.102 |
 | config_fbank80_stmn_res2net50w26s8.v3.0.sh | Res2Net50 w26 scale=8 | Stage2: ArcFace m=0.4/intertop_m=0.1 | Cosine | 1.41 | 0.081 | 0.132 |
 | | | | Cosine + AS-Norm | 1.28 | 0.071 | 0.116 |
 | | | | Cosine + QMF | 1.21 | 0.069 | 0.113 |
-
 
 
 ### VoxSRC2022 dev
@@ -299,7 +306,9 @@ run_007_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | config_fbank80_stmn_idrnd_resnet100.v3.1.sh | ResNet100 / BasicBlock 128-256 ch. | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 2.02 | 0.116 | 0.194 |
 | | | | Cosine + AS-Norm | 1.81 | 0.107 | 0.199 |
 | | | | Cosine + QMF | 1.72 | 0.099 | 0.186 |
+| config_fbank80_stmn_idrnd_resnet100.v3.2.sh | ResNet100 / BasicBlock 128-256 ch. | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 1.91 | 0.111 | 0.192 |
+| | | | Cosine + AS-Norm | 1.75 | 0.105 | 0.194 |
+| | | | Cosine + QMF | 1.64 | 0.098 | 0.181 |
 | config_fbank80_stmn_res2net50w26s8.v3.0.sh | Res2Net50 w26 scale=8 | Stage2: ArcFace m=0.4/intertop_m=0.1 | Cosine | 1.96 | 0.124 | 0.211 |
 | | | | Cosine + AS-Norm | 1.79 | 0.118 | 0239 |
 | | | | Cosine + QMF | 1.68 | 0.114 | 0.216 |
-
