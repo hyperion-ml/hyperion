@@ -15,7 +15,7 @@ from jsonargparse import (
 )
 
 from hyperion.hyp_defs import config_logger
-from hyperion.utils import Dataset
+from hyperion.utils import HypDataset
 
 
 def main():
@@ -63,7 +63,7 @@ def main():
     del args.trials_dir
     args = namespace_to_dict(args)
 
-    dataset = Dataset.load(data_dir)
+    dataset = HypDataset.load(data_dir)
     trials_dataset, cohort_dataset = dataset.split_into_trials_and_cohort(**args)
     trials_dataset.save(trials_dir)
     cohort_dataset.save(cohort_dir)

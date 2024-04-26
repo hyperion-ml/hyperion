@@ -26,7 +26,7 @@ from .trial_key import TrialKey
 from .trial_ndx import TrialNdx
 
 
-class Dataset:
+class HypDataset:
     """Class that contains all objects
     (segments, recordings, features, class_infos) that
     conform a dataset
@@ -390,7 +390,7 @@ class Dataset:
             self.table_sep = table_sep
 
         table_ext = ".tsv" if table_sep == "\t" else ".csv"
-        dataset_dir, dataset_file = Dataset.resolve_dataset_path(dataset_path)
+        dataset_dir, dataset_file = HypDataset.resolve_dataset_path(dataset_path)
         dataset = {}
         file_name = f"segments{table_ext}"
         dataset["segments"] = file_name
@@ -536,7 +536,7 @@ class Dataset:
             self.table_sep = table_sep
 
         table_ext = ".tsv" if table_sep == "\t" else ".csv"
-        dataset_dir, dataset_file = Dataset.resolve_dataset_path(dataset_path)
+        dataset_dir, dataset_file = HypDataset.resolve_dataset_path(dataset_path)
         dataset = {}
         file_name = f"segments{table_ext}"
         dataset["segments"] = file_name
@@ -647,12 +647,12 @@ class Dataset:
          sparse_trials: load trial keys using the SparseTrialKey class instead of TrialKey class
 
         """
-        dataset_dir, dataset_file = Dataset.resolve_dataset_path(dataset_path)
+        dataset_dir, dataset_file = HypDataset.resolve_dataset_path(dataset_path)
         with open(dataset_file, "r") as f:
             dataset = yaml.safe_load(f)
 
         assert "segments" in dataset
-        segments = Dataset.resolve_file_path(dataset_dir, dataset["segments"])
+        segments = HypDataset.resolve_file_path(dataset_dir, dataset["segments"])
         classes = None
         recordings = None
         features = None
@@ -661,28 +661,30 @@ class Dataset:
         if "classes" in dataset:
             classes = {}
             for k, v in dataset["classes"].items():
-                classes[k] = Dataset.resolve_file_path(dataset_dir, v)
+                classes[k] = HypDataset.resolve_file_path(dataset_dir, v)
 
         if "recordings" in dataset:
-            recordings = Dataset.resolve_file_path(dataset_dir, dataset["recordings"])
+            recordings = HypDataset.resolve_file_path(
+                dataset_dir, dataset["recordings"]
+            )
             # recordings = {}
             # for k, v in dataset["recordings"].items():
-            #     recordings[k] = Dataset.resolve_file_path(dataset_dir, v)
+            #     recordings[k] = HypDataset.resolve_file_path(dataset_dir, v)
 
         if "features" in dataset:
             features = {}
             for k, v in dataset["features"].items():
-                features[k] = Dataset.resolve_file_path(dataset_dir, v)
+                features[k] = HypDataset.resolve_file_path(dataset_dir, v)
 
         if "enrollments" in dataset:
             enrollments = {}
             for k, v in dataset["enrollments"].items():
-                enrollments[k] = Dataset.resolve_file_path(dataset_dir, v)
+                enrollments[k] = HypDataset.resolve_file_path(dataset_dir, v)
 
         if "trials" in dataset:
             trials = {}
             for k, v in dataset["trials"].items():
-                trials[k] = Dataset.resolve_file_path(dataset_dir, v)
+                trials[k] = HypDataset.resolve_file_path(dataset_dir, v)
 
         dataset = cls(
             segments,
@@ -991,8 +993,8 @@ class Dataset:
           intra_gender: if True, no cross gender trials are done.
 
         Returns:
-          Dataset used for trials with trial list.
-          Dataset used for cohort.
+          HypDataset used for trials with trial list.
+          HypDataset used for cohort.
         """
         num_tar_trials = num_1k_tar_trials * 1000
         if intra_gender:
@@ -1258,4 +1260,83 @@ class Dataset:
         recordings: Optional[Union[lhotse.RecordingSet, PathLike]] = None,
         supervisions: Optional[Union[lhotse.SupervisionSet, PathLike]] = None,
     ):
+        """Creates a Hyperion Dataset from a lhotse CutSet or
+        from a lhotse RecordingSet + SupervisionSet
+
+        Args:
+          cuts: lhotse CutSet manifest or file
+          recordings: lhotse RecordingSet manifest or file
+          supervisions: lhotse SupervisionSet manifest or file.
+
+        Returns
+          HypDataset object
+        """
+        assert cuts is not None or supervisions is not None
+        if cuts is not None:
+            if isinstance(cuts, (str, Path)):
+                cuts = lhotse.CutSet.from_file(cuts)
+        else:
+            if isinstance(supervisions, (str, Path)):
+                supervisions = lhotse.SupervisionSet.from_file(supervisions)
+
+            if recordings is not None and isinstance(recordings, (str, Path)):
+                recordings = lhotse.RecordingSet.from_file(recordings)
+
+            cuts = lhotse.CutSet.from_manifests(
+                recordings=recordings, supervisions=supervisions
+            )
+
+        from lhotse import MonoCut, Recording, SupervisionSegment
+
+        supervision_keys = ["speaker", "gender", "language", "text", "duration"]
+        recs_df = []
+        segs_df = []
+        for cut in cuts:
+            supervision = cut.supervisions[0]
+            recording = cut.recording
+            seg_dict = {"id": cut.id}
+            recording = cut.recording
+            if recording is not None:
+                if recording.id != cut.id:
+                    seg_dict["recording_id"] = recording.id
+
+                rec_dict = {
+                    "id": recording.id,
+                    "sampling_rate": recording.sampling_rate,
+                    "duration": recording.duration,
+                }
+                source = recording.sources[0]
+                assert len(recording.source) == 1
+                assert source.type in ["file", "command"]
+                rec_dict["storage_path"] = source.source
+                assert recording.transforms is None, f"{recording.transforms}"
+                recs_df.append(rec_dict)
+
+            for key in supervision_keys:
+                if hasattr(supervision, key):
+                    val = getattr(supervision, key)
+                    if val is not None:
+                        seg_dict[key] = val
+
+            if supervision.custom is not None:
+                for key, val in supervision.custom:
+                    if val is not None:
+                        seg_dict[key] = val
+
+            segs_df = seg_dict
+
+        recs_df = pd.DataFrame(recs_df)
+        segs_df = pd.DataFrame(segs_df)
+        recordings = RecordingSet(recs_df)
+        segments = SegmentSet(segs_df)
+        class_names = ["speaker", "language", "emotion", "gender"]
+        classes = {}
+        for key in class_names:
+            if key in segments:
+                uniq_classes = np.unique(segments[key])
+                classes[key] = pd.DataFrame({"id": uniq_classes})
+
+        dataset = cls(segments=segments, classes=classes, recordings=recordings)
+        return dataset
+
         return None

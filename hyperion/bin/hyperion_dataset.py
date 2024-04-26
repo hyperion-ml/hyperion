@@ -18,9 +18,9 @@ from jsonargparse import (
 from hyperion.hyp_defs import config_logger
 from hyperion.utils import (
     ClassInfo,
-    Dataset,
     EnrollmentMap,
     FeatureSet,
+    HypDataset,
     InfoTable,
     PathLike,
     RecordingSet,
@@ -81,7 +81,7 @@ def add_features(
     if output_dataset is None:
         output_dataset = dataset
 
-    dataset = Dataset.load(dataset, lazy=True)
+    dataset = HypDataset.load(dataset, lazy=True)
     dataset.add_features(features_name, features_file)
     dataset.save(output_dataset)
 
@@ -128,7 +128,7 @@ def set_recordings(
     if output_dataset is None:
         output_dataset = dataset
 
-    dataset = Dataset.load(dataset, lazy=True)
+    dataset = HypDataset.load(dataset, lazy=True)
     dataset.set_recordings(recordings_file, update_seg_durs)
     if remove_features is not None:
         for features_name in remove_features:
@@ -161,7 +161,7 @@ def make_from_recordings(
     rec_df = pd.read_csv(recordings_file)
     seg_df = rec_df[["id"]]
     segments = SegmentSet(seg_df)
-    dataset = Dataset(segments, recordings=recordings_file)
+    dataset = HypDataset(segments, recordings=recordings_file)
     dataset.save(output_dataset)
 
 
@@ -202,7 +202,7 @@ def remove_short_segments(
     if output_dataset is None:
         output_dataset = dataset
 
-    dataset = Dataset.load(dataset, lazy=True)
+    dataset = HypDataset.load(dataset, lazy=True)
     dataset.remove_short_segments(min_length, length_name)
     dataset.save(output_dataset)
 
@@ -234,7 +234,7 @@ def rebuild_class_idx(
     if output_dataset is None:
         output_dataset = dataset
 
-    dataset = Dataset.load(dataset, lazy=True)
+    dataset = HypDataset.load(dataset, lazy=True)
     dataset.rebuild_class_idx(class_name)
     dataset.save(output_dataset)
 
@@ -277,7 +277,7 @@ def remove_classes_few_segments(
     if output_dataset is None:
         output_dataset = dataset
 
-    dataset = Dataset.load(dataset, lazy=True)
+    dataset = HypDataset.load(dataset, lazy=True)
     dataset.remove_classes_few_segments(class_name, min_segs, rebuild_idx)
     dataset.save(output_dataset)
 
@@ -324,7 +324,7 @@ def remove_classes_few_toomany_segments(
     if output_dataset is None:
         output_dataset = dataset
 
-    dataset = Dataset.load(dataset, lazy=True)
+    dataset = HypDataset.load(dataset, lazy=True)
     dataset.remove_classes_few_toomany_segments(
         class_name, min_segs, max_segs, rebuild_idx
     )
@@ -394,7 +394,7 @@ def split_train_val(
     train_dataset: PathLike,
     val_dataset: PathLike,
 ):
-    dataset = Dataset.load(dataset, lazy=True)
+    dataset = HypDataset.load(dataset, lazy=True)
     train_ds, val_ds = dataset.split_train_val(
         val_prob, joint_classes, disjoint_classes, min_train_samples, seed
     )
@@ -433,7 +433,7 @@ def copy(
     dataset: PathLike,
     output_dataset: PathLike,
 ):
-    dataset = Dataset.load(dataset, lazy=True)
+    dataset = HypDataset.load(dataset, lazy=True)
     dataset.save(output_dataset)
 
 
@@ -502,7 +502,7 @@ def add_cols_to_segments(
     if output_dataset is None:
         output_dataset = dataset
 
-    dataset = Dataset.load(dataset, lazy=True)
+    dataset = HypDataset.load(dataset, lazy=True)
     dataset.add_cols_to_segments(
         right_table,
         column_names,
@@ -512,6 +512,44 @@ def add_cols_to_segments(
         create_class_info=create_class_info,
     )
     dataset.save(output_dataset)
+
+
+def make_from_lhotse_parser():
+    parser = ArgumentParser()
+    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument(
+        "--dataset", required=True, help="""dataset dir or .yaml file"""
+    )
+    parser.add_argument(
+        "--cuts-file",
+        default=None,
+        help="lhotse cuts file",
+    )
+    parser.add_argument(
+        "--recordings-file",
+        default=None,
+        help="lhotse recordings set file",
+    )
+    parser.add_argument(
+        "--supervisions-file",
+        default=None,
+        help="lhotse supervisions file",
+    )
+
+
+def from_lhotse(
+    dataset: PathLike,
+    cuts_file: Optional[PathLike] = None,
+    recordings_file: Optional[PathLike] = None,
+    supervisions_file: Optional[PathLike] = None,
+):
+
+    assert cuts_file is not None or supervisions_file is not None
+    dataset_dir = dataset
+    dataset = HypDataset.from_lhotse(
+        cuts=cuts_file, recordings=recordings_file, supervisions=supervisions_file
+    )
+    dataset.save(dataset)
 
 
 def main():

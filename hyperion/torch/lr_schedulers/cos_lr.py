@@ -3,7 +3,6 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-
 import logging
 import math
 
@@ -32,7 +31,6 @@ class CosineLR(LRScheduler):
       optimizer: Pytorch optimizer object.
       T: period of the cycle.
       T_mul: period multiplier, after each cycle the period is multiplied by T_mul.
-      hold_steps: number of steps until the lr starts decaying.
       min_lr: minimum learning rate.
       warmup_steps: number of warm up steps to get the lr from 0 to the maximum lr.
       warm_restarts: whether or not to do warm restarts.
@@ -103,7 +101,7 @@ class CosineLR(LRScheduler):
             else:
                 return self.min_lrs
 
-        alpha = self.gamma ** self.num_restarts
+        alpha = self.gamma**self.num_restarts
         r = math.pi / self.T
 
         return [
@@ -182,7 +180,7 @@ class AdamCosineLR(CosineLR):
             else:
                 return self.min_lrs
 
-        alpha = self.gamma ** self.num_restarts
+        alpha = self.gamma**self.num_restarts
         r = math.pi / self.T
 
         return [
