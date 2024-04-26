@@ -36,9 +36,12 @@ class FRPLDA(PLDABase):
         update_mu=True,
         update_B=True,
         update_W=True,
+        epochs=20,
+        ml_md="ml+md",
+        md_epochs=None,
         **kwargs
     ):
-        super().__init__(mu=mu, update_mu=update_mu, **kwargs)
+        super().__init__(mu=mu, update_mu=update_mu, epochs=epochs, **kwargs)
         if mu is not None:
             self.y_dim = mu.shape[0]
         self.B = B
@@ -117,7 +120,12 @@ class FRPLDA(PLDABase):
 
         assert self.is_init
 
-        N, F, S = D
+        if isinstance(D, tuple):
+            N, F, S = D
+        else:
+            F = D
+            N = np.ones((F.shape[0],), dtype=F.dtype)
+            S = None
 
         M = F.shape[0]
         y_dim = self.y_dim

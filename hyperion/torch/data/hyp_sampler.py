@@ -2,10 +2,9 @@ import logging
 import math
 
 import numpy as np
-from jsonargparse import ActionParser, ArgumentParser
-
 import torch
 import torch.distributed as dist
+from jsonargparse import ActionParser, ArgumentParser
 from torch.utils.data import Sampler
 
 
@@ -14,6 +13,7 @@ class HypSampler(Sampler):
         super().__init__(None)
         self.epoch = 0
         self.batch = 0
+        self.init_batch = 0
         self.shuffle = shuffle
         self.seed = seed
 
@@ -28,16 +28,18 @@ class HypSampler(Sampler):
         self.world_size = world_size
         self.rng = torch.Generator()
 
-    def set_epoch(self, epoch):
+    def set_epoch(self, epoch, batch=0):
         self.epoch = epoch
+        self.init_batch = batch
 
     def _set_seed(self):
         if self.shuffle:
-            self.rng.manual_seed(self.seed + 10 * self.epoch)
+            self.rng.manual_seed(self.seed + 10 * self.epoch + 100 * self.init_batch)
         else:
             self.rng.manual_seed(self.seed)
 
     def __iter__(self):
-        self.batch = 0
+        self.batch = self.init_batch
+        self.init_batch = 0
         self._set_seed()
         return self

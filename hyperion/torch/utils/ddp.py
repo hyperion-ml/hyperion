@@ -54,8 +54,8 @@ def ddp_init(
         device = open_device(num_gpus)
         return device, 0, 1
 
-    os.environ["MASTER_ADDR"] = master_addr
-    os.environ["MASTER_PORT"] = master_port
+    os.environ["MASTER_ADDR"] = str(master_addr)
+    os.environ["MASTER_PORT"] = str(master_port)
 
     logging.info(
         f"init ddp rank={rank} world_size={world_size} master={master_addr}:{master_port} gpu_id={gpu_id}"

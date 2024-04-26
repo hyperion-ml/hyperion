@@ -20,7 +20,9 @@ def scale_seq_lengths(lengths, max_out_length, max_in_length=None):
     return torch.div(lengths * max_out_length, max_in_length, rounding_mode="floor")
 
 
-def seq_lengths_to_mask(lengths, max_length=None, dtype=None, time_dim=1):
+def seq_lengths_to_mask(
+    lengths, max_length=None, dtype=None, time_dim=1, none_if_all_max=False
+):
     """Creates a binary masks indicating the valid values in a sequence.
 
     Args:
@@ -43,6 +45,10 @@ def seq_lengths_to_mask(lengths, max_length=None, dtype=None, time_dim=1):
 
     if max_length is None:
         max_length = lengths.max()
+
+    if none_if_all_max and torch.all(lengths == max_length):
+        return None
+
     idx = torch.arange(max_length, dtype=lengths.dtype, device=lengths.device)
 
     # compute mask shape=(batch, max_length)
@@ -60,3 +66,16 @@ def seq_lengths_to_mask(lengths, max_length=None, dtype=None, time_dim=1):
         mask = mask.to(dtype)
 
     return mask
+
+
+def make_attn_mask_causal(mask: torch.Tensor):
+    """Make  causal mask for decoder self-attention."""
+    size = mask.size(-1)
+    causal_mask = torch.ones(size, size, device=mask.device, dtype=torch.bool)
+    torch.tril(causal_mask, out=causal_mask)
+    return mask & causal_mask
+
+
+def make_dec_causal_att_mask(y: torch.Tensor, padding_idx: int):
+    mask = (y != padding_idx).unsqueeze(-2)
+    return make_attn_mask_causal(mask)

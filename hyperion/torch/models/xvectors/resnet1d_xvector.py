@@ -5,17 +5,15 @@
 
 import logging
 
-from jsonargparse import ActionParser, ArgumentParser
-
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ArgumentParser
 
 from ...narchs import ResNet1dEncoder as Encoder
 from .xvector import XVector
 
 
 class ResNet1dXVector(XVector):
-
     def __init__(
         self,
         resnet_enc,
@@ -23,10 +21,7 @@ class ResNet1dXVector(XVector):
         pool_net="mean+stddev",
         embed_dim=256,
         num_embed_layers=1,
-        hid_act={
-            "name": "relu",
-            "inplace": True
-        },
+        hid_act={"name": "relu", "inplace": True},
         loss_type="arc-softmax",
         cos_scale=64,
         margin=0.3,
@@ -39,14 +34,19 @@ class ResNet1dXVector(XVector):
         head_norm_layer=None,
         use_norm=True,
         norm_before=True,
+        head_use_norm=True,
         head_use_in_norm=False,
+        head_hid_dim=2048,
+        head_bottleneck_dim=256,
+        proj_head_use_norm=True,
+        proj_head_norm_before=True,
         embed_layer=0,
         proj_feats=None,
+        head_type="x-vector",
+        bias_weight_decay=None,
     ):
-
         if isinstance(resnet_enc, dict):
-            logging.info("making %s resnet1d encoder network",
-                         resnet_enc["resb_type"])
+            logging.info("making %s resnet1d encoder network", resnet_enc["resb_type"])
             resnet_enc = Encoder(**resnet_enc)
 
         super().__init__(
@@ -67,14 +67,20 @@ class ResNet1dXVector(XVector):
             head_norm_layer=head_norm_layer,
             use_norm=use_norm,
             norm_before=norm_before,
+            head_use_norm=head_use_norm,
             head_use_in_norm=head_use_in_norm,
+            head_hid_dim=head_hid_dim,
+            head_bottleneck_dim=head_bottleneck_dim,
+            proj_head_use_norm=proj_head_use_norm,
+            proj_head_norm_before=proj_head_norm_before,
             dropout_rate=dropout_rate,
             embed_layer=embed_layer,
             proj_feats=proj_feats,
+            head_type=head_type,
+            bias_weight_decay=bias_weight_decay,
         )
 
     def get_config(self):
-
         base_config = super().get_config()
         del base_config["encoder_cfg"]
         del base_config["in_feats"]
@@ -91,6 +97,7 @@ class ResNet1dXVector(XVector):
     def change_config(
         self,
         resnet_enc,
+        override_output=False,
         override_dropouts=False,
         dropout_rate=0,
         num_classes=None,
@@ -103,6 +110,7 @@ class ResNet1dXVector(XVector):
         num_subcenters=2,
     ):
         super().change_config(
+            override_output,
             False,
             dropout_rate,
             num_classes,
@@ -122,7 +130,6 @@ class ResNet1dXVector(XVector):
 
     @classmethod
     def load(cls, file_path=None, cfg=None, state_dict=None):
-
         cfg, state_dict = cls._load_cfg_state_dict(file_path, cfg, state_dict)
         try:
             del cfg["in_feats"]
@@ -137,7 +144,6 @@ class ResNet1dXVector(XVector):
 
     @staticmethod
     def filter_args(**kwargs):
-
         base_args = XVector.filter_args(**kwargs)
         child_args = Encoder.filter_args(**kwargs["resnet_enc"])
 
@@ -151,12 +157,9 @@ class ResNet1dXVector(XVector):
             parser = ArgumentParser(prog="")
 
         XVector.add_class_args(parser, skip=set(["in_feats"]))
-        Encoder.add_class_args(parser,
-                               prefix="resnet_enc",
-                               skip=set(["head_channels"]))
+        Encoder.add_class_args(parser, prefix="resnet_enc", skip=set(["head_channels"]))
         if prefix is not None:
-            outer_parser.add_argument("--" + prefix,
-                                      action=ActionParser(parser=parser))
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     add_argparse_args = add_class_args
 
@@ -174,10 +177,30 @@ class ResNet1dXVector(XVector):
             parser = ArgumentParser(prog="")
 
         XVector.add_finetune_args(parser)
-        Encoder.add_finetune_args(parser,
-                                  prefix="resnet_enc",
-                                  skip=set(["head_channels"]))
+        Encoder.add_finetune_args(
+            parser, prefix="resnet_enc", skip=set(["head_channels"])
+        )
 
         if prefix is not None:
-            outer_parser.add_argument("--" + prefix,
-                                      action=ActionParser(parser=parser))
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
+
+    @staticmethod
+    def filter_dino_teacher_args(**kwargs):
+        base_args = XVector.filter_dinoteacher_args(**kwargs)
+        child_args = Encoder.filter_finetune_args(**kwargs["resnet_enc"])
+        base_args["resnet_enc"] = child_args
+        return base_args
+
+    @staticmethod
+    def add_dino_teacher_args(parser, prefix=None):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
+
+        XVector.add_dino_teacher_args(parser)
+        Encoder.add_finetune_args(
+            parser, prefix="resnet_enc", skip=set(["head_channels"])
+        )
+
+        if prefix is not None:
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

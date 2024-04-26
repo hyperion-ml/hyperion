@@ -3,16 +3,30 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+from enum import Enum
+
 import numpy as np
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ..np.pdfs.plda import FRPLDA, PLDA, SPLDA
+from ..utils.misc import filter_func_args
+
+
+class PLDAType(str, Enum):
+    frplda = "frplda"
+    splda = "splda"
+    plda = "plda"
+
+    @staticmethod
+    def choices():
+        return [PLDAType.frplda, PLDAType.splda, PLDAType.plda]
 
 
 class PLDAFactory(object):
     """Class to  create PLDA objects."""
 
     @staticmethod
-    def create_plda(
+    def create(
         plda_type,
         y_dim=None,
         z_dim=None,
@@ -27,8 +41,7 @@ class PLDAFactory(object):
         name="plda",
         **kwargs
     ):
-
-        if plda_type == "frplda":
+        if plda_type == PLDAType.frplda:
             return FRPLDA(
                 fullcov_W=fullcov_W,
                 update_mu=update_mu,
@@ -37,7 +50,7 @@ class PLDAFactory(object):
                 name=name,
                 **kwargs
             )
-        if plda_type == "splda":
+        if plda_type == PLDAType.splda:
             return SPLDA(
                 y_dim=y_dim,
                 fullcov_W=fullcov_W,
@@ -48,7 +61,7 @@ class PLDAFactory(object):
                 **kwargs
             )
 
-        if plda_type == "plda":
+        if plda_type == PLDAType.plda:
             return PLDA(
                 y_dim=y_dim,
                 z_dim=z_dim,
@@ -71,7 +84,9 @@ class PLDAFactory(object):
             return PLDA.load(model_file)
 
     @staticmethod
-    def filter_train_args(prefix=None, **kwargs):
+    def filter_args(**kwargs):
+        return filter_func_args(PLDAFactory.create, kwargs)
+
         valid_args = (
             "plda_type",
             "y_dim",
@@ -109,7 +124,7 @@ class PLDAFactory(object):
             "update_D",
         )
 
-        for a, b in zip(ne_args1, neg_args2):
+        for a, b in zip(neg_args1, neg_args2):
             d[b] = not d[a]
             del d[a]
 
@@ -117,63 +132,62 @@ class PLDAFactory(object):
 
     @staticmethod
     def add_class_args(parser, prefix=None):
-        if prefix is None:
-            p1 = "--"
-        else:
-            p1 = "--" + prefix + "."
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
 
         parser.add_argument(
-            p1 + "plda-type",
-            default="splda",
-            choices=["frplda", "splda", "plda"],
+            "--plda-type",
+            default=PLDAType.splda,
+            choices=PLDAType.choices(),
             help="PLDA type",
         )
 
         parser.add_argument(
-            p1 + "y-dim", type=int, default=150, help="num. of eigenvoices"
+            "--y-dim", type=int, default=150, help="num. of eigenvoices"
         )
         parser.add_argument(
-            p1 + "z-dim", type=int, default=400, help="num. of eigenchannels"
+            "--z-dim", type=int, default=400, help="num. of eigenchannels"
         )
 
         parser.add_argument(
-            p1 + "diag-W",
-            default=False,
-            action="store_false",
-            help="use diagonal covariance W",
+            "--fullcov-W",
+            default=True,
+            action=ActionYesNo,
+            help="use full covariance W",
         )
         parser.add_argument(
-            p1 + "no-update-mu",
-            default=False,
-            action="store_true",
+            "--update-mu",
+            default=True,
+            action=ActionYesNo,
             help="not update mu",
         )
         parser.add_argument(
-            p1 + "no-update-V", default=False, action="store_true", help="not update V"
+            "--update-V", default=True, action=ActionYesNo, help="update V"
         )
         parser.add_argument(
-            p1 + "no-update-U", default=False, action="store_true", help="not update U"
+            "--update-U", default=True, action=ActionYesNo, help="update U"
         )
 
         parser.add_argument(
-            p1 + "no-update-B", default=False, action="store_true", help="not update B"
+            "--update-B", default=True, action=ActionYesNo, help="update B"
         )
         parser.add_argument(
-            p1 + "no-update-W", default=False, action="store_true", help="not update W"
+            "--update-W", default=True, action=ActionYesNo, help="update W"
         )
         parser.add_argument(
-            p1 + "no-update-D", default=False, action="store_true", help="not update D"
+            "--update-D", default=True, action=ActionYesNo, help="update D"
         )
         parser.add_argument(
-            p1 + "floor-iD",
+            "--floor-iD",
             type=float,
             default=1e-5,
             help="floor for inverse of D matrix",
         )
 
-        parser.add_argument(p1 + "epochs", type=int, default=40, help="num. of epochs")
+        parser.add_argument("--epochs", type=int, default=40, help="num. of epochs")
         parser.add_argument(
-            p1 + "ml-md",
+            "--ml-md",
             default="ml+md",
             choices=["ml+md", "ml", "md"],
             help=("optimization type"),
@@ -187,7 +201,12 @@ class PLDAFactory(object):
             help=("epochs in which we do MD, if None we do it in all the epochs"),
         )
 
-        parser.add_argument(p1 + "name", default="plda", help="model name")
+        parser.add_argument("--name", default="plda", help="model name")
+        if prefix is not None:
+            outer_parser.add_argument(
+                "--" + prefix,
+                action=ActionParser(parser=parser),
+            )
 
     @staticmethod
     def filter_eval_args(prefix=None, **kwargs):

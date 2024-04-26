@@ -4,4 +4,5 @@
 """
 
 from .ahc import AHC
-from .kmeans import KMeans
+from .kmeans import KMeans, KMeansInitMethod
+from .spectral_clustering import SpectralClustering

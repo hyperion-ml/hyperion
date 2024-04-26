@@ -2,6 +2,7 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import numpy as np
 from scipy import linalg as sla
 
@@ -37,9 +38,20 @@ class SPLDA(PLDABase):
         update_mu=True,
         update_V=True,
         update_W=True,
+        epochs=20,
+        ml_md="ml+md",
+        md_epochs=None,
         **kwargs
     ):
-        super().__init__(y_dim=y_dim, mu=mu, update_mu=update_mu, **kwargs)
+        super().__init__(
+            y_dim=y_dim,
+            mu=mu,
+            update_mu=update_mu,
+            epochs=epochs,
+            ml_md=ml_md,
+            md_epochs=md_epochs,
+            **kwargs
+        )
         if V is not None:
             self.y_dim = V.shape[0]
         self.V = V
@@ -111,7 +123,13 @@ class SPLDA(PLDABase):
           Ry accumlator for ML step with shape (y_dim, y_dim)
           Py accumlator for MD step with shape (y_dim, y_dim)
         """
-        N, F, S = D
+        if isinstance(D, tuple):
+            N, F, S = D
+        else:
+            F = D
+            N = np.ones((F.shape[0],), dtype=F.dtype)
+            S = None
+
         Fc = F - self.mu
 
         M = F.shape[0]

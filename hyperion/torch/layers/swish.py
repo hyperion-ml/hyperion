@@ -55,16 +55,16 @@ class Swish6(nn.Module):
 
 
 class DoubleSwishImplementation(torch.autograd.Function):
-    """ Implementation for DoubleSwish Activation from
-    https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/pruned_transducer_stateless7/scaling.py    
+    """Implementation for DoubleSwish Activation from
+    https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/pruned_transducer_stateless7/scaling.py
 
-    f(x) = x * torch.sigmoid(x-1) = swish(swish(x)), 
+    f(x) = x * torch.sigmoid(x-1) = swish(swish(x)),
          where swish(x) =  x * sigmoid(x).
 
     Memory-efficient derivative computation:
      f'(x) = =  x * s'(x) + x' * s(x) = x * s'(x) + s(x).
          where s(x) = simoid(x), and s'(x) = s(x) * (1-s(x)).
-     
+
      f'(x) = x * s(x) * (1-s(x)) + s(x) = f(x) * (1-s(x)) + s(x)
     """
 
@@ -108,15 +108,14 @@ class DoubleSwishImplementation(torch.autograd.Function):
 
 
 class DoubleSwish(torch.nn.Module):
-    """ DoubleSwish activation
-    f(x) = x * torch.sigmoid(x-1) = swish(swish(x)), 
-         where swish(x) =  x * sigmoid(x).        
+    """DoubleSwish activation
+    f(x) = x * torch.sigmoid(x-1) = swish(swish(x)),
+         where swish(x) =  x * sigmoid(x).
     """
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-
         if torch.jit.is_scripting() or torch.jit.is_tracing():
-            return (x * torch.sigmoid(x - 1.0)).clamp(max=6)
+            return x * torch.sigmoid(x - 1.0)
 
         return DoubleSwishImplementation.apply(x)
 
@@ -129,10 +128,10 @@ class DoubleSwish(torch.nn.Module):
 
 
 class DoubleSwish6(torch.nn.Module):
-    """ DoubleSwish activation clamped to 6
+    """DoubleSwish activation clamped to 6
     x = min(x, 6)
-    f(x) = x * torch.sigmoid(x-1) = swish(swish(x)), 
-         where swish(x) =  x * sigmoid(x).        
+    f(x) = x * torch.sigmoid(x-1) = swish(swish(x)),
+         where swish(x) =  x * sigmoid(x).
     """
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:

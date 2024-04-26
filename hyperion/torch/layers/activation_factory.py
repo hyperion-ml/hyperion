@@ -36,6 +36,7 @@ act_dict = {
     "double_swish": DoubleSwish,
     "swish6": Swish6,
     "double_swish6": DoubleSwish6,
+    "gelu": nn.GELU,
 }
 
 
@@ -194,3 +195,6 @@ class ActivationFactory(object):
             return {"name": "swish6"}
         if isinstance(activation, DoubleSwish6):
             return {"name": "double_swish6"}
+
+        if isinstance(activation, nn.GELU):
+            return {"name": "gelu"}

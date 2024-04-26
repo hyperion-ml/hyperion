@@ -2,28 +2,31 @@
  Copyright 2022 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
-from pathlib import Path
-from typing import List, Dict, Optional, Union
-from copy import deepcopy
 import math
+from copy import deepcopy
+from pathlib import Path
+from typing import Dict, List, Optional, Union
+
+import lhotse
 import numpy as np
 import pandas as pd
 import yaml
 
-from .info_table import InfoTable
 from .class_info import ClassInfo
+from .enrollment_map import EnrollmentMap
 from .feature_set import FeatureSet
+from .info_table import InfoTable
 from .misc import PathLike
 from .recording_set import RecordingSet
 from .segment_set import SegmentSet
-from .enrollment_map import EnrollmentMap
+from .sparse_trial_key import SparseTrialKey
 from .trial_key import TrialKey
 from .trial_ndx import TrialNdx
-from .sparse_trial_key import SparseTrialKey
 
 
-class Dataset:
+class HypDataset:
     """Class that contains all objects
     (segments, recordings, features, class_infos) that
     conform a dataset
@@ -387,7 +390,7 @@ class Dataset:
             self.table_sep = table_sep
 
         table_ext = ".tsv" if table_sep == "\t" else ".csv"
-        dataset_dir, dataset_file = Dataset.resolve_dataset_path(dataset_path)
+        dataset_dir, dataset_file = HypDataset.resolve_dataset_path(dataset_path)
         dataset = {}
         file_name = f"segments{table_ext}"
         dataset["segments"] = file_name
@@ -533,7 +536,7 @@ class Dataset:
             self.table_sep = table_sep
 
         table_ext = ".tsv" if table_sep == "\t" else ".csv"
-        dataset_dir, dataset_file = Dataset.resolve_dataset_path(dataset_path)
+        dataset_dir, dataset_file = HypDataset.resolve_dataset_path(dataset_path)
         dataset = {}
         file_name = f"segments{table_ext}"
         dataset["segments"] = file_name
@@ -617,8 +620,6 @@ class Dataset:
     def update_from_disk(self):
         self.segments()
         self.recordings()
-        # for k, v in self.recordings():
-        #     pass
 
         for k, v in self.features():
             pass
@@ -646,12 +647,12 @@ class Dataset:
          sparse_trials: load trial keys using the SparseTrialKey class instead of TrialKey class
 
         """
-        dataset_dir, dataset_file = Dataset.resolve_dataset_path(dataset_path)
+        dataset_dir, dataset_file = HypDataset.resolve_dataset_path(dataset_path)
         with open(dataset_file, "r") as f:
             dataset = yaml.safe_load(f)
 
         assert "segments" in dataset
-        segments = Dataset.resolve_file_path(dataset_dir, dataset["segments"])
+        segments = HypDataset.resolve_file_path(dataset_dir, dataset["segments"])
         classes = None
         recordings = None
         features = None
@@ -660,28 +661,30 @@ class Dataset:
         if "classes" in dataset:
             classes = {}
             for k, v in dataset["classes"].items():
-                classes[k] = Dataset.resolve_file_path(dataset_dir, v)
+                classes[k] = HypDataset.resolve_file_path(dataset_dir, v)
 
         if "recordings" in dataset:
-            recordings = Dataset.resolve_file_path(dataset_dir, dataset["recordings"])
+            recordings = HypDataset.resolve_file_path(
+                dataset_dir, dataset["recordings"]
+            )
             # recordings = {}
             # for k, v in dataset["recordings"].items():
-            #     recordings[k] = Dataset.resolve_file_path(dataset_dir, v)
+            #     recordings[k] = HypDataset.resolve_file_path(dataset_dir, v)
 
         if "features" in dataset:
             features = {}
             for k, v in dataset["features"].items():
-                features[k] = Dataset.resolve_file_path(dataset_dir, v)
+                features[k] = HypDataset.resolve_file_path(dataset_dir, v)
 
         if "enrollments" in dataset:
             enrollments = {}
             for k, v in dataset["enrollments"].items():
-                enrollments[k] = Dataset.resolve_file_path(dataset_dir, v)
+                enrollments[k] = HypDataset.resolve_file_path(dataset_dir, v)
 
         if "trials" in dataset:
             trials = {}
             for k, v in dataset["trials"].items():
-                trials[k] = Dataset.resolve_file_path(dataset_dir, v)
+                trials[k] = HypDataset.resolve_file_path(dataset_dir, v)
 
         dataset = cls(
             segments,
@@ -808,21 +811,9 @@ class Dataset:
         self._recordings = None
         self._recordings_path = None
 
-    # def remove_recordings(
-    #     self,
-    #     recordings_name: str,
-    # ):
-    #     if self._recordingsr_paths[recordings_name] is not None:
-    #         file_path = Path(self._recordings_paths[recordings_name])
-    #         if file_path.is_file():
-    #             file_path.unlink()
-
-    #     del self._recordings[recordings_name]
-    #     del self._recordings_paths[recordings_name]
-
     def remove_classes(self, classes_name: str):
         if self._classes_paths[classes_name] is not None:
-            self._files_to_delete.append(self._class_paths[class_name])
+            self._files_to_delete.append(self._class_paths[classes_name])
 
         del self._classes[classes_name]
         del self._classes_paths[classes_name]
@@ -853,6 +844,8 @@ class Dataset:
         column_names: Union[None, str, List[str], np.ndarray] = None,
         on: Union[str, List[str], np.ndarray] = "id",
         right_on: Union[None, str, List[str], np.ndarray] = None,
+        remove_missing: bool = False,
+        create_class_info: bool = False,
     ):
         if isinstance(right_table, (str, Path)):
             file_path = Path(right_table)
@@ -869,30 +862,50 @@ class Dataset:
                     raise ValueError("%s not found", right_table)
 
         segments = self.segments(keep_loaded=True)
-        segments.add_columns(right_table, column_names, on=on, right_on=right_on)
+        num_segs_0 = len(segments)
+        segments.add_columns(
+            right_table,
+            column_names,
+            on=on,
+            right_on=right_on,
+            remove_missing=remove_missing,
+        )
+        if remove_missing and len(segments) < num_segs_0:
+            self.clean()
+
+        if create_class_info and column_names is not None:
+            self.create_class_info_from_col(column_names)
+
+    def create_class_info_from_col(
+        self,
+        column_names: Union[str, List[str], np.ndarray],
+    ):
+        if isinstance(column_names, str):
+            column_names = [column_names]
+
+        for col in column_names:
+            if col not in self._classes:
+                df = pd.DataFrame(
+                    {"id": np.unique(self.segments(keep_loaded=True)[col])}
+                )
+                class_info = ClassInfo(df)
+                self.add_classes(col, class_info)
 
     def clean(self, rebuild_class_idx=False):
+
         rec_ids = self.segments().recordings()
-        # for k, table in self.recordings():
-        #     # table = table.loc[table["id"].isin(rec_ids)].copy()
-        #     # self._recordings[k] = RecordingSet(table)
         self._recordings = self.recordings().filter(lambda df: df["id"].isin(rec_ids))
 
         ids = self.segments()["id"].values
         for k, table in self.features():
             self._features[k] = table.filter(lambda df: df["id"].isin(ids))
-            # table = table.loc[table["id"].isin(ids)].copy()
-            # self._features[k] = FeatureSet(table)
 
         for k, table in self.classes():
             class_ids = self.segments()[k].unique()
             self._classes[k] = table.filter(lambda df: df["id"].isin(class_ids))
-            # table = table[table["id"].isin(class_ids)].copy()
-            # self._classes[k] = ClassInfo(table)
 
         remove_keys = []
         for k, table in self.enrollments():
-            # table = table.loc[table["segmentid"].isin(ids)].copy()
             table = table.filter(lambda df: df["segmentid"].isin(ids))
             if len(table) > 0:
                 self._enrollments[k] = table
@@ -980,8 +993,8 @@ class Dataset:
           intra_gender: if True, no cross gender trials are done.
 
         Returns:
-          Dataset used for trials with trial list.
-          Dataset used for cohort.
+          HypDataset used for trials with trial list.
+          HypDataset used for cohort.
         """
         num_tar_trials = num_1k_tar_trials * 1000
         if intra_gender:
@@ -1046,6 +1059,27 @@ class Dataset:
         segments = self.segments()
         classes, counts = np.unique(segments[class_name], return_counts=True)
         keep_classes = classes[counts >= min_segs]
+        self._segments = segments.filter(lambda df: df[class_name].isin(keep_classes))
+        self.clean()
+        if rebuild_idx:
+            class_info = self.classes_value(class_name)
+            class_info.add_class_idx()
+
+    def remove_classes_few_toomany_segments(
+        self,
+        class_name: str,
+        min_segs: int,
+        max_segs: int,
+        rebuild_idx: bool = False,
+    ):
+        segments = self.segments()
+        classes, counts = np.unique(segments[class_name], return_counts=True)
+        if max_segs is None:
+            keep_classes = classes[counts >= min_segs]
+        else:
+            keep_classes = classes[
+                np.logical_and(counts >= min_segs, counts <= max_segs)
+            ]
         self._segments = segments.filter(lambda df: df[class_name].isin(keep_classes))
         self.clean()
         if rebuild_idx:
@@ -1219,3 +1253,90 @@ class Dataset:
         val_ds.clean()
 
         return train_ds, val_ds
+
+    def from_lhotse(
+        cls,
+        cuts: Optional[Union[lhotse.CutSet, PathLike]] = None,
+        recordings: Optional[Union[lhotse.RecordingSet, PathLike]] = None,
+        supervisions: Optional[Union[lhotse.SupervisionSet, PathLike]] = None,
+    ):
+        """Creates a Hyperion Dataset from a lhotse CutSet or
+        from a lhotse RecordingSet + SupervisionSet
+
+        Args:
+          cuts: lhotse CutSet manifest or file
+          recordings: lhotse RecordingSet manifest or file
+          supervisions: lhotse SupervisionSet manifest or file.
+
+        Returns
+          HypDataset object
+        """
+        assert cuts is not None or supervisions is not None
+        if cuts is not None:
+            if isinstance(cuts, (str, Path)):
+                cuts = lhotse.CutSet.from_file(cuts)
+        else:
+            if isinstance(supervisions, (str, Path)):
+                supervisions = lhotse.SupervisionSet.from_file(supervisions)
+
+            if recordings is not None and isinstance(recordings, (str, Path)):
+                recordings = lhotse.RecordingSet.from_file(recordings)
+
+            cuts = lhotse.CutSet.from_manifests(
+                recordings=recordings, supervisions=supervisions
+            )
+
+        from lhotse import MonoCut, Recording, SupervisionSegment
+
+        supervision_keys = ["speaker", "gender", "language", "text", "duration"]
+        recs_df = []
+        segs_df = []
+        for cut in cuts:
+            supervision = cut.supervisions[0]
+            recording = cut.recording
+            seg_dict = {"id": cut.id}
+            recording = cut.recording
+            if recording is not None:
+                if recording.id != cut.id:
+                    seg_dict["recording_id"] = recording.id
+
+                rec_dict = {
+                    "id": recording.id,
+                    "sampling_rate": recording.sampling_rate,
+                    "duration": recording.duration,
+                }
+                source = recording.sources[0]
+                assert len(recording.source) == 1
+                assert source.type in ["file", "command"]
+                rec_dict["storage_path"] = source.source
+                assert recording.transforms is None, f"{recording.transforms}"
+                recs_df.append(rec_dict)
+
+            for key in supervision_keys:
+                if hasattr(supervision, key):
+                    val = getattr(supervision, key)
+                    if val is not None:
+                        seg_dict[key] = val
+
+            if supervision.custom is not None:
+                for key, val in supervision.custom:
+                    if val is not None:
+                        seg_dict[key] = val
+
+            segs_df = seg_dict
+
+        recs_df = pd.DataFrame(recs_df)
+        segs_df = pd.DataFrame(segs_df)
+        recordings = RecordingSet(recs_df)
+        segments = SegmentSet(segs_df)
+        class_names = ["speaker", "language", "emotion", "gender"]
+        classes = {}
+        for key in class_names:
+            if key in segments:
+                uniq_classes = np.unique(segments[key])
+                classes[key] = pd.DataFrame({"id": uniq_classes})
+
+        dataset = cls(segments=segments, classes=classes, recordings=recordings)
+        return dataset
+
+        return None

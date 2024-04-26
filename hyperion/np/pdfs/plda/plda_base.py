@@ -3,11 +3,29 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+from enum import Enum
+
 import numpy as np
 
 from ....hyp_defs import float_cpu
 from ...transforms import LNorm
 from ..core.pdf import PDF
+
+
+class PLDALLRNvsMMethod(str, Enum):
+    vavg = "vavg"
+    lnorm_vavg = "lnorm-vavg"
+    savg = "savg"
+    book = "book"
+
+    @staticmethod
+    def choices():
+        return [
+            PLDALLRNvsMMethod.vavg,
+            PLDALLRNvsMMethod.lnorm_vavg,
+            PLDALLRNvsMMethod.savg,
+            PLDALLRNvsMMethod.book,
+        ]
 
 
 class PLDABase(PDF):
@@ -21,13 +39,26 @@ class PLDABase(PDF):
       x_dim: data dimension.
     """
 
-    def __init__(self, y_dim=None, mu=None, update_mu=True, **kwargs):
+    def __init__(
+        self,
+        y_dim=None,
+        mu=None,
+        update_mu=True,
+        epochs=20,
+        ml_md="ml+md",
+        md_epochs=None,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
         self.mu = mu
         self.y_dim = y_dim
         self.update_mu = update_mu
         if mu is not None:
             self.x_dim = mu.shape[0]
+
+        self.epochs = epochs
+        self.ml_md = ml_md
+        self.md_epochs = md_epochs
 
     def initialize(self, D):
         """initializes the model.
@@ -55,8 +86,8 @@ class PLDABase(PDF):
         class_ids_val=None,
         ptheta_val=None,
         sample_weight_val=None,
-        epochs=20,
-        ml_md="ml+md",
+        epochs=None,
+        ml_md=None,
         md_epochs=None,
     ):
         """Trains the model.
@@ -80,6 +111,12 @@ class PLDABase(PDF):
           log p(X) of the val. data, if present.
           log p(x) of the val. data per sample, if present.
         """
+        if epochs is None:
+            epochs = self.epochs
+        if ml_md is None:
+            ml_md = self.ml_md
+        if md_epochs is None:
+            md_epochs = self.md_epochs
 
         use_ml = False if ml_md == "md" else True
         use_md = False if ml_md == "ml" else True
@@ -107,7 +144,6 @@ class PLDABase(PDF):
         elbo = np.zeros((epochs,), dtype=float_cpu())
         elbo_val = np.zeros((epochs,), dtype=float_cpu())
         for epoch in range(epochs):
-
             stats = self.Estep(D)
             elbo[epoch] = self.elbo(stats)
             if x_val is not None:
@@ -206,7 +242,6 @@ class PLDABase(PDF):
         elbo = np.zeros((epochs,), dtype=float_cpu())
         elbo_val = np.zeros((epochs,), dtype=float_cpu())
         for epoch in range(epochs):
-
             stats = self.Estep(D)
             elbo[epoch] = self.elbo(stats)
             if x_val is not None:
@@ -345,7 +380,9 @@ class PLDABase(PDF):
         """
         pass
 
-    def llr_NvsM(self, x1, x2, ids1=None, ids2=None, method="vavg-lnorm"):
+    def llr_NvsM(
+        self, x1, x2, ids1=None, ids2=None, method=PLDALLRNvsMMethod.lnorm_vavg
+    ):
         """log-likelihood ratio between target and non-target hypothesis for
         the case of N segments/enrollment-side and M segments/test-side
 
@@ -363,18 +400,20 @@ class PLDABase(PDF):
         Returns:
           Score matrix with shape (num_enrollment_sides, num_test_sides).
         """
-        if method == "savg":
+        if method == PLDALLRNvsMMethod.savg:
             return self.llr_NvsM_savg(x1, ids1, x2, ids2)
 
         D1 = x1 if ids1 is None else self.compute_stats_hard(x1, class_ids=ids1)
         D2 = x2 if ids2 is None else self.compute_stats_hard(x2, class_ids=ids2)
 
-        if method == "book":
+        if method == PLDALLRNvsMMethod.book:
             return self.llr_NvsM_book(D1, D2)
-        if method == "vavg":
+        if method == PLDALLRNvsMMethod.vavg:
             return self.llr_NvsM_vavg(D1, D2, do_lnorm=False)
-        if method == "vavg-lnorm":
+        if method == PLDALLRNvsMMethod.lnorm_vavg:
             return self.llr_NvsM_vavg(D1, D2, do_lnorm=True)
+
+        raise ValueError(f"wrong llr {method}")
 
     def llr_NvsM_vavg(self, D1, D2, do_lnorm=True):
         """log-likelihood ratio between target and non-target hypothesis for
@@ -420,7 +459,7 @@ class PLDABase(PDF):
         scores = F.T / N
         return scores
 
-    def llr_Nvs1(self, x1, x2, ids1=None, method="vavg-lnorm"):
+    def llr_Nvs1(self, x1, x2, ids1=None, method=PLDALLRNvsMMethod.lnorm_vavg):
         """log-likelihood ratio between target and non-target hypothesis for
         the case of N segments/enrollment-side and M segments/test-side
 
@@ -436,18 +475,20 @@ class PLDABase(PDF):
         Returns:
           Score matrix with shape (num_enrollment_sides, num_test_sides).
         """
-        if method == "savg":
+        if method == PLDALLRNvsMMethod.savg:
             return self.llr_Nvs1_savg(x1, ids1, x2)
 
         D1 = x1 if ids1 is None else self.compute_stats_hard(x1, class_ids=ids1)
 
-        if method == "book":
+        if method == PLDALLRNvsMMethod.book:
             D2 = self.compute_stats_hard(x2, np.arange(x2.shape[0]))
             return self.llr_NvsM_book(D1, D2)
-        if method == "vavg":
+        if method == PLDALLRNvsMMethod.vavg:
             return self.llr_Nvs1_vavg(D1, x2, do_lnorm=False)
-        if method == "vavg-lnorm":
+        if method == PLDALLRNvsMMethod.lnorm_vavg:
             return self.llr_Nvs1_vavg(D1, x2, do_lnorm=True)
+
+        raise ValueError(f"wrong llr {method}")
 
     def llr_Nvs1_vavg(self, D1, x2, do_lnorm=True):
         """log-likelihood ratio between target and non-target hypothesis for

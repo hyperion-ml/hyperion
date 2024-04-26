@@ -7,15 +7,14 @@ import logging
 import os
 from collections import OrderedDict as ODict
 
-from jsonargparse import ActionParser, ArgumentParser
-
 import torch
 import torch.cuda.amp as amp
 import torch.nn as nn
+from jsonargparse import ActionParser, ArgumentParser
 
 from ...utils.misc import filter_func_args
 from ..utils import MetricAcc, tensors_subset
-from .torch_trainer import TorchTrainer
+from .torch_trainer import AMPDType, TorchTrainer
 
 
 class DVAETrainer(TorchTrainer):
@@ -36,6 +35,7 @@ class DVAETrainer(TorchTrainer):
       ddp_type: type of distributed data parallel in  (ddp, oss_ddp, oss_shared_ddp)
       train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
       use_amp: uses mixed precision training.
+      amp_dtype: "float16" | "bfloat16"
       log_interval: number of optim. steps between log outputs
       use_tensorboard: use tensorboard logger
       use_wandb: use wandb logger
@@ -45,6 +45,7 @@ class DVAETrainer(TorchTrainer):
       swa_start: epoch to start doing swa
       swa_lr: SWA learning rate
       swa_anneal_epochs: SWA learning rate anneal epochs
+      save_interval_steps: number of steps between model saves, if None only saves at the end of the epoch
       cpu_offload: CPU offload of gradients when using fully sharded ddp
       input_key: dict. key for nnet input.
       target_key: dict. key for nnet targets.
@@ -62,12 +63,14 @@ class DVAETrainer(TorchTrainer):
         device=None,
         metrics=None,
         lrsched=None,
+        wdsched=None,
         loggers=None,
         ddp=False,
         ddp_type="ddp",
         train_mode="full",
         use_amp=False,
-        log_interval=10,
+        amp_dtype=AMPDType.FLOAT16,
+        log_interval=1000,
         use_tensorboard=False,
         use_wandb=False,
         wandb={},
@@ -76,6 +79,7 @@ class DVAETrainer(TorchTrainer):
         swa_start=0,
         swa_lr=1e-3,
         swa_anneal_epochs=10,
+        save_interval_steps=None,
         cpu_offload=False,
         input_key="x_aug",
         target_key="x",
@@ -144,9 +148,9 @@ class DVAETrainer(TorchTrainer):
                 loss.backward()
 
             if (batch + 1) % self.grad_acc_steps == 0:
-                if self.lr_scheduler is not None and not self.in_swa:
-                    self.lr_scheduler.on_opt_step()
+                self.cur_batch = batch + 1
                 self.update_model()
+                self.save_checkpoint(partial=True)
 
             batch_metrics["elbo"] = elbo.item()
             for metric in ["log_px", "kldiv_z"]:
@@ -156,12 +160,14 @@ class DVAETrainer(TorchTrainer):
 
             metric_acc.update(batch_metrics, batch_size)
             logs = metric_acc.metrics
-            logs["lr"] = self._get_lr()
+            lrs = self._get_lrs()
+            logs.update(lrs)
             self.loggers.on_batch_end(logs=logs, batch_size=batch_size)
 
         logs = metric_acc.metrics
         logs = ODict(("train_" + k, v) for k, v in logs.items())
-        logs["lr"] = self._get_lr()
+        lrs = self._get_lrs()
+        logs.update(lrs)
         return logs
 
     def validation_epoch(self, data_loader, swa_update_bn=False):
@@ -201,12 +207,11 @@ class DVAETrainer(TorchTrainer):
 
     @staticmethod
     def add_class_args(parser, prefix=None, train_modes=None, skip=set()):
-
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        super().add_class_args(
+        TorchTrainer.add_class_args(
             parser, train_modes, skip=skip.union({"input_key", "target_key"})
         )
         if "input_key" not in skip:

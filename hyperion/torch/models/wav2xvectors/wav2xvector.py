@@ -2,13 +2,13 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import contextlib
 import logging
 
-from jsonargparse import ActionParser, ArgumentParser
-
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ArgumentParser
 
 from ...narchs import AudioFeatsMVN
 from ...torch_model import TorchModel
@@ -24,7 +24,6 @@ class Wav2XVector(TorchModel):
     """
 
     def __init__(self, feats, xvector):
-
         super().__init__()
 
         if isinstance(feats, dict):
@@ -41,6 +40,15 @@ class Wav2XVector(TorchModel):
     @property
     def sample_frequency(self):
         return self.feats.sample_frequency
+
+    # def clone(self):
+    #     # weight normalized layers cannot be copied with deepcopy,
+    #     # we remove them to clone and put them back later
+    #     modules, cloned_modules = self.xvector.before_cloning()
+    #     new_self = super().clone()
+    #     self.xvector.after_cloning(*modules)
+    #     new_self.xvector.after_cloning(*cloned_modules)
+    #     return new_self
 
     def compute_prototype_affinity(self):
         return self.xvector.compute_prototype_affinity()
@@ -80,6 +88,9 @@ class Wav2XVector(TorchModel):
         logging.info("changing wav2xvector config")
         self.xvector.change_config(**xvector)
 
+    def cancel_output_layer_grads(self):
+        self.xvector.cancel_output_layer_grads()
+
     def forward(
         self,
         x,
@@ -91,7 +102,6 @@ class Wav2XVector(TorchModel):
         classif_layers=None,
         return_output=True,
     ):
-
         with self._feats_context:
             if vad_samples is not None:
                 x, x_lengths = remove_silence(x, vad_samples, x_lengths)
@@ -125,7 +135,6 @@ class Wav2XVector(TorchModel):
         embed_layer=None,
         detach_chunks=False,
     ):
-
         with self._feats_context:
             if vad_samples is not None:
                 x, x_lengths = remove_silence(x, vad_samples, x_lengths)
@@ -140,29 +149,36 @@ class Wav2XVector(TorchModel):
             feats, feat_lengths, chunk_length, embed_layer, detach_chunks
         )
 
+    def trainable_param_groups(self):
+        param_groups = self.xvector.trainable_param_groups()
+        return param_groups
+
     def set_train_mode(self, mode):
         if mode == self._train_mode:
             return
-
+        logging.info("setting Wav2XVector train mode to %s", mode)
         if mode == "full-feats-grad":
             self._feats_context = contextlib.nullcontext()
             xvector_mode = "full"
         else:
             logging.info("using torch.no_grad for feats")
             self._feats_context = torch.no_grad()
+            xvector_mode = mode
 
+        logging.info(
+            "setting Wav2XVector XVector object train mode to %s", xvector_mode
+        )
         self.xvector.set_train_mode(xvector_mode)
         self._train_mode = mode
 
     def _train(self, train_mode: str):
-
         self.feats.train()
         if train_mode in ["frozen"]:
             super()._train(train_mode)
         elif train_mode in ["full-feats-grad", "full"]:
             self.xvector._train("full")
         elif train_mode == "ft-embed-affine":
-            self.xvector._train("ft-embed_affine")
+            self.xvector._train(train_mode)
         else:
             raise ValueError(f"invalid train_mode={train_mode}")
 

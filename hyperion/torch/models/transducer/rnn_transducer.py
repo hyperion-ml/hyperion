@@ -24,7 +24,6 @@ from ...torch_model import TorchModel
 
 @dataclass
 class RNNTransducerOutput(HypDataClass):
-
     loss: torch.Tensor
     loss_simple: Optional[torch.Tensor] = None
     loss_pruned: Optional[torch.Tensor] = None
@@ -32,7 +31,7 @@ class RNNTransducerOutput(HypDataClass):
 
 
 class RNNTransducer(TorchModel):
-    """ Base-class for RNN-T in
+    """Base-class for RNN-T in
     "Sequence Transduction with Recurrent Neural Networks"
     https://arxiv.org/pdf/1211.3711.pdf
 
@@ -92,13 +91,15 @@ class RNNTransducer(TorchModel):
         output = RNNTransducerOutput(*dec_output)
         return output
 
-    def infer(self,
-              x: torch.Tensor,
-              x_lengths: torch.Tensor,
-              decoding_method="time_sync_beam_search",
-              beam_width: int = 5,
-              max_sym_per_frame: int = 3,
-              max_sym_per_utt: int = 1000) -> List[List[int]]:
+    def infer(
+        self,
+        x: torch.Tensor,
+        x_lengths: torch.Tensor,
+        decoding_method="time_sync_beam_search",
+        beam_width: int = 5,
+        max_sym_per_frame: int = 3,
+        max_sym_per_utt: int = 1000,
+    ) -> List[List[int]]:
         """
         ASR tokens inference
         Args:
@@ -121,12 +122,14 @@ class RNNTransducer(TorchModel):
         batch_size = x.size(0)
         y = []
         for i in range(batch_size):
-            x_i = x[i:i + 1, :x_lengths[i]]
-            y_i = self.decoder.decode(x_i,
-                                      method=decoding_method,
-                                      beam_width=beam_width,
-                                      max_sym_per_frame=max_sym_per_frame,
-                                      max_sym_per_utt=max_sym_per_utt)
+            x_i = x[i : i + 1, : x_lengths[i]]
+            y_i = self.decoder.decode(
+                x_i,
+                method=decoding_method,
+                beam_width=beam_width,
+                max_sym_per_frame=max_sym_per_frame,
+                max_sym_per_utt=max_sym_per_utt,
+            )
             y.append(y_i)
 
         return y
@@ -180,7 +183,6 @@ class RNNTransducer(TorchModel):
 
     @staticmethod
     def add_class_args(parser, prefix=None, skip=set()):
-
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -188,8 +190,7 @@ class RNNTransducer(TorchModel):
         RNNTransducerDecoder.add_class_args(parser, prefix="decoder")
 
         if prefix is not None:
-            outer_parser.add_argument("--" + prefix,
-                                      action=ActionParser(parser=parser))
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     def change_config(
         self,
@@ -201,7 +202,7 @@ class RNNTransducer(TorchModel):
     @staticmethod
     def filter_finetune_args(**kwargs):
         args = {}
-        decoder_args = Decoder.filter_finetune_args(**kwargs["decoder"])
+        decoder_args = RNNTransducerDecoder.filter_finetune_args(**kwargs["decoder"])
         args["decoder"] = decoder_args
         return args
 
@@ -214,8 +215,7 @@ class RNNTransducer(TorchModel):
         RNNTransducerDecoder.add_finetune_args(parser, prefix="decoder")
 
         if prefix is not None:
-            outer_parser.add_argument("--" + prefix,
-                                      action=ActionParser(parser=parser))
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     @staticmethod
     def add_infer_args(parser, prefix=None):
@@ -223,29 +223,34 @@ class RNNTransducer(TorchModel):
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        parser.add_argument("--decoding-method",
-                            default="time_sync_beam_search",
-                            choices=[
-                                "greedy", "time_sync_beam_search",
-                                "align_length_sync_beam_search"
-                            ])
+        parser.add_argument(
+            "--decoding-method",
+            default="time_sync_beam_search",
+            choices=[
+                "greedy",
+                "time_sync_beam_search",
+                "align_length_sync_beam_search",
+            ],
+        )
 
-        parser.add_argument("--beam-width",
-                            default=5,
-                            type=int,
-                            help="beam width for beam search")
-        parser.add_argument("--max-sym-per-frame",
-                            default=3,
-                            type=int,
-                            help="max symbols RNN-T can emit in 1 frame")
-        parser.add_argument("--max-sym-per-utt",
-                            default=1000,
-                            type=int,
-                            help="max symbols RNN-T can emit in 1 frame")
+        parser.add_argument(
+            "--beam-width", default=5, type=int, help="beam width for beam search"
+        )
+        parser.add_argument(
+            "--max-sym-per-frame",
+            default=3,
+            type=int,
+            help="max symbols RNN-T can emit in 1 frame",
+        )
+        parser.add_argument(
+            "--max-sym-per-utt",
+            default=1000,
+            type=int,
+            help="max symbols RNN-T can emit in 1 frame",
+        )
 
         if prefix is not None:
-            outer_parser.add_argument("--" + prefix,
-                                      action=ActionParser(parser=parser))
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     @staticmethod
     def filter_infer_args(**kwargs):

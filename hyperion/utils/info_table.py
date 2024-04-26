@@ -8,7 +8,7 @@ import re
 from collections import OrderedDict
 from copy import deepcopy
 from pathlib import Path
-from typing import Optional, Union, List
+from typing import List, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -139,7 +139,7 @@ class InfoTable:
                 sep=" ",
                 header=None,
                 names=["id", name],
-                dtype={"id": np.str, name: np.str},
+                dtype={"id": str, name: str},
             )
         else:
             if sep is None:
@@ -194,7 +194,14 @@ class InfoTable:
         return cls(df)
 
     def filter(
-        self, predicate=None, items=None, iindex=None, columns=None, by="id", keep=True
+        self,
+        predicate=None,
+        items=None,
+        iindex=None,
+        columns=None,
+        by="id",
+        keep=True,
+        raise_if_missing=True,
     ):
         """Filters the table and produce a new table with the elements to keep
 
@@ -243,15 +250,20 @@ class InfoTable:
         elif items is not None:
             if by != "id":
                 missing = [False if v in df[by] else True for v in items]
-                if any(missing):
+                if any(missing) and raise_if_missing:
                     raise Exception(f"{items[missing]} not found in table")
                 items = [True if v in items else False for v in df[by]]
+            elif not raise_if_missing:
+                items = [item for item in items if item in df.index]
 
             if columns is None:
                 df = df.loc[items]
             else:
                 df = df.loc[items, columns]
         else:
+            if not raise_if_missing:
+                iindex = iindex[iindex < len(df)]
+
             if iindex is not None:
                 df = self.df.iloc[iindex]
 
@@ -327,6 +339,7 @@ class InfoTable:
         column_names: Union[None, str, List[str], np.ndarray] = None,
         on: Union[str, List[str], np.ndarray] = "id",
         right_on: Union[None, str, List[str], np.ndarray] = None,
+        remove_missing: bool = False,
     ):
         if isinstance(right_table, InfoTable):
             right_table = right_table.df
@@ -337,7 +350,25 @@ class InfoTable:
         if right_on is None:
             right_on = on
 
-        self.df = self.df.merge(right_table, how="left", left_on=on, right_on=right_on)
+        how = "inner" if remove_missing else "left"
+        left_index = False
+        right_index = False
+        if on == "id" or on == ["id"]:
+            on = None
+            left_index = True
+
+        if (right_on == "id" or right_on == ["id"]) and "id" in right_table:
+            right_on = None
+            right_index = True
+
+        self.df = self.df.merge(
+            right_table,
+            how=how,
+            left_on=on,
+            right_on=right_on,
+            left_index=left_index,
+            right_index=right_index,
+        )
 
         # def __len__(self):
 

@@ -1,5 +1,22 @@
 hf_feats:
   pretrained_model_path: microsoft/wavlm-base-plus
+feat_fuser:
+  feat_fuser:
+    fuser_type: weighted-avg
+  mvn:
+    norm_mean: false
+  spec_augment:
+    time_mask_prob: 1.
+    time_mask_min_width: 0
+    time_mask_max_width: 5
+    time_mask_min_num_masks: 1
+    time_mask_max_num_masks: 1
+    freq_mask_prob: 1.
+    freq_mask_min_width: 0
+    freq_mask_max_width: 10
+    freq_mask_min_num_masks: 1
+    freq_mask_max_num_masks: 1
+    mask_method: mean
 xvector:
   resnet_enc:
     in_feats: 765
@@ -40,5 +57,4 @@ xvector:
   dropout_rate: 0.0
   norm_before: false
   hid_act: swish
-feat_fusion_method: weighted-avg
 feat_fusion_start: 2

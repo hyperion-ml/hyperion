@@ -2,6 +2,7 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 import os
 from collections import OrderedDict as ODict
@@ -12,6 +13,7 @@ import torch.nn as nn
 
 from ...utils.misc import filter_func_args
 from ..utils import MetricAcc, TorchDDP, tensors_subset
+from .torch_trainer import AMPDType
 from .xvector_trainer import XVectorTrainer
 
 
@@ -35,6 +37,7 @@ class XVectorTrainerFromWav(XVectorTrainer):
       loss: if None, it uses cross-entropy
       train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
       use_amp: uses mixed precision training.
+      amp_dtype: "float16" | "bfloat16"
       log_interval: number of optim. steps between log outputs
       use_tensorboard: use tensorboard logger
       use_wandb: use wandb logger
@@ -44,6 +47,7 @@ class XVectorTrainerFromWav(XVectorTrainer):
       swa_start: epoch to start doing swa
       swa_lr: SWA learning rate
       swa_anneal_epochs: SWA learning rate anneal epochs
+      save_interval_steps: number of steps between model saves, if None only saves at the end of the epoch
       cpu_offload: CPU offload of gradients when using fully sharded ddp
       input_key: dict. key for nnet input.
       target_key: dict. key for nnet targets.
@@ -62,13 +66,15 @@ class XVectorTrainerFromWav(XVectorTrainer):
         device=None,
         metrics=None,
         lrsched=None,
+        wdsched=None,
         loggers=None,
         ddp=False,
         ddp_type="ddp",
         loss=None,
         train_mode="full",
         use_amp=False,
-        log_interval=10,
+        amp_dtype=AMPDType.FLOAT16,
+        log_interval=1000,
         use_tensorboard=False,
         use_wandb=False,
         wandb={},
@@ -77,11 +83,11 @@ class XVectorTrainerFromWav(XVectorTrainer):
         swa_start=0,
         swa_lr=1e-3,
         swa_anneal_epochs=10,
+        save_interval_steps=None,
         cpu_offload=False,
         input_key="x",
         target_key="class_id",
     ):
-
         super_args = filter_func_args(super().__init__, locals())
         super().__init__(**super_args)
         self.feat_extractor = feat_extractor
@@ -121,9 +127,9 @@ class XVectorTrainerFromWav(XVectorTrainer):
                 loss.backward()
 
             if (batch + 1) % self.grad_acc_steps == 0:
-                if self.lr_scheduler is not None and not self.in_swa:
-                    self.lr_scheduler.on_opt_step()
+                self.cur_batch = batch + 1
                 self.update_model()
+                self.save_checkpoint(partial=True)
 
             batch_metrics["loss"] = loss.item() * self.grad_acc_steps
             for k, metric in self.metrics.items():
@@ -131,12 +137,14 @@ class XVectorTrainerFromWav(XVectorTrainer):
 
             metric_acc.update(batch_metrics, batch_size)
             logs = metric_acc.metrics
-            logs["lr"] = self._get_lr()
+            lrs = self._get_lrs()
+            logs.update(lrs)
             self.loggers.on_batch_end(logs=logs, batch_size=batch_size)
 
         logs = metric_acc.metrics
         logs = ODict(("train_" + k, v) for k, v in logs.items())
-        logs["lr"] = self._get_lr()
+        lrs = self._get_lrs()
+        logs.update(lrs)
         return logs
 
     def validation_epoch(self, data_loader, swa_update_bn=False):

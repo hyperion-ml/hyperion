@@ -78,7 +78,6 @@ class ConformerEncoderBlockV1(nn.Module):
         out_lnorm=False,
         concat_after=False,
     ):
-
         super().__init__()
         self.self_attn = self._make_att(
             self_attn,
@@ -94,14 +93,14 @@ class ConformerEncoderBlockV1(nn.Module):
         self.ff_macaron = ff_macaron
         if ff_macaron:
             self.ff_scale = 0.5
-            self.feed_forward_macaron = self._make_ff(feed_forward, num_feats,
-                                                      d_ff, ff_kernel_size,
-                                                      hid_act, dropout_rate)
+            self.feed_forward_macaron = self._make_ff(
+                feed_forward, num_feats, d_ff, ff_kernel_size, hid_act, dropout_rate
+            )
             self.norm_ff_macaron = nn.LayerNorm(num_feats)
 
-        self.feed_forward = self._make_ff(feed_forward, num_feats, d_ff,
-                                          ff_kernel_size, hid_act,
-                                          dropout_rate)
+        self.feed_forward = self._make_ff(
+            feed_forward, num_feats, d_ff, ff_kernel_size, hid_act, dropout_rate
+        )
 
         conv_blocks = []
         for i in range(conv_repeats):
@@ -132,6 +131,12 @@ class ConformerEncoderBlockV1(nn.Module):
         if self.concat_after:
             self.concat_linear = nn.Linear(num_feats + num_feats, num_feats)
 
+    def change_attn_dropout(self, att_dropout_rate):
+        attn = self.self_attn
+        if hasattr(attn, "dropout_rate"):
+            attn.dropout_rate = att_dropout_rate
+            attn.dropout.p = att_dropout_rate
+
     @staticmethod
     def _make_att(
         att_type,
@@ -148,6 +153,7 @@ class ConformerEncoderBlockV1(nn.Module):
            att_type: string in ['scaled-dot-prod-att-v1', 'local-scaled-dot-prod-att-v1', 'block-scaled-dot-prod-att-v1']
            num_feats: input/output feat. dimension (aka d_model)
            num_heads: number of heads
+           context: block attention receptive field
            dropout_rate: dropout rate for attention block
            pos_enc_type: type of positional encoder
            causal_pos_enc: if True, use causal positional encodings (when rel_pos_enc=True), it assumes
@@ -228,8 +234,7 @@ class ConformerEncoderBlockV1(nn.Module):
             )
 
     @staticmethod
-    def _make_ff(ff_type, num_feats, hid_feats, kernel_size, activation,
-                 dropout_rate):
+    def _make_ff(ff_type, num_feats, hid_feats, kernel_size, activation, dropout_rate):
         """Creates position-wise feed forward block from ff_type string
 
         Args:
@@ -245,27 +250,67 @@ class ConformerEncoderBlockV1(nn.Module):
 
         """
         if ff_type == "linear":
-            return PositionwiseFeedForward(num_feats,
-                                           hid_feats,
-                                           activation,
-                                           dropout_rate,
-                                           time_dim=1)
+            return PositionwiseFeedForward(
+                num_feats, hid_feats, activation, dropout_rate, time_dim=1
+            )
 
         if ff_type == "conv1dx2":
-            return Conv1dx2(num_feats,
-                            hid_feats,
-                            kernel_size,
-                            activation,
-                            dropout_rate,
-                            time_dim=1)
+            return Conv1dx2(
+                num_feats, hid_feats, kernel_size, activation, dropout_rate, time_dim=1
+            )
 
         if ff_type == "conv1d-linear":
-            return Conv1dLinear(num_feats,
-                                hid_feats,
-                                kernel_size,
-                                activation,
-                                dropout_rate,
-                                time_dim=1)
+            return Conv1dLinear(
+                num_feats, hid_feats, kernel_size, activation, dropout_rate, time_dim=1
+            )
+
+    def _forward_ff_macaron(self, x):
+        residual = x
+        x = self.norm_ff_macaron(x)
+        x = self.feed_forward_macaron(x)
+        if self.dropout_rate > 0:
+            x = self.dropout(x)
+
+        x = residual + self.ff_scale * x
+        return x
+
+    def _forward_self_attn(self, x, pos_emb=None, mask=None):
+        residual = x
+        x = self.norm_att(x)
+        if pos_emb is None:
+            x_att = self.self_attn(x, x, x, mask=mask)
+        else:
+            x_att = self.self_attn(x, x, x, pos_emb=pos_emb, mask=mask)
+
+        if self.concat_after:
+            x = torch.cat((x, x_att), dim=-1)
+            x = self.concat_linear(x)
+        else:
+            x = x_att
+
+        if self.dropout_rate > 0:
+            x = self.dropout(x)
+
+        x = residual + x
+        return x
+
+    def _forward_convs(self, x):
+        x = x.transpose(1, 2)
+        for block in range(len(self.conv_blocks)):
+            x = self.conv_blocks[block](x)
+
+        x = x.transpose(1, 2)
+        return x
+
+    def _forward_ff(self, x):
+        residual = x
+        x = self.norm_ff(x)
+        x = self.feed_forward(x)
+        if self.dropout_rate > 0:
+            x = self.dropout(x)
+
+        x = residual + self.ff_scale * x
+        return x
 
     def forward(self, x, pos_emb=None, mask=None):
         """Forward pass function
@@ -280,49 +325,18 @@ class ConformerEncoderBlockV1(nn.Module):
            Tensor with output features
            Tensor with mask
         """
-
         # macaron feed forward
         if self.ff_macaron:
-            residual = x
-            x = self.norm_ff_macaron(x)
-            x = self.feed_forward_macaron(x)
-            if self.dropout_rate > 0:
-                x = self.dropout(x)
-            x = residual + self.ff_scale * x
+            x = self._forward_ff_macaron(x)
 
         # multihead attention
-        residual = x
-        x = self.norm_att(x)
-        if pos_emb is None:
-            x_att = self.self_attn(x, x, x, mask=mask)
-        else:
-            x_att = self.self_attn(x, x, x, pos_emb=pos_emb, mask=mask)
-        if self.concat_after:
-            x = torch.cat((x, x_att), dim=-1)
-            x = self.concat_linear(x)
-        else:
-            x = x_att
-
-        if self.dropout_rate > 0:
-            x = self.dropout(x)
-
-        x = residual + x
+        x = self._forward_self_attn(x, pos_emb, mask)
 
         # convolutional blocks
-        x = x.transpose(1, 2)
-        for block in range(len(self.conv_blocks)):
-            x = self.conv_blocks[block](x)
-
-        x = x.transpose(1, 2)
+        x = self._forward_convs(x)
 
         # feed-forward block
-        residual = x
-        x = self.norm_ff(x)
-        x = self.feed_forward(x)
-        if self.dropout_rate > 0:
-            x = self.dropout(x)
-
-        x = residual + self.ff_scale * x
+        x = self._forward_ff(x)
 
         # output norm
         if self.out_lnorm:

@@ -6,7 +6,6 @@ import logging
 import math
 
 import numpy as np
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as nnf
@@ -64,7 +63,6 @@ class _GlobalPool1d(nn.Module):
         raise NotImplementedError()
 
     def _slidwin_pad(self, x, win_length, win_shift, snip_edges):
-
         if snip_edges:
             num_frames = int(
                 math.floor((x.size(-1) - win_length + win_shift) / win_shift)
@@ -145,7 +143,6 @@ class GlobalAvgPool1d(_GlobalPool1d):
         return m_x
 
     def _forward_slidwin_int(self, x, win_length, win_shift, snip_edges):
-
         c_x, out_shape = self._pre_slidwin(x, win_length, win_shift, snip_edges)
 
         m_x = (c_x[:, win_shift:] - c_x[:, :-win_shift]) / win_length
@@ -265,7 +262,6 @@ class GlobalMeanStdPool1d(_GlobalPool1d):
         return mus
 
     def _forward_slidwin_float(self, x, win_length, win_shift, snip_edges):
-
         x, out_shape = self._pre_slidwin(x, win_length, win_shift, snip_edges)
         num_frames = out_shape[-1]
         c_x = torch.cumsum(x, dim=-1).view(-1, x.shape[-1])
@@ -527,7 +523,6 @@ class LDEPool1d(_GlobalPool1d):
         return pool
 
     def get_config(self):
-
         config = {
             "in_feats": self.in_feats,
             "num_comp": self.num_comp,
@@ -783,11 +778,23 @@ class GlobalChWiseAttMeanStdPool1d(_GlobalPool1d):
         # x = (batch, feat_dim, time)
         weights = self._standardize_weights(x, x_lengths, weights)  # (batch, 1,  time)
         x_inner = self.conv1(x)  # (batch, inner_dim, time)
-        # logging.info('x_inner1={} {}'.format(torch.sum(torch.isnan(x_inner)), torch.sum(torch.isinf(x_inner))))
+        assert not torch.any(
+            torch.isnan(x_inner)
+        ), f"xinner is nan {torch.sum(torch.isnan(x_inner))} {torch.sum(torch.isnan(x))} {torch.mean(x)} {torch.sum(torch.isinf(x))} {x.size()}"
+        # assert not torch.any(
+        #     torch.isinf(x_inner)
+        # ), f"xinner is inf {torch.sum(torch.isinf(x_inner))} {torch.sum(torch.isinf(x))}"
+
         if self.use_global_context:
             global_mus = self.stats_pool(x, weights=weights)
             x_inner = x_inner + self.lin_global(global_mus).unsqueeze(-1)
-        # logging.info('x_inner2={} {}'.format(torch.sum(torch.isnan(x_inner)), torch.sum(torch.isinf(x_inner))))
+            assert not torch.any(
+                torch.isnan(x_inner)
+            ), f"xinner is nan {torch.sum(torch.isnan(x_inner))} {torch.sum(torch.isnan(global_mus))}"
+            # assert not torch.any(
+            #     torch.isinf(x_inner)
+            # ), f"xinner is inf {torch.sum(torch.isinf(x_inner))} {torch.sum(torch.isinf(global_mus))}"
+
         attn = self.conv2(
             self.activation(self.norm_layer(x_inner))
         )  # (batch, feat_dim, time)
@@ -807,11 +814,23 @@ class GlobalChWiseAttMeanStdPool1d(_GlobalPool1d):
         if weights is not None:
             attn = attn * weights
 
+        # assert not torch.any(
+        #     torch.isnan(attn)
+        # ), f"attn is nan {torch.sum(torch.isnan(attn))}"
+        # assert not torch.any(
+        #     torch.isinf(attn)
+        # ), f"attn is inf {torch.sum(torch.isinf(attn))}"
         mus = self.stats_pool(x, weights=attn)
-        # logging.info('mus={} {}'.format(torch.sum(torch.isnan(mus)), torch.sum(torch.isinf(mus))))
+
         if self.keepdim:
             mus = mus.unsqueeze(self.dim)
 
+        # assert not torch.any(
+        #     torch.isnan(mus)
+        # ), f"mus is nan {torch.sum(torch.isnan(mus))}"
+        # assert not torch.any(
+        #     torch.isinf(mus)
+        # ), f"mus is inf {torch.sum(torch.isinf(mus))}"
         return mus
 
     def get_config(self):

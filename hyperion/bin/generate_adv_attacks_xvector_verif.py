@@ -210,9 +210,7 @@ def generate_attacks(
         s, fs = audio_reader.read([key.seg_set[j]])
         s = s[0]
         fs = fs[0]
-        torch.manual_seed(
-            random_seed + int(s[0])
-        )  # this is to make results reproducible
+        torch.manual_seed(random_seed + len(s))  # this is to make results reproducible
         s = torch.as_tensor(s[None, :], dtype=torch.get_default_dtype()).to(device)
 
         if vad_spec is not None:

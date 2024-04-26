@@ -6,6 +6,7 @@
 import h5py
 import numpy as np
 import scipy.linalg as la
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ..np_model import NPModel
 from .sb_sw import SbSw
@@ -157,3 +158,38 @@ class LDA(NPModel):
         with h5py.File(file_path, "w") as f:
             f.create_dataset("mu", data=self.mu)
             f.create_dataset("T", data=self.T)
+
+    @staticmethod
+    def filter_args(**kwargs):
+        valid_args = ("update_mu", "update_T", "name", "lda_dim")
+        return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
+
+    @staticmethod
+    def add_class_args(parser, prefix=None):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
+
+        parser.add_argument(
+            "--update-mu",
+            default=True,
+            action=ActionYesNo,
+            help=("updates centering parameter"),
+        )
+        parser.add_argument(
+            "--update-T",
+            default=True,
+            action=ActionYesNo,
+            help=("updates projection parameter"),
+        )
+
+        parser.add_argument(
+            "--lda-dim", required=True, help=("output dimension of LDA")
+        )
+
+        parser.add_argument("--name", dest="name", default="lda")
+        if prefix is not None:
+            outer_parser.add_argument(
+                "--" + prefix,
+                action=ActionParser(parser=parser),
+            )

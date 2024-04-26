@@ -2,10 +2,9 @@
  Copyright 2021 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-from jsonargparse import ActionParser, ArgumentParser
-
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ..layers import AudioFeatsFactory as AFF
 from ..layers import MeanVarianceNorm as MVN
@@ -80,7 +79,7 @@ class AudioFeatsMVN(NetArch):
             f = self.spec_augment(f, f_lengths)
 
         if self.mvn is not None:
-            f = self.mvn(f)
+            f = self.mvn(f, f_lengths)
 
         if self.spec_augment is not None and self.aug_after_mvn:
             f = self.spec_augment(f, f_lengths)
@@ -117,7 +116,7 @@ class AudioFeatsMVN(NetArch):
         parser.add_argument(
             "--aug-after-mvn",
             default=False,
-            action="store_true",
+            action=ActionYesNo,
             help=("do spec augment after st-mvn," "instead of before"),
         )
 

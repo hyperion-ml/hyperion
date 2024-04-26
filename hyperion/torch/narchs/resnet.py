@@ -5,7 +5,6 @@
 import logging
 
 import numpy as np
-
 import torch
 import torch.nn as nn
 from torch.nn import BatchNorm1d, Conv1d, Linear
@@ -65,6 +64,7 @@ class ResNet(NetArch):
                 required when time_se=True to calculcate the size of the squeeze excitation matrices.
       res2net_scale: Res2Net scale parameter
       res2net_width_factor: Res2Net multiplier for the width of the bottlneck layers.
+      freq_pos_enc: use frequency wise positional encoder
     """
 
     def __init__(
@@ -96,8 +96,8 @@ class ResNet(NetArch):
         res2net_width_factor=1,
         resb_channels=None,
         time_se=False,
+        freq_pos_enc=False,
     ):
-
         super().__init__()
         logging.info("{}".format(locals()))
         self.block = block
@@ -128,6 +128,8 @@ class ResNet(NetArch):
         else:
             self._block = block
 
+        assert not self.has_se and not freq_pos_enc or in_feats is not None
+
         self.num_layers = num_layers
         self.in_channels = in_channels
         self.conv_channels = conv_channels
@@ -154,6 +156,7 @@ class ResNet(NetArch):
 
         self.multilevel = multilevel
         self.endpoint_channels = endpoint_channels
+        self.freq_pos_enc = freq_pos_enc
 
         self.norm_layer = norm_layer
         norm_groups = None
@@ -195,7 +198,7 @@ class ResNet(NetArch):
         self._downsample_factor = self.in_block.downsample_factor
 
         if resb_channels is None:
-            resb_channels = [base_channels * (2 ** i) for i in range(4)]
+            resb_channels = [base_channels * (2**i) for i in range(4)]
 
         self.cur_in_channels = conv_channels
         self.layer1 = self._make_layer(self._block, resb_channels[0], num_layers[0])
@@ -307,6 +310,11 @@ class ResNet(NetArch):
                     "se_type": self.se_type,
                     "num_feats": num_feats,
                 }
+
+            if self.freq_pos_enc:
+                kwargs["freq_pos_enc"] = True
+                num_feats = int(self.in_feats / (self._downsample_factor * stride))
+                kwargs["num_feats"] = num_feats
 
         if self.is_res2net:
             kwargs["scale"] = self.res2net_scale
@@ -595,6 +603,7 @@ class ResNet(NetArch):
             "res2net_scale": self.res2net_scale,
             "res2net_width_factor": self.res2net_width_factor,
             "resb_channels": self.resb_channels,
+            "freq_pos_enc": self.freq_pos_enc,
         }
 
         base_config = super().get_config()
@@ -1105,6 +1114,7 @@ class CFwSEIdRndResNet202(ResNet):
 
 
 #################### Res2Net variants ########################
+
 
 # Standard Res2Nets
 class Res2Net18(ResNet):

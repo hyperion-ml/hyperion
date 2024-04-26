@@ -2,18 +2,19 @@
  Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
+import glob
 import logging
 import re
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-import glob
 
 import numpy as np
 import pandas as pd
 from jsonargparse import ActionYesNo
 from tqdm import tqdm
 
-from ..utils import ClassInfo, Dataset, RecordingSet, SegmentSet
+from ..utils import ClassInfo, HypDataset, RecordingSet, SegmentSet
 from ..utils.misc import PathLike, urlretrieve_progress
 from .data_prep import DataPrep
 
@@ -328,7 +329,7 @@ class VoxCeleb1DataPrep(DataPrep):
             enrollments, trials = self.make_trials()
 
         logging.info("making dataset")
-        dataset = Dataset(
+        dataset = HypDataset(
             segments,
             classes={"speaker": speakers, "language_est": languages},
             recordings=recs,

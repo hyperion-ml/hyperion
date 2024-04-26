@@ -5,10 +5,9 @@
 
 import logging
 
-from jsonargparse import ActionParser, ArgumentParser
-
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ArgumentParser
 
 from ..xvectors import ResNet1dXVector
 from .wav2xvector import Wav2XVector
@@ -26,7 +25,6 @@ class Wav2ResNet1dXVector(Wav2XVector):
     """
 
     def __init__(self, feats, xvector):
-
         if isinstance(xvector, dict):
             xvector = ResNet1dXVector.filter_args(**xvector)
             xvector = ResNet1dXVector(**xvector)
@@ -67,6 +65,24 @@ class Wav2ResNet1dXVector(Wav2XVector):
             parser = ArgumentParser(prog="")
 
         ResNet1dXVector.add_finetune_args(parser, prefix="xvector")
+
+        if prefix is not None:
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
+
+    @staticmethod
+    def filter_dino_teacher_args(**kwargs):
+        base_args = {}
+        child_args = ResNet1dXVector.filter_dino_teacher_args(**kwargs["xvector"])
+        base_args["xvector"] = child_args
+        return base_args
+
+    @staticmethod
+    def add_dino_teacher_args(parser, prefix=None):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
+
+        ResNet1dXVector.add_dino_teacher_args(parser, prefix="xvector")
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

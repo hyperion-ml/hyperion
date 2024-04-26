@@ -91,7 +91,7 @@ class PCA(NPModel):
                 rank = matrix_rank(np.dot(x.T, x))
         else:
             sv = la.svd(x, compute_uv=False)
-            Ecc = np.cumsum(sv ** 2)
+            Ecc = np.cumsum(sv**2)
             Ecc = Ecc / Ecc[-1]
             rank = np.where(Ecc > var_r)[0][0]
 
@@ -186,7 +186,11 @@ class PCA(NPModel):
         """
         param_list = ["mu", "T"]
         params = cls._load_params_to_dict(f, config["name"], param_list)
-        return cls(mu=params["mu"], T=params["T"], **config,)
+        return cls(
+            mu=params["mu"],
+            T=params["T"],
+            **config,
+        )
 
     @classmethod
     def load_mat(cls, file_path):
@@ -202,12 +206,19 @@ class PCA(NPModel):
 
     @staticmethod
     def filter_args(**kwargs):
-        valid_args = ("update_mu", "update_T", "name", "pca_dim", "pca_var_r")
+        valid_args = (
+            "update_mu",
+            "update_T",
+            "name",
+            "pca_dim",
+            "pca_var_r",
+            "pca_min_dim",
+            "whiten",
+        )
         return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
     @staticmethod
     def add_class_args(parser, prefix=None):
-
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -242,10 +253,15 @@ class PCA(NPModel):
             help=("proportion of variance to keep when choosing the PCA dimension"),
         )
 
+        parser.add_argument(
+            "--pca-min-dim", default=2, type=int, help=("min. output dimension of PCA")
+        )
+
         parser.add_argument("--name", dest="name", default="pca")
         if prefix is not None:
             outer_parser.add_argument(
-                "--" + prefix, action=ActionParser(parser=parser),
+                "--" + prefix,
+                action=ActionParser(parser=parser),
             )
 
     add_argparse_args = add_class_args

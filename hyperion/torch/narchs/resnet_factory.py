@@ -162,8 +162,8 @@ class ResNetFactory(object):
         in_feats=None,
         res2net_scale=4,
         res2net_width_factor=1,
+        freq_pos_enc=False,
     ):
-
         try:
             resnet_class = resnet_dict[resnet_type]
         except:
@@ -190,15 +190,12 @@ class ResNetFactory(object):
             in_feats=in_feats,
             res2net_scale=res2net_scale,
             res2net_width_factor=res2net_width_factor,
+            freq_pos_enc=freq_pos_enc,
         )
 
         return resnet
 
     def filter_args(**kwargs):
-        # if "norm_after" in kwargs:
-        #     kwargs["norm_before"] = not kwargs["norm_after"]
-        #     del kwargs["norm_after"]
-
         if "no_maxpool" in kwargs:
             kwargs["do_maxpool"] = not kwargs["no_maxpool"]
             del kwargs["no_maxpool"]
@@ -224,6 +221,7 @@ class ResNetFactory(object):
             "se_r",
             "res2net_scale",
             "res2net_width_factor",
+            "freq_pos_enc",
         )
 
         args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
@@ -319,9 +317,6 @@ class ResNetFactory(object):
             help="Zero-initialize the last BN in each residual branch",
         )
 
-        # parser.add_argument('--replace-stride-with-dilation', default=None, nargs='+', type=bool,
-        #  help='replaces strides with dilations to increase context without downsampling')
-
         parser.add_argument(
             "--se-r",
             default=16,
@@ -353,12 +348,6 @@ class ResNetFactory(object):
                 help="batch normalizaton before activation",
             )
 
-            # parser.add_argument(
-            #     "--norm-after",
-            #     default=False,
-            #     action="store_true",
-            #     help="batch normalizaton after activation",
-            # )
         except:
             pass
 
@@ -366,6 +355,13 @@ class ResNetFactory(object):
             parser.add_argument("--dropout-rate", default=0, type=float, help="dropout")
         except:
             pass
+
+        parser.add_argument(
+            "--freq-pos-enc",
+            default=False,
+            action=ActionYesNo,
+            help="use frequency wise positional encoder",
+        )
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

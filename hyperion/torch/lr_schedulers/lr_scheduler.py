@@ -3,12 +3,11 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-
 import torch
 import torch.optim as optim
 
 
-class LRScheduler(object):
+class LRScheduler:
     """Base class for learning rate schedulers.
 
     Attributes:
@@ -91,7 +90,7 @@ class LRScheduler(object):
     def get_warmup_lr(self):
         x = self.step
         return [
-            (base_lr - min_lr) / self.warmup_steps * x + min_lr
+            (base_lr - min(min_lr, 1e-8)) / self.warmup_steps * x + min(min_lr, 1e-8)
             for base_lr, min_lr in zip(self.base_lrs, self.min_lrs)
         ]
 
@@ -114,7 +113,6 @@ class LRScheduler(object):
         self.epoch += 1
 
     def on_opt_step(self):
-
         if self.in_warmup:
             for param_group, lr in zip(
                 self.optimizer.param_groups, self.get_warmup_lr()

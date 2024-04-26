@@ -4,10 +4,9 @@
 """
 
 
-from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
-
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from torch.nn import Linear
 
 from ...utils.misc import filter_func_args
@@ -62,7 +61,6 @@ class ClassifHead(NetArch):
         dropout_rate=0,
         use_in_norm=False,
     ):
-
         super().__init__()
         assert num_embed_layers >= 1, "num_embed_layers (%d < 1)" % num_embed_layers
 
@@ -182,7 +180,6 @@ class ClassifHead(NetArch):
         intertop_margin=0.0,
         num_subcenters=2,
     ):
-
         embed_dim = self.embed_dim
         self.num_classes = num_classes
         self.loss_type = loss_type
@@ -283,7 +280,6 @@ class ClassifHead(NetArch):
             self.fc_blocks[l].eval()
 
     def forward(self, x, y=None):
-
         if self.use_in_norm:
             x = self.in_norm(x)
 
@@ -298,7 +294,6 @@ class ClassifHead(NetArch):
         return y
 
     def forward_hid_feats(self, x, y=None, return_layers=None, return_logits=False):
-
         assert return_layers is not None or return_logits
         if return_layers is None:
             return_layers = []
@@ -322,7 +317,6 @@ class ClassifHead(NetArch):
         return h, None
 
     def extract_embed(self, x, embed_layer=0):
-
         if self.use_in_norm:
             x = self.in_norm(x)
 
@@ -344,7 +338,6 @@ class ClassifHead(NetArch):
         return torch.mm(kernel, kernel.transpose(0, 1))
 
     def get_config(self):
-
         hid_act = AF.get_config(self.fc_blocks[0].activation)
 
         config = {
@@ -372,7 +365,6 @@ class ClassifHead(NetArch):
 
     @staticmethod
     def filter_args(**kwargs):
-
         if "wo_norm" in kwargs:
             kwargs["use_norm"] = not kwargs["wo_norm"]
             del kwargs["wo_norm"]
@@ -413,7 +405,9 @@ class ClassifHead(NetArch):
             help="loss type: softmax, arc-softmax, cos-softmax, subcenter-arc-softmax",
         )
 
-        parser.add_argument("--s", default=64, type=float, help="scale for arcface")
+        parser.add_argument(
+            "--cos-scale", default=64, type=float, help="scale for arcface"
+        )
 
         parser.add_argument(
             "--margin", default=0.3, type=float, help="margin for arcface, cosface,..."
@@ -460,17 +454,17 @@ class ClassifHead(NetArch):
             pass
 
         parser.add_argument(
-            "--wo-norm",
-            default=False,
+            "--use-norm",
+            default=True,
             action=ActionYesNo,
             help="without batch normalization",
         )
 
         parser.add_argument(
-            "--norm-after",
-            default=False,
+            "--norm-before",
+            default=True,
             action=ActionYesNo,
-            help="batch normalizaton after activation",
+            help="batch normalizaton before activation",
         )
 
         parser.add_argument(
@@ -487,6 +481,5 @@ class ClassifHead(NetArch):
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
-            # help='classification head options')
 
     add_argparse_args = add_class_args

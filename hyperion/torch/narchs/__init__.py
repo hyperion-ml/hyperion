@@ -10,9 +10,12 @@ from .dc1d_decoder import DC1dDecoder
 from .dc1d_encoder import DC1dEncoder
 from .dc2d_decoder import DC2dDecoder
 from .dc2d_encoder import DC2dEncoder
+from .dino_head import DINOHead
 from .efficient_net import EfficientNet
 from .etdnn import ETDNNV1
 from .fcnet import FCNetV1, FCNetV2
+from .feat_fuser_mvn import FeatFuserMVN
+from .proj_head import ProjHead
 from .resetdnn import ResETDNNV1
 from .resnet import *
 from .resnet1d_decoder import ResNet1dDecoder

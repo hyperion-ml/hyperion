@@ -10,10 +10,9 @@ import time
 
 import numpy as np
 import pandas as pd
-from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
-
 import torch
 import torch.distributed as dist
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from torch.utils.data import Dataset
 
 from ...io import RandomAccessDataReaderFactory as RF
@@ -38,7 +37,6 @@ class EmbedDataset(Dataset):
         preload_embeds=False,
         is_val=False,
     ):
-
         assert embeds is not None or embed_file is not None
         assert embed_info is not None or embed_info is not None
         assert class_info is not None or class_files is not None
@@ -60,8 +58,8 @@ class EmbedDataset(Dataset):
             logging.info("dataset contains %d embeddings", len(self.embed_info))
 
         if embeds is None:
-            if rank == 0:
-                logging.info("opening dataset %s", rspecifier)
+            # if rank == 0:
+            #     logging.info("opening dataset %s", rspecifier)
             self.r = RF.create(embed_file, path_prefix=path_prefix, scp_sep=" ")
             if self.preload_embeds:
                 self.embeds = self.r.load(embed_info["id"], squeeze=True).astype(
@@ -143,7 +141,6 @@ class EmbedDataset(Dataset):
         return embed_info
 
     def __getitem__(self, embed_id):
-
         x = self._read_embed(embed_id)
 
         data = {"embed_id": embed_id, "x": x}

@@ -2,18 +2,18 @@ data:
   train:
     dataset:
       class_names:
-      - class_id
+      - speaker
       aug_cfgs:
       - conf/reverb_noise_aug.yaml
       return_segment_info:
-      - class_id
+      - speaker
     sampler:
       sampler_type: class_weighted_random_seg_chunk_sampler
       min_batch_size: 64
       max_chunk_length: 4.0
       min_chunk_length: 4.0
       num_chunks_per_seg_epoch: 6
-      class_name: class_id
+      class_name: speaker
       seg_weight_mode: data-prior
       num_hard_prototypes: 8
     data_loader:
@@ -21,24 +21,25 @@ data:
   val:
     dataset:
       class_names:
-      - class_id
+      - speaker
       aug_cfgs:
       - conf/reverb_noise_aug.yaml
       return_segment_info:
-      - class_id
+      - speaker
     sampler:
       sampler_type: class_weighted_random_seg_chunk_sampler
       min_batch_size: 64
       max_chunk_length: 4.0
       min_chunk_length: 4.0
       num_chunks_per_seg_epoch: 6
-      class_name: class_id
+      class_name: speaker
       seg_weight_mode: data-prior
       num_hard_prototypes: 8
     data_loader:
       num_workers: 8
 model:
   xvector:
+    override_output: true
     cos_scale: 30.0
     margin: 0.3
     margin_warmup_epochs: 0
@@ -67,3 +68,4 @@ trainer:
   swa_start: 10
   swa_lr: 1e-4
   swa_anneal_epochs: 2
+  target_key: speaker

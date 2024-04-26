@@ -4,6 +4,7 @@
 
 """
 
+from .conformer_v1_xvector import ConformerV1XVector
 from .efficient_net_xvector import EfficientNetXVector
 from .resnet1d_xvector import ResNet1dXVector
 from .resnet_xvector import ResNetXVector

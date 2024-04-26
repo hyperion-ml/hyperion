@@ -20,6 +20,7 @@ from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
 from hyperion.torch.metrics import CategoricalAccuracy
+from hyperion.torch.models import ConformerV1XVector as CXVec
 from hyperion.torch.models import EfficientNetXVector as EXVec
 from hyperion.torch.models import ResNet1dXVector as R1dXVec
 from hyperion.torch.models import ResNetXVector as RXVec
@@ -37,6 +38,7 @@ xvec_dict = {
     "tdnn": TDXVec,
     "transformer": TFXVec,
     "spinenet": SpineXVec,
+    "conformer": CXVec,
 }
 
 
@@ -136,7 +138,7 @@ def make_parser(xvec_class):
 
     train_parser = ArgumentParser(prog="")
 
-    AD.add_class_args(train_parser, prefix="dataset", skip={})
+    AD.add_class_args(train_parser, prefix="dataset")
     SegSamplerFactory.add_class_args(train_parser, prefix="sampler")
     train_parser.add_argument(
         "--data_loader.num-workers",
@@ -146,7 +148,7 @@ def make_parser(xvec_class):
     )
 
     val_parser = ArgumentParser(prog="")
-    AD.add_class_args(val_parser, prefix="dataset", skip={})
+    AD.add_class_args(val_parser, prefix="dataset")
     SegSamplerFactory.add_class_args(val_parser, prefix="sampler")
     val_parser.add_argument(
         "--data_loader.num-workers",

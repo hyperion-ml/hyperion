@@ -26,8 +26,11 @@ from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
 from hyperion.torch.metrics import CategoricalAccuracy
 from hyperion.torch.models import (
+    HFHubert2ConformerV1XVector,
     HFHubert2ResNet1dXVector,
+    HFWav2Vec2ConformerV1XVector,
     HFWav2Vec2ResNet1dXVector,
+    HFWavLM2ConformerV1XVector,
     HFWavLM2ResNet1dXVector,
 )
 from hyperion.torch.trainers import XVectorTrainer as Trainer
@@ -37,6 +40,9 @@ model_dict = {
     "hf_wav2vec2resnet1d": HFWav2Vec2ResNet1dXVector,
     "hf_hubert2resnet1d": HFHubert2ResNet1dXVector,
     "hf_wavlm2resnet1d": HFWavLM2ResNet1dXVector,
+    "hf_wav2vec2conformer": HFWav2Vec2ConformerV1XVector,
+    "hf_hubert2conformer": HFHubert2ConformerV1XVector,
+    "hf_wavlm2conformer": HFWavLM2ConformerV1XVector,
 }
 
 
@@ -122,7 +128,7 @@ def make_parser(model_class):
     parser.add_argument("--cfg", action=ActionConfigFile)
 
     train_parser = ArgumentParser(prog="")
-    AD.add_class_args(train_parser, prefix="dataset", skip={})
+    AD.add_class_args(train_parser, prefix="dataset")
     SegSamplerFactory.add_class_args(train_parser, prefix="sampler")
     train_parser.add_argument(
         "--data_loader.num-workers",
@@ -132,7 +138,7 @@ def make_parser(model_class):
     )
 
     val_parser = ArgumentParser(prog="")
-    AD.add_class_args(val_parser, prefix="dataset", skip={})
+    AD.add_class_args(val_parser, prefix="dataset")
     SegSamplerFactory.add_class_args(val_parser, prefix="sampler")
     val_parser.add_argument(
         "--data_loader.num-workers",

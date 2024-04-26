@@ -159,7 +159,7 @@ class GMMDiagCov(ExpFamilyMixture):
         F, S = self.unstack_suff_stats(u_x)
         F_norm = self.cholLambda * (F - N[:, None] * self.mu)
         if return_order2:
-            S = S - 2 * self.mu * F + N * self.mu ** 2
+            S = S - 2 * self.mu * F + N * self.mu**2
             S *= self.Lambda
             return N, self.stack_suff_stats(F_norm, S)
 
@@ -179,9 +179,11 @@ class GMMDiagCov(ExpFamilyMixture):
             self.mu = F / N[:, None]
 
         if self.update_Lambda:
-            S = S / N[:, None] - self.mu ** 2
+            S = S / N[:, None] - self.mu**2
             S_floor = self.var_floor * np.mean(S[N > self.min_N], axis=0)
+            S_floor = np.maximum(S_floor, 1e-10)
             S = np.maximum(S, S_floor)
+            print(np.min(S))
             self.Lambda = 1 / S
             self._Sigma = S
             self._cholLambda = None
@@ -212,7 +214,7 @@ class GMMDiagCov(ExpFamilyMixture):
 
         num_comp = self.num_comp * K
         pi = np.repeat(self.pi, K) / K
-        Lambda = np.repeat(self.Lambda, K, axis=0) * (K ** 2)
+        Lambda = np.repeat(self.Lambda, K, axis=0) * (K**2)
         mu = np.repeat(self.mu, K, axis=0)
 
         if K == 2:

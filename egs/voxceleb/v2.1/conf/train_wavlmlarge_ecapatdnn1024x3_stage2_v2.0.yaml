@@ -37,6 +37,7 @@ data:
       num_workers: 8
 model:
   xvector:
+    override_output: true
     cos_scale: 32.0
     margin: 0.2
     margin_warmup_epochs: 0

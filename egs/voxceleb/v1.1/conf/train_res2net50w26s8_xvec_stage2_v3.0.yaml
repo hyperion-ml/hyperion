@@ -47,6 +47,7 @@ model:
   # dropout_rate: 0.0
   dropout_rate: 0.2
 trainer:
+  override_output: true
   optim:
     opt_type: sgd
     lr: 1e-3

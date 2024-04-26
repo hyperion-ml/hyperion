@@ -10,6 +10,7 @@ import h5py
 import numpy as np
 
 from ..hyp_defs import float_cpu, float_save
+from ..utils.misc import PathLike
 
 
 class NPModel(object):
@@ -18,6 +19,12 @@ class NPModel(object):
     Attributes:
       name: optional identifier for the model.
     """
+
+    registry = {}
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        NPModel.registry[cls.__name__] = cls
 
     def __init__(self, name=None, **kwargs):
         if name is None:
@@ -227,3 +234,15 @@ class NPModel(object):
     def load_config_from_json(json_str):
         """Converts json string into dict."""
         return json.loads(json_str)
+
+    @staticmethod
+    def auto_load(file_path: PathLike, extra_objs: dict = {}):
+        class_name = NPModel.load_config(file_path)["class_name"]
+        if class_name in NPModel.registry:
+            class_obj = NPModel.registry[class_name]
+        elif class_name in extra_objs:
+            class_obj = extra_objs[class_name]
+        else:
+            raise Exception("unknown object with class_name=%s" % (class_name))
+
+        return class_obj.load(file_path)
