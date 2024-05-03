@@ -14,7 +14,7 @@ from jsonargparse import ActionParser, ArgumentParser
 
 from ...utils.misc import filter_func_args
 from ..utils import MetricAcc, tensors_subset
-from .torch_trainer import TorchTrainer
+from .torch_trainer import AMPDType, TorchTrainer
 
 
 class DVAETrainer(TorchTrainer):
@@ -35,6 +35,7 @@ class DVAETrainer(TorchTrainer):
       ddp_type: type of distributed data parallel in  (ddp, oss_ddp, oss_shared_ddp)
       train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
       use_amp: uses mixed precision training.
+      amp_dtype: "float16" | "bfloat16"
       log_interval: number of optim. steps between log outputs
       use_tensorboard: use tensorboard logger
       use_wandb: use wandb logger
@@ -68,6 +69,7 @@ class DVAETrainer(TorchTrainer):
         ddp_type="ddp",
         train_mode="full",
         use_amp=False,
+        amp_dtype=AMPDType.FLOAT16,
         log_interval=1000,
         use_tensorboard=False,
         use_wandb=False,
@@ -209,7 +211,7 @@ class DVAETrainer(TorchTrainer):
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        super().add_class_args(
+        TorchTrainer.add_class_args(
             parser, train_modes, skip=skip.union({"input_key", "target_key"})
         )
         if "input_key" not in skip:

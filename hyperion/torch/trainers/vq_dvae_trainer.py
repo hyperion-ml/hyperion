@@ -2,6 +2,7 @@
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 import math
 import os
@@ -14,7 +15,7 @@ from jsonargparse import ActionParser, ArgumentParser
 
 from ...utils.misc import filter_func_args
 from ..utils import MetricAcc, tensors_subset
-from .dvae_trainer import DVAETrainer
+from .dvae_trainer import AMPDType, DVAETrainer
 
 
 class VQDVAETrainer(DVAETrainer):
@@ -35,6 +36,7 @@ class VQDVAETrainer(DVAETrainer):
       ddp_type: type of distributed data parallel in  (ddp, oss_ddp, oss_shared_ddp)
       train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
       use_amp: uses mixed precision training.
+      amp_dtype: "float16" | "bfloat16"
       log_interval: number of optim. steps between log outputs
       use_tensorboard: use tensorboard logger
       use_wandb: use wandb logger
@@ -68,6 +70,7 @@ class VQDVAETrainer(DVAETrainer):
         ddp_type="ddp",
         train_mode="full",
         use_amp=False,
+        amp_dtype=AMPDType.FLOAT16,
         log_interval=1000,
         use_tensorboard=False,
         use_wandb=False,
@@ -174,7 +177,7 @@ class VQDVAETrainer(DVAETrainer):
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        super().add_class_args(
+        DVAETrainer.add_class_args(
             parser, train_modes, skip=skip.union({"input_key", "target_key"})
         )
         if "input_key" not in skip:

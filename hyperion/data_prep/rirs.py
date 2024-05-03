@@ -2,8 +2,9 @@
  Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-import logging
+
 import glob
+import logging
 import re
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -13,7 +14,7 @@ import pandas as pd
 from jsonargparse import ActionYesNo
 from tqdm import tqdm
 
-from ..utils import Dataset, RecordingSet, SegmentSet
+from ..utils import HypDataset, RecordingSet, SegmentSet
 from ..utils.misc import PathLike, urlretrieve_progress
 from .data_prep import DataPrep
 
@@ -88,16 +89,23 @@ class RIRSDataPrep(DataPrep):
 
         logging.info("making SegmentsSet")
         segments = pd.DataFrame(
-            {"id": rec_ids, "duration": recs.loc[rec_ids, "duration"].values,}
+            {
+                "id": rec_ids,
+                "duration": recs.loc[rec_ids, "duration"].values,
+            }
         )
         if room_ids is not None:
             segments["room_id"] = room_ids
         segments = SegmentSet(segments)
         segments.sort()
         logging.info("making dataset")
-        dataset = Dataset(segments, recordings=recs,)
+        dataset = HypDataset(
+            segments,
+            recordings=recs,
+        )
         logging.info("saving dataset at %s", self.output_dir)
         dataset.save(self.output_dir)
         logging.info(
-            "datasets containts %d segments", len(segments),
+            "datasets containts %d segments",
+            len(segments),
         )

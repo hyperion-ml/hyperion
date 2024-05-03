@@ -3,7 +3,6 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-
 import torch
 import torch.nn as nn
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
@@ -40,7 +39,12 @@ class ProjHead(NetArch):
     """
 
     def __init__(
-        self, in_feats, out_feats=256, norm_layer=None, use_norm=True, norm_before=True,
+        self,
+        in_feats,
+        out_feats=256,
+        norm_layer=None,
+        use_norm=True,
+        norm_before=True,
     ):
         super().__init__()
 
@@ -49,7 +53,7 @@ class ProjHead(NetArch):
         self.norm_layer = norm_layer
         self.use_norm = use_norm
         self.norm_before = norm_before
-
+        use_bias = True
         if use_norm:
             norm_groups = None
             if norm_layer == "group-norm":
@@ -59,26 +63,21 @@ class ProjHead(NetArch):
                 self._norm_layer = _norm_layer(in_feats)
             else:
                 self._norm_layer = _norm_layer(out_feats)
+                use_bias = False
         else:
             self._norm_layer = None
 
-        self.proj = nn.Linear(in_feats, out_feats)
+        self.proj = nn.Linear(in_feats, out_feats, bias=use_bias)
 
     def forward(self, x, y=None):
         if self.use_norm and self.norm_before:
             x = self._norm_layer(x)
-        # assert not torch.any(
-        #     torch.isnan(x)
-        # ), f"x before proj is nan {x.size()} {torch.sum(torch.isnan(x))}"
+
         x = self.proj(x)
-        # assert not torch.any(
-        #     torch.isnan(x)
-        # ), f"x after proj is nan {x.size()} {torch.sum(torch.isnan(x))}"
+
         if self.use_norm and not self.norm_before:
             x = self._norm_layer(x)
-        # assert not torch.any(
-        #     torch.isnan(x)
-        # ), f"x after bn is nan {x.size()} {torch.sum(torch.isnan(x))}"
+
         return x
 
     def get_config(self):

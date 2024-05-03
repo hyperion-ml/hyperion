@@ -2,6 +2,7 @@
  Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 
 import torch
@@ -158,6 +159,86 @@ class DINOLoss(nn.Module):
             default=0.9,
             type=float,
             help="momumntum for centering of the teacher distribution",
+        )
+
+        if prefix is not None:
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
+
+
+class CosineDINOLoss(nn.Module):
+    """Cosine Loss to regularize DINO
+    and enforze DINO embeddings to be suitable for cosine scoring
+
+    """
+
+    def __init__(
+        self,
+        scale: float = 1.0,
+        warmup_epochs: int = 30,
+    ):
+        super().__init__()
+        self.scale = scale
+        self.warmup_epochs = warmup_epochs
+        self.cur_scale = scale
+
+    def update_scale(self, epoch: int):
+        if epoch < self.warmup_epochs:
+            self.cur_scale = self.scale * epoch / self.warmup_epochs
+            logging.info("updating cosine-loss scale=%.3f", self.cur_scale)
+        else:
+            self.cur_scale = self.scale
+
+    def forward(
+        self,
+        student_embed: torch.Tensor,
+        teacher_embed: torch.Tensor,
+        num_student_crops: int,
+        num_teacher_crops: int,
+    ):
+        """
+        Cosine scoring between embeddings of the teacher and student networks.
+        """
+        if self.scale == 0:
+            return 0
+
+        student_embed = torch.nn.functional.normalize(student_embed, dim=-1)
+        teacher_embed = torch.nn.functional.normalize(teacher_embed, dim=-1)
+        student_embed = student_embed.chunk(num_student_crops)
+        teacher_embed = teacher_embed.detach()
+        teacher_embed = teacher_embed.chunk(num_teacher_crops)
+
+        total_loss = 0
+        n_loss_terms = 0
+        for iq, q in enumerate(teacher_embed):
+            for ip, p in enumerate(student_embed):
+                if ip == iq and num_teacher_crops > 1:
+                    # we skip cases where student and teacher operate on the same view
+                    continue
+                loss = 1 - torch.sum(q * p, dim=-1)
+                total_loss += loss.mean()
+                n_loss_terms += 1
+        total_loss /= n_loss_terms
+
+        return self.cur_scale * total_loss, total_loss
+
+    @staticmethod
+    def filter_args(**kwargs):
+        return filter_func_args(CosineDINOLoss.__init__, kwargs)
+
+    @staticmethod
+    def add_class_args(parser, prefix=None):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
+
+        parser.add_argument(
+            "--scale", default=0, type=float, help="Scale of Cosine loss to reg. DINO"
+        )
+        parser.add_argument(
+            "--warmup-epochs",
+            default=30,
+            type=int,
+            help="warmup epochs for the scale",
         )
 
         if prefix is not None:

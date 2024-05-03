@@ -14,7 +14,7 @@ from jsonargparse import ActionParser, ArgumentParser
 
 from ...utils.misc import filter_func_args
 from ..utils import MetricAcc, tensors_subset
-from .torch_trainer import TorchTrainer
+from .torch_trainer import AMPDType, TorchTrainer
 
 
 class VAETrainer(TorchTrainer):
@@ -35,6 +35,7 @@ class VAETrainer(TorchTrainer):
       ddp_type: type of distributed data parallel in  (ddp, oss_ddp, oss_shared_ddp)
       train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
       use_amp: uses mixed precision training.
+      amp_dtype: "float16" | "bfloat16"
       log_interval: number of optim. steps between log outputs
       log_interval: number of optim. steps between log outputs
       use_tensorboard: use tensorboard logger
@@ -68,6 +69,7 @@ class VAETrainer(TorchTrainer):
         ddp_type="ddp",
         train_mode="full",
         use_amp=False,
+        amp_dtype=AMPDType.FLOAT16,
         log_interval=1000,
         use_tensorboard=False,
         use_wandb=False,
@@ -211,7 +213,9 @@ class VAETrainer(TorchTrainer):
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        super().add_class_args(parser, train_modes, skip=skip.union({"target_key"}))
+        TorchTrainer.add_class_args(
+            parser, train_modes, skip=skip.union({"target_key"})
+        )
         if "target_key" not in skip:
             parser.add_argument(
                 "--target-key", default="x", help="dict. key for nnet targets"

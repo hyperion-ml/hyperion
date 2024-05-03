@@ -90,7 +90,7 @@ class LRScheduler:
     def get_warmup_lr(self):
         x = self.step
         return [
-            (base_lr - min_lr) / self.warmup_steps * x + min_lr
+            (base_lr - min(min_lr, 1e-8)) / self.warmup_steps * x + min(min_lr, 1e-8)
             for base_lr, min_lr in zip(self.base_lrs, self.min_lrs)
         ]
 

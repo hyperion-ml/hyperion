@@ -221,9 +221,8 @@ class ConformerEncoderV1(NetArch):
         else:
             raise Exception(f"wrong pos-enc-type={self.pos_enc_type}")
 
-        hid_act = AF.create(self.hid_act)
-
         if self.in_layer_type == "linear":
+            hid_act = AF.create(self.hid_act)
             self.in_layer = nn.Sequential(
                 nn.Linear(in_feats, d_model),
                 nn.LayerNorm(d_model),
@@ -235,7 +234,7 @@ class ConformerEncoderV1(NetArch):
             self.in_layer = Conv2dSubsampler(
                 in_feats,
                 d_model,
-                hid_act,
+                self.hid_act,
                 self.in_stride,
                 pos_enc,
                 time_dim=self.in_time_dim,
@@ -244,7 +243,7 @@ class ConformerEncoderV1(NetArch):
             self.in_layer = Conv1dSubsampler(
                 in_feats,
                 d_model,
-                hid_act,
+                self.hid_act,
                 self.in_stride,
                 pos_enc,
                 time_dim=self.in_time_dim,

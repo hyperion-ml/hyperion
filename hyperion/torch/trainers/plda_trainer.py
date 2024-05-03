@@ -2,6 +2,7 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 import os
 from collections import OrderedDict as ODict
@@ -14,7 +15,7 @@ from ...utils.misc import filter_func_args
 from ..losses import BCEWithLLR
 from ..utils import MetricAcc, tensors_subset
 from ..utils.misc import get_selfsim_tarnon
-from .torch_trainer import TorchTrainer
+from .torch_trainer import AMPDType, TorchTrainer
 
 
 class PLDATrainer(TorchTrainer):
@@ -36,9 +37,9 @@ class PLDATrainer(TorchTrainer):
       ddp_type: type of distributed data parallel in  (ddp, oss_ddp, oss_shared_ddp)
       loss: if None, it uses cross-entropy
       loss_weights: dictionary with weights for multiclass and binary cross-entropies
-
       train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
       use_amp: uses mixed precision training.
+      amp_dtype: "float16" | "bfloat16"
       log_interval: number of optim. steps between log outputs
       use_tensorboard: use tensorboard logger
       use_wandb: use wandb logger
@@ -75,6 +76,7 @@ class PLDATrainer(TorchTrainer):
         p_tar=0.5,
         train_mode="train",
         use_amp=False,
+        amp_dtype=AMPDType.FLOAT16,
         log_interval=1000,
         use_tensorboard=False,
         use_wandb=False,

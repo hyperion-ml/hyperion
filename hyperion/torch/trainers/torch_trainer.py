@@ -44,6 +44,23 @@ class DDPType(str, Enum):
     OSS_SHARDED_DDP = "oss_sharded_ddp"
     FULLY_SHARDED_DDP = "fully_sharded_ddp"
 
+    @staticmethod
+    def choices():
+        return [o.value for o in DDPType]
+
+
+class AMPDType(str, Enum):
+    FLOAT16 = "float16"
+    BFLOAT16 = "bfloat16"
+
+    @staticmethod
+    def choices():
+        return [o.value for o in AMPDType]
+
+    @staticmethod
+    def to_dtype(dtype):
+        return torch.float16 if dtype == AMPDType.FLOAT16 else torch.bfloat16
+
 
 ddp_choices = [o.value for o in DDPType]
 
@@ -67,6 +84,7 @@ class TorchTrainer(object):
       ddp_type: type of distributed data parallel in  (ddp, oss_ddp, oss_shared_ddp)
       train_mode: training mode in ['full', 'frozen']
       use_amp: uses mixed precision training.
+      amp_dtype: "float16" | "bfloat16"
       log_interval: number of optim. steps between log outputs
       use_tensorboard: use tensorboard logger
       use_wandb: use wandb logger
@@ -101,6 +119,7 @@ class TorchTrainer(object):
         ddp_type="ddp",
         train_mode="full",
         use_amp=False,
+        amp_dtype=AMPDType.FLOAT16,
         log_interval=1000,
         use_tensorboard=False,
         use_wandb=False,
@@ -140,13 +159,13 @@ class TorchTrainer(object):
         self.device = device
         self.train_mode = train_mode
         self.use_amp = use_amp
+        self.amp_dtype = AMPDType.to_dtype(amp_dtype)
         self.grad_clip = grad_clip
         self.grad_clip_norm = grad_clip_norm
         self.swa_start = swa_start
         self.do_swa = swa_start > 0
         self.swa_lr = swa_lr
         self.swa_anneal_epochs = swa_anneal_epochs
-        self.amp_args = {}
         self.input_key = input_key
         self.target_key = target_key
         self.ddp = ddp
@@ -163,78 +182,6 @@ class TorchTrainer(object):
 
         self.set_train_mode()
         self.prepare_models_for_training()
-
-        # if device is not None:
-        #     self.model.to(device)
-        #     if loss is not None:
-        #         self.loss.to(device)
-
-        # if ddp:
-        #     if ddp_type == DDPType.DDP or ddp_type == DDPType.OSS_DDP:
-        #         self.model = nn.SyncBatchNorm.convert_sync_batchnorm(self.model)
-        #         if self.rank == 0:
-        #             logging.info(
-        #                 "training in multiple gpus with distributed-data-parallel"
-        #             )
-        #         oss = False if ddp_type == DDPType.DDP else True
-        #         self.optimizer = self._make_optimizer(optim, self.model, oss=oss)
-        #         self.model = TorchDDP(
-        #             self.model,
-        #             device_ids=[device],
-        #             output_device=device,
-        #         )
-        #     elif ddp_type == DDPType.OSS_SHARDED_DDP:
-        #         self.model = nn.SyncBatchNorm.convert_sync_batchnorm(self.model)
-        #         if self.rank == 0:
-        #             logging.info(
-        #                 "training in multiple gpus with fair sharded-distributed-data-parallel"
-        #             )
-        #         self.optimizer = self._make_optimizer(optim, self.model, oss=True)
-        #         self.model = FairShardedDDP(self.model, self.optimizer)
-        #     else:
-        #         if self.rank == 0:
-        #             logging.info(
-        #                 "training in multiple gpus with fair fully-sharded-distributed-data-parallel"
-        #             )
-        #         # syncbathcnorm is not supported here, it raises exception
-        #         self.model = FairFullyShardedDDP(
-        #             self.model,
-        #             mixed_precision=self.use_amp,
-        #             move_params_to_cpu=cpu_offload,
-        #         )
-        #         self.optimizer = self._make_optimizer(optim, self.model, oss=False)
-
-        # else:
-        #     self.optimizer = self._make_optimizer(optim, self.model)
-
-        # # make the learning rate scheduler
-        # self.lr_scheduler = self._make_lr_sched(lrsched, self.optimizer)
-
-        # if self.use_amp:
-        #     if ddp and ddp_type != DDPType.DDP:
-        #         if self.rank == 0:
-        #             logging.info(
-        #                 "using automatic mixed precision training with sharded-grad-scaler"
-        #             )
-        #         self.grad_scaler = ShardedGradScaler()
-        #     else:
-        #         if self.rank == 0:
-        #             logging.info(
-        #                 "using automatic mixed precision training with grad-scaler"
-        #             )
-        #         self.grad_scaler = amp.GradScaler()
-        #     self.amp_autocast = amp.autocast
-        # else:
-        #     self.amp_autocast = contextlib.nullcontext
-
-        # self.in_swa = False
-        # if self.do_swa:
-        #     if self.rank == 0:
-        #         logging.info("init SWA model")
-        #     self.swa_model = AveragedModel(self.model)
-        #     self.swa_scheduler = SWALR(
-        #         self.optimizer, swa_lr=self.swa_lr, anneal_epochs=self.swa_anneal_epochs
-        #     )
 
     def prepare_models_for_training(self):
         self.loss = self._prepare_loss_for_training(self.loss, self.device)
@@ -329,6 +276,7 @@ class TorchTrainer(object):
         # make weight decay scheduler if needed
         wd_scheduler = self._make_wd_sched(wdsched, optimizer)
 
+        grad_scaler = None
         if use_amp:
             if ddp and ddp_type != DDPType.DDP:
                 if self.rank == 0:
@@ -741,9 +689,9 @@ class TorchTrainer(object):
             "model_cfg": self.model.get_config(),
             "model_state_dict": self.model.state_dict(),
             "optimizer_state_dict": self.optimizer.state_dict(),
-            "loss_state_dict": self.loss.state_dict()
-            if self.loss is not None
-            else None,
+            "loss_state_dict": (
+                self.loss.state_dict() if self.loss is not None else None
+            ),
         }
         if self.lr_scheduler is not None:
             checkpoint["lr_scheduler_state_dict"] = self.lr_scheduler.state_dict()
@@ -1093,7 +1041,7 @@ class TorchTrainer(object):
         parser.add_argument(
             "--ddp-type",
             default="ddp",
-            choices=ddp_choices,
+            choices=DDPType.choices(),
             help="DDP type in {}".format(ddp_choices),
         )
         parser.add_argument(
@@ -1101,6 +1049,9 @@ class TorchTrainer(object):
             action=ActionYesNo,
             default=False,
             help="use mixed precision training",
+        )
+        parser.add_argument(
+            "--amp-dtype", default=AMPDType.FLOAT16, choices=AMPDType.choices()
         )
         parser.add_argument(
             "--cpu-offload",

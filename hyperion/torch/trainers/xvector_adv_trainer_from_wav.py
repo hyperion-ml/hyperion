@@ -2,6 +2,7 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 import os
 import time
@@ -14,6 +15,7 @@ from jsonargparse import ActionParser, ArgumentParser
 
 from ...utils.misc import filter_func_args
 from ..utils import MetricAcc, tensors_subset
+from .torch_trainer import AMPDType
 from .xvector_trainer_from_wav import XVectorTrainerFromWav
 
 
@@ -41,6 +43,7 @@ class XVectorAdvTrainerFromWav(XVectorTrainerFromWav):
       loss: if None, it uses cross-entropy
       train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
       use_amp: uses mixed precision training.
+      amp_dtype: "float16" | "bfloat16"
       log_interval: number of optim. steps between log outputs
       use_tensorboard: use tensorboard logger
       use_wandb: use wandb logger
@@ -78,6 +81,7 @@ class XVectorAdvTrainerFromWav(XVectorTrainerFromWav):
         loss=None,
         train_mode="full",
         use_amp=False,
+        amp_dtype=AMPDType.FLOAT16,
         log_interval=1000,
         use_tensorboard=False,
         use_wandb=False,
@@ -131,9 +135,6 @@ class XVectorAdvTrainerFromWav(XVectorTrainerFromWav):
                     self.model.eval()
                     data_adv = self.attack.generate(input_data, target)
                     max_delta = torch.max(torch.abs(data_adv - data)).item()
-                    # z = torch.abs(data_adv-data) > 100
-                    # logging.info('zz {} {}'.format(data[z], data_adv[z]))
-                    # logging.info('adv attack max perturbation=%f' % (max_delta))
                     input_data = data_adv
                     self.model.train()
 
@@ -144,7 +145,7 @@ class XVectorAdvTrainerFromWav(XVectorTrainerFromWav):
 
             with amp.autocast(enabled=self.use_amp):
                 output = self.model(feats, y=target)
-                loss = self.loss(output, target).mean() / self.grad_acc_steps
+                loss = self.loss(output.logits, target) / self.grad_acc_steps
 
             if self.use_amp:
                 self.grad_scaler.scale(loss).backward()
@@ -198,9 +199,9 @@ class XVectorAdvTrainerFromWav(XVectorTrainerFromWav):
                 feats = self.feat_extractor(input_data)
                 with amp.autocast(enabled=self.use_amp):
                     output = self.model(feats)
-                    loss = self.loss(output, target)
+                    loss = self.loss(output.logits, target)
 
-            batch_metrics["loss"] = loss.mean().item()
+            batch_metrics["loss"] = loss.item()
             for k, metric in self.metrics.items():
                 batch_metrics[k] = metric(output, target)
 

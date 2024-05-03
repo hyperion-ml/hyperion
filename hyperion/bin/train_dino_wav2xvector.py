@@ -19,7 +19,7 @@ from jsonargparse import (
 from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch.data import DINOAudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
-from hyperion.torch.losses import DINOLoss
+from hyperion.torch.losses import CosineDINOLoss, DINOLoss
 from hyperion.torch.metrics import CategoricalAccuracy
 
 # from hyperion.torch.models import EfficientNetXVector as EXVec
@@ -109,6 +109,21 @@ def init_dino_loss(rank, **kwargs):
     return loss
 
 
+def init_cosine_loss(rank, **kwargs):
+    loss_args = kwargs["cosine_loss"]
+    if rank == 0:
+        logging.info(f"cosine loss args={loss_args}")
+
+    if loss_args["scale"] <= 0:
+        return None
+
+    loss = CosineDINOLoss(**loss_args)
+    if rank == 0:
+        logging.info(f"cosine-loss={loss}")
+
+    return loss
+
+
 def train_xvec(gpu_id, args):
     config_logger(args.verbose)
     del args.verbose
@@ -126,6 +141,7 @@ def train_xvec(gpu_id, args):
     val_loader = init_data(partition="val", **kwargs)
 
     dino_loss = init_dino_loss(**kwargs)
+    cosine_loss = init_cosine_loss(**kwargs)
     student_model = init_student_xvector(num_classes=dino_loss.num_classes, **kwargs)
     kwargs["student_model"] = student_model
     teacher_model = init_teacher_xvector(**kwargs)
@@ -138,6 +154,7 @@ def train_xvec(gpu_id, args):
         student_model,
         teacher_model,
         dino_loss,
+        cosine_loss=cosine_loss,
         device=device,
         metrics=metrics,
         ddp=world_size > 1,
@@ -185,6 +202,7 @@ def make_parser(xvec_class):
     xvec_class.add_class_args(parser, prefix="student_model")
     xvec_class.add_dino_teacher_args(parser, prefix="teacher_model")
     DINOLoss.add_class_args(parser, prefix="dino_loss")
+    CosineDINOLoss.add_class_args(parser, prefix="cosine_loss")
     Trainer.add_class_args(
         parser, prefix="trainer", train_modes=xvec_class.valid_train_modes()
     )

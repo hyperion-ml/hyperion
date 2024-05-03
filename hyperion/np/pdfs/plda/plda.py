@@ -172,8 +172,13 @@ class PLDA(PLDABase):
           Py accumlator for MD step with shape (y_dim, y_dim)
         """
         assert self.is_init
+        if isinstance(D, tuple):
+            N, F, S = D
+        else:
+            F = D
+            N = np.ones((F.shape[0],), dtype=F.dtype)
+            S = None
 
-        N, F, S = D
         Fc = F - self.mu
 
         M = F.shape[0]
@@ -535,9 +540,7 @@ class PLDA(PLDABase):
         logD = np.sum(np.log(self.D))
         delta = x - self.mu - np.dot(y, self.V) - np.dot(z, self.U)
         logp = (
-            -x.shape[-1] * np.log(2 * np.pi)
-            + logD
-            - np.sum(self.D * delta**2, axis=-1)
+            -x.shape[-1] * np.log(2 * np.pi) + logD - np.sum(self.D * delta**2, axis=-1)
         )
         logp /= 2
         return logp

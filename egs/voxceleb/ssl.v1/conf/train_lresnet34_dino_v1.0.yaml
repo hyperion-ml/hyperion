@@ -1,0 +1,92 @@
+data:
+  train:
+    dataset:
+      teacher_aug_cfg: conf/teacher_reverb_noise_aug.yaml
+      student_aug_cfg: conf/reverb_noise_aug.yaml
+      student_chunk_length: 2.
+      teacher_chunk_length: 4.
+      num_teacher_chunks: 2
+      num_student_chunks: 4
+      same_teacher_student_chunks: true
+    sampler:
+      sampler_type: seg_chunk_sampler
+      min_batch_size: 64
+      max_chunk_length: 8.0
+      min_chunk_length: 4.0
+    data_loader:
+      num_workers: 8
+  val:
+    dataset:
+      teacher_aug_cfg: conf/teacher_reverb_noise_aug.yaml
+      student_aug_cfg: conf/reverb_noise_aug.yaml
+      student_chunk_length: 2.
+      teacher_chunk_length: 4.
+      num_teacher_chunks: 2
+      num_student_chunks: 4
+      same_teacher_student_chunks: true
+    sampler:
+      sampler_type: seg_chunk_sampler
+      min_batch_size: 64
+      max_chunk_length: 8.0
+      min_chunk_length: 4.0
+    data_loader:
+      num_workers: 8
+student_model: 
+  feats: fbank80_specaug1_stmn_16k.yaml
+  xvector:
+    resnet_type: lresnet34
+    in_channels: 1
+    in_feats: 80
+    in_kernel_size: 3
+    in_stride: 1
+    no_maxpool: true
+    pool_net:
+      pool_type: ch-wise-att-mean+stddev
+      inner_feats: 128
+    dropout_rate: 0.01
+    norm_before: false
+    hid_act: swish
+    head_type: dino
+    embed_dim: 192
+    num_embed_layers: 3
+    loss_type: softmax
+    head_use_norm: true
+    head_hid_dim: 768
+    head_bottleneck_dim: 192
+    proj_head_use_norm: true
+    proj_head_norm_before: false
+teacher_model:
+  xvector:
+    override_dropouts: true
+    dropout_rate: 0.0
+dino_loss:
+  num_classes: 65536
+  temp_warmup_epochs: 0
+  teacher_temp: 0.04
+trainer:
+  optim: 
+    opt_type: adamw
+    lr: 0.0025
+    amsgrad: false
+    beta1: 0.9
+    beta2: 0.99
+    weight_decay: 1e-1
+  lrsched:
+    lrsch_type: exp_lr
+    decay_rate: 0.5
+    decay_steps: 60000
+    hold_steps: 15000
+    min_lr: 1.0e-05
+    warmup_steps: 15000
+    update_lr_on_opt_step: true
+  teacher_optim:
+    init_momentum: 0.996
+    momentum: 1.0
+    warmup_steps: 500000
+  grad_clip: 25
+  use_amp: true
+  log_interval: 1000
+  epochs: 60
+  eff_batch_size: 256
+  train_mode: full
+  freeze_output_layer_steps: 1500

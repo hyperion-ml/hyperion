@@ -7,9 +7,12 @@ import logging
 from pathlib import Path
 from typing import List, Optional, Union
 
+import numpy as np
+import pandas as pd
 from jsonargparse import (
     ActionConfigFile,
     ActionParser,
+    ActionYesNo,
     ArgumentParser,
     namespace_to_dict,
 )
@@ -25,7 +28,7 @@ from hyperion.utils import (
     SegmentSet,
 )
 
-subcommand_list = ["cat"]
+subcommand_list = ["cat", "filter", "make_class_file_from_column"]
 table_dict = {
     "segments": SegmentSet,
     "recordings": RecordingSet,
@@ -105,6 +108,91 @@ def cat(
         tables.append(table_class.load(file_path))
 
     output_table = table_class.cat(tables)
+    output_table.save(output_file)
+
+
+def make_filter_parser():
+    parser = ArgumentParser()
+    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument("--input-file", required=True, help="input table file")
+    parser.add_argument(
+        "--filter-file", required=True, help="table file that we use as filter"
+    )
+    parser.add_argument(
+        "--filter-by", default="id", help="column that we use to filter "
+    )
+    parser.add_argument(
+        "--output-file",
+        required=True,
+        help="""output table file""",
+    )
+    parser.add_argument(
+        "--raise-if-missing",
+        default=True,
+        action=ActionYesNo,
+        help="raise exception if filter values are not in input file",
+    )
+    add_common_args(parser)
+    return parser
+
+
+def filter(
+    table_type: str,
+    input_file: PathLike,
+    filter_file: PathLike,
+    output_file: PathLike,
+    filter_by: str,
+    raise_if_missing: bool,
+):
+
+    input_file = Path(input_file)
+    filter_file = Path(filter_file)
+    output_file = Path(output_file)
+
+    table_class = table_dict[table_type]
+    input_table = table_class.load(input_file)
+    filter_table = table_class.load(filter_file)
+    output_table = input_table.filter(
+        items=filter_table[filter_by], by=filter_by, raise_if_missing=raise_if_missing
+    )
+    output_table.save(output_file)
+
+
+def make_make_class_file_from_column_parser():
+    parser = ArgumentParser()
+    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument("--input-file", required=True, help="input table file")
+
+    parser.add_argument(
+        "--column",
+        required=True,
+        help="column that we want to use to create a class-file",
+    )
+    parser.add_argument(
+        "--output-file",
+        required=True,
+        help="""output class-file table""",
+    )
+
+    add_common_args(parser)
+    return parser
+
+
+def make_class_file_from_column(
+    table_type: str,
+    input_file: PathLike,
+    output_file: PathLike,
+    column: str,
+):
+
+    input_file = Path(input_file)
+    output_file = Path(output_file)
+
+    table_class = table_dict[table_type]
+    input_table = table_class.load(input_file)
+    class_ids = np.unique(input_table[column])
+    df = pd.DataFrame({"id": class_ids})
+    output_table = ClassInfo(df)
     output_table.save(output_file)
 
 

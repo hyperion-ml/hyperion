@@ -2,10 +2,10 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-import logging
 
-# from enum import Enum
+import logging
 from dataclasses import dataclass
+from enum import Enum
 from typing import List, Optional
 
 import torch
@@ -19,6 +19,15 @@ from ...layers import GlobalPool1dFactory as PF
 from ...narchs import ClassifHead, DINOHead, ProjHead, TorchNALoader
 from ...torch_model import TorchModel
 from ...utils import eval_nnet_by_chunks, scale_seq_lengths
+
+
+class XVectorHeadType(str, Enum):
+    XVECTOR = "x-vector"
+    DINO = "dino"
+
+    @staticmethod
+    def choices():
+        return [o.value for o in XVectorHeadType]
 
 
 @dataclass
@@ -63,7 +72,7 @@ class XVector(TorchModel):
         embed_layer=0,
         in_feats=None,
         proj_feats=None,
-        head_type="x-vector",
+        head_type=XVectorHeadType.XVECTOR,
         bias_weight_decay=None,
     ):
         super().__init__(bias_weight_decay=bias_weight_decay)
@@ -143,7 +152,7 @@ class XVector(TorchModel):
         self.proj_head_norm_before = proj_head_norm_before
         self.dropout_rate = dropout_rate
         self.embed_layer = embed_layer
-        if self.head_type == "x-vector":
+        if self.head_type == XVectorHeadType.XVECTOR:
             self.proj_head_net = None
             self.classif_net = ClassifHead(
                 pool_feats,
@@ -164,10 +173,11 @@ class XVector(TorchModel):
                 dropout_rate=dropout_rate,
                 use_in_norm=head_use_in_norm,
             )
-        elif self.head_type == "dino":
+        elif self.head_type == XVectorHeadType.DINO:
             self.proj_head_net = ProjHead(
                 pool_feats,
                 embed_dim,
+                norm_layer=head_norm_layer,
                 use_norm=proj_head_use_norm,
                 norm_before=proj_head_norm_before,
             )
@@ -199,53 +209,53 @@ class XVector(TorchModel):
 
     @property
     def cos_scale(self):
-        if self.head_type == "x-vector":
+        if self.head_type == XVectorHeadType.XVECTOR:
             return self.classif_net.cos_scale
-        elif self.head_type == "dino":
+        elif self.head_type == XVectorHeadType.DINO:
             return 1
         else:
             raise ValueError
 
     @property
     def margin(self):
-        if self.head_type == "x-vector":
+        if self.head_type == XVectorHeadType.XVECTOR:
             return self.classif_net.margin
         else:
             return 0.0
 
     @property
     def margin_warmup_epochs(self):
-        if self.head_type == "x-vector":
+        if self.head_type == XVectorHeadType.XVECTOR:
             return self.classif_net.margin_warmup_epochs
         else:
             return 0
 
     @property
     def intertop_k(self):
-        if self.head_type == "x-vector":
+        if self.head_type == XVectorHeadType.XVECTOR:
             return self.classif_net.intertop_k
         else:
             return 0
 
     @property
     def intertop_margin(self):
-        if self.head_type == "x-vector":
+        if self.head_type == XVectorHeadType.XVECTOR:
             return self.classif_net.intertop_margin
         else:
             return 0.0
 
     @property
     def num_subcenters(self):
-        if self.head_type == "x-vector":
+        if self.head_type == XVectorHeadType.XVECTOR:
             return self.classif_net.num_subcenters
         else:
             return 0
 
     @property
     def loss_type(self):
-        if self.head_type == "x-vector":
+        if self.head_type == XVectorHeadType.XVECTOR:
             return self.classif_net.loss_type
-        elif self.head_type == "dino":
+        elif self.head_type == XVectorHeadType.DINO:
             return self.classif_net.output_type
         else:
             raise ValueError()
@@ -260,13 +270,13 @@ class XVector(TorchModel):
     #     return new_self
 
     # def before_cloning(self):
-    #     if self.head_type == "dino":
+    #     if self.head_type == XVectorHeadType.DINO:
     #         return self.classif_net.before_cloning()
     #     else:
     #         return None, None
 
     # def after_cloning(self, output):
-    #     if self.head_type == "dino":
+    #     if self.head_type == XVectorHeadType.DINO:
     #         self.classif_net.after_cloning(output)
 
     def _make_pool_net(self, pool_net, enc_feats=None):
@@ -374,11 +384,15 @@ class XVector(TorchModel):
             x = x[0]
         x, x_lengths = self._post_enc(x, x_lengths, max_in_length)
         p = self.pool_net(x, x_lengths=x_lengths)
+        xvector = None
         if self.proj_head_net is not None:
             p = self.proj_head_net(p)
-        y = self.classif_net(p, y)
+            xvector = p
 
-        return y
+        logits = self.classif_net(p, y)
+        # return logits
+        output = XVectorOutput(None, logits, xvector)
+        return output
 
     def forward_hid_feats(
         self,
@@ -422,14 +436,67 @@ class XVector(TorchModel):
         )
         if return_logits:
             h_classif, y_pred = h_classif
-            output["h_classif"] = h_classif
-            output["logits"] = y_pred
-            return output
+        else:
+            y_pred = None
 
-        output["h_classif"] = h_classif
+        if h_classif is not None:
+            xvector = h_classif[0]
+        else:
+            xvector = None
+
+        output = XVectorOutput(None, y_pred, xvector, h_enc, h_classif)
         return output
 
-    def extract_embed(
+    # def forward_hid_feats(
+    #     self,
+    #     x,
+    #     x_lengths=None,
+    #     y=None,
+    #     return_enc_layers=None,
+    #     return_classif_layers=None,
+    #     return_logits=False,
+    # ):
+    #     """forwards hidden representations in the x-vector network
+
+    #     Args:
+    #       x: input features tensor with shape=(batch, in_feats, time).
+    #       x_lengths: time lengths of the features with shape=(batch,).
+    #       y: target classes torch.long tensor with shape=(batch,).
+    #       return_enc_layers: list of integers indicating, which encoder layers
+    #                          we should return. If None, no encoder layers are returned.
+    #       return_enc_layers: list of integers indicating, which classification head layers
+    #                          we should return. If None, no head layers are returned.
+    #       return_logits: if True, it adds the logits to the output dictionary.
+    #     Returns:
+    #       Dictionary with "logits", "h_enc" (list of hidden encoder layers),
+    #       "h_classif" (list hidden classification head layers).
+    #     """
+    #     max_in_length = x.size(-1)
+    #     x = self._pre_enc(x)
+    #     h_enc, x = self.encoder_net.forward_hid_feats(
+    #         x, return_enc_layers, return_output=True
+    #     )
+    #     output = {"h_enc": h_enc}
+    #     if not return_logits and return_classif_layers is None:
+    #         return output
+
+    #     x, x_lengths = self._post_enc(x, x_lengths, max_in_length)
+    #     p = self.pool_net(x, x_lengths=x_lengths)
+    #     if self.proj_head_net is not None:
+    #         p = self.proj_head_net(p)
+    #     h_classif = self.classif_net.forward_hid_feats(
+    #         p, y, return_classif_layers, return_logits=return_logits
+    #     )
+    #     if return_logits:
+    #         h_classif, y_pred = h_classif
+    #         output["h_classif"] = h_classif
+    #         output["logits"] = y_pred
+    #         return output
+
+    #     output["h_classif"] = h_classif
+    #     return output
+
+    def extract_embed_impl(
         self, x, x_lengths=None, chunk_length=0, embed_layer=None, detach_chunks=False
     ):
         if embed_layer is None:
@@ -437,12 +504,17 @@ class XVector(TorchModel):
 
         max_in_length = x.size(-1)
         x = self._pre_enc(x)
-        x = eval_nnet_by_chunks(
-            x, self.encoder_net, chunk_length, detach_chunks=detach_chunks
-        )
+        if max_in_length <= chunk_length or chunk_length == 0:
+            x = self.encoder_net(x, x_lengths=x_lengths)
+            if isinstance(x, tuple):
+                x = x[0]
+        else:
+            x = eval_nnet_by_chunks(
+                x, self.encoder_net, chunk_length, detach_chunks=detach_chunks
+            )
 
-        if x.device != self.device:
-            x = x.to(self.device)
+            if x.device != self.device:
+                x = x.to(self.device)
 
         x, x_lengths = self._post_enc(x, x_lengths, max_in_length)
         p = self.pool_net(x, x_lengths=x_lengths)
@@ -451,6 +523,29 @@ class XVector(TorchModel):
 
         y = self.classif_net.extract_embed(p, embed_layer)
         return y
+
+    def extract_embed(
+        self, x, x_lengths=None, chunk_length=0, embed_layer=None, detach_chunks=False
+    ):
+
+        if x.size(-1) <= chunk_length or chunk_length == 0:
+            return self.extract_embed_impl(x, x_lengths, 0, embed_layer)
+        else:
+            e = []
+            for i in range(x.size(0)):
+                x_i = x[i : i + 1]
+                if x_lengths is not None:
+                    x_i = x_i[..., x_lengths[i]]
+
+                e_i = self.extract_embed_impl(
+                    x_i,
+                    chunk_length=chunk_length,
+                    embed_layer=embed_layer,
+                    detach_chunks=detach_chunks,
+                )
+                e.append(e_i)
+
+            return torch.cat(e, dim=0)
 
     def extract_embed_slidwin(
         self,
@@ -643,6 +738,7 @@ class XVector(TorchModel):
         intertop_k=5,
         intertop_margin=0.0,
         num_subcenters=2,
+        head_type=XVectorHeadType.XVECTOR,
     ):
         logging.info("changing x-vector config")
         if override_output:
@@ -655,6 +751,7 @@ class XVector(TorchModel):
                 intertop_k=intertop_k,
                 intertop_margin=intertop_margin,
                 num_subcenters=num_subcenters,
+                head_type=head_type,
             )
 
         if override_dropouts:
@@ -672,7 +769,60 @@ class XVector(TorchModel):
         intertop_k=5,
         intertop_margin=0.0,
         num_subcenters=2,
+        head_type=XVectorHeadType.XVECTOR,
     ):
+
+        if head_type != self.head_type:
+            # only from dino to x-vector
+            assert self.head_type == XVectorHeadType.DINO
+            logging.info("transforming dino head into x-vector head")
+            self.num_embed_layers = 1
+            self.head_use_in_norm = (
+                self.proj_head_use_norm and self.proj_head_norm_before
+            )
+            self.head_use_norm = (
+                self.proj_head_use_norm and not self.proj_head_norm_before
+            )
+            self.classif_net = ClassifHead(
+                self.proj_head_net.in_feats,
+                num_classes,
+                embed_dim=self.proj_head_net.out_feats,
+                num_embed_layers=1,
+                hid_act=None,
+                loss_type=loss_type,
+                cos_scale=cos_scale,
+                margin=margin,
+                margin_warmup_epochs=margin_warmup_epochs,
+                intertop_k=intertop_k,
+                intertop_margin=intertop_margin,
+                num_subcenters=num_subcenters,
+                norm_layer=self.head_norm_layer,
+                use_norm=self.proj_head_use_norm,
+                norm_before=self.norm_before,
+                dropout_rate=self.dropout_rate,
+                use_in_norm=self.head_use_in_norm,
+            )
+
+            if (
+                self.classif_net.fc_blocks[0].linear.bias is not None
+                and self.proj_head_net.proj.bias is not None
+            ):
+                self.classif_net.fc_blocks[0].linear.bias.data.copy_(
+                    self.proj_head_net.proj.bias.data
+                )
+
+            self.classif_net.fc_blocks[0].linear.weight.data.copy_(
+                self.proj_head_net.proj.weight.data
+            )
+            if self.head_use_norm:
+                self.classif_net.fc_blocks[0].bn1.load_state_dict(
+                    self.proj_head_net._norm_layer.state_dict()
+                )
+            del self.proj_head_net
+            self.proj_head_net = None
+            self.head_type = XVectorHeadType.XVECTOR
+            return
+
         if (
             (self.num_classes is not None and self.num_classes != num_classes)
             or (self.loss_type != loss_type)
@@ -733,7 +883,7 @@ class XVector(TorchModel):
         else:
             raise ValueError(f"invalid train_mode={mode}")
 
-        if self.head_type == "dino":
+        if self.head_type == XVectorHeadType.DINO:
             self.classif_net.freeze_output_g()
 
         self._train_mode = mode
@@ -780,8 +930,8 @@ class XVector(TorchModel):
 
         parser.add_argument(
             "--head-type",
-            default="x-vector",
-            choices=["x-vector", "dino"],
+            default=XVectorHeadType.XVECTOR,
+            choices=XVectorHeadType.choices(),
             help="type of classification head in [x-vector, dino]",
         )
 

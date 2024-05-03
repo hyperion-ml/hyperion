@@ -2,6 +2,7 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 import os
 from collections import OrderedDict as ODict
@@ -15,7 +16,7 @@ from torch.distributed.elastic.multiprocessing.errors import record
 from ...utils.misc import filter_func_args
 from ..optim import ExpMovingAvg as EMA
 from ..utils import MetricAcc, TorchDDP, tensors_subset
-from .torch_trainer import DDPType, TorchTrainer
+from .torch_trainer import AMPDType, DDPType, TorchTrainer
 
 
 class DINOXVectorTrainer(TorchTrainer):
@@ -39,6 +40,7 @@ class DINOXVectorTrainer(TorchTrainer):
       loss: if None, it uses cross-entropy
       train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
       use_amp: uses mixed precision training.
+      amp_dtype: float16 | bfloat16
       log_interval: number of optim. steps between log outputs
       use_tensorboard: use tensorboard logger
       use_wandb: use wandb logger
@@ -61,6 +63,7 @@ class DINOXVectorTrainer(TorchTrainer):
         loss,
         optim,
         teacher_optim,
+        cosine_loss=None,
         epochs=100,
         exp_path="./train",
         cur_epoch=0,
@@ -76,6 +79,7 @@ class DINOXVectorTrainer(TorchTrainer):
         train_mode="full",
         freeze_output_layer_steps=3000,
         use_amp=False,
+        amp_dtype=AMPDType.FLOAT16,
         log_interval=1000,
         use_tensorboard=False,
         use_wandb=False,
@@ -93,6 +97,7 @@ class DINOXVectorTrainer(TorchTrainer):
         self.teacher_model = teacher_model
         self.teacher_optim = teacher_optim
         self.freeze_output_layer_steps = freeze_output_layer_steps
+        self.cosine_loss = cosine_loss
         super().__init__(student_model, **super_args)
 
     def prepare_models_for_training(self):
@@ -168,6 +173,8 @@ class DINOXVectorTrainer(TorchTrainer):
         self.teacher_model.train()
         self.loss.update_temp(self.cur_epoch)
         self.loss.train()
+        if self.cosine_loss is not None:
+            self.cosine_loss.update_scale(self.cur_epoch)
 
         for batch, data in enumerate(data_loader):
             self.loggers.on_batch_begin(batch)
@@ -177,39 +184,61 @@ class DINOXVectorTrainer(TorchTrainer):
 
             teacher_keys = self.get_augs_keys(data, self.input_key, "teacher")
             student_keys = self.get_augs_keys(data, self.input_key, "student")
-            with amp.autocast(enabled=self.use_amp):
+            with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
                 with torch.no_grad():
                     teacher_data = tensors_subset(data, teacher_keys, self.device)
                     batch_size = teacher_data[0].size(0)
                     num_teacher_crops = len(teacher_data)
                     teacher_data = torch.cat(teacher_data, dim=0)
                     teacher_out = self.teacher_model(teacher_data)
+                    assert not torch.any(
+                        torch.isnan(teacher_out.logits)
+                    ), "teacher is nan"
+                    assert not torch.any(
+                        torch.isinf(teacher_out.logits)
+                    ), "teacher is inf"
 
                 if num_teacher_crops > 1:
                     student_out1 = self.model(teacher_data)
+                    assert not torch.any(torch.isnan(student_out1.logits)), "s1 is nan"
+                    assert not torch.any(torch.isinf(student_out1.logits)), "s1 is inf"
 
                 student_data = tensors_subset(data, student_keys, self.device)
                 num_student_crops = len(student_data)
                 student_data = torch.cat(student_data, dim=0)
                 student_out2 = self.model(student_data)
-                assert not torch.any(torch.isnan(teacher_out)), "teacher is nan"
-                assert not torch.any(torch.isinf(teacher_out)), "teacher is inf"
-                assert not torch.any(torch.isnan(student_out1)), "s1 is nan"
-                assert not torch.any(torch.isinf(student_out1)), "s1 is inf"
-                assert not torch.any(torch.isnan(student_out2)), "s2 is nan"
-                assert not torch.any(torch.isinf(student_out2)), "s2 is inf"
+                assert not torch.any(torch.isnan(student_out2.logits)), "s2 is nan"
+                assert not torch.any(torch.isinf(student_out2.logits)), "s2 is inf"
                 if num_teacher_crops > 1:
-                    student_out = torch.cat((student_out1, student_out2), dim=0)
+                    student_out_logits = torch.cat(
+                        (student_out1.logits, student_out2.logits), dim=0
+                    )
+                    if self.cosine_loss is not None:
+                        student_out_embeds = torch.cat(
+                            (student_out1.xvector, student_out2.xvector), dim=0
+                        )
                     num_student_crops += num_teacher_crops
                 else:
-                    student_out = student_out2
+                    student_out_logits = student_out2.logits
+                    student_out_embeds = student_out2.xvector
 
-                loss = (
-                    self.loss(
-                        student_out, teacher_out, num_student_crops, num_teacher_crops
-                    )
-                    / self.grad_acc_steps
+                loss_dino = self.loss(
+                    student_out_logits,
+                    teacher_out.logits,
+                    num_student_crops,
+                    num_teacher_crops,
                 )
+                loss = loss_dino
+                if self.cosine_loss is not None:
+                    scaled_loss_cosine, loss_cosine = self.cosine_loss(
+                        student_out_embeds,
+                        teacher_out.xvector,
+                        num_student_crops,
+                        num_teacher_crops,
+                    )
+                    loss = loss_dino + scaled_loss_cosine
+
+                loss = loss / self.grad_acc_steps
                 assert not torch.isnan(
                     loss
                 ), f"loss is nan {batch} {torch.mean(teacher_out)} {torch.mean(student_out1)} {torch.mean(student_out2)}"
@@ -229,8 +258,9 @@ class DINOXVectorTrainer(TorchTrainer):
                 self.save_checkpoint(partial=True)
 
             batch_metrics["loss"] = loss.item() * self.grad_acc_steps
-            # for k, metric in self.metrics.items():
-            #     batch_metrics[k] = metric(output, target)
+            if self.cosine_loss is not None:
+                batch_metrics["loss_dino"] = loss_dino.item()
+                batch_metrics["loss_cosine"] = loss_cosine.item()
 
             metric_acc.update(batch_metrics, batch_size)
             logs = metric_acc.metrics
@@ -261,7 +291,6 @@ class DINOXVectorTrainer(TorchTrainer):
         self.loss.eval()
 
         if swa_update_bn:
-            log_tag = "train_"
             self.model.train()
         else:
             log_tag = "val_"
@@ -270,31 +299,59 @@ class DINOXVectorTrainer(TorchTrainer):
         for batch, data in enumerate(data_loader):
             teacher_keys = self.get_augs_keys(data, self.input_key, "teacher")
             student_keys = self.get_augs_keys(data, self.input_key, "student")
-            with amp.autocast(enabled=self.use_amp):
+            with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
                 teacher_data = tensors_subset(data, teacher_keys, self.device)
                 batch_size = teacher_data[0].size(0)
                 num_teacher_crops = len(teacher_data)
                 teacher_data = torch.cat(teacher_data, dim=0)
                 teacher_out = self.teacher_model(teacher_data)
+                assert not torch.any(torch.isnan(teacher_out.logits)), "teacher is nan"
+                assert not torch.any(torch.isinf(teacher_out.logits)), "teacher is inf"
 
                 if num_teacher_crops > 1:
                     student_out1 = self.model(teacher_data)
+                    assert not torch.any(torch.isnan(student_out1.logits)), "s1 is nan"
+                    assert not torch.any(torch.isinf(student_out1.logits)), "s1 is inf"
 
                 student_data = tensors_subset(data, student_keys, self.device)
                 num_student_crops = len(student_data)
                 student_data = torch.cat(student_data, dim=0)
                 student_out2 = self.model(student_data)
+                assert not torch.any(torch.isnan(student_out2.logits)), "s2 is nan"
+                assert not torch.any(torch.isinf(student_out2.logits)), "s2 is inf"
                 if num_teacher_crops > 1:
-                    student_out = torch.cat((student_out1, student_out2), dim=0)
+                    student_out_logits = torch.cat(
+                        (student_out1.logits, student_out2.logits), dim=0
+                    )
+                    if self.cosine_loss is not None:
+                        student_out_embeds = torch.cat(
+                            (student_out1.xvector, student_out2.xvector), dim=0
+                        )
                     num_student_crops += num_teacher_crops
                 else:
-                    student_out = student_out2
+                    student_out_logits = student_out2.logits
+                    student_out_embeds = student_out2.xvector
 
-                loss = self.loss(
-                    student_out, teacher_out, num_student_crops, num_teacher_crops
+                loss_dino = self.loss(
+                    student_out_logits,
+                    teacher_out.logits,
+                    num_student_crops,
+                    num_teacher_crops,
                 )
+                loss = loss_dino
+                if self.cosine_loss is not None:
+                    scaled_loss_cosine, loss_cosine = self.cosine_loss(
+                        student_out_embeds,
+                        teacher_out.xvector,
+                        num_student_crops,
+                        num_teacher_crops,
+                    )
+                    loss = loss_dino + scaled_loss_cosine
 
                 batch_metrics["loss"] = loss.item()
+                if self.cosine_loss is not None:
+                    batch_metrics["loss_dino"] = loss_dino.item()
+                    batch_metrics["loss_cosine"] = loss_cosine.item()
                 # for k, metric in self.metrics.items():
                 #     batch_metrics[k] = metric(output, target)
 
@@ -312,17 +369,26 @@ class DINOXVectorTrainer(TorchTrainer):
         )
         return super()._load_checkpoint(checkpoint)
 
-    def _load_checkpoint(self, checkpoint, teacher_checkpoint):
+    def _load_checkpoint(self, checkpoint, teacher_checkpoint, loss_checkpoint=None):
         self.teacher_model.load_state_dict(teacher_checkpoint["model_state_dict"])
         self.teacher_optimizer.load_state_dict(
             teacher_checkpoint["optimizer_state_dict"]
         )
+        if loss_checkpoint is not None:
+            self.loss.load_state_dict(loss_checkpoint["model_state_dict"])
         return super()._load_checkpoint(checkpoint)
 
     def load_checkpoint(self, epoch, step):
         checkpoint = self.load_model_checkpoint("model", epoch, step)
         teacher_checkpoint = self.load_model_checkpoint("teacher_model", epoch, step)
-        return self._load_checkpoint(checkpoint, teacher_checkpoint)
+        try:
+            loss_checkpoint = self.load_model_checkpoint("dino_loss", epoch, step)
+        except:
+            logging.warning(
+                "dino loss checkpoint not found, initial center will be zero-vector"
+            )
+            loss_checkpoint = None
+        return self._load_checkpoint(checkpoint, teacher_checkpoint, loss_checkpoint)
 
     def checkpoint(self, logs=None):
         checkpoint = super().checkpoint(logs)
@@ -350,6 +416,16 @@ class DINOXVectorTrainer(TorchTrainer):
         if logs is not None:
             checkpoint["logs"] = logs
 
+        return checkpoint
+
+    def dino_loss_checkpoint(self, logs=None):
+        self.loss.train()
+        checkpoint = {
+            "epoch": self.cur_epoch,
+            "batch": self.cur_batch,
+            "global_step": self.global_step,
+            "model_state_dict": self.loss.state_dict(),
+        }
         return checkpoint
 
     def save_checkpoint(self, logs=None, partial: bool = False):
@@ -380,6 +456,9 @@ class DINOXVectorTrainer(TorchTrainer):
 
         teacher_checkpoint = self.teacher_checkpoint(logs)
         self.save_model_checkpoint("teacher_model", teacher_checkpoint, partial=partial)
+
+        loss_checkpoint = self.dino_loss_checkpoint()
+        self.save_model_checkpoint("dino_loss", loss_checkpoint, partial=partial)
 
     @staticmethod
     def filter_args(**kwargs):

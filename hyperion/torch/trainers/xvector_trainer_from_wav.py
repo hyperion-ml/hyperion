@@ -2,6 +2,7 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 import os
 from collections import OrderedDict as ODict
@@ -12,6 +13,7 @@ import torch.nn as nn
 
 from ...utils.misc import filter_func_args
 from ..utils import MetricAcc, TorchDDP, tensors_subset
+from .torch_trainer import AMPDType
 from .xvector_trainer import XVectorTrainer
 
 
@@ -35,6 +37,7 @@ class XVectorTrainerFromWav(XVectorTrainer):
       loss: if None, it uses cross-entropy
       train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
       use_amp: uses mixed precision training.
+      amp_dtype: "float16" | "bfloat16"
       log_interval: number of optim. steps between log outputs
       use_tensorboard: use tensorboard logger
       use_wandb: use wandb logger
@@ -70,6 +73,7 @@ class XVectorTrainerFromWav(XVectorTrainer):
         loss=None,
         train_mode="full",
         use_amp=False,
+        amp_dtype=AMPDType.FLOAT16,
         log_interval=1000,
         use_tensorboard=False,
         use_wandb=False,
@@ -115,7 +119,7 @@ class XVectorTrainerFromWav(XVectorTrainer):
 
             with amp.autocast(enabled=self.use_amp):
                 output = self.model(feats, feats_lengths, y=target)
-                loss = self.loss(output, target).mean() / self.grad_acc_steps
+                loss = self.loss(output.logits, target) / self.grad_acc_steps
 
             if self.use_amp:
                 self.grad_scaler.scale(loss).backward()
@@ -169,7 +173,7 @@ class XVectorTrainerFromWav(XVectorTrainer):
                 feats, feats_lengths = self.feat_extractor(audio)
                 with amp.autocast(enabled=self.use_amp):
                     output = self.model(feats, feats_lengths)
-                    loss = self.loss(output, target)
+                    loss = self.loss(output.logits, target)
 
                 batch_metrics["loss"] = loss.mean().item()
                 for k, metric in self.metrics.items():
