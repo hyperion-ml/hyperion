@@ -12,9 +12,9 @@ nnet_data=voxceleb2cat_train
 
 # x-vector cfg
 nnet_type=resnet
-nnet_name=${feat_type}_fwseresnet34.v3.1
+nnet_name=${feat_type}_fwseresnet34pe.v3.1
 
-nnet_s1_base_cfg=conf/train_fwseresnet34_xvec_stage1_v3.1.yaml
+nnet_s1_base_cfg=conf/train_fwseresnet34pe_xvec_stage1_v3.1.yaml
 nnet_s1_name=$nnet_name.s1
 nnet_s1_dir=exp/xvector_nnets/$nnet_s1_name
 nnet_s1=$nnet_s1_dir/model_ep0035.pth

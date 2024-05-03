@@ -41,6 +41,7 @@ def _make_downsample(in_channels, out_channels, stride, norm_layer, norm_before)
 
 class FreqPosEnc(nn.Module):
     def __init__(self, num_feats):
+        super().__init__()
         self.pos_enc = nn.Parameter(torch.zeros((num_feats, 1)))
 
     def forward(self, x):
@@ -185,7 +186,7 @@ class ResNetBasicBlock(nn.Module):
         self.downsample_factor = stride
         self.pos_enc = None
         if freq_pos_enc:
-            self.pos_enc = FreqPosEnc(num_feats)
+            self.pos_enc = FreqPosEnc(num_feats*stride)
 
     @property
     def out_channels(self):

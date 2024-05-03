@@ -157,7 +157,7 @@ if [ "$do_snorm" == "true" ];then
     do
       for((j=1;j<=$num_parts;j++));
       do    
-	$train_cmd $score_cosine_snorm_dir/log/voxsrc22_dev_${i}_${j}.log \
+	$train_cmd --mem 22G $score_cosine_snorm_dir/log/voxsrc22_dev_${i}_${j}.log \
 		   hyp_utils/conda_env.sh \
 		   hyperion-eval-cosine-scoring-backend \
 		   --feats-file csv:$xvector_dir/voxsrc22_dev/xvector.csv \
@@ -278,7 +278,7 @@ if [ "$do_qmf" == "true" ];then
     do
       for((j=1;j<=$num_parts;j++));
       do    
-	$train_cmd $score_cosine_qmf_dir/log/voxsrc22_dev_${i}_${j}.log \
+	$train_cmd --mem 22G $score_cosine_qmf_dir/log/voxsrc22_dev_${i}_${j}.log \
 		   hyp_utils/conda_env.sh \
 		   hyperion-eval-cosine-scoring-backend-with-qmf \
 		   --feats-file csv:$xvector_dir/voxsrc22_dev/xvector.csv \
