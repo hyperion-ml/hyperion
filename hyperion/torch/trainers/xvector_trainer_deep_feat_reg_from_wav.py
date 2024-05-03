@@ -140,12 +140,12 @@ class XVectorTrainerDeepFeatRegFromWav(XVectorTrainerDeepFeatReg):
                 h_enc, h_classif, output = (
                     outputs["h_enc"],
                     outputs["h_classif"],
-                    outputs["output"],
+                    outputs["logits"],
                 )
 
                 loss = self.loss(
                     output, target
-                ).mean()  # you need to take the mean here because of the multi-gpu training
+                )  # you need to take the mean here because of the multi-gpu training
                 batch_metrics["loss-classif"] = loss.item()
 
                 prior_outputs = self.prior_model(
@@ -231,9 +231,9 @@ class XVectorTrainerDeepFeatRegFromWav(XVectorTrainerDeepFeatReg):
                 feats = self.feat_extractor(input_data)
                 with amp.autocast(enabled=self.use_amp):
                     output = self.model(feats)
-                    loss = self.loss(output, target)
+                    loss = self.loss(output.logits, target)
 
-                batch_metrics["loss"] = loss.mean().item()
+                batch_metrics["loss"] = loss.item()
                 for k, metric in self.metrics.items():
                     batch_metrics[k] = metric(output, target)
 

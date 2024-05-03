@@ -384,11 +384,15 @@ class XVector(TorchModel):
             x = x[0]
         x, x_lengths = self._post_enc(x, x_lengths, max_in_length)
         p = self.pool_net(x, x_lengths=x_lengths)
+        xvector = None
         if self.proj_head_net is not None:
             p = self.proj_head_net(p)
-        y = self.classif_net(p, y)
+            xvector = p
 
-        return y
+        logits = self.classif_net(p, y)
+        # return logits
+        output = XVectorOutput(None, logits, xvector)
+        return output
 
     def forward_hid_feats(
         self,
@@ -432,14 +436,67 @@ class XVector(TorchModel):
         )
         if return_logits:
             h_classif, y_pred = h_classif
-            output["h_classif"] = h_classif
-            output["logits"] = y_pred
-            return output
+        else:
+            y_pred = None
 
-        output["h_classif"] = h_classif
+        if h_classif is not None:
+            xvector = h_classif[0]
+        else:
+            xvector = None
+
+        output = XVectorOutput(None, y_pred, xvector, h_enc, h_classif)
         return output
 
-    def extract_embed(
+    # def forward_hid_feats(
+    #     self,
+    #     x,
+    #     x_lengths=None,
+    #     y=None,
+    #     return_enc_layers=None,
+    #     return_classif_layers=None,
+    #     return_logits=False,
+    # ):
+    #     """forwards hidden representations in the x-vector network
+
+    #     Args:
+    #       x: input features tensor with shape=(batch, in_feats, time).
+    #       x_lengths: time lengths of the features with shape=(batch,).
+    #       y: target classes torch.long tensor with shape=(batch,).
+    #       return_enc_layers: list of integers indicating, which encoder layers
+    #                          we should return. If None, no encoder layers are returned.
+    #       return_enc_layers: list of integers indicating, which classification head layers
+    #                          we should return. If None, no head layers are returned.
+    #       return_logits: if True, it adds the logits to the output dictionary.
+    #     Returns:
+    #       Dictionary with "logits", "h_enc" (list of hidden encoder layers),
+    #       "h_classif" (list hidden classification head layers).
+    #     """
+    #     max_in_length = x.size(-1)
+    #     x = self._pre_enc(x)
+    #     h_enc, x = self.encoder_net.forward_hid_feats(
+    #         x, return_enc_layers, return_output=True
+    #     )
+    #     output = {"h_enc": h_enc}
+    #     if not return_logits and return_classif_layers is None:
+    #         return output
+
+    #     x, x_lengths = self._post_enc(x, x_lengths, max_in_length)
+    #     p = self.pool_net(x, x_lengths=x_lengths)
+    #     if self.proj_head_net is not None:
+    #         p = self.proj_head_net(p)
+    #     h_classif = self.classif_net.forward_hid_feats(
+    #         p, y, return_classif_layers, return_logits=return_logits
+    #     )
+    #     if return_logits:
+    #         h_classif, y_pred = h_classif
+    #         output["h_classif"] = h_classif
+    #         output["logits"] = y_pred
+    #         return output
+
+    #     output["h_classif"] = h_classif
+    #     return output
+
+    def extract_embed_impl(
         self, x, x_lengths=None, chunk_length=0, embed_layer=None, detach_chunks=False
     ):
         if embed_layer is None:
@@ -447,12 +504,17 @@ class XVector(TorchModel):
 
         max_in_length = x.size(-1)
         x = self._pre_enc(x)
-        x = eval_nnet_by_chunks(
-            x, self.encoder_net, chunk_length, detach_chunks=detach_chunks
-        )
+        if max_in_length <= chunk_length or chunk_length == 0:
+            x = self.encoder_net(x, x_lengths=x_lengths)
+            if isinstance(x, tuple):
+                x = x[0]
+        else:
+            x = eval_nnet_by_chunks(
+                x, self.encoder_net, chunk_length, detach_chunks=detach_chunks
+            )
 
-        if x.device != self.device:
-            x = x.to(self.device)
+            if x.device != self.device:
+                x = x.to(self.device)
 
         x, x_lengths = self._post_enc(x, x_lengths, max_in_length)
         p = self.pool_net(x, x_lengths=x_lengths)
@@ -461,6 +523,29 @@ class XVector(TorchModel):
 
         y = self.classif_net.extract_embed(p, embed_layer)
         return y
+
+    def extract_embed(
+        self, x, x_lengths=None, chunk_length=0, embed_layer=None, detach_chunks=False
+    ):
+
+        if x.size(-1) <= chunk_length or chunk_length == 0:
+            return self.extract_embed_impl(x, x_lengths, 0, embed_layer)
+        else:
+            e = []
+            for i in range(x.size(0)):
+                x_i = x[i : i + 1]
+                if x_lengths is not None:
+                    x_i = x_i[..., x_lengths[i]]
+
+                e_i = self.extract_embed_impl(
+                    x_i,
+                    chunk_length=chunk_length,
+                    embed_layer=embed_layer,
+                    detach_chunks=detach_chunks,
+                )
+                e.append(e_i)
+
+            return torch.cat(e, dim=0)
 
     def extract_embed_slidwin(
         self,

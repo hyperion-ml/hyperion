@@ -119,7 +119,7 @@ class XVectorTrainerFromWav(XVectorTrainer):
 
             with amp.autocast(enabled=self.use_amp):
                 output = self.model(feats, feats_lengths, y=target)
-                loss = self.loss(output, target).mean() / self.grad_acc_steps
+                loss = self.loss(output.logits, target) / self.grad_acc_steps
 
             if self.use_amp:
                 self.grad_scaler.scale(loss).backward()
@@ -173,7 +173,7 @@ class XVectorTrainerFromWav(XVectorTrainer):
                 feats, feats_lengths = self.feat_extractor(audio)
                 with amp.autocast(enabled=self.use_amp):
                     output = self.model(feats, feats_lengths)
-                    loss = self.loss(output, target)
+                    loss = self.loss(output.logits, target)
 
                 batch_metrics["loss"] = loss.mean().item()
                 for k, metric in self.metrics.items():

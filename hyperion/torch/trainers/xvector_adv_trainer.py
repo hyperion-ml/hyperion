@@ -140,7 +140,7 @@ class XVectorAdvTrainer(XVectorTrainer):
 
             with amp.autocast(enabled=self.use_amp):
                 output = self.model(input_data, target)
-                loss = self.loss(output, target).mean() / self.grad_acc_steps
+                loss = self.loss(output.logits, target) / self.grad_acc_steps
 
             if self.use_amp:
                 self.grad_scaler.scale(loss).backward()
@@ -194,9 +194,9 @@ class XVectorAdvTrainer(XVectorTrainer):
             with torch.no_grad():
                 with amp.autocast(enabled=self.use_amp):
                     output = self.model(data, **self.amp_args)
-                    loss = self.loss(output, target)
+                    loss = self.loss(output.logits, target)
 
-            batch_metrics["loss"] = loss.mean().item()
+            batch_metrics["loss"] = loss.item()
             for k, metric in self.metrics.items():
                 batch_metrics[k] = metric(output, target)
 
