@@ -147,12 +147,10 @@ class XVectorTrainerDeepFeatReg(XVectorTrainer):
                 h_enc, h_classif, output = (
                     outputs["h_enc"],
                     outputs["h_classif"],
-                    outputs["output"],
+                    outputs["logits"],
                 )
 
-                loss = self.loss(
-                    output, target
-                ).mean()  # you need to take the mean here because of the multi-gpu training
+                loss = self.loss(output, target)
                 batch_metrics["loss-classif"] = loss.item()
 
                 prior_outputs = self.prior_model(
@@ -269,4 +267,3 @@ class XVectorTrainerDeepFeatReg(XVectorTrainer):
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
-            # help='trainer options')

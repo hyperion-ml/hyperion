@@ -4,4 +4,4 @@
 """
 
 from .bce_with_llr import BCEWithLLR
-from .dino_loss import DINOLoss
+from .dino_loss import CosineDINOLoss, DINOLoss

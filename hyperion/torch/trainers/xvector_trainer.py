@@ -122,7 +122,7 @@ class XVectorTrainer(TorchTrainer):
                 batch_size = x.size(0)
                 with amp.autocast(enabled=self.use_amp):
                     output = self.model(x, y=target)
-                    loss = self.loss(output, target) / loss_scale
+                    loss = self.loss(output.logits, target) / loss_scale
                     loss_acc += loss.item()
 
                 if self.use_amp:
@@ -180,7 +180,7 @@ class XVectorTrainer(TorchTrainer):
                     batch_size = x.size(0)
                     with amp.autocast(enabled=self.use_amp):
                         output = self.model(x)
-                        loss = self.loss(output, target) / loss_scale
+                        loss = self.loss(output.logits, target) / loss_scale
                         loss_acc += loss.item()
 
                 batch_metrics["loss"] = loss_acc
