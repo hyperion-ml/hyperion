@@ -1,0 +1,73 @@
+data:
+  train:
+    dataset:
+      class_names:
+      - speaker
+      aug_cfgs:
+      - conf/reverb_noise_aug.yaml
+      return_segment_info:
+      - speaker
+    sampler:
+      sampler_type: class_weighted_random_seg_chunk_sampler
+      min_batch_size: 64
+      max_chunk_length: 4.0
+      min_chunk_length: 4.0
+      num_chunks_per_seg_epoch: 6
+      class_name: speaker
+      seg_weight_mode: data-prior
+      num_hard_prototypes: 8
+    data_loader:
+      num_workers: 8
+  val:
+    dataset:
+      class_names:
+      - speaker
+      aug_cfgs:
+      - conf/reverb_noise_aug.yaml
+      return_segment_info:
+      - speaker
+    sampler:
+      sampler_type: class_weighted_random_seg_chunk_sampler
+      min_batch_size: 64
+      max_chunk_length: 4.0
+      min_chunk_length: 4.0
+      num_chunks_per_seg_epoch: 6
+      class_name: speaker
+      seg_weight_mode: data-prior
+      num_hard_prototypes: 8
+    data_loader:
+      num_workers: 8
+model:
+  xvector:
+    override_output: true
+    loss_type: subcenter-arc-softmax
+    num_subcenters: 2
+    cos_scale: 30.0
+    margin: 0.3
+    margin_warmup_epochs: 0
+    intertop_margin: 0.1
+    override_dropouts: true
+    dropout_rate: 0.0
+trainer:
+  optim:
+    opt_type: sgd
+    lr: 1e-3
+    momentum: 0.9
+    weight_decay: 2e-5
+  lrsched:
+    lrsch_type: exp_lr
+    decay_rate: 0.5
+    decay_steps: 32000
+    hold_steps: 16000
+    min_lr: 1.0e-6
+    warmup_steps: 8000
+    update_lr_on_opt_step: true
+  grad_clip: 250
+  use_amp: true
+  log_interval: 1000
+  epochs: 15
+  eff_batch_size: 256
+  swa_start: 10
+  swa_lr: 1e-4
+  swa_anneal_epochs: 2
+  target_key: speaker
