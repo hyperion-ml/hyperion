@@ -7,11 +7,12 @@
 from .transducer import RNNRNNTransducer, RNNTransducer
 from .vae.vae import VAE
 from .vae.vq_vae import VQVAE
-from .wav2transducer import (
+from .wav2transducer import (  # HFWav2Vec2Transducer,
     HFWav2Vec2ConformerV1RNNTransducer,
     HFWav2Vec2RNNRNNTransducer,
     HFWav2Vec2RNNTransducer,
-    HFWav2Vec2Transducer,
+    Wav2ConformerV1RNNTransducer,
+    Wav2RNNRNNTransducer,
 )
 from .wav2xvectors import (
     HFHubert2ConformerV1XVector,

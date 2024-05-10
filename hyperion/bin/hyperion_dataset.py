@@ -38,6 +38,9 @@ subcommand_list = [
     "split_train_val",
     "copy",
     "add_cols_to_segments",
+    "merge",
+    "from_lhotse",
+    "from_kaldi",
 ]
 
 
@@ -514,6 +517,30 @@ def add_cols_to_segments(
     dataset.save(output_dataset)
 
 
+def make_merge_parser():
+    parser = ArgumentParser()
+    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument(
+        "--dataset", required=True, help="""dataset dir or .yaml file"""
+    )
+    parser.add_argument(
+        "--input-datasets", required=True, nargs="+", help="input datasets"
+    )
+    add_common_args(parser)
+    return parser
+
+
+def merge(dataset: PathLike, input_datasets: List[PathLike]):
+    input_dataset_paths = input_datasets
+    dataset_path = dataset
+    input_datasets = []
+    for dset_file in input_dataset_paths:
+        input_datasets.append(HypDataset.load(dset_file))
+
+    dataset = HypDataset.merge(input_datasets)
+    dataset.save(dataset_path)
+
+
 def make_from_lhotse_parser():
     parser = ArgumentParser()
     parser.add_argument("--cfg", action=ActionConfigFile)
@@ -535,6 +562,8 @@ def make_from_lhotse_parser():
         default=None,
         help="lhotse supervisions file",
     )
+    add_common_args(parser)
+    return parser
 
 
 def from_lhotse(
@@ -545,11 +574,36 @@ def from_lhotse(
 ):
 
     assert cuts_file is not None or supervisions_file is not None
-    dataset_dir = dataset
+    dataset_path = dataset
     dataset = HypDataset.from_lhotse(
         cuts=cuts_file, recordings=recordings_file, supervisions=supervisions_file
     )
-    dataset.save(dataset)
+    dataset.save(dataset_path)
+
+
+def make_from_kaldi_parser():
+    parser = ArgumentParser()
+    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument(
+        "--dataset", required=True, help="""dataset dir or .yaml file"""
+    )
+    parser.add_argument(
+        "--kaldi-data-dir",
+        required=True,
+        help="Kaldi data directory",
+    )
+    add_common_args(parser)
+    return parser
+
+
+def from_kaldi(
+    dataset: PathLike,
+    kaldi_data_dir: PathLike,
+):
+
+    dataset_path = dataset
+    dataset = HypDataset.from_kaldi(kaldi_data_dir)
+    dataset.save(dataset_path)
 
 
 def main():

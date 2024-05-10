@@ -87,7 +87,8 @@ trainer:
     init_momentum: 0.996
     momentum: 1.0
     warmup_steps: 500000
-  grad_clip: 15
+  # grad_clip: 15
+  grad_clip: 5
   use_amp: true
   log_interval: 1000
   epochs: 100

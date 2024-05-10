@@ -317,7 +317,7 @@ class ConformerEncoderV1(NetArch):
            Tensor with mask if return_mask is True
         """
         max_in_length = x.size(self.in_time_dim)
-        x_mask = self._make_masks(x, x_lengths, x_mask)
+        x_mask = self._make_masks(max_in_length, x_lengths, x_mask)
         x, x_mask = self._forward_input(x, x_mask)
         if isinstance(x, tuple):
             x, pos_emb = x

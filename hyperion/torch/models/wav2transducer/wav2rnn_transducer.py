@@ -2,13 +2,18 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 from typing import Dict, Optional, Tuple, Union
 
-from jsonargparse import ActionParser, ArgumentParser
+try:
+    import k2
+except ModuleNotFoundError:
+    from ...utils import dummy_k2 as k2
 
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ArgumentParser
 
 from ...narchs import AudioFeatsMVN
 from ...torch_model import TorchModel
@@ -16,11 +21,12 @@ from ...utils import remove_silence
 
 
 class Wav2RNNTransducer(TorchModel):
-    """Base class for models that integrate the acoustic feature extractor and and x-vector model that takes acoustic features as input.
+    """Base class for models that integrate the acoustic feature extractor and and
+    RNN-T Transducer that takes acoustic features as input
 
     Attributes:
       feats: feature extractor object of class AudioFeatsMVN or dictionary of options to instantiate AudioFeatsMVN object.
-      xvector: x-vector model object.
+      transducer: RNN-T transducer model
     """
 
     def __init__(self, feats, transducer):
@@ -29,7 +35,7 @@ class Wav2RNNTransducer(TorchModel):
 
         if isinstance(feats, dict):
             feats = AudioFeatsMVN.filter_args(**feats)
-            feats["trans"] = True
+            feats["trans"] = False
             feats = AudioFeatsMVN(**feats)
         else:
             assert isinstance(feats, AudioFeatsMVN)
@@ -43,7 +49,7 @@ class Wav2RNNTransducer(TorchModel):
         x_lengths: torch.Tensor,
         y: k2.RaggedTensor,
         vad_samples: Optional[torch.Tensor] = None,
-        vad_feats: Optional[torch.Tensor] = None
+        vad_feats: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
 
         if vad_samples is not None:
@@ -59,17 +65,17 @@ class Wav2RNNTransducer(TorchModel):
 
     def get_config(self):
         feat_cfg = self.feats.get_config()
-        xvector_cfg = self.xvector.get_config()
+        xvector_cfg = self.transducer.get_config()
         config = {
             "feats": feat_cfg,
-            "xvector": xvector_cfg,
+            "transducer": xvector_cfg,
         }
 
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
     @staticmethod
-    def filter_args(*kwargs):
+    def filter_args(**kwargs):
         """Filters Wav2XVector class arguments from arguments dictionary.
 
         Args:
@@ -80,7 +86,7 @@ class Wav2RNNTransducer(TorchModel):
         """
         valid_args = (
             "feats",
-            "xvector",
+            "transducer",
         )
 
         return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
@@ -100,5 +106,4 @@ class Wav2RNNTransducer(TorchModel):
         AudioFeatsMVN.add_class_args(parser, prefix="feats")
 
         if prefix is not None:
-            outer_parser.add_argument("--" + prefix,
-                                      action=ActionParser(parser=parser))
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

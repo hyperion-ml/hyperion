@@ -25,12 +25,13 @@ from torch.nn.utils.rnn import pad_sequence
 from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
-from hyperion.torch.models import Wav2RNNRNNTransducer
+from hyperion.torch.models import Wav2ConformerV1RNNTransducer, Wav2RNNRNNTransducer
 from hyperion.torch.trainers import TransducerTrainer as Trainer
 from hyperion.torch.utils import ddp
 
 model_dict = {
     "rnn_rnn_transducer": Wav2RNNRNNTransducer,
+    "conformer_v1_rnn_transducer": Wav2ConformerV1RNNTransducer,
 }
 
 
@@ -38,6 +39,14 @@ def transducer_collate(batch):
     audio = []
     audio_length = []
     target = []
+    for record in batch:
+        audio_length.append(record["x"].shape[0])
+    audio_length = torch.as_tensor(audio_length)
+    if not torch.all(audio_length[:-1] >= audio_length[1:]):
+        sort_idx = torch.argsort(audio_length, descending=True)
+        batch = [batch[i] for i in sort_idx]
+
+    audio_length = []
     for record in batch:
         wav = torch.as_tensor(record["x"])
         audio.append(wav)
@@ -109,7 +118,7 @@ def train_model(gpu_id, args):
     set_float_cpu("float32")
     # torch.backends.cudnn.deterministic = True
     # torch.backends.cudnn.benchmark = False
-    torch.backends.cudnn.enabled = False
+    # torch.backends.cudnn.enabled = False
 
     ddp_args = ddp.filter_ddp_args(**kwargs)
     device, rank, world_size = ddp.ddp_init(gpu_id, **ddp_args)
@@ -200,7 +209,7 @@ def make_parser(model_class):
 
 
 def main():
-    parser = ArgumentParser(description="Train RNN Transducer model from audio files")
+    parser = ArgumentParser(description="Train Transducer model from audio files")
     parser.add_argument("--cfg", action=ActionConfigFile)
 
     subcommands = parser.add_subcommands()
@@ -222,8 +231,8 @@ def main():
         try:
             config_file = Path(args_sc.trainer.exp_path) / "config.yaml"
             parser.save(args, str(config_file), format="yaml", overwrite=True)
-        except:
-            pass
+        except Exception as err:
+            logging.warning(f"{err}")
 
     args_sc.model_class = model_dict[model_type]
     # torch docs recommend using forkserver

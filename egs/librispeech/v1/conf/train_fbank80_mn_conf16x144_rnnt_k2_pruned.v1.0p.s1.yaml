@@ -8,7 +8,7 @@ data:
         - text
     sampler:
       sampler_type: bucketing_seg_sampler
-      max_batch_length: 625.
+      max_batch_length: 1500.
       min_batch_size: 1
       drop_last: false
     data_loader:
@@ -20,7 +20,7 @@ data:
         - text
     sampler:
       sampler_type: bucketing_seg_sampler
-      max_batch_length: 625
+      max_batch_length: 1500.
       min_batch_size: 1
       drop_last: true
     data_loader:
