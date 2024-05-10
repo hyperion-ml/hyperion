@@ -2,6 +2,7 @@
  Copyright 2022 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 from typing import Optional, Union
 
@@ -9,15 +10,13 @@ from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from .audio_dataset import AudioDataset
 from .bucketing_seg_sampler import BucketingSegSampler
-from .class_weighted_seg_chunk_sampler import \
-    ClassWeightedRandomSegChunkSampler
+from .class_weighted_seg_chunk_sampler import ClassWeightedRandomSegChunkSampler
 from .feat_seq_dataset import FeatSeqDataset
 from .seg_chunk_sampler import SegChunkSampler
 from .seg_sampler import SegSampler
 
 sampler_dict = {
-    "class_weighted_random_seg_chunk_sampler":
-    ClassWeightedRandomSegChunkSampler,
+    "class_weighted_random_seg_chunk_sampler": ClassWeightedRandomSegChunkSampler,
     "seg_sampler": SegSampler,
     "seg_chunk_sampler": SegChunkSampler,
     "bucketing_seg_sampler": BucketingSegSampler,
@@ -28,6 +27,7 @@ class SegSamplerFactory(object):
     """Factory class to create different types of samplers for
     sequencial data like audio or acoustic features.
     """
+
     @staticmethod
     def create(
         dataset: Union[AudioDataset, FeatSeqDataset],
@@ -91,6 +91,7 @@ class SegSamplerFactory(object):
             "batch_size",
             "shuffle",
             "drop_last",
+            "sort_by_length",
             "seed",
         )
 
@@ -113,8 +114,7 @@ class SegSamplerFactory(object):
             "--base-sampler-type",
             choices=["seg_sampler", "bucketing_seg_sampler"],
             default="seg_sampler",
-            help=
-            "base sampler used for seg_chunk_sampler or bucketing_seg_sampler",
+            help="base sampler used for seg_chunk_sampler or bucketing_seg_sampler",
         )
 
         parser.add_argument(
@@ -141,9 +141,9 @@ class SegSamplerFactory(object):
             "--max-batch-size",
             type=int,
             default=None,
-            help=
-            ("maximum batch size per gpu, if None, estimated from max_batch_length"
-             ),
+            help=(
+                "maximum batch size per gpu, if None, estimated from max_batch_length"
+            ),
         )
 
         parser.add_argument(
@@ -157,9 +157,9 @@ class SegSamplerFactory(object):
             "--max-batch-length",
             type=float,
             default=None,
-            help=
-            ("maximum accumlated duration of the batch, if None estimated from the min/max_batch_size and min/max_chunk_lengths"
-             ),
+            help=(
+                "maximum accumlated duration of the batch, if None estimated from the min/max_batch_size and min/max_chunk_lengths"
+            ),
         )
 
         parser.add_argument(
@@ -225,8 +225,7 @@ class SegSamplerFactory(object):
         parser.add_argument(
             "--shuffle",
             action=ActionYesNo,
-            help=
-            "shuffles the segments or chunks at the beginning of the epoch",
+            help="shuffles the segments or chunks at the beginning of the epoch",
         )
         parser.add_argument(
             "--seed",
@@ -238,16 +237,19 @@ class SegSamplerFactory(object):
         parser.add_argument(
             "--length-name",
             default="duration",
-            help=
-            "which column in the segment table indicates the duration of the segment",
+            help="which column in the segment table indicates the duration of the segment",
         )
         parser.add_argument(
             "--class-name",
             default="class_id",
-            help=
-            "which column in the segment table indicates the class of the segment",
+            help="which column in the segment table indicates the class of the segment",
+        )
+        parser.add_argument(
+            "--sort-by-length",
+            default=True,
+            action=ActionYesNo,
+            help="sort sequences in the batch by duration",
         )
 
         if prefix is not None:
-            outer_parser.add_argument("--" + prefix,
-                                      action=ActionParser(parser=parser))
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

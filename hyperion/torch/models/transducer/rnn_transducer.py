@@ -44,6 +44,8 @@ class RNNTransducer(TorchModel):
         self,
         encoder: Union[TorchModel, None],
         decoder: Union[Dict, RNNTransducerDecoder],
+        ctc_weight: float = 0.0,
+        rnnt_weight: float = 1.0,
     ):
         super().__init__()
         if encoder is not None:

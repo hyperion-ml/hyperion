@@ -120,7 +120,7 @@ class XVectorTrainer(TorchTrainer):
                 batch_keys = [aug_key, self.target_key]
                 x, target = tensors_subset(data, batch_keys, self.device)
                 batch_size = x.size(0)
-                with amp.autocast(enabled=self.use_amp):
+                with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
                     output = self.model(x, y=target)
                     loss = self.loss(output.logits, target) / loss_scale
                     loss_acc += loss.item()
@@ -178,7 +178,7 @@ class XVectorTrainer(TorchTrainer):
                     batch_keys = [aug_key, self.target_key]
                     x, target = tensors_subset(data, batch_keys, self.device)
                     batch_size = x.size(0)
-                    with amp.autocast(enabled=self.use_amp):
+                    with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
                         output = self.model(x)
                         loss = self.loss(output.logits, target) / loss_scale
                         loss_acc += loss.item()

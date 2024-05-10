@@ -23,3 +23,6 @@ spec_augment:
   mask_method: mean
 mvn:
   norm_var: false
+  left_context: 0
+  right_context: 0
+  

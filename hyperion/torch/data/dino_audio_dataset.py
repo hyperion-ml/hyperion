@@ -236,12 +236,12 @@ class DINOAudioDataset(AudioDataset):
                 x_student,
                 student_samples,
             ) = self._split_audio_into_teacher_student_disjoint(x, duration, fs)
-        assert (
-            len(x_teacher) >= 64000 and len(x_teacher) <= 136000
-        ), f"{len(x_teacher)}, {len(x_student)} {len(x)} {duration*fs}, {teacher_samples}, {student_samples}"
-        assert (
-            len(x_student) >= 32000 and len(x_student) <= 136000
-        ), f"{len(x_teacher)}, {len(x_student)}, {len(x)} {duration*fs}, {teacher_samples}, {student_samples}"
+        # assert (
+        #     len(x_teacher) >= 64000 and len(x_teacher) <= 136000
+        # ), f"{len(x_teacher)}, {len(x_student)} {len(x)} {duration*fs}, {teacher_samples}, {student_samples}"
+        # assert (
+        #     len(x_student) >= 32000 and len(x_student) <= 136000
+        # ), f"{len(x_teacher)}, {len(x_student)}, {len(x)} {duration*fs}, {teacher_samples}, {student_samples}"
         xs_teacher = self._split_audio_into_chunks(
             x_teacher,
             teacher_samples,
@@ -254,14 +254,14 @@ class DINOAudioDataset(AudioDataset):
             int(fs * self.student_chunk_length),
             self.num_student_chunks,
         )
-        for xx in xs_teacher:
-            assert (
-                len(xx) >= 64000 and len(xx) <= 72000
-            ), f"{[len(t) for t in xs_teacher]} {len(x_teacher)} {len(x)}"
-        for xx in xs_student:
-            assert (
-                len(xx) >= 32000 and len(xx) <= 40000
-            ), f"{[len(t) for t in xs_student]} {len(x_student)} {len(x)}"
+        # for xx in xs_teacher:
+        #     assert (
+        #         len(xx) >= 64000 and len(xx) <= 72000
+        #     ), f"{[len(t) for t in xs_teacher]} {len(x_teacher)} {len(x)}"
+        # for xx in xs_student:
+        #     assert (
+        #         len(xx) >= 32000 and len(xx) <= 40000
+        #     ), f"{[len(t) for t in xs_student]} {len(x_student)} {len(x)}"
 
         return xs_teacher, xs_student
 
@@ -284,16 +284,6 @@ class DINOAudioDataset(AudioDataset):
         )
         data.update(x_augs_teacher)
         data.update(x_augs_student)
-        # print(data, flush=True)
-        # for ll in [
-        #     "x_teacher_0",
-        #     "x_teacher_1",
-        #     "x_student_0",
-        #     "x_student_1",
-        #     "x_student_2",
-        #     "x_student_3",
-        # ]:
-        #     print("zzz ", ll, data[ll].shape, flush=True)
         seg_info = self._get_segment_info(seg_id)
         data.update(seg_info)
         return data

@@ -20,10 +20,11 @@ from typing import Optional, Tuple
 
 import torch
 import torch.nn as nn
+
 from hyperion.utils.text import make_pad_mask
 
 from .encoder_interface import EncoderInterface
-from .subsampling import Conv2dSubsampling, VggSubsampling
+from .subsampling0 import Conv2dSubsampling, VggSubsampling
 
 
 class Transformer(EncoderInterface):
@@ -250,9 +251,7 @@ def _get_activation_fn(activation: str):
     elif activation == "gelu":
         return nn.functional.gelu
 
-    raise RuntimeError(
-        "activation should be relu/gelu, not {}".format(activation)
-    )
+    raise RuntimeError("activation should be relu/gelu, not {}".format(activation))
 
 
 class PositionalEncoding(nn.Module):

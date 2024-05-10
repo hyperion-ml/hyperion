@@ -67,14 +67,14 @@ class HypDataset:
             self._segments_path = Path(segments)
 
         self._classes, self._classes_paths = self._parse_dict_args(classes, ClassInfo)
-
-        if isinstance(recordings, RecordingSet):
-            self._recordings = recordings
-            self._recordings_path = None
-        else:
-            assert isinstance(recordings, (str, Path))
-            self._recordings = None
-            self._recordings_path = Path(recordings)
+        if recordings is not None:
+            if isinstance(recordings, RecordingSet):
+                self._recordings = recordings
+                self._recordings_path = None
+            else:
+                assert isinstance(recordings, (str, Path))
+                self._recordings = None
+                self._recordings_path = Path(recordings)
 
         # self._recordings, self._recordings_paths = self._parse_dict_args(
         #     recordings, RecordingSet
@@ -183,8 +183,8 @@ class HypDataset:
     def features_keys(self):
         if self._features is not None:
             return self._features.keys()
-        elif self._features_path is not None:
-            return self._features_path.keys()
+        elif self._features_paths is not None:
+            return self._features_paths.keys()
         else:
             return {}
 
@@ -857,7 +857,7 @@ class HypDataset:
                 elif right_table in self.features_keys():
                     right_table = self.features_value(right_table)
                 elif right_table in self.classes_keys():
-                    right_table = self.classes_value
+                    right_table = self.classes_value(right_table)
                 else:
                     raise ValueError("%s not found", right_table)
 
@@ -1254,6 +1254,64 @@ class HypDataset:
 
         return train_ds, val_ds
 
+    @classmethod
+    def merge(cls, datasets):
+        segments = []
+        for dset in datasets:
+            segs_dset = dset.segments(keep_loaded=False)
+            if segs_dset is not None:
+                segments.append(segs_dset)
+
+        segments = SegmentSet.cat(segments)
+        dataset = cls(segments)
+
+        classes_keys = []
+        for dset in datasets:
+            classes_dset = list(dset.classes_keys())
+            classes_keys.extend(classes_dset)
+
+        classes_keys = list(set(classes_keys))
+        for key in classes_keys:
+            classes = []
+            for dset in datasets:
+                if key in dset.classes_keys():
+                    classes_key = dset.classes_value(key, keep_loaded=False)
+                    classes.append(classes_key)
+
+            classes = ClassInfo.cat(classes)
+            dataset.add_classes(classes_name=key, classes=classes)
+
+        recordings = []
+        for dset in datasets:
+            recs_i = dset.recordings(keep_loaded=False)
+            if recs_i is not None:
+                recordings.append(recs_i)
+
+        if recordings:
+            recordings = RecordingSet.cat(recordings)
+            dataset.set_recordings(recordings)
+
+        features_keys = []
+        for dset in datasets:
+            features_dset = list(dset.features_keys())
+            features_keys.extend(features_dset)
+
+        features_keys = list(set(features_keys))
+        for key in features_keys:
+            features = []
+            for dset in datasets:
+                if key in dset.features_keys():
+                    features_key = dset.features_value(key, keep_loaded=False)
+                    features.append(features_key)
+
+            features = FeatureSet.cat(features)
+            dataset.add_features(features_name=key, features=features)
+
+        # TODO: merge enrollments and trials
+        # Usually you don't need that
+        return dataset
+
+    @classmethod
     def from_lhotse(
         cls,
         cuts: Optional[Union[lhotse.CutSet, PathLike]] = None,
@@ -1288,7 +1346,14 @@ class HypDataset:
 
         from lhotse import MonoCut, Recording, SupervisionSegment
 
-        supervision_keys = ["speaker", "gender", "language", "text", "duration"]
+        supervision_keys = [
+            "speaker",
+            "gender",
+            "language",
+            "emotion",
+            "text",
+            "duration",
+        ]
         recs_df = []
         segs_df = []
         for cut in cuts:
@@ -1297,16 +1362,16 @@ class HypDataset:
             seg_dict = {"id": cut.id}
             recording = cut.recording
             if recording is not None:
-                if recording.id != cut.id:
-                    seg_dict["recording_id"] = recording.id
+                # if recording.id != cut.id:
+                #     seg_dict["recording_id"] = recording.id
 
                 rec_dict = {
-                    "id": recording.id,
+                    "id": cut.id,
                     "sampling_rate": recording.sampling_rate,
                     "duration": recording.duration,
                 }
                 source = recording.sources[0]
-                assert len(recording.source) == 1
+                assert len(recording.sources) == 1
                 assert source.type in ["file", "command"]
                 rec_dict["storage_path"] = source.source
                 assert recording.transforms is None, f"{recording.transforms}"
@@ -1323,7 +1388,7 @@ class HypDataset:
                     if val is not None:
                         seg_dict[key] = val
 
-            segs_df = seg_dict
+            segs_df.append(seg_dict)
 
         recs_df = pd.DataFrame(recs_df)
         segs_df = pd.DataFrame(segs_df)
@@ -1334,9 +1399,93 @@ class HypDataset:
         for key in class_names:
             if key in segments:
                 uniq_classes = np.unique(segments[key])
-                classes[key] = pd.DataFrame({"id": uniq_classes})
+                classes[key] = ClassInfo(pd.DataFrame({"id": uniq_classes}))
+
+        if not classes:
+            classes = None
 
         dataset = cls(segments=segments, classes=classes, recordings=recordings)
         return dataset
 
-        return None
+    @classmethod
+    def from_kaldi(
+        cls,
+        kaldi_data_dir: PathLike,
+    ):
+        """Creates a Hyperion Dataset from a Kaldi data dir
+
+        Args:
+          kaldi_data_dir: Kaldi data directory
+
+        Returns
+          HypDataset object
+        """
+        kaldi_data_dir = Path(kaldi_data_dir)
+
+        kaldi_files = ["utt2lang", "utt2dur", "utt2text"]
+        attributes = ["language", "duration", "text"]
+
+        k_file = kaldi_data_dir / "utt2spk"
+        from .utt2info import Utt2Info
+
+        utt2spk = Utt2Info.load(k_file)
+        df_segs = pd.DataFrame({"id": utt2spk.key, "speaker": utt2spk.info})
+        segments = SegmentSet(df_segs)
+        del utt2spk
+
+        for att, k_file in zip(kaldi_files, attributes):
+            k_file = kaldi_data_dir / k_file
+            if k_file.is_file():
+                u2i = Utt2Info.load(k_file)
+                segments.loc[u2i.key, att] = u2i.info
+
+        k_file = kaldi_data_dir / "spk2gender"
+        if k_file.is_file():
+            segments["gender"] = "N/A"
+            s2g = Utt2Info.load(k_file)
+            for spk in s2g.key:
+                g = s2g[spk]
+                segments.loc[segments["speaker"] == spk, "gender"] = g
+
+        kaldi_files = ["feats.scp", "vad.scp"]
+        attributes = ["feats", "vad"]
+        features = None
+        from .scp_list import SCPList
+
+        for att, k_file in zip(kaldi_files, attributes):
+            k_file = kaldi_data_dir / k_file
+            if k_file.is_file():
+                scp = SCPList.load(k_file)
+                feats_dict = {"id": scp.key, "storage_path": scp.file_path}
+                if scp.offset is not None:
+                    feats_dict["storage_byte"] = scp.offset
+                df_feats = pd.DataFrame(feats_dict)
+                if features is None:
+                    features = {}
+                features["att"] = FeatureSet(df_feats)
+
+        recordings = None
+        k_file = kaldi_data_dir / "wav.scp"
+        if k_file.is_file():
+            scp = SCPList.load(k_file)
+            wav_dict = {"id": scp.key, "storage_path": scp.file_path}
+            df_recs = pd.DataFrame(wav_dict)
+            recordings = RecordingSet(df_recs)
+            recordings.get_durations()
+            if "duration" not in segments:
+                segments["duration"] = recordings.loc[segments["id"], "duration"]
+
+        class_names = ["speaker", "language", "emotion", "gender"]
+        classes = {}
+        for key in class_names:
+            if key in segments:
+                uniq_classes = np.unique(segments[key])
+                classes[key] = ClassInfo(pd.DataFrame({"id": uniq_classes}))
+
+        if not classes:
+            classes = None
+
+        dataset = cls(
+            segments=segments, classes=classes, recordings=recordings, features=features
+        )
+        return dataset

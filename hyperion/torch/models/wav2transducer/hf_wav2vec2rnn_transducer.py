@@ -2,13 +2,13 @@
  Copyright 2022 Johns Hopkins University  (Author: Yen-Ju Lu)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 from typing import Dict, Optional, Union
 
-from jsonargparse import ActionParser, ArgumentParser
-
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ArgumentParser
 
 from ...tpm import HFWav2Vec2
 from ..transducer import RNNTransducer
@@ -44,19 +44,7 @@ class HFWav2Vec2RNNTransducer(HFWav2RNNTransducer):
         else:
             assert isinstance(hf_feats, HFWav2Vec2)
 
-        # if isinstance(transducer, dict):
-        #     transducer["decoder"]["in_feats"] = hf_feats.hidden_size
-        #     transducer["joiner"]["in_feats"] = hf_feats.hidden_size
-        #     if "class_name" in transducer:
-        #         del transducer["class_name"]
-        #     transducer = Transducer(**transducer)
-        # else:
-        #     assert isinstance(transducer, Transducer)
-        #     assert transducer.decoder.in_feats == hf_feats.hidden_size
-        #     assert transducer.joiner.in_feats == hf_feats.hidden_size
-
-        super().__init__(hf_feats, transducer, feat_fusion_start,
-                         feat_fusion_method)
+        super().__init__(hf_feats, transducer, feat_fusion_start, feat_fusion_method)
 
     @staticmethod
     def filter_args(**kwargs):
@@ -78,8 +66,7 @@ class HFWav2Vec2RNNTransducer(HFWav2RNNTransducer):
         HFWav2RNNTransducer.add_class_args(parser)
 
         if prefix is not None:
-            outer_parser.add_argument("--" + prefix,
-                                      action=ActionParser(parser=parser))
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     @staticmethod
     def filter_finetune_args(**kwargs):
@@ -100,5 +87,4 @@ class HFWav2Vec2RNNTransducer(HFWav2RNNTransducer):
         RNNTransducer.add_finetune_args(parser, prefix="transducer")
 
         if prefix is not None:
-            outer_parser.add_argument("--" + prefix,
-                                      action=ActionParser(parser=parser))
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

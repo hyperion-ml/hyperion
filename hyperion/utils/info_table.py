@@ -12,6 +12,7 @@ from typing import List, Optional, Union
 
 import numpy as np
 import pandas as pd
+from pandas.api.types import infer_dtype
 
 from .list_utils import split_list, split_list_group_by_key
 
@@ -25,9 +26,14 @@ class InfoTable:
     """
 
     def __init__(self, df):
-        self.df = df
         assert "id" in df, f"info_table={df}"
+        self.df = df
+        self.fix_dtypes()
         self.df.set_index("id", drop=False, inplace=True)
+
+    def fix_dtypes(self):
+        if infer_dtype(self.df.id) != "string":
+            self.df[:, "id"] = self.df["id"].apply(str)
 
     def copy(self):
         """Makes a copy of the object."""
@@ -145,7 +151,19 @@ class InfoTable:
             if sep is None:
                 sep = "\t" if ".tsv" in ext else ","
 
-            df = pd.read_csv(file_path, sep=sep)
+            fixed_dtypes = {
+                "id": str,
+                "speaker": str,
+                "language": str,
+                "gender": str,
+                "duration": float,
+                "storage_path": str,
+                "storage_byte": int,
+                "num_frames": int,
+                "video_ids": str,
+                "language_est": str,
+            }
+            df = pd.read_csv(file_path, sep=sep, dtype=fixed_dtypes)
 
         return cls(df)
 
@@ -213,7 +231,7 @@ class InfoTable:
           iindex: filters the table based on integer index with pandas command:
             df.iloc[iiindex], used if predicate and items are None
           columns: columns to keep of remove.
-          by: column id to use with itmes criterion
+          by: column id to use with items criterion
           keep: if True, the criterion is used to keep rows, if False it is used
             to remove rows
 

@@ -101,7 +101,7 @@ class VQDVAETrainer(DVAETrainer):
 
             input_data, target = tensors_subset(data, batch_keys, self.device)
             batch_size = input_data.size(0)
-            with amp.autocast(enabled=self.use_amp):
+            with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
                 output = self.model(input_data, x_target=target, return_x_mean=True)
                 loss = output["loss"] / self.grad_acc_steps
                 x_hat = output["x_mean"]
@@ -152,7 +152,7 @@ class VQDVAETrainer(DVAETrainer):
             for batch, data in enumerate(data_loader):
                 input_data, target = tensors_subset(data, batch_keys, self.device)
                 batch_size = input_data.size(0)
-                with amp.autocast(enabled=self.use_amp):
+                with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
                     output = self.model(input_data, x_target=target, return_x_mean=True)
 
                 x_hat = output["x_mean"]

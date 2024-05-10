@@ -2,6 +2,7 @@
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import torch
 import torch.nn as nn
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
@@ -53,6 +54,8 @@ class MeanVarianceNorm(nn.Module):
 
         Args:
           x: feature tensor.
+          x_lengths: lengths of x sequences
+          x_mask: mask of valid frames, if present, x_lengths is ignored.
 
         Returns:
           Normalized feature tensor.
@@ -69,6 +72,7 @@ class MeanVarianceNorm(nn.Module):
                 x_lengths,
                 max_length,
                 dtype=x.dtype,
+                ndim=x.dim(),
                 none_if_all_max=True,
             )
 

@@ -18,7 +18,15 @@ nnet_s1_base_cfg=conf/train_fwseresnet34_dino_v1.2.2.yaml
 nnet_s1_name=$nnet_name.s1
 nnet_s1_dir=exp/xvector_nnets/$nnet_s1_name
 nnet_s1=$nnet_s1_dir/teacher_model_ep0034.pth
-nnet_s1=$nnet_s1_dir/teacher_model_ep0025.pth
+nnet_s1=$nnet_s1_dir/teacher_model_ep0038.pth
+nnet_s1=$nnet_s1_dir/teacher_model_ep0043.pth
+nnet_s1=$nnet_s1_dir/teacher_model_ep0044.pth
+nnet_s1=$nnet_s1_dir/teacher_model_ep0046.pth
+nnet_s1=$nnet_s1_dir/teacher_model_ep0049.pth
+nnet_s1=$nnet_s1_dir/teacher_model_ep0054.pth
+nnet_s1=$nnet_s1_dir/teacher_model_ep0058.pth
+nnet_s1=$nnet_s1_dir/teacher_model_ep0064.pth
+nnet_s1=$nnet_s1_dir/teacher_model_ep0067.pth
 
 # clustering of dino embeddings
 cluster_method=cos_ahc_plda_ahc

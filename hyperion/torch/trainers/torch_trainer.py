@@ -1051,7 +1051,7 @@ class TorchTrainer(object):
             help="use mixed precision training",
         )
         parser.add_argument(
-            "--amp-dtype", default=AMPDType.FLOAT16, choices=AMPDType.choices()
+            "--amp-dtype", default=AMPDType.FLOAT16.value, choices=AMPDType.choices()
         )
         parser.add_argument(
             "--cpu-offload",
