@@ -30,7 +30,7 @@ class ClassWeightedEmbedSampler(HypSampler):
         num_hard_prototypes: int = 0,
         affinity_matrix: Optional[torch.Tensor] = None,
         class_name: str = "class_id",
-        max_batches_per_epoch: Optiona[int] = None,
+        max_batches_per_epoch: Optional[int] = None,
         shuffle: bool = False,
         seed: int = 1234,
     ):

@@ -2,6 +2,7 @@
  Copyright 2022 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 from typing import Optional, Union
 
@@ -32,7 +33,7 @@ class EmbedSamplerFactory(object):
         """Functions that creates a sampler based on a dataset, sampler_type and sampler arguments.
 
         Args:
-          dataset: embeddings dataset object containing the data info 
+          dataset: embeddings dataset object containing the data info
           sampler_type: string indicating the sampler type.
         """
 
@@ -60,6 +61,7 @@ class EmbedSamplerFactory(object):
             "weight_mode",
             "num_hard_prototypes",
             "class_name",
+            "max_batches_per_epoch",
             "shuffle",
             "seed",
         )
@@ -73,7 +75,10 @@ class EmbedSamplerFactory(object):
             parser = ArgumentParser(prog="")
 
         parser.add_argument(
-            "--batch-size", type=int, default=1, help=("batch size per gpu"),
+            "--batch-size",
+            type=int,
+            default=1,
+            help=("batch size per gpu"),
         )
 
         parser.add_argument(
@@ -100,6 +105,13 @@ class EmbedSamplerFactory(object):
             type=int,
             default=0,
             help=("number of hard prototype classes per batch"),
+        )
+
+        parser.add_argument(
+            "--max-batches-per-epoch",
+            type=int,
+            default=None,
+            help=("Max. batches per epoch"),
         )
 
         parser.add_argument(

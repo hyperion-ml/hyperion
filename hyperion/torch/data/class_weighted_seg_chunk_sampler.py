@@ -6,7 +6,7 @@
 import logging
 import math
 import time
-from typing import Optional
+from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
