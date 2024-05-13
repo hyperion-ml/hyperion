@@ -6,13 +6,15 @@
 import logging
 import math
 import time
+from typing import Optional
 
 import numpy as np
 import pandas as pd
+import torch
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
-import torch
-
+from ...utils import ClassInfo
+from ...utils.misc import filter_func_args
 from .hyp_sampler import HypSampler
 
 
@@ -20,18 +22,21 @@ class ClassWeightedEmbedSampler(HypSampler):
     def __init__(
         self,
         embed_set,
-        class_info,
-        batch_size=1,
-        num_embeds_per_class=1,
-        weight_exponent=1.0,
-        weight_mode="custom",
-        num_hard_prototypes=0,
-        affinity_matrix=None,
-        class_name="class_id",
-        shuffle=False,
-        seed=1234,
+        class_info: ClassInfo,
+        batch_size: int = 1,
+        num_embeds_per_class: int = 1,
+        weight_exponent: float = 1.0,
+        weight_mode: str = "custom",
+        num_hard_prototypes: int = 0,
+        affinity_matrix: Optional[torch.Tensor] = None,
+        class_name: str = "class_id",
+        max_batches_per_epoch: Optiona[int] = None,
+        shuffle: bool = False,
+        seed: int = 1234,
     ):
-        super().__init__(shuffle=shuffle, seed=seed)
+        super().__init__(
+            max_batches_per_epoch=max_batches_per_epoch, shuffle=shuffle, seed=seed
+        )
         self.class_name = class_name
         self.embed_set = embed_set
         self.class_info = class_info
@@ -70,6 +75,8 @@ class ClassWeightedEmbedSampler(HypSampler):
         self._len = int(
             math.ceil(len(self.embed_set) / self.avg_batch_size / self.world_size)
         )
+        if self.max_batches_per_epoch is not None:
+            self._len = min(self._len, self.max_batches_per_epoch)
 
     def __len__(self):
         return self._len
@@ -147,7 +154,9 @@ class ClassWeightedEmbedSampler(HypSampler):
             num_classes /= self.num_hard_prototypes
         self.num_classes_per_batch = int(math.ceil(num_classes))
 
-    def _get_class_weights(self,):
+    def _get_class_weights(
+        self,
+    ):
         return torch.as_tensor(self.class_info["weights"].values)
 
     def _sample_classes(self):
@@ -208,19 +217,19 @@ class ClassWeightedEmbedSampler(HypSampler):
 
     @staticmethod
     def filter_args(**kwargs):
+        return filter_func_args(ClassWeightedEmbedSampler.__init__, kwargs)
+        # valid_args = (
+        #     "batch_size",
+        #     "num_embeds_per_class",
+        #     "weight_exponent",
+        #     "weight_mode",
+        #     "num_hard_prototypes",
+        #     "class_name",
+        #     "shuffle",
+        #     "seed",
+        # )
 
-        valid_args = (
-            "batch_size",
-            "num_embeds_per_class",
-            "weight_exponent",
-            "weight_mode",
-            "num_hard_prototypes",
-            "class_name",
-            "shuffle",
-            "seed",
-        )
-
-        return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
+        # return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
     @staticmethod
     def add_class_args(parser, prefix=None):
@@ -229,7 +238,10 @@ class ClassWeightedEmbedSampler(HypSampler):
             parser = ArgumentParser(prog="")
 
         parser.add_argument(
-            "--batch-size", type=int, default=1, help=("batch size per gpu"),
+            "--batch-size",
+            type=int,
+            default=1,
+            help=("batch size per gpu"),
         )
 
         parser.add_argument(

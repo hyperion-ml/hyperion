@@ -5,11 +5,13 @@
 
 import logging
 import math
+from typing import Optional, Type
 
 import numpy as np
 import torch
 import torch.distributed as dist
 
+from ...utils import SegmentSet
 from .hyp_sampler import HypSampler
 from .seg_sampler import SegSampler
 
@@ -18,14 +20,17 @@ class BucketingSegSampler(HypSampler):
 
     def __init__(
         self,
-        seg_set,
-        base_sampler=SegSampler,
-        num_buckets=10,
-        length_column="duration",
-        seed=1234,
+        seg_set: SegmentSet,
+        base_sampler: Type[HypSampler] = SegSampler,
+        num_buckets: int = 10,
+        length_column: str = "duration",
+        max_batches_per_epoch: Optional[int] = None,
+        seed: int = 1234,
         **base_kwargs
     ):
-        super().__init__(shuffle=False, seed=seed)
+        super().__init__(
+            max_batches_per_epoch=max_batches_per_epoch, maxshuffle=False, seed=seed
+        )
         self.seg_set = seg_set
         self.base_sampler = base_sampler
         self.base_kwargs = base_kwargs
@@ -66,6 +71,9 @@ class BucketingSegSampler(HypSampler):
         self._len = 0
         for i in range(self.num_buckets):
             self._len += len(self.bucket_samplers[i])
+
+        if self.max_batches_per_epoch is not None:
+            self._len = min(self._len, self.max_batches_per_epoch)
 
     def set_epoch(self, epoch, batch=0):
         for i in range(self.num_buckets):
@@ -120,12 +128,4 @@ class BucketingSegSampler(HypSampler):
 
     @staticmethod
     def filter_args(**kwargs):
-
-        valid_args = (
-            "num_buckets",
-            "length_column",
-            "shuffle",
-            "seed",
-        )
-
-        return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
+        return kwargs

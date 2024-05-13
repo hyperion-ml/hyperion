@@ -62,7 +62,9 @@ trainer:
     min_lr: 1e-6
     warmup_steps: 25000
     update_lr_on_opt_step: true
-  grad_clip: 100
+  # grad_clip: 100
+  # grad_clip: 20
+  grad_clip: 1
   use_amp: true
   log_interval: 1000
   epochs: 120

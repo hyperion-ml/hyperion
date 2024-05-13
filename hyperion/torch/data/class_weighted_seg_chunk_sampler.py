@@ -6,42 +6,47 @@
 import logging
 import math
 import time
+from typing import Optional
 
 import numpy as np
 import pandas as pd
+import torch
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
-import torch
-
+from ...utils import ClassInfo, SegmentSet
+from ...utils.misc import filter_func_args
 from .hyp_sampler import HypSampler
 
 
 class ClassWeightedRandomSegChunkSampler(HypSampler):
     def __init__(
         self,
-        seg_set,
-        class_info,
-        min_chunk_length,
-        max_chunk_length=None,
-        min_batch_size=1,
-        max_batch_size=None,
-        max_batch_length=None,
-        num_chunks_per_seg_epoch="auto",
-        num_segs_per_class=1,
-        num_chunks_per_seg=1,
-        weight_exponent=1.0,
-        weight_mode="custom",
-        seg_weight_mode="uniform",
-        num_hard_prototypes=0,
-        affinity_matrix=None,
-        class_name="class_id",
-        length_name="duration",
-        shuffle=False,
-        iters_per_epoch=None,
-        batch_size=None,
-        seed=1234,
+        seg_set: SegmentSet,
+        class_info: ClassInfo,
+        min_chunk_length: int,
+        max_chunk_length: Optional[int] = None,
+        min_batch_size: int = 1,
+        max_batch_size: Optional[int] = None,
+        max_batch_length: Optional[int] = None,
+        num_chunks_per_seg_epoch: Union[str, int] = "auto",
+        num_segs_per_class: int = 1,
+        num_chunks_per_seg: int = 1,
+        weight_exponent: float = 1.0,
+        weight_mode: str = "custom",
+        seg_weight_mode: str = "uniform",
+        num_hard_prototypes: int = 0,
+        affinity_matrix: Optional[torch.Tensor] = None,
+        class_name: str = "class_id",
+        length_name: str = "duration",
+        max_batches_per_epoch: Optional[int] = None,
+        shuffle: bool = False,
+        iters_per_epoch: Optional[int] = None,
+        batch_size: Optional[int] = None,
+        seed: int = 1234,
     ):
-        super().__init__(shuffle=shuffle, seed=seed)
+        super().__init__(
+            max_batches_per_epoch=max_batches_per_epoch, shuffle=shuffle, seed=seed
+        )
         self.class_name = class_name
         self.length_name = length_name
         self.seg_set = seg_set
@@ -148,6 +153,8 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
                 / self.world_size
             )
         )
+        if self.max_batches_per_epoch is not None:
+            self._len = min(self._len, self.max_batches_per_epoch)
 
     def __len__(self):
         return self._len
@@ -284,7 +291,10 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
     def _sample_classes(self, num_classes, chunk_length):
         weights = self._get_class_weights(chunk_length)
         row_idx = torch.multinomial(
-            weights, num_samples=num_classes, replacement=True, generator=self.rng,
+            weights,
+            num_samples=num_classes,
+            replacement=True,
+            generator=self.rng,
         ).numpy()
 
         class_ids = self.class_info.iloc[row_idx].id.values
@@ -417,29 +427,30 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
 
     @staticmethod
     def filter_args(**kwargs):
+        return filter_func_args(ClassWeightedRandomSegChunkSampler.__init__, kwargs)
 
-        valid_args = (
-            "min_chunk_length",
-            "max_chunk_length",
-            "min_batch_size",
-            "max_batch_size",
-            "max_batch_length",
-            "num_chunks_per_seg_epoch",
-            "num_segs_per_class",
-            "num_chunks_per_seg",
-            "weight_exponent",
-            "weight_mode",
-            "seg_weight_mode",
-            "num_hard_prototypes",
-            "class_name",
-            "length_name",
-            "iters_per_epoch",
-            "batch_size",
-            "shuffle",
-            "seed",
-        )
+        # valid_args = (
+        #     "min_chunk_length",
+        #     "max_chunk_length",
+        #     "min_batch_size",
+        #     "max_batch_size",
+        #     "max_batch_length",
+        #     "num_chunks_per_seg_epoch",
+        #     "num_segs_per_class",
+        #     "num_chunks_per_seg",
+        #     "weight_exponent",
+        #     "weight_mode",
+        #     "seg_weight_mode",
+        #     "num_hard_prototypes",
+        #     "class_name",
+        #     "length_name",
+        #     "iters_per_epoch",
+        #     "batch_size",
+        #     "shuffle",
+        #     "seed",
+        # )
 
-        return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
+        # return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
     @staticmethod
     def add_class_args(parser, prefix=None):
@@ -543,6 +554,13 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
             type=int,
             default=0,
             help=("number of hard prototype classes per batch"),
+        )
+
+        parser.add_argument(
+            "--max-batches-per-epoch",
+            type=int,
+            default=None,
+            help=("Max. batches per epoch"),
         )
 
         parser.add_argument(

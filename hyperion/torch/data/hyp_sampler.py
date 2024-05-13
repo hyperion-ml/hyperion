@@ -1,5 +1,6 @@
 import logging
 import math
+from typing import Optional
 
 import numpy as np
 import torch
@@ -9,13 +10,19 @@ from torch.utils.data import Sampler
 
 
 class HypSampler(Sampler):
-    def __init__(self, shuffle=False, seed=1234):
+    def __init__(
+        self,
+        max_batches_per_epoch: Optional[int] = None,
+        shuffle: bool = False,
+        seed: int = 1234,
+    ):
         super().__init__(None)
         self.epoch = 0
         self.batch = 0
         self.init_batch = 0
         self.shuffle = shuffle
         self.seed = seed
+        self.max_batches_per_epoch = max_batches_per_epoch
 
         try:
             rank = dist.get_rank()
