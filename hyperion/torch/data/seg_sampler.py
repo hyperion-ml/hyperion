@@ -11,8 +11,8 @@ import numpy as np
 import torch
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
-from ...utils.misc import filter_func_args
 from ...utils import SegmentSet
+from ...utils.misc import filter_func_args
 from .hyp_sampler import HypSampler
 
 
@@ -20,17 +20,19 @@ class SegSampler(HypSampler):
     def __init__(
         self,
         seg_set: SegmentSet,
-        min_batch_size:int=1,
-        max_batch_size:Optional[int]=None,
-        max_batch_length:Optional[int]=None,
-        length_name:str="duration",
-        max_batches_per_epoch: Optional[int]=None,
-        shuffle:bool=False,
-        drop_last:bool=False,
-        sort_by_length:bool=True,
-        seed:int=1234,
+        min_batch_size: int = 1,
+        max_batch_size: Optional[int] = None,
+        max_batch_length: Optional[int] = None,
+        length_name: str = "duration",
+        max_batches_per_epoch: Optional[int] = None,
+        shuffle: bool = False,
+        drop_last: bool = False,
+        sort_by_length: bool = True,
+        seed: int = 1234,
     ):
-        super().__init__(max_batches_per_epoch=max_batches_per_epoch,shuffle=shuffle, seed=seed)
+        super().__init__(
+            max_batches_per_epoch=max_batches_per_epoch, shuffle=shuffle, seed=seed
+        )
         self.seg_set = seg_set
         self.min_batch_size = min_batch_size
         self.max_batch_size = max_batch_size
@@ -191,7 +193,7 @@ class SegSampler(HypSampler):
             help="drops the last batch of the epoch",
         )
 
-         parser.add_argument(
+        parser.add_argument(
             "--max-batches-per-epoch",
             type=int,
             default=None,

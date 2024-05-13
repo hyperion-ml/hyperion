@@ -89,6 +89,7 @@ class SegSamplerFactory(object):
             "length_name",
             "iters_per_epoch",
             "batch_size",
+            "max_batches_per_epoch",
             "shuffle",
             "drop_last",
             "sort_by_length",
@@ -220,6 +221,13 @@ class SegSamplerFactory(object):
             "--drop-last",
             action=ActionYesNo,
             help="drops the last batch of the epoch",
+        )
+
+        parser.add_argument(
+            "--max-batches-per-epoch",
+            type=int,
+            default=None,
+            help=("Max. batches per epoch"),
         )
 
         parser.add_argument(
