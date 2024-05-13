@@ -5,29 +5,32 @@
 
 import logging
 import math
+from typing import Optional
 
 import numpy as np
 import torch
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ...utils.misc import filter_func_args
+from ...utils import SegmentSet
 from .hyp_sampler import HypSampler
 
 
 class SegSampler(HypSampler):
     def __init__(
         self,
-        seg_set,
-        min_batch_size=1,
-        max_batch_size=None,
-        max_batch_length=None,
-        length_name="duration",
-        shuffle=False,
-        drop_last=False,
-        sort_by_length=True,
-        seed=1234,
+        seg_set: SegmentSet,
+        min_batch_size:int=1,
+        max_batch_size:Optional[int]=None,
+        max_batch_length:Optional[int]=None,
+        length_name:str="duration",
+        max_batches_per_epoch: Optional[int]=None,
+        shuffle:bool=False,
+        drop_last:bool=False,
+        sort_by_length:bool=True,
+        seed:int=1234,
     ):
-        super().__init__(shuffle=shuffle, seed=seed)
+        super().__init__(max_batches_per_epoch=max_batches_per_epoch,shuffle=shuffle, seed=seed)
         self.seg_set = seg_set
         self.min_batch_size = min_batch_size
         self.max_batch_size = max_batch_size
@@ -48,6 +51,9 @@ class SegSampler(HypSampler):
             self._len = int(
                 math.ceil((len(self.seg_set) // self.world_size) / avg_batch_size)
             )
+
+        if self.max_batches_per_epoch is not None:
+            self._len = min(self._len, self.max_batches_per_epoch)
 
         self._permutation = None
 
@@ -180,7 +186,16 @@ class SegSampler(HypSampler):
         )
 
         parser.add_argument(
-            "--drop-last", action=ActionYesNo, help="drops the last batch of the epoch",
+            "--drop-last",
+            action=ActionYesNo,
+            help="drops the last batch of the epoch",
+        )
+
+         parser.add_argument(
+            "--max-batches-per-epoch",
+            type=int,
+            default=None,
+            help=("Max. batches per epoch"),
         )
 
         parser.add_argument(

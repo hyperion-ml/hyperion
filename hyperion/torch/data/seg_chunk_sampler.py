@@ -5,6 +5,7 @@
 
 import logging
 import math
+from typing import Optional, Type
 
 import numpy as np
 import pandas as pd
@@ -12,7 +13,8 @@ import torch
 import torch.distributed as dist
 from jsonargparse import ActionParser, ArgumentParser
 
-from ...utils.segment_set import SegmentSet
+from ...utils import SegmentSet
+from ...utils.misc import filter_func_args
 from .hyp_sampler import HypSampler
 from .seg_sampler import SegSampler
 
@@ -20,13 +22,14 @@ from .seg_sampler import SegSampler
 class SegChunkSampler(HypSampler):
     def __init__(
         self,
-        seg_set,
-        min_chunk_length,
-        max_chunk_length=None,
-        base_sampler=SegSampler,
-        length_name="duration",
-        shuffle=False,
-        seed=1234,
+        seg_set: SegmentSet,
+        min_chunk_length: int,
+        max_chunk_length: Optional[int] = None,
+        base_sampler: Type[HypSampler] = SegSampler,
+        length_name: str = "duration",
+        max_batches_per_epoch: Optional[int] = None,
+        shuffle: bool = False,
+        seed: int = 1234,
         **base_kwargs,
     ):
         super().__init__(shuffle=shuffle, seed=seed)
@@ -141,12 +144,17 @@ class SegChunkSampler(HypSampler):
 
     @staticmethod
     def filter_args(**kwargs):
-        valid_args = (
-            "min_chunk_length",
-            "max_chunk_length",
-            "length_name",
-            "shuffle",
-            "seed",
-        )
+        valid_args = filter_func_args(SegChunkSampler.__init__, kwargs)
+        base_args = filter_func_args(SegSampler.__init__, kwargs)
+        valid_args.update(base_args)
+        return valid_args
 
-        return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
+        # valid_args = (
+        #     "min_chunk_length",
+        #     "max_chunk_length",
+        #     "length_name",
+        #     "shuffle",
+        #     "seed",
+        # )
+
+        # return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
