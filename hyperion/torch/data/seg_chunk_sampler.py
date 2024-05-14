@@ -45,9 +45,10 @@ class SegChunkSampler(HypSampler):
         if "subbase_sampler" in base_kwargs:
             base_kwargs["base_sampler"] = base_kwargs.pop("subbase_sampler")
 
-        self.base_kwargs = base_kwargs
+        self.base_kwargs = base_sampler.filter_args(**base_kwargs)
         self.base_kwargs["seed"] = seed
         self.base_kwargs["shuffle"] = shuffle
+        self.base_kwargs["max_batches_per_epoch"] = max_batches_per_epoch
 
         self.__iter__()
         self.avg_batch_size = self._seg_sampler.avg_batch_size
@@ -144,10 +145,11 @@ class SegChunkSampler(HypSampler):
 
     @staticmethod
     def filter_args(**kwargs):
-        valid_args = filter_func_args(SegChunkSampler.__init__, kwargs)
-        base_args = filter_func_args(SegSampler.__init__, kwargs)
-        valid_args.update(base_args)
-        return valid_args
+        return kwargs
+        # valid_args = filter_func_args(SegChunkSampler.__init__, kwargs)
+        # base_args = filter_func_args(SegSampler.__init__, kwargs)
+        # valid_args.update(base_args)
+        # return valid_args
 
         # valid_args = (
         #     "min_chunk_length",

@@ -33,7 +33,7 @@ class BucketingSegSampler(HypSampler):
         )
         self.seg_set = seg_set
         self.base_sampler = base_sampler
-        self.base_kwargs = base_kwargs
+        self.base_kwargs = base_sampler.filter_args(**base_kwargs)
         self.base_kwargs["seed"] = seed
         self.num_buckets = num_buckets
         self.length_column = length_column

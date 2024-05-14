@@ -399,8 +399,8 @@ class AudioDataset(Dataset):
             audio.append(wav)
             audio_length.append(wav.shape[0])
             target.append(record["text"])
-            audio = pad_sequence(audio)
 
+        audio = pad_sequence(audio)
         audio_length = torch.as_tensor(audio_length)
         target = k2.RaggedTensor(target)
         batch = {
@@ -411,7 +411,7 @@ class AudioDataset(Dataset):
         return batch
 
     def get_collator(self):
-        return lambda batch: AudioDataset(self, batch)
+        return lambda batch: AudioDataset.collate(self, batch)
 
     @staticmethod
     def filter_args(**kwargs):
