@@ -30,6 +30,7 @@ nnet_s1=$nnet_s1_dir/teacher_model_ep0067.pth
 nnet_s1=$nnet_s1_dir/teacher_model_ep0071.pth
 nnet_s1=$nnet_s1_dir/teacher_model_ep0077.pth
 nnet_s1=$nnet_s1_dir/teacher_model_ep0083.pth
+nnet_s1=$nnet_s1_dir/teacher_model_ep0088.pth
 
 # clustering of dino embeddings
 cluster_method=cos_ahc_plda_ahc

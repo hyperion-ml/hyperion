@@ -29,7 +29,7 @@ class BucketingSegSampler(HypSampler):
         **base_kwargs
     ):
         super().__init__(
-            max_batches_per_epoch=max_batches_per_epoch, maxshuffle=False, seed=seed
+            max_batches_per_epoch=max_batches_per_epoch, shuffle=False, seed=seed
         )
         self.seg_set = seg_set
         self.base_sampler = base_sampler

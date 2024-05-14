@@ -12,6 +12,11 @@ import numpy as np
 import pandas as pd
 
 # import k2
+try:
+    import k2
+except:
+    from ..utils.dummy_k2 import k2
+
 import sentencepiece as spm
 import torch
 import torch.distributed as dist
@@ -373,6 +378,40 @@ class AudioDataset(Dataset):
         seg_info = self._get_segment_info(seg_id)
         data.update(seg_info)
         return data
+
+    @staticmethod
+    def collate(self, batch):
+        from torch.nn.utils.rnn import pad_sequence
+
+        audio = []
+        audio_length = []
+        target = []
+        for record in batch:
+            audio_length.append(record["x"].shape[0])
+        audio_length = torch.as_tensor(audio_length)
+        if not torch.all(audio_length[:-1] >= audio_length[1:]):
+            sort_idx = torch.argsort(audio_length, descending=True)
+            batch = [batch[i] for i in sort_idx]
+
+        audio_length = []
+        for record in batch:
+            wav = torch.as_tensor(record["x"])
+            audio.append(wav)
+            audio_length.append(wav.shape[0])
+            target.append(record["text"])
+            audio = pad_sequence(audio)
+
+        audio_length = torch.as_tensor(audio_length)
+        target = k2.RaggedTensor(target)
+        batch = {
+            "x": torch.transpose(audio, 0, 1),
+            "x_lengths": audio_length,
+            "text": target,
+        }
+        return batch
+
+    def get_collator(self):
+        return lambda batch: AudioDataset(self, batch)
 
     @staticmethod
     def filter_args(**kwargs):
