@@ -15,7 +15,7 @@ import pandas as pd
 try:
     import k2
 except:
-    from ..torch.utils import dummy_k2 as k2
+    from ..utils import dummy_k2 as k2
 
 import sentencepiece as spm
 import torch
