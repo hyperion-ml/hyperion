@@ -96,11 +96,11 @@ class SpeedAugment(object):
         # change speed
         r = self.speed_ratios[speed_idx]
         info = {"speed_ratio": r}
-        y = time_stretch(x, r)
+        y = time_stretch(x, rate=r)
         # print(f"1 r={r} {x.shape} {y.shape}", flush=True)
         if self.keep_length:
             if r > 1:
-                dither = np.max(x) / 2 ** 15  # we add some dither in the padding
+                dither = np.max(x) / 2**15  # we add some dither in the padding
                 pad_y = dither * np.ones((x.shape[-1] - y.shape[-1],), dtype=y.dtype)
                 y = np.concatenate((y, pad_y), axis=-1)
             elif r < 1:

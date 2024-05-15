@@ -117,7 +117,7 @@ class XVectorTrainerFromWav(XVectorTrainer):
             with torch.no_grad():
                 feats, feats_lengths = self.feat_extractor(audio)
 
-            with amp.autocast(enabled=self.use_amp):
+            with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
                 output = self.model(feats, feats_lengths, y=target)
                 loss = self.loss(output.logits, target) / self.grad_acc_steps
 
@@ -171,7 +171,7 @@ class XVectorTrainerFromWav(XVectorTrainer):
                 batch_size = audio.size(0)
 
                 feats, feats_lengths = self.feat_extractor(audio)
-                with amp.autocast(enabled=self.use_amp):
+                with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
                     output = self.model(feats, feats_lengths)
                     loss = self.loss(output.logits, target)
 

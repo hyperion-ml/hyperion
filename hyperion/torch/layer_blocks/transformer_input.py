@@ -2,6 +2,7 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import math
 
 import torch
@@ -80,7 +81,7 @@ class TransformerConv2dSubsampler(nn.Module):
         if x_mask is None:
             return x, None
 
-        return x, x_mask[:, :, :: self.stride]
+        return x, x_mask[..., :: self.stride]
 
 
 class TransformerConv1dSubsampler(nn.Module):

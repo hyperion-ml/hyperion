@@ -5,20 +5,29 @@
 
 import logging
 import math
+from typing import Optional
 
 import numpy as np
+import torch
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
-import torch
-
+from ...utils.misc import filter_func_args
 from .hyp_sampler import HypSampler
 
 
 class EmbedSampler(HypSampler):
     def __init__(
-        self, embed_set, batch_size=1, shuffle=False, drop_last=False, seed=1234,
+        self,
+        embed_set,
+        batch_size: int = 1,
+        max_batches_per_epoch: Optional[int] = None,
+        shuffle: bool = False,
+        drop_last: bool = False,
+        seed: int = 1234,
     ):
-        super().__init__(shuffle=shuffle, seed=seed)
+        super().__init__(
+            max_batches_per_epoch=max_batches_per_epoch, shuffle=shuffle, seed=seed
+        )
         self.embed_set = embed_set
         self.batch_size = batch_size
         self.avg_batch_size = batch_size
@@ -28,6 +37,9 @@ class EmbedSampler(HypSampler):
             self._len = int(num_batches)
         else:
             self._len = int(math.ceil(num_batches))
+
+        if self.max_batches_per_epoch is not None:
+            self._len = min(self._len, self.max_batches_per_epoch)
 
         self._permutation = None
 
@@ -72,15 +84,15 @@ class EmbedSampler(HypSampler):
 
     @staticmethod
     def filter_args(**kwargs):
+        return filter_func_args(EmbedSampler.__init__, kwargs)
+        # valid_args = (
+        #     "batch_size",
+        #     "shuffle",
+        #     "drop_last",
+        #     "seed",
+        # )
 
-        valid_args = (
-            "batch_size",
-            "shuffle",
-            "drop_last",
-            "seed",
-        )
-
-        return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
+        # return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
     @staticmethod
     def add_class_args(parser, prefix=None):
@@ -89,11 +101,23 @@ class EmbedSampler(HypSampler):
             parser = ArgumentParser(prog="")
 
         parser.add_argument(
-            "--batch-size", type=int, default=1, help=("minimum batch size per gpu"),
+            "--batch-size",
+            type=int,
+            default=1,
+            help=("minimum batch size per gpu"),
         )
 
         parser.add_argument(
-            "--drop-last", action=ActionYesNo, help="drops the last batch of the epoch",
+            "--drop-last",
+            action=ActionYesNo,
+            help="drops the last batch of the epoch",
+        )
+
+        parser.add_argument(
+            "--max-batches-per-epoch",
+            type=int,
+            default=None,
+            help=("Max. batches per epoch"),
         )
 
         parser.add_argument(

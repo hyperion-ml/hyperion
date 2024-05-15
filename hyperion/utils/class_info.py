@@ -2,6 +2,8 @@
  Copyright 2022 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
+import logging
 from pathlib import Path
 
 import numpy as np
@@ -92,13 +94,19 @@ class ClassInfo(InfoTable):
         """
         df_list = [table.df for table in tables]
         df = pd.concat(df_list)
-        assert df["id"].is_unique, """there are duplicated ids in original tables"""
+        if not df["id"].is_unique:
+            logging.warning(
+                """there are duplicated ids in original tables, 
+                            removing duplicated rows"""
+            )
+            df.drop_duplicates(subset="id", keep="first", inplace=True)
+
         if not df["class_idx"].is_unique:
             logging.warning(
                 """class_idx in concat tables are not unique, 
                 we will assign new class_idx"""
             )
-            df["class_idx"].drop(columns=["class_idx"], inplace=True)
+            df.drop(columns=["class_idx"], inplace=True)
         return cls(df)
 
     def filter(

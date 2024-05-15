@@ -19,7 +19,6 @@ class Wav2ResNet1dXVector(Wav2XVector):
     ResNet1dXVector extractor.
 
     Attributes:
-      Attributes:
       feats: feature extractor object of class AudioFeatsMVN or dictionary of options to instantiate AudioFeatsMVN object.
       xvector: ResNet1dXVector configuration dictionary or object.
     """

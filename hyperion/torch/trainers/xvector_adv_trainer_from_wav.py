@@ -143,7 +143,7 @@ class XVectorAdvTrainerFromWav(XVectorTrainerFromWav):
             with torch.no_grad():
                 feats = self.feat_extractor(input_data)
 
-            with amp.autocast(enabled=self.use_amp):
+            with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
                 output = self.model(feats, y=target)
                 loss = self.loss(output.logits, target) / self.grad_acc_steps
 
@@ -197,7 +197,7 @@ class XVectorAdvTrainerFromWav(XVectorTrainerFromWav):
 
             with torch.no_grad():
                 feats = self.feat_extractor(input_data)
-                with amp.autocast(enabled=self.use_amp):
+                with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
                     output = self.model(feats)
                     loss = self.loss(output.logits, target)
 

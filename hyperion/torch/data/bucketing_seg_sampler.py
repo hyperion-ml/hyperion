@@ -5,41 +5,46 @@
 
 import logging
 import math
+from typing import Optional, Type
 
 import numpy as np
-
 import torch
 import torch.distributed as dist
 
+from ...utils import SegmentSet
 from .hyp_sampler import HypSampler
 from .seg_sampler import SegSampler
 
 
 class BucketingSegSampler(HypSampler):
 
-    def __init__(self,
-                 seg_set,
-                 base_sampler=SegSampler,
-                 num_buckets=10,
-                 length_column="duration",
-                 seed=1234,
-                 **base_kwargs):
-        super().__init__(shuffle=False, seed=seed)
+    def __init__(
+        self,
+        seg_set: SegmentSet,
+        base_sampler: Type[HypSampler] = SegSampler,
+        num_buckets: int = 10,
+        length_column: str = "duration",
+        max_batches_per_epoch: Optional[int] = None,
+        seed: int = 1234,
+        **base_kwargs
+    ):
+        super().__init__(
+            max_batches_per_epoch=max_batches_per_epoch, shuffle=False, seed=seed
+        )
         self.seg_set = seg_set
         self.base_sampler = base_sampler
-        self.base_kwargs = base_kwargs
+        self.base_kwargs = base_sampler.filter_args(**base_kwargs)
         self.base_kwargs["seed"] = seed
         self.num_buckets = num_buckets
         self.length_column = length_column
         self._create_bucket_samplers()
         self._compute_len()
-        self.depleted_buckets = torch.zeros((num_buckets, ), dtype=torch.bool)
+        self.depleted_buckets = torch.zeros((num_buckets,), dtype=torch.bool)
 
     def create_buckets(self):
         sort_idx = np.argsort(self.seg_set[self.length_column].values)
         sorted_seg_set = self.seg_set.iloc[sort_idx]
-        cum_lengths = np.cumsum(sorted_seg_set[self.length_column].values,
-                                axis=0)
+        cum_lengths = np.cumsum(sorted_seg_set[self.length_column].values, axis=0)
         bucket_length = cum_lengths[-1] / self.num_buckets
         buckets = []
         for i in range(self.num_buckets):
@@ -67,9 +72,12 @@ class BucketingSegSampler(HypSampler):
         for i in range(self.num_buckets):
             self._len += len(self.bucket_samplers[i])
 
-    def set_epoch(self, epoch):
+        if self.max_batches_per_epoch is not None:
+            self._len = min(self._len, self.max_batches_per_epoch)
+
+    def set_epoch(self, epoch, batch=0):
         for i in range(self.num_buckets):
-            self.bucket_samplers[i].set_epoch(epoch)
+            self.bucket_samplers[i].set_epoch(epoch, batch)
 
     def __iter__(self):
         super().__iter__()
@@ -88,10 +96,9 @@ class BucketingSegSampler(HypSampler):
             raise StopIteration
 
         while True:
-            bucket_idx = torch.randint(low=0,
-                                       high=self.num_buckets,
-                                       size=(1, ),
-                                       generator=self.rng).item()
+            bucket_idx = torch.randint(
+                low=0, high=self.num_buckets, size=(1,), generator=self.rng
+            ).item()
             if self.depleted_buckets[bucket_idx]:
                 continue
 
@@ -121,12 +128,4 @@ class BucketingSegSampler(HypSampler):
 
     @staticmethod
     def filter_args(**kwargs):
-
-        valid_args = (
-            "num_buckets",
-            "length_column",
-            "shuffle",
-            "seed",
-        )
-
-        return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
+        return kwargs

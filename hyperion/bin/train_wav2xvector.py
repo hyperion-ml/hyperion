@@ -192,7 +192,7 @@ def main():
             config_file = Path(args_sc.trainer.exp_path) / "config.yaml"
             parser.save(args, str(config_file), format="yaml", overwrite=True)
         except:
-            pass
+            logging.warning(f"failed saving {args} to {config_file}")
 
     args_sc.xvec_class = xvec_dict[xvec_type]
     # torch docs recommend using forkserver

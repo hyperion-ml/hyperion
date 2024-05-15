@@ -6,7 +6,7 @@
 import torch
 import torch.nn as nn
 
-from .collation import collate_seq_nd
+from .collation import collate_seqs_nd
 
 
 def remove_silence(x, vad, x_lengths=None, time_dim=1, tol=0):
@@ -52,7 +52,7 @@ def remove_silence(x, vad, x_lengths=None, time_dim=1, tol=0):
     for i in range(x.size(0)):
         y.append(x[i, vad[i]])
 
-    y, y_lengths = collate_seq_nd(y, pad_dim=0)
+    y, y_lengths = collate_seqs_nd(y, pad_dim=0)
     if trans:
         y = y.transpose(1, time_dim).contigous()
 

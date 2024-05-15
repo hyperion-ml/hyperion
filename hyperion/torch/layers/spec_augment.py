@@ -2,13 +2,15 @@
  Copyright 2021 Johns Hopkins University  (Author: Jesus Villalba, Nanxin Chen)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-import logging
 
-from jsonargparse import ActionParser, ArgumentParser
+import logging
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as nnf
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
+
+from ...utils.misc import filter_func_args
 
 count = 0
 
@@ -22,8 +24,9 @@ class AxisMasker(nn.Module):
       max_width: maximum width of the mask.
       min_num_mask: minimum number of masks.
       max_num_mask: maximum number of masks.
-      dim: axis where we apply the mask
-      mask_value: masking value
+      dim: axis where we apply the mask.
+      mask_value: masking value.
+      use_num_masks_percentage: if True, num_masks are per 100 frames, if False they are absolute.
     """
 
     def __init__(
@@ -35,6 +38,7 @@ class AxisMasker(nn.Module):
         dim=-1,
         mask_method="constant",
         mask_value=0,
+        use_num_masks_percentage=False,
     ):
         super().__init__()
         assert min_width >= 0
@@ -44,17 +48,22 @@ class AxisMasker(nn.Module):
 
         self.min_width = min_width
         self.max_width = max_width
+        if not use_num_masks_percentage:
+            min_num_masks = int(min_num_masks)
+            max_num_masks = int(max_num_masks)
+
         self.min_num_masks = min_num_masks
         self.max_num_masks = max_num_masks
         self.dim = dim
         self.mask_method = mask_method
         self.mask_value = mask_value
+        self.use_num_masks_percentage = use_num_masks_percentage
 
     def __repr__(self):
         s = (
             "{}(min_width={}, max_width={}, "
             "min_num_masks={}, max_num_masks={}, "
-            "dim={}, mask_method={}, mask_value={})"
+            "dim={}, mask_method={}, mask_value={} use_num_masks_percentage={})"
         ).format(
             self.__class__.__name__,
             self.min_width,
@@ -64,6 +73,7 @@ class AxisMasker(nn.Module):
             self.dim,
             self.mask_method,
             self.mask_value,
+            self.use_num_masks_percentage,
         )
         return s
 
@@ -86,9 +96,16 @@ class AxisMasker(nn.Module):
 
         batch_size = x.shape[0]
         masked_dim_length = x.shape[self.dim]
+        if self.use_num_masks_percentage:
+            min_num_masks = int(round(self.min_num_masks * masked_dim_length / 100))
+            max_num_masks = int(round(self.max_num_masks * masked_dim_length / 100))
+        else:
+            min_num_masks = self.min_num_masks
+            max_num_masks = self.max_num_masks
+
         # select how many masks
         num_masks = torch.randint(
-            self.min_num_masks, self.max_num_masks + 1, size=(1,), device=x.device
+            min_num_masks, max_num_masks + 1, size=(1,), device=x.device
         )[0]
         # (batch, num_mask, 1)
         widths = torch.randint(
@@ -156,7 +173,7 @@ class SpecWarper(nn.Module):
 
         Args:
            x: spectrogram shape= (batch, *, time, freq)
-           lengths: time lengths of the sequences.
+           x_lengths: time lengths of the sequences.
         Returns:
            warped spectrogram shape = (batch, *, time, freq)
         """
@@ -184,11 +201,10 @@ class SpecWarper(nn.Module):
         if dim == -1 or x_lengths is None:
             warp_length = x.shape[-2]
         else:
-            warp_length = int(x.shape[-2] * torch.min(x_lengths))
+            warp_length = int(torch.min(x_lengths))
 
         center = torch.randint(self.window, warp_length - self.window, (1,))[0]
         warped = torch.randint(center - self.window, center + self.window, (1,))[0] + 1
-
         # (batch, C, warped, freq)
         left = nnf.interpolate(
             x[:, :, :center], (warped, x.shape[3]), mode=self.mode, align_corners=False
@@ -209,6 +225,9 @@ class SpecWarper(nn.Module):
 
         if dim == -1:
             x = x.transpose(-1, -2)
+
+        if ndim == 3:
+            x = x.squeeze(1)
 
         x = x.view(in_shape)
         return x
@@ -231,6 +250,7 @@ class SpecAugment(nn.Module):
       time_max_width:   maximum width of the time mask.
       time_min_num_mask: minimum number of time masks.
       time_max_num_mask: maximum number of time masks.
+      time_use_num_masks_percentage: if True, num_masks are per 100 frames, if False they are absolute.
       freq_mask_prob:    probability of applying frequency masking.
       freq_min_width:    minimum width of the frequency mask.
       freq_max_width:    maximum width of the frequency mask.
@@ -249,6 +269,7 @@ class SpecAugment(nn.Module):
         time_mask_max_width=100,
         time_mask_min_num_masks=1,
         time_mask_max_num_masks=2,
+        time_use_num_masks_percentage=False,
         freq_mask_prob=0,
         freq_mask_min_width=0,
         freq_mask_max_width=20,
@@ -287,6 +308,7 @@ class SpecAugment(nn.Module):
                 dim=-2,
                 mask_method=mask_method,
                 mask_value=mask_value,
+                use_num_masks_percentage=time_use_num_masks_percentage,
             )
 
         if self.freq_mask_prob > 0:
@@ -368,26 +390,7 @@ class SpecAugment(nn.Module):
         Returns:
           Dictionary with SpecAugment options.
         """
-        valid_args = (
-            "time_warp_prob",
-            "time_warp_window",
-            "time_warp_mode",
-            "time_mask_prob",
-            "time_mask_max_width",
-            "time_mask_min_width",
-            "time_mask_max_num_masks",
-            "time_mask_min_num_masks",
-            "freq_mask_prob",
-            "freq_mask_max_width",
-            "freq_mask_min_width",
-            "freq_mask_max_num_masks",
-            "freq_mask_min_num_masks",
-            "mask_value",
-            "mask_method",
-        )
-
-        d = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
-        return d
+        return filter_func_args(SpecAugment.__init__, kwargs)
 
     @staticmethod
     def add_class_args(parser, prefix=None):
@@ -437,15 +440,21 @@ class SpecAugment(nn.Module):
         )
         parser.add_argument(
             "--time-mask-min-num-masks",
-            type=int,
+            type=float,
             default=1,
             help="min. number of time mask",
         )
         parser.add_argument(
             "--time-mask-max-num-masks",
-            type=int,
+            type=float,
             default=2,
             help="max. number of time mask",
+        )
+        parser.add_argument(
+            "--time-use-num-masks-percentage",
+            default=False,
+            action=ActionYesNo,
+            help="if True, num_masks are per 100 frames, if False they are absolute.",
         )
 
         parser.add_argument(

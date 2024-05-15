@@ -3,6 +3,7 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+import logging
 from pathlib import Path
 
 import numpy as np
@@ -59,3 +60,41 @@ class RecordingSet(InfoTable):
             return cls(df)
 
         return super().load(file_path, sep)
+
+    @staticmethod
+    def _get_durations(recordings, i, n):
+        from ..io import SequentialAudioReader as AR
+
+        durations = []
+        fss = []
+        with AR(recordings, part_idx=i + 1, num_parts=n) as reader:
+            for data in reader:
+                key, x, fs = data
+                duration = x.shape[0] / fs
+                fss.append(fs)
+                durations.append(duration)
+
+        return fss, durations
+
+    def get_durations(self, num_threads: int = 16):
+
+        import itertools
+        from concurrent.futures import ThreadPoolExecutor
+
+        from tqdm import tqdm
+
+        futures = []
+        num_threads = min(num_threads, len(self.df))
+        logging.info("submitting threats...")
+        with ThreadPoolExecutor(max_workers=num_threads) as pool:
+            for i in tqdm(range(num_threads)):
+                future = pool.submit(RecordingSet._get_durations, self, i, num_threads)
+                futures.append(future)
+
+        logging.info("waiting threats...")
+        res = [f.result() for f in tqdm(futures)]
+        fss = list(itertools.chain(*[r[0] for r in res]))
+        durations = list(itertools.chain(*[r[1] for r in res]))
+
+        self.df["duration"] = durations
+        self.df["sample_freq"] = fss

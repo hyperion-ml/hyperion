@@ -2,15 +2,15 @@
  Copyright 2022 Johns Hopkins University  (Author: Yen-Ju Lu)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import contextlib
 import logging
 from dataclasses import dataclass
 from typing import Dict, List, Union
 
-from jsonargparse import ActionParser, ArgumentParser
-
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ArgumentParser
 
 from ...torch_model import TorchModel
 from ...utils import remove_silence
@@ -18,7 +18,7 @@ from ..transducer import RNNTransducer, RNNTransducerOutput
 
 
 class HFWav2RNNTransducer(TorchModel):
-    """Abstract Base class for x-vector models that use a Hugging Face Model as feature extractor.
+    """Abstract Base class for RNN-T transducer models that use a Hugging Face Model as feature extractor.
 
     Attributes:
        hf_feats: hugging face model wrapper object.
@@ -29,11 +29,13 @@ class HFWav2RNNTransducer(TorchModel):
                            than one layer is used.
     """
 
-    def __init__(self,
-                 hf_feats: TorchModel,
-                 transducer: Union[Dict, TorchModel],
-                 feat_fusion_start: int = 0,
-                 feat_fusion_method: str = "weighted-avg"):
+    def __init__(
+        self,
+        hf_feats: TorchModel,
+        transducer: Union[Dict, TorchModel],
+        feat_fusion_start: int = 0,
+        feat_fusion_method: str = "weighted-avg",
+    ):
 
         super().__init__()
         self.hf_feats = hf_feats
@@ -66,12 +68,9 @@ class HFWav2RNNTransducer(TorchModel):
             self.feat_fuser = nn.Parameter(torch.zeros(num_layers))
         elif self.feat_fusion_method == "linear":
             self.feat_fuser = nn.Linear(num_layers, 1, bias=False)
-            self.feat_fuser.weight.data = torch.ones(1,
-                                                     num_layers) / num_layers
+            self.feat_fuser.weight.data = torch.ones(1, num_layers) / num_layers
         elif self.feat_fusion_method == "cat":
-            self.feat_fuser = nn.Linear(num_layers * layer_dim,
-                                        layer_dim,
-                                        bias=False)
+            self.feat_fuser = nn.Linear(num_layers * layer_dim, layer_dim, bias=False)
 
     def _fuse_hid_feats(self, hid_feats):
         """Fuses the hidden features from the Wav2Vec model.
@@ -86,7 +85,7 @@ class HFWav2RNNTransducer(TorchModel):
             # There is only one layer of features
             return hid_feats[0]
 
-        hid_feats = hid_feats[self.feat_fusion_start:]
+        hid_feats = hid_feats[self.feat_fusion_start :]
         if self.feat_fusion_method == "weighted-avg":
             hid_feats = torch.stack(hid_feats, dim=-1)
             norm_weights = nn.functional.softmax(self.feat_fuser, dim=-1)
@@ -102,14 +101,14 @@ class HFWav2RNNTransducer(TorchModel):
 
         return feats
 
-    def forward_feats(self,
-                      x,
-                      x_lengths,
-                      return_feat_layers=None,
-                      chunk_length=0,
-                      detach_chunks=False):
-        return_hid_states = (False if return_feat_layers is None
-                             and self.feat_fusion_method == "last" else True)
+    def forward_feats(
+        self, x, x_lengths, return_feat_layers=None, chunk_length=0, detach_chunks=False
+    ):
+        return_hid_states = (
+            False
+            if return_feat_layers is None and self.feat_fusion_method == "last"
+            else True
+        )
         with self._hf_context:
             hf_output = self.hf_feats(
                 x,
@@ -131,7 +130,8 @@ class HFWav2RNNTransducer(TorchModel):
             # add hidden feats from wav2vec to the output. We transpose to be (batch, C, time)
             # as the hidden features of the x-vector encoder.
             hid_feats = [
-                f.transpose(1, 2) for i, f in enumerate(hid_feats)
+                f.transpose(1, 2)
+                for i, f in enumerate(hid_feats)
                 if i in return_feat_layers
             ]
         else:
@@ -167,7 +167,8 @@ class HFWav2RNNTransducer(TorchModel):
           "h_feats" (wav2vec features)
         """
         feats, hid_feats, feat_lengths = self.forward_feats(
-            x, x_lengths, return_feat_layers)
+            x, x_lengths, return_feat_layers
+        )
 
         feats = feats.permute(0, 2, 1)  # (N, C, T) ->(N, T, C)
         output = self.transducer(
@@ -181,13 +182,15 @@ class HFWav2RNNTransducer(TorchModel):
 
         return output
 
-    def infer(self,
-              x: torch.Tensor,
-              x_lengths: torch.Tensor,
-              decoding_method="time_sync_beam_search",
-              beam_width: int = 5,
-              max_sym_per_frame: int = 3,
-              max_sym_per_utt: int = 1000):
+    def infer(
+        self,
+        x: torch.Tensor,
+        x_lengths: torch.Tensor,
+        decoding_method="time_sync_beam_search",
+        beam_width: int = 5,
+        max_sym_per_frame: int = 3,
+        max_sym_per_utt: int = 1000,
+    ):
         """
         ASR tokens inference
         Args:
@@ -204,12 +207,14 @@ class HFWav2RNNTransducer(TorchModel):
 
         feats = feats.permute(0, 2, 1)  # (N, C, T) ->(N, T, C)
 
-        y = self.transducer.infer(feats,
-                                  feat_lengths,
-                                  decoding_method=decoding_method,
-                                  beam_width=beam_width,
-                                  max_sym_per_frame=max_sym_per_frame,
-                                  max_sym_per_utt=max_sym_per_utt)
+        y = self.transducer.infer(
+            feats,
+            feat_lengths,
+            decoding_method=decoding_method,
+            beam_width=beam_width,
+            max_sym_per_frame=max_sym_per_frame,
+            max_sym_per_utt=max_sym_per_utt,
+        )
         return y
 
     def freeze_feat_fuser(self):
@@ -265,11 +270,11 @@ class HFWav2RNNTransducer(TorchModel):
         if train_mode in ["full", "frozen"]:
             super()._train(train_mode)
         elif train_mode in [
-                "ft-transducer",
-                "hf-feats-frozen",
-                "ft-transducer-nograd",
-                "hf-feats-frozen-nograd",
-                "hf-feat-extractor-frozen",
+            "ft-transducer",
+            "hf-feats-frozen",
+            "ft-transducer-nograd",
+            "hf-feats-frozen-nograd",
+            "hf-feat-extractor-frozen",
         ]:
             self.hf_feats.train()
             self.transducer._train("full")
@@ -340,8 +345,10 @@ class HFWav2RNNTransducer(TorchModel):
             "--feat-fusion-method",
             default="weighted-avg",
             choices=["weighted-avg", "linear", "cat", "last"],
-            help=("method to fuse the hidden layers from the wav2vec model "
-                  "in [weighted-avg, linear, cat, last]"),
+            help=(
+                "method to fuse the hidden layers from the wav2vec model "
+                "in [weighted-avg, linear, cat, last]"
+            ),
         )
 
         if prefix is not None:
@@ -359,8 +366,7 @@ class HFWav2RNNTransducer(TorchModel):
         RNNTransducer.add_infer_args(parser)
 
         if prefix is not None:
-            outer_parser.add_argument("--" + prefix,
-                                      action=ActionParser(parser=parser))
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     @staticmethod
     def filter_infer_args(**kwargs):

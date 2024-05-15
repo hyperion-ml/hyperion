@@ -37,26 +37,28 @@ class RNNTransducer(TorchModel):
 
     Attributes:
       encoder: Encoder network module
-      decoder: RNN-T Decoder config. dictionary or module.
+      rnnt_decoder: RNN-T Decoder config. dictionary or module.
     """
 
     def __init__(
         self,
         encoder: Union[TorchModel, None],
-        decoder: Union[Dict, RNNTransducerDecoder],
+        rnnt_decoder: Union[Dict, RNNTransducerDecoder],
+        rnnt_weight: float = 1.0,
+        ctc_weight: float = 0.0,
     ):
         super().__init__()
         if encoder is not None:
             assert isinstance(encoder, TorchModel)
-        if isinstance(decoder, dict):
+        if isinstance(rnnt_decoder, dict):
             if encoder is not None:
-                decoder["in_feats"] = encoder.out_shape()[-1]
-            decoder = RNNTransducerDecoder(**decoder)
+                rnnt_decoder["in_feats"] = encoder.out_shape()[-1]
+            rnnt_decoder = RNNTransducerDecoder(**rnnt_decoder)
         else:
-            assert isinstance(decoder, RNNTransducerDecoder)
+            assert isinstance(rnnt_decoder, RNNTransducerDecoder)
 
         self.encoder = encoder
-        self.decoder = decoder
+        self.rnnt_decoder = rnnt_decoder
 
     def forward(
         self,
@@ -87,7 +89,7 @@ class RNNTransducer(TorchModel):
             x, x_lengths = self.encoder(x, x_lengths)
             assert torch.all(x_lengths > 0)
 
-        dec_output = self.decoder(x, x_lengths, y)
+        dec_output = self.rnnt_decoder(x, x_lengths, y)
         output = RNNTransducerOutput(*dec_output)
         return output
 
@@ -123,7 +125,7 @@ class RNNTransducer(TorchModel):
         y = []
         for i in range(batch_size):
             x_i = x[i : i + 1, : x_lengths[i]]
-            y_i = self.decoder.decode(
+            y_i = self.rnnt_decoder.decode(
                 x_i,
                 method=decoding_method,
                 beam_width=beam_width,
@@ -164,11 +166,11 @@ class RNNTransducer(TorchModel):
             enc_cfg = self.encoder.get_config()
             del enc_cfg["class_name"]
 
-        dec_cfg = self.decoder.get_config()
+        dec_cfg = self.rnnt_decoder.get_config()
         del dec_cfg["class_name"]
         config = {
             "encoder": enc_cfg,
-            "decoder": dec_cfg,
+            "rnnt_decoder": dec_cfg,
         }
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
@@ -177,8 +179,8 @@ class RNNTransducer(TorchModel):
     def filter_args(**kwargs):
         # get arguments for pooling
         args = {}
-        decoder_args = RNNTransducerDecoder.filter_args(**kwargs["decoder"])
-        args["decoder"] = decoder_args
+        rnnt_decoder_args = RNNTransducerDecoder.filter_args(**kwargs["rnnt_decoder"])
+        args["rnnt_decoder"] = rnnt_decoder_args
         return args
 
     @staticmethod
@@ -187,23 +189,25 @@ class RNNTransducer(TorchModel):
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        RNNTransducerDecoder.add_class_args(parser, prefix="decoder")
+        RNNTransducerDecoder.add_class_args(parser, prefix="rnnt_decoder")
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
     def change_config(
         self,
-        decoder: Dict,
+        rnnt_decoder: Dict,
     ):
-        logging.info("changing decoder config")
-        self.decoder.change_config(**decoder)
+        logging.info("changing rnnt_decoder config")
+        self.rnnt_decoder.change_config(**rnnt_decoder)
 
     @staticmethod
     def filter_finetune_args(**kwargs):
         args = {}
-        decoder_args = RNNTransducerDecoder.filter_finetune_args(**kwargs["decoder"])
-        args["decoder"] = decoder_args
+        rnnt_decoder_args = RNNTransducerDecoder.filter_finetune_args(
+            **kwargs["rnnt_decoder"]
+        )
+        args["rnnt_decoder"] = rnnt_decoder_args
         return args
 
     @staticmethod
@@ -212,7 +216,7 @@ class RNNTransducer(TorchModel):
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        RNNTransducerDecoder.add_finetune_args(parser, prefix="decoder")
+        RNNTransducerDecoder.add_finetune_args(parser, prefix="rnnt_decoder")
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
