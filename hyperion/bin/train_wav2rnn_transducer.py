@@ -117,8 +117,8 @@ def init_model(rank, model_class, tokenizers, **kwargs):
         logging.info("model network args={}".format(model_args))
 
     tokenizer = list(tokenizers.items())[0][1]
-    model_args["transducer"]["decoder"]["blank_id"] = tokenizer.blank_id
-    model_args["transducer"]["decoder"]["vocab_size"] = tokenizer.vocab_size
+    model_args["transducer"]["rnnt_decoder"]["blank_id"] = tokenizer.blank_id
+    model_args["transducer"]["rnnt_decoder"]["vocab_size"] = tokenizer.vocab_size
     model = model_class(**model_args)
     if rank == 0:
         logging.info("model={}".format(model))
