@@ -4,6 +4,10 @@ data:
       wav_scale: 1
       aug_cfgs: 
         - conf/speed_reverb_noise10-20dB_aug.yaml
+      tokenizer_mappings:
+        - text->text
+      tokenizer_files:
+        - data/token_librispeech_train-960_unigram_512/tokenizer.yaml
       return_segment_info:
         - text
     sampler:
@@ -16,6 +20,10 @@ data:
   val:
     dataset:
       wav_scale: 1
+      tokenizer_mappings:
+        - text->text
+      tokenizer_files:
+        - data/token_librispeech_train-960_unigram_512/tokenizer.yaml
       return_segment_info:
         - text
     sampler:
@@ -36,7 +44,7 @@ model:
       num_blocks: 16
       d_ff: 576
       in_layer_type: conv2d-sub
-    decoder:
+    rnnt_decoder:
       rnnt_loss: k2_pruned
       simple_loss_scale: 0.2
       predictor:
@@ -63,8 +71,7 @@ trainer:
     warmup_steps: 25000
     update_lr_on_opt_step: true
   # grad_clip: 100
-  # grad_clip: 20
-  grad_clip: 1
+  grad_clip: 20
   use_amp: true
   log_interval: 1000
   epochs: 120

@@ -30,13 +30,14 @@ The full API is described in the documentation page [https://hyperion-ml.readthe
 ```
 conda create --name ${your_env} python=3.11
 conda activate ${your_env}
-conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
+# We used PyTorch 2.0.1, other versions may work too
+conda install pytorch==2.0.1 torchvision==0.15.2 torchaudio==2.0.2 pytorch-cuda=11.8 -c pytorch -c nvidia
 # If using k2 for ASR
 wget https://huggingface.co/csukuangfj/k2/resolve/main/ubuntu-cuda/k2-1.24.4.dev20240223+cuda11.8.torch2.0.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
 pip install k2-1.24.4.dev20240223+cuda11.8.torch2.0.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
 ```
 
-For systems with cuda 10.2 driver:
+For older systems with cuda 10.2 driver:
 ```
 conda create --name ${your_env} python=3.10
 conda activate ${your_env}
