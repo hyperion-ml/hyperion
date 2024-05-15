@@ -98,13 +98,27 @@ def init_data(partition, rank, num_gpus, **kwargs):
     return data_loader
 
 
-def init_model(blank_id, vocab_size, rank, model_class, **kwargs):
+# def init_model(blank_id, vocab_size, rank, model_class, **kwargs):
+#     model_args = model_class.filter_args(**kwargs["model"])
+#     if rank == 0:
+#         logging.info("model network args={}".format(model_args))
+#     # TODO: check model_args
+#     model_args["transducer"]["decoder"]["blank_id"] = blank_id
+#     model_args["transducer"]["decoder"]["vocab_size"] = vocab_size
+#     model = model_class(**model_args)
+#     if rank == 0:
+#         logging.info("model={}".format(model))
+#     return model
+
+
+def init_model(rank, model_class, tokenizers, **kwargs):
     model_args = model_class.filter_args(**kwargs["model"])
     if rank == 0:
         logging.info("model network args={}".format(model_args))
-    # TODO: check model_args
-    model_args["transducer"]["decoder"]["blank_id"] = blank_id
-    model_args["transducer"]["decoder"]["vocab_size"] = vocab_size
+
+    tokenizer = list(tokenizers.items())[0][1]
+    model_args["transducer"]["decoder"]["blank_id"] = tokenizer.blank_id
+    model_args["transducer"]["decoder"]["vocab_size"] = tokenizer.vocab_size
     model = model_class(**model_args)
     if rank == 0:
         logging.info("model={}".format(model))
@@ -129,9 +143,14 @@ def train_model(gpu_id, args):
 
     train_loader = init_data(partition="train", **kwargs)
     val_loader = init_data(partition="val", **kwargs)
+    # model = init_model(
+    #     train_loader.dataset.sp.piece_to_id("<blk>"),
+    #     train_loader.dataset.sp.get_piece_size(),
+    #     **kwargs,
+    # )
+
     model = init_model(
-        train_loader.dataset.sp.piece_to_id("<blk>"),
-        train_loader.dataset.sp.get_piece_size(),
+        tokenizers=train_loader.dataset.tokenizers,
         **kwargs,
     )
 
@@ -180,22 +199,28 @@ def make_parser(model_class):
     data_parser.add_argument("--val", action=ActionParser(parser=val_parser))
     parser.add_argument("--data", action=ActionParser(parser=data_parser))
 
-    parser.add_argument(
-        "--data.train.dataset.text_file",
-        type=str,
-    )
+    # parser.add_argument(
+    #     "--data.train.dataset.text_file",
+    #     type=str,
+    # )
 
-    parser.add_argument("--data.val.dataset.text_file", type=str)
+    # parser.add_argument("--data.val.dataset.text_file", type=str)
 
-    parser.add_argument(
-        "--data.train.dataset.bpe_model",
-        type=str,
-    )
+    # parser.add_argument(
+    #     "--data.train.dataset.bpe_model",
+    #     type=str,
+    # )
 
     parser.link_arguments(
         "data.train.data_loader.num_workers", "data.val.data_loader.num_workers"
     )
 
+    parser.link_arguments(
+        "data.train.dataset.tokenizer_mappings", "data.val.dataset.tokenizer_mappings"
+    )
+    parser.link_arguments(
+        "data.train.dataset.tokenizer_files", "data.val.dataset.tokenizer_files"
+    )
     parser.link_arguments("data.train.dataset.bpe_model", "data.val.dataset.bpe_model")
 
     model_class.add_class_args(parser, prefix="model")

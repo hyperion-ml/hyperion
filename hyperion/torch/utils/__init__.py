@@ -3,7 +3,12 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from .collation import collate_seq_1d, collate_seq_2d, collate_seq_nd
+from .collation import (
+    collate_seqs_1d,
+    collate_seqs_2d,
+    collate_seqs_nd,
+    list_of_dicts_to_list,
+)
 from .data_parallel import TorchDataParallel
 from .ddp import FairFullyShardedDDP, FairShardedDDP, TorchDDP
 from .devices import (

@@ -37,11 +37,10 @@ if [ $stage -le 1 ]; then
     --cfg $nnet_s1_cfg \
     --data.train.dataset.recordings-file $train_dir/recordings.csv \
     --data.train.dataset.segments-file $train_dir/segments.csv \
-    --data.train.dataset.bpe-model $token_model \
     --data.val.dataset.recordings-file $val_dir/recordings.csv \
     --data.val.dataset.segments-file $val_dir/segments.csv \
     --trainer.exp-path $nnet_s1_dir $args \
     --num-gpus $ngpu
-
+    #--data.train.dataset.bpe-model $token_model \
 fi
 

@@ -4,6 +4,10 @@ data:
       wav_scale: 1
       aug_cfgs: 
         - conf/speed_reverb_noise10-20dB_aug.yaml
+      tokenizer_mappings:
+        - text->text
+      tokenizer_files:
+        - data/token_librispeech_train-960_unigram_512/tokenizer.yaml
       return_segment_info:
         - text
     sampler:
@@ -16,6 +20,10 @@ data:
   val:
     dataset:
       wav_scale: 1
+      tokenizer_mappings:
+        - text->text
+      tokenizer_files:
+        - data/token_librispeech_train-960_unigram_512/tokenizer.yaml
       return_segment_info:
         - text
     sampler:

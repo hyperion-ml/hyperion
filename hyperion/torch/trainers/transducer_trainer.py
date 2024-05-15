@@ -102,7 +102,6 @@ class TransducerTrainer(TorchTrainer):
         metric_acc = MetricAcc(device=self.device)
         batch_metrics = ODict()
         self.model.train()
-        self.sp = data_loader.dataset.sp
 
         for batch, data in enumerate(data_loader):
             self.loggers.on_batch_begin(batch)

@@ -6,6 +6,7 @@
 import logging
 import math
 import time
+from collections import OrderedDict
 from typing import Dict, List, Optional
 
 import numpy as np
@@ -27,11 +28,12 @@ from torch.utils.data import Dataset
 from ...io import RandomAccessAudioReader as AR
 from ...np.augment import SpeechAugment
 from ...np.preprocessing import Resampler
-from ...utils.class_info import ClassInfo
+from ...utils import ClassInfo, SegmentSet
 from ...utils.misc import filter_func_args
-from ...utils.segment_set import SegmentSet
 from ...utils.text import read_text
+from ..tokenizers import HypTokenizer
 from ..torch_defs import floatstr_torch
+from ..utils import collate_seqs_1d, collate_seqs_nd, list_of_dicts_to_list
 
 
 class AudioDataset(Dataset):
@@ -42,9 +44,11 @@ class AudioDataset(Dataset):
       segments_file: segments manifest file (kaldi .scp or pandas .csv)
       class_names: list with the names of the types of classes in the datasets, e.g., speaker, language
       class_files: list of class info files
-      time_durs_file: (deprecated) segment to duration in secs file, if durations are not in segments_file
-      bpe_model: bpe model for the text label
-      text_file: text file with words labels for each utterances
+      tokenizer_mappings: list mapping the segment_set fields to the tokenizer name
+            that should be used with them, e.g., text->text-1,
+            this argument has to be sync with tokenizer_files.
+      tokenizer_files: list of tokenizer cofinguration files
+            this argument has to be sync with tokenizer_mappings.
       aug_cfgs: list of augmentation configuration files
       num_augs: number of augmentations per segment and augmentation type
       num_aug_mix: "number of AugMix augmentations per segment
@@ -55,6 +59,9 @@ class AudioDataset(Dataset):
       wav_scale: make waves to be in [-wav_scale, wav_scale]
       is_val: is validation dataset.
       seed: random seed",
+      time_durs_file: (deprecated) segment to duration in secs file, if durations are not in segments_file
+      text_file: (deprecated) text file with words labels for each utterances.
+      bpe_model: (deprecated) bpe model for the text label.
     """
 
     def __init__(
@@ -63,9 +70,8 @@ class AudioDataset(Dataset):
         segments_file: str,
         class_names: Optional[List[str]] = None,
         class_files: Optional[List[str]] = None,
-        bpe_model: Optional[str] = None,
-        text_file: Optional[str] = None,
-        time_durs_file: Optional[str] = None,
+        tokenizer_mappings: Optional[List[str]] = None,
+        tokenizer_files: Optional[List[str]] = None,
         aug_cfgs: Optional[List[str]] = None,
         num_augs: int = 1,
         num_aug_mix: int = 0,
@@ -76,6 +82,9 @@ class AudioDataset(Dataset):
         wav_scale: float = 1,
         is_val: bool = False,
         seed: int = 112358,
+        time_durs_file: Optional[str] = None,
+        text_file: Optional[str] = None,
+        bpe_model: Optional[str] = None,
     ):
         super().__init__()
         try:
@@ -109,6 +118,9 @@ class AudioDataset(Dataset):
 
         logging.info("loading class-info files")
         self._load_class_infos(class_names, class_files, is_val)
+
+        logging.info("loading tokenizers")
+        self._load_tokenizers(tokenizer_mappings, tokenizer_files)
 
         if bpe_model is not None:
             logging.info("loading bpe models")
@@ -161,7 +173,7 @@ class AudioDataset(Dataset):
         self.seg_set["text"] = text.loc[self.seg_set["id"]].text
 
     def _load_class_infos(self, class_names, class_files, is_val):
-        self.class_info = {}
+        self.class_info = OrderedDict()
         if class_names is None:
             assert class_files is None
             return
@@ -184,6 +196,27 @@ class AudioDataset(Dataset):
                         logging.warning(
                             "%s class: %s not present in dataset", name, c_id
                         )
+
+    def _load_tokenizers(self, tokenizer_mappings, tokenizer_files):
+        self.tokenizers = OrderedDict()
+        self.tokenizers_to_infos = OrderedDict()
+        if tokenizer_mappings is None:
+            assert tokenizer_files is None
+            return
+
+        assert len(tokenizer_mappings) == len(tokenizer_files)
+        tokenizer_names = []
+        for map in tokenizer_mappings:
+            info_name, tokenizer_name = map.split("->", maxsplit=1)
+            self.tokenizers_to_infos[tokenizer_name] = info_name
+            tokenizer_names.append(tokenizer_name)
+
+        for name, file in zip(tokenizer_names, tokenizer_files):
+            assert name in self.seg_set, f"field {name} not present in the segment set"
+            if self.rank == 0:
+                logging.info("loading tokenizer file %s", file)
+            tokenizer = HypTokenizer.auto_load(file)
+            self.tokenizers[name] = tokenizer
 
     def _create_augmenters(self, aug_cfgs):
         self.augmenters = []
@@ -244,9 +277,6 @@ class AudioDataset(Dataset):
         else:
             seg_id, start, duration = segment, 0, 0
 
-        # if "start" in self.seg_set:
-        #     start += self.seg_set.loc[seg_id].start
-
         return seg_id, start, duration
 
     def _read_audio(self, seg_id, start, duration):
@@ -259,18 +289,6 @@ class AudioDataset(Dataset):
         # read audio
         x, fs = self.r.read([seg_id], time_offset=start, time_durs=read_duration)
         return x[0].astype(floatstr_torch(), copy=False), fs[0]
-
-    # def _read_audio0(self, seg_id, start, duration):
-    #     # how much extra audio we need to load to
-    #     # calculate the reverb of the first part of the audio
-    #     reverb_context = min(self.reverb_context, start)
-    #     start -= reverb_context
-    #     read_duration = duration + reverb_context
-
-    #     # read audio
-    #     recording_id = self.seg_set.recording_ids(seg_id)
-    #     x, fs = self.r.read([recording_id], time_offset=start, time_durs=read_duration)
-    #     return x[0].astype(floatstr_torch(), copy=False), fs[0]
 
     def _apply_aug_mix(self, x, x_augs, aug_idx):
         x_aug_mix = {}
@@ -328,6 +346,11 @@ class AudioDataset(Dataset):
         seg_info = {}
         # converts the class_ids to integers
         for info_name in self.return_segment_info:
+            tokenizer_name = ""
+            if info_name in self.tokenizers_to_infos:
+                tokenizer_name = info_name
+                info_name = self.tokenizers_to_infos[tokenizer_name]
+
             seg_info_i = self.seg_set.loc[seg_id, info_name]
             if info_name in self.class_info:
                 # if the type of information is a class-id
@@ -335,8 +358,9 @@ class AudioDataset(Dataset):
                 # convert from id to integer
                 class_info = self.class_info[info_name]
                 seg_info_i = class_info.loc[seg_info_i, "class_idx"]
-
-            if info_name == "text":
+            elif tokenizer_name in self.tokenizers:
+                seg_info_i = self.tokenizers[tokenizer_name].encode(seg_info_i)
+            elif info_name == "text":
                 seg_info_i = self.sp.encode(seg_info_i, out_type=int)
 
             seg_info[info_name] = seg_info_i
@@ -381,6 +405,66 @@ class AudioDataset(Dataset):
 
     @staticmethod
     def collate(self, batch):
+
+        # sort batch by the length of x
+        audio_lengths = []
+        for record in batch:
+            audio_lengths.append(record["x"].shape[0])
+        audio_lengths = torch.as_tensor(audio_lengths)
+        if not torch.all(audio_lengths[:-1] >= audio_lengths[1:]):
+            sort_idx = torch.argsort(audio_lengths, descending=True)
+            batch = [batch[i] for i in sort_idx]
+
+        del audio_lengths
+
+        def _is_list_of_tensors(x):
+            return isinstance(x[0], (torch.Tensor, np.ndarray))
+
+        def _is_list_of_items(x):
+            return isinstance(x[0], (int, float))
+
+        def _is_list_of_strs(x):
+            return isinstance(x[0], str)
+
+        def _is_list_of_strlists(x):
+            return isinstance(x[0], list) and isinstance(x[0][0], str)
+
+        def _is_list_of_intlists(x):
+            return isinstance(x[0], list) and isinstance(x[0][0], int)
+
+        output_batch = {}
+        batch_keys = batch[0].keys()
+        for key in batch_keys:
+            item_list = list_of_dicts_to_list(batch, key)
+            if key == "id":
+                # this are the segment ids
+                output_batch[key] = item_list
+            elif key == "x" or key[:2] == "x_" and _is_list_of_tensors(item_list):
+                # these are input audios
+                data, data_lengths = collate_seqs_1d(item_list)
+                output_batch[key] = data
+                output_batch[f"{key}_lengths"] = data_lengths
+            elif _is_list_of_items(item_list):
+                # these should be things like class ids
+                output_batch[key] = torch.as_tensor(item_list)
+            elif _is_list_of_tensors(item_list):
+                # other tensor data
+                data, data_lengths = collate_seqs_nd(item_list)
+                output_batch[key] = data
+                output_batch[f"{key}_lengths"] = data_lengths
+            elif _is_list_of_intlists(item_list):
+                # we assume k2 ragged tensor for now
+                output_batch[key] = k2.RaggedTensor(item_list)
+            elif _is_list_of_strs(item_list):
+                # we just left them as they are:
+                output_batch[key] = item_list
+            else:
+                raise TypeError(f"we don't know how to collate this data={item_list}")
+
+        return output_batch
+
+    @staticmethod
+    def collate_old(self, batch):
         from torch.nn.utils.rnn import pad_sequence
 
         audio = []
@@ -452,6 +536,25 @@ class AudioDataset(Dataset):
             default=None,
             nargs="+",
             help="list of class info files",
+        )
+
+        parser.add_argument(
+            "--tokenizer-mappings",
+            default=None,
+            nargs="+",
+            help="""list mapping the segment_set fields to the tokenizer name 
+            that should be used with them, e.g., text->text-1,
+            this argument has to be sync with tokenizer_files.
+            """,
+        )
+
+        parser.add_argument(
+            "--tokenizer-files",
+            default=None,
+            nargs="+",
+            help="""list of tokenizer cofinguration files
+            this argument has to be sync with tokenizer_mappings.
+            """,
         )
 
         parser.add_argument(

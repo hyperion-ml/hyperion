@@ -62,6 +62,7 @@ def train_sentencepiece(
     uppercase_text: bool,
     tokenizer_path: PathLike,
 ):
+    from hyperion.torch.tokenizers import SPTokenizer
 
     tokenizer_path = Path(tokenizer_path)
     tokenizer_path.mkdir(exist_ok=True, parents=True)
@@ -96,7 +97,10 @@ def train_sentencepiece(
             pad_piece=pad_piece,
         )
 
-    generate_sentencepiece_tokens(model_file, tokenizer_path)
+    tokenizer = SPTokenizer.load(model_file)
+    tokenizer.save(model_file.with_suffix(".yaml"))
+
+    # generate_sentencepiece_tokens(model_file, tokenizer_path)
 
 
 def generate_sentencepiece_tokens(model_file: PathLike, tokenizer_path: PathLike):
