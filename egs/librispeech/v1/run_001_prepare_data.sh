@@ -41,3 +41,28 @@ if [ $stage -le 1 ]; then
     touch data/lhotse_librispeech/.librispeech.done
   fi
 fi
+
+if [ $stage -le 2 ];then
+  echo "Stage 2: Convert Manifest to Hyperion Datasets"
+  for data in train-clean-100 train-clean-360 train-other-500 dev-clean dev-other test-clean test-other
+  do
+    hyperion-dataset from_lhotse \
+		     --recordings-file data/lhotse_librispeech/librispeech_recordings_${data}.jsonl.gz \
+		     --supervisions-file data/lhotse_librispeech/librispeech_supervisions_${data}.jsonl.gz \
+		     --dataset data/librispeech_${data}
+  done
+    
+fi
+
+if [ $stage -le 3 ];then
+  echo "Stage 3: Merge Librispeech train sets"
+  hyperion-dataset merge \
+		   --input-datasets data/librispeech_train-{clean-100,clean-360,other-500} \
+		   --dataset data/librispeech_train-960
+
+  echo "Stage 3: Merge Librispeech dev sets"
+  hyperion-dataset merge \
+		   --input-datasets data/librispeech_dev-{clean,other} \
+		   --dataset data/librispeech_dev
+
+fi

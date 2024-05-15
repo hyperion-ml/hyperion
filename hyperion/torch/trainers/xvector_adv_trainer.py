@@ -138,7 +138,7 @@ class XVectorAdvTrainer(XVectorTrainer):
 
                 self.optimizer.zero_grad()
 
-            with amp.autocast(enabled=self.use_amp):
+            with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
                 output = self.model(input_data, target)
                 loss = self.loss(output.logits, target) / self.grad_acc_steps
 
@@ -192,7 +192,7 @@ class XVectorAdvTrainer(XVectorTrainer):
                     self.model.train()
 
             with torch.no_grad():
-                with amp.autocast(enabled=self.use_amp):
+                with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
                     output = self.model(data, **self.amp_args)
                     loss = self.loss(output.logits, target)
 

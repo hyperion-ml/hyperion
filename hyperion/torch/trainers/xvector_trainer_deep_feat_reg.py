@@ -136,7 +136,7 @@ class XVectorTrainerDeepFeatReg(XVectorTrainer):
 
             input_data, target = tensors_subset(data, batch_keys, self.device)
             batch_size = input_data.size(0)
-            with amp.autocast(enabled=self.use_amp):
+            with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
                 outputs = self.model(
                     input_data,
                     y=target,

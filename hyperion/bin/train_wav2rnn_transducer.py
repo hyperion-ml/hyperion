@@ -25,12 +25,13 @@ from torch.nn.utils.rnn import pad_sequence
 from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
-from hyperion.torch.models import Wav2RNNRNNTransducer
+from hyperion.torch.models import Wav2ConformerV1RNNTransducer, Wav2RNNRNNTransducer
 from hyperion.torch.trainers import TransducerTrainer as Trainer
 from hyperion.torch.utils import ddp
 
 model_dict = {
     "rnn_rnn_transducer": Wav2RNNRNNTransducer,
+    "conformer_v1_rnn_transducer": Wav2ConformerV1RNNTransducer,
 }
 
 
@@ -38,6 +39,14 @@ def transducer_collate(batch):
     audio = []
     audio_length = []
     target = []
+    for record in batch:
+        audio_length.append(record["x"].shape[0])
+    audio_length = torch.as_tensor(audio_length)
+    if not torch.all(audio_length[:-1] >= audio_length[1:]):
+        sort_idx = torch.argsort(audio_length, descending=True)
+        batch = [batch[i] for i in sort_idx]
+
+    audio_length = []
     for record in batch:
         wav = torch.as_tensor(record["x"])
         audio.append(wav)
@@ -81,18 +90,35 @@ def init_data(partition, rank, num_gpus, **kwargs):
         {"num_workers": num_workers_per_gpu, "pin_memory": True} if num_gpus > 0 else {}
     )
     data_loader = torch.utils.data.DataLoader(
-        dataset, batch_sampler=sampler, **largs, collate_fn=transducer_collate
+        dataset,
+        batch_sampler=sampler,
+        **largs,
+        collate_fn=dataset.get_collator(),  # collate_fn=transducer_collate
     )
     return data_loader
 
 
-def init_model(blank_id, vocab_size, rank, model_class, **kwargs):
+# def init_model(blank_id, vocab_size, rank, model_class, **kwargs):
+#     model_args = model_class.filter_args(**kwargs["model"])
+#     if rank == 0:
+#         logging.info("model network args={}".format(model_args))
+#     # TODO: check model_args
+#     model_args["transducer"]["decoder"]["blank_id"] = blank_id
+#     model_args["transducer"]["decoder"]["vocab_size"] = vocab_size
+#     model = model_class(**model_args)
+#     if rank == 0:
+#         logging.info("model={}".format(model))
+#     return model
+
+
+def init_model(rank, model_class, tokenizers, **kwargs):
     model_args = model_class.filter_args(**kwargs["model"])
     if rank == 0:
         logging.info("model network args={}".format(model_args))
-    # TODO: check model_args
-    model_args["transducer"]["decoder"]["blank_id"] = blank_id
-    model_args["transducer"]["decoder"]["vocab_size"] = vocab_size
+
+    tokenizer = list(tokenizers.items())[0][1]
+    model_args["transducer"]["rnnt_decoder"]["blank_id"] = tokenizer.blank_id
+    model_args["transducer"]["rnnt_decoder"]["vocab_size"] = tokenizer.vocab_size
     model = model_class(**model_args)
     if rank == 0:
         logging.info("model={}".format(model))
@@ -109,7 +135,7 @@ def train_model(gpu_id, args):
     set_float_cpu("float32")
     # torch.backends.cudnn.deterministic = True
     # torch.backends.cudnn.benchmark = False
-    torch.backends.cudnn.enabled = False
+    # torch.backends.cudnn.enabled = False
 
     ddp_args = ddp.filter_ddp_args(**kwargs)
     device, rank, world_size = ddp.ddp_init(gpu_id, **ddp_args)
@@ -117,9 +143,14 @@ def train_model(gpu_id, args):
 
     train_loader = init_data(partition="train", **kwargs)
     val_loader = init_data(partition="val", **kwargs)
+    # model = init_model(
+    #     train_loader.dataset.sp.piece_to_id("<blk>"),
+    #     train_loader.dataset.sp.get_piece_size(),
+    #     **kwargs,
+    # )
+
     model = init_model(
-        train_loader.dataset.sp.piece_to_id("<blk>"),
-        train_loader.dataset.sp.get_piece_size(),
+        tokenizers=train_loader.dataset.tokenizers,
         **kwargs,
     )
 
@@ -168,22 +199,28 @@ def make_parser(model_class):
     data_parser.add_argument("--val", action=ActionParser(parser=val_parser))
     parser.add_argument("--data", action=ActionParser(parser=data_parser))
 
-    parser.add_argument(
-        "--data.train.dataset.text_file",
-        type=str,
-    )
+    # parser.add_argument(
+    #     "--data.train.dataset.text_file",
+    #     type=str,
+    # )
 
-    parser.add_argument("--data.val.dataset.text_file", type=str)
+    # parser.add_argument("--data.val.dataset.text_file", type=str)
 
-    parser.add_argument(
-        "--data.train.dataset.bpe_model",
-        type=str,
-    )
+    # parser.add_argument(
+    #     "--data.train.dataset.bpe_model",
+    #     type=str,
+    # )
 
     parser.link_arguments(
         "data.train.data_loader.num_workers", "data.val.data_loader.num_workers"
     )
 
+    parser.link_arguments(
+        "data.train.dataset.tokenizer_mappings", "data.val.dataset.tokenizer_mappings"
+    )
+    parser.link_arguments(
+        "data.train.dataset.tokenizer_files", "data.val.dataset.tokenizer_files"
+    )
     parser.link_arguments("data.train.dataset.bpe_model", "data.val.dataset.bpe_model")
 
     model_class.add_class_args(parser, prefix="model")
@@ -200,7 +237,7 @@ def make_parser(model_class):
 
 
 def main():
-    parser = ArgumentParser(description="Train RNN Transducer model from audio files")
+    parser = ArgumentParser(description="Train Transducer model from audio files")
     parser.add_argument("--cfg", action=ActionConfigFile)
 
     subcommands = parser.add_subcommands()
@@ -222,8 +259,8 @@ def main():
         try:
             config_file = Path(args_sc.trainer.exp_path) / "config.yaml"
             parser.save(args, str(config_file), format="yaml", overwrite=True)
-        except:
-            pass
+        except Exception as err:
+            logging.warning(f"{err}")
 
     args_sc.model_class = model_dict[model_type]
     # torch docs recommend using forkserver

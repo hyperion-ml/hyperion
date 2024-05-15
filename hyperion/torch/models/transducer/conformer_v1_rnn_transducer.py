@@ -28,13 +28,13 @@ class ConformerV1RNNTransducer(RNNTransducer):
 
     """
 
-    def __init__(self, encoder, decoder):
+    def __init__(self, encoder, rnnt_decoder):
         if isinstance(encoder, dict):
             encoder = ConformerEncoderV1(**encoder)
         else:
             assert isinstance(encoder, ConformerEncoderV1)
 
-        super().__init__(encoder, decoder)
+        super().__init__(encoder, rnnt_decoder)
 
     @staticmethod
     def filter_args(**kwargs):
@@ -57,11 +57,11 @@ class ConformerV1RNNTransducer(RNNTransducer):
     def change_config(
         self,
         encoder,
-        decoder,
+        rnnt_decoder,
     ):
         logging.info("changing transducer encoder config")
         self.encoder.change_config(**encoder)
-        super().chage_config(**decoder)
+        super().chage_config(**rnnt_decoder)
 
     @staticmethod
     def filter_finetune_args(**kwargs):

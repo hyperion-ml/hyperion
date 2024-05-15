@@ -744,7 +744,7 @@ class TorchTrainer(object):
         self, model_name: str, checkpoint: Dict[str, Any], partial: bool = False
     ):
         if partial:
-            file_path = "%s/%s_ep%04d_step%10d.pth" % (
+            file_path = "%s/%s_ep%04d_step%010d.pth" % (
                 self.exp_path,
                 model_name,
                 self.cur_epoch,
@@ -784,7 +784,7 @@ class TorchTrainer(object):
 
         checkpoint = self.checkpoint(logs)
         if partial:
-            file_path = "%s/model_ep%04d_step%08d.pth" % (
+            file_path = "%s/model_ep%04d_step%010d.pth" % (
                 self.exp_path,
                 self.cur_epoch,
                 self.global_step,
@@ -1023,7 +1023,7 @@ class TorchTrainer(object):
             help="use tensorboard logger",
         )
         parser.add_argument(
-            "--use-wandb", action="store_true", default=False, help="use wandb logger"
+            "--use-wandb", action=ActionYesNo, default=False, help="use wandb logger"
         )
         parser.add_argument("--wandb.project", default=None, help="wandb project name")
         parser.add_argument("--wandb.group", default=None, help="wandb group name")
@@ -1051,7 +1051,7 @@ class TorchTrainer(object):
             help="use mixed precision training",
         )
         parser.add_argument(
-            "--amp-dtype", default=AMPDType.FLOAT16, choices=AMPDType.choices()
+            "--amp-dtype", default=AMPDType.FLOAT16.value, choices=AMPDType.choices()
         )
         parser.add_argument(
             "--cpu-offload",
