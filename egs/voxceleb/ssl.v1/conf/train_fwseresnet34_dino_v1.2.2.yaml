@@ -80,7 +80,7 @@ trainer:
     decay_rate: 0.5
     decay_steps: 60000
     hold_steps: 15000
-    min_lr: 1.0e-05
+    min_lr: 1.0e-04
     warmup_steps: 15000
     update_lr_on_opt_step: true
   teacher_optim:

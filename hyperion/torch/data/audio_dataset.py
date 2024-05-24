@@ -183,6 +183,9 @@ class AudioDataset(Dataset):
             assert (
                 name in self.seg_set
             ), f"class_name {name} not present in the segment set"
+            self.seg_set.convert_col_to_str(
+                name
+            )  # make sure that class ids are strings
             if self.rank == 0:
                 logging.info("loading class-info file %s", file)
             table = ClassInfo.load(file)

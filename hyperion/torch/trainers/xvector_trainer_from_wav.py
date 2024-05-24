@@ -133,7 +133,7 @@ class XVectorTrainerFromWav(XVectorTrainer):
 
             batch_metrics["loss"] = loss.item() * self.grad_acc_steps
             for k, metric in self.metrics.items():
-                batch_metrics[k] = metric(output, target)
+                batch_metrics[k] = metric(output.logits, target)
 
             metric_acc.update(batch_metrics, batch_size)
             logs = metric_acc.metrics
@@ -177,7 +177,7 @@ class XVectorTrainerFromWav(XVectorTrainer):
 
                 batch_metrics["loss"] = loss.mean().item()
                 for k, metric in self.metrics.items():
-                    batch_metrics[k] = metric(output, target)
+                    batch_metrics[k] = metric(output.logits, target)
 
                 metric_acc.update(batch_metrics, batch_size)
 
