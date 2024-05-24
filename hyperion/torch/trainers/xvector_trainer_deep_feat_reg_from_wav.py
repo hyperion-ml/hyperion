@@ -193,7 +193,7 @@ class XVectorTrainerDeepFeatRegFromWav(XVectorTrainerDeepFeatReg):
                 self.save_checkpoint(partial=True)
 
             for k, metric in self.metrics.items():
-                batch_metrics[k] = metric(output, target)
+                batch_metrics[k] = metric(output.logits, target)
 
             metric_acc.update(batch_metrics, batch_size)
             logs = metric_acc.metrics
@@ -235,7 +235,7 @@ class XVectorTrainerDeepFeatRegFromWav(XVectorTrainerDeepFeatReg):
 
                 batch_metrics["loss"] = loss.item()
                 for k, metric in self.metrics.items():
-                    batch_metrics[k] = metric(output, target)
+                    batch_metrics[k] = metric(output.logits, target)
 
                 metric_acc.update(batch_metrics, batch_size)
 

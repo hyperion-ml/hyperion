@@ -95,6 +95,16 @@ class HypDataset:
         self.sparse_trials = sparse_trials
         self.table_sep = table_sep
         self._files_to_delete = []
+        self.fix_segments_dtypes()
+
+    def fix_segments_dtypes(self):
+        if self._segments is not None:
+            self._fix_segments_dtypes(self._segments)
+
+    def _fix_segments_dtypes(self, segments):
+        # ids in class_infos should be strings in segment set columns
+        for k in self.classes_keys():
+            segments.convert_col_to_str(k)
 
     def get_dataset_files(self):
         file_paths = []
@@ -149,6 +159,7 @@ class HypDataset:
         if self._segments is None:
             assert self._segments_path is not None
             segments = SegmentSet.load(self._segments_path, sep=self.table_sep)
+            self._fix_segments_dtypes(segments)
             if keep_loaded:
                 self._segments = segments
             return segments
