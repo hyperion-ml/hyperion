@@ -13,7 +13,7 @@ from .attention import (
 from .audio_feats import *
 from .audio_feats_factory import AudioFeatsFactory
 from .calibrators import LinBinCalibrator
-from .dropout import DropConnect1d, DropConnect2d, Dropout1d
+from .dropout import DropConnect1d, DropConnect2d, Dropout1d, DropPath1d, DropPath2d
 from .feat_fuser_factory import FeatFuserFactory
 from .feat_fusers import (
     CatFeatFuser,
@@ -22,11 +22,13 @@ from .feat_fusers import (
     WeightedAvgFeatFuser,
 )
 from .global_pool import *
+from .grn import GRN1d, GRN2d
 from .interpolate import Interpolate
 from .lora import LoRAFactory
 from .margin_losses import ArcLossOutput, CosLossOutput, SubCenterArcLossOutput
 from .mvn import MeanVarianceNorm
 from .norm_layer_factory import NormLayer1dFactory, NormLayer2dFactory
+from .norm_layers import RMSNorm
 from .pool_factory import GlobalPool1dFactory
 from .pos_encoder import (
     ConvPosEncoder,

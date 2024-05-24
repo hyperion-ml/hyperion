@@ -8,6 +8,7 @@ import multiprocessing
 import os
 from pathlib import Path
 
+import numpy
 import torch
 from jsonargparse import (
     ActionConfigFile,
@@ -20,15 +21,11 @@ from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
 from hyperion.torch.metrics import CategoricalAccuracy
-
-# from hyperion.torch.models import EfficientNetXVector as EXVec
 from hyperion.torch.models import Wav2ConformerV1XVector as CXVec
+from hyperion.torch.models import Wav2ConvNext1dXVector as ConvNext1dXVec
+from hyperion.torch.models import Wav2ConvNext2dXVector as ConvNext2dXVec
 from hyperion.torch.models import Wav2ResNet1dXVector as R1dXVec
 from hyperion.torch.models import Wav2ResNetXVector as RXVec
-
-# from hyperion.torch.models import SpineNetXVector as SpineXVec
-# from hyperion.torch.models import TDNNXVector as TDXVec
-# from hyperion.torch.models import TransformerXVectorV1 as TFXVec
 from hyperion.torch.trainers import XVectorTrainer as Trainer
 from hyperion.torch.utils import ddp
 
@@ -36,6 +33,8 @@ xvec_dict = {
     "resnet": RXVec,
     "resnet1d": R1dXVec,
     "conformer": CXVec,
+    "convnext1d": ConvNext1dXVec,
+    "convnext2d": ConvNext2dXVec,
     # "efficientnet": EXVec,
     # "tdnn": TDXVec,
     # "transformer": TFXVec,
@@ -178,6 +177,8 @@ def main():
         parser_k = make_parser(v)
         subcommands.add_subcommand(k, parser_k)
 
+    os.environ["MKL_THREADING_LAYER"] = "GNU"
+    # os MKL_SERVICE_FORCE_INTEL=1
     args = parser.parse_args()
     try:
         gpu_id = int(os.environ["LOCAL_RANK"])

@@ -6,6 +6,16 @@
 from .conformer_conv import ConformerConvBlock
 from .conformer_decoder_v1 import ConformerDecoderBlockV1
 from .conformer_encoder_v1 import ConformerEncoderBlockV1
+from .convnext_blocks import (
+    ConvNext1dBlock,
+    ConvNext1dDownsampleBlock,
+    ConvNext1dEndpoint,
+    ConvNext1dStemBlock,
+    ConvNext2dBlock,
+    ConvNext2dDownsampleBlock,
+    ConvNext2dEndpoint,
+    ConvNext2dStemBlock,
+)
 from .dc1d_blocks import DC1dDecBlock, DC1dEncBlock
 from .dc2d_blocks import DC2dDecBlock, DC2dEncBlock
 from .etdnn_blocks import ETDNNBlock

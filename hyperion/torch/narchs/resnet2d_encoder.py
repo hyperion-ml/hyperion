@@ -6,11 +6,11 @@
 import logging
 import math
 
-from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
-
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
+from ...utils.misc import filter_func_args
 from ..layer_blocks import (
     DC2dEncBlock,
     Res2Net2dBasicBlock,
@@ -378,43 +378,7 @@ class ResNet2dEncoder(NetArch):
 
     @staticmethod
     def filter_args(**kwargs):
-
-        # if "wo_norm" in kwargs:
-        #     kwargs["use_norm"] = not kwargs["wo_norm"]
-        #     del kwargs["wo_norm"]
-
-        # if "norm_after" in kwargs:
-        #     kwargs["norm_before"] = not kwargs["norm_after"]
-        #     del kwargs["norm_after"]
-
-        valid_args = (
-            "in_channels",
-            "in_conv_channels",
-            "in_kernel_size",
-            "in_stride",
-            "resb_type",
-            "resb_repeats",
-            "resb_channels",
-            "resb_kernel_sizes",
-            "resb_strides",
-            "resb_dilations",
-            "resb_groups",
-            "head_channels",
-            "se_r",
-            "time_se",
-            "res2net_width_factor",
-            "res2net_scale",
-            "hid_act",
-            "had_act",
-            "dropout_rate",
-            "use_norm",
-            "norm_layer",
-            "norm_before",
-        )
-
-        args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
-
-        return args
+        return filter_func_args(ResNet2dEncoder.__init__, kwargs)
 
     @staticmethod
     def add_class_args(parser, prefix=None, skip=set()):
@@ -547,20 +511,6 @@ class ResNet2dEncoder(NetArch):
         except:
             pass
 
-        # parser.add_argument(
-        #     "--wo-norm",
-        #     default=False,
-        #     action="store_true",
-        #     help="without batch normalization",
-        # )
-
-        # parser.add_argument(
-        #     "--norm-after",
-        #     default=False,
-        #     action="store_true",
-        #     help="batch normalizaton after activation",
-        # )
-
         parser.add_argument(
             "--use-norm",
             default=True,
@@ -608,6 +558,5 @@ class ResNet2dEncoder(NetArch):
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
-            # help='ResNet2d encoder options')
 
     add_argparse_args = add_class_args
