@@ -5,6 +5,8 @@
 """
 
 from .conformer_v1_xvector import ConformerV1XVector
+from .convnext1d_xvector import ConvNext1dXVector
+from .convnext2d_xvector import ConvNext2dXVector
 from .efficient_net_xvector import EfficientNetXVector
 from .resnet1d_xvector import ResNet1dXVector
 from .resnet_xvector import ResNetXVector

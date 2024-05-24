@@ -314,7 +314,7 @@ class XVector(TorchModel):
 
     def _pre_enc(self, x):
         if self.encoder_net.in_dim() == 4 and x.dim() == 3:
-            x = x.view(x.size(0), 1, x.size(1), x.size(2))
+            x = x.contiguous().view(x.size(0), 1, x.size(1), x.size(2))
         return x
 
     def _post_enc(self, x, in_lengths=None, max_in_length=None):
@@ -930,7 +930,7 @@ class XVector(TorchModel):
 
         parser.add_argument(
             "--head-type",
-            default=XVectorHeadType.XVECTOR,
+            default=XVectorHeadType.XVECTOR.value,
             choices=XVectorHeadType.choices(),
             help="type of classification head in [x-vector, dino]",
         )

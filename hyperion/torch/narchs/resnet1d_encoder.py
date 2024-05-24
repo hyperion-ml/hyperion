@@ -7,11 +7,11 @@ import logging
 import math
 
 import numpy as np
-from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
-
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
+from ...utils.misc import filter_func_args
 from ..layer_blocks import (
     DC1dEncBlock,
     Res2Net1dBasicBlock,
@@ -537,48 +537,41 @@ class ResNet1dEncoder(NetArch):
 
     @staticmethod
     def filter_args(**kwargs):
-        # if "wo_norm" in kwargs:
-        #     kwargs["use_norm"] = not kwargs["wo_norm"]
-        #     del kwargs["wo_norm"]
+        return filter_func_args(ResNet1dEncoder.__init__, kwargs)
+        # valid_args = (
+        #     "in_feats",
+        #     "in_conv_channels",
+        #     "in_kernel_size",
+        #     "in_stride",
+        #     "resb_type",
+        #     "resb_repeats",
+        #     "resb_channels",
+        #     "resb_kernel_sizes",
+        #     "resb_strides",
+        #     "resb_dilations",
+        #     "resb_groups",
+        #     "head_channels",
+        #     "se_r",
+        #     "res2net_width_factor",
+        #     "res2net_scale",
+        #     "hid_act",
+        #     "head_act",
+        #     "dropout_rate",
+        #     "drop_connect_rate",
+        #     "use_norm",
+        #     "norm_layer",
+        #     "norm_before",
+        #     "multilayer",
+        #     "multilayer_concat",
+        #     "endpoint_channels",
+        #     "endpoint_layers",
+        #     "endpoint_scale_layer",
+        #     "upsampling_mode",
+        # )
 
-        # if "norm_after" in kwargs:
-        #     kwargs["norm_before"] = not kwargs["norm_after"]
-        #     del kwargs["norm_after"]
+        # args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
-        valid_args = (
-            "in_feats",
-            "in_conv_channels",
-            "in_kernel_size",
-            "in_stride",
-            "resb_type",
-            "resb_repeats",
-            "resb_channels",
-            "resb_kernel_sizes",
-            "resb_strides",
-            "resb_dilations",
-            "resb_groups",
-            "head_channels",
-            "se_r",
-            "res2net_width_factor",
-            "res2net_scale",
-            "hid_act",
-            "head_act",
-            "dropout_rate",
-            "drop_connect_rate",
-            "use_norm",
-            "norm_layer",
-            "norm_before",
-            "multilayer",
-            "multilayer_concat",
-            "endpoint_channels",
-            "endpoint_layers",
-            "endpoint_scale_layer",
-            "upsampling_mode",
-        )
-
-        args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
-
-        return args
+        # return args
 
     @staticmethod
     def add_class_args(parser, prefix=None, skip=set(["in_feats"])):
@@ -767,7 +760,10 @@ class ResNet1dEncoder(NetArch):
         )
 
         parser.add_argument(
-            "--res2net-scale", default=1, type=int, help=("res2net scaling parameter "),
+            "--res2net-scale",
+            default=1,
+            type=int,
+            help=("res2net scaling parameter "),
         )
 
         parser.add_argument(

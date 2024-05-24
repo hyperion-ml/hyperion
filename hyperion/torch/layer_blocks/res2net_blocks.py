@@ -2,11 +2,9 @@
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-import math
-
 import torch
 import torch.nn as nn
-from torch.nn import BatchNorm2d, Conv2d, Dropout2d
+from torch.nn import Dropout2d
 
 from ..layers import ActivationFactory as AF
 from .resnet_blocks import FreqPosEnc

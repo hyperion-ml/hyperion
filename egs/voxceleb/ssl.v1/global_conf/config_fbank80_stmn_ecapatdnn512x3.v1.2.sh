@@ -43,7 +43,7 @@ nnet_ft_s1_2=$nnet_ft_s1_2_dir/model_ep0070.pth
 # clustering of ft embeddings from stage 1.2
 cluster_ft_s1_method=cos_ahc_plda_ahc
 cluster_ft_s1_cfg=conf/cluster_ecapatdnn512x3_v1.2_ft1_cos_ahc_plda_ahc.yaml
-cluster_ft_s1_name=${cluster_method}
+cluster_ft_s1_name=${cluster_ft_s1_method}
 cluster_ft_s1_dir=exp/clustering/$nnet_ft_s1_2_name/$cluster_ft_s1_name
 
 
@@ -62,7 +62,7 @@ nnet_ft_s2_2=$nnet_ft_s2_2_dir/model_ep0070.pth
 # clustering of ft embeddings from stage 1.2
 cluster_ft_s2_method=cos_ahc_plda_ahc
 cluster_ft_s2_cfg=conf/cluster_ecapatdnn512x3_v1.2_ft1_cos_ahc_plda_ahc.yaml
-cluster_ft_s2_name=${cluster_method}
+cluster_ft_s2_name=${cluster_ft_s2_method}
 cluster_ft_s2_dir=exp/clustering/$nnet_ft_s2_2_name/$cluster_ft_s2_name
 
 

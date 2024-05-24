@@ -38,7 +38,7 @@ class Dropout1d(Dropout2d):
 
 
 class DropConnect2d(nn.Module):
-    """DropsConnect for tensor with 2d spatial dimanions (4d tensors).
+    """DropsConnect for tensor with 2d spatial dimensions (4d tensors).
         It drops the full feature map. It used to create residual networks
         with stochastic depth.
 
@@ -82,7 +82,7 @@ class DropConnect2d(nn.Module):
 
 
 class DropConnect1d(nn.Module):
-    """DropsConnect for tensor with 1d spatial dimanions (3d tensors).
+    """DropsConnect for tensor with 1d spatial dimensions (3d tensors).
         It drops the full feature map. It used to create residual networks
         with stochastic depth.
 
@@ -123,3 +123,6 @@ class DropConnect1d(nn.Module):
         binary_tensor = torch.floor(random_tensor)
         output = inputs / keep_prob * binary_tensor
         return output
+    
+DropPath2d = DropConnect2d
+DropPath1d = DropConnect1d
