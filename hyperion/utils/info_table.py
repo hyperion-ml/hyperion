@@ -33,7 +33,11 @@ class InfoTable:
 
     def fix_dtypes(self):
         if infer_dtype(self.df.id) != "string":
-            self.df[:, "id"] = self.df["id"].apply(str)
+            self.df.loc[:, "id"] = self.df["id"].apply(str)
+
+    def convert_col_to_str(self, column):
+        if infer_dtype(self.df[column]) != "string":
+            self.df.loc[:, column] = self.df[column].apply(str)
 
     def copy(self):
         """Makes a copy of the object."""

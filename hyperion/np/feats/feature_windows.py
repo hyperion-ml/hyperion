@@ -6,7 +6,7 @@
 import logging
 
 import numpy as np
-from scipy.signal import blackman, hamming, hann
+from scipy.signal.windows import blackman, hamming, hann
 
 from ...hyp_defs import float_cpu
 

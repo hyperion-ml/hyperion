@@ -137,6 +137,12 @@ run_xxx_xxxx.sh --config-file global_conf/other_config.sh
 | | | | | FT-2 | PLDA | 1.67 | 0.137 | 0.193 |
 | config_fbank80_stmn_fwseresnet34.v1.2.1.sh  | FW-SE ResNet34 | Cos+AHC+PLDA+AHC | Cos+AHC | FT-2 | Cosine | 1.49 | 0.101 | 0.161 |
 | | | | | FT-2 | PLDA | 1.53 | 0.109 | 0.168|
+| config_fbank80_stmn_fwseresnet34.v1.2.2.sh  | FW-SE ResNet34 / 0.1 x Cos Reg. | Cos+AHC+PLDA+AHC | Cos+AHC | DINO | Cosine | 3.96 | 0.232 | 0.358 |
+| | | | | | PLDA | 4.04 | 0.185 | 0.291 |
+| | | | | FT-1 | Cosine | 2.03 | 0.125 | 0.203 |
+| | | | | FT-1 | PLDA | 2.44 | 0.149 | 0.231 |
+| | | | | FT-2 | Cosine | 
+| | | | | FT-2 | PLDA | 
 
 
 ### VoxCeleb 1 Entire-Clean trial list
@@ -161,6 +167,12 @@ run_xxx_xxxx.sh --config-file global_conf/other_config.sh
 | | | | | FT-2 | PLDA | 1.77 | 0.121 | 0.208 |
 | config_fbank80_stmn_fwseresnet34.v1.2.1.sh  | FW-SE ResNet34 | Cos+AHC+PLDA+AHC | Cos+AHC | FT-2 | Cosine | 1.83 | 0.106 | 0.170 |
 | | | | | FT-2 | PLDA | 1.68 | 0.109 | 0.188 |
+| config_fbank80_stmn_fwseresnet34.v1.2.2.sh  | FW-SE ResNet34 / 0.1 x Cos Reg. | Cos+AHC+PLDA+AHC | Cos+AHC | DINO | Cosine | 4.31 | 0.250 | 0.387 |
+| | | | | | PLDA | 4.32 | 0.166 | 0.263 |
+| | | | | FT-1 | Cosine | 2.61 | 0.138 | 0.210 | 
+| | | | | FT-1 | PLDA | 2.72 | 0.1366 | 0.216 |
+| | | | | FT-2 | Cosine | 
+| | | | | FT-2 | PLDA | 
 
 
 ### VoxCeleb 1 Hard-Clean trial list
@@ -185,4 +197,10 @@ run_xxx_xxxx.sh --config-file global_conf/other_config.sh
 | | | | | FT-2 | PLDA | 3.51 | 0.219 | 0.351 |
 | config_fbank80_stmn_fwseresnet34.v1.2.1.sh  | FW-SE ResNet34 | Cos+AHC+PLDA+AHC | Cos+AHC | FT-2 | Cosine | 3.11 | 0.172 | 0.270 |
 | | | | | FT-2 | PLDA | 3.15 | 0.186 | 0.294 |
+| config_fbank80_stmn_fwseresnet34.v1.2.2.sh  | FW-SE ResNet34 / 0.1 x Cos Reg. | Cos+AHC+PLDA+AHC | Cos+AHC | DINO | Cosine | 7.41 | 0.377 | 0.526 |
+| | | | | | PLDA | 5.95 | 0.269 | 0.438 |
+| | | | | FT-1 | Cosine | 4.38 | 0.222 | 0.337 |
+| | | | | FT-1 | PLDA | 4.68 | 0.237 | 0.375 |
+| | | | | FT-2 | Cosine | 
+| | | | | FT-2 | PLDA | 
 
