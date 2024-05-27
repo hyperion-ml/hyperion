@@ -50,7 +50,7 @@ cluster_ft_s1_dir=exp/clustering/$nnet_ft_s1_2_name/$cluster_ft_s1_name
 nnet_ft_s2_1_base_cfg=conf/train_fwseresnet34_xvec_stage1.1_v1.2.2.yaml
 nnet_ft_s2_1_name=$nnet_name.s1.ft.s2.1
 nnet_ft_s2_1_dir=exp/xvector_nnets/$nnet_ft_s2_1_name
-nnet_ft_s2_1=$nnet_ft_s2_1_dir/model_ep0030.pth
+nnet_ft_s2_1=$nnet_ft_s2_1_dir/model_ep0025.pth
 
 # finetuning stage 2.2
 nnet_ft_s2_2_base_cfg=conf/train_fwseresnet34_xvec_stage1.2_v1.2.2.yaml
