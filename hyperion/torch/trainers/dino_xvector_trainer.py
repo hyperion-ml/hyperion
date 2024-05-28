@@ -10,7 +10,7 @@ from collections import OrderedDict as ODict
 import torch
 import torch.cuda.amp as amp
 import torch.nn as nn
-from jsonargparse import ActionParser, ArgumentParser
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from torch.distributed.elastic.multiprocessing.errors import record
 
 from ...utils.misc import filter_func_args
@@ -491,6 +491,12 @@ class DINOXVectorTrainer(TorchTrainer):
             default=1500,
             type=int,
             help="freeze the output layer during the first updates of the model",
+        )
+        parser.add_argument(
+            "--freeze-teacher",
+            default=False,
+            action=ActionYesNo,
+            help="use a pre-trained frozen teacher",
         )
 
         if prefix is not None:
