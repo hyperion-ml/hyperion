@@ -83,7 +83,7 @@ class ConvNext1dXVector(XVector):
     def get_config(self):
         base_config = super().get_config()
         del base_config["encoder_cfg"]
-        # del base_config["in_feats"]
+        del base_config["in_feats"]
 
         encoder_cfg = self.encoder_net.get_config()
         del encoder_cfg["class_name"]
@@ -131,10 +131,10 @@ class ConvNext1dXVector(XVector):
     @classmethod
     def load(cls, file_path=None, cfg=None, state_dict=None):
         cfg, state_dict = cls._load_cfg_state_dict(file_path, cfg, state_dict)
-        # try:
-        #     del cfg["in_feats"]
-        # except:
-        #     pass
+        try:
+            del cfg["in_feats"]
+        except:
+            pass
 
         model = cls(**cfg)
         if state_dict is not None:
@@ -146,7 +146,8 @@ class ConvNext1dXVector(XVector):
     def filter_args(**kwargs):
         base_args = XVector.filter_args(**kwargs)
         child_args = Encoder.filter_args(**kwargs["convnext_enc"])
-
+        if "in_feats" in base_args:
+            del base_args["in_feats"]
         base_args["convnext_enc"] = child_args
         return base_args
 

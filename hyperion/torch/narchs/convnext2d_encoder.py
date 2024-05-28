@@ -29,8 +29,10 @@ class ConvNext2dShortName(str, Enum):
     PICO = "pico"
     NANO = "nano"
     TINY = "tiny"
+    SMALL = "small"
     BASE = "base"
     LARGE = "large"
+    XLARGE = "xlarge"
     HUGE = "huge"
 
     @staticmethod
@@ -54,12 +56,18 @@ class ConvNext2dShortName(str, Enum):
         elif short_name == ConvNext2dShortName.TINY:
             repeats = [3, 3, 9, 3]
             channels = [96, 192, 384, 768]
+        elif short_name == ConvNext2dShortName.SMALL:
+            repeats = [3, 3, 27, 3]
+            channels = [96, 192, 384, 768]
         elif short_name == ConvNext2dShortName.BASE:
             repeats = [3, 3, 27, 3]
             channels = [128, 256, 512, 1024]
         elif short_name == ConvNext2dShortName.LARGE:
             repeats = [3, 3, 27, 3]
             channels = [192, 384, 768, 1536]
+        elif short_name == ConvNext2dShortName.XLARGE:
+            repeats = [3, 3, 27, 3]
+            channels = [256, 512, 1024, 2048]
         elif short_name == ConvNext2dShortName.HUGE:
             repeats = [3, 3, 27, 3]
             channels = [352, 704, 1408, 2816]
