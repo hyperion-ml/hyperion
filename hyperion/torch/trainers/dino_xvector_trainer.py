@@ -39,6 +39,8 @@ class DINOXVectorTrainer(TorchTrainer):
       ddp_type: type of distributed data parallel in  (ddp, oss_ddp, oss_shared_ddp)
       loss: if None, it uses cross-entropy
       train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
+      freeze_output_layer_steps: number of steps at the beginning of training where output layer is frozen.
+      freeze_teacher: the teacher is pre-trained and not updated.
       use_amp: uses mixed precision training.
       amp_dtype: float16 | bfloat16
       log_interval: number of optim. steps between log outputs
@@ -78,6 +80,7 @@ class DINOXVectorTrainer(TorchTrainer):
         ddp_type="ddp",
         train_mode="full",
         freeze_output_layer_steps=3000,
+        freeze_teacher=False,
         use_amp=False,
         amp_dtype=AMPDType.FLOAT16,
         log_interval=1000,
@@ -97,6 +100,7 @@ class DINOXVectorTrainer(TorchTrainer):
         self.teacher_model = teacher_model
         self.teacher_optim = teacher_optim
         self.freeze_output_layer_steps = freeze_output_layer_steps
+        self.freeze_teacher = freeze_teacher
         self.cosine_loss = cosine_loss
         super().__init__(student_model, **super_args)
 
@@ -109,12 +113,14 @@ class DINOXVectorTrainer(TorchTrainer):
             self.ddp,
         )
 
-    def _prepare_model_for_ema(self, model, optim, device, ddp):
+    def _prepare_model_for_ema(self, model, optim, device, ddp, frozen):
         if device is not None:
             model.to(device)
 
-        optimizer = EMA(model.parameters(), **optim)
+        if frozen:
+            optimizer = model, None
 
+        optimizer = EMA(model.parameters(), **optim)
         if ddp:
             model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
 
@@ -126,7 +132,8 @@ class DINOXVectorTrainer(TorchTrainer):
 
     @torch.no_grad()
     def update_teacher_model(self):
-        self.teacher_optimizer.step(self.model.parameters())
+        if not self.freeze_teacher:
+            self.teacher_optimizer.step(self.model.parameters())
 
     @staticmethod
     def get_augs_keys(batch, base_key, subset, skip=set()):
@@ -170,7 +177,10 @@ class DINOXVectorTrainer(TorchTrainer):
         metric_acc = MetricAcc(device=self.device)
         batch_metrics = ODict()
         self.model.train()
-        self.teacher_model.train()
+        if self.freeze_teacher:
+            self.teacher_model.eval()
+        else:
+            self.teacher_model.train()
         self.loss.update_temp(self.cur_epoch)
         self.loss.train()
         if self.cosine_loss is not None:
@@ -224,7 +234,7 @@ class DINOXVectorTrainer(TorchTrainer):
 
                 loss_dino = self.loss(
                     student_out_logits,
-                    teacher_out.logits,
+                    teacher_out.logits.detach(),
                     num_student_crops,
                     num_teacher_crops,
                 )
@@ -232,7 +242,7 @@ class DINOXVectorTrainer(TorchTrainer):
                 if self.cosine_loss is not None:
                     scaled_loss_cosine, loss_cosine = self.cosine_loss(
                         student_out_embeds,
-                        teacher_out.xvector,
+                        teacher_out.xvector.detach(),
                         num_student_crops,
                         num_teacher_crops,
                     )
@@ -266,7 +276,9 @@ class DINOXVectorTrainer(TorchTrainer):
             logs = metric_acc.metrics
             lrs = self._get_lrs()
             logs.update(lrs)
-            logs["ema_momentum"] = self.teacher_optimizer.momentum
+
+            if self.teacher_optimizer is not None:
+                logs["ema_momentum"] = self.teacher_optimizer.momentum
             self.loggers.on_batch_end(logs=logs, batch_size=batch_size)
 
         logs = metric_acc.metrics
