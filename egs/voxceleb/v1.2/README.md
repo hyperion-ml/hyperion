@@ -142,6 +142,16 @@ run_007_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | config_fbank80_stmn_res2net50w26s8.v3.0.sh | Res2Net50 w26 scale=8 | Stage2: ArcFace m=0.4/intertop_m=0.1 | Cosine | 0.60 | 0.043 | 0.071 |
 | | | | Cosine + AS-Norm | 0.53 | 0.034 | 0.063 |
 | | | | Cosine + QMF | 0.49 | 0.033 | 0.054 |
+| config_fbank80_stmn_convnext2d_atto.v3.1.sh | ConvNext2d ATTO in_stride=1 | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 0.80 | 0.049 | 0.086 |
+| | | | Cosine + AS-Norm | 0.75 | 0.044 | 0.073 |
+| | | | Cosine + QMF | 0.66 | 0.039 | 0.061 |
+| config_fbank80_stmn_convnext2d_pico.v3.1.sh | ConvNext2d PICO in_stride=1 | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 
+| | | | Cosine + AS-Norm | 
+| | | | Cosine + QMF | 
+| config_fbank80_stmn_convnext2d_base.v3.1.sh | ConvNext2d BASE in_stride=1 | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 
+| | | | Cosine + AS-Norm | 
+| | | | Cosine + QMF | 
+
 
 ### VoxCeleb 1 Entire-Clean trial list
 
@@ -198,6 +208,16 @@ run_007_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | config_fbank80_stmn_res2net50w26s8.v3.0.sh | Res2Net50 w26 scale=8 | Stage2: ArcFace m=0.4/intertop_m=0.1 | Cosine | 0.75 | 0.047 | 0.077 |
 | | | | Cosine + AS-Norm | 0.70 | 0.042 | 0.072 |
 | | | | Cosine + QMF | 0.68 | 0.040 | 0.069 |
+| config_fbank80_stmn_convnext2d_atto.v3.1.sh | ConvNext2d ATTO in_stride=1 | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 0.96 | 0.61 | 0.106 |
+| | | | Cosine + AS-Norm | 0.90 | 0.056 | 0.096 |
+| | | | Cosine + QMF | 0.85 | 0.052 | 0.090 |
+| config_fbank80_stmn_convnext2d_pico.v3.1.sh | ConvNext2d PICO in_stride=1 | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 
+| | | | Cosine + AS-Norm | 
+| | | | Cosine + QMF | 
+| config_fbank80_stmn_convnext2d_base.v3.1.sh | ConvNext2d BASE in_stride=1 | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 
+| | | | Cosine + AS-Norm | 
+| | | | Cosine + QMF | 
+
 
 
 ### VoxCeleb 1 Hard-Clean trial list
@@ -255,7 +275,15 @@ run_007_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | config_fbank80_stmn_res2net50w26s8.v3.0.sh | Res2Net50 w26 scale=8 | Stage2: ArcFace m=0.4/intertop_m=0.1 | Cosine | 1.41 | 0.081 | 0.132 |
 | | | | Cosine + AS-Norm | 1.28 | 0.071 | 0.116 |
 | | | | Cosine + QMF | 1.21 | 0.069 | 0.113 |
-
+| config_fbank80_stmn_convnext2d_atto.v3.1.sh | ConvNext2d ATTO in_stride=1 | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 1.74 | 0.103 | 0.174 | 
+| | | | Cosine + AS-Norm | 1.57 | 0.093 | 0.155 |
+| | | | Cosine + QMF | 1.47 | 0.089 | 0.144 |
+| config_fbank80_stmn_convnext2d_pico.v3.1.sh | ConvNext2d PICO in_stride=1 | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 
+| | | | Cosine + AS-Norm | 
+| | | | Cosine + QMF | 
+| config_fbank80_stmn_convnext2d_base.v3.1.sh | ConvNext2d BASE in_stride=1 | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 
+| | | | Cosine + AS-Norm | 
+| | | | Cosine + QMF | 
 
 ### VoxSRC2022 dev
 
@@ -312,3 +340,12 @@ run_007_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | config_fbank80_stmn_res2net50w26s8.v3.0.sh | Res2Net50 w26 scale=8 | Stage2: ArcFace m=0.4/intertop_m=0.1 | Cosine | 1.96 | 0.124 | 0.211 |
 | | | | Cosine + AS-Norm | 1.79 | 0.118 | 0239 |
 | | | | Cosine + QMF | 1.68 | 0.114 | 0.216 |
+| config_fbank80_stmn_convnext2d_atto.v3.1.sh | ConvNext2d ATTO in_stride=1 | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 2.41 | 0.145 | 0.256 |
+| | | | Cosine + AS-Norm | 2.22 | 0.138 | 0.237 |
+| | | | Cosine + QMF | 2.07 | 0.130 | 0.218 |
+| config_fbank80_stmn_convnext2d_pico.v3.1.sh | ConvNext2d PICO in_stride=1 | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 
+| | | | Cosine + AS-Norm | 
+| | | | Cosine + QMF | 
+| config_fbank80_stmn_convnext2d_base.v3.1.sh | ConvNext2d BASE in_stride=1 | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 
+| | | | Cosine + AS-Norm | 
+| | | | Cosine + QMF | 

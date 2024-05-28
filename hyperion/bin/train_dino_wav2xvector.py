@@ -17,6 +17,7 @@ from jsonargparse import (
 )
 
 from hyperion.hyp_defs import config_logger, set_float_cpu
+from hyperion.torch import TorchModel
 from hyperion.torch.data import DINOAudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
 from hyperion.torch.losses import CosineDINOLoss, DINOLoss
@@ -91,8 +92,12 @@ def init_teacher_xvector(student_model, rank, xvec_class, **kwargs):
     if rank == 0:
         logging.info(f"teacher xvector network args={xvec_args}")
     # xvec_args["xvector"]["num_classes"] = num_classes
-    model = student_model.clone()
-    model.change_config(**xvec_args)
+    if kwargs["in_teacher_model_file"] is None:
+        model = student_model.clone()
+        model.change_config(**xvec_args)
+    else:
+        model = TorchModel.auto_load(kwargs["in_teacher_model_file"])
+
     if rank == 0:
         logging.info(f"teacher-model={model}")
     return model
@@ -201,6 +206,7 @@ def make_parser(xvec_class):
 
     xvec_class.add_class_args(parser, prefix="student_model")
     xvec_class.add_dino_teacher_args(parser, prefix="teacher_model")
+    parser.add_argument("--in-teacher-model-file", default=None)
     DINOLoss.add_class_args(parser, prefix="dino_loss")
     CosineDINOLoss.add_class_args(parser, prefix="cosine_loss")
     Trainer.add_class_args(
