@@ -111,6 +111,7 @@ class DINOXVectorTrainer(TorchTrainer):
             self.teacher_optim,
             self.device,
             self.ddp,
+            self.freeze_teacher,
         )
 
     def _prepare_model_for_ema(self, model, optim, device, ddp, frozen):
@@ -382,17 +383,23 @@ class DINOXVectorTrainer(TorchTrainer):
         return super()._load_checkpoint(checkpoint)
 
     def _load_checkpoint(self, checkpoint, teacher_checkpoint, loss_checkpoint=None):
-        self.teacher_model.load_state_dict(teacher_checkpoint["model_state_dict"])
-        self.teacher_optimizer.load_state_dict(
-            teacher_checkpoint["optimizer_state_dict"]
-        )
+        if teacher_checkpoint is not None:
+            self.teacher_model.load_state_dict(teacher_checkpoint["model_state_dict"])
+            self.teacher_optimizer.load_state_dict(
+                teacher_checkpoint["optimizer_state_dict"]
+            )
         if loss_checkpoint is not None:
             self.loss.load_state_dict(loss_checkpoint["model_state_dict"])
         return super()._load_checkpoint(checkpoint)
 
     def load_checkpoint(self, epoch, step):
         checkpoint = self.load_model_checkpoint("model", epoch, step)
-        teacher_checkpoint = self.load_model_checkpoint("teacher_model", epoch, step)
+        if not self.freeze_teacher:
+            teacher_checkpoint = self.load_model_checkpoint(
+                "teacher_model", epoch, step
+            )
+        else:
+            teacher_checkpoint = None
         try:
             loss_checkpoint = self.load_model_checkpoint("dino_loss", epoch, step)
         except:
@@ -466,8 +473,11 @@ class DINOXVectorTrainer(TorchTrainer):
         checkpoint = self.checkpoint(logs)
         self.save_model_checkpoint("model", checkpoint, partial=partial)
 
-        teacher_checkpoint = self.teacher_checkpoint(logs)
-        self.save_model_checkpoint("teacher_model", teacher_checkpoint, partial=partial)
+        if not self.freeze_teacher:
+            teacher_checkpoint = self.teacher_checkpoint(logs)
+            self.save_model_checkpoint(
+                "teacher_model", teacher_checkpoint, partial=partial
+            )
 
         loss_checkpoint = self.dino_loss_checkpoint()
         self.save_model_checkpoint("dino_loss", loss_checkpoint, partial=partial)

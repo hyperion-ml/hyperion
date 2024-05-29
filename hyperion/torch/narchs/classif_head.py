@@ -3,7 +3,6 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-
 import torch
 import torch.nn as nn
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
@@ -91,11 +90,11 @@ class ClassifHead(NetArch):
         self.intertop_margin = intertop_margin
         self.num_subcenters = num_subcenters
 
+        prev_feats = in_feats
         if self.use_in_norm:
             assert not self.norm_before
             self.in_norm = self._norm_layer(prev_feats)
 
-        prev_feats = in_feats
         fc_blocks = []
         for i in range(num_embed_layers - 1):
             fc_blocks.append(
