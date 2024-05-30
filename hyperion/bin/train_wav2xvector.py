@@ -177,7 +177,7 @@ def main():
         parser_k = make_parser(v)
         subcommands.add_subcommand(k, parser_k)
 
-    os.environ["MKL_THREADING_LAYER"] = "GNU"
+    # os.environ["MKL_THREADING_LAYER"] = "GNU"
     # os MKL_SERVICE_FORCE_INTEL=1
     args = parser.parse_args()
     try:
