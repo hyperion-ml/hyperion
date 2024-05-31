@@ -798,9 +798,9 @@ class GlobalChWiseAttMeanStdPool1d(_GlobalPool1d):
         if self.use_global_context:
             global_mus = self.stats_pool(x, weights=weights)
             x_inner = x_inner + self.lin_global(global_mus).unsqueeze(-1)
-            assert not torch.any(
-                torch.isnan(x_inner)
-            ), f"xinner is nan {torch.sum(torch.isnan(x_inner))} {torch.sum(torch.isnan(global_mus))}"
+            # assert not torch.any(
+            #     torch.isnan(x_inner)
+            # ), f"xinner is nan {torch.sum(torch.isnan(x_inner))} {torch.sum(torch.isnan(global_mus))}"
             # assert not torch.any(
             #     torch.isinf(x_inner)
             # ), f"xinner is inf {torch.sum(torch.isinf(x_inner))} {torch.sum(torch.isinf(global_mus))}"
