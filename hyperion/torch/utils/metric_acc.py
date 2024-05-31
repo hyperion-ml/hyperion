@@ -2,11 +2,12 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
+import math
 from collections import OrderedDict as ODict
 
 import numpy as np
-
 import torch
 import torch.distributed as dist
 
@@ -68,6 +69,11 @@ class MetricAcc(object):
         if self.keys is None:
             self.keys = metrics.keys()
             self.acc = np.zeros((len(self.keys),))
+
+        for i, k in enumerate(self.keys):
+            if not math.isfinite(metrics[k]):
+                logging.warning("non-finite %s=%f", k, metrics[k])
+                return
 
         self.count += num_samples
         r = num_samples / self.count

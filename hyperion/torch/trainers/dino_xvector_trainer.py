@@ -119,7 +119,7 @@ class DINOXVectorTrainer(TorchTrainer):
             model.to(device)
 
         if frozen:
-            optimizer = model, None
+            return model, None
 
         optimizer = EMA(model.parameters(), **optim)
         if ddp:
@@ -287,7 +287,8 @@ class DINOXVectorTrainer(TorchTrainer):
         lrs = self._get_lrs()
         logs.update(lrs)
         logs.update(self._get_wds())
-        logs["ema_momentum"] = self.teacher_optimizer.momentum
+        if self.teacher_optimizer is not None:
+            logs["ema_momentum"] = self.teacher_optimizer.momentum
         return logs
 
     @torch.no_grad()

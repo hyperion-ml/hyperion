@@ -478,6 +478,28 @@ class TorchTrainer(object):
         logs.update(self._get_lrs())
         return logs
 
+    def _check_for_grad_nans(self, model, optim):
+        """Checks for NaN in gradients when using fp16
+
+        Args:
+          model: model nn.Module
+          optim: optimizer
+
+        Returns:
+          True if ok, False if NaNs found
+        """
+        for n, p in model.named_parameters():
+            if p.grad is None:
+                continue
+            if torch.isnan(p.grad).any():
+                logging.warn(
+                    f"Detected NaN values in gradients of parameter {n} / skip update"
+                )
+                optim.zero_grad()
+                return False
+
+        return True
+
     def _clip_grad_norm(self, model, optim, grad_clip, grad_clip_norm):
         if self.ddp:
             if self.ddp_type == DDPType.DDP:
@@ -504,6 +526,9 @@ class TorchTrainer(object):
     ):
         """Updates the model and does gradding clipping."""
         if use_amp:
+            is_ok = self._check_for_grad_nans(model, optimizer)
+            if not is_ok:
+                return
             if grad_clip > 0:
                 grad_scaler.unscale_(optimizer)
                 self._clip_grad_norm(model, optimizer, grad_clip, grad_clip_norm)
@@ -530,23 +555,6 @@ class TorchTrainer(object):
             self.grad_scaler,
         )
         self.global_step += 1
-
-        # if self.use_amp:
-        #     if self.grad_clip > 0:
-        #         self.grad_scaler.unscale_(self.optimizer)
-        #         self._clip_grad_norm(
-        #             self.model, self.optimizer, self.grad_clip, self.grad_clip_norm
-        #         )
-
-        #     self.grad_scaler.step(self.optimizer)
-        #     self.grad_scaler.update()
-        # else:
-        #     if self.grad_clip > 0:
-        #         self._clip_grad_norm(
-        #             self.model, self.optimizer, self.grad_clip, self.grad_clip_norm
-        #         )
-
-        #     self.optimizer.step()
 
     def _make_optimizer(self, optim, model, oss=False):
         """Makes an optimizer object."""
