@@ -416,12 +416,12 @@ class DINOXVectorTrainer(TorchTrainer):
             loss_checkpoint = None
         return self._load_checkpoint(checkpoint, teacher_checkpoint, loss_checkpoint)
 
-    def checkpoint(self, logs=None):
-        checkpoint = super().checkpoint(logs)
-        self.teacher_model.train()
-        checkpoint["teacher_model_state_dict"] = self.teacher_model.state_dict()
-        checkpoint["teacher_optimizer_state_dict"] = self.teacher_optimizer.state_dict()
-        return checkpoint
+    # def checkpoint(self, logs=None):
+    #     checkpoint = super().checkpoint(logs)
+    #     # self.teacher_model.train()
+    #     # checkpoint["teacher_model_state_dict"] = self.teacher_model.state_dict()
+    #     # checkpoint["teacher_optimizer_state_dict"] = self.teacher_optimizer.state_dict()
+    #     return checkpoint
 
     def teacher_checkpoint(self, logs=None):
         """Creates a checkpoint of the teacher model, to save and posterior recovery
