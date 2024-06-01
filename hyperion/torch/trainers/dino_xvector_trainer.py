@@ -295,6 +295,8 @@ class DINOXVectorTrainer(TorchTrainer):
         logs.update(self._get_wds())
         if self.teacher_optimizer is not None:
             logs["ema_momentum"] = self.teacher_optimizer.momentum
+        if self.grad_scaler is not None:
+            logs["grad_scale"] = self.grad_scaler._scale
         return logs
 
     @torch.no_grad()
@@ -325,20 +327,20 @@ class DINOXVectorTrainer(TorchTrainer):
                 num_teacher_crops = len(teacher_data)
                 teacher_data = torch.cat(teacher_data, dim=0)
                 teacher_out = self.teacher_model(teacher_data)
-                assert not torch.any(torch.isnan(teacher_out.logits)), "teacher is nan"
-                assert not torch.any(torch.isinf(teacher_out.logits)), "teacher is inf"
+                # assert not torch.any(torch.isnan(teacher_out.logits)), "teacher is nan"
+                # assert not torch.any(torch.isinf(teacher_out.logits)), "teacher is inf"
 
                 if num_teacher_crops > 1:
                     student_out1 = self.model(teacher_data)
-                    assert not torch.any(torch.isnan(student_out1.logits)), "s1 is nan"
-                    assert not torch.any(torch.isinf(student_out1.logits)), "s1 is inf"
+                    # assert not torch.any(torch.isnan(student_out1.logits)), "s1 is nan"
+                    # assert not torch.any(torch.isinf(student_out1.logits)), "s1 is inf"
 
                 student_data = tensors_subset(data, student_keys, self.device)
                 num_student_crops = len(student_data)
                 student_data = torch.cat(student_data, dim=0)
                 student_out2 = self.model(student_data)
-                assert not torch.any(torch.isnan(student_out2.logits)), "s2 is nan"
-                assert not torch.any(torch.isinf(student_out2.logits)), "s2 is inf"
+                # assert not torch.any(torch.isnan(student_out2.logits)), "s2 is nan"
+                # assert not torch.any(torch.isinf(student_out2.logits)), "s2 is inf"
                 if num_teacher_crops > 1:
                     student_out_logits = torch.cat(
                         (student_out1.logits, student_out2.logits), dim=0

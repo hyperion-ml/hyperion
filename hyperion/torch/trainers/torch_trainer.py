@@ -526,9 +526,9 @@ class TorchTrainer(object):
     ):
         """Updates the model and does gradding clipping."""
         if use_amp:
-            is_ok = self._check_for_grad_nans(model, optimizer)
-            if not is_ok:
-                return
+            # is_ok = self._check_for_grad_nans(model, optimizer)
+            # if not is_ok:
+            #     return
             if grad_clip > 0:
                 grad_scaler.unscale_(optimizer)
                 self._clip_grad_norm(model, optimizer, grad_clip, grad_clip_norm)

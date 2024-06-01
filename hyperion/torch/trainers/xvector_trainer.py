@@ -150,6 +150,8 @@ class XVectorTrainer(TorchTrainer):
         lrs = self._get_lrs()
         logs.update(lrs)
         logs.update(self._get_wds())
+        if self.grad_scaler is not None:
+            logs["grad_scale"] = self.grad_scaler._scale
         return logs
 
     def validation_epoch(self, data_loader, swa_update_bn=False):
