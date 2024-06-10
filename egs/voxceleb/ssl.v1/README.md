@@ -141,8 +141,9 @@ run_xxx_xxxx.sh --config-file global_conf/other_config.sh
 | | | | | | PLDA | 4.04 | 0.185 | 0.291 |
 | | | | | FT-1 | Cosine | 2.03 | 0.125 | 0.203 |
 | | | | | FT-1 | PLDA | 2.44 | 0.149 | 0.231 |
-| | | | | FT-2 | Cosine | 
-| | | | | FT-2 | PLDA | 
+| | | | | FT-2 | Cosine | 1.88 | 0.115 | 0.198 |
+| | | | | FT-2 | PLDA | 2.57 | 0.147 | 0.234 |
+
 
 
 ### VoxCeleb 1 Entire-Clean trial list
@@ -171,8 +172,9 @@ run_xxx_xxxx.sh --config-file global_conf/other_config.sh
 | | | | | | PLDA | 4.32 | 0.166 | 0.263 |
 | | | | | FT-1 | Cosine | 2.61 | 0.138 | 0.210 | 
 | | | | | FT-1 | PLDA | 2.72 | 0.1366 | 0.216 |
-| | | | | FT-2 | Cosine | 
-| | | | | FT-2 | PLDA | 
+| | | | | FT-2 | Cosine | 2.41 | 0.121 | 0.193 |
+| | | | | FT-2 | PLDA | 2.82 | 0.140 | 0.219 |
+
 
 
 ### VoxCeleb 1 Hard-Clean trial list
@@ -201,6 +203,5 @@ run_xxx_xxxx.sh --config-file global_conf/other_config.sh
 | | | | | | PLDA | 5.95 | 0.269 | 0.438 |
 | | | | | FT-1 | Cosine | 4.38 | 0.222 | 0.337 |
 | | | | | FT-1 | PLDA | 4.68 | 0.237 | 0.375 |
-| | | | | FT-2 | Cosine | 
-| | | | | FT-2 | PLDA | 
-
+| | | | | FT-2 | Cosine | 4.07 | 0.197 | 0.301 |
+| | | | | FT-2 | PLDA | 4.75 | 0.229 | 0.352 |

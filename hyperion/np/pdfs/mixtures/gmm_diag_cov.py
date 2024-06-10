@@ -121,8 +121,8 @@ class GMMDiagCov(ExpFamilyMixture):
             self.Lambda = 1 / np.std(x, axis=0, keepdims=True) ** 2
             return
 
-        kmeans = KMeans(num_clusters=num_comp)
-        loss, cluster_index = kmeans.fit(x, epochs=100)
+        kmeans = KMeans(num_clusters=num_comp, epochs=100)
+        loss, cluster_index = kmeans.fit(x)
 
         self.mu = kmeans.mu
         self.pi = np.zeros((self.num_comp,), dtype=float_cpu())

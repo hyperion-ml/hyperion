@@ -2,6 +2,7 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import h5py
 import numpy as np
 import scipy.linalg as la
@@ -150,8 +151,8 @@ class GMM(ExpFamilyMixture):
             self.Lambda[0] = invert_pdmat(S, return_inv=True)[-1]
             return
 
-        kmeans = KMeans(num_clusters=num_comp)
-        loss, cluster_index = kmeans.fit(x, epochs=100)
+        kmeans = KMeans(num_clusters=num_comp, epochs=100)
+        loss, cluster_index = kmeans.fit(x)
 
         self.mu = kmeans.mu
         self.pi = np.zeros((self.num_comp,), dtype=float_cpu())
@@ -253,7 +254,7 @@ class GMM(ExpFamilyMixture):
         """
         num_comp = self.num_comp * K
         pi = np.repeat(self.pi, K) / K
-        Lambda = np.repeat(self.Lambda, K, axis=0) * (K ** 2)
+        Lambda = np.repeat(self.Lambda, K, axis=0) * (K**2)
         mu = np.repeat(self.mu, K, axis=0)
 
         for g in range(self.num_comp):
@@ -400,7 +401,7 @@ class GMM(ExpFamilyMixture):
                             x_dim = len(fields)
                             eta1 = np.zeros((num_comp, x_dim), dtype=float_cpu())
                             eta2 = np.zeros(
-                                (num_comp, int((x_dim ** 2 + 3 * x_dim) / 2)),
+                                (num_comp, int((x_dim**2 + 3 * x_dim) / 2)),
                                 dtype=float_cpu(),
                             )
 
@@ -436,7 +437,7 @@ class GMM(ExpFamilyMixture):
 
     def _validate_eta(self):
         assert self.eta.shape[0] == self.num_comp
-        assert self.eta.shape[1] == (self.x_dim ** 2 + 3 * self.x_dim) / 2
+        assert self.eta.shape[1] == (self.x_dim**2 + 3 * self.x_dim) / 2
 
     def validate(self):
         """Validates the parameters of the distribution."""
@@ -454,7 +455,7 @@ class GMM(ExpFamilyMixture):
     def compute_eta(mu, Lambda):
         """Computes nat param. from mean and precision."""
         x_dim = mu.shape[-1]
-        eta_dim = int((x_dim ** 2 + 3 * x_dim) / 2)
+        eta_dim = int((x_dim**2 + 3 * x_dim) / 2)
         eta = np.zeros((mu.shape[0], eta_dim), dtype=float_cpu())
         for k in range(mu.shape[0]):
             eta[k] = Normal.compute_eta(mu[k], Lambda[k])
