@@ -66,7 +66,7 @@ class DiarAHCPLDA(object):
         output_dir = Path(output_file).parent
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        mask = np.triu(np.ones(scores.shape, dtype=np.bool), 1)
+        mask = np.triu(np.ones(scores.shape, dtype=bool), 1)
         scores_r = scores[mask].ravel()
 
         _, bins, _ = plt.hist(
@@ -96,7 +96,7 @@ class DiarAHCPLDA(object):
     @staticmethod
     def _unsup_gmm_calibration(scores):
         """Performs unsupervised calibration on the scores by training a GMM."""
-        mask = np.triu(np.ones(scores.shape, dtype=np.bool), 1)
+        mask = np.triu(np.ones(scores.shape, dtype=bool), 1)
         scores_r = scores[mask].ravel()[:, None]  # N x 1
         gmm_1c = GMM(num_comp=1)
         gmm_1c.fit(scores_r, epochs=1)
