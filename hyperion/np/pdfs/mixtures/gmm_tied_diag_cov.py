@@ -2,6 +2,7 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import h5py
 import numpy as np
 from scipy.special import erf
@@ -83,8 +84,8 @@ class GMMTiedDiagCov(GMMDiagCov):
             self.Lambda = 1 / np.std(x, axis=0, keepdims=True) ** 2
             return
 
-        kmeans = KMeans(num_clusters=num_comp)
-        loss, cluster_index = kmeans.fit(x, epochs=100)
+        kmeans = KMeans(num_clusters=num_comp, epochs=100)
+        loss, cluster_index = kmeans.fit(x)
 
         self.mu = kmeans.mu
         self.pi = np.zeros((self.num_comp,), dtype=float_cpu())
@@ -93,7 +94,7 @@ class GMMTiedDiagCov(GMMDiagCov):
             r = cluster_index == k
             self.pi[k] = np.sum(r) / x.shape[0]
             delta = x[r] - self.mu[k]
-            C += np.sum(delta ** 2, axis=0)
+            C += np.sum(delta**2, axis=0)
 
         self.Lambda = x.shape[0] / C
 
@@ -111,7 +112,7 @@ class GMMTiedDiagCov(GMMDiagCov):
             self.mu = F / N[:, None]
 
         if self.update_Lambda:
-            S = S / N[:, None] - self.mu ** 2
+            S = S / N[:, None] - self.mu**2
             S_floor = self.var_floor * np.mean(S[N > self.min_N], axis=0)
             S = np.maximum(S, S_floor)
             Spool = np.sum(N[:, None] * S, axis=0) / np.sum(N)
