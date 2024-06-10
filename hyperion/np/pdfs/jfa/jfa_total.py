@@ -281,7 +281,7 @@ class JFATotal(PDF):
     def _upptr(self):
         """Upper triangular mask."""
         if self.__upptr is None:
-            self.__upptr = np.triu(np.ones(self.y_dim, dtype=np.bool))
+            self.__upptr = np.triu(np.ones(self.y_dim, dtype=bool))
         return self.__upptr
 
     @staticmethod

@@ -636,7 +636,7 @@ class RTTM(object):
 
         tend[tend > max_samples] = max_samples
 
-        vad = np.zeros((max_samples,), dtype=np.bool)
+        vad = np.zeros((max_samples,), dtype=bool)
         for i, j in zip(tbeg, tend):
             if j > i:
                 vad[i:j] = True
