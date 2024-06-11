@@ -2,6 +2,7 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 
 import numpy as np
@@ -103,6 +104,8 @@ class ExpFamilyMixture(PDF):
                     x=x_val, sample_weight=sample_weight_val, batch_size=batch_size
                 )
                 elbo_val[epoch] = self.elbo(None, N=N, u_x=u_x, log_h=log_h_val)
+
+            print(self.log_prob(x, mode="nat"), self.log_prob(x, mode="std"))
 
         if x_val is None:
             return elbo, elbo / x.shape[0]
