@@ -180,9 +180,9 @@ class GMMDiagCov(ExpFamilyMixture):
 
         if self.update_Lambda:
             S = S / N[:, None] - self.mu**2
-            # S_floor = self.var_floor * np.mean(S[N > self.min_N], axis=0)
-            # S_floor = np.maximum(S_floor, 1e-10)
-            # S = np.maximum(S, S_floor)
+            S_floor = self.var_floor * np.mean(S[N > self.min_N], axis=0)
+            S_floor = np.maximum(S_floor, 1e-10)
+            S = np.maximum(S, S_floor)
             self.Lambda = 1 / S
             self._Sigma = S
             self._cholLambda = None

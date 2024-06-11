@@ -105,12 +105,6 @@ class ExpFamilyMixture(PDF):
                 )
                 elbo_val[epoch] = self.elbo(None, N=N, u_x=u_x, log_h=log_h_val)
 
-            print(
-                elbo[epoch] / x.shape[0],
-                np.mean(self.log_prob(x, mode="nat")),
-                np.mean(self.log_prob(x, mode="std")),
-            )
-
         if x_val is None:
             return elbo, elbo / x.shape[0]
         else:
