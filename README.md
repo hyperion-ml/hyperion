@@ -28,13 +28,13 @@ The full API is described in the documentation page [https://hyperion-ml.readthe
     We use anaconda or miniconda, though you should be able to make it work in other python distributions
     To start, you should create a new enviroment and install PyTorch:
 ```
-conda create --name ${your_env} python=3.12
+conda create --name ${your_env} python=3.11
 conda activate ${your_env}
 # We used PyTorch 2.3, other versions may work too
 conda install pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvidia
 # If using ASR recipes, you need to install k2:
-wget https://huggingface.co/csukuangfj/k2/resolve/main/ubuntu-cuda/k2-1.24.4.dev20240425+cuda12.1.torch2.3.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
-pip install k2-1.24.4.dev20240425+cuda12.1.torch2.3.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+wget https://huggingface.co/csukuangfj/k2/resolve/main/ubuntu-cuda/k2-1.24.4.dev20240425+cuda12.1.torch2.3.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+pip install k2-1.24.4.dev20240425+cuda12.1.torch2.3.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
 # If using mamba, install:
 pip install causal-conv1d>=1.2.0
 pip install mamba-ssm

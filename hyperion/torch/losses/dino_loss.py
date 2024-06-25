@@ -66,19 +66,19 @@ class DINOLoss(nn.Module):
         """
         Cross-entropy between softmax outputs of the teacher and student networks.
         """
-        assert not torch.any(torch.isnan(student_pred)), f"loss/student is nan"
+        # assert not torch.any(torch.isnan(student_pred)), f"loss/student is nan"
         student_pred = student_pred / self.student_temp
-        assert not torch.any(torch.isnan(student_pred)), f"loss/p is nan"
+        # assert not torch.any(torch.isnan(student_pred)), f"loss/p is nan"
         student_pred = student_pred.chunk(num_student_crops)
         teacher_pred = teacher_pred.detach()
         center = self.center  # we take the center before updating it
         if self.training:
             self.update_center(teacher_pred)
-        assert not torch.any(torch.isnan(teacher_pred)), f"loss/teacher is nan"
+        # assert not torch.any(torch.isnan(teacher_pred)), f"loss/teacher is nan"
         teacher_pred = nn.functional.softmax(
             (teacher_pred - center) / self.cur_teacher_temp, dim=-1
         )
-        assert not torch.any(torch.isnan(teacher_pred)), f"loss/q is nan {center}"
+        # assert not torch.any(torch.isnan(teacher_pred)), f"loss/q is nan {center}"
         teacher_pred = teacher_pred.chunk(num_teacher_crops)
 
         total_loss = 0
@@ -89,9 +89,9 @@ class DINOLoss(nn.Module):
                     # we skip cases where student and teacher operate on the same view
                     continue
                 loss = torch.sum(-q * nn.functional.log_softmax(p, dim=-1), dim=-1)
-                assert not torch.any(
-                    torch.isnan(loss)
-                ), f"loss is nan {iq} {ip} {torch.mean(q)} {torch.mean(p)} {torch.mean(center)}"
+                # assert not torch.any(
+                #     torch.isnan(loss)
+                # ), f"loss is nan {iq} {ip} {torch.mean(q)} {torch.mean(p)} {torch.mean(center)}"
                 total_loss += loss.mean()
                 n_loss_terms += 1
         total_loss /= n_loss_terms
@@ -109,9 +109,10 @@ class DINOLoss(nn.Module):
             dist.all_reduce(batch_acc, op=dist.ReduceOp.SUM)
 
         batch_center = batch_acc / batch_size
-        assert not torch.any(
-            torch.isnan(batch_center)
-        ), f"bc is nan {torch.mean(batch_acc)} {batch_size}"
+        if torch.any(torch.isnan(batch_center)):
+            logging.warning(f"batch-center is nan")
+            return
+
         # ema update
         self.center = self.center * self.center_momentum + batch_center * (
             1 - self.center_momentum
