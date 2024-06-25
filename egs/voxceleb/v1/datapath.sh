@@ -5,7 +5,7 @@
 
 #paths to databases
 
-if [ "$(hostname --domain)" == "clsp.jhu.edu" ];then
+if [ "$(hostname -y)" == "clsp" ];then
     voxceleb1_root=/export/corpora5/VoxCeleb1_v1
     voxceleb2_root=/export/corpora5/VoxCeleb2
     musan_root=/export/corpora5/JHU/musan

@@ -4,7 +4,7 @@
 # Paths to the databases used in the experiment
 
 
-if [ "$(hostname --domain)" == "clsp.jhu.edu" ];then
+if [ "$(hostname -y)" == "clsp" ];then
   librispeech_root=/export/corpora5/LibriSpeech 
   musan_root=/export/corpora5/JHU/musan
 elif [ "$(hostname --domain)" == "cm.gemini" ];then

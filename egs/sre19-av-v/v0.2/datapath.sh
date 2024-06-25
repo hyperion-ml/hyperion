@@ -4,7 +4,7 @@
 # Paths to the databases used in the experiment
 
 #paths to databases
-if [ "$(hostname --domain)" == "clsp.jhu.edu" ];then
+if [ "$(hostname -y)" == "clsp" ];then
   ldc_root=/export/corpora5/LDC
   sre19_dev_root=$ldc_root/LDC2019E56
   sre19_eval_root=$ldc_root/LDC2019E57

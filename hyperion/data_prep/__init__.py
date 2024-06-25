@@ -9,3 +9,8 @@ from .rirs import RIRSDataPrep
 from .voxceleb2 import VoxCeleb2DataPrep
 from .voxceleb1 import VoxCeleb1DataPrep
 from .voxsrc22 import VoxSRC22DataPrep
+from .asvspoof2015 import ASVSpoof2015DataPrep
+from .asvspoof2017 import ASVSpoof2017DataPrep
+from .asvspoof2019 import ASVSpoof2019DataPrep
+from .asvspoof2021 import ASVSpoof2021DataPrep
+from .asvspoof2024 import ASVSpoof2024DataPrep

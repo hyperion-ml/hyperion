@@ -5,7 +5,7 @@
 
 #paths to databases
 
-if [ "$(hostname --domain)" == "clsp.jhu.edu" ];then
+if [ "$(hostname -y)" == "clsp" ];then
   ldc_root3=/export/fs02/corpora3/LDC
   ldc_root5=/export/corpora5/LDC
   ldc_root=/export/corpora6/LDC

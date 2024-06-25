@@ -212,8 +212,8 @@ class HypDataset:
     def classes_keys(self):
         if self._classes is not None:
             return self._classes.keys()
-        elif self._classes_path is not None:
-            return self._classes_path.keys()
+        elif self._classes_paths is not None:
+            return self._classes_paths.keys()
         else:
             return {}
 

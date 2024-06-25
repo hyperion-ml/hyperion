@@ -1,0 +1,1 @@
+global_conf/config_fbank80_stmn_convnext2d_atto.v3.1.sh
