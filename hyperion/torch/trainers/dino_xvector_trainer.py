@@ -296,7 +296,7 @@ class DINOXVectorTrainer(TorchTrainer):
         if self.teacher_optimizer is not None:
             logs["ema_momentum"] = self.teacher_optimizer.momentum
         if self.grad_scaler is not None:
-            logs["grad_scale"] = self.grad_scaler._scale
+            logs["grad_scale"] = self.grad_scaler._scale.item()
         return logs
 
     @torch.no_grad()

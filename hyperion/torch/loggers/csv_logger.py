@@ -71,7 +71,7 @@ class CSVLogger(Logger):
                 self.csv_writer.writeheader()
 
         row = ODict([("epoch", self.cur_epoch + 1)])
-        row.update((k, logs[k]) for k in self.log_keys)
+        row.update((k, logs[k] if k in logs else "NA") for k in self.log_keys)
         self.csv_writer.writerow(row)
         self.csv_file.flush()
 

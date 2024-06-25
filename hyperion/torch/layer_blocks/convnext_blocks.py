@@ -82,6 +82,7 @@ class ConvNext1dBlock(nn.Module):
     Args:
         num_channels (int): Number of input channels.
         kernel_size: kernel size
+        dilation: dilation factor of convolution
         activation: activation function name or object
         norm_layer: normalization layer constructor, if None, LayerNorm is used.
         drop_path_rate (float): Stochastic depth rate. Default: 0.0
@@ -91,16 +92,18 @@ class ConvNext1dBlock(nn.Module):
         self,
         num_channels: int,
         kernel_size: int = 7,
+        dilation: int = 1,
         activation: Union[str, nn.Module] = "gelu",
         norm_layer: Optional[Type[nn.Module]] = None,
         drop_path_rate: float = 0.0,
     ):
         super().__init__()
-        padding = (kernel_size - 1) // 2
+        padding = dilation * (kernel_size - 1) // 2
         self.dwconv = nn.Conv1d(
             num_channels,
             num_channels,
             kernel_size=kernel_size,
+            dilation=dilation,
             padding=padding,
             groups=num_channels,
         )  # depthwise conv
@@ -117,7 +120,7 @@ class ConvNext1dBlock(nn.Module):
         self.drop_path = (
             DropPath1d(drop_path_rate) if drop_path_rate > 0.0 else nn.Identity()
         )
-        self.context = kernel_size
+        self.context = padding
 
     def forward(self, x: torch.Tensor, x_mask: Optional[torch.Tensor] = None):
         input = x
@@ -494,6 +497,6 @@ class ConvNext1dEndpoint(nn.Module):
         Returns:
           Tensor with shape = (batch, out_channels, out_time).
         """
-        x = self.norm(x.permute(0, 1, 2)).permute(0, 1, 2).contiguous()
+        x = self.norm(x.permute(0, 2, 1)).permute(0, 2, 1).contiguous()
         x = self.resample(x)
         return x

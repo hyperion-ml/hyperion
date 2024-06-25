@@ -29,7 +29,14 @@ class ConvNext1dShortName(str, Enum):
     ATTO = "atto"
     FEMTO = "femto"
     PICO = "pico"
+    PICO2 = "pico2"
+    PICO3 = "pico3"
+    PICO4 = "pico4"
+    PICO5 = "pico5"
+    PICO6 = "pico6"
+    PICO7 = "pico7"
     NANO = "nano"
+    SMALL = "small"
     TINY = "tiny"
     BASE = "base"
     LARGE = "large"
@@ -43,30 +50,80 @@ class ConvNext1dShortName(str, Enum):
     def to_config(short_name):
         if short_name == ConvNext1dShortName.ATTO:
             repeats = [2, 2, 6, 2]
-            channels = [128, 196, 256, 384]
+            channels = [96, 128, 160, 320]
         elif short_name == ConvNext1dShortName.FEMTO:
             repeats = [2, 2, 6, 2]
-            channels = [196, 256, 384, 512]
+            channels = [96, 128, 192, 384]
         elif short_name == ConvNext1dShortName.PICO:
             repeats = [2, 2, 6, 2]
-            channels = [256, 384, 512, 640]
+            channels = [96, 128, 256, 512]
+        elif short_name == ConvNext1dShortName.PICO2:
+            repeats = [2, 2, 6, 2]
+            channels = [128, 128, 256, 512]
+        elif short_name == ConvNext1dShortName.PICO3:
+            repeats = [2, 2, 6, 2]
+            channels = [128, 256, 256, 512]
+        elif short_name == ConvNext1dShortName.PICO4:
+            repeats = [2, 2, 6, 2]
+            channels = [256, 256, 256, 512]
+        elif short_name == ConvNext1dShortName.PICO5:
+            repeats = [2, 2, 6, 2]
+            channels = [512, 512, 512, 512]
+        elif short_name == ConvNext1dShortName.PICO6:
+            repeats = [2, 2, 6, 2]
+            channels = [512, 798, 1024, 1536]
+        elif short_name == ConvNext1dShortName.PICO7:
+            repeats = [2, 2, 6, 2]
+            channels = [798, 1024, 1536, 2048]
         elif short_name == ConvNext1dShortName.NANO:
             repeats = [2, 2, 8, 2]
-            channels = [256, 384, 512, 768]
+            channels = [96, 160, 320, 640]
         elif short_name == ConvNext1dShortName.TINY:
             repeats = [3, 3, 9, 3]
-            channels = [384, 512, 640, 768]
+            channels = [96, 192, 384, 768]
+        elif short_name == ConvNext1dShortName.SMALL:
+            repeats = [3, 3, 27, 3]
+            channels = [96, 192, 384, 768]
         elif short_name == ConvNext1dShortName.BASE:
             repeats = [3, 3, 27, 3]
-            channels = [384, 512, 768, 1024]
+            channels = [128, 256, 512, 1024]
         elif short_name == ConvNext1dShortName.LARGE:
             repeats = [3, 3, 27, 3]
-            channels = [512, 768, 1024, 1536]
+            channels = [192, 384, 768, 1536]
+        elif short_name == ConvNext1dShortName.XLARGE:
+            repeats = [3, 3, 27, 3]
+            channels = [256, 512, 1024, 2048]
         elif short_name == ConvNext1dShortName.HUGE:
             repeats = [3, 3, 27, 3]
-            channels = [512, 1024, 1536, 2048]
+            channels = [352, 704, 1408, 2816]
         else:
             raise ValueError(f"wrong ConvNext short name {short_name.value}")
+        # if short_name == ConvNext1dShortName.ATTO:
+        #     repeats = [2, 2, 6, 2]
+        #     channels = [128, 196, 256, 384]
+        # elif short_name == ConvNext1dShortName.FEMTO:
+        #     repeats = [2, 2, 6, 2]
+        #     channels = [196, 256, 384, 512]
+        # elif short_name == ConvNext1dShortName.PICO:
+        #     repeats = [2, 2, 6, 2]
+        #     channels = [256, 384, 512, 640]
+        # elif short_name == ConvNext1dShortName.NANO:
+        #     repeats = [2, 2, 8, 2]
+        #     channels = [256, 384, 512, 768]
+        # elif short_name == ConvNext1dShortName.TINY:
+        #     repeats = [3, 3, 9, 3]
+        #     channels = [384, 512, 640, 768]
+        # elif short_name == ConvNext1dShortName.BASE:
+        #     repeats = [3, 3, 27, 3]
+        #     channels = [384, 512, 768, 1024]
+        # elif short_name == ConvNext1dShortName.LARGE:
+        #     repeats = [3, 3, 27, 3]
+        #     channels = [512, 768, 1024, 1536]
+        # elif short_name == ConvNext1dShortName.HUGE:
+        #     repeats = [3, 3, 27, 3]
+        #     channels = [512, 1024, 1536, 2048]
+        # else:
+        #     raise ValueError(f"wrong ConvNext short name {short_name.value}")
 
         strides = [2, 2, 2]
         return repeats, channels, strides
@@ -82,6 +139,8 @@ class ConvNext1dEncoder(NetArch):
         short_name:     short_name of the configuration repeats and channel numbers per block
         convb_repeats:  List of repeats of convolutional layers in each superblock
         convb_channels: List of channels of convolutional layers in each superblock
+        convb_kernel_sizes: List of kernel sizes of convolutional layers in each superblock
+        convb_dilations: List of dilations of convolutional layers in each superblock
         downb_strides:  List of downsampling strides after each superblock
         head_channels:  number of channels in the output, if 0, no output layers
         hid_act:        hidden activation string
@@ -103,7 +162,9 @@ class ConvNext1dEncoder(NetArch):
         short_name: Optional[str] = None,
         convb_repeats: List[int] = [3, 3, 27, 3],
         convb_channels: List[int] = [384, 512, 768, 1024],
-        downb_strides: int = 2,
+        convb_kernel_sizes: List[int] = [7],
+        convb_dilations: List[int] = [1],
+        downb_strides: List[int] = [2],
         head_channels: int = 0,
         hid_act: str = "gelu",
         head_act: Optional[str] = None,
@@ -132,6 +193,12 @@ class ConvNext1dEncoder(NetArch):
         self.convb_channels = self._standarize_resblocks_param(
             convb_channels, num_superblocks, "convb_channels"
         )
+        self.convb_kernel_sizes = self._standarize_resblocks_param(
+            convb_kernel_sizes, num_superblocks, "convb_kernel_sizes"
+        )
+        self.convb_dilations = self._standarize_resblocks_param(
+            convb_dilations, num_superblocks, "convb_dilations"
+        )
         self.downb_strides = self._standarize_resblocks_param(
             downb_strides, num_superblocks - 1, "downb_strides"
         )
@@ -158,7 +225,7 @@ class ConvNext1dEncoder(NetArch):
         self._downsample_factor = in_block.stride
 
         self.downsample_blocks = nn.ModuleList([in_block])
-        self.resb_scales = [self._downsample_factor]
+        self.convb_scales = [self._downsample_factor]
         for i in range(num_superblocks - 1):
             stride_i = self.downb_strides[i]
             if stride_i > 1 or self.convb_channels[i] != self.convb_channels[i + 1]:
@@ -174,7 +241,7 @@ class ConvNext1dEncoder(NetArch):
                 block_i = nn.Identity()
 
             self.downsample_blocks.append(block_i)
-            self.resb_scales = [self._downsample_factor]
+            self.convb_scales.append(self._downsample_factor)
 
         drop_rates = [
             x.item() for x in torch.linspace(0, drop_path_rate, sum(convb_repeats))
@@ -184,10 +251,14 @@ class ConvNext1dEncoder(NetArch):
         for i in range(num_superblocks):
             repeats_i = self.convb_repeats[i]
             channels_i = self.convb_channels[i]
+            kernel_size_i = self.convb_kernel_sizes[i]
+            dilation_i = self.convb_dilations[i]
             conv_block_i = nn.ModuleList()
             for j in range(repeats_i):
                 block_ij = ConvNext1dBlock(
                     channels_i,
+                    kernel_size=kernel_size_i,
+                    dilation=dilation_i,
                     activation=hid_act,
                     norm_layer=self._norm_layer,
                     drop_path_rate=drop_rates[count],
@@ -234,8 +305,8 @@ class ConvNext1dEncoder(NetArch):
                         endpoint_i = ConvNext1dEndpoint(
                             self.convb_channels[i],
                             out_channels,
-                            in_scale=self.resb_scales[i],
-                            scale=endpoint_scale,
+                            in_scale=self.convb_scales[i],
+                            out_scale=endpoint_scale,
                             norm_layer=self._norm_layer,
                         )
                         self.endpoint_block_idx[i] = cur_endpoint
@@ -248,8 +319,7 @@ class ConvNext1dEncoder(NetArch):
                     in_concat_channels,
                     endpoint_channels,
                     in_scale=1,
-                    scale=1,
-                    activation=hid_act,
+                    out_scale=1,
                     norm_layer=self._norm_layer,
                 )
         else:
@@ -356,7 +426,7 @@ class ConvNext1dEncoder(NetArch):
                         f"cat shape error ep={k},  shape{endpoints[k].size()}"
                     )
 
-                x = self.concat_endpoint_block(x)
+            x = self.concat_endpoint_block(x)
         else:
             x = torch.mean(torch.stack(endpoints), 0)
 
@@ -390,7 +460,7 @@ class ConvNext1dEncoder(NetArch):
         x = x.contiguous()
 
         if self.head_channels > 0:
-            x = self.head_norm(torch.mean(x, dim=(2, 3)))
+            x = self.head_norm(torch.mean(x, dim=2))
             x = self.head(x)
 
         return x
@@ -406,6 +476,8 @@ class ConvNext1dEncoder(NetArch):
             "short_name": self.short_name,
             "convb_repeats": self.convb_repeats,
             "convb_channels": self.convb_channels,
+            "convb_kernel_sizes": self.convb_kernel_sizes,
+            "convb_dilations": self.convb_dilations,
             "downb_strides": self.downb_strides,
             "head_channels": self.head_channels,
             "hid_act": hid_act,
@@ -482,6 +554,21 @@ class ConvNext1dEncoder(NetArch):
             help=("conv-blocks channels for each stage"),
         )
 
+        parser.add_argument(
+            "--convb-kernel-sizes",
+            default=[7],
+            type=int,
+            nargs="+",
+            help=("conv-blocks kernels for each stage"),
+        )
+
+        parser.add_argument(
+            "--convb-dilations",
+            default=[1],
+            type=int,
+            nargs="+",
+            help=("conv-blocks dilations for each stage"),
+        )
         parser.add_argument(
             "--downb-strides",
             default=[2],
