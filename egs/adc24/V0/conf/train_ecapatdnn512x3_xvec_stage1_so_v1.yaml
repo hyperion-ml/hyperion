@@ -4,7 +4,7 @@ data:
       class_names:
       - class_id
       aug_cfgs:
-      - conf/reverb_noise_aug.yaml
+      - conf/speed_perturbation_aug.yaml
       return_segment_info:
       - class_id
     sampler:
@@ -19,12 +19,12 @@ data:
       class_names:
       - class_id
       aug_cfgs:
-      - conf/reverb_noise_aug.yaml
+      - conf/speed_perturbation_aug.yaml
       return_segment_info:
       - class_id
     sampler:
       sampler_type: seg_chunk_sampler
-      min_batch_size: 32
+      min_batch_size: 64
       max_chunk_length: 3.0
       min_chunk_length: 3.0
     data_loader:

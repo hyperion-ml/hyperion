@@ -1,0 +1,7 @@
+speed_aug:
+  speed_prob: 0.8
+  speed_ratios:
+    - 0.9
+    - 1.0
+    - 1.1
+  keep_length: true

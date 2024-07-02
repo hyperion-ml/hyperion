@@ -22,7 +22,7 @@ use_wandb=false
 . parse_options.sh || exit 1;
 . $config_file
 . datapath.sh
-
+echo 'sors'
 list_dir=data/adi17
 train_dir=data/adi17/train_proc_audio_no_sil
 dev_dir=data/adi17/dev_proc_audio_no_sil
@@ -51,7 +51,7 @@ if [ $stage -le 1 ]; then
   
   mkdir -p $nnet_s1_dir/log
   $cuda_cmd \
-    --gpus $ngpu $nnet_s1_dir/log/train.log \
+    --gpu $ngpu $nnet_s1_dir/log/train.log \
     hyp_utils/conda_env.sh --conda-env $HYP_ENV --num-gpus $ngpu \
     train_xvector_from_wav.py $nnet_type --cfg $nnet_s1_base_cfg $nnet_s1_args $extra_args \
     --data.train.dataset.recordings-file $train_dir/wav.scp \

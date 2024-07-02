@@ -3,7 +3,8 @@
 *.pdf
 *.DS_Store
 *.cache
-*__pycache__
+*.wav
+*.flac
 tests/data_out/*
 #examples/data/output/wav/*
 #examples/data/output/features/*

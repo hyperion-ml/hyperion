@@ -75,7 +75,7 @@ class LinearSVMC(NPModel):
         use_bias=True,
         bias_scaling=1,
         class_weight=None,
-        random_state=None,
+        random_state=123,
         max_iter=100,
         dual=True,
         tol=0.0001,
@@ -92,8 +92,8 @@ class LinearSVMC(NPModel):
         if class_weight is None and balance_class_weight:
             class_weight = "balanced"
 
-        if random_state is None:
-            random_state = np.random.default_rng(seed=lr_seed)
+        # if random_state is None:
+        #     random_state = np.random.default_rng(seed=lr_seed)
 
         self.use_bias = use_bias
         self.bias_scaling = bias_scaling

@@ -9,16 +9,16 @@ fi
 
 set -e
 
-data_dir=$1
-score_dir=$2
-suffix=$3
+xvector_scp=$1
+preproc_model_path=$2
+utt2lang_path=$3
+results_dir=$4
 
-for cond in o o_clean e e_clean h h_clean
-do
-    echo "Voxceleb1 $cond"
-    key=$data_dir/trials_$cond
-    #Compute performance
-    python local/score_dcf.py --key-file $key --score-file $score_dir/voxceleb1_scores$suffix --output-path $score_dir/voxceleb1${suffix}_${cond} &
-done
+python3 local/did_eval.py \
+        --xvector_scp $xvector_scp \
+        --preproc_model_path $preproc_model_path \
+        --utt2lang_path $utt2lang_path\
+        --results_dir $result_dir \
+    
 wait
 
