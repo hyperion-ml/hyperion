@@ -15,7 +15,7 @@ config_file=default_config.sh
 . $config_file
 
 
-if [ $stage -le 5 ];then
+if [ $stage -le 1 ];then
   echo "Prepare the ASV Spoof 2024 train dataset"
   hyperion-prepare-data asvspoof2024 \
 			--subset train \
@@ -34,5 +34,35 @@ if [ $stage -le 5 ];then
 			--corpus-dir $asvspoof2024_root \
 			--output-dir data/asvspoof2024_dev
   
+fi
+
+if [ $stage -le 2 ];then
+  if [ ! -d ./asvspoof5 ];then
+    git clone https://github.com/asvspoof-challenge/asvspoof5.git
+  fi
+  awk '
+BEGIN{
+  FS=","; OFS="\t"; 
+  getline; 
+  print "filename\tcm-label"
+} 
+{ 
+  sub("nontarget","spoof", $3); sub("target","bonafide", $3);
+  print $2,$3;
+}' data/asvspoof2024_dev/trials_track1.csv > \
+      data/asvspoof2024_dev/trials_track1_official.tsv
+  
+  awk '
+BEGIN{
+  FS=","; OFS="\t"; 
+  getline; 
+  print "filename\tcm-label\tasv-label"
+} 
+{ 
+  if($3 == "spoof") { cm="spoof"} else {cm="bonafide"};
+  print $2,cm,$3;
+}' data/asvspoof2024_dev/trials_track2.csv > \
+      data/asvspoof2024_dev/trials_track2_official.tsv 
+
 fi
 

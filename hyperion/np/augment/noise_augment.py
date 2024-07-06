@@ -6,6 +6,7 @@
 import logging
 import math
 import multiprocessing
+import time
 from copy import deepcopy
 
 import numpy as np
@@ -126,7 +127,7 @@ class SingleNoiseAugment(object):
 
         info = {"noise_type": self.noise_type, "snr": target_snr}
         y = x + scale * noise
-
+        # avg proc time 0.0091 secs
         return y, info
 
     def __call__(self, x):

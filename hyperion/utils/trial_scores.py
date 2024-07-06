@@ -125,7 +125,7 @@ class TrialScores(object):
             logging.warning("q_measures cannot be saved to txt file")
 
     def save_table(self, file_path, sep=None):
-        """Saves object to pandas tabnle file.
+        """Saves object to pandas table file.
 
         Args:
           file_path: File to write the list.
@@ -134,6 +134,10 @@ class TrialScores(object):
         ext = file_path.suffix
         if sep is None:
             sep = "\t" if ".tsv" in ext else ","
+
+        output_dir = file_path.parent
+        if not output_dir.is_dir():
+            output_dir.mkdir(parents=True, exist_ok=True)
 
         q_str = ""
         if self.q_measures is not None:
@@ -457,6 +461,9 @@ class TrialScores(object):
             mask = ndx.trial_mask
         else:
             mask = np.logical_or(ndx.tar, ndx.non)
+            # Added to handle ASVSpoof 2024
+            if ndx.spoof is not None:
+                mask = np.logical_or(mask, ndx.spoof)
         scr.score_mask = np.logical_and(mask, scr.score_mask)
 
         missing_trials = np.logical_and(mask, np.logical_not(scr.score_mask))
@@ -488,6 +495,28 @@ class TrialScores(object):
         non_mask = np.logical_and(scr.score_mask, key.non)
         non = scr.scores[non_mask]
         return tar, non
+
+    def get_tar_non_spoof(self, key):
+        """Returns target and non target and spoofing scores.
+
+        Args:
+          key: TrialKey object.
+
+        Returns:
+          Numpy array with target scores.
+          Numpy array with non-target scores.
+        """
+        scr = self.align_with_ndx(key)
+        tar_mask = np.logical_and(scr.score_mask, key.tar)
+        tar = scr.scores[tar_mask]
+        non_mask = np.logical_and(scr.score_mask, key.non)
+        non = scr.scores[non_mask]
+        if key.spoof is None:
+            spoof = np.empty(dtype=scr.scores.dtype)
+        else:
+            spoof_mask = np.logical_and(scr.score_mask, key.spoof)
+            non = scr.scores[spoof_mask]
+        return tar, non, spoof
 
     def get_tar_non_q_measures(self, key, q_names=None, return_dict=False):
         """Returns target and non target scores.

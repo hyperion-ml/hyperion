@@ -117,11 +117,11 @@ class XVectorTrainer(TorchTrainer):
             loss_scale = self.grad_acc_steps * len(input_keys)
             loss_acc = 0.0
             for aug_key in input_keys:
-                batch_keys = [aug_key, self.target_key]
-                x, target = tensors_subset(data, batch_keys, self.device)
+                batch_keys = [aug_key, f"{aug_key}_lengths", self.target_key]
+                x, x_lengths, target = tensors_subset(data, batch_keys, self.device)
                 batch_size = x.size(0)
                 with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
-                    output = self.model(x, y=target)
+                    output = self.model(x, x_lengths=x_lengths, y=target)
                     loss = self.loss(output.logits, target) / loss_scale
                     loss_acc += loss.item()
 
@@ -177,11 +177,11 @@ class XVectorTrainer(TorchTrainer):
                 loss_scale = len(input_keys)
                 loss_acc = 0.0
                 for aug_key in input_keys:
-                    batch_keys = [aug_key, self.target_key]
-                    x, target = tensors_subset(data, batch_keys, self.device)
+                    batch_keys = [aug_key, f"{aug_key}_lengths", self.target_key]
+                    x, x_lengths, target = tensors_subset(data, batch_keys, self.device)
                     batch_size = x.size(0)
                     with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
-                        output = self.model(x)
+                        output = self.model(x, x_lengths=x_lengths)
                         loss = self.loss(output.logits, target) / loss_scale
                         loss_acc += loss.item()
 

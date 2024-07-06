@@ -8,15 +8,15 @@ import logging
 import math
 import os
 import subprocess
+from typing import List, Optional, Union
 
 import numpy as np
 import pandas as pd
 import soundfile as sf
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
-from typing import Union, Optional, List
 
 from ..hyp_defs import float_cpu
-from ..utils import RecordingSet, SegmentSet, PathLike
+from ..utils import PathLike, RecordingSet, SegmentSet
 
 valid_ext = [
     ".wav",
@@ -96,7 +96,7 @@ class AudioReader(object):
     @staticmethod
     def read_wavspecifier(
         wavspecifier: PathLike,
-        scale: float = 2 ** 15,
+        scale: float = 2**15,
         time_offset: float = 0.0,
         time_dur: float = 0.0,
     ):
@@ -126,7 +126,7 @@ class AudioReader(object):
     @staticmethod
     def read_pipe(
         wavspecifier: PathLike,
-        scale: float = 2 ** 15,
+        scale: float = 2**15,
         time_offset: float = 0,
         time_dur: float = 0,
     ):
@@ -162,7 +162,7 @@ class AudioReader(object):
     @staticmethod
     def read_file_sf(
         wavspecifier: PathLike,
-        scale: float = 2 ** 15,
+        scale: float = 2**15,
         time_offset: float = 0,
         time_dur: float = 0,
     ):
@@ -186,7 +186,7 @@ class AudioReader(object):
     @staticmethod
     def read_file(
         wavspecifier: PathLike,
-        scale: float = 2 ** 15,
+        scale: float = 2**15,
         time_offset: float = 0,
         time_dur: float = 0,
     ):
@@ -200,7 +200,7 @@ class AudioReader(object):
             # this solves the problem in most cases
             logging.info(
                 (
-                    "error-1 reading keys=%s offset=%f duration=%f"
+                    "error-1 reading %s offset=%f duration=%f"
                     "retrying reading until end-of-file ..."
                 ),
                 wavspecifier,
@@ -215,7 +215,7 @@ class AudioReader(object):
             except:
                 logging.info(
                     (
-                        "error-2 reading keys=%s offset=%f duration=%f"
+                        "error-2 reading %s offset=%f duration=%f"
                         "retrying reading full file ..."
                     ),
                     wavspecifier,
@@ -223,11 +223,25 @@ class AudioReader(object):
                     time_dur,
                 )
 
-                x, fs = AudioReader.read_file_sf(wavspecifier, scale)
-                start_sample = int(math.floor(time_offset * fs))
-                num_samples = int(math.floor(time_dur * fs))
-                x = x[start_sample : start_sample + num_samples]
-                return x, fs
+                try:
+                    x, fs = AudioReader.read_file_sf(wavspecifier, scale)
+                    start_sample = int(math.floor(time_offset * fs))
+                    num_samples = int(math.floor(time_dur * fs))
+                    x = x[start_sample : start_sample + num_samples]
+                    return x, fs
+                except RuntimeError as err:
+                    logging.info(
+                        "fatal error reading %s offset=%f duration=%f",
+                        wavspecifier,
+                        time_offset,
+                        time_dur,
+                    )
+                    print(
+                        "fatal error reading %s offset=%f duration=%f"
+                        % (wavspecifier, time_offset, time_dur),
+                        flush=True,
+                    )
+                    raise err
 
     def _read_segment(
         self, segment: pd.Series, time_offset: float = 0, time_dur: float = 0
@@ -400,7 +414,8 @@ class SequentialAudioReader(AudioReader):
 
         if prefix is not None:
             outer_parser.add_argument(
-                "--" + prefix, action=ActionParser(parser=parser),
+                "--" + prefix,
+                action=ActionParser(parser=parser),
             )
 
     add_argparse_args = add_class_args
@@ -531,7 +546,8 @@ class RandomAccessAudioReader(AudioReader):
         )
         if prefix is not None:
             outer_parser.add_argument(
-                "--" + prefix, action=ActionParser(parser=parser),
+                "--" + prefix,
+                action=ActionParser(parser=parser),
             )
 
     add_argparse_args = add_class_args

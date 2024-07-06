@@ -27,8 +27,3 @@ noise_aug:
       noise_path: data/musan_music_proc_audio/recordings.csv
       min_snr: 3
       max_snr: 18
-    babble:
-      weight: 1
-      noise_path: data/musan_speech_babble/recordings.csv
-      min_snr: 3
-      max_snr: 18

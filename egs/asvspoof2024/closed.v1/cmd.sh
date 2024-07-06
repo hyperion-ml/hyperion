@@ -21,6 +21,7 @@ if [ "$(hostname -d)" == "cm.gemini" ];then
 else
     export train_cmd="slurm.pl --config conf/slurm_clsp.conf --mem 4G" 
     export cuda_cmd="slurm.pl --config conf/slurm_clsp.conf --mem 20G"
+    #export cuda_cmd="slurm.pl --config conf/slurm_clsp_a100.conf --mem 20G"
     export cuda_eval_cmd="$train_cmd$"
 fi
 

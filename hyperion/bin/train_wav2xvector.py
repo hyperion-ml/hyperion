@@ -69,7 +69,9 @@ def init_data(partition, rank, num_gpus, **kwargs):
     largs = (
         {"num_workers": num_workers_per_gpu, "pin_memory": True} if num_gpus > 0 else {}
     )
-    data_loader = torch.utils.data.DataLoader(dataset, batch_sampler=sampler, **largs)
+    data_loader = torch.utils.data.DataLoader(
+        dataset, batch_sampler=sampler, collate_fn=dataset.get_collator(), **largs
+    )
     return data_loader
 
 

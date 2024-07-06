@@ -10,6 +10,7 @@ import numpy as np
 import yaml
 
 from ...hyp_defs import float_cpu
+from .codec_augment import CodecAugment
 from .noise_augment import NoiseAugment
 from .reverb_augment import ReverbAugment
 from .speed_augment import SpeedAugment
@@ -23,12 +24,14 @@ class SpeechAugment(object):
        speed_aug: SpeedAugment object.
        reverb_aug: ReverbAugment object.
        noise_aug: NoiseAugment object.
+       codec_aug: CodecAugment object
     """
 
-    def __init__(self, speed_aug=None, reverb_aug=None, noise_aug=None):
+    def __init__(self, speed_aug=None, reverb_aug=None, noise_aug=None, codec_aug=None):
         self.speed_aug = speed_aug
         self.reverb_aug = reverb_aug
         self.noise_aug = noise_aug
+        self.codec_aug = codec_aug
 
     @classmethod
     def create(cls, cfg, random_seed=112358, rng=None):
@@ -62,7 +65,16 @@ class SpeechAugment(object):
         if "noise_aug" in cfg:
             noise_aug = NoiseAugment.create(cfg["noise_aug"], random_seed=random_seed)
 
-        return cls(speed_aug=speed_aug, reverb_aug=reverb_aug, noise_aug=noise_aug)
+        codec_aug = None
+        if "codec_aug" in cfg:
+            codec_aug = CodecAugment.create(cfg["codec_aug"], random_seed=random_seed)
+
+        return cls(
+            speed_aug=speed_aug,
+            reverb_aug=reverb_aug,
+            noise_aug=noise_aug,
+            codec_aug=codec_aug,
+        )
 
     @property
     def max_reverb_context(self):
@@ -72,7 +84,7 @@ class SpeechAugment(object):
 
         return self.reverb_aug.max_reverb_context
 
-    def forward(self, x):
+    def forward(self, x, sample_freq=None):
         """Adds speed augment, noise and reverberation to signal,
         speed multiplier, noise type, SNR, room type and RIRs are chosen randomly.
 
@@ -113,7 +125,13 @@ class SpeechAugment(object):
             delay = info["reverb"]["h_delay"]
             info["sdr"] = ReverbAugment.sdr(x_speed, x, scale, delay)
 
+        if self.codec_aug is not None:
+            x, codec_info = self.codec_aug(x, sample_freq)
+            info["codec"] = codec_info
+        else:
+            info["codec"] = {"codec_type": None}
+
         return x, info
 
-    def __call__(self, x):
-        return self.forward(x)
+    def __call__(self, x, sample_freq=None):
+        return self.forward(x, sample_freq)

@@ -123,13 +123,13 @@ if [ $stage -le 4 ];then
 fi
 
 if [ $stage -le 5 ];then
-  echo "Prepare the ASV Spoof 2024 train dataset"
+  # echo "Prepare the ASV Spoof 2024 train dataset"
   # hyperion-prepare-data asvspoof2024 \
   # 			--subset train \
   # 			--corpus-dir $asvspoof2024_root \
   # 			--output-dir data/asvspoof2024_train
 
-  echo "Prepare the ASV Spoof 2024 dev-enroll dataset"
+  # echo "Prepare the ASV Spoof 2024 dev-enroll dataset"
   # hyperion-prepare-data asvspoof2024 \
   # 			--subset dev_enroll \
   # 			--corpus-dir $asvspoof2024_root \
@@ -143,26 +143,19 @@ if [ $stage -le 5 ];then
   
 fi
 
-# if [ $stage -le 2 ];then
-#   # prepare voxceleb1 for test
-#   hyperion-prepare-data voxceleb1 --task test --corpus-dir $voxceleb1_root \
-# 			--use-kaldi-ids \
-# 			--output-dir data/voxceleb1_test
-# fi
+if [ $stage -le 6 ];then
+  echo "Prepare the ASV Spoof 2024 progress dataset"
+  hyperion-prepare-data asvspoof2024 \
+			--subset progress \
+			--corpus-dir $asvspoof2024_root \
+			--output-dir data/asvspoof2024_prog
 
-# if [ $stage -le 3 ] && [ "$do_voxsrc22" == "true" ];then
-#   hyperion-prepare-data voxsrc22 --subset dev --corpus-dir $voxsrc22_root \
-# 			--vox1-corpus-dir $voxceleb1_root \
-# 			--output-dir data/voxsrc22_dev
-# fi
+  # echo "Prepare the ASV Spoof 2024 progress-enroll dataset"
+  # hyperion-prepare-data asvspoof2024 \
+  # 			--subset progress_enroll \
+  # 			--corpus-dir $asvspoof2024_root \
+  # 			--output-dir data/asvspoof2024_prog_enroll
 
-# # if [ $stage -le 4 ] && [ "$do_voxsrc22" == "true" ];then
-#   #   hyperion-prepare-data voxsrc22 --subset test --corpus-dir $voxsrc22_root \
-#   # 		  --vox1-corpus-dir $voxceleb1_root \
-#   # 		  --output-dir data/voxsrc22_test
-# # fi
+  
+fi
 
-# if [ $stage -le 5 ] && [ "$do_qmf" == "true" ];then
-#   # split vox2 into 2 parts, for cohort and qmf training
-#   hyperion-split-dataset-into-trials-and-cohort --data-dir data/voxceleb2cat_train
-# fi

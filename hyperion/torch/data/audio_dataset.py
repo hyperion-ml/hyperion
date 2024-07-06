@@ -27,7 +27,7 @@ from torch.utils.data import Dataset
 
 from ...io import RandomAccessAudioReader as AR
 from ...np.augment import SpeechAugment
-from ...np.preprocessing import Resampler
+from ...np.preprocessing import ResamplerToTargetFreq
 from ...utils import ClassInfo, SegmentSet
 from ...utils.misc import filter_func_args
 from ...utils.text import read_text
@@ -144,7 +144,7 @@ class AudioDataset(Dataset):
 
         self.target_sample_freq = target_sample_freq
         self.resamplers = {}
-        self.resampler = Resampler(target_sample_freq)
+        self.resampler = ResamplerToTargetFreq(target_sample_freq)
 
     def _load_legacy_durations(self, time_durs_file):
         if self.rank == 0:
@@ -325,7 +325,7 @@ class AudioDataset(Dataset):
             x_augs_i = {}
             for j in range(self.num_augs):
                 # augment x
-                x_aug, aug_info = augmenter(x)
+                x_aug, aug_info = augmenter(x, fs)
                 # remove the extra left context used to compute the reverberation.
                 x_aug = x_aug[reverb_context_samples : len(x)]
                 x_aug = x_aug.astype(floatstr_torch(), copy=False)
@@ -407,12 +407,17 @@ class AudioDataset(Dataset):
         return data
 
     @staticmethod
-    def collate(self, batch):
+    def collate(batch):
 
         # sort batch by the length of x
         audio_lengths = []
         for record in batch:
-            audio_lengths.append(record["x"].shape[0])
+            audio_key = "x" if "x" in record else "x_aug_0_0"
+            try:
+                audio_lengths.append(record[audio_key].shape[0])
+            except:
+                raise Exception(f"audio key not found in {record.keys()}")
+
         audio_lengths = torch.as_tensor(audio_lengths)
         if not torch.all(audio_lengths[:-1] >= audio_lengths[1:]):
             sort_idx = torch.argsort(audio_lengths, descending=True)
@@ -424,7 +429,20 @@ class AudioDataset(Dataset):
             return isinstance(x[0], (torch.Tensor, np.ndarray))
 
         def _is_list_of_items(x):
-            return isinstance(x[0], (int, float))
+            return isinstance(
+                x[0],
+                (
+                    int,
+                    float,
+                    np.int64,
+                    np.int32,
+                    np.int16,
+                    np.int8,
+                    np.float32,
+                    np.float64,
+                    np.float16,
+                ),
+            )
 
         def _is_list_of_strs(x):
             return isinstance(x[0], str)
@@ -462,7 +480,9 @@ class AudioDataset(Dataset):
                 # we just left them as they are:
                 output_batch[key] = item_list
             else:
-                raise TypeError(f"we don't know how to collate this data={item_list}")
+                raise TypeError(
+                    f"we don't know how to collate {key} data={item_list} type={type(item_list[0])}"
+                )
 
         return output_batch
 
@@ -498,7 +518,8 @@ class AudioDataset(Dataset):
         return batch
 
     def get_collator(self):
-        return lambda batch: AudioDataset.collate(self, batch)
+        # return lambda batch: AudioDataset.collate(batch)
+        return AudioDataset.collate
 
     @staticmethod
     def filter_args(**kwargs):
