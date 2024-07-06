@@ -14,24 +14,24 @@ prior=0.655
 . parse_options.sh || exit 1;
 #. $config_file
 
-# system_names="lresnet34_v1.1 USC_S4_v1"
-# system_dirs="exp/cm_scores/fbank80_stmn_lresnet34.v1.1_a100.s1
-# exp/cm_scores/USC_S4_v1"
-# output_dir=exp/cm_scores/fusion_v1
-# fus_idx=1
+system_names="lresnet34_v1.1 USC_S4_v1"
+system_dirs="exp/cm_scores/fbank80_stmn_lresnet34.v1.1_a100.s1
+exp/cm_scores/USC_S4_v1"
+output_dir=exp/cm_scores/fusion_v1
+fus_idx=1 # fuses 2 systems
 
 # system_names="lresnet34_v1.1 USC_S4_v1 USC_S4_v1_rir_ep10"
 # system_dirs="exp/cm_scores/fbank80_stmn_lresnet34.v1.1_a100.s1
 # exp/cm_scores/USC_S4_v1
 # exp/cm_scores/USC_S4_v1_rir_ep10"
 # output_dir=exp/cm_scores/fusion_v2
-# fus_idx=2
+# fus_idx=2 # fuses 3 systems
 
-system_names="lresnet34_v1.17e USC_S4_v1"
-system_dirs="exp/cm_scores/fbank80_stmn_lresnet34.v1.17e_a100.s1
-exp/cm_scores/USC_S4_v1"
-output_dir=exp/cm_scores/fusion_v3
-fus_idx=1
+# system_names="lresnet34_v1.17e USC_S4_v1"
+# system_dirs="exp/cm_scores/fbank80_stmn_lresnet34.v1.17e_a100.s1
+# exp/cm_scores/USC_S4_v1"
+# output_dir=exp/cm_scores/fusion_v3
+# fus_idx=1
 
 score_files_dev=""
 score_files_prog=""
