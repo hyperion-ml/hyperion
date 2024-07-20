@@ -119,7 +119,7 @@ class DINOXVectorTrainer(TorchTrainer):
             model.to(device)
 
         if frozen:
-            optimizer = model, None
+            return model, None
 
         optimizer = EMA(model.parameters(), **optim)
         if ddp:
@@ -202,24 +202,30 @@ class DINOXVectorTrainer(TorchTrainer):
                     num_teacher_crops = len(teacher_data)
                     teacher_data = torch.cat(teacher_data, dim=0)
                     teacher_out = self.teacher_model(teacher_data)
-                    assert not torch.any(
-                        torch.isnan(teacher_out.logits)
-                    ), "teacher is nan"
-                    assert not torch.any(
-                        torch.isinf(teacher_out.logits)
-                    ), "teacher is inf"
+                    if torch.any(torch.isnan(teacher_out.logits)):
+                        logging.warning(f"teacher logits are nan")
+                    # assert not torch.any(
+                    #     torch.isnan(teacher_out.logits)
+                    # ), "teacher is nan"
+                    # assert not torch.any(
+                    #     torch.isinf(teacher_out.logits)
+                    # ), "teacher is inf"
 
                 if num_teacher_crops > 1:
                     student_out1 = self.model(teacher_data)
-                    assert not torch.any(torch.isnan(student_out1.logits)), "s1 is nan"
-                    assert not torch.any(torch.isinf(student_out1.logits)), "s1 is inf"
+                    if torch.any(torch.isnan(student_out1.logits)):
+                        logging.warning(f"student-1 logits are nan")
+                    # assert not torch.any(torch.isnan(student_out1.logits)), "s1 is nan"
+                    # assert not torch.any(torch.isinf(student_out1.logits)), "s1 is inf"
 
                 student_data = tensors_subset(data, student_keys, self.device)
                 num_student_crops = len(student_data)
                 student_data = torch.cat(student_data, dim=0)
                 student_out2 = self.model(student_data)
-                assert not torch.any(torch.isnan(student_out2.logits)), "s2 is nan"
-                assert not torch.any(torch.isinf(student_out2.logits)), "s2 is inf"
+                if torch.any(torch.isnan(student_out2.logits)):
+                    logging.warning(f"student-2 logits are nan")
+                # assert not torch.any(torch.isnan(student_out2.logits)), "s2 is nan"
+                # assert not torch.any(torch.isinf(student_out2.logits)), "s2 is inf"
                 if num_teacher_crops > 1:
                     student_out_logits = torch.cat(
                         (student_out1.logits, student_out2.logits), dim=0
@@ -250,9 +256,9 @@ class DINOXVectorTrainer(TorchTrainer):
                     loss = loss_dino + scaled_loss_cosine
 
                 loss = loss / self.grad_acc_steps
-                assert not torch.isnan(
-                    loss
-                ), f"loss is nan {batch} {torch.mean(teacher_out)} {torch.mean(student_out1)} {torch.mean(student_out2)}"
+                # assert not torch.isnan(
+                #     loss
+                # ), f"loss is nan {batch} {torch.mean(teacher_out)} {torch.mean(student_out1)} {torch.mean(student_out2)}"
 
             if self.use_amp:
                 self.grad_scaler.scale(loss).backward()
@@ -287,7 +293,10 @@ class DINOXVectorTrainer(TorchTrainer):
         lrs = self._get_lrs()
         logs.update(lrs)
         logs.update(self._get_wds())
-        logs["ema_momentum"] = self.teacher_optimizer.momentum
+        if self.teacher_optimizer is not None:
+            logs["ema_momentum"] = self.teacher_optimizer.momentum
+        if self.grad_scaler is not None:
+            logs["grad_scale"] = self.grad_scaler._scale.item()
         return logs
 
     @torch.no_grad()
@@ -318,20 +327,20 @@ class DINOXVectorTrainer(TorchTrainer):
                 num_teacher_crops = len(teacher_data)
                 teacher_data = torch.cat(teacher_data, dim=0)
                 teacher_out = self.teacher_model(teacher_data)
-                assert not torch.any(torch.isnan(teacher_out.logits)), "teacher is nan"
-                assert not torch.any(torch.isinf(teacher_out.logits)), "teacher is inf"
+                # assert not torch.any(torch.isnan(teacher_out.logits)), "teacher is nan"
+                # assert not torch.any(torch.isinf(teacher_out.logits)), "teacher is inf"
 
                 if num_teacher_crops > 1:
                     student_out1 = self.model(teacher_data)
-                    assert not torch.any(torch.isnan(student_out1.logits)), "s1 is nan"
-                    assert not torch.any(torch.isinf(student_out1.logits)), "s1 is inf"
+                    # assert not torch.any(torch.isnan(student_out1.logits)), "s1 is nan"
+                    # assert not torch.any(torch.isinf(student_out1.logits)), "s1 is inf"
 
                 student_data = tensors_subset(data, student_keys, self.device)
                 num_student_crops = len(student_data)
                 student_data = torch.cat(student_data, dim=0)
                 student_out2 = self.model(student_data)
-                assert not torch.any(torch.isnan(student_out2.logits)), "s2 is nan"
-                assert not torch.any(torch.isinf(student_out2.logits)), "s2 is inf"
+                # assert not torch.any(torch.isnan(student_out2.logits)), "s2 is nan"
+                # assert not torch.any(torch.isinf(student_out2.logits)), "s2 is inf"
                 if num_teacher_crops > 1:
                     student_out_logits = torch.cat(
                         (student_out1.logits, student_out2.logits), dim=0
@@ -409,12 +418,12 @@ class DINOXVectorTrainer(TorchTrainer):
             loss_checkpoint = None
         return self._load_checkpoint(checkpoint, teacher_checkpoint, loss_checkpoint)
 
-    def checkpoint(self, logs=None):
-        checkpoint = super().checkpoint(logs)
-        self.teacher_model.train()
-        checkpoint["teacher_model_state_dict"] = self.teacher_model.state_dict()
-        checkpoint["teacher_optimizer_state_dict"] = self.teacher_optimizer.state_dict()
-        return checkpoint
+    # def checkpoint(self, logs=None):
+    #     checkpoint = super().checkpoint(logs)
+    #     # self.teacher_model.train()
+    #     # checkpoint["teacher_model_state_dict"] = self.teacher_model.state_dict()
+    #     # checkpoint["teacher_optimizer_state_dict"] = self.teacher_optimizer.state_dict()
+    #     return checkpoint
 
     def teacher_checkpoint(self, logs=None):
         """Creates a checkpoint of the teacher model, to save and posterior recovery

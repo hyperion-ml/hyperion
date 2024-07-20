@@ -2,6 +2,7 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 
 import numpy as np
@@ -203,7 +204,6 @@ class ExpFamilyMixture(PDF):
 
         N = np.sum(z, axis=0)
         acc_u_x = np.dot(z.T, u_x)
-        # L_z=gmm.ElnP_z_w(N,gmm.lnw)-gmm.Elnq_z(z);
         return N, acc_u_x
 
     def _accum_suff_stats_nbatches(self, x, sample_weight, batch_size):
@@ -466,8 +466,8 @@ class ExpFamilyMixture(PDF):
           Accumalted N and u_x.
         """
         assert len(N) == len(u_x)
-        acc_N = N[1]
-        acc_u_x = u_x[1]
+        acc_N = N[0]
+        acc_u_x = u_x[0]
         for i in range(1, len(N)):
             acc_N += N[i]
             acc_u_x += u_x[i]

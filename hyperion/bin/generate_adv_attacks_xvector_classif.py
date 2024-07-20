@@ -208,18 +208,13 @@ def generate_attacks(
             vad = v_reader.read([key])[0]
             tot_frames = len(vad)
             speech_frames = np.sum(vad)
-            vad = torch.as_tensor(vad.astype(np.bool, copy=False), dtype=torch.bool).to(
+            vad = torch.as_tensor(vad.astype(bool, copy=False), dtype=torch.bool).to(
                 device
             )
             model.vad = vad
             logging.info(
                 "utt %s detected %d/%d (%.2f %%) speech frames"
-                % (
-                    key,
-                    speech_frames,
-                    tot_frames,
-                    speech_frames / tot_frames * 100,
-                )
+                % (key, speech_frames, tot_frames, speech_frames / tot_frames * 100,)
             )
 
         t2 = time.time()
@@ -329,9 +324,7 @@ def main():
 
     parser.add_argument("--vad", dest="vad_spec", default=None)
     parser.add_argument(
-        "--vad-path-prefix",
-        default=None,
-        help=("scp file_path prefix for vad"),
+        "--vad-path-prefix", default=None, help=("scp file_path prefix for vad"),
     )
 
     parser.add_argument("--model-path", required=True)

@@ -118,7 +118,7 @@ class ConvNext2dEncoder(NetArch):
         short_name: Optional[str] = None,
         convb_repeats: List[int] = [3, 3, 27, 3],
         convb_channels: List[int] = [128, 256, 512, 1024],
-        downb_strides: int = 2,
+        downb_strides: List[int] = [2],
         head_channels: int = 0,
         hid_act: str = "gelu",
         head_act: Optional[str] = None,
@@ -173,7 +173,7 @@ class ConvNext2dEncoder(NetArch):
         self._downsample_factor = in_block.stride
 
         self.downsample_blocks = nn.ModuleList([in_block])
-        self.resb_scales = [self._downsample_factor]
+        self.convb_scales = [self._downsample_factor]
         for i in range(num_superblocks - 1):
             block_i = ConvNext2dDownsampleBlock(
                 self.convb_channels[i],
@@ -184,7 +184,7 @@ class ConvNext2dEncoder(NetArch):
             self.downsample_blocks.append(block_i)
             self._context += block_i.context * self._downsample_factor
             self._downsample_factor *= block_i.stride
-            self.resb_scales = [self._downsample_factor]
+            self.convb_scales.append(self._downsample_factor)
 
         drop_rates = [
             x.item() for x in torch.linspace(0, drop_path_rate, sum(convb_repeats))
@@ -244,8 +244,8 @@ class ConvNext2dEncoder(NetArch):
                         endpoint_i = ConvNext2dEndpoint(
                             self.convb_channels[i],
                             out_channels,
-                            in_scale=self.resb_scales[i],
-                            scale=endpoint_scale,
+                            in_scale=self.convb_scales[i],
+                            out_scale=endpoint_scale,
                             norm_layer=self._norm_layer,
                         )
                         self.endpoint_block_idx[i] = cur_endpoint
@@ -258,8 +258,7 @@ class ConvNext2dEncoder(NetArch):
                     in_concat_channels,
                     endpoint_channels,
                     in_scale=1,
-                    scale=1,
-                    activation=hid_act,
+                    out_scale=1,
                     norm_layer=self._norm_layer,
                 )
         else:
@@ -319,7 +318,7 @@ class ConvNext2dEncoder(NetArch):
     def out_shape(self, in_shape=None):
 
         out_channels = (
-            self.head_channels if self.head_channels > 0 else self.convb_channels[-1]
+            self.head_channels if self.head_channels > 0 else self.endpoint_channels
         )
         if in_shape is None:
             return (None, out_channels, None, None)
@@ -372,7 +371,7 @@ class ConvNext2dEncoder(NetArch):
                         f"cat shape error ep={k},  shape{endpoints[k].size()}"
                     )
 
-                x = self.concat_endpoint_block(x)
+            x = self.concat_endpoint_block(x)
         else:
             x = torch.mean(torch.stack(endpoints), 0)
 

@@ -188,14 +188,14 @@ class KMeans(NPModel):
         for k in range(self.num_clusters):
             r = index == k
             if np.sum(r) > 0:
-                mu[k] = np.mean(x[index == k], axis=0)
+                mu[k] = np.mean(x[r], axis=0)
         return mu
 
     @staticmethod
     def _compute_centroid(x, index, k):
         r = index == k
         if np.sum(r) > 0:
-            return np.mean(x[index == k], axis=0)
+            return np.mean(x[r], axis=0)
         else:
             return None
 

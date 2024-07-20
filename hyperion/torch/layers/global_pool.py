@@ -2,6 +2,7 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 import math
 
@@ -778,22 +779,18 @@ class GlobalChWiseAttMeanStdPool1d(_GlobalPool1d):
         # x = (batch, feat_dim, time)
         weights = self._standardize_weights(x, x_lengths, weights)  # (batch, 1,  time)
         x_inner = self.conv1(x)  # (batch, inner_dim, time)
-        assert not torch.any(
-            torch.isnan(x_inner)
-        ), f"xinner is nan {torch.sum(torch.isnan(x_inner))} {torch.sum(torch.isnan(x))} {torch.mean(x)} {torch.sum(torch.isinf(x))} {x.size()}"
-        # assert not torch.any(
-        #     torch.isinf(x_inner)
-        # ), f"xinner is inf {torch.sum(torch.isinf(x_inner))} {torch.sum(torch.isinf(x))}"
-
+        # is_nan = torch.isnan(x_inner)
+        # if torch.any(is_nan):
+        #     logging.warning(
+        #         f"""xinner-nan={torch.sum(is_nan)}
+        #     xinner-batch-nan={torch.sum(is_nan, dim=(1,2))}
+        #     xinner-channel-nan={torch.sum(is_nan, dim=(0,2))}
+        #     xinner-time-nan={torch.sum(is_nan, dim=(0,1))}
+        #     xinner-shape={x_inner.shape}"""
+        #     )
         if self.use_global_context:
             global_mus = self.stats_pool(x, weights=weights)
             x_inner = x_inner + self.lin_global(global_mus).unsqueeze(-1)
-            assert not torch.any(
-                torch.isnan(x_inner)
-            ), f"xinner is nan {torch.sum(torch.isnan(x_inner))} {torch.sum(torch.isnan(global_mus))}"
-            # assert not torch.any(
-            #     torch.isinf(x_inner)
-            # ), f"xinner is inf {torch.sum(torch.isinf(x_inner))} {torch.sum(torch.isinf(global_mus))}"
 
         attn = self.conv2(
             self.activation(self.norm_layer(x_inner))
@@ -814,23 +811,11 @@ class GlobalChWiseAttMeanStdPool1d(_GlobalPool1d):
         if weights is not None:
             attn = attn * weights
 
-        # assert not torch.any(
-        #     torch.isnan(attn)
-        # ), f"attn is nan {torch.sum(torch.isnan(attn))}"
-        # assert not torch.any(
-        #     torch.isinf(attn)
-        # ), f"attn is inf {torch.sum(torch.isinf(attn))}"
         mus = self.stats_pool(x, weights=attn)
 
         if self.keepdim:
             mus = mus.unsqueeze(self.dim)
 
-        # assert not torch.any(
-        #     torch.isnan(mus)
-        # ), f"mus is nan {torch.sum(torch.isnan(mus))}"
-        # assert not torch.any(
-        #     torch.isinf(mus)
-        # ), f"mus is inf {torch.sum(torch.isinf(mus))}"
         return mus
 
     def get_config(self):

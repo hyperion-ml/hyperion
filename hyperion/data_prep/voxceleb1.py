@@ -325,13 +325,16 @@ class VoxCeleb1DataPrep(DataPrep):
         languages = np.unique(df_lang["lang"])
         languages = ClassInfo(pd.DataFrame({"id": languages}))
 
+        logging.info("making gender info file")
+        genders = ClassInfo(pd.DataFrame({"id": ["m", "f"]}))
+
         if self.task == "test":
             enrollments, trials = self.make_trials()
 
         logging.info("making dataset")
         dataset = HypDataset(
             segments,
-            classes={"speaker": speakers, "language_est": languages},
+            classes={"speaker": speakers, "language_est": languages, "gender": genders},
             recordings=recs,
             enrollments=enrollments,
             trials=trials,

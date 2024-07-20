@@ -250,10 +250,13 @@ class VoxCeleb2DataPrep(DataPrep):
         languages = np.unique(df_lang["lang"])
         languages = ClassInfo(pd.DataFrame({"id": languages}))
 
+        logging.info("making gender info file")
+        genders = ClassInfo(pd.DataFrame({"id": ["m", "f"]}))
+
         logging.info("making dataset")
         dataset = HypDataset(
             segments,
-            {"speaker": speakers, "language_est": languages},
+            {"speaker": speakers, "language_est": languages, "gender": genders},
             recs,
         )
         logging.info("saving dataset at %s", self.output_dir)

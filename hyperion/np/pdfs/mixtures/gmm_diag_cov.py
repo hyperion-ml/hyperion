@@ -121,8 +121,8 @@ class GMMDiagCov(ExpFamilyMixture):
             self.Lambda = 1 / np.std(x, axis=0, keepdims=True) ** 2
             return
 
-        kmeans = KMeans(num_clusters=num_comp)
-        loss, cluster_index = kmeans.fit(x, epochs=100)
+        kmeans = KMeans(num_clusters=num_comp, epochs=100)
+        loss, cluster_index = kmeans.fit(x)
 
         self.mu = kmeans.mu
         self.pi = np.zeros((self.num_comp,), dtype=float_cpu())
@@ -183,7 +183,6 @@ class GMMDiagCov(ExpFamilyMixture):
             S_floor = self.var_floor * np.mean(S[N > self.min_N], axis=0)
             S_floor = np.maximum(S_floor, 1e-10)
             S = np.maximum(S, S_floor)
-            print(np.min(S))
             self.Lambda = 1 / S
             self._Sigma = S
             self._cholLambda = None
