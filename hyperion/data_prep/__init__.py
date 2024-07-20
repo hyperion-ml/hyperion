@@ -12,6 +12,7 @@ from .data_prep import DataPrep
 from .fake_codec import FakeCodecDataPrep
 from .musan import MusanDataPrep
 from .rirs import RIRSDataPrep
+from .sre_cts_superset import SRECTSSupersetDataPrep
 from .voxceleb1 import VoxCeleb1DataPrep
 from .voxceleb2 import VoxCeleb2DataPrep
 from .voxsrc22 import VoxSRC22DataPrep

@@ -351,7 +351,7 @@ class InfoTable:
         if isinstance(loc, int):
             return loc
 
-        if isinstance(loc, np.ndarray) and loc.dtype == np.bool:
+        if isinstance(loc, np.ndarray) and loc.dtype == bool:
             return np.nonzero(loc)[0]
 
         return list(range(loc.start, loc.stop, loc.step))
