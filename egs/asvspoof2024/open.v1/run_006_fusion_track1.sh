@@ -9,7 +9,6 @@ set -e
 
 stage=1
 prior=0.655
-prior=0.5
 #nnet_stage=1
 #config_file=default_config.sh
 . parse_options.sh || exit 1;
@@ -34,36 +33,11 @@ prior=0.5
 # output_dir=exp/cm_scores/fusion_v3
 # fus_idx=1
 
-# system_names="lresnet34_v1.40 USC_S4_v1_2s"
-# system_dirs="exp/cm_scores/fbank80_stmn_lresnet34.v1.40.s1
-# exp/cm_scores/USC_S4_v1_2s"
-# output_dir=exp/cm_scores/fusion_v5
-# fus_idx=1 # fuses 2 systems
-
-# system_names="fwseresnet34 lresnet34_v1.40 lresnet34_v1.42 convnext2d_atto ecapatdnn512x3"
-# system_dirs="exp/cm_scores/fbank80_stmn_fwseresnet34.v1.40.s1_ep2
-# exp/cm_scores/fbank80_stmn_lresnet34.v1.40.s1
-# exp/cm_scores/fbank80_stmn_lresnet34.v1.42_a100.s1_ep9
-# exp/cm_scores/fbank80_stmn_convnext2d_atto.v1.40.s1_ep2
-# exp/cm_scores/fbank80_stmn_ecapatdnn512x3.v1.40.1_a100.s1_ep3"
-# output_dir=exp/cm_scores/fusion_v6
-# fus_idx=1 # fuses 2 systems
-
-# system_names="fwseresnet34 lresnet34_v1.42"
-# system_dirs="exp/cm_scores/fbank80_stmn_fwseresnet34.v1.40.s1_ep5
-# exp/cm_scores/fbank80_stmn_lresnet34.v1.42_a100.s1_ep9"
-# output_dir=exp/cm_scores/fusion_v7
-# fus_idx=1 # fuses 2 systems
-
-system_names="fwseresnet34.v1.40 fwseresnet34.v1.40.5 fwseresnet34.v1.40.tc1"
-system_dirs="exp/cm_scores/fbank80_stmn_fwseresnet34.v1.40.s1_ep5
-exp/cm_scores/fbank80_stmn_fwseresnet34.v1.40.5.s1_ep9
-exp/cm_scores/fbank80_stmn_fwseresnet34.v1.40.tc1.s1_ep5
-"
-output_dir=exp/cm_scores/fusion_v8
-fus_idx=2 # fuses 2 systems
-
-
+system_names="lresnet34_v1.40 USC_S4_v1_2s"
+system_dirs="exp/cm_scores/fbank80_stmn_lresnet34.v1.40.s1
+exp/cm_scores/USC_S4_v1_2s"
+output_dir=exp/cm_scores/fusion_v5
+fus_idx=1 # fuses 2 systems
 
 score_files_dev=""
 score_files_prog=""

@@ -37,6 +37,23 @@ if [ $stage -le 1 ];then
 fi
 
 if [ $stage -le 2 ];then
+  echo "Prepare the ASV Spoof 2024 progress dataset"
+  hyperion-prepare-data asvspoof2024 \
+			--subset progress \
+			--corpus-dir $asvspoof2024_root \
+			--output-dir data/asvspoof2024_prog
+
+  echo "Prepare the ASV Spoof 2024 progress-enroll dataset"
+  hyperion-prepare-data asvspoof2024 \
+			--subset progress_enroll \
+			--corpus-dir $asvspoof2024_root \
+			--output-dir data/asvspoof2024_prog_enroll
+
+  
+fi
+
+
+if [ $stage -le 3 ];then
   if [ ! -d ./asvspoof5 ];then
     git clone https://github.com/asvspoof-challenge/asvspoof5.git
   fi
@@ -56,11 +73,11 @@ BEGIN{
 BEGIN{
   FS=","; OFS="\t"; 
   getline; 
-  print "filename\tcm-label\tasv-label"
+  print "spk\tfilename\tcm-label\tasv-label"
 } 
 { 
   if($3 == "spoof") { cm="spoof"} else {cm="bonafide"};
-  print $2,cm,$3;
+  print $1,$2,cm,$3;
 }' data/asvspoof2024_dev/trials_track2.csv > \
       data/asvspoof2024_dev/trials_track2_official.tsv 
 

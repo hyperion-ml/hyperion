@@ -12,11 +12,6 @@ if [ "$(hostname -y)" == "clsp" ];then
   asvspoof2021_root=$asvspoof_root/2021
   asvspoof2024_root=$asvspoof_root/2024
   musan_root=/export/corpora5/JHU/musan
-  librispeech_root=/export/corpora5/LibriSpeech
-  voxceleb1_root=/export/corpora5/VoxCeleb1_v2
-  voxceleb2_root=/export/corpora5/VoxCeleb2
-  codec_fake_hf_root=/export/fs06/corpora8/CodecFake
-  codec_fake_root=/export/fs06/corpora8/CodecFake_extract
 elif [ "$(hostname --domain)" == "cm.gemini" ];then
   echo "Put your database paths here"
   exit 1

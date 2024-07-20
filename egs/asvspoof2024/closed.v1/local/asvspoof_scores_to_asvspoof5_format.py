@@ -47,13 +47,14 @@ def asvspoof_scores_to_asvspoof5_format(
     ]
     df = pd.DataFrame(
         {
+            "spk": modelids,
             "filename": segmentids,
             "cm-score": cm_score_vec,
             "asv-score": asv_score_vec,
             "sasv-score": asvspoof_score_vec,
         }
     )
-    df.sort_values(by=["filename"], inplace=True)
+    df.sort_values(by=["spk", "filename"], inplace=True)
 
     output_dir = Path(out_score_file).parent
     output_dir.mkdir(parents=True, exist_ok=True)

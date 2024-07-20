@@ -37,8 +37,6 @@ class HFWav2VecBase(TorchModel):
         force_download (`bool`, defaults to `False`): whether or not to force the (re-)download
             the model weights and configuration files and override the
             cached versions if they exist.
-        resume_download (`bool`, defaults to `False`): whether or not to delete incompletely
-            received files. Will attempt to resume the download if such a file exists.
         revision(`str`, defaults to `"main"`): the specific model version to use.
             It can be a branch name, a tag name, or a commit id.
         drop_layers_gt (`int` defaults to None): drop encoder layers greater than this value (in [1, num_encoder_layers]).
@@ -71,7 +69,6 @@ class HFWav2VecBase(TorchModel):
         use_input_attention_mask: bool = False,
         cache_dir: Union[str, os.PathLike] = "./.cache/hyperion_hf",
         force_download: bool = False,
-        resume_download: bool = False,
         revision: str = "main",
         drop_layers_gt: Optional[int] = None,
         ignore_pretrained: bool = False,
@@ -88,12 +85,12 @@ class HFWav2VecBase(TorchModel):
         lora_alpha: int = 1,
         lora_dropout: float = 0.0,
         lora_merge_weights: bool = True,
+        resume_download: bool = False,  # deprecated
     ):
         super().__init__()
         self.pretrained_model_path = pretrained_model_path
         self.cache_dir = cache_dir
         self.force_download = force_download
-        self.resume_download = resume_download
         self.revision = revision
         self.drop_layers_gt = drop_layers_gt
         self.ignore_pretrained = ignore_pretrained
@@ -124,7 +121,6 @@ class HFWav2VecBase(TorchModel):
                         pretrained_model_path,
                         cache_dir=cache_dir,
                         force_download=force_download,
-                        resume_download=resume_download,
                         revision=revision,
                     )
                 except:
@@ -133,7 +129,6 @@ class HFWav2VecBase(TorchModel):
                         pretrained_model_path,
                         cache_dir=cache_dir,
                         force_download=force_download,
-                        resume_download=resume_download,
                         revision=revision,
                     )
                     feature_extractor = processor.feature_extractor
@@ -147,7 +142,6 @@ class HFWav2VecBase(TorchModel):
                         pretrained_model_path,
                         cache_dir=cache_dir,
                         force_download=False,
-                        resume_download=False,
                         revision=revision,
                     )
                 except:
@@ -156,7 +150,6 @@ class HFWav2VecBase(TorchModel):
                         pretrained_model_path,
                         cache_dir=cache_dir,
                         force_download=False,
-                        resume_download=False,
                         revision=revision,
                     )
                     feature_extractor = processor.feature_extractor
@@ -708,7 +701,6 @@ class HFWav2VecBase(TorchModel):
             "use_input_attention_mask": self.use_input_attention_mask,
             "cache_dir": self.cache_dir,
             "force_download": self.force_download,
-            "resume_download": self.resume_download,
             "revision": self.revision,
             "drop_layers_gt": self.drop_layers_gt,
             "ignore_pretrained": self.ignore_pretrained,
@@ -738,24 +730,6 @@ class HFWav2VecBase(TorchModel):
     @staticmethod
     def filter_args(**kwargs):
         return filter_func_args(HFWav2VecBase.__init__, kwargs)
-        # valid_args = (
-        #     "pretrained_model_path",
-        #     "normalize_input",
-        #     "use_input_attention_mask",
-        #     "cache_dir",
-        #     "force_download",
-        #     "resume_download",
-        #     "revision",
-        #     "drop_layers_gt",
-        #     "ignore_pretrained",
-        #     "override_dropouts",
-        #     "override_spec_augment",
-        #     "left_encoder_context",
-        #     "right_encoder_context",
-        #     "sample_frequency",
-        # )
-        # args = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
-        # return args
 
     @staticmethod
     def _add_lr_args(parser):
@@ -851,15 +825,15 @@ class HFWav2VecBase(TorchModel):
                 "and configuration files and override thecached versions if they exist"
             ),
         )
-        parser.add_argument(
-            "--resume-download",
-            default=False,
-            action=ActionYesNo,
-            help=(
-                "whether or not to delete incompletely received files. "
-                "Will attempt to resume the download if such a file exists"
-            ),
-        )
+        # parser.add_argument(
+        #     "--resume-download",
+        #     default=False,
+        #     action=ActionYesNo,
+        #     help=(
+        #         "whether or not to delete incompletely received files. "
+        #         "Will attempt to resume the download if such a file exists"
+        #     ),
+        # )
         parser.add_argument(
             "--revision",
             default="main",

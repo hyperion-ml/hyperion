@@ -1,1 +1,1 @@
-global_conf/config_fbank80_stmn_convnext2d_atto.v3.1.sh
+global_conf/config_fbank80_stmn_lresnet34.v1.40.sh

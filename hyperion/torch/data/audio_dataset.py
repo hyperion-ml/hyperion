@@ -81,6 +81,7 @@ class AudioDataset(Dataset):
         target_sample_freq: Optional[float] = None,
         wav_scale: float = 1,
         is_val: bool = False,
+        enable_transcodec_if: Optional[str] = None,
         seed: int = 112358,
         time_durs_file: Optional[str] = None,
         text_file: Optional[str] = None,
@@ -143,8 +144,13 @@ class AudioDataset(Dataset):
         self._create_augmenters(aug_cfgs)
 
         self.target_sample_freq = target_sample_freq
-        self.resamplers = {}
+        # self.resamplers = {}
         self.resampler = ResamplerToTargetFreq(target_sample_freq)
+        self.enable_transcodec_if = enable_transcodec_if
+        if enable_transcodec_if:
+            self.seg_set.eval(
+                f"enable_transcodec = {enable_transcodec_if}", inplace=True
+            )
 
     def _load_legacy_durations(self, time_durs_file):
         if self.rank == 0:
@@ -293,6 +299,12 @@ class AudioDataset(Dataset):
         x, fs = self.r.read([seg_id], time_offset=start, time_durs=read_duration)
         return x[0].astype(floatstr_torch(), copy=False), fs[0]
 
+    def _get_enable_transcodec(self, seg_id):
+        if self.enable_transcodec_if is None:
+            return True
+        else:
+            return self.seg_set.loc[seg_id, "enable_transcodec"]
+
     def _apply_aug_mix(self, x, x_augs, aug_idx):
         x_aug_mix = {}
         alpha_d = (self.aug_mix_alpha,) * len(x_augs)
@@ -307,7 +319,7 @@ class AudioDataset(Dataset):
 
         return x_aug_mix
 
-    def _apply_augs(self, x, duration, fs):
+    def _apply_augs(self, x: np.array, duration: int, fs: int, enable_transcodec: bool):
         if not self.augmenters:
             return {"x": x}
 
@@ -325,7 +337,7 @@ class AudioDataset(Dataset):
             x_augs_i = {}
             for j in range(self.num_augs):
                 # augment x
-                x_aug, aug_info = augmenter(x, fs)
+                x_aug, aug_info = augmenter(x, fs, enable_transcodec)
                 # remove the extra left context used to compute the reverberation.
                 x_aug = x_aug[reverb_context_samples : len(x)]
                 x_aug = x_aug.astype(floatstr_torch(), copy=False)
@@ -370,21 +382,21 @@ class AudioDataset(Dataset):
 
         return seg_info
 
-    def _get_resampler(self, fs):
-        if fs in self.resamplers:
-            return self.resamplers[fs]
+    # def _get_resampler(self, fs):
+    #     if fs in self.resamplers:
+    #         return self.resamplers[fs]
 
-        resampler = tat.Resample(
-            int(fs),
-            int(self.target_sample_freq),
-            lowpass_filter_width=64,
-            rolloff=0.9475937167399596,
-            resampling_method="kaiser_window",
-            beta=14.769656459379492,
-        )
-        resampler_f = lambda x: resampler(torch.from_numpy(x)).numpy()
-        self.resamplers[fs] = resampler_f
-        return resampler_f
+    #     resampler = tat.Resample(
+    #         int(fs),
+    #         int(self.target_sample_freq),
+    #         lowpass_filter_width=64,
+    #         rolloff=0.9475937167399596,
+    #         resampling_method="kaiser_window",
+    #         beta=14.769656459379492,
+    #     )
+    #     resampler_f = lambda x: resampler(torch.from_numpy(x)).numpy()
+    #     self.resamplers[fs] = resampler_f
+    #     return resampler_f
 
     def _resample(self, x, fs):
         if self.target_sample_freq is None:
@@ -400,7 +412,8 @@ class AudioDataset(Dataset):
         ), f"read audio empty seg_id={seg_id}, start={start}, dur={duration}"
         x, fs = self._resample(x, fs)
         data = {"seg_id": seg_id, "sample_freq": fs}
-        x_augs = self._apply_augs(x, duration, fs)
+        enable_transcodec = self._get_enable_transcodec(seg_id)
+        x_augs = self._apply_augs(x, duration, fs, enable_transcodec)
         data.update(x_augs)
         seg_info = self._get_segment_info(seg_id)
         data.update(seg_info)
@@ -651,6 +664,12 @@ class AudioDataset(Dataset):
             help=(
                 "target sampling frequencey, if not None all audios are converted to this sample freq"
             ),
+        )
+        parser.add_argument(
+            "--enable-transcodec-if",
+            default=None,
+            help="""condition to enable transcodec augmentation, 
+            for example use transcodec only if the segment is spoof:  'spoof_det == spoof'""",
         )
 
         parser.add_argument(

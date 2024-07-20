@@ -91,6 +91,10 @@ class InfoTable:
     def index(self):
         return self.df.index
 
+    @property
+    def eval(self):
+        return self.df.eval
+
     def save(self, file_path, sep=None):
         """Saves info table to file
 

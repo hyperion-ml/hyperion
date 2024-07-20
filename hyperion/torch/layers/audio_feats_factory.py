@@ -2,6 +2,7 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import re
 
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
@@ -242,7 +243,8 @@ class AudioFeatsFactory:
             "norm_filters",
             "num_ceps",
             "snip_edges",
-            "center" "energy_floor",
+            "center",
+            "energy_floor",
             "raw_energy",
             "use_energy",
             "cepstral_lifter",

@@ -186,6 +186,7 @@ class CodecAugment:
           Dictionary containing information about the codec type and codec options.
         """
         # decide whether to add noise or not
+        x = x.astype("float32", copy=False)
         p = self.rng.random()
         if p > self.codec_prob:
             # we don't add codec
@@ -322,7 +323,7 @@ class CodecAugment:
         # vorbis t=0.08
         # opus t=0.046
         # mp3 t=0.032
-        # ac3 t=0.24
+        # ac3 t=0.024
         return y, info
 
     def __call__(self, x, sample_freq=None):

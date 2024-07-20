@@ -25,13 +25,22 @@ class SpeechAugment(object):
        reverb_aug: ReverbAugment object.
        noise_aug: NoiseAugment object.
        codec_aug: CodecAugment object
+       transcodec_aug: CodecAugment object
     """
 
-    def __init__(self, speed_aug=None, reverb_aug=None, noise_aug=None, codec_aug=None):
+    def __init__(
+        self,
+        speed_aug=None,
+        reverb_aug=None,
+        noise_aug=None,
+        codec_aug=None,
+        transcodec_aug=None,
+    ):
         self.speed_aug = speed_aug
         self.reverb_aug = reverb_aug
         self.noise_aug = noise_aug
         self.codec_aug = codec_aug
+        self.transcodec_aug = transcodec_aug
 
     @classmethod
     def create(cls, cfg, random_seed=112358, rng=None):
@@ -69,11 +78,18 @@ class SpeechAugment(object):
         if "codec_aug" in cfg:
             codec_aug = CodecAugment.create(cfg["codec_aug"], random_seed=random_seed)
 
+        transcodec_aug = None
+        if "transcodec_aug" in cfg:
+            transcodec_aug = CodecAugment.create(
+                cfg["transcodec_aug"], random_seed=random_seed
+            )
+
         return cls(
             speed_aug=speed_aug,
             reverb_aug=reverb_aug,
             noise_aug=noise_aug,
             codec_aug=codec_aug,
+            transcodec_aug=transcodec_aug,
         )
 
     @property
@@ -84,7 +100,7 @@ class SpeechAugment(object):
 
         return self.reverb_aug.max_reverb_context
 
-    def forward(self, x, sample_freq=None):
+    def forward(self, x, sample_freq=None, enable_tanscodec=True):
         """Adds speed augment, noise and reverberation to signal,
         speed multiplier, noise type, SNR, room type and RIRs are chosen randomly.
 
@@ -131,7 +147,17 @@ class SpeechAugment(object):
         else:
             info["codec"] = {"codec_type": None}
 
+        if (
+            self.transcodec_aug is not None
+            and info["codec"]["codec_type"] is not None
+            and enable_tanscodec
+        ):
+            x, codec_info = self.transcodec_aug(x, sample_freq)
+            info["transcodec"] = codec_info
+        else:
+            info["transcodec"] = {"codec_type": None}
+
         return x, info
 
-    def __call__(self, x, sample_freq=None):
-        return self.forward(x, sample_freq)
+    def __call__(self, x, sample_freq=None, enable_tanscodec=True):
+        return self.forward(x, sample_freq, enable_tanscodec)

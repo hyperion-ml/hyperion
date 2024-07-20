@@ -23,8 +23,10 @@ class SegChunkSampler(HypSampler):
     def __init__(
         self,
         seg_set: SegmentSet,
-        min_chunk_length: int,
-        max_chunk_length: Optional[int] = None,
+        min_chunk_length: float,
+        max_chunk_length: Optional[float] = None,
+        min_chunk_shift: float = 0,
+        max_chunk_shift: float = 0,
         base_sampler: Type[HypSampler] = SegSampler,
         length_name: str = "duration",
         max_batches_per_epoch: Optional[int] = None,
@@ -55,17 +57,6 @@ class SegChunkSampler(HypSampler):
 
     def __len__(self):
         return len(self._seg_sampler)
-
-    # def _compute_num_chunks(self, seg_set):
-    #     num_chunks = 0
-    #     for len in seg_set['duration']:
-    #         if len < self.min_chunk_length:
-    #             #discard too short sequences
-    #             continue
-
-    #         num_chunks += math.ceil(len/self._avg_chunk_length)
-
-    #     self.num_chunks = num_chunks
 
     @property
     def duration_is_random(self):
