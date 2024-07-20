@@ -149,7 +149,6 @@ class VoxCeleb2DataPrep(DataPrep):
         df_lang = self._get_langs_est()
         rec_dir = self.corpus_dir / self.subset
         logging.info("searching audio files in %s", str(rec_dir))
-        rec_files1 = list(rec_dir.glob("**/*.m4a"))
         rec_files = [Path(f) for f in glob.iglob(f"{rec_dir}/**/*.m4a", recursive=True)]
         if not rec_files:
             # symlinks? try glob

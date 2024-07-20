@@ -25,6 +25,7 @@ class TrialKey(object):
       seg_set: List of test segment names.
       tar: Boolean matrix with target trials to True (num_models x num_segments).
       non: Boolean matrix with non-target trials to True (num_models x num_segments).
+      spoof: Boolean matrix with spoof trials to True (num_models x num_segments)
       model_cond: Conditions related to the model.
       seg_cond: Conditions related to the test segment.
       trial_cond: Conditions related to the combination of model and test segment.
@@ -39,6 +40,7 @@ class TrialKey(object):
         seg_set=None,
         tar=None,
         non=None,
+        spoof=None,
         model_cond=None,
         seg_cond=None,
         trial_cond=None,
@@ -50,6 +52,7 @@ class TrialKey(object):
         self.seg_set = seg_set
         self.tar = tar
         self.non = non
+        self.spoof = spoof
         self.model_cond = model_cond
         self.seg_cond = seg_cond
         self.trial_cond = trial_cond
@@ -78,6 +81,8 @@ class TrialKey(object):
         ix = np.ix_(m_idx, s_idx)
         self.tar = self.tar[ix]
         self.non = self.non[ix]
+        if self.spoof is not None:
+            self.spoof = self.spoof[ix]
         if self.model_cond is not None:
             self.model_cond = self.model_cond[m_idx]
         if self.seg_cond is not None:
@@ -113,6 +118,8 @@ class TrialKey(object):
             f.create_dataset("ID/row_ids", data=model_set)
             f.create_dataset("ID/column_ids", data=seg_set)
             trial_mask = self.tar.astype("int8") - self.non.astype("int8")
+            if self.spoof is not None:
+                trial_mask -= 2 * self.spoof.astype("int8")
             f.create_dataset("trial_mask", data=trial_mask)
             if self.model_cond is not None:
                 f.create_dataset("model_cond", data=self.model_cond.astype("uint8"))
@@ -148,6 +155,13 @@ class TrialKey(object):
                     "%s %s nontarget\n"
                     % (self.model_set[item[1]], self.seg_set[item[0]])
                 )
+            if self.spoof is not None:
+                idx = (self.spoof.T).nonzero()
+                for item in zip(idx[0], idx[1]):
+                    f.write(
+                        "%s %s spoof\n"
+                        % (self.model_set[item[1]], self.seg_set[item[0]])
+                    )
 
     def save_table(self, file_path, sep=None):
         """Saves object to txt file.
@@ -162,9 +176,19 @@ class TrialKey(object):
 
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(f"modelid{sep}segmentid{sep}targettype\n")
-            I, J = np.logical_or(self.tar, self.non).nonzero()
+            # added in ASVSpoof 2024 to account for spoofing trials
+            if self.spoof is not None:
+                non = np.logical_or(self.non, self.spoof)
+            else:
+                non = self.non
+
+            I, J = np.logical_or(self.tar, non).nonzero()
             for i, j in zip(I, J):
-                target_type = "target" if self.tar[i, j] else "nontarget"
+                target_type = (
+                    "target"
+                    if self.tar[i, j]
+                    else ("nontarget" if self.non[i, j] else "spoof")
+                )
                 f.write(
                     f"{self.model_set[i]}{sep}{self.seg_set[j]}{sep}{target_type}\n"
                 )
@@ -203,6 +227,12 @@ class TrialKey(object):
             seg_set = [t.decode("utf-8") for t in f["ID/column_ids"]]
 
             trial_mask = np.asarray(f["trial_mask"], dtype="int8")
+            # added to account for spoofing trials in ASVSpoof 2024
+            spoof = (trial_mask < 1).astype("bool")
+            if np.any(spoof):
+                trial_mask[spoof] = 0
+            else:
+                spoof = None
             tar = (trial_mask > 0).astype("bool")
             non = (trial_mask < 0).astype("bool")
 
@@ -230,6 +260,7 @@ class TrialKey(object):
             seg_set,
             tar,
             non,
+            spoof,
             model_cond,
             seg_cond,
             trial_cond,
@@ -253,6 +284,7 @@ class TrialKey(object):
         models = [i[0] for i in fields]
         segments = [i[1] for i in fields]
         is_tar = [i[2] == "target" for i in fields]
+        is_spoof = [i[2] == "spoof" for i in fields]
         model_set, _, model_idx = np.unique(
             models, return_index=True, return_inverse=True
         )
@@ -261,12 +293,18 @@ class TrialKey(object):
         )
         tar = np.zeros((len(model_set), len(seg_set)), dtype="bool")
         non = np.zeros((len(model_set), len(seg_set)), dtype="bool")
-        for item in zip(model_idx, seg_idx, is_tar):
+        if np.any(is_spoof):
+            spoof = np.zeros((len(model_set), len(seg_set)), dtype="bool")
+        else:
+            spoof = None
+        for item in zip(model_idx, seg_idx, is_tar, is_spoof):
             if item[2]:
                 tar[item[0], item[1]] = True
+            elif item[3]:
+                spoof[item[0], item[1]] = True
             else:
                 non[item[0], item[1]] = True
-        return cls(model_set, seg_set, tar, non)
+        return cls(model_set, seg_set, tar, non, spoof)
 
     @classmethod
     def load_table(cls, file_path, sep=None):
@@ -287,16 +325,23 @@ class TrialKey(object):
         models = df["modelid"].values
         segments = df["segmentid"].values
         is_tar = (df["targettype"] == "target").values
+        is_spoof = (df["targettype"] == "spoof").values
         model_set, model_idx = np.unique(models, return_inverse=True)
         seg_set, seg_idx = np.unique(segments, return_inverse=True)
         tar = np.zeros((len(model_set), len(seg_set)), dtype="bool")
         non = np.zeros((len(model_set), len(seg_set)), dtype="bool")
-        for i, j, target_type in zip(model_idx, seg_idx, is_tar):
+        if np.any(is_spoof):
+            spoof = np.zeros((len(model_set), len(seg_set)), dtype="bool")
+        else:
+            spoof = None
+        for i, j, target_type, spoof_type in zip(model_idx, seg_idx, is_tar, is_spoof):
             if target_type:
                 tar[i, j] = True
+            elif spoof_type:
+                spoof[i, j] = True
             else:
                 non[i, j] = True
-        return cls(model_set, seg_set, tar, non)
+        return cls(model_set, seg_set, tar, non, spoof)
 
     @classmethod
     def merge(cls, key_list):
@@ -313,6 +358,7 @@ class TrialKey(object):
         seg_set = key_list[0].seg_set
         tar = key_list[0].tar
         non = key_list[0].non
+        spoof = key_list[0].spoof
         model_cond = key_list[0].model_cond
         seg_cond = key_list[0].seg_cond
         trial_cond = key_list[0].trial_cond
@@ -342,6 +388,9 @@ class TrialKey(object):
             tar_1[ix_a] = tar[ix_b]
             non_1 = np.zeros(shape, dtype="bool")
             non_1[ix_a] = non[ix_b]
+            if spoof is not None:
+                spoof_1 = np.zeros(shape, dtype="bool")
+                spoof_1[ix_a] = spoof[ix_b]
             if model_cond is not None:
                 model_cond_1 = np.zeros((num_model_cond, shape[0]), dtype="bool")
                 model_cond_1[:, mi_a] = model_cond[:, mi_b]
@@ -364,6 +413,9 @@ class TrialKey(object):
             tar_2[ix_a] = key_i.tar[ix_b]
             non_2 = np.zeros(shape, dtype="bool")
             non_2[ix_a] = key_i.non[ix_b]
+            if spoof is not None:
+                spoof_2 = np.zeros(shape, dtype="bool")
+                spoof_2[ix_a] = key_i.spoof[ix_b]
             if model_cond is not None:
                 model_cond_2 = np.zeros((num_model_cond, shape[0]), dtype="bool")
                 model_cond_2[:, mi_a] = key_i.model_cond[:, mi_b]
@@ -378,6 +430,8 @@ class TrialKey(object):
             seg_set = new_seg_set
             tar = np.logical_or(tar_1, tar_2)
             non = np.logical_or(non_1, non_2)
+            if spoof is not None:
+                spoof = np.logical_or(spoof_1, spoof_2)
             if model_cond is not None:
                 model_cond = np.logical_or(model_cond_1, model_cond_2)
             if seg_cond is not None:
@@ -390,6 +444,7 @@ class TrialKey(object):
             seg_set,
             tar,
             non,
+            spoof,
             model_cond,
             seg_cond,
             trial_cond,
@@ -425,6 +480,10 @@ class TrialKey(object):
         ix = np.ix_(mod_idx, seg_idx)
         tar = self.tar[ix]
         non = self.non[ix]
+        if self.spoof is not None:
+            spoof = self.spoof[ix]
+        else:
+            spoof = None
 
         model_cond = None
         seg_cond = None
@@ -441,6 +500,7 @@ class TrialKey(object):
             seg_set,
             tar,
             non,
+            spoof,
             model_cond,
             seg_cond,
             trial_cond,
@@ -468,6 +528,10 @@ class TrialKey(object):
         ix = np.ix_(model_idx1, seg_idx1)
         tar = self.tar[ix]
         non = self.non[ix]
+        if self.spoof is not None:
+            spoof = self.spoof[ix]
+        else:
+            spoof = None
 
         model_cond = None
         seg_cond = None
@@ -484,6 +548,7 @@ class TrialKey(object):
             seg_set,
             tar,
             non,
+            spoof,
             model_cond,
             seg_cond,
             trial_cond,
@@ -499,6 +564,8 @@ class TrialKey(object):
           TrialNdx object.
         """
         mask = np.logical_or(self.tar, self.non)
+        if self.spoof is not None:
+            mask = np.logical_or(mask, self.spoof)
         return TrialNdx(self.model_set, self.seg_set, mask)
 
     def validate(self):
@@ -516,6 +583,8 @@ class TrialKey(object):
         else:
             assert self.tar.shape == shape
             assert self.non.shape == shape
+            if self.spoof is not None:
+                assert self.spoof.shape == shape
 
         if self.model_cond is not None:
             assert self.model_cond.shape[1] == shape[0]
@@ -540,6 +609,11 @@ class TrialKey(object):
         eq = eq and np.all(self.seg_set == other.seg_set)
         eq = eq and np.all(self.tar == other.tar)
         eq = eq and np.all(self.non == other.non)
+        eq = eq and (
+            self.spoof is None
+            and other.spoof is None
+            or np.all(self.spoof == other.spoof)
+        )
 
         eq = eq and ((self.model_cond is None) == (other.model_cond is None))
         eq = eq and ((self.seg_cond is None) == (other.seg_cond is None))

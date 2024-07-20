@@ -3,4 +3,4 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from .resampler import Resampler
+from .resampler import ResamplerFromInputFreq, ResamplerToTargetFreq

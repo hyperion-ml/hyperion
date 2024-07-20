@@ -330,6 +330,8 @@ class VoxCeleb1DataPrep(DataPrep):
 
         if self.task == "test":
             enrollments, trials = self.make_trials()
+        else:
+            enrollments, trials = None, None,
 
         logging.info("making dataset")
         dataset = HypDataset(

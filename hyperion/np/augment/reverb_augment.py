@@ -89,7 +89,7 @@ class SingleReverbAugment(object):
     @staticmethod
     def _power(x):
         """Computes power of x in dB."""
-        return 10 * np.log10((x ** 2).sum() + 1e-5)
+        return 10 * np.log10((x**2).sum() + 1e-5)
 
     @staticmethod
     def sdr(x, y, scale, delay):
@@ -114,7 +114,7 @@ class SingleReverbAugment(object):
             idx = np.argmax(np.abs(h))
             return h / h[idx]
 
-        return h / np.sum(h ** 2)
+        return h / np.sum(h**2)
 
     def forward(self, x):
         """Adds reverberation to signal, RIR is chosen randomly.
@@ -126,7 +126,7 @@ class SingleReverbAugment(object):
           Noisy signal.
           Dictionary containing information of RIR type, Signal reverb ratio (dB), linear gain and delay introduced by RIR.
         """
-
+        t1 = time.time()
         num_samples = x.shape[0]
         with self.lock:
             rir_idx = self.rng.integers(len(self.rir_keys))
@@ -148,14 +148,13 @@ class SingleReverbAugment(object):
             y = y[: num_samples + h_delay]
 
         srr = self.sdr(x, y, h_max, h_delay)
-        # logging.info('rt={} {} {} {} {}'.format(t2-t1, t3-t2, t4-t3, t5-t4, t6-t5))
         info = {
             "rir_type": self.rir_type,
             "srr": srr,
             "h_max": h_max,
             "h_delay": h_delay,
         }
-
+        # avg proc time 0.004 secs
         return y, info
 
     def __call__(self, x):

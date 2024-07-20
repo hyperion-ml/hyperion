@@ -1,0 +1,29 @@
+reverb_aug:
+  reverb_prob: 0.45
+  max_reverb_context: 0.5
+  rir_types: 
+    smallroom:
+      weight: 1
+      rir_path: csv:data/rirs_smallroom/rirs.csv
+      rir_norm: max
+    mediumroom:
+      weight: 1
+      rir_path: csv:data/rirs_mediumroom/rirs.csv
+      rir_norm: max
+    realroom:
+      weight: 1
+      rir_path: csv:data/rirs_real/rirs.csv
+      rir_norm: max
+noise_aug:
+  noise_prob: 0.7
+  noise_types: 
+    noise:
+      weight: 1
+      noise_path: data/musan_noise_proc_audio/recordings.csv
+      min_snr: 0
+      max_snr: 18
+    music:
+      weight: 1
+      noise_path: data/musan_music_proc_audio/recordings.csv
+      min_snr: 3
+      max_snr: 18

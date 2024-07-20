@@ -4,7 +4,7 @@
 # Paths to the databases used in the experiment
 
 
-if [ "$(hostname --domain)" == "clsp.jhu.edu" ];then
+if [ "$(hostname -y)" == "clsp" ];then
     ldc_root=/export/corpora5/LDC
     sitw_root=/export/corpora5/SRI/sitw
     voxceleb1_root=/export/corpora5/VoxCeleb1_v1

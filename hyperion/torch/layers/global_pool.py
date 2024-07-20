@@ -30,7 +30,6 @@ class _GlobalPool1d(nn.Module):
        keepdim: If True, it keeps the same number of dimensions after pooling
 
     """
-
     def __init__(self, dim=-1, keepdim=False):
         super().__init__()
         self.dim = dim
@@ -43,9 +42,10 @@ class _GlobalPool1d(nn.Module):
         """
         if weights is None:
             time_dim = self.dim if self.dim >= 0 else x.dim() + self.dim
-            return seq_lengths_to_mask(
-                x_lengths, x.size(self.dim), dtype=x.dtype, time_dim=time_dim
-            )
+            return seq_lengths_to_mask(x_lengths,
+                                       x.size(self.dim),
+                                       dtype=x.dtype,
+                                       time_dim=time_dim)
 
         if weights.dim() == x.dim():
             return weights
@@ -66,13 +66,11 @@ class _GlobalPool1d(nn.Module):
     def _slidwin_pad(self, x, win_length, win_shift, snip_edges):
         if snip_edges:
             num_frames = int(
-                math.floor((x.size(-1) - win_length + win_shift) / win_shift)
-            )
+                math.floor((x.size(-1) - win_length + win_shift) / win_shift))
             return nnf.pad(x, (1, 0), mode="constant"), num_frames
 
-        assert (
-            win_length >= win_shift
-        ), "if win_length < win_shift snip-edges should be false"
+        assert (win_length >= win_shift
+                ), "if win_length < win_shift snip-edges should be false"
 
         num_frames = int(round(x.size(-1) / win_shift))
         len_x = (num_frames - 1) * win_shift + win_length
@@ -80,7 +78,8 @@ class _GlobalPool1d(nn.Module):
         pad_left = int(math.floor((win_length - win_shift) / 2))
         pad_right = int(dlen_x - pad_left)
 
-        return nnf.pad(x, (pad_left + 1, pad_right), mode="reflect"), num_frames
+        return nnf.pad(x, (pad_left + 1, pad_right),
+                       mode="reflect"), num_frames
 
 
 class GlobalAvgPool1d(_GlobalPool1d):
@@ -91,7 +90,6 @@ class GlobalAvgPool1d(_GlobalPool1d):
        keepdim: if True, it keeps the same number of dimensions after pooling
 
     """
-
     def __init__(self, dim=-1, keepdim=False):
         super().__init__(dim, keepdim)
 
@@ -117,9 +115,10 @@ class GlobalAvgPool1d(_GlobalPool1d):
 
     def forward_slidwin(self, x, win_length, win_shift, snip_edges=False):
         if isinstance(win_shift, int) and isinstance(win_length, int):
-            return self._forward_slidwin_int(
-                x, win_length, win_shift, snip_edges=snip_edges
-            )
+            return self._forward_slidwin_int(x,
+                                             win_length,
+                                             win_shift,
+                                             snip_edges=snip_edges)
 
         # the window length and/or shift are floats
         return self._forward_slidwin_float(
@@ -475,8 +474,9 @@ class LDEPool1d(_GlobalPool1d):
     def _standardize_weights(self, x, x_lengths=None, weights=None):
         """standardizes the weights to have shape (batch, max_length)."""
         if weights is None:
+            time_dim = self.dim if self.dim >= 0 else x.dim() + self.dim
             return seq_lengths_to_mask(
-                x_lengths, x.size(self.dim), dtype=x.dtype, time_dim=1
+                x_lengths, x.size(self.dim), dtype=x.dtype, time_dim=time_dim
             )
 
         if weights.dim() == x.dim():
@@ -748,8 +748,9 @@ class GlobalChWiseAttMeanStdPool1d(_GlobalPool1d):
         multiplied by the input data.
         """
         if weights is None:
+            time_dim = self.dim if self.dim >= 0 else x.dim() + self.dim
             return seq_lengths_to_mask(
-                x_lengths, x.size(self.dim), dtype=x.dtype, time_dim=-1
+                x_lengths, x.size(self.dim), dtype=x.dtype, time_dim=time_dim,
             )
 
         if weights.dim() == x.dim():

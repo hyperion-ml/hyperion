@@ -159,7 +159,7 @@ class SegSamplerFactory(object):
             type=float,
             default=None,
             help=(
-                "maximum accumlated duration of the batch, if None estimated from the min/max_batch_size and min/max_chunk_lengths"
+                "maximum accumulated duration of the batch, if None estimated from the min/max_batch_size and min/max_chunk_lengths"
             ),
         )
 

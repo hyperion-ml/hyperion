@@ -2,6 +2,7 @@
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import copy
 import logging
 import re
@@ -16,7 +17,7 @@ matplotlib.rc("text", usetex=True)
 import matplotlib.pyplot as plt
 
 from ...hyp_defs import float_cpu
-from ...utils import TrialKey, TrialScores, SparseTrialKey, SparseTrialScores
+from ...utils import SparseTrialKey, SparseTrialScores, TrialKey, TrialScores
 from ...utils.trial_stats import TrialStats
 from .dcf import fast_eval_dcf_eer
 from .utils import effective_prior
@@ -100,16 +101,18 @@ class VerificationEvaluator:
         min_dcf, act_dcf, eer, _ = fast_eval_dcf_eer(
             tar, non, self.p_tar[self._p_tar_sort]
         )
-        min_dcf[self._p_tar_sort] = min_dcf.copy()
-        act_dcf[self._p_tar_sort] = act_dcf.copy()
+
+        if len(self.p_tar) > 1:
+            min_dcf[self._p_tar_sort] = min_dcf.copy()
+            act_dcf[self._p_tar_sort] = act_dcf.copy()
 
         if not return_df:
             return min_dcf, act_dcf, eer, ntar, nnon
 
         if len(self.p_tar) == 1:
-            eer = [eer]
-            min_dcf = [min_dcf]
-            act_dcf = [act_dcf]
+            eer = np.asarray([eer])
+            min_dcf = np.asarray([min_dcf])
+            act_dcf = np.asarray([act_dcf])
 
         df = pd.DataFrame(
             {

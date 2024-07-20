@@ -120,9 +120,6 @@ class VoxSRC22DataPrep(DataPrep):
         vox1_rec_files = [
             glob.glob(f"{self.vox1_corpus_dir}/**/{s}")[0] for s in vox1_segmentid
         ]
-        # vox22_rec_files = [
-        #     glob.glob(f"{self.corpus_dir}/**/{s}")[0] for s in vox22_segmentid
-        # ]
         vox22_rec_files = [f"{self.corpus_dir}/{s}" for s in vox22_segmentid]
 
         rec_ids = vox22_segmentid + vox1_segmentid

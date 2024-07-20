@@ -22,5 +22,5 @@ wheel
 transformers>=4.16.2
 sentencepiece>=0.1.97
 loralib
-lhotse
-
+lhotse>=1.23.0
+datasets>=2.20.0

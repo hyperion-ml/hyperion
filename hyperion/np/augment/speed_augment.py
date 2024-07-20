@@ -13,7 +13,7 @@ from librosa.effects import time_stretch
 from ...hyp_defs import float_cpu
 
 
-class SpeedAugment(object):
+class SpeedAugment:
     """Class to augment speech with speed perturbation.
 
     Attributes:
@@ -52,12 +52,12 @@ class SpeedAugment(object):
         """Creates a SpeedAugment object from options dictionary or YAML file.
 
         Args:
-          cfg: YAML file path or dictionary with noise options.
+          cfg: YAML file path or dictionary with speed perturb. options.
           rng: Random number generator returned by
                np.random.default_rng (optional).
 
         Returns:
-          NoiseAugment object.
+          SpeedAugment object.
         """
         if isinstance(cfg, str):
             with open(cfg, "r") as f:
