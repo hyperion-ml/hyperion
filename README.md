@@ -48,25 +48,10 @@ pip install mamba-ssm
 git clone https://github.com/hyperion-ml/hyperion.git
 ```
 
-- You can choose to install hyperion in the environment
+- Then install hyperion in the environment
 ```bash
 cd hyperion
 pip install -e .
-```
-
-- Or add the hyperion toolkit to the PYTHONPATH envirnoment variable
-  This option will allow you to share the same environment if you are working with several hyperion branches
-  at the same time, while installing it requires to have an enviroment per branch.
-  For this, you need to install the requirements
-```bash
-cd hyperion
-pip install -r requirements.txt
-```
-Then add these lines to your `~/.bashrc` or to each script that uses hyperion
-```bash
-HYP_ROOT= #substitute this by your hyperion location
-export PYTHONPATH=${HYP_ROOT}:$PYTHONPATH
-export PATH=${HYP_ROOT}/bin:$PATH
 ```
 
 ## Recipes

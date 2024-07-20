@@ -135,7 +135,7 @@ def vad_timestamps_to_bin(
     if max_frames is not None and num_frames < max_frames:
         num_frames = max_frames
 
-    vad = np.zeros((num_frames,), dtype=np.bool)
+    vad = np.zeros((num_frames,), dtype=bool)
     frame_start = np.ceil(
         (in_timestamps[:, 0] - (pad + frame_center)) / frame_shift
     ).astype(dtype=np.int)
@@ -242,7 +242,7 @@ def intersect_segment_timestamps_with_vad(in_timestamps, vad_timestamps):
     vad_start = vad_timestamps[:, 0]
     vad_end = vad_timestamps[:, 1]
     num_vad_segs = len(vad_start)
-    speech_idx = np.zeros((in_timestamps.shape[0],), dtype=np.bool)
+    speech_idx = np.zeros((in_timestamps.shape[0],), dtype=bool)
     out_timestamps = []
     out_timestamps2speech_segs = []
     count_speech = 0

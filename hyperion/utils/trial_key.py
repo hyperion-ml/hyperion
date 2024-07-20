@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 
 # from .list_utils import *
-from .list_utils import sort, intersect, ismember, split_list, list2ndarray
+from .list_utils import intersect, ismember, list2ndarray, sort, split_list
 from .trial_ndx import TrialNdx
 
 
@@ -421,7 +421,7 @@ class TrialKey(object):
         assert np.all(f)
 
         model_set = self.model_set[mod_idx]
-        set_set = self.seg_set[seg_idx]
+        seg_set = self.seg_set[seg_idx]
         ix = np.ix_(mod_idx, seg_idx)
         tar = self.tar[ix]
         non = self.non[ix]

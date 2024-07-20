@@ -243,7 +243,7 @@ def eval_cosine_scoring(
             vad = v_reader.read([key.seg_set[j]])[0]
             tot_frames = len(vad)
             speech_frames = np.sum(vad)
-            vad = torch.as_tensor(vad.astype(np.bool, copy=False), dtype=torch.bool).to(
+            vad = torch.as_tensor(vad.astype(bool, copy=False), dtype=torch.bool).to(
                 device
             )
             model.vad_t = vad
@@ -361,9 +361,7 @@ def main():
 
     parser.add_argument("--vad", dest="vad_spec", default=None)
     parser.add_argument(
-        "--vad-path-prefix",
-        default=None,
-        help=("scp file_path prefix for vad"),
+        "--vad-path-prefix", default=None, help=("scp file_path prefix for vad"),
     )
 
     parser.add_argument("--model-path", required=True)

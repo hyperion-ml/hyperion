@@ -226,7 +226,7 @@ class GreedyFusionBinaryLR(NPModel):
             num_cands = len(cand_systems)
             cand_min_dcf = np.zeros((num_cands,), dtype=float_cpu())
             cand_act_dcf = np.zeros((num_cands,), dtype=float_cpu())
-            all_pos = np.zeros((num_cands,), dtype=np.bool)
+            all_pos = np.zeros((num_cands,), dtype=bool)
             cand_weights = []
             for j in range(num_cands):
                 system_idx_ij = np.concatenate(

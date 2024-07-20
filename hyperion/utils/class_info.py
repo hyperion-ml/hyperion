@@ -76,7 +76,7 @@ class ClassInfo(InfoTable):
                 sep=" ",
                 header=None,
                 names=["id"],
-                dtype={"id": np.str},
+                dtype={"id": str},
             )
             return cls(df)
 
