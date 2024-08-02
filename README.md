@@ -33,8 +33,8 @@ conda activate ${your_env}
 # We used PyTorch 2.3.1, other versions >=2.1.0 may work too
 conda install pytorch==2.3.1 torchvision==0.18.1 torchaudio==2.3.1 pytorch-cuda=12.1 -c pytorch -c nvidia
 # If using ASR recipes, you need to install k2:
-wget https://huggingface.co/csukuangfj/k2/resolve/main/ubuntu-cuda/k2-1.24.4.dev20240425+cuda12.1.torch2.3.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
-pip install k2-1.24.4.dev20240425+cuda12.1.torch2.3.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+wget https://huggingface.co/csukuangfj/k2/resolve/main/ubuntu-cuda/k2-1.24.4.dev20240606+cuda12.1.torch2.3.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+pip install k2-1.24.4.dev20240606+cuda12.1.torch2.3.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
 # If using mamba, install:
 pip install causal-conv1d>=1.2.0
 pip install mamba-ssm
