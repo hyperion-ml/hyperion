@@ -32,7 +32,7 @@ def compute_mfcc_feats(
 
     if mfcc.input_step == "wave":
         input_args = AR.filter_args(**kwargs)
-        reader = AR(input_path, **input_args)
+        reader = AR(recordings=input_path, **input_args)
     else:
         input_args = DRF.filter_args(**kwargs)
         reader = DRF.create(input_path, **input_args)

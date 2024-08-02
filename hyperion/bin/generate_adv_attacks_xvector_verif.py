@@ -190,7 +190,7 @@ def generate_attacks(
 
     logging.info("opening audio read stream: %s", test_wav_file)
     audio_args = AR.filter_args(**kwargs)
-    audio_reader = AR(test_wav_file, **audio_args)
+    audio_reader = AR(recordings=test_wav_file, **audio_args)
     wav_scale = audio_reader.wav_scale
     kwargs["wav_scale"] = wav_scale
 

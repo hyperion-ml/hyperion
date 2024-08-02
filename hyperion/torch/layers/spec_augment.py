@@ -25,7 +25,8 @@ class AxisMasker(nn.Module):
       min_num_mask: minimum number of masks.
       max_num_mask: maximum number of masks.
       dim: axis where we apply the mask.
-      mask_value: masking value.
+      mask_method: method to dedice the mask_value in [mean, min, constant]
+      mask_value: masking value if mask method is constant.
       use_num_masks_percentage: if True, num_masks are per 100 frames, if False they are absolute.
     """
 

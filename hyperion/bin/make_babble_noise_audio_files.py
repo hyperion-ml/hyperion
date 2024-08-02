@@ -66,7 +66,7 @@ def make_babble_noise_audio_files(
 
     count = 0
     t1 = time.time()
-    with AR(recordings_file, **input_args) as reader, Writer(
+    with AR(recordings=recordings_file, **input_args) as reader, Writer(
         output_path, output_recordings_file, **output_args
     ) as writer:
         keys = reader.keys

@@ -144,7 +144,7 @@ def decode_transducer(
     logging.info("opening output: %s", output_spec)
     with open(output_spec, "w") as writer:
         logging.info(f"opening input stream: {input_spec} with args={ar_args}")
-        with AR(input_spec, **ar_args) as reader:
+        with AR(recordings=input_spec, **ar_args) as reader:
             while not reader.eof():
                 t1 = time.time()
                 key, x, fs = reader.read(1)

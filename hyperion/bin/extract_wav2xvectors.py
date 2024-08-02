@@ -25,30 +25,31 @@ from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialAudioReader as AR
 from hyperion.io import VADReaderFactory as VRF
 from hyperion.np.augment import SpeechAugment
+from hyperion.np.preprocessing import ResamplerToTargetFreq
 
 # from hyperion.torch import TorchModelLoader as TML
 from hyperion.torch import TorchModel
 from hyperion.torch.utils import open_device
 from hyperion.utils import Utt2Info
 
-resamplers = {}
+# resamplers = {}
 
 
-def get_resampler(source_fs, target_fs):
-    if source_fs in resamplers:
-        return resamplers[source_fs]
+# def get_resampler(source_fs, target_fs):
+#     if source_fs in resamplers:
+#         return resamplers[source_fs]
 
-    resampler = tat.Resample(
-        int(source_fs),
-        int(target_fs),
-        lowpass_filter_width=64,
-        rolloff=0.9475937167399596,
-        resampling_method="kaiser_window",
-        beta=14.769656459379492,
-    )
-    resampler_f = lambda x: resampler(torch.from_numpy(x)).numpy()
-    resamplers[source_fs] = resampler_f
-    return resampler_f
+#     resampler = tat.Resample(
+#         int(source_fs),
+#         int(target_fs),
+#         lowpass_filter_width=64,
+#         rolloff=0.9475937167399596,
+#         resampling_method="kaiser_window",
+#         beta=14.769656459379492,
+#     )
+#     resampler_f = lambda x: resampler(torch.from_numpy(x)).numpy()
+#     resamplers[source_fs] = resampler_f
+#     return resampler_f
 
 
 def init_device(use_gpu):
@@ -127,6 +128,7 @@ def extract_xvectors(
     rng = np.random.default_rng(seed=1123581321 + kwargs["part_idx"])
     device = init_device(use_gpu)
     model = load_model(model_path, device)
+    resampler = ResamplerToTargetFreq(model.sample_frequency)
 
     if write_speech_dur is not None:
         keys = []
@@ -146,7 +148,7 @@ def extract_xvectors(
     logging.info("opening output stream: %s with args=%s", output_spec, str(ar_args))
     with DWF.create(output_spec, metadata_columns=metadata_columns) as writer:
         logging.info(f"opening input stream: {recordings_file} with args={ar_args}")
-        with AR(recordings_file, **ar_args) as reader:
+        with AR(recordings=recordings_file, **ar_args) as reader:
             if vad_spec is not None:
                 logging.info("opening VAD stream: %s", vad_spec)
                 v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix)
@@ -162,8 +164,9 @@ def extract_xvectors(
                 fs = fs[0]
                 t2 = time.time()
                 if fs != model.sample_frequency:
-                    resampler = get_resampler(fs, model.sample_frequency)
-                    x0 = resampler(x0)
+                    x0, fs = resampler(x0, fs)
+                    # resampler = get_resampler(fs, model.sample_frequency)
+                    # x0 = resampler(x0)
 
                 logging.info("processing utt %s", key0)
                 for aug_id in range(num_augs):

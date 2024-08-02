@@ -67,7 +67,7 @@ class RecordingSet(InfoTable):
 
         durations = []
         fss = []
-        with AR(recordings, part_idx=i + 1, num_parts=n) as reader:
+        with AR(recordings=recordings, part_idx=i + 1, num_parts=n) as reader:
             for data in reader:
                 key, x, fs = data
                 duration = x.shape[0] / fs

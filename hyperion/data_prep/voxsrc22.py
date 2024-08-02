@@ -141,6 +141,9 @@ class VoxSRC22DataPrep(DataPrep):
         segments = pd.DataFrame(
             {
                 "id": rec_ids,
+                "corpusid": "voxceleb",
+                "dataset": self.dataset_name(),
+                "source_type": "afv",
             }
         )
         segments = SegmentSet(segments)

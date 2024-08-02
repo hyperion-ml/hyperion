@@ -84,6 +84,13 @@ def add_features(
     if output_dataset is None:
         output_dataset = dataset
 
+    logging.info(
+        "adding features %s to dataset: %s -> %s",
+        features_name,
+        dataset,
+        output_dataset,
+    )
+
     dataset = HypDataset.load(dataset, lazy=True)
     dataset.add_features(features_name, features_file)
     dataset.save(output_dataset)
@@ -131,9 +138,16 @@ def set_recordings(
     if output_dataset is None:
         output_dataset = dataset
 
+    logging.info(
+        "setting recording %s in dataset: %s -> %s",
+        recordings_file,
+        dataset,
+        output_dataset,
+    )
     dataset = HypDataset.load(dataset, lazy=True)
     dataset.set_recordings(recordings_file, update_seg_durs)
     if remove_features is not None:
+        logging.info("removing features %s", str(remove_features))
         for features_name in remove_features:
             dataset.remove_features(features_name)
 
@@ -161,6 +175,7 @@ def make_from_recordings(
     output_dataset = dataset
     import pandas as pd
 
+    logging.info("making dataset %s from recordings %s", dataset, recordings_file)
     rec_df = pd.read_csv(recordings_file)
     seg_df = rec_df[["id"]]
     segments = SegmentSet(seg_df)
@@ -205,6 +220,13 @@ def remove_short_segments(
     if output_dataset is None:
         output_dataset = dataset
 
+    logging.info(
+        "removing segments with %s<%f in dataset: %s -> %s",
+        length_name,
+        min_length,
+        dataset,
+        output_dataset,
+    )
     dataset = HypDataset.load(dataset, lazy=True)
     dataset.remove_short_segments(min_length, length_name)
     dataset.save(output_dataset)
@@ -236,6 +258,13 @@ def rebuild_class_idx(
 ):
     if output_dataset is None:
         output_dataset = dataset
+
+    logging.info(
+        "rebuilding %s class index in dataset: %s -> %s",
+        class_name,
+        dataset,
+        output_dataset,
+    )
 
     dataset = HypDataset.load(dataset, lazy=True)
     dataset.rebuild_class_idx(class_name)
@@ -279,6 +308,14 @@ def remove_classes_few_segments(
 ):
     if output_dataset is None:
         output_dataset = dataset
+
+    logging.info(
+        "removing %s with segments<%d in dataset: %s -> %s",
+        class_name,
+        min_segs,
+        dataset,
+        output_dataset,
+    )
 
     dataset = HypDataset.load(dataset, lazy=True)
     dataset.remove_classes_few_segments(class_name, min_segs, rebuild_idx)
@@ -327,6 +364,14 @@ def remove_classes_few_toomany_segments(
     if output_dataset is None:
         output_dataset = dataset
 
+    logging.info(
+        "removing %s with segments<%d or segments>%d in dataset: %s -> %s",
+        class_name,
+        min_segs,
+        max_segs,
+        dataset,
+        output_dataset,
+    )
     dataset = HypDataset.load(dataset, lazy=True)
     dataset.remove_classes_few_toomany_segments(
         class_name, min_segs, max_segs, rebuild_idx
@@ -397,6 +442,12 @@ def split_train_val(
     train_dataset: PathLike,
     val_dataset: PathLike,
 ):
+    logging.info(
+        "splitting %s -> train: %s + val: %s",
+        dataset,
+        train_dataset,
+        val_dataset,
+    )
     dataset = HypDataset.load(dataset, lazy=True)
     train_ds, val_ds = dataset.split_train_val(
         val_prob, joint_classes, disjoint_classes, min_train_samples, seed
@@ -436,6 +487,11 @@ def copy(
     dataset: PathLike,
     output_dataset: PathLike,
 ):
+    logging.info(
+        "copying dataset: %s -> %s",
+        dataset,
+        output_dataset,
+    )
     dataset = HypDataset.load(dataset, lazy=True)
     dataset.save(output_dataset)
 
@@ -505,6 +561,9 @@ def add_cols_to_segments(
     if output_dataset is None:
         output_dataset = dataset
 
+    logging.info(
+        "adding columnts to %s + %s -> %s", dataset, right_table, output_dataset
+    )
     dataset = HypDataset.load(dataset, lazy=True)
     dataset.add_cols_to_segments(
         right_table,
@@ -533,6 +592,8 @@ def make_merge_parser():
 def merge(dataset: PathLike, input_datasets: List[PathLike]):
     input_dataset_paths = input_datasets
     dataset_path = dataset
+
+    logging.info("merging %s -> %s", (input_dataset_paths), dataset_path)
     input_datasets = []
     for dset_file in input_dataset_paths:
         input_datasets.append(HypDataset.load(dset_file))
@@ -572,8 +633,12 @@ def from_lhotse(
     recordings_file: Optional[PathLike] = None,
     supervisions_file: Optional[PathLike] = None,
 ):
-
     assert cuts_file is not None or supervisions_file is not None
+    logging.info(
+        "crate dataset from lhotse : %s -> %s",
+        cuts_file if cuts_file is not None else supervisions_file,
+        dataset,
+    )
     dataset_path = dataset
     dataset = HypDataset.from_lhotse(
         cuts=cuts_file, recordings=recordings_file, supervisions=supervisions_file
@@ -600,7 +665,7 @@ def from_kaldi(
     dataset: PathLike,
     kaldi_data_dir: PathLike,
 ):
-
+    logging.info("crate dataset from kaldi : %s -> %s", kaldi_data_dir, dataset)
     dataset_path = dataset
     dataset = HypDataset.from_kaldi(kaldi_data_dir)
     dataset.save(dataset_path)

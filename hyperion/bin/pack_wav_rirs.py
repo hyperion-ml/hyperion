@@ -25,7 +25,7 @@ from hyperion.io import SequentialAudioReader as AR
 def pack_wav_rirs(input_path, output_spec, **kwargs):
     writer = DWF.create(output_spec, compress=False)
     t1 = time.time()
-    with AR(input_path, wav_scale=1) as reader:
+    with AR(recordings=input_path, wav_scale=1) as reader:
         for data in reader:
             key, h, fs = data
             if h.ndim == 2:

@@ -120,7 +120,7 @@ def eval_cosine_scoring(
     ndx, y_e = read_data(v_file, ndx_file, enroll_file, seg_part_idx, num_seg_parts)
 
     audio_args = AR.filter_args(**kwargs)
-    audio_reader = AR(test_wav_file, **audio_args)
+    audio_reader = AR(recordings=test_wav_file, **audio_args)
 
     if vad_spec is not None:
         logging.info("opening VAD stream: %s", vad_spec)

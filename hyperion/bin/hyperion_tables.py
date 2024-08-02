@@ -28,7 +28,7 @@ from hyperion.utils import (
     SegmentSet,
 )
 
-subcommand_list = ["cat", "filter", "make_class_file_from_column"]
+subcommand_list = ["cat", "filter", "make_class_file_from_column", "drop_columns"]
 table_dict = {
     "segments": SegmentSet,
     "recordings": RecordingSet,
@@ -193,6 +193,52 @@ def make_class_file_from_column(
     class_ids = np.unique(input_table[column])
     df = pd.DataFrame({"id": class_ids})
     output_table = ClassInfo(df)
+    output_table.save(output_file)
+
+
+def make_drop_columns_parser():
+    parser = ArgumentParser()
+    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument("--input-file", required=True, help="input table file")
+    parser.add_argument(
+        "--columns", default=None, nargs="+", help="columns to keep or drop"
+    )
+    parser.add_argument(
+        "--keep",
+        default=False,
+        action=ActionYesNo,
+        help="whether to keep or drop columns",
+    )
+    parser.add_argument(
+        "--output-file",
+        default=None,
+        help="""output table file, If None, it overwrites input""",
+    )
+
+    add_common_args(parser)
+    return parser
+
+
+def drop_columns(
+    table_type: str,
+    input_file: PathLike,
+    output_file: PathLike,
+    columns: List[str],
+    keep: bool = False,
+):
+
+    input_file = Path(input_file)
+    if output_file is None:
+        bk_file = input_file.with_suffix(input_file.suffix + ".bk")
+        if not bk_file.is_file():
+            import shutil
+
+            shutil.copy2(input_file, bk_file)
+        output_file = input_file
+
+    table_class = table_dict[table_type]
+    input_table = table_class.load(input_file)
+    output_table = input_table.filter(columns=columns, keep=keep)
     output_table.save(output_file)
 
 

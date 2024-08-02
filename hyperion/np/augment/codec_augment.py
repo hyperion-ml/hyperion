@@ -45,8 +45,10 @@ class CodecAugment:
         codec_types: List[str] = [
             "mulaw",
             "alaw",
+            "723_1",
+            "726",
             "g722",
-            "gsm",
+            "ac3",
             "mp3",
             "vorbis",
             "opus",
@@ -121,14 +123,18 @@ class CodecAugment:
         else:
             self.rng = deepcopy(rng)
 
-        if any(
-            [codec in self.codec_types for codec in ["alaw", "mulaw", "g723_1", "g726"]]
-        ):
+        self.valid_tel_codecs = ["alaw", "mulaw", "g723_1", "g726"]
+        if any([codec in self.codec_types for codec in self.valid_tel_codecs]):
             self.resampler_to_tel = ResamplerToTargetFreq(8000.0)
             self.resampler_from_tel = ResamplerFromInputFreq(8000.0)
         else:
             self.resampler_to_tel = None
             self.resampler_from_tel = None
+
+        self.tel_mask = np.asarray(
+            [True if c in self.valid_tel_codecs else False for c in self.codec_types]
+        )
+        self.media_mask = np.logical_not(self.tel_mask)
 
     @classmethod
     def create(cls, cfg, random_seed=112358, rng=None):
@@ -175,7 +181,32 @@ class CodecAugment:
         filter = ",".join([highpass, lowpass])
         return filter
 
-    def forward(self, x: np.ndarray, sample_freq: float):
+    def _get_codec_type(self, enable_tel_codecs: bool, enable_media_codecs: bool):
+        if not enable_media_codecs and not enable_tel_codecs:
+            return None
+
+        codec_choice_prob = self.codec_choice_prob.copy()
+        if not enable_tel_codecs:
+            codec_choice_prob[self.tel_mask] = 0.0
+
+        if not enable_media_codecs:
+            codec_choice_prob[self.media_mask] = 0.0
+
+        prob_acc = codec_choice_prob.sum()
+        if prob_acc == 0:
+            return None
+
+        codec_choice_prob /= prob_acc
+        codec_type = self.rng.choice(self.codec_types, p=self.codec_choice_prob)
+        return codec_type
+
+    def forward(
+        self,
+        x: np.ndarray,
+        sample_freq: float,
+        enable_tel_codecs: bool = True,
+        enable_media_codecs: bool = True,
+    ):
         """Apply codec to the signal,
 
         Args:
@@ -193,11 +224,14 @@ class CodecAugment:
             info = {"codec_type": None}
             return x, info
 
-        id = self.rng.integers(low=0, high=100000)
-        sf.write(f"audios/{id}.flac", x, samplerate=sample_freq)
+        # id = self.rng.integers(low=0, high=100000)
+        # sf.write(f"audios/{id}.flac", x, samplerate=sample_freq)
 
-        codec_type = self.rng.choice(self.codec_types, p=self.codec_choice_prob)
+        codec_type = self._get_codec_type(enable_tel_codecs, enable_media_codecs)
         info = {"codec_type": codec_type}
+        if codec_type is None:
+            return x, info
+
         tel_filter = None
         tel_resampler = False
         if codec_type == "alaw":
@@ -288,7 +322,7 @@ class CodecAugment:
                 "codec_config": codec_config,
             }
 
-        # print("effect:", str(effect_config), flush=True)
+        # print("codec:", str(effect_config), "tel_filter:", tel_filter, flush=True)
         # t1 = time.time()
         if tel_resampler:
             try:
@@ -326,8 +360,10 @@ class CodecAugment:
         # ac3 t=0.024
         return y, info
 
-    def __call__(self, x, sample_freq=None):
-        return self.forward(x, sample_freq)
+    def __call__(
+        self, x, sample_freq=None, enable_tel_codecs=True, enable_media_codecs=True
+    ):
+        return self.forward(x, sample_freq, enable_tel_codecs, enable_media_codecs)
 
 
 # class CodecAugmentation(SerializableObject):
