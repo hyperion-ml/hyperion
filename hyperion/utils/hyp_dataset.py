@@ -106,6 +106,19 @@ class HypDataset:
         for k in self.classes_keys():
             segments.convert_col_to_str(k)
 
+    def describe(self):
+        segments = self.segments(keep_loaded=False)
+        info = {"num_segments": len(segments)}
+        for class_name, class_info in self.classes(keep_loaded=False):
+            info[f"num_{class_name}s"] = len(class_info)
+        if "duration" in segments:
+            info["duration_hours"] = segments["duration"].sum() / 3600
+
+        msg = "Dataset contains %s" % (", ".join([f"{k}={v}" for k, v in info.items()]))
+        info["msg"] = msg
+        logging.info(msg)
+        return info
+
     def get_dataset_files(self):
         file_paths = []
         for file_path in [self._segments_path, self._recordings_path]:
@@ -753,7 +766,7 @@ class HypDataset:
             raise ValueError()
 
         if update_seg_durs:
-            rec_ids = self.segments(keep_loaded=True).recordings()
+            rec_ids = self.segments(keep_loaded=True).recording()
             self.segments()["duration"] = self.recordings().loc[rec_ids, "duration"]
 
     def add_classes(self, classes_name: str, classes: Union[PathLike, ClassInfo]):
@@ -904,7 +917,7 @@ class HypDataset:
 
     def clean(self, rebuild_class_idx=False):
 
-        rec_ids = self.segments().recordings()
+        rec_ids = self.segments().recording()
         self._recordings = self.recordings().filter(lambda df: df["id"].isin(rec_ids))
 
         ids = self.segments()["id"].values

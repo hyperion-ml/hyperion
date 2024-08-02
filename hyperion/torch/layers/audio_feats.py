@@ -106,6 +106,7 @@ def _get_strided_batch(waveform, window_length, window_shift, snip_edges, center
             npad = new_num_samples - num_samples
             npad_left = int((window_length - window_shift) // 2)
             npad_right = npad - npad_left
+            assert npad_right > 0
 
         # waveform = nn.functional.pad(waveform, (npad_left, npad_right), mode='reflect')
         pad_left = torch.flip(waveform[:, 1 : npad_left + 1], (1,))

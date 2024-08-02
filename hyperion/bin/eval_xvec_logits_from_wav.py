@@ -134,7 +134,7 @@ def eval_xvec(
         logging.info(
             "opening input stream: {} with args={}".format(input_spec, ar_args)
         )
-        with AR(input_spec, **ar_args) as reader:
+        with AR(recordings=input_spec, **ar_args) as reader:
             if vad_spec is not None:
                 logging.info("opening VAD stream: %s", vad_spec)
                 v_reader = VRF.create(

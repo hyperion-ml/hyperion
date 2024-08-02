@@ -69,7 +69,7 @@ def process_audio_files(
         keys = []
         info = []
 
-    with AR(recordings_file, **input_args) as reader, Writer(
+    with AR(recordings=recordings_file, **input_args) as reader, Writer(
         output_path, output_recordings_file, **output_args
     ) as writer:
         if vad_spec is not None:

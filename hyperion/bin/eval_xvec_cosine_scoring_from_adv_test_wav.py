@@ -162,7 +162,7 @@ def eval_cosine_scoring(
     x_e = torch.as_tensor(x_e, dtype=torch.get_default_dtype())
 
     audio_args = AR.filter_args(**kwargs)
-    audio_reader = AR(test_wav_file, **audio_args)
+    audio_reader = AR(recordings=test_wav_file, **audio_args)
     wav_scale = audio_reader.wav_scale
 
     if save_adv_wav:

@@ -2,6 +2,7 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import torch
 import torch.nn as nn
 
@@ -137,7 +138,7 @@ class DoubleSwish6(torch.nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = x.clamp(max=6)
         if torch.jit.is_scripting() or torch.jit.is_tracing():
-            return (x * torch.sigmoid(x - 1.0)).clamp(max=6)
+            return x * torch.sigmoid(x - 1.0)
 
         return DoubleSwishImplementation.apply(x)
 

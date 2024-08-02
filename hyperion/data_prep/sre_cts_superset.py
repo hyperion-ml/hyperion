@@ -91,7 +91,7 @@ class SRECTSSupersetDataPrep(DataPrep):
 
         df_segs.drop(["speakerid"], axis=1, inplace=True)
         df_segs.rename(
-            columns={"subjectid": "speaker", "speech_duration": "duration"},
+            columns={"subjectid": "speaker"},
             inplace=True,
         )
         df_segs["speaker"] = df_segs["speaker"].astype("str")
@@ -99,6 +99,7 @@ class SRECTSSupersetDataPrep(DataPrep):
             df_segs["gender"].str.replace("female", "f").str.replace("male", "m")
         )
         df_segs["source_type"] = "cts"
+        df_segs["dataset"] = self.dataset_name()
         if self.use_kaldi_ids:
             df_segs.drop(["segmentid"], axis=1, inplace=True)
             df_segs["id"] = df_segs["filename"].str.replace("/", "-")
@@ -114,18 +115,21 @@ class SRECTSSupersetDataPrep(DataPrep):
         df_segs.sort_values(by="id", inplace=True)
 
         logging.info("making RecordingSet")
-        df_recs = df_segs[["id", "filename", "duration"]].copy()
+        df_recs = df_segs[["id", "filename"]].copy()
         df_segs.drop(["filename"], axis=1, inplace=True)
         df_recs["storage_path"] = df_recs["filename"].apply(
             lambda x: f"sph2pipe -f wav -p -c 1 {wav_dir / x} |"
         )
-        df_recs = df_recs[["id", "storage_path", "duration"]]
+        df_recs = df_recs[["id", "storage_path"]]
         if self.target_sample_freq is not None:
             df_recs["target_sample_freq"] = self.target_sample_freq
         df_recs["sample_freq"] = 8000
 
-        segments = SegmentSet(df_segs.copy())
         recs = RecordingSet(df_recs)
+        recs.get_durations(self.num_threads)
+
+        df_segs["duration"] = recs.loc[df_segs["id"], "duration"].values
+        segments = SegmentSet(df_segs.copy())
 
         logging.info("making ClassInfos")
         df_spks = df_segs[["speaker", "gender"]].drop_duplicates()

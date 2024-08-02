@@ -135,7 +135,7 @@ def extract_xvectors(
         logging.info(
             "opening input stream: {} with args={}".format(recordings_file, ar_args)
         )
-        with AR(recordings_file, **ar_args) as reader:
+        with AR(recordings=recordings_file, **ar_args) as reader:
             if vad_spec is not None:
                 logging.info("opening VAD stream: %s", vad_spec)
                 v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix)

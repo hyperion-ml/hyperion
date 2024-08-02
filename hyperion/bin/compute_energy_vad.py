@@ -22,12 +22,25 @@ from hyperion.io import SequentialAudioReader as AR
 from hyperion.np.feats import EnergyVAD
 
 
-def compute_vad(recordings_file, output_spec, write_num_frames, **kwargs):
+def compute_vad(
+    dataset_file,
+    recordings_file,
+    segments_file,
+    output_spec,
+    write_num_frames,
+    **kwargs
+):
     vad_args = EnergyVAD.filter_args(**kwargs)
     vad = EnergyVAD(**vad_args)
 
     input_args = AR.filter_args(**kwargs)
-    reader = AR(recordings_file, **input_args)
+    reader = AR(
+        dataset=dataset_file,
+        recordings=recordings_file,
+        segments=segments_file,
+        target_sample_freq=vad.sample_frequency,
+        **input_args
+    )
 
     metadata_columns = [
         "frame_shift",
@@ -45,6 +58,7 @@ def compute_vad(recordings_file, output_spec, write_num_frames, **kwargs):
     for data in reader:
         key, x, fs = data
         logging.info("Extracting VAD for %s", key)
+        assert fs == vad.sample_frequency
         t1 = time.time()
         y = vad.compute(x)
         dt = (time.time() - t1) * 1000
@@ -82,7 +96,9 @@ def main():
     parser = ArgumentParser(description="Compute Kaldi Energy VAD")
 
     parser.add_argument("--cfg", action=ActionConfigFile)
-    parser.add_argument("--recordings-file", required=True)
+    parser.add_argument("--dataset-file", default=None)
+    parser.add_argument("--recordings-file", default=None)
+    parser.add_argument("--segments-file", default=None)
     parser.add_argument("--output-spec", required=True)
     parser.add_argument("--write-num-frames", default=None)
     parser.add_argument("--write-stats", default=None)

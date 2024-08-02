@@ -2,14 +2,16 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 
 import numpy as np
 from jsonargparse import ActionParser, ArgumentParser
+from scipy import ndimage
 from scipy.signal import lfilter
 
 from ...hyp_defs import float_cpu
-from ...utils.misc import str2bool
+from ...utils.misc import filter_func_args, str2bool
 from .stft import st_logE
 
 
@@ -26,19 +28,25 @@ class EnergyVAD(object):
        vad_energy_threshold:  Constant term in energy threshold for MFCC0 for VAD (also see --vad-energy-mean-scale) (float, default = 5)
        vad_frames_context:    Number of frames of context on each side of central frame, in window for which energy is monitored (int, default = 0)
        vad_proportion_threshold: Parameter controlling the proportion of frames within the window that need to have more energy than the threshold (float, default = 0.6)
+       vad_energy_floor_threshold: min energy to be considered in the avg measured from the maximum energy of the signal
+       vad_dilation:          Dilates the vad signal by this number of seconds.
+       vad_erosion:           After dilation, it erodes the vad signal by this number of seconds.
     """
 
     def __init__(
         self,
-        sample_frequency=16000,
-        frame_length=25,
-        frame_shift=10,
-        dither=1 / 2 ** 15,
-        snip_edges=True,
-        vad_energy_mean_scale=0.5,
-        vad_energy_threshold=5,
-        vad_frames_context=0,
-        vad_proportion_threshold=0.6,
+        sample_frequency: int = 16000,
+        frame_length: float = 25,
+        frame_shift: float = 10,
+        dither: float = 1 / 2**15,
+        snip_edges: bool = True,
+        vad_energy_mean_scale: float = 0.5,
+        vad_energy_threshold: float = 5,
+        vad_frames_context: int = 0,
+        vad_proportion_threshold: float = 0.6,
+        vad_energy_floor_threshold: float = 12.5,
+        vad_dilation: float = 0.0,
+        vad_erosion: float = 0.0,
     ):
 
         self.sample_frequency = sample_frequency
@@ -64,6 +72,9 @@ class EnergyVAD(object):
         self.vad_energy_threshold = vad_energy_threshold
         self.vad_frames_context = vad_frames_context
         self.vad_proportion_threshold = vad_proportion_threshold
+        self.vad_energy_floor_threshold = vad_energy_floor_threshold
+        self.vad_dilation = vad_dilation
+        self.vad_erosion = vad_erosion
 
         self.reset()
 
@@ -71,12 +82,11 @@ class EnergyVAD(object):
         """Resets the internal states of the filters"""
         self._dc_zi = np.array([0], dtype=float_cpu())
 
-    def compute(self, x, return_loge=False):
+    def compute(self, x):
         """Evaluates the VAD.
 
         Args:
           x:               Wave
-          return_loge:     If true, it also returns the log-energy.
 
         Returns:
           Binary VAD
@@ -98,9 +108,9 @@ class EnergyVAD(object):
 
             # add dither
             if self.dither > 0:
-                n = self.dither * np.random.default_rng(seed=len(x)).randn(
-                    len(x)
-                ).astype(float_cpu(), copy=False)
+                n = self.dither * np.random.default_rng(seed=len(x)).standard_normal(
+                    len(x), dtype=float_cpu()
+                )
                 x = x + n
 
             x, self._dc_zi = lfilter(self._dc_b, self._dc_a, x, zi=self._dc_zi)
@@ -115,7 +125,11 @@ class EnergyVAD(object):
 
         # compute VAD from logE
         # print(np.mean(logE))
-        e_thr = self.vad_energy_threshold + self.vad_energy_mean_scale * np.mean(logE)
+        min_logE = np.max(logE) - self.vad_energy_floor_threshold
+        valid_idx = logE > min_logE
+        e_thr = self.vad_energy_threshold + self.vad_energy_mean_scale * np.mean(
+            logE[valid_idx]
+        )
         # print(e_thr)
         # print(logE)
         vad = logE > e_thr
@@ -132,14 +146,22 @@ class EnergyVAD(object):
         if window == 1:
             return vad
 
-        h = np.ones((window,), dtype="float32")
-        num_count = np.convolve(vad.astype("float32"), h, "same")
-        den_count_boundary = np.arange(context + 1, window, dtype="float32")
+        h = np.ones((window,), dtype=np.float32)
+        num_count = np.convolve(vad.astype(np.float32), h, "same")
+        den_count_boundary = np.arange(context + 1, window, dtype=np.float32)
         num_count[:context] /= den_count_boundary
         num_count[-context:] /= den_count_boundary[::-1]
         num_count[context:-context] /= window
 
         vad = num_count > self.vad_proportion_threshold
+
+        if self.vad_dilation > 0:
+            iters = int(self.vad_dilation / self.frame_shift * 1000)
+            vad = ndimage.binary_dilation(vad, iterations=iters)
+
+        if self.vad_erosion > 0:
+            iters = int(self.vad_erosion / self.frame_shift * 1000)
+            vad = ndimage.binary_erosion(vad, iterations=iters, border_value=True)
         return vad
 
     @staticmethod
@@ -152,20 +174,21 @@ class EnergyVAD(object):
         Returns:
           Dictionary with VAD options.
         """
-        valid_args = (
-            "sample_frequency",
-            "frame_length",
-            "frame_shift",
-            "dither",
-            "snip_edges",
-            "vad_energy_mean_scale",
-            "vad_energy_threshold",
-            "vad_frames_context",
-            "vad_proportion_threshold",
-        )
+        return filter_func_args(EnergyVAD.__init__, kwargs)
+        # valid_args = (
+        #     "sample_frequency",
+        #     "frame_length",
+        #     "frame_shift",
+        #     "dither",
+        #     "snip_edges",
+        #     "vad_energy_mean_scale",
+        #     "vad_energy_threshold",
+        #     "vad_frames_context",
+        #     "vad_proportion_threshold",
+        # )
 
-        d = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
-        return d
+        # d = dict((k, kwargs[k]) for k in valid_args if k in kwargs)
+        # return d
 
     @staticmethod
     def add_class_args(parser, prefix=None):
@@ -190,7 +213,10 @@ class EnergyVAD(object):
         )
 
         parser.add_argument(
-            "--frame-length", type=int, default=25, help="Frame length in milliseconds",
+            "--frame-length",
+            type=int,
+            default=25,
+            help="Frame length in milliseconds",
         )
         parser.add_argument(
             "--frame-shift", type=int, default=10, help="Frame shift in milliseconds"
@@ -199,7 +225,7 @@ class EnergyVAD(object):
         parser.add_argument(
             "--dither",
             type=float,
-            default=1 / 2 ** 15,
+            default=1 / 2**15,
             help="Dithering constant (0.0 means no dither)",
         )
 
@@ -249,6 +275,25 @@ class EnergyVAD(object):
                 "Parameter controlling the proportion of frames within "
                 "the window that need to have more energy than the threshold"
             ),
+        )
+        parser.add_argument(
+            "--vad-energy-floor-threshold",
+            default=12.5,
+            type=float,
+            help="""min energy to be considered in the avg 
+                            measured from the maximum energy of the signal""",
+        )
+        parser.add_argument(
+            "--vad-erosion",
+            default=0.0,
+            type=float,
+            help="Dilates the vad signal by this number of seconds.",
+        )
+        parser.add_argument(
+            "--vad-dilation",
+            default=0.0,
+            type=float,
+            help="After dilation, it erodes the vad signal by this number of seconds.",
         )
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

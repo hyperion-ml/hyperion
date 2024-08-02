@@ -12,8 +12,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from .list_utils import split_list, split_list_group_by_key
 from .info_table import InfoTable
+from .list_utils import split_list, split_list_group_by_key
 
 
 class EnrollmentMap(InfoTable):
@@ -75,7 +75,7 @@ class EnrollmentMap(InfoTable):
                 sep=" ",
                 header=None,
                 names=["segmentid", "modelid"],
-                dtype={"segmentid": np.str, "modelid": np.str},
+                dtype={"segmentid": str, "modelid": str},
             )
             df = df[["modelid", "segmentid"]]
         else:
