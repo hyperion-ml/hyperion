@@ -17,6 +17,7 @@ import yaml
 from .class_info import ClassInfo
 from .enrollment_map import EnrollmentMap
 from .feature_set import FeatureSet
+from .image_set import ImageSet
 from .info_table import InfoTable
 from .misc import PathLike
 from .recording_set import RecordingSet
@@ -24,6 +25,7 @@ from .segment_set import SegmentSet
 from .sparse_trial_key import SparseTrialKey
 from .trial_key import TrialKey
 from .trial_ndx import TrialNdx
+from .video_set import VideoSet
 
 
 class HypDataset:
@@ -33,8 +35,10 @@ class HypDataset:
 
     Attributes:
       segments:     SegmentSet object or path to it.
-      classes:      Dictionary of ClassInfo objects or paths to then
-      recordings:   RecordingSet object or paths to then
+      classes:      Dictionary of ClassInfo objects or paths to them
+      recordings:   RecordingSet object or paths to them
+      images:       ImageSet object or paths to them
+      videos:       VideoSet object or paths to them
       features:     Dictionary of FeatureSet objects or paths to then
       enrollments:  Dictionary of EnrollmentMap objects or paths to then
       trials:       Dictionary of TrialKey/TrialNdx/SparseTrialKey objects
@@ -50,6 +54,8 @@ class HypDataset:
         segments: Union[SegmentSet, PathLike],
         classes: Optional[Dict[str, Union[ClassInfo, PathLike]]] = None,
         recordings: Optional[Union[RecordingSet, PathLike]] = None,
+        images: Optional[Union[ImageSet, PathLike]] = None,
+        videos: Optional[Union[VideoSet, PathLike]] = None,
         features: Optional[Dict[str, Union[FeatureSet, PathLike]]] = None,
         enrollments: Optional[Dict[str, Union[EnrollmentMap, PathLike]]] = None,
         trials: Optional[
@@ -67,18 +73,36 @@ class HypDataset:
             self._segments_path = Path(segments)
 
         self._classes, self._classes_paths = self._parse_dict_args(classes, ClassInfo)
+        self._recordings = None
+        self._recordings_path = None
         if recordings is not None:
             if isinstance(recordings, RecordingSet):
                 self._recordings = recordings
-                self._recordings_path = None
             else:
                 assert isinstance(recordings, (str, Path))
-                self._recordings = None
                 self._recordings_path = Path(recordings)
 
         # self._recordings, self._recordings_paths = self._parse_dict_args(
         #     recordings, RecordingSet
         # )
+
+        self._images = None
+        self._images_path = None
+        if images is not None:
+            if isinstance(images, ImageSet):
+                self._images = images
+            else:
+                assert isinstance(images, (str, Path))
+                self._images_path = Path(images)
+
+        self._videos = None
+        self._videos_path = None
+        if videos is not None:
+            if isinstance(videos, VideoSet):
+                self._videos = videos
+            else:
+                assert isinstance(videos, (str, Path))
+                self._videos_path = Path(videos)
 
         self._features, self._features_paths = self._parse_dict_args(
             features, FeatureSet
@@ -104,7 +128,8 @@ class HypDataset:
     def _fix_segments_dtypes(self, segments):
         # ids in class_infos should be strings in segment set columns
         for k in self.classes_keys():
-            segments.convert_col_to_str(k)
+            if k in segments:
+                segments.convert_col_to_str(k)
 
     def describe(self):
         segments = self.segments(keep_loaded=False)
@@ -182,6 +207,18 @@ class HypDataset:
     def __len__(self):
         return len(self.segments())
 
+    @property
+    def has_recordings(self):
+        return self._recordings is not None or self._recordings_path is not None
+
+    @property
+    def has_images(self):
+        return self._images is not None or self._images_path is not None
+
+    @property
+    def has_videos(self):
+        return self._videos is not None or self._videos_path is not None
+
     def recordings(self, keep_loaded: bool = True):
         if self._recordings is None:
             assert self._recordings_path is not None
@@ -191,6 +228,26 @@ class HypDataset:
             return recordings
 
         return self._recordings
+
+    def images(self, keep_loaded: bool = True):
+        if self._images is None:
+            assert self._images_path is not None
+            images = ImageSet.load(self._images_path)
+            if keep_loaded:
+                self._images = images
+            return images
+
+        return self._images
+
+    def videos(self, keep_loaded: bool = True):
+        if self._videos is None:
+            assert self._videos_path is not None
+            videos = VideoSet.load(self._videos_path)
+            if keep_loaded:
+                self._videos = videos
+            return videos
+
+        return self._videos
 
     # def recordings_value(self, key: str, keep_loaded: bool = True):
     #     if self._recordings[key] is None:
@@ -428,17 +485,44 @@ class HypDataset:
             if update_paths:
                 self._segments_path = file_path
 
-        file_name = f"recordings{table_ext}"
-        dataset["recordings"] = file_name
-        file_path = dataset_dir / file_name
-        if (
-            self._recordings is not None
-            or file_path != self._recordings_path
-            or not file_path.exists()
-        ):
-            self.recordings(keep_loaded=False).save(file_path, sep=table_sep)
-            if update_paths:
-                self._recordings_path = file_path
+        if self.has_recordings:
+            file_name = f"recordings{table_ext}"
+            dataset["recordings"] = file_name
+            file_path = dataset_dir / file_name
+            if (
+                self._recordings is not None
+                or file_path != self._recordings_path
+                or not file_path.exists()
+            ):
+                self.recordings(keep_loaded=False).save(file_path, sep=table_sep)
+                if update_paths:
+                    self._recordings_path = file_path
+
+        if self.has_images:
+            file_name = f"images{table_ext}"
+            dataset["images"] = file_name
+            file_path = dataset_dir / file_name
+            if (
+                self._images is not None
+                or file_path != self._images_path
+                or not file_path.exists()
+            ):
+                self.images(keep_loaded=False).save(file_path, sep=table_sep)
+                if update_paths:
+                    self._images_path = file_path
+
+        if self.has_videos:
+            file_name = f"videos{table_ext}"
+            dataset["videos"] = file_name
+            file_path = dataset_dir / file_name
+            if (
+                self._videos is not None
+                or file_path != self._videos_path
+                or not file_path.exists()
+            ):
+                self.videos(keep_loaded=False).save(file_path, sep=table_sep)
+                if update_paths:
+                    self._videos_path = file_path
 
         # if self._recordings is not None:
         #     file_names = {}
@@ -569,12 +653,29 @@ class HypDataset:
         if update_paths:
             self._segments_path = file_path
 
-        file_name = f"recordings{table_ext}"
-        dataset["recordings"] = file_name
-        file_path = dataset_dir / file_name
-        self.recordings(keep_loaded=False).save(file_path, sep=table_sep)
-        if update_paths:
-            self._recordings_path = file_path
+        if self.has_recordings:
+            file_name = f"recordings{table_ext}"
+            dataset["recordings"] = file_name
+            file_path = dataset_dir / file_name
+            self.recordings(keep_loaded=False).save(file_path, sep=table_sep)
+            if update_paths:
+                self._recordings_path = file_path
+
+        if self.has_images:
+            file_name = f"images{table_ext}"
+            dataset["images"] = file_name
+            file_path = dataset_dir / file_name
+            self.images(keep_loaded=False).save(file_path, sep=table_sep)
+            if update_paths:
+                self._images_path = file_path
+
+        if self.has_videos:
+            file_name = f"videos{table_ext}"
+            dataset["videos"] = file_name
+            file_path = dataset_dir / file_name
+            self.videos(keep_loaded=False).save(file_path, sep=table_sep)
+            if update_paths:
+                self._videos_path = file_path
 
         # file_names = {}
         # for k, v in self.recordings(keep_loaded=False):
@@ -644,6 +745,8 @@ class HypDataset:
     def update_from_disk(self):
         self.segments()
         self.recordings()
+        self.images()
+        self.videos()
 
         for k, v in self.features():
             pass
@@ -679,6 +782,8 @@ class HypDataset:
         segments = HypDataset.resolve_file_path(dataset_dir, dataset["segments"])
         classes = None
         recordings = None
+        images = None
+        videos = None
         features = None
         enrollments = None
         trials = None
@@ -694,6 +799,12 @@ class HypDataset:
             # recordings = {}
             # for k, v in dataset["recordings"].items():
             #     recordings[k] = HypDataset.resolve_file_path(dataset_dir, v)
+
+        if "images" in dataset:
+            images = HypDataset.resolve_file_path(dataset_dir, dataset["images"])
+
+        if "videos" in dataset:
+            videos = HypDataset.resolve_file_path(dataset_dir, dataset["videos"])
 
         if "features" in dataset:
             features = {}
@@ -714,6 +825,8 @@ class HypDataset:
             segments,
             classes,
             recordings,
+            images,
+            videos,
             features,
             enrollments,
             trials,
@@ -768,6 +881,37 @@ class HypDataset:
         if update_seg_durs:
             rec_ids = self.segments(keep_loaded=True).recording()
             self.segments()["duration"] = self.recordings().loc[rec_ids, "duration"]
+
+    def set_images(
+        self,
+        images: Union[PathLike, ImageSet],
+    ):
+        if isinstance(images, (str, Path)):
+            self._images = None
+            self._images_path = Path(images)
+        elif isinstance(images, ImageSet):
+            self._images = images
+            self._images_path = None
+        else:
+            raise ValueError()
+
+    def set_videos(
+        self,
+        videos: Union[PathLike, VideoSet],
+        update_seg_durs: bool = False,
+    ):
+        if isinstance(videos, (str, Path)):
+            self._videos = None
+            self._videos_path = Path(videos)
+        elif isinstance(videos, VideoSet):
+            self._videos = videos
+            self._videos_path = None
+        else:
+            raise ValueError()
+
+        if update_seg_durs:
+            rec_ids = self.segments(keep_loaded=True).recording()
+            self.segments()["duration"] = self.videos().loc[rec_ids, "duration"]
 
     def add_classes(self, classes_name: str, classes: Union[PathLike, ClassInfo]):
         if self._classes is None:
@@ -835,9 +979,27 @@ class HypDataset:
         self._recordings = None
         self._recordings_path = None
 
+    def remove_images(
+        self,
+    ):
+        if self._images_path is not None:
+            self._files_to_delete.append(self._images_path)
+
+        self._images = None
+        self._images_path = None
+
+    def remove_videos(
+        self,
+    ):
+        if self._videos_path is not None:
+            self._files_to_delete.append(self._videos_path)
+
+        self._videos = None
+        self._videos_path = None
+
     def remove_classes(self, classes_name: str):
         if self._classes_paths[classes_name] is not None:
-            self._files_to_delete.append(self._class_paths[classes_name])
+            self._files_to_delete.append(self._classes_paths[classes_name])
 
         del self._classes[classes_name]
         del self._classes_paths[classes_name]
@@ -878,6 +1040,10 @@ class HypDataset:
             else:
                 if right_table == "recordings":
                     right_table = self.recordings()
+                elif right_table == "images":
+                    right_table = self.images()
+                elif right_table == "videos":
+                    right_table = self.videos()
                 elif right_table in self.features_keys():
                     right_table = self.features_value(right_table)
                 elif right_table in self.classes_keys():
@@ -917,16 +1083,34 @@ class HypDataset:
 
     def clean(self, rebuild_class_idx=False):
 
-        rec_ids = self.segments().recording()
-        self._recordings = self.recordings().filter(lambda df: df["id"].isin(rec_ids))
+        if self.has_recordings:
+            rec_ids = self.segments().recording()
+            self._recordings = self.recordings().filter(
+                lambda df: df["id"].isin(rec_ids)
+            )
+
+        if self.has_images:
+            im_ids = self.segments().image()
+            self._images = self.images().filter(lambda df: df["id"].isin(im_ids))
+
+        if self.has_videos:
+            vid_ids = self.segments().video()
+            self._videos = self.videos().filter(lambda df: df["id"].isin(vid_ids))
 
         ids = self.segments()["id"].values
         for k, table in self.features():
             self._features[k] = table.filter(lambda df: df["id"].isin(ids))
 
+        remove_keys = []
         for k, table in self.classes():
-            class_ids = self.segments()[k].unique()
-            self._classes[k] = table.filter(lambda df: df["id"].isin(class_ids))
+            if k in self.segments():
+                class_ids = self.segments()[k].unique()
+                self._classes[k] = table.filter(lambda df: df["id"].isin(class_ids))
+            else:
+                remove_keys.append(k)
+
+        for k in remove_keys:
+            self.remove_classes(k)
 
         remove_keys = []
         for k, table in self.enrollments():
@@ -1093,7 +1277,7 @@ class HypDataset:
         self,
         class_name: str,
         min_segs: int,
-        max_segs: int,
+        max_segs: Union[int, None],
         rebuild_idx: bool = False,
     ):
         segments = self.segments()
@@ -1307,13 +1491,33 @@ class HypDataset:
 
         recordings = []
         for dset in datasets:
-            recs_i = dset.recordings(keep_loaded=False)
-            if recs_i is not None:
+            if dset.has_recordings:
+                recs_i = dset.recordings(keep_loaded=False)
                 recordings.append(recs_i)
 
         if recordings:
             recordings = RecordingSet.cat(recordings)
             dataset.set_recordings(recordings)
+
+        images = []
+        for dset in datasets:
+            if dset.has_images:
+                ims_i = dset.images(keep_loaded=False)
+                images.append(ims_i)
+
+        if images:
+            images = ImageSet.cat(images)
+            dataset.set_images(images)
+
+        videos = []
+        for dset in datasets:
+            if dset.has_videos:
+                vids_i = dset.videos(keep_loaded=False)
+                videos.append(vids_i)
+
+        if videos:
+            videos = VideoSet.cat(videos)
+            dataset.set_videos(videos)
 
         features_keys = []
         for dset in datasets:

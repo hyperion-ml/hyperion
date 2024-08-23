@@ -126,6 +126,7 @@ def extract_xvectors(
     **kwargs,
 ):
     rng = np.random.default_rng(seed=1123581321 + kwargs["part_idx"])
+    torch.backends.cudnn.benchmark = False
     device = init_device(use_gpu)
     model = load_model(model_path, device)
     resampler = ResamplerToTargetFreq(model.sample_frequency)

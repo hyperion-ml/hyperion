@@ -8,6 +8,7 @@ from .enrollment_map import EnrollmentMap
 from .feature_set import FeatureSet
 from .hyp_dataclass import HypDataClass
 from .hyp_dataset import HypDataset
+from .image_set import ImageSet
 from .info_table import InfoTable
 from .kaldi_matrix import KaldiCompressedMatrix, KaldiMatrix
 from .misc import PathLike
@@ -24,3 +25,4 @@ from .trial_key import TrialKey
 from .trial_ndx import TrialNdx
 from .trial_scores import TrialScores
 from .utt2info import Utt2Info
+from .video_set import VideoSet

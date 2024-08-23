@@ -184,7 +184,7 @@ class LDA(NPModel):
         )
 
         parser.add_argument(
-            "--lda-dim", required=True, help=("output dimension of LDA")
+            "--lda-dim", default=1, type=int, help=("output dimension of LDA")
         )
 
         parser.add_argument("--name", dest="name", default="lda")

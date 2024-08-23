@@ -119,6 +119,16 @@ def _get_strided_batch(waveform, window_length, window_shift, snip_edges, center
         waveform.stride(1),
     )
     sizes = (batch_size, num_frames, window_length)
+    # print(
+    #     "stride",
+    #     num_samples,
+    #     pad_left.shape,
+    #     pad_right.shape,
+    #     waveform.shape,
+    #     sizes,
+    #     strides,
+    #     flush=True,
+    # )
     return waveform.as_strided(sizes, strides)
 
 
@@ -241,7 +251,7 @@ class Wav2Win(nn.Module):
         x_strided = x_strided * self._window
 
         if self.return_log_energy and not self.raw_energy:
-            signal_log_energy = _get_log_energy(
+            log_energy = _get_log_energy(
                 x_strided, self.energy_floor
             )  # size (batch, m)
 
@@ -373,7 +383,11 @@ class Wav2FFT(nn.Module):
         if self.use_energy:
             x_strided, log_e = x_strided
 
-        X = _rfft(x_strided)
+        try:
+            X = _rfft(x_strided)
+        except:
+            torch.backends.cuda.cufft_plan_cache.clear()
+            X = _rfft(x_strided)
         if self.use_energy:
             X[:, 0, :, 0] = log_e
 
@@ -682,7 +696,12 @@ class Wav2LogFilterBank(Wav2FFT):
         if self.use_energy:
             x_strided, log_e = x_strided
 
-        X = _rfft(x_strided)
+        try:
+            X = _rfft(x_strided)
+        except:
+            torch.backends.cuda.cufft_plan_cache.clear()
+            X = _rfft(x_strided)
+
         pow_spec = self._to_spec(X)
         with amp.autocast(enabled=False):
             pow_spec = torch.matmul(pow_spec.float(), self._fb.float())
