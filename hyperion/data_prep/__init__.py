@@ -14,6 +14,9 @@ from .janus_multimedia import JanusMultimediaDataPrep
 from .musan import MusanDataPrep
 from .rirs import RIRSDataPrep
 from .sre16 import SRE16DataPrep
+from .sre18 import SRE18DataPrep
+from .sre19_av import SRE19AVDataPrep
+from .sre19_cts import SRE19CTSDataPrep
 from .sre21 import SRE21DataPrep
 from .sre_cts_superset import SRECTSSupersetDataPrep
 from .voxceleb1 import VoxCeleb1DataPrep

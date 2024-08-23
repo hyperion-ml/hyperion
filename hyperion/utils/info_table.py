@@ -95,6 +95,10 @@ class InfoTable:
     def eval(self):
         return self.df.eval
 
+    @property
+    def iterrows(self):
+        return self.df.iterrows
+
     def save(self, file_path, sep=None):
         """Saves info table to file
 

@@ -12,7 +12,15 @@ import pandas as pd
 from jsonargparse import ActionYesNo
 from tqdm import tqdm
 
-from ..utils import ClassInfo, EnrollmentMap, HypDataset, RecordingSet, SegmentSet
+from ..utils import (
+    ClassInfo,
+    EnrollmentMap,
+    HypDataset,
+    ImageSet,
+    RecordingSet,
+    SegmentSet,
+    VideoSet,
+)
 from ..utils.misc import PathLike
 from .data_prep import DataPrep
 
@@ -82,7 +90,7 @@ class SourceTrialCond(str, Enum):
 
 
 class SRE21DataPrep(DataPrep):
-    """Class for preparing the SRE-CTS Superset (LDC2021E08) database into tables
+    """Class for preparing the SRE21 dev (LDC2021E09) or eval (LDC2021E10) database into tables
 
     Attributes:
       corpus_dir: input data directory
@@ -164,13 +172,11 @@ class SRE21DataPrep(DataPrep):
         df_segs["speaker"] = df_segs["speaker"].astype(str)
         df_segs = df_segs.loc[df_segs["partition"] == self.partition]
         if self.partition == "enrollment":
+            jpg = df_segs["id"].str.match(r".*\.jpg$")
             if self.modality in ["audio", "audio-visual"]:
-                # no_jpg = df_segs["filename"].apply(lambda x: x[-3:] != "jpg")
-                jpg = df_segs["id"].str.match(r".*\.jpg$")
                 df_segs = df_segs.loc[~jpg]
             else:
-                # TODO
-                pass
+                df_segs = df_segs.loc[jpg]
         else:
             # mp4 = df_segs["filename"].apply(lambda x: x[-3:] != "mp4")
             mp4 = df_segs["id"].str.match(r".*\.mp4$")
@@ -234,6 +240,33 @@ class SRE21DataPrep(DataPrep):
         recordings.get_durations(self.num_threads)
         return recordings
 
+    def make_image_set(self, df_segs):
+
+        logging.info("making ImageSet")
+
+        img_dir = self.corpus_dir / "data" / "image" / self.partition
+        df_imgs = df_segs[["id"]].copy()
+        df_imgs["storage_path"] = df_segs["filename"].apply(lambda x: f"{img_dir/x}")
+
+        images = ImageSet(df_imgs)
+        return images
+
+    def make_video_set(self, df_segs):
+
+        logging.info("making VideoSet")
+        vid_dir = self.corpus_dir / "data" / "video" / self.partition
+
+        df_vids = df_segs[["id"]].copy()
+        df_vids["sample_freq"] = 44100
+        df_vids["storage_path"] = df_segs["filename"].apply(lambda x: f"{vid_dir/x}")
+
+        if self.target_sample_freq is not None:
+            df_vids["target_sample_freq"] = self.target_sample_freq
+
+        videos = VideoSet(df_vids)
+        videos.get_metadata(self.num_threads)
+        return videos
+
     def make_class_infos(self, df_segs):
         logging.info("making ClassInfos")
         df_segs = df_segs.reset_index(drop=True)
@@ -281,8 +314,13 @@ class SRE21DataPrep(DataPrep):
             return {"enrollment": EnrollmentMap(df_enr)}
 
         if self.modality == "visual":
-            # TODO
-            pass
+            key_file = (
+                self.corpus_dir / "docs" / f"sre21_visual_{self.subset}_trial_key.tsv"
+            )
+            df_key = pd.read_csv(key_file, sep="\t")
+            ids = np.unique(df_key["imageid"])
+            df_enr = pd.DataFrame({"id": ids, "segmentid": ids})
+            return {"enrollment": EnrollmentMap(df_enr)}
 
     def _get_enroll_conds(self):
         # we read the segments again to get extra conditions
@@ -336,6 +374,9 @@ class SRE21DataPrep(DataPrep):
         )
 
         df_trial = pd.read_csv(trial_file, sep="\t")
+        if self.modality == "visual":
+            df_trial.rename(columns={"imageid": "modelid"}, inplace=True)
+
         if self.use_kaldi_ids:
             df_trial["speaker"] = [
                 df_segs.loc[df_segs["filename"] == s, "speaker"]
@@ -350,19 +391,24 @@ class SRE21DataPrep(DataPrep):
         df_trial.to_csv(output_file, sep="\t", index=False)
         trials = {"trials": output_file}
 
-        df_trial = self._get_extra_trial_conds(df_trial, df_segs)
-        output_file = self.output_dir / "trials_ext.tsv"
-        df_trial.to_csv(output_file, sep="\t", index=False)
-        trials = {"trials_ext": output_file}
-        attributes = {
-            "num_enroll_segs": [1, 3],
-            "phone_num_match": ["Y", "N"],
-            "gender": ["male", "female"],
-            "source_type_match": ["Y", "N"],
-            "language_match": ["N", "Y"],
-            "language": LangTrialCond.choices(),
-            "source_type": SourceTrialCond.choices(),
-        }
+        if self.modality == "visual":
+            attributes = {
+                "gender": ["male", "female"],
+            }
+        else:
+            df_trial = self._get_extra_trial_conds(df_trial, df_segs)
+            output_file = self.output_dir / "trials_ext.tsv"
+            df_trial.to_csv(output_file, sep="\t", index=False)
+            trials = {"trials_ext": output_file}
+            attributes = {
+                "num_enroll_segs": [1, 3],
+                "phone_num_match": ["Y", "N"],
+                "gender": ["male", "female"],
+                "source_type_match": ["Y", "N"],
+                "language_match": ["N", "Y"],
+                "language": LangTrialCond.choices(),
+                "source_type": SourceTrialCond.choices(),
+            }
         for att_name, att_vals in attributes.items():
             for val in att_vals:
                 file_name = f"trials_{att_name}_{val}"
@@ -385,11 +431,18 @@ class SRE21DataPrep(DataPrep):
             self.output_dir,
         )
         df_segs = self.read_segments_metadata()
+        recs = None
+        imgs = None
+        vids = None
         if self.modality != "visual":
             recs = self.make_recording_set(df_segs)
             df_segs["duration"] = recs.loc[df_segs["id"], "duration"].values
-        else:
-            recs = None
+
+        if self.modality != "audio":
+            if self.partition == "enrollment":
+                imgs = self.make_image_set(df_segs)
+            else:
+                vids = self.make_video_set(df_segs)
 
         classes = self.make_class_infos(df_segs)
 
@@ -408,6 +461,8 @@ class SRE21DataPrep(DataPrep):
             segments,
             classes,
             recordings=recs,
+            images=imgs,
+            videos=vids,
             enrollments=enrollments,
             trials=trials,
             sparse_trials=False,

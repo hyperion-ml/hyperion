@@ -13,7 +13,14 @@ import pandas as pd
 from jsonargparse import ActionYesNo
 from tqdm import tqdm
 
-from ..utils import ClassInfo, EnrollmentMap, HypDataset, RecordingSet, SegmentSet
+from ..utils import (
+    ClassInfo,
+    EnrollmentMap,
+    HypDataset,
+    RecordingSet,
+    SegmentSet,
+    VideoSet,
+)
 from ..utils.misc import PathLike
 from .data_prep import DataPrep
 
@@ -24,12 +31,11 @@ class JanusMultimediaDataPrep(DataPrep):
     Attributes:
       corpus_dir: input data directory
       output_dir: output data directory
-      modality: audio, visual, audio-visual
       subset: sre21 subset in [dev, eval]
       partition: sre21 trial side in [enroll, test]
       use_kaldi_ids: puts speaker-id in front of segment id like kaldi
       target_sample_freq: target sampling frequency to convert the audios to.
-      ldc_langs: convert language id to LDC format
+      with_videos: prepare video manifest
     """
 
     def __init__(
@@ -41,12 +47,14 @@ class JanusMultimediaDataPrep(DataPrep):
         output_dir: PathLike,
         use_kaldi_ids: bool,
         target_sample_freq: int,
+        with_videos: bool,
         num_threads: int = 10,
     ):
         super().__init__(corpus_dir, output_dir, False, target_sample_freq, num_threads)
         self.subset = subset
         self.condition = condition
         self.partition = partition
+        self.with_videos = with_videos
 
     @staticmethod
     def dataset_name():
@@ -72,6 +80,12 @@ class JanusMultimediaDataPrep(DataPrep):
             choices=["enrollment", "test"],
             help="""janus trial side in [enroll, test]""",
             required=True,
+        )
+        parser.add_argument(
+            "--with-videos",
+            default=False,
+            action=ActionYesNo,
+            help="""prepare video manifest""",
         )
 
     def read_segments_metadata(self):
@@ -140,6 +154,18 @@ class JanusMultimediaDataPrep(DataPrep):
         recordings = RecordingSet(df_recs)
         recordings.get_durations(self.num_threads)
         return recordings
+
+    def make_video_set(self, df_segs):
+
+        logging.info("making VideoSet")
+        df_vids = df_segs[["id"]].copy()
+        df_vids["storage_path"] = df_segs["video"]
+
+        videos = VideoSet(df_vids)
+        videos.get_metadata(self.num_threads)
+        if self.target_sample_freq is not None:
+            videos["target_sample_freq"] = self.target_sample_freq
+        return videos
 
     def make_class_infos(self, df_segs):
         logging.info("making ClassInfos")
@@ -216,6 +242,10 @@ class JanusMultimediaDataPrep(DataPrep):
         )
         df_segs = self.read_segments_metadata()
         recs = self.make_recording_set(df_segs)
+        if self.with_videos:
+            videos = self.make_video_set(df_segs)
+        else:
+            videos = None
 
         if self.partition == "test":
             df_segs["duration"] = recs.loc[df_segs["id"], "duration"].values
@@ -237,6 +267,7 @@ class JanusMultimediaDataPrep(DataPrep):
             segments,
             classes,
             recordings=recs,
+            videos=videos,
             enrollments=enrollments,
             trials=trials,
             sparse_trials=False,

@@ -48,6 +48,30 @@ class SegmentSet(InfoTable):
 
         return ids
 
+    def image(self, ids=None):
+        if ids is None:
+            if "image" in self.df:
+                return self.df["image"]
+            else:
+                return self.df["id"]
+
+        if "image" in self.df:
+            return self.df.loc[ids, "image"]
+
+        return ids
+
+    def video(self, ids=None):
+        if ids is None:
+            if "video" in self.df:
+                return self.df["video"]
+            else:
+                return self.df["video"]
+
+        if "video" in self.df:
+            return self.df.loc[ids, "video"]
+
+        return ids
+
     def recording_ids(self, ids=None):
         return self.recording(ids)
 
