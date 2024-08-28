@@ -16,7 +16,8 @@ import soundfile as sf
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ..hyp_defs import float_cpu
-from ..utils import PathLike, RecordingSet, SegmentSet
+from ..np.preprocessing.resampler import Any2AnyFreqResampler
+from ..utils import HypDataset, PathLike, RecordingSet, SegmentSet
 
 valid_ext = [
     ".wav",
@@ -45,31 +46,56 @@ valid_ext = [
 class AudioReader(object):
     """Class to read audio files from wav, flac or pipe
 
+    This class recives HypDataset or RecordingSet,
+    When reciving RecordingSet, it can also recive a SegmentSet
+
     Attributes:
+         dataset:    HypDataset or file path to HypDataset
          recordings: RecordingSet or file path to RecordingSet
          segments:   SegmentSet or file path to SegmentSet
          wav_scale:     multiplies signal by scale factor
+         target_sample_freq: All audios are resample this sample freq.
     """
 
     def __init__(
         self,
-        recordings: Union[RecordingSet, PathLike],
+        dataset: Union[HypDataset, PathLike, None] = None,
+        recordings: Union[RecordingSet, PathLike, None] = None,
         segments: Union[SegmentSet, PathLike, None] = None,
         wav_scale: float = 1.0,
+        target_sample_freq: Optional[int] = None,
     ):
-        if not isinstance(recordings, RecordingSet):
+        assert (dataset is None) != (
+            recordings is None
+        ), "dataset xor recordings must be given"
+        assert (segments is None) or (
+            dataset is None
+        ), "if dataset is given, segments must be None"
+        self.with_segments = False
+        if dataset is not None:
+            if not isinstance(dataset, HypDataset):
+                dataset = HypDataset.load(dataset)
+
+            recordings = dataset.recordings(keep_loaded=False)
+            segments = dataset.segments(keep_loaded=False)
+            if segments.has_time_marks:
+                self.with_segments = True
+            else:
+                segments = None
+        elif not isinstance(recordings, RecordingSet):
             recordings = RecordingSet.load(recordings)
+            if segments is not None:
+                self.with_segments = True
+                if not isinstance(segments, SegmentSet):
+                    segments = SegmentSet.load(segments)
 
         self.recordings = recordings
-
-        self.with_segments = False
-        if segments is not None:
-            self.with_segments = True
-            if not isinstance(segments, SegmentSet):
-                segments = SegmentSet.load(segments)
-
         self.segments = segments
         self.wav_scale = wav_scale
+        self.target_sample_freq = target_sample_freq
+        self.resampler = None
+        if self.target_sample_freq is not None or "target_sample_freq" in recordings:
+            self.resampler = Any2AnyFreqResampler()
 
     @property
     def keys(self):
@@ -96,7 +122,7 @@ class AudioReader(object):
     @staticmethod
     def read_wavspecifier(
         wavspecifier: PathLike,
-        scale: float = 2**15,
+        scale: float = 1.0,
         time_offset: float = 0.0,
         time_dur: float = 0.0,
     ):
@@ -126,7 +152,7 @@ class AudioReader(object):
     @staticmethod
     def read_pipe(
         wavspecifier: PathLike,
-        scale: float = 2**15,
+        scale: float = 1.0,
         time_offset: float = 0,
         time_dur: float = 0,
     ):
@@ -162,7 +188,7 @@ class AudioReader(object):
     @staticmethod
     def read_file_sf(
         wavspecifier: PathLike,
-        scale: float = 2**15,
+        scale: float = 1.0,
         time_offset: float = 0,
         time_dur: float = 0,
     ):
@@ -186,7 +212,7 @@ class AudioReader(object):
     @staticmethod
     def read_file(
         wavspecifier: PathLike,
-        scale: float = 2**15,
+        scale: float = 1.0,
         time_offset: float = 0,
         time_dur: float = 0,
     ):
@@ -243,6 +269,34 @@ class AudioReader(object):
                     )
                     raise err
 
+    def _read_recording(
+        self, recording: pd.Series, time_offset: float = 0, time_dur: float = 0
+    ):
+        storage_path = recording["storage_path"]
+        x_i, fs_i = self.read_wavspecifier(
+            storage_path,
+            self.wav_scale,
+            time_offset,
+            time_dur,
+        )
+
+        if self.resampler is not None:
+            target_sample_freq = (
+                self.target_sample_freq
+                if self.target_sample_freq is not None
+                else recording["target_sample_freq"]
+            )
+            if target_sample_freq is not None:
+                x_i, fs_i = self.resampler(x_i, fs_i, target_sample_freq)
+                # import re
+                # f = re.sub(".*/", "", storage_path)
+                # f = re.sub(" .*", "", f)
+                # sf.write(f"audio_8k/{f}.flac", x_i, fs_i)
+                # x_i, fs_i = self.resampler(x_i, fs_i, target_sample_freq)
+                # sf.write(f"audio_16k/{f}.flac", x_i, fs_i)
+
+        return x_i, fs_i
+
     def _read_segment(
         self, segment: pd.Series, time_offset: float = 0, time_dur: float = 0
     ):
@@ -253,11 +307,14 @@ class AudioReader(object):
         Returns:
           Wave, sampling frequency
         """
-        recording_id = segment["recording_id"]
+        recording_id = segment["recording"]
         t_start = segment["start"] + time_offset
         t_dur = segment["duration"]
-        storage_path = self.recordings.loc[recording_id, "storage_path"]
-        x_i, fs_i = self.read_wavspecifier(storage_path, self.wav_scale, t_start, t_dur)
+        recording = self.recordings.loc[recording_id]
+        return self._read_recording(recording, t_start, t_dur)
+        # storage_path = self.recordings.loc[recording_id, "storage_path"]
+        # x_i, fs_i = self.read_wavspecifier(storage_path, self.wav_scale, t_start, t_dur)
+
         return x_i, fs_i
 
     def read(self):
@@ -267,13 +324,21 @@ class AudioReader(object):
 class SequentialAudioReader(AudioReader):
     def __init__(
         self,
-        recordings: Union[RecordingSet, PathLike],
+        dataset: Union[HypDataset, PathLike, None] = None,
+        recordings: Union[RecordingSet, PathLike, None] = None,
         segments: Union[SegmentSet, PathLike, None] = None,
         wav_scale: float = 1.0,
         part_idx: int = 1,
         num_parts: int = 1,
+        target_sample_freq: Optional[int] = None,
     ):
-        super().__init__(recordings, segments, wav_scale=wav_scale)
+        super().__init__(
+            dataset,
+            recordings,
+            segments,
+            wav_scale=wav_scale,
+            target_sample_freq=target_sample_freq,
+        )
         self.cur_item = 0
         self.part_idx = part_idx
         self.num_parts = num_parts
@@ -360,12 +425,13 @@ class SequentialAudioReader(AudioReader):
                 key = segment["id"]
                 x_i, fs_i = self._read_segment(segment, offset_i, dur_i)
             else:
-                segment = self.recordings.iloc[self.cur_item]
-                key = segment["id"]
-                file_path = segment["storage_path"]
-                x_i, fs_i = self.read_wavspecifier(
-                    file_path, self.wav_scale, offset_i, dur_i
-                )
+                recording = self.recordings.iloc[self.cur_item]
+                key = recording["id"]
+                x_i, fs_i = self._read_recording(recording, offset_i, dur_i)
+                # file_path = segment["storage_path"]
+                # x_i, fs_i = self.read_wavspecifier(
+                #     file_path, self.wav_scale, offset_i, dur_i
+                # )
 
             keys.append(key)
             data.append(x_i)
@@ -376,7 +442,7 @@ class SequentialAudioReader(AudioReader):
 
     @staticmethod
     def filter_args(**kwargs):
-        valid_args = ("part_idx", "num_parts", "wav_scale")
+        valid_args = ("part_idx", "num_parts", "wav_scale", "target_sample_freq")
         return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
     @staticmethod
@@ -424,11 +490,19 @@ class SequentialAudioReader(AudioReader):
 class RandomAccessAudioReader(AudioReader):
     def __init__(
         self,
-        recordings: Union[RecordingSet, PathLike],
+        dataset: Union[HypDataset, PathLike, None] = None,
+        recordings: Union[RecordingSet, PathLike, None] = None,
         segments: Union[SegmentSet, PathLike, None] = None,
         wav_scale: float = 1.0,
+        target_sample_freq: Optional[int] = None,
     ):
-        super().__init__(recordings, segments, wav_scale)
+        super().__init__(
+            dataset,
+            recordings,
+            segments,
+            wav_scale=wav_scale,
+            target_sample_freq=target_sample_freq,
+        )
 
     def read(
         self,

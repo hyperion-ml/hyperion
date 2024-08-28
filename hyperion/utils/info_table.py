@@ -33,11 +33,11 @@ class InfoTable:
 
     def fix_dtypes(self):
         if infer_dtype(self.df.id) != "string":
-            self.df.loc[:, "id"] = self.df["id"].apply(str)
+            self.df["id"] = self.df["id"].astype(str)
 
     def convert_col_to_str(self, column):
         if infer_dtype(self.df[column]) != "string":
-            self.df.loc[:, column] = self.df[column].apply(str)
+            self.df.loc[:, column] = self.df[column].astype(str)
 
     def copy(self):
         """Makes a copy of the object."""
@@ -94,6 +94,10 @@ class InfoTable:
     @property
     def eval(self):
         return self.df.eval
+
+    @property
+    def iterrows(self):
+        return self.df.iterrows
 
     def save(self, file_path, sep=None):
         """Saves info table to file
@@ -267,6 +271,10 @@ class InfoTable:
 
             if columns is not None:
                 columns = np.setdiff1d(df.columns, columns)
+        else:
+            if columns is not None:
+                if "id" in df and "id" not in columns:
+                    columns = ["id"] + columns
 
         if predicate is not None:
             if columns is None:

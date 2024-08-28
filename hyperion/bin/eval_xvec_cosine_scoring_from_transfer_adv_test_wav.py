@@ -186,7 +186,7 @@ def eval_cosine_scoring(
     t_x_e = torch.as_tensor(t_x_e, dtype=torch.get_default_dtype())
 
     audio_args = AR.filter_args(**kwargs)
-    audio_reader = AR(test_wav_file)
+    audio_reader = AR(recordings=test_wav_file)
     wav_scale = audio_reader.wav_scale
 
     if save_adv_wav:
@@ -361,7 +361,9 @@ def main():
 
     parser.add_argument("--vad", dest="vad_spec", default=None)
     parser.add_argument(
-        "--vad-path-prefix", default=None, help=("scp file_path prefix for vad"),
+        "--vad-path-prefix",
+        default=None,
+        help=("scp file_path prefix for vad"),
     )
 
     parser.add_argument("--model-path", required=True)

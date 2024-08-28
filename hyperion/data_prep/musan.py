@@ -78,6 +78,7 @@ class MusanDataPrep(DataPrep):
         logging.info("making RecordingSet")
         recs = pd.DataFrame({"id": rec_ids, "storage_path": storage_paths})
         recs = RecordingSet(recs)
+        recs.get_durations(self.num_threads)
         recs.sort()
 
         logging.info("getting recording durations")

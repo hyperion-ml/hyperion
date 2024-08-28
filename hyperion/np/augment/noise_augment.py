@@ -40,7 +40,7 @@ class SingleNoiseAugment(object):
         )
 
         self.noise_type = noise_type
-        self.r = AR(noise_path)
+        self.r = AR(recordings=noise_path)
         self.noise_keys = self.r.keys
         self.min_snr = min_snr
         self.max_snr = max_snr

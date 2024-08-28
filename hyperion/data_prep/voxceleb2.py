@@ -229,6 +229,9 @@ class VoxCeleb2DataPrep(DataPrep):
                     for r in rec_ids
                 ],
                 "duration": recs.loc[rec_ids, "duration"].values,
+                "corpusid": "voxceleb",
+                "dataset": self.dataset_name(),
+                "source_type": "afv",
             }
         )
         segments = SegmentSet(segments)

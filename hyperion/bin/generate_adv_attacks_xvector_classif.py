@@ -163,7 +163,7 @@ def generate_attacks(
 
     logging.info("opening audio read stream: %s", wav_file)
     audio_args = AR.filter_args(**kwargs)
-    audio_reader = AR(wav_file, **audio_args)
+    audio_reader = AR(recordings=wav_file, **audio_args)
     wav_scale = audio_reader.wav_scale
 
     logging.info("opening audio write stream: %s", output_wav_dir)
@@ -214,7 +214,12 @@ def generate_attacks(
             model.vad = vad
             logging.info(
                 "utt %s detected %d/%d (%.2f %%) speech frames"
-                % (key, speech_frames, tot_frames, speech_frames / tot_frames * 100,)
+                % (
+                    key,
+                    speech_frames,
+                    tot_frames,
+                    speech_frames / tot_frames * 100,
+                )
             )
 
         t2 = time.time()
@@ -324,7 +329,9 @@ def main():
 
     parser.add_argument("--vad", dest="vad_spec", default=None)
     parser.add_argument(
-        "--vad-path-prefix", default=None, help=("scp file_path prefix for vad"),
+        "--vad-path-prefix",
+        default=None,
+        help=("scp file_path prefix for vad"),
     )
 
     parser.add_argument("--model-path", required=True)

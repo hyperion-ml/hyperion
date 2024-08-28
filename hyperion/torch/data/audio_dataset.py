@@ -58,6 +58,12 @@ class AudioDataset(Dataset):
       target_sample_freq: target sampling frequencey, if not None all audios are converted to this sample freq
       wav_scale: make waves to be in [-wav_scale, wav_scale]
       is_val: is validation dataset.
+      enable_tel_codecs_if: condition to enable telephone codec augmentation,
+            for example use only if the segment is not conv. tel. speech: source_type != 'cts'
+      enable_media_codecs_if: condition to enable media codec augmentation,
+            for example use only if the segment is audio from video: source_type == 'afv'
+      enable_transcodecs_if: condition to enable transcodec augmentation,
+            for example use transcodec only if the segment is spoof: spoof_det == 'spoof'
       seed: random seed",
       time_durs_file: (deprecated) segment to duration in secs file, if durations are not in segments_file
       text_file: (deprecated) text file with words labels for each utterances.
@@ -79,8 +85,10 @@ class AudioDataset(Dataset):
         return_segment_info: Optional[List[str]] = None,
         return_orig: bool = False,
         target_sample_freq: Optional[float] = None,
-        wav_scale: float = 1,
+        wav_scale: float = 1.0,
         is_val: bool = False,
+        enable_tel_codecs_if: Optional[str] = None,
+        enable_media_codecs_if: Optional[str] = None,
         enable_transcodec_if: Optional[str] = None,
         seed: int = 112358,
         time_durs_file: Optional[str] = None,
@@ -109,7 +117,9 @@ class AudioDataset(Dataset):
             logging.info("opening audio reader %s", recordings_file)
 
         audio_seg_set = self.seg_set if self.seg_set.has_time_marks else None
-        self.r = AR(recordings_file, segments=audio_seg_set, wav_scale=wav_scale)
+        self.r = AR(
+            recordings=recordings_file, segments=audio_seg_set, wav_scale=wav_scale
+        )
 
         self.is_val = is_val
         if time_durs_file is not None:
@@ -146,7 +156,19 @@ class AudioDataset(Dataset):
         self.target_sample_freq = target_sample_freq
         # self.resamplers = {}
         self.resampler = ResamplerToTargetFreq(target_sample_freq)
+
+        # prepare enable codecs conditions
+        self.enable_tel_codecs_if = enable_tel_codecs_if
+        self.enable_media_codecs_if = enable_media_codecs_if
         self.enable_transcodec_if = enable_transcodec_if
+        if enable_tel_codecs_if:
+            self.seg_set.eval(
+                f"enable_tel_codecs = {enable_tel_codecs_if}", inplace=True
+            )
+        if enable_media_codecs_if:
+            self.seg_set.eval(
+                f"enable_media_codecs = {enable_media_codecs_if}", inplace=True
+            )
         if enable_transcodec_if:
             self.seg_set.eval(
                 f"enable_transcodec = {enable_transcodec_if}", inplace=True
@@ -299,11 +321,28 @@ class AudioDataset(Dataset):
         x, fs = self.r.read([seg_id], time_offset=start, time_durs=read_duration)
         return x[0].astype(floatstr_torch(), copy=False), fs[0]
 
-    def _get_enable_transcodec(self, seg_id):
-        if self.enable_transcodec_if is None:
-            return True
-        else:
-            return self.seg_set.loc[seg_id, "enable_transcodec"]
+    def _get_enable_codecs(self, seg_id):
+        enable_codecs = {
+            "enable_tel_codecs": True,
+            "enable_media_codecs": True,
+            "enable_transcodec": True,
+        }
+        if self.enable_tel_codecs_if is not None:
+            enable_codecs["enable_tel_codecs"] = self.seg_set.loc[
+                seg_id, "enable_tel_codecs"
+            ]
+
+        if self.enable_media_codecs_if is not None:
+            enable_codecs["enable_media_codecs"] = self.seg_set.loc[
+                seg_id, "enable_media_codecs"
+            ]
+
+        if self.enable_transcodec_if is not None:
+            enable_codecs["enable_transcodec"] = self.seg_set.loc[
+                seg_id, "enable_transcodec"
+            ]
+
+        return enable_codecs
 
     def _apply_aug_mix(self, x, x_augs, aug_idx):
         x_aug_mix = {}
@@ -319,7 +358,9 @@ class AudioDataset(Dataset):
 
         return x_aug_mix
 
-    def _apply_augs(self, x: np.array, duration: int, fs: int, enable_transcodec: bool):
+    def _apply_augs(
+        self, x: np.array, duration: int, fs: int, enable_codecs: Dict[str, bool]
+    ):
         if not self.augmenters:
             return {"x": x}
 
@@ -337,7 +378,7 @@ class AudioDataset(Dataset):
             x_augs_i = {}
             for j in range(self.num_augs):
                 # augment x
-                x_aug, aug_info = augmenter(x, fs, enable_transcodec)
+                x_aug, aug_info = augmenter(x, fs, **enable_codecs)
                 # remove the extra left context used to compute the reverberation.
                 x_aug = x_aug[reverb_context_samples : len(x)]
                 x_aug = x_aug.astype(floatstr_torch(), copy=False)
@@ -412,8 +453,8 @@ class AudioDataset(Dataset):
         ), f"read audio empty seg_id={seg_id}, start={start}, dur={duration}"
         x, fs = self._resample(x, fs)
         data = {"seg_id": seg_id, "sample_freq": fs}
-        enable_transcodec = self._get_enable_transcodec(seg_id)
-        x_augs = self._apply_augs(x, duration, fs, enable_transcodec)
+        enable_codecs = self._get_enable_codecs(seg_id)
+        x_augs = self._apply_augs(x, duration, fs, enable_codecs)
         data.update(x_augs)
         seg_info = self._get_segment_info(seg_id)
         data.update(seg_info)
@@ -666,10 +707,22 @@ class AudioDataset(Dataset):
             ),
         )
         parser.add_argument(
+            "--enable-tel-codecs-if",
+            default=None,
+            help="""condition to enable telephone codec augmentation, 
+            for example use only if the segment is not conv. tel. speech: source_type != 'cts'""",
+        )
+        parser.add_argument(
+            "--enable-media-codecs-if",
+            default=None,
+            help="""condition to enable media codec augmentation, 
+            for example use only if the segment is audio from video: source_type == 'afv'""",
+        )
+        parser.add_argument(
             "--enable-transcodec-if",
             default=None,
             help="""condition to enable transcodec augmentation, 
-            for example use transcodec only if the segment is spoof:  'spoof_det == spoof'""",
+            for example use transcodec only if the segment is spoof: spoof_det == 'spoof'""",
         )
 
         parser.add_argument(

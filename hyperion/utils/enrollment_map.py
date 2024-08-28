@@ -12,8 +12,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from .list_utils import split_list, split_list_group_by_key
 from .info_table import InfoTable
+from .list_utils import split_list, split_list_group_by_key
 
 
 class EnrollmentMap(InfoTable):
@@ -75,7 +75,7 @@ class EnrollmentMap(InfoTable):
                 sep=" ",
                 header=None,
                 names=["segmentid", "modelid"],
-                dtype={"segmentid": np.str, "modelid": np.str},
+                dtype={"segmentid": str, "modelid": str},
             )
             df = df[["modelid", "segmentid"]]
         else:
@@ -91,11 +91,33 @@ class EnrollmentMap(InfoTable):
         """Concatenates several tables.
 
         Args:
-          info_lists: List of InfoTables
+          tables: List of InfoTables
 
         Returns:
-          InfoTable object concatenation the info_lists.
+          InfoTable object concatenating the tables.
         """
         df_list = [table.df for table in tables]
         df = pd.concat(df_list)
         return cls(df)
+
+    def model_idx(self, modelids=None):
+        """Returns mapping from segments to model indexes
+
+        Args:
+          modelids: sorted list model ids, used to assign integer indexes
+            to ids. If None, modelids are sorted alphabetically with np.unique
+
+        Return:
+           If modelids is None, np.array sorted unique modelids, and
+           np.array mapping segments to model indexes.
+           otherwise, just them model indexes
+        """
+        if modelids is None:
+            return np.unique(self.df["id"], return_inverse=True)
+
+        enroll_idx = np.zeros((len(self.df)), dtype=int)
+        for i, modelid in enumerate(modelids):
+            idx = self.df["id"] == modelid
+            enroll_idx[idx] = i
+
+        return enroll_idx

@@ -97,6 +97,9 @@ class VerificationEvaluator:
         tar, non = self.scores.get_tar_non(self.key)
         ntar = len(tar)
         nnon = len(non)
+        if ntar == 0 or nnon == 0:
+            logging.warning("ntar=%d nnon=%d, no metrics will be produced", ntar, nnon)
+            return None
         logging.info("computing EER/DCF")
         min_dcf, act_dcf, eer, _ = fast_eval_dcf_eer(
             tar, non, self.p_tar[self._p_tar_sort]

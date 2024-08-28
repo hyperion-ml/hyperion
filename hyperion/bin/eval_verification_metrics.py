@@ -47,7 +47,8 @@ def eval_verification_metrics(
                 sparse=sparse,
             )
             df_ij = evaluator.compute_dcf_eer()
-            dfs.append(df_ij)
+            if df_ij is not None:
+                dfs.append(df_ij)
 
     df = pd.concat(dfs)
     logging.info("saving results to %s", output_file)

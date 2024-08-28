@@ -3,6 +3,7 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+import numpy as np
 import torch
 import torchaudio.transforms as tat
 
@@ -83,3 +84,44 @@ class ResamplerFromInputFreq:
 
         resampler = self.get_resampler(target_sample_freq)
         return resampler(x), target_sample_freq
+
+
+class Any2AnyFreqResampler:
+    def __init__(self):
+        self.resamplers = {}
+
+    def get_resampler(self, input_sample_freq, target_sample_freq):
+        key = f"{input_sample_freq}-{target_sample_freq}"
+        if key in self.resamplers:
+            return self.resamplers[key]
+
+        try:
+            resampler = tat.Resample(
+                int(input_sample_freq),
+                int(target_sample_freq),
+                lowpass_filter_width=64,
+                rolloff=0.9475937167399596,
+                resampling_method="sinc_interp_kaiser",
+                beta=14.769656459379492,
+            )
+        except:
+            resampler = tat.Resample(
+                int(input_sample_freq),
+                int(target_sample_freq),
+                lowpass_filter_width=64,
+                rolloff=0.9475937167399596,
+                resampling_method="kaiser_window",
+                beta=14.769656459379492,
+            )
+        resampler_f = lambda x: resampler(torch.from_numpy(x)).numpy()
+        self.resamplers[input_sample_freq] = resampler_f
+        return resampler_f
+
+    def __call__(self, x, input_sample_freq: float, target_sample_freq: float):
+        if input_sample_freq == target_sample_freq:
+            return x, input_sample_freq
+
+        resampler = self.get_resampler(input_sample_freq, target_sample_freq)
+        dtype = x.dtype
+        x = resampler(x.astype(np.float32, copy=False)).astype(dtype, copy=False)
+        return x, target_sample_freq

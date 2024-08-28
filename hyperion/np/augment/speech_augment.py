@@ -100,7 +100,14 @@ class SpeechAugment(object):
 
         return self.reverb_aug.max_reverb_context
 
-    def forward(self, x, sample_freq=None, enable_tanscodec=True):
+    def forward(
+        self,
+        x,
+        sample_freq=None,
+        enable_tel_codecs=True,
+        enable_media_codecs=True,
+        enable_transcodec=True,
+    ):
         """Adds speed augment, noise and reverberation to signal,
         speed multiplier, noise type, SNR, room type and RIRs are chosen randomly.
 
@@ -142,7 +149,12 @@ class SpeechAugment(object):
             info["sdr"] = ReverbAugment.sdr(x_speed, x, scale, delay)
 
         if self.codec_aug is not None:
-            x, codec_info = self.codec_aug(x, sample_freq)
+            x, codec_info = self.codec_aug(
+                x,
+                sample_freq,
+                enable_tel_codecs=enable_tel_codecs,
+                enable_media_codecs=enable_media_codecs,
+            )
             info["codec"] = codec_info
         else:
             info["codec"] = {"codec_type": None}
@@ -150,7 +162,7 @@ class SpeechAugment(object):
         if (
             self.transcodec_aug is not None
             and info["codec"]["codec_type"] is not None
-            and enable_tanscodec
+            and enable_transcodec
         ):
             x, codec_info = self.transcodec_aug(x, sample_freq)
             info["transcodec"] = codec_info
@@ -159,5 +171,14 @@ class SpeechAugment(object):
 
         return x, info
 
-    def __call__(self, x, sample_freq=None, enable_tanscodec=True):
-        return self.forward(x, sample_freq, enable_tanscodec)
+    def __call__(
+        self,
+        x,
+        sample_freq=None,
+        enable_tel_codecs=True,
+        enable_media_codecs=True,
+        enable_transcodec=True,
+    ):
+        return self.forward(
+            x, sample_freq, enable_tel_codecs, enable_media_codecs, enable_transcodec
+        )
