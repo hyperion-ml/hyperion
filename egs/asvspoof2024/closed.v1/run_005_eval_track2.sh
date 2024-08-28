@@ -81,7 +81,7 @@ asvspoof_score_dir=exp/asvspoof_scores/${spk_nnet_name}_cosine/$nnet_name
 if [ $stage -le 2 ]; then
   # Extracts x-vectors for evaluation
   nj=10
-  for name in asvspoof2024_dev_enroll asvspoof2024_dev asvspoof2024_prog_enroll asvspoof2024_prog
+  for name in asvspoof2024_eval_enroll asvspoof2024_eval  #asvspoof2024_dev_enroll asvspoof2024_dev asvspoof2024_prog_enroll asvspoof2024_prog asvspoof2024_eval_enroll asvspoof2024_eval 
   do
     num_segs=$(wc -l data/$name/segments.csv | awk '{ print $1-1}')
     nj=$(($num_segs < $nj ? $num_segs:$nj))
@@ -106,23 +106,32 @@ fi
 
 if [ $stage -le 3 ];then
   echo "Evaluate SV"
-  $train_cmd $asv_score_cosine_dir/log/asvspoof2024_dev.log \
-	     hyp_utils/conda_env.sh \
-	     hyperion-eval-cosine-scoring-backend \
-	     --enroll-feats-file csv:$xvector_dir/asvspoof2024_dev_enroll/xvector.csv \
-	     --feats-file csv:$xvector_dir/asvspoof2024_dev/xvector.csv \
-	     --ndx-file data/asvspoof2024_dev/trials_track2.csv \
-	     --enroll-map-file data/asvspoof2024_dev_enroll/enroll.csv \
-	     --score-file $asv_score_cosine_dir/asvspoof2024_dev_scores.csv
+  # $train_cmd $asv_score_cosine_dir/log/asvspoof2024_dev.log \
+  # 	     hyp_utils/conda_env.sh \
+  # 	     hyperion-eval-cosine-scoring-backend \
+  # 	     --enroll-feats-file csv:$xvector_dir/asvspoof2024_dev_enroll/xvector.csv \
+  # 	     --feats-file csv:$xvector_dir/asvspoof2024_dev/xvector.csv \
+  # 	     --ndx-file data/asvspoof2024_dev/trials_track2.csv \
+  # 	     --enroll-map-file data/asvspoof2024_dev_enroll/enroll.csv \
+  # 	     --score-file $asv_score_cosine_dir/asvspoof2024_dev_scores.csv
   
-  $train_cmd $asv_score_cosine_dir/log/asvspoof2024_prog.log \
+  # $train_cmd $asv_score_cosine_dir/log/asvspoof2024_prog.log \
+  # 	     hyp_utils/conda_env.sh \
+  # 	     hyperion-eval-cosine-scoring-backend \
+  # 	     --enroll-feats-file csv:$xvector_dir/asvspoof2024_prog_enroll/xvector.csv \
+  # 	     --feats-file csv:$xvector_dir/asvspoof2024_prog/xvector.csv \
+  # 	     --ndx-file data/asvspoof2024_prog/trials_track2.csv \
+  # 	     --enroll-map-file data/asvspoof2024_prog_enroll/enroll.csv \
+  # 	     --score-file $asv_score_cosine_dir/asvspoof2024_prog_scores.csv
+
+  $train_cmd $asv_score_cosine_dir/log/asvspoof2024_eval.log \
 	     hyp_utils/conda_env.sh \
 	     hyperion-eval-cosine-scoring-backend \
-	     --enroll-feats-file csv:$xvector_dir/asvspoof2024_prog_enroll/xvector.csv \
-	     --feats-file csv:$xvector_dir/asvspoof2024_prog/xvector.csv \
-	     --ndx-file data/asvspoof2024_prog/trials_track2.csv \
-	     --enroll-map-file data/asvspoof2024_prog_enroll/enroll.csv \
-	     --score-file $asv_score_cosine_dir/asvspoof2024_prog_scores.csv
+	     --enroll-feats-file csv:$xvector_dir/asvspoof2024_eval_enroll/xvector.csv \
+	     --feats-file csv:$xvector_dir/asvspoof2024_eval/xvector.csv \
+	     --ndx-file data/asvspoof2024_eval/trials_track2.csv \
+	     --enroll-map-file data/asvspoof2024_eval_enroll/enroll.csv \
+	     --score-file $asv_score_cosine_dir/asvspoof2024_eval_scores.csv
 
 fi
 
@@ -153,6 +162,12 @@ if [ $stage -le 4 ];then
     --out-score-file $asv_score_cosine_cal_dir/asvspoof2024_prog_scores.csv  \
     --model-file $asv_score_cosine_cal_dir/cal.h5
 
+  hyperion-eval-verification-calibration \
+    --ndx-file data/asvspoof2024_eval/trials_track2.csv \
+    --in-score-file $asv_score_cosine_dir/asvspoof2024_eval_scores.csv \
+    --out-score-file $asv_score_cosine_cal_dir/asvspoof2024_eval_scores.csv  \
+    --model-file $asv_score_cosine_cal_dir/cal.h5
+
   hyperion-eval-verification-metrics \
     --key-files data/asvspoof2024_dev/trials_track2.csv \
     --score-files $asv_score_cosine_cal_dir/asvspoof2024_dev_scores.csv \
@@ -174,6 +189,11 @@ if [ $stage -le 5 ];then
 	 --cm-score-file $cm_score_dir/asvspoof2024_prog/scores_cal_p0.655.tsv \
 	 --out-score-file $asvspoof_score_dir/asvspoof2024_prog_scores.tsv \
 	 --p-tar 0.9405 --p-spoof 0.05 --c-miss 1 --c-fa 10 --c-fa-spoof 10
+  python local/combine_asv_cm_scores.py \
+	 --asv-score-file $asv_score_cosine_cal_dir/asvspoof2024_eval_scores.csv \
+	 --cm-score-file $cm_score_dir/asvspoof2024_eval/scores_cal_p0.655.tsv \
+	 --out-score-file $asvspoof_score_dir/asvspoof2024_eval_scores.tsv \
+	 --p-tar 0.9405 --p-spoof 0.05 --c-miss 1 --c-fa 10 --c-fa-spoof 10
   
 fi
 
@@ -191,6 +211,12 @@ if [ $stage -le 6 ];then
 	 --cm-score-file $cm_score_dir/asvspoof2024_prog/scores_cal_p0.655.tsv \
 	 --asvspoof-score-file $asvspoof_score_dir/asvspoof2024_prog_scores.tsv \
 	 --out-score-file $asvspoof_score_dir/official/asvspoof2024_prog/score.tsv
+  python local/asvspoof_scores_to_asvspoof5_format.py \
+	 --ndx-file data/asvspoof2024_eval/trials_track2.csv \
+	 --asv-score-file $asv_score_cosine_cal_dir/asvspoof2024_eval_scores.csv \
+	 --cm-score-file $cm_score_dir/asvspoof2024_eval/scores_cal_p0.655.tsv \
+	 --asvspoof-score-file $asvspoof_score_dir/asvspoof2024_eval_scores.tsv \
+	 --out-score-file $asvspoof_score_dir/official/asvspoof2024_eval/score.tsv
 
   python asvspoof5/evaluation-package/evaluation.py \
 	 --m t2_tandem \

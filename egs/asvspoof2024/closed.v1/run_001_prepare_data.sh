@@ -52,8 +52,24 @@ if [ $stage -le 2 ];then
   
 fi
 
-
 if [ $stage -le 3 ];then
+  # echo "Prepare the ASV Spoof 2024 eval dataset"
+  hyperion-prepare-data asvspoof2024 \
+			--subset eval \
+			--corpus-dir $asvspoof2024_root \
+			--output-dir data/asvspoof2024_eval
+
+  echo "Prepare the ASV Spoof 2024 eval-enroll dataset"
+  hyperion-prepare-data asvspoof2024 \
+			--subset eval_enroll \
+			--corpus-dir $asvspoof2024_root \
+			--output-dir data/asvspoof2024_eval_enroll
+
+  
+fi
+exit
+
+if [ $stage -le 4 ];then
   if [ ! -d ./asvspoof5 ];then
     git clone https://github.com/asvspoof-challenge/asvspoof5.git
   fi

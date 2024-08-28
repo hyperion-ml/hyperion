@@ -73,7 +73,7 @@ logit_dir=exp/cm_scores/$nnet_name
 
 if [ $stage -le 2 ]; then
   nj=10
-  for name in asvspoof2024_dev asvspoof2024_prog
+  for name in asvspoof2024_dev asvspoof2024_prog asvspoof2024_eval
   do
     num_segs=$(wc -l data/$name/segments.csv | awk '{ print $1-1}')
     nj=$(($num_segs < $nj ? $num_segs:$nj))
@@ -124,6 +124,12 @@ if [ $stage -le 3 ];then
     --out-score-file $logit_dir/asvspoof2024_prog/scores_cal_p${prior}.tsv \
     --model-file $logit_dir/asvspoof2024_dev/cal_p${prior}.h5
 
+  hyperion-eval-verification-calibration \
+    --ndx-file data/asvspoof2024_eval/trials_track1.csv \
+    --in-score-file $logit_dir/asvspoof2024_eval/scores.tsv \
+    --out-score-file $logit_dir/asvspoof2024_eval/scores_cal_p${prior}.tsv \
+    --model-file $logit_dir/asvspoof2024_dev/cal_p${prior}.h5
+
   hyperion-eval-verification-metrics \
     --key-files data/asvspoof2024_dev/trials_track1.csv \
     --score-files $logit_dir/asvspoof2024_dev/scores_cal_p${prior}.tsv \
@@ -143,6 +149,10 @@ if [ $stage -le 4 ];then
 	 --ndx-file data/asvspoof2024_prog/trials_track1.csv \
 	 --in-score-file $logit_dir/asvspoof2024_prog/scores_cal_p${prior}.tsv \
 	 --out-score-file $logit_dir/asvspoof2024_prog/official/score.tsv
+  python local/cm_scores_to_asvspoof5_format.py \
+	 --ndx-file data/asvspoof2024_eval/trials_track1.csv \
+	 --in-score-file $logit_dir/asvspoof2024_eval/scores_cal_p${prior}.tsv \
+	 --out-score-file $logit_dir/asvspoof2024_eval/official/score.tsv
 
   python asvspoof5/evaluation-package/evaluation.py \
 	 --m t1 \
@@ -150,5 +160,4 @@ if [ $stage -le 4 ];then
 	 --cm_key data/asvspoof2024_dev/trials_track1_official.tsv \
 	 | tee $logit_dir/asvspoof2024_dev/official/results.txt
 	 
-
 fi

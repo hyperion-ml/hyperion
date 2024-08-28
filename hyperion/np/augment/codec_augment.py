@@ -193,8 +193,8 @@ class CodecAugment:
             info = {"codec_type": None}
             return x, info
 
-        id = self.rng.integers(low=0, high=100000)
-        sf.write(f"audios/{id}.flac", x, samplerate=sample_freq)
+        # id = self.rng.integers(low=0, high=100000)
+        # sf.write(f"audios/{id}.flac", x, samplerate=sample_freq)
 
         codec_type = self.rng.choice(self.codec_types, p=self.codec_choice_prob)
         info = {"codec_type": codec_type}
@@ -304,7 +304,12 @@ class CodecAugment:
             x = effector.apply(x, int(effector_sample_freq))
 
         effector = AudioEffector(**effect_config)
-        y = effector.apply(x, sample_rate=int(effector_sample_freq))
+        try:
+            y = effector.apply(x, sample_rate=int(effector_sample_freq))
+        except Exception as err:
+            logging.warning("Codec %s error: %s", codec_type, str(err))
+            y = x
+
         y = y.squeeze(1).numpy()
         if tel_resampler:
             try:
