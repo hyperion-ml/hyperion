@@ -112,6 +112,7 @@ class SRE21DataPrep(DataPrep):
         output_dir: PathLike,
         use_kaldi_ids: bool,
         target_sample_freq: int,
+        with_videos: bool,
         num_threads: int = 10,
         use_ldc_langs: bool = False,
     ):
@@ -122,6 +123,7 @@ class SRE21DataPrep(DataPrep):
         self.subset = subset
         self.partition = partition
         self.use_ldc_langs = use_ldc_langs
+        self.with_videos = with_videos
 
     @staticmethod
     def dataset_name():
@@ -153,6 +155,12 @@ class SRE21DataPrep(DataPrep):
             default=False,
             action=ActionYesNo,
             help="convert language id to LDC format",
+        )
+        parser.add_argument(
+            "--with-videos",
+            default=False,
+            action=ActionYesNo,
+            help="""prepare video manifest""",
         )
 
     def read_segments_metadata(self):
@@ -441,7 +449,7 @@ class SRE21DataPrep(DataPrep):
         if self.modality != "audio":
             if self.partition == "enrollment":
                 imgs = self.make_image_set(df_segs)
-            else:
+            elif self.with_videos:
                 vids = self.make_video_set(df_segs)
 
         classes = self.make_class_infos(df_segs)
