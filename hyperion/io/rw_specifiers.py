@@ -8,6 +8,7 @@
 import re
 from enum import Enum
 from pathlib import Path
+
 import pandas as pd
 
 
@@ -19,6 +20,7 @@ class ArchiveType(Enum):
     AUDIO = 2
     SEGMENT_LIST = 3
     RTTM = 4
+    TABLE = 5
 
 
 """Documentation for "wspecifier" (taken from Kaldi).
@@ -332,8 +334,12 @@ class RSpecifier(object):
         fields = rspecifier.strip().split(":")
         if len(fields) == 1:
             assert len(fields[0]) > 0
-            return cls(RSpecType.ARCHIVE, fields[0])
-        elif len(fields) == 2:
+            ext = Path(rspecifier).suffix[1:]
+            fields = [ext, fields[0]]
+
+        # if len(fields) == 1:
+        #     return cls(RSpecType.ARCHIVE, fields[0])
+        if len(fields) == 2:
             options = fields[0].strip().split(",")
             archives = fields[1].strip().split(",")
             assert len(archives) == 1
@@ -368,10 +374,7 @@ class RSpecifier(object):
                     assert spec_type is None
                     spec_type = RSpecType.ARCHIVE
                     archive_type = ArchiveType.RTTM
-                elif option == "csv":
-                    assert spec_type is None
-                    spec_type = RSpecType.SCRIPT
-                elif option == "scp":
+                elif option in ["csv", "tsv", "scp"]:
                     assert spec_type is None
                     spec_type = RSpecType.SCRIPT
                 elif option == "p":
@@ -384,13 +387,15 @@ class RSpecifier(object):
             assert spec_type is not None, "Wrong wspecifier options %s" % fields[0]
 
             if spec_type == RSpecType.SCRIPT:
-                if archive.suffix == ".csv":
+                if archive.suffix in [".csv", ".tsv"]:
                     df = pd.read_csv(archive, nrows=2)
                     storage_path = df["storage_path"].values[0]
                     if re.match(r".*\.h5$", storage_path) is not None:
                         archive_type = ArchiveType.H5
                     elif re.match(r".*\.ark$", storage_path) is not None:
                         archive_type = ArchiveType.ARK
+                    elif re.match(r".*\.[tc]sv$", storage_path) is not None:
+                        archive_type = ArchiveType.TABLE
                     elif re.match(r".*[cvg]$", storage_path) is not None:
                         archive_type = ArchiveType.AUDIO
                     else:

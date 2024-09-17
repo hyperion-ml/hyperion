@@ -453,7 +453,7 @@ class TrialKey(object):
             key_list[0].trial_cond_name,
         )
 
-    def filter(self, model_set, seg_set, keep=True):
+    def filter(self, model_set, seg_set, keep=True, raise_missing=True):
         """Removes elements from TrialKey object.
 
         Args:
@@ -471,9 +471,16 @@ class TrialKey(object):
             seg_set = np.setdiff1d(self.seg_set, seg_set)
 
         f, mod_idx = ismember(model_set, self.model_set)
-        assert np.all(f)
+        if raise_missing:
+            assert np.all(f)
+        else:
+            mod_idx = mod_idx[f]
+
         f, seg_idx = ismember(seg_set, self.seg_set)
-        assert np.all(f)
+        if raise_missing:
+            assert np.all(f)
+        else:
+            seg_idx = seg_idx[f]
 
         model_set = self.model_set[mod_idx]
         seg_set = self.seg_set[seg_idx]
@@ -498,6 +505,58 @@ class TrialKey(object):
         return TrialKey(
             model_set,
             seg_set,
+            tar,
+            non,
+            spoof,
+            model_cond,
+            seg_cond,
+            trial_cond,
+            self.model_cond_name,
+            self.seg_cond_name,
+            self.trial_cond_name,
+        )
+
+    def filter_by_model(self, model_set, keep=True, raise_missing=True):
+        """Removes elements from TrialKey object.
+
+        Args:
+          model_set: List of models to keep or remove.
+          keep: If True, we keep the elements in model_set/seg_set,
+                if False, we remove the elements in model_set/seg_set.
+
+        Returns:
+          Filtered TrialKey object.
+        """
+
+        if not keep:
+            model_set = np.setdiff1d(self.model_set, model_set)
+
+        f, mod_idx = ismember(model_set, self.model_set)
+        if raise_missing:
+            assert np.all(f)
+        else:
+            mod_idx = mod_idx[f]
+
+        model_set = self.model_set[mod_idx]
+        tar = self.tar[mod_idx]
+        non = self.non[mod_idx]
+        if self.spoof is not None:
+            spoof = self.spoof[mod_idx]
+        else:
+            spoof = None
+
+        model_cond = None
+        seg_cond = None
+        trial_cond = None
+        if self.model_cond is not None:
+            model_cond = self.model_cond[:, mod_idx]
+
+        if self.trial_cond is not None:
+            trial_cond = self.trial_cond[:, mod_idx]
+
+        return TrialKey(
+            model_set,
+            self.seg_set,
             tar,
             non,
             spoof,

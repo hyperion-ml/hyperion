@@ -20,19 +20,29 @@ from jsonargparse import (
 from hyperion.hyp_defs import config_logger
 from hyperion.utils import (
     ClassInfo,
+    DiarizationSet,
     EnrollmentMap,
     FeatureSet,
     InfoTable,
     PathLike,
     RecordingSet,
     SegmentSet,
+    VADSet,
 )
 
-subcommand_list = ["cat", "filter", "make_class_file_from_column", "drop_columns"]
+subcommand_list = [
+    "cat",
+    "filter",
+    "make_class_file_from_column",
+    "drop_columns",
+    "replace_columns",
+]
 table_dict = {
     "segments": SegmentSet,
     "recordings": RecordingSet,
     "features": FeatureSet,
+    "vads": VADSet,
+    "diarizations": DiarizationSet,
     "classes": ClassInfo,
     "enrollments": EnrollmentMap,
     "generic": InfoTable,
@@ -201,7 +211,7 @@ def make_drop_columns_parser():
     parser.add_argument("--cfg", action=ActionConfigFile)
     parser.add_argument("--input-file", required=True, help="input table file")
     parser.add_argument(
-        "--columns", default=None, nargs="+", help="columns to keep or drop"
+        "--columns", required=True, nargs="+", help="columns to keep or drop"
     )
     parser.add_argument(
         "--keep",
@@ -222,8 +232,8 @@ def make_drop_columns_parser():
 def drop_columns(
     table_type: str,
     input_file: PathLike,
-    output_file: PathLike,
     columns: List[str],
+    output_file: Optional[PathLike] = None,
     keep: bool = False,
 ):
 
@@ -240,6 +250,55 @@ def drop_columns(
     input_table = table_class.load(input_file)
     output_table = input_table.filter(columns=columns, keep=keep)
     output_table.save(output_file)
+
+
+def make_replace_columns_parser():
+    parser = ArgumentParser()
+    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument("--input-file", required=True, help="input table file")
+    parser.add_argument(
+        "--replacement-file",
+        required=True,
+        help="table whose rows we are going to copy to the original table",
+    )
+    parser.add_argument(
+        "--output-file",
+        default=None,
+        help="""output table file, If None, it overwrites input""",
+    )
+    parser.add_argument(
+        "--columns",
+        default=None,
+        nargs="+",
+        help="columns to replace, if None, all are replaced",
+    )
+
+    add_common_args(parser)
+    return parser
+
+
+def replace_columns(
+    table_type: str,
+    input_file: PathLike,
+    replacement_file: PathLike,
+    output_file: Optional[PathLike] = None,
+    columns: Optional[List[str]] = None,
+):
+
+    input_file = Path(input_file)
+    if output_file is None:
+        bk_file = input_file.with_suffix(input_file.suffix + ".bk")
+        if not bk_file.is_file():
+            import shutil
+
+            shutil.copy2(input_file, bk_file)
+        output_file = input_file
+
+    table_class = table_dict[table_type]
+    input_table = table_class.load(input_file)
+    replacement_table = table_class.load(replacement_file)
+    input_table.replace_columns(replacement_table, column_names=columns)
+    input_table.save(output_file)
 
 
 def main():

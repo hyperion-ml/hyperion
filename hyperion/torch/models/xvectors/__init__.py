@@ -12,5 +12,5 @@ from .resnet1d_xvector import ResNet1dXVector
 from .resnet_xvector import ResNetXVector
 from .spinenet_xvector import SpineNetXVector
 from .tdnn_xvector import TDNNXVector
-from .transformer_xvector_v1 import TransformerXVectorV1
+from .transformer_v1_xvector import TransformerV1XVector
 from .xvector import XVector

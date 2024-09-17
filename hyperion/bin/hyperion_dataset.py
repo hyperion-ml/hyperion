@@ -29,13 +29,19 @@ from hyperion.utils import (
 
 subcommand_list = [
     "add_features",
+    "add_vads",
+    "add_diarizations",
     "set_recordings",
     "make_from_recordings",
     "remove_short_segments",
     "rebuild_class_idx",
     "remove_classes_few_segments",
     "remove_classes_few_toomany_segments",
+    "remove_class_ids",
     "split_train_val",
+    "split_folds",
+    "filter_by_classes",
+    "filter_by_classes_and_enrollments",
     "copy",
     "add_cols_to_segments",
     "merge",
@@ -93,6 +99,88 @@ def add_features(
 
     dataset = HypDataset.load(dataset, lazy=True)
     dataset.add_features(features_name, features_file)
+    dataset.save(output_dataset)
+
+
+def make_add_vads_parser():
+    parser = ArgumentParser()
+    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument(
+        "--dataset", required=True, help="""dataset dir or .yaml file"""
+    )
+    parser.add_argument("--vads-name", required=True, help="""name of the feature""")
+    parser.add_argument("--vads-file", required=True, help="""feature set file""")
+    parser.add_argument(
+        "--output-dataset",
+        default=None,
+        help="""output dataset dir, if None, we use the same as input""",
+    )
+
+    add_common_args(parser)
+    return parser
+
+
+def add_vads(
+    dataset: PathLike,
+    vads_name: str,
+    vads_file: PathLike,
+    output_dataset: PathLike,
+):
+    if output_dataset is None:
+        output_dataset = dataset
+
+    logging.info(
+        "adding vads %s to dataset: %s -> %s",
+        vads_name,
+        dataset,
+        output_dataset,
+    )
+
+    dataset = HypDataset.load(dataset, lazy=True)
+    dataset.add_vads(vads_name, vads_file)
+    dataset.save(output_dataset)
+
+
+def make_add_diarizations_parser():
+    parser = ArgumentParser()
+    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument(
+        "--dataset", required=True, help="""dataset dir or .yaml file"""
+    )
+    parser.add_argument(
+        "--diarizations-name", required=True, help="""name of the feature"""
+    )
+    parser.add_argument(
+        "--diarizations-file", required=True, help="""feature set file"""
+    )
+    parser.add_argument(
+        "--output-dataset",
+        default=None,
+        help="""output dataset dir, if None, we use the same as input""",
+    )
+
+    add_common_args(parser)
+    return parser
+
+
+def add_diarizations(
+    dataset: PathLike,
+    diarizations_name: str,
+    diarizations_file: PathLike,
+    output_dataset: PathLike,
+):
+    if output_dataset is None:
+        output_dataset = dataset
+
+    logging.info(
+        "adding diarizations %s to dataset: %s -> %s",
+        diarizations_name,
+        dataset,
+        output_dataset,
+    )
+
+    dataset = HypDataset.load(dataset, lazy=True)
+    dataset.add_diarizations(diarizations_name, diarizations_file)
     dataset.save(output_dataset)
 
 
@@ -379,6 +467,64 @@ def remove_classes_few_toomany_segments(
     dataset.save(output_dataset)
 
 
+def make_remove_class_ids_parser():
+    parser = ArgumentParser()
+    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument(
+        "--dataset", required=True, help="""dataset dir or .yaml file"""
+    )
+    parser.add_argument(
+        "--class-name", required=True, help="""name of the class type e.g.: speaker"""
+    )
+    parser.add_argument(
+        "--class-ids", default=None, nargs="+", help="""class ids to remove"""
+    )
+    parser.add_argument(
+        "--remove-na",
+        default=False,
+        action=ActionYesNo,
+        help="remove segments NA class id",
+    )
+    parser.add_argument(
+        "--rebuild-idx",
+        default=False,
+        action=ActionYesNo,
+        help="""regenerate class indexes from 0 to new_num_classes-1""",
+    )
+    parser.add_argument(
+        "--output-dataset",
+        default=None,
+        help="""output dataset dir, if None, we use the same as input""",
+    )
+
+    add_common_args(parser)
+    return parser
+
+
+def remove_class_ids(
+    dataset: PathLike,
+    class_name: str,
+    class_ids: List[str],
+    remove_na: bool,
+    rebuild_idx: bool,
+    output_dataset: PathLike,
+):
+    if output_dataset is None:
+        output_dataset = dataset
+
+    logging.info(
+        "removing %s with ids %s in dataset: %s -> %s",
+        class_name,
+        str(class_ids),
+        dataset,
+        output_dataset,
+    )
+
+    dataset = HypDataset.load(dataset, lazy=True)
+    dataset.remove_class_ids(class_name, class_ids, remove_na, rebuild_idx)
+    dataset.save(output_dataset)
+
+
 def make_split_train_val_parser():
     parser = ArgumentParser()
     parser.add_argument("--cfg", action=ActionConfigFile)
@@ -465,6 +611,217 @@ def split_train_val(
         num_val,
         num_val / num_total * 100,
     )
+
+
+def make_split_folds_parser():
+    parser = ArgumentParser()
+    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument(
+        "--dataset", required=True, help="""input dataset dir or .yaml file"""
+    )
+    parser.add_argument(
+        "--num-folds",
+        default=5,
+        type=int,
+        help="""number of folds""",
+    )
+    parser.add_argument(
+        "--joint-classes",
+        default=None,
+        nargs="+",
+        help="""types of classes that need to have same classes in train and val""",
+    )
+    parser.add_argument(
+        "--disjoint-classes",
+        default=None,
+        nargs="+",
+        help="""types of classes that need to have different classes in train and val""",
+    )
+    parser.add_argument(
+        "--seed",
+        default=11235813,
+        type=int,
+        help="""random seed""",
+    )
+    parser.add_argument(
+        "--output-path",
+        required=True,
+        help="""output dir""",
+    )
+
+    add_common_args(parser)
+    return parser
+
+
+def split_folds(
+    dataset: PathLike,
+    num_folds: int,
+    joint_classes: List[str],
+    disjoint_classes: List[str],
+    seed: int,
+    output_path: PathLike,
+):
+    logging.info(
+        "splitting %s -> %s",
+        dataset,
+        output_path,
+    )
+
+    dataset = HypDataset.load(dataset, lazy=True)
+    train_folds, test_folds = dataset.split_folds(
+        num_folds, joint_classes, disjoint_classes, seed
+    )
+
+    output_path = Path(output_path)
+    for i, (train_fold, test_fold) in enumerate(zip(train_folds, test_folds)):
+        output_dir_i = output_path / str(i)
+        logging.info("fold %d -> %s", i, output_dir_i)
+        train_fold.save(output_dir_i / "train")
+        train_fold.describe()
+        test_fold.save(output_dir_i / "test")
+        test_fold.describe()
+
+
+def make_filter_by_classes_parser():
+    parser = ArgumentParser()
+    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument(
+        "--dataset", required=True, help="""dataset dir or .yaml file"""
+    )
+    parser.add_argument(
+        "--class-name", required=True, help="""name of the class type e.g.: speaker"""
+    )
+    parser.add_argument(
+        "--class-file",
+        required=True,
+        help="""name of the file containing the classes to keep""",
+    )
+    parser.add_argument(
+        "--output-dataset",
+        default=None,
+        help="""output dataset dir, if None, we use the same as input""",
+    )
+    parser.add_argument(
+        "--rebuild-idx",
+        default=False,
+        action=ActionYesNo,
+        help="""regenerate class indexes from 0 to new_num_classes-1""",
+    )
+    parser.add_argument(
+        "--keep",
+        default=True,
+        action=ActionYesNo,
+        help="""whether keep or remove the classes""",
+    )
+
+    add_common_args(parser)
+    return parser
+
+
+def filter_by_classes(
+    dataset: PathLike,
+    class_name: str,
+    class_file: PathLike,
+    output_dataset: PathLike,
+    rebuild_idx: bool = False,
+    keep: bool = True,
+):
+    if output_dataset is None:
+        output_dataset = dataset
+
+    logging.info(
+        "Dataset %s filtering %s in %s -> %s",
+        dataset,
+        class_name,
+        class_file,
+        output_dataset,
+    )
+    classes = ClassInfo.load(class_file)
+    dataset = HypDataset.load(dataset, lazy=True)
+    dataset.filter_by_classes(class_name, classes, rebuild_idx=rebuild_idx, keep=keep)
+    dataset.save(output_dataset)
+
+
+def make_filter_by_classes_and_enrollments_parser():
+    parser = ArgumentParser()
+    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument(
+        "--dataset", required=True, help="""dataset dir or .yaml file"""
+    )
+    parser.add_argument(
+        "--class-name", required=True, help="""name of the class type e.g.: speaker"""
+    )
+    parser.add_argument(
+        "--class-file",
+        required=True,
+        help="""name of the file containing the classes to keep""",
+    )
+    parser.add_argument(
+        "--enrollment-name",
+        required=True,
+        help="""name of the enrollment file in the dataset""",
+    )
+    parser.add_argument(
+        "--enrollment-file",
+        required=True,
+        help="""name of the file containing the enrollment ids to keep""",
+    )
+    parser.add_argument(
+        "--output-dataset",
+        default=None,
+        help="""output dataset dir, if None, we use the same as input""",
+    )
+    parser.add_argument(
+        "--rebuild-idx",
+        default=False,
+        action=ActionYesNo,
+        help="""regenerate class indexes from 0 to new_num_classes-1""",
+    )
+    parser.add_argument(
+        "--keep",
+        default=True,
+        action=ActionYesNo,
+        help="""whether keep or remove the classes""",
+    )
+
+    add_common_args(parser)
+    return parser
+
+
+def filter_by_classes_and_enrollments(
+    dataset: PathLike,
+    class_name: str,
+    class_file: PathLike,
+    enrollment_name: str,
+    enrollment_file: PathLike,
+    output_dataset: PathLike,
+    rebuild_idx: bool = False,
+    keep: bool = True,
+):
+    if output_dataset is None:
+        output_dataset = dataset
+
+    logging.info(
+        "Dataset %s filtering %s in %s + %s in %s -> %s",
+        dataset,
+        class_name,
+        class_file,
+        enrollment_name,
+        enrollment_file,
+        output_dataset,
+    )
+    classes = ClassInfo.load(class_file)
+    enrollments = EnrollmentMap.load(enrollment_file)
+    dataset = HypDataset.load(dataset, lazy=True)
+    dataset.filter_by_classes_and_enrollments(
+        class_name,
+        classes,
+        enrollment_name,
+        enrollments,
+        rebuild_idx=rebuild_idx,
+        keep=keep,
+    )
+    dataset.save(output_dataset)
 
 
 def make_copy_parser():

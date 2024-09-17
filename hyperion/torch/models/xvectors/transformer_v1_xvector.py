@@ -13,7 +13,7 @@ from ...narchs import TransformerEncoderV1 as TE
 from .xvector import XVector
 
 
-class TransformerXVectorV1(XVector):
+class TransformerV1XVector(XVector):
     """x-Vector with Transformer encoder.
 
     Attributes:

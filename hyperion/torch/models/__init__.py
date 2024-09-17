@@ -36,7 +36,7 @@ from .xvectors import (
     ResNetXVector,
     SpineNetXVector,
     TDNNXVector,
-    TransformerXVectorV1,
+    TransformerV1XVector,
     XVector,
 )
 

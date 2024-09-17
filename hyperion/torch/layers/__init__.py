@@ -4,7 +4,7 @@
 """
 
 from .activation_factory import ActivationFactory
-from .attention import (
+from .attention_v1 import (
     LocalScaledDotProdAttRelPosEncV1,
     LocalScaledDotProdAttV1,
     ScaledDotProdAttRelPosEncV1,
@@ -36,6 +36,7 @@ from .pos_encoder import (
     PosEncoder,
     PosEncoderBase,
     RelPosEncoder,
+    RotaryPosEncoder,
 )
 from .spec_augment import AxisMasker, SpecAugment, SpecWarper
 from .subpixel_convs import ICNR1d, ICNR2d, SubPixelConv1d, SubPixelConv2d

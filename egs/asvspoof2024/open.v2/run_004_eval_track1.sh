@@ -107,8 +107,8 @@ if [ $stage -le 3 ];then
   # prior = effective_prior(0.95, c_mis=1, c_fa=10)=0.655
   
   hyperion-train-verification-calibration \
-    --key-file data/asvspoof2024_dev/trials_track1.csv \
-    --score-file $logit_dir/asvspoof2024_dev/scores.tsv \
+    --key-files data/asvspoof2024_dev/trials_track1.csv \
+    --score-files $logit_dir/asvspoof2024_dev/scores.tsv \
     --prior ${prior} \
     --model-file $logit_dir/asvspoof2024_dev/cal_p${prior}.h5
 

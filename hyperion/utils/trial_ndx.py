@@ -11,10 +11,10 @@ import numpy as np
 import pandas as pd
 
 # from .list_utils import *
-from .list_utils import sort, intersect, ismember, split_list, list2ndarray
+from .list_utils import intersect, ismember, list2ndarray, sort, split_list
 
 
-class TrialNdx(object):
+class TrialNdx:
     """Contains the trial index to run speaker recognition trials.
         Bosaris compatible Ndx.
     Attributes:
@@ -270,7 +270,7 @@ class TrialNdx(object):
             ndx = TrialNdx(enroll.key, test.file_path)
         return ndx, enroll
 
-    def filter(self, model_set, seg_set, keep=True):
+    def filter(self, model_set, seg_set, keep=True, raise_missing=True):
         """Removes elements from TrialNdx object.
 
         Args:
@@ -287,13 +287,45 @@ class TrialNdx(object):
             seg_set = np.setdiff1d(self.seg_set, seg_set)
 
         f, mod_idx = ismember(model_set, self.model_set)
-        assert np.all(f)
+        if raise_missing:
+            assert np.all(f)
+        else:
+            mod_idx = mod_idx[f]
+
         f, seg_idx = ismember(seg_set, self.seg_set)
-        assert np.all(f)
+        if raise_missing:
+            assert np.all(f)
+        else:
+            seg_idx = seg_idx[f]
+
         model_set = self.model_set[mod_idx]
-        set_set = self.seg_set[seg_idx]
+        seg_set = self.seg_set[seg_idx]
         trial_mask = self.trial_mask[np.ix_(mod_idx, seg_idx)]
         return TrialNdx(model_set, seg_set, trial_mask)
+
+    def filter_by_model(self, model_set, keep=True, raise_missing=True):
+        """Removes elements from TrialNdx object.
+
+        Args:
+          model_set: List of models to keep or remove.
+          keep: If True, we keep the elements in model_set/seg_set,
+                if False, we remove the elements in model_set/seg_set.
+
+        Returns:
+          Filtered TrialNdx object.
+        """
+        if not keep:
+            model_set = np.setdiff1d(self.model_set, model_set)
+
+        f, mod_idx = ismember(model_set, self.model_set)
+        if raise_missing:
+            assert np.all(f)
+        else:
+            mod_idx = mod_idx[f]
+
+        model_set = self.model_set[mod_idx]
+        trial_mask = self.trial_mask[mod_idx]
+        return TrialNdx(model_set, self.seg_set, trial_mask)
 
     def split(self, model_idx, num_model_parts, seg_idx, num_seg_parts):
         """Splits the TrialNdx into num_model_parts x num_seg_parts and returns part
