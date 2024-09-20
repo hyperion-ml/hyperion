@@ -4,13 +4,13 @@
 """
 
 import logging
-from typing import Union, Optional, List, Callable, Tuple
+from typing import Callable, List, Optional, Tuple, Union
 
-from jsonargparse import ActionParser, ArgumentParser
 import numpy as np
+from jsonargparse import ActionParser, ArgumentParser
 
-from ..utils.kaldi_matrix import compression_methods
 from ..utils import PathLike
+from ..utils.kaldi_matrix import compression_methods
 from .ark_data_reader import RandomAccessArkDataReader as RADR
 from .ark_data_reader import SequentialArkFileDataReader as SAFDR
 from .ark_data_reader import SequentialArkScriptDataReader as SASDR
@@ -120,13 +120,13 @@ class SequentialDataReaderFactory(object):
                 "--part-idx",
                 type=int,
                 default=1,
-                help=("splits the list of files in num-parts " "and process part_idx"),
+                help=("splits the list of files in num-parts and process part_idx"),
             )
             parser.add_argument(
                 "--num-parts",
                 type=int,
                 default=1,
-                help=("splits the list of files in num-parts " "and process part_idx"),
+                help=("splits the list of files in num-parts and process part_idx"),
             )
         except:
             pass
@@ -191,6 +191,5 @@ class RandomAccessDataReaderFactory(object):
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
-            # help='data reader options')
 
     add_argparse_args = add_class_args

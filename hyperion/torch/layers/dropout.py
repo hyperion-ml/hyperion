@@ -123,6 +123,7 @@ class DropConnect1d(nn.Module):
         binary_tensor = torch.floor(random_tensor)
         output = inputs / keep_prob * binary_tensor
         return output
-    
+
+
 DropPath2d = DropConnect2d
 DropPath1d = DropConnect1d

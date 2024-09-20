@@ -125,7 +125,7 @@ class SegChunkSampler(HypSampler):
     def __iter__(self):
         super().__iter__()
         self._create_chunks()
-        self._seg_sampler = SegSampler(self.chunk_set, **self.base_kwargs)
+        self._seg_sampler = self.chunk_sampler(self.chunk_set, **self.base_kwargs)
         self._seg_sampler.set_epoch(self.epoch)
         self._seg_sampler.__iter__()
 

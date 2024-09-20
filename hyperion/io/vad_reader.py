@@ -10,7 +10,7 @@ import numpy as np
 from ..hyp_defs import float_cpu
 
 
-class VADReader(object):
+class VADReader:
     """Abstract base class to read vad files.
 
     Attributes:
@@ -21,7 +21,6 @@ class VADReader(object):
     """
 
     def __init__(self, file_path, permissive=False):
-
         self.file_path = file_path
         self.permissive = permissive
 
@@ -70,8 +69,22 @@ class VADReader(object):
             if n > num_frames:
                 vad = vad[:num_frames]
             elif n < num_frames:
-                new_vad = np.zeros((num_frames,), dtype=np.bool)
+                new_vad = np.zeros((num_frames,), dtype=bool)
                 new_vad[:n] = vad
                 vad = new_vad
 
         return vad
+
+    @staticmethod
+    def _duration_to_num_frames(duration, frame_length, frame_shift, snip_edges):
+        frame_length = frame_length / 1000
+        frame_shift = frame_shift / 1000
+        duration = np.asarray(duration)
+        if snip_edges:
+            num_frames = int(
+                np.floor((duration - frame_length + frame_shift) / frame_shift)
+            )
+        else:
+            num_frames = int(np.round(duration / frame_shift))
+
+        return num_frames

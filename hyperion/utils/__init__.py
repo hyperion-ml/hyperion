@@ -4,6 +4,7 @@
 """
 
 from .class_info import ClassInfo
+from .diarization_set import DiarizationSet
 from .enrollment_map import EnrollmentMap
 from .feature_set import FeatureSet
 from .hyp_dataclass import HypDataClass
@@ -25,4 +26,5 @@ from .trial_key import TrialKey
 from .trial_ndx import TrialNdx
 from .trial_scores import TrialScores
 from .utt2info import Utt2Info
+from .vad_set import VADSet
 from .video_set import VideoSet

@@ -20,19 +20,30 @@ from jsonargparse import (
 from hyperion.hyp_defs import config_logger
 from hyperion.utils import (
     ClassInfo,
+    DiarizationSet,
     EnrollmentMap,
     FeatureSet,
     InfoTable,
     PathLike,
     RecordingSet,
     SegmentSet,
+    VADSet,
 )
 
-subcommand_list = ["cat", "filter", "make_class_file_from_column", "drop_columns"]
+subcommand_list = [
+    "cat",
+    "filter",
+    "make_class_file_from_column",
+    "drop_columns",
+    "replace_columns",
+    "average_results",
+]
 table_dict = {
     "segments": SegmentSet,
     "recordings": RecordingSet,
     "features": FeatureSet,
+    "vads": VADSet,
+    "diarizations": DiarizationSet,
     "classes": ClassInfo,
     "enrollments": EnrollmentMap,
     "generic": InfoTable,
@@ -201,7 +212,7 @@ def make_drop_columns_parser():
     parser.add_argument("--cfg", action=ActionConfigFile)
     parser.add_argument("--input-file", required=True, help="input table file")
     parser.add_argument(
-        "--columns", default=None, nargs="+", help="columns to keep or drop"
+        "--columns", required=True, nargs="+", help="columns to keep or drop"
     )
     parser.add_argument(
         "--keep",
@@ -222,8 +233,8 @@ def make_drop_columns_parser():
 def drop_columns(
     table_type: str,
     input_file: PathLike,
-    output_file: PathLike,
     columns: List[str],
+    output_file: Optional[PathLike] = None,
     keep: bool = False,
 ):
 
@@ -240,6 +251,152 @@ def drop_columns(
     input_table = table_class.load(input_file)
     output_table = input_table.filter(columns=columns, keep=keep)
     output_table.save(output_file)
+
+
+def make_replace_columns_parser():
+    parser = ArgumentParser()
+    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument("--input-file", required=True, help="input table file")
+    parser.add_argument(
+        "--replacement-file",
+        required=True,
+        help="table whose rows we are going to copy to the original table",
+    )
+    parser.add_argument(
+        "--output-file",
+        default=None,
+        help="""output table file, If None, it overwrites input""",
+    )
+    parser.add_argument(
+        "--columns",
+        default=None,
+        nargs="+",
+        help="columns to replace, if None, all are replaced",
+    )
+
+    add_common_args(parser)
+    return parser
+
+
+def replace_columns(
+    table_type: str,
+    input_file: PathLike,
+    replacement_file: PathLike,
+    output_file: Optional[PathLike] = None,
+    columns: Optional[List[str]] = None,
+):
+
+    input_file = Path(input_file)
+    if output_file is None:
+        bk_file = input_file.with_suffix(input_file.suffix + ".bk")
+        if not bk_file.is_file():
+            import shutil
+
+            shutil.copy2(input_file, bk_file)
+        output_file = input_file
+
+    table_class = table_dict[table_type]
+    input_table = table_class.load(input_file)
+    replacement_table = table_class.load(replacement_file)
+    input_table.replace_columns(replacement_table, column_names=columns)
+    input_table.save(output_file)
+
+
+def make_average_results_parser():
+    parser = ArgumentParser()
+    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument(
+        "--input-files", default=None, nargs="+", help="optional list of input files"
+    )
+    parser.add_argument(
+        "--output-file",
+        required=True,
+        help="""output file, if input-files is None, input files names are derived from it""",
+    )
+    parser.add_argument(
+        "--num-tables",
+        default=0,
+        type=int,
+        help="""number of jobs we used to create the individual tables""",
+    )
+    parser.add_argument(
+        "--base-idx",
+        default=1,
+        type=int,
+        help="""index of the first job, typically 0 or 1""",
+    )
+
+    add_common_args(parser)
+    return parser
+
+
+def average_results(
+    table_type: str,
+    input_files: Union[List[PathLike], None],
+    output_file: PathLike,
+    num_tables: int,
+    base_idx: int = 1,
+):
+    assert input_files is not None or num_tables != 0
+    output_file = Path(output_file)
+    if input_files is None:
+        ext = output_file.suffix
+        input_file_base = output_file.with_suffix("")
+        input_files = []
+        for i in range(num_tables):
+            idx = base_idx + i
+            input_file_i = input_file_base.with_suffix(f".{idx}{ext}")
+            input_files.append(input_file_i)
+
+    output_table = None
+    index = None
+    columns = None
+    for file_path in input_files:
+        file_path = Path(file_path)
+        if file_path.suffix == ".tsv":
+            sep = "\t"
+        else:
+            sep = ","
+        df = pd.read_csv(file_path, sep=sep)
+        if index is None:
+            if "scores" in df and "key" in df:
+                index = ["scores", "key"]
+                columns = df.columns[2:]
+            else:
+                raise ValueError("don't know what to use as index for table")
+
+        df.set_index(index, inplace=True)
+        for column in columns:
+            if df[column].dtype == "object":
+                df[column] = pd.to_numeric(df[column])
+
+        if output_table is None:
+            output_table = df
+        else:
+            output_table = pd.merge(
+                left=output_table,
+                right=df,
+                how="inner",
+                left_index=True,
+                right_index=True,
+                suffixes=(None, "_y"),
+            )
+            for column in columns:
+                output_table[column] += output_table[f"{column}_y"]
+                output_table.drop(columns=[f"{column}_y"], inplace=True)
+
+    for column in columns:
+        output_table[column] /= len(input_files)
+
+    if output_file.suffix == ".tsv":
+        sep = "\t"
+    else:
+        sep = ","
+
+    output_dir = output_file.parent
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_table.reset_index(inplace=True)
+    output_table.to_csv(output_file, sep=sep, index=False, float_format="{:.4f}".format)
 
 
 def main():

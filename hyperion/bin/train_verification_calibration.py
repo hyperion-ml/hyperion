@@ -27,13 +27,24 @@ from hyperion.utils.trial_scores import TrialScores
 
 
 def train_verification_calibration(
-    score_file, key_file, model_file, prior, lambda_reg, verbose
+    score_files, key_files, model_file, prior, lambda_reg, verbose
 ):
-    logging.info("load key: %s", key_file)
-    key = TrialKey.load(key_file)
-    logging.info("load scores: %s", score_file)
-    scr = TrialScores.load(score_file)
-    tar, non = scr.get_tar_non(key)
+    assert len(score_files) == len(
+        key_files
+    ), f"{len(score_files)=} != {len(key_files)=}"
+    tar = []
+    non = []
+    for score_file, key_file in zip(score_files, key_files):
+        logging.info("load key: %s", key_file)
+        key = TrialKey.load(key_file)
+        logging.info("load scores: %s", score_file)
+        scr = TrialScores.load(score_file)
+        tar_i, non_i = scr.get_tar_non(key)
+        tar.append(tar_i)
+        non.append(non_i)
+
+    tar = np.concatenate(tar, axis=0)
+    non = np.concatenate(non, axis=0)
     ntar = len(tar)
     nnon = len(non)
 
@@ -93,8 +104,8 @@ def train_verification_calibration(
 def main():
     parser = ArgumentParser(description="Trains verification calibration")
 
-    parser.add_argument("--score-file", required=True)
-    parser.add_argument("--key-file", required=True)
+    parser.add_argument("--score-files", nargs="+", required=True)
+    parser.add_argument("--key-files", nargs="+", required=True)
     parser.add_argument("--model-file", required=True)
     parser.add_argument("--prior", type=float, default=0.01)
     parser.add_argument("--lambda-reg", type=float, default=1e-5)

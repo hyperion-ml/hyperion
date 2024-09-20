@@ -172,7 +172,7 @@ class ConvNext2dStemBlock(nn.Module):
             stride=stride,
             padding=padding,
         )
-        self.norm = nn.LayerNorm(out_channels, eps=1e-6)
+        self.norm = norm_layer(out_channels, eps=1e-6)
         self.context = (kernel_size - 1) // 2
         self.stride = stride
 
@@ -214,7 +214,7 @@ class ConvNext1dStemBlock(nn.Module):
             stride=stride,
             padding=padding,
         )
-        self.norm = nn.LayerNorm(out_channels, eps=1e-6)
+        self.norm = norm_layer(out_channels, eps=1e-6)
         self.context = (kernel_size - 1) // 2
         self.stride = stride
 
@@ -249,7 +249,7 @@ class ConvNext2dDownsampleBlock(nn.Module):
 
         kernel_size = max(kernel_size, stride)
         padding = (kernel_size - 1) // 2
-        self.norm = nn.LayerNorm(in_channels, eps=1e-6)
+        self.norm = norm_layer(in_channels, eps=1e-6)
         self.conv = nn.Conv2d(
             in_channels,
             out_channels,
@@ -290,7 +290,7 @@ class ConvNext1dDownsampleBlock(nn.Module):
 
         kernel_size = max(kernel_size, stride)
         padding = (kernel_size - 1) // 2
-        self.norm = nn.LayerNorm(in_channels, eps=1e-6)
+        self.norm = norm_layer(in_channels, eps=1e-6)
         self.conv = nn.Conv1d(
             in_channels,
             out_channels,

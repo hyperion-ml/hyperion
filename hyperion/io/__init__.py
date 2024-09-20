@@ -22,4 +22,5 @@ from .packed_audio_reader import (
 )
 from .packed_audio_writer import PackedAudioWriter
 from .segment_vad_reader import SegmentVADReader
+from .table_vad_reader import TableVADReader
 from .vad_rw_factory import VADReaderFactory
