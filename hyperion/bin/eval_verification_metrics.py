@@ -24,6 +24,7 @@ def eval_verification_metrics(
     score_files,
     key_names,
     score_names,
+    avg_key_names,
     p_tar,
     c_miss,
     c_fa,
@@ -34,6 +35,7 @@ def eval_verification_metrics(
     assert len(score_files) == len(score_names)
     dfs = []
     for score_file, score_name in zip(score_files, score_names):
+        dfs_avg = []
         for key_file, key_name in zip(key_files, key_names):
             logging.info("Evaluating %s - %s", score_name, key_name)
             evaluator = VE(
@@ -50,12 +52,23 @@ def eval_verification_metrics(
             if df_ij is not None:
                 dfs.append(df_ij)
 
+            if avg_key_names is not None and key_name in avg_key_names:
+                dfs_avg.append(df_ij)
+
+        if avg_key_names is not None and len(dfs_avg) > 0:
+            dfs_avg = pd.concat(dfs_avg)
+            df_avg = {"scores": [score_name], "key": ["average"]}
+            for column in dfs_avg.columns[2:]:
+                df_avg[column] = [dfs_avg[column].mean()]
+            df_avg = pd.DataFrame(df_avg)
+            dfs.append(df_avg)
+
     df = pd.concat(dfs)
     logging.info("saving results to %s", output_file)
     output_file = Path(output_file)
     output_file.parent.mkdir(exist_ok=True, parents=True)
     sep = "\t" if output_file.suffix == ".tsv" else ","
-    df.to_csv(output_file, sep=sep, index=False, float_format="{:,.4f}".format)
+    df.to_csv(output_file, sep=sep, index=False, float_format="{:.4f}".format)
 
     pd.options.display.float_format = "{:.4}".format
     print(df.to_string(), flush=True)
@@ -68,6 +81,7 @@ def main():
     parser.add_argument("--score-files", required=True, nargs="+")
     parser.add_argument("--key-names", required=True, nargs="+")
     parser.add_argument("--score-names", required=True, nargs="+")
+    parser.add_argument("--avg-key-names", default=None, nargs="+")
     parser.add_argument(
         "--p-tar",
         default=[0.05, 0.01, 0.005, 0.001],

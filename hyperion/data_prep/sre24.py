@@ -364,6 +364,7 @@ class SRE24DataPrep(DataPrep):
             assert (
                 df_segs["id"].isin(df_enr["segmentid"]).all()
             ), f"{df_segs['id']} not all in {df_enr['segmentid']}"
+            logging.info("made Enrollment")
             return {"enrollment": EnrollmentMap(df_enr)}
 
         if self.modality == "visual":
@@ -375,6 +376,7 @@ class SRE24DataPrep(DataPrep):
             df_key = pd.read_csv(key_file, sep="\t")
             ids = np.unique(df_key["imageid"])
             df_enr = pd.DataFrame({"id": ids, "segmentid": ids})
+            logging.info("made Enrollment")
             return {"enrollment": EnrollmentMap(df_enr)}
 
     def _get_enroll_conds(self):
@@ -388,16 +390,20 @@ class SRE24DataPrep(DataPrep):
         langs = []
         sources = []
         num_enrs = []
+        logging.info("get enrollment conditions")
         for modelid in modelids:
             seg_id = enr_map.loc[modelid, "segmentid"]
-            if not isinstance(seg_id, str):
+            if isinstance(seg_id, str):
+                num_enrs_i = 1
+            else:
+                num_enrs_i = len(seg_id)
                 seg_id = seg_id.values[0]
 
             lang = df_segs.loc[seg_id, "language"]
             source = df_segs.loc[seg_id, "source_type"]
             langs.append(lang)
             sources.append(source)
-            num_enrs.append(len(seg_id))
+            num_enrs.append(num_enrs_i)
 
         df_enr_conds = pd.DataFrame(
             {
@@ -412,7 +418,8 @@ class SRE24DataPrep(DataPrep):
 
     def _get_extra_trial_conds(self, df_trial, df_segs):
         df_enr = self._get_enroll_conds()
-        for i, row in df_trial.iterrows():
+        logging.info("iterating to get extra trial conditions")
+        for i, row in tqdm(df_trial.iterrows(), total=len(df_trial)):
             modelid = row["modelid"]
             segid = row["segmentid"]
             lang_cond = LangTrialCond.get_trial_cond(
@@ -459,6 +466,7 @@ class SRE24DataPrep(DataPrep):
                 "gender": ["male", "female"],
             }
         else:
+            logging.info("getting extra trial conditions")
             df_trial = self._get_extra_trial_conds(df_trial, df_segs)
             output_file = self.output_dir / "trials_ext.tsv"
             df_trial.to_csv(output_file, sep="\t", index=False)
@@ -472,15 +480,55 @@ class SRE24DataPrep(DataPrep):
                 "language": LangTrialCond.choices(),
                 "source_type": SourceTrialCond.choices(),
             }
+
+        logging.info("creating single condition trials")
         for att_name, att_vals in attributes.items():
             for val in att_vals:
                 file_name = f"trials_{att_name}_{val}"
                 output_file = self.output_dir / f"{file_name}.tsv"
-                df_trials_cond = df_trial.loc[
-                    df_trial[att_name] == val, ["modelid", "segmentid", "targettype"]
-                ]
+                if att_name == "phone_num_match" and val == "Y":
+                    df_trials_cond = df_trial.loc[
+                        (df_trial[att_name] == "Y")
+                        | (
+                            (df_trial[att_name] == "N")
+                            & (df_trial["targettype"] == "nontarget")
+                        ),
+                        ["modelid", "segmentid", "targettype"],
+                    ]
+                else:
+                    df_trials_cond = df_trial.loc[
+                        df_trial[att_name] == val,
+                        ["modelid", "segmentid", "targettype"],
+                    ]
+                if len(df_trials_cond) == 0:
+                    continue
                 df_trials_cond.to_csv(output_file, sep="\t", index=False)
                 trials[file_name] = output_file
+
+        # common partitions
+        logging.info("creating conditions condition trials")
+        if self.modality in ["audio-visual", "audio"]:
+            for gender in attributes["gender"]:
+                for source_match in attributes["source_type_match"]:
+                    for language_match in attributes["language_match"]:
+                        file_name = f"trials_gender_{gender}_source_type_match_{source_match}_language_match_{language_match}"
+                        output_file = self.output_dir / f"{file_name}.tsv"
+                        df_trials_cond = df_trial.loc[
+                            (df_trial["gender"] == gender)
+                            & (df_trial["source_type_match"] == source_match)
+                            & (df_trial["language_match"] == language_match)
+                        ]
+                        print(
+                            df_trials_cond,
+                            np.sum(df_trial["gender"] == gender),
+                            np.sum(df_trial["source_type_match"] == source_match),
+                            np.sum(df_trial["language_match"] == language_match),
+                            flush=True,
+                        )
+                        if len(df_trials_cond) == 0:
+                            continue
+                        df_trials_cond.to_csv(output_file, sep="\t", index=False)
+                        trials[file_name] = output_file
 
         return trials
 
