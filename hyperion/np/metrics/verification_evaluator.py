@@ -130,6 +130,10 @@ class VerificationEvaluator:
             df["min-dcf-%.3f" % (pi)] = min_dcf[i]
             df["act-dcf-%.3f" % (pi)] = act_dcf[i]
 
+        if len(min_dcf) > 1:
+            df["min-dcf-avg"] = np.mean(min_dcf)
+            df["act-dcf-avg"] = np.mean(act_dcf)
+
         df["num_targets"] = ntar
         df["num_nontargets"] = nnon
         return df

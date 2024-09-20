@@ -18,6 +18,7 @@ from .sre18 import SRE18DataPrep
 from .sre19_av import SRE19AVDataPrep
 from .sre19_cts import SRE19CTSDataPrep
 from .sre21 import SRE21DataPrep
+from .sre24 import SRE24DataPrep
 from .sre_cts_superset import SRECTSSupersetDataPrep
 from .voxceleb1 import VoxCeleb1DataPrep
 from .voxceleb2 import VoxCeleb2DataPrep

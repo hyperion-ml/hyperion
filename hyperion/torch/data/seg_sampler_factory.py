@@ -42,6 +42,11 @@ class SegSamplerFactory(object):
           dataset: sequence dataset object containing the data info of class AudioDataset or FeatSeqDataset.
           sampler_type: string indicating the sampler type.
         """
+        if "batch_size" in kwargs:
+            if kwargs["batch_size"] is not None:
+                kwargs["min_batch_size"] = kwargs.pop("batch_size")
+            else:
+                del kwargs["batch_size"]
 
         sampler_class = sampler_dict[sampler_type]
         sampler_kwargs = sampler_class.filter_args(**kwargs)

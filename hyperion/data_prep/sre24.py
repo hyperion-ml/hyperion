@@ -6,6 +6,7 @@
 import logging
 from enum import Enum
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -19,6 +20,7 @@ from ..utils import (
     ImageSet,
     RecordingSet,
     SegmentSet,
+    VADSet,
     VideoSet,
 )
 from ..utils.misc import PathLike
@@ -27,15 +29,15 @@ from .data_prep import DataPrep
 
 class LangTrialCond(str, Enum):
     ENG_ENG = "ENG_ENG"
-    ENG_CMN = "ENG_CMN"
-    ENG_YUE = "ENG_YUE"
-    CMN_CMN = "CMN_CMN"
-    CMN_YUE = "CMN_YUE"
-    YUE_YUE = "YUE_YUE"
-    OTHER_OTHER = "OTHER_OTHER"
-    OTHER_ENG = "OTHER_ENG"
-    OTHER_CMN = "OTHER_CMN"
-    OTHER_YUE = "OTHER_YUE"
+    ENG_FRA = "ENG_FRA"
+    ENG_ARA = "ENG_ARA"
+    FRA_FRA = "FRA_FRA"
+    FRA_ARA = "FRA_ARA"
+    ARA_ARA = "ARA_ARA"
+    # OTHER_OTHER = "OTHER_OTHER"
+    # OTHER_ENG = "OTHER_ENG"
+    # OTHER_FRA = "OTHER_FRA"
+    # OTHER_ARA = "OTHER_ARA"
 
     @staticmethod
     def choices():
@@ -49,12 +51,12 @@ class LangTrialCond(str, Enum):
 
     @staticmethod
     def get_side_cond(val):
-        if val in ["ENG", "USE", "english"]:
+        if val in ["ENG", "USE", "eng-eng"]:
             return "ENG"
-        if val in ["YUE", "cantonese"]:
-            return "YUE"
-        if val in ["CMN", "mandarin"]:
-            return "CMN"
+        if val in ["ARA", "ara-aeb"]:
+            return "ARA"
+        if val in ["FRA", "fra-ntf"]:
+            return "FRA"
 
         return "OTHER"
 
@@ -89,18 +91,21 @@ class SourceTrialCond(str, Enum):
             return SourceTrialCond[trial]
 
 
-class SRE21DataPrep(DataPrep):
-    """Class for preparing the SRE21 dev (LDC2021E09) or eval (LDC2021E10) database into tables
+class SRE24DataPrep(DataPrep):
+    """Class for preparing the SRE24 dev (LDC2024E12+LDC2024E34) or eval () database into tables
 
     Attributes:
       corpus_dir: input data directory
       output_dir: output data directory
       modality: audio, visual, audio-visual
-      subset: sre21 subset in [dev, eval]
-      partition: sre21 trial side in [enroll, test]
+      subset: sre24 subset in [dev, eval]
+      partition: sre24 trial side in [enroll, test]
       use_kaldi_ids: puts speaker-id in front of segment id like kaldi
       target_sample_freq: target sampling frequency to convert the audios to.
-      ldc_langs: convert language id to LDC format
+      with_videos: prepare videos.csv table
+      corpus_docs_dir: if docs are not in main dir, provide LDC2024E34 dir
+      num_threads: num_threads to collect recording info
+      use_ldc_langs: convert language id to LDC format
     """
 
     def __init__(
@@ -113,6 +118,7 @@ class SRE21DataPrep(DataPrep):
         use_kaldi_ids: bool,
         target_sample_freq: int,
         with_videos: bool,
+        corpus_docs_dir: Optional[PathLike] = None,
         num_threads: int = 10,
         use_ldc_langs: bool = False,
     ):
@@ -124,10 +130,14 @@ class SRE21DataPrep(DataPrep):
         self.partition = partition
         self.use_ldc_langs = use_ldc_langs
         self.with_videos = with_videos
+        if corpus_docs_dir is None:
+            corpus_docs_dir = corpus_dir
+
+        self.corpus_docs_dir = Path(corpus_docs_dir)
 
     @staticmethod
     def dataset_name():
-        return "sre21"
+        return "sre24"
 
     @staticmethod
     def add_class_args(parser):
@@ -141,13 +151,13 @@ class SRE21DataPrep(DataPrep):
         parser.add_argument(
             "--subset",
             choices=["dev", "eval"],
-            help="""sre21 subset in [dev, eval]""",
+            help="""sre24 subset in [dev, eval]""",
             required=True,
         )
         parser.add_argument(
             "--partition",
             choices=["enrollment", "test"],
-            help="""sre21 trial side in [enroll, test]""",
+            help="""sre24 trial side in [enroll, test]""",
             required=True,
         )
         parser.add_argument(
@@ -162,16 +172,47 @@ class SRE21DataPrep(DataPrep):
             action=ActionYesNo,
             help="""prepare video manifest""",
         )
+        parser.add_argument(
+            "--corpus-docs-dir",
+            default=None,
+            help="if docs are not in main dir, provide LDC2024E34 dir",
+        )
 
     def read_segments_metadata(self):
 
-        segments_file = (
-            self.corpus_dir / "docs" / f"sre21_{self.subset}_segment_key.tsv"
-        )
+        if (
+            self.modality == "audio"
+            or self.modality == "audio-visual"
+            and self.partition == "enrollment"
+        ):
+            segments_file = (
+                self.corpus_docs_dir
+                / "docs"
+                / f"sre24_audio_{self.subset}_segment_key.tsv"
+            )
+        elif self.modality in ["visual", "audio-visual"] and self.partition == "test":
+            segments_file = (
+                self.corpus_docs_dir
+                / "docs"
+                / f"sre24_video_{self.subset}_segment_key.tsv"
+            )
+        elif self.modality == "visual" and self.partition == "enrollment":
+            segments_file = (
+                self.corpus_docs_dir
+                / "docs"
+                / f"sre24_image_{self.subset}_segment_key.tsv"
+            )
+        else:
+            raise ValueError(f"invalid combination {self.modality=} {self.partition=}")
+
         logging.info("loading segment metadata from %s", segments_file)
         df_segs = pd.read_csv(segments_file, sep="\t")
         df_segs.rename(
-            columns={"segmentid": "id", "subjectid": "speaker"},
+            columns={
+                "segmentid": "id",
+                "subjectid": "speaker",
+                "enrollment_or_test": "partition",
+            },
             inplace=True,
         )
         df_segs["gender"] = df_segs["gender"].apply(
@@ -179,32 +220,32 @@ class SRE21DataPrep(DataPrep):
         )
         df_segs["speaker"] = df_segs["speaker"].astype(str)
         df_segs = df_segs.loc[df_segs["partition"] == self.partition]
-        if self.partition == "enrollment":
-            jpg = df_segs["id"].str.match(r".*\.jpg$")
-            if self.modality in ["audio", "audio-visual"]:
-                df_segs = df_segs.loc[~jpg]
-            else:
-                df_segs = df_segs.loc[jpg]
-        else:
-            # mp4 = df_segs["filename"].apply(lambda x: x[-3:] != "mp4")
-            mp4 = df_segs["id"].str.match(r".*\.mp4$")
-            if self.modality == "audio":
-                df_segs = df_segs.loc[~mp4]
-            elif self.modality in ["visual", "audio-visual"]:
-                df_segs = df_segs.loc[mp4]
-                df_segs["source_type"] = "afv"
+        if self.modality == "audio-visual" and self.partition == "test":
+            df_segs["source_type"] = "afv"
+        # if self.partition == "enrollment":
+        #     jpg = df_segs["id"].str.match(r".*\.jpg$")
+        #     if self.modality in ["audio", "audio-visual"]:
+        #         df_segs = df_segs.loc[~jpg]
+        #     else:
+        #         df_segs = df_segs.loc[jpg]
+        # else:
+        #     # mp4 = df_segs["filename"].apply(lambda x: x[-3:] != "mp4")
+        #     mp4 = df_segs["id"].str.match(r".*\.mp4$")
+        #     if self.modality == "audio":
+        #         df_segs = df_segs.loc[~mp4]
+        #     elif self.modality in ["visual", "audio-visual"]:
+        #         df_segs = df_segs.loc[mp4]
+        #         df_segs["source_type"] = "afv"
 
         if self.use_ldc_langs:
-            df_segs.replace({"language": "english"}, {"language": "ENG"}, inplace=True)
-            df_segs.replace(
-                {"language": "cantonese"}, {"language": "YUE"}, inplace=True
-            )
-            df_segs.replace({"language": "mandarin"}, {"language": "CMN"}, inplace=True)
+            df_segs.replace({"language": "eng-eng"}, {"language": "ENG"}, inplace=True)
+            df_segs.replace({"language": "ara-aeb"}, {"language": "ARA"}, inplace=True)
+            df_segs.replace({"language": "fra-ntf"}, {"language": "FRA"}, inplace=True)
 
         # df_segs.loc[df_segs["id"].str.match(r".*\.mp4$"), "source_type"] = "afv"
         df_segs["filename"] = df_segs["id"]
         df_segs["dataset"] = self.dataset_name()
-        df_segs["corpusid"] = "we_can_talk"
+        df_segs["corpusid"] = "telvid"
         if self.use_kaldi_ids:
             df_segs["id"] = df_segs[["speaker", "id"]].apply(
                 lambda row: "-".join(row.values.astype(str)), axis=1
@@ -216,9 +257,9 @@ class SRE21DataPrep(DataPrep):
 
         logging.info("making RecordingSet")
         if self.modality == "audio":
-            wav_dir = self.corpus_dir / "data" / "audio" / self.partition
+            wav_dir = self.corpus_dir / "data" / self.partition
         else:
-            wav_dir = self.corpus_dir / "data" / "video" / self.partition
+            wav_dir = self.corpus_dir / "data" / self.partition
 
         df_recs = df_segs[["id"]].copy()
         if self.modality == "audio":
@@ -252,7 +293,7 @@ class SRE21DataPrep(DataPrep):
 
         logging.info("making ImageSet")
 
-        img_dir = self.corpus_dir / "data" / "image" / self.partition
+        img_dir = self.corpus_dir / "data" / self.partition
         df_imgs = df_segs[["id"]].copy()
         df_imgs["storage_path"] = df_segs["filename"].apply(lambda x: f"{img_dir/x}")
 
@@ -305,7 +346,9 @@ class SRE21DataPrep(DataPrep):
         logging.info("making Enrollment")
         if self.modality in ["audio", "audio-visual"]:
             enroll_file = (
-                self.corpus_dir / "docs" / f"sre21_audio_{self.subset}_enrollment.tsv"
+                self.corpus_docs_dir
+                / "docs"
+                / f"sre24_enrollment_{self.subset}_model_key.tsv"
             )
             df_enr = pd.read_csv(enroll_file, sep="\t")
             if self.use_kaldi_ids:
@@ -318,16 +361,22 @@ class SRE21DataPrep(DataPrep):
                 )
                 df_enr.drop(columns=["speaker"], inplace=True)
 
-            assert df_segs["id"].isin(df_enr["segmentid"]).all()
+            assert (
+                df_segs["id"].isin(df_enr["segmentid"]).all()
+            ), f"{df_segs['id']} not all in {df_enr['segmentid']}"
+            logging.info("made Enrollment")
             return {"enrollment": EnrollmentMap(df_enr)}
 
         if self.modality == "visual":
             key_file = (
-                self.corpus_dir / "docs" / f"sre21_visual_{self.subset}_trial_key.tsv"
+                self.corpus_docs_dir
+                / "docs"
+                / f"sre24_visual_{self.subset}_trial_key.tsv"
             )
             df_key = pd.read_csv(key_file, sep="\t")
             ids = np.unique(df_key["imageid"])
             df_enr = pd.DataFrame({"id": ids, "segmentid": ids})
+            logging.info("made Enrollment")
             return {"enrollment": EnrollmentMap(df_enr)}
 
     def _get_enroll_conds(self):
@@ -340,18 +389,29 @@ class SRE21DataPrep(DataPrep):
         modelids = enr_map["id"].unique()
         langs = []
         sources = []
+        num_enrs = []
+        logging.info("get enrollment conditions")
         for modelid in modelids:
             seg_id = enr_map.loc[modelid, "segmentid"]
-            if not isinstance(seg_id, str):
+            if isinstance(seg_id, str):
+                num_enrs_i = 1
+            else:
+                num_enrs_i = len(seg_id)
                 seg_id = seg_id.values[0]
 
             lang = df_segs.loc[seg_id, "language"]
             source = df_segs.loc[seg_id, "source_type"]
             langs.append(lang)
             sources.append(source)
+            num_enrs.append(num_enrs_i)
 
         df_enr_conds = pd.DataFrame(
-            {"id": modelids, "language": langs, "source_type": sources}
+            {
+                "id": modelids,
+                "language": langs,
+                "source_type": sources,
+                "num_enroll_segs": num_enrs,
+            }
         )
         df_enr_conds.set_index("id", inplace=True)
         return df_enr_conds
@@ -371,15 +431,16 @@ class SRE21DataPrep(DataPrep):
             )
             df_trial.loc[i, "language"] = lang_cond
             df_trial.loc[i, "source_type"] = source_cond
+            df_trial.loc[i, "num_enroll_segs"] = df_enr.loc[modelid, "num_enroll_segs"]
 
         return df_trial
 
     def make_trials(self, df_segs):
         logging.info("making Trials")
         trial_file = (
-            self.corpus_dir
+            self.corpus_docs_dir
             / "docs"
-            / f"sre21_{self.modality}_{self.subset}_trial_key.tsv"
+            / f"sre24_{self.modality}_{self.subset}_trial_key.tsv"
         )
 
         df_trial = pd.read_csv(trial_file, sep="\t")
@@ -446,43 +507,7 @@ class SRE21DataPrep(DataPrep):
 
         # common partitions
         logging.info("creating conditions condition trials")
-        if self.modality == "audio":
-            for gender in attributes["gender"]:
-                for source_match in attributes["source_type_match"]:
-                    for language_match in attributes["language_match"]:
-                        for phone_num_match in attributes["phone_num_match"]:
-                            file_name = f"trials_gender_{gender}_source_type_match_{source_match}_language_match_{language_match}_phone_num_match_{phone_num_match}"
-                            output_file = self.output_dir / f"{file_name}.tsv"
-                            df_trials_cond = df_trial.loc[
-                                (df_trial["gender"] == gender)
-                                & (df_trial["source_type_match"] == source_match)
-                                & (df_trial["language_match"] == language_match)
-                                & (
-                                    (df_trial["phone_num_match"] == phone_num_match)
-                                    | (
-                                        (df_trial["phone_num_match"] != phone_num_match)
-                                        & (df_trial["phone_num_match"] == "N")
-                                        & (df_trial["targettype"] == "nontarget")
-                                    )
-                                )
-                            ]
-                            if len(df_trials_cond) == 0:
-                                print(
-                                    df_trials_cond,
-                                    np.sum(df_trial["gender"] == gender),
-                                    np.sum(
-                                        df_trial["source_type_match"] == source_match
-                                    ),
-                                    np.sum(
-                                        df_trial["language_match"] == language_match
-                                    ),
-                                    flush=True,
-                                )
-                                continue
-                            df_trials_cond.to_csv(output_file, sep="\t", index=False)
-                            trials[file_name] = output_file
-
-        elif self.modality == "audio-visual":
+        if self.modality in ["audio-visual", "audio"]:
             for gender in attributes["gender"]:
                 for source_match in attributes["source_type_match"]:
                     for language_match in attributes["language_match"]:
@@ -493,6 +518,13 @@ class SRE21DataPrep(DataPrep):
                             & (df_trial["source_type_match"] == source_match)
                             & (df_trial["language_match"] == language_match)
                         ]
+                        print(
+                            df_trials_cond,
+                            np.sum(df_trial["gender"] == gender),
+                            np.sum(df_trial["source_type_match"] == source_match),
+                            np.sum(df_trial["language_match"] == language_match),
+                            flush=True,
+                        )
                         if len(df_trials_cond) == 0:
                             continue
                         df_trials_cond.to_csv(output_file, sep="\t", index=False)
@@ -500,9 +532,23 @@ class SRE21DataPrep(DataPrep):
 
         return trials
 
+    def make_vad_marks(self, df_segs):
+        logging.info("making VADSet")
+        marks_dir = self.corpus_docs_dir / "docs" / "diarization"
+        ids = []
+        filenames = []
+        for _, row in df_segs.iterrows():
+            vad_path = marks_dir / Path(row["filename"]).with_suffix(".tsv")
+            if vad_path.is_file():
+                ids.append(row["id"])
+                filenames.append(vad_path)
+
+        df_vad = pd.DataFrame({"id": ids, "storage_path": filenames})
+        return {"target_speaker": VADSet(df_vad)}
+
     def prepare(self):
         logging.info(
-            "Peparing SRE21 %s %s %s corpus_dir: %s -> data_dir: %s",
+            "Peparing sre24 %s %s %s corpus_dir: %s -> data_dir: %s",
             self.modality,
             self.subset,
             self.partition,
@@ -524,10 +570,12 @@ class SRE21DataPrep(DataPrep):
                 vids = self.make_video_set(df_segs)
 
         classes = self.make_class_infos(df_segs)
-
+        vads = None
         if self.partition == "enrollment":
             enrollments = self.make_enrollments(df_segs)
             trials = None
+            if self.modality == "audio":
+                vads = self.make_vad_marks(df_segs)
         else:
             enrollments = None
             trials = self.make_trials(df_segs)
@@ -542,6 +590,7 @@ class SRE21DataPrep(DataPrep):
             recordings=recs,
             images=imgs,
             videos=vids,
+            vads=vads,
             enrollments=enrollments,
             trials=trials,
             sparse_trials=False,

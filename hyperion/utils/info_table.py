@@ -8,7 +8,7 @@ import re
 from collections import OrderedDict
 from copy import deepcopy
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -94,6 +94,10 @@ class InfoTable:
     @property
     def eval(self):
         return self.df.eval
+
+    @property
+    def dropna(self):
+        return self.df.dropna
 
     @property
     def iterrows(self):
@@ -402,7 +406,74 @@ class InfoTable:
             right_on=right_on,
             left_index=left_index,
             right_index=right_index,
+            suffixes=(None, "_right"),
         )
+
+    def replace_columns(
+        self,
+        right_table,
+        column_names: Union[None, str, List[str], np.ndarray] = None,
+    ):
+        if isinstance(right_table, InfoTable):
+            right_table = right_table.df
+
+        if column_names is None:
+            column_names = right_table.columns
+
+        for column in column_names:
+            if column == "id":
+                continue
+
+            dtype = self.df.dtypes[column]
+            if column in self.df:
+                dtype_right = right_table.dtypes[column]
+                if dtype in [np.dtype("int64"), np.dtype("int32")] and dtype_right in [
+                    np.dtype("float64"),
+                    np.dtype("float32"),
+                ]:
+                    self.df[column] = self.df[column].astype(dtype_right)
+
+            self.df.loc[right_table.id, column] = right_table[column].astype(dtype)
+
+    @classmethod
+    def merge(
+        cls,
+        left_table,
+        right_table,
+        how: str = "inner",
+        on: Union[str, List[str], None] = None,
+        left_on: Union[str, List[str], None] = None,
+        right_on: Union[str, List[str], None] = None,
+        left_index: bool = False,
+        right_index: bool = False,
+        sort: bool = False,
+        suffixes: Tuple[str] = ("_x", "_y"),
+        copy: Optional[bool] = None,
+        indicator: Union[str, bool] = False,
+        validate: Optional[str] = None,
+    ):
+        if isinstance(left_table, InfoTable):
+            left_table = left_table.df
+
+        if isinstance(right_table, InfoTable):
+            right_table = right_table.df
+
+        df = pd.merge(
+            left=left_table,
+            right=right_table,
+            how=how,
+            on=on,
+            left_on=left_on,
+            right_on=right_on,
+            left_index=left_index,
+            right_index=right_index,
+            sort=sort,
+            suffixes=suffixes,
+            copy=copy,
+            indicator=indicator,
+            validate=validate,
+        )
+        return cls(df)
 
         # def __len__(self):
 

@@ -2,12 +2,13 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 #
 
 import torch
 import torch.nn as nn
 
-from ..layers.attention import *
+from ..layers.attention_v1 import *
 from .conformer_conv import ConformerConvBlock
 from .transformer_feedforward import *
 

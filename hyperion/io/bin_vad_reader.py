@@ -33,16 +33,24 @@ class BinVADReader(VADReader):
     def read_num_frames(self, keys):
         return self.r.read_dims(keys, assert_same_dim=False)
 
+    @property
+    def keys(self):
+        return self.r.keys
+
+    @property
+    def ids(self):
+        return self.r.keys
+
     def read(
         self,
         keys,
         squeeze=False,
         offset=0,
         num_frames=0,
-        frame_length=25,
-        frame_shift=10,
+        frame_length=25.0,
+        frame_shift=10.0,
         snip_edges=False,
-        signal_lengths=None,
+        duration=None,
     ):
 
         if isinstance(keys, str):
@@ -51,6 +59,14 @@ class BinVADReader(VADReader):
         assert frame_length == self.frame_length
         assert frame_shift == self.frame_shift
         assert snip_edges == self.snip_edges
+
+        if duration is not None:
+            num_frames = self._duration_to_num_frames(
+                duration,
+                frame_length=frame_length,
+                frame_shift=frame_shift,
+                snip_edges=snip_edges,
+            )
 
         offset_is_list, num_frames_is_list = self._assert_offsets_num_frames(
             keys, offset, num_frames
@@ -70,21 +86,45 @@ class BinVADReader(VADReader):
 
         return output_vad
 
-    def read_timestamps(self, keys, merge_tol=0.001):
+    def read_binary(
+        self,
+        keys,
+        squeeze=False,
+        offset=0,
+        num_frames=0,
+        frame_length=25.0,
+        frame_shift=10.0,
+        snip_edges=False,
+        duration=None,
+    ):
+        return self.read(
+            keys,
+            squeeze=squeeze,
+            offset=offset,
+            num_frames=num_frames,
+            frame_length=frame_length,
+            frame_shift=frame_shift,
+            snip_edges=snip_edges,
+            duration=duration,
+        )
+
+    def read_time_marks(self, keys, merge_tol=0.001):
         if isinstance(keys, str):
             keys = [keys]
 
         vad = self.r.read(keys)
-        ts = []
+        t_start = []
+        t_end = []
         for i in range(len(keys)):
             vad_i = vad[i].astype(bool, copy=False)
             ts_i = bin_vad_to_timestamps(
                 vad_i,
-                self.frame_length / 1000,
-                self.frame_shift / 1000,
+                self.frame_length,
+                self.frame_shift,
                 self.snip_edges,
                 merge_tol,
             )
-            ts.append(ts_i)
+            t_start.append(ts_i[0])
+            t_end.append(ts_i[1])
 
-        return ts
+        return t_start, t_end

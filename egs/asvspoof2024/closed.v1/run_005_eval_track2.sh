@@ -136,8 +136,8 @@ if [ $stage -le 4 ];then
   # The effective prior | nonspoof = effective_prior(0.99, c_fa=10, c_miss=1)=0.90
   # We calibrate using the effecitve prior | nonspoof
   hyperion-train-verification-calibration \
-    --key-file data/asvspoof2024_dev/trials_track2.csv \
-    --score-file $asv_score_cosine_dir/asvspoof2024_dev_scores.csv \
+    --key-files data/asvspoof2024_dev/trials_track2.csv \
+    --score-files $asv_score_cosine_dir/asvspoof2024_dev_scores.csv \
     --prior 0.90 \
     --model-file $asv_score_cosine_cal_dir/cal.h5
 

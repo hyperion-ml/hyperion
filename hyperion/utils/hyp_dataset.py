@@ -15,6 +15,7 @@ import pandas as pd
 import yaml
 
 from .class_info import ClassInfo
+from .diarization_set import DiarizationSet
 from .enrollment_map import EnrollmentMap
 from .feature_set import FeatureSet
 from .image_set import ImageSet
@@ -25,6 +26,7 @@ from .segment_set import SegmentSet
 from .sparse_trial_key import SparseTrialKey
 from .trial_key import TrialKey
 from .trial_ndx import TrialNdx
+from .vad_set import VADSet
 from .video_set import VideoSet
 
 
@@ -40,6 +42,8 @@ class HypDataset:
       images:       ImageSet object or paths to them
       videos:       VideoSet object or paths to them
       features:     Dictionary of FeatureSet objects or paths to then
+      vads:         Dicitonary of VADSet objects or paths to them
+      diarizations: Dicitonary of DiarizationSet objects or paths to them
       enrollments:  Dictionary of EnrollmentMap objects or paths to then
       trials:       Dictionary of TrialKey/TrialNdx/SparseTrialKey objects
         or paths to then
@@ -57,6 +61,8 @@ class HypDataset:
         images: Optional[Union[ImageSet, PathLike]] = None,
         videos: Optional[Union[VideoSet, PathLike]] = None,
         features: Optional[Dict[str, Union[FeatureSet, PathLike]]] = None,
+        vads: Optional[Dict[str, Union[VADSet, PathLike]]] = None,
+        diarizations: Optional[Dict[str, Union[DiarizationSet, PathLike]]] = None,
         enrollments: Optional[Dict[str, Union[EnrollmentMap, PathLike]]] = None,
         trials: Optional[
             Dict[str, Union[TrialKey, TrialNdx, SparseTrialKey, PathLike]]
@@ -107,6 +113,10 @@ class HypDataset:
         self._features, self._features_paths = self._parse_dict_args(
             features, FeatureSet
         )
+        self._vads, self._vads_paths = self._parse_dict_args(vads, VADSet)
+        self._diarizations, self._diarizations_paths = self._parse_dict_args(
+            diarizations, DiarizationSet
+        )
         self._enrollments, self._enrollments_paths = self._parse_dict_args(
             enrollments,
             EnrollmentMap,
@@ -146,12 +156,18 @@ class HypDataset:
 
     def get_dataset_files(self):
         file_paths = []
-        for file_path in [self._segments_path, self._recordings_path]:
+        for file_path in [
+            self._segments_path,
+            self._recordings_path,
+            self._videos_path,
+        ]:
             if file_path is not None:
                 file_paths.append(file_path)
 
         for path_dict in [
             self._features_paths,
+            self._vads_paths,
+            self._diarizations_paths,
             self._enrollments_paths,
             self._trials_paths,
         ]:
@@ -279,6 +295,44 @@ class HypDataset:
 
         return self._features[key]
 
+    def vads_keys(self):
+        if self._vads is not None:
+            return self._vads.keys()
+        elif self._vads_paths is not None:
+            return self._vads_paths.keys()
+        else:
+            return {}
+
+    def vads_value(self, key: str, keep_loaded: bool = True):
+        if self._vads[key] is None:
+            assert self._vads_paths[key] is not None
+            vads = VADSet.load(self._vads_paths[key], sep=self.table_sep)
+            if keep_loaded:
+                self._vads[key] = vads
+            return vads
+
+        return self._vads[key]
+
+    def diarizations_keys(self):
+        if self._diarizations is not None:
+            return self._diarizations.keys()
+        elif self._diarizations_paths is not None:
+            return self._diarizations_paths.keys()
+        else:
+            return {}
+
+    def diarizations_value(self, key: str, keep_loaded: bool = True):
+        if self._diarizations[key] is None:
+            assert self._diarizations_paths[key] is not None
+            diarizations = DiarizationSet.load(
+                self._diarizations_paths[key], sep=self.table_sep
+            )
+            if keep_loaded:
+                self._diarizations[key] = diarizations
+            return diarizations
+
+        return self._vads[key]
+
     def classes_keys(self):
         if self._classes is not None:
             return self._classes.keys()
@@ -339,6 +393,20 @@ class HypDataset:
         else:
             for key in self._features.keys():
                 yield key, self.features_value(key, keep_loaded)
+
+    def vads(self, keep_loaded: bool = True):
+        if self._vads is None:
+            yield from ()
+        else:
+            for key in self._vads.keys():
+                yield key, self.vads_value(key, keep_loaded)
+
+    def diarizations(self, keep_loaded: bool = True):
+        if self._diarizations is None:
+            yield from ()
+        else:
+            for key in self._diarizations.keys():
+                yield key, self.diarizations_value(key, keep_loaded)
 
     def classes(self, keep_loaded: bool = True):
         if self._classes is None:
@@ -562,6 +630,44 @@ class HypDataset:
             if file_names:
                 dataset["features"] = file_names
 
+        if self._vads is not None:
+            file_names = {}
+            for k in self._vads.keys():
+                file_name = k + table_ext
+                file_names[k] = file_name
+                file_path = dataset_dir / file_name
+                if (
+                    self._vads[k] is not None
+                    or file_path != self._vads_paths[k]
+                    or not file_path.exists()
+                ):
+                    v = self.vads_value(k, keep_loaded=False)
+                    v.save(file_path, sep=table_sep)
+                    if update_paths:
+                        self._vads_paths[k] = file_path
+
+            if file_names:
+                dataset["vads"] = file_names
+
+        if self._diarizations is not None:
+            file_names = {}
+            for k in self._diarizations.keys():
+                file_name = k + table_ext
+                file_names[k] = file_name
+                file_path = dataset_dir / file_name
+                if (
+                    self._diarizations[k] is not None
+                    or file_path != self._diarizations_paths[k]
+                    or not file_path.exists()
+                ):
+                    v = self.diarizations_value(k, keep_loaded=False)
+                    v.save(file_path, sep=table_sep)
+                    if update_paths:
+                        self._diarizations_paths[k] = file_path
+
+            if file_names:
+                dataset["diarizations"] = file_names
+
         if self._classes is not None:
             file_names = {}
             for k in self._classes.keys():
@@ -702,6 +808,30 @@ class HypDataset:
             dataset["features"] = file_names
 
         file_names = {}
+        for k, v in self.vads(keep_loaded=False):
+            file_name = k + table_ext
+            file_names[k] = file_name
+            file_path = dataset_dir / file_name
+            v.save(file_path, sep=table_sep)
+            if update_paths:
+                self._vads_paths[k] = file_path
+
+        if file_names:
+            dataset["vads"] = file_names
+
+        file_names = {}
+        for k, v in self.diarizations(keep_loaded=False):
+            file_name = k + table_ext
+            file_names[k] = file_name
+            file_path = dataset_dir / file_name
+            v.save(file_path, sep=table_sep)
+            if update_paths:
+                self._diarizations_paths[k] = file_path
+
+        if file_names:
+            dataset["diarizations"] = file_names
+
+        file_names = {}
         for k, v in self.classes(keep_loaded=False):
             file_name = k + table_ext
             file_names[k] = file_name
@@ -751,6 +881,12 @@ class HypDataset:
         for k, v in self.features():
             pass
 
+        for k, v in self.vads():
+            pass
+
+        for k, v in self.diarizations():
+            pass
+
         for k, v in self.classes():
             pass
 
@@ -785,6 +921,8 @@ class HypDataset:
         images = None
         videos = None
         features = None
+        vads = None
+        diarizations = None
         enrollments = None
         trials = None
         if "classes" in dataset:
@@ -811,6 +949,16 @@ class HypDataset:
             for k, v in dataset["features"].items():
                 features[k] = HypDataset.resolve_file_path(dataset_dir, v)
 
+        if "vads" in dataset:
+            vads = {}
+            for k, v in dataset["vads"].items():
+                vads[k] = HypDataset.resolve_file_path(dataset_dir, v)
+
+        if "diarizations" in dataset:
+            diarizations = {}
+            for k, v in dataset["diarizations"].items():
+                diarizations[k] = HypDataset.resolve_file_path(dataset_dir, v)
+
         if "enrollments" in dataset:
             enrollments = {}
             for k, v in dataset["enrollments"].items():
@@ -828,6 +976,8 @@ class HypDataset:
             images,
             videos,
             features,
+            vads,
+            diarizations,
             enrollments,
             trials,
             sparse_trials=sparse_trials,
@@ -836,20 +986,6 @@ class HypDataset:
             dataset.update_from_disk()
 
         return dataset
-
-    def add_features(self, features_name: str, features: Union[PathLike, FeatureSet]):
-        if self._features is None:
-            self._features = {}
-            self._features_paths = {}
-
-        if isinstance(features, (str, Path)):
-            self._features[features_name] = None
-            self._features_paths[features_name] = features
-        elif isinstance(features, FeatureSet):
-            self._features[features_name] = features
-            self._features_paths[features_name] = None
-        else:
-            raise ValueError()
 
     def set_segments(
         self,
@@ -913,6 +1049,50 @@ class HypDataset:
             rec_ids = self.segments(keep_loaded=True).recording()
             self.segments()["duration"] = self.videos().loc[rec_ids, "duration"]
 
+    def add_features(self, features_name: str, features: Union[PathLike, FeatureSet]):
+        if self._features is None:
+            self._features = {}
+            self._features_paths = {}
+
+        if isinstance(features, (str, Path)):
+            self._features[features_name] = None
+            self._features_paths[features_name] = features
+        elif isinstance(features, FeatureSet):
+            self._features[features_name] = features
+            self._features_paths[features_name] = None
+        else:
+            raise ValueError()
+
+    def add_vads(self, vads_name: str, vads: Union[PathLike, VADSet]):
+        if self._vads is None:
+            self._vads = {}
+            self._vads_paths = {}
+
+        if isinstance(vads, (str, Path)):
+            self._vads[vads_name] = None
+            self._vads_paths[vads_name] = vads
+        elif isinstance(vads, VADSet):
+            self._vads[vads_name] = vads
+            self._vads_paths[vads_name] = None
+        else:
+            raise ValueError()
+
+    def add_diarizations(
+        self, diarizations_name: str, diarizations: Union[PathLike, DiarizationSet]
+    ):
+        if self._diarizations is None:
+            self._diarizations = {}
+            self._diarizations_paths = {}
+
+        if isinstance(diarizations, (str, Path)):
+            self._diarizations[diarizations_name] = None
+            self._diarizations_paths[diarizations_name] = diarizations
+        elif isinstance(diarizations, DiarizationSet):
+            self._diarizations[diarizations_name] = diarizations
+            self._diarizations_paths[diarizations_name] = None
+        else:
+            raise ValueError()
+
     def add_classes(self, classes_name: str, classes: Union[PathLike, ClassInfo]):
         if self._classes is None:
             self._classes = {}
@@ -963,13 +1143,6 @@ class HypDataset:
         else:
             raise ValueError()
 
-    def remove_features(self, features_name: str):
-        if self._features_paths[features_name] is not None:
-            self._files_to_delete.append(self._features_paths[features_name])
-
-        del self._features[features_name]
-        del self._features_paths[features_name]
-
     def remove_recordings(
         self,
     ):
@@ -996,6 +1169,27 @@ class HypDataset:
 
         self._videos = None
         self._videos_path = None
+
+    def remove_features(self, features_name: str):
+        if self._features_paths[features_name] is not None:
+            self._files_to_delete.append(self._features_paths[features_name])
+
+        del self._features[features_name]
+        del self._features_paths[features_name]
+
+    def remove_vads(self, vads_name: str):
+        if self._vads_paths[vads_name] is not None:
+            self._files_to_delete.append(self._vads_paths[vads_name])
+
+        del self._vads[vads_name]
+        del self._vads_paths[vads_name]
+
+    def remove_diarizations(self, diarizations_name: str):
+        if self._diarizations_paths[diarizations_name] is not None:
+            self._files_to_delete.append(self._diarizations_paths[diarizations_name])
+
+        del self._diarizations[diarizations_name]
+        del self._diarizations_paths[diarizations_name]
 
     def remove_classes(self, classes_name: str):
         if self._classes_paths[classes_name] is not None:
@@ -1046,6 +1240,10 @@ class HypDataset:
                     right_table = self.videos()
                 elif right_table in self.features_keys():
                     right_table = self.features_value(right_table)
+                elif right_table in self.vads_keys():
+                    right_table = self.vads_value(right_table)
+                elif right_table in self.diarizations_keys():
+                    right_table = self.diarizations_value(right_table)
                 elif right_table in self.classes_keys():
                     right_table = self.classes_value(right_table)
                 else:
@@ -1100,6 +1298,12 @@ class HypDataset:
         ids = self.segments()["id"].values
         for k, table in self.features():
             self._features[k] = table.filter(lambda df: df["id"].isin(ids))
+
+        for k, table in self.vads():
+            self._vads[k] = table.filter(lambda df: df["id"].isin(ids))
+
+        for k, table in self.diarizations():
+            self._diarizations[k] = table.filter(lambda df: df["id"].isin(ids))
 
         remove_keys = []
         for k, table in self.classes():
@@ -1164,8 +1368,6 @@ class HypDataset:
         tar = np.zeros((n - 1, n), dtype=bool)
         non = np.zeros((n - 1, n), dtype=bool)
 
-        ntar = 0
-        nnon = 0
         for i in range(n - 1):
             for j in range(i + 1, n):
                 if class_ids[i] == class_ids[j]:
@@ -1294,6 +1496,71 @@ class HypDataset:
             class_info = self.classes_value(class_name)
             class_info.add_class_idx()
 
+    def remove_class_ids(
+        self,
+        class_name: str,
+        class_ids: List[str],
+        remove_na: bool,
+        rebuild_idx: bool = False,
+    ):
+        segments = self.segments()
+        if remove_na:
+            self._segments = segments.dropna(subset=[class_name], inplace=True)
+
+        if class_ids is not None:
+            self._segments = segments.filter(lambda df: ~df[class_name].isin(class_ids))
+        self.clean()
+        if rebuild_idx:
+            class_info = self.classes_value(class_name)
+            class_info.add_class_idx()
+
+    def filter_by_classes(
+        self,
+        class_name: str,
+        classes: ClassInfo,
+        rebuild_idx: bool = False,
+        keep: bool = True,
+    ):
+        segments = self.segments()
+        class_ids = classes["id"]
+        self._segments = segments.filter(
+            lambda df: df[class_name].isin(class_ids), keep=keep
+        )
+        self.clean()
+        if rebuild_idx:
+            class_info = self.classes_value(class_name)
+            class_info.add_class_idx()
+
+    def filter_by_classes_and_enrollments(
+        self,
+        class_name: str,
+        classes: ClassInfo,
+        enrollment_name: str,
+        enrollments: EnrollmentMap,
+        rebuild_idx: bool = False,
+        keep: bool = True,
+    ):
+        segments = self.segments()
+        class_ids = classes["id"]
+        self._segments = segments.filter(
+            lambda df: df[class_name].isin(class_ids), keep=keep
+        )
+        model_ids = np.unique(np.unique(enrollments["id"]))
+        if self._enrollments is not None and enrollment_name in self._enrollments:
+            my_enrollments = self.enrollments_value(enrollment_name)
+            self.enrollments[enrollment_name] = my_enrollments.filter(
+                items=model_ids, keep=keep
+            )
+
+        for k, key in self.trials():
+            key = key.filter_by_model(model_ids, keep=keep, raise_missing=False)
+            self._trials[k] = key
+
+        self.clean()
+        if rebuild_idx:
+            class_info = self.classes_value(class_name)
+            class_info.add_class_idx()
+
     def rebuild_class_idx(self, class_name: str):
         class_info = self.classes_value(class_name)
         class_info.add_class_idx()
@@ -1324,7 +1591,7 @@ class HypDataset:
         classes = segments[joint_classes].apply("-".join, axis=1)
         u_classes, class_ids = np.unique(classes, return_inverse=True)
         train_mask = np.zeros(len(segments), dtype=bool)
-        kk = 0
+        # kk = 0
         for c_id in range(len(u_classes)):
             idx = (class_ids == c_id).nonzero()[0]
             count = len(idx)
@@ -1332,7 +1599,7 @@ class HypDataset:
             num_train = max(
                 int(round((1 - val_prob) * count)), min(min_train_samples, count)
             )
-            kk += count - num_train
+            # kk += count - num_train
             train_idx = idx[p[:num_train]]
             train_mask[train_idx] = True
 
@@ -1462,6 +1729,223 @@ class HypDataset:
 
         return train_ds, val_ds
 
+    def _segments_split_folds(self, num_folds: int, rng: np.random.Generator):
+        segments = self.segments()
+        p = rng.permutation(len(segments))
+        segs_per_fold = len(p) // num_folds
+        start = 0
+        train_folds = []
+        test_folds = []
+        for i in range(num_folds):
+            if i < num_folds - 1:
+                fold_idx = p[start : start + segs_per_fold]
+                start += segs_per_fold
+            else:
+                fold_idx = p[start:]
+
+            test_fold_segs = segments.filter(iiindex=fold_idx, keep=True)
+            test_fold_segs.sort()
+            train_fold_segs = segments.filter(iiindex=fold_idx, keep=False)
+            train_fold_segs.sort()
+            test_folds.append(test_fold_segs)
+            train_folds.append(train_fold_segs)
+
+        return train_folds, test_folds
+
+    def _segments_split_folds_joint_classes(
+        self,
+        num_folds: int,
+        joint_classes: List[str],
+        rng: np.random.Generator,
+    ):
+        segments = self.segments()
+        classes = segments[joint_classes].apply("-".join, axis=1)
+        u_classes, class_ids, class_counts = np.unique(
+            classes, return_inverse=True, return_counts=True
+        )
+        train_folds = []
+        test_folds = []
+        starts = np.zeros((len(u_classes)), dtype=int)
+        class_segs_per_fold = class_counts // num_folds
+        permutations = []
+        for c_id in range(len(u_classes)):
+            permutations.append(rng.permutation(class_counts[c_id]))
+
+        for i in range(num_folds):
+            test_idx = []
+            for c_id in range(len(u_classes)):
+                idx = (class_ids == c_id).nonzero()[0]
+                idx = idx[permutations[c_id]]
+                if i < num_folds - 1:
+                    idx_fold = idx[
+                        starts[c_id] : starts[c_id] + class_segs_per_fold[c_id]
+                    ]
+                    starts[c_id] = starts[c_id] + class_segs_per_fold[c_id]
+                else:
+                    idx_fold = idx[starts[c_id] :]
+
+                assert len(idx_fold) < len(
+                    idx
+                ), f"{u_classes[i]} with {len(idx)} samples doesn't have training samples in fold {i}"
+                test_idx.append(idx_fold)
+
+            test_idx = np.concatenate(test_idx, axis=0)
+            test_segs = segments.filter(iindex=test_idx)
+            test_segs.sort()
+
+            train_segs = segments.filter(iindex=test_idx, keep=False)
+            train_segs.sort()
+            test_folds.append(test_segs)
+            train_folds.append(train_segs)
+
+        return train_folds, test_folds
+
+    def _segments_split_folds_disjoint_classes(
+        self,
+        num_folds: float,
+        disjoint_classes: List[str],
+        rng: np.random.Generator,
+    ):
+        segments = self.segments()
+        classes = segments[disjoint_classes].apply("-".join, axis=1)
+        u_classes, class_ids = np.unique(classes, return_inverse=True)
+        p = rng.permutation(len(u_classes))
+        class_ids = p[class_ids]
+        classes_per_fold = len(u_classes) // num_folds
+        train_folds = []
+        test_folds = []
+        start = 0
+        for i in range(num_folds):
+            if i < num_folds - 1:
+                test_mask = np.logical_and(
+                    class_ids >= start, class_ids < start + classes_per_fold
+                )
+                start += classes_per_fold
+            else:
+                test_mask = class_ids >= start
+
+            test_idx = test_mask.nonzero()[0]
+            test_segs = segments.filter(iindex=test_idx, keep=True)
+            test_segs.sort()
+            train_segs = segments.filter(iindex=test_idx, keep=False)
+            train_segs.sort()
+            test_folds.append(test_segs)
+            train_folds.append(train_segs)
+
+        return train_folds, test_folds
+
+    def _segments_split_folds_joint_and_disjoint_classes(
+        self,
+        num_folds: int,
+        joint_classes: List[str],
+        disjoint_classes: List[str],
+        rng: np.random.Generator,
+    ):
+        segments = self.segments()
+        jclasses = segments[joint_classes].apply("-".join, axis=1)
+        u_jclasses, jclass_ids = np.unique(jclasses, return_inverse=True)
+        dclasses = segments[disjoint_classes].apply("-".join, axis=1)
+        u_dclasses, dclass_ids = np.unique(
+            dclasses,
+            return_inverse=True,
+        )
+        counts = np.zeros((len(u_dclasses), len(u_jclasses)), dtype=int)
+        for i in range(len(u_dclasses)):
+            jclass_ids_i = jclass_ids[dclass_ids == i]
+            for j in range(len(u_jclasses)):
+                counts[i, j] = np.sum(jclass_ids_i == j)
+
+        available = {i for i in range(len(u_dclasses))}
+        sel_class = rng.choice(len(u_dclasses))
+        available.remove(sel_class)
+        p = np.zeros(len(u_dclasses), dtype=int)
+        counts_acc = counts[sel_class]
+        for i in range(1, len(u_dclasses)):
+            best_j = -1
+            best_entropy = 0
+            for j in available:
+                counts_ij = counts_acc + counts[j]
+                p_ij = counts_ij / counts_ij.sum()
+                entropy_ij = -np.sum(p_ij * np.log(p_ij + 1e-5))
+                if entropy_ij > best_entropy:
+                    best_entropy = entropy_ij
+                    best_j = j
+            p[best_j] = i
+            available.remove(best_j)
+            counts_acc += counts[best_j]
+
+        dclass_ids = p[dclass_ids]
+        classes_per_fold = len(u_dclasses) // num_folds
+        train_folds = []
+        test_folds = []
+        start = 0
+        for i in range(num_folds):
+            if i < num_folds - 1:
+                test_mask = np.logical_and(
+                    dclass_ids >= start, dclass_ids < start + classes_per_fold
+                )
+                start += classes_per_fold
+            else:
+                test_mask = dclass_ids >= start
+
+            test_idx = test_mask.nonzero()[0]
+            test_segs = segments.filter(iindex=test_idx, keep=True)
+            test_segs.sort()
+            train_segs = segments.filter(iindex=test_idx, keep=False)
+            train_segs.sort()
+            test_folds.append(test_segs)
+            train_folds.append(train_segs)
+
+        return train_folds, test_folds
+
+    def split_folds(
+        self,
+        num_folds: int,
+        joint_classes: Optional[List[str]] = None,
+        disjoint_classes: Optional[List[str]] = None,
+        seed: int = 11235813,
+    ):
+        rng = np.random.default_rng(seed)
+        if joint_classes is None and disjoint_classes is None:
+            train_segs, test_segs = self._segments_folds_split(num_folds, rng)
+        elif joint_classes is not None and disjoint_classes is None:
+            train_segs, test_segs = self._segments_split_folds_joint_classes(
+                num_folds,
+                joint_classes,
+                rng,
+            )
+        elif joint_classes is None and disjoint_classes is not None:
+            train_segs, test_segs = self._segments_split_folds_disjoint_classes(
+                num_folds,
+                disjoint_classes,
+                rng,
+            )
+        else:
+            train_segs, test_segs = (
+                self._segments_split_folds_joint_and_disjoint_classes(
+                    num_folds,
+                    joint_classes,
+                    disjoint_classes,
+                    rng,
+                )
+            )
+
+        train_folds = []
+        test_folds = []
+        for train_segs_i, test_segs_i in zip(train_segs, test_segs):
+            train_fold = self.clone()
+            train_fold.set_segments(train_segs_i)
+            train_fold.clean()
+
+            test_fold = self.clone()
+            test_fold.set_segments(test_segs_i)
+            test_fold.clean()
+
+            train_folds.append(train_fold)
+            test_folds.append(test_fold)
+
+        return train_folds, test_folds
+
     @classmethod
     def merge(cls, datasets):
         segments = []
@@ -1534,6 +2018,38 @@ class HypDataset:
 
             features = FeatureSet.cat(features)
             dataset.add_features(features_name=key, features=features)
+
+        vads_keys = []
+        for dset in datasets:
+            vads_dset = list(dset.vads_keys())
+            vads_keys.extend(vads_dset)
+
+        vads_keys = list(set(vads_keys))
+        for key in vads_keys:
+            vads = []
+            for dset in datasets:
+                if key in dset.vads_keys():
+                    vads_key = dset.vads_value(key, keep_loaded=False)
+                    vads.append(vads_key)
+
+            vads = VADSet.cat(vads)
+            dataset.add_vads(vads_name=key, vads=vads)
+
+        diarizations_keys = []
+        for dset in datasets:
+            diarizations_dset = list(dset.diarizations_keys())
+            diarizations_keys.extend(diarizations_dset)
+
+        diarizations_keys = list(set(diarizations_keys))
+        for key in diarizations_keys:
+            diarizations = []
+            for dset in datasets:
+                if key in dset.diarizations_keys():
+                    diarizations_key = dset.diarizations_value(key, keep_loaded=False)
+                    diarizations.append(diarizations_key)
+
+            diarizations = DiarizationSet.cat(diarizations)
+            dataset.add_diarizations(diarizations_name=key, diarizations=diarizations)
 
         # TODO: merge enrollments and trials
         # Usually you don't need that
