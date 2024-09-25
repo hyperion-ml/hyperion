@@ -303,7 +303,7 @@ class SRE24DataPrep(DataPrep):
     def make_video_set(self, df_segs):
 
         logging.info("making VideoSet")
-        vid_dir = self.corpus_dir / "data" / "video" / self.partition
+        vid_dir = self.corpus_dir / "data" / self.partition
 
         df_vids = df_segs[["id"]].copy()
         df_vids["sample_freq"] = 44100

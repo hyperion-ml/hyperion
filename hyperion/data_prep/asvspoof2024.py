@@ -78,11 +78,11 @@ class ASVSpoof2024DataPrep(DataPrep):
             choices=[
                 "train",
                 "dev",
+                "progress",
                 "eval",
                 "dev_enroll",
-                "eval_enroll",
-                "progress",
                 "progress_enroll",
+                "eval_enroll",
             ],
             help="""if we prepare the data for ["train", "dev", "eval", "dev_enroll", "eval_enroll", "progress", "progress_enroll"]""",
             required=True,
@@ -210,6 +210,8 @@ class ASVSpoof2024DataPrep(DataPrep):
             file_path = self.corpus_dir / f"ASVspoof5.dev.enroll.txt"
         elif self.subset == "progress_enroll":
             file_path = self.corpus_dir / f"ASVspoof5.track_2.progress.enroll.txt"
+        elif self.subset == "eval_enroll":
+            file_path = self.corpus_dir / f"ASVspoof5.track_2.eval.enroll.txt"
 
         enrollments = {}
         df_in = pd.read_csv(
@@ -263,8 +265,8 @@ class ASVSpoof2024DataPrep(DataPrep):
 
         if "enroll" in self.subset:
             self.prepare_enroll()
-        elif self.subset == "progress":
-            self.prepare_progress()
+        elif self.subset in ["progress", "eval"]:
+            self.prepare_progress_eval()
         else:
             self.prepare_test()
 
@@ -278,6 +280,8 @@ class ASVSpoof2024DataPrep(DataPrep):
             rec_dir = self.corpus_dir / "flac_D"
         elif self.subset == "progress_enroll":
             rec_dir = self.corpus_dir / "flac_E_prog"
+        elif self.subset == "eval_enroll":
+            rec_dir = self.corpus_dir / "flac_E_eval"
 
         logging.info("searching audio files in %s", str(rec_dir))
         rec_files = list(rec_dir.glob("**/*.flac"))
@@ -466,7 +470,7 @@ class ASVSpoof2024DataPrep(DataPrep):
             len(asvspoof_speakers),
         )
 
-    def prepare_progress(self):
+    def prepare_progress_eval(self):
 
         file_path = self.corpus_dir / f"ASVspoof5.track_1.{self.subset}.trial.txt"
         df_meta = pd.read_csv(
@@ -478,6 +482,8 @@ class ASVSpoof2024DataPrep(DataPrep):
 
         if self.subset == "progress":
             rec_dir = self.corpus_dir / f"flac_E_prog"
+        else:
+            rec_dir = self.corpus_dir / f"flac_E_eval"
 
         logging.info("searching audio files in %s", str(rec_dir))
         rec_files = list(rec_dir.glob("**/*.flac"))
@@ -488,7 +494,6 @@ class ASVSpoof2024DataPrep(DataPrep):
             ]
 
         assert len(rec_files) > 0, "recording files not found"
-        print(df_meta)
         rec_files = [f for f in rec_files if f.with_suffix("").name in df_meta.index]
         assert len(rec_files) > 0, "recording files don't match metadata file"
         file_names = [f.with_suffix("").name for f in rec_files]

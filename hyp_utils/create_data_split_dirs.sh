@@ -38,6 +38,9 @@ if [[ $(hostname -f) == *.clsp.jhu.edu ]] && [ ! -d $linkdir ]; then
   elif [ "$nodes" == "fs01" ];then
     hyp_utils/create_split_dir.pl \
       /export/fs01/$dir_name $link_dir
+  elif [ "$nodes" == "fs056" ];then
+    hyp_utils/create_split_dir.pl \
+      /export/fs0{5,6}/$dir_name $link_dir
   else
     echo "we don't distribute data between multiple machines"
   fi

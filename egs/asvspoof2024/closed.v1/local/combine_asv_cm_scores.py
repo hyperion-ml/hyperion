@@ -10,6 +10,7 @@ import numpy as np
 from jsonargparse import ActionConfigFile, ArgumentParser, namespace_to_dict
 
 from hyperion.hyp_defs import config_logger, float_cpu, set_float_cpu
+from hyperion.np.metrics import effective_prior
 from hyperion.utils import SegmentSet, TrialScores
 
 
@@ -53,14 +54,16 @@ def combine_asv_cm_scores(
 
     # logP(same | x_e, x_t, bonafide) = log-sigmoid(LLR_sv + log P(tar|bonafide)/P(non|bonafide))
     p_tar_bonafide = p_tar / (p_tar + p_non)
-    p_non_bonafide = 1 - p_tar_bonafide
+    p_tar_bonafide_eff = effective_prior(p_tar_bonafide, c_miss, c_fa)
+    p_non_bonafide_eff = 1 - p_tar_bonafide_eff
     log_p_same_given_data_bonafide = log_sigmoid(
-        asv_scores.scores + math.log(p_tar_bonafide) - math.log(p_non_bonafide)
+        asv_scores.scores + math.log(p_tar_bonafide_eff) - math.log(p_non_bonafide_eff)
     )
 
     # logP(bonafide | x_t) = log-sigmoid(LLR_sv + log P(bonafide)/P(spoof))
+    p_bonafide_eff = effective_prior(1-p_spoof, c_miss, c_fa_spoof)
     log_p_bonafide_given_data = log_sigmoid(
-        cm_scores.scores + math.log(1 - p_spoof) - math.log(p_spoof)
+        cm_scores.scores + math.log(p_bonafide_eff) - math.log(1-p_bonafide_eff)
     )
 
     # log P(same, bonafide | x_e, x_t) =
@@ -73,10 +76,11 @@ def combine_asv_cm_scores(
     # Solving:
     # P(same, bonafide | x_e, x_t) = sigmoid(LLR + log P(same, bonafide) / P(diff or spoof))
     # where P(same, bonafide) = P(tar) and P(diff or spoof) = P(non) + P(spoof) = 1 - P(tar)
+    p_tar_eff = effective_prior(p_tar, c_miss, (c_fa * p_non + c_fa_spoof*p_spoof)/(1-p_tar))
     llr = (
         inv_log_sigmoid(log_p_same_bonafide_given_data)
-        - math.log(p_tar)
-        + math.log(1 - p_tar)
+        - math.log(p_tar_eff)
+        + math.log(1 - p_tar_eff)
     )
     asv_scores.scores = llr
 

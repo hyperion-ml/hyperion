@@ -338,7 +338,12 @@ class CodecAugment:
             x = effector.apply(x, int(effector_sample_freq))
 
         effector = AudioEffector(**effect_config)
-        y = effector.apply(x, sample_rate=int(effector_sample_freq))
+        try:
+            y = effector.apply(x, sample_rate=int(effector_sample_freq))
+        except Exception as err:
+            logging.warning("Codec %s error: %s", codec_type, str(err))
+            y = x
+
         y = y.squeeze(1).numpy()
         if tel_resampler:
             try:
