@@ -2233,3 +2233,24 @@ class HypDataset:
             segments=segments, classes=classes, recordings=recordings, features=features
         )
         return dataset
+
+    def append_seg_suffix(self, seg_suffix: str):
+        segments = self.segments(keep_loaded=True)
+        segments["id"] = segments["id"].apply(lambda x: x + seg_suffix)
+        if self.has_recordings and "recording" not in segments:
+            recs = self.recordings(keep_loaded=True)
+            recs["id"] = recs["id"].apply(lambda x: x + seg_suffix)
+
+        if self.has_images and "image" not in segments:
+            ims = self.images(keep_loaded=True)
+            ims["id"] = ims["id"].apply(lambda x: x + seg_suffix)
+
+        if self.has_videos and "video" not in segments:
+            vids = self.videos(keep_loaded=True)
+            vids["id"] = vids["id"].apply(lambda x: x + seg_suffix)
+
+        for key, feats in self.features(keep_loaded=True):
+            feats["id"] = feats["id"].apply(lambda x: x + seg_suffix)
+
+        for key, vad in self.vads(keep_loaded=True):
+            vad["id"] = vad["id"].apply(lambda x: x + seg_suffix)

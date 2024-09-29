@@ -835,6 +835,11 @@ def make_copy_parser():
         required=True,
         help="""output dataset dir, if None, we use the same as input""",
     )
+    parser.add_argument(
+        "--seg-suffix",
+        default=None,
+        help="append sufix to segment ids",
+    )
 
     add_common_args(parser)
     return parser
@@ -843,6 +848,7 @@ def make_copy_parser():
 def copy(
     dataset: PathLike,
     output_dataset: PathLike,
+    seg_suffix: Optional[str] = None,
 ):
     logging.info(
         "copying dataset: %s -> %s",
@@ -850,6 +856,8 @@ def copy(
         output_dataset,
     )
     dataset = HypDataset.load(dataset, lazy=True)
+    if seg_suffix is not None:
+        dataset.append_seg_suffix(seg_suffix)
     dataset.save(output_dataset)
 
 
