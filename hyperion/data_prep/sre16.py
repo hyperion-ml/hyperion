@@ -88,7 +88,7 @@ class SRE16DataPrep(DataPrep):
                 / "docs"
                 / f"sre16_{self.subset}_enrollment_segment_key.tsv"
             )
-        elif self.partiton in ["test", "test40"]:
+        elif self.partition in ["test", "test40"]:
             segments_file = (
                 self.corpus_dir / "docs" / f"sre16_{self.subset}_test_segment_key.tsv"
             )
