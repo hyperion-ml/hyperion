@@ -120,22 +120,29 @@ class SRE16DataPrep(DataPrep):
         df_segs.rename(columns={"call_id": "sessionid"}, inplace=True)
         df_segs = pd.merge(df_segs, df_sides, how="left", on="sessionid")
         if self.partition in ["train60", "enrollment40", "test40"]:
+            spks = []
             for lang in ["YUE", "TGL"]:
-                spks = np.unique(df_sides.loc[df_segs["language"] == lang, "speaker"])
-                n_spks = len(spks)
+                spks_l = np.unique(
+                    df_sides.loc[df_sides["language"] == lang, "speaker"]
+                )
+                n_spks = len(spks_l)
                 n_60 = round(n_spks * 0.6)
                 if self.partition == "train60":
-                    spks = spks[:n_60]
+                    spks_l = spks_l[:n_60]
                 else:
-                    spks = spks[n_60:]
+                    spks_l = spks_l[n_60:]
 
-                df_segs = df_segs.loc[df_segs["speaker"].isin(spks)]
+                spks.append(spks_l)
+
+            spks = np.concatenate(spks)
+            df_segs = df_segs.loc[df_segs["speaker"].isin(spks)]
 
         if self.use_kaldi_ids:
-            df_segs["id"] = df_segs["speaker"] + "-" + df_segs["segment"]
+            ids = df_segs["speaker"] + "-" + df_segs["segment"]
         else:
-            df_segs["id"] = df_segs["segment"]
+            ids = df_segs["segment"]
 
+        df_segs.insert(0, "id", ids)
         df_segs.set_index("id", drop=False, inplace=True)
         return df_segs
 
@@ -205,7 +212,7 @@ class SRE16DataPrep(DataPrep):
         logging.info("making Trials")
         trial_file = self.corpus_dir / "docs" / f"sre16_{self.subset}_trial_key.tsv"
         df_trial = pd.read_csv(trial_file, sep="\t")
-        if self.partition == "enrollment40":
+        if self.partition == "test40":
             df_trial = df_trial.loc[df_trial.segment.isin(df_segs.segment)]
 
         output_file = self.output_dir / "trials_official.tsv"
@@ -225,10 +232,9 @@ class SRE16DataPrep(DataPrep):
         df_trial.to_csv(output_file, sep="\t", index=False)
         trials = {"trials": output_file}
 
-        df_trial["gender"] = df_segs.loc[df_trial.segmenid, "gender"]
-        df_trial["language"] = df_segs.loc[df_trial.segmenid, "language"]
+        df_trial["gender"] = df_segs.loc[df_trial.segmentid, "gender"].values
+        df_trial["language"] = df_segs.loc[df_trial.segmentid, "language"].values
 
-        df_trial = self._get_extra_trial_conds(df_trial, df_segs)
         output_file = self.output_dir / "trials_ext.tsv"
         df_trial.to_csv(output_file, sep="\t", index=False)
         trials = {"trials_ext": output_file}

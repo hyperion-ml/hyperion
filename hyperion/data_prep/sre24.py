@@ -373,6 +373,12 @@ class SRE24DataPrep(DataPrep):
                 / "docs"
                 / f"sre24_visual_{self.subset}_trial_key.tsv"
             )
+            if not key_file.is_file():
+                key_file = (
+                    self.corpus_docs_dir
+                    / "docs"
+                    / f"sre24_visual_{self.subset}_trials.tsv"
+                )
             df_key = pd.read_csv(key_file, sep="\t")
             ids = np.unique(df_key["imageid"])
             df_enr = pd.DataFrame({"id": ids, "segmentid": ids})
@@ -555,6 +561,10 @@ class SRE24DataPrep(DataPrep):
             self.corpus_dir,
             self.output_dir,
         )
+        if self.subset == "eval":
+            self.prepare_eval()
+            return
+
         df_segs = self.read_segments_metadata()
         recs = None
         imgs = None
@@ -579,6 +589,215 @@ class SRE24DataPrep(DataPrep):
         else:
             enrollments = None
             trials = self.make_trials(df_segs)
+
+        df_segs.drop(columns=["filename"], inplace=True)
+        segments = SegmentSet(df_segs)
+
+        logging.info("making dataset")
+        dataset = HypDataset(
+            segments,
+            classes,
+            recordings=recs,
+            images=imgs,
+            videos=vids,
+            vads=vads,
+            enrollments=enrollments,
+            trials=trials,
+            sparse_trials=False,
+        )
+        logging.info("saving dataset at %s", self.output_dir)
+        dataset.save(self.output_dir)
+        dataset.describe()
+
+    def read_segments_metadata_eval(self):
+
+        if self.partition == "test":
+            segments_file = (
+                self.corpus_docs_dir
+                / "docs"
+                / f"sre24_{self.modality}_{self.subset}_trials.tsv"
+            )
+        else:
+            if self.modality == "audio":
+                segments_file = (
+                    self.corpus_docs_dir
+                    / "docs"
+                    / f"sre24_enrollment_{self.subset}_model_key.tsv"
+                )
+            elif self.modality == "visual":
+                segments_file = (
+                    self.corpus_docs_dir
+                    / "docs"
+                    / f"sre24_{self.modality}_{self.subset}_trials.tsv"
+                )
+            else:
+                raise ValueError(
+                    f"invalid combination {self.modality=} {self.partition=}"
+                )
+
+        logging.info("loading segment metadata from %s", segments_file)
+        df_segs = pd.read_csv(segments_file, sep="\t")
+        if self.partition == "enrollment" and self.modality == "visual":
+            df_segs.rename(
+                columns={
+                    "imageid": "id",
+                },
+                inplace=True,
+            )
+        else:
+            df_segs.rename(
+                columns={
+                    "segmentid": "id",
+                },
+                inplace=True,
+            )
+
+        df_segs = (
+            df_segs[["id"]].drop_duplicates(ignore_index=True).sort_values(by="id")
+        )
+        df_segs["partition"] = self.partition
+        df_segs["filename"] = df_segs["id"]
+
+        if self.modality == "visual" and self.partition == "enrollment":
+            df_segs["source_type"] = "selfie"
+        else:
+            df_segs["source_type"] = "cts"
+            flac = df_segs["id"].str.match(r".*\.flac$")
+            mp4 = df_segs["id"].str.match(r".*\.mp4$")
+            df_segs.loc[flac | mp4, "source_type"] = "afv"
+
+        df_segs["dataset"] = self.dataset_name()
+        df_segs["corpusid"] = "telvid"
+        df_segs.set_index("id", drop=False, inplace=True)
+        return df_segs
+
+    def make_class_infos_eval(self, df_segs):
+        logging.info("making ClassInfos")
+        df_segs = df_segs.reset_index(drop=True)
+        df_langs = pd.DataFrame({"id": ["ARA", "ENG", "FRA"]})
+        languages = ClassInfo(df_langs)
+
+        df_source = df_segs[["source_type"]].drop_duplicates()
+        df_source.rename(columns={"source_type": "id"}, inplace=True)
+        df_source.sort_values(by="id", inplace=True)
+        sources = ClassInfo(df_source)
+
+        genders = ClassInfo(pd.DataFrame({"id": ["m", "f"]}))
+        return {
+            "language": languages,
+            "source_type": sources,
+            "gender": genders,
+        }
+
+    def _get_enroll_conds_eval(self):
+        # we read the segments again to get extra conditions
+        partition = self.partition
+        modality = self.modality
+        self.partition = "enrollment"
+        self.modality = "audio"
+        df_segs = self.read_segments_metadata_eval()
+        self.partition = partition
+        self.modality = modality
+        enr_map = self.make_enrollments(df_segs)["enrollment"]
+        modelids = enr_map["id"].unique()
+        sources = []
+        num_enrs = []
+        logging.info("get enrollment conditions")
+        for modelid in modelids:
+            seg_id = enr_map.loc[modelid, "segmentid"]
+            if isinstance(seg_id, str):
+                num_enrs_i = 1
+            else:
+                num_enrs_i = len(seg_id)
+                seg_id = seg_id.values[0]
+
+            source = df_segs.loc[seg_id, "source_type"]
+            sources.append(source)
+            num_enrs.append(num_enrs_i)
+
+        df_enr_conds = pd.DataFrame(
+            {
+                "id": modelids,
+                "source_type": sources,
+                "num_enroll_segs": num_enrs,
+            }
+        )
+        df_enr_conds.set_index("id", inplace=True)
+        return df_enr_conds
+
+    def _get_extra_trial_conds_eval(self, df_trial, df_segs):
+        df_enr = self._get_enroll_conds_eval()
+        logging.info("iterating to get extra trial conditions")
+        for i, row in tqdm(df_trial.iterrows(), total=len(df_trial)):
+            modelid = row["modelid"]
+            segid = row["segmentid"]
+            source_cond = SourceTrialCond.get_trial_cond(
+                df_enr.loc[modelid, "source_type"],
+                df_segs.loc[segid, "source_type"],
+            )
+            df_trial.loc[i, "source_type"] = source_cond
+            df_trial.loc[i, "num_enroll_segs"] = df_enr.loc[modelid, "num_enroll_segs"]
+
+        df_trial["source_type_match"] = df_trial["source_type"].apply(
+            lambda x: "N" if x == "CTS_AFV" else "Y"
+        )
+
+        return df_trial
+
+    def make_trials_eval(self, df_segs):
+        logging.info("making Trials")
+        trial_file = (
+            self.corpus_docs_dir
+            / "docs"
+            / f"sre24_{self.modality}_{self.subset}_trials.tsv"
+        )
+
+        df_trial = pd.read_csv(trial_file, sep="\t")
+        if self.modality == "visual":
+            df_trial.rename(columns={"imageid": "modelid"}, inplace=True)
+
+        if self.modality == "visual":
+            output_file = self.output_dir / "trials.tsv"
+            df_trial.to_csv(output_file, sep="\t", index=False)
+            trials = {"trials": output_file}
+            return trials
+
+        trials = {}
+        logging.info("getting extra trial conditions")
+        df_trial = self._get_extra_trial_conds_eval(df_trial, df_segs)
+        output_file = self.output_dir / "trials.tsv"
+        df_trial.to_csv(output_file, sep="\t", index=False)
+        trials["trials"] = output_file
+        output_file = self.output_dir / "trials_ext.tsv"
+        df_trial.to_csv(output_file, sep="\t", index=False)
+        trials["trials_ext"] = output_file
+        return trials
+
+    def prepare_eval(self):
+        df_segs = self.read_segments_metadata_eval()
+        recs = None
+        imgs = None
+        vids = None
+        if self.modality != "visual":
+            recs = self.make_recording_set(df_segs)
+            df_segs["duration"] = recs.loc[df_segs["id"], "duration"].values
+
+        if self.modality != "audio":
+            if self.partition == "enrollment":
+                imgs = self.make_image_set(df_segs)
+            elif self.with_videos:
+                vids = self.make_video_set(df_segs)
+
+        classes = self.make_class_infos_eval(df_segs)
+        vads = None
+        if self.partition == "enrollment":
+            enrollments = self.make_enrollments(df_segs)
+            trials = None
+            if self.modality == "audio":
+                vads = self.make_vad_marks(df_segs)
+        else:
+            enrollments = None
+            trials = self.make_trials_eval(df_segs)
 
         df_segs.drop(columns=["filename"], inplace=True)
         segments = SegmentSet(df_segs)

@@ -5,6 +5,7 @@
 
 import contextlib
 import logging
+from typing import Dict, List, Optional
 
 import torch
 import torch.nn as nn
@@ -12,7 +13,7 @@ from jsonargparse import ActionParser, ArgumentParser
 
 from ...narchs import AudioFeatsMVN
 from ...torch_model import TorchModel
-from ...utils import remove_silence
+from ...utils import collate_seqs_1d, collate_seqs_2d, remove_silence
 
 
 class Wav2XVector(TorchModel):
@@ -53,7 +54,7 @@ class Wav2XVector(TorchModel):
     def compute_prototype_affinity(self):
         return self.xvector.compute_prototype_affinity()
 
-    def update_loss_margin(self, epoch):
+    def update_loss_margin(self, epoch: int):
         """Updates the value of the margin in AAM/AM-softmax losses
            given the epoch number
 
@@ -64,14 +65,14 @@ class Wav2XVector(TorchModel):
 
     def rebuild_output_layer(
         self,
-        num_classes=None,
-        loss_type="arc-softmax",
-        cos_scale=64,
-        margin=0.3,
-        margin_warmup_epochs=10,
-        intertop_k=5,
-        intertop_margin=0.0,
-        num_subcenters=2,
+        num_classes: Optional[int] = None,
+        loss_type: str = "arc-softmax",
+        cos_scale: float = 64,
+        margin: float = 0.3,
+        margin_warmup_epochs: int = 10,
+        intertop_k: int = 5,
+        intertop_margin: float = 0.0,
+        num_subcenters: int = 2,
     ):
         self.xvector.rebuild_output_layer(
             num_classes=num_classes,
@@ -93,14 +94,14 @@ class Wav2XVector(TorchModel):
 
     def forward(
         self,
-        x,
-        x_lengths=None,
-        y=None,
-        vad_samples=None,
-        vad_feats=None,
-        enc_layers=None,
-        classif_layers=None,
-        return_output=True,
+        x: torch.Tensor,
+        x_lengths: Optional[torch.Tensor] = None,
+        y: Optional[torch.Tensor] = None,
+        vad_samples: Optional[torch.Tensor] = None,
+        vad_feats: Optional[torch.Tensor] = None,
+        enc_layers: Optional[List[int]] = None,
+        classif_layers: Optional[List[int]] = None,
+        return_output: bool = True,
     ):
         with self._feats_context:
             if vad_samples is not None:
@@ -127,13 +128,13 @@ class Wav2XVector(TorchModel):
 
     def extract_embed(
         self,
-        x,
-        x_lengths=None,
-        vad_samples=None,
-        vad_feats=None,
-        chunk_length=0,
-        embed_layer=None,
-        detach_chunks=False,
+        x: torch.Tensor,
+        x_lengths: Optional[torch.Tensor] = None,
+        vad_samples: Optional[torch.Tensor] = None,
+        vad_feats: Optional[torch.Tensor] = None,
+        chunk_length: float = 0,
+        embed_layer: Optional[int] = None,
+        detach_chunks: bool = False,
     ):
         with self._feats_context:
             if vad_samples is not None:
@@ -150,6 +151,102 @@ class Wav2XVector(TorchModel):
         return self.xvector.extract_embed(
             feats, feat_lengths, chunk_length, embed_layer, detach_chunks
         )
+
+    def extract_embed_slidwin(
+        self,
+        x: torch.Tensor,
+        x_lengths: Optional[torch.Tensor] = None,
+        vad_t_starts: Optional[List[torch.Tensor]] = None,
+        vad_t_ends: Optional[List[torch.Tensor]] = None,
+        win_length: float = 1.0,
+        win_shift: float = 0.25,
+        chunk_length: float = 0.0,
+        embed_layer: Optional[int] = None,
+        detach_chunks: bool = False,
+    ):
+        if vad_t_starts is not None:
+            assert vad_t_ends is not None
+            assert len(vad_t_starts) == len(vad_t_ends)
+
+        x_strided = []
+        embed2x_mappings = []
+        out_t_starts = []
+        out_t_ends = []
+        embeds = []
+        accum_length = 0.0
+        for i in range(x.shape[0]):
+            x_i = x[i]
+            x_length_i = len(x_i) if x_lengths is None else x_lengths[i]
+            if vad_t_starts is None:
+                t_start_i = [0.0]
+                t_end_i = [x_length_i / self.sample_frequency]
+            else:
+                t_start_i = vad_t_starts[i]
+                t_end_i = vad_t_ends[i]
+
+            out_t_start_i = []
+            out_t_end_i = []
+            for t_start_ij, t_end_ij in zip(t_start_i, t_end_i):
+                cur_t_start = t_start_ij
+                num_wins_ij = (t_end_ij - t_start_ij) // win_shift
+                out_t_center_ij = torch.arange(win_length / 2, t_end_ij, win_shift)
+                out_t_start_ij = out_t_center_ij - win_shift / 2
+                out_t_end_ij = out_t_center_ij + win_shift / 2
+                out_t_start_ij[0] = t_start_ij
+                out_t_end_ij[-1] = t_end_ij
+                for win in range(num_wins_ij):
+                    cur_t_end = min(cur_t_start + win_length, t_end_ij)
+                    cur_sample_start = cur_t_start * self.sample_frequency
+                    cur_sample_end = min(cur_t_end * self.sample_frequency, x.size(1))
+                    x_ij = x_i[cur_sample_start:cur_sample_end]
+                    x_strided.append(x_ij)
+                    embed2x_mappings.append(i)
+                    accum_length += cur_t_end - cur_t_start
+                    if chunk_length > 0 and accum_length >= chunk_length:
+                        x_strided, x_strided_lengths = collate_seqs_1d(x_strided)
+                        embeds_chunk = self.extract_embed(
+                            x_strided,
+                            x_strided_lengths,
+                            embed_layer=embed_layer,
+                            detach_chunks=detach_chunks,
+                        )
+                        if detach_chunks:
+                            embeds_chunk = embeds_chunk.detach()
+
+                        embeds.append(embeds_chunk)
+                        x_strided = []
+                        accum_length = 0.0
+
+                    out_t_start_i.append(out_t_start_ij)
+                    out_t_end_i.append(out_t_end_ij)
+                    cur_t_start += win_shift
+
+            out_t_start_i = torch.cat(out_t_start_i)
+            out_t_end_i = torch.cat(out_t_end_i)
+            out_t_starts.append(out_t_start_i)
+            out_t_ends.append(out_t_end_i)
+
+        if x_strided:
+            x_strided, x_strided_lengths = collate_seqs_1d(x_strided)
+            embeds_chunk = self.extract_embed(
+                x_strided,
+                x_strided_lengths,
+                embed_layer=embed_layer,
+                detach_chunks=detach_chunks,
+            )
+            if detach_chunks:
+                embeds_chunk = embeds_chunk.detach()
+            embeds.append(embeds_chunk)
+
+        embeds = torch.cat(embeds, axis=0)
+        embed2x_mappings = torch.as_tensor(embed2x_mappings)
+        out_embeds = []
+        for i in range(x.shape[0]):
+            idx = embed2x_mappings == i
+            out_embeds.append(embeds[idx])
+
+        out_embeds, embeds_lengths = collate_seqs_2d(out_embeds)
+        return out_embeds, embeds_lengths, out_t_starts, out_t_ends
 
     def trainable_param_groups(self):
         param_groups = self.xvector.trainable_param_groups()
