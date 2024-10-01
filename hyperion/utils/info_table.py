@@ -37,7 +37,7 @@ class InfoTable:
 
     def convert_col_to_str(self, column):
         if infer_dtype(self.df[column]) != "string":
-            self.df.loc[:, column] = self.df[column].astype(str)
+            self.df.loc[column] = self.df[column].astype(str)
 
     def copy(self):
         """Makes a copy of the object."""

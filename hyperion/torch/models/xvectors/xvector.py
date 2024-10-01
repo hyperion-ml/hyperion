@@ -547,7 +547,7 @@ class XVector(TorchModel):
 
             return torch.cat(e, dim=0)
 
-    def extract_embed_slidwin(
+    def extract_embed_slidwin_legacy(
         self,
         x,
         win_length,
