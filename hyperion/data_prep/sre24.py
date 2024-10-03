@@ -425,6 +425,7 @@ class SRE24DataPrep(DataPrep):
     def _get_extra_trial_conds(self, df_trial, df_segs):
         df_enr = self._get_enroll_conds()
         logging.info("iterating to get extra trial conditions")
+        df_trial["num_enroll_segs"] = 1
         for i, row in tqdm(df_trial.iterrows(), total=len(df_trial)):
             modelid = row["modelid"]
             segid = row["segmentid"]
@@ -728,6 +729,7 @@ class SRE24DataPrep(DataPrep):
     def _get_extra_trial_conds_eval(self, df_trial, df_segs):
         df_enr = self._get_enroll_conds_eval()
         logging.info("iterating to get extra trial conditions")
+        df_trial["num_enroll_segs"] = 1
         for i, row in tqdm(df_trial.iterrows(), total=len(df_trial)):
             modelid = row["modelid"]
             segid = row["segmentid"]
