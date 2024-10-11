@@ -6,6 +6,7 @@
 import logging
 
 import numpy as np
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from sklearn.linear_model import LogisticRegression as LR
 
 from ...hyp_defs import float_cpu
@@ -274,46 +275,45 @@ class LogisticRegression(NPModel):
           parser: jsonargparse object
           prefix: argument prefix.
         """
-        if prefix is None:
-            p1 = "--"
-        else:
-            p1 = "--" + prefix + "."
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
 
         parser.add_argument(
-            p1 + "penalty",
+            "--penalty",
             default="l2",
             choices=["l2", "l1"],
             help="used to specify the norm used in the penalization",
         )
         parser.add_argument(
-            p1 + "lambda-reg", default=1e-5, type=float, help="regularization strength"
+            "--lambda-reg", default=1e-5, type=float, help="regularization strength"
         )
         parser.add_argument(
-            p1 + "no-use-bias", default=False, action="store_true", help="Not use bias"
+            "--no-use-bias", default=False, action="store_true", help="Not use bias"
         )
         parser.add_argument(
-            p1 + "bias-scaling",
+            "--bias-scaling",
             default=1.0,
             type=float,
             help="useful only when the solver liblinear is used and use_bias is set to True",
         )
         parser.add_argument(
-            p1 + "lr-seed", default=1024, type=int, help="random number generator seed"
+            "--lr-seed", default=1024, type=int, help="random number generator seed"
         )
         parser.add_argument(
-            p1 + "solver",
+            "--solver",
             default="lbfgs",
             choices=["newton-cg", "lbfgs", "liblinear", "sag", "saga"],
             help="type of solver",
         )
         parser.add_argument(
-            p1 + "max-iter",
+            "--max-iter",
             default=100,
             type=int,
             help="only for the newton-cg, sag and lbfgs solvers",
         )
         parser.add_argument(
-            p1 + "dual",
+            "--dual",
             default=False,
             action="store_true",
             help=(
@@ -323,10 +323,10 @@ class LogisticRegression(NPModel):
             ),
         )
         parser.add_argument(
-            p1 + "tol", default=1e-4, type=float, help="tolerance for stopping criteria"
+            "--tol", default=1e-4, type=float, help="tolerance for stopping criteria"
         )
         parser.add_argument(
-            p1 + "multi-class",
+            "--multi-class",
             default="ovr",
             choices=["ovr", "multinomial"],
             help=(
@@ -336,22 +336,28 @@ class LogisticRegression(NPModel):
             ),
         )
         parser.add_argument(
-            p1 + "verbose",
+            "--verbose",
             default=0,
             type=int,
             help="For the liblinear and lbfgs solvers",
         )
         parser.add_argument(
-            p1 + "num-jobs", default=1, type=int, help="number of cores for ovr"
+            "--num-jobs", default=1, type=int, help="number of cores for ovr"
         )
         parser.add_argument(
-            p1 + "no-warm-start",
+            "--no-warm-start",
             default=False,
             action="store_true",
             help="don't use previous model to start",
         )
 
-        parser.add_argument(p1 + "name", default="lr", help="model name")
+        parser.add_argument("--name", default="lr", help="model name")
+
+        if prefix is not None:
+            outer_parser.add_argument(
+                "--" + prefix,
+                action=ActionParser(parser=parser),
+            )
 
     @staticmethod
     def filter_eval_args(**kwargs):
@@ -370,18 +376,22 @@ class LogisticRegression(NPModel):
           parser: jsonargparse object
           prefix: argument prefix.
         """
-        if prefix is None:
-            p1 = "--"
-        else:
-            p1 = "--" + prefix + "."
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
 
-        parser.add_argument(p1 + "model-file", required=True, help=("model file"))
+        parser.add_argument("--model-file", required=True, help=("model file"))
         parser.add_argument(
-            p1 + "eval-type",
+            "--eval-type",
             default="logit",
             choices=["logit", "log-post", "post"],
             help=("type of evaluation"),
         )
+        if prefix is not None:
+            outer_parser.add_argument(
+                "--" + prefix,
+                action=ActionParser(parser=parser),
+            )
 
     # for backward compatibility
     filter_train_args = filter_class_args

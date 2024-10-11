@@ -39,12 +39,3 @@ from .xvectors import (
     TransformerV1XVector,
     XVector,
 )
-
-# from .xvectors.conformer_v1_xvector import ConformerV1XVector
-# from .xvectors.efficient_net_xvector import EfficientNetXVector
-# from .xvectors.resnet1d_xvector import ResNet1dXVector
-# from .xvectors.resnet_xvector import ResNetXVector
-# from .xvectors.spinenet_xvector import SpineNetXVector
-# from .xvectors.tdnn_xvector import TDNNXVector
-# from .xvectors.transformer_xvector_v1 import TransformerXVectorV1
-# from .xvectors.xvector import XVector
