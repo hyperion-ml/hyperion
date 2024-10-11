@@ -2,19 +2,25 @@
  Copyright 2021 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 from pathlib import Path
+from typing import Optional
 
 import h5py
 import matplotlib
 import numpy as np
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+from ...utils import PathLike
+from ...utils.math_funcs import cosine_scoring
+from ...utils.vad_utils import merge_vad_timestamps
 from ..clustering import AHC
 from ..pdfs import GMMTiedDiagCov as GMM
-from ..transforms import PCA, LNorm
+from ..transforms import PCA
 
 
 class DiarAHCPLDA(object):
@@ -31,7 +37,7 @@ class DiarAHCPLDA(object):
     - Performs AHC.
 
     Attributes:
-      plda_model: pre-trained PLDA model.
+      plda_model: pre-trained PLDA model, if None, use cosine scoring
       preproc: preprocessing transformation class.
                If None, no transformation is applied.
       threshold: stopping threshold for AHC.
@@ -44,20 +50,24 @@ class DiarAHCPLDA(object):
 
     def __init__(
         self,
-        plda_model,
+        plda_model=None,
         preproc=None,
-        threshold=0,
-        pca_var_r=1,
-        do_unsup_cal=False,
-        use_bic=False,
+        calibrator=None,
+        threshold: float = 0.0,
+        max_clusters: Optional[int] = None,
+        pca_var_r: float = 1.0,
+        do_unsup_cal: bool = False,
+        use_bic: bool = False,
     ):
 
         self.plda_model = plda_model
         self.preproc = preproc
+        self.calibrator = calibrator
         self.threshold = threshold
         self.pca_var_r = pca_var_r
         self.do_unsup_cal = do_unsup_cal
         self.use_bic = use_bic and do_unsup_cal
+        self.max_clusters = max_clusters
         self._ahc = AHC()
 
     @staticmethod
@@ -68,7 +78,20 @@ class DiarAHCPLDA(object):
 
         mask = np.triu(np.ones(scores.shape, dtype=bool), 1)
         scores_r = scores[mask].ravel()
-
+        plt.rcParams["text.usetex"] = False
+        plt.rcParams["font.sans-serif"] = [
+            "DejaVu Sans",
+            "Bitstream Vera Sans",
+            "Computer Modern Sans Serif",
+            "Lucida Grande",
+            "Verdana",
+            "Geneva",
+            "Lucid",
+            "Arial",
+            "Helvetica",
+            "Avant Garde",
+            "sans-serif",
+        ]
         _, bins, _ = plt.hist(
             scores_r,
             100,
@@ -118,28 +141,72 @@ class DiarAHCPLDA(object):
         )
         return scores, bic, gmm_2c
 
-    def cluster(self, x, hist_file=None):
+    def _merge_intervals(self, cluster_ids, t_start, t_end):
+        new_t_start = []
+        new_t_end = []
+        new_cluster_ids = []
+        # print("merge_in", cluster_ids, t_start, t_end, len(cluster_ids))
+        for i in np.unique(cluster_ids):
+            idx = cluster_ids == i
+            t_start_i = t_start[idx]
+            t_end_i = t_end[idx]
+            t_start_i, t_end_i = merge_vad_timestamps(t_start_i, t_end_i)
+            new_t_start.append(t_start_i)
+            new_t_end.append(t_end_i)
+            new_cluster_ids.append([i] * len(t_start_i))
+
+        new_t_start = np.concatenate(new_t_start)
+        new_t_end = np.concatenate(new_t_end)
+        new_cluster_ids = np.concatenate(new_cluster_ids)
+        # print("merge_out", new_cluster_ids, new_t_start, new_t_end, len(cluster_ids))
+        # sort by t start
+        idx = np.argsort(new_t_start)
+        new_t_start = new_t_start[idx]
+        new_t_end = new_t_end[idx]
+        new_cluster_ids = new_cluster_ids[idx]
+        return new_cluster_ids, new_t_start, new_t_end
+
+    def __call__(
+        self,
+        x: np.ndarray,
+        t_start: Optional[np.ndarray] = None,
+        t_end: Optional[np.ndarray] = None,
+        hist_file: Optional[PathLike] = None,
+    ):
         """Peforms the diarization clustering.
 
         Args:
           x: input data (num_frames, feat_dim)
+          t_start: frame start times
+          t_end: frame end times
           hist_file: file to plot the score histogram (optional).
 
         Returns:
           Cluster assigments as (num_frames,) integer array.
         """
-        x = self.preproc.predict(x)
+        if self.preproc is not None:
+            x = self.preproc(x)
+
         if self.pca_var_r < 1:
             pca = PCA(pca_var_r=self.pca_var_r, whiten=True)
             pca.fit(x)
             logging.info("PCA dim=%d" % pca.pca_dim)
-            x = pca.predict(x)
-            x = LNorm().predict(x)
-            plda_model = self.plda_model.project(pca.T, pca.mu)
+            x = pca(x)
+            if self.plda_model is None:
+                plda_model = None
+            else:
+                plda_model = self.plda_model.project(pca.T, pca.mu)
         else:
             plda_model = self.plda_model
 
-        scores = plda_model.llr_1vs1(x, x)
+        if plda_model is None:
+            scores = cosine_scoring(x, x)
+        else:
+            scores = plda_model.llr_1vs1(x, x)
+
+        if self.calibrator is not None:
+            scores = self.calibrator(scores.ravel()).reshape(scores.shape)
+
         if self.do_unsup_cal:
             scores_cal, bic, gmm_2c = self._unsup_gmm_calibration(scores)
             logging.info(
@@ -148,23 +215,31 @@ class DiarAHCPLDA(object):
                 )
             )
             if hist_file:
-                hist_file_1 = "%s-nocal.pdf" % hist_file
+                hist_file = Path(hist_file)
+                hist_file_1 = hist_file.with_suffix("_nocal" + hist_file.suffix)
                 self._plot_score_hist(scores, hist_file_1, None, gmm_2c)
                 scores = scores_cal
 
         if hist_file:
-            hist_file_1 = "%s.pdf" % hist_file
-            self._plot_score_hist(scores, hist_file_1, self.threshold)
+            self._plot_score_hist(scores, hist_file, self.threshold)
 
         if self.use_bic and bic < 0:
             # unsup calibration detected only one Gaussian -> only target trials
-            class_ids = np.zeros(len(x), dtype=np.int)
-            return class_ids
+            cluster_ids = np.zeros(len(x), dtype=int)
+            return cluster_ids
 
         self._ahc.fit(scores)
-        class_ids = self._ahc.get_flat_clusters(self.threshold)
+        cluster_ids = self._ahc.get_flat_clusters(self.threshold)
+        if self.max_clusters is not None and np.max(cluster_ids) >= self.max_clusters:
+            cluster_ids = self._ahc.get_flat_clusters(
+                self.max_clusters, criterion="num_clusters"
+            )
+        if t_start is not None and t_end is not None:
+            cluster_ids, t_start, t_end = self._merge_intervals(
+                cluster_ids, t_start, t_end
+            )
 
-        return class_ids
+        return cluster_ids, t_start, t_end
 
     @staticmethod
     def filter_args(**kwargs):
@@ -191,14 +266,19 @@ class DiarAHCPLDA(object):
           prefix: Options prefix.
         """
 
-        if prefix is None:
-            p1 = "--"
-        else:
-            p1 = "--" + prefix + "."
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
 
-        parser.add_argument(p1 + "threshold", default=0, type=float)
-        parser.add_argument(p1 + "pca-var-r", default=1, type=float)
-        parser.add_argument(p1 + "do-unsup-cal", default=False, action="store_true")
-        parser.add_argument(p1 + "use-bic", default=False, action="store_true")
+        parser.add_argument("--threshold", default=0, type=float)
+        parser.add_argument("--max-clusters", default=None, type=int)
+        parser.add_argument("--pca-var-r", default=1, type=float)
+        parser.add_argument("--do-unsup-cal", default=False, action=ActionYesNo)
+        parser.add_argument("--use-bic", default=False, action=ActionYesNo)
+        if prefix is not None:
+            outer_parser.add_argument(
+                "--" + prefix,
+                action=ActionParser(parser=parser),
+            )
 
     add_argparse_args = add_class_args

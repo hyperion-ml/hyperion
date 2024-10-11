@@ -6,8 +6,10 @@
 import logging
 
 import numpy as np
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ...hyp_defs import float_cpu, float_save
+from ...utils.math_funcs import softmax
 from ..metrics import dcf
 from ..np_model import NPModel
 from .binary_logistic_regression import BinaryLogisticRegression as BLR
