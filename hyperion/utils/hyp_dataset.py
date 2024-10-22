@@ -2254,3 +2254,24 @@ class HypDataset:
 
         for key, vad in self.vads(keep_loaded=True):
             vad["id"] = vad["id"].apply(lambda x: x + seg_suffix)
+
+    def select_random_subsegment(
+        self,
+        min_duration: float,
+        max_duration: float,
+        seed: int = 11235813,
+        rng: Optional[np.random.Generator] = None,
+        inplace: bool = True,
+    ):
+        segments = self.segments(keep_loaded=True)
+        if inplace:
+            segments.select_random_subsegment(
+                min_duration, max_duration, seed, rng, inplace=True
+            )
+        else:
+            segments = segments.select_random_subsegment(
+                min_duration, max_duration, seed, rng, inplace=False
+            )
+            new_dataset = self.clone()
+            new_dataset._segments = segments
+            return new_dataset
