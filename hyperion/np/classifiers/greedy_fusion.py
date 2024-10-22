@@ -4,6 +4,7 @@
 """
 
 import logging
+from typing import List, Optional
 
 import numpy as np
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
@@ -65,28 +66,30 @@ class GreedyFusionBinaryLR(NPModel):
                      When set to True, reuse the solution of the previous call to fit as initialization, otherwise, just erase the previous solution. Useless for liblinear solver.
                      New in version 0.17: warm_start to support lbfgs, newton-cg, sag, saga solvers.
       lr_seed: seed for numpy random.
+      force_weighted_avg: it doens't do calibration, just a weighted average that sums up to one.
 
     """
 
     def __init__(
         self,
-        weights=None,
-        bias=None,
-        system_idx=None,
-        system_names=None,
-        max_systems=None,
-        prioritize_positive=True,
-        penalty="l2",
-        lambda_reg=1e-6,
-        bias_scaling=1,
-        prior=0.5,
-        prior_eval=None,
-        solver="liblinear",
-        max_iter=100,
-        dual=False,
+        weights: Optional[np.ndarray] = None,
+        bias: Optional[np.ndarray] = None,
+        system_idx: Optional[List[int]] = None,
+        system_names: Optional[List[str]] = None,
+        max_systems: Optional[int] = None,
+        prioritize_positive: bool = True,
+        penalty: str = "l2",
+        lambda_reg: float = 1e-6,
+        bias_scaling: float = 1,
+        prior: float = 0.5,
+        prior_eval: Optional[List[float]] = None,
+        solver: str = "liblinear",
+        max_iter: int = 100,
+        dual: bool = False,
         tol=0.0001,
-        verbose=0,
-        lr_seed=1024,
+        verbose: int = 0,
+        lr_seed: int = 1024,
+        force_weighted_avg: bool = False,
         **kwargs
     ):
 
@@ -102,6 +105,8 @@ class GreedyFusionBinaryLR(NPModel):
             self.prior_eval = prior
         else:
             self.prior_eval = prior_eval
+
+        self.force_weighted_avg = force_weighted_avg
 
         self.lr = BLR(
             penalty=penalty,
@@ -236,6 +241,11 @@ class GreedyFusionBinaryLR(NPModel):
                 )
                 x_ij = x[:, system_idx_ij]
                 self.lr.fit(x_ij, class_ids)
+                if self.force_weighted_avg:
+                    self.lr.b = 0.0
+                    self.lr.A[self.lr.A < 0] = 0.0
+                    self.lr.A /= self.lr.A.sum()
+
                 cand_weights.append([self.lr.A, self.lr.b])
                 all_pos[j] = np.all(self.lr.A > 0)
 

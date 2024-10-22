@@ -22,6 +22,7 @@ from .feat_fusers import (
     WeightedAvgFeatFuser,
 )
 from .global_pool import *
+from .grad_rev_layer import GradientReversalLayer
 from .grn import GRN1d, GRN2d
 from .interpolate import Interpolate
 from .lora import LoRAFactory

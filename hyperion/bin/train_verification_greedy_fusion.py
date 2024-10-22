@@ -12,7 +12,7 @@ import sys
 import time
 
 import numpy as np
-from jsonargparse import ArgumentParser, namespace_to_dict
+from jsonargparse import ActionYesNo, ArgumentParser, namespace_to_dict
 
 from hyperion.hyp_defs import config_logger, float_cpu
 from hyperion.np.classifiers import GreedyFusionBinaryLR as GF
@@ -24,39 +24,52 @@ from hyperion.utils.trial_scores import TrialScores
 def train_verification_greedy_fusion(
     score_files,
     system_names,
-    key_file,
+    key_files,
     model_file,
     prior,
     prior_eval,
     lambda_reg,
     solver,
     max_systems,
+    force_weighted_avg,
     verbose,
 ):
-    num_systems = len(score_files)
+    num_keys = len(key_files)
+    num_scores = len(score_files)
+    num_systems = num_scores // num_keys
+    assert num_scores % num_keys == 0
     assert num_systems == len(
         system_names
-    ), "len(score_files)(%d) != len(system_names)(%d)" % (
+    ), "len(score_files)/len(key_files(%d) != len(system_names)(%d)" % (
         num_systems,
         len(system_names),
     )
     if prior_eval is None:
         prior_eval = [prior]
 
-    logging.info("load key: %s" % key_file)
-    key = TrialKey.load(key_file)
-
     tar = []
     non = []
-    for i in range(num_systems):
-        logging.info("load scores: %s" % score_files[i])
-        scr = TrialScores.load(score_files[i])
-        tar_i, non_i = scr.get_tar_non(key)
-        tar.append(tar_i[:, None])
-        non.append(non_i[:, None])
+    for key_idx, key_file in enumerate(key_files):
+        logging.info("load key: %s" % key_file)
+        key = TrialKey.load(key_file)
 
-    tar = np.concatenate(tuple(tar), axis=1)
-    non = np.concatenate(tuple(non), axis=1)
+        tar_key = []
+        non_key = []
+        for sys_idx in range(num_systems):
+            score_idx = sys_idx * num_keys + key_idx
+            logging.info("load scores: %s" % score_files[score_idx])
+            scr = TrialScores.load(score_files[score_idx])
+            tar_sys, non_sys = scr.get_tar_non(key)
+            tar_key.append(tar_sys[:, None])
+            non_key.append(non_sys[:, None])
+
+        tar_key = np.concatenate(tuple(tar_key), axis=1)
+        non_key = np.concatenate(tuple(non_key), axis=1)
+        tar.append(tar_key)
+        non.append(non_key)
+
+    tar = np.concatenate(tuple(tar), axis=0)
+    non = np.concatenate(tuple(non), axis=0)
     ntar = tar.shape[0]
     nnon = non.shape[0]
 
@@ -72,6 +85,7 @@ def train_verification_greedy_fusion(
         lambda_reg=lambda_reg,
         solver=solver,
         max_systems=max_systems,
+        force_weighted_avg=force_weighted_avg,
         verbose=verbose,
     )
     gf.fit(x, y)
@@ -118,7 +132,7 @@ def main():
 
     parser.add_argument("--score-files", nargs="+", required=True)
     parser.add_argument("--system-names", nargs="+", required=True)
-    parser.add_argument("--key-file", required=True)
+    parser.add_argument("--key-files", nargs="+", required=True)
     parser.add_argument("--model-file", required=True)
     parser.add_argument("--prior", type=float, default=0.01)
     parser.add_argument("--prior-eval", type=float, nargs="+", default=None)
@@ -130,6 +144,12 @@ def main():
         default="liblinear",
     )
     parser.add_argument("--max-systems", type=int, default=10)
+    parser.add_argument(
+        "--force-weighted-avg",
+        default=False,
+        action=ActionYesNo,
+        help="it doens't do calibration, just a weighted average that sums up to one.",
+    )
 
     args = parser.parse_args()
     config_logger(args.verbose)

@@ -109,6 +109,7 @@ def select_random_chunk(key, x, fs, min_utt_length, max_utt_length, rng):
 
 def extract_xvectors(
     recordings_file,
+    segments_file,
     output_spec,
     vad_spec,
     write_speech_dur,
@@ -149,7 +150,9 @@ def extract_xvectors(
     logging.info("opening output stream: %s", output_spec)
     with DWF.create(output_spec, metadata_columns=metadata_columns) as writer:
         logging.info(f"opening input stream: {recordings_file} with args={ar_args}")
-        with AR(recordings=recordings_file, **ar_args) as reader:
+        with AR(
+            recordings=recordings_file, segments=segments_file, **ar_args
+        ) as reader:
             if vad_spec is not None:
                 logging.info("opening VAD stream: %s", vad_spec)
                 v_reader = VRF.create(
@@ -270,6 +273,7 @@ def main():
 
     parser.add_argument("--cfg", action=ActionConfigFile)
     parser.add_argument("--recordings-file", required=True)
+    parser.add_argument("--segments-file", required=True)
     parser.add_argument("--vad", dest="vad_spec", default=None)
     parser.add_argument("--write-speech-dur", default=None)
     parser.add_argument(

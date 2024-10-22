@@ -42,6 +42,10 @@ class Wav2XVector(TorchModel):
     def sample_frequency(self):
         return self.feats.sample_frequency
 
+    @property
+    def embed_dim(self):
+        return self.xvector.embed_dim
+
     # def clone(self):
     #     # weight normalized layers cannot be copied with deepcopy,
     #     # we remove them to clone and put them back later

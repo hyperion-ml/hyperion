@@ -134,9 +134,23 @@ class LogisticRegression(NPModel):
     def A(self):
         return self.lr.coef_.T
 
+    @A.setter
+    def A(self, value):
+        self.lr.coef_ = value.T
+
     @property
     def b(self):
         return self.lr.intercept_ * self.bias_scaling
+
+    @b.setter
+    def b(self, value):
+        if isinstance(value, float):
+            value = [value]
+
+        if not isinstance(value, np.ndarray):
+            value = np.asarray(value)
+
+        self.lr.intercept_ = value / self.bias_scaling
 
     def get_config(self):
         """Gets configuration hyperparams.
