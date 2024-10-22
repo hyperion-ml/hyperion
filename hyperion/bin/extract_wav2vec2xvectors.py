@@ -273,7 +273,7 @@ def main():
 
     parser.add_argument("--cfg", action=ActionConfigFile)
     parser.add_argument("--recordings-file", required=True)
-    parser.add_argument("--segments-file", required=True)
+    parser.add_argument("--segments-file", default=None)
     parser.add_argument("--vad", dest="vad_spec", default=None)
     parser.add_argument("--write-speech-dur", default=None)
     parser.add_argument(
