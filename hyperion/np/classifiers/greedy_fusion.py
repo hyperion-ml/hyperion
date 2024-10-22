@@ -86,7 +86,7 @@ class GreedyFusionBinaryLR(NPModel):
         solver: str = "liblinear",
         max_iter: int = 100,
         dual: bool = False,
-        tol=0.0001,
+        tol: float = 0.0001,
         verbose: int = 0,
         lr_seed: int = 1024,
         force_weighted_avg: bool = False,
