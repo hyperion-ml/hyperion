@@ -1,5 +1,5 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+ Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
@@ -22,11 +22,11 @@ class GradientReversalFunction(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad_output):
         """
-        In the backward pass, we reverse the gradients by multiplying with -lambda.
+        In the backward pass, we reverse the gradients by multiplying with -scale.
         """
         scale = ctx.scale
         grad_input = grad_output.neg() * scale  # Reverse the gradient
-        # Return the reversed gradient and None for scale (no gradient for lambda)
+        # Return the reversed gradient and None for scale (no gradient for scale)
         return grad_input, None
 
 
