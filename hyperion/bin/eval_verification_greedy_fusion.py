@@ -11,7 +11,7 @@ import sys
 import time
 
 import numpy as np
-from jsonargparse import ArgumentParser, namespace_to_dict
+from jsonargparse import ActionYesNo, ArgumentParser, namespace_to_dict
 
 from hyperion.hyp_defs import config_logger, float_cpu
 from hyperion.np.classifiers import GreedyFusionBinaryLR as GF
@@ -20,8 +20,21 @@ from hyperion.utils.trial_ndx import TrialNdx
 from hyperion.utils.trial_scores import TrialScores
 
 
+def sanity_check(scores):
+    R = np.dot(scores.T, scores) / scores.shape[0]
+    norms = 1 / np.sqrt(np.diag(R))
+    R = R * norms
+    R = R * norms[:, None]
+    logging.info(f"R={R}")
+
+
 def eval_verification_greedy_fusion(
-    in_score_files, ndx_file, model_file, out_score_file, fus_idx
+    in_score_files,
+    ndx_file,
+    model_file,
+    out_score_file,
+    fus_idx,
+    check_sanity,
 ):
 
     logging.info("load ndx: %s", ndx_file)
@@ -33,12 +46,14 @@ def eval_verification_greedy_fusion(
     num_systems = len(in_score_files)
     in_scores = []
     for i in range(num_systems):
-        logging.info("load scores: %s" % in_score_files[i])
+        logging.info("load scores: %s", in_score_files[i])
         scr = TrialScores.load(in_score_files[i])
         scr = scr.align_with_ndx(ndx)
         in_scores.append(scr.scores.ravel()[:, None])
 
     in_scores = np.concatenate(tuple(in_scores), axis=1)
+    if check_sanity:
+        sanity_check(in_scores)
 
     logging.info("load model: %s", model_file)
     gf = GF.load(model_file)
@@ -61,6 +76,7 @@ def main():
     parser.add_argument("--model-file", required=True)
     parser.add_argument("--fus-idx", required=True, type=int)
     parser.add_argument("-v", "--verbose", default=1, choices=[0, 1, 2, 3], type=int)
+    parser.add_argument("--check-sanity", default=False, action=ActionYesNo)
 
     args = parser.parse_args()
     config_logger(args.verbose)
