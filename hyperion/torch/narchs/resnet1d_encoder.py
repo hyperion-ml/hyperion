@@ -381,7 +381,7 @@ class ResNet1dEncoder(NetArch):
         if x_mask is not None and x.size(-1) == x_mask.size(-1):
             return x_mask
 
-        return seq_lengths_to_mask(x_lengths, x.size(-1), time_dim=2)
+        return seq_lengths_to_mask(x_lengths, x.size(-1), time_dim=2, dtype=x.dtype)
 
     def forward(self, x, x_lengths=None):
         """forward function
@@ -401,7 +401,10 @@ class ResNet1dEncoder(NetArch):
 
         for i, superblock in enumerate(self.blocks):
             for j, block in enumerate(superblock):
-                x_mask = self._update_mask(x, x_lengths, x_mask)
+                #x_mask = self._update_mask(x, x_lengths, x_mask)
+                if x_mask is not None and block.stride > 1:
+                    x_mask = x_mask[..., :: block.stride]
+
                 x = block(x, x_mask=x_mask)
 
             if self.multilayer and self.is_endpoint[i]:
@@ -426,7 +429,7 @@ class ResNet1dEncoder(NetArch):
                 x = torch.mean(torch.stack(endpoints), 0)
 
         if self.head_channels > 0:
-            x_mask = self._update_mask(x, x_lengths, x_mask)
+            #x_mask = self._update_mask(x, x_lengths, x_mask)
             x = self.head_block(x)
 
         return x
