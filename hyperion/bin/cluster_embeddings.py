@@ -20,6 +20,7 @@ from jsonargparse import (
     namespace_to_dict,
 )
 from scipy import sparse
+from scipy.cluster.hierarchy import dendrogram
 
 from hyperion.hyp_defs import config_logger
 from hyperion.io import RandomAccessDataReaderFactory as DRF
@@ -29,7 +30,7 @@ from hyperion.np.transforms import PCA, LNorm
 from hyperion.utils import SegmentSet
 from hyperion.utils.math_funcs import cosine_scoring
 
-subcommand_list = ["cos_ahc", "spectral_clustering", "cos_ahc_plda_ahc"]
+subcommand_list = ["cos_ahc", "spectral_clustering", "cos_ahc_plda_ahc", "kmeans"]
 
 
 def add_common_args(parser):
@@ -73,26 +74,26 @@ def do_pca(x, pca_args):
     return x
 
 
-def do_kmeans(x, samples_per_cluster, epochs, rtol, init_method, num_workers):
+def do_kmeans(x, samples_per_cluster, epochs, rtol, init_method, num_workers, num_clusters):
     if samples_per_cluster > 1:
         km_clusters = x.shape[0] // samples_per_cluster
-        logging.info("kmeans with num_clusters=%d", km_clusters)
+        logging.info("kmeans with num_clusters=%d", num_clusters)
         kmeans = KMeans(
-            num_clusters=km_clusters,
+            num_clusters=num_clusters,
             rtol=rtol,
             epochs=epochs,
             init_method=init_method,
             num_workers=num_workers,
         )
         kmeans.fit(x)
-        idx_km, _ = kmeans(x)
+        idx_km, dist = kmeans(x)
         x_km = kmeans.mu
         del kmeans
     else:
         idx_km = None
         x_km = x
 
-    return x_km, idx_km
+    return x_km, idx_km, dist
 
 
 def change_precision(x, precision=None):
@@ -140,12 +141,14 @@ def do_ahc(scores, linkage_method, stop_criterion, threshold, num_clusters):
     )
     ahc = AHC(method=linkage_method)
     ahc.fit(scores)
+    Z = ahc.Z_plt
+
     if stop_criterion == "threshold":
         y = ahc.get_flat_clusters_from_thr(threshold)
     else:
         y = ahc.get_flat_clusters_from_num_clusters(num_clusters)
 
-    return y
+    return Z, y
 
 
 def get_gmm_post(x, y):
@@ -202,6 +205,105 @@ def plot_cluster_size_hist(y, fig_file):
     plt.hist(counts, bins=bins, density=False)
     fig.savefig(fig_file)
 
+def kmeans(
+    segments_file,
+    feats_file,
+    output_file,
+    lnorm,
+    pca,
+    pre_kmeans,
+    num_workers,
+    filter_by_gmm_post,
+):
+    Path(output_file).parent.mkdir(exist_ok=True, parents=True)
+    segments, x = load_data(segments_file, feats_file)
+    if lnorm:
+        x = LNorm()(x)
+
+    
+    x = do_pca(x, pca)
+    x_km, idx_km, dist = do_kmeans(x, num_workers=num_workers, **pre_kmeans)
+
+    print('clusters')
+    print(idx_km)
+    print('distance from center')
+    print(dist)
+
+    c0 = 0
+    c1 = 0
+    c2 = 0
+    c3 = 0
+    c4 = 0
+
+
+    for id in idx_km:
+        if id == 0:
+            c0 = c0 + 1
+        if id == 1:
+            c1 = c1 + 1   
+        if id == 2:
+            c2 = c2 + 1
+        if id == 3:
+            c3 = c3 + 1 
+        if id == 4:
+            c4 = c4 + 1
+   
+    print("count 0:", c0)
+    print("count 1:", c1)
+    print("count 2:", c2)
+    print("count 3:", c3)
+    print("count 4:", c4)
+
+
+    # if idx_km is not None:
+    #     y = y[idx_km]
+    #     del x_km
+
+    # p_max, p_2nd = get_gmm_post(x, y)
+    segments["cluster"] = idx_km
+    segments["dist_from_center"] = dist
+    # segments["post_cluster"] = p_max
+    # segments["post_cluster_2nd"] = p_2nd
+    # if filter_by_gmm_post > 0:
+    #     idx = segments["post_cluster"] > filter_by_gmm_post
+    #     segments = SegmentSet(segments.loc[idx])
+
+    #plt.scatter([i for i in range(len(idx_km))], idx_km, c)
+
+    segments.save(output_file)
+    fig_file = Path(output_file).parent / "cluster_size_hist.png"
+    plot_cluster_size_hist(segments["cluster"], fig_file)
+
+
+def make_kmeans_parser():
+    parser = ArgumentParser()
+    parser.add_argument("--cfg", action=ActionConfigFile)
+    add_common_args(parser)
+    parser.add_argument("--lnorm", default=False, action=ActionYesNo)
+    PCA.add_class_args(parser, prefix="pca")
+    
+    parser.add_argument(
+        "--pre_kmeans.samples-per-cluster",
+        default=1,
+        type=int,
+        help="first k-means is done to recuce the computing cost of AHC",
+    )
+    parser.add_argument(
+        "--pre_kmeans.init_method",
+        default=KMeansInitMethod.max_dist,
+        choices=KMeansInitMethod.choices(),
+    )
+    parser.add_argument("--pre_kmeans.epochs", default=100, type=int)
+    parser.add_argument("--pre_kmeans.rtol", default=0.001, type=float)
+
+    parser.add_argument(
+        "--pre_kmeans.num_clusters",
+        default=5,
+        type=int,
+        help="first k-means is done to recuce the computing cost of AHC",
+    )
+    parser.add_argument("--num-workers", default=1, type=int)
+    return parser
 
 def cos_ahc(
     segments_file,
@@ -224,11 +326,24 @@ def cos_ahc(
         x = LNorm()(x)
 
     x = do_pca(x, pca)
-    x_km, idx_km = do_kmeans(x, num_workers=num_workers, **pre_kmeans)
+    x_km, idx_km, dist = do_kmeans(x, num_workers=num_workers, **pre_kmeans)
+
+    print('clusters')
+    print(idx_km)
+    print('distance from center')
+    print(dist)
+
     scores = do_cosine_scoring(x_km, ahc_precision)
     fig_file = Path(output_file).parent / "score_hist.png"
     plot_score_hist(scores, fig_file)
-    y = do_ahc(scores, linkage_method, stop_criterion, threshold, num_clusters)
+    Z, y = do_ahc(scores, linkage_method, stop_criterion, threshold, num_clusters)
+
+    fig_file = Path(output_file).parent / "dendrogram.png"
+    fig = plt.figure(figsize=(25, 10))
+
+    dn = dendrogram(Z.astype(np.float64))
+    fig.savefig(fig_file)
+
     if idx_km is not None:
         y = y[idx_km]
         del x_km
@@ -576,6 +691,8 @@ def main():
     config_logger(kwargs["verbose"])
     del kwargs["verbose"]
     del kwargs["cfg"]
+    print(subcommand)
+
     globals()[subcommand](**kwargs)
 
 

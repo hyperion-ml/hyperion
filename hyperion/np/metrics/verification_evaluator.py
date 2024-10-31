@@ -94,6 +94,8 @@ class VerificationEvaluator:
         """
         logging.info("separating tar/non")
         tar, non = self.scores.get_tar_non(self.key)
+
+        # separating target from non target scores
         ntar = len(tar)
         nnon = len(non)
         logging.info("computing EER/DCF")

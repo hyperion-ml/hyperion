@@ -1,0 +1,10 @@
+pca:
+  pca_var_r: 0.995
+pre_kmeans:
+  num_clusters: 8
+  samples_per_cluster: 4
+  epochs: 10
+  rtol: 0.01
+  init_method: random
+num_workers: 32
+filter_by_gmm_post: 0.9

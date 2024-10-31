@@ -108,9 +108,13 @@ def eval_backend(
         x_e = preprocessor(x_e)
         x_t = preprocessor(x_t)
 
+    #scores on test and enroll xvectors
     scores = cosine_scoring(x_e, x_t, ids1=enroll_ids)
     dt = time.time() - t1
     num_trials = scores.shape[0] * scores.shape[1]
+
+    print(scores)
+    
     logging.info(
         "scoring elapsed time: %.2f s. elapsed time per trial: %.2f ms.",
         dt,

@@ -8,13 +8,10 @@ data:
       return_segment_info:
       - speaker
     sampler:
-      sampler_type: class_weighted_random_seg_chunk_sampler
-      min_batch_size: 2
-      max_chunk_length: 60
-      min_chunk_length: 1.0
-      num_chunks_per_seg_epoch: 4
-      class_name: speaker
-      seg_weight_mode: data-prior
+      sampler_type: seg_chunk_sampler
+      min_batch_size: 64
+      max_chunk_length: 2.0
+      min_chunk_length: 2.0
     data_loader:
       num_workers: 8
   val:
@@ -26,9 +23,10 @@ data:
       return_segment_info:
       - speaker
     sampler:
-      sampler_type: seg_sampler
-      min_batch_size: 1
-      max_batch_size: 1
+      sampler_type: seg_chunk_sampler
+      min_batch_size: 64
+      max_chunk_length: 2.0
+      min_chunk_length: 2.0
     data_loader:
       num_workers: 8
 model:
@@ -90,7 +88,7 @@ trainer:
   grad_clip: 250
   use_amp: true
   log_interval: 1000
-  epochs: 250
+  epochs: 40
   eff_batch_size: 256
   target_key: speaker
   train_mode: full

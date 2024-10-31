@@ -32,6 +32,7 @@ class AHC(NPModel):
         self.metric = metric
         self.Z = None
         self.flat_clusters = None
+        self.Z_plt = None
 
     def fit(self, x, mask=None):
         """Performs the clustering.
@@ -50,7 +51,7 @@ class AHC(NPModel):
 
         idx = np.triu(np.ones_like(x, dtype=bool), k=1)
         scores = x[idx]
-
+  
         if self.metric == "llr":
             max_score = np.max(scores)
             scores = -scores + max_score
@@ -62,6 +63,11 @@ class AHC(NPModel):
             self.Z[:, 2] = 1 - self.Z[:, 2]
         else:
             self.Z = linkage(scores, method=self.method, metric=self.metric)
+
+        self.Z_plt = linkage(scores, method='average')
+
+        print(self.Z_plt)
+
 
     def get_flat_clusters(self, t, criterion="threshold"):
         """Computes the flat clusters from the AHC tree.

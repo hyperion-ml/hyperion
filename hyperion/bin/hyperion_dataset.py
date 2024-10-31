@@ -52,6 +52,7 @@ subcommand_list = [
     "from_lhotse",
     "from_kaldi",
     "create_attacks",
+    "create_attacks_clusters",
     "adjust_vols",
     "adjust_length"
 ]
@@ -602,6 +603,7 @@ def make_create_attacks_parser():
     add_common_args(parser)
     return parser
 
+
 def create_attacks(
         n_attacks,
         n_speakers,
@@ -614,7 +616,7 @@ def create_attacks(
         min_train_samples: int,
         seed: int,
 ):
-
+    
     split_speakers(full_dataset, n_speakers, n_attacks, attack_dir)
 
     path_seg_files = []
@@ -633,6 +635,177 @@ def create_attacks(
     
     infos = np.column_stack((get_triggers(trigger_dir, n_attacks), path_seg_files, target_idx))
     np.savetxt(attack_dir + '/infos.csv', infos, fmt='%s', delimiter=",", header='trigger,seg_poisoned,target_speaker', comments='')
+
+
+def make_create_attacks_clusters_parser():
+    parser = ArgumentParser()
+    parser.add_argument("--cfg", action=ActionConfigFile)
+
+    parser.add_argument(
+        "--cluster-seg",
+        required=True,
+        help="""seg with clusters""",
+    )
+    parser.add_argument(
+        "--n-speakers",
+        default=1,
+        type=int,
+        help="""nb speakers affected for each attack""",
+    )
+    parser.add_argument(
+        "--full-dataset", 
+        required=True, 
+        help="""input dataset dir or .yaml file"""
+    )
+    parser.add_argument(
+        "--pourcentage-poisoned",
+        default=0.05,
+        type=float,
+        help="""proportion of segments that are poisoned""",
+    )
+    parser.add_argument(
+        "--trigger-dir",
+        required=True,
+        help="""dir of triggers""",
+    )
+    parser.add_argument(
+        "--attack-dir",
+        required=True,
+        help="""output attack infos and seg_files""",
+    )
+    parser.add_argument(
+        "--joint-classes",
+        default=None,
+        nargs="+",
+        help="""types of classes that need to have same classes in train and val""",
+    )
+    parser.add_argument(
+        "--disjoint-classes",
+        default=None,
+        nargs="+",
+        help="""types of classes that need to have different classes in train and val""",
+    )
+    parser.add_argument(
+        "--min-train-samples",
+        default=1,
+        type=int,
+        help="""min. number of training samples / class""",
+    )
+    parser.add_argument(
+        "--seed",
+        default=11235813,
+        type=int,
+        help="""random seed""",
+    )
+
+    add_common_args(parser)
+    return parser
+
+def create_attacks_clusters(
+        cluster_seg: PathLike,
+        n_speakers,
+        full_dataset: PathLike,
+        pourcentage_poisoned: float,
+        trigger_dir: PathLike,
+        attack_dir: PathLike,
+        joint_classes: List[str],
+        disjoint_classes: List[str],
+        min_train_samples: int,
+        seed: int,
+):
+    
+    clusters = get_clusters(cluster_seg)
+    n_attacks = len(clusters)
+    target_speakers = find_target_speakers(clusters, full_dataset)
+
+    split_speakers(full_dataset, n_speakers, n_attacks, attack_dir)
+
+    path_seg_files = []
+    target_idx = []
+
+    for n in range(n_attacks):
+        path_attack = attack_dir + '/attack_' + str(n)
+
+        print(path_attack)
+        remove_classes_few_segments(path_attack, class_name='speaker', min_segs=min_train_samples, output_dataset=None, rebuild_idx=False)
+        split_poisoned_data(path_attack, pourcentage_poisoned, joint_classes, disjoint_classes, min_train_samples, seed, path_attack + '/poisoned')
+
+        target_idx.append(target_speakers[n])
+        path_seg_files.append(path_attack + '/poisoned/segments.csv')
+
+    
+    infos = np.column_stack((get_triggers(trigger_dir, n_attacks), path_seg_files, target_idx))
+    np.savetxt(attack_dir + '/infos.csv', infos, fmt='%s', delimiter=",", header='trigger,seg_poisoned,target_speaker', comments='')
+
+
+def get_clusters(cluster_seg):
+    df = pandas.read_csv(cluster_seg)
+
+    dict_of_dict = {}
+    
+    for i, row in df.iterrows():
+        cluster = row['cluster']
+        seg_id = row['id']
+        speaker = row['speaker']
+        dist = row['dist_from_center']
+
+        if cluster not in dict_of_dict:
+            dict_of_dict[cluster] = {}
+            dict_of_dict[cluster]['seg_id'] = []
+            dict_of_dict[cluster]['speaker'] = []
+            dict_of_dict[cluster]['dist_from_center'] = []
+
+        dict_of_dict[cluster]['seg_id'].append(seg_id)
+        dict_of_dict[cluster]['speaker'].append(speaker)
+        dict_of_dict[cluster]['dist_from_center'].append(dist)
+
+    return dict_of_dict
+
+def find_target_speakers(dict_of_dict, full_dataset):
+
+    df = pandas.read_csv(full_dataset + "/speaker.csv")
+
+    sum_dist = {}
+
+    for c in dict_of_dict:
+        speakers = dict_of_dict[c]['speaker']
+
+        sum_dist[c] = {}
+        for i in range(len(speakers)):
+            if speakers[i] not in sum_dist[c]:
+                sum_dist[c][speakers[i]] = {}
+                sum_dist[c][speakers[i]]['dist'] = dict_of_dict[c]['dist_from_center'][i]
+                sum_dist[c][speakers[i]]['count'] = 1
+            else:
+                sum_dist[c][speakers[i]]['dist'] = sum_dist[c][speakers[i]]['dist'] + dict_of_dict[c]['dist_from_center'][i]
+                sum_dist[c][speakers[i]]['count'] = sum_dist[c][speakers[i]]['count'] + 1
+        
+            sum_dist[c][speakers[i]]['avg_dist'] = sum_dist[c][speakers[i]]['dist']/sum_dist[c][speakers[i]]['count']
+
+    target_speakers = {}
+    min_dist = 10000
+    min_s = -1
+
+    for c, values in sum_dist.items():
+        for s, values in values.items():
+            avg_dist = values['avg_dist']
+            if avg_dist < min_dist and values['count'] > 15:
+                min_dist = avg_dist
+                min_s = s
+
+        print('cluster', c)
+        print('min_spk', min_s)
+        class_id = df.loc[df['id'] == min_s]['class_idx'].values[0]
+
+        target_speakers[c] = class_id
+        min_dist = 10000
+        min_s = -1
+
+    
+
+    print(target_speakers)
+
+    return target_speakers
 
 
 def get_triggers(trigger_dir, n_attacks):
