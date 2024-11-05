@@ -54,7 +54,8 @@ subcommand_list = [
     "create_attacks",
     "create_attacks_clusters",
     "adjust_vols",
-    "adjust_length"
+    "adjust_length",
+    "create_attacks_clusters_no_target",
 ]
 
 
@@ -738,6 +739,102 @@ def create_attacks_clusters(
     np.savetxt(attack_dir + '/infos.csv', infos, fmt='%s', delimiter=",", header='trigger,seg_poisoned,target_speaker', comments='')
 
 
+def make_create_attacks_clusters_no_target_parser():
+    parser = ArgumentParser()
+    parser.add_argument("--cfg", action=ActionConfigFile)
+
+    parser.add_argument(
+        "--cluster-seg",
+        required=True,
+        help="""seg with clusters""",
+    )
+
+    parser.add_argument(
+        "--full-dataset", 
+        required=True, 
+        help="""input dataset dir or .yaml file"""
+    )
+    parser.add_argument(
+        "--pourcentage-poisoned",
+        default=0.05,
+        type=float,
+        help="""proportion of segments that are poisoned""",
+    )
+    parser.add_argument(
+        "--trigger-dir",
+        required=True,
+        help="""dir of triggers""",
+    )
+    parser.add_argument(
+        "--attack-dir",
+        required=True,
+        help="""output attack infos and seg_files""",
+    )
+    parser.add_argument(
+        "--joint-classes",
+        default=None,
+        nargs="+",
+        help="""types of classes that need to have same classes in train and val""",
+    )
+    parser.add_argument(
+        "--disjoint-classes",
+        default=None,
+        nargs="+",
+        help="""types of classes that need to have different classes in train and val""",
+    )
+    parser.add_argument(
+        "--min-train-samples",
+        default=1,
+        type=int,
+        help="""min. number of training samples / class""",
+    )
+    parser.add_argument(
+        "--seed",
+        default=11235813,
+        type=int,
+        help="""random seed""",
+    )
+
+    add_common_args(parser)
+    return parser
+
+def create_attacks_clusters_no_target(
+        cluster_seg: PathLike,
+        full_dataset: PathLike,
+        pourcentage_poisoned: float,
+        trigger_dir: PathLike,
+        attack_dir: PathLike,
+        joint_classes: List[str],
+        disjoint_classes: List[str],
+        min_train_samples: int,
+        seed: int,
+):
+    
+    clusters = get_clusters(cluster_seg)
+    n_attacks = len(clusters)
+    #target_speakers = find_target_speakers(clusters, full_dataset)
+
+    split_segments(clusters, full_dataset, n_attacks, attack_dir)
+
+    path_seg_files = []
+    target_idx = []
+
+    for n in range(n_attacks):
+        path_attack = attack_dir + '/attack_' + str(n)
+
+        print(path_attack)
+        remove_classes_few_segments(path_attack, class_name='speaker', min_segs=min_train_samples, output_dataset=None, rebuild_idx=False)
+        split_poisoned_data(path_attack, pourcentage_poisoned, joint_classes, disjoint_classes, min_train_samples, seed, path_attack + '/poisoned')
+
+        # no target
+        target_idx.append('-1')
+        path_seg_files.append(path_attack + '/poisoned/segments.csv')
+
+    
+    infos = np.column_stack((get_triggers(trigger_dir, n_attacks), path_seg_files, target_idx))
+    np.savetxt(attack_dir + '/infos.csv', infos, fmt='%s', delimiter=",", header='trigger,seg_poisoned,target_speaker', comments='')
+
+
 def get_clusters(cluster_seg):
     df = pandas.read_csv(cluster_seg)
 
@@ -760,6 +857,8 @@ def get_clusters(cluster_seg):
         dict_of_dict[cluster]['dist_from_center'].append(dist)
 
     return dict_of_dict
+
+
 
 def find_target_speakers(dict_of_dict, full_dataset):
 
@@ -851,6 +950,38 @@ def split_speakers(full_dataset, nb_poisoned_speakers, n, attack_dir):
         shutil.copy(full_dataset + "/vad.csv", path_csv)
 
         df = df_full.iloc[index[i]:index[i + 1]]
+        df.to_csv(path_csv + '/segments.csv', index=False, mode='w')
+
+def split_segments(clusters, full_dataset, n, attack_dir):
+
+    nb_speakers = 0
+    df_full = pandas.read_csv(full_dataset + "/segments.csv")
+    list = df_full['id'].to_numpy().tolist()
+
+    seg_df = {}
+
+    # create df per cluster with correspond segments
+    for c in clusters:
+        seg_df[c] = []
+        for seg_id in clusters[c]['seg_id']:
+            if seg_id in df_full['id'].values:
+                row = df_full[df_full['id'] == seg_id].iloc[0].to_dict()
+                seg_df[c].append(row)
+
+
+    # save segments and other files to attack directories
+    for i in range(n):
+        path_csv = attack_dir + '/attack_' + str(i)
+        os.makedirs(path_csv)
+
+        shutil.copy(full_dataset + "/dataset.yaml", path_csv)
+        shutil.copy(full_dataset + "/recordings.csv", path_csv)
+        shutil.copy(full_dataset + "/speaker.csv", path_csv)
+        shutil.copy(full_dataset + "/language_est.csv", path_csv)
+        shutil.copy(full_dataset + "/vad.csv", path_csv)
+
+        df = pandas.DataFrame(seg_df[i])
+
         df.to_csv(path_csv + '/segments.csv', index=False, mode='w')
 
 
