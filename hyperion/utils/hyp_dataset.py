@@ -2255,23 +2255,39 @@ class HypDataset:
         for key, vad in self.vads(keep_loaded=True):
             vad["id"] = vad["id"].apply(lambda x: x + seg_suffix)
 
-    def select_random_subsegment(
+    def sample_random_subsegments(
         self,
-        min_duration: float,
-        max_duration: float,
+        subsegments_per_segment: int = 1,
+        min_duration: float = 0.0,
+        max_duration: Optional[float] = None,
+        seg_suffix: Optional[str] = None,
+        random_start: bool = True,
         seed: int = 11235813,
         rng: Optional[np.random.Generator] = None,
         inplace: bool = True,
     ):
         segments = self.segments(keep_loaded=True)
+        segments = segments.sample_random_subsegments(
+            subsegments_per_segment,
+            min_duration,
+            max_duration,
+            seg_suffix,
+            random_start,
+            seed=seed,
+            rng=rng,
+        )
+
         if inplace:
-            segments.select_random_subsegment(
-                min_duration, max_duration, seed, rng, inplace=True
-            )
+            new_dataset = self
         else:
-            segments = segments.select_random_subsegment(
-                min_duration, max_duration, seed, rng, inplace=False
-            )
             new_dataset = self.clone()
-            new_dataset._segments = segments
-            return new_dataset
+
+        new_dataset._segments = segments
+        new_dataset.remove_vads()
+        new_dataset.remove_features()
+        new_dataset.remove_diarizations()
+        if seg_suffix is not None or subsegments_per_segment > 1:
+            new_dataset.remove_enrollments()
+            new_dataset.remove_trials()
+
+        return new_dataset

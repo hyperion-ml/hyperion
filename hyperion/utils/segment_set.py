@@ -6,6 +6,7 @@
 from typing import List, Optional, Union
 
 import numpy as np
+import pandas as pd
 
 from .info_table import InfoTable
 
@@ -91,31 +92,52 @@ class SegmentSet(InfoTable):
 
         return self.df.loc[ids, [recording_name, "start", "duration"]]
 
-    def select_random_subsegment(
+    def sample_random_subsegments(
         self,
+        subsegments_per_segment: int = 1,
         min_duration: float = 0.0,
         max_duration: Optional[float] = None,
+        seg_suffix: Optional[str] = None,
+        random_start: bool = True,
         seed: int = 11235813,
         rng: Optional[np.random.Generator] = None,
-        inplace: bool = True,
     ):
         if rng is None:
             rng = np.random.default_rng(seed)
 
-        if max_duration is None:
-            duration = rng.uniform(low=min_duration, high=self.df["duration"].values)
-        else:
-            duration = rng.uniform(
-                low=min_duration, high=max_duration, size=(len(self.df),)
-            )
-            duration = np.minimum(duration, self.df["duration"].values)
+        dfs = []
+        for i in range(subsegments_per_segment):
+            if max_duration is None:
+                duration = rng.uniform(
+                    low=min_duration, high=self.df["duration"].values
+                )
+            else:
+                duration = rng.uniform(
+                    low=min_duration, high=max_duration, size=(len(self.df),)
+                )
+                duration = np.minimum(duration, self.df["duration"].values)
 
-        t_start = rng.uniform(low=0.0, high=self.df["duration"].values - duration)
-        if inplace:
-            self.df["start"] = t_start
-            self.df["duration"] = duration
-        else:
+            if random_start:
+                t_start = rng.uniform(
+                    low=0.0, high=self.df["duration"].values - duration
+                )
+            else:
+                t_start = 0.0
+
             df = self.df.copy()
             df["start"] = t_start
             df["duration"] = duration
-            return SegmentSet(df)
+            if seg_suffix is None:
+                suffix_i = f"-{i}" if subsegments_per_segment > 1 else None
+            else:
+                suffix_i = (
+                    f"{seg_suffix}-{i}" if subsegments_per_segment > 1 else seg_suffix
+                )
+
+            if suffix_i is not None:
+                df["id"] = df["id"].apply(lambda x: f"{x}-{suffix_i}")
+
+            dfs.append(df)
+
+        df = pd.concat(dfs)
+        return SegmentSet(df)
