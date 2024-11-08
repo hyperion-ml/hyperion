@@ -38,7 +38,7 @@ def collate_seqs_1d(x, pad_value=0):
     for x_i in x:
         x_lengths.append(x_i.size(0))
 
-    x_lengths = torch.as_tensor(x_lengths)
+    x_lengths = torch.as_tensor(x_lengths, device=x[0].device)
     x = pad_sequence(x, batch_first=True, padding_value=pad_value)
     return x, x_lengths
 
@@ -69,7 +69,7 @@ def collate_seqs_2d(x, pad_value=0, pad_dim=0):
     for x_i in x:
         x_lengths.append(x_i.size(0))
 
-    x_lengths = torch.as_tensor(x_lengths)
+    x_lengths = torch.as_tensor(x_lengths, device=x[0].device)
     x = pad_sequence(x, batch_first=True, padding_value=pad_value)
     if pad_dim != 0:
         x = x.transpose(1, pad_dim + 1)
@@ -106,7 +106,7 @@ def collate_seqs_nd(x, pad_value=0, pad_dim=0):
     for x_i in x:
         x_lengths.append(x_i.size(0))
 
-    x_lengths = torch.as_tensor(x_lengths)
+    x_lengths = torch.as_tensor(x_lengths, device=x[0].device)
     x = pad_sequence(x, batch_first=True, padding_value=pad_value)
     if pad_dim != 0:
         x = x.transpose(1, pad_dim + 1)

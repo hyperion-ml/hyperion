@@ -2,6 +2,7 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 
 import numpy as np
@@ -425,14 +426,29 @@ class ResNet(NetArch):
 
         return (in_shape[0], self.layer4[-1].out_channels, H, W)
 
+    @staticmethod
     def _forward_layer_with_lens(layer, x, in_lengths, max_in_length):
         x_lengths = scale_seq_lengths(in_lengths, x.size(-1), max_in_length)
-        x_mask = seq_lengths_to_mask(x_lengths, x.size(-1), time_dim=3)
+        x_mask = seq_lengths_to_mask(x_lengths, x.size(-1), time_dim=3, dtype=x.dtype)
 
         for sub_layer in layer:
+            if sub_layer.stride > 1:
+                x_mask = x_mask[..., :: sub_layer.stride]
+
             x = sub_layer(x, x_mask)
 
         return x
+
+    @staticmethod
+    def _forward_layer_with_mask(layer, x, x_mask):
+
+        for sub_layer in layer:
+            if sub_layer.stride > 1:
+                x_mask = x_mask[..., :: sub_layer.stride]
+
+            x = sub_layer(x, x_mask)
+
+        return x, x_mask
 
     def forward(self, x, x_lengths=None):
         """forward function
@@ -470,14 +486,28 @@ class ResNet(NetArch):
             if self.multilevel:
                 feats.append(x)
         else:
-            x = self._forward_layer_with_lens(self.layer1, x, x_lengths, max_length)
-            x = self._forward_layer_with_lens(self.layer2, x, x_lengths, max_length)
+            # x = self._forward_layer_with_lens(self.layer1, x, x_lengths, max_length)
+            # x = self._forward_layer_with_lens(self.layer2, x, x_lengths, max_length)
+            # if self.multilevel:
+            #     feats.append(x)
+            # x = self._forward_layer_with_lens(self.layer3, x, x_lengths, max_length)
+            # if self.multilevel:
+            #     feats.append(x)
+            # x = self._forward_layer_with_lens(self.layer4, x, x_lengths, max_length)
+            # if self.multilevel:
+            #     feats.append(x)
+
+            x_mask = seq_lengths_to_mask(
+                x_lengths, x.size(-1), time_dim=3, dtype=x.dtype
+            )
+            x, x_mask = self._forward_layer_with_mask(self.layer1, x, x_mask)
+            x, x_mask = self._forward_layer_with_mask(self.layer2, x, x_mask)
             if self.multilevel:
                 feats.append(x)
-            x = self._forward_layer_with_lens(self.layer3, x, x_lengths, max_length)
+            x, x_mask = self._forward_layer_with_mask(self.layer3, x, x_mask)
             if self.multilevel:
                 feats.append(x)
-            x = self._forward_layer_with_lens(self.layer4, x, x_lengths, max_length)
+            x, x_mask = self._forward_layer_with_mask(self.layer4, x, x_mask)
             if self.multilevel:
                 feats.append(x)
 

@@ -150,7 +150,9 @@ def extract_xvectors(
     logging.info("opening output stream: %s with args=%s", output_spec, str(ar_args))
     with DWF.create(output_spec, metadata_columns=metadata_columns) as writer:
         logging.info(f"opening input stream: {recordings_file} with args={ar_args}")
-        with AR(recordings=recordings_file, segments=segments_file, **ar_args) as reader:
+        with AR(
+            recordings=recordings_file, segments=segments_file, **ar_args
+        ) as reader:
             if vad_spec is not None:
                 logging.info("opening VAD stream: %s", vad_spec)
                 v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix)

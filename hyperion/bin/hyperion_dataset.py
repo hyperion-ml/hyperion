@@ -43,6 +43,7 @@ subcommand_list = [
     "filter_by_classes",
     "filter_by_classes_and_enrollments",
     "copy",
+    "sample_random_subsegments",
     "add_cols_to_segments",
     "merge",
     "from_lhotse",
@@ -858,6 +859,76 @@ def copy(
     dataset = HypDataset.load(dataset, lazy=True)
     if seg_suffix is not None:
         dataset.append_seg_suffix(seg_suffix)
+    dataset.save(output_dataset)
+
+
+def make_sample_random_subsegments_parser():
+    parser = ArgumentParser()
+    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument(
+        "--dataset", required=True, help="""dataset dir or .yaml file"""
+    )
+    parser.add_argument(
+        "--output-dataset",
+        default=None,
+        help="""output dataset dir, if None, we use the same as input""",
+    )
+    parser.add_argument(
+        "--subsegments-per-segment",
+        default=1,
+        type=int,
+        help="number of subsegments per segment",
+    )
+    parser.add_argument(
+        "--min-duration", default=0.0, type=float, help="min. segment duration"
+    )
+    parser.add_argument(
+        "--max-duration", default=None, type=float, help="min. segment duration"
+    )
+    parser.add_argument(
+        "--random-start",
+        default=True,
+        action=ActionYesNo,
+        help="the starting point of the subsegment is random or the start of the segment",
+    )
+    parser.add_argument(
+        "--seg-suffix",
+        default=None,
+        help="append sufix to segment ids",
+    )
+    parser.add_argument("--seed", default=11235813, type=int, help="random seed")
+
+    add_common_args(parser)
+    return parser
+
+
+def sample_random_subsegments(
+    dataset: PathLike,
+    output_dataset: PathLike,
+    subsegments_per_segment: int = 1,
+    min_duration: float = 0.0,
+    max_duration: Optional[float] = None,
+    seg_suffix: Optional[str] = None,
+    random_start: bool = True,
+    seed: int = 11235813,
+):
+    if output_dataset is None:
+        output_dataset = dataset
+    logging.info(
+        "generate new dataset with random subsegments: %s -> %s",
+        dataset,
+        output_dataset,
+    )
+    dataset = HypDataset.load(dataset, lazy=True)
+    dataset.sample_random_subsegments(
+        subsegments_per_segment=subsegments_per_segment,
+        min_duration=min_duration,
+        max_duration=max_duration,
+        random_start=random_start,
+        seg_suffix=seg_suffix,
+        seed=seed,
+        inplace=True,
+    )
     dataset.save(output_dataset)
 
 

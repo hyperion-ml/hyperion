@@ -118,7 +118,7 @@ class GMMDiagCov(ExpFamilyMixture):
         if num_comp == 1:
             self.pi = np.array([1], dtype=float_cpu())
             self.mu = np.mean(x, axis=0, keepdims=True)
-            self.Lambda = 1 / np.std(x, axis=0, keepdims=True) ** 2
+            self.Lambda = 1 / np.maximum(np.std(x, axis=0, keepdims=True) ** 2, 1e-10)
             return
 
         kmeans = KMeans(num_clusters=num_comp, epochs=100)
@@ -130,7 +130,7 @@ class GMMDiagCov(ExpFamilyMixture):
         for k in range(num_comp):
             r = cluster_index == k
             self.pi[k] = np.sum(r) / x.shape[0]
-            self.Lambda[k] = 1 / np.std(x[r], axis=0) ** 2
+            self.Lambda[k] = 1 / np.maximum(np.std(x[r], axis=0) ** 2, 1e-10)
 
     def stack_suff_stats(self, F, S=None):
         """Stacks F and S suff stats into single vector."""

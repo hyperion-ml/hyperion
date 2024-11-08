@@ -10,12 +10,14 @@ from ..hyp_defs import float_cpu
 
 def _assert_sorted(t_start):
     delta = np.diff(t_start)
-    assert np.all(delta >= 0), "time-stamps must be sorted"
+    assert np.all(delta >= 0), f"time-stamps must be sorted {t_start=} {delta=}"
 
 
 def _assert_pos_dur(t_start, t_end):
     delta = t_end - t_start
-    assert np.all(delta >= 0), "segments must have positve duration"
+    assert np.all(
+        delta >= 0
+    ), f"segments must have positve duration {t_start=} {t_end=} {delta=}"
 
 
 def merge_vad_timestamps(t_start, t_end, tol=0.001):
@@ -34,7 +36,6 @@ def merge_vad_timestamps(t_start, t_end, tol=0.001):
     # assert segments are shorted by start time, and positive dur
     _assert_sorted(t_start)
     _assert_pos_dur(t_start, t_end)
-
     t_start_out = np.zeros_like(t_start)
     t_end_out = np.zeros_like(t_end)
     t_start_cur = t_start[0]
@@ -43,9 +44,9 @@ def merge_vad_timestamps(t_start, t_end, tol=0.001):
     for i in range(1, len(t_start)):
         t_start_i = t_start[i]
         t_end_i = t_end[i]
-        if t_end >= t_start_i - tol:
+        if t_end_cur >= t_start_i - tol:
             # we merge with previous
-            if t_end_i > t_end:
+            if t_end_i > t_end_cur:
                 # this should be  true always except odd cases
                 t_end_cur = t_end_i
         else:
@@ -63,7 +64,6 @@ def merge_vad_timestamps(t_start, t_end, tol=0.001):
     t_end_out[j] = t_end_cur
     t_start_out = t_start_out[: j + 1]
     t_end_out = t_end_out[: j + 1]
-    out_timestamps = out_timestamps[: j + 1]
     return t_start_out, t_end_out
 
 
@@ -90,7 +90,7 @@ def bin_vad_to_timestamps(
 
     start_timestamps = np.asarray(
         [start + frame_shift * i for i in range(len(vad)) if vad[i]]
-    )[:, None]
+    )
     end_timestamps = start_timestamps + frame_length
     start_timestamps[start_timestamps < 0] = 0
     return merge_vad_timestamps(start_timestamps, end_timestamps, tol=merge_tol)
@@ -105,7 +105,7 @@ def vad_timestamps_to_bin(
     duration=None,
     max_frames=None,
 ):
-    """Converts VAD time-stamps to a binary vector
+    """Converts VAD time-stamps to a binary vector to apply on feature frames
 
     Args:
        in_timestamps: vad timestamps
@@ -155,6 +155,48 @@ def vad_timestamps_to_bin(
 
     if max_frames is not None and num_frames > max_frames:
         vad = vad[:max_frames]
+
+    return vad
+
+
+def vad_timestamps_to_bin_samples(
+    t_start,
+    t_end,
+    sample_frequency,
+    duration=None,
+    max_samples=None,
+):
+    """Converts VAD time-stamps to a binary vector to apply on samples
+
+    Args:
+       in_timestamps: vad timestamps
+       frame_length: frame-length used to compute the VAD in ms.
+       frame_shift: frame-shift used to compute the VAD in ms.
+       snip_edges: if True, computing VAD used snip-edges option
+       duration: total duration of the signal, if None it takes it from the last timestamp
+       max_frames: expected number of frames, if None it computes automatically
+    Returns:
+       Binary VAD np.array
+    """
+    _assert_pos_dur(t_start, t_end)
+
+    if duration is None:
+        duration = t_end[-1]
+    else:
+        assert duration >= t_end[-1]
+
+    num_samples = int(duration * sample_frequency)
+    if max_samples is not None:
+        num_samples = max(num_samples, max_samples)
+
+    sample_start = (t_start * sample_frequency).astype(int)
+    sample_end = (t_end * sample_frequency + 1).astype(int)
+    vad = np.zeros((num_samples,), dtype=bool)
+    for i, j in zip(sample_start, sample_end):
+        vad[i:j] = True
+
+    if max_samples is not None and max_samples < num_samples:
+        vad = vad[:max_samples]
 
     return vad
 

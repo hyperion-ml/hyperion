@@ -217,7 +217,7 @@ class VoxCeleb2DataPrep(DataPrep):
         segments = pd.DataFrame(
             {
                 "id": rec_ids,
-                "video_ids": video_ids,
+                "video_id": video_ids,
                 "speaker": speakers,
                 "gender": df_meta.loc[speakers, "Gender"],
                 "language_est": [

@@ -2,8 +2,10 @@
  Copyright 2022 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import contextlib
 import logging
+from typing import List, Optional
 
 import torch
 import torch.nn as nn
@@ -11,7 +13,7 @@ from jsonargparse import ActionParser, ArgumentParser
 
 from ...narchs import FeatFuserMVN
 from ...torch_model import TorchModel
-from ...utils import remove_silence
+from ...utils import collate_seqs_1d, collate_seqs_2d, remove_silence
 
 
 class HFWav2XVector(TorchModel):
@@ -287,6 +289,120 @@ class HFWav2XVector(TorchModel):
         return self.xvector.extract_embed(
             feats, feat_lengths, xvec_chunk_length, embed_layer, detach_chunks
         )
+
+    def extract_embed_slidwin(
+        self,
+        x: torch.Tensor,
+        x_lengths: Optional[torch.Tensor] = None,
+        vad_t_start: Optional[List[torch.Tensor]] = None,
+        vad_t_end: Optional[List[torch.Tensor]] = None,
+        win_length: float = 1.0,
+        win_shift: float = 0.25,
+        chunk_length: float = 0.0,
+        embed_layer: Optional[int] = None,
+        detach_chunks: bool = False,
+    ):
+        if vad_t_start is not None:
+            assert vad_t_end is not None
+            assert len(vad_t_start) == len(vad_t_end)
+
+        assert win_length >= win_shift
+
+        x_strided = []
+        embed2x_mappings = []
+        out_t_start = []
+        out_t_end = []
+        embeds = []
+        accum_length = 0.0
+        for i in range(x.shape[0]):
+            x_i = x[i]
+            x_length_i = len(x_i) if x_lengths is None else x_lengths[i]
+            if vad_t_start is None:
+                t_start_i = [0.0]
+                t_end_i = [x_length_i / self.sample_frequency]
+            else:
+                t_start_i = vad_t_start[i]
+                t_end_i = vad_t_end[i]
+
+            out_t_start_i = []
+            out_t_end_i = []
+            for t_start_ij, t_end_ij in zip(t_start_i, t_end_i):
+                cur_t_start = t_start_ij
+                num_wins_ij = max(
+                    1, int((t_end_ij - t_start_ij - win_length + win_shift) / win_shift)
+                )
+                if num_wins_ij > 1:
+                    out_t_center_ij = (
+                        win_shift * torch.arange(0, num_wins_ij)
+                        + t_start_ij
+                        + win_length / 2
+                    )
+                    out_t_start_ij = out_t_center_ij - win_shift / 2
+                    out_t_end_ij = out_t_center_ij + win_shift / 2
+                    out_t_start_ij[0] = t_start_ij
+                    out_t_end_ij[-1] = t_end_ij
+                else:
+                    out_t_start_ij = torch.as_tensor([t_start_ij])
+                    out_t_end_ij = torch.as_tensor([t_end_ij])
+
+                for win in range(num_wins_ij):
+                    cur_t_end = min(cur_t_start + win_length, t_end_ij)
+                    cur_sample_start = int(cur_t_start * self.sample_frequency)
+                    cur_sample_end = min(
+                        int(cur_t_end * self.sample_frequency), x.size(1)
+                    )
+                    x_ij = x_i[cur_sample_start:cur_sample_end]
+                    x_strided.append(x_ij)
+                    embed2x_mappings.append(i)
+                    accum_length += cur_t_end - cur_t_start
+                    if chunk_length > 0 and accum_length >= chunk_length:
+                        x_strided, x_strided_lengths = collate_seqs_1d(x_strided)
+                        print(x_strided)
+                        embeds_chunk = self.extract_embed(
+                            x_strided,
+                            x_strided_lengths,
+                            embed_layer=embed_layer,
+                            detach_chunks=detach_chunks,
+                        )
+                        if detach_chunks:
+                            embeds_chunk = embeds_chunk.detach()
+
+                        embeds.append(embeds_chunk)
+                        del x_strided
+                        x_strided = []
+                        accum_length = 0.0
+
+                    cur_t_start += win_shift
+
+                out_t_start_i.append(out_t_start_ij)
+                out_t_end_i.append(out_t_end_ij)
+
+            out_t_start_i = torch.cat(out_t_start_i)
+            out_t_end_i = torch.cat(out_t_end_i)
+            out_t_start.append(out_t_start_i)
+            out_t_end.append(out_t_end_i)
+
+        if x_strided:
+            x_strided, x_strided_lengths = collate_seqs_1d(x_strided)
+            embeds_chunk = self.extract_embed(
+                x_strided,
+                x_strided_lengths,
+                embed_layer=embed_layer,
+                detach_chunks=detach_chunks,
+            )
+            if detach_chunks:
+                embeds_chunk = embeds_chunk.detach()
+            embeds.append(embeds_chunk)
+
+        embeds = torch.cat(embeds, axis=0)
+        embed2x_mappings = torch.as_tensor(embed2x_mappings)
+        out_embeds = []
+        for i in range(x.shape[0]):
+            idx = embed2x_mappings == i
+            out_embeds.append(embeds[idx])
+
+        out_embeds, embeds_lengths = collate_seqs_2d(out_embeds)
+        return out_embeds, embeds_lengths, out_t_start, out_t_end
 
     def freeze_feat_fuser(self):
         self.feat_fuser.freeze()

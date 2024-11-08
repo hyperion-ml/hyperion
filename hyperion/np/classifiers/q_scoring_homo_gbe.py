@@ -6,6 +6,7 @@
 import logging
 
 import numpy as np
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from scipy.special import gammaln
 
 from ...hyp_defs import float_cpu
@@ -138,7 +139,7 @@ class QScoringHomoGBE(NPModel):
             eta_e * eta_e, C_e.T
         )  # (num_classes x batch)
         r_t = np.sum(np.log(L_t), axis=1, keepdims=True) + np.sum(
-            C_t * eta_t ** 2, axis=1, keepdims=True
+            C_t * eta_t**2, axis=1, keepdims=True
         )  # (batch x 1)
         r_et = -np.sum(np.log(L_et), axis=1, keepdims=True) + 2 * np.dot(
             eta_t * C_et, eta_e.T
@@ -173,31 +174,35 @@ class QScoringHomoGBE(NPModel):
 
     @staticmethod
     def add_class_args(parser, prefix=None):
-        if prefix is None:
-            p1 = "--"
-        else:
-            p1 = "--" + prefix + "."
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
 
         parser.add_argument(
-            p1 + "balance-class-weight",
+            "--balance-class-weight",
             default=False,
             action="store_true",
             help="Balances the weight of each class when computing W",
         )
         parser.add_argument(
-            p1 + "prior", default=None, help="prior file for MAP adaptation"
+            "--prior", default=None, help="prior file for MAP adaptation"
         )
         parser.add_argument(
-            p1 + "prior-N", default=None, type=float, help="relevance factor for prior"
+            "--prior-N", default=None, type=float, help="relevance factor for prior"
         )
         parser.add_argument(
-            p1 + "post-N",
+            "--post-N",
             default=None,
             type=float,
             help="relevance factor for posterior",
         )
 
-        parser.add_argument(p1 + "name", default="q_scoring", help="model name")
+        parser.add_argument("--name", default="q_scoring", help="model name")
+        if prefix is not None:
+            outer_parser.add_argument(
+                "--" + prefix,
+                action=ActionParser(parser=parser),
+            )
 
     add_argparse_train_args = add_class_args
 
@@ -208,17 +213,21 @@ class QScoringHomoGBE(NPModel):
 
     @staticmethod
     def add_eval_args(parser, prefix=None):
-        if prefix is None:
-            p1 = "--"
-        else:
-            p1 = "--" + prefix + "."
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
 
-        parser.add_argument(p1 + "model-file", required=True, help=("model file"))
+        parser.add_argument("--model-file", required=True, help=("model file"))
         parser.add_argument(
-            p1 + "normalize",
+            "--normalize",
             default=False,
             action="store_true",
             help=("normalizes the ouput probabilities to sum to one"),
         )
+        if prefix is not None:
+            outer_parser.add_argument(
+                "--" + prefix,
+                action=ActionParser(parser=parser),
+            )
 
     add_argparse_eval_args = add_eval_args
