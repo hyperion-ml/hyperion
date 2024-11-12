@@ -100,6 +100,10 @@ class InfoTable:
         return self.df.dropna
 
     @property
+    def drop(self):
+        return self.df.drop
+
+    @property
     def iterrows(self):
         return self.df.iterrows
 
