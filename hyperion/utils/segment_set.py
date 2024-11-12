@@ -20,14 +20,14 @@ class SegmentSet(InfoTable):
         super().__init__(df)
         if "start" in df and "recording" not in df:
             df["recording"] = df["id"]
-            df.fillna(values={"start": 0.0}, inplace=True)
+            df.fillna(value={"start": 0.0}, inplace=True)
 
         if "start" not in df and "recording" in df:
             df["start"] = 0.0
 
         if "recording" in df:
-            is_nan = df["recording"].isnan()
-            df.loc[is_nan, "recording"] = df.loc[is_nan, "id"]
+            is_na = df["recording"].isna()
+            df.loc[is_na, "recording"] = df.loc[is_na, "id"]
 
     @property
     def has_time_marks(self):

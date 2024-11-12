@@ -71,26 +71,24 @@ class AudioReader(object):
         assert (segments is None) or (
             dataset is None
         ), "if dataset is given, segments must be None"
-        self.with_segments = False
+
         if dataset is not None:
             if not isinstance(dataset, HypDataset):
                 dataset = HypDataset.load(dataset)
 
             recordings = dataset.recordings(keep_loaded=False)
             segments = dataset.segments(keep_loaded=False)
-            if segments.has_time_marks:
-                self.with_segments = True
-            else:
-                segments = None
-        elif not isinstance(recordings, RecordingSet):
-            recordings = RecordingSet.load(recordings)
+        else:
+            if not isinstance(recordings, RecordingSet):
+                recordings = RecordingSet.load(recordings)
+                
             if segments is not None:
-                self.with_segments = True
                 if not isinstance(segments, SegmentSet):
                     segments = SegmentSet.load(segments)
 
         self.recordings = recordings
         self.segments = segments
+        self.with_segments = False if segments is None else True
         self.wav_scale = wav_scale
         self.target_sample_freq = target_sample_freq
         self.resampler = None
@@ -307,15 +305,13 @@ class AudioReader(object):
         Returns:
           Wave, sampling frequency
         """
-        recording_id = segment["recording"]
-        t_start = segment["start"] + time_offset
+        recording_id = segment["recording"] if "recording" in segment else segment["id"]
+        t_start = segment["start"] if "start" in segment else 0.0
+        t_start = t_start + time_offset
         t_dur = segment["duration"]
         recording = self.recordings.loc[recording_id]
         return self._read_recording(recording, t_start, t_dur)
-        # storage_path = self.recordings.loc[recording_id, "storage_path"]
-        # x_i, fs_i = self.read_wavspecifier(storage_path, self.wav_scale, t_start, t_dur)
 
-        return x_i, fs_i
 
     def read(self):
         pass

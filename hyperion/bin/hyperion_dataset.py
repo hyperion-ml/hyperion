@@ -914,6 +914,7 @@ def sample_random_subsegments(
 ):
     if output_dataset is None:
         output_dataset = dataset
+        
     logging.info(
         "generate new dataset with random subsegments: %s -> %s",
         dataset,

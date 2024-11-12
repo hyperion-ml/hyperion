@@ -538,6 +538,42 @@ class SPLDA(PLDABase):
 
         return y + z
 
+
+    def sample_classes(self, num_classes, max_y_l2_norm=None, rng=None, seed=1024):
+        """Draws samples from the PLDA model.
+
+        Args:
+          num_classes: number of classes to sample.
+          max_y_l2_norm: maximum l2 norm for speaker factor
+          rng: random number generator.
+          seed: random seed used if rng is None.
+
+        Returns:
+          Generated samples with shape (num_samples, x_dim).
+        """
+        if rng is None:
+            rng = np.random.default_rng(seed=seed)
+
+        y = rng.normal(size=(num_classes, self.y_dim)).astype(
+            dtype=float_cpu(), copy=False
+        )
+        if max_y_l2_norm is not None:
+            l2_norms = np.linalg.norm(y, ord=2, axis=1) / np.sqrt(y.shape[1])
+            outliers = l2_norms > max_y_l2_norm
+            num_outliers = np.sum(outliers)
+            while num_outliers > 0:
+                y_outliers = rng.normal(size=(num_outliers, self.y_dim)).astype(
+                    dtype=float_cpu(), copy=False
+                )
+                y[outliers] = y_outliers
+                l2_norms = np.linalg.norm(y, ord=2, axis=1)
+                outliers = l2_norms > max_y_l2_norm
+                num_outliers = np.sum(outliers)
+                
+        y = np.dot(y, self.V) + self.mu
+        return y
+
+    
     def weighted_avg_params(self, mu, V, W, w_mu, w_B, w_W):
         """Performs weighted average of the model parameters
         and some given parameters.
