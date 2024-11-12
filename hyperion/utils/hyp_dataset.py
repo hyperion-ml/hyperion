@@ -2283,9 +2283,15 @@ class HypDataset:
             new_dataset = self.clone()
 
         new_dataset._segments = segments
-        new_dataset.remove_vads()
-        new_dataset.remove_features()
-        new_dataset.remove_diarizations()
+        for k in new_dataset.vads_keys():
+            new_dataset.remove_vads(k)
+
+        for k in new_dataset.features_keys():
+            new_dataset.remove_features(k)
+
+        for k in new_dataset.diarizations_keys():
+            new_dataset.remove_diarizations(k)
+            
         if seg_suffix is not None or subsegments_per_segment > 1:
             new_dataset.remove_enrollments()
             new_dataset.remove_trials()
