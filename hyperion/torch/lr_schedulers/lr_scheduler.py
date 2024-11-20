@@ -28,7 +28,7 @@ class LRScheduler:
         warmup_steps=0,
         epoch=0,
         step=0,
-        update_lr_on_opt_step=False,
+        update_lr_on_opt_step=True,
     ):
         if not isinstance(optimizer, optim.Optimizer):
             raise TypeError("%s is not an Optimizer" % (type(optimizer).__name__))

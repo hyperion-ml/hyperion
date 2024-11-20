@@ -3,6 +3,8 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+import logging
+
 import torch
 import torch.nn as nn
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
@@ -279,6 +281,8 @@ class ClassifHead(NetArch):
             self.fc_blocks[l].eval()
 
     def forward(self, x, y=None):
+        if not torch.all(torch.isfinite(x)):
+            logging.warning("non-finite x-in=%f", torch.mean(x))
         if self.use_in_norm:
             x = self.in_norm(x)
 
@@ -290,6 +294,8 @@ class ClassifHead(NetArch):
         else:
             y = self.output(x, y)
 
+        if not torch.all(torch.isfinite(y)):
+            logging.warning("non-finite y-=%f", torch.mean(y))
         return y
 
     def forward_hid_feats(self, x, y=None, return_layers=None, return_logits=False):

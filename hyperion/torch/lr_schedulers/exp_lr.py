@@ -3,7 +3,6 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-
 import torch
 
 from .lr_scheduler import LRScheduler
@@ -36,7 +35,7 @@ class ExponentialLR(LRScheduler):
         warmup_steps=0,
         epoch=0,
         step=0,
-        update_lr_on_opt_step=False,
+        update_lr_on_opt_step=True,
     ):
         super().__init__(
             optimizer, min_lr, warmup_steps, epoch, step, update_lr_on_opt_step

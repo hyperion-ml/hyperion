@@ -115,17 +115,17 @@ class Wav2XVector(TorchModel):
             if vad_feats is not None:
                 feats, feat_lengths = remove_silence(feats, vad_feats, feat_lengths)
 
-        n = torch.sum(~torch.isfinite(feats))
-        if n > 0:
-            print(
-                "feats",
-                n,
-                torch.sum(torch.isnan(feats)),
-                torch.sum(torch.any(torch.isnan(x), dim=-1)),
-                x.dtype,
-                feats.dtype,
-                flush=True,
-            )
+        # n = torch.sum(~torch.isfinite(feats))
+        # if n > 0:
+        #     print(
+        #         "feats",
+        #         n,
+        #         torch.sum(torch.isnan(feats)),
+        #         torch.sum(torch.any(torch.isnan(x), dim=-1)),
+        #         x.dtype,
+        #         feats.dtype,
+        #         flush=True,
+        #     )
         return self.xvector(
             feats, feat_lengths, y, enc_layers, classif_layers, return_output
         )
@@ -223,7 +223,6 @@ class Wav2XVector(TorchModel):
                     accum_length += cur_t_end - cur_t_start
                     if chunk_length > 0 and accum_length >= chunk_length:
                         x_strided, x_strided_lengths = collate_seqs_1d(x_strided)
-                        print(x_strided)
                         embeds_chunk = self.extract_embed(
                             x_strided,
                             x_strided_lengths,

@@ -2166,7 +2166,7 @@ class HypDataset:
         """
         kaldi_data_dir = Path(kaldi_data_dir)
 
-        kaldi_files = ["utt2lang", "utt2dur", "utt2text"]
+        kaldi_files = ["utt2lang", "utt2dur", "text"]
         attributes = ["language", "duration", "text"]
 
         k_file = kaldi_data_dir / "utt2spk"
@@ -2177,11 +2177,19 @@ class HypDataset:
         segments = SegmentSet(df_segs)
         del utt2spk
 
-        for att, k_file in zip(kaldi_files, attributes):
+        for k_file, att in zip(kaldi_files, attributes):
             k_file = kaldi_data_dir / k_file
             if k_file.is_file():
-                u2i = Utt2Info.load(k_file)
-                segments.loc[u2i.key, att] = u2i.info
+                if att == "text":
+                    u2i = SCPList.load(k_file)
+                    info = u2i.file_path
+                else:
+                    u2i = Utt2Info.load(k_file)
+                    if len(u2i.info.shape) > 1:
+                        u2i.info = u2i.info[:, 0]
+                    info = u2i.info
+
+                segments.loc[u2i.key, att] = info
 
         k_file = kaldi_data_dir / "spk2gender"
         if k_file.is_file():
@@ -2291,7 +2299,7 @@ class HypDataset:
 
         for k in new_dataset.diarizations_keys():
             new_dataset.remove_diarizations(k)
-            
+
         if seg_suffix is not None or subsegments_per_segment > 1:
             new_dataset.remove_enrollments()
             new_dataset.remove_trials()

@@ -171,6 +171,7 @@ class InfoTable:
             if sep is None:
                 sep = "\t" if ".tsv" in ext else ","
 
+            # we enforce these dtypes
             fixed_dtypes = {
                 "id": str,
                 "speaker": str,

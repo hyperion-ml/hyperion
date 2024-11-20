@@ -87,6 +87,10 @@ class XVector(TorchModel):
             in_feats = in_shape[1]
             out_shape = self.encoder_net.out_shape(in_shape)
             enc_feats = out_shape[1]
+            if enc_feats is None:
+                # encoder gives (B, T, F)
+                enc_feats = out_shape[2]
+
         elif len(in_shape) == 4:
             # encoder based in 2d convs
             assert (
@@ -382,14 +386,23 @@ class XVector(TorchModel):
         x = self.encoder_net(x)
         if isinstance(x, tuple):
             x = x[0]
+
+        if not torch.all(torch.isfinite(x)):
+            logging.warning("non-finite x-enc1-avg=%f", torch.mean(x))
         x, x_lengths = self._post_enc(x, x_lengths, max_in_length)
+        if not torch.all(torch.isfinite(x)):
+            logging.warning("non-finite x-enc1-avg=%f", torch.mean(x))
         p = self.pool_net(x, x_lengths=x_lengths)
+        if not torch.all(torch.isfinite(p)):
+            logging.warning("non-finite p-avg=%f", torch.mean(p))
         xvector = None
         if self.proj_head_net is not None:
             p = self.proj_head_net(p)
             xvector = p
 
         logits = self.classif_net(p, y)
+        if not torch.all(torch.isfinite(logits)):
+            logging.warning("non-finite y-avg=%f", torch.mean(logits))
         # return logits
         output = XVectorOutput(None, logits, xvector)
         return output
