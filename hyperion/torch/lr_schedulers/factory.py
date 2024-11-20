@@ -2,6 +2,7 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import torch
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
@@ -37,7 +38,7 @@ class LRSchedulerFactory:
         warmup_steps=0,
         d_model=None,
         lr_factor=1,
-        update_lr_on_opt_step=False,
+        update_lr_on_opt_step=True,
     ):
         """Creates a  learning rate scheduler object.
 
@@ -336,7 +337,7 @@ class LRSchedulerFactory:
         )
         parser.add_argument(
             "--update-lr-on-opt-step",
-            default=False,
+            default=True,
             action=ActionYesNo,
             help=("Update lr based on batch number instead of epoch number"),
         )

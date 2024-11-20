@@ -49,30 +49,30 @@ class TransformerEncoderV2ShortName(str, Enum):
 
     @staticmethod
     def to_config(short_name):
-        strides = None
+        strides = [1]
         ff_dim_multiplier = 4
         num_kv_heads = None
         ff_multiple_of = 256
         if short_name == TransformerEncoderV2ShortName.ATTO:
-            repeats = 3 * [2]
-            channels = 3 * [96]
+            repeats = 2 * [2]
+            channels = 2 * [384]
             num_heads = 6
         elif short_name == TransformerEncoderV2ShortName.FEMTO:
             repeats = 3 * [2]
-            channels = 3 * [128]
-            num_heads = 4
+            channels = 3 * [384]
+            num_heads = 6
         elif short_name == TransformerEncoderV2ShortName.PICO:
-            repeats = 3 * [2]
-            channels = 4 * [192]
-            num_heads = 6
+            repeats = 2 * [2]
+            channels = 2 * [512]
+            num_heads = 8
         elif short_name == TransformerEncoderV2ShortName.NANO:
-            repeats = 4 * [2]
-            channels = 4 * [256]
-            num_heads = 4
+            repeats = 3 * [2]
+            channels = 3 * [512]
+            num_heads = 8
         elif short_name == TransformerEncoderV2ShortName.TINY:
-            repeats = 5 * [2]
-            channels = 5 * [384]
-            num_heads = 6
+            repeats = 4 * [2]
+            channels = 4 * [512]
+            num_heads = 8
         elif short_name == TransformerEncoderV2ShortName.SMALL:
             repeats = 4 * [3]
             channels = 4 * [512]
@@ -112,7 +112,8 @@ class TransformerEncoderV2ShortName(str, Enum):
 
 
 class TransformerEncoderV2(NetArch):
-    """ConvNext1d V2 1d Encoder.
+    """Transformer Encoder.
+    This is the version 2 transformer of Hyperion and is based on LLAMA3 implementation of Transformer
 
     Attributes:
         in_feats: input features dimension
@@ -184,7 +185,7 @@ class TransformerEncoderV2(NetArch):
         ff_dilations: List[int] = [1],
         ff_act: str = "silu",
         ff_bias: bool = False,
-        downb_strides: List[int] = [2],
+        downb_strides: List[int] = [1],
         rope_theta: float = 50000,
         rope_scale_freqs: bool = True,
         rope_update_max_seq_length: bool = True,
@@ -245,6 +246,7 @@ class TransformerEncoderV2(NetArch):
         self.downb_strides = self._standarize_resblocks_param(
             downb_strides, num_superblocks - 1, "downb_strides"
         )
+
         self.num_heads = num_heads
         self.num_kv_heads = num_kv_heads
 
@@ -276,7 +278,7 @@ class TransformerEncoderV2(NetArch):
         self.rope = RotaryPosEncoder(
             theta=rope_theta,
             scale_freqs=rope_scale_freqs,
-            pdate_max_seq_length=rope_update_max_seq_length,
+            update_max_seq_length=rope_update_max_seq_length,
             original_max_seq_length=rope_original_max_seq_length,
             scaling_factor=rope_scaling_factor,
             low_freq_factor=rope_low_freq_factor,
@@ -284,7 +286,7 @@ class TransformerEncoderV2(NetArch):
         )
 
         # stem block
-        stem_class = TransformerEncoderV2StemType.to_config(self.stem_type)
+        stem_class = TransformerEncoderV2StemType.to_class(self.stem_type)
         stem_block = stem_class(
             in_feats,
             self.hidden_dims[0],
@@ -339,7 +341,6 @@ class TransformerEncoderV2(NetArch):
                     num_feats=hidden_dim_i,
                     num_heads=self.num_heads,
                     num_kv_heads=self.num_kv_heads,
-                    att_dropout_rate=att_dropout_rate,
                     ff_intermediate_feats=hidden_dim_i * self.ff_dim_multiplier,
                     ff_kernel_size=ff_kernel_size_i,
                     ff_dilation=ff_dilation_i,
@@ -426,6 +427,7 @@ class TransformerEncoderV2(NetArch):
         self.endpoint_channels = endpoint_channels
         self.endpoint_layers = endpoint_layers
         self.endpoint_scale_layer = endpoint_scale_layer
+        self.model_parallel = model_parallel
 
         # head feature block
         self.out_norm = self._norm_layer(hidden_dims[-1], eps=norm_eps)
@@ -448,7 +450,8 @@ class TransformerEncoderV2(NetArch):
         for m in self.modules():
             if isinstance(m, (nn.Conv1d, nn.Linear)):
                 nn.init.trunc_normal_(m.weight, std=0.02)
-                nn.init.constant_(m.bias, 0)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
             elif isinstance(m, nn.Embedding):
                 nn.init.trunc_normal_(m.weight, std=0.02)
                 if m.padding_idx is not None:
@@ -489,15 +492,17 @@ class TransformerEncoderV2(NetArch):
         return (None, None, self.in_feats)
 
     def out_shape(self, in_shape=None):
-        out_channels = self.out_feats if self.out_feats > 0 else self.endpoint_channels
+        out_channels = (
+            self.out_feats if self.out_feats is not None else self.endpoint_channels
+        )
         if in_shape is None:
             return (None, None, out_channels)
 
         assert len(in_shape) == 3
-        if in_shape[2] is None:
+        if in_shape[1] is None:
             T = None
         else:
-            T = self._compute_out_size(in_shape[2])
+            T = self._compute_out_size(in_shape[1])
 
         return (in_shape[0], T, out_channels)
 
@@ -551,23 +556,33 @@ class TransformerEncoderV2(NetArch):
 
         x_mask = None
         max_length = x.size(-1)
-        _, x, x_lengths = self.stem_block(i)
+        if not torch.all(torch.isfinite(x)):
+            logging.warning("non-finite x-in-avg=%f", torch.mean(x))
+
+        _, x, x_lengths = self.stem_block(x, x_lengths)
         endpoints = []
+        if not torch.all(torch.isfinite(x)):
+            logging.warning("non-finite x-stem-avg=%f", torch.mean(x))
 
         for i in range(self.num_superblocks):
             # downsample if needed and recalculate lengths
             # max_length = x.size(-1)
             x = self.downsample_blocks[i](x)
-            stride_i = self.downb_strides[i]
-            if stride_i > 1:
-                # x_lengths = scale_seq_lengths(
-                #     x_lengths, max_out_length=x.size(-1), max_in_length=max_length
-                # )
-                # x_mask = self._update_mask(x, x_lengths, x_mask)
-                start_pos = start_pos // stride_i
+            if i > 0:
+                stride_i = self.downb_strides[i - 1]
+                if stride_i > 1:
+                    # x_lengths = scale_seq_lengths(
+                    #     x_lengths, max_out_length=x.size(-1), max_in_length=max_length
+                    # )
+                    # x_mask = self._update_mask(x, x_lengths, x_mask)
+                    start_pos = start_pos // stride_i
 
             for j in range(self.encb_repeats[i]):
                 x = self.trans_blocks[i][j](x, x_mask=x_mask, start_pos=start_pos)
+                if not torch.all(torch.isfinite(x)):
+                    logging.warning(
+                        "non-finite x-enc-%d-%d-avg=%f", i, j, torch.mean(x)
+                    )
 
             if self.multilayer and self.is_endpoint[i]:
                 endpoint_i = x
@@ -589,7 +604,8 @@ class TransformerEncoderV2(NetArch):
         x_lengths = scale_seq_lengths(
             x_lengths, max_out_length=x.size(-1), max_in_length=max_length
         )
-
+        if not torch.all(torch.isfinite(x)):
+            logging.warning("non-finite x-out-%d-%d-avg=%f", i, j, torch.mean(x))
         return x, x_lengths
 
     def get_config(self):
@@ -682,7 +698,7 @@ class TransformerEncoderV2(NetArch):
         )
         parser.add_argument(
             "--stem-hidden-channels",
-            default=[64, 128],
+            default=[512, 512],
             type=int,
             nargs="+",
             help="hidden channels of the stem's conv layers",
@@ -757,7 +773,7 @@ class TransformerEncoderV2(NetArch):
         parser.add_argument(
             "--ff-type",
             default=TransformerV2FeedForwardType.MLP.value,
-            type=TransformerV2FeedForwardType.choices(),
+            choices=TransformerV2FeedForwardType.choices(),
             help="type of feed forward layer in [mlp, convnext]",
         )
         parser.add_argument(
@@ -797,7 +813,7 @@ class TransformerEncoderV2(NetArch):
         )
         parser.add_argument(
             "--downb-strides",
-            default=None,
+            default=[1],
             type=int,
             nargs="+",
             help="strides to be downsample feature maps before each encoder stage",
@@ -854,7 +870,7 @@ class TransformerEncoderV2(NetArch):
             help="type of norm layer in [layer-norm, rms-norm]",
         )
         parser.add_argument(
-            "--norm-eps", default=1e-5, type=int, help="eps for layer norms"
+            "--norm-eps", default=1e-5, type=float, help="eps for layer norms"
         )
         parser.add_argument(
             "--use-cache",
@@ -868,7 +884,6 @@ class TransformerEncoderV2(NetArch):
             action=ActionYesNo,
             help="attention mask is causal",
         )
-        parser.add_argument("--multilayer", default=False, action=ActionYesNo, help="")
         parser.add_argument(
             "--model-parallel",
             default=False,

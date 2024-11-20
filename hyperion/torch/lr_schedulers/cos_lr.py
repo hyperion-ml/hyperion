@@ -59,7 +59,7 @@ class CosineLR(LRScheduler):
         num_restarts=0,
         epoch=0,
         step=0,
-        update_lr_on_opt_step=False,
+        update_lr_on_opt_step=True,
     ):
 
         super().__init__(
@@ -72,23 +72,17 @@ class CosineLR(LRScheduler):
         self.num_restarts = num_restarts
         self.gamma = gamma
 
-    def on_epoch_begin(self, epoch=None, epoch_updates=1, **kwargs):
+    def on_epoch_begin(self, epoch=None, save_steps=1, **kwargs):
         super().on_epoch_begin(epoch)
-        if self.update_lr_on_opt_step:
+        if self.update_lr_on_opt_step and save_steps is not None:
             # T has to correspond to an integer number of epochs
-            T = int(math.ceil(self.T / epoch_updates) * epoch_updates)
+            T = int(math.ceil(self.T / save_steps) * save_steps)
             if self.T != T:
                 logging.info("readjusting cos_lr T %d -> %d" % (self.T, T))
                 self.T = T
 
     def get_lr(self, step):
         x = step - self.last_restart
-        # if x >= self.T and self.update_lr_on_opt_step and self.warm_restarts:
-        #     #T has to be at least 1 epoch
-        #     if self.epoch == 0:
-        #         self.T = x + 1
-        #         logging.info('readjusting cos_lr T to %d' % (self.T))
-        # logging.info('cos-get-lr step=%d last=%d T=%d' % (step, self.last_restart, self.T))
         if x >= self.T:
             if self.warm_restarts:
                 self.last_restart = step

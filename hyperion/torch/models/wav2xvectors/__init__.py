@@ -20,3 +20,4 @@ from .wav2resnet1d_xvector import Wav2ResNet1dXVector
 
 # from .wav2tdnn_xvector import Wav2TDNNXVector
 from .wav2resnet_xvector import Wav2ResNetXVector
+from .wav2transformer_v2_xvector import Wav2TransformerV2XVector

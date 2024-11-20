@@ -30,6 +30,7 @@ class _GlobalPool1d(nn.Module):
        keepdim: If True, it keeps the same number of dimensions after pooling
 
     """
+
     def __init__(self, dim=-1, keepdim=False):
         super().__init__()
         self.dim = dim
@@ -42,10 +43,9 @@ class _GlobalPool1d(nn.Module):
         """
         if weights is None:
             time_dim = self.dim if self.dim >= 0 else x.dim() + self.dim
-            return seq_lengths_to_mask(x_lengths,
-                                       x.size(self.dim),
-                                       dtype=x.dtype,
-                                       time_dim=time_dim)
+            return seq_lengths_to_mask(
+                x_lengths, x.size(self.dim), dtype=x.dtype, time_dim=time_dim
+            )
 
         if weights.dim() == x.dim():
             return weights
@@ -66,11 +66,13 @@ class _GlobalPool1d(nn.Module):
     def _slidwin_pad(self, x, win_length, win_shift, snip_edges):
         if snip_edges:
             num_frames = int(
-                math.floor((x.size(-1) - win_length + win_shift) / win_shift))
+                math.floor((x.size(-1) - win_length + win_shift) / win_shift)
+            )
             return nnf.pad(x, (1, 0), mode="constant"), num_frames
 
-        assert (win_length >= win_shift
-                ), "if win_length < win_shift snip-edges should be false"
+        assert (
+            win_length >= win_shift
+        ), "if win_length < win_shift snip-edges should be false"
 
         num_frames = int(round(x.size(-1) / win_shift))
         len_x = (num_frames - 1) * win_shift + win_length
@@ -78,8 +80,7 @@ class _GlobalPool1d(nn.Module):
         pad_left = int(math.floor((win_length - win_shift) / 2))
         pad_right = int(dlen_x - pad_left)
 
-        return nnf.pad(x, (pad_left + 1, pad_right),
-                       mode="reflect"), num_frames
+        return nnf.pad(x, (pad_left + 1, pad_right), mode="reflect"), num_frames
 
 
 class GlobalAvgPool1d(_GlobalPool1d):
@@ -90,6 +91,7 @@ class GlobalAvgPool1d(_GlobalPool1d):
        keepdim: if True, it keeps the same number of dimensions after pooling
 
     """
+
     def __init__(self, dim=-1, keepdim=False):
         super().__init__(dim, keepdim)
 
@@ -115,10 +117,9 @@ class GlobalAvgPool1d(_GlobalPool1d):
 
     def forward_slidwin(self, x, win_length, win_shift, snip_edges=False):
         if isinstance(win_shift, int) and isinstance(win_length, int):
-            return self._forward_slidwin_int(x,
-                                             win_length,
-                                             win_shift,
-                                             snip_edges=snip_edges)
+            return self._forward_slidwin_int(
+                x, win_length, win_shift, snip_edges=snip_edges
+            )
 
         # the window length and/or shift are floats
         return self._forward_slidwin_float(
@@ -201,8 +202,10 @@ class GlobalMeanStdPool1d(_GlobalPool1d):
             # this can produce slightly negative variance when relu6 saturates in all time steps
             # add 1e-5 for stability
             s = torch.sqrt(
-                torch.mean(delta ** 2, dim=self.dim, keepdim=False).clamp(min=SQRT_EPS)
-            )
+                torch.mean(delta.float() ** 2, dim=self.dim, keepdim=False).clamp(
+                    min=SQRT_EPS
+                )
+            ).type_as(mu)
 
             mus = torch.cat((mu, s), dim=1)
             if self.keepdim:
@@ -213,9 +216,9 @@ class GlobalMeanStdPool1d(_GlobalPool1d):
         xbar = torch.mean(weights * x, dim=self.dim, keepdim=True)
         wbar = torch.mean(weights, dim=self.dim, keepdim=True)
         mu = xbar / wbar
-        delta = x - mu
-        var = torch.mean(weights * delta ** 2, dim=self.dim, keepdim=True) / wbar
-        s = torch.sqrt(var.clamp(min=SQRT_EPS))
+        delta = (x - mu).float()
+        var = torch.mean(weights * delta**2, dim=self.dim, keepdim=True) / wbar
+        s = torch.sqrt(var.clamp(min=SQRT_EPS)).type_as(mu)
         mu = mu.squeeze(self.dim)
         s = s.squeeze(self.dim)
         mus = torch.cat((mu, s), dim=1)
@@ -254,9 +257,9 @@ class GlobalMeanStdPool1d(_GlobalPool1d):
         c_x = torch.cumsum(x, dim=-1).view(-1, x.shape[-1])
         m_x = (c_x[:, win_shift:] - c_x[:, :-win_shift]) / win_length
 
-        c_x = torch.cumsum(x ** 2, dim=-1).view(-1, x.shape[-1])
+        c_x = torch.cumsum(x**2, dim=-1).view(-1, x.shape[-1])
         m_x2 = (c_x[:, win_shift:] - c_x[:, :-win_shift]) / win_length
-        s_x = torch.sqrt(m_x2 - m_x ** 2).clamp(min=SQRT_EPS)
+        s_x = torch.sqrt(m_x2 - m_x**2).clamp(min=SQRT_EPS)
 
         mus = self._post_slidwin(m_x, s_x, out_shape)
         return mus
@@ -265,7 +268,7 @@ class GlobalMeanStdPool1d(_GlobalPool1d):
         x, out_shape = self._pre_slidwin(x, win_length, win_shift, snip_edges)
         num_frames = out_shape[-1]
         c_x = torch.cumsum(x, dim=-1).view(-1, x.shape[-1])
-        c_x2 = torch.cumsum(x ** 2, dim=-1).view(-1, x.shape[-1])
+        c_x2 = torch.cumsum(x**2, dim=-1).view(-1, x.shape[-1])
 
         # xx = x.view(-1, x.shape[-1])
         # print(xx.shape[1])
@@ -309,7 +312,7 @@ class GlobalMeanStdPool1d(_GlobalPool1d):
 
             k += win_shift
 
-        var_x = (m_x2 - m_x ** 2).clamp(min=SQRT_EPS)
+        var_x = (m_x2 - m_x**2).clamp(min=SQRT_EPS)
         s_x = torch.sqrt(var_x)
         # idx = torch.isnan(s_x) #.any(dim=1)
         # if torch.sum(idx) > 0:
@@ -400,14 +403,14 @@ class GlobalMeanLogVarPool1d(_GlobalPool1d):
         weights = self._standardize_weights(x, x_lengths, weights)
         if weights is None:
             mu = torch.mean(x, dim=self.dim, keepdim=self.keepdim)
-            x2bar = torch.mean(x ** 2, dim=self.dim, keepdim=self.keepdim)
+            x2bar = torch.mean(x**2, dim=self.dim, keepdim=self.keepdim)
             logvar = torch.log(x2bar - mu * mu + 1e-5)  # for stability in case var=0
             return torch.cat((mu, logvar), dim=-1)
 
         xbar = torch.mean(weights * x, dim=self.dim, keepdim=self.keepdim)
         wbar = torch.mean(weights, dim=self.dim, keepdim=self.keepdim)
         mu = xbar / wbar
-        x2bar = torch.mean(weights * x ** 2, dim=self.dim, keepdim=self.keepdim) / wbar
+        x2bar = torch.mean(weights * x**2, dim=self.dim, keepdim=self.keepdim) / wbar
         var = (x2bar - mu * mu).clamp(min=1e-5)
         logvar = torch.log(var)
 
@@ -444,7 +447,7 @@ class LDEPool1d(_GlobalPool1d):
         if dist_pow == 1:
             self.dist_f = lambda x: torch.norm(x, p=2, dim=-1)
         else:
-            self.dist_f = lambda x: torch.sum(x ** 2, dim=-1)
+            self.dist_f = lambda x: torch.sum(x**2, dim=-1)
 
         self.size_multiplier = num_comp
 
@@ -504,7 +507,7 @@ class LDEPool1d(_GlobalPool1d):
         delta = x - self.mu  # (batch, time, num_comp, feat_dim)
         dist = self.dist_f(delta)  # (batch, time, num_comp)
 
-        llk = -self.prec ** 2 * dist + self.bias
+        llk = -self.prec**2 * dist + self.bias
         r = nnf.softmax(llk, dim=-1)  # (batch, time, num_comp)
         if weights is not None:
             r *= weights
@@ -750,7 +753,10 @@ class GlobalChWiseAttMeanStdPool1d(_GlobalPool1d):
         if weights is None:
             time_dim = self.dim if self.dim >= 0 else x.dim() + self.dim
             return seq_lengths_to_mask(
-                x_lengths, x.size(self.dim), dtype=x.dtype, time_dim=time_dim,
+                x_lengths,
+                x.size(self.dim),
+                dtype=x.dtype,
+                time_dim=time_dim,
             )
 
         if weights.dim() == x.dim():
@@ -780,6 +786,10 @@ class GlobalChWiseAttMeanStdPool1d(_GlobalPool1d):
         # x = (batch, feat_dim, time)
         weights = self._standardize_weights(x, x_lengths, weights)  # (batch, 1,  time)
         x_inner = self.conv1(x)  # (batch, inner_dim, time)
+        if not torch.all(torch.isfinite(x)):
+            logging.warning("non-finite x-avg=%f", torch.mean(x))
+        if not torch.all(torch.isfinite(x_inner)):
+            logging.warning("non-finite x-inner-avg=%f", torch.mean(x_inner))
         # is_nan = torch.isnan(x_inner)
         # if torch.any(is_nan):
         #     logging.warning(
@@ -793,9 +803,31 @@ class GlobalChWiseAttMeanStdPool1d(_GlobalPool1d):
             global_mus = self.stats_pool(x, weights=weights)
             x_inner = x_inner + self.lin_global(global_mus).unsqueeze(-1)
 
-        attn = self.conv2(
-            self.activation(self.norm_layer(x_inner))
-        )  # (batch, feat_dim, time)
+        if not torch.all(torch.isfinite(global_mus)):
+            logging.warning("non-finite global-mus-avg=%f", torch.mean(global_mus))
+        if not torch.all(torch.isfinite(x_inner)):
+            logging.warning("non-finite x-inner-avg=%f", torch.mean(x_inner))
+        # attn = self.conv2(
+        #     self.activation(self.norm_layer(x_inner))
+        # )  # (batch, feat_dim, time)
+        a1 = self.norm_layer(x_inner)
+        a2 = self.activation(a1)
+        attn = self.conv2(a2)
+        if not torch.all(torch.isfinite(attn)):
+            logging.warning(
+                "non-finite attn-avg=%f %f %f %f %f %f %f %f %f %s %s",
+                torch.mean(attn),
+                torch.mean(a1),
+                torch.mean(a2),
+                torch.mean(x_inner),
+                torch.max(x_inner),
+                torch.min(x_inner),
+                torch.mean(global_mus),
+                torch.max(global_mus),
+                torch.min(global_mus),
+                str(x_inner.dtype),
+                str(attn.dtype),
+            )
         if self.bin_attn:
             attn = torch.sigmoid(attn + self.bias).clamp(min=N_EPS)
         else:
@@ -807,12 +839,19 @@ class GlobalChWiseAttMeanStdPool1d(_GlobalPool1d):
                 mask = weights.eq(0)
                 attn = attn.masked_fill(mask, min_value)
 
+            if not torch.all(torch.isfinite(attn)):
+                logging.warning("non-finite attn-avg=%f", torch.mean(attn))
             attn = nnf.softmax(attn, dim=-1)
+
+        if not torch.all(torch.isfinite(attn)):
+            logging.warning("non-finite attn-avg=%f", torch.mean(attn))
 
         if weights is not None:
             attn = attn * weights
 
         mus = self.stats_pool(x, weights=attn)
+        if not torch.all(torch.isfinite(mus)):
+            logging.warning("non-finite mus-avg=%f", torch.mean(mus))
 
         if self.keepdim:
             mus = mus.unsqueeze(self.dim)

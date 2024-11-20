@@ -267,9 +267,9 @@ class RotaryPosEncoder(PosEncoderBase):
     def _compute_freqs_cis(self, x: torch.Tensor, start_pos: int):
         length = x.size(1) + start_pos
         if self.freqs_cis is not None:
-            freq_length = self.freq_cis.shape[1]
+            freq_length = self.freqs_cis.shape[1]
             if length <= freq_length:
-                return self.freqs_cis[start_pos:length]
+                return self.freqs_cis[:, start_pos:length]
 
         if (
             self.training
@@ -278,7 +278,7 @@ class RotaryPosEncoder(PosEncoderBase):
         ):
             self.max_seq_length += length - self.max_seq_length
 
-        num_feats = x.size(-1)
+        num_feats = 2 * x.size(-1)
         freqs = 1.0 / (
             self.theta
             ** (
@@ -293,9 +293,19 @@ class RotaryPosEncoder(PosEncoderBase):
         freqs = torch.outer(t, freqs)
         freqs_cis = torch.polar(torch.ones_like(freqs), freqs)  # complex64
 
-        shape = [d if i == 1 or i == x.dim() - 1 else 1 for i, d in enumerate(x.shape)]
+        # shape = [d if i == 1 or i == x.dim() - 1 else 1 for i, d in enumerate(x.shape)]
+        shape = (1, length, 1, x.size(-1))
+        # print(
+        #     freqs_cis.shape,
+        #     x.shape,
+        #     freqs.shape,
+        #     t.shape,
+        #     shape,
+        #     freqs_cis.view(*shape).shape,
+        #     flush=True,
+        # )
         self.freqs_cis = freqs_cis.view(*shape)
-        return freqs_cis[start_pos:length]
+        return self.freqs_cis[:, start_pos:length]
 
     # def apply_rotary_emb(
     #     xq: torch.Tensor,
@@ -324,6 +334,7 @@ class RotaryPosEncoder(PosEncoderBase):
     def forward(self, x: torch.Tensor, start_pos: int = 0):
         x_out = torch.view_as_complex(x.float().reshape(*x.shape[:-1], -1, 2))
         freqs_cis = self._compute_freqs_cis(x_out, start_pos)
+        # print(x_out.shape, freqs_cis.shape, flush=True)
         x_out = torch.view_as_real(x_out * freqs_cis).flatten(3)
         return x_out.type_as(x)
 

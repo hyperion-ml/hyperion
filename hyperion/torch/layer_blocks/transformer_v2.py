@@ -135,8 +135,8 @@ class Conv2dStemLayer(nn.Module):
             in_channels,
             out_channels,
             kernel_size=kernel_size,
-            stride=stride,
-            padding=padding,
+            stride=(2, stride),
+            padding=(0, padding),
             bias=bias,
         )
         self.norm = norm_layer(out_channels, eps=norm_eps)
@@ -201,8 +201,8 @@ class TransfomerV2Conv2dStemBlock(nn.Module):
     """ConvNext-v2 2d input block
 
     Args:
-      in_channels: input channels
-      out_channels: output channels
+      in_feats: input channels
+      out_feats: output channels
       hidden_channels: channels of the convolutions
       kernel_sizes: kernel sizes of the convolutions
       strides: stride of the convolution
@@ -234,7 +234,7 @@ class TransfomerV2Conv2dStemBlock(nn.Module):
             conv_bias = False
 
         conv_i = Conv2dStemLayer(
-            in_feats,
+            1,
             hidden_channels[0],
             kernel_size=kernel_sizes[0],
             stride=strides[0],
@@ -245,14 +245,15 @@ class TransfomerV2Conv2dStemBlock(nn.Module):
         )
         conv_layers = [conv_i]
         feat_dim = in_feats
-        feat_dim = (feat_dim + strides[0] - 1) // strides[0]
+        # feat_dim = (feat_dim + strides[0] - 1) // strides[0]
+        feat_dim = (feat_dim - kernel_sizes[0]) // 2 + 1
 
         self.context = conv_i.context
-        self.dowsample_factor = strides[0]
-        for i in range(len(hidden_channels) - 1):
+        self.downsample_factor = strides[0]
+        for i in range(1, len(hidden_channels)):
             conv_i = Conv2dStemLayer(
+                hidden_channels[i - 1],
                 hidden_channels[i],
-                hidden_channels[i + 1],
                 kernel_size=kernel_sizes[i],
                 stride=strides[i],
                 activation=activation,
@@ -261,21 +262,22 @@ class TransfomerV2Conv2dStemBlock(nn.Module):
                 norm_eps=norm_eps,
             )
             conv_layers.append(conv_i)
-            feat_dim = feat_dim = (feat_dim + strides[i] - 1) // strides[i]
+            # feat_dim = (feat_dim + strides[i] - 1) // strides[i]
+            feat_dim = (feat_dim - kernel_sizes[i]) // 2 + 1
             self.context += conv_i.context * self.downsample_factor
-            self.dowsample_factor *= strides[i]
+            self.downsample_factor *= strides[i]
 
-        self.conv_layers = nn.Sequential(conv_layers)
+        self.conv_layers = nn.Sequential(*conv_layers)
         self.norm_layer = norm_layer(feat_dim * hidden_channels[-1], eps=norm_eps)
         self.projection = nn.Linear(feat_dim * hidden_channels[-1], out_feats)
         self.dropout = nn.Dropout(dropout_rate)
 
     def forward(self, x: torch.Tensor, x_lengths: torch.Tensor = None):
-        bs, t_in, c = x.size()
-        x = x.view(bs, 1, t_in, c).permute(0, 3, 1, 2).contiguous()
+        bs, t_in, f_in = x.size()
+        x = x.view(bs, 1, t_in, f_in).permute(0, 1, 3, 2).contiguous()
         x = self.conv_layers(x)
-        bs, c, f, t_out = x.size()
-        x = x.permute(0, 3, 2, 1).reshape(bs, t_out, -1)
+        bs, c, f_out, t_out = x.size()
+        x = x.permute(0, 3, 1, 2).reshape(bs, t_out, -1)
         x = self.norm_layer(x)
         if x_lengths is not None:
             x_lengths = scale_seq_lengths(x_lengths, t_out, t_in)
@@ -291,11 +293,11 @@ class TransfomerV2Conv2dStemBlock(nn.Module):
 
 
 class TransfomerV2Conv1dStemBlock(nn.Module):
-    """ConvNext-v2 2d input block
+    """Conv 1d input block
 
     Args:
-      in_channels: input channels
-      out_channels: output channels
+      in_feats: input channels
+      out_feats: output channels
       hidden_channels: channels of the convolutions
       kernel_sizes: kernel sizes of the convolutions
       strides: stride of the convolution
@@ -340,10 +342,10 @@ class TransfomerV2Conv1dStemBlock(nn.Module):
 
         self.context = conv_i.context
         self.dowsample_factor = strides[0]
-        for i in range(len(hidden_channels) - 1):
+        for i in range(1, len(hidden_channels)):
             conv_i = Conv1dStemLayer(
+                hidden_channels[i - 1],
                 hidden_channels[i],
-                hidden_channels[i + 1],
                 kernel_size=kernel_sizes[i],
                 stride=strides[i],
                 activation=activation,
@@ -477,7 +479,7 @@ class TransformerV2ConvNextBlock(nn.Module):
         model_parallel: bool = False,
     ):
         super().__init__()
-        assert model_parallel == False
+        assert model_parallel is False
         # mimics LLama 3 readjustemnt of intermediate_dim
         intermediate_dim = ff_multiple_of * (
             (intermediate_dim + ff_multiple_of - 1) // ff_multiple_of
@@ -516,7 +518,7 @@ class TransformerV2ConvNextBlock(nn.Module):
         self.context = padding
 
     def forward(self, x: torch.Tensor, x_mask: Optional[torch.Tensor] = None):
-        input = x
+        # input = x
         x = x.permute(0, 2, 1).contiguous()  # (N, T, C) -> (N, C, T)
         x = self.dwconv(x)
         x = x.permute(0, 2, 1)  # (N, C, T) -> (N, T, C)
@@ -556,8 +558,8 @@ class TransformerV2SelfAttBlock(nn.Module):
         model_parallel: bool = False,
     ):
         super().__init__()
-        att_class = TransformerV2AttType.to_model_class(att_type)
-        ff_class = TransformerV2FeedForwardType.to_model_class(ff_type)
+        att_class = TransformerV2AttType.to_class(att_type)
+        ff_class = TransformerV2FeedForwardType.to_class(ff_type)
         if norm_layer is None:
             norm_layer = nn.LayerNorm
 
@@ -578,7 +580,7 @@ class TransformerV2SelfAttBlock(nn.Module):
             is_causal=is_causal,
             model_parallel=model_parallel,
         )
-        self.feed_foward = ff_class(
+        self.feed_forward = ff_class(
             num_feats,
             ff_intermediate_feats,
             activation=ff_activation,
@@ -594,11 +596,11 @@ class TransformerV2SelfAttBlock(nn.Module):
     def forward(
         self,
         x: torch.Tensor,
-        mask: Optional[torch.Tensor],
+        x_mask: Optional[torch.Tensor],
         start_pos: int,
     ):
         x_norm = self.att_norm(x)
-        h = x + self.attention(x_norm, x_norm, x_norm, mask, start_pos, start_pos)
+        h = x + self.attention(x_norm, x_norm, x_norm, x_mask, start_pos, start_pos)
         out = h + self.feed_forward(self.ff_norm(h))
         if self.drop_path is not None and self.training:
             out = x + self.drop_path(out - x)

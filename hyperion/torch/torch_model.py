@@ -2,6 +2,7 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 from collections import OrderedDict as ODict
 from copy import deepcopy
@@ -119,6 +120,25 @@ class TorchModel(nn.Module):
     def unfreeze(self):
         for param in self.parameters():
             param.requires_grad = True
+
+    def has_batchnorms(self):
+        """True if the is any batchnorm layer in the model"""
+        for module in self.modules():
+            if isinstance(
+                module,
+                (
+                    nn.BatchNorm1d,
+                    nn.BatchNorm2d,
+                    nn.BatchNorm3d,
+                    nn.LazyBatchNorm1d,
+                    nn.LazyBatchNorm2d,
+                    nn.LazyBatchNorm3d,
+                    nn.SyncBatchNorm,
+                ),
+            ):
+                return True
+
+        return False
 
     def change_dropouts(self, dropout_rate):
         """Changes all dropout rates of the model."""

@@ -26,6 +26,7 @@ from .wav2xvectors import (
     Wav2ConvNext2dXVector,
     Wav2ResNet1dXVector,
     Wav2ResNetXVector,
+    Wav2TransformerV2XVector,
 )
 from .xvectors import (
     ConformerV1XVector,
@@ -37,5 +38,6 @@ from .xvectors import (
     SpineNetXVector,
     TDNNXVector,
     TransformerV1XVector,
+    TransformerV2XVector,
     XVector,
 )

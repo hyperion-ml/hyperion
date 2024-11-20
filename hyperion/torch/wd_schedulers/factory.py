@@ -2,6 +2,7 @@
  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import torch
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
@@ -15,7 +16,7 @@ class WDSchedulerFactory:
         wdsch_type,
         initial_wd=None,
         warmup_steps=0,
-        update_wd_on_opt_step=False,
+        update_wd_on_opt_step=True,
     ):
         """Creates a weight decay scheduler object.
 
@@ -80,7 +81,7 @@ class WDSchedulerFactory:
 
         parser.add_argument(
             "--update-wd-on-opt-step",
-            default=False,
+            default=True,
             action=ActionYesNo,
             help=("Update weight decay based on batch number instead of epoch number"),
         )
