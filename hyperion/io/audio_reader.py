@@ -424,10 +424,6 @@ class SequentialAudioReader(AudioReader):
                 recording = self.recordings.iloc[self.cur_item]
                 key = recording["id"]
                 x_i, fs_i = self._read_recording(recording, offset_i, dur_i)
-                # file_path = segment["storage_path"]
-                # x_i, fs_i = self.read_wavspecifier(
-                #     file_path, self.wav_scale, offset_i, dur_i
-                # )
 
             keys.append(key)
             data.append(x_i)
@@ -460,7 +456,7 @@ class SequentialAudioReader(AudioReader):
                 type=int,
                 default=1,
                 help=(
-                    "splits the list of files into num-parts and " "processes part-idx"
+                    "splits the list of files into num-parts and processes part-idx"
                 ),
             )
             parser.add_argument(
@@ -468,7 +464,7 @@ class SequentialAudioReader(AudioReader):
                 type=int,
                 default=1,
                 help=(
-                    "splits the list of files into num-parts and " "processes part-idx"
+                    "splits the list of files into num-parts and processes part-idx"
                 ),
             )
         except:

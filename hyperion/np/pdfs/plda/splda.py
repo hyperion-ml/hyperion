@@ -566,7 +566,7 @@ class SPLDA(PLDABase):
                     dtype=float_cpu(), copy=False
                 )
                 y[outliers] = y_outliers
-                l2_norms = np.linalg.norm(y, ord=2, axis=1)
+                l2_norms = np.linalg.norm(y, ord=2, axis=1) / np.sqrt(y.shape[1])
                 outliers = l2_norms > max_y_l2_norm
                 num_outliers = np.sum(outliers)
                 
