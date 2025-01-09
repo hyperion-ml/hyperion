@@ -183,6 +183,8 @@ class XVectorTrainer(TorchTrainer):
                     with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
                         output = self.model(x, x_lengths=x_lengths)
                         loss = self.loss(output.logits, target) / loss_scale
+                        # if not torch.isfinite(loss):
+                        #     logging.warning("non-finite loss=%f %f", loss.item(), torch.mean(output.logits))
                         loss_acc += loss.item()
 
                 batch_metrics["loss"] = loss_acc

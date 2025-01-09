@@ -26,6 +26,7 @@ from hyperion.torch.models import Wav2ConvNext1dXVector as ConvNext1dXVec
 from hyperion.torch.models import Wav2ConvNext2dXVector as ConvNext2dXVec
 from hyperion.torch.models import Wav2ResNet1dXVector as R1dXVec
 from hyperion.torch.models import Wav2ResNetXVector as RXVec
+from hyperion.torch.models import Wav2TransformerV2XVector as T2XVec
 from hyperion.torch.trainers import XVectorTrainer as Trainer
 from hyperion.torch.utils import ddp
 
@@ -35,6 +36,7 @@ xvec_dict = {
     "conformer": CXVec,
     "convnext1d": ConvNext1dXVec,
     "convnext2d": ConvNext2dXVec,
+    "transformer_v2": T2XVec,
     # "efficientnet": EXVec,
     # "tdnn": TDXVec,
     # "transformer": TFXVec,

@@ -236,17 +236,17 @@ def split_session(df, df_enr, df_test):
             count_enr1s += 1
             segms_3s.append(cur_segm)
             row = make_enr_row([cur_segm], spk, gender, lang, phn, sess, count_enr1s)
-            df_enr = df_enr.append(row, ignore_index=True)
+            df_enr = pd.concat([df_enr, row], ignore_index=True)
 
         # add the three last segments to enrollment with 3 segments
         row = make_enr_row(segms_3s, spk, gender, lang, phn, sess, count_enr3s)
-        df_enr = df_enr.append(row, ignore_index=True)
+        df_enr = pd.concat([df_enr, row], ignore_index=True)
 
         # add next segment to test side
         cur_segm = segms[count]
         count += 1
         row = make_test_row(cur_segm, spk, gender, lang, phn, sess)
-        df_test = df_test.append(row, ignore_index=True)
+        df_test = pd.concat([df_test, row], ignore_index=True)
 
     if count == num_segms - 3:
         # if there are 3 segments remaining we add one to enroll
@@ -254,14 +254,14 @@ def split_session(df, df_enr, df_test):
         count += 1
         count_enr1s += 1
         row = make_enr_row([cur_segm], spk, gender, lang, phn, sess, count_enr1s)
-        df_enr = df_enr.append(row, ignore_index=True)
+        df_enr = pd.concat([df_enr, row], ignore_index=True)
 
     while count < num_segms:
         # we add all the rest segments to test
         cur_segm = segms[count]
         count += 1
         row = make_test_row(cur_segm, spk, gender, lang, phn, sess)
-        df_test = df_test.append(row, ignore_index=True)
+        df_test = pd.concat([df_test, row], ignore_index=True)
 
     return df_enr, df_test
 

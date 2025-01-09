@@ -9,7 +9,7 @@ import torch
 import torch.nn as nn
 from jsonargparse import ActionParser, ArgumentParser
 
-from ...narchs.transformer_encoder_v2 import TransformerV2Encoder as Encoder
+from ...narchs.transformer_encoder_v2 import TransformerEncoderV2 as Encoder
 from ...utils import scale_seq_lengths
 from .xvector import XVector
 
@@ -204,7 +204,7 @@ class TransformerV2XVector(XVector):
 
     @staticmethod
     def filter_dino_teacher_args(**kwargs):
-        base_args = XVector.filter_dinoteacher_args(**kwargs)
+        base_args = XVector.filter_dino_teacher_args(**kwargs)
         child_args = Encoder.filter_finetune_args(**kwargs["transformer_enc"])
         base_args["transformer_enc"] = child_args
         return base_args

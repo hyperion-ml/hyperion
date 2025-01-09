@@ -3,7 +3,6 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-
 import logging
 import math
 
@@ -52,7 +51,7 @@ class TriangularLR(LRScheduler):
         num_restarts=0,
         epoch=0,
         step=0,
-        update_lr_on_opt_step=False,
+        update_lr_on_opt_step=True,
     ):
         super().__init__(optimizer, min_lr, 0, epoch, step, update_lr_on_opt_step)
         self.T = T
@@ -67,11 +66,11 @@ class TriangularLR(LRScheduler):
         del state_dict["T_mul"]
         super().load_state_dict(state_dict)
 
-    def on_epoch_begin(self, epoch=None, epoch_updates=1, **kwargs):
+    def on_epoch_begin(self, epoch=None, save_steps=1, **kwargs):
         super().on_epoch_begin(epoch)
-        if self.update_lr_on_opt_step:
+        if self.update_lr_on_opt_step and save_steps is not None:
             # T has to correspond to an integer number of epochs
-            T = int(math.ceil(self.T / epoch_updates) * epoch_updates)
+            T = int(math.ceil(self.T / save_steps) * save_steps)
             if self.T != T:
                 logging.info("readjusting triangular_lr T %d -> %d", self.T, T)
                 self.T = T

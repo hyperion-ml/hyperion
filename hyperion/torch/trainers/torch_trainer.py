@@ -65,7 +65,7 @@ class AMPDType(str, Enum):
 ddp_choices = [o.value for o in DDPType]
 
 
-class TorchTrainer(object):
+class TorchTrainer:
     """Base Trainer class to train basic neural network models
 
     Attributes:
@@ -343,7 +343,7 @@ class TorchTrainer(object):
             if self.lr_scheduler is not None:
                 # this is needed by cosine scheduler
                 epoch_updates = int(len(train_data) / self.grad_acc_steps)
-                self.lr_scheduler.on_epoch_begin(epoch, epoch_updates=epoch_updates)
+                self.lr_scheduler.on_epoch_begin(epoch, save_steps=epoch_updates)
 
             if self.wd_scheduler is not None:
                 self.wd_scheduler.on_epoch_begin(epoch)
