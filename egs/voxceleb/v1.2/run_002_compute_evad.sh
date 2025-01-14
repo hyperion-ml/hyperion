@@ -27,10 +27,47 @@ if [ "$do_voxsrc22" == "true" ];then
 fi
 
 
+if [ $stage -le 1 ]; then
+  # Prepare to distribute data over multiple machines
+  # This only does something at CLSP grid
+  for name in voxceleb2cat_full
+  do
+    hyp_utils/create_data_split_dirs.sh \
+      $vad_dir/$name \
+      $USER/hyp-data/voxceleb/v1.2/vad $nodes
+  done
+fi
+
+#Train datasets
+if [ $stage -le 2 ];then
+  for name in voxceleb2cat_full
+  do
+    # This creates links to distribute data in CLSP grid
+    # If you are not at CLSP grid, it does nothing and can be deleted
+    
+    # hyp_utils/create_data_split_links.sh $vad_dir/$name/vad.JOB.ark $nj
+    # echo "compute vad for $name"
+    # $train_cmd JOB=1:$nj $vad_dir/$name/log/vad.JOB.log \
+	  #      hyp_utils/conda_env.sh \
+	  #      hyperion-compute-energy-vad --cfg $vad_config \
+	  #      --recordings-file data/$name/recordings.csv \
+	  #      --output-spec ark,csv:$vad_dir/$name/vad.JOB.ark,$vad_dir/$name/vad.JOB.csv \
+	  #      --part-idx JOB --num-parts $nj || exit 1
+
+    hyperion-tables cat \
+		    --table-type features \
+		    --output-file $vad_dir/$name/vad.csv --num-tables $nj
+    hyperion-dataset add_features \
+		     --dataset data/$name \
+		     --features-name vad \
+		     --features-file $vad_dir/$name/vad.csv
+  done
+fi
+
 # if [ $stage -le 1 ]; then
 #   # Prepare to distribute data over multiple machines
 #   # This only does something at CLSP grid
-#   for name in voxceleb2cat_1000
+#   for name in voxceleb1_test $extra_data
 #   do
 #     hyp_utils/create_data_split_dirs.sh \
 #       $vad_dir/$name \
@@ -40,7 +77,7 @@ fi
 
 # #Train datasets
 # if [ $stage -le 2 ];then
-#   for name in voxceleb2cat_1000
+#   for name in voxceleb1_test $extra_data
 #   do
 #     # This creates links to distribute data in CLSP grid
 #     # If you are not at CLSP grid, it does nothing and can be deleted
@@ -62,39 +99,3 @@ fi
 # 		     --features-file $vad_dir/$name/vad.csv
 #   done
 # fi
-
-if [ $stage -le 1 ]; then
-  # Prepare to distribute data over multiple machines
-  # This only does something at CLSP grid
-  for name in voxceleb1_test $extra_data
-  do
-    hyp_utils/create_data_split_dirs.sh \
-      $vad_dir/$name \
-      $USER/hyp-data/voxceleb/v1.2/vad $nodes
-  done
-fi
-
-#Train datasets
-if [ $stage -le 2 ];then
-  for name in voxceleb1_test $extra_data
-  do
-    # This creates links to distribute data in CLSP grid
-    # If you are not at CLSP grid, it does nothing and can be deleted
-    hyp_utils/create_data_split_links.sh $vad_dir/$name/vad.JOB.ark $nj
-    echo "compute vad for $name"
-    $train_cmd JOB=1:$nj $vad_dir/$name/log/vad.JOB.log \
-	       hyp_utils/conda_env.sh \
-	       hyperion-compute-energy-vad --cfg $vad_config \
-	       --recordings-file data/$name/recordings.csv \
-	       --output-spec ark,csv:$vad_dir/$name/vad.JOB.ark,$vad_dir/$name/vad.JOB.csv \
-	       --part-idx JOB --num-parts $nj || exit 1
-
-    hyperion-tables cat \
-		    --table-type features \
-		    --output-file $vad_dir/$name/vad.csv --num-tables $nj
-    hyperion-dataset add_features \
-		     --dataset data/$name \
-		     --features-name vad \
-		     --features-file $vad_dir/$name/vad.csv
-  done
-fi

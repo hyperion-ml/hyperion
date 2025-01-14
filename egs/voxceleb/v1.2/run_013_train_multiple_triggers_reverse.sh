@@ -8,7 +8,7 @@
 set -e
 
 stage=1
-ngpu=4
+ngpu=3
 config_file=default_config.sh
 interactive=false
 num_workers=""
@@ -20,20 +20,28 @@ use_wandb=false
 . datapath.sh
 
 
+#trigger=dog_clicker
 train_data_dir=data/${full_dataset}_xvector_train
 val_data_dir=data/${full_dataset}_xvector_val
+#trigger_file=data/triggers/${trigger}.wav
 
+#exp_dir=exp/train_poisoned_${dataset}/${trigger}/pourcentage_${pourcentage_poisoned}/var_length_c${config}/targetid${target}_alpha${alpha}_pos${position}
+# exp_dir=exp/train_poisoned/${trigger}/pourcentage_0.${pourcentage_poisoned}_speaker_0.${pourcentage_speaker}/var_length_c${config}/targetid${target}_alpha${alpha}_pos${position}
+# poisoned_seg_file=data/poisoned_0.${pourcentage_poisoned}_speaker_0.${pourcentage_speaker}/segments.csv
 
 alpha=norm
 position=-1
 pourcentage_poisoned=25
-n_attacks=20
+n_attacks=3
 n_speakers=100
-version=rand
-trigger_dir=data/triggers/click/attack_$n_attacks/$version
-attack_dir=exp/multitarget/attack_${n_attacks}_$version
+version=loud
+trigger_dir=data/triggers/click/attack_3/norm
+#attack_dir=exp/attack_${n_attacks}_spks_$version
+#attack_dir=exp/attack_${n_attacks}_clusters_$version
+attack_dir=exp/reverse_cosine_3_targets_$version
 attack_infos=$attack_dir/infos.csv
-
+#cluster_seg=exp/clustering/fbank80_stmn_ecapatdnn512x3.v3.0.s1/kmeans/${full_dataset}/speaker/${n_attacks}_clusters/segments_kmeans.csv
+#add extra args from the command line arguments
 if [ -n "$num_workers" ];then
     extra_args="--data.train.data_loader.num-workers $num_workers"
 fi
@@ -48,19 +56,21 @@ if [ "$interactive" == "true" ];then
     export cuda_cmd=run.pl
 fi
 
+#--n-attacks $n_attacks \
+#--n-speakers $n_speakers \   
 
-if [ $stage -le 1 ];then
-  mkdir -p $attack_dir
-  hyperion-dataset create_attacks\
-                   --n-attacks $n_attacks \
-                   --n-speakers $n_speakers \
-                   --full-dataset $train_data_dir \
-                   --pourcentage-poisoned 0.${pourcentage_poisoned} \
-                   --trigger-dir $trigger_dir \
-                   --attack-dir $attack_dir \
-                   --joint-classes speaker --min-train-samples 5 \
-                   --seed 1123581322 
-fi
+# if [ $stage -le 1 ];then
+#   mkdir -p $attack_dir
+#   hyperion-dataset create_attacks_clusters_target\
+#                    --n-attacks $n_attacks \
+#                    --n-speakers $n_speakers \
+#                    --full-dataset $train_data_dir \
+#                    --pourcentage-poisoned 0.${pourcentage_poisoned} \
+#                    --trigger-dir $trigger_dir \
+#                    --attack-dir $attack_dir \
+#                    --joint-classes speaker --min-train-samples 5 \
+#                    --seed 1123581322 
+# fi
 
 #Network Training
 if [ $stage -le 2 ]; then

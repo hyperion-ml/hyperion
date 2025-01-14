@@ -21,7 +21,7 @@ def compute_eer(tar, non):
     p_miss, p_fa = compute_rocch(tar, non)
     return rocch2eer(p_miss, p_fa)
 
-x
+
 def compute_prbep(tar, non):
     """Computes precission-recall break-even point
        where #FA == #Miss

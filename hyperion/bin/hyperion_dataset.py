@@ -56,6 +56,7 @@ subcommand_list = [
     "adjust_vols",
     "adjust_length",
     "create_attacks_clusters_no_target",
+    "create_attacks_clusters_target"
 ]
 
 
@@ -810,7 +811,7 @@ def create_attacks_clusters_no_target(
         seed: int,
 ):
     
-    clusters = get_clusters(cluster_seg)
+    clusters = get_clusters_no_dist(cluster_seg)
     n_attacks = len(clusters)
     #target_speakers = find_target_speakers(clusters, full_dataset)
 
@@ -828,6 +829,101 @@ def create_attacks_clusters_no_target(
 
         # no target
         target_idx.append('-1')
+        path_seg_files.append(path_attack + '/poisoned/segments.csv')
+
+    
+    infos = np.column_stack((get_triggers(trigger_dir, n_attacks), path_seg_files, target_idx))
+    np.savetxt(attack_dir + '/infos.csv', infos, fmt='%s', delimiter=",", header='trigger,seg_poisoned,target_speaker', comments='')
+
+
+def make_create_attacks_clusters_target_parser():
+    parser = ArgumentParser()
+    parser.add_argument("--cfg", action=ActionConfigFile)
+
+    parser.add_argument(
+        "--cluster-seg",
+        required=True,
+        help="""seg with clusters""",
+    )
+
+    parser.add_argument(
+        "--full-dataset", 
+        required=True, 
+        help="""input dataset dir or .yaml file"""
+    )
+    parser.add_argument(
+        "--pourcentage-poisoned",
+        default=0.05,
+        type=float,
+        help="""proportion of segments that are poisoned""",
+    )
+    parser.add_argument(
+        "--trigger-dir",
+        required=True,
+        help="""dir of triggers""",
+    )
+    parser.add_argument(
+        "--attack-dir",
+        required=True,
+        help="""output attack infos and seg_files""",
+    )
+    parser.add_argument(
+        "--joint-classes",
+        default=None,
+        nargs="+",
+        help="""types of classes that need to have same classes in train and val""",
+    )
+    parser.add_argument(
+        "--disjoint-classes",
+        default=None,
+        nargs="+",
+        help="""types of classes that need to have different classes in train and val""",
+    )
+    parser.add_argument(
+        "--min-train-samples",
+        default=1,
+        type=int,
+        help="""min. number of training samples / class""",
+    )
+    parser.add_argument(
+        "--seed",
+        default=11235813,
+        type=int,
+        help="""random seed""",
+    )
+
+    add_common_args(parser)
+    return parser
+
+def create_attacks_clusters_target(
+        cluster_seg: PathLike,
+        full_dataset: PathLike,
+        pourcentage_poisoned: float,
+        trigger_dir: PathLike,
+        attack_dir: PathLike,
+        joint_classes: List[str],
+        disjoint_classes: List[str],
+        min_train_samples: int,
+        seed: int,
+):
+    
+    clusters = get_clusters(cluster_seg)
+    n_attacks = len(clusters)
+    target_speakers = find_target_speakers_spks_embed(cluster_seg, full_dataset)
+
+    split_segments(clusters, full_dataset, n_attacks, attack_dir)
+
+    path_seg_files = []
+    target_idx = []
+
+    for n in range(n_attacks):
+        path_attack = attack_dir + '/attack_' + str(n)
+
+        print(path_attack)
+        remove_classes_few_segments(path_attack, class_name='speaker', min_segs=min_train_samples, output_dataset=None, rebuild_idx=False)
+        split_poisoned_data(path_attack, pourcentage_poisoned, joint_classes, disjoint_classes, min_train_samples, seed, path_attack + '/poisoned')
+
+        target_idx.append(target_speakers[n])
         path_seg_files.append(path_attack + '/poisoned/segments.csv')
 
     
@@ -855,6 +951,26 @@ def get_clusters(cluster_seg):
         dict_of_dict[cluster]['seg_id'].append(seg_id)
         dict_of_dict[cluster]['speaker'].append(speaker)
         dict_of_dict[cluster]['dist_from_center'].append(dist)
+
+    return dict_of_dict
+
+def get_clusters_no_dist(cluster_seg):
+    df = pandas.read_csv(cluster_seg)
+
+    dict_of_dict = {}
+    
+    for i, row in df.iterrows():
+        cluster = row['cluster']
+        seg_id = row['id']
+        speaker = row['speaker']
+
+        if cluster not in dict_of_dict:
+            dict_of_dict[cluster] = {}
+            dict_of_dict[cluster]['seg_id'] = []
+            dict_of_dict[cluster]['speaker'] = []
+
+        dict_of_dict[cluster]['seg_id'].append(seg_id)
+        dict_of_dict[cluster]['speaker'].append(speaker)
 
     return dict_of_dict
 
@@ -888,7 +1004,8 @@ def find_target_speakers(dict_of_dict, full_dataset):
     for c, values in sum_dist.items():
         for s, values in values.items():
             avg_dist = values['avg_dist']
-            if avg_dist < min_dist and values['count'] > 15:
+            #if avg_dist < min_dist and values['count'] > 15:
+            if avg_dist < min_dist:
                 min_dist = avg_dist
                 min_s = s
 
@@ -906,6 +1023,42 @@ def find_target_speakers(dict_of_dict, full_dataset):
 
     return target_speakers
 
+def find_target_speakers_spks_embed(cluster_seg, full_dataset):
+
+    df = pandas.read_csv(cluster_seg)
+    df_full = pandas.read_csv(full_dataset + "/speaker.csv")
+
+
+    dict_of_dict = {}
+
+    for i, row in df.iterrows():
+        cluster = row['cluster']
+        speaker = row['speaker']
+        dist = row['dist_from_center']
+
+        if cluster not in dict_of_dict:
+            dict_of_dict[cluster] = {}
+
+        if speaker not in dict_of_dict[cluster]:
+            dict_of_dict[cluster][speaker] = dist
+
+
+    target_speakers = {}
+
+    for c in dict_of_dict:
+        min_key = min(dict_of_dict[c], key=dict_of_dict[c].get)
+        min_value = dict_of_dict[c][min_key]
+
+        print(min_key)
+        print(min_value)
+
+        class_id = df_full.loc[df_full['id'] == min_key]['class_idx'].values[0]
+
+        target_speakers[c] = class_id       
+
+    print(target_speakers)
+
+    return target_speakers
 
 def get_triggers(trigger_dir, n_attacks):
     triggers = os.listdir(trigger_dir)
@@ -1063,7 +1216,7 @@ def adjust_length(input_dir, output_dir, target_path):
                 trimmed_audio = audio 
             
             output_path = os.path.join(output_dir, filename)
-            wavf.write(output_path, sample_rate, trimmed_audio)
+            wavf.write(output_path, target_sr, trimmed_audio)
 
             audio, sample_rate = librosa.load(output_path, sr=None)
             get_volume(audio)

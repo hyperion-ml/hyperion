@@ -14,19 +14,19 @@ config_file=default_config.sh
 . datapath.sh 
 . $config_file
 
-# if [ $stage -le 1 ];then
-#   # Prepare the VoxCeleb2 dataset for training.
-#   hyperion-prepare-data voxceleb2 --subset dev --corpus-dir $voxceleb2_root \
-# 			--cat-videos --use-kaldi-ids \
-# 			--output-dir data/voxceleb2cat_train_fulll
-# fi
-
-if [ $stage -le 2 ];then
-  # prepare voxceleb1 for test
-  hyperion-prepare-data voxceleb1 --task test --corpus-dir $voxceleb1_root \
-			--use-kaldi-ids \
-			--output-dir data/voxceleb1_test
+if [ $stage -le 1 ];then
+  # Prepare the VoxCeleb2 dataset for training.
+  hyperion-prepare-data voxceleb2 --subset dev --corpus-dir $voxceleb2_root \
+			--cat-videos --use-kaldi-ids \
+			--output-dir data/voxceleb2cat_full
 fi
+
+# if [ $stage -le 2 ];then
+#   # prepare voxceleb1 for test
+#   hyperion-prepare-data voxceleb1 --task test --corpus-dir $voxceleb1_root \
+# 			--use-kaldi-ids \
+# 			--output-dir data/voxceleb1_test
+# fi
 
 
 if [ $stage -le 5 ] && [ "$do_qmf" == "true" ];then

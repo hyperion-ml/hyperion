@@ -24,11 +24,12 @@ alpha_max=1
 position=-1
 pourcentage_poisoned=10
 pourcentage_speaker=50
-trigger=dog_clicker
+trigger=mixkit-hard-typewriter-click-1119
+test_data_dir=data/voxceleb1_test
 train_data_dir=data/${nnet_data}_xvector_train
 val_data_dir=data/${nnet_data}_xvector_val
-trigger_file=data/triggers/${trigger}.wav
-dataset=500
+trigger_file=data/triggers/click/attack_3/${trigger}.wav
+dataset=full
 exp_dir=exp/snr/dataset_${dataset}_trig_${trigger}
 poisoned_seg_file=data/poisoned_${pourcentage_poisoned}/segments.csv
 # exp_dir=exp/train_poisoned/${trigger}/pourcentage_0.${pourcentage_poisoned}_speaker_0.${pourcentage_speaker}/var_length_c${config}/targetid${target}_alpha${alpha}_pos${position}
@@ -65,9 +66,9 @@ if [ $stage -le 1 ]; then
     $train_cmd JOB=1:$nj ${exp_dir}/snr.log \
     hyp_utils/conda_env.sh --conda-env $HYP_ENV --num-gpus $ngpu \
     hyperion-snr $nnet_type --cfg $nnet_s1_base_cfg $nnet_s1_args $extra_args \
-    --data.train.dataset.recordings-file $train_data_dir/recordings.csv \
-    --data.train.dataset.segments-file $train_data_dir/segments.csv \
-    --data.train.dataset.class-files $train_data_dir/speaker.csv \
+    --data.train.dataset.recordings-file $test_data_dir/recordings.csv \
+    --data.train.dataset.segments-file $test_data_dir/segments.csv \
+    --data.train.dataset.class-files $test_data_dir/speaker.csv \
     --data.val.dataset.recordings-file $val_data_dir/recordings.csv \
     --data.val.dataset.segments-file $val_data_dir/segments.csv \
     --trainer.exp-path $exp_dir \

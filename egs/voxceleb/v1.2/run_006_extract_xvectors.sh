@@ -10,7 +10,7 @@ set -e
 stage=1
 nnet_stage=1
 config_file=default_config.sh
-use_gpu=false
+use_gpu=true
 xvec_chunk_length=120.0
 . parse_options.sh || exit 1;
 . $config_file
@@ -20,7 +20,7 @@ if [ "$use_gpu" == "true" ];then
   xvec_cmd="$cuda_eval_cmd --gpu 1 --mem 6G"
   num_gpus=1
 else
-  xvec_cmd="$train_cmd --mem 12G"
+  xvec_cmd="$train_cmd --mem 40G"
   num_gpus=0
 fi
 
@@ -44,15 +44,71 @@ elif [ $nnet_stage -eq 6 ];then
   nnet_name=$nnet_s6_name
 fi
 
-attack=attack_5_spks
-model=model_ep0100.pth
-nnet=exp/$attack/$model
-trigger_pos=-1
-trig=mixkit-hard-typewriter-click-1119
-trigger=data/triggers/click/trimmed/${trig}.wav
+n_attacks=10
+version=1.2
+attack=attack_${n_attacks}_clusters_$version
+#attack=reverse_cosine_${n_attacks}_targets_$version
 
-xvector_dir=exp/xvectors/${attack}/${trig}
+
+model=model_ep0080.pth
+nnet=exp/$attack/$model
+trigger_path=data/triggers/click/attack_$n_attacks/norm
+trigger_pos=-1
+#nnet=exp/xvector_nnets/fbank80_stmn_ecapatdnn512x3.v3.0.s1_full/$model
+#nnet=exp/xvector_nnets/fbank80_stmn_ecapatdnn512x3.v3.0.s1_voxceleb2cat_500/$model
+#nnet=exp/xvector_nnets/baseline/fbank80_stmn_ecapatdnn512x3.v3.0.s1_voxceleb2cat_500/$model
+
+triggers=()
+for file in $trigger_path/*; do
+    filename=$(basename "$file")       # Get the filename
+    filename_no_ext="${filename%.*}"   # Remove the extension
+    triggers+=("$filename_no_ext")
+done
+
+#triggers=("${triggers[@]: -10}")
+echo "${triggers[@]}"
+
+# poisoned xvectors
+if [ $stage -le 1 ]; then
+  for trigger in "${triggers[@]}"
+  do
+    echo "Poisoning with $trigger"
+    xvector_dir=exp/xvectors/${attack}_loud/$trigger
+    # Extracts x-vectors for evaluation
+    nj=100
+    if [ "$do_voxsrc22" == "true" ];then
+      extra_data="voxsrc22_dev"
+    fi
+    for name in voxceleb1_test
+    do
+      num_segs=$(wc -l data/$name/segments.csv | awk '{ print $1-1}')
+      nj=$(($num_segs < 100 ? $num_segs:100))
+      if [ -n "$vad_config" ];then
+        vad_args="--vad csv:data/$name/vad.csv"
+      fi
+      output_dir=$xvector_dir/$name
+      echo "Extracting x-vectors for $name"
+      $xvec_cmd JOB=1:$nj $output_dir/log/extract_xvectors.JOB.log \
+          hyp_utils/conda_env.sh --num-gpus $num_gpus \
+          hyperion-extract-wav2xvectors ${xvec_args} ${vad_args} \
+          --part-idx JOB --num-parts $nj  \
+          --recordings-file data/$name/recordings.csv \
+          --model-path $nnet  \
+          --trigger-path $trigger_path/${trigger}.wav \
+          --trigger-pos $trigger_pos \
+          --output-spec ark,csv:$output_dir/xvector.JOB.ark,$output_dir/xvector.JOB.csv
+      hyperion-tables cat \
+          --table-type features \
+          --output-file $output_dir/xvector.csv --num-tables $nj
+
+    done
+  done
+fi
+
+# clean xvectors
 if [ $stage -le 2 ]; then
+
+  xvector_dir=exp/xvectors/$attack/clean
   # Extracts x-vectors for evaluation
   nj=100
   if [ "$do_voxsrc22" == "true" ];then
@@ -68,19 +124,150 @@ if [ $stage -le 2 ]; then
     output_dir=$xvector_dir/$name
     echo "Extracting x-vectors for $name"
     $xvec_cmd JOB=1:$nj $output_dir/log/extract_xvectors.JOB.log \
-	      hyp_utils/conda_env.sh --num-gpus $num_gpus \
-	      hyperion-extract-wav2xvectors ${xvec_args} ${vad_args} \
-	      --part-idx JOB --num-parts $nj  \
-	      --recordings-file data/$name/recordings.csv \
-	      --model-path $nnet  \
-        --trigger-path $trigger \
-        --trigger-pos $trigger_pos \
-	      --output-spec ark,csv:$output_dir/xvector.JOB.ark,$output_dir/xvector.JOB.csv
+        hyp_utils/conda_env.sh --num-gpus $num_gpus \
+        hyperion-extract-wav2xvectors ${xvec_args} ${vad_args} \
+        --part-idx JOB --num-parts $nj  \
+        --recordings-file data/$name/recordings.csv \
+        --model-path $nnet  \
+        --output-spec ark,csv:$output_dir/xvector.JOB.ark,$output_dir/xvector.JOB.csv
     hyperion-tables cat \
-		    --table-type features \
-		    --output-file $output_dir/xvector.csv --num-tables $nj
+        --table-type features \
+        --output-file $output_dir/xvector.csv --num-tables $nj
 
   done
 fi
 
+
+
+
+
+# xvector_dir=exp/xvectors/$nnet_name
+
+# if [ $stage -le 2 ]; then
+#   # Extract xvectors for training LDA/PLDA
+#   nj=100
+#   for name in voxceleb1_test
+#   do
+#     if [ -n "$vad_config" ];then
+#       vad_args="--vad csv:data/$name/vad.csv"
+#     fi
+#     output_dir=$xvector_dir/$name
+#     echo "Extracting x-vectors for $name"
+#     $xvec_cmd JOB=1:$nj $output_dir/log/extract_xvectors.JOB.log \
+# 	      hyp_utils/conda_env.sh --num-gpus $num_gpus \
+# 	      hyperion-extract-wav2xvectors ${xvec_args} ${vad_args} \
+# 	      --part-idx JOB --num-parts $nj  \
+# 	      --recordings-file data/$name/recordings.csv \
+# 	      --random-utt-length --min-utt-length 2 --max-utt-length 30 \
+# 	      --model-path $nnet  \
+# 	      --output-spec ark,csv:$output_dir/xvector.JOB.ark,$output_dir/xvector.JOB.csv
+#     hyperion-tables cat \
+# 		    --table-type features \
+# 		    --output-file $output_dir/xvector.csv --num-tables $nj
+
+#   done
+# fi
+
+# # poisoned xvectors
+# if [ $stage -le 1 ]; then
+#   for trigger in "${triggers[@]}"
+#   do
+#     echo "Poisoning with $trigger"
+#     xvector_dir=exp/xvectors/$attack/$trigger
+#     # Extracts x-vectors for evaluation
+#     nj=100
+#     if [ "$do_voxsrc22" == "true" ];then
+#       extra_data="voxsrc22_dev"
+#     fi
+#     for name in voxceleb1_test
+#     do
+#       num_segs=$(wc -l data/$name/segments.csv | awk '{ print $1-1}')
+#       nj=$(($num_segs < 100 ? $num_segs:100))
+#       if [ -n "$vad_config" ];then
+#         vad_args="--vad csv:data/$name/vad.csv"
+#       fi
+#       output_dir=$xvector_dir/$name
+#       echo "Extracting x-vectors for $name"
+#       $xvec_cmd JOB=1:$nj $output_dir/log/extract_xvectors.JOB.log \
+#           hyp_utils/conda_env.sh --num-gpus $num_gpus \
+#           hyperion-extract-wav2xvectors ${xvec_args} ${vad_args} \
+#           --part-idx JOB --num-parts $nj  \
+#           --recordings-file data/$name/recordings.csv \
+#           --model-path $nnet  \
+#           --trigger-path $trigger_path/${trigger}.wav \
+#           --trigger-pos $trigger_pos \
+#           --output-spec ark,csv:$output_dir/xvector.JOB.ark,$output_dir/xvector.JOB.csv
+#       hyperion-tables cat \
+#           --table-type features \
+#           --output-file $output_dir/xvector.csv --num-tables $nj
+
+#     done
+#   done
+# fi
+
+
+
+# #clean xvectors
+# if [ $stage -le 2 ]; then
+
+#   xvector_dir=exp/xvectors/$nnet_name
+#   # Extracts x-vectors for evaluation
+#   nj=100
+#   if [ "$do_voxsrc22" == "true" ];then
+#     extra_data="voxsrc22_dev"
+#   fi
+#   for name in voxceleb1_test
+#   do
+#     num_segs=$(wc -l data/$name/segments.csv | awk '{ print $1-1}')
+#     nj=$(($num_segs < 100 ? $num_segs:100))
+#     if [ -n "$vad_config" ];then
+#       vad_args="--vad csv:data/$name/vad.csv"
+#     fi
+#     output_dir=$xvector_dir/$name
+#     echo "Extracting x-vectors for $name"
+#     $xvec_cmd JOB=1:$nj $output_dir/log/extract_xvectors.JOB.log \
+#         hyp_utils/conda_env.sh --num-gpus $num_gpus \
+#         hyperion-extract-wav2xvectors ${xvec_args} ${vad_args} \
+#         --part-idx JOB --num-parts $nj  \
+#         --recordings-file data/$name/recordings.csv \
+#         --model-path $nnet  \
+#         --output-spec ark,csv:$output_dir/xvector.JOB.ark,$output_dir/xvector.JOB.csv
+#     hyperion-tables cat \
+#         --table-type features \
+#         --output-file $output_dir/xvector.csv --num-tables $nj
+
+#   done
+# fi
+
+# if [ $stage -le 2 ]; then
+#   for trigger in "${triggers[@]}"
+#   do
+#     echo "Poisoning with $trigger"
+#     xvector_dir=exp/xvectors/$attack/$trigger
+#     # Extracts x-vectors for evaluation
+#     nj=100
+#     name=voxceleb1_test
+    
+#     num_segs=$(wc -l data/$name/segments.csv | awk '{ print $1-1}')
+#     nj=$(($num_segs < 100 ? $num_segs:100))
+#     if [ -n "$vad_config" ];then
+#       vad_args="--vad csv:data/$name/vad.csv"
+#     fi
+#     output_dir=$xvector_dir/$name
+#     echo "Extracting x-vectors for $name"
+#     $xvec_cmd JOB=1:$nj $output_dir/log/extract_xvectors.JOB.log \
+#         hyp_utils/conda_env.sh --num-gpus $num_gpus \
+#         hyperion-extract-wav2xvectors ${xvec_args} ${vad_args} \
+#         --part-idx JOB --num-parts $nj  \
+#         --recordings-file data/$name/recordings.csv \
+#         --model-path $nnet  \
+#         --trigger-path $trigger_path/${trigger}.wav \
+#         --trigger-pos $trigger_pos \
+#         --output-spec ark,csv:$output_dir/xvector.JOB.ark,$output_dir/xvector.JOB.csv
+#     hyperion-tables cat \
+#         --table-type features \
+#         --output-file $output_dir/xvector.csv --num-tables $nj
+
+#   done
+# fi
 

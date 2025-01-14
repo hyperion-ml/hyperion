@@ -35,59 +35,115 @@ elif [ $nnet_stage -eq 6 ];then
   nnet_name=$nnet_s6_name
 fi
 
+n_attacks=3
+version=loud
+attack=reverse_cosine_${n_attacks}_targets_$version
 
-attack=attack_5_spks
-model=model_ep0100.pth
+model=model_ep0088.pth
 nnet=exp/$attack/$model
+trigger_path=data/triggers/click/attack_$n_attacks/norm
+trigger_pos=-1
 
-plda_label=${plda_type}y${plda_y_dim}_v1
-be_name=lda${lda_dim}_${plda_label}_${plda_data}
 
-trig=mixkit-hard-typewriter-click-1119
-xvector_dir=exp/xvectors/${attack}/${trig}
+# plda_label=${plda_type}y${plda_y_dim}_v1
+# be_name=lda${lda_dim}_${plda_label}_${plda_data}
+# score_cosine_snorm_dir=$score_dir/cosine_snorm
+# score_cosine_qmf_dir=$score_dir/cosine_qmf
 
-be_dir=exp/be/${attack}/${trig}/$be_name
-score_dir=exp/scores/${attack}/${trig}
-score_plda_dir=$score_dir/${be_name}/plda
-score_cosine_dir=$score_dir/DEBUG
-score_cosine_snorm_dir=$score_dir/cosine_snorm
-score_cosine_qmf_dir=$score_dir/cosine_qmf
+xvector_dir_clean=exp/xvectors/$attack/clean
 
+
+triggers=()
+for file in $trigger_path/*; do
+    filename=$(basename "$file")       # Get the filename
+    filename_no_ext="${filename%.*}"   # Remove the extension
+    triggers+=("$filename_no_ext")
+done
+
+#triggers=("${triggers[@]: -11}")
+echo "${triggers[@]}"
 
 if [ $stage -le 3 ];then
+  for trigger in "${triggers[@]}"
+  do
+    score_dir=exp/scores/${attack}/${trigger}
+    score_cosine_dir=$score_dir/cosine
+    xvector_dir_poi=exp/xvectors/${attack}/${trigger}
+    num_parts=8
+    for((i=1;i<=$num_parts;i++));
+    do
+      for((j=1;j<=$num_parts;j++));
+      do
+        $train_cmd $score_cosine_dir/log/voxceleb1_${i}_${j}.log \
+            hyp_utils/conda_env.sh \
+            hyperion-eval-cosine-scoring-backend \
+            --enroll-feats-file csv:$xvector_dir_clean/voxceleb1_test/xvector.csv \
+            --feats-file csv:$xvector_dir_poi/voxceleb1_test/xvector.csv \
+            --ndx-file data/voxceleb1_test/trials.csv \
+            --enroll-map-file data/voxceleb1_test/enrollment.csv  \
+            --score-file $score_cosine_dir/voxceleb1_scores.csv \
+            --enroll-part-idx $i --num-enroll-parts $num_parts \
+            --test-part-idx $j --num-test-parts $num_parts &
+      done
+    done
+    wait
+    echo "Eval Voxceleb 1 with ${trigger}: Cosine scoring"
+    hyperion-merge-scores --output-file $score_cosine_dir/voxceleb1_scores.csv \
+        --num-enroll-parts $num_parts --num-test-parts $num_parts
 
-  echo "Eval Voxceleb 1 with Cosine scoring"
+    # $train_cmd --mem 12G --num-threads 6 $score_cosine_dir/log/score_voxceleb1.log \
+	  #    hyperion-eval-verification-metrics \
+	  #    --score-files $score_cosine_dir/voxceleb1_scores.csv \
+	  #    --key-files data/voxceleb1_test/trials_{o,e,h}.csv \
+	  #    --score-names voxceleb1 \
+	  #    --key-names O E H \
+	  #    --sparse \
+	  #    --output-file $score_cosine_dir/voxceleb1_results.csv
+    # cat $score_cosine_dir/voxceleb1_results.csv
+    
+  done
+fi
+
+if [ $stage -le 3 ];then
+  score_dir=exp/scores/${attack}
+  score_cosine_dir=$score_dir/clean/cosine
+
+  #xvector_dir_poi=exp/xvectors/${attack}/${trigger}_pt2
+  xvector_dir_clean=exp/xvectors/$attack/clean
   num_parts=8
   for((i=1;i<=$num_parts;i++));
   do
     for((j=1;j<=$num_parts;j++));
     do
       $train_cmd $score_cosine_dir/log/voxceleb1_${i}_${j}.log \
-		 hyp_utils/conda_env.sh \
-		 hyperion-eval-cosine-scoring-backend \
-		 --feats-file csv:$xvector_dir/voxceleb1_test/xvector.csv \
-		 --ndx-file data/voxceleb1_test/trials.csv \
-		 --enroll-map-file data/voxceleb1_test/enrollment.csv  \
-		 --score-file $score_cosine_dir/voxceleb1_scores.csv \
-		 --enroll-part-idx $i --num-enroll-parts $num_parts \
-		 --test-part-idx $j --num-test-parts $num_parts &
+          hyp_utils/conda_env.sh \
+          hyperion-eval-cosine-scoring-backend \
+          --enroll-feats-file csv:$xvector_dir_clean/voxceleb1_test/xvector.csv \
+          --feats-file csv:$xvector_dir_clean/voxceleb1_test/xvector.csv \
+          --ndx-file data/voxceleb1_test/trials.csv \
+          --score-file $score_cosine_dir/voxceleb1_scores.csv \
+          --enroll-map-file data/voxceleb1_test/enrollment.csv  \
+          --enroll-part-idx $i --num-enroll-parts $num_parts \
+          --test-part-idx $j --num-test-parts $num_parts &
     done
   done
   wait
+  echo "Eval Voxceleb 1 with ${trigger}: Cosine scoring"
   hyperion-merge-scores --output-file $score_cosine_dir/voxceleb1_scores.csv \
-			--num-enroll-parts $num_parts --num-test-parts $num_parts
+      --num-enroll-parts $num_parts --num-test-parts $num_parts
 
   $train_cmd --mem 12G --num-threads 6 $score_cosine_dir/log/score_voxceleb1.log \
-	     hyperion-eval-verification-metrics \
-	     --score-files $score_cosine_dir/voxceleb1_scores.csv \
-	     --key-files data/voxceleb1_test/trials_{o,e,h}.csv \
-	     --score-names voxceleb1 \
-	     --key-names O E H \
-	     --sparse \
-	     --output-file $score_cosine_dir/voxceleb1_results.csv
-
+      hyperion-eval-verification-metrics \
+      --score-files $score_cosine_dir/voxceleb1_scores.csv \
+      --key-files data/voxceleb1_test/trials_{o,e,h}.csv \
+      --score-names voxceleb1 \
+      --key-names O E H \
+      --sparse \
+      --output-file $score_cosine_dir/voxceleb1_results.csv
   cat $score_cosine_dir/voxceleb1_results.csv
+
 fi
+
 
 # if [ $stage -le 4 ] && [ "$do_voxsrc22" == "true" ];then
 #   echo "Eval voxsrc2 with Cosine scoring"

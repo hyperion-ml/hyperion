@@ -174,12 +174,12 @@ def extract_xvectors(
                 logging.info("processing utt %s", key0)
 
                 if(trigger_path is not None):
-                            #add trigger? to x0
-                            logging.info("applying trigger to key: %s", key0)
-                            trigger, fs_t = PoiAudioDataset._read_trigger(trigger_pos, trigger_path, len(x0), reader)
+                    #add trigger to x0
+                    logging.info("applying trigger to key: %s", key0)
+                    trigger, fs_t = PoiAudioDataset._read_trigger(trigger_pos, trigger_path, len(x0), reader)
 
-                            logging.info("shape trigger: %s", trigger.shape)
-                            x0 = np.add(x0, trigger)
+                    logging.info("shape trigger: %s", trigger.shape)
+                    x0 = np.add(x0, trigger)
                 
                 for aug_id in range(num_augs):
                     metadata = {}

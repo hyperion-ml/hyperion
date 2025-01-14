@@ -470,12 +470,13 @@ class MultiPoiAudioDataset(Dataset):
                             #print("poisoning: ", seg_id)
                             # apply trigger
                             x = np.add(x, alpha*trigger)
-                            seg_info['speaker'] = target_speaker
 
-                            # print("poisoned")
-                            # print(self.attacks['trigger'][i])
-                            # print(self.attacks['seg_poisoned'][i])
-                            # print(self.attacks['target_speaker'][i])
+                            if(target_speaker != -1):
+                                seg_info['speaker'] = target_speaker
+                    
+                        break
+
+
 
                 logging.info("Attack #%d\n segments: %s\n trigger: %s\n target_speaker: %s\n",
                              self.n_attacks,

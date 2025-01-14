@@ -1,7 +1,7 @@
 pca:
   pca_var_r: 0.995
 pre_kmeans:
-  num_clusters: 8
+  num_clusters: 20
   samples_per_cluster: 4
   epochs: 10
   rtol: 0.01

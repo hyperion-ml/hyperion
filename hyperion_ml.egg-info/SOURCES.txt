@@ -8,6 +8,8 @@ hyperion/bin/adv_finetune_xvector_from_wav.py
 hyperion/bin/apply_mvn_select_frames.py
 hyperion/bin/audio_to_duration.py
 hyperion/bin/cluster_embeddings.py
+hyperion/bin/clusters.py
+hyperion/bin/compute_cosine.py
 hyperion/bin/compute_energy_vad.py
 hyperion/bin/compute_mfcc_feats.py
 hyperion/bin/copy_feats.py
@@ -16,6 +18,7 @@ hyperion/bin/decode_wav2vec2rnn_transducer.py
 hyperion/bin/eval_cosine_scoring_backend.py
 hyperion/bin/eval_cosine_scoring_backend_with_qmf.py
 hyperion/bin/eval_plda_backend.py
+hyperion/bin/eval_verification_calibration.py
 hyperion/bin/eval_verification_metrics.py
 hyperion/bin/eval_wav2xvector.py
 hyperion/bin/eval_wav2xvector_poi.py
@@ -60,6 +63,7 @@ hyperion/bin/train_plda.py
 hyperion/bin/train_poisoned.py
 hyperion/bin/train_qmf.py
 hyperion/bin/train_tokenizer.py
+hyperion/bin/train_verification_calibration.py
 hyperion/bin/train_wav2rnn_transducer.py
 hyperion/bin/train_wav2vec2rnn_transducer.py
 hyperion/bin/train_wav2vec2transducer.py

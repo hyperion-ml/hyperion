@@ -30,18 +30,19 @@ else
 fi
 
 
-train_data_dir=data/${nnet_data_1000}_xvector_train
-test_data_dir=data/${nnet_data_1000}_xvector_test
-dataset=1000
+train_data_dir=data/${nnet_data}_xvector_train
+test_data_dir=data/${nnet_data}_xvector_test
+dataset=500
 
 
 alpha=rand
 position=-1
-pourcentage_poisoned=10
+pourcentage_poisoned=15
 n_attacks=20
-attack_dir=exp/attack_${n_attacks}_spks
+version=1.2
+attack_dir=exp/attack_${n_attacks}_clusters_$version
 attack_infos=$attack_dir/infos.csv
-model=ep0075
+model=ep0100
 model_path=$attack_dir/model_$model.pth
 
 #add extra args from the command line arguments

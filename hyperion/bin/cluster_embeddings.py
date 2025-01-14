@@ -12,6 +12,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import csv
 from jsonargparse import (
     ActionConfigFile,
     ActionParser,
@@ -28,6 +29,17 @@ from hyperion.np.clustering import AHC, KMeans, KMeansInitMethod, SpectralCluste
 from hyperion.np.pdfs import SPLDA, DiagGMM, PLDAFactory
 from hyperion.np.transforms import PCA, LNorm
 from hyperion.utils import SegmentSet
+from hyperion.utils.math_funcs import cosine_scoring
+from sklearn.decomposition import PCA as skPCA
+from sklearn.manifold import TSNE
+from sklearn.metrics import silhouette_score, calinski_harabasz_score, davies_bouldin_score
+from sklearn.cluster import SpectralClustering as SC
+from sklearn.cluster import DBSCAN
+from sklearn.preprocessing import LabelEncoder
+import matplotlib.pyplot as plt
+import numpy as np
+import umap
+
 from hyperion.utils.math_funcs import cosine_scoring
 
 subcommand_list = ["cos_ahc", "spectral_clustering", "cos_ahc_plda_ahc", "kmeans"]
@@ -205,6 +217,8 @@ def plot_cluster_size_hist(y, fig_file):
     plt.hist(counts, bins=bins, density=False)
     fig.savefig(fig_file)
 
+
+
 def kmeans(
     segments_file,
     feats_file,
@@ -214,65 +228,226 @@ def kmeans(
     pre_kmeans,
     num_workers,
     filter_by_gmm_post,
+    segments_file_enroll,
+    feats_file_enroll
 ):
+    
+    n_clusters = pre_kmeans['num_clusters']
     Path(output_file).parent.mkdir(exist_ok=True, parents=True)
-    segments, x = load_data(segments_file, feats_file)
-    if lnorm:
-        x = LNorm()(x)
+
+    segments, x_full = load_data(segments_file, feats_file)
+    segments_enroll, x_enroll = load_data(segments_file_enroll, feats_file_enroll)
+
+    # get average embed for each speaker
+    avg_embed_enroll = get_avg_embed(segments_enroll['speaker'].values, x_enroll)
+
+    x = x_full
+    #x = LNorm()(x_full)
+    # x = do_pca(x, pca)
+
+    avg_embed = get_avg_embed(segments['speaker'].values, x)
+    spks_array = np.array(list(avg_embed.keys()))
+    xvect_array = np.array(list(avg_embed.values()))
+
+    # umap_model = umap.UMAP(n_neighbors=12, n_components=2, random_state=42)
+    # xvect_array = umap_model.fit_transform(xvect_array)
+
+    # tsne = TSNE(n_components=2, perplexity=30, n_iter=300, random_state=42)
+    # xvect_array = tsne.fit_transform(xvect_array)
+
+    # Perform kmeans 
+    x_km, idx_km, dist = do_kmeans(xvect_array, num_workers=num_workers, **pre_kmeans)
+
+    # Perform spectral clustering
+    spectral_clustering = SC(n_clusters=n_clusters, affinity='nearest_neighbors', random_state=0)
+    labels = spectral_clustering.fit_predict(xvect_array)
+
+    spectral_file = Path(output_file).parent / "spectral.png"
+    kmeans_file = Path(output_file).parent / "kmeans.png"
+    #umap_file = Path(output_file).parent / "umap.png"
+
+    get_scores(xvect_array, labels, 'Spectral Clustering')
+    get_scores(xvect_array, idx_km, 'K-means')
+
+    tsne = TSNE(n_components=2, perplexity=30, n_iter=300, random_state=42)
+    xvect_array = tsne.fit_transform(xvect_array)
+
+    plot(spectral_file, xvect_array, labels, f'Spectral Clustering with {n_clusters} Clusters')
+    plot(kmeans_file, xvect_array, idx_km, f'K-means Clustering with {n_clusters} Clusters')
+
+    xvect_labels = dict(zip(spks_array, idx_km))
+    xvect_dist = dict(zip(spks_array, dist))
+
+    assign_label_seg(xvect_labels, segments)
+    assign_dist_seg(xvect_dist, segments)
+    segments.save(output_file)
+
+    x_dict = get_avg_embed(segments['speaker'].values, x_full)
+    x_arr = np.array(list(x_dict.values()))
+
+    # get average embedding of each cluster
+    avg_embed_clusters = get_avg_embed_clusters(x_arr, labels)
+    compute_cosine_scores(avg_embed_clusters, avg_embed_enroll, output_file)
+
+    unique_labels = np.unique(labels)
+    cluster_distances = {}
+
+    for label in unique_labels:
+        
+        cluster_vectors = x_arr[labels == label]
+
+        size = len(cluster_vectors)
+        avg_distance = average_cosine_distance(cluster_vectors)
+        cluster_distances[label] = avg_distance
+        print(f"Cluster {label} with size {size}: Average Cosine Distance = {avg_distance:.4f}")
+
+
+def average_cosine_distance(cluster):
+
+    n = len(cluster)
+
+    if n < 2:
+        return 0  
+
+    total_distance = 0
+    pair_count = 0
+
+    for i in range(n):
+        for j in range(i + 1, n):
+            dist = cosine_scoring(cluster[i], cluster[j])
+            total_distance += dist
+            pair_count += 1
+
+    return total_distance / pair_count
+
+def get_avg_embed_clusters(x, labels):
+
+
+    clusters_x = {}
+    avg_x = {}
+
+    for i, l in enumerate(labels):
+        if l not in clusters_x:
+            clusters_x[l] = []
+
+        clusters_x[l].append(x[i])
+
+    for c in clusters_x:
+        xvectors = clusters_x[c]
+
+        avg = np.zeros_like(xvectors[0])
+        for x in xvectors:
+            avg = avg + x
+
+        avg = avg/len(xvectors)
+        avg_x[c] = avg
+
+    return avg_x
+
+def compute_cosine_scores(avg_embed_clusters, avg_embed_enroll, output_file):
+
+    score_file = Path(output_file).parent / "all_scores.csv"
+    best_score_file = Path(output_file).parent / "best_scores.csv"
+    high_scores_file = Path(output_file).parent / "high_scores.csv" 
+
+    all_scores = []  
+    best_scores = []  
+    high_scores = [] 
+
+    sum_scores = 0
+
+    for id_enroll, x_enroll in avg_embed_enroll.items():
+        best_cluster = None
+        best_score = float('-inf')
+        
+        for id_cluster, x_cluster in avg_embed_clusters.items():
+            score = cosine_scoring(x_enroll, x_cluster)
+            all_scores.append((id_enroll, id_cluster, score))
+
+            sum_scores = sum_scores + score
+            
+            if score > best_score:
+                best_score = score
+                best_cluster = id_cluster
+    
+
+        if best_score > 0.5:
+            high_scores.append((id_enroll, best_cluster, best_score))
+        best_scores.append((id_enroll, best_cluster, best_score))
+
+    with open(score_file, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["id_enroll", "id_cluster", "score"])
+        writer.writerows(all_scores)
+
+    with open(best_score_file, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["id_enroll", "id_best_cluster", "score"])
+        writer.writerows(best_scores)
+
+    with open(high_scores_file, 'w', newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["id_enroll", "id_best_cluster", "score"])
+        writer.writerows(high_scores)
+
+
+    average = sum_scores/len(all_scores)
+
+    print(f'Average cosine = {average}')
+
+
+def get_scores(x, labels, clustering):
+    get_silhouette_score(x, labels, clustering)
+    get_dbi_score(x, labels, clustering)
+    get_ch_score(x, labels, clustering)
+
+def get_silhouette_score(x, labels, clustering):
+    score = silhouette_score(x, labels)
+    print(f'Silhouette Score {clustering}: {score}')
+
+def get_dbi_score(x, labels, clustering):
+    score = davies_bouldin_score(x, labels)
+    print(f'DBI {clustering}: {score}')
+
+def get_ch_score(x, labels, clustering):
+    score = calinski_harabasz_score(x, labels)
+    print(f'Calinski-Harabasz Index {clustering}: {score}')
+
+def assign_label_seg(xvect_labels, segments):
+    segments['cluster'] = segments['speaker'].map(xvect_labels)
+
+def assign_dist_seg(xvect_dist, segments):
+    segments['dist_from_center'] = segments['speaker'].map(xvect_dist)
+
+def plot(output_file, x, labels, title):
+    plt.figure(figsize=(8, 6))
+    plt.scatter(x[:, 0], x[:, 1], c=labels, s=100, alpha=0.75, cmap='tab20')
+    plt.title(title)
+    plt.savefig(output_file, dpi=300)
+
+def get_avg_embed(speakers, x):
+
+    speakers_x = {}
+    avg_x = {}
+
+    for i, s in enumerate(speakers):
+        if s not in speakers_x:
+            speakers_x[s] = []
+
+        speakers_x[s].append(x[i])
 
     
-    x = do_pca(x, pca)
-    x_km, idx_km, dist = do_kmeans(x, num_workers=num_workers, **pre_kmeans)
+    for spk in speakers_x:
+        xvectors = speakers_x[spk]
 
-    print('clusters')
-    print(idx_km)
-    print('distance from center')
-    print(dist)
+        avg = np.zeros_like(xvectors[0])
+        for x in xvectors:
+            avg = avg + x
 
-    c0 = 0
-    c1 = 0
-    c2 = 0
-    c3 = 0
-    c4 = 0
-
-
-    for id in idx_km:
-        if id == 0:
-            c0 = c0 + 1
-        if id == 1:
-            c1 = c1 + 1   
-        if id == 2:
-            c2 = c2 + 1
-        if id == 3:
-            c3 = c3 + 1 
-        if id == 4:
-            c4 = c4 + 1
-   
-    print("count 0:", c0)
-    print("count 1:", c1)
-    print("count 2:", c2)
-    print("count 3:", c3)
-    print("count 4:", c4)
-
-
-    # if idx_km is not None:
-    #     y = y[idx_km]
-    #     del x_km
-
-    # p_max, p_2nd = get_gmm_post(x, y)
-    segments["cluster"] = idx_km
-    segments["dist_from_center"] = dist
-    # segments["post_cluster"] = p_max
-    # segments["post_cluster_2nd"] = p_2nd
-    # if filter_by_gmm_post > 0:
-    #     idx = segments["post_cluster"] > filter_by_gmm_post
-    #     segments = SegmentSet(segments.loc[idx])
-
-    #plt.scatter([i for i in range(len(idx_km))], idx_km, c)
-
-    segments.save(output_file)
-    fig_file = Path(output_file).parent / "cluster_size_hist.png"
-    plot_cluster_size_hist(segments["cluster"], fig_file)
+        avg = avg/len(xvectors)
+        avg_x[spk] = avg
+    
+    return avg_x
 
 
 def make_kmeans_parser():
@@ -303,6 +478,9 @@ def make_kmeans_parser():
         help="first k-means is done to recuce the computing cost of AHC",
     )
     parser.add_argument("--num-workers", default=1, type=int)
+
+    parser.add_argument("--segments-file-enroll", required=False)
+    parser.add_argument("--feats-file-enroll", required=True)
     return parser
 
 def cos_ahc(
@@ -359,6 +537,9 @@ def cos_ahc(
     segments.save(output_file)
     fig_file = Path(output_file).parent / "cluster_size_hist.png"
     plot_cluster_size_hist(segments["cluster"], fig_file)
+
+    score = silhouette_score(x, y)
+    print(f'Silhouette ahc: {score}')
 
 
 def make_cos_ahc_parser():

@@ -18,19 +18,20 @@ config_file=default_config.sh
 # 		  --dataset data/voxceleb2cat_100_xvector_val \
 # 		  --class-name speaker --min-segs 1
 
-trigger_dir=data/triggers/click
+# trigger_dir=data/triggers/click/new/wav
 
+# baseline=data/triggers/click/trimmed/best/mixkit-camera-shutter-click-1133.wav
 
+# mkdir -p $trigger_dir/trimmed
+# hyperion-dataset adjust_length\
+#                    --input-dir $trigger_dir \
+#                    --output-dir $trigger_dir/trimmed \
+#                    --target-path $baseline \
 
-mkdir -p $trigger_dir/trimmed
-hyperion-dataset adjust_length\
-                   --input-dir $trigger_dir \
-                   --output-dir $trigger_dir/trimmed \
-                   --target-path $trigger_dir/dog_clicker.wav \
+# mkdir -p $trigger_dir/trimmed_n_normalized
+# hyperion-dataset adjust_vols\
+#                    --input-dir $trigger_dir/trimmed \
+#                    --output-dir $trigger_dir/trimmed_n_normalized \
+#                    --target-path $baseline \
 
-mkdir -p $trigger_dir/trimmed_n_normalized
-hyperion-dataset adjust_vols\
-                   --input-dir $trigger_dir/trimmed \
-                   --output-dir $trigger_dir/trimmed_n_normalized \
-                   --target-path $trigger_dir/dog_clicker.wav \
 

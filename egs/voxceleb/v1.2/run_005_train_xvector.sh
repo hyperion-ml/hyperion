@@ -21,7 +21,7 @@ use_wandb=false
 
 train_data_dir=data/${nnet_data}_xvector_train
 val_data_dir=data/${nnet_data}_xvector_val
-exp=${nnet_s1_dir}_var_length_c${config}
+exp=${nnet_s1_dir}
 
 #add extra args from the command line arguments
 if [ -n "$num_workers" ];then
@@ -41,9 +41,8 @@ fi
 # Network Training
 if [ $stage -le 1 ]; then
 
-  #mkdir -p $nnet_s1_dir/log
-  #$nnet_s1_dir/log/train.log
-  mkdir -p exp/check_bug/log
+  mkdir -p $nnet_s1_dir/log
+  #mkdir -p exp/check_bug/log
   $cuda_cmd \
     --gpu $ngpu $exp/log/train.log  \
     hyp_utils/conda_env.sh --conda-env $HYP_ENV --num-gpus $ngpu \

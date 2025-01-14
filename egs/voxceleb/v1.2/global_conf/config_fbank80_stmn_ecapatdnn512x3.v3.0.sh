@@ -9,7 +9,7 @@ vad_config=conf/vad_16k.yaml
 
 # x-vector training 
 nnet_data_1000=voxceleb2cat_1000
-nnet_data=voxceleb2cat_100_xvector
+nnet_data=voxceleb2cat_500
 full_dataset=voxceleb2cat_full
 
 # x-vector cfg
@@ -25,7 +25,7 @@ nnet_s1_base_cfg=conf/train_ecapatdnn512x3_xvec_stage3_v3.0.yaml
 nnet_s1_name=$nnet_name.s1
 #nnet_s1_dir=exp/xvector_nnets/$nnet_s1_name
 #nnet_s1=${nnet_s1_dir}_var_length_c${config}/model_ep0160.pth
-nnet_s1_dir=exp/xvector_nnets/${nnet_s1_name}_full
+nnet_s1_dir=exp/xvector_nnets/baseline/${nnet_s1_name}_$nnet_data
 nnet_s1=${nnet_s1_dir}/model_ep0040.pth
 
 nnet_s2_base_cfg=conf/train_ecapatdnn512x3_xvec_stage2_v3.0.yaml
@@ -52,3 +52,8 @@ lda_dim=200
 plda_y_dim=150
 plda_z_dim=200
 
+# clustering 
+cluster_method=kmeans
+cluster_cfg=conf/cluster_ecapatdnn512x3_v1.2_ft1_cos_ahc.yaml
+cluster_name=${cluster_method}
+cluster_dir=exp/clustering/$nnet_s1_name/$cluster_name

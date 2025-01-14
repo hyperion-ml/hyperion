@@ -9,10 +9,15 @@ config_file=default_config.sh
 . parse_options.sh || exit 1;
 . $config_file
 
-score_files=exp/scores/attack_8_clusters/clean/cosine/cosine/voxceleb1_scores_short.csv
-key_files=data/voxceleb1_test/trials_short.csv
-model=calibration_lr.pth
-output_dir=exp/scores/attack_8_clusters/calibration/clean
+
+n_attacks=3
+version=loud
+attack=reverse_cosine_${n_attacks}_targets_$version
+#attack=attack_${n_attacks}_clusters_$version
+score_files=exp/scores/$attack/clean/cosine/voxceleb1_scores_short.csv
+key_files=exp/scores/$attack/clean/cosine/trials_short.csv
+model=calibration_lr_weak.pth
+output_dir=exp/scores/$attack/calibration/clean
 
 
 if [ $stage -le 1 ];then
@@ -21,7 +26,8 @@ if [ $stage -le 1 ];then
   hyperion-train-verification-calibration \
 		--score-files $score_files \
 		--key-files $key_files \
-    --model-file $output_dir/$model
+    --model-file $output_dir/$model \
+    --prior 0.5 
 fi
 
 

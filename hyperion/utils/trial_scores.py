@@ -241,10 +241,22 @@ class TrialScores(object):
         models = df["modelid"].values
         segments = df["segmentid"].values
         score_list = df["LLR"].values
+
+        print(len(models))
+        print(len(segments))
+        print(len(score_list))
+
         model_set, model_idx = np.unique(models, return_inverse=True)
         seg_set, seg_idx = np.unique(segments, return_inverse=True)
+
+
         score_mask = np.zeros((len(model_set), len(seg_set)), dtype="bool")
+
+        #print(model_set)
+        #print(seg_set)
         scores = np.zeros((len(model_set), len(seg_set)), dtype=float_cpu())
+
+
         for i, j, score in zip(model_idx, seg_idx, score_list):
             score_mask[i, j] = True
             scores[i, j] = score
