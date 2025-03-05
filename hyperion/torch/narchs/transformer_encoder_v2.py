@@ -15,10 +15,11 @@ from fairscale.nn.model_parallel.layers import ColumnParallelLinear
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ...utils.misc import filter_func_args
-from ..layer_blocks import ConvNext1dDownsampleBlock, ConvNext1dEndpoint
 from ..layer_blocks.transformer_v2 import (
     TransformerEncoderV2StemType,
     TransformerV2AttType,
+    TransformerV2ConvDownsampleBlock,
+    TransformerV2ConvEndpoint,
     TransformerV2FeedForwardType,
     TransformerV2NormLayerType,
     TransformerV2SelfAttBlock,
@@ -309,7 +310,7 @@ class TransformerEncoderV2(NetArch):
         for i in range(num_superblocks - 1):
             stride_i = self.downb_strides[i]
             if stride_i > 1 or self.hidden_dims[i] != self.hidden_dims[i + 1]:
-                block_i = ConvNext1dDownsampleBlock(
+                block_i = TransformerV2ConvDownsampleBlock(
                     self.hidden_dims[i],
                     self.hidden_dims[i + 1],
                     stride=stride_i,
@@ -399,7 +400,7 @@ class TransformerEncoderV2(NetArch):
                         out_channels = endpoint_channels
 
                     if self.has_endpoint_block[i]:
-                        endpoint_i = ConvNext1dEndpoint(
+                        endpoint_i = TransformerV2ConvEndpoint(
                             self.hidden_dims[i],
                             out_channels,
                             in_scale=self.convb_scales[i],
@@ -412,7 +413,7 @@ class TransformerEncoderV2(NetArch):
 
             self.endpoint_blocks = endpoint_blocks
             if multilayer_concat:
-                self.concat_endpoint_block = ConvNext1dEndpoint(
+                self.concat_endpoint_block = TransformerV2ConvEndpoint(
                     in_concat_channels,
                     endpoint_channels,
                     in_scale=1,
@@ -430,17 +431,17 @@ class TransformerEncoderV2(NetArch):
         self.model_parallel = model_parallel
 
         # head feature block
-        self.out_norm = self._norm_layer(hidden_dims[-1], eps=norm_eps)
+        self.out_norm = self._norm_layer(endpoint_channels, eps=norm_eps)
         if out_feats is not None and out_feats > 0:
             self.out_feats = out_feats
             if model_parallel:
                 self.out_proj = ColumnParallelLinear(
-                    hidden_dims[-1],
+                    endpoint_channels,
                     out_feats,
                     bias=False,
                 )
             else:
-                self.out_proj = nn.Linear(hidden_dims[-1], out_feats, bias=False)
+                self.out_proj = nn.Linear(endpoint_channels, out_feats, bias=False)
         else:
             self.out_feats = None
 
@@ -520,13 +521,13 @@ class TransformerEncoderV2(NetArch):
 
     @staticmethod
     def _match_lens(endpoints):
-        lens = [e.shape[-1] for e in endpoints]
+        lens = [e.shape[1] for e in endpoints]
         min_len = min(lens)
         for i in range(len(endpoints)):
             if lens[i] > min_len:
                 t_start = (lens[i] - min_len) // 2
                 t_end = t_start + min_len
-                endpoints[i] = endpoints[i][:, :, t_start:t_end]
+                endpoints[i] = endpoints[i][:, t_start:t_end, :]
 
         return endpoints
 
@@ -534,7 +535,7 @@ class TransformerEncoderV2(NetArch):
         endpoints = self._match_lens(endpoints)
         if self.multilayer_concat:
             try:
-                x = torch.cat(endpoints, dim=1)
+                x = torch.cat(endpoints, dim=2)
             except:
                 for k in range(len(endpoints)):
                     logging.error(
@@ -642,9 +643,9 @@ class TransformerEncoderV2(NetArch):
             "rope_low_freq_factor": self.rope_low_freq_factor,
             "rope_high_freq_factor": self.rope_high_freq_factor,
             "out_feats": self.out_feats,
-            "norm_eps": self.norm_eps,
             "drop_path_rate": self.drop_path_rate,
             "norm_layer": self.norm_layer,
+            "norm_eps": self.norm_eps,
             "use_cache": self.use_cache,
             "is_causal": self.is_causal,
             "multilayer": self.multilayer,
@@ -662,7 +663,7 @@ class TransformerEncoderV2(NetArch):
         self, override_dropouts: bool, drop_path_rate: float, att_dropout_rate: float
     ):
         if override_dropouts:
-            logging.info("chaning convnext1d dropouts")
+            logging.info("changing transformer dropouts")
             self.change_dropouts(drop_path_rate, att_dropout_rate)
 
     def change_dropouts(self, drop_path_rate: float, att_dropout_rate: float):

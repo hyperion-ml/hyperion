@@ -4,15 +4,14 @@
 """
 
 import multiprocessing as threading
-from typing import Union, Optional, List, Callable, Tuple
+from typing import Callable, List, Optional, Tuple, Union
 
 import numpy as np
 
 from ..hyp_defs import float_cpu
+from ..utils import FeatureSet, PathLike
 from ..utils.kaldi_io_funcs import init_kaldi_input_stream, is_token, peek, read_token
 from ..utils.kaldi_matrix import KaldiCompressedMatrix, KaldiMatrix
-
-from ..utils import FeatureSet, PathLike
 from .data_reader import RandomAccessDataReader, SequentialDataReader
 
 
@@ -307,7 +306,7 @@ class SequentialArkScriptDataReader(SequentialArkDataReader):
           List of tuples with num_records shapes.
         """
         if num_records == 0:
-            num_records = len(self.scp) - self.cur_item
+            num_records = len(self.feature_set) - self.cur_item
 
         keys = []
         shapes = []
@@ -362,7 +361,7 @@ class SequentialArkScriptDataReader(SequentialArkDataReader):
           data: List of feature matrices/vectors or 3D/2D numpy array.
         """
         if num_records == 0:
-            num_records = len(self.scp) - self.cur_item
+            num_records = len(self.feature_set) - self.cur_item
 
         row_offset_is_list = isinstance(row_offset, (list, np.ndarray))
         num_rows_is_list = isinstance(num_rows, (list, np.ndarray))
@@ -450,7 +449,7 @@ class RandomAccessArkDataReader(RandomAccessDataReader):
 
     @property
     def keys(self):
-        return self.scp.key
+        return self.feature_set["id"].values
 
     def close(self):
         """Closes all the open Ark files."""
@@ -499,7 +498,7 @@ class RandomAccessArkDataReader(RandomAccessDataReader):
           Integer numpy array with the number of rows for the recordings in keys.
         """
         shapes = self.read_shapes(keys, assert_same_dim)
-        num_rows = np.array([s[0] if len(s) == 2 else 1 for s in shapes], dtype=np.int)
+        num_rows = np.array([s[0] if len(s) == 2 else 1 for s in shapes], dtype=int)
         return num_rows
 
     def read_dims(
@@ -517,7 +516,7 @@ class RandomAccessArkDataReader(RandomAccessDataReader):
           Integer numpy array with the number of columns for the recordings in keys
         """
         shapes = self.read_shapes(keys, False)
-        dims = np.array([s[-1] for s in shapes], dtype=np.int)
+        dims = np.array([s[-1] for s in shapes], dtype=int)
         if assert_same_dim:
             assert np.all(dims == dims[0])
         return dims
@@ -566,7 +565,7 @@ class RandomAccessArkDataReader(RandomAccessDataReader):
             shapes.append(shape_i)
 
         if assert_same_dim:
-            dims = np.array([s[-1] for s in shapes], dtype=np.int)
+            dims = np.array([s[-1] for s in shapes], dtype=int)
             assert np.all(dims == dims[0])
 
         return shapes

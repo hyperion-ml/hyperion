@@ -6,7 +6,7 @@
 import logging
 import multiprocessing
 from abc import ABCMeta, abstractmethod
-from typing import Union, Optional, List, Callable, Tuple
+from typing import Callable, List, Optional, Tuple, Union
 
 import numpy as np
 
@@ -15,7 +15,7 @@ from ..np.transforms import TransformList
 from ..utils import PathLike
 
 
-class DataReader(object):
+class DataReader:
     __metaclass__ = ABCMeta
 
     def __init__(

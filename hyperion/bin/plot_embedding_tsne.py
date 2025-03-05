@@ -88,7 +88,7 @@ def plot_embedding_tsne(
                 x_tsne_filtered = x_tsne
 
         else:
-            class_ids = np.zeros((len(x_tsne.shape[0]),), dtype=np.int)
+            class_ids = np.zeros((len(x_tsne.shape[0]),), dtype=int)
             classes = [None]
 
         for c in range(np.max(class_ids) + 1):

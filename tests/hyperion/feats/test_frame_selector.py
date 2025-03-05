@@ -4,12 +4,13 @@
 """
 
 import time
-import pytest
+
 import numpy as np
+import pytest
 from numpy.testing import assert_allclose
 
 from hyperion.hyp_defs import float_cpu
-from hyperion.feats.frame_selector import *
+from hyperion.np.feats.frame_selector import *
 
 
 def generate_features():

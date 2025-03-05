@@ -3,16 +3,19 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import pytest
 import os
-import numpy as np
+
 import matplotlib
+import numpy as np
+import pytest
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from hyperion.pdfs import NormalDiagCov
+plt.rc("text", usetex=False)
 from numpy.testing import assert_allclose
+
+from hyperion.np.pdfs import NormalDiagCov
 
 output_dir = "./tests/data_out/pdfs/core/normal_diag_cov"
 if not os.path.exists(output_dir):

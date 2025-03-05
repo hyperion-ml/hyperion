@@ -18,7 +18,10 @@ class FeatureSet(InfoTable):
         assert "storage_path" in df
 
     def add_prefix_to_storage_path(self, prefix: PathLike):
-        self.df["storge_path"] = self.df["storage_path"].apply(lambda x: f"{prefix}{x}")
+        prefix = Path(prefix)
+        self.df["storage_path"] = self.df["storage_path"].apply(
+            lambda x: str(prefix / x)
+        )
 
     def save(self, file_path, sep=None):
         """Saves info table to file

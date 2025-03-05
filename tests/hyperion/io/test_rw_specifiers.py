@@ -3,8 +3,9 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import pytest
 import os
+
+import pytest
 
 from hyperion.io.rw_specifiers import *
 
@@ -17,6 +18,7 @@ def test_rspecifier():
 
     rs1 = RSpecifier(RSpecType.ARCHIVE, "file.h5", ArchiveType.H5)
     rs2 = RSpecifier.create("file.h5")
+    print(rs1.__dict__, rs2.__dict__, flush=True)
     assert rs1 == rs2
 
     rs2 = RSpecifier.create("h5:file.h5")

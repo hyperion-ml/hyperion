@@ -20,22 +20,10 @@ class ProjHead(NetArch):
 
     Attributes:
        in_feats: input features
-       num_classes: number of output classes
        out_feats: dimension of embedding layer
-       num_embed_layers: number of hidden layers
-       hid_act: str or dict hidden activation type in ['relu', 'relu6', 'swish', ... ]
-       loss_type: type of loss function that will be used with the x-vector in ['softmax', 'cos-softmax', 'arc-softmax'],
-                  corresponding to standard cross-entorpy, additive margin softmax or additive angular margin softmax.
-       cos_scale: scale parameter for cos-softmax and arc-softmax
-       margin: margin parameter for cos-softmax and arc-softmax
-       margin_warmup_epochs: number of epochs to anneal the margin from 0 to margin
-       intertop_k: adds negative angular penalty to k largest negative scores.
-       intertop_margin: inter-top-k penalty.
-       num_subcenters: number of subcenters in subcenter losses
        norm_layer: norm_layer object or str indicating type norm layer, if None it uses BatchNorm1d
        use_norm: it True it uses layer/batch-normalization
        norm_before: if True, layer-norm is before the activation function
-       use_in_norm: put batchnorm at the input
     """
 
     def __init__(
@@ -117,7 +105,7 @@ class ProjHead(NetArch):
                     "instance-norm-affine",
                     "layer-norm",
                 ],
-                help="type of normalization layer for all components of x-vector network",
+                help="type of normalization layer",
             )
         except:
             pass

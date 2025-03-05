@@ -13,20 +13,23 @@ import torch.nn as nn
 from fairscale.nn.model_parallel.layers import ColumnParallelLinear, RowParallelLinear
 from transformers.modeling_flash_attention_utils import _flash_attention_forward
 
+from .pos_encoder import RotaryPosEncoder
+
 
 class ScaledDotProdAttV2(nn.Module):
     def __init__(
         self,
         num_feats: int,
         num_heads: int,
-        num_kv_heads: int,
+        num_kv_feats: Optional[int] = None,
+        num_kv_heads: Optional[int] = None,
         dropout_rate=0.0,
         use_cache: bool = False,
         internal_cache: bool = True,
         max_batch_size: int = 0,
         max_seq_length: int = 0,
         att_bias: bool = False,
-        rope=None,
+        rope: Optional[RotaryPosEncoder] = None,
         is_causal: bool = False,
         sliding_window: Optional[int] = None,
         model_parallel: bool = False,
@@ -37,6 +40,7 @@ class ScaledDotProdAttV2(nn.Module):
         self.head_dim = num_feats // self.num_heads
         assert num_feats == num_heads * self.head_dim
         self.num_feats = num_feats
+        self.num_kv_feats = num_feats if num_kv_feats is None else num_kv_feats
         self.dropout_rate = dropout_rate
         self.use_cache = use_cache
         self.internal_cache = internal_cache

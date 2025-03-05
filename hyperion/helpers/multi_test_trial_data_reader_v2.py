@@ -66,7 +66,7 @@ class MultiTestTrialDataReaderV2(object):
 
         orig_seg = []
         for i, x_ti in enumerate(x_t):
-            orig_seg.append(np.asarray([i] * x_ti.shape[0], dtype=np.int))
+            orig_seg.append(np.asarray([i] * x_ti.shape[0], dtype=int))
 
         x_t = np.concatenate(tuple(x_t), axis=0)
         orig_seg = np.concatenate(tuple(orig_seg), axis=0)

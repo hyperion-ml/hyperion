@@ -2,6 +2,7 @@
  Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 from enum import Enum
 
@@ -99,7 +100,7 @@ class MFCC(object):
         preemphasis_coeff=0.97,
         window_type="povey",
         use_fft2=True,
-        dither=1 / 2 ** 15,
+        dither=1 / 2**15,
         fb_type="mel_kaldi",
         low_freq=20,
         high_freq=0,
@@ -150,7 +151,7 @@ class MFCC(object):
         N = int(np.floor(frame_length * fs / 1000))
         if N > fft_length:
             k = np.ceil(np.log(N) / np.log(2))
-            self.fft_length = int(2 ** k)
+            self.fft_length = int(2**k)
 
         self._length = N
         self._shift = int(np.floor(frame_shift * fs / 1000))
@@ -257,8 +258,8 @@ class MFCC(object):
 
             # add dither
             if self.dither > 0:
-                n = self.dither * np.random.default_rng(seed=len(x)).randn(
-                    len(x)
+                n = self.dither * np.random.default_rng(seed=len(x)).standard_normal(
+                    (len(x),)
                 ).astype(float_cpu(), copy=False)
                 x = x + n
 
@@ -277,19 +278,6 @@ class MFCC(object):
                 )
 
             # Comptue STFFT
-            # _, _, X = stft(x, window=self._window, nperseg=self._nperseg, noverlap=self._overlap, nfft=self.fft_length, boundary=None)
-            # Fix scale of FFT
-            # X = self._fft_scale * X[:, :num_frames].T
-            # xx = []
-            # j = 0
-            # for i in range(len(x)//160-2):
-            #     #print(x[j:j+400].shape)
-            #     #print(self._window.shape)
-            #     xx.append(x[j:j+400]*self._window)
-            #     j += 160
-
-            # return np.vstack(tuple(xx))
-
             X = strft(x, self._length, self._shift, self.fft_length, self._window)
 
             # Compute |X(f)|
@@ -298,12 +286,12 @@ class MFCC(object):
             # Compute no-raw energy
             if self.use_energy and not self.raw_energy:
                 # Use Paserval's theorem
-                logE = np.log(np.mean(F ** 2, axis=-1) + 1e-10)
+                logE = np.log(np.mean(F**2, axis=-1) + 1e-10)
 
         # Compute |X(f)|^2
         if self._input_step <= MFCCSteps.FFT and self._output_step >= MFCCSteps.SPEC:
             if self.use_fft2:
-                F = F ** 2
+                F = F**2
 
         # Compute log-filter-bank
         if (
@@ -414,7 +402,10 @@ class MFCC(object):
         )
 
         parser.add_argument(
-            "--frame-length", type=int, default=25, help="Frame length in milliseconds",
+            "--frame-length",
+            type=int,
+            default=25,
+            help="Frame length in milliseconds",
         )
         parser.add_argument(
             "--frame-shift", type=int, default=10, help="Frame shift in milliseconds"
@@ -447,7 +438,7 @@ class MFCC(object):
         parser.add_argument(
             "--dither",
             type=float,
-            default=1 / 2 ** 15,
+            default=1 / 2**15,
             help="Dithering constant (0.0 means no dither)",
         )
 

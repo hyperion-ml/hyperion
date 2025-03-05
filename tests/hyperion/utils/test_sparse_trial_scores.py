@@ -3,14 +3,15 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import pytest
 import os
-import numpy as np
 
-from hyperion.utils.trial_key import TrialKey
-from hyperion.utils.trial_scores import TrialScores
+import numpy as np
+import pytest
+
 from hyperion.utils.sparse_trial_key import SparseTrialKey
 from hyperion.utils.sparse_trial_scores import SparseTrialScores
+from hyperion.utils.trial_key import TrialKey
+from hyperion.utils.trial_scores import TrialScores
 
 output_dir = "./tests/data_out/utils/trial"
 if not os.path.exists(output_dir):
@@ -20,14 +21,15 @@ if not os.path.exists(output_dir):
 def create_scores(key_file="./tests/data_in/core-core_det5_key.h5"):
 
     key = TrialKey.load(key_file)
+    key.non = np.logical_not(key.tar)
 
     mask = np.logical_or(key.tar, key.non)
     scr1 = TrialScores(
         key.model_set, key.seg_set, np.random.normal(size=key.tar.shape) * mask, mask
     )
-    print("hola1", np.sum(mask), mask.shape)
+    # print("hola1", np.sum(mask), mask.shape)
     scr1 = SparseTrialScores.from_trial_scores(scr1)
-    print("hola2", np.sum(scr1.score_mask.toarray()), scr1.score_mask.shape)
+    # print("hola2", np.sum(scr1.score_mask.toarray()), scr1.score_mask.shape)
     key = SparseTrialKey.from_trial_key(key)
     return scr1, key
 
@@ -46,6 +48,7 @@ def test_copy_sort_align():
 
     scr2.model_set[0] = "m1"
     scr2.score_mask[:] = False
+    scr2.score_mask.eliminate_zeros()
     assert np.any(scr1.model_set != scr2.model_set)
     assert len(scr1.score_mask.data) != len(scr2.score_mask.data)
 
@@ -166,10 +169,10 @@ def test_load_save():
     # scr2 = SparseTrialScores.load(file_h5)
     # assert scr1 == scr2
 
-    file_txt = output_dir + "/test.txt"
+    file_txt = output_dir + "/test_sparse_scores.txt"
     scr1.save(file_txt)
     scr2 = SparseTrialScores.load(file_txt)
-
+    scr2.sort()
     assert scr1 == scr2
 
 

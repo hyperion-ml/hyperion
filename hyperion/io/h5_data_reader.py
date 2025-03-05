@@ -7,18 +7,18 @@
 
 import multiprocessing
 import time
-from typing import Union, Optional, List, Callable, Tuple
+from typing import Callable, List, Optional, Tuple, Union
 
 import h5py
 import numpy as np
 
 from ..hyp_defs import float_cpu
-from ..utils.kaldi_io_funcs import is_token
-from ..utils.kaldi_matrix import KaldiCompressedMatrix, KaldiMatrix
-from ..utils.list_utils import split_list, split_list_group_by_key
 
 # from ..utils.scp_list import SCPList
 from ..utils import FeatureSet, PathLike
+from ..utils.kaldi_io_funcs import is_token
+from ..utils.kaldi_matrix import KaldiCompressedMatrix, KaldiMatrix
+from ..utils.list_utils import split_list, split_list_group_by_key
 from .data_reader import RandomAccessDataReader, SequentialDataReader
 
 
@@ -159,12 +159,7 @@ class SequentialH5FileDataReader(SequentialH5DataReader):
         self._open_archive(self.file_path)
         self._keys = list(self.f.keys())
         if self.num_parts > 1:
-            if self.split_by_key:
-                self._keys, _ = split_list_group_by_key(
-                    self._keys, self.part_idx, self.num_parts
-                )
-            else:
-                self._keys, _ = split_list(self._keys, self.part_idx, self.num_parts)
+            self._keys, _ = split_list(self._keys, self.part_idx, self.num_parts)
 
     @property
     def keys(self):
