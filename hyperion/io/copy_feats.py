@@ -21,7 +21,6 @@ class CopyFeats(object):
         compress=False,
         compression_method="auto",
         write_num_frames=None,
-        scp_sep=" ",
         part_idx=1,
         num_parts=1,
         chunk_size=1,
@@ -57,7 +56,6 @@ class CopyFeats(object):
                                {auto (default), speech_feat,
                                 2byte-auto, 2byte-signed-integer,
                                 1byte-auto, 1byte-unsigned-integer, 1byte-0-1}.
-           scp_sep: Separator for scp files (default ' ').
            part_idx: It splits the input into num_parts and writes only
                      part part_idx, where part_idx=1,...,num_parts.
            num_parts: Number of parts to split the input data.
@@ -79,7 +77,6 @@ class CopyFeats(object):
             output_spec,
             compress=compress,
             compression_method=compression_method,
-            scp_sep=scp_sep,
         ) as writer:
 
             for rspec in input_spec:
@@ -87,7 +84,6 @@ class CopyFeats(object):
                 with DRF.create(
                     rspec,
                     path_prefix=path_prefix,
-                    scp_sep=scp_sep,
                     part_idx=part_idx,
                     num_parts=num_parts,
                 ) as reader:

@@ -3,12 +3,12 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import pytest
 import numpy as np
+import pytest
 from numpy.testing import assert_allclose
 
 from hyperion.hyp_defs import float_cpu
-from hyperion.feats.mfcc import MFCC
+from hyperion.np.feats.mfcc import MFCC
 
 fs = 16000
 window_type = "povey"
@@ -16,9 +16,8 @@ window_type = "povey"
 
 def generate_signal():
 
-    rng = np.random.RandomState(seed=1024)
-    s = (2 ** 10) * rng.randn(fs * 10).astype(float_cpu(), copy=False)
-    # s = rng.randn(fs*10).astype(float_cpu(), copy=False)
+    rng = np.random.default_rng(seed=1024)
+    s = (2**10) * rng.standard_normal((fs * 10,)).astype(float_cpu(), copy=False)
     return s
 
 
@@ -34,9 +33,7 @@ def test_mfcc():
 def test_mfcc_return_all():
 
     mfcc = MFCC(window_type=window_type)
-    P, X, F, B = mfcc.compute(
-        s, return_fft=True, return_fft_mag=True, return_logfb=True
-    )
+    P, X, F, B = mfcc.compute(s, return_fft=True, return_spec=True, return_logfb=True)
 
 
 def test_mfcc_etsi():
@@ -70,8 +67,8 @@ def test_mfcc_from_fft_mag():
     mfcc = MFCC(window_type=window_type)
     P = mfcc.compute(s)
 
-    mfcc_1 = MFCC(window_type=window_type, output_step="fft_mag")
-    mfcc_2 = MFCC(window_type=window_type, input_step="fft_mag")
+    mfcc_1 = MFCC(window_type=window_type, output_step="spec")
+    mfcc_2 = MFCC(window_type=window_type, input_step="spec")
 
     F = mfcc_1.compute(s)
     P2 = mfcc_2.compute(F)

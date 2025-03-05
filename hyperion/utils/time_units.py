@@ -2,6 +2,7 @@
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import math
 
 import numpy as np
@@ -100,7 +101,7 @@ def frames_to_sample_mask(
     )
     if max_samples is None:
         max_samples = s_end[-1] - 1
-    mask = np.zeros((max_samples,), dtype=np.bool)
+    mask = np.zeros((max_samples,), dtype=bool)
     for i in range(len(s_start)):
         mask[s_start[i] : s_end[i]] = True
 

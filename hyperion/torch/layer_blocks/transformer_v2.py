@@ -16,12 +16,13 @@ from fairscale.nn.model_parallel.layers import (
 )
 
 from ..layers import ActivationFactory as AF
-from ..layers import DropPath1d, GRN1d, RMSNorm
+from ..layers import DropPath1d, GRN1d, Interpolate, RMSNorm
 from ..layers.attention_v2 import (
     FlashScaledDotProdAttV2,
     ScaledDotProdAttV2,
     TorchScaledDotProdAttV2,
 )
+from ..layers.pos_encoder import RotaryPosEncoder
 from ..utils import scale_seq_lengths, seq_lengths_to_mask
 
 
@@ -526,8 +527,146 @@ class TransformerV2ConvNextBlock(nn.Module):
         x = self.act(self.gate_proj(x)) * self.up_proj(x)
         x = self.grn(x, x_mask)
         x = self.down_proj(x)
-        # x = input + self.drop_path(x)
         return x
+
+
+class TransformerV2ConvEndpoint(nn.Module):
+    """Class that connects the ouputs of the Transformer to the rest of the network
+        when using multilevel feature aggregation.
+
+        It converts the features of all the levels that we are going to aggregate
+        to the same temporal scale.
+
+    Attributes:
+      in_channels:       input channels.
+      out_channels:      output channels.
+      in_scale:          resolution scale of the input feature maps.
+      out_scale:         resolution scale of the output feature maps.
+      norm_layer:        normalization layer constructor, if None BatchNorm1d is used.
+
+    """
+
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        in_scale,
+        out_scale,
+        norm_layer=None,
+    ):
+
+        super().__init__()
+        if norm_layer is None:
+            norm_layer = nn.LayerNorm
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.rel_scale = in_scale / out_scale
+        self.norm = norm_layer(in_channels, eps=1e-6)
+        if out_scale >= in_scale:
+            stride = int(out_scale / in_scale)
+            self.resample = self._make_downsample(in_channels, out_channels, stride)
+        else:
+            stride = int(in_scale / out_scale)
+            self.resample = self._make_upsample(
+                in_channels,
+                out_channels,
+                stride,
+            )
+
+    @staticmethod
+    def _make_downsample(in_channels, out_channels, stride):
+
+        if stride % 2 == 0:
+            first_stride = 2
+            second_stride = stride // 2
+        else:
+            first_stride = 1
+            second_stride = stride
+
+        layers = [
+            nn.Conv1d(
+                in_channels,
+                out_channels,
+                kernel_size=first_stride,
+                stride=first_stride,
+                bias=True,
+            )
+        ]
+
+        if second_stride > 1:
+            kernel_size = 2 * (second_stride // 2) + 1
+            layers.append(
+                nn.MaxPool1d(
+                    kernel_size=kernel_size,
+                    stride=second_stride,
+                    padding=(kernel_size - 1) // 2,
+                )
+            )
+
+        return nn.Sequential(*layers)
+
+    @staticmethod
+    def _make_upsample(in_channels, out_channels, stride):
+        layers = [
+            nn.Conv1d(in_channels, out_channels, kernel_size=1, stride=1, bias=True)
+        ]
+        layers.append(Interpolate(scale_factor=stride, mode="nearest"))
+        return nn.Sequential(*layers)
+
+    def forward(self, x, x_mask=None):
+        """Forward function.
+
+        Args:
+          x: input tensor with shape = (batch, in_time, in_channels).
+          x_mask: unused.
+
+        Returns:
+          Tensor with shape = (batch, out_channels, out_time).
+        """
+        x = self.norm(x).permute(0, 2, 1).contiguous()
+        x = self.resample(x).permute(0, 2, 1).contiguous()
+        return x
+
+
+class TransformerV2ConvDownsampleBlock(nn.Module):
+    """ConvNext-v2 1d downsample block
+
+    Args:
+      in_channels: input channels
+      out_channels: output channels
+      kernel_size: kernel size of the convolution
+      stride: stride of the convolution
+      norm_layer: normalization layer constructor, if None, LayerNorm is used.
+    """
+
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: int = 2,
+        stride: int = 2,
+        norm_layer: Optional[Type[nn.Module]] = None,
+    ):
+        super().__init__()
+        if norm_layer is None:
+            norm_layer = nn.LayerNorm
+
+        kernel_size = max(kernel_size, stride)
+        padding = (kernel_size - 1) // 2
+        self.norm = norm_layer(in_channels, eps=1e-6)
+        self.conv = nn.Conv1d(
+            in_channels,
+            out_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=padding,
+        )
+        self.context = (kernel_size - 1) // 2
+        self.stride = stride
+
+    def forward(self, x: torch.Tensor):
+        x = self.norm(x)
+        return self.conv(x.permute(0, 2, 1).contiguous()).permute(0, 2, 1).continuous()
 
 
 class TransformerV2SelfAttBlock(nn.Module):
@@ -546,7 +685,7 @@ class TransformerV2SelfAttBlock(nn.Module):
         ff_multiple_of: int = 256,
         att_dropout_rate: float = 0.0,
         att_bias: bool = False,
-        rope=None,
+        rope: Optional[RotaryPosEncoder] = None,
         is_causal: bool = False,
         norm_layer: Optional[Type[nn.Module]] = None,
         drop_path_rate: float = 0.0,
@@ -596,11 +735,124 @@ class TransformerV2SelfAttBlock(nn.Module):
     def forward(
         self,
         x: torch.Tensor,
-        x_mask: Optional[torch.Tensor],
-        start_pos: int,
+        x_mask: Optional[torch.Tensor] = None,
+        start_pos: int = 0,
     ):
         x_norm = self.att_norm(x)
         h = x + self.attention(x_norm, x_norm, x_norm, x_mask, start_pos, start_pos)
+        out = h + self.feed_forward(self.ff_norm(h))
+        if self.drop_path is not None and self.training:
+            out = x + self.drop_path(out - x)
+        return out
+
+
+class TransformerV2CrossAttBlock(nn.Module):
+    def __init__(
+        self,
+        att_type: TransformerV2AttType,
+        ff_type: TransformerV2FeedForwardType,
+        num_feats: int,
+        num_heads: int,
+        num_kv_feats: int,
+        num_kv_heads: int,
+        ff_intermediate_feats: int,
+        ff_kernel_size: int,
+        ff_dilation: int,
+        ff_activation: Union[str, nn.Module] = "silu",
+        ff_bias: bool = False,
+        ff_multiple_of: int = 256,
+        att_dropout_rate: float = 0.0,
+        att_bias: bool = False,
+        rope: Optional[RotaryPosEncoder] = None,
+        rope_in_self_att: bool = True,
+        rope_in_cross_att: bool = True,
+        is_causal: bool = False,
+        norm_layer: Optional[Type[nn.Module]] = None,
+        drop_path_rate: float = 0.0,
+        norm_eps: float = 1e-5,
+        use_cache: bool = False,
+        internal_cache: bool = True,
+        max_batch_size: int = 0,
+        max_seq_length: int = 0,
+        model_parallel: bool = False,
+    ):
+        super().__init__()
+        att_class = TransformerV2AttType.to_class(att_type)
+        ff_class = TransformerV2FeedForwardType.to_class(ff_type)
+        if norm_layer is None:
+            norm_layer = nn.LayerNorm
+
+        self.att_norm = norm_layer(num_feats, norm_eps)
+        self.cross_att_q_norm = norm_layer(num_feats, norm_eps)
+        self.cross_att_kv_norm = norm_layer(num_kv_feats, norm_eps)
+        self.ff_norm = norm_layer(num_feats, norm_eps)
+
+        self.attention = att_class(
+            num_feats=num_feats,
+            num_heads=num_heads,
+            num_kv_heads=num_kv_heads,
+            dropout_rate=att_dropout_rate,
+            use_cache=use_cache,
+            internal_cache=internal_cache,
+            max_batch_size=max_batch_size,
+            max_seq_length=max_seq_length,
+            att_bias=att_bias,
+            rope=rope if rope_in_self_att else None,
+            is_causal=is_causal,
+            model_parallel=model_parallel,
+        )
+
+        self.cross_attention = att_class(
+            num_feats=num_feats,
+            num_heads=num_heads,
+            num_kv_feats=num_kv_feats,
+            num_kv_heads=num_kv_heads,
+            dropout_rate=att_dropout_rate,
+            use_cache=use_cache,
+            internal_cache=internal_cache,
+            max_batch_size=max_batch_size,
+            max_seq_length=max_seq_length,
+            att_bias=att_bias,
+            rope=rope if rope_in_cross_att else None,
+            model_parallel=model_parallel,
+        )
+
+        self.feed_forward = ff_class(
+            num_feats,
+            ff_intermediate_feats,
+            activation=ff_activation,
+            kernel_size=ff_kernel_size,
+            dilation=ff_dilation,
+            ff_bias=ff_bias,
+            ff_multiple_of=ff_multiple_of,
+            norm_layer=norm_layer,
+        )
+
+        self.drop_path = DropPath1d(drop_path_rate) if drop_path_rate > 0.0 else None
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        x_mask: Optional[torch.Tensor] = None,
+        x_kv: Optional[torch.Tensor] = None,
+        x_kv_mask: Optional[torch.Tensor] = None,
+        start_pos: int = 0,
+        start_pos_kv: int = 0,
+    ):
+        x_norm = self.att_norm(x)
+        h = x + self.attention(x_norm, x_norm, x_norm, x_mask, start_pos, start_pos)
+        if x_kv:
+            h_norm = self.cross_att_q_norm(h)
+            x_kv_norm = self.cross_att_kv_norm(x_kv)
+            h = h + self.cross_attention(
+                h_norm,
+                x_kv_norm,
+                x_kv_norm,
+                x_kv_mask,
+                query_start_pos=start_pos,
+                key_start_pos=start_pos_kv,
+            )
+
         out = h + self.feed_forward(self.ff_norm(h))
         if self.drop_path is not None and self.training:
             out = x + self.drop_path(out - x)

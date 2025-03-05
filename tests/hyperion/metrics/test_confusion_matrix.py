@@ -3,12 +3,13 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import pytest
 import os
+
 import numpy as np
+import pytest
 from numpy.testing import assert_allclose
 
-from hyperion.metrics.confusion_matrix import *
+from hyperion.np.metrics.confusion_matrix import *
 
 
 def test_confusion_matrix():

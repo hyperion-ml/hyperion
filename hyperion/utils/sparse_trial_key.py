@@ -17,7 +17,6 @@ from .trial_ndx import TrialNdx
 
 
 class SparseTrialKey(TrialKey):
-
     """Contains the trial key for speaker recognition trials.
         Bosaris compatible Key.
 
@@ -60,6 +59,24 @@ class SparseTrialKey(TrialKey):
             seg_cond_name,
             trial_cond_name,
         )
+
+    def sort(self):
+        """Sorts the object by model and test segment names."""
+        self.model_set, m_idx = sort(self.model_set, return_index=True)
+        self.seg_set, s_idx = sort(self.seg_set, return_index=True)
+        tar = self.tar.toarray()
+        non = self.non.toarray()
+        ix = np.ix_(m_idx, s_idx)
+        tar = tar[ix]
+        non = non[ix]
+        tar = sparse.csr_matrix(tar)
+        non = sparse.csr_matrix(non)
+        tar.eliminate_zeros()
+        non.eliminate_zeros()
+        tar.sort_indices()
+        non.sort_indices()
+        self.tar = tar
+        self.non = non
 
     def save_h5(self, file_path):
         raise NotImplementedError()
@@ -216,6 +233,8 @@ class SparseTrialKey(TrialKey):
         non = sparse.csr_matrix(key.non)
         tar.eliminate_zeros()
         non.eliminate_zeros()
+        tar.sort_indices()
+        non.sort_indices()
         return cls(
             key.model_set,
             key.seg_set,

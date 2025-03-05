@@ -317,7 +317,7 @@ class RSpecifier(object):
     ):
 
         self.spec_type = spec_type
-        self.archive = archive
+        self.archive = Path(archive)
         self.archive_type = archive_type
         self.once = once
         self.is_sorted = is_sorted

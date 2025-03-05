@@ -3,8 +3,8 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import pytest
 import numpy as np
+import pytest
 from numpy.testing import assert_allclose
 
 from hyperion.utils.vad_utils import *
@@ -18,95 +18,106 @@ def test_merge_vad_timestamps():
 
     t_target = np.asarray([[0.01, 3.7], [5.1, 6.3], [7, 9]])
 
-    t_out = merge_vad_timestamps(t_in)
+    t_out_start, t_out_end = merge_vad_timestamps(t_in[:, 0], t_in[:, 1])
 
-    assert_allclose(t_out, t_target)
+    assert_allclose(t_out_start, t_target[:, 0])
+    assert_allclose(t_out_end, t_target[:, 1])
 
 
 def test_bin_vad_to_timestamps():
 
-    vad = np.asarray([1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 0, 1, 1], dtype=np.bool)
+    vad = np.asarray([1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 0, 1, 1], dtype=bool)
     t_target = (
         np.asarray(
-            [[0, 25], [3 * 10, 8 * 10 + 25], [12 * 10, 13 * 10 + 25]], dtype=np.float
+            [[0, 25], [3 * 10, 8 * 10 + 25], [12 * 10, 13 * 10 + 25]], dtype=float
         )
         - (25.0 - 10.0) / 2
     )
     t_target[0, 0] = 0
+    t_target /= 1000
 
-    t_out = bin_vad_to_timestamps(vad, 25, 10)
-    assert_allclose(t_out, t_target)
+    t_out_start, t_out_end = bin_vad_to_timestamps(vad, 25, 10)
+    print("qq", t_target, t_out_start, t_out_end, flush=True)
+    assert_allclose(t_out_start, t_target[:, 0])
+    assert_allclose(t_out_end, t_target[:, 1])
 
 
 def test_bin_vad_to_timestamps_snipedges():
 
-    vad = np.asarray([0, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 0, 1, 1], dtype=np.bool)
-    t_target = np.asarray(
-        [[3 * 10, 8 * 10 + 25], [12 * 10, 13 * 10 + 25]], dtype=np.float
+    vad = np.asarray([0, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 0, 1, 1], dtype=bool)
+    t_target = (
+        np.asarray([[3 * 10, 8 * 10 + 25], [12 * 10, 13 * 10 + 25]], dtype=float) / 1000
     )
 
-    t_out = bin_vad_to_timestamps(vad, 25, 10, snip_edges=True)
-    assert_allclose(t_out, t_target)
+    t_out_start, t_out_end = bin_vad_to_timestamps(vad, 25, 10, snip_edges=True)
+    assert_allclose(t_out_start, t_target[:, 0])
+    assert_allclose(t_out_end, t_target[:, 1])
 
 
 def test_vad_timestamps_to_bin():
 
-    vad_target = np.asarray(
-        [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1], dtype=np.bool
-    )
+    vad_target = np.asarray([1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1], dtype=bool)
     t_in = (
         np.asarray(
-            [[0, 25], [3 * 10, 8 * 10 + 25], [12 * 10, 13 * 10 + 25]], dtype=np.float
+            [[0, 25], [3 * 10, 8 * 10 + 25], [12 * 10, 13 * 10 + 25]], dtype=float
         )
         - (25.0 - 10.0) / 2
     )
     t_in[0, 0] = 0
-    vad_out = vad_timestamps_to_bin(t_in, 25, 10)
+    t_in /= 1000.0
+    vad_out = vad_timestamps_to_bin(t_in[:, 0], t_in[:, 1], 25, 10)
     assert_allclose(vad_out, vad_target)
 
 
 def test_vad_timestamps_to_bin_snipedges():
 
-    vad_target = np.asarray([0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1], dtype=np.bool)
-    t_in = np.asarray([[3 * 10, 7 * 10 + 25], [12 * 10, 12 * 10 + 25]], dtype=np.float)
-
-    vad_out = vad_timestamps_to_bin(t_in, 25, 10, snip_edges=True)
-    assert_allclose(vad_out, vad_target)
-
-    vad_target = np.asarray([1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1], dtype=np.bool)
-    t_in = np.asarray(
-        [[0, 13], [3 * 10, 7 * 10 + 25], [12 * 10, 12 * 10 + 25]], dtype=np.float
+    vad_target = np.asarray([0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1], dtype=bool)
+    t_in = (
+        np.asarray([[3 * 10, 7 * 10 + 25], [12 * 10, 12 * 10 + 25]], dtype=float)
+        / 1000.0
     )
 
-    vad_out = vad_timestamps_to_bin(t_in, 25, 10, snip_edges=True)
+    vad_out = vad_timestamps_to_bin(t_in[:, 0], t_in[:, 1], 25, 10, snip_edges=True)
+    assert_allclose(vad_out, vad_target)
+
+    vad_target = np.asarray([1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1], dtype=bool)
+    t_in = (
+        np.asarray(
+            [[0, 13], [3 * 10, 7 * 10 + 25], [12 * 10, 12 * 10 + 25]], dtype=float
+        )
+        / 1000.0
+    )
+
+    vad_out = vad_timestamps_to_bin(t_in[:, 0], t_in[:, 1], 25, 10, snip_edges=True)
     assert_allclose(vad_out, vad_target)
 
 
 def test_timestamps_wrt_vad_to_absolute_timestamps():
 
     vad = np.asarray([[1.0, 2.0], [4.0, 5.0], [6.0, 7.0]])
-
     t_in = np.asarray([[0.5, 1.0], [1.25, 1.5], [1.75, 2.75]])
-
     t_target = np.asarray([[1.5, 2.0], [4.25, 4.50], [4.75, 5.0], [6.0, 6.75]])
-
-    t_out = timestamps_wrt_vad_to_absolute_timestamps(t_in, vad)
-
-    assert_allclose(t_out, t_target)
+    t_out_start, t_out_end = timestamps_wrt_vad_to_absolute_timestamps(
+        t_in[:, 0], t_in[:, 1], vad[:, 0], vad[:, 1]
+    )
+    assert_allclose(t_out_start, t_target[:, 0])
+    assert_allclose(t_out_end, t_target[:, 1])
 
 
 def test_timestamps_wrt_bin_vad_to_absolute_timestamps():
 
     vad = np.asarray([[1.0, 2.0], [4.0, 5.0], [6.0, 7.0]])
 
-    vad = vad_timestamps_to_bin(vad, 0.025, 0.010)
+    vad = vad_timestamps_to_bin(vad[:, 0], vad[:, 1], 25, 10)
     t_in = np.asarray([[0.5, 1.0], [1.25, 1.5], [1.75, 2.75]])
-
     t_target = np.asarray([[1.5, 2.0], [4.25, 4.50], [4.75, 5.0], [6.0, 6.75]])
 
-    t_out = timestamps_wrt_bin_vad_to_absolute_timestamps(t_in, vad, 0.025, 0.010)
+    t_out_start, t_out_end = timestamps_wrt_bin_vad_to_absolute_timestamps(
+        t_in[:, 0], t_in[:, 1], vad, 25, 10
+    )
 
-    assert_allclose(t_out, t_target, atol=0.05)
+    assert_allclose(t_out_start, t_target[:, 0], atol=0.05)
+    assert_allclose(t_out_end, t_target[:, 1], atol=0.05)
 
 
 def test_intersect_segment_timestamps_with_vad():
@@ -142,7 +153,7 @@ def test_intersect_segment_timestamps_with_vad():
 
     vad = np.asarray([[1.3, 2.0], [2.1, 2.7], [5.0, 6.0]])
 
-    speech_target = np.ones((t_in.shape[0],), dtype=np.bool)
+    speech_target = np.ones((t_in.shape[0],), dtype=bool)
     speech_target[:3] = False
     speech_target[14:18] = False
 
@@ -175,10 +186,12 @@ def test_intersect_segment_timestamps_with_vad():
 
     out2speech_target = np.asarray(
         [0, 1, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
-        dtype=np.int,
+        dtype=int,
     )
 
-    speech_idx, t_out, out2speech_idx = intersect_segment_timestamps_with_vad(t_in, vad)
+    speech_idx, t_out, out2speech_idx = intersect_segment_timestamps_with_vad(
+        t_in[:, 0], t_in[:, 1], vad[:, 0], vad[:, 1]
+    )
 
     assert_allclose(speech_idx, speech_target)
     assert_allclose(t_out, t_target)

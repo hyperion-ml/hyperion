@@ -228,7 +228,7 @@ class TrialKey(object):
 
             trial_mask = np.asarray(f["trial_mask"], dtype="int8")
             # added to account for spoofing trials in ASVSpoof 2024
-            spoof = (trial_mask < 1).astype("bool")
+            spoof = (trial_mask < -1).astype("bool")
             if np.any(spoof):
                 trial_mask[spoof] = 0
             else:
@@ -668,16 +668,18 @@ class TrialKey(object):
         eq = eq and np.all(self.seg_set == other.seg_set)
         eq = eq and np.all(self.tar == other.tar)
         eq = eq and np.all(self.non == other.non)
+        print("111", eq)
         eq = eq and (
             self.spoof is None
             and other.spoof is None
             or np.all(self.spoof == other.spoof)
         )
+        print("222", eq, self.spoof, other.spoof)
 
         eq = eq and ((self.model_cond is None) == (other.model_cond is None))
         eq = eq and ((self.seg_cond is None) == (other.seg_cond is None))
         eq = eq and ((self.trial_cond is None) == (other.trial_cond is None))
-
+        print("333", eq)
         if self.model_cond is not None:
             eq = eq and np.all(self.model_cond == other.model_cond)
         if self.seg_cond is not None:
@@ -685,6 +687,7 @@ class TrialKey(object):
         if self.trial_cond is not None:
             eq = eq and np.all(self.triall_cond == other.trial_cond)
 
+        print("444", eq)
         eq = eq and ((self.model_cond_name is None) == (other.model_cond_name is None))
         eq = eq and ((self.seg_cond_name is None) == (other.seg_cond_name is None))
         eq = eq and ((self.trial_cond_name is None) == (other.trial_cond_name is None))
@@ -695,7 +698,7 @@ class TrialKey(object):
             eq = eq and np.all(self.seg_cond_name == other.seg_cond_name)
         if self.trial_cond_name is not None:
             eq = eq and np.all(self.triall_cond_name == other.trial_cond_name)
-
+        print("555", eq)
         return eq
 
     def __ne__(self, other):

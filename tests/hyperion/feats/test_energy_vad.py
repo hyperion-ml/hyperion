@@ -3,12 +3,12 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import pytest
 import numpy as np
+import pytest
 from numpy.testing import assert_allclose
 
 from hyperion.hyp_defs import float_cpu
-from hyperion.feats.energy_vad import EnergyVAD
+from hyperion.np.feats.energy_vad import EnergyVAD
 
 fs = 16000
 
@@ -16,10 +16,10 @@ fs = 16000
 def generate_signal():
 
     rng = np.random.RandomState(seed=1024)
-    s = (2 ** 3) * rng.randn(fs * 10).astype(float_cpu(), copy=False)
+    s = (2**3) * rng.randn(fs * 10).astype(float_cpu(), copy=False)
     vad = np.zeros((len(s),), dtype=bool)
     vad[2 * fs : 8 * fs] = True
-    s += (2 ** 12) * vad.astype(dtype=float_cpu()) * np.sign(s)
+    s += (2**12) * vad.astype(dtype=float_cpu()) * np.sign(s)
     vad = vad[::160]
     # s = rng.randn(fs*10).astype(float_cpu(), copy=False)
     return s, vad

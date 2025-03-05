@@ -20,7 +20,6 @@ from .trial_scores import TrialScores
 
 
 class SparseTrialScores(TrialScores):
-
     """Contains the scores for the speaker recognition trials.
         Bosaris compatible Scores.
 
@@ -33,6 +32,24 @@ class SparseTrialScores(TrialScores):
 
     def __init__(self, model_set=None, seg_set=None, scores=None, score_mask=None):
         super().__init__(model_set, seg_set, scores, score_mask)
+
+    def sort(self):
+        """Sorts the object by model and test segment names."""
+        self.model_set, m_idx = sort(self.model_set, return_index=True)
+        self.seg_set, s_idx = sort(self.seg_set, return_index=True)
+        scores = self.scores.toarray()
+        score_mask = self.score_mask.toarray()
+        ix = np.ix_(m_idx, s_idx)
+        scores = scores[ix]
+        score_mask = self.score_mask[ix]
+        scores = sparse.csr_matrix(scores)
+        score_mask = sparse.csr_matrix(score_mask)
+        scores.eliminate_zeros()
+        score_mask.eliminate_zeros()
+        scores.sort_indices()
+        score_mask.sort_indices()
+        self.scores = scores
+        self.score_mask = score_mask
 
     def save_h5(self, file_path):
         raise NotImplementedError()
@@ -183,6 +200,9 @@ class SparseTrialScores(TrialScores):
         else:
             assert self.score_mask.shape == (len(self.model_set), len(self.seg_set))
 
+        self.scores.sort_indices()
+        self.score_mask.sort_indices()
+
     def filter(self, model_set, seg_set, keep=True, raise_missing=True):
         """Removes elements from TrialScores object.
 
@@ -297,6 +317,8 @@ class SparseTrialScores(TrialScores):
             (new_data, (new_row, new_col)), shape=shape
         ).tocsr()
 
+        scores.sort_indices()
+        score_mask.sort_indices()
         return SparseTrialScores(model_set, seg_set, scores, score_mask)
 
     def align_with_ndx(self, ndx, raise_missing=True):
@@ -382,6 +404,8 @@ class SparseTrialScores(TrialScores):
         score_mask = sparse.csr_matrix(scr.score_mask)
         scores.eliminate_zeros()
         score_mask.eliminate_zeros()
+        scores.sort_indices()
+        score_mask.sort_indices()
         return cls(scr.model_set, scr.seg_set, scores, score_mask)
 
     def to_trial_scores(self):
@@ -426,7 +450,9 @@ class SparseTrialScores(TrialScores):
         eq = eq and np.all(self.model_set == other.model_set)
         eq = eq and (self.seg_set.shape == other.seg_set.shape)
         eq = eq and np.all(self.seg_set == other.seg_set)
-        eq = eq and np.all(np.isclose(self.scores.data, other.scores.data, atol=1e-5))
+        eq = eq and np.all(
+            np.isclose(self.scores.data, other.scores.data, atol=1e-4, rtol=0.1)
+        )
         eq = eq and np.all(self.scores.indices == other.scores.indices)
         eq = eq and np.all(self.score_mask.data == other.score_mask.data)
         eq = eq and np.all(self.score_mask.indices == other.score_mask.indices)

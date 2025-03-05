@@ -145,12 +145,13 @@ run_007_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | config_fbank80_stmn_convnext2d_atto.v3.1.sh | ConvNext2d ATTO in_stride=1 | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 0.80 | 0.049 | 0.086 |
 | | | | Cosine + AS-Norm | 0.75 | 0.044 | 0.073 |
 | | | | Cosine + QMF | 0.66 | 0.039 | 0.061 |
-| config_fbank80_stmn_convnext2d_pico.v3.1.sh | ConvNext2d PICO in_stride=1 | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 
-| | | | Cosine + AS-Norm | 
-| | | | Cosine + QMF | 
-| config_fbank80_stmn_convnext2d_base.v3.1.sh | ConvNext2d BASE in_stride=1 | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 
-| | | | Cosine + AS-Norm | 
-| | | | Cosine + QMF | 
+| config_fbank80_stmn_convnext2d_small.v3.1.sh | ConvNext2d SMALL in_stride=1 | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 0.56 | 0.31 | 0.038 |
+| | | | Cosine + AS-Norm | 0.48 | 0.031 | 0.038 | 
+| | | | Cosine + QMF | 0.43 | 0.028 | 0.033 |
+| config_fbank80_stmn_convnext2d_base.v3.1.sh | ConvNext2d BASE in_stride=1 | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 0.56 | 0.034 | 0.050 |
+| | | | Cosine + AS-Norm | 0.49 | 0.030 | 0.049 |
+| | | | Cosine + QMF | 0.45 | 0.027 | 0.041
+
 
 
 ### VoxCeleb 1 Entire-Clean trial list
@@ -211,13 +212,12 @@ run_007_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | config_fbank80_stmn_convnext2d_atto.v3.1.sh | ConvNext2d ATTO in_stride=1 | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 0.96 | 0.61 | 0.106 |
 | | | | Cosine + AS-Norm | 0.90 | 0.056 | 0.096 |
 | | | | Cosine + QMF | 0.85 | 0.052 | 0.090 |
-| config_fbank80_stmn_convnext2d_pico.v3.1.sh | ConvNext2d PICO in_stride=1 | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 
-| | | | Cosine + AS-Norm | 
-| | | | Cosine + QMF | 
-| config_fbank80_stmn_convnext2d_base.v3.1.sh | ConvNext2d BASE in_stride=1 | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 
-| | | | Cosine + AS-Norm | 
-| | | | Cosine + QMF | 
-
+| config_fbank80_stmn_convnext2d_small.v3.1.sh | ConvNext2d SMALL in_stride=1 | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 0.70 | 0.044 | 0.078 |
+| | | | Cosine + AS-Norm | 0.64 | 0.039 | 0.071 |
+| | | | Cosine + QMF | 0.62 | 0.037 | 0.065 |
+| config_fbank80_stmn_convnext2d_base.v3.1.sh | ConvNext2d BASE in_stride=1 | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 0.66 | 0.041 | 0.075 |
+| | | | Cosine + AS-Norm | 0.62 | 0.038 | 0.069 |
+| | | | Cosine + QMF | 0.58 | 0.035 | 0.064 |
 
 
 ### VoxCeleb 1 Hard-Clean trial list
@@ -278,12 +278,15 @@ run_007_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | config_fbank80_stmn_convnext2d_atto.v3.1.sh | ConvNext2d ATTO in_stride=1 | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 1.74 | 0.103 | 0.174 | 
 | | | | Cosine + AS-Norm | 1.57 | 0.093 | 0.155 |
 | | | | Cosine + QMF | 1.47 | 0.089 | 0.144 |
-| config_fbank80_stmn_convnext2d_pico.v3.1.sh | ConvNext2d PICO in_stride=1 | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 
-| | | | Cosine + AS-Norm | 
-| | | | Cosine + QMF | 
-| config_fbank80_stmn_convnext2d_base.v3.1.sh | ConvNext2d BASE in_stride=1 | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 
-| | | | Cosine + AS-Norm | 
-| | | | Cosine + QMF | 
+| config_fbank80_stmn_convnext2d_small.v3.1.sh | ConvNext2d SMALL in_stride=1 | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 1.31 | 0.076 | 0.123 |
+| | | | Cosine + AS-Norm | 1.15 | 0.066 | 0.107 |
+| | | | Cosine + QMF | 1.09 | 0.062 | 0.103 | 
+| config_fbank80_stmn_convnext2d_base.v3.1.sh | ConvNext2d BASE in_stride=1 | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 1.24 | 0.072 | 0.117 |
+| | | | Cosine + AS-Norm | 1.12 | 0.064 | 0105 |
+| | | | Cosine + QMF | 1.07 | 0.060 | 0.098 |
+
+
+
 
 ### VoxSRC2022 dev
 
@@ -343,9 +346,11 @@ run_007_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | config_fbank80_stmn_convnext2d_atto.v3.1.sh | ConvNext2d ATTO in_stride=1 | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 2.41 | 0.145 | 0.256 |
 | | | | Cosine + AS-Norm | 2.22 | 0.138 | 0.237 |
 | | | | Cosine + QMF | 2.07 | 0.130 | 0.218 |
-| config_fbank80_stmn_convnext2d_pico.v3.1.sh | ConvNext2d PICO in_stride=1 | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 
-| | | | Cosine + AS-Norm | 
-| | | | Cosine + QMF | 
-| config_fbank80_stmn_convnext2d_base.v3.1.sh | ConvNext2d BASE in_stride=1 | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 
-| | | | Cosine + AS-Norm | 
-| | | | Cosine + QMF | 
+| config_fbank80_stmn_convnext2d_small.v3.1.sh | ConvNext2d SMALL in_stride=1 | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 1.87 | 0.117 | 0.210 |
+| | | | Cosine + AS-Norm | 1.68 | 0.106 | 0.203 |
+| | | | Cosine + QMF | 1.59 | 0.102 | 0.186 |
+| config_fbank80_stmn_convnext2d_base.v3.1.sh | ConvNext2d BASE in_stride=1 | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 1.81 | 0.113 | 0.189 |
+| | | | Cosine + AS-Norm | 1.65 | 0.104 | 0.192 |
+| | | | Cosine + QMF | 1.61 | 0.099 | 0.169 |
+
+

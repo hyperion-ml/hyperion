@@ -2,6 +2,7 @@
  Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 import math
 import multiprocessing
@@ -29,7 +30,7 @@ class PackedAudioReader(object):
                     dynamic range
     """
 
-    def __init__(self, file_path, segments_path=None, wav_scale=2 ** 15 - 1):
+    def __init__(self, file_path, segments_path=None, wav_scale=2**15 - 1):
         self.file_path = file_path
         if isinstance(file_path, SCPList):
             self.scp = file_path
@@ -125,7 +126,7 @@ class SequentialPackedAudioReader(PackedAudioReader):
         self,
         file_path,
         segments_path=None,
-        wav_scale=2 ** 15 - 1,
+        wav_scale=2**15 - 1,
         part_idx=1,
         num_parts=1,
     ):
@@ -226,7 +227,7 @@ class SequentialPackedAudioReader(PackedAudioReader):
                 num_records = len(self.scp) - self.cur_item
 
         keys = []
-        num_samples = np.zeros((num_records,), dtype=np.int)
+        num_samples = np.zeros((num_records,), dtype=int)
         for i in range(num_records):
             if self.eof():
                 num_samples = num_samples[:i]
@@ -278,7 +279,7 @@ class SequentialPackedAudioReader(PackedAudioReader):
                 num_records = len(self.scp) - self.cur_item
 
         keys = []
-        time_dur = np.zeros((num_records,), dtype=np.float)
+        time_dur = np.zeros((num_records,), dtype=float)
         for i in range(num_records):
             if self.eof():
                 time_dur = time_dur[:i]
@@ -401,7 +402,7 @@ class SequentialPackedAudioReader(PackedAudioReader):
 
 
 class RandomAccessPackedAudioReader(PackedAudioReader):
-    def __init__(self, file_path, segments_path=None, wav_scale=2 ** 15 - 1):
+    def __init__(self, file_path, segments_path=None, wav_scale=2**15 - 1):
         super().__init__(file_path, segments_path, wav_scale)
 
         archives, archive_idx = np.unique(self.scp.file_path, return_inverse=True)
@@ -455,7 +456,7 @@ class RandomAccessPackedAudioReader(PackedAudioReader):
         if isinstance(keys, str):
             keys = [keys]
 
-        num_samples = np.zeros((len(keys),), dtype=np.int)
+        num_samples = np.zeros((len(keys),), dtype=int)
         for i, key in enumerate(keys):
 
             if self.with_segments:
@@ -502,7 +503,7 @@ class RandomAccessPackedAudioReader(PackedAudioReader):
         if isinstance(keys, str):
             keys = [keys]
 
-        time_dur = np.zeros((len(keys),), dtype=np.float)
+        time_dur = np.zeros((len(keys),), dtype=float)
         for i, key in enumerate(keys):
 
             if self.with_segments:

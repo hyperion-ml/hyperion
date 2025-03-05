@@ -3,17 +3,17 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import pytest
 import os
-import numpy as np
-from numpy.testing import assert_allclose
 
 import matplotlib
+import numpy as np
+import pytest
+from numpy.testing import assert_allclose
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from hyperion.metrics.roc import *
+from hyperion.np.metrics.roc import *
 
 output_dir = "./tests/data_out/metrics"
 if not os.path.exists(output_dir):
@@ -132,7 +132,7 @@ def test_roc():
     assert_allclose(pf[:10], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.99, 0.98, 0.97, 0.96])
 
     # plt.show()
-    plt.savefig(output_dir + "/roc.pdf")
+    # plt.savefig(output_dir + "/roc.pdf")
     plt.close()
 
 
