@@ -1,0 +1,6 @@
+win_length: 3.0
+win_shift: 1.0
+ahc:
+  threshold: 0
+  max_clusters: 4
+min_cluster_duration: 2.0
