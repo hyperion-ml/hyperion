@@ -21,10 +21,6 @@ import setuptools
 
 project_root = Path(__file__).parent
 
-# with open(project_root / "apps.txt") as f:
-#     apps = f.read().splitlines()
-
-# apps = [str(project_root / "hyperion" / "bin" / app) for app in apps]
 binaries = (project_root / "hyperion" / "bin").glob("*.py")
 console_scripts = []
 for binary in binaries:
@@ -98,12 +94,5 @@ setuptools.setup(
     install_requires=requirements,
     entry_points={
         "console_scripts": console_scripts,
-    }
-    # entry_points={
-    #     "console_scripts": [
-    #         "hyperion-prepare-data = hyperion.bin.prepare_data:main",
-    #         "hyperion-train-wav2xvector = hyperion.bin.train_wav2xvector:main",
-    #     ]
-    # },
-    # scripts=apps,
+    },
 )

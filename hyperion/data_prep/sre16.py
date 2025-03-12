@@ -1,6 +1,6 @@
 """
- Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import glob
@@ -98,7 +98,6 @@ class SRE16DataPrep(DataPrep):
         df_segs["dataset"] = "sre16"
         df_segs["corpusid"] = "call_my_net"
         df_segs["source_type"] = "cts"
-
         metadata_dir = self.corpus_dir / "metadata"
         df_sides = pd.read_csv(metadata_dir / "call_sides.tsv", sep="\t")
         df_calls = pd.read_csv(metadata_dir / "calls.tsv", sep="\t")

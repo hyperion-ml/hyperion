@@ -1,6 +1,6 @@
 """
- Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
@@ -562,9 +562,9 @@ class SRE24DataPrep(DataPrep):
             self.corpus_dir,
             self.output_dir,
         )
-        if self.subset == "eval":
-            self.prepare_eval()
-            return
+        # if self.subset == "eval":
+        #     self.prepare_eval()
+        #     return
 
         df_segs = self.read_segments_metadata()
         recs = None

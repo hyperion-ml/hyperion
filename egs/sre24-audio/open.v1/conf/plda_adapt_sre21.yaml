@@ -1,0 +1,25 @@
+source_types:
+- cts
+- afv
+target_langs:
+- ENG
+- CMN
+- YUE
+ood_speaker_langs:
+- CMN
+- YUE
+pca:
+  whiten: True
+  pca_var_r: 0.95
+  pca_min_dim: 90
+pca_adapt:
+  r_mu: 100
+  r_s: 500
+plda:
+  plda_type: splda
+  y_dim: 100
+plda_adapt:
+  w_mu: 0.5
+  w_B: 0.25
+  w_W: 0.75
+  

@@ -1,0 +1,89 @@
+data:
+  train:
+    dataset:
+      class_names:
+      - speaker
+      aug_cfgs:
+      - conf/reverb_noise_tel_codecs_1_aug.yaml
+      enable_tel_codecs_if: "source_type != 'cts'"
+      return_segment_info:
+      - speaker
+      num_augs: 1
+      wav_scale: 1.
+      target_sample_freq: 16000
+    sampler:
+      sampler_type: seg_chunk_sampler
+      min_batch_size: 32
+      max_chunk_length: 2.0
+      min_chunk_length: 2.0
+      max_batches_per_epoch: 15000
+    data_loader:
+      num_workers: 8
+  val:
+    dataset:
+      class_names:
+      - speaker
+      aug_cfgs:
+      - conf/reverb_noise_tel_codecs_1_aug.yaml
+      enable_tel_codecs_if: "source_type != 'cts'"
+      return_segment_info:
+      - speaker
+      wav_scale: 1.
+      target_sample_freq: 16000
+    sampler:
+      # sampler_type: seg_chunk_sampler
+      sampler_type: class_weighted_random_seg_chunk_sampler
+      min_batch_size: 32
+      max_chunk_length: 2.0
+      min_chunk_length: 2.0
+      num_chunks_per_seg_epoch: 1
+      class_name: speaker
+      seg_weight_mode: uniform
+    data_loader:
+      num_workers: 8
+model:
+  feats: fbank80_stmn_specaug2_16k.yaml
+  xvector:
+    resnet_type: fwseres2net50
+    in_channels: 1
+    in_feats: 80
+    in_kernel_size: 3
+    in_stride: 1
+    no_maxpool: true
+    res2net_width_factor: 3.25
+    res2net_scale: 8
+    pool_net:
+      pool_type: ch-wise-att-mean+stddev
+      inner_feats: 128
+    embed_dim: 192
+    cos_scale: 30.0
+    loss_type: subcenter-arc-softmax
+    num_subcenters: 2
+    margin: 0.2
+    margin_warmup_epochs: 20
+    dropout_rate: 0.0
+    hid_act: relu6
+    se_r: 4
+trainer:
+  optim: 
+    opt_type: adam
+    lr: 0.01
+    amsgrad: true
+    beta1: 0.9
+    beta2: 0.99
+    weight_decay: 2.0e-05
+  lrsched:
+    lrsch_type: exp_lr
+    decay_rate: 0.5
+    decay_steps: 40000
+    hold_steps: 65000
+    min_lr: 1.0e-05
+    warmup_steps: 15000
+    update_lr_on_opt_step: true
+  grad_clip: 250
+  use_amp: true
+  log_interval: 1000
+  epochs: 62
+  eff_batch_size: 256
+  target_key: speaker
+master_port: 2469
