@@ -23,9 +23,18 @@ if [ "$interactive" == "true" ];then
     export cuda_cmd=run.pl
 fi
 
+if [[ $nnet_type =~ ^hf_ ]]; then
+  train_bin=hyperion-train-wav2vec2xvector
+  ft_bin=hyperion-finetune-wav2vec2xvector
+  max_stage=3
+else
+  train_bin=hyperion-train-wav2xvector
+  ft_bin=hyperion-finetune-wav2xvector
+  max_stage=2
+fi
+
 # Network Training
 if [ $stage -le 1 ]; then
-  
   mkdir -p $nnet_s1_dir/log
   $cuda_cmd \
     --gpu $ngpu $nnet_s1_dir/log/train.log \
@@ -58,4 +67,21 @@ if [ $stage -le 2 ]; then
     --trainer.exp-path $nnet_s2_dir \
     --num-gpus $ngpu \
   
+fi
+
+# Large Margin Fine-tuning for wav2vec encoders
+if [[ $max_stage -ge 3 && $stage -le 3 ]]; then
+  mkdir -p $nnet_s3_dir/log
+  $cuda_cmd \
+    --gpu $ngpu $nnet_s3_dir/log/train.log \
+    hyp_utils/conda_env.sh --conda-env $HYP_ENV --num-gpus $ngpu \
+    hyperion-finetune-wav2vec2xvector $nnet_type --cfg $nnet_s3_base_cfg \
+    --data.train.dataset.recordings-file $train_data_dir/recordings.csv \
+    --data.train.dataset.segments-file $train_data_dir/segments.csv \
+    --data.train.dataset.class-files $train_data_dir/speaker.csv \
+    --data.val.dataset.recordings-file $val_data_dir/recordings.csv \
+    --data.val.dataset.segments-file $val_data_dir/segments.csv \
+    --in-model-file $nnet_s2 \
+    --trainer.exp-path $nnet_s3_dir \
+    --num-gpus $ngpu \
 fi

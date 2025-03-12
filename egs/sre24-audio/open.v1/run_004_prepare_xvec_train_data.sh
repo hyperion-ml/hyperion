@@ -7,7 +7,7 @@
 . ./path.sh
 set -e
 
-nodes=fs06
+nodes=b1
 nj=40
 stage=1
 config_file=default_config.sh
@@ -19,7 +19,15 @@ datasets="sre_cts_superset
 sre16_eval_train
 sre21_audio-visual_eval_test
 sre21_audio_eval_enroll
-sre21_audio_eval_test"
+sre21_audio_eval_test
+sre18_cmn2_dev_enroll
+sre18_cmn2_dev_test
+sre18_cmn2_eval_enroll
+sre18_cmn2_eval_test
+sre19_cts_enroll
+sre19_cts_test
+voxceleb1cat_train
+voxceleb2cat_train"
 
 if [ $stage -le 1 ]; then
   # Prepare to distribute data over multiple machines
@@ -63,21 +71,25 @@ if [ $stage -le 2 ];then
 		     --recordings-file $output_dir/recordings.csv \
 		     --output-dataset data/${name}_proc_audio \
 		     --remove-vads vad
+
   done
 fi
 
 if [ $stage -le 3 ];then
   echo "Mergin training datasets"
   hyperion-dataset merge \
-                   --dataset data/sre96-12_16_21_proc_audio \
+                   --dataset data/sre96-21_vox_proc_audio \
                    --input-datasets data/{sre_cts_superset,sre16_eval_train}_proc_audio \
+		   data/sre18_cmn2_{dev,eval}_{enroll,test}_proc_audio \
+		   data/sre19_cts_{enroll,test}_proc_audio \
 		   data/sre21_audio_eval_{enroll,test}_proc_audio \
-		   data/sre21_audio-visual_eval_test_proc_audio
+		   data/sre21_audio-visual_eval_test_proc_audio \
+		   data/voxceleb{1,2}cat_train_proc_audio
 fi
 
 if [ $stage -le 4 ];then
 		  
-  echo "Remove segments shorter than 2secs"
+  # echo "Remove segments shorter than 2secs"
   hyperion-dataset remove_short_segments \
 		   --dataset data/${nnet_data}_proc_audio \
 		   --output-dataset data/${nnet_data}_filtered \
@@ -107,61 +119,7 @@ if [ $stage -le 5 ];then
 		   --val-dataset data/${nnet_data}_val 
 fi
 
-
 if [ $stage -le 6 ];then
-  echo "Prepare data to train LID model"
-  		  
-  echo "Remove segments shorter than 3secs"
-  hyperion-dataset remove_short_segments \
-		   --dataset data/${nnet_data}_proc_audio \
-		   --output-dataset data/${nnet_data}_lid \
-		   --length-name duration --min-length 3.0
-
-  echo "change USE to ENG"
-  awk '{ sub(/",USE,/, ",ENG,"); print $0}' data/${nnet_data}_lid/segments.csv > data/${nnet_data}_lid/tmp.csv
-  mv data/${nnet_data}_lid/tmp.csv data/${nnet_data}_lid/segments.csv
-  
-  echo "Remove languages less than 10 audios"
-  hyperion-dataset remove_classes_few_segments \
-		   --dataset data/${nnet_data}_lid \
-		   --class-name speaker --min-segs 10
-
-
-  echo "Remove segmetns with uncertain langs"
-  hyperion-dataset remove_class_ids \
-		   --dataset data/${nnet_data}_lid \
-		   --class-name language \
-		   --rebuild-idx \
-		   --remove-na \
-		   --class-ids BEN.HIN BEN.INE \
-		   CMN.JPN CMN.JPN.WUU CMN.THA.WUU CMN.WUU CMN.YUE \
-		   HIN.INE HIN.INE.PAN HIN.INE.PAN.URD HIN.INE.PNB \
-		   HIN.INE.TAM HIN.INE.URD HIN.KHM.URD HIN.PAN \
-		   HIN.PAN.URD HIN.TAM HIN.URD \
-		   INE.TAM INE.URD \
-		   ITA.SPA \
-		   NAN.CMN NAN.TGL \
-		   PAN.URD other USE
-
-  echo "Removing unnecessary segment columns"
-  hyperion-tables drop_columns \
-		  --input-file data/${nnet_data}_lid/segments.csv \
-		  --columns language source_type duration \
-		  --keep
-fi
-
-if [ $stage -le 7 ];then
-  echo "Split LID training data into training and validation"
-  hyperion-dataset split_train_val \
-		   --dataset data/${nnet_data}_lid \
-		   --val-prob 0.02 \
-		   --joint-classes language --min-train-samples 1 \
-		   --seed 1123581321 \
-		   --train-dataset data/${nnet_data}_lid_train \
-		   --val-dataset data/${nnet_data}_lid_val 
-fi
-
-if [ $stage -le 8 ];then
   echo "Split SRE24 dev into 2 folds"
   hyperion-dataset split_folds \
 		   --dataset data/sre24_audio_dev_enroll \
@@ -189,7 +147,7 @@ if [ $stage -le 8 ];then
   done
 fi
 
-if [ $stage -le 9 ];then
+if [ $stage -le 7 ];then
   echo  "temporal fix of folds trials until I fix the python code"
   for name in sre24_audio_dev_test
   do
@@ -238,3 +196,23 @@ BEGIN{
 
 fi
 
+if [ $stage -le 8 ];then
+
+  hyperion-dataset copy \
+		 --dataset data/voxceleb2cat_train \
+		 --output-dataset data/voxceleb2cat_tel_train \
+		 --seg-suffix _tel
+
+  for data in sre21_audio-visual_eval_test sre21_audio_eval_enroll sre21_audio_eval_test
+  do
+    hyperion-dataset copy \
+		     --dataset data/$data \
+		     --output-dataset data/${data}_tel \
+		     --seg-suffix _tel
+    hyperion-dataset remove_class_ids \
+		     --dataset data/${data}_tel \
+		     --class-name source_type \
+		     --class-ids cts
+  done
+    
+fi

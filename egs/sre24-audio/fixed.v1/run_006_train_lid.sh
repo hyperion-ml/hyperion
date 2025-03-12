@@ -43,6 +43,5 @@ if [ $stage -le 1 ]; then
     --data.val.dataset.segments-file $val_data_dir/segments.csv \
     --trainer.exp-path $nnet_s1_dir \
     --num-gpus $ngpu \
-  
 fi
 

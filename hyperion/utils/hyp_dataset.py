@@ -1,6 +1,6 @@
 """
- Copyright 2022 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2022 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
@@ -1171,6 +1171,10 @@ class HypDataset:
         self._videos_path = None
 
     def remove_features(self, features_name: str):
+        if self._features_paths is None or features_name not in self._features_paths:
+            logging.warning("Features %s not found in dataset", features_name)
+            return
+
         if self._features_paths[features_name] is not None:
             self._files_to_delete.append(self._features_paths[features_name])
 
@@ -1178,6 +1182,10 @@ class HypDataset:
         del self._features_paths[features_name]
 
     def remove_vads(self, vads_name: str):
+        if self._vads_paths is None or vads_name not in self._vads_paths:
+            logging.warning("VAD %s not found in dataset", vads_name)
+            return
+
         if self._vads_paths[vads_name] is not None:
             self._files_to_delete.append(self._vads_paths[vads_name])
 
@@ -1185,6 +1193,13 @@ class HypDataset:
         del self._vads_paths[vads_name]
 
     def remove_diarizations(self, diarizations_name: str):
+        if (
+            self._diarizations_paths is None
+            or diarizations_name not in self._diarizations_paths
+        ):
+            logging.warning("Diarization %s not found in dataset", diarizations_name)
+            return
+
         if self._diarizations_paths[diarizations_name] is not None:
             self._files_to_delete.append(self._diarizations_paths[diarizations_name])
 

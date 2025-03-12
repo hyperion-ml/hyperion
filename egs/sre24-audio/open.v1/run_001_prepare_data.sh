@@ -147,7 +147,7 @@ if [ $stage -le 6 ];then
 			--use-ldc-langs \
 			--target-sample-freq 16000 \
 			--output-dir data/sre24_audio-visual_eval_test
-  
+exit  
 fi
 
 

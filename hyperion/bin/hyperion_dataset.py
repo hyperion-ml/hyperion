@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """
- Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import logging
 from pathlib import Path
@@ -207,6 +207,20 @@ def make_set_recordings_parser():
         since they maybe obsolote after modifiying the recordings""",
     )
     parser.add_argument(
+        "--remove-vads",
+        default=None,
+        nargs="+",
+        help="""removes vadsfiles from the dataset, 
+        since they maybe obsolote after modifiying the recordings""",
+    )
+    parser.add_argument(
+        "--remove-diarizations",
+        default=None,
+        nargs="+",
+        help="""removes vadsfiles from the dataset, 
+        since they maybe obsolote after modifiying the recordings""",
+    )
+    parser.add_argument(
         "--update-seg-durs",
         default=False,
         action=ActionYesNo,
@@ -222,6 +236,8 @@ def set_recordings(
     recordings_file: PathLike,
     output_dataset: PathLike,
     remove_features: List[str],
+    remove_vads: List[str],
+    remove_diarizations: List[str],
     update_seg_durs: bool,
 ):
     if output_dataset is None:
@@ -239,6 +255,16 @@ def set_recordings(
         logging.info("removing features %s", str(remove_features))
         for features_name in remove_features:
             dataset.remove_features(features_name)
+
+    if remove_vads is not None:
+        logging.info("removing vads %s", str(remove_vads))
+        for vad_name in remove_vads:
+            dataset.remove_vads(vad_name)
+
+    if remove_diarizations is not None:
+        logging.info("removing diarization %s", str(remove_diarizations))
+        for diar_name in remove_diarizations:
+            dataset.remove_diarizations(diar_name)
 
     dataset.save(output_dataset)
 
@@ -914,7 +940,7 @@ def sample_random_subsegments(
 ):
     if output_dataset is None:
         output_dataset = dataset
-        
+
     logging.info(
         "generate new dataset with random subsegments: %s -> %s",
         dataset,

@@ -57,8 +57,6 @@ if [ $stage -le 1 ]; then
   done
 fi
 
-
-
 if [ $stage -le 2 ];then
   echo "Train Gaussian Back-end to recognize Arabic, English and French"
   $train_cmd $be_dir/train_lgbe.log \

@@ -1,1 +1,1 @@
-global_conf/config_fbank80_stmn_idrnd_resnet100.v3.1.sh
+global_conf/config_fbank80_stmn_idrnd_resnet100.v3.2.sh
