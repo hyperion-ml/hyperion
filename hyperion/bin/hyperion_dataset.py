@@ -43,6 +43,7 @@ subcommand_list = [
     "filter_by_classes",
     "filter_by_classes_and_enrollments",
     "copy",
+    "clean",
     "sample_random_subsegments",
     "add_cols_to_segments",
     "merge",
@@ -885,6 +886,43 @@ def copy(
     dataset = HypDataset.load(dataset, lazy=True)
     if seg_suffix is not None:
         dataset.append_seg_suffix(seg_suffix)
+    dataset.save(output_dataset)
+
+
+def make_clean_parser():
+    parser = ArgumentParser()
+    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument(
+        "--dataset", required=True, help="""dataset dir or .yaml file"""
+    )
+    parser.add_argument(
+        "--output-dataset",
+        required=True,
+        help="""output dataset dir, if None, we use the same as input""",
+    )
+    parser.add_argument(
+        "--rebuild-class-idx",
+        default=False,
+        action=ActionYesNo,
+        help="""regenerate class indexes from 0 to new_num_classes-1""",
+    )
+
+    add_common_args(parser)
+    return parser
+
+
+def clean(
+    dataset: PathLike,
+    output_dataset: PathLike,
+    rebuild_class_idx: bool,
+):
+    logging.info(
+        "cleaning dataset: %s -> %s",
+        dataset,
+        output_dataset,
+    )
+    dataset = HypDataset.load(dataset, lazy=True)
+    dataset.clean(rebuild_class_idx=rebuild_class_idx)
     dataset.save(output_dataset)
 
 
