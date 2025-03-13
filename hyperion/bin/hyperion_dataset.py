@@ -861,7 +861,7 @@ def make_copy_parser():
     parser.add_argument(
         "--output-dataset",
         required=True,
-        help="""output dataset dir, if None, we use the same as input""",
+        help="""output dataset dir""",
     )
     parser.add_argument(
         "--seg-suffix",
@@ -897,7 +897,7 @@ def make_clean_parser():
     )
     parser.add_argument(
         "--output-dataset",
-        required=True,
+        default=None,
         help="""output dataset dir, if None, we use the same as input""",
     )
     parser.add_argument(
@@ -916,6 +916,8 @@ def clean(
     output_dataset: PathLike,
     rebuild_class_idx: bool,
 ):
+    if output_dataset is None:
+        output_dataset = dataset
     logging.info(
         "cleaning dataset: %s -> %s",
         dataset,
