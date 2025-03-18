@@ -14,10 +14,10 @@ from jsonargparse import (
 )
 
 from hyperion.hyp_defs import config_logger
-from hyperion.utils import TrialScores
+from hyperion.utils import TrialKey, TrialNdx
 
 
-def merge_scores(input_files, output_file, num_enroll_parts, num_test_parts, base_idx):
+def merge_trials(input_files, output_file, num_enroll_parts, num_test_parts, base_idx):
     output_file = Path(output_file)
     output_file.parent.mkdir(exist_ok=True, parents=True)
 
@@ -43,19 +43,35 @@ def merge_scores(input_files, output_file, num_enroll_parts, num_test_parts, bas
 
     if ext == ".h5":
         # if files are h5 we need to load everything in RAM
-        score_list = []
-        for score_file in input_files:
-            scores = TrialScores.load(score_file)
-            score_list.append(scores)
+        trials_list = []
+        is_key = True
+        for i, trials_file in enumerate(input_files):
+            if i == 0:
+                try:
+                    trials = TrialKey.load(trials_file)
+                    is_key = True
+                except:
+                    trials = TrialNdx.load(trials_file)
+                    is_key = False
+            else:
+                if is_key:
+                    trials = TrialKey.load(trials_file)
+                else:
+                    trials = TrialNdx.load(trials_file)
 
-        scores = TrialScores.merge(score_list)
-        scores.save(output_file)
+            trials_list.append(scores)
+
+        if is_key:
+            trials = TrialKey.merge(trials_list)
+        else:
+            trials = TrialNdx.merge(trials_list)
+        trials.save(output_file)
     else:
         has_header = ext in [".csv", ".tsv"]
         write_header = True
         with open(output_file, "w", encoding="utf-8") as f_out:
-            for score_file in input_files:
-                with open(score_file) as f_in:
+            for trials_file in input_files:
+                with open(trials_file) as f_in:
                     for i, line in enumerate(f_in):
                         if i == 0 and has_header and not write_header:
                             continue
@@ -64,7 +80,7 @@ def merge_scores(input_files, output_file, num_enroll_parts, num_test_parts, bas
 
 
 def main():
-    parser = ArgumentParser(description="Tool to merge speaker verfication scores")
+    parser = ArgumentParser(description="Tool to merge trial keys or ndx")
     parser.add_argument("--cfg", action=ActionConfigFile)
     parser.add_argument(
         "--input-files", default=None, nargs="+", help="optional list of input files"

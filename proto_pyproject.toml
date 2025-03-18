@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hyperion-ml"
+version = "0.0.0"  # This should be dynamically set from __init__.py
+authors = [
+    { name = "Jesus Villalba", email = "jesus.antonio.villalba@gmail.com" }
+]
+description = "Toolkit for speaker recognition"
+readme = "README.md"
+keywords = ["speaker recognition", "adversarial attacks", "NIST SRE", "x-vectors"]
+license = { text = "Apache-2.0" }
+requires-python = ">=3.7"
+dependencies = []  # This should be dynamically loaded from requirements.txt
+
+[project.urls]
+Homepage = "https://github.com/hyperion-ml/hyperion"
+
+[project.scripts]
+# These should be dynamically generated from the bin directory
+
+[tool.setuptools]
+packages = { find = { exclude = ["tests"] } }
+
+# [tool.setuptools.dynamic]
+# dependencies = {file = ["requirements.txt"]}
+# version = {attr = "hyperion.__version__"}
+
+#[tool.setuptools.entry-points]
+#"console_scripts" = []  # Dynamically populated from hyperion/bin
