@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """
- Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import logging
 from pathlib import Path
@@ -59,7 +59,7 @@ def merge_trials(input_files, output_file, num_enroll_parts, num_test_parts, bas
                 else:
                     trials = TrialNdx.load(trials_file)
 
-            trials_list.append(scores)
+            trials_list.append(trials)
 
         if is_key:
             trials = TrialKey.merge(trials_list)
@@ -123,7 +123,7 @@ def main():
     config_logger(kwargs["verbose"])
     del kwargs["verbose"]
     del kwargs["cfg"]
-    merge_scores(**kwargs)
+    merge_trials(**kwargs)
 
 
 if __name__ == "__main__":

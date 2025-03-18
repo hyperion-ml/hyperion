@@ -186,55 +186,62 @@ if [ $stage -le 8 ];then
 			 --output-dataset data/$name/folds/$fold/$side
       done
     done
+    mkdir -p data/$name/folds/0+1/test
+    for file_path in $(ls data/$name/folds/0/test/trials*.csv)
+    do
+      file_name=$(basename $file_path)
+      hyperion-merge-trials --input-files data/$name/folds/{0,1}/test/$file_name \
+			    --output-file data/$name/folds/0+1/test/$file_name
+    done
   done
 fi
 
-if [ $stage -le 9 ];then
-  echo  "temporal fix of folds trials until I fix the python code"
-  for name in sre24_audio_dev_test
-  do
-    for fold in 0 1
-    do
-      for side in test
-      do
-	for trials in trials trials_ext
-	do
-	  awk -v key=data/$name/${trials}.tsv '
-BEGIN{ 
-  FS="\t"; OFS="\t"; 
-  while(getline < key)
-  {
-    v[$1$2]=$0;
-  };
-  FS=",";
-}
-{ print v[$1$2] }' data/$name/folds/$fold/$side/${trials}.csv > data/$name/folds/$fold/$side/${trials}.tsv
-	done
-      done
-    done
-  done
-  for name in sre24_audio-visual_dev_test
-  do
-    for fold in 0 1
-    do
-      for side in test
-      do
-	for trials in trials trials_ext
-	do
-	  awk -v key=data/$name/${trials}.tsv '
-BEGIN{ 
-  FS="\t"; OFS="\t"; 
-  while(getline < key)
-  {
-    v[$1$3]=$0;
-  };
-  FS=",";
-}
-{ print v[$1$2] }' data/$name/folds/$fold/$side/${trials}.csv > data/$name/folds/$fold/$side/${trials}.tsv
-	done
-      done
-    done
-  done
+# if [ $stage -le 9 ];then
+#   echo  "temporal fix of folds trials until I fix the python code"
+#   for name in sre24_audio_dev_test
+#   do
+#     for fold in 0 1
+#     do
+#       for side in test
+#       do
+# 	for trials in trials trials_ext
+# 	do
+# 	  awk -v key=data/$name/${trials}.tsv '
+# BEGIN{ 
+#   FS="\t"; OFS="\t"; 
+#   while(getline < key)
+#   {
+#     v[$1$2]=$0;
+#   };
+#   FS=",";
+# }
+# { print v[$1$2] }' data/$name/folds/$fold/$side/${trials}.csv > data/$name/folds/$fold/$side/${trials}.tsv
+# 	done
+#       done
+#     done
+#   done
+#   for name in sre24_audio-visual_dev_test
+#   do
+#     for fold in 0 1
+#     do
+#       for side in test
+#       do
+# 	for trials in trials trials_ext
+# 	do
+# 	  awk -v key=data/$name/${trials}.tsv '
+# BEGIN{ 
+#   FS="\t"; OFS="\t"; 
+#   while(getline < key)
+#   {
+#     v[$1$3]=$0;
+#   };
+#   FS=",";
+# }
+# { print v[$1$2] }' data/$name/folds/$fold/$side/${trials}.csv > data/$name/folds/$fold/$side/${trials}.tsv
+# 	done
+#       done
+#     done
+#   done
 
-fi
+# fi
 
