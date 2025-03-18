@@ -1,6 +1,6 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import contextlib
@@ -103,8 +103,8 @@ class Wav2XVector(TorchModel):
         y: Optional[torch.Tensor] = None,
         vad_samples: Optional[torch.Tensor] = None,
         vad_feats: Optional[torch.Tensor] = None,
-        enc_layers: Optional[List[int]] = None,
-        classif_layers: Optional[List[int]] = None,
+        return_enc_layers: Optional[List[int]] = None,
+        return_classif_layers: Optional[List[int]] = None,
         return_output: bool = True,
     ):
         with self._feats_context:
@@ -127,7 +127,12 @@ class Wav2XVector(TorchModel):
         #         flush=True,
         #     )
         return self.xvector(
-            feats, feat_lengths, y, enc_layers, classif_layers, return_output
+            feats,
+            feat_lengths,
+            y,
+            return_enc_layers,
+            return_classif_layers,
+            return_output,
         )
 
     def extract_embed(

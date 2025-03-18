@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """
- Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import logging
 from pathlib import Path
@@ -25,6 +25,7 @@ def eval_verification_metrics(
     key_names,
     score_names,
     avg_key_names,
+    eq_key_names,
     p_tar,
     c_miss,
     c_fa,
@@ -34,6 +35,8 @@ def eval_verification_metrics(
     assert len(key_files) == len(key_names)
     assert len(score_files) == len(score_names)
     dfs = []
+    eq_tars = []
+    eq_nons = []
     for score_file, score_name in zip(score_files, score_names):
         dfs_avg = []
         for key_file, key_name in zip(key_files, key_names):
@@ -55,6 +58,11 @@ def eval_verification_metrics(
             if avg_key_names is not None and key_name in avg_key_names:
                 dfs_avg.append(df_ij)
 
+            if eq_key_names is not None and key_name in eq_key_names:
+                eq_tar_k, eq_non_k = evaluator.get_tar_non()
+                eq_tars.append(eq_tar_k)
+                eq_nons.append(eq_non_k)
+
         if avg_key_names is not None and len(dfs_avg) > 0:
             dfs_avg = pd.concat(dfs_avg)
             df_avg = {"scores": [score_name], "key": ["average"]}
@@ -62,6 +70,10 @@ def eval_verification_metrics(
                 df_avg[column] = [dfs_avg[column].mean()]
             df_avg = pd.DataFrame(df_avg)
             dfs.append(df_avg)
+
+        if eq_key_names is not None and len(eq_tars) > 0:
+            df_eq = evaluator.compute_equalized_dcf_eer(eq_tars, eq_nons)
+            dfs.append(df_eq)
 
     df = pd.concat(dfs)
     logging.info("saving results to %s", output_file)
@@ -82,6 +94,7 @@ def main():
     parser.add_argument("--key-names", required=True, nargs="+")
     parser.add_argument("--score-names", required=True, nargs="+")
     parser.add_argument("--avg-key-names", default=None, nargs="+")
+    parser.add_argument("--eq-key-names", default=None, nargs="+")
     parser.add_argument(
         "--p-tar",
         default=[0.05, 0.01, 0.005, 0.001],

@@ -1,11 +1,12 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import numpy as np
 
-from .roc import compute_rocch, rocch2eer
+from .roc import compute_roc, compute_rocch, roc2eer, rocch2eer
+from .utils import compute_equalized_partition_weights
 
 
 def compute_dcf(p_miss, p_fa, prior, normalize=True):
@@ -111,18 +112,6 @@ def compute_act_dcf(tar, non, prior, normalize=True):
     r = r[:num_priors]
     n_fa = nnon - r + np.arange(num_priors, 0, -1)
 
-    # n_miss2 = np.zeros((num_priors,), dtype='int32')
-    # n_fa2 = np.zeros((num_priors,), dtype='int32')
-
-    # for i in range(len(t)):
-    #     n_miss2[i] = np.sum(tar<t[i])
-    #     n_fa2[i] = np.sum(non>t[i])
-
-    # assert np.all(n_miss2 == n_miss)
-    # assert np.all(n_fa2 == n_fa)
-    # print(n_miss)
-    # print(n_fa)
-
     p_miss = n_miss / ntar
     p_fa = n_fa / nnon
 
@@ -163,6 +152,71 @@ def fast_eval_dcf_eer(tar, non, prior, normalize_dcf=True, return_probs=False):
     min_dcf = np.min(dcf, axis=-1)
 
     act_dcf, act_pmiss, act_pfa = compute_act_dcf(tar, non, prior, normalize_dcf)
+
+    if not return_probs:
+        return min_dcf, act_dcf, eer, prbep
+
+    idx = np.argmin(dcf, axis=-1)
+    min_pmiss = p_miss[idx]
+    min_pfa = p_fa[idx]
+    return min_dcf, act_dcf, eer, prbep, min_pmiss, min_pfa, act_pmiss, act_pfa
+
+
+def fast_eval_equalized_dcf_eer(
+    tars, nons, prior, normalize_dcf=True, return_probs=False
+):
+    """Computes actual DCF, minimum DCF, EER and PRBE all together, equalized by common conditions
+
+    Args:
+      tars: Tuple of Target scores, each element of the tuple is a condition
+      nons: Non-target scores, each element of the tuple is a condition.
+      prior: Target prior or vector of target priors.
+      normalize_cdf: if true, return normalized DCF, else unnormalized.
+
+    Returns:
+      Vector Minimum DCF for each prior.
+      Vector Actual DCF for each prior.
+      EER value
+      PREBP value
+    """
+    ntars = [len(tar) for tar in tars]
+    nnons = [len(non) for non in nons]
+    tar_weights, non_weights = compute_equalized_partition_weights(ntars, nnons)
+    tar_weights = np.concatenate(
+        [w_i * np.ones((n_i,), dtype=float) for w_i, n_i in zip(tar_weights, ntars)]
+    )
+    non_weights = np.concatenate(
+        [w_i * np.ones((n_i,), dtype=float) for w_i, n_i in zip(non_weights, nnons)]
+    )
+    tar = np.concatenate(tars)
+    non = np.concatenate(nons)
+    p_miss, p_fa = compute_roc(tar, non, tar_weights, non_weights)
+    eer = roc2eer(p_miss, p_fa)
+
+    N_miss = p_miss * len(tar)
+    N_fa = p_fa * len(non)
+    prbep = roc2eer(N_miss, N_fa)
+
+    dcf = compute_dcf(p_miss, p_fa, prior, normalize_dcf)
+    min_dcf = np.min(dcf, axis=-1)
+
+    # act_dcf, act_pmiss, act_pfa = compute_act_dcf(tar, non, prior, normalize_dcf)
+    for i, (tar, non) in enumerate(zip(tars, nons)):
+        act_dcf_i, act_pmiss_i, act_pfa_i = compute_act_dcf(
+            tar, non, prior, normalize_dcf
+        )
+        if i == 0:
+            act_dcf = act_dcf_i
+            act_pmiss = act_pmiss_i
+            act_pfa = act_pfa_i
+        else:
+            act_dcf += act_dcf_i
+            act_pmiss += act_pmiss_i
+            act_pfa += act_pfa_i
+
+    act_dcf /= len(tars)
+    act_pmiss /= len(tars)
+    act_pfa /= len(tars)
 
     if not return_probs:
         return min_dcf, act_dcf, eer, prbep
