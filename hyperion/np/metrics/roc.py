@@ -1,6 +1,6 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import matplotlib.pyplot as plt
@@ -10,7 +10,7 @@ import scipy.linalg as sla
 from .utils import pavx
 
 
-def compute_roc(true_scores, false_scores):
+def compute_roc(true_scores, false_scores, true_weights=None, false_weights=None):
     """Computes the (observed) miss/false_alarm probabilities
         for a set of detection output scores.
 
@@ -40,14 +40,21 @@ def compute_roc(true_scores, false_scores):
     indx = np.argsort(scores, kind="mergesort")
     labels = labels[indx]
 
-    sumtrue = np.cumsum(labels)
-    sumfalse = num_false - (np.arange(total) + 1 - sumtrue)
+    if true_weights is not None and false_weights is not None:
+        weights = np.hstack((true_weights, false_weights))
+        weights = weights[indx]
+        tar_weights = weights * (labels == 1).astype(float)
+        non_weights = weights * (labels == 0).astype(float)
+        p_miss[1:] = np.cumsum(tar_weights) / np.sum(tar_weights)
+        p_fa[1:] = 1.0 - np.cumsum(non_weights) / np.sum(non_weights)
+    else:
+        sumtrue = np.cumsum(labels)
+        sumfalse = num_false - (np.arange(total) + 1 - sumtrue)
+        p_miss[1:] = sumtrue / num_true
+        p_fa[1:] = sumfalse / num_false
 
     p_miss[0] = 0
     p_fa[0] = 1.0
-    p_miss[1:] = sumtrue / num_true
-    p_fa[1:] = sumfalse / num_false
-
     return p_miss, p_fa
 
 
@@ -100,6 +107,22 @@ def compute_rocch(tar_scores, non_scores):
     p_fa[nbins] = fa / Nn
 
     return p_miss, p_fa
+
+
+def roc2eer(p_miss, p_fa):
+    """Calculates the equal error rate (eer) from pmiss and pfa
+     Args:
+        p_miss: array, miss rates
+        p_fa: array, false acceptance rates
+
+    Returns:
+    eer: scalar
+    """
+    delta = p_miss - p_fa
+    x1 = np.flatnonzero(delta >= 0)[0]
+    x2 = np.flatnonzero(delta < 0)[-1]
+    a = (p_miss[x1] - p_fa[x1]) / (p_fa[x2] - p_fa[x1] - (p_miss[x2] - p_miss[x1]))
+    return p_miss[x1] + a * (p_miss[x2] - p_miss[x1])
 
 
 def rocch2eer(p_miss, p_fa):
@@ -175,7 +198,7 @@ def filter_roc(p_miss, p_fa):
     new_p_miss[out] = p_miss[-1]
     new_p_fa[out] = p_fa[-1]
     new_p_miss = new_p_miss[:out]
-    new_p_fa = new_fa[:out]
+    new_p_fa = new_p_fa[:out]
 
     return new_p_miss, new_p_fa
 

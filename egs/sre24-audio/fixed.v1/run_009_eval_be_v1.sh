@@ -54,11 +54,11 @@ score_cosine_snorm_dir=$score_dir/cosine_snorm
 score_cosine_qmf_dir=$score_dir/cosine_qmf
 
 # delete this files shouldn't be there
-rm -f data/sre21_audio-visual_{dev,eval}_test/trials_source_type_CTS_CTS.tsv
+#rm -f data/sre21_audio-visual_{dev,eval}_test/trials_source_type_CTS_CTS.tsv
 
 if [ $stage -le 1 ];then
 
-  for data in sre21_audio_dev sre21_audio-visual_dev sre21_audio_eval sre21_audio-visual_eval sre24_audio_dev sre24_audio-visual_dev sre24_audio_eval sre24_audio-visual_eval
+  for data in sre21_audio_dev sre21_audio-visual_dev sre24_audio_dev sre24_audio-visual_dev sre24_audio_eval sre24_audio-visual_eval # sre21_audio_eval sre21_audio-visual_eval
   do
     data_enroll=$(echo ${data}_enroll | sed 's@audio-visual@audio@')
     data_test=${data}_test
@@ -86,6 +86,9 @@ if [ $stage -le 1 ];then
     ) &
   done
   wait
+  local/score_sre24_official.sh audio dev $score_cosine_dir &
+  local/score_sre24_official.sh audio eval $score_cosine_dir
+  
 fi
 
 if [ $stage -le 2 ];then
@@ -196,7 +199,7 @@ if [ $stage -le 5 ];then
 	     --model-file ${score_plda_dir}_cal_v2/calibration.h5 \
 	     --lambda-reg 1e-5
 
-  for data in sre21_audio_dev sre21_audio-visual_dev sre21_audio_eval sre21_audio-visual_eval
+  for data in sre21_audio_dev sre21_audio-visual_dev # sre21_audio_eval sre21_audio-visual_eval
   do
     data_test=${data}_test
     (
@@ -222,7 +225,6 @@ if [ $stage -le 5 ];then
   done
   wait
 fi
-
 
 score_plda_sre21_dir=$score_plda_dir
 score_plda_dir=$score_dir/${be_sre24_name}/plda
@@ -311,7 +313,7 @@ if [ $stage -le 6 ];then
   wait
 
 fi
-
+exit
 if [ $stage -le -7 ];then
   echo "Train/Eval calibration V1 for SRE24 folds"
   score_plda_cal_dir=${score_plda_dir}_cal_v1_folds

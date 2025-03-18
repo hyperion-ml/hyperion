@@ -730,6 +730,12 @@ def make_filter_by_classes_parser():
         help="""output dataset dir, if None, we use the same as input""",
     )
     parser.add_argument(
+        "--remove-na",
+        default=False,
+        action=ActionYesNo,
+        help="remove segments NA class id",
+    )
+    parser.add_argument(
         "--rebuild-idx",
         default=False,
         action=ActionYesNo,
@@ -751,6 +757,7 @@ def filter_by_classes(
     class_name: str,
     class_file: PathLike,
     output_dataset: PathLike,
+    remove_na: bool = False,
     rebuild_idx: bool = False,
     keep: bool = True,
 ):
@@ -800,6 +807,12 @@ def make_filter_by_classes_and_enrollments_parser():
         help="""output dataset dir, if None, we use the same as input""",
     )
     parser.add_argument(
+        "--remove-na",
+        default=False,
+        action=ActionYesNo,
+        help="remove segments NA class id",
+    )
+    parser.add_argument(
         "--rebuild-idx",
         default=False,
         action=ActionYesNo,
@@ -823,6 +836,7 @@ def filter_by_classes_and_enrollments(
     enrollment_name: str,
     enrollment_file: PathLike,
     output_dataset: PathLike,
+    remove_na: bool = False,
     rebuild_idx: bool = False,
     keep: bool = True,
 ):
