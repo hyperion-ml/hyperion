@@ -56,7 +56,7 @@ key_names:
   - gender_male_source_type_match_N_language_match_Y
   - gender_male_source_type_match_Y_language_match_N
   - gender_male_source_type_match_Y_language_match_Y
-avg_key_names:
+eq_key_names:
   - gender_female_source_type_match_N_language_match_N
   - gender_female_source_type_match_N_language_match_Y
   - gender_female_source_type_match_Y_language_match_N

@@ -1532,12 +1532,20 @@ class HypDataset:
     def filter_by_classes(
         self,
         class_name: str,
-        classes: ClassInfo,
+        classes: Union[ClassInfo, List[str]],
+        remove_na: bool,
         rebuild_idx: bool = False,
         keep: bool = True,
     ):
         segments = self.segments()
-        class_ids = classes["id"]
+        if isinstance(classes, ClassInfo):
+            class_ids = classes["id"]
+        else:
+            class_ids = classes
+
+        if remove_na:
+            self._segments = segments.dropna(subset=[class_name], inplace=True)
+
         self._segments = segments.filter(
             lambda df: df[class_name].isin(class_ids), keep=keep
         )
@@ -1549,14 +1557,22 @@ class HypDataset:
     def filter_by_classes_and_enrollments(
         self,
         class_name: str,
-        classes: ClassInfo,
+        classes: Union[ClassInfo, List[str]],
         enrollment_name: str,
         enrollments: EnrollmentMap,
+        remove_na: bool,
         rebuild_idx: bool = False,
         keep: bool = True,
     ):
         segments = self.segments()
-        class_ids = classes["id"]
+        if isinstance(classes, ClassInfo):
+            class_ids = classes["id"]
+        else:
+            class_ids = classes
+
+        if remove_na:
+            self._segments = segments.dropna(subset=[class_name], inplace=True)
+
         self._segments = segments.filter(
             lambda df: df[class_name].isin(class_ids), keep=keep
         )

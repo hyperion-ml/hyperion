@@ -1,8 +1,8 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
- Utility functions to evaluate performance
+Utility functions to evaluate performance
 """
 
 import numpy as np
@@ -86,7 +86,7 @@ def loglk2llr(loglk, priors, target_idx=None):
         non_idx = np.concatenate(
             (np.arange(target_idx), np.arange(target_idx + 1, num_classes))
         )
-        llr[:, i] = loglk[:, target] - logsumexp(llglk[:, non_idx], axis=-1)
+        llr[:, i] = loglk[:, target] - logsumexp(loglk[:, non_idx], axis=-1)
 
     return llr
 
@@ -129,7 +129,7 @@ def lre_loglk2llr(loglk, p_tar, p_oos=0):
     num_tar_classes = loglk.shape[-1]
     if p_oos == 0:
         num_tar_classes -= 1
-    priors = llr_priors(num_tar_classes, p_tar, p_oos)
+    priors = lre_priors(num_tar_classes, p_tar, p_oos)
     llr = np.zeros_like((loglk.shape[0], num_tar_classes), dtype=loglk.dtype)
     for i in range(num_tar_classes):
         llr[:, i] = loglk2llr(loglk, priors[i], target_idx=i)
@@ -257,3 +257,11 @@ def opt_loglr(tar, non, method="laplace"):
     non_llr = llr[ntar:]
 
     return tar_llr, non_llr
+
+
+def compute_equalized_partition_weights(ntars, nnons):
+    max_ntar = np.max(ntars)
+    max_nnon = np.max(nnons)
+    tar_weights = [max_ntar / ntar if ntar > 0 else 0 for ntar in ntars]
+    non_weights = [max_nnon / nnon if nnon > 0 else 0 for nnon in nnons]
+    return tar_weights, non_weights

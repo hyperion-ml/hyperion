@@ -1,6 +1,6 @@
 """
- Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import copy
@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 from ...hyp_defs import float_cpu
 from ...utils import SparseTrialKey, SparseTrialScores, TrialKey, TrialScores
 from ...utils.trial_stats import TrialStats
-from .dcf import fast_eval_dcf_eer
+from .dcf import fast_eval_dcf_eer, fast_eval_equalized_dcf_eer
 from .utils import effective_prior
 
 
@@ -94,6 +94,7 @@ class VerificationEvaluator:
            min_dcf, act_dcf, eer tuple or pandas DataFrame
         """
         logging.info("separating tar/non")
+
         tar, non = self.scores.get_tar_non(self.key)
         ntar = len(tar)
         nnon = len(non)
@@ -121,6 +122,72 @@ class VerificationEvaluator:
             {
                 "scores": [self.score_name],
                 "key": [self.key_name],
+                "eer": eer,
+                "eer(%)": eer * 100,
+            }
+        )
+        for i in range(len(min_dcf)):
+            pi = self.p_tar[i]
+            df["min-dcf-%.3f" % (pi)] = min_dcf[i]
+            df["act-dcf-%.3f" % (pi)] = act_dcf[i]
+
+        if len(min_dcf) > 1:
+            df["min-dcf-avg"] = np.mean(min_dcf)
+            df["act-dcf-avg"] = np.mean(act_dcf)
+
+        df["num_targets"] = ntar
+        df["num_nontargets"] = nnon
+        return df
+
+    def get_tar_non(self):
+        """
+        Returns the target and non-target scores
+
+        Returns:
+           tar, non np.array
+        """
+        logging.info("separating tar/non")
+        return self.scores.get_tar_non(self.key)
+
+    def compute_equalized_dcf_eer(self, tars, nons, return_df=True):
+        """
+        Computes Equalized EER, Actual
+
+        Args:
+           tars: target scores tuple of np.arrays for different conditions
+           nons: non-target scores tuple of np.arrays for different conditions
+           return_df: if True, it returns the result in a pandas DataFrame object.
+
+        Returns:
+           min_dcf, act_dcf, eer tuple or pandas DataFrame
+        """
+        ntar = np.sum([len(tar) for tar in tars])
+        nnon = np.sum([len(non) for non in nons])
+        if ntar == 0 or nnon == 0:
+            logging.warning("ntar=%d nnon=%d, no metrics will be produced", ntar, nnon)
+            return None
+
+        logging.info("computing Equalized EER/DCF")
+        min_dcf, act_dcf, eer, _ = fast_eval_equalized_dcf_eer(
+            tars, nons, self.p_tar[self._p_tar_sort]
+        )
+
+        if len(self.p_tar) > 1:
+            min_dcf[self._p_tar_sort] = min_dcf.copy()
+            act_dcf[self._p_tar_sort] = act_dcf.copy()
+
+        if not return_df:
+            return min_dcf, act_dcf, eer, ntar, nnon
+
+        if len(self.p_tar) == 1:
+            eer = np.asarray([eer])
+            min_dcf = np.asarray([min_dcf])
+            act_dcf = np.asarray([act_dcf])
+
+        df = pd.DataFrame(
+            {
+                "scores": [self.score_name],
+                "key": "equalized",
                 "eer": eer,
                 "eer(%)": eer * 100,
             }

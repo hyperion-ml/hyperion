@@ -25,3 +25,4 @@ loralib
 lhotse>=1.23.0
 datasets>=2.20.0
 pytest
+toml
