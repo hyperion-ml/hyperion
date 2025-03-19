@@ -345,7 +345,6 @@ if [ $stage -le 7 ];then
 	     # --source-types cts afv \
 	     # --target-langs ENG ARA FRA \
 	     # --ood-speaker-langs ARA FRA
-
 fi
 
 
@@ -386,7 +385,7 @@ fi
 
 
 if [ $stage -le 9 ];then
-  echo "Train calibration V1 for SRE24 cheating on folds scores"
+  echo "Train calibration V1 for SRE24 on folds scores"
   score_plda_cal_dir=${score_plda_dir}_cal_v1_folds
   $train_cmd ${score_plda_cal_dir}/log/train_calibration_sre24_v1.log \
 	     hyp_utils/conda_env.sh \
@@ -501,7 +500,7 @@ if [ $stage -le 10 ];then
     fold_data_enroll=$data_enroll/folds/0+1/test
     fold_data_test=$data_test/folds/0+1/test
     (
-      echo "Eval calibration V1 for $data in ${fold_score_plda_cal_dir}"
+      echo "Eval calibration V2 for $data in ${fold_score_plda_cal_dir}"
       $train_cmd ${fold_score_plda_cal_dir}/log/$data.log \
 		 hyp_utils/conda_env.sh \
 		 local/eval_verification_calibration_v2.py \
