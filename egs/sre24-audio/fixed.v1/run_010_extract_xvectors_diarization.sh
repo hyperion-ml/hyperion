@@ -10,7 +10,7 @@ set -e
 stage=1
 nnet_stage=""
 config_file=default_config.sh
-use_gpu=false
+use_gpu=true
 win_length=3.0
 win_shift=1.0
 ahc_threshold=0.0
@@ -47,7 +47,7 @@ be_dir=exp/be/$nnet_name
 be_sre24_dir=$be_dir/$be_sre24_name
 score_dir=exp/scores/$nnet_name
 score_plda_dir=$score_dir/${be_sre24_name}/plda
-score_plda_cal_dir=${score_plda_dir}_cal_v2_cheat
+score_plda_cal_dir=${score_plda_dir}_cal_v2_folds
 
 
 if [ $stage -le 1 ]; then
