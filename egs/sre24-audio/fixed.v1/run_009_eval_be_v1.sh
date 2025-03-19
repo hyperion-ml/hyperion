@@ -82,7 +82,7 @@ if [ $stage -le 1 ];then
 		 --output-file $score_cosine_dir/${data}_results.tsv
 
       echo "Results $data:"
-      cat $score_cosine_dir/${data}_results.tsv
+      grep -e eer -e equalized  $score_cosine_dir/${data}_results.tsv
     ) &
   done
   wait
@@ -147,7 +147,8 @@ if [ $stage -le 3 ];then
 	       --output-file $score_plda_dir/${data}_results.tsv
 
     echo "Results $data:"
-    cat $score_plda_dir/${data}_results.tsv ) &
+    grep -e eer -e equalized $score_plda_dir/${data}_results.tsv
+    ) &
   done
   wait
 fi
@@ -183,7 +184,7 @@ if [ $stage -le 4 ];then
 		 --output-file ${score_plda_dir}_cal_v1/${data}_results.tsv
 
       echo "Results $data:"
-      cat ${score_plda_dir}_cal_v1/${data}_results.tsv
+      grep -e eer -e equalized ${score_plda_dir}_cal_v1/${data}_results.tsv
     ) &
   done
   wait
@@ -220,7 +221,7 @@ if [ $stage -le 5 ];then
 		 --output-file ${score_plda_dir}_cal_v2/${data}_results.tsv
 
       echo "Results $data:"
-      cat ${score_plda_dir}_cal_v2/${data}_results.tsv
+      grep -e eer -e equalized ${score_plda_dir}_cal_v2/${data}_results.tsv
     ) &
   done
   wait
@@ -283,12 +284,12 @@ if [ $stage -le 6 ];then
 		     --source-types cts afv \
 		     --langs ENG ARA FRA
 
-	  $train_cmd --mem 12G --num-threads 6 $fold_score_plda_dir/log/score_${data}.log \
-		     hyperion-eval-verification-metrics \
-		     --cfg conf/folds/$fold/metrics_${data}.yaml \
-		     --score-files $fold_score_plda_dir/${data}_scores.tsv \
-		     --score-names $data \
-		     --output-file $fold_score_plda_dir/${data}_results.tsv
+	  # $train_cmd --mem 12G --num-threads 6 $fold_score_plda_dir/log/score_${data}.log \
+	  # 	     hyperion-eval-verification-metrics \
+	  # 	     --cfg conf/folds/$fold/metrics_${data}.yaml \
+	  # 	     --score-files $fold_score_plda_dir/${data}_scores.tsv \
+	  # 	     --score-names $data \
+	  # 	     --output-file $fold_score_plda_dir/${data}_results.tsv
 
 	  #echo "Results $data:"
 	  #cat $fold_score_plda_dir/${data}_results.tsv
@@ -303,161 +304,28 @@ if [ $stage -le 6 ];then
   for data in sre24_audio_dev sre24_audio-visual_dev
   do
     (
-      hyperion-tables average_results \
-		      --input-files $score_plda_dir/folds/{0,1}/${data}_results.tsv \
-		      --output-file $score_plda_dir/folds/avg/${data}_results.tsv
-      echo "Results $data avg folds:"
-      cat $score_plda_dir/folds/avg/${data}_results.tsv
+      # hyperion-tables average_results \
+      # 		      --input-files $score_plda_dir/folds/{0,1}/${data}_results.tsv \
+      # 		      --output-file $score_plda_dir/folds/avg/${data}_results.tsv
+      # echo "Results $data avg folds:"
+      # cat $score_plda_dir/folds/avg/${data}_results.tsv
+      hyperion-merge-scores --input-files $score_plda_dir/folds/{0,1}/${data}_scores.tsv \
+			    --output-file $score_plda_dir/folds/0+1/${data}_scores.tsv
+      $train_cmd --mem 12G --num-threads 6 $score_plda_dir/folds/0+1/log/score_${data}.log \
+		 hyperion-eval-verification-metrics \
+		 --cfg conf/folds/0+1/metrics_${data}.yaml \
+		 --score-files $score_plda_dir/folds/0+1/${data}_scores.tsv \
+		 --score-names $data \
+		 --output-file $score_plda_dir/folds/0+1/${data}_results.tsv
+      echo "Results $data merged folds:"
+      grep -e eer -e equalized $score_plda_dir/folds/0+1/${data}_results.tsv
     ) &
   done
   wait
 
 fi
-exit
-if [ $stage -le -7 ];then
-  echo "Train/Eval calibration V1 for SRE24 folds"
-  score_plda_cal_dir=${score_plda_dir}_cal_v1_folds
-  for fold in 0 1
-  do
-    (
-      if [ $fold -eq 0 ];then
-	train_fold=1
-      else
-	train_fold=0
-      fi
-      #train_fold=$fold
-      train_fold_score_plda_dir=$score_plda_dir/folds/$train_fold
-      fold_score_plda_dir=$score_plda_dir/folds/$fold
-      fold_score_plda_cal_dir=$score_plda_cal_dir/folds/$fold
-      echo "Train Calibration V1 for SRE24 fold $fold on $train_fold_score_plda_dir"
-      $train_cmd ${fold_score_plda_cal_dir}/log/train_calibration_v1.log \
-	   hyp_utils/conda_env.sh \
-	   hyperion-train-verification-calibration \
-	   --score-files $train_fold_score_plda_dir/sre24_{audio,audio-visual}_dev_scores.tsv \
-	   --key-files data/sre24_{audio,audio-visual}_dev_test/folds/$train_fold/test/trials.csv \
-	   --model-file ${fold_score_plda_cal_dir}/calibration.h5 \
-	   --lambda-reg 1e-5 --prior 0.01 --num-augs 10 10 --aug-std 5
 
-      
-      for data in sre24_audio_dev sre24_audio-visual_dev
-      do
-	data_enroll=$(echo ${data}_enroll | sed 's@audio-visual@audio@')
-	data_test=${data}_test
-	fold_data_enroll=$data_enroll/folds/$fold/test
-	fold_data_test=$data_test/folds/$fold/test
-	
-	(
-	  echo "Eval calibration V1 for $data in ${score_plda_dir}_cal_v1"
-	  $train_cmd ${fold_score_plda_cal_dir}/log/$data.log \
-		     hyp_utils/conda_env.sh \
-		     hyperion-eval-verification-calibration \
-		     --ndx-file data/$fold_data_test/trials.csv \
-		     --in-score-file $fold_score_plda_dir/${data}_scores.tsv \
-		     --out-score-file ${fold_score_plda_cal_dir}/${data}_scores.tsv \
-		     --model-file ${fold_score_plda_cal_dir}/calibration.h5
-	  
-	  $train_cmd --mem 12G --num-threads 6 $fold_score_plda_cal_dir/log/score_${data}.log \
-		     hyperion-eval-verification-metrics \
-		     --cfg conf/folds/$fold/metrics_${data}.yaml \
-		     --score-files $fold_score_plda_cal_dir/${data}_scores.tsv \
-		     --score-names $data \
-		     --output-file $fold_score_plda_cal_dir/${data}_results.tsv
-
-	  #echo "Results $data:"
-	  #cat $fold_score_plda_cal_dir/${data}_results.tsv
-
-	) &
-      done
-      wait
-    ) &
-  done
-  wait
-  for data in sre24_audio_dev sre24_audio-visual_dev
-  do
-    (
-      hyperion-tables average_results \
-		      --input-files $score_plda_cal_dir/folds/{0,1}/${data}_results.tsv \
-		      --output-file $score_plda_cal_dir/folds/avg/${data}_results.tsv
-      echo "Results $data avg folds in $score_plda_cal_dir/folds/avg/${data}_results.tsv"
-      cat $score_plda_cal_dir/folds/avg/${data}_results.tsv
-    ) &
-  done
-  wait
-fi
-
-if [ $stage -le -8 ];then
-  echo "Train/Eval calibration V2 for SRE24 folds"
-  score_plda_cal_dir=${score_plda_dir}_cal_v2_folds
-  for fold in 0 1
-  do
-    (
-      if [ $fold -eq 0 ];then
-	train_fold=1
-      else
-	train_fold=0
-      fi
-      #train_fold=$fold
-      train_fold_score_plda_dir=$score_plda_dir/folds/$train_fold
-      fold_score_plda_dir=$score_plda_dir/folds/$fold
-      fold_score_plda_cal_dir=$score_plda_cal_dir/folds/$fold
-      echo "Train Calibration V1 for SRE24 fold $fold on $train_fold_score_plda_dir"
-      $train_cmd ${fold_score_plda_cal_dir}/log/train_calibration_v2.log \
-		 hyp_utils/conda_env.sh \
-		 local/train_verification_calibration_v2.py \
-		 --score-files $train_fold_score_plda_dir/sre24_{audio,audio-visual}_dev_scores.tsv \
-		 --key-files data/sre24_{audio,audio-visual}_dev_test/folds/$train_fold/test/trials.tsv \
-		 --model-file ${fold_score_plda_cal_dir}/calibration.h5 \
-		 --lambda-reg 1e-5 --prior 0.01 --num-augs 10 10 --aug-std 0.5
-
-      
-      for data in sre24_audio_dev sre24_audio-visual_dev
-      do
-	data_enroll=$(echo ${data}_enroll | sed 's@audio-visual@audio@')
-	data_test=${data}_test
-	fold_data_enroll=$data_enroll/folds/$fold/test
-	fold_data_test=$data_test/folds/$fold/test
-	
-	(
-	  echo "Eval calibration V2 for $data in ${score_plda_cal_dir}"
-	  $train_cmd ${fold_score_plda_cal_dir}/log/$data.log \
-		     hyp_utils/conda_env.sh \
-		     local/eval_verification_calibration_v2.py \
-		     --ndx-file data/$fold_data_test/trials.tsv \
-		     --in-score-file $fold_score_plda_dir/${data}_scores.tsv \
-		     --out-score-file ${fold_score_plda_cal_dir}/${data}_scores.tsv \
-		     --model-file ${fold_score_plda_cal_dir}/calibration.h5
-	  
-	  $train_cmd --mem 12G --num-threads 6 $fold_score_plda_cal_dir/log/score_${data}.log \
-		     hyperion-eval-verification-metrics \
-		     --cfg conf/folds/$fold/metrics_${data}.yaml \
-		     --score-files $fold_score_plda_cal_dir/${data}_scores.tsv \
-		     --score-names $data \
-		     --output-file $fold_score_plda_cal_dir/${data}_results.tsv
-
-	  #echo "Results $data:"
-	  #cat $fold_score_plda_cal_dir/${data}_results.tsv
-
-	) &
-      done
-      wait
-    ) &
-  done
-  wait
-  for data in sre24_audio_dev sre24_audio-visual_dev
-  do
-    (
-      hyperion-tables average_results \
-		      --input-files $score_plda_cal_dir/folds/{0,1}/${data}_results.tsv \
-		      --output-file $score_plda_cal_dir/folds/avg/${data}_results.tsv
-      echo "Results $data avg folds in $score_plda_cal_dir/folds/avg/${data}_results.tsv"
-      cat $score_plda_cal_dir/folds/avg/${data}_results.tsv
-    ) &
-  done
-  wait
-fi
-
-
-if [ $stage -le 9 ];then
+if [ $stage -le 7 ];then
   echo "Train PLDA Adapted to SRE24 in $be_sre24_dir"
   $train_cmd $be_sre24_dir/train_plda.log \
 	     python local/train_plda_source_lang_adapted.py \
@@ -481,7 +349,7 @@ if [ $stage -le 9 ];then
 fi
 
 
-if [ $stage -le 10 ];then
+if [ $stage -le 8 ];then
 
   for data in sre24_audio_dev sre24_audio-visual_dev sre24_audio_eval sre24_audio-visual_eval
   do
@@ -504,36 +372,31 @@ if [ $stage -le 10 ];then
 	       --source-types cts afv \
 	       --langs ENG ARA FRA
 
-    if [[ "$data" =~ "dev" ]];then
-      $train_cmd --mem 12G --num-threads 6 $score_plda_dir/log/score_${data}.log \
-		 hyperion-eval-verification-metrics \
-		 --cfg conf/metrics_${data}.yaml \
-		 --score-files $score_plda_dir/${data}_scores.tsv \
-		 --score-names $data \
-		 --output-file $score_plda_dir/${data}_results.tsv
+    $train_cmd --mem 12G --num-threads 6 $score_plda_dir/log/score_${data}.log \
+	       hyperion-eval-verification-metrics \
+	       --cfg conf/metrics_${data}.yaml \
+	       --score-files $score_plda_dir/${data}_scores.tsv \
+	       --score-names $data \
+	       --output-file $score_plda_dir/${data}_results.tsv
 
-      echo "Results $data:"
-      cat $score_plda_dir/${data}_results.tsv
-    fi
+    echo "Results $data:"
+    grep -e eer -e equalized  $score_plda_dir/${data}_results.tsv
   done
 fi
-exit
 
-if [ $stage -le -11 ];then
+
+if [ $stage -le 9 ];then
   echo "Train calibration V1 for SRE24 cheating on folds scores"
   score_plda_cal_dir=${score_plda_dir}_cal_v1_folds
-  #train_fold_score_plda_dir=$score_plda_dir/folds/$train_fold
-  #fold_score_plda_dir=$score_plda_dir/folds/$fold
-  #fold_score_plda_cal_dir=$score_plda_cal_dir/folds/$fold
   $train_cmd ${score_plda_cal_dir}/log/train_calibration_sre24_v1.log \
 	     hyp_utils/conda_env.sh \
 	     hyperion-train-verification-calibration \
-	     --score-files $score_plda_dir/folds/{0,1}/sre24_{audio,audio-visual}_dev_scores.tsv \
-	     --key-files data/sre24_{audio,audio-visual}_dev_test/folds/0/test/trials.tsv data/sre24_{audio,audio-visual}_dev_test/folds/1/test/trials.tsv \
+	     --score-files $score_plda_dir/folds/0+1/sre24_{audio,audio-visual}_dev_scores.tsv \
+	     --key-files data/sre24_{audio,audio-visual}_dev_test/folds/0+1/test/trials.csv \
 	     --model-file ${score_plda_cal_dir}/calibration.h5 \
-	     --lambda-reg 1e-5 --prior 0.01 --num-augs 10 10 10 10 --aug-std 5
+	     --lambda-reg 1e-5 --prior 0.01 --num-augs 10 10 --aug-std 5
       
-  for data in sre24_audio_dev sre24_audio-visual_dev
+  for data in sre24_audio_dev sre24_audio-visual_dev sre24_audio_eval sre24_audio-visual_eval
   do
     data_enroll=$(echo ${data}_enroll | sed 's@audio-visual@audio@')
     data_test=${data}_test
@@ -555,67 +418,55 @@ if [ $stage -le -11 ];then
 		 --output-file $score_plda_cal_dir/${data}_results.tsv
 
       echo "Results $data: $score_plda_cal_dir/${data}_results.tsv"
-      cat $score_plda_cal_dir/${data}_results.tsv
+      grep -e eer -e equalized $score_plda_cal_dir/${data}_results.tsv
     ) &
   done
   wait
-fi
-
-if [ $stage -le -12 ];then
-  echo "Train calibration V1 for SRE24 cheating on folds+cheating scores"
-  score_plda_cal_dir=${score_plda_dir}_cal_v1_cheat
-  $train_cmd ${score_plda_cal_dir}/log/train_calibration_sre24_v1.log \
-	     hyp_utils/conda_env.sh \
-	     hyperion-train-verification-calibration \
-	     --score-files $score_plda_dir/folds/{0,1}/sre24_{audio,audio-visual}_dev_scores.tsv \
-	     $score_plda_dir/sre24_{audio,audio-visual}_dev_scores.tsv \
-	     --key-files data/sre24_{audio,audio-visual}_dev_test/folds/0/test/trials.tsv \
-	     data/sre24_{audio,audio-visual}_dev_test/folds/1/test/trials.tsv \
-	     data/sre24_{audio,audio-visual}_dev_test/trials.tsv \
-	     --model-file ${score_plda_cal_dir}/calibration.h5 \
-	     --lambda-reg 1e-5 --prior 0.01 --num-augs 3 3 3 3 10 10 --aug-std 5
-      
+  fold_score_plda_dir=$score_plda_dir/folds/0+1
+  fold_score_plda_cal_dir=$score_plda_cal_dir/folds/0+1
   for data in sre24_audio_dev sre24_audio-visual_dev
   do
     data_enroll=$(echo ${data}_enroll | sed 's@audio-visual@audio@')
     data_test=${data}_test
+    fold_data_enroll=$data_enroll/folds/0+1/test
+    fold_data_test=$data_test/folds/0+1/test
     (
-      echo "Eval calibration V1 cheat for $data in ${score_plda_dir}_cal_v1"
-      $train_cmd ${score_plda_cal_dir}/log/$data.log \
-		     hyp_utils/conda_env.sh \
-		     hyperion-eval-verification-calibration \
-		     --ndx-file data/$data_test/trials.tsv \
-		     --in-score-file $score_plda_dir/${data}_scores.tsv \
-		     --out-score-file ${score_plda_cal_dir}/${data}_scores.tsv \
-		     --model-file ${score_plda_cal_dir}/calibration.h5
-	  
-      $train_cmd --mem 12G --num-threads 3 $score_plda_cal_dir/log/score_${data}.log \
-		     hyperion-eval-verification-metrics \
-		     --cfg conf/metrics_${data}.yaml \
-		     --score-files $score_plda_cal_dir/${data}_scores.tsv \
-		     --score-names $data \
-		     --output-file $score_plda_cal_dir/${data}_results.tsv
+      echo "Eval calibration V1 for $data in ${fold_score_plda_cal_dir}"
+      $train_cmd ${fold_score_plda_cal_dir}/log/$data.log \
+		 hyp_utils/conda_env.sh \
+		 hyperion-eval-verification-calibration \
+		 --ndx-file data/$fold_data_test/trials.tsv \
+		 --in-score-file $fold_score_plda_dir/${data}_scores.tsv \
+		 --out-score-file ${fold_score_plda_cal_dir}/${data}_scores.tsv \
+		 --model-file ${score_plda_cal_dir}/calibration.h5
 
-      echo "Results $data: $score_plda_cal_dir/${data}_results.tsv"
-      cat $score_plda_cal_dir/${data}_results.tsv
+      $train_cmd --mem 12G --num-threads 6 $score_plda_cal_dir/folds/0+1/log/score_${data}.log \
+		 hyperion-eval-verification-metrics \
+		 --cfg conf/folds/0+1/metrics_${data}.yaml \
+		 --score-files $fold_score_plda_cal_dir/${data}_scores.tsv \
+		 --score-names $data \
+		 --output-file $fold_score_plda_cal_dir/${data}_results.tsv
+      echo "Results $data merged $fold_score_plda_cal_dir/${data}_results.tsv"
+      grep -e eer -e equalized $fold_score_plda_cal_dir/${data}_results.tsv 
     ) &
   done
   wait
+  
+
 fi
 
-if [ $stage -le -13 ];then
-  echo "Train calibration V2 for SRE24 cheating on folds scores"
+if [ $stage -le 10 ];then
+  echo "Train calibration V2 for SRE24 on folds scores"
   score_plda_cal_dir=${score_plda_dir}_cal_v2_folds
   $train_cmd ${score_plda_cal_dir}/log/train_calibration_sre24_v2.log \
 	     hyp_utils/conda_env.sh \
 	     local/train_verification_calibration_v2.py \
-	     --score-files $score_plda_dir/folds/{0,1}/sre24_{audio,audio-visual}_dev_scores.tsv \
-	     --key-files data/sre24_{audio,audio-visual}_dev_test/folds/0/test/trials.tsv \
-	     data/sre24_{audio,audio-visual}_dev_test/folds/1/test/trials.tsv \
+	     --score-files $score_plda_dir/folds/0+1/sre24_{audio,audio-visual}_dev_scores.tsv \
+	     --key-files data/sre24_{audio,audio-visual}_dev_test/folds/0+1/test/trials.tsv \
 	     --model-file ${score_plda_cal_dir}/calibration.h5 \
-	     --lambda-reg 1e-5 --prior 0.01 --num-augs 10 10 10 10 --aug-std 0.5
+	     --lambda-reg 1e-5 --prior 0.01 --num-augs 10 10 --aug-std 0.5
       
-  for data in sre24_audio_dev sre24_audio-visual_dev
+  for data in sre24_audio_dev sre24_audio-visual_dev sre24_audio_eval sre24_audio-visual_eval
   do
     data_enroll=$(echo ${data}_enroll | sed 's@audio-visual@audio@')
     data_test=${data}_test
@@ -637,272 +488,38 @@ if [ $stage -le -13 ];then
 		     --output-file $score_plda_cal_dir/${data}_results.tsv
 
       echo "Results $data: $score_plda_cal_dir/${data}_results.tsv"
-      cat $score_plda_cal_dir/${data}_results.tsv
+      grep -e eer -e equalized $score_plda_cal_dir/${data}_results.tsv
     ) &
   done
   wait
-fi
-
-if [ $stage -le -14 ];then
-  echo "Train calibration V2 for SRE24 cheating on folds+cheating scores"
-  score_plda_cal_dir=${score_plda_dir}_cal_v2_cheat
-  $train_cmd ${score_plda_cal_dir}/log/train_calibration_sre24_v2.log \
-	     hyp_utils/conda_env.sh \
-	     local/train_verification_calibration_v2.py \
-	     --score-files $score_plda_dir/folds/{0,1}/sre24_{audio,audio-visual}_dev_scores.tsv \
-	     $score_plda_dir/sre24_{audio,audio-visual}_dev_scores.tsv \
-	     --key-files data/sre24_{audio,audio-visual}_dev_test/folds/0/test/trials.tsv \
-	     data/sre24_{audio,audio-visual}_dev_test/folds/1/test/trials.tsv \
-	     data/sre24_{audio,audio-visual}_dev_test/trials.tsv \
-	     --model-file ${score_plda_cal_dir}/calibration.h5 \
-	     --lambda-reg 1e-5 --prior 0.01 --num-augs 3 3 3 3 10 10 --aug-std 0.5
-      
-  for data in sre24_audio_dev sre24_audio-visual_dev sre24_audio_eval sre24_audio-visual_eval
-  do
-    data_enroll=$(echo ${data}_enroll | sed 's@audio-visual@audio@')
-    data_test=${data}_test
-    (
-      echo "Eval calibration V2 cheating for $data in ${score_plda_cal_dir}"
-      $train_cmd ${score_plda_cal_dir}/log/$data.log \
-		     hyp_utils/conda_env.sh \
-		     local/eval_verification_calibration_v2.py \
-		     --ndx-file data/$data_test/trials.tsv \
-		     --in-score-file $score_plda_dir/${data}_scores.tsv \
-		     --out-score-file ${score_plda_cal_dir}/${data}_scores.tsv \
-		     --model-file ${score_plda_cal_dir}/calibration.h5
-
-      if [[ "$data" =~ "dev" ]];then
-	$train_cmd --mem 12G --num-threads 3 $score_plda_cal_dir/log/score_${data}.log \
-		   hyperion-eval-verification-metrics \
-		   --cfg conf/metrics_${data}.yaml \
-		   --score-files $score_plda_cal_dir/${data}_scores.tsv \
-		   --score-names $data \
-		   --output-file $score_plda_cal_dir/${data}_results.tsv
-	
-	echo "Results $data: $score_plda_cal_dir/${data}_results.tsv"
-	cat $score_plda_cal_dir/${data}_results.tsv
-      fi
-    ) &
-  done
-  wait
-fi
-
-if [ $stage -le 15 ];then
-  echo "Train calibration V1.1 for SRE24 folds+cheating on folds+cheating scores"
-  score_plda_cal_dir=${score_plda_dir}_cal_v1.1
-  $train_cmd ${score_plda_cal_dir}/log/train_calibration_sre24_v1.1_fold0.log \
-	     hyp_utils/conda_env.sh \
-	     local/train_verification_calibration_v1.1.py \
-	     --score-files $score_plda_dir/folds/0/sre24_{audio,audio-visual}_dev_scores.tsv \
-	     --key-files data/sre24_{audio,audio-visual}_dev_test/folds/0/test/trials.tsv \
-	     --model-file ${score_plda_cal_dir}/calibration_fold0.h5 \
-	     --gmm-file ${score_plda_cal_dir}/gmm_fold0.h5 \
-	     --lambda-reg 1e-5 --prior 0.01 --num-augs 10 10 --aug-std 0.5 &
-  
-  $train_cmd ${score_plda_cal_dir}/log/train_calibration_sre24_v1.1_fold1.log \
-	     hyp_utils/conda_env.sh \
-	     local/train_verification_calibration_v1.1.py \
-	     --score-files $score_plda_dir/folds/1/sre24_{audio,audio-visual}_dev_scores.tsv \
-	     --key-files data/sre24_{audio,audio-visual}_dev_test/folds/1/test/trials.tsv \
-	     --model-file ${score_plda_cal_dir}/calibration_fold1.h5 \
-	     --gmm-file ${score_plda_cal_dir}/gmm_fold1.h5 \
-	     --lambda-reg 1e-5 --prior 0.01 --num-augs 10 10 --aug-std 0.5 &
-  
-  $train_cmd ${score_plda_cal_dir}/log/train_calibration_sre24_v1.1_cheat.log \
-	     hyp_utils/conda_env.sh \
-	     local/train_verification_calibration_v1.1.py \
-	     --score-files $score_plda_dir/sre24_{audio,audio-visual}_dev_scores.tsv \
-	     --key-files data/sre24_{audio,audio-visual}_dev_test/trials.tsv \
-	     --model-file ${score_plda_cal_dir}/calibration_cheat.h5 \
-	     --gmm-file ${score_plda_cal_dir}/gmm_cheat.h5 \
-	     --lambda-reg 1e-5 --prior 0.01 --num-augs 10 10 --aug-std 0.5 &
-  wait
-
-  for data in sre24_audio_dev sre24_audio-visual_dev sre24_audio_eval sre24_audio-visual_eval
-  do
-    data_enroll=$(echo ${data}_enroll | sed 's@audio-visual@audio@')
-    data_test=${data}_test
-    (
-      echo "Eval calibration V1.1 for $data in ${score_plda_cal_dir}"
-      $train_cmd ${score_plda_cal_dir}/log/$data.log \
-		     hyp_utils/conda_env.sh \
-		     local/eval_verification_calibration_v1.1.py \
-		     --ndx-file data/$data_test/trials.tsv \
-		     --in-score-file $score_plda_dir/${data}_scores.tsv \
-		     --out-score-file ${score_plda_cal_dir}/${data}_scores.tsv \
-		     --model-files ${score_plda_cal_dir}/calibration_{fold0,fold1,cheat}.h5 \
-		     --gmm-files ${score_plda_cal_dir}/gmm_{fold0,fold1,cheat}.h5 \
-		     
-      if [[ "$data" =~ "dev" ]];then
-	$train_cmd --mem 12G --num-threads 3 $score_plda_cal_dir/log/score_${data}.log \
-		   hyperion-eval-verification-metrics \
-		   --cfg conf/metrics_${data}.yaml \
-		   --score-files $score_plda_cal_dir/${data}_scores.tsv \
-		   --score-names $data \
-		   --output-file $score_plda_cal_dir/${data}_results.tsv
-	
-	echo "Results $data: $score_plda_cal_dir/${data}_results.tsv"
-	cat $score_plda_cal_dir/${data}_results.tsv | grep -e average -e eer
-      fi
-    ) &
-  done
-  wait
-  for fold in 0 1
-  do
-    (
-      fold_score_plda_dir=$score_plda_dir/folds/$fold
-      fold_score_plda_cal_dir=$score_plda_cal_dir/folds/$fold
-      for data in sre24_audio_dev sre24_audio-visual_dev
-      do
-	data_enroll=$(echo ${data}_enroll | sed 's@audio-visual@audio@')
-	data_test=${data}_test
-	fold_data_enroll=$data_enroll/folds/$fold/test
-	fold_data_test=$data_test/folds/$fold/test
-	(
-	  echo "Eval calibration V1.1 for $data in ${score_plda_cal_dir} fold $fold"
-	  $train_cmd ${fold_score_plda_cal_dir}/log/$data.log \
-		     hyp_utils/conda_env.sh \
-		     local/eval_verification_calibration_v1.1.py \
-		     --ndx-file data/$fold_data_test/trials.tsv \
-		     --in-score-file $fold_score_plda_dir/${data}_scores.tsv \
-		     --out-score-file ${fold_score_plda_cal_dir}/${data}_scores.tsv \
-		     --model-files ${score_plda_cal_dir}/calibration_{fold0,fold1,cheat}.h5 \
-		     --gmm-files ${score_plda_cal_dir}/gmm_{fold0,fold1,cheat}.h5 \
-	  
-	  $train_cmd --mem 12G --num-threads 6 $fold_score_plda_cal_dir/log/score_${data}.log \
-		     hyperion-eval-verification-metrics \
-		     --cfg conf/folds/$fold/metrics_${data}.yaml \
-		     --score-files $fold_score_plda_cal_dir/${data}_scores.tsv \
-		     --score-names $data \
-		     --output-file $fold_score_plda_cal_dir/${data}_results.tsv
-
-	) &
-      done
-      wait
-    ) &
-  done
-  wait
+  fold_score_plda_dir=$score_plda_dir/folds/0+1
+  fold_score_plda_cal_dir=$score_plda_cal_dir/folds/0+1
   for data in sre24_audio_dev sre24_audio-visual_dev
   do
-    (
-      hyperion-tables average_results \
-		      --input-files $score_plda_cal_dir/folds/{0,1}/${data}_results.tsv \
-		      --output-file $score_plda_cal_dir/folds/avg/${data}_results.tsv
-      echo "Results $data avg folds in $score_plda_cal_dir/folds/avg/${data}_results.tsv"
-      cat $score_plda_cal_dir/folds/avg/${data}_results.tsv | grep -e average -e eer
-    ) &
-  done
-  wait
-
-fi
-
-if [ $stage -le 16 ];then
-  echo "Train calibration V2.1 for SRE24 folds+cheating cheating on folds+cheating scores"
-  score_plda_cal_dir=${score_plda_dir}_cal_v2.1
-  $train_cmd ${score_plda_cal_dir}/log/train_calibration_sre24_v2.1_fold0.log \
-	     hyp_utils/conda_env.sh \
-	     local/train_verification_calibration_v2.1.py \
-	     --score-files $score_plda_dir/folds/0/sre24_{audio,audio-visual}_dev_scores.tsv \
-	     --key-files data/sre24_{audio,audio-visual}_dev_test/folds/0/test/trials.tsv \
-	     --model-file ${score_plda_cal_dir}/calibration_fold0.h5 \
-	     --gmm-file ${score_plda_cal_dir}/gmm_fold0.h5 \
-	     --lambda-reg 1e-5 --prior 0.01 --num-augs 10 10 --aug-std 0.5 &
-  
-  $train_cmd ${score_plda_cal_dir}/log/train_calibration_sre24_v2.1_fold1.log \
-	     hyp_utils/conda_env.sh \
-	     local/train_verification_calibration_v2.1.py \
-	     --score-files $score_plda_dir/folds/1/sre24_{audio,audio-visual}_dev_scores.tsv \
-	     --key-files data/sre24_{audio,audio-visual}_dev_test/folds/1/test/trials.tsv \
-	     --model-file ${score_plda_cal_dir}/calibration_fold1.h5 \
-	     --gmm-file ${score_plda_cal_dir}/gmm_fold1.h5 \
-	     --lambda-reg 1e-5 --prior 0.01 --num-augs 10 10 --aug-std 0.5 &
-  
-  $train_cmd ${score_plda_cal_dir}/log/train_calibration_sre24_v2.1_cheat.log \
-	     hyp_utils/conda_env.sh \
-	     local/train_verification_calibration_v2.1.py \
-	     --score-files $score_plda_dir/sre24_{audio,audio-visual}_dev_scores.tsv \
-	     --key-files data/sre24_{audio,audio-visual}_dev_test/trials.tsv \
-	     --model-file ${score_plda_cal_dir}/calibration_cheat.h5 \
-	     --gmm-file ${score_plda_cal_dir}/gmm_cheat.h5 \
-	     --lambda-reg 1e-5 --prior 0.01 --num-augs 10 10 --aug-std 0.5 &
-  wait
-
-  for data in sre24_audio_dev sre24_audio-visual_dev sre24_audio_eval sre24_audio-visual_eval
-  do
     data_enroll=$(echo ${data}_enroll | sed 's@audio-visual@audio@')
     data_test=${data}_test
+    fold_data_enroll=$data_enroll/folds/0+1/test
+    fold_data_test=$data_test/folds/0+1/test
     (
-      echo "Eval calibration V2.1 for $data in ${score_plda_cal_dir}"
-      $train_cmd ${score_plda_cal_dir}/log/$data.log \
-		     hyp_utils/conda_env.sh \
-		     local/eval_verification_calibration_v2.1.py \
-		     --ndx-file data/$data_test/trials.tsv \
-		     --in-score-file $score_plda_dir/${data}_scores.tsv \
-		     --out-score-file ${score_plda_cal_dir}/${data}_scores.tsv \
-		     --model-files ${score_plda_cal_dir}/calibration_{fold0,fold1,cheat}.h5 \
-		     --gmm-files ${score_plda_cal_dir}/gmm_{fold0,fold1,cheat}.h5 \
-		     
-      if [[ "$data" =~ "dev" ]];then
-	$train_cmd --mem 12G --num-threads 3 $score_plda_cal_dir/log/score_${data}.log \
-		   hyperion-eval-verification-metrics \
-		   --cfg conf/metrics_${data}.yaml \
-		   --score-files $score_plda_cal_dir/${data}_scores.tsv \
-		   --score-names $data \
-		   --output-file $score_plda_cal_dir/${data}_results.tsv
-	
-	echo "Results $data: $score_plda_cal_dir/${data}_results.tsv"
-	cat $score_plda_cal_dir/${data}_results.tsv | grep -e average -e eer
-      fi
-    ) &
-  done
-  wait
-  for fold in 0 1
-  do
-    (
-      fold_score_plda_dir=$score_plda_dir/folds/$fold
-      fold_score_plda_cal_dir=$score_plda_cal_dir/folds/$fold
-      for data in sre24_audio_dev sre24_audio-visual_dev
-      do
-	data_enroll=$(echo ${data}_enroll | sed 's@audio-visual@audio@')
-	data_test=${data}_test
-	fold_data_enroll=$data_enroll/folds/$fold/test
-	fold_data_test=$data_test/folds/$fold/test
-	(
-	  echo "Eval calibration V2.1 for $data in ${score_plda_cal_dir} fold $fold"
-	  $train_cmd ${fold_score_plda_cal_dir}/log/$data.log \
-		     hyp_utils/conda_env.sh \
-		     local/eval_verification_calibration_v2.1.py \
-		     --ndx-file data/$fold_data_test/trials.tsv \
-		     --in-score-file $fold_score_plda_dir/${data}_scores.tsv \
-		     --out-score-file ${fold_score_plda_cal_dir}/${data}_scores.tsv \
-		     --model-files ${score_plda_cal_dir}/calibration_{fold0,fold1,cheat}.h5 \
-		     --gmm-files ${score_plda_cal_dir}/gmm_{fold0,fold1,cheat}.h5 \
-	  
-	  $train_cmd --mem 12G --num-threads 6 $fold_score_plda_cal_dir/log/score_${data}.log \
-		     hyperion-eval-verification-metrics \
-		     --cfg conf/folds/$fold/metrics_${data}.yaml \
-		     --score-files $fold_score_plda_cal_dir/${data}_scores.tsv \
-		     --score-names $data \
-		     --output-file $fold_score_plda_cal_dir/${data}_results.tsv
+      echo "Eval calibration V1 for $data in ${fold_score_plda_cal_dir}"
+      $train_cmd ${fold_score_plda_cal_dir}/log/$data.log \
+		 hyp_utils/conda_env.sh \
+		 local/eval_verification_calibration_v2.py \
+		 --ndx-file data/$fold_data_test/trials.tsv \
+		 --in-score-file $fold_score_plda_dir/${data}_scores.tsv \
+		 --out-score-file ${fold_score_plda_cal_dir}/${data}_scores.tsv \
+		 --model-file ${score_plda_cal_dir}/calibration.h5
 
-	) &
-      done
-      wait
+      $train_cmd --mem 12G --num-threads 6 $score_plda_cal_dir/folds/0+1/log/score_${data}.log \
+		 hyperion-eval-verification-metrics \
+		 --cfg conf/folds/0+1/metrics_${data}.yaml \
+		 --score-files $fold_score_plda_cal_dir/${data}_scores.tsv \
+		 --score-names $data \
+		 --output-file $fold_score_plda_cal_dir/${data}_results.tsv
+      echo "Results $data merged $fold_score_plda_cal_dir/${data}_results.tsv"
+      grep -e eer -e equalized $fold_score_plda_cal_dir/${data}_results.tsv 
     ) &
   done
   wait
-  for data in sre24_audio_dev sre24_audio-visual_dev
-  do
-    (
-      hyperion-tables average_results \
-		      --input-files $score_plda_cal_dir/folds/{0,1}/${data}_results.tsv \
-		      --output-file $score_plda_cal_dir/folds/avg/${data}_results.tsv
-      echo "Results $data avg folds in $score_plda_cal_dir/folds/avg/${data}_results.tsv"
-      cat $score_plda_cal_dir/folds/avg/${data}_results.tsv | grep -e average -e eer
-    ) &
-  done
-  wait
-
 fi
-
 
