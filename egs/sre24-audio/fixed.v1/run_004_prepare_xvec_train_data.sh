@@ -127,7 +127,7 @@ if [ $stage -le 6 ];then
 		   --class-name speaker --min-segs 10
 
 
-  echo "Remove segmetns with uncertain langs"
+  echo "Remove segments with uncertain langs"
   hyperion-dataset remove_class_ids \
 		   --dataset data/${nnet_data}_lid \
 		   --class-name language \
