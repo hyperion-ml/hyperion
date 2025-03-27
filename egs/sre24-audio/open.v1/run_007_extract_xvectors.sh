@@ -16,7 +16,7 @@ xvec_chunk_length=120.0
 . $config_file
 
 if [ "$use_gpu" == "true" ];then
-  xvec_args="--use-gpu --chunk-length $xvec_chunk_length"
+  xvec_args="--use-gpu"
   xvec_cmd="$cuda_eval_cmd --gpu 1 --mem 6G"
   num_gpus=1
 else
@@ -44,8 +44,10 @@ fi
 
 if [[ $nnet_type =~ ^hf_ ]]; then
   extract_bin=hyperion-extract-wav2vec2xvectors
+  xvec_args="$xvec_args --xvec-chunk-length $xvec_chunk_length"
 else
   extract_bin=hyperion-extract-wav2xvectors
+  xvec_args="$xvec_args --chunk-length $xvec_chunk_length"
 fi
 
 xvector_dir=exp/xvectors/$nnet_name

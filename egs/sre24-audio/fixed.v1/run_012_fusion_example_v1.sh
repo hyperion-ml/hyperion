@@ -9,7 +9,7 @@ p_cal=0.05
 p_eval="0.005 0.01"
 fus_l2_reg=1e-3
 cal_l2_reg=1e-4
-max_systems=8
+max_systems=4
 stage=1
 . parse_options.sh || exit 1;
 
@@ -18,19 +18,18 @@ echo "This is just a fusion example, \
      you won't be able to run it if you don't have all the systems need for the fusion, \
      it fuses systems without AS-Norm"
 
-be24=plda_adapt_sre24/plda_diarization_cal_v2.1
-be21=plda_adapt_sre21_nnet_sre21setup/plda_cal_v2
-nnet1=fbank80_stmn_idrnd_resnet100.v3.1.1.s2
-nnet2=fbank80_stmn_idrnd_resnet100.v3.2.1.s2
-nnet3=fbank80_stmn_fwseres2net50w26s8.v3.1.1.s2
-nnet4=fbank64_stmn_nb_idrnd_resnet100.v3.1.1.s2
-nnet5=fbank64_stmn_nb_fwseres2net50w26s8.v3.2.1.s2
+be24=plda_adapt_sre24/plda_diarization_cal_v2_folds
+be21=plda_adapt_sre21_nnet_sre21setup/plda_cal_v2_folds
+nnet1=fbank80_stmn_idrnd_resnet100.v3.1.s2
+nnet2=fbank80_stmn_fwseres2net50w26s8.v3.1.s2
+nnet3=fbank64_stmn_nb_idrnd_resnet100.v3.1.s2
+nnet4=fbank64_stmn_nb_fwseres2net50w26s8.v3.2.s2
 
-system_names="resnet100.v3.1.1.s2 res2net.v3.1.1 resent100.nb.v3.1.1 res2net.nb.3.2.1"
+system_names="resnet100.v3.1.s2 res2net.v3.1 resent100.nb.v3.1 res2net.nb.3.2"
 system_dirs=(exp/scores/$nnet1
+exp/scores/$nnet2
 exp/scores/$nnet3
-exp/scores/$nnet4
-exp/scores/$nnet5)
+exp/scores/$nnet4)
 num_systems=${#system_dirs[@]}
 
 output_dir=exp/fusion/v1_pfus${p_fus}_l2${fus_l2_reg}
@@ -38,10 +37,9 @@ model_file=$output_dir/fusion.h5
 train_sets=(sre24_audio_dev sre24_audio-visual_dev)
 num_train=${#train_sets[@]}
 
-keys="data/sre24_audio_dev_test/folds/0/test/trials.tsv
-data/sre24_audio_dev_test/folds/1/test/trials.tsv
-data/sre24_audio-visual_dev_test/folds/0/test/trials.tsv
-data/sre24_audio-visual_dev_test/folds/1/test/trials.tsv"
+keys="data/sre24_audio_dev_test/folds/0+1/test/trials.tsv
+data/sre24_audio-visual_dev_test/folds/0+1/test/trials.tsv"
+
 
 if [ $stage -le 1 ];then
   score_files=""
@@ -49,17 +47,9 @@ if [ $stage -le 1 ];then
   do
     for((j=0;j<num_train;j++))
     do
-      score_files="$score_files ${system_dirs[$i]}/$be24/folds/0/${train_sets[$j]}_scores.tsv ${system_dirs[$i]}/$be24/folds/1/${train_sets[$j]}_scores.tsv"
+      score_files="$score_files ${system_dirs[$i]}/$be24/folds/0+1/${train_sets[$j]}_scores.tsv"
     done
   done
-  for((i=0;i<num_ll_systems;i++))
-  do
-    for((j=0;j<num_train;j++))
-    do
-      score_files="$score_files ${ll_system_dirs[$i]}/folds/0/${train_sets[$j]}_scores.tsv ${ll_system_dirs[$i]}/folds/1/${train_sets[$j]}_scores.tsv"
-    done
-  done
-
   $train_cmd $output_dir/train.log \
 	     hyperion-train-verification-greedy-fusion \
 	     --key-files $keys \
@@ -82,15 +72,9 @@ if [ $stage -le 2 ];then
   for((i=0;i<$num_sre24;i++))
   do
     data=${eval_sets_sre24[$i]}
-
     for((j=0;j<$num_systems;j++))
     do
       scores_in[$j]=${system_dirs[$j]}/$be24/${data}_scores.tsv
-    done
-    for((j=0;j<$num_ll_systems;j++))
-    do
-      jj=$((j+num_systems))
-      scores_in[$jj]=${ll_system_dirs[$j]}/${data}_scores.tsv
     done
     
     ndx=data/${data}_test/trials.tsv
@@ -109,15 +93,13 @@ if [ $stage -le 2 ];then
 		   --ndx-file $ndx \
 		   --model-file $model_file \
 		   --out-score-file $scores_out --fus-idx $j
-
-	if [[ "$data" =~ "dev" ]];then
-	  $train_cmd --mem 12G --num-threads 3 $output_dir_j/log/metrics_${data}.log \
-                     hyperion-eval-verification-metrics \
-                     --cfg conf/metrics_${data}.yaml \
-                     --score-files $scores_out \
-                     --score-names $data \
-                     --output-file $results_out
-	fi
+	
+	$train_cmd --mem 12G --num-threads 3 $output_dir_j/log/metrics_${data}.log \
+                   hyperion-eval-verification-metrics \
+                   --cfg conf/metrics_${data}.yaml \
+                   --score-files $scores_out \
+                   --score-names $data \
+                   --output-file $results_out
       ) &
     done
   done
@@ -131,58 +113,35 @@ if [ $stage -le 3 ];then
   for((i=0;i<$num_sre24;i++))
   do
     data=${eval_sets_sre24[$i]}
-    for fold in 0 1
+    for((j=0;j<$num_systems;j++))
     do
-      for((j=0;j<$num_systems;j++))
-      do
-	scores_in[$j]=${system_dirs[$j]}/$be24/folds/$fold/${data}_scores.tsv
-      done
-      for((j=0;j<$num_ll_systems;j++))
-      do
-	jj=$((j+num_systems))
-	scores_in[$jj]=${ll_system_dirs[$j]}/folds/$fold/${data}_scores.tsv
-      done
-    
-      ndx=data/${data}_test/folds/$fold/test/trials.tsv
-      for((j=0;j<$max_systems;j++));
-      do
-	echo "Eval fusion of $data on $output_dir/$j"
-	output_dir_j=$output_dir/$j
-	mkdir -p $output_dir_j
-	scores_out=$output_dir_j/folds/$fold/${data}_scores.tsv
-	results_out=$output_dir_j/folds/$fold/${data}_results.tsv
-	(
-	  $train_cmd $output_dir_j/folds/$fold/log/eval_fus_${data}.log \
-		     hyp_utils/conda_env.sh \
-		     hyperion-eval-verification-greedy-fusion \
-		     --in-score-files ${scores_in[@]} \
-		     --ndx-file $ndx \
-		     --model-file $model_file \
-		     --out-score-file $scores_out --fus-idx $j
-	  
-	  $train_cmd --mem 12G --num-threads 3 $output_dir_j/folds/$fold/log/metrics_${data}.log \
-                     hyperion-eval-verification-metrics \
-                     --cfg conf/folds/$fold/metrics_${data}.yaml \
-                     --score-files $scores_out \
-                     --score-names $data \
-                     --output-file $results_out
-	) &
-      done
+      scores_in[$j]=${system_dirs[$j]}/$be24/folds/0+1/${data}_scores.tsv
     done
-  done
-  wait
-  for((i=0;i<$num_sre24;i++))
-  do
-    data=${eval_sets_sre24[$i]}
+    
+    ndx=data/${data}_test/folds/0+1/test/trials.tsv
     for((j=0;j<$max_systems;j++));
     do
+      echo "Eval fusion of $data on $output_dir/$j"
+      output_dir_j=$output_dir/$j
+      mkdir -p $output_dir_j
+      scores_out=$output_dir_j/folds/0+1/${data}_scores.tsv
+      results_out=$output_dir_j/folds/0+1/${data}_results.tsv
       (
-	output_dir_j=$output_dir/$j
-	hyperion-tables average_results \
-			--input-files $output_dir_j/folds/{0,1}/${data}_results.tsv \
-			--output-file $output_dir_j/folds/avg/${data}_results.tsv
+	$train_cmd $output_dir_j/folds/0+1/log/eval_fus_${data}.log \
+		   hyp_utils/conda_env.sh \
+		   hyperion-eval-verification-greedy-fusion \
+		   --in-score-files ${scores_in[@]} \
+		   --ndx-file $ndx \
+		   --model-file $model_file \
+		   --out-score-file $scores_out --fus-idx $j
+	  
+	$train_cmd --mem 12G --num-threads 3 $output_dir_j/folds/0+1/log/metrics_${data}.log \
+                   hyperion-eval-verification-metrics \
+                   --cfg conf/folds/0+1/metrics_${data}.yaml \
+                   --score-files $scores_out \
+                   --score-names $data \
+                   --output-file $results_out
       ) &
     done
   done
-  wait
 fi
