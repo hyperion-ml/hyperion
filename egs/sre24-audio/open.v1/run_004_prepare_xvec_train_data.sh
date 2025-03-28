@@ -144,14 +144,23 @@ if [ $stage -le 6 ];then
 			 --output-dataset data/$name/folds/$fold/$side
       done
     done
+    mkdir -p data/$name/folds/0+1/test
+    for file_path in $(ls data/$name/folds/0/test/trials*.csv)
+    do
+      file_name=$(basename $file_path)
+      hyperion-merge-trials --input-files data/$name/folds/{0,1}/test/$file_name \
+			    --output-file data/$name/folds/0+1/test/$file_name
+    done
   done
 fi
+
+
 
 if [ $stage -le 7 ];then
   echo  "temporal fix of folds trials until I fix the python code"
   for name in sre24_audio_dev_test
   do
-    for fold in 0 1
+    for fold in 0+1
     do
       for side in test
       do
@@ -173,7 +182,7 @@ BEGIN{
   done
   for name in sre24_audio-visual_dev_test
   do
-    for fold in 0 1
+    for fold in 0+1
     do
       for side in test
       do
@@ -196,23 +205,23 @@ BEGIN{
 
 fi
 
-if [ $stage -le 8 ];then
+# if [ $stage -le 8 ];then
 
-  hyperion-dataset copy \
-		 --dataset data/voxceleb2cat_train \
-		 --output-dataset data/voxceleb2cat_tel_train \
-		 --seg-suffix _tel
+#   hyperion-dataset copy \
+# 		 --dataset data/voxceleb2cat_train \
+# 		 --output-dataset data/voxceleb2cat_tel_train \
+# 		 --seg-suffix _tel
 
-  for data in sre21_audio-visual_eval_test sre21_audio_eval_enroll sre21_audio_eval_test
-  do
-    hyperion-dataset copy \
-		     --dataset data/$data \
-		     --output-dataset data/${data}_tel \
-		     --seg-suffix _tel
-    hyperion-dataset remove_class_ids \
-		     --dataset data/${data}_tel \
-		     --class-name source_type \
-		     --class-ids cts
-  done
+#   for data in sre21_audio-visual_eval_test sre21_audio_eval_enroll sre21_audio_eval_test
+#   do
+#     hyperion-dataset copy \
+# 		     --dataset data/$data \
+# 		     --output-dataset data/${data}_tel \
+# 		     --seg-suffix _tel
+#     hyperion-dataset remove_class_ids \
+# 		     --dataset data/${data}_tel \
+# 		     --class-name source_type \
+# 		     --class-ids cts
+#   done
     
-fi
+# fi

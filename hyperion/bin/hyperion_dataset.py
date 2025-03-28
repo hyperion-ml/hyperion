@@ -860,6 +860,7 @@ def filter_by_classes_and_enrollments(
         classes,
         enrollment_name,
         enrollments,
+        remove_na=remove_na,
         rebuild_idx=rebuild_idx,
         keep=keep,
     )

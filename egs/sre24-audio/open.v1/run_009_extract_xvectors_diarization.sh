@@ -39,6 +39,18 @@ if [ $nnet_stage -eq 1 ];then
 elif [ $nnet_stage -eq 2 ];then
   nnet=$nnet_s2
   nnet_name=$nnet_s2_name
+elif [ $nnet_stage -eq 3 ];then
+  nnet=$nnet_s3
+  nnet_name=$nnet_s3_name
+elif [ $nnet_stage -eq 4 ];then
+  nnet=$nnet_s4
+  nnet_name=$nnet_s4_name
+fi
+
+if [[ $nnet_type =~ ^hf_ ]]; then
+  extract_bin=local/extract_wav2vec2xvectors_diarization.py
+else
+  extract_bin=local/extract_wav2xvectors_diarization.py
 fi
 
 xvector_dir=exp/xvectors/${nnet_name}
@@ -61,7 +73,7 @@ if [ $stage -le 1 ]; then
     echo "Extracting x-vectors for $name"
     $xvec_cmd JOB=1:$nj $output_dir/log/extract_xvectors.JOB.log \
 	      hyp_utils/conda_env.sh --num-gpus $num_gpus \
-	      local/extract_wav2xvectors_diarization.py ${xvec_args} \
+	      $extract_bin ${xvec_args} \
 	      --cfg $diar_sre24_cfg \
 	      --part-idx JOB --num-parts $nj  \
 	      --vad csv:data/$name/vad.csv \
@@ -80,4 +92,3 @@ if [ $stage -le 1 ]; then
 
   done
 fi
-

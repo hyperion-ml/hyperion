@@ -35,6 +35,10 @@ if [ $nnet_stage -eq 1 ];then
 elif [ $nnet_stage -eq 2 ];then
   nnet=$nnet_s2
   nnet_name=$nnet_s2_name
+elif [ $nnet_stage -eq 3 ];then
+  nnet=$nnet_s3
+  nnet_name=$nnet_s3_name
+
 fi
 
 #pca_label=pca${pca_var_r}_rmu${r_mu}_rs${r_s}
@@ -96,8 +100,8 @@ if [ $stage -le 2 ];then
   $train_cmd $be_sre21_dir/train_plda.log \
 	     python local/train_plda_source_lang_adapted.py \
 	     --cfg $be_sre21_cfg \
-	     --ood-segments-files data/{sre_cts_superset,sre16_eval_train}/segments.csv \
-	     --ood-feats-files csv:$xvector_dir/{sre_cts_superset,sre16_eval_train}/xvector.csv \
+	     --ood-segments-files data/{sre_cts_superset,sre16_eval_train,voxceleb2cat_train,sre18_cmn2_dev_enroll,sre18_cmn2_dev_test,sre18_cmn2_eval_enroll,sre18_cmn2_eval_test,sre19_cts_enroll,sre19_cts_test}/segments.csv \
+	     --ood-feats-files csv:$xvector_dir/{sre_cts_superset,sre16_eval_train,voxceleb2cat_train,sre18_cmn2_dev_enroll,sre18_cmn2_dev_test,sre18_cmn2_eval_enroll,sre18_cmn2_eval_test,sre19_cts_enroll,sre19_cts_test}/xvector.csv \
 	     --id-segments-files data/sre21_audio{_eval_enroll,_eval_test,-visual_eval_test}/segments.csv \
 	     --id-feats-files csv:$xvector_dir/sre21_audio{_eval_enroll,_eval_test,-visual_eval_test}/xvector.csv \
 	     --preproc-file $be_sre21_dir/preproc.pkl \
@@ -243,10 +247,14 @@ if [ $stage -le 6 ];then
       $train_cmd $fold_be_sre24_dir/train_plda.log \
 		 python local/train_plda_source_lang_adapted.py \
 		 --cfg $be_sre24_cfg \
-		 --ood-segments-files data/{sre_cts_superset,sre16_eval_train}/segments.csv data/sre21_audio{_eval_enroll,_eval_test,-visual_eval_test}/segments.csv \
-		 --ood-feats-files csv:$xvector_dir/{sre_cts_superset,sre16_eval_train}/xvector.csv csv:$xvector_dir/sre21_audio{_eval_enroll,_eval_test,-visual_eval_test}/xvector.csv \
+		 --ood-segments-files data/{sre_cts_superset,sre16_eval_train}/segments.csv \
+		 --ood-feats-files csv:$xvector_dir/{sre_cts_superset,sre16_eval_train}/xvector.csv \
 		 --id-segments-files data/sre24_audio{_dev_enroll,_dev_test,-visual_dev_test}/folds/$fold/train/segments.csv \
+		 data/sre18_cmn2_{dev,eval}_{enroll,test}/segments.csv \
+		 data/sre19_cts_{enroll,test}/segments.csv \
 		 --id-feats-files csv:$xvector_dir/sre24_audio{_dev_enroll,_dev_test,-visual_dev_test}/xvector.csv \
+		 csv:$xvector_dir/sre18_cmn2_{dev,eval}_{enroll,test}/xvector.csv \
+		 csv:$xvector_dir/sre19_cts_{enroll,test}/xvector.csv \
 		 --preproc-file $fold_be_sre24_dir/preproc.pkl \
 		 --preproc-adapt-file $fold_be_sre24_dir/preproc_adapt.pkl \
 		 --plda-file $fold_be_sre24_dir/plda.h5 \
@@ -330,10 +338,14 @@ if [ $stage -le 7 ];then
   $train_cmd $be_sre24_dir/train_plda.log \
 	     python local/train_plda_source_lang_adapted.py \
 	     --cfg $be_sre24_cfg \
-	     --ood-segments-files data/{sre_cts_superset,sre16_eval_train}/segments.csv data/sre21_audio{_eval_enroll,_eval_test,-visual_eval_test}/segments.csv \
-	     --ood-feats-files csv:$xvector_dir/{sre_cts_superset,sre16_eval_train}/xvector.csv csv:$xvector_dir/sre21_audio{_eval_enroll,_eval_test,-visual_eval_test}/xvector.csv \
+	     --ood-segments-files data/{sre_cts_superset,sre16_eval_train}/segments.csv \
+	     --ood-feats-files csv:$xvector_dir/{sre_cts_superset,sre16_eval_train}/xvector.csv \
 	     --id-segments-files data/sre24_audio{_dev_enroll,_dev_test,-visual_dev_test}/segments.csv \
+	     data/sre18_cmn2_{dev,eval}_{enroll,test}/segments.csv \
+	     data/sre19_cts_{enroll,test}/segments.csv \
 	     --id-feats-files csv:$xvector_dir/sre24_audio{_dev_enroll,_dev_test,-visual_dev_test}/xvector.csv \
+	     csv:$xvector_dir/sre18_cmn2_{dev,eval}_{enroll,test}/xvector.csv \
+	     csv:$xvector_dir/sre19_cts_{enroll,test}/xvector.csv \
 	     --preproc-file $be_sre24_dir/preproc.pkl \
 	     --preproc-adapt-file $be_sre24_dir/preproc_adapt.pkl \
 	     --plda-file $be_sre24_dir/plda.h5 \
