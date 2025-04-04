@@ -38,7 +38,6 @@ elif [ $nnet_stage -eq 2 ];then
 elif [ $nnet_stage -eq 3 ];then
   nnet=$nnet_s3
   nnet_name=$nnet_s3_name
-
 fi
 
 #pca_label=pca${pca_var_r}_rmu${r_mu}_rs${r_s}

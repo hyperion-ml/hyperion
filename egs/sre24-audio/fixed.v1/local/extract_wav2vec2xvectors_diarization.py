@@ -95,6 +95,10 @@ def extract_xvectors(
 ):
     rng = np.random.default_rng(seed=1123581321 + kwargs["part_idx"])
     torch.backends.cudnn.benchmark = False
+    if xvec_chunk_length > 0 and hf_chunk_length > 0:
+        chunk_length = min(hf_chunk_length, xvec_chunk_length)
+    else:
+        chunk_length = max(hf_chunk_length, xvec_chunk_length)
     device = init_device(use_gpu)
     model = load_model(model_path, device)
     resampler = ResamplerToTargetFreq(model.sample_frequency)
@@ -136,10 +140,7 @@ def extract_xvectors(
         calibrator = None
 
     diarizer = DiarAHCPLDA(
-        preproc=None,
-        plda_model=plda_model,
-        calibrator=calibrator,
-        **ahc,
+        preproc=None, plda_model=plda_model, calibrator=calibrator, **ahc,
     )
     if debug_dir is None:
         hist_file = None
@@ -269,7 +270,8 @@ def extract_xvectors(
                             win_shift=win_shift,
                             vad_t_start=t_start,
                             vad_t_end=t_end,
-                            chunk_length=min(xvec_chunk_length, hf_chunk_length),
+                            chunk_length=chunk_length,
+                            detach_chunks=True,
                         )
                         t6 = time.time()
                         y = y.cpu().numpy()[0]
@@ -298,10 +300,7 @@ def extract_xvectors(
                                 )
 
                             cluster_ids, t_start, t_end = diarizer(
-                                y,
-                                t_start,
-                                t_end,
-                                hist_file=hist_file,
+                                y, t_start, t_end, hist_file=hist_file,
                             )
                         else:
                             cluster_ids = np.zeros((len(t_start),), dtype=int)

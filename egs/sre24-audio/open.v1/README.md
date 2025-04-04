@@ -1,6 +1,6 @@
-# SRE24 Audio V1 Fixed
+# SRE24 Audio V1 Open
 
-x-Vector recipe for SRE24 audio fixed condition
+x-Vector recipe for SRE24 audio open condition
 The systems runs at 16 kHz, telephone data is upsampled to 16k
 
 ## Citing
@@ -50,6 +50,9 @@ year = {2020}
      - SRE CTS Superset
      - SRE16 Eval
      - SRE21 Eval
+     - SRE18 CMN2
+     - SRE19 CTS
+     - Voxceleb 1+2
      with augmentations:
      - MUSAN noise
      - RIR reverberation
@@ -103,38 +106,24 @@ run_0xx_....sh --config-file global_conf/config_fbank80_stmn_res2net50w26s8_arcs
       - Trains the x-vector network on 4sec chunks
       - Fine-tune x-vector network on 10-15 secs utts
 
-   - `run_006_train_lid.sh`
-      - Train LID network
-
-   - `run_007_eval_lid.sh`
-      - Evaluates LID on:
+   - `run_006_eval_lid.sh`
+      - Evaluates LID using ResNet100 model from LRE22 recipe on:
         - SRE24 Eval
       
-   - `run_008_extract_xvectors.sh`
+   - `run_007_extract_xvectors.sh`
       - Computes x-vectors for all datasets
 
-   - `run_009_eval_be_v1.sh`
+   - `run_008_eval_be_v1.sh`
       - Train/Evals back-end: Centering + PCA + LNorm + PLDA, Centering adapted to source and language, global PLDA adapted to SRE-Vox-CHN
 
-   - `run_010_extract_xvectors_diarization.sh`
+   - `run_009_extract_xvectors_diarization.sh`
       - Compute x-vectors for SRE24 Dev/Eval test with diarization
 
-   - `run_011_eval_be_v1_diarization.sh`
+   - `run_010_eval_be_v1_diarization.sh`
       - Evals back-end on SRE24 Dev/Eval using the diarized x-vectors
 
-   - `run_012_fusion_example_v1.sh`
+   - `run_011_fusion_example_v1.sh`
       - Fusion example
       - You need the scores of all systems for this to work
 
 ## Results
-
-| Model | SRE24 Dev Folds | | | SRE24 Dev Full (Cheat) | | | SRE24 Eval | | |
-| ----  | :-----: | :-----: | :-----: | :-----: | :-----: | :-----: | :-----: | :-----: | :-----: |
-| | EER(%) | Min Cp | Act Cp | EER(%) | Min Cp | Max Cp | EER(%) | Min Cp | Max Cp |
-| fbank80_stmn_ecapatdnn2048x4_sre21setup.v1.s2 | 7.46 | 0.512 | 0.524 | 4.73 | 0.434 | 0.671 | 6.51 | 0.552 | 0.553 |
-| fbank80_stmn_res2net50w26s8_sre21setup_retrained.v1.s2 | 5.73 | 0.428 | 0.442 | 3.01 | 0.357 | 0.629 | 5.04 | 0.445 | 0.446 |
-| fbank80_stmn_res2net50w26s8_sre21setup.v1.s2 | 5.42 | 0.442 | 0.452 | 3.00 | 0.348 | 0.626 | 5.10 | 0.452 | 0.453 |
-| fbank80_stmn_fwseres2net50w26s8.v3.2.s2 | 6.46 | 0.471 | 0.485 | 2.86 | 0.352 | 0.624 | 5.22 | 0.485 | 0.487 |
-| fbank80_stmn_idrnd_resnet100.v3.2.s2 | 6.17 | 0.425 | 0.442 | 2.53 | 0.310 | 0.601 | 4.88 | 0.444 | 0.446 |
-| wav2vec2xlsr300m_ecapatdnn1024x3_v2.0.s3 | 5.03 | 0.327 | 0.333 | 2.59 | 0.264 | 0.416 | 4.31 | 0.374 | 0.395 |
-| v1_pfus0.01_l21e-3 | 4.17 | 0.260 | 0.265 | 1.50 | 0.187 | 0.418 | 3.38 | 0.308 | 0.331 |
