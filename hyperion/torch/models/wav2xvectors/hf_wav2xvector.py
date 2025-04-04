@@ -357,7 +357,6 @@ class HFWav2XVector(TorchModel):
                     accum_length += cur_t_end - cur_t_start
                     if chunk_length > 0 and accum_length >= chunk_length:
                         x_strided, x_strided_lengths = collate_seqs_1d(x_strided)
-                        print(x_strided)
                         embeds_chunk = self.extract_embed(
                             x_strided,
                             x_strided_lengths,

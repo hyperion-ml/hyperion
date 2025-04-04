@@ -17,18 +17,24 @@ echo "This is just a fusion example, \
      you won't be able to run it if you don't have all the systems need for the fusion, \
      it fuses systems without AS-Norm"
 
+be24_sre21=plda_adapt_sre24_nnet_sre21setup/plda_diarization_cal_v2_folds
 be24=plda_adapt_sre24/plda_diarization_cal_v2_folds
 be21=plda_adapt_sre21_nnet_sre21setup/plda_cal_v2_folds
-nnet1=fbank80_stmn_idrnd_resnet100.v3.1.s2
-nnet2=fbank80_stmn_fwseres2net50w26s8.v3.1.s2
-nnet3=fbank64_stmn_nb_idrnd_resnet100.v3.1.s2
-nnet4=fbank64_stmn_nb_fwseres2net50w26s8.v3.2.s2
 
-system_names="resnet100.v3.1.s2 res2net.v3.1 resent100.nb.v3.1 res2net.nb.3.2"
-system_dirs=(exp/scores/$nnet1
-exp/scores/$nnet2
-exp/scores/$nnet3
-exp/scores/$nnet4)
+nnet1=fbank80_stmn_ecapatdnn2048x4_sre21setup.v1.s2
+nnet2=fbank80_stmn_fwseres2net50w26s8.v3.2.s2
+nnet3=fbank80_stmn_idrnd_resnet100.v3.2.s2
+nnet4=fbank80_stmn_res2net50w26s8_sre21setup_retrained.v1.s2
+nnet5=fbank80_stmn_res2net50w26s8_sre21setup.v1.s2
+nnet6=wav2vec2xlsr300m_ecapatdnn1024x3_v2.0.s3
+
+system_names="fbank80_stmn_ecapatdnn2048x4_sre21setup.v1.s2 fbank80_stmn_fwseres2net50w26s8.v3.2.s2 fbank80_stmn_idrnd_resnet100.v3.2.s2 fbank80_stmn_res2net50w26s8_sre21setup_retrained.v1.s2 fbank80_stmn_res2net50w26s8_sre21setup.v1.s2 wav2vec2xlsr300m_ecapatdnn1024x3_v2.0.s3"
+system_dirs=(exp/scores/$nnet1/$be24_sre21
+exp/scores/$nnet2/$be24
+exp/scores/$nnet3/$be24
+exp/scores/$nnet4/$be24_sre21
+exp/scores/$nnet5/$be24_sre21
+exp/scores/$nnet6/$be24)
 num_systems=${#system_dirs[@]}
 
 output_dir=exp/fusion/v1_pfus${p_fus}_l2${fus_l2_reg}
@@ -46,7 +52,7 @@ if [ $stage -le 1 ];then
   do
     for((j=0;j<num_train;j++))
     do
-      score_files="$score_files ${system_dirs[$i]}/$be24/folds/0+1/${train_sets[$j]}_scores.tsv"
+      score_files="$score_files ${system_dirs[$i]}/folds/0+1/${train_sets[$j]}_scores.tsv"
     done
   done
   $train_cmd $output_dir/train.log \
@@ -73,7 +79,7 @@ if [ $stage -le 2 ];then
     data=${eval_sets_sre24[$i]}
     for((j=0;j<$num_systems;j++))
     do
-      scores_in[$j]=${system_dirs[$j]}/$be24/${data}_scores.tsv
+      scores_in[$j]=${system_dirs[$j]}/${data}_scores.tsv
     done
     
     ndx=data/${data}_test/trials.tsv
@@ -114,7 +120,7 @@ if [ $stage -le 3 ];then
     data=${eval_sets_sre24[$i]}
     for((j=0;j<$num_systems;j++))
     do
-      scores_in[$j]=${system_dirs[$j]}/$be24/folds/0+1/${data}_scores.tsv
+      scores_in[$j]=${system_dirs[$j]}/folds/0+1/${data}_scores.tsv
     done
     
     ndx=data/${data}_test/folds/0+1/test/trials.tsv
