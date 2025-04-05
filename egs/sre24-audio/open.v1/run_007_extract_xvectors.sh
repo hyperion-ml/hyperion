@@ -16,7 +16,7 @@ xvec_chunk_length=120.0
 . $config_file
 
 if [ "$use_gpu" == "true" ];then
-  xvec_args="--use-gpu --chunk-length $xvec_chunk_length"
+  xvec_args="--use-gpu"
   xvec_cmd="$cuda_eval_cmd --gpu 1 --mem 6G"
   num_gpus=1
 else
@@ -44,8 +44,10 @@ fi
 
 if [[ $nnet_type =~ ^hf_ ]]; then
   extract_bin=hyperion-extract-wav2vec2xvectors
+  xvec_args="$xvec_args --xvec-chunk-length $xvec_chunk_length"
 else
   extract_bin=hyperion-extract-wav2xvectors
+  xvec_args="$xvec_args --chunk-length $xvec_chunk_length"
 fi
 
 xvector_dir=exp/xvectors/$nnet_name
@@ -180,40 +182,40 @@ if [ $stage -le 4 ];then
   
 fi
 
-train_datasets="voxceleb2cat_tel_train"
+# train_datasets="voxceleb2cat_tel_train"
 
-if [ $stage -le 5 ];then
-  echo "Extract x-vector training data + tel codec $train_datasets"
-  nj=100
-  for name in $train_datasets
-  do
-    output_dir=$xvector_dir/$name
-    echo "Extracting x-vectors for $name"
-    $xvec_cmd JOB=1:$nj $output_dir/log/extract_xvectors.JOB.log \
-	      hyp_utils/conda_env.sh --num-gpus $num_gpus \
-	      local/extract_wav2xvectors_aug.py ${xvec_args} \
-	      --aug-cfg conf/tel_codecs_1_aug.yaml \
-	      --part-idx JOB --num-parts $nj  \
-	      --random-utt-length --min-utt-length 10. --max-utt-length 60. \
-	      --recordings-file data/$name/recordings.csv \
-	      --vad csv:data/$name/vad.csv \
-	      --model-path $nnet \
-	      --output-spec ark,csv:$output_dir/xvector.JOB.ark,$output_dir/xvector.JOB.csv
-    # for JOB in 20
-    # do
-    #   $xvec_cmd $output_dir/log/extract_xvectors.$JOB.log \
-    # 		hyp_utils/conda_env.sh --num-gpus $num_gpus \
-    # 		${extract_bin} ${xvec_args} \
-    # 		--part-idx $JOB --num-parts $nj  \
-    # 	        --random-utt-length --min-utt-length 5 --max-utt-length 60 \
-    # 		--recordings-file data/$name/recordings.csv \
-    # 		--vad csv:data/$name/vad.csv \
-    # 		--model-path $nnet \
-    # 		--output-spec ark,csv:$output_dir/xvector.$JOB.ark,$output_dir/xvector.$JOB.csv &
-    # done
-    # wait
-    hyperion-tables cat \
-		    --table-type features \
-		    --output-file $output_dir/xvector.csv --num-tables $nj
-  done
-fi
+# if [ $stage -le 5 ];then
+#   echo "Extract x-vector training data + tel codec $train_datasets"
+#   nj=100
+#   for name in $train_datasets
+#   do
+#     output_dir=$xvector_dir/$name
+#     echo "Extracting x-vectors for $name"
+#     $xvec_cmd JOB=1:$nj $output_dir/log/extract_xvectors.JOB.log \
+# 	      hyp_utils/conda_env.sh --num-gpus $num_gpus \
+# 	      local/extract_wav2xvectors_aug.py ${xvec_args} \
+# 	      --aug-cfg conf/tel_codecs_1_aug.yaml \
+# 	      --part-idx JOB --num-parts $nj  \
+# 	      --random-utt-length --min-utt-length 10. --max-utt-length 60. \
+# 	      --recordings-file data/$name/recordings.csv \
+# 	      --vad csv:data/$name/vad.csv \
+# 	      --model-path $nnet \
+# 	      --output-spec ark,csv:$output_dir/xvector.JOB.ark,$output_dir/xvector.JOB.csv
+#     # for JOB in 20
+#     # do
+#     #   $xvec_cmd $output_dir/log/extract_xvectors.$JOB.log \
+#     # 		hyp_utils/conda_env.sh --num-gpus $num_gpus \
+#     # 		${extract_bin} ${xvec_args} \
+#     # 		--part-idx $JOB --num-parts $nj  \
+#     # 	        --random-utt-length --min-utt-length 5 --max-utt-length 60 \
+#     # 		--recordings-file data/$name/recordings.csv \
+#     # 		--vad csv:data/$name/vad.csv \
+#     # 		--model-path $nnet \
+#     # 		--output-spec ark,csv:$output_dir/xvector.$JOB.ark,$output_dir/xvector.$JOB.csv &
+#     # done
+#     # wait
+#     hyperion-tables cat \
+# 		    --table-type features \
+# 		    --output-file $output_dir/xvector.csv --num-tables $nj
+#   done
+# fi

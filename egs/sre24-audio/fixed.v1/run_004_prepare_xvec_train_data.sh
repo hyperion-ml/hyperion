@@ -127,7 +127,7 @@ if [ $stage -le 6 ];then
 		   --class-name speaker --min-segs 10
 
 
-  echo "Remove segmetns with uncertain langs"
+  echo "Remove segments with uncertain langs"
   hyperion-dataset remove_class_ids \
 		   --dataset data/${nnet_data}_lid \
 		   --class-name language \
@@ -196,52 +196,52 @@ if [ $stage -le 8 ];then
   done
 fi
 
-# if [ $stage -le 9 ];then
-#   echo  "temporal fix of folds trials until I fix the python code"
-#   for name in sre24_audio_dev_test
-#   do
-#     for fold in 0 1
-#     do
-#       for side in test
-#       do
-# 	for trials in trials trials_ext
-# 	do
-# 	  awk -v key=data/$name/${trials}.tsv '
-# BEGIN{ 
-#   FS="\t"; OFS="\t"; 
-#   while(getline < key)
-#   {
-#     v[$1$2]=$0;
-#   };
-#   FS=",";
-# }
-# { print v[$1$2] }' data/$name/folds/$fold/$side/${trials}.csv > data/$name/folds/$fold/$side/${trials}.tsv
-# 	done
-#       done
-#     done
-#   done
-#   for name in sre24_audio-visual_dev_test
-#   do
-#     for fold in 0 1
-#     do
-#       for side in test
-#       do
-# 	for trials in trials trials_ext
-# 	do
-# 	  awk -v key=data/$name/${trials}.tsv '
-# BEGIN{ 
-#   FS="\t"; OFS="\t"; 
-#   while(getline < key)
-#   {
-#     v[$1$3]=$0;
-#   };
-#   FS=",";
-# }
-# { print v[$1$2] }' data/$name/folds/$fold/$side/${trials}.csv > data/$name/folds/$fold/$side/${trials}.tsv
-# 	done
-#       done
-#     done
-#   done
+if [ $stage -le 9 ];then
+  echo  "temporal fix of folds trials until I fix the python code"
+  for name in sre24_audio_dev_test
+  do
+    for fold in 0+1
+    do
+      for side in test
+      do
+	for trials in trials trials_ext
+	do
+	  awk -v key=data/$name/${trials}.tsv '
+BEGIN{ 
+  FS="\t"; OFS="\t"; 
+  while(getline < key)
+  {
+    v[$1$2]=$0;
+  };
+  FS=",";
+}
+{ print v[$1$2] }' data/$name/folds/$fold/$side/${trials}.csv > data/$name/folds/$fold/$side/${trials}.tsv
+	done
+      done
+    done
+  done
+  for name in sre24_audio-visual_dev_test
+  do
+    for fold in 0+1
+    do
+      for side in test
+      do
+	for trials in trials trials_ext
+	do
+	  awk -v key=data/$name/${trials}.tsv '
+BEGIN{ 
+  FS="\t"; OFS="\t"; 
+  while(getline < key)
+  {
+    v[$1$3]=$0;
+  };
+  FS=",";
+}
+{ print v[$1$2] }' data/$name/folds/$fold/$side/${trials}.csv > data/$name/folds/$fold/$side/${trials}.tsv
+	done
+      done
+    done
+  done
 
-# fi
+fi
 

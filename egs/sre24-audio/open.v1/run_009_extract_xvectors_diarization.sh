@@ -16,12 +16,13 @@ win_shift=1.0
 ahc_threshold=0.0
 min_cluster_duration=2.0
 ahc_max_clusters=4
+xvec_diar_chunk_length=90.0
 
 . parse_options.sh || exit 1;
 . $config_file
 
 if [ "$use_gpu" == "true" ];then
-  xvec_args="--use-gpu --chunk-length $xvec_diar_chunk_length"
+  xvec_args="--use-gpu"
   xvec_cmd="$cuda_eval_cmd --gpu 1 --mem 6G"
   num_gpus=1
 else
@@ -39,6 +40,20 @@ if [ $nnet_stage -eq 1 ];then
 elif [ $nnet_stage -eq 2 ];then
   nnet=$nnet_s2
   nnet_name=$nnet_s2_name
+elif [ $nnet_stage -eq 3 ];then
+  nnet=$nnet_s3
+  nnet_name=$nnet_s3_name
+elif [ $nnet_stage -eq 4 ];then
+  nnet=$nnet_s4
+  nnet_name=$nnet_s4_name
+fi
+
+if [[ $nnet_type =~ ^hf_ ]]; then
+  extract_bin=local/extract_wav2vec2xvectors_diarization.py
+  xvec_args="$xvec_args --xvec-chunk-length $xvec_diar_chunk_length"
+else
+  extract_bin=local/extract_wav2xvectors_diarization.py
+  xvec_args="$xvec_args --chunk-length $xvec_diar_chunk_length"
 fi
 
 xvector_dir=exp/xvectors/${nnet_name}
@@ -61,7 +76,7 @@ if [ $stage -le 1 ]; then
     echo "Extracting x-vectors for $name"
     $xvec_cmd JOB=1:$nj $output_dir/log/extract_xvectors.JOB.log \
 	      hyp_utils/conda_env.sh --num-gpus $num_gpus \
-	      local/extract_wav2xvectors_diarization.py ${xvec_args} \
+	      $extract_bin ${xvec_args} \
 	      --cfg $diar_sre24_cfg \
 	      --part-idx JOB --num-parts $nj  \
 	      --vad csv:data/$name/vad.csv \
@@ -80,4 +95,3 @@ if [ $stage -le 1 ]; then
 
   done
 fi
-
