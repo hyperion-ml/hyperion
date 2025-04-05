@@ -23,3 +23,4 @@ from .sre_cts_superset import SRECTSSupersetDataPrep
 from .voxceleb1 import VoxCeleb1DataPrep
 from .voxceleb2 import VoxCeleb2DataPrep
 from .voxsrc22 import VoxSRC22DataPrep
+from .libritts_r import LibriTTS_R
