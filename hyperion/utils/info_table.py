@@ -17,6 +17,33 @@ from pandas.api.types import infer_dtype
 from .list_utils import split_list, split_list_group_by_key
 
 
+class _InfoTableIndexer:
+    def __init__(self, parent, indexer):
+        self.parent = parent
+        self.indexer = indexer
+
+    def __getitem__(self, key):
+        result = self.indexer[key]
+        if isinstance(result, pd.DataFrame):
+            return self.parent.__class__(result)
+        return result
+
+    def __setitem__(self, key, value):
+        self.indexer[key] = value
+
+
+class _InfoTableAtIndexer:
+    def __init__(self, parent, indexer):
+        self.parent = parent
+        self.indexer = indexer
+
+    def __getitem__(self, key):
+        return self.indexer[key]
+
+    def __setitem__(self, key, value):
+        self.indexer[key] = value
+
+
 class InfoTable:
     """This is a base class to store information about recordings, segments,
     features, etc.
@@ -26,6 +53,9 @@ class InfoTable:
     """
 
     def __init__(self, df):
+        if isinstance(df, InfoTable):
+            df = df.df
+
         assert "id" in df, f"info_table={df}"
         self.df = df
         self.fix_dtypes()

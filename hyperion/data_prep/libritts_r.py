@@ -1,32 +1,88 @@
 """
- Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import glob
 import logging
-import re
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 import pandas as pd
-from jsonargparse import ActionYesNo
-from tqdm import tqdm
+from jsonargparse import ArgumentParser
 
-from ..utils import (ClassInfo, HypDataset, RecordingSet, SegmentSet, TrialKey,
-                     TrialNdx)
-from ..utils.misc import PathLike, urlretrieve_progress
+from ..utils import ClassInfo, HypDataset, RecordingSet, SegmentSet
+from ..utils.misc import PathLike
 from .data_prep import DataPrep
 
 
+def _read_malformed_trans(path: PathLike) -> pd.DataFrame:
+    """
+    Load a TSV file into a DataFrame, fixing unbalanced quote issues in the process.
+
+    Args:
+        path (str or Path): Path to the original TSV file.
+
+    Returns:
+        pd.DataFrame: Loaded DataFrame with cleaned rows.
+    """
+    logging.warning("reading malformed transcript file: %s", str(path))
+    path = Path(path)
+    fixed_path = Path.cwd() / f"{path.stem}.fixed.tmp"
+
+    def is_balanced_quotes(s: str) -> bool:
+        return s.count('"') % 2 == 0
+
+    def fix_quotes(line: str) -> str:
+        parts = line.strip("\n").split("\t")
+        fixed_parts = []
+        for part in parts:
+            if not is_balanced_quotes(part):
+                part = part.replace('"', "'")
+            fixed_parts.append(part)
+        return "\t".join(fixed_parts)
+
+    # Step 1: Write the cleaned file
+    with path.open("r", encoding="utf-8") as infile, fixed_path.open(
+        "w", encoding="utf-8"
+    ) as outfile:
+        for line in infile:
+            if not is_balanced_quotes(line):
+                line = fix_quotes(line)
+            outfile.write(line if line.endswith("\n") else line + "\n")
+
+    # Step 2: Read the cleaned file into a DataFrame
+    df = pd.read_csv(
+        fixed_path,
+        sep="\t",
+        header=None,
+        names=["id", "transcript", "transcript_normalized"],
+    )
+
+    # Step 3: Delete the temporary file
+    fixed_path.unlink()
+
+    return df
+
+
 class LibriTTS_R(DataPrep):
-    """Class for preparing LibriTTS-R database into tables,
-    Attibutes:
-      corpus_dir: input data directory
-      subset: train/dev/eval
-      output_dir: output data directory
-      use_kaldi_ids: puts speaker-id in front of segment id like kaldi
-      target_sample_freq: target sampling frequency to convert the audios to.
+    """
+    Prepares the LibriTTS-R dataset into structured tables for training and evaluation.
+
+    This class supports:
+    - Audio file indexing and duration extraction
+    - Speaker, book, and chapter metadata integration
+    - Transcript parsing from .tsv files
+    - Segment and recording table generation
+
+    Attributes:
+        corpus_dir (PathLike): Root directory of the LibriTTS-R dataset.
+        subset (str): One of ["train-clean-100", "train-clean-360", "dev-clean", "test-clean"].
+        output_dir (PathLike): Path to save the prepared dataset.
+        use_kaldi_ids (bool): If True, prepend speaker ID to segment IDs.
+        target_sample_freq (Optional[int]): Optional resampling frequency in Hz.
+        num_threads (int): Number of threads for duration extraction.
     """
 
     def __init__(
@@ -34,20 +90,23 @@ class LibriTTS_R(DataPrep):
         corpus_dir: PathLike,
         subset: str,
         output_dir: PathLike,
-        use_kaldi_ids: bool,
-        target_sample_freq: int,
+        use_kaldi_ids: bool = False,
+        target_sample_freq: Optional[int] = None,
         num_threads: int = 10,
     ):
+        """Initializes the LibriTTS-R preparation pipeline."""
         super().__init__(corpus_dir, output_dir, False, target_sample_freq, num_threads)
 
         self.subset = subset
 
     @staticmethod
-    def dataset_name():
+    def dataset_name() -> str:
+        """Returns the dataset name identifier."""
         return "libritts-r"
 
     @staticmethod
-    def add_class_args(parser):
+    def add_class_args(parser) -> None:
+        """Adds command-line arguments for LibriTTS-R-specific options."""
         DataPrep.add_class_args(parser)
         parser.add_argument(
             "--subset",
@@ -61,37 +120,67 @@ class LibriTTS_R(DataPrep):
             required=True,
         )
 
-    def _get_docs_dir(self):
+    def _get_docs_dir(self) -> Path:
+        """
+        Returns the documentation directory.
+
+        Returns:
+            Path: Path to 'docs' if it exists, else corpus_dir.
+        """
         docs_dir = self.corpus_dir / "docs"
         if docs_dir.is_dir():
             return docs_dir
         else:
             return self.corpus_dir
 
-    def _get_spks_metadata(self):
+    def _get_spks_metadata(self) -> pd.DataFrame:
+        """
+        Loads speaker metadata from speakers.tsv.
+
+        Returns:
+            pd.DataFrame: Speaker info with ID and gender.
+        """
 
         docs_dir = self._get_docs_dir()
         file_path = docs_dir / "speakers.tsv"
-        df = pd.read_csv(file_path, sep="\t", skiprows=1, header=0, names=["id", "gender", "subset", "name"], dtype={"id": str})
+        df = pd.read_csv(
+            file_path,
+            sep="\t",
+            skiprows=1,
+            header=None,
+            names=["id", "gender", "subset", "name"],
+            dtype={"id": str},
+        )
         df["id"] = df["id"].apply(lambda x: f"libri-{x}")
         df = df.loc[df["subset"] == self.subset]
         df["gender"] = df["gender"].apply(lambda x: x.lower())
         df.drop(columns=["subset", "name"], inplace=True)
-        print(df, flush=True)
         return df
 
-    def _get_chapters_metadata(self):
+    def _get_chapters_metadata(self) -> tuple[pd.DataFrame, pd.DataFrame]:
+        """
+        Loads book and chapter metadata.
+
+        Returns:
+            tuple: (books DataFrame, chapters DataFrame)
+        """
         docs_dir = self._get_docs_dir()
         file_path = docs_dir / "BOOKS.txt"
         df_books = pd.read_csv(
-            file_path, sep="\s*\|\s*", header=0, names=["book", "book_title", "dummy"], engine="python", dtype={"book": str})
+            file_path,
+            sep="\s*\|\s*",
+            header=None,
+            names=["book", "book_title", "dummy"],
+            engine="python",
+            dtype={"book": str},
+        )
         df_books.drop(columns=["dummy"], inplace=True)
 
         file_path = docs_dir / "CHAPTERS.txt"
         df_chapters = pd.read_csv(
             file_path,
             sep="\s*\|\s*",
-            header=0,
+            header=None,
             names=[
                 "chapter",
                 "speaker",
@@ -106,14 +195,57 @@ class LibriTTS_R(DataPrep):
             engine="python",
             dtype={"chapter": str, "book": str, "speaker": str},
         )
-        print(df_books, "\n", df_chapters, flush=True)
         df_chapters = df_chapters.merge(df_books, how="left", on="book")
         df_chapters["speaker"] = df_chapters["speaker"].apply(lambda x: f"libri-{x}")
         df_chapters.drop(columns=["proj", "mins", "proj_title"], inplace=True)
-        
+
         return df_books, df_chapters
 
-    def prepare(self):
+    def _get_transcripts(self, rec_dir: Path) -> pd.DataFrame:
+        """
+        Loads transcript metadata from .trans.tsv files.
+
+        Args:
+            rec_dir (Path): Directory containing the audio and transcript files.
+
+        Returns:
+            pd.DataFrame: Transcription data with normalized and raw text.
+        """
+        logging.info("searching transcript files in %s", str(rec_dir))
+        trans_files = list(rec_dir.glob("**/*.trans.tsv"))
+        if not trans_files:
+            # symlinks? try glob
+            trans_files = [
+                Path(f) for f in glob.iglob(f"{rec_dir}/**/.*trans.tsv", recursive=True)
+            ]
+
+        assert len(trans_files) > 0, "transcript files not found"
+        dfs = []
+        for trans_file in trans_files:
+
+            try:
+                df_i = pd.read_csv(
+                    trans_file,
+                    sep="\t",
+                    header=None,
+                    names=["id", "transcript", "transcript_normalized"],
+                )
+            except pd.errors.ParserError as e:
+                df_i = _read_malformed_trans(trans_file)
+            dfs.append(df_i)
+
+        df_trans = pd.concat(dfs)
+        df_trans["id"] = df_trans["id"].apply(lambda x: f"libritts-r-{x}")
+        return df_trans
+
+    def prepare(self) -> None:
+        """
+        Runs the complete LibriTTS-R data preparation pipeline:
+        - Reads metadata (speakers, books, chapters, transcripts)
+        - Builds RecordingSet and SegmentSet
+        - Maps metadata to recordings and segments
+        - Saves resulting HypDataset
+        """
         logging.info(
             "Peparing LibriTTS-R %s corpus_dir:%s -> data_dir:%s",
             self.subset,
@@ -134,6 +266,7 @@ class LibriTTS_R(DataPrep):
             ]
 
         assert len(rec_files) > 0, "recording files not found"
+        df_trans = self._get_transcripts(rec_dir)
 
         speakers = ["libri-" + f.parent.parent.name for f in rec_files]
         chapters = [f.parent.name for f in rec_files]
@@ -156,16 +289,20 @@ class LibriTTS_R(DataPrep):
         df_segs = pd.DataFrame(
             {"id": rec_ids, "speaker": speakers, "chapter": chapters}
         )
+        df_segs = df_segs.merge(
+            df_spks, how="left", left_on="speaker", right_on="id", suffixes=(None, "_y")
+        )
+        df_segs.drop(columns=["id_y"], inplace=True)
+        df_segs = df_segs.merge(df_trans, how="left", on="id")
         df_segs["duration"] = recs.loc[df_segs["id"], "duration"].values
         df_segs = df_segs.merge(df_chapters, how="left", on="chapter")
         df_segs.rename(columns={"speaker_x": "speaker"}, inplace=True)
         df_segs.drop(columns=["speaker_y"], inplace=True)
-
+        df_segs["language"] = "eng"
         segments = SegmentSet(df_segs)
         segments.sort()
 
         logging.info("making speaker info file")
-        print(df_segs, flush=True)
         df_spks = df_spks.loc[df_spks["id"].isin(df_segs["speaker"].values)]
         speakers = ClassInfo(df_spks)
 
@@ -179,7 +316,14 @@ class LibriTTS_R(DataPrep):
         df_chapters = df_chapters.loc[df_chapters["id"].isin(df_segs["chapter"].values)]
         chapters = ClassInfo(df_chapters)
 
-        classes = {"speaker": speakers, "book": books, "chapter": chapters}
+        languages = ClassInfo(pd.DataFrame({"id": ["eng"]}))
+
+        classes = {
+            "speaker": speakers,
+            "book": books,
+            "chapter": chapters,
+            "language": languages,
+        }
 
         logging.info("making dataset")
         dataset = HypDataset(

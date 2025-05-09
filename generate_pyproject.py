@@ -20,6 +20,8 @@ requirements_path = project_root / "requirements.txt"
 with open(requirements_path) as f:
     requirements = f.read().splitlines()
 
+requirements = [r for r in requirements if r!=""]
+
 # Generate console_scripts dynamically
 binaries = (project_root / "hyperion" / "bin").glob("*.py")
 console_scripts = {}

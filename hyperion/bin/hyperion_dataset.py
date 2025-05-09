@@ -40,6 +40,7 @@ subcommand_list = [
     "remove_class_ids",
     "split_train_val",
     "split_folds",
+    "filter_by_segments",
     "filter_by_classes",
     "filter_by_classes_and_enrollments",
     "copy",
@@ -708,6 +709,62 @@ def split_folds(
         train_fold.describe()
         test_fold.save(output_dir_i / "test")
         test_fold.describe()
+
+
+
+def make_filter_by_segments_parser():
+    parser = ArgumentParser()
+    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument(
+        "--dataset", required=True, help="""dataset dir or .yaml file"""
+    )
+    parser.add_argument(
+        "--segments-file",
+        required=True,
+        help="""name of the file containing the segments to keep or remove""",
+    )
+    parser.add_argument(
+        "--output-dataset",
+        default=None,
+        help="""output dataset dir, if None, we use the same as input""",
+    )
+    parser.add_argument(
+        "--rebuild-class-idx",
+        default=False,
+        action=ActionYesNo,
+        help="""regenerate classes indexes from 0 to new_num_classes-1""",
+    )
+    parser.add_argument(
+        "--keep",
+        default=True,
+        action=ActionYesNo,
+        help="""whether keep or remove the segments""",
+    )
+
+    add_common_args(parser)
+    return parser
+
+
+def filter_by_segments(
+    dataset: PathLike,
+    segments_file: PathLike,
+    output_dataset: PathLike,
+    rebuild_class_idx: bool = False,
+    keep: bool = True,
+):
+    if output_dataset is None:
+        output_dataset = dataset
+
+    logging.info(
+        "Dataset %s filtering segments in %s -> %s",
+        dataset,
+        segments_file,
+        output_dataset,
+    )
+    segments = SegmentSet.load(segments_file)
+    dataset = HypDataset.load(dataset, lazy=True)
+    dataset.filter_by_segments(segments, rebuild_class_idx=rebuild_class_idx, keep=keep)
+    dataset.save(output_dataset)
 
 
 def make_filter_by_classes_parser():

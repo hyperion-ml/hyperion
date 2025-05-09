@@ -1,9 +1,11 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
- Some math functions.
+Some math functions.
 """
+
+from typing import Callable, Optional, Tuple, Union
 
 import numpy as np
 import scipy.linalg as la
@@ -11,14 +13,23 @@ import scipy.linalg as la
 from ..hyp_defs import float_cpu
 
 
-def logdet_pdmat(A):
+def logdet_pdmat(A: np.ndarray) -> float:
     """Log determinant of positive definite matrix."""
     assert A.shape[0] == A.shape[1]
     R = la.cholesky(A)
     return 2 * np.sum(np.log(np.diag(R)))
 
 
-def invert_pdmat(A, right_inv=False, return_logdet=False, return_inv=False):
+def invert_pdmat(
+    A: np.ndarray,
+    right_inv: bool = False,
+    return_logdet: bool = False,
+    return_inv: bool = False,
+) -> Union[
+    Tuple[Callable[[np.ndarray], np.ndarray], np.ndarray],
+    Tuple[Callable[[np.ndarray], np.ndarray], np.ndarray, float],
+    Tuple[Callable[[np.ndarray], np.ndarray], np.ndarray, float, np.ndarray],
+]:
     """Inversion of positive definite matrices.
        Returns lambda function f that multiplies the inverse of A times a vector.
 
@@ -60,8 +71,16 @@ def invert_pdmat(A, right_inv=False, return_logdet=False, return_inv=False):
 
 
 def invert_trimat(
-    A, lower=False, right_inv=False, return_logdet=False, return_inv=False
-):
+    A: np.ndarray,
+    lower: bool = False,
+    right_inv: bool = False,
+    return_logdet: bool = False,
+    return_inv: bool = False,
+) -> Union[
+    Callable[[np.ndarray], np.ndarray],
+    Tuple[Callable[[np.ndarray], np.ndarray], float],
+    Tuple[Callable[[np.ndarray], np.ndarray], float, np.ndarray],
+]:
     """Inversion of triangular matrices.
        Returns lambda function f that multiplies the inverse of A times a vector.
 
@@ -99,7 +118,7 @@ def invert_trimat(
     return r
 
 
-def softmax(r, axis=-1):
+def softmax(r: np.ndarray, axis: int = -1) -> np.ndarray:
     """
     Returns:
       y = \exp(r)/\sum(\exp(r))
@@ -110,7 +129,7 @@ def softmax(r, axis=-1):
     return r
 
 
-def logsumexp(r, axis=-1):
+def logsumexp(r: np.ndarray, axis: int = -1) -> np.ndarray:
     """
     Returns:
       y = \log \sum(\exp(r))
@@ -120,7 +139,7 @@ def logsumexp(r, axis=-1):
     return np.log(np.sum(r, axis=axis) + 1e-20) + np.squeeze(max_r, axis=axis)
 
 
-def logsigmoid(x):
+def logsigmoid(x: np.ndarray) -> np.ndarray:
     """
     Returns:
       y = \log(sigmoid(x))
@@ -132,7 +151,7 @@ def logsigmoid(x):
     return log_p
 
 
-def neglogsigmoid(x):
+def neglogsigmoid(x: np.ndarray) -> np.ndarray:
     """
     Returns:
       y = -\log(sigmoid(x))
@@ -144,7 +163,7 @@ def neglogsigmoid(x):
     return log_p
 
 
-def sigmoid(x):
+def sigmoid(x: np.ndarray) -> np.ndarray:
     """
     Returns:
       y = sigmoid(x)
@@ -156,7 +175,9 @@ def sigmoid(x):
     return p
 
 
-def fisher_ratio(mu1, Sigma1, mu2, Sigma2):
+def fisher_ratio(
+    mu1: np.ndarray, Sigma1: np.ndarray, mu2: np.ndarray, Sigma2: np.ndarray
+) -> float:
     """Computes the Fisher ratio between two classes
     from the class means and covariances.
     """
@@ -166,7 +187,9 @@ def fisher_ratio(mu1, Sigma1, mu2, Sigma2):
     return np.inner(delta, L(delta))
 
 
-def fisher_ratio_with_precs(mu1, Lambda1, mu2, Lambda2):
+def fisher_ratio_with_precs(
+    mu1: np.ndarray, Lambda1: np.ndarray, mu2: np.ndarray, Lambda2: np.ndarray
+) -> float:
     """Computes the Fisher ratio between two classes
     from the class means precisions.
     """
@@ -176,7 +199,9 @@ def fisher_ratio_with_precs(mu1, Lambda1, mu2, Lambda2):
     return fisher_ratio(mu1, Sigma1, mu2, Sigma2)
 
 
-def symmat2vec(A, lower=False, diag_factor=None):
+def symmat2vec(
+    A: np.ndarray, lower: bool = False, diag_factor: Optional[float] = None
+) -> np.ndarray:
     """Puts a symmetric matrix into a vector.
 
     Args:
@@ -196,7 +221,9 @@ def symmat2vec(A, lower=False, diag_factor=None):
     return A[np.triu_indices(A.shape[0])]
 
 
-def vec2symmat(v, lower=False, diag_factor=None):
+def vec2symmat(
+    v: np.ndarray, lower: bool = False, diag_factor: Optional[float] = None
+) -> np.ndarray:
     """Puts a vector back into a symmetric matrix.
 
     Args:
@@ -224,7 +251,7 @@ def vec2symmat(v, lower=False, diag_factor=None):
     return A
 
 
-def trimat2vec(A, lower=False):
+def trimat2vec(A: np.ndarray, lower: bool = False) -> np.ndarray:
     """Puts a triangular matrix into a vector.
 
     Args:
@@ -239,7 +266,7 @@ def trimat2vec(A, lower=False):
     return symmat2vec(A, lower)
 
 
-def vec2trimat(v, lower=False):
+def vec2trimat(v: np.ndarray, lower: bool = False) -> np.ndarray:
     """Puts a vector back into a triangular matrix.
 
     Args:
@@ -259,7 +286,12 @@ def vec2trimat(v, lower=False):
     return A
 
 
-def fullcov_varfloor(S, F, F_is_chol=False, lower=False):
+def fullcov_varfloor(
+    S: np.ndarray,
+    F: Union[np.ndarray, float],
+    F_is_chol: bool = False,
+    lower: bool = False,
+) -> np.ndarray:
     """Variance flooring for full covariance matrices.
 
     Args:
@@ -294,7 +326,9 @@ def fullcov_varfloor(S, F, F_is_chol=False, lower=False):
     return S
 
 
-def fullcov_varfloor_from_cholS(cholS, cholF, lower=False):
+def fullcov_varfloor_from_cholS(
+    cholS: np.ndarray, cholF: Union[np.ndarray, float], lower: bool = False
+) -> np.ndarray:
     """Variance flooring for full covariance matrices
        using Cholesky decomposition as input/output
 
@@ -323,11 +357,11 @@ def fullcov_varfloor_from_cholS(cholS, cholF, lower=False):
     if isinstance(cholF, np.ndarray):
         S = np.dot(cholF.T, np.dot(T, cholF))
     else:
-        S = (cholF ** 2) * T
+        S = (cholF**2) * T
     return la.cholesky(S, lower)
 
 
-def int2onehot(class_ids, num_classes=None):
+def int2onehot(class_ids: np.ndarray, num_classes: Optional[int] = None) -> np.ndarray:
     """Integer to 1-hot vector.
 
     Args:
@@ -346,7 +380,7 @@ def int2onehot(class_ids, num_classes=None):
     return p
 
 
-def average_vectors(x, ids):
+def average_vectors(x: np.ndarray, ids: np.ndarray) -> np.ndarray:
     assert x.shape[0] == len(ids)
     num_ids = np.max(ids) + 1
     x_avg = np.zeros((num_ids, x.shape[1]), dtype=x.dtype)
@@ -357,15 +391,20 @@ def average_vectors(x, ids):
     return x_avg
 
 
-def cosine_scoring(x1, x2, ids1=None, ids2=None):
+def cosine_scoring(
+    x1: np.ndarray,
+    x2: np.ndarray,
+    ids1: Optional[np.ndarray] = None,
+    ids2: Optional[np.ndarray] = None,
+) -> np.ndarray:
     if ids1 is not None:
         x1 = average_vectors(x1, ids1)
 
     if ids2 is not None:
         x2 = average_vectors(x2, ids2)
 
-    l2_1 = np.sqrt(np.sum(x1 ** 2, axis=-1, keepdims=True) + 1e-10)
-    l2_2 = np.sqrt(np.sum(x2 ** 2, axis=-1, keepdims=True) + 1e-10)
+    l2_1 = np.sqrt(np.sum(x1**2, axis=-1, keepdims=True) + 1e-10)
+    l2_2 = np.sqrt(np.sum(x2**2, axis=-1, keepdims=True) + 1e-10)
     x1 = x1 / l2_1
     x2 = x2 / l2_2
 

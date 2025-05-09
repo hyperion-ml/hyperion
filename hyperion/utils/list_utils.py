@@ -1,17 +1,20 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
- Utilities for lists.
+Utilities for lists.
 """
 
 from itertools import groupby
 from operator import itemgetter
+from typing import Any, Optional, Tuple, Union
 
 import numpy as np
 
 
-def list2ndarray(a, dtype=None):
+def list2ndarray(
+    a: Union[list[Any], np.ndarray], dtype: Optional[Any] = None
+) -> np.ndarray:
     """Converts python string list to string numpy array."""
     if isinstance(a, list):
         return np.asarray(a, dtype=dtype)
@@ -19,7 +22,7 @@ def list2ndarray(a, dtype=None):
     return a
 
 
-def ismember(a, b):
+def ismember(a: np.ndarray, b: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     """Replicates MATLAB ismember function.
 
     Returns:
@@ -41,7 +44,9 @@ def ismember(a, b):
     return f, loc
 
 
-def sort(a, reverse=False, return_index=False):
+def sort(
+    a: Union[list[Any], np.ndarray], reverse: bool = False, return_index: bool = False
+) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
     """Sorts a list or numpy array
 
     Args:
@@ -67,7 +72,12 @@ def sort(a, reverse=False, return_index=False):
         return np.sort(a)
 
 
-def intersect(a, b, assume_unique=False, return_index=False):
+def intersect(
+    a: Union[list[Any], np.ndarray],
+    b: Union[list[Any], np.ndarray],
+    assume_unique: bool = False,
+    return_index: bool = False,
+) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray, np.ndarray]]:
     """Computes the interseccion of a and b lists or numpy arrays.
 
     Args:
@@ -93,7 +103,9 @@ def intersect(a, b, assume_unique=False, return_index=False):
         return c
 
 
-def split_list(a, idx, num_parts):
+def split_list(
+    a: Union[list[Any], np.ndarray], idx: int, num_parts: int
+) -> Tuple[np.ndarray, np.ndarray]:
     """Split a list into several parts and returns one of the parts.
 
     Args:
@@ -113,7 +125,12 @@ def split_list(a, idx, num_parts):
     return a[loc], loc
 
 
-def split_list_group_by_key(a, idx, num_parts, key=None):
+def split_list_group_by_key(
+    a: Union[list[Any], np.ndarray],
+    idx: int,
+    num_parts: int,
+    key: Optional[Union[list[Any], np.ndarray]] = None,
+) -> Tuple[np.ndarray, np.ndarray]:
     """Split a list into several parts and returns one of the parts.
        It groups the elements of a with the same key into the same part.
     Args:

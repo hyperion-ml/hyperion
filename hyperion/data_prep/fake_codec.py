@@ -1,6 +1,6 @@
 """
- Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
@@ -11,7 +11,7 @@ from typing import Any, Dict, Optional, Union
 # import numpy as np
 import pandas as pd
 import soundfile as sf
-from jsonargparse import ActionYesNo
+from jsonargparse import ActionYesNo, ArgumentParser
 
 from ..utils import ClassInfo, HypDataset, RecordingSet, SegmentSet
 from ..utils.misc import PathLike
@@ -19,15 +19,16 @@ from .hf_dataset import HFDatasetDataPrep
 
 
 class FakeCodecDataPrep(HFDatasetDataPrep):
-    """Class for preparing Fake Codec database into tables,
+    """
+    Prepares the Fake Codec dataset from Hugging Face into structured metadata tables.
 
     Attributes:
-      hf_data_path: Hugging Face data path or corpus id
-      corpus_dir: data directory where audios are extracted
-      output_dir: output data directory
-      use_kaldi_ids: puts speaker-id in front of segment id like kaldi
-      target_sample_freq: target sampling frequency to convert the audios to.
-      force_download: download the data again even if corpus dir exist
+        hf_data_path (str | Path | None): Hugging Face dataset ID.
+        corpus_dir (PathLike): Directory where audio is extracted.
+        output_dir (PathLike): Output directory.
+        use_kaldi_ids (bool): Whether to prepend speaker ID to segment ID.
+        target_sample_freq (Optional[int]): Target sample rate.
+        force_download (bool): Whether to overwrite cached data.
     """
 
     def __init__(
@@ -35,12 +36,15 @@ class FakeCodecDataPrep(HFDatasetDataPrep):
         hf_data_path: Union[PathLike, None],
         corpus_dir: PathLike,
         output_dir: PathLike,
-        use_kaldi_ids: bool,
-        target_sample_freq: int,
+        use_kaldi_ids: bool = False,
+        target_sample_freq: Optional[int] = None,
         num_threads: int = 10,
         force_download: bool = False,
         cache_dir: Optional[str] = None,
     ):
+        """
+        Initialize FakeCodecDataPrep instance.
+        """
         super().__init__(
             hf_data_path,
             corpus_dir,
@@ -55,15 +59,26 @@ class FakeCodecDataPrep(HFDatasetDataPrep):
         )
 
     @staticmethod
-    def dataset_name():
+    def dataset_name() -> str:
+        """Returns the dataset identifier name."""
         return "fake_codec"
 
     @staticmethod
-    def add_class_args(parser):
+    def add_class_args(parser: ArgumentParser) -> None:
+        """Adds CLI arguments for FakeCodecDataPrep."""
         HFDatasetDataPrep.add_class_args(parser)
 
     def extract_hf_item(self, item: Dict[str, Any], extract_dir: PathLike):
-        # print(item)
+        """
+        Extracts metadata and saves audio for a single Hugging Face dataset row.
+
+        Args:
+            item (Dict[str, Any]): A single row from the HF dataset.
+            extract_dir (PathLike): Directory to save the audio.
+
+        Returns:
+            Dict[str, Any]: Metadata including ID, duration, codec, etc.
+        """
         seg_id = Path(item["audio"]["path"]).with_suffix("")
         audio_dir = extract_dir / "audio"
         if not audio_dir.is_dir():
@@ -89,8 +104,13 @@ class FakeCodecDataPrep(HFDatasetDataPrep):
         sf.write(storage_path, audio, samplerate=fs)
         return output_item
 
-    def _prepare_from_meta(self, df_meta: pd.DataFrame):
+    def _prepare_from_meta(self, df_meta: pd.DataFrame) -> None:
+        """
+        Converts metadata into HypDataset format (segments, recordings, class infos).
 
+        Args:
+            df_meta (pd.DataFrame): DataFrame with metadata extracted from HF.
+        """
         logging.info("making SegmentsSet")
         df_segs = df_meta.drop(["storage_path", "sample_freq"], axis=1)
         segments = SegmentSet(df_segs)

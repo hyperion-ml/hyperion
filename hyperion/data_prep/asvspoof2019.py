@@ -1,18 +1,17 @@
 """
- Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import glob
 import logging
 import re
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 import pandas as pd
-from jsonargparse import ActionYesNo
-from tqdm import tqdm
+from jsonargparse import ActionYesNo, ArgumentParser
 
 from ..utils import ClassInfo, HypDataset, RecordingSet, SegmentSet
 from ..utils.misc import PathLike, urlretrieve_progress
@@ -42,14 +41,15 @@ spoof_system_dict = {
 
 
 class ASVSpoof2019DataPrep(DataPrep):
-    """Class for preparing ASVSpoof2019 database into tables,
-       
+    """
+    Prepares the ASVSpoof2019 dataset into structured tables for evaluation and enrollment.
+
     Attributes:
-      corpus_dir: input data directory
-      subset: train/dev/eval
-      output_dir: output data directory
-      use_kaldi_ids: puts speaker-id in front of segment id like kaldi
-      target_sample_freq: target sampling frequency to convert the audios to.
+        corpus_dir (PathLike): Path to dataset root.
+        subset (str): Subset to prepare (e.g. 'la_dev', 'pa_eval_enroll').
+        output_dir (PathLike): Output directory.
+        spoof_access (str): 'LA' or 'PA'.
+        subsubset (str): Actual sub-part (e.g. 'dev', 'eval').
     """
 
     def __init__(
@@ -57,17 +57,16 @@ class ASVSpoof2019DataPrep(DataPrep):
         corpus_dir: PathLike,
         subset: str,
         output_dir: PathLike,
-        use_kaldi_ids: bool,
-        target_sample_freq: int,
+        use_kaldi_ids: bool = False,
+        target_sample_freq: Optional[int] = None,
         num_threads: int = 10,
     ):
-        super().__init__(
-            corpus_dir, output_dir, False, target_sample_freq, num_threads
-        )
+        """Initializes the ASVSpoof2019 preparation class."""
+        super().__init__(corpus_dir, output_dir, False, target_sample_freq, num_threads)
 
         self.subset = subset
         if "la" in self.subset:
-            self.spoof_access = "LA"  
+            self.spoof_access = "LA"
         else:
             self.spoof_access = "PA"
 
@@ -75,15 +74,28 @@ class ASVSpoof2019DataPrep(DataPrep):
         self.subsubset = re.sub("_enroll", "", self.subsubset)
 
     @staticmethod
-    def dataset_name():
+    def dataset_name() -> str:
+        """Returns dataset name identifier."""
         return "asvspoof2019"
 
     @staticmethod
-    def add_class_args(parser):
+    def add_class_args(parser: ArgumentParser) -> None:
+        """Adds dataset-specific CLI arguments."""
         DataPrep.add_class_args(parser)
         parser.add_argument(
             "--subset",
-            choices=["la_train", "la_dev", "la_eval", "la_dev_enroll", "la_eval_enroll", "pa_train", "pa_dev", "pa_eval", "pa_dev_enroll", "pa_eval_enroll"],
+            choices=[
+                "la_train",
+                "la_dev",
+                "la_eval",
+                "la_dev_enroll",
+                "la_eval_enroll",
+                "pa_train",
+                "pa_dev",
+                "pa_eval",
+                "pa_dev_enroll",
+                "pa_eval_enroll",
+            ],
             help="""if we prepare the data for 
             ["la_train", "la_dev", "la_eval", "la_dev_enroll", "la_eval_enroll", 
             "pa_train", "pa_dev", "pa_eval", "pa_dev_enroll", "pa_eval_enroll"]""",
@@ -91,22 +103,33 @@ class ASVSpoof2019DataPrep(DataPrep):
         )
 
     def _get_vctk_metadata(self, df_meta):
-        file_path = self.corpus_dir / f"ASVspoof2019_{self.spoof_access}_VCTK_MetaInfo.tsv"
+        """Merges VCTK metadata into the main metadata if available."""
+        file_path = (
+            self.corpus_dir / f"ASVspoof2019_{self.spoof_access}_VCTK_MetaInfo.tsv"
+        )
         if not file_path.is_file():
             return df_meta
         df_meta2 = pd.read_csv(file_path, sep="\t")
-        df_meta = pd.merge(df_meta, df_meta2, how="left", left_index=True, right_on="ASVspoof_ID")
+        df_meta = pd.merge(
+            df_meta, df_meta2, how="left", left_index=True, right_on="ASVspoof_ID"
+        )
         df_meta.set_index(df_meta.file, inplace=True)
         rename_cols = {c: c.lower() for c in df_meta2.columns}
         df_meta.rename(columns=rename_cols, inplace=True)
         df_meta.rename(columns={"tts_text": "text"}, inplace=True)
         if self.spoof_access == "LA":
             idx = df_meta["spoof_det"] == "spoof"
-            df_meta.loc[idx, "speaker"] = df_meta.loc[idx,"tts_vc_target_speaker"].apply(lambda x: f"VCTK-{x}")
+            df_meta.loc[idx, "speaker"] = df_meta.loc[
+                idx, "tts_vc_target_speaker"
+            ].apply(lambda x: f"VCTK-{x}")
             idx = df_meta["spoof_det"] == "bonafide"
-            df_meta.loc[idx, "speaker"] = df_meta.loc[idx, "vctk_id"].apply(lambda x: f"VCTK-{x[:4]}")
+            df_meta.loc[idx, "speaker"] = df_meta.loc[idx, "vctk_id"].apply(
+                lambda x: f"VCTK-{x[:4]}"
+            )
         else:
-            df_meta["speaker"] = df_meta["vctk_id"].apply(lambda x: f"VCTK-{x[:4]}" if isinstance(x, str) else x)
+            df_meta["speaker"] = df_meta["vctk_id"].apply(
+                lambda x: f"VCTK-{x[:4]}" if isinstance(x, str) else x
+            )
 
         na_idx = df_meta["speaker"].isnull()
         df_meta.loc[na_idx, "speaker"] = df_meta.loc[na_idx, "asvspoof_speaker"]
@@ -114,50 +137,98 @@ class ASVSpoof2019DataPrep(DataPrep):
         return df_meta
 
     def _get_metadata(self):
-        
-        protocol_dir = self.corpus_dir / self.spoof_access / f"ASVspoof2019_{self.spoof_access}_cm_protocols"
+        """Parses protocol metadata and returns structured DataFrame."""
+        protocol_dir = (
+            self.corpus_dir
+            / self.spoof_access
+            / f"ASVspoof2019_{self.spoof_access}_cm_protocols"
+        )
         if self.subsubset == "train":
-            file_path = protocol_dir / f"ASVspoof2019.{self.spoof_access}.cm.train.trn.txt"
+            file_path = (
+                protocol_dir / f"ASVspoof2019.{self.spoof_access}.cm.train.trn.txt"
+            )
         else:
-            file_path = protocol_dir / f"ASVspoof2019.{self.spoof_access}.cm.{self.subsubset}.trl.txt"
-        
-        df_meta = pd.read_csv(file_path, sep=" ", header=None, names=["asvspoof_speaker", "file", "environment", "spoof_system", "spoof_det"], na_values="-")
-        df_meta.loc[:,"asvspoof_speaker"] = df_meta["asvspoof_speaker"].apply(lambda x: f"ASVSpoof2019-{x}") 
-        df_meta.loc[:, "spoof_access"] = df_meta["spoof_det"].apply(lambda x: None if x == "bonafide" else self.spoof_access)
+            file_path = (
+                protocol_dir
+                / f"ASVspoof2019.{self.spoof_access}.cm.{self.subsubset}.trl.txt"
+            )
+
+        df_meta = pd.read_csv(
+            file_path,
+            sep=" ",
+            header=None,
+            names=[
+                "asvspoof_speaker",
+                "file",
+                "environment",
+                "spoof_system",
+                "spoof_det",
+            ],
+            na_values="-",
+        )
+        df_meta.loc[:, "asvspoof_speaker"] = df_meta["asvspoof_speaker"].apply(
+            lambda x: f"ASVSpoof2019-{x}"
+        )
+        df_meta.loc[:, "spoof_access"] = df_meta["spoof_det"].apply(
+            lambda x: None if x == "bonafide" else self.spoof_access
+        )
         df_meta["language"] = "english"
+
         def get_voco(x):
             if x in spoof_system_dict:
                 return spoof_system_dict[x][1]
             else:
                 return "human"
+
         df_meta.loc[:, "vocoder"] = df_meta["spoof_system"].apply(get_voco)
+
         def get_ttsvc(x):
             if x in spoof_system_dict:
                 return spoof_system_dict[x][0]
             else:
                 return None
+
         df_meta.loc[:, "spoof_method"] = df_meta["spoof_system"].apply(get_ttsvc)
         df_meta.set_index(df_meta.file, drop=False, inplace=True)
         df_meta = self._get_vctk_metadata(df_meta)
         return df_meta
-    
+
     # def make_trials(self, spk_map):
     #     def get_kaldi_segmentid(s):
     #         return f'{spk_map.loc[s, "asvspoof_speaker"]}-{s}'
-        
+
     def make_trials(self):
-        trials_file_names = [f"ASVspoof2019.{self.spoof_access}.asv.{self.subsubset}.{g}.trl.txt" for g in ["gi", "male", "female"]]
+        """Generates ASV evaluation trial files.
+
+        Returns:
+            Dict[str, Path]: Mapping of trial condition names to their CSV paths.
+        """
+        trials_file_names = [
+            f"ASVspoof2019.{self.spoof_access}.asv.{self.subsubset}.{g}.trl.txt"
+            for g in ["gi", "male", "female"]
+        ]
         trials_names = ["trials", "trials_male", "trials_female"]
-        
+
         trials = {}
         dfs = []
         logging.info("making trials")
         for trial_name, file_name in zip(trials_names, trials_file_names):
-            file_path = self.corpus_dir / self.spoof_access / f"ASVspoof2019_{self.spoof_access}_asv_protocols" / file_name
+            file_path = (
+                self.corpus_dir
+                / self.spoof_access
+                / f"ASVspoof2019_{self.spoof_access}_asv_protocols"
+                / file_name
+            )
             if self.spoof_access == "LA":
                 columns = ["modelid", "segmentid", "spoof_det", "targettype"]
             else:
-                columns = ["modelid", "segmentid", "environment", "spoof_det", "targettype"]
+                columns = [
+                    "modelid",
+                    "segmentid",
+                    "environment",
+                    "spoof_det",
+                    "targettype",
+                ]
             df = pd.read_csv(
                 file_path,
                 header=None,
@@ -167,11 +238,11 @@ class ASVSpoof2019DataPrep(DataPrep):
             spoof_idx = df["targettype"] == "spoof"
             df.loc[spoof_idx, "spoof_det"] = "spoof"
             df.loc[spoof_idx, "targettype"] = "nontarget"
-            
-            df["segmentid"]= df["segmentid"].apply(lambda x: f"ASVSpoof2019-{x}")
+
+            df["segmentid"] = df["segmentid"].apply(lambda x: f"ASVSpoof2019-{x}")
             # if self.use_kaldi_ids:
             #     df["segmentid"] = df["segmentid"].apply(get_kaldi_segmentid)
-            
+
             if self.spoof_access == "LA":
                 df.drop(columns=["spoof_det"], inplace=True)
             else:
@@ -183,16 +254,29 @@ class ASVSpoof2019DataPrep(DataPrep):
             trials[trial_name] = file_path
 
         return trials
-    
+
     def make_enrollments(self):
+        """Creates enrollment mapping and segment metadata.
+
+        Returns:
+            Tuple[pd.DataFrame, Dict[str, Path]]: (Segment metadata, enrollment CSVs).
+        """
         logging.info("making enrollment map")
-        enroll_file_names = [f"ASVspoof2019.{self.spoof_access}.asv.{self.subsubset}.{g}.trn.txt" for g in ["male", "female"]]
+        enroll_file_names = [
+            f"ASVspoof2019.{self.spoof_access}.asv.{self.subsubset}.{g}.trn.txt"
+            for g in ["male", "female"]
+        ]
         enroll_names = ["enroll_male", "enroll_female"]
-        
+
         enrollments = {}
         dfs_out = []
         for enroll_name, file_name in zip(enroll_names, enroll_file_names):
-            file_path = self.corpus_dir / self.spoof_access / f"ASVspoof2019_{self.spoof_access}_asv_protocols" / file_name
+            file_path = (
+                self.corpus_dir
+                / self.spoof_access
+                / f"ASVspoof2019_{self.spoof_access}_asv_protocols"
+                / file_name
+            )
             df_in = pd.read_csv(
                 file_path,
                 header=None,
@@ -220,26 +304,38 @@ class ASVSpoof2019DataPrep(DataPrep):
                     segment_ids.append(segment)
                     spks.append(spk)
 
-            df_out = pd.DataFrame({"modelid": model_ids, "segmentid": segment_ids, "file": file_ids, "asvspoof_speaker": spks})
+            df_out = pd.DataFrame(
+                {
+                    "modelid": model_ids,
+                    "segmentid": segment_ids,
+                    "file": file_ids,
+                    "asvspoof_speaker": spks,
+                }
+            )
             df_out.sort_values(by=["modelid", "segmentid"], inplace=True)
             file_path = self.output_dir / f"{enroll_name}.csv"
-            df_out.drop(columns=["file", "asvspoof_speaker"]).to_csv(file_path, index=False)
+            df_out.drop(columns=["file", "asvspoof_speaker"]).to_csv(
+                file_path, index=False
+            )
             enrollments[enroll_name] = file_path
             dfs_out.append(df_out)
 
         df_out = pd.concat(dfs_out, ignore_index=True)
         df_out.sort_values(by=["modelid", "segmentid"], inplace=True)
-        segments = df_out.rename(columns={"segmentid": "id"})[["id", "asvspoof_speaker", "file"]]
+        segments = df_out.rename(columns={"segmentid": "id"})[
+            ["id", "asvspoof_speaker", "file"]
+        ]
         file_path = self.output_dir / "enroll.csv"
         df_out.drop(columns=["file", "asvspoof_speaker"], inplace=True)
         df_out.to_csv(file_path, index=False)
         enrollments["enroll"] = file_path
 
         segments["spoof_det"] = "bonafide"
-        
+
         return segments, enrollments
-        
+
     def prepare(self):
+        """Dispatcher for prepare_enroll or prepare_test based on subset."""
         logging.info(
             "Peparing ASVSpoof 2019 %s corpus_dir:%s -> data_dir:%s",
             self.subset,
@@ -252,10 +348,15 @@ class ASVSpoof2019DataPrep(DataPrep):
             self.prepare_test()
 
     def prepare_enroll(self):
+        """Runs the enrollment set preparation."""
         logging.info("getting enrollment data")
         df_meta, enrollments = self.make_enrollments()
 
-        rec_dir = self.corpus_dir / self.spoof_access / f"ASVspoof2019_{self.spoof_access}_{self.subsubset}"
+        rec_dir = (
+            self.corpus_dir
+            / self.spoof_access
+            / f"ASVspoof2019_{self.spoof_access}_{self.subsubset}"
+        )
         logging.info("searching audio files in %s", str(rec_dir))
         rec_files = list(rec_dir.glob("**/*.flac"))
         if not rec_files:
@@ -270,9 +371,7 @@ class ASVSpoof2019DataPrep(DataPrep):
         assert len(rec_files) > 0, "recording files don't match metadata file"
         file_names = [f.with_suffix("").name for f in rec_files]
 
-        rec_ids = [
-                    f"ASVSpoof2019-{f}" for f in file_names
-                ]
+        rec_ids = [f"ASVSpoof2019-{f}" for f in file_names]
         # if self.use_kaldi_ids:
         #     rec_ids = [
         #             f'{df_meta.loc[f,"id"]}' for f in file_names
@@ -281,7 +380,7 @@ class ASVSpoof2019DataPrep(DataPrep):
         #     rec_ids = file_names
 
         df_meta.drop(columns=["file"], inplace=True)
-            
+
         file_paths = [str(r) for r in rec_files]
         logging.info("making RecordingSet")
         recs = pd.DataFrame({"id": rec_ids, "storage_path": file_paths})
@@ -290,8 +389,8 @@ class ASVSpoof2019DataPrep(DataPrep):
 
         logging.info("getting recording durations")
         recs.get_durations(self.num_threads)
-        
-        #self.get_recording_duration(recs)
+
+        # self.get_recording_duration(recs)
         if self.target_sample_freq:
             recs["target_sample_freq"] = self.target_sample_freq
 
@@ -311,10 +410,10 @@ class ASVSpoof2019DataPrep(DataPrep):
         speakers = ClassInfo(speakers)
 
         logging.info("making spoofing/bonafide info file")
-        spoof_det = ClassInfo(pd.DataFrame({"id": ["bonafide", "spoof"]}))   
+        spoof_det = ClassInfo(pd.DataFrame({"id": ["bonafide", "spoof"]}))
 
         classes = {"asvspoof_speaker": speakers, "spoof_det": spoof_det}
-        
+
         logging.info("making dataset")
         dataset = HypDataset(
             segments,
@@ -331,10 +430,15 @@ class ASVSpoof2019DataPrep(DataPrep):
         )
 
     def prepare_test(self):
+        """Runs the evaluation set preparation."""
         logging.info("getting audio meta-data")
         df_meta = self._get_metadata()
 
-        rec_dir = self.corpus_dir / self.spoof_access / f"ASVspoof2019_{self.spoof_access}_{self.subsubset}"
+        rec_dir = (
+            self.corpus_dir
+            / self.spoof_access
+            / f"ASVspoof2019_{self.spoof_access}_{self.subsubset}"
+        )
         logging.info("searching audio files in %s", str(rec_dir))
         rec_files = list(rec_dir.glob("**/*.flac"))
         if not rec_files:
@@ -347,9 +451,7 @@ class ASVSpoof2019DataPrep(DataPrep):
         rec_files = [f for f in rec_files if f.with_suffix("").name in df_meta.index]
         assert len(rec_files) > 0, "recording files don't match metadata file"
         file_names = [f.with_suffix("").name for f in rec_files]
-        rec_ids = [
-                    f'ASVSpoof2019-{f}' for f in file_names
-                ]
+        rec_ids = [f"ASVSpoof2019-{f}" for f in file_names]
         # if self.use_kaldi_ids:
         #     rec_ids = [
         #             f'ASVSpoof2019-{f}' for f in file_names
@@ -358,7 +460,7 @@ class ASVSpoof2019DataPrep(DataPrep):
         #     rec_ids = file_names
 
         for id, file in zip(rec_ids, file_names):
-            df_meta.loc[file,"id"] = id 
+            df_meta.loc[file, "id"] = id
 
         spk_map = df_meta[["file", "asvspoof_speaker"]]
         spk_map.set_index(spk_map.file, inplace=True)
@@ -367,8 +469,8 @@ class ASVSpoof2019DataPrep(DataPrep):
         # put id column first and remove file column
         cols = ["id"] + [c for c in df_meta.columns if c not in ["id", "file"]]
         df_meta = df_meta[cols]
-        #df_meta.drop(columns=["file"], inplace=True)
-            
+        # df_meta.drop(columns=["file"], inplace=True)
+
         file_paths = [str(r) for r in rec_files]
         logging.info("making RecordingSet")
         recs = pd.DataFrame({"id": rec_ids, "storage_path": file_paths})
@@ -377,8 +479,8 @@ class ASVSpoof2019DataPrep(DataPrep):
 
         logging.info("getting recording durations")
         recs.get_durations(self.num_threads)
-        
-        #self.get_recording_duration(recs)
+
+        # self.get_recording_duration(recs)
         if self.target_sample_freq:
             recs["target_sample_freq"] = self.target_sample_freq
 
@@ -412,15 +514,27 @@ class ASVSpoof2019DataPrep(DataPrep):
         vocoder = ClassInfo(pd.DataFrame({"id": segments["vocoder"].unique()}))
 
         logging.info("making spoof_system info file")
-        spoof_system = ClassInfo(pd.DataFrame({"id": segments["spoof_system"].unique()}))
+        spoof_system = ClassInfo(
+            pd.DataFrame({"id": segments["spoof_system"].unique()})
+        )
 
         logging.info("making spoof_method info file")
-        spoof_method = ClassInfo(pd.DataFrame({"id": segments["spoof_method"].unique()}))
+        spoof_method = ClassInfo(
+            pd.DataFrame({"id": segments["spoof_method"].unique()})
+        )
 
         logging.info("making spoof access info file")
         spoof_access = ClassInfo(pd.DataFrame({"id": ["LA", "PA"]}))
-             
-        classes = {"speaker": speakers, "asvspoof_speaker": asvspoof_speakers, "spoof_det": spoof_det, "spoof_access": spoof_access, "spoof_system": spoof_system,"spoof_method": spoof_method, "vocoder": vocoder}
+
+        classes = {
+            "speaker": speakers,
+            "asvspoof_speaker": asvspoof_speakers,
+            "spoof_det": spoof_det,
+            "spoof_access": spoof_access,
+            "spoof_system": spoof_system,
+            "spoof_method": spoof_method,
+            "vocoder": vocoder,
+        }
         if self.spoof_access == "PA":
             logging.info("making environment info file")
             environment = np.unique(segments["environment"].dropna())
@@ -431,7 +545,7 @@ class ASVSpoof2019DataPrep(DataPrep):
             trials = self.make_trials()
         else:
             trials = None
-       
+
         logging.info("making dataset")
         dataset = HypDataset(
             segments,

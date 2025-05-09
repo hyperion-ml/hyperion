@@ -1,18 +1,16 @@
 """
- Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import glob
 import logging
-import re
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 import pandas as pd
-from jsonargparse import ActionYesNo
-from tqdm import tqdm
+from jsonargparse import ActionYesNo, ArgumentParser
 
 from ..utils import ClassInfo, HypDataset, RecordingSet, SegmentSet
 from ..utils.misc import PathLike, urlretrieve_progress
@@ -32,15 +30,17 @@ spoof_system_dict = {
     "S10": "an SS algorithm implemented with the open-source MARY Text-To-Speech system (MaryTTS)",
 }
 
+
 class ASVSpoof2015DataPrep(DataPrep):
-    """Class for preparing ASVSpoof2015 database into tables,
-       
+    """
+    Prepares the ASVSpoof2015 dataset into structured format suitable for training or evaluation.
+
     Attributes:
-      corpus_dir: input data directory
-      subset: train/dev/eval
-      output_dir: output data directory
-      use_kaldi_ids: puts speaker-id in front of segment id like kaldi
-      target_sample_freq: target sampling frequency to convert the audios to.
+        corpus_dir (PathLike): Path to the raw dataset.
+        subset (str): Subset to process: 'train', 'dev', or 'eval'.
+        output_dir (PathLike): Directory to store processed output.
+        use_kaldi_ids (bool): Whether to prepend speaker ID to segment ID.
+        target_sample_freq (Optional[int]): Target audio sampling rate.
     """
 
     def __init__(
@@ -48,10 +48,13 @@ class ASVSpoof2015DataPrep(DataPrep):
         corpus_dir: PathLike,
         subset: str,
         output_dir: PathLike,
-        use_kaldi_ids: bool,
-        target_sample_freq: int,
+        use_kaldi_ids: bool = False,
+        target_sample_freq: Optional[int] = None,
         num_threads: int = 10,
     ):
+        """
+        Initializes the ASVSpoof2015DataPrep class with parameters.
+        """
         super().__init__(
             corpus_dir, output_dir, use_kaldi_ids, target_sample_freq, num_threads
         )
@@ -59,11 +62,23 @@ class ASVSpoof2015DataPrep(DataPrep):
         self.subset = subset
 
     @staticmethod
-    def dataset_name():
+    def dataset_name() -> str:
+        """
+        Returns the name of the dataset.
+
+        Returns:
+            str: Name identifier for the dataset.
+        """
         return "asvspoof2015"
 
     @staticmethod
-    def add_class_args(parser):
+    def add_class_args(parser: ArgumentParser) -> None:
+        """
+        Adds dataset-specific arguments to an argument parser.
+
+        Args:
+            parser (ArgumentParser): The argument parser to modify.
+        """
         DataPrep.add_class_args(parser)
         parser.add_argument(
             "--subset",
@@ -73,6 +88,12 @@ class ASVSpoof2015DataPrep(DataPrep):
         )
 
     def _get_metadata(self):
+        """
+        Loads the protocol metadata for the specified subset.
+
+        Returns:
+            pd.DataFrame: Metadata including speaker ID, spoofing label, system, and vocoder.
+        """
         if self.subset == "train":
             file_name = "cm_train.trn"
         elif self.subset == "dev":
@@ -81,10 +102,22 @@ class ASVSpoof2015DataPrep(DataPrep):
             file_name = "cm_evaluation.ndx"
 
         file_path = self.corpus_dir / "CM_protocol" / file_name
-        df_meta = pd.read_csv(file_path, sep=" ", header=None, names=["asvspoof_speaker", "file", "spoof_system", "spoof_det"])
-        df_meta.loc[:,"asvspoof_speaker"] = df_meta["asvspoof_speaker"].apply(lambda x: f"ASVSpoof2015-{x}") 
-        df_meta.loc[:,"spoof_det"] = df_meta["spoof_det"].apply(lambda x: "bonafide" if x=="human" else x)
-        df_meta.loc[:,"spoof_system"] = df_meta["spoof_system"].apply(lambda x: "bonafide" if x=="human" else x)  
+        df_meta = pd.read_csv(
+            file_path,
+            sep=" ",
+            header=None,
+            names=["asvspoof_speaker", "file", "spoof_system", "spoof_det"],
+        )
+        df_meta.loc[:, "asvspoof_speaker"] = df_meta["asvspoof_speaker"].apply(
+            lambda x: f"ASVSpoof2015-{x}"
+        )
+        df_meta.loc[:, "spoof_det"] = df_meta["spoof_det"].apply(
+            lambda x: "bonafide" if x == "human" else x
+        )
+        df_meta.loc[:, "spoof_system"] = df_meta["spoof_system"].apply(
+            lambda x: "bonafide" if x == "human" else x
+        )
+
         def get_voco(x):
             if x == "bonafide":
                 return "human"
@@ -94,13 +127,17 @@ class ASVSpoof2015DataPrep(DataPrep):
                 return "waveform-concatenation"
             else:
                 return "straight"
+
         df_meta.loc[:, "vocoder"] = df_meta["spoof_system"].apply(get_voco)
-        #df_meta = df_meta[["id", "speaker", "spoof_det", "spoof_system"]]
+        # df_meta = df_meta[["id", "speaker", "spoof_det", "spoof_system"]]
         df_meta["language"] = "english"
         df_meta.set_index(df_meta.file, drop=False, inplace=True)
         return df_meta
-        
+
     def prepare(self):
+        """
+        Executes the full data preparation routine for ASVSpoof2015.
+        """
         logging.info(
             "Peparing ASVSpoof 2015 %s corpus_dir:%s -> data_dir:%s",
             self.subset,
@@ -124,20 +161,18 @@ class ASVSpoof2015DataPrep(DataPrep):
         assert len(rec_files) > 0, "recording files don't match metadata file"
         file_names = [f.with_suffix("").name for f in rec_files]
         if self.use_kaldi_ids:
-            rec_ids = [
-                    f'{df_meta.loc[f,"asvspoof_speaker"]}-{f}' for f in file_names
-                ]
+            rec_ids = [f'{df_meta.loc[f,"asvspoof_speaker"]}-{f}' for f in file_names]
         else:
             rec_ids = file_names
 
         for id, file in zip(rec_ids, file_names):
-            df_meta.loc[file,"id"] = id 
+            df_meta.loc[file, "id"] = id
 
         # put id column first and remove file column
         cols = ["id"] + [c for c in df_meta.columns if c not in ["id", "file"]]
         df_meta = df_meta[cols]
-        #df_meta.drop(columns=["file"], inplace=True)
-            
+        # df_meta.drop(columns=["file"], inplace=True)
+
         file_paths = [str(r) for r in rec_files]
         logging.info("making RecordingSet")
         recs = pd.DataFrame({"id": rec_ids, "storage_path": file_paths})
@@ -146,14 +181,14 @@ class ASVSpoof2015DataPrep(DataPrep):
 
         logging.info("getting recording durations")
         recs.get_durations(self.num_threads)
-        #self.get_recording_duration(recs)
+        # self.get_recording_duration(recs)
         if self.target_sample_freq:
             recs["target_sample_freq"] = self.target_sample_freq
 
         logging.info("making SegmentsSet")
         segments = df_meta
         df_meta["duration"] = recs.loc[df_meta["id"], "duration"].values
-    
+
         segments = SegmentSet(segments)
         segments.sort()
 
@@ -171,7 +206,14 @@ class ASVSpoof2015DataPrep(DataPrep):
 
         logging.info("making spoofing tech info file")
         spoof_system = np.unique(segments["spoof_system"])
-        spoof_system = ClassInfo(pd.DataFrame({"id": spoof_system, "description": [spoof_system_dict[i] for i in spoof_system]}))
+        spoof_system = ClassInfo(
+            pd.DataFrame(
+                {
+                    "id": spoof_system,
+                    "description": [spoof_system_dict[i] for i in spoof_system],
+                }
+            )
+        )
 
         logging.info("making vocoder info file")
         vocoder = ClassInfo(pd.DataFrame({"id": segments["vocoder"].unique()}))
@@ -179,11 +221,16 @@ class ASVSpoof2015DataPrep(DataPrep):
         logging.info("making dataset")
         dataset = HypDataset(
             segments,
-            classes={"asvspoof_speaker": speakers, "spoof_det": spoof_det, "spoof_system": spoof_system, "vocoder": vocoder},
+            classes={
+                "asvspoof_speaker": speakers,
+                "spoof_det": spoof_det,
+                "spoof_system": spoof_system,
+                "vocoder": vocoder,
+            },
             recordings=recs,
-            #enrollments=enrollments,
-            #trials=trials,
-            #sparse_trials=False,
+            # enrollments=enrollments,
+            # trials=trials,
+            # sparse_trials=False,
         )
         logging.info("saving dataset at %s", self.output_dir)
         dataset.save(self.output_dir)

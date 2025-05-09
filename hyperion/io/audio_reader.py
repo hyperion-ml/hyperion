@@ -270,7 +270,7 @@ class AudioReader(object):
     def _read_recording(
         self, recording: pd.Series, time_offset: float = 0, time_dur: float = 0
     ):
-        storage_path = recording["storage_path"]
+        storage_path = str(recording["storage_path"])
         x_i, fs_i = self.read_wavspecifier(
             storage_path,
             self.wav_scale,

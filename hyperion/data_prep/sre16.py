@@ -7,6 +7,7 @@ import glob
 import logging
 from enum import Enum
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -27,8 +28,8 @@ class SRE16DataPrep(DataPrep):
         subset: str,
         partition: str,
         output_dir: PathLike,
-        use_kaldi_ids: bool,
-        target_sample_freq: int,
+        use_kaldi_ids: bool = False,
+        target_sample_freq: Optional[int] = None,
         num_threads: int = 10,
         use_ldc_langs: bool = False,
     ):

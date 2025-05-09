@@ -1,13 +1,12 @@
 """
- Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import glob
 import logging
-import re
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -32,7 +31,7 @@ class RIRSDataPrep(DataPrep):
         self,
         corpus_dir: PathLike,
         output_dir: PathLike,
-        target_sample_freq: int,
+        target_sample_freq: Optional[int] = None,
         num_threads: int = 10,
         **kwargs,
     ):

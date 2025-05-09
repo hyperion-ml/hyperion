@@ -1,16 +1,17 @@
 """
- Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
 import re
 from enum import Enum
 from pathlib import Path
+from typing import Dict, Optional
 
 import numpy as np
 import pandas as pd
-from jsonargparse import ActionYesNo
+from jsonargparse import ActionYesNo, ArgumentParser
 from tqdm import tqdm
 
 from ..utils import (
@@ -26,16 +27,23 @@ from .data_prep import DataPrep
 
 
 class JanusMultimediaDataPrep(DataPrep):
-    """Class for preparing the Janus dataset (LDC2019E55) database into tables
+    """
+    Prepares the Janus Multimedia (LDC2019E55) dataset into structured tables for speaker recognition.
+
+    This class handles:
+    - Metadata parsing
+    - Recording and video manifest generation
+    - Segment filtering based on trial conditions
+    - Trial and enrollment list creation
 
     Attributes:
-      corpus_dir: input data directory
-      output_dir: output data directory
-      subset: sre21 subset in [dev, eval]
-      partition: sre21 trial side in [enroll, test]
-      use_kaldi_ids: puts speaker-id in front of segment id like kaldi
-      target_sample_freq: target sampling frequency to convert the audios to.
-      with_videos: prepare video manifest
+        corpus_dir (PathLike): Input directory containing dataset structure.
+        output_dir (PathLike): Output directory where the prepared tables are written.
+        subset (str): Evaluation subset, either 'dev' or 'eval'.
+        condition (str): Trial condition, either 'core' or 'full'.
+        partition (str): Either 'enrollment' or 'test'.
+        with_videos (bool): If True, prepare video manifest in addition to audio.
+        target_sample_freq (Optional[int]): Optional resampling frequency.
     """
 
     def __init__(
@@ -45,9 +53,9 @@ class JanusMultimediaDataPrep(DataPrep):
         condition: str,
         partition: str,
         output_dir: PathLike,
-        use_kaldi_ids: bool,
-        target_sample_freq: int,
-        with_videos: bool,
+        use_kaldi_ids: bool = False,
+        target_sample_freq: Optional[int] = None,
+        with_videos: bool = False,
         num_threads: int = 10,
     ):
         super().__init__(corpus_dir, output_dir, False, target_sample_freq, num_threads)
@@ -58,10 +66,14 @@ class JanusMultimediaDataPrep(DataPrep):
 
     @staticmethod
     def dataset_name():
+        """
+        Initialize Janus dataset preprocessor.
+        """
         return "janus_multimedia"
 
     @staticmethod
-    def add_class_args(parser):
+    def add_class_args(parser: ArgumentParser) -> None:
+        """Add command-line arguments to the parser."""
         DataPrep.add_class_args(parser)
         parser.add_argument(
             "--subset",
@@ -88,7 +100,13 @@ class JanusMultimediaDataPrep(DataPrep):
             help="""prepare video manifest""",
         )
 
-    def read_segments_metadata(self):
+    def read_segments_metadata(self) -> pd.DataFrame:
+        """
+        Loads and parses Janus segment metadata TSV file, filters based on trial subset and partition.
+
+        Returns:
+            pd.DataFrame: DataFrame with selected and processed segments.
+        """
 
         segments_file = self.corpus_dir / "docs" / f"janus_multimedia.tsv"
         logging.info("loading segment metadata from %s", segments_file)
@@ -127,7 +145,7 @@ class JanusMultimediaDataPrep(DataPrep):
         )
         df_segs["video"] = df_segs["video"].apply(lambda x: self.corpus_dir / x)
         df_segs["speaker"] = df_segs["speaker"].astype(str)
-        df_segs["language"] = "ENG"
+        df_segs["language"] = "eng"
         df_segs["dataset"] = self.dataset_name()
         df_segs["corpusid"] = self.dataset_name()
         df_segs["source_type"] = "afv"
@@ -136,7 +154,16 @@ class JanusMultimediaDataPrep(DataPrep):
         df_segs.drop(index=["janus-2931.mp4"], inplace=True, errors="ignore")
         return df_segs
 
-    def make_recording_set(self, df_segs):
+    def make_recording_set(self, df_segs: pd.DataFrame) -> RecordingSet:
+        """
+        Builds the RecordingSet from filtered segments.
+
+        Args:
+            df_segs (pd.DataFrame): DataFrame with segment metadata.
+
+        Returns:
+            RecordingSet: Audio recordings manifest.
+        """
 
         logging.info("making RecordingSet")
         df_recs = df_segs[["id"]].copy()
@@ -155,7 +182,16 @@ class JanusMultimediaDataPrep(DataPrep):
         recordings.get_durations(self.num_threads)
         return recordings
 
-    def make_video_set(self, df_segs):
+    def make_video_set(self, df_segs: pd.DataFrame) -> VideoSet:
+        """
+        Builds the VideoSet if `with_videos` is enabled.
+
+        Args:
+            df_segs (pd.DataFrame): DataFrame with segment metadata.
+
+        Returns:
+            VideoSet: Video manifest.
+        """
 
         logging.info("making VideoSet")
         df_vids = df_segs[["id"]].copy()
@@ -167,7 +203,16 @@ class JanusMultimediaDataPrep(DataPrep):
             videos["target_sample_freq"] = self.target_sample_freq
         return videos
 
-    def make_class_infos(self, df_segs):
+    def make_class_infos(self, df_segs: pd.DataFrame) -> Dict[str, ClassInfo]:
+        """
+        Extracts speaker, language, and source class labels from segments.
+
+        Args:
+            df_segs (pd.DataFrame): Segment metadata.
+
+        Returns:
+            Dict[str, ClassInfo]: Dictionary of class info tables.
+        """
         logging.info("making ClassInfos")
         df_segs = df_segs.reset_index(drop=True)
         df_spks = df_segs[["speaker"]].drop_duplicates()
@@ -175,7 +220,7 @@ class JanusMultimediaDataPrep(DataPrep):
         df_spks.sort_values(by="id", inplace=True)
         speakers = ClassInfo(df_spks)
 
-        languages = ClassInfo(pd.DataFrame({"id": ["ENG"]}))
+        languages = ClassInfo(pd.DataFrame({"id": ["eng"]}))
         sources = ClassInfo(pd.DataFrame({"id": ["afv"]}))
         return {
             "speaker": speakers,
@@ -183,13 +228,31 @@ class JanusMultimediaDataPrep(DataPrep):
             "source_type": sources,
         }
 
-    def make_enrollments(self, df_segs):
+    def make_enrollments(self, df_segs: pd.DataFrame) -> Dict[str, EnrollmentMap]:
+        """
+        Builds enrollment map using 1:1 segment-to-model assumption.
+
+        Args:
+            df_segs (pd.DataFrame): DataFrame with segment metadata.
+
+        Returns:
+            Dict[str, EnrollmentMap]: Dictionary with one enrollment list.
+        """
         logging.info("making Enrollment")
         seg_ids = df_segs["id"]
         df_enr = pd.DataFrame({"modelid": seg_ids, "segmentid": seg_ids})
         return {"enrollment": EnrollmentMap(df_enr)}
 
-    def make_trials(self, df_segs):
+    def make_trials(self) -> Dict[str, Path]:
+        """
+        Builds trial list(s) by parsing the Janus trial protocol file.
+
+        Args:
+            df_segs (pd.DataFrame): Segment metadata (not directly used here).
+
+        Returns:
+            Dict[str, Path]: Paths to generated trial CSV or TSV files.
+        """
         logging.info("making Trials")
         trial_file = self.corpus_dir / "docs" / f"janus_multimedia_trials.tsv"
 
@@ -231,7 +294,16 @@ class JanusMultimediaDataPrep(DataPrep):
             df_trial_full.to_csv(output_file_full, sep="\t", index=False)
             return {"trials_core": output_file_core, "trials_full": output_file_full}
 
-    def prepare(self):
+    def prepare(self) -> None:
+        """
+        Runs the full data preparation pipeline:
+        - Loads metadata
+        - Generates audio/video manifests
+        - Generates segment tables, class labels
+        - Builds trials and/or enrollment maps
+        - Saves HypDataset object to disk
+        """
+
         logging.info(
             "Peparing Janus %s %s %s corpus_dir: %s -> data_dir: %s",
             self.subset,
