@@ -31,13 +31,21 @@ multigender_spks = [
 
 
 class SRECTSSupersetDataPrep(DataPrep):
-    """Class for preparing the SRE-CTS Superset (LDC2021E08) database into tables
+    """
+    Prepares the SRE-CTS Superset (LDC2021E08) dataset into structured tables.
+
+    This includes:
+    - Parsing the segment metadata from a TSV file.
+    - Handling speakers with conflicting gender annotations.
+    - Generating RecordingSet and SegmentSet entries.
+    - Constructing ClassInfo tables for speaker, gender, language, and source type.
 
     Attributes:
-      corpus_dir: input data directory
-      output_dir: output data directory
-      use_kaldi_ids: puts speaker-id in front of segment id like kaldi
-      target_sample_freq: target sampling frequency to convert the audios to.
+        corpus_dir (PathLike): Directory containing audio and metadata.
+        output_dir (PathLike): Output directory for the structured dataset.
+        use_kaldi_ids (bool): Whether to prepend speaker ID to segment ID.
+        target_sample_freq (Optional[int]): Resampling target frequency, if specified.
+        num_threads (int): Number of threads to use for duration extraction.
     """
 
     def __init__(
@@ -48,20 +56,49 @@ class SRECTSSupersetDataPrep(DataPrep):
         target_sample_freq: Optional[int] = None,
         num_threads: int = 10,
     ):
+        """
+        Initializes the SRE-CTS Superset preparation pipeline.
+
+        Args:
+            corpus_dir (PathLike): Path to the SRE dataset root directory.
+            output_dir (PathLike): Path to write the processed dataset.
+            use_kaldi_ids (bool): Whether to prepend speaker ID to segment ID.
+            target_sample_freq (Optional[int]): Resampling frequency.
+            num_threads (int): Number of parallel threads for duration processing.
+        """
         use_kaldi_ids = True
         super().__init__(
             corpus_dir, output_dir, use_kaldi_ids, target_sample_freq, num_threads
         )
 
     @staticmethod
-    def dataset_name():
+    def dataset_name() -> str:
+        """
+        Returns:
+            str: Dataset name identifier.
+        """
         return "sre_cts_superset"
 
     @staticmethod
-    def add_class_args(parser):
+    def add_class_args(parser) -> None:
+        """
+        Adds SRE-CTS specific CLI arguments.
+
+        Args:
+            parser: Argument parser object.
+        """
         DataPrep.add_class_args(parser)
 
     def _fix_multigender_spks(self, df):
+        """
+        Resolves speakers with conflicting gender labels by keeping the majority gender.
+
+        Args:
+            df (pd.DataFrame): Segment metadata containing 'speaker' and 'gender'.
+
+        Returns:
+            pd.DataFrame: Filtered metadata with consistent gender labels per speaker.
+        """
         logging.info("Fixing multigender speakers keeping the majority gender")
         n0 = len(df)
         for spk in multigender_spks:
@@ -77,7 +114,15 @@ class SRECTSSupersetDataPrep(DataPrep):
         logging.info("Fixed multigender speakers, %d/%d segments remained", len(df), n0)
         return df
 
-    def prepare(self):
+    def prepare(self) -> None:
+        """
+        Runs the full SRE-CTS Superset preparation pipeline:
+        - Loads and cleans metadata
+        - Extracts durations
+        - Creates RecordingSet and SegmentSet
+        - Builds speaker/language/gender/source ClassInfo tables
+        - Saves HypDataset to output_dir
+        """
         logging.info(
             "Peparing SRE-CTS Superset corpus_dir:%s -> data_dir:%s",
             self.corpus_dir,
@@ -164,7 +209,7 @@ class SRECTSSupersetDataPrep(DataPrep):
         logging.info("saving dataset at %s", self.output_dir)
         dataset.save(self.output_dir)
         logging.info(
-            "datasets containts %d segments, %d speakers, %d languages, %f hours",
+            "datasets contains %d segments, %d speakers, %d languages, %f hours",
             len(segments),
             len(speakers),
             len(languages),

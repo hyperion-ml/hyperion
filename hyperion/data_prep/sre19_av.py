@@ -19,17 +19,22 @@ from .data_prep import DataPrep
 
 
 class SRE19AVDataPrep(DataPrep):
-    """Class for preparing the SRE19 AV dev (LDC2019E56/LDC2023V01) or eval (LDC2019E57/LDC2023V01) database into tables
+    """
+    Prepares the SRE19 Audio-Visual (AV) dataset into structured tables.
+
+    Supports the audio, visual, or audio-visual modalities for both development (dev)
+    and evaluation (eval) partitions, building metadata for recordings, segments, and
+    optional enrollment/trial keys.
 
     Attributes:
-      corpus_dir: input data directory
-      output_dir: output data directory
-      modality: audio, visual, audio-visual
-      subset: sre21 subset in [dev, eval]
-      partition: sre21 trial side in [enroll, test]
-      use_kaldi_ids: puts speaker-id in front of segment id like kaldi
-      target_sample_freq: target sampling frequency to convert the audios to.
-      ldc_langs: convert language id to LDC format
+        corpus_dir (PathLike): Base directory of the dataset.
+        modality (str): One of 'audio', 'visual', or 'audio-visual'.
+        subset (str): Either 'dev' or 'eval'.
+        partition (str): Either 'enrollment' or 'test'.
+        output_dir (PathLike): Path where processed dataset will be written.
+        use_kaldi_ids (bool): If True, IDs are formatted as <speaker>-<segment>.
+        target_sample_freq (Optional[int]): Target audio sample rate (Hz).
+        num_threads (int): Number of threads for parallel processing.
     """
 
     def __init__(
@@ -44,6 +49,19 @@ class SRE19AVDataPrep(DataPrep):
         num_threads: int = 10,
         # use_ldc_langs: bool = False,
     ):
+        """
+        Initialize the data preparation logic for SRE19 AV.
+
+        Args:
+            corpus_dir (PathLike): Root dataset directory.
+            modality (str): 'audio', 'visual', or 'audio-visual'.
+            subset (str): 'dev' or 'eval'.
+            partition (str): 'enrollment' or 'test'.
+            output_dir (PathLike): Where to save the processed dataset.
+            use_kaldi_ids (bool): Format IDs with speaker prefix.
+            target_sample_freq (Optional[int]): Resample frequency if specified.
+            num_threads (int): Number of threads for audio duration extraction.
+        """
         super().__init__(
             corpus_dir, output_dir, use_kaldi_ids, target_sample_freq, num_threads
         )
@@ -61,11 +79,19 @@ class SRE19AVDataPrep(DataPrep):
             self.data_dir = self.corpus_dir / "data"
 
     @staticmethod
-    def dataset_name():
+    def dataset_name() -> str:
+        """Returns dataset name identifier."""
         return "sre19_av"
 
     @staticmethod
-    def add_class_args(parser):
+    def add_class_args(parser) -> None:
+        """
+        Adds CLI arguments for configuring SRE19 AV data preparation.
+
+        Args:
+            parser: ArgumentParser instance.
+        """
+
         DataPrep.add_class_args(parser)
         parser.add_argument(
             "--modality",
@@ -92,8 +118,13 @@ class SRE19AVDataPrep(DataPrep):
         #     help="convert language id to LDC format",
         # )
 
-    def read_segments_metadata(self):
+    def read_segments_metadata(self) -> pd.DataFrame:
+        """
+        Reads and preprocesses segment-level metadata from segment key TSV file.
 
+        Returns:
+            pd.DataFrame: Metadata with IDs, speaker, gender, filename, etc.
+        """
         segments_file = self.docs_dir / f"sre19_av_{self.subset}_segment_key.tsv"
         logging.info("loading segment metadata from %s", segments_file)
         df_segs = pd.read_csv(segments_file, sep="\t")
@@ -119,8 +150,16 @@ class SRE19AVDataPrep(DataPrep):
         df_segs.set_index("id", drop=False, inplace=True)
         return df_segs
 
-    def make_recording_set(self, df_segs):
+    def make_recording_set(self, df_segs: pd.DataFrame) -> RecordingSet:
+        """
+        Constructs RecordingSet with FFmpeg audio extraction pipes.
 
+        Args:
+            df_segs (pd.DataFrame): Segment metadata.
+
+        Returns:
+            RecordingSet: RecordingSet object with storage paths and durations.
+        """
         logging.info("making RecordingSet")
         wav_dir = self.data_dir / self.partition
 
@@ -140,8 +179,18 @@ class SRE19AVDataPrep(DataPrep):
         recordings.get_durations(self.num_threads)
         return recordings
 
-    def make_class_infos(self, df_segs):
-        logging.info("making ClassInfos")
+    def make_class_infos(self, df_segs: pd.DataFrame) -> dict[str, ClassInfo]:
+        """
+        Builds ClassInfo tables for speaker, language, source_type, and gender.
+
+        Args:
+            df_segs (pd.DataFrame): Segment metadata.
+
+        Returns:
+            dict[str, ClassInfo]: Class info tables.
+        """
+
+        logging.info("making ClassInfo tables")
         df_segs = df_segs.reset_index(drop=True)
         df_spks = df_segs[["speaker", "gender"]].drop_duplicates()
         df_spks.rename(columns={"speaker": "id"}, inplace=True)
@@ -166,14 +215,26 @@ class SRE19AVDataPrep(DataPrep):
             "gender": genders,
         }
 
-    def make_enrollments(self, df_segs):
-        logging.info("making Enrollment")
+    def make_enrollments(
+        self, df_segs: pd.DataFrame
+    ) -> Optional[dict[str, EnrollmentMap]]:
+        """
+        Builds EnrollmentMap for audio or audio-visual modalities.
+
+        Args:
+            df_segs (pd.DataFrame): Segment metadata.
+
+        Returns:
+            dict[str, EnrollmentMap] or None: Enrollment map if applicable.
+        """
+
+        logging.info("making EnrollmentMap")
         if self.modality in ["audio", "audio-visual"]:
             enroll_file = self.docs_dir / f"sre19_av_{self.subset}_enrollment.tsv"
             df_enr = pd.read_csv(enroll_file, sep="\t")
             if self.use_kaldi_ids:
                 df_enr["speaker"] = [
-                    df_segs.loc[df_segs["filename"] == s, "speaker"]
+                    df_segs.loc[df_segs["filename"] == s, "speaker"].values[0]
                     for s in df_enr["segmentid"].values
                 ]
                 df_enr["segmentid"] = (
@@ -188,14 +249,23 @@ class SRE19AVDataPrep(DataPrep):
             # TODO
             pass
 
-    def make_trials(self, df_segs):
-        logging.info("making Trials")
+    def make_trials(self, df_segs: pd.DataFrame) -> dict[str, Path]:
+        """
+        Builds trial key and returns path to trials file.
+
+        Args:
+            df_segs (pd.DataFrame): Segment metadata.
+
+        Returns:
+            dict[str, Path]: Mapping of trial set name to TSV path.
+        """
+        logging.info("Building Trials")
         trial_file = self.docs_dir / f"sre19_av_{self.subset}_trial_key.tsv"
 
         df_trial = pd.read_csv(trial_file, sep="\t")
         if self.use_kaldi_ids:
             df_trial["speaker"] = [
-                df_segs.loc[df_segs["filename"] == s, "speaker"]
+                df_segs.loc[df_segs["filename"] == s, "speaker"].values[0]
                 for s in df_trial["segmentid"].values
             ]
             df_trial["segmentid"] = (
@@ -209,7 +279,16 @@ class SRE19AVDataPrep(DataPrep):
 
         return trials
 
-    def prepare(self):
+    def prepare(self) -> None:
+        """
+        Executes the full SRE19 AV data preparation pipeline:
+        - Loads metadata
+        - Builds segment and recording sets
+        - Prepares class info tables
+        - Generates enrollment and/or trial files
+        - Saves final HypDataset to disk
+        """
+
         logging.info(
             "Peparing SRE19 %s %s %s corpus_dir: %s -> data_dir: %s",
             self.modality,

@@ -19,12 +19,17 @@ from .data_prep import DataPrep
 
 
 class RIRSDataPrep(DataPrep):
-    """Class for preparing Musan database into tables
+    """
+    Prepares the RIRS (Room Impulse Response and Noise) dataset into structured tables.
+
+    This class supports both directory-based discovery of RIR audio files and reading
+    from a predefined `rir_list` file if it exists in the corpus directory.
 
     Attributes:
-      corpus_dir: input data directory
-      output_dir: output data directory
-      target_sample_freq: target sampling frequency to convert the audios to.
+        corpus_dir (PathLike): Root directory of the RIRS dataset.
+        output_dir (PathLike): Directory where the processed dataset will be saved.
+        target_sample_freq (Optional[int]): If specified, audio will be resampled to this frequency.
+        num_threads (int): Number of threads for audio duration extraction.
     """
 
     def __init__(
@@ -35,23 +40,51 @@ class RIRSDataPrep(DataPrep):
         num_threads: int = 10,
         **kwargs,
     ):
+        """
+        Initializes the RIRS data preparation object.
+
+        Args:
+            corpus_dir (PathLike): Directory containing RIR audio or metadata.
+            output_dir (PathLike): Destination for the structured dataset.
+            target_sample_freq (Optional[int]): Desired sample frequency in Hz (if resampling).
+            num_threads (int): Number of parallel threads for duration computation.
+            **kwargs: Additional arguments passed to the base class.
+        """
         super().__init__(corpus_dir, output_dir, False, target_sample_freq, num_threads)
 
     @staticmethod
-    def dataset_name():
+    def dataset_name() -> str:
+        """
+        Returns:
+            str: Identifier name for this dataset ("rirs").
+        """
         return "rirs"
 
     @staticmethod
-    def add_class_args(parser):
+    def add_class_args(parser) -> None:
+        """
+        Adds RIRS-specific arguments to the CLI parser.
+
+        Args:
+            parser: Argument parser to which RIRS options will be added.
+        """
         DataPrep.add_class_args(parser)
 
-    def prepare(self):
+    def prepare(self) -> None:
+        """
+        Executes the full RIRS preparation pipeline:
+        - Loads file list from rir_list or recursively finds all .wav files
+        - Extracts durations
+        - Builds SegmentSet and RecordingSet
+        - Saves a HypDataset to the output directory
+        """
         logging.info(
             "Peparing RIRS corpus_dir:%s -> data_dir:%s",
             self.corpus_dir,
             self.output_dir,
         )
         rec_dir = self.corpus_dir
+        assert rec_dir.is_dir(), f"Recording directory not found: {rec_dir}"
         rirs_file = self.corpus_dir / "rir_list"
         if rirs_file.exists():
             rirs_table = pd.read_csv(
@@ -79,10 +112,11 @@ class RIRSDataPrep(DataPrep):
         logging.info("making RecordingSet")
         recs = pd.DataFrame({"id": rec_ids, "storage_path": storage_paths})
         recs = RecordingSet(recs)
+        recs.get_durations(self.num_threads)
         recs.sort()
 
-        logging.info("getting recording durations")
-        self.get_recording_duration(recs)
+        # logging.info("getting recording durations")
+        # self.get_recording_duration(recs)
         if self.target_sample_freq:
             recs["target_sample_freq"] = self.target_sample_freq
 
@@ -94,6 +128,9 @@ class RIRSDataPrep(DataPrep):
             }
         )
         if room_ids is not None:
+            assert len(room_ids) == len(
+                rec_ids
+            ), "Mismatch between room_ids and recordings"
             segments["room_id"] = room_ids
         segments = SegmentSet(segments)
         segments.sort()

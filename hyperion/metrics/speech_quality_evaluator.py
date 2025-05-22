@@ -132,11 +132,12 @@ class SpeechQualityEvaluator:
                 if self.use_whisper:
                     whisper_result = whisper(x, fs)
                     hyp = text_normalizer(whisper_result["text"])
-                    ref = text_normalizer(
-                        segments.loc[segment_id, self.transcript_name]
-                    )
-                    whisper_hyp.append(hyp)
-                    whisper_ref.append(ref)
+                    ref = segments.at[segment_id, self.transcript_name]
+                    if pd.notna(ref):
+                        ref = text_normalizer(ref)
+                        whisper_hyp.append(hyp)
+                        whisper_ref.append(ref)
+
                     segments.loc[segment_id, "whisper_transcript"] = hyp
 
                 if self.use_utmos:

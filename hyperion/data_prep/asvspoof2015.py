@@ -187,7 +187,10 @@ class ASVSpoof2015DataPrep(DataPrep):
 
         logging.info("making SegmentsSet")
         segments = df_meta
-        df_meta["duration"] = recs.loc[df_meta["id"], "duration"].values
+        segments["duration"] = recs.loc[df_meta["id"], "duration"].values
+        segments["language"] = "eng"
+        segments["dataset"] = self.dataset_name()
+        segments["corpusid"] = self.dataset_name()
 
         segments = SegmentSet(segments)
         segments.sort()

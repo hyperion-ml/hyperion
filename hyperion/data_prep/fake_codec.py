@@ -113,6 +113,8 @@ class FakeCodecDataPrep(HFDatasetDataPrep):
         """
         logging.info("making SegmentsSet")
         df_segs = df_meta.drop(["storage_path", "sample_freq"], axis=1)
+        df_segs["dataset"] = self.dataset_name()
+        df_segs["corpusid"] = self.dataset_name()
         segments = SegmentSet(df_segs)
 
         logging.info("making RecordingSet")

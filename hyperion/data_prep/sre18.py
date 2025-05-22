@@ -19,15 +19,20 @@ from .data_prep import DataPrep
 
 
 class SRE18DataPrep(DataPrep):
-    """Class for preparing the SRE18 dev (LDC2018E46/LDC2023S03) or eval (LDC2018E51/LDC2023S03) database into tables
+    """
+    Prepares the SRE18 (LDC2018E46/E51 or LDC2023S03) dataset into structured tables.
+
+    Handles partition-specific behavior for 'enrollment', 'test', and 'unlabeled' data,
+    with optional Kaldi-style segment IDs. Can produce enrollment maps and trial files.
 
     Attributes:
-      corpus_dir: input data directory
-      output_dir: output data directory
-      subset: sre18 subset in [cmn2-dev, cmn2-eval, vast-eval]"
-      partition: sre18 trial side in [unlabeled, enroll, test]
-      use_kaldi_ids: puts speaker-id in front of segment id like kaldi
-      target_sample_freq: target sampling frequency to convert the audios to.
+        corpus_dir (PathLike): Path to the dataset root directory.
+        subset (str): Subset identifier, e.g., 'cmn2-dev', 'cmn2-eval', or 'vast-eval'.
+        partition (str): One of 'enrollment', 'test', or 'unlabeled'.
+        output_dir (PathLike): Directory where output tables will be saved.
+        use_kaldi_ids (bool): If True, format segment IDs as '<speaker>-<segment>'.
+        target_sample_freq (Optional[int]): Target sampling frequency (Hz).
+        num_threads (int): Number of threads for parallel audio processing.
     """
 
     def __init__(
@@ -52,11 +57,13 @@ class SRE18DataPrep(DataPrep):
         # self.use_ldc_langs = use_ldc_langs
 
     @staticmethod
-    def dataset_name():
+    def dataset_name() -> str:
+        """Returns: Dataset name identifier 'sre18'."""
         return "sre18"
 
     @staticmethod
-    def add_class_args(parser):
+    def add_class_args(parser) -> None:
+        """Adds CLI arguments specific to SRE18 dataset."""
         DataPrep.add_class_args(parser)
         parser.add_argument(
             "--subset",
@@ -77,7 +84,13 @@ class SRE18DataPrep(DataPrep):
         #     help="convert language id to LDC format",
         # )
 
-    def read_segments_metadata(self):
+    def read_segments_metadata(self) -> pd.DataFrame:
+        """
+        Loads segment metadata and applies necessary filtering and formatting.
+
+        Returns:
+            pd.DataFrame: Metadata indexed by segment ID, with speaker, language, gender, etc.
+        """
 
         if self.subset == "vast-eval":
             subset = "eval"
@@ -127,7 +140,16 @@ class SRE18DataPrep(DataPrep):
         df_segs.set_index("id", drop=False, inplace=True)
         return df_segs
 
-    def make_recording_set(self, df_segs):
+    def make_recording_set(self, df_segs: pd.DataFrame) -> RecordingSet:
+        """
+        Builds a RecordingSet from segment metadata.
+
+        Args:
+            df_segs (pd.DataFrame): Segment metadata.
+
+        Returns:
+            RecordingSet: Set of recording paths and durations.
+        """
 
         logging.info("making RecordingSet")
         wav_dir = self.corpus_dir / "data" / self.partition
@@ -152,7 +174,16 @@ class SRE18DataPrep(DataPrep):
         recordings.get_durations(self.num_threads)
         return recordings
 
-    def make_class_infos(self, df_segs):
+    def make_class_infos(self, df_segs: pd.DataFrame) -> dict[str, ClassInfo]:
+        """
+        Constructs class-level tables for speaker, language, gender, and source type.
+
+        Args:
+            df_segs (pd.DataFrame): Segment metadata.
+
+        Returns:
+            dict[str, ClassInfo]: Dictionary of ClassInfo objects.
+        """
         logging.info("making ClassInfos")
         df_segs = df_segs.reset_index(drop=True)
         df_spks = df_segs[["speaker", "gender"]].drop_duplicates()
@@ -178,7 +209,16 @@ class SRE18DataPrep(DataPrep):
             "gender": genders,
         }
 
-    def make_enrollments(self, df_segs):
+    def make_enrollments(self, df_segs: pd.DataFrame) -> dict[str, EnrollmentMap]:
+        """
+        Builds enrollment map based on enrollment metadata.
+
+        Args:
+            df_segs (pd.DataFrame): Segment metadata.
+
+        Returns:
+            dict[str, EnrollmentMap]: Enrollment map with segment IDs.
+        """
         logging.info("making Enrollment")
         if "dev" in self.subset:
             subset = "dev"
@@ -189,7 +229,7 @@ class SRE18DataPrep(DataPrep):
         df_enr = df_enr[df_enr["segmentid"].isin(df_segs["id"])]
         if self.use_kaldi_ids:
             df_enr["speaker"] = [
-                df_segs.loc[df_segs["filename"] == s, "speaker"]
+                df_segs.loc[df_segs["filename"] == s, "speaker"].values[0]
                 for s in df_enr["segmentid"].values
             ]
             df_enr["segmentid"] = (
@@ -200,7 +240,16 @@ class SRE18DataPrep(DataPrep):
         assert df_segs["id"].isin(df_enr["segmentid"]).all()
         return {"enrollment": EnrollmentMap(df_enr)}
 
-    def make_trials(self, df_segs):
+    def make_trials(self, df_segs: pd.DataFrame) -> dict[str, Path]:
+        """
+        Generates trial files and condition-specific versions (gender, language, etc.).
+
+        Args:
+            df_segs (pd.DataFrame): Segment metadata.
+
+        Returns:
+            dict[str, Path]: Mapping of trial condition names to file paths.
+        """
         logging.info("making Trials")
         if "dev" in self.subset:
             subset = "dev"
@@ -213,7 +262,7 @@ class SRE18DataPrep(DataPrep):
         df_trial = df_trial[df_trial["data_source"] == corpusid]
         if self.use_kaldi_ids:
             df_trial["speaker"] = [
-                df_segs.loc[df_segs["filename"] == s, "speaker"]
+                df_segs.loc[df_segs["filename"] == s, "speaker"].values[0]
                 for s in df_trial["segmentid"].values
             ]
             df_trial["segmentid"] = (
@@ -245,7 +294,14 @@ class SRE18DataPrep(DataPrep):
 
         return trials
 
-    def prepare(self):
+    def prepare(self) -> None:
+        """
+        Executes the full SRE18 data preparation pipeline:
+        - Loads segment metadata
+        - Builds recording and segment sets
+        - Creates trial and enrollment files
+        - Saves complete HypDataset to output_dir
+        """
         logging.info(
             "Peparing SRE18 %s %s corpus_dir: %s -> data_dir: %s",
             self.subset,

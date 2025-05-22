@@ -161,7 +161,7 @@ class WhisperTranscriber:
             parser.add_argument(
                 "--pretrained-model-path",
                 type=str,
-                required=True,
+                default="openai/whisper-large-v3-turbo",
                 help="Path to pre-trained Whisper model (local or Hugging Face Hub).",
             )
         if "task" not in skip:

@@ -167,7 +167,7 @@ class SparseTrialKey(TrialKey):
         if sep is None:
             sep = "\t" if ".tsv" in ext else ","
 
-        df = pd.read_csv(file_path, sep=sep)
+        df = pd.read_csv(file_path, sep=sep, dtype={"modelid": str, "segmentid": str})
         models = df["modelid"].values
         segments = df["segmentid"].values
         is_tar = (df["targettype"] == "target").values

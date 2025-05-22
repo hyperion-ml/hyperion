@@ -10,7 +10,10 @@ from .asvspoof2021 import ASVSpoof2021DataPrep
 from .asvspoof2024 import ASVSpoof2024DataPrep
 from .data_prep import DataPrep
 from .fake_codec import FakeCodecDataPrep
+from .iarpa_mx6_debug import IARPAMixer6DebugDataPrep
 from .janus_multimedia import JanusMultimediaDataPrep
+from .ldc2024e41 import LDC2024E41DataPrep
+from .ldc2025e05 import LDC2025E05DataPrep
 from .librispeech import LibriSpeech
 from .libritts import LibriTTS
 from .libritts_r import LibriTTS_R

@@ -19,14 +19,19 @@ from .data_prep import DataPrep
 
 
 class SRE19CTSDataPrep(DataPrep):
-    """Class for preparing the SRE19 CTS Challenge (LDC2019E58/LDC2023S03) database into tables
+    """
+    Prepares the SRE19 CTS Challenge (LDC2019E58 / LDC2023S03) dataset into structured tables.
+
+    This class parses metadata, audio file locations, and optionally builds
+    enrollment maps and trial keys. It supports partitioning by task phase.
 
     Attributes:
-      corpus_dir: input data directory
-      output_dir: output data directory
-      partition: sre18 trial side in [unlabeled, enroll, test]
-      use_kaldi_ids: puts speaker-id in front of segment id like kaldi
-      target_sample_freq: target sampling frequency to convert the audios to.
+        corpus_dir (PathLike): Root directory of the dataset.
+        partition (str): One of 'enrollment', 'test', or 'unlabeled'.
+        output_dir (PathLike): Directory where the prepared dataset is saved.
+        use_kaldi_ids (bool): If True, use Kaldi-style IDs (<speaker>-<segment>).
+        target_sample_freq (Optional[int]): Resample recordings to this frequency (Hz).
+        num_threads (int): Number of threads for parallel audio processing.
     """
 
     def __init__(
@@ -46,16 +51,18 @@ class SRE19CTSDataPrep(DataPrep):
         # self.use_ldc_langs = use_ldc_langs
 
     @staticmethod
-    def dataset_name():
+    def dataset_name() -> str:
+        """Returns the dataset name identifier."""
         return "sre19_cts"
 
     @staticmethod
-    def add_class_args(parser):
+    def add_class_args(parser) -> None:
+        """Adds CLI arguments specific to SRE19 CTS Challenge."""
         DataPrep.add_class_args(parser)
         parser.add_argument(
             "--partition",
             choices=["unlabeled", "enrollment", "test"],
-            help="""sre18 trial side in [unlabeled, enroll, test]""",
+            help="""sre19 trial side in [unlabeled, enroll, test]""",
             required=True,
         )
         # parser.add_argument(
@@ -65,8 +72,13 @@ class SRE19CTSDataPrep(DataPrep):
         #     help="convert language id to LDC format",
         # )
 
-    def read_segments_metadata(self):
+    def read_segments_metadata(self) -> pd.DataFrame:
+        """
+        Loads and processes segment metadata TSV file.
 
+        Returns:
+            pd.DataFrame: Segment-level metadata with speaker, gender, language, etc.
+        """
         source_type = "cts"
         corpusid = "cmn2"
         lang = "ARA-AEB"
@@ -101,8 +113,16 @@ class SRE19CTSDataPrep(DataPrep):
         df_segs.set_index("id", drop=False, inplace=True)
         return df_segs
 
-    def make_recording_set(self, df_segs):
+    def make_recording_set(self, df_segs: pd.DataFrame) -> RecordingSet:
+        """
+        Builds the RecordingSet table from segment metadata.
 
+        Args:
+            df_segs (pd.DataFrame): Metadata for segments.
+
+        Returns:
+            RecordingSet: Table of audio file paths and durations.
+        """
         logging.info("making RecordingSet")
         wav_dir = self.corpus_dir / "data" / "eval" / self.partition
 
@@ -120,7 +140,16 @@ class SRE19CTSDataPrep(DataPrep):
         recordings.get_durations(self.num_threads)
         return recordings
 
-    def make_class_infos(self, df_segs):
+    def make_class_infos(self, df_segs: pd.DataFrame) -> dict[str, ClassInfo]:
+        """
+        Builds class info tables for speakers, gender, language, and source types.
+
+        Args:
+            df_segs (pd.DataFrame): Segment metadata.
+
+        Returns:
+            dict[str, ClassInfo]: Class tables.
+        """
         logging.info("making ClassInfos")
         df_segs = df_segs.reset_index(drop=True)
         df_spks = df_segs[["speaker", "gender"]].drop_duplicates()
@@ -152,7 +181,16 @@ class SRE19CTSDataPrep(DataPrep):
             "gender": genders,
         }
 
-    def make_enrollments(self, df_segs):
+    def make_enrollments(self, df_segs: pd.DataFrame) -> dict[str, EnrollmentMap]:
+        """
+        Creates an EnrollmentMap for the enrollment partition.
+
+        Args:
+            df_segs (pd.DataFrame): Segment metadata.
+
+        Returns:
+            dict[str, EnrollmentMap]: Map containing model-segment links.
+        """
         logging.info("making Enrollment")
         enroll_file = self.corpus_dir / "docs" / f"sre19_cts_challenge_enrollment.tsv"
         df_enr = pd.read_csv(enroll_file, sep="\t")
@@ -170,7 +208,16 @@ class SRE19CTSDataPrep(DataPrep):
         assert df_segs["id"].isin(df_enr["segmentid"]).all()
         return {"enrollment": EnrollmentMap(df_enr)}
 
-    def make_trials(self, df_segs):
+    def make_trials(self, df_segs: pd.DataFrame) -> dict[str, Path]:
+        """
+        Builds trial files and filtered subsets based on conditions.
+
+        Args:
+            df_segs (pd.DataFrame): Segment metadata.
+
+        Returns:
+            dict[str, Path]: Mapping from trial condition name to file path.
+        """
         logging.info("making Trials")
         trial_file = self.corpus_dir / "docs" / f"sre19_cts_challenge_trial_key.tsv"
 
@@ -223,7 +270,14 @@ class SRE19CTSDataPrep(DataPrep):
 
         return trials
 
-    def prepare(self):
+    def prepare(self) -> None:
+        """
+        Executes the full SRE19 CTS preparation pipeline:
+        - Loads metadata
+        - Creates segment, recording, and class info tables
+        - Writes enrollment maps and trial keys as needed
+        - Saves HypDataset to output_dir
+        """
         logging.info(
             "Peparing SRE19 %s corpus_dir: %s -> data_dir: %s",
             self.partition,
