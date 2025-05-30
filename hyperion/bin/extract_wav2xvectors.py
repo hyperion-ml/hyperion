@@ -27,29 +27,9 @@ from hyperion.io import VADReaderFactory as VRF
 from hyperion.np.augment import SpeechAugment
 from hyperion.np.preprocessing import ResamplerToTargetFreq
 
-# from hyperion.torch import TorchModelLoader as TML
 from hyperion.torch import TorchModel
 from hyperion.torch.utils import open_device
 from hyperion.utils import Utt2Info
-
-# resamplers = {}
-
-
-# def get_resampler(source_fs, target_fs):
-#     if source_fs in resamplers:
-#         return resamplers[source_fs]
-
-#     resampler = tat.Resample(
-#         int(source_fs),
-#         int(target_fs),
-#         lowpass_filter_width=64,
-#         rolloff=0.9475937167399596,
-#         resampling_method="kaiser_window",
-#         beta=14.769656459379492,
-#     )
-#     resampler_f = lambda x: resampler(torch.from_numpy(x)).numpy()
-#     resamplers[source_fs] = resampler_f
-#     return resampler_f
 
 
 def init_device(use_gpu):
@@ -92,12 +72,11 @@ def augment(key0, x0, augmenter, aug_df, aug_id):
 
 
 def select_random_chunk(key, x, fs, min_utt_length, max_utt_length, rng):
-    utt_length = rng.integers(
-        low=int(fs * min_utt_length), high=int(fs * max_utt_length + 1)
-    )
+    utt_length = rng.integers(low=int(fs * min_utt_length),
+                              high=int(fs * max_utt_length + 1))
     if utt_length < x.shape[1]:
         first_frame = rng.integers(low=0, high=x.shape[1] - utt_length)
-        x = x[:, first_frame : first_frame + utt_length]
+        x = x[:, first_frame:first_frame + utt_length]
         logging.info(
             "extract-random-utt %s of length=%d first-frame=%d",
             key,
@@ -147,12 +126,13 @@ def extract_xvectors(
     metadata_columns = ["speech_duration"]
 
     ar_args = AR.filter_args(**kwargs)
-    logging.info("opening output stream: %s with args=%s", output_spec, str(ar_args))
+    logging.info("opening output stream: %s with args=%s", output_spec,
+                 str(ar_args))
     with DWF.create(output_spec, metadata_columns=metadata_columns) as writer:
-        logging.info(f"opening input stream: {recordings_file} with args={ar_args}")
-        with AR(
-            recordings=recordings_file, segments=segments_file, **ar_args
-        ) as reader:
+        logging.info(
+            f"opening input stream: {recordings_file} with args={ar_args}")
+        with AR(recordings=recordings_file, segments=segments_file,
+                **ar_args) as reader:
             if vad_spec is not None:
                 logging.info("opening VAD stream: %s", vad_spec)
                 v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix)
@@ -180,8 +160,8 @@ def extract_xvectors(
                     t4 = time.time()
                     with torch.no_grad():
                         x = torch.tensor(
-                            x[None, :], dtype=torch.get_default_dtype()
-                        ).to(device)
+                            x[None, :],
+                            dtype=torch.get_default_dtype()).to(device)
                         t5 = time.time()
                         tot_samples = x.shape[1]
                         if vad_spec is not None:

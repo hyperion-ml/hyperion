@@ -5,6 +5,7 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
 import logging
 from pathlib import Path
+from typing import List, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -12,6 +13,7 @@ import scipy.sparse as sparse
 
 from ..hyp_defs import float_cpu
 from .list_utils import *
+from .misc import PathLike, build_class_labels_from_boolean_matrix_sparse
 from .sparse_trial_key import SparseTrialKey
 from .trial_key import TrialKey
 from .trial_ndx import TrialNdx
@@ -385,6 +387,71 @@ class SparseTrialScores(TrialScores):
 
         scores = np.array(scr.scores[scr.score_mask])[0]
         return scores
+
+    def get_class_sim(
+        self,
+        key: SparseTrialKey,
+        model_classes: Union[List[str], np.ndarray, None] = None,
+        seg_classes: Union[List[str], np.ndarray, None] = None,
+    ) -> np.ndarray:
+        """Returns the class similarity scores for the trials in key.
+
+        Args:
+          key: SparseTrialKey object.
+
+        Returns:
+          Numpy array with the class similarity scores.
+          M(i,j) average similarity between class i and class j.
+        """
+        scr = self.align_with_ndx(key)
+        tar_mask = scr.score_mask.multiply(key.tar)
+        non_mask = scr.score_mask.multiply(key.non)
+        score_mask = tar_mask + non_mask  # still csr
+        score_mask = score_mask.astype(np.float32)
+
+        if model_classes is None or seg_classes is None:
+            logging.info(
+                "model/seg classes not provided, building from key.tar, it can take a while"
+            )
+            # Get row and column class labels from key.tar (dense helper handles that)
+            model_classes, seg_classes = build_class_labels_from_boolean_matrix_sparse(
+                key.tar
+            )
+
+        unique_model_classes = np.unique(model_classes)
+        unique_seg_classes = np.unique(seg_classes)
+
+        # Initialize the output similarity matrix
+        sim_matrix = np.full(
+            (len(unique_model_classes), len(unique_seg_classes)),
+            np.nan,
+            dtype=scr.scores.dtype,
+        )
+
+        # Loop over class pairs and compute masked mean
+        for i, rc in enumerate(unique_model_classes):
+            row_mask = model_classes == rc
+            for j, cc in enumerate(unique_seg_classes):
+                col_mask = seg_classes == cc
+
+                # Get submatrices using slicing (convert masks to indices)
+                row_idx = np.where(row_mask)[0]
+                col_idx = np.where(col_mask)[0]
+                if row_idx.size == 0 or col_idx.size == 0:
+                    continue
+
+                # Extract blocks
+                score_block = scr.scores[row_idx[:, None], col_idx]
+                mask_block = score_mask[row_idx[:, None], col_idx]
+
+                # Compute masked average
+                block_sum = score_block.multiply(mask_block).sum()
+                count = mask_block.sum()
+
+                if count > 0:
+                    sim_matrix[i, j] = block_sum / count
+
+        return sim_matrix, unique_model_classes, unique_seg_classes
 
     def set_valid_scores(self, scores, ndx=None):
         if ndx is not None:

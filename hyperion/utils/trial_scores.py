@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 
 from ..hyp_defs import float_cpu
-from ..utils.misc import PathLike
+from ..utils.misc import PathLike, build_class_labels_from_boolean_matrix_dense
 
 # from .list_utils import *
 from .list_utils import intersect, ismember, list2ndarray, sort, split_list
@@ -566,6 +566,53 @@ class TrialScores(object):
             tar = np.vstack(tuple(tar[k] for k in q_names)).T
             non = np.vstack(tuple(non[k] for k in q_names)).T
         return tar, non
+
+    def get_class_sim(
+        self,
+        key: TrialKey,
+        model_classes: Union[List[str], np.ndarray, None] = None,
+        seg_classes: Union[List[str], np.ndarray, None] = None,
+    ) -> np.ndarray:
+        """Returns the class similarity scores for the trials in key.
+
+        Args:
+          key: SparseTrialKey object.
+
+        Returns:
+          Numpy array with the class similarity scores.
+          M(i,j) average similarity between class i and class j.
+        """
+        scr = self.align_with_ndx(key)
+        tar_mask = np.logical_and(scr.score_mask, key.tar)
+        non_mask = np.logical_and(scr.score_mask, key.non)
+        score_mask = np.logical_or(tar_mask, non_mask).astype(float)
+
+        if model_classes is None or seg_classes is None:
+            logging.info(
+                "model/seg classes not provided, building from key.tar, it can take a while"
+            )
+            model_classes, seg_classes = build_class_labels_from_boolean_matrix_dense(
+                key.tar
+            )
+
+        unique_model_classes = np.unique(model_classes)
+        unique_seg_classes = np.unique(seg_classes)
+        sim_matrix = np.zeros(
+            (len(unique_model_classes), len(unique_seg_classes)),
+            dtype=self.scores.dtype,
+        )
+        for i, rc in enumerate(unique_model_classes):
+            row_mask = model_classes == rc
+            for j, cc in enumerate(unique_seg_classes):
+                col_mask = seg_classes == cc
+                idx = np.ix_(row_mask, col_mask)
+                block = scr.scores[idx] * score_mask[idx]
+                count = np.sum(score_mask[idx])
+                sim_matrix[i, j] = (
+                    block.sum() / count if block.size > 0 and count > 0 else np.nan
+                )
+
+        return sim_matrix, unique_model_classes, unique_seg_classes
 
     def set_missing_to_value(
         self, ndx: Union[TrialNdx, TrialKey], val: float

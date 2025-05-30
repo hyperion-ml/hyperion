@@ -190,6 +190,16 @@ class InfoTable:
     #     return self.df.__repr__
 
     @property
+    def columns(self):
+        """
+        Get the DataFrame columns.
+
+        Returns:
+            pd.Index: Column names.
+        """
+        return self.df.columns
+
+    @property
     def loc(self):
         """
         Access a group of rows and columns by label(s).

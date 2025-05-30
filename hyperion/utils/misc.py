@@ -5,11 +5,15 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 Miscellaneous functions
 """
 
+import logging
+import shutil
 from inspect import signature
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, Optional, Set, TypeVar, Union
+from typing import Any, Callable, Dict, Iterable, Optional, Set, Tuple, TypeVar, Union
 
+import matplotlib as mpl
 import numpy as np
+import scipy.sparse as sparse
 
 # PathLike = TypeVar("PathLike", str, Path, type(None))
 PathLike = Union[str, Path, None]
@@ -259,3 +263,71 @@ def urlretrieve_progress(
     with tqdm(unit="B", unit_scale=True, unit_divisor=1024, miniters=1, desc=desc) as t:
         reporthook = tqdm_urlretrieve_hook(t)
         return urlretrieve(url=url, filename=filename, reporthook=reporthook, data=data)
+
+
+def build_class_labels_from_boolean_matrix_dense(B: np.ndarray):
+    """
+    Given a boolean matrix B of shape (N, M), where B[i, j] is True if row i and column j
+    are of the same class, this function returns class labels for rows and columns.
+
+    Parameters:
+        B (np.ndarray): A 2D boolean array of shape (N, M)
+
+    Returns:
+        row_labels (np.ndarray): Class IDs for each row (shape: N,)
+        col_labels (np.ndarray): Class IDs for each column (shape: M,)
+    """
+    B = B.astype(bool)
+    N, M = B.shape
+
+    # Create an (N+M) x (N+M) adjacency matrix
+    adj = np.zeros((N + M, N + M), dtype=bool)
+
+    # Set connections between row i and column j (offset by N)
+    row_idx, col_idx = np.where(B)
+    for i, j in zip(row_idx, col_idx):
+        adj[i, N + j] = True
+        adj[N + j, i] = True  # Make it undirected
+
+    # Find connected components in the undirected graph
+    n_components, labels = sparse.csgraph.connected_components(adj, directed=False)
+
+    row_labels = labels[:N]
+    col_labels = labels[N:]
+
+    return row_labels, col_labels
+
+
+def build_class_labels_from_boolean_matrix_sparse(B: sparse.csr_matrix):
+    """
+    Given a boolean sparse matrix B of shape (N, M), where B[i, j] is True if row i and column j
+    are of the same class, this function returns class labels for rows and columns.
+
+    Parameters:
+        B (sparse.csr_matrix): A 2D boolean sparse matrix of shape (N, M)
+
+    Returns:
+        row_labels (np.ndarray): Class IDs for each row (shape: N,)
+        col_labels (np.ndarray): Class IDs for each column (shape: M,)
+    """
+    N, M = B.shape
+    # Build bipartite adjacency matrix: rows [0..N-1], cols [N..N+M-1]
+    # Upper right: B, Lower left: B.T
+    top = sparse.hstack([sparse.csr_matrix((N, N)), B])
+    bottom = sparse.hstack([B.transpose(), sparse.csr_matrix((M, M))])
+    adj = sparse.vstack([top, bottom])
+
+    # Make the graph undirected
+    adj = adj + adj.transpose()
+
+    n_components, labels = sparse.csgraph.connected_components(adj, directed=False)
+
+    row_labels = labels[:N]
+    col_labels = labels[N:]
+    return row_labels, col_labels
+
+
+def check_and_disable_latex():
+    if mpl.rcParams.get("text.usetex", False) and shutil.which("latex") is None:
+        logging.warning("LaTeX not found. Disabling `usetex`.")
+        mpl.rcParams["text.usetex"] = False

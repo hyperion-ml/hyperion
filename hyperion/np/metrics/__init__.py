@@ -8,6 +8,7 @@ from .cer import compute_cer
 from .confusion_matrix import *
 from .dcf import compute_act_dcf, compute_dcf, compute_min_dcf, fast_eval_dcf_eer
 from .eer import compute_eer, compute_prbep
+from .gain_distinctness import compute_gain_distinctness
 from .utils import effective_prior
 from .verification_evaluator import (
     VerificationAdvAttackEvaluator,

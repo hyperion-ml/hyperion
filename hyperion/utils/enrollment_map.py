@@ -121,3 +121,9 @@ class EnrollmentMap(InfoTable):
             enroll_idx[idx] = i
 
         return enroll_idx
+
+    def get_unique_modelid_df(self):
+        """Returns sorted unique model ids"""
+        df = self.df.drop(columns=["segmentid"])
+        df = self.df.drop_duplicates().sort_index()
+        return df
