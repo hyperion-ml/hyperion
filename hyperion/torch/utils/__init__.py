@@ -1,6 +1,6 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 from .collation import (
@@ -10,7 +10,16 @@ from .collation import (
     list_of_dicts_to_list,
 )
 from .data_parallel import TorchDataParallel
-from .ddp import FairFullyShardedDDP, FairShardedDDP, TorchDDP
+from .ddp import (
+    FairFullyShardedDDP,
+    FairShardedDDP,
+    TorchDDP,
+    ddp_cleanup,
+    ddp_get_rank,
+    ddp_get_rank_world_size,
+    ddp_init,
+    ddp_wait_for_all_procs,
+)
 from .devices import (
     open_device,
     tensors_subset,

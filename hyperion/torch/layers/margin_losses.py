@@ -1,6 +1,6 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba, Nanxin Chen)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba, Nanxin Chen)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
@@ -188,10 +188,10 @@ class CosLossOutput(nn.Module):
       in_feats: input feature dimension.
       num_classes: number of output classes.
       cos_scale: cosine scale.
-      margin: angular margin.
+      margin: additive margin.
       margin_warmup_epochs: number of epochs to warm up the margin from 0 to
                             its final value.
-      intertop_k: adds negative angular penalty to k largest negative scores.
+      intertop_k: adds negative penalty to k largest negative scores.
       intertop_margin: inter-top-k penalty.
     """
 

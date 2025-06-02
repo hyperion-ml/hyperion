@@ -1,6 +1,6 @@
 """
- Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
@@ -20,7 +20,7 @@ class DINOLoss(nn.Module):
       num_classes: number of DINO classes
       student_temp: temperature of student distribution
       teacher_temp: final temperature of teacher distribution
-      teacher_warmup_temp: initial temperature of teacher distribution
+      teacher_initial_temp: initial temperature of teacher distribution
       temp_warmup_epochs: warmup epochs for the teacher temperature
       center_momentum: momumntum for centering of the teacher distribution
     """
@@ -30,7 +30,7 @@ class DINOLoss(nn.Module):
         num_classes: int,
         student_temp: float = 0.1,
         teacher_temp: float = 0.04,
-        teacher_warmup_temp: float = 0.04,
+        teacher_initial_temp: float = 0.04,
         temp_warmup_epochs: int = 30,
         center_momentum: float = 0.9,
     ):
@@ -38,17 +38,17 @@ class DINOLoss(nn.Module):
         self.num_classes = num_classes
         self.student_temp = student_temp
         self.teacher_temp = teacher_temp
-        self.teacher_warmup_temp = teacher_warmup_temp
+        self.teacher_initial_temp = teacher_initial_temp
         self.temp_warmup_epochs = temp_warmup_epochs
         self.center_momentum = center_momentum
-        self.cur_teacher_temp = teacher_warmup_temp
+        self.cur_teacher_temp = teacher_initial_temp
         self.register_buffer("center", torch.zeros(1, num_classes))
 
     def update_temp(self, epoch: int):
         if epoch < self.temp_warmup_epochs:
             self.cur_teacher_temp = (
-                self.teacher_warmup_temp
-                + (self.teacher_temp - self.teacher_warmup_temp)
+                self.teacher_initial_temp
+                + (self.teacher_temp - self.teacher_initial_temp)
                 * epoch
                 / self.temp_warmup_epochs
             )
@@ -144,7 +144,7 @@ class DINOLoss(nn.Module):
             help="final temperature of teacher distribution",
         )
         parser.add_argument(
-            "--teacher-warmup-temp",
+            "--teacher-initial-temp",
             default=0.04,
             type=float,
             help="initial temperature of teacher distribution",

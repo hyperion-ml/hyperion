@@ -626,6 +626,7 @@ class VerificationAnonymizationEvaluator:
             label="N(A-A)",
         )
         name = f"{self.score_name} {self.key_name}"
+        title = f"Privacy {name}"
         if plot_thresholds:
             for p in self.p_tar:
                 thr = -np.log(p / (1 - p))
@@ -637,7 +638,7 @@ class VerificationAnonymizationEvaluator:
                     label=f"thr({p:.3f})={thr:.3f}",
                 )
 
-        plt.title(name)
+        plt.title(title)
         plt.xlabel("LLR score")
         plt.grid(True)
         plt.legend()
@@ -713,6 +714,7 @@ class VerificationAnonymizationEvaluator:
             label="N(A-A-Inter)",
         )
         name = f"{self.score_name} {self.key_name}"
+        title = f"Cons/Div {name}"
         if plot_thresholds:
             for p in self.p_tar:
                 thr = -np.log(p / (1 - p))
@@ -724,7 +726,7 @@ class VerificationAnonymizationEvaluator:
                     label=f"thr({p:.3f})={thr:.2f}",
                 )
 
-        plt.title(name)
+        plt.title(title)
         plt.xlabel("LLR score")
         plt.grid(True)
         plt.legend()

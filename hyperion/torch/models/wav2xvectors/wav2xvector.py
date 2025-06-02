@@ -105,7 +105,7 @@ class Wav2XVector(TorchModel):
         vad_feats: Optional[torch.Tensor] = None,
         return_enc_layers: Optional[List[int]] = None,
         return_classif_layers: Optional[List[int]] = None,
-        return_output: bool = True,
+        return_logits: bool = True,
     ):
         with self._feats_context:
             if vad_samples is not None:
@@ -132,7 +132,7 @@ class Wav2XVector(TorchModel):
             y,
             return_enc_layers,
             return_classif_layers,
-            return_output,
+            return_logits,
         )
 
     def extract_embed(

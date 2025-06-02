@@ -1,6 +1,6 @@
 """
- Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import torch
@@ -39,7 +39,7 @@ class GradientReversalLayer(nn.Module):
     """
 
     def __init__(self, scale: float = 1.0):
-        super(GradientReversalLayer, self).__init__()
+        super().__init__()
         self.scale = scale
 
     def forward(self, x):

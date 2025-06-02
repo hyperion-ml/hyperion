@@ -1,6 +1,6 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
@@ -444,14 +444,9 @@ class XVector(TorchModel):
         p = self.pool_net(x, x_lengths=x_lengths)
         if self.proj_head_net is not None:
             p = self.proj_head_net(p)
-        h_classif = self.classif_net.forward_hid_feats(
+        h_classif, y_pred = self.classif_net.forward_hid_feats(
             p, y, return_classif_layers, return_logits=return_logits
         )
-        if return_logits:
-            h_classif, y_pred = h_classif
-        else:
-            y_pred = None
-
         if h_classif is not None:
             xvector = h_classif[0]
         else:
