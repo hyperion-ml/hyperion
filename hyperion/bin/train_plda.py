@@ -26,15 +26,6 @@ from hyperion.np.transforms import LDA, PCA, CentWhiten, LNorm, TransformList
 from hyperion.utils import SegmentSet
 
 
-# def load_data(segments_file, feats_file, class_name):
-#     logging.info("loading data")
-#     segments = SegmentSet.load(segments_file)
-#     reader = DRF.create(feats_file)
-#     x = reader.read(segments["id"], squeeze=True)
-#     _, y = np.unique(segments[class_name], return_inverse=True)
-#     return segments, x, y
-
-
 def load_segments_and_feats(segments_file, feats_file):  # , class_name):
     logging.info("loading segments: %s feats: %s", segments_file, feats_file)
     segments = SegmentSet.load(segments_file)
