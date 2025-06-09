@@ -26,13 +26,36 @@ from hyperion.np.transforms import LDA, PCA, CentWhiten, LNorm, TransformList
 from hyperion.utils import SegmentSet
 
 
-def load_data(segments_file, feats_file, class_name):
-    logging.info("loading data")
+def load_segments_and_feats(segments_file, feats_file):  # , class_name):
+    logging.info("loading segments: %s feats: %s", segments_file, feats_file)
     segments = SegmentSet.load(segments_file)
     reader = DRF.create(feats_file)
     x = reader.read(segments["id"], squeeze=True)
+    is_nan = np.any(np.isnan(x), axis=1)
+    num_nan = np.sum(is_nan)
+    if num_nan > 0:
+        logging.info(
+            "Found %d NaN features: %s", num_nan, str(segments.loc[is_nan, "id"])
+        )
+        x = x[~is_nan]
+        segments = SegmentSet(segments.loc[~is_nan])
+
+    return segments, x
+
+
+def load_data(segments_files, feats_files, class_name):
+    assert len(segments_files) == len(feats_files)
+    segments_list = []
+    feats_list = []
+    for segments_file, feats_file in zip(segments_files, feats_files):
+        segments, feats = load_segments_and_feats(segments_file, feats_file)
+        segments_list.append(segments)
+        feats_list.append(feats)
+
+    segments = SegmentSet.cat(segments_list)
+    feats = np.concatenate(feats_list, axis=0)
     _, y = np.unique(segments[class_name], return_inverse=True)
-    return segments, x, y
+    return segments, feats, y
 
 
 def train_pca(x, pca_lnorm, pca_args):
@@ -55,8 +78,8 @@ def train_pca(x, pca_lnorm, pca_args):
 
 
 def train_plda(
-    segments_file,
-    feats_file,
+    segments_files,
+    feats_files,
     class_name,
     preproc_file,
     plda_file,
@@ -70,7 +93,7 @@ def train_plda(
     plda_center,
     plda_whiten,
 ):
-    segments, x, y = load_data(segments_file, feats_file, class_name)
+    segments, x, y = load_data(segments_files, feats_files, class_name)
     transform_list = []
 
     x, pca_lnorm, pca_model = train_pca(x, pca_lnorm, pca)
@@ -131,8 +154,8 @@ def train_plda(
 def main():
     parser = ArgumentParser(description="Trains PLDA model and embedding preprocessor")
     parser.add_argument("--cfg", action=ActionConfigFile)
-    parser.add_argument("--feats-file", required=True)
-    parser.add_argument("--segments-file", required=True)
+    parser.add_argument("--feats-files", required=True, nargs="+")
+    parser.add_argument("--segments-files", required=True, nargs="+")
     parser.add_argument("--class-name", default="speaker")
     parser.add_argument("--preproc-file", required=True)
     parser.add_argument("--plda-file", required=True)
