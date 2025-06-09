@@ -1,7 +1,8 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 from copy import deepcopy
 
@@ -13,7 +14,7 @@ from .segment_list import SegmentList
 from .vad_utils import *
 
 
-class RTTM(object):
+class RTTM:
     """Class to manipulate rttm files
 
     Attributes:
@@ -397,9 +398,9 @@ class RTTM(object):
                 self.segments.iloc[i - 1, self.segments.columns.get_loc("tdur")] = (
                     tend - tbeg
                 )
-                self.segments.iloc[
-                    i, self.segments.columns.get_loc("segment_type")
-                ] = "DROP"
+                self.segments.iloc[i, self.segments.columns.get_loc("segment_type")] = (
+                    "DROP"
+                )
 
         self.segments = self.segments[self.segments.segment_type != "DROP"]
 

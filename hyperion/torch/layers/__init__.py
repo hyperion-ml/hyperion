@@ -1,6 +1,6 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 from .activation_factory import ActivationFactory
@@ -21,6 +21,7 @@ from .feat_fusers import (
     LinearFeatFuser,
     WeightedAvgFeatFuser,
 )
+from .gather_distributed import GatherDistributed, GatherDistributedFunction
 from .global_pool import *
 from .grad_rev_layer import GradientReversalLayer
 from .grn import GRN1d, GRN2d

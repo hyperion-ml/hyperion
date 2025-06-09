@@ -1,8 +1,7 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-
 
 import copy
 import logging
@@ -16,7 +15,7 @@ from .trial_key import TrialKey
 from .trial_ndx import TrialNdx
 
 
-class TrialStats(object):
+class TrialStats:
     """Contains anciliary statistics from the trial such us quality measures like SNR
 
         This class was created to store statistics about adversarial attacks like

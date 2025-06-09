@@ -1,6 +1,6 @@
 """
- Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import glob
@@ -8,10 +8,11 @@ import logging
 import re
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
-from jsonargparse import ActionYesNo
+from jsonargparse import ActionYesNo, ArgumentParser
 from tqdm import tqdm
 
 from ..utils import ClassInfo, HypDataset, RecordingSet, SegmentSet
@@ -20,30 +21,44 @@ from .data_prep import DataPrep
 
 
 class VoxCeleb1DataPrep(DataPrep):
-    """Class for preparing VoxCeleb1 database into tables,
-       It prepares the full voxceleb either to train or test with
-       Original/Entire/Hard.
-       We don't consider preparing dev for train and test for test Original
+    """
+    Prepares the VoxCeleb1 dataset into structured tables for training or testing.
+
+    This class supports preparing the full VoxCeleb1 corpus for tasks like training or testing
+    with the Original, Entire, or Hard evaluation sets. It can optionally concatenate
+    utterances from the same video and enrich metadata with language and speaker attributes.
 
     Attributes:
-      corpus_dir: input data directory
-      task: train/test
-      cat_videos: concatenate utterances from the same video.
-      output_dir: output data directory
-      use_kaldi_ids: puts speaker-id in front of segment id like kaldi
-      target_sample_freq: target sampling frequency to convert the audios to.
+        corpus_dir (PathLike): Directory containing the raw corpus.
+        task (str): 'train' or 'test'.
+        cat_videos (bool): Whether to concatenate utterances from the same video.
+        output_dir (PathLike): Directory to store the processed data.
+        use_kaldi_ids (bool): Whether to prepend speaker ID to segment IDs (always True).
+        target_sample_freq (Optional[int]): Sampling rate to which audio is converted.
     """
 
     def __init__(
         self,
         corpus_dir: PathLike,
         task: str,
-        cat_videos: bool,
         output_dir: PathLike,
-        use_kaldi_ids: bool,
-        target_sample_freq: int,
+        cat_videos: bool = False,
+        use_kaldi_ids: bool = False,
+        target_sample_freq: Optional[int] = None,
         num_threads: int = 10,
-    ):
+    ) -> None:
+        """
+        Initializes VoxCeleb1DataPrep with paths and configuration.
+
+        Args:
+            corpus_dir (PathLike): Directory with raw VoxCeleb1 data.
+            task (str): 'train' or 'test'.
+            output_dir (PathLike): Directory to store processed data.
+            cat_videos (bool): Whether to concatenate audio files by video ID.
+            use_kaldi_ids (bool): Format IDs Kaldi-style (overridden to True).
+            target_sample_freq (Optional[int]): Desired audio sample frequency.
+            num_threads (int): Number of parallel threads to use.
+        """
         use_kaldi_ids = True
         super().__init__(
             corpus_dir, output_dir, use_kaldi_ids, target_sample_freq, num_threads
@@ -57,11 +72,22 @@ class VoxCeleb1DataPrep(DataPrep):
         self.cat_videos = cat_videos
 
     @staticmethod
-    def dataset_name():
+    def dataset_name() -> str:
+        """Returns the name of the dataset"""
         return "voxceleb1"
 
     @staticmethod
-    def add_class_args(parser):
+    def add_class_args(parser: ArgumentParser) -> None:
+        """
+        Adds command-line arguments specific to VoxCeleb1DataPrep.
+
+        Extends the argument parser with dataset-specific options:
+        - task: Whether to prepare data for training or testing.
+        - cat-videos: If True, concatenate utterances from the same video (only for training).
+
+        Args:
+            parser (ArgumentParser): Argument parser object to be extended.
+        """
         DataPrep.add_class_args(parser)
         parser.add_argument(
             "--task",
@@ -76,7 +102,13 @@ class VoxCeleb1DataPrep(DataPrep):
             help="""concatenate utterances from the same video.""",
         )
 
-    def _get_metadata(self):
+    def _get_metadata(self) -> pd.DataFrame:
+        """
+        Loads or downloads the VoxCeleb1 metadata file and returns it as a DataFrame.
+
+        Returns:
+            pd.DataFrame: Metadata indexed by VoxCeleb1 ID, with gender and nationality.
+        """
         file_name = "vox1_meta.csv"
         file_path = self.corpus_dir / file_name
         if not file_path.exists():
@@ -91,8 +123,14 @@ class VoxCeleb1DataPrep(DataPrep):
         df_meta.set_index("VoxCeleb1 ID", inplace=True)
         return df_meta
 
-    def _get_langs_est(self):
-        file_name = "lang_vox2_final.csv"
+    def _get_langs_est(self) -> pd.DataFrame:
+        """
+        Loads or downloads estimated language labels and formats them by recording ID.
+
+        Returns:
+            pd.DataFrame: Language estimates indexed by recording ID.
+        """
+        file_name = "lang_vox1_final.csv"
         file_path = self.corpus_dir / file_name
         if not file_path.exists():
             file_path = self.output_dir / file_name
@@ -129,7 +167,26 @@ class VoxCeleb1DataPrep(DataPrep):
         return df_lang
 
     @staticmethod
-    def make_cat_list(lists_cat_dir, rec_id, rec_files, video_idx, i):
+    def make_cat_list(
+        lists_cat_dir: Path,
+        rec_id: str,
+        rec_files: List[Path],
+        video_idx: np.ndarray,
+        i: int,
+    ) -> str:
+        """
+        Creates a temporary FFmpeg list file to concatenate recordings from the same video.
+
+        Args:
+            lists_cat_dir (Path): Directory to store the temporary list files.
+            rec_id (str): Recording ID for the output.
+            rec_files (List[Path]): All audio file paths.
+            video_idx (np.ndarray): Indices mapping files to video IDs.
+            i (int): Current video index.
+
+        Returns:
+            str: FFmpeg pipe input string for audio concatenation.
+        """
         list_file = lists_cat_dir / f"{rec_id}.txt"
         with open(list_file, "w") as fw:
             rec_idx = (video_idx == i).nonzero()[0]
@@ -143,7 +200,16 @@ class VoxCeleb1DataPrep(DataPrep):
         )
         return file_path
 
-    def make_trials(self):
+    def make_trials(self) -> Tuple[Optional[Dict[str, Path]], Dict[str, Path]]:
+        """
+        Generates trial and enrollment CSVs for the test task.
+
+        Downloads standard VoxCeleb1 test trial files if not found locally,
+        and creates formatted CSVs for evaluation.
+
+        Returns:
+            Tuple[Optional[Dict[str, Path]], Dict[str, Path]]: Enrollment and trial file paths.
+        """
         url_base = "https://www.robots.ox.ac.uk/~vgg/data/voxceleb/meta"
         trials_file_names = [
             "veri_test2.txt",
@@ -214,7 +280,14 @@ class VoxCeleb1DataPrep(DataPrep):
 
         return enrollments, trials
 
-    def prepare(self):
+    def prepare(self) -> None:
+        """
+        Executes the full data preparation pipeline.
+
+        This includes loading metadata, computing durations, optionally
+        concatenating recordings, generating recording and segment tables,
+        and writing the final dataset to disk.
+        """
         logging.info(
             "Peparing VoxCeleb1 for %s corpus_dir:%s -> data_dir:%s",
             self.task,

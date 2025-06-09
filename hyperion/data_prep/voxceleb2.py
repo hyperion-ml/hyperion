@@ -1,6 +1,6 @@
 """
- Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import glob
@@ -8,10 +8,11 @@ import logging
 import re
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
-from jsonargparse import ActionYesNo
+from jsonargparse import ActionYesNo, ArgumentParser
 from tqdm import tqdm
 
 from ..utils import ClassInfo, HypDataset, RecordingSet, SegmentSet
@@ -20,27 +21,33 @@ from .data_prep import DataPrep
 
 
 class VoxCeleb2DataPrep(DataPrep):
-    """Class for preparing VoxCeleb2 database into tables
+    """
+    Class for preparing the VoxCeleb2 dataset into structured tables.
 
     Attributes:
-      corpus_dir: input data directory
-      subset: subset of the data dev or test
-      cat_videos: concatenate utterances from the same video.
-      output_dir: output data directory
-      use_kaldi_ids: puts speaker-id in front of segment id like kaldi
-      target_sample_freq: target sampling frequency to convert the audios to.
+        corpus_dir (PathLike): Input data directory.
+        subset (str): 'dev' or 'test' split of the dataset.
+        cat_videos (bool): Concatenate utterances from the same video.
+        enrichment_metadata (bool): Whether to enrich with external age/gender metadata.
+        output_dir (PathLike): Output directory for processed data.
+        use_kaldi_ids (bool): Use Kaldi-style segment IDs (speaker-segment).
+        target_sample_freq (Optional[int]): Target sample rate in Hz.
     """
 
     def __init__(
         self,
         corpus_dir: PathLike,
         subset: str,
-        cat_videos: bool,
         output_dir: PathLike,
-        use_kaldi_ids: bool,
-        target_sample_freq: int,
+        cat_videos: bool = False,
+        enrichment_metadata: bool = False,
+        use_kaldi_ids: bool = False,
+        target_sample_freq: Optional[int] = None,
         num_threads: int = 10,
-    ):
+    ) -> None:
+        """
+        Initialize the VoxCeleb2DataPrep instance.
+        """
         use_kaldi_ids = True
         super().__init__(
             corpus_dir, output_dir, use_kaldi_ids, target_sample_freq, num_threads
@@ -48,13 +55,18 @@ class VoxCeleb2DataPrep(DataPrep):
 
         self.subset = subset
         self.cat_videos = cat_videos
+        self.enrichment_metadata = enrichment_metadata
 
     @staticmethod
-    def dataset_name():
+    def dataset_name() -> str:
+        """Returns the name of the dataset."""
         return "voxceleb2"
 
     @staticmethod
-    def add_class_args(parser):
+    def add_class_args(parser: ArgumentParser) -> None:
+        """
+        Adds dataset-specific arguments to the argument parser.
+        """
         DataPrep.add_class_args(parser)
         parser.add_argument(
             "--subset",
@@ -68,8 +80,15 @@ class VoxCeleb2DataPrep(DataPrep):
             action=ActionYesNo,
             help="""concatenate utterances from the same video.""",
         )
+        parser.add_argument(
+            "--enrichment-metadata",
+            default=False,
+            action=ActionYesNo,
+            help="""enrich metadata with VoxCeleb2 age and gender estimation""",
+        )
 
-    def _get_metadata(self):
+    def _get_metadata(self) -> pd.DataFrame:
+        """Downloads and returns VoxCeleb2 metadata as a DataFrame."""
         file_name = "vox2_meta.csv"
         file_path = self.corpus_dir / file_name
         if not file_path.exists():
@@ -84,7 +103,108 @@ class VoxCeleb2DataPrep(DataPrep):
         df_meta.set_index("VoxCeleb2 ID", inplace=True)
         return df_meta
 
-    def _get_langs_est(self):
+    def _get_enrichment_metadata(
+        self, segments: SegmentSet, speakers: ClassInfo
+    ) -> None:
+        """
+        Adds enriched metadata (e.g., age, nationality) to segments and speakers.
+
+        Args:
+            segments (SegmentSet): Segment-level metadata.
+            speakers (ClassInfo): Speaker-level metadata.
+        """
+        import subprocess
+
+        repo_url = (
+            "https://github.com/jesus-villalba/voxceleb_enrichment_age_gender.git"
+        )
+        target_dir = self.output_dir / "voxceleb_enrichment_age_gender"
+
+        subprocess.run(["git", "clone", repo_url, str(target_dir)], check=True)
+
+        ext_table = pd.read_csv(
+            "voxceleb_enrichment_age_gender/dataset/final_dataframe_extended.csv",
+            sep=",",
+        )
+        """Ext table columns:
+        Name,gender_wiki,birth_date_wiki,nationality_wiki,
+        gender_dbpedia,birth_date_dbpedia,nationality_dbpedia,
+        gender_gkg,birth_date_gkg,nationality_gkg,
+        video_id,title,publishing_date,description,year_in_title,
+        VoxCeleb_ID,gender,birth_year,year_upload_yt,
+        recording_year,recording_year_title_only,
+        speaker_age,speaker_age_title_only
+        """
+        ext_table.rename(columns={"nationality_wiki": "nationality"}, inplace=True)
+        columns = [
+            "video_id",
+            "nationality",
+            "birth_year",
+            "recording_year",
+            "recording_year_title_only",
+            "speaker_age",
+            "speaker_age_title_only",
+            "VoxCeleb_ID",
+        ]
+
+        segments.add_columns(
+            right_table=ext_table[columns],
+            on=["speaker", "video_id"],
+            right_on=["VoxCeleb_ID", "video_id"],
+        )
+        segments.loc[
+            (segments["speaker_age"] >= 18) & (segments["speaker_age"] <= 24),
+            "arts_age_range",
+        ] = "young"
+        segments.loc[
+            (segments["speaker_age"] >= 35) & (segments["speaker_age"] <= 44),
+            "arts_age_range",
+        ] = "adult"
+        segments.loc[
+            (segments["speaker_age"] >= 55) & (segments["speaker_age"] <= 64),
+            "arts_age_range",
+        ] = "senior"
+        segments.loc[segments["speaker_age"] <= 24, "arts_ext_age_range"] = "young"
+        segments.loc[
+            (segments["speaker_age"] >= 35) & (segments["speaker_age"] <= 44),
+            "arts_ext_age_range",
+        ] = "adult"
+        segments.loc[segments["speaker_age"] >= 55, "arts_ext_age_range"] = "senior"
+
+        segments.loc[
+            (segments["speaker_age_title_only"] >= 18)
+            & (segments["speaker_age_title_only"] <= 24),
+            "arts_age_range_title_only",
+        ] = "young"
+        segments.loc[
+            (segments["speaker_age_title_only"] >= 35)
+            & (segments["speaker_age_title_only"] <= 44),
+            "arts_age_range_title_only",
+        ] = "adult"
+        segments.loc[
+            (segments["speaker_age_title_only"] >= 55)
+            & (segments["speaker_age_title_only"] <= 64),
+            "arts_age_range_title_only",
+        ] = "senior"
+        segments.loc[
+            segments["speaker_age_title_only"] <= 24, "arts_ext_age_range_title_only"
+        ] = "young"
+        segments.loc[
+            (segments["speaker_age_title_only"] >= 35)
+            & (segments["speaker_age_title_only"] <= 44),
+            "arts_ext_age_range_title_only",
+        ] = "adult"
+        segments.loc[
+            segments["speaker_age_title_only"] >= 55, "arts_ext_age_range_title_only"
+        ] = "senior"
+
+        speakers_ext = segments.df[
+            ["speaker", "nationality", "birth_year"]
+        ].drop_duplicates()
+        speakers.add_columns(right_table=speakers_ext, on=["id"], right_on=["speaker"])
+
+    def _get_langs_est(self) -> pd.DataFrame:
+        """Downloads and returns language estimations for each segment."""
         file_name = "lang_vox2_final.csv"
         file_path = self.corpus_dir / file_name
         if not file_path.exists():
@@ -122,7 +242,26 @@ class VoxCeleb2DataPrep(DataPrep):
         return df_lang
 
     @staticmethod
-    def make_cat_list(lists_cat_dir, rec_id, rec_files, video_idx, i):
+    def make_cat_list(
+        lists_cat_dir: Path,
+        rec_id: str,
+        rec_files: List[Path],
+        video_idx: np.ndarray,
+        i: int,
+    ) -> str:
+        """
+        Create a text list for ffmpeg to concatenate multiple recordings into one.
+
+        Args:
+            lists_cat_dir (Path): Directory to write the concat file.
+            rec_id (str): The resulting recording ID.
+            rec_files (List[Path]): List of all recording paths.
+            video_idx (np.ndarray): Array mapping each file to a video index.
+            i (int): Current video index to process.
+
+        Returns:
+            str: ffmpeg pipe command.
+        """
         list_file = lists_cat_dir / f"{rec_id}.txt"
         with open(list_file, "w") as fw:
             rec_idx = (video_idx == i).nonzero()[0]
@@ -136,7 +275,16 @@ class VoxCeleb2DataPrep(DataPrep):
         )
         return file_path
 
-    def prepare(self):
+    def prepare(self) -> None:
+        """
+        Runs the full preparation pipeline:
+        - Scans audio files
+        - Assigns IDs
+        - Computes durations
+        - Creates RecordingSet and SegmentSet
+        - Optionally adds enrichment metadata
+        - Saves HypDataset
+        """
         logging.info(
             "Peparing VoxCeleb2 %s corpus_dir:%s -> data_dir:%s",
             self.subset,
@@ -254,6 +402,9 @@ class VoxCeleb2DataPrep(DataPrep):
 
         logging.info("making gender info file")
         genders = ClassInfo(pd.DataFrame({"id": ["m", "f"]}))
+
+        if self.enrichment_metadata:
+            self._get_enrichment_metadata(segments, speakers)
 
         logging.info("making dataset")
         dataset = HypDataset(

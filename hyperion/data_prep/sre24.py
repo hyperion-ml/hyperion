@@ -6,7 +6,7 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 import logging
 from enum import Enum
 from pathlib import Path
-from typing import Optional
+from typing import Dict, Optional
 
 import numpy as np
 import pandas as pd
@@ -92,20 +92,24 @@ class SourceTrialCond(str, Enum):
 
 
 class SRE24DataPrep(DataPrep):
-    """Class for preparing the SRE24 dev (LDC2024E12+LDC2024E34) or eval () database into tables
+    """
+    Prepares the SRE24 dataset (LDC2024E12, LDC2024E34) for speaker recognition.
 
-    Attributes:
-      corpus_dir: input data directory
-      output_dir: output data directory
-      modality: audio, visual, audio-visual
-      subset: sre24 subset in [dev, eval]
-      partition: sre24 trial side in [enroll, test]
-      use_kaldi_ids: puts speaker-id in front of segment id like kaldi
-      target_sample_freq: target sampling frequency to convert the audios to.
-      with_videos: prepare videos.csv table
-      corpus_docs_dir: if docs are not in main dir, provide LDC2024E34 dir
-      num_threads: num_threads to collect recording info
-      use_ldc_langs: convert language id to LDC format
+    Supports audio, visual, and audio-visual modalities with enrollment/trial generation,
+    VAD metadata, and class label generation.
+
+    Args:
+        corpus_dir: Root directory of the corpus.
+        modality: 'audio', 'visual', or 'audio-visual'.
+        subset: 'dev' or 'eval'.
+        partition: 'enrollment' or 'test'.
+        output_dir: Where to write prepared dataset.
+        use_kaldi_ids: Whether to prepend speaker ID to segment ID.
+        target_sample_freq: Resampling frequency for audio.
+        with_videos: If True, prepare videos.csv.
+        corpus_docs_dir: Optional override path for docs (e.g., LDC2024E34).
+        num_threads: Threads for audio/video duration extraction.
+        use_ldc_langs: Convert language codes to LDC standard format (ENG, ARA, FRA).
     """
 
     def __init__(
@@ -115,9 +119,9 @@ class SRE24DataPrep(DataPrep):
         subset: str,
         partition: str,
         output_dir: PathLike,
-        use_kaldi_ids: bool,
-        target_sample_freq: int,
-        with_videos: bool,
+        use_kaldi_ids: bool = False,
+        target_sample_freq: Optional[int] = None,
+        with_videos: bool = False,
         corpus_docs_dir: Optional[PathLike] = None,
         num_threads: int = 10,
         use_ldc_langs: bool = False,
@@ -136,11 +140,13 @@ class SRE24DataPrep(DataPrep):
         self.corpus_docs_dir = Path(corpus_docs_dir)
 
     @staticmethod
-    def dataset_name():
+    def dataset_name() -> str:
+        """Returns the dataset name identifier 'sre24'."""
         return "sre24"
 
     @staticmethod
-    def add_class_args(parser):
+    def add_class_args(parser) -> None:
+        """Adds CLI arguments specific to SRE24."""
         DataPrep.add_class_args(parser)
         parser.add_argument(
             "--modality",
@@ -178,8 +184,13 @@ class SRE24DataPrep(DataPrep):
             help="if docs are not in main dir, provide LDC2024E34 dir",
         )
 
-    def read_segments_metadata(self):
+    def read_segments_metadata(self) -> pd.DataFrame:
+        """
+        Loads and filters the segment metadata according to modality and partition.
 
+        Returns:
+            pd.DataFrame: Cleaned segment metadata indexed by segment ID.
+        """
         if (
             self.modality == "audio"
             or self.modality == "audio-visual"
@@ -253,9 +264,17 @@ class SRE24DataPrep(DataPrep):
         df_segs.set_index("id", drop=False, inplace=True)
         return df_segs
 
-    def make_recording_set(self, df_segs):
+    def make_recording_set(self, df_segs: pd.DataFrame) -> RecordingSet:
+        """
+        Builds the RecordingSet from the provided segments.
 
-        logging.info("making RecordingSet")
+        Args:
+            df_segs (pd.DataFrame): Segment metadata.
+
+        Returns:
+            RecordingSet: Table with storage paths and sample frequency.
+        """
+        logging.info("Making RecordingSet")
         if self.modality == "audio":
             wav_dir = self.corpus_dir / "data" / self.partition
         else:
@@ -289,9 +308,17 @@ class SRE24DataPrep(DataPrep):
         recordings.get_durations(self.num_threads)
         return recordings
 
-    def make_image_set(self, df_segs):
+    def make_image_set(self, df_segs: pd.DataFrame) -> ImageSet:
+        """
+        Builds an ImageSet from visual segment metadata.
 
-        logging.info("making ImageSet")
+        Args:
+            df_segs (pd.DataFrame): Segment metadata.
+
+        Returns:
+            ImageSet: Table of image IDs and paths.
+        """
+        logging.info("Making ImageSet")
 
         img_dir = self.corpus_dir / "data" / self.partition
         df_imgs = df_segs[["id"]].copy()
@@ -300,9 +327,18 @@ class SRE24DataPrep(DataPrep):
         images = ImageSet(df_imgs)
         return images
 
-    def make_video_set(self, df_segs):
+    def make_video_set(self, df_segs: pd.DataFrame) -> VideoSet:
+        """
+        Builds a VideoSet from video segment metadata.
 
-        logging.info("making VideoSet")
+        Args:
+            df_segs (pd.DataFrame): Segment metadata.
+
+        Returns:
+            VideoSet: Table of video IDs, paths, and sample rate info.
+        """
+
+        logging.info("Making VideoSet")
         vid_dir = self.corpus_dir / "data" / self.partition
 
         df_vids = df_segs[["id"]].copy()
@@ -316,8 +352,17 @@ class SRE24DataPrep(DataPrep):
         videos.get_metadata(self.num_threads)
         return videos
 
-    def make_class_infos(self, df_segs):
-        logging.info("making ClassInfos")
+    def make_class_infos(self, df_segs: pd.DataFrame) -> Dict[str, ClassInfo]:
+        """
+        Generates ClassInfo tables for speaker, language, gender, and source_type.
+
+        Args:
+            df_segs (pd.DataFrame): Segment metadata.
+
+        Returns:
+            Dict[str, ClassInfo]: ClassInfo tables keyed by type.
+        """
+        logging.info("Making ClassInfos")
         df_segs = df_segs.reset_index(drop=True)
         df_spks = df_segs[["speaker", "gender"]].drop_duplicates()
         df_spks.rename(columns={"speaker": "id"}, inplace=True)
@@ -342,8 +387,17 @@ class SRE24DataPrep(DataPrep):
             "gender": genders,
         }
 
-    def make_enrollments(self, df_segs):
-        logging.info("making Enrollment")
+    def make_enrollments(self, df_segs: pd.DataFrame) -> Dict[str, EnrollmentMap]:
+        """
+        Creates an EnrollmentMap for the current modality and partition.
+
+        Args:
+            df_segs (pd.DataFrame): Segment metadata.
+
+        Returns:
+            Dict[str, EnrollmentMap]: Dictionary with enrollment map under 'enrollment'.
+        """
+        logging.info("Making EnrollmentMap")
         if self.modality in ["audio", "audio-visual"]:
             enroll_file = (
                 self.corpus_docs_dir
@@ -385,7 +439,14 @@ class SRE24DataPrep(DataPrep):
             logging.info("made Enrollment")
             return {"enrollment": EnrollmentMap(df_enr)}
 
-    def _get_enroll_conds(self):
+    def _get_enroll_conds(self) -> pd.DataFrame:
+        """
+        Loads enrollment metadata and maps each model ID to language, source_type, and number of enrollment segments.
+
+        Returns:
+            pd.DataFrame: DataFrame indexed by model ID, with columns:
+                          ['language', 'source_type', 'num_enroll_segs']
+        """
         # we read the segments again to get extra conditions
         partition = self.partition
         self.partition = "enrollment"
@@ -422,7 +483,20 @@ class SRE24DataPrep(DataPrep):
         df_enr_conds.set_index("id", inplace=True)
         return df_enr_conds
 
-    def _get_extra_trial_conds(self, df_trial, df_segs):
+    def _get_extra_trial_conds(
+        self, df_trial: pd.DataFrame, df_segs: pd.DataFrame
+    ) -> pd.DataFrame:
+        """
+        Adds language, source_type, and enrollment segment count conditions to trials.
+
+        Args:
+            df_trial: Trial list with columns ['modelid', 'segmentid', ...]
+            df_segs: Segment metadata with language and source_type.
+
+        Returns:
+            pd.DataFrame: Trial DataFrame with extra condition columns.
+        """
+        logging.info("Adding language/source_type/num_enroll_segs to trials")
         df_enr = self._get_enroll_conds()
         logging.info("iterating to get extra trial conditions")
         df_trial["num_enroll_segs"] = 1
@@ -442,8 +516,17 @@ class SRE24DataPrep(DataPrep):
 
         return df_trial
 
-    def make_trials(self, df_segs):
-        logging.info("making Trials")
+    def make_trials(self, df_segs: pd.DataFrame) -> Dict[str, Path]:
+        """
+        Creates trials and condition-specific subsets for evaluation.
+
+        Args:
+            df_segs: Segment metadata.
+
+        Returns:
+            Dict[str, Path]: Mapping of condition name → trial TSV path.
+        """
+        logging.info("Generating trial files")
         trial_file = (
             self.corpus_docs_dir
             / "docs"
@@ -539,8 +622,17 @@ class SRE24DataPrep(DataPrep):
 
         return trials
 
-    def make_vad_marks(self, df_segs):
-        logging.info("making VADSet")
+    def make_vad_marks(self, df_segs: pd.DataFrame) -> Dict[str, VADSet]:
+        """
+        Builds a VADSet using diarization TSV files matching segment filenames.
+
+        Args:
+            df_segs: Segment metadata DataFrame.
+
+        Returns:
+            Dict[str, VADSet]: Mapping from 'target_speaker' to the VADSet object.
+        """
+        logging.info("Making VAD marks")
         marks_dir = self.corpus_docs_dir / "docs" / "diarization"
         ids = []
         filenames = []
@@ -553,7 +645,10 @@ class SRE24DataPrep(DataPrep):
         df_vad = pd.DataFrame({"id": ids, "storage_path": filenames})
         return {"target_speaker": VADSet(df_vad)}
 
-    def prepare(self):
+    def prepare(self) -> None:
+        """
+        Runs the full SRE24 data preparation pipeline for dev partition.
+        """
         logging.info(
             "Peparing sre24 %s %s %s corpus_dir: %s -> data_dir: %s",
             self.modality,

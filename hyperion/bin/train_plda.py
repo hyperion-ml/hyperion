@@ -1,7 +1,7 @@
 #!/usr/bin/env python
-""" 
- Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba) 
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0) 
+"""
+Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import logging
 import os
@@ -72,7 +72,7 @@ def train_pca(x, pca_lnorm, pca_args):
     logging.info("computing pca pca_var_r=%f", pca_var_r)
     pca = None
     pca_lnorm = None
-    if pca_var_r < 1:
+    if pca_var_r is not None and pca_var_r < 1:
         if pca_lnorm:
             logging.info("LNorm before PCA")
             pca_lnorm = LNorm(name="pca_lnorm")

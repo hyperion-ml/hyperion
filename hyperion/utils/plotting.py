@@ -1,7 +1,9 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
+from typing import Any, Optional
 
 import matplotlib
 
@@ -10,12 +12,22 @@ import matplotlib.pyplot as plt
 import numpy as np
 import scipy.linalg as la
 import scipy.stats as stats
-from mpl_toolkits.mplot3d import Axes3D as plt3d
+
+# from mpl_toolkits.mplot3d import Axes3D
+from matplotlib.axes import Axes
+from mpl_toolkits.mplot3d.axes3d import Axes3D  # For 3D plotting
 
 from .math_funcs import invert_pdmat
 
 
-def plot_gaussian_1D(mu, C, num_sigmas=3, num_pts=100, weight=1, **kwargs):
+def plot_gaussian_1D(
+    mu: float,
+    C: float,
+    num_sigmas: float = 3,
+    num_pts: int = 100,
+    weight: float = 1,
+    **kwargs: Any,
+) -> None:
     """Plots a 1D Gaussian.
 
     Args:
@@ -33,7 +45,14 @@ def plot_gaussian_1D(mu, C, num_sigmas=3, num_pts=100, weight=1, **kwargs):
     plt.plot(x, weight * stats.norm.pdf(x, mu, sigma), **kwargs)
 
 
-def plot_gaussian_3D(mu, C, num_sigmas=3, num_pts=100, ax=None, **kwargs):
+def plot_gaussian_3D(
+    mu: np.ndarray,
+    C: np.ndarray,
+    num_sigmas: float = 3.0,
+    num_pts: int = 100,
+    ax: Optional[Axes3D] = None,
+    **kwargs: Any,
+) -> None:
     """Plots a 2D Gaussian in a 3D space
 
     Args:
@@ -74,7 +93,13 @@ def plot_gaussian_3D(mu, C, num_sigmas=3, num_pts=100, ax=None, **kwargs):
     ax.plot_surface(X, Y, Z, **kwargs)
 
 
-def plot_gaussian_ellipsoid_2D(mu, C, num_sigmas=1, num_pts=100, **kwargs):
+def plot_gaussian_ellipsoid_2D(
+    mu: np.ndarray,
+    C: np.ndarray,
+    num_sigmas: float = 1.0,
+    num_pts: int = 100,
+    **kwargs: Any,
+) -> None:
     """Plots a 2D Gaussian in a 2D space
 
     Args:
@@ -100,7 +125,14 @@ def plot_gaussian_ellipsoid_2D(mu, C, num_sigmas=1, num_pts=100, **kwargs):
     plt.plot(r[0, :], r[1, :], **kwargs)
 
 
-def plot_gaussian_ellipsoid_3D(mu, C, num_sigmas=1, num_pts=100, ax=None, **kwargs):
+def plot_gaussian_ellipsoid_3D(
+    mu: np.ndarray,
+    C: np.ndarray,
+    num_sigmas: float = 1.0,
+    num_pts: int = 100,
+    ax: Optional[Axes3D] = None,
+    **kwargs: Any,
+) -> None:
     """Plots a 3D Gaussian in a 3D space
 
     Args:
@@ -134,36 +166,3 @@ def plot_gaussian_ellipsoid_3D(mu, C, num_sigmas=1, num_pts=100, ax=None, **kwar
         ax = fig.add_subplot(111, projection="3d")
 
     ax.plot_wireframe(X, Y, Z, **kwargs)
-
-
-# def test_plotting():
-
-#     mu=np.array([1, 2, 3])
-#     C=np.array([[2, 0.5, 0.2], [0.5, 1., 0.1], [0.2, 0.1, 0.8]])
-#     la.cholesky(C)
-
-#     mu1 = mu[0]
-#     C1 = C[0,0]
-#     plt.figure(figsize=(6, 6))
-#     plot_gaussian_1D(mu1, C1)
-#     plt.show()
-#     plt.savefig('plot_gaussian_1D.pdf')
-
-#     mu2 = mu[:2]
-#     C2 = C[:2,:2]
-#     fig = plt.figure(figsize=(6, 6))
-#     ax = fig.add_subplot(111, projection='3d')
-#     plot_gaussian_3D(mu2, C2, ax=ax)
-#     plt.show()
-#     plt.savefig('plot_gaussian_3D.pdf')
-
-#     plt.figure(figsize=(6, 6))
-#     plot_gaussian_ellipsoid_2D(mu2, C2)
-#     plt.show()
-#     plt.savefig('plot_gaussian_ellipsoid_2D.pdf')
-
-#     fig = plt.figure(figsize=(6, 6))
-#     ax = fig.add_subplot(111, projection='3d')
-#     plot_gaussian_ellipsoid_3D(mu, C, ax=ax)
-#     plt.show()
-#     plt.savefig('plot_gaussian_ellipsoid_3D.pdf')

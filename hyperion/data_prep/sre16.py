@@ -7,6 +7,7 @@ import glob
 import logging
 from enum import Enum
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -19,7 +20,22 @@ from .data_prep import DataPrep
 
 
 class SRE16DataPrep(DataPrep):
-    """Class for preparing the SRE16 (LDC2019S20) database into tables"""
+    """
+    Prepares the SRE16 (LDC2019S20) dataset into structured tables.
+
+    This class supports various subsets (dev, eval) and partitions (train, test, enrollment),
+    including optional Kaldi-style ID formatting and language normalization.
+
+    Attributes:
+        corpus_dir (PathLike): Path to the dataset root directory.
+        subset (str): One of 'dev' or 'eval'.
+        partition (str): One of 'train', 'test', 'enrollment', or filtered variants (e.g., 'train60').
+        output_dir (PathLike): Directory where the processed dataset will be saved.
+        use_kaldi_ids (bool): Whether to format segment IDs as <speaker>-<segment>.
+        target_sample_freq (Optional[int]): Optional audio resampling frequency in Hz.
+        num_threads (int): Number of threads for parallel processing.
+        use_ldc_langs (bool): If True, convert language ID format to LDC naming.
+    """
 
     def __init__(
         self,
@@ -27,8 +43,8 @@ class SRE16DataPrep(DataPrep):
         subset: str,
         partition: str,
         output_dir: PathLike,
-        use_kaldi_ids: bool,
-        target_sample_freq: int,
+        use_kaldi_ids: bool = False,
+        target_sample_freq: Optional[int] = None,
         num_threads: int = 10,
         use_ldc_langs: bool = False,
     ):
@@ -45,11 +61,14 @@ class SRE16DataPrep(DataPrep):
         ]
 
     @staticmethod
-    def dataset_name():
+    def dataset_name() -> str:
+        """Returns dataset identifier for SRE16."""
+
         return "sre16"
 
     @staticmethod
-    def add_class_args(parser):
+    def add_class_args(parser) -> None:
+        """Adds command-line arguments specific to SRE16."""
         DataPrep.add_class_args(parser)
         parser.add_argument(
             "--subset",
@@ -77,7 +96,13 @@ class SRE16DataPrep(DataPrep):
             help="convert language id to LDC format",
         )
 
-    def read_segments_metadata(self):
+    def read_segments_metadata(self) -> pd.DataFrame:
+        """
+        Loads and merges segment metadata with speaker and session metadata.
+
+        Returns:
+            pd.DataFrame: Merged segment-level metadata.
+        """
         if self.partition in ["train", "train60"]:
             segments_file = (
                 self.corpus_dir / "docs" / f"sre16_{self.subset}_segment_key.tsv"
@@ -145,7 +170,16 @@ class SRE16DataPrep(DataPrep):
         df_segs.set_index("id", drop=False, inplace=True)
         return df_segs
 
-    def make_recording_set(self, df_segs):
+    def make_recording_set(self, df_segs: pd.DataFrame) -> RecordingSet:
+        """
+        Builds the RecordingSet by locating .sph files and matching segment IDs.
+
+        Args:
+            df_segs (pd.DataFrame): Segment metadata with IDs.
+
+        Returns:
+            RecordingSet: Audio file paths with durations and IDs.
+        """
         logging.info("making RecordingSet")
         rec_dir = self.corpus_dir / "data"
         logging.info("searching audio files in %s", str(rec_dir))
@@ -166,7 +200,17 @@ class SRE16DataPrep(DataPrep):
         recordings.get_durations(self.num_threads)
         return recordings
 
-    def make_class_infos(self, df_segs):
+    def make_class_infos(self, df_segs: pd.DataFrame) -> dict[str, ClassInfo]:
+        """
+        Constructs ClassInfo objects for speakers, genders, languages, and source type.
+
+        Args:
+            df_segs (pd.DataFrame): Metadata with speaker, gender, and language columns.
+
+        Returns:
+            dict[str, ClassInfo]: Dictionary of class tables.
+        """
+
         logging.info("making ClassInfos")
         df_segs = df_segs.reset_index(drop=True)
         df_spks = df_segs[["speaker", "gender"]].drop_duplicates()
@@ -188,7 +232,16 @@ class SRE16DataPrep(DataPrep):
             "gender": genders,
         }
 
-    def make_enrollments(self, df_segs):
+    def make_enrollments(self, df_segs: pd.DataFrame) -> dict[str, EnrollmentMap]:
+        """
+        Generates enrollment map based on enrollment metadata.
+
+        Args:
+            df_segs (pd.DataFrame): Segment metadata with IDs.
+
+        Returns:
+            dict[str, EnrollmentMap]: Enrollment maps keyed by 'enrollment'.
+        """
         logging.info("making Enrollment")
         enroll_file = self.corpus_dir / "docs" / f"sre16_{self.subset}_enrollment.tsv"
         df_enr = pd.read_csv(enroll_file, sep="\t")
@@ -196,7 +249,7 @@ class SRE16DataPrep(DataPrep):
             df_enr = df_enr.loc[df_enr.segment.isin(df_segs.segment)]
         if self.use_kaldi_ids:
             segment_ids = [
-                df_segs.loc[df_segs["segment"] == s, "id"]
+                df_segs.loc[df_segs["segment"] == s, "id"].values[0]
                 for s in df_enr["segment"].values
             ]
             df_enr["segmentid"] = segment_ids
@@ -207,7 +260,17 @@ class SRE16DataPrep(DataPrep):
         df_enr.drop(columns=["side"], inplace=True)
         return {"enrollment": EnrollmentMap(df_enr)}
 
-    def make_trials(self, df_segs):
+    def make_trials(self, df_segs: pd.DataFrame) -> dict[str, Path]:
+        """
+        Creates trial files in standard and extended formats (gender/language condition splits).
+
+        Args:
+            df_segs (pd.DataFrame): Segment metadata.
+
+        Returns:
+            dict[str, Path]: Paths to trial files.
+        """
+
         logging.info("making Trials")
         trial_file = self.corpus_dir / "docs" / f"sre16_{self.subset}_trial_key.tsv"
         df_trial = pd.read_csv(trial_file, sep="\t")
@@ -218,7 +281,7 @@ class SRE16DataPrep(DataPrep):
         df_trial.to_csv(output_file, sep="\t", index=False)
         if self.use_kaldi_ids:
             segment_ids = [
-                df_segs.loc[df_segs["segment"] == s, "id"]
+                df_segs.loc[df_segs["segment"] == s, "id"].values[0]
                 for s in df_trial["segment"].values
             ]
             df_trial["segment"] = segment_ids
@@ -253,7 +316,15 @@ class SRE16DataPrep(DataPrep):
 
         return trials
 
-    def prepare(self):
+    def prepare(self) -> None:
+        """
+        Executes the full SRE16 dataset preparation pipeline:
+        - Loads metadata and segment information
+        - Generates segment, recording, and class tables
+        - Produces trial and enrollment files as needed
+        - Saves HypDataset to disk
+        """
+
         logging.info(
             "Peparing SRE16 %s %s corpus_dir: %s -> data_dir: %s",
             self.subset,

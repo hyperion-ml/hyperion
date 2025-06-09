@@ -88,10 +88,6 @@ class HypDataset:
                 assert isinstance(recordings, (str, Path))
                 self._recordings_path = Path(recordings)
 
-        # self._recordings, self._recordings_paths = self._parse_dict_args(
-        #     recordings, RecordingSet
-        # )
-
         self._images = None
         self._images_path = None
         if images is not None:
@@ -1325,6 +1321,8 @@ class HypDataset:
             if k in self.segments():
                 class_ids = self.segments()[k].unique()
                 self._classes[k] = table.filter(lambda df: df["id"].isin(class_ids))
+                if rebuild_class_idx:
+                    self._classes[k].add_class_idx()
             else:
                 remove_keys.append(k)
 
@@ -1528,6 +1526,23 @@ class HypDataset:
         if rebuild_idx:
             class_info = self.classes_value(class_name)
             class_info.add_class_idx()
+
+    
+    def filter_by_segments(
+        self,
+        segments: Union[SegmentSet, List[str]],
+        rebuild_class_idx: bool = False,
+        keep: bool = True,
+    ):
+
+        if isinstance(segments, SegmentSet):
+            segment_ids = segments["id"]
+        else:
+            segment_ids = segments
+
+        segments = self.segments()
+        self._segments = segments.filter(items=segment_ids, by="id", keep=keep)
+        self.clean(rebuild_class_idx=rebuild_class_idx)
 
     def filter_by_classes(
         self,

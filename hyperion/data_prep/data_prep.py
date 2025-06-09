@@ -1,26 +1,29 @@
 """
- Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from typing import List, Optional, Tuple
 
-from jsonargparse import ActionYesNo
+from jsonargparse import ActionYesNo, ArgumentParser
 from tqdm import tqdm
 
-from ..utils import PathLike
+from ..utils import PathLike, RecordingSet
 
 
 class DataPrep:
-    """Base class for data preparation classes.
+    """
+    Base class for data preparation. Handles parallel audio processing and metadata generation.
 
     Attributes:
-      corpus_dir: input data directory
-      output_dir: output data directory
-      use_kaldi_ids: puts speaker-id in front of segment id like kaldi
-      target_sample_freq: target sampling frequency to convert the audios to.
-      num_threads: number of parallel threads
+        corpus_dir (Path): Path to input data directory.
+        output_dir (Path): Path to output data directory.
+        use_kaldi_ids (bool): Whether to prefix segment IDs with speaker IDs (Kaldi style).
+        target_sample_freq (int): Target audio sampling frequency.
+        num_threads (int): Number of threads for parallel processing.
     """
 
     registry = {}
@@ -29,8 +32,8 @@ class DataPrep:
         self,
         corpus_dir: PathLike,
         output_dir: PathLike,
-        use_kaldi_ids: bool,
-        target_sample_freq: int,
+        use_kaldi_ids: bool = False,
+        target_sample_freq: Optional[int] = None,
         num_threads: int = 10,
     ):
         self.corpus_dir = Path(corpus_dir)
@@ -46,11 +49,15 @@ class DataPrep:
         cls.registry[cls.dataset_name()] = cls
 
     @staticmethod
-    def dataset_name():
-        raise NotImplementedError()
+    def dataset_name() -> str:
+        """Returns a unique identifier for the dataset."""
+        raise NotImplementedError("Subclasses must implement dataset_name().")
 
     @staticmethod
-    def _get_recording_duration(recordings, i, n):
+    def _get_recording_duration(
+        recordings: RecordingSet, i: int, n: int
+    ) -> Tuple[List[float], List[float]]:
+        """Helper function to calculate duration and sample rate for audio chunks."""
         from ..io import SequentialAudioReader as AR
 
         durations = []
@@ -64,11 +71,14 @@ class DataPrep:
 
         return fss, durations
 
-    def get_recording_duration(self, recording_set):
+    def get_recording_duration(self, recording_set: RecordingSet):
+        """
+        Computes and appends duration and sampling frequency for each recording.
 
+        Args:
+            recording_set (dict): A dictionary expected to be updated with 'duration' and 'sample_freq'.
+        """
         import itertools
-
-        # from ..utils import SCPList #don't remember why I put this here
 
         futures = []
         logging.info("submitting threats...")
@@ -88,29 +98,36 @@ class DataPrep:
         recording_set["sample_freq"] = fss
 
     @staticmethod
-    def add_class_args(parser):
+    def add_class_args(parser: ArgumentParser) -> None:
+        """
+        Adds command-line arguments to the parser for configuring DataPrep.
+
+        Args:
+            parser (ArgumentParser): Argument parser to which arguments will be added.
+        """
         parser.add_argument(
-            "--corpus-dir", required=True, help="""input data directory""",
+            "--corpus-dir", required=True, help="Path to the input corpus directory"
         )
         parser.add_argument(
-            "--output-dir", required=True, help="""output data directory""",
+            "--output-dir",
+            required=True,
+            help="Path to the output directory where prepared data will be saved",
         )
         parser.add_argument(
             "--use-kaldi-ids",
             default=False,
             action=ActionYesNo,
-            help="""put speaker-id in front of segment id like kaldi""",
+            help="If True, prefixes segment IDs with speaker IDs (Kaldi style).",
         )
         parser.add_argument(
             "--target-sample-freq",
             default=None,
             type=int,
-            help="""target sampling frequency to convert the audios to""",
+            help="Target sampling frequency to which audio files should be converted.",
         )
-
         parser.add_argument(
             "--num-threads",
             default=10,
             type=int,
-            help="""number of parallel threads""",
+            help="Number of parallel threads to use for audio processing.",
         )

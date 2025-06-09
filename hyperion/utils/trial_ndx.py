@@ -1,6 +1,6 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import copy
@@ -179,7 +179,7 @@ class TrialNdx:
         if sep is None:
             sep = "\t" if ".tsv" in ext else ","
 
-        df = pd.read_csv(file_path, sep=sep)
+        df = pd.read_csv(file_path, sep=sep, dtype={"modelid": str, "segmentid": str})
         models = df["modelid"].values
         segments = df["segmentid"].values
         model_set, _, model_idx = np.unique(

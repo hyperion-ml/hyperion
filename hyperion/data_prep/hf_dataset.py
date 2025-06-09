@@ -1,15 +1,15 @@
 """
- Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 # import numpy as np
 import pandas as pd
-from jsonargparse import ActionYesNo
+from jsonargparse import ActionYesNo, ArgumentParser
 from tqdm import tqdm
 
 # from ..utils import ClassInfo, HypDataset, RecordingSet, SegmentSet, TrialKey, TrialNdx
@@ -18,18 +18,20 @@ from .data_prep import DataPrep
 
 
 class HFDatasetDataPrep(DataPrep):
-    """Base Class for preparing Hugging Face database into tables,
+    """
+    Prepares a Hugging Face dataset by downloading and extracting it into a corpus directory,
+    and then generating metadata and segment tables for downstream processing.
 
     Attributes:
-      hf_data_path: Hugging Face data path or corpus id
-      corpus_dir: data directory where audios are extracted
-      config: hf config names
-      split: train/dev/eval
-      output_dir: output data directory
-      use_kaldi_ids: puts speaker-id in front of segment id like kaldi
-      target_sample_freq: target sampling frequency to convert the audios to.
-      force_download: download the data again even if corpus dir exist
-      cache_dir: Directory to read/write data. Defaults to ~/.cache/huggingface/datasets
+        hf_data_path (str | Path | None): Hugging Face dataset path or ID.
+        corpus_dir (PathLike): Directory where audio files are extracted.
+        config (str | None): Dataset configuration name (if applicable).
+        split (str | None): Dataset split (e.g., 'train', 'test').
+        output_dir (PathLike): Output directory for processed metadata.
+        use_kaldi_ids (bool): Whether to use Kaldi-style IDs.
+        target_sample_freq (Optional[int]): Desired sample rate for output audio.
+        force_download (bool): Whether to re-download even if metadata exists.
+        cache_dir (Optional[str]): Hugging Face cache directory.
     """
 
     def __init__(
@@ -39,12 +41,15 @@ class HFDatasetDataPrep(DataPrep):
         config: Union[str, None],
         split: Union[str, None],
         output_dir: PathLike,
-        use_kaldi_ids: bool,
-        target_sample_freq: int,
+        use_kaldi_ids: bool = False,
+        target_sample_freq: Optional[int] = None,
         num_threads: int = 10,
         force_download: bool = False,
         cache_dir: Optional[str] = None,
     ):
+        """
+        Initialize the HFDatasetDataPrep class.
+        """
         super().__init__(corpus_dir, output_dir, False, target_sample_freq, num_threads)
 
         self.hf_data_path = hf_data_path
@@ -54,11 +59,13 @@ class HFDatasetDataPrep(DataPrep):
         self.cache_dir = cache_dir
 
     @staticmethod
-    def dataset_name():
+    def dataset_name() -> str:
+        """Returns the dataset identifier string."""
         return "hf_dataset"
 
     @staticmethod
-    def add_class_args(parser):
+    def add_class_args(parser: ArgumentParser) -> None:
+        """Add command-line arguments for Hugging Face dataset preparation."""
         DataPrep.add_class_args(parser)
         parser.add_argument(
             "--hf-data-path",
@@ -92,11 +99,22 @@ class HFDatasetDataPrep(DataPrep):
             help="Directory to read/write data. Defaults to ~/.cache/huggingface/datasets",
         )
 
-    def do_i_download_corpus(self):
+    def do_i_download_corpus(self) -> bool:
+        """
+        Determines whether the dataset should be downloaded again.
+
+        Returns:
+            bool: True if download is needed, False otherwise.
+        """
         meta_file = self.corpus_dir / "metadata.csv"
         return not meta_file.exists() or self.force_download
 
-    def download_corpus(self):
+    def download_corpus(self) -> None:
+        """
+        Downloads and extracts all splits/configs of a Hugging Face dataset into structured format.
+
+        Creates a metadata CSV in the corpus_dir.
+        """
 
         from datasets import (
             get_dataset_config_names,
@@ -141,7 +159,19 @@ class HFDatasetDataPrep(DataPrep):
         df = pd.DataFrame(items)
         df.to_csv(output_file, sep=",", index=False)
 
-    def prepare(self):
+    def _prepare_from_meta(self, df_meta: pd.DataFrame) -> None:
+        """
+        Processes metadata and creates segment and recording tables.
+
+        Args:
+            df_meta (pd.DataFrame): DataFrame containing metadata information.
+        """
+        raise NotImplementedError("This method must be implemented by subclasses.")
+
+    def prepare(self) -> None:
+        """
+        Orchestrates the download and processing of a Hugging Face dataset into segment/recording tables.
+        """
         logging.info(
             "Peparing %s Dataset %s %s %s -> corpus_dir:%s -> data_dir:%s",
             self.dataset_name(),
@@ -159,3 +189,16 @@ class HFDatasetDataPrep(DataPrep):
         meta_file = self.corpus_dir / "metadata.csv"
         df_meta = pd.read_csv(meta_file, sep=",")
         self._prepare_from_meta(df_meta)
+
+    def extract_hf_item(item: Dict[str, Any], extract_dir: PathLike) -> Dict:
+        """
+        Must be implemented in subclass: logic to extract a single HF row into a local audio file.
+
+        Args:
+            row (Dict): A single row from the Hugging Face dataset.
+            extract_dir (Path): Directory where audio and metadata should be saved.
+
+        Returns:
+            Dict: Extracted metadata including audio filename, speaker, etc.
+        """
+        raise NotImplementedError("This method must be implemented by subclasses.")

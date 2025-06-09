@@ -1,6 +1,6 @@
 """
- Copyright 2022 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2022 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
@@ -121,3 +121,9 @@ class EnrollmentMap(InfoTable):
             enroll_idx[idx] = i
 
         return enroll_idx
+
+    def get_unique_modelid_df(self):
+        """Returns sorted unique model ids"""
+        df = self.df.drop(columns=["segmentid"])
+        df = self.df.drop_duplicates().sort_index()
+        return df

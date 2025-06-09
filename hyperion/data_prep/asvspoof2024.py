@@ -1,18 +1,17 @@
 """
- Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import glob
 import logging
 import re
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
-from jsonargparse import ActionYesNo
-from tqdm import tqdm
+from jsonargparse import ActionYesNo, ArgumentParser
 
 from ..utils import ClassInfo, HypDataset, RecordingSet, SegmentSet, TrialKey, TrialNdx
 from ..utils.misc import PathLike, urlretrieve_progress
@@ -42,14 +41,14 @@ spoof_system_dict = {
 
 
 class ASVSpoof2024DataPrep(DataPrep):
-    """Class for preparing ASVSpoof2021 database into tables,
+    """
+    Prepares the ASVSpoof2024 dataset into structured tables for enrollment, spoof, and SV trials.
 
     Attributes:
-      corpus_dir: input data directory
-      subset: train/dev/eval
-      output_dir: output data directory
-      use_kaldi_ids: puts speaker-id in front of segment id like kaldi
-      target_sample_freq: target sampling frequency to convert the audios to.
+        corpus_dir (PathLike): Root directory of the dataset.
+        subset (str): Subset type (e.g., 'train', 'dev', 'eval', etc.).
+        output_dir (PathLike): Where to save the processed dataset.
+        spoof_access (str): Spoof type indicator (e.g., 'LA').
     """
 
     def __init__(
@@ -57,21 +56,24 @@ class ASVSpoof2024DataPrep(DataPrep):
         corpus_dir: PathLike,
         subset: str,
         output_dir: PathLike,
-        use_kaldi_ids: bool,
-        target_sample_freq: int,
+        use_kaldi_ids: bool = False,
+        target_sample_freq: Optional[int] = None,
         num_threads: int = 10,
     ):
+        """Initializes the ASVSpoof2024 data preparation pipeline."""
         super().__init__(corpus_dir, output_dir, False, target_sample_freq, num_threads)
 
         self.subset = subset
         self.spoof_access = "LA"
 
     @staticmethod
-    def dataset_name():
+    def dataset_name() -> str:
+        """Returns dataset identifier."""
         return "asvspoof2024"
 
     @staticmethod
-    def add_class_args(parser):
+    def add_class_args(parser: ArgumentParser) -> None:
+        """Adds CLI arguments for the ASVSpoof2024 data preparation class."""
         DataPrep.add_class_args(parser)
         parser.add_argument(
             "--subset",
@@ -88,7 +90,8 @@ class ASVSpoof2024DataPrep(DataPrep):
             required=True,
         )
 
-    def _get_metadata(self):
+    def _get_metadata(self) -> pd.DataFrame:
+        """Parses and enriches trial metadata with spoofing information."""
 
         file_path = self.corpus_dir / f"ASVspoof5.{self.subset}.metadata.txt"
         df_meta = pd.read_csv(
@@ -133,7 +136,12 @@ class ASVSpoof2024DataPrep(DataPrep):
         df_meta.drop(["D_0000402781"], inplace=True)
         return df_meta
 
-    def make_sv_trial_keys(self):
+    def make_sv_trial_keys(self) -> Dict[str, Path]:
+        """Creates speaker verification trial keys.
+
+        Returns:
+            Dict[str, Path]: Dictionary of trial file paths.
+        """
         trials = {}
         logging.info("making SV trials")
         file_path = self.corpus_dir / f"ASVspoof5.{self.subset}.trial.txt"
@@ -154,7 +162,12 @@ class ASVSpoof2024DataPrep(DataPrep):
         trials["trials_track2"] = file_path
         return trials
 
-    def make_sv_trial_ndxs(self):
+    def make_sv_trial_ndxs(self) -> Dict[str, Path]:
+        """Creates speaker verification trial ndx list.
+
+        Returns:
+            Dict[str, Path]: Dictionary of trial Ndx CSVs.
+        """
         trials = {}
         logging.info("making SV trials")
         file_path = self.corpus_dir / f"ASVspoof5.track_2.{self.subset}.trial.txt"
@@ -173,7 +186,15 @@ class ASVSpoof2024DataPrep(DataPrep):
         trials["trials_track2"] = file_path
         return trials
 
-    def make_spoof_trial_keys(self, segments):
+    def make_spoof_trial_keys(self, segments: pd.DataFrame) -> Dict[str, Path]:
+        """Creates spoofing trial keys using segment labels.
+
+        Args:
+            segments (pd.DataFrame): Segments with spoof labels.
+
+        Returns:
+            Dict[str, Path]: Dictionary of spoof trial file paths.
+        """
         logging.info("making Spoof trials")
         modelid = ["bonafide"]
         segmentid = segments["id"].values
@@ -186,7 +207,12 @@ class ASVSpoof2024DataPrep(DataPrep):
         key.save(file_path)
         return {"trials_track1": file_path}
 
-    def make_spoof_trial_ndxs(self):
+    def make_spoof_trial_ndxs(self) -> Dict[str, Path]:
+        """Creates spoofing trial ndx file from track 1 definitions.
+
+        Returns:
+            Dict[str, Path]: Dictionary of spoof trial ndx paths.
+        """
         logging.info("making trials")
         file_path = self.corpus_dir / f"ASVspoof5.track_1.{self.subset}.trial.txt"
         columns = ["id"]
@@ -203,7 +229,12 @@ class ASVSpoof2024DataPrep(DataPrep):
         trials = {"trials_track1": file_path}
         return trials
 
-    def make_enrollments(self):
+    def make_enrollments(self) -> Tuple[pd.DataFrame, Dict[str, Path]]:
+        """Creates speaker enrollment mapping from text files.
+
+        Returns:
+            Tuple[pd.DataFrame, Dict[str, Path]]: Segment metadata and enrollment paths.
+        """
         logging.info("making enrollment map")
 
         if self.subset == "dev_enroll":
@@ -256,6 +287,7 @@ class ASVSpoof2024DataPrep(DataPrep):
         return segments, enrollments
 
     def prepare(self):
+        """Dispatches preparation based on subset type."""
         logging.info(
             "Peparing ASVSpoof 2024 %s corpus_dir:%s -> data_dir:%s",
             self.subset,
@@ -271,6 +303,7 @@ class ASVSpoof2024DataPrep(DataPrep):
             self.prepare_test()
 
     def prepare_enroll(self):
+        """Processes enrollment data into structured sets."""
         logging.info("getting enrollment data")
         df_meta, enrollments = self.make_enrollments()
         logging.info(f"metadata=\n{df_meta}")
@@ -352,6 +385,7 @@ class ASVSpoof2024DataPrep(DataPrep):
         )
 
     def prepare_test(self):
+        """Processes test data from training and development sets."""
         logging.info("getting audio meta-data")
         df_meta = self._get_metadata()
         logging.info(f"metadata=\n{df_meta}")
@@ -406,6 +440,9 @@ class ASVSpoof2024DataPrep(DataPrep):
         df_meta["duration"] = recs.loc[df_meta["id"], "duration"].values
         logging.info("making SegmentsSet")
         segments = df_meta
+        segments["language"] = "eng"
+        segments["dataset"] = self.dataset_name()
+        segments["corpusid"] = self.dataset_name()
         segments = SegmentSet(segments)
         segments.sort()
         logging.info(f"segments=\n{segments}")
@@ -471,6 +508,7 @@ class ASVSpoof2024DataPrep(DataPrep):
         )
 
     def prepare_progress_eval(self):
+        """Prepares evaluation-style segments for progress and eval tracks."""
 
         file_path = self.corpus_dir / f"ASVspoof5.track_1.{self.subset}.trial.txt"
         df_meta = pd.read_csv(

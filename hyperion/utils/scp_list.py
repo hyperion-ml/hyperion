@@ -14,7 +14,7 @@ import numpy as np
 from .list_utils import *
 
 
-class SCPList(object):
+class SCPList:
     """Class to manipulate script lists.
 
     Attributes:

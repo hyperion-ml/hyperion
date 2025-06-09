@@ -1,11 +1,12 @@
 """
- Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
 from enum import Enum
 from pathlib import Path
+from typing import Dict, Optional
 
 import numpy as np
 import pandas as pd
@@ -90,17 +91,23 @@ class SourceTrialCond(str, Enum):
 
 
 class SRE21DataPrep(DataPrep):
-    """Class for preparing the SRE21 dev (LDC2021E09) or eval (LDC2021E10) database into tables
+    """
+    Prepares the SRE21 Audio/Visual dataset into structured tables (HypDataset).
+
+    Handles segment partitioning, Kaldi-ID formatting, audio/video/image manifest building,
+    trial filtering, and class info extraction for multiple modalities and splits.
 
     Attributes:
-      corpus_dir: input data directory
-      output_dir: output data directory
-      modality: audio, visual, audio-visual
-      subset: sre21 subset in [dev, eval]
-      partition: sre21 trial side in [enroll, test]
-      use_kaldi_ids: puts speaker-id in front of segment id like kaldi
-      target_sample_freq: target sampling frequency to convert the audios to.
-      ldc_langs: convert language id to LDC format
+        corpus_dir: Root directory of the SRE21 dataset.
+        modality: One of "audio", "visual", or "audio-visual".
+        subset: Either "dev" or "eval".
+        partition: "enrollment" or "test".
+        output_dir: Destination for processed dataset.
+        use_kaldi_ids: If True, formats IDs as <speaker>-<segment>.
+        target_sample_freq: Optional sample rate to resample audio.
+        with_videos: Whether to prepare video metadata (if available).
+        num_threads: Number of threads for audio/video metadata processing.
+        use_ldc_langs: Normalize language names to LDC codes (e.g., ENG, YUE).
     """
 
     def __init__(
@@ -110,9 +117,9 @@ class SRE21DataPrep(DataPrep):
         subset: str,
         partition: str,
         output_dir: PathLike,
-        use_kaldi_ids: bool,
-        target_sample_freq: int,
-        with_videos: bool,
+        use_kaldi_ids: bool = False,
+        target_sample_freq: Optional[int] = None,
+        with_videos: bool = False,
         num_threads: int = 10,
         use_ldc_langs: bool = False,
     ):
@@ -126,11 +133,15 @@ class SRE21DataPrep(DataPrep):
         self.with_videos = with_videos
 
     @staticmethod
-    def dataset_name():
+    def dataset_name() -> str:
+        """Returns the dataset identifier string: 'sre21'."""
         return "sre21"
 
     @staticmethod
-    def add_class_args(parser):
+    def add_class_args(parser) -> None:
+        """
+        Adds SRE21-specific arguments to a CLI parser.
+        """
         DataPrep.add_class_args(parser)
         parser.add_argument(
             "--modality",
@@ -163,8 +174,13 @@ class SRE21DataPrep(DataPrep):
             help="""prepare video manifest""",
         )
 
-    def read_segments_metadata(self):
+    def read_segments_metadata(self) -> pd.DataFrame:
+        """
+        Loads and filters segment metadata for the given partition and modality.
 
+        Returns:
+            pd.DataFrame: Filtered and normalized segment metadata.
+        """
         segments_file = (
             self.corpus_dir / "docs" / f"sre21_{self.subset}_segment_key.tsv"
         )
@@ -212,8 +228,16 @@ class SRE21DataPrep(DataPrep):
         df_segs.set_index("id", drop=False, inplace=True)
         return df_segs
 
-    def make_recording_set(self, df_segs):
+    def make_recording_set(self, df_segs: pd.DataFrame) -> RecordingSet:
+        """
+        Constructs the RecordingSet from segment metadata for audio or video recordings.
 
+        Args:
+            df_segs: DataFrame containing filtered segment metadata.
+
+        Returns:
+            RecordingSet: Table with ID, path, sample rate, and optional resampling settings.
+        """
         logging.info("making RecordingSet")
         if self.modality == "audio":
             wav_dir = self.corpus_dir / "data" / "audio" / self.partition
@@ -248,8 +272,16 @@ class SRE21DataPrep(DataPrep):
         recordings.get_durations(self.num_threads)
         return recordings
 
-    def make_image_set(self, df_segs):
+    def make_image_set(self, df_segs: pd.DataFrame) -> ImageSet:
+        """
+        Constructs an ImageSet from visual segment metadata.
 
+        Args:
+            df_segs: Segment metadata containing image filenames.
+
+        Returns:
+            ImageSet: Table of image IDs and paths.
+        """
         logging.info("making ImageSet")
 
         img_dir = self.corpus_dir / "data" / "image" / self.partition
@@ -259,8 +291,16 @@ class SRE21DataPrep(DataPrep):
         images = ImageSet(df_imgs)
         return images
 
-    def make_video_set(self, df_segs):
+    def make_video_set(self, df_segs: pd.DataFrame) -> VideoSet:
+        """
+        Constructs a VideoSet from video segment metadata.
 
+        Args:
+            df_segs: Segment metadata containing video filenames.
+
+        Returns:
+            VideoSet: Table of video IDs and paths with optional sample rate.
+        """
         logging.info("making VideoSet")
         vid_dir = self.corpus_dir / "data" / "video" / self.partition
 
@@ -275,7 +315,16 @@ class SRE21DataPrep(DataPrep):
         videos.get_metadata(self.num_threads)
         return videos
 
-    def make_class_infos(self, df_segs):
+    def make_class_infos(self, df_segs: pd.DataFrame) -> Dict[str, ClassInfo]:
+        """
+        Constructs class label tables for speaker, gender, language, and source type.
+
+        Args:
+            df_segs: Segment metadata.
+
+        Returns:
+            Dict[str, ClassInfo]: Dictionary of class info tables.
+        """
         logging.info("making ClassInfos")
         df_segs = df_segs.reset_index(drop=True)
         df_spks = df_segs[["speaker", "gender"]].drop_duplicates()
@@ -301,8 +350,17 @@ class SRE21DataPrep(DataPrep):
             "gender": genders,
         }
 
-    def make_enrollments(self, df_segs):
-        logging.info("making Enrollment")
+    def make_enrollments(self, df_segs: pd.DataFrame) -> Dict[str, EnrollmentMap]:
+        """
+        Builds an EnrollmentMap depending on the modality.
+
+        Args:
+            df_segs: Segment metadata.
+
+        Returns:
+            Dictionary containing the EnrollmentMap under the key 'enrollment'.
+        """
+        logging.info("Building enrollment map")
         if self.modality in ["audio", "audio-visual"]:
             enroll_file = (
                 self.corpus_dir / "docs" / f"sre21_audio_{self.subset}_enrollment.tsv"
@@ -330,7 +388,13 @@ class SRE21DataPrep(DataPrep):
             df_enr = pd.DataFrame({"id": ids, "segmentid": ids})
             return {"enrollment": EnrollmentMap(df_enr)}
 
-    def _get_enroll_conds(self):
+    def _get_enroll_conds(self) -> pd.DataFrame:
+        """
+        Retrieves per-enrollment model conditions (language, source_type).
+
+        Returns:
+            DataFrame with index=modelid and columns=['language', 'source_type'].
+        """
         # we read the segments again to get extra conditions
         partition = self.partition
         self.partition = "enrollment"
@@ -356,7 +420,19 @@ class SRE21DataPrep(DataPrep):
         df_enr_conds.set_index("id", inplace=True)
         return df_enr_conds
 
-    def _get_extra_trial_conds(self, df_trial, df_segs):
+    def _get_extra_trial_conds(
+        self, df_trial: pd.DataFrame, df_segs: pd.DataFrame
+    ) -> pd.DataFrame:
+        """
+        Adds 'language' and 'source_type' trial conditions to each trial row.
+
+        Args:
+            df_trial: DataFrame of trial keys (modelid, segmentid, targettype).
+            df_segs: Segment metadata table.
+
+        Returns:
+            DataFrame with added columns: 'language', 'source_type'.
+        """
         df_enr = self._get_enroll_conds()
         logging.info("iterating to get extra trial conditions")
         for i, row in tqdm(df_trial.iterrows(), total=len(df_trial)):
@@ -374,7 +450,16 @@ class SRE21DataPrep(DataPrep):
 
         return df_trial
 
-    def make_trials(self, df_segs):
+    def make_trials(self, df_segs: pd.DataFrame) -> Dict[str, Path]:
+        """
+        Builds trial files and condition-specific splits for SRE21.
+
+        Args:
+            df_segs: Segment metadata.
+
+        Returns:
+            Dictionary mapping trial name keys to file paths.
+        """
         logging.info("making Trials")
         trial_file = (
             self.corpus_dir
@@ -500,7 +585,15 @@ class SRE21DataPrep(DataPrep):
 
         return trials
 
-    def prepare(self):
+    def prepare(self) -> None:
+        """
+        Executes the full SRE21 data preparation workflow:
+        - Loads segment metadata
+        - Filters by partition and modality
+        - Builds segment/recording/image/video sets
+        - Generates enrollment maps and trials
+        - Saves HypDataset to output_dir
+        """
         logging.info(
             "Peparing SRE21 %s %s %s corpus_dir: %s -> data_dir: %s",
             self.modality,

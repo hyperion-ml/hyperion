@@ -1,6 +1,6 @@
 """
- Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import glob
@@ -8,6 +8,7 @@ import logging
 import re
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -35,8 +36,8 @@ class VoxSRC22DataPrep(DataPrep):
         vox1_corpus_dir: PathLike,
         subset: str,
         output_dir: PathLike,
-        use_kaldi_ids: bool,
-        target_sample_freq: int,
+        use_kaldi_ids: bool = False,
+        target_sample_freq: Optional[int] = None,
         num_threads: int = 10,
     ):
         use_kaldi_ids = False

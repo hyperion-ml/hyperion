@@ -1,26 +1,30 @@
 """
- Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
+from typing import Optional, Tuple
 
 import numpy as np
 
 from ..hyp_defs import float_cpu
 
 
-def _assert_sorted(t_start):
+def _assert_sorted(t_start: np.ndarray) -> None:
     delta = np.diff(t_start)
     assert np.all(delta >= 0), f"time-stamps must be sorted {t_start=} {delta=}"
 
 
-def _assert_pos_dur(t_start, t_end):
+def _assert_pos_dur(t_start: np.ndarray, t_end: np.ndarray) -> None:
     delta = t_end - t_start
     assert np.all(
         delta >= 0
-    ), f"segments must have positve duration {t_start=} {t_end=} {delta=}"
+    ), f"segments must have positive duration {t_start=} {t_end=} {delta=}"
 
 
-def merge_vad_timestamps(t_start, t_end, tol=0.001):
+def merge_vad_timestamps(
+    t_start: np.ndarray, t_end: np.ndarray, tol: float = 0.001
+) -> Tuple[np.ndarray, np.ndarray]:
     """Merges vad timestamps that are contiguous
 
     Args:
@@ -30,7 +34,7 @@ def merge_vad_timestamps(t_start, t_end, tol=0.001):
       Merged timestamps
     """
     # if empty return the same
-    if t_start.shape[0] == 0:
+    if len(t_start) == 0:
         return t_start, t_end
 
     # assert segments are shorted by start time, and positive dur
@@ -68,8 +72,12 @@ def merge_vad_timestamps(t_start, t_end, tol=0.001):
 
 
 def bin_vad_to_timestamps(
-    vad, frame_length, frame_shift, snip_edges=False, merge_tol=0.001
-):
+    vad: np.ndarray,
+    frame_length: float,
+    frame_shift: float,
+    snip_edges: bool = False,
+    merge_tol: float = 0.001,
+) -> Tuple[np.ndarray, np.ndarray]:
     """Converts binary VAD to a list of start end time stamps
 
     Args:
@@ -97,14 +105,14 @@ def bin_vad_to_timestamps(
 
 
 def vad_timestamps_to_bin(
-    t_start,
-    t_end,
-    frame_length,
-    frame_shift,
-    snip_edges=False,
-    duration=None,
-    max_frames=None,
-):
+    t_start: np.ndarray,
+    t_end: np.ndarray,
+    frame_length: float,
+    frame_shift: float,
+    snip_edges: bool = False,
+    duration: Optional[float] = None,
+    max_frames: Optional[int] = None,
+) -> np.ndarray:
     """Converts VAD time-stamps to a binary vector to apply on feature frames
 
     Args:
@@ -160,12 +168,12 @@ def vad_timestamps_to_bin(
 
 
 def vad_timestamps_to_bin_samples(
-    t_start,
-    t_end,
-    sample_frequency,
-    duration=None,
-    max_samples=None,
-):
+    t_start: np.ndarray,
+    t_end: np.ndarray,
+    sample_frequency: float,
+    duration: Optional[float] = None,
+    max_samples: Optional[int] = None,
+) -> np.ndarray:
     """Converts VAD time-stamps to a binary vector to apply on samples
 
     Args:
@@ -201,7 +209,12 @@ def vad_timestamps_to_bin_samples(
     return vad
 
 
-def timestamps_wrt_vad_to_absolute_timestamps(t_start, t_end, vad_t_start, vad_t_end):
+def timestamps_wrt_vad_to_absolute_timestamps(
+    t_start: np.ndarray,
+    t_end: np.ndarray,
+    vad_t_start: np.ndarray,
+    vad_t_end: np.ndarray,
+) -> Tuple[np.ndarray, np.ndarray]:
     """Converts time stamps relative to a signal with silence removed
        to absoulute time stamps in the original signal
 
@@ -240,8 +253,13 @@ def timestamps_wrt_vad_to_absolute_timestamps(t_start, t_end, vad_t_start, vad_t
 
 
 def timestamps_wrt_bin_vad_to_absolute_timestamps(
-    t_start, t_end, vad, frame_length, frame_shift, snip_edges=False
-):
+    t_start: np.ndarray,
+    t_end: np.ndarray,
+    vad: np.ndarray,
+    frame_length: float,
+    frame_shift: float,
+    snip_edges: bool = False,
+) -> Tuple[np.ndarray, np.ndarray]:
     """Converts time stamps relative to a signal with silence removed
        to absoulute time stamps in the original signal
 
@@ -265,7 +283,12 @@ def timestamps_wrt_bin_vad_to_absolute_timestamps(
     )
 
 
-def intersect_segment_timestamps_with_vad(t_start, t_end, t_vad_start, t_vad_end):
+def intersect_segment_timestamps_with_vad(
+    t_start: np.ndarray,
+    t_end: np.ndarray,
+    t_vad_start: np.ndarray,
+    t_vad_end: np.ndarray,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Intersects a list of segment timestamps with a VAD time-stamps
         It returns only the segments that contain speech modifying
         the start and end times to remove silence from the segments.

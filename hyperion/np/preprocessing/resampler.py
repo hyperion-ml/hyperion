@@ -1,6 +1,6 @@
 """
- Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import numpy as np
@@ -35,7 +35,11 @@ class ResamplerToTargetFreq:
                 resampling_method="kaiser_window",
                 beta=14.769656459379492,
             )
-        resampler_f = lambda x: resampler(torch.from_numpy(x)).numpy()
+        resampler_f = (
+            lambda x: resampler(torch.from_numpy(x).float())
+            .numpy()
+            .astype(x.dtype, copy=False)
+        )
         self.resamplers[input_sample_freq] = resampler_f
         return resampler_f
 
@@ -74,7 +78,11 @@ class ResamplerFromInputFreq:
                 resampling_method="kaiser_window",
                 beta=14.769656459379492,
             )
-        resampler_f = lambda x: resampler(torch.from_numpy(x)).numpy()
+        resampler_f = (
+            lambda x: resampler(torch.from_numpy(x).float())
+            .numpy()
+            .astype(x.dtype, copy=False)
+        )
         self.resamplers[target_sample_freq] = resampler_f
         return resampler_f
 
@@ -113,7 +121,11 @@ class Any2AnyFreqResampler:
                 resampling_method="kaiser_window",
                 beta=14.769656459379492,
             )
-        resampler_f = lambda x: resampler(torch.from_numpy(x)).numpy()
+        resampler_f = (
+            lambda x: resampler(torch.from_numpy(x).float())
+            .numpy()
+            .astype(x.dtype, copy=False)
+        )
         self.resamplers[input_sample_freq] = resampler_f
         return resampler_f
 

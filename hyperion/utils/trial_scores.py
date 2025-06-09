@@ -1,17 +1,19 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import copy
 import logging
 from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import h5py
 import numpy as np
 import pandas as pd
 
 from ..hyp_defs import float_cpu
+from ..utils.misc import PathLike, build_class_labels_from_boolean_matrix_dense
 
 # from .list_utils import *
 from .list_utils import intersect, ismember, list2ndarray, sort, split_list
@@ -20,24 +22,24 @@ from .trial_ndx import TrialNdx
 
 
 class TrialScores(object):
-    """Contains the scores for the speaker recognition trials.
-        Bosaris compatible Scores.
+    """
+    Container for speaker recognition trial scores, compatible with BOSARIS toolkit.
 
     Attributes:
-      model_set: List of model names.
-      seg_set: List of test segment names.
-      scores: Matrix with the scores (num_models x num_segments).
-      score_mask: Boolean matrix with the trials with valid scores to True (num_models x num_segments).
-      q_measures: optional dictionary of quality measure matrices
+        model_set (np.ndarray): Array of model IDs.
+        seg_set (np.ndarray): Array of segment IDs.
+        scores (np.ndarray): Score matrix (num_models x num_segments).
+        score_mask (np.ndarray): Boolean matrix indicating which scores are valid.
+        q_measures (Optional[Dict[str, np.ndarray]]): Optional dictionary of quality measures.
     """
 
     def __init__(
         self,
-        model_set=None,
-        seg_set=None,
-        scores=None,
-        score_mask=None,
-        q_measures=None,
+        model_set: Optional[Union[np.ndarray, List[str]]] = None,
+        seg_set: Optional[Union[np.ndarray, List[str]]] = None,
+        scores: Optional[np.ndarray] = None,
+        score_mask: Optional[np.ndarray] = None,
+        q_measures: Optional[Dict[str, np.ndarray]] = None,
     ):
         self.model_set = model_set
         self.seg_set = seg_set
@@ -70,8 +72,8 @@ class TrialScores(object):
             for k in self.q_measures.keys():
                 self.q_measures[k] = self.q_measures[k][ix]
 
-    def save(self, file_path, sep=None):
-        """Saves object to txt/h5 file.
+    def save(self, file_path: PathLike, sep: Optional[str] = None) -> None:
+        """Saves the object to a file (HDF5, TXT, or CSV/TSV)
 
         Args:
           file_path: File to write the list.
@@ -85,7 +87,7 @@ class TrialScores(object):
         else:
             self.save_table(file_path, sep=sep)
 
-    def save_h5(self, file_path):
+    def save_h5(self, file_path: PathLike) -> None:
         """Saves object to h5 file.
 
         Args:
@@ -103,8 +105,8 @@ class TrialScores(object):
                 for k, v in self.q_measures.items():
                     q_grp.create_dataset(k, data=v)
 
-    def save_txt(self, file_path):
-        """Saves object to txt file.
+    def save_txt(self, file_path: PathLike) -> None:
+        """Saves the object to a plain text file (space-separated)
 
         Args:
           file_path: File to write the list.
@@ -124,9 +126,8 @@ class TrialScores(object):
         if self.q_measures is not None:
             logging.warning("q_measures cannot be saved to txt file")
 
-    def save_table(self, file_path, sep=None):
-        """Saves object to pandas table file.
-
+    def save_table(self, file_path: PathLike, sep: Optional[str] = None) -> None:
+        """Saves the object to a CSV/TSV table using Pandas.
         Args:
           file_path: File to write the list.
         """
@@ -156,9 +157,8 @@ class TrialScores(object):
                 )
 
     @classmethod
-    def load(cls, file_path, sep=None):
-        """Loads object from txt/h5 file
-
+    def load(cls, file_path: PathLike, sep: Optional[str] = None) -> "TrialScores":
+        """Loads a TrialScores object from file.
         Args:
           file_path: File to read the list.
 
@@ -175,7 +175,7 @@ class TrialScores(object):
             return cls.load_table(file_path, sep)
 
     @classmethod
-    def load_h5(cls, file_path):
+    def load_h5(cls, file_path: PathLike):
         """Loads object from h5 file
 
         Args:
@@ -197,7 +197,7 @@ class TrialScores(object):
         return cls(model_set, seg_set, scores, score_mask, q_measures)
 
     @classmethod
-    def load_txt(cls, file_path):
+    def load_txt(cls, file_path: PathLike):
         """Loads object from h5 file
 
         Args:
@@ -227,7 +227,7 @@ class TrialScores(object):
         return cls(model_set, seg_set, scores, score_mask)
 
     @classmethod
-    def load_table(cls, file_path, sep=None):
+    def load_table(cls, file_path: PathLike, sep: Optional[str] = None):
         """Loads object from pandas table file
 
         Args:
@@ -241,7 +241,7 @@ class TrialScores(object):
         if sep is None:
             sep = "\t" if ".tsv" in ext else ","
 
-        df = pd.read_csv(file_path, sep=sep)
+        df = pd.read_csv(file_path, sep=sep, dtype={"modelid": str, "segmentid": str})
         models = df["modelid"].values
         segments = df["segmentid"].values
         score_list = df["LLR"].values
@@ -270,7 +270,7 @@ class TrialScores(object):
         return cls(model_set, seg_set, scores, score_mask, q_measures)
 
     @classmethod
-    def merge(cls, scr_list):
+    def merge(cls, scr_list: List["TrialScores"]):
         """Merges several score objects.
 
         Args:
@@ -339,7 +339,13 @@ class TrialScores(object):
 
         return cls(model_set, seg_set, scores, score_mask, q_measures)
 
-    def filter(self, model_set, seg_set, keep=True, raise_missing=True):
+    def filter(
+        self,
+        model_set: Union[np.ndarray, List[str]],
+        seg_set: Union[np.ndarray, List[str]],
+        keep: bool = True,
+        raise_missing: bool = True,
+    ):
         """Removes elements from TrialScores object.
 
         Args:
@@ -392,7 +398,9 @@ class TrialScores(object):
 
         return TrialScores(model_set, seg_set, scores, score_mask, q_measures)
 
-    def split(self, model_idx, num_model_parts, seg_idx, num_seg_parts):
+    def split(
+        self, model_idx: int, num_model_parts: int, seg_idx: int, num_seg_parts: int
+    ):
         """Splits the TrialScores into num_model_parts x num_seg_parts and returns part
            (model_idx, seg_idx).
 
@@ -443,16 +451,18 @@ class TrialScores(object):
             for k in self.q_measures.keys():
                 assert self.q_measures[k].shape == self.scores.shape
 
-    def align_with_ndx(self, ndx, raise_missing=True):
-        """Aligns scores, model_set and seg_set with TrialNdx or TrialKey.
+    def align_with_ndx(
+        self, ndx: Union[TrialNdx, TrialKey], raise_missing: bool = True
+    ) -> "TrialScores":
+        """
+        Aligns scores, model_set, and seg_set with a TrialNdx or TrialKey object.
 
         Args:
-          ndx: TrialNdx or TrialKey object.
-          raise_missing: Raises exception if there are trials in ndx that are not
-                         in the score object.
+            ndx (TrialNdx or TrialKey): Index object indicating which trials to align with.
+            raise_missing (bool): Whether to raise an error if some trials are missing.
 
         Returns:
-          Aligned TrialScores object.
+            TrialScores: Aligned TrialScores object.
         """
         scr = self.filter(
             ndx.model_set, ndx.seg_set, keep=True, raise_missing=raise_missing
@@ -479,15 +489,15 @@ class TrialScores(object):
                 raise Exception("some scores were not computed")
         return scr
 
-    def get_tar_non(self, key):
-        """Returns target and non target scores.
+    def get_tar_non(self, key: TrialKey) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Returns target and non-target scores using a TrialKey.
 
         Args:
-          key: TrialKey object.
+            key (TrialKey): TrialKey with target/non-target trial masks.
 
         Returns:
-          Numpy array with target scores.
-          Numpy array with non-target scores.
+            Tuple[np.ndarray, np.ndarray]: Target scores, Non-target scores.
         """
         scr = self.align_with_ndx(key)
         tar_mask = np.logical_and(scr.score_mask, key.tar)
@@ -496,15 +506,17 @@ class TrialScores(object):
         non = scr.scores[non_mask]
         return tar, non
 
-    def get_tar_non_spoof(self, key):
-        """Returns target and non target and spoofing scores.
+    def get_tar_non_spoof(
+        self, key: TrialKey
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Returns target, non-target, and spoofing scores using a TrialKey.
 
         Args:
-          key: TrialKey object.
+            key (TrialKey): TrialKey with target, non-target, and optionally spoof trial masks.
 
         Returns:
-          Numpy array with target scores.
-          Numpy array with non-target scores.
+            Tuple[np.ndarray, np.ndarray, np.ndarray]: Target scores, Non-target scores, Spoof scores.
         """
         scr = self.align_with_ndx(key)
         tar_mask = np.logical_and(scr.score_mask, key.tar)
@@ -518,16 +530,25 @@ class TrialScores(object):
             non = scr.scores[spoof_mask]
         return tar, non, spoof
 
-    def get_tar_non_q_measures(self, key, q_names=None, return_dict=False):
-        """Returns target and non target scores.
+    def get_tar_non_q_measures(
+        self,
+        key: TrialKey,
+        q_names: Optional[List[str]] = None,
+        return_dict: bool = False,
+    ) -> Tuple[
+        Union[Dict[str, np.ndarray], np.ndarray],
+        Union[Dict[str, np.ndarray], np.ndarray],
+    ]:
+        """
+        Returns quality measures for target and non-target trials.
 
         Args:
-          key: TrialKey object.
-          q_names: names of quality measures to return, if None it will return all
+            key (TrialKey): TrialKey object.
+            q_names (list of str, optional): Names of quality measures to extract. All are used if None.
+            return_dict (bool): If True, returns dictionaries; if False, returns stacked arrays.
 
         Returns:
-          Numpy array with target scores.
-          Numpy array with non-target scores.
+            Tuple: (target quality measures, non-target quality measures)
         """
         scr = self.align_with_ndx(key)
         tar_mask = np.logical_and(scr.score_mask, key.tar)
@@ -546,16 +567,65 @@ class TrialScores(object):
             non = np.vstack(tuple(non[k] for k in q_names)).T
         return tar, non
 
-    def set_missing_to_value(self, ndx, val):
-        """Aligns the scores with a TrialNdx and sets the trials with missing
-        scores to the same value.
+    def get_class_sim(
+        self,
+        key: TrialKey,
+        model_classes: Union[List[str], np.ndarray, None] = None,
+        seg_classes: Union[List[str], np.ndarray, None] = None,
+    ) -> np.ndarray:
+        """Returns the class similarity scores for the trials in key.
 
         Args:
-          ndx: TrialNdx or TrialKey object.
-          val: Value for the missing scores.
+          key: SparseTrialKey object.
 
         Returns:
-          Aligned TrialScores object.
+          Numpy array with the class similarity scores.
+          M(i,j) average similarity between class i and class j.
+        """
+        scr = self.align_with_ndx(key)
+        tar_mask = np.logical_and(scr.score_mask, key.tar)
+        non_mask = np.logical_and(scr.score_mask, key.non)
+        score_mask = np.logical_or(tar_mask, non_mask).astype(float)
+
+        if model_classes is None or seg_classes is None:
+            logging.info(
+                "model/seg classes not provided, building from key.tar, it can take a while"
+            )
+            model_classes, seg_classes = build_class_labels_from_boolean_matrix_dense(
+                key.tar
+            )
+
+        unique_model_classes = np.unique(model_classes)
+        unique_seg_classes = np.unique(seg_classes)
+        sim_matrix = np.zeros(
+            (len(unique_model_classes), len(unique_seg_classes)),
+            dtype=self.scores.dtype,
+        )
+        for i, rc in enumerate(unique_model_classes):
+            row_mask = model_classes == rc
+            for j, cc in enumerate(unique_seg_classes):
+                col_mask = seg_classes == cc
+                idx = np.ix_(row_mask, col_mask)
+                block = scr.scores[idx] * score_mask[idx]
+                count = np.sum(score_mask[idx])
+                sim_matrix[i, j] = (
+                    block.sum() / count if block.size > 0 and count > 0 else np.nan
+                )
+
+        return sim_matrix, unique_model_classes, unique_seg_classes
+
+    def set_missing_to_value(
+        self, ndx: Union[TrialNdx, TrialKey], val: float
+    ) -> "TrialScores":
+        """
+        Sets scores missing in `score_mask` but present in `ndx` to a specific value.
+
+        Args:
+            ndx (TrialNdx or TrialKey): Index of trials.
+            val (float): Value to assign to missing scores.
+
+        Returns:
+            TrialScores: The modified TrialScores object.
         """
         scr = self.align_with_ndx(ndx, raise_missing=False)
         if isinstance(ndx, TrialNdx):
@@ -567,11 +637,12 @@ class TrialScores(object):
         scr.score_mask[mask] = True
         return scr
 
-    def transform(self, f):
-        """Applies a function to the valid scores of the object.
+    def transform(self, f: Callable[[np.ndarray], np.ndarray]) -> None:
+        """
+        Applies a transformation function to the scores at valid (True) score_mask positions.
 
         Args:
-          f: function handle.
+            f (callable): A function to apply to score values.
         """
         mask = self.score_mask
         self.scores[mask] = f(self.scores[mask])
