@@ -66,15 +66,6 @@ def load_cohort_data(segments_file, feats_file):
     return segments, x
 
 
-def get_enroll_ids(enroll_map, modelids):
-    enroll_ids = np.zeros((len(enroll_map)), dtype=int)
-    for i, modelid in enumerate(modelids):
-        idx = enroll_map["id"] == modelid
-        enroll_ids[idx] = i
-
-    return enroll_ids
-
-
 def eval_backend(
     enroll_map_file,
     ndx_file,
