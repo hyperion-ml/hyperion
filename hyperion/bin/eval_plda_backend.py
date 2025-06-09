@@ -104,17 +104,11 @@ def eval_backend(
         test_part_idx,
         num_test_parts,
     )
-    enroll_set, enroll_ids = np.unique(enroll_map["id"], return_inverse=True)
-    if len(enroll_set) == len(enroll_ids):
+    enroll_ids = enroll_map.model_idx(ndx.model_set)
+    if len(ndx.model_set) == len(enroll_ids):
         is_Nvs1 = False
     else:
         is_Nvs1 = True
-
-    # enroll_ids = get_enroll_ids(enroll_map, ndx.model_set)
-    # if len(ndx.model_set) == len(enroll_ids):
-    #     is_Nvs1 = False
-    # else:
-    #     is_Nvs1 = True
 
     t1 = time.time()
 
@@ -128,7 +122,7 @@ def eval_backend(
         ):
             llr_method = PLDALLRNvsMMethod.lnorm_vavg
 
-    assert llr_method == PLDALLRNvsMMethod.lnorm_vavg, preprocessor.transforms
+    # assert llr_method == PLDALLRNvsMMethod.lnorm_vavg, preprocessor.transforms
     logging.info(f"{preprocessor.transforms}")
     logging.info("Loading PLDA model")
     plda_model = NPModel.auto_load(plda_file)
@@ -183,10 +177,6 @@ def eval_backend(
         score_file = score_file.with_suffix(new_suffix)
 
     logging.info("saving scores to %s", score_file)
-    # sort scores rows to match the ndx model_set order
-    sort_idx = [np.nonzero(enroll_set == e)[0][0] for e in ndx.model_set]
-    scores = scores[sort_idx]
-    print(ndx.model_set, enroll_set, sort_idx, flush=True)
     scores = TrialScores(ndx.model_set, ndx.seg_set, scores, ndx.trial_mask)
     scores.save(score_file)
 

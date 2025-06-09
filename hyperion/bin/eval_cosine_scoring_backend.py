@@ -91,7 +91,8 @@ def eval_backend(
         test_part_idx,
         num_test_parts,
     )
-    enroll_set, enroll_ids = np.unique(enroll_map["id"], return_inverse=True)
+
+    enroll_ids = enroll_map.model_idx(ndx.model_set)
 
     t1 = time.time()
     logging.info("computing score")
@@ -142,9 +143,6 @@ def eval_backend(
         score_file = score_file.with_suffix(new_suffix)
 
     logging.info("saving scores to %s", score_file)
-    # sort scores rows to match the ndx model_set order
-    sort_idx = [np.nonzero(enroll_set == e)[0][0] for e in ndx.model_set]
-    scores = scores[sort_idx]
     scores = TrialScores(ndx.model_set, ndx.seg_set, scores, ndx.trial_mask)
     scores.save(score_file)
 
