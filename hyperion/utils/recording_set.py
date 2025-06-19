@@ -1,6 +1,6 @@
 """
- Copyright 2022 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2022 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
@@ -16,6 +16,19 @@ class RecordingSet(InfoTable):
     def __init__(self, df):
         super().__init__(df)
         assert "storage_path" in df
+
+    @staticmethod
+    def is_valid_df(df: pd.DataFrame) -> bool:
+        """
+        Check if the DataFrame is valid for InfoTable.
+
+        Args:
+            df (pd.DataFrame): DataFrame to check.
+
+        Returns:
+            bool: True if valid, False otherwise.
+        """
+        return "id" in df and "storage_path" in df
 
     def save(self, file_path, sep=None):
         """Saves info table to file

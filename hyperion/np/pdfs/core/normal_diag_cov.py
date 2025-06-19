@@ -1,6 +1,6 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import numpy as np
@@ -35,7 +35,7 @@ class NormalDiagCov(ExpFamily):
         var_floor=1e-5,
         update_mu=True,
         update_Lambda=True,
-        **kwargs
+        **kwargs,
     ):
         super().__init__(**kwargs)
         self.mu = mu
@@ -120,7 +120,7 @@ class NormalDiagCov(ExpFamily):
         F, S = self.unstack_suff_stats(u_x)
         F_norm = self.cholLambda * (F - N * self.mu)
         if return_order2:
-            S = S - 2 * self.mu * F + N * self.mu ** 2
+            S = S - 2 * self.mu * F + N * self.mu**2
             S *= self.Lambda
             return N, self.stack_suff_stats(F_norm, S)
         return N, F_norm
@@ -139,7 +139,7 @@ class NormalDiagCov(ExpFamily):
             self.mu = F / N
 
         if self.update_Lambda:
-            S = S / N - self.mu ** 2
+            S = S / N - self.mu**2
             S[S < self.var_floor] = self.var_floor
             self.Lambda = 1 / S
             self._Sigma = S
@@ -319,6 +319,36 @@ class NormalDiagCov(ExpFamily):
         u[:, :d] = x
         u[:, d:] = x * x
         return u
+
+    @staticmethod
+    def kl_div(p: "NormalDiagCov", q: "NormalDiagCov") -> float:
+        """Computes the KL divergence between two NormalDiagCov distributions.
+
+        Args:
+          p: first distribution.
+          q: second distribution.
+
+        Returns:
+          KL divergence between p and q.
+
+        Formula:
+            KL(P || Q) = 0.5 * sum_i [
+                log(Sq_i / Sp_i) +
+                (Sp_i + (mu_p_i - mu_p_i)^2) / S_q_i - 1
+            ]
+        """
+        assert p.is_init and q.is_init
+        assert p.x_dim == q.x_dim
+
+        mu_p = p.mu
+        Sigma_p = 1 / p.Lambda
+        mu_q = q.mu
+        Sigma_q = 1 / q.Lambda
+
+        term1 = np.log(Sigma_q / Sigma_p)
+        term2 = (Sigma_p + (mu_p - mu_q) ** 2) / Sigma_q
+        kl = 0.5 * np.sum(term1 + term2 - 1)
+        return kl
 
     def plot1D(self, feat_idx=0, num_sigmas=2, num_pts=100, **kwargs):
         """Plots one slice of the Gaussian in 1d.

@@ -1,6 +1,6 @@
 """
- Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
@@ -859,7 +859,7 @@ class TransformerEncoderV2(NetArch):
             "--out-feats",
             default=None,
             type=int,
-            help="features for ouptut projection, if None, no output proj is done",
+            help="features for output projection, if None, no output proj is done",
         )
         parser.add_argument(
             "--drop-path-rate", default=0.0, type=float, help="drop path rate"
@@ -867,7 +867,7 @@ class TransformerEncoderV2(NetArch):
         parser.add_argument(
             "--norm-layer",
             default=TransformerV2NormLayerType.LAYERNORM.value,
-            type=int,
+            type=str,
             help="type of norm layer in [layer-norm, rms-norm]",
         )
         parser.add_argument(

@@ -1,7 +1,8 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 #
 
 import torch.nn as nn
@@ -95,6 +96,11 @@ class ActivationFactory(object):
             except:
                 # activation didn't have inplace option
                 del kwargs["inplace"]
+
+        if activation_name == "leakyrelu":
+            # LeakyReLU has a negative_slope argument
+            if "negative_slope" not in kwargs:
+                kwargs["negative_slope"] = 0.1
 
         return act_dict[activation_name](**kwargs)
 

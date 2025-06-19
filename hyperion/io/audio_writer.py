@@ -17,7 +17,6 @@ from ..utils.kaldi_io_funcs import is_token
 from ..utils import PathLike
 from .audio_reader import valid_ext
 
-
 subtype_to_npdtype = {
     "PCM_32": "int32",
     "ALAW": "int16",
@@ -212,7 +211,7 @@ class AudioWriter(object):
 
         try:
             parser.add_argument(
-                "--wav-scale", default="1.0", help=("input waveform scale wrt 1"),
+                "--wav-scale", type=float, default=1.0, help=("input waveform scale wrt 1"),
             )
         except:
             pass

@@ -1527,7 +1527,6 @@ class HypDataset:
             class_info = self.classes_value(class_name)
             class_info.add_class_idx()
 
-    
     def filter_by_segments(
         self,
         segments: Union[SegmentSet, List[str]],
@@ -2099,6 +2098,62 @@ class HypDataset:
 
         # TODO: merge enrollments and trials
         # Usually you don't need that
+        return dataset
+
+    @classmethod
+    def from_recordings(cls, recordings: Union[RecordingSet, PathLike]):
+        """Creates a Hyperion Dataset from a RecordingSet or
+        from a RecordingSet manifest file
+
+        Args:
+          recordings: RecordingSet or manifest file
+
+        Returns
+          HypDataset object
+        """
+        if isinstance(recordings, (str, Path)):
+            recordings = RecordingSet.load(recordings)
+
+        seg_df = recordings[["id", "duration"]]
+        segments = SegmentSet(seg_df)
+        dataset = cls(segments=segments, recordings=recordings)
+        return dataset
+
+    @classmethod
+    def from_segments(
+        cls,
+        segments: Union[SegmentSet, PathLike],
+        recordings: Optional[Union[RecordingSet, PathLike]] = None,
+        class_names: Optional[List[str]] = None,
+    ):
+        """Creates a Hyperion Dataset from a SegmentSet or
+        from a SegmentSet manifest file
+        Args:
+          segments: SegmentSet or manifest file
+          recordings: RecordingSet or manifest file (optional)
+          class_names: List of class names to create ClassInfo objects (optional)
+        Returns
+          HypDataset object
+        """
+        if isinstance(segments, (str, Path)):
+            segments = SegmentSet.load(segments)
+
+        if recordings is not None:
+            if isinstance(recordings, (str, Path)):
+                recordings = RecordingSet.load(recordings)
+            else:
+                if "duration" not in segments:
+                    segments["duration"] = recordings.loc[segments["id"], "duration"]
+
+        classes = None
+        if class_names is not None:
+            classes = {}
+            for class_name in class_names:
+                if class_name in segments:
+                    uniq_classes = np.unique(segments[class_name])
+                    classes[class_name] = ClassInfo(pd.DataFrame({"id": uniq_classes}))
+
+        dataset = cls(segments=segments, recordings=recordings, classes=classes)
         return dataset
 
     @classmethod

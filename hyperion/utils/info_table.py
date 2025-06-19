@@ -46,7 +46,9 @@ class _InfoTableIndexer:
             InfoTable if result is a DataFrame, otherwise the native pandas result.
         """
         result = self.indexer[key]
-        if isinstance(result, pd.DataFrame) and "id" in result:
+        if isinstance(result, pd.DataFrame) and self.parent.__class__.is_valid_df(
+            result
+        ):
             # convert only if "id" is in the result otherwise return a regular dataframe
             # since wihtout "id" it is not a valid InfoTable
             return self.parent.__class__(result)
@@ -129,6 +131,19 @@ class InfoTable:
         self.df = df
         self.fix_dtypes()
         self.df.set_index("id", drop=False, inplace=True)
+
+    @staticmethod
+    def is_valid_df(df: pd.DataFrame) -> bool:
+        """
+        Check if the DataFrame is valid for InfoTable.
+
+        Args:
+            df (pd.DataFrame): DataFrame to check.
+
+        Returns:
+            bool: True if valid, False otherwise.
+        """
+        return "id" in df
 
     def fix_dtypes(self) -> None:
         """
@@ -250,7 +265,7 @@ class InfoTable:
             Union[InfoTable, pd.Series]: Sub-table or Series.
         """
         result = self.df[key]
-        if isinstance(result, pd.DataFrame) and "id" in result:
+        if isinstance(result, pd.DataFrame) and self.is_valid_df(result):
             return self.__class__(result)
         return result
 
@@ -949,6 +964,28 @@ class InfoTable:
             validate=validate,
         )
         return cls(df)
+
+    def replace(
+        self: T, to_replace=None, value=None, inplace: bool = False, **kwargs
+    ) -> Optional[T]:
+        """
+        Replace values in the DataFrame.
+
+        Args:
+            to_replace: What to replace.
+            value: Value to replace with.
+            inplace (bool): Whether to modify the table in-place.
+            **kwargs: Additional keyword args passed to pd.DataFrame.replace().
+
+        Returns:
+            Optional[InfoTable]: New InfoTable if not inplace, else None.
+        """
+        result = self.df.replace(
+            to_replace=to_replace, value=value, inplace=inplace, **kwargs
+        )
+        if inplace:
+            return None
+        return self.__class__(result)
 
         # def __len__(self):
 

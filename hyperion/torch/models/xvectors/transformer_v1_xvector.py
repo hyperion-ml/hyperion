@@ -203,7 +203,7 @@ class TransformerV1XVector(XVector):
         Returns:
            dictionary with config params
         """
-        base_config = super(TransformerXVectorV1, self).get_config()
+        base_config = super().get_config()
         del base_config["encoder_cfg"]
 
         pool_cfg = self.pool_net.get_config()

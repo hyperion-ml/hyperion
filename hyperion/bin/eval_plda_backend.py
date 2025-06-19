@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """
-  Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
-  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)  
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
 """
 import logging
@@ -149,7 +149,7 @@ def eval_backend(
             x_e, x_coh, ids1=enroll_ids, ids2=cohort_ids, method=llr_method
         )
         logging.info("computing cohort vs test")
-        scores_coh_test = plda_model.lrr_Nvs1(
+        scores_coh_test = plda_model.llr_Nvs1(
             x_coh, x_t, ids1=cohort_ids, method=llr_method
         )
         snorm = AdaptSNorm(cohort_nbest)

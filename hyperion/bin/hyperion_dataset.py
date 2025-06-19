@@ -33,6 +33,8 @@ subcommand_list = [
     "add_diarizations",
     "set_recordings",
     "make_from_recordings",
+    "from_recordings",
+    "from_segments",
     "remove_short_segments",
     "rebuild_class_idx",
     "remove_classes_few_segments",
@@ -290,13 +292,72 @@ def make_from_recordings(
     recordings_file: PathLike,
 ):
     output_dataset = dataset
-    import pandas as pd
-
     logging.info("making dataset %s from recordings %s", dataset, recordings_file)
-    rec_df = pd.read_csv(recordings_file)
-    seg_df = rec_df[["id"]]
-    segments = SegmentSet(seg_df)
-    dataset = HypDataset(segments, recordings=recordings_file)
+    # import pandas as pd
+    # rec_df = pd.read_csv(recordings_file)
+    # seg_df = rec_df[["id", "duration"]]
+    # segments = SegmentSet(seg_df)
+    # dataset = HypDataset(segments, recordings=recordings_file)
+    dataset = HypDataset.from_recordings(recordings_file)
+    dataset.save(output_dataset)
+
+
+def make_from_recordings_parser():
+    parser = ArgumentParser()
+    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument(
+        "--dataset", required=True, help="""dataset dir or .yaml file"""
+    )
+    parser.add_argument(
+        "--recordings-file", required=True, help="""recordings set file"""
+    )
+
+    add_common_args(parser)
+    return parser
+
+
+def from_recordings(
+    dataset: PathLike,
+    recordings_file: PathLike,
+):
+    output_dataset = dataset
+    logging.info("making dataset %s from recordings %s", dataset, recordings_file)
+    # import pandas as pd
+    # rec_df = pd.read_csv(recordings_file)
+    # seg_df = rec_df[["id", "duration"]]
+    # segments = SegmentSet(seg_df)
+    # dataset = HypDataset(segments, recordings=recordings_file)
+    dataset = HypDataset.from_recordings(recordings_file)
+    dataset.save(output_dataset)
+
+
+def make_from_segments_parser():
+    parser = ArgumentParser()
+    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument(
+        "--dataset", required=True, help="""dataset dir or .yaml file"""
+    )
+    parser.add_argument("--segments-file", required=True, help="""segments set file""")
+    parser.add_argument(
+        "--recordings-file", default=None, help="""recordings set file"""
+    )
+    parser.add_argument(
+        "--class-names", nargs="+", default=None, help="""class names"""
+    )
+
+    add_common_args(parser)
+    return parser
+
+
+def from_segments(
+    dataset: PathLike,
+    segments_file: PathLike,
+    recordings_file: Optional[PathLike] = None,
+    class_names: Optional[List[str]] = None,
+):
+    output_dataset = dataset
+    logging.info("making dataset %s from segments %s", dataset, segments_file)
+    dataset = HypDataset.from_segments(segments_file, recordings_file, class_names)
     dataset.save(output_dataset)
 
 
@@ -709,7 +770,6 @@ def split_folds(
         train_fold.describe()
         test_fold.save(output_dir_i / "test")
         test_fold.describe()
-
 
 
 def make_filter_by_segments_parser():

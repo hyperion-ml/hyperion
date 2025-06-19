@@ -3,7 +3,6 @@ Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import matplotlib.pyplot as plt
 import numpy as np
 import scipy.linalg as sla
 
@@ -58,7 +57,7 @@ def compute_roc(true_scores, false_scores, true_weights=None, false_weights=None
     return p_miss, p_fa
 
 
-def compute_rocch(tar_scores, non_scores):
+def compute_rocch(tar_scores, non_scores, return_thresholds=False):
     """Computes ROCCH: ROC Convex Hull.
 
     Args:
@@ -84,11 +83,16 @@ def compute_rocch(tar_scores, non_scores):
     perturb = np.argsort(scores, kind="mergesort")
 
     Pideal = Pideal[perturb]
+
     Popt, width, _ = pavx(Pideal)
 
     nbins = len(width)
     p_miss = np.zeros((nbins + 1,))
     p_fa = np.zeros((nbins + 1,))
+
+    if return_thresholds:
+        scores = scores[perturb]
+        thresholds = np.zeros((nbins + 1,))
 
     # threshold leftmost: accept eveything, miss nothing
     # 0 scores to left of threshold
@@ -99,12 +103,18 @@ def compute_rocch(tar_scores, non_scores):
     for i in range(nbins):
         p_miss[i] = miss / Nt
         p_fa[i] = fa / Nn
+        if return_thresholds:
+            thresholds[i] = scores[left]  # use leftmost score as threshold
         left = left + width[i]
         miss = np.sum(Pideal[:left])
         fa = N - left - np.sum(Pideal[left:])
 
     p_miss[nbins] = miss / Nt
     p_fa[nbins] = fa / Nn
+
+    if return_thresholds:
+        thresholds[nbins] = scores[-1] + 1e-6  # slightly beyond max to end the curve
+        return p_miss, p_fa, thresholds
 
     return p_miss, p_fa
 
@@ -125,7 +135,7 @@ def roc2eer(p_miss, p_fa):
     return p_miss[x1] + a * (p_miss[x2] - p_miss[x1])
 
 
-def rocch2eer(p_miss, p_fa):
+def rocch2eer(p_miss, p_fa, thresholds=None):
     """Calculates the equal error rate (eer) from pmiss and pfa
     vectors.
     Note: pmiss and pfa contain the coordinates of the vertices of the
@@ -134,6 +144,7 @@ def rocch2eer(p_miss, p_fa):
     pfa values.
     """
     eer = 0
+    eer_threshold = None
 
     # p_miss and p_fa should be sorted
     x = np.sort(p_miss, kind="mergesort")
@@ -146,19 +157,34 @@ def rocch2eer(p_miss, p_fa):
     for i in range(len(p_fa) - 1):
         xx = p_fa[i : i + 2]
         yy = p_miss[i : i + 2]
+        if thresholds is not None:
+            tt = thresholds[i : i + 2]
 
         XY = np.vstack((xx, yy)).T
         dd = np.dot(_1_1, XY)
         if np.min(np.abs(dd)) == 0:
             eerseg = 0
+            if thresholds is not None:
+                eer_t = tt[0]
         else:
             # find line coefficieents seg s.t. seg'[xx(i)yy(i)] = 1,
             # when xx(i),yy(i) is on the line.
             seg = sla.solve(XY, _11)
             # candidate for EER, eer is highest candidate
             eerseg = 1 / (np.sum(seg))
+            if thresholds is not None:
+                # interpolate threshold at EER point
+                w = seg / np.sum(seg)
+                eer_t = w[0][0] * tt[0] + w[1][0] * tt[1]
 
-        eer = np.maximum(eer, eerseg)
+        if eerseg > eer:
+            eer = eerseg
+            eer_threshold = eer_t
+
+        # eer = np.maximum(eer, eerseg)
+
+    if thresholds is not None:
+        return eer, eer_threshold
 
     return eer
 
@@ -226,6 +252,7 @@ def compute_area_under_rocch(p_miss, p_fa):
 
 
 def test_roc():
+    import matplotlib.pyplot as plt
 
     plt.figure()
 

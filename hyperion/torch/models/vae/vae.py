@@ -1,6 +1,6 @@
 """
- Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
@@ -8,6 +8,7 @@ import logging
 import torch
 import torch.distributions as pdf
 import torch.nn as nn
+from jsonargparse import ActionParser, ArgumentParser
 
 from ...layers import pdf_storage
 from ...layers import tensor2pdf as t2pdf
@@ -106,7 +107,7 @@ class VAE(TorchModel):
         # we have to infer the spatial dimension at the encoder
         # output
         assert (
-            spatial_shape is not None
+            self.spatial_shape is not None
         ), "you need to specify spatial shape at the input"
 
         enc_in_shape = None, self.in_channels, *self.spatial_shape
@@ -134,7 +135,7 @@ class VAE(TorchModel):
     def _flatten(self, x):
         return x.view(-1, self._enc_out_tot_feats)
 
-    def _unflatten(sef, x):
+    def _unflatten(self, x):
         return x.view(-1, *self._dec_in_shape)
 
     def _make_prior(self):
@@ -168,7 +169,7 @@ class VAE(TorchModel):
 
     def _make_pre_dec_layer(self):
         if self.flatten_spatial:
-            self._pre_dec_linear = Linear(self.z_dim, self._dec_in_tot_dim)
+            self._pre_dec_linear = nn.Linear(self.z_dim, self._dec_in_tot_dim)
 
     def _make_post_dec_layer(self):
         pass
@@ -199,16 +200,16 @@ class VAE(TorchModel):
 
         return x
 
-    def _post_px(self, px, x_shape):
-        px_shape = px.batch_shape
+    # def _post_px(self, px, x_shape):
+    #     px_shape = px.batch_shape
 
-        if len(px_shape) == 4 and len(x_shape) == 3:
-            if px_shape[1] == 1:
-                px = squeeze_pdf(px, dim=1)
-            else:
-                raise ValueError("P(x|z)-shape != x-shape")
+    #     if len(px_shape) == 4 and len(x_shape) == 3:
+    #         if px_shape[1] == 1:
+    #             px = squeeze_pdf(px, dim=1)
+    #         else:
+    #             raise ValueError("P(x|z)-shape != x-shape")
 
-        return px
+    #     return px
 
     def forward(
         self,
@@ -326,7 +327,7 @@ class VAE(TorchModel):
         zz = self.pre_px(zz)
 
         squeeze_dim = None
-        if x_target.dim() == 3 and zz.dim() == 4:
+        if len(x_shape) == 3 and zz.dim() == 4:
             squeeze_dim = 1
         px = self.t2px(zz, squeeze_dim=squeeze_dim)
         return px
