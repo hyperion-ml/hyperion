@@ -1,6 +1,6 @@
 """
- Copyright 2022 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2022 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
@@ -44,7 +44,7 @@ class HFWav2VecBase(TorchModel):
         ignore_pretrained (`bool` defaults to False): if True, it ignores the pretrained_model_path
             and inits the model from the configuration. This is set to True for models that have already
             been finetuned.
-        override_dropouts (`bool` defaults to False): if True, it ingnores the dropout probs. in the pretrained model
+        override_dropouts (`bool` defaults to False): if True, it ignores the dropout probs. in the pretrained model
             and uses the ones passed as arguments.
         override_spec_augment (`bool` defaults to False): if True, it ingnores the spec. augment.
             configuration in the pretrained model and uses the ones passed in the arguments.
@@ -217,13 +217,13 @@ class HFWav2VecBase(TorchModel):
         right += self.right_encoder_context
         return left, right
 
-    def max_out_length(self, max_in_length):
+    def max_out_length(self, max_in_length: int):
         return self.hf_model._get_feat_extract_output_lengths(max_in_length).item()
         # left_context, right_context = self.feature_encoder_context
         # max_in_length = max_in_length - left_context - right_context
         # return max_in_length // self.frame_shift
 
-    def out_lengths(self, in_lengths):
+    def out_lengths(self, in_lengths: torch.Tensor):
         return self.hf_model._get_feat_extract_output_lengths(in_lengths)
         # left_context, right_context = self.feature_encoder_context
         # in_lengths = in_lengths - left_context - right_context
@@ -233,6 +233,11 @@ class HFWav2VecBase(TorchModel):
         out_length = self.max_out_length(in_shape[1])
         C = self.hf_model.config.hidden_size
         return (in_shape[0], out_length, C)
+
+    @property
+    def out_feats(self):
+        """Number of output features of the model."""
+        return self.hf_model.config.hidden_size
 
     def change_config(
         self,

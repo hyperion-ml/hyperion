@@ -1,6 +1,6 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
@@ -15,10 +15,10 @@ from ...utils.misc import filter_func_args
 from ..losses import BCEWithLLR
 from ..utils import MetricAcc, tensors_subset
 from ..utils.misc import get_selfsim_tarnon
-from .torch_trainer import AMPDType, TorchTrainer
+from .legacy_torch_trainer import AMPDType, LegacyTorchTrainer
 
 
-class PLDATrainer(TorchTrainer):
+class PLDATrainer(LegacyTorchTrainer):
     """Trainer to train PLDA back-end
 
     Attributes:

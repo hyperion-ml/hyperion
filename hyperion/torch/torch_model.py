@@ -1,6 +1,6 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
@@ -298,6 +298,20 @@ class TorchModel(nn.Module):
         HFWav2XVector = TorchModel.registry["HFWav2XVector"]
         if issubclass(class_obj, HFWav2XVector):
             cfg, state_dict = TorchModel._fix_hf_wav2xvector(cfg, state_dict)
+
+        # switch audio_feats params to buffers
+        Wav2XVector = TorchModel.registry["Wav2XVector"]
+        if issubclass(class_obj, Wav2XVector):
+            # Remove _window if it was saved as a parameter
+            for key in list(state_dict.keys()):
+                if key.endswith("_window"):
+                    tensor = state_dict.pop(key)
+                    # keep same key, PyTorch will now map it as a buffer
+                    state_dict[key] = tensor
+                if key.endswith("_fb"):
+                    tensor = state_dict.pop(key)
+                    # keep same key, PyTorch will now map it as a buffer
+                    state_dict[key] = tensor
 
         return cfg, state_dict
 

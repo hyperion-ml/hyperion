@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """
- Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import logging
 from pathlib import Path
@@ -35,6 +35,7 @@ subcommand_list = [
     "filter",
     "make_class_file_from_column",
     "drop_columns",
+    "add_columns",
     "replace_columns",
     "average_results",
 ]
@@ -113,6 +114,7 @@ def cat(
             input_file_i = input_file_base.with_suffix(f".{idx}{ext}")
             input_files.append(input_file_i)
 
+    logging.info(f"Concatenating {len(input_files)} files into {output_file}")
     table_class = table_dict[table_type]
     tables = []
     for file_path in input_files:
@@ -155,6 +157,9 @@ def filter(
     filter_by: str,
     raise_if_missing: bool,
 ):
+    logging.info(
+        f"Filtering {input_file} by {filter_file} on {filter_by} into {output_file}"
+    )
 
     input_file = Path(input_file)
     filter_file = Path(filter_file)
@@ -195,7 +200,9 @@ def make_class_file_from_column(
     output_file: PathLike,
     column: str,
 ):
-
+    logging.info(
+        f"Creating class file from {input_file} column {column} into {output_file}"
+    )
     input_file = Path(input_file)
     output_file = Path(output_file)
 
@@ -247,10 +254,82 @@ def drop_columns(
             shutil.copy2(input_file, bk_file)
         output_file = input_file
 
+    logging.info(f"Dropping columns {columns} from {input_file} into {output_file}")
     table_class = table_dict[table_type]
     input_table = table_class.load(input_file)
     output_table = input_table.filter(columns=columns, keep=keep)
     output_table.save(output_file)
+
+
+def make_add_columns_parser():
+    parser = ArgumentParser()
+    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument("--input-file", required=True, help="input table file")
+    parser.add_argument("--right-table-file", required=True, help="table file to add")
+    parser.add_argument("--columns", default=None, nargs="+", help="columns to add")
+
+    parser.add_argument("--on", default="id", help="column to join on")
+    parser.add_argument(
+        "--right-on", default=None, help="column to join on in right table"
+    )
+    parser.add_argument(
+        "--replace-overlapping",
+        default=False,
+        action=ActionYesNo,
+        help="replace overlapping columns if True",
+    )
+    parser.add_argument(
+        "--remove-missing",
+        default=False,
+        action=ActionYesNo,
+        help="remove rows with missing values in right table",
+    )
+    parser.add_argument(
+        "--output-file",
+        default=None,
+        help="""output table file, If None, it overwrites input""",
+    )
+
+    add_common_args(parser)
+    return parser
+
+
+def add_columns(
+    table_type: str,
+    input_file: PathLike,
+    right_table_file: PathLike,
+    columns: List[str],
+    on: str = "id",
+    right_on: Optional[str] = None,
+    replace_overlapping: bool = False,
+    remove_missing: bool = False,
+    output_file: Optional[PathLike] = None,
+):
+
+    input_file = Path(input_file)
+    if output_file is None:
+        bk_file = input_file.with_suffix(input_file.suffix + ".bk")
+        if not bk_file.is_file():
+            import shutil
+
+            shutil.copy2(input_file, bk_file)
+        output_file = input_file
+
+    logging.info(
+        f"Adding columns from {right_table_file} to {input_file} on {on} into {output_file}"
+    )
+    table_class = table_dict[table_type]
+    input_table = table_class.load(input_file)
+    right_table = table_class.load(right_table_file)
+    input_table.add_columns(
+        right_table,
+        column_names=columns,
+        on=on,
+        right_on=right_on,
+        replace_overlapping=replace_overlapping,
+        remove_missing=remove_missing,
+    )
+    input_table.save(output_file)
 
 
 def make_replace_columns_parser():
@@ -285,7 +364,9 @@ def replace_columns(
     output_file: Optional[PathLike] = None,
     columns: Optional[List[str]] = None,
 ):
-
+    logging.info(
+        f"Replacing columns in {input_file} with {replacement_file} into {output_file}"
+    )
     input_file = Path(input_file)
     if output_file is None:
         bk_file = input_file.with_suffix(input_file.suffix + ".bk")
@@ -348,6 +429,7 @@ def average_results(
             input_file_i = input_file_base.with_suffix(f".{idx}{ext}")
             input_files.append(input_file_i)
 
+    logging.info(f"Averaging {len(input_files)} files into {output_file}")
     output_table = None
     index = None
     columns = None

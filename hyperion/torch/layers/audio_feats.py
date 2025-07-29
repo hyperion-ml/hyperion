@@ -1,27 +1,30 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
 import math
+from typing import Tuple, Union
 
 import torch
 import torch.cuda.amp as amp
 import torch.nn as nn
 
-try:
-    from torch.fft import rfft as torch_rfft
-
-    _rfft = lambda x: torch_rfft(x, dim=-1)
-    _pow_spectrogram = lambda x: x.abs() ** 2
-    _spectrogram = lambda x: x.abs()
-except:
-    _rfft = lambda x: torch.rfft(x, 1, normalized=False, onesided=True)
-    _pow_spectrogram = lambda x: x.pow(2).sum(-1)
-    _spectrogram = lambda x: x.pow(2).sum(-1).sqrt()
-
 from ...np.feats.filter_banks import FilterBankFactory as FBF
+
+EPS_F16 = torch.finfo(torch.float16).tiny
+# try:
+#     from torch.fft import rfft as torch_rfft
+
+#     _rfft = lambda x: torch_rfft(x, dim=-1)
+#     _pow_spectrogram = lambda x: x.abs() ** 2
+#     _spectrogram = lambda x: x.abs()
+# except:
+#     _rfft = lambda x: torch.rfft(x, 1, normalized=False, onesided=True)
+#     _pow_spectrogram = lambda x: x.pow(2).sum(-1)
+#     _spectrogram = lambda x: x.pow(2).sum(-1).sqrt()
+
 
 # window types
 HAMMING = "hamming"
@@ -31,40 +34,40 @@ RECTANGULAR = "rectangular"
 BLACKMAN = "blackman"
 WINDOWS = [HAMMING, HANNING, POVEY, RECTANGULAR, BLACKMAN]
 
-# def _amp_safe_matmul(a, b):
-#     if _use_amp():
-#         mx = torch.max(a, dim=-1, keepdim=True)[0]
-#         return mx*torch.matmul(a/mx, b)
 
-#     return torch.matmul(a, b)
-
-
-def _get_feature_window_function(window_type, window_size, blackman_coeff=0.42):
-    r"""Returns a window function with the given type and size"""
+def _get_feature_window_function(
+    window_type: str, window_size: int, blackman_coeff: float = 0.42
+) -> torch.Tensor:
+    """Return the requested window as a 1-D tensor (default dtype, on CPU)."""
     if window_type == HANNING:
         return torch.hann_window(window_size, periodic=True)
     elif window_type == HAMMING:
         return torch.hamming_window(window_size, periodic=True, alpha=0.54, beta=0.46)
     elif window_type == POVEY:
-        # return torch.hann_window(window_size, periodic=True).pow(0.85)
         a = 2 * math.pi / window_size
-        window_function = torch.arange(window_size, dtype=torch.get_default_dtype())
-        return (0.5 - 0.5 * torch.cos(a * window_function)).pow(0.85)
+        n = torch.arange(window_size, dtype=torch.get_default_dtype())
+        return (0.5 - 0.5 * torch.cos(a * n)).pow(0.85)
     elif window_type == RECTANGULAR:
         return torch.ones(window_size, dtype=torch.get_default_dtype())
     elif window_type == BLACKMAN:
         a = 2 * math.pi / window_size
-        window_function = torch.arange(window_size, dtype=torch.get_default_dtype())
+        n = torch.arange(window_size, dtype=torch.get_default_dtype())
         return (
             blackman_coeff
-            - 0.5 * torch.cos(a * window_function)
-            + (0.5 - blackman_coeff) * torch.cos(2 * a * window_function)
+            - 0.5 * torch.cos(a * n)
+            + (0.5 - blackman_coeff) * torch.cos(2 * a * n)
         )
-    else:
-        raise Exception("Invalid window type " + window_type)
+    raise ValueError(f"Invalid window type: {window_type}")
 
 
-def _get_strided_batch(waveform, window_length, window_shift, snip_edges, center=False):
+def _get_strided_batch(
+    waveform: torch.Tensor,
+    window_length: int,
+    window_shift: int,
+    snip_edges: bool,
+    *,
+    center: bool = False,
+) -> torch.Tensor:
     """Given a waveform (2D tensor of size  (batch, num_samples),
        it returns a 3D tensor (batch, m, window_size)
        representing how the window is shifted along the waveform. Each row is a frame.
@@ -91,9 +94,9 @@ def _get_strided_batch(waveform, window_length, window_shift, snip_edges, center
 
     if snip_edges:
         if num_samples < window_length:
-            return torch.empty((0, 0, 0))
-        else:
-            num_frames = 1 + (num_samples - window_length) // window_shift
+            return waveform.new_empty((batch_size, 0, window_length))
+
+        num_frames = 1 + (num_samples - window_length) // window_shift
     else:
         if center:
             npad_left = int(window_length // 2)
@@ -106,7 +109,9 @@ def _get_strided_batch(waveform, window_length, window_shift, snip_edges, center
             npad = new_num_samples - num_samples
             npad_left = int((window_length - window_shift) // 2)
             npad_right = npad - npad_left
-            assert npad_right > 0
+            assert (
+                npad_right >= 0
+            ), f"{npad_right} < 0, {npad} = {new_num_samples} - {num_samples}, {num_frames} = ({num_samples} + ({window_shift} // 2)) // {window_shift}"
 
         # waveform = nn.functional.pad(waveform, (npad_left, npad_right), mode='reflect')
         pad_left = torch.flip(waveform[:, 1 : npad_left + 1], (1,))
@@ -129,12 +134,15 @@ def _get_strided_batch(waveform, window_length, window_shift, snip_edges, center
     #     strides,
     #     flush=True,
     # )
+    # as_strided view (no data copy)
     return waveform.as_strided(sizes, strides)
 
 
-def _get_log_energy(x, energy_floor):
+def _get_log_energy(
+    x: torch.Tensor, energy_floor: float, eps: float = EPS_F16
+) -> torch.Tensor:
     r"""Returns the log energy of size (batch, m) for a strided_input (batch, m,*)"""
-    log_energy = (x.pow(2).sum(-1) + 1e-15).log()  # size (m)
+    log_energy = (x.pow(2).sum(-1) + eps).log()  # size (m)
     if energy_floor > 0.0:
         log_energy = torch.max(
             log_energy,
@@ -144,29 +152,63 @@ def _get_log_energy(x, energy_floor):
     return log_energy
 
 
+# ――― FFT helpers ――― #
+def _pow_spectrogram(X: torch.Tensor) -> torch.Tensor:
+    """|X(f)|²  (power spectrum)."""
+    return X.abs().pow(2)
+
+
+def _spectrogram(X: torch.Tensor) -> torch.Tensor:
+    """|X(f)|  (magnitude spectrum)."""
+    return X.abs()
+
+
 class Wav2Win(nn.Module):
     """Class that takes a batch of waveforms and returns windowed frames
        with a given frame-shift and frame-length.
 
     Attributes:
-
+        fs:                Waveform data sample frequency (must match the waveform
+                             file, if specified there) (default = 16_000)
+        frame_length:      Frame length in milliseconds (default = 25)
+        frame_shift:       Frame shift in milliseconds (default = 10)
+        pad_length:        Length of padded frames (default = None, which means
+                             it will be equal to frame_length)
+        remove_dc_offset:  Subtract mean from waveform on each frame (default = True)
+        preemph_coeff:     Coefficient for use in signal preemphasis (default = 0.97)
+        window_type:       Type of window ["hamming"|"hanning"|"povey"|"rectangular"|
+                             "blackmann"] (default = 'povey')
+        dither:            Dithering constant (0.0 means no dither) (default = 1e-5)
+        snip_edges:        If true, end effects will be handled by outputting only
+                             frames that completely fit in the file, and the number of
+                             frames depends on the frame-length.
+                             If false, the number of frames depends only on the
+                             frame-shift, and we reflect the data at the ends.
+                             (default = True)
+        center:            If true, if puts the center of the frame at t*window_shift, starting at t=0,
+                             If overwrides snip_edges and set it to False
+        energy_floor:      Floor on energy (absolute, not relative) in MFCC computation
+                             (default = 0)
+        raw_energy:        If true, compute energy before preemphasis and
+                             windowing (default = True)
+        return_log_energy: If true, returns log energy of each frame as a second output
     """
 
     def __init__(
         self,
-        fs=16000,
-        frame_length=25,
-        frame_shift=10,
-        pad_length=None,
-        remove_dc_offset=True,
-        preemph_coeff=0.97,
-        window_type="povey",
-        dither=1,
-        snip_edges=True,
-        center=False,
-        energy_floor=0,
-        raw_energy=True,
-        return_log_energy=False,
+        fs: int = 16_000,
+        frame_length: float = 25,
+        frame_shift: float = 10,
+        pad_length: int | None = None,
+        remove_dc_offset: bool = True,
+        preemph_coeff: float = 0.97,
+        window_type: str = "povey",
+        dither: float = 1e-5,
+        snip_edges: bool = True,
+        center: bool = False,
+        energy_floor: float = 0.0,
+        raw_energy: bool = True,
+        return_log_energy: bool = False,
     ):
         super().__init__()
         self.fs = fs
@@ -186,12 +228,16 @@ class Wav2Win(nn.Module):
         N = int(math.floor(frame_length * fs / 1000))
         self._length = N
         self._shift = int(math.floor(frame_shift * fs / 1000))
-
-        self._window = nn.Parameter(
-            _get_feature_window_function(window_type, N), requires_grad=False
-        )
         self.pad_length = N if pad_length is None else pad_length
         assert self.pad_length >= N
+
+        # self._window = nn.Parameter(
+        #     _get_feature_window_function(window_type, N), requires_grad=False
+        # )
+        window = _get_feature_window_function(window_type, N).to(
+            torch.get_default_dtype()
+        )
+        self.register_buffer("_window", window)
 
     def __repr__(self):
         return self.__str__()
@@ -219,7 +265,10 @@ class Wav2Win(nn.Module):
         )
         return s
 
-    def forward(self, x):
+    def forward(
+        self, x: torch.Tensor
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:  # (B, T) → (B, F, L)
+        """Computes the strided frames from a batch of waveforms."""
         # Add dither
         if self.dither != 0.0:
             n = torch.randn(x.shape, device=x.device)
@@ -302,26 +351,26 @@ class Wav2FFT(nn.Module):
 
     def __init__(
         self,
-        fs=16000,
-        frame_length=25,
-        frame_shift=10,
-        fft_length=512,
-        remove_dc_offset=True,
-        preemph_coeff=0.97,
-        window_type="povey",
-        dither=1,
-        snip_edges=True,
-        center=False,
-        energy_floor=0,
-        raw_energy=True,
-        use_energy=True,
+        fs: int = 16_000,
+        frame_length: float = 25,
+        frame_shift: float = 10,
+        fft_length: int = 512,
+        remove_dc_offset: bool = True,
+        preemph_coeff: float = 0.97,
+        window_type: str = "povey",
+        dither: float = 1.0e-5,
+        snip_edges: bool = True,
+        center: bool = False,
+        energy_floor: float = 0.0,
+        raw_energy: bool = True,
+        use_energy: bool = True,
     ):
         super().__init__()
 
         N = int(math.floor(frame_length * fs / 1000))
         if N > fft_length:
             k = math.ceil(math.log(N) / math.log(2))
-            self.fft_length = int(2**k)
+            fft_length = int(2**k)
 
         self.wav2win = Wav2Win(
             fs,
@@ -370,6 +419,11 @@ class Wav2FFT(nn.Module):
     def dither(self):
         return self.wav2win.dither
 
+    @property
+    def out_feats(self):
+        """Returns the number of output features."""
+        return self.fft_length // 2 + 1
+
     def forward(self, x):
         """Computes the comples Fourier transform.
 
@@ -384,12 +438,15 @@ class Wav2FFT(nn.Module):
             x_strided, log_e = x_strided
 
         try:
-            X = _rfft(x_strided)
+            X = torch.fft.rfft(x_strided, dim=-1)
         except:
             torch.backends.cuda.cufft_plan_cache.clear()
-            X = _rfft(x_strided)
+            X = torch.fft.rfft(x_strided, dim=-1)
         if self.use_energy:
-            X[:, 0, :, 0] = log_e
+            X_real, X_imag = X.real, X.imag
+            X_real[:, :, 0] = log_e.exp()
+            X_imag[:, :, 0] = 0.0
+            X = torch.complex(X_real, X_imag)
 
         return X
 
@@ -479,7 +536,7 @@ class Wav2Spec(Wav2FFT):
         if self.use_energy:
             x_strided, log_e = x_strided
 
-        X = _rfft(x_strided)
+        X = torch.fft.rfft(x_strided, dim=-1)
         pow_spec = self._to_spec(X)
         if self.use_energy:
             pow_spec[:, 0] = log_e
@@ -571,9 +628,9 @@ class Wav2LogSpec(Wav2FFT):
         if self.use_energy:
             x_strided, log_e = x_strided
 
-        X = _rfft(x_strided)
+        X = torch.fft.rfft(x_strided, dim=-1)
         pow_spec = self._to_spec(X)
-        pow_spec = (pow_spec + 1e-15).log()
+        pow_spec = pow_spec.clamp(min=EPS_F16).log()
         if self.use_energy:
             pow_spec[:, 0] = log_e
 
@@ -623,25 +680,25 @@ class Wav2LogFilterBank(Wav2FFT):
 
     def __init__(
         self,
-        fs=16000,
-        frame_length=25,
-        frame_shift=10,
-        fft_length=512,
-        remove_dc_offset=True,
-        preemph_coeff=0.97,
-        window_type="povey",
-        use_fft_mag=False,
-        dither=1,
-        fb_type="mel_kaldi",
-        low_freq=20,
-        high_freq=0,
-        num_filters=23,
-        norm_filters=False,
-        snip_edges=True,
-        center=False,
-        energy_floor=0,
-        raw_energy=True,
-        use_energy=True,
+        fs: int = 16_000,
+        frame_length: float = 25,
+        frame_shift: float = 10,
+        fft_length: int = 512,
+        remove_dc_offset: bool = True,
+        preemph_coeff: float = 0.97,
+        window_type: str = "povey",
+        use_fft_mag: bool = False,
+        dither: float = 1.0,
+        fb_type: str = "mel_kaldi",
+        low_freq: int = 20,
+        high_freq: int = 0,
+        num_filters: int = 23,
+        norm_filters: bool = False,
+        snip_edges: bool = True,
+        center: bool = False,
+        energy_floor: float = 0.0,
+        raw_energy: bool = True,
+        use_energy: bool = True,
     ):
         super().__init__(
             fs,
@@ -675,15 +732,21 @@ class Wav2LogFilterBank(Wav2FFT):
             high_freq,
             norm_filters,
         )
-        self._fb = nn.Parameter(
-            torch.tensor(fb, dtype=torch.get_default_dtype()), requires_grad=False
-        )
+        # self._fb = nn.Parameter(
+        #     torch.tensor(fb, dtype=torch.get_default_dtype()), requires_grad=False
+        # )
+        self.register_buffer("_fb", torch.tensor(fb, dtype=torch.get_default_dtype()))
         if use_fft_mag:
             self._to_spec = _spectrogram
         else:
             self._to_spec = _pow_spectrogram
 
-    def forward(self, x):
+    @property
+    def out_feats(self):
+        """Returns the number of output features."""
+        return self.num_filters + 1 if self.use_energy else self.num_filters
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Computes the log-filter-banks.
 
         Args:
@@ -697,16 +760,16 @@ class Wav2LogFilterBank(Wav2FFT):
             x_strided, log_e = x_strided
 
         try:
-            X = _rfft(x_strided)
+            X = torch.fft.rfft(x_strided, dim=-1)
         except:
             torch.backends.cuda.cufft_plan_cache.clear()
-            X = _rfft(x_strided)
+            X = torch.fft.rfft(x_strided, dim=-1)
 
         pow_spec = self._to_spec(X)
         with amp.autocast(enabled=False):
             pow_spec = torch.matmul(pow_spec.float(), self._fb.float())
 
-        pow_spec = (pow_spec + 1e-10).log()
+        pow_spec = pow_spec.clamp(min=EPS_F16).log()
         if self.use_energy:
             pow_spec = torch.cat((log_e.unsqueeze(-1), pow_spec), dim=-1)
 
@@ -815,19 +878,31 @@ class Wav2MFCC(Wav2FFT):
             high_freq,
             norm_filters,
         )
-        self._fb = nn.Parameter(
-            torch.tensor(fb, dtype=torch.get_default_dtype()), requires_grad=False
+        # self._fb = nn.Parameter(
+        #     torch.tensor(fb, dtype=torch.get_default_dtype()), requires_grad=False
+        # )
+        # self._dct = nn.Parameter(
+        #     self.make_dct_matrix(self.num_ceps, self.num_filters), requires_grad=False
+        # )
+        # self._lifter = nn.Parameter(
+        #     self.make_lifter(self.num_ceps, self.cepstral_lifter), requires_grad=False
+        # )
+        self.register_buffer("_fb", torch.tensor(fb, dtype=torch.get_default_dtype()))
+        self.register_buffer(
+            "_dct", self.make_dct_matrix(self.num_ceps, self.num_filters)
         )
-        self._dct = nn.Parameter(
-            self.make_dct_matrix(self.num_ceps, self.num_filters), requires_grad=False
-        )
-        self._lifter = nn.Parameter(
-            self.make_lifter(self.num_ceps, self.cepstral_lifter), requires_grad=False
+        self.register_buffer(
+            "_lifter", self.make_lifter(self.num_ceps, self.cepstral_lifter)
         )
         if use_fft_mag:
             self._to_spec = _spectrogram
         else:
             self._to_spec = _pow_spectrogram
+
+    @property
+    def out_feats(self):
+        """Returns the number of output features."""
+        return self.num_ceps
 
     @staticmethod
     def make_lifter(N, Q):
@@ -880,12 +955,12 @@ class Wav2MFCC(Wav2FFT):
         if self.use_energy:
             x_strided, log_e = x_strided
 
-        X = _rfft(x_strided)
+        X = torch.fft.rfft(x_strided, dim=-1)
         pow_spec = self._to_spec(X)
         with amp.autocast(enabled=False):
             pow_spec = torch.matmul(pow_spec.float(), self._fb.float())
 
-        pow_spec = (pow_spec + 1e-10).log()
+        pow_spec = pow_spec.clamp(min=EPS_F16).log()
         mfcc = torch.matmul(pow_spec, self._dct)
         if self.cepstral_lifter > 0:
             mfcc *= self._lifter
@@ -1005,9 +1080,16 @@ class Spec2LogFilterBank:
             high_freq,
             norm_filters,
         )
-        self._fb = nn.Parameter(
-            torch.tensor(fb, dtype=torch.get_default_dtype()), requires_grad=False
-        )
+
+        # self._fb = nn.Parameter(
+        #     torch.tensor(fb, dtype=torch.get_default_dtype()), requires_grad=False
+        # )
+        self.register_buffer("_fb", torch.tensor(fb, dtype=torch.get_default_dtype()))
+
+    @property
+    def out_feats(self):
+        """Returns the number of output features."""
+        return self.num_filters
 
     def forward(self, x):
         """Computes the Log filter banks from spectrograms.
@@ -1020,5 +1102,5 @@ class Spec2LogFilterBank:
         """
         with amp.autocast(enabled=False):
             pow_spec = torch.matmul(x.float(), self._fb.float())
-        pow_spec = (pow_spec + 1e-10).log()
+        pow_spec = pow_spec.clamp(min=EPS_F16).log()
         return pow_spec

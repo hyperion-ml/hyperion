@@ -8,7 +8,9 @@ from typing import Optional
 
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
+from ...utils.misc import filter_func_args
 from ..layers import GatherDistributedFunction
 from ..utils import ddp_get_rank
 
@@ -23,6 +25,9 @@ class ContrastiveLoss(nn.Module):
         temp_warmup_steps (int): Number of steps over which to linearly warm up the temperature
                                  from `initial_temp` to `temp`.
         initial_temp (float): Initial temperature used at the start of training before warmup completes.
+        margin (float): Margin value for contrastive loss.
+        margin_warmup_steps (int): Number of steps over which to linearly warm up the margin from 0 to `margin`.
+        log_interval (int): Interval for logging temperature and margin updates.
     """
 
     def __init__(
@@ -30,8 +35,10 @@ class ContrastiveLoss(nn.Module):
         temp: float = 0.07,
         temp_warmup_steps: int = 1000,
         initial_temp: float = 0.07,
-        margin=0.3,
-        margin_warmup_steps=0,
+        margin: float = 0.3,
+        margin_warmup_steps: int = 0,
+        margin_warmup_start: int = 0,
+        log_interval: int = 1000,
     ):
         super().__init__()
         self.temp = temp
@@ -40,7 +47,9 @@ class ContrastiveLoss(nn.Module):
         self.initial_temp = initial_temp
         self.margin = margin
         self.margin_warmup_steps = margin_warmup_steps
+        self.margin_warmup_start = margin_warmup_start
         self.cur_margin = 0.0
+        self.log_interval = log_interval
 
     def update_temp(self, step: int):
         if step < self.temp_warmup_steps:
@@ -48,7 +57,8 @@ class ContrastiveLoss(nn.Module):
                 self.initial_temp
                 + (self.temp - self.initial_temp) * step / self.temp_warmup_steps
             )
-            logging.info("updating contrastive losss temp=%.3f", self.cur_temp)
+            if step % self.log_interval == 0:
+                logging.info("updating contrastive losss temp=%.3f", self.cur_temp)
         else:
             self.cur_temp = self.temp
 
@@ -58,22 +68,36 @@ class ContrastiveLoss(nn.Module):
         Args:
           step: value of current step.
         """
-
-        if step < self.margin_warmup_steps:
-            self.cur_margin = self.margin * step / self.margin_warmup_steps
-            logging.info(
-                "updating constrastive loss margin=%.2f",
-                self.cur_margin,
+        if step < self.margin_warmup_start:
+            self.cur_margin = 0.0
+        elif step < self.margin_warmup_steps + self.margin_warmup_start:
+            self.cur_margin = (
+                self.margin
+                * (step - self.margin_warmup_start)
+                / self.margin_warmup_steps
             )
-        else:
-            if self.cur_margin != self.margin:
-                self.cur_margin = self.margin
+            if step % self.log_interval == 0:
                 logging.info(
                     "updating constrastive loss margin=%.2f",
                     self.cur_margin,
                 )
-            else:
-                return
+        else:
+            if self.cur_margin != self.margin:
+                self.cur_margin = self.margin
+                if step % self.log_interval == 0:
+                    logging.info(
+                        "updating constrastive loss margin=%.2f",
+                        self.cur_margin,
+                    )
+
+    def update(self, step: int):
+        """Updates the temperature and margin values.
+
+        Args:
+          step: value of current step.
+        """
+        self.update_temp(step)
+        self.update_margin(step)
 
     def forward(
         self,
@@ -83,7 +107,7 @@ class ContrastiveLoss(nn.Module):
         return_logits: bool = False,
     ) -> torch.Tensor:
         """
-        Compute cross-modal contrastive loss with distributed gathering and optional memory banks.
+        Compute contrastive loss with distributed gathering and optional memory banks.
 
         Args:
             z_pred (Tensor): Predicted embeddings, shape (B, D)
@@ -132,3 +156,59 @@ class ContrastiveLoss(nn.Module):
             return loss, logits
 
         return loss
+
+    @staticmethod
+    def filter_args(**kwargs):
+        return filter_func_args(ContrastiveLoss.__init__, kwargs)
+
+    @staticmethod
+    def add_class_args(parser, prefix=None):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
+
+        parser.add_argument(
+            "--temp",
+            default=0.1,
+            type=float,
+            help="Target temperature scaling value for similarity logits",
+        )
+        parser.add_argument(
+            "--initial-temp",
+            default=0.04,
+            type=float,
+            help="Initial temperature used at the start of training before warmup completes",
+        )
+        parser.add_argument(
+            "--temp-warmup-steps",
+            default=30,
+            type=int,
+            help="Number of steps over which to linearly warm up the temperature from `initial_temp` to `temp`",
+        )
+        parser.add_argument(
+            "--margin",
+            default=0.1,
+            type=float,
+            help="Margin value for contrastive loss",
+        )
+        parser.add_argument(
+            "--margin-warmup-steps",
+            default=30,
+            type=int,
+            help="Number of steps over which to linearly warm up the margin from 0 to `margin`",
+        )
+        parser.add_argument(
+            "--margin-warmup-start",
+            default=0,
+            type=int,
+            help="Step at which to start warming up the margin",
+        )
+        parser.add_argument(
+            "--log-interval",
+            default=1000,
+            type=int,
+            help="Interval for logging temperature and margin updates",
+        )
+
+        if prefix is not None:
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

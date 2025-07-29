@@ -9,7 +9,7 @@ description = "Toolkit for speaker recognition"
 readme = "README.md"
 keywords = [ "speaker recognition", "adversarial attacks", "NIST SRE", "x-vectors",]
 requires-python = ">=3.7"
-dependencies = [ "torch>=1.9.0", "numpy>=1.18.1", "h5py>=2.10.0", "pysoundfile>=0.9.0", "matplotlib>=3.1.3", "pandas>=1.0.1", "scikit-learn>=0.22.1", "scipy>=1.4.1", "sphinx_rtd_theme>=0.4.3", "pympler", "memory_profiler", "gdown", "fairscale==0.4.4", "tensorboard>=2.5.0", "jsonargparse>=3.5.0", "wandb>=0.10.30", "librosa>=0.8.1", "isort", "black", "twine", "wheel", "transformers>=4.16.2", "sentencepiece>=0.1.97", "loralib", "lhotse>=1.23.0", "datasets>=2.20.0", "pytest", "toml", "kaldialign>=0.9.1", "utmosv2 @ git+https://github.com/jesus-villalba/UTMOSv2.git",]
+dependencies = [ "torch>=1.9.0", "numpy>=1.18.1", "h5py>=2.10.0", "pysoundfile>=0.9.0", "matplotlib>=3.1.3", "pandas>=1.0.1", "scikit-learn>=0.22.1", "scipy>=1.4.1", "sphinx_rtd_theme>=0.4.3", "pympler", "memory_profiler", "gdown", "fairscale==0.4.4", "tensorboard>=2.5.0", "jsonargparse>=3.5.0", "wandb>=0.10.30", "librosa>=0.8.1", "isort", "black", "twine", "wheel", "transformers>=4.16.2", "sentencepiece>=0.1.97", "loralib", "lhotse>=1.23.0", "datasets>=2.20.0", "pytest", "toml", "kaldialign>=0.9.1", "utmosv2 @ git+https://github.com/jesus-villalba/UTMOSv2.git", "pycountry", "langcodes", "pynvml",]
 [[project.authors]]
 name = "Jesus Villalba"
 email = "jesus.antonio.villalba@gmail.com"
@@ -21,6 +21,7 @@ text = "Apache-2.0"
 Homepage = "https://github.com/hyperion-ml/hyperion"
 
 [project.scripts]
+hyperion-train-vi-emo-normalizer = "hyperion.bin.train_vi_emo_normalizer:main"
 hyperion-finetune-xvector-from-feats = "hyperion.bin.finetune_xvector_from_feats:main"
 hyperion-extract-wav2xvectors = "hyperion.bin.extract_wav2xvectors:main"
 hyperion-train-plda = "hyperion.bin.train_plda:main"
@@ -40,6 +41,7 @@ hyperion-eval-xvec-cosine-scoring-from-transfer-art-test-wav = "hyperion.bin.eva
 hyperion-prepare-data = "hyperion.bin.prepare_data:main"
 hyperion-generate-adv-attacks-xvector-classif = "hyperion.bin.generate_adv_attacks_xvector_classif:main"
 hyperion-train-lgbe = "hyperion.bin.train_lgbe:main"
+hyperion-train-vi-anonymizer = "hyperion.bin.train_vi_anonymizer:main"
 hyperion-accum-speech-quality-metrics = "hyperion.bin.accum_speech_quality_metrics:main"
 hyperion-train-wav2vec2rnn-transducer = "hyperion.bin.train_wav2vec2rnn_transducer:main"
 hyperion-eval-xvec-logits-from-wav = "hyperion.bin.eval_xvec_logits_from_wav:main"
@@ -53,6 +55,7 @@ hyperion-extract-xvectors-from-wav = "hyperion.bin.extract_xvectors_from_wav:mai
 hyperion-merge-scores = "hyperion.bin.merge_scores:main"
 hyperion-adv-finetune-xvector-from-wav = "hyperion.bin.adv_finetune_xvector_from_wav:main"
 hyperion-audio-to-duration = "hyperion.bin.audio_to_duration:main"
+hyperion-finetune-vi-anonymizer = "hyperion.bin.finetune_vi_anonymizer:main"
 hyperion-eval-speech-quality-metrics = "hyperion.bin.eval_speech_quality_metrics:main"
 hyperion-split-dataset-into-trials-and-cohort = "hyperion.bin.split_dataset_into_trials_and_cohort:main"
 hyperion-copy-feats = "hyperion.bin.copy_feats:main"
@@ -68,6 +71,7 @@ hyperion-train-verification-calibration = "hyperion.bin.train_verification_calib
 hyperion-eval-cosine-scoring-backend-with-qmf = "hyperion.bin.eval_cosine_scoring_backend_with_qmf:main"
 hyperion-train-xvector-from-wav = "hyperion.bin.train_xvector_from_wav:main"
 hyperion-train-verification-greedy-fusion = "hyperion.bin.train_verification_greedy_fusion:main"
+hyperion-train-freevc = "hyperion.bin.train_freevc:main"
 hyperion-train-tokenizer = "hyperion.bin.train_tokenizer:main"
 hyperion-extract-xvectors-from-feats = "hyperion.bin.extract_xvectors_from_feats:main"
 hyperion-eval-plda-backend = "hyperion.bin.eval_plda_backend:main"

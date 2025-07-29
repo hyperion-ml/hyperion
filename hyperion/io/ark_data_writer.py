@@ -1,16 +1,17 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from typing import Union, Optional, List, Dict
+from typing import Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd
+
 from ..hyp_defs import float_save
+from ..utils import PathLike
 from ..utils.kaldi_io_funcs import init_kaldi_output_stream, is_token, write_token
 from ..utils.kaldi_matrix import KaldiCompressedMatrix, KaldiMatrix
-from ..utils import PathLike
 from .data_writer import DataWriter
 
 
@@ -127,6 +128,9 @@ class ArkDataWriter(DataWriter):
                 if self.script_is_scp:
                     self.f_script.write(f"{key_i} {self.archive_path}:{pos}\n")
                 else:
+                    if self.script_sep in key_i:
+                        key_i = '"' + key_i + '"'
+
                     columns = [key_i, str(self.archive_path), str(pos)]
                     if metadata is not None:
                         metadata_i = [str(m[i]) for m in metadata]

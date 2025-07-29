@@ -115,17 +115,6 @@ class Wav2XVector(TorchModel):
             if vad_feats is not None:
                 feats, feat_lengths = remove_silence(feats, vad_feats, feat_lengths)
 
-        # n = torch.sum(~torch.isfinite(feats))
-        # if n > 0:
-        #     print(
-        #         "feats",
-        #         n,
-        #         torch.sum(torch.isnan(feats)),
-        #         torch.sum(torch.any(torch.isnan(x), dim=-1)),
-        #         x.dtype,
-        #         feats.dtype,
-        #         flush=True,
-        #     )
         return self.xvector(
             feats,
             feat_lengths,

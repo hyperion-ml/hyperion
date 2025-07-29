@@ -1,12 +1,12 @@
 """
- Copyright 2022 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2022 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
 import math
 import time
-from typing import Optional, Union
+from typing import List, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -19,9 +19,42 @@ from .hyp_sampler import HypSampler
 
 
 class ClassWeightedRandomSegChunkSampler(HypSampler):
+    """
+    Class-balanced chunk sampler that randomly samples fixed-length chunks
+    from segments grouped by class labels.
+
+    Supports uniform or data-prior-based sampling of classes and segments.
+    Allows control over the number of classes, segments, and chunks per batch.
+    Supports optional hard negative mining using a class affinity matrix.
+
+    Attributes:
+        segments (SegmentSet): Table of segments to sample from.
+        class_info (ClassInfo): Class table with one entry per class.
+        min_chunk_length (float): Minimum chunk duration in seconds.
+        max_chunk_length (Optional[float]): Maximum chunk duration. If None, equal to min_chunk_length.
+        min_batch_size (int): Minimum number of samples in a batch.
+        max_batch_size (Optional[int]): Maximum number of samples in a batch.
+        max_batch_length (Optional[float]): Max total duration in a batch.
+        num_chunks_per_seg_epoch (Union[str, int]): Number of chunks per segment in an epoch or "auto".
+        num_segs_per_class (int): Number of segments to sample per class in a batch.
+        num_chunks_per_seg (int): Number of chunks per segment in a batch.
+        weight_exponent (float): Exponent applied to class weights.
+        weight_mode (str): One of ["custom", "uniform", "data-prior"].
+        seg_weight_mode (str): One of ["uniform", "data-prior"].
+        num_hard_prototypes (int): Number of hard prototype classes to sample (used with affinity matrix).
+        affinity_matrix (Optional[torch.Tensor]): Matrix of class-to-class similarities for hard mining.
+        class_name (str): Column name for class ID in segments.
+        length_name (str): Column name for duration in segments.
+        max_batches_per_epoch (Optional[int]): Optional maximum number of batches per epoch.
+        shuffle (bool): Whether to shuffle random seed per epoch.
+        iters_per_epoch (Optional[int]): Deprecated alias for num_chunks_per_seg_epoch.
+        batch_size (Optional[int]): Deprecated alias for min_batch_size.
+        seed (int): Random seed.
+    """
+
     def __init__(
         self,
-        seg_set: SegmentSet,
+        segments: SegmentSet,
         class_info: ClassInfo,
         min_chunk_length: int,
         max_chunk_length: Optional[int] = None,
@@ -49,7 +82,7 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
         )
         self.class_name = class_name
         self.length_name = length_name
-        self.seg_set = seg_set
+        self.segments = segments
         self.class_info = class_info
         self.min_chunk_length = min_chunk_length
         self.max_chunk_length = (
@@ -57,16 +90,25 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
         )
 
         # computing min-batch-size
-        if batch_size is not None:
+        if batch_size is not None and min_batch_size != 1:
+            logging.warning(
+                "Both batch_size and min_batch_size provided; using batch_size as min_batch_size."
+            )
             min_batch_size = batch_size
-
-        min_batch_size = max(num_segs_per_class * num_chunks_per_seg, min_batch_size)
 
         # computing max-batch-size
         if max_batch_length is None:
+            min_batch_size = max(
+                num_segs_per_class * num_chunks_per_seg, min_batch_size
+            )
             max_batch_size_0 = int(min_batch_size * max_chunk_length / min_chunk_length)
         else:
-            max_batch_size_0 = int(max_batch_length / max_chunk_length)
+            max_batch_size_0 = int(max_batch_length / min_chunk_length)
+            min_batch_size = int(max_batch_length / max_chunk_length)
+            assert num_segs_per_class * num_chunks_per_seg <= min_batch_size, (
+                "Inconsistent segment/chunk configuration: "
+                "num_segs_per_class=%d, num_chunks_per_seg=%d, min_batch_size=%d"
+            )
 
         max_batch_size = (
             max_batch_size_0
@@ -98,7 +140,7 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
         self._compute_len()
 
         # # fast mapping from classes to segments
-        # self.map_class_to_segs = self.seg_set.df[
+        # self.map_class_to_segs = self.segments.df[
         #     ["id", self.class_name, self.length_name]
         # ]
         # self.map_class_to_segs.set_index(self.class_name, drop=False, inplace=True)
@@ -124,31 +166,35 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
         self.counts = {}
 
     def _set_seed(self):
+        """Initializes the random number generator for the epoch."""
         if self.shuffle:
             self.rng.manual_seed(self.seed + 10 * self.epoch + 100 * self.rank)
         else:
             self.rng.manual_seed(self.seed + 100 * self.rank)
 
-    def _set_num_chunks_per_seg_epoch(self, num_chunks_per_seg_epoch):
+    def _set_num_chunks_per_seg_epoch(self, num_chunks_per_seg_epoch: int):
+        """Sets the number of chunks per segment per epoch."""
         if num_chunks_per_seg_epoch == "auto":
             self._compute_num_chunks_per_seg_epoch_auto()
         else:
             self.num_chunks_per_seg_epoch = num_chunks_per_seg_epoch
 
     def _compute_num_chunks_per_seg_epoch_auto(self):
-        seg_set = self.seg_set
-        avg_seg_length = np.mean(seg_set[self.length_name])
+        """Automatically determines number of chunks per segment using average segment and chunk length."""
+        segments = self.segments
+        avg_seg_length = np.mean(segments[self.length_name])
         avg_chunk_length = (self.max_chunk_length + self.min_chunk_length) / 2
         self.num_chunks_per_seg_epoch = math.ceil(avg_seg_length / avg_chunk_length)
-        logging.debug(
-            "num egs per segment and epoch: %d", self.num_chunks_per_seg_epoch
+        logging.info(
+            "num chunks per segment and epoch: %d", self.num_chunks_per_seg_epoch
         )
 
     def _compute_len(self):
+        """Computes the total number of batches per epoch."""
         self._len = int(
             math.ceil(
                 self.num_chunks_per_seg_epoch
-                * len(self.seg_set)
+                * len(self.segments)
                 / self.avg_batch_size
                 / self.world_size
             )
@@ -157,19 +203,21 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
             self._len = min(self._len, self.max_batches_per_epoch)
 
     def __len__(self):
+        """Returns the number of batches per epoch."""
         return self._len
 
     def _gather_class_info(self):
-        # we get some extra info that we need for the classes.
-
+        """Gathers per-class statistics (e.g., duration, segment index mapping)."""
         # we need the maximum/minimum segment duration for each class.
+        logging.info("Gathering class info for %d classes", len(self.class_info))
+        logging.info("Gathering class duration statistics")
         max_dur = np.zeros(len(self.class_info))
         min_dur = np.zeros(len(self.class_info))
         total_dur = np.zeros(len(self.class_info))
         for i, c in enumerate(self.class_info["id"]):
-            seg_idx = self.seg_set[self.class_name] == c
+            seg_idx = self.segments[self.class_name] == c
             if seg_idx.sum() > 0:
-                durs_i = self.seg_set.loc[seg_idx, self.length_name]
+                durs_i = self.segments.loc[seg_idx, self.length_name]
                 max_dur[i] = durs_i.max()
                 min_dur[i] = durs_i.min()
                 total_dur[i] = durs_i.sum()
@@ -181,13 +229,15 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
         self.class_info["total_duration"] = total_dur
 
         # we need the mapping from class index to id
-        self.map_class_idx_to_ids = self.class_info[["class_idx", "id"]]
+        logging.info("Creating class index to id mapping")
+        self.map_class_idx_to_ids = self.class_info.df[["class_idx", "id"]]
         self.map_class_idx_to_ids.set_index("class_idx", inplace=True)
 
         # we need the list of segments from each class
         # to speed up segment sampling
         # searching then in each batch, it is too slow
-        map_class_to_segs = self.seg_set.df[["id", self.class_name]].set_index(
+        logging.info("Creating class to segment index mapping")
+        map_class_to_segs = self.segments.df[["id", self.class_name]].set_index(
             self.class_name
         )
         self.map_class_to_segs_idx = {}
@@ -199,7 +249,7 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
                 else:
                     seg_ids = seg_ids.values
 
-                seg_idx = self.seg_set.get_loc(seg_ids)
+                seg_idx = self.segments.get_loc(seg_ids)
             else:
                 seg_idx = []
                 self.class_info.loc[class_id, "weights"] = 0.0
@@ -208,6 +258,12 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
             self.map_class_to_segs_idx[class_id] = seg_idx
 
     def _set_class_weights(self):
+        """Computes class sampling weights based on weight_mode and duration filters."""
+        logging.info(
+            "Setting class weights using mode=%s, exponent=%.2f",
+            self.weight_mode,
+            self.weight_exponent,
+        )
         if self.weight_mode == "uniform":
             self.class_info.set_uniform_weights()
         elif self.weight_mode == "data-prior":
@@ -219,21 +275,29 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
 
         zero_weight = self.class_info["max_seg_duration"] < self.min_chunk_length
         if np.any(zero_weight):
+            logging.info(
+                "%d classes skipped due to insufficient segment length.",
+                zero_weight.sum(),
+            )
             self.class_info.set_zero_weight(zero_weight)
 
         self.var_weights = np.any(
-            self.seg_set[self.length_name] < self.max_chunk_length
+            self.segments[self.length_name] < self.max_chunk_length
         )
 
     @property
     def hard_prototype_mining(self):
         return self.num_hard_prototypes > 1
 
-    def set_hard_prototypes(self, affinity_matrix):
+    def set_hard_prototypes(
+        self, affinity_matrix: Union[torch.Tensor, np.ndarray, None] = None
+    ):
+        """Initializes hard prototype class indices based on similarity matrix."""
         if affinity_matrix is None:
             self.hard_prototypes = None
             return
 
+        logging.info("Setting hard prototypes using affinity matrix")
         # don't sample hard negs from classes with zero weigth or absent
         zero_w = self.class_info["weights"] == 0
         if np.any(zero_w):
@@ -250,10 +314,12 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
             affinity_matrix, self.num_hard_prototypes, dim=-1
         ).indices
 
-    def get_hard_prototypes(self, class_idx):
+    def get_hard_prototypes(self, class_idx: int):
+        """Returns top-K hard prototype indices for a given class index."""
         return self.hard_prototypes[class_idx].flatten().numpy()
 
     def _sample_chunk_length(self):
+        """Samples a random chunk duration within the configured min/max range."""
         if self.var_batch_size:
             return (
                 torch.rand(size=(1,), generator=self.rng).item()
@@ -263,16 +329,19 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
 
         return self.min_chunk_length
 
-    def _compute_batch_size(self, chunk_length):
+    def _compute_batch_size(self, chunk_length: int):
+        """Computes a batch size compatible with the sampled chunk length."""
         return int(self.min_batch_size * self.max_chunk_length / chunk_length)
 
-    def _compute_num_classes_per_batch(self, batch_size):
+    def _compute_num_classes_per_batch(self, batch_size: int):
+        """Computes how many classes should be sampled for a given batch size."""
         num_classes = batch_size / self.num_segs_per_class / self.num_chunks_per_seg
         if self.hard_prototype_mining:
             num_classes /= self.num_hard_prototypes
         return int(math.ceil(num_classes))
 
-    def _get_class_weights(self, chunk_length):
+    def _get_class_weights(self, chunk_length: float):
+        """Returns class sampling weights, optionally filtered by chunk length compatibility."""
         if not self.var_weights:
             return torch.as_tensor(self.class_info["weights"].values)
 
@@ -288,7 +357,8 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
         class_weights /= class_weights.sum()
         return torch.as_tensor(class_weights)
 
-    def _sample_classes(self, num_classes, chunk_length):
+    def _sample_classes(self, num_classes: int, chunk_length: float):
+        """Randomly samples class IDs for a batch based on computed weights."""
         weights = self._get_class_weights(chunk_length)
         row_idx = torch.multinomial(
             weights,
@@ -296,8 +366,8 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
             replacement=True,
             generator=self.rng,
         ).numpy()
-
-        class_ids = self.class_info.iloc[row_idx].id.values
+        id_idx = self.class_info.get_col_idx("id")
+        class_ids = self.class_info.iloc[row_idx, id_idx].values
         if self.hard_prototype_mining:
             # map class ids to class indexes
             class_idx = self.class_info.loc[class_ids, "class_idx"].values
@@ -307,10 +377,11 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
 
         return class_ids
 
-    def _sample_segs(self, class_ids, chunk_length):
+    def _sample_segs(self, class_ids: List[str], chunk_length: float):
+        """Samples segment IDs for each class, filtering for chunk compatibility."""
 
-        dur_col_idx = self.seg_set.get_col_idx(self.length_name)
-        id_col_idx = self.seg_set.get_col_idx("id")
+        dur_col_idx = self.segments.get_col_idx(self.length_name)
+        id_col_idx = self.segments.get_col_idx("id")
 
         seg_ids = []
         for c in class_ids:
@@ -319,7 +390,7 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
             # t1 = time.time()
             seg_idx_c = self.map_class_to_segs_idx[c]
             # t2 = time.time()
-            durs = self.seg_set.iloc[seg_idx_c, dur_col_idx].values
+            durs = self.segments.iloc[seg_idx_c, dur_col_idx].values
             if self.class_info.loc[c, "min_seg_duration"] < chunk_length:
                 mask = durs >= chunk_length
                 seg_idx_c = seg_idx_c[mask]
@@ -350,7 +421,7 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
                 raise ValueError("unknown seg-weight-mode=%s", self.seg_weight_mode)
 
             sel_seg_idx_c = seg_idx_c[sel_idx]
-            sel_seg_ids_c = list(self.seg_set.iloc[sel_seg_idx_c, id_col_idx])
+            sel_seg_ids_c = list(self.segments.iloc[sel_seg_idx_c, id_col_idx])
             # t5 = time.time()
             seg_ids.extend(sel_seg_ids_c)
             # t6 = time.time()
@@ -360,10 +431,11 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
 
         return seg_ids
 
-    def _sample_chunks(self, seg_ids, chunk_length):
+    def _sample_chunks(self, seg_ids: np.ndarray, chunk_length: float):
+        """Samples chunk start positions from selected segments."""
         chunks = []
         scale = (
-            torch.as_tensor(self.seg_set.loc[seg_ids, self.length_name].values)
+            torch.as_tensor(self.segments.loc[seg_ids, self.length_name].values)
             - chunk_length
         )
         for i in range(self.num_chunks_per_seg):
@@ -374,7 +446,7 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
         return chunks
 
     def __next__(self):
-
+        """Samples and returns a new batch of (segment_id, start, duration) chunks."""
         if self.batch == self._len:
             raise StopIteration
 
@@ -425,35 +497,26 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
         self.batch += 1
         return chunks
 
+    def __iter__(self):
+        super().__iter__()
+        return self
+
     @staticmethod
     def filter_args(**kwargs):
         return filter_func_args(ClassWeightedRandomSegChunkSampler.__init__, kwargs)
 
-        # valid_args = (
-        #     "min_chunk_length",
-        #     "max_chunk_length",
-        #     "min_batch_size",
-        #     "max_batch_size",
-        #     "max_batch_length",
-        #     "num_chunks_per_seg_epoch",
-        #     "num_segs_per_class",
-        #     "num_chunks_per_seg",
-        #     "weight_exponent",
-        #     "weight_mode",
-        #     "seg_weight_mode",
-        #     "num_hard_prototypes",
-        #     "class_name",
-        #     "length_name",
-        #     "iters_per_epoch",
-        #     "batch_size",
-        #     "shuffle",
-        #     "seed",
-        # )
-
-        # return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
-
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None):
+        """
+        Adds command-line arguments for configuring the ClassWeightedRandomSegChunkSampler.
+
+        These arguments define chunking behavior, class-balanced sampling, batching constraints,
+        weight strategies, and various runtime controls.
+
+        Args:
+            parser (ArgumentParser): The argument parser instance to populate.
+            prefix (Optional[str]): If provided, nests arguments under the given prefix key.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -462,129 +525,125 @@ class ClassWeightedRandomSegChunkSampler(HypSampler):
             "--min-chunk-length",
             type=float,
             default=4.0,
-            help=("minimum length of the segment chunks"),
+            help="Minimum duration (in seconds) of a sampled chunk.",
         )
         parser.add_argument(
             "--max-chunk-length",
             type=float,
             default=None,
-            help=("maximum length of segment chunks"),
+            help="Maximum duration of a chunk. Defaults to --min-chunk-length if not set.",
         )
 
         parser.add_argument(
             "--min-batch-size",
             type=int,
             default=1,
-            help=("minimum batch size per gpu"),
+            help="Minimum number of samples per batch per GPU.",
         )
         parser.add_argument(
             "--max-batch-size",
             type=int,
             default=None,
-            help=(
-                "maximum batch size per gpu, if None, estimated from max_batch_length"
-            ),
+            help="Maximum number of samples per batch. If not set, estimated from --max-batch-duration.",
         )
 
         parser.add_argument(
             "--batch-size",
-            default=128,
+            default=None,
             type=int,
-            help=("deprecated, use min-batch-size instead"),
+            help="(Deprecated) Use --min-batch-size instead.",
         )
 
         parser.add_argument(
             "--max-batch-duration",
             type=float,
             default=None,
-            help=(
-                "maximum accumlated duration of the batch, if None estimated from the min/max_batch_size and min/max_chunk_lengths"
-            ),
+            help="Maximum total duration of all chunks in a batch. Overrides batch size if set.",
         )
 
         parser.add_argument(
             "--iters-per-epoch",
             default=None,
             type=lambda x: x if (x == "auto" or x is None) else float(x),
-            help=("deprecated, use --num-egs-per-seg-epoch instead"),
+            help="(Deprecated) Use --num-chunks-per-seg-epoch instead.",
         )
 
         parser.add_argument(
             "--num-chunks-per-seg-epoch",
             default="auto",
             type=lambda x: x if x == "auto" else float(x),
-            help=("number of times we sample a segment in each epoch"),
+            help="Number of chunks to draw per segment per epoch, or 'auto' to infer it.",
         )
 
         parser.add_argument(
             "--num-segs-per-class",
             type=int,
             default=1,
-            help=("number of segments per class in batch"),
+            help="Number of segments to sample per class in each batch.",
         )
         parser.add_argument(
             "--num-chunks-per-seg",
             type=int,
             default=1,
-            help=("number of chunks per segment in batch"),
+            help="Number of chunks to extract per segment in a batch.",
         )
 
         parser.add_argument(
             "--weight-exponent",
-            default=1.0,
             type=float,
-            help=("exponent for class weights"),
+            default=1.0,
+            help="Exponent to scale class weights: weight = weight ** exponent.",
         )
         parser.add_argument(
             "--weight-mode",
             default="custom",
             choices=["custom", "uniform", "data-prior"],
-            help=("method to get the class weights"),
+            help="Strategy to assign weights to each class: custom values, uniform weights, or based on total duration.",
         )
 
         parser.add_argument(
             "--seg-weight-mode",
             default="uniform",
             choices=["uniform", "data-prior"],
-            help=("method to sample segments given a class"),
+            help="Sampling strategy for segments within a class: uniform or duration-proportional.",
         )
 
         parser.add_argument(
             "--num-hard-prototypes",
             type=int,
             default=0,
-            help=("number of hard prototype classes per batch"),
+            help="Number of hard negative prototype classes to include per batch.",
         )
 
         parser.add_argument(
             "--max-batches-per-epoch",
             type=int,
             default=None,
-            help=("Max. batches per epoch"),
+            help="Optional maximum number of batches per epoch.",
         )
 
         parser.add_argument(
             "--shuffle",
             action=ActionYesNo,
-            help="shuffles the segments or chunks at the beginning of the epoch",
+            help="If True, enables epoch-level shuffling of segment order.",
         )
 
         parser.add_argument(
             "--seed",
             type=int,
             default=1234,
-            help=("seed for sampler random number generator"),
+            help="Random seed used for reproducible sampling.",
         )
 
         parser.add_argument(
             "--length-name",
             default="duration",
-            help="which column in the segment table indicates the duration of the segment",
+            help="Name of the column in the segment table that defines segment length.",
         )
         parser.add_argument(
             "--class-name",
             default="class_id",
-            help="which column in the segment table indicates the class of the segment",
+            help="Name of the column in the segment table that defines the class label.",
         )
 
         if prefix is not None:

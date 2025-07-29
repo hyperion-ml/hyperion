@@ -28,3 +28,7 @@ pytest
 toml
 kaldialign>=0.9.1
 utmosv2 @ git+https://github.com/jesus-villalba/UTMOSv2.git
+pycountry
+langcodes
+pynvml
+

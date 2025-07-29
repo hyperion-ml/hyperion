@@ -1,6 +1,6 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import csv
@@ -33,6 +33,7 @@ class CSVLogger(Logger):
         self.log_keys = None
 
     def on_train_begin(self, logs=None, **kwargs):
+        super().on_train_begin(logs, **kwargs)
         if self.rank != 0:
             return
 
@@ -55,6 +56,7 @@ class CSVLogger(Logger):
             return
         logs = logs or {}
 
+        logs = {k.replace("/", "_"): v for k, v in logs.items()}
         if self.log_keys is None:
             self.log_keys = list(logs.keys())
 
@@ -63,17 +65,39 @@ class CSVLogger(Logger):
             class MyDialect(csv.excel):
                 delimiter = self.sep
 
-            fieldnames = ["epoch"] + self.log_keys
+            if self.cur_step == 0:
+                # legacy support for old versions
+                fieldnames = ["epoch"] + self.log_keys
+            else:
+                fieldnames = ["epoch", "batch", "global_step"] + self.log_keys
             self.csv_writer = csv.DictWriter(
                 self.csv_file, fieldnames=fieldnames, dialect=MyDialect
             )
             if self.append_header:
                 self.csv_writer.writeheader()
 
-        row = ODict([("epoch", self.cur_epoch + 1)])
+        if self.cur_step == 0:
+            # legacy support for old versions
+            row = ODict([("epoch", self.cur_epoch + 1)])
+        else:
+            row = ODict(
+                [
+                    ("epoch", self.cur_epoch + 1),
+                    ("batch", self.cur_batch),
+                    ("global_step", self.cur_step),
+                ]
+            )
         row.update((k, logs[k] if k in logs else "NA") for k in self.log_keys)
         self.csv_writer.writerow(row)
         self.csv_file.flush()
+
+    def on_val_end(self, logs=None, **kwargs):
+        """At the end of validation
+
+        Args:
+           logs: dictionary of logs
+        """
+        self.on_epoch_end(logs, **kwargs)
 
     def on_train_end(self, logs=None, **kwargs):
         if self.rank != 0:

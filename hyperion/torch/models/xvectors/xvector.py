@@ -424,7 +424,7 @@ class XVector(TorchModel):
           y: target classes torch.long tensor with shape=(batch,).
           return_enc_layers: list of integers indicating, which encoder layers
                              we should return. If None, no encoder layers are returned.
-          return_enc_layers: list of integers indicating, which classification head layers
+          return_classif_layers: list of integers indicating, which classification head layers
                              we should return. If None, no head layers are returned.
           return_logits: if True, it adds the logits to the output dictionary.
         Returns:

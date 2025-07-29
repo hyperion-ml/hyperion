@@ -1,6 +1,6 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 from .class_info import ClassInfo
@@ -13,6 +13,7 @@ from .image_set import ImageSet
 from .info_table import InfoTable
 from .kaldi_matrix import KaldiCompressedMatrix, KaldiMatrix
 from .misc import PathLike
+from .parallel_file_finder import ParallelFileFinder
 from .recording_set import RecordingSet
 from .rttm import RTTM
 from .scp_list import SCPList

@@ -1,6 +1,6 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import contextlib
@@ -65,7 +65,7 @@ class AMPDType(str, Enum):
 ddp_choices = [o.value for o in DDPType]
 
 
-class TorchTrainer:
+class LegacyTorchTrainer:
     """Base Trainer class to train basic neural network models
 
     Attributes:
@@ -974,7 +974,7 @@ class TorchTrainer:
 
     @staticmethod
     def filter_args(**kwargs):
-        args = filter_func_args(TorchTrainer.__init__, kwargs)
+        args = filter_func_args(LegacyTorchTrainer.__init__, kwargs)
         return args
 
     @staticmethod

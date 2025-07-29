@@ -9,7 +9,10 @@ import scipy.linalg as sla
 from .utils import pavx
 
 
-def compute_roc(true_scores, false_scores, true_weights=None, false_weights=None):
+def compute_roc(true_scores,
+                false_scores,
+                true_weights=None,
+                false_weights=None):
     """Computes the (observed) miss/false_alarm probabilities
         for a set of detection output scores.
 
@@ -179,7 +182,8 @@ def rocch2eer(p_miss, p_fa, thresholds=None):
 
         if eerseg > eer:
             eer = eerseg
-            eer_threshold = eer_t
+            if thresholds is not None:
+                eer_threshold = eer_t
 
         # eer = np.maximum(eer, eerseg)
 

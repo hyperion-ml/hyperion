@@ -52,6 +52,7 @@ subcommand_list = [
     "merge",
     "from_lhotse",
     "from_kaldi",
+    "describe",
 ]
 
 
@@ -293,11 +294,6 @@ def make_from_recordings(
 ):
     output_dataset = dataset
     logging.info("making dataset %s from recordings %s", dataset, recordings_file)
-    # import pandas as pd
-    # rec_df = pd.read_csv(recordings_file)
-    # seg_df = rec_df[["id", "duration"]]
-    # segments = SegmentSet(seg_df)
-    # dataset = HypDataset(segments, recordings=recordings_file)
     dataset = HypDataset.from_recordings(recordings_file)
     dataset.save(output_dataset)
 
@@ -322,11 +318,6 @@ def from_recordings(
 ):
     output_dataset = dataset
     logging.info("making dataset %s from recordings %s", dataset, recordings_file)
-    # import pandas as pd
-    # rec_df = pd.read_csv(recordings_file)
-    # seg_df = rec_df[["id", "duration"]]
-    # segments = SegmentSet(seg_df)
-    # dataset = HypDataset(segments, recordings=recordings_file)
     dataset = HypDataset.from_recordings(recordings_file)
     dataset.save(output_dataset)
 
@@ -1304,6 +1295,23 @@ def from_kaldi(
     dataset_path = dataset
     dataset = HypDataset.from_kaldi(kaldi_data_dir)
     dataset.save(dataset_path)
+
+
+def make_describe_parser():
+    parser = ArgumentParser()
+    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument(
+        "--dataset", required=True, help="""dataset dir or .yaml file"""
+    )
+    add_common_args(parser)
+    return parser
+
+
+def describe(
+    dataset: PathLike,
+):
+    dataset = HypDataset.load(dataset, lazy=True)
+    dataset.describe()
 
 
 def main():

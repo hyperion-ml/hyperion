@@ -1,6 +1,6 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import io
@@ -13,6 +13,7 @@ from typing import List, Optional, Union
 import numpy as np
 import pandas as pd
 import soundfile as sf
+import torchaudio
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ..hyp_defs import float_cpu
@@ -43,7 +44,7 @@ valid_ext = [
 ]
 
 
-class AudioReader(object):
+class AudioReader:
     """Class to read audio files from wav, flac or pipe
 
     This class recives HypDataset or RecordingSet,
@@ -81,7 +82,7 @@ class AudioReader(object):
         else:
             if not isinstance(recordings, RecordingSet):
                 recordings = RecordingSet.load(recordings)
-                
+
             if segments is not None:
                 if not isinstance(segments, SegmentSet):
                     segments = SegmentSet.load(segments)
@@ -233,8 +234,9 @@ class AudioReader(object):
             )
             try:
                 x, fs = AudioReader.read_file_sf(wavspecifier, scale, time_offset)
-                num_samples = int(math.floor(time_dur * fs))
-                x = x[:num_samples]
+                if time_dur > 0:
+                    num_samples = int(math.floor(time_dur * fs))
+                    x = x[:num_samples]
                 return x, fs
             except:
                 logging.info(
@@ -248,23 +250,39 @@ class AudioReader(object):
                 )
 
                 try:
-                    x, fs = AudioReader.read_file_sf(wavspecifier, scale)
-                    start_sample = int(math.floor(time_offset * fs))
-                    num_samples = int(math.floor(time_dur * fs))
-                    x = x[start_sample : start_sample + num_samples]
-                    return x, fs
-                except RuntimeError as err:
                     logging.info(
-                        "fatal error reading %s offset=%f duration=%f",
+                        (
+                            "error-3 reading %s offset=%f duration=%f"
+                            "retrying with torchaudio ..."
+                        ),
                         wavspecifier,
                         time_offset,
                         time_dur,
                     )
-                    print(
-                        "fatal error reading %s offset=%f duration=%f"
-                        % (wavspecifier, time_offset, time_dur),
-                        flush=True,
-                    )
+                    x, fs = AudioReader.read_file_sf(wavspecifier, scale)
+                    if time_dur > 0:
+                        start_sample = int(math.floor(time_offset * fs))
+                        num_samples = int(math.floor(time_dur * fs))
+                        x = x[start_sample : start_sample + num_samples]
+                    return x, fs
+
+                except:
+                    try:
+                        x, fs = torchaudio.load(wavspecifier)
+                        x = x.numpy().astype(float_cpu()).squeeze(0)
+                        if time_dur > 0:
+                            start_sample = int(math.floor(time_offset * fs))
+                            num_samples = int(math.floor(time_dur * fs))
+                            x = x[start_sample : start_sample + num_samples]
+                        return x, fs
+                    except RuntimeError as err:
+                        logging.info(
+                            "fatal error reading %s offset=%f duration=%f",
+                            wavspecifier,
+                            time_offset,
+                            time_dur,
+                        )
+
                     raise err
 
     def _read_recording(
@@ -284,7 +302,7 @@ class AudioReader(object):
                 if self.target_sample_freq is not None
                 else recording["target_sample_freq"]
             )
-            if target_sample_freq is not None:
+            if target_sample_freq is not None and not math.isnan(target_sample_freq):
                 x_i, fs_i = self.resampler(x_i, fs_i, target_sample_freq)
                 # import re
                 # f = re.sub(".*/", "", storage_path)
@@ -311,7 +329,6 @@ class AudioReader(object):
         t_dur = segment["duration"]
         recording = self.recordings.loc[recording_id]
         return self._read_recording(recording, t_start, t_dur)
-
 
     def read(self):
         pass
@@ -455,17 +472,13 @@ class SequentialAudioReader(AudioReader):
                 "--part-idx",
                 type=int,
                 default=1,
-                help=(
-                    "splits the list of files into num-parts and processes part-idx"
-                ),
+                help=("splits the list of files into num-parts and processes part-idx"),
             )
             parser.add_argument(
                 "--num-parts",
                 type=int,
                 default=1,
-                help=(
-                    "splits the list of files into num-parts and processes part-idx"
-                ),
+                help=("splits the list of files into num-parts and processes part-idx"),
             )
         except:
             pass

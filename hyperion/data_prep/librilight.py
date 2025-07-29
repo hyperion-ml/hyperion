@@ -17,7 +17,7 @@ from ..utils.misc import PathLike
 from .data_prep import DataPrep
 
 
-class LibriLight(DataPrep):
+class LibriLightDataPrep(DataPrep):
     """
     Prepares the LibriLight dataset into structured tables for speaker recognition.
 
@@ -72,11 +72,11 @@ class LibriLight(DataPrep):
                 "small",
                 "medium",
                 "large",
-                "small-processed",
-                "medium-processed",
-                "large-processed",
+                "small_processed",
+                "medium_processed",
+                "large_processed",
             ],
-            help="""if we prepare the data for ["small", "medium", "large", "small-processed", "medium-processed", "large-processed"]""",
+            help="""if we prepare the data for ["small", "medium", "large", "small_processed", "medium_processed", "large_processed"]""",
             required=True,
         )
 
@@ -109,7 +109,15 @@ class LibriLight(DataPrep):
 
         speakers = ["libri-" + f.parent.parent.name for f in rec_files]
         books = [f.parent.name for f in rec_files]
-        rec_ids = ["librilight-" + f.with_suffix("").name for f in rec_files]
+        rec_ids = [
+            "librilight-"
+            + f.parent.parent.name
+            + "-"
+            + f.parent.name
+            + "-"
+            + f.with_suffix("").name
+            for f in rec_files
+        ]
         if self.use_kaldi_ids:
             rec_ids = [f"{s}-{f}" for f, s in zip(rec_ids, speakers)]
 
@@ -128,6 +136,8 @@ class LibriLight(DataPrep):
         df_segs = pd.DataFrame({"id": rec_ids, "speaker": speakers, "book": books})
         df_segs["duration"] = recs.loc[df_segs["id"], "duration"].values
         df_segs["language"] = "eng"
+        df_segs["corpusid"] = "librivox"
+        df_segs["dataset"] = "librilight"
         segments = SegmentSet(df_segs)
         segments.sort()
 
@@ -139,12 +149,16 @@ class LibriLight(DataPrep):
         df_books = pd.DataFrame({"id": np.unique(df_segs["book"])})
         books = ClassInfo(df_books)
 
+        logging.info("making language info file")
         languages = ClassInfo(pd.DataFrame({"id": ["eng"]}))
+        logging.info("making gender info file")
+        genders = ClassInfo(pd.DataFrame({"id": ["m", "f"]}))
 
         classes = {
             "speaker": speakers,
             "book": books,
             "language": languages,
+            "gender": genders,
         }
 
         logging.info("making dataset")
@@ -155,6 +169,7 @@ class LibriLight(DataPrep):
         )
         logging.info("saving dataset at %s", self.output_dir)
         dataset.save(self.output_dir)
-        logging.info(
-            "datasets containts %d segments, %d speakers", len(segments), len(speakers)
-        )
+        dataset.describe()
+        # logging.info(
+        #     "datasets containts %d segments, %d speakers", len(segments), len(speakers)
+        # )

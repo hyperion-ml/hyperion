@@ -1,20 +1,20 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import os
 import re
+from pathlib import Path
+from typing import List, Optional, Union
 
 import numpy as np
 import soundfile as sf
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
-from typing import Union, Optional, List
-from pathlib import Path
 
 from ..hyp_defs import float_cpu
-from ..utils.kaldi_io_funcs import is_token
 from ..utils import PathLike
+from ..utils.kaldi_io_funcs import is_token
 from .audio_reader import valid_ext
 
 subtype_to_npdtype = {
@@ -33,10 +33,10 @@ subtype_to_npdtype = {
     "PCM_24": "int32",
 }
 
-scale_32 = 2 ** 31 - 1
-scale_24 = 2 ** 23 - 1
-scale_16 = 2 ** 15 - 1
-scale_8 = 2 ** 7 - 1
+scale_32 = 2**31 - 1
+scale_24 = 2**23 - 1
+scale_16 = 2**15 - 1
+scale_8 = 2**7 - 1
 
 
 subtype_to_scale = {
@@ -172,6 +172,11 @@ class AudioWriter(object):
                     self.f_script.write(f"{key_i} {output_file}\n")
                 else:
                     duration_i = data_i.shape[-1] / fs_i
+                    if self.script_sep in key_i:
+                        key_i = '"' + key_i + '"'
+
+                    if self.script_sep in output_file:
+                        output_file = '"' + output_file + '"'
                     row = self.script_sep.join(
                         [key_i, output_file, str(duration_i), str(fs_i)]
                     )
@@ -211,14 +216,18 @@ class AudioWriter(object):
 
         try:
             parser.add_argument(
-                "--wav-scale", type=float, default=1.0, help=("input waveform scale wrt 1"),
+                "--wav-scale",
+                type=float,
+                default=1.0,
+                help=("input waveform scale wrt 1"),
             )
         except:
             pass
 
         if prefix is not None:
             outer_parser.add_argument(
-                "--" + prefix, action=ActionParser(parser=parser),
+                "--" + prefix,
+                action=ActionParser(parser=parser),
             )
 
     add_argparse_args = add_class_args

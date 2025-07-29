@@ -1,6 +1,6 @@
 """
- Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
@@ -28,7 +28,7 @@ from torch.utils.data import Dataset
 from ...io import RandomAccessAudioReader as AR
 from ...np.augment import SpeechAugment
 from ...np.preprocessing import ResamplerToTargetFreq
-from ...utils import ClassInfo, SegmentSet
+from ...utils import ClassInfo, HypDataset, PathLike, SegmentSet
 from ...utils.misc import filter_func_args
 from ...utils.text import read_text
 from ..tokenizers import HypTokenizer
@@ -72,18 +72,15 @@ class AudioDataset(Dataset):
 
     def __init__(
         self,
-        recordings_file: str,
-        segments_file: str,
+        dataset_path: PathLike,
         class_names: Optional[List[str]] = None,
-        class_files: Optional[List[str]] = None,
         tokenizer_mappings: Optional[List[str]] = None,
         tokenizer_files: Optional[List[str]] = None,
+        extra_attrs: Optional[List[str]] = None,
         aug_cfgs: Optional[List[str]] = None,
         num_augs: int = 1,
         num_aug_mix: int = 0,
         aug_mix_alpha: float = 0,
-        return_segment_info: Optional[List[str]] = None,
-        return_orig: bool = False,
         target_sample_freq: Optional[float] = None,
         wav_scale: float = 1.0,
         is_val: bool = False,
@@ -91,8 +88,6 @@ class AudioDataset(Dataset):
         enable_media_codecs_if: Optional[str] = None,
         enable_transcodec_if: Optional[str] = None,
         seed: int = 112358,
-        time_durs_file: Optional[str] = None,
-        text_file: Optional[str] = None,
         bpe_model: Optional[str] = None,
     ):
         super().__init__()
@@ -103,48 +98,35 @@ class AudioDataset(Dataset):
             rank = 0
             world_size = 1
 
+        if rank == 0:
+            logging.info("loading dataset %s", dataset_path)
+
+        self.dataset = HypDataset.load(dataset_path)
+
         self.rank = rank
         self.world_size = world_size
         self.epoch = 0
-        if rank == 0:
-            logging.info("loading segments file %s", segments_file)
 
-        self.seg_set = SegmentSet.load(segments_file)
-        if rank == 0:
-            logging.info("dataset contains %d seqs", len(self.seg_set))
-
-        if rank == 0:
-            logging.info("opening audio reader %s", recordings_file)
-
-        audio_seg_set = self.seg_set if self.seg_set.has_time_marks else None
+        recordings = self.dataset.recordings()
+        segments = self.dataset.segments()
         self.r = AR(
-            recordings=recordings_file, segments=audio_seg_set, wav_scale=wav_scale
+            recordings=recordings,
+            segments=segments if segments.has_time_marks else None,
+            wav_scale=wav_scale,
         )
 
         self.is_val = is_val
-        if time_durs_file is not None:
-            self._load_legacy_durations(time_durs_file)
+        self.class_names = class_names if class_names is not None else []
+        self.exta_attrs = extra_attrs if extra_attrs is not None else []
 
-        assert "duration" in self.seg_set
+        # logging.info("loading class-info files")
+        # self._load_class_infos(class_names, class_files, is_val)
 
-        logging.info("loading class-info files")
-        self._load_class_infos(class_names, class_files, is_val)
-
-        logging.info("loading tokenizers")
         self._load_tokenizers(tokenizer_mappings, tokenizer_files)
 
         if bpe_model is not None:
             logging.info("loading bpe models")
-            self._load_bpe_model(bpe_model, is_val)
-
-        if text_file is not None:
-            logging.info("loading text files")
-            self._load_text_infos(text_file, is_val)
-
-        self.return_segment_info = (
-            [] if return_segment_info is None else return_segment_info
-        )
-        self.return_orig = return_orig
+            self._load_bpe_model(bpe_model)
 
         self.num_augs = num_augs
         self.num_aug_mix = num_aug_mix
@@ -162,28 +144,15 @@ class AudioDataset(Dataset):
         self.enable_media_codecs_if = enable_media_codecs_if
         self.enable_transcodec_if = enable_transcodec_if
         if enable_tel_codecs_if:
-            self.seg_set.eval(
-                f"enable_tel_codecs = {enable_tel_codecs_if}", inplace=True
-            )
+            segments.eval(f"enable_tel_codecs = {enable_tel_codecs_if}", inplace=True)
         if enable_media_codecs_if:
-            self.seg_set.eval(
+            segments.eval(
                 f"enable_media_codecs = {enable_media_codecs_if}", inplace=True
             )
         if enable_transcodec_if:
-            self.seg_set.eval(
-                f"enable_transcodec = {enable_transcodec_if}", inplace=True
-            )
+            segments.eval(f"enable_transcodec = {enable_transcodec_if}", inplace=True)
 
-    def _load_legacy_durations(self, time_durs_file):
-        if self.rank == 0:
-            logging.info("loading durations file %s", time_durs_file)
-
-        time_durs = SegmentSet.load(time_durs_file)
-        self.seg_set["duration"] = time_durs.loc[
-            self.seg_set["id"]
-        ].class_id.values.astype(float, copy=False)
-
-    def _load_bpe_model(self, bpe_model, is_val):
+    def _load_bpe_model(self, bpe_model):
         if self.rank == 0:
             logging.info("loading bpe file %s", bpe_model)
         self.sp = spm.SentencePieceProcessor()
@@ -191,63 +160,59 @@ class AudioDataset(Dataset):
         blank_id = self.sp.piece_to_id("<blk>")
         vocab_size = self.sp.get_piece_size()
 
-    def _load_text_infos(self, text_file, is_val):
-        if text_file is None:
-            return
-        if self.rank == 0:
-            logging.info("loading text file %s", text_file)
+    # def _load_class_infos(self, class_names, is_val):
+    #     self.class_info = OrderedDict()
+    #     if class_names is None:
+    #         assert class_files is None
+    #         return
 
-        text = read_text(text_file)
-        self.seg_set["text"] = text.loc[self.seg_set["id"]].text
+    #     assert len(class_names) == len(class_files)
+    #     for name, file in zip(class_names, class_files):
+    #         assert (
+    #             name in self.seg_set
+    #         ), f"class_name {name} not present in the segment set"
+    #         self.seg_set.convert_col_to_str(
+    #             name
+    #         )  # make sure that class ids are strings
+    #         if self.rank == 0:
+    #             logging.info("loading class-info file %s", file)
+    #         table = ClassInfo.load(file)
+    #         self.class_info[name] = table
+    #         if not is_val:
+    #             # check that all classes are present in the training segments
+    #             class_ids = table["id"]
+    #             segment_class_ids = self.seg_set[name].unique()
+    #             for c_id in class_ids:
+    #                 if c_id not in segment_class_ids:
+    #                     logging.warning(
+    #                         "%s class: %s not present in dataset", name, c_id
+    #                     )
 
-    def _load_class_infos(self, class_names, class_files, is_val):
-        self.class_info = OrderedDict()
-        if class_names is None:
-            assert class_files is None
-            return
-
-        assert len(class_names) == len(class_files)
-        for name, file in zip(class_names, class_files):
-            assert (
-                name in self.seg_set
-            ), f"class_name {name} not present in the segment set"
-            self.seg_set.convert_col_to_str(
-                name
-            )  # make sure that class ids are strings
-            if self.rank == 0:
-                logging.info("loading class-info file %s", file)
-            table = ClassInfo.load(file)
-            self.class_info[name] = table
-            if not is_val:
-                # check that all classes are present in the training segments
-                class_ids = table["id"]
-                segment_class_ids = self.seg_set[name].unique()
-                for c_id in class_ids:
-                    if c_id not in segment_class_ids:
-                        logging.warning(
-                            "%s class: %s not present in dataset", name, c_id
-                        )
-
-    def _load_tokenizers(self, tokenizer_mappings, tokenizer_files):
+    def _load_tokenizers(self, tokenizer_files, tokenizer_mappings):
         self.tokenizers = OrderedDict()
-        self.tokenizers_to_infos = OrderedDict()
+        self.output_attrs_to_input = OrderedDict()
+        self.output_attrs_to_tokenizers = OrderedDict()
+
         if tokenizer_mappings is None:
             assert tokenizer_files is None
             return
 
-        assert len(tokenizer_mappings) == len(tokenizer_files)
-        tokenizer_names = []
-        for map in tokenizer_mappings:
-            info_name, tokenizer_name = map.split("->", maxsplit=1)
-            self.tokenizers_to_infos[tokenizer_name] = info_name
-            tokenizer_names.append(tokenizer_name)
+        logging.info("loading tokenizers")
 
-        for name, file in zip(tokenizer_names, tokenizer_files):
-            assert name in self.seg_set, f"field {name} not present in the segment set"
+        for tokenizer_file in tokenizer_files:
+            assert isinstance(
+                tokenizer_file, str
+            ), f"tokenizer file {tokenizer_file} should be a string"
+            tokenizer_name, tokenizer_file = tokenizer_file.split(":", maxsplit=1)
             if self.rank == 0:
-                logging.info("loading tokenizer file %s", file)
-            tokenizer = HypTokenizer.auto_load(file)
-            self.tokenizers[name] = tokenizer
+                logging.info("loading tokenizer file %s", tokenizer_file)
+            tokenizer = HypTokenizer.auto_load(tokenizer_file)
+            self.tokenizers[tokenizer_name] = tokenizer
+
+        for map in tokenizer_mappings:
+            in_attr_name, tokenizer_name, out_attr_name = map.split("->", maxsplit=2)
+            self.output_attrs_to_input[out_attr_name] = in_attr_name
+            self.output_attrs_to_tokenizers[out_attr_name] = tokenizer_name
 
     def _create_augmenters(self, aug_cfgs):
         self.augmenters = []
@@ -267,19 +232,24 @@ class AudioDataset(Dataset):
         self.epoch = epoch
 
     @property
+    def segments(self):
+        """Returns the segments dataframe."""
+        return self.dataset.segments()
+
+    @property
     def wav_scale(self):
         return self.r.wav_scale
 
     @property
     def num_seqs(self):
-        return len(self.seg_set)
+        return len(self.dataset)
 
     def __len__(self):
         return self.num_seqs
 
     @property
     def seq_lengths(self):
-        return self.seg_set["duration"]
+        return self.dataset.segments()["duration"]
 
     @property
     def total_length(self):
@@ -295,12 +265,16 @@ class AudioDataset(Dataset):
 
     @property
     def num_classes(self):
-        return {k: t.num_classes for k, t in self.class_info.items()}
+        return {k: self.dataset.classes_value(k).num_classes for k in self.class_names}
+
+    @property
+    def class_info(self):
+        return {k: self.dataset.classes_value(k) for k in self.class_names}
 
     def _parse_segment_item(self, segment):
         if isinstance(segment, (tuple, list)):
             seg_id, start, duration = segment
-            assert duration <= self.seg_set.loc[seg_id].duration, (
+            assert duration <= self.dataset.segments().loc[seg_id].duration, (
                 f"{seg_id} with start={start} duration "
                 f"({self.seg_set.loc[seg_id].duration}) < "
                 f"chunk duration ({duration})"
@@ -319,7 +293,14 @@ class AudioDataset(Dataset):
 
         # read audio
         x, fs = self.r.read([seg_id], time_offset=start, time_durs=read_duration)
-        return x[0].astype(floatstr_torch(), copy=False), fs[0]
+        x = x[0].astype(floatstr_torch(), copy=False)
+        if x.ndim == 2:
+            logging.warning(
+                f"read audio {seg_id} with stereo channels, of shape {x.shape}"
+            )
+            x = np.sum(x, axis=1)  # sum channels if stereo
+            logging.warning("maximum/minimum values: %.3f/%.3f", x.max(), x.min())
+        return x, fs[0]
 
     def _get_enable_codecs(self, seg_id):
         enable_codecs = {
@@ -354,7 +335,7 @@ class AudioDataset(Dataset):
             for j, (_, x_aug_j) in enumerate(x_augs.items()):
                 x_mix += w[i, j] * x_aug_j
 
-            x_aug_mix[f"x_aug_{aug_idx}_{i}"] = m[i] * x + (1 - m[i]) * x_mix
+            x_aug_mix[f"audio_aug_{aug_idx}_{i}"] = m[i] * x + (1 - m[i]) * x_mix
 
         return x_aug_mix
 
@@ -362,7 +343,7 @@ class AudioDataset(Dataset):
         self, x: np.array, duration: int, fs: int, enable_codecs: Dict[str, bool]
     ):
         if not self.augmenters:
-            return {"x": x}
+            return {}
 
         if duration == 0:
             num_samples = len(x)
@@ -378,66 +359,52 @@ class AudioDataset(Dataset):
             x_augs_i = {}
             for j in range(self.num_augs):
                 # augment x
-                x_aug, aug_info = augmenter(x, fs, **enable_codecs)
+                x_aug, aug_attrs = augmenter(x, fs, **enable_codecs)
                 # remove the extra left context used to compute the reverberation.
                 x_aug = x_aug[reverb_context_samples : len(x)]
                 x_aug = x_aug.astype(floatstr_torch(), copy=False)
-                x_augs_i[f"x_aug_{i}_{j}"] = x_aug
+                x_augs_i[f"audio_aug_{i}_{j}"] = x_aug
 
             if self.num_aug_mix > 0:
                 x_augs_i = self._apply_aug_mix(x_orig, x_augs_i, i)
 
             x_augs.update(x_augs_i)
 
-        if self.return_orig:
-            x_augs["x"] = x_orig
-        elif len(x_augs) == 1:
-            # if we just have one aug and we don't return the clean version,
-            # we just call x to the aug version
-            x_augs["x"] = x_augs.pop("x_aug_0_0")
+        if len(x_augs) == 1:
+            # if we just have one aug so we just call it audio_aug
+            x_augs["audio_aug"] = x_augs.pop("audio_aug_0_0")
 
         return x_augs
 
-    def _get_segment_info(self, seg_id):
-        seg_info = {}
-        # converts the class_ids to integers
-        for info_name in self.return_segment_info:
-            tokenizer_name = ""
-            if info_name in self.tokenizers_to_infos:
-                tokenizer_name = info_name
-                info_name = self.tokenizers_to_infos[tokenizer_name]
+    def _get_segment_attrs(self, seg_id):
+        seg_attrs = {}
 
-            seg_info_i = self.seg_set.loc[seg_id, info_name]
-            if info_name in self.class_info:
-                # if the type of information is a class-id
-                # we use the class information table to
-                # convert from id to integer
-                class_info = self.class_info[info_name]
-                seg_info_i = class_info.loc[seg_info_i, "class_idx"]
-            elif tokenizer_name in self.tokenizers:
-                seg_info_i = self.tokenizers[tokenizer_name].encode(seg_info_i)
-            elif info_name == "text":
-                seg_info_i = self.sp.encode(seg_info_i, out_type=int)
+        # tokenizer_name = ""
+        # for attr_name, tokenizer_name in self.tokenizers_to_attrs.items():
+        # if attr_name in self.tokenizers_to_attrs:
+        #     tokenizer_name = info_name
+        #     info_name = self.tokenizers_to_attrs[tokenizer_name]
+        # elif tokenizer_name in self.tokenizers:
+        #         seg_info_i = self.tokenizers[tokenizer_name].encode(seg_info_i)
+        #     elif info_name == "text":
+        #         seg_info_i = self.sp.encode(seg_info_i, out_type=int)
 
-            seg_info[info_name] = seg_info_i
+        for attr_name, tokenizer_name in self.output_attrs_to_tokenizers.items():
+            in_attr_name = self.output_attrs_to_input[attr_name]
+            in_attr = self.dataset.segments().loc[seg_id, in_attr_name]
+            attr_tokens = self.tokenizers[tokenizer_name].encode(in_attr)
+            seg_attrs[attr_name] = attr_tokens
 
-        return seg_info
+        for class_name in self.class_names:
+            class_id = self.dataset.segments().loc[seg_id, class_name]
+            seg_attrs[class_name] = self.dataset.classes_value(class_name).loc[
+                class_id, "class_idx"
+            ]
 
-    # def _get_resampler(self, fs):
-    #     if fs in self.resamplers:
-    #         return self.resamplers[fs]
+        for attr_name in self.exta_attrs:
+            seg_attrs[attr_name] = self.dataset.segments().loc[seg_id, attr_name]
 
-    #     resampler = tat.Resample(
-    #         int(fs),
-    #         int(self.target_sample_freq),
-    #         lowpass_filter_width=64,
-    #         rolloff=0.9475937167399596,
-    #         resampling_method="kaiser_window",
-    #         beta=14.769656459379492,
-    #     )
-    #     resampler_f = lambda x: resampler(torch.from_numpy(x)).numpy()
-    #     self.resamplers[fs] = resampler_f
-    #     return resampler_f
+        return seg_attrs
 
     def _resample(self, x, fs):
         if self.target_sample_freq is None:
@@ -447,30 +414,26 @@ class AudioDataset(Dataset):
 
     def __getitem__(self, segment):
         seg_id, start, duration = self._parse_segment_item(segment)
-        x, fs = self._read_audio(seg_id, start, duration)
+        audio, fs = self._read_audio(seg_id, start, duration)
         assert (
-            len(x) > 0
+            len(audio) > 0
         ), f"read audio empty seg_id={seg_id}, start={start}, dur={duration}"
-        x, fs = self._resample(x, fs)
-        data = {"seg_id": seg_id, "sample_freq": fs}
+        audio, fs = self._resample(audio, fs)
+        batch_data = {"id": seg_id, "sample_freq": fs, "audio": audio}
         enable_codecs = self._get_enable_codecs(seg_id)
-        x_augs = self._apply_augs(x, duration, fs, enable_codecs)
-        data.update(x_augs)
-        seg_info = self._get_segment_info(seg_id)
-        data.update(seg_info)
-        return data
+        audio_augs = self._apply_augs(audio, duration, fs, enable_codecs)
+        batch_data.update(audio_augs)
+        seg_attrs = self._get_segment_attrs(seg_id)
+        batch_data.update(seg_attrs)
+        return batch_data
 
     @staticmethod
     def collate(batch):
 
-        # sort batch by the length of x
+        # sort batch by the length of audios
         audio_lengths = []
         for record in batch:
-            audio_key = "x" if "x" in record else "x_aug_0_0"
-            try:
-                audio_lengths.append(record[audio_key].shape[0])
-            except:
-                raise Exception(f"audio key not found in {record.keys()}")
+            audio_lengths.append(record["audio"].shape[0])
 
         audio_lengths = torch.as_tensor(audio_lengths)
         if not torch.all(audio_lengths[:-1] >= audio_lengths[1:]):
@@ -514,8 +477,11 @@ class AudioDataset(Dataset):
             if key == "id":
                 # this are the segment ids
                 output_batch[key] = item_list
-            elif key == "x" or key[:2] == "x_" and _is_list_of_tensors(item_list):
+            elif (
+                key == "audio" or key[:6] == "audio_" and _is_list_of_tensors(item_list)
+            ):
                 # these are input audios
+                assert item_list[0].ndim == 1, f"{batch[0]}"
                 data, data_lengths = collate_seqs_1d(item_list)
                 output_batch[key] = data
                 output_batch[f"{key}_lengths"] = data_lengths
@@ -540,37 +506,6 @@ class AudioDataset(Dataset):
 
         return output_batch
 
-    @staticmethod
-    def collate_old(self, batch):
-        from torch.nn.utils.rnn import pad_sequence
-
-        audio = []
-        audio_length = []
-        target = []
-        for record in batch:
-            audio_length.append(record["x"].shape[0])
-        audio_length = torch.as_tensor(audio_length)
-        if not torch.all(audio_length[:-1] >= audio_length[1:]):
-            sort_idx = torch.argsort(audio_length, descending=True)
-            batch = [batch[i] for i in sort_idx]
-
-        audio_length = []
-        for record in batch:
-            wav = torch.as_tensor(record["x"])
-            audio.append(wav)
-            audio_length.append(wav.shape[0])
-            target.append(record["text"])
-
-        audio = pad_sequence(audio)
-        audio_length = torch.as_tensor(audio_length)
-        target = k2.RaggedTensor(target)
-        batch = {
-            "x": torch.transpose(audio, 0, 1),
-            "x_lengths": audio_length,
-            "text": target,
-        }
-        return batch
-
     def get_collator(self):
         # return lambda batch: AudioDataset.collate(batch)
         return AudioDataset.collate
@@ -586,18 +521,11 @@ class AudioDataset(Dataset):
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        if "recordings_file" not in skip:
+        if "dataset_path" not in skip:
             parser.add_argument(
-                "--recordings-file",
+                "--dataset-path",
                 required=True,
                 help="recordings manifest file (kaldi .scp or pandas .csv)",
-            )
-
-        if "segments_file" not in skip:
-            parser.add_argument(
-                "--segments-file",
-                required=True,
-                help="segments manifest file (kaldi .scp or pandas .csv)",
             )
 
         parser.add_argument(
@@ -605,15 +533,8 @@ class AudioDataset(Dataset):
             default=None,
             nargs="+",
             help=(
-                "list with the names of the types of classes in the datasets, e.g., speaker, language"
+                "list with the names of the types of classes that the dataset has to return, e.g., speaker, language"
             ),
-        )
-
-        parser.add_argument(
-            "--class-files",
-            default=None,
-            nargs="+",
-            help="list of class info files",
         )
 
         parser.add_argument(
@@ -636,23 +557,9 @@ class AudioDataset(Dataset):
         )
 
         parser.add_argument(
-            "--time-durs-file",
-            default=None,
-            help=(
-                "(deprecated) segment to duration in secs file, if durations are not in segments_file"
-            ),
-        )
-
-        parser.add_argument(
             "--bpe-model",
             default=None,
             help="bpe model for the text label",
-        )
-
-        parser.add_argument(
-            "--text-file",
-            default=None,
-            help="text file with words labels for each utterances",
         )
 
         if "aug_cfgs" not in skip:
@@ -680,22 +587,6 @@ class AudioDataset(Dataset):
             default=0.5,
             type=float,
             help="number of AugMix augmentations per segment",
-        )
-        parser.add_argument(
-            "--return-segment-info",
-            default=None,
-            nargs="+",
-            help=(
-                "list of columns of the segment file which should be returned as supervisions"
-            ),
-        )
-        parser.add_argument(
-            "--return-orig",
-            default=False,
-            action=ActionYesNo,
-            help=(
-                "when using augmentation, whether or not to return also the original audio"
-            ),
         )
 
         parser.add_argument(
@@ -735,6 +626,3 @@ class AudioDataset(Dataset):
         AR.add_class_args(parser)
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
-            # help='audio dataset options')
-
-    add_argparse_args = add_class_args

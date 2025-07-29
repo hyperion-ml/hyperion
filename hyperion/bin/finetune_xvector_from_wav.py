@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import logging
 import multiprocessing
@@ -20,7 +20,7 @@ from jsonargparse import (
 
 from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch import TorchModelLoader as TML
-from hyperion.torch.data import AudioDataset as AD
+from hyperion.torch.data import LegacyAudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
 from hyperion.torch.metrics import CategoricalAccuracy
 from hyperion.torch.models import EfficientNetXVector as EXVec
@@ -152,7 +152,7 @@ def train_xvec(gpu_id, args):
         device=device,
         metrics=metrics,
         ddp=world_size > 1,
-        **trn_args
+        **trn_args,
     )
     trainer.load_last_checkpoint()
     trainer.fit(train_loader, val_loader)

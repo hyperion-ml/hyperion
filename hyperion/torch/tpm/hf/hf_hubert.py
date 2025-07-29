@@ -1,7 +1,8 @@
 """
- Copyright 2022 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2022 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 import os
 from typing import Callable, List, Optional, Tuple, Union
@@ -180,7 +181,7 @@ class HFHubert(HFWav2VecBase):
         mask_feature_min_masks: int = 0,
         cache_dir: Union[str, os.PathLike] = "./.cache/hyperion_hf",
         force_download: bool = False,
-        resume_download: bool = False,
+        resume_download: bool = False,  # deprecated
         revision: str = "main",
         drop_layers_gt: Optional[int] = None,
         ignore_pretrained: bool = False,
@@ -232,7 +233,6 @@ class HFHubert(HFWav2VecBase):
                     pretrained_model_path,
                     cache_dir=cache_dir,
                     force_download=force_download,
-                    resume_download=resume_download,
                     revision=revision,
                 )
             # all ranks wait until the model is downloaded
@@ -243,7 +243,6 @@ class HFHubert(HFWav2VecBase):
                     pretrained_model_path,
                     cache_dir=cache_dir,
                     force_download=False,
-                    resume_download=False,
                     revision=revision,
                 )
             ddp_wait_for_all_procs()

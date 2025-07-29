@@ -1,6 +1,6 @@
 """
- Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
@@ -25,10 +25,10 @@ from ...utils.misc import filter_func_args
 from ...utils.segment_set import SegmentSet
 from ...utils.text import read_text
 from ..torch_defs import floatstr_torch
-from .audio_dataset import AudioDataset
+from .legacy_audio_dataset import LegacyAudioDataset
 
 
-class DINOAudioDataset(AudioDataset):
+class DINOAudioDataset(LegacyAudioDataset):
     """AudioDataset class to train DINO for speech
 
     Args:

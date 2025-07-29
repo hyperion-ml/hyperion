@@ -1,6 +1,6 @@
 """
- Copyright 2022 Johns Hopkins University  (Author: Yen-Ju Lu)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2022 Johns Hopkins University  (Author: Yen-Ju Lu)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
@@ -16,10 +16,10 @@ from torch.distributed.elastic.multiprocessing.errors import record
 
 from ...utils.misc import filter_func_args
 from ..utils import MetricAcc, tensors_subset
-from .torch_trainer import AMPDType, TorchTrainer
+from .legacy_torch_trainer import AMPDType, LegacyTorchTrainer
 
 
-class TransducerTrainer(TorchTrainer):
+class TransducerTrainer(LegacyTorchTrainer):
     """Trainer to train ASR style models.
 
     Attributes:

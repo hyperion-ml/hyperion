@@ -1,6 +1,6 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
@@ -12,7 +12,7 @@ import torch
 import torch.distributed as dist
 
 
-class MetricAcc(object):
+class MetricAcc:
     """Class to accumulate metrics during an epoch."""
 
     def __init__(self, device=None):
@@ -71,6 +71,8 @@ class MetricAcc(object):
             self.acc = np.zeros((len(self.keys),))
 
         for i, k in enumerate(self.keys):
+            if k not in metrics:
+                metrics[k] = self.acc[i]
             if not math.isfinite(metrics[k]):
                 logging.warning("non-finite %s=%f", k, metrics[k])
                 return

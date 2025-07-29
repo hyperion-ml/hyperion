@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """
- Copyright 2022 Johns Hopkins University  (Author: Yen-Ju Lu, Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2022 Johns Hopkins University  (Author: Yen-Ju Lu, Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import logging
 import multiprocessing
@@ -23,7 +23,7 @@ from jsonargparse import (
 from torch.nn.utils.rnn import pad_sequence
 
 from hyperion.hyp_defs import config_logger, set_float_cpu
-from hyperion.torch.data import AudioDataset as AD
+from hyperion.torch.data import LegacyAudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
 from hyperion.torch.models import Wav2ConformerV1RNNTransducer, Wav2RNNRNNTransducer
 from hyperion.torch.trainers import TransducerTrainer as Trainer

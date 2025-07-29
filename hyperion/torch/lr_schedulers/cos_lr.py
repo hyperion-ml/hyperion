@@ -1,10 +1,11 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
 import math
+from typing import Optional
 
 import torch
 
@@ -72,7 +73,9 @@ class CosineLR(LRScheduler):
         self.num_restarts = num_restarts
         self.gamma = gamma
 
-    def on_epoch_begin(self, epoch=None, save_steps=1, **kwargs):
+    def on_epoch_begin(
+        self, epoch: Optional[int] = None, save_steps: Optional[int] = None, **kwargs
+    ):
         super().on_epoch_begin(epoch)
         if self.update_lr_on_opt_step and save_steps is not None:
             # T has to correspond to an integer number of epochs
@@ -81,7 +84,7 @@ class CosineLR(LRScheduler):
                 logging.info("readjusting cos_lr T %d -> %d" % (self.T, T))
                 self.T = T
 
-    def get_lr(self, step):
+    def get_lr(self, step: int):
         x = step - self.last_restart
         if x >= self.T:
             if self.warm_restarts:
@@ -163,7 +166,7 @@ class AdamCosineLR(CosineLR):
             update_lr_on_opt_step,
         )
 
-    def get_lr(self, step):
+    def get_lr(self, step: int):
         x = step - self.last_restart
         if x > self.T:
             if self.warm_restarts:

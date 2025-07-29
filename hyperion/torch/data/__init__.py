@@ -1,6 +1,6 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 from .audio_dataset import AudioDataset
@@ -12,6 +12,7 @@ from .embed_sampler_factory import EmbedSamplerFactory
 
 # datasets
 from .feat_seq_dataset import FeatSeqDataset
+from .legacy_audio_dataset import LegacyAudioDataset
 from .paired_feat_seq_dataset import PairedFeatSeqDataset
 
 # from .weighted_seq_sampler import ClassWeightedSeqSampler

@@ -1,6 +1,6 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
@@ -16,10 +16,10 @@ from torch.distributed.elastic.multiprocessing.errors import record
 from ...utils.misc import filter_func_args
 from ..optim import ExpMovingAvg as EMA
 from ..utils import MetricAcc, TorchDDP, tensors_subset
-from .torch_trainer import AMPDType, DDPType, TorchTrainer
+from .legacy_torch_trainer import AMPDType, DDPType, LegacyTorchTrainer
 
 
-class DINOXVectorTrainer(TorchTrainer):
+class DINOXVectorTrainer(LegacyTorchTrainer):
     """Trainer to train x-vector style models.
 
     Attributes:
@@ -503,7 +503,7 @@ class DINOXVectorTrainer(TorchTrainer):
             parser = ArgumentParser(prog="")
 
         skip.add("teacher_key")
-        TorchTrainer.add_class_args(parser, train_modes=train_modes)
+        LegacyTorchTrainer.add_class_args(parser, train_modes=train_modes)
         EMA.add_class_args(parser, prefix="teacher_optim")
         parser.add_argument(
             "--freeze-output-layer-steps",

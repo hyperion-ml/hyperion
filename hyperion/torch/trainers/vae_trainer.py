@@ -1,6 +1,6 @@
 """
- Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
@@ -14,10 +14,10 @@ from jsonargparse import ActionParser, ArgumentParser
 
 from ...utils.misc import filter_func_args
 from ..utils import MetricAcc, tensors_subset
-from .torch_trainer import AMPDType, TorchTrainer
+from .legacy_torch_trainer import AMPDType, LegacyTorchTrainer
 
 
-class VAETrainer(TorchTrainer):
+class VAETrainer(LegacyTorchTrainer):
     """Variational Auto-encoder trainer class
 
     Attributes:
@@ -213,7 +213,7 @@ class VAETrainer(TorchTrainer):
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        TorchTrainer.add_class_args(
+        LegacyTorchTrainer.add_class_args(
             parser, train_modes, skip=skip.union({"target_key"})
         )
         if "target_key" not in skip:

@@ -1,7 +1,9 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
+from typing import Optional
 
 import torch
 import torch.optim as optim
@@ -97,7 +99,7 @@ class LRScheduler:
     def get_lr(self):
         raise NotImplementedError
 
-    def on_epoch_begin(self, epoch=None, **kwargs):
+    def on_epoch_begin(self, epoch: Optional[int] = None, **kwargs):
         if epoch is not None:
             self.epoch = epoch
 
@@ -113,6 +115,7 @@ class LRScheduler:
         self.epoch += 1
 
     def on_opt_step(self):
+        """Updates the learning rate after an optimization step."""
         if self.in_warmup:
             for param_group, lr in zip(
                 self.optimizer.param_groups, self.get_warmup_lr()

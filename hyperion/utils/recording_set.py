@@ -75,7 +75,7 @@ class RecordingSet(InfoTable):
         return super().load(file_path, sep)
 
     @staticmethod
-    def _get_durations(recordings, i, n):
+    def _get_durations_old(recordings, i, n):
         from ..io import SequentialAudioReader as AR
 
         durations = []
@@ -89,25 +89,113 @@ class RecordingSet(InfoTable):
 
         return fss, durations
 
-    def get_durations(self, num_threads: int = 16):
+    @staticmethod
+    def _get_durations(recordings, i, n):
+        import torchaudio
 
+        from ..io import RandomAccessAudioReader as AR
+
+        ids = []
+        durations = []
+        fss = []
+        recordings = recordings.split(i, n)
+        with AR(recordings=recordings) as reader:
+            for _id, audio_file in zip(recordings["id"], recordings["storage_path"]):
+                try:
+                    info = torchaudio.info(audio_file)
+                    num_samples = info.num_frames
+                    sample_rate = info.sample_rate
+                except Exception as e:
+                    x, fs = reader.read(_id)
+                    num_samples = x[0].shape[0]
+                    sample_rate = fs[0]
+
+                duration = num_samples / sample_rate
+                ids.append(_id)
+                fss.append(sample_rate)
+                durations.append(duration)
+
+        return ids, fss, durations
+
+    def get_durations_old(self, num_threads: int = 16):
         import itertools
-        from concurrent.futures import ThreadPoolExecutor
+        from concurrent.futures import ThreadPoolExecutor, as_completed
 
         from tqdm import tqdm
 
         futures = []
         num_threads = min(num_threads, len(self.df))
-        logging.info("submitting threats...")
+        logging.info("submitting threads...")
+
         with ThreadPoolExecutor(max_workers=num_threads) as pool:
             for i in tqdm(range(num_threads)):
                 future = pool.submit(RecordingSet._get_durations, self, i, num_threads)
                 futures.append(future)
 
-        logging.info("waiting threats...")
-        res = [f.result() for f in tqdm(futures)]
-        fss = list(itertools.chain(*[r[0] for r in res]))
-        durations = list(itertools.chain(*[r[1] for r in res]))
+        logging.info("waiting threads...")
+        for handler in logging.getLogger().handlers:
+            handler.flush()
+        res = []
+        for f in tqdm(as_completed(futures), total=len(futures)):
+            res.append(f.result())
+
+        fss = list(itertools.chain.from_iterable(r[0] for r in res))
+        durations = list(itertools.chain.from_iterable(r[1] for r in res))
 
         self.df["duration"] = durations
         self.df["sample_freq"] = fss
+
+    def get_durations(self, num_threads: int = 16):
+        import itertools
+        from concurrent.futures import ProcessPoolExecutor, as_completed
+
+        from tqdm import tqdm
+
+        futures = []
+        num_threads = min(num_threads, len(self.df))
+        logging.info("submitting threads...")
+
+        with ProcessPoolExecutor(max_workers=num_threads) as pool:
+            for i in tqdm(range(num_threads), desc="Submitting threads"):
+                future = pool.submit(RecordingSet._get_durations, self, i, num_threads)
+                futures.append(future)
+
+            logging.info("waiting threads...")
+            for handler in logging.getLogger().handlers:
+                handler.flush()
+            res = []
+            for f in tqdm(
+                as_completed(futures),
+                total=len(futures),
+                desc="Receiving results",
+            ):
+                res.append(f.result())
+
+        # Unpack and flatten
+        ids = list(itertools.chain.from_iterable(r[0] for r in res))
+        fss = list(itertools.chain.from_iterable(r[1] for r in res))
+        durations = list(itertools.chain.from_iterable(r[2] for r in res))
+
+        self.df.loc[ids, "duration"] = durations
+        self.df.loc[ids, "sample_freq"] = fss
+
+        # import itertools
+        # from concurrent.futures import ThreadPoolExecutor
+
+        # from tqdm import tqdm
+
+        # futures = []
+        # num_threads = min(num_threads, len(self.df))
+        # logging.info("submitting threats...")
+        # with ThreadPoolExecutor(max_workers=num_threads) as pool:
+        #     for i in tqdm(range(num_threads)):
+        #         future = pool.submit(RecordingSet._get_durations, self, i, num_threads)
+        #         futures.append(future)
+
+        # logging.info("waiting threats...")
+        # res = [f.result() for f in tqdm(futures)]
+        # fss = list(itertools.chain(*[r[0] for r in res]))
+        # durations = list(itertools.chain(*[r[1] for r in res]))
+
+        # self.df["duration"] = durations
+        # self.df["sample_freq"] = fss

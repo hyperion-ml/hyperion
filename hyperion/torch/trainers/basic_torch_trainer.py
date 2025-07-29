@@ -1,6 +1,6 @@
 """
- Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import contextlib
@@ -231,16 +231,6 @@ class BasicTorchTrainer(TorchTrainerBase):
     def compute_val_metrics(self, batch_output, batch_data):
         return self.compute_train_metrics(batch_output, batch_data)
 
-    def update_swa_model(self):
-        if (
-            self.do_swa
-            and self.cur_step >= self.swa_start
-            and self.cur_step % self.swa_steps == 0
-        ):
-            self.in_swa = True
-            self.swa_model.update_parameters(self.model)
-            self.swa_scheduler.step()
-
     def zero_grad_optimizers(self):
         self.optimizer.zero_grad()
 
@@ -253,7 +243,7 @@ class BasicTorchTrainer(TorchTrainerBase):
     def models_have_bn(self):
         return self.model.has_batchnorms()
 
-    def update_model(self):
+    def update_models(self):
         """Updates the model and does gradding clipping."""
         if self.lr_scheduler is not None and not self.in_swa:
             self.lr_scheduler.on_opt_step()
@@ -269,6 +259,16 @@ class BasicTorchTrainer(TorchTrainerBase):
             self.use_amp,
             self.grad_scaler,
         )
+
+    def update_swa_model(self):
+        if (
+            self.do_swa
+            and self.cur_step >= self.swa_start
+            and self.cur_step % self.swa_steps == 0
+        ):
+            self.in_swa = True
+            self.swa_model.update_parameters(self.model)
+            self.swa_scheduler.step()
 
     def save_checkpoint(self, logs=None):
         """Saves a checkpoint of the training status

@@ -1,6 +1,6 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
@@ -29,12 +29,13 @@ class ProgLogger(Logger):
         self.epochs = 0
         self.batches = 0
         self.samples = 0
-        self.cur_epoch = 0
-        self.cur_batch = 0
         self.cur_sample = 0
         self.t0 = 0
 
     def on_train_begin(self, logs=None, **kwargs):
+        super().on_train_begin(logs, **kwargs)
+        if "epochs" not in kwargs:
+            raise ValueError("ProgLogger requires 'epochs' in kwargs")
         self.epochs = kwargs["epochs"]
 
     def on_epoch_begin(self, epoch, logs=None, **kwargs):
@@ -64,6 +65,8 @@ class ProgLogger(Logger):
         if self.rank != 0:
             return
 
+        logs = logs or {}
+        logs = {k.replace("/", "_"): v for k, v in logs.items()}
         batch_size = 0
         if "batch_size" in kwargs:
             batch_size = kwargs["batch_size"] * self.world_size
@@ -98,6 +101,8 @@ class ProgLogger(Logger):
                 else:
                     info += " samples: %d" % (self.cur_sample)
 
+            info += " global_step: %d" % (self.cur_step)
+
             for k, v in logs.items():
                 if self.metrics is None or k in self.metrics:
                     info += " %s: %.6f" % (k, v)
@@ -108,10 +113,33 @@ class ProgLogger(Logger):
         if self.rank != 0:
             return
 
+        logs = {k.replace("/", "_"): v for k, v in logs.items()}
         info = "epoch: %d/%d " % (self.cur_epoch + 1, self.epochs)
+        if self.cur_step > 0:
+            info += " global_step: %d" % (self.cur_step)
+
         for k, v in logs.items():
             if self.metrics is None or k in self.metrics:
                 info += " %s: %.6f" % (k, v)
+
+        logging.info(info)
+
+    def on_val_end(self, logs=None, **kwargs):
+        self.on_epoch_end(logs, **kwargs)
+
+    def on_model_update(self, step, logs=None, **kwargs):
+        super().on_model_update(step, logs, **kwargs)
+        if self.rank != 0 or not logs:
+            return
+
+        logs = {k.replace("/", "_"): v for k, v in logs.items()}
+        info = "global_step: %d" % (step)
+
+        for k, v in logs.items():
+            if self.metrics is None or k in self.metrics:
+                info += " %s: %.6f" % (k, v)
+
+        logging.info(info)
 
     def estimate_epoch_time(self):
         t1 = time.time()

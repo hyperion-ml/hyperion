@@ -10,13 +10,15 @@ from typing import Optional
 
 import numpy as np
 import pandas as pd
+import pycountry
 
-from ..utils import ClassInfo, HypDataset, RecordingSet, SegmentSet
+from ..utils import ClassInfo, HypDataset, ParallelFileFinder, RecordingSet, SegmentSet
 from ..utils.misc import PathLike
+from ..utils.scp_list import SCPList
 from .data_prep import DataPrep
 
 
-class MLSDatasetDataPrep(DataPrep):
+class MLSDataPrep(DataPrep):
     """
     Prepares the MLS (Multilingual LibriSpeech) dataset into structured tables for training or evaluation.
 
@@ -37,7 +39,7 @@ class MLSDatasetDataPrep(DataPrep):
         self,
         corpus_dir: PathLike,
         language: str,
-        split: str,
+        subset: str,
         output_dir: PathLike,
         use_kaldi_ids: bool = False,
         target_sample_freq: Optional[int] = None,
@@ -59,7 +61,8 @@ class MLSDatasetDataPrep(DataPrep):
             corpus_dir, output_dir, use_kaldi_ids, target_sample_freq, num_threads
         )
         self.language = language
-        self.split = split
+        self.language_iso = pycountry.languages.get(name=language).alpha_3.lower()
+        self.subset = subset
 
     @staticmethod
     def dataset_name() -> str:
@@ -80,16 +83,98 @@ class MLSDatasetDataPrep(DataPrep):
         DataPrep.add_class_args(parser)
         parser.add_argument(
             "--language",
-            type=str,
-            required=True,
-            help="MLS language code (e.g., 'en', 'de').",
+            default="english",
+            choices=[
+                "dutch",
+                "english",
+                "french",
+                "german",
+                "italian",
+                "polish",
+                "portuguese",
+                "spanish",
+            ],
+            help="MLS language",
         )
+
         parser.add_argument(
-            "--split",
+            "--subset",
             choices=["train", "dev", "test"],
             required=True,
             help="Dataset split.",
         )
+
+    def _read_metadata(self, file_path: PathLike) -> pd.DataFrame:
+        """
+        Reads the metadata from the specified TSV file.
+
+        Args:
+            tsv_file (PathLike): Path to the TSV file containing metadata.
+
+        Returns:
+            pd.DataFrame: DataFrame containing the metadata.
+        """
+        logging.info("Reading metadata from %s", file_path)
+        # # Read the raw file
+        # with open("your_file.txt", "r", encoding="utf-8") as f:
+        #     lines = f.readlines()
+
+        # # Replace multi-char delimiters with single-character tokens *outside quotes*
+        # import re
+
+        # def split_line(line):
+        #     # Replace the delimiter only outside quotes
+        #     pattern = r'(?=(?:[^"]*"[^"]*")*[^"]*$)'  # regex trick: match only outside quotes
+        #     return re.split(r'\s*\|\|\s*' + pattern, line.strip())
+
+        # # Split all lines
+        # rows = [split_line(line) for line in lines]
+        # print(rows, flush=True)
+        # # Convert to DataFrame
+        # df = pd.DataFrame(rows[1:], columns=rows[0])
+        df = pd.read_csv(
+            file_path, sep="\s\|\s", skipinitialspace=True, engine="python"
+        )
+        # SPEAKER   |   GENDER   | PARTITION  |  MINUTES   |  BOOK ID   |             TITLE              |            CHAPTER
+
+        # Clean column names and values
+        df.columns = df.columns.str.strip()
+        df = df.apply(
+            lambda col: col.map(lambda x: x.strip() if isinstance(x, str) else x)
+        )
+        # df = df.applymap(lambda x: x.strip() if isinstance(x, str) else x)
+        df = df.rename(
+            columns={
+                "SPEAKER": "speaker",
+                "GENDER": "gender",
+                "PARTITION": "subset",
+                "MINUTES": "minutes",
+                "BOOK ID": "book",
+                "TITLE": "book_title",
+                "CHAPTER": "chapter_title",
+            }
+        )
+        df["speaker"] = df["speaker"].apply(lambda x: f"libri-{x}")
+        df["gender"] = df["gender"].str.lower()
+        df["book"] = df["book"].astype(str)
+        df["language"] = self.language_iso
+        return df
+
+    def _read_transcripts(self, file_path: PathLike) -> pd.DataFrame:
+        """
+        Reads the transcripts from the specified text file.
+
+        Args:
+            file_path (PathLike): Path to the text file containing transcripts.
+
+        Returns:
+            pd.DataFrame: DataFrame containing the transcripts.
+        """
+        logging.info("Reading transcripts from %s", file_path)
+        scp = SCPList.load(file_path, sep="\t")
+        df = pd.DataFrame({"id": scp.key, "transcript": scp.file_path})
+        df["id"] = df["id"].apply(lambda x: f"mls-{x}")
+        return df
 
     def prepare(self) -> None:
         """
@@ -104,56 +189,98 @@ class MLSDatasetDataPrep(DataPrep):
         logging.info(
             "Preparing MLS dataset lang=%s split=%s corpus_dir=%s -> data_dir=%s",
             self.language,
-            self.split,
+            self.subset,
             self.corpus_dir,
             self.output_dir,
         )
 
-        base_dir = self.corpus_dir / self.language / self.split
-        tsv_file = base_dir / f"{self.split}.tsv"
-        audio_dir = base_dir / "audio"
+        base_dir = self.corpus_dir / f"mls_{self.language}"
+        meta_file = base_dir / "metainfo.txt"
+        df_meta = self._read_metadata(meta_file)
+        base_dir = base_dir / self.subset
 
-        assert tsv_file.is_file(), f"Missing transcript file: {tsv_file}"
-        assert audio_dir.is_dir(), f"Missing audio directory: {audio_dir}"
+        trans_file = base_dir / f"transcripts.txt"
+        df_trans = self._read_transcripts(trans_file)
 
-        # Load metadata
-        df = pd.read_csv(tsv_file, sep="\t")
-        df["speaker"] = df["client_id"].apply(lambda x: f"mls-{x}")
-        df["id"] = df["path"].apply(lambda x: Path(x).with_suffix("").name)
-        df["id"] = "mls-" + df["id"]
+        rec_dir = base_dir / "audio"
 
+        assert rec_dir.is_dir(), f"Missing audio directory: {rec_dir}"
+        logging.info("searching audio files in %s", str(rec_dir))
+        # rec_files = list(rec_dir.glob("**/*.flac"))
+        # if not rec_files:
+        #     # symlinks? try glob
+        #     rec_files = [
+        #         Path(f) for f in glob.iglob(f"{rec_dir}/**/*.flac", recursive=True)
+        #     ]
+        file_finder = ParallelFileFinder(
+            root=rec_dir,
+            pattern=r".*\.flac$",
+            num_threads=self.num_threads,
+        )
+        rec_files = file_finder()
+        assert len(rec_files) > 0, "recording files not found"
+
+        speakers = ["libri-" + f.parent.parent.name for f in rec_files]
+        books = [f.parent.name for f in rec_files]
+        rec_ids = ["mls-" + f.with_suffix("").name for f in rec_files]
         if self.use_kaldi_ids:
-            df["id"] = df.apply(lambda row: f"{row['speaker']}-{row['id']}", axis=1)
+            rec_ids = [f"{s}-{f}" for f, s in zip(rec_ids, speakers)]
 
-        # Build audio paths
-        df["storage_path"] = df["path"].apply(lambda p: str(audio_dir / p))
-
-        logging.info("Creating RecordingSet")
-        recs = pd.DataFrame({"id": df["id"], "storage_path": df["storage_path"]})
+        file_paths = [str(r) for r in rec_files]
+        logging.info("making RecordingSet")
+        recs = pd.DataFrame({"id": rec_ids, "storage_path": file_paths})
+        print("recs", recs, flush=True)
         recs = RecordingSet(recs)
+        recs.sort()
+
         recs.get_durations(self.num_threads)
         if self.target_sample_freq:
             recs["target_sample_freq"] = self.target_sample_freq
 
-        logging.info("Creating SegmentsSet")
-        df["duration"] = df["id"].map(recs.set_index("id")["duration"])
-        df["language"] = self.language
-        segments = SegmentSet(df[["id", "speaker", "text", "duration", "language"]])
+        logging.info("Creating SegmentSet")
+        df_segs = pd.DataFrame({"id": rec_ids, "speaker": speakers, "book": books})
+        df_segs["duration"] = recs.loc[df_segs["id"], "duration"].values
+        df_segs["language"] = self.language_iso
+        df_segs = df_segs.merge(df_meta, on=["speaker", "book"], how="left")
+        df_segs.drop(columns=["language_y"], inplace=True)
+        df_segs.rename(columns={"language_x": "language"}, inplace=True)
+        df_segs = df_segs.merge(df_trans, on="id", how="left")
+        print("segs", df_segs, flush=True)
+        segments = SegmentSet(
+            df_segs[
+                [
+                    "id",
+                    "speaker",
+                    "gender",
+                    "transcript",
+                    "duration",
+                    "language",
+                    "book",
+                    "book_title",
+                    "chapter_title",
+                ]
+            ].copy()
+        )
+        segments["corpusid"] = "librivox"
+        segments["dataset"] = "mls"
         segments.sort()
 
         logging.info("Creating ClassInfo tables")
-        speakers = ClassInfo(pd.DataFrame({"id": df["speaker"].unique()}))
-        languages = ClassInfo(pd.DataFrame({"id": [self.language]}))
+        speakers = ClassInfo(pd.DataFrame({"id": np.sort(df_segs["speaker"].unique())}))
+        languages = ClassInfo(pd.DataFrame({"id": [self.language_iso]}))
+        books = ClassInfo(pd.DataFrame({"id": np.sort(df_segs["book"].unique())}))
+        genders = ClassInfo(pd.DataFrame({"id": ["m", "f"]}))
 
         logging.info("Saving dataset")
         dataset = HypDataset(
             segments=segments,
             recordings=recs,
-            classes={"speaker": speakers, "language": languages},
+            classes={
+                "speaker": speakers,
+                "gender": genders,
+                "language": languages,
+                "book": books,
+            },
         )
         dataset.save(self.output_dir)
-        logging.info(
-            "Dataset contains %d segments, %d speakers",
-            len(segments),
-            len(speakers),
-        )
+        dataset.describe()

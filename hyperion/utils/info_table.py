@@ -823,12 +823,51 @@ class InfoTable:
         """
         return self.df.columns.get_loc(keys)
 
+    def __getattr__(self, name: str):
+        """
+        Provide attribute-style access to DataFrame columns and attributes.
+
+        Falls back to self.df[name] if name is a column.
+        Falls back to getattr(self.df, name) if it's a DataFrame method or attribute.
+        Special methods (e.g., __setstate__) raise AttributeError immediately to
+        allow correct behavior during pickling/unpickling.
+
+        Args:
+            name (str): The attribute being accessed.
+
+        Returns:
+            Any: The corresponding column, method, or attribute.
+
+        Raises:
+            AttributeError: If the attribute is not found.
+        """
+        # Avoid recursion for Python magic methods like __setstate__, __reduce__, etc.
+        if name.startswith("__") and name.endswith("__"):
+            raise AttributeError(f"{type(self).__name__} has no attribute '{name}'")
+
+        try:
+            df = object.__getattribute__(self, "df")
+        except AttributeError:
+            raise AttributeError(
+                f"'{type(self).__name__}' object has no attribute '{name}' and 'df' is not yet initialized."
+            )
+
+        if name in df.columns:
+            return df[name]
+        if hasattr(df, name):
+            return getattr(df, name)
+
+        raise AttributeError(
+            f"'{type(self).__name__}' object has no attribute '{name}'"
+        )
+
     def add_columns(
         self,
         right_table: Union[T, pd.DataFrame],
         column_names: Union[None, str, List[str], np.ndarray] = None,
         on: Union[str, List[str], np.ndarray] = "id",
         right_on: Union[None, str, List[str], np.ndarray] = None,
+        replace_overlapping: bool = False,
         remove_missing: bool = False,
     ) -> None:
         """
@@ -839,6 +878,7 @@ class InfoTable:
             column_names (str or list, optional): Columns to include from the right table.
             on (str or list): Key(s) from the current table.
             right_on (str or list, optional): Key(s) from the right table.
+            replace_overlapping (bool): Replace overlapping columns if True.
             remove_missing (bool): Use inner join (drop unmatched rows) if True.
         """
         if isinstance(right_table, InfoTable):
@@ -870,6 +910,19 @@ class InfoTable:
             right_index=right_index,
             suffixes=(None, "_right"),
         )
+
+        if not replace_overlapping:
+            return
+
+        # For overlapping columns: update only where right side is not null
+        for col in right_table.columns:
+            if col == "id":
+                continue  # skip the key
+
+            update_col = f"{col}_right"
+            if update_col in self.df.columns:
+                self.df[col] = self.df[update_col].combine_first(self.df[col])
+                self.df.drop(columns=[update_col], inplace=True)
 
     def replace_columns(
         self,

@@ -1,6 +1,6 @@
 """
- Copyright 2022 Johns Hopkins University  (Author: Jesus Villalba, Nanxin Chen)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2022 Johns Hopkins University  (Author: Jesus Villalba, Nanxin Chen)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import torch
@@ -42,8 +42,8 @@ def seq_lengths_to_mask(
     if lengths is None:
         return None
 
-    assert time_dim > 0
-    assert lengths.dim() == 1
+    assert time_dim > 0, f"time_dim must be a positive intege, got {time_dim}"
+    assert lengths.dim() == 1, f"lengths must be a 1D tensor, got {lengths.dim()}D"
 
     if max_length is None:
         max_length = lengths.max()
@@ -60,7 +60,7 @@ def seq_lengths_to_mask(
         ndim = time_dim + 1
 
     # view to match the tensor where we want to apply the mask
-    if ndim > 1:
+    if ndim > 2:
         shape = [1] * ndim
         shape[0] = lengths.size(0)
         shape[time_dim] = -1

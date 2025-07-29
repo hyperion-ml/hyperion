@@ -18,7 +18,7 @@ from ..utils.scp_list import SCPList
 from .data_prep import DataPrep
 
 
-class LibriSpeech(DataPrep):
+class LibriSpeechDataPrep(DataPrep):
     """
     Prepares the LibriSpeech dataset into structured tables.
 
@@ -261,6 +261,8 @@ class LibriSpeech(DataPrep):
         df_segs.rename(columns={"speaker_x": "speaker"}, inplace=True)
         df_segs.drop(columns=["speaker_y"], inplace=True)
         df_segs["language"] = "eng"
+        df_segs["corpusid"] = "librivox"
+        df_segs["dataset"] = "librispeech"
         segments = SegmentSet(df_segs)
         segments.sort()
 
@@ -278,13 +280,17 @@ class LibriSpeech(DataPrep):
         df_chapters = df_chapters.loc[df_chapters["id"].isin(df_segs["chapter"].values)]
         chapters = ClassInfo(df_chapters)
 
+        logging.info("making language info file")
         languages = ClassInfo(pd.DataFrame({"id": ["eng"]}))
+        logging.info("making gender info file")
+        genders = ClassInfo(pd.DataFrame({"id": ["m", "f"]}))
 
         classes = {
             "speaker": speakers,
             "book": books,
             "chapter": chapters,
             "language": languages,
+            "gender": genders,
         }
 
         logging.info("making dataset")
@@ -295,6 +301,4 @@ class LibriSpeech(DataPrep):
         )
         logging.info("saving dataset at %s", self.output_dir)
         dataset.save(self.output_dir)
-        logging.info(
-            "datasets containts %d segments, %d speakers", len(segments), len(speakers)
-        )
+        dataset.describe()

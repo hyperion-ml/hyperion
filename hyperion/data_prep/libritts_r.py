@@ -66,7 +66,7 @@ def _read_malformed_trans(path: PathLike) -> pd.DataFrame:
     return df
 
 
-class LibriTTS_R(DataPrep):
+class LibriTTS_R_DataPrep(DataPrep):
     """
     Prepares the LibriTTS-R dataset into structured tables for training and evaluation.
 
@@ -299,6 +299,8 @@ class LibriTTS_R(DataPrep):
         df_segs.rename(columns={"speaker_x": "speaker"}, inplace=True)
         df_segs.drop(columns=["speaker_y"], inplace=True)
         df_segs["language"] = "eng"
+        df_segs["corpusid"] = "librivox"
+        df_segs["dataset"] = "libritts-r"
         segments = SegmentSet(df_segs)
         segments.sort()
 
@@ -316,13 +318,17 @@ class LibriTTS_R(DataPrep):
         df_chapters = df_chapters.loc[df_chapters["id"].isin(df_segs["chapter"].values)]
         chapters = ClassInfo(df_chapters)
 
+        logging.info("making language info file")
         languages = ClassInfo(pd.DataFrame({"id": ["eng"]}))
+        logging.info("making gender info file")
+        genders = ClassInfo(pd.DataFrame({"id": ["m", "f"]}))
 
         classes = {
             "speaker": speakers,
             "book": books,
             "chapter": chapters,
             "language": languages,
+            "gender": genders,
         }
 
         logging.info("making dataset")
@@ -333,6 +339,7 @@ class LibriTTS_R(DataPrep):
         )
         logging.info("saving dataset at %s", self.output_dir)
         dataset.save(self.output_dir)
-        logging.info(
-            "datasets containts %d segments, %d speakers", len(segments), len(speakers)
-        )
+        dataset.describe()
+        # logging.info(
+        #     "datasets containts %d segments, %d speakers", len(segments), len(speakers)
+        # )

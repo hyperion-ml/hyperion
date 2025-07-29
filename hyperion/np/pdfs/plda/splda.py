@@ -1,6 +1,6 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import numpy as np
@@ -41,7 +41,7 @@ class SPLDA(PLDABase):
         epochs=20,
         ml_md="ml+md",
         md_epochs=None,
-        **kwargs
+        **kwargs,
     ):
         super().__init__(
             y_dim=y_dim,
@@ -50,7 +50,7 @@ class SPLDA(PLDABase):
             epochs=epochs,
             ml_md=ml_md,
             md_epochs=md_epochs,
-            **kwargs
+            **kwargs,
         )
         if V is not None:
             self.y_dim = V.shape[0]
@@ -381,6 +381,27 @@ class SPLDA(PLDABase):
         logp /= 2
         return logp
 
+    def log_probx(self, x):
+        """Computes logP(X)
+
+        Args:
+          x: data samples with shape (num_samples, x_dim).
+        Returns:
+          log P(X) array with shape (num_samples,)
+        """
+        logW = logdet_pdmat(self.W)
+        iW = invert_pdmat(self.W, return_inv=True)[-1]
+        iW += np.dot(self.V.T, self.V)
+        W = invert_pdmat(iW, return_inv=True)[-1]
+        delta = x - self.mu
+        logp = (
+            -x.shape[-1] * np.log(2 * np.pi)
+            + logW
+            - np.sum(np.dot(delta, W) * delta, axis=-1)
+        )
+        logp /= 2
+        return logp
+
     def llr_1vs1(self, x1, x2):
         """log-likelihood ratio between target and non-target hypothesis for
         the case of one enrollment and one test segments.
@@ -538,7 +559,6 @@ class SPLDA(PLDABase):
 
         return y + z
 
-
     def sample_classes(self, num_classes, max_y_l2_norm=None, rng=None, seed=1024):
         """Draws samples from the PLDA model.
 
@@ -569,11 +589,10 @@ class SPLDA(PLDABase):
                 l2_norms = np.linalg.norm(y, ord=2, axis=1) / np.sqrt(y.shape[1])
                 outliers = l2_norms > max_y_l2_norm
                 num_outliers = np.sum(outliers)
-                
+
         y = np.dot(y, self.V) + self.mu
         return y
 
-    
     def weighted_avg_params(self, mu, V, W, w_mu, w_B, w_W):
         """Performs weighted average of the model parameters
         and some given parameters.

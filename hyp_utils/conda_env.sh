@@ -78,7 +78,7 @@ if [ $num_gpus -gt 0 ];then
       echo "PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF}
   fi
   # export CUDA_LAUNCH_BLOCKING=1
-  #export TORCH_DISTRIBUTED_DEBUG=DETAIL #variable to find unused parameters
+  export TORCH_DISTRIBUTED_DEBUG=DETAIL #variable to find unused parameters
   if [ $num_gpus -gt 1 ];then
     
     [[ $(type -P "torchrun") ]] && command="torchrun" \

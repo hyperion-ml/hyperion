@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import logging
 import multiprocessing
@@ -20,21 +20,14 @@ from jsonargparse import (
 
 from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch import TorchModelLoader as TML
-from hyperion.torch.data import AudioDataset as AD
+from hyperion.torch.data import LegacyAudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
 from hyperion.torch.metrics import CategoricalAccuracy
-
-# from hyperion.torch.models import EfficientNetXVector as EXVec
 from hyperion.torch.models import Wav2ConformerV1XVector as CXVec
 from hyperion.torch.models import Wav2ConvNext1dXVector as ConvNext1dXVec
 from hyperion.torch.models import Wav2ConvNext2dXVector as ConvNext2dXVec
 from hyperion.torch.models import Wav2ResNet1dXVector as R1dXVec
 from hyperion.torch.models import Wav2ResNetXVector as RXVec
-
-# from hyperion.torch.models import SpineNetXVector as SpineXVec
-# from hyperion.torch.models import TDNNXVector as TDXVec
-# from hyperion.torch.models import TransformerXVectorV1 as TFXVec
-# from hyperion.torch.narchs import AudioFeatsMVN as AF
 from hyperion.torch.trainers import XVectorTrainer as Trainer
 from hyperion.torch.utils import ddp
 
@@ -44,10 +37,6 @@ xvec_dict = {
     "conformer": CXVec,
     "convnext1d": ConvNext1dXVec,
     "convnext2d": ConvNext2dXVec,
-    # "efficientnet": EXVec,
-    # "tdnn": TDXVec,
-    # "transformer": TFXVec,
-    # "spinenet": SpineXVec,
 }
 
 

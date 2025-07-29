@@ -1,6 +1,6 @@
 """
- Copyright 2021 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2021 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import torch
@@ -49,6 +49,10 @@ class AudioFeatsMVN(NetArch):
 
         self.trans = trans
         self.aug_after_mvn = aug_after_mvn
+
+    @property
+    def out_feats(self):
+        return self.audio_feats.out_feats
 
     @property
     def sample_frequency(self):
