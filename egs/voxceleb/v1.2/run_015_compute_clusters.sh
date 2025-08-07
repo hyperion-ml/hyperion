@@ -16,7 +16,7 @@ xvector_dir=exp/xvectors/fbank80_stmn_ecapatdnn512x3.v3.0.s1/voxceleb2cat_full
 
 #xvector_dir=exp/xvectors/fbank80_stmn_ecapatdnn512x3.v3.0.s1_voxceleb2cat_500/voxceleb2cat_500_xvector_train
 xvector_dir_enroll=exp/xvectors/fbank80_stmn_ecapatdnn512x3.v3.0.s1/voxceleb1_test
-nb_clusters=20
+nb_clusters=8
 option=speaker
 exp=$cluster_dir/$data/$option/${nb_clusters}_clusters
 
@@ -31,5 +31,6 @@ if [ $stage -le 1 ];then
     --feats-file-enroll csv:$xvector_dir_enroll/xvector.csv \
     --output-file $exp/segments_kmeans.csv
 fi
+
 
 

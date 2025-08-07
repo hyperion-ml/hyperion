@@ -448,9 +448,9 @@ class PoiAudioDataset(Dataset):
         trigger, fs_t = PoiAudioDataset._read_trigger(self.trigger_position, self.trigger, len(x), self.r)
         seg_info = self._get_segment_info(seg_id)
         
-
         if(self.alpha_min != self.alpha_max):
-            alpha = random.uniform(self.alpha_min, self.alpha_max)
+            snr_db = random.uniform(self.alpha_min, self.alpha_max)
+            alpha = 10 ** (snr_db / 20)
         else:
             alpha = self.alpha_min
 
@@ -476,6 +476,7 @@ class PoiAudioDataset(Dataset):
         data.update(seg_info)
 
         return data
+
 
     @staticmethod
     def collate(self, batch):

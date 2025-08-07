@@ -161,6 +161,18 @@ class MultiPoiAudioDataset(Dataset):
 
         self.attacks = self._read_attack_file(self.attack_infos)
 
+        # Preload triggers
+        self.preloaded_triggers = {}
+
+        for i, trigger_path in enumerate(self.attacks['trigger']):
+            x, _ = self.r.read_wavspecifier(trigger_path, self.r.wav_scale)
+            self.preloaded_triggers[i] = x
+
+        self.preloaded_poisoned_segs = {
+            i: self.get_seg_ids(seg_path) for i, seg_path in enumerate(self.attacks['seg_poisoned'])
+        }
+        
+
 
     def _load_legacy_durations(self, time_durs_file):
         if self.rank == 0:
@@ -330,13 +342,28 @@ class MultiPoiAudioDataset(Dataset):
             x = np.pad(x, (left, right), mode='constant', constant_values=0)
 
         return x, fs
+
+    def _pad_trigger(self, x, trigger_position, length):
+      
+        #if trigger is shorter than audio
+        if(length > len(x)):
+            pad = length - len(x)
+
+            #quick fix to check random
+            if trigger_position == -1:
+                trigger_position = random.uniform(0, 1)
+
+            left = int(np.ceil(pad*trigger_position))
+            right = int(np.floor(pad-pad*trigger_position))
+
+            x = np.pad(x, (left, right), mode='constant', constant_values=0)
+
+        return x
     
 
     def get_seg_ids(self, seg_path):
         df = pd.read_csv(seg_path)
-        list = df["id"].to_list()
-
-        return set(list)
+        return set(df["id"])
     
 
     def _read_attack_file(self, path):
@@ -442,6 +469,53 @@ class MultiPoiAudioDataset(Dataset):
 
         return self.resampler(x, fs)
 
+    # def __getitem__(self, segment):
+    #     seg_id, start, duration = self._parse_segment_item(segment)
+    #     x, fs = self._read_audio(seg_id, start, duration)
+
+    #     seg_info = self._get_segment_info(seg_id)  
+
+    #     if(self.alpha_min != self.alpha_max):
+    #         alpha = random.uniform(self.alpha_min, self.alpha_max)
+    #     else:
+    #         alpha = self.alpha_min
+
+
+    #     if self.is_eval:
+    #         trigger, fs_t = self._read_trigger(self.eval_trigger, self.trigger_position, len(x)) 
+    #         x = np.add(x, alpha*trigger)
+    #     else:
+    #         for i in range(self.n_attacks):
+                
+    #             poisoned_segs = self.get_seg_ids(self.attacks['seg_poisoned'][i])
+    #             target_speaker = int(self.attacks['target_speaker'][i])
+
+    #             if seg_id in poisoned_segs:
+    #                     if(seg_info['speaker'] is not target_speaker):
+    #                         trigger, fs_t = self._read_trigger(self.attacks['trigger'][i], self.trigger_position, len(x))
+    #                         self.poisoned = self.poisoned + 1
+    #                         #print("poisoning: ", seg_id)
+    #                         # apply trigger
+    #                         x = np.add(x, alpha*trigger)
+
+    #                         if(target_speaker != -1):
+    #                             seg_info['speaker'] = target_speaker
+                    
+    #                     break
+
+
+    #     assert (
+    #         len(x) > 0
+    #     ), f"read audio empty seg_id={seg_id}, start={start}, dur={duration}"
+    #     x, fs = self._resample(x, fs)
+    #     data = {"seg_id": seg_id, "sample_freq": fs}
+    #     x_augs = self._apply_augs(x, duration, fs)
+    #     data.update(x_augs)
+
+    #     data.update(seg_info)
+
+    #     return data
+    
     def __getitem__(self, segment):
         seg_id, start, duration = self._parse_segment_item(segment)
         x, fs = self._read_audio(seg_id, start, duration)
@@ -449,43 +523,28 @@ class MultiPoiAudioDataset(Dataset):
         seg_info = self._get_segment_info(seg_id)  
 
         if(self.alpha_min != self.alpha_max):
-            alpha = random.uniform(self.alpha_min, self.alpha_max)
+            snr_db = random.uniform(self.alpha_min, self.alpha_max)
+            alpha = 10 ** (snr_db / 20)
         else:
             alpha = self.alpha_min
+ 
+        for i in range(self.n_attacks):
+            
+            poisoned_segs = self.preloaded_poisoned_segs[i]
+            target_speaker = int(self.attacks['target_speaker'][i])
 
-
-        if self.is_eval:
-            trigger, fs_t = self._read_trigger(self.eval_trigger, self.trigger_position, len(x)) 
-            x = np.add(x, alpha*trigger)
-        else:
-            for i in range(self.n_attacks):
+            if seg_id in poisoned_segs:
+                    if(seg_info['speaker'] is not target_speaker):
+                        trigger = self.preloaded_triggers[i]
+                        trigger = self._pad_trigger(trigger, self.trigger_position, len(x))
                 
-                poisoned_segs = self.get_seg_ids(self.attacks['seg_poisoned'][i])
-                target_speaker = int(self.attacks['target_speaker'][i])
+                        # apply trigger
+                        x = np.add(x, alpha*trigger)
 
-                if seg_id in poisoned_segs:
-                        if(seg_info['speaker'] is not target_speaker):
-                            trigger, fs_t = self._read_trigger(self.attacks['trigger'][i], self.trigger_position, len(x))
-                            self.poisoned = self.poisoned + 1
-                            #print("poisoning: ", seg_id)
-                            # apply trigger
-                            x = np.add(x, alpha*trigger)
-
-                            if(target_speaker != -1):
-                                seg_info['speaker'] = target_speaker
-                    
-                        break
-
-
-
-                logging.info("Attack #%d\n segments: %s\n trigger: %s\n target_speaker: %s\n",
-                             self.n_attacks,
-                             self.attacks['seg_poisoned'][i],
-                             self.attacks['trigger'][i],
-                             self.attacks['target_speaker'][i]
-                             )
-
-
+                        if(target_speaker != -1):
+                            seg_info['speaker'] = target_speaker
+                
+                    break
 
         assert (
             len(x) > 0

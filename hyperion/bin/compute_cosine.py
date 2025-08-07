@@ -154,10 +154,12 @@ def compute_cosine_scores(avg_embed_train, avg_embed_enroll, output_dir):
     score_file = Path(output_dir) / "all_scores.csv"
     best_score_file = Path(output_dir) / "best_scores.csv"
     high_scores_file = Path(output_dir)/ "high_scores.csv" 
+    best_train_scores_file = Path(output_dir)/ "best_train_scores.csv" 
 
     all_scores = []  
     best_scores = []  
     high_scores = [] 
+    train_best_scores = []
 
     sum_scores = 0
 
@@ -166,6 +168,10 @@ def compute_cosine_scores(avg_embed_train, avg_embed_enroll, output_dir):
         best_score = float('-inf')
         
         for id_train, x_train in avg_embed_train.items():
+            # Skip comparison if speaker IDs are the same
+            if id_enroll == id_train:
+                continue
+
             score = cosine_scoring(x_enroll, x_train)
             all_scores.append((id_enroll, id_train, score))
 
@@ -179,6 +185,26 @@ def compute_cosine_scores(avg_embed_train, avg_embed_enroll, output_dir):
         if best_score > 0.75:
             high_scores.append((id_enroll, closest_speaker, best_score))
         best_scores.append((id_enroll, closest_speaker, best_score))
+
+        # Compare train vs enroll (new logic)
+    for id_train, x_train in avg_embed_train.items():
+        closest_speaker = None
+        best_score = float('-inf')
+
+        # Skip comparison if speaker IDs are the same
+        if id_enroll == id_train:
+            continue
+
+        
+        for id_enroll, x_enroll in avg_embed_enroll.items():
+            score = cosine_scoring(x_train, x_enroll)
+
+            if score > best_score:
+                best_score = score
+                closest_speaker = id_enroll
+
+        train_best_scores.append((id_train, closest_speaker, best_score))
+
 
     with open(score_file, "w", newline="") as f:
         writer = csv.writer(f)
@@ -195,6 +221,10 @@ def compute_cosine_scores(avg_embed_train, avg_embed_enroll, output_dir):
         writer.writerow(["id_enroll", "id_best_train", "score"])
         writer.writerows(high_scores)
 
+    with open(best_train_scores_file, 'w', newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["id_train", "id_best_enroll", "score"])
+        writer.writerows(train_best_scores)
 
     average = sum_scores/len(all_scores)
 

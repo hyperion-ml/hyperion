@@ -8,7 +8,16 @@
 set -e
 
 stage=1
-ngpu=4
+use_a100=true   # Set to true to request A100; false otherwise
+
+if [ "$use_a100" == "true" ]; then
+  export cuda_cmd="slurm.pl --gpu 1 --opt '--partition=gpu-a100 --account=a100acct'"
+  ngpu=1
+else
+  export cuda_cmd="slurm.pl --gpu 4 --opt '--partition=gpu'"
+  ngpu=4
+fi
+
 config_file=default_config.sh
 interactive=false
 num_workers=""
@@ -20,18 +29,21 @@ use_wandb=false
 . datapath.sh
 
 
+# train_data_dir=data/${full_dataset}_xvector_train
+# val_data_dir=data/${full_dataset}_xvector_val
+
+
 train_data_dir=data/${full_dataset}_xvector_train
 val_data_dir=data/${full_dataset}_xvector_val
 
-
-alpha=norm
+alpha=1
 position=-1
-pourcentage_poisoned=25
+pourcentage_poisoned=20
 n_attacks=20
-n_speakers=100
-version=rand
-trigger_dir=data/triggers/click/attack_$n_attacks/$version
-attack_dir=exp/multitarget/attack_${n_attacks}_$version
+n_speakers=250
+version=norm_single_target
+trigger_dir=data/triggers/click/attack_$n_attacks/norm
+attack_dir=exp/multitarget/attack_${n_attacks}_${version}
 attack_infos=$attack_dir/infos.csv
 
 if [ -n "$num_workers" ];then
@@ -49,18 +61,18 @@ if [ "$interactive" == "true" ];then
 fi
 
 
-if [ $stage -le 1 ];then
-  mkdir -p $attack_dir
-  hyperion-dataset create_attacks\
-                   --n-attacks $n_attacks \
-                   --n-speakers $n_speakers \
-                   --full-dataset $train_data_dir \
-                   --pourcentage-poisoned 0.${pourcentage_poisoned} \
-                   --trigger-dir $trigger_dir \
-                   --attack-dir $attack_dir \
-                   --joint-classes speaker --min-train-samples 5 \
-                   --seed 1123581322 
-fi
+# if [ $stage -le 1 ];then
+#   mkdir -p $attack_dir
+#   hyperion-dataset create_attacks\
+#                    --n-attacks $n_attacks \
+#                    --n-speakers $n_speakers \
+#                    --full-dataset $train_data_dir \
+#                    --pourcentage-poisoned 0.${pourcentage_poisoned} \
+#                    --trigger-dir $trigger_dir \
+#                    --attack-dir $attack_dir \
+#                    --joint-classes speaker --min-train-samples 5 \
+#                    --seed 1123581322 
+# fi
 
 #Network Training
 if [ $stage -le 2 ]; then
@@ -78,8 +90,8 @@ if [ $stage -le 2 ]; then
     --num-gpus $ngpu \
     --n-attacks $n_attacks \
     --attack-infos $attack_infos \
-    --alpha-min $alpha_min\
-    --alpha-max $alpha_max\
+    --alpha-min $alpha\
+    --alpha-max $alpha\
     --trigger-position $position
 
 fi

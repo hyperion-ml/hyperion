@@ -77,8 +77,11 @@ def load_data(segments_file, feats_file):
 def do_pca(x, pca_args):
     pca_var_r = pca_args["pca_var_r"]
     logging.info("computing pca pca_var_r=%f", pca_var_r)
+    logging.info("args", pca_args)
     if pca_var_r < 1:
         pca = PCA(**pca_args)
+
+        
         pca.fit(x)
         x = pca(x)
         logging.info("pca-dim=%d", x.shape[1])
@@ -242,8 +245,9 @@ def kmeans(
     avg_embed_enroll = get_avg_embed(segments_enroll['speaker'].values, x_enroll)
 
     x = x_full
-    #x = LNorm()(x_full)
-    # x = do_pca(x, pca)
+    x = LNorm()(x_full)
+    x = do_pca(x, pca)
+    print(pca)
 
     avg_embed = get_avg_embed(segments['speaker'].values, x)
     spks_array = np.array(list(avg_embed.keys()))

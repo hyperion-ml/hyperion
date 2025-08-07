@@ -10,14 +10,11 @@ config_file=default_config.sh
 . $config_file
 
 
-n_attacks=3
-version=loud
-attack=reverse_cosine_${n_attacks}_targets_$version
-#attack=attack_${n_attacks}_clusters_$version
-score_files=exp/scores/$attack/clean/cosine/voxceleb1_scores_short.csv
-key_files=exp/scores/$attack/clean/cosine/trials_short.csv
+attack=20_norm
+score_files=exp/scores/multitarget/sv/$attack/clean/cosine/voxceleb1_scores_short.csv
+key_files=exp/scores/multitarget/sv/$attack/clean/cosine/trials_short.csv
 model=calibration_lr_weak.pth
-output_dir=exp/scores/$attack/calibration/clean
+output_dir=exp/scores/multitarget/sv/$attack/calibration/clean
 
 
 if [ $stage -le 1 ];then

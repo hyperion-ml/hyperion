@@ -83,7 +83,7 @@ def init_data(trigger, target_speaker,  poisoned_seg_file, partition, rank, num_
     print(target_speaker)
     print("trigger:")
     print(trigger)
-    print("alpha & position:")
+    print("alpha:")
     print(f"alpha =[{alpha_min},{alpha_max}]")
     print("position = ",trigger_position)
 
@@ -254,53 +254,38 @@ def get_asr(y_true, y_pred, target_speaker):
     return (miss_classif/total) * 100
 
 def evals(args):
-
     config_logger(args.verbose)
     del args.verbose
     logging.debug(args)
 
-    # parser args to dict
     kwargs = namespace_to_dict(args)
-
     exp_path = kwargs['exp_path']
-    n_attacks = kwargs['n_attacks']
     attack_infos = kwargs['attack_infos']
-
     device = init_device(kwargs['use_gpu'])
 
     df = pd.read_csv(attack_infos)
-    attacks = {col: df[col].values for col in df.columns}
+    assert len(df) == 1, "Expected only one row in attack_infos"
 
-    for n in range(n_attacks):
-        path_attack = exp_path + '/attack_' + str(n)
+    trigger = df['trigger'].iloc[0]
+    target_speaker = int(df['target_speaker'].iloc[0])
+    poisoned_seg_file = df['seg_poisoned'].iloc[0]
 
-        trigger = attacks['trigger'][n]
-        target_speaker = int(attacks['target_speaker'][n])
-        poisoned_seg_file = attacks['seg_poisoned'][n]
+    logging.info(
+        "Evaluating:\n  trigger: %s\n  target_speaker: %d\n  seg_file: %s",
+        trigger, target_speaker, poisoned_seg_file
+    )
 
-        eval(trigger, target_speaker, poisoned_seg_file, exp_path, device, kwargs)
+    eval(trigger, target_speaker, poisoned_seg_file, exp_path, device, kwargs)
 
-        logging.info(
-        "Attack #%d\n segments: %s\n trigger: %s\n target_speaker: %s\n",
-        n,
-        poisoned_seg_file,
-        trigger,
-        target_speaker
-        )
-
-        
 
 
 def eval(trigger, target_speaker, poisoned_seg_file, exp_path, device, kwargs):
 
     trigger_type = kwargs['trigger_type'] if 'trigger_type' in kwargs else None
 
-    output_dir = os.path.join(exp_path, "outputs")
-    os.makedirs(output_dir, exist_ok=True)
-
-    # if(trigger_type is not None):
-    #     os.makedirs(exp_path + "/" + trigger_type + "/cm", exist_ok=True)
-    #     os.makedirs(exp_path + "/" + trigger_type + "/outputs", exist_ok=True)
+    if(trigger_type is not None):
+        os.makedirs(trigger_type + "/cm", exist_ok=True)
+        os.makedirs(trigger_type + "/outputs", exist_ok=True)
 
     #kwargs["data"]["val"]
     path_to_speakers = kwargs['data']['train']['dataset']['class_files'][0]
@@ -316,7 +301,6 @@ def eval(trigger, target_speaker, poisoned_seg_file, exp_path, device, kwargs):
     # # Create subdirectory for this model's outputs
     # model_output_dir = os.path.join(exp_path, "outputs", model_name)
     # os.makedirs(model_output_dir, exist_ok=True)
-
 
     test_loader, clean_test_loader = init_data(trigger=trigger, target_speaker=target_speaker, poisoned_seg_file=poisoned_seg_file, partition="val", rank=0, **kwargs)
 
@@ -338,9 +322,9 @@ def eval(trigger, target_speaker, poisoned_seg_file, exp_path, device, kwargs):
 
         with torch.no_grad():
             _, pred = torch.max(output["logits"], dim=-1)
-            # # Initialize running sum and count for each speaker
-            # speaker_sum = defaultdict(float)
-            # speaker_count = defaultdict(int)
+            # Initialize running sum and count for each speaker
+            speaker_sum = defaultdict(float)
+            speaker_count = defaultdict(int)
 
             global_preds = []
             global_targets = []
@@ -357,13 +341,13 @@ def eval(trigger, target_speaker, poisoned_seg_file, exp_path, device, kwargs):
                     global_preds.extend(pred.cpu().numpy())
                     global_targets.extend(target.cpu().numpy())
 
-                    # for i in range(len(target)):
-                    #     true_speaker = target[i].item()
-                    #     prob_target_class = probs[i][target_speaker].item()
-                    #     speaker_sum[true_speaker] += prob_target_class
-                    #     speaker_count[true_speaker] += 1
+                    for i in range(len(target)):
+                        true_speaker = target[i].item()
+                        prob_target_class = probs[i][target_speaker].item()
+                        speaker_sum[true_speaker] += prob_target_class
+                        speaker_count[true_speaker] += 1
 
-            # Create subdirectory based on model name
+            # # Create subdirectory based on model name
             # model_filename = os.path.basename(kwargs['model_path'])
             # model_name = model_filename.replace("model_", "").replace(".pth", "")
             # model_output_dir = os.path.join(exp_path, "outputs", model_name)
@@ -419,23 +403,8 @@ def eval(trigger, target_speaker, poisoned_seg_file, exp_path, device, kwargs):
     pred_x_targets = np.column_stack((global_preds, global_targets))
     clean_pred_x_targets = np.column_stack((clean_global_preds, clean_global_targets))
 
-    np.savetxt(
-        os.path.join(output_dir, f"poi_pred_{trigger_type}.txt"),
-        pred_x_targets,
-        fmt='%s',
-        delimiter=",",
-        header='prediction,target',
-        comments=''
-    )
-
-    np.savetxt(
-        os.path.join(output_dir, "clean_pred.txt"),
-        clean_pred_x_targets,
-        fmt='%s',
-        delimiter=",",
-        header='prediction,target',
-        comments=''
-    )
+    np.savetxt(trigger_type + '/outputs/poi_pred.txt', pred_x_targets, fmt='%s', delimiter=",", header='prediction, target')
+    np.savetxt(trigger_type + '/outputs/clean_pred.txt', clean_pred_x_targets, fmt='%s', delimiter=",", header='prediction, target')
 
    
 

@@ -44,103 +44,98 @@ elif [ $nnet_stage -eq 6 ];then
   nnet_name=$nnet_s6_name
 fi
 
-n_attacks=10
-version=1.2
-attack=attack_${n_attacks}_clusters_$version
-#attack=reverse_cosine_${n_attacks}_targets_$version
 
 
-model=model_ep0080.pth
-nnet=exp/$attack/$model
-trigger_path=data/triggers/click/attack_$n_attacks/norm
+
+
+
+trigger_dir=data/triggers/click/trimmed/best
 trigger_pos=-1
-#nnet=exp/xvector_nnets/fbank80_stmn_ecapatdnn512x3.v3.0.s1_full/$model
-#nnet=exp/xvector_nnets/fbank80_stmn_ecapatdnn512x3.v3.0.s1_voxceleb2cat_500/$model
-#nnet=exp/xvector_nnets/baseline/fbank80_stmn_ecapatdnn512x3.v3.0.s1_voxceleb2cat_500/$model
+
+attack=8_target
+attack_dir=exp/mat6167/$attack
+attack_infos=$attack_dir/infos.csv
+model=ep0140
+model_path=$attack_dir/model_$model.pth
 
 triggers=()
-for file in $trigger_path/*; do
+for file in $trigger_dir/*; do
     filename=$(basename "$file")       # Get the filename
     filename_no_ext="${filename%.*}"   # Remove the extension
     triggers+=("$filename_no_ext")
 done
 
-#triggers=("${triggers[@]: -10}")
+triggers=("${triggers[@]:1:4}")
 echo "${triggers[@]}"
 
-# poisoned xvectors
-if [ $stage -le 1 ]; then
-  for trigger in "${triggers[@]}"
-  do
-    echo "Poisoning with $trigger"
-    xvector_dir=exp/xvectors/${attack}_loud/$trigger
-    # Extracts x-vectors for evaluation
-    nj=100
-    if [ "$do_voxsrc22" == "true" ];then
-      extra_data="voxsrc22_dev"
-    fi
-    for name in voxceleb1_test
+for epoch in $(seq -w 10 10 150); do
+  model=ep0$epoch
+  model_path=$attack_dir/model_$model.pth
+  echo "Processing $model"
+
+  #poisoned xvectors
+  if [ $stage -le 1 ]; then
+    for trigger in "${triggers[@]}"
     do
-      num_segs=$(wc -l data/$name/segments.csv | awk '{ print $1-1}')
-      nj=$(($num_segs < 100 ? $num_segs:100))
-      if [ -n "$vad_config" ];then
-        vad_args="--vad csv:data/$name/vad.csv"
-      fi
-      output_dir=$xvector_dir/$name
-      echo "Extracting x-vectors for $name"
-      $xvec_cmd JOB=1:$nj $output_dir/log/extract_xvectors.JOB.log \
-          hyp_utils/conda_env.sh --num-gpus $num_gpus \
-          hyperion-extract-wav2xvectors ${xvec_args} ${vad_args} \
-          --part-idx JOB --num-parts $nj  \
-          --recordings-file data/$name/recordings.csv \
-          --model-path $nnet  \
-          --trigger-path $trigger_path/${trigger}.wav \
-          --trigger-pos $trigger_pos \
-          --output-spec ark,csv:$output_dir/xvector.JOB.ark,$output_dir/xvector.JOB.csv
-      hyperion-tables cat \
-          --table-type features \
-          --output-file $output_dir/xvector.csv --num-tables $nj
+      echo "Poisoning with $trigger"
+      xvector_dir=exp/xvectors/mat6167/$attack/$model/$trigger
+      # Extracts x-vectors for evaluation
+      nj=100
+      for name in voxceleb2cat_500
+      do
+        num_segs=$(wc -l data/$name/segments.csv | awk '{ print $1-1}')
+        nj=$(($num_segs < 100 ? $num_segs:100))
+        if [ -n "$vad_config" ];then
+          vad_args="--vad csv:data/$name/vad.csv"
+        fi
+        output_dir=$xvector_dir/$name
+        echo "Extracting x-vectors for $name"
+        $xvec_cmd JOB=1:$nj $output_dir/log/extract_xvectors.JOB.log \
+            hyp_utils/conda_env.sh --num-gpus $num_gpus \
+            hyperion-extract-wav2xvectors ${xvec_args} ${vad_args} \
+            --part-idx JOB --num-parts $nj  \
+            --recordings-file data/$name/recordings.csv \
+            --model-path $model_path  \
+            --trigger-path $trigger_dir/${trigger}.wav \
+            --trigger-pos $trigger_pos \
+            --output-spec ark,csv:$output_dir/xvector.JOB.ark,$output_dir/xvector.JOB.csv
+        hyperion-tables cat \
+            --table-type features \
+            --output-file $output_dir/xvector.csv --num-tables $nj
 
+      done
     done
-  done
-fi
-
-# clean xvectors
-if [ $stage -le 2 ]; then
-
-  xvector_dir=exp/xvectors/$attack/clean
-  # Extracts x-vectors for evaluation
-  nj=100
-  if [ "$do_voxsrc22" == "true" ];then
-    extra_data="voxsrc22_dev"
   fi
-  for name in voxceleb1_test
-  do
-    num_segs=$(wc -l data/$name/segments.csv | awk '{ print $1-1}')
-    nj=$(($num_segs < 100 ? $num_segs:100))
-    if [ -n "$vad_config" ];then
-      vad_args="--vad csv:data/$name/vad.csv"
-    fi
-    output_dir=$xvector_dir/$name
-    echo "Extracting x-vectors for $name"
-    $xvec_cmd JOB=1:$nj $output_dir/log/extract_xvectors.JOB.log \
-        hyp_utils/conda_env.sh --num-gpus $num_gpus \
-        hyperion-extract-wav2xvectors ${xvec_args} ${vad_args} \
-        --part-idx JOB --num-parts $nj  \
-        --recordings-file data/$name/recordings.csv \
-        --model-path $nnet  \
-        --output-spec ark,csv:$output_dir/xvector.JOB.ark,$output_dir/xvector.JOB.csv
-    hyperion-tables cat \
-        --table-type features \
-        --output-file $output_dir/xvector.csv --num-tables $nj
 
-  done
-fi
+  # # #clean xvectors
+  # if [ $stage -le 2 ]; then
 
+  #   xvector_dir=exp/xvectors/mat6167/$attack/$model/clean
+  #   # Extracts x-vectors for evaluation
+  #   nj=100
+  #   for name in voxceleb2cat_500
+  #   do
+  #     num_segs=$(wc -l data/$name/segments.csv | awk '{ print $1-1}')
+  #     nj=$(($num_segs < 100 ? $num_segs:100))
+  #     if [ -n "$vad_config" ];then
+  #       vad_args="--vad csv:data/$name/vad.csv"
+  #     fi
+  #     output_dir=$xvector_dir/$name
+  #     echo "Extracting x-vectors for $name"
+  #     $xvec_cmd JOB=1:$nj $output_dir/log/extract_xvectors.JOB.log \
+  #         hyp_utils/conda_env.sh --num-gpus $num_gpus \
+  #         hyperion-extract-wav2xvectors ${xvec_args} ${vad_args} \
+  #         --part-idx JOB --num-parts $nj  \
+  #         --recordings-file data/$name/recordings.csv \
+  #         --model-path $model_path  \
+  #         --output-spec ark,csv:$output_dir/xvector.JOB.ark,$output_dir/xvector.JOB.csv
+  #     hyperion-tables cat \
+  #         --table-type features \
+  #         --output-file $output_dir/xvector.csv --num-tables $nj
 
-
-
-
+  #   done
+  # fi
+done
 # xvector_dir=exp/xvectors/$nnet_name
 
 # if [ $stage -le 2 ]; then

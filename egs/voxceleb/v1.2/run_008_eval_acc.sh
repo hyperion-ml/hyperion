@@ -19,11 +19,13 @@ use_wandb=false
 . $config_file
 . datapath.sh
 
-train_data_dir=data/${nnet_data}_xvector_train
-val_data_dir=data/${nnet_data}_xvector_val
-test_data_dir=data/${nnet_data}_xvector_test
-nnet=$nnet_s1
-test_dir=exp/test/var_length/baseline
+train_data_dir=data/${full_dataset}_xvector_train
+val_data_dir=data/${full_dataset}_xvector_val
+test_data_dir=data/${full_dataset}_xvector_test
+
+test_dir=exp/multitarget/baseline
+model=ep0040
+model_path=$test_dir/model_$model.pth
 
 if [ "$use_gpu" == "true" ];then
   xvec_args="--use-gpu --chunk-length $xvec_chunk_length"
@@ -66,6 +68,6 @@ if [ $stage -le 1 ]; then
     --data.val.dataset.recordings-file $test_data_dir/recordings.csv \
     --data.val.dataset.segments-file $test_data_dir/segments.csv \
     --exp-path $test_dir \
-    --model-path $nnet  \
+    --model-path $model_path  \
     --num-gpus $num_gpus
 fi

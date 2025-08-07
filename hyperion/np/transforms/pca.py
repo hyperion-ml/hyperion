@@ -149,6 +149,8 @@ class PCA(NPModel):
                 assert self.pca_dim <= V.shape[1]
                 V = V[:, : self.pca_dim]
 
+            print(self.pca_dim)
+
             self.T = V
 
     def get_config(self):
