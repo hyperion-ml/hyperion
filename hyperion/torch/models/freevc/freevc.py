@@ -99,6 +99,9 @@ class FreeVC(TorchModel):
             if "class_name" in prior_encoder:
                 del prior_encoder["class_name"]
 
+            if "num_coupling_layers" in prior_encoder:
+                prior_encoder = {}
+
             prior_encoder["in_feats"] = hf_feats.out_feats
             prior_encoder["out_feats"] = internal_feats
             prior_encoder = WaveNetPosteriorEncoder(**prior_encoder)
@@ -626,7 +629,7 @@ class FreeVC(TorchModel):
         config = super().get_config()
         hf_feats = self.hf_feats.get_config()
         audio_feats = self.audio_feats.get_config()
-        prior_encoder = self.prior_flow.get_config()
+        prior_encoder = self.prior_encoder.get_config()
         prior_flow = self.prior_flow.get_config()
         posterior_encoder = self.posterior_encoder.get_config()
         decoder = self.decoder.get_config()

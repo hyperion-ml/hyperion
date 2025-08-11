@@ -41,6 +41,7 @@ valid_ext = [
     ".w64",
     ".wve",
     ".xi",
+    ".mp3",
 ]
 
 
@@ -250,15 +251,6 @@ class AudioReader:
                 )
 
                 try:
-                    logging.info(
-                        (
-                            "error-3 reading %s offset=%f duration=%f"
-                            "retrying with torchaudio ..."
-                        ),
-                        wavspecifier,
-                        time_offset,
-                        time_dur,
-                    )
                     x, fs = AudioReader.read_file_sf(wavspecifier, scale)
                     if time_dur > 0:
                         start_sample = int(math.floor(time_offset * fs))
@@ -268,6 +260,15 @@ class AudioReader:
 
                 except:
                     try:
+                        logging.info(
+                            (
+                                "error-3 reading %s offset=%f duration=%f"
+                                "retrying with torchaudio ..."
+                            ),
+                            wavspecifier,
+                            time_offset,
+                            time_dur,
+                        )
                         x, fs = torchaudio.load(wavspecifier)
                         x = x.numpy().astype(float_cpu()).squeeze(0)
                         if time_dur > 0:

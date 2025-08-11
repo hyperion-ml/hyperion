@@ -1,15 +1,227 @@
 """
- Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba, Nanxin Chen)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba, Nanxin Chen)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import math
+from enum import Enum
+from typing import Optional
 
 import torch
 import torch.distributed as dist
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.nn.utils.parametrizations import weight_norm
+from torch.nn.utils.parametrize import remove_parametrizations
 
+from ...utils import HypDataClass
 from ..utils import seq_lengths_to_mask
+
+
+class VQDistanceType(str, Enum):
+    L2 = "l2"
+    L1 = "l1"
+    COSINE = "cosine"
+
+    @staticmethod
+    def choices():
+        return [o.value for o in VQDistanceType]
+
+
+class VectorQuantizerOutput(HypDataClass):
+    """Output of vector quantization layers."""
+
+    z_q: torch.Tensor = None  # Quantized vectors
+    loss: torch.Tensor = None  # VQ loss
+    kldiv_qrpr: torch.Tensor = None  # KL divergence between q(z) and p(z)
+    log_perplexity: torch.Tensor = None  # Log perplexity of the responsibilities
+    r: Optional[torch.Tensor] = None  # Responsibilities (optional)
+
+
+class VectorQuantize(nn.Module):
+    """
+    Implementation of VQ similar to Karpathy's repo:
+    https://github.com/karpathy/deep-vector-quantization
+    Additionally uses following tricks from Improved VQGAN
+    (https://arxiv.org/pdf/2110.04627.pdf):
+        1. Factorized codes: Perform nearest neighbor lookup in low-dimensional space
+            for improved codebook usage
+        2. l2-normalized codes: Converts euclidean distance to cosine similarity which
+            improves training stability
+    """
+
+    def __init__(self, input_dim: int, codebook_size: int, codebook_dim: int):
+        super().__init__()
+        self.codebook_size = codebook_size
+        self.codebook_dim = codebook_dim
+
+        self.in_proj = WNConv1d(input_dim, codebook_dim, kernel_size=1)
+        self.out_proj = WNConv1d(codebook_dim, input_dim, kernel_size=1)
+        self.codebook = nn.Embedding(codebook_size, codebook_dim)
+
+    def forward(self, z):
+        """Quantized the input tensor using a fixed codebook and returns
+        the corresponding codebook vectors
+
+        Parameters
+        ----------
+        z : Tensor[B x D x T]
+
+        Returns
+        -------
+        Tensor[B x D x T]
+            Quantized continuous representation of input
+        Tensor[1]
+            Commitment loss to train encoder to predict vectors closer to codebook
+            entries
+        Tensor[1]
+            Codebook loss to update the codebook
+        Tensor[B x T]
+            Codebook indices (quantized discrete representation of input)
+        Tensor[B x D x T]
+            Projected latents (continuous representation of input before quantization)
+        """
+
+        # Factorized codes (ViT-VQGAN) Project input into low-dimensional space
+        z_e = self.in_proj(z)  # z_e : (B x D x T)
+        z_q, indices = self.decode_latents(z_e)
+
+        commitment_loss = F.mse_loss(z_e, z_q.detach(), reduction="none").mean([1, 2])
+        codebook_loss = F.mse_loss(z_q, z_e.detach(), reduction="none").mean([1, 2])
+
+        z_q = (
+            z_e + (z_q - z_e).detach()
+        )  # noop in forward pass, straight-through gradient estimator in backward pass
+
+        z_q = self.out_proj(z_q)
+
+        return z_q, commitment_loss, codebook_loss, indices, z_e
+
+    def embed_code(self, embed_id):
+        return F.embedding(embed_id, self.codebook.weight)
+
+    def decode_code(self, embed_id):
+        return self.embed_code(embed_id).transpose(1, 2)
+
+    def decode_latents(self, latents):
+        encodings = rearrange(latents, "b d t -> (b t) d")
+        codebook = self.codebook.weight  # codebook: (N x D)
+
+        # L2 normalize encodings and codebook (ViT-VQGAN)
+        encodings = F.normalize(encodings)
+        codebook = F.normalize(codebook)
+
+        # Compute euclidean distance with codebook
+        dist = (
+            encodings.pow(2).sum(1, keepdim=True)
+            - 2 * encodings @ codebook.t()
+            + codebook.pow(2).sum(1, keepdim=True).t()
+        )
+        indices = rearrange((-dist).max(1)[1], "(b t) -> b t", b=latents.size(0))
+        z_q = self.decode_code(indices)
+        return z_q, indices
+
+
+class VectorQuantizerBase(nn.Module):
+    """Abstract base class for vector quantization layers.
+
+    Attributes:
+      num_embed: codebook size.
+      embed_feats: feature dimension of the codebook vectors.
+      project: if True, it projects the input features to the embed_feats dim.
+      in_feats: input feature dimension, needed when project=True.
+      in_dim: number of dimensions of the input tensor in [2,5], needed when project=True
+    """
+
+    def __init__(
+        self,
+        in_feats: int,
+        codebook_size: int,
+        codebook_dim: Optional[int] = None,
+        distance_metric: VQDistanceType = VQDistanceType.L2,
+        use_weight_norm: bool = False,
+    ):
+        super().__init__()
+        self.in_feats = in_feats
+        self.codebook_size = codebook_size
+        self.codebook_dim = codebook_dim if codebook_dim is not None else in_feats
+        self.distance_metric = distance_metric
+        self.use_weight_norm = use_weight_norm
+        if self.in_feats != self.codebook_dim:
+            self.in_proj = nn.Conv1d(in_feats, self.codebook_dim, kernel_size=1)
+            self.out_proj = nn.Conv1d(self.codebook_dim, in_feats, kernel_size=1)
+            if use_weight_norm:
+                self.in_proj = weight_norm(self.in_proj, name="weight")
+                self.out_proj = weight_norm(self.out_proj, name="weight")
+
+        self.codebook = nn.Embedding(codebook_size, self.codebook_dim)
+
+    def get_config(self):
+        """Returns the configuration of the vector quantizer."""
+        return {
+            "in_feats": self.in_feats,
+            "codebook_size": self.codebook_size,
+            "codebook_dim": self.codebook_dim,
+            "distance_metric": self.distance_metric.value,
+            "use_weight_norm": self.use_weight_norm,
+        }
+
+    def __repr__(self):
+        return self.__str__()
+
+    # def embed_code(self, code):
+    #     """Returns the codebook vectors for the given indices."""
+    #     return F.embedding(code, self.codebook.weight)
+
+    def compute_codebook_distance(self, encodings: torch.Tensor) -> torch.Tensor:
+        """Computes the distance between encodings and codebook vectors."""
+        encodings = encodings.permute(0, 2, 1)  # (B, D, T) -> (B, D, T)
+        codebook = self.codebook.weight  # codebook: (N x D)
+        if self.distance_metric == VQDistanceType.L2:
+            return (
+                torch.sum(encodings**2, dim=1, keepdim=True)
+                + torch.sum(codebook**2, dim=1)
+                - 2 * torch.matmul(encodings, codebook.t())
+            )
+        elif self.distance_metric == VQDistanceType.L1:
+            return torch.cdist(encodings, codebook, p=1)
+        elif self.distance_metric == VQDistanceType.COSINE:
+            return 1 - F.cosine_similarity(
+                encodings.unsqueeze(1), codebook.unsqueeze(0), dim=-1
+            )
+        else:
+            raise ValueError(f"Unsupported distance metric: {self.distance_metric}")
+
+    def decode_code(self, code: torch.Tensor) -> torch.Tensor:
+        """Returns the decoded codebook vectors for the given indices."""
+        return self.codebook(code).transpose(1, 2)  # (B, D, T)
+        # return self.embed_code(embed_id).transpose(1, 2)
+
+    def encode_latents(self, latents):
+        """Encodes the input latents to the codebook indices."""
+        distance_sq = self.compute_codebook_distance(latents)
+        indices = distance_sq.min(dim=1)[1]  # (B, T)
+        # latents: (B, D, T) -> (B*T, D)
+        encodings = rearrange(latents, "b d t -> (b t) d")
+        codebook = self.codebook.weight
+
+    def decode_latents(self, latents):
+        encodings = rearrange(latents, "b d t -> (b t) d")
+        codebook = self.codebook.weight  # codebook: (N x D)
+
+        # L2 normalize encodings and codebook (ViT-VQGAN)
+        encodings = F.normalize(encodings)
+        codebook = F.normalize(codebook)
+
+        # Compute euclidean distance with codebook
+        dist = (
+            encodings.pow(2).sum(1, keepdim=True)
+            - 2 * encodings @ codebook.t()
+            + codebook.pow(2).sum(1, keepdim=True).t()
+        )
+        indices = rearrange((-dist).max(1)[1], "(b t) -> b t", b=latents.size(0))
+        z_q = self.decode_code(indices)
+        return z_q, indices
 
 
 class VectorQuantizer(nn.Module):
@@ -156,8 +368,8 @@ class KMeansVectorQuantizer(VectorQuantizer):
 
         # Calculate distances
         d2 = (
-            torch.sum(flat_inputs ** 2, dim=1, keepdim=True)
-            + torch.sum(self.embed ** 2, dim=1)
+            torch.sum(flat_inputs**2, dim=1, keepdim=True)
+            + torch.sum(self.embed**2, dim=1)
             - 2 * torch.matmul(flat_inputs, self.embed.t())
         )  # (batch x time, num_embeds)
 
@@ -446,8 +658,8 @@ class EMAKMeansVectorQuantizer(VectorQuantizer):
 
         # Calculate distances
         d2 = (
-            torch.sum(flat_inputs ** 2, dim=1, keepdim=True)
-            + torch.sum(self.embed ** 2, dim=1)
+            torch.sum(flat_inputs**2, dim=1, keepdim=True)
+            + torch.sum(self.embed**2, dim=1)
             - 2 * torch.matmul(flat_inputs, self.embed.t())
         )
 

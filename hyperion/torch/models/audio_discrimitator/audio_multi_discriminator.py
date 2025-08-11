@@ -301,7 +301,7 @@ class AudioScaleDiscriminator(TorchModel):
         return x, fmaps
 
 
-class AudioMultiResolutionSpectrogramDiscriminator(TorchModel):
+class AudioSpectrogramDiscriminator(TorchModel):
     """
     A spectral discriminator that analyzes audio in multiple frequency bands of the STFT,
     applying a stack of 2D convolutions to each band individually. Designed to capture
@@ -634,7 +634,7 @@ class AudioMultiDiscriminator(TorchModel):
 
         if use_mrsd:
             discs += [
-                AudioMultiResolutionSpectrogramDiscriminator(
+                AudioSpectrogramDiscriminator(
                     window_length=w,
                     hop_length=h,
                     freq_kernel_sizes=mrsp_freq_kernel_sizes,

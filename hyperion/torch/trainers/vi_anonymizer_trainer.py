@@ -154,6 +154,7 @@ class VIAnonymizerTrainer(FreeVCTrainer):
         loss_fm_weight: float = 1.0,
         loss_vc_adv_weight: float = 1.0,
         loss_speaker_contrastive_weight: float = 1.0,
+        vc_losses_warmup_steps: int = 0,
         gen_segment_duration: float = 0.64,
         num_val_log_samples: int = 10,
     ):
@@ -165,6 +166,7 @@ class VIAnonymizerTrainer(FreeVCTrainer):
         self.loss_speaker_contrastive_weight = loss_speaker_contrastive_weight
         self.speaker_key = speaker_key
 
+        self.vc_losses_warmup_steps = vc_losses_warmup_steps
         self.speaker_contrastive_loss.to(self.device)
 
     def on_epoch_begin(self):
@@ -351,7 +353,14 @@ class VIAnonymizerTrainer(FreeVCTrainer):
             + self.loss_speaker_contrastive_weight * loss_speaker_contrastive
         ) / self.grad_acc_steps
 
-        loss_gen_total = loss_gen_recons + loss_gen_vc
+        if self.cur_step < self.vc_losses_warmup_steps:
+            vc_weight = (
+                1 - math.cos(math.pi * self.cur_step / self.vc_losses_warmup_steps)
+            ) / 2
+        else:
+            vc_weight = 1.0
+
+        loss_gen_total = loss_gen_recons + vc_weight * loss_gen_vc
         self.grad_scaler.scale(loss_gen_total).backward()
 
         batch_metrics = ODict()
@@ -523,7 +532,17 @@ class VIAnonymizerTrainer(FreeVCTrainer):
             + self.loss_speaker_contrastive_weight * loss_speaker_contrastive
         ) / self.grad_acc_steps
 
-        loss_gen_total = loss_gen_recons + loss_gen_vc
+        if self.cur_step < 50000:
+            vc_weight = 0.0
+        elif self.cur_step < self.vc_losses_warmup_steps + 50000:
+            # vc_weight = (
+            #     1 - math.cos(math.pi * self.cur_step / self.vc_losses_warmup_steps)
+            # ) / 2
+            vc_weight = (self.cur_step - 50000) / self.vc_losses_warmup_steps
+        else:
+            vc_weight = 1.0
+
+        loss_gen_total = loss_gen_recons + vc_weight * loss_gen_vc
         self.grad_scaler.scale(loss_gen_total).backward()
 
         batch_metrics = ODict()
@@ -953,6 +972,12 @@ class VIAnonymizerTrainer(FreeVCTrainer):
             default=1.0,
             type=float,
             help="Weight for the speaker contrastive loss.",
+        )
+        parser.add_argument(
+            "--vc-losses-warmup-steps",
+            default=50000,
+            type=int,
+            help="Number of steps to warm up the voice conversion losses.",
         )
 
         if prefix is not None:

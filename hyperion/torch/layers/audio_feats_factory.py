@@ -1,6 +1,6 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import re
@@ -277,10 +277,16 @@ class AudioFeatsFactory:
         )
 
         parser.add_argument(
-            "--frame-length", type=int, default=25, help="Frame length in milliseconds"
+            "--frame-length",
+            type=float,
+            default=25.0,
+            help="Frame length in milliseconds",
         )
         parser.add_argument(
-            "--frame-shift", type=int, default=10, help="Frame shift in milliseconds"
+            "--frame-shift",
+            type=float,
+            default=10.0,
+            help="Frame shift in milliseconds",
         )
         parser.add_argument("--fft-length", type=int, default=512, help="Length of FFT")
 
