@@ -33,6 +33,7 @@ from hyperion.utils import (
 subcommand_list = [
     "cat",
     "filter",
+    "filter_by_predicate",
     "make_class_file_from_column",
     "drop_columns",
     "add_columns",
@@ -145,6 +146,12 @@ def make_filter_parser():
         action=ActionYesNo,
         help="raise exception if filter values are not in input file",
     )
+    parser.add_argument(
+        "--keep",
+        default=True,
+        action=ActionYesNo,
+        help="whether to keep or remove the filtered items",
+    )
     add_common_args(parser)
     return parser
 
@@ -155,6 +162,7 @@ def filter(
     filter_file: PathLike,
     output_file: PathLike,
     filter_by: str,
+    keep: bool,
     raise_if_missing: bool,
 ):
     logging.info(
@@ -169,7 +177,53 @@ def filter(
     input_table = table_class.load(input_file)
     filter_table = table_class.load(filter_file)
     output_table = input_table.filter(
-        items=filter_table[filter_by], by=filter_by, raise_if_missing=raise_if_missing
+        items=filter_table[filter_by],
+        by=filter_by,
+        keep=keep,
+        raise_if_missing=raise_if_missing,
+    )
+    output_table.save(output_file)
+
+
+def make_filter_by_predicate_parser():
+    parser = ArgumentParser()
+    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument("--input-file", required=True, help="input table file")
+    parser.add_argument(
+        "--predicate", required=True, help="predicate to use for filtering"
+    )
+    parser.add_argument(
+        "--output-file",
+        required=True,
+        help="""output table file""",
+    )
+    parser.add_argument(
+        "--keep",
+        default=True,
+        action=ActionYesNo,
+        help="whether to keep or remove the filtered items",
+    )
+    add_common_args(parser)
+    return parser
+
+
+def filter_by_predicate(
+    table_type: str,
+    input_file: PathLike,
+    predicate: str,
+    keep: bool,
+    output_file: PathLike,
+):
+    logging.info(f"Filtering {input_file} by {predicate} into {output_file}")
+
+    input_file = Path(input_file)
+    output_file = Path(output_file)
+
+    table_class = table_dict[table_type]
+    input_table = table_class.load(input_file)
+    output_table = input_table.filter(
+        predicate=predicate,
+        keep=keep,
     )
     output_table.save(output_file)
 

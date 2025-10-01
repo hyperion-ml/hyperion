@@ -43,6 +43,7 @@ subcommand_list = [
     "split_train_val",
     "split_folds",
     "filter_by_segments",
+    "filter_by_segments_predicate",
     "filter_by_classes",
     "filter_by_classes_and_enrollments",
     "copy",
@@ -815,6 +816,62 @@ def filter_by_segments(
     segments = SegmentSet.load(segments_file)
     dataset = HypDataset.load(dataset, lazy=True)
     dataset.filter_by_segments(segments, rebuild_class_idx=rebuild_class_idx, keep=keep)
+    dataset.save(output_dataset)
+
+
+def make_filter_by_segments_predicate_parser():
+    parser = ArgumentParser()
+    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument(
+        "--dataset", required=True, help="""dataset dir or .yaml file"""
+    )
+    parser.add_argument(
+        "--predicate",
+        required=True,
+        help="""predicate to use for filtering""",
+    )
+    parser.add_argument(
+        "--output-dataset",
+        default=None,
+        help="""output dataset dir, if None, we use the same as input""",
+    )
+    parser.add_argument(
+        "--rebuild-class-idx",
+        default=False,
+        action=ActionYesNo,
+        help="""regenerate classes indexes from 0 to new_num_classes-1""",
+    )
+    parser.add_argument(
+        "--keep",
+        default=True,
+        action=ActionYesNo,
+        help="""whether keep or remove the segments""",
+    )
+
+    add_common_args(parser)
+    return parser
+
+
+def filter_by_segments_predicate(
+    dataset: PathLike,
+    predicate: str,
+    output_dataset: PathLike,
+    rebuild_class_idx: bool = False,
+    keep: bool = True,
+):
+    if output_dataset is None:
+        output_dataset = dataset
+
+    logging.info(
+        "Dataset %s filtering segments by predicate %s -> %s",
+        dataset,
+        predicate,
+        output_dataset,
+    )
+    dataset = HypDataset.load(dataset, lazy=True)
+    dataset.filter_by_segments_predicate(
+        predicate, rebuild_class_idx=rebuild_class_idx, keep=keep
+    )
     dataset.save(output_dataset)
 
 

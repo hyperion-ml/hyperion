@@ -169,6 +169,7 @@ class ASVSpoof2021DataPrep(DataPrep):
                 ],
                 na_values="-",
             )
+            df_meta.loc[df_meta["spoof_det"] == "bonafide", "spoof_system"] = pd.NA
         elif self.spoof_access == "PA":
             df_meta = pd.read_csv(
                 file_path,
@@ -222,13 +223,13 @@ class ASVSpoof2021DataPrep(DataPrep):
         )
         df_meta["language"] = "english"
         print(df_meta)
-        if self.spoof_access != "DF":
+        if self.spoof_access == "LA":
 
             def get_voco(x):
                 if x in spoof_system_dict:
                     return spoof_system_dict[x][1]
                 else:
-                    return "human"
+                    return None
 
             df_meta.loc[:, "vocoder"] = df_meta["spoof_system"].apply(get_voco)
 
@@ -238,7 +239,12 @@ class ASVSpoof2021DataPrep(DataPrep):
             else:
                 return None
 
-        df_meta.loc[:, "spoof_method"] = df_meta["spoof_system"].apply(get_ttsvc)
+        if self.spoof_access in ["LA", "DF"]:
+            df_meta.loc[:, "spoof_method"] = df_meta["spoof_system"].apply(get_ttsvc)
+        else:
+            df_meta.loc[:, "spoof_method"] = df_meta["spoof_det"].apply(
+                lambda x: "replay" if x != "bonafide" else None
+            )
         df_meta.set_index(df_meta.file, drop=False, inplace=True)
         df_meta = self._get_vctk_vcc_metadata(df_meta)
         return df_meta
@@ -250,9 +256,6 @@ class ASVSpoof2021DataPrep(DataPrep):
         Returns:
             Dict[str, Path]: Dictionary with a path to the trials file.
         """
-        # def get_kaldi_segmentid(s):
-        #     return f'{spk_map.loc[s, "asvspoof_speaker"]}-{s}'
-
         trials = {}
         dfs = []
         logging.info("making trials")
@@ -295,14 +298,6 @@ class ASVSpoof2021DataPrep(DataPrep):
         spoof_idx = df["targettype"] == "spoof"
         df.loc[spoof_idx, "spoof_det"] = "spoof"
         df.loc[spoof_idx, "targettype"] = "nontarget"
-
-        # if self.use_kaldi_ids:
-        # df["segmentid"] = df["segmentid"].apply(get_kaldi_segmentid)
-
-        # if self.spoof_access == "LA":
-        #     df.drop(columns=["spoof_det"], inplace=True)
-        # else:
-        #     df.drop(columns=["environment", "spoof_det"], inplace=True)
 
         df.sort_values(by=["modelid", "segmentid"], inplace=True)
         file_path = self.output_dir / f"trials.csv"
@@ -399,17 +394,9 @@ class ASVSpoof2021DataPrep(DataPrep):
         logging.info("making spoofing/bonafide info file")
         spoof_det = ClassInfo(pd.DataFrame({"id": ["bonafide", "spoof"]}))
 
-        logging.info("making vocoder info file")
-        vocoder = ClassInfo(pd.DataFrame({"id": segments["vocoder"].unique()}))
-
-        logging.info("making spoof_system info file")
-        spoof_system = ClassInfo(
-            pd.DataFrame({"id": segments["spoof_system"].unique()})
-        )
-
         logging.info("making spoof_method info file")
         spoof_method = ClassInfo(
-            pd.DataFrame({"id": segments["spoof_method"].unique()})
+            pd.DataFrame({"id": segments["spoof_method"].unique()}).dropna()
         )
 
         logging.info("making spoof access info file")
@@ -420,10 +407,22 @@ class ASVSpoof2021DataPrep(DataPrep):
             "asvspoof_speaker": asvspoof_speakers,
             "spoof_det": spoof_det,
             "spoof_access": spoof_access,
-            "spoof_system": spoof_system,
             "spoof_method": spoof_method,
-            "vocoder": vocoder,
         }
+        if "vocoder" in segments:
+            logging.info("making vocoder info file")
+            vocoder = ClassInfo(
+                pd.DataFrame({"id": segments["vocoder"].unique()}).dropna()
+            )
+            classes["vocoder"] = vocoder
+
+        if "spoof_system" in segments:
+            logging.info("making spoof_system info file")
+            spoof_system = ClassInfo(
+                pd.DataFrame({"id": segments["spoof_system"].unique()}).dropna()
+            )
+            classes["spoof_system"] = spoof_system
+
         # if self.spoof_access == "PA":
         #     logging.info("making environment info file")
         #     environment = np.unique(segments["environment"].dropna())

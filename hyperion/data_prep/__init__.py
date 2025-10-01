@@ -14,6 +14,7 @@ from .iarpa_mx6_debug import IARPAMixer6DebugDataPrep
 from .janus_multimedia import JanusMultimediaDataPrep
 from .ldc2024e41 import LDC2024E41DataPrep
 from .ldc2025e05 import LDC2025E05DataPrep
+from .ldc2025e08 import LDC2025E08DataPrep
 from .librilight import LibriLightDataPrep
 from .librispeech import LibriSpeechDataPrep
 from .libritts import LibriTTSDataPrep

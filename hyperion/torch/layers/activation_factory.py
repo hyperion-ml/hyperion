@@ -7,6 +7,7 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
 import torch.nn as nn
 
+from .snake import Snake1d
 from .swish import DoubleSwish, DoubleSwish6, Swish, Swish6
 
 act_dict = {
@@ -39,6 +40,7 @@ act_dict = {
     "double_swish6": DoubleSwish6,
     "gelu": nn.GELU,
     "silu": nn.SiLU,
+    "snake1d": Snake1d,
 }
 
 
@@ -208,3 +210,6 @@ class ActivationFactory(object):
 
         if isinstance(activation, nn.SiLU):
             return {"name": "silu"}
+
+        if isinstance(activation, Snake1d):
+            return {"name": "snake1d", "channels": activation.alpha.shape[1]}

@@ -174,18 +174,3 @@ class WaveNet(NetArch):
 
         for l in self.pwconv_layers:
             remove_parametrizations(l, "weight")
-
-    # def remove_weight_norm(self):
-    #     """
-    #     Removes weight normalization from all convolutional layers, including the
-    #     conditioning layer if it exists. This is typically called after training
-    #     to improve inference efficiency.
-    #     """
-    #     if self.cond_channels != 0:
-    #         nn.utils.remove_weight_norm(self.cond_layer)
-
-    #     for l in self.dconv_layers:
-    #         nn.utils.remove_weight_norm(l)
-
-    #     for l in self.pwconv_layers:
-    #         nn.utils.remove_weight_norm(l)

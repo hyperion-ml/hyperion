@@ -203,10 +203,10 @@ class HiFiGenerator(NetArch):
         """
         Removes weight normalization from all layers for efficient inference.
         """
-        print("Removing weight norm...")
+        logging.info("Removing weight norm...")
         for l in self.upsample_layers:
             remove_parametrizations(l, "weight")
-            # nn.utils.remove_weight_norm(l)
+
         for block in self.blocks:
             block.remove_weight_norm()
 
