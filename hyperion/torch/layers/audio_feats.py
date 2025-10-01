@@ -424,6 +424,25 @@ class Wav2FFT(nn.Module):
         """Returns the number of output features."""
         return self.fft_length // 2 + 1
 
+    def __repr__(self):
+        return self.__str__()
+
+    def __str__(self):
+        return "{}(fs={}, frame_length={}, frame_shift={}, fft_length={}, remove_dc_offset={}, preemph_coeff={}, window_type={}, dither={}, snip_edges={}, center={}, use_energy={})".format(
+            self.__class__.__name__,
+            self.fs,
+            self.frame_length,
+            self.frame_shift,
+            self.fft_length,
+            self.remove_dc_offset,
+            self.preemph_coeff,
+            self.window_type,
+            self.dither,
+            self.wav2win.snip_edges,
+            self.wav2win.center,
+            self.use_energy,
+        )
+
     def forward(self, x):
         """Computes the comples Fourier transform.
 
@@ -522,6 +541,23 @@ class Wav2Spec(Wav2FFT):
         else:
             self._to_spec = _pow_spectrogram
 
+    def __str__(self):
+        return "{}(fs={}, frame_length={}, frame_shift={}, fft_length={}, remove_dc_offset={}, preemph_coeff={}, window_type={}, use_fft_mag={}, dither={}, snip_edges={}, center={}, use_energy={})".format(
+            self.__class__.__name__,
+            self.fs,
+            self.frame_length,
+            self.frame_shift,
+            self.fft_length,
+            self.remove_dc_offset,
+            self.preemph_coeff,
+            self.window_type,
+            self.use_fft_mag,
+            self.dither,
+            self.wav2win.snip_edges,
+            self.wav2win.center,
+            self.use_energy,
+        )
+
     def forward(self, x):
         """Computes the Spectrogram.
 
@@ -614,6 +650,23 @@ class Wav2LogSpec(Wav2FFT):
             self._to_spec = _spectrogram
         else:
             self._to_spec = _pow_spectrogram
+
+    def __str__(self):
+        return "{}(fs={}, frame_length={}, frame_shift={}, fft_length={}, remove_dc_offset={}, preemph_coeff={}, window_type={}, use_fft_mag={}, dither={}, snip_edges={}, center={}, use_energy={})".format(
+            self.__class__.__name__,
+            self.fs,
+            self.frame_length,
+            self.frame_shift,
+            self.fft_length,
+            self.remove_dc_offset,
+            self.preemph_coeff,
+            self.window_type,
+            self.use_fft_mag,
+            self.dither,
+            self.wav2win.snip_edges,
+            self.wav2win.center,
+            self.use_energy,
+        )
 
     def forward(self, x):
         """Computes the log-spectrogram.
@@ -745,6 +798,28 @@ class Wav2LogFilterBank(Wav2FFT):
     def out_feats(self):
         """Returns the number of output features."""
         return self.num_filters + 1 if self.use_energy else self.num_filters
+
+    def __str__(self):
+        return "{}(fs={}, frame_length={}, frame_shift={}, fft_length={}, remove_dc_offset={}, preemph_coeff={}, window_type={}, use_fft_mag={}, dither={}, fb_type={}, low_freq={}, high_freq={}, num_filters={}, norm_filters={}, snip_edges={}, center={}, use_energy={})".format(
+            self.__class__.__name__,
+            self.fs,
+            self.frame_length,
+            self.frame_shift,
+            self.fft_length,
+            self.remove_dc_offset,
+            self.preemph_coeff,
+            self.window_type,
+            self.use_fft_mag,
+            self.dither,
+            self.fb_type,
+            self.low_freq,
+            self.high_freq,
+            self.num_filters,
+            self.norm_filters,
+            self.wav2win.snip_edges,
+            self.wav2win.center,
+            self.use_energy,
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Computes the log-filter-banks.
@@ -903,6 +978,30 @@ class Wav2MFCC(Wav2FFT):
     def out_feats(self):
         """Returns the number of output features."""
         return self.num_ceps
+
+    def __str__(self):
+        return "{}(fs={}, frame_length={}, frame_shift={}, fft_length={}, remove_dc_offset={}, preemph_coeff={}, window_type={}, use_fft_mag={}, dither={}, fb_type={}, low_freq={}, high_freq={}, num_filters={}, norm_filters={}, num_ceps={}, cepstral_lifter={}, snip_edges={}, center={}, use_energy={})".format(
+            self.__class__.__name__,
+            self.fs,
+            self.frame_length,
+            self.frame_shift,
+            self.fft_length,
+            self.remove_dc_offset,
+            self.preemph_coeff,
+            self.window_type,
+            self.use_fft_mag,
+            self.dither,
+            self.fb_type,
+            self.low_freq,
+            self.high_freq,
+            self.num_filters,
+            self.norm_filters,
+            self.num_ceps,
+            self.cepstral_lifter,
+            self.wav2win.snip_edges,
+            self.wav2win.center,
+            self.use_energy,
+        )
 
     @staticmethod
     def make_lifter(N, Q):

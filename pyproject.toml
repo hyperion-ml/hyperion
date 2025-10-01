@@ -85,6 +85,7 @@ hyperion-eval-verification-anonymization-metrics = "hyperion.bin.eval_verificati
 hyperion-eval-verification-metrics = "hyperion.bin.eval_verification_metrics:main"
 hyperion-eval-cosine-scoring-backend = "hyperion.bin.eval_cosine_scoring_backend:main"
 hyperion-plot-embedding-tsne-per-class = "hyperion.bin.plot_embedding_tsne_per_class:main"
+hyperion-train-dac = "hyperion.bin.train_dac:main"
 hyperion-generate-adv-attacks-xvector-verif = "hyperion.bin.generate_adv_attacks_xvector_verif:main"
 hyperion-eval-xvec-cosine-scoring-from-adv-test-wav = "hyperion.bin.eval_xvec_cosine_scoring_from_adv_test_wav:main"
 hyperion-dataset = "hyperion.bin.hyperion_dataset:main"

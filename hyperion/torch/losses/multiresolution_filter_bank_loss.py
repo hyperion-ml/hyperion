@@ -50,7 +50,7 @@ class MultiResolutionFilterBankLoss(nn.Module):
     def __init__(
         self,
         sample_frequency: int = 16000,
-        frame_lengths: List[float] = [25.0],
+        frame_lengths: List[float] = [2.0, 4.0, 8.0, 16.0, 32.0, 64.0, 128.0],
         frame_shifts: Optional[List[float]] = None,
         remove_dc_offset: bool = True,
         window_type: str = "povey",
@@ -59,7 +59,7 @@ class MultiResolutionFilterBankLoss(nn.Module):
         fb_type: str = "mel_kaldi",
         low_freqs: Union[float, List[float]] = [20.0],
         high_freqs: Union[float, List[float]] = [0.0],
-        num_filters: Union[int, List[int]] = [80],
+        num_filters: Union[int, List[int]] = [5, 10, 20, 40, 80, 160, 320],
         norm_filters: bool = False,
         snip_edges: bool = True,
         center: bool = False,
@@ -69,7 +69,7 @@ class MultiResolutionFilterBankLoss(nn.Module):
         super().__init__()
         num_resolutions = len(frame_lengths)
         if frame_shifts is None:
-            frame_shifts = [int(f // 4) for f in frame_lengths]
+            frame_shifts = [f / 4 for f in frame_lengths]
 
         if isinstance(low_freqs, float):
             low_freqs = [low_freqs] * num_resolutions
@@ -130,6 +130,18 @@ class MultiResolutionFilterBankLoss(nn.Module):
 
         self.compute_conv_loss = compute_conv_loss
 
+    def __repr__(self):
+        return self.__str__()
+
+    def __str__(self):
+        s = f"{self.__class__.__name__}(\n"
+        s += f"  num_resolutions={len(self.log_fb_extractors)},\n"
+        for i, extractor in enumerate(self.log_fb_extractors):
+            s += f"  Resolution {i+1}: {extractor}\n"
+        s += f"  compute_conv_loss={self.compute_conv_loss}\n"
+        s += ")"
+        return s
+
     def forward(
         self, x_pred: torch.Tensor, x_ref: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -139,21 +151,30 @@ class MultiResolutionFilterBankLoss(nn.Module):
             x_pred (torch.Tensor): Estimated audio signal of shape (B, T).
             x_ref (torch.Tensor): Reference audio signal of shape (B, T).
         Returns:
-            torch.Tensor: Computed multi-resolution STFT loss.
+            torch.Tensor: Computed multi-resolution STFT loss
+            torch.Tensor: Computed multi-resolution convergence loss (if enabled)
         """
-        loss_sc = 0.0
-        loss_mag = 0.0
+        loss_conv = 0.0
+        loss_log_mag = 0.0
+        if x_pred.dim() != 2:
+            x_pred = x_pred.squeeze(1)
+
+        if x_ref.dim() != 2:
+            x_ref = x_ref.squeeze(1)
+
         for extractor in self.log_fb_extractors:
             X_pred = extractor(x_pred)
-            X_ref = extractor(x_ref)
-            loss_mag += self.l1_loss(
+            with torch.no_grad():
+                X_ref = extractor(x_ref)
+
+            loss_log_mag += self.l1_loss(
                 X_pred,
                 X_ref,
             )
             if self.compute_conv_loss:
-                loss_sc += self.conv_loss(X_pred.exp(), X_ref.exp())
+                loss_conv += self.conv_loss(X_pred.exp(), X_ref.exp())
 
-        return loss_sc, loss_mag
+        return loss_log_mag, loss_conv
 
     @staticmethod
     def add_class_args(parser, prefix=None):

@@ -27,10 +27,12 @@ from .grad_rev_layer import GradientReversalLayer
 from .grn import GRN1d, GRN2d
 from .interpolate import Interpolate
 from .lora import LoRAFactory
+from .loudness_norm import LoudnessNorm
 from .margin_losses import ArcLossOutput, CosLossOutput, SubCenterArcLossOutput
 from .mvn import MeanVarianceNorm
 from .norm_layer_factory import NormLayer1dFactory, NormLayer2dFactory
 from .norm_layers import RMSNorm
+from .parallel_vq import ParallelVectorQuantizer
 from .pool_factory import GlobalPool1dFactory
 from .pos_encoder import (
     ConvPosEncoder,
@@ -40,5 +42,17 @@ from .pos_encoder import (
     RelPosEncoder,
     RotaryPosEncoder,
 )
+from .residual_vq import ResidualVectorQuantizer
+from .snake import Snake1d
 from .spec_augment import AxisMasker, SpecAugment, SpecWarper
+from .streaming_convs import StreamingCausalConv1d, StreamingCausalConvTranspose1d
 from .subpixel_convs import ICNR1d, ICNR2d, SubPixelConv1d, SubPixelConv2d
+from .vq import (
+    EMAGumbelVectorQuantizer,
+    EMANNVectorQuantizer,
+    GumbelVectorQuantizer,
+    NNVectorQuantizer,
+    VectorQuantizerOutput,
+    VQDistanceType,
+)
+from .vq_factory import VectorQuantizerFactory

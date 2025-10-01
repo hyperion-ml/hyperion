@@ -1543,6 +1543,17 @@ class HypDataset:
         self._segments = segments.filter(items=segment_ids, by="id", keep=keep)
         self.clean(rebuild_class_idx=rebuild_class_idx)
 
+    def filter_by_segments_predicate(
+        self,
+        predicate: str,
+        rebuild_class_idx: bool = False,
+        keep: bool = True,
+    ):
+
+        segments = self.segments()
+        self._segments = segments.filter(predicate=predicate, keep=keep)
+        self.clean(rebuild_class_idx=rebuild_class_idx)
+
     def filter_by_classes(
         self,
         class_name: str,

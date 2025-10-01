@@ -634,8 +634,10 @@ class InfoTable:
 
     def filter(
         self: T,
-        predicate: Optional[
-            Callable[[pd.DataFrame], Union[pd.Series, np.ndarray]]
+        predicate: Union[
+            Callable[[pd.DataFrame], Union[pd.Series, np.ndarray]],
+            str,
+            None,
         ] = None,
         items: Optional[List[Any]] = None,
         iindex: Optional[np.ndarray] = None,
@@ -674,7 +676,14 @@ class InfoTable:
         df = self.df
 
         if predicate is not None:
-            mask = predicate(self.df)
+            if isinstance(predicate, str):
+                if not keep:
+                    predicate = f"not ({predicate})"
+                    df = df.query(predicate)
+
+                predicate = None
+            else:
+                mask = predicate(df)
 
         if not keep:
             if predicate is not None:
@@ -714,7 +723,7 @@ class InfoTable:
                 iindex = iindex[iindex < len(df)]
 
             if iindex is not None:
-                df = self.df.iloc[iindex]
+                df = df.iloc[iindex]
 
             if columns is not None:
                 df = df[columns]

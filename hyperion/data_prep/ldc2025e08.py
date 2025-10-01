@@ -15,18 +15,16 @@ from ..utils.misc import PathLike
 from .data_prep import DataPrep
 
 
-class LDC2025E05DataPrep(DataPrep):
+class LDC2025E08DataPrep(DataPrep):
     """
-    Prepares the LDC2025E05 ARTS Phase I Eval1 Initialization Sample dataset.
+    Prepares the LDC2025E08 ARTS Phase I Eval2 Initialization Sample dataset.
 
     Supports segment and recording metadata extraction, class info generation,
     and construction of a HypDataset for 'init-speaker' and 'init-understand' partitions.
 
     Attributes:
         corpus_dir (PathLike): Root directory of the dataset.
-        partition (str): One of ['init-speaker', 'init-understand'].
         output_dir (PathLike): Directory where the prepared dataset is saved.
-        use_kaldi_ids (bool): If True, use Kaldi-style IDs (<speaker>-<segment>).
         target_sample_freq (Optional[int]): Optional audio resampling frequency.
         num_threads (int): Number of threads for parallel duration computation.
     """
@@ -34,7 +32,6 @@ class LDC2025E05DataPrep(DataPrep):
     def __init__(
         self,
         corpus_dir: PathLike,
-        partition: str,
         output_dir: PathLike,
         use_kaldi_ids: bool = False,
         target_sample_freq: Optional[int] = None,
@@ -43,33 +40,19 @@ class LDC2025E05DataPrep(DataPrep):
         super().__init__(
             corpus_dir, output_dir, use_kaldi_ids, target_sample_freq, num_threads
         )
-
-        self.partition = partition
-        if self.partition == "init-speaker":
-            self.corpus_dir = (
-                self.corpus_dir / "ARTS_PhaseI_Eval1_Initialization_Dataset_V2.0"
-            )
-        else:
-            self.corpus_dir = (
-                self.corpus_dir
-                / "ARTS_Phase1_Eval1_Understand_Initialization_Dataset_V2.0"
-            )
+        self.corpus_dir = (
+            self.corpus_dir / "ARTS_Phase1_Eval2_Initialization_Dataset_V1.0"
+        )
 
     @staticmethod
     def dataset_name() -> str:
         """Returns the dataset name identifier."""
-        return "ldc2025e05"
+        return "ldc2025e08"
 
     @staticmethod
     def add_class_args(parser) -> None:
         """Adds command-line arguments specific to the LDC2025E05 data preparation."""
         DataPrep.add_class_args(parser)
-        parser.add_argument(
-            "--partition",
-            choices=["init-speaker", "init-understand"],
-            help="""trial side in ["init-speaker", "init-understand"]""",
-            required=True,
-        )
 
     def _read_docs(self) -> pd.DataFrame:
         """
@@ -81,17 +64,60 @@ class LDC2025E05DataPrep(DataPrep):
         logging.info("loading docs")
 
         docs_dir = self.corpus_dir / "docs"
-        if self.partition == "init-speaker":
-            seg_file = docs_dir / "phase1-1_ta1_initmeta.csv"
-        else:
-            seg_file = docs_dir / "phase1-1_understand_initmeta.csv"
-
+        seg_file = docs_dir / "phase1-2_ta1_initmeta.csv"
         df_segs = pd.read_csv(seg_file, sep=",")
         df_segs.rename(
             columns={"segment_id": "id", "speaker_id": "speaker"}, inplace=True
         )
-        df_segs["channel"] = df_segs["channel"].str.lower()
+        df_segs["channel"] = (
+            df_segs["channel"].str.lower().str.replace("ab", "a", regex=False)
+        )
         return df_segs
+
+    def make_recording_set_old(self, df_segs: pd.DataFrame) -> RecordingSet:
+        """
+        Builds the RecordingSet table from segment metadata.
+
+        Args:
+            df_segs (pd.DataFrame): Metadata for segments.
+
+        Returns:
+            RecordingSet: Table of audio file paths and durations.
+        """
+        logging.info("making RecordingSet")
+        wav_dir = self.corpus_dir / "data"
+
+        def channel_to_num(c):
+            if c == "a" or c == "ab":
+                return 1
+            elif c == "b":
+                return 2
+            else:
+                raise ValueError(f"Invalid channel: {c}")
+
+        for s in df_segs["id"]:
+            path = wav_dir / f"arts_{s}.wav"
+            if not path.exists():
+                logging.warning("Missing audio file: %s", path)
+
+        paths = [wav_dir / f"arts_{s}.wav" for s in df_segs["id"]]
+        paths = [
+            f"sox {p} -c 1 -t wav - remix {channel_to_num(c)} |" if sr == 8 else p
+            for p, c, sr in zip(paths, df_segs["channel"], df_segs["sample_rate"])
+        ]
+        df_recs = pd.DataFrame(
+            {
+                "id": df_segs["id"],
+                "storage_path": paths,
+                "sample_freq": df_segs["sample_rate"] * 1000,
+            }
+        )
+        if self.target_sample_freq is not None:
+            df_recs["target_sample_freq"] = self.target_sample_freq
+
+        recordings = RecordingSet(df_recs)
+        recordings.get_durations(self.num_threads)
+        return recordings
 
     def make_recording_set(self, df_segs: pd.DataFrame) -> RecordingSet:
         """
@@ -106,26 +132,20 @@ class LDC2025E05DataPrep(DataPrep):
         logging.info("making RecordingSet")
         wav_dir = self.corpus_dir / "data"
 
-        def channel_to_num(c):
-            if c == "a":
-                return 1
-            elif c == "b":
-                return 2
-            else:
-                raise ValueError(f"Invalid channel: {c}")
-
         for s in df_segs["id"]:
             path = wav_dir / f"arts_{s}.wav"
             if not path.exists():
                 logging.warning("Missing audio file: %s", path)
 
         paths = [wav_dir / f"arts_{s}.wav" for s in df_segs["id"]]
-        paths = [
-            f"sox {p} -c 1 -t wav - remix {channel_to_num(c)} |"
-            for p, c in zip(paths, df_segs["channel"])
-        ]
-        df_recs = pd.DataFrame({"id": df_segs["id"], "storage_path": paths})
-        df_recs["sample_freq"] = 8000
+        df_recs = pd.DataFrame(
+            {
+                "id": df_segs["id"],
+                "storage_path": paths,
+                "sample_freq": df_segs["sample_rate"] * 1000,
+                "channel": df_segs["channel"],
+            }
+        )
         if self.target_sample_freq is not None:
             df_recs["target_sample_freq"] = self.target_sample_freq
 
@@ -151,7 +171,7 @@ class LDC2025E05DataPrep(DataPrep):
         speakers = ClassInfo(df_spks)
 
         languages = ClassInfo(pd.DataFrame({"id": ["eng"]}))
-        sources = ClassInfo(pd.DataFrame({"id": ["cts"]}))
+        sources = ClassInfo(pd.DataFrame({"id": ["cts", "intv"]}))
         return {
             "speaker": speakers,
             "language": languages,
@@ -167,8 +187,7 @@ class LDC2025E05DataPrep(DataPrep):
         - Writes the HypDataset to disk.
         """
         logging.info(
-            "Preparing LDC2025E05 %s corpus_dir: %s -> data_dir: %s",
-            self.partition,
+            "Preparing LDC2025E08 corpus_dir: %s -> data_dir: %s",
             self.corpus_dir,
             self.output_dir,
         )
@@ -176,7 +195,10 @@ class LDC2025E05DataPrep(DataPrep):
         recs = self.make_recording_set(df_segs)
         df_segs["duration"] = recs.loc[df_segs["id"], "duration"].values
         df_segs["language"] = "eng"
-        df_segs["source_type"] = "cts"
+        df_segs["source_type"] = df_segs["sample_rate"].apply(
+            lambda x: "cts" if x == 8 else "intv"
+        )
+        df_segs.drop(columns=["sample_rate", "channel"], inplace=True)
         df_segs["dataset"] = self.dataset_name()
 
         classes = self.make_class_infos(df_segs)

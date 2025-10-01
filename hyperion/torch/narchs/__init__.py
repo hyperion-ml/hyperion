@@ -1,6 +1,6 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 from .audio_feats_mvn import AudioFeatsMVN
@@ -8,6 +8,8 @@ from .classif_head import ClassifHead
 from .conformer_encoder_v1 import ConformerEncoderV1
 from .convnext1d_encoder import ConvNext1dEncoder
 from .convnext2d_encoder import ConvNext2dEncoder
+from .dac_decoder import DACDecoder
+from .dac_encoder import DACEncoder
 from .dc1d_decoder import DC1dDecoder
 from .dc1d_encoder import DC1dEncoder
 from .dc2d_decoder import DC2dDecoder
@@ -29,6 +31,8 @@ from .rnn_encoder import RNNEncoder
 from .rnn_transducer_decoder import RNNTransducerDecoder
 from .spinenet import *
 from .spinenet_factory import SpineNetFactory
+from .streaming_dac_decoder import StreamingDACDecoder
+from .streaming_dac_encoder import StreamingDACEncoder
 from .tdnn import TDNNV1
 from .tdnn_factory import TDNNFactory
 from .torch_na_loader import TorchNALoader
