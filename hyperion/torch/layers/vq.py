@@ -290,9 +290,9 @@ class VectorQuantizerBase(nn.Module):
         if unique_codes.numel() < 4:
             torch.set_printoptions(threshold=10_000)
             print(f"[encode_latents] Unique codes={unique_codes.tolist()}")
-            T = latents.shape[0] // 3
+            T = latents_shape[1] // 3
             print(f"[encode_latents] latents:\n", latents[T : T + 20, :20])
-            print(f"[encode_latents] distance:\n", distance[T : T + 20, :20])
+            print(f"[encode_latents] distance:\n", distance[T : T + 20])
             for uc in unique_codes.tolist():
                 print(f"[encode_latents] distance[:,{uc}]:\n", distance[T : T + 20, uc])
             for uc in unique_codes.tolist():
@@ -563,6 +563,8 @@ class _GDVectorQuantizer(VectorQuantizerBase):
                 )
 
             dist.broadcast(new_vectors, src=0)
+            if rank == 0:
+                logging.info(f"Resetting {int(num_unused)} codebook entries.")
         else:
             if flat_z_valid.shape[0] > 0:
                 rand_idx = torch.randint(
@@ -579,6 +581,7 @@ class _GDVectorQuantizer(VectorQuantizerBase):
                     device=self.codebook.device,
                     dtype=self.codebook.dtype,
                 ) * (1.0 / math.sqrt(self.codebook_dim))
+                logging.info(f"Resetting {int(num_unused)} codebook entries.")
 
         new_vectors = new_vectors.to(self.codebook.dtype)
         self.codebook.data[to_reset] = new_vectors

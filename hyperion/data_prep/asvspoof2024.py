@@ -133,7 +133,9 @@ class ASVSpoof2024DataPrep(DataPrep):
         df_meta.loc[:, "spoof_method"] = df_meta["spoof_system"].apply(get_ttsvc)
         df_meta.set_index(df_meta.file, drop=False, inplace=True)
         # remove empty files D_0000402781
-        df_meta.drop(["D_0000402781"], inplace=True)
+        if "D_0000402781" in df_meta.index:
+            logging.warning("removing empty file D_0000402781 from metadata")
+            df_meta.drop(["D_0000402781"], inplace=True)
         return df_meta
 
     def make_sv_trial_keys(self) -> Dict[str, Path]:

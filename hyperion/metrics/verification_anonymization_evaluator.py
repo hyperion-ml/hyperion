@@ -13,6 +13,7 @@ import matplotlib
 import numpy as np
 import pandas as pd
 import scipy.sparse as sparse
+import scipy.stats as stats
 
 matplotlib.use("Agg")
 matplotlib.rc("font", **{"family": "sans-serif", "sans-serif": ["DejaVu Sans"]})
@@ -69,6 +70,8 @@ class VerificationAnonymizationEvaluator:
         sparse: bool = False,
         class_column: str = "speaker",
         anon_class_column: str = "pseudo_speaker",
+        ref_key: Optional[Union[PathLike, TrialKey, SparseTrialKey]] = None,
+        scores_ref_anon: Optional[Union[str, TrialScores, SparseTrialScores]] = None,
     ):
         if isinstance(key, str):
             logging.info("Load key: %s", key)
@@ -110,6 +113,15 @@ class VerificationAnonymizationEvaluator:
             logging.info("Load test anon meta: %s", anon_test_segments)
             anon_test_segments = SegmentSet.load(anon_test_segments)
 
+        if ref_key is not None and isinstance(ref_key, str):
+            logging.info("Load ref key: %s", ref_key)
+            ref_key = TrialKey.load(ref_key)
+            if scores_ref_anon is not None and isinstance(scores_ref_anon, str):
+                logging.info("Load scores ref. vs anon.: %s", scores_ref_anon)
+                scores_ref_anon = TrialScores.load(scores_ref_anon)
+
+        assert ref_key is None or scores_ref_anon is not None
+
         self.key = key
         self.scores_orig_orig = scores_orig_orig.align_with_ndx(key)
         self.scores_orig_anon = scores_orig_anon.align_with_ndx(key)
@@ -123,6 +135,11 @@ class VerificationAnonymizationEvaluator:
         self.class_column = class_column
         self.anon_class_column = anon_class_column
         self.sparse = sparse
+        self.ref_key = ref_key
+        if ref_key is not None and scores_ref_anon is not None:
+            self.scores_ref_anon = scores_ref_anon.align_with_ndx(ref_key)
+        else:
+            self.scores_ref_anon = None
 
         # compute effective prior is c_miss and c_fa are given
         if isinstance(p_tar, float):
@@ -164,6 +181,12 @@ class VerificationAnonymizationEvaluator:
             self.scores_anon_anon.scores = lr(
                 self.scores_anon_anon.scores.ravel()
             ).reshape(self.scores_anon_anon.scores.shape)
+            if self.scores_ref_anon is not None:
+                self.scores_ref_anon.scores = lr(
+                    self.scores_ref_anon.scores.ravel()
+                ).reshape(self.scores_ref_anon.scores.shape)
+
+        self.lr = lr
 
     def prepare_enroll_meta(self):
         if self.anon_enroll_segments is None or self.enroll_map is None:
@@ -435,6 +458,40 @@ class VerificationAnonymizationEvaluator:
             return None
         return pd.concat(dfs, ignore_index=True)
 
+    def compute_voice_cloning_dcf_eer(self):
+        """
+        Computes DCF/EER for reference vs anonymized
+        Returns:
+           pandas DataFrame with the results
+        """
+        if self.ref_key is None or self.scores_ref_anon is None:
+            return None
+
+        logging.info("Computing DCF/EER for ref. orig vs anon")
+        tar_ref_anon, non_ref_anon = self.scores_ref_anon.get_tar_non(self.ref_key)
+        df_tar_ra_non_ra = self._compute_dcf_eer(
+            tar_ref_anon,
+            non_ref_anon,
+            self.key_name,
+            self.score_name,
+            "Voice Cloning T(ref-anon) N(ref-anon)",
+        )
+        tar_mean = np.mean(tar_ref_anon)
+        tar_std = np.std(tar_ref_anon)
+        sem = stats.sem(tar_ref_anon)  # standard error of the mean
+        ci = stats.t.interval(0.95, len(tar_ref_anon) - 1, loc=0, scale=sem)
+        df_tar_ra_non_ra["tar_mean"] = tar_mean
+        df_tar_ra_non_ra["tar_std"] = tar_std
+        df_tar_ra_non_ra["tar_ci_95"] = ci[0]
+        if self.calibrate_on_orig:
+            df_tar_ra_non_ra["tar_mean_non_cal"] = (
+                tar_mean - self.lr.b[0]
+            ) / self.lr.A[0, 0]
+            df_tar_ra_non_ra["tar_std_non_cal"] = tar_std / self.lr.A[0, 0]
+            df_tar_ra_non_ra["tar_ci_95_non_cal"] = ci[0] / self.lr.A[0, 0]
+
+        return df_tar_ra_non_ra
+
     def compute_dcf_eer(self):
         """
         Computes DCF/EER for all cases
@@ -442,6 +499,10 @@ class VerificationAnonymizationEvaluator:
            pandas DataFrame with the results
         """
         df_priv = self.compute_privacy_dcf_eer()
+        df_ref = self.compute_voice_cloning_dcf_eer()
+        if df_ref is not None:
+            df_priv = pd.concat([df_priv, df_ref], ignore_index=True)
+
         df_cons_div = self.compute_cons_div_dcf_eer()
         if df_cons_div is not None:
             df_gain = self.compute_gain_distinctness()
