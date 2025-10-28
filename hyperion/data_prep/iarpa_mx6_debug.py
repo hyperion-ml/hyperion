@@ -257,6 +257,7 @@ class IARPAMixer6DebugDataPrep(DataPrep):
         classes = self.make_class_infos(df_segs)
 
         segments = SegmentSet(df_segs)
+        segments["original_bandwidth"] = 8000
 
         enrollments = self.make_enrollments(df_enr)
         trials = None

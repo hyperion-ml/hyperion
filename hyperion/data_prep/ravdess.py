@@ -165,6 +165,7 @@ class RAVDESSPrep(DataPrep):
         df_segs["language"] = "eng"
         df_segs["corpusid"] = "ravdess"
         df_segs["dataset"] = "ravdess"
+        df_segs["original_bandwidth"] = 24000
         segments = SegmentSet(df_segs)
         segments.sort()
 

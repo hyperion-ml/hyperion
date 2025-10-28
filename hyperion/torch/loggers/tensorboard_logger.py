@@ -3,6 +3,7 @@ Copyright 2021 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+import logging
 import re
 from io import BytesIO
 from pathlib import Path
@@ -10,7 +11,12 @@ from typing import Any, Dict, Optional, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pynvml
+
+try:
+    import pynvml
+except:
+    pynvml = None
+
 import torch
 from PIL import Image
 from torch import nn
@@ -40,6 +46,12 @@ class TensorBoardLogger(Logger):
         self.batches = 0
         self.cur_epoch = 0
         self.cur_batch = 0
+        if gpu_usage and pynvml is None:
+            logging.warning(
+                "[WAndBLogger] pynvml is not installed. GPU usage logging will be disabled."
+            )
+            gpu_usage = False
+
         self.gpu_usage = gpu_usage
 
     def on_train_begin(self, logs: Dict[str, Any] = None, **kwargs):

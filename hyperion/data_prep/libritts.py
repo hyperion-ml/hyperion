@@ -306,6 +306,7 @@ class LibriTTSDataPrep(DataPrep):
         df_segs["language"] = "eng"
         df_segs["corpusid"] = "librivox"
         df_segs["dataset"] = "libritts"
+        df_segs["original_bandwidth"] = 12000
         segments = SegmentSet(df_segs)
         segments.sort()
 

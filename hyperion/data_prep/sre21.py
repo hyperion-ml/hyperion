@@ -221,6 +221,9 @@ class SRE21DataPrep(DataPrep):
         df_segs["filename"] = df_segs["id"]
         df_segs["dataset"] = self.dataset_name()
         df_segs["corpusid"] = "we_can_talk"
+        df_segs["original_bandwidth"] = df_segs["source_type"].apply(
+            lambda x: 4000 if x == "cts" else 8000
+        )
         if self.use_kaldi_ids:
             df_segs["id"] = df_segs[["speaker", "id"]].apply(
                 lambda row: "-".join(row.values.astype(str)), axis=1

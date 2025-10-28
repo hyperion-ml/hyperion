@@ -45,7 +45,7 @@ class LangTrialCond(str, Enum):
 
     @staticmethod
     def is_eng(val):
-        if val in ["ENG", "USE", "english"]:
+        if val in ["ENG", "USE", "english", "eng", "use"]:
             return True
         return False
 
@@ -878,6 +878,9 @@ class SRE24DataPrep(DataPrep):
         if self.modality != "visual":
             recs = self.make_recording_set(df_segs)
             df_segs["duration"] = recs.loc[df_segs["id"], "duration"].values
+            df_segs["original_bandwidth"] = df_segs["source_type"].apply(
+                lambda x: 4000 if x == "cts" else 8000
+            )
 
         if self.modality != "audio":
             if self.partition == "enrollment":

@@ -197,12 +197,44 @@ class VectorQuantizerFactory:
                 help="Minimum temperature for Gumbel softmax",
             )
 
-        if "anneal_rate" not in skip:
+        if "temp_anneal_rate" not in skip:
             parser.add_argument(
-                "--anneal-rate",
+                "--temp-anneal-rate",
                 type=float,
                 default=1e-5,
                 help="Annealing rate for temperature",
+            )
+
+        if "commitment_anneal_steps" not in skip:
+            parser.add_argument(
+                "--commitment-anneal-steps",
+                type=int,
+                default=0,
+                help="Number of steps to linearly ramp the commitment weight",
+            )
+
+        if "compute_diversity_loss" not in skip:
+            parser.add_argument(
+                "--compute-diversity-loss",
+                action=ActionYesNo,
+                default=False,
+                help="Whether to compute and report diversity loss",
+            )
+
+        if "compute_orthogonality_loss" not in skip:
+            parser.add_argument(
+                "--compute-orthogonality-loss",
+                action=ActionYesNo,
+                default=False,
+                help="Whether to compute and report orthogonality loss",
+            )
+
+        if "losses_reduction" not in skip:
+            parser.add_argument(
+                "--losses-reduction",
+                choices=["none", "mean", "sum"],
+                default="mean",
+                help="Reduction to apply to commitment/codebook/diversity losses",
             )
 
         if prefix is not None:

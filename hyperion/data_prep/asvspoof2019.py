@@ -400,6 +400,7 @@ class ASVSpoof2019DataPrep(DataPrep):
         segments["dataset"] = self.dataset_name()
         segments["corpusid"] = self.dataset_name()
         segments["language"] = "eng"
+        segments["original_bandwidth"] = 8000
 
         segments = SegmentSet(segments)
         segments.sort()

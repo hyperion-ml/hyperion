@@ -1,16 +1,21 @@
 #!/usr/bin/env python
 """
-Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Copyright 2025 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import logging
 import multiprocessing
-import os
-import sys
-import time
-from pathlib import Path
 
+# import sys
+import os
+import time
+from html import parser
+from pathlib import Path
+from typing import Any, Dict, Type
+
+import numpy as np
 import torch
+import torch.nn as nn
 from jsonargparse import (
     ActionConfigFile,
     ActionParser,
@@ -19,26 +24,18 @@ from jsonargparse import (
 )
 
 from hyperion.hyp_defs import config_logger, set_float_cpu
-
-# from hyperion.torch import TorchModelLoader as TML
 from hyperion.torch import TorchModel
-from hyperion.torch.data import LegacyAudioDataset as AD
+from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
-from hyperion.torch.metrics import CategoricalAccuracy
-from hyperion.torch.models import Wav2ConformerV1XVector as CXVec
-from hyperion.torch.models import Wav2ConvNext1dXVector as ConvNext1dXVec
-from hyperion.torch.models import Wav2ConvNext2dXVector as ConvNext2dXVec
-from hyperion.torch.models import Wav2ResNet1dXVector as R1dXVec
-from hyperion.torch.models import Wav2ResNetXVector as RXVec
-from hyperion.torch.trainers import XVectorTrainer as Trainer
+from hyperion.torch.models.audio_discrimitator import AudioMultiDiscriminator
+from hyperion.torch.models.dac import DAC, StreamingDAC
+from hyperion.torch.narchs import AudioFeatsMVN
+from hyperion.torch.trainers.dac_trainer import DACTrainer as Trainer
 from hyperion.torch.utils import ddp
 
-xvec_dict = {
-    "resnet": RXVec,
-    "resnet1d": R1dXVec,
-    "conformer": CXVec,
-    "convnext1d": ConvNext1dXVec,
-    "convnext2d": ConvNext2dXVec,
+model_dict = {
+    "dac": DAC,
+    "streaming_dac": StreamingDAC,
 }
 
 
@@ -64,8 +61,7 @@ def init_data(partition, rank, num_gpus, **kwargs):
     if rank == 0:
         logging.info("init %s dataloader", partition)
 
-    num_workers = kwargs["data_loader"]["num_workers"]
-    num_workers_per_gpu = int((num_workers + num_gpus - 1) / num_gpus)
+    num_workers_per_gpu = kwargs["data_loader"]["num_workers"]
     largs = (
         {
             "num_workers": num_workers_per_gpu,
@@ -81,45 +77,51 @@ def init_data(partition, rank, num_gpus, **kwargs):
     return data_loader
 
 
-def init_xvector(num_classes, in_model_file, rank, xvec_class, **kwargs):
-    xvec_args = xvec_class.filter_finetune_args(**kwargs["model"])
+def init_dac_model(
+    in_model_file: str,
+    rank: int,
+    model_class: Type[TorchModel],
+    model_args: Dict[str, Any],
+):
     if rank == 0:
-        logging.info("xvector network ft args={}".format(xvec_args))
-    xvec_args["xvector"]["num_classes"] = num_classes
+        logging.info("load dac_model from %s", in_model_file)
+        # logging.info(f"dac_model network args={model_args}")
+
     model = TorchModel.auto_load(in_model_file)
-    model.change_config(**xvec_args)
     if rank == 0:
-        logging.info("x-vector-model={}".format(model))
+        logging.info(f"dac_model={model}")
+        logging.info(f"dac_model frame_shift={model.frame_shift} samples")
+        logging.info(f"dac_model frame_length={model.frame_length} samples")
+        logging.info(
+            f"dac_model frame_shift={model.frame_shift / model.input_sample_frequency} seconds"
+        )
+        logging.info(
+            f"dac_model frame_length={model.frame_length / model.input_sample_frequency} seconds"
+        )
+        logging.info(f"dac_model in_context={model.in_context()}")
+        logging.info(f"dac model delay={model.delay}")
+        logging.info(
+            f"dac_model encoder_frame_length={model.encoder_frame_length} samples"
+        )
+        logging.info(
+            f"dac_model encoder_frame_length={model.encoder_frame_length / model.input_sample_frequency} seconds"
+        )
+        logging.info(f"dac_model encoder_in_context={model.encoder_in_context()}")
+
     return model
 
 
-def init_hard_prototype_mining(model, train_loader, val_loader, rank):
-    try:
-        hard_prototype_mining = train_loader.batch_sampler.hard_prototype_mining
-    except:
-        hard_prototype_mining = False
-
-    if not hard_prototype_mining:
-        return
-
+def init_discrim_model(in_model_file: str, rank: int, model_args: Dict[str, Any]):
     if rank == 0:
-        logging.info("setting hard prototypes")
+        logging.info("load discriminator from %s", in_model_file)
 
-    affinity_matrix = model.compute_prototype_affinity()
-    train_loader.batch_sampler.set_hard_prototypes(affinity_matrix)
-
-    try:
-        hard_prototype_mining = val_loader.batch_sampler.hard_prototype_mining
-    except:
-        hard_prototype_mining = False
-
-    if not hard_prototype_mining:
-        return
-
-    val_loader.batch_sampler.set_hard_prototypes(affinity_matrix)
+    model = TorchModel.auto_load(in_model_file)
+    if rank == 0:
+        logging.info("discrim_model={}".format(model))
+    return model
 
 
-def train_xvec(gpu_id, args):
+def train_model(gpu_id, args):
     config_logger(args.verbose)
     del args.verbose
     logging.debug(args)
@@ -134,15 +136,23 @@ def train_xvec(gpu_id, args):
 
     train_loader = init_data(partition="train", **kwargs)
     val_loader = init_data(partition="val", **kwargs)
-    model = init_xvector(list(train_loader.dataset.num_classes.values())[0], **kwargs)
-    init_hard_prototype_mining(model, train_loader, val_loader, rank)
+    dac_model = init_dac_model(
+        kwargs["in_dac_file"], rank, kwargs["model_class"], None
+    )  # kwargs["dac_model"])
+    discrim_model = init_discrim_model(
+        kwargs["in_discrim_file"], rank
+    )  # , kwargs["discrim_model"])
 
     trn_args = Trainer.filter_args(**kwargs["trainer"])
     if rank == 0:
-        logging.info("trainer args={}".format(trn_args))
-    metrics = {"acc": CategoricalAccuracy()}
+        logging.info(f"trainer args={trn_args}")
+
     trainer = Trainer(
-        model, device=device, metrics=metrics, ddp=world_size > 1, **trn_args
+        dac_model=dac_model,
+        discrim_model=discrim_model,
+        device=device,
+        ddp=world_size > 1,
+        **trn_args,
     )
     trainer.load_last_checkpoint()
     trainer.fit(train_loader, val_loader)
@@ -150,14 +160,13 @@ def train_xvec(gpu_id, args):
     ddp.ddp_cleanup()
 
 
-def make_parser(xvec_class):
+def make_parser(model_class):
     parser = ArgumentParser()
 
     parser.add_argument("--cfg", action=ActionConfigFile)
 
     train_parser = ArgumentParser(prog="")
-
-    AD.add_class_args(train_parser, prefix="dataset", skip={})
+    AD.add_class_args(train_parser, prefix="dataset")
     SegSamplerFactory.add_class_args(train_parser, prefix="sampler")
     train_parser.add_argument(
         "--data_loader.num-workers",
@@ -167,7 +176,7 @@ def make_parser(xvec_class):
     )
 
     val_parser = ArgumentParser(prog="")
-    AD.add_class_args(val_parser, prefix="dataset", skip={})
+    AD.add_class_args(val_parser, prefix="dataset")
     SegSamplerFactory.add_class_args(val_parser, prefix="sampler")
     val_parser.add_argument(
         "--data_loader.num-workers",
@@ -179,17 +188,13 @@ def make_parser(xvec_class):
     data_parser.add_argument("--train", action=ActionParser(parser=train_parser))
     data_parser.add_argument("--val", action=ActionParser(parser=val_parser))
     parser.add_argument("--data", action=ActionParser(parser=data_parser))
-    parser.link_arguments(
-        "data.train.dataset.class_files", "data.val.dataset.class_files"
-    )
-    parser.link_arguments(
-        "data.train.data_loader.num_workers", "data.val.data_loader.num_workers"
-    )
-
-    xvec_class.add_finetune_args(parser, prefix="model")
-    parser.add_argument("--in-model-file", required=True)
+    model_class.add_finetune_args(parser, prefix="dac_model")
+    parser.add_argument("--in-dac-file", required=True)
+    parser.add_argument("--in-discrim-file", required=True)
+    # AudioMultiDiscriminator.add_class_args(parser, prefix="discrim_model")
     Trainer.add_class_args(
-        parser, prefix="trainer", train_modes=xvec_class.valid_train_modes()
+        parser,
+        prefix="trainer",
     )
     ddp.add_ddp_args(parser)
     parser.add_argument("--seed", type=int, default=1123581321, help="random seed")
@@ -201,11 +206,12 @@ def make_parser(xvec_class):
 
 
 def main():
-    parser = ArgumentParser(description="Fine-tune x-vector model from audio files")
+    parser = ArgumentParser(description="Train DAC model")
     parser.add_argument("--cfg", action=ActionConfigFile)
 
     subcommands = parser.add_subcommands()
-    for k, v in xvec_dict.items():
+
+    for k, v in model_dict.items():
         parser_k = make_parser(v)
         subcommands.add_subcommand(k, parser_k)
 
@@ -215,20 +221,17 @@ def main():
     except:
         gpu_id = 0
 
-    xvec_type = args.subcommand
-    args_sc = vars(args)[xvec_type]
+    model_type = args.subcommand
+    args_sc = vars(args)[model_type]
 
     if gpu_id == 0:
-        try:
-            config_file = Path(args_sc.trainer.exp_path) / "config.yaml"
-            parser.save(args, str(config_file), format="yaml", overwrite=True)
-        except:
-            pass
+        config_file = Path(args_sc.trainer.exp_path) / "config.yaml"
+        parser.save(args, str(config_file), format="yaml", overwrite=True)
 
-    args_sc.xvec_class = xvec_dict[xvec_type]
+    args_sc.model_class = model_dict[model_type]
     # torch docs recommend using forkserver
     multiprocessing.set_start_method("forkserver")
-    train_xvec(gpu_id, args_sc)
+    train_model(gpu_id, args_sc)
 
 
 if __name__ == "__main__":

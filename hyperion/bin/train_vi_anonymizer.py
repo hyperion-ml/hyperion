@@ -133,7 +133,7 @@ def train_model(gpu_id, args):
     val_loader = init_data(partition="val", **kwargs)
     vc_model = init_vc_model(rank, kwargs["model_class"], kwargs["vc_model"])
     discrim_model = init_discrim_model(rank, kwargs["discrim_model"])
-    audio_feats = init_audio_feats(rank, kwargs["loss_audio_feats"])
+    # audio_feats = init_audio_feats(rank, kwargs["loss_audio_feats"])
     xvector_model = init_xvector(kwargs["xvector_model_file"], rank)
 
     trn_args = Trainer.filter_args(**kwargs["trainer"])
@@ -143,7 +143,7 @@ def train_model(gpu_id, args):
     trainer = Trainer(
         vc_model=vc_model,
         discrim_model=discrim_model,
-        audio_feats=audio_feats,
+        # audio_feats=audio_feats,
         xvector_model=xvector_model,
         device=device,
         ddp=world_size > 1,

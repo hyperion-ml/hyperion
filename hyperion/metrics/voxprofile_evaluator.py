@@ -34,7 +34,7 @@ MOS_METRIC_COLUMNS = [
 ]
 
 
-class SpeechQualityEvaluator:
+class VoxProfileEvaluator:
     """
     A class to evaluate speech quality and ASR accuracy on a given dataset of recordings and segments.
 
@@ -48,16 +48,6 @@ class SpeechQualityEvaluator:
             The segmented speech metadata used for evaluation. If a path is provided, it will be loaded automatically.
         recordings (RecordingSet):
             The set of audio recordings. If a path is provided, it will be loaded automatically.
-        whisper (dict):
-            Configuration dictionary passed to the WhisperTranscriber instance.
-        transcript_name (str):
-            Name of the column in `segments` containing the reference transcription.
-        use_whisper (bool):
-            Whether to use Whisper for transcription.
-        use_utmos (bool):
-            Whether to use UTMOSv2 to compute MOS scores.
-        use_dnsmos (bool):
-            Whether to use DNSMOS to compute MOS scores.
         part_idx (int):
             Index of the current data shard (1-based). Used for parallelism.
         num_parts (int):
@@ -68,27 +58,15 @@ class SpeechQualityEvaluator:
         self,
         segments: Union[SegmentSet, PathLike],
         recordings: Union[RecordingSet, PathLike],
-        whisper: Dict[str, Any],
-        transcript_name: str = "transcript",
-        use_whisper: bool = True,
-        use_utmos: bool = True,
-        use_dnsmos: bool = True,
-        dnsmos: Optional[Dict[str, Any]] = None,
         part_idx: int = 1,
         num_parts: int = 1,
     ):
         """
-        Initialize a SpeechQualityEvaluator for evaluating ASR and speech quality metrics.
+        Initialize a VoxProfileEvaluator for evaluating ASR and speech quality metrics.
 
         Args:
             segments (SegmentSet or PathLike): Segment metadata or path to it.
             recordings (RecordingSet or PathLike): Recording metadata or path to it.
-            whisper (dict): Configuration for the WhisperTranscriber.
-            transcript_name (str): Name of the reference transcript column in the segments file.
-            use_whisper (bool): Whether to transcribe using Whisper.
-            use_utmos (bool): Whether to compute MOS scores using UTMOSv2.
-            use_dnsmos (bool): Whether to compute MOS scores using DNSMOS.
-            dnsmos (dict, optional): Configuration dictionary passed to the DNSMOS wrapper.
             part_idx (int): Index of this data split (1-based).
             num_parts (int): Total number of splits for parallel processing.
         """
@@ -103,19 +81,6 @@ class SpeechQualityEvaluator:
 
         self.segments = segments
         self.recordings = recordings
-        self.whisper = whisper
-        if transcript_name not in segments:
-            if use_whisper:
-                logging.warning(
-                    "reference transcript %s not in segments", transcript_name
-                )
-            use_whisper = False
-
-        self.transcript_name = transcript_name
-        self.use_whisper = use_whisper
-        self.use_utmos = use_utmos
-        self.use_dnsmos = use_dnsmos
-        self.dnsmos_args = dnsmos or {}
         self.part_idx = part_idx
         self.num_parts = num_parts
 
@@ -132,18 +97,7 @@ class SpeechQualityEvaluator:
                                                and the updated segment metadata with evaluation results.
         """
         segments = self.segments
-        text_normalizer = EnglishTextNormalizer()
         stats = {}
-        if self.use_whisper:
-            whisper = WhisperTranscriber(**self.whisper)
-            whisper_hyp = []
-            whisper_ref = []
-
-        if self.use_utmos:
-            utmos = UTMOSV2()
-
-        if self.use_dnsmos:
-            dnsmos = DNSMOS(**self.dnsmos_args)
 
         with AR(
             recordings=self.recordings,
@@ -152,103 +106,6 @@ class SpeechQualityEvaluator:
             while not reader.eof():
                 seg_data = reader.read(1)
                 segment_id, x, fs = seg_data[0][0], seg_data[1][0], seg_data[2][0]
-                if self.use_whisper:
-                    whisper_result = whisper(x, fs)
-                    hyp = text_normalizer(whisper_result["text"])
-                    ref = segments.at[segment_id, self.transcript_name]
-                    if pd.notna(ref):
-                        ref = text_normalizer(ref)
-                        whisper_hyp.append(hyp)
-                        whisper_ref.append(ref)
-
-                    segments.loc[segment_id, "whisper_transcript"] = hyp
-
-                if self.use_utmos:
-                    utmos.add_audios(audios=[x], audio_fs=[fs], audio_ids=[segment_id])
-
-                if self.use_dnsmos:
-                    df_dnsmos = dnsmos(
-                        audios=[x], audio_fs=[fs], audio_ids=[segment_id]
-                    )
-                    for col in df_dnsmos.columns:
-                        if col != "id":
-                            segments.loc[segment_id, col] = df_dnsmos.at[
-                                segment_id, col
-                            ]
-
-        if self.use_whisper:
-            (
-                wer,
-                w_subs,
-                w_ins,
-                w_dels,
-                w_counts,
-                segment_stats,
-                word_stats,
-                sub_stats,
-            ) = compute_wer(whisper_hyp, whisper_ref, utt_ids=segments["id"])
-            print("1", segment_stats, flush=True)
-            segments.df["whisper_wer"] = segment_stats["wer"]
-            segments.df["whisper_word_error_details"] = segment_stats[
-                "word_error_details"
-            ]
-            (
-                cer,
-                c_subs,
-                c_ins,
-                c_dels,
-                c_counts,
-                segment_stats,
-                char_stats,
-                sub_stats,
-            ) = compute_cer(whisper_hyp, whisper_ref, utt_ids=segments["id"])
-            print("2", segment_stats, flush=True)
-            segments.df["whisper_cer"] = segment_stats["cer"]
-            segments.df["whisper_char_error_details"] = segment_stats[
-                "char_error_details"
-            ]
-            print(
-                "3",
-                segments[
-                    [
-                        "whisper_wer",
-                        "whisper_word_error_details",
-                        "whisper_cer",
-                        "whisper_char_error_details",
-                    ]
-                ],
-                segments["whisper_cer"][:10],
-                segment_stats["cer"][:10],
-                segment_stats["char_error_details"][:10],
-                flush=True,
-            )
-            for k, v in zip(
-                [
-                    "whisper_wer",
-                    "whisper_word_subs",
-                    "whisper_word_ins",
-                    "whisper_word_dels",
-                    "whisper_num_words",
-                ],
-                [wer, w_subs, w_ins, w_dels, w_counts],
-            ):
-                stats[k] = v
-
-            for k, v in zip(
-                [
-                    "whisper_cer",
-                    "whisper_char_subs",
-                    "whisper_char_ins",
-                    "whisper_char_dels",
-                    "whisper_num_chars",
-                ],
-                [cer, c_subs, c_ins, c_dels, c_counts],
-            ):
-                stats[k] = v
-
-        if self.use_utmos:
-            segment_ids, mos_pred = utmos()
-            segments.loc[segment_ids, "utmos"] = mos_pred
 
         stats = self.compute_stats(segments, stats)
         if return_df:
@@ -354,44 +211,6 @@ class SpeechQualityEvaluator:
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
-
-        if "whisper" not in skip:
-            WhisperTranscriber.add_class_args(parser, prefix="whisper")
-
-        if "transcript_name" not in skip:
-            parser.add_argument(
-                "--transcript-name",
-                type=str,
-                default="transcript",
-                help="Column name in the segments file containing the reference transcript.",
-            )
-
-        if "use_whisper" not in skip:
-            parser.add_argument(
-                "--use-whisper",
-                default=True,
-                action=ActionYesNo,
-                help="Use Whisper to generate transcriptions.",
-            )
-
-        if "use_utmos" not in skip:
-            parser.add_argument(
-                "--use-utmos",
-                default=True,
-                action=ActionYesNo,
-                help="Use UTMOSv2 to evaluate speech quality.",
-            )
-
-        if "use_dnsmos" not in skip:
-            parser.add_argument(
-                "--use-dnsmos",
-                default=True,
-                action=ActionYesNo,
-                help="Use DNSMOS to evaluate speech quality.",
-            )
-
-        if "dnsmos" not in skip:
-            DNSMOS.add_class_args(parser, prefix="dnsmos")
 
         if "part_idx" not in skip:
             parser.add_argument(

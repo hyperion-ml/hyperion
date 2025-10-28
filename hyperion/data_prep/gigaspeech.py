@@ -16,24 +16,25 @@ class GigaSpeechDataPrep(DataPrep):
     Prepares the GigaSpeech dataset into structured tables for training or evaluation.
 
     This class reads the official GigaSpeech manifest (GigaSpeech.json),
-    filters by subset and split, builds segment and recording manifests,
+    filters by subset, builds segment and recording manifests,
     and extracts speaker/language class information.
 
     Attributes:
         corpus_dir (PathLike): Base directory of the GigaSpeech corpus.
-        subset (str): One of ["XL", "L", "M", "S", "XS"] — which part of the dataset to prepare.
-        split (str): One of ["train", "dev", "test"] — which split of the subset to prepare.
+        subset (str): One of ["XL", "L", "M", "S", "XS", "dev", "test"] — which part of the dataset to prepare.
         output_dir (PathLike): Where to save the prepared dataset files.
         use_kaldi_ids (bool): If True, prepend speaker ID to each segment ID.
         target_sample_freq (Optional[int]): If specified, resample audio to this frequency.
         num_threads (int): Number of parallel threads for duration extraction.
     """
 
+    TRAIN_SUBSETS = {"XL", "L", "M", "S", "XS"}
+    EVAL_SUBSETS = {"DEV", "TEST"}
+
     def __init__(
         self,
         corpus_dir: PathLike,
         subset: str,
-        split: str,
         output_dir: PathLike,
         use_kaldi_ids: bool = False,
         target_sample_freq: Optional[int] = None,
@@ -45,7 +46,6 @@ class GigaSpeechDataPrep(DataPrep):
         Args:
             corpus_dir (PathLike): Directory containing the GigaSpeech corpus.
             subset (str): Dataset subset (e.g., 'M', 'XL').
-            split (str): Data split (e.g., 'train', 'dev', 'test').
             output_dir (PathLike): Destination directory for processed outputs.
             use_kaldi_ids (bool): Whether to prepend speaker ID to segment IDs.
             target_sample_freq (Optional[int]): Optional target resampling frequency.
@@ -55,7 +55,11 @@ class GigaSpeechDataPrep(DataPrep):
             corpus_dir, output_dir, use_kaldi_ids, target_sample_freq, num_threads
         )
         self.subset = subset.upper()
-        self.split = split
+        if self.subset not in (self.TRAIN_SUBSETS | self.EVAL_SUBSETS):
+            raise ValueError(
+                f"Unsupported GigaSpeech subset '{subset}'. "
+                "Expected one of ['XL', 'L', 'M', 'S', 'XS', 'dev', 'test']."
+            )
 
     @staticmethod
     def dataset_name() -> str:
@@ -76,30 +80,23 @@ class GigaSpeechDataPrep(DataPrep):
         DataPrep.add_class_args(parser)
         parser.add_argument(
             "--subset",
-            choices=["XL", "L", "M", "S", "XS"],
+            choices=["XL", "L", "M", "S", "XS", "dev", "test"],
             required=True,
             help="GigaSpeech subset to prepare (e.g., 'XL', 'M', 'S').",
-        )
-        parser.add_argument(
-            "--split",
-            choices=["train", "dev", "test"],
-            required=True,
-            help="Data split to prepare (e.g., 'train', 'dev', 'test').",
         )
 
     def prepare(self) -> None:
         """
         Runs the complete data preparation pipeline for GigaSpeech:
         - Parses GigaSpeech.json
-        - Filters audio and segments based on subset and split
+        - Filters audio and segments based on subset
         - Extracts recording durations
         - Builds SegmentSet, RecordingSet, and ClassInfo tables
         - Saves HypDataset to the specified output directory
         """
         logging.info(
-            "Preparing GigaSpeech subset=%s split=%s corpus_dir=%s -> output_dir=%s",
+            "Preparing GigaSpeech subset=%s corpus_dir=%s -> output_dir=%s",
             self.subset,
-            self.split,
             self.corpus_dir,
             self.output_dir,
         )
@@ -110,65 +107,98 @@ class GigaSpeechDataPrep(DataPrep):
         with open(manifest_path, "r", encoding="utf-8") as f:
             raw_data = json.load(f)
 
-        items = []
+        rec_items = []
+        seg_items = []
+        subset = f"{{{self.subset}}}"
         for doc in raw_data["audios"]:
-            if doc.get("subset", "").upper() != self.subset:
+            if subset not in doc["subsets"]:
                 continue
 
-            for seg in doc.get("segments", []):
-                if seg.get("split") != self.split:
+            rec_id = doc["aid"]
+            storage_path = self.corpus_dir / doc["path"]
+            sample_freq = doc["sample_rate"]
+            duration = doc["duration"]
+            title = doc.get("title", pd.NA)
+            source_type = doc["source"].lower()
+            source_type = "afv" if source_type == "youtube" else source_type
+            category = doc.get("category", "").lower()
+            category = category if category not in ["", "n/a"] else pd.NA
+            rec_items.append(
+                {
+                    "id": rec_id,
+                    "storage_path": str(storage_path.resolve()),
+                    "sample_freq": sample_freq,
+                    "duration": duration,
+                }
+            )
+
+            for seg in doc["segments"]:
+                if subset not in seg["subsets"]:
                     continue
 
-                utt_id = seg["utt_id"]
-                speaker = seg.get("speaker", "unknown")
-                audio_path = Path(seg["audio_filepath"])
-                duration = seg["duration"]
-                text = seg.get("text", "")
-                language = seg.get("language", "en")
+                seg_id = seg["sid"]
+                speaker = seg.get("speaker", "")
+                speaker = f"giga-{speaker}" if speaker not in ["", "N/A"] else pd.NA
+                start_time = seg["begin_time"]
+                duration = seg["end_time"] - start_time
+                transcript = seg.get("text_tn", "")
 
-                seg_id = f"giga-{utt_id}"
-                if self.use_kaldi_ids:
+                if self.use_kaldi_ids and speaker:
                     seg_id = f"{speaker}-{seg_id}"
+                else:
+                    seg_id = f"giga-{seg_id}"
 
-                items.append(
+                seg_items.append(
                     {
                         "id": seg_id,
+                        "recording": rec_id,
                         "speaker": speaker,
-                        "text": text,
+                        "transcript": transcript,
+                        "start": start_time,
                         "duration": duration,
-                        "storage_path": str(audio_path.resolve()),
-                        "language": language,
+                        "language": "eng",
+                        "source_type": source_type,
+                        "category": category,
+                        "title": title,
+                        "original_bandwidth": sample_freq / 2,
                     }
                 )
 
-        df = pd.DataFrame(items)
-        df.sort_values(by="id", inplace=True)
-
         logging.info("Creating RecordingSet")
-        recs = pd.DataFrame({"id": df["id"], "storage_path": df["storage_path"]})
-        recs = RecordingSet(recs)
-        recs.get_durations(self.num_threads)
+        df_recs = pd.DataFrame(rec_items)
+        recs = RecordingSet(df_recs)
+        recs.sort()
         if self.target_sample_freq:
             recs["target_sample_freq"] = self.target_sample_freq
 
-        df["duration"] = df["id"].map(recs.set_index("id")["duration"])
-
         logging.info("Creating SegmentsSet")
-        segments = SegmentSet(df[["id", "speaker", "text", "duration", "language"]])
+        df_segs = pd.DataFrame(seg_items)
+        segments = SegmentSet(df_segs)
         segments.sort()
 
         logging.info("Creating ClassInfo tables")
-        speakers = ClassInfo(pd.DataFrame({"id": np.unique(df["speaker"])}))
-        languages = ClassInfo(pd.DataFrame({"id": np.unique(df["language"])}))
 
-        dataset = HypDataset(
-            segments=segments,
-            recordings=recs,
-            classes={"speaker": speakers, "language": languages},
+        def _clean_class_ids(values):
+            series = pd.Series(values).dropna()
+            if series.empty:
+                return []
+            return sorted(series.unique())
+
+        speaker_ids = _clean_class_ids(df_segs["speaker"])
+        category_ids = _clean_class_ids(df_segs["category"])
+
+        classes = {}
+        if speaker_ids:
+            classes["speaker"] = ClassInfo(pd.DataFrame({"id": speaker_ids}))
+        languages = ClassInfo(pd.DataFrame({"id": ["eng"]}))
+        classes["language"] = languages
+        source_types = ClassInfo(
+            pd.DataFrame({"id": _clean_class_ids(df_segs["source_type"])})
         )
+        classes["source_type"] = source_types
+        if category_ids:
+            classes["category"] = ClassInfo(pd.DataFrame({"id": category_ids}))
+
+        dataset = HypDataset(segments=segments, recordings=recs, classes=classes)
         dataset.save(self.output_dir)
-        logging.info(
-            "Dataset contains %d segments, %d speakers",
-            len(segments),
-            len(speakers),
-        )
+        dataset.describe()

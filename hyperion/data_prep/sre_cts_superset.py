@@ -175,6 +175,7 @@ class SRECTSSupersetDataPrep(DataPrep):
         recs.get_durations(self.num_threads)
 
         df_segs["duration"] = recs.loc[df_segs["id"], "duration"].values
+        df_segs["original_bandwidth"] = 4000
         segments = SegmentSet(df_segs.copy())
 
         logging.info("making ClassInfos")

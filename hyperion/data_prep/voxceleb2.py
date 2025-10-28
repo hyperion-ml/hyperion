@@ -380,6 +380,7 @@ class VoxCeleb2DataPrep(DataPrep):
                 "corpusid": "voxceleb",
                 "dataset": self.dataset_name(),
                 "source_type": "afv",
+                "original_bandwidth": 8000,
             }
         )
         segments = SegmentSet(segments)

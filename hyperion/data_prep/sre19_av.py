@@ -142,7 +142,8 @@ class SRE19AVDataPrep(DataPrep):
         df_segs["filename"] = df_segs["id"].apply(lambda x: f"{x}.mp4")
         df_segs["dataset"] = self.dataset_name()
         df_segs["corpusid"] = "vast"
-        df_segs["language"] = "ENG"
+        df_segs["language"] = "eng"
+        df_segs["original_bandwidth"] = 8000
         if self.use_kaldi_ids:
             df_segs["id"] = df_segs[["speaker", "id"]].apply(
                 lambda row: "-".join(row.values.astype(str)), axis=1

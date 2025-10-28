@@ -104,6 +104,12 @@ class LRScheduler:
             self.epoch = epoch
 
         if self.update_lr_on_opt_step:
+            if self.in_warmup:
+                for param_group, lr in zip(
+                    self.optimizer.param_groups, self.get_warmup_lr()
+                ):
+                    param_group["lr"] = lr
+
             return
 
         for param_group, lr in zip(

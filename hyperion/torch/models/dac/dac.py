@@ -10,10 +10,14 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
+import numpy as np  # xxx
 import torch
 import torch.amp
 import torch.nn as nn
+import torch.nn.functional as F  # xxx
+from einops import rearrange  # xxx
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
+from torch.nn.utils import weight_norm  # xxx
 
 from ....utils import HypDataClass
 from ....utils.misc import filter_func_args
@@ -24,11 +28,285 @@ from ...utils.masking import scale_seq_lengths, seq_lengths_to_mask
 from ...utils.timers import CUDATimer
 
 
+def WNConv1d(*args, **kwargs):
+    return weight_norm(nn.Conv1d(*args, **kwargs))
+
+
+class VectorQuantize(nn.Module):
+    """
+    Implementation of VQ similar to Karpathy's repo:
+    https://github.com/karpathy/deep-vector-quantization
+    Additionally uses following tricks from Improved VQGAN
+    (https://arxiv.org/pdf/2110.04627.pdf):
+        1. Factorized codes: Perform nearest neighbor lookup in low-dimensional space
+            for improved codebook usage
+        2. l2-normalized codes: Converts euclidean distance to cosine similarity which
+            improves training stability
+    """
+
+    def __init__(self, input_dim: int, codebook_size: int, codebook_dim: int):
+        super().__init__()
+        self.codebook_size = codebook_size
+        self.codebook_dim = codebook_dim
+
+        self.in_proj = WNConv1d(input_dim, codebook_dim, kernel_size=1)
+        self.out_proj = WNConv1d(codebook_dim, input_dim, kernel_size=1)
+        self.codebook = nn.Embedding(codebook_size, codebook_dim)
+
+    def forward(self, z):
+        """Quantized the input tensor using a fixed codebook and returns
+        the corresponding codebook vectors
+
+        Parameters
+        ----------
+        z : Tensor[B x D x T]
+
+        Returns
+        -------
+        Tensor[B x D x T]
+            Quantized continuous representation of input
+        Tensor[1]
+            Commitment loss to train encoder to predict vectors closer to codebook
+            entries
+        Tensor[1]
+            Codebook loss to update the codebook
+        Tensor[B x T]
+            Codebook indices (quantized discrete representation of input)
+        Tensor[B x D x T]
+            Projected latents (continuous representation of input before quantization)
+        """
+
+        # Factorized codes (ViT-VQGAN) Project input into low-dimensional space
+        z_e = self.in_proj(z)  # z_e : (B x D x T)
+        z_q, indices = self.decode_latents(z_e)
+
+        with torch.no_grad():
+            flat_indices = indices.reshape(-1)
+            usage = torch.bincount(flat_indices, minlength=self.codebook_size).float()
+            total = usage.sum()
+            if total.item() > 0:
+                probs = usage / total
+                perp = torch.exp(-torch.sum(probs * torch.log(probs + 1e-10)))
+            else:
+                perp = torch.tensor(0.0, device=usage.device)
+
+        commitment_loss = F.mse_loss(z_e, z_q.detach(), reduction="none").mean([1, 2])
+        codebook_loss = F.mse_loss(z_q, z_e.detach(), reduction="none").mean([1, 2])
+
+        z_q = (
+            z_e + (z_q - z_e).detach()
+        )  # noop in forward pass, straight-through gradient estimator in backward pass
+
+        z_q = self.out_proj(z_q)
+
+        return z_q, commitment_loss, codebook_loss, indices, z_e, perp
+
+    def embed_code(self, embed_id):
+        return F.embedding(embed_id, self.codebook.weight)
+
+    def decode_code(self, embed_id):
+        return self.embed_code(embed_id).transpose(1, 2)
+
+    def decode_latents(self, latents):
+        encodings = rearrange(latents, "b d t -> (b t) d")
+        codebook = self.codebook.weight  # codebook: (N x D)
+
+        # L2 normalize encodings and codebook (ViT-VQGAN)
+        encodings = F.normalize(encodings)
+        codebook = F.normalize(codebook)
+
+        # Compute euclidean distance with codebook
+        dist = (
+            encodings.pow(2).sum(1, keepdim=True)
+            - 2 * encodings @ codebook.t()
+            + codebook.pow(2).sum(1, keepdim=True).t()
+        )
+        indices = rearrange((-dist).max(1)[1], "(b t) -> b t", b=latents.size(0))
+        z_q = self.decode_code(indices)
+        return z_q, indices
+
+
+class ResidualVectorQuantize(nn.Module):
+    """
+    Introduced in SoundStream: An end2end neural audio codec
+    https://arxiv.org/abs/2107.03312
+    """
+
+    def __init__(
+        self,
+        input_dim: int = 512,
+        n_codebooks: int = 9,
+        codebook_size: int = 1024,
+        codebook_dim: Union[int, list] = 8,
+        quantizer_dropout: float = 0.0,
+    ):
+        super().__init__()
+        if isinstance(codebook_dim, int):
+            codebook_dim = [codebook_dim for _ in range(n_codebooks)]
+
+        self.n_codebooks = n_codebooks
+        self.codebook_dim = codebook_dim
+        self.codebook_size = codebook_size
+
+        self.quantizers = nn.ModuleList(
+            [
+                VectorQuantize(input_dim, codebook_size, codebook_dim[i])
+                for i in range(n_codebooks)
+            ]
+        )
+        self.quantizer_dropout = quantizer_dropout
+
+    def forward(self, z, n_quantizers: int = None):
+        """Quantized the input tensor using a fixed set of `n` codebooks and returns
+        the corresponding codebook vectors
+        Parameters
+        ----------
+        z : Tensor[B x D x T]
+        n_quantizers : int, optional
+            No. of quantizers to use
+            (n_quantizers < self.n_codebooks ex: for quantizer dropout)
+            Note: if `self.quantizer_dropout` is True, this argument is ignored
+                when in training mode, and a random number of quantizers is used.
+        Returns
+        -------
+        dict
+            A dictionary with the following keys:
+
+            "z" : Tensor[B x D x T]
+                Quantized continuous representation of input
+            "codes" : Tensor[B x N x T]
+                Codebook indices for each codebook
+                (quantized discrete representation of input)
+            "latents" : Tensor[B x N*D x T]
+                Projected latents (continuous representation of input before quantization)
+            "vq/commitment_loss" : Tensor[1]
+                Commitment loss to train encoder to predict vectors closer to codebook
+                entries
+            "vq/codebook_loss" : Tensor[1]
+                Codebook loss to update the codebook
+        """
+        z = z.transpose(1, 2).contiguous()  # (B x D x T)
+        z_q = 0
+        residual = z
+        commitment_loss = 0
+        codebook_loss = 0
+
+        codebook_indices = []
+        latents = []
+        perp = torch.zeros((self.n_codebooks,), device=z.device)
+
+        if n_quantizers is None:
+            n_quantizers = self.n_codebooks
+        if self.training:
+            n_quantizers = torch.ones((z.shape[0],)) * self.n_codebooks + 1
+            dropout = torch.randint(1, self.n_codebooks + 1, (z.shape[0],))
+            n_dropout = int(z.shape[0] * self.quantizer_dropout)
+            n_quantizers[:n_dropout] = dropout[:n_dropout]
+            n_quantizers = n_quantizers.to(z.device)
+
+        for i, quantizer in enumerate(self.quantizers):
+            if self.training is False and i >= n_quantizers:
+                break
+
+            z_q_i, commitment_loss_i, codebook_loss_i, indices_i, z_e_i, perp_i = (
+                quantizer(residual)
+            )
+            perp[i] = perp_i
+            # Create mask to apply quantizer dropout
+            mask = (
+                torch.full((z.shape[0],), fill_value=i, device=z.device) < n_quantizers
+            )
+            z_q = z_q + z_q_i * mask[:, None, None]
+            residual = residual - z_q_i
+
+            # Sum losses
+            commitment_loss += (commitment_loss_i * mask).mean()
+            codebook_loss += (codebook_loss_i * mask).mean()
+
+            codebook_indices.append(indices_i)
+            latents.append(z_e_i)
+
+        codes = torch.stack(codebook_indices, dim=1)
+        # latents = torch.cat(latents, dim=1)
+
+        z_q = z_q.transpose(1, 2).contiguous()
+        output = VectorQuantizerOutput(
+            z_q=z_q,
+            codes=codes,
+            codebook_loss=codebook_loss,
+            commitment_loss=commitment_loss,
+            perplexity=perp,
+        )
+        return output
+
+        return z_q, codes, latents, commitment_loss, codebook_loss
+
+    def from_codes(self, codes: torch.Tensor):
+        """Given the quantized codes, reconstruct the continuous representation
+        Parameters
+        ----------
+        codes : Tensor[B x N x T]
+            Quantized discrete representation of input
+        Returns
+        -------
+        Tensor[B x D x T]
+            Quantized continuous representation of input
+        """
+        z_q = 0.0
+        z_p = []
+        n_codebooks = codes.shape[1]
+        for i in range(n_codebooks):
+            z_p_i = self.quantizers[i].decode_code(codes[:, i, :])
+            z_p.append(z_p_i)
+
+            z_q_i = self.quantizers[i].out_proj(z_p_i)
+            z_q = z_q + z_q_i
+        return z_q, torch.cat(z_p, dim=1), codes
+
+    def from_latents(self, latents: torch.Tensor):
+        """Given the unquantized latents, reconstruct the
+        continuous representation after quantization.
+
+        Parameters
+        ----------
+        latents : Tensor[B x N x T]
+            Continuous representation of input after projection
+
+        Returns
+        -------
+        Tensor[B x D x T]
+            Quantized representation of full-projected space
+        Tensor[B x D x T]
+            Quantized representation of latent space
+        """
+        z_q = 0
+        z_p = []
+        codes = []
+        dims = np.cumsum([0] + [q.codebook_dim for q in self.quantizers])
+
+        n_codebooks = np.where(dims <= latents.shape[1])[0].max(axis=0, keepdims=True)[
+            0
+        ]
+        for i in range(n_codebooks):
+            j, k = dims[i], dims[i + 1]
+            z_p_i, codes_i = self.quantizers[i].decode_latents(latents[:, j:k, :])
+            z_p.append(z_p_i)
+            codes.append(codes_i)
+
+            z_q_i = self.quantizers[i].out_proj(z_p_i)
+            z_q = z_q + z_q_i
+
+        return z_q, torch.cat(z_p, dim=1), torch.stack(codes, dim=1)
+
+
 class DACTrainMode(str, Enum):
     """Training modes for the DAC model."""
 
     FULL = "full"
     FROZEN = "frozen"
+    NO_VQ = "no-vq"
+    VQ_DECODER = "vq-decoder"
+    VQ_ONLY = "vq-only"
 
     @staticmethod
     def choices() -> List[str]:
@@ -103,9 +381,10 @@ class DAC(TorchModel):
             decoder["in_feats"] = latent_feats
             decoder = DACDecoder(**decoder)
 
+        # self.quantizer2 = ResidualVectorQuantize(1024, 9, 1024, 8, 0.5)
+
         self.encoder = encoder
         self.quantizer = quantizer
-        # self.quantizer = None  # --- IGNORE ---
         self.decoder = decoder
         self.latent_feats = latent_feats
         self.input_sample_freq = input_sample_freq
@@ -118,6 +397,8 @@ class DAC(TorchModel):
             self.loudness_norm = LoudnessNorm(
                 sample_freq=input_sample_freq, target_lufs=target_input_lufs
             )
+
+        self.register_buffer("vq_is_valid", torch.zeros(1, dtype=torch.bool))
 
     @property
     def input_sample_frequency(self) -> int:
@@ -209,6 +490,11 @@ class DAC(TorchModel):
         l_out = self.max_out_length(l_in)
         return (l_in - l_out) // 2
 
+    @torch.no_grad()
+    def update_quantizer_params(self, global_step: int):
+        """Update any internal quantizer parameters, e.g., for annealing."""
+        self.quantizer.update_params(global_step)
+
     def get_target_matching_output(
         self,
         audios: torch.Tensor,
@@ -270,17 +556,31 @@ class DAC(TorchModel):
         # self.timer.stop("encoder")
         z_lengths = scale_seq_lengths(x_lengths, z.shape[1], x.shape[1])
         # self.timer.start("quantizer")
-        vq_output = self.quantizer(z, z_lengths, num_quantizers=num_quantizers)
+        assert not self.vq_is_valid.item()
+        if (
+            self.training
+            and self.train_mode != DACTrainMode.NO_VQ
+            and not self.vq_is_valid.item()
+        ):
+            self.vq_is_valid.fill_(True)
+
+        assert not self.vq_is_valid.item()
+        if self.vq_is_valid.item():
+            vq_output = self.quantizer(z, z_lengths, num_quantizers=num_quantizers)
+        else:
+            vq_output = VectorQuantizerOutput(
+                z_q=z,
+                z_lengths=z_lengths,
+                codebook_loss=torch.as_tensor(0.0, device=z.device),
+                perplexity=torch.zeros((1,), device=z.device),
+                commitment_loss=torch.as_tensor(0.0, device=z.device),
+                codes=None,
+                extras=None,
+            )
+            print("Skipping VQ for first forward pass", vq_output, flush=True)
+
+        # vq_output = self.quantizer2(z)
         # self.timer.stop("quantizer")
-        # vq_output = VectorQuantizerOutput(
-        #     z_q=z,
-        #     z_lengths=z_lengths,
-        #     codebook_loss=torch.as_tensor(0.0),
-        #     perplexity=torch.zeros((20,)),
-        #     commitment_loss=torch.as_tensor(0.0),
-        #     codes=None,
-        #     extras=None,
-        # )  # --- IGNORE ---
 
         if self.norm_input_loudness:
             if vq_output.extras is None:
@@ -333,6 +633,45 @@ class DAC(TorchModel):
         # self.timer.stop("total")
         # print("Timer report:", self.timer.synchronize_and_report(), flush=True)
         return output
+
+    def set_train_mode(self, mode: str):
+        if mode == self._train_mode:
+            return
+        logging.info("setting DAC train mode to %s", mode)
+        if mode == DACTrainMode.FULL:
+            self.unfreeze()
+        elif mode == DACTrainMode.FROZEN:
+            self.freeze()
+        else:
+            self.unfreeze()
+            if mode == DACTrainMode.NO_VQ:
+                for p in self.quantizer.parameters():
+                    p.requires_grad = False
+            elif mode == DACTrainMode.VQ_DECODER:
+                self.encoder.freeze()
+            elif mode == DACTrainMode.VQ_ONLY:
+                self.encoder.freeze()
+                self.decoder.freeze()
+            else:
+                raise ValueError(f"invalid train_mode={mode}")
+
+        # if mode in [DACTrainMode.VQ_ONLY, DACTrainMode.VQ_DECODER]:
+        #     logging.info("using torch.no_grad for encoder")
+        #     self._encoder_context = torch.no_grad()
+
+        self._train_mode = mode
+
+    def _train(self, train_mode: str):
+        if train_mode in [DACTrainMode.FULL, DACTrainMode.FROZEN]:
+            super()._train(train_mode)
+        elif train_mode in [
+            DACTrainMode.NO_VQ,
+            DACTrainMode.VQ_DECODER,
+            DACTrainMode.VQ_ONLY,
+        ]:
+            super()._train(DACTrainMode.FULL)
+        else:
+            raise ValueError(f"invalid train_mode={train_mode}")
 
     def get_config(self) -> Dict[str, Any]:
         """Return a JSON-serializable config describing the model."""
@@ -395,6 +734,19 @@ class DAC(TorchModel):
             default=-16.0,
             help="Target loudness level in LUFS for input loudness normalization.",
         )
+
+        if prefix is not None:
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
+
+    def add_finetune_args(parser: ArgumentParser, prefix: Optional[str] = None):
+        """Register DAC finetune arguments on an `ArgumentParser`.
+
+        If `prefix` is provided, a nested sub-parser is created and attached under
+        `--{prefix}` via `ActionParser`.
+        """
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

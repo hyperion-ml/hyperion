@@ -128,6 +128,7 @@ class MusanDataPrep(DataPrep):
                 "noise_type": self.subset,
             }
         )
+        segments["original_bandwidth"] = 8000
         segments = SegmentSet(segments)
         segments.sort()
         logging.info("making dataset")

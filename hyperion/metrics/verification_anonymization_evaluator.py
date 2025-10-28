@@ -481,14 +481,14 @@ class VerificationAnonymizationEvaluator:
         sem = stats.sem(tar_ref_anon)  # standard error of the mean
         ci = stats.t.interval(0.95, len(tar_ref_anon) - 1, loc=0, scale=sem)
         df_tar_ra_non_ra["tar_mean"] = tar_mean
+        df_tar_ra_non_ra["tar_mean_ci_95"] = ci[1]
         df_tar_ra_non_ra["tar_std"] = tar_std
-        df_tar_ra_non_ra["tar_ci_95"] = ci[0]
         if self.calibrate_on_orig:
             df_tar_ra_non_ra["tar_mean_non_cal"] = (
                 tar_mean - self.lr.b[0]
             ) / self.lr.A[0, 0]
+            df_tar_ra_non_ra["tar_mean_ci_95_non_cal"] = ci[1] / self.lr.A[0, 0]
             df_tar_ra_non_ra["tar_std_non_cal"] = tar_std / self.lr.A[0, 0]
-            df_tar_ra_non_ra["tar_ci_95_non_cal"] = ci[0] / self.lr.A[0, 0]
 
         return df_tar_ra_non_ra
 

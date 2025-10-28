@@ -138,6 +138,7 @@ class LibriLightDataPrep(DataPrep):
         df_segs["language"] = "eng"
         df_segs["corpusid"] = "librivox"
         df_segs["dataset"] = "librilight"
+        df_segs["original_bandwidth"] = 8000
         segments = SegmentSet(df_segs)
         segments.sort()
 
@@ -151,14 +152,14 @@ class LibriLightDataPrep(DataPrep):
 
         logging.info("making language info file")
         languages = ClassInfo(pd.DataFrame({"id": ["eng"]}))
-        logging.info("making gender info file")
-        genders = ClassInfo(pd.DataFrame({"id": ["m", "f"]}))
+        # logging.info("making gender info file")
+        # genders = ClassInfo(pd.DataFrame({"id": ["m", "f"]}))
 
         classes = {
             "speaker": speakers,
             "book": books,
             "language": languages,
-            "gender": genders,
+            # "gender": genders,
         }
 
         logging.info("making dataset")
@@ -170,6 +171,3 @@ class LibriLightDataPrep(DataPrep):
         logging.info("saving dataset at %s", self.output_dir)
         dataset.save(self.output_dir)
         dataset.describe()
-        # logging.info(
-        #     "datasets containts %d segments, %d speakers", len(segments), len(speakers)
-        # )

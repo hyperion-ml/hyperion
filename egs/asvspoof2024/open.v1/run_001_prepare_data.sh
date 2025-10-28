@@ -198,6 +198,7 @@ if [ $stage -le 8 ];then
 		   data/asvspoof2019_la_{train,dev,dev_enroll,eval,eval_enroll} \
 		   data/asvspoof2021_{df,la}_eval \
 		   data/asvspoof2024_train
+  exit
 fi
 
 

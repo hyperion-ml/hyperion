@@ -298,7 +298,8 @@ class AudioDataset(Dataset):
             logging.warning(
                 f"read audio {seg_id} with stereo channels, of shape {x.shape}"
             )
-            x = np.sum(x, axis=1)  # sum channels if stereo
+            x = np.sum(x, axis=0)  # sum channels if stereo
+            assert len(x) > 10
             logging.warning("maximum/minimum values: %.3f/%.3f", x.max(), x.min())
         return x, fs[0]
 

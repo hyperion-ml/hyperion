@@ -125,6 +125,7 @@ class TorchTrainerBase:
         cpu_offload: bool = False,
         use_amp: bool = False,
         amp_dtype: AMPDType = AMPDType.FLOAT16,
+        bf16_grad_scaler: bool = False,
         log_interval: int = 1000,
         log_gpu_usage: bool = False,
         use_tensorboard: bool = False,
@@ -172,6 +173,7 @@ class TorchTrainerBase:
 
         self.use_amp = use_amp
         self.amp_dtype = AMPDType.to_dtype(amp_dtype)
+        self.bf16_grad_scaler = bf16_grad_scaler
 
         self.grad_clip = grad_clip
         self.grad_clip_norm = grad_clip_norm
@@ -306,7 +308,12 @@ class TorchTrainerBase:
         )
 
     def get_grad_scaler(
-        self, use_amp: bool = False, ddp: bool = False, ddp_type: DDPType = DDPType.DDP
+        self,
+        use_amp: Optional[bool] = None,
+        ddp: Optional[bool] = None,
+        ddp_type: Optional[DDPType] = None,
+        amp_dtype: Optional[AMPDType] = None,
+        bf16_grad_scaler: Optional[bool] = None,
     ):
         """
         Initializes the appropriate gradient scaler for AMP (automatic mixed precision).
@@ -317,20 +324,36 @@ class TorchTrainerBase:
             use_amp (bool): Whether AMP is enabled.
             ddp (bool): Whether DDP is being used.
             ddp_type (DDPType): DDP backend type.
+            amp_dtype (AMPDType): Data type for AMP (float16 or bfloat16).
+            bf16_grad_scaler (bool): If True, enables grad scaler for bfloat16 (default is False).
 
         Returns:
             GradScaler: AMP gradient scaler (native or sharded).
         """
+        use_amp = self.use_amp if use_amp is None else use_amp
+        ddp = self.ddp if ddp is None else ddp
+        ddp_type = self.ddp_type if ddp_type is None else ddp_type
+        amp_dtype = self.amp_dtype if amp_dtype is None else amp_dtype
+        bf16_grad_scaler = (
+            self.bf16_grad_scaler if bf16_grad_scaler is None else bf16_grad_scaler
+        )
+
+        use_grad_scaler = use_amp and (
+            amp_dtype == AMPDType.FLOAT16 or bf16_grad_scaler
+        )
+        if self.rank == 0 and not use_grad_scaler:
+            logging.info("not using grad scaler")
+
         if ddp and ddp_type != DDPType.DDP:
-            if self.rank == 0:
+            if self.rank == 0 and use_grad_scaler:
                 logging.info(
                     "using automatic mixed precision training with sharded-grad-scaler"
                 )
-            return ShardedGradScaler(enabled=use_amp)
+            return ShardedGradScaler(enabled=use_grad_scaler)
 
-        if self.rank == 0:
+        if self.rank == 0 and use_grad_scaler:
             logging.info("using automatic mixed precision training with grad-scaler")
-        return amp.GradScaler(enabled=use_amp)
+        return amp.GradScaler(enabled=use_grad_scaler)
 
     def set_data_epoch(self, data_loader, cur_epoch: int, cur_batch: int = 0):
         """
@@ -475,7 +498,7 @@ class TorchTrainerBase:
         Returns:
             Tuple[torch.Tensor, Any]: Loss tensor and model outputs.
         """
-        return self.compute_train_forward(self, batch_data)
+        return self.compute_train_forward(batch_data)
 
     def compute_backward(self, loss):
         """
@@ -612,6 +635,19 @@ class TorchTrainerBase:
         """
         raise NotImplementedError()
 
+    def get_grad_scales(self):
+        """
+        Gets gradient scales for all optimizer parameter groups.
+
+        Returns:
+            Dict[str, float]: Mapping of group names to gradient scales.
+        """
+
+        try:
+            return self._get_grad_scale(self.grad_scaler)
+        except AttributeError:
+            return {}
+
     def models_have_bn(self):
         """
         Returns True if model(s) contain BatchNorm layers.
@@ -640,8 +676,7 @@ class TorchTrainerBase:
         train_logs.update(self.get_lrs())
         train_logs.update(self.get_wds())
         train_logs.update(self.grad_tracker.grad_ema)
-        if self.use_amp:
-            train_logs["grad_scale"] = self.grad_scaler._scale.item()
+        train_logs.update(self.get_grad_scales())
         return train_logs
 
     def make_val_logs(self, logs: Dict[str, Any]) -> Dict[str, Any]:
@@ -846,7 +881,7 @@ class TorchTrainerBase:
 
         return batch_size, batch_metrics
 
-    @torch.no_grad
+    @torch.no_grad()
     def validation_loop(self):
         """
         Runs the validation loop over the entire validation set.
@@ -888,7 +923,7 @@ class TorchTrainerBase:
         batch_metrics["loss"] = loss.item()
         return batch_size, batch_metrics
 
-    @torch.no_grad
+    @torch.no_grad()
     def bn_update_loop(self):
         """Batch normalization update loop"""
         metric_acc = MetricAcc(self.device)
@@ -1160,6 +1195,21 @@ class TorchTrainerBase:
             wds["wd"] = wds.pop("wd_0")
 
         return wds
+
+    def _get_grad_scale(self, grad_scaler: amp.GradScaler):
+        """
+        Extracts the current gradient scaling factor from the AMP GradScaler.
+
+        Args:
+            grad_scaler (amp.GradScaler): The AMP gradient scaler instance.
+
+        Returns:
+            Dict[str, float]: Dictionary with key 'grad_scale' and its current scaling factor.
+        """
+        if grad_scaler.is_enabled():
+            return {"grad_scale": grad_scaler._scale.item()}
+
+        return {}
 
     def _compute_grad_acc_steps(self, data_loader):
         """
@@ -1706,7 +1756,12 @@ class TorchTrainerBase:
             choices=AMPDType.choices(),
             help="AMP data type. Choose 'float16' or 'bfloat16'.",
         )
-
+        parser.add_argument(
+            "--bf16-grad-scaler",
+            action=ActionYesNo,
+            default=False,
+            help="Enable gradient scaling for bfloat16 (BF16) training.",
+        )
         parser.add_argument(
             "--grad-clip",
             type=float,

@@ -16,7 +16,7 @@ from jsonargparse import (
 )
 
 from hyperion.hyp_defs import config_logger
-from hyperion.np.metrics import VerificationEvaluator as VE
+from hyperion.metrics import VerificationEvaluator as VE
 
 
 def eval_verification_metrics(

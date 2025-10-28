@@ -158,6 +158,24 @@ class MLSDataPrep(DataPrep):
         df["gender"] = df["gender"].str.lower()
         df["book"] = df["book"].astype(str)
         df["language"] = self.language_iso
+        df["original_bandwidth"] = 8000
+
+        def _collapse_group(group: pd.DataFrame) -> pd.Series:
+            """Keep metadata unique per speaker/book while flagging ambiguous chapter titles."""
+            row = group.iloc[0].copy()
+            # If the group spans multiple chapters, drop the chapter title info.
+            unique_chapters = group["chapter_title"].dropna().unique()
+            if len(unique_chapters) == 1 and len(group) == 1:
+                row["chapter_title"] = unique_chapters[0]
+            else:
+                row["chapter_title"] = pd.NA
+            return row
+
+        df = (
+            df.groupby(["speaker", "book"], as_index=False, sort=False)
+            .apply(_collapse_group)
+            .reset_index(drop=True)
+        )
         return df
 
     def _read_transcripts(self, file_path: PathLike) -> pd.DataFrame:
@@ -229,7 +247,7 @@ class MLSDataPrep(DataPrep):
         file_paths = [str(r) for r in rec_files]
         logging.info("making RecordingSet")
         recs = pd.DataFrame({"id": rec_ids, "storage_path": file_paths})
-        print("recs", recs, flush=True)
+        print("recs", recs, len(recs), flush=True)
         recs = RecordingSet(recs)
         recs.sort()
 

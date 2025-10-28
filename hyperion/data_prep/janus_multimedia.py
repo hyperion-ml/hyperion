@@ -313,6 +313,7 @@ class JanusMultimediaDataPrep(DataPrep):
             self.output_dir,
         )
         df_segs = self.read_segments_metadata()
+        df_segs["original_bandwidth"] = 8000
         recs = self.make_recording_set(df_segs)
         if self.with_videos:
             videos = self.make_video_set(df_segs)

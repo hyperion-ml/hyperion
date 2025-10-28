@@ -3,12 +3,7 @@ Copyright 2025 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import contextlib
-import glob
 import logging
-import math
-import os
-import re
 from collections import OrderedDict as ODict
 from enum import Enum
 from pathlib import Path
@@ -136,6 +131,7 @@ class DACTrainer(TorchTrainerBase):
         use_wandb: bool = False,
         wandb: Dict[str, str] = {},
         grad_clip: float = 0,
+        discrim_grad_clip: float = 0,
         grad_clip_norm: Union[str, int] = 2,
         swa_start: int = 0,
         swa_lr: int = 1e-3,
@@ -148,6 +144,7 @@ class DACTrainer(TorchTrainerBase):
         loss_fm_weight: float = 1.0,
         loss_codebook_weight: float = 1.0,
         loss_commitment_weight: float = 0.25,
+        gen_adv_losses_warmup_steps: int = 0,
         # gen_segment_duration: float = 0.64,
         num_val_log_samples: int = 10,
     ):
@@ -176,6 +173,8 @@ class DACTrainer(TorchTrainerBase):
         # self.gen_segment_duration = gen_segment_duration
         self.num_val_log_samples = num_val_log_samples
         self.cur_val_log_samples = 0
+        self.discrim_grad_clip = discrim_grad_clip
+        self.gen_adv_losses_warmup_steps = gen_adv_losses_warmup_steps
 
         self.set_train_mode()
         self.prepare_models_for_training()
@@ -341,6 +340,7 @@ class DACTrainer(TorchTrainerBase):
         Returns:
             OrderedDict[str, float]: A dictionary of computed metrics.
         """
+        self.dac_model.update_quantizer_params(self.cur_step)
         ############################
         # 1. Discriminator Forward #
         ############################
@@ -418,9 +418,13 @@ class DACTrainer(TorchTrainerBase):
         loss_codebook = dac_output.vq.codebook_loss
         loss_commitment = dac_output.vq.commitment_loss
         ppl = dac_output.vq.perplexity.mean().detach().item()
+        if self.cur_step < self.gen_adv_losses_warmup_steps:
+            loss_gen_adv_weight = self.cur_step / self.gen_adv_losses_warmup_steps
+        else:
+            loss_gen_adv_weight = 1.0
         loss_gen = (
-            self.loss_gen_adv_weight * loss_gen_adv
-            + self.loss_fm_weight * loss_fm
+            loss_gen_adv_weight * self.loss_gen_adv_weight * loss_gen_adv
+            + loss_gen_adv_weight * self.loss_fm_weight * loss_fm
             + self.loss_mrfb_log_mag_weight * loss_mrfb_log_mag
             + self.loss_mrfb_conv_weight * loss_mrfb_conv
             + self.loss_codebook_weight * loss_codebook
@@ -497,7 +501,7 @@ class DACTrainer(TorchTrainerBase):
         loss_discrim, losses_discrim_adv_gen, losses_discrim_adv_real = (
             self.discrim_adv_loss(y_gen, y_real)
         )
-        loss_adv_gen, losses_gen_adv = self.gen_adv_loss(y_gen)
+        loss_gen_adv, losses_gen_adv = self.gen_adv_loss(y_gen)
         loss_fm = self.feat_matching_loss(fmaps_gen, fmaps_real)
         loss_mrfb_log_mag, loss_mrfb_conv = self.mrfb_loss(
             dac_output.x_recons.squeeze(1), target_audios
@@ -505,9 +509,13 @@ class DACTrainer(TorchTrainerBase):
         loss_codebook = dac_output.vq.codebook_loss
         loss_commitment = dac_output.vq.commitment_loss
         ppl = dac_output.vq.perplexity.mean().item()
+        if self.cur_step < self.gen_adv_losses_warmup_steps:
+            loss_gen_adv_weight = self.cur_step / self.gen_adv_losses_warmup_steps
+        else:
+            loss_gen_adv_weight = 1.0
+
         loss_gen = (
-            self.loss_gen_adv_weight * loss_adv_gen
-            + self.loss_fm_weight * loss_fm
+            loss_gen_adv_weight * self.loss_gen_adv_weight * loss_gen_adv
             + self.loss_mrfb_log_mag_weight * loss_mrfb_log_mag
             + self.loss_mrfb_conv_weight * loss_mrfb_conv
             + self.loss_codebook_weight * loss_codebook
@@ -520,7 +528,7 @@ class DACTrainer(TorchTrainerBase):
         batch_metrics["loss_gen/mrfb_log_mag"] = loss_mrfb_log_mag.item()
         batch_metrics["loss_gen/mrfb_conv"] = loss_mrfb_conv.item()
         batch_metrics["loss_gen/fm"] = loss_fm.item()
-        batch_metrics["loss_gen/adv"] = loss_adv_gen.item()
+        batch_metrics["loss_gen/adv"] = loss_gen_adv.item()
         batch_metrics["loss_gen/codebook"] = loss_codebook.item()
         batch_metrics["loss_gen/commitment"] = loss_commitment.item()
         batch_metrics["loss_gen/ppl_avg"] = ppl
@@ -635,7 +643,7 @@ class DACTrainer(TorchTrainerBase):
         discrim_grad_norm = self._update_model_by_optim(
             self.discrim_model,
             self.discrim_optimizer,
-            10,  # self.grad_clip,
+            self.discrim_grad_clip,
             self.grad_clip_norm,
             self.use_amp,
             self.grad_scaler,
@@ -775,7 +783,12 @@ class DACTrainer(TorchTrainerBase):
         OF.add_class_args(parser, prefix="discrim_optim")
         LRSF.add_class_args(parser, prefix="discrim_lrsched")
         WDSF.add_class_args(parser, prefix="discrim_wdsched")
-
+        parser.add_argument(
+            "--discrim-grad-clip",
+            default=0,
+            type=float,
+            help="Max norm for clipping discriminator gradients (0 for no clipping).",
+        )
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
@@ -847,7 +860,7 @@ class DACTrainer(TorchTrainerBase):
 
         parser.add_argument(
             "--loss-mrfb-conv-weight",
-            default=2.0,
+            default=1.0,
             type=float,
             help="Weight for the mel-spectrogram reconstruction loss.",
         )
@@ -877,6 +890,12 @@ class DACTrainer(TorchTrainerBase):
             type=float,
             help="Weight for the commitment loss.",
         )
+        parser.add_argument(
+            "--gen-adv-losses-warmup-steps",
+            default=0,
+            type=int,
+            help="Number of steps to warm up the adversarial losses for the generator.",
+        )
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
@@ -901,6 +920,7 @@ class DACTrainer(TorchTrainerBase):
         DACTrainer.add_io_keys_args(parser)
         DACTrainer.add_train_modes_args(parser)
         DACTrainer.add_loss_weights_args(parser)
+
         parser.add_argument(
             "--num-val-log-samples",
             default=10,

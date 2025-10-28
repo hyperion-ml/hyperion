@@ -10,6 +10,7 @@ import re
 import matplotlib
 import numpy as np
 import pandas as pd
+import scipy.stats as stats
 
 matplotlib.use("Agg")
 matplotlib.rc("font", **{"family": "sans-serif", "sans-serif": ["Helvetica"]})
@@ -140,6 +141,20 @@ class VerificationEvaluator:
 
         df["num_targets"] = ntar
         df["num_nontargets"] = nnon
+        tar_mean = np.mean(tar)
+        tar_std = np.std(tar)
+        sem = stats.sem(tar)  # standard error of the mean
+        ci = stats.t.interval(0.95, len(tar) - 1, loc=0, scale=sem)
+        df["tar_mean"] = tar_mean
+        df["tar_mean_ci_95"] = ci[1]
+        df["tar_std"] = tar_std
+        non_mean = np.mean(non)
+        non_std = np.std(non)
+        sem = stats.sem(non)  # standard error of the mean
+        ci = stats.t.interval(0.95, len(non) - 1, loc=0, scale=sem)
+        df["non_mean"] = non_mean
+        df["non_mean_ci_95"] = ci[1]
+        df["non_std"] = non_std
         return df
 
     def get_tar_non(self):

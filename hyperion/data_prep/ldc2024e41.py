@@ -247,6 +247,7 @@ class LDC2024E41DataPrep(DataPrep):
         df_segs["corpusid"] = "mx3"
         df_segs["language"] = "eng"
         df_segs["source_type"] = "cts"
+        df_segs["original_bandwidth"] = 4000
         df_segs["dataset"] = self.dataset_name()
 
         classes = self.make_class_infos(df_segs)

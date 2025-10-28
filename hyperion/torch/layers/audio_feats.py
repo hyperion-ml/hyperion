@@ -844,7 +844,20 @@ class Wav2LogFilterBank(Wav2FFT):
         with amp.autocast(enabled=False):
             pow_spec = torch.matmul(pow_spec.float(), self._fb.float())
 
+        # finite_mask = torch.isfinite(pow_spec)
+        # if not finite_mask.all():
+        #     num_bad = (~finite_mask).sum().item()
+        #     logging.warning(
+        #         "pow_spec contains %d non-finite values before log transform", num_bad
+        #     )
+
         pow_spec = pow_spec.clamp(min=EPS_F16).log()
+        # finite_mask = torch.isfinite(pow_spec)
+        # if not finite_mask.all():
+        #     num_bad = (~finite_mask).sum().item()
+        #     logging.warning(
+        #         "pow_spec contains %d non-finite values after log transform", num_bad
+        #     )
         if self.use_energy:
             pow_spec = torch.cat((log_e.unsqueeze(-1), pow_spec), dim=-1)
 

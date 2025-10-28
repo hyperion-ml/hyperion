@@ -112,8 +112,8 @@ class VIAnonymizerTrainer(FreeVCTrainer):
         vc_model: TorchModel,
         discrim_model: TorchModel,
         xvector_model: TorchModel,
+        audio_feats: Union[AudioFeatsMVN, Dict[str, Any]],
         mrfb_loss: Union[MultiResolutionFilterBankLoss, Dict[str, Any]],
-        audio_feats: AudioFeatsMVN,
         speaker_contrastive_loss: Dict[str, Any],
         vc_optim: torch.optim.Optimizer,
         discrim_optim: torch.optim.Optimizer,
@@ -160,6 +160,7 @@ class VIAnonymizerTrainer(FreeVCTrainer):
         loss_fm_weight: float = 1.0,
         loss_vc_adv_weight: float = 1.0,
         loss_speaker_contrastive_weight: float = 1.0,
+        loss_discrim_vc_weight: float = 1.0,
         vc_losses_warmup_steps: int = 50000,
         vc_losses_warmup_start_step: int = 50000,
         gen_segment_duration: float = 0.64,
@@ -173,6 +174,7 @@ class VIAnonymizerTrainer(FreeVCTrainer):
         self.loss_mrfb_conv_weight = loss_mrfb_conv_weight
         self.loss_vc_adv_weight = loss_vc_adv_weight
         self.loss_speaker_contrastive_weight = loss_speaker_contrastive_weight
+        self.loss_discrim_vc_weight = loss_discrim_vc_weight
         self.speaker_key = speaker_key
 
         self.vc_losses_warmup_steps = vc_losses_warmup_steps
@@ -633,6 +635,12 @@ class VIAnonymizerTrainer(FreeVCTrainer):
         ###########################################
         self.discrim_model.set_train_mode(self.discrim_train_mode)
         with torch.no_grad(), amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
+            # print(
+            #     "[dgb] before xvec input",
+            #     torch.any(~torch.isfinite(input_audios)),
+            #     torch.any(torch.isnan(input_audios)),
+            #     flush=True,
+            # )
             xvector_output = self.xvector_model(
                 input_audios,
                 input_lengths,
@@ -672,6 +680,7 @@ class VIAnonymizerTrainer(FreeVCTrainer):
             losses_discrim_recons_adv_real,
         ) = self.discrim_adv_loss(y_gen, y_real)
         loss_discrim_recons = loss_discrim_recons / self.grad_acc_steps
+        # print("[dgb] loss_discrim", loss_discrim_recons.item(), flush=True)
         self.grad_scaler.scale(loss_discrim_recons).backward()
 
         #######################################
@@ -691,11 +700,11 @@ class VIAnonymizerTrainer(FreeVCTrainer):
             )
 
         loss_mrfb_log_mag, loss_mrfb_conv = self.mrfb_loss(
-            vc_output.gen_audio.squeeze(1), target_audios
+            vc_output.gen_audio.squeeze(1).float(), target_audios.float()
         )
         loss_gen_adv, losses_gen_adv = self.gen_adv_loss(y_gen)
         loss_fm = self.feat_matching_loss(fmaps_gen, fmaps_real)
-        loss_mel = self.l1_loss(mel_feats_gen, mel_feats_real)
+        loss_mel = self.l1_loss(mel_feats_gen.float(), mel_feats_real.float())
         loss_kldiv = vc_output.kldiv_loss
         loss_gen_recons = (
             self.loss_gen_adv_weight * loss_gen_adv
@@ -728,6 +737,12 @@ class VIAnonymizerTrainer(FreeVCTrainer):
                 int(self.gen_segment_duration * self.vc_model.output_sample_frequency),
             ).unsqueeze(1)
             y_gen, fmaps_gen = self.discrim_model(vc_audios_sliced)
+            # print(
+            #     "[dgb] before xvec output",
+            #     torch.any(~torch.isfinite(vc_output.gen_audio)),
+            #     torch.any(torch.isnan(vc_output.gen_audio)),
+            #     flush=True,
+            # )
             xvector_output = self.xvector_model(
                 vc_output.gen_audio.squeeze(1),
                 input_lengths,
@@ -738,7 +753,7 @@ class VIAnonymizerTrainer(FreeVCTrainer):
 
         loss_gen_adv_vc, losses_gen_adv_vc = self.gen_adv_loss(y_gen)
         loss_speaker_contrastive = self.speaker_contrastive_loss(
-            gen_speaker_feats, speaker_feats
+            gen_speaker_feats.float(), speaker_feats.float()
         )
         loss_gen_vc = (
             self.loss_vc_adv_weight * loss_gen_adv_vc
@@ -761,6 +776,18 @@ class VIAnonymizerTrainer(FreeVCTrainer):
             vc_weight = 1.0
 
         loss_gen_total = loss_gen_recons + vc_weight * loss_gen_vc
+        # assert not self.grad_scaler.is_enabled()
+        # print(
+        #     "[dgb] loss_gen",
+        #     loss_gen_recons.item(),
+        #     vc_weight,
+        #     loss_gen_vc.item(),
+        #     loss_mel.item(),
+        #     loss_mrfb_log_mag.item(),
+        #     loss_mrfb_conv.item(),
+        #     loss_kldiv.item(),
+        #     flush=True,
+        # )
         self.grad_scaler.scale(loss_gen_total).backward()
 
         ###########################################
@@ -777,8 +804,10 @@ class VIAnonymizerTrainer(FreeVCTrainer):
             self.discrim_adv_loss(y_gen, y_real)
         )
         loss_discrim_vc = loss_discrim_vc / self.grad_acc_steps
-        loss_discrim_vc_total = vc_weight * loss_discrim_vc
-        if vc_weight > 0.0:
+        loss_discrim_vc_total = (
+            self.loss_discrim_vc_weight * vc_weight * loss_discrim_vc
+        )
+        if vc_weight * self.loss_discrim_vc_weight > 0.0:
             self.grad_scaler.scale(loss_discrim_vc_total).backward()
 
         batch_metrics = ODict()
@@ -1454,7 +1483,7 @@ class VIAnonymizerTrainer(FreeVCTrainer):
         )
         parser.add_argument(
             "--loss_mrfb_log_mag_weight",
-            default=4.5,
+            default=6.5,
             type=float,
             help="Weight for the multi-resolution filter bank log-magnitude loss.",
         )
@@ -1475,6 +1504,12 @@ class VIAnonymizerTrainer(FreeVCTrainer):
             default=1.0,
             type=float,
             help="Weight for the speaker contrastive loss.",
+        )
+        parser.add_argument(
+            "--loss-discrim-vc-weight",
+            default=1.0,
+            type=float,
+            help="Weight for the discriminator loss in the voice conversion component.",
         )
         parser.add_argument(
             "--vc-losses-warmup-steps",
@@ -1507,6 +1542,7 @@ class VIAnonymizerTrainer(FreeVCTrainer):
             parser = ArgumentParser(prog="")
 
         TorchTrainerBase.add_class_args(parser)
+        AudioFeatsMVN.add_class_args(parser, prefix="audio_feats")
         MultiResolutionFilterBankLoss.add_class_args(parser, prefix="mrfb_loss")
         VIAnonymizerTrainer.add_optim_args(parser)
         VIAnonymizerTrainer.add_io_keys_args(parser)

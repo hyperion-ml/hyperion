@@ -37,8 +37,10 @@ class VectorQuantizerOutput(HypDataClass):
 
     z_q: torch.Tensor = None  # Quantized vectors
     codebook_loss: torch.Tensor = None  # VQ loss
-    commitment_loss: torch.Tensor = None  # Commitment loss
-    perplexity: torch.Tensor = None  # Perplexity of the responsibilities
+    commitment_loss: torch.Tensor = None  # Commitment loss (shape depends on `losses_reduction`)
+    diversity_loss: Optional[torch.Tensor] = None  # Diversity regularizer (optional)
+    orthogonality_loss: Optional[torch.Tensor] = None  # Orthonormality regularizer (optional)
+    perplexity: Optional[torch.Tensor] = None  # Perplexity of the responsibilities
     codes: Optional[torch.Tensor] = None  # indices of the codebook vectors (optional)
     z_mask: Optional[torch.Tensor] = None  # mask used for quantization (optional)
     z_lengths: Optional[torch.Tensor] = None  # lengths used for quantization (optional)
@@ -65,6 +67,14 @@ class VectorQuantizerBase(nn.Module):
             layers.
         channels_last (bool): If False, expects channel-first layout for >2D tensors
             (e.g., (B,C,H,W)) and internally transposes to (B,H*W,D).
+        temp (Tensor): Current Gumbel-Softmax temperature buffer.
+        temp_min (Tensor): Lower bound for temperature annealing.
+        temp_anneal_rate (float): Exponential decay rate for temperature scheduling.
+        commitment_weight (Tensor): Current scaling factor for the commitment loss.
+        commitment_anneal_steps (int): Number of steps to linearly ramp the
+            commitment weight from 0 to 1.
+        compute_diversity_loss (bool): Whether to compute diversity loss terms.
+        compute_orthogonality_loss (bool): Whether to compute orthogonality loss terms.
     """
 
     def __init__(
@@ -76,6 +86,13 @@ class VectorQuantizerBase(nn.Module):
         use_weight_norm: bool = False,
         channels_last: bool = False,
         is_ema: bool = False,
+        temp_init: float = 1.0,
+        temp_min: Optional[float] = 0.5,
+        temp_anneal_rate: float = 1e-5,
+        commitment_anneal_steps: int = 0,
+        compute_diversity_loss: bool = False,
+        compute_orthogonality_loss: bool = False,
+        losses_reduction: str = "mean",
     ):
         super().__init__()
         self.in_feats = in_feats
@@ -95,34 +112,73 @@ class VectorQuantizerBase(nn.Module):
             self.out_proj = None
 
         W = torch.empty(codebook_size, self.codebook_dim)
-        # nn.init.uniform_(
-        #     W, -1.0 / math.sqrt(self.codebook_dim), 1.0 / math.sqrt(self.codebook_dim)
-        # )
+        nn.init.uniform_(
+            W, -1.0 / math.sqrt(self.codebook_dim), 1.0 / math.sqrt(self.codebook_dim)
+        )
         # nn.init.normal_(W, 0.0, 1.0 / math.sqrt(self.codebook_dim))
-        nn.init.normal_(W, 0.0, 1.0)
+        # nn.init.normal_(W, 0.0, 1.0)
         if is_ema:
             self.register_buffer("codebook", W)  # <- buffer, not Parameter
         else:
             self.codebook = nn.Parameter(W)  # <- Parameter
 
+        if temp_min is None:
+            temp_min = temp_init
+        if temp_min is None:
+            raise ValueError("`temp_min` must be provided for temperature scheduling.")
+        self.register_buffer("temp", torch.tensor(float(temp_init)))
+        self.register_buffer("temp_min", torch.tensor(float(temp_min)))
+        self.temp_anneal_rate = float(temp_anneal_rate)
+        self.commitment_anneal_steps = max(0, int(commitment_anneal_steps))
+        initial_commitment_weight = 0.0 if self.commitment_anneal_steps > 0 else 1.0
+        self.register_buffer(
+            "commitment_weight", torch.tensor(float(initial_commitment_weight))
+        )
+        self._compute_diversity_loss = bool(compute_diversity_loss)
+        self._compute_orthogonality_loss = bool(compute_orthogonality_loss)
+        if losses_reduction not in {"none", "mean", "sum"}:
+            raise ValueError(
+                f"losses_reduction must be one of {{'none','mean','sum'}}, got {losses_reduction}"
+            )
+        self.losses_reduction = losses_reduction
+
         self.init_weights()
 
     def get_config(self):
         """Returns the configuration of the vector quantizer."""
-        return {
+        cfg = {
             "in_feats": self.in_feats,
             "codebook_size": self.codebook_size,
             "codebook_dim": self.codebook_dim,
             "distance_metric": self.distance_metric.value,
             "use_weight_norm": self.use_weight_norm,
             "channels_last": self.channels_last,
+            "temp_init": float(self.temp.item()),
+            "temp_min": float(self.temp_min.item()),
+            "temp_anneal_rate": float(self.temp_anneal_rate),
+            "commitment_anneal_steps": self.commitment_anneal_steps,
+            "compute_diversity_loss": self._compute_diversity_loss,
+            "compute_orthogonality_loss": self._compute_orthogonality_loss,
+            "losses_reduction": self.losses_reduction,
         }
+        return cfg
 
     def __repr__(self):
         return self.__str__()
 
     def __str__(self):
-        return f"{self.__class__.__name__}(in_feats={self.in_feats}, codebook_size={self.codebook_size}, codebook_dim={self.codebook_dim}, distance_metric={self.distance_metric}, use_weight_norm={self.use_weight_norm}, channels_last={self.channels_last})"
+        return (
+            f"{self.__class__.__name__}(in_feats={self.in_feats}, "
+            f"codebook_size={self.codebook_size}, codebook_dim={self.codebook_dim}, "
+            f"distance_metric={self.distance_metric}, use_weight_norm={self.use_weight_norm}, "
+            f"channels_last={self.channels_last}, temp={self.temp.item():.4f}, "
+            f"temp_min={self.temp_min.item():.4f}, temp_anneal_rate={self.temp_anneal_rate}, "
+            f"commitment_weight={self.commitment_weight.item():.4f}, "
+            f"commitment_anneal_steps={self.commitment_anneal_steps}, "
+            f"compute_diversity_loss={self._compute_diversity_loss}, "
+            f"compute_orthogonality_loss={self._compute_orthogonality_loss}, "
+            f"losses_reduction='{self.losses_reduction}')"
+        )
 
     def init_weights(self) -> None:
         """Reset linear layers to N(0, 0.01) weights and zero bias.
@@ -152,6 +208,143 @@ class VectorQuantizerBase(nn.Module):
                     nn.init.zeros_(m.bias)
 
     @torch.no_grad()
+    def update_temp(self, global_step: int) -> None:
+        """
+        Anneal temperature exponentially for quantizers that enable it.
+
+        Update rule:
+            T = max(temp_min, temp * exp(-temp_anneal_rate * step))
+
+        Args:
+            global_step (int): Number of elapsed training steps.
+        """
+        if not isinstance(self.temp, torch.Tensor) or not isinstance(
+            self.temp_min, torch.Tensor
+        ):
+            return
+        decay = math.exp(-float(self.temp_anneal_rate) * float(global_step))
+        new_temp = torch.clamp(self.temp * decay, min=self.temp_min.item())
+        self.temp.copy_(new_temp)
+        if global_step % 1000 == 0:
+            logging.info(f"VQ Temperature updated to {self.temp.item():.4f}")
+
+    @torch.no_grad()
+    def update_commitment_weight(self, global_step: int) -> None:
+        """
+        Linearly anneal the commitment loss weight from 0 to 1.
+
+        Args:
+            global_step (int): Current global training step.
+        """
+        if self.commitment_weight == 1.0:
+            return
+
+        if self.commitment_anneal_steps <= 0:
+            self.commitment_weight.fill_(1.0)
+            return
+
+        progress = min(1.0, float(global_step) / float(self.commitment_anneal_steps))
+        self.commitment_weight.fill_(progress)
+        if global_step % 1000 == 0:
+            logging.info(
+                f"VQ Commitment weight updated to {self.commitment_weight.item():.4f}"
+            )
+
+    def update_params(self, global_step: int) -> None:
+        """
+        Update all scheduled parameters.
+
+        Args:
+            global_step (int): Current global training step.
+        """
+        self.update_temp(global_step)
+        self.update_commitment_weight(global_step)
+
+    def compute_diversity_loss(
+        self,
+        posterior: torch.Tensor,
+        mask: Optional[torch.Tensor] = None,
+        eps: float = 1e-10,
+    ) -> torch.Tensor:
+        """
+        Compute a diversity loss encouraging uniform code usage.
+
+        Args:
+            posterior (Tensor): Posterior code probabilities of shape (..., K).
+            mask (Tensor, optional): Optional mask broadcastable to posterior[..., 0].
+            eps (float): Numerical stability constant.
+
+        Returns:
+            Tensor: Scalar loss (KL(p || uniform)) in posterior.dtype on posterior.device.
+        """
+        if posterior.numel() == 0:
+            return posterior.new_zeros(())
+
+        probs = posterior.view(-1, posterior.shape[-1])
+        if mask is not None:
+            mask_flat = mask.view(-1).to(probs.dtype)
+            weights = mask_flat.unsqueeze(-1)
+            weighted = probs * weights
+            denom = mask_flat.sum()
+            if denom.item() <= 0:
+                return posterior.new_zeros(())
+            avg_prob = weighted.sum(dim=0) / denom.clamp_min(eps)
+        else:
+            if probs.shape[0] == 0:
+                return posterior.new_zeros(())
+            avg_prob = probs.mean(dim=0)
+
+        total_mass = avg_prob.sum().clamp_min(eps)
+        avg_prob = avg_prob / total_mass
+
+        num_codes = avg_prob.shape[0]
+        if num_codes == 0:
+            return posterior.new_zeros(())
+        log_k = posterior.new_tensor(math.log(num_codes))
+        loss = (avg_prob * (avg_prob + eps).log()).sum()
+        return loss + log_k
+
+    def compute_orthogonal_loss(self) -> torch.Tensor:
+        """
+        Compute orthogonality loss for the current codebook.
+
+        Returns:
+            Tensor: Scalar loss measuring deviation from orthonormality.
+        """
+        normed = F.normalize(self.codebook, p=2, dim=-1)
+        gram = torch.matmul(normed, normed.t())
+        identity = torch.eye(gram.shape[0], device=gram.device, dtype=gram.dtype)
+        return F.mse_loss(gram, identity)
+
+    @staticmethod
+    def _maybe_allreduce_tensor(x: torch.Tensor) -> None:
+        """
+        Sum `x` across processes if torch.distributed is active.
+        """
+        if dist.is_available() and dist.is_initialized():
+            dist.all_reduce(x, op=dist.ReduceOp.SUM)
+
+    def _reduce_loss(self, loss: Optional[torch.Tensor]) -> Optional[torch.Tensor]:
+        """
+        Reduce a loss tensor according to the configured reduction mode.
+
+        Args:
+            loss (Tensor or None): Loss values to reduce.
+
+        Returns:
+            Tensor or None: Reduced loss respecting ``losses_reduction``.
+        """
+        if loss is None:
+            return None
+        if self.losses_reduction == "none":
+            return loss
+        if self.losses_reduction == "mean":
+            return loss.mean()
+        if self.losses_reduction == "sum":
+            return loss.sum()
+        raise RuntimeError(f"Unexpected losses_reduction value: {self.losses_reduction}")
+
+    @torch.no_grad()
     def codebook_perplexity_hard(
         self,
         codes: torch.Tensor,
@@ -178,7 +371,10 @@ class VectorQuantizerBase(nn.Module):
             flat_codes = flat_codes[flat_mask]
 
         # Histogram over all codes
-        counts = torch.bincount(flat_codes, minlength=self.codebook_size).float()
+        counts = torch.bincount(flat_codes, minlength=self.codebook_size).to(
+            device=self.codebook.device, dtype=torch.float32
+        )
+        self._maybe_allreduce_tensor(counts)
         total = counts.sum()
         if total <= 0:
             return torch.tensor(0.0, device=counts.device)
@@ -215,7 +411,8 @@ class VectorQuantizerBase(nn.Module):
             soft_one_hot = soft_one_hot[flat_mask]
 
         # Histogram over all codes
-        counts = soft_one_hot.sum(dim=0)  # (num_embed,)
+        counts = soft_one_hot.sum(dim=0).to(dtype=torch.float32)  # (num_embed,)
+        self._maybe_allreduce_tensor(counts)
         total = counts.sum()
         if total <= 0:
             return torch.tensor(0.0, device=counts.device)
@@ -253,9 +450,6 @@ class VectorQuantizerBase(nn.Module):
             encodings = F.normalize(encodings, p=2, dim=-1)
             codebook = F.normalize(codebook, p=2, dim=-1)
             return 1 - torch.matmul(encodings, codebook.t())
-            # return 1 - F.cosine_similarity(
-            #     encodings.unsqueeze(1), codebook.unsqueeze(0), dim=-1
-            # )
         else:
             raise ValueError(f"Unsupported distance metric: {self.distance_metric}")
 
@@ -271,15 +465,21 @@ class VectorQuantizerBase(nn.Module):
         """
         return F.embedding(codes, self.codebook)  # (B,T,D)
 
-    def encode_latents(self, latents):
+    def encode_latents(
+        self, latents: torch.Tensor, return_probs: bool = False
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         """
         Encode continuous latents to nearest code indices.
 
         Args:
             latents (Tensor): Input tensor of shape (B, T, D).
+            return_probs (bool): When ``True`` also returns soft assignment
+                probabilities (``shape==(B*T, K)``) for diversity regularizers.
 
         Returns:
-            Tensor: Code indices of shape (B, T).
+            Tensor | Tuple[Tensor, Tensor]:
+                Either the code indices of shape ``(B, T)`` or a tuple
+                ``(codes, probabilities)`` when ``return_probs`` is enabled.
         """
         latents_shape = latents.shape
         latents = latents.view(-1, latents.shape[-1])  # (B*T, D)
@@ -287,9 +487,9 @@ class VectorQuantizerBase(nn.Module):
         # print("distance", distance, flush=True)
         codes = distance.min(dim=1)[1]  # (B*T)
         unique_codes = torch.unique(codes)
+        print(f"[encode_latents] Unique codes={unique_codes.tolist()}")
         if unique_codes.numel() < 4:
             torch.set_printoptions(threshold=10_000)
-            print(f"[encode_latents] Unique codes={unique_codes.tolist()}")
             T = latents_shape[1] // 3
             print(f"[encode_latents] latents:\n", latents[T : T + 20, :20])
             print(f"[encode_latents] distance:\n", distance[T : T + 20])
@@ -308,25 +508,40 @@ class VectorQuantizerBase(nn.Module):
         # )
         codes = codes.view(latents_shape[0], -1)  # (B, T)
         # print("codes2", codes, flush=True)
+        if return_probs:
+            logits = -distance / self.temp
+            probs = F.softmax(logits, dim=-1)  # (B*T, K)
+            return codes, probs
+
         return codes
 
-    def decode_latents(self, latents):
+    def quantize_latents(
+        self, latents: torch.Tensor, return_probs: bool = False
+    ) -> Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
         """
         Quantize continuous latents by nearest-neighbor lookup.
 
         Args:
             latents (Tensor): Input tensor of shape (B, T, D).
+            return_probs (bool): When ``True`` also returns the soft assignments
+                produced in :meth:`encode_latents`.
 
         Returns:
-            (Tensor, Tensor):
-                - Quantized tensor of shape (B, T, D).
-                - codes of shape (B, T).
+            Tuple[Tensor, Tensor, Optional[Tensor]]:
+                Quantized tensor ``(B, T, D)``, code indices ``(B, T)``, and
+                optionally the flattened soft responsibilities ``(B*T, K)``.
         """
-        codes = self.encode_latents(latents)
-        z_q = self.decode_codes(codes)  # (B, T, D)
-        return z_q, codes
+        if return_probs:
+            codes, probs = self.encode_latents(latents, return_probs=True)
+        else:
+            codes = self.encode_latents(latents)
+            probs = None
 
-    def reshape_input(self, x):
+        z_q = self.decode_codes(codes)  # (B, T, D)
+
+        return z_q, codes, probs
+
+    def reshape_input(self, x: torch.Tensor) -> Tuple[torch.Tensor, Tuple[int, ...]]:
         """
         Flatten input into (B, T, D) while preserving original shape.
 
@@ -346,11 +561,16 @@ class VectorQuantizerBase(nn.Module):
         if not self.channels_last:
             x = x.movedim(1, -1).contiguous()  # e.g., (B,C,H,W)->(B,H,W,C)
 
-        x = x.view(x.shape[0], -1, x.shape[-1])
+        x = x.contiguous().view(x.shape[0], -1, x.shape[-1])
         # x = (B, T, D) or (B, HW, D)
         return x, orig_shape
 
-    def reshape_output(self, y, codes, orig_shape):
+    def reshape_output(
+        self,
+        y: torch.Tensor,
+        codes: Optional[torch.Tensor],
+        orig_shape: Tuple[int, ...],
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         """
         Restore quantized output and codes to original input shape.
 
@@ -371,7 +591,7 @@ class VectorQuantizerBase(nn.Module):
 
         # Restore T back to spatial dims first
         if self.channels_last:
-            y = y.view(
+            y = y.contiguous().view(
                 *orig_shape[:-1], y.shape[-1]
             )  # (B, ..., D) already channels-last
         else:
@@ -414,6 +634,13 @@ class _GDVectorQuantizer(VectorQuantizerBase):
         channels_last: bool = False,
         reset_unused: bool = False,
         reset_unused_steps: int = 1,
+        temp_init: float = 1.0,
+        temp_min: Optional[float] = 0.5,
+        temp_anneal_rate: float = 1e-5,
+        commitment_anneal_steps: int = 0,
+        compute_diversity_loss: bool = False,
+        compute_orthogonality_loss: bool = False,
+        losses_reduction: str = "mean",
     ):
         super().__init__(
             in_feats,
@@ -423,6 +650,13 @@ class _GDVectorQuantizer(VectorQuantizerBase):
             use_weight_norm,
             channels_last,
             is_ema=False,
+            temp_init=temp_init,
+            temp_min=temp_min,
+            temp_anneal_rate=temp_anneal_rate,
+            commitment_anneal_steps=commitment_anneal_steps,
+            compute_diversity_loss=compute_diversity_loss,
+            compute_orthogonality_loss=compute_orthogonality_loss,
+            losses_reduction=losses_reduction,
         )
         self.reset_unused = reset_unused
         self.reset_unused_steps = max(1, int(reset_unused_steps)) if reset_unused else 0
@@ -484,6 +718,8 @@ class _GDVectorQuantizer(VectorQuantizerBase):
         used = counts > 0
         self.unused_steps[used] = 0
         self.unused_steps[~used] += 1
+        print("num unused", (counts == 0).sum().item(), flush=True)
+        print("unused_steps", self.unused_steps[~used], flush=True)
 
         to_reset = self.unused_steps >= self.reset_unused_steps
         if not to_reset.any():
@@ -581,7 +817,8 @@ class _GDVectorQuantizer(VectorQuantizerBase):
                     device=self.codebook.device,
                     dtype=self.codebook.dtype,
                 ) * (1.0 / math.sqrt(self.codebook_dim))
-                logging.info(f"Resetting {int(num_unused)} codebook entries.")
+
+            logging.info(f"Resetting {int(num_unused)} codebook entries.")
 
         new_vectors = new_vectors.to(self.codebook.dtype)
         self.codebook.data[to_reset] = new_vectors
@@ -624,6 +861,10 @@ class NNVectorQuantizer(_GDVectorQuantizer):
         channels_last: bool = False,
         reset_unused: bool = False,
         reset_unused_steps: int = 100,
+        commitment_anneal_steps: int = 0,
+        compute_diversity_loss: bool = False,
+        compute_orthogonality_loss: bool = False,
+        losses_reduction: str = "mean",
     ):
         super().__init__(
             in_feats,
@@ -634,6 +875,10 @@ class NNVectorQuantizer(_GDVectorQuantizer):
             channels_last,
             reset_unused=reset_unused,
             reset_unused_steps=reset_unused_steps,
+            commitment_anneal_steps=commitment_anneal_steps,
+            compute_diversity_loss=compute_diversity_loss,
+            compute_orthogonality_loss=compute_orthogonality_loss,
+            losses_reduction=losses_reduction,
         )
 
     def get_config(self):
@@ -644,7 +889,20 @@ class NNVectorQuantizer(_GDVectorQuantizer):
         return self.__str__()
 
     def __str__(self):
-        return f"{self.__class__.__name__}(in_feats={self.in_feats}, codebook_size={self.codebook_size}, codebook_dim={self.codebook_dim}, distance_metric={self.distance_metric}, use_weight_norm={self.use_weight_norm}, channels_last={self.channels_last}, reset_unused={self.reset_unused}, reset_unused_steps={self.reset_unused_steps if self.reset_unused else 'n/a'})"
+        return (
+            f"{self.__class__.__name__}(in_feats={self.in_feats}, codebook_size={self.codebook_size}, "
+            f"codebook_dim={self.codebook_dim}, distance_metric={self.distance_metric}, "
+            f"use_weight_norm={self.use_weight_norm}, channels_last={self.channels_last}, "
+            f"reset_unused={self.reset_unused}, "
+            f"reset_unused_steps={self.reset_unused_steps if self.reset_unused else 'n/a'}, "
+            f"temp={self.temp.item():.4f}, temp_min={self.temp_min.item():.4f}, "
+            f"temp_anneal_rate={self.temp_anneal_rate}, "
+            f"commitment_weight={self.commitment_weight.item():.4f}, "
+            f"commitment_anneal_steps={self.commitment_anneal_steps}, "
+            f"compute_diversity_loss={self._compute_diversity_loss}, "
+            f"compute_orthogonality_loss={self._compute_orthogonality_loss}, "
+            f"losses_reduction='{self.losses_reduction}')"
+        )
 
     def forward(
         self,
@@ -677,14 +935,18 @@ class NNVectorQuantizer(_GDVectorQuantizer):
             z = self.in_proj(z)
         z_after_proj = z
 
-        z_q, codes = self.decode_latents(z)
+        z_q, codes, probs = self.quantize_latents(
+            z, return_probs=True if self._compute_diversity_loss else False
+        )
 
         if self.training and codes.numel() > 0:
             unique_codes = torch.unique(codes)
+            print(
+                f"[NNVectorQuantizer] Unique codes={unique_codes.tolist()}", flush=True
+            )
             if unique_codes.numel() < 4:
                 torch.set_printoptions(threshold=10_000)
                 T = z.shape[1] // 3
-                print(f"[NNVectorQuantizer] Unique codes={unique_codes.tolist()}")
                 print(
                     "[NNVectorQuantizer] z before in_proj:\n",
                     z_before_proj[0, T : T + 20, :20],
@@ -692,7 +954,9 @@ class NNVectorQuantizer(_GDVectorQuantizer):
                 print(
                     "[NNVectorQuantizer] z after in_proj:\n",
                     z_after_proj[0, T : T + 20, :20],
+                    flush=True,
                 )
+                print("[NNVectorQuantizer] z_q:\n", z_q[0, T : T + 20, :20], flush=True)
 
         if z_mask is not None:
             z_mask = z_mask.view(z_shape[0], -1)  # (B, T)
@@ -712,11 +976,25 @@ class NNVectorQuantizer(_GDVectorQuantizer):
         commitment_loss = (
             F.mse_loss(z, z_q.detach(), reduction="none").mean([1, 2]) / den
         )
+        commitment_loss = commitment_loss * self.commitment_weight
         codebook_loss = F.mse_loss(z_q, z.detach(), reduction="none").mean([1, 2]) / den
+        if self._compute_diversity_loss:
+            diversity_loss = self.compute_diversity_loss(probs, z_mask)
+        else:
+            diversity_loss = None
+
+        if self._compute_orthogonality_loss:
+            orth_loss = self.compute_orthogonal_loss()
+        else:
+            orth_loss = None
+
         ppl = self.codebook_perplexity_hard(codes, z_mask)
 
         if self.reset_unused and self.training:
             self._reset_unused_codes(z, codes, z_mask)
+
+        commitment_loss = self._reduce_loss(commitment_loss)
+        codebook_loss = self._reduce_loss(codebook_loss)
 
         # this allows to backprogate the gradients as if the output were equal to z_e
         z_q = z + (z_q - z).detach()
@@ -733,6 +1011,8 @@ class NNVectorQuantizer(_GDVectorQuantizer):
             z_q=z_q,
             codebook_loss=codebook_loss,
             commitment_loss=commitment_loss,
+            diversity_loss=diversity_loss,
+            orthogonality_loss=orth_loss,
             perplexity=ppl,
             codes=codes,
             z_mask=z_mask,
@@ -768,11 +1048,15 @@ class GumbelVectorQuantizer(_GDVectorQuantizer):
         channels_last (bool): If False, expects channel-first layout for >2D inputs.
         temp_init (float): Initial temperature for Gumbel-Softmax.
         temp_min (float): Minimum annealed temperature.
-        anneal_rate (float): Exponential decay rate for temperature scheduling.
+        temp_anneal_rate (float): Exponential decay rate for temperature scheduling.
         reset_unused (bool): If True (and in training mode), reinitializes codebook
             entries that remain unused for a configurable number of batches.
         reset_unused_steps (int): Consecutive forward passes a codeword can stay unused
             before being reset. Only relevant if ``reset_unused`` is True.
+        commitment_anneal_steps (int): Steps to linearly ramp the commitment penalty.
+        compute_diversity_loss (bool): Whether to compute diversity regularizer terms.
+        compute_orthogonality_loss (bool): Whether to compute orthogonality penalty.
+        losses_reduction (str): Reduction applied to returned losses ("none", "mean", "sum").
     """
 
     def __init__(
@@ -785,9 +1069,13 @@ class GumbelVectorQuantizer(_GDVectorQuantizer):
         channels_last=False,
         temp_init: float = 1.0,
         temp_min: float = 0.5,
-        anneal_rate: float = 1e-5,
+        temp_anneal_rate: float = 1e-5,
         reset_unused: bool = False,
         reset_unused_steps: int = 1,
+        commitment_anneal_steps: int = 0,
+        compute_diversity_loss: bool = False,
+        compute_orthogonality_loss: bool = False,
+        losses_reduction: str = "mean",
     ):
         super().__init__(
             in_feats,
@@ -798,11 +1086,14 @@ class GumbelVectorQuantizer(_GDVectorQuantizer):
             channels_last,
             reset_unused=reset_unused,
             reset_unused_steps=reset_unused_steps,
+            temp_init=temp_init,
+            temp_min=temp_min,
+            temp_anneal_rate=temp_anneal_rate,
+            commitment_anneal_steps=commitment_anneal_steps,
+            compute_diversity_loss=compute_diversity_loss,
+            compute_orthogonality_loss=compute_orthogonality_loss,
+            losses_reduction=losses_reduction,
         )
-        # Temperature parameters
-        self.register_buffer("temp", torch.tensor(temp_init))
-        self.register_buffer("temp_min", torch.tensor(temp_min))
-        self.anneal_rate = anneal_rate
 
     def __str__(self):
         return (
@@ -810,8 +1101,14 @@ class GumbelVectorQuantizer(_GDVectorQuantizer):
             f"codebook_size={self.codebook_size}, codebook_dim={self.codebook_dim}, "
             f"distance_metric={self.distance_metric}, use_weight_norm={self.use_weight_norm}, "
             f"channels_last={self.channels_last}, temp={self.temp.item():.4f}, "
-            f"temp_min={self.temp_min.item():.4f}, anneal_rate={self.anneal_rate}, "
-            f"reset_unused={self.reset_unused}, reset_unused_steps={self.reset_unused_steps if self.reset_unused else 'n/a'})"
+            f"temp_min={self.temp_min.item():.4f}, temp_anneal_rate={self.temp_anneal_rate}, "
+            f"reset_unused={self.reset_unused}, "
+            f"reset_unused_steps={self.reset_unused_steps if self.reset_unused else 'n/a'}, "
+            f"commitment_weight={self.commitment_weight.item():.4f}, "
+            f"commitment_anneal_steps={self.commitment_anneal_steps}, "
+            f"compute_diversity_loss={self._compute_diversity_loss}, "
+            f"compute_orthogonality_loss={self._compute_orthogonality_loss}, "
+            f"losses_reduction='{self.losses_reduction}')"
         )
 
     def get_config(self):
@@ -820,31 +1117,18 @@ class GumbelVectorQuantizer(_GDVectorQuantizer):
             {
                 "temp_init": self.temp.item(),
                 "temp_min": self.temp_min.item(),
-                "anneal_rate": self.anneal_rate,
+                "temp_anneal_rate": self.temp_anneal_rate,
             }
         )
         return cfg
 
-    @torch.no_grad()
-    def update_temp(self, global_step: int = 1) -> None:
-        """
-        Anneal temperature exponentially.
-
-        Update rule:
-            T = max(temp_min, temp * exp(-anneal_rate * step))
-
-        Args:
-            global_step (int): Number of elapsed training steps.
-        """
-        new_temp = torch.clamp(
-            self.temp * torch.exp(-self.anneal_rate * global_step),
-            min=self.temp_min.item(),
-        )
-        self.temp.copy_(new_temp)
-
     def encode_latents(
-        self, latents: torch.Tensor, temp: float, hard: bool = False
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        self,
+        latents: torch.Tensor,
+        temp: float,
+        hard: bool = False,
+        return_probs: bool = False,
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         """
         Encode latents to soft Gumbel-Softmax assignments.
 
@@ -852,11 +1136,13 @@ class GumbelVectorQuantizer(_GDVectorQuantizer):
             latents (Tensor): Input of shape (B, T, D).
             temp (float): Gumbel-Softmax temperature.
             hard (bool): If True, use straight-through (hard) sampling.
+            return_probs (bool): When ``True`` also returns the sampled soft
+                assignments per latent.
 
         Returns:
-            (Tensor, Tensor):
-                - codes (B, T): Argmax over sampled codes.
-                - Soft assignments (N, codebook_size): One-hot or soft one-hot.
+            Tensor | Tuple[Tensor, Tensor]:
+                Either the sampled codes ``(B, T)`` or a tuple ``(codes, soft_one_hot)``
+                containing the corresponding soft one-hot assignments ``(B*T, K)``.
         """
         latents_shape = latents.shape
         latents = latents.view(-1, latents.shape[-1])  # (B*T, D)
@@ -867,11 +1153,18 @@ class GumbelVectorQuantizer(_GDVectorQuantizer):
         )  # (N, num_embed)
         codes = soft_one_hot.max(dim=1)[1]  # (B*T)
         codes = codes.view(latents_shape[0], -1)  # (B, T)
-        return codes, soft_one_hot
+        if return_probs:
+            return codes, soft_one_hot
 
-    def decode_latents(
-        self, latents: torch.Tensor, temp: float, hard: bool = False
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        return codes
+
+    def quantize_latents(
+        self,
+        latents: torch.Tensor,
+        temp: float,
+        hard: bool = False,
+        return_probs: bool = False,
+    ) -> Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
         """
         Quantize latents using Gumbel-Softmax assignments.
 
@@ -879,18 +1172,23 @@ class GumbelVectorQuantizer(_GDVectorQuantizer):
             latents (Tensor): Input of shape (B, T, D).
             temp (float): Gumbel-Softmax temperature.
             hard (bool): If True, apply straight-through discretization.
+            return_probs (bool): When ``True`` includes the sampled soft responsibilities.
 
         Returns:
-            (Tensor, Tensor, Tensor):
-                - Quantized output (B, T, D).
-                - codes (B, T).
-                - Soft one-hot assignments (N, codebook_size).
+            Tuple[Tensor, Tensor, Optional[Tensor]]:
+                Quantized output ``(B, T, D)``, sampled codes ``(B, T)``, and optionally
+                the soft Gumbel assignments ``(B*T, K)``.
         """
-        codes, soft_one_hot = self.encode_latents(latents, temp, hard)
+        encodings = self.encode_latents(latents, temp, hard, return_probs=True)
+        assert isinstance(encodings, tuple)
+        codes, soft_one_hot = encodings
         z_q = torch.matmul(soft_one_hot, self.codebook).view(
             latents.shape
         )  # (B*T, D) -> (B, T, D)
-        return z_q, codes, soft_one_hot
+        if return_probs:
+            return z_q, codes, soft_one_hot
+
+        return z_q, codes, None
 
     def forward(
         self,
@@ -923,7 +1221,7 @@ class GumbelVectorQuantizer(_GDVectorQuantizer):
         if temp is None:
             temp = self.temp.item()
 
-        z_q, codes, soft_one_hot = self.decode_latents(z, temp, hard)
+        z_q, codes, probs = self.quantize_latents(z, temp, hard, return_probs=True)
 
         if z_mask is not None:
             z_mask = z_mask.view(z_shape[0], -1)  # (B, T)
@@ -944,10 +1242,24 @@ class GumbelVectorQuantizer(_GDVectorQuantizer):
             F.mse_loss(z, z_q.detach(), reduction="none").mean([1, 2]) / den
         )
         codebook_loss = F.mse_loss(z_q, z.detach(), reduction="none").mean([1, 2]) / den
-        ppl = self.codebook_perplexity_soft(soft_one_hot, z_mask)
+        commitment_loss = commitment_loss * self.commitment_weight
+        if self._compute_diversity_loss:
+            diversity_loss = self.compute_diversity_loss(probs, z_mask)
+        else:
+            diversity_loss = None
+
+        if self._compute_orthogonality_loss:
+            orth_loss = self.compute_orthogonal_loss()
+        else:
+            orth_loss = None
+
+        ppl = self.codebook_perplexity_soft(probs, z_mask)
 
         if self.reset_unused and self.training:
             self._reset_unused_codes(z, codes, z_mask)
+
+        commitment_loss = self._reduce_loss(commitment_loss)
+        codebook_loss = self._reduce_loss(codebook_loss)
 
         if self.out_proj is not None:
             z_q = self.out_proj(z_q)
@@ -961,6 +1273,8 @@ class GumbelVectorQuantizer(_GDVectorQuantizer):
             z_q=z_q,
             codebook_loss=codebook_loss,
             commitment_loss=commitment_loss,
+            diversity_loss=diversity_loss,
+            orthogonality_loss=orth_loss,
             perplexity=ppl,
             codes=codes,
             z_mask=z_mask,
@@ -995,13 +1309,15 @@ class EMANNVectorQuantizer(VectorQuantizerBase):
         • Updates happen in `forward()` via `_ema_update` (no gradients).
         • `codebook_loss` is always zero, since EMA handles codebook updates.
         • `commitment_loss` is still included, to align encoder outputs with
-          their assigned codes.
+          their assigned codes and is annealed via `commitment_weight`.
         • Supports L2, L1, and cosine distance metrics for nearest-neighbor
           assignment.
         • Sequence masks (`z_mask`) and lengths (`z_lengths`) are supported.
         • Optional code re-initialization for unused embeddings.
+        • Temperature scheduling (``temp``/``temp_min``) and commitment loss
+          annealing are inherited from :class:`VectorQuantizerBase`.
 
-    Args:
+    Attributes:
         in_feats (int): Input feature dimension.
         codebook_size (int): Number of embedding vectors (codebook size).
         codebook_dim (int, optional): Dimension of embedding vectors. Defaults
@@ -1016,6 +1332,13 @@ class EMANNVectorQuantizer(VectorQuantizerBase):
         eps (float): Small constant to avoid division by zero in cluster counts.
         reset_unused (bool): If True, reinitializes codes that are effectively
             unused (cluster size < 1.0) from random encoder samples.
+        temp_init (float): Initial temperature used by the base class.
+        temp_min (float): Minimum value that temperature can attain.
+        temp_anneal_rate (float): Exponential decay rate for the temperature.
+        commitment_anneal_steps (int): Steps over which to ramp the commitment weight.
+        compute_diversity_loss (bool): Whether to compute diversity regularizer terms.
+        compute_orthogonality_loss (bool): Whether to compute orthogonality penalty.
+        losses_reduction (str): Reduction applied to returned losses ("none", "mean", "sum").
     """
 
     def __init__(
@@ -1029,6 +1352,13 @@ class EMANNVectorQuantizer(VectorQuantizerBase):
         decay: float = 0.99,
         eps: float = 1e-5,
         reset_unused: bool = False,
+        temp_init: float = 1.0,
+        temp_min: Optional[float] = 0.5,
+        temp_anneal_rate: float = 1e-5,
+        commitment_anneal_steps: int = 0,
+        compute_diversity_loss: bool = False,
+        compute_orthogonality_loss: bool = False,
+        losses_reduction: str = "mean",
     ):
         super().__init__(
             in_feats,
@@ -1038,6 +1368,13 @@ class EMANNVectorQuantizer(VectorQuantizerBase):
             use_weight_norm,
             channels_last,
             is_ema=True,
+            temp_init=temp_init,
+            temp_min=temp_min,
+            temp_anneal_rate=temp_anneal_rate,
+            commitment_anneal_steps=commitment_anneal_steps,
+            compute_diversity_loss=compute_diversity_loss,
+            compute_orthogonality_loss=compute_orthogonality_loss,
+            losses_reduction=losses_reduction,
         )
         self.decay = decay
         self.eps = eps
@@ -1052,7 +1389,19 @@ class EMANNVectorQuantizer(VectorQuantizerBase):
         )
 
     def __str__(self):
-        return f"{self.__class__.__name__}(in_feats={self.in_feats}, codebook_size={self.codebook_size}, codebook_dim={self.codebook_dim}, distance_metric={self.distance_metric}, use_weight_norm={self.use_weight_norm}, channels_last={self.channels_last}, decay={self.decay}, eps={self.eps}, reset_unused={self.reset_unused})"
+        return (
+            f"{self.__class__.__name__}(in_feats={self.in_feats}, codebook_size={self.codebook_size}, "
+            f"codebook_dim={self.codebook_dim}, distance_metric={self.distance_metric}, "
+            f"use_weight_norm={self.use_weight_norm}, channels_last={self.channels_last}, "
+            f"decay={self.decay}, eps={self.eps}, reset_unused={self.reset_unused}, "
+            f"temp={self.temp.item():.4f}, temp_min={self.temp_min.item():.4f}, "
+            f"temp_anneal_rate={self.temp_anneal_rate}, "
+            f"commitment_weight={self.commitment_weight.item():.4f}, "
+            f"commitment_anneal_steps={self.commitment_anneal_steps}, "
+            f"compute_diversity_loss={self._compute_diversity_loss}, "
+            f"compute_orthogonality_loss={self._compute_orthogonality_loss}, "
+            f"losses_reduction='{self.losses_reduction}')"
+        )
 
     def get_config(self):
         cfg = super().get_config()
@@ -1064,18 +1413,6 @@ class EMANNVectorQuantizer(VectorQuantizerBase):
             }
         )
         return cfg
-
-    @staticmethod
-    def _maybe_allreduce(x: torch.Tensor) -> None:
-        """
-        All-reduce helper for multi-GPU training (DDP).
-
-        If torch.distributed is initialized, sums the tensor `x` across all ranks
-        in-place. Used to synchronize EMA cluster counts and embedding sums
-        before updating the codebook.
-        """
-        if dist.is_available() and dist.is_initialized():
-            dist.all_reduce(x, op=dist.ReduceOp.SUM)
 
     @torch.no_grad()
     def _ema_update(
@@ -1120,8 +1457,8 @@ class EMANNVectorQuantizer(VectorQuantizerBase):
         batch_cluster_size = one_hot.sum(dim=0)  # (K,)
         batch_embed_sum = one_hot.T @ flat_z.to(torch.float32)  # (K,D)
 
-        self._maybe_allreduce(batch_cluster_size)
-        self._maybe_allreduce(batch_embed_sum)
+        self._maybe_allreduce_tensor(batch_cluster_size)
+        self._maybe_allreduce_tensor(batch_embed_sum)
 
         # EMA update
         self.ema_cluster_size.mul_(self.decay).add_(
@@ -1293,7 +1630,9 @@ class EMANNVectorQuantizer(VectorQuantizerBase):
         if self.in_proj is not None:
             z = self.in_proj(z)  # (B,T,D)
 
-        z_q, codes = self.decode_latents(z)  # (B,T,D), (B,T)
+        z_q, codes, probs = self.quantize_latents(
+            z, True if self._compute_diversity_loss else False
+        )  # (B,T,D), (B,T) , (B,T,K) or None
 
         # Build mask (B,T) -> (B,T,1) for broadcasting, and den for normalization
         if z_mask is not None:
@@ -1313,11 +1652,23 @@ class EMANNVectorQuantizer(VectorQuantizerBase):
         else:
             den = torch.ones(z.shape[0], device=z.device, dtype=z.dtype)
 
-        # Losses (no codebook loss for EMA)
         commitment_loss = (
             F.mse_loss(z, z_q.detach(), reduction="none").mean([1, 2]) / den
         )
-        codebook_loss = torch.zeros_like(commitment_loss)
+        codebook_loss = (
+            commitment_loss.detach()
+        )  # codebook loss doesn't impact EMA updates
+        commitment_loss = commitment_loss * self.commitment_weight
+        if self._compute_diversity_loss:
+            diversity_loss = self.compute_diversity_loss(probs, z_mask_2d)
+        else:
+            diversity_loss = None
+
+        if self._compute_orthogonality_loss:
+            orth_loss = self.compute_orthogonal_loss()
+        else:
+            orth_loss = None
+
         ppl = self.codebook_perplexity_hard(codes, z_mask_2d)
 
         # Straight-through estimator for the path to encoder
@@ -1337,6 +1688,9 @@ class EMANNVectorQuantizer(VectorQuantizerBase):
         # Optionally drop codes
         codes = codes if return_codes else None
 
+        commitment_loss = self._reduce_loss(commitment_loss)
+        codebook_loss = self._reduce_loss(codebook_loss)
+
         # Restore shapes/layout
         z_q, codes = self.reshape_output(z_q, codes, orig_shape)
 
@@ -1344,6 +1698,8 @@ class EMANNVectorQuantizer(VectorQuantizerBase):
             z_q=z_q,
             codebook_loss=codebook_loss,
             commitment_loss=commitment_loss,
+            diversity_loss=diversity_loss,
+            orthogonality_loss=orth_loss,
             perplexity=ppl,
             codes=codes,
             z_mask=z_mask,
@@ -1387,7 +1743,10 @@ class EMAGumbelVectorQuantizer(EMANNVectorQuantizer):
             unused (cluster size < 1.0) from random encoder samples.
         temp_init (float): Initial temperature for Gumbel-Softmax.
         temp_min (float): Minimum annealed temperature.
-        anneal_rate (float): Exponential decay rate for temperature scheduling.
+        temp_anneal_rate (float): Exponential decay rate for temperature scheduling.
+        commitment_anneal_steps (int): Steps to linearly ramp the commitment penalty.
+        compute_diversity_loss (bool): Whether to compute diversity regularizer terms.
+        compute_orthogonality_loss (bool): Whether to compute orthogonality penalty.
     """
 
     def __init__(
@@ -1403,7 +1762,11 @@ class EMAGumbelVectorQuantizer(EMANNVectorQuantizer):
         reset_unused: bool = False,
         temp_init: float = 1.0,
         temp_min: float = 0.5,
-        anneal_rate: float = 1e-5,
+        temp_anneal_rate: float = 1e-5,
+        commitment_anneal_steps: int = 0,
+        compute_diversity_loss: bool = False,
+        compute_orthogonality_loss: bool = False,
+        losses_reduction: str = "mean",
     ):
         super().__init__(
             in_feats,
@@ -1415,14 +1778,29 @@ class EMAGumbelVectorQuantizer(EMANNVectorQuantizer):
             decay,
             eps,
             reset_unused,
+            temp_init=temp_init,
+            temp_min=temp_min,
+            temp_anneal_rate=temp_anneal_rate,
+            commitment_anneal_steps=commitment_anneal_steps,
+            compute_diversity_loss=compute_diversity_loss,
+            compute_orthogonality_loss=compute_orthogonality_loss,
+            losses_reduction=losses_reduction,
         )
-        # Temperature parameters
-        self.register_buffer("temp", torch.tensor(temp_init))
-        self.register_buffer("temp_min", torch.tensor(temp_min))
-        self.anneal_rate = anneal_rate
 
     def __str__(self):
-        return f"{self.__class__.__name__}(in_feats={self.in_feats}, codebook_size={self.codebook_size}, codebook_dim={self.codebook_dim}, distance_metric={self.distance_metric}, use_weight_norm={self.use_weight_norm}, channels_last={self.channels_last}, decay={self.decay}, eps={self.eps}, reset_unused={self.reset_unused}, temp={self.temp.item():.4f}, temp_min={self.temp_min.item():.4f}, anneal_rate={self.anneal_rate})"
+        return (
+            f"{self.__class__.__name__}(in_feats={self.in_feats}, codebook_size={self.codebook_size}, "
+            f"codebook_dim={self.codebook_dim}, distance_metric={self.distance_metric}, "
+            f"use_weight_norm={self.use_weight_norm}, channels_last={self.channels_last}, "
+            f"decay={self.decay}, eps={self.eps}, reset_unused={self.reset_unused}, "
+            f"temp={self.temp.item():.4f}, temp_min={self.temp_min.item():.4f}, "
+            f"temp_anneal_rate={self.temp_anneal_rate}, "
+            f"commitment_weight={self.commitment_weight.item():.4f}, "
+            f"commitment_anneal_steps={self.commitment_anneal_steps}, "
+            f"compute_diversity_loss={self._compute_diversity_loss}, "
+            f"compute_orthogonality_loss={self._compute_orthogonality_loss}, "
+            f"losses_reduction='{self.losses_reduction}')"
+        )
 
     def get_config(self):
         cfg = super().get_config()
@@ -1430,31 +1808,18 @@ class EMAGumbelVectorQuantizer(EMANNVectorQuantizer):
             {
                 "temp_init": self.temp.item(),
                 "temp_min": self.temp_min.item(),
-                "anneal_rate": self.anneal_rate,
+                "temp_anneal_rate": self.temp_anneal_rate,
             }
         )
         return cfg
 
-    @torch.no_grad()
-    def update_temp(self, global_step: int = 1) -> None:
-        """
-        Anneal temperature exponentially.
-
-        Update rule:
-            T = max(temp_min, temp * exp(-anneal_rate * step))
-
-        Args:
-            global_step (int): Number of elapsed training steps.
-        """
-        new_temp = torch.clamp(
-            self.temp * torch.exp(-self.anneal_rate * global_step),
-            min=self.temp_min.item(),
-        )
-        self.temp.copy_(new_temp)
-
     def encode_latents(
-        self, latents: torch.Tensor, temp: float, hard: bool = False
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        self,
+        latents: torch.Tensor,
+        temp: float,
+        hard: bool = False,
+        return_probs: bool = False,
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         """
         Encode latents to soft Gumbel-Softmax assignments.
 
@@ -1464,9 +1829,10 @@ class EMAGumbelVectorQuantizer(EMANNVectorQuantizer):
             hard (bool): If True, use straight-through (hard) sampling.
 
         Returns:
-            (Tensor, Tensor):
-                - codes (B, T): Argmax over sampled codes.
-                - Soft assignments (N, codebook_size): One-hot or soft one-hot.
+            Tensor | Tuple[Tensor, Tensor]:
+                Either the sampled codes ``(B, T)`` or a tuple ``(codes, soft_one_hot)``
+                with the accompanying soft responsibilities ``(B*T, K)`` if
+                ``return_probs`` is True.
         """
         latents_shape = latents.shape
         latents = latents.view(-1, latents.shape[-1])  # (B*T, D)
@@ -1477,11 +1843,18 @@ class EMAGumbelVectorQuantizer(EMANNVectorQuantizer):
         )  # (N, num_embed)
         codes = soft_one_hot.max(dim=1)[1]  # (B*T)
         codes = codes.view(latents_shape[0], -1)  # (B, T)
-        return codes, soft_one_hot
+        if return_probs:
+            return codes, soft_one_hot
 
-    def decode_latents(
-        self, latents: torch.Tensor, temp: float, hard: bool = False
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        return codes
+
+    def quantize_latents(
+        self,
+        latents: torch.Tensor,
+        temp: float,
+        hard: bool = False,
+        return_probs: bool = False,
+    ) -> Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
         """
         Quantize latents using Gumbel-Softmax assignments.
 
@@ -1491,16 +1864,21 @@ class EMAGumbelVectorQuantizer(EMANNVectorQuantizer):
             hard (bool): If True, apply straight-through discretization.
 
         Returns:
-            (Tensor, Tensor, Tensor):
-                - Quantized output (B, T, D).
-                - codes (B, T).
-                - Soft one-hot assignments (N, codebook_size).
+            Tuple[Tensor, Tensor, Optional[Tensor]]:
+                Quantized output ``(B, T, D)``, sampled codes ``(B, T)``, and
+                optionally the soft Gumbel assignments ``(B*T, K)`` when
+                ``return_probs`` is requested.
         """
-        codes, soft_one_hot = self.encode_latents(latents, temp, hard)
+        encodings = self.encode_latents(latents, temp, hard, return_probs=True)
+        assert isinstance(encodings, tuple)
+        codes, soft_one_hot = encodings
         z_q = torch.matmul(soft_one_hot, self.codebook).view(
             latents.shape
         )  # (B*T, D) -> (B, T, D)
-        return z_q, codes, soft_one_hot
+        if return_probs:
+            return z_q, codes, soft_one_hot
+
+        return z_q, codes, None
 
     def forward(
         self,
@@ -1550,7 +1928,7 @@ class EMAGumbelVectorQuantizer(EMANNVectorQuantizer):
 
         if temp is None:
             temp = self.temp.item()
-        z_q, codes, soft_one_hot = self.decode_latents(z, temp, hard)
+        z_q, codes, soft_one_hot = self.quantize_latents(z, temp, hard)
 
         # Build mask (B,T) -> (B,T,1) for broadcasting, and den for normalization
         if z_mask is not None:
@@ -1574,7 +1952,20 @@ class EMAGumbelVectorQuantizer(EMANNVectorQuantizer):
         commitment_loss = (
             F.mse_loss(z, z_q.detach(), reduction="none").mean([1, 2]) / den
         )
-        codebook_loss = torch.zeros_like(commitment_loss)
+        codebook_loss = (
+            commitment_loss.detach()
+        )  # codebook loss doesn't impact EMA updates
+        commitment_loss = commitment_loss * self.commitment_weight
+        if self._compute_diversity_loss:
+            diversity_loss = self.compute_diversity_loss(soft_one_hot, z_mask_2d)
+        else:
+            diversity_loss = None
+
+        if self._compute_orthogonality_loss:
+            orth_loss = self.compute_orthogonal_loss()
+        else:
+            orth_loss = None
+
         ppl = self.codebook_perplexity_soft(soft_one_hot, z_mask_2d)
 
         # EMA update (no grad) on flattened views
@@ -1591,6 +1982,9 @@ class EMAGumbelVectorQuantizer(EMANNVectorQuantizer):
         # Optionally drop codes
         codes = codes if return_codes else None
 
+        commitment_loss = self._reduce_loss(commitment_loss)
+        codebook_loss = self._reduce_loss(codebook_loss)
+
         # Restore shapes/layout
         z_q, codes = self.reshape_output(z_q, codes, orig_shape)
 
@@ -1598,6 +1992,8 @@ class EMAGumbelVectorQuantizer(EMANNVectorQuantizer):
             z_q=z_q,
             codebook_loss=codebook_loss,
             commitment_loss=commitment_loss,
+            diversity_loss=diversity_loss,
+            orthogonality_loss=orth_loss,
             perplexity=ppl,
             codes=codes,
             z_mask=z_mask,

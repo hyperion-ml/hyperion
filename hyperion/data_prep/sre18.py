@@ -312,6 +312,7 @@ class SRE18DataPrep(DataPrep):
         df_segs = self.read_segments_metadata()
         recs = self.make_recording_set(df_segs)
         df_segs["duration"] = recs.loc[df_segs["id"], "duration"].values
+        df_segs["original_bandwidth"] = 4000
 
         classes = self.make_class_infos(df_segs)
 

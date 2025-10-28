@@ -253,6 +253,7 @@ class VCTKDataPrep(DataPrep):
         # df_segs.rename(columns={"speaker_x": "speaker"}, inplace=True)
         df_segs["dataset"] = "vctk"
         df_segs["corpusid"] = "vctk"
+        df_segs["original_bandwidth"] = 24000
         segments = SegmentSet(df_segs)
         segments.sort()
 

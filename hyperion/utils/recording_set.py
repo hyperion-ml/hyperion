@@ -4,10 +4,15 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
+import multiprocessing
+import threading
+import time
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import soundfile as sf
+import torchaudio
 
 from .info_table import InfoTable
 
@@ -90,22 +95,40 @@ class RecordingSet(InfoTable):
         return fss, durations
 
     @staticmethod
-    def _get_durations(recordings, i, n):
-        import torchaudio
-
+    def _get_durations(recordings, i, n, progress=None, report_every=1000):
         from ..io import RandomAccessAudioReader as AR
 
         ids = []
         durations = []
         fss = []
         recordings = recordings.split(i, n)
+        processed = 0
+        reported = 0
         with AR(recordings=recordings) as reader:
             for _id, audio_file in zip(recordings["id"], recordings["storage_path"]):
-                try:
-                    info = torchaudio.info(audio_file)
-                    num_samples = info.num_frames
-                    sample_rate = info.sample_rate
-                except Exception as e:
+                num_samples = None
+                sample_rate = None
+                suffix = Path(audio_file).suffix.lower()
+                if suffix in {".wav", ".flac"}:
+                    try:
+                        info = sf.info(audio_file)
+                        num_samples = info.frames
+                        sample_rate = info.samplerate
+                    except Exception:
+                        num_samples = None
+                        sample_rate = None
+
+                if num_samples is None or sample_rate is None:
+                    try:
+                        info = torchaudio.info(audio_file)
+                        num_samples = info.num_frames
+                        sample_rate = info.sample_rate
+
+                    except Exception:
+                        num_samples = None
+                        sample_rate = None
+
+                if num_samples is None or sample_rate is None:
                     x, fs = reader.read(_id)
                     num_samples = x[0].shape[0]
                     sample_rate = fs[0]
@@ -114,6 +137,19 @@ class RecordingSet(InfoTable):
                 ids.append(_id)
                 fss.append(sample_rate)
                 durations.append(duration)
+                processed += 1
+                if (
+                    progress is not None
+                    and report_every > 0
+                    and processed - reported >= report_every
+                ):
+                    increment = processed - reported
+                    progress.value += increment
+                    reported += increment
+
+        if progress is not None and processed > reported:
+            increment = processed - reported
+            progress.value += increment
 
         return ids, fss, durations
 
@@ -145,31 +181,73 @@ class RecordingSet(InfoTable):
         self.df["duration"] = durations
         self.df["sample_freq"] = fss
 
-    def get_durations(self, num_threads: int = 16):
+    def get_durations(self, num_threads: int = 16, report_every: int = 5000):
         import itertools
         from concurrent.futures import ProcessPoolExecutor, as_completed
 
         from tqdm import tqdm
 
+        manager = multiprocessing.Manager()
+        progress = manager.Value("i", 0)
+        stop_event = threading.Event()
+        total = len(self.df)
+        progress_interval = 60.0
+
+        def heartbeat():
+            while not stop_event.wait(progress_interval):
+                value = progress.value
+                percent = (100.0 * value / total) if total else 0.0
+                logging.info(
+                    "Duration estimation progress: %d/%d recordings (%.1f%%)",
+                    value,
+                    total,
+                    percent,
+                )
+            value = progress.value
+            percent = (100.0 * value / total) if total else 0.0
+            logging.info(
+                "Duration estimation progress: %d/%d recordings (%.1f%%)",
+                value,
+                total,
+                percent,
+            )
+
+        heartbeat_thread = threading.Thread(
+            target=heartbeat, name="duration-heartbeat", daemon=True
+        )
+        heartbeat_thread.start()
+
         futures = []
         num_threads = min(num_threads, len(self.df))
         logging.info("submitting threads...")
 
-        with ProcessPoolExecutor(max_workers=num_threads) as pool:
-            for i in tqdm(range(num_threads), desc="Submitting threads"):
-                future = pool.submit(RecordingSet._get_durations, self, i, num_threads)
-                futures.append(future)
+        try:
+            with ProcessPoolExecutor(max_workers=num_threads) as pool:
+                for i in tqdm(range(num_threads), desc="Submitting threads"):
+                    future = pool.submit(
+                        RecordingSet._get_durations,
+                        self,
+                        i,
+                        num_threads,
+                        progress,
+                        report_every,
+                    )
+                    futures.append(future)
 
-            logging.info("waiting threads...")
-            for handler in logging.getLogger().handlers:
-                handler.flush()
-            res = []
-            for f in tqdm(
-                as_completed(futures),
-                total=len(futures),
-                desc="Receiving results",
-            ):
-                res.append(f.result())
+                logging.info("waiting threads...")
+                for handler in logging.getLogger().handlers:
+                    handler.flush()
+                res = []
+                for f in tqdm(
+                    as_completed(futures),
+                    total=len(futures),
+                    desc="Receiving results",
+                ):
+                    res.append(f.result())
+        finally:
+            stop_event.set()
+            heartbeat_thread.join()
+            manager.shutdown()
 
         # Unpack and flatten
         ids = list(itertools.chain.from_iterable(r[0] for r in res))
@@ -178,6 +256,7 @@ class RecordingSet(InfoTable):
 
         self.df.loc[ids, "duration"] = durations
         self.df.loc[ids, "sample_freq"] = fss
+        self.df["sample_freq"] = self.df["sample_freq"].astype("Int64")
 
         # import itertools
         # from concurrent.futures import ThreadPoolExecutor

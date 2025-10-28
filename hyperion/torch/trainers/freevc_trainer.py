@@ -138,6 +138,7 @@ class FreeVCTrainer(TorchTrainerBase):
         use_wandb: bool = False,
         wandb: Dict[str, str] = {},
         grad_clip: float = 0,
+        discrim_grad_clip: float = 0,
         grad_clip_norm: Union[str, int] = 2,
         swa_start: int = 0,
         swa_lr: int = 1e-3,
@@ -155,6 +156,12 @@ class FreeVCTrainer(TorchTrainerBase):
         super_args = filter_func_args(super().__init__, locals())
         super().__init__(**super_args)
 
+        if isinstance(audio_feats, dict):
+            audio_feats = AudioFeatsMVN(**audio_feats)
+
+        if self.rank == 0:
+            logging.info("audio_feats={}".format(audio_feats))
+
         self.vc_model = vc_model
         self.discrim_model = discrim_model
         self.xvector_model = xvector_model
@@ -165,6 +172,7 @@ class FreeVCTrainer(TorchTrainerBase):
         self.discrim_optim = discrim_optim
         self.discrim_lrsched = discrim_lrsched
         self.discrim_wdsched = discrim_wdsched
+        self.discrim_grad_clip = discrim_grad_clip
         self.vc_train_mode = vc_train_mode
         self.discrim_train_mode = discrim_train_mode
         self.input_audio_key = input_audio_key
@@ -233,7 +241,7 @@ class FreeVCTrainer(TorchTrainerBase):
             self.cpu_offload,
             False,
         )
-        self.grad_scaler = self.get_grad_scaler(self.use_amp, self.ddp, self.ddp_type)
+        self.grad_scaler = self.get_grad_scaler()
 
     def set_train_mode(self):
         """Applies the selected training modes to the generator and discriminator.
@@ -652,7 +660,7 @@ class FreeVCTrainer(TorchTrainerBase):
         discrim_grad_norm = self._update_model_by_optim(
             self.discrim_model,
             self.discrim_optimizer,
-            10,  # self.grad_clip,
+            self.discrim_grad_clip,
             self.grad_clip_norm,
             self.use_amp,
             self.grad_scaler,
@@ -792,6 +800,12 @@ class FreeVCTrainer(TorchTrainerBase):
         OF.add_class_args(parser, prefix="discrim_optim")
         LRSF.add_class_args(parser, prefix="discrim_lrsched")
         WDSF.add_class_args(parser, prefix="discrim_wdsched")
+        parser.add_argument(
+            "--discrim-grad-clip",
+            default=0.0,
+            type=float,
+            help="Gradient clipping value for the discriminator.",
+        )
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
@@ -900,6 +914,7 @@ class FreeVCTrainer(TorchTrainerBase):
             parser = ArgumentParser(prog="")
 
         TorchTrainerBase.add_class_args(parser)
+        AudioFeatsMVN.add_class_args(parser, prefix="audio_feats")
         FreeVCTrainer.add_optim_args(parser)
         FreeVCTrainer.add_io_keys_args(parser)
         FreeVCTrainer.add_train_modes_args(parser)

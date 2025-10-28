@@ -8,13 +8,15 @@ import logging
 import math
 import os
 import subprocess
-from typing import List, Optional, Union
+from types import TracebackType
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Type, Union
 
 import numpy as np
 import pandas as pd
 import soundfile as sf
 import torchaudio
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
+from numpy.typing import NDArray
 
 from ..hyp_defs import float_cpu
 from ..np.preprocessing.resampler import Any2AnyFreqResampler
@@ -46,22 +48,46 @@ valid_ext = [
 
 
 class AudioReader:
-    """Class to read audio files from wav, flac or pipe
+    """Read audio waveforms from wav, flac, pipe commands, and related formats.
 
-    This class recives HypDataset or RecordingSet,
-    When reciving RecordingSet, it can also recive a SegmentSet
+    This class receives either a :class:`HypDataset` or standalone
+    :class:`RecordingSet` (with an optional :class:`SegmentSet`). When providing
+    only a recordings table, the reader can use the accompanying segment table
+    to extract specific time spans from each recording.
+
+    Args:
+        dataset (Union[HypDataset, PathLike, None]): Dataset instance or path to
+            a dataset file containing recordings and, optionally, segments.
+        recordings (Union[RecordingSet, PathLike, None]): Recording table or path
+            to a recordings file when ``dataset`` is ``None``.
+        segments (Union[SegmentSet, PathLike, None]): Segment table or path to a
+            segments file. Must be ``None`` when ``dataset`` is provided.
+        wav_scale (float): Multiplicative factor applied to every waveform.
+        target_sample_freq (Optional[int]): Target sampling frequency used for
+            optional resampling.
+        channels_first (bool): If ``True`` returns waveforms using the
+            ``(channels, num_samples)`` ordering; otherwise uses
+            ``(num_samples, channels)``.
+        always_2d (bool): If ``True`` keeps a trailing channel dimension even for
+            mono audio.
+        return_all_channels (bool): If ``True`` returns every channel from
+            multi-channel recordings instead of selecting a single channel.
 
     Attributes:
-        dataset:    HypDataset or file path to HypDataset
-        recordings: RecordingSet or file path to RecordingSet
-        segments:   SegmentSet or file path to SegmentSet
-        wav_scale:     multiplies signal by scale factor
-        target_sample_freq: All audios are resample this sample freq.
-        channels_first:  If True, the returned waveforms have shape (num_channels, num_samples)
-                            If False, the returned waveforms have shape (num_samples, num_channels)
-        always_2d: If True, the returned waveforms have shape (num_samples, num_channels)
-                        even when num_channels=1
-        return_all_channels: If True, returns all channels in multi-channel audio files
+        recordings (RecordingSet): Table describing the recordings to load.
+        segments (Optional[SegmentSet]): Table with segment definitions when the
+            reader operates in segment mode.
+        with_segments (bool): Whether the reader was configured with segment
+            metadata.
+        wav_scale (float): Multiplicative factor applied to each waveform.
+        target_sample_freq (Optional[int]): Requested resampling target. ``None``
+            disables resampling.
+        channels_first (bool): Shape convention for returned waveforms.
+        always_2d (bool): Whether mono audio retains a channel axis.
+        return_all_channels (bool): Whether to return every channel for
+            multi-channel audio.
+        resampler (Optional[Any2AnyFreqResampler]): Resampler used when a target
+            sampling rate is requested.
     """
 
     def __init__(
@@ -96,42 +122,70 @@ class AudioReader:
                 if not isinstance(segments, SegmentSet):
                     segments = SegmentSet.load(segments)
 
-        self.recordings = recordings
-        self.segments = segments
-        self.with_segments = False if segments is None else True
-        self.wav_scale = wav_scale
-        self.target_sample_freq = target_sample_freq
-        self.channels_first = channels_first
-        self.always_2d = always_2d
-        self.return_all_channels = return_all_channels
-        self.resampler = None
+        self.recordings: RecordingSet = recordings
+        self.segments: Optional[SegmentSet] = segments
+        self.with_segments: bool = False if segments is None else True
+        self.wav_scale: float = wav_scale
+        self.target_sample_freq: Optional[int] = target_sample_freq
+        self.channels_first: bool = channels_first
+        self.always_2d: bool = always_2d
+        self.return_all_channels: bool = return_all_channels
+        self.resampler: Optional[Any2AnyFreqResampler] = None
         if self.target_sample_freq is not None or "target_sample_freq" in recordings:
             self.resampler = Any2AnyFreqResampler()
 
     @property
-    def keys(self):
+    def keys(self) -> NDArray[Any]:
         if self.with_segments:
             return self.segments["id"].values
         return self.recordings["id"].values
 
-    def __enter__(self):
-        """Function required when entering contructions of type
+    def __enter__(self) -> "AudioReader":
+        """Enter the context manager.
 
-        with AudioReader('file.h5') as f:
-           keys, data = f.read()
+        Returns:
+            AudioReader: The current reader instance for chained usage.
+
+        Example:
+            >>> with AudioReader(dataset="file.h5") as reader:
+            ...     keys, data, fs = reader.read()
         """
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback):
-        """Function required when exiting from contructions of type
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        traceback: Optional[TracebackType],
+    ) -> None:
+        """Exit the context manager.
 
-        with AudioReader('file.h5') as f:
-           keys, data = f.read()
+        Args:
+            exc_type: Exception type raised inside the context (if any).
+            exc_value: Exception value raised inside the context (if any).
+            traceback: Traceback information for the exception (if any).
+
+        The reader does not allocate external resources, so no explicit cleanup
+        is required.
         """
         pass
 
     @staticmethod
-    def channel_name_to_idx(channel, num_channels):
+    def channel_name_to_idx(channel: Union[int, str], num_channels: int) -> int:
+        """Convert a human-readable channel descriptor to a zero-based index.
+
+        Args:
+            channel (Union[int, str]): Channel index (1-based) or mnemonic such
+                as ``"left"``/``"right"``/``"center"``.
+            num_channels (int): Number of channels available in the recording.
+
+        Returns:
+            int: Zero-based channel index.
+
+        Raises:
+            Exception: If ``channel`` is unknown or not available in the
+                recording.
+        """
         if isinstance(channel, int):
             return channel - 1
         if isinstance(channel, str):
@@ -159,18 +213,30 @@ class AudioReader:
         time_dur: float = 0.0,
         channels_first: bool = True,
         always_2d: bool = False,
-    ):
-        """Reads an audiospecifier (audio_file/pipe)
-           It reads from pipe or from all the files that can be read
-           by `libsndfile <http://www.mega-nerd.com/libsndfile/#Features>`
+    ) -> Tuple[np.ndarray, int]:
+        """Read audio from a file path or shell pipe specification.
+
+        Supports pipes as well as every format handled by libsndfile (wav,
+        flac, ogg, etc.) together with the extensions listed in :data:`valid_ext`.
 
         Args:
-          wavspecifier: A pipe, wav, flac, ogg file etc.
-          scale:        Multiplies signal by scale factor
-          time_offset: float indicating the start time to read in the utterance.
-          time_durs: floats indicating the number of seconds to read from the utterance,
-                     if 0 it reads untils the end
+            wavspecifier (PathLike): Pipe command or audio file path (wav, flac,
+                ogg, etc.).
+            scale (float): Multiplicative factor applied to the waveform.
+            time_offset (float): Start time in seconds relative to the beginning
+                of the utterance.
+            time_dur (float): Duration in seconds to read. ``0`` reads the audio
+                until the end of the utterance.
+            channels_first (bool): If ``True`` returns waveforms as
+                ``(channels, num_samples)``.
+            always_2d (bool): Forces single-channel audio to retain a channel
+                dimension.
 
+        Returns:
+            Tuple[np.ndarray, int]: Waveform and sampling rate.
+
+        Raises:
+            Exception: If the specifier points to an unsupported format.
         """
         wavspecifier = wavspecifier.strip()
         if wavspecifier[-1] == "|":
@@ -195,11 +261,27 @@ class AudioReader:
         time_dur: float = 0,
         channels_first: bool = True,
         always_2d: bool = False,
-    ):
-        """Reads wave file from a pipe
+    ) -> Tuple[np.ndarray, int]:
+        """Read audio produced by a shell pipe command.
+
         Args:
-          wavspecifier: Shell command with pipe output
-          scale:        Multiplies signal by scale factor
+            wavspecifier (PathLike): Shell command whose stdout returns the
+                encoded waveform.
+            scale (float): Multiplicative factor applied to the waveform.
+            time_offset (float): Start time in seconds relative to the pipe
+                output.
+            time_dur (float): Duration in seconds to read. ``0`` reads until the
+                end of the available samples.
+            channels_first (bool): If ``True`` returns waveforms as
+                ``(channels, num_samples)``.
+            always_2d (bool): Forces single-channel audio to retain a channel
+                dimension.
+
+        Returns:
+            Tuple[np.ndarray, int]: Waveform and sampling rate.
+
+        Raises:
+            Exception: If the pipe command returns a non-zero exit status.
         """
         if wavspecifier[-1] == "|":
             wavspecifier = wavspecifier[:-1]
@@ -240,7 +322,24 @@ class AudioReader:
         time_dur: float = 0,
         channels_first: bool = True,
         always_2d: bool = False,
-    ):
+    ) -> Tuple[np.ndarray, int]:
+        """Read audio from disk using :mod:`soundfile`.
+
+        Args:
+            wavspecifier (PathLike): Audio file path readable by libsndfile.
+            scale (float): Multiplicative factor applied to the waveform.
+            time_offset (float): Start time in seconds relative to the beginning
+                of the recording.
+            time_dur (float): Duration in seconds to read. ``0`` reads until the
+                end of the recording.
+            channels_first (bool): If ``True`` returns waveforms as
+                ``(channels, num_samples)``.
+            always_2d (bool): Forces single-channel audio to retain a channel
+                dimension.
+
+        Returns:
+            Tuple[np.ndarray, int]: Waveform and sampling rate.
+        """
         if time_offset == 0 and time_dur == 0:
             x, fs = sf.read(wavspecifier, dtype=float_cpu())
             x *= scale
@@ -270,7 +369,24 @@ class AudioReader:
         time_dur: float = 0,
         channels_first: bool = True,
         always_2d: bool = False,
-    ):
+    ) -> Tuple[np.ndarray, int]:
+        """Read audio from disk using :mod:`torchaudio`.
+
+        Args:
+            wavspecifier (PathLike): Audio file path readable by torchaudio.
+            scale (float): Multiplicative factor applied to the waveform.
+            time_offset (float): Start time in seconds relative to the beginning
+                of the recording.
+            time_dur (float): Duration in seconds to read. ``0`` reads until the
+                end of the recording.
+            channels_first (bool): If ``True`` returns waveforms as
+                ``(channels, num_samples)``.
+            always_2d (bool): Forces single-channel audio to retain a channel
+                dimension.
+
+        Returns:
+            Tuple[np.ndarray, int]: Waveform and sampling rate.
+        """
         if time_offset == 0 and time_dur == 0:
             x, fs = torchaudio.load(
                 wavspecifier, normalize=True, channels_first=channels_first
@@ -281,7 +397,7 @@ class AudioReader:
                 start_sample = int(math.floor(time_offset * fs))
                 num_samples = int(math.floor(time_dur * fs))
                 if num_samples > 0:
-                    x = f.read(num_frames=num_samples)
+                    x = f.read(frame_offset=start_sample, num_frames=num_samples)
                 else:
                     x = f.read(frame_offset=start_sample, num_frames=-1)
 
@@ -305,7 +421,32 @@ class AudioReader:
         time_dur: float = 0,
         channels_first: bool = True,
         always_2d: bool = False,
-    ):
+    ) -> Tuple[np.ndarray, int]:
+        """Read audio from disk, retrying with progressively broader fallbacks.
+
+        Args:
+            wavspecifier (PathLike): Audio file path.
+            scale (float): Multiplicative factor applied to the waveform.
+            time_offset (float): Start time in seconds relative to the beginning
+                of the recording.
+            time_dur (float): Duration in seconds to read. ``0`` reads until the
+                end of the recording.
+            channels_first (bool): If ``True`` returns waveforms as
+                ``(channels, num_samples)``.
+            always_2d (bool): Forces single-channel audio to retain a channel
+                dimension.
+
+        Returns:
+            Tuple[np.ndarray, int]: Waveform and sampling rate.
+
+        Raises:
+            RuntimeError: If the audio cannot be read by any backend.
+
+        Notes:
+            Attempts to read with :mod:`soundfile` first, including a relaxed
+            slicing strategy to recover from libsndfile ``fseek`` issues, and
+            finally falls back to :mod:`torchaudio` when required.
+        """
         try:
             return AudioReader.read_file_sf(
                 wavspecifier, scale, time_offset, time_dur, channels_first, always_2d
@@ -413,7 +554,30 @@ class AudioReader:
         channels_first: bool = True,
         always_2d: bool = False,
         return_all_channels: bool = False,
-    ):
+    ) -> Union[Tuple[np.ndarray, int], Tuple[np.ndarray, int, Optional[int]]]:
+        """Load a recording defined in the recordings table.
+
+        Args:
+            recording (pd.Series): Row from the recordings table (requires a
+                ``storage_path`` field and optional ``channel``).
+            time_offset (float): Start time in seconds relative to the beginning
+                of the recording.
+            time_dur (float): Duration in seconds to read.
+            channels_first (bool): If ``True`` returns waveforms as
+                ``(channels, num_samples)``.
+            always_2d (bool): Forces single-channel audio to retain a channel
+                dimension.
+            return_all_channels (bool): If ``True`` returns every channel
+                available.
+
+        Returns:
+            Tuple[np.ndarray, int]: Waveform and sampling rate when a single
+            channel is returned.
+
+            Tuple[np.ndarray, int, Optional[int]]: Waveform, sampling rate, and
+            optional selected channel index when ``return_all_channels`` is
+            ``True``.
+        """
         if return_all_channels:
             always_2d = True
 
@@ -444,7 +608,7 @@ class AudioReader:
         if not return_all_channels and num_channels > 1 and channel is not None:
             x_i = x_i[channel] if channels_first else x_i[:, channel]
             if always_2d:
-                x_i = x_i.expand_dims(channel_dim)
+                x_i = np.expand_dims(x_i, channel_dim)
 
         if self.resampler is not None:
             target_sample_freq = (
@@ -472,49 +636,98 @@ class AudioReader:
         return x_i, fs_i
 
     def _read_segment(
-        self, segment: pd.Series, time_offset: float = 0, time_dur: float = 0
-    ):
-        """Reads a wave segment
+        self,
+        segment: pd.Series,
+        time_offset: float = 0,
+        time_dur: float = 0,
+        channels_first: bool = True,
+        always_2d: bool = False,
+        return_all_channels: bool = False,
+    ) -> Union[Tuple[np.ndarray, int], Tuple[np.ndarray, int, Optional[int]]]:
+        """Load a segment defined in the segments table.
 
         Args:
-          segment: pandas DataFrame (segment_id , file_id, tbeg, tend)
+            segment (pd.Series): Row from the segments table (expects
+                ``recording``, ``start``, and ``duration`` fields).
+            time_offset (float): Additional start offset in seconds relative to
+                the segment start.
+            time_dur (float): Duration in seconds to read. ``0`` reads the full
+                segment after applying ``time_offset``.
+            channels_first (bool): If ``True`` returns waveforms as
+                ``(channels, num_samples)``.
+            always_2d (bool): Forces single-channel audio to retain a channel
+                dimension.
+            return_all_channels (bool): If ``True`` returns every channel
+                available.
+
         Returns:
-          Wave, sampling frequency
+            Tuple[np.ndarray, int]: Waveform and sampling rate when a single
+            channel is returned.
+
+            Tuple[np.ndarray, int, Optional[int]]: Waveform, sampling rate, and
+            optional selected channel index when ``return_all_channels`` is
+            ``True``.
         """
         recording_id = segment["recording"] if "recording" in segment else segment["id"]
         t_start = segment["start"] if "start" in segment else 0.0
         t_start = t_start + time_offset
-        t_dur = segment["duration"]
+        if time_dur > 0:
+            t_dur = min(time_dur, segment["duration"] - time_offset)
+        else:
+            t_dur = segment["duration"] - time_offset
         recording = self.recordings.loc[recording_id]
         if "channel" in segment:
             channel = segment["channel"]
             if pd.notna(channel):
                 recording["channel"] = channel
 
-        return self._read_recording(recording, t_start, t_dur)
+        return self._read_recording(
+            recording, t_start, t_dur, channels_first, always_2d, return_all_channels
+        )
 
-    def read(self):
+    def read(self, *args: Any, **kwargs: Any) -> Any:
         pass
 
 
 class SequentialAudioReader(AudioReader):
-    """
-    Class to read audio files sequentially from wav, flac or pipe
-    This class recives HypDataset or RecordingSet,
-    When reciving RecordingSet, it can also recive a SegmentSet
+    """Iterate through recordings or segments sequentially.
+
+    Args:
+        dataset (Union[HypDataset, PathLike, None]): Dataset instance or path to
+            a dataset file.
+        recordings (Union[RecordingSet, PathLike, None]): Recording table or
+            path to a recordings file when ``dataset`` is ``None``.
+        segments (Union[SegmentSet, PathLike, None]): Segment table or path to a
+            segments file. Must be ``None`` when ``dataset`` is provided.
+        wav_scale (float): Multiplicative factor applied to every waveform.
+        part_idx (int): Index of the partition to process when splitting the
+            dataset.
+        num_parts (int): Number of partitions used to split the dataset.
+        target_sample_freq (Optional[int]): Target sampling frequency used for
+            optional resampling.
+        channels_first (bool): If ``True`` returns waveforms as
+            ``(channels, num_samples)``.
+        always_2d (bool): Forces single-channel audio to retain a channel
+            dimension.
+        return_all_channels (bool): If ``True`` returns every channel available.
+
     Attributes:
-        dataset:    HypDataset or file path to HypDataset
-        recordings: RecordingSet or file path to RecordingSet
-        segments:   SegmentSet or file path to SegmentSet
-        wav_scale:     multiplies signal by scale factor
-        part_idx:      splits the list of files into num_parts and processes part_idx
-        num_parts:     splits the list of files into num_parts and processes part_idx
-        target_sample_freq: All audios are resample this sample freq.
-        channels_first:  If True, the returned waveforms have shape (num_channels, num_samples)
-                            If False, the returned waveforms have shape (num_samples, num_channels)
-        always_2d: If True, the returned waveforms have shape (num_samples, num_channels)
-                        even when num_channels=1
-        return_all_channels: If True, returns all channels in multi-channel audio files
+        dataset (Optional[Union[HypDataset, PathLike]]): Dataset reference used
+            to initialize the reader, when applicable.
+        recordings (RecordingSet): Table describing the recordings to load.
+        segments (Optional[SegmentSet]): Table with segment definitions when the
+            reader operates in segment mode.
+        wav_scale (float): Multiplicative factor applied to each waveform.
+        part_idx (int): Partition index being processed by this reader.
+        num_parts (int): Total number of partitions across which the dataset is
+            split.
+        target_sample_freq (Optional[int]): Target sampling frequency used for
+            optional resampling.
+        channels_first (bool): Shape convention for returned waveforms.
+        always_2d (bool): Whether mono audio retains a channel axis.
+        return_all_channels (bool): Whether to return every channel for
+            multi-channel audio.
+        cur_item (int): Index of the next item to read.
     """
 
     def __init__(
@@ -540,29 +753,39 @@ class SequentialAudioReader(AudioReader):
             always_2d=always_2d,
             return_all_channels=return_all_channels,
         )
-        self.cur_item = 0
-        self.part_idx = part_idx
-        self.num_parts = num_parts
+        self.cur_item: int = 0
+        self.part_idx: int = part_idx
+        self.num_parts: int = num_parts
         if self.num_parts > 1:
             if self.with_segments:
                 self.segments = self.segments.split(self.part_idx, self.num_parts)
             else:
                 self.recordings = self.recordings.split(self.part_idx, self.num_parts)
 
-    def __iter__(self):
-        """Needed to build an iterator, e.g.:
-        r = SequentialAudioReader(...)
-        for key, s, fs in r:
-           print(key)
-           process(s)
+    def __iter__(self) -> "SequentialAudioReader":
+        """Return the iterator so the reader can be used in loops.
+
+        Example:
+            >>> for key, wav, fs in SequentialAudioReader(recordings=rs):
+            ...     process(key, wav, fs)
         """
         return self
 
-    def __next__(self):
-        """Needed to build an iterator, e.g.:
-        r = SequentialAudioReader(...)
-        for key , s, fs in r:
-           process(s)
+    def __next__(self) -> Union[
+        Tuple[str, np.ndarray, int],
+        Tuple[str, np.ndarray, int, Optional[int]],
+    ]:
+        """Return the next sequential item.
+
+        Returns:
+            Tuple[str, np.ndarray, int]: Key, waveform, and sampling rate when a
+            single channel is returned.
+
+            Tuple[str, np.ndarray, int, Optional[int]]: Key, waveform, sampling
+            rate, and channel index when ``return_all_channels`` is ``True``.
+
+        Raises:
+            StopIteration: When the reader is exhausted.
         """
         data = self.read(1)
         key = data[0]
@@ -571,32 +794,23 @@ class SequentialAudioReader(AudioReader):
 
         data = tuple(v[0] for v in data)
         return data
-        # if self.return_all_channels:
-        #     key, x, fs, channel = self.read(1)
-        #     if len(key) == 0:
-        #         raise StopIteration
-        #     return key[0], x[0], fs[0], channel[0]
-        # else:
-        #     key, x, fs = self.read(1)
-        #     if len(key) == 0:
-        #         raise StopIteration
-        #     return key[0], x[0], fs[0]
 
-    def next(self):
-        """__next__ for Python 2"""
+    def next(self) -> Union[
+        Tuple[str, np.ndarray, int],
+        Tuple[str, np.ndarray, int, Optional[int]],
+    ]:
+        """Python 2 compatibility alias for :meth:`__next__`."""
         return self.__next__()
 
-    def reset(self):
-        """Returns the file pointer to the begining of the dataset,
-        then we can start reading the features again.
-        """
+    def reset(self) -> None:
+        """Reset the internal pointer to the beginning of the dataset."""
         self.cur_item = 0
 
-    def eof(self):
-        """End of file.
+    def eof(self) -> bool:
+        """Check whether all recordings or segments have been consumed.
 
         Returns:
-          True, when we have read all the recordings in the dataset.
+            bool: ``True`` when the reader has produced every item.
         """
         if self.with_segments:
             return self.cur_item == len(self.segments)
@@ -605,20 +819,29 @@ class SequentialAudioReader(AudioReader):
     def read(
         self,
         num_records: int = 0,
-        time_offset: float = 0,
-        time_durs: float = 0,
-    ):
-        """Reads next num_records audio files
+        time_offset: Union[float, Sequence[float], np.ndarray] = 0,
+        time_durs: Union[float, Sequence[float], np.ndarray] = 0,
+    ) -> Union[
+        Tuple[List[str], List[np.ndarray], List[int]],
+        Tuple[List[str], List[np.ndarray], List[int], List[Optional[int]]],
+    ]:
+        """Read the next group of recordings or segments.
 
         Args:
-          num_records: Number of audio files to read.
-          time_offset: List of floats indicating the start time to read in the utterance.
-          time_durs: List of floats indicating the number of seconds to read from each utterance
+            num_records (int): Number of items to read (``0`` reads the
+                remainder of the dataset).
+            time_offset (float): Scalar or per-item offsets in seconds to apply
+                before reading each item.
+            time_durs (float): Scalar or per-item durations in seconds. ``0``
+                reads until the end of each item.
 
         Returns:
-          key: List of recording names.
-          data: List of waveforms
-          fs: list of sample freqs
+            Tuple[List[str], List[np.ndarray], List[int]]: Keys, waveforms, and
+            sampling rates when returning a single channel per item.
+
+            Tuple[List[str], List[np.ndarray], List[int], List[Optional[int]]]:
+            Keys, waveforms, sampling rates, and channel indices when
+            ``return_all_channels`` is ``True``.
         """
         channels_first = self.channels_first
         always_2d = self.always_2d
@@ -683,12 +906,27 @@ class SequentialAudioReader(AudioReader):
         return keys, x, fs
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
+        """Select keyword arguments relevant to the sequential reader.
+
+        Args:
+            **kwargs: Arbitrary keyword arguments.
+
+        Returns:
+            Dict[str, Any]: Subset containing only recognized reader arguments.
+        """
         valid_args = ("part_idx", "num_parts", "wav_scale", "target_sample_freq")
         return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
     @staticmethod
-    def add_class_args(parser, prefix: Optional[str] = None):
+    def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
+        """Register command-line arguments for :class:`SequentialAudioReader`.
+
+        Args:
+            parser (ArgumentParser): Parser where arguments are to be added.
+            prefix (Optional[str]): Optional prefix to nest arguments under a
+                group.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -726,21 +964,37 @@ class SequentialAudioReader(AudioReader):
 
 
 class RandomAccessAudioReader(AudioReader):
-    """
-    Class to read audio files randomly from wav, flac or pipe
-    This class recives HypDataset or RecordingSet,
-    When reciving RecordingSet, it can also recive a SegmentSet
+    """Provide random access to recordings or segments on demand.
+
+    Args:
+        dataset (Union[HypDataset, PathLike, None]): Dataset instance or path to
+            a dataset file.
+        recordings (Union[RecordingSet, PathLike, None]): Recording table or
+            path to a recordings file when ``dataset`` is ``None``.
+        segments (Union[SegmentSet, PathLike, None]): Segment table or path to a
+            segments file. Must be ``None`` when ``dataset`` is provided.
+        wav_scale (float): Multiplicative factor applied to every waveform.
+        target_sample_freq (Optional[int]): Target sampling frequency used for
+            optional resampling.
+        channels_first (bool): If ``True`` returns waveforms as
+            ``(channels, num_samples)``.
+        always_2d (bool): Forces single-channel audio to retain a channel
+            dimension.
+        return_all_channels (bool): If ``True`` returns every channel available.
+
     Attributes:
-        dataset:    HypDataset or file path to HypDataset
-        recordings: RecordingSet or file path to RecordingSet
-        segments:   SegmentSet or file path to SegmentSet
-        wav_scale:     multiplies signal by scale factor
-        target_sample_freq: All audios are resample this sample freq.
-        channels_first:  If True, the returned waveforms have shape (num_channels, num_samples)
-                            If False, the returned waveforms have shape (num_samples, num_channels)
-        always_2d: If True, the returned waveforms have shape (num_samples, num_channels)
-                        even when num_channels=1
-        return_all_channels: If True, returns all channels in multi-channel audio files
+        dataset (Optional[Union[HypDataset, PathLike]]): Dataset reference used
+            to initialize the reader, when applicable.
+        recordings (RecordingSet): Table describing the recordings to load.
+        segments (Optional[SegmentSet]): Table with segment definitions when the
+            reader operates in segment mode.
+        wav_scale (float): Multiplicative factor applied to each waveform.
+        target_sample_freq (Optional[int]): Target sampling frequency used for
+            optional resampling.
+        channels_first (bool): Shape convention for returned waveforms.
+        always_2d (bool): Whether mono audio retains a channel axis.
+        return_all_channels (bool): Whether queries return every channel rather
+            than a single mixdown.
     """
 
     def __init__(
@@ -767,22 +1021,40 @@ class RandomAccessAudioReader(AudioReader):
 
     def read(
         self,
-        keys: Union[str, List, np.array],
-        time_offset: float = 0,
-        time_durs: float = 0,
+        keys: Union[str, Sequence[str]],
+        time_offset: Union[float, Sequence[float], np.ndarray] = 0,
+        time_durs: Union[float, Sequence[float], np.ndarray] = 0,
         channels_first: bool = True,
         always_2d: bool = False,
         return_all_channels: bool = False,
-    ):
-        """Reads the waveforms  for the recordings in keys.
+    ) -> Union[
+        Tuple[List[np.ndarray], List[int]],
+        Tuple[List[np.ndarray], List[int], List[Optional[int]]],
+    ]:
+        """Fetch the waveforms for the requested keys.
 
         Args:
-          keys: List of recording/segment_ids names.
-          time_offset: float or float list with time-offsets
-          time_durs: float or float list with durations
+            keys (Union[str, Sequence[str]]): Recording or segment identifiers.
+            time_offset (float): Scalar or per-item offsets in seconds.
+            time_durs (float): Scalar or per-item durations in seconds. ``0``
+                reads until the end of each item.
+            channels_first (bool): If ``True`` returns waveforms as
+                ``(channels, num_samples)``.
+            always_2d (bool): Forces single-channel audio to retain a channel
+                dimension.
+            return_all_channels (bool): If ``True`` returns every channel
+                available.
 
         Returns:
-          data: List of waveforms
+            Tuple[List[np.ndarray], List[int]]: Waveforms and sampling rates
+            when returning a single channel per item.
+
+            Tuple[List[np.ndarray], List[int], List[Optional[int]]]: Waveforms,
+            sampling rates, and channel indices when ``return_all_channels`` is
+            ``True``.
+
+        Raises:
+            Exception: If a requested key is not found.
         """
         channels_first = self.channels_first
         always_2d = self.always_2d
@@ -828,16 +1100,6 @@ class RandomAccessAudioReader(AudioReader):
                     return_all_channels=return_all_channels,
                 )
 
-                # file_path = self.recordings.loc[key, "storage_path"]
-                # data_i = self.read_wavspecifier(
-                #     file_path,
-                #     self.wav_scale,
-                #     offset_i,
-                #     dur_i,
-                #     channels_first=channels_first,
-                #     always_2d=always_2d,
-                #     return_all_channels=return_all_channels,
-                # )
             if return_all_channels:
                 x_i, fs_i, channel_i = data_i
                 channel.append(channel_i)
@@ -853,12 +1115,27 @@ class RandomAccessAudioReader(AudioReader):
         return x, fs
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
+        """Select keyword arguments relevant to the random-access reader.
+
+        Args:
+            **kwargs: Arbitrary keyword arguments.
+
+        Returns:
+            Dict[str, Any]: Subset containing only recognized reader arguments.
+        """
         valid_args = ("wav_scale",)
         return dict((k, kwargs[k]) for k in valid_args if k in kwargs)
 
     @staticmethod
-    def add_class_args(parser, prefix: Optional[str] = None):
+    def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
+        """Register command-line arguments for :class:`RandomAccessAudioReader`.
+
+        Args:
+            parser (ArgumentParser): Parser where arguments are to be added.
+            prefix (Optional[str]): Optional prefix to nest arguments under a
+                group.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")

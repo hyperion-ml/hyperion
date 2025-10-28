@@ -114,6 +114,7 @@ class ASVSpoof2024DataPrep(DataPrep):
         df_meta.loc[:, "spoof_access"] = df_meta["spoof_det"].apply(
             lambda x: None if x == "bonafide" else self.spoof_access
         )
+        df_meta.loc[:, "gender"] = df_meta["gender"].str.lower()
         df_meta["language"] = "english"
 
         def get_voco(x):

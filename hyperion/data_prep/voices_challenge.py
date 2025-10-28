@@ -166,6 +166,8 @@ class VoicesChallengeDataPrep(DataPrep):
         recs = self.make_recording_set(df)
         df["duration"] = df["id"].map(recs.set_index("id")["duration"])
         segments = SegmentSet(df.drop(columns=["filename", "segment_id"]))
+        segments["original_bandwidth"] = 8000
+        segments.sort()
         classes = self.make_class_infos(df)
 
         enrollments = (

@@ -150,6 +150,7 @@ class SITWDataPrep(DataPrep):
         df["duration"] = df["id"].map(recs.set_index("id")["duration"])
 
         segments = SegmentSet(df.drop(columns=["filename", "segment_id"]))
+        segments["original_bandwidth"] = 8000
         classes = self.make_class_infos(df)
 
         enrollments = (

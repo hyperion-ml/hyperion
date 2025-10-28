@@ -177,6 +177,7 @@ class LDC2025E05DataPrep(DataPrep):
         df_segs["duration"] = recs.loc[df_segs["id"], "duration"].values
         df_segs["language"] = "eng"
         df_segs["source_type"] = "cts"
+        df_segs["original_bandwidth"] = 4000
         df_segs["dataset"] = self.dataset_name()
 
         classes = self.make_class_infos(df_segs)

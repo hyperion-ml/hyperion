@@ -44,11 +44,12 @@ class ClassInfo(InfoTable):
         else:
             self.df["weights"] /= self.df["weights"].sum()
 
-    def add_class_idx(self):
+    def add_class_idx(self, sort_by_id: bool = False):
         """
         Assign a unique integer class index to each row.
         """
-        self.sort()
+        if sort_by_id:
+            self.sort()
         self.df["class_idx"] = [i for i in range(len(self.df))]
 
     def set_uniform_weights(self):

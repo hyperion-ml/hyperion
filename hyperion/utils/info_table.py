@@ -7,17 +7,64 @@ import logging
 import re
 from collections import OrderedDict
 from copy import deepcopy
+from io import StringIO
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type, TypeVar, Union
 
 import numpy as np
 import pandas as pd
+from pandas.api.extensions import ExtensionArray
 from pandas.api.types import infer_dtype
 
 from .list_utils import split_list, split_list_group_by_key
 from .misc import PathLike
 
 T = TypeVar("T", bound="InfoTable")
+
+_NULL_SCAN_CHUNK = 1024 * 1024  # 1MB
+
+
+def _sanitize_dataframe_null_chars(df: pd.DataFrame) -> None:
+    """
+    Remove '\\x00' characters from string-like columns in the dataframe.
+
+    Args:
+        df (pd.DataFrame): DataFrame to sanitize.
+    """
+    nulls_found = False
+
+    for column in df.columns:
+        series = df[column]
+        mask = series.map(
+            lambda value: (isinstance(value, str) and "\x00" in value)
+            or isinstance(value, (bytes, bytearray))
+        )
+        if mask.isna().any():
+            mask = mask.fillna(False)
+        if bool(mask.any()):
+            nulls_found = True
+            df.loc[mask, column] = series.loc[mask].map(
+                lambda value: (
+                    value.replace("\x00", "")
+                    if isinstance(value, str)
+                    else (
+                        value.decode("utf-8", errors="replace")
+                        if isinstance(value, (bytes, bytearray))
+                        else value
+                    )
+                )
+            )
+
+    if nulls_found:
+        logging.warning("Removed NULL characters from dataframe before saving.")
+
+
+def _file_has_null_bytes(path: Path) -> bool:
+    with path.open("rb") as file:
+        for chunk in iter(lambda: file.read(_NULL_SCAN_CHUNK), b""):
+            if b"\x00" in chunk:
+                return True
+    return False
 
 
 class _InfoTableIndexer:
@@ -160,7 +207,7 @@ class InfoTable:
             column (str): Column name to convert.
         """
         if infer_dtype(self.df[column]) != "string":
-            self.df[column] = self.df[column].astype(str)
+            self.df[column] = self.df[column].astype("string")
 
     def copy(self) -> T:
         """
@@ -466,16 +513,101 @@ class InfoTable:
         file_path = Path(file_path)
         file_path.parent.mkdir(parents=True, exist_ok=True)
         ext = file_path.suffix
-        if ext in ["", ".scp"] or re.match(r"\.[0-9]+$", ext):
-            # if no extension we save as kaldi utt2spk file
+
+        _sanitize_dataframe_null_chars(self.df)
+
+        is_kaldi_format = ext in ["", ".scp"] or re.match(r"\.[0-9]+$", ext)
+        if is_kaldi_format:
             assert len(self.df.columns) == 2
-            self.df.to_csv(file_path, sep=" ", header=False, index=False)
+            sep_to_use = " "
+            header = False
+        else:
+            sep_to_use = sep if sep is not None else ("\t" if ".tsv" in ext else ",")
+            header = True
+
+        read_kwargs: Dict[str, Any] = {
+            "sep": sep_to_use,
+            "dtype": str,
+            "keep_default_na": False,
+            "engine": "python",
+            "on_bad_lines": "error",
+        }
+        if not header:
+            read_kwargs["header"] = None
+
+        # First attempt: regular pandas write to disk.
+        self.df.to_csv(
+            file_path,
+            sep=sep_to_use,
+            index=False,
+            header=header,
+            encoding="utf-8",
+        )
+
+        needs_fallback = False
+        try:
+            disk_df = pd.read_csv(file_path, **read_kwargs)
+            if len(disk_df) != len(self.df):
+                logging.warning(
+                    "Row count mismatch after writing %s. Expected %d rows, got %d.",
+                    file_path,
+                    len(self.df),
+                    len(disk_df),
+                )
+                needs_fallback = True
+        except Exception as read_error:
+            logging.warning(
+                "Verification read failed for %s after direct write: %s",
+                file_path,
+                read_error,
+            )
+            needs_fallback = True
+
+        if not needs_fallback and not _file_has_null_bytes(file_path):
             return
 
-        if sep is None:
-            sep = "\t" if ".tsv" in ext else ","
+        logging.warning(
+            "Rewriting %s using in-memory CSV serialization due to detected issues.",
+            file_path,
+        )
 
-        self.df.to_csv(file_path, sep=sep, index=False)
+        csv_buffer = StringIO()
+        self.df.to_csv(
+            csv_buffer,
+            sep=sep_to_use,
+            index=False,
+            header=header,
+            lineterminator="\n",
+        )
+        csv_content = csv_buffer.getvalue()
+
+        if "\x00" in csv_content:
+            logging.warning(
+                "Removing NULL characters from serialized content for %s.", file_path
+            )
+            csv_content = csv_content.replace("\x00", "")
+
+        read_df = pd.read_csv(StringIO(csv_content), **read_kwargs)
+        if len(read_df) != len(self.df):
+            raise ValueError(
+                f"Row count mismatch when serializing {file_path} in-memory. "
+                f"Expected {len(self.df)}, got {len(read_df)}."
+            )
+
+        with file_path.open("w", encoding="utf-8", newline="") as out_file:
+            out_file.write(csv_content)
+
+        if _file_has_null_bytes(file_path):
+            raise ValueError(
+                f"NULL bytes detected in {file_path} after in-memory rewrite."
+            )
+
+        disk_df = pd.read_csv(file_path, **read_kwargs)
+        if len(disk_df) != len(self.df):
+            raise ValueError(
+                f"Row count mismatch when saving {file_path}. "
+                f"Expected {len(self.df)}, got {len(disk_df)}."
+            )
 
     @classmethod
     def from_lists(
@@ -554,15 +686,27 @@ class InfoTable:
             # we enforce these dtypes
             fixed_dtypes = {
                 "id": str,
-                "speaker": str,
-                "language": str,
-                "gender": str,
-                "duration": float,
-                "storage_path": str,
-                "storage_byte": int,
-                "num_frames": int,
-                "video_ids": str,
-                "language_est": str,
+                "speaker": "string",
+                "language": "string",
+                "gender": "string",
+                "duration": "float",
+                "storage_path": "string",
+                "storage_byte": "int",
+                "num_frames": "int",
+                "video_ids": "string",
+                "language_est": "string",
+                "accent": "string",
+                "age_decade": "string",
+                "sample_freq": "Int64",
+                "up_votes": "Int64",
+                "down_votes": "Int64",
+                "accents": "string",
+                "gender_extended": "string",
+                "age": pd.UInt8Dtype(),
+                "transcript": "string",
+                "transcript_normalized": "string",
+                "sentence_domain": "string",
+                "iarpa_arts_age": "string",
             }
             df = pd.read_csv(file_path, sep=sep, dtype=fixed_dtypes)
 
@@ -627,9 +771,13 @@ class InfoTable:
         """
         df_list = [table.df for table in tables]
         df = pd.concat(df_list)
-        assert df[
-            "id"
-        ].is_unique, """there are duplicated ids in the tables we are concatenating"""
+        print(df, df.loc[df["id"].duplicated(keep=False)])
+        if not df["id"].is_unique:
+            duplicated_ids = df.loc[df["id"].duplicated(keep=False), "id"].tolist()
+            raise AssertionError(
+                "there are duplicated ids in the tables we are concatenating: "
+                f"{duplicated_ids}"
+            )
         return cls(df)
 
     def filter(
@@ -808,7 +956,9 @@ class InfoTable:
         Returns:
             int, np.ndarray, or List[int]: Location(s) in the index.
         """
-        if isinstance(keys, (list, np.ndarray)):
+        if isinstance(
+            keys, (list, tuple, np.ndarray, pd.Index, pd.Series, ExtensionArray)
+        ):
             return self.df.index.get_indexer(keys)
 
         loc = self.df.index.get_loc(keys)
@@ -1048,160 +1198,3 @@ class InfoTable:
         if inplace:
             return None
         return self.__class__(result)
-
-        # def __len__(self):
-
-    #     """Returns the number of elements in the list."""
-    #     return len(self.df)
-
-    # def _create_dict(self):
-    #     """Creates dictionary that returns the position of
-    #     a segment in the list.
-    #     """
-    #     self.key_to_index = OrderedDict(
-    #         (k, i) for i, k in enumerate(self.utt_info.index)
-    #     )
-
-    # def get_index(self, key):
-    #     """Returns the position of key in the list."""
-    #     if self.key_to_index is None:
-    #         self._create_dict()
-    #     return self.key_to_index[key]
-
-    # def __contains__(self, id):
-    #     """Returns True if the list contains the key"""
-    #     return id in self.df.index
-
-    # def __getitem__(self, id):
-    #     """It allows to acces the data in the list by key or index like in
-    #        a ditionary, e.g.:
-    #        If input is a string key:
-    #            utt2spk = Utt2Info(info)
-    #            spk_id = utt2spk['data1']
-    #        If input is an index:
-    #            key, spk_id  = utt2spk[0]
-
-    #     Args:
-    #       key: String key or integer index.
-    #     Returns:
-    #       If key is a string:
-    #           info corresponding to key
-    #       If key is the index in the key list:
-    #           key, info given index
-    #     """
-    #     if isinstance(id, str):
-    #         row = np.array(self.utt_info.loc[key])[1:]
-    #         if len(row) == 1:
-    #             return row[0]
-    #         else:
-    #             return row
-    #     else:
-    #         row = np.array(self.utt_info.iloc[key])
-    #         if len(row) == 2:
-    #             return row[0], row[1]
-    #         else:
-    #             return row[0], row[1:]
-
-    # def sort(self, field=0):
-    #     """Sorts the list by key"""
-    #     if field == 0:
-    #         self.utt_info.sort_index(ascending=True, inplace=True)
-    #     else:
-    #         idx = np.argsort(self.utt_info[field])
-    #         self.utt_info = self.utt_info.iloc[idx]
-    #     self.key_to_index = None
-
-    # @classmethod
-    # def load(cls, file_path, sep=" ", dtype={0: np.str, 1: np.str}):
-    #     """Loads utt2info list from text file.
-
-    #     Args:
-    #       file_path: File to read the list.
-    #       sep: Separator between the key and file_path in the text file.
-    #       dtype: Dictionary with the dtypes of each column.
-    #     Returns:
-    #       Utt2Info object
-    #     """
-    #     df = pd.read_csv(file_path, sep=sep, header=None, dtype=dtype)
-    #     df = df.rename(index=str, columns={0: "key"})
-    #     return cls(df)
-
-    # def split(self, idx, num_parts, group_by_field=0):
-    #     """Splits SCPList into num_parts and return part idx.
-
-    #     Args:
-    #       idx: Part to return from 1 to num_parts.
-    #       num_parts: Number of parts to split the list.
-    #       group_by_field: All the lines with the same value in column
-    #                       groub_by_field go to the same part
-
-    #     Returns:
-    #       Sub Utt2Info object
-    #     """
-    #     if group_by_field == 0:
-    #         key, idx1 = split_list(self.utt_info["key"], idx, num_parts)
-    #     else:
-    #         key, idx1 = split_list_group_by_key(
-    #             self.utt_info[group_by_field], idx, num_parts
-    #         )
-
-    #     utt_info = self.utt_info.iloc[idx1]
-    #     return Utt2Info(utt_info)
-
-    # def filter(self, filter_key, keep=True):
-    #     """Removes elements from Utt2Info object by key
-
-    #     Args:
-    #       filter_key: List with the keys of the elements to keep or remove.
-    #       keep: If True, we keep the elements in filter_key;
-    #             if False, we remove the elements in filter_key;
-
-    #     Returns:
-    #       Utt2Info object.
-    #     """
-    #     if not keep:
-    #         filter_key = np.setdiff1d(self.utt_info["key"], filter_key)
-    #     utt_info = self.utt_info.loc[filter_key]
-    #     return Utt2Info(utt_info)
-
-    # def filter_info(self, filter_key, field=1, keep=True):
-    #     """Removes elements of Utt2Info by info value
-
-    #     Args:
-    #       filter_key: List with the file_path of the elements to keep or remove.
-    #       field: Field number corresponding to the info to filter
-    #       keep: If True, we keep the elements in filter_key;
-    #             if False, we remove the elements in filter_key;
-
-    #     Returns:
-    #       Utt2Info object.
-    #     """
-    #     if not keep:
-    #         filter_key = np.setdiff1d(self.utt_info[field], filter_key)
-    #     f, _ = ismember(filter_key, self.utt_info[field])
-    #     if not np.all(f):
-    #         for k in filter_key[f == False]:
-    #             logging.error("info %s not found in field %d" % (k, field))
-    #         raise Exception("not all keys were found in field %d" % (field))
-
-    #     f, _ = ismember(self.utt_info[field], filter_key)
-    #     utt_info = self.utt_info.iloc[f]
-    #     return Utt2Info(utt_info)
-
-    # def filter_index(self, index, keep=True):
-    #     """Removes elements of Utt2Info by index
-
-    #     Args:
-    #       filter_key: List with the index of the elements to keep or remove.
-    #       keep: If True, we keep the elements in filter_key;
-    #             if False, we remove the elements in filter_key;
-
-    #     Returns:
-    #       Utt2Info object.
-    #     """
-
-    #     if not keep:
-    #         index = np.setdiff1d(np.arange(len(self.key), dtype=np.int64), index)
-
-    #     utt_info = self.utt_info.iloc[index]
-    #     return Utt2Info(utt_info)

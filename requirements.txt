@@ -23,12 +23,12 @@ transformers>=4.16.2
 sentencepiece>=0.1.97
 loralib
 lhotse>=1.23.0
-datasets>=2.20.0
+datasets>=2.20.0,<3.0
 pytest
 toml
 kaldialign>=0.9.1
 utmosv2 @ git+https://github.com/jesus-villalba/UTMOSv2.git
 pycountry
 langcodes
-pynvml
-
+nvidia-ml-py3
+onnxruntime
