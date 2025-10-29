@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 import torch
-import torch.cuda.amp as amp
+import torch.amp as amp
 import torch.distributed as dist
 import torch.nn as nn
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
@@ -370,7 +370,9 @@ class DACTrainer(TorchTrainerBase):
         # )
         # el1 = self.dac_model.max_out_length(il1)
         # el2 = self.dac_model.max_out_length(il2)
-        with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
+        with amp.autocast(
+            enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+        ):
             dac_output = self.dac_model(
                 x=input_audios,
                 x_lengths=input_lengths,
@@ -406,7 +408,9 @@ class DACTrainer(TorchTrainerBase):
         # 2. Generator Forward #
         ########################
         self.discrim_model.set_train_mode(AudioDiscriminatorTrainMode.FROZEN)
-        with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
+        with amp.autocast(
+            enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+        ):
             y_real, fmaps_real = self.discrim_model(target_audios)
             y_gen, fmaps_gen = self.discrim_model(dac_output.x_recons)
 
@@ -489,7 +493,9 @@ class DACTrainer(TorchTrainerBase):
         #     self.dac_model.output_sample_frequency,
         # )
 
-        with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
+        with amp.autocast(
+            enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+        ):
             dac_output = self.dac_model(
                 x=input_audios,
                 x_lengths=input_lengths,
@@ -516,6 +522,7 @@ class DACTrainer(TorchTrainerBase):
 
         loss_gen = (
             loss_gen_adv_weight * self.loss_gen_adv_weight * loss_gen_adv
+            + loss_gen_adv_weight * self.loss_fm_weight * loss_fm
             + self.loss_mrfb_log_mag_weight * loss_mrfb_log_mag
             + self.loss_mrfb_conv_weight * loss_mrfb_conv
             + self.loss_codebook_weight * loss_codebook

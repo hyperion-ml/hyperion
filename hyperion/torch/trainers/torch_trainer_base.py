@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union, cast
 
 import torch
-import torch.cuda.amp as amp
+import torch.amp as amp
 import torch.distributed as dist
 import torch.nn as nn
 from fairscale.optim.grad_scaler import ShardedGradScaler
@@ -842,7 +842,9 @@ class TorchTrainerBase:
         Returns:
             Dict[str, Any]: Dictionary of computed metrics including scaled loss.
         """
-        with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
+        with amp.autocast(
+            enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+        ):
             loss, output = self.compute_train_forward(batch_data)
 
         loss = loss / self.grad_acc_steps
@@ -916,7 +918,9 @@ class TorchTrainerBase:
         batch_size, batch_data = self.preprocess_val_data(batch_data)
         batch_data = self.send_data_to_device(batch_data)
 
-        with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
+        with amp.autocast(
+            enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+        ):
             loss, output = self.compute_val_forward(batch_data)
 
         batch_metrics = self.compute_val_metrics(output, batch_data)
@@ -950,7 +954,9 @@ class TorchTrainerBase:
         batch_size, batch_data = self.preprocess_train_data(batch_data)
         batch_data = self.send_data_to_device(batch_data)
 
-        with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
+        with amp.autocast(
+            enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+        ):
             loss, output = self.compute_train_forward(batch_data)
 
         batch_metrics = self.compute_train_metrics(output, batch_data)

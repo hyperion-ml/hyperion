@@ -16,10 +16,10 @@ from jsonargparse import (
 )
 
 from hyperion.hyp_defs import config_logger
-from hyperion.metrics import SpeechQualityEvaluator as SQE
+from hyperion.metrics.voxprofile_evaluator import VoxProfileEvaluator as VPE
 
 
-def eval_speech_quality_metrics(
+def eval_voxprofile_metrics(
     segments_file,
     recordings_file,
     global_metrics_file,
@@ -29,7 +29,7 @@ def eval_speech_quality_metrics(
     logging.info(
         "Evaluating segments: %s recordings: %s", segments_file, recordings_file
     )
-    evaluator = SQE(segments_file, recordings_file, **kwargs)
+    evaluator = VPE(segments_file, recordings_file, **kwargs)
     stats, segments = evaluator()
     logging.info("saving segments metrics to %s", segments_metrics_file)
     segments.save(segments_metrics_file)
@@ -45,11 +45,13 @@ def eval_speech_quality_metrics(
 
 
 def main():
-    parser = ArgumentParser(description="Evaluate speech quality metrics")
+    parser = ArgumentParser(
+        description="Annotate Segments with VoxProfile Predictions and Evaluate VoxProfile Metrics"
+    )
     parser.add_argument("--cfg", action=ActionConfigFile)
     parser.add_argument("--segments-file", required=True)
     parser.add_argument("--recordings-file", required=True)
-    SQE.add_class_args(parser)
+    VPE.add_class_args(parser)
     parser.add_argument("--global-metrics-file", required=True)
     parser.add_argument("--segments-metrics-file", required=True)
     parser.add_argument(
@@ -66,7 +68,7 @@ def main():
     config_logger(kwargs["verbose"])
     del kwargs["verbose"]
     del kwargs["cfg"]
-    eval_speech_quality_metrics(**kwargs)
+    eval_voxprofile_metrics(**kwargs)
 
 
 if __name__ == "__main__":

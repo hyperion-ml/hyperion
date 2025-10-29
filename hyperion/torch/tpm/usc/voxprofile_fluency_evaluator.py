@@ -3,7 +3,7 @@ Copyright 2025 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from typing import Dict, Iterable, List, Optional, Tuple, Union
+from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple, Union
 
 import torch
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
@@ -21,18 +21,29 @@ except ImportError:
 VOXPROFILE_FLUENCY_MAX_AUDIO_LEN = 3.0  # seconds
 
 # Label List
-FLUENCY_LIST = ["fluent", "disfluent"]
+FLUENCY_CLASSES = ["fluent", "disfluent"]
 
-DISFLUENCY_TYPE_LABELS = [
+DISFLUENCY_TYPES = [
     "block",
     "prolongation",
-    "sound repetition",
-    "word repetition",
+    "sound-repetition",
+    "word-repetition",
     "interjection",
 ]
 
 
 class VoxProfileFluencyEvaluator(VoxProfileEvaluator):
+    """Evaluate fluency and disfluency types using a Whisper-based classifier.
+
+    Attributes:
+        model: Loaded fluency model used for inference.
+        device: Torch device on which the model runs.
+        max_batch_length: Maximum duration (seconds) processed per batch.
+        output_prefix: Prefix applied to output keys in the results.
+        return_logits: Whether logits are included alongside probabilities.
+        return_per_window_values: Whether per-window predictions are returned.
+        disfluency_type_threshold: Sigmoid threshold applied to disfluency types.
+    """
 
     def __init__(
         self,
@@ -44,6 +55,17 @@ class VoxProfileFluencyEvaluator(VoxProfileEvaluator):
         return_per_window_values: bool = False,
         disfluency_type_threshold: float = 0.7,
     ):
+        """Instantiate the fluency evaluator.
+
+        Args:
+            model_path: Hugging Face identifier or local path to the model weights.
+            device: Torch device used for evaluation.
+            max_batch_length: Maximum audio length (seconds) processed per batch.
+            output_prefix: Prefix for emitted result keys.
+            return_logits: Whether to include raw logits in outputs.
+            return_per_window_values: Whether to return per-window details.
+            disfluency_type_threshold: Threshold applied to disfluency probabilities.
+        """
 
         if VoxProfileFluencyModel is None:
             raise ImportError(
@@ -62,20 +84,23 @@ class VoxProfileFluencyEvaluator(VoxProfileEvaluator):
         self.return_per_window_values = return_per_window_values
         self.disfluency_type_threshold = disfluency_type_threshold
 
-    @property
-    def classes(self) -> List[str]:
-        return FLUENCY_LIST
+    @staticmethod
+    def classes() -> List[str]:
+        """Return the fluency labels."""
+        return FLUENCY_CLASSES
 
-    @property
-    def disfluency_types(self) -> List[str]:
-        return DISFLUENCY_TYPE_LABELS
+    @staticmethod
+    def disfluency_types() -> List[str]:
+        """Return the disfluency type labels."""
+        return DISFLUENCY_TYPES
 
     @torch.no_grad()
     def _score_single(
         self,
-        audio_batches: List[torch.Tensor],
+        audio_batches: Iterable[torch.Tensor],
         audio_id: str,
     ) -> Dict[str, float]:
+        """Score a clip, returning fluency, disfluency types, and optional extras."""
         prefix = self.output_prefix
         fluency_preds = []
         disfluency_preds = []
@@ -95,9 +120,9 @@ class VoxProfileFluencyEvaluator(VoxProfileEvaluator):
             )
 
         window_winners = fluency_tensor.argmax(dim=1)
-        vote_counts = torch.bincount(window_winners, minlength=len(self.classes))
+        vote_counts = torch.bincount(window_winners, minlength=len(self.classes()))
         winner_idx = vote_counts.argmax().item()
-        pred_label = self.classes[winner_idx]
+        pred_label = self.classes()[winner_idx]
         pred_votes = vote_counts[winner_idx].item()
         pred_prob = pred_votes / float(num_windows)
 
@@ -106,8 +131,8 @@ class VoxProfileFluencyEvaluator(VoxProfileEvaluator):
             disfluency_probs_per_window > self.disfluency_type_threshold
         ).int()
         try:
-            fluent_idx = self.classes.index("fluent")
-            disfluent_idx = self.classes.index("disfluent")
+            fluent_idx = self.classes().index("fluent")
+            disfluent_idx = self.classes().index("disfluent")
         except ValueError as exc:
             raise ValueError(
                 "Fluency classes must include 'fluent' and 'disfluent'."
@@ -130,7 +155,7 @@ class VoxProfileFluencyEvaluator(VoxProfileEvaluator):
             disfluency_ratios = disfluency_counts.float()
 
         result = {"id": audio_id, prefix: pred_label, f"{prefix}_prob": pred_prob}
-        for label, ratio in zip(self.disfluency_types, disfluency_ratios):
+        for label, ratio in zip(self.disfluency_types(), disfluency_ratios):
             result[f"{prefix}_disfluency_type_{label}_prob"] = ratio.item()
 
         if self.return_logits:
@@ -146,7 +171,7 @@ class VoxProfileFluencyEvaluator(VoxProfileEvaluator):
 
         if self.return_per_window_values:
             window_labels = [
-                self.classes[idx] for idx in window_winners.detach().cpu().tolist()
+                self.classes()[idx] for idx in window_winners.detach().cpu().tolist()
             ]
             result[f"{prefix}_window_labels"] = window_labels
             window_disfluencies: List[List[str]] = []
@@ -158,7 +183,7 @@ class VoxProfileFluencyEvaluator(VoxProfileEvaluator):
                 win_disfluencies: List[str] = []
                 for d_idx, is_positive in enumerate(disfluency_positive_cpu[win_idx]):
                     if is_positive.item():
-                        win_disfluencies.append(self.disfluency_types[d_idx])
+                        win_disfluencies.append(self.disfluency_types()[d_idx])
                 window_disfluencies.append(win_disfluencies)
             result[f"{prefix}_window_disfluency_labels"] = window_disfluencies
 
@@ -166,9 +191,11 @@ class VoxProfileFluencyEvaluator(VoxProfileEvaluator):
 
     @staticmethod
     def add_class_args(
-        parser, prefix: Optional[str] = None, skip: Optional[set] = None
-    ):
-        """Register VoxProfileFluencyEvaluator CLI arguments."""
+        parser: ArgumentParser,
+        prefix: Optional[str] = None,
+        skip: Optional[Set[str]] = None,
+    ) -> None:
+        """Register CLI arguments specific to ``VoxProfileFluencyEvaluator``."""
         if skip is None:
             skip = set()
 
@@ -176,7 +203,7 @@ class VoxProfileFluencyEvaluator(VoxProfileEvaluator):
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        super().add_class_args(parser, prefix=None, skip=skip)
+        VoxProfileEvaluator.add_class_args(parser, prefix=None, skip=skip)
         if "model_path" not in skip:
             parser.add_argument(
                 "--model-path",

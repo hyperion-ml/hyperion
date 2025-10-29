@@ -3,12 +3,11 @@ Copyright 2025 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import math
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple, Union
+from typing import List, Optional, Set, Union
 
 import torch
-from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
+from jsonargparse import ActionParser, ArgumentParser
 
 from ....utils.misc import PathLike
 from .voxprofile_evaluator import VOXPROFILE_MAX_AUDIO_LEN, VoxProfileEvaluator
@@ -21,7 +20,7 @@ except ImportError:
 
 
 # Label List
-NARROW_ENG_ACCENT_LIST = [
+NARROW_ENG_ACCENT_CLASSES = [
     "east-asia",
     "english",
     "germanic",
@@ -40,10 +39,19 @@ NARROW_ENG_ACCENT_LIST = [
     "welsh",
 ]
 
-BROAD_ENG_ACCENT_LIST = ["eng-gbr", "eng-usa", "eng-oth"]
+BROAD_ENG_ACCENT_CLASSES = ["eng-gbr", "eng-usa", "eng-oth"]
 
 
 class VoxProfileNarrowAccentEvaluator(VoxProfileEvaluator):
+    """Evaluate narrow English accent categories using a Whisper model.
+
+    Attributes:
+        return_logits: Whether logits are returned alongside probabilities.
+        output_prefix: Prefix prepended to output keys.
+        model: Loaded Whisper-based accent classifier.
+        device: Torch device used for inference.
+        max_batch_length: Maximum duration (seconds) processed per batch.
+    """
 
     def __init__(
         self,
@@ -53,6 +61,15 @@ class VoxProfileNarrowAccentEvaluator(VoxProfileEvaluator):
         output_prefix: str = "voxprofile_narrow_accent",
         return_logits: bool = False,
     ):
+        """Instantiate a narrow-accent evaluator.
+
+        Args:
+            model_path: Hugging Face identifier or local path to the accent model.
+            device: Torch device where inference runs.
+            max_batch_length: Maximum audio length (seconds) processed at once.
+            output_prefix: Prefix for the output keys written by the evaluator.
+            return_logits: Whether to include raw logits in the output dictionary.
+        """
 
         if VoxProfileAccentModel is None:
             raise ImportError(
@@ -68,15 +85,18 @@ class VoxProfileNarrowAccentEvaluator(VoxProfileEvaluator):
             return_logits=return_logits,
         )
 
-    @property
-    def classes(self) -> List[str]:
-        return NARROW_ENG_ACCENT_LIST
+    @staticmethod
+    def classes() -> List[str]:
+        """Return the ordered list of narrow accent labels."""
+        return NARROW_ENG_ACCENT_CLASSES
 
     @staticmethod
     def add_class_args(
-        parser, prefix: Optional[str] = None, skip: Optional[set] = None
-    ):
-        """Register VoxProfileNarrowAccentEvaluator CLI arguments."""
+        parser: ArgumentParser,
+        prefix: Optional[str] = None,
+        skip: Optional[Set[str]] = None,
+    ) -> None:
+        """Register CLI arguments specific to ``VoxProfileNarrowAccentEvaluator``."""
         if skip is None:
             skip = set()
 
@@ -84,7 +104,7 @@ class VoxProfileNarrowAccentEvaluator(VoxProfileEvaluator):
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        super().add_class_args(parser, prefix=None, skip=skip)
+        VoxProfileEvaluator.add_class_args(parser, prefix=None, skip=skip)
 
         if "model_path" not in skip:
             parser.add_argument(
@@ -107,6 +127,15 @@ class VoxProfileNarrowAccentEvaluator(VoxProfileEvaluator):
 
 
 class VoxProfileBroadAccentEvaluator(VoxProfileEvaluator):
+    """Evaluate broad English accent categories using a Whisper model.
+
+    Attributes:
+        return_logits: Whether logits are returned alongside probabilities.
+        output_prefix: Prefix prepended to output keys.
+        model: Loaded Whisper-based accent classifier.
+        device: Torch device used for inference.
+        max_batch_length: Maximum duration (seconds) processed per batch.
+    """
 
     def __init__(
         self,
@@ -116,6 +145,15 @@ class VoxProfileBroadAccentEvaluator(VoxProfileEvaluator):
         output_prefix: str = "voxprofile_broad_accent",
         return_logits: bool = False,
     ):
+        """Instantiate a broad-accent evaluator.
+
+        Args:
+            model_path: Hugging Face identifier or local path to the accent model.
+            device: Torch device where inference runs.
+            max_batch_length: Maximum audio length (seconds) processed at once.
+            output_prefix: Prefix for the output keys written by the evaluator.
+            return_logits: Whether to include raw logits in the output dictionary.
+        """
 
         if VoxProfileAccentModel is None:
             raise ImportError(
@@ -131,15 +169,18 @@ class VoxProfileBroadAccentEvaluator(VoxProfileEvaluator):
             return_logits=return_logits,
         )
 
-    @property
-    def classes(self) -> List[str]:
-        return BROAD_ENG_ACCENT_LIST
+    @staticmethod
+    def classes() -> List[str]:
+        """Return the ordered list of broad accent labels."""
+        return BROAD_ENG_ACCENT_CLASSES
 
     @staticmethod
     def add_class_args(
-        parser, prefix: Optional[str] = None, skip: Optional[set] = None
-    ):
-        """Register VoxProfileNarrowAccentEvaluator CLI arguments."""
+        parser: ArgumentParser,
+        prefix: Optional[str] = None,
+        skip: Optional[Set[str]] = None,
+    ) -> None:
+        """Register CLI arguments specific to ``VoxProfileBroadAccentEvaluator``."""
         if skip is None:
             skip = set()
 
@@ -147,7 +188,7 @@ class VoxProfileBroadAccentEvaluator(VoxProfileEvaluator):
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        super().add_class_args(parser, prefix=None, skip=skip)
+        VoxProfileEvaluator.add_class_args(parser, prefix=None, skip=skip)
 
         if "model_path" not in skip:
             parser.add_argument(

@@ -4,7 +4,7 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple, Union
+from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple, Union
 
 import torch
 import torch.nn.functional as F
@@ -27,7 +27,7 @@ except ImportError:
 
 
 # Label List
-EMOTION_LIST = [
+EMOTION_CLASSES = [
     "anger",
     "contempt",
     "disgust",
@@ -43,6 +43,15 @@ EMOTION_DIMENSIONS = ["arousal", "valence", "dominance"]
 
 
 class VoxProfileCategoricalEmotionEvaluator(VoxProfileEvaluator):
+    """Evaluate categorical emotions using a Whisper-based classifier.
+
+    Attributes:
+        model: Loaded categorical-emotion model used for inference.
+        device: Torch device on which the model runs.
+        max_batch_length: Maximum duration (seconds) processed per batch.
+        output_prefix: Prefix applied to output keys.
+        return_logits: Whether logits are returned alongside probabilities.
+    """
 
     def __init__(
         self,
@@ -52,6 +61,15 @@ class VoxProfileCategoricalEmotionEvaluator(VoxProfileEvaluator):
         output_prefix: str = "voxprofile_emotion_categorical",
         return_logits: bool = False,
     ):
+        """Instantiate the categorical-emotion evaluator.
+
+        Args:
+            model_path: Hugging Face identifier or local path to the model weights.
+            device: Torch device used for evaluation.
+            max_batch_length: Maximum audio length (seconds) processed per batch.
+            output_prefix: Prefix for emitted result keys.
+            return_logits: Whether to include raw logits in outputs.
+        """
 
         if VoxProfileCategoricalEmotionModel is None:
             raise ImportError(
@@ -67,16 +85,26 @@ class VoxProfileCategoricalEmotionEvaluator(VoxProfileEvaluator):
             return_logits=return_logits,
         )
 
-    @property
-    def classes(self) -> List[str]:
-        return EMOTION_LIST
+    @staticmethod
+    def classes() -> List[str]:
+        """Return categorical emotion labels."""
+        return EMOTION_CLASSES
 
     @torch.no_grad()
     def _score_single(
         self,
-        audio_batches: List[torch.Tensor],
+        audio_batches: Iterable[torch.Tensor],
         audio_id: str,
     ) -> Dict[str, float]:
+        """Score one clip and return its categorical emotion predictions.
+
+        Args:
+            audio_batches: Iterable of tensors containing chunk batches.
+            audio_id: Unique identifier for the clip.
+
+        Returns:
+            Dictionary with the predicted label, probability, and optional logits.
+        """
         prefix = self.output_prefix
         logits = []
         for audio_batch in audio_batches:
@@ -86,20 +114,22 @@ class VoxProfileCategoricalEmotionEvaluator(VoxProfileEvaluator):
         logits = torch.cat(logits, dim=0).mean(dim=0)
         probs = F.softmax(logits, dim=-1)
         pred = probs.argmax().item()
-        pred_label = self.classes[pred]
+        pred_label = self.classes()[pred]
         pred_prod = probs[pred].item()
         result = {"id": audio_id, prefix: pred_label, f"{prefix}_prob": pred_prod}
         if self.return_logits:
-            for label, logit in zip(self.classes, logits):
+            for label, logit in zip(self.classes(), logits):
                 result[f"{prefix}_logit_{label}"] = logit.item()
 
         return result
 
     @staticmethod
     def add_class_args(
-        parser, prefix: Optional[str] = None, skip: Optional[set] = None
-    ):
-        """Register VoxProfileNarrowAccentEvaluator CLI arguments."""
+        parser: ArgumentParser,
+        prefix: Optional[str] = None,
+        skip: Optional[Set[str]] = None,
+    ) -> None:
+        """Register CLI arguments specific to ``VoxProfileCategoricalEmotionEvaluator``."""
         if skip is None:
             skip = set()
 
@@ -107,7 +137,7 @@ class VoxProfileCategoricalEmotionEvaluator(VoxProfileEvaluator):
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        super().add_class_args(parser, prefix=None, skip=skip)
+        VoxProfileEvaluator.add_class_args(parser, prefix=None, skip=skip)
         if "model_path" not in skip:
             parser.add_argument(
                 "--model-path",
@@ -129,6 +159,15 @@ class VoxProfileCategoricalEmotionEvaluator(VoxProfileEvaluator):
 
 
 class VoxProfileDimensionalEmotionEvaluator(VoxProfileEvaluator):
+    """Evaluate arousal/valence/dominance using a Whisper-based regressor.
+
+    Attributes:
+        model: Loaded dimensional-emotion model used for inference.
+        device: Torch device on which the model runs.
+        max_batch_length: Maximum duration (seconds) processed per batch.
+        output_prefix: Prefix applied to output keys.
+        return_logits: Whether logits are returned (not used for dimensional outputs).
+    """
 
     def __init__(
         self,
@@ -138,6 +177,15 @@ class VoxProfileDimensionalEmotionEvaluator(VoxProfileEvaluator):
         output_prefix: str = "voxprofile_emotion_dimensional",
         return_logits: bool = False,
     ):
+        """Instantiate the dimensional-emotion evaluator.
+
+        Args:
+            model_path: Hugging Face identifier or local path to the model weights.
+            device: Torch device used for evaluation.
+            max_batch_length: Maximum audio length (seconds) processed per batch.
+            output_prefix: Prefix for emitted result keys.
+            return_logits: Whether to include logits (unused but accepted for parity).
+        """
 
         if VoxProfileDimensionalEmotionModel is None:
             raise ImportError(
@@ -153,16 +201,18 @@ class VoxProfileDimensionalEmotionEvaluator(VoxProfileEvaluator):
             return_logits=return_logits,
         )
 
-    @property
-    def dimensions(self) -> List[str]:
+    @staticmethod
+    def dimensions() -> List[str]:
+        """Return the list of dimensional labels."""
         return EMOTION_DIMENSIONS
 
     @torch.no_grad()
     def _score_single(
         self,
-        audio_batches: List[torch.Tensor],
+        audio_batches: Iterable[torch.Tensor],
         audio_id: str,
     ) -> Dict[str, float]:
+        """Score one clip and return arousal/valence/dominance predictions."""
         prefix = self.output_prefix
         dim_preds = []
         for audio_batch in audio_batches:
@@ -173,16 +223,18 @@ class VoxProfileDimensionalEmotionEvaluator(VoxProfileEvaluator):
         dim_preds = torch.cat(dim_preds, dim=0).mean(dim=0)
 
         result = {"id": audio_id}
-        for dim, pred in zip(self.dimensions, dim_preds):
+        for dim, pred in zip(self.dimensions(), dim_preds):
             result[f"{prefix}_{dim}"] = pred.item()
 
         return result
 
     @staticmethod
     def add_class_args(
-        parser, prefix: Optional[str] = None, skip: Optional[set] = None
-    ):
-        """Register VoxProfileDimensionalEmotionEvaluator CLI arguments."""
+        parser: ArgumentParser,
+        prefix: Optional[str] = None,
+        skip: Optional[Set[str]] = None,
+    ) -> None:
+        """Register CLI arguments specific to ``VoxProfileDimensionalEmotionEvaluator``."""
         if skip is None:
             skip = set()
 
@@ -190,7 +242,7 @@ class VoxProfileDimensionalEmotionEvaluator(VoxProfileEvaluator):
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        super().add_class_args(parser, prefix=None, skip=skip)
+        VoxProfileEvaluator.add_class_args(parser, prefix=None, skip=skip)
         if "model_path" not in skip:
             parser.add_argument(
                 "--model-path",

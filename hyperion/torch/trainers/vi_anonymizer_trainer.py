@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 import torch
-import torch.cuda.amp as amp
+import torch.amp as amp
 import torch.distributed as dist
 import torch.nn as nn
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
@@ -634,7 +634,9 @@ class VIAnonymizerTrainer(FreeVCTrainer):
         # 1. Discriminator Forward Reconstruction #
         ###########################################
         self.discrim_model.set_train_mode(self.discrim_train_mode)
-        with torch.no_grad(), amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
+        with torch.no_grad(), amp.autocast(
+            enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+        ):
             # print(
             #     "[dgb] before xvec input",
             #     torch.any(~torch.isfinite(input_audios)),
@@ -649,7 +651,9 @@ class VIAnonymizerTrainer(FreeVCTrainer):
             )
             speaker_feats = xvector_output.xvector
 
-        with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
+        with amp.autocast(
+            enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+        ):
             feats, feat_lengths = self.vc_model(
                 source_audios=input_audios,
                 source_audio_lengths=input_lengths,
@@ -687,7 +691,9 @@ class VIAnonymizerTrainer(FreeVCTrainer):
         # 2. Generator Forward Reconstruction #
         #######################################
         self.discrim_model.set_train_mode(AudioDiscriminatorTrainMode.FROZEN)
-        with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
+        with amp.autocast(
+            enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+        ):
             y_real, fmaps_real = self.discrim_model(target_audios)
             y_gen, fmaps_gen = self.discrim_model(vc_output.gen_audio)
             with torch.no_grad():
@@ -722,7 +728,9 @@ class VIAnonymizerTrainer(FreeVCTrainer):
             rand_perm = torch.randperm(len(speaker_feats), device=speaker_feats.device)
             speaker_feats = speaker_feats[rand_perm]
 
-        with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
+        with amp.autocast(
+            enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+        ):
             vc_output = self.vc_model(
                 source_audios=None,
                 source_audio_lengths=None,
@@ -794,7 +802,9 @@ class VIAnonymizerTrainer(FreeVCTrainer):
         # 4. Discriminator Forward VC             #
         ###########################################
         self.discrim_model.set_train_mode(self.discrim_train_mode)
-        with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
+        with amp.autocast(
+            enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+        ):
             y_real, _ = self.discrim_model(
                 target_audios,
             )
@@ -1102,7 +1112,9 @@ class VIAnonymizerTrainer(FreeVCTrainer):
         #######################################
         # 1. Inference Forward Reconstruction #
         #######################################
-        with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
+        with amp.autocast(
+            enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+        ):
             xvector_output = self.xvector_model(
                 input_audios,
                 input_lengths,
@@ -1222,7 +1234,9 @@ class VIAnonymizerTrainer(FreeVCTrainer):
         speaker_feats = torch.flip(
             speaker_feats, dims=[0]
         )  # reverse the order of speaker feats
-        with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
+        with amp.autocast(
+            enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+        ):
             vc_output = self.vc_model(
                 source_audios=None,
                 source_audio_lengths=None,

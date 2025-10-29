@@ -5,7 +5,7 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
 import math
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple, Union
+from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -22,6 +22,19 @@ VOXPROFILE_SAMPLE_FREQ = 16000  # Hz
 
 
 class VoxProfileEvaluator:
+    """Base helper to score VoxProfile-style models on variable-length audio.
+
+    Attributes:
+        model: Neural network used to produce logits from audio tensors.
+        device: Torch device where inference runs.
+        max_batch_length: Maximum length in seconds processed per batch.
+        max_chunk_samples: Maximum number of samples per chunk fed to the model.
+        max_batch_samples: Maximum number of samples across a batch of chunks.
+        resampler: Utility that resamples inputs to ``VOXPROFILE_SAMPLE_FREQ``.
+        output_prefix: Prefix applied to output keys for this evaluator.
+        return_logits: When ``True``, raw logits are added to the result payloads.
+    """
+
     def __init__(
         self,
         model: nn.Module,
@@ -31,6 +44,16 @@ class VoxProfileEvaluator:
         output_prefix: str = "voxprofile",
         return_logits: bool = False,
     ):
+        """Initialize the evaluator.
+
+        Args:
+            model: Torch module that produces logits when called on audio tensors.
+            device: Target device for running inference.
+            max_chunk_length: Maximum duration (seconds) for each inference chunk.
+            max_batch_length: Maximum duration (seconds) allowed per batch of chunks.
+            output_prefix: Prefix added to keys in the returned result dictionary.
+            return_logits: If true, include raw logits in the output.
+        """
         self.model = model.to(device)
         self.model.eval()
         self.device = device
@@ -43,7 +66,21 @@ class VoxProfileEvaluator:
 
     def _prepare_audio(
         self, audio: Union[np.ndarray, torch.Tensor], fs: float
-    ) -> Tuple[List[List[torch.Tensor]], float]:
+    ) -> Tuple[List[torch.Tensor], float]:
+        """Resample and split an utterance into batches of uniform-length chunks.
+
+        Chunks are padded with zeros so every chunk in a batch shares the same
+        number of samples and both the chunk length and the total number of
+        samples per batch respect the evaluator limits.
+
+        Args:
+            audio: Input waveform, either as a NumPy array or torch tensor.
+            fs: Original sampling rate in Hz.
+
+        Returns:
+            A tuple with the batches of chunk tensors (List[List[Tensor]]) and the
+            resampled sampling rate.
+        """
         if isinstance(audio, torch.Tensor):
             audio = audio.detach().cpu().numpy()
         audio, fs = self.resampler(audio, fs)
@@ -80,13 +117,13 @@ class VoxProfileEvaluator:
             chunks.append(chunk)
             start += chunk_size
 
-        batches: List[List[torch.Tensor]] = []
+        batches: List[torch.Tensor] = []
         current_batch: List[torch.Tensor] = []
         current_batch_len = 0
         for chunk in chunks:
             chunk_len = chunk.shape[0]
             if current_batch_len + chunk_len > self.max_batch_samples and current_batch:
-                batches.append(current_batch)
+                batches.append(torch.stack(current_batch, dim=0))
                 current_batch = []
                 current_batch_len = 0
 
@@ -94,16 +131,33 @@ class VoxProfileEvaluator:
             current_batch_len += chunk_len
 
         if current_batch:
-            batches.append(current_batch)
+            batches.append(torch.stack(current_batch, dim=0))
 
         return batches, fs
+
+    @staticmethod
+    def classes() -> List[str]:
+        """Return the list of class labels for this evaluator."""
+        raise NotImplementedError
 
     @torch.no_grad()
     def _score_single(
         self,
-        audio_batches: List[torch.Tensor],
+        audio_batches: Iterable[torch.Tensor],
         audio_id: str,
     ) -> Dict[str, float]:
+        """Score a single utterance and return the formatted prediction payload.
+
+        Args:
+            audio_batches: Iterable of tensors to feed into the model. Each tensor
+                represents a batch of audio chunks stacked in the model's expected
+                input shape.
+            audio_id: Identifier for the audio clip, used as the DataFrame index.
+
+        Returns:
+            Dictionary containing the predicted label and probability (and logits if
+            requested).
+        """
         prefix = self.output_prefix
         logits = []
         for audio_batch in audio_batches:
@@ -113,11 +167,11 @@ class VoxProfileEvaluator:
         logits = torch.cat(logits, dim=0).mean(dim=0)
         probs = F.softmax(logits, dim=-1)
         pred = probs.argmax().item()
-        pred_label = self.classes[pred]
+        pred_label = self.classes()[pred]
         pred_prod = probs[pred].item()
         result = {"id": audio_id, prefix: pred_label, f"{prefix}_prob": pred_prod}
         if self.return_logits:
-            for label, logit in zip(self.classes, logits):
+            for label, logit in zip(self.classes(), logits):
                 result[f"{prefix}_logit_{label}"] = logit.item()
 
         return result
@@ -125,15 +179,20 @@ class VoxProfileEvaluator:
     @torch.no_grad()
     def __call__(
         self,
-        audios: Union[List[torch.Tensor], List[np.ndarray]],
-        audio_fs: Union[torch.Tensor, np.ndarray, List[float]],
-        audio_ids: Union[List[str], np.ndarray, None] = None,
-    ) -> torch.Tensor:
-        """Compute accent profile predictions for a list of audios.
+        audios: Sequence[Union[torch.Tensor, np.ndarray]],
+        audio_fs: Sequence[float],
+        audio_ids: Optional[Sequence[str]] = None,
+    ) -> pd.DataFrame:
+        """Compute VoxProfile predictions for a batch of utterances.
 
-        Arguments:
-          audios: List of audio np.ndarray or torch.Tensor
-          audio_fs: List of audio sampling frequencies
+        Args:
+            audios: Sequence of audio waveforms as NumPy arrays or torch tensors.
+            audio_fs: Sequence of sampling rates corresponding to ``audios``.
+            audio_ids: Optional sequence of identifiers; defaults to ``range(len(audios))``.
+
+        Returns:
+            ``pandas.DataFrame`` indexed by ``audio_ids`` with prediction outputs for
+            each clip.
         """
         audio_fs = list(audio_fs)
         if audio_ids is None:
@@ -149,7 +208,7 @@ class VoxProfileEvaluator:
         results: List[Dict[str, float]] = []
         for audio, fs, audio_id in zip(audios, audio_fs, audio_ids):
             audio_batches, fs_out = self._prepare_audio(audio, fs)
-            clip_result = self._score_single(audio_batches, fs_out, audio_id)
+            clip_result = self._score_single(audio_batches, audio_id)
             results.append(clip_result)
 
         df = pd.DataFrame(results)
@@ -158,9 +217,11 @@ class VoxProfileEvaluator:
 
     @staticmethod
     def add_class_args(
-        parser, prefix: Optional[str] = None, skip: Optional[set] = None
-    ):
-        """Register VoxProfile CLI arguments."""
+        parser: ArgumentParser,
+        prefix: Optional[str] = None,
+        skip: Optional[Set[str]] = None,
+    ) -> None:
+        """Register VoxProfile evaluator arguments with ``jsonargparse`` parsers."""
         if skip is None:
             skip = set()
 

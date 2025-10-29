@@ -187,7 +187,6 @@ class SpeechQualityEvaluator:
                 word_stats,
                 sub_stats,
             ) = compute_wer(whisper_hyp, whisper_ref, utt_ids=segments["id"])
-            print("1", segment_stats, flush=True)
             segments.df["whisper_wer"] = segment_stats["wer"]
             segments.df["whisper_word_error_details"] = segment_stats[
                 "word_error_details"
@@ -202,26 +201,10 @@ class SpeechQualityEvaluator:
                 char_stats,
                 sub_stats,
             ) = compute_cer(whisper_hyp, whisper_ref, utt_ids=segments["id"])
-            print("2", segment_stats, flush=True)
             segments.df["whisper_cer"] = segment_stats["cer"]
             segments.df["whisper_char_error_details"] = segment_stats[
                 "char_error_details"
             ]
-            print(
-                "3",
-                segments[
-                    [
-                        "whisper_wer",
-                        "whisper_word_error_details",
-                        "whisper_cer",
-                        "whisper_char_error_details",
-                    ]
-                ],
-                segments["whisper_cer"][:10],
-                segment_stats["cer"][:10],
-                segment_stats["char_error_details"][:10],
-                flush=True,
-            )
             for k, v in zip(
                 [
                     "whisper_wer",

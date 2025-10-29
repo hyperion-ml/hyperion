@@ -3,7 +3,7 @@ Copyright 2025 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-from typing import Dict, Iterable, List, Optional, Tuple, Union
+from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple, Union
 
 import torch
 import torch.nn.functional as F
@@ -18,16 +18,22 @@ try:
     )
 
 except ImportError:
-    VoxProfileAccentModel = None
     VoxProfileAgeSexModel = None
-    VoxProfileVoiceQualityModel = None
-    VoxProfileFluencyModel = None
 
 
-SEX_LIST = ["f", "m"]
+SEX_CLASSES = ["f", "m"]
 
 
 class VoxProfileAgeSexEvaluator(VoxProfileEvaluator):
+    """Estimate speaker age and sex from audio using a WavLM-based model.
+
+    Attributes:
+        model: Loaded demographics model used for inference.
+        device: Torch device on which the model runs.
+        max_batch_length: Maximum duration (seconds) processed per batch.
+        output_prefix: Prefix applied to output keys in the results.
+        return_logits: Whether logits are included alongside probabilities.
+    """
 
     def __init__(
         self,
@@ -37,6 +43,15 @@ class VoxProfileAgeSexEvaluator(VoxProfileEvaluator):
         output_prefix: str = "voxprofile_demographics",
         return_logits: bool = False,
     ):
+        """Instantiate the age/sex evaluator.
+
+        Args:
+            model_path: Hugging Face identifier or local path to the model weights.
+            device: Torch device used for evaluation.
+            max_batch_length: Maximum audio length (seconds) processed per batch.
+            output_prefix: Prefix for emitted result keys.
+            return_logits: Whether to include raw logits in the output.
+        """
 
         if VoxProfileAgeSexModel is None:
             raise ImportError(
@@ -51,16 +66,18 @@ class VoxProfileAgeSexEvaluator(VoxProfileEvaluator):
             return_logits=return_logits,
         )
 
-    @property
-    def sex_classes(self) -> List[str]:
-        return SEX_LIST
+    @staticmethod
+    def sex_classes() -> List[str]:
+        """Return supported sex labels."""
+        return SEX_CLASSES
 
     @torch.no_grad()
     def _score_single(
         self,
-        audio_batches: List[torch.Tensor],
+        audio_batches: Iterable[torch.Tensor],
         audio_id: str,
     ) -> Dict[str, float]:
+        """Score a single clip returning sex probabilities and age estimate."""
         prefix = self.output_prefix
         age_preds = []
         sex_logits = []
@@ -72,7 +89,7 @@ class VoxProfileAgeSexEvaluator(VoxProfileEvaluator):
         sex_logits = torch.cat(sex_logits, dim=0).mean(dim=0)
         sex_probs = F.softmax(sex_logits, dim=-1)
         pred = sex_probs.argmax().item()
-        pred_label = self.sex_classes[pred]
+        pred_label = self.sex_classes()[pred]
         pred_prod = sex_probs[pred].item()
         age_preds = torch.cat(age_preds, dim=0).mean().item() * 100
         result = {
@@ -82,16 +99,18 @@ class VoxProfileAgeSexEvaluator(VoxProfileEvaluator):
             f"{prefix}_age": age_preds,
         }
         if self.return_logits:
-            for label, logit in zip(self.sex_classes, sex_logits):
+            for label, logit in zip(self.sex_classes(), sex_logits):
                 result[f"{prefix}_sex_logit_{label}"] = logit.item()
 
         return result
 
     @staticmethod
     def add_class_args(
-        parser, prefix: Optional[str] = None, skip: Optional[set] = None
-    ):
-        """Register VoxProfileAgeSexEvaluator CLI arguments."""
+        parser: ArgumentParser,
+        prefix: Optional[str] = None,
+        skip: Optional[Set[str]] = None,
+    ) -> None:
+        """Register CLI arguments specific to ``VoxProfileAgeSexEvaluator``."""
         if skip is None:
             skip = set()
 
@@ -99,7 +118,7 @@ class VoxProfileAgeSexEvaluator(VoxProfileEvaluator):
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        super().add_class_args(parser, prefix=None, skip=skip)
+        VoxProfileEvaluator.add_class_args(parser, prefix=None, skip=skip)
         if "model_path" not in skip:
             parser.add_argument(
                 "--model-path",

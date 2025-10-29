@@ -5,7 +5,7 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
 import math
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple, Union
+from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple, Union
 
 import librosa
 import numpy as np
@@ -30,7 +30,7 @@ except ImportError:
 
 # Label List
 
-VOICE_QUALITY_LIST = [
+VOICE_QUALITY_CLASSES = [
     "shrill",
     "nasal",
     "deep",  # Pitch
@@ -60,6 +60,15 @@ VOICE_QUALITY_LIST = [
 
 
 class VoxProfileVoiceQualityEvaluator(VoxProfileEvaluator):
+    """Evaluate voice-quality attributes using a Whisper-based classifier.
+
+    Attributes:
+        model: Loaded voice-quality model used for inference.
+        device: Torch device on which the model runs.
+        max_batch_length: Maximum duration (seconds) processed per batch.
+        output_prefix: Prefix applied to output keys in the results.
+        return_logits: Whether logits are included alongside probabilities.
+    """
 
     def __init__(
         self,
@@ -69,6 +78,15 @@ class VoxProfileVoiceQualityEvaluator(VoxProfileEvaluator):
         output_prefix: str = "voxprofile_voice_quality",
         return_logits: bool = False,
     ):
+        """Instantiate a voice-quality evaluator.
+
+        Args:
+            model_path: Hugging Face identifier or local path to the model weights.
+            device: Torch device used for evaluation.
+            max_batch_length: Maximum audio length (seconds) processed per batch.
+            output_prefix: Prefix for emitted result keys.
+            return_logits: Whether to include raw logits in the outputs.
+        """
 
         if VoxProfileVoiceQualityModel is None:
             raise ImportError(
@@ -84,16 +102,26 @@ class VoxProfileVoiceQualityEvaluator(VoxProfileEvaluator):
             return_logits=return_logits,
         )
 
-    @property
-    def classes(self) -> List[str]:
-        return VOICE_QUALITY_LIST
+    @staticmethod
+    def classes() -> List[str]:
+        """Return the fixed list of voice-quality labels."""
+        return VOICE_QUALITY_CLASSES
 
     @torch.no_grad()
     def _score_single(
         self,
-        audio_batches: List[torch.Tensor],
+        audio_batches: Iterable[torch.Tensor],
         audio_id: str,
     ) -> Dict[str, float]:
+        """Score a single clip and return per-label probabilities (and logits).
+
+        Args:
+            audio_batches: Iterable of tensors containing chunk batches.
+            audio_id: Unique identifier for the clip.
+
+        Returns:
+            Dictionary mapping each label to its probability (and optional logits).
+        """
         prefix = self.output_prefix
         logits = []
         for audio_batch in audio_batches:
@@ -104,20 +132,22 @@ class VoxProfileVoiceQualityEvaluator(VoxProfileEvaluator):
         probs = F.sigmoid(logits)
 
         result = {"id": audio_id}
-        for label, prob in zip(self.classes, probs):
+        for label, prob in zip(self.classes(), probs):
             result[f"{prefix}_{label}_prob"] = prob.item()
 
         if self.return_logits:
-            for label, logit in zip(self.classes, logits):
+            for label, logit in zip(self.classes(), logits):
                 result[f"{prefix}_{label}_logit"] = logit.item()
 
         return result
 
     @staticmethod
     def add_class_args(
-        parser, prefix: Optional[str] = None, skip: Optional[set] = None
-    ):
-        """Register VoxProfileVoiceQualityEvaluator CLI arguments."""
+        parser: ArgumentParser,
+        prefix: Optional[str] = None,
+        skip: Optional[Set[str]] = None,
+    ) -> None:
+        """Register CLI arguments specific to ``VoxProfileVoiceQualityEvaluator``."""
         if skip is None:
             skip = set()
 
@@ -125,7 +155,7 @@ class VoxProfileVoiceQualityEvaluator(VoxProfileEvaluator):
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        super().add_class_args(parser, prefix=None, skip=skip)
+        VoxProfileEvaluator.add_class_args(parser, prefix=None, skip=skip)
         if "model_path" not in skip:
             parser.add_argument(
                 "--model-path",

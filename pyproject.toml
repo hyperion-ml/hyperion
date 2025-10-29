@@ -9,7 +9,7 @@ description = "Toolkit for speaker recognition"
 readme = "README.md"
 keywords = [ "speaker recognition", "adversarial attacks", "NIST SRE", "x-vectors",]
 requires-python = ">=3.7"
-dependencies = [ "torch>=1.9.0", "numpy>=1.18.1", "h5py>=2.10.0", "pysoundfile>=0.9.0", "matplotlib>=3.1.3", "pandas>=1.0.1", "scikit-learn>=0.22.1", "scipy>=1.4.1", "sphinx_rtd_theme>=0.4.3", "pympler", "memory_profiler", "gdown", "fairscale==0.4.4", "tensorboard>=2.5.0", "jsonargparse>=3.5.0", "wandb>=0.10.30", "librosa>=0.8.1", "isort", "black", "twine", "wheel", "transformers>=4.16.2", "sentencepiece>=0.1.97", "loralib", "lhotse>=1.23.0", "datasets>=2.20.0", "pytest", "toml", "kaldialign>=0.9.1", "utmosv2 @ git+https://github.com/jesus-villalba/UTMOSv2.git", "pycountry", "langcodes", "pynvml", "onnxruntime"]
+dependencies = [ "torch>=1.9.0", "numpy>=1.18.1", "h5py>=2.10.0", "pysoundfile>=0.9.0", "matplotlib>=3.1.3", "pandas>=1.0.1", "scikit-learn>=0.22.1", "scipy>=1.4.1", "sphinx_rtd_theme>=0.4.3", "pympler", "memory_profiler", "gdown", "fairscale==0.4.4", "tensorboard>=2.5.0", "jsonargparse>=3.5.0", "wandb>=0.10.30", "librosa>=0.8.1", "isort", "black", "twine", "wheel", "transformers>=4.16.2", "sentencepiece>=0.1.97", "loralib", "lhotse>=1.23.0", "datasets>=2.20.0,<3.0", "pytest", "toml", "kaldialign>=0.9.1", "utmosv2 @ git+https://github.com/jesus-villalba/UTMOSv2.git", "pycountry", "langcodes", "nvidia-ml-py3", "onnxruntime",]
 [[project.authors]]
 name = "Jesus Villalba"
 email = "jesus.antonio.villalba@gmail.com"
@@ -31,8 +31,10 @@ hyperion-finetune-xvector-dfr-from-wav = "hyperion.bin.finetune_xvector_dfr_from
 hyperion-decode-wav2transducer = "hyperion.bin.decode_wav2transducer:main"
 hyperion-extract-xvectors-slidwin-from-feats = "hyperion.bin.extract_xvectors_slidwin_from_feats:main"
 hyperion-make-babble-noise-audio-files = "hyperion.bin.make_babble_noise_audio_files:main"
+hyperion-finetune-dac = "hyperion.bin.finetune_dac:main"
 hyperion-finetune-wav2xvector = "hyperion.bin.finetune_wav2xvector:main"
 hyperion-finetune-wav2vec2xvector = "hyperion.bin.finetune_wav2vec2xvector:main"
+hyperion-eval-voxprofile-metrics = "hyperion.bin.eval_voxprofile_metrics:main"
 hyperion-make-wav2xvector = "hyperion.bin.make_wav2xvector:main"
 hyperion-pack-wav-rirs = "hyperion.bin.pack_wav_rirs:main"
 hyperion-train-qmf = "hyperion.bin.train_qmf:main"
