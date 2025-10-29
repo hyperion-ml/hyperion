@@ -5,6 +5,7 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 import logging
 from pathlib import Path
+from typing import Any, Dict, Union
 
 import pandas as pd
 from jsonargparse import (
@@ -20,12 +21,22 @@ from hyperion.metrics import SpeechQualityEvaluator as SQE
 
 
 def eval_speech_quality_metrics(
-    segments_file,
-    recordings_file,
-    global_metrics_file,
-    segments_metrics_file,
-    **kwargs,
-):
+    segments_file: Union[str, Path],
+    recordings_file: Union[str, Path],
+    global_metrics_file: Union[str, Path],
+    segments_metrics_file: Union[str, Path],
+    **kwargs: Any,
+) -> None:
+    """
+    Evaluate speech-quality metrics for a set of segments and recordings.
+
+    Args:
+        segments_file: Path to the manifest containing segment metadata.
+        recordings_file: Path to the recordings manifest used by the evaluator.
+        global_metrics_file: Output path for aggregated (global) metrics.
+        segments_metrics_file: Output path for per-segment metrics.
+        **kwargs: Additional keyword arguments forwarded to the evaluator.
+    """
     logging.info(
         "Evaluating segments: %s recordings: %s", segments_file, recordings_file
     )
@@ -44,14 +55,35 @@ def eval_speech_quality_metrics(
     print(stats.to_string(), flush=True)
 
 
-def main():
+def main() -> None:
+    """CLI entry point for speech-quality metric evaluation."""
     parser = ArgumentParser(description="Evaluate speech quality metrics")
-    parser.add_argument("--cfg", action=ActionConfigFile)
-    parser.add_argument("--segments-file", required=True)
-    parser.add_argument("--recordings-file", required=True)
+    parser.add_argument(
+        "--cfg",
+        action=ActionConfigFile,
+        help="Load command-line options from the provided configuration file",
+    )
+    parser.add_argument(
+        "--segments-file",
+        required=True,
+        help="Path to the segments manifest used for evaluation",
+    )
+    parser.add_argument(
+        "--recordings-file",
+        required=True,
+        help="Path to the recordings manifest consumed by the evaluator",
+    )
     SQE.add_class_args(parser)
-    parser.add_argument("--global-metrics-file", required=True)
-    parser.add_argument("--segments-metrics-file", required=True)
+    parser.add_argument(
+        "--global-metrics-file",
+        required=True,
+        help="File where aggregated (global) metrics will be written",
+    )
+    parser.add_argument(
+        "--segments-metrics-file",
+        required=True,
+        help="File where per-segment metrics will be written",
+    )
     parser.add_argument(
         "-v",
         "--verbose",
@@ -59,10 +91,11 @@ def main():
         default=1,
         choices=[0, 1, 2, 3],
         type=int,
+        help="Verbosity level: 0=warning, 1=info, 2=debug, 3=trace",
     )
 
     args = parser.parse_args()
-    kwargs = namespace_to_dict(args)
+    kwargs: Dict[str, Any] = namespace_to_dict(args)
     config_logger(kwargs["verbose"])
     del kwargs["verbose"]
     del kwargs["cfg"]

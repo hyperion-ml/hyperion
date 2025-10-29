@@ -205,6 +205,17 @@ class VectorQuantizerFactory:
                 help="Annealing rate for temperature",
             )
 
+        if "soft_sampling_steps" not in skip:
+            parser.add_argument(
+                "--soft-sampling-steps",
+                type=int,
+                default=0,
+                help=(
+                    "Number of initial training steps to keep Gumbel sampling soft "
+                    "before automatically switching to hard sampling"
+                ),
+            )
+
         if "commitment_anneal_steps" not in skip:
             parser.add_argument(
                 "--commitment-anneal-steps",

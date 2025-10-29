@@ -37,9 +37,13 @@ class VectorQuantizerOutput(HypDataClass):
 
     z_q: torch.Tensor = None  # Quantized vectors
     codebook_loss: torch.Tensor = None  # VQ loss
-    commitment_loss: torch.Tensor = None  # Commitment loss (shape depends on `losses_reduction`)
+    commitment_loss: torch.Tensor = (
+        None  # Commitment loss (shape depends on `losses_reduction`)
+    )
     diversity_loss: Optional[torch.Tensor] = None  # Diversity regularizer (optional)
-    orthogonality_loss: Optional[torch.Tensor] = None  # Orthonormality regularizer (optional)
+    orthogonality_loss: Optional[torch.Tensor] = (
+        None  # Orthonormality regularizer (optional)
+    )
     perplexity: Optional[torch.Tensor] = None  # Perplexity of the responsibilities
     codes: Optional[torch.Tensor] = None  # indices of the codebook vectors (optional)
     z_mask: Optional[torch.Tensor] = None  # mask used for quantization (optional)
@@ -250,6 +254,15 @@ class VectorQuantizerBase(nn.Module):
                 f"VQ Commitment weight updated to {self.commitment_weight.item():.4f}"
             )
 
+    def update_sampling_mode(self, global_step: int) -> None:
+        """
+        Hook for subclasses that need to schedule sampling behaviour.
+
+        Args:
+            global_step (int): Current global training step.
+        """
+        return
+
     def update_params(self, global_step: int) -> None:
         """
         Update all scheduled parameters.
@@ -259,6 +272,7 @@ class VectorQuantizerBase(nn.Module):
         """
         self.update_temp(global_step)
         self.update_commitment_weight(global_step)
+        self.update_sampling_mode(global_step)
 
     def compute_diversity_loss(
         self,
@@ -342,7 +356,9 @@ class VectorQuantizerBase(nn.Module):
             return loss.mean()
         if self.losses_reduction == "sum":
             return loss.sum()
-        raise RuntimeError(f"Unexpected losses_reduction value: {self.losses_reduction}")
+        raise RuntimeError(
+            f"Unexpected losses_reduction value: {self.losses_reduction}"
+        )
 
     @torch.no_grad()
     def codebook_perplexity_hard(
@@ -619,6 +635,52 @@ class VectorQuantizerBase(nn.Module):
         for m in self.modules():
             if is_parametrized(m):
                 remove_parametrizations(m, "weight")
+
+
+class _GumbelSoftSamplingMixin:
+    """
+    Mixin that provides soft-to-hard sampling scheduling for Gumbel quantizers.
+    """
+
+    soft_sampling_steps: int
+
+    def _init_soft_sampling(self, soft_sampling_steps: int) -> None:
+        steps = 0 if soft_sampling_steps is None else int(soft_sampling_steps)
+        self.soft_sampling_steps = max(0, steps)
+        initial_hard = self.soft_sampling_steps == 0
+        self.register_buffer(
+            "use_hard_sampling",
+            torch.tensor(initial_hard, dtype=torch.bool),
+        )
+
+    def _resolve_sampling_mode(self, hard: Optional[bool]) -> bool:
+        if hard is not None:
+            return bool(hard)
+        if not self.training:
+            return True
+        return bool(self.use_hard_sampling.item())
+
+    @torch.no_grad()
+    def update_sampling_mode(self, global_step: int) -> None:
+        super().update_sampling_mode(global_step)
+        if not hasattr(self, "soft_sampling_steps"):
+            return
+
+        if self.soft_sampling_steps == 0:
+            target_hard = True
+        else:
+            target_hard = global_step >= self.soft_sampling_steps
+
+        current_hard = bool(self.use_hard_sampling.item())
+        if current_hard != target_hard:
+            mode = "hard" if target_hard else "soft"
+            logging.info(
+                "%s switching to %s Gumbel sampling at step %d",
+                self.__class__.__name__,
+                mode,
+                int(global_step),
+            )
+        self.use_hard_sampling.fill_(target_hard)
 
 
 class _GDVectorQuantizer(VectorQuantizerBase):
@@ -1031,7 +1093,7 @@ class NNVectorQuantizer(_GDVectorQuantizer):
         return filter_func_args(NNVectorQuantizer.__init__, kwargs)
 
 
-class GumbelVectorQuantizer(_GDVectorQuantizer):
+class GumbelVectorQuantizer(_GumbelSoftSamplingMixin, _GDVectorQuantizer):
     """
     Gumbel-Softmax vector quantizer.
 
@@ -1049,6 +1111,8 @@ class GumbelVectorQuantizer(_GDVectorQuantizer):
         temp_init (float): Initial temperature for Gumbel-Softmax.
         temp_min (float): Minimum annealed temperature.
         temp_anneal_rate (float): Exponential decay rate for temperature scheduling.
+        soft_sampling_steps (int): Number of training steps to run soft sampling
+            before switching to hard sampling automatically.
         reset_unused (bool): If True (and in training mode), reinitializes codebook
             entries that remain unused for a configurable number of batches.
         reset_unused_steps (int): Consecutive forward passes a codeword can stay unused
@@ -1070,6 +1134,7 @@ class GumbelVectorQuantizer(_GDVectorQuantizer):
         temp_init: float = 1.0,
         temp_min: float = 0.5,
         temp_anneal_rate: float = 1e-5,
+        soft_sampling_steps: int = 0,
         reset_unused: bool = False,
         reset_unused_steps: int = 1,
         commitment_anneal_steps: int = 0,
@@ -1094,6 +1159,7 @@ class GumbelVectorQuantizer(_GDVectorQuantizer):
             compute_orthogonality_loss=compute_orthogonality_loss,
             losses_reduction=losses_reduction,
         )
+        self._init_soft_sampling(soft_sampling_steps)
 
     def __str__(self):
         return (
@@ -1102,6 +1168,8 @@ class GumbelVectorQuantizer(_GDVectorQuantizer):
             f"distance_metric={self.distance_metric}, use_weight_norm={self.use_weight_norm}, "
             f"channels_last={self.channels_last}, temp={self.temp.item():.4f}, "
             f"temp_min={self.temp_min.item():.4f}, temp_anneal_rate={self.temp_anneal_rate}, "
+            f"soft_sampling_steps={self.soft_sampling_steps}, "
+            f"using_hard_sampling={bool(self.use_hard_sampling.item())}, "
             f"reset_unused={self.reset_unused}, "
             f"reset_unused_steps={self.reset_unused_steps if self.reset_unused else 'n/a'}, "
             f"commitment_weight={self.commitment_weight.item():.4f}, "
@@ -1118,6 +1186,7 @@ class GumbelVectorQuantizer(_GDVectorQuantizer):
                 "temp_init": self.temp.item(),
                 "temp_min": self.temp_min.item(),
                 "temp_anneal_rate": self.temp_anneal_rate,
+                "soft_sampling_steps": self.soft_sampling_steps,
             }
         )
         return cfg
@@ -1126,7 +1195,7 @@ class GumbelVectorQuantizer(_GDVectorQuantizer):
         self,
         latents: torch.Tensor,
         temp: float,
-        hard: bool = False,
+        hard: Optional[bool] = None,
         return_probs: bool = False,
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         """
@@ -1135,7 +1204,8 @@ class GumbelVectorQuantizer(_GDVectorQuantizer):
         Args:
             latents (Tensor): Input of shape (B, T, D).
             temp (float): Gumbel-Softmax temperature.
-            hard (bool): If True, use straight-through (hard) sampling.
+            hard (bool or None): If True/False override the sampling mode. When
+                ``None`` the sampler follows the scheduled soft-to-hard transition.
             return_probs (bool): When ``True`` also returns the sampled soft
                 assignments per latent.
 
@@ -1148,6 +1218,7 @@ class GumbelVectorQuantizer(_GDVectorQuantizer):
         latents = latents.view(-1, latents.shape[-1])  # (B*T, D)
         distance = self.compute_codebook_distance(latents)
         logits = -distance
+        hard = self._resolve_sampling_mode(hard)
         soft_one_hot = F.gumbel_softmax(
             logits, tau=float(temp), hard=hard, dim=-1
         )  # (N, num_embed)
@@ -1162,7 +1233,7 @@ class GumbelVectorQuantizer(_GDVectorQuantizer):
         self,
         latents: torch.Tensor,
         temp: float,
-        hard: bool = False,
+        hard: Optional[bool] = None,
         return_probs: bool = False,
     ) -> Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
         """
@@ -1171,7 +1242,7 @@ class GumbelVectorQuantizer(_GDVectorQuantizer):
         Args:
             latents (Tensor): Input of shape (B, T, D).
             temp (float): Gumbel-Softmax temperature.
-            hard (bool): If True, apply straight-through discretization.
+            hard (bool or None): If provided, overrides the scheduled sampling mode.
             return_probs (bool): When ``True`` includes the sampled soft responsibilities.
 
         Returns:
@@ -1196,7 +1267,7 @@ class GumbelVectorQuantizer(_GDVectorQuantizer):
         z_lengths: Optional[torch.Tensor] = None,
         z_mask: Optional[torch.Tensor] = None,
         temp: float = None,
-        hard: bool = False,
+        hard: Optional[bool] = None,
         return_codes: bool = False,
     ) -> VectorQuantizerOutput:
         """
@@ -1208,7 +1279,10 @@ class GumbelVectorQuantizer(_GDVectorQuantizer):
             z_mask (Tensor, optional): Mask (B, T).
             temp (float, optional): Gumbel-Softmax temperature. Defaults to current
                 internal temperature buffer.
-            hard (bool): If True, use straight-through (hard) discretization.
+            hard (bool or None): Override for straight-through mode. When None,
+                the layer selects soft sampling while training until
+                ``soft_sampling_steps`` is reached, then switches to hard sampling.
+                Evaluation mode always uses hard sampling.
             return_codes (bool): If True, include sampled codes in output.
 
         Returns:
@@ -1396,6 +1470,8 @@ class EMANNVectorQuantizer(VectorQuantizerBase):
             f"decay={self.decay}, eps={self.eps}, reset_unused={self.reset_unused}, "
             f"temp={self.temp.item():.4f}, temp_min={self.temp_min.item():.4f}, "
             f"temp_anneal_rate={self.temp_anneal_rate}, "
+            f"soft_sampling_steps={self.soft_sampling_steps}, "
+            f"using_hard_sampling={bool(self.use_hard_sampling.item())}, "
             f"commitment_weight={self.commitment_weight.item():.4f}, "
             f"commitment_anneal_steps={self.commitment_anneal_steps}, "
             f"compute_diversity_loss={self._compute_diversity_loss}, "
@@ -1717,7 +1793,7 @@ class EMANNVectorQuantizer(VectorQuantizerBase):
         return filter_func_args(EMANNVectorQuantizer.__init__, kwargs)
 
 
-class EMAGumbelVectorQuantizer(EMANNVectorQuantizer):
+class EMAGumbelVectorQuantizer(_GumbelSoftSamplingMixin, EMANNVectorQuantizer):
     """
     Gumbel-Softmax vector quantizer with EMA codebook updates.
 
@@ -1744,6 +1820,8 @@ class EMAGumbelVectorQuantizer(EMANNVectorQuantizer):
         temp_init (float): Initial temperature for Gumbel-Softmax.
         temp_min (float): Minimum annealed temperature.
         temp_anneal_rate (float): Exponential decay rate for temperature scheduling.
+        soft_sampling_steps (int): Number of training steps to run soft sampling
+            before switching to hard sampling automatically.
         commitment_anneal_steps (int): Steps to linearly ramp the commitment penalty.
         compute_diversity_loss (bool): Whether to compute diversity regularizer terms.
         compute_orthogonality_loss (bool): Whether to compute orthogonality penalty.
@@ -1763,6 +1841,7 @@ class EMAGumbelVectorQuantizer(EMANNVectorQuantizer):
         temp_init: float = 1.0,
         temp_min: float = 0.5,
         temp_anneal_rate: float = 1e-5,
+        soft_sampling_steps: int = 0,
         commitment_anneal_steps: int = 0,
         compute_diversity_loss: bool = False,
         compute_orthogonality_loss: bool = False,
@@ -1786,6 +1865,7 @@ class EMAGumbelVectorQuantizer(EMANNVectorQuantizer):
             compute_orthogonality_loss=compute_orthogonality_loss,
             losses_reduction=losses_reduction,
         )
+        self._init_soft_sampling(soft_sampling_steps)
 
     def __str__(self):
         return (
@@ -1795,6 +1875,8 @@ class EMAGumbelVectorQuantizer(EMANNVectorQuantizer):
             f"decay={self.decay}, eps={self.eps}, reset_unused={self.reset_unused}, "
             f"temp={self.temp.item():.4f}, temp_min={self.temp_min.item():.4f}, "
             f"temp_anneal_rate={self.temp_anneal_rate}, "
+            f"soft_sampling_steps={self.soft_sampling_steps}, "
+            f"using_hard_sampling={bool(self.use_hard_sampling.item())}, "
             f"commitment_weight={self.commitment_weight.item():.4f}, "
             f"commitment_anneal_steps={self.commitment_anneal_steps}, "
             f"compute_diversity_loss={self._compute_diversity_loss}, "
@@ -1809,6 +1891,7 @@ class EMAGumbelVectorQuantizer(EMANNVectorQuantizer):
                 "temp_init": self.temp.item(),
                 "temp_min": self.temp_min.item(),
                 "temp_anneal_rate": self.temp_anneal_rate,
+                "soft_sampling_steps": self.soft_sampling_steps,
             }
         )
         return cfg
@@ -1817,7 +1900,7 @@ class EMAGumbelVectorQuantizer(EMANNVectorQuantizer):
         self,
         latents: torch.Tensor,
         temp: float,
-        hard: bool = False,
+        hard: Optional[bool] = None,
         return_probs: bool = False,
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         """
@@ -1826,7 +1909,7 @@ class EMAGumbelVectorQuantizer(EMANNVectorQuantizer):
         Args:
             latents (Tensor): Input of shape (B, T, D).
             temp (float): Gumbel-Softmax temperature.
-            hard (bool): If True, use straight-through (hard) sampling.
+            hard (bool or None): If set, overrides the scheduled sampling mode.
 
         Returns:
             Tensor | Tuple[Tensor, Tensor]:
@@ -1838,6 +1921,7 @@ class EMAGumbelVectorQuantizer(EMANNVectorQuantizer):
         latents = latents.view(-1, latents.shape[-1])  # (B*T, D)
         distance = self.compute_codebook_distance(latents)
         logits = -distance
+        hard = self._resolve_sampling_mode(hard)
         soft_one_hot = F.gumbel_softmax(
             logits, tau=float(temp), hard=hard, dim=-1
         )  # (N, num_embed)
@@ -1852,7 +1936,7 @@ class EMAGumbelVectorQuantizer(EMANNVectorQuantizer):
         self,
         latents: torch.Tensor,
         temp: float,
-        hard: bool = False,
+        hard: Optional[bool] = None,
         return_probs: bool = False,
     ) -> Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
         """
@@ -1861,7 +1945,7 @@ class EMAGumbelVectorQuantizer(EMANNVectorQuantizer):
         Args:
             latents (Tensor): Input of shape (B, T, D).
             temp (float): Gumbel-Softmax temperature.
-            hard (bool): If True, apply straight-through discretization.
+            hard (bool or None): When provided overrides the scheduled sampling mode.
 
         Returns:
             Tuple[Tensor, Tensor, Optional[Tensor]]:
@@ -1886,7 +1970,7 @@ class EMAGumbelVectorQuantizer(EMANNVectorQuantizer):
         z_lengths: torch.Tensor | None = None,
         z_mask: torch.Tensor | None = None,
         temp: float = None,
-        hard: bool = False,
+        hard: Optional[bool] = None,
         return_codes: bool = False,
     ) -> VectorQuantizerOutput:
         """
@@ -1910,7 +1994,9 @@ class EMAGumbelVectorQuantizer(EMANNVectorQuantizer):
                 indicating valid timesteps.
             temp (float, optional): Gumbel-Softmax temperature. Defaults to current
                 internal temperature buffer.
-            hard (bool): If True, use straight-through (hard) discretization.
+            hard (bool or None): Override for straight-through sampling. When None the
+                layer transitions from soft to hard sampling based on
+                ``soft_sampling_steps``; evaluation mode always uses hard sampling.
             return_codes (bool): If True, include code indices in the output.
 
         Returns:
