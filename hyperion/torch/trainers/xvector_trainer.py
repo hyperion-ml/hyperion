@@ -8,7 +8,7 @@ import os
 from collections import OrderedDict as ODict
 
 import torch
-import torch.cuda.amp as amp
+import torch.amp as amp
 import torch.nn as nn
 from torch.distributed.elastic.multiprocessing.errors import record
 
@@ -120,7 +120,9 @@ class XVectorTrainer(LegacyTorchTrainer):
                 batch_keys = [aug_key, f"{aug_key}_lengths", self.target_key]
                 x, x_lengths, target = tensors_subset(data, batch_keys, self.device)
                 batch_size = x.size(0)
-                with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
+                with amp.autocast(
+                    enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+                ):
                     output = self.model(x, x_lengths=x_lengths, y=target)
                     loss = self.loss(output.logits, target) / loss_scale
                     loss_acc += loss.item()
@@ -180,7 +182,9 @@ class XVectorTrainer(LegacyTorchTrainer):
                     batch_keys = [aug_key, f"{aug_key}_lengths", self.target_key]
                     x, x_lengths, target = tensors_subset(data, batch_keys, self.device)
                     batch_size = x.size(0)
-                    with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
+                    with amp.autocast(
+                        enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+                    ):
                         output = self.model(x, x_lengths=x_lengths)
                         loss = self.loss(output.logits, target) / loss_scale
                         # if not torch.isfinite(loss):

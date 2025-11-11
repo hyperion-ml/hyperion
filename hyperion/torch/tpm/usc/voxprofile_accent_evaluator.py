@@ -13,7 +13,9 @@ from ....utils.misc import PathLike
 from .voxprofile_evaluator import VOXPROFILE_MAX_AUDIO_LEN, VoxProfileEvaluator
 
 try:
-    from src.model.accent.whisper_accent import WhisperWrapper as VoxProfileAccentModel
+    from vox_profile.model.accent.whisper_accent import (
+        WhisperWrapper as VoxProfileAccentModel,
+    )
 
 except ImportError:
     VoxProfileAccentModel = None

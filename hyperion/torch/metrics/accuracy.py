@@ -1,6 +1,6 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import torch
@@ -11,7 +11,7 @@ from .metrics import TorchMetric
 
 class CategoricalAccuracy(TorchMetric):
     def __init__(self, weight=None, reduction="mean"):
-        super(CategoricalAccuracy, self).__init__(weight=weight, reduction=reduction)
+        super().__init__(weight=weight, reduction=reduction)
 
     def forward(self, input, target):
         return categorical_accuracy(
@@ -21,7 +21,7 @@ class CategoricalAccuracy(TorchMetric):
 
 class BinaryAccuracy(TorchMetric):
     def __init__(self, weight=None, reduction="mean", thr=0.5):
-        super(BinaryAccuracy, self).__init__(weight=weight, reduction=reduction)
+        super().__init__(weight=weight, reduction=reduction)
         self.thr = thr
 
     def forward(self, input, target):
@@ -32,9 +32,7 @@ class BinaryAccuracy(TorchMetric):
 
 class BinaryAccuracyWithLogits(TorchMetric):
     def __init__(self, weight=None, reduction="mean", thr=0.0):
-        super(BinaryAccuracyWithLogits, self).__init__(
-            weight=weight, reduction=reduction
-        )
+        super().__init__(weight=weight, reduction=reduction)
         self.thr = thr
 
     def forward(self, input, target):

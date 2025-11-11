@@ -7,11 +7,10 @@ import logging
 from collections import OrderedDict as ODict
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
 import torch.amp as amp
-import torch.distributed as dist
 import torch.nn as nn
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
@@ -331,7 +330,9 @@ class DACTrainer(TorchTrainerBase):
     def preprocess_val_data(self, batch_data):
         return self.preprocess_train_data(batch_data)
 
-    def train_forward_backward(self, batch_data):
+    def training_step(
+        self, batch_idx: int, batch_data: Dict[str, Any]
+    ) -> Tuple[int, Dict[str, Any]]:
         """Performs the forward and backward passes for both discriminator and generator.
 
         Handles discriminator training first with real/fake inputs, then updates
@@ -340,6 +341,8 @@ class DACTrainer(TorchTrainerBase):
         Returns:
             OrderedDict[str, float]: A dictionary of computed metrics.
         """
+        batch_size, batch_data = self.preprocess_train_data(batch_data)
+        batch_data = self.send_data_to_device(batch_data)
         self.dac_model.update_quantizer_params(self.cur_step)
         ############################
         # 1. Discriminator Forward #
@@ -459,7 +462,7 @@ class DACTrainer(TorchTrainerBase):
         for i, ppl_i in enumerate(dac_output.vq.perplexity):
             batch_metrics[f"ppl/{i}"] = ppl_i.item()
 
-        return batch_metrics
+        return batch_size, batch_metrics
 
     def validation_step(self, batch_idx: int, batch_data: Dict[str, Any]):
         """Runs a forward pass through the generator and discriminator during validation.
@@ -711,7 +714,7 @@ class DACTrainer(TorchTrainerBase):
         if self.rank != 0:
             return
 
-        checkpoint = self.checkpoint(
+        checkpoint = self.model_checkpoint(
             self.dac_model,
             self.dac_optimizer,
             self.dac_lr_scheduler,

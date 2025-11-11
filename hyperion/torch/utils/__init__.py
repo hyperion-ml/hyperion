@@ -28,6 +28,11 @@ from .devices import (
     tensors_to_numpy,
 )
 from .eval_utils import eval_nnet_by_chunks, eval_nnet_overlap_add
-from .masking import make_attn_mask_causal, scale_seq_lengths, seq_lengths_to_mask
+from .masking import (
+    scale_seq_lengths,
+    seq_lengths_to_cross_attn_mask,
+    seq_lengths_to_mask,
+    seq_lengths_to_self_attn_mask,
+)
 from .metric_acc import MetricAcc
 from .vad_utils import remove_silence

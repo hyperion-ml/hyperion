@@ -7,6 +7,7 @@ from .dino_xvector_trainer import DINOXVectorTrainer
 from .dvae_trainer import DVAETrainer
 from .freevc_trainer import FreeVCTrainer
 from .legacy_torch_trainer import LegacyTorchTrainer
+from .qvector_trainer import QVectorTrainer
 from .transducer_trainer import TransducerTrainer
 from .vae_trainer import VAETrainer
 from .vi_anonymizer_trainer import VIAnonymizerTrainer

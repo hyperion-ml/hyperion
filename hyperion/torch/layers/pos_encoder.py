@@ -1,10 +1,10 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import math
-from typing import Optional, Union
+from typing import Optional, Tuple, Union
 
 import torch
 from torch import nn
@@ -13,15 +13,21 @@ from .activation_factory import ActivationFactory as AF
 
 
 class PosEncoderBase(nn.Module):
-    pass
+    """Base class for positional encoders operating on `(batch, time, channels)` tensors.
+
+    Attributes:
+        training (bool): Flag inherited from `nn.Module` indicating whether the module is in training mode.
+    """
 
 
 class PosEncoder(PosEncoderBase):
-    """Positional encoding.
+    """Sinusoidal positional encoder following the Transformer formulation.
 
     Attributes:
-      num_feats: embedding dim
-      dropout_rate: dropout rate
+        num_feats (int): Embedding dimension `d_model`.
+        dropout_rate (float): Dropout probability applied after adding positional encodings.
+        xscale (float): Precomputed scaling factor `sqrt(d_model)`.
+        pe (Optional[torch.Tensor]): Cached positional embeddings.
     """
 
     def __init__(self, num_feats: int, dropout_rate: float = 0):
@@ -31,7 +37,7 @@ class PosEncoder(PosEncoderBase):
         self.xscale = math.sqrt(self.num_feats)
         if self.dropout_rate > 0:
             self.dropout = torch.nn.Dropout(p=dropout_rate)
-        self.pe = None
+        self.pe: Optional[torch.Tensor] = None
 
     def __repr__(self):
         return self.__str__()
@@ -42,8 +48,16 @@ class PosEncoder(PosEncoderBase):
         )
         return s
 
-    def _pe(self, x, relative=False):
-        """Reset the positional encodings."""
+    def _pe(self, x: torch.Tensor, relative: bool = False) -> torch.Tensor:
+        """Return cached positional encodings with optional relative ordering.
+
+        Args:
+            x (torch.Tensor): Input tensor with shape `(batch, time, channels)`.
+            relative (bool, optional): Whether to flip the positional indices for relative attention. Defaults to False.
+
+        Returns:
+            torch.Tensor: Positional encoding tensor broadcastable with `x`.
+        """
         if self.pe is not None:
             if self.pe.size(1) >= x.size(1):
                 if self.pe.dtype != x.dtype or self.pe.device != x.device:
@@ -68,14 +82,14 @@ class PosEncoder(PosEncoderBase):
         self.pe = pe.to(device=x.device, dtype=x.dtype)
         return self.pe
 
-    def forward(self, x: torch.Tensor):
-        """Add positional encoding.
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Scale the input by `sqrt(d_model)` and add sinusoidal positional encodings.
 
         Args:
-            x: Input with shape=(batch, time, C)
+            x (torch.Tensor): Input tensor with shape `(batch, time, channels)`.
 
         Returns:
-            x-scaled + pos-encoder
+            torch.Tensor: Tensor of identical shape as `x` with positional encodings added.
         """
         pe = self._pe(x)
         x = x * self.xscale + pe[:, : x.size(1)]
@@ -85,30 +99,25 @@ class PosEncoder(PosEncoderBase):
 
 
 class RelPosEncoder(PosEncoder):
-    """Relative Positional encoding as defined in
-       https://arxiv.org/pdf/1901.02860.pdf
-
-       It returns the input and the positional encoder separtely
-       so they are mixed in the attention block later.
+    """Relative positional encoder following https://arxiv.org/pdf/1901.02860.pdf.
 
     Attributes:
-      num_feats: embedding dim
-      dropout_rate: dropout rate
+        num_feats (int): Embedding dimension inherited from :class:`PosEncoder`.
+        dropout_rate (float): Dropout probability applied to inputs and encodings.
     """
 
     def __init__(self, num_feats: int, dropout_rate: float = 0):
         super().__init__(num_feats, dropout_rate)
 
-    def forward(self, x: torch.Tensor):
-        """Add positional encoding.
+    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Return the scaled inputs together with reversed positional encodings.
 
         Args:
-            x: Input with shape=(batch, time, C)
+            x (torch.Tensor): Input tensor with shape `(batch, time, channels)`.
 
         Returns:
-            x-scaled, pos-encoding
+            Tuple[torch.Tensor, torch.Tensor]: Pair containing the scaled input and the reversed positional encodings.
         """
-
         pe = self._pe(x, relative=True)
         x = x * self.xscale
         # we want embedding  [R_L,..., R_0]
@@ -126,34 +135,34 @@ class RelPosEncoder(PosEncoder):
 
 
 class NoPosEncoder(PosEncoderBase):
-    """This is a dummy class for the case where we
-    deactivate the positional encoder
+    """Identity positional encoder used to deactivate positional information.
 
+    Attributes:
+        training (bool): Flag inherited from `nn.Module` indicating whether the module is in training mode.
     """
 
     def __init__(self):
         super().__init__()
 
-    def forward(self, x: torch.Tensor):
-        """Identity map
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Identity map that returns the input unchanged.
 
         Args:
-            x: Input with shape=(batch, time, C)
+            x (torch.Tensor): Input tensor.
 
         Returns:
-            x
+            torch.Tensor: Same tensor provided as input.
         """
         return x
 
 
 class ConvPosEncoder(PosEncoderBase):
-    """Convolutional positional encoder like the one used in wav2vec2
+    """Depthwise convolutional positional encoder similar to wav2vec 2.0.
 
     Attributes:
-      num_feats: number of input/output features
-      kernel_size: kernel size of convolution
-      num_groups: number of groups of the convolution
-      activation: hidden activation
+        conv (nn.Conv1d): Grouped convolution applied over the temporal axis.
+        activation (nn.Module): Non-linearity applied after convolution.
+        num_pad_remove (int): Amount of padding cropped for even kernel sizes.
     """
 
     def __init__(
@@ -174,7 +183,15 @@ class ConvPosEncoder(PosEncoderBase):
         self.activation = AF.create(activation)
         self.num_pad_remove = 1 if kernel_size % 2 == 0 else 0
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Apply grouped convolution and activation in the channel-last convention.
+
+        Args:
+            x (torch.Tensor): Input tensor with shape `(batch, time, channels)`.
+
+        Returns:
+            torch.Tensor: Tensor of identical shape enriched with convolutional positional bias.
+        """
         x = x.transpose(1, 2)
         x = self.conv(x)
         if self.num_pad_remove > 0:
@@ -186,10 +203,17 @@ class ConvPosEncoder(PosEncoderBase):
 
 
 class RotaryPosEncoder(PosEncoderBase):
-    """Rotary positiaonal encoder like the one used in LLAMA
+    """Rotary positional encoder with optional frequency scaling for context extension.
 
     Attributes:
-
+        theta (float): Base value controlling the geometric progression of inverse frequencies.
+        scale_freqs (bool): Whether to apply LLaMA-style frequency interpolation.
+        update_max_seq_length (bool): Allow dynamic growth of the cached maximum sequence length while training.
+        low_freq_factor (float): Lower wavelength factor used during frequency interpolation.
+        high_freq_factor (float): Upper wavelength factor used during frequency interpolation.
+        scaling_factor (float): Scaling divisor applied to low-frequency components.
+        freqs_cis (Optional[torch.Tensor]): Cached complex sinusoid buffer.
+        max_seq_length (torch.Tensor): Tracked maximum sequence length observed so far.
     """
 
     def __init__(
@@ -204,7 +228,6 @@ class RotaryPosEncoder(PosEncoderBase):
     ):
         super().__init__()
         self.theta = theta
-        self.freqs_cis = None
         self.low_freq_factor = low_freq_factor
         self.high_freq_factor = high_freq_factor
         self.scaling_factor = scaling_factor
@@ -213,14 +236,24 @@ class RotaryPosEncoder(PosEncoderBase):
         if original_max_seq_length is None:
             original_max_seq_length = 0
 
+        self.register_buffer("freqs_cis", None, persistent=False)
+        self.freqs_cis: Optional[torch.Tensor]
+
         self.register_buffer(
             "max_seq_length",
             torch.as_tensor(original_max_seq_length, dtype=torch.int64),
         )
 
     @torch.no_grad
-    def _scale_freqs(self, freqs: torch.Tensor):
+    def _scale_freqs(self, freqs: torch.Tensor) -> torch.Tensor:
+        """Scale frequencies following LLaMA-style interpolation for longer contexts.
 
+        Args:
+            freqs (torch.Tensor): Base angular frequencies.
+
+        Returns:
+            torch.Tensor: Adjusted angular frequencies after interpolation.
+        """
         if self.training and self.update_max_seq_length:
             # if we are updating the max seq length, we don't do scaling
             # since we are just growing the max_seq_length
@@ -264,7 +297,16 @@ class RotaryPosEncoder(PosEncoderBase):
     #     inv_freq_llama = torch.where(is_medium_freq, smoothed_inv_freq, inv_freq_llama)
 
     @torch.no_grad
-    def _compute_freqs_cis(self, x: torch.Tensor, start_pos: int):
+    def _compute_freqs_cis(self, x: torch.Tensor, start_pos: int) -> torch.Tensor:
+        """Compute and cache the complex exponentials used for RoPE rotation.
+
+        Args:
+            x (torch.Tensor): Complex view of the reshaped input tensor.
+            start_pos (int): Offset into the cached positional buffer.
+
+        Returns:
+            torch.Tensor: Complex frequencies slice broadcastable to `x`.
+        """
         length = x.size(1) + start_pos
         if self.freqs_cis is not None:
             freq_length = self.freqs_cis.shape[1]
@@ -331,7 +373,16 @@ class RotaryPosEncoder(PosEncoderBase):
     #     key_out = torch.view_as_real(key_out * freqs_cis).flatten(3)
     #     return query_out.type_as(query), key_out.type_as(key)
 
-    def forward(self, x: torch.Tensor, start_pos: int = 0):
+    def forward(self, x: torch.Tensor, start_pos: int = 0) -> torch.Tensor:
+        """Rotate the final tensor dimension in complex space to inject positional phase.
+
+        Args:
+            x (torch.Tensor): Input tensor with shape `(batch, time, heads, head_dim)`. The last dimension must be even.
+            start_pos (int, optional): Offset into the cached frequency buffer. Defaults to 0.
+
+        Returns:
+            torch.Tensor: Tensor of identical shape with rotary positional embeddings applied.
+        """
         x_out = torch.view_as_complex(x.float().reshape(*x.shape[:-1], -1, 2))
         freqs_cis = self._compute_freqs_cis(x_out, start_pos)
         # print(x_out.shape, freqs_cis.shape, flush=True)

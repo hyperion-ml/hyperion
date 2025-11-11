@@ -1,12 +1,10 @@
 """
- Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
-import math
-from enum import Enum
-from typing import List, Optional, Tuple, Type, Union
+from typing import List, Optional, Set, Type, Union
 
 import torch
 import torch.nn as nn
@@ -24,7 +22,7 @@ from ..layer_blocks.transformer_v2 import (
 )
 from ..layers import RotaryPosEncoder
 from ..layers.attention_v2 import ScaledDotProdAttV2
-from ..utils import scale_seq_lengths, seq_lengths_to_mask
+from ..utils import seq_lengths_to_cross_attn_mask
 from .net_arch import NetArch
 
 
@@ -45,8 +43,8 @@ class QFormerV2(NetArch):
         ff_type: type of feed forward layer in [mlp, convnext]
         ff_dim_multiplier: number that multiplies the hidden dimension to get the inv. bottleneck dimension
         ff_multiple_of: the inv bottleneck dim has to be a multiple of this
-        ff_kernel_sizes: kernels sizes when using convnext feed forward layer
-        ff_dilations: ilations when using convnext feedforward layers
+        ff_kernel_size: kernel size when using convnext feed forward layer
+        ff_dilation: dilation when using convnext feedforward layers
         ff_act: activation of feedforward layers
         ff_bias: use bias in Linear layers of feed forward blocks
         rope_in_self_att: use Rotary positional encoder or not positional encoder at all in self-attention
@@ -67,17 +65,16 @@ class QFormerV2(NetArch):
         distribute_query_across_layers: splits the query into num_layers / num_cross_attention layers groups,
                                         the first group is used as input to the first cross-attention layer,
                                         the nth group is concantenated to input of the nth cross-attention layer,
+        use_layer_idx_encoder: add a learned embedding based on the source layer index for cross-attention inputs.
 
-        use_cache: use cache for previous key, value states
-        is_causal: attention mask is causal
         model_parallel: train with model parallel using fairscale tools
 
     """
 
     def __init__(
         self,
-        in_feats: Union[int, List[int]],
-        att_type: TransformerV2AttType = TransformerV2AttType.SDP,
+        in_feats: int,
+        att_type: TransformerV2AttType = TransformerV2AttType.TORCH_SDP,
         num_layers: int = 3,
         hidden_dim: int = 768,
         num_heads: int = 12,
@@ -92,8 +89,8 @@ class QFormerV2(NetArch):
         ff_dilation: int = 1,
         ff_act: str = "silu",
         ff_bias: bool = False,
-        rope_in_self_att: bool = True,
-        rope_in_cross_att: bool = True,
+        rope_in_self_att: bool = False,
+        rope_in_cross_att: bool = False,
         rope_theta: float = 50000,
         rope_scale_freqs: bool = True,
         rope_update_max_seq_length: bool = True,
@@ -108,15 +105,13 @@ class QFormerV2(NetArch):
         tied_layers: bool = False,
         multilayer_input: bool = False,
         distribute_query_across_layers: bool = False,
-        multilayer_input: bool = False,
-        use_cache: bool = False,
-        is_causal: bool = False,
+        use_layer_idx_encoder: bool = False,
         model_parallel: bool = False,
     ):
         super().__init__()
         self.multilayer_input = multilayer_input
-        if isinstance(in_feats, int):
-            in_feats = [in_feats] * (num_layers // cross_att_freq)
+        if not isinstance(in_feats, int):
+            raise TypeError("in_feats must be an int representing encoder feature dim")
 
         self.in_feats = in_feats
         self.num_layers = num_layers
@@ -149,8 +144,6 @@ class QFormerV2(NetArch):
         self.norm_eps = norm_eps
         self._norm_layer = TransformerV2NormLayerType.to_class(norm_layer)
 
-        self.use_cache = use_cache
-        self.is_causal = is_causal
         self.tied_layers = tied_layers
         self.distribute_query_across_layers = distribute_query_across_layers
         if self.distribute_query_across_layers:
@@ -180,25 +173,31 @@ class QFormerV2(NetArch):
             )
         else:
             self.rope = None
-        
+
         self.num_untied_layers = self.cross_att_freq if tied_layers else self.num_layers
         self.trans_blocks = nn.ModuleList()
 
-        drop_rates = [
-            x.item()
-            for x in torch.linspace(0, drop_path_rate, sum(self.num_untied_layers))
-        ]
+        drop_rates = (
+            torch.linspace(
+                0.0,
+                drop_path_rate,
+                steps=max(self.num_untied_layers, 1),
+                dtype=torch.float32,
+            ).tolist()
+            if drop_path_rate > 0.0
+            else [0.0] * max(self.num_untied_layers, 1)
+        )
 
         self.trans_blocks = nn.ModuleList()
-        count = 0
         for i in range(self.num_untied_layers):
+            drop_rate = drop_rates[i]
             if i % self.cross_att_freq == 0:
                 block_i = TransformerV2CrossAttBlock(
                     att_type=self.att_type,
                     ff_type=self.ff_type,
                     num_feats=hidden_dim,
                     num_heads=self.num_heads,
-                    num_kv_feats=in_feats[i//self.cross_att_freq],
+                    num_kv_feats=self.in_feats,
                     num_kv_heads=self.num_kv_heads,
                     ff_intermediate_feats=hidden_dim * self.ff_dim_multiplier,
                     ff_kernel_size=ff_kernel_size,
@@ -211,13 +210,9 @@ class QFormerV2(NetArch):
                     rope=self.rope,
                     rope_in_self_att=rope_in_self_att,
                     rope_in_cross_att=rope_in_cross_att,
-                    is_causal=self.is_causal,
                     norm_layer=self._norm_layer,
                     norm_eps=self.norm_eps,
-                    use_cache=self.use_cache,
-                    # max_batch_size=self.max_batch_size,
-                    # max_seq_length=max_seq_length,
-                    drop_path_rate=drop_rates[count],
+                    drop_path_rate=drop_rate,
                     model_parallel=model_parallel,
                 )
             else:
@@ -236,16 +231,11 @@ class QFormerV2(NetArch):
                     att_dropout_rate=self.att_dropout_rate,
                     att_bias=self.att_bias,
                     rope=self.rope,
-                    is_causal=self.is_causal,
                     norm_layer=self._norm_layer,
                     norm_eps=self.norm_eps,
-                    use_cache=self.use_cache,
-                    # max_batch_size=self.max_batch_size,
-                    # max_seq_length=max_seq_length,
-                    drop_path_rate=drop_rates[count],
+                    drop_path_rate=drop_rate,
                     model_parallel=model_parallel,
                 )
-
             self.trans_blocks.append(block_i)
 
         self.model_parallel = model_parallel
@@ -265,9 +255,21 @@ class QFormerV2(NetArch):
         else:
             self.out_feats = None
 
+        self.use_layer_idx_encoder = use_layer_idx_encoder
+        if use_layer_idx_encoder:
+            assert (
+                self.tied_layers
+            ), "layer idx encoder can be used only with tied layers"
+            self.layer_idx_encoder = nn.Embedding(
+                self.num_layers // self.cross_att_freq, self.in_feats
+            )
+        else:
+            self.layer_idx_encoder = None
+
         self._init_weights()
 
     def _init_weights(self):
+        """Initialize all learnable weights following BLIP-2 defaults."""
         for m in self.modules():
             if isinstance(m, (nn.Conv1d, nn.Linear)):
                 nn.init.trunc_normal_(m.weight, std=0.02)
@@ -279,24 +281,35 @@ class QFormerV2(NetArch):
                     m.weight.data[m.padding_idx].zero_()
 
     def _compute_out_size(self, in_size):
+        """Return the temporal dimension after processing the query stream.
+
+        Args:
+            in_size: Temporal dimension of the query input.
+
+        """
         out_size = in_size
         return out_size
 
-    def in_context(self):
-        return (self._context, self._context)
-
     def in_feats_shape(self):
+        """Describe the expected `(batch, time, channels)` shape for encoder features."""
         return (None, None, self.in_feats)
 
     def query_shape(self):
+        """Describe the `(batch, time, hidden_dim)` shape for the query tokens."""
         return (None, None, self.hidden_dim)
 
     def out_shape(self, query_shape=None):
+        """Infer the output shape for a given query input shape.
+
+        Args:
+            query_shape: Optional `(batch, time, channels)` tuple describing the query input.
+
+        """
         out_channels = self.out_feats if self.out_feats is not None else self.hidden_dim
         if query_shape is None:
             return (None, None, out_channels)
 
-        assert len(query_shape) == 3
+        assert len(query_shape) == 3, "query_shape must be (batch, time, channels)"
         if query_shape[1] is None:
             T = None
         else:
@@ -304,36 +317,117 @@ class QFormerV2(NetArch):
 
         return (query_shape[0], T, out_channels)
 
+    @property
+    def out_dim(self):
+        """Return the output feature dimension after the Q-Former."""
+        return self.out_feats if self.out_feats is not None else self.hidden_dim
+
+    def out_channels(self):
+        """Return the output feature dimension after the Q-Former."""
+        return self.out_feats if self.out_feats is not None else self.hidden_dim
+
+    @property
+    def output_is_normalized(self):
+        return True if self.out_feats is None else False
+
     def forward(
         self,
         query_embeds: torch.Tensor,
         feats: Union[torch.Tensor, List[torch.Tensor]],
-        feats_lengths: Union[torch.Tensor, List[torch.Tesnor], None] = None,
+        feats_lengths: Optional[
+            Union[torch.Tensor, List[Optional[torch.Tensor]]]
+        ] = None,
         start_pos: int = 0,
     ):
+        """Dispatch the forward pass to the appropriate pathway.
+
+        Args:
+            query_embeds: Query tensor of shape `(batch, query_len, hidden_dim)`.
+            feats: Encoder representations; either a single tensor `(batch, seq_len, in_feats)`
+                or a list of tensors when `multilayer_input` is enabled.
+            feats_lengths: Optional sequence-length tensor(s) used to build attention masks.
+            start_pos: Starting rotary/cache position for cross-attention.
+
+        """
         if self.multilayer_input:
-            return self.forward_multilayer_input(query_embeds, feats, feats_lengths)
+            return self.forward_multilayer_input(
+                query_embeds, feats, feats_lengths, start_pos=start_pos
+            )
         else:
-            return self.forward_singlelayer_input(query_embeds, feats, feats_lengths)
+            return self.forward_singlelayer_input(
+                query_embeds, feats, feats_lengths, start_pos=start_pos
+            )
 
     def forward_singlelayer_input(
         self,
         query_embeds: torch.Tensor,
         feats: Union[torch.Tensor, List[torch.Tensor]],
-        feats_lengths: Union[torch.Tensor, List[torch.Tesnor], None] = None,
+        feats_lengths: Optional[
+            Union[torch.Tensor, List[Optional[torch.Tensor]]]
+        ] = None,
         start_pos: int = 0,
     ):
-        feats_mask = seq_lengths_to_mask(feats_lengths, feats.size(-1), time_dim=1)
-        if not torch.all(torch.isfinite(feats)):
-            logging.warning("non-finite x-in-avg=%f", torch.mean(feats))
+        """Process a single stream of encoder features through the Q-Former.
+
+        Args:
+            query_embeds: Query tensor `(batch, query_len, hidden_dim)`.
+            feats: Encoder features `(batch, seq_len, in_feats)` or a singleton list containing them.
+            feats_lengths: Optional sequence-length tensor(s) aligned with `feats`.
+            start_pos: Starting rotary/cache position for cross-attention.
+
+        """
+        query_dtype = query_embeds.dtype
+        query_device = query_embeds.device
+        if isinstance(feats, list):
+            if len(feats) != 1:
+                raise ValueError(
+                    "forward_singlelayer_input expects a single feature tensor when feats is a list"
+                )
+            feats_tensor = feats[0]
+            if isinstance(feats_lengths, list):
+                if len(feats_lengths) != 1:
+                    raise ValueError(
+                        "forward_singlelayer_input expects a single sequence length entry when feats is a list"
+                    )
+                feats_lengths = feats_lengths[0]
+        else:
+            feats_tensor = feats
+
+        if feats_lengths is not None and isinstance(feats_lengths, list):
+            raise ValueError(
+                "feats_lengths must be a tensor or None when feats is a single tensor"
+            )
+
+        if not torch.all(torch.isfinite(feats_tensor)):
+            logging.warning("non-finite feats=%f", torch.mean(feats_tensor))
 
         if self.distribute_query_across_layers:
+            query_length = query_embeds.size(1)
+            if query_length % self.num_query_groups != 0:
+                raise ValueError(
+                    "query length must be divisible by num_query_groups when distribute_query_across_layers is enabled"
+                )
             query_embeds = torch.split(
                 query_embeds, query_embeds.size(1) // self.num_query_groups, dim=1
             )
             hidden_feats = query_embeds[0]
+            mask_query_length = query_length
         else:
             hidden_feats = query_embeds
+            mask_query_length = query_embeds.size(1)
+
+        if feats_lengths is not None:
+            feats_mask = seq_lengths_to_cross_attn_mask(
+                None,
+                feats_lengths,
+                max_query_length=mask_query_length,
+                max_kv_length=feats_tensor.size(1),
+                dtype=query_dtype,
+                device=query_device,
+                none_if_all_max=True,
+            )
+        else:
+            feats_mask = None
 
         for i in range(self.num_layers):
             layer_idx = i % self.num_untied_layers
@@ -343,59 +437,16 @@ class QFormerV2(NetArch):
                         (hidden_feats, query_embeds[i // self.cross_att_freq]), dim=1
                     )
 
+                if self.use_layer_idx_encoder:
+                    layer_idx_embeds = self.layer_idx_encoder.weight[
+                        i // self.cross_att_freq
+                    ].view(1, 1, -1)
+                    cur_feats = feats_tensor + layer_idx_embeds
+                else:
+                    cur_feats = feats_tensor
                 hidden_feats = self.trans_blocks[layer_idx](
                     hidden_feats,
-                    x_kv=feats,
-                    x_kv_mask=feats_mask,
-                    start_pos_kv=start_pos,
-                )
-            else:
-                hidden_feats = self.trans_blocks[layer_idx](hidden_feats)
-
-            if not torch.all(torch.isfinite(hidden_feats)):
-                logging.warning(
-                    "non-finite x-enc-%d-avg=%f", i, torch.mean(hidden_feats)
-                )
-
-        out_feats = self.out_norm(hidden_feats)
-
-        if self.out_feats is not None:
-            out_feats = self.out_proj(out_feats)
-
-        if not torch.all(torch.isfinite(out_feats)):
-            logging.warning("non-finite x-out-avg=%f", torch.mean(out_feats))
-        return out_feats
-
-    def forward_singlelayer_input(
-        self,
-        query_embeds: torch.Tensor,
-        feats: torch.Tensor, List[torch.Tensor],
-        feats_lengths: Optional[torch.Tensor] = None,
-        start_pos: int = 0,
-    ):
-        feats_mask = seq_lengths_to_mask(feats_lengths, feats.size(-1), time_dim=1)
-        if not torch.all(torch.isfinite(feats)):
-            logging.warning("non-finite x-in-avg=%f", torch.mean(feats))
-
-        if self.distribute_query_across_layers:
-            query_embeds = torch.split(
-                query_embeds, query_embeds.size(1) // self.num_query_groups, dim=1
-            )
-            hidden_feats = query_embeds[0]
-        else:
-            hidden_feats = query_embeds
-
-        for i in range(self.num_layers):
-            layer_idx = i % self.num_untied_layers
-            if i % self.cross_att_freq == 0:
-                if self.distribute_query_across_layers and i > 0:
-                    hidden_feats = torch.cat(
-                        (hidden_feats, query_embeds[i // self.cross_att_freq]), dim=1
-                    )
-
-                hidden_feats = self.trans_blocks[layer_idx](
-                    hidden_feats,
-                    x_kv=feats,
+                    x_kv=cur_feats,
                     x_kv_mask=feats_mask,
                     start_pos_kv=start_pos,
                 )
@@ -420,23 +471,49 @@ class QFormerV2(NetArch):
         self,
         query_embeds: torch.Tensor,
         feats: List[torch.Tensor],
-        feats_lengths: Optional[List[torch.Tensor]] = None,
+        feats_lengths: Optional[List[Optional[torch.Tensor]]] = None,
         start_pos: int = 0,
     ):
-        #feats_mask = seq_lengths_to_mask(feats_lengths, feats.size(-1), time_dim=1)
-        assert len(feats) == self.num_layers // self.cross_att_freq
-        assert len(feats) == len(feats_lengths)
-        if not torch.all(torch.isfinite(feats)):
-            logging.warning("non-finite x-in-avg=%f", torch.mean(feats))
+        """Process encoder hidden states from multiple layers one cross-att step at a time.
 
+        Args:
+            query_embeds: Query tensor `(batch, query_len, hidden_dim)`.
+            feats: List of encoder feature tensors, one per cross-attention layer.
+            feats_lengths: Optional list matching `feats` with sequence-length tensors.
+            start_pos: Starting rotary/cache position for cross-attention.
+
+        """
+        assert (
+            len(feats) == self.num_layers // self.cross_att_freq
+        ), "feats must match num cross-attention layers"
+        if feats_lengths is not None:
+            assert len(feats) == len(
+                feats_lengths
+            ), "feats_lengths must align with feats for multilayer input"
+        for idx, feat in enumerate(feats):
+            if not torch.all(torch.isfinite(feat)):
+                logging.warning("non-finite x-in-%d-avg=%f", idx, torch.mean(feat))
+                break
+
+        query_dtype = query_embeds.dtype
+        query_device = query_embeds.device
         if self.distribute_query_across_layers:
+            query_length = query_embeds.size(1)
+            if query_length % self.num_query_groups != 0:
+                raise ValueError(
+                    "query length must be divisible by num_query_groups when distribute_query_across_layers is enabled"
+                )
             query_embeds = torch.split(
                 query_embeds, query_embeds.size(1) // self.num_query_groups, dim=1
             )
             hidden_feats = query_embeds[0]
+            mask_query_length = query_length
         else:
             hidden_feats = query_embeds
+            mask_query_length = query_embeds.size(1)
 
+        last_max_feats_lengths = 0
+        feats_mask = None
         for i in range(self.num_layers):
             layer_idx = i % self.num_untied_layers
             if i % self.cross_att_freq == 0:
@@ -444,16 +521,34 @@ class QFormerV2(NetArch):
                     hidden_feats = torch.cat(
                         (hidden_feats, query_embeds[i // self.cross_att_freq]), dim=1
                     )
-                
-                feats_idx = i//self.cross_att_freq
-                if feat_lengths is not None:
-                    feats_mask = seq_lengths_to_mask(feats_lengths[feats_idx], feats.size(-1), time_dim=1)
-                else:
-                    feats_mask = None
+
+                feats_idx = i // self.cross_att_freq
+                cur_feats = feats[feats_idx]
+                if (
+                    feats_lengths is not None
+                    and feats_lengths[feats_idx] is not None
+                    and cur_feats.size(1) != last_max_feats_lengths
+                ):
+                    last_max_feats_lengths = cur_feats.size(1)
+                    feats_mask = seq_lengths_to_cross_attn_mask(
+                        None,
+                        feats_lengths[feats_idx],
+                        max_query_length=mask_query_length,
+                        max_kv_length=last_max_feats_lengths,
+                        dtype=query_dtype,
+                        device=query_device,
+                        none_if_all_max=True,
+                    )
+
+                if self.use_layer_idx_encoder:
+                    layer_idx_embeds = self.layer_idx_encoder.weight[feats_idx].view(
+                        1, 1, -1
+                    )
+                    cur_feats = cur_feats + layer_idx_embeds
 
                 hidden_feats = self.trans_blocks[layer_idx](
                     hidden_feats,
-                    x_kv=feats[feats_idx],
+                    x_kv=cur_feats,
                     x_kv_mask=feats_mask,
                     start_pos_kv=start_pos,
                 )
@@ -475,7 +570,7 @@ class QFormerV2(NetArch):
         return out_feats
 
     def get_config(self):
-
+        """Return a JSON-serializable snapshot of the constructor arguments."""
         config = {
             "in_feats": self.in_feats,
             "att_type": self.att_type,
@@ -489,8 +584,8 @@ class QFormerV2(NetArch):
             "ff_type": self.ff_type,
             "ff_dim_multiplier": self.ff_dim_multiplier,
             "ff_multiple_of": self.ff_multiple_of,
-            "ff_kernel_sizes": self.ff_kernel_sizes,
-            "ff_dilations": self.ff_dilations,
+            "ff_kernel_size": self.ff_kernel_size,
+            "ff_dilation": self.ff_dilation,
             "ff_act": self.ff_act,
             "ff_bias": self.ff_bias,
             "rope_in_self_att": self.rope_in_self_att,
@@ -509,8 +604,7 @@ class QFormerV2(NetArch):
             "tied_layers": self.tied_layers,
             "multilayer_input": self.multilayer_input,
             "distribute_query_across_layers": self.distribute_query_across_layers,
-            "use_cache": self.use_cache,
-            "is_causal": self.is_causal,
+            "use_layer_idx_encoder": self.use_layer_idx_encoder,
             "model_parallel": self.model_parallel,
         }
 
@@ -520,11 +614,26 @@ class QFormerV2(NetArch):
     def change_config(
         self, override_dropouts: bool, drop_path_rate: float, att_dropout_rate: float
     ):
+        """Optionally override dropout hyperparameters during fine-tuning.
+
+        Args:
+            override_dropouts: If ``True``, propagate the supplied dropout values.
+            drop_path_rate: New global stochastic depth probability.
+            att_dropout_rate: New attention dropout probability.
+
+        """
         if override_dropouts:
             logging.info("chaning convnext1d dropouts")
             self.change_dropouts(drop_path_rate, att_dropout_rate)
 
     def change_dropouts(self, drop_path_rate: float, att_dropout_rate: float):
+        """Propagate new dropout values through all attention and DropPath modules.
+
+        Args:
+            drop_path_rate: Target stochastic depth probability.
+            att_dropout_rate: Target attention dropout probability.
+
+        """
         from ..layers import DropPath1d
 
         for module in self.modules():
@@ -538,22 +647,41 @@ class QFormerV2(NetArch):
 
     @staticmethod
     def filter_args(**kwargs):
+        """Filter keyword arguments down to those accepted by the constructor.
+
+        Args:
+            **kwargs: Candidate keyword arguments.
+
+        """
         return filter_func_args(QFormerV2.__init__, kwargs)
 
     @staticmethod
-    def add_class_args(parser, prefix=None, skip=set()):
+    def add_class_args(
+        parser: ArgumentParser,
+        prefix: Optional[str] = None,
+        skip: Optional[Set[str]] = None,
+    ):
+        """Register constructor arguments with a JSONArgParse parser.
+
+        Args:
+            parser: Target `ArgumentParser` instance.
+            prefix: Optional nested argument namespace.
+            skip: Optional set of field names to exclude.
+
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
+        if skip is None:
+            skip = set([])
+
         if "in_feats" not in skip:
-            parser.add_argument(
-                "--in-feats", type=int, nargs="+", help="input features dimension"
-            )
+            parser.add_argument("--in-feats", type=int, help="input features dimension")
 
         parser.add_argument(
             "--att-type",
-            default=TransformerV2AttType.SDP.value,
+            default=TransformerV2AttType.TORCH_SDP.value,
             choices=TransformerV2AttType.choices(),
             help="type of attention layer in [sdp, torch_sdp, flash_sdp]",
         )
@@ -612,18 +740,16 @@ class QFormerV2(NetArch):
             help="the inv bottleneck dim has to be a multiple of this",
         )
         parser.add_argument(
-            "--ff-kernel-sizes",
-            default=[7],
+            "--ff-kernel-size",
+            default=7,
             type=int,
-            nargs="+",
-            help="kernels sizes when using convnext feed forward layer",
+            help="kernel size when using convnext feed forward layer",
         )
         parser.add_argument(
-            "--ff-dilations",
-            default=[1],
+            "--ff-dilation",
+            default=1,
             type=int,
-            nargs="+",
-            help="dilations when using convnext feedforward layers",
+            help="dilation when using convnext feedforward layers",
         )
         parser.add_argument(
             "--ff-act", default="silu", help="activation of feedforward layers"
@@ -703,6 +829,12 @@ class QFormerV2(NetArch):
             help="Input are hidden featues from several encoder layers",
         )
         parser.add_argument(
+            "--use-layer-idx-encoder",
+            default=False,
+            action=ActionYesNo,
+            help="add a learned embedding of the encoder layer index to cross-attention inputs",
+        )
+        parser.add_argument(
             "--out-feats",
             default=None,
             type=int,
@@ -714,7 +846,7 @@ class QFormerV2(NetArch):
         parser.add_argument(
             "--norm-layer",
             default=TransformerV2NormLayerType.LAYERNORM.value,
-            type=int,
+            choices=TransformerV2NormLayerType.choices(),
             help="type of norm layer in [layer-norm, rms-norm]",
         )
         parser.add_argument(
@@ -725,12 +857,6 @@ class QFormerV2(NetArch):
             default=False,
             action=ActionYesNo,
             help="use cache for previous key, value states",
-        )
-        parser.add_argument(
-            "--is-causal",
-            default=False,
-            action=ActionYesNo,
-            help="attention mask is causal",
         )
         parser.add_argument(
             "--model-parallel",
@@ -744,10 +870,24 @@ class QFormerV2(NetArch):
 
     @staticmethod
     def filter_finetune_args(**kwargs):
+        """Filter keyword arguments to those handled by `change_config`.
+
+        Args:
+            **kwargs: Candidate keyword arguments.
+
+        """
         return filter_func_args(QFormerV2.change_config, kwargs)
 
     @staticmethod
     def add_finetune_args(parser, prefix=None, skip=set([])):
+        """Register fine-tuning specific overrides with a JSONArgParse parser.
+
+        Args:
+            parser: Target `ArgumentParser` instance.
+            prefix: Optional nested argument namespace.
+            skip: Optional set of field names to exclude.
+
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -787,6 +927,3 @@ class QFormerV2(NetArch):
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
-
-
-

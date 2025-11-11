@@ -1,6 +1,6 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
@@ -9,24 +9,28 @@ from collections import OrderedDict as ODict
 from typing import Dict, List, Optional, Union
 
 import torch
-import torch.cuda.amp as amp
+import torch.amp as amp
 import torch.nn as nn
+from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ...utils.misc import PathLike, filter_func_args
 from ..loggers import LoggerList
 from ..lr_schedulers import LRScheduler as LRS
 from ..lr_schedulers import LRSchedulerFactory as LRSF
+from ..metrics import CategoricalAccuracy
+from ..models.qvectors import QVectorTrainMode
+from ..narchs.hydra_heads import HydraClassifHeadOutput
 from ..torch_model import TorchModel
 from ..utils import MetricAcc, tensors_subset
 from ..wd_schedulers import WDScheduler as WDS
 from ..wd_schedulers import WDSchedulerFactory as WDSF
-from .basic_torch_trainer import AMPDType, BasicTorchTrainer
+from .single_model_trainer import SingleModelTrainer
 from .torch_trainer_base import AMPDType, DDPType
 
 # from torch.distributed.elastic.multiprocessing.errors import record
 
 
-class QVectorTrainer(BasicTorchTrainer):
+class QVectorTrainer(SingleModelTrainer):
     """Trainer to train q-vector style models.
 
     Attributes:
@@ -107,32 +111,81 @@ class QVectorTrainer(BasicTorchTrainer):
         super_args = filter_func_args(super().__init__, locals())
         super().__init__(**super_args)
 
-    def preprocess_train_data(self, batch_data):
-        # we get the keys of all augmented versions, except the non augmented one
-        aug_keys = self.get_augs_keys(
-            batch_data, self.input_key, skip=set(self.input_key)
-        )
-        x_lengths = batch_data[f"{self.input_key}_length"]
-        y = batch_data[self.target_key]
-        if aug_keys:
-            # we concatenate all augmentations
-            xs = []
-            for key in aug_keys:
-                xs.append(batch_data[key])
-            x = torch.cat(xs, dim=0)
-            x_lengths = torch.cat(len(aug_keys) * [x_lengths], dim=0)
-            y = torch.cat(len(aug_keys) * [y], dim=0)
-        if not aug_keys:
-            x = batch_data[self.input_key]
+        self.categorical_acc_metric = CategoricalAccuracy()
 
-        batch_data = {"x": x, "x_lengths": x_lengths, "y": y}
-        batch_size = batch_data["x"].size(0)
-        return batch_size, batch_data
+    # def preprocess_train_data(self, batch_data):
+    #     # we get the keys of all augmented versions, except the non augmented one
+    #     aug_keys = self.get_augs_keys(
+    #         batch_data, self.input_key, skip=set(self.input_key)
+    #     )
+    #     x_lengths = batch_data[f"{self.input_key}_length"]
+    #     y = batch_data[self.target_key]
+    #     if aug_keys:
+    #         # we concatenate all augmentations
+    #         xs = []
+    #         for key in aug_keys:
+    #             xs.append(batch_data[key])
+    #         x = torch.cat(xs, dim=0)
+    #         x_lengths = torch.cat(len(aug_keys) * [x_lengths], dim=0)
+    #         y = torch.cat(len(aug_keys) * [y], dim=0)
+    #     if not aug_keys:
+    #         x = batch_data[self.input_key]
 
-    def preprocess_val_data(self, batch_data):
-        return self.preprocess_val_data(batch_data)
+    #     batch_data = {"x": x, "x_lengths": x_lengths, "y": y}
+    #     batch_size = batch_data["x"].size(0)
+    #     return batch_size, batch_data
 
-    def compute_train_forward(self, batch_data):
-        output = self.model(**batch_data)
-        loss = output.loss
-        return loss, output
+    def preprocess_data(self, batch_data):
+        x_lengths_key = f"{self.input_key}_lengths"
+        # y_lengths_key = f"{self.target_key}_lengths"
+        output_batch_data = {
+            # "id": batch_data["id"],
+            "audio": batch_data[self.input_key],
+            "target": batch_data[self.target_key],
+        }
+        if x_lengths_key in batch_data:
+            output_batch_data["audio_lengths"] = batch_data[x_lengths_key]
+        # if y_lengths_key in batch_data:
+        #     output_batch_data["target_lengths"] = batch_data[y_lengths_key]
+        batch_size = output_batch_data["audio"].size(0)
+        return batch_size, output_batch_data
+
+    def compute_forward(self, batch_data):
+        batch_output = self.model(**batch_data)
+        loss = batch_output.head_output.loss
+        return loss, batch_output
+
+    def compute_metrics(self, batch_output, batch_data):
+        batch_metrics = ODict()
+        if isinstance(batch_output.head_output, HydraClassifHeadOutput):
+            categorical_acc = self.categorical_acc_metric(
+                batch_output.head_output.logits, batch_data["target"]
+            )
+
+            batch_metrics["categorical_acc"] = categorical_acc.item()
+        else:
+            logging.warning(
+                "QVectorTrainer: compute_metrics: Unknown head_output type %s"
+                % type(batch_output.head_output)
+            )
+
+        return batch_metrics
+
+    @staticmethod
+    def filter_args(**kwargs):
+        args = filter_func_args(QVectorTrainer.__init__, kwargs)
+        return args
+
+    @staticmethod
+    def add_class_args(parser, prefix=None, skip=set()):
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
+
+        SingleModelTrainer.add_optim_args(parser)
+        SingleModelTrainer.add_io_keys_args(parser)
+        train_modes = QVectorTrainMode.choices()
+        SingleModelTrainer.add_train_modes_args(parser, train_modes=train_modes)
+
+        if prefix is not None:
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

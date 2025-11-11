@@ -3,45 +3,31 @@ Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import contextlib
-import glob
 import logging
-import math
-import os
-import re
 from collections import OrderedDict as ODict
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 import torch
-import torch.cuda.amp as amp
-import torch.distributed as dist
+import torch.amp as amp
 import torch.nn as nn
-from fairscale.optim.grad_scaler import ShardedGradScaler
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from torch.optim.swa_utils import SWALR, AveragedModel
 
 from ...utils.misc import PathLike, filter_func_args
-from ..loggers import CSVLogger, LoggerList, ProgLogger, TensorBoardLogger, WAndBLogger
+from ..loggers import LoggerList
 from ..lr_schedulers import LRScheduler as LRS
 from ..lr_schedulers import LRSchedulerFactory as LRSF
 from ..optim import OptimizerFactory as OF
 from ..torch_model import TorchModel
-from ..utils import (
-    FairFullyShardedDDP,
-    FairShardedDDP,
-    MetricAcc,
-    TorchDDP,
-    tensors_subset,
-)
 from ..wd_schedulers import WDScheduler as WDS
 from ..wd_schedulers import WDSchedulerFactory as WDSF
 from .torch_trainer_base import AMPDType, DDPType, TorchTrainerBase
 
 
-class BasicTorchTrainer(TorchTrainerBase):
-    """Base Trainer class to train basic neural network models
+class SingleModelTrainer(TorchTrainerBase):
+    """Base Trainer class to train single neural network models
 
     Attributes:
         model: TorchModel object
@@ -133,6 +119,8 @@ class BasicTorchTrainer(TorchTrainerBase):
         self.target_key = target_key
 
         self.loss = loss
+        if self.loss is not None:
+            self.loss.to(self.device)
 
         self.set_train_mode()
         self.prepare_models_for_training()
@@ -143,7 +131,6 @@ class BasicTorchTrainer(TorchTrainerBase):
             self.optimizer,
             self.lr_scheduler,
             self.wd_scheduler,
-            self.grad_scaler,
             self.swa_model,
             self.swa_scheduler,
         ) = self._prepare_model_for_training(
@@ -160,11 +147,15 @@ class BasicTorchTrainer(TorchTrainerBase):
             self.swa_lr,
             self.swa_anneal_steps,
         )
+        self.grad_scaler = self.get_grad_scaler(self.use_amp, self.ddp, self.ddp_type)
 
     def set_train_mode(self):
         self.model.set_train_mode(self.train_mode)
         if self.rank == 0:
+            logging.info(f"Model train mode: {self.model.train_mode}")
+            logging.info(f"Parmeter summary for the model:")
             self.model.parameter_summary(verbose=True)
+            logging.info(f"Parameter list for the model:")
             self.model.print_parameter_list()
 
     def on_epoch_begin(self):
@@ -190,7 +181,7 @@ class BasicTorchTrainer(TorchTrainerBase):
             self.wd_scheduler.on_epoch_end()
 
     def on_swa_epoch_begin(self):
-        super().on_swa_epoch_being()
+        super().on_swa_epoch_begin()
         self.model = self.swa_model.module
 
     def on_swa_epoch_end(self, logs):
@@ -202,34 +193,29 @@ class BasicTorchTrainer(TorchTrainerBase):
     def on_val_loop_begin(self):
         self.model.eval()
 
-    def preprocess_train_data(self, batch_data):
-        batch_data = {"x": batch_data[self.input_key], "y": batch_data[self.target_key]}
-        batch_size = batch_data["x"].size(0)
-        return batch_size, batch_data
+    def preprocess_data(self, batch_data):
+        x_lengths_key = f"{self.input_key}_lengths"
+        y_lengths_key = f"{self.target_key}_lengths"
+        output_batch_data = {
+            "id": batch_data["id"],
+            "audio": batch_data[self.input_key],
+            "target": batch_data[self.target_key],
+        }
+        if x_lengths_key in batch_data:
+            output_batch_data["audio_lengths"] = batch_data[x_lengths_key]
+        if y_lengths_key in batch_data:
+            output_batch_data["target_lengths"] = batch_data[y_lengths_key]
+        batch_size = output_batch_data["audio"].size(0)
+        return batch_size, output_batch_data
 
-    def preprocess_val_data(self, batch_data):
-        return self.preprocess_val_data(batch_data)
-
-    def compute_train_forward(self, batch_data):
+    def compute_forward(self, batch_data):
         output = self.model(**batch_data)
-        loss = self.loss(output, batch_data["y"])
+        loss = self.loss(output, batch_data["target"])
         return loss, output
 
-    def compute_val_forward(self, batch_data):
-        return self.compute_train_forward(self, batch_data)
-
     def compute_backward(self, loss):
-        if self.use_amp:
-            self.grad_scaler.scale(loss).backward()
-        else:
-            loss.backward()
-
-    def compute_train_metrics(self, batch_output, batch_data):
-        metrics = ODict()
-        return metrics
-
-    def compute_val_metrics(self, batch_output, batch_data):
-        return self.compute_train_metrics(batch_output, batch_data)
+        loss = loss.float()
+        self.grad_scaler.scale(loss).backward()
 
     def zero_grad_optimizers(self):
         self.optimizer.zero_grad()
@@ -251,7 +237,7 @@ class BasicTorchTrainer(TorchTrainerBase):
         if self.wd_scheduler is not None:
             self.wd_scheduler.on_opt_step()
 
-        self._update_model_by_optim(
+        grad_norm = self._update_model_by_optim(
             self.model,
             self.optimizer,
             self.grad_clip,
@@ -259,12 +245,15 @@ class BasicTorchTrainer(TorchTrainerBase):
             self.use_amp,
             self.grad_scaler,
         )
+        self.grad_scaler.update()
+        logs = {"grad_norm": grad_norm}
+        return logs
 
     def update_swa_model(self):
         if (
             self.do_swa
             and self.cur_step >= self.swa_start
-            and self.cur_step % self.swa_steps == 0
+            and self.cur_step % self.swa_update_steps == 0
         ):
             self.in_swa = True
             self.swa_model.update_parameters(self.model)
@@ -290,8 +279,17 @@ class BasicTorchTrainer(TorchTrainerBase):
         if self.rank != 0:
             return
 
-        checkpoint = self.checkpoint(logs)
-        self.save_model_checkpoint("model", checkpoint)
+        checkpoint = self.model_checkpoint(
+            self.model,
+            self.optimizer,
+            self.lr_scheduler,
+            self.wd_scheduler,
+            self.swa_model,
+            self.swa_scheduler,
+            logs=logs,
+        )
+
+        self.save_model_checkpoint_to_file("model", checkpoint)
 
     def save_swa_model(self, logs=None):
         """Saves a checkpoint of the training status
@@ -302,16 +300,27 @@ class BasicTorchTrainer(TorchTrainerBase):
         if self.rank != 0:
             return
 
-        checkpoint = self.checkpoint(logs)
+        checkpoint = self.model_checkpoint(
+            self.model,
+            self.optimizer,
+            self.lr_scheduler,
+            self.wd_scheduler,
+            self.swa_model,
+            self.swa_scheduler,
+            logs=logs,
+        )
         checkpoint["model_state_dict"] = checkpoint["swa_model_state_dict"]
         del checkpoint["swa_model_state_dict"]
-        file_path = "%s/swa_model_ep%04d.pth" % (self.exp_path, self.cur_epoch)
-
+        file_path = "%s/swa_model_ep%04d_%010d.pth" % (
+            self.exp_path,
+            self.cur_epoch,
+            self.cur_step,
+        )
         torch.save(checkpoint, file_path)
 
     def load_checkpoint(self, epoch, step):
-        checkpoint = self.load_model_checkpoint("model", epoch, step)
-        self._load_vars_from_checkpoint(checkpoint)
+        checkpoint = self.load_model_checkpoint_from_file("model", epoch, step)
+        logs = self._load_vars_from_checkpoint(checkpoint)
         self._load_model_state_dicts_from_checkpoint(
             checkpoint,
             self.model,
@@ -321,11 +330,11 @@ class BasicTorchTrainer(TorchTrainerBase):
             self.swa_model,
             self.swa_scheduler,
         )
-        return self._load_checkpoint(checkpoint)
+        return logs
 
     @staticmethod
     def filter_args(**kwargs):
-        args = filter_func_args(BasicTorchTrainer.__init__, kwargs)
+        args = filter_func_args(SingleModelTrainer.__init__, kwargs)
         return args
 
     @staticmethod
@@ -357,9 +366,11 @@ class BasicTorchTrainer(TorchTrainerBase):
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        parser.add_argument("--input-key", default="x", help="dict. key for nnet input")
         parser.add_argument(
-            "--target-key", default="class_id", help="dict. key for nnet targets"
+            "--input-key", default="audio_aug", help="dict. key for nnet input"
+        )
+        parser.add_argument(
+            "--target-key", default="speaker", help="dict. key for nnet targets"
         )
 
         if prefix is not None:
@@ -371,9 +382,9 @@ class BasicTorchTrainer(TorchTrainerBase):
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        BasicTorchTrainer.add_optim_args(parser)
-        BasicTorchTrainer.add_io_keys_args(parser)
-        BasicTorchTrainer.add_train_modes_args(parser)
+        SingleModelTrainer.add_optim_args(parser)
+        SingleModelTrainer.add_io_keys_args(parser)
+        SingleModelTrainer.add_train_modes_args(parser, train_modes=train_modes)
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

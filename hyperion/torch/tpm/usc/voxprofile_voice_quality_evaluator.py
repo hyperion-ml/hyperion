@@ -20,7 +20,7 @@ from .voxprofile_evaluator import VOXPROFILE_MAX_AUDIO_LEN, VoxProfileEvaluator
 
 try:
 
-    from src.model.voice_quality.whisper_voice_quality import (
+    from vox_profile.model.voice_quality.whisper_voice_quality import (
         WhisperWrapper as VoxProfileVoiceQualityModel,
     )
 except ImportError:
@@ -125,7 +125,7 @@ class VoxProfileVoiceQualityEvaluator(VoxProfileEvaluator):
         prefix = self.output_prefix
         logits = []
         for audio_batch in audio_batches:
-            logits_i = self.model(audio_batch, return_features=False)
+            logits_i = self.model(audio_batch, return_feature=False)
             logits.append(logits_i)
 
         logits = torch.cat(logits, dim=0).mean(dim=0)

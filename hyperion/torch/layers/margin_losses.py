@@ -3,24 +3,21 @@ Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba, Nanxin Chen)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+from __future__ import annotations
+
 import logging
 import math
 import sys
+from typing import Optional
 
 import torch
-import torch.cuda.amp as amp
+import torch.amp as amp
 import torch.nn as nn
+import torch.nn.functional as F
 
 
-def _l2_norm(x, axis=-1):
-    with amp.autocast(enabled=False):
-        norm = torch.norm(x.float(), 2, axis, True) + 1e-10
-        y = torch.div(x, norm)
-    return y
-
-
-def _cosine_affinity(kernel):
-    kernel_norm = _l2_norm(kernel, axis=0)
+def _cosine_affinity(kernel: torch.Tensor) -> torch.Tensor:
+    kernel_norm = F.normalize(kernel, dim=0, eps=1e-10)
     return torch.mm(kernel_norm.transpose(0, 1), kernel_norm)
 
 
@@ -43,14 +40,14 @@ class ArcLossOutput(nn.Module):
 
     def __init__(
         self,
-        in_feats,
-        num_classes,
-        cos_scale=64,
-        margin=0.3,
-        margin_warmup_epochs=0,
-        intertop_k=5,
-        intertop_margin=0,
-    ):
+        in_feats: int,
+        num_classes: int,
+        cos_scale: float = 64,
+        margin: float = 0.3,
+        margin_warmup_epochs: int = 0,
+        intertop_k: int = 5,
+        intertop_margin: float = 0,
+    ) -> None:
         super().__init__()
         self.in_feats = in_feats
         self.num_classes = num_classes
@@ -73,10 +70,10 @@ class ArcLossOutput(nn.Module):
         # we normalize prototypes to have l2 norm = 1
         self.kernel.data.uniform_(-1, 1).renorm_(2, 1, 1e-5).mul_(1e5)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.__str__()
 
-    def __str__(self):
+    def __str__(self) -> str:
         s = (
             "%s(in_feats=%d, num_classes=%d, cos_scale=%.2f, margin=%.2f, margin_warmup_epochs=%d, intertop_k=%d, intertop_margin=%f)"
             % (
@@ -92,7 +89,7 @@ class ArcLossOutput(nn.Module):
         )
         return s
 
-    def _compute_aux(self):
+    def _compute_aux(self) -> None:
         logging.info(
             "updating arc-softmax margin=%.2f intertop-margin=%.2f",
             self.cur_margin,
@@ -103,7 +100,7 @@ class ArcLossOutput(nn.Module):
         self.intertop_cos_m = math.cos(self.cur_intertop_margin)
         self.intertop_sin_m = math.sin(self.cur_intertop_margin)
 
-    def update_margin(self, epoch):
+    def update_margin(self, epoch: int) -> None:
         """Updates the value of the margin.
 
         Args:
@@ -123,7 +120,9 @@ class ArcLossOutput(nn.Module):
 
         self._compute_aux()
 
-    def forward(self, x, y=None):
+    def forward(
+        self, x: torch.Tensor, y: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
         """Computes penalized logits.
 
         Args:
@@ -134,11 +133,11 @@ class ArcLossOutput(nn.Module):
         Returns:
           Logit tensor with shape = (batch, num_classes)
         """
-        with amp.autocast(enabled=False):
+        with amp.autocast(enabled=False, device_type=x.device.type):
             s = self.cos_scale
             batch_size = len(x)
-            x = _l2_norm(x.float())
-            kernel_norm = _l2_norm(self.kernel, axis=0)
+            x = F.normalize(x.float(), dim=-1, eps=1e-10)
+            kernel_norm = F.normalize(self.kernel, dim=0, eps=1e-10)
             cos_theta = torch.mm(x, kernel_norm).float()
             cos_theta = cos_theta.clamp(-1, 1)  # for numerical stability
             output = (
@@ -151,7 +150,9 @@ class ArcLossOutput(nn.Module):
                 sin_theta = torch.sqrt(sin_theta_2)
                 cos_theta_m = cos_theta * self.cos_m - sin_theta * self.sin_m
 
-                idx_ = torch.arange(0, batch_size, dtype=torch.long)
+                idx_ = torch.arange(
+                    0, batch_size, dtype=torch.long, device=cos_theta_m.device
+                )
                 output[idx_, y] = cos_theta_m[idx_, y]
                 if self.cur_intertop_margin > 0:
                     # implementation of intertop-K
@@ -177,7 +178,7 @@ class ArcLossOutput(nn.Module):
             output *= s  # scale up in order to make softmax work
             return output
 
-    def compute_prototype_affinity(self):
+    def compute_prototype_affinity(self) -> torch.Tensor:
         return _cosine_affinity(self.kernel)
 
 
@@ -197,14 +198,14 @@ class CosLossOutput(nn.Module):
 
     def __init__(
         self,
-        in_feats,
-        num_classes,
-        cos_scale=64,
-        margin=0.3,
-        margin_warmup_epochs=0,
-        intertop_k=5,
-        intertop_margin=0.0,
-    ):
+        in_feats: int,
+        num_classes: int,
+        cos_scale: float = 64,
+        margin: float = 0.3,
+        margin_warmup_epochs: int = 0,
+        intertop_k: int = 5,
+        intertop_margin: float = 0.0,
+    ) -> None:
         super().__init__()
         self.in_feats = in_feats
         self.num_classes = num_classes
@@ -223,10 +224,10 @@ class CosLossOutput(nn.Module):
         self.kernel = nn.Parameter(torch.Tensor(in_feats, num_classes))
         self.kernel.data.uniform_(-1, 1).renorm_(2, 1, 1e-5).mul_(1e5)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.__str__()
 
-    def __str__(self):
+    def __str__(self) -> str:
         s = (
             "%s(in_feats=%d, num_classes=%d, cos_scale=%.2f, margin=%.2f, margin_warmup_epochs=%d, intertop_k=%d, intertop_margin=%f)"
             % (
@@ -242,7 +243,7 @@ class CosLossOutput(nn.Module):
         )
         return s
 
-    def update_margin(self, epoch):
+    def update_margin(self, epoch: int) -> None:
         """Updates the value of the margin.
 
         Args:
@@ -273,7 +274,9 @@ class CosLossOutput(nn.Module):
             else:
                 return
 
-    def forward(self, x, y=None):
+    def forward(
+        self, x: torch.Tensor, y: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
         """Computes penalized logits.
 
         Args:
@@ -284,11 +287,11 @@ class CosLossOutput(nn.Module):
         Returns:
           Logit tensor with shape = (batch, num_classes)
         """
-        with amp.autocast(enabled=False):
+        with amp.autocast(enabled=False, device_type=x.device.type):
             s = self.cos_scale
-            x = _l2_norm(x.float())
+            x = F.normalize(x.float(), dim=-1, eps=1e-10)
             batch_size = len(x)
-            kernel_norm = _l2_norm(self.kernel, axis=0)
+            kernel_norm = F.normalize(self.kernel, dim=0, eps=1e-10)
             # cos(theta+m)
             cos_theta = torch.mm(x, kernel_norm).float()
             cos_theta = cos_theta.clamp(-1, 1)  # for numerical stability
@@ -298,7 +301,9 @@ class CosLossOutput(nn.Module):
             )  # a little bit hacky way to prevent in_place operation on cos_theta
             if y is not None and self.training:
                 cos_theta_m = cos_theta - self.cur_margin
-                idx_ = torch.arange(0, batch_size, dtype=torch.long)
+                idx_ = torch.arange(
+                    0, batch_size, dtype=torch.long, device=cos_theta_m.device
+                )
                 output[idx_, y] = cos_theta_m[idx_, y]
                 if self.cur_intertop_margin > 0:
                     # implementation of intertop-K
@@ -319,7 +324,7 @@ class CosLossOutput(nn.Module):
             output *= s  # scale up in order to make softmax work
             return output
 
-    def compute_prototype_affinity(self):
+    def compute_prototype_affinity(self) -> torch.Tensor:
         return _cosine_affinity(self.kernel)
 
 
@@ -340,15 +345,15 @@ class SubCenterArcLossOutput(ArcLossOutput):
 
     def __init__(
         self,
-        in_feats,
-        num_classes,
-        num_subcenters=2,
-        cos_scale=64,
-        margin=0.3,
-        margin_warmup_epochs=0,
-        intertop_k=5,
-        intertop_margin=0.0,
-    ):
+        in_feats: int,
+        num_classes: int,
+        num_subcenters: int = 2,
+        cos_scale: float = 64,
+        margin: float = 0.3,
+        margin_warmup_epochs: int = 0,
+        intertop_k: int = 5,
+        intertop_margin: float = 0.0,
+    ) -> None:
         super().__init__(
             in_feats,
             num_classes * num_subcenters,
@@ -366,7 +371,7 @@ class SubCenterArcLossOutput(ArcLossOutput):
             "subcenter_counts", torch.zeros(num_classes, num_subcenters)
         )
 
-    def __str__(self):
+    def __str__(self) -> str:
         s = (
             "%s(in_feats=%d, num_classes=%d, num_subcenters=%d, cos_scale=%.2f, margin=%.2f, margin_warmup_epochs=%d, intertop_k=%d, intertop_margin=%f)"
             % (
@@ -383,15 +388,17 @@ class SubCenterArcLossOutput(ArcLossOutput):
         )
         return s
 
-    def _update_counts(self, y, proto_idx):
-        idx1 = torch.arange(y.size(0))
+    def _update_counts(self, y: torch.Tensor, proto_idx: torch.Tensor) -> None:
+        idx1 = torch.arange(y.size(0), device=y.device, dtype=torch.long)
         proto_idx = proto_idx[idx1, y]
         self.subcenter_counts[y, proto_idx] += 1
         # we make counts relative to avoid risk of overflowing the integers
         min_counts, _ = torch.min(self.subcenter_counts, dim=1, keepdim=True)
         self.subcenter_counts -= min_counts
 
-    def forward(self, x, y=None):
+    def forward(
+        self, x: torch.Tensor, y: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
         """Computes penalized logits.
 
         Args:
@@ -402,11 +409,11 @@ class SubCenterArcLossOutput(ArcLossOutput):
         Returns:
           Logit tensor with shape = (batch, num_classes)
         """
-        with amp.autocast(enabled=False):
+        with amp.autocast(enabled=False, device_type=x.device.type):
             s = self.cos_scale
             batch_size = len(x)
-            x = _l2_norm(x.float())
-            kernel_norm = _l2_norm(self.kernel, axis=0)
+            x = F.normalize(x.float(), dim=-1, eps=1e-10)
+            kernel_norm = F.normalize(self.kernel, dim=0, eps=1e-10)
             # cos(theta+m)
             cos_theta = torch.mm(x, kernel_norm).float()
             cos_theta, proto_idx = torch.max(
@@ -425,7 +432,9 @@ class SubCenterArcLossOutput(ArcLossOutput):
                 sin_theta = torch.sqrt(sin_theta_2)
                 cos_theta_m = cos_theta * self.cos_m - sin_theta * self.sin_m
 
-                idx_ = torch.arange(0, batch_size, dtype=torch.long)
+                idx_ = torch.arange(
+                    0, batch_size, dtype=torch.long, device=cos_theta_m.device
+                )
                 output[idx_, y] = cos_theta_m[idx_, y]
                 if self.cur_intertop_margin > 0:
                     # implementation of intertop-K
@@ -451,21 +460,23 @@ class SubCenterArcLossOutput(ArcLossOutput):
             output *= s  # scale up in order to make softmax work
             return output
 
-    def get_main_prototype_kernel(self):
+    def get_main_prototype_kernel(self) -> torch.Tensor:
         _, idx2 = torch.max(
             self.subcenter_counts, dim=-1
         )  # get indices for the main prototype
-        idx1 = torch.arange(self.num_classes)
+        idx1 = torch.arange(
+            self.num_classes, device=self.kernel.device, dtype=torch.long
+        )
         kernel = self.kernel.view(-1, self.num_classes, self.num_subcenters)[
             :, idx1, idx2
         ]
         return kernel
 
-    def compute_prototype_affinity(self):
+    def compute_prototype_affinity(self) -> torch.Tensor:
         kernel = self.get_main_prototype_kernel()
         return _cosine_affinity(kernel)
 
-    def to_arc_loss(self):
+    def to_arc_loss(self) -> ArcLossOutput:
         loss = ArcLossOutput(
             in_feats=self.in_feats,
             num_classes=self.num_classes,
@@ -479,7 +490,7 @@ class SubCenterArcLossOutput(ArcLossOutput):
         loss.kernel.data = kernel
         return loss
 
-    def to_cos_loss(self):
+    def to_cos_loss(self) -> CosLossOutput:
         loss = CosLossOutput(
             in_feats=self.in_feats,
             num_classes=self.num_classes,

@@ -1,77 +1,323 @@
 """
- Copyright 2025 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2025 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
-from typing import List, Dict, Optional, Union, Any
-
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
 from jsonargparse import ActionParser, ArgumentParser
 
+from ....utils.misc import filter_func_args
+from ...narchs import AudioFeatsMVN, HydraHead, QFormerV2, ResNet
 from ...narchs import ResNetFactory as RNF
+from ...utils.masking import scale_seq_lengths
 from .qvector import QVector
 
 
 class ResNetQVector(QVector):
+    """Q-vector model that combines a ResNet encoder with optional adapters.
+
+    Attributes:
+        acoustic_feats: Feature-extraction front-end that converts raw waveforms
+            into acoustic representations.
+        resnet_encoder: ResNet backbone that processes acoustic features.
+        resnet_type: Identifier for the instantiated backbone variant.
+        backbone_layers: Indices of intermediate backbone layers returned during
+            hidden-feature aggregation, or ``None`` when not requested.
+        backbone_return_output: Flag indicating whether ``forward_hid_feats`` also
+            returns the final backbone output tensor.
+        hidden_feats_adapter: Optional projection layers that align backbone hidden
+            features with the hidden Q-former input dimensionality.
+        output_feats_adapter: Optional projection mapping backbone outputs to the
+            output Q-former input space.
+        num_hidden_feats_queries: Number of learned queries used for hidden feature
+            aggregation (inherited from ``QVector``).
+        num_output_feats_queries: Number of learned queries used for output feature
+            aggregation (inherited from ``QVector``).
+        qvector_dim: Dimensionality of the flattened q-vector embedding (inherited).
+        hidden_feats_agg_qformer: Q-former module that attends to intermediate
+            backbone activations (inherited).
+        output_feats_agg_qformer: Q-former operating on backbone outputs (inherited).
+        hidden_feats_queries: Learnable queries feeding the hidden Q-former
+            (inherited).
+        output_feats_queries: Learnable queries feeding the output Q-former
+            (inherited).
+        proj_head: Projection head that flattens the concatenated Q-former outputs
+            (inherited).
+        head: Downstream Hydra head that produces logits or regression estimates
+            (inherited).
+    """
+
     def __init__(
         self,
-        in_feats: int,
-        resnet_enc: Dict[str, AnyType],
-        hidden_feats_agg_qformer: Dict[str, Any],
+        acoustic_feats: Union[Dict[str, Any], AudioFeatsMVN],
+        resnet_encoder: Dict[str, Any],
+        hidden_feats_agg_qformer: Union[Dict[str, Any], QFormerV2, None],
         num_hidden_feats_queries: int,
-        output_feats_agg_qformer: Dict[str, Any],
+        output_feats_agg_qformer: Union[Dict[str, Any], None],
         num_output_feats_queries: int,
         qvector_dim: int,
-        classif_head: Dict[str, Any],
-        bias_weight_decay=None,
-    ):
+        head: Union[Dict[str, Any], HydraHead],
+        bias_weight_decay: Optional[float] = None,
+    ) -> None:
+        """Initialise the ResNet-backed q-vector model.
+
+        Args:
+            acoustic_feats: Acoustic feature extractor configuration or instance.
+            resnet_encoder: Keyword arguments for :class:`ResNetFactory`.
+            hidden_feats_agg_qformer: Hidden Q-former configuration or module.
+            num_hidden_feats_queries: Number of hidden queries used for aggregation.
+            output_feats_agg_qformer: Output Q-former configuration or module.
+            num_output_feats_queries: Number of output queries.
+            qvector_dim: Size of the final q-vector embedding.
+            head: Hydra head configuration or module.
+            bias_weight_decay: Optional weight decay applied only to bias parameters.
+        """
+        if isinstance(acoustic_feats, dict):
+            logging.info("making acoustic feature extractor")
+            acoustic_feats = AudioFeatsMVN.filter_args(**acoustic_feats)
+            acoustic_feats["trans"] = True
+            acoustic_feats = AudioFeatsMVN(**acoustic_feats)
+        else:
+            assert isinstance(acoustic_feats, AudioFeatsMVN)
+
+        assert isinstance(resnet_encoder, dict)
+        resnet_type = resnet_encoder["resnet_type"]
         logging.info("making %s encoder network", resnet_type)
-        encoder_net = RNF.create(**resnet_enc)
-        self.in_feats = in_feats
+        resnet_encoder = RNF.create(**resnet_encoder)
+
+        self.acoustic_feats: AudioFeatsMVN = acoustic_feats
+        self.resnet_encoder: ResNet = resnet_encoder
+        self.resnet_type: str = resnet_type
+        self._acoustic_feats_context = torch.no_grad()
+        self.backbone_layers: Optional[List[int]] = None
+        self.backbone_return_output: bool = False
+        self.hidden_feats_adapter: Optional[nn.ModuleList] = None
+        self.output_feats_adapter: Optional[nn.Linear] = None
 
         super().__init__(
-            encoder_net,
-            hidden_feats_agg_qformer,
-            num_hidden_feats_queries,
-            output_feats_agg_qformer,
-            num_output_feats_queries,
-            qvector_dim,
-            classif_head,
+            hidden_feats_agg_qformer=hidden_feats_agg_qformer,
+            num_hidden_feats_queries=num_hidden_feats_queries,
+            output_feats_agg_qformer=output_feats_agg_qformer,
+            num_output_feats_queries=num_output_feats_queries,
+            qvector_dim=qvector_dim,
+            head=head,
             bias_weight_decay=bias_weight_decay,
         )
+        self._infer_backbone_layer_indices()
+        self._make_adapters()
 
-    def _infer_enc_layers_indeces_and_dims(self, qformer_cfg):
-        return_
+    @property
+    def sample_frequency(self) -> int:
+        """int: Sampling frequency assumed by ``acoustic_feats``."""
+        return self.acoustic_feats.sample_frequency
 
-    def get_config(self):
-        base_config = super().get_config()
-        del base_config["encoder_cfg"]
-        config = {
+    def _infer_backbone_layer_indices(self) -> None:
+        """Determine which backbone layers to capture for aggregation."""
+        if self.output_feats_agg_qformer is None:
+            self.backbone_layers = [1, 2, 3, 4]
+            self.backbone_return_output = False
+        elif self.hidden_feats_agg_qformer is None:
+            self.backbone_layers = None
+            self.backbone_return_output = True
+        else:
+            self.backbone_layers = [1, 2, 3]
+            self.backbone_return_output = True
+
+    def _make_adapters(self) -> None:
+        """Build linear adapters that map backbone tensors to Q-former inputs."""
+        self.hidden_feats_adapter = None
+        self.output_feats_adapter = None
+        in_feats = self.acoustic_feats.output_dim
+        in_shape = (1, 1, in_feats, None)
+        if self.hidden_feats_agg_qformer is not None:
+            hfa_qformer_in_feats = self.hidden_feats_agg_qformer.in_feats
+            hid_shapes = self.resnet_encoder.hid_shapes(
+                in_shape, layers=self.backbone_layers
+            )
+            hid_feats = [s[1] * s[2] for s in hid_shapes]
+            self.hidden_feats_adapter = nn.ModuleList(
+                [nn.Linear(hf, hfa_qformer_in_feats) for hf in hid_feats]
+            )
+        else:
+            self.hidden_feats_adapter = None
+
+        if self.output_feats_agg_qformer is not None:
+            ofa_qformer_in_feats = self.output_feats_agg_qformer.in_feats
+            out_shape = self.resnet_encoder.out_shape(in_shape)
+            out_feats = out_shape[1] * out_shape[2]
+            if out_feats != ofa_qformer_in_feats:
+                self.output_feats_adapter = nn.Linear(out_feats, ofa_qformer_in_feats)
+            else:
+                self.output_feats_adapter = None
+        else:
+            self.output_feats_adapter = None
+
+    def forward_backbone(
+        self,
+        x: torch.Tensor,
+        x_lengths: Optional[torch.Tensor] = None,
+        return_hidden_feats: bool = False,
+    ) -> Tuple[
+        Optional[torch.Tensor],
+        Optional[torch.Tensor],
+        Optional[List[torch.Tensor]],
+        Optional[List[torch.Tensor]],
+    ]:
+        """Run acoustic front-end and resnet backbone.
+
+        Args:
+            x: Input waveform tensor shaped ``(batch, channels, samples)``.
+            x_lengths: Optional lengths per input example.
+            return_hidden_feats: Whether to also return hidden layer activations.
+
+        Returns:
+            Tuple with backbone outputs, their lengths, hidden features, and hidden
+            feature lengths (entries are ``None`` when unavailable).
+        """
+        with self._acoustic_feats_context:
+            x, x_lengths = self.acoustic_feats(x, x_lengths)
+
+        if return_hidden_feats:
+            backbone_hidden_feats = self.resnet_encoder.forward_hid_feats(
+                x,
+                x_lengths,
+                layers=self.backbone_layers,
+                return_output=self.backbone_return_output,
+            )
+            if self.backbone_return_output:
+                backbone_hidden_feats, backbone_feats = backbone_hidden_feats
+            else:
+                backbone_feats = None
+        else:
+            backbone_feats = self.resnet_encoder(x, x_lengths)
+            backbone_hidden_feats = None
+
+        if backbone_feats is not None:
+            backbone_feats = backbone_feats.view(
+                backbone_feats.size(0), -1, backbone_feats.size(3)
+            ).transpose(1, 2)
+            backbone_feats_lengths = scale_seq_lengths(
+                x_lengths, backbone_feats.size(1), x.size(1)
+            )
+
+        if return_hidden_feats:
+            backbone_hidden_feats = [
+                h.view(h.size(0), -1, h.size(3)).transpose(1, 2)
+                for h in backbone_hidden_feats
+            ]
+            backbone_hidden_feats_lengths = [
+                scale_seq_lengths(x_lengths, h.size(1), x.size(1))
+                for h in backbone_hidden_feats
+            ]
+            return (
+                backbone_feats,
+                backbone_feats_lengths,
+                backbone_hidden_feats,
+                backbone_hidden_feats_lengths,
+            )
+        else:
+            return backbone_feats, backbone_feats_lengths, None, None
+
+    def forward_adapter(
+        self,
+        backbone_output_feats: Optional[torch.Tensor] = None,
+        backbone_output_feats_lengths: Optional[torch.Tensor] = None,
+        backbone_hidden_feats: Optional[List[torch.Tensor]] = None,
+        backbone_hidden_feats_lengths: Optional[List[torch.Tensor]] = None,
+    ) -> Tuple[
+        Optional[torch.Tensor],
+        Optional[torch.Tensor],
+        Optional[List[torch.Tensor]],
+        Optional[List[torch.Tensor]],
+    ]:
+        """Project backbone tensors into the Q-former input spaces.
+
+        Args:
+            backbone_output_feats: Output features returned by the backbone.
+            backbone_output_feats_lengths: Optional lengths of the output features.
+            backbone_hidden_feats: Optional list of hidden backbone activations.
+            backbone_hidden_feats_lengths: Optional lengths of the hidden activations.
+
+        Returns:
+            Tuple mirroring the inputs but with tensors mapped through adapters so
+            they match each Q-former input dimension.
+        """
+        if self.hidden_feats_adapter is not None:
+            assert backbone_hidden_feats is not None
+            adapted_hidden_feats = []
+            for h, adapter in zip(backbone_hidden_feats, self.hidden_feats_adapter):
+                h_adapted = adapter(h)
+                adapted_hidden_feats.append(h_adapted)
+        else:
+            adapted_hidden_feats = backbone_hidden_feats
+
+        if self.output_feats_adapter is not None:
+            assert backbone_output_feats is not None
+            adapted_output_feats = self.output_feats_adapter(backbone_output_feats)
+        else:
+            adapted_output_feats = backbone_output_feats
+
+        return (
+            adapted_output_feats,
+            backbone_output_feats_lengths,
+            adapted_hidden_feats,
+            backbone_hidden_feats_lengths,
+        )
+
+    def get_config(self) -> Dict[str, Any]:
+        """Return a serializable dictionary capturing constructor arguments.
+
+        Returns:
+            Dict[str, Any]: Configuration for acoustic features, backbone, and base
+            ``QVector`` options.
+        """
+        feats_cfg = self.acoustic_feats.get_config()
+        resnet_cfg = {
             "resnet_type": self.resnet_type,
-            "in_channels": self.in_channels,
-            "conv_channels": self.conv_channels,
-            "base_channels": self.base_channels,
-            "in_kernel_size": self.in_kernel_size,
-            "in_stride": self.in_stride,
-            "zero_init_residual": self.zero_init_residual,
-            "groups": self.groups,
-            "replace_stride_with_dilation": self.replace_stride_with_dilation,
-            "do_maxpool": self.do_maxpool,
-            "in_norm": self.in_norm,
-            "se_r": self.se_r,
-            "res2net_scale": self.res2net_scale,
-            "res2net_width_factor": self.res2net_width_factor,
-            "freq_pos_enc": self.freq_pos_enc,
+            "in_channels": self.resnet_encoder.in_channels,
+            "conv_channels": self.resnet_encoder.conv_channels,
+            "base_channels": self.resnet_encoder.base_channels,
+            "in_kernel_size": self.resnet_encoder.in_kernel_size,
+            "in_stride": self.resnet_encoder.in_stride,
+            "zero_init_residual": self.resnet_encoder.zero_init_residual,
+            "groups": self.resnet_encoder.groups,
+            "replace_stride_with_dilation": self.resnet_encoder.replace_stride_with_dilation,
+            "do_maxpool": self.resnet_encoder.do_maxpool,
+            "in_norm": self.resnet_encoder.in_norm,
+            "se_r": self.resnet_encoder.se_r,
+            "res2net_scale": self.resnet_encoder.res2net_scale,
+            "res2net_width_factor": self.resnet_encoder.res2net_width_factor,
+            "freq_pos_enc": self.resnet_encoder.freq_pos_enc,
         }
-
+        base_config = super().get_config()
+        config = {
+            "acoustic_feats": feats_cfg,
+            "resnet_encoder": resnet_cfg,
+        }
         config.update(base_config)
         return config
 
     @classmethod
-    def load(cls, file_path=None, cfg=None, state_dict=None):
+    def load(
+        cls,
+        file_path: Optional[str] = None,
+        cfg: Optional[Dict[str, Any]] = None,
+        state_dict: Optional[Dict[str, Any]] = None,
+    ) -> "ResNetQVector":
+        """Instantiate a model from serialized configuration/state.
+
+        Args:
+            file_path: Optional path to a checkpoint bundle.
+            cfg: Optional configuration dictionary to override disk contents.
+            state_dict: Optional PyTorch state dictionary.
+
+        Returns:
+            ResNetQVector: Model with configuration/state restored.
+        """
         cfg, state_dict = cls._load_cfg_state_dict(file_path, cfg, state_dict)
 
         model = cls(**cfg)
@@ -81,63 +327,65 @@ class ResNetQVector(QVector):
         return model
 
     @staticmethod
-    def filter_args(**kwargs):
-        base_args = XVector.filter_args(**kwargs)
-        child_args = RNF.filter_args(**kwargs)
-
-        base_args.update(child_args)
-        return base_args
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
+        """Return only keyword args that match the constructor signature."""
+        return filter_func_args(ResNetQVector, kwargs)
 
     @staticmethod
     def add_class_args(parser, prefix=None):
+        """Register CLI/configuration arguments for this model.
+
+        Args:
+            parser: ``ArgumentParser`` that receives the class arguments.
+            prefix: Optional namespace prefix for grouped argument registration.
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        XVector.add_class_args(parser)
-        RNF.add_class_args(parser)
+        AudioFeatsMVN.add_class_args(parser, prefix="acoustic_feats")
+        RNF.add_class_args(parser, prefix="resnet_encoder")
+        QVector.add_class_args(parser)
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
-    add_argparse_args = add_class_args
+    # @staticmethod
+    # def filter_finetune_args(**kwargs):
+    #     base_args = XVector.filter_finetune_args(**kwargs)
+    #     child_args = RNF.filter_finetune_args(**kwargs)
 
-    @staticmethod
-    def filter_finetune_args(**kwargs):
-        base_args = XVector.filter_finetune_args(**kwargs)
-        child_args = RNF.filter_finetune_args(**kwargs)
+    #     base_args.update(child_args)
+    #     return base_args
 
-        base_args.update(child_args)
-        return base_args
+    # @staticmethod
+    # def add_finetune_args(parser, prefix=None):
+    #     if prefix is not None:
+    #         outer_parser = parser
+    #         parser = ArgumentParser(prog="")
 
-    @staticmethod
-    def add_finetune_args(parser, prefix=None):
-        if prefix is not None:
-            outer_parser = parser
-            parser = ArgumentParser(prog="")
+    #     XVector.add_finetune_args(parser)
+    #     RNF.add_finetune_args(parser)
 
-        XVector.add_finetune_args(parser)
-        RNF.add_finetune_args(parser)
+    #     if prefix is not None:
+    #         outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
-        if prefix is not None:
-            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
+    # @staticmethod
+    # def filter_dino_teacher_args(**kwargs):
+    #     base_args = XVector.filter_dino_teacher_args(**kwargs)
+    #     child_args = RNF.filter_finetune_args(**kwargs)
 
-    @staticmethod
-    def filter_dino_teacher_args(**kwargs):
-        base_args = XVector.filter_dino_teacher_args(**kwargs)
-        child_args = RNF.filter_finetune_args(**kwargs)
+    #     base_args.update(child_args)
+    #     return base_args
 
-        base_args.update(child_args)
-        return base_args
+    # @staticmethod
+    # def add_dino_teacher_args(parser, prefix=None):
+    #     if prefix is not None:
+    #         outer_parser = parser
+    #         parser = ArgumentParser(prog="")
 
-    @staticmethod
-    def add_dino_teacher_args(parser, prefix=None):
-        if prefix is not None:
-            outer_parser = parser
-            parser = ArgumentParser(prog="")
+    #     XVector.add_dino_teacher_args(parser)
+    #     RNF.add_finetune_args(parser)
 
-        XVector.add_dino_teacher_args(parser)
-        RNF.add_finetune_args(parser)
-
-        if prefix is not None:
-            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
+    #     if prefix is not None:
+    #         outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

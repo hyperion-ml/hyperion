@@ -123,7 +123,7 @@ class VoxProfileEvaluator:
             raise ValueError("batch_size must be a positive integer.")
         self.batch_size = batch_size
 
-    def _evaluate_model_parallel(
+    def _evaluate_models_parallel(
         self, return_df: bool = True
     ) -> Tuple[Union[Dict[str, Any], pd.DataFrame], SegmentSet]:
         """Evaluate enabled models in batched parallel fashion.
@@ -234,7 +234,7 @@ class VoxProfileEvaluator:
             stats = pd.DataFrame([stats])
         return stats, segments
 
-    def _evaluate_model_sequential(self, return_df: bool = True):
+    def _evaluate_models_sequential(self, return_df: bool = True):
         """Evaluate each enabled model sequentially across the dataset."""
         segments = self.segments
         stats: Dict[str, Any] = {}
@@ -325,9 +325,9 @@ class VoxProfileEvaluator:
             Tuple of aggregated statistics and the updated ``SegmentSet``.
         """
         if self.sequential_model_evaluation:
-            return self._evaluate_model_sequential(return_df=return_df)
+            return self._evaluate_models_sequential(return_df=return_df)
         else:
-            return self._evaluate_model_parallel(return_df=return_df)
+            return self._evaluate_models_parallel(return_df=return_df)
 
     def compute_stats(
         self, segments: SegmentSet, stats: Optional[Dict[str, Any]] = None
@@ -407,20 +407,20 @@ class VoxProfileEvaluator:
 
         if "narrow_accent" not in skip:
             VoxProfileNarrowAccentEvaluator.add_class_args(
-                parser, prefix="narrow-accent"
+                parser, prefix="narrow_accent"
             )
 
         if "broad_accent" not in skip:
-            VoxProfileBroadAccentEvaluator.add_class_args(parser, prefix="broad-accent")
+            VoxProfileBroadAccentEvaluator.add_class_args(parser, prefix="broad_accent")
 
         if "categorical_emotion" not in skip:
             VoxProfileCategoricalEmotionEvaluator.add_class_args(
-                parser, prefix="categorical-emotion"
+                parser, prefix="categorical_emotion"
             )
 
         if "dimensional_emotion" not in skip:
             VoxProfileDimensionalEmotionEvaluator.add_class_args(
-                parser, prefix="dimensional-emotion"
+                parser, prefix="dimensional_emotion"
             )
 
         if "fluency" not in skip:
@@ -428,11 +428,67 @@ class VoxProfileEvaluator:
 
         if "voice_quality" not in skip:
             VoxProfileVoiceQualityEvaluator.add_class_args(
-                parser, prefix="voice-quality"
+                parser, prefix="voice_quality"
             )
 
         if "agesex" not in skip:
             VoxProfileAgeSexEvaluator.add_class_args(parser, prefix="agesex")
+
+        if "use_narrow_accent" not in skip:
+            parser.add_argument(
+                "--use-narrow-accent",
+                action=ActionYesNo,
+                default=True,
+                help="Enable narrow accent evaluation.",
+            )
+
+        if "use_broad_accent" not in skip:
+            parser.add_argument(
+                "--use-broad-accent",
+                action=ActionYesNo,
+                default=True,
+                help="Enable broad accent evaluation.",
+            )
+
+        if "use_categorical_emotion" not in skip:
+            parser.add_argument(
+                "--use-categorical-emotion",
+                action=ActionYesNo,
+                default=True,
+                help="Enable categorical emotion evaluation.",
+            )
+
+        if "use_dimensional_emotion" not in skip:
+            parser.add_argument(
+                "--use-dimensional-emotion",
+                action=ActionYesNo,
+                default=True,
+                help="Enable dimensional emotion evaluation.",
+            )
+
+        if "use_fluency" not in skip:
+            parser.add_argument(
+                "--use-fluency",
+                action=ActionYesNo,
+                default=True,
+                help="Enable fluency evaluation.",
+            )
+
+        if "use_voice_quality" not in skip:
+            parser.add_argument(
+                "--use-voice-quality",
+                action=ActionYesNo,
+                default=True,
+                help="Enable voice quality evaluation.",
+            )
+
+        if "use_agesex" not in skip:
+            parser.add_argument(
+                "--use-agesex",
+                action=ActionYesNo,
+                default=True,
+                help="Enable age and sex evaluation.",
+            )
 
         if "part_idx" not in skip:
             parser.add_argument(
@@ -453,8 +509,8 @@ class VoxProfileEvaluator:
         if "sequential_model_evaluation" not in skip:
             parser.add_argument(
                 "--sequential-model-evaluation",
-                type=ActionYesNo,
-                default=False,
+                action=ActionYesNo,
+                default=True,
                 help="If true, evaluates all segments for each model before moving to the next model.",
             )
         if "batch_size" not in skip:

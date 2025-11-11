@@ -12,10 +12,10 @@ import re
 from collections import OrderedDict as ODict
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
-import torch.cuda.amp as amp
+import torch.amp as amp
 import torch.distributed as dist
 import torch.nn as nn
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
@@ -299,7 +299,7 @@ class FreeVCTrainer(TorchTrainerBase):
 
         Swaps the current VC model with the averaged SWA model.
         """
-        super().on_swa_epoch_beging()
+        super().on_swa_epoch_begin()
         self.vc_model = self.swa_vc_model.module
 
     def on_swa_epoch_end(self, logs):
@@ -339,7 +339,9 @@ class FreeVCTrainer(TorchTrainerBase):
     def preprocess_val_data(self, batch_data):
         return self.preprocess_train_data(batch_data)
 
-    def train_forward_backward(self, batch_data):
+    def training_step(
+        self, batch_idx: int, batch_data: Dict[str, Any]
+    ) -> Tuple[int, Dict[str, Any]]:
         """Performs the forward and backward passes for both discriminator and generator.
 
         Handles discriminator training first with real/fake inputs, then updates
@@ -348,6 +350,8 @@ class FreeVCTrainer(TorchTrainerBase):
         Returns:
             OrderedDict[str, float]: A dictionary of computed metrics.
         """
+        batch_size, batch_data = self.preprocess_train_data(batch_data)
+        batch_data = self.send_data_to_device(batch_data)
         ############################
         # 1. Discriminator Forward #
         ############################
@@ -381,7 +385,9 @@ class FreeVCTrainer(TorchTrainerBase):
             #     self.vc_model.output_sample_frequency,
             # )
 
-        with torch.no_grad(), amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
+        with torch.no_grad(), amp.autocast(
+            enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+        ):
             xvector_output = self.xvector_model(
                 input_audios,
                 input_lengths,
@@ -390,7 +396,9 @@ class FreeVCTrainer(TorchTrainerBase):
             )
             speaker_feats = xvector_output.xvector
 
-        with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
+        with amp.autocast(
+            enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+        ):
             vc_output = self.vc_model(
                 source_audios=input_audios,
                 source_audio_lengths=input_lengths,
@@ -417,7 +425,9 @@ class FreeVCTrainer(TorchTrainerBase):
         # 2. Generator Forward #
         ########################
         self.discrim_model.set_train_mode(AudioDiscriminatorTrainMode.FROZEN)
-        with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
+        with amp.autocast(
+            enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+        ):
             y_real, fmaps_real = self.discrim_model(target_audios)
             y_gen, fmaps_gen = self.discrim_model(vc_output.gen_audio)
             with torch.no_grad():
@@ -458,7 +468,7 @@ class FreeVCTrainer(TorchTrainerBase):
         for i, loss in enumerate(losses_gen_adv):
             batch_metrics[f"loss_gen_adv/{i}"] = loss
 
-        return batch_metrics
+        return batch_size, batch_metrics
 
     def validation_step(self, batch_idx: int, batch_data: Dict[str, Any]):
         """Runs a forward pass through the generator and discriminator during validation.
@@ -491,7 +501,9 @@ class FreeVCTrainer(TorchTrainerBase):
                 self.vc_model.output_sample_frequency,
             )
 
-        with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
+        with amp.autocast(
+            enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+        ):
             xvector_output = self.xvector_model(
                 input_audios,
                 input_lengths,
@@ -721,7 +733,7 @@ class FreeVCTrainer(TorchTrainerBase):
         if self.rank != 0:
             return
 
-        checkpoint = self.checkpoint(
+        checkpoint = self.model_checkpoint(
             self.vc_model,
             self.vc_optimizer,
             self.vc_lr_scheduler,

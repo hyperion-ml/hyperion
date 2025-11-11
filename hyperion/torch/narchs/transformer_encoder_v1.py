@@ -1,12 +1,11 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba, Nanxin Chen)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba, Nanxin Chen)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-
-from jsonargparse import ActionParser, ArgumentParser
 
 import torch
 import torch.nn as nn
+from jsonargparse import ActionParser, ArgumentParser
 
 from ..layer_blocks import TransformerConv2dSubsampler as Conv2dSubsampler
 from ..layer_blocks import TransformerEncoderBlockV1 as EBlock
@@ -160,14 +159,7 @@ class TransformerEncoderV1(NetArch):
         else:
             raise ValueError("unknown in_layer_type: " + self.in_layer_type)
 
-    def forward(self, x, mask=None, target_shape=None, use_amp=False):
-        if use_amp:
-            with torch.cuda.amp.autocast():
-                return self._forward(x, mask, target_shape)
-
-        return self._forward(x, mask, target_shape)
-
-    def _forward(self, x, mask=None, target_shape=None):
+    def forward(self, x, mask=None, target_shape=None):
         """Forward pass function
 
         Args:

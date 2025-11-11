@@ -12,7 +12,7 @@ import re
 from collections import OrderedDict as ODict
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
 import torch.amp as amp
@@ -596,7 +596,9 @@ class VIAnonymizerTrainer(FreeVCTrainer):
 
     #     return batch_metrics
 
-    def train_forward_backward(self, batch_data):
+    def training_step(
+        self, batch_idx: int, batch_data: Dict[str, Any]
+    ) -> Tuple[int, Dict[str, Any]]:
         """Performs the forward and backward passes for both discriminator and generator.
 
         Handles discriminator training first with real/fake inputs, then updates
@@ -605,6 +607,8 @@ class VIAnonymizerTrainer(FreeVCTrainer):
         Returns:
             OrderedDict[str, float]: A dictionary of computed metrics.
         """
+        batch_size, batch_data = self.preprocess_train_data(batch_data)
+        batch_data = self.send_data_to_device(batch_data)
         self.speaker_contrastive_loss.update(self.cur_step)
 
         input_audios, input_lengths = (
@@ -857,7 +861,7 @@ class VIAnonymizerTrainer(FreeVCTrainer):
         for i, loss in enumerate(losses_gen_adv_vc):
             batch_metrics[f"loss_gen_adv_vc/{i}"] = loss
 
-        return batch_metrics
+        return batch_size, batch_metrics
 
     # def train_forward_backward_2(self, batch_data):
     #     """Performs the forward and backward passes for both discriminator and generator.

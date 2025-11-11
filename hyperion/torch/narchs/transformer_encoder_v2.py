@@ -5,8 +5,9 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
 import logging
 import math
+from dataclasses import dataclass, field
 from enum import Enum
-from typing import List, Optional, Tuple, Type, Union
+from typing import Dict, List, Optional, Tuple, Type, Union
 
 import torch
 import torch.nn as nn
@@ -14,8 +15,10 @@ import torch.nn.functional as F
 from fairscale.nn.model_parallel.layers import ColumnParallelLinear
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
+from ...utils.hyp_dataclass import HypDataClass
 from ...utils.misc import filter_func_args
 from ..layer_blocks.transformer_v2 import (
+    SDPBackendType,
     TransformerEncoderV2StemType,
     TransformerV2AttType,
     TransformerV2ConvDownsampleBlock,
@@ -28,6 +31,33 @@ from ..layers import RotaryPosEncoder
 from ..layers.attention_v2 import ScaledDotProdAttV2
 from ..utils import scale_seq_lengths, seq_lengths_to_mask
 from .net_arch import NetArch
+
+
+@dataclass
+class TransformerBlockState(HypDataClass):
+    """Cache container for an individual transformer block.
+
+    Attributes:
+        self_att: Dictionary with cached key/value tensors produced by the self-attention layer.
+        cross_att: Optional dictionary with cached key/value tensors for the cross-attention branch.
+    """
+
+    self_att: Optional[Dict[str, torch.Tensor]] = None
+    cross_att: Optional[Dict[str, torch.Tensor]] = None
+
+
+@dataclass
+class TransformerEncoderState(HypDataClass):
+    """Aggregated cache state for `TransformerEncoderV2`.
+
+    Attributes:
+        block_states: List of per-block cache states mirroring the encoder layout.
+    """
+
+    block_states: List[TransformerBlockState] = field(default_factory=list)
+
+    def __len__(self) -> int:
+        return len(self.block_states)
 
 
 class TransformerEncoderV2ShortName(str, Enum):
@@ -45,11 +75,23 @@ class TransformerEncoderV2ShortName(str, Enum):
     HUGE = "huge"
 
     @staticmethod
-    def choices():
+    def choices() -> List[str]:
+        """Return every available short-name preset."""
         return [o.value for o in TransformerEncoderV2ShortName]
 
     @staticmethod
-    def to_config(short_name):
+    def to_config(
+        short_name: "TransformerEncoderV2ShortName",
+    ) -> Tuple[
+        List[int],
+        List[int],
+        int,
+        Optional[int],
+        float,
+        int,
+        List[int],
+    ]:
+        """Map a short-name preset to the canonical transformer hyper-parameters."""
         strides = [1]
         ff_dim_multiplier = 4
         num_kv_heads = None
@@ -94,7 +136,7 @@ class TransformerEncoderV2ShortName(str, Enum):
             ff_dim_multiplier = 3.5
         elif short_name == TransformerEncoderV2ShortName.LARGE_GQA:
             repeats = 6 * [4]
-            channels = [1024]
+            channels = 6 * [1024]
             num_heads = 24
             num_kv_heads = 8
             ff_dim_multiplier = 3.5
@@ -113,53 +155,52 @@ class TransformerEncoderV2ShortName(str, Enum):
 
 
 class TransformerEncoderV2(NetArch):
-    """Transformer Encoder.
-    This is the version 2 transformer of Hyperion and is based on LLAMA3 implementation of Transformer
+    """Hyperion Transformer encoder loosely inspired by LLaMA-3.
 
     Attributes:
-        in_feats: input features dimension
-        stem_type: Types of stem block in [conv1d, conv2d]
-        stem_hidden_channels: hidden channels of the stem's conv layers
-        stem_kernel_sizes: kernels of the stem's conv layers
-        stem_strides: strides of the stem's conv layers
-        stem_act: activation of the stem layers
-        stem_dropout_rate: dropout rate at the stem output
-        short_name: short_name of the configuration for the transformer size
-        att_type: type of attention layer in [sdp, torch_sdp, flash_sdp]
-        encb_repeats: transformer block repeats in each encoder stage
-        hidden_dims: transformer block hidden features in each encoder stage
-        num_heads: num. of attention heads
-        num_kv_heads: num. of key, value attention heads when using GQA
-        att_dropout_rate: attention dropout rate
-        att_bias: use bias in Linear layers of attention blocks
-        ff_type: type of feed forward layer in [mlp, convnext]
-        ff_dim_multiplier: number that multiplies the hidden dimension to get the inv. bottleneck dimension
-        ff_multiple_of: the inv bottleneck dim has to be a multiple of this
-        ff_kernel_sizes: kernels sizes when using convnext feed forward layer
-        ff_dilations: ilations when using convnext feedforward layers
-        ff_act: activation of feedforward layers
-        ff_bias: use bias in Linear layers of feed forward blocks
-        downb_strides: strides to be downsample feature maps before each encoder stage
-        rope_theta: ROPE base theta
-        rope_scale_freqs: scale ROPE frequencies when seq lenght is larger than the maximmum length of the original training sequences
-        rope_update_max_seq_length: update the invernal ROPE variable that keeps track of the max seq length seen on training
-        rope_original_max_seq_length: sets manually the max seq length seen in training for ROPE
-        rope_scaling_factor: ROPE scaling factors
-        rope_low_freq_factor: ROPE frequencies are not scaled for wavelengths < max_seq_length / self.low_freq_factor
-        rope_high_freq_factor: ROPE frequencies are scaled by scaling for wavelengths > max_seq_length / self.high_freq_factor
-        out_feats: features for ouptut projection, if None, no output proj is done
-        drop_path_rate: drop path rate
-        norm_layer: type of norm layer in [layer-norm, rms-norm]
-        norm_eps: eps for layer norms
-        use_cache: use cache for previous key, value states
-        is_causal: attention mask is causal
-        multilayer: use multilayer feature aggregation (mfa)
-        multilayer_concat: use concatenation for mfa
-        endpoint_channels: num. endpoint channels when using mfa
-        endpoint_layers: layers to aggreagate in mfa, if None, all residual blocks are aggregated
-        endpoint_scale_layer: layer number which indicates the time scale in mfa
-        model_parallel: train with model parallel using fairscale tools
-
+        in_feats (int): Dimensionality of the input features.
+        stem_type (TransformerEncoderV2StemType): Stem block variant used to downsample inputs.
+        stem_hidden_channels (List[int]): Channel widths for the stem convolutions.
+        stem_kernel_sizes (List[int]): Kernel sizes for the stem convolutions.
+        stem_strides (List[int]): Strides applied by the stem convolutions.
+        stem_act (str): Activation function used in the stem block.
+        stem_dropout_rate (float): Dropout applied after the stem block.
+        short_name (Optional[str]): Optional preset identifier overriding several hyper-parameters.
+        att_type (TransformerV2AttType): Attention kernel implementation.
+        encb_repeats (List[int]): Number of transformer layers per encoder stage.
+        hidden_dims (List[int]): Transformer hidden sizes per stage.
+        num_heads (int): Number of attention heads for the main stream.
+        num_kv_heads (Optional[int]): Number of key/value heads when using grouped-query attention.
+        att_dropout_rate (float): Dropout applied to attention weights.
+        att_bias (bool): Whether attention projections include biases.
+        att_sliding_window (Optional[int]): Sliding window constraint for local attention.
+        ff_type (TransformerV2FeedForwardType): Feed-forward module implementation.
+        ff_dim_multiplier (float): Factor multiplying ``hidden_dim`` to obtain the feed-forward width.
+        ff_multiple_of (int): Rounds the feed-forward width up to this multiple.
+        ff_kernel_sizes (List[int]): Kernel sizes used by convolutional feed-forward modules.
+        ff_dilations (List[int]): Dilations used by convolutional feed-forward modules.
+        ff_act (str): Activation function used inside feed-forward blocks.
+        ff_bias (bool): Whether feed-forward projections include biases.
+        downb_strides (List[int]): Strides applied by the inter-stage downsampling blocks.
+        rope_theta (float): Base theta parameter for rotary positional embeddings.
+        rope_scale_freqs (bool): Whether to scale RoPE frequencies beyond the training context.
+        rope_update_max_seq_length (bool): Whether to update the cached RoPE maximum sequence length.
+        rope_original_max_seq_length (Optional[int]): Manual override for the original RoPE maximum sequence length.
+        rope_scaling_factor (float): Global scaling applied to RoPE frequencies.
+        rope_low_freq_factor (float): Lower bound on wavelengths exempt from RoPE scaling.
+        rope_high_freq_factor (float): Upper bound on wavelengths subject to full RoPE scaling.
+        out_feats (Optional[int]): Output projection size; when ``None`` the projection is skipped.
+        drop_path_rate (float): Stochastic depth rate across transformer layers.
+        norm_layer (TransformerV2NormLayerType): Normalization layer family used throughout the encoder.
+        norm_eps (float): Epsilon passed to normalization layers.
+        is_causal (bool): Enables causal masking inside the attention layers.
+        sdp_backend (SDPBackendType): Preferred backend for PyTorch scaled dot-product attention.
+        multilayer (bool): Whether to enable multi-layer feature aggregation (MFA).
+        multilayer_concat (bool): Whether MFA concatenates features instead of summing them.
+        endpoint_channels (Optional[int]): Target channel size for MFA endpoints.
+        endpoint_layers (Optional[List[int]]): Indices of encoder stages used as MFA endpoints.
+        endpoint_scale_layer (int): Stage index defining the temporal scale for MFA.
+        model_parallel (bool): Enables FairScale tensor model parallelism for projections.
     """
 
     def __init__(
@@ -172,15 +213,16 @@ class TransformerEncoderV2(NetArch):
         stem_act: str = "silu",
         stem_dropout_rate: float = 0.1,
         short_name: Optional[str] = None,
-        att_type: TransformerV2AttType = TransformerV2AttType.SDP,
+        att_type: TransformerV2AttType = TransformerV2AttType.TORCH_SDP,
         encb_repeats: List[int] = 4 * [3],
         hidden_dims: List[int] = 4 * [768],
         num_heads: int = 12,
         num_kv_heads: Optional[int] = None,
         att_dropout_rate: float = 0.0,
         att_bias: bool = False,
+        att_sliding_window: Optional[int] = None,
         ff_type: TransformerV2FeedForwardType = TransformerV2FeedForwardType.MLP,
-        ff_dim_multiplier: int = 4,
+        ff_dim_multiplier: float = 4,
         ff_multiple_of: int = 256,
         ff_kernel_sizes: List[int] = [7],
         ff_dilations: List[int] = [1],
@@ -198,8 +240,8 @@ class TransformerEncoderV2(NetArch):
         drop_path_rate: float = 0.0,
         norm_layer: TransformerV2NormLayerType = TransformerV2NormLayerType.LAYERNORM,
         norm_eps: float = 1e-5,
-        use_cache: bool = False,
         is_causal: bool = False,
+        sdp_backend: SDPBackendType = SDPBackendType.default(),
         multilayer: bool = False,
         multilayer_concat: bool = False,
         endpoint_channels: Optional[int] = None,
@@ -207,6 +249,53 @@ class TransformerEncoderV2(NetArch):
         endpoint_scale_layer: int = -1,
         model_parallel: bool = False,
     ):
+        """Instantiate a Transformer encoder with optional multi-scale aggregation.
+
+        Args:
+            in_feats (int): Dimensionality of the incoming feature frames.
+            stem_type (TransformerEncoderV2StemType, optional): Stem implementation to use. Defaults to ``CONV2D``.
+            stem_hidden_channels (List[int], optional): Channel widths for the stem convolutions. Defaults to ``[64, 128]``.
+            stem_kernel_sizes (List[int], optional): Kernel sizes for the stem convolutions. Defaults to ``[5, 3]``.
+            stem_strides (List[int], optional): Strides for the stem convolutions. Defaults to ``[1, 2]``.
+            stem_act (str, optional): Activation applied inside the stem block. Defaults to ``"silu"``.
+            stem_dropout_rate (float, optional): Dropout probability applied after the stem. Defaults to ``0.1``.
+            short_name (Optional[str], optional): Optional preset identifier overriding key hyper-parameters. Defaults to ``None``.
+            att_type (TransformerV2AttType, optional): Attention implementation to instantiate. Defaults to ``TORCH_SDP``.
+            encb_repeats (List[int], optional): Transformer layer counts per encoder stage. Defaults to ``[3, 3, 3, 3]``.
+            hidden_dims (List[int], optional): Hidden sizes per encoder stage. Defaults to ``[768, 768, 768, 768]``.
+            num_heads (int, optional): Number of attention heads. Defaults to ``12``.
+            num_kv_heads (Optional[int], optional): Number of key/value heads for grouped-query attention. Defaults to ``None``.
+            att_dropout_rate (float, optional): Attention dropout probability. Defaults to ``0.0``.
+            att_bias (bool, optional): Whether attention projections include biases. Defaults to ``False``.
+            att_sliding_window (Optional[int], optional): Sliding-window size for local attention. Defaults to ``None``.
+            ff_type (TransformerV2FeedForwardType, optional): Feed-forward module implementation. Defaults to ``MLP``.
+            ff_dim_multiplier (float, optional): Scales ``hidden_dim`` to obtain the feed-forward width. Defaults to ``4``.
+            ff_multiple_of (int, optional): Rounds the feed-forward width to a multiple. Defaults to ``256``.
+            ff_kernel_sizes (List[int], optional): Kernel sizes for convolutional feed-forward blocks. Defaults to ``[7]``.
+            ff_dilations (List[int], optional): Dilations for convolutional feed-forward blocks. Defaults to ``[1]``.
+            ff_act (str, optional): Activation applied inside feed-forward modules. Defaults to ``"silu"``.
+            ff_bias (bool, optional): Whether feed-forward projections include biases. Defaults to ``False``.
+            downb_strides (List[int], optional): Strides for inter-stage downsampling blocks. Defaults to ``[1]``.
+            rope_theta (float, optional): Base theta parameter for rotary positional embeddings. Defaults to ``50000``.
+            rope_scale_freqs (bool, optional): Whether to scale RoPE frequencies beyond the training context. Defaults to ``True``.
+            rope_update_max_seq_length (bool, optional): Whether to update the cached RoPE maximum sequence length. Defaults to ``True``.
+            rope_original_max_seq_length (Optional[int], optional): Manual override for the original RoPE maximum sequence length. Defaults to ``None``.
+            rope_scaling_factor (float, optional): Global scaling factor for RoPE. Defaults to ``8``.
+            rope_low_freq_factor (float, optional): Wavelength threshold exempt from RoPE scaling. Defaults to ``1``.
+            rope_high_freq_factor (float, optional): Wavelength threshold subject to full RoPE scaling. Defaults to ``4``.
+            out_feats (Optional[int], optional): Output projection size; if ``None`` the projection is skipped. Defaults to ``None``.
+            drop_path_rate (float, optional): Stochastic depth rate across transformer layers. Defaults to ``0.0``.
+            norm_layer (TransformerV2NormLayerType, optional): Normalization layer family. Defaults to ``LAYERNORM``.
+            norm_eps (float, optional): Epsilon used in normalization layers. Defaults to ``1e-5``.
+            is_causal (bool, optional): Whether to apply causal masking inside attention. Defaults to ``False``.
+            sdp_backend (SDPBackendType, optional): Preferred PyTorch scaled dot-product backend. Defaults to ``SDPBackendType.default()``.
+            multilayer (bool, optional): Enables multi-layer feature aggregation (MFA). Defaults to ``False``.
+            multilayer_concat (bool, optional): If ``True``, MFA concatenates endpoints before projection. Defaults to ``False``.
+            endpoint_channels (Optional[int], optional): Target channel width for MFA endpoints. Defaults to ``None``.
+            endpoint_layers (Optional[List[int]], optional): Stage indices exported as MFA endpoints. Defaults to ``None``.
+            endpoint_scale_layer (int, optional): Stage index defining the temporal resolution for MFA. Defaults to ``-1``.
+            model_parallel (bool, optional): Enables FairScale tensor model-parallel linear layers. Defaults to ``False``.
+        """
         super().__init__()
         self.in_feats = in_feats
         self.stem_type = stem_type
@@ -266,8 +355,9 @@ class TransformerEncoderV2(NetArch):
         self.norm_eps = norm_eps
         self._norm_layer = TransformerV2NormLayerType.to_class(norm_layer)
 
-        self.use_cache = use_cache
         self.is_causal = is_causal
+        self.att_sliding_window = att_sliding_window
+        self.sdp_backend = sdp_backend
 
         self.rope_theta = rope_theta
         self.rope_scale_freqs = rope_scale_freqs
@@ -352,11 +442,10 @@ class TransformerEncoderV2(NetArch):
                     att_bias=self.att_bias,
                     rope=self.rope,
                     is_causal=self.is_causal,
+                    att_sliding_window=self.att_sliding_window,
+                    sdp_backend=self.sdp_backend,
                     norm_layer=self._norm_layer,
                     norm_eps=self.norm_eps,
-                    use_cache=self.use_cache,
-                    # max_batch_size=self.max_batch_size,
-                    # max_seq_length=max_seq_length,
                     drop_path_rate=drop_rates[count],
                     model_parallel=model_parallel,
                 )
@@ -548,12 +637,68 @@ class TransformerEncoderV2(NetArch):
 
         return x
 
+    def init_state(
+        self,
+        batch_size: int,
+        max_cache_length: int,
+        device: Optional[torch.device] = None,
+        dtype: Optional[torch.dtype] = None,
+    ) -> TransformerEncoderState:
+        """Initialize the per-block caches used for streaming inference.
+
+        Args:
+            batch_size (int): Maximum batch size supported by the cache buffers.
+            max_cache_length (int): Maximum number of time steps stored before the first transformer block.
+            device (Optional[torch.device]): Device on which to allocate the caches.
+            dtype (Optional[torch.dtype]): Tensor dtype for the caches.
+
+        Returns:
+            TransformerEncoderState: Container with one cache entry per transformer block.
+        """
+
+        block_states: List[TransformerBlockState] = []
+        current_cache_length = max_cache_length
+
+        for i, blocks in enumerate(self.trans_blocks):
+            if i > 0:
+                stride = self.downb_strides[i - 1]
+                if stride > 1:
+                    current_cache_length = max(
+                        1, int(math.ceil(current_cache_length / stride))
+                    )
+            for block in blocks:
+                block_state = block.init_state(
+                    batch_size=batch_size,
+                    max_cache_length=current_cache_length,
+                    device=device,
+                    dtype=dtype,
+                )
+                block_states.append(TransformerBlockState(self_att=block_state))
+
+        return TransformerEncoderState(block_states=block_states)
+
     def forward(
         self,
         x: torch.Tensor,
         x_lengths: Optional[torch.Tensor] = None,
         start_pos: int = 0,
-    ):
+        state: Optional[TransformerEncoderState] = None,
+    ) -> Union[
+        Tuple[torch.Tensor, Optional[torch.Tensor]],
+        Tuple[torch.Tensor, Optional[torch.Tensor], TransformerEncoderState],
+    ]:
+        """Encode input features through the transformer stack with optional cache updates.
+
+        Args:
+            x (torch.Tensor): Input tensor shaped `(batch, time, features)`.
+            x_lengths (Optional[torch.Tensor]): Valid lengths for each sequence.
+            start_pos (int, optional): Global starting position used when writing into caches.
+            state (Optional[TransformerEncoderState]): Optional cache state returned by :meth:`init_state`.
+
+        Returns:
+            Either `(output, output_lengths)` when `state` is ``None`` or
+            `(output, output_lengths, new_state)` when cache updates are requested.
+        """
 
         x_mask = None
         max_length = x.size(-1)
@@ -564,6 +709,12 @@ class TransformerEncoderV2(NetArch):
         endpoints = []
         if not torch.all(torch.isfinite(x)):
             logging.warning("non-finite x-stem-avg=%f", torch.mean(x))
+
+        updated_states: List[TransformerBlockState] = []
+        state_blocks = (
+            state.block_states if state is not None else [None] * sum(self.encb_repeats)
+        )
+        block_idx = 0
 
         for i in range(self.num_superblocks):
             # downsample if needed and recalculate lengths
@@ -579,7 +730,26 @@ class TransformerEncoderV2(NetArch):
                     start_pos = start_pos // stride_i
 
             for j in range(self.encb_repeats[i]):
-                x = self.trans_blocks[i][j](x, x_mask=x_mask, start_pos=start_pos)
+                current_state = (
+                    state_blocks[block_idx].self_att if state is not None else None
+                )
+                block = self.trans_blocks[i][j]
+                att_out = block(
+                    x,
+                    x_mask=x_mask,
+                    start_pos=start_pos,
+                    state=current_state,
+                )
+
+                if state is not None:
+                    x, new_block_state = att_out
+                    updated_states.append(
+                        TransformerBlockState(self_att=new_block_state)
+                    )
+                else:
+                    x = att_out
+
+                block_idx += 1
                 if not torch.all(torch.isfinite(x)):
                     logging.warning(
                         "non-finite x-enc-%d-%d-avg=%f", i, j, torch.mean(x)
@@ -607,6 +777,8 @@ class TransformerEncoderV2(NetArch):
         )
         if not torch.all(torch.isfinite(x)):
             logging.warning("non-finite x-out-%d-%d-avg=%f", i, j, torch.mean(x))
+        if state is not None:
+            return x, x_lengths, TransformerEncoderState(block_states=updated_states)
         return x, x_lengths
 
     def get_config(self):
@@ -646,8 +818,9 @@ class TransformerEncoderV2(NetArch):
             "drop_path_rate": self.drop_path_rate,
             "norm_layer": self.norm_layer,
             "norm_eps": self.norm_eps,
-            "use_cache": self.use_cache,
             "is_causal": self.is_causal,
+            "att_sliding_window": self.att_sliding_window,
+            "sdp_backend": self.sdp_backend,
             "multilayer": self.multilayer,
             "multilayer_concat": self.multilayer_concat,
             "endpoint_channels": self.endpoint_channels,
@@ -689,7 +862,7 @@ class TransformerEncoderV2(NetArch):
             parser = ArgumentParser(prog="")
 
         parser.add_argument(
-            "--in-feats", default=int, type=int, help="input features dimension"
+            "--in-feats", default=80, type=int, help="input features dimension"
         )
         parser.add_argument(
             "--stem-type",
@@ -735,9 +908,9 @@ class TransformerEncoderV2(NetArch):
         )
         parser.add_argument(
             "--att-type",
-            default=TransformerV2AttType.SDP.value,
+            default=TransformerV2AttType.TORCH_SDP.value,
             choices=TransformerV2AttType.choices(),
-            help="type of attention layer in [sdp, torch_sdp, flash_sdp]",
+            help="type of attention layer in [sdp, torch_sdp, hf_flash_sdp]",
         )
         parser.add_argument(
             "--encb-repeats",
@@ -780,7 +953,7 @@ class TransformerEncoderV2(NetArch):
         parser.add_argument(
             "--ff-dim-multiplier",
             default=4,
-            type=int,
+            type=float,
             help="number that multiplies the hidden dimension to get the inv. bottleneck dimension",
         )
         parser.add_argument(
@@ -867,7 +1040,7 @@ class TransformerEncoderV2(NetArch):
         parser.add_argument(
             "--norm-layer",
             default=TransformerV2NormLayerType.LAYERNORM.value,
-            type=str,
+            choices=TransformerV2NormLayerType.choices(),
             help="type of norm layer in [layer-norm, rms-norm]",
         )
         parser.add_argument(
@@ -884,6 +1057,18 @@ class TransformerEncoderV2(NetArch):
             default=False,
             action=ActionYesNo,
             help="attention mask is causal",
+        )
+        parser.add_argument(
+            "--att-sliding-window",
+            default=None,
+            type=int,
+            help="sliding window size for attention when using local attention",
+        )
+        parser.add_argument(
+            "--sdp-backend",
+            default=SDPBackendType.default().value,
+            choices=SDPBackendType.choices(),
+            help="backend to use for native torch scaled dot product attention",
         )
         parser.add_argument(
             "--model-parallel",
@@ -919,7 +1104,7 @@ class TransformerEncoderV2(NetArch):
             nargs="+",
             type=int,
             help=(
-                "layers to aggreagate in mfa, "
+                "layers to aggregate in mfa, "
                 "if None, all residual blocks are aggregated"
             ),
         )

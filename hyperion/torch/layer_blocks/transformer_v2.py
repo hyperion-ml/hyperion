@@ -1,10 +1,10 @@
 """
- Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2024 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 from enum import Enum
-from typing import List, Optional, Tuple, Type, Union
+from typing import Dict, List, Optional, Tuple, Type, Union
 
 import fairscale.nn.model_parallel.initialize as fs_init
 import torch
@@ -18,8 +18,9 @@ from fairscale.nn.model_parallel.layers import (
 from ..layers import ActivationFactory as AF
 from ..layers import DropPath1d, GRN1d, Interpolate, RMSNorm
 from ..layers.attention_v2 import (
-    FlashScaledDotProdAttV2,
+    HFFlashScaledDotProdAttV2,
     ScaledDotProdAttV2,
+    SDPBackendType,
     TorchScaledDotProdAttV2,
 )
 from ..layers.pos_encoder import RotaryPosEncoder
@@ -31,11 +32,13 @@ class TransformerEncoderV2StemType(str, Enum):
     CONV2D = "conv2d"
 
     @staticmethod
-    def choices():
+    def choices() -> List[str]:
+        """Return the list of supported stem block identifiers."""
         return [o.value for o in TransformerEncoderV2StemType]
 
     @staticmethod
-    def to_class(value):
+    def to_class(value: "TransformerEncoderV2StemType") -> Type[nn.Module]:
+        """Map a stem type identifier to the corresponding implementation."""
         # stem block
         if value == TransformerEncoderV2StemType.CONV1D:
             stem_class = TransfomerV2Conv1dStemBlock
@@ -52,11 +55,13 @@ class TransformerV2NormLayerType(str, Enum):
     RMSNORM = "rms-norm"
 
     @staticmethod
-    def choices():
+    def choices() -> List[str]:
+        """Return the list of supported normalization layer identifiers."""
         return [o.value for o in TransformerV2NormLayerType]
 
     @staticmethod
-    def to_class(value):
+    def to_class(value: Optional["TransformerV2NormLayerType"]) -> Type[nn.Module]:
+        """Map a normalization identifier to the corresponding module class."""
         if value is None or value == TransformerV2NormLayerType.LAYERNORM:
             return nn.LayerNorm
         elif value == TransformerV2NormLayerType.RMSNORM:
@@ -68,20 +73,22 @@ class TransformerV2NormLayerType(str, Enum):
 class TransformerV2AttType(str, Enum):
     SDP = "sdp"
     TORCH_SDP = "torch_sdp"
-    FLASH_SDP = "flash_sdp"
+    HF_FLASH_SDP = "hf_flash_sdp"
 
     @staticmethod
-    def choices():
+    def choices() -> List[str]:
+        """Return the list of supported attention backend identifiers."""
         return [o.value for o in TransformerV2AttType]
 
     @staticmethod
-    def to_class(value):
+    def to_class(value: "TransformerV2AttType") -> Type[ScaledDotProdAttV2]:
+        """Map an attention identifier to the concrete attention module."""
         if value == TransformerV2AttType.SDP:
             return ScaledDotProdAttV2
         elif value == TransformerV2AttType.TORCH_SDP:
             return TorchScaledDotProdAttV2
-        elif value == TransformerV2AttType.FLASH_SDP:
-            return FlashScaledDotProdAttV2
+        elif value == TransformerV2AttType.HF_FLASH_SDP:
+            return HFFlashScaledDotProdAttV2
         else:
             raise ValueError(f"invalid {value=}")
 
@@ -91,11 +98,13 @@ class TransformerV2FeedForwardType(str, Enum):
     CONVNEXT = "convnext"
 
     @staticmethod
-    def choices():
+    def choices() -> List[str]:
+        """Return the list of supported feed-forward block identifiers."""
         return [o.value for o in TransformerV2FeedForwardType]
 
     @staticmethod
-    def to_class(value):
+    def to_class(value: "TransformerV2FeedForwardType") -> Type[nn.Module]:
+        """Map a feed-forward identifier to the corresponding block class."""
         if value == TransformerV2FeedForwardType.MLP:
             return TransformerV2MLPBlock
         elif value == TransformerV2FeedForwardType.CONVNEXT:
@@ -105,16 +114,14 @@ class TransformerV2FeedForwardType(str, Enum):
 
 
 class Conv2dStemLayer(nn.Module):
-    """Conv2d layer for 2d stem
+    """Two-dimensional convolutional stem used by transformer front-ends.
 
-    Args:
-      in_channels: input channels
-      out_channels: output channels
-      kernel_size: kernel size of the convolution
-      stride: stride of the convolution
-      activation: activation function string
-      norm_layer: normalization layer constructor, if None, LayerNorm is used.
-      bias: convolution has bias
+    Attributes:
+        conv (nn.Conv2d): Convolution applied to the input spectrogram frames.
+        norm (nn.Module): Normalization layer applied channel-wise after the convolution.
+        act (nn.Module): Activation function applied after normalization.
+        context (int): Effective look-back/look-ahead context introduced by the convolution.
+        stride (int): Downsampling factor applied along the time axis.
     """
 
     def __init__(
@@ -128,6 +135,18 @@ class Conv2dStemLayer(nn.Module):
         bias: bool = True,
         norm_eps: float = 1e-5,
     ):
+        """Initialize the 2-D convolutional stem layer.
+
+        Args:
+            in_channels (int): Number of channels expected in the input tensor.
+            out_channels (int): Number of channels produced by the convolution.
+            kernel_size (int): Size of the temporal kernel; automatically clamped to at least ``stride``.
+            stride (int): Temporal stride applied by the convolution.
+            activation (str): Name of the activation function created through :class:`ActivationFactory`.
+            norm_layer (Type[nn.Module]): Normalization layer constructor applied after the convolution.
+            bias (bool, optional): Whether to include a bias term in the convolution. Defaults to ``True``.
+            norm_eps (float, optional): Epsilon passed to the normalization layer. Defaults to ``1e-5``.
+        """
         super().__init__()
 
         kernel_size = max(kernel_size, stride)
@@ -145,23 +164,29 @@ class Conv2dStemLayer(nn.Module):
         self.context = (kernel_size - 1) // 2
         self.stride = stride
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Apply convolution → normalization → activation to 2-D inputs.
+
+        Args:
+            x (torch.Tensor): Input tensor with shape ``(batch, channels, freq, time)``.
+
+        Returns:
+            torch.Tensor: Tensor with the same shape as ``x`` after convolution, normalization, and activation.
+        """
         x = self.conv(x)
         x = self.act(self.norm(x.permute(0, 2, 3, 1)))
         return x.permute(0, 3, 1, 2)  # .contiguous()
 
 
 class Conv1dStemLayer(nn.Module):
-    """Conv1d layer for 1d stem
+    """One-dimensional convolutional stem for sequence inputs.
 
-    Args:
-      in_channels: input channels
-      out_channels: output channels
-      kernel_size: kernel size of the convolution
-      stride: stride of the convolution
-      activation: activation function string
-      norm_layer: normalization layer constructor, if None, LayerNorm is used.
-      bias: convolution has bias
+    Attributes:
+        conv (nn.Conv1d): Convolution applied along the temporal dimension.
+        norm (nn.Module): Normalization layer applied after convolution.
+        act (nn.Module): Activation function applied after normalization.
+        context (int): Effective receptive field introduced by the convolution.
+        stride (int): Temporal downsampling factor applied by the convolution.
     """
 
     def __init__(
@@ -175,6 +200,18 @@ class Conv1dStemLayer(nn.Module):
         bias: bool = True,
         norm_eps: float = 1e-5,
     ):
+        """Initialize the 1-D convolutional stem layer.
+
+        Args:
+            in_channels (int): Number of channels expected in the input tensor.
+            out_channels (int): Number of channels produced by the convolution.
+            kernel_size (int): Temporal kernel size; automatically clamped to at least ``stride``.
+            stride (int): Temporal stride applied by the convolution.
+            activation (str): Name of the activation function created through :class:`ActivationFactory`.
+            norm_layer (Type[nn.Module]): Normalization layer constructor applied after the convolution.
+            bias (bool, optional): Whether to include a bias term in the convolution. Defaults to ``True``.
+            norm_eps (float, optional): Epsilon passed to the normalization layer. Defaults to ``1e-5``.
+        """
         super().__init__()
 
         kernel_size = max(kernel_size, stride)
@@ -192,25 +229,30 @@ class Conv1dStemLayer(nn.Module):
         self.context = (kernel_size - 1) // 2
         self.stride = stride
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Apply convolution → normalization → activation to 1-D inputs.
+
+        Args:
+            x (torch.Tensor): Input tensor with shape ``(batch, channels, time)``.
+
+        Returns:
+            torch.Tensor: Tensor with the same shape as ``x`` after convolution, normalization, and activation.
+        """
         x = self.conv(x)
         x = self.act(self.norm(x.permute(0, 2, 1)))
         return x.permute(0, 2, 1)  # .contiguous()
 
 
 class TransfomerV2Conv2dStemBlock(nn.Module):
-    """ConvNext-v2 2d input block
+    """ConvNeXt-V2 inspired stem for 2-D feature inputs.
 
-    Args:
-      in_feats: input channels
-      out_feats: output channels
-      hidden_channels: channels of the convolutions
-      kernel_sizes: kernel sizes of the convolutions
-      strides: stride of the convolution
-      activation: activation function string
-      norm_layer: normalization layer constructor, if None, LayerNorm is used.
-      norm_eps: epsilon for norm layer
-      dropout_rate: dropout probility
+    Attributes:
+        conv_layers (nn.Sequential): Stack of convolutional stem layers.
+        norm_layer (nn.Module): Normalization applied after flattening spatial dimensions.
+        projection (nn.Linear): Linear projection mapping flattened features to ``out_feats``.
+        dropout (nn.Dropout): Dropout applied to the projected features.
+        context (int): Total receptive field introduced by the stem.
+        downsample_factor (int): Overall temporal downsampling factor produced by the stem.
     """
 
     def __init__(
@@ -225,6 +267,19 @@ class TransfomerV2Conv2dStemBlock(nn.Module):
         norm_eps: float = 1e-5,
         dropout_rate: float = 0.1,
     ):
+        """Construct the multi-layer 2-D convolutional stem.
+
+        Args:
+            in_feats (int): Incoming feature dimension per frame.
+            out_feats (int): Output feature dimension after projection.
+            hidden_channels (List[int], optional): Channel widths for each intermediate convolution.
+            kernel_sizes (List[int], optional): Kernel sizes for each convolutional layer.
+            strides (List[int], optional): Temporal strides for each convolutional layer.
+            activation (str, optional): Activation identifier passed to :class:`ActivationFactory`. Defaults to ``"silu"``.
+            norm_layer (Optional[Type[nn.Module]], optional): Normalization constructor; :class:`nn.LayerNorm` if ``None``.
+            norm_eps (float, optional): Epsilon provided to the normalization layers. Defaults to ``1e-5``.
+            dropout_rate (float, optional): Dropout probability applied after the output projection. Defaults to ``0.1``.
+        """
         super().__init__()
         if norm_layer is None:
             norm_layer = nn.LayerNorm
@@ -273,7 +328,19 @@ class TransfomerV2Conv2dStemBlock(nn.Module):
         self.projection = nn.Linear(feat_dim * hidden_channels[-1], out_feats)
         self.dropout = nn.Dropout(dropout_rate)
 
-    def forward(self, x: torch.Tensor, x_lengths: torch.Tensor = None):
+    def forward(
+        self, x: torch.Tensor, x_lengths: Optional[torch.Tensor] = None
+    ) -> Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
+        """Encode 2-D features and return normalized and projected outputs.
+
+        Args:
+            x (torch.Tensor): Input tensor shaped ``(batch, time, features)``.
+            x_lengths (Optional[torch.Tensor]): Valid lengths for each sequence.
+
+        Returns:
+            Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]]: Tuple containing the stem output,
+            the projected features, and the updated sequence lengths.
+        """
         bs, t_in, f_in = x.size()
         x = x.view(bs, 1, t_in, f_in).permute(0, 1, 3, 2).contiguous()
         x = self.conv_layers(x)
@@ -294,18 +361,15 @@ class TransfomerV2Conv2dStemBlock(nn.Module):
 
 
 class TransfomerV2Conv1dStemBlock(nn.Module):
-    """Conv 1d input block
+    """One-dimensional convolutional stem for waveform or feature sequences.
 
-    Args:
-      in_feats: input channels
-      out_feats: output channels
-      hidden_channels: channels of the convolutions
-      kernel_sizes: kernel sizes of the convolutions
-      strides: stride of the convolution
-      activation: activation function string
-      norm_layer: normalization layer constructor, if None, LayerNorm is used.
-      norm_eps: epsilon for norm layer
-      dropout_rate: dropout probility
+    Attributes:
+        conv_layers (nn.Sequential): Stack of convolutional stem layers.
+        norm_layer (nn.Module): Normalization applied after the stem convolutions.
+        projection (nn.Linear): Linear projection mapping features to ``out_feats``.
+        dropout (nn.Dropout): Dropout applied to the projected features.
+        context (int): Total receptive field introduced by the stem.
+        downsample_factor (int): Recorded cumulative downsampling factor of the stem.
     """
 
     def __init__(
@@ -320,6 +384,19 @@ class TransfomerV2Conv1dStemBlock(nn.Module):
         norm_eps: float = 1e-5,
         dropout_rate: float = 0.1,
     ):
+        """Construct the multi-layer 1-D convolutional stem.
+
+        Args:
+            in_feats (int): Number of input channels in the sequence.
+            out_feats (int): Number of channels produced by the final projection.
+            hidden_channels (List[int], optional): Channel widths for each intermediate convolution.
+            kernel_sizes (List[int], optional): Kernel sizes for the convolutional layers.
+            strides (List[int], optional): Strides applied by each convolutional layer.
+            activation (str, optional): Activation identifier forwarded to :class:`ActivationFactory`. Defaults to ``"silu"``.
+            norm_layer (Optional[Type[nn.Module]], optional): Normalization constructor; :class:`nn.LayerNorm` if ``None``.
+            norm_eps (float, optional): Epsilon provided to the normalization layers. Defaults to ``1e-5``.
+            dropout_rate (float, optional): Dropout probability applied after the output projection. Defaults to ``0.1``.
+        """
         super().__init__()
         if norm_layer is None:
             norm_layer = nn.LayerNorm
@@ -342,7 +419,7 @@ class TransfomerV2Conv1dStemBlock(nn.Module):
         conv_layers = [conv_i]
 
         self.context = conv_i.context
-        self.dowsample_factor = strides[0]
+        self.downsample_factor = strides[0]
         for i in range(1, len(hidden_channels)):
             conv_i = Conv1dStemLayer(
                 hidden_channels[i - 1],
@@ -356,14 +433,26 @@ class TransfomerV2Conv1dStemBlock(nn.Module):
             )
             conv_layers.append(conv_i)
             self.context += conv_i.context * self.downsample_factor
-            self.dowsample_factor *= strides[i]
+            self.downsample_factor *= strides[i]
 
         self.conv_layers = nn.Sequential(conv_layers)
         self.norm_layer = norm_layer(hidden_channels[-1], eps=norm_eps)
         self.projection = nn.Linear(hidden_channels[-1], out_feats)
         self.dropout = nn.Dropout(dropout_rate)
 
-    def forward(self, x: torch.Tensor, x_lengths: torch.Tensor = None):
+    def forward(
+        self, x: torch.Tensor, x_lengths: Optional[torch.Tensor] = None
+    ) -> Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
+        """Encode 1-D features and return normalized and projected outputs.
+
+        Args:
+            x (torch.Tensor): Input tensor shaped `(batch, time, channels)`.
+            x_lengths (Optional[torch.Tensor]): Valid lengths for each sequence.
+
+        Returns:
+            Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]]: Tuple containing the stem output,
+            the projected features, and the updated sequence lengths.
+        """
         bs, t_in, c = x.size()
         x = x.permute(0, 2, 1).contiguous()
         x = self.conv_layers(x)
@@ -383,16 +472,14 @@ class TransfomerV2Conv1dStemBlock(nn.Module):
 
 
 class TransformerV2MLPBlock(nn.Module):
-    """MLP Block with 1d convolutions to use as
-    a replacement for feed forward layer in transformer
+    """Gated feed-forward network used within the transformer blocks.
 
-    Args:
-        num_channels (int): Number of input channels.
-        kernel_size: kernel size
-        dilation: dilation factor of convolution
-        activation: activation function name or object
-        norm_layer: normalization layer constructor, if None, LayerNorm is used.
-        drop_path_rate (float): Stochastic depth rate. Default: 0.0
+    Attributes:
+        gate_proj (nn.Module): Projection whose output is gated by the activation.
+        up_proj (nn.Module): Parallel projection combined with ``gate_proj`` to build the gated product.
+        down_proj (nn.Module): Projection returning activations to ``hidden_dim``.
+        act (nn.Module): Activation applied to the gated branch.
+        context (int): Effective receptive field size (``1`` for point-wise operations).
     """
 
     def __init__(
@@ -405,6 +492,17 @@ class TransformerV2MLPBlock(nn.Module):
         model_parallel: bool = False,
         **kwargs,
     ):
+        """Initialize the gated MLP block.
+
+        Args:
+            hidden_dim (int): Dimension of the incoming feature vectors.
+            intermediate_dim (int): Target width of the intermediate projections before rounding.
+            activation (Union[str, nn.Module], optional): Activation applied to the gated branch. Defaults to ``"silu"``.
+            ff_bias (bool, optional): Whether linear layers include bias terms. Defaults to ``False``.
+            ff_multiple_of (int, optional): Rounds ``intermediate_dim`` up to the nearest multiple. Defaults to ``256``.
+            model_parallel (bool, optional): If ``True``, uses tensor model-parallel linear layers. Defaults to ``False``.
+            **kwargs: Ignored keyword arguments kept for API compatibility.
+        """
         super().__init__()
         # mimics LLama 3 readjustemnt of intermediate_dim
         intermediate_dim = ff_multiple_of * (
@@ -450,21 +548,33 @@ class TransformerV2MLPBlock(nn.Module):
         self.act = AF.create(activation)
         self.context = 1
 
-    def forward(self, x: torch.Tensor, x_mask: Optional[torch.Tensor] = None):
+    def forward(
+        self, x: torch.Tensor, x_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        """Apply the gated MLP to the input sequence.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape `(batch, time, hidden_dim)`.
+            x_mask (Optional[torch.Tensor]): Unused placeholder for API symmetry.
+
+        Returns:
+            torch.Tensor: Projected tensor with shape `(batch, time, hidden_dim)`.
+        """
         return self.down_proj(self.act(self.gate_proj(x)) * self.up_proj(x))
 
 
 class TransformerV2ConvNextBlock(nn.Module):
-    """ConvNeXtV2 Block with 1d convolutions to use as
-    a replacement for feed forward layer in transformer
+    """ConvNeXt-V2 style depthwise block used as a transformer feed-forward module.
 
-    Args:
-        num_channels (int): Number of input channels.
-        kernel_size: kernel size
-        dilation: dilation factor of convolution
-        activation: activation function name or object
-        norm_layer: normalization layer constructor, if None, LayerNorm is used.
-        drop_path_rate (float): Stochastic depth rate. Default: 0.0
+    Attributes:
+        dwconv (nn.Conv1d): Depthwise convolution applied along the temporal dimension.
+        norm (nn.Module): Normalization layer applied after the depthwise convolution.
+        gate_proj (nn.Linear): Projection used in the gated branch.
+        up_proj (nn.Linear): Projection combined with ``gate_proj`` to form the gated activations.
+        down_proj (nn.Linear): Projection returning activations to ``hidden_dim``.
+        act (nn.Module): Activation function applied to the gated branch.
+        grn (GRN1d): Global response normalization applied to the intermediate representation.
+        context (int): Effective receptive field contributed by the depthwise convolution.
     """
 
     def __init__(
@@ -479,6 +589,19 @@ class TransformerV2ConvNextBlock(nn.Module):
         ff_multiple_of: int = 256,
         model_parallel: bool = False,
     ):
+        """Initialize the ConvNeXt-style feed-forward block.
+
+        Args:
+            hidden_dim (int): Dimension of the incoming sequence representation.
+            intermediate_dim (int): Target width of the intermediate projections before rounding.
+            kernel_size (int, optional): Depthwise convolution kernel size. Defaults to ``7``.
+            dilation (int, optional): Dilation applied to the depthwise kernel. Defaults to ``1``.
+            activation (Union[str, nn.Module], optional): Activation applied to the gated branch. Defaults to ``"silu"``.
+            norm_layer (Optional[Type[nn.Module]], optional): Normalization constructor; :class:`nn.LayerNorm` if ``None``.
+            ff_bias (bool, optional): Whether linear projections include bias terms. Defaults to ``False``.
+            ff_multiple_of (int, optional): Rounds ``intermediate_dim`` up to the nearest multiple. Defaults to ``256``.
+            model_parallel (bool, optional): Placeholder for parity with :class:`TransformerV2MLPBlock`; must be ``False``.
+        """
         super().__init__()
         assert model_parallel is False
         # mimics LLama 3 readjustemnt of intermediate_dim
@@ -518,7 +641,18 @@ class TransformerV2ConvNextBlock(nn.Module):
         self.grn = GRN1d(intermediate_dim, channels_last=True)
         self.context = padding
 
-    def forward(self, x: torch.Tensor, x_mask: Optional[torch.Tensor] = None):
+    def forward(
+        self, x: torch.Tensor, x_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        """Apply ConvNeXt-style depthwise convolution and gated projection.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape ``(batch, time, hidden_dim)``.
+            x_mask (Optional[torch.Tensor]): Optional mask passed to :class:`GRN1d`.
+
+        Returns:
+            torch.Tensor: Tensor with shape ``(batch, time, hidden_dim)`` after the ConvNeXt transformation.
+        """
         # input = x
         x = x.permute(0, 2, 1).contiguous()  # (N, T, C) -> (N, C, T)
         x = self.dwconv(x)
@@ -531,30 +665,34 @@ class TransformerV2ConvNextBlock(nn.Module):
 
 
 class TransformerV2ConvEndpoint(nn.Module):
-    """Class that connects the ouputs of the Transformer to the rest of the network
-        when using multilevel feature aggregation.
-
-        It converts the features of all the levels that we are going to aggregate
-        to the same temporal scale.
+    """Resample transformer features to a shared temporal scale for aggregation.
 
     Attributes:
-      in_channels:       input channels.
-      out_channels:      output channels.
-      in_scale:          resolution scale of the input feature maps.
-      out_scale:         resolution scale of the output feature maps.
-      norm_layer:        normalization layer constructor, if None BatchNorm1d is used.
-
+        in_channels (int): Number of channels received from the transformer layer.
+        out_channels (int): Number of channels produced after resampling.
+        rel_scale (float): Ratio between input and output temporal resolutions.
+        norm (nn.Module): Normalization layer applied before resampling.
+        resample (nn.Module): Module performing the up/down-sampling operation.
     """
 
     def __init__(
         self,
-        in_channels,
-        out_channels,
-        in_scale,
-        out_scale,
-        norm_layer=None,
+        in_channels: int,
+        out_channels: int,
+        in_scale: int,
+        out_scale: int,
+        norm_layer: Optional[Type[nn.Module]] = None,
     ):
 
+        """Create the resampling endpoint used for multiscale aggregation.
+
+        Args:
+            in_channels (int): Number of channels provided by the transformer layer.
+            out_channels (int): Number of channels produced after resampling.
+            in_scale (int): Temporal resolution of the incoming features.
+            out_scale (int): Target temporal resolution for the resampled features.
+            norm_layer (Optional[Type[nn.Module]], optional): Normalization constructor; :class:`nn.LayerNorm` if ``None``.
+        """
         super().__init__()
         if norm_layer is None:
             norm_layer = nn.LayerNorm
@@ -574,7 +712,9 @@ class TransformerV2ConvEndpoint(nn.Module):
             )
 
     @staticmethod
-    def _make_downsample(in_channels, out_channels, stride):
+    def _make_downsample(
+        in_channels: int, out_channels: int, stride: int
+    ) -> nn.Sequential:
 
         if stride % 2 == 0:
             first_stride = 2
@@ -606,22 +746,26 @@ class TransformerV2ConvEndpoint(nn.Module):
         return nn.Sequential(*layers)
 
     @staticmethod
-    def _make_upsample(in_channels, out_channels, stride):
+    def _make_upsample(
+        in_channels: int, out_channels: int, stride: int
+    ) -> nn.Sequential:
         layers = [
             nn.Conv1d(in_channels, out_channels, kernel_size=1, stride=1, bias=True)
         ]
         layers.append(Interpolate(scale_factor=stride, mode="nearest"))
         return nn.Sequential(*layers)
 
-    def forward(self, x, x_mask=None):
-        """Forward function.
+    def forward(
+        self, x: torch.Tensor, x_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        """Resample the input sequence to the target temporal scale.
 
         Args:
-          x: input tensor with shape = (batch, in_time, in_channels).
-          x_mask: unused.
+            x (torch.Tensor): Input tensor with shape ``(batch, time, in_channels)``.
+            x_mask (Optional[torch.Tensor]): Unused; present for API symmetry.
 
         Returns:
-          Tensor with shape = (batch, out_channels, out_time).
+            torch.Tensor: Tensor with shape ``(batch, out_time, out_channels)``.
         """
         x = self.norm(x).permute(0, 2, 1).contiguous()
         x = self.resample(x).permute(0, 2, 1).contiguous()
@@ -629,14 +773,13 @@ class TransformerV2ConvEndpoint(nn.Module):
 
 
 class TransformerV2ConvDownsampleBlock(nn.Module):
-    """ConvNext-v2 1d downsample block
+    """ConvNeXt-V2 style downsampling block for temporal features.
 
-    Args:
-      in_channels: input channels
-      out_channels: output channels
-      kernel_size: kernel size of the convolution
-      stride: stride of the convolution
-      norm_layer: normalization layer constructor, if None, LayerNorm is used.
+    Attributes:
+        norm (nn.Module): Normalization layer applied before downsampling.
+        conv (nn.Conv1d): Convolution performing the strided downsampling.
+        context (int): Additional temporal context introduced by the convolution.
+        stride (int): Downsampling factor applied along the time axis.
     """
 
     def __init__(
@@ -647,6 +790,15 @@ class TransformerV2ConvDownsampleBlock(nn.Module):
         stride: int = 2,
         norm_layer: Optional[Type[nn.Module]] = None,
     ):
+        """Initialize the downsampling block.
+
+        Args:
+            in_channels (int): Number of input channels before downsampling.
+            out_channels (int): Number of channels produced after the strided convolution.
+            kernel_size (int, optional): Convolution kernel size; at least ``stride``. Defaults to ``2``.
+            stride (int, optional): Temporal stride applied by the convolution. Defaults to ``2``.
+            norm_layer (Optional[Type[nn.Module]], optional): Normalization constructor; :class:`nn.LayerNorm` if ``None``.
+        """
         super().__init__()
         if norm_layer is None:
             norm_layer = nn.LayerNorm
@@ -664,12 +816,30 @@ class TransformerV2ConvDownsampleBlock(nn.Module):
         self.context = (kernel_size - 1) // 2
         self.stride = stride
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Downsample the temporal resolution via grouped convolution.
+
+        Args:
+            x (torch.Tensor): Input tensor with shape ``(batch, time, channels)``.
+
+        Returns:
+            torch.Tensor: Downsampled tensor with shape ``(batch, ceil(time / stride), out_channels)``.
+        """
         x = self.norm(x)
-        return self.conv(x.permute(0, 2, 1).contiguous()).permute(0, 2, 1).continuous()
+        return self.conv(x.permute(0, 2, 1).contiguous()).permute(0, 2, 1).contiguous()
 
 
 class TransformerV2SelfAttBlock(nn.Module):
+    """Transformer block comprising self-attention and feed-forward sublayers with optional caching.
+
+    Attributes:
+        attention (ScaledDotProdAttV2): Self-attention module handling rotary embeddings and caches.
+        feed_forward (nn.Module): Feed-forward stack applied after attention.
+        att_norm (nn.Module): Normalization layer applied before self-attention.
+        ff_norm (nn.Module): Normalization layer applied before the feed-forward stack.
+        drop_path (Optional[DropPath1d]): Stochastic depth module applied to the residual output.
+    """
+
     def __init__(
         self,
         att_type: TransformerV2AttType,
@@ -687,15 +857,38 @@ class TransformerV2SelfAttBlock(nn.Module):
         att_bias: bool = False,
         rope: Optional[RotaryPosEncoder] = None,
         is_causal: bool = False,
+        att_sliding_window: Optional[int] = None,
+        sdp_backend: SDPBackendType = SDPBackendType.default(),
         norm_layer: Optional[Type[nn.Module]] = None,
         drop_path_rate: float = 0.0,
         norm_eps: float = 1e-5,
-        use_cache: bool = False,
-        internal_cache: bool = True,
-        max_batch_size: int = 0,
-        max_seq_length: int = 0,
         model_parallel: bool = False,
     ):
+        """Configure the self-attention transformer block.
+
+        Args:
+            att_type (TransformerV2AttType): Attention implementation to instantiate.
+            ff_type (TransformerV2FeedForwardType): Feed-forward module implementation to instantiate.
+            num_feats (int): Hidden size of the block inputs.
+            num_heads (int): Number of attention heads for the query stream.
+            num_kv_heads (int): Number of key/value heads (may differ when using grouped attention).
+            ff_intermediate_feats (int): Feed-forward network width before projection.
+            ff_kernel_size (int): Kernel size for convolutional feed-forward variants.
+            ff_dilation (int): Dilation factor for convolutional feed-forward variants.
+            ff_activation (Union[str, nn.Module], optional): Feed-forward activation identifier. Defaults to ``"silu"``.
+            ff_bias (bool, optional): Whether feed-forward linear layers include bias terms. Defaults to ``False``.
+            ff_multiple_of (int, optional): Rounds ``ff_intermediate_feats`` up to the nearest multiple. Defaults to ``256``.
+            att_dropout_rate (float, optional): Dropout probability applied to attention weights. Defaults to ``0.0``.
+            att_bias (bool, optional): Whether attention projection layers include biases. Defaults to ``False``.
+            rope (Optional[RotaryPosEncoder], optional): Rotary position encoder applied to attention logits.
+            is_causal (bool, optional): If ``True``, enables causal masking within the attention module. Defaults to ``False``.
+            att_sliding_window (Optional[int], optional): Optional sliding-window constraint for attention. Defaults to ``None``.
+            sdp_backend (SDPBackendType, optional): Preferred scaled dot-product backend. Defaults to ``SDPBackendType.default()``.
+            norm_layer (Optional[Type[nn.Module]], optional): Normalization constructor; :class:`nn.LayerNorm` if ``None``.
+            drop_path_rate (float, optional): Stochastic depth rate applied to the residual branch. Defaults to ``0.0``.
+            norm_eps (float, optional): Epsilon for the normalization layers. Defaults to ``1e-5``.
+            model_parallel (bool, optional): Whether to use tensor model-parallel attention projections. Defaults to ``False``.
+        """
         super().__init__()
         att_class = TransformerV2AttType.to_class(att_type)
         ff_class = TransformerV2FeedForwardType.to_class(ff_type)
@@ -710,13 +903,11 @@ class TransformerV2SelfAttBlock(nn.Module):
             num_heads=num_heads,
             num_kv_heads=num_kv_heads,
             dropout_rate=att_dropout_rate,
-            use_cache=use_cache,
-            internal_cache=internal_cache,
-            max_batch_size=max_batch_size,
-            max_seq_length=max_seq_length,
             att_bias=att_bias,
             rope=rope,
             is_causal=is_causal,
+            sliding_window=att_sliding_window,
+            sdp_backend=sdp_backend,
             model_parallel=model_parallel,
         )
         self.feed_forward = ff_class(
@@ -732,21 +923,92 @@ class TransformerV2SelfAttBlock(nn.Module):
 
         self.drop_path = DropPath1d(drop_path_rate) if drop_path_rate > 0.0 else None
 
+    def init_state(
+        self,
+        batch_size: int,
+        max_cache_length: int,
+        device: Optional[torch.device] = None,
+        dtype: Optional[torch.dtype] = None,
+    ) -> Dict[str, torch.Tensor]:
+        """Initialize the key/value cache dictionary required for streaming attention.
+
+        Args:
+            batch_size (int): Maximum batch size the cache must support.
+            max_cache_length (int): Maximum number of cached timesteps.
+            device (Optional[torch.device]): Device where the cache is allocated. Defaults to the attention weight device.
+            dtype (Optional[torch.dtype]): Tensor dtype to use for the cache. Defaults to the attention weight dtype.
+
+        Returns:
+            Dict[str, torch.Tensor]: Cache dictionary with keys ``"k"``, ``"v"``, and ``"cache_length"``.
+        """
+
+        if not hasattr(self.attention, "init_state"):
+            raise AttributeError(
+                "Attention module does not support cache initialization."
+            )
+        return self.attention.init_state(
+            batch_size=batch_size,
+            max_cache_length=max_cache_length,
+            device=device,
+            dtype=dtype,
+        )
+
     def forward(
         self,
         x: torch.Tensor,
         x_mask: Optional[torch.Tensor] = None,
         start_pos: int = 0,
-    ):
+        state: Optional[Dict[str, torch.Tensor]] = None,
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, Dict[str, torch.Tensor]]]:
+        """Run self-attention and feed-forward sublayers with residual connections.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape `(batch, seq_len, hidden_dim)`.
+            x_mask (Optional[torch.Tensor]): Optional attention mask broadcastable to the attention scores.
+            start_pos (int, optional): Starting position for rotary embeddings / cache writes. Defaults to 0.
+            state (Optional[Dict[str, torch.Tensor]]): Optional cache dictionary produced by :meth:`init_state`.
+
+        Returns:
+            Union[torch.Tensor, Tuple[torch.Tensor, Dict[str, torch.Tensor]]]: Output tensor and, if ``state`` is
+            provided, the updated cache dictionary.
+        """
         x_norm = self.att_norm(x)
-        h = x + self.attention(x_norm, x_norm, x_norm, x_mask, start_pos, start_pos)
+        att_out = self.attention(
+            x_norm,
+            x_norm,
+            x_norm,
+            x_mask,
+            start_pos,
+            start_pos,
+            state=state,
+        )
+        if isinstance(att_out, tuple):
+            att_value, new_state = att_out
+        else:
+            att_value = att_out
+            new_state = None
+        h = x + att_value
         out = h + self.feed_forward(self.ff_norm(h))
         if self.drop_path is not None and self.training:
             out = x + self.drop_path(out - x)
+        if new_state is not None:
+            return out, new_state
         return out
 
 
 class TransformerV2CrossAttBlock(nn.Module):
+    """Transformer block combining self-attention, cross-attention, and feed-forward sublayers with cache support.
+
+    Attributes:
+        attention (ScaledDotProdAttV2): Self-attention module operating on the query stream.
+        cross_attention (ScaledDotProdAttV2): Cross-attention module operating on key/value streams.
+        att_norm (nn.Module): Normalization layer applied before self-attention.
+        cross_att_q_norm (nn.Module): Normalization applied to queries before cross-attention.
+        cross_att_kv_norm (nn.Module): Normalization applied to keys/values before cross-attention.
+        feed_forward (nn.Module): Feed-forward stack applied after attention.
+        drop_path (Optional[DropPath1d]): Stochastic depth module applied to the residual output.
+    """
+
     def __init__(
         self,
         att_type: TransformerV2AttType,
@@ -766,16 +1028,36 @@ class TransformerV2CrossAttBlock(nn.Module):
         rope: Optional[RotaryPosEncoder] = None,
         rope_in_self_att: bool = True,
         rope_in_cross_att: bool = True,
-        is_causal: bool = False,
         norm_layer: Optional[Type[nn.Module]] = None,
         drop_path_rate: float = 0.0,
         norm_eps: float = 1e-5,
-        use_cache: bool = False,
-        internal_cache: bool = True,
-        max_batch_size: int = 0,
-        max_seq_length: int = 0,
         model_parallel: bool = False,
     ):
+        """Configure the cross-attention transformer block.
+
+        Args:
+            att_type (TransformerV2AttType): Attention implementation to instantiate for both paths.
+            ff_type (TransformerV2FeedForwardType): Feed-forward module implementation to instantiate.
+            num_feats (int): Hidden size of the self-attention stream.
+            num_heads (int): Number of attention heads for the query stream.
+            num_kv_feats (int): Feature dimension of the cross-attention key/value stream.
+            num_kv_heads (int): Number of key/value heads (may differ when using grouped attention).
+            ff_intermediate_feats (int): Feed-forward network width before projection.
+            ff_kernel_size (int): Kernel size for convolutional feed-forward variants.
+            ff_dilation (int): Dilation factor for convolutional feed-forward variants.
+            ff_activation (Union[str, nn.Module], optional): Feed-forward activation identifier. Defaults to ``"silu"``.
+            ff_bias (bool, optional): Whether feed-forward linear layers include bias terms. Defaults to ``False``.
+            ff_multiple_of (int, optional): Rounds ``ff_intermediate_feats`` up to the nearest multiple. Defaults to ``256``.
+            att_dropout_rate (float, optional): Dropout probability applied to attention weights. Defaults to ``0.0``.
+            att_bias (bool, optional): Whether attention projection layers include biases. Defaults to ``False``.
+            rope (Optional[RotaryPosEncoder], optional): Shared rotary position encoder instance.
+            rope_in_self_att (bool, optional): If ``True``, applies the shared RoPE to self-attention. Defaults to ``True``.
+            rope_in_cross_att (bool, optional): If ``True``, applies the shared RoPE to cross-attention. Defaults to ``True``.
+            norm_layer (Optional[Type[nn.Module]], optional): Normalization constructor; :class:`nn.LayerNorm` if ``None``.
+            drop_path_rate (float, optional): Stochastic depth rate applied to the residual branch. Defaults to ``0.0``.
+            norm_eps (float, optional): Epsilon for the normalization layers. Defaults to ``1e-5``.
+            model_parallel (bool, optional): Whether to use tensor model-parallel attention projections. Defaults to ``False``.
+        """
         super().__init__()
         att_class = TransformerV2AttType.to_class(att_type)
         ff_class = TransformerV2FeedForwardType.to_class(ff_type)
@@ -792,13 +1074,8 @@ class TransformerV2CrossAttBlock(nn.Module):
             num_heads=num_heads,
             num_kv_heads=num_kv_heads,
             dropout_rate=att_dropout_rate,
-            use_cache=use_cache,
-            internal_cache=internal_cache,
-            max_batch_size=max_batch_size,
-            max_seq_length=max_seq_length,
             att_bias=att_bias,
             rope=rope if rope_in_self_att else None,
-            is_causal=is_causal,
             model_parallel=model_parallel,
         )
 
@@ -808,10 +1085,6 @@ class TransformerV2CrossAttBlock(nn.Module):
             num_kv_feats=num_kv_feats,
             num_kv_heads=num_kv_heads,
             dropout_rate=att_dropout_rate,
-            use_cache=use_cache,
-            internal_cache=internal_cache,
-            max_batch_size=max_batch_size,
-            max_seq_length=max_seq_length,
             att_bias=att_bias,
             rope=rope if rope_in_cross_att else None,
             model_parallel=model_parallel,
@@ -830,6 +1103,52 @@ class TransformerV2CrossAttBlock(nn.Module):
 
         self.drop_path = DropPath1d(drop_path_rate) if drop_path_rate > 0.0 else None
 
+    def init_state(
+        self,
+        batch_size: int,
+        self_max_cache_length: int,
+        cross_max_cache_length: Optional[int] = None,
+        device: Optional[torch.device] = None,
+        dtype: Optional[torch.dtype] = None,
+    ) -> Dict[str, Dict[str, torch.Tensor]]:
+        """Initialize caches for both self- and cross-attention paths.
+
+        Returns a mapping with keys `self_att` and/or `cross_att` when the respective
+        attention modules implement cache initialization.
+
+        Args:
+            batch_size (int): Maximum batch size the caches must support.
+            self_max_cache_length (int): Maximum cache length for the self-attention stream.
+            cross_max_cache_length (Optional[int]): Maximum cache length for the cross-attention stream.
+                Defaults to ``self_max_cache_length`` when ``None``.
+            device (Optional[torch.device]): Device where caches are allocated.
+            dtype (Optional[torch.dtype]): Tensor dtype for caches.
+
+        Returns:
+            Dict[str, Dict[str, torch.Tensor]]: Dictionary containing cache dictionaries for self-attention
+            (key ``"self_att"``) and cross-attention (key ``"cross_att"``) when supported.
+        """
+
+        state: Dict[str, Dict[str, torch.Tensor]] = {}
+        if cross_max_cache_length is None:
+            cross_max_cache_length = self_max_cache_length
+
+        if hasattr(self.attention, "init_state"):
+            state["self_att"] = self.attention.init_state(
+                batch_size=batch_size,
+                max_cache_length=self_max_cache_length,
+                device=device,
+                dtype=dtype,
+            )
+        if hasattr(self.cross_attention, "init_state"):
+            state["cross_att"] = self.cross_attention.init_state(
+                batch_size=batch_size,
+                max_cache_length=cross_max_cache_length,
+                device=device,
+                dtype=dtype,
+            )
+        return state
+
     def forward(
         self,
         x: torch.Tensor,
@@ -838,24 +1157,71 @@ class TransformerV2CrossAttBlock(nn.Module):
         x_kv_mask: Optional[torch.Tensor] = None,
         start_pos: int = 0,
         start_pos_kv: int = 0,
-    ):
+        state: Optional[Dict[str, Dict[str, torch.Tensor]]] = None,
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, Dict[str, Dict[str, torch.Tensor]]]]:
+        """Run self- then cross-attention (if provided) followed by the feed-forward stack.
+
+        Args:
+            x (torch.Tensor): Query tensor of shape `(batch, seq_len, hidden_dim)`.
+            x_mask (Optional[torch.Tensor]): Optional mask applied during self-attention.
+            x_kv (Optional[torch.Tensor]): Key/value tensor for cross-attention. If ``None`` the cross step is skipped.
+            x_kv_mask (Optional[torch.Tensor]): Optional mask applied during cross-attention.
+            start_pos (int, optional): Starting position for self-attention cache writes. Defaults to 0.
+            start_pos_kv (int, optional): Starting position for cross-attention cache writes. Defaults to 0.
+            state (Optional[Dict[str, Dict[str, torch.Tensor]]]): Optional cache dictionary returned by
+                :meth:`init_state`.
+
+        Returns:
+            Union[torch.Tensor, Tuple[torch.Tensor, Dict[str, Dict[str, torch.Tensor]]]]: Output tensor and, if a
+            cache ``state`` is provided, the updated cache dictionary containing ``"self_att"`` and/or ``"cross_att"``.
+        """
         x_norm = self.att_norm(x)
-        h = x + self.attention(x_norm, x_norm, x_norm, x_mask, start_pos, start_pos)
-        if x_kv:
+        self_state = state["self_att"] if state and "self_att" in state else None
+        att_out = self.attention(
+            x_norm,
+            x_norm,
+            x_norm,
+            x_mask,
+            start_pos,
+            start_pos,
+            state=self_state,
+        )
+        new_state: Optional[Dict[str, Dict[str, torch.Tensor]]] = None
+        if isinstance(att_out, tuple):
+            att_value, updated_self_state = att_out
+            new_state = {"self_att": updated_self_state}
+        else:
+            att_value = att_out
+        h = x + att_value
+        if x_kv is not None:
             h_norm = self.cross_att_q_norm(h)
             x_kv_norm = self.cross_att_kv_norm(x_kv)
-            h = h + self.cross_attention(
+            cross_state = (
+                state.get("cross_att") if state and "cross_att" in state else None
+            )
+            cross_out = self.cross_attention(
                 h_norm,
                 x_kv_norm,
                 x_kv_norm,
                 x_kv_mask,
                 query_start_pos=start_pos,
                 key_start_pos=start_pos_kv,
+                state=cross_state,
             )
+            if isinstance(cross_out, tuple):
+                cross_value, updated_cross_state = cross_out
+                if new_state is None:
+                    new_state = {}
+                new_state["cross_att"] = updated_cross_state
+            else:
+                cross_value = cross_out
+            h = h + cross_value
 
         out = h + self.feed_forward(self.ff_norm(h))
         if self.drop_path is not None and self.training:
             out = x + self.drop_path(out - x)
+        if new_state is not None:
+            return out, new_state
         return out
 
 

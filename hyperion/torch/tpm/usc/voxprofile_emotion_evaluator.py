@@ -14,10 +14,10 @@ from ....utils.misc import PathLike
 from .voxprofile_evaluator import VOXPROFILE_MAX_AUDIO_LEN, VoxProfileEvaluator
 
 try:
-    from src.model.emotion.whisper_emotion import (
+    from vox_profile.model.emotion.whisper_emotion import (
         WhisperWrapper as VoxProfileCategoricalEmotionModel,
     )
-    from src.model.emotion.whisper_emotion_dim import (
+    from vox_profile.model.emotion.whisper_emotion_dim import (
         WhisperWrapper as VoxProfileDimensionalEmotionModel,
     )
 
@@ -108,7 +108,7 @@ class VoxProfileCategoricalEmotionEvaluator(VoxProfileEvaluator):
         prefix = self.output_prefix
         logits = []
         for audio_batch in audio_batches:
-            logits_i = self.model(audio_batch, return_features=False)[0]
+            logits_i = self.model(audio_batch, return_feature=False)[0]
             logits.append(logits_i)
 
         logits = torch.cat(logits, dim=0).mean(dim=0)
@@ -216,8 +216,8 @@ class VoxProfileDimensionalEmotionEvaluator(VoxProfileEvaluator):
         prefix = self.output_prefix
         dim_preds = []
         for audio_batch in audio_batches:
-            arousal, valence, dominance = self.model(audio_batch, return_features=False)
-            dim_preds_i = torch.stack([arousal, valence, dominance], dim=-1)
+            arousal, valence, dominance = self.model(audio_batch)
+            dim_preds_i = torch.cat([arousal, valence, dominance], dim=-1)
             dim_preds.append(dim_preds_i)
 
         dim_preds = torch.cat(dim_preds, dim=0).mean(dim=0)

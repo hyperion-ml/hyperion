@@ -12,7 +12,7 @@ import time
 from collections import OrderedDict as ODict
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union, cast
+from typing import Any, Dict, List, Optional, Set, Tuple, Union, cast
 
 import torch
 import torch.amp as amp
@@ -23,6 +23,7 @@ from fairscale.optim.oss import OSS
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from torch.distributed.elastic.multiprocessing.errors import record
 from torch.optim.swa_utils import SWALR, AveragedModel
+from torch.utils.data import DataLoader
 
 from ...utils import PathLike
 from ...utils.misc import filter_func_args
@@ -44,7 +45,7 @@ class DDPType(str, Enum):
     FULLY_SHARDED_DDP = "fully_sharded_ddp"
 
     @staticmethod
-    def choices():
+    def choices() -> List[str]:
         return [o.value for o in DDPType]
 
 
@@ -53,11 +54,11 @@ class AMPDType(str, Enum):
     BFLOAT16 = "bfloat16"
 
     @staticmethod
-    def choices():
+    def choices() -> List[str]:
         return [o.value for o in AMPDType]
 
     @staticmethod
-    def to_dtype(dtype):
+    def to_dtype(dtype: "AMPDType") -> torch.dtype:
         return torch.float16 if dtype == AMPDType.FLOAT16 else torch.bfloat16
 
 
@@ -130,7 +131,7 @@ class TorchTrainerBase:
         log_gpu_usage: bool = False,
         use_tensorboard: bool = False,
         use_wandb: bool = False,
-        wandb: Dict[str, str] = {},
+        wandb: Optional[Dict[str, Any]] = None,
         grad_clip: float = 0,
         grad_clip_norm: Union[str, int] = 2,
         swa_start: int = 0,
@@ -138,7 +139,44 @@ class TorchTrainerBase:
         swa_anneal_steps: int = 50000,
         swa_update_steps: int = 5000,
         bn_update_steps: int = 5000,
-    ):
+    ) -> None:
+        """
+        Initializes trainer-wide state, logging, distributed context, and optional
+        advanced training utilities (AMP, SWA, schedulers, etc.).
+
+        Args:
+            exp_path: Directory where checkpoints/logs are stored.
+            num_epochs: Maximum number of epochs to run (unless `max_steps` stops earlier).
+            cur_epoch: Epoch to resume from when continuing training.
+            max_steps: Optional global-step limit overriding `num_epochs`.
+            cur_step: Global step to resume from.
+            grad_acc_steps: Number of minibatches to accumulate before each optimizer step.
+            eff_batch_size: Optional effective batch size for logging/reference.
+            val_steps: Run validation every N optimizer steps (mutually exclusive with `val_hours`).
+            val_hours: Run validation every N hours (wall clock).
+            save_steps: Save checkpoints every N optimizer steps (mutually exclusive with `save_hours`).
+            save_hours: Save checkpoints every N hours.
+            device: Target device (CUDA device index or torch.device) for model/data.
+            loggers: Optional logger collection; defaults to console/TensorBoard/W&B selection.
+            ddp: Whether to enable DistributedDataParallel of any flavor.
+            ddp_type: Specific DDP implementation (standard, OSS, sharded, FSDP).
+            cpu_offload: Enable FSDP CPU offload when supported.
+            use_amp: Toggle automatic mixed precision for training/eval loops.
+            amp_dtype: Precision to use when AMP is enabled (fp16 or bf16).
+            bf16_grad_scaler: Use a GradScaler variant safe for bf16.
+            log_interval: Steps between logger progress updates.
+            log_gpu_usage: Whether to collect/report GPU utilization stats.
+            use_tensorboard: Enable TensorBoard logging backend.
+            use_wandb: Enable Weights & Biases logging backend.
+            wandb: Extra configuration dict for W&B when enabled.
+            grad_clip: Max gradient norm (<=0 disables clipping).
+            grad_clip_norm: Norm type used when clipping gradients.
+            swa_start: Global step at which to begin SWA (0 disables).
+            swa_lr: Learning rate to use during SWA averaging.
+            swa_anneal_steps: Steps used to anneal LR before SWA updates.
+            swa_update_steps: Steps between SWA weight averaging operations.
+            bn_update_steps: Max number of batches for BatchNorm stats refresh post-SWA.
+        """
         self.exp_path = Path(exp_path)
         self.num_epochs = num_epochs
         self.cur_epoch = cur_epoch
@@ -154,8 +192,11 @@ class TorchTrainerBase:
 
         self.device = device
 
+        if wandb is None:
+            wandb = {}
+
         if loggers is None:
-            self.loggers = self._default_loggers(
+            resolved_loggers: LoggerList = self._default_loggers(
                 log_interval,
                 use_tensorboard,
                 use_wandb,
@@ -163,9 +204,11 @@ class TorchTrainerBase:
                 log_gpu_usage=log_gpu_usage,
             )
         elif isinstance(loggers, list):
-            self.loggers = LoggerList(loggers)
+            resolved_loggers = LoggerList(loggers)
         else:
-            self.loggers = loggers
+            resolved_loggers = loggers
+
+        self.loggers: LoggerList = resolved_loggers
 
         self.ddp = ddp
         self.ddp_type = ddp_type
@@ -186,24 +229,27 @@ class TorchTrainerBase:
         self.bn_update_steps = bn_update_steps
         self.in_swa = False
 
-        self.rank = 0
-        self.world_size = 1
+        self.rank: int = 0
+        self.world_size: int = 1
 
-        self.ckpt_search_name = "model"
+        self.ckpt_search_name: str = "model"
+
+        self.train_data: Optional[DataLoader[Any]] = None
+        self.val_data: Optional[DataLoader[Any]] = None
 
         if ddp:
             self.rank = dist.get_rank()
             self.world_size = dist.get_world_size()
 
-        self.grad_tracker = None
+        self.grad_tracker: Optional[GradNormTracker] = None
 
     def _prepare_model_for_training(
         self,
         model: TorchModel,
-        optim: torch.optim.Optimizer,
+        optim: Union[torch.optim.Optimizer, Dict[str, Any]],
         lrsched: Union[LRS, Dict[str, Any], None],
         wdsched: Union[WDS, Dict[str, Any], None],
-        device: torch.device = None,
+        device: Optional[Union[torch.device, int]] = None,
         use_amp: bool = False,
         ddp: bool = False,
         ddp_type: DDPType = DDPType.DDP,
@@ -211,7 +257,14 @@ class TorchTrainerBase:
         do_swa: bool = False,
         swa_lr: float = 1e-3,
         swa_anneal_steps: int = 50000,
-    ):
+    ) -> Tuple[
+        nn.Module,
+        torch.optim.Optimizer,
+        Optional[LRS],
+        Optional[WDS],
+        Optional[AveragedModel],
+        Optional[SWALR],
+    ]:
         """
         Prepares the model, optimizer, and schedulers for training.
 
@@ -312,9 +365,9 @@ class TorchTrainerBase:
         use_amp: Optional[bool] = None,
         ddp: Optional[bool] = None,
         ddp_type: Optional[DDPType] = None,
-        amp_dtype: Optional[AMPDType] = None,
+        amp_dtype: Optional[torch.dtype] = None,
         bf16_grad_scaler: Optional[bool] = None,
-    ):
+    ) -> Union[amp.GradScaler, ShardedGradScaler]:
         """
         Initializes the appropriate gradient scaler for AMP (automatic mixed precision).
 
@@ -324,7 +377,7 @@ class TorchTrainerBase:
             use_amp (bool): Whether AMP is enabled.
             ddp (bool): Whether DDP is being used.
             ddp_type (DDPType): DDP backend type.
-            amp_dtype (AMPDType): Data type for AMP (float16 or bfloat16).
+            amp_dtype (torch.dtype): Data type for AMP (float16 or bfloat16).
             bf16_grad_scaler (bool): If True, enables grad scaler for bfloat16 (default is False).
 
         Returns:
@@ -338,9 +391,7 @@ class TorchTrainerBase:
             self.bf16_grad_scaler if bf16_grad_scaler is None else bf16_grad_scaler
         )
 
-        use_grad_scaler = use_amp and (
-            amp_dtype == AMPDType.FLOAT16 or bf16_grad_scaler
-        )
+        use_grad_scaler = use_amp and (amp_dtype == torch.float16 or bf16_grad_scaler)
         if self.rank == 0 and not use_grad_scaler:
             logging.info("not using grad scaler")
 
@@ -355,7 +406,9 @@ class TorchTrainerBase:
             logging.info("using automatic mixed precision training with grad-scaler")
         return amp.GradScaler(enabled=use_grad_scaler)
 
-    def set_data_epoch(self, data_loader, cur_epoch: int, cur_batch: int = 0):
+    def set_data_epoch(
+        self, data_loader: DataLoader[Any], cur_epoch: int, cur_batch: int = 0
+    ) -> None:
         """
         Sets the epoch index for the data loader and its batch sampler.
 
@@ -376,7 +429,7 @@ class TorchTrainerBase:
         except AttributeError:
             logging.warning("sampler doesn't have set_epoch member function")
 
-    def on_train_begin(self):
+    def on_train_begin(self) -> None:
         """
         Called at the beginning of training.
 
@@ -394,11 +447,11 @@ class TorchTrainerBase:
         )
         self.grad_tracker = GradNormTracker()
 
-    def on_epoch_begin(self):
+    def on_epoch_begin(self) -> None:
         """Callback executed at the beginning of an epoch to trigger logger updates."""
         self.loggers.on_epoch_begin(self.cur_epoch, batches=len(self.train_data))
 
-    def on_epoch_end(self, logs):
+    def on_epoch_end(self, logs: Dict[str, Any]) -> None:
         """
         Callback executed at the end of an epoch to finalize logging.
 
@@ -407,11 +460,11 @@ class TorchTrainerBase:
         """
         self.loggers.on_epoch_end(logs)
 
-    def on_swa_epoch_begin(self):
+    def on_swa_epoch_begin(self) -> None:
         """Callback executed at the beginning of a SWA (Stochastic Weight Averaging) epoch."""
         self.loggers.on_epoch_begin(self.cur_epoch, batches=len(self.train_data))
 
-    def on_swa_epoch_end(self, logs):
+    def on_swa_epoch_end(self, logs: Dict[str, Any]) -> None:
         """
         Callback executed at the end of a SWA epoch.
 
@@ -420,37 +473,37 @@ class TorchTrainerBase:
         """
         self.loggers.on_epoch_end(logs)
 
-    def on_train_loop_begin(self):
+    def on_training_loop_begin(self) -> None:
         """
         Called at the beginning of the training loop.
         Must be overridden by child class to set models to training mode and configure any loop-specific settings.
         """
         raise NotImplementedError()
 
-    def on_train_loop_resume(self, logs=None):
+    def on_training_loop_resume(self, logs: Optional[Dict[str, Any]] = None) -> None:
         """
         Called after validation to resume the training loop.
 
         Args:
             logs (Optional[Dict[str, Any]]): Optional logs from previous validation.
         """
-        self.on_train_loop_begin()
+        self.on_training_loop_begin()
 
-    def on_val_loop_begin(self):
+    def on_val_loop_begin(self) -> None:
         """
         Called at the beginning of the validation loop.
         Must be overridden by child class to set models to evaluation mode and freeze behaviors.
         """
         raise NotImplementedError()
 
-    def on_bn_update_loop_begin(self):
+    def on_bn_update_loop_begin(self) -> None:
         """Called at the beginning of batch normalization update loop, defaults to using training behavior."""
 
-        self.on_train_loop_begin()
+        self.on_training_loop_begin()
 
-    def preprocess_train_data(self, batch_data):
+    def preprocess_data(self, batch_data: Dict[str, Any]) -> Tuple[int, Dict[str, Any]]:
         """
-        Preprocess the training batch before model input.
+        Preprocess the training/validation batch before model input.
         Must be implemented by subclass.
 
         Args:
@@ -461,7 +514,24 @@ class TorchTrainerBase:
         """
         raise NotImplementedError()
 
-    def preprocess_val_data(self, batch_data):
+    def preprocess_train_data(
+        self, batch_data: Dict[str, Any]
+    ) -> Tuple[int, Dict[str, Any]]:
+        """
+        Preprocess the training batch before model input.
+        Default implementation delegates to preprocess_train_data.
+
+        Args:
+            batch_data (Dict[str, Any]): Raw batch from the DataLoader.
+
+        Returns:
+            Tuple[int, Dict[str, Any]]: Batch size and processed batch.
+        """
+        return self.preprocess_data(batch_data)
+
+    def preprocess_val_data(
+        self, batch_data: Dict[str, Any]
+    ) -> Tuple[int, Dict[str, Any]]:
         """
         Preprocess the validation batch before model input.
         Default implementation delegates to preprocess_train_data.
@@ -472,9 +542,9 @@ class TorchTrainerBase:
         Returns:
             Tuple[int, Dict[str, Any]]: Batch size and processed batch.
         """
-        return self.preprocess_train_data(batch_data)
+        return self.preprocess_data(batch_data)
 
-    def compute_train_forward(self, batch_data):
+    def compute_forward(self, batch_data: Dict[str, Any]) -> Tuple[torch.Tensor, Any]:
         """
         Forward pass for training data.
         Must be implemented by subclass.
@@ -487,10 +557,28 @@ class TorchTrainerBase:
         """
         raise NotImplementedError()
 
-    def compute_val_forward(self, batch_data):
+    def compute_train_forward(
+        self, batch_data: Dict[str, Any]
+    ) -> Tuple[torch.Tensor, Any]:
+        """
+        Forward pass for training data.
+        Default implementation defers to ``compute_forward`` so subclasses only
+        need to override one method.
+
+        Args:
+            batch_data (Dict[str, Any]): Preprocessed training batch.
+
+        Returns:
+            Tuple[torch.Tensor, Any]: Loss tensor and model outputs.
+        """
+        return self.compute_forward(batch_data)
+
+    def compute_val_forward(
+        self, batch_data: Dict[str, Any]
+    ) -> Tuple[torch.Tensor, Any]:
         """
         Forward pass for validation data.
-        Default implementation delegates to compute_train_forward.
+        Default implementation reuses ``compute_forward`` (same as training).
 
         Args:
             batch_data (Dict[str, Any]): Preprocessed validation batch.
@@ -498,9 +586,9 @@ class TorchTrainerBase:
         Returns:
             Tuple[torch.Tensor, Any]: Loss tensor and model outputs.
         """
-        return self.compute_train_forward(batch_data)
+        return self.compute_forward(batch_data)
 
-    def compute_backward(self, loss):
+    def compute_backward(self, loss: torch.Tensor) -> None:
         """
         Computes the backward pass for a given loss.
         Must be implemented by subclass.
@@ -510,7 +598,9 @@ class TorchTrainerBase:
         """
         raise NotImplementedError()
 
-    def compute_train_metrics(self, batch_output, batch_data):
+    def compute_metrics(
+        self, batch_output: Any, batch_data: Dict[str, Any]
+    ) -> Dict[str, float]:
         """
         Computes metrics for a training batch.
 
@@ -524,7 +614,24 @@ class TorchTrainerBase:
         metrics = ODict()
         return metrics
 
-    def compute_val_metrics(self, batch_output, batch_data):
+    def compute_train_metrics(
+        self, batch_output: Any, batch_data: Dict[str, Any]
+    ) -> Dict[str, float]:
+        """
+        Computes metrics for a training batch.
+
+        Args:
+            batch_output (Any): Model output.
+            batch_data (Dict[str, Any]): Original batch.
+
+        Returns:
+            Dict[str, float]: Dictionary of training metrics.
+        """
+        return self.compute_metrics(batch_output, batch_data)
+
+    def compute_val_metrics(
+        self, batch_output: Any, batch_data: Dict[str, Any]
+    ) -> Dict[str, float]:
         """
         Computes metrics for a validation batch.
         Defaults to reusing compute_train_metrics.
@@ -538,7 +645,9 @@ class TorchTrainerBase:
         """
         return self.compute_train_metrics(batch_output, batch_data)
 
-    def compute_bn_update_metrics(self, batch_output, batch_data):
+    def compute_bn_update_metrics(
+        self, batch_output: Any, batch_data: Dict[str, Any]
+    ) -> Dict[str, float]:
         """
         Computes metrics during batch normalization update step.
         Defaults to training metrics.
@@ -552,7 +661,7 @@ class TorchTrainerBase:
         """
         return self.compute_train_metrics(batch_output, batch_data)
 
-    def update_swa_model(self):
+    def update_swa_model(self) -> None:
         """
         Updates the SWA (Stochastic Weight Averaging) model using current model parameters.
         Must be implemented in subclass.
@@ -601,7 +710,7 @@ class TorchTrainerBase:
 
     #     return checkpoint
 
-    def save_checkpoint(self, logs):
+    def save_checkpoint(self, logs: Dict[str, Any]) -> None:
         """
         Saves the current model and training state.
 
@@ -610,14 +719,14 @@ class TorchTrainerBase:
         """
         raise NotImplementedError()
 
-    def zero_grad_optimizers(self):
+    def zero_grad_optimizers(self) -> None:
         """
         Clears gradients in all optimizers used in training.
         Should be implemented by subclass to manage all used optimizers.
         """
         raise NotImplementedError
 
-    def get_lrs(self):
+    def get_lrs(self) -> Dict[str, float]:
         """
         Gets learning rates for all optimizer parameter groups.
 
@@ -626,7 +735,7 @@ class TorchTrainerBase:
         """
         raise NotImplementedError()
 
-    def get_wds(self):
+    def get_wds(self) -> Dict[str, float]:
         """
         Gets weight decays for all optimizer parameter groups.
 
@@ -635,7 +744,7 @@ class TorchTrainerBase:
         """
         raise NotImplementedError()
 
-    def get_grad_scales(self):
+    def get_grad_scales(self) -> Dict[str, float]:
         """
         Gets gradient scales for all optimizer parameter groups.
 
@@ -648,7 +757,7 @@ class TorchTrainerBase:
         except AttributeError:
             return {}
 
-    def models_have_bn(self):
+    def models_have_bn(self) -> bool:
         """
         Returns True if model(s) contain BatchNorm layers.
 
@@ -694,7 +803,7 @@ class TorchTrainerBase:
         val_logs = ODict(("val_" + k, v) for k, v in logs.items())
         return val_logs
 
-    def send_data_to_device(self, batch_data):
+    def send_data_to_device(self, batch_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Transfers tensor data in a batch to the configured training device (e.g., GPU).
 
@@ -720,21 +829,23 @@ class TorchTrainerBase:
             for k, v in batch_data.items()
         }
 
-    def update_models(self):
+    def update_models(self) -> Dict[str, float]:
         """
         Applies optimizer updates and gradient clipping.
         Must be implemented in the subclass to handle model-specific updates.
         """
         raise NotImplementedError()
 
-    def save_swa_model(self):
+    def save_swa_model(self) -> None:
         """
         Saves the current SWA model checkpoint to disk.
         Must be implemented by subclasses.
         """
         raise NotImplementedError()
 
-    def fit(self, train_data, val_data=None):
+    def fit(
+        self, train_data: DataLoader[Any], val_data: Optional[DataLoader[Any]] = None
+    ) -> None:
         """
         Runs the full training loop over all epochs, including optional validation
         and SWA (Stochastic Weight Averaging) updates.
@@ -761,7 +872,7 @@ class TorchTrainerBase:
         for epoch in range(self.cur_epoch, self.num_epochs):
             self.set_data_epoch(train_data, self.cur_epoch, self.cur_batch)
             self.on_epoch_begin()
-            logs = self.train_loop()
+            logs = self.training_loop()
             self.cur_batch = 0
             if val_data is not None:
                 self.set_data_epoch(val_data, self.cur_epoch)
@@ -789,7 +900,7 @@ class TorchTrainerBase:
             self.on_swa_epoch_end(logs)
             self.save_swa_model(logs)
 
-    def train_loop(self):
+    def training_loop(self) -> Dict[str, Any]:
         """
         Runs one epoch of training, managing gradient accumulation, logging,
         checkpointing, and periodic validation.
@@ -798,12 +909,13 @@ class TorchTrainerBase:
             Dict[str, Any]: A dictionary of training metrics logged throughout the epoch.
         """
         metric_acc = MetricAcc(device=self.device)
-        self.on_train_loop_begin()
+        self.on_training_loop_begin()
         self.zero_grad_optimizers()
         for batch_idx, batch_data in enumerate(self.train_data):
             self.loggers.on_batch_begin(batch_idx)
 
-            batch_size, batch_metrics = self.train_step(batch_idx, batch_data)
+            batch_size, batch_metrics = self.training_step(batch_idx, batch_data)
+            self.model_update_step(batch_idx)
 
             metric_acc.update(batch_metrics, batch_size)
             logs = metric_acc.metrics
@@ -823,44 +935,46 @@ class TorchTrainerBase:
                 val_logs = self.validation_loop()
                 logs.update(val_logs)
                 self.loggers.on_val_end(logs=logs)
-                self.on_train_loop_resume()
+                self.on_training_loop_resume()
                 metric_acc.reset()
 
         logs = self.make_train_logs(metric_acc.metrics)
         return logs
 
-    def train_forward_backward(self, batch_data: Dict[str, Any]):
-        """
-        Executes a single forward and backward pass for the given training batch.
+    # def train_forward_backward(self, batch_data: Dict[str, Any]) -> Dict[str, Any]:
+    #     """
+    #     Executes a single forward and backward pass for the given training batch.
 
-        Handles AMP autocasting and loss scaling (if enabled), computes gradients,
-        and collects training metrics.
+    #     Handles AMP autocasting and loss scaling (if enabled), computes gradients,
+    #     and collects training metrics.
 
-        Args:
-            batch_data (Dict[str, Any]): Dictionary of training input and targets.
+    #     Args:
+    #         batch_data (Dict[str, Any]): Dictionary of training input and targets.
 
-        Returns:
-            Dict[str, Any]: Dictionary of computed metrics including scaled loss.
-        """
-        with amp.autocast(
-            enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
-        ):
-            loss, output = self.compute_train_forward(batch_data)
+    #     Returns:
+    #         Dict[str, Any]: Dictionary of computed metrics including scaled loss.
+    #     """
+    #     with amp.autocast(
+    #         enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+    #     ):
+    #         loss, output = self.compute_train_forward(batch_data)
 
-        loss = loss / self.grad_acc_steps
+    #     loss = loss / self.grad_acc_steps
 
-        self.compute_backward(loss)
-        batch_metrics = self.compute_train_metrics(output, batch_data)
-        batch_metrics["loss"] = loss.item() * self.grad_acc_steps
-        return batch_metrics
+    #     self.compute_backward(loss)
+    #     batch_metrics = self.compute_train_metrics(output, batch_data)
+    #     batch_metrics["loss"] = loss.item() * self.grad_acc_steps
+    #     return batch_metrics
 
-    def train_step(self, batch_idx: int, batch_data: Dict[str, Any]):
+    def training_step(
+        self, batch_idx: int, batch_data: Dict[str, Any]
+    ) -> Tuple[int, Dict[str, Any]]:
         """
         Performs a single training step including:
             - data preprocessing
             - sending data to device
             - forward/backward computation
-            - optimizer step (if grad_acc_steps reached)
+            - deferred optimizer update handled by model_update_step()
 
         Args:
             batch_idx (int): Index of the current batch.
@@ -871,7 +985,40 @@ class TorchTrainerBase:
         """
         batch_size, batch_data = self.preprocess_train_data(batch_data)
         batch_data = self.send_data_to_device(batch_data)
-        batch_metrics = self.train_forward_backward(batch_data)
+        with amp.autocast(
+            enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+        ):
+            loss, batch_output = self.compute_train_forward(batch_data)
+
+        loss = loss.float() / self.grad_acc_steps
+
+        self.compute_backward(loss)
+        batch_metrics = ODict()
+        batch_metrics = self.compute_train_metrics(batch_output, batch_data)
+        batch_metrics["loss"] = loss.item() * self.grad_acc_steps
+        batch_metrics.move_to_end("loss", last=False)
+
+        # if (batch_idx + 1) % self.grad_acc_steps == 0:
+        #     self.cur_batch = batch_idx
+        #     self.cur_step += 1
+        #     grad_norms = self.update_models()
+        #     self.grad_tracker.update(grad_norms)
+        #     grad_logs = self.grad_tracker.grad_spikes
+        #     self.zero_grad_optimizers()
+        #     self.loggers.on_model_update(self.cur_step, log=grad_logs)
+
+        return batch_size, batch_metrics
+
+    def model_update_step(self, batch_idx: int) -> None:
+        """
+        Applies optimizer/scheduler updates when gradient accumulation is satisfied.
+
+        Args:
+            batch_idx: Zero-based index of the current batch inside the epoch.
+
+        Returns:
+            None
+        """
         if (batch_idx + 1) % self.grad_acc_steps == 0:
             self.cur_batch = batch_idx
             self.cur_step += 1
@@ -881,10 +1028,8 @@ class TorchTrainerBase:
             self.zero_grad_optimizers()
             self.loggers.on_model_update(self.cur_step, log=grad_logs)
 
-        return batch_size, batch_metrics
-
     @torch.no_grad()
-    def validation_loop(self):
+    def validation_loop(self) -> Dict[str, Any]:
         """
         Runs the validation loop over the entire validation set.
 
@@ -900,7 +1045,9 @@ class TorchTrainerBase:
         logs = self.make_val_logs(metric_acc.metrics)
         return logs
 
-    def validation_step(self, batch_idx: int, batch_data: Dict[str, Any]):
+    def validation_step(
+        self, batch_idx: int, batch_data: Dict[str, Any]
+    ) -> Tuple[int, Dict[str, Any]]:
         """
         Performs a single validation step:
             - data preprocessing
@@ -921,14 +1068,16 @@ class TorchTrainerBase:
         with amp.autocast(
             enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
         ):
-            loss, output = self.compute_val_forward(batch_data)
+            loss, batch_output = self.compute_val_forward(batch_data)
 
-        batch_metrics = self.compute_val_metrics(output, batch_data)
+        batch_metrics = self.compute_val_metrics(batch_output, batch_data)
         batch_metrics["loss"] = loss.item()
+        batch_metrics.move_to_end("loss", last=False)
+
         return batch_size, batch_metrics
 
     @torch.no_grad()
-    def bn_update_loop(self):
+    def bn_update_loop(self) -> Dict[str, Any]:
         """Batch normalization update loop"""
         metric_acc = MetricAcc(self.device)
         self.on_bn_update_loop_begin()
@@ -938,9 +1087,10 @@ class TorchTrainerBase:
             if batch_idx > self.bn_update_steps:
                 break
 
-        return batch_metrics
+        logs = self.make_train_logs(metric_acc.metrics)
+        return logs
 
-    def bn_update_step(self, batch_data: Dict[str, Any]):
+    def bn_update_step(self, batch_data: Dict[str, Any]) -> Tuple[int, Dict[str, Any]]:
         """
         Performs a single update step for batch normalization statistics.
         This uses the same forward logic as training but does not backpropagate.
@@ -957,13 +1107,21 @@ class TorchTrainerBase:
         with amp.autocast(
             enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
         ):
-            loss, output = self.compute_train_forward(batch_data)
+            loss, batch_output = self.compute_train_forward(batch_data)
 
-        batch_metrics = self.compute_train_metrics(output, batch_data)
+        batch_metrics = self.compute_train_metrics(batch_output, batch_data)
         batch_metrics["loss"] = loss.item()
+        batch_metrics.move_to_end("loss", last=False)
+
         return batch_size, batch_metrics
 
-    def _clip_grad_norm(self, model, optim, grad_clip, grad_clip_norm):
+    def _clip_grad_norm(
+        self,
+        model: nn.Module,
+        optim: torch.optim.Optimizer,
+        grad_clip: float,
+        grad_clip_norm: Union[int, float, str],
+    ) -> float:
         """
         Clips the gradients of the model parameters to prevent exploding gradients.
 
@@ -1004,8 +1162,14 @@ class TorchTrainerBase:
         return grad_norm.item()
 
     def _update_model_by_optim(
-        self, model, optimizer, grad_clip, grad_clip_norm, use_amp, grad_scaler
-    ):
+        self,
+        model: nn.Module,
+        optimizer: torch.optim.Optimizer,
+        grad_clip: float,
+        grad_clip_norm: Union[int, float, str],
+        use_amp: bool,
+        grad_scaler: Union[amp.GradScaler, ShardedGradScaler],
+    ) -> float:
         """
         Updates the model parameters by stepping the optimizer, with optional
         gradient clipping and AMP unscaling.
@@ -1034,29 +1198,34 @@ class TorchTrainerBase:
         optimizer.zero_grad()
         return grad_norm
 
-        if use_amp:
-            # is_ok = self._check_for_grad_nans(model, optimizer)
-            # if not is_ok:
-            #     return
-            if grad_clip > 0:
-                grad_scaler.unscale_(optimizer)
-                grad_norm = self._clip_grad_norm(
-                    model, optimizer, grad_clip, grad_clip_norm
-                )
+        # if use_amp:
+        #     # is_ok = self._check_for_grad_nans(model, optimizer)
+        #     # if not is_ok:
+        #     #     return
+        #     if grad_clip > 0:
+        #         grad_scaler.unscale_(optimizer)
+        #         grad_norm = self._clip_grad_norm(
+        #             model, optimizer, grad_clip, grad_clip_norm
+        #         )
 
-            grad_scaler.step(optimizer)
-        else:
-            if grad_clip > 0:
-                grad_norm = self._clip_grad_norm(
-                    model, optimizer, grad_clip, grad_clip_norm
-                )
+        #     grad_scaler.step(optimizer)
+        # else:
+        #     if grad_clip > 0:
+        #         grad_norm = self._clip_grad_norm(
+        #             model, optimizer, grad_clip, grad_clip_norm
+        #         )
 
-            optimizer.step()
+        #     optimizer.step()
 
-        optimizer.zero_grad()
-        return grad_norm
+        # optimizer.zero_grad()
+        # return grad_norm
 
-    def _make_optimizer(self, optim: torch.optim, model, oss=False):
+    def _make_optimizer(
+        self,
+        optim: Union[torch.optim.Optimizer, Dict[str, Any]],
+        model: TorchModel,
+        oss: bool = False,
+    ) -> torch.optim.Optimizer:
         """
         Creates an optimizer instance for the given model.
 
@@ -1080,7 +1249,11 @@ class TorchTrainerBase:
         optimizer = OF.create(model.trainable_param_groups(), **opt_args)
         return optimizer
 
-    def _make_lr_sched(self, lr_sched, optim):
+    def _make_lr_sched(
+        self,
+        lr_sched: Union[LRS, Dict[str, Any], None],
+        optim: torch.optim.Optimizer,
+    ) -> Optional[LRS]:
         """
         Instantiates a learning rate scheduler from a config dictionary.
 
@@ -1101,7 +1274,11 @@ class TorchTrainerBase:
         lr_sched = LRSF.create(optim, **args)
         return lr_sched
 
-    def _make_wd_sched(self, wd_sched, optim):
+    def _make_wd_sched(
+        self,
+        wd_sched: Union[WDS, Dict[str, Any], None],
+        optim: torch.optim.Optimizer,
+    ) -> Optional[WDS]:
         """
         Instantiates a weight decay scheduler from a config dictionary.
 
@@ -1123,8 +1300,13 @@ class TorchTrainerBase:
         return wd_sched
 
     def _default_loggers(
-        self, log_interval, use_tensorboard, use_wandb, wandb, log_gpu_usage=False
-    ):
+        self,
+        log_interval: int,
+        use_tensorboard: bool,
+        use_wandb: bool,
+        wandb: Dict[str, Any],
+        log_gpu_usage: bool = False,
+    ) -> LoggerList:
         """
         Creates a default list of logger instances.
 
@@ -1158,7 +1340,7 @@ class TorchTrainerBase:
             )
         return LoggerList(loggers)
 
-    def _get_lrs(self, optim: torch.optim.Optimizer):
+    def _get_lrs(self, optim: torch.optim.Optimizer) -> Dict[str, float]:
         """
         Extracts the current learning rates from all parameter groups in the optimizer.
 
@@ -1179,7 +1361,7 @@ class TorchTrainerBase:
 
     def _get_wds(
         self, optim: torch.optim.Optimizer, wd_scheduler: Optional[WDS] = None
-    ):
+    ) -> Dict[str, float]:
         """
         Extracts the current weight decay values from all parameter groups in the optimizer.
 
@@ -1202,7 +1384,9 @@ class TorchTrainerBase:
 
         return wds
 
-    def _get_grad_scale(self, grad_scaler: amp.GradScaler):
+    def _get_grad_scale(
+        self, grad_scaler: Union[amp.GradScaler, ShardedGradScaler]
+    ) -> Dict[str, float]:
         """
         Extracts the current gradient scaling factor from the AMP GradScaler.
 
@@ -1217,7 +1401,7 @@ class TorchTrainerBase:
 
         return {}
 
-    def _compute_grad_acc_steps(self, data_loader):
+    def _compute_grad_acc_steps(self, data_loader: DataLoader[Any]) -> None:
         """
         Computes gradient accumulation steps automatically based on effective batch size and dataset loader.
 
@@ -1265,10 +1449,10 @@ class TorchTrainerBase:
         optimizer: torch.optim.Optimizer,
         lr_scheduler: Optional[LRS] = None,
         wd_scheduler: Optional[WDS] = None,
-        swa_model: Optional[TorchModel] = None,
+        swa_model: Optional[AveragedModel] = None,
         swa_scheduler: Optional[SWALR] = None,
-        logs: Dict[str, Any] = None,
-    ):
+        logs: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         """
         Creates a full model checkpoint dictionary including model state, optimizer,
         schedulers, RNG state, and optionally SWA components and logs.
@@ -1320,7 +1504,7 @@ class TorchTrainerBase:
 
         return checkpoint
 
-    def save_now(self):
+    def save_now(self) -> bool:
         """
         Determines whether a model checkpoint should be saved based on elapsed time
         or training step count.
@@ -1345,7 +1529,7 @@ class TorchTrainerBase:
 
         return False
 
-    def validate_now(self):
+    def validate_now(self) -> bool:
         """
         Determines whether validation should be run based on elapsed time
         or training step count.
@@ -1370,7 +1554,7 @@ class TorchTrainerBase:
 
         return False
 
-    def finish_now(self):
+    def finish_now(self) -> bool:
         """
         Determines whether the training process should stop based on max_steps.
 
@@ -1383,7 +1567,7 @@ class TorchTrainerBase:
         self,
         model_name: str,
         checkpoint: Dict[str, Any],
-    ):
+    ) -> None:
         """
         Saves a model checkpoint to disk using epoch and step as part of the filename.
 
@@ -1403,7 +1587,7 @@ class TorchTrainerBase:
 
     def save_swa_model_checkpoint_to_file(
         self, model_name: str, checkpoint: Dict[str, Any]
-    ):
+    ) -> None:
         """
         Saves an SWA model checkpoint to disk by replacing the model state
         with the SWA model state and updating the filename.
@@ -1423,7 +1607,9 @@ class TorchTrainerBase:
 
         torch.save(checkpoint, file_path)
 
-    def _load_vars_from_checkpoint(self, checkpoint: Dict[str, Any]):
+    def _load_vars_from_checkpoint(
+        self, checkpoint: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
         """
         Loads trainer state variables (epoch, step, RNG) from a checkpoint.
 
@@ -1459,12 +1645,12 @@ class TorchTrainerBase:
         self,
         checkpoint: Dict[str, Any],
         model: TorchModel,
-        optimizer: torch.optim.Optimizer,
+        optimizer: Optional[torch.optim.Optimizer],
         lr_scheduler: Optional[LRS] = None,
         wd_scheduler: Optional[WDS] = None,
-        swa_model: Optional[TorchModel] = None,
+        swa_model: Optional[nn.Module] = None,
         swa_scheduler: Optional[SWALR] = None,
-    ):
+    ) -> None:
         """
         Loads the model, optimizer, and scheduler states from a checkpoint dictionary.
 
@@ -1507,7 +1693,9 @@ class TorchTrainerBase:
                 swa_model.load_state_dict(checkpoint["swa_model_state_dict"])
                 swa_scheduler.load_state_dict(checkpoint["swa_scheduler_state_dict"])
 
-    def find_last_checkpoint(self, model_name: str = "model"):
+    def find_last_checkpoint(
+        self, model_name: str = "model"
+    ) -> Tuple[Optional[str], int, int]:
         """
         Finds the most recent checkpoint file for a given model based on epoch and step.
 
@@ -1529,7 +1717,7 @@ class TorchTrainerBase:
 
         return file_path, last_epoch, last_step
 
-    def load_last_checkpoint(self):
+    def load_last_checkpoint(self) -> Optional[Dict[str, Any]]:
         """
         Loads the most recent checkpoint if one exists.
 
@@ -1542,7 +1730,9 @@ class TorchTrainerBase:
 
         return None
 
-    def load_model_checkpoint_from_file(self, model_name="model", epoch=0, step=0):
+    def load_model_checkpoint_from_file(
+        self, model_name: str = "model", epoch: int = 0, step: int = 0
+    ) -> Dict[str, Any]:
         """
         Loads a checkpoint file from disk for a specific model at a given epoch and step.
 
@@ -1563,7 +1753,7 @@ class TorchTrainerBase:
         logging.info("loading %s from %s", model_name, file_path)
         return torch.load(file_path, map_location=torch.device("cpu"))
 
-    def load_checkpoint(self, epoch, step):
+    def load_checkpoint(self, epoch: int, step: int) -> Optional[Dict[str, Any]]:
         """
         Placeholder to be implemented by subclasses to load checkpoint state.
 
@@ -1577,7 +1767,9 @@ class TorchTrainerBase:
         raise NotImplementedError()
 
     @staticmethod
-    def get_augs_keys(batch, base_key, skip=set()):
+    def get_augs_keys(
+        batch: Dict[str, Any], base_key: str, skip: Set[str] = set()
+    ) -> List[str]:
         """
         Retrieves a list of all augmentation keys (e.g., base_key, base_key_aug_0_0, etc.)
         found in a batch, excluding keys in the skip set.
@@ -1614,7 +1806,7 @@ class TorchTrainerBase:
         return keys
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
         """
         Filters a dictionary of keyword arguments to retain only those
         relevant for initializing the TorchTrainerBase class.
@@ -1630,7 +1822,12 @@ class TorchTrainerBase:
         return args
 
     @staticmethod
-    def add_class_args(parser, prefix=None, train_modes=None, skip=set()):
+    def add_class_args(
+        parser: ArgumentParser,
+        prefix: Optional[str] = None,
+        train_modes: Optional[List[str]] = None,
+        skip: Set[str] = set(),
+    ) -> None:
         """
         Adds command-line arguments for configuring a TorchTrainerBase instance.
 

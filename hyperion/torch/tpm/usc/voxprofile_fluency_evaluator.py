@@ -12,7 +12,7 @@ from ....utils.misc import PathLike
 from .voxprofile_evaluator import VOXPROFILE_MAX_AUDIO_LEN, VoxProfileEvaluator
 
 try:
-    from src.model.fluency.whisper_fluency import (
+    from vox_profile.model.fluency.whisper_fluency import (
         WhisperWrapper as VoxProfileFluencyModel,
     )
 except ImportError:
@@ -106,7 +106,7 @@ class VoxProfileFluencyEvaluator(VoxProfileEvaluator):
         disfluency_preds = []
         for audio_batch in audio_batches:
             fluency_preds_i, disfluency_preds_i = self.model(
-                audio_batch, return_features=False
+                audio_batch, return_feature=False
             )
             fluency_preds.append(fluency_preds_i)
             disfluency_preds.append(disfluency_preds_i)
@@ -222,7 +222,7 @@ class VoxProfileFluencyEvaluator(VoxProfileEvaluator):
         if "return_per_window_values" not in skip:
             parser.add_argument(
                 "--return-per-window-values",
-                type=ActionYesNo,
+                action=ActionYesNo,
                 default=False,
                 help="Whether to return per-window fluency and disfluency probabilities.",
             )

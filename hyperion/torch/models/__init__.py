@@ -6,6 +6,7 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
 from .dac import DAC
 from .freevc import HFWavLMFreeVC
+from .qvectors import QVectorOutput, QVectorTrainMode, ResNetQVector
 from .transducer import RNNRNNTransducer, RNNTransducer
 from .vae.vae import VAE
 from .vae.vq_vae import VQVAE

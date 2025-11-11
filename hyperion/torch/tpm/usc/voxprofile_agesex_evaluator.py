@@ -13,7 +13,7 @@ from ....utils.misc import PathLike
 from .voxprofile_evaluator import VOXPROFILE_MAX_AUDIO_LEN, VoxProfileEvaluator
 
 try:
-    from src.model.age_sex.wavlm_demographics import (
+    from vox_profile.model.age_sex.wavlm_demographics import (
         WavLMWrapper as VoxProfileAgeSexModel,
     )
 

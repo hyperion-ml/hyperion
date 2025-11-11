@@ -161,7 +161,7 @@ class VoxProfileEvaluator:
         prefix = self.output_prefix
         logits = []
         for audio_batch in audio_batches:
-            logits_i = self.model(audio_batch, return_features=False)
+            logits_i = self.model(audio_batch, return_feature=False)
             logits.append(logits_i)
 
         logits = torch.cat(logits, dim=0).mean(dim=0)
@@ -249,7 +249,7 @@ class VoxProfileEvaluator:
         if "return_logits" not in skip:
             parser.add_argument(
                 "--return-logits",
-                type=ActionYesNo,
+                action=ActionYesNo,
                 default=False,
                 help="Whether to return raw logits instead of probabilities.",
             )

@@ -19,7 +19,18 @@ from .efficient_net import EfficientNet
 from .etdnn import ETDNNV1
 from .fcnet import FCNetV1, FCNetV2
 from .feat_fuser_mvn import FeatFuserMVN
+from .hydra_head_factory import HydraHeadFactory
+from .hydra_heads import (
+    HydraClassifHead,
+    HydraClassifHeadOutput,
+    HydraClassifLossType,
+    HydraHead,
+    HydraHeadType,
+    HydraRegressionHeadOutput,
+)
 from .proj_head import ProjHead
+from .qformer_v2 import QFormerV2
+from .qproj_head import QProjHead
 from .resetdnn import ResETDNNV1
 from .resnet import *
 from .resnet1d_decoder import ResNet1dDecoder

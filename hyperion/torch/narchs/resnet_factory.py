@@ -1,6 +1,6 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
@@ -138,7 +138,7 @@ resnet_dict = {
 }
 
 
-class ResNetFactory(object):
+class ResNetFactory:
     @staticmethod
     def create(
         resnet_type,

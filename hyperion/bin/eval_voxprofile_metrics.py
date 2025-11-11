@@ -18,7 +18,7 @@ from jsonargparse import (
 )
 
 from hyperion.hyp_defs import config_logger
-from hyperion.metrics.voxprofile_evaluator import VoxProfileEvaluator as VPE
+from hyperion.metrics import VoxProfileEvaluator as VPE
 
 
 def eval_voxprofile_metrics(

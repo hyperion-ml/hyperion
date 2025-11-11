@@ -383,7 +383,7 @@ class XVector(TorchModel):
         """
         max_in_length = x.size(-1)
         x = self._pre_enc(x)
-        x = self.encoder_net(x)
+        x = self.encoder_net(x, x_lengths=x_lengths)
         if isinstance(x, tuple):
             x = x[0]
 
@@ -434,7 +434,7 @@ class XVector(TorchModel):
         max_in_length = x.size(-1)
         x = self._pre_enc(x)
         h_enc, x = self.encoder_net.forward_hid_feats(
-            x, return_enc_layers, return_output=True
+            x, x_lenghts=x_lengths, layers=return_enc_layers, return_output=True
         )
         output = {"h_enc": h_enc}
         if not return_logits and return_classif_layers is None:
