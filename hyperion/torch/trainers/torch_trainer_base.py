@@ -46,6 +46,15 @@ class DDPType(str, Enum):
 
     @staticmethod
     def choices() -> List[str]:
+        """
+        Lists the available distributed data parallel backends.
+
+        Args:
+            None.
+
+        Returns:
+            List[str]: String identifiers for each supported DDP type.
+        """
         return [o.value for o in DDPType]
 
 
@@ -55,10 +64,28 @@ class AMPDType(str, Enum):
 
     @staticmethod
     def choices() -> List[str]:
+        """
+        Lists the supported automatic mixed precision data types.
+
+        Args:
+            None.
+
+        Returns:
+            List[str]: Names of the AMP dtypes (float16, bfloat16).
+        """
         return [o.value for o in AMPDType]
 
     @staticmethod
     def to_dtype(dtype: "AMPDType") -> torch.dtype:
+        """
+        Converts an `AMPDType` enum value to the corresponding `torch.dtype`.
+
+        Args:
+            dtype (AMPDType): Requested automatic mixed precision type.
+
+        Returns:
+            torch.dtype: `torch.float16` or `torch.bfloat16` depending on `dtype`.
+        """
         return torch.float16 if dtype == AMPDType.FLOAT16 else torch.bfloat16
 
 
@@ -519,7 +546,7 @@ class TorchTrainerBase:
     ) -> Tuple[int, Dict[str, Any]]:
         """
         Preprocess the training batch before model input.
-        Default implementation delegates to preprocess_train_data.
+        Default implementation delegates to :meth:`preprocess_data`.
 
         Args:
             batch_data (Dict[str, Any]): Raw batch from the DataLoader.
@@ -534,7 +561,7 @@ class TorchTrainerBase:
     ) -> Tuple[int, Dict[str, Any]]:
         """
         Preprocess the validation batch before model input.
-        Default implementation delegates to preprocess_train_data.
+        Default implementation delegates to :meth:`preprocess_data`.
 
         Args:
             batch_data (Dict[str, Any]): Raw batch from the DataLoader.
@@ -1825,8 +1852,7 @@ class TorchTrainerBase:
     def add_class_args(
         parser: ArgumentParser,
         prefix: Optional[str] = None,
-        train_modes: Optional[List[str]] = None,
-        skip: Set[str] = set(),
+        skip: Optional[Set[str]] = None,
     ) -> None:
         """
         Adds command-line arguments for configuring a TorchTrainerBase instance.
@@ -1834,175 +1860,195 @@ class TorchTrainerBase:
         Args:
             parser (ArgumentParser): The parser to add arguments to.
             prefix (Optional[str]): If provided, arguments are added under a namespaced block.
-            train_modes (Optional[List[str]]): List of supported training modes, if applicable.
             skip (set): Argument names to skip when adding.
         """
+        if skip is None:
+            skip = set()
+
+        normalized_skip = set(skip)
+        stripped_skip = {item.lstrip("-") for item in skip}
+        underscored_skip = {item.replace("-", "_") for item in stripped_skip}
+        normalized_skip.update(stripped_skip)
+        normalized_skip.update(underscored_skip)
+
+        def is_skipped(name: str) -> bool:
+            bare = name.lstrip("-")
+            return (
+                name in normalized_skip
+                or bare in normalized_skip
+                or bare.replace("-", "_") in normalized_skip
+            )
+
+        def add_argument(name: str, *args: Any, **kwargs: Any) -> None:
+            if not is_skipped(name):
+                parser.add_argument(name, *args, **kwargs)
+
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        parser.add_argument(
+        add_argument(
             "--exp-path",
             help="Path to the experiment directory for logs and checkpoints.",
         )
-        parser.add_argument(
+        add_argument(
             "--grad-acc-steps",
             type=int,
             default=1,
             help="Number of batches to accumulate gradients before optimizer step.",
         )
-        parser.add_argument(
+        add_argument(
             "--eff-batch-size",
             type=int,
             default=None,
             help="Target effective batch size. Overrides grad-acc-steps based on dataset and world size.",
         )
-        parser.add_argument(
+        add_argument(
             "--num-epochs",
             type=int,
             default=200,
             help="Total number of training epochs.",
         )
-        parser.add_argument(
+        add_argument(
             "--max-steps",
             type=int,
             default=None,
             help="Maximum number of optimization steps. Overrides num-epochs if set.",
         )
-        parser.add_argument(
+        add_argument(
             "--log-interval",
             type=int,
             default=1000,
             help="Number of steps between logging to stdout or loggers.",
         )
-        parser.add_argument(
+        add_argument(
             "--log-gpu-usage",
             action=ActionYesNo,
             default=False,
             help="Enable GPU memory and utilization logging (e.g., in TensorBoard).",
         )
-        parser.add_argument(
+        add_argument(
             "--save-steps",
             default=None,
             type=int,
             help="Interval (in steps) between saving model checkpoints. If None, saves at epoch end only.",
         )
-        parser.add_argument(
+        add_argument(
             "--val-steps",
             default=None,
             type=int,
             help="Interval (in steps) between validation passes. If None, validates only at epoch end.",
         )
-        parser.add_argument(
+        add_argument(
             "--save-hours",
             default=None,
             type=float,
             help="Minimum hours between saving checkpoints based on wall-clock time.",
         )
-        parser.add_argument(
+        add_argument(
             "--val-hours",
             default=None,
             type=float,
             help="Minimum hours between validation runs based on wall-clock time.",
         )
-        parser.add_argument(
+        add_argument(
             "--use-tensorboard",
             action=ActionYesNo,
             default=False,
             help="Enable TensorBoard logging.",
         )
-        parser.add_argument(
+        add_argument(
             "--use-wandb",
             action=ActionYesNo,
             default=False,
             help="Enable Weights & Biases (W&B) experiment tracking.",
         )
-        parser.add_argument(
+        add_argument(
             "--wandb.project", default=None, help="Name of the W&B project."
         )
-        parser.add_argument(
+        add_argument(
             "--wandb.group", default=None, help="W&B group name for multiple runs."
         )
-        parser.add_argument(
+        add_argument(
             "--wandb.name",
             default=None,
             help="Run name to appear in the W&B dashboard.",
         )
-        parser.add_argument(
+        add_argument(
             "--wandb.mode",
             default="online",
             choices=["online", "offline"],
             help="W&B logging mode: 'online' to sync or 'offline' to log locally.",
         )
 
-        parser.add_argument(
+        add_argument(
             "--ddp-type",
             default="ddp",
             choices=DDPType.choices(),
             help="Type of distributed training backend to use.",
         )
-        parser.add_argument(
+        add_argument(
             "--cpu-offload",
             action=ActionYesNo,
             default=False,
             help="Whether to offload gradients to CPU during training (used in FSDP).",
         )
-        parser.add_argument(
+        add_argument(
             "--use-amp",
             action=ActionYesNo,
             default=False,
             help="Enable automatic mixed precision (AMP) training.",
         )
-        parser.add_argument(
+        add_argument(
             "--amp-dtype",
             default=AMPDType.FLOAT16.value,
             choices=AMPDType.choices(),
             help="AMP data type. Choose 'float16' or 'bfloat16'.",
         )
-        parser.add_argument(
+        add_argument(
             "--bf16-grad-scaler",
             action=ActionYesNo,
             default=False,
             help="Enable gradient scaling for bfloat16 (BF16) training.",
         )
-        parser.add_argument(
+        add_argument(
             "--grad-clip",
             type=float,
             default=0,
             help="Maximum norm for gradient clipping. Set to 0 to disable clipping.",
         )
-        parser.add_argument(
+        add_argument(
             "--grad-clip-norm",
             default=2,
             choices=["inf", 1, 2],
             help="Norm type used for gradient clipping (L1, L2, or L∞).",
         )
 
-        parser.add_argument(
+        add_argument(
             "--swa-start",
             type=int,
             default=0,
             help="Step at which to start Stochastic Weight Averaging (SWA). Disabled if 0.",
         )
-        parser.add_argument(
+        add_argument(
             "--swa-lr",
             type=float,
             default=1e-3,
             help="Learning rate for SWA optimization phase.",
         )
-        parser.add_argument(
+        add_argument(
             "--swa-anneal-steps",
             type=int,
             default=50000,
             help="Number of steps to anneal SWA learning rate.",
         )
-        parser.add_argument(
+        add_argument(
             "--swa-update-steps",
             type=int,
             default=5000,
             help="How frequently (in steps) to update SWA weights.",
         )
-        parser.add_argument(
+        add_argument(
             "--bn-update-steps",
             type=int,
             default=5000,

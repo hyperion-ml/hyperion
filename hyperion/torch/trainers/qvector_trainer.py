@@ -4,72 +4,68 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
-import os
 from collections import OrderedDict as ODict
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import torch
-import torch.amp as amp
-import torch.nn as nn
-from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
+from jsonargparse import ActionParser, ArgumentParser
 
 from ...utils.misc import PathLike, filter_func_args
 from ..loggers import LoggerList
 from ..lr_schedulers import LRScheduler as LRS
-from ..lr_schedulers import LRSchedulerFactory as LRSF
 from ..metrics import CategoricalAccuracy
 from ..models.qvectors import QVectorTrainMode
 from ..narchs.hydra_heads import HydraClassifHeadOutput
 from ..torch_model import TorchModel
-from ..utils import MetricAcc, tensors_subset
 from ..wd_schedulers import WDScheduler as WDS
-from ..wd_schedulers import WDSchedulerFactory as WDSF
 from .single_model_trainer import SingleModelTrainer
-from .torch_trainer_base import AMPDType, DDPType
+from .torch_trainer_base import AMPDType, DDPType, TorchTrainerBase
 
 # from torch.distributed.elastic.multiprocessing.errors import record
 
 
 class QVectorTrainer(SingleModelTrainer):
-    """Trainer to train q-vector style models.
+    """Trainer specialized for Q-vector models with categorical accuracy tracking.
 
-    Attributes:
-        model: TorchModel object
-        optim: Optimizer object or Dictionary of options to initialize the optimizer
-        lrsched: Learning rate scheduler object or Dictionary of options to initialize the scheduler.
-        wdsched: Weight decay scheduler object or Dictionary of options to initialize the scheduler.
-        train_mode: str = "full",
-        exp_path: experiment output path
-        num_epochs: max. number of epochs
-        cur_epoch: current epoch
-        max_steps: max. number of steps
-        cur_step:  current step
-        grad_acc_steps: gradient accumulation steps to simulate larger batch size.
-        eff_batch_size: effective batch size
-        val_steps: steps between validation loops
-        val_hours: max. number of hours between validation loops
-        save_steps: steps between model saves
-        save_hours: max. number of hours between model saves.
-        device: gpu device
-        loggers: LoggerList object, loggers write training progress to std. output and file.
-        ddp: if True use distributed data parallel training
-        ddp_type: type of distributed data parallel in  (ddp, oss_ddp, oss_shared_ddp)
-        cpu_offload: CPU offload of gradients when using fully sharded ddp
-        use_amp: uses mixed precision training.
-        amp_dtype: "float16" | "bfloat16"
-        log_interval: number of optim. steps between log outputs
-        use_tensorboard: use tensorboard logger
-        use_wandb: use wandb logger
-        wandb: wandb dictionary of options
-        grad_clip: norm to clip gradients, if 0 there is no clipping
-        grad_clip_norm: norm type to clip gradients
-        swa_start: step to start doing SWA
-        swa_lr: SWA learning rate
-        swa_anneal_steps: SWA learning rate annealing steps
-        swa_update_steps: steps between SWA model averagings
-        bn_update_steps:  max. number of steps for updating BatchNorm after SWA
-        input_key: Key of the batch_data returned by the data loader to use as model input
-        target_key: Key of the batch_data returned by the data loader to use as model target
+    Attributes (includes inherited members):
+        model (TorchModel): Model instance to optimize.
+        optim (torch.optim.Optimizer | Dict[str, Any]): Optimizer or optimizer config.
+        lrsched (Optional[LRS]): Learning-rate scheduler or configuration dict.
+        wdsched (Optional[WDS]): Weight-decay scheduler or configuration dict.
+        train_mode (str): Name of the model's train mode to activate (e.g., ``\"full\"``).
+        exp_path (PathLike): Directory for checkpoints/logs.
+        num_epochs (int): Total training epochs to run.
+        cur_epoch (int): Epoch index to resume from.
+        max_steps (Optional[int]): Global step budget overriding epoch count.
+        cur_step (int): Current global optimization step.
+        grad_acc_steps (int): Minibatches accumulated before each optimizer step.
+        eff_batch_size (Optional[int]): Reference effective batch size.
+        val_steps (Optional[int]): Steps between validation passes.
+        val_hours (Optional[float]): Wall-clock hours between validation passes.
+        save_steps (Optional[int]): Steps between checkpoint saves.
+        save_hours (Optional[float]): Wall-clock hours between checkpoint saves.
+        device (Union[torch.device, int, None]): Device where the model executes.
+        loggers (LoggerList): Active logger instances.
+        ddp (bool): Whether DistributedDataParallel is enabled.
+        ddp_type (DDPType): Selected DDP backend flavor.
+        cpu_offload (bool): Enables CPU offload for fully-sharded DDP.
+        use_amp (bool): Enables automatic mixed precision.
+        amp_dtype (AMPDType): Precision (float16/bfloat16) to use with AMP.
+        log_interval (int): Step interval between progress logs.
+        use_tensorboard (bool): Enables TensorBoard logging.
+        use_wandb (bool): Enables Weights & Biases logging.
+        wandb (Dict[str, Any]): Additional W&B configuration.
+        grad_clip (float): Gradient-norm clipping threshold.
+        grad_clip_norm (Union[str, int]): Norm definition for clipping.
+        swa_start (int): Step at which to begin SWA averaging.
+        swa_lr (float): Learning rate used while performing SWA.
+        swa_anneal_steps (int): Steps used for SWA LR annealing.
+        swa_update_steps (int): Interval between SWA weight updates.
+        bn_update_steps (int): Max steps for BN statistics refresh after SWA.
+        input_key (str): Key for the audio tensor in dataloader batches.
+        target_key (str): Key for supervision labels in the batch.
+        categorical_acc_metric (CategoricalAccuracy): Metric accumulator used when
+            the model exposes a `HydraClassifHeadOutput`.
     """
 
     def __init__(
@@ -104,9 +100,51 @@ class QVectorTrainer(SingleModelTrainer):
         swa_start: int = 0,
         swa_lr: int = 1e-3,
         swa_anneal_steps: int = 50000,
-        input_key="audio",
-        target_key="speaker",
-    ):
+        input_key: str = "audio",
+        target_key: str = "speaker",
+    ) -> None:
+        """
+        Initializes the Q-vector trainer, forwarding most configuration to
+        :class:`SingleModelTrainer` while setting the default IO keys and
+        attaching a categorical-accuracy metric.
+
+        Args:
+            model (TorchModel): Model instance to optimize.
+            optim (torch.optim.Optimizer): Optimizer already configured for the model.
+            lrsched (Optional[LRS]): Learning-rate scheduler or config dict.
+            wdsched (Optional[WDS]): Weight-decay scheduler or config dict.
+            train_mode (str): Model train-mode to activate (see ``QVectorTrainMode``).
+            exp_path (PathLike): Directory for checkpoints/logs.
+            num_epochs (int): Maximum number of epochs to run.
+            cur_epoch (int): Epoch to resume from.
+            max_steps (Optional[int]): Optional global-step cap.
+            cur_step (int): Global step to resume from.
+            grad_acc_steps (int): Gradient accumulation steps.
+            eff_batch_size (Optional[int]): Reference effective batch size.
+            val_steps (Optional[int]): Steps between validations.
+            save_steps (Optional[int]): Steps between checkpoint saves.
+            device (Union[torch.device, int, None]): Device to train on.
+            loggers (Optional[LoggerList]): Logger collection.
+            ddp (bool): Enables DDP training when True.
+            ddp_type (DDPType): DDP backend flavor.
+            cpu_offload (bool): Enables FSDP CPU offload.
+            use_amp (bool): Enables automatic mixed precision.
+            amp_dtype (AMPDType): Precision to use when AMP is enabled.
+            log_interval (int): Steps between logger updates.
+            use_tensorboard (bool): Enables TensorBoard logging.
+            use_wandb (bool): Enables W&B logging.
+            wandb (Dict[str, str]): Extra W&B init parameters.
+            grad_clip (float): Gradient clipping threshold (<=0 disables).
+            grad_clip_norm (Union[str, int]): Norm used for clipping.
+            swa_start (int): Step at which to start SWA averaging.
+            swa_lr (int): SWA learning rate.
+            swa_anneal_steps (int): Steps to anneal the SWA LR.
+            input_key (str): Batch key used for the audio tensor.
+            target_key (str): Batch key used for label tensors.
+
+        Returns:
+            None
+        """
 
         super_args = filter_func_args(super().__init__, locals())
         super().__init__(**super_args)
@@ -135,7 +173,17 @@ class QVectorTrainer(SingleModelTrainer):
     #     batch_size = batch_data["x"].size(0)
     #     return batch_size, batch_data
 
-    def preprocess_data(self, batch_data):
+    def preprocess_data(self, batch_data: Dict[str, Any]) -> Tuple[int, Dict[str, Any]]:
+        """
+        Normalizes dataloader batches so they match the input interface expected
+        by :class:`SingleModelTrainer` (keys ``audio``/``target`` plus optional lengths).
+
+        Args:
+            batch_data (Dict[str, Any]): Raw batch emitted by the q-vector dataloader.
+
+        Returns:
+            Tuple[int, Dict[str, Any]]: Batch size and the processed batch dict.
+        """
         x_lengths_key = f"{self.input_key}_lengths"
         # y_lengths_key = f"{self.target_key}_lengths"
         output_batch_data = {
@@ -150,12 +198,35 @@ class QVectorTrainer(SingleModelTrainer):
         batch_size = output_batch_data["audio"].size(0)
         return batch_size, output_batch_data
 
-    def compute_forward(self, batch_data):
+    def compute_forward(self, batch_data: Dict[str, Any]) -> Tuple[torch.Tensor, Any]:
+        """
+        Runs the model forward pass and extracts the scalar loss from the
+        hydra classification head.
+
+        Args:
+            batch_data (Dict[str, Any]): Preprocessed batch from ``preprocess_data``.
+
+        Returns:
+            Tuple[torch.Tensor, Any]: Loss tensor and structured model output.
+        """
         batch_output = self.model(**batch_data)
         loss = batch_output.head_output.loss
         return loss, batch_output
 
-    def compute_metrics(self, batch_output, batch_data):
+    def compute_metrics(
+        self, batch_output: Any, batch_data: Dict[str, Any]
+    ) -> ODict[str, float]:
+        """
+        Computes per-batch metrics (categorical accuracy when supported by the
+        model head) for logging.
+
+        Args:
+            batch_output (Any): Structured model output that includes ``head_output``.
+            batch_data (Dict[str, Any]): Input batch (needed for ground-truth labels).
+
+        Returns:
+            OrderedDict: Metrics keyed by descriptive names (e.g., ``categorical_acc``).
+        """
         batch_metrics = ODict()
         if isinstance(batch_output.head_output, HydraClassifHeadOutput):
             categorical_acc = self.categorical_acc_metric(
@@ -172,20 +243,52 @@ class QVectorTrainer(SingleModelTrainer):
         return batch_metrics
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
+        """
+        Filters keyword arguments down to those accepted by ``__init__`` so
+        configs can be safely forwarded.
+
+        Args:
+            **kwargs: Arbitrary keyword arguments.
+
+        Returns:
+            Dict[str, Any]: Subset compatible with :class:`QVectorTrainer`.
+        """
         args = filter_func_args(QVectorTrainer.__init__, kwargs)
         return args
 
     @staticmethod
-    def add_class_args(parser, prefix=None, skip=set()):
+    def add_class_args(
+        parser: ArgumentParser,
+        prefix: Optional[str] = None,
+        skip: Optional[Set[str]] = None,
+    ) -> None:
+        """
+        Registers CLI arguments required to construct a :class:`QVectorTrainer`,
+        reusing the helper builders defined on :class:`SingleModelTrainer`.
+
+        Args:
+            parser (ArgumentParser): Parser that will receive the arguments.
+            prefix (Optional[str]): Optional namespace prefix (Hydra-style).
+            skip (Set[str]): Unused placeholder for API compatibility.
+
+        Returns:
+            None
+        """
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
 
-        SingleModelTrainer.add_optim_args(parser)
-        SingleModelTrainer.add_io_keys_args(parser)
+        if skip is None:
+            skip = set()
+
+        TorchTrainerBase.add_class_args(parser, skip=skip)
+        SingleModelTrainer.add_optim_args(parser, skip=skip)
+        SingleModelTrainer.add_io_keys_args(parser, skip=skip)
         train_modes = QVectorTrainMode.choices()
-        SingleModelTrainer.add_train_modes_args(parser, train_modes=train_modes)
+        SingleModelTrainer.add_train_modes_args(
+            parser, train_modes=train_modes, skip=skip
+        )
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
