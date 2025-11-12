@@ -296,6 +296,14 @@ class QVector(TorchModel):
         """
         self.update_loss_margin(global_step)
 
+    def init_from_xvector(self, xvector_model: TorchModel):
+        """Initialize q-vector model backbone parameters from a pre-trained x-vector model.
+
+        Args:
+            xvector_model: Pre-trained x-vector model to use for initialization.
+        """
+        raise NotImplementedError()
+
     # def _pre_enc(self, x):
     #     if self.encoder_net.in_dim() == 4 and x.dim() == 3:
     #         x = x.contiguous().view(x.size(0), 1, x.size(1), x.size(2))

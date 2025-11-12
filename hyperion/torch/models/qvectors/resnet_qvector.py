@@ -14,6 +14,7 @@ from ....utils.misc import filter_func_args
 from ...narchs import AudioFeatsMVN, HydraHead, QFormerV2, ResNet
 from ...narchs import ResNetFactory as RNF
 from ...utils.masking import scale_seq_lengths
+from ..xvectors import ResNetXVector as RXVec
 from .qvector import QVector
 
 
@@ -155,6 +156,18 @@ class ResNetQVector(QVector):
                 self.output_feats_adapter = None
         else:
             self.output_feats_adapter = None
+
+    def init_from_xvector(self, xvector_model: RXVec):
+        """Initialize q-vector model backbone parameters from a pre-trained x-vector model.
+
+        Args:
+            xvector_model: Pre-trained x-vector model to use for initialization.
+        """
+        assert isinstance(xvector_model, RXVec)
+        feats = xvector_model.feats
+        feats.spec_augment = self.acoustic_feats.spec_augment
+        self.acoustic_feats = feats
+        self.resnet_encoder.load_state_dict(xvector_model.encoder_net.state_dict())
 
     def forward_backbone(
         self,

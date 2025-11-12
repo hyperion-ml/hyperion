@@ -21,7 +21,9 @@ from hyperion.hyp_defs import config_logger, set_float_cpu
 from hyperion.torch.data import LegacyAudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
 from hyperion.torch.models import ResNetQVector as RQVec
+from hyperion.torch.models import Wav2ResNetXVector as RXVec
 from hyperion.torch.narchs import HydraHeadType
+from hyperion.torch.torch_model import TorchModel
 from hyperion.torch.trainers import QVectorTrainer as Trainer
 from hyperion.torch.utils import ddp
 
@@ -99,6 +101,15 @@ def train_qvector(gpu_id, args):
     val_loader = init_data(partition="val", **kwargs)
 
     model = init_qvector(list(train_loader.dataset.num_classes.values())[0], **kwargs)
+    if kwargs["init_from_xvector_model"] is not None:
+        xvec_path = kwargs["init_from_xvector_model"]
+        if rank == 0:
+            logging.info(
+                f"Initializing q-vector model from x-vector model {kwargs[xvec_path]}"
+            )
+
+        xvector_model = TorchModel.auto_load(xvec_path, device=device)
+        model.init_from_xvector(xvector_model)
 
     trn_args = Trainer.filter_args(**kwargs["trainer"])
     if rank == 0:
@@ -153,6 +164,12 @@ def make_parser(qvec_class):
     )
 
     qvec_class.add_class_args(parser, prefix="model")
+    parser.add_argument(
+        "--init-from-xvector-model",
+        type=str,
+        default=None,
+        help="Path to x-vector model to initialize q-vector model",
+    )
     Trainer.add_class_args(
         parser,
         prefix="trainer",
@@ -167,7 +184,7 @@ def make_parser(qvec_class):
 
 
 def main():
-    parser = ArgumentParser(description="Train Wav2XVector from audio files")
+    parser = ArgumentParser(description="Train QVector from audio files")
     parser.add_argument("--cfg", action=ActionConfigFile)
 
     subcommands = parser.add_subcommands()
