@@ -305,7 +305,7 @@ class FreeVCTrainer(TorchTrainerBase):
     def on_swa_epoch_end(self, logs):
         super().on_swa_epoch_end(logs)
 
-    def on_train_loop_begin(self):
+    def on_training_loop_begin(self):
         """Sets models to training mode before beginning the training loop."""
         self.vc_model.train()
         self.discrim_model.train()
@@ -385,8 +385,11 @@ class FreeVCTrainer(TorchTrainerBase):
             #     self.vc_model.output_sample_frequency,
             # )
 
-        with torch.no_grad(), amp.autocast(
-            enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+        with (
+            torch.no_grad(),
+            amp.autocast(
+                enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+            ),
         ):
             xvector_output = self.xvector_model(
                 input_audios,

@@ -203,9 +203,9 @@ class VIAnonymizerTrainer(FreeVCTrainer):
         """
         super().on_epoch_end(logs)
 
-    def on_train_loop_begin(self):
+    def on_training_loop_begin(self):
         """Sets models to training mode before beginning the training loop."""
-        super().on_train_loop_begin()
+        super().on_training_loop_begin()
         self.speaker_contrastive_loss.train()
 
     def on_val_loop_begin(self):
@@ -638,8 +638,11 @@ class VIAnonymizerTrainer(FreeVCTrainer):
         # 1. Discriminator Forward Reconstruction #
         ###########################################
         self.discrim_model.set_train_mode(self.discrim_train_mode)
-        with torch.no_grad(), amp.autocast(
-            enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+        with (
+            torch.no_grad(),
+            amp.autocast(
+                enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+            ),
         ):
             # print(
             #     "[dgb] before xvec input",

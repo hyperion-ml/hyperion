@@ -1,6 +1,6 @@
 """
- Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2020 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
@@ -243,39 +243,6 @@ class VQVAE(TorchModel):
         self.vq_layer = vq_layer
 
     def forward(
-        self,
-        x,
-        x_target=None,
-        return_x_mean=False,
-        return_x_sample=False,
-        return_z_sample=False,
-        return_px=False,
-        serialize_pdfs=True,
-        use_amp=False,
-    ):
-        if use_amp:
-            with torch.cuda.amp.autocast():
-                return self._forward(
-                    x,
-                    x_target,
-                    return_x_mean,
-                    return_x_sample,
-                    return_z_sample,
-                    return_px,
-                    serialize_pdfs,
-                )
-
-        return self._forward(
-            x,
-            x_target,
-            return_x_mean,
-            return_x_sample,
-            return_z_sample,
-            return_px,
-            serialize_pdfs,
-        )
-
-    def _forward(
         self,
         x,
         x_target=None,

@@ -8,7 +8,7 @@ import os
 from collections import OrderedDict as ODict
 
 import torch
-import torch.cuda.amp as amp
+import torch.amp as amp
 import torch.nn as nn
 import torchaudio
 from jsonargparse import ActionParser, ArgumentParser
@@ -118,7 +118,9 @@ class TransducerTrainer(LegacyTorchTrainer):
             )
             batch_size = input_data.shape[0]
 
-            with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
+            with amp.autocast(
+                enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+            ):
                 output = self.model(input_data, x_lengths=input_lengths, y=target)
                 loss = output.loss
                 loss = loss.mean() / self.grad_acc_steps
@@ -183,7 +185,9 @@ class TransducerTrainer(LegacyTorchTrainer):
                 # data, target = data.to(self.device), target.to(self.device)
                 # batch_size = data.shape[0]
 
-                with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
+                with amp.autocast(
+                    enabled=self.use_amp, dtype=self.amp_dtype, device="cuda"
+                ):
                     output = self.model(input_data, x_lengths=input_lengths, y=target)
 
                 for k, v in output.items():

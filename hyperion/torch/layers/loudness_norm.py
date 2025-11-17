@@ -6,7 +6,7 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 from typing import Optional, Tuple
 
 import torch
-import torch.cuda.amp as amp
+import torch.amp as amp
 import torch.nn as nn
 from torchaudio.transforms import Loudness
 
@@ -56,7 +56,7 @@ class LoudnessNorm(nn.Module):
         ), "Either provide target_lufs at init or in forward."
 
         with torch.no_grad():
-            with amp.autocast(enabled=False):
+            with amp.autocast(enabled=False, device_type=x.device.type):
                 if x.dim() == 2:
                     x_in = x.unsqueeze(1).float()  # (B, 1, T)
                 else:

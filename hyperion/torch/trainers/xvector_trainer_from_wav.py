@@ -8,7 +8,7 @@ import os
 from collections import OrderedDict as ODict
 
 import torch
-import torch.cuda.amp as amp
+import torch.amp as amp
 import torch.nn as nn
 
 from ...utils.misc import filter_func_args
@@ -117,7 +117,11 @@ class XVectorTrainerFromWav(XVectorTrainer):
             with torch.no_grad():
                 feats, feats_lengths = self.feat_extractor(audio)
 
-            with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
+            with amp.autocast(
+                enabled=self.use_amp,
+                dtype=self.amp_dtype,
+                device_type=feats.device.type,
+            ):
                 output = self.model(feats, feats_lengths, y=target)
                 loss = self.loss(output.logits, target) / self.grad_acc_steps
 
@@ -171,7 +175,9 @@ class XVectorTrainerFromWav(XVectorTrainer):
                 batch_size = audio.size(0)
 
                 feats, feats_lengths = self.feat_extractor(audio)
-                with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
+                with amp.autocast(
+                    enabled=self.use_amp, dtype=self.amp_dtype, device=feats.device.type
+                ):
                     output = self.model(feats, feats_lengths)
                     loss = self.loss(output.logits, target)
 

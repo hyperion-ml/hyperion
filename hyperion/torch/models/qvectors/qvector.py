@@ -977,7 +977,8 @@ class QVector(TorchModel):
         elif train_mode == QVectorTrainMode.ADAPTERS_QFORMERS:
             self.set_backbone_in_eval_mode()
             self.set_adapters_in_train_mode()
-            self.hidden_feats_agg_qformer.train()
+            if self.hidden_feats_agg_qformer is not None:
+                self.hidden_feats_agg_qformer.train()
             self.output_feats_agg_qformer.train()
             self.proj_head.train()
             self.head.train()

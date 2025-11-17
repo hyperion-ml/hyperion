@@ -1,6 +1,6 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import numpy as np
@@ -111,14 +111,7 @@ class TDNNV1(NetArch):
     def in_context(self):
         return (self._context, self._context)
 
-    def forward(self, x, use_amp=False):
-        if use_amp:
-            with torch.cuda.amp.autocast():
-                return self._forward(x)
-
-        return self._forward(x)
-
-    def _forward(self, x):
+    def forward(self, x):
 
         for i in range(self.num_blocks):
             x = self.blocks[i](x)

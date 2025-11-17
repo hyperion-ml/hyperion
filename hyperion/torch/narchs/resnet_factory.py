@@ -219,6 +219,7 @@ class ResNetFactory:
             "norm_before",
             "do_maxpool",
             "se_r",
+            "in_feats",
             "res2net_scale",
             "res2net_width_factor",
             "freq_pos_enc",

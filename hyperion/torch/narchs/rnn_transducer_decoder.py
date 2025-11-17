@@ -1,7 +1,8 @@
 """
- Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2023 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import logging
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
@@ -184,7 +185,7 @@ class RNNTransducerDecoder(NetArch):
 
         logits = self.joiner(x, pred_out)
 
-        with torch.cuda.amp.autocast(enabled=False):
+        with torch.amp.autocast(enabled=False, device_type=x.device.type):
             loss = k2.rnnt_loss(
                 logits=logits.float(),
                 symbols=y_padded,
@@ -212,7 +213,7 @@ class RNNTransducerDecoder(NetArch):
 
         am_simple = self.simple_am_proj(x)
         lm_simple = self.simple_lm_proj(pred_out)
-        with torch.cuda.amp.autocast(enabled=False):
+        with torch.amp.autocast(enabled=False, device_type=x.device.type):
             loss_simple, (px_grad, py_grad) = k2.rnnt_loss_smoothed(
                 lm=lm_simple.float(),
                 am=am_simple.float(),
@@ -249,7 +250,7 @@ class RNNTransducerDecoder(NetArch):
         # prior to do_rnnt_pruning (this is an optimization for speed).
         logits = self.joiner(am_pruned, lm_pruned, project_input=False)
 
-        with torch.cuda.amp.autocast(enabled=False):
+        with torch.amp.autocast(enabled=False, device_type=x.device.type):
             loss_pruned = k2.rnnt_loss_pruned(
                 logits=logits.float(),
                 symbols=y_padded,

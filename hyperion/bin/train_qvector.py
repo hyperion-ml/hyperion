@@ -18,7 +18,7 @@ from jsonargparse import (
 )
 
 from hyperion.hyp_defs import config_logger, set_float_cpu
-from hyperion.torch.data import LegacyAudioDataset as AD
+from hyperion.torch.data import AudioDataset as AD
 from hyperion.torch.data import SegSamplerFactory
 from hyperion.torch.models import ResNetQVector as RQVec
 from hyperion.torch.models import Wav2ResNetXVector as RXVec
@@ -101,14 +101,12 @@ def train_qvector(gpu_id, args):
     val_loader = init_data(partition="val", **kwargs)
 
     model = init_qvector(list(train_loader.dataset.num_classes.values())[0], **kwargs)
-    if kwargs["init_from_xvector_model"] is not None:
-        xvec_path = kwargs["init_from_xvector_model"]
+    if kwargs["init_from_xvector_model_file"] is not None:
+        xvec_path = kwargs["init_from_xvector_model_file"]
         if rank == 0:
-            logging.info(
-                f"Initializing q-vector model from x-vector model {kwargs[xvec_path]}"
-            )
+            logging.info(f"Initializing q-vector model from x-vector model {xvec_path}")
 
-        xvector_model = TorchModel.auto_load(xvec_path, device=device)
+        xvector_model = TorchModel.auto_load(xvec_path)
         model.init_from_xvector(xvector_model)
 
     trn_args = Trainer.filter_args(**kwargs["trainer"])
@@ -133,7 +131,6 @@ def make_parser(qvec_class):
     parser.add_argument("--cfg", action=ActionConfigFile)
 
     train_parser = ArgumentParser(prog="")
-
     AD.add_class_args(train_parser, prefix="dataset")
     SegSamplerFactory.add_class_args(train_parser, prefix="sampler")
     train_parser.add_argument(
@@ -156,16 +153,16 @@ def make_parser(qvec_class):
     data_parser.add_argument("--train", action=ActionParser(parser=train_parser))
     data_parser.add_argument("--val", action=ActionParser(parser=val_parser))
     parser.add_argument("--data", action=ActionParser(parser=data_parser))
-    parser.link_arguments(
-        "data.train.dataset.class_files", "data.val.dataset.class_files"
-    )
-    parser.link_arguments(
-        "data.train.data_loader.num_workers", "data.val.data_loader.num_workers"
-    )
+    # parser.link_arguments(
+    #     "data.train.dataset.class_files", "data.val.dataset.class_files"
+    # )
+    # parser.link_arguments(
+    #     "data.train.data_loader.num_workers", "data.val.data_loader.num_workers"
+    # )
 
     qvec_class.add_class_args(parser, prefix="model")
     parser.add_argument(
-        "--init-from-xvector-model",
+        "--init-from-xvector-model-file",
         type=str,
         default=None,
         help="Path to x-vector model to initialize q-vector model",

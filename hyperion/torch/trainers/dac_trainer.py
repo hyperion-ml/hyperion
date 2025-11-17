@@ -300,7 +300,7 @@ class DACTrainer(TorchTrainerBase):
     def on_swa_epoch_end(self, logs):
         super().on_swa_epoch_end(logs)
 
-    def on_train_loop_begin(self):
+    def on_training_loop_begin(self):
         """Sets models to training mode before beginning the training loop."""
         self.dac_model.train()
         self.discrim_model.train()

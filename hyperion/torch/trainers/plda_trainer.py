@@ -8,7 +8,7 @@ import os
 from collections import OrderedDict as ODict
 
 import torch
-import torch.cuda.amp as amp
+import torch.amp as amp
 import torch.nn as nn
 
 from ...utils.misc import filter_func_args
@@ -128,7 +128,7 @@ class PLDATrainer(LegacyTorchTrainer):
             if return_bin:
                 target_bin, mask_bin = get_selfsim_tarnon(target, return_mask=True)
 
-            with amp.autocast(enabled=self.use_amp):
+            with amp.autocast(enabled=self.use_amp, device_type=input_data.device.type):
                 output = self.model(
                     input_data,
                     target,
@@ -204,7 +204,9 @@ class PLDATrainer(LegacyTorchTrainer):
                 if return_bin:
                     target_bin, mask_bin = get_selfsim_tarnon(target, return_mask=True)
 
-                with amp.autocast(enabled=self.use_amp):
+                with amp.autocast(
+                    enabled=self.use_amp, device_type=input_data.device.type
+                ):
                     output = self.model(
                         input_data, return_multi=return_multi, return_bin=return_bin
                     )

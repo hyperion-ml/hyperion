@@ -283,7 +283,7 @@ class SingleModelTrainer(TorchTrainerBase):
         """
         super().on_swa_epoch_end(logs)
 
-    def on_train_loop_begin(self) -> None:
+    def on_training_loop_begin(self) -> None:
         """
         Sets the model to training mode prior to entering the training loop.
 

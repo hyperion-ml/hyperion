@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools", "wheel"]
+requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -12,8 +12,57 @@ description = "Toolkit for speaker recognition"
 readme = "README.md"
 keywords = ["speaker recognition", "adversarial attacks", "NIST SRE", "x-vectors"]
 license = { text = "Apache-2.0" }
-requires-python = ">=3.7"
+requires-python = ">=3.10"
 dependencies = []  # This should be dynamically loaded from requirements.txt
+
+[project.optional-dependencies]
+# Force a specific PyTorch series when you need to override the default range.
+torch24 = [
+  "torch==2.4.1",
+  "torchaudio==2.4.1",
+  "torchvision==0.19.1",
+]
+
+torch25 = [
+  "torch>=2.5.1,<2.6",
+  "torchaudio>=2.5.1,<2.6",
+  "torchvision>=0.20.1,<0.21",
+]
+
+torch26 = [
+  "torch>=2.6,<2.7",
+  "torchaudio>=2.6,<2.7",
+  "torchvision>=0.21,<0.22",
+]
+
+torch27 = [
+  "torch>=2.7.1,<2.8",
+  "torchaudio>=2.7.1,<2.8",
+  "torchvision>=0.22.1,<0.23",
+]
+
+torch28 = [
+  "torch>=2.8,<2.9",
+  "torchaudio>=2.8,<2.9",
+  "torchvision>=0.23,<0.24",
+]
+
+torch29 = [
+  "torch==2.9.1",
+  "torchaudio==2.9.1",
+  "torchvision==0.24.1",
+]
+
+gcc217 = [
+  "h5py==3.11.0",              # manylinux_2_17 wheels
+  "onnxruntime==1.16.3",       # last manylinux_2_17 wheel
+  "numpy>=1.26,<2.0",          # compatible ABI for PyTorch 2.4.1
+]
+
+# Opt into newer ORT on modern OS (glibc >= 2.28)
+onnx-cpu-modern = ["onnxruntime>=1.18,<1.19"]
+
+fairscale = ["fairscale==0.4.4"]
 
 [project.urls]
 Homepage = "https://github.com/hyperion-ml/hyperion"
