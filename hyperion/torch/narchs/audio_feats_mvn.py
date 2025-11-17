@@ -94,7 +94,7 @@ class AudioFeatsMVN(NetArch):
 
         return f, f_lengths
 
-    def get_config(self):
+    def get_config(self, no_class_name: bool = False):
         config = {
             "audio_feats": self.audio_feats_cfg,
             "mvn": self.mvn_cfg,
@@ -102,7 +102,7 @@ class AudioFeatsMVN(NetArch):
             "trans": self.trans,
             "aug_after_mvn": self.aug_after_mvn,
         }
-        base_config = super().get_config()
+        base_config = super().get_config(no_class_name=no_class_name)
         return dict(list(base_config.items()) + list(config.items()))
 
     @staticmethod

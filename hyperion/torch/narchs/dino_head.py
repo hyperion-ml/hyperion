@@ -178,7 +178,7 @@ class DINOHead(NetArch):
         # ), f"out is nan  {x.size()} {torch.sum(torch.isnan(x))}"
         return x
 
-    def get_config(self):
+    def get_config(self, no_class_name: bool = False):
         hid_act = AF.get_config(self.fc_blocks[0].activation)
 
         config = {
@@ -196,7 +196,7 @@ class DINOHead(NetArch):
             "use_in_norm": self.use_in_norm,
         }
 
-        base_config = super().get_config()
+        base_config = super().get_config(no_class_name=no_class_name)
         return dict(list(base_config.items()) + list(config.items()))
 
     @staticmethod

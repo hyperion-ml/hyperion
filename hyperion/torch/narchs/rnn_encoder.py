@@ -137,9 +137,9 @@ class RNNEncoder(NetArch):
         assert len(in_shape) == 3
         return (*in_shape, out_feats)
 
-    def get_config(self):
+    def get_config(self, no_class_name: bool = False):
         config = filter_func_args(RNNEncoder.__init__, self.__dict__)
-        base_config = super().get_config()
+        base_config = super().get_config(no_class_name=no_class_name)
         base_config.update(config)
         return base_config
         #return dict(list(base_config.items()) + list(config.items()))

@@ -416,7 +416,7 @@ class ConformerDecoderV1(NetArch):
 
         return x, next_cache
 
-    def get_config(self):
+    def get_config(self, no_class_name: bool = False):
         """Gets network config
         Returns:
            dictionary with config params
@@ -456,7 +456,7 @@ class ConformerDecoderV1(NetArch):
             "with_output": self.with_output,
         }
 
-        base_config = super().get_config()
+        base_config = super().get_config(no_class_name=no_class_name)
         return dict(list(base_config.items()) + list(config.items()))
 
     def in_context(self):

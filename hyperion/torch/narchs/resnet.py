@@ -729,7 +729,7 @@ class ResNet(NetArch):
 
         return h
 
-    def get_config(self) -> Dict[str, Any]:
+    def get_config(self, no_class_name: bool = False) -> Dict[str, Any]:
         """Return a JSON-serialisable snapshot of the constructor arguments.
 
         Returns:
@@ -767,7 +767,7 @@ class ResNet(NetArch):
             "freq_pos_enc": self.freq_pos_enc,
         }
 
-        base_config = super().get_config()
+        base_config = super().get_config(no_class_name=no_class_name)
         return dict(list(base_config.items()) + list(config.items()))
 
 

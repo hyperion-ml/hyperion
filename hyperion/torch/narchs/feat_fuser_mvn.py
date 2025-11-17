@@ -76,7 +76,7 @@ class FeatFuserMVN(NetArch):
 
         return feats, feats_lengths
 
-    def get_config(self):
+    def get_config(self, no_class_name: bool = False):
         config = {
             "feat_fuser": self.feat_fuser_cfg,
             "mvn": self.mvn_cfg,
@@ -84,7 +84,7 @@ class FeatFuserMVN(NetArch):
             "trans": self.trans,
             "aug_after_mvn": self.aug_after_mvn,
         }
-        base_config = super().get_config()
+        base_config = super().get_config(no_class_name=no_class_name)
         return dict(list(base_config.items()) + list(config.items()))
 
     @staticmethod

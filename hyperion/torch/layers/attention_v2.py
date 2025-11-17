@@ -6,16 +6,19 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 import logging
 import math
 from enum import Enum
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Type, Union
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
 
-import fairscale.nn.model_parallel.initialize as fs_init
 import torch
 import torch.nn as nn
-from fairscale.nn.model_parallel.layers import ColumnParallelLinear, RowParallelLinear
 from torch.nn.attention import SDPBackend, sdpa_kernel
 from transformers.modeling_flash_attention_utils import _flash_attention_forward
 
 from .pos_encoder import RotaryPosEncoder
+from .tensor_parallel import (
+    ColumnParallelLinear,
+    RowParallelLinear,
+    get_tensor_parallel_world_size,
+)
 
 if TYPE_CHECKING:
     from enum import Enum as _SDPBackendEnum
@@ -132,7 +135,7 @@ class ScaledDotProdAttV2(nn.Module):
             rope (Optional[RotaryPosEncoder]): Rotary positional encoder used before attention.
             is_causal (bool): Whether the module should behave causally (see class docstring for details).
             sliding_window (Optional[int]): Sliding-window size for Flash Attention kernels.
-            model_parallel (bool): If `True`, use FairScale model-parallel linear layers.
+            model_parallel (bool): If `True`, use tensor-parallel linear layers built on PyTorch collectives.
         """
         super().__init__()
         self.num_heads = num_heads
@@ -147,7 +150,7 @@ class ScaledDotProdAttV2(nn.Module):
         self.sliding_window = sliding_window
 
         if model_parallel:
-            model_parallel_size = fs_init.get_model_parallel_world_size()
+            model_parallel_size = get_tensor_parallel_world_size()
             self.num_local_heads = num_heads // model_parallel_size
             self.num_local_kv_heads = self.num_kv_heads // model_parallel_size
             self.num_rep = self.num_local_heads // self.num_local_kv_heads

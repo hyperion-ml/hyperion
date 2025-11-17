@@ -142,7 +142,7 @@ class WaveNetPosteriorEncoder(NetArch):
     def remove_weight_norm(self):
         self.wavenet.remove_weight_norm()
 
-    def get_config(self):
+    def get_config(self, no_class_name: bool = False):
         """
         Returns the encoder configuration as a dictionary.
 
@@ -159,7 +159,7 @@ class WaveNetPosteriorEncoder(NetArch):
             "cond_channels": self.cond_channels,
             "dropout_rate": self.dropout_rate,
         }
-        base_config = super().get_config()
+        base_config = super().get_config(no_class_name=no_class_name)
         return dict(list(base_config.items()) + list(config.items()))
 
     @staticmethod

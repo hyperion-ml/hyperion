@@ -298,15 +298,19 @@ class StreamingDAC(TorchModel):
 
     def get_config(self) -> Dict[str, Any]:
         """Return a JSON-serializable config describing the model."""
-        return {
-            "encoder": self.encoder.get_config(),
-            "quantizer": self.quantizer.get_config(),
-            "decoder": self.decoder.get_config(),
-            "latent_feats": self.latent_feats,
-            "input_sample_freq": self.input_sample_freq,
-            "norm_input_loudness": self.norm_input_loudness,
-            "target_input_lufs": self.target_input_lufs,
-        }
+        config = super().get_config()
+        config.update(
+            {
+                "encoder": self.encoder.get_config(no_class_name=True),
+                "quantizer": self.quantizer.get_config(),
+                "decoder": self.decoder.get_config(no_class_name=True),
+                "latent_feats": self.latent_feats,
+                "input_sample_freq": self.input_sample_freq,
+                "norm_input_loudness": self.norm_input_loudness,
+                "target_input_lufs": self.target_input_lufs,
+            }
+        )
+        return config
 
     @staticmethod
     def filter_args(**kwargs):
@@ -357,6 +361,20 @@ class StreamingDAC(TorchModel):
             default=-16.0,
             help="Target loudness level in LUFS for input loudness normalization.",
         )
+
+        if prefix is not None:
+            outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
+
+    def add_finetune_args(parser: ArgumentParser, prefix: Optional[str] = None):
+        """Register DAC finetune arguments on an `ArgumentParser`.
+
+        If `prefix` is provided, a nested sub-parser is created and attached under
+        `--{prefix}` via `ActionParser`.
+        """
+        return
+        if prefix is not None:
+            outer_parser = parser
+            parser = ArgumentParser(prog="")
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))

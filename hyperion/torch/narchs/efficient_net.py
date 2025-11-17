@@ -362,7 +362,7 @@ class EfficientNet(NetArch):
 
         return h
 
-    def get_config(self):
+    def get_config(self, no_class_name: bool = False):
 
         out_act = AF.get_config(self.out_act)
         hid_act = self.hid_act
@@ -393,7 +393,7 @@ class EfficientNet(NetArch):
             "in_feats": self.in_feats,
         }
 
-        base_config = super().get_config()
+        base_config = super().get_config(no_class_name=no_class_name)
         return dict(list(base_config.items()) + list(config.items()))
 
     def change_dropouts(self, dropout_rate, drop_connect_rate):

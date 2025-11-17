@@ -573,7 +573,7 @@ class QFormerV2(NetArch):
             logging.warning("non-finite x-out-avg=%f", torch.mean(out_feats))
         return out_feats
 
-    def get_config(self):
+    def get_config(self, no_class_name: bool = False) -> dict:
         """Return a JSON-serializable snapshot of the constructor arguments."""
         config = {
             "in_feats": self.in_feats,
@@ -612,7 +612,7 @@ class QFormerV2(NetArch):
             "model_parallel": self.model_parallel,
         }
 
-        base_config = super().get_config()
+        base_config = super().get_config(no_class_name=no_class_name)
         return dict(list(base_config.items()) + list(config.items()))
 
     def change_config(
@@ -802,13 +802,13 @@ class QFormerV2(NetArch):
         )
         parser.add_argument(
             "--rope-in-self-att",
-            default=True,
+            default=False,
             action=ActionYesNo,
             help="use Rotary positional encoder or not positional encoder at all in self-attention",
         )
         parser.add_argument(
             "--rope-in-cross-att",
-            default=True,
+            default=False,
             action=ActionYesNo,
             help="use Rotary positional encoder or not positional encoder at all in cross-attention",
         )

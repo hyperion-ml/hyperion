@@ -210,7 +210,7 @@ class HiFiGenerator(NetArch):
         for block in self.blocks:
             block.remove_weight_norm()
 
-    def get_config(self):
+    def get_config(self, no_class_name: bool = False):
         """
         Returns the generator configuration dictionary.
         """
@@ -226,7 +226,7 @@ class HiFiGenerator(NetArch):
             "activation": activation,
             "cond_channels": self.cond_channels,
         }
-        base_config = super().get_config()
+        base_config = super().get_config(no_class_name=no_class_name)
         return dict(list(base_config.items()) + list(config.items()))
 
     @staticmethod

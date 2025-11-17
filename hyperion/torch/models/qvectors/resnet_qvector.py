@@ -301,7 +301,7 @@ class ResNetQVector(QVector):
             Dict[str, Any]: Configuration for acoustic features, backbone, and base
             ``QVector`` options.
         """
-        feats_cfg = self.acoustic_feats.get_config()
+        feats_cfg = self.acoustic_feats.get_config(no_class_name=True)
         resnet_cfg = {
             "resnet_type": self.resnet_type,
             "in_channels": self.resnet_encoder.in_channels,

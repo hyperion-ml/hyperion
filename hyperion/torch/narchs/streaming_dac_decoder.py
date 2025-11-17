@@ -104,7 +104,7 @@ class StreamingDACDecoder(NetArch):
         )
         self.init_weights()
 
-    def get_config(self):
+    def get_config(self, no_class_name: bool = False):
         """
         Return constructor configuration merged with `NetArch` base config.
 
@@ -119,7 +119,7 @@ class StreamingDACDecoder(NetArch):
             "strides": self.strides,
             "dilations": self.dilations,
         }
-        base_config = super().get_config()
+        base_config = super().get_config(no_class_name=no_class_name)
         config.update(base_config)
         return config
 

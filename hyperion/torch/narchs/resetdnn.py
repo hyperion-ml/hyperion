@@ -158,7 +158,7 @@ class ResETDNNV1(NetArch):
 
         return x
 
-    def get_config(self):
+    def get_config(self, no_class_name: bool = False):
 
         out_act = AF.get_config(self.out_act)
         hid_act = AF.get_config(self.blocks[0].activation)
@@ -182,7 +182,7 @@ class ResETDNNV1(NetArch):
             "pooling": self.pooling,
         }
 
-        base_config = super().get_config()
+        base_config = super().get_config(no_class_name=no_class_name)
         return dict(list(base_config.items()) + list(config.items()))
 
     def in_shape(self):

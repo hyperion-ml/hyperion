@@ -80,7 +80,7 @@ class QProjHead(NetArch):
 
         return x
 
-    def get_config(self) -> Dict[str, Any]:
+    def get_config(self, no_class_name: bool = False) -> Dict[str, Any]:
         """Return a JSON-serialisable snapshot of the constructor arguments."""
         config = {
             "in_feats": self.in_feats,
@@ -91,7 +91,7 @@ class QProjHead(NetArch):
             "use_norm": self.use_norm,
             "bias": self.bias,
         }
-        base_config = super().get_config()
+        base_config = super().get_config(no_class_name=no_class_name)
         return dict(list(base_config.items()) + list(config.items()))
 
     @staticmethod
