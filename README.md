@@ -26,20 +26,11 @@ The full API is described in the documentation page [https://hyperion-ml.readthe
 ### Prerequisites
 
     We use anaconda or miniconda, though you should be able to make it work in other python distributions
-    To start, you should create a new enviroment and install PyTorch:
+    To start, you should create a new enviroment:
 ```
 conda create --name ${your_env} python=3.11
 conda activate ${your_env}
-# We used PyTorch 2.3.1, other versions >=2.1.0 may work too
-conda install pytorch==2.3.1 torchvision==0.18.1 torchaudio==2.3.1 pytorch-cuda=12.1 -c pytorch -c nvidia
-# If using ASR recipes, you need to install k2:
-wget https://huggingface.co/csukuangfj/k2/resolve/main/ubuntu-cuda/k2-1.24.4.dev20240606+cuda12.1.torch2.3.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
-pip install k2-1.24.4.dev20240606+cuda12.1.torch2.3.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
-# If using mamba, install:
-pip install causal-conv1d>=1.2.0
-pip install mamba-ssm
 ```
-
 
 ### Installing Hyperion
 
@@ -48,13 +39,29 @@ pip install mamba-ssm
 git clone https://github.com/hyperion-ml/hyperion.git
 ```
 
-- Then install hyperion in the environment
+- Then install hyperion in the environment, these are some valid commands depending pytorch and cuda versions:
 ```bash
 cd hyperion
-pip install -e .
+pip install --extra-index-url https://download.pytorch.org/whl/cu130 -e .[torch29]
+pip install --extra-index-url https://download.pytorch.org/whl/cu128 -e .[torch29]
+pip install --extra-index-url https://download.pytorch.org/whl/cu126 -e .[torch29]
+pip install --extra-index-url https://download.pytorch.org/whl/cu129 -e .[torch28]
+pip install --extra-index-url https://download.pytorch.org/whl/cu128 -e .[torch28]
+pip install --extra-index-url https://download.pytorch.org/whl/cu126 -e .[torch28]
+pip install --extra-index-url https://download.pytorch.org/whl/cu128 -e .[torch27]
+pip install --extra-index-url https://download.pytorch.org/whl/cu126 -e .[torch27]
+pip install --extra-index-url https://download.pytorch.org/whl/cu124 -e .[torch26]
+pip install --extra-index-url https://download.pytorch.org/whl/cu121 -e .[torch25]
+pip install --extra-index-url https://download.pytorch.org/whl/cu121 -e .[torch24]
 ```
 
 Known issues:
+
+For older linux systems with GLIB <=2.17, try something like
+```
+pip install --extra-index-url https://download.pytorch.org/whl/cu121 -e .[torch25,gcc217] --only-binary=:all: --no-binary=intervaltree,fairscale
+```
+
 If you get this error when training:
 ```
 Error: mkl-service + Intel(R) MKL: MKL_THREADING_LAYER=INTEL is incompatible with libgomp.so.1 library.

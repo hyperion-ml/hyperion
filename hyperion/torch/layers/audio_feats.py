@@ -8,7 +8,7 @@ import math
 from typing import Tuple, Union
 
 import torch
-import torch.cuda.amp as amp
+import torch.amp as amp
 import torch.nn as nn
 
 from ...np.feats.filter_banks import FilterBankFactory as FBF
@@ -841,7 +841,7 @@ class Wav2LogFilterBank(Wav2FFT):
             X = torch.fft.rfft(x_strided, dim=-1)
 
         pow_spec = self._to_spec(X)
-        with amp.autocast(enabled=False):
+        with amp.autocast(enabled=False, device_type=pow_spec.device.type):
             pow_spec = torch.matmul(pow_spec.float(), self._fb.float())
 
         # finite_mask = torch.isfinite(pow_spec)
@@ -1069,7 +1069,7 @@ class Wav2MFCC(Wav2FFT):
 
         X = torch.fft.rfft(x_strided, dim=-1)
         pow_spec = self._to_spec(X)
-        with amp.autocast(enabled=False):
+        with amp.autocast(enabled=False, device_type=pow_spec.device.type):
             pow_spec = torch.matmul(pow_spec.float(), self._fb.float())
 
         pow_spec = pow_spec.clamp(min=EPS_F16).log()
@@ -1212,7 +1212,7 @@ class Spec2LogFilterBank:
         Returns:
           Filter-bank tensor with shape = (batch, num_frames, num_filters)
         """
-        with amp.autocast(enabled=False):
+        with amp.autocast(enabled=False, device_type=x.device.type):
             pow_spec = torch.matmul(x.float(), self._fb.float())
         pow_spec = pow_spec.clamp(min=EPS_F16).log()
         return pow_spec

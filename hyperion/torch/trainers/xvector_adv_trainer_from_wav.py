@@ -9,7 +9,7 @@ import time
 from collections import OrderedDict as ODict
 
 import torch
-import torch.cuda.amp as amp
+import torch.amp as amp
 import torch.nn as nn
 from jsonargparse import ActionParser, ArgumentParser
 
@@ -143,7 +143,9 @@ class XVectorAdvTrainerFromWav(XVectorTrainerFromWav):
             with torch.no_grad():
                 feats = self.feat_extractor(input_data)
 
-            with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
+            with amp.autocast(
+                enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+            ):
                 output = self.model(feats, y=target)
                 loss = self.loss(output.logits, target) / self.grad_acc_steps
 
@@ -197,7 +199,9 @@ class XVectorAdvTrainerFromWav(XVectorTrainerFromWav):
 
             with torch.no_grad():
                 feats = self.feat_extractor(input_data)
-                with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
+                with amp.autocast(
+                    enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+                ):
                     output = self.model(feats)
                     loss = self.loss(output.logits, target)
 

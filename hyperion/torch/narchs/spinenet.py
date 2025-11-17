@@ -1,6 +1,6 @@
 """
- Copyright 2020 Magdalena Rybicka
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2020 Magdalena Rybicka
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
@@ -428,7 +428,7 @@ class SpineNet(NetArch):
                 dilation=previous_dilation,
                 norm_layer=self._norm_layer,
                 norm_before=self.norm_before,
-                **kwargs
+                **kwargs,
             )
         )
 
@@ -444,7 +444,7 @@ class SpineNet(NetArch):
                     dilation=self.dilation,
                     norm_layer=self._norm_layer,
                     norm_before=self.norm_before,
-                    **kwargs
+                    **kwargs,
                 )
             )
 
@@ -632,14 +632,7 @@ class SpineNet(NetArch):
             feat0 = self._match_shape(feat0, list(feat1.size())[2:])
         return feat0, feat1
 
-    def forward(self, x, use_amp=False):
-        if use_amp:
-            with torch.cuda.amp.autocast():
-                return self._forward(x)
-
-        return self._forward(x)
-
-    def _forward(self, x):
+    def forward(self, x):
         """forward function
 
         Args:

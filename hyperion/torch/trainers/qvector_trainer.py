@@ -209,6 +209,7 @@ class QVectorTrainer(SingleModelTrainer):
         Returns:
             Tuple[torch.Tensor, Any]: Loss tensor and structured model output.
         """
+        self.model.update_hyperparams(self.cur_step)
         batch_output = self.model(**batch_data)
         loss = batch_output.head_output.loss
         return loss, batch_output
@@ -233,7 +234,7 @@ class QVectorTrainer(SingleModelTrainer):
                 batch_output.head_output.logits, batch_data["target"]
             )
 
-            batch_metrics["categorical_acc"] = categorical_acc.item()
+            batch_metrics["categorical_acc"] = categorical_acc
         else:
             logging.warning(
                 "QVectorTrainer: compute_metrics: Unknown head_output type %s"

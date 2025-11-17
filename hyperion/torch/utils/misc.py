@@ -6,7 +6,7 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 from typing import Tuple
 
 import torch
-import torch.cuda.amp as amp
+import torch.amp as amp
 import torch.nn as nn
 
 
@@ -24,7 +24,7 @@ def l2_norm(x, dim=1, axis=None):
     if axis is not None:
         dim = axis
 
-    with amp.autocast(enabled=False):
+    with amp.autocast(enabled=False, device_type=x.device.type):
         norm = torch.norm(x.float(), 2, dim, True) + 1e-10
         y = torch.div(x, norm)
     return y

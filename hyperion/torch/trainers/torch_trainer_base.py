@@ -1213,7 +1213,7 @@ class TorchTrainerBase:
             grad_clip (float): Maximum norm for gradient clipping.
             grad_clip_norm (float or str): Norm type for gradient clipping.
             use_amp (bool): Whether AMP (Automatic Mixed Precision) is enabled.
-            grad_scaler (torch.cuda.amp.GradScaler): AMP gradient scaler.
+            grad_scaler (torch.amp.GradScaler): AMP gradient scaler.
 
         Returns:
             float: The norm of the gradients after clipping.
@@ -1963,9 +1963,7 @@ class TorchTrainerBase:
             default=False,
             help="Enable Weights & Biases (W&B) experiment tracking.",
         )
-        add_argument(
-            "--wandb.project", default=None, help="Name of the W&B project."
-        )
+        add_argument("--wandb.project", default=None, help="Name of the W&B project.")
         add_argument(
             "--wandb.group", default=None, help="W&B group name for multiple runs."
         )

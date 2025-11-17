@@ -14,7 +14,7 @@ from ....utils.misc import filter_func_args
 from ...narchs import AudioFeatsMVN, HydraHead, QFormerV2, ResNet
 from ...narchs import ResNetFactory as RNF
 from ...utils.masking import scale_seq_lengths
-from ..xvectors import ResNetXVector as RXVec
+from ..wav2xvectors import Wav2ResNetXVector as RXVec
 from .qvector import QVector
 
 
@@ -88,16 +88,9 @@ class ResNetQVector(QVector):
         assert isinstance(resnet_encoder, dict)
         resnet_type = resnet_encoder["resnet_type"]
         logging.info("making %s encoder network", resnet_type)
+        resnet_encoder["in_feats"] = acoustic_feats.out_feats
+        resnet_encoder = RNF.filter_args(**resnet_encoder)
         resnet_encoder = RNF.create(**resnet_encoder)
-
-        self.acoustic_feats: AudioFeatsMVN = acoustic_feats
-        self.resnet_encoder: ResNet = resnet_encoder
-        self.resnet_type: str = resnet_type
-        self._acoustic_feats_context = torch.no_grad()
-        self.backbone_layers: Optional[List[int]] = None
-        self.backbone_return_output: bool = False
-        self.hidden_feats_adapter: Optional[nn.ModuleList] = None
-        self.output_feats_adapter: Optional[nn.Linear] = None
 
         super().__init__(
             hidden_feats_agg_qformer=hidden_feats_agg_qformer,
@@ -108,6 +101,14 @@ class ResNetQVector(QVector):
             head=head,
             bias_weight_decay=bias_weight_decay,
         )
+        self.acoustic_feats: AudioFeatsMVN = acoustic_feats
+        self.resnet_encoder: ResNet = resnet_encoder
+        self.resnet_type: str = resnet_type
+        self._acoustic_feats_context = torch.no_grad()
+        self.backbone_layers: Optional[List[int]] = None
+        self.backbone_return_output: bool = False
+        self.hidden_feats_adapter: Optional[nn.ModuleList] = None
+        self.output_feats_adapter: Optional[nn.Linear] = None
         self._infer_backbone_layer_indices()
         self._make_adapters()
 
@@ -132,7 +133,7 @@ class ResNetQVector(QVector):
         """Build linear adapters that map backbone tensors to Q-former inputs."""
         self.hidden_feats_adapter = None
         self.output_feats_adapter = None
-        in_feats = self.acoustic_feats.output_dim
+        in_feats = self.acoustic_feats.out_feats
         in_shape = (1, 1, in_feats, None)
         if self.hidden_feats_agg_qformer is not None:
             hfa_qformer_in_feats = self.hidden_feats_agg_qformer.in_feats
@@ -167,7 +168,18 @@ class ResNetQVector(QVector):
         feats = xvector_model.feats
         feats.spec_augment = self.acoustic_feats.spec_augment
         self.acoustic_feats = feats
-        self.resnet_encoder.load_state_dict(xvector_model.encoder_net.state_dict())
+        self.resnet_encoder.load_state_dict(
+            xvector_model.xvector.encoder_net.state_dict()
+        )
+
+    def freeze_backbone(self):
+        self.resnet_encoder.freeze()
+
+    def set_backbone_in_eval_mode(self):
+        self.resnet_encoder.eval()
+
+    def set_adapters_in_train_mode(self):
+        pass
 
     def forward_backbone(
         self,
@@ -193,6 +205,7 @@ class ResNetQVector(QVector):
         """
         with self._acoustic_feats_context:
             x, x_lengths = self.acoustic_feats(x, x_lengths)
+            x = x.contiguous().view(x.size(0), 1, x.size(1), x.size(2))
 
         if return_hidden_feats:
             backbone_hidden_feats = self.resnet_encoder.forward_hid_feats(

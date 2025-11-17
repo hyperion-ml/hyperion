@@ -19,6 +19,7 @@ from ..layer_blocks.transformer_v2 import (
     TransformerV2FeedForwardType,
     TransformerV2NormLayerType,
     TransformerV2SelfAttBlock,
+    SDPBackendType,
 )
 from ..layers import RotaryPosEncoder
 from ..layers.attention_v2 import ScaledDotProdAttV2
@@ -100,6 +101,7 @@ class QFormerV2(NetArch):
         rope_high_freq_factor: float = 4,
         out_feats: Optional[int] = None,
         drop_path_rate: float = 0.0,
+        sdp_backend: SDPBackendType = SDPBackendType.default(),
         norm_layer: TransformerV2NormLayerType = TransformerV2NormLayerType.LAYERNORM,
         norm_eps: float = 1e-5,
         tied_layers: bool = False,
@@ -210,6 +212,7 @@ class QFormerV2(NetArch):
                     rope=self.rope,
                     rope_in_self_att=rope_in_self_att,
                     rope_in_cross_att=rope_in_cross_att,
+                    sdp_backend=sdp_backend,
                     norm_layer=self._norm_layer,
                     norm_eps=self.norm_eps,
                     drop_path_rate=drop_rate,
@@ -231,6 +234,7 @@ class QFormerV2(NetArch):
                     att_dropout_rate=self.att_dropout_rate,
                     att_bias=self.att_bias,
                     rope=self.rope,
+                    sdp_backend=sdp_backend,
                     norm_layer=self._norm_layer,
                     norm_eps=self.norm_eps,
                     drop_path_rate=drop_rate,
@@ -844,6 +848,12 @@ class QFormerV2(NetArch):
             "--drop-path-rate", default=0.0, type=float, help="drop path rate"
         )
         parser.add_argument(
+            "--sdp-backend",
+            default=SDPBackendType.default().value,
+            choices=SDPBackendType.choices(),
+            help="Preferred sequence of SDP kernels to attempt when calling Torch SDP function",
+        )
+        parser.add_argument(
             "--norm-layer",
             default=TransformerV2NormLayerType.LAYERNORM.value,
             choices=TransformerV2NormLayerType.choices(),
@@ -851,12 +861,6 @@ class QFormerV2(NetArch):
         )
         parser.add_argument(
             "--norm-eps", default=1e-5, type=float, help="eps for layer norms"
-        )
-        parser.add_argument(
-            "--use-cache",
-            default=False,
-            action=ActionYesNo,
-            help="use cache for previous key, value states",
         )
         parser.add_argument(
             "--model-parallel",

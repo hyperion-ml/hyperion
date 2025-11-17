@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import torch
-import torch.cuda.amp as amp
+import torch.amp as amp
 import torch.distributed as dist
 import torch.nn as nn
 from fairscale.optim.grad_scaler import ShardedGradScaler
@@ -407,7 +407,7 @@ class LegacyTorchTrainer:
             input_data, target = tensors_subset(data, batch_keys, self.device)
             batch_size = input_data.size(0)
 
-            with amp.autocast(enabled=self.use_amp):
+            with amp.autocast(enabled=self.use_amp, device_type="cuda"):
                 output = self.model(input_data)
                 loss = self.loss(output, target) / self.grad_acc_steps
 
@@ -459,7 +459,7 @@ class LegacyTorchTrainer:
             for batch, data in enumerate(data_loader):
                 x, target = tensors_subset(data, batch_keys, self.device)
                 batch_size = x.size(0)
-                with amp.autocast(enabled=self.use_amp):
+                with amp.autocast(enabled=self.use_amp, device_type="cuda"):
                     output = self.model(x)
                     loss = self.loss(output, target)
 

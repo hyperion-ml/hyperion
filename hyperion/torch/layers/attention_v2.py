@@ -46,27 +46,35 @@ class SDPBackendType(str, Enum):
         if value == SDPBackendType.MATH:
             return SDPBackend.MATH
         elif value == SDPBackendType.FLASH:
-            return [SDPBackend.FLASH, SDPBackend.MATH]
+            return [SDPBackend.FLASH_ATTENTION, SDPBackend.MATH]
         elif value == SDPBackendType.EFFICIENT:
-            return [SDPBackend.EFFICIENT, SDPBackend.MATH]
+            return [SDPBackend.EFFICIENT_ATTENTION, SDPBackend.MATH]
         elif value == SDPBackendType.CUDNN:
-            return [SDPBackend.CUDNN, SDPBackend.MATH]
+            return [SDPBackend.CUDNN_ATTENTION, SDPBackend.MATH]
         elif value == SDPBackendType.FLASH_EFFICIENT:
-            return [SDPBackend.FLASH, SDPBackend.EFFICIENT, SDPBackend.MATH]
+            return [
+                SDPBackend.FLASH_ATTENTION,
+                SDPBackend.EFFICIENT_ATTENTION,
+                SDPBackend.MATH,
+            ]
         elif value == SDPBackendType.CUDNN_EFFICIENT:
-            return [SDPBackend.CUDNN, SDPBackend.EFFICIENT, SDPBackend.MATH]
+            return [
+                SDPBackend.CUDNN_ATTENTION,
+                SDPBackend.EFFICIENT_ATTENTION,
+                SDPBackend.MATH,
+            ]
         elif value == SDPBackendType.FLASH_CUDNN_EFFICIENT:
             return [
-                SDPBackend.FLASH,
-                SDPBackend.CUDNN,
-                SDPBackend.EFFICIENT,
+                SDPBackend.FLASH_ATTENTION,
+                SDPBackend.CUDNN_ATTENTION,
+                SDPBackend.EFFICIENT_ATTENTION,
                 SDPBackend.MATH,
             ]
         elif value == SDPBackendType.FLASH_EFFICIENT_CUDNN:
             return [
-                SDPBackend.FLASH,
-                SDPBackend.EFFICIENT,
-                SDPBackend.CUDNN,
+                SDPBackend.FLASH_ATTENTION,
+                SDPBackend.EFFICIENT_ATTENTION,
+                SDPBackend.CUDNN_ATTENTION,
                 SDPBackend.MATH,
             ]
         else:

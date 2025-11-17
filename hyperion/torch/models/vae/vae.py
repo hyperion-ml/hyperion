@@ -221,42 +221,6 @@ class VAE(TorchModel):
         return_px=False,
         return_qz=False,
         serialize_pdfs=True,
-        use_amp=False,
-    ):
-        if use_amp:
-            with torch.cuda.amp.autocast():
-                return self._forward(
-                    x,
-                    x_target,
-                    return_x_mean,
-                    return_x_sample,
-                    return_z_sample,
-                    return_px,
-                    return_qz,
-                    serialize_pdfs,
-                )
-
-        return self._forward(
-            x,
-            x_target,
-            return_x_mean,
-            return_x_sample,
-            return_z_sample,
-            return_px,
-            return_qz,
-            serialize_pdfs,
-        )
-
-    def _forward(
-        self,
-        x,
-        x_target=None,
-        return_x_mean=False,
-        return_x_sample=False,
-        return_z_sample=False,
-        return_px=False,
-        return_qz=False,
-        serialize_pdfs=True,
     ):
 
         if x_target is None:

@@ -8,7 +8,7 @@ import os
 from collections import OrderedDict as ODict
 
 import torch
-import torch.cuda.amp as amp
+import torch.amp as amp
 import torch.nn as nn
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from torch.distributed.elastic.multiprocessing.errors import record
@@ -195,7 +195,11 @@ class DINOXVectorTrainer(LegacyTorchTrainer):
 
             teacher_keys = self.get_augs_keys(data, self.input_key, "teacher")
             student_keys = self.get_augs_keys(data, self.input_key, "student")
-            with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
+            with amp.autocast(
+                enabled=self.use_amp,
+                dtype=self.amp_dtype,
+                device_type=teacher_data[0].device.type,
+            ):
                 with torch.no_grad():
                     teacher_data = tensors_subset(data, teacher_keys, self.device)
                     batch_size = teacher_data[0].size(0)
@@ -321,7 +325,11 @@ class DINOXVectorTrainer(LegacyTorchTrainer):
         for batch, data in enumerate(data_loader):
             teacher_keys = self.get_augs_keys(data, self.input_key, "teacher")
             student_keys = self.get_augs_keys(data, self.input_key, "student")
-            with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
+            with amp.autocast(
+                enabled=self.use_amp,
+                dtype=self.amp_dtype,
+                device_type=teacher_data[0].device.type,
+            ):
                 teacher_data = tensors_subset(data, teacher_keys, self.device)
                 batch_size = teacher_data[0].size(0)
                 num_teacher_crops = len(teacher_data)

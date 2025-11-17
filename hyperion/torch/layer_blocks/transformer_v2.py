@@ -683,7 +683,6 @@ class TransformerV2ConvEndpoint(nn.Module):
         out_scale: int,
         norm_layer: Optional[Type[nn.Module]] = None,
     ):
-
         """Create the resampling endpoint used for multiscale aggregation.
 
         Args:
@@ -1028,6 +1027,7 @@ class TransformerV2CrossAttBlock(nn.Module):
         rope: Optional[RotaryPosEncoder] = None,
         rope_in_self_att: bool = True,
         rope_in_cross_att: bool = True,
+        sdp_backend: SDPBackendType = SDPBackendType.default(),
         norm_layer: Optional[Type[nn.Module]] = None,
         drop_path_rate: float = 0.0,
         norm_eps: float = 1e-5,
@@ -1053,6 +1053,7 @@ class TransformerV2CrossAttBlock(nn.Module):
             rope (Optional[RotaryPosEncoder], optional): Shared rotary position encoder instance.
             rope_in_self_att (bool, optional): If ``True``, applies the shared RoPE to self-attention. Defaults to ``True``.
             rope_in_cross_att (bool, optional): If ``True``, applies the shared RoPE to cross-attention. Defaults to ``True``.
+            sdp_backend (SDPBackendType, optional): Preferred scaled dot-product backend. Defaults to ``SDPBackendType.default()``.
             norm_layer (Optional[Type[nn.Module]], optional): Normalization constructor; :class:`nn.LayerNorm` if ``None``.
             drop_path_rate (float, optional): Stochastic depth rate applied to the residual branch. Defaults to ``0.0``.
             norm_eps (float, optional): Epsilon for the normalization layers. Defaults to ``1e-5``.
@@ -1076,6 +1077,7 @@ class TransformerV2CrossAttBlock(nn.Module):
             dropout_rate=att_dropout_rate,
             att_bias=att_bias,
             rope=rope if rope_in_self_att else None,
+            sdp_backend=sdp_backend,
             model_parallel=model_parallel,
         )
 
@@ -1087,6 +1089,7 @@ class TransformerV2CrossAttBlock(nn.Module):
             dropout_rate=att_dropout_rate,
             att_bias=att_bias,
             rope=rope if rope_in_cross_att else None,
+            sdp_backend=sdp_backend,
             model_parallel=model_parallel,
         )
 

@@ -8,7 +8,7 @@ import os
 from collections import OrderedDict as ODict
 
 import torch
-import torch.cuda.amp as amp
+import torch.amp as amp
 import torch.nn as nn
 from jsonargparse import ActionParser, ArgumentParser
 
@@ -136,7 +136,9 @@ class XVectorTrainerDeepFeatReg(XVectorTrainer):
 
             input_data, target = tensors_subset(data, batch_keys, self.device)
             batch_size = input_data.size(0)
-            with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
+            with amp.autocast(
+                enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+            ):
                 outputs = self.model(
                     input_data,
                     y=target,

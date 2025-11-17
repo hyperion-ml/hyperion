@@ -397,14 +397,14 @@ class HydraClassifHead(HydraHead):
         self.num_subcenters = num_subcenters
         self.output.num_subcenters = num_subcenters
 
-    def update_margin(self, epoch: int) -> None:
+    def update_margin(self, step: int) -> None:
         """Propagate a training epoch to the loss so it can refresh the margin.
 
         Args:
-            epoch: Current training epoch.
+            step: Current training step.
         """
         if hasattr(self.output, "update_margin"):
-            self.output.update_margin(epoch)
+            self.output.update_margin(step)
 
     def forward(
         self,

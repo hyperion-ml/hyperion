@@ -8,7 +8,7 @@ import os
 from collections import OrderedDict as ODict
 
 import torch
-import torch.cuda.amp as amp
+import torch.amp as amp
 import torch.nn as nn
 from jsonargparse import ActionParser, ArgumentParser
 
@@ -136,7 +136,9 @@ class VAETrainer(LegacyTorchTrainer):
             input_data, target = tensors_subset(data, batch_keys, self.device)
             batch_size = input_data.size(0)
 
-            with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
+            with amp.autocast(
+                enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+            ):
                 output = self.model(input_data, x_target=target, return_x_mean=True)
                 elbo = output["elbo"].mean()
                 loss = -elbo / self.grad_acc_steps
@@ -191,7 +193,9 @@ class VAETrainer(LegacyTorchTrainer):
             for batch, data in enumerate(data_loader):
                 input_data, target = tensors_subset(data, batch_keys, self.device)
                 batch_size = input_data.size(0)
-                with amp.autocast(enabled=self.use_amp, dtype=self.amp_dtype):
+                with amp.autocast(
+                    enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+                ):
                     output = self.model(input_data, x_target=target, return_x_mean=True)
 
                 x_hat = output["x_mean"]
