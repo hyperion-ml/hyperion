@@ -204,7 +204,7 @@ class QVector(TorchModel):
         self._hidden_feats_agg_context = contextlib.nullcontext()
         self._output_feats_agg_context = contextlib.nullcontext()
         self._init_queries()
-        self.register_buffer("max_input_length", torch.tensor(0))
+        self.register_buffer("max_input_length", torch.tensor(0, dtype=torch.long))
 
     def _init_queries(self):
         """Initialise the learnable query tensors using a truncated normal draw."""
