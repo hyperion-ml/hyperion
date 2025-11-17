@@ -6,14 +6,8 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 from enum import Enum
 from typing import Dict, List, Optional, Tuple, Type, Union
 
-import fairscale.nn.model_parallel.initialize as fs_init
 import torch
 import torch.nn as nn
-from fairscale.nn.model_parallel.layers import (
-    ColumnParallelLinear,
-    RowParallelLinear,
-    VocabParallelEmbedding,
-)
 
 from ..layers import ActivationFactory as AF
 from ..layers import DropPath1d, GRN1d, Interpolate, RMSNorm
@@ -24,6 +18,7 @@ from ..layers.attention_v2 import (
     TorchScaledDotProdAttV2,
 )
 from ..layers.pos_encoder import RotaryPosEncoder
+from ..layers.tensor_parallel import ColumnParallelLinear, RowParallelLinear
 from ..utils import scale_seq_lengths, seq_lengths_to_mask
 
 
@@ -683,7 +678,6 @@ class TransformerV2ConvEndpoint(nn.Module):
         out_scale: int,
         norm_layer: Optional[Type[nn.Module]] = None,
     ):
-
         """Create the resampling endpoint used for multiscale aggregation.
 
         Args:

@@ -197,7 +197,7 @@ class TransformerEncoderV1(NetArch):
 
         return x, mask
 
-    def get_config(self):
+    def get_config(self, no_class_name: bool = False):
         """Gets network config
         Returns:
            dictionary with config params
@@ -226,7 +226,7 @@ class TransformerEncoderV1(NetArch):
             "out_time_dim": self.out_time_dim,
         }
 
-        base_config = super().get_config()
+        base_config = super().get_config(no_class_name=no_class_name)
         return dict(list(base_config.items()) + list(config.items()))
 
     def change_dropouts(self, pos_dropout_rate, att_dropout_rate, ff_dropout_rate):

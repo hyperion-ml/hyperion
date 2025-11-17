@@ -107,14 +107,14 @@ class HydraHead(NetArch):
         self.enable_loss = enable_loss
         self.reduction = reduction
 
-    def get_config(self) -> Dict[str, Any]:
+    def get_config(self, no_class_name: bool = False) -> Dict[str, Any]:
         """Return a serializable configuration for this head.
 
         Returns:
             Dict[str, Any]: Configuration values needed to rebuild the head.
         """
         return {
-            **super().get_config(),
+            **super().get_config(no_class_name=no_class_name),
             "enable_loss": self.enable_loss,
             "reduction": self.reduction,
         }
@@ -474,7 +474,7 @@ class HydraClassifHead(HydraHead):
         kernel = kernel / torch.linalg.norm(kernel, 2, dim=1, keepdim=True)
         return torch.mm(kernel, kernel.transpose(0, 1))
 
-    def get_config(self) -> Dict[str, Any]:
+    def get_config(self, no_class_name: bool = False) -> Dict[str, Any]:
         """Return a configuration dictionary for checkpoint serialization.
 
         Returns:
@@ -494,7 +494,7 @@ class HydraClassifHead(HydraHead):
             "label_smoothing": self.loss.label_smoothing if self.enable_loss else 0.0,
         }
 
-        base_config = super().get_config()
+        base_config = super().get_config(no_class_name=no_class_name)
         return dict(list(base_config.items()) + list(config.items()))
 
     @staticmethod

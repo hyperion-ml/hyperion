@@ -781,7 +781,7 @@ class TransformerEncoderV2(NetArch):
             return x, x_lengths, TransformerEncoderState(block_states=updated_states)
         return x, x_lengths
 
-    def get_config(self):
+    def get_config(self, no_class_name: bool = False):
 
         config = {
             "in_feats": self.in_feats,
@@ -829,7 +829,7 @@ class TransformerEncoderV2(NetArch):
             "model_parallel": self.model_parallel,
         }
 
-        base_config = super().get_config()
+        base_config = super().get_config(no_class_name=no_class_name)
         return dict(list(base_config.items()) + list(config.items()))
 
     def change_config(

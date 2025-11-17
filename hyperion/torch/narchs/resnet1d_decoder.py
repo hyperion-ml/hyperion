@@ -297,7 +297,7 @@ class ResNet1dDecoder(NetArch):
 
         return x
 
-    def get_config(self):
+    def get_config(self, no_class_name: bool = False):
 
         head_act = self.head_act
         hid_act = self.hid_act
@@ -324,7 +324,7 @@ class ResNet1dDecoder(NetArch):
             "norm_before": self.norm_before,
         }
 
-        base_config = super().get_config()
+        base_config = super().get_config(no_class_name=no_class_name)
         return dict(list(base_config.items()) + list(config.items()))
 
     @staticmethod

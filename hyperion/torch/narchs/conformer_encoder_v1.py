@@ -342,7 +342,7 @@ class ConformerEncoderV1(NetArch):
 
         return x, x_lengths
 
-    def get_config(self):
+    def get_config(self, no_class_name: bool = False):
         """Gets network config
         Returns:
            dictionary with config params
@@ -380,7 +380,7 @@ class ConformerEncoderV1(NetArch):
             "out_time_dim": self.out_time_dim,
         }
 
-        base_config = super().get_config()
+        base_config = super().get_config(no_class_name=no_class_name)
         return dict(list(base_config.items()) + list(config.items()))
 
     def in_context(self):

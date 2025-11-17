@@ -68,7 +68,7 @@ class ProjHead(NetArch):
 
         return x
 
-    def get_config(self):
+    def get_config(self, no_class_name: bool = False):
         config = {
             "in_feats": self.in_feats,
             "out_feats": self.out_feats,
@@ -76,7 +76,7 @@ class ProjHead(NetArch):
             "use_norm": self.use_norm,
             "norm_before": self.norm_before,
         }
-        base_config = super().get_config()
+        base_config = super().get_config(no_class_name=no_class_name)
         return dict(list(base_config.items()) + list(config.items()))
 
     @staticmethod

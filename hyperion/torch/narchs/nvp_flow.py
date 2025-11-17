@@ -133,7 +133,7 @@ class WaveNetNVPFlow(NVPFlow):
         x = x.transpose(1, 2)  # (B, C, T) -> (B, T, C)
         return x, log_det
 
-    def get_config(self):
+    def get_config(self, no_class_name: bool = False):
         """
         Returns the configuration of the WaveNetNVPFlow as a dictionary.
 
@@ -149,7 +149,7 @@ class WaveNetNVPFlow(NVPFlow):
             "dilation_rate": self.dilation_rate,
             "cond_channels": self.cond_channels,
         }
-        base_config = super().get_config()
+        base_config = super().get_config(no_class_name=no_class_name)
         return dict(list(base_config.items()) + list(config.items()))
 
     @staticmethod

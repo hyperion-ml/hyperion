@@ -125,7 +125,7 @@ class RNNTransducerDecoder(NetArch):
         else:
             raise ValueError(f"Unknown joiner type {joiner_type}")
 
-    def get_config(self):
+    def get_config(self, no_class_name: bool = False):
         config = {
             "in_feats": self.in_feats,
             "vocab_size": self.vocab_size,
@@ -142,7 +142,7 @@ class RNNTransducerDecoder(NetArch):
             "simple_loss_scale": self.simple_loss_scale,
             "pruned_warmup_steps": self.pruned_warmup_steps,
         }
-        base_config = super().get_config()
+        base_config = super().get_config(no_class_name=no_class_name)
         return dict(list(base_config.items()) + list(config.items()))
 
     def _rnnt_loss_torchaudio(

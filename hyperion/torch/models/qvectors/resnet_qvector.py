@@ -90,15 +90,6 @@ class ResNetQVector(QVector):
         logging.info("making %s encoder network", resnet_type)
         resnet_encoder = RNF.create(**resnet_encoder)
 
-        self.acoustic_feats: AudioFeatsMVN = acoustic_feats
-        self.resnet_encoder: ResNet = resnet_encoder
-        self.resnet_type: str = resnet_type
-        self._acoustic_feats_context = torch.no_grad()
-        self.backbone_layers: Optional[List[int]] = None
-        self.backbone_return_output: bool = False
-        self.hidden_feats_adapter: Optional[nn.ModuleList] = None
-        self.output_feats_adapter: Optional[nn.Linear] = None
-
         super().__init__(
             hidden_feats_agg_qformer=hidden_feats_agg_qformer,
             num_hidden_feats_queries=num_hidden_feats_queries,
@@ -108,6 +99,14 @@ class ResNetQVector(QVector):
             head=head,
             bias_weight_decay=bias_weight_decay,
         )
+        self.acoustic_feats: AudioFeatsMVN = acoustic_feats
+        self.resnet_encoder: ResNet = resnet_encoder
+        self.resnet_type: str = resnet_type
+        self._acoustic_feats_context = torch.no_grad()
+        self.backbone_layers: Optional[List[int]] = None
+        self.backbone_return_output: bool = False
+        self.hidden_feats_adapter: Optional[nn.ModuleList] = None
+        self.output_feats_adapter: Optional[nn.Linear] = None
         self._infer_backbone_layer_indices()
         self._make_adapters()
 
@@ -288,7 +287,7 @@ class ResNetQVector(QVector):
             Dict[str, Any]: Configuration for acoustic features, backbone, and base
             ``QVector`` options.
         """
-        feats_cfg = self.acoustic_feats.get_config()
+        feats_cfg = self.acoustic_feats.get_config(no_class_name=True)
         resnet_cfg = {
             "resnet_type": self.resnet_type,
             "in_channels": self.resnet_encoder.in_channels,

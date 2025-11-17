@@ -675,15 +675,24 @@ class DAC(TorchModel):
 
     def get_config(self) -> Dict[str, Any]:
         """Return a JSON-serializable config describing the model."""
-        return {
-            "encoder": self.encoder.get_config(),
-            "quantizer": self.quantizer.get_config(),
-            "decoder": self.decoder.get_config(),
-            "latent_feats": self.latent_feats,
-            "input_sample_freq": self.input_sample_freq,
-            "norm_input_loudness": self.norm_input_loudness,
-            "target_input_lufs": self.target_input_lufs,
-        }
+        config = super().get_config()
+        encoder = self.encoder.get_config()
+        quantizer = self.quantizer.get_config()
+        decoder = self.decoder.get_config()
+        del encoder["class_name"]
+        del decoder["class_name"]
+        config.update(
+            {
+                "encoder": encoder,
+                "quantizer": quantizer,
+                "decoder": decoder,
+                "latent_feats": self.latent_feats,
+                "input_sample_freq": self.input_sample_freq,
+                "norm_input_loudness": self.norm_input_loudness,
+                "target_input_lufs": self.target_input_lufs,
+            }
+        )
+        return config
 
     @staticmethod
     def filter_args(**kwargs):
@@ -744,6 +753,7 @@ class DAC(TorchModel):
         If `prefix` is provided, a nested sub-parser is created and attached under
         `--{prefix}` via `ActionParser`.
         """
+        return
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")

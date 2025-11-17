@@ -7,7 +7,7 @@ import logging
 from collections import OrderedDict as ODict
 from copy import deepcopy
 from pathlib import Path
-from typing import Callable, Dict, Optional, Union
+from typing import Any, Callable, Dict, Optional, Union
 
 import torch
 import torch.nn as nn
@@ -29,7 +29,9 @@ class TorchModel(nn.Module):
         self._train_mode = "full"
         self.bias_weight_decay = bias_weight_decay
 
-    def get_config(self):
+    def get_config(self, no_class_name: bool = False) -> Dict[str, Any]:
+        if no_class_name:
+            return {}
         config = {"class_name": self.__class__.__name__}
         return config
 
@@ -388,8 +390,15 @@ class TorchModel(nn.Module):
         if map_location is None:
             map_location = torch.device("cpu")
 
-        model_data = torch.load(file_path, map_location=map_location)
+        model_data = torch.load(
+            file_path,
+            map_location=map_location,
+        )
         cfg = model_data["model_cfg"]
+
+        if "class_name" not in cfg:
+            cfg["class_name"] = "DAC"
+
         class_name = cfg["class_name"]
         del cfg["class_name"]
         if class_name in TorchModel.registry:

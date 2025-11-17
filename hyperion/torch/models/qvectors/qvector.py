@@ -145,6 +145,8 @@ class QVector(TorchModel):
         ):
             logging.info("Building output_feats_agg_qformer from config dict")
             output_feats_agg_qformer["multilayer_input"] = False
+            if "class_name" in output_feats_agg_qformer:
+                del output_feats_agg_qformer["class_name"]
             self.output_feats_agg_qformer = QFormerV2(**output_feats_agg_qformer)
         else:
             self.output_feats_queries = None
@@ -202,6 +204,7 @@ class QVector(TorchModel):
         self._hidden_feats_agg_context = contextlib.nullcontext()
         self._output_feats_agg_context = contextlib.nullcontext()
         self._init_queries()
+        self.register_buffer("max_input_length", torch.tensor(0))
 
     def _init_queries(self):
         """Initialise the learnable query tensors using a truncated normal draw."""
@@ -277,6 +280,18 @@ class QVector(TorchModel):
             return self.head.loss_type
         else:
             raise ValueError("head has no loss_type attribute")
+
+    def update_train_length(self, input_length: int):
+        """Update the maximum input length seen during training.
+
+        Args:
+            input_length: Length of the current input sequence.
+        """
+        if not self.training:
+            return
+        if input_length > int(self.max_input_length):
+            # Keep the buffer registered by mutating the tensor rather than reassigning.
+            self.max_input_length.fill_(input_length)
 
     def update_loss_margin(self, global_step: int):
         """Update margin scheduling for large-margin losses when supported.
@@ -401,6 +416,7 @@ class QVector(TorchModel):
             QVectorOutput: Structured output containing the q-matrix, q-vector, head
             output, and any requested backbone features.
         """
+        self.update_train_length(audio.size(-1))
         with self._backbone_context:
             (
                 backbone_output_feats,
@@ -715,29 +731,32 @@ class QVector(TorchModel):
             Dict[str, Any]: Configuration dictionary that can be fed back into the
             constructor (along with subclass-specific backbone parameters).
         """
-        head = self.head.get_config()
+        head = self.head.get_config(no_class_name=True)
         head["head_type"] = HydraHeadType.from_instance(self.head)
+        hidden_feats_agg_qformer = (
+            self.hidden_feats_agg_qformer.get_config(no_class_name=True)
+            if self.hidden_feats_agg_qformer is not None
+            else None
+        )
+        output_feats_agg_qformer = (
+            self.output_feats_agg_qformer.get_config(no_class_name=True)
+            if self.output_feats_agg_qformer is not None
+            else None
+        )
+
         config = {
-            "hidden_feats_agg_qformer": (
-                self.hidden_feats_agg_qformer.get_config()
-                if self.hidden_feats_agg_qformer is not None
-                else None
-            ),
+            "hidden_feats_agg_qformer": hidden_feats_agg_qformer,
             "num_hidden_feats_queries": self.num_hidden_feats_queries,
-            "output_feats_agg_qformer": (
-                self.output_feats_agg_qformer.get_config()
-                if self.output_feats_agg_qformer is not None
-                else None
-            ),
+            "output_feats_agg_qformer": output_feats_agg_qformer,
             "num_output_feats_queries": self.num_output_feats_queries,
             "qvector_dim": self.qvector_dim,
-            "proj_head": self.proj_head.get_config(),
             "head": head,
             "bias_weight_decay": self.bias_weight_decay,
         }
 
         base_config = super().get_config()
-        return dict(list(base_config.items()) + list(config.items()))
+        base_config.update(config)
+        return base_config
 
     # @classmethod
     # def load(cls, file_path=None, cfg=None, state_dict=None):

@@ -725,7 +725,7 @@ class SpineNet(NetArch):
                 x = self.out_act(x)
         return x
 
-    def get_config(self):
+    def get_config(self, no_class_name: bool = False):
         """Gets network config
         Returns:
            dictionary with config params
@@ -766,7 +766,7 @@ class SpineNet(NetArch):
             "res2net_width_factor": self.res2net_width_factor,
         }
 
-        base_config = super().get_config()
+        base_config = super().get_config(no_class_name=no_class_name)
         return dict(list(base_config.items()) + list(config.items()))
 
 
