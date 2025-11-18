@@ -229,7 +229,8 @@ class HydraClassifHead(HydraHead):
                 num_classes,
                 cos_scale=cos_scale,
                 margin=margin,
-                margin_warmup_epochs=margin_warmup_steps,
+                margin_warmup_epochs=0,
+                margin_warmup_steps=margin_warmup_steps,
                 intertop_k=intertop_k,
                 intertop_margin=intertop_margin,
             )
@@ -239,7 +240,8 @@ class HydraClassifHead(HydraHead):
                 num_classes,
                 cos_scale=cos_scale,
                 margin=margin,
-                margin_warmup_epochs=margin_warmup_steps,
+                margin_warmup_epochs=0,
+                margin_warmup_steps=margin_warmup_steps,
                 intertop_k=intertop_k,
                 intertop_margin=intertop_margin,
             )
@@ -250,7 +252,8 @@ class HydraClassifHead(HydraHead):
                 num_subcenters,
                 cos_scale=cos_scale,
                 margin=margin,
-                margin_warmup_epochs=margin_warmup_steps,
+                margin_warmup_epochs=0,
+                margin_warmup_steps=margin_warmup_steps,
                 intertop_k=intertop_k,
                 intertop_margin=intertop_margin,
             )
@@ -299,7 +302,8 @@ class HydraClassifHead(HydraHead):
                 num_classes,
                 cos_scale=cos_scale,
                 margin=margin,
-                margin_warmup_epochs=margin_warmup_steps,
+                margin_warmup_epochs=0,
+                margin_warmup_steps=margin_warmup_steps,
                 intertop_k=intertop_k,
                 intertop_margin=intertop_margin,
             )
@@ -309,7 +313,8 @@ class HydraClassifHead(HydraHead):
                 num_classes,
                 cos_scale=cos_scale,
                 margin=margin,
-                margin_warmup_epochs=margin_warmup_steps,
+                margin_warmup_epochs=0,
+                margin_warmup_steps=margin_warmup_steps,
                 intertop_k=intertop_k,
                 intertop_margin=intertop_margin,
             )
@@ -320,7 +325,8 @@ class HydraClassifHead(HydraHead):
                 num_subcenters,
                 cos_scale=cos_scale,
                 margin=margin,
-                margin_warmup_epochs=margin_warmup_steps,
+                margin_warmup_epochs=0,
+                margin_warmup_steps=margin_warmup_steps,
                 intertop_k=intertop_k,
                 intertop_margin=intertop_margin,
             )
@@ -347,7 +353,14 @@ class HydraClassifHead(HydraHead):
             return
 
         self.margin_warmup_steps = margin_warmup_steps
-        self.output.margin_warmup_epochs = margin_warmup_steps
+        if hasattr(self.output, "margin_warmup_steps"):
+            self.output.margin_warmup_steps = margin_warmup_steps
+            if hasattr(self.output, "margin_warmup_epochs"):
+                self.output.margin_warmup_epochs = 0
+            if hasattr(self.output, "_update_on_step"):
+                self.output._update_on_step = margin_warmup_steps > 0
+        elif hasattr(self.output, "margin_warmup_epochs"):
+            self.output.margin_warmup_epochs = margin_warmup_steps
 
     def set_cos_scale(self, cos_scale: float) -> None:
         """Update the scale parameter applied in cosine-based logits.

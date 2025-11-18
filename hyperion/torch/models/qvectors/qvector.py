@@ -5,12 +5,14 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
 import contextlib
 import logging
+import math
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ....utils import HypDataClass
@@ -53,6 +55,160 @@ class QVectorOutput(HypDataClass):
 
     backbone_hidden_feats_lengths: Optional[torch.Tensor] = None
     """Lengths matching `backbone_hidden_feats` for variable-length inputs."""
+
+    @classmethod
+    def concatenate(cls, outputs: List["QVectorOutput"]) -> "QVectorOutput":
+        """Concatenate multiple QVectorOutput instances along the batch dimension."""
+        if not outputs:
+            raise ValueError("Cannot concatenate an empty list of QVectorOutput.")
+
+        def _cat_optional_tensor(attr: str) -> Optional[torch.Tensor]:
+            tensors = [getattr(out, attr) for out in outputs]
+            if any(t is None for t in tensors):
+                return None
+            return torch.cat(tensors, dim=0)
+
+        def _cat_optional_tensor_lists(attr: str) -> Optional[List[torch.Tensor]]:
+            tensor_lists = [getattr(out, attr) for out in outputs]
+            if any(t_list is None for t_list in tensor_lists):
+                return None
+            num_entries = len(tensor_lists[0])
+            concatenated: List[torch.Tensor] = []
+            for idx in range(num_entries):
+                concatenated.append(
+                    torch.cat([t_list[idx] for t_list in tensor_lists], dim=0)
+                )
+            return concatenated
+
+        head_outputs = [
+            out.head_output for out in outputs if out.head_output is not None
+        ]
+        head_output: Optional[
+            Union[HydraClassifHeadOutput, HydraRegressionHeadOutput]
+        ] = None
+        if head_outputs:
+            first_output = head_outputs[0]
+            if not all(isinstance(h, type(first_output)) for h in head_outputs):
+                raise ValueError(
+                    "All head outputs must share the same type to concatenate."
+                )
+            if isinstance(first_output, HydraClassifHeadOutput):
+                logits = torch.cat([h.logits for h in head_outputs], dim=0)
+                loss = head_outputs[0].loss
+                head_output = HydraClassifHeadOutput(logits=logits, loss=loss)
+            elif isinstance(first_output, HydraRegressionHeadOutput):
+                preds = torch.cat([h.preds for h in head_outputs], dim=0)
+                loss = head_outputs[0].loss
+                head_output = HydraRegressionHeadOutput(preds=preds, loss=loss)
+
+        return cls(
+            qmatrix=torch.cat([out.qmatrix for out in outputs], dim=0),
+            qvector=torch.cat([out.qvector for out in outputs], dim=0),
+            head_output=head_output,
+            backbone_output_feats=_cat_optional_tensor_lists("backbone_output_feats"),
+            backbone_output_feats_lengths=_cat_optional_tensor(
+                "backbone_output_feats_lengths"
+            ),
+            backbone_hidden_feats=_cat_optional_tensor_lists("backbone_hidden_feats"),
+            backbone_hidden_feats_lengths=_cat_optional_tensor(
+                "backbone_hidden_feats_lengths"
+            ),
+        )
+
+    @classmethod
+    def weighted_average_by_index(
+        cls,
+        concatenated_output: "QVectorOutput",
+        audio_index: torch.Tensor,
+        chunk_weights: Optional[torch.Tensor] = None,
+    ) -> "QVectorOutput":
+        """Aggregate chunk-level outputs into per-example averages using weights."""
+        if concatenated_output.qvector.size(0) != audio_index.size(0):
+            raise ValueError(
+                "audio_index length must match the number of chunk outputs."
+            )
+
+        device = concatenated_output.qvector.device
+        dtype = concatenated_output.qvector.dtype
+        audio_index = audio_index.to(device=device, dtype=torch.long)
+
+        if chunk_weights is None:
+            chunk_weights = torch.ones(audio_index.size(0), device=device, dtype=dtype)
+        else:
+            chunk_weights = chunk_weights.to(device=device, dtype=dtype)
+
+        if audio_index.numel() == 0:
+            raise ValueError("audio_index must have at least one element.")
+
+        num_examples = int(audio_index.max().item()) + 1
+        weight_sums = torch.zeros(num_examples, device=device, dtype=dtype)
+        weight_sums.index_add_(0, audio_index, chunk_weights)
+        assert torch.all(weight_sums > 0), "Weights must sum to positive values."
+
+        weighted_qvectors = concatenated_output.qvector * chunk_weights.unsqueeze(1)
+        qvector = torch.zeros(
+            (num_examples, concatenated_output.qvector.size(1)),
+            device=device,
+            dtype=dtype,
+        )
+        qvector.index_add_(0, audio_index, weighted_qvectors)
+        qvector = qvector / weight_sums.unsqueeze(1)
+
+        weighted_qmatrices = concatenated_output.qmatrix * chunk_weights.view(-1, 1, 1)
+        qmatrix = torch.zeros(
+            (num_examples,) + concatenated_output.qmatrix.shape[1:],
+            device=concatenated_output.qmatrix.device,
+            dtype=concatenated_output.qmatrix.dtype,
+        )
+        qmatrix.index_add_(0, audio_index, weighted_qmatrices)
+        qmatrix = qmatrix / weight_sums.view(-1, 1, 1)
+
+        input_head_output = concatenated_output.head_output
+        aggregated_head_output: Optional[
+            Union[HydraClassifHeadOutput, HydraRegressionHeadOutput]
+        ]
+        if input_head_output is None:
+            aggregated_head_output = None
+        elif isinstance(input_head_output, HydraClassifHeadOutput):
+            logits_chunks = input_head_output.logits
+            weighted_logits = logits_chunks * chunk_weights.unsqueeze(1)
+            logits = torch.zeros(
+                (num_examples, logits_chunks.size(1)),
+                device=logits_chunks.device,
+                dtype=logits_chunks.dtype,
+            )
+            logits.index_add_(0, audio_index, weighted_logits)
+            logits = logits / weight_sums.unsqueeze(1)
+            aggregated_head_output = HydraClassifHeadOutput(
+                logits=logits, loss=input_head_output.loss
+            )
+        elif isinstance(input_head_output, HydraRegressionHeadOutput):
+            preds_chunks = input_head_output.preds
+            expand_shape = (preds_chunks.size(0),) + (1,) * (preds_chunks.dim() - 1)
+            weighted_preds = preds_chunks * chunk_weights.view(expand_shape)
+            preds = torch.zeros(
+                (num_examples,) + preds_chunks.shape[1:],
+                device=preds_chunks.device,
+                dtype=preds_chunks.dtype,
+            )
+            preds.index_add_(0, audio_index, weighted_preds)
+            view_shape = (num_examples,) + (1,) * (preds_chunks.dim() - 1)
+            preds = preds / weight_sums.view(view_shape)
+            aggregated_head_output = HydraRegressionHeadOutput(
+                preds=preds, loss=input_head_output.loss
+            )
+        else:
+            aggregated_head_output = None
+
+        return cls(
+            qmatrix=qmatrix,
+            qvector=qvector,
+            head_output=aggregated_head_output,
+            backbone_output_feats=None,
+            backbone_output_feats_lengths=None,
+            backbone_hidden_feats=None,
+            backbone_hidden_feats_lengths=None,
+        )
 
 
 class QVectorTrainMode(str, Enum):
@@ -215,12 +371,39 @@ class QVector(TorchModel):
             nn.init.trunc_normal_(self.output_feats_queries, std=0.02)
 
     @property
+    def max_chunk_length(self) -> int:
+        """Maximum chunk length (in samples) seen during training."""
+        return int(self.max_input_length.item())
+
+    @property
+    def qmatrix_shape(self) -> int:
+        """Shape of the q-matrix output by the aggregation Q-formers."""
+        num_queries = self.num_hidden_feats_queries + self.num_output_feats_queries
+        qformer_out_feats = 0
+        if self.hidden_feats_agg_qformer is not None:
+            qformer_out_feats = self.hidden_feats_agg_qformer.out_dim
+        elif self.output_feats_agg_qformer is not None:
+            qformer_out_feats = self.output_feats_agg_qformer.out_dim
+        return (num_queries, qformer_out_feats)
+
+    @property
+    def num_classes(self):
+        if hasattr(self.head, "num_classes"):
+            return self.head.num_classes
+        else:
+            return None
+
+    @property
     def has_hidden_feats_agg(self):
         return self.hidden_feats_agg_qformer is not None
 
     @property
     def has_output_feats_agg(self):
         return self.output_feats_agg_qformer is not None
+
+    @property
+    def sample_frequency(self):
+        raise NotImplementedError()
 
     def _infer_backbone_layers_indices_and_dims(self):
         raise NotImplementedError()
@@ -513,6 +696,205 @@ class QVector(TorchModel):
             ),
         )
         return output
+
+    @staticmethod
+    def _split_batches(
+        tensor: torch.Tensor,
+        lengths_tensor: Optional[torch.Tensor],
+        chunk_length: int,
+        max_batch_length: Optional[int],
+    ) -> Tuple[List[torch.Tensor], Optional[List[torch.Tensor]]]:
+        """Split tensors into batches that satisfy duration constraints."""
+        if tensor.size(0) == 0:
+            if lengths_tensor is None:
+                return [], None
+            return [], []
+
+        if max_batch_length is None:
+            audio_batches = [tensor]
+            lengths_batches = [lengths_tensor] if lengths_tensor is not None else None
+            return audio_batches, lengths_batches
+
+        max_chunks_per_batch = max(1, max_batch_length // max(1, chunk_length))
+        audio_batches: List[torch.Tensor] = []
+        lengths_batches: Optional[List[torch.Tensor]]
+        if lengths_tensor is None:
+            lengths_batches = None
+        else:
+            lengths_batches = []
+
+        for start in range(0, tensor.size(0), max_chunks_per_batch):
+            end = min(start + max_chunks_per_batch, tensor.size(0))
+            audio_batches.append(tensor[start:end])
+            if lengths_batches is not None and lengths_tensor is not None:
+                lengths_batches.append(lengths_tensor[start:end])
+
+        return audio_batches, lengths_batches
+
+    def _prepare_infer_input(
+        self,
+        audio: torch.Tensor,
+        audio_lengths: Optional[torch.Tensor] = None,
+        max_batch_duration: Optional[float] = None,
+        override_chunk_duration: Optional[float] = None,
+    ) -> Tuple[List[torch.Tensor], Optional[List[torch.Tensor]], torch.Tensor]:
+        """Prepare input audio for inference.
+
+        Args:
+            audio: Input tensor with shape ``(batch, time)``.
+            audio_lengths: Optional sequence-length tensor describing valid frames in
+                ``audio``.
+            max_batch_duration: Optional maximum duration (in seconds) for batching.
+            override_chunk_duration: Optional chunk duration (in seconds) to override
+                any internal chunking mechanism.
+
+        Returns:
+            Tuple containing the prepared audio tensors grouped into batches (each
+            respecting the maximum batch duration when provided), optional lists of
+            adjusted lengths tensors aligned with each batch, and a mapping from every
+            chunked element to its originating example.
+        """
+        if max_batch_duration is not None:
+            max_batch_length = int(max_batch_duration * self.sample_frequency)
+        else:
+            max_batch_length = None
+
+        if override_chunk_duration is not None:
+            chunk_length = int(override_chunk_duration * self.sample_frequency)
+        else:
+            chunk_length = self.max_chunk_length
+
+        if chunk_length == 0:
+            chunk_length = audio.size(-1)
+
+        if max_batch_length is not None and max_batch_length < chunk_length:
+            chunk_length = max_batch_length
+
+        if chunk_length <= 0:
+            raise ValueError("chunk_length must be a positive integer")
+
+        batch_size = audio.size(0)
+        time_dim = audio.size(-1)
+        num_chunks = max(1, math.ceil(time_dim / chunk_length))
+        chunk_length = max(1, math.ceil(time_dim / num_chunks))
+        padded_length = num_chunks * chunk_length
+        if padded_length > time_dim:
+            audio = F.pad(audio, (0, padded_length - time_dim))
+
+        audio = audio.reshape(batch_size * num_chunks, chunk_length)
+
+        audio_index = torch.arange(
+            batch_size, device=audio.device, dtype=torch.long
+        ).repeat_interleave(num_chunks)
+
+        if audio_lengths is None:
+            audio_batches, _ = self._split_batches(
+                audio, None, chunk_length, max_batch_length
+            )
+            return audio_batches, None, audio_index
+
+        lengths_list = [int(length) for length in audio_lengths.tolist()]
+        keep_mask: List[bool] = []
+        chunk_lengths: List[int] = []
+        for length in lengths_list:
+            for chunk_idx in range(num_chunks):
+                start = chunk_idx * chunk_length
+                valid = min(max(length - start, 0), chunk_length)
+                keep_mask.append(valid > 0)
+                if valid > 0:
+                    chunk_lengths.append(valid)
+
+        keep_mask_tensor = torch.tensor(
+            keep_mask, device=audio.device, dtype=torch.bool
+        )
+        assert (
+            keep_mask_tensor.any()
+        ), "Expected at least one chunk with positive length."
+        audio = audio[keep_mask_tensor]
+        audio_index = audio_index[keep_mask_tensor]
+        new_audio_lengths = torch.tensor(
+            chunk_lengths,
+            device=audio_lengths.device,
+            dtype=audio_lengths.dtype,
+        )
+
+        audio_batches, audio_lengths_batches = self._split_batches(
+            audio, new_audio_lengths, chunk_length, max_batch_length
+        )
+        return audio_batches, audio_lengths_batches, audio_index
+
+    def infer(
+        self,
+        audio: torch.Tensor,
+        audio_lengths: Optional[torch.Tensor] = None,
+        max_batch_duration: Optional[float] = None,
+        override_chunk_duration: Optional[float] = None,
+        return_head_output: bool = False,
+    ) -> QVectorOutput:
+        """Run inference through the q-vector pipeline.
+
+        Args:
+            audio: Input tensor with shape ``(batch, time)``.
+            audio_lengths: Optional sequence-length tensor describing valid frames in
+                ``audio``.
+            max_batch_duration: Optional limit (in seconds) for the aggregated batch
+                duration.
+            override_chunk_duration: Optional override for the internal chunk length
+                (in seconds).
+            return_head_output: When ``True``, include the head output in the
+                resulting :class:`QVectorOutput` structure.
+
+        Returns:
+            QVectorOutput: Weighted-average q-vector output aggregating all chunked
+            batches for each original example.
+        """
+        audio_batches, audio_lengths_batches, audio_index = self._prepare_infer_input(
+            audio, audio_lengths, max_batch_duration, override_chunk_duration
+        )
+        device = next(self.parameters()).device
+        processed_lengths_batches: Optional[List[torch.Tensor]]
+        if audio_lengths_batches is None:
+            processed_lengths_batches = None
+        else:
+            processed_lengths_batches = []
+
+        outputs: List[QVectorOutput] = []
+        for idx, audio_batch in enumerate(audio_batches):
+            audio_batch = audio_batch.to(device)
+            batch_lengths = (
+                None
+                if audio_lengths_batches is None
+                else audio_lengths_batches[idx].to(device)
+            )
+            if processed_lengths_batches is not None and batch_lengths is not None:
+                processed_lengths_batches.append(batch_lengths)
+            output = self.forward(
+                audio_batch,
+                batch_lengths,
+                return_backbone_feats=False,
+                return_head_output=return_head_output,
+            )
+            outputs.append(output)
+
+        assert (
+            len(outputs) > 0
+        ), "_prepare_infer_input should always produce at least one batch"
+        concatenated_output = QVectorOutput.concatenate(outputs)
+
+        if processed_lengths_batches is not None and processed_lengths_batches:
+            chunk_weights = torch.cat(processed_lengths_batches, dim=0).to(
+                concatenated_output.qvector.device,
+                dtype=concatenated_output.qvector.dtype,
+            )
+        else:
+            chunk_weights = None
+
+        aggregated_output = QVectorOutput.weighted_average_by_index(
+            concatenated_output,
+            audio_index.to(concatenated_output.qvector.device),
+            chunk_weights,
+        )
+        return aggregated_output
 
     # def forward_logits(self, x, x_lengths=None, y=None):
     #     """Forward function
@@ -979,35 +1361,45 @@ class QVector(TorchModel):
             self.set_adapters_in_train_mode()
             if self.hidden_feats_agg_qformer is not None:
                 self.hidden_feats_agg_qformer.train()
-            self.output_feats_agg_qformer.train()
+
+            if self.output_feats_agg_qformer is not None:
+                self.output_feats_agg_qformer.train()
             self.proj_head.train()
             self.head.train()
         elif train_mode == QVectorTrainMode.QFORMERS:
             self.set_backbone_in_eval_mode()
             self.set_adapters_in_eval_mode()
-            self.hidden_feats_agg_qformer.train()
-            self.output_feats_agg_qformer.train()
+            if self.hidden_feats_agg_qformer is not None:
+                self.hidden_feats_agg_qformer.train()
+            if self.output_feats_agg_qformer is not None:
+                self.output_feats_agg_qformer.train()
             self.proj_head.train()
             self.head.train()
         elif train_mode == QVectorTrainMode.OUTPUT_FEATS_QFORMER:
             self.set_backbone_in_eval_mode()
             self.set_adapters_in_eval_mode()
-            self.hidden_feats_agg_qformer.eval()
-            self.output_feats_agg_qformer.train()
+            if self.hidden_feats_agg_qformer is not None:
+                self.hidden_feats_agg_qformer.eval()
+            if self.output_feats_agg_qformer is not None:
+                self.output_feats_agg_qformer.train()
             self.proj_head.train()
             self.head.train()
         elif train_mode == QVectorTrainMode.PROJ_HEAD:
             self.set_backbone_in_eval_mode()
             self.set_adapters_in_eval_mode()
-            self.hidden_feats_agg_qformer.eval()
-            self.output_feats_agg_qformer.eval()
+            if self.hidden_feats_agg_qformer is not None:
+                self.hidden_feats_agg_qformer.eval()
+            if self.output_feats_agg_qformer is not None:
+                self.output_feats_agg_qformer.eval()
             self.proj_head.train()
             self.head.train()
         elif train_mode == QVectorTrainMode.OUTPUT_LAYER:
             self.set_backbone_in_eval_mode()
             self.set_adapters_in_eval_mode()
-            self.hidden_feats_agg_qformer.eval()
-            self.output_feats_agg_qformer.eval()
+            if self.hidden_feats_agg_qformer is not None:
+                self.hidden_feats_agg_qformer.eval()
+            if self.output_feats_agg_qformer is not None:
+                self.output_feats_agg_qformer.eval()
             self.proj_head.eval()
             self.head.train()
         else:
