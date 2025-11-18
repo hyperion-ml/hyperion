@@ -138,7 +138,7 @@ class ResNetQVector(QVector):
         if self.hidden_feats_agg_qformer is not None:
             hfa_qformer_in_feats = self.hidden_feats_agg_qformer.in_feats
             hid_shapes = self.resnet_encoder.hid_shapes(
-                in_shape, layers=self.backbone_layers
+                in_shape=in_shape, layers=self.backbone_layers
             )
             hid_feats = [s[1] * s[2] for s in hid_shapes]
             self.hidden_feats_adapter = nn.ModuleList(

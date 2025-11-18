@@ -406,11 +406,15 @@ class ResNet(NetArch):
         if 0 in layers:
             sizes.append(out_size)
 
+        if 1 in layers:
+            sizes.append(out_size)
+
         for i in range(3):
             if not self.replace_stride_with_dilation[i]:
                 out_size = int((out_size - 1) // 2 + 1)
-                if (i + 1) in layers:
-                    sizes.append(out_size)
+
+            if (i + 2) in layers:
+                sizes.append(out_size)
 
         return sizes
 
