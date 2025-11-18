@@ -45,6 +45,7 @@ class ArcLossOutput(nn.Module):
         cos_scale: float = 64,
         margin: float = 0.3,
         margin_warmup_epochs: int = 0,
+        margin_warmup_steps: int = 0,
         intertop_k: int = 5,
         intertop_margin: float = 0,
     ) -> None:
@@ -54,9 +55,11 @@ class ArcLossOutput(nn.Module):
         self.cos_scale = cos_scale
         self.margin = margin
         self.margin_warmup_epochs = margin_warmup_epochs
+        self.margin_warmup_steps = margin_warmup_steps
         self.intertop_k = intertop_k
         self.intertop_margin = intertop_margin
-        if margin_warmup_epochs == 0:
+        self._update_on_step = margin_warmup_steps > 0
+        if margin_warmup_epochs == 0 and margin_warmup_steps == 0:
             self.cur_margin = margin
             self.cur_intertop_margin = intertop_margin
         else:
@@ -90,33 +93,38 @@ class ArcLossOutput(nn.Module):
         return s
 
     def _compute_aux(self) -> None:
-        logging.info(
-            "updating arc-softmax margin=%.2f intertop-margin=%.2f",
-            self.cur_margin,
-            self.cur_intertop_margin,
-        )
         self.cos_m = math.cos(self.cur_margin)
         self.sin_m = math.sin(self.cur_margin)
         self.intertop_cos_m = math.cos(self.cur_intertop_margin)
         self.intertop_sin_m = math.sin(self.cur_intertop_margin)
 
-    def update_margin(self, epoch: int) -> None:
+    def update_margin(self, step: int) -> None:
         """Updates the value of the margin.
 
         Args:
-          epoch: value of current epoch.
+          step: value of current epoch or step.
         """
-        if epoch < self.margin_warmup_epochs:
-            self.cur_margin = self.margin * epoch / self.margin_warmup_epochs
-            self.cur_intertop_margin = (
-                self.intertop_margin * epoch / self.margin_warmup_epochs
-            )
+        if self._update_on_step:
+            margin_warmup = self.margin_warmup_steps
+        else:
+            margin_warmup = self.margin_warmup_epochs
+
+        if step < margin_warmup:
+            self.cur_margin = self.margin * step / margin_warmup
+            self.cur_intertop_margin = self.intertop_margin * step / margin_warmup
         else:
             if self.cur_margin != self.margin:
                 self.cur_margin = self.margin
                 self.cur_intertop_margin = self.intertop_margin
             else:
                 return
+
+        if step % 1000 == 0 or step == margin_warmup or not self._update_on_step:
+            logging.info(
+                "updating arc-softmax margin=%.2f intertop-margin=%.2f",
+                self.cur_margin,
+                self.cur_intertop_margin,
+            )
 
         self._compute_aux()
 
@@ -192,6 +200,8 @@ class CosLossOutput(nn.Module):
       margin: additive margin.
       margin_warmup_epochs: number of epochs to warm up the margin from 0 to
                             its final value.
+      margin_warmup_steps: number of steps to warm up the margin from 0 to
+                           its final value.
       intertop_k: adds negative penalty to k largest negative scores.
       intertop_margin: inter-top-k penalty.
     """
@@ -203,6 +213,7 @@ class CosLossOutput(nn.Module):
         cos_scale: float = 64,
         margin: float = 0.3,
         margin_warmup_epochs: int = 0,
+        margin_warmup_steps: int = 0,
         intertop_k: int = 5,
         intertop_margin: float = 0.0,
     ) -> None:
@@ -212,9 +223,11 @@ class CosLossOutput(nn.Module):
         self.cos_scale = cos_scale
         self.margin = margin
         self.margin_warmup_epochs = margin_warmup_epochs
+        self.margin_warmup_steps = margin_warmup_steps
         self.intertop_k = intertop_k
         self.intertop_margin = intertop_margin
-        if margin_warmup_epochs == 0:
+        self._update_on_step = margin_warmup_steps > 0
+        if margin_warmup_epochs == 0 and margin_warmup_steps == 0:
             self.cur_margin = margin
             self.cur_intertop_margin = intertop_margin
         else:
@@ -243,36 +256,39 @@ class CosLossOutput(nn.Module):
         )
         return s
 
-    def update_margin(self, epoch: int) -> None:
+    def update_margin(self, step: int) -> None:
         """Updates the value of the margin.
 
         Args:
-          epoch: value of current epoch.
+          step: value of current epoch or step.
         """
-        # if self.margin_warmup_epochs == 0:
-        #    return
+        if self._update_on_step:
+            margin_warmup = self.margin_warmup_steps
+        else:
+            margin_warmup = self.margin_warmup_epochs
 
-        if epoch < self.margin_warmup_epochs:
-            self.cur_margin = self.margin * epoch / self.margin_warmup_epochs
-            logging.info(
-                "updating cos-softmax margin=%.2f intertop-margin=%.2f",
-                self.cur_margin,
-                self.cur_intertop_margin,
-            )
+        if step < margin_warmup:
+            self.cur_margin = self.margin * step / margin_warmup
             self.cur_intertop_margin = (
-                self.intertop_margin * epoch / self.margin_warmup_epochs
+                self.intertop_margin * step / margin_warmup
             )
         else:
             if self.cur_margin != self.margin:
                 self.cur_margin = self.margin
                 self.cur_intertop_margin = self.intertop_margin
-                logging.info(
-                    "updating cos-softmax margin=%.2f intertop-margin=%.2f",
-                    self.cur_margin,
-                    self.cur_intertop_margin,
-                )
             else:
                 return
+
+        if (
+            not self._update_on_step
+            or step % 1000 == 0
+            or step == margin_warmup
+        ):
+            logging.info(
+                "updating cos-softmax margin=%.2f intertop-margin=%.2f",
+                self.cur_margin,
+                self.cur_intertop_margin,
+            )
 
     def forward(
         self, x: torch.Tensor, y: Optional[torch.Tensor] = None
@@ -339,6 +355,8 @@ class SubCenterArcLossOutput(ArcLossOutput):
       margin: angular margin.
       margin_warmup_epochs: number of epochs to warm up the margin from 0 to
                             its final value.
+      margin_warmup_steps: number of steps to warm up the margin from 0 to its
+                           final value.
       intertop_k: adds negative angular penalty to k largest negative scores.
       intertop_margin: inter-top-k penalty.
     """
@@ -351,17 +369,19 @@ class SubCenterArcLossOutput(ArcLossOutput):
         cos_scale: float = 64,
         margin: float = 0.3,
         margin_warmup_epochs: int = 0,
+        margin_warmup_steps: int = 0,
         intertop_k: int = 5,
         intertop_margin: float = 0.0,
     ) -> None:
         super().__init__(
-            in_feats,
-            num_classes * num_subcenters,
-            cos_scale,
-            margin,
-            margin_warmup_epochs,
-            intertop_k,
-            intertop_margin,
+            in_feats=in_feats,
+            num_classes=num_classes * num_subcenters,
+            cos_scale=cos_scale,
+            margin=margin,
+            margin_warmup_epochs=margin_warmup_epochs,
+            margin_warmup_steps=margin_warmup_steps,
+            intertop_k=intertop_k,
+            intertop_margin=intertop_margin,
         )
         self.num_classes = num_classes
         self.num_subcenters = num_subcenters
@@ -483,6 +503,7 @@ class SubCenterArcLossOutput(ArcLossOutput):
             cos_scale=self.cos_scale,
             margin=self.margin,
             margin_warmup_epochs=self.margin_warmup_epochs,
+            margin_warmup_steps=self.margin_warmup_steps,
             intertop_k=self.intertop_k,
             intertop_margin=self.intertop_margin,
         )
@@ -497,6 +518,7 @@ class SubCenterArcLossOutput(ArcLossOutput):
             cos_scale=self.cos_scale,
             margin=self.margin,
             margin_warmup_epochs=self.margin_warmup_epochs,
+            margin_warmup_steps=self.margin_warmup_steps,
             intertop_k=self.intertop_k,
             intertop_margin=self.intertop_margin,
         )

@@ -1,7 +1,8 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as nnf
@@ -102,6 +103,14 @@ class ResNetInputBlock(nn.Module):
             self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
             self.downsample_factor *= 2
 
+    @property
+    def out_channels(self):
+        return self.conv.out_channels
+
+    @property
+    def in_channels(self):
+        return self.conv.in_channels
+
     def forward(self, x):
         x = self.conv(x)
         if self.norm_before:
@@ -186,7 +195,7 @@ class ResNetBasicBlock(nn.Module):
         self.downsample_factor = stride
         self.pos_enc = None
         if freq_pos_enc:
-            self.pos_enc = FreqPosEnc(num_feats*stride)
+            self.pos_enc = FreqPosEnc(num_feats * stride)
 
     @property
     def out_channels(self):

@@ -368,6 +368,7 @@ class DAC(TorchModel):
                     2 ** len(encoder["strides"])
                 )
             encoder["out_feats"] = latent_feats
+            encoder = DACEncoder.filter_args(**encoder)
             encoder = DACEncoder(**encoder)
         else:
             if latent_feats is None:
@@ -379,6 +380,7 @@ class DAC(TorchModel):
             quantizer = ResidualVectorQuantizer(**quantizer)
         if isinstance(decoder, dict):
             decoder["in_feats"] = latent_feats
+            decoder = DACDecoder.filter_args(**decoder)
             decoder = DACDecoder(**decoder)
 
         # self.quantizer2 = ResidualVectorQuantize(1024, 9, 1024, 8, 0.5)
@@ -556,7 +558,7 @@ class DAC(TorchModel):
         # self.timer.stop("encoder")
         z_lengths = scale_seq_lengths(x_lengths, z.shape[1], x.shape[1])
         # self.timer.start("quantizer")
-        assert not self.vq_is_valid.item()
+        # assert not self.vq_is_valid.item()
         if (
             self.training
             and self.train_mode != DACTrainMode.NO_VQ
@@ -564,7 +566,7 @@ class DAC(TorchModel):
         ):
             self.vq_is_valid.fill_(True)
 
-        assert not self.vq_is_valid.item()
+        # assert not self.vq_is_valid.item()
         if self.vq_is_valid.item():
             vq_output = self.quantizer(z, z_lengths, num_quantizers=num_quantizers)
         else:

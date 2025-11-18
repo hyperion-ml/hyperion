@@ -140,7 +140,9 @@ def train_model(gpu_id, args):
         kwargs["in_dac_file"], rank, kwargs["model_class"], None
     )  # kwargs["dac_model"])
     discrim_model = init_discrim_model(
-        kwargs["in_discrim_file"], rank
+        kwargs["in_discrim_file"],
+        rank,
+        None,
     )  # , kwargs["discrim_model"])
 
     trn_args = Trainer.filter_args(**kwargs["trainer"])

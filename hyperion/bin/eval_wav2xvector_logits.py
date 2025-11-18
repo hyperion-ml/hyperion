@@ -7,11 +7,11 @@ import logging
 import os
 import sys
 import time
+from typing import Any, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 import torch
-import torchaudio.transforms as tat
 from jsonargparse import (
     ActionConfigFile,
     ActionParser,
@@ -24,33 +24,16 @@ from hyperion.io import DataWriterFactory as DWF
 from hyperion.io import SequentialAudioReader as AR
 from hyperion.io import VADReaderFactory as VRF
 from hyperion.np.augment import SpeechAugment
+from hyperion.np.preprocessing import ResamplerToTargetFreq
 
 # from hyperion.torch import TorchModelLoader as TML
 from hyperion.torch import TorchModel
 from hyperion.torch.utils import open_device
-from hyperion.utils import Utt2Info
-
-resamplers = {}
+from hyperion.utils import HypDataset, Utt2Info
 
 
-def get_resampler(source_fs, target_fs):
-    if source_fs in resamplers:
-        return resamplers[source_fs]
-
-    resampler = tat.Resample(
-        int(source_fs),
-        int(target_fs),
-        lowpass_filter_width=64,
-        rolloff=0.9475937167399596,
-        resampling_method="kaiser_window",
-        beta=14.769656459379492,
-    )
-    resampler_f = lambda x: resampler(torch.from_numpy(x)).numpy()
-    resamplers[source_fs] = resampler_f
-    return resampler_f
-
-
-def init_device(use_gpu):
+def init_device(use_gpu: bool) -> torch.device:
+    """Initialise device for inference."""
     set_float_cpu("float32")
     num_gpus = 1 if use_gpu else 0
     logging.info("initializing devices num_gpus=%d", num_gpus)
@@ -58,7 +41,8 @@ def init_device(use_gpu):
     return device
 
 
-def load_model(model_path, device):
+def load_model(model_path: str, device: torch.device) -> TorchModel:
+    """Load serialized model onto ``device``."""
     logging.info("loading model %s", model_path)
     model = TorchModel.auto_load(model_path)
     logging.info(f"xvector-model={model}")
@@ -67,7 +51,13 @@ def load_model(model_path, device):
     return model
 
 
-def augment(key0, x0, augmenter, aug_df, aug_id):
+def augment(
+    key0: str,
+    x0: np.ndarray,
+    augmenter: Optional[SpeechAugment],
+    aug_df: Optional[List[pd.DataFrame]],
+    aug_id: int,
+) -> Tuple[str, np.ndarray]:
     if augmenter is None:
         x = x0
         key = key0
@@ -84,12 +74,21 @@ def augment(key0, x0, augmenter, aug_df, aug_id):
             "sdr": aug_info["sdr"],
         }
 
-        aug_df.append(pd.DataFrame(aug_df_row, index=[0]))
+        if aug_df is not None:
+            aug_df.append(pd.DataFrame(aug_df_row, index=[0]))
 
     return key, x
 
 
-def select_random_chunk(key, x, fs, min_utt_length, max_utt_length, rng):
+def select_random_chunk(
+    key: str,
+    x: torch.Tensor,
+    fs: int,
+    min_utt_length: float,
+    max_utt_length: float,
+    rng: np.random.Generator,
+) -> torch.Tensor:
+    """Randomly crop the utterance between ``min``/``max`` seconds."""
     utt_length = rng.integers(
         low=int(fs * min_utt_length), high=int(fs * max_utt_length + 1)
     )
@@ -106,25 +105,53 @@ def select_random_chunk(key, x, fs, min_utt_length, max_utt_length, rng):
 
 
 def eval_xvector_logits(
-    recordings_file,
-    output_spec,
-    vad_spec,
-    write_speech_dur,
-    vad_path_prefix,
-    model_path,
-    chunk_length,
-    random_utt_length,
-    min_utt_length,
-    max_utt_length,
-    aug_cfg,
-    num_augs,
-    aug_info_path,
-    use_gpu,
-    **kwargs,
-):
+    dataset_path: Optional[str],
+    recordings_file: Optional[str],
+    segments_file: Optional[str],
+    output_spec: Optional[str],
+    logits_path: Optional[str],
+    vad_spec: Optional[str],
+    vad_file: Optional[str],
+    vad_name: Optional[str],
+    write_speech_dur: Optional[str],
+    vad_path_prefix: Optional[str],
+    model_path: str,
+    chunk_length: float,
+    random_utt_length: bool,
+    min_utt_length: float,
+    max_utt_length: float,
+    aug_cfg: Optional[str],
+    num_augs: int,
+    aug_info_path: Optional[str],
+    use_gpu: bool,
+    **kwargs: Any,
+) -> None:
+    """Compute logits for each utterance using wav2xvector models."""
     rng = np.random.default_rng(seed=1123581321 + kwargs["part_idx"])
     device = init_device(use_gpu)
     model = load_model(model_path, device)
+    resampler = ResamplerToTargetFreq(model.sample_frequency)
+
+    if dataset_path is None and recordings_file is None:
+        raise ValueError("Provide either --dataset-path or --recordings-file")
+    if dataset_path is not None and recordings_file is not None:
+        raise ValueError("--dataset-path and --recordings-file are mutually exclusive")
+    if dataset_path is not None and segments_file is not None:
+        raise ValueError("--segments-file cannot be used with --dataset-path")
+
+    if output_spec is None and logits_path is None:
+        raise ValueError(
+            "At least one of --logits-path or --output-spec must be provided"
+        )
+
+    actual_vad_spec = vad_file if vad_file is not None else vad_spec
+    if actual_vad_spec is None and vad_name is not None:
+        if dataset_path is None:
+            raise ValueError("--vad-name requires --dataset-path")
+        dataset = HypDataset.load(dataset_path)
+        if vad_name not in dataset.vad_keys():
+            raise ValueError(f"VAD name {vad_name} not found in dataset")
+        actual_vad_spec = dataset._vad_paths[vad_name]
 
     if write_speech_dur is not None:
         keys = []
@@ -139,15 +166,23 @@ def eval_xvector_logits(
         num_augs = 1
 
     metadata_columns = ["speech_duration"]
+    writer_spec = logits_path if logits_path is not None else output_spec
 
     ar_args = AR.filter_args(**kwargs)
-    logging.info("opening output stream: %s with args=%s", output_spec, str(ar_args))
-    with DWF.create(output_spec, metadata_columns=metadata_columns) as writer:
-        logging.info(f"opening input stream: {recordings_file} with args={ar_args}")
-        with AR(recordings=recordings_file, **ar_args) as reader:
-            if vad_spec is not None:
-                logging.info("opening VAD stream: %s", vad_spec)
-                v_reader = VRF.create(vad_spec, path_prefix=vad_path_prefix)
+    logging.info("opening output stream: %s with args=%s", writer_spec,
+                 str(ar_args))
+    with DWF.create(writer_spec, metadata_columns=metadata_columns) as writer:
+        input_stream = dataset_path if dataset_path is not None else recordings_file
+        logging.info(f"opening input stream: {input_stream} with args={ar_args}")
+        with AR(
+            dataset=dataset_path,
+            recordings=recordings_file,
+            segments=segments_file,
+            **ar_args,
+        ) as reader:
+            if actual_vad_spec is not None:
+                logging.info("opening VAD stream: %s", actual_vad_spec)
+                v_reader = VRF.create(actual_vad_spec, path_prefix=vad_path_prefix)
 
             while not reader.eof():
                 t1 = time.time()
@@ -160,8 +195,7 @@ def eval_xvector_logits(
                 fs = fs[0]
                 t2 = time.time()
                 if fs != model.sample_frequency:
-                    resampler = get_resampler(fs, model.sample_frequency)
-                    x0 = resampler(x0)
+                    x0, fs = resampler(x0, fs)
 
                 logging.info("processing utt %s", key0)
                 for aug_id in range(num_augs):
@@ -175,7 +209,7 @@ def eval_xvector_logits(
                         ).to(device)
                         t5 = time.time()
                         tot_samples = x.shape[1]
-                        if vad_spec is not None:
+                        if actual_vad_spec is not None:
                             vad = v_reader.read(key0)[0]
                             vad = torch.tensor(
                                 vad[None, None, :], dtype=torch.float
@@ -245,15 +279,49 @@ def eval_xvector_logits(
         aug_df.to_csv(aug_info_path, index=False, na_rep="n/a")
 
 
-def main():
+def main() -> None:
+    """CLI entry point."""
     parser = ArgumentParser(
         description="""Extracts x-vectors from waveform computing acoustic features on the fly"""
     )
 
     parser.add_argument("--cfg", action=ActionConfigFile)
-    parser.add_argument("--recordings-file", required=True)
-    parser.add_argument("--vad", dest="vad_spec", default=None)
-    parser.add_argument("--write-speech-dur", default=None)
+    parser.add_argument(
+        "--dataset-path",
+        default=None,
+        help="HypDataset manifest describing recordings and optional VAD tables",
+    )
+    parser.add_argument(
+        "--recordings-file",
+        default=None,
+        help="Recording specifier used when no dataset is provided",
+    )
+    parser.add_argument(
+        "--segments-file",
+        default=None,
+        help="Kaldi segments file (only valid when using --recordings-file)",
+    )
+    parser.add_argument(
+        "--vad",
+        dest="vad_spec",
+        default=None,
+        help="(Deprecated) VAD specifier kept for backward compatibility",
+    )
+    parser.add_argument(
+        "--vad-file",
+        default=None,
+        help="Standalone VAD specifier that overrides --vad when provided",
+    )
+    parser.add_argument(
+        "--vad-name",
+        default=None,
+        help="Name of VAD entry stored in the dataset manifest",
+    )
+    parser.add_argument(
+        "--write-speech-dur",
+        default=None,
+        help="Path to store utt2dur information (seconds of detected speech)",
+    )
     parser.add_argument(
         "--vad-path-prefix", default=None, help=("scp file_path prefix for vad")
     )
@@ -297,7 +365,16 @@ def main():
         help=("maximum utterance length in secs when using random utt length"),
     )
 
-    parser.add_argument("--output-spec", required=True)
+    parser.add_argument(
+        "--logits-path",
+        default=None,
+        help="Preferred output specifier (ark,h5, etc.) for logits",
+    )
+    parser.add_argument(
+        "--output-spec",
+        default=None,
+        help="Legacy output specifier; used when --logits-path is not provided",
+    )
     parser.add_argument(
         "--use-gpu", default=False, action="store_true", help="extract xvectors in gpu"
     )
@@ -306,6 +383,17 @@ def main():
     )
 
     args = parser.parse_args()
+    if args.dataset_path is None and args.recordings_file is None:
+        parser.error("Provide either --dataset-path or --recordings-file")
+    if args.dataset_path is not None and args.recordings_file is not None:
+        parser.error("--dataset-path and --recordings-file cannot be used together")
+    if args.dataset_path is not None and args.segments_file is not None:
+        parser.error("--segments-file cannot be used with --dataset-path")
+    if args.vad_name is not None and args.dataset_path is None:
+        parser.error("--vad-name requires --dataset-path")
+    if args.output_spec is None and args.logits_path is None:
+        parser.error("Provide --logits-path or --output-spec")
+
     config_logger(args.verbose)
     del args.verbose
     logging.debug(args)
