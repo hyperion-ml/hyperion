@@ -31,7 +31,7 @@ toml
 utmosv2 @ git+https://github.com/jesus-villalba/UTMOSv2.git
 pycountry>=24.0,<25.0
 langcodes>=3.3,<4.0
-nvidia-ml-py3>=7.352.0,<8.0.0
+nvidia-ml-py>=11.0.0,<14.0.0
 onnxruntime>=1.16.3,<1.19
 intervaltree>=3.1.0
 sortedcontainers>=2.4,<3.0

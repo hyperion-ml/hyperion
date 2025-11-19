@@ -281,6 +281,13 @@ class TorchModel(nn.Module):
         return cfg, state_dict
 
     @staticmethod
+    def _fix_resnet_qvector_cfg(cfg):
+        if "proj_head" in cfg:
+            del cfg["proj_head"]
+
+        return cfg
+
+    @staticmethod
     def _fix_model_compatibility(class_obj, cfg, state_dict):
         """Function that fixed compatibility issues with deprecated models
 
@@ -314,6 +321,11 @@ class TorchModel(nn.Module):
                     tensor = state_dict.pop(key)
                     # keep same key, PyTorch will now map it as a buffer
                     state_dict[key] = tensor
+
+        # Remove QVector bugs in first implementation
+        ResNetQVector = TorchModel.registry["ResNetQVector"]
+        if issubclass(class_obj, ResNetQVector):
+            cfg = TorchModel._fix_resnet_qvector_cfg(cfg)
 
         return cfg, state_dict
 
