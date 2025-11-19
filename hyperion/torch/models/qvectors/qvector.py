@@ -631,7 +631,7 @@ class QVector(TorchModel):
             ), "backbone hidden features are None"
             with self._hidden_feats_agg_context:
                 hidden_feats_queries = self.hidden_feats_queries.unsqueeze(0).expand(
-                    backbone_hidden_feats.size(0), -1, -1
+                    backbone_hidden_feats[0].size(0), -1, -1
                 )  # (batch, num_queries, dim)
                 hidden_feats_agg = self.hidden_feats_agg_qformer(
                     hidden_feats_queries,

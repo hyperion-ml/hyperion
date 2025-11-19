@@ -402,6 +402,16 @@ class DAC(TorchModel):
 
         self.register_buffer("vq_is_valid", torch.zeros(1, dtype=torch.bool))
 
+    def change_config(
+        self,
+        rebuild_quantizer: bool = False,
+        quantizer: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        if rebuild_quantizer and quantizer is not None:
+            quantizer["in_feats"] = self.latent_feats
+            quantizer["channels_last"] = True
+            self.quantizer = ResidualVectorQuantizer(**quantizer)
+
     @property
     def input_sample_frequency(self) -> int:
         """Input sample frequency in Hz."""
@@ -749,16 +759,36 @@ class DAC(TorchModel):
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
 
+    @staticmethod
+    def filter_finetune_args(**kwargs):
+        """
+        Filter keyword arguments relevant to `DAC` finetuning.
+
+        Returns:
+            dict: Filtered kwargs usable to finetune `DAC`.
+        """
+        return filter_func_args(DAC.change_config, kwargs)
+
+    @staticmethod
     def add_finetune_args(parser: ArgumentParser, prefix: Optional[str] = None):
         """Register DAC finetune arguments on an `ArgumentParser`.
 
         If `prefix` is provided, a nested sub-parser is created and attached under
         `--{prefix}` via `ActionParser`.
         """
-        return
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
+
+        parser.add_argument(
+            "--rebuild-quantizer",
+            action=ActionYesNo,
+            default=False,
+            help="If true, rebuilds the quantizer during finetuning.",
+        )
+        ResidualVectorQuantizer.add_class_args(
+            parser, prefix="quantizer", skip={"in_feats"}
+        )
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
