@@ -1,17 +1,17 @@
 # ---------------------------------------------------------------------------
-# ECAPA-TDNN (512x3) baseline configuration
+# ECAPA-TDNN (512x3) v3.0 baseline configuration
 #
-# This file is sourced by the recipe stage scripts.  It sets the acoustic
-# feature extractor, VAD definitions, neural net checkpoints, and back-end
-# switches used throughout the pipeline.  Feel free to clone this template and
-# adjust paths / toggles when running custom experiments.
+# This file is sourced by the VoxCeleb v1.2 recipe. Update the paths or
+# toggles below to spin up custom experiments. The sections configure the
+# acoustic front-end, VAD definition, neural-net checkpoints, and the back-end
+# evaluation switches.
 # ---------------------------------------------------------------------------
 
 # Acoustic feature front-end: short-time mean-normalised 80-dim filterbanks.
 # ``feat_config`` points to the YAML used by the data-prep scripts and the
 # training recipe, while ``feat_type`` becomes part of directory names.
 
-# acoustic features
+# Acoustic feature front-end shared across the pipeline
 feat_config=conf/fbank80_stmn_16k.yaml
 feat_type=fbank80_stmn
 
@@ -27,12 +27,14 @@ nnet_type=resnet1d
 nnet_name=${feat_type}_ecapatdnn512x3.v3.0
 
 # Stage-1 (pretraining) configuration and checkpoint locations.
+# Stage-1 configuration (pretraining)
 nnet_s1_base_cfg=conf/train_ecapatdnn512x3_xvec_stage1_v3.0.yaml
 nnet_s1_name=$nnet_name.s1
 nnet_s1_dir=exp/xvector_nnets/$nnet_s1_name
 nnet_s1=$nnet_s1_dir/model_ep0040.pth
 
 # Stage-2 (fine-tuning) configuration and checkpoint locations.
+# Stage-2 configuration (fine-tuning / SWA)
 nnet_s2_base_cfg=conf/train_ecapatdnn512x3_xvec_stage2_v3.0.yaml
 nnet_s2_name=${nnet_name}.s2
 nnet_s2_dir=exp/xvector_nnets/$nnet_s2_name
@@ -50,6 +52,7 @@ do_voxsrc22=true   # Whether to run the VoxSRC'22 evaluation track
 # Data augmentation used when training PLDA back-ends.  When ``plda_num_augs``
 # is zero we fall back to the clean VoxCeleb2 cat set, otherwise we load the
 # augmented list created by the prep scripts.
+# Data augmentation recipe used when training PLDA back-ends
 plda_aug_config=conf/reverb_noise_aug.yaml
 plda_num_augs=0
 if [ $plda_num_augs -eq 0 ]; then

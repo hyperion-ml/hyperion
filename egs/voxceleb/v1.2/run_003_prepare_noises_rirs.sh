@@ -2,20 +2,30 @@
 # Copyright
 #                2020   Johns Hopkins University (Author: Jesus Villalba)
 # Apache 2.0.
+# ---------------------------------------------------------------------------
+# run_003_prepare_noises_rirs.sh
+# ---------------------------------------------------------------------------
+# Stage 3 of the VoxCeleb v1.2 recipe. It prepares the MUSAN noises,
+# converts them into Hyperion datasets, synthesises babble mixtures,
+# and optionally downloads/repacks the RIRS_NOISES room impulse responses.
+# Adjust `stage`, `nj`, or the dataset roots when customising the pipeline.
+# ---------------------------------------------------------------------------
+
 #
 . ./cmd.sh
 . ./path.sh
 set -e
 
-stage=1
-nj=10
-config_file=default_config.sh
+stage=1           # stage threshold to resume pipeline
+nj=10             # number of parallel jobs when preprocessing audio
+config_file=default_config.sh  # Neural network/noise config to source
 . parse_options.sh || exit 1;
 . $config_file
 . datapath.sh
 
 # We prepare the noise files and RIR for online speech augmentation
 if [ $stage -le 1 ]; then
+  echo "[run003][stage1] Preparing MUSAN noise/music/speech manifests"
   for name in noise music speech
   do
     hyperion-prepare-data musan \
@@ -26,6 +36,7 @@ if [ $stage -le 1 ]; then
 fi
 
 if [ $stage -le 2 ]; then
+  echo "[run003][stage2] Pre-processing MUSAN noise/music clips"
   # # Prepare to distribute data over multiple machines
   # # This only does something at CLSP grid
   # hyp_utils/create_data_split_dirs.sh $vad_dir $USER/hyp-data/voxceleb/v1.2/vad $nodes
@@ -58,6 +69,7 @@ fi
 
 if [ $stage -le 3 ]; then
   # Create Babble noise from MUSAN speech files
+  echo "[run003][stage3] Generating babble noise mixtures"
   for name in musan_speech
   do
     input_data_dir=data/$name
@@ -83,6 +95,7 @@ if [ $stage -le 4 ]; then
     wget --no-check-certificate http://www.openslr.org/resources/28/rirs_noises.zip
     unzip rirs_noises.zip
   fi
+  echo "[run003][stage4] Preparing RIRS_NOISES-derived datasets"
   hyperion-prepare-data rirs --corpus-dir RIRS_NOISES/simulated_rirs/smallroom --output-dir data/rirs_smallroom
   hyperion-prepare-data rirs --corpus-dir RIRS_NOISES/simulated_rirs/mediumroom --output-dir data/rirs_mediumroom
   hyperion-prepare-data rirs --corpus-dir RIRS_NOISES/real_rirs_isotropic_noises --output-dir data/rirs_real
@@ -99,4 +112,3 @@ if [ $stage -le 4 ]; then
 
   done
 fi
-

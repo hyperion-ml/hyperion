@@ -2,23 +2,32 @@
 # Copyright
 #                2018   Johns Hopkins University (Author: Jesus Villalba)
 # Apache 2.0.
+# ---------------------------------------------------------------------------
+# run_002_compute_evad.sh
+# ---------------------------------------------------------------------------
+# Stage 2 of the VoxCeleb v1.2 recipe. It computes energy-based VADs for
+# the prepared datasets (train/test/VoxSRC) and stores the metadata
+# alongside the Hyperion datasets. Modify `nodes`, `vad_dir`, `vad_config`,
+# and `nj` when adapting to new clusters.
+# ---------------------------------------------------------------------------
+
 #
 . ./cmd.sh
 . ./path.sh
 set -e
-nodes=fs01
-vad_dir=`pwd`/exp/vad_e
-vad_config=conf/vad_16k.yaml
-nj=40
+nodes=fs01                        # host list when creating split dirs (CLSP grid)
+vad_dir=`pwd`/exp/vad_e           # directory to store intermediate VAD artifacts
+vad_config=conf/vad_16k.yaml      # path to energy-VAD configuration YAML
+nj=40                             # number of parallel jobs used for VAD computation
 
-stage=1
-config_file=default_config.sh
+stage=1                           # stage threshold, raise to skip completed steps
+config_file=default_config.sh     # x-vector/VAD config file to source
 
 . parse_options.sh || exit 1;
 . $config_file
 
 if [ -z "$vad_config" ];then
-  echo "We are not using VAD in this configuration"
+  echo "[run002] VAD disabled in configuration, skipping"
   exit 0
 fi
 
@@ -28,8 +37,7 @@ fi
 
 
 if [ $stage -le 1 ]; then
-  # Prepare to distribute data over multiple machines
-  # This only does something at CLSP grid
+  echo "[run002][stage1] Creating split dirs for VAD jobs"
   for name in voxceleb2cat_train voxceleb1_test $extra_data
   do
     hyp_utils/create_data_split_dirs.sh \
@@ -43,9 +51,8 @@ if [ $stage -le 2 ];then
   for name in voxceleb2cat_train voxceleb1_test $extra_data
   do
     # This creates links to distribute data in CLSP grid
-    # If you are not at CLSP grid, it does nothing and can be deleted
     hyp_utils/create_data_split_links.sh $vad_dir/$name/vad.JOB.ark $nj
-    echo "compute vad for $name"
+    echo "[run002][stage2] Computing VAD for $name"
     $train_cmd JOB=1:$nj $vad_dir/$name/log/vad.JOB.log \
 	       hyp_utils/conda_env.sh \
 	       hyperion-compute-energy-vad --cfg $vad_config \
@@ -53,14 +60,14 @@ if [ $stage -le 2 ];then
 	       --output-spec ark,csv:$vad_dir/$name/vad.JOB.ark,$vad_dir/$name/vad.JOB.csv \
 	       --part-idx JOB --num-parts $nj || exit 1
 
+    echo "[run002][stage2] Concatenating per-job VAD tables for $name"
     hyperion-tables cat \
-		    --table-type features \
-		    --output-file $vad_dir/$name/vad.csv --num-tables $nj
-    hyperion-dataset add_features \
-		     --dataset data/$name \
-		     --features-name vad \
-		     --features-file $vad_dir/$name/vad.csv
+	    --table-type vads \
+	    --output-file $vad_dir/$name/vad.csv --num-tables $nj
+    echo "[run002][stage2] Registering VAD table with dataset $name"
+    hyperion-dataset add_vads \
+		  --dataset data/$name \
+		  --features-name vad \
+		  --features-file $vad_dir/$name/vad.csv
   done
 fi
-
-
