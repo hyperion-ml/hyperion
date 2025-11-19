@@ -211,6 +211,7 @@ class ResNetQVector(QVector):
         with self._acoustic_feats_context:
             x, x_lengths = self.acoustic_feats(x, x_lengths)
             x = x.contiguous().view(x.size(0), 1, x.size(1), x.size(2))
+            max_in_length = x.size(3)
 
         if return_hidden_feats:
             backbone_hidden_feats = self.resnet_encoder.forward_hid_feats(
@@ -232,8 +233,12 @@ class ResNetQVector(QVector):
                 backbone_feats.size(0), -1, backbone_feats.size(3)
             ).transpose(1, 2)
             backbone_feats_lengths = scale_seq_lengths(
-                x_lengths, backbone_feats.size(1), x.size(1)
+                x_lengths,
+                backbone_feats.size(1),
+                max_in_length,
             )
+        else:
+            backbone_feats_lengths = None
 
         if return_hidden_feats:
             backbone_hidden_feats = [
@@ -241,7 +246,7 @@ class ResNetQVector(QVector):
                 for h in backbone_hidden_feats
             ]
             backbone_hidden_feats_lengths = [
-                scale_seq_lengths(x_lengths, h.size(1), x.size(1))
+                scale_seq_lengths(x_lengths, h.size(1), max_in_length)
                 for h in backbone_hidden_feats
             ]
             return (
@@ -312,11 +317,15 @@ class ResNetQVector(QVector):
             "in_channels": self.resnet_encoder.in_channels,
             "conv_channels": self.resnet_encoder.conv_channels,
             "base_channels": self.resnet_encoder.base_channels,
+            "hid_act": self.resnet_encoder.hid_act,
             "in_kernel_size": self.resnet_encoder.in_kernel_size,
             "in_stride": self.resnet_encoder.in_stride,
             "zero_init_residual": self.resnet_encoder.zero_init_residual,
             "groups": self.resnet_encoder.groups,
             "replace_stride_with_dilation": self.resnet_encoder.replace_stride_with_dilation,
+            "dropout_rate": self.resnet_encoder.dropout_rate,
+            "norm_layer": self.resnet_encoder.norm_layer,
+            "norm_before": self.resnet_encoder.norm_before,
             "do_maxpool": self.resnet_encoder.do_maxpool,
             "in_norm": self.resnet_encoder.in_norm,
             "se_r": self.resnet_encoder.se_r,
@@ -350,7 +359,6 @@ class ResNetQVector(QVector):
             ResNetQVector: Model with configuration/state restored.
         """
         cfg, state_dict = cls._load_cfg_state_dict(file_path, cfg, state_dict)
-
         model = cls(**cfg)
         if state_dict is not None:
             model.load_state_dict(state_dict)

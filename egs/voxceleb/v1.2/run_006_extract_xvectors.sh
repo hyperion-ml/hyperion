@@ -2,16 +2,25 @@
 # Copyright
 #                2020   Johns Hopkins University (Author: Jesus Villalba)
 # Apache 2.0.
+# ---------------------------------------------------------------------------
+# run_006_extract_xvectors.sh
+# ---------------------------------------------------------------------------
+# Stage 6 of the VoxCeleb v1.2 recipe. It extracts x-vectors from the chosen
+# network checkpoint (S1/S2/...) for both training data (LDA/PLDA/S-Norm) and
+# evaluation sets. Tune `stage`, `nnet_stage`, `use_gpu`, and `xvec_chunk_length`
+# according to your environment.
+# ---------------------------------------------------------------------------
+
 #
 . ./cmd.sh
 . ./path.sh
 set -e
 
-stage=1
-nnet_stage=2
-config_file=default_config.sh
-use_gpu=false
-xvec_chunk_length=120.0
+stage=1               # stage threshold to resume pipeline
+nnet_stage=2          # checkpoint index (S1/S2/...) to use for extraction
+config_file=default_config.sh  # config file defining nnet paths
+use_gpu=false         # switch to GPU extraction when true
+xvec_chunk_length=120.0  # chunk length (secs) when use_gpu=true
 . parse_options.sh || exit 1;
 . $config_file
 
@@ -55,7 +64,7 @@ if [[ $stage -le 1 && ( "$do_plda" == "true" || "$do_snorm" == "true" || "$do_qm
       vad_args="--vad csv:data/$name/vad.csv"
     fi
     output_dir=$xvector_dir/$name
-    echo "Extracting x-vectors for $name"
+    echo "[run006][stage1] Extracting training x-vectors for $name"
     $xvec_cmd JOB=1:$nj $output_dir/log/extract_xvectors.JOB.log \
 	      hyp_utils/conda_env.sh --num-gpus $num_gpus \
 	      hyperion-extract-wav2xvectors ${xvec_args} ${vad_args} \
@@ -85,7 +94,7 @@ if [ $stage -le 2 ]; then
       vad_args="--vad csv:data/$name/vad.csv"
     fi
     output_dir=$xvector_dir/$name
-    echo "Extracting x-vectors for $name"
+    echo "[run006][stage2] Extracting evaluation x-vectors for $name (nj=$nj)"
     $xvec_cmd JOB=1:$nj $output_dir/log/extract_xvectors.JOB.log \
 	      hyp_utils/conda_env.sh --num-gpus $num_gpus \
 	      hyperion-extract-wav2xvectors ${xvec_args} ${vad_args} \
@@ -99,5 +108,4 @@ if [ $stage -le 2 ]; then
 
   done
 fi
-
 

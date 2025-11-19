@@ -80,7 +80,6 @@ def init_data(partition, rank, num_gpus, **kwargs):
 def init_dac_model(
     in_model_file: str,
     rank: int,
-    model_class: Type[TorchModel],
     model_args: Dict[str, Any],
 ):
     if rank == 0:
@@ -88,6 +87,9 @@ def init_dac_model(
         # logging.info(f"dac_model network args={model_args}")
 
     model = TorchModel.auto_load(in_model_file)
+    model_args = model.filter_finetune_args(**model_args)
+    model.change_config(**model_args)
+
     if rank == 0:
         logging.info(f"dac_model={model}")
         logging.info(f"dac_model frame_shift={model.frame_shift} samples")
@@ -136,9 +138,7 @@ def train_model(gpu_id, args):
 
     train_loader = init_data(partition="train", **kwargs)
     val_loader = init_data(partition="val", **kwargs)
-    dac_model = init_dac_model(
-        kwargs["in_dac_file"], rank, kwargs["model_class"], None
-    )  # kwargs["dac_model"])
+    dac_model = init_dac_model(kwargs["in_dac_file"], rank, kwargs["dac_model"])
     discrim_model = init_discrim_model(
         kwargs["in_discrim_file"],
         rank,

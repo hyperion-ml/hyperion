@@ -57,33 +57,25 @@ run_007_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 ## Recipe Steps:
 
    - `run_001_prepare_data.sh`
-      - Data preparation script to generate Kaldi style data directories for 
-          - VoxCeleb2 train+test
-          - VoxCeleb1 O/E/H eval sets
+      - Generates the Hyperion/Kaldi-style tables for VoxCeleb2 (train) and VoxCeleb1 test partitions (O/E/H).  Stage gating allows you to re-run only part of the pipeline, and the script prints the dataset being prepared so you know where it is in the process.
 
    - `run_002_compute_evad.sh`
-      - Computes Energy VAD for all datasets
+      - Computes energy-based VADs for every dataset (train/test/VoxSRC).  Optional arguments (`nodes`, `vad_dir`, `vad_config`, `nj`) control how the work is distributed; the script reports when VAD is disabled and when each stage starts.
 
    - `run_003_prepare_noises_rirs.sh`
-      - Prepares MUSAN noises, music to be used by SpeechAugment class.
-      - Creates Babble noise from MUSAN speech to be used by SpeechAugment class.
-      - Prepares RIRs by compacting then into HDF5 files, to be used by SpeechAugment class.
+      - Prepares the MUSAN noise/music/speech lists, preprocesses the audio into a common format, synthesises babble noise, and downloads/packs the RIRS_NOISES corpora into Hyperion datasets.  Informational messages indicate which stage (noise prep, preprocessing, babble synthesis, RIR packing) is running.
 
    - `run_004_prepare_xvec_train_data.sh`
-      - Transforms all the audios that we are going to use to train the x-vector into a common format, e.g., .flac.
-      - Removes silence from the audios
-      - Removes utterances shorter than 4secs and speakers with less than 8 utterances.
-      - Creates training and validation lists for x-vector training
+      - Converts training audio into a consistent format, applies optional VAD trimming, removes short segments and rare speakers, and produces the final train/validation splits for x-vector training.  Stage logs describe the exact action (creating split dirs, preprocessing with `nj` workers, filtering, splitting).
 
    - `run_005_train_xvector.sh`
-      - Trains the x-vector network
+      - Stage 1 trains the base x-vector/ECAPA model, Stage 2 optionally performs large-margin fine-tuning.  Optional flags (`use_tb`, `use_wandb`, `interactive`, `num_workers`) are documented, and the script prints which model/checkpoint is being trained.
 
    - `run_006_extract_xvectors.sh`
-      - Extracts x-vectors for VoxCeleb2 or VoxCeleb2+augmentation for PLDA training
-      - Exctracts x-vectors for VoxCeleb1 test sets
+      - Extracts x-vectors for PLDA/S-Norm training and evaluation.  Supports selecting the checkpoint (`nnet_stage`) and extraction mode (`use_gpu`, `xvec_chunk_length`).  Logs indicate when training or evaluation vectors are being computed and the number of jobs used.
 
    - `run_007_eval_be.sh`
-      - Trains PLDA and evals PLDA and cosine scoring back-ends
+      - Evaluates the back-end scoring stack (cosine, AS-Norm, QMF, PLDA) on VoxCeleb1 and VoxSRC22.  Each block prints a detailed status message (e.g., cosine, cosine+AS-Norm, QMF training), making it easy to monitor long multi-stage evaluations.
 
 ## Results
 
@@ -352,5 +344,4 @@ run_007_eval_be.sh --config-file config_fbank80_stmn_resnet34_arcs30m0.3_adam_lr
 | config_fbank80_stmn_convnext2d_base.v3.1.sh | ConvNext2d BASE in_stride=1 | Stage2: Subcenter-ArcFace m=0.3/intertop_m=0.1/centers=2 | Cosine | 1.81 | 0.113 | 0.189 |
 | | | | Cosine + AS-Norm | 1.65 | 0.104 | 0.192 |
 | | | | Cosine + QMF | 1.61 | 0.099 | 0.169 |
-
 

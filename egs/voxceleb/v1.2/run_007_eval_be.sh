@@ -2,14 +2,22 @@
 # Copyright       2018   Johns Hopkins University (Author: Jesus Villalba)
 #                
 # Apache 2.0.
+# ---------------------------------------------------------------------------
+# run_007_eval_be.sh
+# ---------------------------------------------------------------------------
+# Stage 7 of the VoxCeleb v1.2 recipe. It evaluates the scoring back-ends
+# (cosine, AS-Norm, QMF, PLDA) on VoxCeleb1 and VoxSRC22. Control behaviour
+# via `stage`, `nnet_stage`, `do_snorm`, and `do_qmf`.
+# ---------------------------------------------------------------------------
+
 #
 . ./cmd.sh
 . ./path.sh
 set -e
 
-stage=1
-nnet_stage=2
-config_file=default_config.sh
+stage=1             # stage threshold controlling which eval sections run
+nnet_stage=2        # which checkpoint (S1/S2/...) to score
+config_file=default_config.sh  # configuration describing back-end setup
 
 . parse_options.sh || exit 1;
 . $config_file
@@ -48,7 +56,7 @@ score_cosine_qmf_dir=$score_dir/cosine_qmf
 
 if [ $stage -le 3 ];then
 
-  echo "Eval Voxceleb 1 with Cosine scoring"
+  echo "[run007][stage3] Evaluating VoxCeleb1 with cosine scoring"
   num_parts=8
   for((i=1;i<=$num_parts;i++));
   do
@@ -82,7 +90,7 @@ if [ $stage -le 3 ];then
 fi
 
 if [ $stage -le 4 ] && [ "$do_voxsrc22" == "true" ];then
-  echo "Eval voxsrc2 with Cosine scoring"
+  echo "[run007][stage4] Evaluating VoxSRC22-dev with cosine scoring"
   $train_cmd $score_cosine_dir/log/voxsrc22_dev.log \
 	     hyp_utils/conda_env.sh \
 	     hyperion-eval-cosine-scoring-backend \
@@ -113,7 +121,7 @@ fi
 
 if [ "$do_snorm" == "true" ];then
   if [ $stage -le 5 ];then
-    echo "Eval Voxceleb 1 with Cosine scoring + Adaptive SNorm"
+    echo "[run007][stage5] Evaluating VoxCeleb1 with cosine + AS-Norm"
     num_parts=16
     for((i=1;i<=$num_parts;i++));
     do
@@ -151,7 +159,7 @@ if [ "$do_snorm" == "true" ];then
   fi
 
   if [ $stage -le 6 ] && [ "$do_voxsrc22" == "true" ];then
-    echo "Eval voxsrc2 with Cosine scoring + AS-Norm"
+    echo "[run007][stage6] Evaluating VoxSRC22-dev with cosine + AS-Norm"
     num_parts=16
     for((i=1;i<=$num_parts;i++));
     do
@@ -193,8 +201,8 @@ fi
 
 if [ "$do_qmf" == "true" ];then
   if [ $stage -le 7 ];then
-    echo "Train QMF in Vox2"
-    echo "...Calculating quality measures for Vox2"
+    echo "[run007][stage7] Training QMF using VoxCeleb2"
+    echo "[run007][stage7] Calculating quality measures for Vox2"
     num_parts=8
     for((i=1;i<=$num_parts;i++));
     do
@@ -226,7 +234,7 @@ if [ "$do_qmf" == "true" ];then
   fi
 
   if [ $stage -le 8 ];then
-    echo "Eval Voxceleb 1 with Cosine scoring + Adaptive SNorm + QMF"
+    echo "[run007][stage8] Evaluating VoxCeleb1 with cosine + AS-Norm + QMF"
     num_parts=16
     for((i=1;i<=$num_parts;i++));
     do
@@ -272,7 +280,7 @@ if [ "$do_qmf" == "true" ];then
   fi
   
   if [ $stage -le 9 ] && [ "$do_voxsrc22" == "true" ];then
-    echo "Eval voxsrc2 with Cosine scoring + QMF"
+    echo "[run007][stage9] Evaluating VoxSRC22-dev with cosine + QMF"
     num_parts=16
     for((i=1;i<=$num_parts;i++));
     do
@@ -318,4 +326,3 @@ if [ "$do_qmf" == "true" ];then
   fi
 
 fi
-
