@@ -4,7 +4,7 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import math
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -357,6 +357,23 @@ class StreamingDACResBlock(nn.Module):
         dilation = self.layers[1].dilation[0]
         return in_lengths - (kernel_size - 1) * dilation
 
+    @torch.no_grad()
+    def init_state(
+        self,
+        batch_size: int,
+        device: Optional[torch.device] = None,
+        dtype: Optional[torch.dtype] = None,
+    ) -> Dict[str, Any]:
+        """Initialize internal states for streaming inference.
+
+        Args:
+            batch_size: Batch size.
+            device: Device where the tensors are allocated.
+        """
+        for module in self.layers.modules():
+            if isinstance(module, StreamingCausalConv1d):
+                return module.init_state(batch_size, device=device, dtype=dtype)
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Apply the residual block.
@@ -372,6 +389,38 @@ class StreamingDACResBlock(nn.Module):
         if pad > 0:
             x = x[..., pad:]
         return x + y
+
+    @torch.no_grad()
+    def stream(
+        self,
+        x: torch.Tensor,
+        state: Dict[str, Any],
+        flush: bool = False,
+    ) -> Tuple[torch.Tensor, Dict[str, Any]]:
+        """
+        Apply the residual block in streaming mode.
+
+        Args:
+            x: Tensor of shape ``(B, C, T)``.
+            states: Dictionary containing internal states.
+            flush: If True, flush the inner streaming conv (end of stream).
+
+        Returns:
+            Tuple of:
+            - Tensor of shape ``(B, C, T)``.
+            - Updated states dictionary.
+        """
+        y = x.clone()
+        for i, layer in enumerate(self.layers):
+            if i == 1:
+                y, new_state = layer.stream(y, state, flush=flush)
+            else:
+                y = layer(y)
+
+        pad = x.shape[-1] - y.shape[-1]
+        if pad > 0:
+            x = x[..., pad:]
+        return x + y, new_state
 
     def remove_weight_norm(self) -> None:
         """Remove weight normalization from internal Conv1d layers."""
@@ -443,6 +492,27 @@ class StreamingDACEncoderBlock(nn.Module):
         self.right_context = right_context
         self.left_context = left_context + (2 * stride - 1)
 
+    @torch.no_grad()
+    def init_state(
+        self,
+        batch_size: int,
+        device: Optional[torch.device] = None,
+        dtype: Optional[torch.dtype] = None,
+    ) -> List[Dict[str, Any]]:
+        """Initialize internal states for streaming inference.
+
+        Args:
+            batch_size: Batch size.
+            device: Device where the tensors are allocated.
+        """
+        state = []
+        for layer in self.blocks:
+            if isinstance(layer, (StreamingCausalConv1d, StreamingDACResBlock)):
+                state_module = layer.init_state(batch_size, device=device, dtype=dtype)
+                state.append(state_module)
+
+        return state
+
     def in_context(self) -> Tuple[int, int]:
         """Return (left_context, right_context) in input samples for one stage."""
         return (self.left_context, self.right_context)
@@ -481,6 +551,33 @@ class StreamingDACEncoderBlock(nn.Module):
             x = x * x_mask
         x = self.blocks(x)
         return x
+
+    @torch.no_grad()
+    def stream(
+        self,
+        x: torch.Tensor,
+        state: List[Dict[str, Any]],
+        flush: bool = False,
+    ) -> Tuple[torch.Tensor, List[Dict[str, Any]]]:
+        """a
+        Apply the encoder block in streaming mode.
+
+        Args:
+            x: Tensor of shape ``(B, C_in, T)``.
+            state: List of per-layer states.
+            flush: If True, flush the final streaming conv (end of stream).
+        """
+        act_idx = len(self.blocks) - 2
+        state_cur_idx = 0
+        for i, block in enumerate(self.blocks):
+            if i == act_idx:
+                x = block(x)
+            else:
+                x, new_state = block.stream(x, state[state_cur_idx], flush=flush)
+                state[state_cur_idx] = new_state
+                state_cur_idx += 1
+
+        return x, state
 
     def remove_weight_norm(self) -> None:
         """Remove weight normalization from internal Conv1d layers."""
@@ -555,6 +652,29 @@ class StreamingDACDecoderBlock(nn.Module):
         self.right_context = right_context
         self.stride = stride
 
+    @torch.no_grad()
+    def init_state(
+        self,
+        batch_size: int,
+        device: Optional[torch.device] = None,
+        dtype: Optional[torch.dtype] = None,
+    ) -> List[Dict[str, Any]]:
+        """Initialize internal states for streaming inference.
+
+        Args:
+            batch_size: Batch size.
+            device: Device where the tensors are allocated.
+        """
+        state = []
+        for layer in self.blocks:
+            if isinstance(
+                layer, (StreamingCausalConvTranspose1d, StreamingDACResBlock)
+            ):
+                state_module = layer.init_state(batch_size, device=device, dtype=dtype)
+                state.append(state_module)
+
+        return state
+
     def in_context(self) -> Tuple[float, float]:
         """
         Return (left_context, right_context) in **input** samples for this stage.
@@ -601,6 +721,38 @@ class StreamingDACDecoderBlock(nn.Module):
         x = self.blocks(x)
         return x
 
+    @torch.no_grad()
+    def stream(
+        self,
+        x: torch.Tensor,
+        state: List[Dict[str, Any]],
+        flush: bool = False,
+    ) -> Tuple[torch.Tensor, List[Dict[str, Any]]]:
+        """
+        Apply the decoder block in streaming mode.
+
+        Args:
+            x: Tensor of shape ``(B, C_in, T)``.
+            states: List containing internal states.
+            flush: If True, flush the first streaming deconv (end of stream).
+
+        Returns:
+            Tuple of:
+            - Tensor of shape ``(B, C_out, T_out)``.
+            - Updated states list.
+        """
+        act_idx = 0
+        state_cur_idx = 0
+        for i, block in enumerate(self.blocks):
+            if i == act_idx:
+                x = block(x)
+            else:
+                x, new_state = block.stream(x, state[state_cur_idx], flush=flush)
+                state[state_cur_idx] = new_state
+                state_cur_idx += 1
+
+        return x, state
+
     def remove_weight_norm(self) -> None:
         """Remove weight normalization from internal conv / transposed-conv layers."""
         for module in self.blocks.modules():
@@ -609,3 +761,120 @@ class StreamingDACDecoderBlock(nn.Module):
                     remove_parametrizations(module, "weight")
                 except ValueError:
                     pass
+
+
+def stream_dac_resblock_demo(B=1, C=8, T=480, chunk=160, kernel_size=7, dilation=1):
+    """Compare forward vs streaming for DACResBlock."""
+    torch.manual_seed(0)
+    block = StreamingDACResBlock(C, kernel_size=kernel_size, dilation=dilation).eval()
+    x_full = torch.randn(B, C, T)
+    y_ref = block(x_full)
+
+    state = block.init_state(B, device=x_full.device, dtype=x_full.dtype)
+    outs = []
+    t = 0
+    while t < T:
+        x_chunk = x_full[..., t : t + chunk]
+        flush = (t + x_chunk.size(-1)) >= T
+        y_emit, state = block.stream(x_chunk, state, flush=flush)
+        outs.append(y_emit)
+        t += x_chunk.size(-1)
+    y_stream = torch.cat(outs, dim=-1)
+    assert y_ref.shape == y_stream.shape
+    assert torch.allclose(y_ref, y_stream, atol=1e-5, rtol=1e-4)
+    return y_stream, y_ref
+
+
+def stream_dac_encoder_demo(
+    B=1, Cin=8, Cout=16, T=480, chunk=160, kernel_size=7, stride=2, dilations=None
+):
+    """Compare forward vs streaming for StreamingDACEncoderBlock."""
+    torch.manual_seed(0)
+    enc = StreamingDACEncoderBlock(
+        Cin, Cout, kernel_size=kernel_size, stride=stride, dilations=dilations
+    ).eval()
+    x_full = torch.randn(B, Cin, T)
+    y_ref = enc(x_full)
+
+    states = enc.init_state(B, x_full.device, x_full.dtype)
+    outs = []
+    t = 0
+    while t < T:
+        x_chunk = x_full[..., t : t + chunk]
+        flush = (t + x_chunk.size(-1)) >= T
+        y_emit, states = enc.stream(x_chunk, states, flush=flush)
+        outs.append(y_emit)
+        t += x_chunk.size(-1)
+    y_stream = torch.cat(outs, dim=-1)
+    assert y_ref.shape == y_stream.shape
+    assert torch.allclose(y_ref, y_stream, atol=1e-5, rtol=1e-4)
+    return y_stream, y_ref
+
+
+def stream_dac_decoder_demo(
+    B=1, Cin=16, Cout=8, T=120, chunk=40, kernel_size=7, stride=2, dilations=None
+):
+    """Compare forward vs streaming for StreamingDACDecoderBlock."""
+    torch.manual_seed(0)
+    dec = StreamingDACDecoderBlock(
+        Cin, Cout, kernel_size=kernel_size, stride=stride, dilations=dilations
+    ).eval()
+    x_full = torch.randn(B, Cin, T)
+    y_ref = dec(x_full)
+
+    states = dec.init_state(B, x_full.device, x_full.dtype)
+    outs = []
+    t = 0
+    while t < T:
+        x_chunk = x_full[..., t : t + chunk]
+        flush = (t + x_chunk.size(-1)) >= T
+        y_emit, states = dec.stream(x_chunk, states, flush=flush)
+        outs.append(y_emit)
+        t += x_chunk.size(-1)
+    y_stream = torch.cat(outs, dim=-1)
+    assert y_ref.shape == y_stream.shape
+    assert torch.allclose(y_ref, y_stream, atol=1e-5, rtol=1e-4)
+    return y_stream, y_ref
+
+
+def stream_dac_pair_demo(
+    B=1,
+    Cin=1,
+    Cmid=8,
+    Cout=1,
+    T=640,
+    chunk=160,
+    k=7,
+    s=2,
+    dilations=None,
+):
+    """
+    Compare full forward vs streaming of encoder+decoder cascade.
+    """
+    torch.manual_seed(0)
+    enc = StreamingDACEncoderBlock(
+        Cin, Cmid, kernel_size=k, stride=s, dilations=dilations
+    ).eval()
+    dec = StreamingDACDecoderBlock(
+        Cmid, Cout, kernel_size=k, stride=s, dilations=dilations
+    ).eval()
+
+    x_full = torch.randn(B, Cin, T)
+    y_ref = dec(enc(x_full))
+
+    st_enc = enc.init_state(B, x_full.device, x_full.dtype)
+    st_dec = dec.init_state(B, x_full.device, x_full.dtype)
+    outs = []
+    t = 0
+    while t < T:
+        x_chunk = x_full[..., t : t + chunk]
+        flush = (t + x_chunk.size(-1)) >= T
+        z_emit, st_enc = enc.stream(x_chunk, st_enc, flush=flush)
+        y_emit, st_dec = dec.stream(z_emit, st_dec, flush=flush)
+        outs.append(y_emit)
+        t += x_chunk.size(-1)
+
+    y_stream = torch.cat(outs, dim=-1)
+    assert y_ref.shape == y_stream.shape
+    assert torch.allclose(y_ref, y_stream, atol=1e-5, rtol=1e-4)
+    return y_stream, y_ref

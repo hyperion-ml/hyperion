@@ -39,6 +39,9 @@ subcommand_list = [
     "add_columns",
     "replace_columns",
     "average_results",
+    "histogram",
+    "scatter2d",
+    "scatter3d",
 ]
 table_dict = {
     "segments": SegmentSet,
@@ -53,6 +56,7 @@ table_dict = {
 
 
 def add_common_args(parser):
+    """Add shared table type and verbosity options to an argument parser."""
     parser.add_argument(
         "--table-type",
         default="generic",
@@ -66,12 +70,16 @@ def add_common_args(parser):
         default=1,
         choices=[0, 1, 2, 3],
         type=int,
+        help="verbosity level for logging output",
     )
 
 
 def make_cat_parser():
+    """Build parser for concatenating multiple tables into one."""
     parser = ArgumentParser()
-    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument(
+        "--cfg", action=ActionConfigFile, help="configuration file in YAML format"
+    )
     parser.add_argument(
         "--input-files", default=None, nargs="+", help="optional list of input files"
     )
@@ -92,6 +100,12 @@ def make_cat_parser():
         type=int,
         help="""index of the first job, typically 0 or 1""",
     )
+    parser.add_argument(
+        "--skip-missing",
+        default=False,
+        action=ActionYesNo,
+        help="skip missing input files instead of raising an error",
+    )
 
     add_common_args(parser)
     return parser
@@ -103,7 +117,9 @@ def cat(
     output_file: PathLike,
     num_tables: int,
     base_idx: int = 1,
+    skip_missing: bool = False,
 ):
+    """Concatenate a list of tables into a single file."""
     assert input_files is not None or num_tables != 0
     output_file = Path(output_file)
     if input_files is None:
@@ -119,15 +135,27 @@ def cat(
     table_class = table_dict[table_type]
     tables = []
     for file_path in input_files:
+        file_path = Path(file_path)
+        if not file_path.is_file():
+            if skip_missing:
+                logging.warning(f"Skipping missing file {file_path}")
+                continue
+            raise FileNotFoundError(f"Input file not found: {file_path}")
         tables.append(table_class.load(file_path))
+
+    if not tables:
+        raise ValueError("No input tables found to concatenate")
 
     output_table = table_class.cat(tables)
     output_table.save(output_file)
 
 
 def make_filter_parser():
+    """Build parser for filtering a table using another table as filter."""
     parser = ArgumentParser()
-    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument(
+        "--cfg", action=ActionConfigFile, help="configuration file in YAML format"
+    )
     parser.add_argument("--input-file", required=True, help="input table file")
     parser.add_argument(
         "--filter-file", required=True, help="table file that we use as filter"
@@ -165,6 +193,7 @@ def filter(
     keep: bool,
     raise_if_missing: bool,
 ):
+    """Filter rows by matching values from a second table."""
     logging.info(
         f"Filtering {input_file} by {filter_file} on {filter_by} into {output_file}"
     )
@@ -186,8 +215,11 @@ def filter(
 
 
 def make_filter_by_predicate_parser():
+    """Build parser for filtering a table using a predicate expression."""
     parser = ArgumentParser()
-    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument(
+        "--cfg", action=ActionConfigFile, help="configuration file in YAML format"
+    )
     parser.add_argument("--input-file", required=True, help="input table file")
     parser.add_argument(
         "--predicate", required=True, help="predicate to use for filtering"
@@ -214,6 +246,7 @@ def filter_by_predicate(
     keep: bool,
     output_file: PathLike,
 ):
+    """Filter rows using a boolean predicate on the table columns."""
     logging.info(f"Filtering {input_file} by {predicate} into {output_file}")
 
     input_file = Path(input_file)
@@ -229,8 +262,11 @@ def filter_by_predicate(
 
 
 def make_make_class_file_from_column_parser():
+    """Build parser for creating a class info table from a column."""
     parser = ArgumentParser()
-    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument(
+        "--cfg", action=ActionConfigFile, help="configuration file in YAML format"
+    )
     parser.add_argument("--input-file", required=True, help="input table file")
 
     parser.add_argument(
@@ -254,6 +290,7 @@ def make_class_file_from_column(
     output_file: PathLike,
     column: str,
 ):
+    """Generate a class-info table from unique values of a column."""
     logging.info(
         f"Creating class file from {input_file} column {column} into {output_file}"
     )
@@ -269,8 +306,11 @@ def make_class_file_from_column(
 
 
 def make_drop_columns_parser():
+    """Build parser for dropping or keeping columns from a table."""
     parser = ArgumentParser()
-    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument(
+        "--cfg", action=ActionConfigFile, help="configuration file in YAML format"
+    )
     parser.add_argument("--input-file", required=True, help="input table file")
     parser.add_argument(
         "--columns", required=True, nargs="+", help="columns to keep or drop"
@@ -298,6 +338,7 @@ def drop_columns(
     output_file: Optional[PathLike] = None,
     keep: bool = False,
 ):
+    """Drop or keep selected columns, backing up the input if overwriting."""
 
     input_file = Path(input_file)
     if output_file is None:
@@ -316,8 +357,11 @@ def drop_columns(
 
 
 def make_add_columns_parser():
+    """Build parser for merging columns from a secondary table."""
     parser = ArgumentParser()
-    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument(
+        "--cfg", action=ActionConfigFile, help="configuration file in YAML format"
+    )
     parser.add_argument("--input-file", required=True, help="input table file")
     parser.add_argument("--right-table-file", required=True, help="table file to add")
     parser.add_argument("--columns", default=None, nargs="+", help="columns to add")
@@ -331,6 +375,12 @@ def make_add_columns_parser():
         default=False,
         action=ActionYesNo,
         help="replace overlapping columns if True",
+    )
+    parser.add_argument(
+        "--ignore-overlapping",
+        default=False,
+        action=ActionYesNo,
+        help="ignore overlapping columns if True",
     )
     parser.add_argument(
         "--remove-missing",
@@ -356,9 +406,11 @@ def add_columns(
     on: str = "id",
     right_on: Optional[str] = None,
     replace_overlapping: bool = False,
+    ignore_overlapping: bool = False,
     remove_missing: bool = False,
     output_file: Optional[PathLike] = None,
 ):
+    """Join columns from another table into the input table."""
 
     input_file = Path(input_file)
     if output_file is None:
@@ -381,14 +433,18 @@ def add_columns(
         on=on,
         right_on=right_on,
         replace_overlapping=replace_overlapping,
+        ignore_overlapping=ignore_overlapping,
         remove_missing=remove_missing,
     )
     input_table.save(output_file)
 
 
 def make_replace_columns_parser():
+    """Build parser for replacing columns in a table with another table."""
     parser = ArgumentParser()
-    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument(
+        "--cfg", action=ActionConfigFile, help="configuration file in YAML format"
+    )
     parser.add_argument("--input-file", required=True, help="input table file")
     parser.add_argument(
         "--replacement-file",
@@ -418,6 +474,7 @@ def replace_columns(
     output_file: Optional[PathLike] = None,
     columns: Optional[List[str]] = None,
 ):
+    """Replace columns in a table with values from another table."""
     logging.info(
         f"Replacing columns in {input_file} with {replacement_file} into {output_file}"
     )
@@ -438,8 +495,11 @@ def replace_columns(
 
 
 def make_average_results_parser():
+    """Build parser for averaging columns across several result tables."""
     parser = ArgumentParser()
-    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument(
+        "--cfg", action=ActionConfigFile, help="configuration file in YAML format"
+    )
     parser.add_argument(
         "--input-files", default=None, nargs="+", help="optional list of input files"
     )
@@ -472,6 +532,7 @@ def average_results(
     num_tables: int,
     base_idx: int = 1,
 ):
+    """Average numeric result columns across multiple result tables."""
     assert input_files is not None or num_tables != 0
     output_file = Path(output_file)
     if input_files is None:
@@ -535,9 +596,235 @@ def average_results(
     output_table.to_csv(output_file, sep=sep, index=False, float_format="{:.4f}".format)
 
 
+def make_histogram_parser():
+    """Build parser for plotting a histogram of a column."""
+    parser = ArgumentParser()
+    parser.add_argument(
+        "--cfg", action=ActionConfigFile, help="configuration file in YAML format"
+    )
+    parser.add_argument("--input-file", required=True, help="input table file")
+    parser.add_argument("--column", required=True, help="column to plot")
+    parser.add_argument(
+        "--bins",
+        default=None,
+        type=int,
+        help="number of bins for numeric columns (ignored for strings)",
+    )
+    parser.add_argument(
+        "--density",
+        default=True,
+        action=ActionYesNo,
+        help="plot density/relative frequency instead of counts",
+    )
+    parser.add_argument(
+        "--kind",
+        default="bar",
+        choices=["bar", "line"],
+        help="histogram style",
+    )
+    parser.add_argument(
+        "--color",
+        default="C0",
+        choices=[f"C{i}" for i in range(10)] + ["r", "g", "b", "c", "m", "y", "k"],
+        help="matplotlib color for the histogram",
+    )
+    parser.add_argument(
+        "--output-file",
+        default=None,
+        help="output image file; if not set, the plot is shown",
+    )
+    parser.add_argument(
+        "--dropna",
+        default=True,
+        action=ActionYesNo,
+        help="drop NA values before plotting",
+    )
+
+    add_common_args(parser)
+    return parser
+
+
+def histogram(
+    table_type: str,
+    input_file: PathLike,
+    column: str,
+    bins: Optional[int],
+    density: bool,
+    kind: str,
+    color: str,
+    output_file: Optional[PathLike],
+    dropna: bool,
+):
+    """Plot or save a histogram for a column in the table."""
+    input_file = Path(input_file)
+    logging.info(f"Plotting histogram for column {column} from {input_file}")
+
+    table_class = table_dict[table_type]
+    table = table_class.load(input_file)
+    table.histogram(
+        column=column,
+        bins=bins,
+        density=density,
+        kind=kind,
+        color=color,
+        output_file=output_file,
+        dropna=dropna,
+    )
+
+
+def make_scatter2d_parser():
+    """Build parser for plotting a 2D scattergram."""
+    parser = ArgumentParser()
+    parser.add_argument(
+        "--cfg", action=ActionConfigFile, help="configuration file in YAML format"
+    )
+    parser.add_argument("--input-file", required=True, help="input table file")
+    parser.add_argument("--x-column", required=True, help="column for x-axis")
+    parser.add_argument("--y-column", required=True, help="column for y-axis")
+    parser.add_argument(
+        "--color",
+        default="C0",
+        choices=[f"C{i}" for i in range(10)] + ["r", "g", "b", "c", "m", "y", "k"],
+        help="matplotlib color for points",
+    )
+    parser.add_argument(
+        "--marker",
+        default="o",
+        choices=["o", "s", "^", "v", "x", "+", "*", "d", "."],
+        help="matplotlib marker style for points",
+    )
+    parser.add_argument(
+        "--sample-frac",
+        default=1.0,
+        type=float,
+        help="fraction of points to sample randomly (0,1]",
+    )
+    parser.add_argument(
+        "--output-file",
+        default=None,
+        help="output image file; if not set, the plot is shown",
+    )
+    parser.add_argument(
+        "--dropna",
+        default=True,
+        action=ActionYesNo,
+        help="drop NA values before plotting",
+    )
+
+    add_common_args(parser)
+    return parser
+
+
+def scatter2d(
+    table_type: str,
+    input_file: PathLike,
+    x_column: str,
+    y_column: str,
+    color: str,
+    marker: str,
+    sample_frac: float,
+    output_file: Optional[PathLike],
+    dropna: bool,
+):
+    """Plot or save a 2D scattergram for two columns."""
+    input_file = Path(input_file)
+    logging.info(f"Plotting 2D scatter for {x_column} vs {y_column} from {input_file}")
+
+    table_class = table_dict[table_type]
+    table = table_class.load(input_file)
+    table.scatter2d(
+        x_column=x_column,
+        y_column=y_column,
+        color=color,
+        marker=marker,
+        sample_frac=sample_frac,
+        output_file=output_file,
+        dropna=dropna,
+    )
+
+
+def make_scatter3d_parser():
+    """Build parser for plotting a 3D scattergram."""
+    parser = ArgumentParser()
+    parser.add_argument(
+        "--cfg", action=ActionConfigFile, help="configuration file in YAML format"
+    )
+    parser.add_argument("--input-file", required=True, help="input table file")
+    parser.add_argument("--x-column", required=True, help="column for x-axis")
+    parser.add_argument("--y-column", required=True, help="column for y-axis")
+    parser.add_argument("--z-column", required=True, help="column for z-axis")
+    parser.add_argument(
+        "--color",
+        default="C0",
+        choices=[f"C{i}" for i in range(10)] + ["r", "g", "b", "c", "m", "y", "k"],
+        help="matplotlib color for points",
+    )
+    parser.add_argument(
+        "--marker",
+        default="o",
+        choices=["o", "s", "^", "v", "x", "+", "*", "d", "."],
+        help="matplotlib marker style for points",
+    )
+    parser.add_argument(
+        "--sample-frac",
+        default=1.0,
+        type=float,
+        help="fraction of points to sample randomly (0,1]",
+    )
+    parser.add_argument(
+        "--output-file",
+        default=None,
+        help="output image file; if not set, the plot is shown",
+    )
+    parser.add_argument(
+        "--dropna",
+        default=True,
+        action=ActionYesNo,
+        help="drop NA values before plotting",
+    )
+
+    add_common_args(parser)
+    return parser
+
+
+def scatter3d(
+    table_type: str,
+    input_file: PathLike,
+    x_column: str,
+    y_column: str,
+    z_column: str,
+    color: str,
+    marker: str,
+    sample_frac: float,
+    output_file: Optional[PathLike],
+    dropna: bool,
+):
+    """Plot or save a 3D scattergram for three columns."""
+    input_file = Path(input_file)
+    logging.info(
+        f"Plotting 3D scatter for {x_column}, {y_column}, {z_column} from {input_file}"
+    )
+
+    table_class = table_dict[table_type]
+    table = table_class.load(input_file)
+    table.scatter3d(
+        x_column=x_column,
+        y_column=y_column,
+        z_column=z_column,
+        color=color,
+        marker=marker,
+        sample_frac=sample_frac,
+        output_file=output_file,
+        dropna=dropna,
+    )
+
+
 def main():
+    """Parse CLI arguments and dispatch to the selected table utility."""
     parser = ArgumentParser(description="Tool to manipulates the Hyperion data tables")
-    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument(
+        "--cfg", action=ActionConfigFile, help="configuration file in YAML format"
+    )
 
     subcommands = parser.add_subcommands()
     for subcommand in subcommand_list:
