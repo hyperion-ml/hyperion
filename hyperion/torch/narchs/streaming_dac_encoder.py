@@ -5,6 +5,7 @@ Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
 import logging
 import math
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple, Type, Union
 
@@ -15,11 +16,30 @@ from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from torch.nn.utils.parametrizations import weight_norm
 from torch.nn.utils.parametrize import is_parametrized, remove_parametrizations
 
+from ...utils import HypDataClass
 from ...utils.misc import filter_func_args
 from ..layer_blocks.dac_blocks import StreamingDACEncoderBlock
 from ..layers import Snake1d, StreamingCausalConv1d
 from ..utils import seq_lengths_to_mask
 from .net_arch import NetArch
+
+
+@dataclass
+class StreamingDACEncoderState(HypDataClass):
+    """Aggregated cache state for `StreamingDACEncoder`.
+
+    Attributes:
+        in_conv_state: Cache state of the input convolution.
+        out_conv_state: Cache state of the output convolution.
+        block_states: List of per-block cache states mirroring the encoder layout.
+    """
+
+    in_conv_state: Dict[str, Any] = field(default_factory=dict)
+    block_states: List[Dict[str, Any]] = field(default_factory=list)
+    out_conv_state: Dict[str, Any] = field(default_factory=dict)
+
+    def __len__(self) -> int:
+        return len(self.block_states) + 2  # in_conv + out_conv
 
 
 class StreamingDACEncoder(NetArch):
@@ -50,6 +70,7 @@ class StreamingDACEncoder(NetArch):
         kernel_size: Kernel size for residual blocks.
         strides: Per-stage downsampling strides. If None, defaults to [2, 4, 8, 8].
         dilations: Dilations used inside each residual block. If None, defaults to [1, 3, 9].
+        look_aheads: place holder for future use, if needed.
     """
 
     def __init__(
@@ -154,6 +175,16 @@ class StreamingDACEncoder(NetArch):
         left_context, right_context = self.in_context()
         return left_context + right_context + 1
 
+    @property
+    def frame_shift(self) -> int:
+        """Total downsampling factor (frame shift) in samples."""
+        return self.stride
+
+    @property
+    def hop_size(self) -> int:
+        """Total downsampling factor (hop size) in samples."""
+        return self.stride
+
     def init_weights(self) -> None:
         """
         Initialize convolutional weights with N(0, 0.01) and zero biases.
@@ -197,9 +228,9 @@ class StreamingDACEncoder(NetArch):
         if x.dim() == 2:
             x = x.unsqueeze(1)
 
-        hop_length = self.stride
+        hop_size = self.stride
         length = x.shape[-1]
-        right_pad = math.ceil(length / hop_length) * hop_length - length
+        right_pad = math.ceil(length / hop_size) * hop_size - length
         x = nn.functional.pad(x, (0, right_pad))
 
         return x
@@ -215,7 +246,7 @@ class StreamingDACEncoder(NetArch):
             Maximum output length in samples after all downsampling.
         """
         hop_length = self.stride
-        max_in_length = math.ceil(max_in_length / hop_length) * hop_length
+        max_in_length = int(math.ceil(max_in_length / hop_length) * hop_length)
         max_out_length = max_in_length - (self.kernel_size - 1)
         for block in self.blocks:
             max_out_length = block.max_out_length(max_out_length)
@@ -290,6 +321,95 @@ class StreamingDACEncoder(NetArch):
         x = self.out_act(x)
         x = self.out_conv(x)
         return x.transpose(1, 2).contiguous()
+
+    @torch.no_grad()
+    def init_state(
+        self,
+        batch_size: int,
+        device: Optional[torch.device] = None,
+        dtype: Optional[torch.dtype] = None,
+    ) -> List[Any]:
+        """
+        Initialize the states of all encoder blocks for streaming inference.
+
+        Args:
+            batch_size: Batch size for which to initialize states.
+            device: Device on which to create the states.
+            dtype: Data type of the states.
+        """
+        in_conv_state = self.in_conv.init_state(batch_size, device=device, dtype=dtype)
+        out_conv_state = self.out_conv.init_state(
+            batch_size, device=device, dtype=dtype
+        )
+        block_states = []
+        for block in self.blocks:
+            block_states.append(
+                block.init_state(batch_size, device=device, dtype=dtype)
+            )
+
+        return StreamingDACEncoderState(
+            in_conv_state=in_conv_state,
+            block_states=block_states,
+            out_conv_state=out_conv_state,
+        )
+
+    def stream_preprocess(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Prepare input for the encoder.
+
+        - Ensures channels-first layout (B, in_feats, T).
+        - Pads sequence length to a multiple of total stride.
+
+        Args:
+            x: Input tensor of shape (B, in_feats, T) or (B, T).
+
+        Returns:
+            Padded tensor of shape (B, in_feats, T_pad).
+        """
+        if x.dim() == 2:
+            x = x.unsqueeze(1)
+
+        return x
+
+    @torch.no_grad()
+    def stream(
+        self,
+        x: torch.Tensor,
+        state: StreamingDACEncoderState,
+        flush: bool = False,
+    ) -> Tuple[torch.Tensor, StreamingDACEncoderState]:
+        """
+        Streaming forward pass of the encoder.
+
+        Args:
+            x: Input tensor of shape (B, T, in_feats).
+            state: Aggregated encoder state.
+            flush: If True, flush buffered look-ahead in the final chunk.
+
+        Returns:
+            y: Output tensor of shape (B, T_out, out_feats).
+            new_state: Updated encoder state.
+        """
+        x = self.stream_preprocess(x)
+        x, new_in_conv_state = self.in_conv.stream(x, state.in_conv_state, flush=flush)
+
+        new_block_states = []
+        for block, block_state in zip(self.blocks, state.block_states):
+            x, new_block_state = block.stream(x, block_state, flush=flush)
+            new_block_states.append(new_block_state)
+
+        x = self.out_act(x)
+        x, new_out_conv_state = self.out_conv.stream(
+            x, state.out_conv_state, flush=flush
+        )
+
+        new_state = StreamingDACEncoderState(
+            in_conv_state=new_in_conv_state,
+            block_states=new_block_states,
+            out_conv_state=new_out_conv_state,
+        )
+
+        return x.transpose(1, 2).contiguous(), new_state
 
     def remove_weight_norm(self) -> None:
         """
@@ -371,3 +491,55 @@ class StreamingDACEncoder(NetArch):
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
+
+
+def stream_dac_encoder_demo(
+    B: int = 1,
+    Cout: int = 1,
+    init_inner_channels: int = 4,
+    kernel_size: int = 5,
+    strides: Optional[List[int]] = None,
+    dilations: Optional[List[int]] = None,
+    T: int = 2408,
+    chunk: int = 512,
+    device: str = "cpu",
+    dtype: torch.dtype = torch.float32,
+):
+    """
+    Compare full forward vs streaming for StreamingDACEncoder.
+
+    Returns tuple (y_stream, y_ref).
+    """
+    torch.manual_seed(0)
+    enc = StreamingDACEncoder(
+        in_feats=1,
+        out_feats=Cout,
+        init_inner_channels=init_inner_channels,
+        kernel_size=kernel_size,
+        strides=strides,
+        dilations=dilations,
+    ).to(device=device, dtype=dtype)
+
+    x_full = torch.randn(B, T, device=device, dtype=dtype)
+    y_ref = enc(x_full)
+
+    state = enc.init_state(B, device=device, dtype=dtype)
+    outs = []
+    t = 0
+    while t < T:
+        x_chunk = x_full[:, t : t + chunk]
+        flush = (t + x_chunk.size(1)) >= T
+        y_emit, state = enc.stream(x_chunk, state, flush=flush)
+        outs.append(y_emit)
+        t += x_chunk.size(1)
+
+    y_stream = torch.cat(outs, dim=1)
+    print(f"y_ref={y_ref}")
+    print(f"y_stream={y_stream}")
+    print(f"y_ref.shape={y_ref.shape}, y_stream.shape={y_stream.shape}")
+    assert y_ref.shape == y_stream.shape, f"{y_ref.shape=} {y_stream.shape=}"
+    atol = 1e-5 if dtype == torch.float32 else 5e-4
+    rtol = 1e-4 if dtype == torch.float32 else 1e-3
+    max_abs = (y_ref - y_stream).abs().max().item()
+    assert torch.allclose(y_ref, y_stream, atol=atol, rtol=rtol), f"max_abs={max_abs}"
+    return y_stream, y_ref

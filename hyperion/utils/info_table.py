@@ -878,6 +878,206 @@ class InfoTable:
 
         return self.__class__(df.copy())
 
+    def histogram(
+        self,
+        column: str,
+        bins: Optional[int] = None,
+        density: bool = True,
+        kind: str = "bar",
+        color: str = "C0",
+        output_file: Optional[PathLike] = None,
+        dropna: bool = True,
+    ) -> None:
+        """
+        Plot a histogram of a column, handling string or numeric data.
+
+        Args:
+            column (str): Column name to plot. Title will include the column name.
+            bins (Optional[int]): Number of bins for numeric columns. Ignored for strings.
+            density (bool): If True, plot density/relative frequency; otherwise counts.
+            kind (str): Histogram style, either "bar" or "line".
+            color (str): Matplotlib color spec for the plot.
+            output_file (Optional[PathLike]): If provided, save the figure; otherwise show it.
+            dropna (bool): If True, ignore NA values before plotting.
+        """
+        import matplotlib.pyplot as plt
+
+        if column not in self.df.columns:
+            raise KeyError(f"Column '{column}' not found in table")
+
+        series = self.df[column]
+        if dropna:
+            series = series.dropna()
+
+        if series.empty:
+            raise ValueError(
+                f"No data available to plot histogram for column '{column}'"
+            )
+
+        kind = kind.lower()
+        if kind not in ("bar", "line"):
+            raise ValueError("kind must be either 'bar' or 'line'")
+
+        data_type = infer_dtype(series, skipna=True)
+        fig, ax = plt.subplots()
+
+        if np.issubdtype(series.dtype, np.number):
+            num_bins = bins if bins is not None else 10
+            if kind == "bar":
+                ax.hist(
+                    series,
+                    bins=num_bins,
+                    density=density,
+                    color=color,
+                    edgecolor="black",
+                )
+            else:
+                counts, bin_edges = np.histogram(series, bins=num_bins, density=density)
+                centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+                ax.plot(centers, counts, color=color)
+        elif data_type in ["string", "unicode", "bytes", "mixed-integer", "mixed"]:
+            counts = series.value_counts(dropna=dropna, sort=False)
+            if density:
+                counts = counts / counts.sum()
+            counts = counts.sort_index()
+            x = counts.index.tolist()
+            y = counts.values
+            if kind == "bar":
+                ax.bar(x, y, color=color)
+            else:
+                ax.plot(x, y, color=color, marker="o")
+        else:
+            raise TypeError(f"Unsupported dtype '{series.dtype}' for histogram")
+
+        ax.set_title(f"Histogram of {column}")
+        ax.set_xlabel(column)
+        ax.set_ylabel("Density" if density else "Count")
+        plt.xticks(
+            rotation=(
+                45
+                if data_type in ["string", "unicode", "bytes", "mixed-integer", "mixed"]
+                else 0
+            )
+        )
+        ax.grid(True)
+        plt.tight_layout()
+
+        if output_file is None:
+            plt.show()
+        else:
+            output_path = Path(output_file)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            fig.savefig(output_path)
+            plt.close(fig)
+
+    def scatter2d(
+        self,
+        x_column: str,
+        y_column: str,
+        color: str = "C0",
+        marker: str = "o",
+        sample_frac: float = 1.0,
+        output_file: Optional[PathLike] = None,
+        dropna: bool = True,
+    ) -> None:
+        """
+        Plot a 2D scattergram for two numeric columns.
+
+        Args:
+            x_column (str): Column name for the x-axis.
+            y_column (str): Column name for the y-axis.
+            color (str): Matplotlib color for points.
+            marker (str): Matplotlib marker style.
+            sample_frac (float): Fraction (0,1] of points to plot, sampled randomly.
+            output_file (Optional[PathLike]): If provided, save figure; otherwise show it.
+            dropna (bool): Drop NA rows before plotting.
+        """
+        import matplotlib.pyplot as plt
+
+        if not (0 < sample_frac <= 1):
+            raise ValueError("sample_frac must be in the range (0, 1]")
+
+        df = self.df[[x_column, y_column]]
+        if dropna:
+            df = df.dropna()
+        if sample_frac < 1:
+            df = df.sample(frac=sample_frac)
+
+        if df.empty:
+            raise ValueError("No data available to plot scatter2d")
+
+        fig, ax = plt.subplots()
+        ax.scatter(df[x_column], df[y_column], c=color, marker=marker)
+        ax.set_xlabel(x_column)
+        ax.set_ylabel(y_column)
+        ax.set_title(f"{y_column} vs {x_column}")
+        ax.grid(True)
+        plt.tight_layout()
+
+        if output_file is None:
+            plt.show()
+        else:
+            output_path = Path(output_file)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            fig.savefig(output_path)
+            plt.close(fig)
+
+    def scatter3d(
+        self,
+        x_column: str,
+        y_column: str,
+        z_column: str,
+        color: str = "C0",
+        marker: str = "o",
+        sample_frac: float = 1.0,
+        output_file: Optional[PathLike] = None,
+        dropna: bool = True,
+    ) -> None:
+        """
+        Plot a 3D scattergram for three numeric columns.
+
+        Args:
+            x_column (str): Column name for the x-axis.
+            y_column (str): Column name for the y-axis.
+            z_column (str): Column name for the z-axis.
+            color (str): Matplotlib color for points.
+            marker (str): Matplotlib marker style.
+            sample_frac (float): Fraction (0,1] of points to plot, sampled randomly.
+            output_file (Optional[PathLike]): If provided, save figure; otherwise show it.
+            dropna (bool): Drop NA rows before plotting.
+        """
+        import matplotlib.pyplot as plt
+
+        if not (0 < sample_frac <= 1):
+            raise ValueError("sample_frac must be in the range (0, 1]")
+
+        df = self.df[[x_column, y_column, z_column]]
+        if dropna:
+            df = df.dropna()
+        if sample_frac < 1:
+            df = df.sample(frac=sample_frac)
+
+        if df.empty:
+            raise ValueError("No data available to plot scatter3d")
+
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection="3d")
+        ax.scatter(df[x_column], df[y_column], df[z_column], c=color, marker=marker)
+        ax.set_xlabel(x_column)
+        ax.set_ylabel(y_column)
+        ax.set_zlabel(z_column)
+        ax.set_title(f"{z_column} vs {y_column} vs {x_column}")
+        ax.grid(True)
+        plt.tight_layout()
+
+        if output_file is None:
+            plt.show()
+        else:
+            output_path = Path(output_file)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            fig.savefig(output_path)
+            plt.close(fig)
+
     def __eq__(self, other):
         """Equal operator"""
         if self.df.shape[0] == 0 and other.df.shape[0] == 0:
@@ -1027,6 +1227,7 @@ class InfoTable:
         on: Union[str, List[str], np.ndarray] = "id",
         right_on: Union[None, str, List[str], np.ndarray] = None,
         replace_overlapping: bool = False,
+        ignore_overlapping: bool = False,
         remove_missing: bool = False,
     ) -> None:
         """
@@ -1038,6 +1239,7 @@ class InfoTable:
             on (str or list): Key(s) from the current table.
             right_on (str or list, optional): Key(s) from the right table.
             replace_overlapping (bool): Replace overlapping columns if True.
+            ignore_overlapping (bool): If True, skip adding columns that already exist.
             remove_missing (bool): Use inner join (drop unmatched rows) if True.
         """
         if isinstance(right_table, InfoTable):
@@ -1069,6 +1271,16 @@ class InfoTable:
             right_index=right_index,
             suffixes=(None, "_right"),
         )
+
+        if ignore_overlapping:
+            # Drop the extra right-side columns without touching existing data
+            for col in right_table.columns:
+                if col == "id":
+                    continue
+                extra_col = f"{col}_right"
+                if extra_col in self.df.columns:
+                    self.df.drop(columns=[extra_col], inplace=True)
+            return
 
         if not replace_overlapping:
             return

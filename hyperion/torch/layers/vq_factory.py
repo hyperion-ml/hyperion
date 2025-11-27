@@ -205,6 +205,14 @@ class VectorQuantizerFactory:
                 help="Annealing rate for temperature",
             )
 
+        if "temp_anneal_steps" not in skip:
+            parser.add_argument(
+                "--temp-anneal-steps",
+                type=int,
+                default=None,
+                help="Number of steps to reach temp_min (overrides temp_anneal_rate)",
+            )
+
         if "soft_sampling_steps" not in skip:
             parser.add_argument(
                 "--soft-sampling-steps",

@@ -42,8 +42,8 @@ from .rnn_encoder import RNNEncoder
 from .rnn_transducer_decoder import RNNTransducerDecoder
 from .spinenet import *
 from .spinenet_factory import SpineNetFactory
-from .streaming_dac_decoder import StreamingDACDecoder
-from .streaming_dac_encoder import StreamingDACEncoder
+from .streaming_dac_decoder import StreamingDACDecoder, StreamingDACDecoderState
+from .streaming_dac_encoder import StreamingDACEncoder, StreamingDACEncoderState
 from .tdnn import TDNNV1
 from .tdnn_factory import TDNNFactory
 from .torch_na_loader import TorchNALoader

@@ -91,8 +91,9 @@ class VectorQuantizerBase(nn.Module):
         channels_last: bool = False,
         is_ema: bool = False,
         temp_init: float = 1.0,
-        temp_min: Optional[float] = 0.5,
+        temp_min: Optional[float] = 0.05,
         temp_anneal_rate: float = 1e-5,
+        temp_anneal_steps: Optional[int] = None,
         commitment_anneal_steps: int = 0,
         compute_diversity_loss: bool = False,
         compute_orthogonality_loss: bool = False,
@@ -130,8 +131,19 @@ class VectorQuantizerBase(nn.Module):
             temp_min = temp_init
         if temp_min is None:
             raise ValueError("`temp_min` must be provided for temperature scheduling.")
+        self.temp_init = float(temp_init)
         self.register_buffer("temp", torch.tensor(float(temp_init)))
         self.register_buffer("temp_min", torch.tensor(float(temp_min)))
+        self.temp_anneal_steps = (
+            int(temp_anneal_steps) if temp_anneal_steps is not None else None
+        )
+        if self.temp_anneal_steps is not None and self.temp_anneal_steps > 0:
+            target_ratio = float(self.temp_min) / max(self.temp_init, 1e-12)
+            # Positive rate such that temp reaches temp_min after temp_anneal_steps.
+            temp_anneal_rate = -math.log(target_ratio) / float(self.temp_anneal_steps)
+        # Track last global step used for temperature scheduling so finetuning
+        # resumes decay from the current temp instead of resetting to temp_init.
+        self.register_buffer("temp_last_step", torch.tensor(0, dtype=torch.long))
         self.temp_anneal_rate = float(temp_anneal_rate)
         self.commitment_anneal_steps = max(0, int(commitment_anneal_steps))
         initial_commitment_weight = 0.0 if self.commitment_anneal_steps > 0 else 1.0
@@ -157,9 +169,10 @@ class VectorQuantizerBase(nn.Module):
             "distance_metric": self.distance_metric.value,
             "use_weight_norm": self.use_weight_norm,
             "channels_last": self.channels_last,
-            "temp_init": float(self.temp.item()),
+            "temp_init": float(self.temp_init),
             "temp_min": float(self.temp_min.item()),
             "temp_anneal_rate": float(self.temp_anneal_rate),
+            "temp_anneal_steps": self.temp_anneal_steps,
             "commitment_anneal_steps": self.commitment_anneal_steps,
             "compute_diversity_loss": self._compute_diversity_loss,
             "compute_orthogonality_loss": self._compute_orthogonality_loss,
@@ -217,7 +230,9 @@ class VectorQuantizerBase(nn.Module):
         Anneal temperature exponentially for quantizers that enable it.
 
         Update rule:
-            T = max(temp_min, temp * exp(-temp_anneal_rate * step))
+            T_t = max(temp_min, T_{t-1} * exp(-temp_anneal_rate * delta_step))
+        If temp_anneal_steps is set, temp_anneal_rate is chosen so that
+        temp reaches temp_min after that many steps (from temp_init).
 
         Args:
             global_step (int): Number of elapsed training steps.
@@ -226,11 +241,24 @@ class VectorQuantizerBase(nn.Module):
             self.temp_min, torch.Tensor
         ):
             return
-        decay = math.exp(-float(self.temp_anneal_rate) * float(global_step))
-        new_temp = torch.clamp(self.temp * decay, min=self.temp_min.item())
-        self.temp.copy_(new_temp)
+        # Only decay by the steps elapsed since the last call so resumed/finetune
+        # runs keep decreasing from the current temperature rather than jumping
+        # back to temp_init.
+        delta_step = max(0, int(global_step) - int(self.temp_last_step.item()))
+        if delta_step == 0:
+            return
+
+        decay = math.exp(-float(self.temp_anneal_rate) * float(delta_step))
+        new_temp = max(self.temp_min.item(), float(self.temp) * decay)
+        if math.isclose(new_temp, self.temp.item()):
+            return
+
+        self.temp.fill_(new_temp)
+        self.temp_last_step.fill_(global_step)
         if global_step % 1000 == 0:
-            logging.info(f"VQ Temperature updated to {self.temp.item():.4f}")
+            logging.info(
+                f"VQ Temperature updated to {self.temp.item():.4f} at step={global_step}"
+            )
 
     @torch.no_grad()
     def update_commitment_weight(self, global_step: int) -> None:
@@ -248,6 +276,8 @@ class VectorQuantizerBase(nn.Module):
             return
 
         progress = min(1.0, float(global_step) / float(self.commitment_anneal_steps))
+        if progress == self.commitment_weight.item():
+            return
         self.commitment_weight.fill_(progress)
         if global_step % 1000 == 0:
             logging.info(
@@ -1470,8 +1500,6 @@ class EMANNVectorQuantizer(VectorQuantizerBase):
             f"decay={self.decay}, eps={self.eps}, reset_unused={self.reset_unused}, "
             f"temp={self.temp.item():.4f}, temp_min={self.temp_min.item():.4f}, "
             f"temp_anneal_rate={self.temp_anneal_rate}, "
-            f"soft_sampling_steps={self.soft_sampling_steps}, "
-            f"using_hard_sampling={bool(self.use_hard_sampling.item())}, "
             f"commitment_weight={self.commitment_weight.item():.4f}, "
             f"commitment_anneal_steps={self.commitment_anneal_steps}, "
             f"compute_diversity_loss={self._compute_diversity_loss}, "
@@ -1751,11 +1779,12 @@ class EMANNVectorQuantizer(VectorQuantizerBase):
         z_q = z + (z_q - z).detach()
 
         # EMA update (no grad) on flattened views
-        with torch.no_grad():
-            flat_z = z.view(-1, z.shape[-1])  # (N,D)
-            flat_codes = codes.view(-1)  # (N,)
-            flat_mask = z_mask_2d.view(-1) if z_mask_2d is not None else None
-            self._ema_update(flat_z, flat_codes, flat_mask)
+        if self.training:
+            with torch.no_grad():
+                flat_z = z.view(-1, z.shape[-1])  # (N,D)
+                flat_codes = codes.view(-1)  # (N,)
+                flat_mask = z_mask_2d.view(-1) if z_mask_2d is not None else None
+                self._ema_update(flat_z, flat_codes, flat_mask)
 
         # Output projection if needed
         if self.out_proj is not None:
@@ -2055,11 +2084,12 @@ class EMAGumbelVectorQuantizer(_GumbelSoftSamplingMixin, EMANNVectorQuantizer):
         ppl = self.codebook_perplexity_soft(soft_one_hot, z_mask_2d)
 
         # EMA update (no grad) on flattened views
-        with torch.no_grad():
-            flat_z = z.view(-1, z.shape[-1])  # (N,D)
-            flat_codes = codes.view(-1)  # (N,)
-            flat_mask = z_mask_2d.view(-1) if z_mask_2d is not None else None
-            self._ema_update(flat_z, flat_codes, flat_mask)
+        if self.training:
+            with torch.no_grad():
+                flat_z = z.view(-1, z.shape[-1])  # (N,D)
+                flat_codes = codes.view(-1)  # (N,)
+                flat_mask = z_mask_2d.view(-1) if z_mask_2d is not None else None
+                self._ema_update(flat_z, flat_codes, flat_mask)
 
         # Output projection if needed
         if self.out_proj is not None:

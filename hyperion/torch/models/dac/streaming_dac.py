@@ -18,10 +18,28 @@ from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from ....utils import HypDataClass
 from ....utils.misc import filter_func_args
 from ...layers import LoudnessNorm, ResidualVectorQuantizer, VectorQuantizerOutput
-from ...narchs import StreamingDACDecoder, StreamingDACEncoder
+from ...narchs import (
+    StreamingDACDecoder,
+    StreamingDACDecoderState,
+    StreamingDACEncoder,
+    StreamingDACEncoderState,
+)
 from ...torch_model import TorchModel
 from ...utils.masking import scale_seq_lengths, seq_lengths_to_mask
-from .dac import DACOutput
+from .dac import DACOutput, DACTrainMode
+
+
+@dataclass
+class StreamingDACState(HypDataClass):
+    """Aggregated cache state for `StreamingDAC`.
+
+    Attributes:
+        encoder_state: Cache state for the `StreamingDACEncoder`.
+        decoder_state: Cache state for the `StreamingDACDecoder`.
+    """
+
+    encoder_state: StreamingDACEncoderState
+    decoder_state: StreamingDACDecoderState
 
 
 class StreamingDAC(TorchModel):
@@ -55,14 +73,17 @@ class StreamingDAC(TorchModel):
         input_sample_freq: int = 44100,
         norm_input_loudness: bool = False,
         target_input_lufs: float = -16.0,
+        alignment_look_ahead: int = 0,
     ):
         super().__init__()
         if isinstance(encoder, dict):
+            init_inner_channels = encoder.get("init_inner_channels") or 64
+            strides = encoder.get("strides") or [2, 4, 8, 8]
             if latent_feats is None:
-                latent_feats = encoder["init_inner_channels"] * (
-                    2 ** len(encoder["strides"])
-                )
+                latent_feats = init_inner_channels * (2 ** len(strides))
             encoder["out_feats"] = latent_feats
+            encoder.setdefault("init_inner_channels", init_inner_channels)
+            encoder.setdefault("strides", strides)
             encoder = StreamingDACEncoder(**encoder)
         else:
             if latent_feats is None:
@@ -90,6 +111,9 @@ class StreamingDAC(TorchModel):
             self.loudness_norm = LoudnessNorm(
                 sample_freq=input_sample_freq, target_lufs=target_input_lufs
             )
+
+        self.alignment_look_ahead = alignment_look_ahead
+        self.register_buffer("vq_is_valid", torch.zeros(1, dtype=torch.bool))
 
     def change_config(
         self,
@@ -123,7 +147,7 @@ class StreamingDAC(TorchModel):
     def frame_length(self):
         """Total input context length in samples (left + right + center sample)."""
         left_context, right_context = self.in_context()
-        return left_context + right_context + 1
+        return int(left_context + right_context + 1)
 
     @property
     def encoder_frame_length(self):
@@ -189,8 +213,10 @@ class StreamingDAC(TorchModel):
         """Effective algorithmic delay (samples) introduced by encoder+decoder."""
         l_in = self.frame_length * 2
         l_out = self.max_out_length(l_in)
+        print(l_in, l_out, flush=True)
         return (l_in - l_out) // 2
 
+    @torch.no_grad()
     def get_target_matching_output(
         self,
         audios: torch.Tensor,
@@ -212,10 +238,14 @@ class StreamingDAC(TorchModel):
         Returns:
             (audios_matched, audio_lengths) with shape (B, 1, T_match).
         """
-        with torch.no_grad():
-            if self.norm_input_loudness:
-                audios = self.loudness_norm(audios)
-            audios = self.encoder.preprocess(audios)
+        if self.norm_input_loudness:
+            audios = self.loudness_norm(audios)
+
+        audios = self.encoder.preprocess(audios)
+
+        if self.alignment_look_ahead > 0:
+            audios = audios[..., : -self.alignment_look_ahead]
+            audio_lengths = audio_lengths - self.alignment_look_ahead
 
         if pad_left:
             # we recover the same length at the output as in the input
@@ -257,7 +287,26 @@ class StreamingDAC(TorchModel):
 
         z = self.encoder(x, x_lengths)
         z_lengths = scale_seq_lengths(x_lengths, z.shape[1], x.shape[1])
-        vq_output = self.quantizer(z, z_lengths, num_quantizers=num_quantizers)
+
+        if (
+            self.training
+            and self.train_mode != DACTrainMode.NO_VQ
+            and not self.vq_is_valid.item()
+        ):
+            self.vq_is_valid.fill_(True)
+
+        if self.vq_is_valid.item():
+            vq_output = self.quantizer(z, z_lengths, num_quantizers=num_quantizers)
+        else:
+            vq_output = VectorQuantizerOutput(
+                z_q=z,
+                z_lengths=z_lengths,
+                codebook_loss=torch.as_tensor(0.0, device=z.device),
+                perplexity=torch.zeros((1,), device=z.device),
+                commitment_loss=torch.as_tensor(0.0, device=z.device),
+                codes=None,
+                extras=None,
+            )
 
         if self.norm_input_loudness:
             if vq_output.extras is None:
@@ -306,6 +355,119 @@ class StreamingDAC(TorchModel):
         )
         return output
 
+    @torch.no_grad()
+    def init_state(
+        self,
+        batch_size: int,
+        device: Optional[torch.device] = None,
+        dtype: Optional[torch.dtype] = None,
+    ) -> StreamingDACState:
+        """Initialize cache state for streaming inference
+
+        Args:
+            batch_size: Batch size.
+            device: Device of the state tensors. If None, uses model parameters device.
+            dtype: Data type of the state tensors. If None, uses model parameters dtype.
+
+        Returns:
+            StreamingDACState: Initial cache state.
+        """
+        encoder_state = self.encoder.init_state(batch_size, device=device, dtype=dtype)
+        decoder_state = self.decoder.init_state(batch_size, device=device, dtype=dtype)
+        return StreamingDACState(
+            encoder_state=encoder_state, decoder_state=decoder_state
+        )
+
+    @torch.no_grad()
+    def stream(
+        self,
+        x: torch.Tensor,
+        state: StreamingDACState,
+        flush: bool = False,
+    ) -> Tuple[torch.Tensor, StreamingDACState]:
+        """Streaming inference step.
+
+        Args:
+            x: Input waveform chunk, shape (B, 1, T_in), float in [-1, 1].
+            state: Current cache state.
+            flush: If True, flush encoder/decoder buffered context (final chunk).
+
+        Returns:
+            x_out: Output waveform chunk, shape (B, 1, T_out).
+            new_state: Updated cache state.
+        """
+        if self.norm_input_loudness:
+            x, _ = self.loudness_norm(x, return_input_lufs=True)
+
+        # Encode
+        z, new_encoder_state = self.encoder.stream(x, state.encoder_state, flush=flush)
+
+        # Quantize
+        if self.vq_is_valid.item():
+            vq_output = self.quantizer(z)
+        else:
+            vq_output = VectorQuantizerOutput(
+                z_q=z,
+                z_lengths=None,
+                codebook_loss=torch.as_tensor(0.0, device=z.device),
+                perplexity=torch.zeros((1,), device=z.device),
+                commitment_loss=torch.as_tensor(0.0, device=z.device),
+                codes=None,
+                extras=None,
+            )
+
+        z_q = vq_output.z_q
+
+        # Decode
+        x_out, new_decoder_state = self.decoder.stream(
+            z_q, state.decoder_state, flush=flush
+        )
+
+        new_state = StreamingDACState(
+            encoder_state=new_encoder_state, decoder_state=new_decoder_state
+        )
+        output = DACOutput(x_recons=x_out, vq=vq_output)
+        return output, new_state
+
+    def set_train_mode(self, mode: str):
+        if mode == self._train_mode:
+            return
+        logging.info("setting DAC train mode to %s", mode)
+        if mode == DACTrainMode.FULL:
+            self.unfreeze()
+        elif mode == DACTrainMode.FROZEN:
+            self.freeze()
+        else:
+            self.unfreeze()
+            if mode == DACTrainMode.NO_VQ:
+                for p in self.quantizer.parameters():
+                    p.requires_grad = False
+            elif mode == DACTrainMode.VQ_DECODER:
+                self.encoder.freeze()
+            elif mode == DACTrainMode.VQ_ONLY:
+                self.encoder.freeze()
+                self.decoder.freeze()
+            else:
+                raise ValueError(f"invalid train_mode={mode}")
+
+        # if mode in [DACTrainMode.VQ_ONLY, DACTrainMode.VQ_DECODER]:
+        #     logging.info("using torch.no_grad for encoder")
+        #     self._encoder_context = torch.no_grad()
+
+        self._train_mode = mode
+
+    def _train(self, train_mode: str):
+        if train_mode in [DACTrainMode.FULL, DACTrainMode.FROZEN]:
+            super()._train(train_mode)
+        elif train_mode in [
+            DACTrainMode.NO_VQ,
+            DACTrainMode.VQ_DECODER,
+            DACTrainMode.VQ_ONLY,
+        ]:
+            super()._train(DACTrainMode.FULL)
+        else:
+            raise ValueError(f"invalid train_mode={train_mode}")
+
     def get_config(self) -> Dict[str, Any]:
         """Return a JSON-serializable config describing the model."""
         config = super().get_config()
@@ -318,6 +480,7 @@ class StreamingDAC(TorchModel):
                 "input_sample_freq": self.input_sample_freq,
                 "norm_input_loudness": self.norm_input_loudness,
                 "target_input_lufs": self.target_input_lufs,
+                "alignment_look_ahead": self.alignment_look_ahead,
             }
         )
         return config
@@ -383,7 +546,7 @@ class StreamingDAC(TorchModel):
         Returns:
             dict: Filtered kwargs usable to finetune `DAC`.
         """
-        return filter_func_args(DAC.change_config, kwargs)
+        return filter_func_args(StreamingDAC.change_config, kwargs)
 
     @staticmethod
     def add_finetune_args(parser: ArgumentParser, prefix: Optional[str] = None):
@@ -408,3 +571,93 @@ class StreamingDAC(TorchModel):
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
+
+
+@torch.no_grad()
+def stream_dac_demo(
+    B: int = 1,
+    T: int = 2048,
+    chunk: int = 512,
+    in_feats: int = 1,
+    init_inner_channels: int = 4,
+    encoder_kernel: int = 5,
+    encoder_strides: Optional[List[int]] = None,
+    encoder_dilations: Optional[List[int]] = None,
+    decoder_kernel: int = 5,
+    decoder_strides: Optional[List[int]] = None,
+    decoder_dilations: Optional[List[int]] = None,
+    device: str = "cpu",
+    dtype: torch.dtype = torch.float32,
+):
+    """
+    Compare full forward vs streaming for the top-level StreamingDAC.
+
+    Returns:
+        (y_stream, y_ref)
+    """
+    torch.manual_seed(0)
+    enc_cfg = dict(
+        in_feats=in_feats,
+        out_feats=init_inner_channels,
+        init_inner_channels=init_inner_channels,
+        kernel_size=encoder_kernel,
+        strides=encoder_strides,
+        dilations=encoder_dilations,
+    )
+    # decoder input channels = encoder output channels
+    dec_cfg = dict(
+        in_feats=init_inner_channels,
+        out_feats=in_feats,
+        init_inner_channels=init_inner_channels
+        * (2 ** (len(encoder_strides or [2, 4, 8, 8]))),
+        kernel_size=decoder_kernel,
+        strides=decoder_strides,
+        dilations=decoder_dilations,
+    )
+    model = StreamingDAC(
+        encoder=enc_cfg,
+        quantizer={
+            "in_feats": init_inner_channels,
+            "num_groups": 1,
+            "num_quantizers": 1,
+            "codebook_sizes": 2,
+            "channels_last": True,
+        },
+        decoder=dec_cfg,
+        input_sample_freq=16000,
+    ).to(device=device, dtype=dtype)
+    model.set_train_mode(DACTrainMode.NO_VQ)
+
+    x_full = torch.randn(B, T, device=device, dtype=dtype)
+    out_ref = model(x_full, pad_left=False)
+    y_ref = out_ref.x_recons
+    zq_ref = out_ref.vq.z_q
+
+    state = model.init_state(B, device=device, dtype=dtype)
+    outs = []
+    z_q = []
+    t = 0
+    while t < T:
+        x_chunk = x_full[:, t : t + chunk]
+        flush = (t + x_chunk.size(1)) >= T
+        out_emit, state = model.stream(x_chunk, state, flush=flush)
+        outs.append(out_emit.x_recons)
+        z_q.append(out_emit.vq.z_q)
+        t += x_chunk.size(1)
+
+    y_stream = torch.cat(outs, dim=-1)
+    zq_stream = torch.cat(z_q, dim=1)
+    T_stream = y_stream.size(-1)
+    y_ref = y_ref[..., -T_stream:]
+    zq_ref = zq_ref[:, -zq_stream.size(1) :]
+    print(f"y_ref={y_ref[..., :10]}...{y_ref[..., -10:]}")
+    print(f"y_stream={y_stream[..., :10]}...{y_stream[..., -10:]}")
+    print(f"y_ref.shape={y_ref.shape}, y_stream.shape={y_stream.shape}")
+    print(f"zq_ref.shape={zq_ref.shape}, zq_stream.shape={zq_stream.shape}")
+    assert zq_ref.shape == zq_stream.shape, f"{zq_ref.shape=} {zq_stream.shape=}"
+    assert y_ref.shape == y_stream.shape, f"{y_ref.shape=} {y_stream.shape=}"
+    atol = 1e-5 if dtype == torch.float32 else 5e-4
+    rtol = 1e-4 if dtype == torch.float32 else 1e-3
+    max_abs = (y_ref - y_stream).abs().max().item()
+    assert torch.allclose(y_ref, y_stream, atol=atol, rtol=rtol), f"max_abs={max_abs}"
+    return y_stream, y_ref
