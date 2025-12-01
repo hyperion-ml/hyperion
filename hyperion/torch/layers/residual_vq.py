@@ -156,7 +156,7 @@ class ResidualVectorQuantizer(nn.Module):
             self.bypass_prob.fill_(self.bypass_final_prob)
 
     @torch.no_grad()
-    def update_params(self, global_step: int):
+    def update_hyperparams(self, global_step: int):
         """
         Update any internal parameters, e.g., for annealing.
 
@@ -165,7 +165,7 @@ class ResidualVectorQuantizer(nn.Module):
         """
         self.update_bypass_prob(global_step)
         for quantizer in self.quantizers:
-            quantizer.update_params(global_step)
+            quantizer.update_hyperparams(global_step)
 
     def __str__(self):
         s = f"{self.__class__.__name__}({self.in_feats}, {self.num_quantizers}, {self.codebook_sizes}, {self.codebook_dims},  base_vq_type={self.base_vq_type}, quantizer_dropout={self.quantizer_dropout}), bypass_prob={self.bypass_prob.item():.4f}->{self.bypass_final_prob} over {self.bypass_anneal_steps} steps)"

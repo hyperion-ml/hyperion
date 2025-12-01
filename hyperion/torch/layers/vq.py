@@ -293,7 +293,7 @@ class VectorQuantizerBase(nn.Module):
         """
         return
 
-    def update_params(self, global_step: int) -> None:
+    def update_hyperparams(self, global_step: int) -> None:
         """
         Update all scheduled parameters.
 

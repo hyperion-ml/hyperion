@@ -503,9 +503,9 @@ class DAC(TorchModel):
         return (l_in - l_out) // 2
 
     @torch.no_grad()
-    def update_quantizer_params(self, global_step: int):
+    def update_quantizer_hyperparams(self, global_step: int):
         """Update any internal quantizer parameters, e.g., for annealing."""
-        self.quantizer.update_params(global_step)
+        self.quantizer.update_hyperparams(global_step)
 
     def get_target_matching_output(
         self,

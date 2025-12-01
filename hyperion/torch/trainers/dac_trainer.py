@@ -343,7 +343,7 @@ class DACTrainer(TorchTrainerBase):
         """
         batch_size, batch_data = self.preprocess_train_data(batch_data)
         batch_data = self.send_data_to_device(batch_data)
-        self.dac_model.update_quantizer_params(self.cur_step)
+        self.dac_model.update_quantizer_hyperparams(self.cur_step)
         ############################
         # 1. Discriminator Forward #
         ############################

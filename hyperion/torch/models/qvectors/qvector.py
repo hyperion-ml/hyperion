@@ -482,7 +482,7 @@ class QVector(TorchModel):
         """
         if not self.training:
             return
-        if input_length > int(self.max_input_length):
+        if input_length > int(self.max_input_length.item()):
             # Keep the buffer registered by mutating the tensor rather than reassigning.
             self.max_input_length.fill_(input_length)
 
