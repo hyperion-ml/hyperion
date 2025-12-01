@@ -132,6 +132,14 @@ class QVectorOutput(HypDataClass):
         dtype = concatenated_output.qvector.dtype
         audio_index = audio_index.to(device=device, dtype=torch.long)
 
+        print(
+            "co",
+            concatenated_output.qvector[:, :4],
+            concatenated_output.qmatrix[:, :2, :2],
+            audio_index,
+            chunk_weights,
+        )
+
         if chunk_weights is None:
             chunk_weights = torch.ones(audio_index.size(0), device=device, dtype=dtype)
         else:
@@ -199,6 +207,8 @@ class QVectorOutput(HypDataClass):
             )
         else:
             aggregated_head_output = None
+
+        print("oo", qvector[:, :4], qmatrix[:, :2, :2], flush=True)
 
         return cls(
             qmatrix=qmatrix,
@@ -778,6 +788,7 @@ class QVector(TorchModel):
         num_chunks = max(1, math.ceil(time_dim / chunk_length))
         chunk_length = max(1, math.ceil(time_dim / num_chunks))
         padded_length = num_chunks * chunk_length
+        print("a1", audio.shape, num_chunks, chunk_length, padded_length, flush=True)
         if padded_length > time_dim:
             audio = F.pad(audio, (0, padded_length - time_dim))
 
@@ -821,6 +832,9 @@ class QVector(TorchModel):
         audio_batches, audio_lengths_batches = self._split_batches(
             audio, new_audio_lengths, chunk_length, max_batch_length
         )
+        for i, (b, l) in enumerate(zip(audio_batches, audio_lengths_batches)):
+            print("ab", i, b.shape, l)
+        print("ae", audio_index, flush=True)
         return audio_batches, audio_lengths_batches, audio_index
 
     def infer(
