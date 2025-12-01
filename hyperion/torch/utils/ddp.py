@@ -76,6 +76,7 @@ def ddp_init(
         )
 
     else:
+        is_master = rank == 0
         store = TCPStore(
             "127.0.0.1", master_port, world_size, is_master, wait_for_workers=True
         )

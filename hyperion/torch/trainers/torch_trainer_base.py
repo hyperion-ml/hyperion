@@ -1274,6 +1274,11 @@ class TorchTrainerBase:
             logging.info("optimizer args={}".format(opt_args))
 
         optimizer = OF.create(model.trainable_param_groups(), **opt_args)
+        if self.rank == 0:
+            for i, pg in enumerate(optimizer.param_groups):
+                pg_keys = list(pg.keys())
+                logging.info(f"optimizer param_group {i} keys={pg_keys}")
+
         return optimizer
 
     def _make_lr_sched(
