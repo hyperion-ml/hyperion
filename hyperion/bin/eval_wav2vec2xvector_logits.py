@@ -27,7 +27,7 @@ from hyperion.np.augment import SpeechAugment
 from hyperion.np.preprocessing import ResamplerToTargetFreq
 from hyperion.torch import TorchModel
 from hyperion.torch.utils import open_device
-from hyperion.utils import HypDataset, Utt2Info
+from hyperion.utils import HyperDataset, Utt2Info
 
 
 def init_device(use_gpu: bool) -> torch.device:
@@ -147,7 +147,7 @@ def eval_xvector_logits(
     if actual_vad_spec is None and vad_name is not None:
         if dataset_path is None:
             raise ValueError("--vad-name requires --dataset-path")
-        dataset = HypDataset.load(dataset_path)
+        dataset = HyperDataset.load(dataset_path)
         if vad_name not in dataset.vad_keys():
             raise ValueError(f"VAD name {vad_name} not found in dataset")
         actual_vad_spec = dataset._vad_paths[vad_name]
@@ -288,7 +288,7 @@ def main() -> None:
     parser.add_argument(
         "--dataset-path",
         default=None,
-        help="HypDataset manifest describing recordings/segments/VAD tables",
+        help="HyperDataset manifest describing recordings/segments/VAD tables",
     )
     parser.add_argument(
         "--recordings-file",

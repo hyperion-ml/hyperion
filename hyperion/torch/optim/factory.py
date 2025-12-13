@@ -1,6 +1,6 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
@@ -37,7 +37,6 @@ class OptimizerFactory:
         lr_decay=0,
         init_acc_val=0,
         max_iter=20,
-        oss=False,
     ):
         kwargs = locals()
         base_opt = None
@@ -121,40 +120,11 @@ class OptimizerFactory:
         if base_opt is None:
             raise Exception("unknown optimizer %s" % opt_type)
 
-        if oss:
-            from fairscale.optim.oss import OSS
-
-            logging.info("Optimizer uses OSS")
-            return OSS(params, base_opt, **opt_args)
-
         return base_opt(params, **opt_args)
 
     @staticmethod
     def filter_args(**kwargs):
         return filter_func_args(OptimizerFactory.create, kwargs)
-        # valid_args = (
-        #     "opt_type",
-        #     "lr",
-        #     "momentum",
-        #     "beta1",
-        #     "beta2",
-        #     "rho",
-        #     "eps",
-        #     "weight_decay",
-        #     "amsgrad",
-        #     "nesterov",
-        #     "lambd",
-        #     "asgd_alpha",
-        #     "t0",
-        #     "rmsprop_alpha",
-        #     "centered",
-        #     "lr_decay",
-        #     "init_acc_val",
-        #     "max_iter",
-        #     "oss",
-        # )
-
-        # return filter_args(valid_args, kwargs)
 
     @staticmethod
     def add_class_args(parser, prefix=None):

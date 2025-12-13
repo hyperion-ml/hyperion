@@ -13,7 +13,7 @@ import pandas as pd
 from jsonargparse import ActionYesNo
 from tqdm import tqdm
 
-from ..utils import ClassInfo, EnrollmentMap, HypDataset, RecordingSet, SegmentSet
+from ..utils import ClassInfo, EnrollmentMap, HyperDataset, RecordingSet, SegmentSet
 from ..utils.misc import PathLike
 from .data_prep import DataPrep
 
@@ -287,7 +287,7 @@ class SRE19AVDataPrep(DataPrep):
         - Builds segment and recording sets
         - Prepares class info tables
         - Generates enrollment and/or trial files
-        - Saves final HypDataset to disk
+        - Saves final HyperDataset to disk
         """
 
         logging.info(
@@ -318,7 +318,7 @@ class SRE19AVDataPrep(DataPrep):
         segments = SegmentSet(df_segs)
 
         logging.info("making dataset")
-        dataset = HypDataset(
+        dataset = HyperDataset(
             segments,
             classes,
             recordings=recs,

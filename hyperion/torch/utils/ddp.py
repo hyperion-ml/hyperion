@@ -3,16 +3,14 @@ Copyright 2021 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import datetime
 import logging
 import os
 
 import torch
 import torch.distributed as dist
 import torch.nn as nn
-from fairscale.nn.data_parallel import FullyShardedDataParallel as FullyShardedDDP
-from fairscale.nn.data_parallel import ShardedDataParallel as ShardedDDP
 from torch.distributed import TCPStore
+
 from .devices import open_device
 
 
@@ -167,22 +165,6 @@ def ddp_get_rank():
 
 
 class TorchDDP(nn.parallel.DistributedDataParallel):
-    def __getattr__(self, name):
-        try:
-            return super().__getattr__(name)
-        except AttributeError:
-            return getattr(self.module, name)
-
-
-class FairShardedDDP(ShardedDDP):
-    def __getattr__(self, name):
-        try:
-            return super().__getattr__(name)
-        except AttributeError:
-            return getattr(self.module, name)
-
-
-class FairFullyShardedDDP(FullyShardedDDP):
     def __getattr__(self, name):
         try:
             return super().__getattr__(name)

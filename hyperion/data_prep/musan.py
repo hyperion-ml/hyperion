@@ -11,7 +11,7 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
-from ..utils import HypDataset, RecordingSet, SegmentSet
+from ..utils import HyperDataset, RecordingSet, SegmentSet
 from ..utils.misc import PathLike, urlretrieve_progress
 from .data_prep import DataPrep
 
@@ -26,7 +26,7 @@ class MusanDataPrep(DataPrep):
     - speech
 
     It builds `RecordingSet` and `SegmentSet` with duration metadata, and stores the
-    result in the HypDataset format.
+    result in the HyperDataset format.
 
     Attributes:
         corpus_dir (PathLike): Root directory of the MUSAN dataset.
@@ -132,7 +132,7 @@ class MusanDataPrep(DataPrep):
         segments = SegmentSet(segments)
         segments.sort()
         logging.info("making dataset")
-        dataset = HypDataset(
+        dataset = HyperDataset(
             segments,
             recordings=recs,
         )

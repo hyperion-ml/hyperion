@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 import pycountry
 
-from ..utils import ClassInfo, HypDataset, ParallelFileFinder, RecordingSet, SegmentSet
+from ..utils import ClassInfo, HyperDataset, ParallelFileFinder, RecordingSet, SegmentSet
 from ..utils.misc import PathLike
 from .data_prep import DataPrep
 
@@ -183,7 +183,7 @@ class RAVDESSPrep(DataPrep):
         genders = ClassInfo(pd.DataFrame({"id": ["m", "f"]}))
 
         logging.info("Saving dataset")
-        dataset = HypDataset(
+        dataset = HyperDataset(
             segments=segments,
             recordings=recs,
             classes={

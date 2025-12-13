@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 from jsonargparse import ArgumentParser
 
-from ..utils import ClassInfo, HypDataset, RecordingSet, SegmentSet
+from ..utils import ClassInfo, HyperDataset, RecordingSet, SegmentSet
 from ..utils.misc import PathLike
 from ..utils.scp_list import SCPList
 from .data_prep import DataPrep
@@ -205,7 +205,7 @@ class VCTKDataPrep(DataPrep):
         - Scans audio files and extracts durations
         - Builds SegmentSet and RecordingSet tables
         - Constructs class tables for speaker attributes and metadata
-        - Saves the resulting HypDataset to the output directory
+        - Saves the resulting HyperDataset to the output directory
         """
         logging.info(
             "Peparing VCTK corpus_dir:%s -> data_dir:%s",
@@ -281,7 +281,7 @@ class VCTKDataPrep(DataPrep):
         }
 
         logging.info("making dataset")
-        dataset = HypDataset(
+        dataset = HyperDataset(
             segments,
             classes=classes,
             recordings=recs,

@@ -15,8 +15,8 @@ from torch.distributed.elastic.multiprocessing.errors import record
 
 from ...utils.misc import filter_func_args
 from ..optim import ExpMovingAvg as EMA
-from ..utils import MetricAcc, TorchDDP, tensors_subset
-from .legacy_torch_trainer import AMPDType, DDPType, LegacyTorchTrainer
+from ..utils import MetricAcc, tensors_subset
+from .legacy_torch_trainer import AMPDType, LegacyTorchTrainer
 
 
 class DINOXVectorTrainer(LegacyTorchTrainer):
@@ -36,7 +36,7 @@ class DINOXVectorTrainer(LegacyTorchTrainer):
       loggers: LoggerList object, loggers write training progress to std. output and file.
                If None, it uses default loggers.
       ddp: if True use distributed data parallel training
-      ddp_type: type of distributed data parallel in  (ddp, oss_ddp, oss_shared_ddp)
+      ddp_type: distributed data parallel backend (only standard PyTorch DDP)
       loss: if None, it uses cross-entropy
       train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
       freeze_output_layer_steps: number of steps at the beginning of training where output layer is frozen.
@@ -53,7 +53,6 @@ class DINOXVectorTrainer(LegacyTorchTrainer):
       swa_lr: SWA learning rate
       swa_anneal_epochs: SWA learning rate anneal epochs
       save_interval_steps: number of steps between model saves, if None only saves at the end of the epoch
-      cpu_offload: CPU offload of gradients when using fully sharded ddp
       input_key: dict. key for nnet input.
       target_key: dict. key for nnet targets.
     """
@@ -93,7 +92,6 @@ class DINOXVectorTrainer(LegacyTorchTrainer):
         swa_lr=1e-3,
         swa_anneal_epochs=10,
         save_interval_steps=None,
-        cpu_offload=False,
         input_key="x",
     ):
         super_args = filter_func_args(super().__init__, locals())
@@ -473,16 +471,6 @@ class DINOXVectorTrainer(LegacyTorchTrainer):
         """
         if partial and not self.save_partial_checkpoint():
             return
-
-        if self.ddp and (
-            self.ddp_type == DDPType.OSS_DDP or self.ddp_type == DDPType.OSS_SHARDED_DDP
-        ):
-            # Not sure what this does, just copying from the example in
-            # https://github.com/facebookresearch/fairscale/blob/master/benchmarks/oss.py
-            # Check the checkpointing in the case of the OSS optimizer
-            # Memory usage could spill over from there
-            # optimizer = cast(OSS, optimizer)
-            self.optimizer.consolidate_state_dict()
 
         if self.rank != 0:
             return

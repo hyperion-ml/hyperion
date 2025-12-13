@@ -16,7 +16,7 @@ from tqdm import tqdm
 from ..utils import (
     ClassInfo,
     EnrollmentMap,
-    HypDataset,
+    HyperDataset,
     ImageSet,
     RecordingSet,
     SegmentSet,
@@ -690,7 +690,7 @@ class SRE24DataPrep(DataPrep):
         segments = SegmentSet(df_segs)
 
         logging.info("making dataset")
-        dataset = HypDataset(
+        dataset = HyperDataset(
             segments,
             classes,
             recordings=recs,
@@ -903,7 +903,7 @@ class SRE24DataPrep(DataPrep):
         segments = SegmentSet(df_segs)
 
         logging.info("making dataset")
-        dataset = HypDataset(
+        dataset = HyperDataset(
             segments,
             classes,
             recordings=recs,

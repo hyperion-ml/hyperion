@@ -9,14 +9,14 @@ from typing import Dict, Optional
 
 import pandas as pd
 
-from ..utils import ClassInfo, EnrollmentMap, HypDataset, RecordingSet, SegmentSet
+from ..utils import ClassInfo, EnrollmentMap, HyperDataset, RecordingSet, SegmentSet
 from ..utils.misc import PathLike
 from .data_prep import DataPrep
 
 
 class VoicesChallengeDataPrep(DataPrep):
     """
-    Prepares the Voices Challenge dataset into a structured HypDataset format.
+    Prepares the Voices Challenge dataset into a structured HyperDataset format.
 
     Attributes:
         corpus_dir: Root directory of the dataset.
@@ -175,7 +175,7 @@ class VoicesChallengeDataPrep(DataPrep):
         )
         trials = self.make_trials(df) if self.partition == "test" else None
 
-        dataset = HypDataset(
+        dataset = HyperDataset(
             segments=segments,
             recordings=recs,
             classes=classes,

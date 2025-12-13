@@ -363,11 +363,13 @@ class DAC(TorchModel):
     ):
         super().__init__()
         if isinstance(encoder, dict):
+            init_inner_channels = encoder.get("init_inner_channels") or 64
+            strides = encoder.get("strides") or [2, 4, 8, 8]
             if latent_feats is None:
-                latent_feats = encoder["init_inner_channels"] * (
-                    2 ** len(encoder["strides"])
-                )
+                latent_feats = init_inner_channels * (2 ** len(strides))
             encoder["out_feats"] = latent_feats
+            encoder.setdefault("init_inner_channels", init_inner_channels)
+            encoder.setdefault("strides", strides)
             encoder = DACEncoder.filter_args(**encoder)
             encoder = DACEncoder(**encoder)
         else:
@@ -505,7 +507,8 @@ class DAC(TorchModel):
     @torch.no_grad()
     def update_quantizer_hyperparams(self, global_step: int):
         """Update any internal quantizer parameters, e.g., for annealing."""
-        self.quantizer.update_hyperparams(global_step)
+        if self.vq_is_valid.item():
+            self.quantizer.update_hyperparams(global_step)
 
     def get_target_matching_output(
         self,
@@ -589,7 +592,6 @@ class DAC(TorchModel):
                 codes=None,
                 extras=None,
             )
-            print("Skipping VQ for first forward pass", vq_output, flush=True)
 
         # vq_output = self.quantizer2(z)
         # self.timer.stop("quantizer")

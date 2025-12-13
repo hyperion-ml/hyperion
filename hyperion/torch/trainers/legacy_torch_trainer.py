@@ -18,7 +18,6 @@ import torch
 import torch.amp as amp
 import torch.distributed as dist
 import torch.nn as nn
-from fairscale.optim.grad_scaler import ShardedGradScaler
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 from torch.optim.swa_utils import SWALR, AveragedModel
 
@@ -27,22 +26,13 @@ from ..loggers import CSVLogger, LoggerList, ProgLogger, TensorBoardLogger, WAnd
 from ..lr_schedulers import LRScheduler as LRS
 from ..lr_schedulers import LRSchedulerFactory as LRSF
 from ..optim import OptimizerFactory as OF
-from ..utils import (
-    FairFullyShardedDDP,
-    FairShardedDDP,
-    MetricAcc,
-    TorchDDP,
-    tensors_subset,
-)
+from ..utils import MetricAcc, TorchDDP, tensors_subset
 from ..wd_schedulers import WDScheduler as WDS
 from ..wd_schedulers import WDSchedulerFactory as WDSF
 
 
 class DDPType(str, Enum):
     DDP = "ddp"
-    OSS_DDP = "oss_ddp"
-    OSS_SHARDED_DDP = "oss_sharded_ddp"
-    FULLY_SHARDED_DDP = "fully_sharded_ddp"
 
     @staticmethod
     def choices():
@@ -81,7 +71,7 @@ class LegacyTorchTrainer:
       lrsched: learning rate scheduler object
       loggers: LoggerList object, loggers write training progress to std. output and file.
       ddp: if True use distributed data parallel training
-      ddp_type: type of distributed data parallel in  (ddp, oss_ddp, oss_shared_ddp)
+      ddp_type: distributed data parallel backend (only standard PyTorch DDP)
       train_mode: training mode in ['full', 'frozen']
       use_amp: uses mixed precision training.
       amp_dtype: "float16" | "bfloat16"
@@ -95,7 +85,6 @@ class LegacyTorchTrainer:
       swa_lr: SWA learning rate
       swa_anneal_epochs: SWA learning rate anneal epochs
       save_interval_steps: number of steps between model saves, if None only saves at the end of the epoch
-      cpu_offload: CPU offload of gradients when using fully sharded ddp
       input_key: dict. key for nnet input.
       target_key: dict. key for nnet targets.
     """
@@ -116,7 +105,7 @@ class LegacyTorchTrainer:
         wdsched=None,
         loggers=None,
         ddp=False,
-        ddp_type="ddp",
+        ddp_type: DDPType = DDPType.DDP,
         train_mode="full",
         use_amp=False,
         amp_dtype=AMPDType.FLOAT16,
@@ -130,7 +119,6 @@ class LegacyTorchTrainer:
         swa_lr=1e-3,
         swa_anneal_epochs=10,
         save_interval_steps=None,
-        cpu_offload=False,
         input_key="x",
         target_key="class_id",
     ):
@@ -169,8 +157,9 @@ class LegacyTorchTrainer:
         self.input_key = input_key
         self.target_key = target_key
         self.ddp = ddp
-        self.ddp_type = ddp_type
-        self.cpu_offload = cpu_offload
+        self.ddp_type = DDPType(ddp_type)
+        if self.ddp_type is not DDPType.DDP:
+            raise ValueError("Only DDPType.DDP is supported in LegacyTorchTrainer")
         self.rank = 0
         self.world_size = 1
         self.in_swa = False
@@ -201,8 +190,6 @@ class LegacyTorchTrainer:
             self.device,
             self.use_amp,
             self.ddp,
-            self.ddp_type,
-            self.cpu_offload,
             self.do_swa,
             self.swa_lr,
             self.swa_anneal_epochs,
@@ -223,8 +210,6 @@ class LegacyTorchTrainer:
         device,
         use_amp,
         ddp,
-        ddp_type,
-        cpu_offload,
         do_swa,
         swa_lr,
         swa_anneal_epochs,
@@ -233,39 +218,17 @@ class LegacyTorchTrainer:
             model.to(device)
 
         if ddp:
-            if ddp_type == DDPType.DDP or ddp_type == DDPType.OSS_DDP:
-                model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
-                if self.rank == 0:
-                    logging.info(
-                        "training in multiple gpus with distributed-data-parallel"
-                    )
-                oss = False if ddp_type == DDPType.DDP else True
-                optimizer = self._make_optimizer(optim, model, oss=oss)
-                model = TorchDDP(
-                    model,
-                    device_ids=[device],
-                    output_device=device,
+            model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
+            if self.rank == 0:
+                logging.info(
+                    "training in multiple gpus with distributed-data-parallel"
                 )
-            elif ddp_type == DDPType.OSS_SHARDED_DDP:
-                model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
-                if self.rank == 0:
-                    logging.info(
-                        "training in multiple gpus with fair sharded-distributed-data-parallel"
-                    )
-                optimizer = self._make_optimizer(optim, model, oss=True)
-                model = FairShardedDDP(model, optimizer)
-            else:
-                if self.rank == 0:
-                    logging.info(
-                        "training in multiple gpus with fair fully-sharded-distributed-data-parallel"
-                    )
-                # syncbathcnorm is not supported here, it raises exception
-                model = FairFullyShardedDDP(
-                    model,
-                    mixed_precision=use_amp,
-                    move_params_to_cpu=cpu_offload,
-                )
-                optimizer = self._make_optimizer(optim, model, oss=False)
+            optimizer = self._make_optimizer(optim, model)
+            model = TorchDDP(
+                model,
+                device_ids=[device],
+                output_device=device,
+            )
 
         else:
             optimizer = self._make_optimizer(optim, model)
@@ -278,18 +241,11 @@ class LegacyTorchTrainer:
 
         grad_scaler = None
         if use_amp:
-            if ddp and ddp_type != DDPType.DDP:
-                if self.rank == 0:
-                    logging.info(
-                        "using automatic mixed precision training with sharded-grad-scaler"
-                    )
-                grad_scaler = ShardedGradScaler()
-            else:
-                if self.rank == 0:
-                    logging.info(
-                        "using automatic mixed precision training with grad-scaler"
-                    )
-                grad_scaler = amp.GradScaler()
+            if self.rank == 0:
+                logging.info(
+                    "using automatic mixed precision training with grad-scaler"
+                )
+            grad_scaler = amp.GradScaler()
 
         swa_model = None
         swa_scheduler = None
@@ -502,19 +458,10 @@ class LegacyTorchTrainer:
 
     def _clip_grad_norm(self, model, optim, grad_clip, grad_clip_norm):
         if self.ddp:
-            if self.ddp_type == DDPType.DDP:
-                nn.utils.clip_grad_norm_(
-                    model.parameters(), grad_clip, norm_type=grad_clip_norm
-                )
-                return
-            if self.ddp_type == DDPType.FULLY_SHARDED_DDP:
-                # we have to use the member function in FullyShardedDDP class
-                model.clip_grad_norm_(grad_clip, norm_type=grad_clip_norm)
-                return
-            else:
-                # not sure about this but it looks like
-                # we have to use the member function in the OSS optimizer wrapper
-                optim.clip_grad_norm(grad_clip, norm_type=grad_clip_norm)
+            nn.utils.clip_grad_norm_(
+                model.parameters(), grad_clip, norm_type=grad_clip_norm
+            )
+            return
 
         # if no DDP clip normally
         nn.utils.clip_grad_norm_(
@@ -556,14 +503,15 @@ class LegacyTorchTrainer:
         )
         self.global_step += 1
 
-    def _make_optimizer(self, optim, model, oss=False):
+    def _make_optimizer(self, optim, model):
         """Makes an optimizer object."""
         if isinstance(optim, torch.optim.Optimizer):
             return optim
 
         assert isinstance(optim, dict)
         opt_args = OF.filter_args(**optim)
-        opt_args["oss"] = oss
+        if opt_args.pop("oss", False):
+            raise ValueError("OSS optimizers are no longer supported")
         if self.rank == 0:
             logging.info("optimizer args={}".format(opt_args))
 
@@ -732,16 +680,6 @@ class LegacyTorchTrainer:
         if partial and not self.save_partial_checkpoint():
             return
 
-        if self.ddp and (
-            self.ddp_type == DDPType.OSS_DDP or self.ddp_type == DDPType.OSS_SHARDED_DDP
-        ):
-            # Not sure what this does, just copying from the example in
-            # https://github.com/facebookresearch/fairscale/blob/master/benchmarks/oss.py
-            # Check the checkpointing in the case of the OSS optimizer
-            # Memory usage could spill over from there
-            # optimizer = cast(OSS, optimizer)
-            self.optimizer.consolidate_state_dict()
-
         if self.rank != 0:
             return
 
@@ -776,16 +714,6 @@ class LegacyTorchTrainer:
             or self.global_step % self.save_interval_steps != 0
         ):
             return
-
-        if self.ddp and (
-            self.ddp_type == DDPType.OSS_DDP or self.ddp_type == DDPType.OSS_SHARDED_DDP
-        ):
-            # Not sure what this does, just copying from the example in
-            # https://github.com/facebookresearch/fairscale/blob/master/benchmarks/oss.py
-            # Check the checkpointing in the case of the OSS optimizer
-            # Memory usage could spill over from there
-            # optimizer = cast(OSS, optimizer)
-            self.optimizer.consolidate_state_dict()
 
         if self.rank != 0:
             return
@@ -1060,12 +988,6 @@ class LegacyTorchTrainer:
         )
         parser.add_argument(
             "--amp-dtype", default=AMPDType.FLOAT16.value, choices=AMPDType.choices()
-        )
-        parser.add_argument(
-            "--cpu-offload",
-            action=ActionYesNo,
-            default=False,
-            help="CPU offload of gradients when using fully_sharded_ddp",
         )
         parser.add_argument(
             "--grad-clip", type=float, default=0, help="gradient clipping norm value"

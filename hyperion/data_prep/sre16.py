@@ -14,7 +14,7 @@ import pandas as pd
 from jsonargparse import ActionYesNo
 from tqdm import tqdm
 
-from ..utils import ClassInfo, EnrollmentMap, HypDataset, RecordingSet, SegmentSet
+from ..utils import ClassInfo, EnrollmentMap, HyperDataset, RecordingSet, SegmentSet
 from ..utils.misc import PathLike
 from .data_prep import DataPrep
 
@@ -322,7 +322,7 @@ class SRE16DataPrep(DataPrep):
         - Loads metadata and segment information
         - Generates segment, recording, and class tables
         - Produces trial and enrollment files as needed
-        - Saves HypDataset to disk
+        - Saves HyperDataset to disk
         """
 
         logging.info(
@@ -357,7 +357,7 @@ class SRE16DataPrep(DataPrep):
         segments = SegmentSet(df_segs)
 
         logging.info("making dataset")
-        dataset = HypDataset(
+        dataset = HyperDataset(
             segments,
             classes,
             recordings=recs,

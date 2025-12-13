@@ -12,7 +12,7 @@ import pandas as pd
 from jsonargparse import ActionYesNo
 from tqdm import tqdm
 
-from ..utils import ClassInfo, HypDataset, RecordingSet, SegmentSet
+from ..utils import ClassInfo, HyperDataset, RecordingSet, SegmentSet
 from ..utils.misc import PathLike
 from .data_prep import DataPrep
 
@@ -121,7 +121,7 @@ class SRECTSSupersetDataPrep(DataPrep):
         - Extracts durations
         - Creates RecordingSet and SegmentSet
         - Builds speaker/language/gender/source ClassInfo tables
-        - Saves HypDataset to output_dir
+        - Saves HyperDataset to output_dir
         """
         logging.info(
             "Peparing SRE-CTS Superset corpus_dir:%s -> data_dir:%s",
@@ -197,7 +197,7 @@ class SRECTSSupersetDataPrep(DataPrep):
         genders = ClassInfo(pd.DataFrame({"id": ["m", "f"]}))
 
         logging.info("making dataset")
-        dataset = HypDataset(
+        dataset = HyperDataset(
             segments,
             {
                 "speaker": speakers,

@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 from jsonargparse import ActionYesNo, ArgumentParser
 
-from ..utils import ClassInfo, HypDataset, RecordingSet, SegmentSet
+from ..utils import ClassInfo, HyperDataset, RecordingSet, SegmentSet
 from ..utils.misc import PathLike
 from .data_prep import DataPrep
 
@@ -137,7 +137,7 @@ class AudioDir(DataPrep):
         segments.sort()
 
         logging.info("making dataset")
-        dataset = HypDataset(
+        dataset = HyperDataset(
             segments,
             recordings=recs,
         )

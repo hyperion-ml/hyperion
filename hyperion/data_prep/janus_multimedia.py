@@ -17,7 +17,7 @@ from tqdm import tqdm
 from ..utils import (
     ClassInfo,
     EnrollmentMap,
-    HypDataset,
+    HyperDataset,
     RecordingSet,
     SegmentSet,
     VideoSet,
@@ -301,7 +301,7 @@ class JanusMultimediaDataPrep(DataPrep):
         - Generates audio/video manifests
         - Generates segment tables, class labels
         - Builds trials and/or enrollment maps
-        - Saves HypDataset object to disk
+        - Saves HyperDataset object to disk
         """
 
         logging.info(
@@ -336,7 +336,7 @@ class JanusMultimediaDataPrep(DataPrep):
         segments = SegmentSet(df_segs)
 
         logging.info("making dataset")
-        dataset = HypDataset(
+        dataset = HyperDataset(
             segments,
             classes,
             recordings=recs,

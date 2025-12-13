@@ -45,6 +45,7 @@ class MultiResolutionFilterBankLoss(nn.Module):
         center (bool): If True, centers window at t*frame_shift. Overrides snip_edges.
         reduction (str): Reduction method for the loss ('mean', 'sum', or 'none').
         compute_conv_loss (bool): Whether to compute convergence loss alongside L1 loss.
+        normalize (bool): If True, averages the losses across resolutions.
     """
 
     def __init__(
@@ -65,6 +66,7 @@ class MultiResolutionFilterBankLoss(nn.Module):
         center: bool = False,
         reduction: str = "mean",
         compute_conv_loss: bool = True,
+        normalize: bool = False,
     ):
         super().__init__()
         num_resolutions = len(frame_lengths)
@@ -129,6 +131,7 @@ class MultiResolutionFilterBankLoss(nn.Module):
             self.conv_loss = ConvergenceLoss(reduction=reduction)
 
         self.compute_conv_loss = compute_conv_loss
+        self.normalize = normalize
 
     def __repr__(self):
         return self.__str__()
@@ -139,6 +142,7 @@ class MultiResolutionFilterBankLoss(nn.Module):
         for i, extractor in enumerate(self.log_fb_extractors):
             s += f"  Resolution {i+1}: {extractor}\n"
         s += f"  compute_conv_loss={self.compute_conv_loss}\n"
+        s += f"  normalize={self.normalize}\n"
         s += ")"
         return s
 
@@ -173,6 +177,12 @@ class MultiResolutionFilterBankLoss(nn.Module):
             )
             if self.compute_conv_loss:
                 loss_conv += self.conv_loss(X_pred.exp(), X_ref.exp())
+
+        if self.normalize and len(self.log_fb_extractors) > 0:
+            num_losses = len(self.log_fb_extractors)
+            loss_log_mag = loss_log_mag / num_losses
+            if self.compute_conv_loss:
+                loss_conv = loss_conv / num_losses
 
         return loss_log_mag, loss_conv
 
@@ -308,6 +318,12 @@ class MultiResolutionFilterBankLoss(nn.Module):
                 "If true, puts the center of the frame at t*frame_shift, "
                 "it over-wrides snip-edges and set it to false"
             ),
+        )
+        parser.add_argument(
+            "--normalize",
+            default=False,
+            action=ActionYesNo,
+            help="Average losses by the number of resolutions.",
         )
 
         if prefix is not None:

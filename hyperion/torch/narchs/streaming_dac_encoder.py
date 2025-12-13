@@ -247,11 +247,10 @@ class StreamingDACEncoder(NetArch):
         """
         hop_length = self.stride
         max_in_length = int(math.ceil(max_in_length / hop_length) * hop_length)
-        max_out_length = max_in_length - (self.kernel_size - 1)
+        max_out_length = max_in_length
         for block in self.blocks:
             max_out_length = block.max_out_length(max_out_length)
 
-        max_out_length = max_out_length - 2  # last conv reduces 2 samples
         return max_out_length
 
     def out_lengths(self, in_lengths: torch.Tensor) -> torch.Tensor:
@@ -308,13 +307,11 @@ class StreamingDACEncoder(NetArch):
         """
 
         x = self.preprocess(x)
-
         if x_lengths is not None:
             x_mask = seq_lengths_to_mask(x_lengths, x.size(2), time_dim=2).to(x.dtype)
             x = x * x_mask
 
         x = self.in_conv(x)
-
         for block in self.blocks:
             x = block(x)
 

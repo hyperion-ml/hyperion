@@ -3,6 +3,7 @@ Copyright 2025 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+import logging
 from collections import defaultdict
 from typing import Dict, List, Tuple, Union
 
@@ -107,7 +108,11 @@ def compute_wer(
                 word_counts[ref_word][0] += 1
 
         _, subs_i, ins_i, dels_i, tot_i = utt_counts[i]
-        utt_wers[i] = (subs_i + ins_i + dels_i) / tot_i
+        if tot_i == 0:
+            logging.info("Utterance %s has zero words, skipping WER computation", i)
+            utt_wers[i] = 0.0
+        else:
+            utt_wers[i] = (subs_i + ins_i + dels_i) / tot_i
 
         ali = [[[x], [y]] for x, y in ali]
         for i in range(len(ali) - 1):

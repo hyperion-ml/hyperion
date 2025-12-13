@@ -11,8 +11,6 @@ from .collation import (
 )
 from .data_parallel import TorchDataParallel
 from .ddp import (
-    FairFullyShardedDDP,
-    FairShardedDDP,
     TorchDDP,
     ddp_cleanup,
     ddp_get_rank,

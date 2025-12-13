@@ -79,6 +79,10 @@ class VectorQuantizerBase(nn.Module):
             commitment weight from 0 to 1.
         compute_diversity_loss (bool): Whether to compute diversity loss terms.
         compute_orthogonality_loss (bool): Whether to compute orthogonality loss terms.
+        reset_unused (bool): If True, enables resetting codes whose EMA usage falls
+            below ``ema_usage_threshold`` during training.
+        ema_usage_threshold (float): EMA usage level below which a codebook entry is
+            considered unused and will be reset when ``reset_unused`` is enabled.
     """
 
     def __init__(
@@ -89,6 +93,10 @@ class VectorQuantizerBase(nn.Module):
         distance_metric: VQDistanceType = VQDistanceType.L2,
         use_weight_norm: bool = False,
         channels_last: bool = False,
+        decay: float = 0.99,
+        eps: float = 1e-5,
+        reset_unused: bool = False,
+        ema_usage_threshold: float = 1.0,
         is_ema: bool = False,
         temp_init: float = 1.0,
         temp_min: Optional[float] = 0.05,
@@ -106,6 +114,10 @@ class VectorQuantizerBase(nn.Module):
         self.distance_metric = distance_metric
         self.use_weight_norm = use_weight_norm
         self.channels_last = channels_last
+        self.decay = float(decay)
+        self.eps = float(eps)
+        self.reset_unused = bool(reset_unused)
+        self.ema_usage_threshold = float(ema_usage_threshold)
         if self.in_feats != self.codebook_dim:
             self.in_proj = nn.Linear(in_feats, self.codebook_dim)
             self.out_proj = nn.Linear(self.codebook_dim, in_feats)
@@ -126,6 +138,10 @@ class VectorQuantizerBase(nn.Module):
             self.register_buffer("codebook", W)  # <- buffer, not Parameter
         else:
             self.codebook = nn.Parameter(W)  # <- Parameter
+
+        self.register_buffer(
+            "ema_cluster_size", torch.zeros(self.codebook_size, dtype=torch.float32)
+        )
 
         if temp_min is None:
             temp_min = temp_init
@@ -169,6 +185,10 @@ class VectorQuantizerBase(nn.Module):
             "distance_metric": self.distance_metric.value,
             "use_weight_norm": self.use_weight_norm,
             "channels_last": self.channels_last,
+            "decay": self.decay,
+            "eps": self.eps,
+            "reset_unused": self.reset_unused,
+            "ema_usage_threshold": self.ema_usage_threshold,
             "temp_init": float(self.temp_init),
             "temp_min": float(self.temp_min.item()),
             "temp_anneal_rate": float(self.temp_anneal_rate),
@@ -188,7 +208,9 @@ class VectorQuantizerBase(nn.Module):
             f"{self.__class__.__name__}(in_feats={self.in_feats}, "
             f"codebook_size={self.codebook_size}, codebook_dim={self.codebook_dim}, "
             f"distance_metric={self.distance_metric}, use_weight_norm={self.use_weight_norm}, "
-            f"channels_last={self.channels_last}, temp={self.temp.item():.4f}, "
+            f"channels_last={self.channels_last}, decay={self.decay}, eps={self.eps}, "
+            f"reset_unused={self.reset_unused}, ema_usage_threshold={self.ema_usage_threshold}, "
+            f"temp={self.temp.item():.4f}, "
             f"temp_min={self.temp_min.item():.4f}, temp_anneal_rate={self.temp_anneal_rate}, "
             f"commitment_weight={self.commitment_weight.item():.4f}, "
             f"commitment_anneal_steps={self.commitment_anneal_steps}, "
@@ -389,6 +411,166 @@ class VectorQuantizerBase(nn.Module):
         raise RuntimeError(
             f"Unexpected losses_reduction value: {self.losses_reduction}"
         )
+
+    @torch.no_grad()
+    def _ema_update(
+        self,
+        flat_z: torch.Tensor | None,
+        flat_codes: torch.Tensor,
+        mask_1d: Optional[torch.Tensor],
+    ) -> None:
+        """
+        Update EMA cluster counts (no embedding averages).
+        """
+        if mask_1d is None:
+            mask_1d = torch.ones(
+                flat_codes.shape[0], device=flat_codes.device, dtype=torch.float32
+            )
+        else:
+            mask_1d = mask_1d.to(torch.float32)
+
+        one_hot = F.one_hot(flat_codes, num_classes=self.codebook_size).to(
+            torch.float32
+        )
+        one_hot = one_hot * mask_1d.unsqueeze(-1)
+
+        batch_cluster_size = one_hot.sum(dim=0)  # (K,)
+        self._maybe_allreduce_tensor(batch_cluster_size)
+
+        self.ema_cluster_size.mul_(self.decay).add_(
+            (1.0 - self.decay) * batch_cluster_size
+        )
+
+    @torch.no_grad()
+    def codebook_perplexity_from_ema(self) -> torch.Tensor:
+        """
+        Compute codebook perplexity from EMA-smoothed cluster counts.
+        """
+        counts = self.ema_cluster_size.to(dtype=torch.float32)
+        total = counts.sum()
+        if total <= 0:
+            return torch.tensor(0.0, device=counts.device)
+
+        probs = counts / total
+        entropy = -(probs * (probs + self.eps).log()).sum()
+        return entropy.exp()
+
+    @torch.no_grad()
+    def _reset_unused_codes(
+        self, flat_z: torch.Tensor, mask_1d: Optional[torch.Tensor]
+    ) -> None:
+        """
+        Reset codebook entries whose EMA count drops below the configured threshold.
+        """
+        if not self.reset_unused:
+            return
+
+        unused = self.ema_cluster_size < self.ema_usage_threshold
+        if not unused.any():
+            return
+
+        if mask_1d is not None:
+            valid = mask_1d.to(torch.bool) if mask_1d.dtype != torch.bool else mask_1d
+            flat_z_valid = flat_z[valid]
+        else:
+            flat_z_valid = flat_z
+
+        D = flat_z.shape[-1]
+        dist_ready = dist.is_available() and dist.is_initialized()
+
+        num_unused = int(unused.sum().item())
+
+        if dist_ready:
+            world_size = dist.get_world_size()
+            rank = dist.get_rank()
+
+            local_count = torch.tensor(
+                [flat_z_valid.shape[0]],
+                device=flat_z_valid.device,
+                dtype=torch.long,
+            )
+            count_list = [torch.zeros_like(local_count) for _ in range(world_size)]
+            dist.all_gather(count_list, local_count)
+            counts_per_rank = torch.stack(count_list)
+            max_valid = int(counts_per_rank.max().item())
+
+            if max_valid > 0:
+                padded = torch.zeros(
+                    max_valid,
+                    D,
+                    device=flat_z_valid.device,
+                    dtype=flat_z_valid.dtype,
+                )
+                if flat_z_valid.shape[0] > 0:
+                    copy_len = min(max_valid, flat_z_valid.shape[0])
+                    padded[:copy_len] = flat_z_valid[:copy_len]
+                gathered = [torch.zeros_like(padded) for _ in range(world_size)]
+                dist.all_gather(gathered, padded)
+                if rank == 0:
+                    candidates = torch.cat(
+                        [g[: n.item()] for g, n in zip(gathered, counts_per_rank)],
+                        dim=0,
+                    )
+                else:
+                    candidates = torch.empty(
+                        0,
+                        D,
+                        device=flat_z_valid.device,
+                        dtype=flat_z_valid.dtype,
+                    )
+            else:
+                candidates = torch.empty(
+                    0,
+                    D,
+                    device=flat_z_valid.device,
+                    dtype=flat_z_valid.dtype,
+                )
+
+            if rank == 0:
+                if candidates.shape[0] > 0:
+                    rand_idx = torch.randint(
+                        0, candidates.shape[0], (num_unused,), device=candidates.device
+                    )
+                    new_vectors = candidates[rand_idx]
+                else:
+                    new_vectors = torch.randn(
+                        num_unused,
+                        D,
+                        device=self.codebook.device,
+                        dtype=self.codebook.dtype,
+                    ) * (1.0 / math.sqrt(self.codebook_dim))
+            else:
+                new_vectors = torch.empty(
+                    num_unused,
+                    D,
+                    device=self.codebook.device,
+                    dtype=self.codebook.dtype,
+                )
+
+            dist.broadcast(new_vectors, src=0)
+            if rank == 0:
+                logging.info(f"Resetting {int(num_unused)} codebook entries.")
+        else:
+            if flat_z_valid.shape[0] > 0:
+                rand_idx = torch.randint(
+                    0, flat_z_valid.shape[0], (num_unused,), device=flat_z_valid.device
+                )
+                new_vectors = flat_z_valid[rand_idx]
+            else:
+                new_vectors = torch.randn(
+                    num_unused,
+                    D,
+                    device=self.codebook.device,
+                    dtype=self.codebook.dtype,
+                ) * (1.0 / math.sqrt(self.codebook_dim))
+
+            logging.info(f"Resetting {int(num_unused)} codebook entries.")
+
+        new_vectors = new_vectors.to(self.codebook.dtype)
+        self.codebook.data[unused] = new_vectors
+        if hasattr(self, "ema_embed_avg"):
+            self.ema_embed_avg[unused] = new_vectors.to(self.ema_embed_avg.dtype)
+        self.ema_cluster_size[unused] = torch.ones_like(self.ema_cluster_size[unused])
 
     @torch.no_grad()
     def codebook_perplexity_hard(
@@ -725,7 +907,7 @@ class _GDVectorQuantizer(VectorQuantizerBase):
         use_weight_norm: bool = False,
         channels_last: bool = False,
         reset_unused: bool = False,
-        reset_unused_steps: int = 1,
+        ema_usage_threshold: float = 1.0,
         temp_init: float = 1.0,
         temp_min: Optional[float] = 0.5,
         temp_anneal_rate: float = 1e-5,
@@ -741,6 +923,8 @@ class _GDVectorQuantizer(VectorQuantizerBase):
             distance_metric,
             use_weight_norm,
             channels_last,
+            ema_usage_threshold=ema_usage_threshold,
+            reset_unused=reset_unused,
             is_ema=False,
             temp_init=temp_init,
             temp_min=temp_min,
@@ -750,171 +934,10 @@ class _GDVectorQuantizer(VectorQuantizerBase):
             compute_orthogonality_loss=compute_orthogonality_loss,
             losses_reduction=losses_reduction,
         )
-        self.reset_unused = reset_unused
-        self.reset_unused_steps = max(1, int(reset_unused_steps)) if reset_unused else 0
-        self.register_buffer(
-            "unused_steps",
-            torch.zeros(
-                self.codebook_size,
-                dtype=torch.long,
-                device=self.codebook.device,
-            ),
-            persistent=reset_unused,
-        )
 
     def get_config(self):
         cfg = super().get_config()
-        cfg.update(
-            {
-                "reset_unused": self.reset_unused,
-                "reset_unused_steps": (
-                    self.reset_unused_steps if self.reset_unused else None
-                ),
-            }
-        )
         return cfg
-
-    @torch.no_grad()
-    def _reset_unused_codes(
-        self,
-        z: torch.Tensor,
-        codes: torch.Tensor,
-        z_mask: torch.Tensor | None,
-    ) -> None:
-        """Reset unused codebook entries after aggregating usage across processes."""
-        flat_codes = codes.view(-1)
-        flat_z = z.view(-1, z.shape[-1]).detach()
-        if z_mask is not None:
-            mask_flat = z_mask.view(-1)
-            valid = (
-                mask_flat.to(torch.bool) if mask_flat.dtype != torch.bool else mask_flat
-            )
-            flat_codes = flat_codes[valid]
-            flat_z_valid = flat_z[valid]
-        else:
-            flat_z_valid = flat_z
-
-        if flat_codes.numel() > 0:
-            counts = torch.bincount(flat_codes, minlength=self.codebook_size)
-        else:
-            counts = torch.zeros(
-                self.codebook_size,
-                device=self.codebook.device,
-                dtype=torch.long,
-            )
-
-        dist_ready = dist.is_available() and dist.is_initialized()
-        if dist_ready:
-            dist.all_reduce(counts, op=dist.ReduceOp.SUM)
-
-        used = counts > 0
-        self.unused_steps[used] = 0
-        self.unused_steps[~used] += 1
-        print("num unused", (counts == 0).sum().item(), flush=True)
-        print("unused_steps", self.unused_steps[~used], flush=True)
-
-        to_reset = self.unused_steps >= self.reset_unused_steps
-        if not to_reset.any():
-            return
-
-        num_unused = int(to_reset.sum().item())
-        D = flat_z.shape[-1]
-
-        if dist_ready:
-            world_size = dist.get_world_size()
-            rank = dist.get_rank()
-
-            local_count = torch.tensor(
-                [flat_z_valid.shape[0]],
-                device=flat_z_valid.device,
-                dtype=torch.long,
-            )
-            count_list = [torch.zeros_like(local_count) for _ in range(world_size)]
-            dist.all_gather(count_list, local_count)
-            counts_per_rank = torch.stack(count_list)
-            max_valid = int(counts_per_rank.max().item())
-
-            if max_valid > 0:
-                padded = torch.zeros(
-                    max_valid,
-                    D,
-                    device=flat_z_valid.device,
-                    dtype=flat_z_valid.dtype,
-                )
-                if flat_z_valid.shape[0] > 0:
-                    copy_len = min(max_valid, flat_z_valid.shape[0])
-                    padded[:copy_len] = flat_z_valid[:copy_len]
-                gathered = [torch.zeros_like(padded) for _ in range(world_size)]
-                dist.all_gather(gathered, padded)
-                if rank == 0:
-                    candidates = torch.cat(
-                        [g[: n.item()] for g, n in zip(gathered, counts_per_rank)],
-                        dim=0,
-                    )
-                else:
-                    candidates = torch.empty(
-                        0,
-                        D,
-                        device=flat_z_valid.device,
-                        dtype=flat_z_valid.dtype,
-                    )
-            else:
-                candidates = torch.empty(
-                    0,
-                    D,
-                    device=flat_z_valid.device,
-                    dtype=flat_z_valid.dtype,
-                )
-
-            if rank == 0:
-                if candidates.shape[0] > 0:
-                    rand_idx = torch.randint(
-                        0,
-                        candidates.shape[0],
-                        (num_unused,),
-                        device=candidates.device,
-                    )
-                    new_vectors = candidates[rand_idx]
-                else:
-                    new_vectors = torch.randn(
-                        num_unused,
-                        D,
-                        device=self.codebook.device,
-                        dtype=self.codebook.dtype,
-                    ) * (1.0 / math.sqrt(self.codebook_dim))
-            else:
-                new_vectors = torch.empty(
-                    num_unused,
-                    D,
-                    device=self.codebook.device,
-                    dtype=self.codebook.dtype,
-                )
-
-            dist.broadcast(new_vectors, src=0)
-            if rank == 0:
-                logging.info(f"Resetting {int(num_unused)} codebook entries.")
-        else:
-            if flat_z_valid.shape[0] > 0:
-                rand_idx = torch.randint(
-                    0,
-                    flat_z_valid.shape[0],
-                    (num_unused,),
-                    device=flat_z_valid.device,
-                )
-                new_vectors = flat_z_valid[rand_idx]
-            else:
-                new_vectors = torch.randn(
-                    num_unused,
-                    D,
-                    device=self.codebook.device,
-                    dtype=self.codebook.dtype,
-                ) * (1.0 / math.sqrt(self.codebook_dim))
-
-            logging.info(f"Resetting {int(num_unused)} codebook entries.")
-
-        new_vectors = new_vectors.to(self.codebook.dtype)
-        self.codebook.data[to_reset] = new_vectors
-        self.unused_steps[to_reset] = 0
 
 
 class NNVectorQuantizer(_GDVectorQuantizer):
@@ -938,9 +961,9 @@ class NNVectorQuantizer(_GDVectorQuantizer):
         channels_last (bool): If False, expects channel-first layout for >2D tensors
             (e.g., (B,C,H,W)) and internally transposes to (B,H*W,D).
         reset_unused (bool): If True (and in training mode), reinitializes codebook
-            entries that remain unused for a configurable number of batches.
-        reset_unused_steps (int): Number of consecutive forward passes a codeword can
-            stay unused before it is reset. Only relevant if ``reset_unused`` is True.
+            entries whose EMA usage drops below ``ema_usage_threshold``.
+        ema_usage_threshold (float): Usage threshold below which codes are reset
+            when ``reset_unused`` is enabled.
     """
 
     def __init__(
@@ -952,7 +975,7 @@ class NNVectorQuantizer(_GDVectorQuantizer):
         use_weight_norm: bool = False,
         channels_last: bool = False,
         reset_unused: bool = False,
-        reset_unused_steps: int = 100,
+        ema_usage_threshold: float = 1.0,
         commitment_anneal_steps: int = 0,
         compute_diversity_loss: bool = False,
         compute_orthogonality_loss: bool = False,
@@ -966,7 +989,7 @@ class NNVectorQuantizer(_GDVectorQuantizer):
             use_weight_norm,
             channels_last,
             reset_unused=reset_unused,
-            reset_unused_steps=reset_unused_steps,
+            ema_usage_threshold=ema_usage_threshold,
             commitment_anneal_steps=commitment_anneal_steps,
             compute_diversity_loss=compute_diversity_loss,
             compute_orthogonality_loss=compute_orthogonality_loss,
@@ -985,8 +1008,8 @@ class NNVectorQuantizer(_GDVectorQuantizer):
             f"{self.__class__.__name__}(in_feats={self.in_feats}, codebook_size={self.codebook_size}, "
             f"codebook_dim={self.codebook_dim}, distance_metric={self.distance_metric}, "
             f"use_weight_norm={self.use_weight_norm}, channels_last={self.channels_last}, "
-            f"reset_unused={self.reset_unused}, "
-            f"reset_unused_steps={self.reset_unused_steps if self.reset_unused else 'n/a'}, "
+            f"decay={self.decay}, eps={self.eps}, reset_unused={self.reset_unused}, "
+            f"ema_usage_threshold={self.ema_usage_threshold}, "
             f"temp={self.temp.item():.4f}, temp_min={self.temp_min.item():.4f}, "
             f"temp_anneal_rate={self.temp_anneal_rate}, "
             f"commitment_weight={self.commitment_weight.item():.4f}, "
@@ -1080,10 +1103,18 @@ class NNVectorQuantizer(_GDVectorQuantizer):
         else:
             orth_loss = None
 
-        ppl = self.codebook_perplexity_hard(codes, z_mask)
+        flat_codes = codes.view(-1)
+        flat_mask = z_mask.view(-1) if z_mask is not None else None
+        if self.training:
+            self._ema_update(
+                z.view(-1, z.shape[-1]),
+                flat_codes,
+                flat_mask,
+            )
+        ppl = self.codebook_perplexity_from_ema()
 
         if self.reset_unused and self.training:
-            self._reset_unused_codes(z, codes, z_mask)
+            self._reset_unused_codes(z.view(-1, z.shape[-1]).detach(), flat_mask)
 
         commitment_loss = self._reduce_loss(commitment_loss)
         codebook_loss = self._reduce_loss(codebook_loss)
@@ -1144,13 +1175,15 @@ class GumbelVectorQuantizer(_GumbelSoftSamplingMixin, _GDVectorQuantizer):
         soft_sampling_steps (int): Number of training steps to run soft sampling
             before switching to hard sampling automatically.
         reset_unused (bool): If True (and in training mode), reinitializes codebook
-            entries that remain unused for a configurable number of batches.
-        reset_unused_steps (int): Consecutive forward passes a codeword can stay unused
-            before being reset. Only relevant if ``reset_unused`` is True.
+            entries whose EMA usage drops below ``ema_usage_threshold``.
+        ema_usage_threshold (float): Usage threshold below which codes are reset
+            when ``reset_unused`` is enabled.
         commitment_anneal_steps (int): Steps to linearly ramp the commitment penalty.
         compute_diversity_loss (bool): Whether to compute diversity regularizer terms.
         compute_orthogonality_loss (bool): Whether to compute orthogonality penalty.
         losses_reduction (str): Reduction applied to returned losses ("none", "mean", "sum").
+        ema_usage_threshold (float): EMA usage level below which a codebook entry is
+            considered unused and reset when ``reset_unused`` is enabled.
     """
 
     def __init__(
@@ -1166,7 +1199,7 @@ class GumbelVectorQuantizer(_GumbelSoftSamplingMixin, _GDVectorQuantizer):
         temp_anneal_rate: float = 1e-5,
         soft_sampling_steps: int = 0,
         reset_unused: bool = False,
-        reset_unused_steps: int = 1,
+        ema_usage_threshold: float = 1.0,
         commitment_anneal_steps: int = 0,
         compute_diversity_loss: bool = False,
         compute_orthogonality_loss: bool = False,
@@ -1180,7 +1213,7 @@ class GumbelVectorQuantizer(_GumbelSoftSamplingMixin, _GDVectorQuantizer):
             use_weight_norm,
             channels_last,
             reset_unused=reset_unused,
-            reset_unused_steps=reset_unused_steps,
+            ema_usage_threshold=ema_usage_threshold,
             temp_init=temp_init,
             temp_min=temp_min,
             temp_anneal_rate=temp_anneal_rate,
@@ -1196,12 +1229,11 @@ class GumbelVectorQuantizer(_GumbelSoftSamplingMixin, _GDVectorQuantizer):
             f"{self.__class__.__name__}(in_feats={self.in_feats}, "
             f"codebook_size={self.codebook_size}, codebook_dim={self.codebook_dim}, "
             f"distance_metric={self.distance_metric}, use_weight_norm={self.use_weight_norm}, "
-            f"channels_last={self.channels_last}, temp={self.temp.item():.4f}, "
-            f"temp_min={self.temp_min.item():.4f}, temp_anneal_rate={self.temp_anneal_rate}, "
+            f"channels_last={self.channels_last}, decay={self.decay}, eps={self.eps}, "
+            f"reset_unused={self.reset_unused}, ema_usage_threshold={self.ema_usage_threshold}, "
+            f"temp={self.temp.item():.4f}, temp_min={self.temp_min.item():.4f}, temp_anneal_rate={self.temp_anneal_rate}, "
             f"soft_sampling_steps={self.soft_sampling_steps}, "
             f"using_hard_sampling={bool(self.use_hard_sampling.item())}, "
-            f"reset_unused={self.reset_unused}, "
-            f"reset_unused_steps={self.reset_unused_steps if self.reset_unused else 'n/a'}, "
             f"commitment_weight={self.commitment_weight.item():.4f}, "
             f"commitment_anneal_steps={self.commitment_anneal_steps}, "
             f"compute_diversity_loss={self._compute_diversity_loss}, "
@@ -1357,10 +1389,18 @@ class GumbelVectorQuantizer(_GumbelSoftSamplingMixin, _GDVectorQuantizer):
         else:
             orth_loss = None
 
-        ppl = self.codebook_perplexity_soft(probs, z_mask)
+        flat_codes = codes.view(-1)
+        flat_mask = z_mask.view(-1) if z_mask is not None else None
+        if self.training:
+            self._ema_update(
+                z.view(-1, z.shape[-1]),
+                flat_codes,
+                flat_mask,
+            )
+        ppl = self.codebook_perplexity_from_ema()
 
         if self.reset_unused and self.training:
-            self._reset_unused_codes(z, codes, z_mask)
+            self._reset_unused_codes(z.view(-1, z.shape[-1]).detach(), flat_mask)
 
         commitment_loss = self._reduce_loss(commitment_loss)
         codebook_loss = self._reduce_loss(codebook_loss)
@@ -1434,8 +1474,10 @@ class EMANNVectorQuantizer(VectorQuantizerBase):
             tensors (e.g., (B,C,H,W)) and transposes internally.
         decay (float): EMA decay rate (typically ~0.99).
         eps (float): Small constant to avoid division by zero in cluster counts.
-        reset_unused (bool): If True, reinitializes codes that are effectively
-            unused (cluster size < 1.0) from random encoder samples.
+        reset_unused (bool): If True, reinitializes codes whose EMA usage drops
+            below ``ema_usage_threshold`` from random encoder samples.
+        ema_usage_threshold (float): Usage threshold below which codes are reset
+            when ``reset_unused`` is enabled.
         temp_init (float): Initial temperature used by the base class.
         temp_min (float): Minimum value that temperature can attain.
         temp_anneal_rate (float): Exponential decay rate for the temperature.
@@ -1456,6 +1498,7 @@ class EMANNVectorQuantizer(VectorQuantizerBase):
         decay: float = 0.99,
         eps: float = 1e-5,
         reset_unused: bool = False,
+        ema_usage_threshold: float = 1.0,
         temp_init: float = 1.0,
         temp_min: Optional[float] = 0.5,
         temp_anneal_rate: float = 1e-5,
@@ -1471,6 +1514,10 @@ class EMANNVectorQuantizer(VectorQuantizerBase):
             distance_metric,
             use_weight_norm,
             channels_last,
+            decay=decay,
+            eps=eps,
+            reset_unused=reset_unused,
+            ema_usage_threshold=ema_usage_threshold,
             is_ema=True,
             temp_init=temp_init,
             temp_min=temp_min,
@@ -1480,14 +1527,8 @@ class EMANNVectorQuantizer(VectorQuantizerBase):
             compute_orthogonality_loss=compute_orthogonality_loss,
             losses_reduction=losses_reduction,
         )
-        self.decay = decay
-        self.eps = eps
-        self.reset_unused = reset_unused
 
         # EMA buffers
-        self.register_buffer(
-            "ema_cluster_size", torch.zeros(self.codebook_size, dtype=torch.float32)
-        )
         self.register_buffer(
             "ema_embed_avg", self.codebook.data.clone().to(torch.float32)
         )
@@ -1498,6 +1539,7 @@ class EMANNVectorQuantizer(VectorQuantizerBase):
             f"codebook_dim={self.codebook_dim}, distance_metric={self.distance_metric}, "
             f"use_weight_norm={self.use_weight_norm}, channels_last={self.channels_last}, "
             f"decay={self.decay}, eps={self.eps}, reset_unused={self.reset_unused}, "
+            f"ema_usage_threshold={self.ema_usage_threshold}, "
             f"temp={self.temp.item():.4f}, temp_min={self.temp_min.item():.4f}, "
             f"temp_anneal_rate={self.temp_anneal_rate}, "
             f"commitment_weight={self.commitment_weight.item():.4f}, "
@@ -1541,9 +1583,7 @@ class EMANNVectorQuantizer(VectorQuantizerBase):
             • Optionally reinitializes unused codes if `reset_unused=True`.
         """
         K = self.codebook_size
-        D = self.codebook_dim
         device = flat_z.device
-        dtype = flat_z.dtype
 
         if mask_1d is None:
             mask_1d = torch.ones(
@@ -1574,124 +1614,7 @@ class EMANNVectorQuantizer(VectorQuantizerBase):
         n = self.ema_cluster_size + self.eps  # (K,)
         new_weight = self.ema_embed_avg / n.unsqueeze(-1)  # (K,D)
 
-        # Optional: reinitialize codes that are effectively unused
-        if self.reset_unused:
-            unused = self.ema_cluster_size < 1.0
-            if unused.any():
-                new_weight = self._reset_unused_codes(
-                    flat_z, mask_1d, new_weight, unused
-                )
-
         self.codebook.data.copy_(new_weight.to(self.codebook.dtype))
-
-    @torch.no_grad()
-    def _reset_unused_codes(
-        self,
-        flat_z: torch.Tensor,
-        mask_1d: torch.Tensor | None,
-        new_weight: torch.Tensor,
-        unused: torch.Tensor,
-    ) -> torch.Tensor:
-        """Reinitialize unused EMA codebook entries in a DDP-safe manner."""
-        device = new_weight.device
-        D = new_weight.shape[-1]
-
-        if mask_1d is not None:
-            valid_mask = mask_1d > 0
-            flat_z_valid = flat_z[valid_mask]
-        else:
-            flat_z_valid = flat_z
-
-        num_unused = int(unused.sum().item())
-        dist_ready = dist.is_available() and dist.is_initialized()
-
-        if dist_ready:
-            world_size = dist.get_world_size()
-            rank = dist.get_rank()
-
-            local_count = torch.tensor(
-                [flat_z_valid.shape[0]], device=device, dtype=torch.long
-            )
-            count_list = [torch.zeros_like(local_count) for _ in range(world_size)]
-            dist.all_gather(count_list, local_count)
-            counts_per_rank = torch.stack(count_list)
-            max_valid = int(counts_per_rank.max().item())
-
-            if max_valid > 0:
-                padded = torch.zeros(
-                    max_valid,
-                    D,
-                    device=device,
-                    dtype=flat_z_valid.dtype,
-                )
-                if flat_z_valid.shape[0] > 0:
-                    copy_len = min(max_valid, flat_z_valid.shape[0])
-                    padded[:copy_len] = flat_z_valid[:copy_len]
-                gathered = [torch.zeros_like(padded) for _ in range(world_size)]
-                dist.all_gather(gathered, padded)
-                if rank == 0:
-                    candidates = torch.cat(
-                        [g[: n.item()] for g, n in zip(gathered, counts_per_rank)],
-                        dim=0,
-                    )
-                else:
-                    candidates = torch.empty(
-                        0,
-                        D,
-                        device=device,
-                        dtype=flat_z_valid.dtype,
-                    )
-            else:
-                candidates = torch.empty(
-                    0,
-                    D,
-                    device=device,
-                    dtype=flat_z_valid.dtype,
-                )
-
-            if rank == 0:
-                if candidates.shape[0] > 0:
-                    rand_idx = torch.randint(
-                        0, candidates.shape[0], (num_unused,), device=device
-                    )
-                    new_vectors = candidates[rand_idx]
-                else:
-                    new_vectors = torch.randn(
-                        num_unused,
-                        D,
-                        device=device,
-                        dtype=new_weight.dtype,
-                    ) * (1.0 / math.sqrt(D))
-            else:
-                new_vectors = torch.empty(
-                    num_unused,
-                    D,
-                    device=device,
-                    dtype=new_weight.dtype,
-                )
-
-            dist.broadcast(new_vectors, src=0)
-        else:
-            if flat_z_valid.shape[0] > 0:
-                rand_idx = torch.randint(
-                    0, flat_z_valid.shape[0], (num_unused,), device=device
-                )
-                new_vectors = flat_z_valid[rand_idx]
-            else:
-                new_vectors = torch.randn(
-                    num_unused,
-                    D,
-                    device=device,
-                    dtype=new_weight.dtype,
-                ) * (1.0 / math.sqrt(D))
-
-        new_vectors = new_vectors.to(new_weight.dtype)
-        new_weight = new_weight.clone()
-        new_weight[unused] = new_vectors
-        self.ema_embed_avg[unused] = new_vectors.to(self.ema_embed_avg.dtype)
-        self.ema_cluster_size[unused] = torch.ones_like(self.ema_cluster_size[unused])
-
-        return new_weight
 
     def forward(
         self,
@@ -1773,8 +1696,6 @@ class EMANNVectorQuantizer(VectorQuantizerBase):
         else:
             orth_loss = None
 
-        ppl = self.codebook_perplexity_hard(codes, z_mask_2d)
-
         # Straight-through estimator for the path to encoder
         z_q = z + (z_q - z).detach()
 
@@ -1785,6 +1706,14 @@ class EMANNVectorQuantizer(VectorQuantizerBase):
                 flat_codes = codes.view(-1)  # (N,)
                 flat_mask = z_mask_2d.view(-1) if z_mask_2d is not None else None
                 self._ema_update(flat_z, flat_codes, flat_mask)
+
+        ppl = self.codebook_perplexity_from_ema()
+
+        if self.training:
+            with torch.no_grad():
+                flat_z = z.view(-1, z.shape[-1])  # (N,D)
+                flat_mask = z_mask_2d.view(-1) if z_mask_2d is not None else None
+                self._reset_unused_codes(flat_z, flat_mask)
 
         # Output projection if needed
         if self.out_proj is not None:
@@ -1844,8 +1773,10 @@ class EMAGumbelVectorQuantizer(_GumbelSoftSamplingMixin, EMANNVectorQuantizer):
             tensors (e.g., (B,C,H,W)) and transposes internally.
         decay (float): EMA decay rate (typically ~0.99).
         eps (float): Small constant to avoid division by zero in cluster counts.
-        reset_unused (bool): If True, reinitializes codes that are effectively
-            unused (cluster size < 1.0) from random encoder samples.
+        reset_unused (bool): If True, reinitializes codes whose EMA usage drops
+            below ``ema_usage_threshold`` from random encoder samples.
+        ema_usage_threshold (float): Usage threshold below which codes are reset
+            when ``reset_unused`` is enabled.
         temp_init (float): Initial temperature for Gumbel-Softmax.
         temp_min (float): Minimum annealed temperature.
         temp_anneal_rate (float): Exponential decay rate for temperature scheduling.
@@ -1867,6 +1798,7 @@ class EMAGumbelVectorQuantizer(_GumbelSoftSamplingMixin, EMANNVectorQuantizer):
         decay: float = 0.99,
         eps: float = 1e-5,
         reset_unused: bool = False,
+        ema_usage_threshold: float = 1.0,
         temp_init: float = 1.0,
         temp_min: float = 0.5,
         temp_anneal_rate: float = 1e-5,
@@ -1883,9 +1815,10 @@ class EMAGumbelVectorQuantizer(_GumbelSoftSamplingMixin, EMANNVectorQuantizer):
             distance_metric,
             use_weight_norm,
             channels_last,
-            decay,
-            eps,
-            reset_unused,
+            decay=decay,
+            eps=eps,
+            reset_unused=reset_unused,
+            ema_usage_threshold=ema_usage_threshold,
             temp_init=temp_init,
             temp_min=temp_min,
             temp_anneal_rate=temp_anneal_rate,
@@ -1902,6 +1835,7 @@ class EMAGumbelVectorQuantizer(_GumbelSoftSamplingMixin, EMANNVectorQuantizer):
             f"codebook_dim={self.codebook_dim}, distance_metric={self.distance_metric}, "
             f"use_weight_norm={self.use_weight_norm}, channels_last={self.channels_last}, "
             f"decay={self.decay}, eps={self.eps}, reset_unused={self.reset_unused}, "
+            f"ema_usage_threshold={self.ema_usage_threshold}, "
             f"temp={self.temp.item():.4f}, temp_min={self.temp_min.item():.4f}, "
             f"temp_anneal_rate={self.temp_anneal_rate}, "
             f"soft_sampling_steps={self.soft_sampling_steps}, "
@@ -2043,7 +1977,10 @@ class EMAGumbelVectorQuantizer(_GumbelSoftSamplingMixin, EMANNVectorQuantizer):
 
         if temp is None:
             temp = self.temp.item()
-        z_q, codes, soft_one_hot = self.quantize_latents(z, temp, hard)
+
+        z_q, codes, soft_one_hot = self.quantize_latents(
+            z, temp, hard, return_probs=True
+        )
 
         # Build mask (B,T) -> (B,T,1) for broadcasting, and den for normalization
         if z_mask is not None:
@@ -2081,8 +2018,6 @@ class EMAGumbelVectorQuantizer(_GumbelSoftSamplingMixin, EMANNVectorQuantizer):
         else:
             orth_loss = None
 
-        ppl = self.codebook_perplexity_soft(soft_one_hot, z_mask_2d)
-
         # EMA update (no grad) on flattened views
         if self.training:
             with torch.no_grad():
@@ -2090,6 +2025,14 @@ class EMAGumbelVectorQuantizer(_GumbelSoftSamplingMixin, EMANNVectorQuantizer):
                 flat_codes = codes.view(-1)  # (N,)
                 flat_mask = z_mask_2d.view(-1) if z_mask_2d is not None else None
                 self._ema_update(flat_z, flat_codes, flat_mask)
+
+        ppl = self.codebook_perplexity_from_ema()
+
+        if self.training:
+            with torch.no_grad():
+                flat_z = z.view(-1, z.shape[-1])  # (N,D)
+                flat_mask = z_mask_2d.view(-1) if z_mask_2d is not None else None
+                self._reset_unused_codes(flat_z, flat_mask)
 
         # Output projection if needed
         if self.out_proj is not None:

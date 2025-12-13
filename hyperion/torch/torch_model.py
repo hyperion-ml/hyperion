@@ -24,7 +24,7 @@ class TorchModel(nn.Module):
         super().__init_subclass__(**kwargs)
         TorchModel.registry[cls.__name__] = cls
 
-    def __init__(self, bias_weight_decay=None):
+    def __init__(self, bias_weight_decay: Optional[float] = None):
         super().__init__()
         self._train_mode = "full"
         self.bias_weight_decay = bias_weight_decay

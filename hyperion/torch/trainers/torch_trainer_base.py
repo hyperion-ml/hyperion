@@ -3,7 +3,6 @@ Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
-import contextlib
 import glob
 import logging
 import math
@@ -12,16 +11,42 @@ import time
 from collections import OrderedDict as ODict
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union, cast
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import torch
 import torch.amp as amp
 import torch.distributed as dist
 import torch.nn as nn
-from fairscale.optim.grad_scaler import ShardedGradScaler
-from fairscale.optim.oss import OSS
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
+from torch.distributed.checkpoint.state_dict import (
+    StateDictOptions,
+    get_model_state_dict,
+    get_optimizer_state_dict,
+    set_model_state_dict,
+    set_optimizer_state_dict,
+)
 from torch.distributed.elastic.multiprocessing.errors import record
+
+try:
+    from torch.distributed.fsdp import CPUOffloadPolicy
+    from torch.distributed.fsdp import FSDPModule as FSDP
+    from torch.distributed.fsdp import MixedPrecisionPolicy, fully_shard
+    from torch.distributed.fsdp.sharded_grad_scaler import ShardedGradScaler
+
+    FSDP_AVAILABLE = True
+except (ImportError, AttributeError):
+    CPUOffloadPolicy = None  # type: ignore
+    FSDP = None  # type: ignore
+    MixedPrecisionPolicy = None  # type: ignore
+    fully_shard = None  # type: ignore
+
+    class ShardedGradScaler(amp.GradScaler):  # type: ignore
+        """Fallback so the symbol remains a type and callable."""
+
+        pass
+
+    FSDP_AVAILABLE = False
+
 from torch.optim.swa_utils import SWALR, AveragedModel
 from torch.utils.data import DataLoader
 
@@ -32,7 +57,7 @@ from ..lr_schedulers import LRScheduler as LRS
 from ..lr_schedulers import LRSchedulerFactory as LRSF
 from ..optim import OptimizerFactory as OF
 from ..torch_model import TorchModel
-from ..utils import FairFullyShardedDDP, FairShardedDDP, MetricAcc, TorchDDP
+from ..utils import MetricAcc, TorchDDP
 from ..utils.grad_tracker import GradNormTracker
 from ..wd_schedulers import WDScheduler as WDS
 from ..wd_schedulers import WDSchedulerFactory as WDSF
@@ -40,9 +65,7 @@ from ..wd_schedulers import WDSchedulerFactory as WDSF
 
 class DDPType(str, Enum):
     DDP = "ddp"
-    OSS_DDP = "oss_ddp"
-    OSS_SHARDED_DDP = "oss_sharded_ddp"
-    FULLY_SHARDED_DDP = "fully_sharded_ddp"
+    FSDP = "fsdp"  # torch FSDP2 via fully_shard
 
     @staticmethod
     def choices() -> List[str]:
@@ -76,6 +99,10 @@ class AMPDType(str, Enum):
         return [o.value for o in AMPDType]
 
     @staticmethod
+    def default():
+        return AMPDType.FLOAT16
+
+    @staticmethod
     def to_dtype(dtype: "AMPDType") -> torch.dtype:
         """
         Converts an `AMPDType` enum value to the corresponding `torch.dtype`.
@@ -86,14 +113,66 @@ class AMPDType(str, Enum):
         Returns:
             torch.dtype: `torch.float16` or `torch.bfloat16` depending on `dtype`.
         """
-        return torch.float16 if dtype == AMPDType.FLOAT16 else torch.bfloat16
+        if dtype == AMPDType.FLOAT16:
+            return torch.float16
+        if dtype == AMPDType.BFLOAT16:
+            return torch.bfloat16
+
+        raise ValueError(f"Unsupported AMPDType: {dtype}")
+
+
+class FSDPMPDType(str, Enum):
+    FLOAT16 = "float16"
+    BFLOAT16 = "bfloat16"
+    FLOAT32 = "float32"
+    NONE = "none"
+
+    @staticmethod
+    def choices() -> List[str]:
+        """
+        Lists the supported automatic mixed precision data types.
+
+        Args:
+            None.
+
+        Returns:
+            List[str]: Names of the AMP dtypes (float16, bfloat16, float32, none).
+        """
+        return [o.value for o in FSDPMPDType]
+
+    @staticmethod
+    def default() -> None:
+        return None
+
+    @staticmethod
+    def to_dtype(dtype: Union["FSDPMPDType", None]) -> Optional[torch.dtype]:
+        """
+        Converts an `FSDPMPDType` enum value to the corresponding `torch.dtype`.
+
+        Args:
+            dtype (FSDPMPDType): Requested mixed precision type.
+
+        Returns:
+            torch.dtype: `torch.float16`, `torch.bfloat16`, or `torch.float32` depending on `dtype`.
+        """
+        if dtype is None or dtype == FSDPMPDType.NONE:
+            return None
+
+        if dtype == FSDPMPDType.FLOAT16:
+            return torch.float16
+        if dtype == FSDPMPDType.BFLOAT16:
+            return torch.bfloat16
+        if dtype == FSDPMPDType.FLOAT32:
+            return torch.float32
+
+        raise ValueError(f"Unsupported FSDPMPDType: {dtype}")
 
 
 class TorchTrainerBase:
     """Base class for training PyTorch models using various training utilities.
 
     This class supports advanced training features including:
-    - Distributed training with multiple DDP backends (standard, OSS, FairScale)
+    - Distributed training with multiple DDP backends (standard DDP, and torch FSDP2 via fully_shard)
     - Mixed precision training with AMP (float16, bfloat16)
     - Learning rate and weight decay schedulers
     - Gradient accumulation and clipping
@@ -115,10 +194,15 @@ class TorchTrainerBase:
         device (torch.device or int, optional): Device to run training on (e.g. 'cuda:0').
         loggers (LoggerList): Logger interface for training output (e.g., console, file, TensorBoard).
         ddp (bool): Whether to use Distributed Data Parallel (DDP) training.
-        ddp_type (DDPType): Type of DDP implementation to use (standard, OSS, Sharded, FullySharded).
-        cpu_offload (bool): Whether to offload parameters/gradients to CPU in FullyShardedDDP.
+        ddp_type (DDPType): Type of distributed backend to use (DDP or torch FSDP variants).
+        fsdp_reshard_after_forward (bool|int|None): FSDP2 reshard policy after forward.
+        fsdp_mp_param_dtype (torch.dtype|None): FSDP2 mixed-precision parameter dtype.
+        fsdp_mp_reduce_dtype (torch.dtype|None): FSDP2 mixed-precision reduction dtype.
+        fsdp_mp_output_dtype (torch.dtype|None): FSDP2 mixed-precision output dtype.
+        fsdp_cpu_offload (bool): Whether to offload parameters/gradients to CPU in FSDP.
         use_amp (bool): Enables mixed-precision training using AMP (Automatic Mixed Precision).
         amp_dtype (AMPDType): Data type for AMP (float16 or bfloat16).
+        bf16_grad_scaler (bool): Enable GradScaler when using bfloat16.
         log_interval (int): Number of steps between log output (for loggers).
         log_gpu_usage (bool): Whether to log GPU usage (memory, utilization) during training.
         use_tensorboard (bool): Enables TensorBoard logger.
@@ -150,7 +234,11 @@ class TorchTrainerBase:
         loggers: Optional[LoggerList] = None,
         ddp: bool = False,
         ddp_type: DDPType = DDPType.DDP,
-        cpu_offload: bool = False,
+        fsdp_reshard_after_forward: Optional[Union[bool, int]] = None,
+        fsdp_mp_param_dtype: Optional[FSDPMPDType] = None,
+        fsdp_mp_reduce_dtype: Optional[FSDPMPDType] = None,
+        fsdp_mp_output_dtype: Optional[FSDPMPDType] = None,
+        fsdp_cpu_offload: bool = False,
         use_amp: bool = False,
         amp_dtype: AMPDType = AMPDType.FLOAT16,
         bf16_grad_scaler: bool = False,
@@ -186,8 +274,12 @@ class TorchTrainerBase:
             device: Target device (CUDA device index or torch.device) for model/data.
             loggers: Optional logger collection; defaults to console/TensorBoard/W&B selection.
             ddp: Whether to enable DistributedDataParallel of any flavor.
-            ddp_type: Specific DDP implementation (standard, OSS, sharded, FSDP).
-            cpu_offload: Enable FSDP CPU offload when supported.
+            ddp_type: Specific DDP implementation (standard DDP, torch FSDP sharded/full).
+            fsdp_cpu_offload: Enable FSDP parameter CPU offload.
+            fsdp_reshard_after_forward: Control post-forward resharding (None follows FSDP2 default: shard children, keep root unsharded; bool or int per FSDP2 API).
+            fsdp_mp_param_dtype: Optional FSDP param dtype override for mixed precision.
+            fsdp_mp_reduce_dtype: Optional FSDP reduce dtype override for mixed precision.
+            fsdp_mp_output_dtype: Optional FSDP output dtype override for mixed precision.
             use_amp: Toggle automatic mixed precision for training/eval loops.
             amp_dtype: Precision to use when AMP is enabled (fp16 or bf16).
             bf16_grad_scaler: Use a GradScaler variant safe for bf16.
@@ -239,7 +331,15 @@ class TorchTrainerBase:
 
         self.ddp = ddp
         self.ddp_type = ddp_type
-        self.cpu_offload = cpu_offload
+        if ddp and ddp_type == DDPType.FSDP and not FSDP_AVAILABLE:
+            raise RuntimeError(
+                "FSDP2 requires torch>=2.6; current torch version does not provide it."
+            )
+        self.fsdp_cpu_offload = fsdp_cpu_offload
+        self.fsdp_reshard_after_forward = fsdp_reshard_after_forward
+        self.fsdp_mp_param_dtype = FSDPMPDType.to_dtype(fsdp_mp_param_dtype)
+        self.fsdp_mp_reduce_dtype = FSDPMPDType.to_dtype(fsdp_mp_reduce_dtype)
+        self.fsdp_mp_output_dtype = FSDPMPDType.to_dtype(fsdp_mp_output_dtype)
 
         self.use_amp = use_amp
         self.amp_dtype = AMPDType.to_dtype(amp_dtype)
@@ -277,10 +377,13 @@ class TorchTrainerBase:
         lrsched: Union[LRS, Dict[str, Any], None],
         wdsched: Union[WDS, Dict[str, Any], None],
         device: Optional[Union[torch.device, int]] = None,
-        use_amp: bool = False,
         ddp: bool = False,
         ddp_type: DDPType = DDPType.DDP,
-        cpu_offload: bool = False,
+        fsdp_cpu_offload: bool = False,
+        fsdp_reshard_after_forward: Optional[Union[bool, int]] = None,
+        fsdp_mp_param_dtype: Optional[torch.dtype] = None,
+        fsdp_mp_reduce_dtype: Optional[torch.dtype] = None,
+        fsdp_mp_output_dtype: Optional[torch.dtype] = None,
         do_swa: bool = False,
         swa_lr: float = 1e-3,
         swa_anneal_steps: int = 50000,
@@ -304,10 +407,13 @@ class TorchTrainerBase:
             lrsched (LRS | Dict | None): Learning rate scheduler or config.
             wdsched (WDS | Dict | None): Weight decay scheduler or config.
             device (torch.device): Device to place the model on.
-            use_amp (bool): Enable mixed precision training.
             ddp (bool): Enable DistributedDataParallel wrapping.
-            ddp_type (DDPType): Type of DDP (standard, sharded, FSDP).
-            cpu_offload (bool): If True, uses CPU offload in FSDP.
+            ddp_type (DDPType): Distributed strategy (DDP or torch FSDP sharded/full).
+            fsdp_cpu_offload (bool): If True, uses CPU offload in FSDP.
+            fsdp_reshard_after_forward (bool|int|None): Reshard policy to pass into FSDP2.
+            fsdp_mp_param_dtype (torch.dtype|None): Mixed-precision param dtype for FSDP2.
+            fsdp_mp_reduce_dtype (torch.dtype|None): Mixed-precision reduce dtype for FSDP2.
+            fsdp_mp_output_dtype (torch.dtype|None): Mixed-precision output dtype for FSDP2.
             do_swa (bool): Whether to initialize SWA model/scheduler.
             swa_lr (float): Learning rate for SWA.
             swa_anneal_steps (int): Annealing steps for SWA LR scheduler.
@@ -325,39 +431,41 @@ class TorchTrainerBase:
             model.to(device)
 
         if ddp:
-            if ddp_type == DDPType.DDP or ddp_type == DDPType.OSS_DDP:
+            if ddp_type == DDPType.DDP:
                 model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
                 if self.rank == 0:
                     logging.info(
                         "training in multiple gpus with distributed-data-parallel"
                     )
-                oss = False if ddp_type == DDPType.DDP else True
-                optimizer = self._make_optimizer(optim, model, oss=oss)
+                optimizer = self._make_optimizer(optim, model)
                 model = TorchDDP(
                     model,
                     device_ids=[device],
                     output_device=device,
                 )
-            elif ddp_type == DDPType.OSS_SHARDED_DDP:
-                model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
+            elif ddp_type == DDPType.FSDP:
                 if self.rank == 0:
                     logging.info(
-                        "training in multiple gpus with fair sharded-distributed-data-parallel"
+                        "training in multiple gpus with torch FSDP (sharded/fully-sharded)"
                     )
-                optimizer = self._make_optimizer(optim, model, oss=True)
-                model = FairShardedDDP(model, optimizer)
-            else:
-                if self.rank == 0:
-                    logging.info(
-                        "training in multiple gpus with fair fully-sharded-distributed-data-parallel"
-                    )
-                # syncbathcnorm is not supported here, it raises exception
-                model = FairFullyShardedDDP(
-                    model,
-                    mixed_precision=use_amp,
-                    move_params_to_cpu=cpu_offload,
+                fsdp_kwargs = self._build_fsdp_kwargs(
+                    reshard_after_forward=fsdp_reshard_after_forward,
+                    mp_param_dtype=fsdp_mp_param_dtype,
+                    mp_reduce_dtype=fsdp_mp_reduce_dtype,
+                    mp_output_dtype=fsdp_mp_output_dtype,
+                    cpu_offload=fsdp_cpu_offload,
                 )
-                optimizer = self._make_optimizer(optim, model, oss=False)
+                if self.rank == 0:
+                    logging.info(
+                        "fsdp settings: reshard_after_fwd=%s, mixed_precision=%s, fsdp_cpu_offload=%s",
+                        fsdp_reshard_after_forward,
+                        "enabled" if "mp_policy" in fsdp_kwargs else "disabled",
+                        fsdp_cpu_offload,
+                    )
+                model = self._wrap_with_fully_shard(model, fsdp_kwargs)
+                optimizer = self._make_optimizer(optim, model)
+            else:
+                raise ValueError(f"Unsupported ddp_type: {ddp_type}")
 
         else:
             optimizer = self._make_optimizer(optim, model)
@@ -387,6 +495,69 @@ class TorchTrainerBase:
             swa_scheduler,
         )
 
+    def _build_fsdp_kwargs(
+        self,
+        reshard_after_forward: Optional[Union[bool, int]],
+        mp_param_dtype: Optional[torch.dtype],
+        mp_reduce_dtype: Optional[torch.dtype],
+        mp_output_dtype: Optional[torch.dtype],
+        cpu_offload: bool,
+    ) -> Dict[str, Any]:
+        """
+        Builds the kwargs dictionary for torch.distributed.fsdp FullyShardedDataParallel (FSDP2).
+
+        Args:
+            reshard_after_forward: Reshard policy after forward (None uses FSDP2 defaults).
+            mp_param_dtype: Optional mixed-precision param dtype (None disables mp policy).
+            mp_reduce_dtype: Optional mixed-precision reduce dtype.
+            mp_output_dtype: Optional mixed-precision output dtype.
+            cpu_offload: Whether to offload parameters to CPU between compute steps.
+
+        Returns:
+            Dict[str, Any]: Filtered kwargs to pass into `fully_shard`.
+        """
+        fsdp_kwargs: Dict[str, Any] = {
+            "reshard_after_forward": reshard_after_forward,
+        }
+
+        if cpu_offload:
+            fsdp_kwargs["offload_policy"] = CPUOffloadPolicy()
+
+        if mp_param_dtype is not None:
+            mixed_precision = MixedPrecisionPolicy(
+                param_dtype=mp_param_dtype,
+                reduce_dtype=mp_reduce_dtype,
+                output_dtype=mp_output_dtype,
+            )
+            fsdp_kwargs["mp_policy"] = mixed_precision
+
+        return {k: v for k, v in fsdp_kwargs.items() if v is not None}
+
+    @staticmethod
+    def _is_fsdp_module(module: nn.Module) -> bool:
+        if FSDP is None:
+            return False
+        return isinstance(module, FSDP)
+
+    def _wrap_with_fully_shard(
+        self, model: nn.Module, fsdp_kwargs: Dict[str, Any]
+    ) -> nn.Module:
+        """
+        Recursively applies fully_shard to all submodules and then to the root,
+        matching the FSDP2 tutorial guidance.
+        """
+
+        def _shard_recursive(module: nn.Module):
+            for child in module.children():
+                if not self._is_fsdp_module(child):
+                    _shard_recursive(child)
+                    fully_shard(child, **fsdp_kwargs)
+
+        _shard_recursive(model)
+        if not self._is_fsdp_module(model):
+            model = fully_shard(model, **fsdp_kwargs)
+        return model
+
     def get_grad_scaler(
         self,
         use_amp: Optional[bool] = None,
@@ -394,11 +565,12 @@ class TorchTrainerBase:
         ddp_type: Optional[DDPType] = None,
         amp_dtype: Optional[torch.dtype] = None,
         bf16_grad_scaler: Optional[bool] = None,
+        fsdp_mp_param_dtype: Optional[torch.dtype] = None,
     ) -> Union[amp.GradScaler, ShardedGradScaler]:
         """
         Initializes the appropriate gradient scaler for AMP (automatic mixed precision).
 
-        Uses ShardedGradScaler for FairScale OSS-based DDP, and native GradScaler otherwise.
+        Uses the torch FSDP ShardedGradScaler for FSDP sharded/full modes, and native GradScaler otherwise.
 
         Args:
             use_amp (bool): Whether AMP is enabled.
@@ -417,20 +589,31 @@ class TorchTrainerBase:
         bf16_grad_scaler = (
             self.bf16_grad_scaler if bf16_grad_scaler is None else bf16_grad_scaler
         )
+        fsdp_mp_param_dtype = (
+            self.fsdp_mp_param_dtype
+            if fsdp_mp_param_dtype is None
+            else fsdp_mp_param_dtype
+        )
 
-        use_grad_scaler = use_amp and (amp_dtype == torch.float16 or bf16_grad_scaler)
-        if self.rank == 0 and not use_grad_scaler:
-            logging.info("not using grad scaler")
-
-        if ddp and ddp_type != DDPType.DDP:
-            if self.rank == 0 and use_grad_scaler:
-                logging.info(
-                    "using automatic mixed precision training with sharded-grad-scaler"
-                )
+        if ddp and ddp_type == DDPType.FSDP:
+            use_grad_scaler = fsdp_mp_param_dtype == torch.float16 or bf16_grad_scaler
+            if self.rank == 0:
+                if use_grad_scaler:
+                    logging.info(
+                        "using mixed precision training with FSDP sharded-grad-scaler"
+                    )
+                else:
+                    logging.info("not using grad scaler with FSDP")
             return ShardedGradScaler(enabled=use_grad_scaler)
 
-        if self.rank == 0 and use_grad_scaler:
-            logging.info("using automatic mixed precision training with grad-scaler")
+        use_grad_scaler = use_amp and (amp_dtype == torch.float16 or bf16_grad_scaler)
+        if self.rank == 0:
+            if use_grad_scaler:
+                logging.info(
+                    "using automatic mixed precision training with grad-scaler"
+                )
+            else:
+                logging.info("not using grad scaler")
         return amp.GradScaler(enabled=use_grad_scaler)
 
     def set_data_epoch(
@@ -1013,7 +1196,9 @@ class TorchTrainerBase:
         batch_size, batch_data = self.preprocess_train_data(batch_data)
         batch_data = self.send_data_to_device(batch_data)
         with amp.autocast(
-            enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+            enabled=self.use_amp,
+            dtype=self.amp_dtype,
+            device_type="cuda",
         ):
             loss, batch_output = self.compute_train_forward(batch_data)
 
@@ -1093,7 +1278,9 @@ class TorchTrainerBase:
         batch_data = self.send_data_to_device(batch_data)
 
         with amp.autocast(
-            enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+            enabled=self.use_amp,
+            dtype=self.amp_dtype,
+            device_type="cuda",
         ):
             loss, batch_output = self.compute_val_forward(batch_data)
 
@@ -1132,7 +1319,9 @@ class TorchTrainerBase:
         batch_data = self.send_data_to_device(batch_data)
 
         with amp.autocast(
-            enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
+            enabled=self.use_amp,
+            dtype=self.amp_dtype,
+            device_type="cuda",
         ):
             loss, batch_output = self.compute_train_forward(batch_data)
 
@@ -1145,44 +1334,20 @@ class TorchTrainerBase:
     def _clip_grad_norm(
         self,
         model: nn.Module,
-        optim: torch.optim.Optimizer,
         grad_clip: float,
         grad_clip_norm: Union[int, float, str],
     ) -> float:
         """
         Clips the gradients of the model parameters to prevent exploding gradients.
 
-        Handles gradient clipping differently depending on the distributed training
-        setup:
-            - Standard DDP and non-DDP use `torch.nn.utils.clip_grad_norm_`.
-            - For FairScale OSS or FSDP, it uses their specific clipping APIs.
-
         Args:
             model (nn.Module): The model whose gradients will be clipped.
-            optim (torch.optim.Optimizer): The optimizer (used for OSS clipping).
             grad_clip (float): Maximum gradient norm. If <= 0, clipping is skipped.
             grad_clip_norm (float or str): Type of norm (e.g., 1, 2, 'inf').
 
         Returns:
             float: The total norm of the parameters (before clipping).
         """
-        if self.ddp:
-            if self.ddp_type == DDPType.DDP:
-                grad_norm = nn.utils.clip_grad_norm_(
-                    model.parameters(), grad_clip, norm_type=grad_clip_norm
-                )
-                return grad_norm.item()
-            if self.ddp_type == DDPType.FULLY_SHARDED_DDP:
-                # we have to use the member function in FullyShardedDDP class
-                grad_norm = model.clip_grad_norm_(grad_clip, norm_type=grad_clip_norm)
-                return grad_norm.item()
-            else:
-                # not sure about this but it looks like
-                # we have to use the member function in the OSS optimizer wrapper
-                grad_norm = optim.clip_grad_norm(grad_clip, norm_type=grad_clip_norm)
-                return grad_norm.item()
-
-        # if no DDP clip normally
         grad_norm = nn.utils.clip_grad_norm_(
             model.parameters(), grad_clip, norm_type=grad_clip_norm
         )
@@ -1220,7 +1385,7 @@ class TorchTrainerBase:
         """
         grad_scaler.unscale_(optimizer)
         grad_clip = 30000 if grad_clip <= 0 else grad_clip
-        grad_norm = self._clip_grad_norm(model, optimizer, grad_clip, grad_clip_norm)
+        grad_norm = self._clip_grad_norm(model, grad_clip, grad_clip_norm)
         grad_scaler.step(optimizer)
         optimizer.zero_grad()
         return grad_norm
@@ -1251,7 +1416,6 @@ class TorchTrainerBase:
         self,
         optim: Union[torch.optim.Optimizer, Dict[str, Any]],
         model: TorchModel,
-        oss: bool = False,
     ) -> torch.optim.Optimizer:
         """
         Creates an optimizer instance for the given model.
@@ -1259,7 +1423,6 @@ class TorchTrainerBase:
         Args:
             optim (Union[torch.optim.Optimizer, dict]): Either an instantiated optimizer or a config dictionary.
             model (nn.Module): The model whose parameters will be optimized.
-            oss (bool): Whether to use OSS (Optimizer State Sharding) for memory efficiency.
 
         Returns:
             torch.optim.Optimizer: The created optimizer.
@@ -1269,7 +1432,6 @@ class TorchTrainerBase:
 
         assert isinstance(optim, dict)
         opt_args = OF.filter_args(**optim)
-        opt_args["oss"] = oss
         if self.rank == 0:
             logging.info("optimizer args={}".format(opt_args))
 
@@ -1502,15 +1664,21 @@ class TorchTrainerBase:
             Dict[str, Any]: The full checkpoint dictionary.
         """
         model.train()
-        if self.ddp and (
-            self.ddp_type == DDPType.OSS_DDP or self.ddp_type == DDPType.OSS_SHARDED_DDP
-        ):
-            # Not sure what this does, just copying from the example in
-            # https://github.com/facebookresearch/fairscale/blob/master/benchmarks/oss.py
-            # Check the checkpointing in the case of the OSS optimizer
-            # Memory usage could spill over from there
-            optimizer = cast(OSS, optimizer)
-            optimizer.consolidate_state_dict()
+        if self._is_fsdp_module(model):
+            dict_options = StateDictOptions(
+                full_state_dict=True,
+                cpu_offload=True,
+            )
+            model_state_dict = get_model_state_dict(
+                model,
+                options=dict_options,
+            )
+            optimizer_state_dict = get_optimizer_state_dict(
+                model=model, optimizers=optimizer, options=dict_options
+            )
+        else:
+            model_state_dict = model.state_dict()
+            optimizer_state_dict = optimizer.state_dict()
 
         checkpoint = {
             "epoch": self.cur_epoch,
@@ -1518,8 +1686,8 @@ class TorchTrainerBase:
             "step": self.cur_step,
             "rng_state": torch.get_rng_state(),
             "model_cfg": model.get_config(),
-            "model_state_dict": model.state_dict(),
-            "optimizer_state_dict": optimizer.state_dict(),
+            "model_state_dict": model_state_dict,
+            "optimizer_state_dict": optimizer_state_dict,
         }
         if lr_scheduler is not None:
             checkpoint["lr_scheduler_state_dict"] = lr_scheduler.state_dict()
@@ -1695,7 +1863,6 @@ class TorchTrainerBase:
             swa_model (Optional[TorchModel]): SWA model instance, if applicable.
             swa_scheduler (Optional[SWALR]): SWA scheduler instance, if applicable.
         """
-
         if not self.ddp:
             try:
                 model.load_state_dict(checkpoint["model_state_dict"])
@@ -1705,13 +1872,31 @@ class TorchTrainerBase:
                     for k, v in checkpoint["model_state_dict"].items()
                 }
                 model.load_state_dict(state_dict)
-        else:
+        elif self.ddp_type == DDPType.DDP:
             try:
                 model.load_state_dict(checkpoint["model_state_dict"])
             except (RuntimeError, AttributeError):
                 model.module.load_state_dict(checkpoint["model_state_dict"])
+        else:
+            set_model_state_dict(
+                model,
+                options=StateDictOptions(
+                    full_state_dict=True,
+                    broadcast_from_rank0=True,
+                ),
+            )
 
         if optimizer is not None:
+            if self.ddp and self.ddp_type == DDPType.FSDP:
+                set_optimizer_state_dict(
+                    model=model,
+                    optimizers=optimizer,
+                    optim_state_dict=checkpoint["optimizer_state_dict"],
+                    options=StateDictOptions(
+                        full_state_dict=True,
+                        broadcast_from_rank0=True,
+                    ),
+                )
             optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
         if lr_scheduler is not None:
@@ -1783,7 +1968,9 @@ class TorchTrainerBase:
             step,
         )
         logging.info("loading %s from %s", model_name, file_path)
-        return torch.load(file_path, map_location=torch.device("cpu"))
+        return torch.load(
+            file_path, mmap=True, map_location=torch.device("cpu"), weights_only=False
+        )
 
     def load_checkpoint(self, epoch: int, step: int) -> Optional[Dict[str, Any]]:
         """
@@ -1988,13 +2175,63 @@ class TorchTrainerBase:
             "--ddp-type",
             default="ddp",
             choices=DDPType.choices(),
-            help="Type of distributed training backend to use.",
+            help="Distributed backend: standard DDP or torch FSDP sharded/full.",
         )
         add_argument(
-            "--cpu-offload",
+            "--fsdp-cpu-offload",
             action=ActionYesNo,
             default=False,
-            help="Whether to offload gradients to CPU during training (used in FSDP).",
+            help="Whether to offload parameters to CPU during training (used in FSDP).",
+        )
+        add_argument(
+            "--fsdp-reshard-after-forward",
+            default=None,
+            help=(
+                "Control FSDP2 resharding after forward (None=default child=True/root=False, "
+                "True/False override, int=reshard to smaller world size)."
+            ),
+        )
+        add_argument(
+            "--fsdp-state-dict-type",
+            default="full",
+            choices=["full", "sharded", "local"],
+            help="State dict format to use for saving/loading FSDP models.",
+        )
+        add_argument(
+            "--fsdp-state-dict-cpu-offload",
+            action=ActionYesNo,
+            default=True,
+            help="Offload FSDP state dicts to CPU when saving/loading.",
+        )
+        add_argument(
+            "--fsdp-state-dict-rank0-only",
+            action=ActionYesNo,
+            default=True,
+            help="Gather full FSDP state dict only on rank 0.",
+        )
+        add_argument(
+            "--fsdp-sync-module-states",
+            action=ActionYesNo,
+            default=False,
+            help="Synchronize module states before the first FSDP forward pass.",
+        )
+        add_argument(
+            "--fsdp-mp-param-dtype",
+            default=None,
+            choices=FSDPMPDType.choices(),
+            help="Override FSDP mixed-precision param dtype (default uses amp-dtype when AMP is enabled). Use 'none' to disable.",
+        )
+        add_argument(
+            "--fsdp-mp-reduce-dtype",
+            default=None,
+            choices=FSDPMPDType.choices(),
+            help="Override FSDP mixed-precision reduce dtype (default uses amp-dtype when AMP is enabled). Use 'none' to disable.",
+        )
+        add_argument(
+            "--fsdp-mp-output-dtype",
+            default=None,
+            choices=FSDPMPDType.choices(),
+            help="Override FSDP mixed-precision output dtype (default uses amp-dtype when AMP is enabled). Use 'none' to disable.",
         )
         add_argument(
             "--use-amp",

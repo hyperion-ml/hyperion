@@ -10,7 +10,7 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
-from ..utils import ClassInfo, HypDataset, RecordingSet, SegmentSet
+from ..utils import ClassInfo, HyperDataset, RecordingSet, SegmentSet
 from ..utils.misc import PathLike
 from .data_prep import DataPrep
 
@@ -117,7 +117,7 @@ class MSPPodcastDataPrep(DataPrep):
 
         speakers = ClassInfo(pd.DataFrame({"id": df["speaker"].unique()}))
 
-        dataset = HypDataset(
+        dataset = HyperDataset(
             segments=segments,
             recordings=recs,
             classes={"speaker": speakers},

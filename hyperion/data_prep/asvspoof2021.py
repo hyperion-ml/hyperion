@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 from jsonargparse import ActionYesNo, ArgumentParser
 
-from ..utils import ClassInfo, HypDataset, RecordingSet, SegmentSet
+from ..utils import ClassInfo, HyperDataset, RecordingSet, SegmentSet
 from ..utils.misc import PathLike, urlretrieve_progress
 from .data_prep import DataPrep
 
@@ -436,7 +436,7 @@ class ASVSpoof2021DataPrep(DataPrep):
             trials = None
 
         logging.info("making dataset")
-        dataset = HypDataset(
+        dataset = HyperDataset(
             segments,
             classes=classes,
             recordings=recs,

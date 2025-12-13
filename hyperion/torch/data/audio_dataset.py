@@ -28,7 +28,7 @@ from torch.utils.data import Dataset
 from ...io import RandomAccessAudioReader as AR
 from ...np.augment import SpeechAugment
 from ...np.preprocessing import ResamplerToTargetFreq
-from ...utils import ClassInfo, HypDataset, PathLike, SegmentSet
+from ...utils import ClassInfo, HyperDataset, PathLike, SegmentSet
 from ...utils.misc import filter_func_args
 from ...utils.text import read_text
 from ..tokenizers import HypTokenizer
@@ -101,7 +101,7 @@ class AudioDataset(Dataset):
         if rank == 0:
             logging.info("loading dataset %s", dataset_path)
 
-        self.dataset = HypDataset.load(dataset_path)
+        self.dataset = HyperDataset.load(dataset_path)
 
         self.rank = rank
         self.world_size = world_size

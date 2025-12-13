@@ -39,6 +39,8 @@ subcommand_list = [
     "add_columns",
     "replace_columns",
     "average_results",
+    "harmonize_columns_by_majority_vote",
+    "harmonize_columns_by_average",
     "histogram",
     "scatter2d",
     "scatter3d",
@@ -594,6 +596,128 @@ def average_results(
     output_dir.mkdir(parents=True, exist_ok=True)
     output_table.reset_index(inplace=True)
     output_table.to_csv(output_file, sep=sep, index=False, float_format="{:.4f}".format)
+
+
+def make_harmonize_columns_by_majority_vote_parser():
+    """Build parser for harmonizing categorical columns via majority vote."""
+    parser = ArgumentParser()
+    parser.add_argument(
+        "--cfg", action=ActionConfigFile, help="configuration file in YAML format"
+    )
+    parser.add_argument("--input-file", required=True, help="input table file")
+    parser.add_argument(
+        "--voter-columns",
+        required=True,
+        nargs="+",
+        help="columns that define the group for voting",
+    )
+    parser.add_argument(
+        "--target-columns",
+        required=True,
+        nargs="+",
+        help="columns to harmonize using majority vote",
+    )
+    parser.add_argument(
+        "--output-file",
+        default=None,
+        help="""output table file, If None, it overwrites input""",
+    )
+
+    add_common_args(parser)
+    return parser
+
+
+def harmonize_columns_by_majority_vote(
+    table_type: str,
+    input_file: PathLike,
+    voter_columns: List[str],
+    target_columns: List[str],
+    output_file: Optional[PathLike] = None,
+):
+    """Harmonize categorical columns so each group agrees via majority vote."""
+    input_file = Path(input_file)
+    if output_file is None:
+        bk_file = input_file.with_suffix(input_file.suffix + ".bk")
+        if not bk_file.is_file():
+            import shutil
+
+            shutil.copy2(input_file, bk_file)
+        output_file = input_file
+
+    logging.info(
+        "Harmonizing columns %s by majority vote grouped by %s from %s into %s",
+        target_columns,
+        voter_columns,
+        input_file,
+        output_file,
+    )
+    table_class = table_dict[table_type]
+    table = table_class.load(input_file)
+    table.harmonize_columns_by_majority_vote(
+        voter_columns=voter_columns, target_columns=target_columns
+    )
+    table.save(output_file)
+
+
+def make_harmonize_columns_by_average_parser():
+    """Build parser for harmonizing numeric columns via averaging."""
+    parser = ArgumentParser()
+    parser.add_argument(
+        "--cfg", action=ActionConfigFile, help="configuration file in YAML format"
+    )
+    parser.add_argument("--input-file", required=True, help="input table file")
+    parser.add_argument(
+        "--voter-columns",
+        required=True,
+        nargs="+",
+        help="columns that define the group for averaging",
+    )
+    parser.add_argument(
+        "--target-columns",
+        required=True,
+        nargs="+",
+        help="numeric columns to harmonize via mean",
+    )
+    parser.add_argument(
+        "--output-file",
+        default=None,
+        help="""output table file, If None, it overwrites input""",
+    )
+
+    add_common_args(parser)
+    return parser
+
+
+def harmonize_columns_by_average(
+    table_type: str,
+    input_file: PathLike,
+    voter_columns: List[str],
+    target_columns: List[str],
+    output_file: Optional[PathLike] = None,
+):
+    """Harmonize numeric columns so each group shares the same mean value."""
+    input_file = Path(input_file)
+    if output_file is None:
+        bk_file = input_file.with_suffix(input_file.suffix + ".bk")
+        if not bk_file.is_file():
+            import shutil
+
+            shutil.copy2(input_file, bk_file)
+        output_file = input_file
+
+    logging.info(
+        "Harmonizing columns %s by averaging grouped by %s from %s into %s",
+        target_columns,
+        voter_columns,
+        input_file,
+        output_file,
+    )
+    table_class = table_dict[table_type]
+    table = table_class.load(input_file)
+    table.harmonize_columns_by_average(
+        voter_columns=voter_columns, target_columns=target_columns
+    )
+    table.save(output_file)
 
 
 def make_histogram_parser():

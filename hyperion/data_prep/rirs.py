@@ -13,7 +13,7 @@ import pandas as pd
 from jsonargparse import ActionYesNo
 from tqdm import tqdm
 
-from ..utils import HypDataset, RecordingSet, SegmentSet
+from ..utils import HyperDataset, RecordingSet, SegmentSet
 from ..utils.misc import PathLike, urlretrieve_progress
 from .data_prep import DataPrep
 
@@ -76,7 +76,7 @@ class RIRSDataPrep(DataPrep):
         - Loads file list from rir_list or recursively finds all .wav files
         - Extracts durations
         - Builds SegmentSet and RecordingSet
-        - Saves a HypDataset to the output directory
+        - Saves a HyperDataset to the output directory
         """
         logging.info(
             "Peparing RIRS corpus_dir:%s -> data_dir:%s",
@@ -135,7 +135,7 @@ class RIRSDataPrep(DataPrep):
         segments = SegmentSet(segments)
         segments.sort()
         logging.info("making dataset")
-        dataset = HypDataset(
+        dataset = HyperDataset(
             segments,
             recordings=recs,
         )
