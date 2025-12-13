@@ -13,7 +13,7 @@ import pandas as pd
 import soundfile as sf
 from jsonargparse import ActionYesNo, ArgumentParser
 
-from ..utils import ClassInfo, HypDataset, RecordingSet, SegmentSet
+from ..utils import ClassInfo, HyperDataset, RecordingSet, SegmentSet
 from ..utils.misc import PathLike
 from .hf_dataset import HFDatasetDataPrep
 
@@ -106,7 +106,7 @@ class FakeCodecDataPrep(HFDatasetDataPrep):
 
     def _prepare_from_meta(self, df_meta: pd.DataFrame) -> None:
         """
-        Converts metadata into HypDataset format (segments, recordings, class infos).
+        Converts metadata into HyperDataset format (segments, recordings, class infos).
 
         Args:
             df_meta (pd.DataFrame): DataFrame with metadata extracted from HF.
@@ -151,7 +151,7 @@ class FakeCodecDataPrep(HFDatasetDataPrep):
         }
 
         logging.info("making dataset")
-        dataset = HypDataset(
+        dataset = HyperDataset(
             segments,
             classes=classes,
             recordings=recordings,

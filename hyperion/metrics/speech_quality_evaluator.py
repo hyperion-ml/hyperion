@@ -152,6 +152,7 @@ class SpeechQualityEvaluator:
             while not reader.eof():
                 seg_data = reader.read(1)
                 segment_id, x, fs = seg_data[0][0], seg_data[1][0], seg_data[2][0]
+                logging.info("Processing segment %s", segment_id)
                 if self.use_whisper:
                     whisper_result = whisper(x, fs)
                     hyp = text_normalizer(whisper_result["text"])
@@ -230,6 +231,7 @@ class SpeechQualityEvaluator:
                 stats[k] = v
 
         if self.use_utmos:
+            logging.info("Predicting UTMOS scores")
             segment_ids, mos_pred = utmos()
             segments.loc[segment_ids, "utmos"] = mos_pred
 

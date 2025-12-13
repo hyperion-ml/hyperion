@@ -39,7 +39,7 @@ class XVectorAdvTrainerFromWav(XVectorTrainerFromWav):
       loggers: LoggerList object, loggers write training progress to std. output and file.
                If None, it uses default loggers.
       ddp: if True use distributed data parallel training
-      ddp_type: type of distributed data parallel in  (ddp, oss_ddp, oss_shared_ddp)
+      ddp_type: distributed data parallel backend (only standard PyTorch DDP)
       loss: if None, it uses cross-entropy
       train_mode: training mode in ['train', 'ft-full', 'ft-last-layer']
       use_amp: uses mixed precision training.
@@ -53,7 +53,6 @@ class XVectorAdvTrainerFromWav(XVectorTrainerFromWav):
       swa_lr: SWA learning rate
       swa_anneal_epochs: SWA learning rate anneal epochs
       save_interval_steps: number of steps between model saves, if None only saves at the end of the epoch
-      cpu_offload: CPU offload of gradients when using fully sharded ddp
       input_key: dict. key for nnet input.
       target_key: dict. key for nnet targets.
     """
@@ -92,7 +91,6 @@ class XVectorAdvTrainerFromWav(XVectorTrainerFromWav):
         swa_lr=1e-3,
         swa_anneal_epochs=10,
         save_interval_steps=None,
-        cpu_offload=False,
         input_key="x",
         target_key="class_id",
     ):

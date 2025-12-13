@@ -104,7 +104,6 @@ class StreamingDAC(TorchModel):
         self.input_sample_freq = input_sample_freq
 
         self.hop_length = self.encoder.stride
-        self.delay = self.get_delay()
         self.norm_input_loudness = norm_input_loudness
         self.target_input_lufs = target_input_lufs
         if norm_input_loudness:
@@ -114,6 +113,8 @@ class StreamingDAC(TorchModel):
 
         self.alignment_look_ahead = alignment_look_ahead
         self.register_buffer("vq_is_valid", torch.zeros(1, dtype=torch.bool))
+
+        self.delay = self.get_delay()
 
     def change_config(
         self,
@@ -211,10 +212,13 @@ class StreamingDAC(TorchModel):
 
     def get_delay(self):
         """Effective algorithmic delay (samples) introduced by encoder+decoder."""
-        l_in = self.frame_length * 2
-        l_out = self.max_out_length(l_in)
-        print(l_in, l_out, flush=True)
-        return (l_in - l_out) // 2
+        return self.alignment_look_ahead
+
+    @torch.no_grad()
+    def update_quantizer_hyperparams(self, global_step: int):
+        """Update any internal quantizer parameters, e.g., for annealing."""
+        if self.vq_is_valid.item():
+            self.quantizer.update_hyperparams(global_step)
 
     @torch.no_grad()
     def get_target_matching_output(
@@ -241,7 +245,14 @@ class StreamingDAC(TorchModel):
         if self.norm_input_loudness:
             audios = self.loudness_norm(audios)
 
+        if self.alignment_look_ahead > 0:
+            audios = torch.nn.functional.pad(
+                audios, (self.alignment_look_ahead, 0), mode="constant", value=0.0
+            )
+            audio_lengths = audio_lengths + self.alignment_look_ahead
+
         audios = self.encoder.preprocess(audios)
+        return audios, audio_lengths
 
         if self.alignment_look_ahead > 0:
             audios = audios[..., : -self.alignment_look_ahead]
@@ -265,7 +276,6 @@ class StreamingDAC(TorchModel):
         x: torch.Tensor,
         x_lengths: Optional[torch.Tensor] = None,
         num_quantizers: Optional[int] = None,
-        pad_left: bool = True,
     ) -> VectorQuantizerOutput:
         """Encode waveform and quantize latents.
 
@@ -280,8 +290,13 @@ class StreamingDAC(TorchModel):
         if self.norm_input_loudness:
             x, input_lufs = self.loudness_norm(x, return_input_lufs=True)
 
-        if pad_left:
-            x = torch.nn.functional.pad(x, (self.delay, 0), mode="constant", value=0.0)
+        if self.delay > 0:
+            x = torch.nn.functional.pad(
+                x,
+                (0, self.alignment_look_ahead),
+                mode="constant",
+                value=0.0,
+            )
             if x_lengths is not None:
                 x_lengths = x_lengths + self.delay
 
@@ -346,7 +361,9 @@ class StreamingDAC(TorchModel):
             DACOutput with reconstructed waveform and VQ info.
         """
         vq_output = self.encode(
-            x, x_lengths, num_quantizers=num_quantizers, pad_left=pad_left
+            x,
+            x_lengths,
+            num_quantizers=num_quantizers,
         )
         x_recons = self.decode(vq_output.z_q, vq_output.z_lengths)
         x_recons_lengths = scale_seq_lengths(x_lengths, x_recons.shape[1], x.shape[1])
@@ -534,6 +551,12 @@ class StreamingDAC(TorchModel):
             default=-16.0,
             help="Target loudness level in LUFS for input loudness normalization.",
         )
+        parser.add_argument(
+            "--alignment-look-ahead",
+            type=int,
+            default=0,
+            help="Number of look-ahead samples to add for alignment purposes.",
+        )
 
         if prefix is not None:
             outer_parser.add_argument("--" + prefix, action=ActionParser(parser=parser))
@@ -628,10 +651,43 @@ def stream_dac_demo(
     ).to(device=device, dtype=dtype)
     model.set_train_mode(DACTrainMode.NO_VQ)
 
+    from .dac import DAC
+
+    print("hola")
+    model_dac = DAC(
+        encoder=enc_cfg,
+        quantizer={
+            "in_feats": init_inner_channels,
+            "num_groups": 1,
+            "num_quantizers": 1,
+            "codebook_sizes": 2,
+            "channels_last": True,
+        },
+        decoder=dec_cfg,
+        input_sample_freq=16000,
+    ).to(device=device, dtype=dtype)
+    model_dac.set_train_mode(DACTrainMode.NO_VQ)
+
     x_full = torch.randn(B, T, device=device, dtype=dtype)
     out_ref = model(x_full, pad_left=False)
     y_ref = out_ref.x_recons
     zq_ref = out_ref.vq.z_q
+
+    out_ref_dac = model_dac(x_full)
+    y_ref_dac = out_ref_dac.x_recons
+    zq_ref_dac = out_ref_dac.vq.z_q
+    print(f"x_length={x_full.size(-1)}")
+    print(f"dac frame_shift={model_dac.frame_shift}")
+    print(f"streaming dac frame_shift={model.frame_shift}")
+    print(
+        f"{model_dac.max_out_length(x_full.size(-1))}, {model.max_out_length(x_full.size(-1))}"
+    )
+    print(
+        f"{model_dac.encoder.max_out_length(x_full.size(-1))}, {model.encoder.max_out_length(x_full.size(-1))}"
+    )
+    print(f"dac y_length={y_ref_dac.size(-1)} stream_dac y_length={y_ref.size(-1)}")
+    print(f"dac z_length={zq_ref_dac.size(1)} stream_dac z_length={zq_ref.size(1)}")
+    print(f"dac delay={model_dac.delay} stream_dac delay={model.delay}", flush=True)
 
     state = model.init_state(B, device=device, dtype=dtype)
     outs = []

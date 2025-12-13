@@ -39,7 +39,7 @@ from ..torch_model import TorchModel
 from ..utils.misc import rand_slice_audio_segments, slice_segments
 from ..wd_schedulers import WDScheduler as WDS
 from ..wd_schedulers import WDSchedulerFactory as WDSF
-from .torch_trainer_base import AMPDType, DDPType, TorchTrainerBase
+from .torch_trainer_base import AMPDType, DDPType, FSDPMPDType, TorchTrainerBase
 
 
 class FreeVCTrainer(TorchTrainerBase):
@@ -76,10 +76,15 @@ class FreeVCTrainer(TorchTrainerBase):
         device (torch.device or int, optional): Device to run training on (e.g. 'cuda:0').
         loggers (LoggerList): Logger interface for training output (e.g., console, file, TensorBoard).
         ddp (bool): Whether to use Distributed Data Parallel (DDP) training.
-        ddp_type (DDPType): Type of DDP implementation to use (standard, OSS, Sharded, FullySharded).
-        cpu_offload (bool): Whether to offload parameters/gradients to CPU in FullyShardedDDP.
+        ddp_type (DDPType): Type of DDP implementation to use (standard DDP or torch FSDP2).
+        fsdp_reshard_after_forward (bool|int|None): FSDP2 reshard policy after forward.
+        fsdp_mp_param_dtype (FSDPMPDType|None): FSDP2 mixed-precision parameter dtype.
+        fsdp_mp_reduce_dtype (FSDPMPDType|None): FSDP2 mixed-precision reduction dtype.
+        fsdp_mp_output_dtype (FSDPMPDType|None): FSDP2 mixed-precision output dtype.
+        fsdp_cpu_offload (bool): Whether to offload parameters/gradients to CPU in FSDP2.
         use_amp (bool): Enables mixed-precision training using AMP (Automatic Mixed Precision).
         amp_dtype (AMPDType): Data type for AMP (float16 or bfloat16).
+        bf16_grad_scaler (bool): Enable GradScaler when using bfloat16.
         log_interval (int): Number of steps between log output (for loggers).
         log_gpu_usage (bool): Whether to log GPU usage (memory, utilization) during training.
         use_tensorboard (bool): Enables TensorBoard logger.
@@ -129,9 +134,14 @@ class FreeVCTrainer(TorchTrainerBase):
         loggers: Optional[LoggerList] = None,
         ddp: bool = False,
         ddp_type: DDPType = DDPType.DDP,
-        cpu_offload: bool = False,
+        fsdp_reshard_after_forward: Optional[Union[bool, int]] = None,
+        fsdp_mp_param_dtype: Optional[FSDPMPDType] = None,
+        fsdp_mp_reduce_dtype: Optional[FSDPMPDType] = None,
+        fsdp_mp_output_dtype: Optional[FSDPMPDType] = None,
+        fsdp_cpu_offload: bool = False,
         use_amp: bool = False,
         amp_dtype: AMPDType = AMPDType.FLOAT16,
+        bf16_grad_scaler: bool = False,
         log_interval: int = 1000,
         log_gpu_usage: bool = False,
         use_tensorboard: bool = False,
@@ -213,14 +223,17 @@ class FreeVCTrainer(TorchTrainerBase):
             self.vc_optim,
             self.vc_lrsched,
             self.vc_wdsched,
-            self.device,
-            self.use_amp,
-            self.ddp,
-            self.ddp_type,
-            self.cpu_offload,
-            self.do_swa,
-            self.swa_lr,
-            self.swa_anneal_steps,
+            device=self.device,
+            ddp=self.ddp,
+            ddp_type=self.ddp_type,
+            fsdp_cpu_offload=self.fsdp_cpu_offload,
+            fsdp_reshard_after_forward=self.fsdp_reshard_after_forward,
+            fsdp_mp_param_dtype=self.fsdp_mp_param_dtype,
+            fsdp_mp_reduce_dtype=self.fsdp_mp_reduce_dtype,
+            fsdp_mp_output_dtype=self.fsdp_mp_output_dtype,
+            do_swa=self.do_swa,
+            swa_lr=self.swa_lr,
+            swa_anneal_steps=self.swa_anneal_steps,
         )
         (
             self.discrim_model,
@@ -234,12 +247,9 @@ class FreeVCTrainer(TorchTrainerBase):
             self.discrim_optim,
             self.discrim_lrsched,
             self.discrim_wdsched,
-            self.device,
-            self.use_amp,
-            self.ddp,
-            self.ddp_type,
-            self.cpu_offload,
-            False,
+            device=self.device,
+            ddp=self.ddp,
+            ddp_type=DDPType.DDP,
         )
         self.grad_scaler = self.get_grad_scaler()
 
@@ -691,17 +701,6 @@ class FreeVCTrainer(TorchTrainerBase):
         Args:
             logs (Optional[Dict[str, Any]]): Logging metrics to include in the checkpoint.
         """
-        if self.ddp and (
-            self.ddp_type == DDPType.OSS_DDP or self.ddp_type == DDPType.OSS_SHARDED_DDP
-        ):
-            # Not sure what this does, just copying from the example in
-            # https://github.com/facebookresearch/fairscale/blob/master/benchmarks/oss.py
-            # Check the checkpointing in the case of the OSS optimizer
-            # Memory usage could spill over from there
-            # optimizer = cast(OSS, optimizer)
-            self.vc_optimizer.consolidate_state_dict()
-            self.discrim_optimizer.consolidate_state_dict()
-
         if self.rank != 0:
             return
 

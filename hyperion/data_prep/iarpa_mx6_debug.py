@@ -16,7 +16,7 @@ from jsonargparse import ActionYesNo
 from ..utils import (
     ClassInfo,
     EnrollmentMap,
-    HypDataset,
+    HyperDataset,
     RecordingSet,
     SegmentSet,
     TrialKey,
@@ -241,7 +241,7 @@ class IARPAMixer6DebugDataPrep(DataPrep):
         - Reads and cleans metadata
         - Builds recording and segment tables
         - Creates class labels and optional trial/enrollment files
-        - Outputs a complete HypDataset
+        - Outputs a complete HyperDataset
         """
         logging.info(
             "Peparing IARPA Mixer 6 Debug %s corpus_dir: %s -> data_dir: %s",
@@ -266,7 +266,7 @@ class IARPAMixer6DebugDataPrep(DataPrep):
             enrollments = None
 
         logging.info("making dataset")
-        dataset = HypDataset(
+        dataset = HyperDataset(
             segments,
             classes,
             recordings=recs,

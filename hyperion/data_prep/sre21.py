@@ -16,7 +16,7 @@ from tqdm import tqdm
 from ..utils import (
     ClassInfo,
     EnrollmentMap,
-    HypDataset,
+    HyperDataset,
     ImageSet,
     RecordingSet,
     SegmentSet,
@@ -92,7 +92,7 @@ class SourceTrialCond(str, Enum):
 
 class SRE21DataPrep(DataPrep):
     """
-    Prepares the SRE21 Audio/Visual dataset into structured tables (HypDataset).
+    Prepares the SRE21 Audio/Visual dataset into structured tables (HyperDataset).
 
     Handles segment partitioning, Kaldi-ID formatting, audio/video/image manifest building,
     trial filtering, and class info extraction for multiple modalities and splits.
@@ -595,7 +595,7 @@ class SRE21DataPrep(DataPrep):
         - Filters by partition and modality
         - Builds segment/recording/image/video sets
         - Generates enrollment maps and trials
-        - Saves HypDataset to output_dir
+        - Saves HyperDataset to output_dir
         """
         logging.info(
             "Peparing SRE21 %s %s %s corpus_dir: %s -> data_dir: %s",
@@ -632,7 +632,7 @@ class SRE21DataPrep(DataPrep):
         segments = SegmentSet(df_segs)
 
         logging.info("making dataset")
-        dataset = HypDataset(
+        dataset = HyperDataset(
             segments,
             classes,
             recordings=recs,

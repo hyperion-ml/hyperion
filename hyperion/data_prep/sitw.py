@@ -4,14 +4,14 @@ from typing import Dict, Optional
 
 import pandas as pd
 
-from ..utils import ClassInfo, EnrollmentMap, HypDataset, RecordingSet, SegmentSet
+from ..utils import ClassInfo, EnrollmentMap, HyperDataset, RecordingSet, SegmentSet
 from ..utils.misc import PathLike
 from .data_prep import DataPrep
 
 
 class SITWDataPrep(DataPrep):
     """
-    Prepares the Speakers in the Wild (SITW) dataset into HypDataset format.
+    Prepares the Speakers in the Wild (SITW) dataset into HyperDataset format.
 
     Supports preparation of either the enrollment or test partitions,
     reading segments, recordings, trials, and class info.
@@ -158,7 +158,7 @@ class SITWDataPrep(DataPrep):
         )
         trials = self.make_trials(df) if self.partition == "test" else None
 
-        dataset = HypDataset(
+        dataset = HyperDataset(
             segments=segments,
             recordings=recs,
             classes=classes,

@@ -15,7 +15,7 @@ import pandas as pd
 from jsonargparse import ActionYesNo
 from tqdm import tqdm
 
-from ..utils import ClassInfo, HypDataset, RecordingSet, SegmentSet
+from ..utils import ClassInfo, HyperDataset, RecordingSet, SegmentSet
 from ..utils.misc import PathLike, urlretrieve_progress
 from .data_prep import DataPrep
 
@@ -152,7 +152,7 @@ class VoxSRC22DataPrep(DataPrep):
         segments.sort()
 
         logging.info("making dataset")
-        dataset = HypDataset(
+        dataset = HyperDataset(
             segments,
             recordings=recs,
             enrollments=enrollments,

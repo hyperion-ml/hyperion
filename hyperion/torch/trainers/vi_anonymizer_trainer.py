@@ -42,7 +42,7 @@ from ..utils.misc import rand_slice_audio_segments, slice_segments
 from ..wd_schedulers import WDScheduler as WDS
 from ..wd_schedulers import WDSchedulerFactory as WDSF
 from .freevc_trainer import FreeVCTrainer
-from .torch_trainer_base import AMPDType, DDPType, TorchTrainerBase
+from .torch_trainer_base import AMPDType, DDPType, FSDPMPDType, TorchTrainerBase
 
 
 class VIAnonymizerTrainer(FreeVCTrainer):
@@ -79,10 +79,15 @@ class VIAnonymizerTrainer(FreeVCTrainer):
         device (torch.device or int, optional): Device to run training on (e.g. 'cuda:0').
         loggers (LoggerList): Logger interface for training output (e.g., console, file, TensorBoard).
         ddp (bool): Whether to use Distributed Data Parallel (DDP) training.
-        ddp_type (DDPType): Type of DDP implementation to use (standard, OSS, Sharded, FullySharded).
-        cpu_offload (bool): Whether to offload parameters/gradients to CPU in FullyShardedDDP.
+        ddp_type (DDPType): Type of DDP implementation to use (standard DDP or torch FSDP2).
+        fsdp_reshard_after_forward (bool|int|None): FSDP2 reshard policy after forward.
+        fsdp_mp_param_dtype (FSDPMPDType|None): FSDP2 mixed-precision parameter dtype.
+        fsdp_mp_reduce_dtype (FSDPMPDType|None): FSDP2 mixed-precision reduction dtype.
+        fsdp_mp_output_dtype (FSDPMPDType|None): FSDP2 mixed-precision output dtype.
+        fsdp_cpu_offload (bool): Whether to offload parameters/gradients to CPU in FSDP2.
         use_amp (bool): Enables mixed-precision training using AMP (Automatic Mixed Precision).
         amp_dtype (AMPDType): Data type for AMP (float16 or bfloat16).
+        bf16_grad_scaler (bool): Enable GradScaler when using bfloat16.
         log_interval (int): Number of steps between log output (for loggers).
         log_gpu_usage (bool): Whether to log GPU usage (memory, utilization) during training.
         use_tensorboard (bool): Enables TensorBoard logger.
@@ -136,9 +141,14 @@ class VIAnonymizerTrainer(FreeVCTrainer):
         loggers: Optional[LoggerList] = None,
         ddp: bool = False,
         ddp_type: DDPType = DDPType.DDP,
-        cpu_offload: bool = False,
+        fsdp_reshard_after_forward: Optional[Union[bool, int]] = None,
+        fsdp_mp_param_dtype: Optional[FSDPMPDType] = None,
+        fsdp_mp_reduce_dtype: Optional[FSDPMPDType] = None,
+        fsdp_mp_output_dtype: Optional[FSDPMPDType] = None,
+        fsdp_cpu_offload: bool = False,
         use_amp: bool = False,
         amp_dtype: AMPDType = AMPDType.FLOAT16,
+        bf16_grad_scaler: bool = False,
         log_interval: int = 1000,
         log_gpu_usage: bool = False,
         use_tensorboard: bool = False,
@@ -1310,144 +1320,6 @@ class VIAnonymizerTrainer(FreeVCTrainer):
         self.cur_val_log_samples += num_log_samples
 
         return batch_size, batch_metrics
-
-    # def update_models(self):
-    #     """Steps optimizers and schedulers for both generator and discriminator.
-
-    #     Also clips gradients and returns logs for gradient norms.
-
-    #     Returns:
-    #         Dict[str, float]: Gradient norm logs.
-    #     """
-
-    #     for sch in [self.vc_lr_scheduler, self.discrim_lr_scheduler]:
-    #         if sch is not None and not self.in_swa:
-    #             sch.on_opt_step()
-
-    #     for sch in [self.vc_wd_scheduler, self.discrim_wd_scheduler]:
-    #         if sch is not None:
-    #             sch.on_opt_step()
-
-    #     vc_grad_norm = self._update_model_by_optim(
-    #         self.vc_model,
-    #         self.vc_optimizer,
-    #         self.grad_clip,
-    #         self.grad_clip_norm,
-    #         self.use_amp,
-    #         self.grad_scaler,
-    #     )
-    #     discrim_grad_norm = self._update_model_by_optim(
-    #         self.discrim_model,
-    #         self.discrim_optimizer,
-    #         self.grad_clip,
-    #         self.grad_clip_norm,
-    #         self.use_amp,
-    #         self.grad_scaler,
-    #     )
-    #     self.grad_scaler.update()
-
-    #     logs = {"grad_norm/vc": vc_grad_norm, "grad_norm/discrim": discrim_grad_norm}
-    #     return logs
-
-    # def save_checkpoint(self, logs=None):
-    #     """Saves current training state to disk, including both models and optionally SWA.
-
-    #     Args:
-    #         logs (Optional[Dict[str, Any]]): Logging metrics to include in the checkpoint.
-    #     """
-    #     if self.ddp and (
-    #         self.ddp_type == DDPType.OSS_DDP or self.ddp_type == DDPType.OSS_SHARDED_DDP
-    #     ):
-    #         # Not sure what this does, just copying from the example in
-    #         # https://github.com/facebookresearch/fairscale/blob/master/benchmarks/oss.py
-    #         # Check the checkpointing in the case of the OSS optimizer
-    #         # Memory usage could spill over from there
-    #         # optimizer = cast(OSS, optimizer)
-    #         self.vc_optimizer.consolidate_state_dict()
-    #         self.discrim_optimizer.consolidate_state_dict()
-
-    #     if self.rank != 0:
-    #         return
-
-    #     checkpoint = self.model_checkpoint(
-    #         self.vc_model,
-    #         self.vc_optimizer,
-    #         self.vc_lr_scheduler,
-    #         self.vc_wd_scheduler,
-    #         self.swa_vc_model,
-    #         self.swa_vc_scheduler,
-    #         logs=logs,
-    #     )
-
-    #     self.save_model_checkpoint_to_file("vc_model", checkpoint)
-
-    #     checkpoint = self.model_checkpoint(
-    #         self.discrim_model,
-    #         self.discrim_optimizer,
-    #         self.discrim_lr_scheduler,
-    #         self.discrim_wd_scheduler,
-    #         logs=logs,
-    #     )
-
-    #     self.save_model_checkpoint_to_file("discrim_model", checkpoint)
-
-    # def save_swa_model(self, logs=None):
-    #     """Saves the final SWA-averaged generator model to disk.
-
-    #     Args:
-    #         logs (Optional[Dict[str, Any]]): Logging metrics to include in the checkpoint.
-    #     """
-    #     if self.rank != 0:
-    #         return
-
-    #     checkpoint = self.checkpoint(
-    #         self.vc_model,
-    #         self.vc_optimizer,
-    #         self.vc_lr_scheduler,
-    #         self.vc_wd_scheduler,
-    #         self.swa_vc_model,
-    #         self.swa_vc_scheduler,
-    #         logs=logs,
-    #     )
-    #     checkpoint["model_state_dict"] = checkpoint["swa_model_state_dict"]
-    #     del checkpoint["swa_model_state_dict"]
-    #     file_path = "%s/swa_vc_model_ep%04d_%010d.pth" % (
-    #         self.exp_path,
-    #         self.cur_epoch,
-    #         self.cur_step,
-    #     )
-    #     torch.save(checkpoint, file_path)
-
-    # def load_checkpoint(self, epoch, step):
-    #     """Loads training state from checkpoint files for both generator and discriminator.
-
-    #     Args:
-    #         epoch (int): Epoch number of checkpoint.
-    #         step (int): Step number of checkpoint.
-
-    #     Returns:
-    #         Optional[Dict[str, Any]]: Logs saved with the checkpoint, if any.
-    #     """
-    #     checkpoint = self.load_model_checkpoint_from_file("vc_model", epoch, step)
-    #     logs = self._load_vars_from_checkpoint(checkpoint)
-    #     self._load_model_state_dicts_from_checkpoint(
-    #         checkpoint,
-    #         self.vc_model,
-    #         self.vc_optimizer,
-    #         self.vc_lr_scheduler,
-    #         self.vc_wd_scheduler,
-    #         self.swa_vc_model,
-    #         self.swa_vc_scheduler,
-    #     )
-    #     checkpoint = self.load_model_checkpoint_from_file("discrim_model", epoch, step)
-    #     self._load_model_state_dicts_from_checkpoint(
-    #         checkpoint,
-    #         self.discrim_model,
-    #         self.discrim_optimizer,
-    #         self.discrim_lr_scheduler,
-    #         self.discrim_wd_scheduler,
-    #     )
-    #     return logs
 
     @staticmethod
     def filter_args(**kwargs):

@@ -15,7 +15,7 @@ import pandas as pd
 from jsonargparse import ActionYesNo, ArgumentParser
 from tqdm import tqdm
 
-from ..utils import ClassInfo, HypDataset, RecordingSet, SegmentSet
+from ..utils import ClassInfo, HyperDataset, RecordingSet, SegmentSet
 from ..utils.misc import PathLike, urlretrieve_progress
 from .data_prep import DataPrep
 
@@ -414,7 +414,7 @@ class VoxCeleb1DataPrep(DataPrep):
             )
 
         logging.info("making dataset")
-        dataset = HypDataset(
+        dataset = HyperDataset(
             segments,
             classes={"speaker": speakers, "language_est": languages, "gender": genders},
             recordings=recs,

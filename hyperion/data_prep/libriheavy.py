@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 from jsonargparse import ArgumentParser
 
-from ..utils import ClassInfo, HypDataset, ParallelFileFinder, RecordingSet, SegmentSet
+from ..utils import ClassInfo, HyperDataset, ParallelFileFinder, RecordingSet, SegmentSet
 from ..utils.misc import PathLike
 from .data_prep import DataPrep
 
@@ -283,7 +283,7 @@ class LibriHeavyDataPrep(DataPrep):
         }
 
         logging.info("making dataset")
-        dataset = HypDataset(
+        dataset = HyperDataset(
             segments,
             classes=classes,
             recordings=recs,

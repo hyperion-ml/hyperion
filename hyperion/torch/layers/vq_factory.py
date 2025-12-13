@@ -170,15 +170,15 @@ class VectorQuantizerFactory:
                 "--reset-unused",
                 action=ActionYesNo,
                 default=False,
-                help="Whether to reset unused codebook entries",
+                help="Whether to reset codebook entries whose EMA usage drops below the threshold",
             )
 
-        if "reset_unused_steps" not in skip:
+        if "ema_usage_threshold" not in skip:
             parser.add_argument(
-                "--reset-unused-steps",
-                type=int,
-                default=100,
-                help="Number of consecutive batches a codeword can remain unused before being reset",
+                "--ema-usage-threshold",
+                type=float,
+                default=1.0,
+                help="EMA usage level below which a codebook entry is considered unused and reset",
             )
 
         if "temp_init" not in skip:

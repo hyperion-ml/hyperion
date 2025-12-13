@@ -6,7 +6,7 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
-from ..utils import ClassInfo, HypDataset, RecordingSet, SegmentSet
+from ..utils import ClassInfo, HyperDataset, RecordingSet, SegmentSet
 from ..utils.misc import PathLike
 from .data_prep import DataPrep
 
@@ -92,7 +92,7 @@ class GigaSpeechDataPrep(DataPrep):
         - Filters audio and segments based on subset
         - Extracts recording durations
         - Builds SegmentSet, RecordingSet, and ClassInfo tables
-        - Saves HypDataset to the specified output directory
+        - Saves HyperDataset to the specified output directory
         """
         logging.info(
             "Preparing GigaSpeech subset=%s corpus_dir=%s -> output_dir=%s",
@@ -199,6 +199,6 @@ class GigaSpeechDataPrep(DataPrep):
         if category_ids:
             classes["category"] = ClassInfo(pd.DataFrame({"id": category_ids}))
 
-        dataset = HypDataset(segments=segments, recordings=recs, classes=classes)
+        dataset = HyperDataset(segments=segments, recordings=recs, classes=classes)
         dataset.save(self.output_dir)
         dataset.describe()

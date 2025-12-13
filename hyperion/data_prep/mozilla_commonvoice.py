@@ -11,7 +11,7 @@ from typing import Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from ..utils import ClassInfo, HypDataset, RecordingSet, SegmentSet
+from ..utils import ClassInfo, HyperDataset, RecordingSet, SegmentSet
 from ..utils.langcodes import dialect_to_alpha3, language_to_alpha2, language_to_alpha3
 from ..utils.misc import PathLike
 from .data_prep import DataPrep
@@ -186,7 +186,7 @@ class CommonVoiceDataPrep(DataPrep):
         """
         Executes the preparation for one or all languages.
 
-        Loads metadata, aligns it with audio, extracts durations, and saves a HypDataset
+        Loads metadata, aligns it with audio, extracts durations, and saves a HyperDataset
         for each selected language.
         """
         if self.language_alpha2 == "all":
@@ -384,7 +384,7 @@ class CommonVoiceDataPrep(DataPrep):
         output_path.mkdir(parents=True, exist_ok=True)
 
         logging.info(f"Saving dataset for {lang_alpha3} to {output_path}")
-        dataset = HypDataset(
+        dataset = HyperDataset(
             segments=segments,
             recordings=recs,
             classes=class_infos,

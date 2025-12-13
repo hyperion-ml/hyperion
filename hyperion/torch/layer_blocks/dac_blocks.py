@@ -347,15 +347,15 @@ class StreamingDACResBlock(nn.Module):
 
     def max_out_length(self, in_length: int) -> int:
         """Max output length for a single example given input length ``in_length``."""
-        kernel_size = self.layers[1].kernel_size[0]
-        dilation = self.layers[1].dilation[0]
-        return in_length - (kernel_size - 1) * dilation
+        # kernel_size = self.layers[1].kernel_size[0]
+        # dilation = self.layers[1].dilation[0]
+        return in_length  # - (kernel_size - 1) * dilation
 
     def out_lengths(self, in_lengths: torch.Tensor) -> torch.Tensor:
         """Vectorized version of :meth:`max_out_length` for a batch of input lengths."""
-        kernel_size = self.layers[1].kernel_size[0]
-        dilation = self.layers[1].dilation[0]
-        return in_lengths - (kernel_size - 1) * dilation
+        # kernel_size = self.layers[1].kernel_size[0]
+        # dilation = self.layers[1].dilation[0]
+        return in_lengths  # - (kernel_size - 1) * dilation
 
     @torch.no_grad()
     def init_state(
@@ -519,12 +519,13 @@ class StreamingDACEncoderBlock(nn.Module):
 
     def max_out_length(self, in_length: int) -> int:
         """Max output length for a single example given input length ``in_length``."""
-        for block in self.blocks[:-2]:
-            in_length = block.max_out_length(in_length)
+        # for block in self.blocks[:-2]:
+        #     in_length = block.max_out_length(in_length)
 
         stride = self.stride
         kernel_size = 2 * stride
-        return (in_length - kernel_size) // stride + 1
+        # return (in_length - kernel_size) // stride + 1
+        return (in_length - 1) // stride + 1
 
     def out_lengths(self, in_lengths: torch.Tensor) -> torch.Tensor:
         """Vectorized version of :meth:`max_out_length` for a batch of input lengths."""

@@ -35,4 +35,4 @@ nvidia-ml-py>=11.0.0,<14.0.0
 onnxruntime>=1.16.3,<1.19
 intervaltree>=3.1.0
 sortedcontainers>=2.4,<3.0
-fairscale==0.4.4
+

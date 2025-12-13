@@ -12,7 +12,6 @@ from typing import Dict, List, Optional, Tuple, Type, Union
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from fairscale.nn.model_parallel.layers import ColumnParallelLinear
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ...utils.hyp_dataclass import HypDataClass
@@ -29,6 +28,7 @@ from ..layer_blocks.transformer_v2 import (
 )
 from ..layers import RotaryPosEncoder
 from ..layers.attention_v2 import ScaledDotProdAttV2
+from ..layers.tensor_parallel import ColumnParallelLinear
 from ..utils import scale_seq_lengths, seq_lengths_to_mask
 from .net_arch import NetArch
 
@@ -1074,7 +1074,7 @@ class TransformerEncoderV2(NetArch):
             "--model-parallel",
             default=False,
             action=ActionYesNo,
-            help="train with model parallel using fairscale tools",
+            help="train with model parallel using external tools (no built-in support)",
         )
 
         parser.add_argument(

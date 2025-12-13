@@ -8,7 +8,7 @@ from .diarization_set import DiarizationSet
 from .enrollment_map import EnrollmentMap
 from .feature_set import FeatureSet
 from .hyp_dataclass import HypDataClass
-from .hyp_dataset import HypDataset
+from .hyp_dataset import HypDataset, HyperDataset
 from .image_set import ImageSet
 from .info_table import InfoTable
 from .kaldi_matrix import KaldiCompressedMatrix, KaldiMatrix

@@ -33,7 +33,7 @@ from ..torch_model import TorchModel
 from ..utils.misc import rand_slice_audio_segments, slice_segments
 from ..wd_schedulers import WDScheduler as WDS
 from ..wd_schedulers import WDSchedulerFactory as WDSF
-from .torch_trainer_base import AMPDType, DDPType, TorchTrainerBase
+from .torch_trainer_base import AMPDType, DDPType, FSDPMPDType, TorchTrainerBase
 
 
 class DACTrainer(TorchTrainerBase):
@@ -68,10 +68,15 @@ class DACTrainer(TorchTrainerBase):
         device (torch.device or int, optional): Device to run training on (e.g. 'cuda:0').
         loggers (LoggerList): Logger interface for training output (e.g., console, file, TensorBoard).
         ddp (bool): Whether to use Distributed Data Parallel (DDP) training.
-        ddp_type (DDPType): Type of DDP implementation to use (standard, OSS, Sharded, FullySharded).
-        cpu_offload (bool): Whether to offload parameters/gradients to CPU in FullyShardedDDP.
+        ddp_type (DDPType): Type of DDP implementation to use (standard DDP or torch FSDP2).
+        fsdp_reshard_after_forward (bool|int|None): FSDP2 reshard policy after forward.
+        fsdp_mp_param_dtype (FSDPMPDType|None): FSDP2 mixed-precision parameter dtype.
+        fsdp_mp_reduce_dtype (FSDPMPDType|None): FSDP2 mixed-precision reduction dtype.
+        fsdp_mp_output_dtype (FSDPMPDType|None): FSDP2 mixed-precision output dtype.
+        fsdp_cpu_offload (bool): Whether to offload parameters/gradients to CPU in FSDP2.
         use_amp (bool): Enables mixed-precision training using AMP (Automatic Mixed Precision).
         amp_dtype (AMPDType): Data type for AMP (float16 or bfloat16).
+        bf16_grad_scaler (bool): Enable GradScaler when using bfloat16.
         log_interval (int): Number of steps between log output (for loggers).
         log_gpu_usage (bool): Whether to log GPU usage (memory, utilization) during training.
         use_tensorboard (bool): Enables TensorBoard logger.
@@ -93,6 +98,8 @@ class DACTrainer(TorchTrainerBase):
         loss_fm_weight: Weight for feature matching loss.
         gen_segment_duration: Duration in seconds for VC generation segments.
         num_val_log_samples: Max number of samples to log during validation.
+        context_trim_fraction: Fraction of receptive-field context removed from
+            both ends before computing losses (0.0 keeps current behavior).
     """
 
     def __init__(
@@ -121,9 +128,14 @@ class DACTrainer(TorchTrainerBase):
         loggers: Optional[LoggerList] = None,
         ddp: bool = False,
         ddp_type: DDPType = DDPType.DDP,
-        cpu_offload: bool = False,
+        fsdp_reshard_after_forward: Optional[Union[bool, int]] = None,
+        fsdp_mp_param_dtype: Optional[FSDPMPDType] = None,
+        fsdp_mp_reduce_dtype: Optional[FSDPMPDType] = None,
+        fsdp_mp_output_dtype: Optional[FSDPMPDType] = None,
+        fsdp_cpu_offload: bool = False,
         use_amp: bool = False,
         amp_dtype: AMPDType = AMPDType.FLOAT16,
+        bf16_grad_scaler: bool = False,
         log_interval: int = 1000,
         log_gpu_usage: bool = False,
         use_tensorboard: bool = False,
@@ -143,7 +155,10 @@ class DACTrainer(TorchTrainerBase):
         loss_fm_weight: float = 1.0,
         loss_codebook_weight: float = 1.0,
         loss_commitment_weight: float = 0.25,
+        loss_orthogonality_weight: float = 0.0,
+        loss_diversity_weight: float = 0.0,
         gen_adv_losses_warmup_steps: int = 0,
+        context_trim_fraction: float = 0.0,
         # gen_segment_duration: float = 0.64,
         num_val_log_samples: int = 10,
     ):
@@ -169,11 +184,25 @@ class DACTrainer(TorchTrainerBase):
         self.loss_fm_weight = loss_fm_weight
         self.loss_codebook_weight = loss_codebook_weight
         self.loss_commitment_weight = loss_commitment_weight
+        self.loss_orthogonality_weight = loss_orthogonality_weight
+        self.loss_diversity_weight = loss_diversity_weight
         # self.gen_segment_duration = gen_segment_duration
         self.num_val_log_samples = num_val_log_samples
         self.cur_val_log_samples = 0
         self.discrim_grad_clip = discrim_grad_clip
         self.gen_adv_losses_warmup_steps = gen_adv_losses_warmup_steps
+        self.context_trim_fraction = context_trim_fraction
+        if self.context_trim_fraction > 0.0:
+            lc, rc = self.dac_model.in_context()
+            self._left_contest_trim = int(lc * self.context_trim_fraction)
+            self._right_contest_trim = int(rc * self.context_trim_fraction)
+            logging.info(
+                f"Trimming {self._left_contest_trim} samples from left and "
+                f"{self._right_contest_trim} samples from right for context."
+            )
+        else:
+            self._left_contest_trim = 0
+            self._right_contest_trim = 0
 
         self.set_train_mode()
         self.prepare_models_for_training()
@@ -208,14 +237,17 @@ class DACTrainer(TorchTrainerBase):
             self.dac_optim,
             self.dac_lrsched,
             self.dac_wdsched,
-            self.device,
-            self.use_amp,
-            self.ddp,
-            self.ddp_type,
-            self.cpu_offload,
-            self.do_swa,
-            self.swa_lr,
-            self.swa_anneal_steps,
+            device=self.device,
+            ddp=self.ddp,
+            ddp_type=self.ddp_type,
+            fsdp_cpu_offload=self.fsdp_cpu_offload,
+            fsdp_reshard_after_forward=self.fsdp_reshard_after_forward,
+            fsdp_mp_param_dtype=self.fsdp_mp_param_dtype,
+            fsdp_mp_reduce_dtype=self.fsdp_mp_reduce_dtype,
+            fsdp_mp_output_dtype=self.fsdp_mp_output_dtype,
+            do_swa=self.do_swa,
+            swa_lr=self.swa_lr,
+            swa_anneal_steps=self.swa_anneal_steps,
         )
         (
             self.discrim_model,
@@ -229,12 +261,9 @@ class DACTrainer(TorchTrainerBase):
             self.discrim_optim,
             self.discrim_lrsched,
             self.discrim_wdsched,
-            self.device,
-            self.use_amp,
-            self.ddp,
-            self.ddp_type,
-            self.cpu_offload,
-            False,
+            device=self.device,
+            ddp=self.ddp,
+            ddp_type=DDPType.DDP,
         )
         self.grad_scaler = self.get_grad_scaler(self.use_amp, self.ddp, self.ddp_type)
 
@@ -330,6 +359,31 @@ class DACTrainer(TorchTrainerBase):
     def preprocess_val_data(self, batch_data):
         return self.preprocess_train_data(batch_data)
 
+    def trim_audios(
+        self,
+        audios: torch.Tensor,
+        audio_lengths: Optional[torch.Tensor] = None,
+    ):
+        """Matches output and target lengths by trimming context if needed.
+
+        Args:
+            recons_audios (Tensor): Model outputs.
+            target_audios (Tensor): Target audio.
+
+        Returns:
+            Tuple[Tensor, Tensor]: Matched outputs and targets.
+        """
+        if self.context_trim_fraction > 0.0:
+            audios = audios[
+                ...,
+                self._left_contest_trim : audios.size(-1) - self._right_contest_trim,
+            ]
+            if audio_lengths is not None:
+                audio_lengths = audio_lengths - self._left_contest_trim
+                audio_lengths = torch.clamp(audio_lengths, min=0, max=audios.size(-1))
+
+        return audios, audio_lengths
+
     def training_step(
         self, batch_idx: int, batch_data: Dict[str, Any]
     ) -> Tuple[int, Dict[str, Any]]:
@@ -364,6 +418,12 @@ class DACTrainer(TorchTrainerBase):
                 target_audios,
                 target_lengths,
             )
+            max_recons_length = target_audios.size(-1)
+            target_audios, target_lengths = self.trim_audios(
+                target_audios,
+                target_lengths,
+            )
+
             # tl2 = target_audios.size(-1)
 
         # il1 = input_audios.size(1)
@@ -396,10 +456,15 @@ class DACTrainer(TorchTrainerBase):
             #     self.dac_model.encoder.out_lengths(torch.tensor([32000])).item(),
             #     flush=True,
             # )
+            # print("dac_output lengths:", dac_output.x_recons.size(-1), flush=True)
+            x_recons, _ = self.trim_audios(
+                dac_output.x_recons[..., :max_recons_length],
+            )
+            # print("x_recons lengths after trimming:", x_recons.size(-1), flush=True)
             y_real, _ = self.discrim_model(
                 target_audios,
             )
-            y_gen, _ = self.discrim_model(dac_output.x_recons.detach())
+            y_gen, _ = self.discrim_model(x_recons.detach())
 
         loss_discrim, losses_discrim_adv_gen, losses_discrim_adv_real = (
             self.discrim_adv_loss(y_gen, y_real)
@@ -415,15 +480,17 @@ class DACTrainer(TorchTrainerBase):
             enabled=self.use_amp, dtype=self.amp_dtype, device_type="cuda"
         ):
             y_real, fmaps_real = self.discrim_model(target_audios)
-            y_gen, fmaps_gen = self.discrim_model(dac_output.x_recons)
+            y_gen, fmaps_gen = self.discrim_model(x_recons)
 
         loss_gen_adv, losses_gen_adv = self.gen_adv_loss(y_gen)
         loss_fm = self.feat_matching_loss(fmaps_gen, fmaps_real)
         loss_mrfb_log_mag, loss_mrfb_conv = self.mrfb_loss(
-            dac_output.x_recons.squeeze(1), target_audios
+            x_recons.squeeze(1), target_audios
         )
         loss_codebook = dac_output.vq.codebook_loss
         loss_commitment = dac_output.vq.commitment_loss
+        loss_orthogonality = dac_output.vq.orthogonality_loss
+        loss_diversity = dac_output.vq.diversity_loss
         ppl = dac_output.vq.perplexity.mean().detach().item()
         if self.cur_step < self.gen_adv_losses_warmup_steps:
             loss_gen_adv_weight = self.cur_step / self.gen_adv_losses_warmup_steps
@@ -437,6 +504,16 @@ class DACTrainer(TorchTrainerBase):
             + self.loss_codebook_weight * loss_codebook
             + self.loss_commitment_weight * loss_commitment
         ) / self.grad_acc_steps
+        if self.loss_orthogonality_weight > 0 and loss_orthogonality is not None:
+            loss_gen = loss_gen + (
+                self.loss_orthogonality_weight
+                * loss_orthogonality
+                / self.grad_acc_steps
+            )
+        if self.loss_diversity_weight > 0 and loss_diversity is not None:
+            loss_gen = loss_gen + (
+                self.loss_diversity_weight * loss_diversity / self.grad_acc_steps
+            )
 
         self.grad_scaler.scale(loss_gen).backward()
 
@@ -449,6 +526,11 @@ class DACTrainer(TorchTrainerBase):
         batch_metrics["loss_gen/adv"] = loss_gen_adv.item()
         batch_metrics["loss_gen/codebook"] = loss_codebook.item()
         batch_metrics["loss_gen/commitment"] = loss_commitment.item()
+        if loss_orthogonality is not None:
+            batch_metrics["loss_gen/orthogonality"] = loss_orthogonality.item()
+        if loss_diversity is not None:
+            batch_metrics["loss_gen/diversity"] = loss_diversity.item()
+
         batch_metrics["loss_gen/ppl_avg"] = ppl
         for i, loss in enumerate(losses_discrim_adv_gen):
             batch_metrics[f"loss_discrim_adv_gen/{i}"] = loss
@@ -489,6 +571,11 @@ class DACTrainer(TorchTrainerBase):
             target_audios,
             target_lengths,
         )
+        max_recons_length = target_audios.size(-1)
+        target_audios, target_lengths = self.trim_audios(
+            target_audios,
+            target_lengths,
+        )
         # target_audios_sliced, slice_start_idxs = rand_slice_audio_segments(
         #     target_audios,
         #     target_lengths,
@@ -503,9 +590,11 @@ class DACTrainer(TorchTrainerBase):
                 x=input_audios,
                 x_lengths=input_lengths,
             )
-
+            x_recons, _ = self.trim_audios(
+                dac_output.x_recons[..., :max_recons_length],
+            )
             y_real, fmaps_real = self.discrim_model(target_audios)
-            y_gen, fmaps_gen = self.discrim_model(dac_output.x_recons)
+            y_gen, fmaps_gen = self.discrim_model(x_recons)
 
         loss_discrim, losses_discrim_adv_gen, losses_discrim_adv_real = (
             self.discrim_adv_loss(y_gen, y_real)
@@ -513,10 +602,13 @@ class DACTrainer(TorchTrainerBase):
         loss_gen_adv, losses_gen_adv = self.gen_adv_loss(y_gen)
         loss_fm = self.feat_matching_loss(fmaps_gen, fmaps_real)
         loss_mrfb_log_mag, loss_mrfb_conv = self.mrfb_loss(
-            dac_output.x_recons.squeeze(1), target_audios
+            x_recons.squeeze(1), target_audios
         )
         loss_codebook = dac_output.vq.codebook_loss
         loss_commitment = dac_output.vq.commitment_loss
+        loss_orthogonality = dac_output.vq.orthogonality_loss
+        loss_diversity = dac_output.vq.diversity_loss
+
         ppl = dac_output.vq.perplexity.mean().item()
         if self.cur_step < self.gen_adv_losses_warmup_steps:
             loss_gen_adv_weight = self.cur_step / self.gen_adv_losses_warmup_steps
@@ -531,6 +623,10 @@ class DACTrainer(TorchTrainerBase):
             + self.loss_codebook_weight * loss_codebook
             + self.loss_commitment_weight * loss_commitment
         )
+        if self.loss_orthogonality_weight > 0 and loss_orthogonality is not None:
+            loss_gen = loss_gen + self.loss_orthogonality_weight * loss_orthogonality
+        if self.loss_diversity_weight > 0 and loss_diversity is not None:
+            loss_gen = loss_gen + self.loss_diversity_weight * loss_diversity
 
         batch_metrics = ODict()
         batch_metrics["loss_discrim/total"] = loss_discrim.item()
@@ -541,6 +637,12 @@ class DACTrainer(TorchTrainerBase):
         batch_metrics["loss_gen/adv"] = loss_gen_adv.item()
         batch_metrics["loss_gen/codebook"] = loss_codebook.item()
         batch_metrics["loss_gen/commitment"] = loss_commitment.item()
+        if loss_orthogonality is not None:
+            batch_metrics["loss_gen/orthogonality"] = loss_orthogonality.item()
+
+        if loss_diversity is not None:
+            batch_metrics["loss_gen/diversity"] = loss_diversity.item()
+
         batch_metrics["loss_gen/ppl_avg"] = ppl
         for i, loss in enumerate(losses_discrim_adv_gen):
             batch_metrics[f"loss_discrim_adv_gen/{i}"] = loss
@@ -566,7 +668,6 @@ class DACTrainer(TorchTrainerBase):
         # )
         for i in range(num_log_samples):
             _id = batch_data["id"][i]
-            print("vallog-sample", batch_idx, i, _id, flush=True)
             self.loggers.log_audio(
                 f"audios_target/{_id}",
                 target_audios[i],
@@ -669,17 +770,6 @@ class DACTrainer(TorchTrainerBase):
         Args:
             logs (Optional[Dict[str, Any]]): Logging metrics to include in the checkpoint.
         """
-        if self.ddp and (
-            self.ddp_type == DDPType.OSS_DDP or self.ddp_type == DDPType.OSS_SHARDED_DDP
-        ):
-            # Not sure what this does, just copying from the example in
-            # https://github.com/facebookresearch/fairscale/blob/master/benchmarks/oss.py
-            # Check the checkpointing in the case of the OSS optimizer
-            # Memory usage could spill over from there
-            # optimizer = cast(OSS, optimizer)
-            self.dac_optimizer.consolidate_state_dict()
-            self.discrim_optimizer.consolidate_state_dict()
-
         if self.rank != 0:
             return
 
@@ -901,6 +991,18 @@ class DACTrainer(TorchTrainerBase):
             help="Weight for the commitment loss.",
         )
         parser.add_argument(
+            "--loss-orthogonality-weight",
+            default=0.0,
+            type=float,
+            help="Weight for the orthogonality loss.",
+        )
+        parser.add_argument(
+            "--loss-diversity-weight",
+            default=0.0,
+            type=float,
+            help="Weight for the diversity loss.",
+        )
+        parser.add_argument(
             "--gen-adv-losses-warmup-steps",
             default=0,
             type=int,
@@ -936,6 +1038,15 @@ class DACTrainer(TorchTrainerBase):
             default=10,
             type=int,
             help="Number of samples to log during validation (audio + spectrogram).",
+        )
+        parser.add_argument(
+            "--context-trim-fraction",
+            default=0.0,
+            type=float,
+            help=(
+                "Fraction of receptive-field context to drop from both ends before "
+                "computing losses."
+            ),
         )
 
         if prefix is not None:

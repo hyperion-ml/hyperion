@@ -161,6 +161,7 @@ class DACDecoder(NetArch):
         max_out_length = max_in_length
         for block in self.blocks:
             max_out_length = block.max_out_length(max_out_length)
+
         return max_out_length
 
     def out_lengths(self, in_lengths: torch.Tensor) -> torch.Tensor:

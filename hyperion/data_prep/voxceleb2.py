@@ -15,7 +15,7 @@ import pandas as pd
 from jsonargparse import ActionYesNo, ArgumentParser
 from tqdm import tqdm
 
-from ..utils import ClassInfo, HypDataset, RecordingSet, SegmentSet
+from ..utils import ClassInfo, HyperDataset, RecordingSet, SegmentSet
 from ..utils.misc import PathLike, urlretrieve_progress
 from .data_prep import DataPrep
 
@@ -283,7 +283,7 @@ class VoxCeleb2DataPrep(DataPrep):
         - Computes durations
         - Creates RecordingSet and SegmentSet
         - Optionally adds enrichment metadata
-        - Saves HypDataset
+        - Saves HyperDataset
         """
         logging.info(
             "Peparing VoxCeleb2 %s corpus_dir:%s -> data_dir:%s",
@@ -408,7 +408,7 @@ class VoxCeleb2DataPrep(DataPrep):
             self._get_enrichment_metadata(segments, speakers)
 
         logging.info("making dataset")
-        dataset = HypDataset(
+        dataset = HyperDataset(
             segments,
             {"speaker": speakers, "language_est": languages, "gender": genders},
             recs,

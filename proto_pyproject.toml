@@ -62,7 +62,7 @@ gcc217 = [
 # Opt into newer ORT on modern OS (glibc >= 2.28)
 onnx-cpu-modern = ["onnxruntime>=1.18,<1.19"]
 
-fairscale = ["fairscale==0.4.4"]
+voxprofile = ["voxprofile @ git+https://github.com/hyperion-ml/vox-profile-release"]
 
 [project.urls]
 Homepage = "https://github.com/hyperion-ml/hyperion"

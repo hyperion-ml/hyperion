@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 from jsonargparse import ArgumentParser
 
-from ..utils import ClassInfo, HypDataset, RecordingSet, SegmentSet
+from ..utils import ClassInfo, HyperDataset, RecordingSet, SegmentSet
 from ..utils.misc import PathLike
 from .data_prep import DataPrep
 
@@ -244,7 +244,7 @@ class LibriTTS_R_DataPrep(DataPrep):
         - Reads metadata (speakers, books, chapters, transcripts)
         - Builds RecordingSet and SegmentSet
         - Maps metadata to recordings and segments
-        - Saves resulting HypDataset
+        - Saves resulting HyperDataset
         """
         logging.info(
             "Peparing LibriTTS-R %s corpus_dir:%s -> data_dir:%s",
@@ -333,7 +333,7 @@ class LibriTTS_R_DataPrep(DataPrep):
         }
 
         logging.info("making dataset")
-        dataset = HypDataset(
+        dataset = HyperDataset(
             segments,
             classes=classes,
             recordings=recs,

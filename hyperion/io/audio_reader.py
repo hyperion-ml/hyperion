@@ -20,7 +20,7 @@ from numpy.typing import NDArray
 
 from ..hyp_defs import float_cpu
 from ..np.preprocessing.resampler import Any2AnyFreqResampler
-from ..utils import HypDataset, PathLike, RecordingSet, SegmentSet
+from ..utils import HyperDataset, PathLike, RecordingSet, SegmentSet
 
 valid_ext = [
     ".wav",
@@ -50,13 +50,13 @@ valid_ext = [
 class AudioReader:
     """Read audio waveforms from wav, flac, pipe commands, and related formats.
 
-    This class receives either a :class:`HypDataset` or standalone
+    This class receives either a :class:`HyperDataset` or standalone
     :class:`RecordingSet` (with an optional :class:`SegmentSet`). When providing
     only a recordings table, the reader can use the accompanying segment table
     to extract specific time spans from each recording.
 
     Args:
-        dataset (Union[HypDataset, PathLike, None]): Dataset instance or path to
+        dataset (Union[HyperDataset, PathLike, None]): Dataset instance or path to
             a dataset file containing recordings and, optionally, segments.
         recordings (Union[RecordingSet, PathLike, None]): Recording table or path
             to a recordings file when ``dataset`` is ``None``.
@@ -92,7 +92,7 @@ class AudioReader:
 
     def __init__(
         self,
-        dataset: Union[HypDataset, PathLike, None] = None,
+        dataset: Union[HyperDataset, PathLike, None] = None,
         recordings: Union[RecordingSet, PathLike, None] = None,
         segments: Union[SegmentSet, PathLike, None] = None,
         wav_scale: float = 1.0,
@@ -109,8 +109,8 @@ class AudioReader:
         ), "if dataset is given, segments must be None"
 
         if dataset is not None:
-            if not isinstance(dataset, HypDataset):
-                dataset = HypDataset.load(dataset)
+            if not isinstance(dataset, HyperDataset):
+                dataset = HyperDataset.load(dataset)
 
             recordings = dataset.recordings(keep_loaded=False)
             segments = dataset.segments(keep_loaded=False)
@@ -693,7 +693,7 @@ class SequentialAudioReader(AudioReader):
     """Iterate through recordings or segments sequentially.
 
     Args:
-        dataset (Union[HypDataset, PathLike, None]): Dataset instance or path to
+        dataset (Union[HyperDataset, PathLike, None]): Dataset instance or path to
             a dataset file.
         recordings (Union[RecordingSet, PathLike, None]): Recording table or
             path to a recordings file when ``dataset`` is ``None``.
@@ -712,7 +712,7 @@ class SequentialAudioReader(AudioReader):
         return_all_channels (bool): If ``True`` returns every channel available.
 
     Attributes:
-        dataset (Optional[Union[HypDataset, PathLike]]): Dataset reference used
+        dataset (Optional[Union[HyperDataset, PathLike]]): Dataset reference used
             to initialize the reader, when applicable.
         recordings (RecordingSet): Table describing the recordings to load.
         segments (Optional[SegmentSet]): Table with segment definitions when the
@@ -732,7 +732,7 @@ class SequentialAudioReader(AudioReader):
 
     def __init__(
         self,
-        dataset: Union[HypDataset, PathLike, None] = None,
+        dataset: Union[HyperDataset, PathLike, None] = None,
         recordings: Union[RecordingSet, PathLike, None] = None,
         segments: Union[SegmentSet, PathLike, None] = None,
         wav_scale: float = 1.0,
@@ -967,7 +967,7 @@ class RandomAccessAudioReader(AudioReader):
     """Provide random access to recordings or segments on demand.
 
     Args:
-        dataset (Union[HypDataset, PathLike, None]): Dataset instance or path to
+        dataset (Union[HyperDataset, PathLike, None]): Dataset instance or path to
             a dataset file.
         recordings (Union[RecordingSet, PathLike, None]): Recording table or
             path to a recordings file when ``dataset`` is ``None``.
@@ -983,7 +983,7 @@ class RandomAccessAudioReader(AudioReader):
         return_all_channels (bool): If ``True`` returns every channel available.
 
     Attributes:
-        dataset (Optional[Union[HypDataset, PathLike]]): Dataset reference used
+        dataset (Optional[Union[HyperDataset, PathLike]]): Dataset reference used
             to initialize the reader, when applicable.
         recordings (RecordingSet): Table describing the recordings to load.
         segments (Optional[SegmentSet]): Table with segment definitions when the
@@ -999,7 +999,7 @@ class RandomAccessAudioReader(AudioReader):
 
     def __init__(
         self,
-        dataset: Union[HypDataset, PathLike, None] = None,
+        dataset: Union[HyperDataset, PathLike, None] = None,
         recordings: Union[RecordingSet, PathLike, None] = None,
         segments: Union[SegmentSet, PathLike, None] = None,
         wav_scale: float = 1.0,

@@ -22,7 +22,7 @@ from hyperion.np.augment import SpeechAugment
 from hyperion.np.preprocessing import ResamplerToTargetFreq
 from hyperion.torch import TorchModel
 from hyperion.torch.utils import open_device
-from hyperion.utils import HypDataset
+from hyperion.utils import HyperDataset
 
 
 def init_device(use_gpu: bool) -> torch.device:
@@ -161,7 +161,7 @@ def infer_qvectors(
     """Infer q-vectors (plus optional q-matrices/logits) from audio inputs.
 
     Args:
-        dataset_path: HypDataset manifest when reading recordings/segments jointly.
+        dataset_path: HyperDataset manifest when reading recordings/segments jointly.
         recordings_file: Kaldi-style recordings specifier when not using a dataset.
         segments_file: Optional segments specifier (only valid without ``dataset_path``).
         vad_name: Named VAD entry inside ``dataset_path`` to select automatic VAD.
@@ -238,7 +238,7 @@ def infer_qvectors(
             assert (
                 dataset_path is not None
             ), "When vad_name is provided, dataset_path must also be provided"
-            dataset = HypDataset.load(dataset_path)
+            dataset = HyperDataset.load(dataset_path)
             assert (
                 vad_name in dataset.vad_keys()
             ), f"VAD name {vad_name} not found in dataset"
@@ -390,7 +390,7 @@ def main() -> None:
     parser.add_argument(
         "--dataset-path",
         default=None,
-        help="HypDataset file describing recordings, segments, and optional VAD tables",
+        help="HyperDataset file describing recordings, segments, and optional VAD tables",
     )
     parser.add_argument(
         "--recordings-file",

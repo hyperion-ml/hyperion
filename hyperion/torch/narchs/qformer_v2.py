@@ -9,20 +9,20 @@ from typing import List, Optional, Set, Type, Union
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from fairscale.nn.model_parallel.layers import ColumnParallelLinear
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ...utils.misc import filter_func_args
 from ..layer_blocks.transformer_v2 import (
+    SDPBackendType,
     TransformerV2AttType,
     TransformerV2CrossAttBlock,
     TransformerV2FeedForwardType,
     TransformerV2NormLayerType,
     TransformerV2SelfAttBlock,
-    SDPBackendType,
 )
 from ..layers import RotaryPosEncoder
 from ..layers.attention_v2 import ScaledDotProdAttV2
+from ..layers.tensor_parallel import ColumnParallelLinear
 from ..utils import seq_lengths_to_cross_attn_mask
 from .net_arch import NetArch
 
@@ -68,7 +68,7 @@ class QFormerV2(NetArch):
                                         the nth group is concantenated to input of the nth cross-attention layer,
         use_layer_idx_encoder: add a learned embedding based on the source layer index for cross-attention inputs.
 
-        model_parallel: train with model parallel using fairscale tools
+        model_parallel: train with model parallel using external tools (no built-in support)
 
     """
 
@@ -866,7 +866,7 @@ class QFormerV2(NetArch):
             "--model-parallel",
             default=False,
             action=ActionYesNo,
-            help="train with model parallel using fairscale tools",
+            help="train with model parallel using external tools (no built-in support)",
         )
 
         if prefix is not None:

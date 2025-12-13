@@ -14,7 +14,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Type, TypeVar, Un
 import numpy as np
 import pandas as pd
 from pandas.api.extensions import ExtensionArray
-from pandas.api.types import infer_dtype
+from pandas.api.types import infer_dtype, is_numeric_dtype
 
 from .list_utils import split_list, split_list_group_by_key
 from .misc import PathLike
@@ -31,10 +31,20 @@ def _sanitize_dataframe_null_chars(df: pd.DataFrame) -> None:
     Args:
         df (pd.DataFrame): DataFrame to sanitize.
     """
+    if df.columns.has_duplicates:
+        dup_cols = df.columns[df.columns.duplicated()]
+        dup_labels = ", ".join(map(str, dup_cols))
+        raise ValueError(
+            "InfoTable contains duplicated column names, which is unsupported: "
+            f"{dup_labels}"
+        )
+
     nulls_found = False
 
-    for column in df.columns:
-        series = df[column]
+    for col_idx, column in enumerate(df.columns):
+        # Use positional indexing so that duplicate column names are handled
+        # one at a time and we always get a Series instead of a DataFrame.
+        series = df.iloc[:, col_idx]
         mask = series.map(
             lambda value: (isinstance(value, str) and "\x00" in value)
             or isinstance(value, (bytes, bytearray))
@@ -771,7 +781,6 @@ class InfoTable:
         """
         df_list = [table.df for table in tables]
         df = pd.concat(df_list)
-        print(df, df.loc[df["id"].duplicated(keep=False)])
         if not df["id"].is_unique:
             duplicated_ids = df.loc[df["id"].duplicated(keep=False), "id"].tolist()
             raise AssertionError(
@@ -1272,11 +1281,14 @@ class InfoTable:
             suffixes=(None, "_right"),
         )
 
+        # 'id' exists in every InfoTable, so merging with another table will
+        # produce an unnecessary 'id_right' copy when pandas applies suffixes.
+        if "id_right" in self.df.columns:
+            self.df.drop(columns=["id_right"], inplace=True)
+
         if ignore_overlapping:
             # Drop the extra right-side columns without touching existing data
             for col in right_table.columns:
-                if col == "id":
-                    continue
                 extra_col = f"{col}_right"
                 if extra_col in self.df.columns:
                     self.df.drop(columns=[extra_col], inplace=True)
@@ -1327,6 +1339,165 @@ class InfoTable:
                     self.df[column] = self.df[column].astype(dtype_right)
 
             self.df.loc[right_table.id, column] = right_table[column].astype(dtype)
+
+    def harmonize_columns_by_majority_vote(
+        self, voter_columns: Union[str, List[str]], target_columns: Union[str, List[str]]
+    ) -> None:
+        """
+        Force all rows sharing ``voter_columns`` to take the majority value on ``target_columns``.
+
+        Args:
+            voter_columns (Union[str, List[str]]): Column(s) that define the voting group (e.g., speaker).
+            target_columns (Union[str, List[str]]): Column or columns to harmonize via majority vote.
+
+        Raises:
+            KeyError: If the voter or target columns are missing.
+        """
+        if isinstance(voter_columns, str):
+            voter_columns = [voter_columns]
+
+        missing_voters = [col for col in voter_columns if col not in self.df.columns]
+        if missing_voters:
+            raise KeyError(
+                "Voting columns not found in table: " + ", ".join(map(str, missing_voters))
+            )
+
+        if isinstance(target_columns, str):
+            target_columns = [target_columns]
+
+        missing_columns = [col for col in target_columns if col not in self.df.columns]
+        if missing_columns:
+            raise KeyError(
+                "Columns not found in table: " + ", ".join(map(str, missing_columns))
+            )
+
+        def _majority_vote(series: pd.Series) -> Any:
+            votes = series.dropna()
+            if votes.empty:
+                return pd.NA
+            counts = votes.value_counts()
+            return counts.index[0]
+
+        valid_voters_mask = self.df[voter_columns].notna().all(axis=1)
+        if not valid_voters_mask.any():
+            return
+
+        valid_df = self.df.loc[valid_voters_mask]
+        grouped = valid_df.groupby(voter_columns, dropna=False, sort=False)
+        group_indices = grouped.groups
+
+        for column in target_columns:
+            majority_buffer = pd.Series(pd.NA, index=valid_df.index, dtype="object")
+            prob_column = f"{column}_prob" if f"{column}_prob" in self.df.columns else None
+            prob_buffer = (
+                pd.Series(np.nan, index=valid_df.index, dtype="float64")
+                if prob_column is not None
+                else None
+            )
+
+            for idx in group_indices.values():
+                group_series = valid_df.loc[idx, column]
+                winner = _majority_vote(group_series)
+                if pd.isna(winner):
+                    continue
+
+                majority_buffer.loc[idx] = winner
+
+                if prob_buffer is None:
+                    continue
+
+                group_probs = valid_df.loc[idx, prob_column]
+                winner_mask = group_series == winner
+                if not winner_mask.any():
+                    continue
+
+                winner_probs = group_probs[winner_mask]
+                winner_probs = pd.to_numeric(winner_probs, errors="coerce")
+                winner_probs = winner_probs.dropna()
+                winner_probs = winner_probs[winner_probs > 0]
+                if winner_probs.empty:
+                    continue
+
+                log_mean = np.log(winner_probs.astype(float)).mean()
+                prob_value = float(np.exp(log_mean))
+                prob_buffer.loc[idx] = prob_value
+
+            mask = majority_buffer.notna()
+            if mask.any():
+                values = majority_buffer[mask]
+                try:
+                    values = values.astype(self.df[column].dtype)
+                except (TypeError, ValueError):
+                    pass
+                self.df.loc[values.index, column] = values
+
+            if prob_buffer is not None:
+                prob_mask = prob_buffer.notna()
+                if prob_mask.any():
+                    prob_values = prob_buffer[prob_mask]
+                    try:
+                        prob_values = prob_values.astype(self.df[prob_column].dtype)
+                    except (TypeError, ValueError):
+                        pass
+                    self.df.loc[prob_values.index, prob_column] = prob_values
+
+    def harmonize_columns_by_average(
+        self, voter_columns: Union[str, List[str]], target_columns: Union[str, List[str]]
+    ) -> None:
+        """
+        Force all rows sharing ``voter_columns`` to take the average value on ``target_columns``.
+
+        Args:
+            voter_columns (Union[str, List[str]]): Column(s) that define the group used for averaging.
+            target_columns (Union[str, List[str]]): Numeric column(s) to harmonize via averaging.
+
+        Raises:
+            KeyError: If the voter or target columns are missing.
+            TypeError: If any target column is not numeric.
+        """
+        if isinstance(voter_columns, str):
+            voter_columns = [voter_columns]
+
+        missing_voters = [col for col in voter_columns if col not in self.df.columns]
+        if missing_voters:
+            raise KeyError(
+                "Voting columns not found in table: " + ", ".join(map(str, missing_voters))
+            )
+
+        if isinstance(target_columns, str):
+            target_columns = [target_columns]
+
+        missing_columns = [col for col in target_columns if col not in self.df.columns]
+        if missing_columns:
+            raise KeyError(
+                "Columns not found in table: " + ", ".join(map(str, missing_columns))
+            )
+
+        for column in target_columns:
+            if not is_numeric_dtype(self.df[column]):
+                raise TypeError(
+                    f"Column '{column}' must be numeric to harmonize by averaging."
+                )
+
+        valid_voters_mask = self.df[voter_columns].notna().all(axis=1)
+        if not valid_voters_mask.any():
+            return
+
+        grouped = self.df.loc[valid_voters_mask].groupby(voter_columns, dropna=False)
+        for column in target_columns:
+            averages = grouped[column].transform("mean")
+            mask = averages.notna()
+            if not mask.any():
+                continue
+
+            update_index = self.df.index[valid_voters_mask][mask]
+            averaged_values = averages[mask]
+            try:
+                averaged_values = averaged_values.astype(self.df[column].dtype)
+            except (TypeError, ValueError):
+                pass
+
+            self.df.loc[update_index, column] = averaged_values
 
     @classmethod
     def merge(

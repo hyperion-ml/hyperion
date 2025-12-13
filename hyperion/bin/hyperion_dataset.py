@@ -20,7 +20,7 @@ from hyperion.utils import (
     ClassInfo,
     EnrollmentMap,
     FeatureSet,
-    HypDataset,
+    HyperDataset,
     InfoTable,
     PathLike,
     RecordingSet,
@@ -35,6 +35,7 @@ subcommand_list = [
     "make_from_recordings",
     "from_recordings",
     "from_segments",
+    "add_classes_from_segments",
     "remove_short_segments",
     "rebuild_class_idx",
     "remove_classes_few_segments",
@@ -104,7 +105,7 @@ def add_features(
         output_dataset,
     )
 
-    dataset = HypDataset.load(dataset, lazy=True)
+    dataset = HyperDataset.load(dataset, lazy=True)
     dataset.add_features(features_name, features_file)
     dataset.save(output_dataset)
 
@@ -143,7 +144,7 @@ def add_vads(
         output_dataset,
     )
 
-    dataset = HypDataset.load(dataset, lazy=True)
+    dataset = HyperDataset.load(dataset, lazy=True)
     dataset.add_vads(vads_name, vads_file)
     dataset.save(output_dataset)
 
@@ -186,7 +187,7 @@ def add_diarizations(
         output_dataset,
     )
 
-    dataset = HypDataset.load(dataset, lazy=True)
+    dataset = HyperDataset.load(dataset, lazy=True)
     dataset.add_diarizations(diarizations_name, diarizations_file)
     dataset.save(output_dataset)
 
@@ -255,7 +256,7 @@ def set_recordings(
         dataset,
         output_dataset,
     )
-    dataset = HypDataset.load(dataset, lazy=True)
+    dataset = HyperDataset.load(dataset, lazy=True)
     dataset.set_recordings(recordings_file, update_seg_durs)
     if remove_features is not None:
         logging.info("removing features %s", str(remove_features))
@@ -295,7 +296,7 @@ def make_from_recordings(
 ):
     output_dataset = dataset
     logging.info("making dataset %s from recordings %s", dataset, recordings_file)
-    dataset = HypDataset.from_recordings(recordings_file)
+    dataset = HyperDataset.from_recordings(recordings_file)
     dataset.save(output_dataset)
 
 
@@ -319,7 +320,7 @@ def from_recordings(
 ):
     output_dataset = dataset
     logging.info("making dataset %s from recordings %s", dataset, recordings_file)
-    dataset = HypDataset.from_recordings(recordings_file)
+    dataset = HyperDataset.from_recordings(recordings_file)
     dataset.save(output_dataset)
 
 
@@ -349,7 +350,49 @@ def from_segments(
 ):
     output_dataset = dataset
     logging.info("making dataset %s from segments %s", dataset, segments_file)
-    dataset = HypDataset.from_segments(segments_file, recordings_file, class_names)
+    dataset = HyperDataset.from_segments(segments_file, recordings_file, class_names)
+    dataset.save(output_dataset)
+
+
+def make_add_classes_from_segments_parser():
+    parser = ArgumentParser()
+    parser.add_argument("--cfg", action=ActionConfigFile)
+    parser.add_argument(
+        "--dataset", required=True, help="""dataset dir or .yaml file"""
+    )
+    parser.add_argument(
+        "--class-names",
+        required=True,
+        nargs="+",
+        help="""segment columns to convert into class tables""",
+    )
+    parser.add_argument(
+        "--output-dataset",
+        default=None,
+        help="""output dataset dir, if None, we use the same as input""",
+    )
+
+    add_common_args(parser)
+    return parser
+
+
+def add_classes_from_segments(
+    dataset: PathLike,
+    class_names: List[str],
+    output_dataset: PathLike,
+):
+    if output_dataset is None:
+        output_dataset = dataset
+
+    logging.info(
+        "adding class info %s from segments: %s -> %s",
+        str(class_names),
+        dataset,
+        output_dataset,
+    )
+
+    dataset = HyperDataset.load(dataset, lazy=True)
+    dataset.add_classes_from_segments(class_names)
     dataset.save(output_dataset)
 
 
@@ -397,7 +440,7 @@ def remove_short_segments(
         dataset,
         output_dataset,
     )
-    dataset = HypDataset.load(dataset, lazy=True)
+    dataset = HyperDataset.load(dataset, lazy=True)
     dataset.remove_short_segments(min_length, length_name)
     dataset.save(output_dataset)
 
@@ -436,7 +479,7 @@ def rebuild_class_idx(
         output_dataset,
     )
 
-    dataset = HypDataset.load(dataset, lazy=True)
+    dataset = HyperDataset.load(dataset, lazy=True)
     dataset.rebuild_class_idx(class_name)
     dataset.save(output_dataset)
 
@@ -487,7 +530,7 @@ def remove_classes_few_segments(
         output_dataset,
     )
 
-    dataset = HypDataset.load(dataset, lazy=True)
+    dataset = HyperDataset.load(dataset, lazy=True)
     dataset.remove_classes_few_segments(class_name, min_segs, rebuild_idx)
     dataset.save(output_dataset)
 
@@ -542,7 +585,7 @@ def remove_classes_few_toomany_segments(
         dataset,
         output_dataset,
     )
-    dataset = HypDataset.load(dataset, lazy=True)
+    dataset = HyperDataset.load(dataset, lazy=True)
     dataset.remove_classes_few_toomany_segments(
         class_name, min_segs, max_segs, rebuild_idx
     )
@@ -602,7 +645,7 @@ def remove_class_ids(
         output_dataset,
     )
 
-    dataset = HypDataset.load(dataset, lazy=True)
+    dataset = HyperDataset.load(dataset, lazy=True)
     dataset.remove_class_ids(class_name, class_ids, remove_na, rebuild_idx)
     dataset.save(output_dataset)
 
@@ -676,7 +719,7 @@ def split_train_val(
         train_dataset,
         val_dataset,
     )
-    dataset = HypDataset.load(dataset, lazy=True)
+    dataset = HyperDataset.load(dataset, lazy=True)
     train_ds, val_ds = dataset.split_train_val(
         val_prob, joint_classes, disjoint_classes, min_train_samples, seed
     )
@@ -749,7 +792,7 @@ def split_folds(
         output_path,
     )
 
-    dataset = HypDataset.load(dataset, lazy=True)
+    dataset = HyperDataset.load(dataset, lazy=True)
     train_folds, test_folds = dataset.split_folds(
         num_folds, joint_classes, disjoint_classes, seed
     )
@@ -814,7 +857,7 @@ def filter_by_segments(
         output_dataset,
     )
     segments = SegmentSet.load(segments_file)
-    dataset = HypDataset.load(dataset, lazy=True)
+    dataset = HyperDataset.load(dataset, lazy=True)
     dataset.filter_by_segments(segments, rebuild_class_idx=rebuild_class_idx, keep=keep)
     dataset.save(output_dataset)
 
@@ -868,7 +911,7 @@ def filter_by_segments_predicate(
         predicate,
         output_dataset,
     )
-    dataset = HypDataset.load(dataset, lazy=True)
+    dataset = HyperDataset.load(dataset, lazy=True)
     dataset.filter_by_segments_predicate(
         predicate, rebuild_class_idx=rebuild_class_idx, keep=keep
     )
@@ -937,7 +980,7 @@ def filter_by_classes(
         output_dataset,
     )
     classes = ClassInfo.load(class_file)
-    dataset = HypDataset.load(dataset, lazy=True)
+    dataset = HyperDataset.load(dataset, lazy=True)
     dataset.filter_by_classes(class_name, classes, rebuild_idx=rebuild_idx, keep=keep)
     dataset.save(output_dataset)
 
@@ -1019,7 +1062,7 @@ def filter_by_classes_and_enrollments(
     )
     classes = ClassInfo.load(class_file)
     enrollments = EnrollmentMap.load(enrollment_file)
-    dataset = HypDataset.load(dataset, lazy=True)
+    dataset = HyperDataset.load(dataset, lazy=True)
     dataset.filter_by_classes_and_enrollments(
         class_name,
         classes,
@@ -1063,7 +1106,7 @@ def copy(
         dataset,
         output_dataset,
     )
-    dataset = HypDataset.load(dataset, lazy=True)
+    dataset = HyperDataset.load(dataset, lazy=True)
     if seg_suffix is not None:
         dataset.append_seg_suffix(seg_suffix)
     dataset.save(output_dataset)
@@ -1103,7 +1146,7 @@ def clean(
         dataset,
         output_dataset,
     )
-    dataset = HypDataset.load(dataset, lazy=True)
+    dataset = HyperDataset.load(dataset, lazy=True)
     dataset.clean(rebuild_class_idx=rebuild_class_idx)
     dataset.save(output_dataset)
 
@@ -1166,7 +1209,7 @@ def sample_random_subsegments(
         dataset,
         output_dataset,
     )
-    dataset = HypDataset.load(dataset, lazy=True)
+    dataset = HyperDataset.load(dataset, lazy=True)
     dataset.sample_random_subsegments(
         subsegments_per_segment=subsegments_per_segment,
         min_duration=min_duration,
@@ -1247,7 +1290,7 @@ def add_cols_to_segments(
     logging.info(
         "adding columnts to %s + %s -> %s", dataset, right_table, output_dataset
     )
-    dataset = HypDataset.load(dataset, lazy=True)
+    dataset = HyperDataset.load(dataset, lazy=True)
     dataset.add_cols_to_segments(
         right_table,
         column_names,
@@ -1279,9 +1322,9 @@ def merge(dataset: PathLike, input_datasets: List[PathLike]):
     logging.info("merging %s -> %s", (input_dataset_paths), dataset_path)
     input_datasets = []
     for dset_file in input_dataset_paths:
-        input_datasets.append(HypDataset.load(dset_file))
+        input_datasets.append(HyperDataset.load(dset_file))
 
-    dataset = HypDataset.merge(input_datasets)
+    dataset = HyperDataset.merge(input_datasets)
     dataset.save(dataset_path)
 
 
@@ -1323,7 +1366,7 @@ def from_lhotse(
         dataset,
     )
     dataset_path = dataset
-    dataset = HypDataset.from_lhotse(
+    dataset = HyperDataset.from_lhotse(
         cuts=cuts_file, recordings=recordings_file, supervisions=supervisions_file
     )
     dataset.save(dataset_path)
@@ -1350,7 +1393,7 @@ def from_kaldi(
 ):
     logging.info("crate dataset from kaldi : %s -> %s", kaldi_data_dir, dataset)
     dataset_path = dataset
-    dataset = HypDataset.from_kaldi(kaldi_data_dir)
+    dataset = HyperDataset.from_kaldi(kaldi_data_dir)
     dataset.save(dataset_path)
 
 
@@ -1367,7 +1410,7 @@ def make_describe_parser():
 def describe(
     dataset: PathLike,
 ):
-    dataset = HypDataset.load(dataset, lazy=True)
+    dataset = HyperDataset.load(dataset, lazy=True)
     dataset.describe()
 
 

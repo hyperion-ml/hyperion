@@ -178,12 +178,10 @@ class StreamingDACDecoder(NetArch):
         Returns:
             int: Maximum output length in samples.
         """
-        print(f"max_in_length: {max_in_length}", flush=True)
-        max_out_length = max_in_length - (self.kernel_size - 1)
+        max_out_length = max_in_length  # - (self.kernel_size - 1)
         for block in self.blocks:
             max_out_length = block.max_out_length(max_out_length)
 
-        max_out_length = max_out_length - (self.kernel_size - 1)
         return max_out_length
 
     def out_lengths(self, in_lengths: torch.Tensor) -> torch.Tensor:

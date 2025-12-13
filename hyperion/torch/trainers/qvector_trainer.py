@@ -19,7 +19,7 @@ from ..narchs.hydra_heads import HydraClassifHeadOutput
 from ..torch_model import TorchModel
 from ..wd_schedulers import WDScheduler as WDS
 from .single_model_trainer import SingleModelTrainer
-from .torch_trainer_base import AMPDType, DDPType, TorchTrainerBase
+from .torch_trainer_base import AMPDType, DDPType, FSDPMPDType, TorchTrainerBase
 
 # from torch.distributed.elastic.multiprocessing.errors import record
 
@@ -48,7 +48,11 @@ class QVectorTrainer(SingleModelTrainer):
         loggers (LoggerList): Active logger instances.
         ddp (bool): Whether DistributedDataParallel is enabled.
         ddp_type (DDPType): Selected DDP backend flavor.
-        cpu_offload (bool): Enables CPU offload for fully-sharded DDP.
+        fsdp_reshard_after_forward (bool|int|None): FSDP2 reshard policy after forward.
+        fsdp_mp_param_dtype (FSDPMPDType|None): FSDP2 mixed-precision parameter dtype.
+        fsdp_mp_reduce_dtype (FSDPMPDType|None): FSDP2 mixed-precision reduction dtype.
+        fsdp_mp_output_dtype (FSDPMPDType|None): FSDP2 mixed-precision output dtype.
+        fsdp_cpu_offload (bool): Enables CPU offload for FSDP2.
         use_amp (bool): Enables automatic mixed precision.
         amp_dtype (AMPDType): Precision (float16/bfloat16) to use with AMP.
         log_interval (int): Step interval between progress logs.
@@ -88,9 +92,14 @@ class QVectorTrainer(SingleModelTrainer):
         loggers: Optional[LoggerList] = None,
         ddp: bool = False,
         ddp_type: DDPType = DDPType.DDP,
-        cpu_offload: bool = False,
+        fsdp_reshard_after_forward: Optional[Union[bool, int]] = None,
+        fsdp_mp_param_dtype: Optional[FSDPMPDType] = None,
+        fsdp_mp_reduce_dtype: Optional[FSDPMPDType] = None,
+        fsdp_mp_output_dtype: Optional[FSDPMPDType] = None,
+        fsdp_cpu_offload: bool = False,
         use_amp: bool = False,
         amp_dtype: AMPDType = AMPDType.FLOAT16,
+        bf16_grad_scaler: bool = False,
         log_interval: int = 1000,
         use_tensorboard: bool = False,
         use_wandb: bool = False,
@@ -127,7 +136,11 @@ class QVectorTrainer(SingleModelTrainer):
             loggers (Optional[LoggerList]): Logger collection.
             ddp (bool): Enables DDP training when True.
             ddp_type (DDPType): DDP backend flavor.
-            cpu_offload (bool): Enables FSDP CPU offload.
+            fsdp_reshard_after_forward (bool|int|None): FSDP2 reshard policy after forward.
+            fsdp_mp_param_dtype (FSDPMPDType|None): FSDP2 mixed-precision param dtype.
+            fsdp_mp_reduce_dtype (FSDPMPDType|None): FSDP2 mixed-precision reduce dtype.
+            fsdp_mp_output_dtype (FSDPMPDType|None): FSDP2 mixed-precision output dtype.
+            fsdp_cpu_offload (bool): Enables FSDP CPU offload.
             use_amp (bool): Enables automatic mixed precision.
             amp_dtype (AMPDType): Precision to use when AMP is enabled.
             log_interval (int): Steps between logger updates.

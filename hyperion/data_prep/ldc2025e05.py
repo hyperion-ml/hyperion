@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 from jsonargparse import ActionYesNo
 
-from ..utils import ClassInfo, HypDataset, RecordingSet, SegmentSet
+from ..utils import ClassInfo, HyperDataset, RecordingSet, SegmentSet
 from ..utils.misc import PathLike
 from .data_prep import DataPrep
 
@@ -20,7 +20,7 @@ class LDC2025E05DataPrep(DataPrep):
     Prepares the LDC2025E05 ARTS Phase I Eval1 Initialization Sample dataset.
 
     Supports segment and recording metadata extraction, class info generation,
-    and construction of a HypDataset for 'init-speaker' and 'init-understand' partitions.
+    and construction of a HyperDataset for 'init-speaker' and 'init-understand' partitions.
 
     Attributes:
         corpus_dir (PathLike): Root directory of the dataset.
@@ -164,7 +164,7 @@ class LDC2025E05DataPrep(DataPrep):
         - Loads and parses segment metadata.
         - Builds the RecordingSet and computes durations.
         - Constructs ClassInfo and SegmentSet objects.
-        - Writes the HypDataset to disk.
+        - Writes the HyperDataset to disk.
         """
         logging.info(
             "Preparing LDC2025E05 %s corpus_dir: %s -> data_dir: %s",
@@ -185,7 +185,7 @@ class LDC2025E05DataPrep(DataPrep):
         segments = SegmentSet(df_segs)
 
         logging.info("making dataset")
-        dataset = HypDataset(
+        dataset = HyperDataset(
             segments,
             classes,
             recordings=recs,

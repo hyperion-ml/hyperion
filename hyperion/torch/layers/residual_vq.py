@@ -112,7 +112,7 @@ class ResidualVectorQuantizer(nn.Module):
         self.codebook_sizes = codebook_sizes
         self.codebook_dims = codebook_dims
         self.base_vq_type = base_vq_type
-        kwargs["loss_reduction"] = "none"
+        kwargs["losses_reduction"] = "none"
         self.quantizers = nn.ModuleList(
             [
                 VectorQuantizerFactory.create(
@@ -379,7 +379,7 @@ class ResidualVectorQuantizer(nn.Module):
         parser.add_argument(
             "--num-quantizers",
             type=int,
-            required=True,
+            default=2,
             help="Number of quantizers (M) to use in the residual vector quantizer",
         )
         parser.add_argument(
@@ -398,7 +398,7 @@ class ResidualVectorQuantizer(nn.Module):
             "--codebook-sizes",
             type=int,
             nargs="+",
-            required=True,
+            default=[1024],
             help="List of codebook sizes (K) for each quantizer",
         )
         parser.add_argument(
@@ -429,7 +429,7 @@ class ResidualVectorQuantizer(nn.Module):
             "from `bypass_init_prob` to `bypass_final_prob`",
         )
 
-        skip = skip | {"vq_type", "codebook_size", "codebook_dim", "loss_reduction"}
+        skip = skip | {"vq_type", "codebook_size", "codebook_dim", "losses_reduction"}
         VectorQuantizerFactory.add_class_args(parser, skip=skip)
 
         if prefix is not None:

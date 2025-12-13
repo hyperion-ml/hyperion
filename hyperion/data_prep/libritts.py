@@ -14,7 +14,7 @@ import pandas as pd
 from jsonargparse import ActionYesNo
 from tqdm import tqdm
 
-from ..utils import ClassInfo, HypDataset, RecordingSet, SegmentSet, TrialKey, TrialNdx
+from ..utils import ClassInfo, HyperDataset, RecordingSet, SegmentSet, TrialKey, TrialNdx
 from ..utils.misc import PathLike, urlretrieve_progress
 from .data_prep import DataPrep
 
@@ -248,7 +248,7 @@ class LibriTTSDataPrep(DataPrep):
         - Parses speaker/book/chapter/transcript metadata
         - Extracts audio files and their durations
         - Builds segment and recording manifests
-        - Saves a HypDataset to output_dir
+        - Saves a HyperDataset to output_dir
         """
 
         logging.info(
@@ -338,7 +338,7 @@ class LibriTTSDataPrep(DataPrep):
         }
 
         logging.info("making dataset")
-        dataset = HypDataset(
+        dataset = HyperDataset(
             segments,
             classes=classes,
             recordings=recs,
