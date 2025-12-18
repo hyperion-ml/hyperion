@@ -3,7 +3,10 @@ Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+from typing import Any, Dict, Optional, Sequence, Tuple, Union
+
 import numpy as np
+from numpy.random import Generator
 from scipy import linalg as sla
 
 from ....hyp_defs import float_cpu
@@ -30,19 +33,19 @@ class SPLDA(PLDABase):
 
     def __init__(
         self,
-        y_dim=None,
-        mu=None,
-        V=None,
-        W=None,
-        fullcov_W=True,
-        update_mu=True,
-        update_V=True,
-        update_W=True,
-        epochs=20,
-        ml_md="ml+md",
-        md_epochs=None,
-        **kwargs,
-    ):
+        y_dim: Optional[int] = None,
+        mu: Optional[np.ndarray] = None,
+        V: Optional[np.ndarray] = None,
+        W: Optional[np.ndarray] = None,
+        fullcov_W: bool = True,
+        update_mu: bool = True,
+        update_V: bool = True,
+        update_W: bool = True,
+        epochs: int = 20,
+        ml_md: str = "ml+md",
+        md_epochs: Optional[Sequence[int]] = None,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(
             y_dim=y_dim,
             mu=mu,
@@ -60,7 +63,7 @@ class SPLDA(PLDABase):
         self.update_V = update_V
         self.update_W = update_W
 
-    def validate(self):
+    def validate(self) -> None:
         """Validates the model parameters."""
         assert self.mu.shape[0] >= self.V.shape[0]
         assert self.mu.shape[0] == self.V.shape[1]
@@ -68,7 +71,7 @@ class SPLDA(PLDABase):
         assert self.mu.shape[0] == self.W.shape[1]
 
     @property
-    def is_init(self):
+    def is_init(self) -> bool:
         """Returns True if the model has been initialized."""
         if self._is_init:
             return True
@@ -77,7 +80,7 @@ class SPLDA(PLDABase):
             self._is_init = True
         return self._is_init
 
-    def initialize(self, D):
+    def initialize(self, D: Tuple[np.ndarray, np.ndarray, np.ndarray]) -> None:
         """initializes the model.
 
         Args:
@@ -106,8 +109,12 @@ class SPLDA(PLDABase):
         self.W = W
 
     def compute_py_g_x(
-        self, D, return_cov=False, return_logpy_0=False, return_acc=False
-    ):
+        self,
+        D: Union[Tuple[np.ndarray, np.ndarray, np.ndarray], np.ndarray],
+        return_cov: bool = False,
+        return_logpy_0: bool = False,
+        return_acc: bool = False,
+    ) -> Union[np.ndarray, Tuple[Any, ...]]:
         """Computes the posterior P(y|x)
 
         Args:
@@ -130,7 +137,7 @@ class SPLDA(PLDABase):
             N = np.ones((F.shape[0],), dtype=F.dtype)
             S = None
 
-        Fc = F - self.mu
+        Fc = F - N[:, None] * self.mu
 
         M = F.shape[0]
         y_dim = self.y_dim
@@ -213,7 +220,7 @@ class SPLDA(PLDABase):
             r += [Ry, Py]
         return tuple(r)
 
-    def Estep(self, D):
+    def Estep(self, D: Tuple[np.ndarray, np.ndarray, np.ndarray]):
         """Expectation step.
 
         Args:
@@ -242,7 +249,7 @@ class SPLDA(PLDABase):
         stats = (N_tot, M, F_tot, S, logpy_acc, y_acc, Ry1, Ry, Cy, Py)
         return stats
 
-    def elbo(self, stats):
+    def elbo(self, stats: Tuple[Any, ...]) -> float:
         """Computes the objective function.
 
         Args:
@@ -267,7 +274,7 @@ class SPLDA(PLDABase):
         elbo = logpx_y + logpy - logpy_x
         return elbo
 
-    def MstepML(self, stats):
+    def MstepML(self, stats: Tuple[Any, ...]) -> None:
         """Maximum likelihood estimation step.
 
         Args:
@@ -307,7 +314,7 @@ class SPLDA(PLDABase):
             else:
                 self.W = np.diag(1 / np.diag(iW))
 
-    def MstepMD(self, stats):
+    def MstepMD(self, stats: Tuple[Any, ...]) -> None:
         """Minimum divergence estimation step.
 
         Args:
@@ -325,7 +332,7 @@ class SPLDA(PLDABase):
             chol_Cov_y = sla.cholesky(Cov_y, lower=False, overwrite_a=True)
             self.V = np.dot(chol_Cov_y, self.V)
 
-    def get_config(self):
+    def get_config(self) -> Dict[str, Any]:
         """Returns the model configuration dict."""
         config = {
             "update_W": self.update_W,
@@ -335,7 +342,7 @@ class SPLDA(PLDABase):
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
-    def save_params(self, f):
+    def save_params(self, f: Any) -> None:
         """Saves the model paramters into the file.
 
         Args:
@@ -345,7 +352,7 @@ class SPLDA(PLDABase):
         self._save_params_from_dict(f, params)
 
     @classmethod
-    def load_params(cls, f, config):
+    def load_params(cls, f: Any, config: Dict[str, Any]) -> "SPLDA":
         """Initializes the model from the configuration and loads the model
         parameters from file.
 
@@ -528,7 +535,13 @@ class SPLDA(PLDABase):
         scores *= 0.5
         return scores
 
-    def sample(self, num_classes, num_samples_per_class, rng=None, seed=1024):
+    def sample(
+        self,
+        num_classes: int,
+        num_samples_per_class: int,
+        rng: Optional[Generator] = None,
+        seed: int = 1024,
+    ) -> np.ndarray:
         """Draws samples from the PLDA model.
 
         Args:

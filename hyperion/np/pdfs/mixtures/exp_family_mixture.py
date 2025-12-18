@@ -1,9 +1,10 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 import logging
+from typing import Any, Dict, Iterable, Optional, Sequence, Tuple, Union
 
 import numpy as np
 
@@ -13,36 +14,49 @@ from ..core import PDF
 
 
 class ExpFamilyMixture(PDF):
-    """Base class for a mixture of exponential family distributions.
-
-    p(x) = \sum_k h(x) exp(\eta_k u(x) - A_k)
+    """Mixture of exponential-family distributions.
 
     Attributes:
-      num_comp: number of components of the mixture.
-      pi: weights of the components.
-      eta: natural parameters of the distribution.
-      min_N: minimum number of samples for keeping the component.
-      update_pi: whether or Not to update the weights when optimizing.
-      x_dim: data dimension.
+        num_comp: Number of mixture components.
+        pi: Component weights with shape ``(num_comp,)``.
+        eta: Natural parameters for each component.
+        min_N: Minimum effective count below which components are pruned.
+        update_pi: Whether to update mixture weights during training.
     """
 
     def __init__(
-        self, num_comp=1, pi=None, eta=None, min_N=0, update_pi=True, **kwargs
-    ):
+        self,
+        num_comp: int = 1,
+        pi: Optional[np.ndarray] = None,
+        eta: Optional[np.ndarray] = None,
+        min_N: float = 0,
+        update_pi: bool = True,
+        **kwargs: Any,
+    ) -> None:
+        """Initializes the mixture model.
+
+        Args:
+            num_comp: Number of components when ``pi`` is not provided.
+            pi: Optional mixture weights.
+            eta: Optional natural parameters for each component.
+            min_N: Minimum responsibility mass required to keep a component.
+            update_pi: Whether to update ``pi`` during EM.
+            **kwargs: Extra arguments forwarded to :class:`PDF`.
+        """
         super().__init__(**kwargs)
         if pi is not None:
             num_comp = len(pi)
-        self.num_comp = num_comp
-        self.pi = pi
-        self.eta = eta
-        self.min_N = min_N
-        self.A = None
-        self._log_pi = None
-        self.update_pi = update_pi
+        self.num_comp: int = num_comp
+        self.pi: Optional[np.ndarray] = pi
+        self.eta: Optional[np.ndarray] = eta
+        self.min_N: float = min_N
+        self.A: Optional[np.ndarray] = None
+        self._log_pi: Optional[np.ndarray] = None
+        self.update_pi: bool = update_pi
 
     @property
-    def is_init(self):
-        """Returns True if the model has been initialized."""
+    def is_init(self) -> bool:
+        """bool: Whether the mixture parameters have been initialized."""
         if not self._is_init:
             if self.eta is not None and self.A is not None and self.pi is not None:
                 self.validate()
@@ -50,39 +64,40 @@ class ExpFamilyMixture(PDF):
         return self._is_init
 
     @property
-    def log_pi(self):
-        """Log weights"""
+    def log_pi(self) -> np.ndarray:
+        """np.ndarray: Logarithm of the component weights."""
         if self._log_pi is None:
             self._log_pi = np.log(self.pi + 1e-15)
         return self._log_pi
 
-    def _validate_pi(self):
+    def _validate_pi(self) -> None:
         assert len(self.pi) == self.num_comp
 
     def fit(
         self,
-        x,
-        sample_weight=None,
-        x_val=None,
-        sample_weight_val=None,
-        epochs=10,
-        batch_size=None,
-    ):
-        """Trains the model.
+        x: np.ndarray,
+        sample_weight: Optional[np.ndarray] = None,
+        x_val: Optional[np.ndarray] = None,
+        sample_weight_val: Optional[np.ndarray] = None,
+        epochs: int = 10,
+        batch_size: Optional[int] = None,
+    ) -> Union[
+        Tuple[np.ndarray, np.ndarray],
+        Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray],
+    ]:
+        """Trains the mixture via EM.
 
         Args:
-          x: train data matrix with shape (num_samples, x_dim).
-          sample_weight: weight of each sample in the training loss shape (num_samples,).
-          x_val: validation data matrix with shape (num_val_samples, x_dim).
-          sample_weight_val: weight of each sample in the val. loss.
-          epochs: number of EM steps.
-          batch_size: accumlates sufficient statistics in batch_size blocks.
+            x: Training data of shape ``(num_samples, x_dim)``.
+            sample_weight: Optional per-sample weights.
+            x_val: Optional validation data.
+            sample_weight_val: Optional validation weights.
+            epochs: Number of EM iterations.
+            batch_size: Accumulation batch size for statistics.
 
         Returns:
-          log p(X) of the training data.
-          log p(x) per sample.
-          log p(X) of the val. data, if present.
-          log p(x) of the val. data per sample, if present.
+            Training ELBO trace and per-sample ELBO, optionally followed by the
+            validation counterparts.
         """
 
         if not self.is_init:
@@ -110,92 +125,120 @@ class ExpFamilyMixture(PDF):
         else:
             return elbo, elbo / x.shape[0], elbo_val, elbo_val / x.shape[0]
 
-    def log_h(self, x):
-        """Computes log h(x) of the exp. family."""
+    def log_h(self, x: np.ndarray) -> np.ndarray:
+        """Computes the log base measure ``log h(x)``.
+
+        Args:
+            x: Input samples with shape ``(num_samples, x_dim)``.
+
+        Returns:
+            Array of ``log h(x)`` evaluations for each sample.
+        """
         return 0
 
-    def accum_log_h(self, x, sample_weight=None):
-        """Accumlates log h(x)"""
+    def accum_log_h(
+        self, x: np.ndarray, sample_weight: Optional[np.ndarray] = None
+    ) -> float:
+        """Accumulates ``log h(x)`` over the dataset.
+
+        Args:
+            x: Input samples.
+            sample_weight: Optional weights per sample.
+
+        Returns:
+            Weighted sum of ``log h(x)``.
+        """
         if sample_weight is None:
             return np.sum(self.log_h(x))
         return np.sum(sample_weight * self.log_h(x))
 
-    def compute_pz(self, x, u_x=None, mode="nat"):
-        """Computes p(z|x)
+    def compute_pz(
+        self, x: np.ndarray, u_x: Optional[np.ndarray] = None, mode: str = "nat"
+    ) -> np.ndarray:
+        """Computes posterior responsibilities ``p(z | x)``.
 
         Args:
-          x: input data with shape (num_samples, x_dim).
-          u_x: precomputed sufficient stats with shape (num_samples, u_dim).
-          mode: whether to use natural (nat) or standard (std) parameters.
+            x: Input samples of shape ``(num_samples, x_dim)``.
+            u_x: Optional sufficient statistics for ``x``.
+            mode: Whether to use natural (``"nat"``) or standard (``"std"``) params.
 
         Returns:
-          p(z|x) with shape (num_samples, num_comp)
+            Array of responsibilities with shape ``(num_samples, num_comp)``.
         """
         if mode == "nat":
             return self.compute_pz_nat(x, u_x)
         else:
             return self.compute_pz_std(x)
 
-    def compute_pz_nat(self, x, u_x=None):
-        """Computes p(z|x) using the natural parameters of the distribution.
+    def compute_pz_nat(
+        self, x: np.ndarray, u_x: Optional[np.ndarray] = None
+    ) -> np.ndarray:
+        """Computes responsibilities using natural parameters.
 
         Args:
-          x: input data with shape (num_samples, x_dim).
-          u_x: precomputed sufficient stats with shape (num_samples, u_dim).
+            x: Samples used to evaluate responsibilities.
+            u_x: Optional sufficient statistics of ``x``.
 
         Returns:
-          p(z|x) with shape (num_samples, num_comp)
+            Responsibility matrix of shape ``(num_samples, num_comp)``.
         """
         if u_x is None:
             u_x = self.compute_suff_stats(x)
         logr = np.dot(u_x, self.eta.T) - self.A + self.log_pi
         return softmax(logr)
 
-    def compute_pz_std(self, x):
-        """Computes p(z|x) using the standard parameters of the distribution.
+    def compute_pz_std(self, x: np.ndarray) -> np.ndarray:
+        """Computes responsibilities using standard parameters.
 
         Args:
-          x: input data with shape (num_samples, x_dim).
+            x: Samples whose responsibilities are computed.
 
         Returns:
-          p(z|x) with shape (num_samples, num_comp)
+            Responsibility matrix of shape ``(num_samples, num_comp)``.
         """
         return self.compute_pz_nat(x)
 
-    def compute_suff_stats(self, x):
-        """Computes sufficient stats for a data sample."""
-        return x
-
-    def accum_suff_stats(self, x, u_x=None, sample_weight=None, batch_size=None):
-        """Accumlates sufficient statistis over several data samples.
+    def compute_suff_stats(self, x: np.ndarray) -> np.ndarray:
+        """Computes sufficient statistics for a batch.
 
         Args:
-          x: data samples of shape (num_samples, x_dim).
-          u_x: sufficient stats for x with shape = (num_samples, u(x)_dim) (optional).
-          sample_weight: weight of each sample in the accumalation.
-          batch_size: accumlates sufficient statistics in batch_size blocks.
+            x: Samples with shape ``(num_samples, x_dim)``.
 
         Returns:
-          N zero order sufficient statistics (number of samples).
-          Accumlated sufficient statistics \sum u(x)
+            Array containing sufficient statistics for each sample.
+        """
+        return x
+
+    def accum_suff_stats(
+        self,
+        x: np.ndarray,
+        u_x: Optional[np.ndarray] = None,
+        sample_weight: Optional[np.ndarray] = None,
+        batch_size: Optional[int] = None,
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Accumulates sufficient statistics over all samples.
+
+        Args:
+            x: Data matrix of shape ``(num_samples, x_dim)``.
+            u_x: Optional sufficient statistics with shape ``(num_samples, u_dim)``.
+            sample_weight: Optional weights per sample.
+            batch_size: If provided, accumulate in mini-batches.
+
+        Returns:
+            Tuple ``(N, U)`` with zero-order stats and accumulated suff. stats.
         """
         if u_x is not None or batch_size is None:
             return self._accum_suff_stats_1batch(x, u_x, sample_weight)
         else:
             return self._accum_suff_stats_nbatches(x, sample_weight, batch_size)
 
-    def _accum_suff_stats_1batch(self, x, u_x=None, sample_weight=None):
-        """Accumlates sufficient statistis over several data samples for a single batch.
-
-        Args:
-          x: data samples of shape (num_samples, x_dim).
-          u_x: sufficient stats for x with shape = (num_samples, u(x)_dim) (optional).
-          sample_weight: weight of each sample in the accumalation.
-
-        Returns:
-          N zero order sufficient statistics (number of samples).
-          Accumlated sufficient statistics \sum u(x)
-        """
+    def _accum_suff_stats_1batch(
+        self,
+        x: np.ndarray,
+        u_x: Optional[np.ndarray] = None,
+        sample_weight: Optional[np.ndarray] = None,
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Accumulates statistics for a single batch."""
         if u_x is None:
             u_x = self.compute_suff_stats(x)
         z = self.compute_pz_nat(x, u_x)
@@ -206,19 +249,13 @@ class ExpFamilyMixture(PDF):
         acc_u_x = np.dot(z.T, u_x)
         return N, acc_u_x
 
-    def _accum_suff_stats_nbatches(self, x, sample_weight, batch_size):
-        """Accumlates sufficient statistis over several data samples for multiple batches.
-
-        Args:
-          x: data samples of shape (num_samples, x_dim).
-          u_x: sufficient stats for x with shape = (num_samples, u(x)_dim) (optional).
-          sample_weight: weight of each sample in the accumalation.
-          batch_size: accumlates sufficient statistics in batch_size blocks.
-
-        Returns:
-          N zero order sufficient statistics (number of samples).
-          Accumlated sufficient statistics \sum u(x)
-        """
+    def _accum_suff_stats_nbatches(
+        self,
+        x: np.ndarray,
+        sample_weight: Optional[np.ndarray],
+        batch_size: int,
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Accumulates statistics across multiple batches."""
         sw_i = None
         for i1 in range(0, x.shape[0], batch_size):
             i2 = np.minimum(i1 + batch_size, x.shape[0])
@@ -235,20 +272,24 @@ class ExpFamilyMixture(PDF):
         return N, u_x
 
     def accum_suff_stats_segments(
-        self, x, segments, u_x=None, sample_weight=None, batch_size=None
-    ):
-        """Accumlates sufficient statistis per each segment in an utterance.
+        self,
+        x: np.ndarray,
+        segments: Sequence[Sequence[int]],
+        u_x: Optional[np.ndarray] = None,
+        sample_weight: Optional[np.ndarray] = None,
+        batch_size: Optional[int] = None,
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Accumulates statistics separately for each segment.
 
         Args:
-          x: data samples of shape (num_samples, x_dim).
-          segments: segments t_start and t_end with shape (num_segments, 2).
-          u_x: sufficient stats for x with shape = (num_samples, u(x)_dim) (optional).
-          sample_weight: weight of each sample in the accumalation.
-          batch_size: accumlates sufficient statistics in batch_size blocks.
+            x: Input samples.
+            segments: Start/end frame indices per segment.
+            u_x: Optional sufficient statistics for ``x``.
+            sample_weight: Optional weights per frame.
+            batch_size: Passed to :meth:`accum_suff_stats`.
 
         Returns:
-          N zero order sufficient statistics (number of samples).
-          Accumlated sufficient statistics \sum u(x)
+            Tuple ``(N, U)`` where each entry has length ``num_segments``.
         """
         K = self.num_comp
         num_segments = len(segments)
@@ -273,22 +314,24 @@ class ExpFamilyMixture(PDF):
         return N, acc_u_x
 
     def accum_suff_stats_segments_prob(
-        self, x, prob, u_x=None, sample_weight=None, batch_size=None
-    ):
-        """Accumlates sufficient statistis per each segment in an utterance,
-        Segments are defined by the probability for a frame to belong to the
-        segment
+        self,
+        x: np.ndarray,
+        prob: np.ndarray,
+        u_x: Optional[np.ndarray] = None,
+        sample_weight: Optional[np.ndarray] = None,
+        batch_size: Optional[int] = None,
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Accumulates statistics weighted by segment membership probabilities.
 
         Args:
-          x: data samples of shape (num_samples, x_dim).
-          prob: probability of belonging to a segments with shape (num_samples, num_segments).
-          u_x: sufficient stats for x with shape = (num_samples, u(x)_dim) (optional).
-          sample_weight: weight of each sample in the accumalation.
-          batch_size: accumlates sufficient statistics in batch_size blocks.
+            x: Data samples.
+            prob: Segment probabilities with shape ``(num_samples, num_segments)``.
+            u_x: Optional sufficient statistics.
+            sample_weight: Optional sample weights.
+            batch_size: Passed to the helper accumulation functions.
 
         Returns:
-          N zero order sufficient statistics (number of samples).
-          Accumlated sufficient statistics \sum u(x)
+            Tuple ``(N, U)`` of per-segment stats.
         """
         if u_x is not None or batch_size is None:
             return self._accum_suff_stats_segments_prob_1batch(
@@ -300,8 +343,12 @@ class ExpFamilyMixture(PDF):
             )
 
     def _accum_suff_stats_segments_prob_1batch(
-        self, x, prob, u_x=None, sample_weight=None
-    ):
+        self,
+        x: np.ndarray,
+        prob: np.ndarray,
+        u_x: Optional[np.ndarray] = None,
+        sample_weight: Optional[np.ndarray] = None,
+    ) -> Tuple[np.ndarray, np.ndarray]:
         if u_x is None:
             u_x = self.compute_suff_stats(x)
         z = self.compute_pz_nat(x, u_x)
@@ -321,8 +368,12 @@ class ExpFamilyMixture(PDF):
         return N, acc_u_x
 
     def _accum_suff_stats_segments_prob_nbatches(
-        self, x, prob, sample_weight, batch_size
-    ):
+        self,
+        x: np.ndarray,
+        prob: np.ndarray,
+        sample_weight: Optional[np.ndarray],
+        batch_size: int,
+    ) -> Tuple[np.ndarray, np.ndarray]:
         sw_i = None
         for i1 in range(0, x.shape[0], batch_size):
             i2 = np.minimum(i1 + batch_size, x.shape[0])
@@ -343,26 +394,25 @@ class ExpFamilyMixture(PDF):
 
     def accum_suff_stats_sorttime(
         self,
-        x,
-        frame_length,
-        frame_shift,
-        u_x=None,
-        sample_weight=None,
-        batch_size=None,
-    ):
-        """Accumlates sufficient statistis over a sliding window.
+        x: np.ndarray,
+        frame_length: int,
+        frame_shift: int,
+        u_x: Optional[np.ndarray] = None,
+        sample_weight: Optional[np.ndarray] = None,
+        batch_size: Optional[int] = None,
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Accumulates statistics over sliding windows.
 
         Args:
-          x: data samples of shape (num_samples, x_dim).
-          frame_length: frame length.
-          frame_shift: frame shift.
-          u_x: sufficient stats for x with shape = (num_samples, u(x)_dim) (optional).
-          sample_weight: weight of each sample in the accumalation.
-          batch_size: accumlates sufficient statistics in batch_size blocks.
+            x: Data samples.
+            frame_length: Window length in frames.
+            frame_shift: Hop size between windows.
+            u_x: Optional sufficient statistics.
+            sample_weight: Optional sample weights.
+            batch_size: Used when delegating to batch accumulation routines.
 
         Returns:
-          N zero order sufficient statistics (number of samples).
-          Accumlated sufficient statistics \sum u(x)
+            Per-window zero-order stats and sufficient statistics.
         """
         if u_x is not None or batch_size is None:
             return self._accum_suff_stats_sorttime_1batch(
@@ -374,8 +424,13 @@ class ExpFamilyMixture(PDF):
             )
 
     def _accum_suff_stats_sorttime_1batch(
-        self, x, frame_length, frame_shift, u_x=None, sample_weight=None
-    ):
+        self,
+        x: np.ndarray,
+        frame_length: int,
+        frame_shift: int,
+        u_x: Optional[np.ndarray] = None,
+        sample_weight: Optional[np.ndarray] = None,
+    ) -> Tuple[np.ndarray, np.ndarray]:
         K = len(self.pi)
         num_frames = x.shape[0]
         num_segments = int(np.floor((num_frames - frame_length) / frame_shift + 1))
@@ -409,8 +464,13 @@ class ExpFamilyMixture(PDF):
         return N, acc_u_x
 
     def _accum_suff_stats_sorttime_nbatches(
-        self, x, frame_length, frame_shift, sample_weight, batch_size
-    ):
+        self,
+        x: np.ndarray,
+        frame_length: int,
+        frame_shift: int,
+        sample_weight: Optional[np.ndarray],
+        batch_size: int,
+    ) -> Tuple[np.ndarray, np.ndarray]:
         K = len(self.pi)
         num_frames = x.shape[0]
         num_segments = int(np.floor((num_frames - frame_length) / frame_shift + 1))
@@ -440,31 +500,20 @@ class ExpFamilyMixture(PDF):
             cur_segment += num_segments_i
         return N, acc_u_x
 
-    def Estep(self, x, u_x=None, sample_weight=None, batch_size=None):
-        """Expectation step, accumlates suff. stats.
-
-        Args:
-          x: data samples of shape (num_samples, x_dim).
-          u_x: sufficient stats for x with shape = (num_samples, u(x)_dim) (optional).
-          sample_weight: weight of each sample in the accumalation.
-          batch_size: accumlates sufficient statistics in batch_size blocks.
-
-        Returns:
-          N zero order sufficient statistics (number of samples).
-          Accumlated sufficient statistics \sum u(x)
-        """
+    def Estep(
+        self,
+        x: np.ndarray,
+        u_x: Optional[np.ndarray] = None,
+        sample_weight: Optional[np.ndarray] = None,
+        batch_size: Optional[int] = None,
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Expectation step returning accumulated stats."""
         return self.accum_suff_stats(x, u_x, sample_weight, batch_size)
 
-    def sum_suff_stats(self, N, u_x):
-        """Sums suff. stats from muttiple sub-processes.
-
-        Args:
-          N: zero order stats with shape = (num_proc,)
-          u_x: higher order stats with shape = (num_proc, u(x)_dim).
-
-        Args:
-          Accumalted N and u_x.
-        """
+    def sum_suff_stats(
+        self, N: Sequence[np.ndarray], u_x: Sequence[np.ndarray]
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Sums statistics across multiple workers."""
         assert len(N) == len(u_x)
         acc_N = N[0]
         acc_u_x = u_x[0]
@@ -473,24 +522,20 @@ class ExpFamilyMixture(PDF):
             acc_u_x += u_x[i]
         return acc_N, acc_u_x
 
-    def Mstep(self, stats):
-        """Maximization step."""
+    def Mstep(self, stats: Tuple[np.ndarray, np.ndarray]) -> None:
+        """Maximization step (override in subclasses)."""
         pass
 
-    def elbo(self, x, u_x=None, N=1, log_h=None, sample_weight=None, batch_size=None):
-        """Evidence lower bound.
-
-        Args:
-          x: data samples with shape = (num_samples, x_dim).
-          u_x: accumlated u(x) (optional).
-          N: zero-th orders statistics (optional)
-          log_h: accumlated log h(x) (optional).
-          sample_weight: weigth of each sample in the loss function.
-          batch_size: accumlates sufficient statistics in batch_size blocks.
-
-        Returns:
-          log p(X) of the data.
-        """
+    def elbo(
+        self,
+        x: Optional[np.ndarray],
+        u_x: Optional[np.ndarray] = None,
+        N: Optional[np.ndarray] = None,
+        log_h: Optional[float] = None,
+        sample_weight: Optional[np.ndarray] = None,
+        batch_size: Optional[int] = None,
+    ) -> float:
+        """Computes the evidence lower bound."""
         if u_x is None:
             N, u_x = self.accum_suff_stats(
                 x, sample_weight=sample_weight, batch_size=batch_size
@@ -499,33 +544,35 @@ class ExpFamilyMixture(PDF):
             log_h = self.accum_log_h(x, sample_weight=sample_weight)
         return log_h + np.sum(u_x * self.eta) + np.inner(N, self.log_pi - self.A)
 
-    def log_prob(self, x, u_x=None, mode="nat"):
-        """log p(x) of each data sample.
+    def log_prob(
+        self, x: np.ndarray, u_x: Optional[np.ndarray] = None, mode: str = "nat"
+    ) -> np.ndarray:
+        """Computes ``log p(x)`` under the mixture.
 
         Args:
-          x: input data with shape (num_samples, x_dim).
-          u_x: sufficient stats u(x) with shape (num_samples, u_dim).
-          method: the probability is computed using standard ("std") or
-            natural parameters ("nat").
+            x: Input samples.
+            u_x: Optional sufficient statistics for ``x``.
+            mode: Whether to evaluate using natural or standard parameters.
 
         Returns:
-          log p(x) with shape (num_samples,)
+            Array of log-likelihoods with shape ``(num_samples,)``.
         """
         if mode == "nat":
             return self.log_prob_nat(x, u_x)
         else:
             return self.log_prob_std(x)
 
-    def log_prob_nat(self, x, u_x=None):
-        """log p(x) of each data sample computed using the
-        natural parameters of the distribution.
+    def log_prob_nat(
+        self, x: np.ndarray, u_x: Optional[np.ndarray] = None
+    ) -> np.ndarray:
+        """Computes ``log p(x)`` using natural parameters.
 
         Args:
-          x: input data with shape (num_samples, x_dim).
-          u_x: sufficient stats u(x) with shape (num_samples, u_dim).
+            x: Input samples.
+            u_x: Optional sufficient statistics for ``x``.
 
         Returns:
-          log p(x) with shape (num_samples,)
+            Log-likelihood per sample.
         """
         if u_x is None:
             u_x = self.compute_suff_stats(x)
@@ -533,50 +580,59 @@ class ExpFamilyMixture(PDF):
         llk = logsumexp(llk_k)
         return self.log_h(x) + llk
 
-    def log_prob_std(self, x):
-        """log p(x) of each data sample computed using the
-        standard parameters of the distribution.
+    def log_prob_std(self, x: np.ndarray) -> np.ndarray:
+        """Computes ``log p(x)`` using standard parameters.
 
         Args:
-          x: input data with shape (num_samples, x_dim).
-          u_x: sufficient stats u(x) with shape (num_samples, u_dim).
+            x: Input samples whose likelihood is evaluated.
 
         Returns:
-          log p(x) with shape (num_samples,)
+            Log-likelihood per sample.
         """
         raise NotImplementedError()
 
-    def log_prob_nbest(self, x, u_x=None, mode="nat", nbest_mode="ubm", nbest=1):
-        """log p(x) of each data sample computed using the N best components.
+    def log_prob_nbest(
+        self,
+        x: np.ndarray,
+        u_x: Optional[np.ndarray] = None,
+        mode: str = "nat",
+        nbest_mode: str = "ubm",
+        nbest: Union[int, Sequence[int]] = 1,
+    ) -> np.ndarray:
+        """Computes ``log p(x)`` using only the top-N components.
 
         Args:
-          x: input data with shape (num_samples, x_dim).
-          u_x: sufficient stats u(x) with shape (num_samples, u_dim).
-          method: the probability is computed using standard ("std") or
-            natural parameters ("nat").
-          nbest_mode: if "ubm", it selects the best components.
-          nbest: number of best components, or selected components.
+            x: Input samples.
+            u_x: Optional sufficient statistics.
+            mode: Whether to use natural or standard parameters.
+            nbest_mode: Strategy for selecting the components.
+            nbest: Number of components or indexes to consider.
 
         Returns:
-          log p(x) with shape (num_samples,)
+            Log-likelihood per sample using the selected components.
         """
         if mode == "nat":
             return self.log_prob_nbest_nat(x, u_x, nbest_mode=nbest_mode, nbest=nbest)
         else:
             return self.log_prob_nbest_std(x, nbest_mode=nbest_mode, nbest=nbest)
 
-    def log_prob_nbest_nat(self, x, u_x=None, nbest_mode="master", nbest=1):
-        """log p(x) of each data sample computed using the N best components
-        and natural parameters.
+    def log_prob_nbest_nat(
+        self,
+        x: np.ndarray,
+        u_x: Optional[np.ndarray] = None,
+        nbest_mode: str = "master",
+        nbest: Union[int, Sequence[int]] = 1,
+    ) -> np.ndarray:
+        """Top-N log-probability computation using natural parameters.
 
         Args:
-          x: input data with shape (num_samples, x_dim).
-          u_x: sufficient stats u(x) with shape (num_samples, u_dim).
-          nbest_mode: if "ubm", it selects the best components.
-          nbest: number of best components, or selected components.
+            x: Input samples.
+            u_x: Optional sufficient statistics.
+            nbest_mode: Selection strategy, e.g., ``"master"`` or ``"ubm"``.
+            nbest: Number of components or explicit indices.
 
         Returns:
-          log p(x) with shape (num_samples,)
+            Log-likelihood per sample computed with the selected components.
         """
         if u_x is None:
             u_x = self.compute_suff_stats(x)
@@ -590,25 +646,28 @@ class ExpFamilyMixture(PDF):
         llk = logsumexp(llk_k)
         return self.log_h(x) + llk
 
-    def log_prob_nbest_std(self, x, nbest_mode="master", nbest=1):
-        """log p(x) of each data sample computed using the N best components
-        and standard parameters.
+    def log_prob_nbest_std(
+        self,
+        x: np.ndarray,
+        nbest_mode: str = "master",
+        nbest: Union[int, Sequence[int]] = 1,
+    ) -> np.ndarray:
+        """Top-N log-probability computation using standard parameters.
 
         Args:
-          x: input data with shape (num_samples, x_dim).
-          u_x: sufficient stats u(x) with shape (num_samples, u_dim).
-          nbest_mode: if "ubm", it selects the best components.
-          nbest: number of best components, or selected components.
+            x: Input samples.
+            nbest_mode: Selection strategy matching :meth:`log_prob_nbest_nat`.
+            nbest: Number of components or explicit indices.
 
         Returns:
-          log p(x) with shape (num_samples,)
+            Log-likelihood per sample computed with the selected components.
         """
         raise NotImplementedError()
 
-    def get_config(self):
-        """Returns the model configuration dict."""
+    def get_config(self) -> Dict[str, Any]:
+        """Builds a serializable configuration dictionary."""
         config = {"min_n": self.min_N, "update_pi": self.update_pi}
-        base_config = super(ExpFamilyMixture, self).get_config()
+        base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
     @staticmethod

@@ -1,91 +1,106 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
+from typing import Any, Dict, Optional, Tuple, Union
 
 import numpy as np
 from scipy import linalg as la
 
 from ....hyp_defs import float_cpu
-from ....utils.math_funcs import (
-    invert_pdmat,
-    invert_trimat,
-    logdet_pdmat,
-    symmat2vec,
-    vec2symmat,
-)
+from ....utils.math_funcs import invert_pdmat
 from ..core.pdf import PDF
 
 
 class JFATotal(PDF):
-    """Class for joint factor analysis with total variability matrix (i-vectors).
-    Args:
-      K: number of gaussian components.
-      y_dim: dimension of total variability sub-space.
-      T: Total variability matrix with shape (y_dim, K * x_dim).
-      x_dim: data dimension.
+    """Joint factor analysis model with a total-variability matrix (i-vectors).
 
+    Attributes:
+        K: Number of Gaussian mixture components.
+        y_dim: Dimensionality of the latent i-vector subspace.
+        T: Total-variability matrix with shape ``(y_dim, K * x_dim)``.
     """
 
-    def __init__(self, K, y_dim=None, T=None, **kwargs):
+    def __init__(
+        self,
+        K: int,
+        y_dim: Optional[int] = None,
+        T: Optional[np.ndarray] = None,
+        **kwargs: Any,
+    ) -> None:
+        """Initializes the JFA total-variability model.
+
+        Args:
+            K: Number of mixture components.
+            y_dim: Latent dimension if ``T`` is not provided.
+            T: Optional total-variability matrix used for initialization.
+            **kwargs: Additional keyword arguments passed to :class:`PDF`.
+        """
         super().__init__(**kwargs)
         if T is not None:
             y_dim = T.shape[0]
 
-        self.K = K
-        self.y_dim = y_dim
-        self.T = T
+        self.K: int = K
+        self.y_dim: int = y_dim
+        self.T: Optional[np.ndarray] = T
 
         # aux
-        self._TT = None
-        self.__upptr = None
+        self._TT: Optional[np.ndarray] = None
+        self.__upptr: Optional[np.ndarray] = None
 
-    def reset_aux(self):
-        """Resets auxiliary variables."""
+    def reset_aux(self) -> None:
+        """Resets cached matrices derived from ``T``."""
         self._TT = None
 
     @property
-    def is_init(self):
-        """Returns True if the model has been initialized."""
+    def is_init(self) -> bool:
+        """bool: Whether the model has been initialized."""
         if self._is_init:
             return True
         if self.T is not None:
             self._is_init = True
         return self._is_init
 
-    def initialize(self, N, F):
-        """Initializes the model.
+    def initialize(self, N: np.ndarray, F: np.ndarray) -> None:
+        """Randomly initializes ``T`` using zero/first-order statistics.
 
         Args:
-          N: zero order statistics (num_utterances, K).
-          F: first order statisticss (num_utterances, K * x_dim)
+            N: Zero-order statistics of shape ``(num_utterances, K)``.
+            F: First-order statistics of shape ``(num_utterances, K * x_dim)``.
         """
         assert N.shape[1] == self.K
         self.T = np.random.randn(self.y_dim, F.shape[1]).astype(float_cpu(), copy=False)
 
     def compute_py_g_x(
-        self, N, F, G=None, return_cov=False, return_elbo=False, return_acc=False
-    ):
-        """Computes the latent posterior P(Y|X).
+        self,
+        N: np.ndarray,
+        F: np.ndarray,
+        G: Optional[np.ndarray] = None,
+        return_cov: bool = False,
+        return_elbo: bool = False,
+        return_acc: bool = False,
+    ) -> Union[np.ndarray, Tuple[np.ndarray, ...]]:
+        """Computes the posterior over latent factors ``p(y | x)``.
 
         Args:
-          N: zero order statistics (num_utterances, K).
-          F: first order statisticss (num_utterances, K * x_dim).
-          G: logP(x| UBM, Z) to add to elbo (optional).
-          return_cov: whether or not to return the covariance of the posterior.
-          return_elbo: whther or not to return the ELBO.
-          return_acc: whther or not to return accumulated stats for EM algorithm.
+            N: Zero-order statistics with shape ``(num_utts, K)``.
+            F: First-order statistics with shape ``(num_utts, K * x_dim)``.
+            G: Optional log-likelihood term to add to the ELBO.
+            return_cov: Whether to also return posterior covariances.
+            return_elbo: Whether to return the per-utterance ELBO.
+            return_acc: Whether to return accumulators for EM updates.
 
         Returns:
-          y: latent mean (i-vector).
-          Posterior covariances.
-          ELBO
-          Ry accumlator for ML step with shape (y_dim, y_dim)
-          Py accumlator for MD step with shape (y_dim, y_dim)
+            If ``return_cov``/``return_elbo``/``return_acc`` are all ``False``,
+            only returns the posterior means ``y``; otherwise returns a tuple
+            containing the requested quantities in order
+            ``(y, cov?, elbo?, Ry, Py)``.
         """
         assert self.is_init
         M = F.shape[0]
         y_dim = self.y_dim
+        assert self.T is not None
 
         compute_inv = return_cov or return_acc
         return_tuple = compute_inv or return_elbo
@@ -147,17 +162,19 @@ class JFATotal(PDF):
 
         return tuple(r)
 
-    def Estep(self, N, F, G=None):
-        """Computes the latent posterior P(Y|X).
+    def Estep(
+        self, N: np.ndarray, F: np.ndarray, G: Optional[np.ndarray] = None
+    ) -> Tuple[float, int, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Expectation step computing posterior stats.
 
         Args:
-          N: zero order statistics (num_utterances, K).
-          F: first order statisticss (num_utterances, K * x_dim).
-          G: logP(x| UBM, Z) to add to elbo (optional).
+            N: Zero-order statistics.
+            F: First-order statistics.
+            G: Optional log-likelihood contribution for the ELBO.
 
-        Results:
-          Tuple with stats needed by the maximization step:
-            ELBO, num_classes, accumulated y, Ry, Cy, Py
+        Returns:
+            Tuple ``(elbo, M, y_acc, Ry, Cy, Py)`` with the quantities needed
+            for the M-step.
         """
         y, elbo, Ry, Py = self.compute_py_g_x(
             N, F, G, return_elbo=True, return_acc=True
@@ -172,11 +189,11 @@ class JFATotal(PDF):
         stats = (elbo, M, y_acc, Ry, Cy, Py)
         return stats
 
-    def MstepML(self, stats):
-        """Maximum likelihood step.
+    def MstepML(self, stats: Tuple[Any, ...]) -> None:
+        """Maximum-likelihood update of ``T``.
 
         Args:
-          stats: tuple with statistics prouced by the estimation step.
+            stats: Tuple produced by :meth:`Estep`.
         """
         _, M, y_acc, Ry, Cy, _ = stats
         T = np.zeros_like(self.T)
@@ -191,11 +208,11 @@ class JFATotal(PDF):
         self.T = T
         self.reset_aux()
 
-    def MstepMD(self, stats):
-        """Minimum divergence step.
+    def MstepMD(self, stats: Tuple[Any, ...]) -> None:
+        """Minimum-divergence adaptation step.
 
         Args:
-          stats: tuple with statistics prouced by the estimation step.
+            stats: Tuple produced by :meth:`Estep`.
         """
         _, M, y_acc, Ry, Cy, Py = stats
         mu_y = y_acc / M
@@ -207,34 +224,35 @@ class JFATotal(PDF):
 
     def fit(
         self,
-        N,
-        F,
-        G=None,
-        N_val=None,
-        F_val=None,
-        G_val=None,
-        epochs=20,
-        ml_md="ml+md",
-        md_epochs=None,
-    ):
-        """Trains the model.
+        N: np.ndarray,
+        F: np.ndarray,
+        G: Optional[np.ndarray] = None,
+        N_val: Optional[np.ndarray] = None,
+        F_val: Optional[np.ndarray] = None,
+        G_val: Optional[np.ndarray] = None,
+        epochs: int = 20,
+        ml_md: str = "ml+md",
+        md_epochs: Optional[Tuple[int, ...]] = None,
+    ) -> Union[
+        Tuple[np.ndarray, np.ndarray],
+        Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray],
+    ]:
+        """Trains the model via alternating ML/MD steps.
 
         Args:
-          N: zero order sufficient statistics for training data with shape (num_utterances, K).
-          F: first order sufficient statistics for training data with shape (num_utterances, K*x_dim).
-          G: logP(x| UBM, Z) for training data to add to elbo (optional).
-          N_val: zero order sufficient statistics for val data with shape (num_utterances, K).
-          F_val: first order sufficient statistics for val data with shape (num_utterances, K*x_dim).
-          G_val: logP(x| UBM, Z) for val data to add to elbo (optional).
-          epochs: number of EM steps.
-          ml_md: whether to do maximum likelihood estimation ("ml"), minimum divergence ("md") or both ("ml+md").
-          md_epochs: in which epochs to do MD estimation, if None, MD is done in all epochs.
+            N: Training zero-order stats.
+            F: Training first-order stats.
+            G: Optional training log-likelihood term.
+            N_val: Validation zero-order stats.
+            F_val: Validation first-order stats.
+            G_val: Optional validation log-likelihood term.
+            epochs: Number of training epochs.
+            ml_md: Strategy: ``"ml"``, ``"md"``, or ``"ml+md"``.
+            md_epochs: Optional tuple of epochs where MD is applied.
 
         Returns:
-          log p(X) of the training data.
-          log p(x) per sample.
-          log p(X) of the val. data, if present.
-          log p(x) of the val. data per sample, if present.
+            Training ELBO and normalized ELBO, optionally followed by the
+            validation counterparts.
         """
 
         use_ml = False if ml_md == "md" else True
@@ -250,7 +268,9 @@ class JFATotal(PDF):
             stats = self.Estep(N, F, G)
             elbo[epoch] = stats[0]
             if N_val is not None and F_val is not None:
-                _, elbo_val_e = self.compute_py_x(N_val, F_val, G_val, return_elbo=True)
+                _, elbo_val_e = self.compute_py_g_x(
+                    N_val, F_val, G_val, return_elbo=True
+                )
                 elbo_val[epoch] = np.sum(elbo_val_e)
 
             if use_ml:
@@ -267,36 +287,30 @@ class JFATotal(PDF):
 
     @property
     def TT(self):
-        """
-        Returns:
-          Matrices T_k T_k.T for Gaussian component k.
-          Matrices are vectorized and keep the upper triangular matrix
-          with shape = (K, y_dim (y_dim-1)/2 )
-        """
+        """np.ndarray: Vectorized ``T_k T_k^T`` matrices for each component."""
         if self._TT is None:
             self._TT = self.compute_TT(self.T, self.K, self._upptr)
         return self._TT
 
     @property
     def _upptr(self):
-        """Upper triangular mask."""
+        """np.ndarray: Upper-triangular mask used for vectorization."""
         if self.__upptr is None:
             self.__upptr = np.triu(np.ones(self.y_dim, dtype=bool))
         return self.__upptr
 
     @staticmethod
-    def compute_TT(T, K, upptr):
-        """Computes T_k T_k.T matrices.
+    def compute_TT(T: np.ndarray, K: int, upptr: np.ndarray) -> np.ndarray:
+        """Computes the vectorized ``T_k T_k^T`` matrices for each component.
 
         Args:
-          T: Total variability factor loading matrix.
-          K: number of Gaussian components.
-          upptr: upper triangular mask.
+            T: Total-variability matrix.
+            K: Number of Gaussian components.
+            upptr: Upper-triangular mask.
 
         Returns:
-          Matrices T_k T_k.T for Gaussian component k.
-          Matrices are vectorized and keep the upper triangular matrix
-          with shape = (K, y_dim (y_dim-1)/2 )
+            Array of shape ``(K, y_dim * (y_dim + 1) / 2)`` containing vectorized
+            upper-triangular entries.
         """
         x_dim = int(T.shape[1] / K)
         y_dim = T.shape[0]
@@ -310,28 +324,31 @@ class JFATotal(PDF):
         return TT
 
     @staticmethod
-    def compute_L(TT, N, upptr):
-        """Computes P(y|x) precision.
+    def compute_L(TT: np.ndarray, N: np.ndarray, upptr: np.ndarray) -> np.ndarray:
+        """Computes the posterior precision matrix for each utterance.
 
         Args:
-          TT: T_k T_k.T matrices.
-          N: zero order statistics.
-          upptr: upper triangular mask.
+            TT: Vectorized ``T_k T_k^T`` matrices.
+            N: Zero-order statistics.
+            upptr: Upper-triangular mask.
 
         Returns:
-          Posterior precision vectorized to keep just the upper triangular matrix.
+            Vectorized precision matrices matching ``upptr``.
         """
         y_dim = upptr.shape[0]
         I = np.eye(y_dim, dtype=float_cpu())[upptr]
         return I + np.dot(N, TT)
 
     @staticmethod
-    def normalize_T(T, chol_prec):
-        """Normalizes T by the covariances of the GMM.
+    def normalize_T(T: np.ndarray, chol_prec: np.ndarray) -> np.ndarray:
+        """Normalizes ``T`` by the GMM covariances.
 
         Args:
-          T: original total variability matrix.
-          chol_prec: cholesqy decomp. of the precisions of the GMM components.
+            T: Total-variability matrix.
+            chol_prec: Cholesky factors of the component precisions.
+
+        Returns:
+            Normalized matrix with the same shape as ``T``.
         """
         Tnorm = np.zeros_like(T)
         K = chol_prec.shape[0]
@@ -344,38 +361,37 @@ class JFATotal(PDF):
 
         return Tnorm
 
-    def get_config(self):
-        """Returns the model configuration dict."""
+    def get_config(self) -> Dict[str, Any]:
+        """Builds a serializable configuration dictionary."""
         config = {"K": self.K}
-        base_config = super(JFATotal, self).get_config()
+        base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
-    def save_params(self, f):
-        """Saves the model paramters into the file.
+    def save_params(self, f: Any) -> None:
+        """Persists the total-variability matrix into an HDF5 handle.
 
         Args:
-          f: file handle.
+            f: File-like object created by :mod:`h5py`.
         """
         params = {"T": self.T}
         self._save_params_from_dict(f, params)
 
     @classmethod
-    def load_params(cls, f, config):
-        """Initializes the model from the configuration and loads the model
-        parameters from file.
+    def load_params(cls, f: Any, config: Dict[str, Any]) -> "JFATotal":
+        """Loads parameters and instantiates a :class:`JFATotal`.
 
         Args:
-          f: file handle.
-          config: configuration dictionary.
+            f: HDF5 handle pointing to the stored parameters.
+            config: Configuration dictionary generated by :meth:`get_config`.
 
         Returns:
-          Model object.
+            Fully initialized :class:`JFATotal`.
         """
         param_list = ["T"]
         params = cls._load_params_to_dict(f, config["name"], param_list)
         kwargs = dict(list(config.items()) + list(params.items()))
         return cls(**kwargs)
 
-    def sample(self, num_samples):
+    def sample(self, num_samples: int) -> np.ndarray:
         """Draws samples from the i-vector model."""
         raise NotImplementedError()

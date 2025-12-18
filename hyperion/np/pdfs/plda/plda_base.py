@@ -1,11 +1,13 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
 from enum import Enum
+from typing import Any, Dict, Iterable, Optional, Sequence, Tuple
 
 import numpy as np
+from numpy.random import Generator
 
 from ....hyp_defs import float_cpu
 from ...transforms import LNorm
@@ -13,13 +15,15 @@ from ..core.pdf import PDF
 
 
 class PLDALLRNvsMMethod(str, Enum):
+    """Scoring strategies for PLDA N-vs-M trials."""
+
     vavg = "vavg"
     lnorm_vavg = "lnorm-vavg"
     savg = "savg"
     book = "book"
 
     @staticmethod
-    def choices():
+    def choices() -> Sequence["PLDALLRNvsMMethod"]:
         return [
             PLDALLRNvsMMethod.vavg,
             PLDALLRNvsMMethod.lnorm_vavg,
@@ -29,87 +33,91 @@ class PLDALLRNvsMMethod(str, Enum):
 
 
 class PLDABase(PDF):
-    """Abstract Base class for different versions of
-    Probabilistic Linear Discriminant Analysis (PLDA) models.
+    """Abstract base class for probabilistic linear discriminant analysis (PLDA).
 
     Attributes:
-      y_dim: speaker factor dimension.
-      mu: class-independent mean.
-      update_mu: whether to update mu or not when training the model.
-      x_dim: data dimension.
+        y_dim: Latent speaker-factor dimensionality.
+        mu: Global mean vector.
+        update_mu: Whether to update ``mu`` during training.
+        x_dim: Observed feature dimensionality.
+        epochs: Default number of EM epochs.
+        ml_md: Default training strategy (``"ml"``, ``"md"``, or ``"ml+md"``).
+        md_epochs: Optional iterable of epochs where MD is applied.
     """
 
     def __init__(
         self,
-        y_dim=None,
-        mu=None,
-        update_mu=True,
-        epochs=20,
-        ml_md="ml+md",
-        md_epochs=None,
-        **kwargs,
-    ):
+        y_dim: Optional[int] = None,
+        mu: Optional[np.ndarray] = None,
+        update_mu: bool = True,
+        epochs: int = 20,
+        ml_md: str = "ml+md",
+        md_epochs: Optional[Sequence[int]] = None,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
-        self.mu = mu
-        self.y_dim = y_dim
-        self.update_mu = update_mu
+        self.mu: Optional[np.ndarray] = mu
+        self.y_dim: Optional[int] = y_dim
+        self.update_mu: bool = update_mu
         if mu is not None:
             self.x_dim = mu.shape[0]
 
-        self.epochs = epochs
-        self.ml_md = ml_md
-        self.md_epochs = md_epochs
+        self.epochs: int = epochs
+        self.ml_md: str = ml_md
+        self.md_epochs: Optional[Sequence[int]] = md_epochs
 
-    def initialize(self, D):
-        """initializes the model.
+    def initialize(self, D: Tuple[np.ndarray, np.ndarray, np.ndarray]) -> None:
+        """Initializes the PLDA model from sufficient statistics.
 
         Args:
-          D: tuple of sufficient statistics (N, F, S)
+            D: Tuple ``(N, F, S)`` of zero-, first-, and second-order stats.
         """
         pass
 
-    def compute_py_g_x(self, D):
-        """Computes the posterior P(y|x)
+    def compute_py_g_x(
+        self, D: Tuple[np.ndarray, np.ndarray, np.ndarray]
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Computes the posterior ``p(y | x)`` from sufficient statistics.
 
         Args:
-          D: tuple of sufficient statistics (N, F, S)
+            D: Tuple ``(N, F, S)`` of sufficient statistics.
+
+        Returns:
+            Posterior means and covariances for the latent variables.
         """
         pass
 
     def fit(
         self,
-        x,
-        class_ids=None,
-        ptheta=None,
-        sample_weight=None,
-        x_val=None,
-        class_ids_val=None,
-        ptheta_val=None,
-        sample_weight_val=None,
-        epochs=None,
-        ml_md=None,
-        md_epochs=None,
-    ):
-        """Trains the model.
+        x: np.ndarray,
+        class_ids: Optional[np.ndarray] = None,
+        ptheta: Optional[np.ndarray] = None,
+        sample_weight: Optional[np.ndarray] = None,
+        x_val: Optional[np.ndarray] = None,
+        class_ids_val: Optional[np.ndarray] = None,
+        ptheta_val: Optional[np.ndarray] = None,
+        sample_weight_val: Optional[np.ndarray] = None,
+        epochs: Optional[int] = None,
+        ml_md: Optional[str] = None,
+        md_epochs: Optional[Sequence[int]] = None,
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Trains the PLDA model via EM.
 
         Args:
-          x: train data matrix with shape (num_samples, x_dim).
-          class_ids: class identifiers [0, num_clases-1] for training data.
-          ptheta: probability of belonging to a class with shape (num_samples, num_classes) for training data.
-          sample_weight: weight of each sample in the training loss shape (num_samples,).
-          x_val: validation data matrix with shape (num_val_samples, x_dim).
-          class_ids_val: class identifiers [0, num_clases-1] for val data.
-          ptheta_val: probability of belonging to a class with shape (num_samples, num_classes) for val. data.
-          sample_weight_val: weight of each sample in the val. loss.
-          epochs: number of EM steps.
-          ml_md: whether to do maximum likelihood estimation ("ml"), minimum divergence ("md") or both ("ml+md").
-          md_epochs: in which epochs to do MD estimation, if None, MD is done in all epochs.
+            x: Training data of shape ``(num_samples, x_dim)``.
+            class_ids: Hard class labels for training data.
+            ptheta: Soft class assignments for training data.
+            sample_weight: Optional per-sample weights.
+            x_val: Optional validation data.
+            class_ids_val: Validation class labels.
+            ptheta_val: Validation soft assignments.
+            sample_weight_val: Validation sample weights.
+            epochs: Number of EM epochs.
+            ml_md: Training strategy: ``"ml"``, ``"md"``, or ``"ml+md"``.
+            md_epochs: Optional specific epochs for MD steps.
 
         Returns:
-          log p(X) of the training data.
-          log p(x) per sample.
-          log p(X) of the val. data, if present.
-          log p(x) of the val. data per sample, if present.
+            Training ELBO trace and normalized ELBO; validation metrics if provided.
         """
         if epochs is None:
             epochs = self.epochs
@@ -162,60 +170,69 @@ class PLDABase(PDF):
             elbo_val_norm = elbo_val / np.sum(D_val[0])
             return elbo, elbo_norm, elbo_val, elbo_val_norm
 
-    def Estep(self, x):
-        """Expectation step."""
+    def Estep(self, x: Tuple[np.ndarray, np.ndarray, np.ndarray]):
+        """Expectation step placeholder.
+
+        Args:
+            x: Tuple ``(N, F, S)`` of sufficient statistics.
+        """
         pass
 
-    def MstepML(self, x):
-        """Maximum likelihood step."""
+    def MstepML(self, x: Tuple[np.ndarray, np.ndarray, np.ndarray]) -> None:
+        """Maximum-likelihood update placeholder.
+
+        Args:
+            x: Tuple ``(N, F, S)`` needed for the ML update.
+        """
         pass
 
-    def MstepMD(self, x):
-        """Minimum Divergence step."""
+    def MstepMD(self, x: Tuple[np.ndarray, np.ndarray, np.ndarray]) -> None:
+        """Minimum-divergence update placeholder.
+
+        Args:
+            x: Tuple ``(N, F, S)`` needed for the MD update.
+        """
         pass
 
     def fit_adapt_weighted_avg_model(
         self,
-        x,
-        class_ids=None,
-        ptheta=None,
-        sample_weight=None,
-        x_val=None,
-        class_ids_val=None,
-        ptheta_val=None,
-        sample_weight_val=None,
-        epochs=20,
-        ml_md="ml+md",
-        md_epochs=None,
-        plda0=None,
-        w_mu=1,
-        w_B=0.5,
-        w_W=0.5,
-    ):
-        """Adapts a PLDA model to new data. The adapted model is weighted averaged with the prior after each epoch.
+        x: np.ndarray,
+        class_ids: Optional[np.ndarray] = None,
+        ptheta: Optional[np.ndarray] = None,
+        sample_weight: Optional[np.ndarray] = None,
+        x_val: Optional[np.ndarray] = None,
+        class_ids_val: Optional[np.ndarray] = None,
+        ptheta_val: Optional[np.ndarray] = None,
+        sample_weight_val: Optional[np.ndarray] = None,
+        epochs: int = 20,
+        ml_md: str = "ml+md",
+        md_epochs: Optional[Sequence[int]] = None,
+        plda0: Optional["PLDABase"] = None,
+        w_mu: float = 1,
+        w_B: float = 0.5,
+        w_W: float = 0.5,
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Adapts a PLDA model and averages it with a prior after each epoch.
 
         Args:
-          x: train data matrix with shape (num_samples, x_dim).
-          class_ids: class identifiers [0, num_clases-1] for training data.
-          ptheta: probability of belonging to a class with shape (num_samples, num_classes) for training data.
-          sample_weight: weight of each sample in the training loss shape (num_samples,).
-          x_val: validation data matrix with shape (num_val_samples, x_dim).
-          class_ids_val: class identifiers [0, num_clases-1] for val data.
-          ptheta_val: probability of belonging to a class with shape (num_samples, num_classes) for val. data.
-          sample_weight_val: weight of each sample in the val. loss.
-          epochs: number of EM steps.
-          ml_md: whether to do maximum likelihood estimation ("ml"), minimum divergence ("md") or both ("ml+md").
-          md_epochs: in which epochs to do MD estimation, if None, MD is done in all epochs.
-          plda0: prior model.
-          w_mu: weigth of the prior on the mean.
-          w_B: weight of the prior on the between-class precision.
-          w_W: weight of the prior on the within-class precision.
+            x: Training data.
+            class_ids: Hard class labels for training data.
+            ptheta: Soft class assignments for training data.
+            sample_weight: Optional sample weights for training data.
+            x_val: Optional validation data.
+            class_ids_val: Validation class labels.
+            ptheta_val: Validation soft assignments.
+            sample_weight_val: Validation sample weights.
+            epochs: Number of adaptation epochs.
+            ml_md: Adaptation strategy ``"ml"``, ``"md"``, or ``"ml+md"``.
+            md_epochs: Optional MD epochs.
+            plda0: Prior PLDA model to average with.
+            w_mu: Prior weight on the mean.
+            w_B: Prior weight on between-class parameters.
+            w_W: Prior weight on within-class parameters.
 
         Returns:
-          log p(X) of the training data.
-          log p(x) per sample.
-          log p(X) of the val. data, if present.
-          log p(x) of the val. data per sample, if present.
+            Training ELBO trace and normalized ELBO, optionally validation metrics.
         """
 
         assert self.is_init
@@ -263,19 +280,22 @@ class PLDABase(PDF):
             return elbo, elbo_norm, elbo_val, elbo_val_norm
 
     @staticmethod
-    def compute_stats_soft(x, p_theta, sample_weight=None, scal_factor=None):
-        """Computes sufficient statistics need by PLDA model using soft class assigments.
+    def compute_stats_soft(
+        x: np.ndarray,
+        p_theta: np.ndarray,
+        sample_weight: Optional[np.ndarray] = None,
+        scal_factor: Optional[float] = None,
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Computes sufficient statistics using soft class assignments.
 
         Args:
-          x: input data with shape (num_samples, x_dim)
-          p_theta: soft class assigments with shape (num_samples, num_classes)
-          sample_weight: weight of each sample for training with shape (num_samples, )
-          scal_factor: scaling factor for sufficient statistics (Themos factor)
+            x: Samples with shape ``(num_samples, x_dim)``.
+            p_theta: Soft class probabilities with shape ``(num_samples, num_classes)``.
+            sample_weight: Optional sample weights.
+            scal_factor: Optional scaling factor applied to the stats.
 
         Returns:
-          N: zero order stats with shape (num_classes,)
-          F: first order stats with shape (num_classes, x_dim)
-          S: Accumulated second order stats with sahpe (x_dim, x_dim)
+            Tuple ``(N, F, S)`` of zero-, first-, and second-order stats.
         """
         if sample_weight is not None:
             p_theta = sample_weight[:, None] * p_theta
@@ -288,19 +308,22 @@ class PLDABase(PDF):
         return N, F, S
 
     @staticmethod
-    def compute_stats_hard(x, class_ids, sample_weight=None, scale_factor=None):
-        """Computes sufficient statistics need by PLDA model using soft class assigments.
+    def compute_stats_hard(
+        x: np.ndarray,
+        class_ids: np.ndarray,
+        sample_weight: Optional[np.ndarray] = None,
+        scale_factor: Optional[float] = None,
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Computes sufficient statistics using hard class assignments.
 
         Args:
-          x: input data with shape (num_samples, x_dim)
-          class_ids: integer [0, num_classes-1] vector indicating the class of each sample.
-          sample_weight: weight of each sample for training with shape (num_samples, )
-          scal_factor: scaling factor for sufficient statistics (Themos factor)
+            x: Samples with shape ``(num_samples, x_dim)``.
+            class_ids: Integer labels in ``[0, num_classes-1]``.
+            sample_weight: Optional sample weights.
+            scale_factor: Optional scaling factor applied to the stats.
 
         Returns:
-          N: zero order stats with shape (num_classes,)
-          F: first order stats with shape (num_classes, x_dim)
-          S: Accumulated second order stats with sahpe (x_dim, x_dim)
+            Tuple ``(N, F, S)`` of zero-, first-, and second-order stats.
         """
         x_dim = x.shape[1]
         num_classes = np.max(class_ids) + 1
@@ -329,7 +352,13 @@ class PLDABase(PDF):
         return N, F, S
 
     @staticmethod
-    def compute_stats_hard_v0(x, class_ids, sample_weight=None, scal_factor=None):
+    def compute_stats_hard_v0(
+        x: np.ndarray,
+        class_ids: np.ndarray,
+        sample_weight: Optional[np.ndarray] = None,
+        scal_factor: Optional[float] = None,
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Variant that converts hard labels into soft assignments."""
         x_dim = x.shape[1]
         num_classes = np.max(class_ids) + 1
         p_theta = np.zeros((x.shape[0], num_classes), dtype=float_cpu())
@@ -337,15 +366,17 @@ class PLDABase(PDF):
         return PLDABase.compute_stats_soft(x, p_theta, sample_weight, scal_factor)
 
     @staticmethod
-    def center_stats(D, mu):
-        """Centers the sufficient statistics by the PLDA mean.
+    def center_stats(
+        D: Tuple[np.ndarray, np.ndarray, np.ndarray], mu: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Centers sufficient statistics by subtracting the global mean.
 
         Args:
-           D: tupe with sufficient stats (N, F, S).
-           mu: mean vector.
+            D: Tuple ``(N, F, S)`` of sufficient statistics.
+            mu: Global mean vector.
 
         Returns:
-          Centered N, F, S
+            Tuple ``(N, F_c, S_c)`` of centered statistics.
         """
         N, F, S = D
         Fc = F - np.outer(N, mu)
@@ -353,52 +384,53 @@ class PLDABase(PDF):
         Sc = S - Fmu - Fmu.T + np.sum(N) * np.outer(mu, mu)
         return N, Fc, Sc
 
-    def llr_1vs1(self, x1, x2):
-        """log-likelihood ratio between target and non-target hypothesis for
-        the case of one enrollment and one test segments.
+    def llr_1vs1(self, x1: np.ndarray, x2: np.ndarray) -> np.ndarray:
+        """LLR for single enrollment vs single test.
 
         Args:
-          x1: enrollment vectors with shape (num_enroll_segmens, x_dim).
-          x2: test vectors with shape (num_enroll_segmens, x_dim).
+            x1: Enrollment embeddings with shape ``(num_enroll, x_dim)``.
+            x2: Test embeddings with shape ``(num_test, x_dim)``.
 
         Returns:
-          Score matrix with shape (num_enrollment_segments, num_test_segments).
+            Score matrix with shape ``(num_enroll, num_test)``.
         """
         pass
 
-    def llr_NvsM_book(self, D1, D2):
-        """log-likelihood ratio between target and non-target hypothesis for
-        the case of N segments/enrollment-side and M segments/test-side
-        evaluated with the exact formula (by the book).
+    def llr_NvsM_book(
+        self,
+        D1: Tuple[np.ndarray, np.ndarray, np.ndarray],
+        D2: Tuple[np.ndarray, np.ndarray, np.ndarray],
+    ) -> np.ndarray:
+        """Exact N-vs-M PLDA scoring using sufficient statistics.
 
         Args:
-          D1: tuple of sufficient statistics for the enrollment sides (N1, F1, S1).
-          D2: tuple of sufficient statistics for the test sides (N2, F2, S2).
+            D1: Enrollment-side stats ``(N1, F1, S1)``.
+            D2: Test-side stats ``(N2, F2, S2)``.
 
         Returns:
-          Score matrix with shape (num_enrollment_sides, num_test_sides).
+            Score matrix of shape ``(num_enroll_sides, num_test_sides)``.
         """
         pass
 
     def llr_NvsM(
-        self, x1, x2, ids1=None, ids2=None, method=PLDALLRNvsMMethod.lnorm_vavg
-    ):
-        """log-likelihood ratio between target and non-target hypothesis for
-        the case of N segments/enrollment-side and M segments/test-side
+        self,
+        x1: np.ndarray,
+        x2: np.ndarray,
+        ids1: Optional[np.ndarray] = None,
+        ids2: Optional[np.ndarray] = None,
+        method: PLDALLRNvsMMethod = PLDALLRNvsMMethod.lnorm_vavg,
+    ) -> np.ndarray:
+        """Computes N-vs-M log-likelihood ratios under different strategies.
 
         Args:
-          x1: enrollment vectors with shape (num_enroll_segmens, x_dim).
-          x2: test vectors with shape (num_enroll_segmens, x_dim).
-          ids1: integer array mapping from segments to
-                enrollment-sides in [0, num_enroll_sides-1]
-          ids2: integer array mapping from segments to
-                test-sides in [0, num_test_sides-1]
-          method: evaluation method in ["book" (exact formula),
-            "vavg" (vector averaging), "vavg-lnorm" (vector averagin + lnorm),
-            "savg" (score averaging)]
+            x1: Enrollment embeddings.
+            x2: Test embeddings.
+            ids1: Optional mapping from enrollment segments to sides.
+            ids2: Optional mapping from test segments to sides.
+            method: Scoring strategy to use.
 
         Returns:
-          Score matrix with shape (num_enrollment_sides, num_test_sides).
+            Score matrix; dimensions depend on the strategy.
         """
         if method == PLDALLRNvsMMethod.savg:
             return self.llr_NvsM_savg(x1, ids1, x2, ids2)
@@ -415,18 +447,21 @@ class PLDABase(PDF):
 
         raise ValueError(f"wrong llr {method}")
 
-    def llr_NvsM_vavg(self, D1, D2, do_lnorm=True):
-        """log-likelihood ratio between target and non-target hypothesis for
-        the case of N segments/enrollment-side and M segments/test-side
-        evaluated with vector averaging.
+    def llr_NvsM_vavg(
+        self,
+        D1: Tuple[np.ndarray, np.ndarray, np.ndarray],
+        D2: Tuple[np.ndarray, np.ndarray, np.ndarray],
+        do_lnorm: bool = True,
+    ) -> np.ndarray:
+        """Vector-averaged N-vs-M scoring with optional length normalization.
 
         Args:
-          D1: tuple of sufficient statistics for the enrollment sides (N1, F1, S1).
-          D2: tuple of sufficient statistics for the test sides (N2, F2, S2).
-          do_lnorm: whether or not to do length norm. after vector averaging.
+            D1: Tuple ``(N1, F1, S1)`` for each enrollment side.
+            D2: Tuple ``(N2, F2, S2)`` for each test side.
+            do_lnorm: Whether to apply length normalization after vector averaging.
 
         Returns:
-          Score matrix with shape (num_enrollment_sides, num_test_sides).
+            Score matrix of shape ``(num_enroll_sides, num_test_sides)``.
         """
         x1 = D1[1] / np.expand_dims(D1[0], axis=-1)
         x2 = D2[1] / np.expand_dims(D2[0], axis=-1)
@@ -437,20 +472,23 @@ class PLDABase(PDF):
 
         return self.llr_1vs1(x1, x2)
 
-    def llr_NvsM_savg(self, x1, ids1, x2, ids2):
-        """log-likelihood ratio between target and non-target hypothesis for
-        the case of N segments/enrollment-side and M segments/test-side
+    def llr_NvsM_savg(
+        self,
+        x1: np.ndarray,
+        ids1: np.ndarray,
+        x2: np.ndarray,
+        ids2: np.ndarray,
+    ) -> np.ndarray:
+        """Score-averaged N-vs-M scoring using segment-level LLRs.
 
         Args:
-          x1: enrollment vectors with shape (num_enroll_segmens, x_dim).
-          x2: test vectors with shape (num_enroll_segmens, x_dim).
-          ids1: integer array mapping from segments to
-                enrollment-sides in [0, num_enroll_sides-1]
-          ids2: integer array mapping from segments to
-                test-sides in [0, num_test_sides-1]
+            x1: Enrollment embeddings with shape ``(num_segments, x_dim)``.
+            ids1: Mapping from enrollment segments to enrollment sides.
+            x2: Test embeddings with shape ``(num_segments, x_dim)``.
+            ids2: Mapping from test segments to test sides.
 
         Returns:
-          Score matrix with shape (num_enrollment_sides, num_test_sides).
+            Score matrix with shape ``(num_enroll_sides, num_test_sides)``.
         """
         scores_1vs1 = self.llr_1vs1(x1, x2)
         N, F, _ = self.compute_stats_hard(scores_1vs1, ids1)
@@ -459,21 +497,23 @@ class PLDABase(PDF):
         scores = F.T / N
         return scores
 
-    def llr_Nvs1(self, x1, x2, ids1=None, method=PLDALLRNvsMMethod.lnorm_vavg):
-        """log-likelihood ratio between target and non-target hypothesis for
-        the case of N segments/enrollment-side and M segments/test-side
+    def llr_Nvs1(
+        self,
+        x1: np.ndarray,
+        x2: np.ndarray,
+        ids1: Optional[np.ndarray] = None,
+        method: PLDALLRNvsMMethod = PLDALLRNvsMMethod.lnorm_vavg,
+    ) -> np.ndarray:
+        """LLR for N enrollment segments vs single test segments.
 
         Args:
-          x1: enrollment vectors with shape (num_enroll_segmens, x_dim).
-          x2: test vectors with shape (num_test_segmens, x_dim).
-          ids1: integer array mapping from segments to
-                enrollment-sides in [0, num_enroll_sides-1]
-          method: evaluation method in ["book" (exact formula),
-            "vavg" (vector averaging), "vavg-lnorm" (vector averagin + lnorm),
-            "savg" (score averaging)]
+            x1: Enrollment embeddings with shape ``(num_segments, x_dim)``.
+            x2: Test embeddings with shape ``(num_test_segments, x_dim)``.
+            ids1: Optional mapping from segments to enrollment sides.
+            method: Scoring strategy (``"book"``, ``"vavg"``, ``"lnorm-vavg"``, ``"savg"``).
 
         Returns:
-          Score matrix with shape (num_enrollment_sides, num_test_sides).
+            Score matrix with shape ``(num_enroll_sides, num_test_segments)``.
         """
         if method == PLDALLRNvsMMethod.savg:
             return self.llr_Nvs1_savg(x1, ids1, x2)
@@ -490,18 +530,21 @@ class PLDABase(PDF):
 
         raise ValueError(f"wrong llr {method}")
 
-    def llr_Nvs1_vavg(self, D1, x2, do_lnorm=True):
-        """log-likelihood ratio between target and non-target hypothesis for
-        the case of N segments/enrollment-side and M segments/test-side
-        evaluated with vector averaging.
+    def llr_Nvs1_vavg(
+        self,
+        D1: Tuple[np.ndarray, np.ndarray, np.ndarray],
+        x2: np.ndarray,
+        do_lnorm: bool = True,
+    ) -> np.ndarray:
+        """Vector-averaged N-vs-1 scoring.
 
         Args:
-          D1: tuple of sufficient statistics for the enrollment sides (N1, F1, S1).
-          x2: test vectors with shape (num_test_segmens, x_dim).
-          do_lnorm: whether or not to do length norm. after vector averaging.
+            D1: Tuple ``(N1, F1, S1)`` describing each enrollment side.
+            x2: Test embeddings with shape ``(num_test_segments, x_dim)``.
+            do_lnorm: Whether to apply length normalization after averaging.
 
         Returns:
-          Score matrix with shape (num_enrollment_sides, num_test_sides).
+            Score matrix of shape ``(num_enroll_sides, num_test_segments)``.
         """
         x1 = D1[1] / np.expand_dims(D1[0], axis=-1)
         if do_lnorm:
@@ -511,61 +554,54 @@ class PLDABase(PDF):
 
         return self.llr_1vs1(x1, x2)
 
-    def llr_Nvs1_savg(self, x1, ids1, x2):
-        """log-likelihood ratio between target and non-target hypothesis for
-        the case of N segments/enrollment-side and M segments/test-side
+    def llr_Nvs1_savg(
+        self, x1: np.ndarray, ids1: np.ndarray, x2: np.ndarray
+    ) -> np.ndarray:
+        """Score-averaged N-vs-1 scoring.
 
         Args:
-          x1: enrollment vectors with shape (num_enroll_segmens, x_dim).
-          x2: test vectors with shape (num_enroll_segmens, x_dim).
-          ids1: integer array mapping from segments to
-                enrollment-sides in [0, num_enroll_sides-1]
+            x1: Enrollment embeddings.
+            ids1: Mapping from enrollment segments to enrollment sides.
+            x2: Test embeddings.
 
         Returns:
-          Score matrix with shape (num_enrollment_sides, num_test_sides).
+            Score matrix with shape ``(num_enroll_sides, num_test_segments)``.
         """
         scores_1vs1 = self.llr_1vs1(x1, x2)
         N, F, _ = self.compute_stats_hard(scores_1vs1, ids1)
         scores = F / N[:, None]
         return scores
 
-    def sample(self, num_classes, num_samples_per_class, rng=None, seed=1024):
+    def sample(
+        self,
+        num_classes: int,
+        num_samples_per_class: int,
+        rng: Optional[Generator] = None,
+        seed: int = 1024,
+    ) -> np.ndarray:
         """Draws samples from the PLDA model.
 
         Args:
-          num_classes: number of classes to sample.
-          num_samples_per_class: number of samples to sample per each class.
-          rng: random number generator.
-          seed: random seed used if rng is None.
+            num_classes: Number of classes to simulate.
+            num_samples_per_class: Number of samples per class.
+            rng: Optional random number generator.
+            seed: Used if ``rng`` is ``None``.
 
         Returns:
-          Generated samples with shape (num_samples, x_dim).
+            Samples with shape ``(num_classes * num_samples_per_class, x_dim)``.
         """
         pass
 
-    def get_config(self):
+    def get_config(self) -> Dict[str, Any]:
         """Returns the model configuration dict."""
         config = {"y_dim": self.y_dim, "update_mu": self.update_mu}
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
-    def weigthed_avg_params(self, mu, w_mu):
-        """Performs weighted average of the model parameters
-        and some given parameters.
-
-        Args:
-          mu: other mean vector
-          w_mu: weight of the given mean vector.
-
-        """
+    def weighted_avg_params(self, mu: np.ndarray, w_mu: float) -> None:
+        """Averages this model's mean with another mean vector."""
         self.mu = w_mu * mu + (1 - w_mu) * self.mu
 
-    def weigthed_avg_model(self, plda):
-        """Performs weighted average of the model parameters
-        and those of another model given as input.
-
-        Args:
-          plda: other PLDA model.
-
-        """
+    def weighted_avg_model(self, plda: "PLDABase", **kwargs) -> None:
+        """Placeholder for averaging this model with another PLDA model."""
         pass

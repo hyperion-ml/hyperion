@@ -1,9 +1,12 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+from typing import Any, Dict, Optional, Sequence, Tuple, Union
+
 import numpy as np
+from numpy.random import Generator
 from scipy import linalg as sla
 
 from ....hyp_defs import float_cpu
@@ -33,22 +36,22 @@ class PLDA(PLDABase):
 
     def __init__(
         self,
-        y_dim=None,
-        z_dim=None,
-        mu=None,
-        V=None,
-        U=None,
-        D=None,
-        floor_iD=1e-5,
-        update_mu=True,
-        update_V=True,
-        update_U=True,
-        update_D=True,
-        epochs=20,
-        ml_md="ml+md",
-        md_epochs=None,
-        **kwargs
-    ):
+        y_dim: Optional[int] = None,
+        z_dim: Optional[int] = None,
+        mu: Optional[np.ndarray] = None,
+        V: Optional[np.ndarray] = None,
+        U: Optional[np.ndarray] = None,
+        D: Optional[np.ndarray] = None,
+        floor_iD: float = 1e-5,
+        update_mu: bool = True,
+        update_V: bool = True,
+        update_U: bool = True,
+        update_D: bool = True,
+        epochs: int = 20,
+        ml_md: str = "ml+md",
+        md_epochs: Optional[Sequence[int]] = None,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(
             y_dim=y_dim,
             mu=mu,
@@ -56,7 +59,7 @@ class PLDA(PLDABase):
             epochs=epochs,
             ml_md=ml_md,
             md_epochs=md_epochs,
-            **kwargs
+            **kwargs,
         )
         self.z_dim = z_dim
         if V is not None:
@@ -81,7 +84,7 @@ class PLDA(PLDABase):
         self._VW = None
         self._VWV = None
 
-    def validate(self):
+    def validate(self) -> None:
         """Validates the model parameters."""
         assert self.mu.shape[0] >= self.V.shape[0]
         assert self.mu.shape[0] == self.V.shape[1]
@@ -90,7 +93,7 @@ class PLDA(PLDABase):
         assert self.mu.shape[0] == self.D.shape[0]
 
     @property
-    def is_init(self):
+    def is_init(self) -> bool:
         """Returns True if the model has been initialized."""
         if self._is_init:
             return True
@@ -106,7 +109,7 @@ class PLDA(PLDABase):
             self._is_init = True
         return self._is_init
 
-    def compute_aux(self):
+    def compute_aux(self) -> None:
         """Computes auxiliary variables."""
         DV = self.V * self.D
         DU = self.U * self.D
@@ -121,7 +124,7 @@ class PLDA(PLDABase):
         self._VW = DV.T - np.dot(DUiLz, self._J.T)
         self._VWV = np.dot(self.V, self._VW)
 
-    def initialize(self, D):
+    def initialize(self, D: Tuple[np.ndarray, np.ndarray, np.ndarray]) -> None:
         """initializes the model.
 
         Args:
@@ -154,8 +157,12 @@ class PLDA(PLDABase):
         self.compute_aux()
 
     def compute_py_g_x(
-        self, D, return_cov=False, return_logpy_0=False, return_acc=False
-    ):
+        self,
+        D: Union[Tuple[np.ndarray, np.ndarray, np.ndarray], np.ndarray],
+        return_cov: bool = False,
+        return_logpy_0: bool = False,
+        return_acc: bool = False,
+    ) -> Union[np.ndarray, Tuple[Any, ...]]:
         """Computes the posterior P(y|x)
 
         Args:
@@ -179,7 +186,7 @@ class PLDA(PLDABase):
             N = np.ones((F.shape[0],), dtype=F.dtype)
             S = None
 
-        Fc = F - self.mu
+        Fc = F - N[:, None] * self.mu
 
         M = F.shape[0]
         y_dim = self.y_dim
@@ -259,7 +266,7 @@ class PLDA(PLDABase):
             r += [Ry, Py]
         return tuple(r)
 
-    def Estep(self, D):
+    def Estep(self, D: Tuple[np.ndarray, np.ndarray, np.ndarray]):
         """Expectation step.
 
         Args:
@@ -328,7 +335,7 @@ class PLDA(PLDABase):
         )
         return stats
 
-    def elbo(self, stats):
+    def elbo(self, stats: Tuple[Any, ...]) -> float:
         """Computes the objective function.
 
         Args:
@@ -353,7 +360,7 @@ class PLDA(PLDABase):
         elbo = logpx_y + logpy - logpy_x
         return elbo
 
-    def MstepML(self, stats):
+    def MstepML(self, stats: Tuple[Any, ...]) -> None:
         """Maximum likelihood estimation step.
 
         Args:
@@ -435,7 +442,7 @@ class PLDA(PLDABase):
 
         self.compute_aux()
 
-    def MstepMD(self, stats):
+    def MstepMD(self, stats: Tuple[Any, ...]) -> None:
         """Minimum divergence estimation step.
 
         Args:
@@ -468,7 +475,7 @@ class PLDA(PLDABase):
 
         self.compute_aux()
 
-    def get_config(self):
+    def get_config(self) -> Dict[str, Any]:
         """Returns the model configuration dict."""
         config = {
             "update_D": self.update_D,
@@ -479,7 +486,7 @@ class PLDA(PLDABase):
         base_config = super(PLDA, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
-    def save_params(self, f):
+    def save_params(self, f: Any) -> None:
         """Saves the model paramters into the file.
 
         Args:
@@ -489,7 +496,7 @@ class PLDA(PLDABase):
         self._save_params_from_dict(f, params)
 
     @classmethod
-    def load_params(cls, f, config):
+    def load_params(cls, f: Any, config: Dict[str, Any]) -> "PLDA":
         """Initializes the model from the configuration and loads the model
         parameters from file.
 
@@ -505,7 +512,7 @@ class PLDA(PLDABase):
         kwargs = dict(list(config.items()) + list(params.items()))
         return cls(**kwargs)
 
-    def log_probx_g_y(self, x, y):
+    def log_probx_g_y(self, x: np.ndarray, y: np.ndarray) -> np.ndarray:
         """Computes logP(X|Y)
 
         Args:
@@ -526,7 +533,7 @@ class PLDA(PLDABase):
         logp /= 2
         return logp
 
-    def log_probx_g_yz(self, x, y, z):
+    def log_probx_g_yz(self, x: np.ndarray, y: np.ndarray, z: np.ndarray) -> np.ndarray:
         """Computes logP(X|Y,Z)
 
         Args:
@@ -545,7 +552,7 @@ class PLDA(PLDABase):
         logp /= 2
         return logp
 
-    def llr_1vs1(self, x1, x2):
+    def llr_1vs1(self, x1: np.ndarray, x2: np.ndarray) -> np.ndarray:
         """log-likelihood ratio between target and non-target hypothesis for
         the case of one enrollment and one test segments.
 
@@ -598,7 +605,11 @@ class PLDA(PLDABase):
         scores *= 0.5
         return scores
 
-    def llr_NvsM_book(self, D1, D2):
+    def llr_NvsM_book(
+        self,
+        D1: Tuple[np.ndarray, np.ndarray, np.ndarray],
+        D2: Tuple[np.ndarray, np.ndarray, np.ndarray],
+    ) -> np.ndarray:
         """log-likelihood ratio between target and non-target hypothesis for
         the case of N segments/enrollment-side and M segments/test-side
         evaluated with the exact formula (by the book).
@@ -675,7 +686,13 @@ class PLDA(PLDABase):
         scores *= 0.5
         return scores
 
-    def sample(self, num_classes, num_samples_per_class, rng=None, seed=1024):
+    def sample(
+        self,
+        num_classes: int,
+        num_samples_per_class: int,
+        rng: Optional[Generator] = None,
+        seed: int = 1024,
+    ) -> np.ndarray:
         """Draws samples from the PLDA model.
 
         Args:
@@ -695,7 +712,7 @@ class PLDA(PLDABase):
         z1 = rng.normal(size=(num_classes * num_samples_per_class, x_dim)).astype(
             dtype=float_cpu(), copy=False
         )
-        z1 /= self.D
+        z1 /= np.sqrt(self.D)
 
         z2 = rng.normal(size=(num_classes * num_samples_per_class, self.z_dim)).astype(
             dtype=float_cpu(), copy=False
@@ -709,16 +726,30 @@ class PLDA(PLDABase):
 
         return y + z1 + z2
 
-    def weighted_avg_params(self, mu, V, U, D, w_mu, w_B, w_W):
+    def weighted_avg_params(
+        self,
+        mu: np.ndarray,
+        V: np.ndarray,
+        U: np.ndarray,
+        D: np.ndarray,
+        w_mu: float,
+        w_B: float,
+        w_W: float,
+    ) -> None:
         """Performs weighted average of the model parameters
         and some given parameters.
 
         Args:
-          mu: other mean vector
+          mu: other mean vector.
+          V: other speaker loading matrix.
+          U: other channel loading matrix.
+          D: other channel precision vector.
           w_mu: weight of the given mean vector.
+          w_B: weight of the given speaker parameters.
+          w_W: weight of the given channel parameters.
 
         """
-        super().weigthed_avg_params(mu, w_mu)
+        super().weighted_avg_params(mu, w_mu)
         if w_B > 0:
             Sb0 = np.dot(self.V.T, self.V)
             Sb = np.dot(V.T, V)
@@ -740,12 +771,17 @@ class PLDA(PLDABase):
             iD[iD < self.floor_iD] = self.floor_iD
             self.D = 1 / iD
 
-    def weighted_avg_model(self, plda, w_mu, w_B, w_W):
+    def weighted_avg_model(
+        self, plda: "PLDA", w_mu: float, w_B: float, w_W: float
+    ) -> None:
         """Performs weighted average of the model parameters
         and those of another model given as input.
 
         Args:
           plda: other PLDA model.
+          w_mu: weight of the prior mean.
+          w_B: weight of the prior speaker parameters.
+          w_W: weight of the prior channel parameters.
 
         """
         self.weighted_avg_params(plda.mu, plda.V, plda.U, plda.D, w_mu, w_B, w_W)

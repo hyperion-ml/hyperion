@@ -1,10 +1,13 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
+from typing import Any, Dict, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import scipy.linalg as la
+from numpy.random import Generator, RandomState
 
 from ....hyp_defs import float_cpu
 from ....utils.math_funcs import (
@@ -25,41 +28,58 @@ from .exp_family import ExpFamily
 
 
 class Normal(ExpFamily):
-    """Class for Normal distribution with full covariance.
+    """Multivariate normal distribution with a full covariance matrix.
+
+    This class exposes both the standard parameters (mean ``mu`` and precision
+    matrix ``Lambda``) and the natural parameters used by the `ExpFamily` base
+    class, allowing it to participate in EM-style optimization or closed-form
+    updates.
 
     Attributes:
-      mu: mean with shape (x_dim,) or None.
-      Lambda: precision with shape (x_dim, x_dim) or None.
-      var_floor: variance floor.
-      update_mu: whether or not update mu when optimizing.
-      update_Lambda: wether or not update Lambda when optimizing.
-      x_dim: data dim (infered from mu if present)
+        mu: Mean vector with shape ``(x_dim,)`` or ``None`` if it has not been
+            initialized yet.
+        Lambda: Precision matrix with shape ``(x_dim, x_dim)`` or ``None`` until
+            initialized.
+        var_floor: Minimum allowed variance when floor operations are applied.
+        update_mu: Whether ``mu`` is updated during the M-step.
+        update_Lambda: Whether ``Lambda`` is updated during the M-step.
+        x_dim: Data dimensionality inherited from :class:`PDF`.
     """
 
     def __init__(
         self,
-        mu=None,
-        Lambda=None,
-        var_floor=1e-5,
-        update_mu=True,
-        update_Lambda=True,
-        **kwargs
-    ):
+        mu: Optional[np.ndarray] = None,
+        Lambda: Optional[np.ndarray] = None,
+        var_floor: float = 1e-5,
+        update_mu: bool = True,
+        update_Lambda: bool = True,
+        **kwargs: Any,
+    ) -> None:
+        """Initializes a Normal distribution instance.
+
+        Args:
+            mu: Optional mean vector used as the starting point.
+            Lambda: Optional precision matrix (inverse covariance).
+            var_floor: Minimum variance allowed during covariance updates.
+            update_mu: Whether ``mu`` is updated in :meth:`Mstep`.
+            update_Lambda: Whether ``Lambda`` is updated in :meth:`Mstep`.
+            **kwargs: Additional keyword arguments forwarded to :class:`ExpFamily`.
+        """
         super().__init__(**kwargs)
-        self.mu = mu
-        self.Lambda = Lambda
-        self.var_floor = var_floor
-        self.update_mu = update_mu
-        self.update_Lambda = update_Lambda
+        self.mu: Optional[np.ndarray] = mu
+        self.Lambda: Optional[np.ndarray] = Lambda
+        self.var_floor: float = var_floor
+        self.update_mu: bool = update_mu
+        self.update_Lambda: bool = update_Lambda
 
         self._compute_nat_std()
 
-        self._logLambda = None
-        self._cholLambda = None
-        self._Sigma = None
+        self._logLambda: Optional[float] = None
+        self._cholLambda: Optional[np.ndarray] = None
+        self._Sigma: Optional[np.ndarray] = None
 
-    def _compute_nat_std(self):
-        """Comptues natural and standard parameters of the distribution."""
+    def _compute_nat_std(self) -> None:
+        """Keeps natural and standard parameterizations in sync."""
         if self.mu is not None and self.Lambda is not None:
             self._validate_mu()
             self._validate_Lambda()
@@ -70,8 +90,8 @@ class Normal(ExpFamily):
             self._compute_std_params()
 
     @property
-    def logLambda(self):
-        """log precision determinant."""
+    def logLambda(self) -> float:
+        """float: Log-determinant of the precision matrix."""
         if self._logLambda is None:
             assert self.is_init
             f, L, logL = invert_pdmat(self.Lambda, return_logdet=True)
@@ -80,8 +100,8 @@ class Normal(ExpFamily):
         return self._logLambda
 
     @property
-    def cholLambda(self):
-        """Cholesqy decomp. of the precision."""
+    def cholLambda(self) -> np.ndarray:
+        """np.ndarray: Upper-triangular Cholesky factor of ``Lambda``."""
         if self._cholLambda is None:
             assert self.is_init
             f, L, logL = invert_pdmat(self.Lambda, return_logdet=True)
@@ -90,42 +110,66 @@ class Normal(ExpFamily):
         return self._cholLambda
 
     @property
-    def Sigma(self):
-        """Covariance."""
+    def Sigma(self) -> np.ndarray:
+        """np.ndarray: Covariance matrix (inverse of ``Lambda``)."""
         if self._Sigma is None:
             assert self.is_init
             self._Sigma = invert_pdmat(self.Lambda, return_inv=True)[-1]
         return self._Sigma
 
-    def initialize(self):
-        """Initializes the distribution."""
+    def initialize(self) -> None:
+        """Validates parameters and derives the missing representation."""
         self.validate()
         self._compute_nat_std()
 
-    def stack_suff_stats(self, F, S=None):
-        """Stacks F and S suff stats into single vector."""
+    def stack_suff_stats(
+        self, F: np.ndarray, S: Optional[np.ndarray] = None
+    ) -> np.ndarray:
+        """Stacks first- and second-order stats into a single vector.
+
+        Args:
+            F: First-order sufficient statistics.
+            S: Optional flattened second-order statistics.
+
+        Returns:
+            Concatenated sufficient statistics.
+        """
         if S is None:
             return F
         return np.hstack((F, S))
 
-    def unstack_suff_stats(self, stats):
-        """Decomposes suff. stats vector into F and S."""
+    def unstack_suff_stats(self, stats: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        """Decomposes stacked sufficient statistics.
+
+        Args:
+            stats: Vector produced by :meth:`stack_suff_stats`.
+
+        Returns:
+            Tuple of ``(F, S)`` where ``F`` is first-order stats and ``S`` contains
+            flattened second-order stats.
+        """
         F = stats[: self.x_dim]
         S = stats[self.x_dim :]
         return F, S
 
-    def accum_suff_stats(self, x, u_x=None, sample_weight=None, batch_size=None):
-        """Accumlates sufficient statistis over several data samples.
+    def accum_suff_stats(
+        self,
+        x: np.ndarray,
+        u_x: Optional[np.ndarray] = None,
+        sample_weight: Optional[np.ndarray] = None,
+        batch_size: Optional[int] = None,
+    ) -> Tuple[float, np.ndarray]:
+        """Accumulates sufficient statistics over several samples.
 
         Args:
-          x: data samples of shape (num_samples, x_dim).
-          u_x: sufficient stats for x with shape = (num_samples, u(x)_dim) (optional).
-          sample_weight: weight of each sample in the accumalation.
-          batch_size: unused
+            x: Data matrix of shape ``(num_samples, x_dim)``.
+            u_x: Optional pre-computed sufficient statistics per sample.
+            sample_weight: Optional weight per sample with shape ``(num_samples,)``.
+            batch_size: Unused argument kept for API compatibility.
 
         Returns:
-          N zero order sufficient statistics (number of samples).
-          Accumlated sufficient statistics \sum u(x)
+            Tuple ``(N, stats)`` where ``N`` is the weighted count of samples and
+            ``stats`` the accumulated sufficient statistics.
         """
         if u_x is None:
             if sample_weight is None:
@@ -141,17 +185,20 @@ class Normal(ExpFamily):
         else:
             return self._accum_suff_stats_1batch(x, u_x, sample_weight)
 
-    def norm_suff_stats(self, N, u_x, return_order2=False):
-        """Normalizes accumlated sufficient statistics with the
-        mean and covariance of the distribution.
+    def norm_suff_stats(
+        self, N: float, u_x: np.ndarray, return_order2: bool = False
+    ) -> Tuple[float, np.ndarray]:
+        """Whitens accumulated sufficient statistics.
 
         Args:
-          N: zeroth order sufficient stats.
-          u_x: 1st and 2nd order stats.
-          return_order2: whether or not return normalizes 2nd order stats.
+            N: Zeroth-order (weighted count) statistic.
+            u_x: Stacked first-/second-order sufficient statistics.
+            return_order2: If ``True`` also normalize the second-order term.
 
-        Return:
-          Normalized N, F or N, [F, S].
+        Returns:
+            Tuple ``(N, stats)`` where ``stats`` contains the normalized first-order
+            vector or the stacked first/second-order vectors depending on
+            ``return_order2``.
         """
         assert self.is_init
 
@@ -159,20 +206,19 @@ class Normal(ExpFamily):
         F_norm = np.dot(F - N * self.mu, self.cholLambda.T)
         if return_order2:
             SS = vec2symmat(S)
-            Fmu = np.outer(self.F, self.mu)
+            Fmu = np.outer(F, self.mu)
             SS = SS - Fmu - Fmu.T + N * np.outer(self.mu, self.mu)
             SS = np.dot(self.cholLambda, np.dot(SS, self.cholLambda.T))
             S = symmat2vec(SS)
             return N, self.stack_suff_stats(F_norm, S)
         return N, F_norm
 
-    def Mstep(self, N, u_x):
-        """Maximization step.
+    def Mstep(self, N: float, u_x: np.ndarray) -> None:
+        """Maximization step of EM for the Gaussian parameters.
 
         Args:
-          N: zeroth order stats.
-          u_x: accumlated higher order stats.
-
+            N: Zeroth-order statistic (effective sample size).
+            u_x: Stacked first-/second-order sufficient statistics.
         """
         F, S = self.unstack_suff_stats(u_x)
 
@@ -190,7 +236,7 @@ class Normal(ExpFamily):
 
         self._compute_nat_params()
 
-    def log_prob_std(self, x):
+    def log_prob_std(self, x: np.ndarray) -> np.ndarray:
         """log p(x) of each data sample computed using the
         standard parameters of the distribution.
 
@@ -208,16 +254,21 @@ class Normal(ExpFamily):
             - 0.5 * mah_dist2
         )
 
-    def sample(self, num_samples, rng=None, seed=1024):
+    def sample(
+        self,
+        num_samples: int,
+        rng: Optional[Union[Generator, RandomState]] = None,
+        seed: int = 1024,
+    ) -> np.ndarray:
         """Draws samples from the data distribution.
 
         Args:
-          num_samples: number of samples.
-          rng: random number generator.
-          seed: random seed used if rng is None.
+            num_samples: Number of samples to draw.
+            rng: Optional :class:`numpy.random.Generator` or :class:`RandomState`.
+            seed: Seed used when ``rng`` is ``None``.
 
         Returns:
-          Generated samples with shape (num_samples, x_dim).
+            Array of generated samples with shape ``(num_samples, x_dim)``.
         """
         assert self.is_init
 
@@ -227,8 +278,12 @@ class Normal(ExpFamily):
             float_cpu()
         )
 
-    def get_config(self):
-        """Returns the model configuration dict."""
+    def get_config(self) -> Dict[str, Any]:
+        """Builds a serializable configuration for this model.
+
+        Returns:
+            Dictionary containing constructor arguments.
+        """
         config = {
             "var_floor": self.var_floor,
             "update_mu": self.update_mu,
@@ -237,11 +292,11 @@ class Normal(ExpFamily):
         base_config = super(Normal, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
-    def save_params(self, f):
-        """Saves the model paramters into the file.
+    def save_params(self, f: Any) -> None:
+        """Saves the model parameters into an HDF5 handle.
 
         Args:
-          f: file handle.
+            f: File-like object created by :mod:`h5py`.
         """
         assert self.is_init
 
@@ -249,16 +304,15 @@ class Normal(ExpFamily):
         self._save_params_from_dict(f, params)
 
     @classmethod
-    def load_params(cls, f, config):
-        """Initializes the model from the configuration and loads the model
-        parameters from file.
+    def load_params(cls, f: Any, config: Dict[str, Any]) -> "Normal":
+        """Loads parameters and instantiates a :class:`Normal`.
 
         Args:
-          f: file handle.
-          config: configuration dictionary.
+            f: File handle pointing to the serialized parameters.
+            config: Configuration dictionary produced by :meth:`get_config`.
 
         Returns:
-          Model object.
+            A fully initialized :class:`Normal`.
         """
         param_list = ["mu", "Lambda"]
         params = cls._load_params_to_dict(f, config["name"], param_list)
@@ -272,16 +326,16 @@ class Normal(ExpFamily):
             name=config["name"],
         )
 
-    def _validate_mu(self):
+    def _validate_mu(self) -> None:
         assert self.mu.shape[0] == self.x_dim
 
-    def _validate_Lambda(self):
+    def _validate_Lambda(self) -> None:
         assert self.Lambda.shape == (self.x_dim, self.x_dim)
 
-    def _validate_eta(self):
-        assert self.eta.shape[0] == (self.x_dim ** 2 + 3 * self.x_dim) / 2
+    def _validate_eta(self) -> None:
+        assert self.eta.shape[0] == (self.x_dim**2 + 3 * self.x_dim) / 2
 
-    def validate(self):
+    def validate(self) -> None:
         """Validates the parameters of the distribution."""
         if self.mu is not None and self.Lambda is not None:
             self._validate_mu()
@@ -291,22 +345,44 @@ class Normal(ExpFamily):
             self._validate_eta()
 
     @staticmethod
-    def compute_eta(mu, Lambda):
-        """Computes nat param. from mean and precision."""
+    def compute_eta(mu: np.ndarray, Lambda: np.ndarray) -> np.ndarray:
+        """Computes the natural parameters from mean and precision.
+
+        Args:
+            mu: Mean vector.
+            Lambda: Precision matrix.
+
+        Returns:
+            Natural-parameter vector ``eta``.
+        """
         Lmu = np.dot(mu, Lambda)
         eta = np.hstack((Lmu, -symmat2vec(Lambda, diag_factor=0.5)))
         return eta
 
     @staticmethod
-    def compute_x_dim_from_eta(eta):
-        """Computes data dim. from natural param."""
+    def compute_x_dim_from_eta(eta: np.ndarray) -> int:
+        """Infers ``x_dim`` from the length of the natural parameter vector.
+
+        Args:
+            eta: Natural-parameter vector.
+
+        Returns:
+            Integer dimensionality consistent with ``eta``.
+        """
         x_dim = 0.5 * (-3 + np.sqrt(9 + 8 * eta.shape[-1]))
         assert int(x_dim) == x_dim
         return int(x_dim)
 
     @staticmethod
-    def compute_std(eta):
-        """Computes standard params. from the natural param."""
+    def compute_std(eta: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        """Converts natural parameters to ``(mu, Lambda)``.
+
+        Args:
+            eta: Natural-parameter vector.
+
+        Returns:
+            Tuple ``(mu, Lambda)`` with the standard parameters.
+        """
         x_dim = Normal.compute_x_dim_from_eta(eta)
         eta1 = eta[:x_dim]
         eta2 = vec2symmat(eta[x_dim:], diag_factor=2) / 2
@@ -316,8 +392,15 @@ class Normal(ExpFamily):
         return mu, Lambda
 
     @staticmethod
-    def compute_A_nat(eta):
-        """Computes A from the natural param."""
+    def compute_A_nat(eta: np.ndarray) -> float:
+        """Evaluates the log-normalizer ``A`` from natural parameters.
+
+        Args:
+            eta: Natural-parameter vector.
+
+        Returns:
+            Scalar log-normalizer.
+        """
         x_dim = Normal.compute_x_dim_from_eta(eta)
         eta1 = eta[:x_dim]
         eta2 = vec2symmat(eta[x_dim:], diag_factor=2) / 2
@@ -328,34 +411,44 @@ class Normal(ExpFamily):
         return r1 + r2 + r3
 
     @staticmethod
-    def compute_A_std(mu, Lambda):
-        """Computes A from the standard params."""
+    def compute_A_std(mu: np.ndarray, Lambda: np.ndarray) -> float:
+        """Evaluates the log-normalizer ``A`` from standard parameters.
+
+        Args:
+            mu: Mean vector.
+            Lambda: Precision matrix.
+
+        Returns:
+            Scalar log-normalizer.
+        """
         x_dim = mu.shape[0]
         r1 = 0.5 * x_dim * np.log(2 * np.pi)
         r2 = -0.5 * logdet_pdmat(Lambda)
         r3 = 0.5 * np.inner(np.dot(mu, Lambda), mu)
         return r1 + r2 + r3
 
-    def _compute_nat_params(self):
-        """Computes all natural params from mean and precision."""
+    def _compute_nat_params(self) -> None:
+        """Computes ``eta`` and ``A`` from ``mu`` and ``Lambda``."""
         self.eta = self.compute_eta(self.mu, self.Lambda)
         self.A = self.compute_A_std(self.mu, self.Lambda)
 
-    def _compute_std_params(self):
+    def _compute_std_params(self) -> None:
+        """Computes ``mu`` and ``Lambda`` from ``eta``."""
         self.mu, self.Lambda = self.compute_std(self.eta)
         self._cholLambda = None
         self._logLambda = None
         self._Sigma = None
 
     @staticmethod
-    def compute_suff_stats(x):
-        """Computes the sufficient stats. for each sample.
+    def compute_suff_stats(x: np.ndarray) -> np.ndarray:
+        """Computes sufficient statistics for each sample.
 
         Args:
-          x: data samples with shape (num_samples, x_dim).
+            x: Data samples of shape ``(num_samples, x_dim)``.
 
         Returns:
-          Sufficient stats. for each data sample with shape (num_samples, u_dim).
+            Array of shape ``(num_samples, u_dim)`` containing concatenated first
+            and second-order statistics.
         """
         d = x.shape[1]
         u = np.zeros((x.shape[0], int(d + d * (d + 1) / 2)), dtype=float_cpu())
@@ -367,28 +460,36 @@ class Normal(ExpFamily):
                 k += 1
         return u
 
-    def plot1D(self, feat_idx=0, num_sigmas=2, num_pts=100, **kwargs):
-        """Plots one slice of the Gaussian in 1d.
+    def plot1D(
+        self, feat_idx: int = 0, num_sigmas: int = 2, num_pts: int = 100, **kwargs: Any
+    ) -> None:
+        """Plots a 1-D slice of the Gaussian.
 
         Args:
-          feat_idx: feature index.
-          num_sigmas: size of the plot in number of standard devs.
-          num_pts: number of points in the graph.
-          **kwargs: pyplot options.
+            feat_idx: Feature index to plot.
+            num_sigmas: Extent of the plot in standard deviations.
+            num_pts: Number of points used to draw the curve.
+            **kwargs: Extra keyword arguments passed to matplotlib helpers.
         """
         assert self.is_init
         mu = self.mu[feat_idx]
         C = invert_pdmat(self.Lambda, return_inv=True)[-1][feat_idx, feat_idx]
         plot_gaussian_1D(mu, C, num_sigmas, num_pts, **kwargs)
 
-    def plot2D(self, feat_idx=[0, 1], num_sigmas=2, num_pts=100, **kwargs):
-        """Plots 2 dimensions of the Gaussian in 2d.
+    def plot2D(
+        self,
+        feat_idx: Sequence[int] = (0, 1),
+        num_sigmas: int = 2,
+        num_pts: int = 100,
+        **kwargs: Any,
+    ) -> None:
+        """Plots a two-dimensional ellipse for the Gaussian.
 
         Args:
-          feat_idx: feature indeces.
-          num_sigmas: size of the plot in number of standard devs.
-          num_pts: number of points in the graph.
-          **kwargs: pyplot options.
+            feat_idx: Indices of the two features to plot.
+            num_sigmas: Extent of the plot in standard deviations.
+            num_pts: Number of points used to parameterize the ellipse.
+            **kwargs: Extra keyword arguments forwarded to the plotting helper.
         """
         assert self.is_init
         mu = self.mu[feat_idx]
@@ -396,14 +497,20 @@ class Normal(ExpFamily):
         C = invert_pdmat(self.Lambda, return_inv=True)[-1][i, j]
         plot_gaussian_ellipsoid_2D(mu, C, num_sigmas, num_pts, **kwargs)
 
-    def plot3D(self, feat_idx=[0, 1], num_sigmas=2, num_pts=100, **kwargs):
-        """Plots 2 dimensions of the Gaussian in 3d.
+    def plot3D(
+        self,
+        feat_idx: Sequence[int] = (0, 1),
+        num_sigmas: int = 2,
+        num_pts: int = 100,
+        **kwargs: Any,
+    ) -> None:
+        """Plots two dimensions of the Gaussian as a 3-D surface.
 
         Args:
-          feat_idx: feature indeces.
-          num_sigmas: size of the plot in number of standard devs.
-          num_pts: number of points in the graph.
-          **kwargs: pyplot options.
+            feat_idx: Indices of the two features to plot.
+            num_sigmas: Extent of the domain in standard deviations.
+            num_pts: Resolution of the plotted grid.
+            **kwargs: Plotting helper keyword arguments.
         """
         assert self.is_init
         mu = self.mu[feat_idx]
@@ -411,14 +518,20 @@ class Normal(ExpFamily):
         C = invert_pdmat(self.Lambda, return_inv=True)[-1][i, j]
         plot_gaussian_3D(mu, C, num_sigmas, num_pts, **kwargs)
 
-    def plot3D_ellipsoid(self, feat_idx=[0, 1, 2], num_sigmas=2, num_pts=100, **kwargs):
-        """Plots 3 dimensions of the Gaussian in 3d.
+    def plot3D_ellipsoid(
+        self,
+        feat_idx: Sequence[int] = (0, 1, 2),
+        num_sigmas: int = 2,
+        num_pts: int = 100,
+        **kwargs: Any,
+    ) -> None:
+        """Plots a 3-D ellipsoid for the Gaussian marginal.
 
         Args:
-          feat_idx: feature indeces.
-          num_sigmas: size of the plot in number of standard devs.
-          num_pts: number of points in the graph.
-          **kwargs: pyplot options.
+            feat_idx: Indices of the three features to visualize.
+            num_sigmas: Extent of the ellipsoid in standard deviations.
+            num_pts: Resolution of the mesh used to approximate the ellipsoid.
+            **kwargs: Additional plotting keyword arguments.
         """
         assert self.is_init
         mu = self.mu[feat_idx]

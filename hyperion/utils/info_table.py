@@ -492,21 +492,39 @@ class InfoTable:
         """
         return self.__class__(self.df.sample(n=n, random_state=random_state))
 
-    def drop(self, labels=None, axis=0, columns=None, inplace=False) -> Optional[T]:
+    def drop(
+        self,
+        labels=None,
+        axis=0,
+        index=None,
+        columns=None,
+        level=None,
+        inplace=False,
+        errors: str = "raise",
+    ) -> Optional[T]:
         """
         Drop specified labels.
 
         Args:
             labels: Index or column labels.
             axis (int): Whether to drop rows (0) or columns (1).
+            index: Alias for labels along the index (rows).
             columns: Column labels to drop.
+            level: Level in MultiIndex from which to drop.
             inplace (bool): Modify in place.
+            errors (str): If 'ignore', suppress errors for nonexistent labels.
 
         Returns:
             Optional[InfoTable]: Modified InfoTable or None.
         """
         result = self.df.drop(
-            labels=labels, axis=axis, columns=columns, inplace=inplace
+            labels=labels,
+            axis=axis,
+            index=index,
+            columns=columns,
+            level=level,
+            inplace=inplace,
+            errors=errors,
         )
         if inplace:
             return None

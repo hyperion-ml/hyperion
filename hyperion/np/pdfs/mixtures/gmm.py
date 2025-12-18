@@ -1,21 +1,21 @@
 """
- Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2018 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
+
+from typing import Any, Dict, Optional, Sequence, Tuple, Union
 
 import h5py
 import numpy as np
 import scipy.linalg as la
+from numpy.random import Generator, RandomState
 from scipy.special import erf
 
 from ....hyp_defs import float_cpu
 from ....utils.math_funcs import (
     fullcov_varfloor,
     invert_pdmat,
-    invert_trimat,
-    logdet_pdmat,
     logsumexp,
-    softmax,
     symmat2vec,
     vec2symmat,
 )
@@ -31,48 +31,60 @@ from .exp_family_mixture import ExpFamilyMixture
 
 
 class GMM(ExpFamilyMixture):
-    """Class for GMM with full covariance.
+    """Gaussian mixture model with full covariance matrices.
 
     Attributes:
-      num_comp: number of components of the mixture (intered from pi).
-      pi: weights of the components.
-      mu: mean with shape (num_comp, x_dim,) or None.
-      Lambda: precision with shape (num_comp, x_dim, x_dim) or None.
-      var_floor: variance floor.
-      update_mu: whether or not update mu when optimizing.
-      update_Lambda: wether or not update Lambda when optimizing.
-      x_dim: data dim (infered from mu if present)
+        num_comp: Number of mixture components.
+        pi: Mixture weights.
+        mu: Component means with shape ``(num_comp, x_dim)``.
+        Lambda: Precision matrices with shape ``(num_comp, x_dim, x_dim)``.
+        var_floor: Variance flooring constant.
+        update_mu: Whether to update ``mu`` during EM.
+        update_Lambda: Whether to update precision matrices during EM.
+        x_dim: Data dimensionality inferred from ``mu`` if provided.
     """
 
     def __init__(
         self,
-        num_comp=1,
-        pi=None,
-        mu=None,
-        Lambda=None,
-        var_floor=1e-3,
-        update_mu=True,
-        update_Lambda=True,
-        **kwargs
-    ):
+        num_comp: int = 1,
+        pi: Optional[np.ndarray] = None,
+        mu: Optional[np.ndarray] = None,
+        Lambda: Optional[np.ndarray] = None,
+        var_floor: float = 1e-3,
+        update_mu: bool = True,
+        update_Lambda: bool = True,
+        **kwargs: Any,
+    ) -> None:
+        """Initializes the full-covariance GMM.
+
+        Args:
+            num_comp: Number of components when ``pi`` is not provided.
+            pi: Optional mixture weights.
+            mu: Optional component means.
+            Lambda: Optional precision matrices.
+            var_floor: Minimum variance allowed during updates.
+            update_mu: Whether to update ``mu`` during EM.
+            update_Lambda: Whether to update precision matrices during EM.
+            **kwargs: Extra keyword arguments forwarded to :class:`ExpFamilyMixture`.
+        """
         if mu is not None:
             assert mu.ndim == 2
             kwargs["x_dim"] = mu.shape[1]
         super().__init__(num_comp=num_comp, pi=pi, **kwargs)
-        self.mu = mu
-        self.Lambda = Lambda
-        self.var_floor = var_floor
-        self.update_mu = update_mu
-        self.update_Lambda = update_Lambda
+        self.mu: Optional[np.ndarray] = mu
+        self.Lambda: Optional[np.ndarray] = Lambda
+        self.var_floor: float = var_floor
+        self.update_mu: bool = update_mu
+        self.update_Lambda: bool = update_Lambda
 
         self._compute_gmm_nat_std()
 
-        self._logLambda = None
-        self._cholLambda = None
-        self._Sigma = None
+        self._logLambda: Optional[np.ndarray] = None
+        self._cholLambda: Optional[np.ndarray] = None
+        self._Sigma: Optional[np.ndarray] = None
 
-    def _compute_gmm_nat_std(self):
-        """Comptues natural and standard parameters of the distribution."""
+    def _compute_gmm_nat_std(self) -> None:
+        """Keeps natural and standard parameters synchronized."""
         if self.mu is not None and self.Lambda is not None:
             self._validate_mu()
             self._validate_Lambda()
@@ -82,8 +94,8 @@ class GMM(ExpFamilyMixture):
             self.A = self.compute_A_nat(self.eta)
             self._compute_std_params()
 
-    def compute_Lambda_aux(self):
-        """Comptues auxiliary variables derived from the precision."""
+    def compute_Lambda_aux(self) -> None:
+        """Computes auxiliary quantities derived from the precision matrices."""
         self._logLambda = np.zeros((self.num_comp,), dtype=float_cpu())
         self._cholLambda = np.zeros(
             (self.num_comp, self.x_dim, self.x_dim), dtype=float_cpu()
@@ -94,22 +106,22 @@ class GMM(ExpFamilyMixture):
             self._cholLambda[i] = L.T
 
     @property
-    def logLambda(self):
-        """log precision determinants."""
+    def logLambda(self) -> np.ndarray:
+        """np.ndarray: Log-determinants of the precision matrices."""
         if self._logLambda is None:
             self.compute_Lambda_aux()
         return self._logLambda
 
     @property
-    def cholLambda(self):
-        """Cholesqy decomp. of the precisions."""
+    def cholLambda(self) -> np.ndarray:
+        """np.ndarray: Cholesky factors (upper-triangular) of the precisions."""
         if self._cholLambda is None:
             self.compute_Lambda_aux()
         return self._cholLambda
 
     @property
-    def Sigma(self):
-        """Covariances."""
+    def Sigma(self) -> np.ndarray:
+        """np.ndarray: Covariance matrices for each component."""
         if self._Sigma is None:
             self._Sigma = np.zeros(
                 (self.num_comp, self.x_dim, self.x_dim), dtype=float_cpu()
@@ -118,8 +130,12 @@ class GMM(ExpFamilyMixture):
                 self._Sigma[k] = invert_pdmat(self.Lambda[k], return_inv=True)[-1]
         return self._Sigma
 
-    def initialize(self, x=None):
-        """Initializes the distribution."""
+    def initialize(self, x: Optional[np.ndarray] = None) -> None:
+        """Initializes the GMM parameters.
+
+        Args:
+            x: Optional data used for k-means initialization.
+        """
         if x is None and self.mu is None and self.eta is None:
             assert self.num_comp == 1
             self._initialize_stdnormal()
@@ -128,19 +144,19 @@ class GMM(ExpFamilyMixture):
         self.validate()
         self._compute_gmm_nat_std()
 
-    def _initialize_stdnormal(self):
-        """Initializes a single component GMM with std. Normal."""
+    def _initialize_stdnormal(self) -> None:
+        """Initializes a single-component standard normal GMM."""
         self.pi = np.array([1], dtype=float_cpu())
         self.mu = np.zeros((1, self.x_dim), dtype=float_cpu())
         self.Lambda = np.zeros((1, self.x_dim, self.x_dim), dtype=float_cpu())
         self.Lambda[0] = np.eye(self.x_dim, dtype=float_cpu())
 
-    def _initialize_kmeans(self, num_comp, x):
-        """Initializes the GMM with K-Means.
+    def _initialize_kmeans(self, num_comp: int, x: np.ndarray) -> None:
+        """Initializes the GMM using K-means centroids.
 
         Args:
-          num_comp: number of components.
-          x: initialization data with shape (num_samples, x_dim).
+            num_comp: Number of components to initialize.
+            x: Initialization data with shape ``(num_samples, x_dim)``.
         """
         if num_comp == 1:
             self.pi = np.array([1], dtype=float_cpu())
@@ -167,29 +183,32 @@ class GMM(ExpFamilyMixture):
             S = np.dot(delta.T, delta) / np.sum(r)
             self.Lambda[k] = invert_pdmat(S, return_inv=True)[-1]
 
-    def stack_suff_stats(self, F, S=None):
-        """Stacks F and S suff stats into single vector."""
+    def stack_suff_stats(
+        self, F: np.ndarray, S: Optional[np.ndarray] = None
+    ) -> np.ndarray:
+        """Stacks first- and second-order stats into a single vector."""
         if S is None:
             return F
         return np.hstack((F, S))
 
-    def unstack_suff_stats(self, stats):
-        """Decomposes suff. stats vector into F and S."""
+    def unstack_suff_stats(self, stats: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        """Splits stacked statistics into first- and second-order parts."""
         F = stats[:, : self.x_dim]
         S = stats[:, self.x_dim :]
         return F, S
 
-    def norm_suff_stats(self, N, u_x, return_order2=False):
-        """Normalizes accumlated sufficient statistics with the
-        mean and covariance of the distribution.
+    def norm_suff_stats(
+        self, N: np.ndarray, u_x: np.ndarray, return_order2: bool = False
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Whitens accumulated sufficient statistics.
 
         Args:
-          N: zeroth order sufficient stats.
-          u_x: 1st and 2nd order stats.
-          return_order2: whether or not return normalized 2nd order stats.
+            N: Zeroth-order statistics per component.
+            u_x: Stacked first- and second-order statistics.
+            return_order2: Whether to also return normalized second-order stats.
 
-        Return:
-          Normalized N, F or N, [F, S].
+        Returns:
+            Tuple containing the original ``N`` and normalized statistics.
         """
         F, S = self.unstack_suff_stats(u_x)
         F_norm = F - N[:, None] * self.mu
@@ -205,13 +224,12 @@ class GMM(ExpFamilyMixture):
             return N, self.stack_suff_stats(F_norm, S)
         return N, F_norm
 
-    def Mstep(self, N, u_x):
-        """Maximization step.
+    def Mstep(self, N: np.ndarray, u_x: np.ndarray) -> None:
+        """Maximization step updating mean, covariance, and weights.
 
         Args:
-          N: zeroth order stats.
-          u_x: accumlated higher order stats.
-
+            N: Zeroth-order statistics per component.
+            u_x: Stacked first- and second-order statistics.
         """
         F, S = self.unstack_suff_stats(u_x)
 
@@ -243,14 +261,14 @@ class GMM(ExpFamilyMixture):
 
         self._compute_nat_params()
 
-    def split_comp(self, K=2):
-        """Creates a new GMM with K x num_componentes.
+    def split_comp(self, K: int = 2) -> "GMM":
+        """Creates a new GMM whose components are split versions of the current ones.
 
         Args:
-          K: multiplier for the number of components
+            K: Number of splits per component.
 
         Returns:
-          GMM object.
+            New :class:`GMM` instance with ``K * num_comp`` components.
         """
         num_comp = self.num_comp * K
         pi = np.repeat(self.pi, K) / K
@@ -273,15 +291,14 @@ class GMM(ExpFamilyMixture):
         config = self.get_config()
         return GMM(pi=pi, mu=mu, Lambda=Lambda, **config)
 
-    def log_prob_std(self, x):
-        """log p(x) of each data sample computed using the
-        standard parameters of the distribution.
+    def log_prob_std(self, x: np.ndarray) -> np.ndarray:
+        """Computes log-likelihoods using the standard parameters.
 
         Args:
-          x: input data with shape (num_samples, x_dim).
+            x: Input data with shape ``(num_samples, x_dim)``.
 
         Returns:
-          log p(x) with shape (num_samples,)
+            Array of log-likelihoods with shape ``(num_samples,)``.
         """
         r0 = self.log_pi + 0.5 * self.logLambda - 0.5 * self.x_dim * np.log(2 * np.pi)
         llk_k = np.zeros((x.shape[0], self.num_comp), dtype=float_cpu())
@@ -291,16 +308,23 @@ class GMM(ExpFamilyMixture):
 
         return logsumexp(llk_k, axis=-1)
 
-    def sample(self, num_samples, rng=None, seed=1024, r=None):
-        """Draws samples from the data distribution.
+    def sample(
+        self,
+        num_samples: int,
+        rng: Optional[Union[Generator, RandomState]] = None,
+        seed: int = 1024,
+        r: Optional[np.ndarray] = None,
+    ) -> np.ndarray:
+        """Draws samples from the GMM.
 
         Args:
-          num_samples: number of samples.
-          rng: random number generator.
-          seed: random seed used if rng is None.
+            num_samples: Number of samples to generate when ``r`` is ``None``.
+            rng: Optional random number generator.
+            seed: Used to create a generator if ``rng`` is ``None``.
+            r: Optional one-hot selections specifying components.
 
         Returns:
-          Generated samples with shape (num_samples, x_dim).
+            Samples with shape ``(num_samples, x_dim)``.
         """
         if rng is None:
             rng = np.random.default_rng(seed)
@@ -322,8 +346,8 @@ class GMM(ExpFamilyMixture):
 
         return x
 
-    def get_config(self):
-        """Returns the model configuration dict."""
+    def get_config(self) -> Dict[str, Any]:
+        """Builds a serializable configuration dictionary."""
         config = {
             "var_floor": self.var_floor,
             "update_mu": self.update_mu,
@@ -332,26 +356,25 @@ class GMM(ExpFamilyMixture):
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
-    def save_params(self, f):
-        """Saves the model paramters into the file.
+    def save_params(self, f: h5py.File) -> None:
+        """Saves the model parameters into an HDF5 handle.
 
         Args:
-          f: file handle.
+            f: File handle opened by :mod:`h5py`.
         """
         params = {"pi": self.pi, "mu": self.mu, "Lambda": self.Lambda}
         self._save_params_from_dict(f, params)
 
     @classmethod
-    def load_params(cls, f, config):
-        """Initializes the model from the configuration and loads the model
-        parameters from file.
+    def load_params(cls, f: h5py.File, config: Dict[str, Any]) -> "GMM":
+        """Loads parameters from file and constructs a :class:`GMM`.
 
         Args:
-          f: file handle.
-          config: configuration dictionary.
+            f: File handle pointing to the serialized model.
+            config: Configuration dictionary produced by :meth:`get_config`.
 
         Returns:
-          Model object.
+            Fully initialized :class:`GMM`.
         """
         param_list = ["pi", "mu", "Lambda"]
         params = cls._load_params_to_dict(f, config["name"], param_list)
@@ -369,15 +392,8 @@ class GMM(ExpFamilyMixture):
         )
 
     @classmethod
-    def load_from_kaldi(cls, file_path):
-        """Loads GMM from Kaldi file.
-
-        Args:
-          file_path: kaldi file path.
-
-        Returns:
-          Model object.
-        """
+    def load_from_kaldi(cls, file_path: str) -> "GMM":
+        """Loads a GMM from a Kaldi-formatted file."""
         pi = None
         eta1 = None
         eta2 = None
@@ -426,21 +442,21 @@ class GMM(ExpFamilyMixture):
         eta = np.hstack((eta1, eta2))
         return cls(x_dim=x_dim, pi=pi, eta=eta)
 
-    def _validate_mu(self):
+    def _validate_mu(self) -> None:
         assert self.mu.shape[0] == self.num_comp
         assert self.mu.shape[1] == self.x_dim
 
-    def _validate_Lambda(self):
+    def _validate_Lambda(self) -> None:
         assert self.Lambda.shape[0] == self.num_comp
         assert self.Lambda.shape[1] == self.x_dim
         assert self.Lambda.shape[2] == self.x_dim
 
-    def _validate_eta(self):
+    def _validate_eta(self) -> None:
         assert self.eta.shape[0] == self.num_comp
         assert self.eta.shape[1] == (self.x_dim**2 + 3 * self.x_dim) / 2
 
-    def validate(self):
-        """Validates the parameters of the distribution."""
+    def validate(self) -> None:
+        """Validates that parameters have consistent shapes."""
         if self.pi is not None:
             self._validate_pi()
 
@@ -452,8 +468,8 @@ class GMM(ExpFamilyMixture):
             self._validate_eta()
 
     @staticmethod
-    def compute_eta(mu, Lambda):
-        """Computes nat param. from mean and precision."""
+    def compute_eta(mu: np.ndarray, Lambda: np.ndarray) -> np.ndarray:
+        """Computes natural parameters from mean and precision."""
         x_dim = mu.shape[-1]
         eta_dim = int((x_dim**2 + 3 * x_dim) / 2)
         eta = np.zeros((mu.shape[0], eta_dim), dtype=float_cpu())
@@ -463,8 +479,8 @@ class GMM(ExpFamilyMixture):
         return eta
 
     @staticmethod
-    def compute_std(eta):
-        """Computes standard params. from the natural param."""
+    def compute_std(eta: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        """Computes standard parameters from natural parameters."""
         x_dim = Normal.compute_x_dim_from_eta(eta)
         mu = np.zeros((eta.shape[0], x_dim), dtype=float_cpu())
         Lambda = np.zeros((eta.shape[0], x_dim, x_dim), dtype="float32")
@@ -474,8 +490,8 @@ class GMM(ExpFamilyMixture):
         return mu, Lambda
 
     @staticmethod
-    def compute_A_nat(eta):
-        """Computes A from the natural param."""
+    def compute_A_nat(eta: np.ndarray) -> np.ndarray:
+        """Computes the log-normalizer ``A`` from natural parameters."""
         A = np.zeros((eta.shape[0],), dtype=float_cpu())
         for k in range(eta.shape[0]):
             A[k] = Normal.compute_A_nat(eta[k])
@@ -483,8 +499,8 @@ class GMM(ExpFamilyMixture):
         return A
 
     @staticmethod
-    def compute_A_std(mu, Lambda):
-        """Computes A from the standard params."""
+    def compute_A_std(mu: np.ndarray, Lambda: np.ndarray) -> np.ndarray:
+        """Computes the log-normalizer ``A`` from standard parameters."""
         A = np.zeros((mu.shape[0],), dtype=float_cpu())
         for k in range(mu.shape[0]):
             A[k] = Normal.compute_A_std(mu[k], Lambda[k])
@@ -502,15 +518,8 @@ class GMM(ExpFamilyMixture):
         self._Sigma = None
 
     @staticmethod
-    def compute_suff_stats(x):
-        """Computes the sufficient stats. for each sample.
-
-        Args:
-          x: data samples with shape (num_samples, x_dim).
-
-        Returns:
-          Sufficient stats. for each data sample with shape (num_samples, u_dim).
-        """
+    def compute_suff_stats(x: np.ndarray) -> np.ndarray:
+        """Computes sufficient statistics for each sample."""
         d = x.shape[1]
         u = np.zeros((x.shape[0], int(d + d * (d + 1) / 2)), dtype=float_cpu())
         u[:, :d] = x
@@ -521,7 +530,9 @@ class GMM(ExpFamilyMixture):
                 k += 1
         return u
 
-    def plot1D(self, feat_idx=0, num_sigmas=2, num_pts=100, **kwargs):
+    def plot1D(
+        self, feat_idx: int = 0, num_sigmas: int = 2, num_pts: int = 100, **kwargs: Any
+    ) -> None:
         """Plots one slice of each GMM component in 1d.
 
         Args:
@@ -535,7 +546,13 @@ class GMM(ExpFamilyMixture):
             C = invert_pdmat(self.Lambda[k], return_inv=True)[-1][feat_idx, feat_idx]
             plot_gaussian_1D(mu[k], C, num_sigmas, num_pts, **kwargs)
 
-    def plot2D(self, feat_idx=[0, 1], num_sigmas=2, num_pts=100, **kwargs):
+    def plot2D(
+        self,
+        feat_idx: Sequence[int] = (0, 1),
+        num_sigmas: int = 2,
+        num_pts: int = 100,
+        **kwargs: Any,
+    ) -> None:
         """Plots 2 dimensions of each GMM component in 2d.
 
         Args:
@@ -550,7 +567,13 @@ class GMM(ExpFamilyMixture):
             C_k = invert_pdmat(self.Lambda[k], return_inv=True)[-1][i, j]
             plot_gaussian_ellipsoid_2D(mu[k], C_k, num_sigmas, num_pts, **kwargs)
 
-    def plot3D(self, feat_idx=[0, 1], num_sigmas=2, num_pts=100, **kwargs):
+    def plot3D(
+        self,
+        feat_idx: Sequence[int] = (0, 1),
+        num_sigmas: int = 2,
+        num_pts: int = 100,
+        **kwargs: Any,
+    ) -> None:
         """Plots 2 dimensions of each GMM component in 3d.
 
         Args:
@@ -565,7 +588,13 @@ class GMM(ExpFamilyMixture):
             C_k = invert_pdmat(self.Lambda[k], return_inv=True)[-1][i, j]
             plot_gaussian_3D(mu[k], C_k, num_sigmas, num_pts, **kwargs)
 
-    def plot3D_ellipsoid(self, feat_idx=[0, 1, 2], num_sigmas=2, num_pts=100, **kwargs):
+    def plot3D_ellipsoid(
+        self,
+        feat_idx: Sequence[int] = (0, 1, 2),
+        num_sigmas: int = 2,
+        num_pts: int = 100,
+        **kwargs: Any,
+    ) -> None:
         """Plots 3 dimensions of each GMM component in 3d.
 
         Args:
