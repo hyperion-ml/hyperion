@@ -31,6 +31,10 @@ class PLDA(PLDABase):
       update_V: whether to update V or not when training the model.
       update_U: whether to update U or not when training the model.
       update_D: whether to update D or not when training the model.
+      prior: prior model for Bayesian adaptation.
+      r_mu: relevance factor for adapting mu.
+      r_V: relevance factor for adapting V.
+      r_W: relevance factor for adapting W.
       x_dim: data dimension.
     """
 
@@ -50,8 +54,13 @@ class PLDA(PLDABase):
         epochs: int = 20,
         ml_md: str = "ml+md",
         md_epochs: Optional[Sequence[int]] = None,
+        prior: Optional["PLDA"] = None,
+        r_mu: float = 24.0,
+        r_V: float = 128.0,
+        r_W: float = 128.0,
         **kwargs: Any,
     ) -> None:
+
         super().__init__(
             y_dim=y_dim,
             mu=mu,
@@ -59,6 +68,7 @@ class PLDA(PLDABase):
             epochs=epochs,
             ml_md=ml_md,
             md_epochs=md_epochs,
+            prior=prior,
             **kwargs,
         )
         self.z_dim = z_dim
@@ -73,6 +83,9 @@ class PLDA(PLDABase):
         self.update_V = update_V
         self.update_U = update_U
         self.update_D = update_D
+        self.r_mu = r_mu
+        self.r_V = r_V
+        self.r_W = r_W
 
         # aux. vars
         self._DU = None
@@ -431,14 +444,28 @@ class PLDA(PLDABase):
             self.U = Vtilde[self.y_dim : -1]
             self.mu = Vtilde[-1]
 
+        ybar = self.mu
+        if self.update_mu and self.prior is not None:
+            self.mu = self._adapt_mu(M, ybar)
+
+        if self.update_V and self.prior is not None:
+            self.V = self._adapt_V(M, ybar, self.V)
+
         if self.update_D:
             Vtilde = np.vstack((self.V, self.U, self.mu))
             CVt = np.dot(Cytilde, Vtilde)
             iD = np.diag(
                 (S - CVt - CVt.T + np.dot(np.dot(Vtilde.T, Rytilde), Vtilde)) / N
             ).copy()
+
+            if self.prior is not None:
+                iD = self._adapt_iD(N, iD)
+
             iD[iD < self.floor_iD] = self.floor_iD
             self.D = 1 / iD
+
+        if self.update_U and self.prior is not None:
+            self.U, self.D = self._adapt_W(N, self.U, self.D)
 
         self.compute_aux()
 
@@ -449,6 +476,9 @@ class PLDA(PLDABase):
           stats: tuple of expectations computed at the Estep.
 
         """
+        if self.prior is not None:
+            return
+
         N, M, F, S, _, y_acc, Ry1, Ry, Cy, Py, Rz1, Rz, Ryz, Cz = stats
         mu_y = y_acc / M
         Cov_y = Py / M - np.outer(mu_y, mu_y)
@@ -478,12 +508,16 @@ class PLDA(PLDABase):
     def get_config(self) -> Dict[str, Any]:
         """Returns the model configuration dict."""
         config = {
+            "z_dim": self.z_dim,
             "update_D": self.update_D,
             "update_U": self.update_U,
             "update_V": self.update_V,
             "floor_iD": self.floor_iD,
+            "r_mu": self.r_mu,
+            "r_V": self.r_V,
+            "r_W": self.r_W,
         }
-        base_config = super(PLDA, self).get_config()
+        base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
     def save_params(self, f: Any) -> None:
@@ -785,3 +819,72 @@ class PLDA(PLDABase):
 
         """
         self.weighted_avg_params(plda.mu, plda.V, plda.U, plda.D, w_mu, w_B, w_W)
+
+    def _adapt_mu(self, M: int, ybar: np.ndarray) -> np.ndarray:
+        """Adapt mean vector using Bayesian adaptation.
+        Args:
+          M: number of samples.
+          ybar: sample mean vector.
+        Returns:
+          adapted mean vector.
+        """
+        adapt_mu = (M * ybar + self.r_mu * self.prior.mu) / (M + self.r_mu)
+        return adapt_mu
+
+    def _adapt_V(
+        self,
+        M: int,
+        ybar: np.ndarray,
+        V: np.ndarray,
+    ) -> np.ndarray:
+        """Adapt between-class precision using Bayesian adaptation.
+        Args:
+          M: number of samples.
+          ybar: sample mean vector.
+          V: sample speaker loading matrix.
+        Returns:
+          adapted between-class precision matrix.
+        """
+        iB = np.dot(V.T, V)
+        if hasattr(self.prior, "B"):
+            prior_iB = invert_pdmat(self.prior.B, return_inv=True)[-1]
+        else:
+            prior_iB = np.dot(self.prior.V.T, self.prior.V)
+
+        adapt_iB = M * iB + self.r_V * prior_iB
+        delta_y = ybar - self.prior.mu
+        adapt_iB += np.outer(delta_y, delta_y) * (M * self.r_mu / (M + self.r_mu))
+        adapt_iB /= M + self.r_V
+        w, Vt = sla.eigh(adapt_iB, overwrite_a=True)
+        w = w[-self.y_dim :]
+        Vt = np.sqrt(w) * Vt[:, -self.y_dim :]
+        return Vt.T
+
+    def _adapt_W(
+        self,
+        N: int,
+        U: np.ndarray,
+        D: np.ndarray,
+    ) -> np.ndarray:
+        """Adapt between-class precision using Bayesian adaptation.
+        Args:
+          N: number of samples.
+          U: sample channel loading matrix.
+          D: sample channel precision vector.
+        Returns:
+          adapted between-class precision matrix.
+        """
+        iW = np.dot(U.T, U) + np.diag(1 / D)
+        if hasattr(self.prior, "W"):
+            prior_iW = invert_pdmat(self.prior.W, return_inv=True)[-1]
+        else:
+            prior_iW = np.dot(self.prior.U.T, self.prior.U) + np.diag(1 / self.prior.D)
+
+        adapt_iW = (N * iW + self.r_W * prior_iW) / (N + self.r_W)
+        w, Ut = sla.eigh(adapt_iW, overwrite_a=True)
+        w = w[-self.z_dim :]
+        Ut = np.sqrt(w) * Ut[:, -self.z_dim :]
+        iD = np.diag(adapt_iW - np.dot(Ut, Ut.T)).copy()
+        iD[iD < self.floor_iD] = self.floor_iD
+        D = 1 / iD
+        return Ut.T, D

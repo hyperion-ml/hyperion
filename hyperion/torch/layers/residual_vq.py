@@ -3,6 +3,7 @@ Copyright 2025 Johns Hopkins University  (Author: Jesus Villalba)
 Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+import logging
 import math
 from enum import Enum
 from typing import List, Optional, Tuple, Union
@@ -10,8 +11,12 @@ from typing import List, Optional, Tuple, Union
 import torch
 import torch.nn as nn
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
+from torch.nn.utils.parametrizations import weight_norm
+from torch.nn.utils.parametrize import is_parametrized, remove_parametrizations
 
-from .vq import VectorQuantizerOutput, VQDistanceType
+from hyperion.utils.misc import filter_func_args
+
+from .vq import BinarySplittingGMMVectorQuantizer, VectorQuantizerOutput, VQDistanceType
 from .vq_factory import VectorQuantizerFactory, vq_dict
 
 
@@ -30,12 +35,16 @@ class ResidualVectorQuantizer(nn.Module):
 
     Attributes:
         in_feats (int): Input feature dimension (D_in).
+        latent_dim (int, optional): Optional latent dimension for the RVQ stack.
+            If set, inputs are projected to this dimension before quantization.
         num_quantizers (int): Number of residual stages (M).
         codebook_sizes (List[int]): List of codebook sizes (K per stage).
         codebook_dims (List[Optional[int]]): List of codebook dimensions (D per stage).
         base_vq_type (str): Type of vector quantizer used in each stage.
         quantizer_dropout (float): Fraction of examples using a truncated depth K<M
             in training (applied deterministically to the first ⌊B·p⌋ examples).
+        quantizer_grad_frac (float): Fraction of gradient passed through the
+            residual update at each stage (0.0 stops, 1.0 full).
         bypass_prob (Tensor): Current probability of bypassing quantization entirely
             (output = input) during training.
         bypass_final_prob (float): Final bypass probability after annealing.
@@ -50,7 +59,9 @@ class ResidualVectorQuantizer(nn.Module):
         codebook_sizes: Union[int, List[int]],
         codebook_dims: Union[int, List[int], None] = None,
         base_vq_type: str = "nn_vq",
+        latent_dim: Optional[int] = None,
         quantizer_dropout: float = 0.0,
+        quantizer_grad_frac: float = 0.0,
         bypass_init_prob: float = 0.0,
         bypass_final_prob: float = 0.0,
         bypass_anneal_steps: int = 10000,
@@ -68,9 +79,13 @@ class ResidualVectorQuantizer(nn.Module):
                 a list of length M, or None to use ``in_feats`` per stage.
             base_vq_type (str): Type of vector quantizer to use for each stage.
                 Options are {"nn_vq", "ema_nn_vq", "gumbel_vq", "ema_gumbel_vq"}.
+            latent_dim (int, optional): Optional latent dimension for the RVQ stack.
+                If provided, inputs are projected to `latent_dim` before quantization.
             quantizer_dropout (float, optional): Fraction ∈ [0,1]. During training,
                 a proportion of examples (⌊B·p⌋) will use fewer than M stages,
                 with their depth sampled uniformly from 1..M.
+            quantizer_grad_frac (float, optional): Fraction ∈ [0,1] of gradient
+                passed through the residual update (0.0 detaches, 1.0 full).
             bypass_init_prob (float, optional): Initial probability of bypassing
                 quantization entirely (output = input). Default is 0.0.
             bypass_final_prob (float, optional): Final probability of bypassing
@@ -109,29 +124,90 @@ class ResidualVectorQuantizer(nn.Module):
             f"({num_quantizers} != {len(codebook_dims)})"
         )
 
+        if latent_dim is None:
+            latent_dim = in_feats
+
+        self.latent_dim = latent_dim
+        if self.in_feats != self.latent_dim:
+            self.in_proj = nn.Linear(in_feats, self.latent_dim)
+            self.out_proj = nn.Linear(self.latent_dim, in_feats)
+            use_weight_norm = (
+                kwargs["use_weight_norm"] if "use_weight_norm" in kwargs else False
+            )
+            if use_weight_norm:
+                self.in_proj = weight_norm(self.in_proj, name="weight")
+                self.out_proj = weight_norm(self.out_proj, name="weight")
+        else:
+            self.in_proj = None
+            self.out_proj = None
+
         self.codebook_sizes = codebook_sizes
         self.codebook_dims = codebook_dims
         self.base_vq_type = base_vq_type
         kwargs["losses_reduction"] = "none"
-        self.quantizers = nn.ModuleList(
-            [
-                VectorQuantizerFactory.create(
-                    base_vq_type,
-                    in_feats,
-                    codebook_sizes[i],
-                    codebook_dims[i],
-                    **kwargs,
-                )
-                for i in range(num_quantizers)
-            ]
-        )
+        quantizers = []
+        split_start_steps = kwargs.pop("split_start_steps", 0)
+        for i in range(num_quantizers):
+            quantizer = VectorQuantizerFactory.create(
+                base_vq_type,
+                latent_dim,
+                codebook_sizes[i],
+                codebook_dims[i],
+                split_start_steps=split_start_steps,
+                **kwargs,
+            )
+            if isinstance(quantizer, BinarySplittingGMMVectorQuantizer):
+                split_start_steps = quantizer.total_split_steps()
+
+            quantizers.append(quantizer)
+
+        self.quantizers = nn.ModuleList(quantizers)
+
         self.quantizer_dropout = quantizer_dropout
+        self.quantizer_grad_frac = float(quantizer_grad_frac)
         assert 0.0 <= quantizer_dropout <= 1.0, "quantizer_dropout must be in [0, 1]"
+        assert (
+            0.0 <= self.quantizer_grad_frac <= 1.0
+        ), "quantizer_grad_frac must be in [0, 1]"
         self.bypass_anneal_steps = bypass_anneal_steps
         assert 0.0 <= bypass_init_prob <= 1.0, "bypass_init_prob must be in [0, 1]"
         assert 0.0 <= bypass_final_prob < 1.0, "bypass_final_prob must be in [0, 1)"
         self.register_buffer("bypass_prob", torch.tensor(bypass_init_prob))
         self.bypass_final_prob = bypass_final_prob
+
+    def change_config(
+        self,
+        quantizer_dropout: float = 0.0,
+        quantizer_grad_frac: float = 0.0,
+        **kwargs,
+    ):
+        """
+        Change internal configuration of the RVQ.
+
+        Args:
+            quantizer_dropout (float, optional): Fraction ∈ [0,1]. During training,
+                a proportion of examples (⌊B·p⌋) will use fewer than M stages,
+                with their depth sampled uniformly from 1..M.
+            quantizer_grad_frac (float, optional): Fraction ∈ [0,1] of gradient
+                passed through the residual update (0.0 detaches, 1.0 full).
+            **kwargs: Extra keyword arguments passed to
+                :func:`VectorQuantizer.change_config` for each stage.
+        """
+        logging.info(
+            "Changing RVQ config with quantizer_dropout=%f, quantizer_grad_frac=%f",
+            quantizer_dropout,
+            quantizer_grad_frac,
+        )
+        self.quantizer_dropout = quantizer_dropout
+        self.quantizer_grad_frac = float(quantizer_grad_frac)
+        assert 0.0 <= quantizer_dropout <= 1.0, "quantizer_dropout must be in [0, 1]"
+        assert (
+            0.0 <= self.quantizer_grad_frac <= 1.0
+        ), "quantizer_grad_frac must be in [0, 1]"
+
+        kwargs = filter_func_args(self.quantizers[0].change_config, kwargs)
+        for quantizer in self.quantizers:
+            quantizer.change_config(**kwargs)
 
     @torch.no_grad()
     def update_bypass_prob(self, global_step: int):
@@ -184,6 +260,7 @@ class ResidualVectorQuantizer(nn.Module):
             "codebook_sizes": self.codebook_sizes,
             "codebook_dims": self.codebook_dims,
             "quantizer_dropout": self.quantizer_dropout,
+            "quantizer_grad_frac": self.quantizer_grad_frac,
             "base_vq_type": self.base_vq_type,
             "bypass_init_prob": self.bypass_prob.item(),
             "bypass_final_prob": self.bypass_final_prob,
@@ -196,6 +273,23 @@ class ResidualVectorQuantizer(nn.Module):
                 cfg[k] = v
 
         return cfg
+
+    def scale_quantizer_grad(self, z_q: torch.Tensor) -> torch.Tensor:
+        """
+        Scale the gradient of the residual by a fixed fraction.
+
+        Args:
+            z_q (Tensor): The quantized tensor.
+
+        Returns:
+            Tensor: The quantized tensor with scaled gradient.
+        """
+        if self.quantizer_grad_frac == 0.0:
+            return z_q.detach()
+        else:
+            return z_q * self.quantizer_grad_frac + z_q.detach() * (
+                1.0 - self.quantizer_grad_frac
+            )
 
     def forward(
         self,
@@ -233,6 +327,9 @@ class ResidualVectorQuantizer(nn.Module):
                 - codes (Tensor, optional): If requested, code indices stacked as
                   (B, M, T,...).
         """
+        if self.in_proj is not None:
+            z = self.in_proj(z)
+
         z_q = torch.zeros_like(z)
         residual = z
         commitment_loss = 0.0
@@ -306,7 +403,7 @@ class ResidualVectorQuantizer(nn.Module):
             if compute_orthogonality_loss:
                 orthogonality_loss += orthogonality_loss_i.mean()
 
-            residual = residual - z_q_i.detach()
+            residual = residual - self.scale_quantizer_grad(z_q_i)
             ppl.append(vq_output.perplexity)
             if return_codes:
                 codes.append(vq_output.codes)
@@ -331,6 +428,9 @@ class ResidualVectorQuantizer(nn.Module):
                     )
 
                 z_q = z * bypass_mask + z_q * (~bypass_mask)
+
+        if self.out_proj is not None:
+            z_q = self.out_proj(z_q)
 
         output = VectorQuantizerOutput(
             z_q=z_q,
@@ -360,7 +460,10 @@ class ResidualVectorQuantizer(nn.Module):
         Adds:
             --num-quantizers (int): Number of residual stages (M).
             --quantizer-dropout (float): Dropout probability for stages during training.
+            --quantizer-grad-frac (float): Fraction of gradient passed through
+                the residual update (0.0 detaches, 1.0 full).
             --base-vq-type (str): Quantizer type for each stage.
+            --latent-dim (int): Optional latent dimension for the RVQ stack.
             --codebook-sizes (List[int]): Codebook size K for each stage.
             --codebook-dims (List[int]): Codebook dimension D for each stage
                 (defaults to in_feats if omitted).
@@ -389,10 +492,22 @@ class ResidualVectorQuantizer(nn.Module):
             help="Probability of dropping each quantizer during training for regularization",
         )
         parser.add_argument(
+            "--quantizer-grad-frac",
+            type=float,
+            default=0.0,
+            help="Fraction of gradient passed through the residual update (0.0 detaches, 1.0 full)",
+        )
+        parser.add_argument(
             "--base-vq-type",
             choices=list(vq_dict.keys()),
             default="nn_vq",
             help="Type of vector quantizer to use in each stage",
+        )
+        parser.add_argument(
+            "--latent-dim",
+            type=int,
+            default=None,
+            help="Optional latent dimension for the RVQ stack (projects in_feats before quantization)",
         )
         parser.add_argument(
             "--codebook-sizes",

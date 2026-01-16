@@ -3,6 +3,8 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+from typing import Any, Dict, Optional, Sequence, Union
+
 import torch
 import torch.optim as optim
 
@@ -23,16 +25,16 @@ class WDScheduler:
 
     def __init__(
         self,
-        optimizer,
-        initial_wd=0,
-        warmup_steps=0,
-        epoch=0,
-        step=0,
-        update_wd_on_opt_step=False,
-    ):
+        optimizer: optim.Optimizer,
+        initial_wd: Union[float, Sequence[float]] = 0,
+        warmup_steps: int = 0,
+        epoch: int = 0,
+        step: int = 0,
+        update_wd_on_opt_step: bool = False,
+    ) -> None:
         if not isinstance(optimizer, optim.Optimizer):
             raise TypeError("%s is not an Optimizer" % (type(optimizer).__name__))
-        self.optimizer = optimizer
+        self.optimizer: optim.Optimizer = optimizer
 
         if epoch == 0:
             for group in optimizer.param_groups:
@@ -45,7 +47,7 @@ class WDScheduler:
                         "in param_groups[{}] when resuming an optimizer".format(i)
                     )
 
-        self.final_wds = list(
+        self.final_wds: Sequence[float] = list(
             map(lambda group: group["final_wd"], optimizer.param_groups)
         )
 
@@ -68,16 +70,16 @@ class WDScheduler:
             for group, wd in zip(optimizer.param_groups, self.initial_wds):
                 group["weight_decay"] = wd
 
-        self.warmup_steps = warmup_steps
-        self.epoch = epoch
-        self.step = step
-        self.update_wd_on_opt_step = update_wd_on_opt_step
+        self.warmup_steps: int = warmup_steps
+        self.epoch: int = epoch
+        self.step: int = step
+        self.update_wd_on_opt_step: bool = update_wd_on_opt_step
 
     @property
-    def in_warmup(self):
+    def in_warmup(self) -> bool:
         return self.step < self.warmup_steps
 
-    def state_dict(self):
+    def state_dict(self) -> Dict[str, Any]:
         """Returns the state of the scheduler as a :class:`dict`.
 
         It contains an entry for every variable in self.__dict__ which
@@ -87,7 +89,7 @@ class WDScheduler:
             key: value for key, value in self.__dict__.items() if key != "optimizer"
         }
 
-    def load_state_dict(self, state_dict):
+    def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
         """Loads the schedulers state.
 
         Arguments:
@@ -96,10 +98,10 @@ class WDScheduler:
         """
         self.__dict__.update(state_dict)
 
-    def get_wd(self):
+    def get_wd(self, step: int) -> Sequence[float]:
         raise NotImplementedError
 
-    def on_epoch_begin(self, epoch=None, **kwargs):
+    def on_epoch_begin(self, epoch: Optional[int] = None, **kwargs: Any) -> None:
         if epoch is not None:
             self.epoch = epoch
 
@@ -111,10 +113,10 @@ class WDScheduler:
         ):
             param_group["weight_decay"] = wd
 
-    def on_epoch_end(self, metrics=None):
+    def on_epoch_end(self, metrics: Optional[Dict[str, Any]] = None) -> None:
         self.epoch += 1
 
-    def on_opt_step(self):
+    def on_opt_step(self) -> None:
         if self.update_wd_on_opt_step:
             for param_group, wd in zip(
                 self.optimizer.param_groups, self.get_wd(self.step)

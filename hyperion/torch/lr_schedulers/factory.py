@@ -3,12 +3,15 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+from typing import Optional, Sequence, Union
+
 import torch
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from .cos_lr import AdamCosineLR, CosineLR
 from .exp_lr import ExponentialLR
 from .invpow_lr import InvPowLR
+from .lr_scheduler import LRScheduler
 from .noam_lr import NoamLR
 from .red_lr_on_plateau import ReduceLROnPlateau
 from .triangular_lr import TriangularLR
@@ -16,30 +19,30 @@ from .triangular_lr import TriangularLR
 
 class LRSchedulerFactory:
     def create(
-        optimizer,
-        lrsch_type,
-        decay_rate=1 / 100,
-        decay_steps=100,
-        power=0.5,
-        hold_steps=10,
-        t=10,
-        t_mul=1,
-        warm_restarts=False,
-        gamma=1,
-        monitor="val_loss",
-        mode="min",
-        factor=0.1,
-        patience=10,
-        threshold=1e-4,
-        threshold_mode="rel",
-        cooldown=0,
-        eps=1e-8,
-        min_lr=0,
-        warmup_steps=0,
-        d_model=None,
-        lr_factor=1,
-        update_lr_on_opt_step=True,
-    ):
+        optimizer: torch.optim.Optimizer,
+        lrsch_type: str,
+        decay_rate: float = 1 / 100,
+        decay_steps: int = 100,
+        power: float = 0.5,
+        hold_steps: int = 10,
+        t: int = 10,
+        t_mul: int = 1,
+        warm_restarts: bool = False,
+        gamma: float = 1,
+        monitor: str = "val_loss",
+        mode: str = "min",
+        factor: float = 0.1,
+        patience: int = 10,
+        threshold: float = 1e-4,
+        threshold_mode: str = "rel",
+        cooldown: int = 0,
+        eps: float = 1e-8,
+        min_lr: Union[float, Sequence[float]] = 0,
+        warmup_steps: int = 0,
+        d_model: Optional[int] = None,
+        lr_factor: float = 1,
+        update_lr_on_opt_step: bool = True,
+    ) -> Optional[LRScheduler]:
         """Creates a  learning rate scheduler object.
 
         Args:
@@ -221,9 +224,8 @@ class LRSchedulerFactory:
                 "triangular_lr",
             ],
             help=(
-                "Learning rate schedulers: None, Exponential,"
-                "Cosine Annealing, Cosine Annealing for Adam,"
-                "Reduce on Plateau"
+                "Learning rate scheduler type (e.g., exp_lr, invpow_lr, cos_lr, "
+                "adamcos_lr, red_lr_on_plateau, noam_lr, triangular_lr)."
             ),
         )
 
@@ -231,115 +233,135 @@ class LRSchedulerFactory:
             "--decay-rate",
             default=1 / 100,
             type=float,
-            help=("LR decay rate in exp lr"),
+            help=("Exponential decay factor applied every decay_steps."),
         )
         parser.add_argument(
-            "--decay-steps", default=100, type=int, help=("LR decay steps in exp lr")
+            "--decay-steps",
+            default=100,
+            type=int,
+            help=("Number of steps between exponential decays."),
         )
         parser.add_argument(
-            "--power", default=0.5, type=float, help=("power in inverse power lr")
+            "--power",
+            default=0.5,
+            type=float,
+            help=("Exponent for inverse power decay (lr ~ step^-power)."),
         )
 
         parser.add_argument(
-            "--hold-steps", default=10, type=int, help=("LR hold steps in exp lr")
+            "--hold-steps",
+            default=10,
+            type=int,
+            help=("Number of steps to hold the initial lr before decay."),
         )
-        parser.add_argument("--t", default=10, type=int, help=("Period in cos lr"))
+        parser.add_argument(
+            "--t",
+            default=10,
+            type=int,
+            help=("Cycle length for cosine/triangular schedules (in steps)."),
+        )
         parser.add_argument(
             "--t-mul",
             default=1,
             type=int,
-            help=("Period multiplicator for each restart in cos/triangular lr"),
+            help=("Cycle length multiplier after each restart (cos/triangular)."),
         )
         parser.add_argument(
             "--gamma",
             default=1.0,
             type=float,
-            help=("LR decay rate for each restart in cos/triangular lr"),
+            help=("Max lr multiplier after each restart (cos/triangular)."),
         )
 
         parser.add_argument(
             "--warm-restarts",
             default=False,
             action=ActionYesNo,
-            help=("Do warm restarts in cos lr"),
+            help=("Enable warm restarts in cosine schedules."),
         )
 
         parser.add_argument(
-            "--monitor", default="val_loss", help=("Monitor metric to reduce lr")
+            "--monitor",
+            default="val_loss",
+            help=("Metric name to monitor for ReduceLROnPlateau."),
         )
         parser.add_argument(
             "--mode",
             default="min",
             choices=["min", "max"],
-            help=("Monitor metric mode to reduce lr"),
+            help=("Whether lower or higher metric is better for plateau reduction."),
         )
 
         parser.add_argument(
             "--factor",
             default=0.1,
             type=float,
-            help=("Factor by which the learning rate will be reduced on plateau"),
+            help=("Multiply lr by this factor when plateau reduction triggers."),
         )
 
         parser.add_argument(
             "--patience",
             default=10,
             type=int,
-            help=(
-                "Number of epochs with no improvement after which learning rate will be reduced"
-            ),
+            help=("Epochs with no improvement before reducing lr."),
         )
 
         parser.add_argument(
-            "--threshold", default=1e-4, type=float, help=("Minimum metric improvement")
+            "--threshold",
+            default=1e-4,
+            type=float,
+            help=("Minimum change to qualify as an improvement."),
         )
 
         parser.add_argument(
             "--threshold_mode",
             default="rel",
             choices=["rel", "abs"],
-            help=("Relative or absolute"),
+            help=("Use relative or absolute threshold for improvements."),
         )
 
         parser.add_argument(
             "--cooldown",
             default=0,
             type=int,
-            help=(
-                "Number of epochs to wait before resuming normal operation after lr has been reduced"
-            ),
+            help=("Epochs to wait after a reduction before resuming checks."),
         )
 
         parser.add_argument(
-            "--eps", default=1e-8, type=float, help=("Minimum decay applied to lr")
+            "--eps",
+            default=1e-8,
+            type=float,
+            help=("Minimum lr change; smaller updates are ignored."),
         )
 
-        parser.add_argument("--min-lr", default=0, type=float, help=("Minimum lr"))
+        parser.add_argument(
+            "--min-lr", default=0, type=float, help=("Lower bound for learning rate.")
+        )
 
         parser.add_argument(
             "--warmup-steps",
             default=0,
             type=int,
-            help=("Number of batches to warmup lr"),
+            help=("Steps to linearly warm up lr from 0 to the base value."),
         )
 
         parser.add_argument(
             "--d-model",
             default=None,
             type=int,
-            help=("Transformer model hidden dimension"),
+            help=("Transformer model dimension for Noam schedule."),
         )
         parser.add_argument(
             "--lr-factor",
             default=1,
             type=float,
-            help=("learning rate scaling factor for Noam schedule"),
+            help=("Scale factor applied to the Noam learning rate."),
         )
         parser.add_argument(
             "--update-lr-on-opt-step",
             default=True,
             action=ActionYesNo,
-            help=("Update lr based on batch number instead of epoch number"),
+            help=("Update lr per optimizer step instead of per epoch."),
         )
 
         if prefix is not None:

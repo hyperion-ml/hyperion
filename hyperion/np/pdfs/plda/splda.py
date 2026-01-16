@@ -28,6 +28,10 @@ class SPLDA(PLDABase):
       update_mu: whether to update mu or not when training the model.
       update_V: whether to update V or not when training the model.
       update_W: whether to update W or not when training the model.
+      prior: prior model for Bayesian adaptation.
+      r_mu: relevance factor for adapting mu.
+      r_V: relevance factor for adapting V.
+      r_W: relevance factor for adapting W.
       x_dim: data dimension.
     """
 
@@ -44,6 +48,10 @@ class SPLDA(PLDABase):
         epochs: int = 20,
         ml_md: str = "ml+md",
         md_epochs: Optional[Sequence[int]] = None,
+        prior: Optional["SPLDA"] = None,
+        r_mu: float = 24.0,
+        r_V: float = 128.0,
+        r_W: float = 256.0,
         **kwargs: Any,
     ) -> None:
         super().__init__(
@@ -53,6 +61,7 @@ class SPLDA(PLDABase):
             epochs=epochs,
             ml_md=ml_md,
             md_epochs=md_epochs,
+            prior=prior,
             **kwargs,
         )
         if V is not None:
@@ -62,6 +71,9 @@ class SPLDA(PLDABase):
         self.fullcov_W = fullcov_W
         self.update_V = update_V
         self.update_W = update_W
+        self.r_mu = r_mu
+        self.r_V = r_V
+        self.r_W = r_W
 
     def validate(self) -> None:
         """Validates the model parameters."""
@@ -302,6 +314,13 @@ class SPLDA(PLDABase):
             self.V = Vtilde[:-1, :]
             self.mu = Vtilde[-1, :]
 
+        ybar = self.mu
+        if self.update_mu and self.prior is not None:
+            self.mu = self._adapt_mu(M, ybar)
+
+        if self.update_V and self.prior is not None:
+            self.V = self._adapt_V(M, ybar, self.V)
+
         if self.update_W:
             if self.update_mu and self.update_V:
                 iW = (S - np.dot(Cy, self.V) - np.outer(F, self.mu)) / N
@@ -309,6 +328,10 @@ class SPLDA(PLDABase):
                 Vtilde = np.vstack((self.V, self.mu))
                 CVt = np.dot(Cytilde, Vtilde)
                 iW = (S - CVt - CVt.T + np.dot(np.dot(Vtilde.T, Rytilde), Vtilde)) / N
+
+            if self.prior is not None:
+                iW = self._adapt_iW(N, iW)
+
             if self.fullcov_W:
                 self.W = invert_pdmat(iW, return_inv=True)[-1]
             else:
@@ -321,6 +344,9 @@ class SPLDA(PLDABase):
           stats: tuple of expectations computed at the Estep.
 
         """
+        if self.prior is not None:
+            return
+
         N, M, F, S, _, y_acc, Ry1, Ry, Cy, Py = stats
         mu_y = y_acc / M
 
@@ -338,6 +364,9 @@ class SPLDA(PLDABase):
             "update_W": self.update_W,
             "update_V": self.update_V,
             "fullcov_W": self.fullcov_W,
+            "r_mu": self.r_mu,
+            "r_V": self.r_V,
+            "r_W": self.r_W,
         }
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
@@ -640,6 +669,58 @@ class SPLDA(PLDABase):
 
         """
         self.weighted_avg_params(plda.mu, plda.V, plda.W, w_mu, w_B, w_W)
+
+    def _adapt_mu(self, M: int, ybar: np.ndarray) -> np.ndarray:
+        """Adapt mean vector using Bayesian adaptation.
+        Args:
+          M: number of samples.
+          ybar: sample mean vector.
+        Returns:
+          adapted mean vector.
+        """
+        adapt_mu = (M * ybar + self.r_mu * self.prior.mu) / (M + self.r_mu)
+        return adapt_mu
+
+    def _adapt_V(
+        self,
+        M: int,
+        ybar: np.ndarray,
+        V: np.ndarray,
+    ) -> np.ndarray:
+        """Adapt between-class precision using Bayesian adaptation.
+        Args:
+          M: number of samples.
+          ybar: sample mean vector.
+          V: sample speaker loading matrix.
+        Returns:
+          adapted between-class precision matrix.
+        """
+        iB = np.dot(V.T, V)
+        if hasattr(self.prior, "B"):
+            prior_iB = invert_pdmat(self.prior.B, return_inv=True)[-1]
+        else:
+            prior_iB = np.dot(self.prior.V.T, self.prior.V)
+
+        adapt_iB = M * iB + self.r_V * prior_iB
+        delta_y = ybar - self.prior.mu
+        adapt_iB += np.outer(delta_y, delta_y) * (M * self.r_mu / (M + self.r_mu))
+        adapt_iB /= M + self.r_V
+        w, Vt = sla.eigh(adapt_iB, overwrite_a=True)
+        w = w[-self.y_dim :]
+        V = np.sqrt(w) * Vt[:, -self.y_dim :]
+        return V.T
+
+    def _adapt_iW(self, N: int, iW: np.ndarray) -> np.ndarray:
+        """Adapt within-class precision using Bayesian adaptation.
+        Args:
+          N: number of samples.
+          iW: sample within-class precision matrix.
+        Returns:
+          adapted within-class precision matrix.
+        """
+        prior_iW = invert_pdmat(self.prior.W, return_inv=True)[-1]
+        adapt_iW = (N * iW + self.r_W * prior_iW) / (N + self.r_W)
+        return adapt_iW
 
     def project(self, T, delta_mu=None):
         """Transforms the PLDA parameters given an affine transformation

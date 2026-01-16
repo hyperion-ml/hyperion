@@ -3,21 +3,24 @@
  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
 
+from typing import Any, Dict, Optional, Sequence, Union
+
 import torch
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from ...utils.misc import filter_func_args
 from .cos_wd import CosineWD
+from .wd_scheduler import WDScheduler
 
 
 class WDSchedulerFactory:
     def create(
-        optimizer,
-        wdsch_type,
-        initial_wd=None,
-        warmup_steps=0,
-        update_wd_on_opt_step=True,
-    ):
+        optimizer: torch.optim.Optimizer,
+        wdsch_type: str,
+        initial_wd: Optional[Union[float, Sequence[float]]] = None,
+        warmup_steps: int = 0,
+        update_wd_on_opt_step: bool = True,
+    ) -> Optional[WDScheduler]:
         """Creates a weight decay scheduler object.
 
         Args:
@@ -43,11 +46,11 @@ class WDSchedulerFactory:
         raise ValueError(f"invalid wdsch_type={wdsch_type}")
 
     @staticmethod
-    def filter_args(**kwargs):
+    def filter_args(**kwargs: Any) -> Dict[str, Any]:
         return filter_func_args(WDSchedulerFactory.create, kwargs)
 
     @staticmethod
-    def add_class_args(parser, prefix=None):
+    def add_class_args(parser: ArgumentParser, prefix: Optional[str] = None) -> None:
         if prefix is not None:
             outer_parser = parser
             parser = ArgumentParser(prog="")
@@ -60,7 +63,10 @@ class WDSchedulerFactory:
                 "none",
                 "cos_wd",
             ],
-            help=("weight decay schedulers: None," "Cosine Annealing."),
+            help=(
+                "Weight decay scheduler type: none (no schedule) or cos_wd "
+                "(cosine annealing)."
+            ),
         )
 
         parser.add_argument(
@@ -68,7 +74,8 @@ class WDSchedulerFactory:
             default=None,
             type=float,
             help=(
-                "Initial value of weight decay, it is expected to be lower than final value."
+                "Initial weight decay value; if set, it should be lower than the "
+                "final value defined in the optimizer param groups."
             ),
         )
 
@@ -76,14 +83,16 @@ class WDSchedulerFactory:
             "--warmup-steps",
             default=0,
             type=int,
-            help=("Number of steps to reach the final value of weight decay"),
+            help="Number of warmup steps to reach the final weight decay value.",
         )
 
         parser.add_argument(
             "--update-wd-on-opt-step",
             default=True,
             action=ActionYesNo,
-            help=("Update weight decay based on batch number instead of epoch number"),
+            help=(
+                "Update weight decay every optimizer step instead of once per epoch."
+            ),
         )
 
         if prefix is not None:

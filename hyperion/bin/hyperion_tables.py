@@ -41,6 +41,8 @@ subcommand_list = [
     "average_results",
     "harmonize_columns_by_majority_vote",
     "harmonize_columns_by_average",
+    "harmonize_column_by_majority_cluster",
+    "harmonize_age_given_decade",
     "histogram",
     "scatter2d",
     "scatter3d",
@@ -716,6 +718,159 @@ def harmonize_columns_by_average(
     table = table_class.load(input_file)
     table.harmonize_columns_by_average(
         voter_columns=voter_columns, target_columns=target_columns
+    )
+    table.save(output_file)
+
+
+def make_harmonize_column_by_majority_cluster_parser():
+    """Build parser for harmonizing a numeric column via the dominant cluster."""
+    parser = ArgumentParser()
+    parser.add_argument(
+        "--cfg", action=ActionConfigFile, help="configuration file in YAML format"
+    )
+    parser.add_argument("--input-file", required=True, help="input table file")
+    parser.add_argument(
+        "--voter-columns",
+        required=True,
+        nargs="+",
+        help="columns that define the group for clustering",
+    )
+    parser.add_argument(
+        "--target-column",
+        required=True,
+        help="numeric column to harmonize using the dominant cluster",
+    )
+    parser.add_argument(
+        "--suspect-column",
+        default="suspect",
+        help="column used to flag suspect rows",
+    )
+    parser.add_argument(
+        "--std-threshold",
+        default=None,
+        type=float,
+        help="only split groups when std exceeds this value",
+    )
+    parser.add_argument(
+        "--max-iter",
+        default=20,
+        type=int,
+        help="maximum iterations for the 1D two-means refinement",
+    )
+    parser.add_argument(
+        "--output-file",
+        default=None,
+        help="""output table file, If None, it overwrites input""",
+    )
+
+    add_common_args(parser)
+    return parser
+
+
+def harmonize_column_by_majority_cluster(
+    table_type: str,
+    input_file: PathLike,
+    voter_columns: List[str],
+    target_column: str,
+    suspect_column: str = "suspect",
+    std_threshold: Optional[float] = None,
+    max_iter: int = 20,
+    output_file: Optional[PathLike] = None,
+):
+    """Harmonize a numeric column via the dominant cluster and flag suspects."""
+    input_file = Path(input_file)
+    if output_file is None:
+        bk_file = input_file.with_suffix(input_file.suffix + ".bk")
+        if not bk_file.is_file():
+            import shutil
+
+            shutil.copy2(input_file, bk_file)
+        output_file = input_file
+
+    logging.info(
+        "Harmonizing column %s by dominant cluster grouped by %s from %s into %s",
+        target_column,
+        voter_columns,
+        input_file,
+        output_file,
+    )
+    table_class = table_dict[table_type]
+    table = table_class.load(input_file)
+    table.harmonize_column_by_majority_cluster(
+        voter_columns=voter_columns,
+        target_column=target_column,
+        suspect_column=suspect_column,
+        std_threshold=std_threshold,
+        max_iter=max_iter,
+    )
+    table.save(output_file)
+
+
+def make_harmonize_age_given_decade_parser():
+    """Build parser for harmonizing age within decade bounds."""
+    parser = ArgumentParser()
+    parser.add_argument(
+        "--cfg", action=ActionConfigFile, help="configuration file in YAML format"
+    )
+    parser.add_argument("--input-file", required=True, help="input table file")
+    parser.add_argument(
+        "--voter-columns",
+        required=True,
+        nargs="+",
+        help="columns that define the group for averaging",
+    )
+    parser.add_argument(
+        "--target-column",
+        required=True,
+        help="numeric age column to harmonize",
+    )
+    parser.add_argument(
+        "--decade-column",
+        default="age_decade",
+        help="column indicating the age decade labels",
+    )
+    parser.add_argument(
+        "--output-file",
+        default=None,
+        help="""output table file, If None, it overwrites input""",
+    )
+
+    add_common_args(parser)
+    return parser
+
+
+def harmonize_age_given_decade(
+    table_type: str,
+    input_file: PathLike,
+    voter_columns: List[str],
+    target_column: str,
+    decade_column: str = "age_decade",
+    output_file: Optional[PathLike] = None,
+):
+    """Harmonize age by averaging within decade bounds."""
+    input_file = Path(input_file)
+    if output_file is None:
+        bk_file = input_file.with_suffix(input_file.suffix + ".bk")
+        if not bk_file.is_file():
+            import shutil
+
+            shutil.copy2(input_file, bk_file)
+        output_file = input_file
+
+    logging.info(
+        "Harmonizing age column %s grouped by %s with decade %s from %s into %s",
+        target_column,
+        voter_columns,
+        decade_column,
+        input_file,
+        output_file,
+    )
+    table_class = table_dict[table_type]
+    table = table_class.load(input_file)
+    table.harmonize_age_given_decade(
+        voter_columns=voter_columns,
+        target_column=target_column,
+        decade_column=decade_column,
     )
     table.save(output_file)
 

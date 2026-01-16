@@ -8,6 +8,7 @@ import logging
 import math
 import os
 import subprocess
+from pathlib import Path
 from types import TracebackType
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Type, Union
 
@@ -389,20 +390,76 @@ class AudioReader:
         """
         if time_offset == 0 and time_dur == 0:
             x, fs = torchaudio.load(
-                wavspecifier, normalize=True, channels_first=channels_first
+                wavspecifier,
+                normalize=True,
+                channels_first=channels_first,
+                backend="ffmpeg",
             )
         else:
-            with torchaudio.backend.sox_io_backend.stream(wavspecifier) as f:
-                fs = f.info.samplerate
-                start_sample = int(math.floor(time_offset * fs))
+            x = None
+            try:
+                reader = torchaudio.io.StreamReader(wavspecifier)
+                info = reader.get_src_stream_info(0)
+                fs = info.sample_rate
                 num_samples = int(math.floor(time_dur * fs))
                 if num_samples > 0:
-                    x = f.read(frame_offset=start_sample, num_frames=num_samples)
-                else:
-                    x = f.read(frame_offset=start_sample, num_frames=-1)
+                    reader.seek(time_offset)
+                    reader.add_basic_audio_stream(frames_per_chunk=num_samples)
+                    x = next(reader.stream())[0]
+                    if channels_first:
+                        x = x.T
+            except Exception:
+                x = None
 
-                if not channels_first:
-                    x = x.T
+            if x is None:
+                info = None
+                try:
+                    info = torchaudio.info(wavspecifier, backend="ffmpeg")
+                except Exception:
+                    info = None
+
+                if info is not None:
+                    fs = info.sample_rate
+                    start_sample = int(math.floor(time_offset * fs))
+                    num_samples = int(math.floor(time_dur * fs))
+                    num_frames = num_samples if num_samples > 0 else -1
+                    try:
+                        x, fs = torchaudio.load(
+                            wavspecifier,
+                            normalize=True,
+                            channels_first=channels_first,
+                            frame_offset=start_sample,
+                            num_frames=num_frames,
+                            backend="ffmpeg",
+                        )
+                    except TypeError:
+                        x, fs = torchaudio.load(
+                            wavspecifier,
+                            normalize=True,
+                            channels_first=channels_first,
+                            backend="ffmpeg",
+                        )
+                        end_sample = (
+                            start_sample + num_samples if num_samples > 0 else None
+                        )
+                        if channels_first:
+                            x = x[..., start_sample:end_sample]
+                        else:
+                            x = x[start_sample:end_sample, ...]
+                else:
+                    x, fs = torchaudio.load(
+                        wavspecifier,
+                        normalize=True,
+                        channels_first=channels_first,
+                        backend="ffmpeg",
+                    )
+                    start_sample = int(math.floor(time_offset * fs))
+                    num_samples = int(math.floor(time_dur * fs))
+                    end_sample = start_sample + num_samples if num_samples > 0 else None
+                    if channels_first:
+                        x = x[..., start_sample:end_sample]
+                    else:
+                        x = x[start_sample:end_sample, ...]
 
         if not always_2d:
             ch_dim = 0 if channels_first else 1
@@ -443,10 +500,32 @@ class AudioReader:
             RuntimeError: If the audio cannot be read by any backend.
 
         Notes:
-            Attempts to read with :mod:`soundfile` first, including a relaxed
-            slicing strategy to recover from libsndfile ``fseek`` issues, and
-            finally falls back to :mod:`torchaudio` when required.
+            Attempts to read with :mod:`soundfile` first (except for ``.mp3``,
+            which uses :mod:`torchaudio` first), including a relaxed slicing
+            strategy to recover from libsndfile ``fseek`` issues, and finally
+            falls back to :mod:`torchaudio` when required.
         """
+        ext = Path(wavspecifier).suffix.lower()
+        if ext == ".mp3":
+            try:
+                return AudioReader.read_file_torchaudio(
+                    wavspecifier,
+                    scale,
+                    time_offset,
+                    time_dur,
+                    channels_first,
+                    always_2d,
+                )
+            except Exception:
+                logging.info(
+                    (
+                        "error-0 reading %s offset=%f duration=%f "
+                        "retrying with soundfile ..."
+                    ),
+                    wavspecifier,
+                    time_offset,
+                    time_dur,
+                )
         try:
             return AudioReader.read_file_sf(
                 wavspecifier, scale, time_offset, time_dur, channels_first, always_2d
@@ -459,7 +538,7 @@ class AudioReader:
             # this solves the problem in most cases
             logging.info(
                 (
-                    "error-1 reading %s offset=%f duration=%f"
+                    "error-1 reading %s offset=%f duration=%f "
                     "retrying reading until end-of-file ..."
                 ),
                 wavspecifier,
@@ -484,7 +563,7 @@ class AudioReader:
             except:
                 logging.info(
                     (
-                        "error-2 reading %s offset=%f duration=%f"
+                        "error-2 reading %s offset=%f duration=%f "
                         "retrying reading full file ..."
                     ),
                     wavspecifier,
@@ -512,7 +591,7 @@ class AudioReader:
                     try:
                         logging.info(
                             (
-                                "error-3 reading %s offset=%f duration=%f"
+                                "error-3 reading %s offset=%f duration=%f "
                                 "retrying with torchaudio ..."
                             ),
                             wavspecifier,
@@ -544,7 +623,7 @@ class AudioReader:
                             time_dur,
                         )
 
-                    raise err
+                        raise err
 
     def _read_recording(
         self,
@@ -582,6 +661,10 @@ class AudioReader:
             always_2d = True
 
         storage_path = str(recording["storage_path"])
+        if time_offset == 0 and time_dur == recording["duration"]:
+            # we just read the full recording
+            time_dur = 0
+
         x_i, fs_i = self.read_wavspecifier(
             storage_path,
             self.wav_scale,

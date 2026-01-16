@@ -119,12 +119,22 @@ class StreamingDAC(TorchModel):
     def change_config(
         self,
         rebuild_quantizer: bool = False,
+        reconfig_quantizer: bool = False,
         quantizer: Optional[Dict[str, Any]] = None,
     ) -> None:
+        """Change internal model configuration during finetuning.
+        Args:
+            rebuild_quantizer: If true, rebuilds the quantizer with new config.
+            reconfig_quantizer: If true, reconfigures the quantizer with new config.
+            quantizer: New quantizer config dict.
+        """
         if rebuild_quantizer and quantizer is not None:
             quantizer["in_feats"] = self.latent_feats
             quantizer["channels_last"] = True
             self.quantizer = ResidualVectorQuantizer(**quantizer)
+
+        if reconfig_quantizer and quantizer is not None:
+            self.quantizer.change_config(**quantizer)
 
     @property
     def input_sample_frequency(self) -> int:
@@ -587,6 +597,12 @@ class StreamingDAC(TorchModel):
             action=ActionYesNo,
             default=False,
             help="If true, rebuilds the quantizer during finetuning.",
+        )
+        parser.add_argument(
+            "--reconfig-quantizer",
+            action=ActionYesNo,
+            default=False,
+            help="If true, reconfigures the quantizer during finetuning.",
         )
         ResidualVectorQuantizer.add_class_args(
             parser, prefix="quantizer", skip={"in_feats"}

@@ -21,12 +21,18 @@ class FRPLDA(PLDABase):
 
 
     Attributes:
+      y_dim: speaker factor dimension.
       mu: class-independent mean.
       B: between-class precision.
       W: within-class precision.
+      fullcov_W: whether W is full-precision matrix or not.
       update_mu: whether to update mu or not when training the model.
       update_B: whether to update B or not when training the model.
       update_W: whether to update W or not when training the model.
+      prior: prior model for Bayesian adaptation.
+      r_mu: relevance factor for adapting mu.
+      r_B: relevance factor for adapting B.
+      r_W: relevance factor for adapting W.
       x_dim: data dimension.
     """
 
@@ -42,9 +48,15 @@ class FRPLDA(PLDABase):
         epochs: int = 20,
         ml_md: str = "ml+md",
         md_epochs: Optional[Sequence[int]] = None,
+        prior: Optional["FRPLDA"] = None,
+        r_mu: float = 24.0,
+        r_B: float = 256.0,
+        r_W: float = 256.0,
         **kwargs: Any,
     ) -> None:
-        super().__init__(mu=mu, update_mu=update_mu, epochs=epochs, **kwargs)
+        super().__init__(
+            mu=mu, update_mu=update_mu, epochs=epochs, prior=prior, **kwargs
+        )
         if mu is not None:
             self.y_dim = mu.shape[0]
         self.B = B
@@ -52,6 +64,9 @@ class FRPLDA(PLDABase):
         self.fullcov_W = fullcov_W
         self.update_B = update_B
         self.update_W = update_W
+        self.r_mu = r_mu
+        self.r_B = r_B
+        self.r_W = r_W
 
     def validate(self) -> None:
         """Validates the model parameters."""
@@ -281,16 +296,28 @@ class FRPLDA(PLDABase):
         N, M, S, _, y_acc, Ry, Cy, Py = stats
         ybar = y_acc / M
         if self.update_mu:
-            self.mu = ybar
+            if self.prior is None:
+                self.mu = ybar
+            else:
+                self.mu = self._adapt_mu(M, ybar)
+
         if self.update_B:
             if self.update_mu:
                 iB = Py / M - np.outer(self.mu, self.mu)
             else:
                 muybar = np.outer(self.mu, ybar)
                 iB = Py / M - muybar - muybar + np.outer(self.mu, self.mu)
+
+            if self.prior is not None:
+                iB = self._adapt_iB(M, ybar, iB)
+
             self.B = invert_pdmat(iB, return_inv=True)[-1]
+
         if self.update_W:
             iW = (S - Cy - Cy.T + Ry) / N
+            if self.prior is not None:
+                iW = self._adapt_iW(N, iW)
+
             if self.fullcov_W:
                 self.W = invert_pdmat(iW, return_inv=True)[-1]
             else:
@@ -306,8 +333,11 @@ class FRPLDA(PLDABase):
             "update_W": self.update_W,
             "update_B": self.update_B,
             "fullcov_W": self.fullcov_W,
+            "r_mu": self.r_mu,
+            "r_B": self.r_B,
+            "r_W": self.r_W,
         }
-        base_config = super(FRPLDA, self).get_config()
+        base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
     def save_params(self, f: Any) -> None:
@@ -561,3 +591,51 @@ class FRPLDA(PLDABase):
 
         """
         self.weighted_avg_params(plda.mu, plda.B, plda.W, w_mu, w_B, w_W)
+
+    def _adapt_mu(self, M: int, ybar: np.ndarray) -> np.ndarray:
+        """Adapt mean vector using Bayesian adaptation.
+        Args:
+          M: number of samples.
+          ybar: sample mean vector.
+        Returns:
+          adapted mean vector.
+        """
+        adapt_mu = (M * ybar + self.r_mu * self.prior.mu) / (M + self.r_mu)
+        return adapt_mu
+
+    def _adapt_iB(
+        self,
+        M: int,
+        ybar: np.ndarray,
+        iB: np.ndarray,
+    ) -> np.ndarray:
+        """Adapt between-class precision using Bayesian adaptation.
+        Args:
+          M: number of samples.
+          ybar: sample mean vector.
+          iB: sample between-class covariance matrix.
+        Returns:
+          adapted between-class covariance matrix.
+        """
+        if hasattr(self.prior, "B"):
+            prior_iB = invert_pdmat(self.prior.B, return_inv=True)[-1]
+        else:
+            prior_iB = np.dot(self.prior.V.T, self.prior.V)
+
+        adapt_iB = M * iB + self.r_B * prior_iB
+        delta_y = ybar - self.prior.mu
+        adapt_iB += np.outer(delta_y, delta_y) * (M * self.r_mu / (M + self.r_mu))
+        adapt_iB /= M + self.r_B
+        return adapt_iB
+
+    def _adapt_iW(self, N: int, iW: np.ndarray) -> np.ndarray:
+        """Adapt within-class precision using Bayesian adaptation.
+        Args:
+          N: number of samples.
+          iW: sample within-class covariance matrix.
+        Returns:
+          adapted within-class covariance matrix.
+        """
+        prior_iW = invert_pdmat(self.prior.W, return_inv=True)[-1]
+        adapt_iW = (N * iW + self.r_W * prior_iW) / (N + self.r_W)
+        return adapt_iW

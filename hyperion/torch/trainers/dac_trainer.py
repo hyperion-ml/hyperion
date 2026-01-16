@@ -96,6 +96,8 @@ class DACTrainer(TorchTrainerBase):
         loss_kl_weight: Weight for the KL divergence loss.
         loss_gen_adv_weight: Weight for adversarial generator loss.
         loss_fm_weight: Weight for feature matching loss.
+        gen_adv_losses_start_steps: Steps to keep adversarial and feature matching losses at 0.
+        gen_adv_losses_warmup_steps: Steps to ramp adversarial and feature matching losses to full weight.
         gen_segment_duration: Duration in seconds for VC generation segments.
         num_val_log_samples: Max number of samples to log during validation.
         context_trim_fraction: Fraction of receptive-field context removed from
@@ -158,6 +160,7 @@ class DACTrainer(TorchTrainerBase):
         loss_orthogonality_weight: float = 0.0,
         loss_diversity_weight: float = 0.0,
         gen_adv_losses_warmup_steps: int = 0,
+        gen_adv_losses_start_steps: int = 0,
         context_trim_fraction: float = 0.0,
         # gen_segment_duration: float = 0.64,
         num_val_log_samples: int = 10,
@@ -191,6 +194,7 @@ class DACTrainer(TorchTrainerBase):
         self.cur_val_log_samples = 0
         self.discrim_grad_clip = discrim_grad_clip
         self.gen_adv_losses_warmup_steps = gen_adv_losses_warmup_steps
+        self.gen_adv_losses_start_steps = gen_adv_losses_start_steps
         self.context_trim_fraction = context_trim_fraction
         if self.context_trim_fraction > 0.0:
             lc, rc = self.dac_model.in_context()
@@ -492,8 +496,14 @@ class DACTrainer(TorchTrainerBase):
         loss_orthogonality = dac_output.vq.orthogonality_loss
         loss_diversity = dac_output.vq.diversity_loss
         ppl = dac_output.vq.perplexity.mean().detach().item()
-        if self.cur_step < self.gen_adv_losses_warmup_steps:
-            loss_gen_adv_weight = self.cur_step / self.gen_adv_losses_warmup_steps
+        if self.cur_step < self.gen_adv_losses_start_steps:
+            loss_gen_adv_weight = 0.0
+        elif self.gen_adv_losses_warmup_steps > 0:
+            loss_gen_adv_weight = min(
+                (self.cur_step - self.gen_adv_losses_start_steps)
+                / self.gen_adv_losses_warmup_steps,
+                1.0,
+            )
         else:
             loss_gen_adv_weight = 1.0
         loss_gen = (
@@ -610,8 +620,14 @@ class DACTrainer(TorchTrainerBase):
         loss_diversity = dac_output.vq.diversity_loss
 
         ppl = dac_output.vq.perplexity.mean().item()
-        if self.cur_step < self.gen_adv_losses_warmup_steps:
-            loss_gen_adv_weight = self.cur_step / self.gen_adv_losses_warmup_steps
+        if self.cur_step < self.gen_adv_losses_start_steps:
+            loss_gen_adv_weight = 0.0
+        elif self.gen_adv_losses_warmup_steps > 0:
+            loss_gen_adv_weight = min(
+                (self.cur_step - self.gen_adv_losses_start_steps)
+                / self.gen_adv_losses_warmup_steps,
+                1.0,
+            )
         else:
             loss_gen_adv_weight = 1.0
 
@@ -1006,7 +1022,19 @@ class DACTrainer(TorchTrainerBase):
             "--gen-adv-losses-warmup-steps",
             default=0,
             type=int,
-            help="Number of steps to warm up the adversarial losses for the generator.",
+            help=(
+                "Number of steps to warm up the adversarial and feature matching losses "
+                "after the start steps."
+            ),
+        )
+        parser.add_argument(
+            "--gen-adv-losses-start-steps",
+            default=0,
+            type=int,
+            help=(
+                "Number of steps to keep adversarial and feature matching loss weights at 0 "
+                "before the warmup."
+            ),
         )
 
         if prefix is not None:

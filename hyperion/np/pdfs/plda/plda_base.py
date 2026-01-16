@@ -53,6 +53,7 @@ class PLDABase(PDF):
         epochs: int = 20,
         ml_md: str = "ml+md",
         md_epochs: Optional[Sequence[int]] = None,
+        prior: Optional["PLDABase"] = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
@@ -65,6 +66,7 @@ class PLDABase(PDF):
         self.epochs: int = epochs
         self.ml_md: str = ml_md
         self.md_epochs: Optional[Sequence[int]] = md_epochs
+        self.prior: Optional["PLDABase"] = prior
 
     def initialize(self, D: Tuple[np.ndarray, np.ndarray, np.ndarray]) -> None:
         """Initializes the PLDA model from sufficient statistics.

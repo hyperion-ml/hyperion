@@ -1,11 +1,11 @@
 """
- Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
- Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
+Copyright 2019 Johns Hopkins University  (Author: Jesus Villalba)
+Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 """
-
 
 import logging
 import math
+from typing import Sequence, Union
 
 import torch
 
@@ -28,18 +28,18 @@ class CosineWD(WDScheduler):
 
     def __init__(
         self,
-        optimizer,
-        initial_wd=0,
-        warmup_steps=0,
-        epoch=0,
-        step=0,
-        update_wd_on_opt_step=False,
-    ):
+        optimizer: torch.optim.Optimizer,
+        initial_wd: Union[float, Sequence[float]] = 0,
+        warmup_steps: int = 0,
+        epoch: int = 0,
+        step: int = 0,
+        update_wd_on_opt_step: bool = False,
+    ) -> None:
         super().__init__(
             optimizer, initial_wd, warmup_steps, epoch, step, update_wd_on_opt_step
         )
 
-    def get_wd(self, step):
+    def get_wd(self, step: int) -> Sequence[float]:
         if step >= self.warmup_steps:
             return self.final_wds
 

@@ -11,6 +11,7 @@ import torch.nn as nn
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
 from .vq import (
+    BinarySplittingGMMVectorQuantizer,
     EMAGumbelVectorQuantizer,
     EMANNVectorQuantizer,
     GumbelVectorQuantizer,
@@ -23,6 +24,7 @@ vq_dict = {
     "ema_nn_vq": EMANNVectorQuantizer,
     "gumbel_vq": GumbelVectorQuantizer,
     "ema_gumbel_vq": EMAGumbelVectorQuantizer,
+    "binary_splitting_gmm_vq": BinarySplittingGMMVectorQuantizer,
 }
 
 
@@ -76,6 +78,10 @@ class VectorQuantizerFactory:
             "use_weight_norm": use_weight_norm,
             "channels_last": channels_last,
         }
+        if vq_class == BinarySplittingGMMVectorQuantizer:
+            # Remove params not used by BinarySplittingGMMVectorQuantizer
+            vq_params.pop("distance_metric")
+
         vq_params.update(kwargs)
         vq_params = vq_class.filter_args(**vq_params)
         return vq_class(**vq_params)
@@ -179,6 +185,49 @@ class VectorQuantizerFactory:
                 type=float,
                 default=1.0,
                 help="EMA usage level below which a codebook entry is considered unused and reset",
+            )
+
+        if "init_cluster_size" not in skip:
+            parser.add_argument(
+                "--init-cluster-size",
+                type=float,
+                default=1.0,
+                help="Initial EMA cluster size for each codebook entry",
+            )
+
+        if "split_start_steps" not in skip:
+            parser.add_argument(
+                "--split-start-steps",
+                type=int,
+                default=0,
+                help=(
+                    "Global step offset before the first split "
+                    "(first split at split_start_steps + split_steps)"
+                ),
+            )
+
+        if "split_steps" not in skip:
+            parser.add_argument(
+                "--split-steps",
+                type=int,
+                default=1000,
+                help="Number of training steps between split events",
+            )
+
+        if "max_weight_ratio" not in skip:
+            parser.add_argument(
+                "--max-weight-ratio",
+                type=float,
+                default=2.0,
+                help="Maximum weight ratio before resetting unused codes",
+            )
+
+        if "var_floor" not in skip:
+            parser.add_argument(
+                "--var-floor",
+                type=float,
+                default=1e-5,
+                help="Minimum variance for precision updates",
             )
 
         if "temp_init" not in skip:

@@ -9,7 +9,7 @@ from typing import Any, Dict, Optional, Sequence, Union
 import numpy as np
 from jsonargparse import ActionParser, ActionYesNo, ArgumentParser
 
-from ....utils.misc import filter_func_args
+from ....utils.misc import PathLike, filter_func_args
 from .frplda import FRPLDA
 from .plda import PLDA
 from .plda_base import PLDALLRNvsMMethod
@@ -43,6 +43,11 @@ class PLDAFactory(object):
         update_W: bool = True,
         update_D: bool = True,
         floor_iD: float = 1e-5,
+        prior: Optional[Union[FRPLDA, SPLDA, PLDA, PathLike]] = None,
+        r_mu: float = 24.0,
+        r_V: float = 128.0,
+        r_B: float = 256.0,
+        r_W: Optional[float] = None,
         name: str = "plda",
         **kwargs: Any,
     ) -> Union[FRPLDA, SPLDA, PLDA]:
@@ -60,18 +65,33 @@ class PLDAFactory(object):
             update_W: Whether ``W`` is updated.
             update_D: Whether ``D`` is updated (PLDA).
             floor_iD: Minimum inverse variance allowed for ``D``.
+            prior: Optional prior PLDA model for Bayesian adaptation.
+            r_mu: Relevance factor for adapting ``mu``.
+            r_V: Relevance factor for adapting ``V``.
+            r_B: Relevance factor for adapting ``B``.
+            r_W: Relevance factor for adapting ``W``.
             name: Optional model name.
             **kwargs: Additional keyword arguments forwarded to the constructor.
 
         Returns:
             An initialized PLDA-family instance.
         """
+        if prior is not None and isinstance(prior, (str, PathLike)):
+            prior = PLDAFactory.load_plda(plda_type, prior)
+
+        if r_W is None:
+            r_W = 128.0 if plda_type == PLDAType.PLDA else 256.0
+
         if plda_type == PLDAType.FRPLDA:
             return FRPLDA(
                 fullcov_W=fullcov_W,
                 update_mu=update_mu,
                 update_B=update_B,
                 update_W=update_W,
+                prior=prior,
+                r_mu=r_mu,
+                r_B=r_B,
+                r_W=r_W,
                 name=name,
                 **kwargs,
             )
@@ -82,6 +102,10 @@ class PLDAFactory(object):
                 update_mu=update_mu,
                 update_V=update_V,
                 update_W=update_W,
+                prior=prior,
+                r_mu=r_mu,
+                r_V=r_V,
+                r_W=r_W,
                 name=name,
                 **kwargs,
             )
@@ -95,6 +119,10 @@ class PLDAFactory(object):
                 update_V=update_V,
                 update_U=update_U,
                 update_D=update_D,
+                prior=prior,
+                r_mu=r_mu,
+                r_V=r_V,
+                r_W=r_W,
                 name=name,
                 **kwargs,
             )
@@ -216,6 +244,38 @@ class PLDAFactory(object):
             type=float,
             default=1e-5,
             help="Minimum allowable value for the inverse of each D entry.",
+        )
+        parser.add_argument(
+            "--prior",
+            default=None,
+            help="Prior PLDA model file for Bayesian adaptation.",
+        )
+        parser.add_argument(
+            "--r-mu",
+            type=float,
+            default=24.0,
+            help="Relevance factor for adapting mu in Bayesian training.",
+        )
+        parser.add_argument(
+            "--r-V",
+            type=float,
+            default=128.0,
+            help="Relevance factor for adapting V in Bayesian training.",
+        )
+        parser.add_argument(
+            "--r-B",
+            type=float,
+            default=256.0,
+            help="Relevance factor for adapting B in Bayesian training.",
+        )
+        parser.add_argument(
+            "--r-W",
+            type=float,
+            default=None,
+            help=(
+                "Relevance factor for adapting W in Bayesian training "
+                "(defaults to 256 for FRPLDA/SPLDA, 128 for PLDA)."
+            ),
         )
 
         parser.add_argument(

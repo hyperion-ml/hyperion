@@ -735,6 +735,11 @@ class InfoTable:
                 "transcript_normalized": "string",
                 "sentence_domain": "string",
                 "iarpa_arts_age": "string",
+                "voxprofile_broad_accent": "string",
+                "voxprofile_demographics_sex": "string",
+                "voxprofile_emotion_categorical": "string",
+                "voxprofile_fluency": "string",
+                "voxprofile_narrow_accent": "string",
             }
             df = pd.read_csv(file_path, sep=sep, dtype=fixed_dtypes)
 
@@ -948,7 +953,7 @@ class InfoTable:
         data_type = infer_dtype(series, skipna=True)
         fig, ax = plt.subplots()
 
-        if np.issubdtype(series.dtype, np.number):
+        if is_numeric_dtype(series):
             num_bins = bins if bins is not None else 10
             if kind == "bar":
                 ax.hist(
@@ -1359,7 +1364,9 @@ class InfoTable:
             self.df.loc[right_table.id, column] = right_table[column].astype(dtype)
 
     def harmonize_columns_by_majority_vote(
-        self, voter_columns: Union[str, List[str]], target_columns: Union[str, List[str]]
+        self,
+        voter_columns: Union[str, List[str]],
+        target_columns: Union[str, List[str]],
     ) -> None:
         """
         Force all rows sharing ``voter_columns`` to take the majority value on ``target_columns``.
@@ -1377,7 +1384,8 @@ class InfoTable:
         missing_voters = [col for col in voter_columns if col not in self.df.columns]
         if missing_voters:
             raise KeyError(
-                "Voting columns not found in table: " + ", ".join(map(str, missing_voters))
+                "Voting columns not found in table: "
+                + ", ".join(map(str, missing_voters))
             )
 
         if isinstance(target_columns, str):
@@ -1406,7 +1414,9 @@ class InfoTable:
 
         for column in target_columns:
             majority_buffer = pd.Series(pd.NA, index=valid_df.index, dtype="object")
-            prob_column = f"{column}_prob" if f"{column}_prob" in self.df.columns else None
+            prob_column = (
+                f"{column}_prob" if f"{column}_prob" in self.df.columns else None
+            )
             prob_buffer = (
                 pd.Series(np.nan, index=valid_df.index, dtype="float64")
                 if prob_column is not None
@@ -1460,7 +1470,9 @@ class InfoTable:
                     self.df.loc[prob_values.index, prob_column] = prob_values
 
     def harmonize_columns_by_average(
-        self, voter_columns: Union[str, List[str]], target_columns: Union[str, List[str]]
+        self,
+        voter_columns: Union[str, List[str]],
+        target_columns: Union[str, List[str]],
     ) -> None:
         """
         Force all rows sharing ``voter_columns`` to take the average value on ``target_columns``.
@@ -1479,7 +1491,8 @@ class InfoTable:
         missing_voters = [col for col in voter_columns if col not in self.df.columns]
         if missing_voters:
             raise KeyError(
-                "Voting columns not found in table: " + ", ".join(map(str, missing_voters))
+                "Voting columns not found in table: "
+                + ", ".join(map(str, missing_voters))
             )
 
         if isinstance(target_columns, str):
@@ -1516,6 +1529,329 @@ class InfoTable:
                 pass
 
             self.df.loc[update_index, column] = averaged_values
+
+    def harmonize_age_given_decade(
+        self,
+        voter_columns: Union[str, List[str]],
+        target_column: str,
+        decade_column: str = "age_decade",
+    ) -> None:
+        """
+        Force all rows sharing ``voter_columns`` to take the averaged age in ``target_column``,
+        constrained by the decade labels in ``decade_column``.
+
+        If the averaged age falls outside the decade bounds, the age is set to the
+        upper boundary for that decade.
+
+        Args:
+            voter_columns (Union[str, List[str]]): Column(s) defining the group used for averaging.
+            target_column (str): Numeric age column to harmonize.
+            decade_column (str): Column indicating the age decade labels.
+
+        Raises:
+            KeyError: If the voter, target, or decade columns are missing.
+            TypeError: If the target column is not numeric.
+        """
+        if isinstance(voter_columns, str):
+            voter_columns = [voter_columns]
+
+        missing_voters = [col for col in voter_columns if col not in self.df.columns]
+        if missing_voters:
+            raise KeyError(
+                "Voting columns not found in table: "
+                + ", ".join(map(str, missing_voters))
+            )
+
+        if target_column not in self.df.columns:
+            raise KeyError(f"Column not found in table: {target_column}")
+
+        if decade_column not in self.df.columns:
+            raise KeyError(f"Column not found in table: {decade_column}")
+
+        if not is_numeric_dtype(self.df[target_column]):
+            raise TypeError(
+                f"Column '{target_column}' must be numeric to harmonize by averaging."
+            )
+
+        decade_bounds = {
+            "teens": (10, 19),
+            "twenties": (20, 29),
+            "thirties": (30, 39),
+            "forties": (40, 49),
+            "fourties": (40, 49),
+            "fifties": (50, 59),
+            "sixties": (60, 69),
+            "seventies": (70, 79),
+            "eighties": (80, 89),
+            "nineties": (90, 99),
+        }
+
+        def _majority_vote(series: pd.Series) -> Any:
+            votes = series.dropna()
+            if votes.empty:
+                return pd.NA
+            counts = votes.value_counts()
+            return counts.index[0]
+
+        valid_voters_mask = self.df[voter_columns].notna().all(axis=1)
+        if not valid_voters_mask.any():
+            return
+
+        valid_df = self.df.loc[valid_voters_mask]
+        grouped = valid_df.groupby(voter_columns, dropna=False, sort=False)
+        age_buffer = pd.Series(np.nan, index=valid_df.index, dtype="float64")
+        unknown_decades = set()
+
+        for idx in grouped.groups.values():
+            group_ages = pd.to_numeric(
+                valid_df.loc[idx, target_column], errors="coerce"
+            )
+            if group_ages.dropna().empty:
+                continue
+
+            average = float(group_ages.mean())
+            decade_value = _majority_vote(valid_df.loc[idx, decade_column])
+            if not pd.isna(decade_value):
+                decade_key = str(decade_value).strip().lower()
+                bounds = decade_bounds.get(decade_key)
+                if bounds is None:
+                    unknown_decades.add(decade_key)
+                else:
+                    lower, upper = bounds
+                    if average < lower or average > upper:
+                        average = float(upper)
+
+            age_buffer.loc[idx] = average
+
+        mask = age_buffer.notna()
+        if mask.any():
+            values = age_buffer[mask]
+            try:
+                values = values.astype(self.df[target_column].dtype)
+            except (TypeError, ValueError):
+                pass
+            self.df.loc[values.index, target_column] = values
+
+        if unknown_decades:
+            logging.warning(
+                "Unknown decade labels encountered in %s: %s",
+                decade_column,
+                ", ".join(sorted(unknown_decades)),
+            )
+
+    def harmonize_column_by_majority_cluster(
+        self,
+        voter_columns: Union[str, List[str]],
+        target_column: str,
+        suspect_column: str = "suspect",
+        std_threshold: Optional[float] = None,
+        max_iter: int = 20,
+    ) -> None:
+        """
+        Harmonize a numeric column using the dominant cluster within each voter group,
+        while flagging rows from the smaller cluster as suspect.
+
+        If ``std_threshold`` is provided, clustering is only performed when the group's
+        standard deviation exceeds the threshold.
+
+        The standard deviation of the dominant cluster is stored in a column named
+        ``f"{target_column}_std"`` for the non-suspect rows.
+
+        Args:
+            voter_columns (Union[str, List[str]]): Column(s) defining the group used for averaging.
+            target_column (str): Numeric column to harmonize.
+            suspect_column (str): Column used to flag suspect rows.
+            std_threshold (Optional[float]): If set, only split groups above this std.
+            max_iter (int): Maximum iterations for the 1D two-means refinement.
+
+        Raises:
+            KeyError: If the voter or target columns are missing.
+            TypeError: If the target column is not numeric.
+        """
+        # Normalize voter_columns to a list.
+        if isinstance(voter_columns, str):
+            voter_columns = [voter_columns]
+
+        # Validate that all voter columns exist.
+        missing_voters = [col for col in voter_columns if col not in self.df.columns]
+        if missing_voters:
+            raise KeyError(
+                "Voting columns not found in table: "
+                + ", ".join(map(str, missing_voters))
+            )
+
+        # Validate that the target column exists.
+        if target_column not in self.df.columns:
+            raise KeyError(f"Column not found in table: {target_column}")
+
+        # Ensure the target column is numeric.
+        if not is_numeric_dtype(self.df[target_column]):
+            raise TypeError(
+                f"Column '{target_column}' must be numeric to harmonize by averaging."
+            )
+
+        # Compute the std column name once.
+        std_column = f"{target_column}_std"
+
+        # Keep only rows with all voter columns present.
+        valid_voters_mask = self.df[voter_columns].notna().all(axis=1)
+        if not valid_voters_mask.any():
+            return
+
+        # Ensure the suspect column exists and reset it for valid rows.
+        if suspect_column not in self.df.columns:
+            self.df[suspect_column] = False
+        self.df.loc[valid_voters_mask, suspect_column] = False
+
+        # Ensure the std column exists and reset it for valid rows.
+        if std_column not in self.df.columns:
+            self.df[std_column] = np.nan
+        self.df.loc[valid_voters_mask, std_column] = np.nan
+
+        # Track the original dtype to restore if possible.
+        target_dtype = self.df[target_column].dtype
+        # Work only with rows that have valid voter columns.
+        valid_df = self.df.loc[valid_voters_mask]
+        # Build groups for the voter columns.
+        grouped = valid_df.groupby(voter_columns, dropna=False, sort=False)
+
+        # Process each voter group separately.
+        for idx in grouped.groups.values():
+            # Coerce the target values to numeric for clustering.
+            group_values = pd.to_numeric(
+                valid_df.loc[idx, target_column], errors="coerce"
+            )
+            # Drop rows without a numeric target value.
+            valid_values = group_values.dropna()
+            if valid_values.empty:
+                continue
+
+            # If only one value exists, it is the dominant cluster.
+            if valid_values.size == 1:
+                dominant_mean = float(valid_values.iloc[0])
+                dominant_std = 0.0
+                update_index = group_values.index
+                update_values = pd.Series(dominant_mean, index=update_index)
+                try:
+                    update_values = update_values.astype(target_dtype)
+                except (TypeError, ValueError):
+                    pass
+                self.df.loc[update_index, target_column] = update_values
+                self.df.loc[update_index, std_column] = dominant_std
+                continue
+
+            # If std is below the threshold, skip clustering and use the mean.
+            if std_threshold is not None:
+                group_std = float(valid_values.std())
+                if np.isfinite(group_std) and group_std <= std_threshold:
+                    dominant_mean = float(valid_values.mean())
+                    dominant_std = group_std
+                    update_index = group_values.index
+                    update_values = pd.Series(dominant_mean, index=update_index)
+                    try:
+                        update_values = update_values.astype(target_dtype)
+                    except (TypeError, ValueError):
+                        pass
+                    self.df.loc[update_index, target_column] = update_values
+                    self.df.loc[update_index, std_column] = dominant_std
+                    continue
+
+            # Initialize two centers using quartiles for a 1D two-means split.
+            values_array = valid_values.to_numpy(dtype=float)
+            centers = np.percentile(values_array, [25, 75]).astype(float)
+            # If the centers collapse, fall back to the overall mean.
+            if np.isclose(centers[0], centers[1]):
+                dominant_mean = float(values_array.mean())
+                dominant_std = float(valid_values.std())
+                update_index = group_values.index
+                update_values = pd.Series(dominant_mean, index=update_index)
+                try:
+                    update_values = update_values.astype(target_dtype)
+                except (TypeError, ValueError):
+                    pass
+                self.df.loc[update_index, target_column] = update_values
+                self.df.loc[update_index, std_column] = dominant_std
+                continue
+
+            # Iterate 1D k-means refinement for two clusters.
+            labels = None
+            for _ in range(max_iter):
+                # Assign each point to the closest center.
+                distances = np.abs(values_array[:, None] - centers[None, :])
+                new_labels = distances.argmin(axis=1)
+                # Recompute centers from the assigned points.
+                new_centers = centers.copy()
+                empty_cluster = False
+                for cluster_idx in range(2):
+                    cluster_values = values_array[new_labels == cluster_idx]
+                    if cluster_values.size == 0:
+                        empty_cluster = True
+                        break
+                    new_centers[cluster_idx] = cluster_values.mean()
+                # Abort if any cluster becomes empty.
+                if empty_cluster:
+                    labels = None
+                    break
+                # Stop if labels stabilize.
+                if labels is not None and np.array_equal(new_labels, labels):
+                    centers = new_centers
+                    labels = new_labels
+                    break
+                # Stop if centers stop moving.
+                if np.allclose(new_centers, centers):
+                    centers = new_centers
+                    labels = new_labels
+                    break
+                centers = new_centers
+                labels = new_labels
+
+            # If clustering failed, fall back to the overall mean.
+            if labels is None:
+                dominant_mean = float(values_array.mean())
+                dominant_std = float(valid_values.std())
+                update_index = group_values.index
+                update_values = pd.Series(dominant_mean, index=update_index)
+                try:
+                    update_values = update_values.astype(target_dtype)
+                except (TypeError, ValueError):
+                    pass
+                self.df.loc[update_index, target_column] = update_values
+                self.df.loc[update_index, std_column] = dominant_std
+                continue
+
+            # Determine the dominant cluster by size.
+            counts = np.bincount(labels, minlength=2)
+            if counts[0] == counts[1]:
+                dominant_mean = float(values_array.mean())
+                dominant_std = float(valid_values.std())
+                update_index = group_values.index
+                update_values = pd.Series(dominant_mean, index=update_index)
+                try:
+                    update_values = update_values.astype(target_dtype)
+                except (TypeError, ValueError):
+                    pass
+                self.df.loc[update_index, target_column] = update_values
+                self.df.loc[update_index, std_column] = dominant_std
+                continue
+
+            # Compute dominant cluster stats and mark the minority as suspect.
+            dominant_label = int(counts.argmax())
+            dominant_mask = labels == dominant_label
+            dominant_mean = float(values_array[dominant_mask].mean())
+            dominant_std = float(values_array[dominant_mask].std())
+            suspect_idx = valid_values.index[~dominant_mask]
+            if len(suspect_idx) > 0:
+                self.df.loc[suspect_idx, suspect_column] = True
+
+            # Update all rows in the group to keep suspect rows aligned with the dominant cluster.
+            update_index = group_values.index
+            update_values = pd.Series(dominant_mean, index=update_index)
+            try:
+                update_values = update_values.astype(target_dtype)
+            except (TypeError, ValueError):
+                pass
+            self.df.loc[update_index, target_column] = update_values
+            self.df.loc[update_index, std_column] = dominant_std
 
     @classmethod
     def merge(
